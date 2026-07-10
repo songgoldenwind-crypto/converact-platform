@@ -124,7 +124,9 @@ test('production compose gates databases PgBouncer and object storage', () => {
 
   const pgbouncer = readServiceBlock(compose, 'pgbouncer');
   assert.match(pgbouncer, /postgres-bootstrap:\n\s+condition: service_completed_successfully/);
-  assert.match(pgbouncer, /healthcheck:[\s\S]*pg_isready[\s\S]*-p 6432/);
+  assert.match(pgbouncer, /healthcheck:[\s\S]*psql -X[\s\S]*-p 6432/);
+  assert.match(pgbouncer, /-Atqc 'SELECT 1' >\/dev\/null 2>&1/);
+  assert.doesNotMatch(pgbouncer, /pg_isready/);
   assert.match(pgbouncer, /PGPASSWORD=\$\$POSTGRESQL_PASSWORD/);
   assert.match(
     readServiceBlock(compose, 'keycloak'),

@@ -53,7 +53,7 @@ services:
       postgres-bootstrap:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRESQL_PASSWORD pg_isready -h 127.0.0.1 -p 6432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE"]
+      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRESQL_PASSWORD psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 6432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE -Atqc 'SELECT 1' >/dev/null 2>&1"]
       interval: 5s
       timeout: 3s
       retries: 10

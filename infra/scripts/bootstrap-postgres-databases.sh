@@ -44,6 +44,10 @@ for database in $databases; do
   verified=$(psql -X -h "$host" -p "$port" -U "$user" -d "$maintenance_database" \
     -v ON_ERROR_STOP=1 -At -c "SELECT 1 FROM pg_database WHERE datname = '$database'")
   [ "$verified" = '1' ] || fail "database verification failed: $database"
+
+  owner=$(psql -X -h "$host" -p "$port" -U "$user" -d "$maintenance_database" \
+    -v ON_ERROR_STOP=1 -At -c "SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$database'")
+  [ "$owner" = "$user" ] || fail "database owner verification failed: $database"
   printf 'postgres bootstrap: %s ready\n' "$database"
 done
 IFS=$old_ifs

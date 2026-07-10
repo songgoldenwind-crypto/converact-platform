@@ -34,6 +34,7 @@ Create `infra/scripts/bootstrap-postgres-databases.sh` with these properties:
 - accepts a comma-separated database list from `OPC_POSTGRES_BOOTSTRAP_DATABASES`;
 - permits only a fixed allowlist: `opc`, `keycloak`, `tinode`, `chatwoot`;
 - creates a database only when it does not already exist;
+- verifies that every requested database is owned by `opc` and fails closed on an existing owner mismatch;
 - never logs the PostgreSQL password or a connection URL;
 - exits non-zero for an empty list, unsupported name, connection failure, or create failure;
 - verifies every requested database after creation;
@@ -55,7 +56,7 @@ The bootstrap service does not run OPC migrations. OPC remains responsible for i
 
 ### 3.3 PgBouncer Readiness
 
-Add a PgBouncer health check using `pg_isready` against port 6432 so it proves a real PostgreSQL connection through the pooler, not merely that the container process exists. OPC waits for `pgbouncer: service_healthy`.
+Add a PgBouncer health check using an authenticated `psql SELECT 1` against port 6432 so it proves credentials, database access, and a real query through the pooler, not merely that the container accepts connections. OPC waits for `pgbouncer: service_healthy`.
 
 The check must use the configured `opc` user and `opc` database without printing the password. A failed pooler prevents OPC startup instead of producing delayed connection errors.
 

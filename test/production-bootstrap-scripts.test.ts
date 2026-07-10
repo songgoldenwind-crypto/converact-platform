@@ -38,6 +38,11 @@ case "$*" in
     if [ "\${FAKE_PSQL_CREATE_FAIL:-0}" = "1" ]; then exit 9; fi
     : > "$FAKE_PSQL_STATE/$database"
     ;;
+  *"SELECT r.rolname FROM pg_database"*)
+    if [ -f "$FAKE_PSQL_STATE/$database" ]; then
+      if [ "\${FAKE_PSQL_WRONG_OWNER:-0}" = "1" ]; then printf 'postgres\n'; else printf 'opc\n'; fi
+    fi
+    ;;
   *"SELECT 1 FROM pg_database"*)
     if [ -f "$FAKE_PSQL_STATE/$database" ]; then printf '1\n'; fi
     ;;
@@ -70,6 +75,7 @@ function createPostgresFixture(overrides: NodeJS.ProcessEnv = {}) {
   return {
     env,
     logFile,
+    stateDir,
     run: () => spawnSync('sh', [POSTGRES_SCRIPT], { cwd: ROOT, env, encoding: 'utf8' })
   };
 }
@@ -191,6 +197,19 @@ test('PostgreSQL bootstrap propagates create failures without leaking secrets', 
   assert.notEqual(result.status, 0);
   assert.match(readFileSync(fixture.logFile, 'utf8'), /CREATE DATABASE "keycloak"/);
   assert.equal(`${result.stdout}${result.stderr}`.includes('postgres-test-secret'), false);
+});
+
+test('PostgreSQL bootstrap rejects an existing database owned by another role', () => {
+  const fixture = createPostgresFixture({
+    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'keycloak',
+    FAKE_PSQL_WRONG_OWNER: '1'
+  });
+  writeFileSync(join(fixture.stateDir, 'keycloak'), '', 'utf8');
+  const result = fixture.run();
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /database owner verification failed: keycloak/);
+  assert.doesNotMatch(readFileSync(fixture.logFile, 'utf8'), /CREATE DATABASE/);
 });
 
 test('MinIO bootstrap retries, creates a private bucket, and verifies it', () => {
