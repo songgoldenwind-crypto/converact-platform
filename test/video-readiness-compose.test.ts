@@ -104,6 +104,81 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.equal(opcEnvironment.OPC_API_KEY, '${OPC_API_KEY}');
 });
 
+test('production compose gates databases PgBouncer and object storage', () => {
+  const compose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
+  const postgresBootstrap = readServiceBlock(compose, 'postgres-bootstrap');
+  const postgresBootstrapEnvironment = readServiceEnvironment(compose, 'postgres-bootstrap');
+
+  assert.match(postgresBootstrap, /image: postgres:16-alpine/);
+  assert.match(postgresBootstrap, /entrypoint: \["\/bin\/sh", "\/bootstrap\/bootstrap-postgres-databases\.sh"\]/);
+  assert.equal(postgresBootstrapEnvironment.POSTGRES_HOST, 'postgres');
+  assert.equal(postgresBootstrapEnvironment.POSTGRES_USER, 'opc');
+  assert.equal(postgresBootstrapEnvironment.OPC_POSTGRES_BOOTSTRAP_DATABASES, 'keycloak');
+  assert.ok(
+    readServiceVolumes(compose, 'postgres-bootstrap').includes(
+      './scripts/bootstrap-postgres-databases.sh:/bootstrap/bootstrap-postgres-databases.sh:ro'
+    )
+  );
+  assert.match(postgresBootstrap, /postgres:\n\s+condition: service_healthy/);
+  assert.match(postgresBootstrap, /restart: "no"/);
+
+  const pgbouncer = readServiceBlock(compose, 'pgbouncer');
+  assert.match(pgbouncer, /postgres-bootstrap:\n\s+condition: service_completed_successfully/);
+  assert.match(pgbouncer, /healthcheck:[\s\S]*pg_isready[\s\S]*-p 6432/);
+  assert.match(pgbouncer, /PGPASSWORD=\$\$POSTGRESQL_PASSWORD/);
+  assert.match(
+    readServiceBlock(compose, 'keycloak'),
+    /postgres-bootstrap:\n\s+condition: service_completed_successfully/
+  );
+
+  const minioInit = readServiceBlock(compose, 'minio-init');
+  const minioInitEnvironment = readServiceEnvironment(compose, 'minio-init');
+  assert.match(minioInit, /image: minio\/mc:RELEASE\.2025-08-13T08-35-41Z/);
+  assert.equal(minioInitEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
+  assert.equal(minioInitEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
+  assert.equal(minioInitEnvironment.MINIO_INIT_MAX_ATTEMPTS, '${MINIO_INIT_MAX_ATTEMPTS:-30}');
+  assert.equal(minioInitEnvironment.MINIO_INIT_RETRY_SECONDS, '${MINIO_INIT_RETRY_SECONDS:-2}');
+  assert.ok(
+    readServiceVolumes(compose, 'minio-init').includes(
+      './scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro'
+    )
+  );
+  assert.match(minioInit, /minio:\n\s+condition: service_started/);
+  assert.match(minioInit, /restart: "no"/);
+
+  for (const serviceName of ['livekit-egress', 'rustpbx', 'opc']) {
+    assert.match(
+      readServiceBlock(compose, serviceName),
+      /minio-init:\n\s+condition: service_completed_successfully/
+    );
+  }
+  assert.match(readServiceBlock(compose, 'opc'), /pgbouncer:\n\s+condition: service_healthy/);
+});
+
+test('self-hosted Tinode extends database bootstrap and waits for it', () => {
+  const overlay = readFileSync(PRODUCTION_TINODE_COMPOSE_PATH, 'utf8');
+
+  assert.equal(
+    readServiceEnvironment(overlay, 'postgres-bootstrap').OPC_POSTGRES_BOOTSTRAP_DATABASES,
+    'keycloak,tinode'
+  );
+  assert.match(
+    readServiceBlock(overlay, 'tinode'),
+    /postgres-bootstrap:\n\s+condition: service_completed_successfully/
+  );
+  assert.match(readServiceBlock(overlay, 'opc'), /tinode:\n\s+condition: service_started/);
+});
+
+test('Chatwoot is opt-in and production bootstrap remains PostgreSQL-only', () => {
+  const compose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
+  const envExample = readFileSync(PRODUCTION_ENV_PATH, 'utf8');
+
+  assert.match(readServiceBlock(compose, 'chatwoot'), /profiles: \["omnichannel"\]/);
+  assert.doesNotMatch(compose, /sqlite|OPC_DB_PATH/i);
+  assert.match(envExample, /^MINIO_INIT_MAX_ATTEMPTS=30$/m);
+  assert.match(envExample, /^MINIO_INIT_RETRY_SECONDS=2$/m);
+});
+
 test('compose media ports and Egress Redis match the LiveKit runtime configuration', () => {
   const localCompose = readFileSync(COMPOSE_PATH, 'utf8');
   const productionCompose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');

@@ -19,6 +19,23 @@ services:
       timeout: 3s
       retries: 5
 
+  postgres-bootstrap:
+    image: postgres:16-alpine
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-postgres-databases.sh"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: opc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_MAINTENANCE_DATABASE: postgres
+      OPC_POSTGRES_BOOTSTRAP_DATABASES: keycloak
+    volumes:
+      - ./scripts/bootstrap-postgres-databases.sh:/bootstrap/bootstrap-postgres-databases.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   pgbouncer:
     image: bitnami/pgbouncer:latest
     environment:
@@ -33,8 +50,13 @@ services:
     ports:
       - "6432:6432"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRESQL_PASSWORD pg_isready -h 127.0.0.1 -p 6432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -69,6 +91,23 @@ services:
     volumes:
       - minio_data:/data
 
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-minio-bucket.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-recordings}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_INIT_MAX_ATTEMPTS: ${MINIO_INIT_MAX_ATTEMPTS:-30}
+      MINIO_INIT_RETRY_SECONDS: ${MINIO_INIT_RETRY_SECONDS:-2}
+    volumes:
+      - ./scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro
+    depends_on:
+      minio:
+        condition: service_started
+    restart: "no"
+
   # --- Auth ---
   keycloak:
     image: quay.io/keycloak/keycloak:25.0
@@ -85,8 +124,8 @@ services:
     ports:
       - "8180:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
 
   # --- Media Layer ---
   livekit:
@@ -121,9 +160,12 @@ services:
     volumes:
       - ${OPC_MEDIA_CONFIG_DIR:-../.runtime/media}/egress.yaml:/etc/egress.yaml:ro
     depends_on:
-      - livekit
-      - redis
-      - minio
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
   kamailio:
     image: kamailio/kamailio:5.8
@@ -144,8 +186,10 @@ services:
       - rustpbx_data:/app/db
       - rustpbx_recordings:/app/recordings
     depends_on:
-      - redis
-      - minio
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
   rustdesk-hbbs:
     image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
@@ -307,11 +351,18 @@ services:
       CHATWOOT_URL: http://chatwoot:3000
       CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
     depends_on:
-      - pgbouncer
-      - redis
-      - nats
-      - livekit
-      - rustpbx
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      livekit:
+        condition: service_started
+      rustpbx:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
     volumes:
       - rustdesk_data:/rustdesk:ro
 
@@ -335,6 +386,7 @@ services:
   # --- Omnichannel ---
   chatwoot:
     image: chatwoot/chatwoot:latest
+    profiles: ["omnichannel"]
     environment:
       RAILS_ENV: production
       SECRET_KEY_BASE: ${CHATWOOT_SECRET}

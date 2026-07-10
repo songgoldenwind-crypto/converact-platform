@@ -3,6 +3,10 @@
 #   -f infra/docker-compose.production.yml -f infra/docker-compose.tinode.yml up -d
 
 services:
+  postgres-bootstrap:
+    environment:
+      OPC_POSTGRES_BOOTSTRAP_DATABASES: keycloak,tinode
+
   tinode:
     image: tinode/tinode:${TINODE_IMAGE_TAG:-0.25.3}
     restart: unless-stopped
@@ -22,15 +26,16 @@ services:
     volumes:
       - tinode_botdata:/botdata
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-bootstrap:
+        condition: service_completed_successfully
 
   opc:
     environment:
       TINODE_BASE_URL: ${TINODE_BASE_URL:-http://tinode:6060}
       TINODE_WS_URL: ${TINODE_WS_URL:-ws://tinode:6060/v0/channels}
     depends_on:
-      - tinode
+      tinode:
+        condition: service_started
 
 volumes:
   tinode_botdata:
