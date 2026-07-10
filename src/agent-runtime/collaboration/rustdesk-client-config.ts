@@ -1,0 +1,94 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+export type RustDeskPublicKeySource = 'env' | 'file' | 'none';
+
+export interface RustDeskPublicKeyInfo {
+  value: string;
+  source: RustDeskPublicKeySource;
+  file_path: string;
+  error?: string;
+}
+
+export interface RustDeskClientConfig {
+  provider: 'rustdesk';
+  id_server: string;
+  relay_server: string;
+  api_server: string;
+  api_server_error?: string;
+  public_key: string;
+  public_key_source: RustDeskPublicKeySource;
+  public_key_file: string;
+  public_key_configured: boolean;
+  public_key_error?: string;
+  server_key_fingerprint: string;
+  manual_fields: {
+    id_server: string;
+    relay_server: string;
+    api_server?: string;
+    key: string;
+  };
+}
+
+export function rustDeskPublicKey(): RustDeskPublicKeyInfo {
+  const envValue = String(process.env.OPC_RUSTDESK_PUBLIC_KEY || '').trim();
+  if (envValue) return { value: envValue, source: 'env', file_path: '' };
+  const filePath = String(process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE || '').trim();
+  if (!filePath) return { value: '', source: 'none', file_path: '' };
+  try {
+    const fileValue = readFileSync(filePath, 'utf8').trim();
+    if (fileValue) return { value: fileValue, source: 'file', file_path: filePath };
+  } catch {
+    return { value: '', source: 'none', file_path: filePath, error: `RustDesk public key file cannot be read: ${filePath}` };
+  }
+  return { value: '', source: 'none', file_path: filePath, error: `RustDesk public key file is empty: ${filePath}` };
+}
+
+export function rustDeskServerKeyFingerprint(): string {
+  const publicKey = rustDeskPublicKey();
+  const key = publicKey.value || String(process.env.OPC_RUSTDESK_SERVER_KEY || '').trim();
+  if (!key) return '';
+  return `sha256:${createHash('sha256').update(key).digest('hex').slice(0, 16)}`;
+}
+
+export function rustDeskApiServer(): { value: string; error?: string } {
+  const value = String(process.env.OPC_RUSTDESK_API_SERVER || '').trim();
+  if (!value) return { value: '' };
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return { value, error: 'RustDesk API server must be a valid URL' };
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { value, error: 'RustDesk API server must use http(s)' };
+  }
+  return { value };
+}
+
+export function rustDeskClientConfig(): RustDeskClientConfig {
+  const publicKey = rustDeskPublicKey();
+  const idServer = String(process.env.OPC_RUSTDESK_ID_SERVER || '').trim();
+  const relayServer = String(process.env.OPC_RUSTDESK_RELAY_SERVER || '').trim();
+  const apiServer = rustDeskApiServer();
+  const manualFields = {
+    id_server: idServer,
+    relay_server: relayServer,
+    ...(apiServer.value ? { api_server: apiServer.value } : {}),
+    key: publicKey.value
+  };
+  return {
+    provider: 'rustdesk',
+    id_server: idServer,
+    relay_server: relayServer,
+    api_server: apiServer.value,
+    ...(apiServer.error ? { api_server_error: apiServer.error } : {}),
+    public_key: publicKey.value,
+    public_key_source: publicKey.source,
+    public_key_file: publicKey.file_path,
+    public_key_configured: Boolean(publicKey.value),
+    ...(publicKey.error ? { public_key_error: publicKey.error } : {}),
+    server_key_fingerprint: rustDeskServerKeyFingerprint(),
+    manual_fields: manualFields
+  };
+}

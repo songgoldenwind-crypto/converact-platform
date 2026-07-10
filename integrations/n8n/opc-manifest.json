@@ -1,0 +1,45 @@
+{
+  "name": "opc-call-center",
+  "version": "1.0.0",
+  "description": "OPC Call Center triggers/actions for n8n / Zapier-style automation",
+  "triggers": [
+    {
+      "id": "call.completed",
+      "label": "Call Completed",
+      "webhook": true,
+      "payload_fields": ["call_session_id", "duration_sec", "disposition"]
+    },
+    {
+      "id": "sentiment.alert",
+      "label": "Angry Sentiment Detected",
+      "webhook": true,
+      "payload_fields": ["call_session_id", "label", "score", "snippet"]
+    },
+    {
+      "id": "omni.message",
+      "label": "Omnichannel Inbound Message",
+      "webhook": true,
+      "payload_fields": ["conversation_id", "channel", "direction"]
+    }
+  ],
+  "actions": [
+    {
+      "id": "create_outbound_task",
+      "label": "Create Outbound Task",
+      "method": "POST",
+      "path": "/api/call-center/outbound-tasks"
+    },
+    {
+      "id": "schedule_sms",
+      "label": "Schedule SMS Notification",
+      "method": "POST",
+      "path": "/api/call-center/omni/notifications/schedule"
+    },
+    {
+      "id": "batch_analyze_recordings",
+      "label": "Batch Analyze Recordings",
+      "method": "POST",
+      "path": "/api/call-center/recordings/batch-analyze"
+    }
+  ]
+}

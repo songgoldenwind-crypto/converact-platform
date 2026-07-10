@@ -1,0 +1,223 @@
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import { test } from 'node:test';
+
+type FetchCall = {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: string | null;
+};
+
+test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat facade', async () => {
+  const sdkPath = 'src/agent-runtime/ivekit/http-sdk.ts';
+  assert.equal(existsSync(sdkPath), true);
+  const source = readFileSync(sdkPath, 'utf8');
+  assert.doesNotMatch(source, /collaboration-store|db-pg|livekit\/index|media-http|chat-http/);
+  assert.doesNotMatch(source, /\bpublish(?:Message)?\s*\(/);
+
+  const module = await import('../src/agent-runtime/ivekit/http-sdk.js');
+  const calls: FetchCall[] = [];
+  const responses: Array<{ status?: number; body: unknown; headers?: Record<string, string> }> = [
+    { body: { id: 'room_1', room_name: 'led-room' } },
+    { body: { mode: 'webrtc', token: { token: 'join-token' } } },
+    { body: [{ identity: 'agent-led' }] },
+    { body: { id: 'rec_1', egress_id: 'egress_1' } },
+    {
+      body: new Uint8Array([1, 2, 3]),
+      headers: {
+        'content-type': 'video/webm',
+        'content-disposition': 'attachment; filename="recording.webm"'
+      }
+    },
+    { body: { id: 'collab_1' } },
+    { body: { provider: 'tinode', provider_topic_id: 'grp_1' } },
+    { body: { message: { id: 'cmsg_1' } } },
+    { body: { unread_count: 0, receipts: [] } },
+    { body: { state: { typing: true } } },
+    { body: { message: { id: 'cmsg_1', edit_version: 1 } } },
+    { body: { kind: 'image', storage_url: 's3://bucket/image.png' } },
+    { body: { finding: { id: 'finding_1', review_status: 'confirmed' } } }
+  ];
+  const fetchImpl = async (input: string | URL, init: RequestInit = {}) => {
+    calls.push({
+      url: String(input),
+      method: init.method || 'GET',
+      headers: headersToRecord(init.headers),
+      body: typeof init.body === 'string' ? init.body : null
+    });
+    const response = responses.shift();
+    assert.ok(response);
+    if (response.body instanceof Uint8Array) {
+      return new Response(response.body, { status: response.status || 200, headers: response.headers });
+    }
+    return new Response(JSON.stringify(response.body), {
+      status: response.status || 200,
+      headers: { 'content-type': 'application/json', ...(response.headers || {}) }
+    });
+  };
+  const sdk = module.createIveKitHttpSdk({
+    baseUrl: 'https://opc.example.com/root/',
+    apiKey: 'opc-key',
+    tenantId: 'tenant-led',
+    userId: 'agent-led',
+    fetch: fetchImpl
+  });
+
+  for (const method of [
+    'getCapabilities', 'createRoom', 'getRoom', 'closeRoom', 'createJoinPlan',
+    'listParticipants', 'startRecording', 'stopRecording', 'listRecordings',
+    'getRecording', 'inspectRecordingObject', 'exportRecordingObject', 'cleanupRecordings'
+  ]) assert.equal(typeof sdk.media[method], 'function', `missing media.${method}`);
+  for (const method of [
+    'getCapabilities', 'openSession', 'listSessionsByBusinessRef', 'bindSession',
+    'createClientPlan', 'addParticipant', 'leaveParticipant', 'listMessages',
+    'postMessage', 'getSnapshot', 'getDelivery', 'retryDelivery', 'listReceipts',
+    'markReceipt', 'getMessageState', 'setTyping', 'setPresence', 'listRealtimeState',
+    'editMessage', 'deleteMessage', 'listMutations', 'uploadAttachment', 'getAttachment',
+    'retryAttachment', 'listFindings', 'getFinding', 'reviewFinding', 'getQualityReview',
+    'enqueueQualityReview', 'runAttachmentProcessing', 'runQualityReview'
+  ]) assert.equal(typeof sdk.chat[method], 'function', `missing chat.${method}`);
+
+  await sdk.media.createRoom({
+    purpose: 'video_service',
+    room_name: 'led-room',
+    business_ref: { type: 'service_order', id: 'SO-1' }
+  });
+  await sdk.media.createJoinPlan('led-room', {
+    identity: 'agent-led', role: 'agent', media: 'video', channel: 'webrtc'
+  });
+  await sdk.media.listParticipants('led-room', { include_left: true, limit: 25 });
+  await sdk.media.startRecording('led-room', {
+    business_ref: { type: 'service_order', id: 'SO-1' }, has_video: true
+  });
+  const exported = await sdk.media.exportRecordingObject('rec_1');
+  assert.deepEqual([...exported.bytes], [1, 2, 3]);
+  assert.equal(exported.filename, 'recording.webm');
+
+  await sdk.chat.openSession({ business_ref: { type: 'service_order', id: 'SO-1' } });
+  await sdk.chat.createClientPlan('collab_1', { identity: 'agent-led', role: 'agent' });
+  await sdk.chat.postMessage('collab_1', { sender_identity: 'agent-led', body: 'hello' }, {
+    idempotencyKey: 'led-message-1'
+  });
+  await sdk.chat.markReceipt('collab_1', 'cmsg_1', { status: 'read', identity: 'agent-led' });
+  await sdk.chat.setTyping('collab_1', { identity: 'agent-led', typing: true });
+  await sdk.chat.editMessage('collab_1', 'cmsg_1', { body: 'updated' });
+  await sdk.chat.uploadAttachment('collab_1', {
+    kind: 'image',
+    filename: 'photo.png',
+    contentType: 'image/png',
+    body: new Uint8Array([9, 8, 7])
+  });
+  await sdk.chat.reviewFinding('collab_1', 'finding_1', {
+    review_status: 'confirmed', note: 'reviewed'
+  });
+
+  assert.deepEqual(calls.map((call) => `${call.method} ${new URL(call.url).pathname}${new URL(call.url).search}`), [
+    'POST /api/ivekit/media/rooms',
+    'POST /api/ivekit/media/rooms/led-room/join',
+    'GET /api/ivekit/media/rooms/led-room/participants?include_left=1&limit=25',
+    'POST /api/ivekit/media/rooms/led-room/recordings/start',
+    'GET /api/ivekit/media/recordings/rec_1/export',
+    'POST /api/ivekit/chat/sessions',
+    'POST /api/ivekit/chat/sessions/collab_1/client-plan',
+    'POST /api/ivekit/chat/sessions/collab_1/messages',
+    'POST /api/ivekit/chat/sessions/collab_1/messages/cmsg_1/receipts',
+    'POST /api/ivekit/chat/sessions/collab_1/typing',
+    'PATCH /api/ivekit/chat/sessions/collab_1/messages/cmsg_1',
+    'POST /api/ivekit/chat/sessions/collab_1/attachments/upload?kind=image&filename=photo.png',
+    'POST /api/ivekit/chat/sessions/collab_1/findings/finding_1/review'
+  ]);
+  for (const call of calls) {
+    assert.equal(call.headers['x-api-key'], 'opc-key');
+    assert.equal(call.headers['x-tenant-id'], 'tenant-led');
+    assert.equal(call.headers['x-user-id'], 'agent-led');
+  }
+  assert.equal(calls[7]?.headers['idempotency-key'], 'led-message-1');
+  assert.equal(calls[11]?.headers['content-type'], 'image/png');
+});
+
+test('iveKit HTTP SDK keeps Bearer identity authoritative and exposes structured errors', async () => {
+  const sdkPath = 'src/agent-runtime/ivekit/http-sdk.ts';
+  assert.equal(existsSync(sdkPath), true);
+  const module = await import('../src/agent-runtime/ivekit/http-sdk.js');
+  let requestHeaders: Record<string, string> = {};
+  const sdk = module.createIveKitHttpSdk({
+    baseUrl: 'https://opc.example.com',
+    accessToken: 'jwt-token',
+    tenantId: 'tenant-led',
+    userId: 'spoofed-header-user',
+    fetch: async (_input: string | URL, init: RequestInit = {}) => {
+      requestHeaders = headersToRecord(init.headers);
+      return new Response(JSON.stringify({ error: 'active participant required' }), {
+        status: 403,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+  });
+
+  await assert.rejects(
+    () => sdk.chat.getMessageState('collab_1'),
+    (error: unknown) => {
+      assert.equal(error instanceof module.IveKitHttpSdkError, true);
+      const httpError = error as { status: number; method: string; path: string; payload: unknown };
+      assert.equal(httpError.status, 403);
+      assert.equal(httpError.method, 'GET');
+      assert.equal(httpError.path, '/api/ivekit/chat/sessions/collab_1/message-state');
+      return true;
+    }
+  );
+  assert.equal(requestHeaders.authorization, 'Bearer jwt-token');
+  assert.equal(requestHeaders['x-user-id'], undefined);
+  assert.equal(requestHeaders['x-api-key'], undefined);
+
+  assert.throws(
+    () => module.createIveKitHttpSdk({ baseUrl: 'file:///tmp/opc', apiKey: 'k', tenantId: 't' }),
+    /baseUrl must use http\(s\)/
+  );
+  assert.throws(
+    () => module.createIveKitHttpSdk({ baseUrl: 'https://opc.example.com', tenantId: 't' }),
+    /exactly one of apiKey or accessToken is required/
+  );
+  assert.throws(
+    () => module.createIveKitHttpSdk({
+      baseUrl: 'https://opc.example.com', apiKey: 'k', accessToken: 'jwt', tenantId: 't'
+    }),
+    /exactly one of apiKey or accessToken is required/
+  );
+});
+
+test('iveKit LED handoff artifacts cover SDK, extraction, deployment, and validation boundaries', () => {
+  const guidePath = 'docs/ivekit-led-integration-guide.md';
+  const apiPath = 'docs/ivekit-openapi.md';
+  const examplePath = 'scripts/ivekit-led-integration-example.ts';
+  assert.equal(existsSync(guidePath), true);
+  assert.equal(existsSync(apiPath), true);
+  assert.equal(existsSync(examplePath), true);
+
+  const guide = readFileSync(guidePath, 'utf8');
+  const api = readFileSync(apiPath, 'utf8');
+  const example = readFileSync(examplePath, 'utf8');
+  const pkg = readFileSync('package.json', 'utf8');
+  for (const marker of [
+    'Media Core', 'Collaboration Session', 'Remote Assistance', 'PostgreSQL',
+    'RLS', 'LED', 'OPC', '真实环境', '030_collaboration_message_state.sql'
+  ]) assert.match(guide, new RegExp(marker));
+  for (const marker of [
+    '/api/ivekit/media', '/api/ivekit/chat', '/api/ivekit/rustdesk',
+    'Idempotency-Key', 'collaboration.message.receipt_updated', 'JRP', 'direct_client_publish=false'
+  ]) assert.match(api, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(example, /createIveKitHttpSdk/);
+  assert.match(example, /createIveKitRustDeskLedSdk/);
+  assert.match(example, /postMessage/);
+  assert.match(example, /createJoinPlan/);
+  assert.match(pkg, /"ivekit:led-example"/);
+});
+
+function headersToRecord(headers: RequestInit['headers']): Record<string, string> {
+  const record: Record<string, string> = {};
+  new Headers(headers).forEach((value, key) => {
+    record[key] = value;
+  });
+  return record;
+}

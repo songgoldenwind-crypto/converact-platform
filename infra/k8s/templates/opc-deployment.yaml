@@ -1,0 +1,345 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-opc
+  labels:
+    app: opc
+spec:
+  replicas: {{ .Values.opc.replicaCount }}
+  selector:
+    matchLabels:
+      app: opc
+  template:
+    metadata:
+      labels:
+        app: opc
+    spec:
+      containers:
+        - name: opc
+          image: "{{ .Values.opc.image.repository }}:{{ .Values.opc.image.tag }}"
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: database-url
+            - name: REDIS_URL
+              value: redis://{{ .Release.Name }}-redis:6379
+            - name: NATS_URL
+              value: nats://{{ .Release.Name }}-nats:4222
+            - name: LIVEKIT_URL
+              value: {{ .Values.livekit.url | default (printf "ws://%s-livekit:7880" .Release.Name) | quote }}
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: livekit-api-key
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: livekit-api-secret
+            - name: OPC_MEDIA_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: media-api-token
+            - name: OPC_MEDIA_INVITE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: media-invite-secret
+            - name: OPC_MEDIA_INVITE_TTL_MS
+              value: {{ .Values.media.inviteTtlMs | default "86400000" | quote }}
+            - name: OPC_MEDIA_RECORDING_RETENTION_DAYS
+              value: {{ .Values.media.recordingRetentionDays | default "90" | quote }}
+            - name: OPC_RECORDING_HTTP_ALLOWED_ORIGINS
+              value: {{ .Values.media.recordingHttpAllowedOrigins | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
+            - name: OPC_RECORDING_HTTP_TIMEOUT_MS
+              value: {{ .Values.media.recordingHttpTimeoutMs | default "15000" | quote }}
+            - name: OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT
+              value: {{ .Values.media.smokeVerifyRecordingObject | default "0" | quote }}
+            - name: OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS
+              value: {{ .Values.media.smokeRecordingObjectTimeoutMs | default "60000" | quote }}
+            - name: OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS
+              value: {{ .Values.media.smokeRecordingObjectPollIntervalMs | default "2000" | quote }}
+            - name: OPC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: opc-api-key
+            - name: TINODE_BASE_URL
+              value: {{ .Values.tinode.baseUrl | default "" | quote }}
+            - name: TINODE_WS_URL
+              value: {{ .Values.tinode.wsUrl | default "" | quote }}
+            - name: TINODE_PUBLIC_BASE_URL
+              value: {{ .Values.tinode.publicBaseUrl | default "" | quote }}
+            - name: TINODE_PUBLIC_WS_URL
+              value: {{ .Values.tinode.publicWsUrl | default "" | quote }}
+            - name: TINODE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: tinode-api-key
+            - name: TINODE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: tinode-auth-token
+            - name: TINODE_BASIC_USER
+              value: {{ .Values.tinode.basicUser | default "" | quote }}
+            - name: TINODE_BASIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: tinode-basic-password
+            - name: TINODE_USER_PASSWORD_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: tinode-user-password-secret
+            - name: TINODE_REQUEST_TIMEOUT_MS
+              value: {{ .Values.tinode.requestTimeoutMs | default "5000" | quote }}
+            - name: OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS
+              value: {{ .Values.tinode.messageMutationWindowMs | default "900000" | quote }}
+            - name: OPC_TINODE_DELIVERY_WORKER_ENABLED
+              value: {{ .Values.tinode.deliveryWorker.enabled | default "1" | quote }}
+            - name: OPC_TINODE_DELIVERY_INTERVAL_MS
+              value: {{ .Values.tinode.deliveryWorker.intervalMs | default "5000" | quote }}
+            - name: OPC_TINODE_DELIVERY_BATCH_SIZE
+              value: {{ .Values.tinode.deliveryWorker.batchSize | default "50" | quote }}
+            - name: OPC_TINODE_DELIVERY_MAX_ATTEMPTS
+              value: {{ .Values.tinode.deliveryWorker.maxAttempts | default "3" | quote }}
+            - name: OPC_TINODE_DELIVERY_CLAIM_LEASE_MS
+              value: {{ .Values.tinode.deliveryWorker.claimLeaseMs | default "30000" | quote }}
+            - name: OPC_TINODE_DELIVERY_RETRY_DELAYS_MS
+              value: {{ .Values.tinode.deliveryWorker.retryDelaysMs | default "2000,10000" | quote }}
+            - name: OPC_COLLABORATION_ATTACHMENT_MAX_BYTES
+              value: {{ .Values.attachmentProcessing.attachmentMaxBytes | default "26214400" | quote }}
+            - name: OPC_OCR_PROVIDER_MODE
+              value: {{ .Values.attachmentProcessing.ocrProviderMode | default "self_hosted" | quote }}
+            - name: OPC_OCR_PROVIDER_NAME
+              value: {{ .Values.attachmentProcessing.ocrProviderName | default "" | quote }}
+            - name: OPC_OCR_BASE_URL
+              value: {{ .Values.attachmentProcessing.ocrBaseUrl | default "" | quote }}
+            - name: OPC_OCR_ENDPOINT
+              value: {{ .Values.attachmentProcessing.ocrEndpoint | default "/v1/ocr" | quote }}
+            - name: OPC_OCR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ocr-provider-token
+            - name: OPC_OCR_TIMEOUT_MS
+              value: {{ .Values.attachmentProcessing.ocrTimeoutMs | default "30000" | quote }}
+            - name: OPC_ASR_PROVIDER_MODE
+              value: {{ .Values.attachmentProcessing.asrProviderMode | default "self_hosted" | quote }}
+            - name: OPC_ASR_PROVIDER_NAME
+              value: {{ .Values.attachmentProcessing.asrProviderName | default "" | quote }}
+            - name: OPC_ASR_BASE_URL
+              value: {{ .Values.attachmentProcessing.asrBaseUrl | default "" | quote }}
+            - name: OPC_ASR_ENDPOINT
+              value: {{ .Values.attachmentProcessing.asrEndpoint | default "/v1/asr" | quote }}
+            - name: OPC_ASR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: asr-provider-token
+            - name: OPC_ASR_TIMEOUT_MS
+              value: {{ .Values.attachmentProcessing.asrTimeoutMs | default "30000" | quote }}
+            - name: OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED
+              value: {{ .Values.attachmentProcessing.worker.enabled | default "1" | quote }}
+            - name: OPC_ATTACHMENT_PROCESSING_INTERVAL_MS
+              value: {{ .Values.attachmentProcessing.worker.intervalMs | default "5000" | quote }}
+            - name: OPC_ATTACHMENT_PROCESSING_BATCH_SIZE
+              value: {{ .Values.attachmentProcessing.worker.batchSize | default "25" | quote }}
+            - name: OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS
+              value: {{ .Values.attachmentProcessing.worker.maxAttempts | default "3" | quote }}
+            - name: OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS
+              value: {{ .Values.attachmentProcessing.worker.claimLeaseMs | default "60000" | quote }}
+            - name: OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS
+              value: {{ .Values.attachmentProcessing.worker.retryDelaysMs | default "2000,10000" | quote }}
+            - name: OPC_QUALITY_REVIEW_PROVIDER_MODE
+              value: {{ .Values.qualityReview.providerMode | default "self_hosted" | quote }}
+            - name: OPC_QUALITY_REVIEW_PROVIDER_NAME
+              value: {{ .Values.qualityReview.providerName | default "" | quote }}
+            - name: OPC_QUALITY_REVIEW_BASE_URL
+              value: {{ .Values.qualityReview.baseUrl | default "" | quote }}
+            - name: OPC_QUALITY_REVIEW_ENDPOINT
+              value: {{ .Values.qualityReview.endpoint | default "/v1/quality-review" | quote }}
+            - name: OPC_QUALITY_REVIEW_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: quality-review-token
+            - name: OPC_QUALITY_REVIEW_TIMEOUT_MS
+              value: {{ .Values.qualityReview.timeoutMs | default "30000" | quote }}
+            - name: OPC_QUALITY_REVIEW_AUTO_ENQUEUE
+              value: {{ .Values.qualityReview.autoEnqueue | default "1" | quote }}
+            - name: OPC_QUALITY_REVIEW_WORKER_ENABLED
+              value: {{ .Values.qualityReview.worker.enabled | default "1" | quote }}
+            - name: OPC_QUALITY_REVIEW_INTERVAL_MS
+              value: {{ .Values.qualityReview.worker.intervalMs | default "5000" | quote }}
+            - name: OPC_QUALITY_REVIEW_BATCH_SIZE
+              value: {{ .Values.qualityReview.worker.batchSize | default "25" | quote }}
+            - name: OPC_QUALITY_REVIEW_MAX_ATTEMPTS
+              value: {{ .Values.qualityReview.worker.maxAttempts | default "3" | quote }}
+            - name: OPC_QUALITY_REVIEW_CLAIM_LEASE_MS
+              value: {{ .Values.qualityReview.worker.claimLeaseMs | default "120000" | quote }}
+            - name: OPC_QUALITY_REVIEW_RETRY_DELAYS_MS
+              value: {{ .Values.qualityReview.worker.retryDelaysMs | default "5000,30000" | quote }}
+            - name: OPC_REMOTE_GATEWAY_PROVIDER
+              value: {{ .Values.rustdesk.provider | default "rustdesk" | quote }}
+            - name: OPC_REMOTE_GATEWAY_BASE_URL
+              value: {{ .Values.rustdesk.controlPlaneBaseUrl | default (printf "http://%s-opc:3000" .Release.Name) | quote }}
+            - name: OPC_REMOTE_GATEWAY_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustdesk-api-token
+            - name: OPC_REMOTE_GATEWAY_TENANT_ID
+              value: {{ .Values.rustdesk.remoteGatewayTenantId | default "tenant_led" | quote }}
+            - name: OPC_REMOTE_GATEWAY_TARGET_TYPE
+              value: {{ .Values.rustdesk.remoteGatewayTargetType | default "device" | quote }}
+            - name: OPC_REMOTE_GATEWAY_TARGET_ID
+              value: {{ .Values.rustdesk.remoteGatewayTargetId | default "" | quote }}
+            - name: OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME
+              value: {{ .Values.rustdesk.remoteGatewayTargetDisplayName | default "Remote gateway smoke device" | quote }}
+            - name: OPC_REMOTE_GATEWAY_ACTOR_IDENTITY
+              value: {{ .Values.rustdesk.remoteGatewayActorIdentity | default "agent_remote_gateway_smoke" | quote }}
+            - name: OPC_REMOTE_GATEWAY_CONSENT_SCOPES
+              value: {{ .Values.rustdesk.remoteGatewayConsentScopes | default "view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard" | quote }}
+            - name: OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL
+              value: {{ .Values.rustdesk.remoteGatewayCheckLaunchUrl | default "0" | quote }}
+            - name: OPC_RUSTDESK_CONTROL_PLANE_BASE_URL
+              value: {{ .Values.rustdesk.controlPlaneBaseUrl | default (printf "http://%s-opc:3000" .Release.Name) | quote }}
+            - name: OPC_RUSTDESK_ID_SERVER
+              value: {{ .Values.rustdesk.publicHost | quote }}
+            - name: OPC_RUSTDESK_RELAY_SERVER
+              value: {{ .Values.rustdesk.relayHost | default .Values.rustdesk.publicHost | quote }}
+            - name: OPC_RUSTDESK_API_SERVER
+              value: {{ .Values.rustdesk.apiServer | default "" | quote }}
+            - name: OPC_RUSTDESK_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustdesk-public-key
+            - name: OPC_RUSTDESK_PUBLIC_KEY_FILE
+              value: {{ .Values.rustdesk.publicKeyFile | default "/rustdesk/id_ed25519.pub" | quote }}
+            - name: OPC_RUSTDESK_SERVER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustdesk-server-key
+            - name: OPC_RUSTDESK_LAUNCH_BASE_URL
+              value: {{ .Values.rustdesk.launchBaseUrl | quote }}
+            - name: OPC_RUSTDESK_LAUNCH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustdesk-launch-secret
+            - name: OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS
+              value: {{ .Values.rustdesk.launchTokenTtlMs | default "900000" | quote }}
+            - name: OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE
+              value: {{ .Values.rustdesk.protocolUrlTemplate | default "" | quote }}
+            - name: OPC_RUSTDESK_REQUIRE_PROTOCOL_URL
+              value: {{ .Values.rustdesk.requireProtocolUrl | default "0" | quote }}
+            - name: OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE
+              value: {{ .Values.rustdesk.requireDeviceOnline | default "0" | quote }}
+            - name: OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT
+              value: {{ .Values.rustdesk.requirePhysicalDisconnect | default "0" | quote }}
+            - name: OPC_RUSTDESK_EDGE_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustdesk-edge-token-secret
+            - name: OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS
+              value: {{ .Values.rustdesk.deviceOnlineTtlMs | default "300000" | quote }}
+            - name: OPC_RUSTDESK_CHECK_DEVICE_ONLINE
+              value: {{ .Values.rustdesk.checkDeviceOnline | default "0" | quote }}
+            - name: OPC_RUSTDESK_CHECK_OPERATION_AUDIT
+              value: {{ .Values.rustdesk.checkOperationAudit | default "1" | quote }}
+            - name: OPC_RUSTDESK_CHECK_SERVER_PORTS
+              value: {{ .Values.rustdesk.checkServerPorts | default "0" | quote }}
+            - name: OPC_RUSTDESK_CHECK_HOST
+              value: {{ .Values.rustdesk.checkHost | default "" | quote }}
+            - name: OPC_RUSTDESK_CHECK_TCP_PORTS
+              value: {{ .Values.rustdesk.checkTcpPorts | default "21115,21116,21117,21118,21119" | quote }}
+            - name: OPC_RUSTDESK_CHECK_UDP_PORTS
+              value: {{ .Values.rustdesk.checkUdpPorts | default "21116" | quote }}
+            - name: OPC_RUSTDESK_CHECK_TIMEOUT_MS
+              value: {{ .Values.rustdesk.checkTimeoutMs | default "1500" | quote }}
+            - name: OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE
+              value: {{ .Values.rustdesk.readinessCheckDeviceOnline | default "1" | quote }}
+            - name: OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT
+              value: {{ .Values.rustdesk.readinessCheckOperationAudit | default "1" | quote }}
+            - name: OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS
+              value: {{ .Values.rustdesk.readinessCheckServerPorts | default "1" | quote }}
+            - name: OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL
+              value: {{ .Values.rustdesk.readinessRequireProtocolUrl | default "1" | quote }}
+            - name: OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL
+              value: {{ .Values.rustdesk.readinessCheckLaunchUrl | default "1" | quote }}
+            - name: OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL
+              value: {{ .Values.rustdesk.readinessRequireHttpsLaunchUrl | default "1" | quote }}
+            - name: OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT
+              value: {{ .Values.rustdesk.readinessCheckPhysicalDisconnect | default "0" | quote }}
+            - name: OPC_RUSTDESK_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustdesk-api-token
+            - name: MINIO_ENDPOINT
+              value: {{ .Values.media.minioEndpoint | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
+            - name: MINIO_BUCKET
+              value: {{ .Values.media.minioBucket | default "recordings" | quote }}
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: minio-secret-key
+          resources:
+            {{- toYaml .Values.opc.resources | nindent 12 }}
+          {{- if .Values.rustdesk.enabled }}
+          volumeMounts:
+            - name: rustdesk-data
+              mountPath: /rustdesk
+              readOnly: true
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      {{- if .Values.rustdesk.enabled }}
+      volumes:
+        - name: rustdesk-data
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-rustdesk-data
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-opc
+spec:
+  type: {{ .Values.opc.service.type }}
+  ports:
+    - port: {{ .Values.opc.service.port }}
+      targetPort: 3000
+  selector:
+    app: opc

@@ -1,0 +1,90 @@
+{{- if .Values.livekit.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-livekit-config
+type: Opaque
+stringData:
+  livekit.yaml: |
+    port: 7880
+    rtc:
+      tcp_port: {{ .Values.livekit.rtcPort | default 7881 }}
+      port_range_start: {{ .Values.livekit.portRangeStart | default 50000 }}
+      port_range_end: {{ .Values.livekit.portRangeEnd | default 50100 }}
+      use_external_ip: {{ .Values.livekit.useExternalIp | default false }}
+    redis:
+      address: {{ .Release.Name }}-redis:6379
+    keys:
+      {{ .Values.livekit.apiKey | default "devkey" | quote }}: {{ .Values.livekit.apiSecret | default "secret" | quote }}
+    webhook:
+      api_key: {{ .Values.livekit.apiKey | default "devkey" | quote }}
+      urls:
+        - http://{{ .Release.Name }}-opc:3000/api/media/webhooks/livekit
+    room:
+      empty_timeout: {{ .Values.livekit.emptyTimeout | default 300 }}
+      max_participants: {{ .Values.livekit.maxParticipants | default 10 }}
+    logging:
+      level: info
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-livekit
+  labels:
+    app: livekit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: livekit
+  template:
+    metadata:
+      labels:
+        app: livekit
+    spec:
+      containers:
+        - name: livekit
+          image: "{{ .Values.livekit.image.repository }}:{{ .Values.livekit.image.tag }}"
+          imagePullPolicy: {{ .Values.livekit.image.pullPolicy | default "IfNotPresent" }}
+          args: ["--config", "/etc/livekit.yaml"]
+          ports:
+            - name: http
+              containerPort: 7880
+            - name: rtc-tcp
+              containerPort: {{ .Values.livekit.rtcPort | default 7881 }}
+              protocol: TCP
+            - name: rtc-udp
+              containerPort: {{ .Values.livekit.udpPort | default 7882 }}
+              protocol: UDP
+          volumeMounts:
+            - name: livekit-config
+              mountPath: /etc/livekit.yaml
+              subPath: livekit.yaml
+          resources:
+            {{- toYaml .Values.livekit.resources | nindent 12 }}
+      volumes:
+        - name: livekit-config
+          secret:
+            secretName: {{ .Release.Name }}-livekit-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-livekit
+spec:
+  type: {{ .Values.livekit.service.type }}
+  selector:
+    app: livekit
+  ports:
+    - name: http
+      port: {{ .Values.livekit.service.port }}
+      targetPort: 7880
+    - name: rtc-tcp
+      port: {{ .Values.livekit.rtcPort | default 7881 }}
+      targetPort: {{ .Values.livekit.rtcPort | default 7881 }}
+      protocol: TCP
+    - name: rtc-udp
+      port: {{ .Values.livekit.udpPort | default 7882 }}
+      targetPort: {{ .Values.livekit.udpPort | default 7882 }}
+      protocol: UDP
+{{- end }}

@@ -1,0 +1,35 @@
+[platform]
+http_addr = "0.0.0.0:8080"
+log_level = "info"
+
+[platform.database]
+url = "sqlite:///app/db/rustpbx.db"
+
+[proxy]
+bind_addr = "0.0.0.0:5060"
+transports = ["udp", "tcp"]
+
+# RustPBX — use config/rustpbx.docker.toml when OPC runs inside docker compose
+[proxy.http_router]
+url = "http://host.docker.internal:3000/api/call-router"
+timeout_ms = 3000
+fallback_action = "reject"
+
+[proxy.media]
+rtp_start = 20000
+rtp_end = 30000
+
+[[proxy.trunks]]
+name = "livekit-bridge"
+host = "livekit-sip"
+port = 5061
+transport = "udp"
+
+[recording]
+enabled = true
+format = "wav"
+storage = "local"
+path = "/app/recordings"
+
+[cdr]
+webhook_url = "http://host.docker.internal:3000/api/webhooks/rustpbx-cdr"

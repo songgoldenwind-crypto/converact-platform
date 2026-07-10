@@ -1,0 +1,55 @@
+{{- if .Values.media.egress.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-livekit-egress-config
+type: Opaque
+stringData:
+  egress.yaml: |
+    log_level: info
+    api_key: {{ .Values.livekit.apiKey | default "devkey" | quote }}
+    api_secret: {{ .Values.livekit.apiSecret | default "secret" | quote }}
+    ws_url: {{ .Values.livekit.url | default (printf "ws://%s-livekit:7880" .Release.Name) | quote }}
+    insecure: true
+    s3:
+      access_key: {{ .Values.media.minioAccessKey | default "minioadmin" | quote }}
+      secret: {{ .Values.media.minioSecretKey | default "minioadmin" | quote }}
+      region: us-east-1
+      endpoint: {{ .Values.media.minioEndpoint | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
+      bucket: {{ .Values.media.minioBucket | default "recordings" | quote }}
+      force_path_style: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-livekit-egress
+  labels:
+    app: livekit-egress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: livekit-egress
+  template:
+    metadata:
+      labels:
+        app: livekit-egress
+    spec:
+      containers:
+        - name: livekit-egress
+          image: "{{ .Values.media.egress.image.repository }}:{{ .Values.media.egress.image.tag }}"
+          imagePullPolicy: {{ .Values.media.egress.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: EGRESS_CONFIG_FILE
+              value: /etc/egress.yaml
+          volumeMounts:
+            - name: egress-config
+              mountPath: /etc/egress.yaml
+              subPath: egress.yaml
+          resources:
+            {{- toYaml .Values.media.egress.resources | nindent 12 }}
+      volumes:
+        - name: egress-config
+          secret:
+            secretName: {{ .Release.Name }}-livekit-egress-config
+{{- end }}

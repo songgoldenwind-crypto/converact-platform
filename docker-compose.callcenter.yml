@@ -1,0 +1,368 @@
+# OPC Call Center stack (RustPBX + LiveKit)
+# Usage: docker compose -f docker-compose.callcenter.yml up -d
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+
+  livekit:
+    image: livekit/livekit-server:v1.8
+    command: --config /etc/livekit.yaml
+    ports:
+      - "7880:7880"
+      - "7881:7881/tcp"
+      - "7882-7892:7882-7892/udp"
+    volumes:
+      - ./config/livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      - redis
+
+  livekit-sip:
+    image: livekit/sip:latest
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      SIP_PORT: "5061"
+    ports:
+      - "5061:5061/udp"
+      - "5061:5061/tcp"
+    depends_on:
+      - livekit
+      - redis
+
+  livekit-egress:
+    image: livekit/egress:latest
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ./config/egress.yaml:/etc/egress.yaml:ro
+    depends_on:
+      - livekit
+      - redis
+      - minio
+
+  rustpbx:
+    image: ghcr.io/restsend/rustpbx:latest
+    command: ["--conf", "/app/rustpbx.toml"]
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "8080:8080"
+    volumes:
+      - ./config/rustpbx.docker.toml:/app/rustpbx.toml:ro
+      - ./config/rustpbx-routes:/app/config/rustpbx-routes:ro
+      - ./config/ivr:/app/config/ivr:ro
+      - rustpbx_data:/app/db
+      - rustpbx_recordings:/app/recordings
+
+  rustdesk-hbbs:
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    command: hbbs
+    profiles: ["rustdesk"]
+    environment:
+      ALWAYS_USE_RELAY: ${RUSTDESK_ALWAYS_USE_RELAY:-N}
+    ports:
+      - "21115:21115/tcp"
+      - "21116:21116/tcp"
+      - "21116:21116/udp"
+      - "21118:21118/tcp"
+    volumes:
+      - rustdesk_data:/root
+    depends_on:
+      - rustdesk-hbbr
+    restart: unless-stopped
+
+  rustdesk-hbbr:
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    command: hbbr
+    profiles: ["rustdesk"]
+    ports:
+      - "21117:21117/tcp"
+      - "21119:21119/tcp"
+    volumes:
+      - rustdesk_data:/root
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opc_dev_pass}
+      POSTGRES_DB: opc
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opc -d opc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  tinode:
+    image: tinode/tinode:${TINODE_IMAGE_TAG:-0.25.3}
+    restart: unless-stopped
+    ports:
+      - "6060:6060"
+    environment:
+      STORE_USE_ADAPTER: postgres
+      POSTGRES_DSN: postgresql://opc:${POSTGRES_PASSWORD:-opc_dev_pass}@postgres:5432/tinode?sslmode=disable&connect_timeout=10
+      WAIT_FOR: postgres:5432
+      AUTH_TOKEN_KEY: ${TINODE_AUTH_TOKEN_KEY:-b3BjLWxvY2FsLXRpbm9kZS1hdXRoLWtleS0zMmJ5dGU=}
+      UID_ENCRYPTION_KEY: ${TINODE_UID_ENCRYPTION_KEY:-b3BjLXRpbm9kZS11aWQxNg==}
+      SAMPLE_DATA: ${TINODE_SAMPLE_DATA:-}
+      UPGRADE_DB: ${TINODE_UPGRADE_DB:-false}
+      RESET_DB: "false"
+      WEBRTC_ENABLED: "false"
+      ACC_GC_ENABLED: "true"
+    volumes:
+      - tinode_botdata:/botdata
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  opc:
+    build: .
+    ports:
+      - "${OPC_HOST_PORT:-3000}:3000"
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://opc:${POSTGRES_PASSWORD:-opc_dev_pass}@postgres:5432/opc
+      OPC_JWT_SECRET: ${OPC_JWT_SECRET:-dev-jwt-secret-change-in-production}
+      OPC_AUTH_DISABLED: "0"
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      OPC_MEDIA_API_TOKEN: ${OPC_MEDIA_API_TOKEN:-dev-media-token}
+      OPC_MEDIA_INVITE_SECRET: ${OPC_MEDIA_INVITE_SECRET:-dev-media-invite-secret}
+      OPC_MEDIA_INVITE_TTL_MS: ${OPC_MEDIA_INVITE_TTL_MS:-86400000}
+      OPC_MEDIA_RECORDING_RETENTION_DAYS: ${OPC_MEDIA_RECORDING_RETENTION_DAYS:-90}
+      OPC_RECORDING_HTTP_ALLOWED_ORIGINS: ${OPC_RECORDING_HTTP_ALLOWED_ORIGINS:-http://minio:9000}
+      OPC_RECORDING_HTTP_TIMEOUT_MS: ${OPC_RECORDING_HTTP_TIMEOUT_MS:-15000}
+      OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT: ${OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT:-0}
+      OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS: ${OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS:-60000}
+      OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS: ${OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS:-2000}
+      LIVEKIT_SIP_BRIDGE_TARGET: sip:livekit-bridge@livekit-sip:5061
+      RUSTPBX_LIVEKIT_TRUNK: ${RUSTPBX_LIVEKIT_TRUNK:-livekit-bridge}
+      RUSTPBX_WEBHOOK_KEY: ${RUSTPBX_WEBHOOK_KEY:-dev-pbx-key}
+      RUSTPBX_RWI_URL: ws://rustpbx:8080/rwi/v1
+      RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:-dev-rwi-token}
+      OPC_DISABLE_IVR_RWI: ${OPC_DISABLE_IVR_RWI:-1}
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-recordings}
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      OPC_API_KEY: ${OPC_API_KEY:-dev-opc-key}
+      OPC_BASE_URL: ${OPC_BASE_URL:-http://localhost:3000}
+      TINODE_BASE_URL: ${TINODE_BASE_URL:-http://tinode:6060}
+      TINODE_WS_URL: ${TINODE_WS_URL:-ws://tinode:6060/v0/channels}
+      TINODE_PUBLIC_BASE_URL: ${TINODE_PUBLIC_BASE_URL:-}
+      TINODE_PUBLIC_WS_URL: ${TINODE_PUBLIC_WS_URL:-}
+      TINODE_API_KEY: ${TINODE_API_KEY:-}
+      TINODE_AUTH_TOKEN: ${TINODE_AUTH_TOKEN:-}
+      TINODE_BASIC_USER: ${TINODE_BASIC_USER:-}
+      TINODE_BASIC_PASSWORD: ${TINODE_BASIC_PASSWORD:-}
+      TINODE_USER_PASSWORD_SECRET: ${TINODE_USER_PASSWORD_SECRET:-}
+      TINODE_REQUEST_TIMEOUT_MS: ${TINODE_REQUEST_TIMEOUT_MS:-5000}
+      OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS: ${OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS:-900000}
+      OPC_TINODE_DELIVERY_WORKER_ENABLED: ${OPC_TINODE_DELIVERY_WORKER_ENABLED:-1}
+      OPC_TINODE_DELIVERY_INTERVAL_MS: ${OPC_TINODE_DELIVERY_INTERVAL_MS:-5000}
+      OPC_TINODE_DELIVERY_BATCH_SIZE: ${OPC_TINODE_DELIVERY_BATCH_SIZE:-50}
+      OPC_TINODE_DELIVERY_MAX_ATTEMPTS: ${OPC_TINODE_DELIVERY_MAX_ATTEMPTS:-3}
+      OPC_TINODE_DELIVERY_CLAIM_LEASE_MS: ${OPC_TINODE_DELIVERY_CLAIM_LEASE_MS:-30000}
+      OPC_TINODE_DELIVERY_RETRY_DELAYS_MS: ${OPC_TINODE_DELIVERY_RETRY_DELAYS_MS:-2000,10000}
+      OPC_COLLABORATION_ATTACHMENT_MAX_BYTES: ${OPC_COLLABORATION_ATTACHMENT_MAX_BYTES:-26214400}
+      OPC_OCR_PROVIDER_MODE: ${OPC_OCR_PROVIDER_MODE:-self_hosted}
+      OPC_OCR_PROVIDER_NAME: ${OPC_OCR_PROVIDER_NAME:-}
+      OPC_OCR_BASE_URL: ${OPC_OCR_BASE_URL:-}
+      OPC_OCR_ENDPOINT: ${OPC_OCR_ENDPOINT:-/v1/ocr}
+      OPC_OCR_TOKEN: ${OPC_OCR_TOKEN:-}
+      OPC_OCR_TIMEOUT_MS: ${OPC_OCR_TIMEOUT_MS:-30000}
+      OPC_ASR_PROVIDER_MODE: ${OPC_ASR_PROVIDER_MODE:-self_hosted}
+      OPC_ASR_PROVIDER_NAME: ${OPC_ASR_PROVIDER_NAME:-}
+      OPC_ASR_BASE_URL: ${OPC_ASR_BASE_URL:-}
+      OPC_ASR_ENDPOINT: ${OPC_ASR_ENDPOINT:-/v1/asr}
+      OPC_ASR_TOKEN: ${OPC_ASR_TOKEN:-}
+      OPC_ASR_TIMEOUT_MS: ${OPC_ASR_TIMEOUT_MS:-30000}
+      OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: ${OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED:-1}
+      OPC_ATTACHMENT_PROCESSING_INTERVAL_MS: ${OPC_ATTACHMENT_PROCESSING_INTERVAL_MS:-5000}
+      OPC_ATTACHMENT_PROCESSING_BATCH_SIZE: ${OPC_ATTACHMENT_PROCESSING_BATCH_SIZE:-25}
+      OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS: ${OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS:-3}
+      OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: ${OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS:-60000}
+      OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS: ${OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS:-2000,10000}
+      OPC_QUALITY_REVIEW_PROVIDER_MODE: ${OPC_QUALITY_REVIEW_PROVIDER_MODE:-self_hosted}
+      OPC_QUALITY_REVIEW_PROVIDER_NAME: ${OPC_QUALITY_REVIEW_PROVIDER_NAME:-}
+      OPC_QUALITY_REVIEW_BASE_URL: ${OPC_QUALITY_REVIEW_BASE_URL:-}
+      OPC_QUALITY_REVIEW_ENDPOINT: ${OPC_QUALITY_REVIEW_ENDPOINT:-/v1/quality-review}
+      OPC_QUALITY_REVIEW_TOKEN: ${OPC_QUALITY_REVIEW_TOKEN:-}
+      OPC_QUALITY_REVIEW_TIMEOUT_MS: ${OPC_QUALITY_REVIEW_TIMEOUT_MS:-30000}
+      OPC_QUALITY_REVIEW_AUTO_ENQUEUE: ${OPC_QUALITY_REVIEW_AUTO_ENQUEUE:-1}
+      OPC_QUALITY_REVIEW_WORKER_ENABLED: ${OPC_QUALITY_REVIEW_WORKER_ENABLED:-1}
+      OPC_QUALITY_REVIEW_INTERVAL_MS: ${OPC_QUALITY_REVIEW_INTERVAL_MS:-5000}
+      OPC_QUALITY_REVIEW_BATCH_SIZE: ${OPC_QUALITY_REVIEW_BATCH_SIZE:-25}
+      OPC_QUALITY_REVIEW_MAX_ATTEMPTS: ${OPC_QUALITY_REVIEW_MAX_ATTEMPTS:-3}
+      OPC_QUALITY_REVIEW_CLAIM_LEASE_MS: ${OPC_QUALITY_REVIEW_CLAIM_LEASE_MS:-120000}
+      OPC_QUALITY_REVIEW_RETRY_DELAYS_MS: ${OPC_QUALITY_REVIEW_RETRY_DELAYS_MS:-5000,30000}
+      OPC_REMOTE_GATEWAY_PROVIDER: ${OPC_REMOTE_GATEWAY_PROVIDER:-rustdesk}
+      OPC_REMOTE_GATEWAY_BASE_URL: ${OPC_REMOTE_GATEWAY_BASE_URL:-http://opc:3000}
+      OPC_REMOTE_GATEWAY_API_TOKEN: ${OPC_REMOTE_GATEWAY_API_TOKEN:-dev-rustdesk-control-token}
+      OPC_REMOTE_GATEWAY_TENANT_ID: ${OPC_REMOTE_GATEWAY_TENANT_ID:-tenant_led}
+      OPC_REMOTE_GATEWAY_TARGET_TYPE: ${OPC_REMOTE_GATEWAY_TARGET_TYPE:-device}
+      OPC_REMOTE_GATEWAY_TARGET_ID: ${OPC_REMOTE_GATEWAY_TARGET_ID:-}
+      OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME: ${OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME:-Remote gateway smoke device}
+      OPC_REMOTE_GATEWAY_ACTOR_IDENTITY: ${OPC_REMOTE_GATEWAY_ACTOR_IDENTITY:-agent_remote_gateway_smoke}
+      OPC_REMOTE_GATEWAY_CONSENT_SCOPES: ${OPC_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}
+      OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL: ${OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL:-0}
+      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: ${OPC_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}
+      OPC_RUSTDESK_ID_SERVER: ${OPC_RUSTDESK_ID_SERVER:-localhost}
+      OPC_RUSTDESK_RELAY_SERVER: ${OPC_RUSTDESK_RELAY_SERVER:-localhost}
+      OPC_RUSTDESK_API_SERVER: ${OPC_RUSTDESK_API_SERVER:-}
+      OPC_RUSTDESK_PUBLIC_KEY: ${OPC_RUSTDESK_PUBLIC_KEY:-}
+      OPC_RUSTDESK_PUBLIC_KEY_FILE: ${OPC_RUSTDESK_PUBLIC_KEY_FILE:-/rustdesk/id_ed25519.pub}
+      OPC_RUSTDESK_SERVER_KEY: ${OPC_RUSTDESK_SERVER_KEY:-}
+      OPC_RUSTDESK_LAUNCH_BASE_URL: ${OPC_RUSTDESK_LAUNCH_BASE_URL:-http://localhost:3000}
+      OPC_RUSTDESK_LAUNCH_SECRET: ${OPC_RUSTDESK_LAUNCH_SECRET:-dev-rustdesk-launch-secret}
+      OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS: ${OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS:-900000}
+      OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE: ${OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE:-}
+      OPC_RUSTDESK_REQUIRE_PROTOCOL_URL: ${OPC_RUSTDESK_REQUIRE_PROTOCOL_URL:-0}
+      OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE: ${OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE:-0}
+      OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: ${OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0}
+      OPC_RUSTDESK_EDGE_TOKEN_SECRET: ${OPC_RUSTDESK_EDGE_TOKEN_SECRET:-dev-rustdesk-edge-token-secret-change-me}
+      OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS: ${OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS:-300000}
+      OPC_RUSTDESK_CHECK_DEVICE_ONLINE: ${OPC_RUSTDESK_CHECK_DEVICE_ONLINE:-0}
+      OPC_RUSTDESK_CHECK_OPERATION_AUDIT: ${OPC_RUSTDESK_CHECK_OPERATION_AUDIT:-1}
+      OPC_RUSTDESK_CHECK_SERVER_PORTS: ${OPC_RUSTDESK_CHECK_SERVER_PORTS:-0}
+      OPC_RUSTDESK_CHECK_HOST: ${OPC_RUSTDESK_CHECK_HOST:-}
+      OPC_RUSTDESK_CHECK_TCP_PORTS: ${OPC_RUSTDESK_CHECK_TCP_PORTS:-21115,21116,21117,21118,21119}
+      OPC_RUSTDESK_CHECK_UDP_PORTS: ${OPC_RUSTDESK_CHECK_UDP_PORTS:-21116}
+      OPC_RUSTDESK_CHECK_TIMEOUT_MS: ${OPC_RUSTDESK_CHECK_TIMEOUT_MS:-1500}
+      OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE: ${OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE:-1}
+      OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT: ${OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT:-1}
+      OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS: ${OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS:-1}
+      OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL: ${OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL:-1}
+      OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL: ${OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL:-1}
+      OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL: ${OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL:-1}
+      OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT: ${OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT:-0}
+      OPC_RUSTDESK_API_TOKEN: ${OPC_RUSTDESK_API_TOKEN:-dev-rustdesk-control-token}
+      OPC_DEFAULT_TIMEZONE: Asia/Shanghai
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-Qwen3.6-27B}
+      LLM_EXTRA_BODY: ${LLM_EXTRA_BODY:-{"chat_template_kwargs":{"enable_thinking":false}}}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_API_BASE: ${DEEPSEEK_API_BASE:-https://api.deepseek.com/v1}
+    volumes:
+      - opc_data:/data
+      - rustdesk_data:/rustdesk:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      livekit:
+        condition: service_started
+      rustpbx:
+        condition: service_started
+      tinode:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ai-agent:
+    build: ./services/ai-agent-py
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      OPC_API_URL: http://opc:3000
+      OPC_API_KEY: ${OPC_API_KEY:-dev-opc-key}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-Qwen3.6-27B}
+      LLM_EXTRA_BODY: ${LLM_EXTRA_BODY:-{"chat_template_kwargs":{"enable_thinking":false}}}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_API_BASE: ${DEEPSEEK_API_BASE:-https://api.deepseek.com/v1}
+      SPEECH_ASR_PROVIDER: ${SPEECH_ASR_PROVIDER:-funasr}
+      SPEECH_TTS_PROVIDER: ${SPEECH_TTS_PROVIDER:-cosyvoice}
+      FUNASR_URL: ${FUNASR_URL:-http://host.docker.internal:8899}
+      COSYVOICE_URL: ${COSYVOICE_URL:-http://host.docker.internal:50000}
+      COSYVOICE_SPK_ID: ${COSYVOICE_SPK_ID:-中文女}
+    depends_on:
+      - livekit
+      - opc
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ===== Monitoring Stack =====
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/alert-rules.yml:/etc/prometheus/alert-rules.yml
+      - prometheus_data:/prometheus
+    depends_on: [opc]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on: [prometheus]
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    ports:
+      - "9100:9100"
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      - DATA_SOURCE_NAME=postgresql://opc:opc@postgres:5432/opc?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on: [postgres]
+
+volumes:
+  redis_data:
+  minio_data:
+  rustpbx_data:
+  rustpbx_recordings:
+  rustdesk_data:
+  opc_data:
+  postgres_data:
+  tinode_botdata:
+  prometheus_data:
+  grafana_data:

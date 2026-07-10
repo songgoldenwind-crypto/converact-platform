@@ -1,0 +1,48 @@
+groups:
+  - name: opc-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(opc_http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(opc_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx error rate > 5%"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(opc_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency > 2s"
+          description: "95th percentile request latency is {{ $value }}s."
+
+      - alert: LLMErrorRate
+        expr: |
+          sum(rate(opc_llm_requests_total{status="error"}[5m]))
+          / sum(rate(opc_llm_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM error rate > 10%"
+          description: "LLM API error rate is {{ $value | humanizePercentage }}."
+
+      - alert: LowQMScore
+        expr: |
+          histogram_quantile(0.5,
+            sum(rate(opc_qm_score_bucket[1h])) by (le, tenant_id)
+          ) < 0.5
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Median QM score < 0.5 for tenant {{ $labels.tenant_id }}"
+          description: "Quality management median score is {{ $value }}."

@@ -1,0 +1,80 @@
+{{- if .Values.media.minio.enabled }}
+{{- if .Values.media.minio.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-minio-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.media.minio.persistence.size | default "20Gi" }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: "{{ .Values.media.minio.image.repository }}:{{ .Values.media.minio.image.tag }}"
+          imagePullPolicy: {{ .Values.media.minio.image.pullPolicy | default "IfNotPresent" }}
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: minio-access-key
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: minio-secret-key
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            {{- toYaml .Values.media.minio.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if .Values.media.minio.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-minio-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-minio
+spec:
+  type: {{ .Values.media.minio.service.type }}
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: {{ .Values.media.minio.service.port }}
+      targetPort: 9000
+    - name: console
+      port: {{ .Values.media.minio.service.consolePort }}
+      targetPort: 9001
+{{- end }}

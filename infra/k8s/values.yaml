@@ -1,0 +1,297 @@
+# OPC Platform Helm Values
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+opc:
+  replicaCount: 2
+  image:
+    repository: opc/platform
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  apiKey: ""
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  env:
+    PORT: "3000"
+
+aiAgent:
+  replicaCount: 2
+  image:
+    repository: opc/ai-agent
+    tag: latest
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: opc/frontend
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 80
+
+postgres:
+  enabled: true
+  connectionString: ""
+  auth:
+    username: opc
+    password: opc
+    database: opc
+  primary:
+    persistence:
+      size: 10Gi
+
+redis:
+  enabled: true
+  architecture: standalone
+
+livekit:
+  enabled: true
+  url: ""
+  apiKey: ""
+  apiSecret: ""
+  image:
+    repository: livekit/livekit-server
+    tag: v1.8
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 7880
+  rtcPort: 7881
+  udpPort: 7882
+  portRangeStart: 50000
+  portRangeEnd: 50100
+  useExternalIp: false
+  emptyTimeout: 300
+  maxParticipants: 10
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+media:
+  apiToken: ""
+  inviteSecret: ""
+  inviteTtlMs: "86400000"
+  recordingRetentionDays: "90"
+  recordingHttpAllowedOrigins: ""
+  recordingHttpTimeoutMs: "15000"
+  smokeVerifyRecordingObject: "0"
+  smokeRecordingObjectTimeoutMs: "60000"
+  smokeRecordingObjectPollIntervalMs: "2000"
+  minioEndpoint: ""
+  minioBucket: recordings
+  minioAccessKey: minioadmin
+  minioSecretKey: minioadmin
+  minio:
+    enabled: true
+    image:
+      repository: minio/minio
+      tag: latest
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 9000
+      consolePort: 9001
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "200m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  egress:
+    enabled: true
+    image:
+      repository: livekit/egress
+      tag: latest
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  sip:
+    enabled: true
+    image:
+      repository: livekit/sip
+      tag: latest
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 5061
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "300m"
+
+tinode:
+  baseUrl: ""
+  wsUrl: ""
+  publicBaseUrl: ""
+  publicWsUrl: ""
+  apiKey: ""
+  authToken: ""
+  basicUser: ""
+  basicPassword: ""
+  userPasswordSecret: ""
+  requestTimeoutMs: "5000"
+  messageMutationWindowMs: "900000"
+  deliveryWorker:
+    enabled: "1"
+    intervalMs: "5000"
+    batchSize: "50"
+    maxAttempts: "3"
+    claimLeaseMs: "30000"
+    retryDelaysMs: "2000,10000"
+
+attachmentProcessing:
+  attachmentMaxBytes: "26214400"
+  ocrProviderMode: self_hosted
+  ocrProviderName: ""
+  ocrBaseUrl: ""
+  ocrEndpoint: /v1/ocr
+  ocrToken: ""
+  ocrTimeoutMs: "30000"
+  asrProviderMode: self_hosted
+  asrProviderName: ""
+  asrBaseUrl: ""
+  asrEndpoint: /v1/asr
+  asrToken: ""
+  asrTimeoutMs: "30000"
+  worker:
+    enabled: "1"
+    intervalMs: "5000"
+    batchSize: "25"
+    maxAttempts: "3"
+    claimLeaseMs: "60000"
+    retryDelaysMs: "2000,10000"
+
+qualityReview:
+  providerMode: self_hosted
+  providerName: ""
+  baseUrl: ""
+  endpoint: /v1/quality-review
+  token: ""
+  timeoutMs: "30000"
+  autoEnqueue: "1"
+  worker:
+    enabled: "1"
+    intervalMs: "5000"
+    batchSize: "25"
+    maxAttempts: "3"
+    claimLeaseMs: "120000"
+    retryDelaysMs: "5000,30000"
+
+rustdesk:
+  enabled: true
+  provider: rustdesk
+  publicHost: rustdesk.example.com
+  relayHost: ""
+  apiServer: ""
+  controlPlaneBaseUrl: ""
+  publicKey: ""
+  publicKeyFile: /rustdesk/id_ed25519.pub
+  launchBaseUrl: https://opc.example.com
+  launchSecret: ""
+  edgeTokenSecret: ""
+  launchTokenTtlMs: "900000"
+  protocolUrlTemplate: ""
+  requireProtocolUrl: "0"
+  requireDeviceOnline: "0"
+  requirePhysicalDisconnect: "0"
+  deviceOnlineTtlMs: "300000"
+  checkDeviceOnline: "0"
+  checkOperationAudit: "1"
+  checkServerPorts: "0"
+  checkHost: ""
+  checkTcpPorts: "21115,21116,21117,21118,21119"
+  checkUdpPorts: "21116"
+  checkTimeoutMs: "1500"
+  readinessCheckDeviceOnline: "1"
+  readinessCheckOperationAudit: "1"
+  readinessCheckServerPorts: "1"
+  readinessRequireProtocolUrl: "1"
+  readinessCheckLaunchUrl: "1"
+  readinessRequireHttpsLaunchUrl: "1"
+  readinessCheckPhysicalDisconnect: "0"
+  remoteGatewayTenantId: tenant_led
+  remoteGatewayTargetType: device
+  remoteGatewayTargetId: ""
+  remoteGatewayTargetDisplayName: Remote gateway smoke device
+  remoteGatewayActorIdentity: agent_remote_gateway_smoke
+  remoteGatewayConsentScopes: view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard
+  remoteGatewayCheckLaunchUrl: "0"
+  serverKey: ""
+  apiToken: ""
+  alwaysUseRelay: "N"
+  hostNetwork: false
+  image:
+    repository: rustdesk/rustdesk-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    ports:
+      hbbsNatTest: 21115
+      hbbsSignal: 21116
+      hbbrRelay: 21117
+      hbbsWebSocket: 21118
+      hbbrWebSocket: 21119
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "300m"
+
+nats:
+  enabled: true
+  storage: 1Gi
+  jetstream:
+    enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: opc.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: opc
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls: []

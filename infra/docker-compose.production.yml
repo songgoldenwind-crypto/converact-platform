@@ -1,0 +1,367 @@
+# OPC Production Stack
+# Usage: docker compose -f infra/docker-compose.production.yml up -d
+
+services:
+  # --- Data Layer ---
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: opc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: opc
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opc"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pgbouncer:
+    image: bitnami/pgbouncer:latest
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_USERNAME: opc
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRESQL_DATABASE: opc
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: "200"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "20"
+    ports:
+      - "6432:6432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  nats:
+    image: nats:2-alpine
+    command: -js -m 8222
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+
+  # --- Auth ---
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: opc
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # --- Media Layer ---
+  livekit:
+    image: livekit/livekit-server:v1.8
+    command: --config /etc/livekit.yaml
+    ports:
+      - "7880:7880"
+      - "7881:7881/tcp"
+      - "7882-7892:7882-7892/udp"
+    volumes:
+      - ${OPC_MEDIA_CONFIG_DIR:-../.runtime/media}/livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      - redis
+
+  livekit-sip:
+    image: livekit/sip:latest
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      SIP_PORT: "5061"
+    ports:
+      - "5061:5061/udp"
+      - "5061:5061/tcp"
+    depends_on:
+      - livekit
+
+  livekit-egress:
+    image: livekit/egress:latest
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ${OPC_MEDIA_CONFIG_DIR:-../.runtime/media}/egress.yaml:/etc/egress.yaml:ro
+    depends_on:
+      - livekit
+      - redis
+      - minio
+
+  kamailio:
+    image: kamailio/kamailio:5.8
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+    volumes:
+      - ./config/kamailio.cfg:/etc/kamailio/kamailio.cfg:ro
+    depends_on:
+      - rustpbx
+
+  rustpbx:
+    image: ghcr.io/restsend/rustpbx:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../config/rustpbx.docker.toml:/app/rustpbx.toml:ro
+      - rustpbx_data:/app/db
+      - rustpbx_recordings:/app/recordings
+    depends_on:
+      - redis
+      - minio
+
+  rustdesk-hbbs:
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    command: hbbs
+    profiles: ["rustdesk"]
+    network_mode: "host"
+    environment:
+      ALWAYS_USE_RELAY: ${RUSTDESK_ALWAYS_USE_RELAY:-N}
+    volumes:
+      - rustdesk_data:/root
+    depends_on:
+      - rustdesk-hbbr
+    restart: unless-stopped
+
+  rustdesk-hbbr:
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    command: hbbr
+    profiles: ["rustdesk"]
+    network_mode: "host"
+    volumes:
+      - rustdesk_data:/root
+    restart: unless-stopped
+
+  # --- Application Layer ---
+  kong:
+    image: kong:3.8-alpine
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    volumes:
+      - ./config/kong.yml:/etc/kong/kong.yml:ro
+
+  opc:
+    build: ..
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgres://opc:${POSTGRES_PASSWORD}@pgbouncer:6432/opc
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      OPC_MEDIA_API_TOKEN: ${OPC_MEDIA_API_TOKEN}
+      OPC_MEDIA_INVITE_SECRET: ${OPC_MEDIA_INVITE_SECRET}
+      OPC_MEDIA_INVITE_TTL_MS: ${OPC_MEDIA_INVITE_TTL_MS:-86400000}
+      OPC_MEDIA_RECORDING_RETENTION_DAYS: ${OPC_MEDIA_RECORDING_RETENTION_DAYS:-90}
+      OPC_RECORDING_HTTP_ALLOWED_ORIGINS: ${OPC_RECORDING_HTTP_ALLOWED_ORIGINS:-http://minio:9000}
+      OPC_RECORDING_HTTP_TIMEOUT_MS: ${OPC_RECORDING_HTTP_TIMEOUT_MS:-15000}
+      OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT: ${OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT:-0}
+      OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS: ${OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS:-60000}
+      OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS: ${OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS:-2000}
+      OPC_API_KEY: ${OPC_API_KEY}
+      TINODE_BASE_URL: ${TINODE_BASE_URL:-}
+      TINODE_WS_URL: ${TINODE_WS_URL:-}
+      TINODE_PUBLIC_BASE_URL: ${TINODE_PUBLIC_BASE_URL:-}
+      TINODE_PUBLIC_WS_URL: ${TINODE_PUBLIC_WS_URL:-}
+      TINODE_API_KEY: ${TINODE_API_KEY:-}
+      TINODE_AUTH_TOKEN: ${TINODE_AUTH_TOKEN:-}
+      TINODE_BASIC_USER: ${TINODE_BASIC_USER:-}
+      TINODE_BASIC_PASSWORD: ${TINODE_BASIC_PASSWORD:-}
+      TINODE_USER_PASSWORD_SECRET: ${TINODE_USER_PASSWORD_SECRET:-}
+      TINODE_REQUEST_TIMEOUT_MS: ${TINODE_REQUEST_TIMEOUT_MS:-5000}
+      OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS: ${OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS:-900000}
+      OPC_TINODE_DELIVERY_WORKER_ENABLED: ${OPC_TINODE_DELIVERY_WORKER_ENABLED:-1}
+      OPC_TINODE_DELIVERY_INTERVAL_MS: ${OPC_TINODE_DELIVERY_INTERVAL_MS:-5000}
+      OPC_TINODE_DELIVERY_BATCH_SIZE: ${OPC_TINODE_DELIVERY_BATCH_SIZE:-50}
+      OPC_TINODE_DELIVERY_MAX_ATTEMPTS: ${OPC_TINODE_DELIVERY_MAX_ATTEMPTS:-3}
+      OPC_TINODE_DELIVERY_CLAIM_LEASE_MS: ${OPC_TINODE_DELIVERY_CLAIM_LEASE_MS:-30000}
+      OPC_TINODE_DELIVERY_RETRY_DELAYS_MS: ${OPC_TINODE_DELIVERY_RETRY_DELAYS_MS:-2000,10000}
+      OPC_COLLABORATION_ATTACHMENT_MAX_BYTES: ${OPC_COLLABORATION_ATTACHMENT_MAX_BYTES:-26214400}
+      OPC_OCR_PROVIDER_MODE: ${OPC_OCR_PROVIDER_MODE:-self_hosted}
+      OPC_OCR_PROVIDER_NAME: ${OPC_OCR_PROVIDER_NAME:-}
+      OPC_OCR_BASE_URL: ${OPC_OCR_BASE_URL:-}
+      OPC_OCR_ENDPOINT: ${OPC_OCR_ENDPOINT:-/v1/ocr}
+      OPC_OCR_TOKEN: ${OPC_OCR_TOKEN:-}
+      OPC_OCR_TIMEOUT_MS: ${OPC_OCR_TIMEOUT_MS:-30000}
+      OPC_ASR_PROVIDER_MODE: ${OPC_ASR_PROVIDER_MODE:-self_hosted}
+      OPC_ASR_PROVIDER_NAME: ${OPC_ASR_PROVIDER_NAME:-}
+      OPC_ASR_BASE_URL: ${OPC_ASR_BASE_URL:-}
+      OPC_ASR_ENDPOINT: ${OPC_ASR_ENDPOINT:-/v1/asr}
+      OPC_ASR_TOKEN: ${OPC_ASR_TOKEN:-}
+      OPC_ASR_TIMEOUT_MS: ${OPC_ASR_TIMEOUT_MS:-30000}
+      OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: ${OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED:-1}
+      OPC_ATTACHMENT_PROCESSING_INTERVAL_MS: ${OPC_ATTACHMENT_PROCESSING_INTERVAL_MS:-5000}
+      OPC_ATTACHMENT_PROCESSING_BATCH_SIZE: ${OPC_ATTACHMENT_PROCESSING_BATCH_SIZE:-25}
+      OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS: ${OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS:-3}
+      OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: ${OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS:-60000}
+      OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS: ${OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS:-2000,10000}
+      OPC_QUALITY_REVIEW_PROVIDER_MODE: ${OPC_QUALITY_REVIEW_PROVIDER_MODE:-self_hosted}
+      OPC_QUALITY_REVIEW_PROVIDER_NAME: ${OPC_QUALITY_REVIEW_PROVIDER_NAME:-}
+      OPC_QUALITY_REVIEW_BASE_URL: ${OPC_QUALITY_REVIEW_BASE_URL:-}
+      OPC_QUALITY_REVIEW_ENDPOINT: ${OPC_QUALITY_REVIEW_ENDPOINT:-/v1/quality-review}
+      OPC_QUALITY_REVIEW_TOKEN: ${OPC_QUALITY_REVIEW_TOKEN:-}
+      OPC_QUALITY_REVIEW_TIMEOUT_MS: ${OPC_QUALITY_REVIEW_TIMEOUT_MS:-30000}
+      OPC_QUALITY_REVIEW_AUTO_ENQUEUE: ${OPC_QUALITY_REVIEW_AUTO_ENQUEUE:-1}
+      OPC_QUALITY_REVIEW_WORKER_ENABLED: ${OPC_QUALITY_REVIEW_WORKER_ENABLED:-1}
+      OPC_QUALITY_REVIEW_INTERVAL_MS: ${OPC_QUALITY_REVIEW_INTERVAL_MS:-5000}
+      OPC_QUALITY_REVIEW_BATCH_SIZE: ${OPC_QUALITY_REVIEW_BATCH_SIZE:-25}
+      OPC_QUALITY_REVIEW_MAX_ATTEMPTS: ${OPC_QUALITY_REVIEW_MAX_ATTEMPTS:-3}
+      OPC_QUALITY_REVIEW_CLAIM_LEASE_MS: ${OPC_QUALITY_REVIEW_CLAIM_LEASE_MS:-120000}
+      OPC_QUALITY_REVIEW_RETRY_DELAYS_MS: ${OPC_QUALITY_REVIEW_RETRY_DELAYS_MS:-5000,30000}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-recordings}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      OPC_REMOTE_GATEWAY_PROVIDER: ${OPC_REMOTE_GATEWAY_PROVIDER:-rustdesk}
+      OPC_REMOTE_GATEWAY_BASE_URL: ${OPC_REMOTE_GATEWAY_BASE_URL:-http://opc:3000}
+      OPC_REMOTE_GATEWAY_API_TOKEN: ${OPC_REMOTE_GATEWAY_API_TOKEN}
+      OPC_REMOTE_GATEWAY_TENANT_ID: ${OPC_REMOTE_GATEWAY_TENANT_ID:-tenant_led}
+      OPC_REMOTE_GATEWAY_TARGET_TYPE: ${OPC_REMOTE_GATEWAY_TARGET_TYPE:-device}
+      OPC_REMOTE_GATEWAY_TARGET_ID: ${OPC_REMOTE_GATEWAY_TARGET_ID:-}
+      OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME: ${OPC_REMOTE_GATEWAY_TARGET_DISPLAY_NAME:-Remote gateway smoke device}
+      OPC_REMOTE_GATEWAY_ACTOR_IDENTITY: ${OPC_REMOTE_GATEWAY_ACTOR_IDENTITY:-agent_remote_gateway_smoke}
+      OPC_REMOTE_GATEWAY_CONSENT_SCOPES: ${OPC_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}
+      OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL: ${OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL:-0}
+      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: ${OPC_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}
+      OPC_RUSTDESK_ID_SERVER: ${OPC_RUSTDESK_ID_SERVER}
+      OPC_RUSTDESK_RELAY_SERVER: ${OPC_RUSTDESK_RELAY_SERVER}
+      OPC_RUSTDESK_API_SERVER: ${OPC_RUSTDESK_API_SERVER:-}
+      OPC_RUSTDESK_PUBLIC_KEY: ${OPC_RUSTDESK_PUBLIC_KEY:-}
+      OPC_RUSTDESK_PUBLIC_KEY_FILE: ${OPC_RUSTDESK_PUBLIC_KEY_FILE:-/rustdesk/id_ed25519.pub}
+      OPC_RUSTDESK_SERVER_KEY: ${OPC_RUSTDESK_SERVER_KEY:-}
+      OPC_RUSTDESK_LAUNCH_BASE_URL: ${OPC_RUSTDESK_LAUNCH_BASE_URL}
+      OPC_RUSTDESK_LAUNCH_SECRET: ${OPC_RUSTDESK_LAUNCH_SECRET}
+      OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS: ${OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS:-900000}
+      OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE: ${OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE:-}
+      OPC_RUSTDESK_REQUIRE_PROTOCOL_URL: ${OPC_RUSTDESK_REQUIRE_PROTOCOL_URL:-0}
+      OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE: ${OPC_RUSTDESK_REQUIRE_DEVICE_ONLINE:-0}
+      OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: ${OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0}
+      OPC_RUSTDESK_EDGE_TOKEN_SECRET: ${OPC_RUSTDESK_EDGE_TOKEN_SECRET}
+      OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS: ${OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS:-300000}
+      OPC_RUSTDESK_CHECK_DEVICE_ONLINE: ${OPC_RUSTDESK_CHECK_DEVICE_ONLINE:-0}
+      OPC_RUSTDESK_CHECK_OPERATION_AUDIT: ${OPC_RUSTDESK_CHECK_OPERATION_AUDIT:-1}
+      OPC_RUSTDESK_CHECK_SERVER_PORTS: ${OPC_RUSTDESK_CHECK_SERVER_PORTS:-0}
+      OPC_RUSTDESK_CHECK_HOST: ${OPC_RUSTDESK_CHECK_HOST:-}
+      OPC_RUSTDESK_CHECK_TCP_PORTS: ${OPC_RUSTDESK_CHECK_TCP_PORTS:-21115,21116,21117,21118,21119}
+      OPC_RUSTDESK_CHECK_UDP_PORTS: ${OPC_RUSTDESK_CHECK_UDP_PORTS:-21116}
+      OPC_RUSTDESK_CHECK_TIMEOUT_MS: ${OPC_RUSTDESK_CHECK_TIMEOUT_MS:-1500}
+      OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE: ${OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE:-1}
+      OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT: ${OPC_RUSTDESK_READINESS_CHECK_OPERATION_AUDIT:-1}
+      OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS: ${OPC_RUSTDESK_READINESS_CHECK_SERVER_PORTS:-1}
+      OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL: ${OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL:-1}
+      OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL: ${OPC_RUSTDESK_READINESS_CHECK_LAUNCH_URL:-1}
+      OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL: ${OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL:-1}
+      OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT: ${OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT:-0}
+      OPC_RUSTDESK_API_TOKEN: ${OPC_RUSTDESK_API_TOKEN}
+      OPC_AUTH_ISSUER: http://keycloak:8080/realms/opc
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      CHATWOOT_URL: http://chatwoot:3000
+      CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
+    depends_on:
+      - pgbouncer
+      - redis
+      - nats
+      - livekit
+      - rustpbx
+    volumes:
+      - rustdesk_data:/rustdesk:ro
+
+  ai-agent:
+    build: ../services/ai-agent-py
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      OPC_API_URL: http://opc:3000
+      OPC_API_KEY: ${OPC_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      NATS_URL: nats://nats:4222
+    depends_on:
+      - livekit
+      - opc
+      - nats
+
+  # --- Omnichannel ---
+  chatwoot:
+    image: chatwoot/chatwoot:latest
+    environment:
+      RAILS_ENV: production
+      SECRET_KEY_BASE: ${CHATWOOT_SECRET}
+      FRONTEND_URL: ${CHATWOOT_FRONTEND_URL:-http://localhost:3001}
+      DATABASE_URL: postgres://opc:${POSTGRES_PASSWORD}@postgres:5432/chatwoot
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3001:3000"
+    depends_on:
+      - postgres
+      - redis
+    command: bundle exec rails s -p 3000 -b 0.0.0.0
+
+  # --- Frontend ---
+  frontend:
+    build: ../frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - opc
+      - kong
+
+volumes:
+  postgres_data:
+  redis_data:
+  nats_data:
+  minio_data:
+  rustpbx_data:
+  rustpbx_recordings:
+  rustdesk_data:

@@ -1,0 +1,8 @@
+[[routes]]
+name = "M1 IVR Lab DID (file)"
+priority = 99
+direction = "inbound"
+app = "ivr:opc-m1"
+
+[routes.match]
+"to.user" = "^40000001$"

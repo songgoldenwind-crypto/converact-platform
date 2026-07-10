@@ -1,0 +1,36 @@
+# Self-hosted Tinode overlay for the production stack.
+# Usage: docker compose --env-file infra/env.example \
+#   -f infra/docker-compose.production.yml -f infra/docker-compose.tinode.yml up -d
+
+services:
+  tinode:
+    image: tinode/tinode:${TINODE_IMAGE_TAG:-0.25.3}
+    restart: unless-stopped
+    ports:
+      - "6060:6060"
+    environment:
+      STORE_USE_ADAPTER: postgres
+      POSTGRES_DSN: ${TINODE_POSTGRES_DSN:?TINODE_POSTGRES_DSN is required}
+      WAIT_FOR: postgres:5432
+      AUTH_TOKEN_KEY: ${TINODE_AUTH_TOKEN_KEY:?TINODE_AUTH_TOKEN_KEY is required}
+      UID_ENCRYPTION_KEY: ${TINODE_UID_ENCRYPTION_KEY:?TINODE_UID_ENCRYPTION_KEY is required}
+      SAMPLE_DATA: ${TINODE_SAMPLE_DATA:-}
+      UPGRADE_DB: ${TINODE_UPGRADE_DB:-false}
+      RESET_DB: "false"
+      WEBRTC_ENABLED: "false"
+      ACC_GC_ENABLED: "true"
+    volumes:
+      - tinode_botdata:/botdata
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  opc:
+    environment:
+      TINODE_BASE_URL: ${TINODE_BASE_URL:-http://tinode:6060}
+      TINODE_WS_URL: ${TINODE_WS_URL:-ws://tinode:6060/v0/channels}
+    depends_on:
+      - tinode
+
+volumes:
+  tinode_botdata:

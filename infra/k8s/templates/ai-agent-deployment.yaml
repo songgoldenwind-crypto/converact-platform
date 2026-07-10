@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ai-agent
+  labels:
+    app: ai-agent
+spec:
+  replicas: {{ .Values.aiAgent.replicaCount }}
+  selector:
+    matchLabels:
+      app: ai-agent
+  template:
+    metadata:
+      labels:
+        app: ai-agent
+    spec:
+      containers:
+        - name: ai-agent
+          image: "{{ .Values.aiAgent.image.repository }}:{{ .Values.aiAgent.image.tag }}"
+          env:
+            - name: LIVEKIT_URL
+              value: {{ .Values.livekit.url | default (printf "ws://%s-livekit:7880" .Release.Name) | quote }}
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: livekit-api-key
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: livekit-api-secret
+            - name: OPC_API_URL
+              value: http://{{ .Release.Name }}-opc:3000
+            - name: OPC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: opc-api-key
+            - name: NATS_URL
+              value: nats://{{ .Release.Name }}-nats:4222
+          resources:
+            {{- toYaml .Values.aiAgent.resources | nindent 12 }}

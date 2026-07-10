@@ -1,0 +1,279 @@
+# iveKit LED 集成与抽离指南
+
+> 版本：2026-07-10。面向 LED 项目架构师、后端、前端、部署和 QA。本文定义复用与抽离方法，不把本地 fake 测试描述成真实环境验收。
+
+## 1. 交付目标
+
+iveKit 将 OPC 已有通信能力分成三个可复用域：
+
+1. **Media Core**：LiveKit 房间、Join Plan、参与人、视频/语音/屏幕共享、Recording/Egress、对象检查与受控导出。
+2. **Collaboration Session**：业务会话、Tinode IM、本地消息镜像、附件、receipt/unread、typing/presence、编辑/软删除、防绕单、OCR/ASR、AI 质检和人工复核。
+3. **Remote Assistance**：Web Assist、授权、页面内控制、录屏/证据、RustDesk 系统级远控、设备命令和审计；MeshCentral/Guacamole 保留为 fallback。
+
+LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit/media/*`、`/api/ivekit/chat/*`、`/api/ivekit/rustdesk/*` 和标准租户事件。SDK 只封装这些 HTTP 契约，后续把能力搬到独立服务时，LED 只需要更换 `baseUrl`。
+
+## 2. 当前完成度
+
+| 范围 | 代码状态 | 真实环境状态 |
+| --- | --- | --- |
+| Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器待服务器验证 |
+| Collaboration Session | Tinode durable outbound、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 真实 Tinode、OCR/ASR/AI provider、多副本 PostgreSQL/Redis 待服务器验证 |
+| Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、真实双客户端控制与断开观察待服务器验证 |
+| SDK | `createIveKitHttpSdk` 覆盖 Media + Chat；`createIveKitRustDeskLedSdk` 覆盖 RustDesk 流程 | SDK 本地 fetch 契约通过；真实服务调用待部署 |
+
+本地相关回归已通过，但这只证明代码和契约。真实环境验证清单见第 11 节。
+
+2026-07-10 的部署加固已把 PostgreSQL 版 Tinode 纳入本地 Compose 和 production 自建 overlay，并修正 LiveKit ICE/Egress 配置；这仍属于静态配置与测试通过，不代表容器或真实服务器已经运行成功。
+
+## 3. 推荐部署拓扑
+
+### 3.1 第一阶段：嵌入 OPC
+
+LED 后端调用现有 OPC `/api/ivekit/*`。优点是零搬迁、最快联调；缺点是部署生命周期暂时跟随 OPC。适合第一版。
+
+```text
+LED backend/frontend
+        |
+        | HTTPS /api/ivekit/*
+        v
+OPC process + PostgreSQL/RLS
+   |          |          |
+LiveKit     Tinode    RustDesk control plane
+```
+
+### 3.2 第二阶段：独立 iveKit 服务
+
+把 iveKit HTTP 路由、模块、迁移和 worker 一起搬到独立进程。OPC 和 LED 都作为调用方。不能只复制 SDK 或 route 文件，PostgreSQL tenant context、RLS、workers、事件总线和 provider 配置必须一起迁移。
+
+### 3.3 第三阶段：共享通信平台
+
+独立服务按 tenant 提供 Media/Chat/Remote，OPC 和 LED 使用各自 API key/JWT。LiveKit、Tinode、RustDesk 可共享集群，但业务数据必须按 PostgreSQL RLS 和 provider 命名空间隔离。
+
+## 4. SDK 使用
+
+### 4.1 服务端 API key
+
+```ts
+import {
+  createIveKitHttpSdk,
+  createIveKitRustDeskLedSdk
+} from './src/agent-runtime/ivekit/index.js';
+
+const sdk = createIveKitHttpSdk({
+  baseUrl: 'https://opc.example.com',
+  apiKey: process.env.OPC_API_KEY!,
+  tenantId: 'tenant_led',
+  userId: 'agent_1001'
+});
+```
+
+SDK 自动发送 `X-API-Key`、`X-Tenant-Id` 和可选 `X-User-Id`。服务端 API key 是可信后端凭据，不能放进浏览器包。
+
+### 4.2 浏览器 Bearer token
+
+```ts
+const browserSdk = createIveKitHttpSdk({
+  baseUrl: 'https://opc.example.com',
+  accessToken: signedUserJwt,
+  tenantId: 'tenant_led'
+});
+```
+
+Bearer 模式不会发送 `X-User-Id`，身份以 JWT `sub` 为准。JWT 用户不能通过 body 冒用其他身份领取 Tinode client-plan、发送消息、上报 receipt/presence 或编辑消息。
+
+### 4.3 可运行示例
+
+```bash
+OPC_IVEKIT_LED_BASE_URL=https://opc.example.com \
+OPC_IVEKIT_LED_API_KEY=... \
+OPC_IVEKIT_LED_TENANT_ID=tenant_led \
+OPC_IVEKIT_LED_USER_ID=agent_1001 \
+OPC_IVEKIT_LED_BUSINESS_REF_ID=SO-1001 \
+npm run ivekit:led-example
+```
+
+示例创建 collaboration session、参与人、LiveKit room、join plan 和幂等 IM 消息。只有额外提供 `OPC_IVEKIT_LED_REMOTE_SESSION_ID` 以及 RustDesk device/runtime ID 时才启动已有授权范围内的 RustDesk session。
+
+## 5. LED 主流程
+
+### 5.1 视频 + IM
+
+```mermaid
+sequenceDiagram
+  participant LED as LED Backend
+  participant IVE as iveKit
+  participant PG as PostgreSQL/RLS
+  participant LK as LiveKit
+  participant TN as Tinode
+  LED->>IVE: POST /chat/sessions (business_ref)
+  IVE->>PG: collaboration session
+  LED->>IVE: POST /media/rooms
+  IVE->>LK: create room
+  LED->>IVE: POST /media/rooms/:room/join
+  IVE-->>LED: LiveKit join plan
+  LED->>IVE: POST /chat/sessions/:id/client-plan
+  IVE->>TN: user + JRP topic access
+  IVE-->>LED: receive-only Tinode plan
+  LED->>IVE: POST /chat/sessions/:id/messages
+  IVE->>PG: message + policy + durable outbox
+  IVE->>TN: backend publish
+```
+
+业务消息必须先走 iveKit。Tinode 客户端 mode 为 `JRP`，没有 `W`；`direct_client_publish=false`。这样文本、附件、OCR/ASR、AI 质检和审计不会被绕开。
+
+### 5.2 receipt、在线状态和编辑
+
+1. 页面打开后取得 snapshot/client-plan。
+2. 对最新可见他人消息调用 receipt `status=read`，后端执行 read-through。
+3. 页面每 60 秒刷新 presence，TTL 默认 90 秒；typing TTL 默认 8 秒。
+4. 发送者在 `OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS` 内可编辑或软删除文本消息。
+5. LED UI 以 iveKit snapshot 和 `collaboration.message.edited/deleted` 为权威；当前不把 edit/delete 回写成 Tinode 原生 mutation。
+
+### 5.3 RustDesk
+
+RustDesk 前置条件是 collaboration remote session 已创建且授权 scope 已 grant。LED 使用 `createIveKitRustDeskLedSdk`：
+
+1. 按 business_ref 查找/注册设备并 heartbeat。
+2. `startSession` 创建 gateway session 和 launch plan。
+3. 记录 control/file/clipboard/recording 操作事件。
+4. 结束会话后查询 physical disconnect command 状态。
+5. 真实客户端必须人工确认屏幕和键鼠能力已经停止。
+
+## 6. 数据库与迁移
+
+生产数据层只使用 **PostgreSQL + RLS**，不要引入 SQLite。独立部署至少按顺序迁移：
+
+| Migration | 作用 |
+| --- | --- |
+| `009_tenant_rls.sql`、`010_force_rls.sql` | tenant context/RLS 基础 |
+| `011_collaboration_remote_assistance.sql` | session、participant、message、remote、consent、audit、evidence |
+| `012_livekit_participants.sql`、`013_media_recording_business_ref.sql` | LiveKit 参与人和录制业务引用 |
+| `014_remote_assistance_web_assist_mode.sql` | Web Assist mode |
+| `016_collaboration_chat_bindings.sql`、`017_collaboration_message_attachments.sql` | Chat provider binding 和附件 |
+| `018` 到 `024` | RustDesk device/gateway/event/heartbeat/RLS/command |
+| `025_collaboration_message_delivery.sql` | Tinode durable outbox/attempt |
+| `026_media_recording_lifecycle.sql` | recording lifecycle/retention/object |
+| `027_collaboration_attachment_processing.sql` | OCR/ASR durable job |
+| `028_collaboration_policy_findings.sql` | 统一 finding 和人工复核 |
+| `029_collaboration_quality_review.sql` | AI 质检 durable job |
+| `030_collaboration_message_state.sql` | receipt、presence/typing、edit/delete audit |
+
+迁移后必须验证 `ENABLE ROW LEVEL SECURITY`、`FORCE ROW LEVEL SECURITY`、tenant policy 和非 bypass 账号的跨租户拒绝。MemoryPg 测试不能替代真实 PostgreSQL。
+
+## 7. 配置与依赖
+
+### Media Core
+
+- `LIVEKIT_URL/API_KEY/API_SECRET`
+- `LIVEKIT_EGRESS_URL` 与 webhook secret
+- `OPC_MEDIA_CONFIG_RTC_TCP_PORT`，默认 `7881`
+- `OPC_MEDIA_CONFIG_RTC_UDP_PORT`，默认 `7882-7892`，生产防火墙必须开放同一 UDP 范围
+- `OPC_MEDIA_CONFIG_USE_EXTERNAL_IP=true` 用于生产公网 ICE 候选；本地固定配置保持 `false`
+- MinIO/S3 endpoint、bucket、key、secret
+- 客户邀请和 Web Assist join 签名 secret
+
+### Collaboration Session
+
+- `TINODE_DEPLOYMENT_MODE=external|self_hosted`
+- 自建模式必填 `TINODE_POSTGRES_DSN`、32 字节 base64 `TINODE_AUTH_TOKEN_KEY`、16 字节 base64 `TINODE_UID_ENCRYPTION_KEY`
+- 所有生产模式都必须提供公网 `wss://` 的 `TINODE_PUBLIC_WS_URL`，或可推导 WSS 的 `https://` `TINODE_PUBLIC_BASE_URL`
+- Tinode server 镜像默认固定为 `tinode/tinode:0.25.3`，升级前必须执行真实 server、SDK 和 ACL 回归
+- `TINODE_BASE_URL/WS_URL/PUBLIC_WS_URL/API_KEY`
+- Tinode root token 或 basic root 凭据
+- `TINODE_USER_PASSWORD_SECRET`
+- delivery worker、attachment worker、quality worker 参数
+- `OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS`
+- OCR/ASR/AI provider mode、URL、token、timeout
+
+### Remote Assistance
+
+- RustDesk hbbs/hbbr、public key、ID/relay/API server
+- control-plane base URL/token
+- edge token secret、设备 token、wrapper 和 physical-disconnect strict mode
+
+完整变量见 `.env.example`、`infra/env.example`、本地/production Compose、`infra/docker-compose.tinode.yml` 和 `infra/k8s/values.yaml`。
+
+## 8. 抽离文件边界
+
+### 必须一起抽离
+
+- `src/agent-runtime/ivekit/`
+- `src/agent-runtime/livekit/`
+- `src/agent-runtime/collaboration/`
+- recording object/evidence 辅助模块
+- `src/db-pg-tenant.ts` 和相关 migration runner
+- `src/migrations/009` 到 `030` 中上述清单
+- attachment/Tinode/quality workers 的 server lifecycle
+- 租户 WebSocket/Redis 广播 adapter
+- `scripts/*preflight*`、media/chat/rustdesk smoke 与验收脚本
+- `frontend/src/pages/tinode-realtime.ts` 或等价 LED adapter
+
+### 不应抽离
+
+- call-center 坐席、IVR、外呼和 CRM 业务路由
+- AI 数字人业务编排
+- LED 自己的订单、设备管理和审核工作台 UI
+
+HTTP SDK `src/agent-runtime/ivekit/http-sdk.ts` 没有 store、PostgreSQL 或 provider import，可先复制/发布为独立 npm package。服务端模块在迁移和事件边界稳定前不要机械搬目录。
+
+## 9. 错误、幂等和重试
+
+1. 客户端消息必须带稳定 `Idempotency-Key`；同 key 同 payload 返回原消息，不同 payload 返回 409。
+2. HTTP 202 表示本地消息和扫描已完成、provider 正在 durable retry；不能当作消息丢失。
+3. HTTP 502 表示 provider 终态失败，但本地消息/审计仍存在。
+4. SDK 抛出 `IveKitHttpSdkError`，包含 `status/method/path/payload`；网络/超时 status 为 0。
+5. receipt、presence、typing 和 mutation 只能以当前认证身份执行。
+6. RustDesk end/physical disconnect 是最终一致链路，LED 要展示 pending/succeeded/failed/unavailable。
+
+## 10. 事件订阅
+
+LED 可订阅 OPC 租户 WebSocket。关键事件：
+
+- `collaboration.message.created`
+- `collaboration.message.receipt_updated`
+- `collaboration.typing.updated`
+- `collaboration.presence.updated`
+- `collaboration.message.edited`
+- `collaboration.message.deleted`
+- `collaboration.attachment.processed`
+- `collaboration.quality_review.completed`
+- `collaboration.policy.finding_reviewed`
+- Web Assist consent/event/recording 与 RustDesk gateway/audit 事件
+
+WebSocket 是加速通道，页面重连后必须用 snapshot/message-state/realtime-state 重新收敛，不能只依赖内存事件。
+
+## 11. 真实环境验收
+
+### 11.1 已完成的本地部署准备
+
+1. `docker-compose.callcenter.yml` 直接包含 PostgreSQL 版 `tinode/tinode`；production 自建模式通过叠加 `infra/docker-compose.tinode.yml` 启用同一能力。production base 不含 Tinode server，供外部/共享 Tinode 使用；两种模式都没有引入 SQLite。
+2. 两份 Compose 都映射 LiveKit `7881/tcp` 和 `7882-7892/udp`；不再把 `7881` 错当 UDP 端口。
+3. production LiveKit 配置渲染支持公网 ICE 开关；Egress 与 LiveKit 使用同一 Redis，S3 参数位于当前 Egress 所需的 `storage.s3` 层级。
+4. production Tinode overlay 和 `npm run tinode:deployment-preflight` 都会对自建模式的 PostgreSQL DSN 与运行时密钥 fail-closed；preflight 还校验密钥长度，并对所有生产模式校验公网 WSS，生成的 JSON/Markdown 不回显秘密。
+5. 本地 Compose、production external base、配置完整的 production self-hosted overlay 均已通过 `docker compose config --quiet`；缺自建密钥的 overlay 已验证会拒绝解析。
+
+以上没有执行 Docker 镜像拉取、容器启动、数据库初始化、网络连通或真实 provider 请求。当前也没有上传/部署服务器。
+
+### 必须执行
+
+1. `npm run livekit:deployment-preflight`、media smoke、双浏览器视频/屏幕共享、Egress/对象导出。
+2. `npm run tinode:deployment-preflight`、`npm run smoke:chat:tinode`、双浏览器 SDK join/data/info/presence/read note。
+3. 验证 Tinode 用户只有 `JRP`，浏览器直接 publish 被拒绝。
+4. 真实 PostgreSQL 跑 migration/RLS、多副本 claim 竞争、10k+ 消息 unread/read-through。
+5. 真实 OCR/ASR/AI provider 的准确率、延迟、重试、限流和数据合规。
+6. RustDesk server evidence/readiness/client acceptance/audit coverage/evidence pack，包含真实物理断开观察。
+7. 多实例 Redis/WebSocket 广播、断网重连、旧 SDK 连接不复活。
+
+### 当前不得声称通过
+
+真实 LiveKit/Tinode/RustDesk 客户端、真实对象存储、真实 OCR/ASR/AI、电话线路、多副本和生产网络尚未在当前本地环境验证。preflight 和 fake provider 只证明配置/协议形状。
+
+另外，TURN/NAT 生产配置、Tinode Kubernetes 模板、MinIO bucket 初始化和完整 PostgreSQL 多数据库初始化仍需在服务器部署阶段补齐或验证，不能由 Compose 静态解析结果替代。
+
+## 12. 版本与责任边界
+
+1. iveKit API 第一版保持 additive evolution；删除/改名必须先发布 deprecation。
+2. `capabilities` 是运行时能力协商入口，LED 不应硬猜 provider 是否配置。
+3. LED 负责业务对象、页面流程、审核工作台和业务处置；iveKit 负责通信 session、媒体、IM、远协、审计和 provider adapter。
+4. 当前官方浏览器依赖为 `tinode-sdk@0.25.1`；升级前必须重跑 adapter、真实 server 和权限门禁。
+5. 详细数据/API/验收证据继续以 `iveKit视频IM通用能力详细设计.md`、`livekit-im-full-capability-plan.md` 和 `审核文档.md` 为准。

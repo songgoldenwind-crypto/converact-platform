@@ -1,0 +1,372 @@
+openapi: 3.1.0
+info:
+  title: OPC AI Communication Platform API
+  version: 1.0.0
+  description: |
+    AI-powered communication platform API for voice, video, and omnichannel customer engagement.
+
+    ## Authentication
+    All API requests require authentication via one of:
+    - Bearer token (JWT from Keycloak): `Authorization: Bearer <token>`
+    - API key: `X-API-Key: <key>`
+
+    ## Rate Limiting
+    - Free plan: 60 requests/minute
+    - Pro plan: 300 requests/minute
+    - Enterprise plan: 1000 requests/minute
+
+servers:
+  - url: https://api.opc.example.com
+    description: Production
+  - url: http://localhost:3000
+    description: Development
+
+paths:
+  /api/call-center/dashboard:
+    get:
+      summary: Get call center dashboard stats
+      tags: [Dashboard]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+
+  /api/call-center/outbound-tasks:
+    get:
+      summary: List outbound call tasks
+      tags: [Outbound]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, in_progress, completed, failed] }
+      responses:
+        '200':
+          description: List of outbound tasks
+    post:
+      summary: Create outbound call task
+      tags: [Outbound]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOutboundTask'
+      responses:
+        '200':
+          description: Task created
+
+  /api/call-center/seats:
+    get:
+      summary: List agent seats
+      tags: [Agents]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Agent seats list
+
+  /api/qm/evaluations:
+    get:
+      summary: List QM evaluations
+      tags: [Quality Management]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: min_score
+          in: query
+          schema: { type: number }
+        - name: max_score
+          in: query
+          schema: { type: number }
+      responses:
+        '200':
+          description: QM evaluations list
+
+  /api/qm/evaluate:
+    post:
+      summary: Trigger QM evaluation for a call
+      tags: [Quality Management]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, call_session_id]
+              properties:
+                tenant_id: { type: string }
+                call_session_id: { type: string }
+      responses:
+        '200':
+          description: Evaluation result
+
+  /api/knowledge/bases:
+    get:
+      summary: List knowledge bases
+      tags: [Knowledge Base]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Knowledge bases list
+    post:
+      summary: Create knowledge base
+      tags: [Knowledge Base]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, name]
+              properties:
+                tenant_id: { type: string }
+                name: { type: string }
+                description: { type: string }
+      responses:
+        '200':
+          description: Knowledge base created
+
+  /api/knowledge/ask:
+    post:
+      summary: Ask a question to the knowledge base
+      tags: [Knowledge Base]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, question]
+              properties:
+                tenant_id: { type: string }
+                question: { type: string }
+                knowledge_base_id: { type: string }
+      responses:
+        '200':
+          description: RAG answer with sources
+
+  /api/billing/subscription:
+    get:
+      summary: Get billing subscription
+      tags: [Billing]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Subscription details
+
+  /api/billing/checkout:
+    post:
+      summary: Create checkout session
+      tags: [Billing]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, plan_code]
+              properties:
+                tenant_id: { type: string }
+                plan_code: { type: string, enum: [pro, enterprise] }
+      responses:
+        '200':
+          description: Checkout session URL
+
+  /api/webhooks/subscriptions:
+    get:
+      summary: List webhook subscriptions
+      tags: [Webhooks]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Webhook subscriptions
+    post:
+      summary: Create webhook subscription
+      tags: [Webhooks]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookSubscription'
+      responses:
+        '200':
+          description: Subscription created
+
+  /api/webhooks/subscriptions/{id}:
+    put:
+      summary: Update webhook subscription
+      tags: [Webhooks]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string, format: uri }
+                events: { type: array, items: { type: string } }
+                active: { type: boolean }
+      responses:
+        '200':
+          description: Updated subscription
+    delete:
+      summary: Delete webhook subscription
+      tags: [Webhooks]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Subscription deleted
+
+  /api/webhooks/subscriptions/{id}/test:
+    post:
+      summary: Send test webhook event
+      tags: [Webhooks]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Test event dispatched
+
+  /api/wfm/forecast:
+    get:
+      summary: Get volume forecast
+      tags: [WFM]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Hourly volume forecast
+
+  /api/white-label:
+    get:
+      summary: Get white-label configuration
+      tags: [White Label]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: White-label config
+    put:
+      summary: Update white-label configuration
+      tags: [White Label]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WhiteLabelConfig'
+      responses:
+        '200':
+          description: Updated config
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    DashboardResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            total_calls: { type: integer }
+            active_calls: { type: integer }
+            avg_intent_score: { type: number }
+            active_seats: { type: integer }
+
+    CreateOutboundTask:
+      type: object
+      required: [tenant_id, phone_number, channel]
+      properties:
+        tenant_id: { type: string }
+        phone_number: { type: string }
+        channel: { type: string, enum: [pstn_voice, livekit_sip] }
+        scheduled_at: { type: string, format: date-time }
+
+    CreateWebhookSubscription:
+      type: object
+      required: [tenant_id, url, events]
+      properties:
+        tenant_id: { type: string }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { type: string }
+
+    WhiteLabelConfig:
+      type: object
+      properties:
+        tenant_id: { type: string }
+        brand_name: { type: string }
+        logo_url: { type: string }
+        primary_color: { type: string }
+        custom_domain: { type: string }
+        email_from_name: { type: string }
+        email_from_address: { type: string }
+
+security:
+  - BearerAuth: []
+  - ApiKey: []
+
+tags:
+  - name: Dashboard
+  - name: Outbound
+  - name: Agents
+  - name: Quality Management
+  - name: Knowledge Base
+  - name: Billing
+  - name: Webhooks
+  - name: WFM
+  - name: White Label

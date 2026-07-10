@@ -1,0 +1,58 @@
+http_addr = "0.0.0.0:8080"
+log_level = "info"
+database_url = "sqlite:///app/db/rustpbx.db"
+rtp_start_port = 20000
+rtp_end_port = 30000
+
+[proxy]
+addr = "0.0.0.0"
+udp_port = 5060
+modules = ["acl", "auth", "registrar", "call"]
+routes_files = ["config/rustpbx-routes/*.toml"]
+ivr_files = ["config/ivr/*.toml"]
+
+[[proxy.routes]]
+name = "M1 IVR Lab DID"
+priority = 100
+direction = "inbound"
+app = "ivr:opc-m1"
+
+[proxy.routes.match]
+"to.user" = "^40000001$"
+
+[proxy.http_router]
+url = "http://opc:3000/api/call-router"
+timeout_ms = 3000
+fallback_to_static = true
+fallback_action = "reject"
+
+[proxy.http_router.headers]
+X-PBX-Key = "dev-pbx-key"
+
+[proxy.trunks.livekit-bridge]
+dest = "sip:livekit-sip:5061"
+transport = "udp"
+
+[rwi]
+enabled = true
+max_connections = 200
+max_calls_per_connection = 50
+orphan_hold_secs = 30
+
+[[rwi.tokens]]
+token = "dev-rwi-token"
+scopes = ["call", "session", "media", "record", "queue"]
+
+[[rwi.contexts]]
+name = "ivr_bot"
+no_answer_timeout_secs = 15
+no_answer_action = "hangup"
+
+[recording]
+enabled = true
+format = "wav"
+storage = "local"
+path = "/app/recordings"
+
+[cdr]
+webhook_url = "http://opc:3000/api/webhooks/rustpbx-cdr"

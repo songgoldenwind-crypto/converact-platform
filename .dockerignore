@@ -1,0 +1,11 @@
+node_modules
+/data
+.git
+.DS_Store
+研究资料
+.agent_research_sources
+**/*.log
+.DS_Store
+研究资料
+.agent_research_sources
+**/*.log
