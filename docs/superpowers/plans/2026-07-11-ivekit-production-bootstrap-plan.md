@@ -31,7 +31,7 @@
 - Create: `infra/scripts/bootstrap-postgres-databases.sh`
 - Create: `test/production-bootstrap-scripts.test.ts`
 
-- [ ] **Step 1: Write the PostgreSQL bootstrap behavior tests**
+- [x] **Step 1: Write the PostgreSQL bootstrap behavior tests**
 
 Create the test file with a temporary fake `psql` executable. The fake records calls, stores created database names as marker files, and supports a forced create failure:
 
@@ -133,7 +133,7 @@ test('PostgreSQL bootstrap propagates create failures without leaking secrets', 
 
 Keep the fixture directory so a failed assertion leaves its command log available under the OS temporary directory.
 
-- [ ] **Step 2: Run the test and confirm the missing-script failure**
+- [x] **Step 2: Run the test and confirm the missing-script failure**
 
 Run:
 
@@ -143,7 +143,7 @@ node --import tsx --test test/production-bootstrap-scripts.test.ts
 
 Expected: all PostgreSQL cases fail because `infra/scripts/bootstrap-postgres-databases.sh` does not exist.
 
-- [ ] **Step 3: Implement the idempotent PostgreSQL initializer**
+- [x] **Step 3: Implement the idempotent PostgreSQL initializer**
 
 Create the script with fixed identifiers and no connection URL logging:
 
@@ -192,6 +192,9 @@ for database in $databases; do
   verified=$(psql -X -h "$host" -p "$port" -U "$user" -d "$maintenance_database" \
     -v ON_ERROR_STOP=1 -At -c "SELECT 1 FROM pg_database WHERE datname = '$database'")
   [ "$verified" = '1' ] || fail "database verification failed: $database"
+  owner=$(psql -X -h "$host" -p "$port" -U "$user" -d "$maintenance_database" \
+    -v ON_ERROR_STOP=1 -At -c "SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '$database'")
+  [ "$owner" = "$user" ] || fail "database owner verification failed: $database"
   printf 'postgres bootstrap: %s ready\n' "$database"
 done
 IFS=$old_ifs
@@ -204,7 +207,7 @@ Make it executable:
 chmod +x infra/scripts/bootstrap-postgres-databases.sh
 ```
 
-- [ ] **Step 4: Run the PostgreSQL tests and verify green**
+- [x] **Step 4: Run the PostgreSQL tests and verify green**
 
 Run:
 
@@ -214,7 +217,7 @@ node --import tsx --test test/production-bootstrap-scripts.test.ts
 
 Expected: 4 tests pass; process output contains database names but never `postgres-test-secret`.
 
-- [ ] **Step 5: Commit the PostgreSQL bootstrap slice**
+- [x] **Step 5: Commit the PostgreSQL bootstrap slice**
 
 ```bash
 git add infra/scripts/bootstrap-postgres-databases.sh test/production-bootstrap-scripts.test.ts
@@ -227,7 +230,7 @@ git commit -m "feat(infra): bootstrap PostgreSQL databases"
 - Create: `infra/scripts/bootstrap-minio-bucket.sh`
 - Modify: `test/production-bootstrap-scripts.test.ts`
 
-- [ ] **Step 1: Add MinIO retry, idempotence, privacy, and redaction tests**
+- [x] **Step 1: Add MinIO retry, idempotence, privacy, and redaction tests**
 
 Extend the test file with `MINIO_SCRIPT` and a fake `mc` executable. The fake fails `alias set` for the requested number of attempts, records bucket state, and returns `private` only after `anonymous set none`:
 
@@ -313,7 +316,7 @@ test('MinIO bootstrap fails after bounded readiness retries without leaking cred
 });
 ```
 
-- [ ] **Step 2: Run the expanded test and confirm only MinIO cases fail**
+- [x] **Step 2: Run the expanded test and confirm only MinIO cases fail**
 
 Run:
 
@@ -323,7 +326,7 @@ node --import tsx --test test/production-bootstrap-scripts.test.ts
 
 Expected: the 4 PostgreSQL cases pass and the 4 MinIO cases fail because the MinIO script is absent.
 
-- [ ] **Step 3: Implement the MinIO initializer**
+- [x] **Step 3: Implement the MinIO initializer**
 
 Create the bounded, private initializer:
 
@@ -373,7 +376,7 @@ Make it executable:
 chmod +x infra/scripts/bootstrap-minio-bucket.sh
 ```
 
-- [ ] **Step 4: Run all script tests and verify green**
+- [x] **Step 4: Run all script tests and verify green**
 
 Run:
 
@@ -381,9 +384,9 @@ Run:
 node --import tsx --test test/production-bootstrap-scripts.test.ts
 ```
 
-Expected: 8 tests pass; retries are bounded; no test process output contains either fake secret.
+Expected: 12 tests pass; database owner mismatch, bounded retries, missing inputs, privacy failure, and stat failure are covered; no test process output contains either fake secret.
 
-- [ ] **Step 5: Commit the MinIO bootstrap slice**
+- [x] **Step 5: Commit the MinIO bootstrap slice**
 
 ```bash
 git add infra/scripts/bootstrap-minio-bucket.sh test/production-bootstrap-scripts.test.ts
@@ -398,7 +401,7 @@ git commit -m "feat(infra): bootstrap private MinIO bucket"
 - Modify: `infra/docker-compose.tinode.yml`
 - Modify: `infra/env.example`
 
-- [ ] **Step 1: Write static Compose contract tests**
+- [x] **Step 1: Write static Compose contract tests**
 
 Add tests that inspect only the relevant service blocks:
 
@@ -413,7 +416,8 @@ test('production compose gates databases, PgBouncer, and object storage', () => 
   assert.ok(readServiceVolumes(compose, 'postgres-bootstrap').includes('./scripts/bootstrap-postgres-databases.sh:/bootstrap/bootstrap-postgres-databases.sh:ro'));
   assert.match(postgresBootstrap, /postgres:\n\s+condition: service_healthy/);
   assert.match(readServiceBlock(compose, 'pgbouncer'), /postgres-bootstrap:\n\s+condition: service_completed_successfully/);
-  assert.match(readServiceBlock(compose, 'pgbouncer'), /healthcheck:[\s\S]*pg_isready[\s\S]*6432/);
+  assert.match(readServiceBlock(compose, 'pgbouncer'), /healthcheck:[\s\S]*psql -X[\s\S]*-p 6432/);
+  assert.match(readServiceBlock(compose, 'pgbouncer'), /-Atqc 'SELECT 1' >\/dev\/null 2>&1/);
   assert.match(readServiceBlock(compose, 'keycloak'), /postgres-bootstrap:\n\s+condition: service_completed_successfully/);
 
   assert.match(minioInit, /image: minio\/mc:RELEASE\.2025-08-13T08-35-41Z/);
@@ -437,7 +441,7 @@ test('Chatwoot is opt-in and production bootstrap remains PostgreSQL-only', () =
 });
 ```
 
-- [ ] **Step 2: Run focused Compose tests and verify the new contracts fail**
+- [x] **Step 2: Run focused Compose tests and verify the new contracts fail**
 
 Run:
 
@@ -447,7 +451,7 @@ node --import tsx --test test/video-readiness-compose.test.ts
 
 Expected: existing tests pass; the three new tests fail because bootstrap services and dependency conditions are absent.
 
-- [ ] **Step 3: Add the PostgreSQL and MinIO one-shot services**
+- [x] **Step 3: Add the PostgreSQL and MinIO one-shot services**
 
 Add `postgres-bootstrap` after `postgres` and `minio-init` after `minio`:
 
@@ -487,7 +491,7 @@ Add `postgres-bootstrap` after `postgres` and `minio-init` after `minio`:
     restart: "no"
 ```
 
-- [ ] **Step 4: Replace start-order dependencies with readiness conditions**
+- [x] **Step 4: Replace start-order dependencies with readiness conditions**
 
 Use these exact dependency contracts:
 
@@ -497,7 +501,7 @@ Use these exact dependency contracts:
       postgres-bootstrap:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRESQL_PASSWORD pg_isready -h 127.0.0.1 -p 6432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE"]
+      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRESQL_PASSWORD psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 6432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE -Atqc 'SELECT 1' >/dev/null 2>&1"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -541,7 +545,7 @@ Use these exact dependency contracts:
 
 Do not retain a second direct `postgres` dependency under PgBouncer or Keycloak; `postgres-bootstrap` already waits for healthy PostgreSQL.
 
-- [ ] **Step 5: Extend the Tinode overlay and isolate Chatwoot**
+- [x] **Step 5: Extend the Tinode overlay and isolate Chatwoot**
 
 Add the overlay service extension and conditional dependency:
 
@@ -574,7 +578,7 @@ MINIO_INIT_MAX_ATTEMPTS=30
 MINIO_INIT_RETRY_SECONDS=2
 ```
 
-- [ ] **Step 6: Run focused tests and verify green**
+- [x] **Step 6: Run focused tests and verify green**
 
 Run:
 
@@ -584,7 +588,7 @@ node --import tsx --test test/production-bootstrap-scripts.test.ts test/video-re
 
 Expected: all script tests and all Compose contract tests pass.
 
-- [ ] **Step 7: Commit the Compose dependency slice**
+- [x] **Step 7: Commit the Compose dependency slice**
 
 ```bash
 git add infra/docker-compose.production.yml infra/docker-compose.tinode.yml infra/env.example test/video-readiness-compose.test.ts
@@ -597,7 +601,7 @@ git commit -m "feat(infra): gate iveKit production startup"
 - Modify only if validation exposes a concrete merge/interpolation defect: `infra/docker-compose.production.yml`
 - Modify only if validation exposes a concrete merge/interpolation defect: `infra/docker-compose.tinode.yml`
 
-- [ ] **Step 1: Validate the external Tinode base model**
+- [x] **Step 1: Validate the external Tinode base model**
 
 Run:
 
@@ -608,7 +612,7 @@ COMPOSE_DISABLE_ENV_FILE=1 docker compose --env-file infra/env.example \
 
 Expected: exit code 0.
 
-- [ ] **Step 2: Prove Chatwoot is absent by default and present only when requested**
+- [x] **Step 2: Prove Chatwoot is absent by default and present only when requested**
 
 Run:
 
@@ -628,7 +632,7 @@ COMPOSE_DISABLE_ENV_FILE=1 docker compose --profile omnichannel --env-file infra
 
 Expected: output includes `chatwoot`.
 
-- [ ] **Step 3: Prove self-hosted Tinode remains fail closed with empty secrets**
+- [x] **Step 3: Prove self-hosted Tinode remains fail closed with empty secrets**
 
 Run:
 
@@ -639,7 +643,7 @@ COMPOSE_DISABLE_ENV_FILE=1 docker compose --env-file infra/env.example \
 
 Expected: non-zero with a required `TINODE_AUTH_TOKEN_KEY` or `TINODE_UID_ENCRYPTION_KEY` interpolation error.
 
-- [ ] **Step 4: Validate the configured self-hosted Tinode merged model**
+- [x] **Step 4: Validate the configured self-hosted Tinode merged model**
 
 Run:
 
@@ -653,7 +657,7 @@ COMPOSE_DISABLE_ENV_FILE=1 docker compose --env-file infra/env.example \
 
 Expected: exit code 0.
 
-- [ ] **Step 5: Inspect the merged bootstrap and dependency values**
+- [x] **Step 5: Inspect the merged bootstrap and dependency values**
 
 Run the configured self-hosted command again without `--quiet`, then verify its output contains:
 
@@ -667,7 +671,7 @@ profiles:
 
 Expected: all four contracts are present and no rendered line contains the three temporary Tinode secret values outside the expected environment fields.
 
-- [ ] **Step 6: Commit only if Compose validation required a correction**
+- [x] **Step 6: Commit only if Compose validation required a correction**
 
 When a concrete correction was necessary:
 
@@ -685,7 +689,7 @@ When no correction was necessary, record the commands in the documentation task 
 - Modify: `docs/ivekit-led-integration-guide.md`
 - Modify: `docs/livekit-im-full-capability-plan.md`
 
-- [ ] **Step 1: Update the architecture audit**
+- [x] **Step 1: Update the architecture audit**
 
 Add a dated audit entry stating all of the following:
 
@@ -699,7 +703,7 @@ Add a dated audit entry stating all of the following:
 - real database persistence, object writes, Egress, restart recovery, and server E2E remain unverified because no server upload was performed.
 ```
 
-- [ ] **Step 2: Update the LED integration runbook**
+- [x] **Step 2: Update the LED integration runbook**
 
 Document these startup modes exactly:
 
@@ -720,7 +724,7 @@ docker compose --profile omnichannel --env-file infra/env.example \
 
 Explain that `postgres-bootstrap` and `minio-init` may appear as exited with code 0 after successful startup; that is expected for one-shot services.
 
-- [ ] **Step 3: Update the capability plan status**
+- [x] **Step 3: Update the capability plan status**
 
 Add a 2026-07-11 production-bootstrap note that marks local code/configuration complete and leaves these acceptance items open:
 
@@ -732,7 +736,7 @@ service restart recovery, and end-to-end server execution
 
 Remove the obsolete statements that MinIO bucket initialization and PostgreSQL multi-database initialization are still missing in code; retain wording that they are still unverified in a real runtime.
 
-- [ ] **Step 4: Run focused and full regression gates**
+- [x] **Step 4: Run focused and full regression gates**
 
 Run:
 
@@ -748,19 +752,21 @@ git diff --check
 
 Expected: every command exits 0. The frontend may retain its existing non-fatal chunk-size warning; record it as a warning, not a failure.
 
-- [ ] **Step 5: Run repository safety scans**
+Execution note: the clean repository's ignored AI `.venv` lacked pytest, so the original workspace's complete read-only venv ran the current repository tests with explicit `PYTHONPATH` (30/30). The sandbox also rejected the `tsx` CLI IPC pipe for `check:sidecars`; the equivalent `node --import tsx scripts/check-sidecars.ts all` completed Go, Python, and Rust checks.
+
+- [x] **Step 5: Run repository safety scans**
 
 Run:
 
 ```bash
-git grep -nEi '(sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY|postgres-test-secret|minio-test-secret)' -- ':!package-lock.json'
-find . -type f -size +20M -not -path './.git/*' -print
-find . -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -print
+git grep -nEi '(^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- ':!package-lock.json' ':!test/**'
+find . -type f -size +20M -not -path './.git/*' -not -path './node_modules/*' -not -path './frontend/node_modules/*' -not -path './services/ai-agent-py/.venv/*' -not -path './services/voice-media-rs/target/*' -print
+find . -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -not -path './.git/*' -not -path './node_modules/*' -not -path './frontend/node_modules/*' -not -path './services/ai-agent-py/.venv/*' -not -path './services/voice-media-rs/target/*' -print
 ```
 
 Expected: no credential matches, no unexpected file above 20 MB, and no SQLite database file.
 
-- [ ] **Step 6: Commit documentation and verification record**
+- [x] **Step 6: Commit documentation and verification record**
 
 ```bash
 git add docs/审核文档.md docs/ivekit-led-integration-guide.md docs/livekit-im-full-capability-plan.md

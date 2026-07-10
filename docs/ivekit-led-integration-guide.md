@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-10。面向 LED 项目架构师、后端、前端、部署和 QA。本文定义复用与抽离方法，不把本地 fake 测试描述成真实环境验收。
+> 版本：2026-07-11。面向 LED 项目架构师、后端、前端、部署和 QA。本文定义复用与抽离方法，不把本地 fake 测试描述成真实环境验收。
 
 ## 1. 交付目标
 
@@ -23,7 +23,7 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 
 本地相关回归已通过，但这只证明代码和契约。真实环境验证清单见第 11 节。
 
-2026-07-10 的部署加固已把 PostgreSQL 版 Tinode 纳入本地 Compose 和 production 自建 overlay，并修正 LiveKit ICE/Egress 配置；这仍属于静态配置与测试通过，不代表容器或真实服务器已经运行成功。
+2026-07-10 的部署加固已把 PostgreSQL 版 Tinode 纳入本地 Compose 和 production 自建 overlay，并修正 LiveKit ICE/Egress 配置。2026-07-11 又补齐 production PostgreSQL 多数据库与 MinIO bucket 的幂等 one-shot 初始化和启动门禁；这些仍属于本地代码、fake command 测试与静态配置通过，不代表容器或真实服务器已经运行成功。
 
 ## 3. 推荐部署拓扑
 
@@ -251,10 +251,40 @@ WebSocket 是加速通道，页面重连后必须用 snapshot/message-state/real
 3. production LiveKit 配置渲染支持公网 ICE 开关；Egress 与 LiveKit 使用同一 Redis，S3 参数位于当前 Egress 所需的 `storage.s3` 层级。
 4. production Tinode overlay 和 `npm run tinode:deployment-preflight` 都会对自建模式的 PostgreSQL DSN 与运行时密钥 fail-closed；preflight 还校验密钥长度，并对所有生产模式校验公网 WSS，生成的 JSON/Markdown 不回显秘密。
 5. 本地 Compose、production external base、配置完整的 production self-hosted overlay 均已通过 `docker compose config --quiet`；缺自建密钥的 overlay 已验证会拒绝解析。
+6. production base 的 `postgres-bootstrap` 会在健康 PostgreSQL 上幂等确认 `keycloak` 数据库；自建 Tinode overlay 把集合扩展为 `keycloak,tinode`。脚本拒绝任意数据库标识和非 `opc` owner，不会删除或重建已有数据库。
+7. `minio-init` 会有限重试 MinIO endpoint，幂等创建录制 bucket，关闭匿名访问，回读确认 private 后再执行 `stat`。Egress、RustPBX 和 OPC 只有在该 one-shot 成功后才允许启动。
+8. PgBouncer 必须通过 6432 端口的认证 `psql SELECT 1` 后，OPC 才启动；只接受连接但凭证/数据库不可用不会标记健康。Keycloak 和 Tinode 同样等待数据库 bootstrap 成功，而不是只等待 PostgreSQL container 进程存在。
+9. Chatwoot 由 `omnichannel` profile 显式启用，不属于默认 iveKit 生产链路，也不计入当前 readiness。启用前仍需单独完成固定版本、pgvector、`db:chatwoot_prepare`、Rails/Sidekiq、升级与回滚设计。
 
-以上没有执行 Docker 镜像拉取、容器启动、数据库初始化、网络连通或真实 provider 请求。当前也没有上传/部署服务器。
+以上没有执行 Docker 镜像拉取、容器启动、真实数据库/bucket 初始化、网络连通或真实 provider 请求。当前也没有上传/部署服务器。
 
-### 必须执行
+### 11.2 Production Compose 启动方式
+
+外部或共享 Tinode 使用 base：
+
+```bash
+docker compose --env-file infra/env.example \
+  -f infra/docker-compose.production.yml up -d
+```
+
+自建 Tinode 使用 base + overlay：
+
+```bash
+docker compose --env-file infra/env.example \
+  -f infra/docker-compose.production.yml \
+  -f infra/docker-compose.tinode.yml up -d
+```
+
+Chatwoot 是独立可选项，不属于 iveKit readiness：
+
+```bash
+docker compose --profile omnichannel --env-file infra/env.example \
+  -f infra/docker-compose.production.yml up -d chatwoot
+```
+
+`postgres-bootstrap` 和 `minio-init` 是一次性任务。成功后显示 `Exited (0)` 属于正常完成，不应按常驻服务崩溃处理；非 0 才表示初始化失败，依赖服务应保持阻塞。
+
+### 11.3 必须执行
 
 1. `npm run livekit:deployment-preflight`、media smoke、双浏览器视频/屏幕共享、Egress/对象导出。
 2. `npm run tinode:deployment-preflight`、`npm run smoke:chat:tinode`、双浏览器 SDK join/data/info/presence/read note。
@@ -264,11 +294,11 @@ WebSocket 是加速通道，页面重连后必须用 snapshot/message-state/real
 6. RustDesk server evidence/readiness/client acceptance/audit coverage/evidence pack，包含真实物理断开观察。
 7. 多实例 Redis/WebSocket 广播、断网重连、旧 SDK 连接不复活。
 
-### 当前不得声称通过
+### 11.4 当前不得声称通过
 
 真实 LiveKit/Tinode/RustDesk 客户端、真实对象存储、真实 OCR/ASR/AI、电话线路、多副本和生产网络尚未在当前本地环境验证。preflight 和 fake provider 只证明配置/协议形状。
 
-另外，TURN/NAT 生产配置、Tinode Kubernetes 模板、MinIO bucket 初始化和完整 PostgreSQL 多数据库初始化仍需在服务器部署阶段补齐或验证，不能由 Compose 静态解析结果替代。
+另外，TURN/NAT 生产配置和 Tinode Kubernetes 模板仍未补齐。MinIO bucket 与 PostgreSQL 多数据库初始化的代码和 Compose 门禁已经补齐，但真实 fresh/existing volume、bucket 私有性/持久化、Egress 写入和重启恢复仍必须在服务器验证，不能由 fake command 测试或 Compose 静态解析替代。
 
 ## 12. 版本与责任边界
 

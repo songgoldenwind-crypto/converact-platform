@@ -797,4 +797,16 @@ Phase 3、4、6、7A、8、9、10 已按 TDD 落地并通过本地代码验证�
 3. Egress 使用与 LiveKit 相同 Redis，并按 `storage.s3` 配置对象存储。
 4. Tinode preflight 新增 `external/self_hosted` 模式；自建模式缺 PostgreSQL DSN、32 字节 auth key 或 16 字节 UID key 时直接失败，所有生产模式都要求公网 WSS，报告不泄密；production overlay 对三项 server runtime 配置采用 required interpolation。
 
-这只推进了 Phase 1/6 的部署准备，不改变真实完成定义。下一轮服务器工作仍需补 TURN/NAT、Tinode K8s、全新 PostgreSQL volume 初始化、MinIO bucket 初始化，并执行本文件第 8 节全部真实验收命令。
+这只推进了 Phase 1/6 的部署准备，不改变真实完成定义。PostgreSQL volume 与 MinIO bucket 的代码级初始化门禁已在 2026-07-11 继续补齐，见下一节；TURN/NAT、Tinode K8s 和本文件第 8 节全部真实验收仍未完成。
+
+### 10.2 2026-07-11 production bootstrap 补记
+
+在继续遵守“不上传服务器”的前提下，Option A 的本地实现已经完成：
+
+1. 新增 `infra/scripts/bootstrap-postgres-databases.sh`，只接受 `opc/keycloak/tinode/chatwoot` 固定白名单且要求 owner 为 `opc`；production base 幂等确认 `keycloak`，自建 Tinode overlay 扩展为 `keycloak,tinode`，existing volume 不会被删除或重置。
+2. 新增 `infra/scripts/bootstrap-minio-bucket.sh`，对 endpoint 有界重试，使用 `mb --ignore-existing` 创建录制 bucket，执行 `anonymous set none`，回读确认 private 并用 `stat` 验证存在。
+3. production Compose 新增 `postgres-bootstrap` 与 `minio-init` one-shot 服务。PgBouncer/Keycloak/Tinode 等待数据库 bootstrap 成功；OPC 等待经过 PgBouncer 6432 的认证 `psql SELECT 1` 成功；Egress/RustPBX/OPC 等待 bucket bootstrap 成功。
+4. Chatwoot 放入显式 `omnichannel` profile，不再进入默认 iveKit startup/readiness。其 image pin、pgvector、`db:chatwoot_prepare`、Sidekiq、升级/回滚仍是独立生产化任务，没有被误报完成。
+5. fake `psql`/`mc` 行为测试覆盖首次创建、重复幂等、白名单/输入拒绝、有限重试、秘密不出现在进程输出、bucket private 回读和 `stat` 失败；静态 Compose 契约与 external/self-hosted/profile 渲染门禁均已执行。
+
+本节只把“数据库和 bucket 初始化在代码中缺失”改为“代码与配置已具备”。真实 PostgreSQL fresh/existing-volume 创建、PgBouncer 连接、MinIO bucket 私有性和持久化、LiveKit Egress 对象写入、服务重启恢复以及端到端服务器执行仍为未验证项，persistent deployment/E2E goal 继续保持开放。
