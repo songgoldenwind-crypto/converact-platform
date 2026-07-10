@@ -773,7 +773,7 @@ git add docs/审核文档.md docs/ivekit-led-integration-guide.md docs/livekit-i
 git commit -m "docs: record iveKit bootstrap readiness"
 ```
 
-- [ ] **Step 7: Push and verify the clean GitHub repository only**
+- [x] **Step 7: Push and verify the clean GitHub repository only**
 
 Run:
 
