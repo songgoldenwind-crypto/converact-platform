@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const POSTGRES_SCRIPT = join(ROOT, 'infra/scripts/bootstrap-postgres-databases.sh');
+const MINIO_SCRIPT = join(ROOT, 'infra/scripts/bootstrap-minio-bucket.sh');
 
 function writeExecutable(path: string, source: string): void {
   writeFileSync(path, source, 'utf8');
@@ -70,6 +71,67 @@ function createPostgresFixture(overrides: NodeJS.ProcessEnv = {}) {
     env,
     logFile,
     run: () => spawnSync('sh', [POSTGRES_SCRIPT], { cwd: ROOT, env, encoding: 'utf8' })
+  };
+}
+
+function createFakeMc(binDir: string): void {
+  writeExecutable(join(binDir, 'mc'), `#!/bin/sh
+set -eu
+printf '%s\n' "$*" >> "$FAKE_MC_LOG"
+case "$1 $2" in
+  "alias set")
+    count=0
+    if [ -f "$FAKE_MC_STATE/alias-count" ]; then count=$(cat "$FAKE_MC_STATE/alias-count"); fi
+    count=$((count + 1))
+    printf '%s' "$count" > "$FAKE_MC_STATE/alias-count"
+    if [ "$count" -le "\${FAKE_MC_ALIAS_FAILURES:-0}" ]; then exit 7; fi
+    ;;
+  "mb --ignore-existing")
+    : > "$FAKE_MC_STATE/bucket"
+    ;;
+  "anonymous set")
+    if [ "\${FAKE_MC_SKIP_PRIVATE_MARKER:-0}" != "1" ]; then : > "$FAKE_MC_STATE/private"; fi
+    ;;
+  "anonymous get")
+    if [ -f "$FAKE_MC_STATE/private" ]; then
+      printf "Access permission is 'private'\n"
+    else
+      printf "Access permission is 'public'\n"
+    fi
+    ;;
+  "stat opc/recordings")
+    if [ "\${FAKE_MC_STAT_FAIL:-0}" = "1" ]; then exit 8; fi
+    [ -f "$FAKE_MC_STATE/bucket" ]
+    ;;
+esac
+`);
+}
+
+function createMinioFixture(overrides: NodeJS.ProcessEnv = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'opc-minio-bootstrap-'));
+  const binDir = join(dir, 'bin');
+  const stateDir = join(dir, 'state');
+  const logFile = join(dir, 'mc.log');
+  mkdirSync(binDir);
+  mkdirSync(stateDir);
+  createFakeMc(binDir);
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: `${binDir}:${process.env.PATH ?? ''}`,
+    MINIO_ENDPOINT: 'http://minio:9000',
+    MINIO_BUCKET: 'recordings',
+    MINIO_ACCESS_KEY: 'minio-test-access',
+    MINIO_SECRET_KEY: 'minio-test-secret',
+    MINIO_INIT_MAX_ATTEMPTS: '3',
+    MINIO_INIT_RETRY_SECONDS: '0',
+    FAKE_MC_LOG: logFile,
+    FAKE_MC_STATE: stateDir,
+    ...overrides
+  };
+
+  return {
+    logFile,
+    run: () => spawnSync('sh', [MINIO_SCRIPT], { cwd: ROOT, env, encoding: 'utf8' })
   };
 }
 
@@ -129,4 +191,84 @@ test('PostgreSQL bootstrap propagates create failures without leaking secrets', 
   assert.notEqual(result.status, 0);
   assert.match(readFileSync(fixture.logFile, 'utf8'), /CREATE DATABASE "keycloak"/);
   assert.equal(`${result.stdout}${result.stderr}`.includes('postgres-test-secret'), false);
+});
+
+test('MinIO bootstrap retries, creates a private bucket, and verifies it', () => {
+  const fixture = createMinioFixture({ FAKE_MC_ALIAS_FAILURES: '2' });
+  const result = fixture.run();
+
+  assert.equal(result.status, 0, result.stderr);
+  const log = readFileSync(fixture.logFile, 'utf8');
+  assert.equal((log.match(/^alias set /gm) ?? []).length, 3);
+  assert.match(log, /^mb --ignore-existing opc\/recordings$/m);
+  assert.match(log, /^anonymous set none opc\/recordings$/m);
+  assert.match(log, /^anonymous get opc\/recordings$/m);
+  assert.match(log, /^stat opc\/recordings$/m);
+  assert.equal(`${result.stdout}${result.stderr}`.includes('minio-test-secret'), false);
+  assert.equal(`${result.stdout}${result.stderr}`.includes('minio-test-access'), false);
+});
+
+test('MinIO bootstrap remains successful when run repeatedly', () => {
+  const fixture = createMinioFixture();
+
+  assert.equal(fixture.run().status, 0);
+  assert.equal(fixture.run().status, 0);
+});
+
+test('MinIO bootstrap rejects invalid bucket names before mc', () => {
+  const fixture = createMinioFixture({ MINIO_BUCKET: '../recordings' });
+  const result = fixture.run();
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /MINIO_BUCKET is invalid/);
+  assert.equal(existsSync(fixture.logFile), false);
+});
+
+test('MinIO bootstrap requires endpoint and credentials before mc', () => {
+  const cases: Array<{ overrides: NodeJS.ProcessEnv; expectedError: RegExp }> = [
+    { overrides: { MINIO_ENDPOINT: '' }, expectedError: /MINIO_ENDPOINT is required/ },
+    { overrides: { MINIO_ACCESS_KEY: '' }, expectedError: /MINIO_ACCESS_KEY is required/ },
+    { overrides: { MINIO_SECRET_KEY: '' }, expectedError: /MINIO_SECRET_KEY is required/ }
+  ];
+
+  for (const { overrides, expectedError } of cases) {
+    const fixture = createMinioFixture(overrides);
+    const result = fixture.run();
+
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, expectedError);
+    assert.equal(existsSync(fixture.logFile), false);
+  }
+});
+
+test('MinIO bootstrap fails after bounded readiness retries without leaking credentials', () => {
+  const fixture = createMinioFixture({
+    FAKE_MC_ALIAS_FAILURES: '99',
+    MINIO_INIT_MAX_ATTEMPTS: '2'
+  });
+  const result = fixture.run();
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /endpoint not ready after 2 attempts/);
+  assert.equal((readFileSync(fixture.logFile, 'utf8').match(/^alias set /gm) ?? []).length, 2);
+  assert.equal(`${result.stdout}${result.stderr}`.includes('minio-test-secret'), false);
+  assert.equal(`${result.stdout}${result.stderr}`.includes('minio-test-access'), false);
+});
+
+test('MinIO bootstrap fails when private access cannot be verified', () => {
+  const fixture = createMinioFixture({ FAKE_MC_SKIP_PRIVATE_MARKER: '1' });
+  const result = fixture.run();
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /bucket privacy verification failed: recordings/);
+  assert.match(readFileSync(fixture.logFile, 'utf8'), /^anonymous get opc\/recordings$/m);
+});
+
+test('MinIO bootstrap fails when the created bucket cannot be statted', () => {
+  const fixture = createMinioFixture({ FAKE_MC_STAT_FAIL: '1' });
+  const result = fixture.run();
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /bucket verification failed: recordings/);
+  assert.match(readFileSync(fixture.logFile, 'utf8'), /^stat opc\/recordings$/m);
 });
