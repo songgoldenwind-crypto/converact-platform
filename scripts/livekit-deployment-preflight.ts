@@ -2,6 +2,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  optionalLiveKitAcceptanceMetadata,
+  type LiveKitAcceptanceMetadata
+} from './livekit-acceptance-metadata.js';
+
 export type LiveKitDeploymentPreflightStatus = 'pass' | 'warn' | 'fail';
 
 export interface LiveKitDeploymentPreflightCheck {
@@ -11,7 +16,10 @@ export interface LiveKitDeploymentPreflightCheck {
 }
 
 export interface LiveKitDeploymentPreflightReport {
+  schema_version: 1;
   ok: boolean;
+  checked_at: string;
+  acceptance?: LiveKitAcceptanceMetadata;
   summary: {
     livekitUrl: string;
     livekitInternalUrl: string;
@@ -235,8 +243,12 @@ export function createLiveKitDeploymentPreflightReport(
     addRequiredSecret(checks, 'rustpbx_rwi_token', env.RUSTPBX_RWI_TOKEN, 'RUSTPBX_RWI_TOKEN is required');
   }
 
+  const acceptance = optionalLiveKitAcceptanceMetadata(env);
   return {
+    schema_version: 1,
     ok: checks.every((check) => check.status !== 'fail'),
+    checked_at: new Date().toISOString(),
+    ...(acceptance ? { acceptance } : {}),
     summary: {
       livekitUrl: livekitInternalUrl,
       livekitInternalUrl,

@@ -1,5 +1,13 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import {
+  optionalLiveKitAcceptanceMetadata,
+  type LiveKitAcceptanceMetadata
+} from './livekit-acceptance-metadata.js';
 
 export type VideoReadinessTarget =
   | 'media'
@@ -18,6 +26,8 @@ export interface VideoReadinessSuiteConfig {
   targets: VideoReadinessTarget[];
   continueOnFailure: boolean;
   env: NodeJS.ProcessEnv;
+  reportFile?: string;
+  acceptance?: LiveKitAcceptanceMetadata;
 }
 
 export interface VideoReadinessCommandMeta {
@@ -52,6 +62,33 @@ export type VideoReadinessFetch = (input: string | URL, init?: RequestInit) => P
 export interface VideoReadinessSuiteResult {
   ok: boolean;
   steps: VideoReadinessSuiteStep[];
+}
+
+export interface VideoReadinessPersistedStep {
+  target: VideoReadinessStepTarget;
+  command: string;
+  ok: boolean;
+  exit_code: number;
+  duration_ms: number;
+  stdout_present: boolean;
+  stdout_sha256: string;
+  stderr_present: boolean;
+  stderr_sha256: string;
+  error_summary: string;
+}
+
+export interface VideoReadinessPersistedReport {
+  schema_version: 1;
+  ok: boolean;
+  checked_at: string;
+  acceptance?: LiveKitAcceptanceMetadata;
+  steps: VideoReadinessPersistedStep[];
+}
+
+export interface VideoReadinessReportWriteResult {
+  outputFile: string;
+  ok: boolean;
+  steps: number;
 }
 
 export class VideoReadinessSuiteError extends Error {
@@ -247,11 +284,52 @@ const defaultTargets: VideoReadinessTarget[] = [
 export function createVideoReadinessSuiteConfigFromEnv(
   env: NodeJS.ProcessEnv
 ): VideoReadinessSuiteConfig {
+  const reportFile = String(env.OPC_VIDEO_READINESS_REPORT_FILE || '').trim();
+  const acceptance = optionalLiveKitAcceptanceMetadata(env);
   return {
     targets: parseTargets(env.OPC_VIDEO_READINESS_TARGETS),
     continueOnFailure: env.OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE === '1',
-    env
+    env,
+    ...(reportFile ? { reportFile } : {}),
+    ...(acceptance ? { acceptance } : {})
   };
+}
+
+export function createVideoReadinessPersistedReport(
+  result: VideoReadinessSuiteResult,
+  checkedAt = new Date().toISOString(),
+  acceptance?: LiveKitAcceptanceMetadata
+): VideoReadinessPersistedReport {
+  return {
+    schema_version: 1,
+    ok: result.ok,
+    checked_at: checkedAt,
+    ...(acceptance ? { acceptance } : {}),
+    steps: result.steps.map((step) => ({
+      target: step.target,
+      command: step.command,
+      ok: step.ok,
+      exit_code: step.exitCode,
+      duration_ms: step.durationMs,
+      stdout_present: Boolean(step.stdout),
+      stdout_sha256: sha256(step.stdout),
+      stderr_present: Boolean(step.stderr),
+      stderr_sha256: sha256(step.stderr),
+      error_summary: step.ok ? '' : `${step.target} failed with exit code ${step.exitCode}`
+    }))
+  };
+}
+
+export function writeVideoReadinessReport(
+  outputFile: string,
+  result: VideoReadinessSuiteResult,
+  checkedAt = new Date().toISOString(),
+  acceptance?: LiveKitAcceptanceMetadata
+): VideoReadinessReportWriteResult {
+  const report = createVideoReadinessPersistedReport(result, checkedAt, acceptance);
+  mkdirSync(dirname(outputFile), { recursive: true });
+  writeFileSync(outputFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  return { outputFile, ok: report.ok, steps: report.steps.length };
 }
 
 export async function runVideoReadinessSuite(
@@ -602,16 +680,23 @@ async function main(): Promise<void> {
   const config = createVideoReadinessSuiteConfigFromEnv(process.env);
   try {
     const result = await runVideoReadinessSuite(config);
+    if (config.reportFile) writeVideoReadinessReport(config.reportFile, result, undefined, config.acceptance);
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) process.exitCode = 1;
   } catch (error) {
     if (error instanceof VideoReadinessSuiteError) {
+      if (config.reportFile) writeVideoReadinessReport(config.reportFile, error.result, undefined, config.acceptance);
       console.log(JSON.stringify(error.result, null, 2));
       process.exitCode = 1;
       return;
     }
+    if (config.reportFile) writeVideoReadinessReport(config.reportFile, { ok: false, steps: [] }, undefined, config.acceptance);
     throw error;
   }
+}
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -784,7 +784,7 @@ Phase 3、4、6、7A、8、9、10 已按 TDD 落地并通过本地代码验证�
 1. 稳定 iveKit OpenAPI/Markdown 契约、最小 SDK 和 LED 对接时序。
 2. 形成 Media、Chat、Remote 三个可抽离边界和部署/迁移清单，但暂不为搬目录而搬目录。
 3. 保持 `direct_client_publish=false` 和客户端 `JRP`；只有明确改变该产品裁决时，才回到 Phase 7B 实现 inbound seq/cursor sync。
-4. 服务器环境到位后集中执行 LiveKit/Tinode/RustDesk/OCR/ASR/AI provider 的真实验收，不把当前本地结果写成真实环境通过。
+4. 服务器环境到位后集中执行 LiveKit/Tinode/RustDesk/OCR/ASR/AI provider 的真实验收，不把当前本地结果写成真实环境通过。LiveKit 必须使用 `livekit:acceptance-bundle` 固定证据目录，并以 `livekit:evidence-pack` 的 `ready_for_customer_review` 作为技术交付门禁。
 
 服务器环境到位后，Phase 6/7A 仍必须执行 `npm run tinode:deployment-preflight`、`npm run smoke:chat:tinode`、真实浏览器 Tinode SDK join，并观察 PostgreSQL delivery queue 从创建到 delivered；本地 fake Tinode 和 MemoryPg 测试不替代这些部署证据。
 
@@ -823,4 +823,8 @@ LiveKit 第一版的代码级生产网络缺口已经按独立 Media Core 方向
 6. K8s Egress 模板已改为当前 `logging`、`redis`、`health_port`、`storage.s3` schema，并增加 `SYS_ADMIN` 与健康检查；镜像版本固定为 Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。
 7. production Token 服务在 LiveKit 内部地址/key/secret 不完整时 fail-closed，不再产生 dev token；Compose 与 Helm 同样在解析/渲染阶段要求真实凭据。preflight 拒绝示例占位密钥，并校验 standalone signal/turn 域名不同且 ACME 邮箱合法。
 
-本地专项测试、TypeScript 检查和 Compose 静态解析已经通过。Docker daemon 当前未运行，Helm CLI 当前未安装，因此镜像启动和 Helm render 没有被声明为通过。DNS、证书、WSS、ICE UDP/TCP、强制 TURN、双浏览器音视频/屏幕共享、Egress 对象写入、多副本和性能仍属于服务器验收，且遵守用户当前“不上传服务器”的约束。
+本地专项测试、TypeScript 检查和 Compose 静态解析已经通过。Docker daemon 当前未运行，Helm CLI 当前未安装，因此镜像启动和 Helm render 没有被声明为通过。2026-07-11 已完成目标服务器 SSH/资源/端口只读盘点，但尚未上传或部署；DNS、证书、WSS、ICE UDP/TCP、强制 TURN、双浏览器音视频/屏幕共享、Egress 对象写入、多副本和性能仍属于服务器验收。
+
+### 10.4 2026-07-11 LiveKit acceptance evidence 补记
+
+代码级验收链已补齐：`livekit:server-evidence` 自动采集服务器网络证据，`smoke:media:readiness` 可输出脱敏报告，`livekit:client-acceptance` 严格校验 30 项真实客户端与性能证据，`livekit:evidence-pack` 重新验证并汇总哈希，`livekit:acceptance-bundle` 固定一轮验收的路径、模板和命令。初始 bundle 必须为 `awaiting_real_environment_evidence`/`incomplete`，不会预建三份真实执行结果。LiveKit 第一版只有在目标服务器和客户端补齐全部证据并得到 `ready_for_customer_review` 后，才从“代码完成”进入“技术交付可审查”。

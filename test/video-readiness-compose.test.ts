@@ -453,6 +453,7 @@ test('root env example documents every video readiness input', () => {
     'OPC_RECORDING_HTTP_ALLOWED_ORIGINS',
     'OPC_VIDEO_READINESS_TARGETS',
     'OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE',
+    'OPC_VIDEO_READINESS_REPORT_FILE',
     'LIVEKIT_URL',
     'LIVEKIT_API_KEY',
     'LIVEKIT_API_SECRET',

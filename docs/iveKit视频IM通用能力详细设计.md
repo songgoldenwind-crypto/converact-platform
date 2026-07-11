@@ -3364,4 +3364,30 @@ Egress ----------- recording object -------> S3 / MinIO
 
 production 不允许 LiveKit 配置不完整时回退为 dev token，Compose/Helm 必须提供内部 URL、API key、API secret 和公网 WSS。preflight/渲染器拒绝示例占位密钥与常见弱默认值，并在 standalone 模式校验 signal/turn DNS、域名互异、ACME 邮箱和 exact image tag。
 
-本地代码和静态配置已经完成；DNS、证书、WSS、ICE、TURN、双浏览器、真实录制、多节点与性能证据仍未完成。用户当前要求不上传服务器，因此这些门禁继续开放。
+本地代码和静态配置已经完成；2026-07-11 已完成目标服务器 SSH、资源、Docker、现有 LED 容器和端口的只读盘点，但尚未上传或部署。DNS、证书、WSS、ICE、TURN、双浏览器、真实录制、多节点与性能证据仍未完成。
+
+## 18. LiveKit 真实验收交付设计
+
+### 18.1 工具与产物
+
+| 命令 | 产物 | 完成条件 |
+| --- | --- | --- |
+| `livekit:acceptance-bundle` | checklist、preflight、server/client runbook、空白 client template、manifest、初始 evidence pack | 状态固定为 `awaiting_real_environment_evidence`，不得生成真实结果 |
+| `livekit:server-evidence` | `server-evidence.json` | DNS、可信 TLS、内外健康、RTC TCP 和 UDP 发包全部通过 |
+| `smoke:media:readiness` | `readiness.json` | media、agent-browser、customer-browser、web-assist-browser、sip-volte required target 全部通过 |
+| `livekit:client-acceptance` | `client-acceptance-result.json` | 30 项真实证据、固定版本、完整 Git SHA 和性能目标/观测值全部通过 |
+| `livekit:evidence-pack` | `evidence-pack.md` | 重新校验全部报告后状态为 `ready_for_customer_review` |
+
+### 18.2 LED 研发对接方式
+
+LED 研发不需要了解 OPC 内部 smoke 实现，只接收同一 release 的 bundle 目录和 iveKit API/SDK。`manifest.json` 是执行入口，`evidence-pack.md` 是证据索引；原始浏览器截图、webrtc-internals、Egress 对象、压测结果和 SIP 记录放在受控证据存储中，并在 client report 使用不含 token 的引用描述。LED 应核对 `environment_id`、`deployed_commit`、provider 版本和 `business_ref` 是否与本次发布一致。
+
+### 18.3 关键裁决
+
+1. server UDP 发包只能说明本机调用成功，不能作为 forced TURN 或 ICE candidate pair 通过依据。
+2. 空白模板中的说明文字不能直接改成 `passed=true`；必须替换为时间、终端、网络、room/egress/reference ID 和外部证据位置。
+3. evidence pack 不收录原始 token、signed invite、API key、secret 或 smoke stdout，只记录文件路径、大小和 SHA-256。
+4. `ready_for_customer_review` 是技术证据门禁，不自动等于生产上线批准。
+5. 每项 passed check 和 performance 的 evidence 是独立结构化引用，不是说明文字：`artifact_file` 必须是可解析 JSON，`sha256` 必须为完整 64 位且由 validator 重算匹配；JSON 内只声明一个对应 check ID、run/start/environment/commit/mode/fingerprint、`captured_at/tool`，并满足该检查专属 details schema。
+6. 全部自动/人工报告必须与 CLI 期望值共享 run、起始时间、环境、commit、部署模式和指纹，且必须位于当前 24 小时窗口；独立 QA approver 的 Ed25519 签名覆盖批准决策、preflight/server/readiness 和全部 client evidence 哈希，validator 同时校验受信任公钥文件及预配置指纹。
+7. evidence pack 对 schema、`ok`、check 集合和 client result 采用 fail-closed；旧目录中存在真实结果时不能重新初始化 bundle。

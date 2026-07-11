@@ -262,7 +262,7 @@ WebSocket 是加速通道，页面重连后必须用 snapshot/message-state/real
 14. 媒体镜像已固定为 LiveKit Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`；升级必须成组回归，不使用 `latest`。
 15. production 缺内部 URL、API key、API secret 或公网 WSS 时直接失败，不会签发 `dev-token`。preflight 和渲染器还会拒绝 `your_key`、`change_me`、`devkey`、`secret`、`minioadmin` 等占位/弱默认值。
 
-以上没有执行 Docker 镜像拉取、容器启动、真实数据库/bucket 初始化、网络连通或真实 provider 请求。当前也没有上传/部署服务器。
+以上代码尚未在目标服务器执行 Docker 镜像拉取、容器启动、真实数据库/bucket 初始化或真实 provider 请求。2026-07-11 已通过 SSH 完成目标服务器只读资源与端口盘点，但没有上传、部署或修改现有 LED 服务。
 
 ### 11.2 Production Compose 启动方式
 
@@ -292,7 +292,7 @@ docker compose --profile omnichannel --env-file infra/env.example \
 
 ### 11.3 必须执行
 
-1. `npm run livekit:deployment-preflight`、media smoke、双浏览器视频/屏幕共享、Egress/对象导出。
+1. 先用 `OPC_LIVEKIT_ACCEPTANCE_BUNDLE_DIR=<evidence-dir> npm run livekit:acceptance-bundle` 固定本轮路径，再按 manifest 运行 `livekit:deployment-preflight`、`livekit:server-evidence`、`smoke:media:readiness`、真实客户端验收和 `livekit:evidence-pack`；最终必须为 `ready_for_customer_review`。
 2. `npm run tinode:deployment-preflight`、`npm run smoke:chat:tinode`、双浏览器 SDK join/data/info/presence/read note。
 3. 验证 Tinode 用户只有 `JRP`，浏览器直接 publish 被拒绝。
 4. 真实 PostgreSQL 跑 migration/RLS、多副本 claim 竞争、10k+ 消息 unread/read-through。
@@ -305,6 +305,10 @@ docker compose --profile omnichannel --env-file infra/env.example \
 真实 LiveKit/Tinode/RustDesk 客户端、真实对象存储、真实 OCR/ASR/AI、电话线路、多副本和生产网络尚未在当前本地环境验证。preflight 和 fake provider 只证明配置/协议形状。
 
 TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 模板仍未补齐。MinIO bucket 与 PostgreSQL 多数据库初始化的代码和 Compose 门禁已经补齐，但真实 fresh/existing volume、bucket 私有性/持久化、Egress 写入和重启恢复仍必须在服务器验证，不能由 fake command 测试或 Compose 静态解析替代。
+
+LiveKit evidence pack 的自动 server probe 只覆盖 DNS、证书、健康、TCP 和 UDP 发包。ICE UDP/TCP candidate pair、forced TURN UDP/TLS、双浏览器音视频/屏幕共享、LED SDK business_ref 追踪、跨租户拒绝、RLS、重启恢复、性能和 SIP 呼入/呼出必须填写真实客户端报告；模板文本不能直接作为通过证据。
+
+同一轮产物必须共享 `run_id`、`started_at`、`environment_id`、部署模式、完整 `deployed_commit` 和 `deployment_fingerprint`，且必须是当前 24 小时内的采集。客户端报告不接受“已截图/已验证”一类自由文本：每项 passed check 使用独立可读 JSON artifact，内含唯一 check ID、完整 run metadata、采集时间/工具和该检查专属 details；validator 会重新散列并解析。QA approver 必须与 operator 不同，其 Ed25519 签名覆盖批准决策和全部输入哈希；公钥文件还必须匹配预配置指纹。新一轮验收必须使用新目录，bundle 会拒绝残留真实结果的旧目录。
 
 ## 12. 版本与责任边界
 

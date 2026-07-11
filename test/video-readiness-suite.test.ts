@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import {
+  createVideoReadinessPersistedReport,
   createVideoReadinessSuiteConfigFromEnv,
   runVideoReadinessSuite,
   VideoReadinessSuiteError,
+  writeVideoReadinessReport,
   type VideoReadinessCommandRunner
 } from '../scripts/video-readiness-suite.js';
 
@@ -580,6 +586,100 @@ test('video readiness suite can continue after failures and return a failed repo
     ['avatar', true]
   ]);
   assert.deepEqual(calls, ['npm run smoke:media', 'npm run smoke:media:avatar']);
+});
+
+test('video readiness persisted report hashes output without storing tokens or signed invites', () => {
+  const result = {
+    ok: false,
+    steps: [{
+      target: 'media' as const,
+      command: 'npm run smoke:media',
+      ok: false,
+      exitCode: 1,
+      durationMs: 25,
+      stdout: JSON.stringify({
+        token: 'livekit-secret-token',
+        customerJoinPath: '/video?invite=signed-customer-invite&expires_at=9999999999'
+      }),
+      stderr: 'Bearer private-media-token failed'
+    }]
+  };
+
+  const persisted = createVideoReadinessPersistedReport(result, '2026-07-11T00:00:00.000Z');
+  const serialized = JSON.stringify(persisted);
+
+  assert.equal(persisted.schema_version, 1);
+  assert.equal(persisted.ok, false);
+  assert.equal(persisted.steps[0]?.stdout_present, true);
+  assert.equal(persisted.steps[0]?.stderr_present, true);
+  assert.equal(persisted.steps[0]?.error_summary, 'media failed with exit code 1');
+  assert.match(persisted.steps[0]?.stdout_sha256 || '', /^[a-f0-9]{64}$/);
+  assert.match(persisted.steps[0]?.stderr_sha256 || '', /^[a-f0-9]{64}$/);
+  assert.equal(serialized.includes('livekit-secret-token'), false);
+  assert.equal(serialized.includes('signed-customer-invite'), false);
+  assert.equal(serialized.includes('private-media-token'), false);
+});
+
+test('video readiness CLI writes a failed artifact when preflight stops before the first step', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'opc-video-readiness-preflight-report-'));
+  const outputFile = join(dir, 'readiness.json');
+  try {
+    const result = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', 'scripts/video-readiness-suite.ts'],
+      {
+        cwd: new URL('..', import.meta.url),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          OPC_VIDEO_READINESS_TARGETS: 'media',
+          OPC_VIDEO_READINESS_REPORT_FILE: outputFile,
+          OPC_BASE_URL: '',
+          OPC_MEDIA_API_TOKEN: '',
+          OPC_MEDIA_INVITE_SECRET: '',
+          OPC_MEDIA_SMOKE_TENANT_ID: ''
+        }
+      }
+    );
+    const report = JSON.parse(readFileSync(outputFile, 'utf8')) as {
+      ok: boolean;
+      steps: unknown[];
+    };
+
+    assert.notEqual(result.status, 0);
+    assert.equal(report.ok, false);
+    assert.deepEqual(report.steps, []);
+    assert.equal(readFileSync(outputFile, 'utf8').includes('media-token'), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('video readiness report writer creates a secret-safe JSON artifact', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'opc-video-readiness-report-'));
+  const outputFile = join(dir, 'nested', 'readiness.json');
+  try {
+    const write = writeVideoReadinessReport(outputFile, {
+      ok: true,
+      steps: [{
+        target: 'agent-browser',
+        command: 'npm run smoke:media:browser',
+        ok: true,
+        exitCode: 0,
+        durationMs: 100,
+        stdout: 'browser output with token=do-not-persist',
+        stderr: ''
+      }]
+    }, '2026-07-11T00:00:00.000Z');
+    const stored = JSON.parse(readFileSync(outputFile, 'utf8')) as Record<string, unknown>;
+
+    assert.equal(write.outputFile, outputFile);
+    assert.equal(write.ok, true);
+    assert.equal(write.steps, 1);
+    assert.equal(JSON.stringify(stored).includes('do-not-persist'), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 function createCommandRunner(options?: {

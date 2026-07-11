@@ -331,3 +331,14 @@ RustDesk 使用独立的 `createIveKitRustDeskLedSdk`，因为其设备注册、
 5. 真实 LiveKit/Tinode/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待服务器验收。
 6. 本地 MemoryPg、fake provider、preflight 不是生产通过证明。
 7. `LIVEKIT_URL` 是 OPC、AI Agent、Egress 等服务端可达地址；`LIVEKIT_PUBLIC_URL` 是浏览器 `Room.connect()` 使用的受信任 `wss://` 地址。LED 只消费 Join Plan 返回值，不自行拼接内部地址。
+
+## 8. 非 HTTP 验收面
+
+LiveKit 的交付门禁由部署/QA 脚本承担，不新增浏览器可调用的管理 API：
+
+1. `livekit:acceptance-bundle` 初始化同一 release 的清单、runbook、模板和 manifest。
+2. `livekit:server-evidence`、`smoke:media:readiness` 和 `livekit:client-acceptance` 分别生成服务器、自动 readiness 和真实客户端结果。
+3. `livekit:evidence-pack` 重新校验 schema、完整 preflight/readiness check、JSON artifact 内容与完整 SHA-256、QA Ed25519 签名、CLI 期望 run metadata、部署模式和当前 24 小时时间窗，再输出 `incomplete` 或 `ready_for_customer_review`。
+4. LED 业务代码继续只调用本文件的 iveKit API/SDK；不得通过 API 上传一份自称 `ok=true` 的报告来绕过真实环境门禁。
+
+证据文件不得包含 API key、LiveKit token、signed invite 或对象存储 secret。完整检查项、产物关系和执行顺序见 `docs/superpowers/specs/2026-07-11-livekit-acceptance-evidence-design.md`。

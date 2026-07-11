@@ -72,3 +72,18 @@ The deployment is not production-accepted until all of the following have captur
 4. Direct UDP, ICE/TCP fallback, and forced TURN relay each succeed.
 5. Egress creates a recording and the object is readable from storage.
 6. Restart, reconnect, and failure recovery behavior matches the acceptance runbook.
+
+## Acceptance evidence bundle
+
+From the application repository, initialize one deterministic, secret-safe evidence directory:
+
+```bash
+OPC_LIVEKIT_ACCEPTANCE_BUNDLE_DIR=/var/lib/opc-evidence/livekit/<release> \
+  npm run livekit:acceptance-bundle
+```
+
+The command writes the environment checklist, preflight report, server/client runbooks, an unfilled client template, manifest and an initially `incomplete` evidence pack. It deliberately does not create `server-evidence.json`, `readiness.json`, or `client-acceptance-result.json`; those files must come from the deployed server and real clients using the commands in `manifest.json`.
+
+Set `OPC_LIVEKIT_ACCEPTANCE_ENVIRONMENT_ID`, `OPC_LIVEKIT_ACCEPTANCE_DEPLOYED_COMMIT`, the trusted QA Ed25519 public key path and its SHA-256 fingerprint before initialization. The bundle creates or accepts one safe run ID/start time and computes a deployment fingerprint. It refuses a directory that already contains real evidence. Every passed client check must use a distinct readable JSON artifact with a full matching SHA-256, one matching check ID, run metadata, timestamp, capture tool and the required check-specific details. An independent QA approver signs a distinct approval manifest containing the preflight, server, readiness and all client evidence hashes.
+
+After every real run, regenerate the index with `npm run livekit:evidence-pack`. Only `ready_for_customer_review` is eligible for delivery review. DNS/TLS/TCP/UDP-send server checks do not replace selected ICE candidate-pair, forced TURN, real media, Egress, isolation, recovery, performance or SIP evidence.
