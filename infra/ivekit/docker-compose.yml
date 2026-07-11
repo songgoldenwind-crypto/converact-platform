@@ -111,6 +111,7 @@ services:
       context: ../..
       dockerfile: Dockerfile
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    command: ["npm", "run", "start:ivekit"]
     init: true
     restart: unless-stopped
     ports:
@@ -147,12 +148,11 @@ services:
       TINODE_BASIC_PASSWORD: ${TINODE_BASIC_PASSWORD:?TINODE_BASIC_PASSWORD is required}
       TINODE_USER_PASSWORD_SECRET: ${TINODE_USER_PASSWORD_SECRET:?TINODE_USER_PASSWORD_SECRET is required}
       OPC_TINODE_DELIVERY_WORKER_ENABLED: "1"
-      OPC_DISABLE_DIALER: "1"
       OPC_SCHEMA_MANAGED_BY_MIGRATIONS: "1"
       OPC_REMOTE_GATEWAY_PROVIDER: rustdesk
-      OPC_REMOTE_GATEWAY_BASE_URL: http://opc:3000
+      OPC_REMOTE_GATEWAY_BASE_URL: http://ivekit-api:3000
       OPC_REMOTE_GATEWAY_API_TOKEN: ${OPC_REMOTE_GATEWAY_API_TOKEN:?OPC_REMOTE_GATEWAY_API_TOKEN is required}
-      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: http://opc:3000
+      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: http://ivekit-api:3000
       OPC_RUSTDESK_ID_SERVER: ${OPC_RUSTDESK_ID_SERVER:?OPC_RUSTDESK_ID_SERVER is required}
       OPC_RUSTDESK_RELAY_SERVER: ${OPC_RUSTDESK_RELAY_SERVER:?OPC_RUSTDESK_RELAY_SERVER is required}
       OPC_RUSTDESK_PUBLIC_KEY_FILE: /rustdesk/id_ed25519.pub
@@ -164,8 +164,10 @@ services:
     volumes:
       - rustdesk_data:/rustdesk:ro
     networks:
-      - default
-      - ivekit_media
+      default:
+        aliases:
+          - ivekit-api
+      ivekit_media: {}
     depends_on:
       postgres:
         condition: service_healthy

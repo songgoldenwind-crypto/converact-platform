@@ -517,7 +517,7 @@ git commit -m "feat(sdk): package iveKit client"
 - Modify: `infra/ivekit/README.md`
 - Modify: `test/livekit-standalone-deployment.test.ts`
 
-- [ ] **Step 1: Add failing deployment assertions**
+- [x] **Step 1: Add failing deployment assertions**
 
 ```typescript
 test('standalone iveKit application stack runs the iveKit-only process', () => {
@@ -528,7 +528,7 @@ test('standalone iveKit application stack runs the iveKit-only process', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 ```bash
 node --import tsx --test test/livekit-standalone-deployment.test.ts
@@ -536,7 +536,7 @@ node --import tsx --test test/livekit-standalone-deployment.test.ts
 
 Expected: FAIL because Compose still runs the full OPC entrypoint.
 
-- [ ] **Step 3: Change runtime command without renaming the deployed service key**
+- [x] **Step 3: Change runtime command without renaming the deployed service key**
 
 Under `services.opc`, add:
 
@@ -546,11 +546,11 @@ command: ["npm", "run", "start:ivekit"]
 
 Keep the service key `opc` so existing URLs and upgrades remain compatible. Add `ivekit-api` as a network alias and document that new deployments should address the alias while old deployments can continue using `opc`.
 
-- [ ] **Step 4: Remove unrelated full-OPC runtime settings**
+- [x] **Step 4: Remove unrelated full-OPC runtime settings**
 
 Remove `OPC_DISABLE_DIALER` from the reusable stack. Keep shared auth, PostgreSQL, Redis, LiveKit, MinIO, Tinode, RustDesk, worker, and migration settings.
 
-- [ ] **Step 5: Document upgrade and rollback**
+- [x] **Step 5: Document upgrade and rollback**
 
 Document:
 
@@ -559,7 +559,7 @@ Document:
 3. Rollback changes only the container command to `npm start` with the same image and volumes.
 4. LED should use `@opc/ivekit-sdk` and the public base URL, never the Docker service name.
 
-- [ ] **Step 6: Render and verify Compose**
+- [x] **Step 6: Render and verify Compose**
 
 ```bash
 docker compose --env-file infra/ivekit/env.example -f infra/ivekit/docker-compose.yml config >/tmp/ivekit-compose.yaml
@@ -568,7 +568,7 @@ node --import tsx --test test/livekit-standalone-deployment.test.ts
 
 Expected: Compose renders successfully and deployment tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add infra/ivekit test/livekit-standalone-deployment.test.ts
