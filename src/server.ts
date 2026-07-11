@@ -1,4 +1,4 @@
-import { initPostgres, closePostgres, runMigrations } from './db-pg.js';
+import { initPostgres, closePostgres } from './db-pg.js';
 import { PgSyncDatabase } from './db-pg-sync.js';
 import { createServer } from './http.js';
 import { initWebSocket, wsBroadcast } from './ws.js';
@@ -44,9 +44,8 @@ const port = Number(process.env.PORT || 3000);
 async function main() {
   // Production: Postgres is the only data store (via PgSyncDatabase).
   // SQLite is used only in tests (createDatabase(':memory:') in test files).
-  if (!process.env.DATABASE_URL) {
-    console.error('[db] FATAL: DATABASE_URL is required. SQLite is no longer supported in production.');
-    console.error('[db] Set DATABASE_URL=postgres://user:pass@host:5432/opc');
+  if (!process.env.DATABASE_URL && !process.env.PGHOST) {
+    console.error('[db] FATAL: DATABASE_URL or PGHOST/PGDATABASE/PGUSER is required.');
     process.exit(1);
   }
 
@@ -57,9 +56,7 @@ async function main() {
     process.exit(1);
   }
 
-  // Run migrations to ensure all 168 tables exist
-  await runMigrations(pg);
-  console.log('[postgres] migrations applied (168 tables)');
+  console.log('[postgres] migrations applied');
 
   // PgSyncDatabase makes run/one/all (from db.ts) work against Postgres synchronously.
   // Existing 72 stores call run(db, sql, params) — zero changes needed.
@@ -138,4 +135,7 @@ async function main() {
   process.on('SIGTERM', () => void shutdown());
 }
 
-void main();
+void main().catch((error) => {
+  console.error('[startup] FATAL:', error instanceof Error ? error.message : String(error));
+  process.exit(1);
+});

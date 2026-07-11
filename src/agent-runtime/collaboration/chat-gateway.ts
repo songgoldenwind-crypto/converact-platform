@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { WebSocket } from 'ws';
 
 export const TINODE_RECEIVE_ONLY_ACCESS_MODE = 'JRP';
@@ -330,7 +330,15 @@ class TinodeWireClient {
   }> {
     await this.connectAndHello();
     const username = tinodeBasicUsernameForIdentity(input.tenant_id, input.identity);
+    const legacyUsername = legacyTinodeBasicUsernameForIdentity(input.tenant_id, input.identity);
     const password = tinodeBasicPasswordForIdentity(this.config.user_password_secret || '', input.tenant_id, input.identity);
+    if (legacyUsername !== username) {
+      try {
+        return await this.loginBasicAccount(legacyUsername, password);
+      } catch (error) {
+        if (!(error instanceof TinodeRequestError) || ![401, 404].includes(error.code)) throw error;
+      }
+    }
     let ctrl: TinodeCtrl;
     try {
       ctrl = await this.request('acc', {
@@ -360,7 +368,7 @@ class TinodeWireClient {
         }
       });
     } catch (error) {
-      if (error instanceof TinodeRequestError && error.code === 409) {
+      if (error instanceof TinodeRequestError && (error.code === 304 || error.code === 409)) {
         return this.loginBasicAccount(username, password);
       }
       throw error;
@@ -406,10 +414,14 @@ class TinodeWireClient {
   async grantTopicAccess(topic: string, user: string, mode: string): Promise<void> {
     await this.connectAndLogin();
     await this.request('sub', { topic, bkg: true });
-    await this.request('set', {
-      topic,
-      sub: { user, mode }
-    });
+    try {
+      await this.request('set', {
+        topic,
+        sub: { user, mode }
+      });
+    } catch (error) {
+      if (!(error instanceof TinodeRequestError) || error.code !== 304) throw error;
+    }
   }
 
   close(): void {
@@ -591,8 +603,24 @@ function defaultTinodeWsUrl(baseUrl: string): string {
   return url.toString();
 }
 
-function tinodeBasicUsernameForIdentity(tenantId: string, identity: string): string {
-  return `opc_${stableTinodeToken(tenantId)}_${stableTinodeToken(identity)}`.slice(0, 96);
+export function tinodeBasicUsernameForIdentity(tenantId: string, identity: string): string {
+  const suffix = createHash('sha256')
+    .update(`${tenantId}:${identity}`)
+    .digest('hex')
+    .slice(0, 12);
+  const tenant = stableTinodeToken(tenantId).slice(0, 4) || 'none';
+  const participant = stableTinodeToken(identity).slice(0, 4) || 'none';
+  return `opc_${tenant}_${participant}_${suffix}`;
+}
+
+export function legacyTinodeBasicUsernameForIdentity(tenantId: string, identity: string): string {
+  const readable = `opc_${stableTinodeToken(tenantId)}_${stableTinodeToken(identity)}`;
+  if (readable.length <= 26) return readable;
+  const suffix = createHash('sha256')
+    .update(`${tenantId}:${identity}`)
+    .digest('hex')
+    .slice(0, 12);
+  return `${readable.slice(0, 13)}_${suffix}`;
 }
 
 function tinodeBasicPasswordForIdentity(secret: string, tenantId: string, identity: string): string {
@@ -600,5 +628,5 @@ function tinodeBasicPasswordForIdentity(secret: string, tenantId: string, identi
   return `opc_${createHmac('sha256', secret)
     .update(`${tenantId}:${identity}`)
     .digest('base64url')
-    .slice(0, 32)}`;
+    .slice(0, 28)}`;
 }

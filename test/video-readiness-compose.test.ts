@@ -7,6 +7,11 @@ const ROOT_ENV_PATH = new URL('../.env.example', import.meta.url);
 const PRODUCTION_COMPOSE_PATH = new URL('../infra/docker-compose.production.yml', import.meta.url);
 const PRODUCTION_TINODE_COMPOSE_PATH = new URL('../infra/docker-compose.tinode.yml', import.meta.url);
 const PRODUCTION_ENV_PATH = new URL('../infra/env.example', import.meta.url);
+const LIVEKIT_EDGE_COMPOSE_PATH = new URL('../infra/livekit/docker-compose.yml', import.meta.url);
+const LIVEKIT_STORAGE_COMPOSE_PATH = new URL('../infra/livekit/docker-compose.storage.yml', import.meta.url);
+const LIVEKIT_ENV_PATH = new URL('../infra/livekit/env.example', import.meta.url);
+const IVEKIT_APPLICATION_COMPOSE_PATH = new URL('../infra/ivekit/docker-compose.yml', import.meta.url);
+const IVEKIT_POSTGRES_ROLE_INIT_PATH = new URL('../infra/ivekit/init-postgres-runtime-role.sh', import.meta.url);
 const K8S_OPC_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/opc-deployment.yaml', import.meta.url);
 const K8S_HELPERS_PATH = new URL('../infra/k8s/templates/_helpers.tpl', import.meta.url);
 const K8S_AI_AGENT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/ai-agent-deployment.yaml', import.meta.url);
@@ -20,6 +25,7 @@ const K8S_RUSTDESK_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/rustdesk-se
 const LIVEKIT_CONFIG_PATH = new URL('../config/livekit.yaml', import.meta.url);
 const EGRESS_CONFIG_PATH = new URL('../config/egress.yaml', import.meta.url);
 const GITIGNORE_PATH = new URL('../.gitignore', import.meta.url);
+const DOCKERFILE_PATH = new URL('../Dockerfile', import.meta.url);
 
 test('call center compose passes media security and recording env into opc service', () => {
   const compose = readFileSync(COMPOSE_PATH, 'utf8');
@@ -187,6 +193,122 @@ test('production compose gates databases PgBouncer and object storage', () => {
   assert.match(readServiceBlock(compose, 'opc'), /pgbouncer:\n\s+condition: service_healthy/);
 });
 
+test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on bucket readiness', () => {
+  const edgeCompose = readFileSync(LIVEKIT_EDGE_COMPOSE_PATH, 'utf8');
+  const storageCompose = readFileSync(LIVEKIT_STORAGE_COMPOSE_PATH, 'utf8');
+  const envExample = readFileSync(LIVEKIT_ENV_PATH, 'utf8');
+
+  const minio = readServiceBlock(storageCompose, 'minio');
+  assert.match(minio, /image: minio\/minio:\$\{LIVEKIT_MINIO_IMAGE_TAG:\?LIVEKIT_MINIO_IMAGE_TAG is required\}/);
+  assert.match(minio, /"127\.0\.0\.1:9000:9000"/);
+  assert.match(minio, /"127\.0\.0\.1:9001:9001"/);
+  assert.equal(readServiceEnvironment(storageCompose, 'minio').MINIO_ROOT_USER, '${MINIO_ROOT_ACCESS_KEY:?MINIO_ROOT_ACCESS_KEY is required}');
+  assert.equal(readServiceEnvironment(storageCompose, 'minio').MINIO_ROOT_PASSWORD, '${MINIO_ROOT_SECRET_KEY:?MINIO_ROOT_SECRET_KEY is required}');
+
+  const minioInit = readServiceBlock(storageCompose, 'minio-init');
+  const minioInitEnvironment = readServiceEnvironment(storageCompose, 'minio-init');
+  assert.equal(minioInitEnvironment.MINIO_ROOT_ACCESS_KEY, '${MINIO_ROOT_ACCESS_KEY:?MINIO_ROOT_ACCESS_KEY is required}');
+  assert.equal(minioInitEnvironment.MINIO_ACCESS_KEY, '${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}');
+  assert.notEqual(minioInitEnvironment.MINIO_ROOT_ACCESS_KEY, minioInitEnvironment.MINIO_ACCESS_KEY);
+  assert.match(minioInit, /bootstrap-minio-bucket\.sh/);
+  assert.match(minioInit, /image: minio\/mc:\$\{LIVEKIT_MINIO_MC_IMAGE_TAG:\?LIVEKIT_MINIO_MC_IMAGE_TAG is required\}/);
+  assert.ok(
+    readServiceVolumes(storageCompose, 'minio-init').includes(
+      '../scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro'
+    )
+  );
+  assert.match(minioInit, /minio:\n\s+condition: service_healthy/);
+
+  assert.match(
+    readServiceBlock(storageCompose, 'egress'),
+    /minio-init:\n\s+condition: service_completed_successfully/
+  );
+  assert.match(edgeCompose, /^  egress:/m);
+  assert.match(envExample, /^LIVEKIT_MINIO_IMAGE_TAG=RELEASE\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/m);
+  assert.match(envExample, /^LIVEKIT_MINIO_MC_IMAGE_TAG=RELEASE\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/m);
+  assert.doesNotMatch(envExample, /^MINIO_(?:ACCESS_KEY|SECRET_KEY)=minioadmin$/m);
+});
+
+test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and RustDesk', () => {
+  const compose = readFileSync(IVEKIT_APPLICATION_COMPOSE_PATH, 'utf8');
+
+  const postgres = readServiceBlock(compose, 'postgres');
+  assert.match(postgres, /image: postgres:\$\{IVEKIT_POSTGRES_IMAGE_TAG:\?IVEKIT_POSTGRES_IMAGE_TAG is required\}/);
+  assert.doesNotMatch(postgres, /\n\s+ports:/);
+  assert.match(postgres, /postgres_data:\/var\/lib\/postgresql\/data/);
+  assert.equal(readServiceEnvironment(compose, 'postgres').POSTGRES_USER, 'opc_admin');
+  assert.doesNotMatch(compose, /^  postgres-bootstrap:/m);
+
+  const runtimeRole = readServiceBlock(compose, 'postgres-runtime-role');
+  assert.match(runtimeRole, /init-postgres-runtime-role\.sh/);
+  assert.match(runtimeRole, /postgres:\n\s+condition: service_healthy/);
+
+  const migrate = readServiceBlock(compose, 'postgres-migrate');
+  assert.match(migrate, /run-postgres-migrations\.ts/);
+  assert.match(migrate, /postgres-runtime-role:\n\s+condition: service_completed_successfully/);
+
+  const redis = readServiceBlock(compose, 'redis');
+  assert.match(redis, /image: redis:\$\{IVEKIT_REDIS_IMAGE_TAG:\?IVEKIT_REDIS_IMAGE_TAG is required\}/);
+  assert.doesNotMatch(redis, /\n\s+ports:/);
+
+  const tinode = readServiceBlock(compose, 'tinode');
+  assert.match(tinode, /image: tinode\/tinode:\$\{TINODE_IMAGE_TAG:\?TINODE_IMAGE_TAG is required\}/);
+  assert.match(tinode, /"127\.0\.0\.1:\$\{TINODE_HTTP_PORT:-6060\}:6060"/);
+  assert.equal(readServiceEnvironment(compose, 'tinode').STORE_USE_ADAPTER, 'postgres');
+  assert.equal(readServiceEnvironment(compose, 'tinode').PGPASSWORD, '${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}');
+  assert.doesNotMatch(String(readServiceEnvironment(compose, 'tinode').POSTGRES_DSN), /opc_admin|POSTGRES_PASSWORD/);
+  assert.equal(readServiceEnvironment(compose, 'tinode').SAMPLE_DATA, '');
+  assert.match(tinode, /postgres:\n\s+condition: service_healthy/);
+
+  const tinodeBootstrap = readServiceBlock(compose, 'tinode-bootstrap');
+  assert.match(tinodeBootstrap, /image: \$\{IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local\}/);
+  assert.match(tinodeBootstrap, /bootstrap-tinode-service-account\.ts/);
+  assert.match(tinodeBootstrap, /tinode:\n\s+condition: service_healthy/);
+
+  const opc = readServiceBlock(compose, 'opc');
+  assert.match(opc, /"127\.0\.0\.1:\$\{OPC_HTTP_PORT:-8300\}:3000"/);
+  assert.match(opc, /postgres:\n\s+condition: service_healthy/);
+  assert.match(opc, /tinode-bootstrap:\n\s+condition: service_completed_successfully/);
+  const opcEnvironment = readServiceEnvironment(compose, 'opc');
+  assert.equal(opcEnvironment.PGUSER, 'opc_runtime');
+  assert.equal(opcEnvironment.PGPASSWORD, '${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}');
+  assert.equal('DATABASE_URL' in opcEnvironment, false);
+  assert.equal('DATABASE_MIGRATION_URL' in opcEnvironment, false);
+  assert.equal('POSTGRES_PASSWORD' in opcEnvironment, false);
+  assert.equal(opcEnvironment.LIVEKIT_URL, '${LIVEKIT_URL:?LIVEKIT_URL is required}');
+  assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}');
+  assert.equal(opcEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
+  assert.equal(opcEnvironment.TINODE_BASE_URL, 'http://tinode:6060');
+  assert.equal(opcEnvironment.TINODE_WS_URL, 'ws://tinode:6060/v0/channels');
+  assert.equal(opcEnvironment.TINODE_PUBLIC_WS_URL, '${TINODE_PUBLIC_WS_URL:?TINODE_PUBLIC_WS_URL is required}');
+  assert.equal(opcEnvironment.OPC_DISABLE_DIALER, '1');
+  assert.equal(opcEnvironment.OPC_SCHEMA_MANAGED_BY_MIGRATIONS, '1');
+  assert.equal(
+    opcEnvironment.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE,
+    '${OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE:-rustdesk://connect/{rustdesk_id}?session={external_id}}'
+  );
+  assert.match(opc, /- ivekit_media/);
+
+  for (const service of ['rustdesk-hbbs', 'rustdesk-hbbr']) {
+    const block = readServiceBlock(compose, service);
+    assert.match(block, /rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:\?RUSTDESK_SERVER_IMAGE_TAG is required\}/);
+    assert.match(block, /network_mode: "host"/);
+    assert.doesNotMatch(block, /:latest/);
+  }
+
+  assert.match(compose, /name: \$\{OPC_MEDIA_DOCKER_NETWORK:-ivekit-media_default\}/);
+  assert.doesNotMatch(compose, /OPC_DB_PATH|sqlite/i);
+
+  const roleInit = readFileSync(IVEKIT_POSTGRES_ROLE_INIT_PATH, 'utf8');
+  assert.match(roleInit, /CREATE ROLE opc_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS/);
+  assert.match(roleInit, /CREATE ROLE tinode_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS/);
+  assert.match(roleInit, /CREATE DATABASE tinode OWNER tinode_app/);
+  assert.match(roleInit, /ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin/);
+  assert.match(roleInit, /schema_migrations/);
+  assert.match(readFileSync(new URL('../scripts/run-postgres-migrations.ts', import.meta.url), 'utf8'), /REVOKE ALL PRIVILEGES ON TABLE schema_migrations FROM opc_runtime/);
+  assert.doesNotMatch(roleInit, /echo.*PASSWORD|set -x/i);
+});
+
 test('self-hosted Tinode extends database bootstrap and waits for it', () => {
   const overlay = readFileSync(PRODUCTION_TINODE_COMPOSE_PATH, 'utf8');
 
@@ -209,6 +331,12 @@ test('Chatwoot is opt-in and production bootstrap remains PostgreSQL-only', () =
   assert.doesNotMatch(compose, /sqlite|OPC_DB_PATH/i);
   assert.match(envExample, /^MINIO_INIT_MAX_ATTEMPTS=30$/m);
   assert.match(envExample, /^MINIO_INIT_RETRY_SECONDS=2$/m);
+});
+
+test('production application image has no SQLite runtime fallback', () => {
+  const dockerfile = readFileSync(DOCKERFILE_PATH, 'utf8');
+
+  assert.doesNotMatch(dockerfile, /OPC_DB_PATH|opc\.sqlite|sqlite/i);
 });
 
 test('compose media ports and Egress Redis match the LiveKit runtime configuration', () => {

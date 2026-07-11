@@ -87,8 +87,8 @@ const DEFAULT_UDP_PORTS = [21116];
 export function createRustDeskServerEvidenceConfigFromEnv(env: NodeJS.ProcessEnv): RustDeskServerEvidenceConfig {
   const outputFile = optionalString(env.OPC_RUSTDESK_SERVER_EVIDENCE_FILE);
   const publicKeyFile = optionalString(env.OPC_RUSTDESK_PUBLIC_KEY_FILE) || '/rustdesk/id_ed25519.pub';
-  const idServer = optionalString(env.OPC_RUSTDESK_CHECK_HOST || env.OPC_RUSTDESK_ID_SERVER);
-  const relayServer = optionalString(env.OPC_RUSTDESK_RELAY_SERVER) || idServer;
+  const idServer = rustDeskEndpointHost(env.OPC_RUSTDESK_CHECK_HOST || env.OPC_RUSTDESK_ID_SERVER);
+  const relayServer = rustDeskEndpointHost(env.OPC_RUSTDESK_RELAY_SERVER) || idServer;
   const launchBaseUrl = stripTrailingSlash(optionalString(
     env.OPC_RUSTDESK_LAUNCH_BASE_URL ||
     env.OPC_BASE_URL ||
@@ -437,6 +437,16 @@ function stripTrailingSlash(value: string | undefined): string {
 function optionalString(value: string | undefined): string | undefined {
   const trimmed = String(value || '').trim();
   return trimmed || undefined;
+}
+
+function rustDeskEndpointHost(value: string | undefined): string {
+  const endpoint = optionalString(value);
+  if (!endpoint) return '';
+  try {
+    return new URL(`tcp://${endpoint}`).hostname.replace(/^\[|\]$/g, '');
+  } catch {
+    return endpoint;
+  }
 }
 
 function redactUrl(url: URL): string {

@@ -289,3 +289,19 @@ test('verifyAccessToken rejects tampered token', () => {
   const bad = token.slice(0, -1) + (token.endsWith('a') ? 'b' : 'a');
   assert.equal(verifyAccessToken(bad), null);
 });
+
+test('verifyAccessToken rejects non-canonical signature encoding', () => {
+  const token = signAccessToken({ sub: 'u1', tid: 't1', role: 'viewer' });
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const signature = token.split('.')[2];
+  const lastIndex = alphabet.indexOf(signature.at(-1) || '');
+  const equivalentIndex = (lastIndex & 0b111100) | ((lastIndex + 1) & 0b000011);
+  const nonCanonical = `${token.slice(0, -1)}${alphabet[equivalentIndex]}`;
+
+  assert.notEqual(nonCanonical, token);
+  assert.equal(
+    Buffer.from(signature, 'base64url').toString('hex'),
+    Buffer.from(nonCanonical.split('.')[2], 'base64url').toString('hex')
+  );
+  assert.equal(verifyAccessToken(nonCanonical), null);
+});

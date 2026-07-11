@@ -14,7 +14,6 @@ COPY config ./config
 
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV OPC_DB_PATH=/data/opc.sqlite
 
 EXPOSE 3000
 

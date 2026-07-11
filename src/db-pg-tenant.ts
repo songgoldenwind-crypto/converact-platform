@@ -32,10 +32,6 @@ export function resolvePgTenantContextForRequest(
   headers: Record<string, string | string[] | undefined>,
   request: { url?: URL; body?: unknown } = {}
 ): PgTenantContext {
-  if (path === '/api/auth/register' || path === '/api/auth/login') {
-    return { bypassRls: true };
-  }
-
   const mediaContext = resolveMediaServiceTenantContext(path, headers, request);
   if (mediaContext) return mediaContext;
 
@@ -100,6 +96,14 @@ export async function withPgBypass<T>(
   }
   return withPgTransaction(pg, async (client) => {
     await client.query(`SELECT set_config('app.bypass_rls', 'on', true)`);
+    const permission = await client.query<{ allowed: boolean }>(
+      'SELECT opc_rls_bypass() AS allowed'
+    );
+    if (permission.rows[0]?.allowed !== true) {
+      throw Object.assign(new Error('RLS bypass is not permitted for this database role'), {
+        status: 403
+      });
+    }
     return fn(client);
   });
 }
@@ -119,4 +123,14 @@ export async function withPgTenant<T>(
     await client.query(`SELECT set_config('app.current_tenant', $1, true)`, [tenantId]);
     return fn(client);
   });
+}
+
+export function withPgRequestContext<T>(
+  pg: PgQueryable,
+  context: PgTenantContext,
+  fn: (client: PgQueryable) => Promise<T>
+): Promise<T> {
+  if (context.bypassRls) return withPgBypass(pg, fn);
+  if (context.tenantId) return withPgTenant(pg, context.tenantId, fn);
+  return fn(pg);
 }

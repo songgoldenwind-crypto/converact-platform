@@ -2233,6 +2233,34 @@ function mergeJsonObjects(left: unknown, right: unknown): string {
 let sharedPool: PgQueryable | null = null;
 let realPool: Pool | null = null;
 
+export interface PostgresConnectionConfig {
+  runtimeUrl: string;
+  migrationUrl: string | null;
+}
+
+export function postgresConnectionConfigFromEnv(
+  env: NodeJS.ProcessEnv = process.env
+): PostgresConnectionConfig | null {
+  const runtimeUrl = env.DATABASE_URL || postgresUrlFromPgEnv(env);
+  if (!runtimeUrl) return null;
+  return {
+    runtimeUrl,
+    migrationUrl: env.DATABASE_MIGRATION_URL ||
+      (env.OPC_SCHEMA_MANAGED_BY_MIGRATIONS === '1' ? null : runtimeUrl)
+  };
+}
+
+function postgresUrlFromPgEnv(env: NodeJS.ProcessEnv): string | null {
+  const host = String(env.PGHOST || '').trim();
+  const database = String(env.PGDATABASE || '').trim();
+  const user = String(env.PGUSER || '').trim();
+  if (!host || !database || !user) return null;
+  const password = String(env.PGPASSWORD || '');
+  const normalizedHost = host.startsWith('[') || !host.includes(':') ? host : `[${host}]`;
+  const auth = `${encodeURIComponent(user)}${password ? `:${encodeURIComponent(password)}` : ''}`;
+  return `postgresql://${auth}@${normalizedHost}:${env.PGPORT || '5432'}/${encodeURIComponent(database)}`;
+}
+
 export function pgId(prefix: string): string {
   return `${prefix}_${randomUUID()}`;
 }
@@ -2246,21 +2274,46 @@ export async function initPostgres(): Promise<PgQueryable | null> {
     return sharedPool;
   }
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) return null;
+  const config = postgresConnectionConfigFromEnv();
+  if (!config) return null;
 
   const { Pool: PgPool } = await import('pg');
-  realPool = new PgPool({
-    connectionString,
+  const poolOptions = {
     max: Number(process.env.PG_POOL_MAX || 20),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000
-  });
+  };
 
-  await realPool.query('SELECT 1');
-  sharedPool = realPool;
-  await runMigrations(sharedPool);
-  return sharedPool;
+  if (config.migrationUrl && config.migrationUrl !== config.runtimeUrl) {
+    const migrationPool = new PgPool({
+      ...poolOptions,
+      connectionString: config.migrationUrl,
+      max: 1
+    });
+    try {
+      await migrationPool.query('SELECT 1');
+      await runMigrations(migrationPool);
+    } finally {
+      await migrationPool.end();
+    }
+  }
+
+  const runtimePool = new PgPool({
+    ...poolOptions,
+    connectionString: config.runtimeUrl
+  });
+  try {
+    await runtimePool.query('SELECT 1');
+    if (config.migrationUrl === config.runtimeUrl) {
+      await runMigrations(runtimePool);
+    }
+    realPool = runtimePool;
+    sharedPool = runtimePool;
+    return sharedPool;
+  } catch (error) {
+    await runtimePool.end();
+    throw error;
+  }
 }
 
 export function getPostgres(): PgQueryable {
@@ -2290,7 +2343,7 @@ export function resetPostgresForTests(pool: PgQueryable | null = null): void {
 
 export async function runMigrations(pg: PgQueryable): Promise<void> {
   const files = readdirSync(migrationsDir)
-    .filter((f) => f.endsWith('.sql'))
+    .filter(isPostgresMigrationFile)
     .sort();
 
   if (pg instanceof MemoryPg) {
@@ -2303,6 +2356,26 @@ export async function runMigrations(pg: PgQueryable): Promise<void> {
     return;
   }
 
+  const connection = pg as Pool & { release?: () => void };
+  if (typeof connection.connect === 'function' && typeof connection.release !== 'function') {
+    const conn = await connection.connect();
+    try {
+      await conn.query(`SELECT pg_advisory_lock(hashtext('opc_schema_migrations'))`);
+      await runPostgresMigrationsOnClient(conn, files);
+    } finally {
+      try {
+        await conn.query(`SELECT pg_advisory_unlock(hashtext('opc_schema_migrations'))`);
+      } finally {
+        conn.release();
+      }
+    }
+    return;
+  }
+
+  await runPostgresMigrationsOnClient(pg, files);
+}
+
+async function runPostgresMigrationsOnClient(pg: PgQueryable, files: string[]): Promise<void> {
   await pg.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version TEXT PRIMARY KEY,
@@ -2316,34 +2389,31 @@ export async function runMigrations(pg: PgQueryable): Promise<void> {
     if (existing.rowCount && existing.rowCount > 0) continue;
 
     const sql = readFileSync(join(migrationsDir, file), 'utf8');
-    if (typeof (pg as Pool).connect === 'function') {
-      const conn = await (pg as Pool).connect();
-      try {
-        await conn.query('BEGIN');
-        await conn.query(sql);
-        await conn.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
-        await conn.query('COMMIT');
-      } catch (error) {
-        await conn.query('ROLLBACK');
-        throw error;
-      } finally {
-        conn.release();
-      }
-    } else {
+    await pg.query('BEGIN');
+    try {
       await pg.query(sql);
       await pg.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
+      await pg.query('COMMIT');
+    } catch (error) {
+      await pg.query('ROLLBACK');
+      throw error;
     }
   }
+}
+
+export function isPostgresMigrationFile(file: string): boolean {
+  return /^\d{3}_[a-z0-9_]+\.sql$/.test(file);
 }
 
 export async function withPgTransaction<T>(
   pg: PgQueryable,
   fn: (client: PgQueryable) => Promise<T>
 ): Promise<T> {
-  if (!(pg as Pool).connect) {
+  const connection = pg as Pool & { release?: () => void };
+  if (typeof connection.connect !== 'function' || typeof connection.release === 'function') {
     return fn(pg);
   }
-  const client = await (pg as Pool).connect();
+  const client = await connection.connect();
   try {
     await client.query('BEGIN');
     const result = await fn(client);

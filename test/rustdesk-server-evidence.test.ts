@@ -35,6 +35,17 @@ test('RustDesk server evidence config maps production runtime env', () => {
   assert.equal(config.timeoutMs, 2500);
 });
 
+test('RustDesk server evidence probes host names when client endpoints include ports', () => {
+  const config = createRustDeskServerEvidenceConfigFromEnv({
+    OPC_RUSTDESK_ID_SERVER: '64.225.122.227:21116',
+    OPC_RUSTDESK_RELAY_SERVER: '64.225.122.227:21117',
+    OPC_RUSTDESK_LAUNCH_BASE_URL: 'https://opc.example.com'
+  });
+
+  assert.equal(config.idServer, '64.225.122.227');
+  assert.equal(config.relayServer, '64.225.122.227');
+});
+
 test('RustDesk server evidence passes when key, ports, DNS, TLS, and ingress probes pass', async () => {
   const result = await collectRustDeskServerEvidence(validConfig(), passingProbes());
 

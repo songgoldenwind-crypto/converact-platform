@@ -1,0 +1,211 @@
+# Reusable iveKit application plane. Pair with the standalone Media Core in infra/livekit.
+services:
+  postgres:
+    image: postgres:${IVEKIT_POSTGRES_IMAGE_TAG:?IVEKIT_POSTGRES_IMAGE_TAG is required}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opc_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: opc
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opc_admin -d opc"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  postgres-runtime-role:
+    image: postgres:${IVEKIT_POSTGRES_IMAGE_TAG:?IVEKIT_POSTGRES_IMAGE_TAG is required}
+    entrypoint: ["sh", "/bootstrap/init-postgres-runtime-role.sh"]
+    restart: "no"
+    environment:
+      POSTGRES_USER: opc_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: opc
+      OPC_RUNTIME_DB_PASSWORD: ${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}
+      TINODE_DB_PASSWORD: ${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}
+    volumes:
+      - ./init-postgres-runtime-role.sh:/bootstrap/init-postgres-runtime-role.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:${IVEKIT_REDIS_IMAGE_TAG:?IVEKIT_REDIS_IMAGE_TAG is required}
+    command: redis-server --appendonly yes --protected-mode yes
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  postgres-migrate:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    entrypoint: ["node", "--import", "tsx", "scripts/run-postgres-migrations.ts"]
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: opc
+      PGUSER: opc_admin
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    depends_on:
+      postgres-runtime-role:
+        condition: service_completed_successfully
+
+  tinode:
+    image: tinode/tinode:${TINODE_IMAGE_TAG:?TINODE_IMAGE_TAG is required}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${TINODE_HTTP_PORT:-6060}:6060"
+    environment:
+      STORE_USE_ADAPTER: postgres
+      POSTGRES_DSN: postgresql://tinode_app@postgres:5432/tinode?sslmode=disable&connect_timeout=10
+      PGPASSWORD: ${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}
+      WAIT_FOR: postgres:5432
+      API_KEY_SALT: ${TINODE_API_KEY_SALT:?TINODE_API_KEY_SALT is required}
+      AUTH_TOKEN_KEY: ${TINODE_AUTH_TOKEN_KEY:?TINODE_AUTH_TOKEN_KEY is required}
+      UID_ENCRYPTION_KEY: ${TINODE_UID_ENCRYPTION_KEY:?TINODE_UID_ENCRYPTION_KEY is required}
+      SAMPLE_DATA: ""
+      RESET_DB: "false"
+      UPGRADE_DB: ${TINODE_UPGRADE_DB:-false}
+      NO_DB_INIT: "false"
+      SERVER_STATUS_PATH: /health
+      WEBRTC_ENABLED: "false"
+      ACC_GC_ENABLED: "true"
+    volumes:
+      - tinode_botdata:/botdata
+      - tinode_uploads:/opt/tinode/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-runtime-role:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:6060/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  tinode-bootstrap:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    entrypoint: ["node", "--import", "tsx", "scripts/bootstrap-tinode-service-account.ts"]
+    restart: "no"
+    environment:
+      TINODE_WS_URL: ws://tinode:6060/v0/channels
+      TINODE_API_KEY: ${TINODE_API_KEY:?TINODE_API_KEY is required}
+      TINODE_BASIC_USER: ${TINODE_BASIC_USER:?TINODE_BASIC_USER is required}
+      TINODE_BASIC_PASSWORD: ${TINODE_BASIC_PASSWORD:?TINODE_BASIC_PASSWORD is required}
+      TINODE_BOOTSTRAP_TIMEOUT_MS: ${TINODE_BOOTSTRAP_TIMEOUT_MS:-10000}
+    depends_on:
+      tinode:
+        condition: service_healthy
+
+  opc:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OPC_HTTP_PORT:-8300}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: opc
+      PGUSER: opc_runtime
+      PGPASSWORD: ${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}
+      REDIS_URL: redis://redis:6379
+      LIVEKIT_URL: ${LIVEKIT_URL:?LIVEKIT_URL is required}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
+      OPC_MEDIA_API_TOKEN: ${OPC_MEDIA_API_TOKEN:?OPC_MEDIA_API_TOKEN is required}
+      OPC_MEDIA_INVITE_SECRET: ${OPC_MEDIA_INVITE_SECRET:?OPC_MEDIA_INVITE_SECRET is required}
+      OPC_API_KEY: ${OPC_API_KEY:?OPC_API_KEY is required}
+      OPC_JWT_SECRET: ${OPC_JWT_SECRET:?OPC_JWT_SECRET is required}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:?MINIO_BUCKET is required}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
+      OPC_RECORDING_HTTP_ALLOWED_ORIGINS: http://minio:9000
+      TINODE_DEPLOYMENT_MODE: self_hosted
+      TINODE_BASE_URL: http://tinode:6060
+      TINODE_WS_URL: ws://tinode:6060/v0/channels
+      TINODE_PUBLIC_BASE_URL: ${TINODE_PUBLIC_BASE_URL:?TINODE_PUBLIC_BASE_URL is required}
+      TINODE_PUBLIC_WS_URL: ${TINODE_PUBLIC_WS_URL:?TINODE_PUBLIC_WS_URL is required}
+      TINODE_API_KEY: ${TINODE_API_KEY:?TINODE_API_KEY is required}
+      TINODE_BASIC_USER: ${TINODE_BASIC_USER:?TINODE_BASIC_USER is required}
+      TINODE_BASIC_PASSWORD: ${TINODE_BASIC_PASSWORD:?TINODE_BASIC_PASSWORD is required}
+      TINODE_USER_PASSWORD_SECRET: ${TINODE_USER_PASSWORD_SECRET:?TINODE_USER_PASSWORD_SECRET is required}
+      OPC_TINODE_DELIVERY_WORKER_ENABLED: "1"
+      OPC_DISABLE_DIALER: "1"
+      OPC_SCHEMA_MANAGED_BY_MIGRATIONS: "1"
+      OPC_REMOTE_GATEWAY_PROVIDER: rustdesk
+      OPC_REMOTE_GATEWAY_BASE_URL: http://opc:3000
+      OPC_REMOTE_GATEWAY_API_TOKEN: ${OPC_REMOTE_GATEWAY_API_TOKEN:?OPC_REMOTE_GATEWAY_API_TOKEN is required}
+      OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: http://opc:3000
+      OPC_RUSTDESK_ID_SERVER: ${OPC_RUSTDESK_ID_SERVER:?OPC_RUSTDESK_ID_SERVER is required}
+      OPC_RUSTDESK_RELAY_SERVER: ${OPC_RUSTDESK_RELAY_SERVER:?OPC_RUSTDESK_RELAY_SERVER is required}
+      OPC_RUSTDESK_PUBLIC_KEY_FILE: /rustdesk/id_ed25519.pub
+      OPC_RUSTDESK_LAUNCH_BASE_URL: ${OPC_RUSTDESK_LAUNCH_BASE_URL:?OPC_RUSTDESK_LAUNCH_BASE_URL is required}
+      OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE: ${OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE:-rustdesk://connect/{rustdesk_id}?session={external_id}}
+      OPC_RUSTDESK_LAUNCH_SECRET: ${OPC_RUSTDESK_LAUNCH_SECRET:?OPC_RUSTDESK_LAUNCH_SECRET is required}
+      OPC_RUSTDESK_EDGE_TOKEN_SECRET: ${OPC_RUSTDESK_EDGE_TOKEN_SECRET:?OPC_RUSTDESK_EDGE_TOKEN_SECRET is required}
+      OPC_RUSTDESK_API_TOKEN: ${OPC_RUSTDESK_API_TOKEN:?OPC_RUSTDESK_API_TOKEN is required}
+    volumes:
+      - rustdesk_data:/rustdesk:ro
+    networks:
+      - default
+      - ivekit_media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-runtime-role:
+        condition: service_completed_successfully
+      postgres-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      tinode-bootstrap:
+        condition: service_completed_successfully
+
+  rustdesk-hbbs:
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:?RUSTDESK_SERVER_IMAGE_TAG is required}
+    command: hbbs
+    network_mode: "host"
+    restart: unless-stopped
+    environment:
+      ALWAYS_USE_RELAY: ${RUSTDESK_ALWAYS_USE_RELAY:-N}
+    volumes:
+      - rustdesk_data:/root
+    depends_on:
+      - rustdesk-hbbr
+
+  rustdesk-hbbr:
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:?RUSTDESK_SERVER_IMAGE_TAG is required}
+    command: hbbr
+    network_mode: "host"
+    restart: unless-stopped
+    volumes:
+      - rustdesk_data:/root
+
+networks:
+  ivekit_media:
+    external: true
+    name: ${OPC_MEDIA_DOCKER_NETWORK:-ivekit-media_default}
+
+volumes:
+  postgres_data:
+  redis_data:
+  tinode_botdata:
+  tinode_uploads:
+  rustdesk_data:

@@ -8,10 +8,16 @@ import {
   LocalChatGateway,
   TinodeChatGateway,
   configuredChatGateway,
+  legacyTinodeBasicUsernameForIdentity,
   tinodeTopicNameForSession
 } from '../src/agent-runtime/collaboration/chat-gateway.js';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
-import { MemoryPg } from '../src/db-pg.js';
+import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
+import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
+
+function result(rows: Record<string, unknown>[]) {
+  return { rows, rowCount: rows.length, command: '', oid: 0, fields: [] };
+}
 
 test('local chat gateway creates deterministic session topic bindings', async () => {
   const gateway = new LocalChatGateway();
@@ -24,6 +30,41 @@ test('local chat gateway creates deterministic session topic bindings', async ()
   assert.equal(binding.provider, 'local');
   assert.equal(binding.provider_topic_id, 'local:tenant_led:collab_123');
   assert.equal(binding.provider_status, 'bound');
+});
+
+test('chat binding creation resolves a concurrent insert winner', async () => {
+  let bindingReads = 0;
+  let insertSql = '';
+  const winner = {
+    id: 'cbind_winner', tenant_id: 'tenant_race', session_id: 'collab_race',
+    provider: 'tinode', provider_topic_id: 'grpWinner', provider_status: 'bound',
+    metadata: '{}', created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+  };
+  const pg = {
+    query: async (sql: string) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim();
+      if (normalized.startsWith('SELECT * FROM collaboration_sessions')) {
+        return result([{ id: 'collab_race', tenant_id: 'tenant_race', business_ref_type: 'service_order', business_ref_id: 'SO-RACE', title: '', status: 'active', metadata: '{}', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }]);
+      }
+      if (normalized.startsWith('SELECT * FROM collaboration_chat_bindings WHERE tenant_id')) {
+        bindingReads += 1;
+        return result(bindingReads === 1 ? [] : [winner]);
+      }
+      if (normalized.startsWith('INSERT INTO collaboration_chat_bindings')) {
+        insertSql = normalized;
+        return result([]);
+      }
+      throw new Error(`unexpected SQL: ${normalized}`);
+    }
+  } as PgQueryable;
+
+  const binding = await new CollaborationStore(pg).ensureChatBinding({
+    tenant_id: 'tenant_race', session_id: 'collab_race', provider: 'tinode',
+    provider_topic_id: 'grpLoser'
+  });
+
+  assert.equal(binding.id, 'cbind_winner');
+  assert.match(insertSql, /ON CONFLICT \(tenant_id, session_id, provider\) DO NOTHING/);
 });
 
 test('tinode topic names are stable and tenant scoped', () => {
@@ -199,6 +240,29 @@ test('Tinode chat gateway grants topic access when adding participants', async (
   }
 });
 
+test('Tinode chat gateway treats unchanged participant access as an idempotent success', async () => {
+  const { url, close } = await startFakeTinodeServer({ accessAlreadySet: true });
+  try {
+    const gateway = new TinodeChatGateway({
+      base_url: url.replace(/^ws:/, 'http:').replace('/v0/channels', ''),
+      ws_url: url,
+      api_key: 'tinode-api-key',
+      auth_token: 'tinode-auth-token',
+      timeout_ms: 1_000
+    });
+
+    await gateway.addParticipant({
+      tenant_id: 'tenant_tinode',
+      session_id: 'collab_tinode',
+      provider_topic_id: 'grpTinodeTopic',
+      identity: 'customer_1',
+      provider_user_id: 'usrCustomerTinode'
+    });
+  } finally {
+    await close();
+  }
+});
+
 test('Tinode chat gateway revokes topic access when removing participants', async () => {
   const { url, packets, close } = await startFakeTinodeServer();
   try {
@@ -265,6 +329,35 @@ test('Tinode chat gateway creates basic accounts for OPC identities', async () =
   }
 });
 
+test('Tinode chat gateway reuses a legacy basic account before creating a hashed username', async () => {
+  const { url, packets, close } = await startFakeTinodeServer({ legacyAccountExists: true });
+  try {
+    const gateway = new TinodeChatGateway({
+      base_url: url.replace(/^ws:/, 'http:').replace('/v0/channels', ''),
+      ws_url: url,
+      api_key: 'tinode-api-key',
+      auth_token: 'tinode-auth-token',
+      user_password_secret: 'tinode-user-secret',
+      timeout_ms: 1_000
+    });
+
+    const user = await gateway.ensureUser({
+      tenant_id: 'tenant_tinode',
+      identity: 'customer_1',
+      display_name: 'Customer One'
+    });
+
+    assert.equal(user.provider_user_id, 'usrLegacyCustomer');
+    assert.equal(
+      user.metadata.username,
+      legacyTinodeBasicUsernameForIdentity('tenant_tinode', 'customer_1')
+    );
+    assert.equal(packets.some((packet) => packet.acc), false);
+  } finally {
+    await close();
+  }
+});
+
 test('Tinode chat gateway logs in existing basic accounts when account creation conflicts', async () => {
   const { url, packets, close } = await startFakeTinodeServer({ accountAlreadyExists: true });
   try {
@@ -292,12 +385,42 @@ test('Tinode chat gateway logs in existing basic accounts when account creation 
   }
 });
 
-async function startFakeTinodeServer(options: { accountAlreadyExists?: boolean } = {}): Promise<{
+test('Tinode chat gateway logs in when an unchanged existing account returns 304', async () => {
+  const { url, packets, close } = await startFakeTinodeServer({ accountAlreadyExists: true, accountExistingCode: 304 });
+  try {
+    const gateway = new TinodeChatGateway({
+      base_url: url.replace(/^ws:/, 'http:').replace('/v0/channels', ''),
+      ws_url: url,
+      api_key: 'tinode-api-key',
+      auth_token: 'tinode-auth-token',
+      user_password_secret: 'tinode-user-secret',
+      timeout_ms: 1_000
+    });
+
+    const user = await gateway.ensureUser({
+      tenant_id: 'tenant_tinode',
+      identity: 'customer_1'
+    });
+
+    assert.equal(user.provider_user_id, 'usrExistingCustomer');
+    assert.equal(packets.some((packet) => packet.login?.scheme === 'basic'), true);
+  } finally {
+    await close();
+  }
+});
+
+async function startFakeTinodeServer(options: {
+  accountAlreadyExists?: boolean;
+  accountExistingCode?: number;
+  accessAlreadySet?: boolean;
+  legacyAccountExists?: boolean;
+} = {}): Promise<{
   url: string;
   packets: Array<Record<string, any>>;
   close: () => Promise<void>;
 }> {
   const packets: Array<Record<string, any>> = [];
+  let accountAttempted = false;
   const server = createServer();
   const wss = new WebSocketServer({ server, path: '/v0/channels' });
   wss.on('connection', (ws, req) => {
@@ -308,17 +431,26 @@ async function startFakeTinodeServer(options: { accountAlreadyExists?: boolean }
       if (packet.hi) {
         ws.send(JSON.stringify({ ctrl: { id: packet.hi.id, code: 200, text: 'ok', params: { ver: '0.22' } } }));
       } else if (packet.login) {
+        if (packet.login.scheme === 'basic' && !accountAttempted) {
+          ws.send(JSON.stringify({
+            ctrl: options.legacyAccountExists
+              ? { id: packet.login.id, code: 200, text: 'ok', params: { user: 'usrLegacyCustomer', token: 'token-legacy-customer' } }
+              : { id: packet.login.id, code: 401, text: 'auth failed' }
+          }));
+          return;
+        }
         const params = packet.login.scheme === 'basic'
           ? { user: 'usrExistingCustomer', token: 'token-existing-customer' }
           : { user: 'usrRoot' };
         ws.send(JSON.stringify({ ctrl: { id: packet.login.id, code: 200, text: 'ok', params } }));
       } else if (packet.acc) {
+        accountAttempted = true;
         if (options.accountAlreadyExists) {
           ws.send(JSON.stringify({
             ctrl: {
               id: packet.acc.id,
-              code: 409,
-              text: 'account exists'
+              code: options.accountExistingCode || 409,
+              text: options.accountExistingCode === 304 ? 'not modified' : 'account exists'
             }
           }));
           return;
@@ -336,7 +468,14 @@ async function startFakeTinodeServer(options: { accountAlreadyExists?: boolean }
       } else if (packet.sub) {
         ws.send(JSON.stringify({ ctrl: { id: packet.sub.id, topic: packet.sub.topic, code: 200, text: 'ok' } }));
       } else if (packet.set) {
-        ws.send(JSON.stringify({ ctrl: { id: packet.set.id, topic: packet.set.topic, code: 200, text: 'ok' } }));
+        ws.send(JSON.stringify({
+          ctrl: {
+            id: packet.set.id,
+            topic: packet.set.topic,
+            code: options.accessAlreadySet ? 304 : 200,
+            text: options.accessAlreadySet ? 'not modified' : 'ok'
+          }
+        }));
       } else if (packet.pub) {
         ws.send(JSON.stringify({
           ctrl: {

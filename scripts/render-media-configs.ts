@@ -27,6 +27,10 @@ export interface MediaConfigRenderResult {
 export interface LiveKitEdgeConfigRenderInput extends MediaConfigRenderInput {
   signalDomain: string;
   turnDomain: string;
+  ivekitApiDomain?: string;
+  tinodePublicDomain?: string;
+  ivekitApiHttpPort: number;
+  tinodeHttpPort: number;
   acmeEmail: string;
   rtcPortRangeStart: number;
   rtcPortRangeEnd: number;
@@ -71,7 +75,7 @@ export function renderMediaConfigs(input: MediaConfigRenderInput): MediaConfigRe
   const egressConfigPath = join(outputDir, 'egress.yaml');
 
   writeSecretFile(livekitConfigPath, renderLiveKitConfig(input));
-  writeSecretFile(egressConfigPath, renderEgressConfig(input));
+  writeSecretFile(egressConfigPath, renderEgressConfig(input), 0o640);
 
   return { livekitConfigPath, egressConfigPath };
 }
@@ -83,6 +87,12 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
   const turnDomain = requiredDomain(env, 'LIVEKIT_TURN_DOMAIN');
   if (signalDomain === turnDomain) {
     throw new Error('LIVEKIT_TURN_DOMAIN must differ from LIVEKIT_SIGNAL_DOMAIN');
+  }
+  const ivekitApiDomain = optionalDomain(env, 'IVEKIT_API_DOMAIN');
+  const tinodePublicDomain = optionalDomain(env, 'TINODE_PUBLIC_DOMAIN');
+  const domains = [signalDomain, turnDomain, ivekitApiDomain, tinodePublicDomain].filter(Boolean);
+  if (new Set(domains).size !== domains.length) {
+    throw new Error('LiveKit and iveKit edge domains must be unique');
   }
   const rtcPortRangeStart = parsePort(
     env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START,
@@ -102,6 +112,10 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
     outputDir: normalizeEdgeOutputDir(env.OPC_LIVEKIT_EDGE_CONFIG_DIR || '.runtime/livekit-edge'),
     signalDomain,
     turnDomain,
+    ivekitApiDomain,
+    tinodePublicDomain,
+    ivekitApiHttpPort: parsePort(env.IVEKIT_API_HTTP_PORT, 'IVEKIT_API_HTTP_PORT', 8300),
+    tinodeHttpPort: parsePort(env.TINODE_HTTP_PORT, 'TINODE_HTTP_PORT', 6060),
     acmeEmail: requiredEmail(env, 'LIVEKIT_ACME_EMAIL'),
     livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
     livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
@@ -140,7 +154,7 @@ export function renderLiveKitEdgeConfigs(
   const summaryPath = join(outputDir, 'deployment-summary.json');
 
   writeSecretFile(livekitConfigPath, renderLiveKitEdgeConfig(input));
-  writeSecretFile(egressConfigPath, renderEgressConfig(input));
+  writeSecretFile(egressConfigPath, renderEgressConfig(input), 0o640);
   writeFileSync(caddyConfigPath, renderCaddyL4Config(input), { mode: 0o644 });
   writeFileSync(firewallChecklistPath, renderFirewallChecklist(input), { mode: 0o644 });
   writeFileSync(summaryPath, `${JSON.stringify(renderEdgeSummary(input), null, 2)}\n`, { mode: 0o644 });
@@ -240,6 +254,12 @@ function renderLiveKitEdgeConfig(input: LiveKitEdgeConfigRenderInput): string {
 }
 
 function renderCaddyL4Config(input: LiveKitEdgeConfigRenderInput): string {
+  const automatedDomains = [
+    input.signalDomain,
+    input.turnDomain,
+    input.ivekitApiDomain,
+    input.tinodePublicDomain
+  ].filter((domain): domain is string => Boolean(domain));
   return [
     'logging:',
     '  logs:',
@@ -252,8 +272,7 @@ function renderCaddyL4Config(input: LiveKitEdgeConfigRenderInput): string {
     '  tls:',
     '    certificates:',
     '      automate:',
-    `        - ${yamlQuote(input.signalDomain)}`,
-    `        - ${yamlQuote(input.turnDomain)}`,
+    ...automatedDomains.map((domain) => `        - ${yamlQuote(domain)}`),
     '    automation:',
     '      policies:',
     '        - issuers:',
@@ -273,19 +292,31 @@ function renderCaddyL4Config(input: LiveKitEdgeConfigRenderInput): string {
     '              - handler: proxy',
     '                upstreams:',
     `                  - dial: ["localhost:${input.turnTlsPort}"]`,
+    ...(input.ivekitApiDomain
+      ? renderCaddyHttpRoute(input.ivekitApiDomain, input.ivekitApiHttpPort)
+      : []),
+    ...(input.tinodePublicDomain
+      ? renderCaddyHttpRoute(input.tinodePublicDomain, input.tinodeHttpPort)
+      : []),
+    ...renderCaddyHttpRoute(input.signalDomain, 7880),
+    ''
+  ].join('\n');
+}
+
+function renderCaddyHttpRoute(domain: string, port: number): string[] {
+  return [
     '          - match:',
     '              - tls:',
     '                  sni:',
-    `                    - ${yamlQuote(input.signalDomain)}`,
+    `                    - ${yamlQuote(domain)}`,
     '            handle:',
     '              - handler: tls',
     '                connection_policies:',
     '                  - alpn: ["http/1.1"]',
     '              - handler: proxy',
     '                upstreams:',
-    '                  - dial: ["localhost:7880"]',
-    ''
-  ].join('\n');
+    `                  - dial: ["localhost:${port}"]`
+  ];
 }
 
 function renderFirewallChecklist(input: LiveKitEdgeConfigRenderInput): string {
@@ -300,6 +331,10 @@ function renderFirewallChecklist(input: LiveKitEdgeConfigRenderInput): string {
     `| UDP | ${input.turnUdpPort}/udp | Embedded TURN/UDP |`,
     `| UDP | ${input.rtcPortRangeStart}-${input.rtcPortRangeEnd}/udp | WebRTC ICE/UDP |`,
     '',
+    `Keep private: ${input.turnTlsPort}/tcp (Caddy to TURN/TLS upstream).`,
+    'Keep private: 7880/tcp (Caddy to LiveKit API and WebSocket upstream).',
+    `Keep private: ${input.egressHealthPort}/tcp (Egress health endpoint).`,
+    '',
     `Signal DNS: ${input.signalDomain}`,
     `TURN DNS: ${input.turnDomain}`,
     '',
@@ -313,6 +348,10 @@ function renderEdgeSummary(input: LiveKitEdgeConfigRenderInput): Record<string, 
     mode: 'standalone-vm',
     signal_url: `wss://${input.signalDomain}`,
     turn_domain: input.turnDomain,
+    application_routes: {
+      ivekit_api: input.ivekitApiDomain ? `https://${input.ivekitApiDomain}` : null,
+      tinode: input.tinodePublicDomain ? `https://${input.tinodePublicDomain}` : null
+    },
     api_key_configured: Boolean(input.livekitApiKey),
     api_secret_configured: Boolean(input.livekitApiSecret),
     object_storage_configured: Boolean(input.minioEndpoint && input.minioAccessKey && input.minioSecretKey),
@@ -346,6 +385,11 @@ function requiredDomain(env: NodeJS.ProcessEnv, key: string): string {
     throw new Error(`${key} must be a valid DNS domain`);
   }
   return domain;
+}
+
+function optionalDomain(env: NodeJS.ProcessEnv, key: string): string | undefined {
+  if (!String(env[key] || '').trim()) return undefined;
+  return requiredDomain(env, key);
 }
 
 function requiredRuntimeSecret(env: NodeJS.ProcessEnv, key: string): string {
@@ -413,9 +457,9 @@ function yamlQuote(value: string): string {
   return JSON.stringify(value);
 }
 
-function writeSecretFile(path: string, content: string): void {
-  writeFileSync(path, content, { mode: 0o600 });
-  chmodSync(path, 0o600);
+function writeSecretFile(path: string, content: string, mode = 0o600): void {
+  writeFileSync(path, content, { mode });
+  chmodSync(path, mode);
 }
 
 async function main(): Promise<void> {

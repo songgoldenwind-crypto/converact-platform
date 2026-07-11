@@ -5,6 +5,8 @@
 > 文档日期：2026-07-03
 >
 > 代码基线：当前 OPC 仓库 `/Users/songjinfeng/Desktop/opc`
+>
+> 服务器验收更新（2026-07-11）：LiveKit 双浏览器音视频/屏幕共享、Egress/MinIO、Tinode、IM facade、防绕单、RustDesk 控制面/审计、PostgreSQL 强制 RLS、LED SDK、双实例幂等和恢复测试已在真实服务器通过。交付前独立审查又完成了 OPC/Tinode 数据库角色隔离、一次性迁移服务、不可自启的 RLS bypass、MinIO 根/桶级账号分离及并发迁移锁。证据与剩余物理客户端人工项见 [iveKit 服务器部署验收报告](iveKit服务器部署验收报告-2026-07-11.md)。本文后文早期章节中的“仍需服务器验证”应以该报告的新口径为准。
 
 ---
 

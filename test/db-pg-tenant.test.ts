@@ -3,12 +3,14 @@ import { test } from 'node:test';
 import {
   pgTenantContextStorage,
   resolvePgTenantContextForRequest,
-  runWithPgTenantContext
+  runWithPgTenantContext,
+  withPgRequestContext
 } from '../src/db-pg-tenant.js';
+import type { PgQueryable } from '../src/db-pg.js';
 
-test('resolvePgTenantContextForRequest bypasses auth register/login', () => {
-  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/register', {}), { bypassRls: true });
-  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/login', {}), { bypassRls: true });
+test('resolvePgTenantContextForRequest does not grant auth routes a generic RLS bypass', () => {
+  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/register', {}), {});
+  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/login', {}), {});
 });
 
 test('resolvePgTenantContextForRequest reads tenant from API key auth', () => {
@@ -84,6 +86,51 @@ test('sequential tenant contexts do not bleed into each other', () => {
   assert.equal(pgTenantContextStorage.getStore(), undefined);
 });
 
+test('HTTP request tenant context sets PostgreSQL tenant GUC before route queries', async () => {
+  const queries: Array<{ text: string; params?: unknown[] }> = [];
+  const pg = {
+    query: async (text: string, params?: unknown[]) => {
+      queries.push({ text, params });
+      return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] };
+    }
+  } as PgQueryable;
+
+  const result = await withPgRequestContext(pg, { tenantId: 'tenant_request' }, async (scopedPg) => {
+    await scopedPg.query('SELECT * FROM collaboration_sessions');
+    return 'ok';
+  });
+
+  assert.equal(result, 'ok');
+  assert.match(queries[0].text, /set_config\('app\.current_tenant'/);
+  assert.deepEqual(queries[0].params, ['tenant_request']);
+  assert.equal(queries[1].text, 'SELECT * FROM collaboration_sessions');
+});
+
+test('HTTP request rejects generic PostgreSQL bypass for a non-privileged role', async () => {
+  const queries: string[] = [];
+  const pg = {
+    query: async (text: string) => {
+      queries.push(text);
+      return {
+        rows: text.includes('opc_rls_bypass') ? [{ allowed: false }] : [],
+        rowCount: 1,
+        command: '',
+        oid: 0,
+        fields: []
+      };
+    }
+  } as PgQueryable;
+
+  await assert.rejects(
+    () => withPgRequestContext(pg, { bypassRls: true }, (scopedPg) => scopedPg.query('SELECT 1')),
+    /RLS bypass is not permitted/
+  );
+
+  assert.match(queries[0], /set_config\('app\.bypass_rls'/);
+  assert.match(queries[1], /opc_rls_bypass/);
+  assert.equal(queries.includes('SELECT 1'), false);
+});
+
 // Gate invariant: bypassRls may only ever be set for the two auth-bootstrap
 // paths. Any business path — regardless of headers — must NOT resolve to a
 // bypass context. This is the deterministic core of A-11's escape-surface
@@ -105,9 +152,9 @@ for (const path of BUSINESS_PATHS) {
   });
 }
 
-test('bypass whitelist is exactly register and login', () => {
-  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/register', {}), { bypassRls: true });
-  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/login', {}), { bypassRls: true });
+test('auth routes use fixed security-definer operations instead of request-wide bypass', () => {
+  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/register', {}), {});
+  assert.deepEqual(resolvePgTenantContextForRequest('/api/auth/login', {}), {});
 });
 
 test('bypass resolves do not leak across sequential unrelated path resolutions', () => {

@@ -112,14 +112,16 @@ export async function routeAuthApi(
         )
       : null;
     if (db) {
-      auditCallCenterAction(db, {
-        tenant_id: user.tenant_id,
-        actor_id: user.user_id,
-        action: 'auth.register',
-        object_type: 'user',
-        object_id: user.user_id,
-        metadata: { email: user.email }
-      });
+      await runWithPgTenantContextAsync({ tenantId: user.tenant_id }, () =>
+        auditCallCenterAction(db, {
+          tenant_id: user.tenant_id,
+          actor_id: user.user_id,
+          action: 'auth.register',
+          object_type: 'user',
+          object_id: user.user_id,
+          metadata: { email: user.email }
+        })
+      );
     }
     return {
       status: 201,
@@ -137,14 +139,16 @@ export async function routeAuthApi(
       password: String(input?.password || '')
     });
     if (db) {
-      auditCallCenterAction(db, {
-        tenant_id: user.tenant_id,
-        actor_id: user.user_id,
-        action: 'auth.login',
-        object_type: 'user',
-        object_id: user.user_id,
-        metadata: { email: user.email }
-      });
+      await runWithPgTenantContextAsync({ tenantId: user.tenant_id }, () =>
+        auditCallCenterAction(db, {
+          tenant_id: user.tenant_id,
+          actor_id: user.user_id,
+          action: 'auth.login',
+          object_type: 'user',
+          object_id: user.user_id,
+          metadata: { email: user.email }
+        })
+      );
     }
     return { status: 200, data: formatUserResponse(user) };
   }

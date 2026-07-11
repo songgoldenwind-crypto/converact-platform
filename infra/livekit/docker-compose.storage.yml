@@ -1,0 +1,47 @@
+# Optional private object storage for a standalone iveKit Media Core VM.
+# Apply together with docker-compose.yml when external S3 is not available.
+services:
+  minio:
+    image: minio/minio:${LIVEKIT_MINIO_IMAGE_TAG:?LIVEKIT_MINIO_IMAGE_TAG is required}
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_ACCESS_KEY:?MINIO_ROOT_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_SECRET_KEY:?MINIO_ROOT_SECRET_KEY is required}
+    volumes:
+      - livekit_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  minio-init:
+    image: minio/mc:${LIVEKIT_MINIO_MC_IMAGE_TAG:?LIVEKIT_MINIO_MC_IMAGE_TAG is required}
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-minio-bucket.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:?MINIO_BUCKET is required}
+      MINIO_ROOT_ACCESS_KEY: ${MINIO_ROOT_ACCESS_KEY:?MINIO_ROOT_ACCESS_KEY is required}
+      MINIO_ROOT_SECRET_KEY: ${MINIO_ROOT_SECRET_KEY:?MINIO_ROOT_SECRET_KEY is required}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}
+      MINIO_INIT_MAX_ATTEMPTS: ${MINIO_INIT_MAX_ATTEMPTS:-30}
+      MINIO_INIT_RETRY_SECONDS: ${MINIO_INIT_RETRY_SECONDS:-2}
+    volumes:
+      - ../scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
+  egress:
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+
+volumes:
+  livekit_minio_data:

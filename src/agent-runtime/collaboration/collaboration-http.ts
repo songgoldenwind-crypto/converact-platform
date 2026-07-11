@@ -936,8 +936,7 @@ async function routeRustDeskLaunchPage(pg: PgQueryable, url: URL) {
   if (!isValidRustDeskLaunchToken(externalId, token, expiresAt)) {
     return { status: 401, data: { error: 'invalid RustDesk launch token' } };
   }
-  const store = new RustDeskGatewaySessionStore(pg);
-  const session = await store.getSession(externalId);
+  const session = await new RustDeskGatewaySessionStore(pg).getSignedLaunchSession(externalId);
   if (!session) return { status: 404, data: { error: 'RustDesk gateway session not found' } };
   if (session.status !== 'active') {
     return { status: 409, data: { error: 'RustDesk gateway session is not active' } };

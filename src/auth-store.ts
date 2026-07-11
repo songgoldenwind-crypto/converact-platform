@@ -1,7 +1,7 @@
 import { scrypt, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { PgQueryable } from './db-pg.js';
-import { pgId } from './db-pg.js';
+import { MemoryPg, pgId, withPgTransaction } from './db-pg.js';
 import { withPgBypass, withPgTenant } from './db-pg-tenant.js';
 import { seedQuotaLimitsForPlanPg } from './plan-definitions-pg.js';
 
@@ -52,7 +52,7 @@ export class AuthStore {
       throw Object.assign(new Error('tenantName is required'), { status: 400 });
     }
 
-    const existing = await withPgBypass(this.pg, (client) => this.findByEmailOn(client, email));
+    const existing = await this.findByEmailAcrossTenants(email);
     if (existing) {
       throw Object.assign(new Error('email already registered'), { status: 409 });
     }
@@ -61,18 +61,33 @@ export class AuthStore {
     const userId = pgId('user');
     const passwordHash = await hashPassword(password);
 
-    await withPgBypass(this.pg, async (client) => {
-      await client.query(
-        `INSERT INTO tenants (id, name, plan_code) VALUES ($1, $2, 'free')`,
-        [tenantId, tenantName]
-      );
-      await client.query(
-        `INSERT INTO users (id, tenant_id, email, password_hash, role, name)
-         VALUES ($1, $2, $3, $4, 'owner', $5)`,
-        [userId, tenantId, email, passwordHash, name || null]
-      );
-      await seedQuotaLimitsForPlanPg(client, tenantId, 'free');
-    });
+    try {
+      await withPgTransaction(this.pg, async (client) => {
+        if (this.pg instanceof MemoryPg) {
+          await client.query(
+            `INSERT INTO tenants (id, name, plan_code) VALUES ($1, $2, 'free')`,
+            [tenantId, tenantName]
+          );
+          await client.query(
+            `INSERT INTO users (id, tenant_id, email, password_hash, role, name)
+             VALUES ($1, $2, $3, $4, 'owner', $5)`,
+            [userId, tenantId, email, passwordHash, name || null]
+          );
+        } else {
+          await client.query(
+            'SELECT opc_register_tenant_owner($1, $2, $3, $4, $5, $6)',
+            [tenantId, tenantName, userId, email, passwordHash, name]
+          );
+          await client.query(`SELECT set_config('app.current_tenant', $1, true)`, [tenantId]);
+        }
+        await seedQuotaLimitsForPlanPg(client, tenantId, 'free');
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === '23505') {
+        throw Object.assign(new Error('email already registered'), { status: 409 });
+      }
+      throw error;
+    }
 
     const user = await withPgTenant(this.pg, tenantId, (client) =>
       this.findByUserIdOn(client, userId, tenantId)
@@ -90,7 +105,7 @@ export class AuthStore {
       throw Object.assign(new Error('email and password are required'), { status: 400 });
     }
 
-    const row = await withPgBypass(this.pg, (client) => this.findByEmailOn(client, email));
+    const row = await this.findByEmailAcrossTenants(email);
     if (!row?.password_hash) {
       throw Object.assign(new Error('invalid email or password'), { status: 401 });
     }
@@ -109,7 +124,15 @@ export class AuthStore {
   }
 
   async findByEmail(email: string): Promise<AuthUserRow | null> {
-    return withPgBypass(this.pg, (client) => this.findByEmailOn(client, email));
+    return this.findByEmailAcrossTenants(email);
+  }
+
+  private findByEmailAcrossTenants(email: string): Promise<AuthUserRow | null> {
+    if (this.pg instanceof MemoryPg) {
+      return withPgBypass(this.pg, (client) => this.findByEmailOn(client, email));
+    }
+    return this.pg.query<AuthUserRow>('SELECT * FROM opc_auth_user_by_email($1)', [email])
+      .then((result) => result.rows[0] ?? null);
   }
 
   private async findByEmailOn(pg: PgQueryable, email: string): Promise<AuthUserRow | null> {

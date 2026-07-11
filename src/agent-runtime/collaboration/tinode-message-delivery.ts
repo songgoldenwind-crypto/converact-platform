@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
-import { pgId, withPgTransaction } from '../../db-pg.js';
+import { MemoryPg, pgId, withPgTransaction } from '../../db-pg.js';
 import { withPgBypass, withPgTenant } from '../../db-pg-tenant.js';
 import type { ChatGateway, ChatPublishResult } from './chat-gateway.js';
 import {
@@ -15,6 +15,7 @@ import type {
   CollaborationMessageType,
   PolicyScanResult
 } from './types.js';
+import { listCollaborationWorkerTenants } from './worker-tenant-scope.js';
 
 const DEFAULT_RETRY_DELAYS_MS = [2_000, 10_000] as const;
 
@@ -172,6 +173,26 @@ export class TinodeMessageDeliveryService {
 
   async runDue(input: { tenant_id?: string; limit?: number } = {}): Promise<TinodeDeliveryRunSummary> {
     const limit = boundedLimit(input.limit);
+    if (!input.tenant_id && !(this.pg instanceof MemoryPg)) {
+      const tenants = await listCollaborationWorkerTenants(this.pg, 'tinode', this.now(), limit);
+      const total: TinodeDeliveryRunSummary = {
+        examined: 0,
+        claimed: 0,
+        delivered: 0,
+        retry_wait: 0,
+        failed: 0
+      };
+      for (const tenantId of tenants) {
+        const result = await this.runDue({ tenant_id: tenantId, limit: Math.max(1, limit - total.examined) });
+        total.examined += result.examined;
+        total.claimed += result.claimed;
+        total.delivered += result.delivered;
+        total.retry_wait += result.retry_wait;
+        total.failed += result.failed;
+        if (total.examined >= limit) break;
+      }
+      return total;
+    }
     await this.reconcileExpired(input.tenant_id);
     const due = await this.inScope(input.tenant_id, (pg) =>
       new TinodeMessageDeliveryStore(pg).listDue({

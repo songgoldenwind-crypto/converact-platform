@@ -1,4 +1,4 @@
-import { pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
+import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import { withPgBypass, withPgTenant } from '../../db-pg-tenant.js';
 import { resolveRecordingObjectContent } from '../media-recording-object.js';
 import { CollaborationStore } from './collaboration-store.js';
@@ -13,6 +13,7 @@ import type {
   AttachmentTextProvider,
   AttachmentTextExtractionResult
 } from './attachment-text-provider.js';
+import { listCollaborationWorkerTenants } from './worker-tenant-scope.js';
 
 export type {
   AttachmentProviderMode,
@@ -165,6 +166,29 @@ export class AttachmentProcessingService {
   async runDue(input: { tenant_id?: string; limit?: number } = {}): Promise<AttachmentProcessingRunSummary> {
     const now = this.now();
     const limit = boundedInteger(input.limit ?? 25, 1, 100, 'limit');
+    if (!input.tenant_id && !(this.input.pg instanceof MemoryPg)) {
+      const tenants = await listCollaborationWorkerTenants(this.input.pg, 'attachment', now, limit);
+      const total: AttachmentProcessingRunSummary = {
+        candidates: 0,
+        claimed: 0,
+        succeeded: 0,
+        retry_wait: 0,
+        failed: 0
+      };
+      for (const tenantId of tenants) {
+        const result = await this.runDue({
+          tenant_id: tenantId,
+          limit: Math.max(1, limit - total.candidates)
+        });
+        total.candidates += result.candidates;
+        total.claimed += result.claimed;
+        total.succeeded += result.succeeded;
+        total.retry_wait += result.retry_wait;
+        total.failed += result.failed;
+        if (total.candidates >= limit) break;
+      }
+      return total;
+    }
     await this.reconcileExpired(input.tenant_id, now);
     const configuredProcessors = (['ocr', 'asr'] as const).filter(
       (processor) => Boolean(this.providers[processor])

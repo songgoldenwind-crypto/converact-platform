@@ -1,5 +1,5 @@
 import type { PgQueryable } from '../../db-pg.js';
-import { pgId } from '../../db-pg.js';
+import { MemoryPg, pgId } from '../../db-pg.js';
 import type { RemoteConsentScope } from './types.js';
 import type { RemoteGatewayAuditEvent } from './remote-gateway-client.js';
 import type { RemoteGatewayTarget } from './remote-gateway-adapter.js';
@@ -90,6 +90,16 @@ export class RustDeskGatewaySessionStore {
     const normalizedExternalId = rustDeskGatewayRequiredString(externalId, 'external_id is required');
     const result = await this.pg.query(
       'SELECT * FROM rustdesk_gateway_sessions WHERE external_id = $1',
+      [normalizedExternalId]
+    );
+    return result.rows[0] ? decodeSession(result.rows[0]) : null;
+  }
+
+  async getSignedLaunchSession(externalId: string): Promise<RustDeskGatewaySession | null> {
+    if (this.pg instanceof MemoryPg) return this.getSession(externalId);
+    const normalizedExternalId = rustDeskGatewayRequiredString(externalId, 'external_id is required');
+    const result = await this.pg.query(
+      'SELECT * FROM opc_rustdesk_session_by_external_id($1)',
       [normalizedExternalId]
     );
     return result.rows[0] ? decodeSession(result.rows[0]) : null;

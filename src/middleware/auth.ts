@@ -196,6 +196,17 @@ function base64UrlDecode(input: string): Buffer {
   return Buffer.from(padded, 'base64');
 }
 
+function decodeCanonicalBase64Url(input: string): Buffer {
+  if (!input || !/^[A-Za-z0-9_-]+$/.test(input)) {
+    throw Object.assign(new Error('malformed JWT encoding'), { status: 401 });
+  }
+  const decoded = base64UrlDecode(input);
+  if (base64UrlEncode(decoded) !== input) {
+    throw Object.assign(new Error('non-canonical JWT encoding'), { status: 401 });
+  }
+  return decoded;
+}
+
 function signHs256Jwt(payload: AccessTokenPayload, secret: string): string {
   const headerJson = { alg: 'HS256', typ: 'JWT' };
   const headerPart = base64UrlEncode(JSON.stringify(headerJson));
@@ -213,17 +224,17 @@ function verifyHs256Jwt(token: string, secret: string): AccessTokenPayload {
 
   const signingInput = `${parts[0]}.${parts[1]}`;
   const expected = createHmac('sha256', secret).update(signingInput).digest();
-  const actual = base64UrlDecode(parts[2]);
+  const actual = decodeCanonicalBase64Url(parts[2]);
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     throw Object.assign(new Error('JWT signature invalid'), { status: 401 });
   }
 
-  const header = JSON.parse(base64UrlDecode(parts[0]).toString('utf8')) as { alg?: string };
+  const header = JSON.parse(decodeCanonicalBase64Url(parts[0]).toString('utf8')) as { alg?: string };
   if (header.alg !== 'HS256') {
     throw Object.assign(new Error(`unsupported JWT algorithm: ${header.alg}`), { status: 401 });
   }
 
-  const payload = JSON.parse(base64UrlDecode(parts[1]).toString('utf8')) as AccessTokenPayload;
+  const payload = JSON.parse(decodeCanonicalBase64Url(parts[1]).toString('utf8')) as AccessTokenPayload;
   if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
     throw Object.assign(new Error('JWT expired'), { status: 401 });
   }
@@ -238,7 +249,7 @@ function decodeJwtParts(token: string): { headerRaw: string; payloadRaw: string;
   return {
     headerRaw: parts[0],
     payloadRaw: parts[1],
-    signature: base64UrlDecode(parts[2]),
+    signature: decodeCanonicalBase64Url(parts[2]),
     signingInput: `${parts[0]}.${parts[1]}`
   };
 }

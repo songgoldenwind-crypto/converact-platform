@@ -42,7 +42,11 @@ export function validateEnv(): EnvValidationResult {
 
   for (const rule of ENV_RULES) {
     const value = process.env[rule.key];
-    const hasValue = value !== undefined && value.trim() !== '';
+    const hasDiscretePostgresConfig = rule.key === 'DATABASE_URL' &&
+      ['PGHOST', 'PGDATABASE', 'PGUSER', 'PGPASSWORD'].every((key) =>
+        String(process.env[key] || '').trim() !== ''
+      );
+    const hasValue = (value !== undefined && value.trim() !== '') || hasDiscretePostgresConfig;
 
     if (!hasValue) {
       const msg = `${rule.key} not set — ${rule.description}`;

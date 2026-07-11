@@ -26,6 +26,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { Pool } from 'pg';
 import {
   initPostgres,
   resetPostgresForTests,
@@ -47,18 +48,26 @@ const HAS_REAL_PG = !process.env.OPC_USE_MEMORY_PG && !!process.env.DATABASE_URL
 const maybe = HAS_REAL_PG ? test : test.skip;
 
 let pg: PgQueryable;
+let adminPg: Pool;
+
+function withAdmin<T>(fn: (client: PgQueryable) => Promise<T>): Promise<T> {
+  return withPgTransaction(adminPg, fn);
+}
 
 test('setup real postgres + migrations (incl. 009 RLS)', async () => {
   if (!HAS_REAL_PG) return;
   resetPostgresForTests(null);
   pg = (await initPostgres())!;
   assert.ok(pg, 'initPostgres returned null — is DATABASE_URL set?');
+  assert.ok(process.env.DATABASE_MIGRATION_URL, 'DATABASE_MIGRATION_URL is required for RLS fixtures');
+  adminPg = new Pool({ connectionString: process.env.DATABASE_MIGRATION_URL, max: 1 });
+  await adminPg.query('SELECT 1');
 });
 
 maybe('cross-tenant read isolation: tenant A cannot see tenant B rows', async () => {
   const a = 'tenant_rls_a';
   const b = 'tenant_rls_b';
-  await withPgBypass(pg, async (c) => {
+  await withAdmin(async (c) => {
     await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [a, 'A']);
     await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [b, 'B']);
     await c.query(`DELETE FROM compliance_dnc_list WHERE tenant_id IN ($1,$2)`, [a, b]);
@@ -77,7 +86,7 @@ maybe('cross-tenant read isolation: tenant A cannot see tenant B rows', async ()
 
 maybe('fail-closed: no current_tenant context → tenant rows invisible', async () => {
   const t = 'tenant_rls_failclosed';
-  await withPgBypass(pg, async (c) => {
+  await withAdmin(async (c) => {
     await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [t, 'FC']);
     await c.query(`DELETE FROM compliance_dnc_list WHERE tenant_id = $1`, [t]);
     await c.query(`INSERT INTO compliance_dnc_list (id, tenant_id, phone_number, reason) VALUES ($1,$2,$3,$4)`, [pgId('dnc'), t, '+819000000003', 'fc']);
@@ -85,9 +94,9 @@ maybe('fail-closed: no current_tenant context → tenant rows invisible', async 
 
   // Raw query WITHOUT setting app.current_tenant and WITHOUT bypass: RLS must
   // hide the row. NOTE: this only holds if the role is not the owner (see file
-  // header). Use withPgBypass to confirm the row actually exists, then assert
+  // header). Use the fixture admin to confirm the row actually exists, then assert
   // the non-bypassed read sees nothing.
-  const bypassSeen = await withPgBypass(pg, (c) =>
+  const bypassSeen = await withAdmin((c) =>
     c.query(`SELECT count(*)::int AS n FROM compliance_dnc_list WHERE tenant_id = $1`, [t]));
   assert.equal(bypassSeen.rows[0].n, 1, 'seed row must exist (bypass)');
 
@@ -99,7 +108,7 @@ maybe('fail-closed: no current_tenant context → tenant rows invisible', async 
 maybe('WITH CHECK blocks cross-tenant write', async () => {
   const a = 'tenant_rls_wc_a';
   const b = 'tenant_rls_wc_b';
-  await withPgBypass(pg, async (c) => {
+  await withAdmin(async (c) => {
     await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [a, 'WCA']);
     await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [b, 'WCB']);
     await c.query(`DELETE FROM compliance_dnc_list WHERE tenant_id IN ($1,$2)`, [a, b]);
@@ -115,16 +124,16 @@ maybe('WITH CHECK blocks cross-tenant write', async () => {
   );
 });
 
-maybe('bypass does not leak outside withPgBypass transaction', async () => {
-  await withPgBypass(pg, async (c) => {
-    const v = await c.query(`SELECT current_setting('app.bypass_rls', true) AS v`);
-    assert.equal(v.rows[0].v, 'on', 'bypass should be on inside withPgBypass txn');
-  });
-  // A subsequent tenant-scoped txn must NOT carry bypass.
+maybe('runtime role cannot enable generic RLS bypass', async () => {
   const anyT = 'tenant_rls_noleak';
-  await withPgBypass(pg, async (c) => {
+  await withAdmin(async (c) => {
     await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [anyT, 'NL']);
   });
+  await assert.rejects(
+    () => withPgBypass(pg, async () => undefined),
+    /RLS bypass is not permitted/,
+    'runtime role must not be able to turn a custom GUC into tenant bypass'
+  );
   await withPgTenant(pg, anyT, async (c) => {
     const v = await c.query(`SELECT current_setting('app.bypass_rls', true) AS v`);
     assert.equal(v.rows[0].v, '', 'bypass leaked into a tenant txn — GUC is not transaction-scoped');
@@ -135,5 +144,6 @@ maybe('bypass does not leak outside withPgBypass transaction', async () => {
 
 test('teardown real postgres', async () => {
   if (!HAS_REAL_PG) return;
+  await adminPg.end();
   await closePostgres();
 });

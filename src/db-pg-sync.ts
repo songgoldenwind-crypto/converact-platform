@@ -31,8 +31,8 @@ const arr = new Int32Array(buf);
 
 function getPool() {
   if (!pool) {
-    const connStr = process.env.DATABASE_URL || 'postgres://localhost/postgres';
-    pool = new Pool({ connectionString: connStr, max: 5 });
+    const connStr = process.env.DATABASE_URL;
+    pool = new Pool(connStr ? { connectionString: connStr, max: 5 } : { max: 5 });
   }
   return pool;
 }
@@ -159,7 +159,9 @@ export class PgSyncDatabase {
   }
 
   exec(sql: string): void {
-    syncQuery(sql, []);
+    if (shouldSkipRuntimeSchemaDdl(sql)) return;
+    const result = syncQuery(sql, []);
+    if (!result.ok) throw new Error(result.error || 'Postgres query failed');
   }
 
   close(): void {
@@ -168,4 +170,12 @@ export class PgSyncDatabase {
       workerInstance = null;
     }
   }
+}
+
+export function shouldSkipRuntimeSchemaDdl(
+  sql: string,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  if (env.OPC_SCHEMA_MANAGED_BY_MIGRATIONS !== '1') return false;
+  return /\b(?:CREATE\s+(?:TABLE|INDEX)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX))\b/i.test(sql);
 }

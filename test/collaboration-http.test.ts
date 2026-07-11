@@ -3955,6 +3955,7 @@ async function startFakeTinodeServerForHttp(): Promise<{
   close: () => Promise<void>;
 }> {
   const packets: Array<Record<string, any>> = [];
+  let accountAttempted = false;
   const server = createServer();
   const wss = new WebSocketServer({ server, path: '/v0/channels' });
   wss.on('connection', (ws, req) => {
@@ -3965,8 +3966,13 @@ async function startFakeTinodeServerForHttp(): Promise<{
       if (packet.hi) {
         ws.send(JSON.stringify({ ctrl: { id: packet.hi.id, code: 200, text: 'ok', params: { ver: '0.22' } } }));
       } else if (packet.login) {
+        if (packet.login.scheme === 'basic' && !accountAttempted) {
+          ws.send(JSON.stringify({ ctrl: { id: packet.login.id, code: 401, text: 'auth failed' } }));
+          return;
+        }
         ws.send(JSON.stringify({ ctrl: { id: packet.login.id, code: 200, text: 'ok', params: { user: 'usrHttp' } } }));
       } else if (packet.acc) {
+        accountAttempted = true;
         ws.send(JSON.stringify({
           ctrl: {
             id: packet.acc.id,

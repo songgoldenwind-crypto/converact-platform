@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -47,6 +47,8 @@ test('media config renderer writes LiveKit and Egress configs from production en
     assert.match(egress, /secret: "prod-minio-secret"/);
     assert.match(egress, /bucket: "prod-recordings"/);
     assert.doesNotMatch(egress, /devkey|api_secret: secret|minioadmin/);
+    assert.equal(statSync(result.livekitConfigPath).mode & 0o777, 0o600);
+    assert.equal(statSync(result.egressConfigPath).mode & 0o777, 0o640);
   } finally {
     rmSync(outputDir, { recursive: true, force: true });
   }

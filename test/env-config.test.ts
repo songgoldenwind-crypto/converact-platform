@@ -39,6 +39,27 @@ test('validateEnv: non-production does not fail on missing DATABASE_URL', () => 
   }
 });
 
+test('validateEnv: production accepts discrete PostgreSQL connection variables', () => {
+  const keys = ['NODE_ENV', 'DATABASE_URL', 'PGHOST', 'PGDATABASE', 'PGUSER', 'PGPASSWORD'] as const;
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  process.env.NODE_ENV = 'production';
+  delete process.env.DATABASE_URL;
+  process.env.PGHOST = 'postgres';
+  process.env.PGDATABASE = 'opc';
+  process.env.PGUSER = 'opc_runtime';
+  process.env.PGPASSWORD = 'runtime-secret';
+  try {
+    const result = parseResult(validateEnv());
+    assert.equal(result.errors.some((error) => error.includes('DATABASE_URL')), false);
+  } finally {
+    for (const key of keys) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
 test('validateEnv: warns when LiveKit credentials missing', () => {
   const prev = {
     NODE_ENV: process.env.NODE_ENV,

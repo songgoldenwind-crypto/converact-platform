@@ -33,7 +33,8 @@ import {
 import { resolveRecordingObjectContent } from './agent-runtime/media-recording-object.js';
 import {
   resolvePgTenantContextForRequest,
-  runWithPgTenantContextAsync
+  runWithPgTenantContextAsync,
+  withPgRequestContext
 } from './db-pg-tenant.js';
 import { verifyWeComWebhookSignature, parseWeComXmlBody } from './agent-runtime/channels/adapters/wecom-adapter.js';
 import { RunStore } from './agent-runtime/stores/run-store.js';
@@ -103,11 +104,14 @@ export function createServer(db, pg: PgQueryable | null = null) {
           ? (path === '/api/webhooks/wecom' || path === '/api/webhooks/livekit' || path === '/api/media/webhooks/livekit'
             ? rawBody
             : safeJsonParse(rawBody))
-          : await readJson(req);
+          : await readJsonRequest(req);
       const pgTenantCtx = resolvePgTenantContextForRequest(path, req.headers, { url, body });
-      const result = await runWithPgTenantContextAsync(pgTenantCtx, () =>
-        route(db, harness, pg, req.method, url, body, rawBody, req.headers)
-      );
+      const result = await runWithPgTenantContextAsync(pgTenantCtx, () => {
+        if (!pg) return route(db, harness, null, req.method, url, body, rawBody, req.headers);
+        return withPgRequestContext(pg, pgTenantCtx, (scopedPg) =>
+          route(db, harness, scopedPg, req.method, url, body, rawBody, req.headers)
+        );
+      });
 
       if (result?.sse && typeof result.attach === 'function') {
         result.attach(res);
@@ -368,8 +372,8 @@ async function route(db, harness, pg: PgQueryable | null, method, url, body, raw
   throw error;
 }
 
-async function readJson(req) {
-  if (!['POST', 'PUT', 'PATCH'].includes(req.method)) return {};
+export async function readJsonRequest(req) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return {};
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const raw = Buffer.concat(chunks).toString('utf8');

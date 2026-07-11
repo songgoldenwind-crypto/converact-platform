@@ -14,6 +14,10 @@ function edgeEnv(outputDir: string): NodeJS.ProcessEnv {
     OPC_LIVEKIT_EDGE_CONFIG_DIR: outputDir,
     LIVEKIT_SIGNAL_DOMAIN: 'livekit.example.com',
     LIVEKIT_TURN_DOMAIN: 'turn.example.com',
+    IVEKIT_API_DOMAIN: 'opc.example.com',
+    TINODE_PUBLIC_DOMAIN: 'tinode.example.com',
+    IVEKIT_API_HTTP_PORT: '8300',
+    TINODE_HTTP_PORT: '6060',
     LIVEKIT_ACME_EMAIL: 'ops@example.com',
     LIVEKIT_API_KEY: 'edge-livekit-key',
     LIVEKIT_API_SECRET: 'edge-livekit-secret',
@@ -69,10 +73,17 @@ test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and fire
     assert.match(caddy, /dial: \["localhost:5349"\]/);
     assert.match(caddy, /"livekit\.example\.com"/);
     assert.match(caddy, /dial: \["localhost:7880"\]/);
+    assert.match(caddy, /"opc\.example\.com"/);
+    assert.match(caddy, /dial: \["localhost:8300"\]/);
+    assert.match(caddy, /"tinode\.example\.com"/);
+    assert.match(caddy, /dial: \["localhost:6060"\]/);
     assert.match(caddy, /email: "ops@example\.com"/);
 
     for (const expected of ['80/tcp', '443/tcp', '7881/tcp', '3478/udp', '50000-60000/udp']) {
       assert.match(firewall, new RegExp(expected.replace('/', '\\/')));
+    }
+    for (const internalPort of ['5349/tcp', '7880/tcp', '8091/tcp']) {
+      assert.match(firewall, new RegExp(`private.*${internalPort.replace('/', '\\/')}`, 'i'));
     }
     assert.equal(summary.signal_url, 'wss://livekit.example.com');
     assert.equal(summary.turn_domain, 'turn.example.com');
@@ -81,7 +92,7 @@ test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and fire
     assert.equal(JSON.stringify(summary).includes('edge-livekit-secret'), false);
 
     assert.equal(statSync(result.livekitConfigPath).mode & 0o777, 0o600);
-    assert.equal(statSync(result.egressConfigPath).mode & 0o777, 0o600);
+    assert.equal(statSync(result.egressConfigPath).mode & 0o777, 0o640);
     assert.equal(caddy.includes('edge-livekit-secret'), false);
     assert.equal(firewall.includes('edge-livekit-secret'), false);
   } finally {
@@ -177,4 +188,11 @@ test('standalone LiveKit Compose is Linux host-networked and reproducibly pinned
     packageJson.scripts['livekit:edge:config'],
     'docker compose --env-file infra/livekit/env.example -f infra/livekit/docker-compose.yml config'
   );
+});
+
+test('standalone MinIO bootstrap rejects reused root and service credentials', () => {
+  const bootstrap = readFileSync(new URL('../infra/scripts/bootstrap-minio-bucket.sh', import.meta.url), 'utf8');
+
+  assert.match(bootstrap, /root and service access keys must differ/);
+  assert.match(bootstrap, /root and service secret keys must differ/);
 });

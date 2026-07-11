@@ -10,6 +10,10 @@ This package deploys the reusable LiveKit media plane on one Linux VM. It follow
 
 It does not contain OPC source code and can be deployed as an independent service.
 
+When external S3 is unavailable, apply `docker-compose.storage.yml` as an optional overlay. It runs a pinned MinIO release, exposes its API and console on loopback only, initializes a private bucket and bucket-scoped service account, and prevents Egress from starting until that initialization succeeds. `MINIO_ROOT_*` is bootstrap-only; OPC and Egress receive only `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`.
+
+The same Caddy L4 edge can optionally terminate TLS for the application plane. Set `IVEKIT_API_DOMAIN` and/or `TINODE_PUBLIC_DOMAIN`; their upstreams default to loopback ports `8300` and `6060`. Leave both blank for a Media-Core-only deployment.
+
 ## Requirements
 
 - Linux host with Docker Compose and a public IP.
@@ -29,7 +33,7 @@ set +a
 npm run render:livekit-edge
 ```
 
-Generated files are written under `.runtime/livekit-edge` by default and are excluded from Git. `livekit.yaml` and `egress.yaml` are written with mode `0600` because they contain credentials.
+Generated files are written under `.runtime/livekit-edge` by default and are excluded from Git. `livekit.yaml` is written with mode `0600`; `egress.yaml` uses `0640` so the official non-root Egress process can read it through its root group without making credentials world-readable.
 
 ## Static validation
 
@@ -37,6 +41,16 @@ Generated files are written under `.runtime/livekit-edge` by default and are exc
 docker compose \
   --env-file infra/livekit/.env \
   -f infra/livekit/docker-compose.yml \
+  config
+```
+
+For the optional private MinIO overlay:
+
+```bash
+docker compose \
+  --env-file infra/livekit/.env \
+  -f infra/livekit/docker-compose.yml \
+  -f infra/livekit/docker-compose.storage.yml \
   config
 ```
 
@@ -52,6 +66,8 @@ docker compose \
   -f infra/livekit/docker-compose.yml \
   up -d
 ```
+
+Add `-f infra/livekit/docker-compose.storage.yml` before `up -d` when using the private MinIO overlay. In that mode set `MINIO_ENDPOINT=http://127.0.0.1:9000`; do not expose ports `9000` or `9001` publicly.
 
 The OPC runtime then uses separate addresses:
 

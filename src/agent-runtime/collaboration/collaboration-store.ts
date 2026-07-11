@@ -205,7 +205,8 @@ export class CollaborationStore {
     await this.pg.query(
       `INSERT INTO collaboration_chat_bindings
         (id, tenant_id, session_id, provider, provider_topic_id, provider_status, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (tenant_id, session_id, provider) DO NOTHING`,
       [
         bindingId,
         input.tenant_id,
@@ -216,7 +217,12 @@ export class CollaborationStore {
         toJson(input.metadata || {})
       ]
     );
-    const result = await this.pg.query('SELECT * FROM collaboration_chat_bindings WHERE id = $1', [bindingId]);
+    const result = await this.pg.query(
+      `SELECT * FROM collaboration_chat_bindings
+       WHERE tenant_id = $1 AND session_id = $2 AND provider = $3`,
+      [input.tenant_id, input.session_id, input.provider]
+    );
+    if (!result.rows[0]) throw new Error('chat binding was not persisted');
     return decodeChatBinding(result.rows[0]);
   }
 
