@@ -193,6 +193,9 @@ function fakeLedClient(
   } = {}
 ): IveKitRustDeskHttpClient {
   return {
+    async getClientProfile() {
+      throw new Error('not used');
+    },
     async getClientConfig() {
       calls.push('getClientConfig');
       return {

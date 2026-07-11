@@ -68,6 +68,7 @@
     "rustdesk:audit-export": "tsx scripts/rustdesk-audit-export.ts",
     "rustdesk:audit-coverage": "tsx scripts/rustdesk-audit-coverage.ts",
     "rustdesk:client-config-pack": "tsx scripts/rustdesk-client-config-pack.ts",
+    "rustdesk:client-profile-pack": "tsx scripts/rustdesk-client-profile-pack.ts",
     "rustdesk:client-acceptance": "tsx scripts/rustdesk-client-acceptance.ts",
     "rustdesk:deployment-commands": "tsx scripts/rustdesk-deployment-commands.ts",
     "rustdesk:deployment-preflight": "tsx scripts/rustdesk-deployment-preflight.ts",

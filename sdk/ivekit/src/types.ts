@@ -173,6 +173,46 @@ export interface RustDeskClientConfig {
   configured?: RustDeskConfiguredFields;
 }
 
+export type RustDeskClientDistributionPlatform = 'windows' | 'macos' | 'linux';
+export type RustDeskClientDistributionArchitecture = 'x86_64' | 'aarch64';
+
+export type RustDeskClientInstallSource =
+  | { state: 'not_configured' }
+  | {
+      state: 'configured';
+      url: string;
+      filename: string;
+      sha256: string;
+    };
+
+export interface RustDeskClientDistributionProfile {
+  platform: RustDeskClientDistributionPlatform;
+  architecture: RustDeskClientDistributionArchitecture;
+  client_version: {
+    exact: '1.4.7';
+    allowed: ['1.4.7'];
+  };
+  server_version: '1.1.15';
+  issued_at: string;
+  expires_at: string;
+  manual_fields: {
+    id_server: string;
+    relay_server: string;
+    api_server: string;
+    key: string;
+  };
+  server_key_fingerprint: string;
+  protocol_handler: {
+    supported: true;
+    user_initiated_only: true;
+  };
+  install_source: RustDeskClientInstallSource;
+  unattended_policy: {
+    mode: 'attended_only';
+    state: 'not_configured';
+  };
+}
+
 export interface RustDeskDevice {
   id: string;
   tenant_id: string;

@@ -3,7 +3,8 @@ import test from 'node:test';
 
 import {
   createIveKitRustDeskHttpClient,
-  IveKitRustDeskHttpError
+  IveKitRustDeskHttpError,
+  projectRustDeskClientDistributionProfile
 } from '../src/agent-runtime/ivekit/index.js';
 
 type FetchCall = {
@@ -258,6 +259,83 @@ test('iveKit RustDesk HTTP client applies the configured request timeout', async
   );
 });
 
+test('iveKit RustDesk HTTP client requests and projects a pinned client distribution profile', async () => {
+  const calls: string[] = [];
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://opc.example.com',
+    accessToken: 'short-lived-browser-token',
+    tenantId: 'tenant_led',
+    fetch: async (input) => {
+      calls.push(String(input));
+      return jsonResponse(200, unsafeClientDistributionProfile());
+    }
+  });
+
+  const profile = await client.getClientProfile({
+    platform: 'windows',
+    architecture: 'x86_64',
+    client_version: '1.4.7',
+    expected_server_version: '1.1.15',
+    expected_server_key_fingerprint: 'sha256:abcdef1234567890'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(
+    new URL(calls[0]).search,
+    '?platform=windows&architecture=x86_64&client_version=1.4.7&expected_server_version=1.1.15&expected_server_key_fingerprint=sha256%3Aabcdef1234567890'
+  );
+  assert.deepEqual(profile, expectedClientDistributionProfile());
+  assert.doesNotMatch(
+    JSON.stringify(profile),
+    /api_key|bearer|private_key|edge_secret|unattended_password|launch_token|installer_credential|drop-me/
+  );
+});
+
+test('iveKit RustDesk client profile projection rejects drift, expiry, and malformed responses', async () => {
+  const base = expectedClientDistributionProfile();
+  const expected = {
+    platform: 'windows' as const,
+    architecture: 'x86_64' as const,
+    client_version: '1.4.7',
+    expected_server_version: '1.1.15',
+    expected_server_key_fingerprint: 'sha256:abcdef1234567890'
+  };
+  const invalid: Array<[string, unknown, RegExp]> = [
+    ['platform drift', { ...base, platform: 'linux' }, /platform/],
+    ['unsupported tuple', { ...base, architecture: 'aarch64' }, /tuple/],
+    ['client drift', { ...base, client_version: { exact: '1.4.8', allowed: ['1.4.8'] } }, /client_version/],
+    ['floating allowed version', { ...base, client_version: { exact: '1.4.7', allowed: ['^1.4.7'] } }, /client_version/],
+    ['server drift', { ...base, server_version: '1.1.14' }, /server_version/],
+    ['key drift', { ...base, server_key_fingerprint: 'sha256:0000000000000000' }, /server_key_fingerprint/],
+    ['expired', { ...base, expires_at: '2020-01-01T00:00:00.000Z' }, /expired/],
+    ['bad timestamp', { ...base, issued_at: 'today' }, /issued_at/],
+    ['unsafe URL', {
+      ...base,
+      install_source: { ...base.install_source, url: 'https://user:password@downloads.example.com/1.4.7/rustdesk.exe' }
+    }, /install_source.url/],
+    ['bad checksum', {
+      ...base,
+      install_source: { ...base.install_source, sha256: 'not-a-checksum' }
+    }, /install_source.sha256/],
+    ['unsafe API server', {
+      ...base,
+      manual_fields: { ...base.manual_fields, api_server: 'https://user:password@rustdesk-api.example.com' }
+    }, /manual_fields.api_server/],
+    ['unattended claim', {
+      ...base,
+      unattended_policy: { mode: 'unattended_allowed', state: 'configured' }
+    }, /unattended_policy/]
+  ];
+
+  for (const [name, value, pattern] of invalid) {
+    assert.throws(
+      () => projectRustDeskClientDistributionProfile(value, expected, new Date('2026-07-12T12:05:00.000Z')),
+      pattern,
+      name
+    );
+  }
+});
+
 test('iveKit RustDesk HTTP client projects complete terminal profiles from every device response path', async () => {
   const device = (id: string) => ({
     id,
@@ -295,7 +373,7 @@ test('iveKit RustDesk HTTP client projects complete terminal profiles from every
   assert.equal(devices.length, 5);
   for (const projected of devices) {
     assert.deepEqual(projected.terminal_profile, expectedTerminalProfile(projected.id));
-    assert.doesNotMatch(
+  assert.doesNotMatch(
       JSON.stringify(projected),
       /api_key|private_key|profile-token|nested-token|clipboard_text|terminal clipboard secret|metadata-token|reference-token|top-level-credential|arbitrary|drop-me/
     );
@@ -361,6 +439,55 @@ test('iveKit RustDesk HTTP client rejects invalid terminal profile fields', asyn
       },
       name
     );
+  }
+});
+
+test('iveKit RustDesk terminal profile enforces requested, consented, and granted subsets', async () => {
+  const base = expectedTerminalProfile('rdesk_1');
+  for (const granted of [
+    {
+      requested: ['view_screen'],
+      consented: ['view_screen', 'transfer_file'],
+      granted: ['view_screen']
+    },
+    {
+      requested: ['view_screen'],
+      consented: ['view_screen'],
+      granted: ['view_screen', 'clipboard']
+    }
+  ]) {
+    const client = createIveKitRustDeskHttpClient({
+      baseUrl: 'https://opc.example.com',
+      accessToken: 'short-lived-browser-token',
+      tenantId: 'tenant_led',
+      fetch: async () => jsonResponse(200, {
+        id: 'rdesk_1',
+        rustdesk_id: '123456789',
+        terminal_profile: { ...base, granted }
+      })
+    });
+
+    await assert.rejects(() => client.getDevice('rdesk_1'), /invalid RustDesk terminal profile: granted/);
+  }
+});
+
+test('iveKit RustDesk terminal profile is bound to the enclosing device identifiers', async () => {
+  for (const terminal_profile of [
+    { ...expectedTerminalProfile('different-device'), rustdesk_id: '123456789' },
+    { ...expectedTerminalProfile('rdesk_1'), rustdesk_id: '987654321' }
+  ]) {
+    const client = createIveKitRustDeskHttpClient({
+      baseUrl: 'https://opc.example.com',
+      accessToken: 'short-lived-browser-token',
+      tenantId: 'tenant_led',
+      fetch: async () => jsonResponse(200, {
+        id: 'rdesk_1',
+        rustdesk_id: '123456789',
+        terminal_profile
+      })
+    });
+
+    await assert.rejects(() => client.getDevice('rdesk_1'), /invalid RustDesk terminal profile: device binding/);
   }
 });
 
@@ -715,5 +842,60 @@ function unsafeTerminalProfile(deviceId: string) {
         arbitrary: 'drop-me'
       }
     }]
+  };
+}
+
+function expectedClientDistributionProfile() {
+  return {
+    platform: 'windows' as const,
+    architecture: 'x86_64' as const,
+    client_version: {
+      exact: '1.4.7',
+      allowed: ['1.4.7'] as ['1.4.7']
+    },
+    server_version: '1.1.15',
+    issued_at: '2026-07-12T12:00:00.000Z',
+    expires_at: '2099-07-12T12:15:00.000Z',
+    manual_fields: {
+      id_server: 'rustdesk-id.example.com',
+      relay_server: 'rustdesk-relay.example.com',
+      api_server: 'https://rustdesk-api.example.com',
+      key: 'rustdesk-public-key'
+    },
+    server_key_fingerprint: 'sha256:abcdef1234567890',
+    protocol_handler: {
+      supported: true,
+      user_initiated_only: true
+    },
+    install_source: {
+      state: 'configured' as const,
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-x86_64.exe',
+      filename: 'rustdesk-1.4.7-x86_64.exe',
+      sha256: 'a'.repeat(64)
+    },
+    unattended_policy: {
+      mode: 'attended_only' as const,
+      state: 'not_configured' as const
+    }
+  };
+}
+
+function unsafeClientDistributionProfile() {
+  const profile = expectedClientDistributionProfile();
+  return {
+    ...profile,
+    api_key: 'server-api-key',
+    bearer_token: 'bearer-secret',
+    private_key: 'private-key',
+    edge_secret: 'edge-secret',
+    unattended_password: 'password',
+    launch_token: 'signed-launch-token',
+    installer_credential: 'installer-secret',
+    arbitrary: 'drop-me',
+    client_version: { ...profile.client_version, token: 'drop-me' },
+    manual_fields: { ...profile.manual_fields, private_key: 'drop-me' },
+    protocol_handler: { ...profile.protocol_handler, launch_token: 'drop-me' },
+    install_source: { ...profile.install_source, credential: 'drop-me' },
+    unattended_policy: { ...profile.unattended_policy, password: 'drop-me' }
   };
 }

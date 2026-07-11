@@ -3,6 +3,9 @@ import type {
   RemoteGatewayAuditEvent,
   RemoteToolSession,
   RustDeskClientConfig,
+  RustDeskClientDistributionArchitecture,
+  RustDeskClientDistributionPlatform,
+  RustDeskClientDistributionProfile,
   RustDeskClientVersion,
   RustDeskConfiguredFields,
   RustDeskDevice,
@@ -55,6 +58,14 @@ export interface ListIveKitRustDeskDevicesByRefInput {
   limit?: number;
 }
 
+export interface GetIveKitRustDeskClientProfileInput {
+  platform: RustDeskClientDistributionPlatform;
+  architecture: RustDeskClientDistributionArchitecture;
+  client_version: string;
+  expected_server_version: string;
+  expected_server_key_fingerprint: string;
+}
+
 export interface HeartbeatIveKitRustDeskDeviceInput {
   actor_identity: string;
   runtime_status?: 'online' | 'offline';
@@ -95,6 +106,7 @@ export interface IveKitRustDeskGatewayDisconnectState {
 
 export interface IveKitRustDeskHttpClient {
   getClientConfig(): Promise<RustDeskClientConfig>;
+  getClientProfile(input: GetIveKitRustDeskClientProfileInput): Promise<RustDeskClientDistributionProfile>;
   registerDevice(input: RegisterIveKitRustDeskDeviceInput): Promise<RustDeskDevice>;
   getDevice(deviceId: string): Promise<RustDeskDevice>;
   listDevicesByBusinessRef(input: ListIveKitRustDeskDevicesByRefInput): Promise<RustDeskDevice[]>;
@@ -186,6 +198,19 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
     getClientConfig() {
       return request<RustDeskClientConfig>('GET', '/api/ivekit/rustdesk/client-config');
     },
+    async getClientProfile(profileInput) {
+      const profile = await request<unknown>('GET', '/api/ivekit/rustdesk/client-profile', undefined, {
+        platform: profileInput.platform,
+        architecture: profileInput.architecture,
+        client_version: profileInput.client_version,
+        expected_server_version: profileInput.expected_server_version,
+        expected_server_key_fingerprint: requiredString(
+          profileInput.expected_server_key_fingerprint,
+          'expected_server_key_fingerprint is required'
+        )
+      });
+      return projectRustDeskClientDistributionProfile(profile, profileInput);
+    },
     async registerDevice(device) {
       return projectRustDeskDevice(
         await request<RustDeskDevice>('POST', '/api/ivekit/rustdesk/devices', device)
@@ -267,6 +292,181 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
       return projectRustDeskDisconnectState(state);
     }
   };
+}
+
+export function projectRustDeskClientDistributionProfile(
+  value: unknown,
+  expected: GetIveKitRustDeskClientProfileInput,
+  now = new Date()
+): RustDeskClientDistributionProfile {
+  const profile = distributionRecord(value, 'payload');
+  const platform = distributionEnum(
+    profile.platform,
+    ['windows', 'macos', 'linux'] as const,
+    'platform'
+  );
+  const architecture = distributionEnum(
+    profile.architecture,
+    ['x86_64', 'aarch64'] as const,
+    'architecture'
+  );
+  if (!isSupportedDistributionTarget(platform, architecture)) throw invalidDistribution('tuple');
+  if (platform !== expected.platform) throw invalidDistribution('platform drift');
+  if (architecture !== expected.architecture) throw invalidDistribution('architecture drift');
+
+  const clientVersion = distributionRecord(profile.client_version, 'client_version');
+  if (
+    clientVersion.exact !== '1.4.7' ||
+    !Array.isArray(clientVersion.allowed) ||
+    clientVersion.allowed.length !== 1 ||
+    clientVersion.allowed[0] !== '1.4.7' ||
+    expected.client_version !== '1.4.7'
+  ) {
+    throw invalidDistribution('client_version');
+  }
+  if (profile.server_version !== '1.1.15' || profile.server_version !== expected.expected_server_version) {
+    throw invalidDistribution('server_version drift');
+  }
+
+  const issuedAt = distributionTimestamp(profile.issued_at, 'issued_at');
+  const expiresAt = distributionTimestamp(profile.expires_at, 'expires_at');
+  if (Date.parse(expiresAt) <= now.getTime()) throw invalidDistribution('expired');
+  if (Date.parse(expiresAt) <= Date.parse(issuedAt)) throw invalidDistribution('expires_at');
+
+  const manual = distributionRecord(profile.manual_fields, 'manual_fields');
+  const manualFields = {
+    id_server: distributionRequiredString(manual.id_server, 'manual_fields.id_server'),
+    relay_server: distributionString(manual.relay_server, 'manual_fields.relay_server'),
+    api_server: distributionString(manual.api_server, 'manual_fields.api_server'),
+    key: distributionRequiredString(manual.key, 'manual_fields.key')
+  };
+  validateDistributionApiServer(manualFields.api_server);
+
+  const fingerprint = distributionRequiredString(
+    profile.server_key_fingerprint,
+    'server_key_fingerprint'
+  );
+  if (!/^sha256:[a-f0-9]{16,64}$/.test(fingerprint)) {
+    throw invalidDistribution('server_key_fingerprint');
+  }
+  if (fingerprint !== expected.expected_server_key_fingerprint) {
+    throw invalidDistribution('server_key_fingerprint drift');
+  }
+
+  const protocol = distributionRecord(profile.protocol_handler, 'protocol_handler');
+  if (protocol.supported !== true || protocol.user_initiated_only !== true) {
+    throw invalidDistribution('protocol_handler');
+  }
+  const unattended = distributionRecord(profile.unattended_policy, 'unattended_policy');
+  if (unattended.mode !== 'attended_only' || unattended.state !== 'not_configured') {
+    throw invalidDistribution('unattended_policy');
+  }
+
+  return {
+    platform,
+    architecture,
+    client_version: { exact: '1.4.7', allowed: ['1.4.7'] },
+    server_version: '1.1.15',
+    issued_at: issuedAt,
+    expires_at: expiresAt,
+    manual_fields: manualFields,
+    server_key_fingerprint: fingerprint,
+    protocol_handler: { supported: true, user_initiated_only: true },
+    install_source: projectDistributionInstallSource(profile.install_source),
+    unattended_policy: { mode: 'attended_only', state: 'not_configured' }
+  };
+}
+
+function projectDistributionInstallSource(value: unknown): RustDeskClientDistributionProfile['install_source'] {
+  const source = distributionRecord(value, 'install_source');
+  if (source.state === 'not_configured') return { state: 'not_configured' };
+  if (source.state !== 'configured') throw invalidDistribution('install_source.state');
+  let url: URL;
+  try {
+    url = new URL(distributionRequiredString(source.url, 'install_source.url'));
+  } catch {
+    throw invalidDistribution('install_source.url');
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    throw invalidDistribution('install_source.url');
+  }
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  if (!pathSegments.some((segment) => segment === '1.4.7' || segment === 'v1.4.7')) {
+    throw invalidDistribution('install_source.url');
+  }
+  const filename = distributionRequiredString(source.filename, 'install_source.filename');
+  if (filename === '.' || filename === '..' || filename.includes('/') || filename.includes('\\')) {
+    throw invalidDistribution('install_source.filename');
+  }
+  let urlFilename = '';
+  try {
+    urlFilename = decodeURIComponent(pathSegments.at(-1) || '');
+  } catch {
+    throw invalidDistribution('install_source.url');
+  }
+  if (filename !== urlFilename) throw invalidDistribution('install_source.filename');
+  const sha256 = distributionRequiredString(source.sha256, 'install_source.sha256').toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(sha256)) throw invalidDistribution('install_source.sha256');
+  return { state: 'configured', url: url.toString(), filename, sha256 };
+}
+
+function isSupportedDistributionTarget(
+  platform: RustDeskClientDistributionPlatform,
+  architecture: RustDeskClientDistributionArchitecture
+): boolean {
+  return architecture === 'x86_64' || platform !== 'windows';
+}
+
+function distributionRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidDistribution(field);
+  return value as Record<string, unknown>;
+}
+
+function distributionEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+  if (typeof value !== 'string' || !allowed.includes(value as T)) throw invalidDistribution(field);
+  return value as T;
+}
+
+function distributionRequiredString(value: unknown, field: string): string {
+  const result = distributionString(value, field).trim();
+  if (!result) throw invalidDistribution(field);
+  return result;
+}
+
+function distributionString(value: unknown, field: string): string {
+  if (typeof value !== 'string') throw invalidDistribution(field);
+  return value;
+}
+
+function distributionTimestamp(value: unknown, field: string): string {
+  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw invalidDistribution(field);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    throw invalidDistribution(field);
+  }
+  return value;
+}
+
+function validateDistributionApiServer(value: string): void {
+  if (!value) return;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw invalidDistribution('manual_fields.api_server');
+  }
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw invalidDistribution('manual_fields.api_server');
+  }
+}
+
+function invalidDistribution(field: string): Error {
+  return new Error(`invalid RustDesk client distribution profile: ${field}`);
 }
 
 const evidenceOperations: readonly RustDeskObservedOperation[] = [
@@ -419,19 +619,29 @@ function projectTerminalRuntimeCapabilities(value: unknown): RustDeskRuntimeCapa
 
 function projectTerminalPermissionScopes(value: unknown): RustDeskPermissionScopes {
   const granted = terminalRecord(value, 'granted');
-  return {
-    requested: terminalScopeArray(granted.requested, 'granted.requested'),
-    consented: terminalScopeArray(granted.consented, 'granted.consented'),
-    granted: terminalScopeArray(granted.granted, 'granted.granted')
-  };
+  const requested = terminalScopeArray(granted.requested, 'granted.requested');
+  const consented = terminalScopeArray(granted.consented, 'granted.consented');
+  const grantedScopes = terminalScopeArray(granted.granted, 'granted.granted');
+  const requestedSet = new Set(requested);
+  const consentedSet = new Set(consented);
+  if (consented.some((scope) => !requestedSet.has(scope))) throw invalidTerminalProfile('granted.consented');
+  if (grantedScopes.some((scope) => !consentedSet.has(scope))) throw invalidTerminalProfile('granted.granted');
+  return { requested, consented, granted: grantedScopes };
 }
 
 export function projectRustDeskDevice(value: unknown): RustDeskDevice {
   const device = evidenceRecord(value, 'device');
   if (device.terminal_profile === undefined) return device as unknown as RustDeskDevice;
+  const terminalProfile = projectRustDeskTerminalProfile(device.terminal_profile);
+  if (
+    terminalProfile.device_id !== terminalIdentifier(device.id, 'device binding') ||
+    terminalProfile.rustdesk_id !== terminalIdentifier(device.rustdesk_id, 'device binding')
+  ) {
+    throw invalidTerminalProfile('device binding');
+  }
   return {
     ...device,
-    terminal_profile: projectRustDeskTerminalProfile(device.terminal_profile)
+    terminal_profile: terminalProfile
   } as unknown as RustDeskDevice;
 }
 

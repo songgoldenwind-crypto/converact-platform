@@ -54,6 +54,7 @@ import {
   type RustDeskGatewaySession
 } from './rustdesk-gateway-session-store.js';
 import { rustDeskClientConfig } from './rustdesk-client-config.js';
+import { createRustDeskClientDistributionProfile } from './rustdesk-client-profile.js';
 import {
   isRustDeskEdgeDeviceCommandRoute,
   routeRustDeskDeviceCommandApi
@@ -1413,6 +1414,22 @@ export async function routeCollaborationApi(
   }
 
   const ctx = requireAuth(headers);
+
+  if (routePath === '/api/ivekit/rustdesk/client-profile' && method === 'GET') {
+    return {
+      data: createRustDeskClientDistributionProfile({
+        platform: url.searchParams.get('platform'),
+        architecture: url.searchParams.get('architecture'),
+        client_version: url.searchParams.get('client_version'),
+        expected_server_version: url.searchParams.get('expected_server_version'),
+        expected_server_key_fingerprint: url.searchParams.get('expected_server_key_fingerprint')
+      }),
+      headers: {
+        'cache-control': 'private, no-store',
+        vary: 'Authorization, X-API-Key, X-Tenant-Id, Origin'
+      }
+    };
+  }
 
   if (routePath.startsWith('/api/collaboration/media/') && method === 'GET') {
     if (!isLocalObjectStorage()) return { status: 404, data: { error: 'media not available' } };

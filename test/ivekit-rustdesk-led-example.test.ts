@@ -123,6 +123,9 @@ test('iveKit RustDesk LED example is exposed as a runnable handoff script with e
 
 function fakeClient(calls: string[]): IveKitRustDeskHttpClient {
   return {
+    async getClientProfile() {
+      throw new Error('not used');
+    },
     async getClientConfig() {
       calls.push('getClientConfig');
       return {

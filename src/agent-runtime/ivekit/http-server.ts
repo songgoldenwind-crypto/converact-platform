@@ -145,7 +145,8 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       sendJson(
         response,
         Number.isInteger(output.status) ? Number(output.status) : 200,
-        output.data ?? output
+        output.data ?? output,
+        isHeaderRecord(output.headers) ? output.headers : {}
       );
     } catch (error) {
       const status = Number((error as { status?: number }).status || 500);
@@ -264,8 +265,13 @@ function setCorsHeaders(response: import('node:http').ServerResponse, origin: st
   response.setHeader('vary', 'Origin');
 }
 
-function sendJson(response: import('node:http').ServerResponse, status: number, data: unknown): void {
-  send(response, status, JSON.stringify(data), 'application/json; charset=utf-8');
+function sendJson(
+  response: import('node:http').ServerResponse,
+  status: number,
+  data: unknown,
+  headers: Record<string, string | number | readonly string[]> = {}
+): void {
+  send(response, status, JSON.stringify(data), 'application/json; charset=utf-8', headers);
 }
 
 async function send(

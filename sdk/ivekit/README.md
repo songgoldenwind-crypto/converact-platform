@@ -47,6 +47,13 @@ const device = await ivekit.rustdesk.ensureDevice({
   deviceDisplayName: 'LED service terminal',
   actorIdentity: 'engineer-1'
 });
+const distribution = await ivekit.rustdesk.getClientProfile({
+  platform: 'windows',
+  architecture: 'x86_64',
+  client_version: '1.4.7',
+  expected_server_version: '1.1.15',
+  expected_server_key_fingerprint: '<fingerprint-from-trusted-deployment-record>'
+});
 ```
 
 The chat client exports browser-safe JSON DTOs for sessions, participants, messages,
@@ -81,6 +88,8 @@ an authenticated binary response; object-store credentials and internal media pa
 are never returned to the client.
 
 `ivekit.rustdesk.startSession()` adds consent-scoped launch planning, while the same client retains lower-level methods such as `startGatewaySession()` for advanced integrations. It also exposes typed operation-audit helpers for control actions, file transfer, screen recording, and clipboard synchronization.
+
+`getClientProfile()` returns a separately typed, pinned desktop distribution profile. It validates the requested platform/architecture, exact client and server versions, expected server-key fingerprint, expiry, and installer metadata. A missing deployment artifact is returned as `install_source.state = 'not_configured'`; the SDK never downloads or executes it. Unattended access remains `attended_only/not_configured` until a later policy API exists.
 
 Browser and desktop webview clients must use a short-lived `accessToken`. Backend integrations may use `apiKey` instead. Exactly one authentication mode is required, and an API key must never be embedded in a browser or desktop webview bundle.
 

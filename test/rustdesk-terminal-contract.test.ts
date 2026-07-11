@@ -62,7 +62,7 @@ test('RustDesk terminal DTOs keep configured, available, granted, and observed s
   assert.doesNotMatch(evidenceMetadata, /Record<|\[key:|clipboard_(?:content|text)|file_(?:content|path)|keystrokes|screen_pixels|token|credential|password/);
 });
 
-test('RustDesk HTTP client preserves the existing lifecycle and adopts the named disconnect DTO', () => {
+test('RustDesk HTTP client preserves the existing lifecycle and adds the distribution profile method', () => {
   const client = createIveKitRustDeskHttpClient({
     baseUrl: 'https://ivekit.example.test',
     accessToken: 'short-lived-browser-token',
@@ -74,6 +74,7 @@ test('RustDesk HTTP client preserves the existing lifecycle and adopts the named
     'deactivateDevice',
     'endGatewaySession',
     'getClientConfig',
+    'getClientProfile',
     'getDevice',
     'getGatewayDisconnectState',
     'getGatewayLaunchPlan',

@@ -22,13 +22,15 @@ export {
 } from './http-sdk.js';
 export {
   createIveKitRustDeskHttpClient,
-  IveKitRustDeskHttpError
+  IveKitRustDeskHttpError,
+  projectRustDeskClientDistributionProfile
 } from './rustdesk-http-client.js';
 export {
   createIveKitRustDeskLedSdk
 } from './rustdesk-led-sdk.js';
 export type {
   EndIveKitRustDeskGatewaySessionInput,
+  GetIveKitRustDeskClientProfileInput,
   HeartbeatIveKitRustDeskDeviceInput,
   IveKitRustDeskBusinessRefInput,
   IveKitRustDeskFetch,

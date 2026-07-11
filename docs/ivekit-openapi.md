@@ -423,6 +423,7 @@ RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveK
 | Method | Path | 说明 |
 | --- | --- | --- |
 | GET | `/api/ivekit/rustdesk/client-config` | ID/relay/API server、public key/fingerprint |
+| GET | `/api/ivekit/rustdesk/client-profile?platform=windows&architecture=x86_64&client_version=1.4.7` | 鉴权后的固定版本客户端分发 profile |
 | POST | `/api/ivekit/rustdesk/devices` | 注册 business_ref 设备 |
 | GET | `/api/ivekit/rustdesk/devices/by-ref` | business_ref 查设备 |
 | GET | `/api/ivekit/rustdesk/devices/:device_id` | 设备状态 |
@@ -494,6 +495,22 @@ protocol URL；兼容字段保持空字符串，仅输出 `launch_available` /
 RustDesk target ID 与 launch plan 不一致时生成失败。真正拉起客户端时仍调用
 `getGatewayLaunchPlan()` 即时获取短期
 opaque URL，不能从静态 pack 复用。
+
+### 4.2 客户端分发 Profile
+
+`getClientProfile()` 与 `RustDeskClientDistributionProfile` 是独立于
+`RustDeskTerminalProfile` 的分发契约。V1 只允许 Windows `x86_64`、macOS
+`x86_64/aarch64` 和 Linux `x86_64/aarch64`，并严格固定 client `1.4.7` 与 server
+`1.1.15`。调用方同时传入可信部署记录中的 expected server version 和 key
+fingerprint；服务端与 SDK 都拒绝漂移、过期 profile、错误 tuple、浮动版本、非 HTTPS
+artifact、URL userinfo/query/fragment、文件名不匹配和非 64-hex SHA-256。
+
+Artifact 只从 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
+tuple 时 profile 返回 `install_source.state=not_configured`，不会猜 URL 或 checksum。
+`rustdesk:client-profile-pack` 聚合五个 desktop tuple，任一 artifact 缺失时
+`ready=false`。它只生成 JSON handoff，不下载或执行安装器。Task 3 前 unattended 固定为
+`mode=attended_only,state=not_configured`。profile 响应使用
+`Cache-Control: private, no-store`，并按认证、tenant 与 Origin 设置 `Vary`。
 
 设备 claim/progress/result 路径只允许设备绑定 edge token，不属于 LED 普通前端/API key 的调用面。完整 scope、事件和验收规则见 RustDesk 专项设计。
 
