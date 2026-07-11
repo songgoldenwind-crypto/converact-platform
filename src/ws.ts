@@ -81,6 +81,25 @@ export function wsBroadcast(tenantId: string, event: string, data: unknown): voi
     });
 }
 
+export function wsBroadcastToUsers(
+  tenantId: string,
+  userIds: string[],
+  event: string,
+  data: unknown
+): void {
+  const recipients = [...new Set(userIds.map((userId) => String(userId || '').trim()).filter(Boolean))];
+  if (recipients.length === 0) return;
+  broadcastLocal(tenantId, event, data, new Set(recipients));
+  void getRedisPubSub()
+    .then((redis) => redis.publish(
+      WS_BROADCAST_CHANNEL,
+      JSON.stringify({ tenantId, userIds: recipients, event, data })
+    ))
+    .catch((error) => {
+      console.warn('[ws] redis targeted publish failed:', error);
+    });
+}
+
 export function getWsClientCount(tenantId?: string): number {
   if (tenantId) return clientsByTenant.get(tenantId)?.size ?? 0;
   let total = 0;
@@ -119,7 +138,12 @@ function removeClient(client: WsClient): void {
   if (set.size === 0) clientsByTenant.delete(client.tenantId);
 }
 
-function broadcastLocal(tenantId: string, event: string, data: unknown): void {
+function broadcastLocal(
+  tenantId: string,
+  event: string,
+  data: unknown,
+  userIds?: ReadonlySet<string>
+): void {
   const set = clientsByTenant.get(tenantId);
   if (!set) return;
   const envelope: WsEnvelope = {
@@ -128,6 +152,7 @@ function broadcastLocal(tenantId: string, event: string, data: unknown): void {
     timestamp: new Date().toISOString()
   };
   for (const client of set) {
+    if (userIds && !userIds.has(client.userId)) continue;
     if (client.ws.readyState === WebSocket.OPEN) {
       sendToSocket(client.ws, envelope);
     }
@@ -145,9 +170,19 @@ async function startPubSubListener(): Promise<void> {
     const redis = await getRedisPubSub();
     await redis.subscribe(WS_BROADCAST_CHANNEL, (message) => {
       try {
-        const parsed = JSON.parse(message) as { tenantId?: string; event?: string; data?: unknown };
+        const parsed = JSON.parse(message) as {
+          tenantId?: string;
+          userIds?: string[];
+          event?: string;
+          data?: unknown;
+        };
         if (!parsed.tenantId || !parsed.event) return;
-        broadcastLocal(parsed.tenantId, parsed.event, parsed.data);
+        broadcastLocal(
+          parsed.tenantId,
+          parsed.event,
+          parsed.data,
+          parsed.userIds ? new Set(parsed.userIds) : undefined
+        );
       } catch (error) {
         console.warn('[ws] invalid pubsub payload:', error);
       }

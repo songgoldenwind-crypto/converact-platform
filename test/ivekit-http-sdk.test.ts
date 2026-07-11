@@ -218,8 +218,7 @@ test('iveKit media SDK maps durable call and moderation commands', async () => {
     idempotencyKey: 'call-action-1'
   });
   await sdk.media.createCallJoinPlan('call/1', {
-    identity: 'engineer-led',
-    role: 'host'
+    identity: 'engineer-led'
   });
   await sdk.media.listCallParticipants('call/1');
   await sdk.media.muteParticipant('room/1', 'customer/1', {
@@ -246,7 +245,7 @@ test('iveKit media SDK maps durable call and moderation commands', async () => {
     },
     null,
     { action: 'accept' },
-    { identity: 'engineer-led', role: 'host' },
+    { identity: 'engineer-led' },
     null,
     { track_sid: 'TR_audio_1', source: 'microphone', muted: true },
     { reason: 'host_removed' }
@@ -374,6 +373,7 @@ test('iveKit SDK exports named browser-safe media DTOs without untyped returns',
   const sdk = readFileSync('sdk/ivekit/src/http-sdk.ts', 'utf8');
   const entrypoint = readFileSync('sdk/ivekit/src/index.ts', 'utf8');
   const mediaInterface = sdk.match(/export interface IveKitMediaHttpClient \{([\s\S]*?)\n\}/)?.[1] || '';
+  const callJoinInterface = types.match(/export interface IveKitMediaJoinInput \{([\s\S]*?)\n\}/)?.[1] || '';
 
   for (const name of [
     'IveKitMediaCapabilities',
@@ -395,6 +395,11 @@ test('iveKit SDK exports named browser-safe media DTOs without untyped returns',
   assert.match(entrypoint, /export type \* from '\.\/media-types\.js'/);
   assert.doesNotMatch(mediaInterface, /Promise<Record<string, unknown>>/);
   assert.doesNotMatch(mediaInterface, /Promise<Record<string, unknown>\[\]>/);
+  assert.match(
+    mediaInterface,
+    /transitionCall\([\s\S]*?options: \{ idempotencyKey: string \}/
+  );
+  assert.doesNotMatch(callJoinInterface, /role:/);
   assert.doesNotMatch(types, /agent-runtime|db-pg|node:/);
 });
 

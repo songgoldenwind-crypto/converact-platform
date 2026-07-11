@@ -58,6 +58,9 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('rustdesk_gateway_sessions');
     this.ensureTable('rustdesk_gateway_events');
     this.ensureTable('rustdesk_device_commands');
+    this.ensureTable('ivekit_media_calls');
+    this.ensureTable('ivekit_media_call_participants');
+    this.ensureTable('ivekit_media_call_actions');
   }
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -82,6 +85,132 @@ export class MemoryPg implements PgQueryable {
 
     if (sql.startsWith('INSERT INTO schema_migrations')) {
       this.migrationVersions.add(String(params[0]));
+      return [];
+    }
+
+    if (sql.startsWith('INSERT INTO ivekit_media_calls')) {
+      const now = this.nowIso();
+      const row: TableRow = {
+        id: params[0],
+        tenant_id: params[1],
+        room_name: params[2],
+        media: params[3],
+        status: 'created',
+        initiated_by: params[4],
+        business_ref_type: params[5],
+        business_ref_id: params[6],
+        business_ref_display_name: params[7],
+        business_ref_metadata: JSON.parse(String(params[8] || '{}')),
+        title: params[9],
+        metadata: JSON.parse(String(params[10] || '{}')),
+        ring_timeout_seconds: params[11],
+        ring_expires_at: null,
+        accepted_at: null,
+        started_at: null,
+        ended_at: null,
+        end_reason: '',
+        created_at: now,
+        updated_at: now
+      };
+      this.table('ivekit_media_calls').set(String(row.id), row);
+      return [row];
+    }
+
+    if (sql.startsWith('INSERT INTO ivekit_media_call_participants')) {
+      const now = this.nowIso();
+      const row: TableRow = {
+        id: params[0],
+        tenant_id: params[1],
+        call_id: params[2],
+        identity: params[3],
+        role: params[4],
+        status: params[5],
+        display_name: params[6],
+        metadata: JSON.parse(String(params[7] || '{}')),
+        invited_at: now,
+        accepted_at: null,
+        joined_at: params[8] || null,
+        left_at: null,
+        updated_at: now
+      };
+      this.table('ivekit_media_call_participants').set(String(row.id), row);
+      return [row];
+    }
+
+    if (sql.startsWith('SELECT * FROM ivekit_media_calls')) {
+      const tenantId = String(params[0]);
+      const callId = String(params[1]);
+      const row = this.table('ivekit_media_calls').get(callId);
+      return row && String(row.tenant_id) === tenantId ? [row] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM ivekit_media_call_participants')) {
+      const tenantId = String(params[0]);
+      const callId = String(params[1]);
+      return [...this.table('ivekit_media_call_participants').values()]
+        .filter((row) => String(row.tenant_id) === tenantId && String(row.call_id) === callId)
+        .sort((left, right) => String(left.invited_at).localeCompare(String(right.invited_at)) ||
+          String(left.id).localeCompare(String(right.id)));
+    }
+
+    if (sql.startsWith('UPDATE ivekit_media_calls')) {
+      const row = this.table('ivekit_media_calls').get(String(params[1]));
+      if (!row || String(row.tenant_id) !== String(params[0])) return [];
+      row.status = params[2];
+      row.ring_expires_at = params[3];
+      row.accepted_at = params[4];
+      row.started_at = params[5];
+      row.ended_at = params[6];
+      row.end_reason = params[7];
+      row.updated_at = this.nowIso();
+      return [row];
+    }
+
+    if (sql.startsWith('UPDATE ivekit_media_call_participants')) {
+      const row = [...this.table('ivekit_media_call_participants').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) &&
+        String(candidate.call_id) === String(params[1]) &&
+        String(candidate.identity) === String(params[2])
+      );
+      if (!row) return [];
+      row.status = params[3];
+      row.accepted_at = params[4];
+      row.joined_at = params[5];
+      row.left_at = params[6];
+      row.updated_at = this.nowIso();
+      return [row];
+    }
+
+    if (sql.startsWith('SELECT call_id, payload_hash, result_snapshot FROM ivekit_media_call_actions')) {
+      const row = [...this.table('ivekit_media_call_actions').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) &&
+        String(candidate.idempotency_key) === String(params[1])
+      );
+      return row ? [row] : [];
+    }
+
+    if (sql.startsWith('INSERT INTO ivekit_media_call_actions')) {
+      const duplicate = [...this.table('ivekit_media_call_actions').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.idempotency_key) === String(params[3])
+      );
+      if (duplicate) throw new Error('duplicate ivekit media call action idempotency key');
+      const row: TableRow = {
+        id: params[0],
+        tenant_id: params[1],
+        call_id: params[2],
+        idempotency_key: params[3],
+        payload_hash: params[4],
+        action: params[5],
+        actor_identity: params[6],
+        reason: params[7],
+        metadata: JSON.parse(String(params[8] || '{}')),
+        from_status: params[9],
+        to_status: params[10],
+        result_snapshot: JSON.parse(String(params[11] || '{}')),
+        created_at: this.nowIso()
+      };
+      this.table('ivekit_media_call_actions').set(String(row.id), row);
       return [];
     }
 

@@ -95,6 +95,8 @@ export function createLiveKitMediaModule(input: LiveKitMediaModuleInput): LiveKi
 export { dispatchAiAgent } from './agent-dispatch-service.js';
 export { readLiveKitConfig, isLiveKitConfigured } from './config.js';
 export { LiveKitParticipantStore } from './participant-store.js';
+export { MediaCallService } from './media-call-service.js';
+export { MediaCallStore } from './media-call-store.js';
 export { LiveKitRecordingService } from './recording-service.js';
 export type { EgressConfig } from './recording-service.js';
 export { LiveKitRoomStore } from './room-store.js';

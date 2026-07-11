@@ -18,6 +18,79 @@ export type MediaRoomPurpose =
   | 'conference'
   | 'pstn_bridge';
 
+export type IveKitMediaCallStatus =
+  | 'created'
+  | 'ringing'
+  | 'accepted'
+  | 'active'
+  | 'rejected'
+  | 'cancelled'
+  | 'timed_out'
+  | 'ended'
+  | 'failed';
+
+export type IveKitMediaCallParticipantStatus =
+  | 'invited'
+  | 'ringing'
+  | 'accepted'
+  | 'joined'
+  | 'declined'
+  | 'left'
+  | 'missed'
+  | 'removed';
+
+export type IveKitMediaCallRole = 'host' | 'participant' | 'observer';
+export type IveKitMediaCallAction =
+  | 'ring'
+  | 'accept'
+  | 'reject'
+  | 'cancel'
+  | 'timeout'
+  | 'activate'
+  | 'end'
+  | 'fail';
+
+export interface IveKitMediaCall {
+  id: string;
+  tenant_id: string;
+  room_name: string;
+  media: 'voice' | 'video';
+  status: IveKitMediaCallStatus;
+  initiated_by: string;
+  business_ref: MediaBusinessRef;
+  title: string;
+  metadata: Record<string, unknown>;
+  ring_timeout_seconds: number;
+  ring_expires_at: string | null;
+  accepted_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  end_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IveKitMediaCallParticipant {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  identity: string;
+  role: IveKitMediaCallRole;
+  status: IveKitMediaCallParticipantStatus;
+  display_name: string;
+  metadata: Record<string, unknown>;
+  invited_at: string;
+  accepted_at: string | null;
+  joined_at: string | null;
+  left_at: string | null;
+  updated_at: string;
+}
+
+export interface IveKitMediaCallSnapshot {
+  call: IveKitMediaCall;
+  participants: IveKitMediaCallParticipant[];
+}
+
 export interface CreateMediaRoomInput {
   tenant_id: string;
   purpose: MediaRoomPurpose;

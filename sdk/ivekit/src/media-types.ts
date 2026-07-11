@@ -63,6 +63,7 @@ export interface IveKitMediaCall {
   business_ref: IveKitSdkBusinessRef;
   title: string;
   metadata: Record<string, unknown>;
+  ring_timeout_seconds: number;
   ring_expires_at: string | null;
   accepted_at: string | null;
   started_at: string | null;
@@ -120,7 +121,6 @@ export interface IveKitMediaCallActionInput {
 
 export interface IveKitMediaJoinInput {
   identity: string;
-  role: IveKitMediaCallRole;
   display_name?: string;
   metadata?: Record<string, unknown>;
 }

@@ -142,6 +142,47 @@ maybe('runtime role cannot enable generic RLS bypass', async () => {
   });
 });
 
+maybe('iveKit media call lifecycle tables hide every foreign tenant row', async () => {
+  const a = 'tenant_rls_media_a';
+  const b = 'tenant_rls_media_b';
+  const callId = 'mcall_rls_b';
+  await withAdmin(async (c) => {
+    await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [a, 'Media A']);
+    await c.query(`INSERT INTO tenants (id, name, plan_code) VALUES ($1,$2,'free') ON CONFLICT DO NOTHING`, [b, 'Media B']);
+    await c.query(`DELETE FROM ivekit_media_calls WHERE tenant_id IN ($1,$2)`, [a, b]);
+    await c.query(
+      `INSERT INTO ivekit_media_calls
+        (id, tenant_id, room_name, media, initiated_by, business_ref_type, business_ref_id)
+       VALUES ($1,$2,$3,'video',$4,'service_order','SO-RLS')`,
+      [callId, b, 'room-rls-b', 'host-rls-b']
+    );
+    await c.query(
+      `INSERT INTO ivekit_media_call_participants
+        (id, tenant_id, call_id, identity, role, status)
+       VALUES ('mcp_rls_b',$1,$2,'host-rls-b','host','joined')`,
+      [b, callId]
+    );
+    await c.query(
+      `INSERT INTO ivekit_media_call_actions
+        (id, tenant_id, call_id, idempotency_key, payload_hash, action, actor_identity,
+         from_status, to_status, result_snapshot)
+       VALUES ('mca_rls_b',$1,$2,'rls-action-b',$3,'ring','host-rls-b','created','ringing',$4)`,
+      [b, callId, 'a'.repeat(64), JSON.stringify({ call: { id: callId }, participants: [] })]
+    );
+  });
+
+  await withPgTenant(pg, a, async (c) => {
+    for (const table of [
+      'ivekit_media_calls',
+      'ivekit_media_call_participants',
+      'ivekit_media_call_actions'
+    ]) {
+      const result = await c.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table} WHERE tenant_id = $1`, [b]);
+      assert.equal(result.rows[0]?.n, 0, `${table} leaked a foreign tenant row`);
+    }
+  });
+});
+
 test('teardown real postgres', async () => {
   if (!HAS_REAL_PG) return;
   await adminPg.end();

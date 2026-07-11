@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
 import { createDatabase } from '../src/db.js';
-import { MemoryPg } from '../src/db-pg.js';
+import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { getPgTenantContext } from '../src/db-pg-tenant.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
@@ -208,6 +208,62 @@ test('standalone iveKit server enters the tenant PostgreSQL context', async (t) 
 
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { tenant_context: 'tenant-standalone' });
+});
+
+test('standalone iveKit media calls receive the request-scoped PostgreSQL client', async (t) => {
+  const previousApiKey = process.env.OPC_API_KEY;
+  process.env.OPC_API_KEY = 'standalone-scoped-pg-key';
+  const db = createDatabase(':memory:');
+  const queries: string[] = [];
+  const client = {
+    release: () => undefined,
+    query: async (text: string) => {
+      queries.push(text.replace(/\s+/g, ' ').trim());
+      return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] };
+    }
+  };
+  const pool = {
+    connect: async () => client,
+    query: client.query
+  } as unknown as PgQueryable;
+  const server = createIveKitHttpServer({
+    db,
+    pg: pool,
+    routes: {
+      media: async (_db, _method, _path, _url, _body, _rawBody, _headers, options) => {
+        assert.equal(options.pg, client);
+        return {
+          data: { scoped: true },
+          afterCommit: () => {
+            queries.push('AFTER_COMMIT');
+          }
+        };
+      },
+      chat: async () => undefined,
+      collaboration: async () => undefined
+    }
+  });
+  t.after(async () => {
+    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
+    else process.env.OPC_API_KEY = previousApiKey;
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+  });
+
+  const port = await listenOnRandomPort(server);
+  const response = await fetch(`http://127.0.0.1:${port}/api/ivekit/media/capabilities`, {
+    headers: {
+      'x-api-key': 'standalone-scoped-pg-key',
+      'x-tenant-id': 'tenant-scoped-pg',
+      'x-user-id': 'engineer-scoped-pg'
+    }
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { scoped: true });
+  assert.equal(queries.some((query) => query === 'BEGIN'), true);
+  assert.equal(queries.some((query) => query.includes("set_config('app.current_tenant'")), true);
+  assert.equal(queries.some((query) => query === 'COMMIT'), true);
+  assert.equal(queries.indexOf('COMMIT') < queries.indexOf('AFTER_COMMIT'), true);
 });
 
 test('standalone iveKit server preserves HTML and binary responses', async (t) => {

@@ -110,7 +110,10 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         : path;
       const mediaUrl = mediaPath === path ? url : new URL(mediaPath, url);
       const dispatch = async (pg: PgQueryable | null) =>
-        await routes.media(input.db, method, mediaPath, mediaUrl, body, rawBody, headers, mediaOptions)
+        await routes.media(input.db, method, mediaPath, mediaUrl, body, rawBody, headers, {
+          ...mediaOptions,
+          ...(pg ? { pg } : {})
+        })
         ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
         ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
       const result = await runWithPgTenantContextAsync(tenantContext, () =>
@@ -123,6 +126,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         sendJson(response, 404, { error: { message: 'not found', status: 404 } });
         return;
       }
+      await runAfterCommit(result);
       const output = result as Record<string, unknown>;
       if (typeof output.html === 'string') {
         send(response, 200, output.html, 'text/html; charset=utf-8');
@@ -153,6 +157,17 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       });
     }
   });
+}
+
+async function runAfterCommit(result: unknown): Promise<void> {
+  if (!result || typeof result !== 'object') return;
+  const callback = (result as { afterCommit?: unknown }).afterCommit;
+  if (typeof callback !== 'function') return;
+  try {
+    await callback();
+  } catch (error) {
+    console.error('[ivekit] post-commit event failed', error);
+  }
 }
 
 function isAllowedIveKitPath(path: string): boolean {

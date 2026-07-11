@@ -20,6 +20,7 @@ export interface IveKitMediaHooksInput {
 export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKitMediaApiOptions {
   const retentionDays = configuredRetentionDays();
   return {
+    pg: input.pg,
     onRecordingStarted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
       recordMediaRecordingEvidence(pg, recording, {
         roomName: context.roomName,

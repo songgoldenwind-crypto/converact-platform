@@ -93,7 +93,7 @@ export interface IveKitMediaHttpClient {
   transitionCall(
     callId: string,
     input: IveKitMediaCallActionInput,
-    options?: { idempotencyKey?: string }
+    options: { idempotencyKey: string }
   ): Promise<IveKitMediaCallSnapshot>;
   createCallJoinPlan(callId: string, input: IveKitMediaJoinInput): Promise<IveKitMediaJoinPlan>;
   listCallParticipants(callId: string): Promise<IveKitMediaCallParticipantListResult>;
@@ -352,12 +352,12 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
     getCapabilities: () => transport.json('GET', '/api/ivekit/media/capabilities'),
     createCall: (input) => transport.json('POST', '/api/ivekit/media/calls', { body: input }),
     getCall: (callId) => transport.json('GET', callPath(callId)),
-    transitionCall: (callId, input, options = {}) => transport.json(
+    transitionCall: (callId, input, options) => transport.json(
       'POST',
       `${callPath(callId)}/actions`,
       {
         body: input,
-        headers: options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined
+        headers: { 'Idempotency-Key': requiredString(options?.idempotencyKey, 'idempotencyKey is required') }
       }
     ),
     createCallJoinPlan: (callId, input) => transport.json(

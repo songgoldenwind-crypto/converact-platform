@@ -147,15 +147,15 @@ git commit -m "feat(sdk): type iveKit media contract"
 - Modify: `test/db-rls-integration.test.ts`
 - Modify: `docs/ivekit-openapi.md`
 
-- [ ] **Step 1: Write failing lifecycle, idempotency, and RLS tests**
+- [x] **Step 1: Write failing lifecycle, idempotency, and RLS tests**
 
 Cover allowed transitions, duplicate actions, competing accept/reject, ring timeout to missed, end-after-accept, terminal-state immutability, same-tenant business refs, cross-tenant 404, authenticated caller identity, and FORCE RLS for calls/participants/action audit.
 
-- [ ] **Step 2: Add tenant-scoped schema**
+- [x] **Step 2: Add tenant-scoped schema**
 
 Create `ivekit_media_calls`, `ivekit_media_call_participants`, and `ivekit_media_call_actions`. Use unique `(tenant_id, idempotency_key)` for commands and unique `(tenant_id, call_id, identity)` for participants. Add indexes on business ref, room, status/expiry, and participant identity; enable and force RLS on all three tables.
 
-- [ ] **Step 3: Implement one transition table**
+- [x] **Step 3: Implement one transition table**
 
 ```typescript
 const ALLOWED_MEDIA_CALL_ACTIONS = {
@@ -169,7 +169,7 @@ const ALLOWED_MEDIA_CALL_ACTIONS = {
 
 Run each transition in one PostgreSQL transaction with row locking. A repeated idempotency key returns the original snapshot.
 
-- [ ] **Step 4: Expose stable endpoints and events**
+- [x] **Step 4: Expose stable endpoints and events**
 
 ```text
 POST /api/ivekit/media/calls
@@ -181,7 +181,7 @@ GET  /api/ivekit/media/calls/:id/participants
 
 Emit `ivekit.media.call.created`, `call.updated`, `participant.updated`, and `call.ended` with ids/status only; do not include tokens or copied metadata bodies.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 node --import tsx --test test/ivekit-media-call-lifecycle.test.ts test/db-rls-integration.test.ts

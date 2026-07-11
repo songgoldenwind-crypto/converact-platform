@@ -113,6 +113,8 @@ export function createServer(db, pg: PgQueryable | null = null) {
         );
       });
 
+      await runAfterCommit(result);
+
       if (result?.sse && typeof result.attach === 'function') {
         result.attach(res);
         return;
@@ -168,6 +170,17 @@ export function createServer(db, pg: PgQueryable | null = null) {
   });
 }
 
+async function runAfterCommit(result: unknown): Promise<void> {
+  if (!result || typeof result !== 'object') return;
+  const callback = (result as { afterCommit?: unknown }).afterCommit;
+  if (typeof callback !== 'function') return;
+  try {
+    await callback();
+  } catch (error) {
+    console.error('[http] post-commit event failed', error);
+  }
+}
+
 async function route(db, harness, pg: PgQueryable | null, method, url, body, rawBody: string | Buffer = '', headers = {}) {
   const path = url.pathname;
 
@@ -201,6 +214,7 @@ async function route(db, harness, pg: PgQueryable | null, method, url, body, raw
   if (callCenterResult !== undefined) return callCenterResult;
 
   const iveKitMediaResult = await routeIveKitMediaApi(db, method, path, url, body, rawBody, headers, {
+    pg: pg || undefined,
     onRecordingStarted: pg
       ? (recording, context) => recordMediaRecordingEvidence(pg, recording, context)
       : undefined,

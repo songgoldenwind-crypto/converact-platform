@@ -59,7 +59,45 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 
 ## 2. Media Core
 
-### 2.1 Capabilities
+### 2.1 Durable call lifecycle
+
+The PostgreSQL call projection is authoritative. LiveKit room and participant
+events reconcile into this projection; they do not replace it.
+
+```text
+POST /api/ivekit/media/calls
+GET  /api/ivekit/media/calls/:call_id
+POST /api/ivekit/media/calls/:call_id/actions
+POST /api/ivekit/media/calls/:call_id/join
+GET  /api/ivekit/media/calls/:call_id/participants
+```
+
+Call actions require `Idempotency-Key`. Supported actions are `ring`, `accept`,
+`reject`, `cancel`, `timeout`, `activate`, `end`, and `fail`. Reusing a key with
+the same request returns the original snapshot; reusing it for another request
+returns `409`. Calls use `created -> ringing -> accepted -> active -> ended`,
+with terminal `rejected`, `cancelled`, `timed_out`, and `failed` branches.
+When another request is currently claiming the same key, the server returns a
+retryable `409`; clients retry with the original key and payload.
+
+User-mode identity comes from the Bearer token. The creator is the call `host`;
+invited identities are `participant` rows. Cross-tenant and unknown call ids
+return `404`. JWT reads require persisted call membership. Join plans are issued
+only while the call is `accepted` or `active`, and only to an `accepted/joined`
+participant (the already-joined host is also allowed). Call join responses do not
+reuse the legacy room `joinPath`.
+
+Events are published only after the PostgreSQL transaction commits, are targeted
+to the call participant identities, and contain ids and statuses only:
+
+```text
+ivekit.media.call.created
+ivekit.media.call.updated
+ivekit.media.participant.updated
+ivekit.media.call.ended
+```
+
+### 2.2 Capabilities
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -86,7 +124,7 @@ Media Core 不返回 URL、API key 或 secret。与 LiveKit 浏览器接入有�
 
 `livekit_server_configured` 表示服务端地址、API key 和 API secret 齐全；`livekit_browser_join_ready` 表示服务端配置完整且浏览器入口有效。生产环境缺任一服务端配置都会拒绝签 token，只有显式配置 `LIVEKIT_PUBLIC_URL=wss://...` 时，浏览器 join 才可能就绪；production 不会签发 `dev-token`。
 
-### 2.2 房间和 Join
+### 2.3 房间和 Join
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -121,7 +159,7 @@ Join Plan：
 
 WebRTC 返回 LiveKit token/URL/join path；SIP bridge 返回 dial target/trunk 等 metadata。WebRTC 响应中的 `livekit_url` 是浏览器可连接的 `LIVEKIT_PUBLIC_URL`，不是服务端使用的 `LIVEKIT_URL`。生产环境缺少公网 URL 或使用 `ws://` 时，Join 会失败关闭，不会把容器内地址返回给浏览器。Token 不应写日志或持久化到 LED 业务表。
 
-### 2.3 Recording/Egress
+### 2.4 Recording/Egress
 
 | Method | Path | 说明 |
 | --- | --- | --- |

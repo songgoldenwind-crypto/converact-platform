@@ -1,5 +1,9 @@
 import { resolveAuthContext } from '../../middleware/auth.js';
-import { createLiveKitMediaModule } from '../livekit/index.js';
+import type { PgQueryable } from '../../db-pg.js';
+import { wsBroadcastToUsers } from '../../ws.js';
+import { createLiveKitMediaModule, issueSupervisorToken } from '../livekit/index.js';
+import { MediaCallService } from '../livekit/media-call-service.js';
+import { MediaCallStore } from '../livekit/media-call-store.js';
 import {
   isLiveKitBrowserJoinConfigured,
   isLiveKitConfigured,
@@ -14,9 +18,11 @@ import type {
   RecordingObjectContentResult,
   RecordingObjectDeleteResult
 } from '../livekit/types.js';
+import type { IveKitMediaCallAction, IveKitMediaCallSnapshot } from '../livekit/types.js';
 import type { MediaChannel } from '../media-gateway/index.js';
 
 export interface RouteIveKitMediaApiOptions {
+  pg?: PgQueryable;
   onRecordingStarted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   onRecordingCompleted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   resolveRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectContentResult>;
@@ -27,6 +33,11 @@ export interface RouteIveKitMediaApiOptions {
     context: { actorId: string; source?: string }
   ) => void | Promise<unknown>;
   onRecordingAudit?: (event: RecordingAuditEvent) => void | Promise<void>;
+}
+
+function requireMediaCallPg(pg: PgQueryable | undefined): PgQueryable {
+  if (!pg) throw Object.assign(new Error('postgres is required for iveKit media calls'), { status: 503 });
+  return pg;
 }
 
 function badRequest(message: string): Error & { status: number } {
@@ -223,6 +234,130 @@ export async function routeIveKitMediaApi(
 
   const ctx = requireAuth(headers);
 
+  const mediaCallService = () => new MediaCallService(new MediaCallStore(requireMediaCallPg(options.pg)));
+
+  if (routePath === '/api/ivekit/media/calls' && method === 'POST') {
+    const input = bodyRecord(body);
+    const businessRef = optionalBusinessRef(ctx.tenantId, input);
+    if (!businessRef) throw badRequest('business_ref is required');
+    const actorIdentity = mediaActorIdentity(ctx, headers);
+    if (!actorIdentity) throw badRequest('authenticated media call identity is required');
+    const participantIdentities = Array.isArray(input.participant_identities)
+      ? input.participant_identities.map((identity) => String(identity || '').trim()).filter(Boolean)
+      : [];
+    const snapshot = await mediaCallService().createCall({
+      tenant_id: ctx.tenantId,
+      initiated_by: actorIdentity,
+      media: String(input.media || 'video') === 'voice' ? 'voice' : 'video',
+      participant_identities: participantIdentities,
+      business_ref: businessRef,
+      title: optionalBodyString(input, 'title'),
+      metadata: bodyRecord(input.metadata),
+      ring_timeout_seconds: optionalBodyNumber(input, 'ring_timeout_seconds')
+    });
+    return {
+      status: 201,
+      data: snapshot,
+      afterCommit: () => broadcastMediaCall(ctx.tenantId, 'ivekit.media.call.created', snapshot)
+    };
+  }
+
+  const mediaCallMatch = routePath.match(/^\/api\/ivekit\/media\/calls\/([^/]+)(?:\/([^/]+))?$/);
+  if (mediaCallMatch) {
+    const callId = decodeURIComponent(mediaCallMatch[1]);
+    const action = mediaCallMatch[2] || '';
+    const calls = mediaCallService();
+
+    if (!action && method === 'GET') {
+      const snapshot = await calls.getCall(ctx.tenantId, callId);
+      if (!snapshot) throw notFound('media call not found');
+      requireMediaCallReadAccess(ctx, headers, snapshot);
+      return { data: snapshot };
+    }
+
+    if (action === 'participants' && method === 'GET') {
+      const snapshot = await calls.getCall(ctx.tenantId, callId);
+      if (!snapshot) throw notFound('media call not found');
+      requireMediaCallReadAccess(ctx, headers, snapshot);
+      return {
+        data: {
+          items: snapshot.participants,
+          next_cursor: null,
+          has_more: false
+        }
+      };
+    }
+
+    if (action === 'actions' && method === 'POST') {
+      const input = bodyRecord(body);
+      const actorIdentity = mediaActorIdentity(ctx, headers);
+      if (!actorIdentity) throw badRequest('authenticated media call identity is required');
+      const transition = await calls.transition({
+        tenant_id: ctx.tenantId,
+        call_id: callId,
+        action: mediaCallAction(input.action),
+        actor_identity: actorIdentity,
+        actor_is_system: ctx.role === 'system',
+        idempotency_key: headerValue(headers, 'idempotency-key'),
+        reason: optionalBodyString(input, 'reason'),
+        metadata: bodyRecord(input.metadata)
+      });
+      return {
+        status: 201,
+        data: transition.snapshot,
+        ...(transition.replayed
+          ? {}
+          : { afterCommit: () => broadcastMediaCallTransition(ctx.tenantId, transition.snapshot) })
+      };
+    }
+
+    if (action === 'join' && method === 'POST') {
+      const input = bodyRecord(body);
+      const actorIdentity = mediaActorIdentity(ctx, headers);
+      const identity = String(input.identity || actorIdentity).trim();
+      if (!identity) throw badRequest('identity is required');
+      if (ctx.role !== 'system' && identity !== actorIdentity) {
+        throw Object.assign(new Error('media identity must match authenticated user'), { status: 403 });
+      }
+      return calls.withJoinAuthorization(ctx.tenantId, callId, identity, async (snapshot, participant) => {
+        if (participant.role === 'observer') {
+          const token = await issueSupervisorToken({
+            room_name: snapshot.call.room_name,
+            identity,
+            mode: 'listen',
+            tenant_id: ctx.tenantId
+          });
+          return {
+            status: 201,
+            data: {
+              mode: 'webrtc',
+              channel: 'webrtc',
+              token,
+              roomName: snapshot.call.room_name,
+              role: participant.role
+            }
+          };
+        }
+        const plan = await media.gateways.prepareJoin('webrtc', {
+          tenantId: ctx.tenantId,
+          roomName: snapshot.call.room_name,
+          identity,
+          role: participant.role === 'host' ? 'agent' : 'customer',
+          media: snapshot.call.media,
+          metadata: bodyRecord(input.metadata)
+        });
+        const { joinPath: _legacyJoinPath, ...callBoundPlan } = plan.mode === 'webrtc' ? plan : {
+          ...plan,
+          joinPath: undefined
+        };
+        return {
+          status: 201,
+          data: { ...callBoundPlan, roomName: snapshot.call.room_name, role: participant.role }
+        };
+      });
+    }
+  }
+
   if (routePath === '/api/ivekit/media/capabilities' && method === 'GET') {
     return { data: capabilities(ctx.tenantId) };
   }
@@ -412,6 +547,61 @@ export async function routeIveKitMediaApi(
   }
 
   return undefined;
+}
+
+function mediaCallAction(value: unknown): IveKitMediaCallAction {
+  const action = String(value || '').trim();
+  if (!['ring', 'accept', 'reject', 'cancel', 'timeout', 'activate', 'end', 'fail'].includes(action)) {
+    throw badRequest('unsupported media call action');
+  }
+  return action as IveKitMediaCallAction;
+}
+
+function mediaActorIdentity(
+  ctx: ReturnType<typeof requireAuth>,
+  headers: Record<string, string | string[] | undefined>
+): string {
+  return (ctx.role === 'system' ? headerValue(headers, 'x-user-id') : ctx.userId).trim() || ctx.userId;
+}
+
+function requireMediaCallReadAccess(
+  ctx: ReturnType<typeof requireAuth>,
+  headers: Record<string, string | string[] | undefined>,
+  snapshot: IveKitMediaCallSnapshot
+): void {
+  if (ctx.role === 'system') return;
+  const identity = mediaActorIdentity(ctx, headers);
+  if (!snapshot.participants.some((participant) => participant.identity === identity && participant.status !== 'removed')) {
+    throw notFound('media call not found');
+  }
+}
+
+function broadcastMediaCallTransition(tenantId: string, snapshot: IveKitMediaCallSnapshot): void {
+  const recipients = snapshot.participants.map((participant) => participant.identity);
+  broadcastMediaCall(tenantId, 'ivekit.media.call.updated', snapshot);
+  for (const participant of snapshot.participants) {
+    wsBroadcastToUsers(tenantId, recipients, 'ivekit.media.participant.updated', {
+      call_id: snapshot.call.id,
+      identity: participant.identity,
+      role: participant.role,
+      status: participant.status
+    });
+  }
+  if (['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(snapshot.call.status)) {
+    broadcastMediaCall(tenantId, 'ivekit.media.call.ended', snapshot);
+  }
+}
+
+function broadcastMediaCall(
+  tenantId: string,
+  event: 'ivekit.media.call.created' | 'ivekit.media.call.updated' | 'ivekit.media.call.ended',
+  snapshot: IveKitMediaCallSnapshot
+): void {
+  wsBroadcastToUsers(tenantId, snapshot.participants.map((participant) => participant.identity), event, {
+    call_id: snapshot.call.id,
+    room_name: snapshot.call.room_name,
+    status: snapshot.call.status
+  });
 }
 
 function headerValue(
