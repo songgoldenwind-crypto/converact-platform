@@ -150,12 +150,41 @@ test('iveKit RustDesk HTTP client rejects bad configuration before calling fetch
   );
   assert.throws(
     () => createIveKitRustDeskHttpClient({ baseUrl: 'https://opc.example.com', apiKey: '', tenantId: 't' }),
-    /apiKey is required/
+    /exactly one of apiKey or accessToken is required/
+  );
+  assert.throws(
+    () => createIveKitRustDeskHttpClient({
+      baseUrl: 'https://opc.example.com',
+      apiKey: 'server-key',
+      accessToken: 'user-token',
+      tenantId: 't'
+    }),
+    /exactly one of apiKey or accessToken is required/
   );
   assert.throws(
     () => createIveKitRustDeskHttpClient({ baseUrl: 'https://opc.example.com', apiKey: 'k', tenantId: '' }),
     /tenantId is required/
   );
+});
+
+test('iveKit RustDesk HTTP client keeps Bearer identity authoritative', async () => {
+  let headers: Record<string, string> = {};
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://opc.example.com',
+    accessToken: 'short-lived-user-token',
+    tenantId: 'tenant_led',
+    userId: 'spoofed-user-id',
+    fetch: async (_input, init = {}) => {
+      headers = headersToRecord(init.headers);
+      return jsonResponse(200, { id_server: 'rustdesk-id.example.com' });
+    }
+  });
+
+  await client.getClientConfig();
+  assert.equal(headers.authorization, 'Bearer short-lived-user-token');
+  assert.equal(headers['x-tenant-id'], 'tenant_led');
+  assert.equal(headers['x-user-id'], undefined);
+  assert.equal(headers['x-api-key'], undefined);
 });
 
 test('iveKit RustDesk HTTP client exposes status, method, path, and upstream error', async () => {

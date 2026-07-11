@@ -1,4 +1,6 @@
 export { createIveKitModule } from './module.js';
+export { createIveKitClient } from '../../../sdk/ivekit/src/index.js';
+export type { IveKitClient, IveKitClientInput } from '../../../sdk/ivekit/src/index.js';
 export { startIveKitApplication } from './application.js';
 export type {
   IveKitApplication,

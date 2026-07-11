@@ -24,6 +24,6 @@ test('package exposes the iveKit production start command', () => {
   assert.equal(pkg.scripts?.['start:ivekit'], 'tsx src/ivekit-server.ts');
   assert.equal(
     pkg.scripts?.['test:ivekit:foundation'],
-    'node --import tsx --test test/ivekit-standalone-http.test.ts test/ivekit-media-hooks.test.ts test/ivekit-application.test.ts test/ivekit-server-entrypoint.test.ts'
+    'node --import tsx --test test/ivekit-standalone-http.test.ts test/ivekit-media-hooks.test.ts test/ivekit-application.test.ts test/ivekit-server-entrypoint.test.ts test/ivekit-sdk-package.test.ts'
   );
 });

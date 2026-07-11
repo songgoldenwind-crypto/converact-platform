@@ -37,10 +37,10 @@ The following invariants are mandatory:
 | `src/ivekit-server.ts` | Production iveKit-only process entrypoint. |
 | `sdk/ivekit/package.json` | Publishable `@opc/ivekit-sdk` package metadata. |
 | `sdk/ivekit/tsconfig.json` | SDK-only TypeScript build configuration. |
-| `sdk/ivekit/src/transport.ts` | Authenticated JSON/binary transport and structured errors. |
-| `sdk/ivekit/src/media.ts` | Typed Media Core client. |
-| `sdk/ivekit/src/chat.ts` | Typed Collaboration/IM client. |
-| `sdk/ivekit/src/rustdesk.ts` | Typed RustDesk device/session/audit client. |
+| `sdk/ivekit/src/http-sdk.ts` | Existing authenticated Media/Chat JSON and binary client, moved without contract drift. |
+| `sdk/ivekit/src/rustdesk-http-client.ts` | Existing typed RustDesk device/session/audit client. |
+| `sdk/ivekit/src/rustdesk-led-sdk.ts` | Existing high-level LED RustDesk workflow client. |
+| `sdk/ivekit/src/types.ts` | Browser-safe public DTOs replacing server-internal collaboration type imports. |
 | `sdk/ivekit/src/index.ts` | Public SDK interface and factory. |
 | `sdk/ivekit/README.md` | Installation, authentication, compatibility, and minimal LED flow. |
 | `test/ivekit-standalone-http.test.ts` | Standalone route allowlist, binary upload, auth, and RLS contract. |
@@ -369,10 +369,10 @@ git commit -m "feat(ivekit): add standalone process"
 - Create: `sdk/ivekit/package.json`
 - Create: `sdk/ivekit/package-lock.json`
 - Create: `sdk/ivekit/tsconfig.json`
-- Create: `sdk/ivekit/src/transport.ts`
-- Create: `sdk/ivekit/src/media.ts`
-- Create: `sdk/ivekit/src/chat.ts`
-- Create: `sdk/ivekit/src/rustdesk.ts`
+- Create: `sdk/ivekit/src/http-sdk.ts`
+- Create: `sdk/ivekit/src/rustdesk-http-client.ts`
+- Create: `sdk/ivekit/src/rustdesk-led-sdk.ts`
+- Create: `sdk/ivekit/src/types.ts`
 - Create: `sdk/ivekit/src/index.ts`
 - Create: `sdk/ivekit/README.md`
 - Create: `test/ivekit-sdk-package.test.ts`
@@ -382,7 +382,7 @@ git commit -m "feat(ivekit): add standalone process"
 - Modify: `src/agent-runtime/ivekit/index.ts`
 - Modify: `Dockerfile`
 
-- [ ] **Step 1: Write failing package-interface tests**
+- [x] **Step 1: Write failing package-interface tests**
 
 ```typescript
 test('iveKit SDK exposes media chat and rustdesk through one factory', async () => {
@@ -406,7 +406,7 @@ test('iveKit SDK package has no server-side imports', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 node --import tsx --test test/ivekit-sdk-package.test.ts
@@ -414,7 +414,7 @@ node --import tsx --test test/ivekit-sdk-package.test.ts
 
 Expected: FAIL because `sdk/ivekit` and `createIveKitClient` do not exist.
 
-- [ ] **Step 3: Create package metadata**
+- [x] **Step 3: Create package metadata**
 
 Use this public package contract:
 
@@ -434,7 +434,7 @@ Use this public package contract:
 }
 ```
 
-- [ ] **Step 4: Move transport and typed clients behind one factory**
+- [x] **Step 4: Move transport and typed clients behind one factory**
 
 The public seam is:
 
@@ -456,7 +456,7 @@ Reuse the existing behavior from:
 
 Do not redesign endpoint payloads in this task. Split by caller domain, share one transport, retain `IveKitHttpSdkError` compatibility, and alias `createIveKitHttpSdk` to the media/chat portion of the new factory.
 
-- [ ] **Step 5: Replace old implementations with compatibility re-exports**
+- [x] **Step 5: Replace old implementations with compatibility re-exports**
 
 Each old file becomes a re-export only. For example:
 
@@ -466,7 +466,7 @@ export * from '../../../sdk/ivekit/src/index.js';
 
 Where names collide, export the exact symbol from its SDK source module. Existing tests and scripts must continue importing old paths unchanged.
 
-- [ ] **Step 6: Document the minimal LED flow**
+- [x] **Step 6: Document the minimal LED flow**
 
 The README example must compile and show:
 
@@ -479,7 +479,7 @@ const device = await ivekit.rustdesk.ensureDevice({ businessRef: orderRef, rustd
 
 Document API-key server usage separately from browser bearer-token usage. Warn that browser bundles must never contain `apiKey`.
 
-- [ ] **Step 7: Build, pack, and inspect package contents**
+- [x] **Step 7: Build, pack, and inspect package contents**
 
 ```bash
 npm install --prefix sdk/ivekit
@@ -489,7 +489,7 @@ npm run pack:ivekit-sdk
 
 Expected package contents: `dist/**`, `README.md`, `package.json`; no `src/agent-runtime`, `.env`, tests, or credentials.
 
-- [ ] **Step 8: Run SDK and compatibility tests**
+- [x] **Step 8: Run SDK and compatibility tests**
 
 ```bash
 node --import tsx --test \
@@ -502,7 +502,7 @@ node --import tsx --test \
 npm run typecheck
 ```
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add sdk/ivekit src/agent-runtime/ivekit Dockerfile test/ivekit-sdk-package.test.ts package.json package-lock.json

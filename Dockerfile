@@ -9,6 +9,7 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
 COPY shared ./shared
+COPY sdk/ivekit ./sdk/ivekit
 COPY public ./public
 COPY config ./config
 
