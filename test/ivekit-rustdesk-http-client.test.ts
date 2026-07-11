@@ -258,36 +258,11 @@ test('iveKit RustDesk HTTP client applies the configured request timeout', async
   );
 });
 
-test('iveKit RustDesk HTTP client projects terminal evidence from every device response path', async () => {
-  const unsafeEvidence = {
-    operation_id: 'terminal-operation-1',
-    operation: 'view_screen',
-    status: 'observed_succeeded',
-    observer: 'qa',
-    observed_at: '2026-07-12T12:00:00.000Z',
-    evidence_refs: [{
-      type: 'qa_report',
-      ref: 'evidence://run-1/terminal-1',
-      sha256: 'a'.repeat(64),
-      token: 'reference-token'
-    }],
-    metadata: {
-      external_id: 'rdgw_1',
-      provider_operation_id: 'native-view-1',
-      clipboard_text: 'terminal clipboard secret',
-      token: 'metadata-token',
-      arbitrary: 'drop-me'
-    },
-    credential: 'top-level-credential'
-  };
+test('iveKit RustDesk HTTP client projects complete terminal profiles from every device response path', async () => {
   const device = (id: string) => ({
     id,
     rustdesk_id: '123456789',
-    terminal_profile: {
-      device_id: id,
-      rustdesk_id: '123456789',
-      observed: [unsafeEvidence]
-    }
+    terminal_profile: unsafeTerminalProfile(id)
   });
   const responses = [
     device('registered'),
@@ -319,35 +294,94 @@ test('iveKit RustDesk HTTP client projects terminal evidence from every device r
 
   assert.equal(devices.length, 5);
   for (const projected of devices) {
+    assert.deepEqual(projected.terminal_profile, expectedTerminalProfile(projected.id));
     assert.doesNotMatch(
       JSON.stringify(projected),
-      /clipboard_text|terminal clipboard secret|metadata-token|reference-token|top-level-credential|arbitrary|drop-me/
+      /api_key|private_key|profile-token|nested-token|clipboard_text|terminal clipboard secret|metadata-token|reference-token|top-level-credential|arbitrary|drop-me/
     );
-    assert.deepEqual(projected.terminal_profile?.observed[0].metadata, {
-      external_id: 'rdgw_1',
-      provider_operation_id: 'native-view-1'
+  }
+});
+
+test('iveKit RustDesk HTTP client rejects invalid terminal profile fields', async () => {
+  const base = expectedTerminalProfile('rdesk_1');
+  const invalidProfiles: Array<[string, unknown]> = [
+    ['missing device_id', { ...base, device_id: undefined }],
+    ['blank rustdesk_id', { ...base, rustdesk_id: '' }],
+    ['invalid platform', { ...base, platform: 'android' }],
+    ['invalid architecture', { ...base, architecture: 'riscv64' }],
+    ['missing client_version', { ...base, client_version: undefined }],
+    ['invalid client product', { ...base, client_version: { ...base.client_version, product: 'other' } }],
+    ['blank client version', { ...base, client_version: { ...base.client_version, version: '' } }],
+    ['invalid client channel', { ...base, client_version: { ...base.client_version, channel: 'nightly' } }],
+    ['invalid client source', { ...base, client_version: { ...base.client_version, source: 'edge' } }],
+    ['invalid client timestamp', { ...base, client_version: { ...base.client_version, reported_at: 'yesterday' } }],
+    ['missing configured', { ...base, configured: undefined }],
+    ...(['id_server_configured', 'relay_server_configured', 'api_server_configured', 'public_key_configured'] as const)
+      .map((field) => [`invalid configured.${field}`, {
+        ...base,
+        configured: { ...base.configured, [field]: 'true' }
+      }] as [string, unknown]),
+    ['missing fingerprint', { ...base, configured: { ...base.configured, server_key_fingerprint: undefined } }],
+    ['missing available', { ...base, available: undefined }],
+    ['invalid available source', { ...base, available: { ...base.available, source: 'configured' } }],
+    ['invalid available timestamp', { ...base, available: { ...base.available, reported_at: 'not-a-time' } }],
+    ...([
+      'view_screen',
+      'control_mouse_keyboard',
+      'multi_display',
+      'transfer_file',
+      'clipboard',
+      'record_screen',
+      'session_disconnect'
+    ] as const).map((field) => [`invalid available.${field}`, {
+      ...base,
+      available: { ...base.available, [field]: 'configured' }
+    }] as [string, unknown]),
+    ['missing granted', { ...base, granted: undefined }],
+    ...(['requested', 'consented', 'granted'] as const).flatMap((field) => [
+      [`non-array granted.${field}`, { ...base, granted: { ...base.granted, [field]: 'view_screen' } }],
+      [`invalid scope in granted.${field}`, { ...base, granted: { ...base.granted, [field]: ['multi_display'] } }]
+    ] as Array<[string, unknown]>),
+    ['non-array observed', { ...base, observed: {} }],
+    ['invalid updated_at', { ...base, updated_at: 'tomorrow' }]
+  ];
+
+  for (const [name, terminal_profile] of invalidProfiles) {
+    const client = createIveKitRustDeskHttpClient({
+      baseUrl: 'https://opc.example.com',
+      accessToken: 'short-lived-browser-token',
+      tenantId: 'tenant_led',
+      fetch: async () => jsonResponse(200, { id: 'rdesk_1', terminal_profile })
     });
+    await assert.rejects(
+      () => client.getDevice('rdesk_1'),
+      (error) => {
+        assert.match(String(error), /invalid RustDesk terminal profile/, name);
+        return true;
+      },
+      name
+    );
   }
 });
 
 test('iveKit RustDesk HTTP client fails closed on invalid terminal evidence', async () => {
+  const terminalProfile = expectedTerminalProfile('rdesk_1');
+  terminalProfile.observed = [{
+    operation_id: 'terminal-operation-1',
+    operation: 'view_screen',
+    status: 'observed_succeeded',
+    observer: 'none',
+    observed_at: '2026-07-12T12:00:00.000Z',
+    evidence_refs: [{ type: 'qa_report', ref: 'evidence://run-1/view-1', sha256: 'a'.repeat(64) }],
+    metadata: { token: 'must-not-leak' }
+  }] as never;
   const client = createIveKitRustDeskHttpClient({
     baseUrl: 'https://opc.example.com',
     accessToken: 'short-lived-browser-token',
     tenantId: 'tenant_led',
     fetch: async () => jsonResponse(200, {
       id: 'rdesk_1',
-      terminal_profile: {
-        observed: [{
-          operation_id: 'terminal-operation-1',
-          operation: 'view_screen',
-          status: 'observed_succeeded',
-          observer: 'none',
-          observed_at: '2026-07-12T12:00:00.000Z',
-          evidence_refs: [{ type: 'qa_report', ref: 'evidence://run-1/view-1', sha256: 'a'.repeat(64) }],
-          metadata: { token: 'must-not-leak' }
-        }]
-      }
+      terminal_profile: terminalProfile
     })
   });
 
@@ -600,4 +634,86 @@ function jsonResponse(status: number, body: unknown): Response {
     status,
     headers: body === null ? undefined : { 'content-type': 'application/json' }
   });
+}
+
+function expectedTerminalProfile(deviceId: string) {
+  return {
+    device_id: deviceId,
+    rustdesk_id: '123456789',
+    platform: 'linux' as const,
+    architecture: 'x86_64' as const,
+    client_version: {
+      product: 'rustdesk' as const,
+      version: '1.4.7',
+      channel: 'stable' as const,
+      source: 'terminal_heartbeat' as const,
+      reported_at: '2026-07-12T11:59:00.000Z'
+    },
+    configured: {
+      id_server_configured: true,
+      relay_server_configured: true,
+      api_server_configured: false,
+      public_key_configured: true,
+      server_key_fingerprint: 'sha256:abcdef1234567890'
+    },
+    available: {
+      source: 'native_observer' as const,
+      reported_at: '2026-07-12T12:00:00.000Z',
+      view_screen: 'available' as const,
+      control_mouse_keyboard: 'available' as const,
+      multi_display: 'unknown' as const,
+      transfer_file: 'available' as const,
+      clipboard: 'available' as const,
+      record_screen: 'unavailable' as const,
+      session_disconnect: 'available' as const
+    },
+    granted: {
+      requested: ['view_screen', 'control_mouse_keyboard', 'transfer_file'] as const,
+      consented: ['view_screen', 'control_mouse_keyboard'] as const,
+      granted: ['view_screen'] as const
+    },
+    observed: [{
+      operation_id: 'terminal-operation-1',
+      operation: 'view_screen' as const,
+      status: 'observed_succeeded' as const,
+      observer: 'qa' as const,
+      observed_at: '2026-07-12T12:00:00.000Z',
+      evidence_refs: [{
+        type: 'qa_report',
+        ref: 'evidence://run-1/terminal-1',
+        sha256: 'a'.repeat(64)
+      }] as [{ type: string; ref: string; sha256: string }],
+      metadata: {
+        external_id: 'rdgw_1',
+        provider_operation_id: 'native-view-1'
+      }
+    }],
+    updated_at: '2026-07-12T12:00:01.000Z'
+  };
+}
+
+function unsafeTerminalProfile(deviceId: string) {
+  const profile = expectedTerminalProfile(deviceId);
+  return {
+    ...profile,
+    api_key: 'profile-api-key',
+    private_key: 'profile-private-key',
+    token: 'profile-token',
+    arbitrary: 'drop-me',
+    client_version: { ...profile.client_version, token: 'nested-token', arbitrary: true },
+    configured: { ...profile.configured, private_key: 'nested-private-key', arbitrary: true },
+    available: { ...profile.available, api_key: 'nested-api-key', arbitrary: true },
+    granted: { ...profile.granted, token: 'nested-token', arbitrary: true },
+    observed: [{
+      ...profile.observed[0],
+      credential: 'top-level-credential',
+      evidence_refs: [{ ...profile.observed[0].evidence_refs[0], token: 'reference-token' }],
+      metadata: {
+        ...profile.observed[0].metadata,
+        clipboard_text: 'terminal clipboard secret',
+        token: 'metadata-token',
+        arbitrary: 'drop-me'
+      }
+    }]
+  };
 }

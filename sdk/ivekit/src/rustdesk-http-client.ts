@@ -3,6 +3,8 @@ import type {
   RemoteGatewayAuditEvent,
   RemoteToolSession,
   RustDeskClientConfig,
+  RustDeskClientVersion,
+  RustDeskConfiguredFields,
   RustDeskDevice,
   RustDeskDeviceCommand,
   RustDeskDeviceCommandStatus,
@@ -14,6 +16,10 @@ import type {
   RustDeskOperationEvidenceMetadata,
   RustDeskOperationEvidenceReference,
   RustDeskOperationObserver,
+  RustDeskPermissionScopes,
+  RustDeskRuntimeCapabilities,
+  RustDeskTerminalArchitecture,
+  RustDeskTerminalPlatform,
   RustDeskTerminalProfile
 } from './types.js';
 
@@ -284,6 +290,27 @@ const evidenceDirections: readonly RustDeskOperationDirection[] = [
   'agent_to_device',
   'device_to_agent'
 ];
+const terminalPlatforms: readonly RustDeskTerminalPlatform[] = ['windows', 'macos', 'linux'];
+const terminalArchitectures: readonly RustDeskTerminalArchitecture[] = ['x86_64', 'aarch64', 'x86', 'armv7'];
+const clientVersionSources: readonly RustDeskClientVersion['source'][] = [
+  'terminal_heartbeat',
+  'operator_report',
+  'unknown'
+];
+const runtimeCapabilitySources: readonly RustDeskRuntimeCapabilities['source'][] = [
+  'terminal_heartbeat',
+  'native_observer',
+  'operator_report',
+  'unknown'
+];
+const capabilityAvailability = ['unknown', 'available', 'unavailable'] as const;
+const remoteConsentScopes: readonly RemoteConsentScope[] = [
+  'view_screen',
+  'control_mouse_keyboard',
+  'record_screen',
+  'transfer_file',
+  'clipboard'
+];
 
 export function projectRustDeskOperationEvidence(value: unknown): RustDeskOperationEvidence {
   const evidence = evidenceRecord(value);
@@ -328,12 +355,75 @@ export function projectRustDeskOperationEvidence(value: unknown): RustDeskOperat
 }
 
 export function projectRustDeskTerminalProfile(value: unknown): RustDeskTerminalProfile {
-  const profile = evidenceRecord(value, 'terminal_profile');
-  if (!Array.isArray(profile.observed)) throw invalidEvidence('terminal_profile.observed');
+  const profile = terminalRecord(value, 'terminal_profile');
+  const observed = profile.observed;
+  if (!Array.isArray(observed)) throw invalidTerminalProfile('observed');
   return {
-    ...profile,
-    observed: profile.observed.map(projectRustDeskOperationEvidence)
-  } as unknown as RustDeskTerminalProfile;
+    device_id: terminalIdentifier(profile.device_id, 'device_id'),
+    rustdesk_id: terminalIdentifier(profile.rustdesk_id, 'rustdesk_id'),
+    platform: terminalEnum(profile.platform, terminalPlatforms, 'platform'),
+    architecture: terminalEnum(profile.architecture, terminalArchitectures, 'architecture'),
+    client_version: projectTerminalClientVersion(profile.client_version),
+    configured: projectTerminalConfiguredFields(profile.configured),
+    available: projectTerminalRuntimeCapabilities(profile.available),
+    granted: projectTerminalPermissionScopes(profile.granted),
+    observed: observed.map(projectRustDeskOperationEvidence),
+    updated_at: terminalTimestamp(profile.updated_at, 'updated_at')
+  };
+}
+
+function projectTerminalClientVersion(value: unknown): RustDeskClientVersion {
+  const clientVersion = terminalRecord(value, 'client_version');
+  return {
+    product: terminalEnum(clientVersion.product, ['rustdesk'] as const, 'client_version.product'),
+    version: terminalIdentifier(clientVersion.version, 'client_version.version'),
+    channel: terminalEnum(clientVersion.channel, ['stable'] as const, 'client_version.channel'),
+    source: terminalEnum(clientVersion.source, clientVersionSources, 'client_version.source'),
+    reported_at: terminalNullableTimestamp(clientVersion.reported_at, 'client_version.reported_at')
+  };
+}
+
+function projectTerminalConfiguredFields(value: unknown): RustDeskConfiguredFields {
+  const configured = terminalRecord(value, 'configured');
+  return {
+    id_server_configured: terminalBoolean(configured.id_server_configured, 'configured.id_server_configured'),
+    relay_server_configured: terminalBoolean(configured.relay_server_configured, 'configured.relay_server_configured'),
+    api_server_configured: terminalBoolean(configured.api_server_configured, 'configured.api_server_configured'),
+    public_key_configured: terminalBoolean(configured.public_key_configured, 'configured.public_key_configured'),
+    server_key_fingerprint: terminalText(configured.server_key_fingerprint, 'configured.server_key_fingerprint')
+  };
+}
+
+function projectTerminalRuntimeCapabilities(value: unknown): RustDeskRuntimeCapabilities {
+  const available = terminalRecord(value, 'available');
+  return {
+    source: terminalEnum(available.source, runtimeCapabilitySources, 'available.source'),
+    reported_at: terminalNullableTimestamp(available.reported_at, 'available.reported_at'),
+    view_screen: terminalEnum(available.view_screen, capabilityAvailability, 'available.view_screen'),
+    control_mouse_keyboard: terminalEnum(
+      available.control_mouse_keyboard,
+      capabilityAvailability,
+      'available.control_mouse_keyboard'
+    ),
+    multi_display: terminalEnum(available.multi_display, capabilityAvailability, 'available.multi_display'),
+    transfer_file: terminalEnum(available.transfer_file, capabilityAvailability, 'available.transfer_file'),
+    clipboard: terminalEnum(available.clipboard, capabilityAvailability, 'available.clipboard'),
+    record_screen: terminalEnum(available.record_screen, capabilityAvailability, 'available.record_screen'),
+    session_disconnect: terminalEnum(
+      available.session_disconnect,
+      capabilityAvailability,
+      'available.session_disconnect'
+    )
+  };
+}
+
+function projectTerminalPermissionScopes(value: unknown): RustDeskPermissionScopes {
+  const granted = terminalRecord(value, 'granted');
+  return {
+    requested: terminalScopeArray(granted.requested, 'granted.requested'),
+    consented: terminalScopeArray(granted.consented, 'granted.consented'),
+    granted: terminalScopeArray(granted.granted, 'granted.granted')
+  };
 }
 
 export function projectRustDeskDevice(value: unknown): RustDeskDevice {
@@ -450,6 +540,61 @@ function disconnectRecord(value: unknown, field = 'payload'): Record<string, unk
   return value as Record<string, unknown>;
 }
 
+function terminalRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidTerminalProfile(field);
+  return value as Record<string, unknown>;
+}
+
+function terminalIdentifier(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) throw invalidTerminalProfile(field);
+  return value.trim();
+}
+
+function terminalText(value: unknown, field: string): string {
+  if (typeof value !== 'string') throw invalidTerminalProfile(field);
+  return value;
+}
+
+function terminalBoolean(value: unknown, field: string): boolean {
+  if (typeof value !== 'boolean') throw invalidTerminalProfile(field);
+  return value;
+}
+
+function terminalEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+  if (typeof value !== 'string' || !allowed.includes(value as T)) throw invalidTerminalProfile(field);
+  return value as T;
+}
+
+function terminalScopeArray(value: unknown, field: string): RemoteConsentScope[] {
+  if (!Array.isArray(value)) throw invalidTerminalProfile(field);
+  return value.map((scope) => terminalEnum(scope, remoteConsentScopes, field));
+}
+
+function terminalNullableTimestamp(value: unknown, field: string): string | null {
+  if (value === null) return null;
+  return terminalTimestamp(value, field);
+}
+
+function terminalTimestamp(value: unknown, field: string): string {
+  if (typeof value !== 'string') throw invalidTerminalProfile(field);
+  const match = value.match(
+    /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/
+  );
+  if (!match || Number.isNaN(Date.parse(value))) throw invalidTerminalProfile(field);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const calendarDate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    calendarDate.getUTCFullYear() !== year ||
+    calendarDate.getUTCMonth() !== month - 1 ||
+    calendarDate.getUTCDate() !== day
+  ) {
+    throw invalidTerminalProfile(field);
+  }
+  return value;
+}
+
 function evidenceString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim()) throw invalidEvidence(field);
   return value;
@@ -477,6 +622,10 @@ function invalidEvidence(field: string): Error {
 
 function invalidDisconnect(field: string): Error {
   return new Error(`invalid RustDesk disconnect state: ${field}`);
+}
+
+function invalidTerminalProfile(field: string): Error {
+  return new Error(`invalid RustDesk terminal profile: ${field}`);
 }
 
 function validateBaseUrl(value: string): URL {
