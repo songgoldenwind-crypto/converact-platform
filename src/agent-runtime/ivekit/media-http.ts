@@ -1,9 +1,16 @@
 import { resolveAuthContext } from '../../middleware/auth.js';
-import type { PgQueryable } from '../../db-pg.js';
+import { getPostgresOrNull, type PgQueryable } from '../../db-pg.js';
+import { withPgTenant } from '../../db-pg-tenant.js';
 import { wsBroadcastToUsers } from '../../ws.js';
 import { createLiveKitMediaModule, issueSupervisorToken } from '../livekit/index.js';
 import { MediaCallService } from '../livekit/media-call-service.js';
 import { MediaCallStore } from '../livekit/media-call-store.js';
+import {
+  createConfiguredLiveKitModerationProvider,
+  LiveKitModerationService,
+  type LiveKitModerationProvider,
+  type LiveKitModerationResult
+} from '../livekit/livekit-moderation-service.js';
 import {
   isLiveKitBrowserJoinConfigured,
   isLiveKitConfigured,
@@ -18,11 +25,17 @@ import type {
   RecordingObjectContentResult,
   RecordingObjectDeleteResult
 } from '../livekit/types.js';
-import type { IveKitMediaCallAction, IveKitMediaCallSnapshot } from '../livekit/types.js';
+import type {
+  IveKitMediaCallAction,
+  IveKitMediaCallSnapshot,
+  IveKitMediaTrackSource
+} from '../livekit/types.js';
 import type { MediaChannel } from '../media-gateway/index.js';
 
 export interface RouteIveKitMediaApiOptions {
   pg?: PgQueryable;
+  commandPg?: PgQueryable;
+  moderationProvider?: LiveKitModerationProvider;
   onRecordingStarted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   onRecordingCompleted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   resolveRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectContentResult>;
@@ -164,10 +177,12 @@ function capabilities(tenantId: string) {
     provider: 'livekit',
     tenant_id: tenantId,
     capabilities: {
+      calls: true,
       rooms: true,
       tokens: true,
       join: true,
       participants: true,
+      host_moderation: true,
       recording: true,
       recording_object_check: true,
       recording_export: true,
@@ -219,6 +234,7 @@ export async function routeIveKitMediaApi(
         ? body
         : JSON.stringify(body || {});
     const result = await media.webhooks.handleWebhook(rawBodyText, authHeader || undefined);
+    await revokeTerminalCallRevival(rawBodyText, result, options);
     if (!result.recording || !options.onRecordingCompleted) return result;
     const evidence = await options.onRecordingCompleted(result.recording, {
       roomName: result.room_name || result.recording.business_ref?.id || ''
@@ -234,7 +250,20 @@ export async function routeIveKitMediaApi(
 
   const ctx = requireAuth(headers);
 
-  const mediaCallService = () => new MediaCallService(new MediaCallStore(requireMediaCallPg(options.pg)));
+  const moderationProvider = options.moderationProvider || createConfiguredLiveKitModerationProvider();
+  const moderationCommandPg = options.commandPg || getPostgresOrNull() || options.pg;
+  const mediaCallStore = () => new MediaCallStore(requireMediaCallPg(options.pg));
+  const mediaModerationService = () => new LiveKitModerationService(
+    mediaCallStore(),
+    moderationProvider,
+    { commandPg: moderationCommandPg }
+  );
+  const mediaCallService = () => {
+    const moderation = mediaModerationService();
+    return new MediaCallService(mediaCallStore(), {
+      beforeTerminalTransition: (snapshot) => moderation.revokeForTerminal(snapshot)
+    });
+  };
 
   if (routePath === '/api/ivekit/media/calls' && method === 'POST') {
     const input = bodyRecord(body);
@@ -362,6 +391,19 @@ export async function routeIveKitMediaApi(
     return { data: capabilities(ctx.tenantId) };
   }
 
+  if (routePath === '/api/ivekit/media/moderation/recover' && method === 'POST') {
+    if (ctx.role !== 'system') {
+      throw Object.assign(new Error('system role required for media moderation recovery'), { status: 403 });
+    }
+    const input = bodyRecord(body);
+    const moderation = mediaModerationService();
+    const summary = await moderation.recoverPending(
+      ctx.tenantId,
+      optionalBodyNumber(input, 'limit') || 25
+    );
+    return { data: summary };
+  }
+
   if (routePath === '/api/ivekit/media/rooms' && method === 'POST') {
     const input = bodyRecord(body);
     const businessRef = optionalBusinessRef(ctx.tenantId, input);
@@ -377,6 +419,57 @@ export async function routeIveKitMediaApi(
       metadata
     });
     return { status: 201, data: room };
+  }
+
+  const moderationMatch = routePath.match(
+    /^\/api\/ivekit\/media\/rooms\/([^/]+)\/participants\/([^/]+)\/(mute|remove)$/
+  );
+  if (moderationMatch && method === 'POST') {
+    const roomName = decodeURIComponent(moderationMatch[1]);
+    const participantIdentity = decodeURIComponent(moderationMatch[2]);
+    const action = moderationMatch[3];
+    const input = bodyRecord(body);
+    const actorIdentity = mediaModerationActorIdentity(ctx, headers);
+    const idempotencyKey = headerValue(headers, 'idempotency-key');
+    const moderation = mediaModerationService();
+    const result = action === 'mute'
+      ? await moderation.mute({
+        tenant_id: ctx.tenantId,
+        room_name: roomName,
+        participant_identity: participantIdentity,
+        actor_identity: actorIdentity,
+        actor_is_system: ctx.role === 'system',
+        idempotency_key: idempotencyKey,
+        track_sid: String(input.track_sid || ''),
+        source: String(input.source || '') as IveKitMediaTrackSource,
+        muted: input.muted as true,
+        metadata: bodyRecord(input.metadata)
+      })
+      : await moderation.remove({
+        tenant_id: ctx.tenantId,
+        room_name: roomName,
+        participant_identity: participantIdentity,
+        actor_identity: actorIdentity,
+        actor_is_system: ctx.role === 'system',
+        idempotency_key: idempotencyKey,
+        reason: optionalBodyString(input, 'reason'),
+        metadata: bodyRecord(input.metadata)
+      });
+    const call = await mediaCallStore().getCallByRoom(ctx.tenantId, roomName);
+    const recipients = call
+      ? (await mediaCallStore().listParticipants(ctx.tenantId, call.id)).map((participant) => participant.identity)
+      : [];
+    return {
+      status: 201,
+      data: result,
+      afterCommit: async () => {
+        try {
+          await moderation.completeCommand(ctx.tenantId, idempotencyKey, result);
+        } finally {
+          broadcastMediaModeration(ctx.tenantId, recipients, result);
+        }
+      }
+    };
   }
 
   const roomMatch = routePath.match(/^\/api\/ivekit\/media\/rooms\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?$/);
@@ -549,6 +642,65 @@ export async function routeIveKitMediaApi(
   return undefined;
 }
 
+async function revokeTerminalCallRevival(
+  rawBody: string,
+  verifiedResult: { event?: unknown; room_name?: unknown },
+  options: RouteIveKitMediaApiOptions
+): Promise<void> {
+  if (!options.pg || verifiedResult.event !== 'participant_joined') return;
+  const event = parseLiveKitWebhookBody(rawBody);
+  const roomName = String(event.room?.name || '');
+  if (!roomName || verifiedResult.room_name !== roomName) return;
+  const tenantId = String(
+    parseWebhookMetadata(event.participant?.metadata).tenant_id ||
+    parseWebhookMetadata(event.room?.metadata).tenant_id ||
+    ''
+  ).trim();
+  if (!tenantId) return;
+  await withPgTenant(options.pg, tenantId, async (pg) => {
+    const store = new MediaCallStore(pg);
+    const call = await store.getCallByRoom(tenantId, roomName, { forUpdate: true });
+    if (!call || !['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(call.status)) return;
+    const participants = await store.listParticipants(tenantId, call.id);
+    const moderation = new LiveKitModerationService(
+      store,
+      options.moderationProvider || createConfiguredLiveKitModerationProvider()
+    );
+    await moderation.revokeForTerminal({ call, participants });
+  });
+}
+
+function parseLiveKitWebhookBody(rawBody: string): {
+  room?: { name?: unknown; metadata?: unknown };
+  participant?: { metadata?: unknown };
+} {
+  try {
+    const parsed = JSON.parse(rawBody) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as {
+        room?: { name?: unknown; metadata?: unknown };
+        participant?: { metadata?: unknown };
+      }
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseWebhookMetadata(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  try {
+    const parsed = JSON.parse(String(value || '{}')) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 function mediaCallAction(value: unknown): IveKitMediaCallAction {
   const action = String(value || '').trim();
   if (!['ring', 'accept', 'reject', 'cancel', 'timeout', 'activate', 'end', 'fail'].includes(action)) {
@@ -562,6 +714,20 @@ function mediaActorIdentity(
   headers: Record<string, string | string[] | undefined>
 ): string {
   return (ctx.role === 'system' ? headerValue(headers, 'x-user-id') : ctx.userId).trim() || ctx.userId;
+}
+
+function mediaModerationActorIdentity(
+  ctx: ReturnType<typeof requireAuth>,
+  headers: Record<string, string | string[] | undefined>
+): string {
+  if (ctx.role !== 'system') {
+    const identity = ctx.userId.trim();
+    if (!identity) throw badRequest('authenticated media call identity is required');
+    return identity;
+  }
+  const representedActor = headerValue(headers, 'x-user-id').trim();
+  if (!representedActor) throw badRequest('X-User-Id is required for system media moderation');
+  return representedActor;
 }
 
 function requireMediaCallReadAccess(
@@ -601,6 +767,24 @@ function broadcastMediaCall(
     call_id: snapshot.call.id,
     room_name: snapshot.call.room_name,
     status: snapshot.call.status
+  });
+}
+
+function broadcastMediaModeration(
+  tenantId: string,
+  recipients: string[],
+  result: LiveKitModerationResult
+): void {
+  wsBroadcastToUsers(tenantId, recipients, 'ivekit.media.participant.moderated', {
+    room_name: result.room_name,
+    participant_identity: result.participant_identity,
+    action: result.action,
+    status: result.status,
+    actor_identity: result.actor_identity,
+    ...(result.track_sid ? { track_sid: result.track_sid } : {}),
+    ...(result.source ? { source: result.source } : {}),
+    ...(result.muted ? { muted: true } : {}),
+    ...(result.reason ? { reason: result.reason } : {})
   });
 }
 

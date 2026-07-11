@@ -169,13 +169,31 @@ maybe('iveKit media call lifecycle tables hide every foreign tenant row', async 
        VALUES ('mca_rls_b',$1,$2,'rls-action-b',$3,'ring','host-rls-b','created','ringing',$4)`,
       [b, callId, 'a'.repeat(64), JSON.stringify({ call: { id: callId }, participants: [] })]
     );
+    await c.query(
+      `INSERT INTO ivekit_media_moderation_actions
+        (id, tenant_id, call_id, room_name, participant_identity, action, actor_identity,
+         idempotency_key, payload_hash, track_sid, source, muted, result_snapshot)
+       VALUES ('mma_rls_b',$1,$2,'room-rls-b','host-rls-b','mute','host-rls-b',
+         'rls-moderation-b',$3,'TR_RLS','microphone',TRUE,$4)`,
+      [b, callId, 'b'.repeat(64), JSON.stringify({ action: 'mute', status: 'applied' })]
+    );
+    await c.query(
+      `INSERT INTO ivekit_media_moderation_commands
+        (id, tenant_id, call_id, room_name, participant_identity, action, actor_identity,
+         idempotency_key, payload_hash, request_payload)
+       VALUES ('mmc_rls_b',$1,$2,'room-rls-b','host-rls-b','mute','host-rls-b',
+         'rls-moderation-command-b',$3,$4)`,
+      [b, callId, 'c'.repeat(64), JSON.stringify({ track_sid: 'TR_RLS', muted: true })]
+    );
   });
 
   await withPgTenant(pg, a, async (c) => {
     for (const table of [
       'ivekit_media_calls',
       'ivekit_media_call_participants',
-      'ivekit_media_call_actions'
+      'ivekit_media_call_actions',
+      'ivekit_media_moderation_actions',
+      'ivekit_media_moderation_commands'
     ]) {
       const result = await c.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table} WHERE tenant_id = $1`, [b]);
       assert.equal(result.rows[0]?.n, 0, `${table} leaked a foreign tenant row`);

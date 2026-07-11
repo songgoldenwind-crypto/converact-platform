@@ -48,7 +48,7 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 | 404 | tenant-scoped 资源不存在 |
 | 409 | 生命周期、幂等 payload、mutation window 或并发冲突 |
 | 413/415 | 附件过大/MIME 不匹配 |
-| 502 | provider 终态失败，本地记录仍保留 |
+| 502 | provider 操作失败；Media moderation/终态保持原状态并可重试，消息投递等接口按各自章节保留本地记录 |
 | 503 | PostgreSQL/provider/必要配置不可用 |
 
 ### 1.3 SDK 映射
@@ -109,6 +109,10 @@ Media Core 不返回 URL、API key 或 secret。与 LiveKit 浏览器接入有�
 {
   "provider": "livekit",
   "tenant_id": "tenant_led",
+  "capabilities": {
+    "calls": true,
+    "host_moderation": true
+  },
   "config": {
     "livekit_url_configured": true,
     "livekit_public_url_configured": true,
@@ -159,7 +163,57 @@ Join Plan：
 
 WebRTC 返回 LiveKit token/URL/join path；SIP bridge 返回 dial target/trunk 等 metadata。WebRTC 响应中的 `livekit_url` 是浏览器可连接的 `LIVEKIT_PUBLIC_URL`，不是服务端使用的 `LIVEKIT_URL`。生产环境缺少公网 URL 或使用 `ws://` 时，Join 会失败关闭，不会把容器内地址返回给浏览器。Token 不应写日志或持久化到 LED 业务表。
 
-### 2.4 Recording/Egress
+### 2.4 主持人管控与终态撤权
+
+| Method | Path | 说明 |
+| --- | --- | --- |
+| POST | `/api/ivekit/media/rooms/:room_name/participants/:identity/mute` | 主持人或 system 静音一条已发布轨道 |
+| POST | `/api/ivekit/media/rooms/:room_name/participants/:identity/remove` | 主持人或 system 幂等移除参与人 |
+| POST | `/api/ivekit/media/moderation/recover` | 仅 system；按当前 tenant 恢复/最终化 pending command，可带 `limit=1..100` |
+
+两个管控命令都必须携带 `Idempotency-Key`。同 key 同 payload 重放原结果，
+同 key 不同 payload 返回 `409`；并发占用返回可重试 `409`。若 provider 已成功但
+数据库提交、响应或连接失败，客户端必须用原 key 和原 payload 重试。静音
+`muted=true`、带 token 吊销的 remove 和 room close 都是幂等 provider 操作，
+因此重试可收敛；成功结果与 payload hash 一起保存，已提交的重放不会再次调用
+provider 或重复写审计。
+
+为覆盖 provider 成功后进程崩溃或 PostgreSQL 业务提交失败的窗口，iveKit 在
+provider 调用前用独立 tenant transaction 持久化
+`ivekit_media_moderation_commands(status=pending)`。正常请求在业务事务 COMMIT
+后的 callback 标记 `completed`；明确 provider 失败标记 `failed`；未确认结果保留
+`pending`。system recovery 会先检查同 key 审计，已有审计只做最终化；没有审计
+则重新执行幂等 provider 操作并补齐状态/审计。command 与 action 两张表均启用
+FORCE RLS。每条恢复使用独立 tenant transaction，只有审计 COMMIT 成功后才把
+对应 command 标为 completed；单条失败不会回滚或误最终化同批其他 command。
+恢复返回 `examined/finalized/recovered/failed/results`，不包含 provider secret
+或 token。
+
+静音 body 必须包含 `track_sid`、`source` 和 `muted=true`。`source` 只允许
+`camera`、`microphone`、`screen_share`、`screen_share_audio`。服务端不提供
+remote unmute；恢复采集必须由参与人自己的浏览器和本地轨道完成。
+
+Bearer 用户的操作者身份固定取 JWT `sub`，且必须是 durable call 的活动
+`host`；普通 participant 和 observer 返回 `403`。API key 服务模式可代表系统
+执行，但必须用 `X-User-Id` 记录实际操作者。所有房间、参与人和审计查询均按
+tenant 限制，外租户资源返回 `404`。
+
+LiveKit 管理调用成功后，服务端才更新参与人状态并写入
+`ivekit_media_moderation_actions`。审计表使用 PostgreSQL FORCE RLS，记录 call、
+room、目标参与人、操作者、轨道、来源、原因和时间。重复 remove 返回
+`status=already_applied`，不重复调用 provider 或写审计。成功后仅向该 call 的
+参与人发送 `ivekit.media.participant.moderated`。
+
+`reject/cancel/timeout/end/fail` 进入终态前，服务端对 call 中全部已登记身份尝试
+使用 `revokeTokenTs` 吊销旧 token、断开参与人并关闭 provider room。LiveKit OSS
+对已离线身份可能返回 `404`，因此终态房间后续若再出现 `participant_joined`
+webhook，iveKit 会根据 durable terminal call 再次吊销全部身份并立即关房，阻止
+旧 token 持续复活同名房间。provider 失败返回可重试 `502`，durable call 和
+participant 保持原非终态。LiveKit 管理端未配置时，显式 moderation 返回 `503`；
+生产环境的终态撤权也 fail-closed 为 `503`，不会伪造成功。管理调用超时可用
+`OPC_LIVEKIT_ADMIN_TIMEOUT_SECONDS=1..30` 配置，默认 10 秒。
+
+### 2.5 Recording/Egress
 
 | Method | Path | 说明 |
 | --- | --- | --- |

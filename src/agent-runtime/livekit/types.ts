@@ -91,6 +91,52 @@ export interface IveKitMediaCallSnapshot {
   participants: IveKitMediaCallParticipant[];
 }
 
+export type IveKitMediaTrackSource =
+  | 'camera'
+  | 'microphone'
+  | 'screen_share'
+  | 'screen_share_audio';
+
+export interface IveKitMediaModerationActionRecord {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  room_name: string;
+  participant_identity: string;
+  action: 'mute' | 'remove';
+  actor_identity: string;
+  idempotency_key: string;
+  payload_hash: string;
+  track_sid: string;
+  source: IveKitMediaTrackSource | '';
+  muted: boolean | null;
+  reason: string;
+  metadata: Record<string, unknown>;
+  result_snapshot: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface IveKitMediaModerationCommandRecord {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  room_name: string;
+  participant_identity: string;
+  action: 'mute' | 'remove';
+  actor_identity: string;
+  actor_is_system: boolean;
+  idempotency_key: string;
+  payload_hash: string;
+  request_payload: Record<string, unknown>;
+  status: 'pending' | 'completed' | 'failed';
+  result_snapshot: Record<string, unknown> | null;
+  error_code: string;
+  error_message: string;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
 export interface CreateMediaRoomInput {
   tenant_id: string;
   purpose: MediaRoomPurpose;

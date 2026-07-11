@@ -195,6 +195,7 @@ git commit -m "feat(media): add durable call lifecycle"
 
 **Files:**
 - Create: `src/agent-runtime/livekit/livekit-moderation-service.ts`
+- Create: `src/migrations/035_ivekit_media_moderation.sql`
 - Modify: `src/agent-runtime/livekit/token-service.ts`
 - Modify: `src/agent-runtime/livekit/index.ts`
 - Modify: `src/agent-runtime/ivekit/media-http.ts`
@@ -202,11 +203,11 @@ git commit -m "feat(media): add durable call lifecycle"
 - Create: `test/ivekit-media-moderation.test.ts`
 - Modify: `docs/ivekit-openapi.md`
 
-- [ ] **Step 1: Write failing authorization tests**
+- [x] **Step 1: Write failing authorization tests**
 
 Prove JWT users cannot request a join plan for another identity, participants cannot moderate, hosts can mute only audio/video publications inside their tenant call, observers receive subscribe-only grants, remove is idempotent, close revokes all provider participants first, and server/service mode writes an explicit actor audit.
 
-- [ ] **Step 2: Add provider moderation adapter**
+- [x] **Step 2: Add provider moderation adapter**
 
 Wrap the existing LiveKit server SDK behind:
 
@@ -219,8 +220,10 @@ interface LiveKitModerationProvider {
 ```
 
 Validate tenant/call/participant state before any provider call and persist audit only after a confirmed provider result.
+Persist a separate pending command before provider execution so system recovery can
+replay/finalize a provider-success/database-failure window without duplicate side effects.
 
-- [ ] **Step 3: Add moderation endpoints**
+- [x] **Step 3: Add moderation endpoints**
 
 ```text
 POST /api/ivekit/media/rooms/:room/participants/:identity/mute
@@ -229,11 +232,11 @@ POST /api/ivekit/media/rooms/:room/participants/:identity/remove
 
 Require `track_sid`, `source=camera|microphone|screen_share|screen_share_audio`, and `muted=true`. Remote unmute is intentionally absent because browsers must consent to resume capture; a participant unmutes through its own local track control.
 
-- [ ] **Step 4: Revoke on terminal state**
+- [x] **Step 4: Revoke on terminal state**
 
 Call provider remove/close before committing `removed`, `ended`, `cancelled`, or `rejected`. If provider revocation fails, return retryable 502 and keep the durable state non-terminal.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 node --import tsx --test test/ivekit-media-moderation.test.ts test/ivekit-media-facade.test.ts

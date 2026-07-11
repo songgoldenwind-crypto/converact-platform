@@ -88,7 +88,7 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
 
   for (const method of [
     'getCapabilities', 'createRoom', 'getRoom', 'closeRoom', 'createJoinPlan',
-    'listParticipants', 'startRecording', 'stopRecording', 'listRecordings',
+    'listParticipants', 'recoverModerationCommands', 'startRecording', 'stopRecording', 'listRecordings',
     'getRecording', 'inspectRecordingObject', 'exportRecordingObject', 'cleanupRecordings'
   ]) assert.equal(typeof sdk.media[method], 'function', `missing media.${method}`);
   for (const method of [
@@ -225,8 +225,13 @@ test('iveKit media SDK maps durable call and moderation commands', async () => {
     track_sid: 'TR_audio_1',
     source: 'microphone',
     muted: true
+  }, {
+    idempotencyKey: 'mute-action-1'
   });
-  await sdk.media.removeParticipant('room/1', 'customer/1', { reason: 'host_removed' });
+  await sdk.media.removeParticipant('room/1', 'customer/1', { reason: 'host_removed' }, {
+    idempotencyKey: 'remove-action-1'
+  });
+  await sdk.media.recoverModerationCommands({ limit: 12 });
 
   assert.deepEqual(calls.map((call) => `${call.method} ${new URL(call.url).pathname}`), [
     'POST /api/ivekit/media/calls',
@@ -235,7 +240,8 @@ test('iveKit media SDK maps durable call and moderation commands', async () => {
     'POST /api/ivekit/media/calls/call%2F1/join',
     'GET /api/ivekit/media/calls/call%2F1/participants',
     'POST /api/ivekit/media/rooms/room%2F1/participants/customer%2F1/mute',
-    'POST /api/ivekit/media/rooms/room%2F1/participants/customer%2F1/remove'
+    'POST /api/ivekit/media/rooms/room%2F1/participants/customer%2F1/remove',
+    'POST /api/ivekit/media/moderation/recover'
   ]);
   assert.deepEqual(calls.map((call) => call.body && JSON.parse(call.body)), [
     {
@@ -248,9 +254,12 @@ test('iveKit media SDK maps durable call and moderation commands', async () => {
     { identity: 'engineer-led' },
     null,
     { track_sid: 'TR_audio_1', source: 'microphone', muted: true },
-    { reason: 'host_removed' }
+    { reason: 'host_removed' },
+    { limit: 12 }
   ]);
   assert.equal(calls[2]?.headers['idempotency-key'], 'call-action-1');
+  assert.equal(calls[5]?.headers['idempotency-key'], 'mute-action-1');
+  assert.equal(calls[6]?.headers['idempotency-key'], 'remove-action-1');
 });
 
 test('iveKit HTTP SDK exposes cursor session and message history requests', async () => {
@@ -384,6 +393,7 @@ test('iveKit SDK exports named browser-safe media DTOs without untyped returns',
     'IveKitMediaJoinPlan',
     'IveKitMediaProviderParticipant',
     'IveKitMediaModerationResult',
+    'IveKitMediaModerationRecoveryResult',
     'IveKitMediaRecording',
     'IveKitMediaRecordingObjectInspection',
     'IveKitMediaCursorPage'
@@ -399,6 +409,8 @@ test('iveKit SDK exports named browser-safe media DTOs without untyped returns',
     mediaInterface,
     /transitionCall\([\s\S]*?options: \{ idempotencyKey: string \}/
   );
+  assert.match(mediaInterface, /muteParticipant\([\s\S]*?options: \{ idempotencyKey: string \}/);
+  assert.match(mediaInterface, /removeParticipant\([\s\S]*?options: \{ idempotencyKey: string \}/);
   assert.doesNotMatch(callJoinInterface, /role:/);
   assert.doesNotMatch(types, /agent-runtime|db-pg|node:/);
 });

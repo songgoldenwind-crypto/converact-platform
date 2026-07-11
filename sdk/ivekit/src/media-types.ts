@@ -6,10 +6,12 @@ export interface IveKitMediaCapabilities {
   provider: 'livekit';
   tenant_id: string;
   capabilities: {
+    calls: boolean;
     rooms: boolean;
     tokens: boolean;
     join: boolean;
     participants: boolean;
+    host_moderation: boolean;
     recording: boolean;
     recording_object_check: boolean;
     recording_export: boolean;
@@ -243,6 +245,14 @@ export interface IveKitMediaModerationResult {
   source?: IveKitMediaTrackSource;
   muted?: true;
   reason?: string;
+}
+
+export interface IveKitMediaModerationRecoveryResult {
+  examined: number;
+  finalized: number;
+  recovered: number;
+  failed: number;
+  results: IveKitMediaModerationResult[];
 }
 
 export type IveKitMediaRecordingFormat = 'mp4' | 'webm' | 'wav' | 'ogg';

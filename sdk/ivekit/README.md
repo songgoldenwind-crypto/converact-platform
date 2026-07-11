@@ -59,6 +59,13 @@ rooms, join plans, provider participants, host moderation, recordings, object
 inspection, retention cleanup, and cursor/list results. Existing room APIs remain
 available while products migrate to the durable call lifecycle.
 
+Call transitions and host moderation are idempotent commands. Pass a stable
+`{ idempotencyKey }` option to `transitionCall()`, `muteParticipant()`, and
+`removeParticipant()`; retry an ambiguous timeout or 5xx with the same key and
+payload.
+Backend recovery jobs can call `media.recoverModerationCommands({ limit })` with
+API-key system credentials; browser JWTs are not authorized for this operation.
+
 `chat.listSessions()` returns viewer-specific `summary` data for unread count,
 online participant count, and the latest-message preview. `chat.closeSession()`
 closes the session only after provider access has been revoked.

@@ -61,6 +61,8 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('ivekit_media_calls');
     this.ensureTable('ivekit_media_call_participants');
     this.ensureTable('ivekit_media_call_actions');
+    this.ensureTable('ivekit_media_moderation_actions');
+    this.ensureTable('ivekit_media_moderation_commands');
   }
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -139,8 +141,11 @@ export class MemoryPg implements PgQueryable {
 
     if (sql.startsWith('SELECT * FROM ivekit_media_calls')) {
       const tenantId = String(params[0]);
-      const callId = String(params[1]);
-      const row = this.table('ivekit_media_calls').get(callId);
+      const lookup = String(params[1]);
+      const row = sql.includes('room_name = $2')
+        ? [...this.table('ivekit_media_calls').values()]
+          .find((candidate) => String(candidate.room_name) === lookup)
+        : this.table('ivekit_media_calls').get(lookup);
       return row && String(row.tenant_id) === tenantId ? [row] : [];
     }
 
@@ -212,6 +217,111 @@ export class MemoryPg implements PgQueryable {
       };
       this.table('ivekit_media_call_actions').set(String(row.id), row);
       return [];
+    }
+
+    if (sql.startsWith('INSERT INTO ivekit_media_moderation_actions')) {
+      const duplicate = [...this.table('ivekit_media_moderation_actions').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.idempotency_key) === String(params[7])
+      );
+      if (duplicate) throw new Error('duplicate ivekit media moderation idempotency key');
+      const row: TableRow = {
+        id: params[0],
+        tenant_id: params[1],
+        call_id: params[2],
+        room_name: params[3],
+        participant_identity: params[4],
+        action: params[5],
+        actor_identity: params[6],
+        idempotency_key: params[7],
+        payload_hash: params[8],
+        track_sid: params[9],
+        source: params[10],
+        muted: params[11],
+        reason: params[12],
+        metadata: JSON.parse(String(params[13] || '{}')),
+        result_snapshot: JSON.parse(String(params[14] || '{}')),
+        created_at: this.nowIso()
+      };
+      this.table('ivekit_media_moderation_actions').set(String(row.id), row);
+      return [row];
+    }
+
+    if (sql.startsWith('SELECT * FROM ivekit_media_moderation_actions')) {
+      if (sql.includes('idempotency_key = $2')) {
+        const row = [...this.table('ivekit_media_moderation_actions').values()].find((candidate) =>
+          String(candidate.tenant_id) === String(params[0]) &&
+          String(candidate.idempotency_key) === String(params[1])
+        );
+        return row ? [row] : [];
+      }
+      return [...this.table('ivekit_media_moderation_actions').values()]
+        .filter((row) =>
+          String(row.tenant_id) === String(params[0]) &&
+          String(row.call_id) === String(params[1])
+        )
+        .sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)) ||
+          String(left.id).localeCompare(String(right.id)));
+    }
+
+    if (sql.startsWith('INSERT INTO ivekit_media_moderation_commands')) {
+      const duplicate = [...this.table('ivekit_media_moderation_commands').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.idempotency_key) === String(params[8])
+      );
+      if (duplicate) return [];
+      const now = this.nowIso();
+      const row: TableRow = {
+        id: params[0],
+        tenant_id: params[1],
+        call_id: params[2],
+        room_name: params[3],
+        participant_identity: params[4],
+        action: params[5],
+        actor_identity: params[6],
+        actor_is_system: params[7],
+        idempotency_key: params[8],
+        payload_hash: params[9],
+        request_payload: JSON.parse(String(params[10] || '{}')),
+        status: 'pending',
+        result_snapshot: null,
+        error_code: '',
+        error_message: '',
+        created_at: now,
+        updated_at: now,
+        completed_at: null
+      };
+      this.table('ivekit_media_moderation_commands').set(String(row.id), row);
+      return [row];
+    }
+
+    if (sql.startsWith('SELECT * FROM ivekit_media_moderation_commands')) {
+      const rows = [...this.table('ivekit_media_moderation_commands').values()]
+        .filter((row) => String(row.tenant_id) === String(params[0]));
+      if (sql.includes('idempotency_key = $2')) {
+        const row = rows.find((candidate) => String(candidate.idempotency_key) === String(params[1]));
+        return row ? [row] : [];
+      }
+      return rows
+        .filter((row) => String(row.status) === 'pending')
+        .sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)) ||
+          String(left.id).localeCompare(String(right.id)))
+        .slice(0, Number(params[1] || 50));
+    }
+
+    if (sql.startsWith('UPDATE ivekit_media_moderation_commands')) {
+      const row = [...this.table('ivekit_media_moderation_commands').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) &&
+        String(candidate.idempotency_key) === String(params[1])
+      );
+      if (!row) return [];
+      row.status = params[2];
+      row.result_snapshot = params[3] == null ? null : JSON.parse(String(params[3]));
+      row.error_code = params[4];
+      row.error_message = params[5];
+      row.completed_at = params[2] === 'completed' ? this.nowIso() : null;
+      row.updated_at = this.nowIso();
+      return [row];
     }
 
     if (sql.startsWith('INSERT INTO tenants')) {

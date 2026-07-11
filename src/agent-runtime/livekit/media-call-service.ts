@@ -29,8 +29,26 @@ export interface MediaCallTransitionResult {
   replayed: boolean;
 }
 
+export interface MediaCallServiceOptions {
+  beforeTerminalTransition?: (
+    snapshot: IveKitMediaCallSnapshot,
+    context: { action: IveKitMediaCallAction; actor_identity: string; reason: string }
+  ) => Promise<void>;
+}
+
+const TERMINAL_MEDIA_CALL_ACTIONS = new Set<IveKitMediaCallAction>([
+  'reject',
+  'cancel',
+  'timeout',
+  'end',
+  'fail'
+]);
+
 export class MediaCallService {
-  constructor(private readonly store: MediaCallStore) {}
+  constructor(
+    private readonly store: MediaCallStore,
+    private readonly options: MediaCallServiceOptions = {}
+  ) {}
 
   createCall(input: {
     tenant_id: string;
@@ -160,6 +178,13 @@ export class MediaCallService {
         assertActionAuthorized(input.action, actor, Boolean(input.actor_is_system), participants);
         if (!(ALLOWED_MEDIA_CALL_ACTIONS[call.status] as readonly string[]).includes(input.action)) {
           throw conflict(`media call action '${input.action}' is not allowed from '${call.status}'`);
+        }
+
+        if (TERMINAL_MEDIA_CALL_ACTIONS.has(input.action)) {
+          await this.options.beforeTerminalTransition?.(
+            { call, participants },
+            { action: input.action, actor_identity: actor, reason }
+          );
         }
 
         const fromStatus = call.status;

@@ -282,7 +282,7 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 - `src/agent-runtime/collaboration/`
 - recording object/evidence 辅助模块
 - `src/db-pg-tenant.ts` 和相关 migration runner
-- `src/migrations/009` 到 `030` 中上述清单
+- `src/migrations/009` 到 `035` 中上述能力实际引用的迁移，尤其是 call lifecycle `034` 和 moderation audit `035`
 - attachment/Tinode/quality workers 的 server lifecycle
 - 租户 WebSocket/Redis 广播 adapter
 - `scripts/*preflight*`、media/chat/rustdesk smoke 与验收脚本
@@ -299,11 +299,13 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 ## 9. 错误、幂等和重试
 
 1. 客户端消息必须带稳定 `Idempotency-Key`；同 key 同 payload 返回原消息，不同 payload 返回 409。
-2. HTTP 202 表示本地消息和扫描已完成、provider 正在 durable retry；不能当作消息丢失。
-3. HTTP 502 表示 provider 终态失败，但本地消息/审计仍存在。
-4. SDK 抛出 `IveKitHttpSdkError`，包含 `status/method/path/payload`；网络/超时 status 为 0。
-5. receipt、presence、typing 和 mutation 只能以当前认证身份执行。
-6. RustDesk end/physical disconnect 是最终一致链路，LED 要展示 pending/succeeded/failed/unavailable。
+2. Media call action、主持人 mute/remove 同样必须带稳定 `Idempotency-Key`；超时、连接中断或 `5xx` 必须用原 key 和原 payload 重试。
+3. iveKit 会在 provider 前写 durable moderation command；运维恢复任务使用 system API key 调 `/api/ivekit/media/moderation/recover`，按 tenant 最终化崩溃窗口中的 pending command。
+4. HTTP 202 表示本地消息和扫描已完成、provider 正在 durable retry；不能当作消息丢失。
+5. HTTP 502 表示 provider 操作失败；Media moderation/呼叫终态不会提前落库，IM durable delivery 则按消息接口语义保留本地消息和审计。
+6. SDK 抛出 `IveKitHttpSdkError`，包含 `status/method/path/payload`；网络/超时 status 为 0。
+7. receipt、presence、typing 和 mutation 只能以当前认证身份执行。
+8. RustDesk end/physical disconnect 是最终一致链路，LED 要展示 pending/succeeded/failed/unavailable。
 
 ## 10. 事件订阅
 
@@ -318,6 +320,8 @@ LED 可订阅 OPC 租户 WebSocket。关键事件：
 - `collaboration.attachment.processed`
 - `collaboration.quality_review.completed`
 - `collaboration.policy.finding_reviewed`
+- `ivekit.media.call.created/updated/ended`
+- `ivekit.media.participant.updated/moderated`
 - Web Assist consent/event/recording 与 RustDesk gateway/audit 事件
 
 WebSocket 是加速通道，页面重连后必须用 snapshot/message-state/realtime-state 重新收敛，不能只依赖内存事件。

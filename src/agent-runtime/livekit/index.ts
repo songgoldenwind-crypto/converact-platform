@@ -97,6 +97,14 @@ export { readLiveKitConfig, isLiveKitConfigured } from './config.js';
 export { LiveKitParticipantStore } from './participant-store.js';
 export { MediaCallService } from './media-call-service.js';
 export { MediaCallStore } from './media-call-store.js';
+export {
+  createConfiguredLiveKitModerationProvider,
+  LiveKitModerationService
+} from './livekit-moderation-service.js';
+export type {
+  LiveKitModerationProvider,
+  LiveKitModerationResult
+} from './livekit-moderation-service.js';
 export { LiveKitRecordingService } from './recording-service.js';
 export type { EgressConfig } from './recording-service.js';
 export { LiveKitRoomStore } from './room-store.js';

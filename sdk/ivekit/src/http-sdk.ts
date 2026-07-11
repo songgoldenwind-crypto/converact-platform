@@ -46,6 +46,7 @@ import type {
   IveKitMediaJoinInput,
   IveKitMediaJoinPlan,
   IveKitMediaModerationResult,
+  IveKitMediaModerationRecoveryResult,
   IveKitMediaMuteInput,
   IveKitMediaProviderParticipant,
   IveKitMediaRecording,
@@ -108,13 +109,16 @@ export interface IveKitMediaHttpClient {
   muteParticipant(
     roomName: string,
     identity: string,
-    input: IveKitMediaMuteInput
+    input: IveKitMediaMuteInput,
+    options: { idempotencyKey: string }
   ): Promise<IveKitMediaModerationResult>;
   removeParticipant(
     roomName: string,
     identity: string,
-    input?: { reason?: string }
+    input: { reason?: string },
+    options: { idempotencyKey: string }
   ): Promise<IveKitMediaModerationResult>;
+  recoverModerationCommands(input?: { limit?: number }): Promise<IveKitMediaModerationRecoveryResult>;
   startRecording(roomName: string, input: IveKitStartMediaRecordingInput): Promise<IveKitMediaRecording>;
   stopRecording(egressId: string): Promise<IveKitMediaRecording>;
   listRecordings(input?: { limit?: number }): Promise<IveKitMediaRecording[]>;
@@ -380,15 +384,26 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
         }
       }
     ),
-    muteParticipant: (roomName, identity, input) => transport.json(
+    muteParticipant: (roomName, identity, input, options) => transport.json(
       'POST',
       `${participantPath(roomName, identity)}/mute`,
-      { body: input }
+      {
+        body: input,
+        headers: { 'Idempotency-Key': requiredString(options?.idempotencyKey, 'idempotencyKey is required') }
+      }
     ),
-    removeParticipant: (roomName, identity, input = {}) => transport.json(
+    removeParticipant: (roomName, identity, input, options) => transport.json(
       'POST',
       `${participantPath(roomName, identity)}/remove`,
-      { body: input }
+      {
+        body: input,
+        headers: { 'Idempotency-Key': requiredString(options?.idempotencyKey, 'idempotencyKey is required') }
+      }
+    ),
+    recoverModerationCommands: (input = {}) => transport.json(
+      'POST',
+      '/api/ivekit/media/moderation/recover',
+      { body: { limit: input.limit } }
     ),
     startRecording: (roomName, input) => transport.json(
       'POST',

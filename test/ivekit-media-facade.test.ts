@@ -94,8 +94,10 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
 
     assert.equal(result.data.provider, 'livekit');
     assert.equal(result.data.tenant_id, 'tenant_capabilities');
+    assert.equal(result.data.capabilities.calls, true);
     assert.equal(result.data.capabilities.rooms, true);
     assert.equal(result.data.capabilities.join, true);
+    assert.equal(result.data.capabilities.host_moderation, true);
     assert.equal(result.data.capabilities.recording, true);
     assert.equal(result.data.capabilities.web_assist, true);
     assert.equal(result.data.config.livekit_url_configured, true);

@@ -2,8 +2,11 @@ import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg
 import type {
   IveKitMediaCall,
   IveKitMediaCallAction,
+  IveKitMediaModerationActionRecord,
+  IveKitMediaModerationCommandRecord,
   IveKitMediaCallParticipant,
   IveKitMediaCallSnapshot,
+  IveKitMediaTrackSource,
   MediaBusinessRef
 } from './types.js';
 
@@ -89,6 +92,19 @@ export class MediaCallStore {
       `SELECT * FROM ivekit_media_calls
        WHERE tenant_id = $1 AND id = $2${options.forUpdate ? ' FOR UPDATE' : ''}`,
       [tenantId, callId]
+    );
+    return result.rows[0] ? decodeCall(result.rows[0]) : null;
+  }
+
+  async getCallByRoom(
+    tenantId: string,
+    roomName: string,
+    options: { forUpdate?: boolean } = {}
+  ): Promise<IveKitMediaCall | null> {
+    const result = await this.pg.query(
+      `SELECT * FROM ivekit_media_calls
+       WHERE tenant_id = $1 AND room_name = $2${options.forUpdate ? ' FOR UPDATE' : ''}`,
+      [tenantId, roomName]
     );
     return result.rows[0] ? decodeCall(result.rows[0]) : null;
   }
@@ -212,6 +228,169 @@ export class MediaCallStore {
       ]
     );
   }
+
+  async insertModerationAction(input: {
+    tenant_id: string;
+    call_id: string;
+    room_name: string;
+    participant_identity: string;
+    action: 'mute' | 'remove';
+    actor_identity: string;
+    idempotency_key: string;
+    payload_hash: string;
+    track_sid?: string;
+    source?: IveKitMediaTrackSource;
+    muted?: boolean;
+    reason?: string;
+    metadata?: Record<string, unknown>;
+    result_snapshot: Record<string, unknown>;
+  }): Promise<IveKitMediaModerationActionRecord> {
+    const result = await this.pg.query(
+      `INSERT INTO ivekit_media_moderation_actions
+        (id, tenant_id, call_id, room_name, participant_identity, action, actor_identity,
+         idempotency_key, payload_hash, track_sid, source, muted, reason, metadata, result_snapshot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING *`,
+      [
+        pgId('mma'),
+        input.tenant_id,
+        input.call_id,
+        input.room_name,
+        input.participant_identity,
+        input.action,
+        input.actor_identity,
+        input.idempotency_key,
+        input.payload_hash,
+        input.track_sid || '',
+        input.source || '',
+        input.muted ?? null,
+        input.reason || '',
+        JSON.stringify(input.metadata || {}),
+        JSON.stringify(input.result_snapshot)
+      ]
+    );
+    return decodeModerationAction(result.rows[0]);
+  }
+
+  async getModerationActionByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string
+  ): Promise<IveKitMediaModerationActionRecord | null> {
+    const result = await this.pg.query(
+      `SELECT * FROM ivekit_media_moderation_actions
+       WHERE tenant_id = $1 AND idempotency_key = $2`,
+      [tenantId, idempotencyKey]
+    );
+    return result.rows[0] ? decodeModerationAction(result.rows[0]) : null;
+  }
+
+  async listModerationActions(
+    tenantId: string,
+    callId: string
+  ): Promise<IveKitMediaModerationActionRecord[]> {
+    const result = await this.pg.query(
+      `SELECT * FROM ivekit_media_moderation_actions
+       WHERE tenant_id = $1 AND call_id = $2
+       ORDER BY created_at ASC, id ASC`,
+      [tenantId, callId]
+    );
+    return result.rows.map(decodeModerationAction);
+  }
+
+  async upsertModerationCommand(input: {
+    tenant_id: string;
+    call_id: string;
+    room_name: string;
+    participant_identity: string;
+    action: 'mute' | 'remove';
+    actor_identity: string;
+    actor_is_system: boolean;
+    idempotency_key: string;
+    payload_hash: string;
+    request_payload: Record<string, unknown>;
+  }): Promise<IveKitMediaModerationCommandRecord> {
+    const inserted = await this.pg.query(
+      `INSERT INTO ivekit_media_moderation_commands
+        (id, tenant_id, call_id, room_name, participant_identity, action, actor_identity,
+         actor_is_system, idempotency_key, payload_hash, request_payload)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+       RETURNING *`,
+      [
+        pgId('mmc'),
+        input.tenant_id,
+        input.call_id,
+        input.room_name,
+        input.participant_identity,
+        input.action,
+        input.actor_identity,
+        input.actor_is_system,
+        input.idempotency_key,
+        input.payload_hash,
+        JSON.stringify(input.request_payload)
+      ]
+    );
+    if (inserted.rows[0]) return decodeModerationCommand(inserted.rows[0]);
+    const existing = await this.getModerationCommandByIdempotencyKey(
+      input.tenant_id,
+      input.idempotency_key
+    );
+    if (!existing) throw new Error('media moderation command conflict could not be reloaded');
+    return existing;
+  }
+
+  async getModerationCommandByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string
+  ): Promise<IveKitMediaModerationCommandRecord | null> {
+    const result = await this.pg.query(
+      `SELECT * FROM ivekit_media_moderation_commands
+       WHERE tenant_id = $1 AND idempotency_key = $2`,
+      [tenantId, idempotencyKey]
+    );
+    return result.rows[0] ? decodeModerationCommand(result.rows[0]) : null;
+  }
+
+  async listPendingModerationCommands(
+    tenantId: string,
+    limit = 50
+  ): Promise<IveKitMediaModerationCommandRecord[]> {
+    const result = await this.pg.query(
+      `SELECT * FROM ivekit_media_moderation_commands
+       WHERE tenant_id = $1 AND status = 'pending'
+       ORDER BY created_at ASC, id ASC
+       LIMIT $2`,
+      [tenantId, Math.max(1, Math.min(100, Math.floor(limit))) ]
+    );
+    return result.rows.map(decodeModerationCommand);
+  }
+
+  async updateModerationCommand(input: {
+    tenant_id: string;
+    idempotency_key: string;
+    status: IveKitMediaModerationCommandRecord['status'];
+    result_snapshot?: Record<string, unknown> | null;
+    error_code?: string;
+    error_message?: string;
+  }): Promise<IveKitMediaModerationCommandRecord | null> {
+    const result = await this.pg.query(
+      `UPDATE ivekit_media_moderation_commands
+       SET status = $3, result_snapshot = $4, error_code = $5, error_message = $6,
+           completed_at = CASE WHEN $3 = 'completed' THEN CURRENT_TIMESTAMP ELSE NULL END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE tenant_id = $1 AND idempotency_key = $2
+       RETURNING *`,
+      [
+        input.tenant_id,
+        input.idempotency_key,
+        input.status,
+        input.result_snapshot == null ? null : JSON.stringify(input.result_snapshot),
+        input.error_code || '',
+        input.error_message || ''
+      ]
+    );
+    return result.rows[0] ? decodeModerationCommand(result.rows[0]) : null;
+  }
 }
 
 function decodeCall(row: Record<string, unknown>): IveKitMediaCall {
@@ -257,6 +436,50 @@ function decodeParticipant(row: Record<string, unknown>): IveKitMediaCallPartici
     joined_at: nullableString(row.joined_at),
     left_at: nullableString(row.left_at),
     updated_at: String(row.updated_at)
+  };
+}
+
+function decodeModerationAction(row: Record<string, unknown>): IveKitMediaModerationActionRecord {
+  return {
+    id: String(row.id),
+    tenant_id: String(row.tenant_id),
+    call_id: String(row.call_id),
+    room_name: String(row.room_name),
+    participant_identity: String(row.participant_identity),
+    action: String(row.action) as IveKitMediaModerationActionRecord['action'],
+    actor_identity: String(row.actor_identity),
+    idempotency_key: String(row.idempotency_key),
+    payload_hash: String(row.payload_hash),
+    track_sid: String(row.track_sid || ''),
+    source: String(row.source || '') as IveKitMediaModerationActionRecord['source'],
+    muted: row.muted == null ? null : Boolean(row.muted),
+    reason: String(row.reason || ''),
+    metadata: jsonObject(row.metadata),
+    result_snapshot: jsonObject(row.result_snapshot),
+    created_at: String(row.created_at)
+  };
+}
+
+function decodeModerationCommand(row: Record<string, unknown>): IveKitMediaModerationCommandRecord {
+  return {
+    id: String(row.id),
+    tenant_id: String(row.tenant_id),
+    call_id: String(row.call_id),
+    room_name: String(row.room_name),
+    participant_identity: String(row.participant_identity),
+    action: String(row.action) as IveKitMediaModerationCommandRecord['action'],
+    actor_identity: String(row.actor_identity),
+    actor_is_system: Boolean(row.actor_is_system),
+    idempotency_key: String(row.idempotency_key),
+    payload_hash: String(row.payload_hash),
+    request_payload: jsonObject(row.request_payload),
+    status: String(row.status) as IveKitMediaModerationCommandRecord['status'],
+    result_snapshot: row.result_snapshot == null ? null : jsonObject(row.result_snapshot),
+    error_code: String(row.error_code || ''),
+    error_message: String(row.error_message || ''),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+    completed_at: nullableString(row.completed_at)
   };
 }
 
