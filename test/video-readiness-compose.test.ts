@@ -431,7 +431,7 @@ test('compose files define RustDesk OSS runtime and wire OPC control-plane env',
 
   const localHbbs = readServiceBlock(localCompose, 'rustdesk-hbbs');
   const localHbbr = readServiceBlock(localCompose, 'rustdesk-hbbr');
-  assert.match(localHbbs, /image: rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:-latest\}/);
+  assert.match(localHbbs, /image: rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:-1\.1\.15\}/);
   assert.match(localHbbs, /command: hbbs/);
   assert.match(localHbbs, /ALWAYS_USE_RELAY: \$\{RUSTDESK_ALWAYS_USE_RELAY:-N\}/);
   assert.match(localHbbs, /"21115:21115\/tcp"/);

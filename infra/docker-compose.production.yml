@@ -203,7 +203,7 @@ services:
         condition: service_completed_successfully
 
   rustdesk-hbbs:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
     command: hbbs
     profiles: ["rustdesk"]
     network_mode: "host"
@@ -216,7 +216,7 @@ services:
     restart: unless-stopped
 
   rustdesk-hbbr:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
     command: hbbr
     profiles: ["rustdesk"]
     network_mode: "host"

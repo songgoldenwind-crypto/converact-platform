@@ -5,7 +5,13 @@ import type {
   RustDeskClientConfig,
   RustDeskDevice,
   RustDeskDisconnectState,
-  RustDeskGatewayLaunchPlan
+  RustDeskGatewayLaunchPlan,
+  RustDeskObservedOperation,
+  RustDeskOperationDirection,
+  RustDeskOperationEvidence,
+  RustDeskOperationEvidenceMetadata,
+  RustDeskOperationEvidenceReference,
+  RustDeskOperationObserver
 } from './types.js';
 
 export type IveKitRustDeskFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -72,7 +78,7 @@ export interface EndIveKitRustDeskGatewaySessionInput {
   actor_identity: string;
 }
 
-export interface IveKitRustDeskGatewayDisconnectState extends RustDeskDisconnectState {}
+export type IveKitRustDeskGatewayDisconnectState = RustDeskDisconnectState;
 
 export interface IveKitRustDeskHttpClient {
   getClientConfig(): Promise<RustDeskClientConfig>;
@@ -195,14 +201,16 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
         {}
       );
     },
-    startGatewaySession(input) {
-      return request<RemoteToolSession>('POST', '/api/ivekit/rustdesk/gateway-sessions', input);
+    async startGatewaySession(input) {
+      const session = await request<RemoteToolSession>('POST', '/api/ivekit/rustdesk/gateway-sessions', input);
+      return projectEvidenceContainer(session, 'remote tool session');
     },
-    getGatewayLaunchPlan(externalId) {
-      return request<RustDeskGatewayLaunchPlan>(
+    async getGatewayLaunchPlan(externalId) {
+      const plan = await request<RustDeskGatewayLaunchPlan>(
         'GET',
         `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}/launch`
       );
+      return projectEvidenceContainer(plan, 'gateway launch plan');
     },
     async recordGatewayEvent(externalId, input) {
       const result = await request<{ event: RemoteGatewayAuditEvent }>(
@@ -228,13 +236,207 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
         input
       );
     },
-    getGatewayDisconnectState(externalId) {
-      return request<IveKitRustDeskGatewayDisconnectState>(
+    async getGatewayDisconnectState(externalId) {
+      const state = await request<IveKitRustDeskGatewayDisconnectState>(
         'GET',
         `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}/disconnect`
       );
+      return projectRustDeskDisconnectState(state);
     }
   };
+}
+
+const evidenceOperations: readonly RustDeskObservedOperation[] = [
+  'view_screen',
+  'control_mouse_keyboard',
+  'record_screen',
+  'transfer_file',
+  'clipboard',
+  'multi_display',
+  'session_disconnect'
+];
+const evidenceObservers: readonly RustDeskOperationObserver[] = [
+  'native_client',
+  'edge_adapter',
+  'operator',
+  'qa'
+];
+const evidenceDirections: readonly RustDeskOperationDirection[] = [
+  'upload',
+  'download',
+  'agent_to_device',
+  'device_to_agent'
+];
+
+export function projectRustDeskOperationEvidence(value: unknown): RustDeskOperationEvidence {
+  const evidence = evidenceRecord(value);
+  const operationId = evidenceString(evidence.operation_id, 'operation_id');
+  const operation = evidenceEnum(evidence.operation, evidenceOperations, 'operation');
+  const metadata = projectEvidenceMetadata(evidence.metadata);
+  const references = projectEvidenceReferences(evidence.evidence_refs);
+
+  if (evidence.status === 'not_observed') {
+    if (evidence.observer !== 'none' || evidence.observed_at !== null || references.length !== 0) {
+      throw invalidEvidence('not_observed provenance');
+    }
+    return {
+      operation_id: operationId,
+      operation,
+      status: 'not_observed',
+      observer: 'none',
+      observed_at: null,
+      evidence_refs: [],
+      metadata
+    };
+  }
+
+  if (evidence.status !== 'observed_succeeded' && evidence.status !== 'observed_failed') {
+    throw invalidEvidence('status');
+  }
+  const observer = evidenceEnum(evidence.observer, evidenceObservers, 'observer');
+  const observedAt = evidenceString(evidence.observed_at, 'observed_at');
+  if (Number.isNaN(Date.parse(observedAt)) || references.length === 0) {
+    throw invalidEvidence('observed provenance');
+  }
+
+  return {
+    operation_id: operationId,
+    operation,
+    status: evidence.status,
+    observer,
+    observed_at: observedAt,
+    evidence_refs: references as [RustDeskOperationEvidenceReference, ...RustDeskOperationEvidenceReference[]],
+    metadata
+  };
+}
+
+function projectEvidenceContainer<T extends RemoteToolSession | RustDeskGatewayLaunchPlan>(
+  value: T,
+  label: string
+): T {
+  const record = evidenceRecord(value, label);
+  if (record.operation_evidence === undefined && record.disconnect_state === undefined) return value;
+  const projected = { ...record };
+  if (record.operation_evidence !== undefined) {
+    if (!Array.isArray(record.operation_evidence)) throw invalidEvidence('operation_evidence');
+    projected.operation_evidence = record.operation_evidence.map(projectRustDeskOperationEvidence);
+  }
+  if (record.disconnect_state !== undefined) {
+    projected.disconnect_state = projectRustDeskDisconnectState(record.disconnect_state);
+  }
+  return projected as unknown as T;
+}
+
+function projectRustDeskDisconnectState(value: unknown): RustDeskDisconnectState {
+  const state = disconnectRecord(value);
+  const command = state.command;
+  const concreteStatuses = ['pending', 'claimed', 'succeeded', 'failed'] as const;
+
+  if (state.required !== true) throw invalidDisconnect('required');
+  if (state.status === 'unavailable') {
+    if (command !== null) throw invalidDisconnect('unavailable command');
+  } else if (concreteStatuses.includes(state.status as (typeof concreteStatuses)[number])) {
+    const commandRecord = disconnectRecord(command, 'command');
+    if (commandRecord.status !== state.status) throw invalidDisconnect('command status');
+  } else {
+    throw invalidDisconnect('status');
+  }
+
+  const observationStatus = state.observation_status;
+  if (observationStatus === undefined || observationStatus === 'not_observed') {
+    if (state.observed === undefined) return value as RustDeskDisconnectState;
+    const observed = projectRustDeskOperationEvidence(state.observed);
+    if (observed.operation !== 'session_disconnect' || observed.status !== 'not_observed') {
+      throw invalidDisconnect('not_observed evidence');
+    }
+    return { ...state, observed } as RustDeskDisconnectState;
+  }
+  if (observationStatus !== 'observed_disconnected' && observationStatus !== 'observed_connected') {
+    throw invalidDisconnect('observation_status');
+  }
+  const observed = projectRustDeskOperationEvidence(state.observed);
+  if (observed.operation !== 'session_disconnect' || observed.status === 'not_observed') {
+    throw invalidDisconnect('observed evidence');
+  }
+  return { ...state, observed } as RustDeskDisconnectState;
+}
+
+function projectEvidenceMetadata(value: unknown): RustDeskOperationEvidenceMetadata {
+  const source = evidenceRecord(value, 'metadata');
+  const result: RustDeskOperationEvidenceMetadata = {};
+  for (const key of [
+    'operation_id',
+    'external_id',
+    'provider_operation_id',
+    'provider_session_id',
+    'target_id',
+    'display_id',
+    'reason',
+    'status_detail'
+  ] as const) {
+    if (source[key] !== undefined) result[key] = evidenceString(source[key], `metadata.${key}`);
+  }
+  if (source.direction !== undefined) {
+    result.direction = evidenceEnum(source.direction, evidenceDirections, 'metadata.direction');
+  }
+  for (const key of ['byte_count', 'duration_ms'] as const) {
+    if (source[key] !== undefined) result[key] = evidenceNumber(source[key], `metadata.${key}`);
+  }
+  if (source.checksum_sha256 !== undefined) {
+    result.checksum_sha256 = evidenceSha256(source.checksum_sha256, 'metadata.checksum_sha256');
+  }
+  return result;
+}
+
+function projectEvidenceReferences(value: unknown): RustDeskOperationEvidenceReference[] {
+  if (!Array.isArray(value)) throw invalidEvidence('evidence_refs');
+  return value.map((entry) => {
+    const reference = evidenceRecord(entry, 'evidence_ref');
+    return {
+      type: evidenceString(reference.type, 'evidence_ref.type'),
+      ref: evidenceString(reference.ref, 'evidence_ref.ref'),
+      sha256: evidenceSha256(reference.sha256, 'evidence_ref.sha256')
+    };
+  });
+}
+
+function evidenceRecord(value: unknown, field = 'payload'): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidEvidence(field);
+  return value as Record<string, unknown>;
+}
+
+function disconnectRecord(value: unknown, field = 'payload'): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidDisconnect(field);
+  return value as Record<string, unknown>;
+}
+
+function evidenceString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) throw invalidEvidence(field);
+  return value;
+}
+
+function evidenceNumber(value: unknown, field: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw invalidEvidence(field);
+  return value;
+}
+
+function evidenceSha256(value: unknown, field: string): string {
+  const checksum = evidenceString(value, field);
+  if (!/^[a-f\d]{64}$/i.test(checksum)) throw invalidEvidence(field);
+  return checksum;
+}
+
+function evidenceEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+  if (typeof value !== 'string' || !allowed.includes(value as T)) throw invalidEvidence(field);
+  return value as T;
+}
+
+function invalidEvidence(field: string): Error {
+  return new Error(`invalid RustDesk operation evidence: ${field}`);
+}
+
+function invalidDisconnect(field: string): Error {
+  return new Error(`invalid RustDesk disconnect state: ${field}`);
 }
 
 function validateBaseUrl(value: string): URL {

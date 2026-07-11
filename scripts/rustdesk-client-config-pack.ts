@@ -189,8 +189,8 @@ export function renderRustDeskClientConfigPack(pack: RustDeskClientConfigPack): 
       `- external_id: \`${pack.launch.external_id}\``,
       `- status: \`${pack.launch.status}\``,
       `- target RustDesk ID: \`${pack.launch.target_rustdesk_id}\``,
-      `- launch available at runtime: \`${pack.launch.launch_available ? 'yes' : 'no'}\``,
-      `- protocol launch available at runtime: \`${pack.launch.protocol_available ? 'yes' : 'no'}\``,
+      `- launch available at generation: \`${pack.launch.launch_available ? 'yes' : 'no'}\``,
+      `- protocol launch available at generation: \`${pack.launch.protocol_available ? 'yes' : 'no'}\``,
       `- permissions: \`${pack.launch.permissions.join(', ') || 'none'}\``,
       '- signed and protocol launch URLs are intentionally not persisted; request a fresh launch plan at runtime.',
       ''
@@ -236,15 +236,17 @@ function summarizeLaunchPlan(value: unknown, targetRustDeskId: string | undefine
   const actions = objectValue(plan.actions);
   const target = objectValue(plan.target);
   const externalId = requiredString(plan.external_id, 'RustDesk launch plan external_id is required');
-  const canLaunch = Boolean(actions.can_launch);
+  const canLaunch = actions.can_launch === true;
   const launchAvailable = canLaunch && Boolean(String(actions.open_url || plan.launch_url || '').trim());
   const protocolAvailable = canLaunch && Boolean(String(actions.protocol_url || '').trim());
-  const resolvedTarget = String(
-    targetRustDeskId ||
-    runtime.rustdesk_id ||
-    target.id ||
-    ''
-  ).trim();
+  const runtimeTarget = String(runtime.rustdesk_id || '').trim();
+  const declaredTarget = String(target.id || '').trim();
+  const planTargets = [runtimeTarget, declaredTarget].filter(Boolean);
+  if (targetRustDeskId && planTargets.some((planTarget) => planTarget !== targetRustDeskId)) {
+    throw new Error('configured target RustDesk ID does not match launch plan target');
+  }
+  const launchPlanTarget = runtimeTarget || declaredTarget;
+  const resolvedTarget = String(targetRustDeskId || launchPlanTarget).trim();
   return {
     external_id: externalId,
     status: String(plan.status || ''),
@@ -262,12 +264,16 @@ function objectValue(value: unknown): Record<string, unknown> {
 }
 
 function normalizeBaseUrl(rawBaseUrl: string): string {
-  const value = requiredString(rawBaseUrl, 'OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL or OPC_BASE_URL is required').replace(/\/+$/, '');
+  const value = requiredString(rawBaseUrl, 'OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL or OPC_BASE_URL is required');
   const parsed = new URL(value);
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('RustDesk client config pack base URL must use http(s)');
   }
-  return value;
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error('RustDesk client config pack base URL must not include credentials, query, or fragment');
+  }
+  parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+  return parsed.pathname === '/' ? parsed.origin : `${parsed.origin}${parsed.pathname}`;
 }
 
 function requiredString(value: unknown, message: string): string {

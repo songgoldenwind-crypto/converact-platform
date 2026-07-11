@@ -43,6 +43,36 @@ test('RustDesk client config pack config maps focused env and fallbacks', () => 
   assert.equal(fallback.tenantId, 'tenant_fallback');
 });
 
+test('RustDesk client config pack rejects base URL credentials, query, and fragment without persisting secrets', () => {
+  const invalidBaseUrls = [
+    'https://url-user:url-password@opc.example.com/api',
+    'https://opc.example.com/api?token=query-secret',
+    'https://opc.example.com/api#fragment-secret'
+  ];
+
+  for (const baseUrl of invalidBaseUrls) {
+    assert.throws(
+      () => createRustDeskClientConfigPackConfigFromEnv({
+        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: baseUrl,
+        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
+        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
+      }),
+      (error) => {
+        assert.match(String(error), /base URL must not include credentials, query, or fragment/);
+        assert.doesNotMatch(String(error), /url-user|url-password|query-secret|fragment-secret/);
+        return true;
+      }
+    );
+  }
+
+  const pathConfig = createRustDeskClientConfigPackConfigFromEnv({
+    OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com/ivekit/',
+    OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
+    OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
+  });
+  assert.equal(pathConfig.baseUrl, 'https://opc.example.com/ivekit');
+});
+
 test('RustDesk client config pack renders launch availability without persisting signed or executable URLs', async () => {
   const pack = await buildRustDeskClientConfigPack(
     createRustDeskClientConfigPackConfigFromEnv({
@@ -73,12 +103,57 @@ test('RustDesk client config pack renders launch availability without persisting
   assert.match(markdown, /Relay server/);
   assert.match(markdown, /public-key-value/);
   assert.match(markdown, /sha256:abcdef1234567890/);
-  assert.match(markdown, /launch available at runtime: `yes`/);
-  assert.match(markdown, /protocol launch available at runtime: `yes`/);
+  assert.match(markdown, /launch available at generation: `yes`/);
+  assert.match(markdown, /protocol launch available at generation: `yes`/);
   assert.doesNotMatch(markdown, /\/remote\/rustdesk\/launch|rustdesk:\/\/connect|token=|expires_at=|session_id=|\?session=/);
   assert.match(markdown, /does not prove real screen view/);
   assert.equal(markdown.includes('secret-token'), false);
   assert.doesNotMatch(JSON.stringify(pack), /signed-launch-token|\/remote\/rustdesk\/launch|rustdesk:\/\/connect|token=|expires_at=|session_id=|\?session=/);
+});
+
+test('RustDesk client config pack requires literal can_launch true for generation-time availability', async () => {
+  const pack = await buildRustDeskClientConfigPack(
+    createRustDeskClientConfigPackConfigFromEnv({
+      OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+      OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+      OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1'
+    }),
+    fakeClient({}, { can_launch: 'true' })
+  );
+
+  assert.equal(pack.launch?.launch_available, false);
+  assert.equal(pack.launch?.protocol_available, false);
+});
+
+test('RustDesk client config pack rejects configured target drift from the launch plan', async () => {
+  await assert.rejects(
+    () => buildRustDeskClientConfigPack(
+      createRustDeskClientConfigPackConfigFromEnv({
+        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+        OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+        OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '987654321'
+      }),
+      fakeClient()
+    ),
+    /configured target RustDesk ID does not match launch plan target/
+  );
+
+  await assert.rejects(
+    () => buildRustDeskClientConfigPack(
+      createRustDeskClientConfigPackConfigFromEnv({
+        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+        OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+        OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
+      }),
+      fakeClient({}, {}, { id: '987654321', type: 'device' })
+    ),
+    /configured target RustDesk ID does not match launch plan target/
+  );
 });
 
 test('RustDesk client config pack fails fast when manual client fields are unusable', async () => {
@@ -119,7 +194,7 @@ test('RustDesk client config pack writes markdown and exposes package and env wi
   assert.equal(result.manualFields, 4);
   const written = readFileSync(outputFile, 'utf8');
   assert.match(written, /RustDesk Client Config Pack/);
-  assert.match(written, /launch available at runtime: `yes`/);
+  assert.match(written, /launch available at generation: `yes`/);
   assert.doesNotMatch(written, /signed-launch-token|\/remote\/rustdesk\/launch|rustdesk:\/\/connect|token=|expires_at=|session_id=|\?session=/);
 
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
@@ -142,7 +217,11 @@ test('RustDesk client config pack writes markdown and exposes package and env wi
   }
 });
 
-function fakeClient(overrides: Record<string, unknown> = {}): RustDeskClientConfigPackClient {
+function fakeClient(
+  overrides: Record<string, unknown> = {},
+  actionOverrides: Record<string, unknown> = {},
+  target: Record<string, unknown> = { id: '123456789', type: 'device' }
+): RustDeskClientConfigPackClient {
   return {
     async getClientConfig() {
       return {
@@ -170,7 +249,7 @@ function fakeClient(overrides: Record<string, unknown> = {}): RustDeskClientConf
         external_id: 'rdgw_1',
         status: 'active',
         launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_1&expires_at=1780000000000&token=signed-launch-token',
-        target: { id: '123456789', type: 'device' },
+        target,
         permissions: ['view_screen', 'control_mouse_keyboard'],
         runtime: {
           rustdesk_id: '123456789',
@@ -184,7 +263,8 @@ function fakeClient(overrides: Record<string, unknown> = {}): RustDeskClientConf
         actions: {
           can_launch: true,
           open_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_1&expires_at=1780000000000&token=signed-launch-token',
-          protocol_url: 'rustdesk://connect/123456789?session=rdgw_1'
+          protocol_url: 'rustdesk://connect/123456789?session=rdgw_1',
+          ...actionOverrides
         },
         client_config: {
           public_key_configured: true,
@@ -199,7 +279,7 @@ function fakeClient(overrides: Record<string, unknown> = {}): RustDeskClientConf
         metadata: {},
         created_at: '2026-07-08T10:00:00.000Z',
         ended_at: null
-      };
+      } as never;
     }
   };
 }

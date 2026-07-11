@@ -227,18 +227,39 @@ export interface RustDeskDeviceCommand {
   updated_at: string;
 }
 
-export interface RustDeskDisconnectState {
-  required: true;
-  status: RustDeskDeviceCommandStatus | 'unavailable';
-  command: RustDeskDeviceCommand | null;
-  observation_status?: 'not_observed' | 'observed_disconnected' | 'observed_connected';
-  observed?: RustDeskOperationEvidence;
-}
+type RustDeskDisconnectCommandState = {
+  [Status in RustDeskDeviceCommandStatus]: {
+    required: true;
+    status: Status;
+    command: RustDeskDeviceCommand & { status: Status };
+  }
+}[RustDeskDeviceCommandStatus];
+
+type RustDeskDisconnectAvailabilityState =
+  | {
+      required: true;
+      status: 'unavailable';
+      command: null;
+    }
+  | RustDeskDisconnectCommandState;
+
+type RustDeskDisconnectObservationState =
+  | {
+      observation_status?: 'not_observed';
+      observed?: RustDeskOperationNotObservedEvidence & { operation: 'session_disconnect' };
+    }
+  | {
+      observation_status: 'observed_disconnected' | 'observed_connected';
+      observed: RustDeskOperationObservedEvidence & { operation: 'session_disconnect' };
+    };
+
+export type RustDeskDisconnectState = RustDeskDisconnectAvailabilityState &
+  RustDeskDisconnectObservationState;
 
 export interface RustDeskPhysicalDisconnectSummary {
   required: true;
-  command_id?: string;
   status: RustDeskDeviceCommandStatus | 'unavailable';
+  command_id?: string;
 }
 
 export interface RemoteGatewayTarget {

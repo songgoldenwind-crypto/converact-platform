@@ -6,7 +6,7 @@ test('RustDesk operation evidence enforces observation invariants under strict T
   const result = spawnSync(
     process.execPath,
     [
-      'sdk/ivekit/node_modules/typescript/bin/tsc',
+      'node_modules/typescript/bin/tsc',
       '-p',
       'test/fixtures/tsconfig.rustdesk-terminal-contract.json'
     ],

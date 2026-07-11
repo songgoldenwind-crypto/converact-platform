@@ -81,7 +81,7 @@ services:
       - rustpbx_recordings:/app/recordings
 
   rustdesk-hbbs:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
     command: hbbs
     profiles: ["rustdesk"]
     environment:
@@ -98,7 +98,7 @@ services:
     restart: unless-stopped
 
   rustdesk-hbbr:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-latest}
+    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
     command: hbbr
     profiles: ["rustdesk"]
     ports:

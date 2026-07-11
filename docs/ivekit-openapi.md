@@ -481,7 +481,10 @@ source 或 Node-only module。
 
 `rustdesk:client-config-pack` 是静态交接产物，不持久化 signed `launch_url` 或 executable
 protocol URL；兼容字段保持空字符串，仅输出 `launch_available` /
-`protocol_available`。真正拉起客户端时仍调用 `getGatewayLaunchPlan()` 即时获取短期
+`protocol_available` 的生成时可用性快照。`actions.can_launch` 只有严格等于 boolean
+`true` 才能标记为可用；配置包 base URL 禁止 credentials、query 和 fragment，配置的
+RustDesk target ID 与 launch plan 不一致时生成失败。真正拉起客户端时仍调用
+`getGatewayLaunchPlan()` 即时获取短期
 opaque URL，不能从静态 pack 复用。
 
 设备 claim/progress/result 路径只允许设备绑定 edge token，不属于 LED 普通前端/API key 的调用面。完整 scope、事件和验收规则见 RustDesk 专项设计。

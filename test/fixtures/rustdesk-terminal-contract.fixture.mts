@@ -1,4 +1,9 @@
-import type { RustDeskOperationEvidence } from '../../sdk/ivekit/src/types.js';
+import type {
+  RustDeskDeviceCommand,
+  RustDeskDisconnectState,
+  RustDeskOperationEvidence,
+  RustDeskOperationObservedEvidence
+} from '../../sdk/ivekit/src/types.js';
 
 const reference = {
   type: 'operator_report',
@@ -64,6 +69,94 @@ const invalidMetadata: RustDeskOperationEvidence = {
   }
 };
 
+const disconnectCommand: RustDeskDeviceCommand & { status: 'succeeded' } = {
+  id: 'rdcmd_1',
+  tenant_id: 'tenant-led',
+  device_id: 'device-1',
+  external_id: 'rdgw_1',
+  command_type: 'disconnect_session',
+  status: 'succeeded',
+  requested_by: 'agent-1',
+  requested_reason: 'gateway_ended',
+  attempt_count: 1,
+  max_attempts: 3,
+  claimed_by: 'edge-1',
+  lease_expires_at: null,
+  next_attempt_at: null,
+  execution_method: 'session_adapter',
+  exit_code: 0,
+  duration_ms: 100,
+  stdout_bytes: 0,
+  stderr_bytes: 0,
+  stdout_sha256: '',
+  stderr_sha256: '',
+  result_metadata: {},
+  requested_at: '2026-07-12T12:00:00.000Z',
+  started_at: '2026-07-12T12:00:00.000Z',
+  completed_at: '2026-07-12T12:00:00.100Z',
+  updated_at: '2026-07-12T12:00:00.100Z'
+};
+
+const disconnectEvidence: RustDeskOperationObservedEvidence & { operation: 'session_disconnect' } = {
+  ...observed,
+  operation_id: 'disconnect-1',
+  operation: 'session_disconnect'
+};
+
+const unavailableDisconnect: RustDeskDisconnectState = {
+  required: true,
+  status: 'unavailable',
+  command: null
+};
+
+const succeededDisconnect: RustDeskDisconnectState = {
+  required: true,
+  status: 'succeeded',
+  command: disconnectCommand
+};
+
+const observedDisconnect: RustDeskDisconnectState = {
+  required: true,
+  status: 'succeeded',
+  command: disconnectCommand,
+  observation_status: 'observed_disconnected',
+  observed: disconnectEvidence
+};
+
+// @ts-expect-error unavailable disconnect state cannot carry a command
+const invalidUnavailableCommand: RustDeskDisconnectState = {
+  required: true,
+  status: 'unavailable',
+  command: disconnectCommand
+};
+
+// @ts-expect-error a concrete disconnect status requires a command
+const invalidConcreteWithoutCommand: RustDeskDisconnectState = {
+  required: true,
+  status: 'succeeded',
+  command: null
+};
+
+// @ts-expect-error outer and command statuses must agree
+const invalidCommandStatus: RustDeskDisconnectState = {
+  required: true,
+  status: 'failed',
+  command: disconnectCommand
+};
+
+// @ts-expect-error an observed disconnect state requires observation evidence
+const invalidObservedWithoutEvidence: RustDeskDisconnectState = {
+  required: true,
+  status: 'succeeded',
+  command: disconnectCommand,
+  observation_status: 'observed_disconnected'
+};
+
+// @ts-expect-error disconnect observation evidence must describe session_disconnect
+const invalidObservedOperation: RustDeskDisconnectState = { required: true, status: 'succeeded', command: disconnectCommand, observation_status: 'observed_connected', observed };
+
 void [notObserved, observed, invalidNotObservedObserver, invalidNotObservedTimestamp,
   invalidNotObservedReference, invalidObservedObserver, invalidObservedTimestamp,
-  invalidObservedReferences, invalidMetadata];
+  invalidObservedReferences, invalidMetadata, unavailableDisconnect, succeededDisconnect,
+  observedDisconnect, invalidUnavailableCommand, invalidConcreteWithoutCommand,
+  invalidCommandStatus, invalidObservedWithoutEvidence, invalidObservedOperation];

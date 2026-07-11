@@ -86,21 +86,37 @@ test('RustDesk HTTP client preserves the existing lifecycle and adopts the named
   ]);
   assert.match(
     clientSource,
-    /interface IveKitRustDeskGatewayDisconnectState extends RustDeskDisconnectState/
+    /type IveKitRustDeskGatewayDisconnectState = RustDeskDisconnectState/
   );
+});
+
+test('RustDesk type contract uses the reproducible root TypeScript compiler', () => {
+  const typeContractTest = readFileSync('test/rustdesk-terminal-type-contract.test.ts', 'utf8');
+  const compilerPath = typeContractTest.match(/['"]([^'"]*node_modules\/typescript\/bin\/tsc)['"]/)?.[1];
+
+  assert.equal(compilerPath, 'node_modules/typescript/bin/tsc');
+  assert.doesNotMatch(typeContractTest, /['"]sdk\/ivekit\/node_modules\/typescript\/bin\/tsc['"]/);
 });
 
 test('RustDesk client matrix pins OSS versions and platform limitations without claiming real acceptance', () => {
   const matrixPath = 'docs/rustdesk-client-version-matrix.md';
   assert.equal(existsSync(matrixPath), true, `${matrixPath} must exist`);
   const matrix = readFileSync(matrixPath, 'utf8');
-  const standaloneEnv = readFileSync('infra/ivekit/env.example', 'utf8');
 
   assert.match(matrix, /rustdesk-server:1\.1\.15/);
   assert.match(matrix, /RustDesk OSS client 1\.4\.7/);
   assert.match(matrix, /releases\/tag\/1\.4\.7/);
   assert.doesNotMatch(matrix, /rustdesk-server:latest/);
-  assert.match(standaloneEnv, /^RUSTDESK_SERVER_IMAGE_TAG=1\.1\.15$/m);
+  for (const envPath of ['.env.example', 'infra/env.example', 'infra/ivekit/env.example']) {
+    const env = readFileSync(envPath, 'utf8');
+    assert.match(env, /^RUSTDESK_SERVER_IMAGE_TAG=1\.1\.15$/m, envPath);
+    assert.doesNotMatch(env, /^RUSTDESK_SERVER_IMAGE_TAG=(?:latest|1\.1\.14)$/m, envPath);
+  }
+  for (const composePath of ['docker-compose.callcenter.yml', 'infra/docker-compose.production.yml']) {
+    const compose = readFileSync(composePath, 'utf8');
+    assert.match(compose, /rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:-1\.1\.15\}/, composePath);
+    assert.doesNotMatch(compose, /RUSTDESK_SERVER_IMAGE_TAG:-latest/, composePath);
+  }
   for (const expected of ['Windows', 'macOS', 'Linux', 'x86_64', 'aarch64', 'Wayland', 'not_run']) {
     assert.match(matrix, new RegExp(expected));
   }

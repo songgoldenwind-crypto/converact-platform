@@ -70,8 +70,8 @@ trusted backend may use an API key without forwarding it to the browser.
 Operation evidence metadata is an allowlist of non-content IDs, direction,
 display ID, byte count, checksum, duration, reason, and status detail; it has no
 arbitrary extension keys. Static client configuration packs retain blank URL
-fields for compatibility and expose availability booleans only. A fresh runtime
-launch plan is required to obtain a signed or protocol URL.
+fields for compatibility and expose generation-time availability booleans only.
+A fresh runtime launch plan is required to obtain a signed or protocol URL.
 
 ## Change Control
 
