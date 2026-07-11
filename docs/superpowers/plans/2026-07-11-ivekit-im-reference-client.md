@@ -271,23 +271,23 @@ git commit -m "feat(client): add Tinode convergence"
 - Create: `clients/ivekit-reference/public/ivekit-config.example.json`
 - Create: `test/ivekit-reference-client-package.test.ts`
 
-- [ ] **Step 1: Write failing independence tests**
+- [x] **Step 1: Write failing independence tests**
 
 Assert the client depends on `@opc/ivekit-sdk`, contains no `frontend/src`, `src/agent-runtime`, API key storage, call-center route, or direct Tinode publish import. Assert build/test scripts exist.
 
-- [ ] **Step 2: Add runtime bootstrap**
+- [x] **Step 2: Add runtime bootstrap**
 
 Load public `baseUrl`, tenant, and optional WebSocket URL from runtime JSON. Obtain the short-lived user token through a host callback or session-only development bootstrap. Never compile secrets into Vite env.
 
-- [ ] **Step 3: Build the work-focused shell**
+- [x] **Step 3: Build the work-focused shell**
 
 Use a compact three-column layout: session list, message timeline/composer, participant/details rail. No marketing screen, nested cards, decorative gradients, or oversized headings. Use Lucide icons and tooltips for icon-only controls.
 
-- [ ] **Step 4: Verify responsive constraints**
+- [x] **Step 4: Verify responsive constraints**
 
 Desktop shows all panes. Tablet collapses details. Mobile uses session/timeline tabs with stable composer height and no overlap.
 
-- [ ] **Step 5: Build and commit**
+- [x] **Step 5: Build and commit**
 
 ```bash
 npm ci --prefix clients/ivekit-reference

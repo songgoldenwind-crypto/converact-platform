@@ -1,0 +1,5 @@
+{
+  "baseUrl": "https://ivekit.example.com",
+  "tenantId": "tenant-led",
+  "websocketUrl": "wss://ivekit.example.com/ws"
+}
