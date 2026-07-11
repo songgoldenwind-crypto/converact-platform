@@ -35,6 +35,8 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 
 ### M1：独立交付底座
 
+**状态：本地代码与交付门禁完成。** 真实服务器部署按用户要求暂缓，部署与验收材料已保留。
+
 实施计划：[iveKit Standalone Foundation Implementation Plan](superpowers/plans/2026-07-11-ivekit-standalone-foundation.md)
 
 交付内容：
@@ -48,6 +50,8 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 验收终点：LED 后端无需引用 OPC 源码，即可通过 SDK 调用真实服务器上的 Media、Chat 和 RustDesk facade。
 
 ### M2：IM 参考客户端
+
+**状态：详细实施计划完成，进入开发。** 计划见 [iveKit IM Reference Client Implementation Plan](superpowers/plans/2026-07-11-ivekit-im-reference-client.md)。
 
 交付内容：
 
@@ -126,4 +130,3 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 5. 真实浏览器与真实桌面客户端证据齐全。
 6. 长稳、容量、弱网和断线恢复达到 V1 验收阈值。
 7. 不存在未解决的 Critical 或 Important 审查问题。
-

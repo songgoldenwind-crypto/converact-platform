@@ -680,7 +680,7 @@ Review for Critical and Important findings with special focus on:
 
 Use a failing regression test for every behavior change. Repeat Task 6 Step 5 after fixes.
 
-- [ ] **Step 4: Mark this plan complete and write the IM client plan**
+- [x] **Step 4: Mark this plan complete and write the IM client plan**
 
 Only after all gates pass, change completed checkboxes in this document and create:
 
