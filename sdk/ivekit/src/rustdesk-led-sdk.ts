@@ -23,6 +23,7 @@ export interface IveKitRustDeskLedSdkInput {
   apiKey?: string;
   accessToken?: string;
   userId?: string;
+  timeoutMs?: number;
   fetch?: IveKitRustDeskFetch;
   client?: IveKitRustDeskHttpClient;
   source?: string;
@@ -119,6 +120,7 @@ export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): Iv
     accessToken: input.accessToken,
     tenantId,
     userId: input.userId,
+    timeoutMs: input.timeoutMs,
     fetch: input.fetch
   });
 

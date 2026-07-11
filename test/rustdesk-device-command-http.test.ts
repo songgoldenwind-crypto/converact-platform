@@ -7,6 +7,7 @@ import { createRustDeskEdgeCommandToken } from '../src/agent-runtime/collaborati
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 import { RustDeskPhysicalDisconnectService } from '../src/agent-runtime/collaboration/rustdesk-physical-disconnect.js';
 import { MemoryPg } from '../src/db-pg.js';
+import type { PgQueryable } from '../src/db-pg.js';
 
 const API_KEY = 'rustdesk-device-command-http-key';
 const EDGE_TOKEN_SECRET = 'rustdesk-device-command-http-edge-secret-32-bytes';
@@ -521,6 +522,62 @@ test('RustDesk control plane strict mode requires a capable registered device an
     restoreEnv('OPC_RUSTDESK_LAUNCH_BASE_URL', previousEnv.launchBaseUrl);
     restoreEnv('OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', previousEnv.requirePhysicalDisconnect);
     restoreEnv('OPC_RUSTDESK_DEVICE_ONLINE_TTL_MS', previousEnv.onlineTtlMs);
+  }
+});
+
+test('RustDesk control plane enters the resolved session tenant transaction', async () => {
+  const previousToken = process.env.OPC_RUSTDESK_API_TOKEN;
+  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-plane-rls-token';
+  const session = {
+    external_id: 'rdgw-rls-1',
+    tenant_id: 'tenant-rustdesk-rls',
+    status: 'active',
+    target_type: 'device',
+    target_id: '123456789',
+    target_display_name: 'RLS target',
+    permissions: JSON.stringify(['view_screen']),
+    actor_identity: 'agent-rls',
+    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-rls-1',
+    metadata: '{}',
+    created_at: '2026-07-11T00:00:00.000Z',
+    ended_at: null,
+    ended_by: ''
+  };
+  const transactionQueries: Array<{ sql: string; params: unknown[] }> = [];
+  const client = {
+    async query(sql: string, params: unknown[] = []) {
+      transactionQueries.push({ sql, params });
+      if (sql.includes('FROM rustdesk_gateway_sessions')) return { rows: [session], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    },
+    release() {}
+  };
+  const pg = {
+    async query(sql: string) {
+      if (sql.includes('opc_rustdesk_session_by_external_id')) return { rows: [session], rowCount: 1 };
+      throw new Error('unscoped RustDesk table query');
+    },
+    async connect() {
+      return client;
+    }
+  } as unknown as PgQueryable;
+
+  try {
+    const result = await routeCollaborationApi(
+      pg,
+      'GET',
+      '/api/opc/rustdesk/sessions/rdgw-rls-1/launch',
+      new URL('http://localhost/api/opc/rustdesk/sessions/rdgw-rls-1/launch'),
+      null,
+      '',
+      { authorization: 'Bearer rustdesk-control-plane-rls-token' }
+    ) as { data: { external_id: string } };
+
+    assert.equal(result.data.external_id, 'rdgw-rls-1');
+    const tenantQuery = transactionQueries.find((entry) => entry.sql.includes("set_config('app.current_tenant'"));
+    assert.deepEqual(tenantQuery?.params, ['tenant-rustdesk-rls']);
+  } finally {
+    restoreEnv('OPC_RUSTDESK_API_TOKEN', previousToken);
   }
 });
 

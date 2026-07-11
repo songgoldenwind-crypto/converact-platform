@@ -425,7 +425,7 @@ function remoteGatewayTargetFromInput(input: Record<string, unknown>): RemoteGat
 
 function tenantIdForRustDeskControlPlane(input: Record<string, unknown>): string {
   const metadata = bodyObject(input.metadata);
-  return String(metadata.tenant_id || input.tenant_id || 'system').trim() || 'system';
+  return String(metadata.tenant_id || input.tenant_id || '').trim();
 }
 
 function createLocalRustDeskGatewayClient(pg: PgQueryable): RemoteGatewayClient {
@@ -754,21 +754,55 @@ async function routeRustDeskControlPlane(
   routePath: string,
   url: URL,
   body: unknown,
-  headers: Record<string, string | string[] | undefined>
+  headers: Record<string, string | string[] | undefined>,
+  tenantScope = ''
 ) {
   const authError = requireRustDeskGatewayAuth(headers);
   if (authError) return authError;
 
+  const sessionMatch = routePath.match(/^\/api\/opc\/rustdesk\/sessions\/([^/]+)(?:\/([^/]+))?$/);
+  if (!tenantScope) {
+    if (routePath === '/api/opc/rustdesk/client-config' && method === 'GET') {
+      const config = rustDeskClientConfig();
+      if (config.public_key_error) return { status: 500, data: { error: config.public_key_error } };
+      if (config.api_server_error) return { status: 500, data: { error: config.api_server_error } };
+      return { data: config };
+    }
+
+    let tenantId = '';
+    if (routePath === '/api/opc/rustdesk/sessions' && method === 'POST') {
+      const input = bodyObject(body);
+      const requestedPermissions = stringArray(input.permissions || input.scopes);
+      const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
+      if (unsupportedPermission) {
+        return { status: 400, data: { error: `unsupported RustDesk permission scope: ${unsupportedPermission}` } };
+      }
+      if (!remoteConsentScopes(requestedPermissions).length) {
+        return { status: 400, data: { error: 'permissions required' } };
+      }
+      if (!String(input.actor_identity || '').trim()) {
+        return { status: 400, data: { error: 'actor_identity is required' } };
+      }
+      remoteGatewayTargetFromInput(input);
+      tenantId = tenantIdForRustDeskControlPlane(input);
+    } else if (routePath === '/api/opc/rustdesk/sessions' && method === 'GET') {
+      tenantId = String(url.searchParams.get('tenant_id') || '').trim();
+    } else if (sessionMatch) {
+      const externalId = decodeURIComponent(sessionMatch[1]);
+      const resolved = await new RustDeskGatewaySessionStore(pg).getSignedLaunchSession(externalId);
+      if (!resolved) return { status: 404, data: { error: 'RustDesk gateway session not found' } };
+      tenantId = resolved.tenant_id;
+    } else {
+      return undefined;
+    }
+    if (!tenantId) return { status: 400, data: { error: 'tenant_id is required' } };
+    return withPgTenant(pg, tenantId, (scopedPg) =>
+      routeRustDeskControlPlane(scopedPg, method, routePath, url, body, headers, tenantId)
+    );
+  }
+
   const store = new RustDeskGatewaySessionStore(pg);
   const physicalDisconnect = new RustDeskPhysicalDisconnectService(pg);
-  const sessionMatch = routePath.match(/^\/api\/opc\/rustdesk\/sessions\/([^/]+)(?:\/([^/]+))?$/);
-
-  if (routePath === '/api/opc/rustdesk/client-config' && method === 'GET') {
-    const config = rustDeskClientConfig();
-    if (config.public_key_error) return { status: 500, data: { error: config.public_key_error } };
-    if (config.api_server_error) return { status: 500, data: { error: config.api_server_error } };
-    return { data: config };
-  }
 
   if (routePath === '/api/opc/rustdesk/sessions' && method === 'POST') {
     const input = bodyObject(body);
@@ -789,7 +823,7 @@ async function routeRustDeskControlPlane(
         throw Object.assign(new Error('rustdesk physical disconnect requires a registered device'), { status: 409 });
       }
       const device = await new RustDeskDeviceStore(pg).getDevice({
-        tenant_id: tenantIdForRustDeskControlPlane(input),
+        tenant_id: tenantScope,
         device_id: deviceId
       });
       if (!device || device.status !== 'active' || device.rustdesk_id !== target.id) {
@@ -800,7 +834,7 @@ async function routeRustDeskControlPlane(
     const externalId = pgId('rdgw');
     const session = await store.createSession({
       external_id: externalId,
-      tenant_id: tenantIdForRustDeskControlPlane(input),
+      tenant_id: tenantScope,
       target,
       permissions,
       actor_identity: actorIdentity,
@@ -820,8 +854,6 @@ async function routeRustDeskControlPlane(
   }
 
   if (routePath === '/api/opc/rustdesk/sessions' && method === 'GET') {
-    const tenantId = String(url.searchParams.get('tenant_id') || '').trim();
-    if (!tenantId) return { status: 400, data: { error: 'tenant_id is required' } };
     const status = rustDeskGatewaySessionStatus(url.searchParams.get('status') || 'active');
     if (status === 'invalid') {
       return { status: 400, data: { error: 'status must be active, ended, or all' } };
@@ -831,7 +863,7 @@ async function routeRustDeskControlPlane(
       return { status: 400, data: { error: 'limit must be an integer from 1 to 200' } };
     }
     const sessions = await store.listSessions({
-      tenant_id: tenantId,
+      tenant_id: tenantScope,
       status: status === 'all' ? undefined : status,
       limit
     });

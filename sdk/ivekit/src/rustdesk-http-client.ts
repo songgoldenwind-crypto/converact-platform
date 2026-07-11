@@ -17,6 +17,7 @@ export interface IveKitRustDeskHttpClientInput {
   accessToken?: string;
   tenantId: string;
   userId?: string;
+  timeoutMs?: number;
   fetch?: IveKitRustDeskFetch;
 }
 
@@ -121,6 +122,7 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
   }
   const tenantId = requiredString(input.tenantId, 'tenantId is required');
   const userId = String(input.userId || '').trim();
+  const timeoutMs = validTimeout(input.timeoutMs);
   const fetchImpl = input.fetch || globalThis.fetch;
   if (!fetchImpl) throw new Error('fetch is required');
 
@@ -139,7 +141,20 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
       headers['content-type'] = 'application/json';
       init.body = JSON.stringify(body);
     }
-    const response = await fetchImpl(url.toString(), init);
+    const controller = new AbortController();
+    init.signal = controller.signal;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let response: Response;
+    try {
+      response = await fetchImpl(url.toString(), init);
+    } catch (error) {
+      const message = controller.signal.aborted
+        ? `${method} ${path} timed out after ${timeoutMs}ms`
+        : `${method} ${path} failed: ${error instanceof Error ? error.message : String(error)}`;
+      throw new IveKitRustDeskHttpError(message, 0, method, path, null);
+    } finally {
+      clearTimeout(timer);
+    }
     const payload = await readResponsePayload(response);
     if (!response.ok) {
       throw new IveKitRustDeskHttpError(
@@ -234,6 +249,14 @@ function validateBaseUrl(value: string): URL {
     throw new Error('baseUrl must use http(s)');
   }
   return parsed;
+}
+
+function validTimeout(value: number | undefined): number {
+  if (value === undefined) return 30_000;
+  if (!Number.isInteger(value) || value < 100 || value > 300_000) {
+    throw new Error('timeoutMs must be an integer between 100 and 300000');
+  }
+  return value;
 }
 
 function requiredString(value: unknown, message: string): string {

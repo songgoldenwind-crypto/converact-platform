@@ -6,6 +6,7 @@ import { createIveKitMediaHooks } from '../src/agent-runtime/ivekit/media-hooks.
 import type { EgressRecord } from '../src/agent-runtime/livekit/types.js';
 import { all, createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
+import type { PgQueryable } from '../src/db-pg.js';
 import { createTenant } from '../src/platform/tenant-core.js';
 
 function recording(tenantId: string): EgressRecord {
@@ -111,4 +112,37 @@ test('standalone media hooks reject invalid retention configuration', () => {
     else process.env.OPC_RECORDING_RETENTION_DAYS = previous;
     db.close();
   }
+});
+
+test('standalone media hooks enter the recording tenant PostgreSQL transaction', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const client = {
+    async query(sql: string, params: unknown[] = []) {
+      queries.push({ sql, params });
+      return { rows: [], rowCount: 0 };
+    },
+    release() {}
+  };
+  const pg = {
+    async query() {
+      throw new Error('unscoped pool query must not be used');
+    },
+    async connect() {
+      return client;
+    }
+  } as unknown as PgQueryable;
+  const source = {
+    ...recording('tenant-recording-hook'),
+    business_ref_type: '',
+    business_ref_id: '',
+    business_ref: null
+  } as EgressRecord;
+  const hooks = createIveKitMediaHooks({ db: {}, pg });
+
+  await hooks.onRecordingCompleted?.(source, { roomName: 'room-recording-hook' });
+
+  const tenantQuery = queries.find((entry) => entry.sql.includes("set_config('app.current_tenant'"));
+  assert.deepEqual(tenantQuery?.params, ['tenant-recording-hook']);
+  assert.equal(queries[0]?.sql, 'BEGIN');
+  assert.equal(queries.at(-1)?.sql, 'COMMIT');
 });

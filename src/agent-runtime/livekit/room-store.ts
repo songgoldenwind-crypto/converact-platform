@@ -1,4 +1,4 @@
-import { id, json, one, parseJson, run } from '../../db.js';
+import { id, json, one, parseJson, run } from '../../db-compat.js';
 import type { LiveKitConfig } from './config.js';
 import type { CreateMediaRoomInput, LiveKitRoomRow, MediaRoomPurpose } from './types.js';
 import { createLiveKitRoomClient } from './token-service.js';

@@ -1,4 +1,4 @@
-import { all, id, json, one, parseJson, run } from '../../db.js';
+import { all, id, json, one, parseJson, run } from '../../db-compat.js';
 import type {
   LiveKitMediaParticipantRole,
   LiveKitParticipantRow,

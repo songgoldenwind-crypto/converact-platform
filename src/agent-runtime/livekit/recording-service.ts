@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { EgressClient, EncodedFileOutput, EncodedFileType } from 'livekit-server-sdk';
-import { all, id, json, one, parseJson, run } from '../../db.js';
+import { all, id, json, one, parseJson, run } from '../../db-compat.js';
 import {
   deleteRecordingObject,
   resolveRecordingObjectContent

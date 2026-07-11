@@ -1,4 +1,4 @@
-import { getRedisClient } from './agent-runtime/call-center/redis-client.js';
+import { getRedisClient } from './redis-client.js';
 
 const SESSION_TTL_SEC = 86_400;
 

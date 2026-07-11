@@ -31,6 +31,7 @@ export function createIveKitClient(input: IveKitClientInput): IveKitClient {
     apiKey: input.apiKey,
     accessToken: input.accessToken,
     userId: input.userId,
+    timeoutMs: input.timeoutMs,
     fetch: input.fetch
   });
   const rustdeskWorkflow = createIveKitRustDeskLedSdk({

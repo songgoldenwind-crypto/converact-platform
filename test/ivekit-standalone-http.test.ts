@@ -284,6 +284,102 @@ test('standalone iveKit server returns safe structured errors', async (t) => {
   assert.doesNotMatch(JSON.stringify(internalBody), /password leaked/);
 });
 
+test('standalone iveKit server bounds every non-attachment request body', async (t) => {
+  const previousLimit = process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES;
+  process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES = '6';
+  const db = createDatabase(':memory:');
+  const server = createIveKitHttpServer({ db, pg: null });
+  t.after(async () => {
+    if (previousLimit === undefined) delete process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES;
+    else process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES = previousLimit;
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+  });
+
+  const port = await listenOnRandomPort(server);
+  for (const path of ['/api/ivekit/media/rooms', '/api/ivekit/media/webhooks/livekit']) {
+    const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"a":1}'
+    });
+    assert.equal(response.status, 413);
+  }
+});
+
+test('standalone iveKit server rejects malformed JSON before routing', async (t) => {
+  let routeCalls = 0;
+  const db = createDatabase(':memory:');
+  const server = createIveKitHttpServer({
+    db,
+    pg: null,
+    routes: {
+      media: async () => {
+        routeCalls += 1;
+        return { data: { unexpected: true } };
+      },
+      chat: async () => undefined,
+      collaboration: async () => undefined
+    }
+  });
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+  });
+
+  const port = await listenOnRandomPort(server);
+  const response = await fetch(`http://127.0.0.1:${port}/api/ivekit/media/rooms`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{"broken"'
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: { message: 'invalid_json', status: 400 } });
+  assert.equal(routeCalls, 0);
+});
+
+test('standalone iveKit server handles configured browser CORS preflight', async (t) => {
+  const previousOrigins = process.env.OPC_IVEKIT_ALLOWED_ORIGINS;
+  process.env.OPC_IVEKIT_ALLOWED_ORIGINS = 'https://led.example.com';
+  const db = createDatabase(':memory:');
+  const server = createIveKitHttpServer({
+    db,
+    pg: null,
+    routes: {
+      media: async () => ({ data: { ok: true } }),
+      chat: async () => undefined,
+      collaboration: async () => undefined
+    }
+  });
+  t.after(async () => {
+    if (previousOrigins === undefined) delete process.env.OPC_IVEKIT_ALLOWED_ORIGINS;
+    else process.env.OPC_IVEKIT_ALLOWED_ORIGINS = previousOrigins;
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+  });
+
+  const port = await listenOnRandomPort(server);
+  const url = `http://127.0.0.1:${port}/api/ivekit/media/capabilities`;
+  const preflight = await fetch(url, {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://led.example.com',
+      'access-control-request-method': 'GET',
+      'access-control-request-headers': 'authorization,x-tenant-id'
+    }
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://led.example.com');
+  assert.match(preflight.headers.get('access-control-allow-headers') || '', /authorization/i);
+
+  const allowed = await fetch(url, { headers: { origin: 'https://led.example.com' } });
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.headers.get('access-control-allow-origin'), 'https://led.example.com');
+
+  const rejected = await fetch(url, { headers: { origin: 'https://evil.example.com' } });
+  assert.equal(rejected.status, 403);
+});
+
 test('standalone iveKit server injects standalone media hooks', async (t) => {
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();

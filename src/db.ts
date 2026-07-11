@@ -1,27 +1,17 @@
-import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { all, asDatabase, one, run } from './db-compat.js';
+import type { DatabaseLike } from './db-compat.js';
 import { LEAD_RUN_PARTICLE_KEYS } from './db-migrations/legacy-lead-run-particle-keys.js';
 import { migrateIvrRuntimeTables } from './db-migrations/ivr-runtime-schema.js';
 
+export { all, id, json, one, parseJson, run } from './db-compat.js';
+export type { SqliteParams } from './db-compat.js';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
-
-type SqliteValue = string | number | bigint | boolean | null | Uint8Array;
-export type SqliteParams = SqliteValue[];
-
-interface StatementLike {
-  get: (...params: SqliteValue[]) => any;
-  all: (...params: SqliteValue[]) => any[];
-  run: (...params: SqliteValue[]) => any;
-}
-
-interface DatabaseLike {
-  exec: (sql: string) => void;
-  prepare: (sql: string) => StatementLike;
-}
 
 export function createDatabase(
   dbPath: string = process.env.OPC_DB_PATH || join(process.cwd(), 'data', 'opc.sqlite')
@@ -58,35 +48,6 @@ export function createDatabase(
   migrateIvrFlowNeedsRepairStatus(db);
   migrateIvrRuntimeTables(db);
   return db;
-}
-
-export function id(prefix) {
-  return `${prefix}_${randomUUID()}`;
-}
-
-export function one(db: unknown, sql: string, params: SqliteParams = []): any {
-  return asDatabase(db).prepare(sql).get(...params);
-}
-
-export function all(db: unknown, sql: string, params: SqliteParams = []): any[] {
-  return asDatabase(db).prepare(sql).all(...params);
-}
-
-export function run(db: unknown, sql: string, params: SqliteParams = []): any {
-  return asDatabase(db).prepare(sql).run(...params);
-}
-
-export function json(value: unknown): string {
-  return JSON.stringify(value ?? {});
-}
-
-export function parseJson<T>(value: string | null | undefined, fallback: T = {} as T): T {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
 }
 
 function migrateLegacyWikiEvents(db: unknown): void {
@@ -1749,8 +1710,4 @@ function migrateIvrFlowNeedsRepairStatus(db: unknown): void {
     COMMIT;
     PRAGMA foreign_keys = ON;
   `);
-}
-
-function asDatabase(db: unknown): DatabaseLike {
-  return db as DatabaseLike;
 }

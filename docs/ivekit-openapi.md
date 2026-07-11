@@ -33,6 +33,8 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 - 附件上传直接发送二进制 body，并在 query 传 `kind/filename`。
 - 成功 HTTP 响应直接返回 route `data`，没有额外 `{ data: ... }` 包装。
 - 受控录制导出返回二进制和 `Content-Disposition`。
+- 跨域浏览器 origin 必须列入 `OPC_IVEKIT_ALLOWED_ORIGINS`；预检支持 bearer/API-key 所需 headers。
+- 普通 JSON 和 webhook body 受 `OPC_IVEKIT_HTTP_BODY_MAX_BYTES` 限制，超限返回 413；畸形 JSON 返回 400 `invalid_json`。
 - 错误通常为 `{ "error": "detail" }`；平台 500 可能返回带 `error.message/status/id` 的结构。
 
 | HTTP | 含义 |

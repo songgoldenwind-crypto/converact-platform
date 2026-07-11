@@ -1,5 +1,6 @@
-import { id, json, run } from '../../db.js';
+import { id, json, run } from '../../db-compat.js';
 import type { PgQueryable } from '../../db-pg.js';
+import { withPgTenant } from '../../db-pg-tenant.js';
 import {
   markMediaRecordingEvidenceDeleted,
   recordMediaRecordingEvidence
@@ -19,24 +20,30 @@ export interface IveKitMediaHooksInput {
 export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKitMediaApiOptions {
   const retentionDays = configuredRetentionDays();
   return {
-    onRecordingStarted: (recording, context) => recordMediaRecordingEvidence(input.pg, recording, {
-      roomName: context.roomName,
-      createdBy: 'ivekit-media-core'
-    }),
-    onRecordingCompleted: (recording, context) => recordMediaRecordingEvidence(input.pg, recording, {
-      roomName: context.roomName,
-      createdBy: 'ivekit-media-core',
-      resolveContent: resolveRecordingObjectContent
-    }),
+    onRecordingStarted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
+      recordMediaRecordingEvidence(pg, recording, {
+        roomName: context.roomName,
+        createdBy: 'ivekit-media-core'
+      })
+    ),
+    onRecordingCompleted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
+      recordMediaRecordingEvidence(pg, recording, {
+        roomName: context.roomName,
+        createdBy: 'ivekit-media-core',
+        resolveContent: resolveRecordingObjectContent
+      })
+    ),
     resolveRecordingObject: resolveRecordingObjectContent,
     deleteRecordingObject,
     ...(retentionDays === undefined
       ? {}
       : { resolveRecordingRetentionDays: () => retentionDays }),
-    onRecordingDeleted: (recording, context) => markMediaRecordingEvidenceDeleted(input.pg, recording, {
-      deletedBy: context.actorId,
-      deletionSource: context.source
-    }),
+    onRecordingDeleted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
+      markMediaRecordingEvidenceDeleted(pg, recording, {
+        deletedBy: context.actorId,
+        deletionSource: context.source
+      })
+    ),
     onRecordingAudit: (event) => recordIveKitMediaAudit(input.db, event)
   };
 }

@@ -1,4 +1,4 @@
-import { getRedisClient, setRedisClientForTests, type RedisLike } from './agent-runtime/call-center/redis-client.js';
+import { getRedisClient, setRedisClientForTests, type RedisLike } from './redis-client.js';
 
 export interface RedisPubSubLike {
   publish(channel: string, message: string): Promise<void>;

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
-import { id } from '../db.js';
+import { id } from '../db-compat.js';
 
 export interface ObjectStorageUploadInput {
   tenantId: string;

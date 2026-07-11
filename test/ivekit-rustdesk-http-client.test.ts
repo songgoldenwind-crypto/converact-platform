@@ -215,6 +215,31 @@ test('iveKit RustDesk HTTP client exposes status, method, path, and upstream err
   );
 });
 
+test('iveKit RustDesk HTTP client applies the configured request timeout', async () => {
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://opc.example.com',
+    apiKey: 'opc-api-key',
+    tenantId: 'tenant_led',
+    timeoutMs: 100,
+    fetch: async (_input, init = {}) => await new Promise<Response>((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    })
+  });
+
+  await assert.rejects(
+    () => client.getClientConfig(),
+    (error) => {
+      assert.equal(error instanceof IveKitRustDeskHttpError, true);
+      const timeout = error as IveKitRustDeskHttpError;
+      assert.equal(timeout.status, 0);
+      assert.equal(timeout.method, 'GET');
+      assert.equal(timeout.path, '/api/ivekit/rustdesk/client-config');
+      assert.match(timeout.message, /timed out after 100ms/);
+      return true;
+    }
+  );
+});
+
 function headersToRecord(headers: RequestInit['headers']): Record<string, string> {
   const record: Record<string, string> = {};
   new Headers(headers).forEach((value, key) => {

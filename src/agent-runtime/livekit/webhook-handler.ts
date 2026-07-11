@@ -1,5 +1,5 @@
 import { WebhookReceiver } from 'livekit-server-sdk';
-import { id, json, one, run } from '../../db.js';
+import { id, json, one, run } from '../../db-compat.js';
 import { runWithPgTenantContextAsync } from '../../db-pg-tenant.js';
 import type { LiveKitParticipantStore } from './participant-store.js';
 import type { LiveKitRoomStore } from './room-store.js';

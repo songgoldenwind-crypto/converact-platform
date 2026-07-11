@@ -656,7 +656,7 @@ git commit -m "docs(ivekit): document standalone delivery"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-11-ivekit-standalone-foundation.md`
 
-- [ ] **Step 1: Review the final diff for interface leakage**
+- [x] **Step 1: Review the final diff for interface leakage**
 
 ```bash
 git diff origin/feat/livekit-acceptance-evidence...HEAD --stat
@@ -665,7 +665,7 @@ git diff origin/feat/livekit-acceptance-evidence...HEAD -- src/agent-runtime/ive
 
 Reject the milestone if the SDK imports server code, the standalone server constructs the full OPC harness, or existing facade paths changed.
 
-- [ ] **Step 2: Run an independent code review**
+- [x] **Step 2: Run an independent code review**
 
 Review for Critical and Important findings with special focus on:
 
@@ -676,7 +676,7 @@ Review for Critical and Important findings with special focus on:
 5. Worker shutdown and duplicate startup.
 6. Compose upgrade compatibility.
 
-- [ ] **Step 3: Resolve findings using TDD and rerun all gates**
+- [x] **Step 3: Resolve findings using TDD and rerun all gates**
 
 Use a failing regression test for every behavior change. Repeat Task 6 Step 5 after fixes.
 

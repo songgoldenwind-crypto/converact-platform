@@ -63,6 +63,23 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         sendJson(response, 404, { error: { message: 'not found', status: 404 } });
         return;
       }
+      const origin = requestHeader(request.headers, 'origin');
+      if (origin) {
+        if (!allowedCorsOrigins().has(origin)) {
+          sendJson(response, 403, { error: { message: 'origin not allowed', status: 403 } });
+          return;
+        }
+        setCorsHeaders(response, origin);
+      }
+      if (request.method === 'OPTIONS') {
+        if (!origin) {
+          sendJson(response, 400, { error: { message: 'origin is required', status: 400 } });
+          return;
+        }
+        response.writeHead(204);
+        response.end();
+        return;
+      }
       if (path === '/health' && request.method === 'GET') {
         sendJson(response, 200, { ok: true, postgres: Boolean(input.pg) });
         return;
@@ -80,12 +97,12 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         (path === '/api/ivekit/media/webhooks/livekit' || path === '/api/media/webhooks/livekit');
       const rawBody = isAttachmentUpload
         ? await readBuffer(request, collaborationAttachmentMaxBytes())
-        : await readText(request);
+        : await readText(request, iveKitHttpBodyMaxBytes());
       const body = isAttachmentUpload
         ? null
         : isLiveKitWebhook
           ? rawBody
-          : safeJsonParse(rawBody);
+          : parseJsonBody(rawBody);
       const headers = request.headers;
       const tenantContext = resolvePgTenantContextForRequest(path, headers, { url, body });
       const mediaPath = path === '/api/media/webhooks/livekit'
@@ -159,23 +176,40 @@ async function readBuffer(
   return Buffer.concat(chunks);
 }
 
-async function readText(request: import('node:http').IncomingMessage): Promise<string> {
+async function readText(
+  request: import('node:http').IncomingMessage,
+  maxBytes: number
+): Promise<string> {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method || '')) return '';
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) {
+      throw Object.assign(new Error('request body exceeds configured size limit'), { status: 413 });
+    }
+    chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString('utf8');
 }
 
-function safeJsonParse(value: string | Buffer): unknown {
+function parseJsonBody(value: string | Buffer): unknown {
   const raw = typeof value === 'string' ? value : value.toString('utf8');
   if (!raw) return {};
   try {
     return JSON.parse(raw) as unknown;
   } catch {
-    return {};
+    throw Object.assign(new Error('invalid_json'), { status: 400 });
   }
+}
+
+function iveKitHttpBodyMaxBytes(): number {
+  const value = Number(process.env.OPC_IVEKIT_HTTP_BODY_MAX_BYTES || 1_048_576);
+  if (!Number.isInteger(value) || value < 1 || value > 26_214_400) {
+    throw new Error('OPC_IVEKIT_HTTP_BODY_MAX_BYTES is invalid');
+  }
+  return value;
 }
 
 function collaborationAttachmentMaxBytes(): number {
@@ -184,6 +218,35 @@ function collaborationAttachmentMaxBytes(): number {
     throw new Error('OPC_COLLABORATION_ATTACHMENT_MAX_BYTES is invalid');
   }
   return value;
+}
+
+function allowedCorsOrigins(): Set<string> {
+  return new Set(
+    String(process.env.OPC_IVEKIT_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+}
+
+function requestHeader(
+  headers: Record<string, string | string[] | undefined>,
+  name: string
+): string {
+  const value = headers[name.toLowerCase()];
+  return String(Array.isArray(value) ? value[0] || '' : value || '').trim();
+}
+
+function setCorsHeaders(response: import('node:http').ServerResponse, origin: string): void {
+  response.setHeader('access-control-allow-origin', origin);
+  response.setHeader('access-control-allow-methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  response.setHeader(
+    'access-control-allow-headers',
+    'authorization,content-type,idempotency-key,x-api-key,x-tenant-id,x-user-id'
+  );
+  response.setHeader('access-control-expose-headers', 'content-disposition,content-type');
+  response.setHeader('access-control-max-age', '600');
+  response.setHeader('vary', 'Origin');
 }
 
 function sendJson(response: import('node:http').ServerResponse, status: number, data: unknown): void {

@@ -236,6 +236,12 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 
 ## 7. 配置与依赖
 
+### iveKit HTTP
+
+- `OPC_IVEKIT_ALLOWED_ORIGINS`：允许浏览器直连的逗号分隔 HTTPS origin，不含路径；未列出的跨域请求返回 403。
+- `OPC_IVEKIT_HTTP_BODY_MAX_BYTES`：普通 JSON 和 webhook body 上限，默认 1 MiB；附件另用 `OPC_COLLABORATION_ATTACHMENT_MAX_BYTES`。
+- 同源反向代理可不产生跨域请求；跨域 LED Web 必须在部署时显式加入 origin。
+
 ### Media Core
 
 - `LIVEKIT_URL/API_KEY/API_SECRET`
