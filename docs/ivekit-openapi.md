@@ -300,6 +300,8 @@ descriptor 的 `storage_url` 只指向 `/api/ivekit/chat/objects/*` 受控路径
 
 AI finding 的执行 action 固定为 `review`；provider 的建议只进入脱敏 metadata。模型不能直接封单、处罚或执行不可逆动作。
 
+人工复核只允许会话内仍活跃的 `agent/engineer/supervisor/admin` 参与人；`customer/ai`、已离开参与人和跨租户身份返回 `403`。参考客户端按 `high/medium/low` 排序并按 fingerprint 去重，消息只显示克制的风险标记；详情仅呈现二次脱敏 rationale、证据类型和不可变 review history，不展示 `matched_text_hash`、fingerprint、checksum 或 provider 私有 metadata。复核提交必须填写原因，切换 finding/会话会清空未提交原因，实时 finding 更新按 `updated_at` 重新加载详情；窄屏通过可关闭抽屉完成同一复核流程。重复提交当前状态返回 `200` 和 `review=null`，不广播重复事件，客户端也按 review audit ID 去重。
+
 ## 4. Remote Assistance / RustDesk
 
 RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveKitRustDeskLedSdk`。

@@ -9,13 +9,16 @@ import type {
   IveKitChatParticipant,
   IveKitChatSession,
   IveKitClient,
-  IveKitPolicyFinding
+  IveKitPolicyFinding,
+  IveKitPolicyFindingResult,
+  IveKitPolicyFindingReviewInput
 } from '@opc/ivekit-sdk';
 import { ChatConvergence } from './convergence.js';
 import { chatReducer, initialChatState } from './chat-reducer.js';
 import { ReceiveOnlyTinodeAdapter } from './tinode-adapter.js';
 import { eventRevokesSession, sessionAllowsWrites, type CollaborationRealtimeEnvelope } from './session-access.js';
 import { PendingSendStore } from './pending-send-store.js';
+import { dedupeFindingReviews } from './finding-view-model.js';
 
 export interface UseChatSessionInput {
   client: IveKitClient | null;
@@ -30,6 +33,7 @@ export function useChatSession(input: UseChatSessionInput) {
   const [state, dispatch] = useReducer(chatReducer, undefined, initialChatState);
   const [participants, setParticipants] = useState<IveKitChatParticipant[]>([]);
   const [findings, setFindings] = useState<IveKitPolicyFinding[]>([]);
+  const [findingDetails, setFindingDetails] = useState<Record<string, IveKitPolicyFindingResult>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasOlder, setHasOlder] = useState(false);
@@ -62,6 +66,7 @@ export function useChatSession(input: UseChatSessionInput) {
     dispatch({ type: 'reset' });
     setParticipants([]);
     setFindings([]);
+    setFindingDetails({});
     setHasOlder(false);
     historyCursor.current = null;
     pendingSends.current.clear();
@@ -332,12 +337,39 @@ export function useChatSession(input: UseChatSessionInput) {
     return closed;
   }, [client, sessionId, state.closed, input.session]);
 
+  const loadFinding = useCallback(async (findingId: string) => {
+    if (!client || !sessionId) throw new Error('session is unavailable');
+    const generation = requestId.current;
+    const result = await client.chat.getFinding(sessionId, findingId);
+    if (generation === requestId.current) {
+      setFindingDetails((current) => ({ ...current, [findingId]: result }));
+    }
+    return result;
+  }, [client, sessionId]);
+
+  const reviewFinding = useCallback(async (findingId: string, review: IveKitPolicyFindingReviewInput) => {
+    if (!client || !sessionId || state.closed) throw new Error('session is not writable');
+    const generation = requestId.current;
+    const result = await client.chat.reviewFinding(sessionId, findingId, review);
+    const currentDetail = findingDetails[findingId];
+    const reviews = dedupeFindingReviews(result.reviews || [
+      ...(currentDetail?.reviews || []),
+      ...(result.review ? [result.review] : [])
+    ]);
+    const merged = { ...result, reviews };
+    if (generation === requestId.current) {
+      setFindings((current) => upsertFinding(current, result.finding));
+      setFindingDetails((current) => ({ ...current, [findingId]: merged }));
+    }
+    return merged;
+  }, [client, sessionId, state.closed, findingDetails]);
+
   const clearError = useCallback(() => setError(''), []);
 
   return {
-    state, participants, findings, loading, error, hasOlder, clearError, loadOlder, sendMessage,
+    state, participants, findings, findingDetails, loading, error, hasOlder, clearError, loadOlder, sendMessage,
     uploadAttachment, retrySend, markRead, setTyping, react, pin,
-    editMessage, deleteMessage, closeSession, refreshAncillary
+    editMessage, deleteMessage, closeSession, loadFinding, reviewFinding, refreshAncillary
   };
 }
 
@@ -372,3 +404,8 @@ function optimisticMessage(
 }
 
 export type AttachmentDescriptor = IveKitChatAttachmentUploadDescriptor;
+
+function upsertFinding(findings: IveKitPolicyFinding[], finding: IveKitPolicyFinding): IveKitPolicyFinding[] {
+  const next = findings.filter((item) => item.id !== finding.id && item.fingerprint !== finding.fingerprint);
+  return [...next, finding];
+}

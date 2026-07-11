@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, test } from 'node:test';
 import { cleanup, fireEvent, render } from '@testing-library/react';
+import React from 'react';
 import { installTestDom } from '../test-dom.js';
+import type { IveKitPolicyFinding } from '@opc/ivekit-sdk';
 import type { ChatClientMessage } from './chat-reducer.js';
 import { MessageTimeline } from './message-timeline.js';
 
@@ -111,6 +113,29 @@ test('timeline groups consecutive messages and exposes rich relation, pin, and r
   assert.equal(reaction, '❤️');
 });
 
+test('timeline shows a restrained finding marker and selects its review detail', () => {
+  let selected = '';
+  const view = render(<MessageTimeline
+    messages={[message()]}
+    findings={[finding()]}
+    identity="agent-1"
+    canLoadOlder={false}
+    onLoadOlder={() => undefined}
+    onReply={() => undefined}
+    onForward={() => undefined}
+    onRetry={() => undefined}
+    onReact={() => undefined}
+    onPin={() => undefined}
+    onEdit={() => undefined}
+    onDelete={() => undefined}
+    onRead={() => undefined}
+    onDownload={() => undefined}
+    onSelectFinding={(id) => { selected = id; }}
+  />);
+  fireEvent.click(view.getByRole('button', { name: 'Review 1 quality finding' }));
+  assert.equal(selected, 'finding-1');
+});
+
 function fireClick(element: Element) {
   fireEvent.click(element);
 }
@@ -132,4 +157,12 @@ function message(): ChatClientMessage {
     forwarded_from_message_id: null,
     provider_delivery: { status: 'delivered' }
   } as unknown as ChatClientMessage;
+}
+
+function finding(): IveKitPolicyFinding {
+  return {
+    id: 'finding-1', message_id: 'message-1', severity: 'high', review_status: 'pending',
+    fingerprint: 'finding-fingerprint', policy_type: 'contact_exchange', source: 'text',
+    updated_at: '2026-07-11T09:00:00.000Z'
+  } as IveKitPolicyFinding;
 }

@@ -29,6 +29,7 @@ export function App() {
   const [replyTo, setReplyTo] = useState<IveKitChatMessage | null>(null);
   const [forwardFrom, setForwardFrom] = useState<IveKitChatMessage | null>(null);
   const [mobileView, setMobileView] = useState<'sessions' | 'chat'>('sessions');
+  const [selectedFindingId, setSelectedFindingId] = useState('');
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
 
@@ -87,6 +88,7 @@ export function App() {
     const timer = window.setTimeout(() => void refreshSessions(false), 250);
     return () => window.clearTimeout(timer);
   }, [refreshSessions]);
+  useEffect(() => setSelectedFindingId(''), [selectedId]);
   useEffect(() => {
     if (!selectedId || chat.loading || chat.state.requestId === 0) return;
     setSessions((current) => current.map((session) => session.id === selectedId
@@ -149,7 +151,7 @@ export function App() {
           setSessionHasMore(false);
           setQuery(value);
         }}
-        onSelect={(id) => { setSelectedId(id); setReplyTo(null); setForwardFrom(null); setMobileView('chat'); }}
+        onSelect={(id) => { setSelectedId(id); setSelectedFindingId(''); setReplyTo(null); setForwardFrom(null); setMobileView('chat'); }}
         onLoadMore={sessionHasMore ? () => void refreshSessions(true) : undefined}
       />
       <section className="timeline-pane">
@@ -158,6 +160,7 @@ export function App() {
           messages={chat.state.messages}
           identity={identity}
           receipts={chat.state.receipts}
+          findings={chat.findings}
           canLoadOlder={chat.hasOlder}
           onLoadOlder={() => void chat.loadOlder().catch(reportCommandError)}
           onReply={(message) => { setReplyTo(message); setForwardFrom(null); }}
@@ -169,6 +172,7 @@ export function App() {
           onDelete={(id) => void chat.deleteMessage(id).catch(reportCommandError)}
           onRead={(id) => void chat.markRead(id).catch(() => undefined)}
           onDownload={(id) => void download(id).catch(reportCommandError)}
+          onSelectFinding={setSelectedFindingId}
         />
         <MessageComposer
           key={selectedId}
@@ -182,7 +186,18 @@ export function App() {
           onTyping={chat.setTyping}
         />
       </section>
-      <ParticipantRail participants={chat.participants} realtime={chat.state.realtime} findings={chat.findings} />
+      <ParticipantRail
+        participants={chat.participants}
+        realtime={chat.state.realtime}
+        findings={chat.findings}
+        identity={identity}
+        selectedFindingId={selectedFindingId}
+        findingDetail={selectedFindingId ? chat.findingDetails[selectedFindingId] || null : null}
+        onSelectFinding={setSelectedFindingId}
+        onCloseFinding={() => setSelectedFindingId('')}
+        onLoadFinding={chat.loadFinding}
+        onReviewFinding={chat.reviewFinding}
+      />
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );

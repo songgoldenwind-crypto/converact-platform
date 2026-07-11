@@ -350,19 +350,19 @@ git commit -m "feat(client): implement IM workspace"
 - Modify: `clients/ivekit-reference/src/chat/message-timeline.tsx`
 - Modify: `clients/ivekit-reference/src/chat/participant-rail.tsx`
 
-- [ ] **Step 1: Write finding projection tests**
+- [x] **Step 1: Write finding projection tests**
 
 Cover text/OCR/ASR/AI source labels, redacted evidence, pending provider state, severity ordering, review transitions, duplicate events, and reviewer authorization failures.
 
-- [ ] **Step 2: Add message indicators**
+- [x] **Step 2: Add message indicators**
 
 Show restrained risk markers on affected messages. Never reveal hashed/redacted PII from storage as if it were original text.
 
-- [ ] **Step 3: Add review workflow**
+- [x] **Step 3: Add review workflow**
 
 Allow authorized users to confirm, dismiss, or request follow-up with a reason. Display immutable review history and provider-unconfigured status honestly.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test

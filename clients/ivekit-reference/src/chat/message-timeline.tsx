@@ -1,12 +1,15 @@
-import type { IveKitChatMessage, IveKitChatReceipt } from '@opc/ivekit-sdk';
-import { Download, Forward, Pencil, Pin, Reply, RotateCcw, SmilePlus, Trash2 } from 'lucide-react';
+import type { IveKitChatMessage, IveKitChatReceipt, IveKitPolicyFinding } from '@opc/ivekit-sdk';
+import { Download, Forward, Pencil, Pin, Reply, RotateCcw, ShieldAlert, SmilePlus, Trash2 } from 'lucide-react';
+import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { ChatClientMessage } from './chat-reducer.js';
+import { projectFindings } from './finding-view-model.js';
 
 export function MessageTimeline(props: {
   messages: ChatClientMessage[];
   identity: string;
   receipts?: IveKitChatReceipt[];
+  findings?: IveKitPolicyFinding[];
   canLoadOlder: boolean;
   onLoadOlder(): void;
   onReply(message: IveKitChatMessage): void;
@@ -18,6 +21,7 @@ export function MessageTimeline(props: {
   onDelete(id: string): void;
   onRead(id: string): void;
   onDownload(id: string): void;
+  onSelectFinding?(id: string): void;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const markedRead = useRef(new Set<string>());
@@ -57,6 +61,7 @@ export function MessageTimeline(props: {
   let date = '';
   const byId = new Map(props.messages.map((message) => [message.id, message]));
   const pinned = props.messages.filter((message) => message.pinned && !message.deleted_at);
+  const projectedFindings = projectFindings(props.findings || []);
   return (
     <div className="timeline" ref={root}>
       {props.canLoadOlder && <button className="text-command history-command" onClick={props.onLoadOlder}>Load older messages</button>}
@@ -71,6 +76,7 @@ export function MessageTimeline(props: {
         const mine = message.sender_identity === props.identity;
         const previous = props.messages[index - 1];
         const continuation = !separator && isContinuation(previous, message);
+        const messageFindings = projectedFindings.filter((finding) => finding.messageId === message.id);
         return <div key={message.id}>
           {separator && <div className="date-separator"><span>{nextDate}</span></div>}
           <article id={messageElementId(message.id)} className={`${mine ? 'message mine' : 'message'}${continuation ? ' continuation' : ''}`} data-message-id={message.id} data-sender={message.sender_identity}>
@@ -79,6 +85,12 @@ export function MessageTimeline(props: {
             {message.forwarded_from_message_id && <div className="relation">Forwarded · <span>{relationLabel(message.forwarded_from_message_id, byId)}</span></div>}
             {editing === message.id ? <div className="inline-edit"><textarea value={draft} onChange={(event) => setDraft(event.target.value)} /><button onClick={() => { props.onEdit(message.id, draft); setEditing(''); }}>Save</button><button onClick={() => setEditing('')}>Cancel</button></div> : <p className={message.deleted_at ? 'deleted' : ''}>{message.deleted_at ? 'Message deleted' : renderMentions(message.body, message.mentions)}</p>}
             {message.edited_at && !message.deleted_at && <small className="edited-label">Edited</small>}
+            {!!messageFindings.length && <button
+              className={`quality-marker ${messageFindings[0].severity}`}
+              aria-label={`Review ${messageFindings.length} quality finding${messageFindings.length === 1 ? '' : 's'}`}
+              title="Open quality review"
+              onClick={() => props.onSelectFinding?.(messageFindings[0].id)}
+            ><ShieldAlert size={13} /><span>{messageFindings.length}</span></button>}
             {message.attachments.map((attachment) => <div className="attachment-row" key={attachment.id}><span>{attachment.filename || attachment.kind}</span><small>{attachment.processing_status}</small><button className="icon-button light" title="Download attachment" onClick={() => props.onDownload(attachment.id)}><Download size={14} /></button></div>)}
             {!!message.reactions?.length && <div className="reactions">{aggregateReactions(message.reactions).map(([emoji, count]) => <button key={emoji} onClick={() => props.onReact(message.id, emoji, message.reactions?.some((item) => item.emoji === emoji && item.identity === props.identity))}>{emoji} {count}</button>)}</div>}
             <footer>

@@ -1465,18 +1465,30 @@ export async function routeCollaborationApi(
     if (!existing || existing.session_id !== sessionId) {
       return { status: 404, data: { error: 'policy finding not found' } };
     }
+    const actorIdentity = collaborationActorIdentity(ctx, headers);
+    const participants = await module.sessions.listParticipants({
+      tenant_id: ctx.tenantId,
+      session_id: sessionId
+    });
+    const reviewer = participants.find((participant) =>
+      participant.identity === actorIdentity && !participant.left_at
+    );
+    if (!reviewer || !['agent', 'engineer', 'supervisor', 'admin'].includes(reviewer.role)) {
+      return { status: 403, data: { error: 'finding review requires an authorized active participant' } };
+    }
+    const reviewChanged = existing.review_status !== reviewStatus;
     const finding = await findings.reviewFinding({
       tenant_id: ctx.tenantId,
       finding_id: findingId,
       review_status: reviewStatus as 'confirmed' | 'false_positive' | 'resolved' | 'escalated',
-      reviewed_by: headerValue(headers, 'x-user-id') || ctx.userId || 'system',
+      reviewed_by: actorIdentity,
       note: input.note ? String(input.note) : undefined,
       metadata: bodyObject(input.metadata)
     });
     const reviews = await findings.listReviews({ tenant_id: ctx.tenantId, finding_id: findingId });
-    const payload = { session_id: sessionId, finding, review: reviews.at(-1) || null };
-    wsBroadcast(ctx.tenantId, 'collaboration.policy.finding_reviewed', payload);
-    return { status: 201, data: payload };
+    const payload = { session_id: sessionId, finding, review: reviewChanged ? reviews.at(-1) || null : null };
+    if (reviewChanged) wsBroadcast(ctx.tenantId, 'collaboration.policy.finding_reviewed', payload);
+    return { status: reviewChanged ? 201 : 200, data: payload };
   }
 
   if (

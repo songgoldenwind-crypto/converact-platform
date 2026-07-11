@@ -171,6 +171,12 @@ test('collaboration HTTP lists, reviews, and audits tenant-scoped findings', asy
     const opened = await route('POST', '/api/collaboration/sessions', {
       business_ref: { type: 'service_order', id: 'order-finding-http' }
     }) as { data: { id: string } };
+    await route('POST', `/api/collaboration/sessions/${opened.data.id}/participants`, {
+      identity: 'supervisor-http', role: 'supervisor'
+    });
+    await route('POST', `/api/collaboration/sessions/${opened.data.id}/participants`, {
+      identity: 'customer-review', role: 'customer'
+    });
     const posted = await route(
       'POST',
       `/api/collaboration/sessions/${opened.data.id}/messages`,
@@ -186,6 +192,18 @@ test('collaboration HTTP lists, reviews, and audits tenant-scoped findings', asy
     assert.equal(list.data.findings.length, 2);
     const findingId = list.data.findings[0]!.id;
 
+    const denied = await routeCollaborationApi(
+      pg,
+      'POST',
+      `/api/collaboration/sessions/${opened.data.id}/findings/${findingId}/review`,
+      new URL(`http://localhost/api/collaboration/sessions/${opened.data.id}/findings/${findingId}/review`),
+      { review_status: 'confirmed', note: 'Customer cannot review policy findings' },
+      '',
+      { 'x-api-key': API_KEY, 'x-tenant-id': tenantId, 'x-user-id': 'customer-review' }
+    ) as { status: number; data: { error: string } };
+    assert.equal(denied.status, 403);
+    assert.match(denied.data.error, /authorized active participant/);
+
     const reviewed = await route(
       'POST',
       `/api/collaboration/sessions/${opened.data.id}/findings/${findingId}/review`,
@@ -194,6 +212,14 @@ test('collaboration HTTP lists, reviews, and audits tenant-scoped findings', asy
     assert.equal(reviewed.status, 201);
     assert.equal(reviewed.data.finding.review_status, 'false_positive');
     assert.doesNotMatch(reviewed.data.finding.review_note, /user@example\.com/);
+
+    const replayed = await route(
+      'POST',
+      `/api/collaboration/sessions/${opened.data.id}/findings/${findingId}/review`,
+      { review_status: 'false_positive', note: 'Idempotent replay' }
+    ) as { status: number; data: { review: unknown } };
+    assert.equal(replayed.status, 200);
+    assert.equal(replayed.data.review, null);
 
     const detail = await route(
       'GET',
