@@ -462,6 +462,13 @@ optional contract，旧服务响应和旧调用方继续兼容。
 替代另一个操作。operation evidence 只保存 metadata、checksum 和 evidence ref，
 不保存屏幕像素、键盘输入、文件内容、剪贴板内容或录屏字节。
 
+`RustDeskOperationEvidence` 是 discriminated union：`not_observed` 固定要求
+`observer=none`、`observed_at=null`、`evidence_refs=[]`；
+`observed_succeeded/observed_failed` 必须使用非 `none` observer、真实时间戳和至少
+一个 evidence ref。`RustDeskOperationEvidenceMetadata` 没有任意键，只允许 operation/
+external/provider ID、direction、display ID、byte count、SHA-256 checksum、duration、
+reason 和 status detail 等非内容审计字段。
+
 支持的 RustDesk OSS server/client/platform/architecture 组合冻结在
 [RustDesk 客户端版本矩阵](rustdesk-client-version-matrix.md)。矩阵中的
 `not_run` 不能由本地配置、mock、controlled E2E 或 wrapper exit code 改写。
@@ -471,6 +478,11 @@ secret、无人值守密码或 raw service credential。`launch_url` 必须作�
 capability 使用；其中的 signed token 不得拆出展示、写日志或持久化。可信后端可以
 使用 API key，但不得转发给浏览器。SDK 只依赖 Web Platform API，不导入 OPC server
 source 或 Node-only module。
+
+`rustdesk:client-config-pack` 是静态交接产物，不持久化 signed `launch_url` 或 executable
+protocol URL；兼容字段保持空字符串，仅输出 `launch_available` /
+`protocol_available`。真正拉起客户端时仍调用 `getGatewayLaunchPlan()` 即时获取短期
+opaque URL，不能从静态 pack 复用。
 
 设备 claim/progress/result 路径只允许设备绑定 edge token，不属于 LED 普通前端/API key 的调用面。完整 scope、事件和验收规则见 RustDesk 专项设计。
 

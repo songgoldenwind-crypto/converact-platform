@@ -19,7 +19,8 @@ test('RustDesk terminal DTOs keep configured, available, granted, and observed s
     'RustDeskPermissionScopes',
     'RustDeskControlOwnership',
     'RustDeskDisconnectState',
-    'RustDeskOperationEvidence'
+    'RustDeskOperationEvidence',
+    'RustDeskOperationEvidenceMetadata'
   ]) {
     assert.match(typesSource, new RegExp(`export (?:interface|type) ${dto}\\b`));
   }
@@ -41,9 +42,24 @@ test('RustDesk terminal DTOs keep configured, available, granted, and observed s
   }
   assert.doesNotMatch(configured, /api_key|private_key|signing_secret|password|credential/);
 
-  const evidence = interfaceBody(typesSource, 'RustDeskOperationEvidence');
-  assert.match(evidence, /not_observed/);
-  assert.doesNotMatch(evidence, /clipboard_(?:content|text)|file_content|keystrokes|screen_pixels/);
+  assert.match(typesSource, /export type RustDeskOperationEvidence\s*=/);
+  const evidenceMetadata = interfaceBody(typesSource, 'RustDeskOperationEvidenceMetadata');
+  for (const field of [
+    'operation_id',
+    'external_id',
+    'provider_operation_id',
+    'provider_session_id',
+    'direction',
+    'display_id',
+    'byte_count',
+    'checksum_sha256',
+    'duration_ms',
+    'reason',
+    'status_detail'
+  ]) {
+    assert.match(evidenceMetadata, new RegExp(`${field}\\?`));
+  }
+  assert.doesNotMatch(evidenceMetadata, /Record<|\[key:|clipboard_(?:content|text)|file_(?:content|path)|keystrokes|screen_pixels|token|credential|password/);
 });
 
 test('RustDesk HTTP client preserves the existing lifecycle and adopts the named disconnect DTO', () => {
@@ -89,6 +105,10 @@ test('RustDesk client matrix pins OSS versions and platform limitations without 
     assert.match(matrix, new RegExp(expected));
   }
   assert.match(matrix, /configured[\s\S]*available[\s\S]*granted[\s\S]*observed/);
+
+  const detailedDesign = readFileSync('docs/iveKit视频IM通用能力详细设计.md', 'utf8');
+  assert.match(detailedDesign, /RUSTDESK_SERVER_IMAGE_TAG=1\.1\.15/);
+  assert.doesNotMatch(detailedDesign, /RUSTDESK_SERVER_IMAGE_TAG=latest/);
 });
 
 test('RustDesk public docs link the frozen matrix and explain capability truth states', () => {

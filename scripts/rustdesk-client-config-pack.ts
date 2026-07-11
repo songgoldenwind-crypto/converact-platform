@@ -51,6 +51,8 @@ export interface RustDeskClientConfigPack {
     target_rustdesk_id: string;
     launch_url: string;
     protocol_url: string;
+    launch_available?: boolean;
+    protocol_available?: boolean;
     permissions: string[];
   };
 }
@@ -187,9 +189,10 @@ export function renderRustDeskClientConfigPack(pack: RustDeskClientConfigPack): 
       `- external_id: \`${pack.launch.external_id}\``,
       `- status: \`${pack.launch.status}\``,
       `- target RustDesk ID: \`${pack.launch.target_rustdesk_id}\``,
-      `- launch URL: \`${pack.launch.launch_url || 'missing'}\``,
-      `- protocol URL: \`${pack.launch.protocol_url || 'missing'}\``,
+      `- launch available at runtime: \`${pack.launch.launch_available ? 'yes' : 'no'}\``,
+      `- protocol launch available at runtime: \`${pack.launch.protocol_available ? 'yes' : 'no'}\``,
       `- permissions: \`${pack.launch.permissions.join(', ') || 'none'}\``,
+      '- signed and protocol launch URLs are intentionally not persisted; request a fresh launch plan at runtime.',
       ''
     );
   }
@@ -200,7 +203,7 @@ export function renderRustDeskClientConfigPack(pack: RustDeskClientConfigPack): 
     '1. Install RustDesk on the agent machine and target machine.',
     '2. Copy ID server, relay server, optional API server, and key exactly from this pack into both RustDesk clients.',
     '3. Confirm the target machine shows the expected RustDesk ID before starting a gateway session.',
-    '4. Open the launch URL or protocol URL when present; otherwise manually connect to the target RustDesk ID with the same server/key fields.',
+    '4. Request a fresh launch plan at runtime immediately before opening RustDesk; static config packs never contain signed or protocol launch URLs.',
     '5. Record evidence in `client-acceptance-template.json` only after real screen view, keyboard/mouse, file transfer, clipboard, recording, revoke disconnect, old-link rejection, and audit checks pass.',
     '',
     '## Boundary',
@@ -233,6 +236,9 @@ function summarizeLaunchPlan(value: unknown, targetRustDeskId: string | undefine
   const actions = objectValue(plan.actions);
   const target = objectValue(plan.target);
   const externalId = requiredString(plan.external_id, 'RustDesk launch plan external_id is required');
+  const canLaunch = Boolean(actions.can_launch);
+  const launchAvailable = canLaunch && Boolean(String(actions.open_url || plan.launch_url || '').trim());
+  const protocolAvailable = canLaunch && Boolean(String(actions.protocol_url || '').trim());
   const resolvedTarget = String(
     targetRustDeskId ||
     runtime.rustdesk_id ||
@@ -243,8 +249,10 @@ function summarizeLaunchPlan(value: unknown, targetRustDeskId: string | undefine
     external_id: externalId,
     status: String(plan.status || ''),
     target_rustdesk_id: resolvedTarget,
-    launch_url: String(actions.open_url || plan.launch_url || ''),
-    protocol_url: String(actions.protocol_url || ''),
+    launch_url: '',
+    protocol_url: '',
+    launch_available: launchAvailable,
+    protocol_available: protocolAvailable,
     permissions: Array.isArray(plan.permissions) ? plan.permissions.map(String) : []
   };
 }

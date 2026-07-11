@@ -78,15 +78,56 @@ export interface RustDeskOperationEvidenceReference {
   sha256: string;
 }
 
-export interface RustDeskOperationEvidence {
+export type RustDeskOperationDirection =
+  | 'upload'
+  | 'download'
+  | 'agent_to_device'
+  | 'device_to_agent';
+
+export interface RustDeskOperationEvidenceMetadata {
+  operation_id?: string;
+  external_id?: string;
+  provider_operation_id?: string;
+  provider_session_id?: string;
+  target_id?: string;
+  direction?: RustDeskOperationDirection;
+  display_id?: string;
+  byte_count?: number;
+  checksum_sha256?: string;
+  duration_ms?: number;
+  reason?: string;
+  status_detail?: string;
+}
+
+export type RustDeskOperationObserver =
+  | 'native_client'
+  | 'edge_adapter'
+  | 'operator'
+  | 'qa';
+
+interface RustDeskOperationEvidenceBase {
   operation_id: string;
   operation: RustDeskObservedOperation;
-  status: 'not_observed' | 'observed_succeeded' | 'observed_failed';
-  observer: 'none' | 'native_client' | 'edge_adapter' | 'operator' | 'qa';
-  observed_at: string | null;
-  evidence_refs: RustDeskOperationEvidenceReference[];
-  metadata: Record<string, unknown>;
+  metadata: RustDeskOperationEvidenceMetadata;
 }
+
+export interface RustDeskOperationNotObservedEvidence extends RustDeskOperationEvidenceBase {
+  status: 'not_observed';
+  observer: 'none';
+  observed_at: null;
+  evidence_refs: [];
+}
+
+export interface RustDeskOperationObservedEvidence extends RustDeskOperationEvidenceBase {
+  status: 'observed_succeeded' | 'observed_failed';
+  observer: RustDeskOperationObserver;
+  observed_at: string;
+  evidence_refs: [RustDeskOperationEvidenceReference, ...RustDeskOperationEvidenceReference[]];
+}
+
+export type RustDeskOperationEvidence =
+  | RustDeskOperationNotObservedEvidence
+  | RustDeskOperationObservedEvidence;
 
 export interface RustDeskTerminalProfile {
   device_id: string;

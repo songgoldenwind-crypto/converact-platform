@@ -266,7 +266,7 @@ iveKit 的目标不是只服务 OPC 当前页面，而是作为“视频 + IM + 
 14. `scripts/rustdesk-audit-export.ts` 提供 `npm run rustdesk:audit-export`，使用 iveKit `/api/ivekit/rustdesk/gateway-sessions/:external_id/audit` facade 按 `external_id` 和可选 `since` 拉取真实 gateway audit，并写成 `audit-export.jsonl`，供 `rustdesk:client-acceptance`、`rustdesk:audit-coverage` 和 final evidence pack 复用。
 15. `scripts/rustdesk-deployment-preflight.ts` 支持 `OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL=1`。生产验收开启后，如果 `OPC_RUSTDESK_LAUNCH_BASE_URL` 或 fallback 仍是 `http://`，preflight 会以 `launch_base_url_https` 失败；根 `.env.example` 默认 `0` 方便本地 HTTP 联调，生产 `infra/env.example`、Compose/K8s 注入和 Helm values 默认 `1`，用于提前拦截 DNS/TLS/Ingress 上线前的低质量配置。
 16. `scripts/rustdesk-server-evidence.ts` 提供 `npm run rustdesk:server-evidence`，在已部署的 OPC 容器内采集真实 RustDesk 服务端运行证据：读取 `id_ed25519.pub` 并记录 sha256，解析 ID/Relay/launch 域名，探测 hbbs TCP、hbbr TCP、UDP 发包、launch TLS 和 Ingress HTTP(S) 响应，并把结果写成 `server-evidence.json`。它用于证明服务器 key、端口、DNS、TLS、Ingress 这一层已经可见；UDP 只证明发包成功，不证明 RustDesk 协议握手，也不替代真实 RustDesk 客户端远控验收。
-17. `scripts/rustdesk-client-config-pack.ts` 提供 `npm run rustdesk:client-config-pack`，通过 iveKit `/api/ivekit/rustdesk/client-config` 和可选 gateway launch plan 生成 `client-config-pack.md`，集中列出 RustDesk 客户端需要手工填写的 ID server、relay server、API server、public key、fingerprint、launch URL、protocol URL 和目标 RustDesk ID。它用于给部署/QA/LED 研发交接客户端安装配置，不证明真实客户端已拉起或远控操作已成功。
+17. `scripts/rustdesk-client-config-pack.ts` 提供 `npm run rustdesk:client-config-pack`，通过 iveKit `/api/ivekit/rustdesk/client-config` 和可选 gateway launch plan 生成 `client-config-pack.md`，集中列出 RustDesk 客户端需要手工填写的 ID server、relay server、API server、public key、fingerprint、目标 RustDesk ID 和 runtime launch availability。静态 pack 的兼容 `launch_url` / `protocol_url` 字段固定为空，不写 signed token、完整 signed URL 或 executable protocol URL；真实拉起必须即时调用 `getGatewayLaunchPlan()`。它用于给部署/QA/LED 研发交接客户端安装配置，不证明真实客户端已拉起或远控操作已成功。
 18. RustDesk 已增加独立的物理断开命令面：业务结束 gateway session 后，`RustDeskPhysicalDisconnectService` 先让控制面会话进入 `ended`，再按 `rustdesk_device_id` 幂等写入 `rustdesk_device_commands`；设备侧 `scripts/rustdesk-edge-agent.ts` 通过 tenant/device scoped API claim 固定的 `disconnect_session` 命令，执行本地配置的无 shell wrapper，并回报结构化结果。
 19. `OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1` 可把物理断开能力变成新会话启动的硬门禁：只接受已注册、active、在线、心跳未过期且最新 heartbeat 明确携带 `disconnect_command_capable=true` 的设备；raw RustDesk ID 会在调用上游前被拒绝。默认值仍为 `0`，便于未部署 edge executor 的现有环境兼容升级。
 20. `createIveKitRustDeskHttpClient()` 和 `createIveKitRustDeskLedSdk()` 已提供 `getGatewayDisconnectState(externalId)`。直接 `DELETE` gateway session 仍保持兼容的 `204`，LED/其它服务通过状态接口读取 command ID、状态、执行方式和 edge evidence，不需要接触 claim token 或 RustDesk control-plane token。
@@ -1104,6 +1104,13 @@ SDK 使用命名 DTO 固定边界：`RustDeskTerminalProfile`、
 已物理断开。每项真实行为需要独立 operation evidence，且只允许 metadata、checksum
 和 evidence ref；禁止收录屏幕像素、键盘输入、文件内容、剪贴板内容或录屏字节。
 
+`RustDeskOperationEvidence` 是 discriminated union：`not_observed` 必须同时是
+`observer=none`、`observed_at=null` 和空 `evidence_refs`；
+`observed_succeeded/observed_failed` 必须有非 `none` observer、真实时间戳和至少一个
+evidence ref。`RustDeskOperationEvidenceMetadata` 只允许 operation/external/provider
+ID、direction、display ID、byte count、SHA-256 checksum、duration、reason 和 status
+detail，不提供任意键，也不允许内容、路径、凭据或 token 字段。
+
 V1 支持窗口和 Windows/macOS/Linux 限制见
 [RustDesk client/server 版本矩阵](rustdesk-client-version-matrix.md)。矩阵固定
 `rustdesk-server:1.1.15` 与 RustDesk OSS client `1.4.7`；真实终端证据尚未执行的
@@ -1518,7 +1525,7 @@ OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID=<rustdesk-runtime-id> \
 npm run rustdesk:client-config-pack
 ```
 
-它会通过 iveKit facade 读取 RustDesk client-config，并在提供 `external_id` 时读取当前 gateway launch plan，输出客户端手工字段、server key fingerprint、launch URL、protocol URL、目标 RustDesk ID 和安装核对清单。它解决的是“现场/LED 研发怎么填 RustDesk 客户端”的交接问题；真实验收仍需要按 `rustdesk:client-acceptance` 填写证据，并跑 audit export、audit coverage 和 final evidence pack。
+它会通过 iveKit facade 读取 RustDesk client-config，并在提供 `external_id` 时读取当前 gateway launch plan，但静态输出只保留客户端手工字段、server key fingerprint、目标 RustDesk ID、launch/protocol availability 和安装核对清单。兼容 `launch_url` / `protocol_url` 字段固定为空，不写 query、signed token、完整 signed URL 或 executable protocol URL；真正启动时由运行时即时调用 `getGatewayLaunchPlan()`。它解决的是“现场/LED 研发怎么填 RustDesk 客户端”的交接问题；真实验收仍需要按 `rustdesk:client-acceptance` 填写证据，并跑 audit export、audit coverage 和 final evidence pack。
 
 如果需要把服务器当前 RustDesk 相关环境变量整理成可交接清单，可以加上：
 
@@ -2894,7 +2901,7 @@ OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL=0
 OPC_REMOTE_GATEWAY_CREATE_PATH=
 OPC_REMOTE_GATEWAY_SESSION_PATH=
 OPC_REMOTE_GATEWAY_AUDIT_PATH=
-RUSTDESK_SERVER_IMAGE_TAG=latest
+RUSTDESK_SERVER_IMAGE_TAG=1.1.15
 RUSTDESK_ALWAYS_USE_RELAY=N
 OPC_RUSTDESK_CONTROL_PLANE_BASE_URL=
 OPC_RUSTDESK_ID_SERVER=

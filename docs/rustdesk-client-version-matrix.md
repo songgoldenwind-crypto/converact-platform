@@ -51,6 +51,9 @@ one `supported` or `ready` boolean:
 Missing terminal telemetry is `unknown`; missing operation telemetry is
 `not_observed`. Configuration, a successful HTTP response, a launch URL, a
 command exit code, or a granted scope must never be promoted to `observed`.
+`not_observed` always has `observer=none`, a null timestamp, and no evidence
+references. An observed success or failure requires a non-none observer, a
+timestamp, and at least one evidence reference.
 
 ## Data And Secret Boundary
 
@@ -64,6 +67,11 @@ private keys, edge signing secrets, unattended passwords, signed launch tokens,
 raw service credentials, clipboard contents, file contents, keystrokes, screen
 pixels, or recording bytes. Browser callers use short-lived bearer tokens; a
 trusted backend may use an API key without forwarding it to the browser.
+Operation evidence metadata is an allowlist of non-content IDs, direction,
+display ID, byte count, checksum, duration, reason, and status detail; it has no
+arbitrary extension keys. Static client configuration packs retain blank URL
+fields for compatibility and expose availability booleans only. A fresh runtime
+launch plan is required to obtain a signed or protocol URL.
 
 ## Change Control
 

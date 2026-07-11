@@ -43,7 +43,7 @@ test('RustDesk client config pack config maps focused env and fallbacks', () => 
   assert.equal(fallback.tenantId, 'tenant_fallback');
 });
 
-test('RustDesk client config pack renders manual fields and optional launch plan without leaking API token', async () => {
+test('RustDesk client config pack renders launch availability without persisting signed or executable URLs', async () => {
   const pack = await buildRustDeskClientConfigPack(
     createRustDeskClientConfigPackConfigFromEnv({
       OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
@@ -61,6 +61,10 @@ test('RustDesk client config pack renders manual fields and optional launch plan
   assert.equal(pack.manual_fields.key, 'public-key-value');
   assert.equal(pack.launch?.external_id, 'rdgw_1');
   assert.equal(pack.launch?.target_rustdesk_id, '123456789');
+  assert.equal(pack.launch?.launch_available, true);
+  assert.equal(pack.launch?.protocol_available, true);
+  assert.equal(pack.launch?.launch_url, '');
+  assert.equal(pack.launch?.protocol_url, '');
 
   const markdown = renderRustDeskClientConfigPack(pack);
   assert.match(markdown, /^# RustDesk Client Config Pack/m);
@@ -69,10 +73,12 @@ test('RustDesk client config pack renders manual fields and optional launch plan
   assert.match(markdown, /Relay server/);
   assert.match(markdown, /public-key-value/);
   assert.match(markdown, /sha256:abcdef1234567890/);
-  assert.match(markdown, /https:\/\/opc\.example\.com\/remote\/rustdesk\/launch\?session_id=rdgw_1/);
-  assert.match(markdown, /rustdesk:\/\/connect\/123456789/);
+  assert.match(markdown, /launch available at runtime: `yes`/);
+  assert.match(markdown, /protocol launch available at runtime: `yes`/);
+  assert.doesNotMatch(markdown, /\/remote\/rustdesk\/launch|rustdesk:\/\/connect|token=|expires_at=|session_id=|\?session=/);
   assert.match(markdown, /does not prove real screen view/);
   assert.equal(markdown.includes('secret-token'), false);
+  assert.doesNotMatch(JSON.stringify(pack), /signed-launch-token|\/remote\/rustdesk\/launch|rustdesk:\/\/connect|token=|expires_at=|session_id=|\?session=/);
 });
 
 test('RustDesk client config pack fails fast when manual client fields are unusable', async () => {
@@ -101,7 +107,9 @@ test('RustDesk client config pack writes markdown and exposes package and env wi
       OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE: outputFile,
       OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
       OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
-      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
+      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+      OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1',
+      OPC_RUSTDESK_CLIENT_CONFIG_TARGET_RUSTDESK_ID: '123456789'
     }),
     fakeClient()
   );
@@ -109,7 +117,10 @@ test('RustDesk client config pack writes markdown and exposes package and env wi
   assert.equal(result.outputFile, outputFile);
   assert.equal(result.ready, true);
   assert.equal(result.manualFields, 4);
-  assert.match(readFileSync(outputFile, 'utf8'), /RustDesk Client Config Pack/);
+  const written = readFileSync(outputFile, 'utf8');
+  assert.match(written, /RustDesk Client Config Pack/);
+  assert.match(written, /launch available at runtime: `yes`/);
+  assert.doesNotMatch(written, /signed-launch-token|\/remote\/rustdesk\/launch|rustdesk:\/\/connect|token=|expires_at=|session_id=|\?session=/);
 
   const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
     scripts: Record<string, string>;
@@ -158,7 +169,7 @@ function fakeClient(overrides: Record<string, unknown> = {}): RustDeskClientConf
         provider: 'rustdesk',
         external_id: 'rdgw_1',
         status: 'active',
-        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_1',
+        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_1&expires_at=1780000000000&token=signed-launch-token',
         target: { id: '123456789', type: 'device' },
         permissions: ['view_screen', 'control_mouse_keyboard'],
         runtime: {
@@ -172,8 +183,8 @@ function fakeClient(overrides: Record<string, unknown> = {}): RustDeskClientConf
         },
         actions: {
           can_launch: true,
-          open_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_1',
-          protocol_url: 'rustdesk://connect/123456789'
+          open_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw_1&expires_at=1780000000000&token=signed-launch-token',
+          protocol_url: 'rustdesk://connect/123456789?session=rdgw_1'
         },
         client_config: {
           public_key_configured: true,
