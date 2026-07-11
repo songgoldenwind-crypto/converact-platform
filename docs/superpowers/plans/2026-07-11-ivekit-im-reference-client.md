@@ -412,7 +412,7 @@ git commit -m "test(client): add IM acceptance flow"
 
 ## Task 10: Milestone Verification And Review
 
-- [ ] **Step 1: Run every local gate**
+- [x] **Step 1: Run every local gate**
 
 ```bash
 npm run verify:ivekit:foundation
@@ -423,19 +423,19 @@ npm run pack:ivekit-sdk
 docker compose --env-file infra/ivekit/env.example -f infra/ivekit/docker-compose.yml config --quiet
 ```
 
-- [ ] **Step 2: Inspect package and source boundaries**
+- [x] **Step 2: Inspect package and source boundaries**
 
 Reject the milestone if the browser bundle contains API keys, imports OPC frontend helpers, exposes Tinode publish, or packages server code.
 
-- [ ] **Step 3: Request independent review**
+- [x] **Step 3: Request independent review**
 
 Review tenant/RLS, authenticated identity, cursor correctness, idempotency, attachment bounds, XSS/file rendering, token storage, reconnect races, event convergence, and session revocation.
 
-- [ ] **Step 4: Resolve every Critical/Important finding with TDD**
+- [x] **Step 4: Resolve every Critical/Important finding with TDD**
 
 Repeat all gates after the final fix.
 
-- [ ] **Step 5: Update roadmap and write M3 plan**
+- [x] **Step 5: Update roadmap and write M3 plan**
 
 Mark M2 complete only after local gates and available real Tinode/browser evidence pass. If real environment is deferred, label M2 code-complete but not environment-accepted and keep the overall Goal active.
 

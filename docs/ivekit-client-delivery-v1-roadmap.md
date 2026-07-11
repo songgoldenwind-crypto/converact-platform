@@ -51,7 +51,7 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 
 ### M2：IM 参考客户端
 
-**状态：详细实施计划完成，进入开发。** 计划见 [iveKit IM Reference Client Implementation Plan](superpowers/plans/2026-07-11-ivekit-im-reference-client.md)。
+**状态：本地代码与本地交付门禁完成，真实环境未验收。** 计划见 [iveKit IM Reference Client Implementation Plan](superpowers/plans/2026-07-11-ivekit-im-reference-client.md)。本地受控双浏览器、Tinode-only 收敛、45 项客户端测试、8 项证据校验、全仓测试、SDK/前端/Compose 门禁均已通过；JWT 会话可见性、参与人管理、退出撤权和凭证签发竞态已经 TDD 加固，独立复审无 Critical/Important。按用户要求未上传服务器，真实 Tinode、双真实浏览器和人工证据复核仍保留。
 
 交付内容：
 
@@ -67,6 +67,8 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 验收终点：两个浏览器可以在真实 Tinode 上持续聊天、传附件、断网恢复，并且所有业务消息均经过本地镜像和 policy scan。
 
 ### M3：LiveKit 音视频参考客户端
+
+**状态：详细实施计划已完成，等待按计划开发。** 计划见 [iveKit LiveKit Reference Client Implementation Plan](superpowers/plans/2026-07-11-ivekit-livekit-reference-client.md)。
 
 交付内容：
 

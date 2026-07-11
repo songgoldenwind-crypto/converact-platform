@@ -17,11 +17,11 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 | 范围 | 代码状态 | 真实环境状态 |
 | --- | --- | --- |
 | Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
-| Collaboration Session | Tinode durable outbound、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 真实 Tinode/IM facade/防绕单/双实例幂等已通过；OCR/ASR/AI provider 待选型和配置 |
+| Collaboration Session | Tinode durable outbound、独立 IM 参考客户端、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 既有后端/Tinode server smoke 保留；本轮参考客户端双真实浏览器验收未运行，OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
 | SDK | `@opc/ivekit-sdk` 已独立打包；`createIveKitClient` 一次提供 Media、Chat 和 RustDesk 高低层能力 | dry-run 发布物已验证只含编译产物、README 和 package metadata |
 
-本地完整门禁和真实服务器验收均已执行，未具备外部服务或物理客户端的项目仍明确列在第 11 节，不以 fake 结果替代。
+本地完整门禁和既有服务器验收材料均已保留；本轮新增的 IM 参考客户端按用户要求未上传服务器，双真实浏览器/Tinode 结果仍标记为未运行。所有缺少外部服务或物理客户端的项目继续列在第 11 节，不以受控 E2E 结果替代。
 
 2026-07-11 的最终部署把 PostgreSQL 角色初始化、advisory-locked migration 和 Tinode 服务账号 bootstrap 拆成一次性任务。长驻 iveKit 仅持有 `opc_runtime`，Tinode 仅持有 `tinode_app`；LED 不得获取 `opc_admin`、PostgreSQL 连接密码、LiveKit API secret、MinIO root 或桶级 service secret。MinIO 根账号只用于初始化，iveKit/Egress 只使用限定 `recordings` 桶的业务账号。
 
