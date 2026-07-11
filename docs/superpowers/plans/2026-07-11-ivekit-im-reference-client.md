@@ -311,7 +311,7 @@ git commit -m "feat(client): scaffold iveKit reference app"
 - Modify: `clients/ivekit-reference/src/app.tsx`
 - Modify: `clients/ivekit-reference/src/styles.css`
 
-- [ ] **Step 1: Write reducer tests**
+- [x] **Step 1: Write reducer tests**
 
 Cover initial load, prepend history without scroll jump, realtime dedupe, optimistic send, 202 retry state, 502 terminal state, unread/read-through, presence expiry, typing expiry, edit/delete, reactions, pins, session close, and stale request suppression.
 
