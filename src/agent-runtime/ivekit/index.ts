@@ -1,6 +1,10 @@
 export { createIveKitModule } from './module.js';
 export { routeIveKitChatApi } from './chat-http.js';
 export { routeIveKitMediaApi } from './media-http.js';
+export { createIveKitHttpServer } from './http-server.js';
+export type { IveKitHttpServerInput, IveKitRouteAdapters } from './http-server.js';
+export { createIveKitMediaHooks } from './media-hooks.js';
+export type { IveKitMediaHooksInput } from './media-hooks.js';
 export {
   createIveKitHttpSdk,
   IveKitHttpSdkError

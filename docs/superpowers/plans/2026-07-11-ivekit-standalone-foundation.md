@@ -73,7 +73,7 @@ The following invariants are mandatory:
 - Create: `test/ivekit-media-hooks.test.ts`
 - Modify: `src/agent-runtime/ivekit/index.ts`
 
-- [ ] **Step 1: Write the failing route-allowlist test**
+- [x] **Step 1: Write the failing route-allowlist test**
 
 Create a real Node HTTP server with in-memory route adapters. The test must prove that approved paths are dispatched and unrelated OPC paths return 404.
 
@@ -101,7 +101,7 @@ test('standalone iveKit server exposes only approved routes', async () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -111,7 +111,7 @@ node --import tsx --test test/ivekit-standalone-http.test.ts
 
 Expected: FAIL because `createIveKitHttpServer` does not exist.
 
-- [ ] **Step 3: Define the deep server interface**
+- [x] **Step 3: Define the deep server interface**
 
 Add this public interface to `http-server.ts`:
 
@@ -128,7 +128,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server;
 
 `IveKitRouteAdapters` has exactly three internal adapters: `media`, `chat`, and `collaboration`. Defaults are `routeIveKitMediaApi`, `routeIveKitChatApi`, and `routeCollaborationApi`. The external interface does not expose every route function parameter.
 
-- [ ] **Step 4: Implement request parsing and the explicit allowlist**
+- [x] **Step 4: Implement request parsing and the explicit allowlist**
 
 Allow only:
 
@@ -159,7 +159,7 @@ The implementation must:
 
 The production default `mediaOptions` comes from `createIveKitMediaHooks({ db, pg })`. That module may import `media-recording-evidence.ts`, but it must not import anything under `agent-runtime/call-center/`. It writes recording audit rows through the generic audit table contract and resolves standalone retention from `OPC_RECORDING_RETENTION_DAYS` only when configured; otherwise the recording service retains its existing default.
 
-- [ ] **Step 5: Add auth, binary, HTML, and RLS tests**
+- [x] **Step 5: Add auth, binary, HTML, and RLS tests**
 
 Add focused tests for:
 
@@ -174,7 +174,7 @@ test('standalone media hooks write tenant-scoped recording audit');
 test('standalone media hooks reject invalid retention configuration');
 ```
 
-- [ ] **Step 6: Run focused tests and typecheck**
+- [x] **Step 6: Run focused tests and typecheck**
 
 ```bash
 node --import tsx --test test/ivekit-standalone-http.test.ts test/ivekit-media-hooks.test.ts
@@ -183,7 +183,7 @@ npm run typecheck
 
 Expected: all standalone tests pass and TypeScript reports zero errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/http-server.ts src/agent-runtime/ivekit/media-hooks.ts src/agent-runtime/ivekit/index.ts test/ivekit-standalone-http.test.ts test/ivekit-media-hooks.test.ts

@@ -248,6 +248,116 @@ test('iveKit media facade keeps rooms tenant scoped', async () => {
   db.close();
 });
 
+test('iveKit media facade accepts LiveKit webhook raw bodies without platform auth', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  clearLiveKitEnv();
+  const db = createDatabase(':memory:');
+  const tenantId = createTenant(db, { name: 'iveKit Webhook Tenant' }).id;
+  try {
+    await route(
+      db,
+      'POST',
+      '/api/ivekit/media/rooms',
+      {
+        purpose: 'video_service',
+        room_name: 'ivekit-webhook-room',
+        business_ref: { type: 'service_order', id: 'order-webhook' }
+      },
+      authHeaders(tenantId)
+    );
+
+    const rawBody = JSON.stringify({
+      event: 'participant_joined',
+      room: { name: 'ivekit-webhook-room' },
+      participant: {
+        identity: 'customer-webhook',
+        metadata: JSON.stringify({ role: 'customer' })
+      }
+    });
+    const result = await routeIveKitMediaApi(
+      db,
+      'POST',
+      '/api/ivekit/media/webhooks/livekit',
+      new URL('http://localhost/api/ivekit/media/webhooks/livekit'),
+      rawBody,
+      rawBody,
+      {}
+    ) as { ok: boolean };
+
+    assert.equal(result.ok, true);
+    const participants = createLiveKitMediaModule({ db }).participants.listByRoom('ivekit-webhook-room');
+    assert.equal(participants[0]?.tenant_id, tenantId);
+    assert.equal(participants[0]?.identity, 'customer-webhook');
+  } finally {
+    db.close();
+  }
+});
+
+test('iveKit media webhook completes recording evidence through the facade hook', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  clearLiveKitEnv();
+  const db = createDatabase(':memory:');
+  const tenantId = createTenant(db, { name: 'iveKit Webhook Evidence Tenant' }).id;
+  try {
+    await route(
+      db,
+      'POST',
+      '/api/ivekit/media/rooms',
+      {
+        purpose: 'video_service',
+        room_name: 'ivekit-webhook-evidence-room',
+        business_ref: { type: 'service_order', id: 'order-webhook-evidence' }
+      },
+      authHeaders(tenantId)
+    );
+    const started = await route(
+      db,
+      'POST',
+      '/api/ivekit/media/rooms/ivekit-webhook-evidence-room/recordings/start',
+      {
+        business_ref: { type: 'service_order', id: 'order-webhook-evidence' },
+        format: 'mp4',
+        has_video: true
+      },
+      authHeaders(tenantId)
+    ) as { data: { egress_id: string } };
+    let completedStatus = '';
+    const rawBody = JSON.stringify({
+      event: 'egress_ended',
+      room: { name: 'ivekit-webhook-evidence-room' },
+      egressInfo: {
+        egressId: started.data.egress_id,
+        fileResults: [{
+          fileType: 'mp4',
+          location: 's3://recordings/order-webhook-evidence.mp4',
+          duration: 1000,
+          size: 4096
+        }]
+      }
+    });
+    const result = await routeIveKitMediaApi(
+      db,
+      'POST',
+      '/api/ivekit/media/webhooks/livekit',
+      new URL('http://localhost/api/ivekit/media/webhooks/livekit'),
+      rawBody,
+      rawBody,
+      {},
+      {
+        onRecordingCompleted: async (recording) => {
+          completedStatus = recording.status;
+          return { id: 'evidence-completed-1' };
+        }
+      }
+    ) as { evidence_record_id: string };
+
+    assert.equal(completedStatus, 'completed');
+    assert.equal(result.evidence_record_id, 'evidence-completed-1');
+  } finally {
+    db.close();
+  }
+});
+
 test('iveKit media facade is registered in the main HTTP router', async () => {
   process.env.OPC_API_KEY = API_KEY;
   clearLiveKitEnv();

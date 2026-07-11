@@ -18,6 +18,7 @@ import type { MediaChannel } from '../media-gateway/index.js';
 
 export interface RouteIveKitMediaApiOptions {
   onRecordingStarted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
+  onRecordingCompleted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   resolveRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectContentResult>;
   deleteRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectDeleteResult>;
   resolveRecordingRetentionDays?: (tenantId: string) => number | Promise<number>;
@@ -183,14 +184,13 @@ export async function routeIveKitMediaApi(
   path: string,
   url: URL,
   body: unknown,
-  _rawBody: string | Buffer = '',
+  rawBody: string | Buffer = '',
   headers: Record<string, string | string[] | undefined> = {},
   options: RouteIveKitMediaApiOptions = {}
 ): Promise<unknown | undefined> {
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/media')) return undefined;
 
-  const ctx = requireAuth(headers);
   const media = createLiveKitMediaModule({
     db,
     recordingDependencies: {
@@ -199,6 +199,29 @@ export async function routeIveKitMediaApi(
       resolveRetentionDays: options.resolveRecordingRetentionDays
     }
   });
+
+  if (routePath === '/api/ivekit/media/webhooks/livekit' && method === 'POST') {
+    const authHeader = headerValue(headers, 'authorization');
+    const rawBodyText = rawBody
+      ? String(rawBody)
+      : typeof body === 'string'
+        ? body
+        : JSON.stringify(body || {});
+    const result = await media.webhooks.handleWebhook(rawBodyText, authHeader || undefined);
+    if (!result.recording || !options.onRecordingCompleted) return result;
+    const evidence = await options.onRecordingCompleted(result.recording, {
+      roomName: result.room_name || result.recording.business_ref?.id || ''
+    });
+    if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) return result;
+    const evidenceRecord = evidence as { id?: unknown };
+    return {
+      ...result,
+      evidence_record_id: evidenceRecord.id ? String(evidenceRecord.id) : '',
+      evidence_record: evidence
+    };
+  }
+
+  const ctx = requireAuth(headers);
 
   if (routePath === '/api/ivekit/media/capabilities' && method === 'GET') {
     return { data: capabilities(ctx.tenantId) };
@@ -389,6 +412,14 @@ export async function routeIveKitMediaApi(
   }
 
   return undefined;
+}
+
+function headerValue(
+  headers: Record<string, string | string[] | undefined>,
+  name: string
+): string {
+  const match = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
+  return Array.isArray(match) ? String(match[0] || '') : String(match || '');
 }
 
 function recordingAuditEvent(
