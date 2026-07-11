@@ -125,6 +125,16 @@ test('RustDesk public docs link the frozen matrix and explain capability truth s
   }
 });
 
+test('RustDesk client config pack command guidance keeps launch URLs runtime-only', () => {
+  const detailedDesign = readFileSync('docs/iveKit视频IM通用能力详细设计.md', 'utf8');
+  const row = detailedDesign.match(/\| `npm run rustdesk:client-config-pack` \|([^\n]+)\|/);
+  assert.ok(row, 'rustdesk:client-config-pack command guidance must exist');
+  assert.doesNotMatch(row[1], /把 launch URL、protocol URL[^。]*写入 Markdown/);
+  assert.match(row[1], /launch_url.*protocol_url.*保持为空/);
+  assert.match(row[1], /availability/);
+  assert.match(row[1], /用户主动发起启动前立即调用 `getGatewayLaunchPlan\(\)`/);
+});
+
 test('iveKit SDK RustDesk sources remain browser-safe and independent from OPC server source', () => {
   const sourceDir = 'sdk/ivekit/src';
   for (const filename of readdirSync(sourceDir).filter((name) => name.endsWith('.ts'))) {
