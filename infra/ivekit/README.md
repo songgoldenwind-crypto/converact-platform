@@ -62,11 +62,13 @@ curl --fail http://127.0.0.1:8300/health
 curl --fail http://127.0.0.1:6060/health
 ```
 
-Reference-client local gates use a controlled HTTP/WebSocket/Tinode protocol server and two isolated Chromium contexts. They are deterministic regression evidence, not proof of the deployed Tinode environment:
+Reference-client local gates use controlled HTTP/WebSocket/Tinode/LiveKit adapters and isolated Chromium contexts. They are deterministic regression evidence, not proof of deployed Tinode, WebRTC, ICE/TURN, camera/microphone, or Egress behavior:
 
 ```bash
 npm run verify:ivekit:im-client
 npm run test:e2e:ivekit-im
+npm run verify:ivekit:media-client
+npm run test:e2e:ivekit-media
 ```
 
 Create the intentionally incomplete real-environment checklist, fill it from two real browsers and real Tinode, then validate it:
@@ -81,6 +83,21 @@ OPC_IVEKIT_IM_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/im-result.json \
 ```
 
 Without `OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE`, the command returns `not_run` and a nonzero exit status. Every passed check requires a unique, non-symlink JSON observation bound to the same check, run, environment, timestamp, and tool; layout observations also require a recorded human redaction review. Reports and observations must not contain API keys, authorization headers, JWTs, cookies, passwords, private keys, or provider secrets. A successful validator result means `ready_for_review`, not environment acceptance: a human must inspect the referenced captures and confirm the observations are genuine and redacted.
+
+Generate and validate the LiveKit real-client report separately. The template now includes reference-client checks for two-identity lifecycle, prejoin/device switching, desktop/mobile layout, screen share, moderation/revoke, recording/evidence, reconnect, and token non-persistence:
+
+```bash
+OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/livekit-template.json \
+  npm run livekit:client-acceptance || true
+
+OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE=/secure/evidence/livekit-report.json \
+OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/livekit-result.json \
+OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FILE=/secure/evidence/qa-public.pem \
+OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT=replace_with_sha256 \
+  npm run livekit:client-acceptance
+```
+
+Without `OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE`, this validator also returns `not_run` with a nonzero exit status. Every passed check needs a distinct SHA-256-bound JSON artifact from the real environment and an independent QA attestation. Controlled Playwright screenshots and events cannot satisfy real LiveKit, ICE/TURN, physical device, or Egress checks.
 
 Expected PostgreSQL roles:
 

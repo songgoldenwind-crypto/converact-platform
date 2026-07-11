@@ -7,8 +7,12 @@ export default defineConfig({
   timeout: 45_000,
   expect: { timeout: 8_000 },
   reporter: [['line']],
+  outputDir: './test-results',
   use: {
     baseURL: 'http://127.0.0.1:4179',
+    colorScheme: 'light',
+    locale: 'en-US',
+    reducedMotion: 'reduce',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure'
   },

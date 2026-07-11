@@ -1,14 +1,16 @@
 import type { FormEvent } from 'react';
 import { PhoneCall, PhoneOff, Search, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { IveKitClient, IveKitMediaCallAction } from '@opc/ivekit-sdk';
 import { CallHeader } from './call-header.js';
+import { BrowserDeviceController, type DeviceControllerSnapshot } from './device-controller.js';
 import { HostControls } from './host-controls.js';
 import { isTerminalStatus } from './media-reducer.js';
 import { MediaToolbar } from './media-toolbar.js';
 import { NetworkStatus } from './network-status.js';
 import { ParticipantGrid } from './participant-grid.js';
+import { PrejoinPanel } from './prejoin-panel.js';
 import { RecordingPanel } from './recording-panel.js';
 import { useMediaCall } from './use-media-call.js';
 
@@ -23,9 +25,19 @@ export function MediaWorkspace(props: {
   const [draftCallId, setDraftCallId] = useState(props.callId);
   const [error, setError] = useState('');
   const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const [setup, setSetup] = useState<{ mode: 'accept' | 'devices'; controller: BrowserDeviceController } | null>(null);
+  const setupRef = useRef(setup);
+  setupRef.current = setup;
   const media = useMediaCall({ client: props.client, callId: props.callId, identity: props.identity, websocketUrl: props.websocketUrl, accessToken: props.accessToken });
   useEffect(() => setDraftCallId(props.callId), [props.callId]);
-  useEffect(() => setRecordingsOpen(false), [props.callId]);
+  useEffect(() => {
+    setRecordingsOpen(false);
+    setSetup((current) => {
+      if (current) void current.controller.dispose();
+      return null;
+    });
+  }, [props.callId]);
+  useEffect(() => () => { if (setupRef.current) void setupRef.current.controller.dispose(); }, []);
 
   const openCall = (event: FormEvent) => {
     event.preventDefault();
@@ -44,6 +56,33 @@ export function MediaWorkspace(props: {
   const terminal = call ? isTerminalStatus(call.status) : false;
   const toolbarDisabled = pending || terminal || media.state.connection !== 'online';
   const commandError = Object.values(media.state.commands).find((value) => value.error)?.error || '';
+  const openSetup = (mode: 'accept' | 'devices') => {
+    if (!call) return;
+    const controller = new BrowserDeviceController();
+    controller.setMode(call.media);
+    setSetup({ mode, controller });
+    void controller.requestAccess({ mode: call.media }).catch(() => undefined);
+  };
+  const closeSetup = async () => {
+    const current = setup;
+    setSetup(null);
+    await current?.controller.dispose();
+  };
+  const applySetup = async (snapshot: DeviceControllerSnapshot) => {
+    const current = setup;
+    if (!current) return;
+    if (current.mode === 'accept') {
+      await media.transition('accept');
+      setSetup({ mode: 'devices', controller: current.controller });
+    }
+    const selected = snapshot.selected;
+    if (selected.audioinput) await media.switchDevice('audioinput', selected.audioinput);
+    if (selected.videoinput && snapshot.mode === 'video') await media.switchDevice('videoinput', selected.videoinput);
+    if (selected.audiooutput && snapshot.outputSelectionSupported) await media.switchDevice('audiooutput', selected.audiooutput);
+    await media.setMicrophone(snapshot.microphoneEnabled);
+    await media.setCamera(snapshot.mode === 'video' && snapshot.cameraEnabled);
+    await closeSetup();
+  };
 
   return (
     <section className="media-workspace-pane">
@@ -57,6 +96,16 @@ export function MediaWorkspace(props: {
         <>
           <CallHeader state={media.state} />
           <NetworkStatus connection={media.state.connection} autoplayBlocked={media.state.autoplayBlocked} fatalReason={media.state.fatalReason} onStartAudio={() => run(() => media.startAudio())} />
+          {setup && <div className="media-setup-overlay">
+            <button className="close-media-setup" title="Close call setup" onClick={() => void closeSetup()}><X size={16} /></button>
+            <PrejoinPanel
+              controller={setup.controller}
+              title={setup.mode === 'accept' ? 'Ready to accept' : 'Devices'}
+              commandLabel={setup.mode === 'accept' ? 'Accept' : 'Apply'}
+              pending={pending}
+              onJoin={applySetup}
+            />
+          </div>}
           {call && ['accepted', 'active'].includes(call.status) ? <ParticipantGrid
             participants={media.state.participants}
             tracks={media.state.tracks}
@@ -70,7 +119,7 @@ export function MediaWorkspace(props: {
             <div className="call-lifecycle-actions">
               {call?.status === 'created' && isHost && <><button disabled={pending} onClick={() => void command('ring')}>Ring</button><button disabled={pending} onClick={() => void command('cancel', 'host cancelled')}>Cancel</button></>}
               {call?.status === 'ringing' && isHost && <button disabled={pending} onClick={() => void command('cancel', 'host cancelled')}>Cancel</button>}
-              {call?.status === 'ringing' && !isHost && <><button disabled={pending} onClick={() => void command('accept')}>Accept</button><button disabled={pending} onClick={() => void command('reject', 'participant rejected')}>Reject</button></>}
+              {call?.status === 'ringing' && !isHost && <><button disabled={pending} onClick={() => openSetup('accept')}>Accept</button><button disabled={pending} onClick={() => void command('reject', 'participant rejected')}>Reject</button></>}
             </div>
           </div>}
           <HostControls
@@ -89,13 +138,13 @@ export function MediaWorkspace(props: {
             recording={recordingsOpen}
             recordingControlMode="panel"
             disabled={toolbarDisabled}
-            devicesDisabled
+            devicesDisabled={!call || !['accepted', 'active'].includes(call.status)}
             recordingDisabled={!props.client || !call}
             onMicrophone={(enabled) => run(() => media.setMicrophone(enabled))}
             onCamera={(enabled) => run(() => media.setCamera(enabled))}
             onScreenShare={(enabled, options) => run(() => media.setScreenShare(enabled, options))}
             onLayout={media.setLayout}
-            onDevices={() => undefined}
+            onDevices={() => openSetup('devices')}
             onRecording={setRecordingsOpen}
             onHangup={() => command('end', 'user hangup')}
           />

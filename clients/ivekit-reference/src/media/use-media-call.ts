@@ -7,6 +7,7 @@ import type {
   IveKitMediaModerationResult
 } from '@opc/ivekit-sdk';
 import { LiveKitClientAdapter } from './livekit-adapter.js';
+import type { LiveKitRoomLike } from './livekit-adapter.js';
 import {
   initialMediaCallState,
   isTerminalStatus,
@@ -18,6 +19,12 @@ import {
 import type { LiveKitRoomAdapter, MediaAdapterEvent } from './types.js';
 
 export type MediaAdapterFactory = (onEvent: (event: MediaAdapterEvent) => void) => LiveKitRoomAdapter;
+
+declare global {
+  interface Window {
+    __IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__?: () => LiveKitRoomLike;
+  }
+}
 
 export interface UseMediaCallInput {
   client: IveKitClient | null;
@@ -385,7 +392,11 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
 }
 
 function defaultAdapterFactory(onEvent: (event: MediaAdapterEvent) => void): LiveKitRoomAdapter {
-  return new LiveKitClientAdapter({ onEvent });
+  const development = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV;
+  const roomFactory = development && typeof window !== 'undefined'
+    ? window.__IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__
+    : undefined;
+  return new LiveKitClientAdapter({ onEvent, ...(roomFactory ? { roomFactory } : {}) });
 }
 
 function defaultRandomId(): string {

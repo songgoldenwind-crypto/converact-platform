@@ -19,7 +19,8 @@ import type {
 
 export function PrejoinPanel(props: {
   controller: DeviceController;
-  commandLabel?: 'Join' | 'Accept';
+  title?: string;
+  commandLabel?: 'Join' | 'Accept' | 'Apply';
   pending?: boolean;
   onJoin(snapshot: DeviceControllerSnapshot): Promise<void>;
 }) {
@@ -68,7 +69,7 @@ export function PrejoinPanel(props: {
     <section className="prejoin-panel" aria-label="Call setup">
       <header className="prejoin-heading">
         <div>
-          <h2>Ready to join</h2>
+          <h2>{props.title || 'Ready to join'}</h2>
           <span className={`permission-state permission-${snapshot.permission}`}>{permissionLabel(snapshot.permission)}</span>
         </div>
         <div className="mode-switch" role="group" aria-label="Call mode">

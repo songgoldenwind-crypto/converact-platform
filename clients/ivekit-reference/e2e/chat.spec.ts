@@ -175,7 +175,7 @@ async function verifyMobile(browser: Browser, server: ControlledChatServer, test
   const mobile = await openIdentity(browser, 'agent-1', 'token-agent', { width: 390, height: 844 });
   try {
     await expect(mobile.page.getByTitle('Show sessions')).toBeVisible();
-    await mobile.page.getByTitle('Show messages').click();
+    await mobile.page.getByTitle('Show messages', { exact: true }).click();
     await expect(mobile.page.getByLabel('Message')).toBeVisible();
     const marker = mobile.page.getByRole('button', { name: 'Review 1 quality finding' });
     await marker.click();

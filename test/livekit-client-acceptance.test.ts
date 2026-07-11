@@ -8,12 +8,37 @@ import { test } from 'node:test';
 import {
   LIVEKIT_REQUIRED_ACCEPTANCE_CHECKS,
   LIVEKIT_ACCEPTANCE_DETAIL_REQUIREMENTS,
+  LIVEKIT_REFERENCE_CLIENT_ACCEPTANCE_CHECKS,
   createLiveKitClientAcceptanceTemplate,
   renderLiveKitClientAcceptanceRunbook,
   runLiveKitClientAcceptance,
+  runLiveKitClientAcceptanceFromEnv,
   validateLiveKitClientAcceptancePaths,
   writeLiveKitClientAcceptanceTemplate
 } from '../scripts/livekit-client-acceptance.js';
+
+test('LiveKit client acceptance reports not_run without a real environment report', () => {
+  const result = runLiveKitClientAcceptanceFromEnv({});
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 'not_run');
+  assert.deepEqual(result.missing_environment, ['OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE']);
+});
+
+test('LiveKit acceptance template includes incomplete reference-client checks', () => {
+  const template = createLiveKitClientAcceptanceTemplate({
+    environmentId: 'replace-with-environment-id',
+    deploymentMode: 'standalone-vm',
+    deployedCommit: 'replace-with-40-char-git-sha',
+    operator: 'replace-with-operator',
+    checkedAt: '',
+    runId: 'replace-with-run-id',
+    deploymentFingerprint: 'replace-with-deployment-fingerprint',
+    runStartedAt: ''
+  }) as any;
+  for (const checkId of LIVEKIT_REFERENCE_CLIENT_ACCEPTANCE_CHECKS) {
+    assert.equal(readPath(template.checks, checkId).passed, false, checkId);
+  }
+});
 
 test('LiveKit client acceptance passes a complete real-environment report', () => {
   const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-client-acceptance-pass-'));
@@ -100,6 +125,28 @@ test('LiveKit client acceptance rejects non-real sources invalid identity and un
     ]) {
       assert.equal(result.failures.some((failure) => failure.id === id), true, id);
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('controlled browser output cannot satisfy reference-client real-environment evidence', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-reference-client-source-'));
+  const reportFile = join(dir, 'report.json');
+  try {
+    const report = completeReport(dir) as any;
+    const checkId = LIVEKIT_REFERENCE_CLIENT_ACCEPTANCE_CHECKS[0];
+    const reference = readPath(report.checks, checkId).evidence;
+    const document = JSON.parse(readFileSync(reference.artifact_file, 'utf8')) as any;
+    document.source = 'controlled_e2e';
+    const content = `${JSON.stringify(document, null, 2)}\n`;
+    writeFileSync(reference.artifact_file, content);
+    reference.sha256 = createHash('sha256').update(content).digest('hex');
+    writeFileSync(reportFile, `${JSON.stringify(report)}\n`);
+
+    const result = runLiveKitClientAcceptance(validatorConfig(dir, reportFile));
+    assert.equal(result.ok, false);
+    assert.equal(result.failures.some((failure) => failure.id === checkId && failure.reason.includes('real_environment')), true);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -394,6 +441,7 @@ function writeEvidenceArtifact(
   const document = {
     schema_version: 1,
     kind: 'livekit_acceptance_evidence',
+    source: 'real_environment',
     run_id: context.runId,
     environment_id: context.environmentId,
     deployed_commit: context.deployedCommit,

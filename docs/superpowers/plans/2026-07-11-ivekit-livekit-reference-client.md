@@ -488,28 +488,32 @@ git commit -m "feat(client): add recording evidence view"
 - Create: `clients/ivekit-reference/e2e/media.spec.ts`
 - Create: `clients/ivekit-reference/e2e/controlled-media-server.ts`
 - Modify: `clients/ivekit-reference/playwright.config.ts`
+- Modify: `clients/ivekit-reference/src/media/media-workspace.tsx`
+- Modify: `clients/ivekit-reference/src/media/prejoin-panel.tsx`
+- Modify: `clients/ivekit-reference/src/media/use-media-call.ts`
+- Modify: `clients/ivekit-reference/src/styles.css`
 - Modify: `scripts/livekit-client-acceptance.ts`
 - Modify: `test/livekit-client-acceptance.test.ts`
 - Modify: `package.json`
 - Modify: `infra/ivekit/README.md`
 
-- [ ] **Step 1: Build a controlled two-browser media adapter**
+- [x] **Step 1: Build a controlled two-browser media adapter**
 
 Run caller and callee in isolated contexts. The controlled iveKit server persists call state; an injected LiveKit Room factory emits tracks, speakers, reconnect, device changes, network quality, screen share, moderation, and terminal disconnect without claiming real WebRTC evidence.
 
-- [ ] **Step 2: Cover the complete local workflow**
+- [x] **Step 2: Cover the complete local workflow**
 
 Test outgoing ring/accept/active/end; reject/cancel/timeout; mic/camera/device switching; grid/speaker/share layouts; host mute/remove; offline/reconnect; recording state/evidence; revoke; and zero token persistence.
 
-- [ ] **Step 3: Capture desktop/mobile layout evidence**
+- [x] **Step 3: Capture desktop/mobile layout evidence**
 
 Assert nonblank video stages, no horizontal overflow, no toolbar shift, stable tile dimensions, screen share priority, visible hangup, and mobile participant rail at 1440x900 and 390x844.
 
-- [ ] **Step 4: Bind existing real-environment tooling**
+- [x] **Step 4: Bind existing real-environment tooling**
 
 Extend the existing LiveKit client report only with reference-client-specific check ids. Keep `source=real_environment`, unique structured observations, SHA-256 binding, distinct operator/QA attestation, and `not_run` when no report is supplied. Controlled E2E output cannot satisfy real ICE, TURN, camera, microphone, Egress, or recording checks.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test

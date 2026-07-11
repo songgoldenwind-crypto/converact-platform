@@ -5,6 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 export type LiveKitAcceptanceDeploymentMode = 'standalone-vm' | 'external';
 
+export const LIVEKIT_REFERENCE_CLIENT_ACCEPTANCE_CHECKS = Object.freeze([
+  'reference_client.two_identity_lifecycle',
+  'reference_client.device_prejoin_switch',
+  'reference_client.layout_desktop_mobile',
+  'reference_client.host_moderation_revoke',
+  'reference_client.recording_evidence',
+  'reference_client.offline_reconnect',
+  'reference_client.token_non_persistence'
+] as const);
+
 export interface LiveKitAcceptanceEvidenceReference {
   artifact_file: string;
   sha256: string;
@@ -48,6 +58,7 @@ export interface LiveKitClientAcceptanceFailure {
 export interface LiveKitClientAcceptanceResult {
   schema_version: 1;
   ok: boolean;
+  status: 'ready_for_review' | 'incomplete';
   run_id: string;
   run_started_at: string;
   environment_id: string;
@@ -117,7 +128,14 @@ const CHECK_DESCRIPTIONS = {
   'resilience.redis_recovery': 'Record Redis restart/recovery without lost room routing or stuck Egress jobs.',
   'resilience.multi_replica_routing_draining': 'Record multi-replica routing, node drain and reconnect evidence.',
   'sip.inbound_audio': 'Record a real inbound SIP call bridged to LiveKit with bidirectional audio.',
-  'sip.outbound_audio': 'Record a real outbound SIP call bridged from LiveKit with bidirectional audio.'
+  'sip.outbound_audio': 'Record a real outbound SIP call bridged from LiveKit with bidirectional audio.',
+  'reference_client.two_identity_lifecycle': 'Run the iveKit reference client as two real identities through ring, accept, active and terminal states.',
+  'reference_client.device_prejoin_switch': 'Capture real prejoin permission, preview and in-call input/output device switching.',
+  'reference_client.layout_desktop_mobile': 'Capture nonblank desktop and mobile stages, screen-share priority and stable controls.',
+  'reference_client.host_moderation_revoke': 'Confirm host mute/remove and immediate removed-participant revocation in the reference client.',
+  'reference_client.recording_evidence': 'Confirm host recording, evidence display and authenticated export in the reference client.',
+  'reference_client.offline_reconnect': 'Confirm reference-client offline, reconnect and converged participant state.',
+  'reference_client.token_non_persistence': 'Confirm short-lived tokens are absent from browser persistent storage, captures and logs.'
 } as const;
 
 export const LIVEKIT_REQUIRED_ACCEPTANCE_CHECKS = Object.freeze(
@@ -155,6 +173,13 @@ export const LIVEKIT_ACCEPTANCE_DETAIL_REQUIREMENTS: Readonly<Record<string, rea
   'resilience.multi_replica_routing_draining': ['replicas', 'drained_node', 'routing_observation'],
   'sip.inbound_audio': ['call_id', 'trunk_id', 'room_name', 'bidirectional_observation'],
   'sip.outbound_audio': ['call_id', 'trunk_id', 'room_name', 'bidirectional_observation'],
+  'reference_client.two_identity_lifecycle': ['call_id', 'caller_identity', 'callee_identity', 'terminal_statuses'],
+  'reference_client.device_prejoin_switch': ['identity', 'permission_observation', 'input_devices', 'output_device'],
+  'reference_client.layout_desktop_mobile': ['desktop_viewport', 'mobile_viewport', 'screen_share_observation', 'overflow_observation'],
+  'reference_client.host_moderation_revoke': ['host_identity', 'target_identity', 'mute_observation', 'revoke_observation'],
+  'reference_client.recording_evidence': ['call_id', 'recording_id', 'evidence_id', 'authenticated_export_sha256'],
+  'reference_client.offline_reconnect': ['call_id', 'offline_at', 'reconnected_at', 'participant_state'],
+  'reference_client.token_non_persistence': ['browser', 'storage_surfaces', 'token_absent_observation'],
   performance: ['load_command', 'metrics_file', 'time_range', 'rooms', 'participants']
 });
 
@@ -364,6 +389,7 @@ export function runLiveKitClientAcceptance(
   const result: LiveKitClientAcceptanceResult = {
     schema_version: 1,
     ok: failures.length === 0,
+    status: failures.length === 0 ? 'ready_for_review' : 'incomplete',
     run_id: runId,
     run_started_at: runStartedAt,
     environment_id: environmentId,
@@ -431,6 +457,11 @@ export function renderLiveKitClientAcceptanceRunbook(): string {
     '## SIP',
     '',
     '- Complete one real inbound and one real outbound call with bidirectional audio evidence.',
+    '',
+    '## Reference Client',
+    '',
+    '- Use two real identities to cover lifecycle, prejoin and device switching, desktop/mobile layouts, screen share, host moderation, recording/evidence and reconnect.',
+    '- Inspect browser storage, captures and logs for token non-persistence. Controlled Playwright output is regression evidence only and cannot pass these checks.',
     '',
     '## Final Evidence',
     '',
@@ -548,6 +579,9 @@ function validateEvidenceReference(
       document.captured_at !== capturedAt ||
       document.tool !== tool) {
       failures.push({ id, reason: 'evidence artifact schema or acceptance metadata does not match the report' });
+    }
+    if (expectedKind === 'livekit_acceptance_evidence' && document.source !== 'real_environment') {
+      failures.push({ id, reason: 'evidence artifact source must equal real_environment; controlled E2E is not accepted' });
     }
     if (expectedCheckId && document.check_id !== expectedCheckId) {
       failures.push({ id, reason: `evidence artifact must identify only ${expectedCheckId}` });
@@ -897,6 +931,16 @@ function configFromEnv(env: NodeJS.ProcessEnv): LiveKitClientAcceptanceConfig {
   };
 }
 
+export function runLiveKitClientAcceptanceFromEnv(env: Record<string, string | undefined>):
+  | LiveKitClientAcceptanceResult
+  | { ok: false; status: 'not_run'; missing_environment: string[] } {
+  const reportFile = String(env.OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE || '').trim();
+  if (!reportFile) {
+    return { ok: false, status: 'not_run', missing_environment: ['OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE'] };
+  }
+  return runLiveKitClientAcceptance(configFromEnv(env));
+}
+
 export function validateLiveKitClientAcceptancePaths(
   templateFile: string | undefined,
   reportFile: string | undefined,
@@ -943,7 +987,10 @@ async function main(): Promise<void> {
   const runbookFile = String(process.env.OPC_LIVEKIT_ACCEPTANCE_RUNBOOK_FILE || '').trim();
   const reportFile = String(process.env.OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE || '').trim();
   if (!templateFile && !runbookFile && !reportFile) {
-    throw new Error('Set OPC_LIVEKIT_ACCEPTANCE_TEMPLATE_FILE, OPC_LIVEKIT_ACCEPTANCE_RUNBOOK_FILE, or OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE');
+    const result = runLiveKitClientAcceptanceFromEnv(process.env);
+    console.log(JSON.stringify(result, null, 2));
+    process.exitCode = 2;
+    return;
   }
   const outputFile = String(process.env.OPC_LIVEKIT_ACCEPTANCE_OUTPUT_FILE || '').trim();
   validateLiveKitClientAcceptancePaths(templateFile || undefined, reportFile || undefined, outputFile || undefined);
@@ -956,9 +1003,13 @@ async function main(): Promise<void> {
     writeFileSync(runbookFile, renderLiveKitClientAcceptanceRunbook(), 'utf8');
   }
   if (reportFile) {
-    const result = runLiveKitClientAcceptance(configFromEnv(process.env));
+    const result = runLiveKitClientAcceptanceFromEnv(process.env);
     console.log(JSON.stringify(result, null, 2));
     if (!result.ok) process.exitCode = 1;
+  } else {
+    const result = runLiveKitClientAcceptanceFromEnv(process.env);
+    console.log(JSON.stringify(result, null, 2));
+    process.exitCode = 2;
   }
 }
 
