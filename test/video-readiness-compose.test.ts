@@ -8,6 +8,7 @@ const PRODUCTION_COMPOSE_PATH = new URL('../infra/docker-compose.production.yml'
 const PRODUCTION_TINODE_COMPOSE_PATH = new URL('../infra/docker-compose.tinode.yml', import.meta.url);
 const PRODUCTION_ENV_PATH = new URL('../infra/env.example', import.meta.url);
 const K8S_OPC_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/opc-deployment.yaml', import.meta.url);
+const K8S_HELPERS_PATH = new URL('../infra/k8s/templates/_helpers.tpl', import.meta.url);
 const K8S_AI_AGENT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/ai-agent-deployment.yaml', import.meta.url);
 const K8S_SECRETS_PATH = new URL('../infra/k8s/templates/secrets.yaml', import.meta.url);
 const K8S_VALUES_PATH = new URL('../infra/k8s/values.yaml', import.meta.url);
@@ -24,6 +25,8 @@ test('call center compose passes media security and recording env into opc servi
   const compose = readFileSync(COMPOSE_PATH, 'utf8');
   const opcEnvironment = readServiceEnvironment(compose, 'opc');
 
+  assert.equal(opcEnvironment.LIVEKIT_URL, 'ws://livekit:7880');
+  assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}');
   assert.equal(opcEnvironment.OPC_MEDIA_API_TOKEN, '${OPC_MEDIA_API_TOKEN:-dev-media-token}');
   assert.equal(opcEnvironment.OPC_MEDIA_INVITE_SECRET, '${OPC_MEDIA_INVITE_SECRET:-dev-media-invite-secret}');
   assert.equal(opcEnvironment.OPC_MEDIA_INVITE_TTL_MS, '${OPC_MEDIA_INVITE_TTL_MS:-86400000}');
@@ -92,6 +95,10 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.ok(readServiceVolumes(compose, 'rustpbx').includes('../config/rustpbx.docker.toml:/app/rustpbx.toml:ro'));
 
   const opcEnvironment = readServiceEnvironment(compose, 'opc');
+  assert.equal(opcEnvironment.LIVEKIT_URL, '${LIVEKIT_URL:?LIVEKIT_URL is required}');
+  assert.equal(opcEnvironment.LIVEKIT_PUBLIC_URL, '${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}');
+  assert.equal(opcEnvironment.LIVEKIT_API_KEY, '${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}');
+  assert.equal(opcEnvironment.LIVEKIT_API_SECRET, '${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}');
   assert.equal(opcEnvironment.OPC_MEDIA_API_TOKEN, '${OPC_MEDIA_API_TOKEN}');
   assert.equal(opcEnvironment.OPC_MEDIA_INVITE_SECRET, '${OPC_MEDIA_INVITE_SECRET}');
   assert.equal(opcEnvironment.OPC_MEDIA_INVITE_TTL_MS, '${OPC_MEDIA_INVITE_TTL_MS:-86400000}');
@@ -102,6 +109,29 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.equal(opcEnvironment.MINIO_ACCESS_KEY, '${MINIO_ACCESS_KEY:-minioadmin}');
   assert.equal(opcEnvironment.MINIO_SECRET_KEY, '${MINIO_SECRET_KEY:-minioadmin}');
   assert.equal(opcEnvironment.OPC_API_KEY, '${OPC_API_KEY}');
+});
+
+test('Compose media services use pinned versions and production bundled media is opt-in', () => {
+  const local = readFileSync(COMPOSE_PATH, 'utf8');
+  const production = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
+  const productionEnv = readFileSync(PRODUCTION_ENV_PATH, 'utf8');
+
+  for (const compose of [local, production]) {
+    assert.match(readServiceBlock(compose, 'livekit'), /livekit\/livekit-server:\$\{LIVEKIT_SERVER_IMAGE_TAG:-v1\.13\.3\}/);
+    assert.match(readServiceBlock(compose, 'livekit-sip'), /livekit\/sip:\$\{LIVEKIT_SIP_IMAGE_TAG:-v1\.6\.0\}/);
+    const egress = readServiceBlock(compose, 'livekit-egress');
+    assert.match(egress, /livekit\/egress:\$\{LIVEKIT_EGRESS_IMAGE_TAG:-v1\.13\.0\}/);
+    assert.match(egress, /SYS_ADMIN/);
+    assert.match(egress, /http:\/\/127\.0\.0\.1:8091/);
+  }
+
+  for (const service of ['livekit', 'livekit-sip', 'livekit-egress']) {
+    assert.match(readServiceBlock(production, service), /profiles: \["media-bundled"\]/);
+  }
+  assert.equal(readServiceEnvironment(production, 'livekit-sip').LIVEKIT_URL, 'ws://livekit:7880');
+  assert.doesNotMatch(readServiceBlock(production, 'opc'), /livekit:\n\s+condition:/);
+  assert.doesNotMatch(readServiceBlock(production, 'ai-agent'), /- livekit/);
+  assert.match(productionEnv, /^LIVEKIT_URL=ws:\/\/media\.internal\.example:7880$/m);
 });
 
 test('production compose gates databases PgBouncer and object storage', () => {
@@ -610,8 +640,9 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   }
 
   assert.match(aiAgentDeployment, /name: OPC_API_KEY/);
-  assert.match(opcDeployment, /\.Values\.livekit\.url/);
-  assert.match(aiAgentDeployment, /\.Values\.livekit\.url/);
+  assert.match(opcDeployment, /include "opc\.livekitInternalUrl"/);
+  assert.match(opcDeployment, /include "opc\.livekitPublicUrl"/);
+  assert.match(aiAgentDeployment, /include "opc\.livekitInternalUrl"/);
   assert.match(opcDeployment, /mountPath: \/rustdesk/);
   assert.match(opcDeployment, /claimName: {{ \.Release\.Name }}-rustdesk-data/);
   assert.match(values, /^  launchTokenTtlMs: "900000"/m);
@@ -659,7 +690,11 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   const egress = readFileSync(K8S_EGRESS_DEPLOYMENT_PATH, 'utf8');
   const sip = readFileSync(K8S_SIP_DEPLOYMENT_PATH, 'utf8');
   const values = readFileSync(K8S_VALUES_PATH, 'utf8');
+  const helpers = readFileSync(K8S_HELPERS_PATH, 'utf8');
+  const opc = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
+  const aiAgent = readFileSync(K8S_AI_AGENT_DEPLOYMENT_PATH, 'utf8');
 
+  assert.match(livekit, /bundled-dev is development-only/);
   assert.match(livekit, /name: {{ \.Release\.Name }}-livekit-config/);
   assert.match(livekit, /kind: Deployment/);
   assert.match(livekit, /name: {{ \.Release\.Name }}-livekit/);
@@ -682,15 +717,20 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(egress, /name: {{ \.Release\.Name }}-livekit-egress/);
   assert.match(egress, /\.Values\.media\.egress\.image\.repository/);
   assert.match(egress, /EGRESS_CONFIG_FILE/);
-  assert.match(egress, /\.Values\.livekit\.url/);
-  assert.match(egress, /ws:\/\/%s-livekit:7880/);
+  assert.match(egress, /include "opc\.livekitInternalUrl"/);
+  assert.match(egress, /logging:\n\s+level: info/);
+  assert.match(egress, /redis:\n\s+address:/);
+  assert.match(egress, /health_port:/);
+  assert.match(egress, /storage:\n\s+s3:/);
+  assert.doesNotMatch(egress, /^\s{4}s3:/m);
+  assert.match(egress, /SYS_ADMIN/);
+  assert.match(egress, /readinessProbe:/);
   assert.match(egress, /http:\/\/%s-minio:9000/);
 
   assert.match(sip, /kind: Deployment/);
   assert.match(sip, /name: {{ \.Release\.Name }}-livekit-sip/);
   assert.match(sip, /\.Values\.media\.sip\.image\.repository/);
-  assert.match(sip, /\.Values\.livekit\.url/);
-  assert.match(sip, /ws:\/\/%s-livekit:7880/);
+  assert.match(sip, /include "opc\.livekitInternalUrl"/);
   assert.match(sip, /SIP_PORT/);
   assert.match(sip, /containerPort: 5061/);
   assert.match(sip, /kind: Service/);
@@ -699,6 +739,28 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(values, /repository: minio\/minio/);
   assert.match(values, /repository: livekit\/egress/);
   assert.match(values, /repository: livekit\/sip/);
+  assert.match(values, /^  enabled: false$/m);
+  assert.match(values, /^  deploymentMode: external$/m);
+  assert.match(values, /^  publicUrl: ""$/m);
+  assert.match(values, /tag: v1\.13\.3/);
+  assert.match(values, /tag: v1\.13\.0/);
+  assert.match(values, /tag: v1\.6\.0/);
+  assert.match(helpers, /define "opc\.livekitInternalUrl"/);
+  assert.match(helpers, /livekit\.url is required when livekit\.enabled=false/);
+  assert.match(helpers, /define "opc\.livekitPublicUrl"/);
+  assert.match(helpers, /livekit\.publicUrl is required/);
+  assert.match(helpers, /livekit\.publicUrl must use wss:\/\//);
+  assert.match(helpers, /define "opc\.livekitApiKey"/);
+  assert.match(helpers, /livekit\.apiKey is required/);
+  assert.match(helpers, /define "opc\.livekitApiSecret"/);
+  assert.match(helpers, /livekit\.apiSecret is required/);
+  assert.doesNotMatch(readFileSync(K8S_SECRETS_PATH, 'utf8'), /livekit\.apiKey \| default "devkey"/);
+  assert.doesNotMatch(readFileSync(K8S_SECRETS_PATH, 'utf8'), /livekit\.apiSecret \| default "secret"/);
+  assert.doesNotMatch(livekit, /livekit\.apiKey \| default "devkey"/);
+  assert.doesNotMatch(egress, /livekit\.apiSecret \| default "secret"/);
+  assert.match(opc, /name: LIVEKIT_PUBLIC_URL/);
+  assert.match(opc, /include "opc\.livekitPublicUrl"/);
+  assert.match(aiAgent, /include "opc\.livekitInternalUrl"/);
   assert.match(values, /port: 9000/);
   assert.match(values, /consolePort: 9001/);
   assert.match(values, /^  sip:\n[\s\S]*?^      limits:\n        memory: "256Mi"\n        cpu: "300m"/m);

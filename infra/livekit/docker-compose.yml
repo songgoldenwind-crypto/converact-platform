@@ -1,0 +1,62 @@
+# Linux-only standalone iveKit Media Core.
+# Render runtime configs with `npm run render:livekit-edge` before starting.
+services:
+  caddy:
+    image: livekit/caddyl4:${LIVEKIT_CADDYL4_IMAGE_TAG:?LIVEKIT_CADDYL4_IMAGE_TAG is required}
+    command: run --config /etc/caddy.yaml --adapter yaml
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/caddy.yaml:/etc/caddy.yaml:ro
+      - livekit_caddy_data:/data
+
+  livekit:
+    image: livekit/livekit-server:${LIVEKIT_SERVER_IMAGE_TAG:?LIVEKIT_SERVER_IMAGE_TAG is required}
+    command: --config /etc/livekit.yaml
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:${LIVEKIT_REDIS_IMAGE_TAG:?LIVEKIT_REDIS_IMAGE_TAG is required}
+    command: redis-server /etc/redis.conf
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./config/redis.conf:/etc/redis.conf:ro
+      - livekit_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-h", "127.0.0.1", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  egress:
+    image: livekit/egress:${LIVEKIT_EGRESS_IMAGE_TAG:?LIVEKIT_EGRESS_IMAGE_TAG is required}
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8091/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+
+volumes:
+  livekit_caddy_data:
+  livekit_redis_data:

@@ -1,6 +1,6 @@
 # iveKit HTTP API 与事件契约
 
-> 契约版本：v1-draft / 2026-07-10。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
+> 契约版本：v1-draft / 2026-07-11。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
 
 ## 1. 通用约定
 
@@ -53,6 +53,27 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 | --- | --- | --- |
 | GET | `/api/ivekit/media/capabilities` | 返回 tenant、LiveKit/Egress/SIP/object/recording 能力和配置布尔状态 |
 
+Media Core 不返回 URL、API key 或 secret。与 LiveKit 浏览器接入有关的配置状态为：
+
+```json
+{
+  "provider": "livekit",
+  "tenant_id": "tenant_led",
+  "config": {
+    "livekit_url_configured": true,
+    "livekit_public_url_configured": true,
+    "livekit_server_configured": true,
+    "livekit_browser_join_ready": true,
+    "livekit_api_key_configured": true,
+    "livekit_api_secret_configured": true,
+    "invite_secret_configured": true,
+    "egress_configured": true
+  }
+}
+```
+
+`livekit_server_configured` 表示服务端地址、API key 和 API secret 齐全；`livekit_browser_join_ready` 表示服务端配置完整且浏览器入口有效。生产环境缺任一服务端配置都会拒绝签 token，只有显式配置 `LIVEKIT_PUBLIC_URL=wss://...` 时，浏览器 join 才可能就绪；production 不会签发 `dev-token`。
+
 ### 2.2 房间和 Join
 
 | Method | Path | 说明 |
@@ -86,7 +107,7 @@ Join Plan：
 }
 ```
 
-WebRTC 返回 LiveKit token/URL/join path；SIP bridge 返回 dial target/trunk 等 metadata。Token 不应写日志或持久化到 LED 业务表。
+WebRTC 返回 LiveKit token/URL/join path；SIP bridge 返回 dial target/trunk 等 metadata。WebRTC 响应中的 `livekit_url` 是浏览器可连接的 `LIVEKIT_PUBLIC_URL`，不是服务端使用的 `LIVEKIT_URL`。生产环境缺少公网 URL 或使用 `ws://` 时，Join 会失败关闭，不会把容器内地址返回给浏览器。Token 不应写日志或持久化到 LED 业务表。
 
 ### 2.3 Recording/Egress
 
@@ -309,3 +330,4 @@ RustDesk 使用独立的 `createIveKitRustDeskLedSdk`，因为其设备注册、
 4. WebSocket 重连增量水位尚未完成，必须 snapshot 收敛。
 5. 真实 LiveKit/Tinode/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待服务器验收。
 6. 本地 MemoryPg、fake provider、preflight 不是生产通过证明。
+7. `LIVEKIT_URL` 是 OPC、AI Agent、Egress 等服务端可达地址；`LIVEKIT_PUBLIC_URL` 是浏览器 `Room.connect()` 使用的受信任 `wss://` 地址。LED 只消费 Join Plan 返回值，不自行拼接内部地址。

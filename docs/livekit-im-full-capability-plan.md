@@ -810,3 +810,17 @@ Phase 3、4、6、7A、8、9、10 已按 TDD 落地并通过本地代码验证�
 5. fake `psql`/`mc` 行为测试覆盖首次创建、重复幂等、白名单/输入拒绝、有限重试、秘密不出现在进程输出、bucket private 回读和 `stat` 失败；静态 Compose 契约与 external/self-hosted/profile 渲染门禁均已执行。
 
 本节只把“数据库和 bucket 初始化在代码中缺失”改为“代码与配置已具备”。真实 PostgreSQL fresh/existing-volume 创建、PgBouncer 连接、MinIO bucket 私有性和持久化、LiveKit Egress 对象写入、服务重启恢复以及端到端服务器执行仍为未验证项，persistent deployment/E2E goal 继续保持开放。
+
+### 10.3 2026-07-11 LiveKit production edge 补记
+
+LiveKit 第一版的代码级生产网络缺口已经按独立 Media Core 方向收口：
+
+1. `LIVEKIT_URL` 只承担 OPC、AI Agent、RoomService、Egress 等服务端连接；新增 `LIVEKIT_PUBLIC_URL` 专供浏览器 Join Plan。生产必须显式使用 `wss://`，不会回退到容器内地址。
+2. capabilities 新增内部服务配置、公网地址配置和浏览器 join readiness 三类布尔状态，不返回 URL 或密钥。
+3. preflight 现在区分 `external`、`standalone-vm`、`bundled-dev`，分别检查内部地址、公网 WSS、独立 VM 域名/ACME 邮箱和固定镜像版本。离线报告继续脱敏，也不把静态检查冒充网络验收。
+4. `infra/livekit/` 已形成 OPC 无关的 Linux host-network 部署包，包含 LiveKit 内置 TURN、Caddy L4 SNI 分流、Redis、Egress、健康检查、配置渲染和防火墙清单。
+5. production Compose 默认外置 Media Core；内置 Server/SIP/Egress 放入 `media-bundled` profile。Kubernetes 默认关闭仓库内 bundled LiveKit，生产要求外部地址和公网地址，媒体节点应使用官方 LiveKit Helm chart。
+6. K8s Egress 模板已改为当前 `logging`、`redis`、`health_port`、`storage.s3` schema，并增加 `SYS_ADMIN` 与健康检查；镜像版本固定为 Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。
+7. production Token 服务在 LiveKit 内部地址/key/secret 不完整时 fail-closed，不再产生 dev token；Compose 与 Helm 同样在解析/渲染阶段要求真实凭据。preflight 拒绝示例占位密钥，并校验 standalone signal/turn 域名不同且 ACME 邮箱合法。
+
+本地专项测试、TypeScript 检查和 Compose 静态解析已经通过。Docker daemon 当前未运行，Helm CLI 当前未安装，因此镜像启动和 Helm render 没有被声明为通过。DNS、证书、WSS、ICE UDP/TCP、强制 TURN、双浏览器音视频/屏幕共享、Egress 对象写入、多副本和性能仍属于服务器验收，且遵守用户当前“不上传服务器”的约束。

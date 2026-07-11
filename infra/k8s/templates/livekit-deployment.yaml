@@ -1,3 +1,6 @@
+{{- if and .Values.livekit.enabled (ne (.Values.livekit.deploymentMode | default "external") "bundled-dev") }}
+{{- fail "bundled-dev is development-only; production LiveKit must use the official LiveKit Helm chart" }}
+{{- end }}
 {{- if .Values.livekit.enabled }}
 apiVersion: v1
 kind: Secret
@@ -15,9 +18,9 @@ stringData:
     redis:
       address: {{ .Release.Name }}-redis:6379
     keys:
-      {{ .Values.livekit.apiKey | default "devkey" | quote }}: {{ .Values.livekit.apiSecret | default "secret" | quote }}
+      {{ include "opc.livekitApiKey" . | quote }}: {{ include "opc.livekitApiSecret" . | quote }}
     webhook:
-      api_key: {{ .Values.livekit.apiKey | default "devkey" | quote }}
+      api_key: {{ include "opc.livekitApiKey" . | quote }}
       urls:
         - http://{{ .Release.Name }}-opc:3000/api/media/webhooks/livekit
     room:

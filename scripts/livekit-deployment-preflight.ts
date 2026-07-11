@@ -14,6 +14,9 @@ export interface LiveKitDeploymentPreflightReport {
   ok: boolean;
   summary: {
     livekitUrl: string;
+    livekitInternalUrl: string;
+    livekitPublicUrl: string;
+    deploymentMode: LiveKitDeploymentMode;
     opcBaseUrl: string;
     frontendUrl: string;
     mediaTokenConfigured: boolean;
@@ -57,6 +60,16 @@ type LiveKitReadinessTarget =
   | 'remote-gateway'
   | 'sip-volte';
 
+type LiveKitDeploymentMode = 'external' | 'standalone-vm' | 'bundled-dev';
+
+const DEFAULT_MEDIA_IMAGE_TAGS = {
+  server: 'v1.13.3',
+  egress: 'v1.13.0',
+  sip: 'v1.6.0',
+  caddyl4: 'v2.11.3',
+  redis: '7.4.9'
+} as const;
+
 const DEFAULT_TARGETS: LiveKitReadinessTarget[] = [
   'media',
   'avatar',
@@ -72,7 +85,12 @@ export function createLiveKitDeploymentPreflightReport(
 ): LiveKitDeploymentPreflightReport {
   const checks: LiveKitDeploymentPreflightCheck[] = [];
   const targets = parseTargets(env.OPC_VIDEO_READINESS_TARGETS);
-  const livekitUrl = String(env.LIVEKIT_URL || env.OPC_LIVEKIT_URL || '').trim();
+  const browserRequired = targets.some((target) =>
+    target === 'agent-browser' || target === 'customer-browser' || target === 'web-assist-browser'
+  );
+  const livekitInternalUrl = String(env.LIVEKIT_URL || env.OPC_LIVEKIT_URL || '').trim();
+  const livekitPublicUrl = String(env.LIVEKIT_PUBLIC_URL || env.OPC_LIVEKIT_PUBLIC_URL || '').trim();
+  const deploymentMode = parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE);
   const opcBaseUrl = stripTrailingSlash(env.OPC_BASE_URL);
   const frontendUrl = stripTrailingSlash(env.OPC_FRONTEND_URL);
   const mediaToken = String(env.OPC_MEDIA_API_TOKEN || env.LIVEKIT_MEDIA_API_TOKEN || '').trim();
@@ -83,12 +101,52 @@ export function createLiveKitDeploymentPreflightReport(
 
   addCheck(
     checks,
-    'livekit_url',
-    isLiveKitUrl(livekitUrl) ? 'pass' : 'fail',
-    livekitUrl
-      ? 'LIVEKIT_URL is configured for browser/server LiveKit joins'
+    'livekit_internal_url',
+    isLiveKitUrl(livekitInternalUrl) ? 'pass' : 'fail',
+    livekitInternalUrl
+      ? 'LIVEKIT_URL is configured for server-side LiveKit connections'
       : 'LIVEKIT_URL or OPC_LIVEKIT_URL is required'
   );
+  addCheck(
+    checks,
+    'livekit_public_url',
+    livekitPublicUrl ? 'pass' : browserRequired ? 'fail' : 'warn',
+    livekitPublicUrl
+      ? 'LIVEKIT_PUBLIC_URL is configured for browser joins'
+      : browserRequired
+        ? 'LIVEKIT_PUBLIC_URL or OPC_LIVEKIT_PUBLIC_URL is required for browser targets'
+        : 'LIVEKIT_PUBLIC_URL is not required by the selected server-only targets'
+  );
+  addCheck(
+    checks,
+    'livekit_public_wss',
+    livekitPublicUrl ? (isSecureLiveKitUrl(livekitPublicUrl) ? 'pass' : 'fail') : 'warn',
+    livekitPublicUrl
+      ? isSecureLiveKitUrl(livekitPublicUrl)
+        ? 'LIVEKIT_PUBLIC_URL uses wss://'
+        : 'LIVEKIT_PUBLIC_URL must use wss:// for production browser joins'
+      : 'LIVEKIT_PUBLIC_URL WSS validation was not evaluated'
+  );
+  addCheck(
+    checks,
+    'livekit_deployment_mode',
+    deploymentMode ? (env.NODE_ENV === 'production' && deploymentMode === 'bundled-dev' ? 'fail' : 'pass') : 'fail',
+    deploymentMode
+      ? env.NODE_ENV === 'production' && deploymentMode === 'bundled-dev'
+        ? 'bundled-dev is not allowed for production LiveKit deployment'
+        : `LiveKit deployment mode is ${deploymentMode}`
+      : 'OPC_LIVEKIT_DEPLOYMENT_MODE must be external, standalone-vm, or bundled-dev'
+  );
+  if (deploymentMode === 'standalone-vm') {
+    addDomainCheck(checks, 'livekit_signal_domain', env.LIVEKIT_SIGNAL_DOMAIN);
+    addDomainCheck(checks, 'livekit_turn_domain', env.LIVEKIT_TURN_DOMAIN, env.LIVEKIT_SIGNAL_DOMAIN);
+    addEmailCheck(checks, 'livekit_acme_email', env.LIVEKIT_ACME_EMAIL);
+    addPinnedImageTagCheck(checks, 'livekit_server_image_tag', env.LIVEKIT_SERVER_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.server);
+    addPinnedImageTagCheck(checks, 'livekit_egress_image_tag', env.LIVEKIT_EGRESS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.egress);
+    addPinnedImageTagCheck(checks, 'livekit_sip_image_tag', env.LIVEKIT_SIP_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.sip);
+    addPinnedImageTagCheck(checks, 'livekit_caddyl4_image_tag', env.LIVEKIT_CADDYL4_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.caddyl4);
+    addPinnedImageTagCheck(checks, 'livekit_redis_image_tag', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis);
+  }
   addRequiredSecret(checks, 'livekit_api_key', env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY, 'LIVEKIT_API_KEY or OPC_LIVEKIT_API_KEY is required');
   addRequiredSecret(checks, 'livekit_api_secret', env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET, 'LIVEKIT_API_SECRET or OPC_LIVEKIT_API_SECRET is required');
   addHttpUrlCheck(checks, 'opc_base_url', opcBaseUrl, 'OPC_BASE_URL is configured');
@@ -180,7 +238,10 @@ export function createLiveKitDeploymentPreflightReport(
   return {
     ok: checks.every((check) => check.status !== 'fail'),
     summary: {
-      livekitUrl,
+      livekitUrl: livekitInternalUrl,
+      livekitInternalUrl,
+      livekitPublicUrl,
+      deploymentMode: deploymentMode || 'bundled-dev',
       opcBaseUrl,
       frontendUrl,
       mediaTokenConfigured: Boolean(mediaToken),
@@ -251,7 +312,17 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
   const sipRequired = targets.includes('sip-volte');
 
   return [
-    item('LiveKit Server', 'LIVEKIT_URL', true, 'LiveKit WebSocket URL used by browser joins and services. Can fall back to OPC_LIVEKIT_URL.', env.LIVEKIT_URL || env.OPC_LIVEKIT_URL),
+    item('LiveKit Server', 'LIVEKIT_URL', true, 'Internal LiveKit WebSocket URL used by OPC and service workloads. Can fall back to OPC_LIVEKIT_URL.', env.LIVEKIT_URL || env.OPC_LIVEKIT_URL),
+    item('LiveKit Server', 'LIVEKIT_PUBLIC_URL', browserRequired, 'Public wss:// URL returned to browser clients. Can fall back to OPC_LIVEKIT_PUBLIC_URL.', env.LIVEKIT_PUBLIC_URL || env.OPC_LIVEKIT_PUBLIC_URL),
+    item('LiveKit Server', 'OPC_LIVEKIT_DEPLOYMENT_MODE', true, 'external, standalone-vm, or bundled-dev.', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) || ''),
+    item('LiveKit Server', 'LIVEKIT_SIGNAL_DOMAIN', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Signal domain for standalone VM WSS.', env.LIVEKIT_SIGNAL_DOMAIN),
+    item('LiveKit Server', 'LIVEKIT_TURN_DOMAIN', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'TURN domain for standalone VM TURN/TLS.', env.LIVEKIT_TURN_DOMAIN),
+    item('LiveKit Server', 'LIVEKIT_ACME_EMAIL', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'ACME account email for standalone VM certificates.', env.LIVEKIT_ACME_EMAIL),
+    item('LiveKit Server', 'LIVEKIT_SERVER_IMAGE_TAG', false, 'Pinned LiveKit Server image tag.', env.LIVEKIT_SERVER_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.server),
+    item('LiveKit Server', 'LIVEKIT_EGRESS_IMAGE_TAG', false, 'Pinned LiveKit Egress image tag.', env.LIVEKIT_EGRESS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.egress),
+    item('LiveKit Server', 'LIVEKIT_SIP_IMAGE_TAG', false, 'Pinned LiveKit SIP image tag.', env.LIVEKIT_SIP_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.sip),
+    item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE_TAG', false, 'Pinned LiveKit Caddy L4 image tag.', env.LIVEKIT_CADDYL4_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.caddyl4),
+    item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE_TAG', false, 'Pinned Redis image tag for standalone Media Core.', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis),
     item('LiveKit Server', 'LIVEKIT_API_KEY', true, 'LiveKit API key. Can fall back to OPC_LIVEKIT_API_KEY.', env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY, true),
     item('LiveKit Server', 'LIVEKIT_API_SECRET', true, 'LiveKit API secret. Can fall back to OPC_LIVEKIT_API_SECRET.', env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET, true),
     item('LiveKit Server', 'OPC_BASE_URL', true, 'Public or internal OPC backend base URL used by smoke scripts.', env.OPC_BASE_URL),
@@ -335,8 +406,58 @@ function addRequiredSecret(
   value: string | undefined,
   failMessage: string
 ): void {
-  const configured = Boolean(String(value || '').trim());
-  addCheck(checks, id, configured ? 'pass' : 'fail', configured ? `${id} is configured` : failMessage);
+  const normalized = String(value || '').trim();
+  const configured = Boolean(normalized) && !isPlaceholderSecret(normalized);
+  addCheck(
+    checks,
+    id,
+    configured ? 'pass' : 'fail',
+    configured ? `${id} is configured` : normalized ? `${id} must replace the example placeholder` : failMessage
+  );
+}
+
+function addDomainCheck(
+  checks: LiveKitDeploymentPreflightCheck[],
+  id: string,
+  value: string | undefined,
+  disallowedValue?: string
+): void {
+  const normalized = String(value || '').trim().toLowerCase();
+  const validDomain = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$/.test(normalized);
+  const distinct = !disallowedValue || normalized !== String(disallowedValue).trim().toLowerCase();
+  const valid = validDomain && distinct;
+  addCheck(
+    checks,
+    id,
+    valid ? 'pass' : 'fail',
+    valid
+      ? `${id} is configured`
+      : !normalized
+        ? `${id} is required for standalone-vm`
+        : !distinct
+          ? 'LIVEKIT_TURN_DOMAIN must differ from LIVEKIT_SIGNAL_DOMAIN'
+          : `${id} must be a valid DNS domain`
+  );
+}
+
+function addEmailCheck(
+  checks: LiveKitDeploymentPreflightCheck[],
+  id: string,
+  value: string | undefined
+): void {
+  const normalized = String(value || '').trim();
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+  addCheck(
+    checks,
+    id,
+    valid ? 'pass' : 'fail',
+    valid ? `${id} is configured` : normalized ? `${id} must be a valid email address` : `${id} is required for standalone-vm`
+  );
+}
+
+function isPlaceholderSecret(value: string): boolean {
+  return /^(?:replace_with|change_me|your_)/i.test(value) ||
+    new Set(['admin', 'devkey', 'minioadmin', 'password', 'secret']).has(value.toLowerCase());
 }
 
 function addHttpUrlCheck(
@@ -378,6 +499,20 @@ function addIntegerRangeCheck(
   );
 }
 
+function addPinnedImageTagCheck(
+  checks: LiveKitDeploymentPreflightCheck[],
+  id: string,
+  value: string
+): void {
+  const valid = /^v?\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(value);
+  addCheck(
+    checks,
+    id,
+    valid ? 'pass' : 'fail',
+    valid ? `${id} is pinned to ${value}` : `${id} must be an exact semantic version tag and cannot use latest`
+  );
+}
+
 function parseTargets(value: string | undefined): LiveKitReadinessTarget[] {
   const raw = String(value || '').trim();
   if (!raw) return [...DEFAULT_TARGETS];
@@ -410,6 +545,22 @@ function isLiveKitUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isSecureLiveKitUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'wss:';
+  } catch {
+    return false;
+  }
+}
+
+function parseDeploymentMode(value: string | undefined): LiveKitDeploymentMode | null {
+  const normalized = String(value || 'bundled-dev').trim().toLowerCase();
+  if (normalized === 'external' || normalized === 'standalone-vm' || normalized === 'bundled-dev') {
+    return normalized;
+  }
+  return null;
 }
 
 function isHttpUrl(value: string): boolean {

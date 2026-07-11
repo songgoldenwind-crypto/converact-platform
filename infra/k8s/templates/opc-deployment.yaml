@@ -32,7 +32,9 @@ spec:
             - name: NATS_URL
               value: nats://{{ .Release.Name }}-nats:4222
             - name: LIVEKIT_URL
-              value: {{ .Values.livekit.url | default (printf "ws://%s-livekit:7880" .Release.Name) | quote }}
+              value: {{ include "opc.livekitInternalUrl" . | quote }}
+            - name: LIVEKIT_PUBLIC_URL
+              value: {{ include "opc.livekitPublicUrl" . | quote }}
             - name: LIVEKIT_API_KEY
               valueFrom:
                 secretKeyRef:

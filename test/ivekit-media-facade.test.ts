@@ -11,9 +11,11 @@ import { createTenant } from '../src/platform/tenant-core.js';
 const API_KEY = 'test-ivekit-media-key';
 const LIVEKIT_ENV_KEYS = [
   'LIVEKIT_URL',
+  'LIVEKIT_PUBLIC_URL',
   'LIVEKIT_API_KEY',
   'LIVEKIT_API_SECRET',
   'OPC_LIVEKIT_URL',
+  'OPC_LIVEKIT_PUBLIC_URL',
   'OPC_LIVEKIT_API_KEY',
   'OPC_LIVEKIT_API_SECRET',
   'OPC_MEDIA_INVITE_SECRET',
@@ -67,6 +69,7 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
   const envSnapshot = snapshotEnv(['OPC_API_KEY', ...LIVEKIT_ENV_KEYS]);
   process.env.OPC_API_KEY = API_KEY;
   process.env.LIVEKIT_URL = 'wss://livekit.example.com';
+  process.env.LIVEKIT_PUBLIC_URL = 'wss://livekit.example.com';
   process.env.LIVEKIT_API_KEY = 'livekit-key';
   process.env.LIVEKIT_API_SECRET = 'livekit-secret';
   process.env.OPC_MEDIA_INVITE_SECRET = 'invite-secret';
@@ -96,6 +99,9 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
     assert.equal(result.data.capabilities.recording, true);
     assert.equal(result.data.capabilities.web_assist, true);
     assert.equal(result.data.config.livekit_url_configured, true);
+    assert.equal(result.data.config.livekit_public_url_configured, true);
+    assert.equal(result.data.config.livekit_server_configured, true);
+    assert.equal(result.data.config.livekit_browser_join_ready, true);
     assert.equal(result.data.config.livekit_api_key_configured, true);
     assert.equal(result.data.config.livekit_api_secret_configured, true);
     assert.equal(result.data.config.invite_secret_configured, true);

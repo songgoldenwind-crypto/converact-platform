@@ -40,6 +40,7 @@ test('media config renderer writes LiveKit and Egress configs from production en
     assert.match(egress, /api_key: "prod-livekit-key"/);
     assert.match(egress, /api_secret: "prod-livekit-secret"/);
     assert.match(egress, /redis:\n  address: "redis:6379"/);
+    assert.match(egress, /health_port: 8091/);
     assert.match(egress, /storage:\n  s3:/);
     assert.doesNotMatch(egress, /^s3:/m);
     assert.match(egress, /access_key: "prod-minio-key"/);
@@ -49,6 +50,19 @@ test('media config renderer writes LiveKit and Egress configs from production en
   } finally {
     rmSync(outputDir, { recursive: true, force: true });
   }
+});
+
+test('media config renderer validates the Egress health port', () => {
+  assert.throws(
+    () => createMediaConfigRenderInputFromEnv({
+      LIVEKIT_API_KEY: 'prod-livekit-key',
+      LIVEKIT_API_SECRET: 'prod-livekit-secret',
+      MINIO_ACCESS_KEY: 'prod-minio-key',
+      MINIO_SECRET_KEY: 'prod-minio-secret',
+      OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT: '0'
+    }),
+    /OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT must be an integer between 1 and 65535/
+  );
 });
 
 test('media config renderer requires production LiveKit and MinIO credentials', () => {

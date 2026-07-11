@@ -307,7 +307,7 @@ Customer → 点击网页/App "视频咨询" 按钮
 
 ## 5. 组件部署架构
 
-### 5.1 Docker Compose（单机开发/小规模生产）
+### 5.1 Docker Compose（历史示意；生产以 `infra/livekit/` 为准）
 
 ```yaml
 services:
@@ -319,17 +319,17 @@ services:
       - ./config/rustpbx.toml:/app/rustpbx.toml
       - ./data/recordings:/app/recordings
     environment:
-      - DATABASE_URL=sqlite:///app/db/rustpbx.db
+      - DATABASE_URL=postgresql://opc:${POSTGRES_PASSWORD}@postgres:5432/opc
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.13.3
     network_mode: host              # WebRTC 需要 host network
     volumes:
       - ./config/livekit.yaml:/etc/livekit.yaml
     command: --config /etc/livekit.yaml
 
   livekit-sip:
-    image: livekit/sip:latest
+    image: livekit/sip:v1.6.0
     network_mode: host
     environment:
       - LIVEKIT_URL=ws://localhost:7880
@@ -338,7 +338,7 @@ services:
       - SIP_PORT=5061                # 避免和 RustPBX 5060 冲突
 
   livekit-egress:
-    image: livekit/egress:latest
+    image: livekit/egress:v1.13.0
     environment:
       - EGRESS_CONFIG_FILE=/etc/egress.yaml
     volumes:

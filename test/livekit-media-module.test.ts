@@ -488,6 +488,7 @@ test('media module accepts injected LiveKit config for reuse outside OPC env', a
     db,
     config: {
       url: 'ws://livekit.injected.example',
+      publicUrl: 'wss://media.injected.example',
       apiKey: null,
       apiSecret: null,
       sipBridgeTarget: 'sip:bridge@livekit.injected.example',
@@ -508,7 +509,7 @@ test('media module accepts injected LiveKit config for reuse outside OPC env', a
   });
 
   assert.equal(token.configured, false);
-  assert.equal(token.livekit_url, 'ws://livekit.injected.example');
+  assert.equal(token.livekit_url, 'wss://media.injected.example');
   db.close();
 });
 

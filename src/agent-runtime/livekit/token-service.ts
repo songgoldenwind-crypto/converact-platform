@@ -1,5 +1,5 @@
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
-import { isLiveKitConfigured, readLiveKitConfig } from './config.js';
+import { isLiveKitConfigured, readLiveKitConfig, requireLiveKitPublicUrl } from './config.js';
 import type { LiveKitConfig } from './config.js';
 
 export type LiveKitParticipantRole = 'agent' | 'customer';
@@ -37,9 +37,10 @@ export async function issueLiveKitToken(
   const identity = input.identity;
 
   if (!isLiveKitConfigured(config)) {
+    requireNonProductionFallback(config);
     return {
       token: `dev-token:${roomName}:${identity}:${input.role}`,
-      livekit_url: config.url || 'ws://localhost:7880',
+      livekit_url: config.publicUrl || config.url || 'ws://localhost:7880',
       room_name: roomName,
       configured: false
     };
@@ -60,7 +61,7 @@ export async function issueLiveKitToken(
 
   return {
     token: await token.toJwt(),
-    livekit_url: config.url!,
+    livekit_url: requireLiveKitPublicUrl(config),
     room_name: roomName,
     configured: true
   };
@@ -75,9 +76,10 @@ export async function issueSupervisorToken(
   const identity = input.identity;
 
   if (!isLiveKitConfigured(config)) {
+    requireNonProductionFallback(config);
     return {
       token: `dev-token:${roomName}:${identity}:supervisor_${input.mode}`,
-      livekit_url: config.url || 'ws://localhost:7880',
+      livekit_url: config.publicUrl || config.url || 'ws://localhost:7880',
       room_name: roomName,
       configured: false
     };
@@ -104,7 +106,7 @@ export async function issueSupervisorToken(
 
   return {
     token: await token.toJwt(),
-    livekit_url: config.url!,
+    livekit_url: requireLiveKitPublicUrl(config),
     room_name: roomName,
     configured: true
   };
@@ -113,4 +115,10 @@ export async function issueSupervisorToken(
 export function createLiveKitRoomClient(config: LiveKitConfig = readLiveKitConfig()) {
   if (!isLiveKitConfigured(config)) return null;
   return new RoomServiceClient(config.url!, config.apiKey!, config.apiSecret!);
+}
+
+function requireNonProductionFallback(config: LiveKitConfig): void {
+  if ((config.nodeEnv || process.env.NODE_ENV) === 'production') {
+    throw new Error('LiveKit server configuration is required in production');
+  }
 }

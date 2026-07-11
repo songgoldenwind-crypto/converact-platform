@@ -175,6 +175,7 @@ test('remote.verifyWebAssistJoin accepts issued tokens and rejects tampered or e
     media: {
       livekit: {
         url: null,
+        publicUrl: null,
         apiKey: null,
         apiSecret: 'web-assist-test-secret',
         sipBridgeTarget: '',

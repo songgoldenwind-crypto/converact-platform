@@ -1,4 +1,4 @@
-{{- if .Values.media.egress.enabled }}
+{{- if and .Values.livekit.enabled .Values.media.egress.enabled }}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -6,18 +6,23 @@ metadata:
 type: Opaque
 stringData:
   egress.yaml: |
-    log_level: info
-    api_key: {{ .Values.livekit.apiKey | default "devkey" | quote }}
-    api_secret: {{ .Values.livekit.apiSecret | default "secret" | quote }}
-    ws_url: {{ .Values.livekit.url | default (printf "ws://%s-livekit:7880" .Release.Name) | quote }}
+    logging:
+      level: info
+    api_key: {{ include "opc.livekitApiKey" . | quote }}
+    api_secret: {{ include "opc.livekitApiSecret" . | quote }}
+    ws_url: {{ include "opc.livekitInternalUrl" . | quote }}
     insecure: true
-    s3:
-      access_key: {{ .Values.media.minioAccessKey | default "minioadmin" | quote }}
-      secret: {{ .Values.media.minioSecretKey | default "minioadmin" | quote }}
-      region: us-east-1
-      endpoint: {{ .Values.media.minioEndpoint | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
-      bucket: {{ .Values.media.minioBucket | default "recordings" | quote }}
-      force_path_style: true
+    redis:
+      address: {{ printf "%s-redis:6379" .Release.Name | quote }}
+    health_port: {{ .Values.media.egress.healthPort | default 8091 }}
+    storage:
+      s3:
+        access_key: {{ .Values.media.minioAccessKey | default "minioadmin" | quote }}
+        secret: {{ .Values.media.minioSecretKey | default "minioadmin" | quote }}
+        region: us-east-1
+        endpoint: {{ .Values.media.minioEndpoint | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
+        bucket: {{ .Values.media.minioBucket | default "recordings" | quote }}
+        force_path_style: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,6 +47,18 @@ spec:
           env:
             - name: EGRESS_CONFIG_FILE
               value: /etc/egress.yaml
+          ports:
+            - name: health
+              containerPort: {{ .Values.media.egress.healthPort | default 8091 }}
+          securityContext:
+            capabilities:
+              add: ["SYS_ADMIN"]
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 10
           volumeMounts:
             - name: egress-config
               mountPath: /etc/egress.yaml

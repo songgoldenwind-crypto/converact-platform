@@ -22,7 +22,7 @@ services:
       - minio_data:/data
 
   livekit:
-    image: livekit/livekit-server:v1.8
+    image: livekit/livekit-server:${LIVEKIT_SERVER_IMAGE_TAG:-v1.13.3}
     command: --config /etc/livekit.yaml
     ports:
       - "7880:7880"
@@ -34,7 +34,7 @@ services:
       - redis
 
   livekit-sip:
-    image: livekit/sip:latest
+    image: livekit/sip:${LIVEKIT_SIP_IMAGE_TAG:-v1.6.0}
     environment:
       LIVEKIT_URL: ws://livekit:7880
       LIVEKIT_API_KEY: devkey
@@ -48,11 +48,19 @@ services:
       - redis
 
   livekit-egress:
-    image: livekit/egress:latest
+    image: livekit/egress:${LIVEKIT_EGRESS_IMAGE_TAG:-v1.13.0}
     environment:
       EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:
       - ./config/egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8091/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
     depends_on:
       - livekit
       - redis
@@ -148,6 +156,7 @@ services:
       OPC_JWT_SECRET: ${OPC_JWT_SECRET:-dev-jwt-secret-change-in-production}
       OPC_AUTH_DISABLED: "0"
       LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: secret
       OPC_MEDIA_API_TOKEN: ${OPC_MEDIA_API_TOKEN:-dev-media-token}

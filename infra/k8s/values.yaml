@@ -62,13 +62,15 @@ redis:
   architecture: standalone
 
 livekit:
-  enabled: true
+  enabled: false
+  deploymentMode: external
   url: ""
+  publicUrl: ""
   apiKey: ""
   apiSecret: ""
   image:
     repository: livekit/livekit-server
-    tag: v1.8
+    tag: v1.13.3
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -123,11 +125,12 @@ media:
         memory: "512Mi"
         cpu: "500m"
   egress:
-    enabled: true
+    enabled: false
     image:
       repository: livekit/egress
-      tag: latest
+      tag: v1.13.0
       pullPolicy: IfNotPresent
+    healthPort: 8091
     resources:
       requests:
         memory: "512Mi"
@@ -136,10 +139,10 @@ media:
         memory: "1Gi"
         cpu: "1000m"
   sip:
-    enabled: true
+    enabled: false
     image:
       repository: livekit/sip
-      tag: latest
+      tag: v1.6.0
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP

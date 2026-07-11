@@ -129,7 +129,8 @@ services:
 
   # --- Media Layer ---
   livekit:
-    image: livekit/livekit-server:v1.8
+    image: livekit/livekit-server:${LIVEKIT_SERVER_IMAGE_TAG:-v1.13.3}
+    profiles: ["media-bundled"]
     command: --config /etc/livekit.yaml
     ports:
       - "7880:7880"
@@ -141,11 +142,12 @@ services:
       - redis
 
   livekit-sip:
-    image: livekit/sip:latest
+    image: livekit/sip:${LIVEKIT_SIP_IMAGE_TAG:-v1.6.0}
+    profiles: ["media-bundled"]
     environment:
       LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
       SIP_PORT: "5061"
     ports:
       - "5061:5061/udp"
@@ -154,11 +156,20 @@ services:
       - livekit
 
   livekit-egress:
-    image: livekit/egress:latest
+    image: livekit/egress:${LIVEKIT_EGRESS_IMAGE_TAG:-v1.13.0}
+    profiles: ["media-bundled"]
     environment:
       EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:
       - ${OPC_MEDIA_CONFIG_DIR:-../.runtime/media}/egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8091/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
     depends_on:
       livekit:
         condition: service_started
@@ -238,9 +249,10 @@ services:
       DATABASE_URL: postgres://opc:${POSTGRES_PASSWORD}@pgbouncer:6432/opc
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
-      LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_URL: ${LIVEKIT_URL:?LIVEKIT_URL is required}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
       OPC_MEDIA_API_TOKEN: ${OPC_MEDIA_API_TOKEN}
       OPC_MEDIA_INVITE_SECRET: ${OPC_MEDIA_INVITE_SECRET}
       OPC_MEDIA_INVITE_TTL_MS: ${OPC_MEDIA_INVITE_TTL_MS:-86400000}
@@ -357,8 +369,6 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
-      livekit:
-        condition: service_started
       rustpbx:
         condition: service_started
       minio-init:
@@ -369,9 +379,9 @@ services:
   ai-agent:
     build: ../services/ai-agent-py
     environment:
-      LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_URL: ${LIVEKIT_URL:?LIVEKIT_URL is required}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
       OPC_API_URL: http://opc:3000
       OPC_API_KEY: ${OPC_API_KEY}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
@@ -379,7 +389,6 @@ services:
       LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
       NATS_URL: nats://nats:4222
     depends_on:
-      - livekit
       - opc
       - nats
 

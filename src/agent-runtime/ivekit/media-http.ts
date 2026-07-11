@@ -1,5 +1,10 @@
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
+import {
+  isLiveKitBrowserJoinConfigured,
+  isLiveKitConfigured,
+  readLiveKitConfig
+} from '../livekit/config.js';
 import type { RecordingAuditEvent } from '../livekit/media-http.js';
 import type {
   EgressRecord,
@@ -125,9 +130,11 @@ function requireTenantRecording<T extends { tenant_id?: string }>(recording: T |
 }
 
 function capabilities(tenantId: string) {
-  const livekitUrl = String(process.env.LIVEKIT_URL || process.env.OPC_LIVEKIT_URL || '').trim();
-  const livekitApiKey = String(process.env.LIVEKIT_API_KEY || process.env.OPC_LIVEKIT_API_KEY || '').trim();
-  const livekitApiSecret = String(process.env.LIVEKIT_API_SECRET || process.env.OPC_LIVEKIT_API_SECRET || '').trim();
+  const livekitConfig = readLiveKitConfig();
+  const livekitUrl = livekitConfig.url || '';
+  const livekitPublicUrl = livekitConfig.publicUrl || '';
+  const livekitApiKey = livekitConfig.apiKey || '';
+  const livekitApiSecret = livekitConfig.apiSecret || '';
   const inviteSecret = String(process.env.OPC_MEDIA_INVITE_SECRET || process.env.LIVEKIT_MEDIA_INVITE_SECRET || '').trim();
   const minioAccessKey = String(process.env.MINIO_ACCESS_KEY || '').trim();
   const minioSecretKey = String(process.env.MINIO_SECRET_KEY || '').trim();
@@ -159,6 +166,9 @@ function capabilities(tenantId: string) {
     },
     config: {
       livekit_url_configured: Boolean(livekitUrl),
+      livekit_public_url_configured: Boolean(livekitPublicUrl),
+      livekit_server_configured: isLiveKitConfigured(livekitConfig),
+      livekit_browser_join_ready: isLiveKitBrowserJoinConfigured(livekitConfig),
       livekit_api_key_configured: Boolean(livekitApiKey),
       livekit_api_secret_configured: Boolean(livekitApiSecret),
       invite_secret_configured: Boolean(inviteSecret),

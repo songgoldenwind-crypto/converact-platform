@@ -14,9 +14,15 @@ import {
 
 function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
+    NODE_ENV: 'production',
     LIVEKIT_URL: 'wss://livekit.example.com',
+    LIVEKIT_PUBLIC_URL: 'wss://livekit.example.com',
     LIVEKIT_API_KEY: 'livekit-key',
     LIVEKIT_API_SECRET: 'livekit-secret',
+    OPC_LIVEKIT_DEPLOYMENT_MODE: 'external',
+    LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.1',
+    LIVEKIT_EGRESS_IMAGE_TAG: 'v1.12.0',
+    LIVEKIT_SIP_IMAGE_TAG: 'v1.1.0',
     OPC_BASE_URL: 'https://opc.example.com',
     OPC_MEDIA_API_TOKEN: 'media-secret',
     OPC_MEDIA_INVITE_SECRET: 'invite-secret',
@@ -47,7 +53,8 @@ test('LiveKit deployment preflight reports missing required media deployment env
   assert.deepEqual(
     report.checks.filter((check) => check.status === 'fail').map((check) => check.id),
     [
-      'livekit_url',
+      'livekit_internal_url',
+      'livekit_public_url',
       'livekit_api_key',
       'livekit_api_secret',
       'opc_base_url',
@@ -80,6 +87,9 @@ test('LiveKit deployment preflight passes a configured media and SIP deployment'
   assert.equal(report.ok, true);
   assert.deepEqual(report.summary.targets, ['media', 'sip-volte']);
   assert.equal(report.summary.livekitUrl, 'wss://livekit.example.com');
+  assert.equal(report.summary.livekitInternalUrl, 'wss://livekit.example.com');
+  assert.equal(report.summary.livekitPublicUrl, 'wss://livekit.example.com');
+  assert.equal(report.summary.deploymentMode, 'external');
   assert.equal(report.summary.opcBaseUrl, 'https://opc.example.com');
   assert.equal(report.summary.mediaTokenConfigured, true);
   assert.equal(report.summary.inviteSecretConfigured, true);
@@ -121,12 +131,99 @@ test('LiveKit deployment env checklist groups required variables and masks secre
     assert.match(checklist, new RegExp(heading.replace('/', '\\/')));
   }
   assert.match(checklist, /\| LIVEKIT_API_SECRET \| required \| `configured` \|/);
+  assert.match(checklist, /\| LIVEKIT_PUBLIC_URL \| optional \| `wss:\/\/livekit\.example\.com` \|/);
+  assert.match(checklist, /\| OPC_LIVEKIT_DEPLOYMENT_MODE \| required \| `external` \|/);
   assert.match(checklist, /\| OPC_MEDIA_API_TOKEN \| required \| `configured` \|/);
   assert.match(checklist, /\| MINIO_SECRET_KEY \| required \| `configured` \|/);
   assert.match(checklist, /\| MINIO_BUCKET \| optional \| `recordings` \|/);
   assert.match(checklist, /\| OPC_MEDIA_RECORDING_RETENTION_DAYS \| optional \| `90` \|/);
   assert.match(checklist, /\| OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT \| optional \| `1` \|/);
   assert.equal(checklist.includes('agent-a-secret'), false);
+});
+
+test('LiveKit deployment preflight requires a public WSS URL for browser targets', () => {
+  const report = createLiveKitDeploymentPreflightReport(configuredEnv({
+    LIVEKIT_PUBLIC_URL: '',
+    OPC_VIDEO_READINESS_TARGETS: 'agent-browser',
+    OPC_FRONTEND_URL: 'https://frontend.example.com',
+    OPC_BROWSER_SMOKE_AGENT_A_TOKEN: 'agent-a-token',
+    OPC_BROWSER_SMOKE_AGENT_A_USER_ID: 'agent-a',
+    OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID: 'seat-a',
+    OPC_BROWSER_SMOKE_AGENT_B_TOKEN: 'agent-b-token',
+    OPC_BROWSER_SMOKE_AGENT_B_USER_ID: 'agent-b',
+    OPC_BROWSER_SMOKE_AGENT_B_SEAT_ID: 'seat-b'
+  }));
+
+  assert.equal(report.ok, false);
+  assert.equal(report.checks.find((check) => check.id === 'livekit_public_url')?.status, 'fail');
+
+  const insecure = createLiveKitDeploymentPreflightReport(configuredEnv({
+    LIVEKIT_PUBLIC_URL: 'ws://livekit.example.com',
+    OPC_VIDEO_READINESS_TARGETS: 'media'
+  }));
+  assert.equal(insecure.ok, false);
+  assert.equal(insecure.checks.find((check) => check.id === 'livekit_public_wss')?.status, 'fail');
+});
+
+test('LiveKit deployment preflight keeps public URL optional for server-only targets', () => {
+  const report = createLiveKitDeploymentPreflightReport(configuredEnv({
+    LIVEKIT_PUBLIC_URL: '',
+    OPC_VIDEO_READINESS_TARGETS: 'media'
+  }));
+
+  assert.equal(report.ok, true);
+  assert.equal(report.checks.find((check) => check.id === 'livekit_public_url')?.status, 'warn');
+  assert.equal(report.checks.find((check) => check.id === 'livekit_public_wss')?.status, 'warn');
+});
+
+test('LiveKit standalone VM preflight requires edge domains and pinned image tags', () => {
+  const missing = createLiveKitDeploymentPreflightReport(configuredEnv({
+    OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+    LIVEKIT_SIGNAL_DOMAIN: '',
+    LIVEKIT_TURN_DOMAIN: '',
+    LIVEKIT_ACME_EMAIL: '',
+    LIVEKIT_SERVER_IMAGE_TAG: 'latest'
+  }));
+
+  assert.equal(missing.ok, false);
+  for (const id of [
+    'livekit_signal_domain',
+    'livekit_turn_domain',
+    'livekit_acme_email',
+    'livekit_server_image_tag'
+  ]) {
+    assert.equal(missing.checks.find((check) => check.id === id)?.status, 'fail');
+  }
+
+  const configured = createLiveKitDeploymentPreflightReport(configuredEnv({
+    OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+    LIVEKIT_SIGNAL_DOMAIN: 'livekit.example.com',
+    LIVEKIT_TURN_DOMAIN: 'turn.example.com',
+    LIVEKIT_ACME_EMAIL: 'ops@example.com'
+  }));
+  assert.equal(configured.ok, true);
+});
+
+test('LiveKit deployment preflight rejects placeholders and invalid standalone identity values', () => {
+  const placeholders = createLiveKitDeploymentPreflightReport(configuredEnv({
+    LIVEKIT_API_KEY: 'your_key',
+    MINIO_SECRET_KEY: 'change_me_in_production',
+    OPC_VIDEO_READINESS_TARGETS: 'media'
+  }));
+  assert.equal(placeholders.ok, false);
+  assert.equal(placeholders.checks.find((check) => check.id === 'livekit_api_key')?.status, 'fail');
+  assert.equal(placeholders.checks.find((check) => check.id === 'minio_secret_key')?.status, 'fail');
+
+  const invalidEdge = createLiveKitDeploymentPreflightReport(configuredEnv({
+    OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+    LIVEKIT_SIGNAL_DOMAIN: 'not-a-domain',
+    LIVEKIT_TURN_DOMAIN: 'not-a-domain',
+    LIVEKIT_ACME_EMAIL: 'not-an-email'
+  }));
+  assert.equal(invalidEdge.ok, false);
+  assert.equal(invalidEdge.checks.find((check) => check.id === 'livekit_signal_domain')?.status, 'fail');
+  assert.equal(invalidEdge.checks.find((check) => check.id === 'livekit_turn_domain')?.status, 'fail');
+  assert.equal(invalidEdge.checks.find((check) => check.id === 'livekit_acme_email')?.status, 'fail');
 });
 
 test('LiveKit deployment preflight rejects invalid recording retention and object polling values', () => {
@@ -198,6 +295,11 @@ test('LiveKit deployment preflight is exposed through scripts and env examples',
   const rootEnvExample = readFileSync(new URL('../.env.example', import.meta.url), 'utf8');
   const infraEnvExample = readFileSync(new URL('../infra/env.example', import.meta.url), 'utf8');
   for (const key of [
+    'LIVEKIT_PUBLIC_URL=',
+    'OPC_LIVEKIT_DEPLOYMENT_MODE=',
+    'LIVEKIT_SERVER_IMAGE_TAG=',
+    'LIVEKIT_EGRESS_IMAGE_TAG=',
+    'LIVEKIT_SIP_IMAGE_TAG=',
     'OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE=',
     'OPC_LIVEKIT_PREFLIGHT_REPORT_FILE='
   ]) {

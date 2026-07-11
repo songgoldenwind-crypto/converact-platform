@@ -3312,3 +3312,56 @@ RustDesk 服务器真实部署时，可以设置 `OPC_RUSTDESK_CHECK_SERVER_PORT
 9. RustDesk 官网: https://rustdesk.com/
 10. RustDesk GitHub: https://github.com/rustdesk/rustdesk
 11. RustDesk Server GitHub: https://github.com/rustdesk/rustdesk-server
+
+---
+
+## 17. 2026-07-11 LiveKit 独立 Media Core 增量设计
+
+### 17.1 部署边界
+
+Media Core 已从“OPC Compose 内的一组容器”调整为可独立部署的 provider。OPC 与 LED 只依赖稳定 HTTP facade、Join Plan 和 Webhook，不管理浏览器如何解析媒体节点容器名。
+
+```text
+OPC / LED backend -- LIVEKIT_URL ----------> LiveKit internal signal
+OPC / LED browser <- Join Plan token + URL - iveKit facade
+Browser ---------- LIVEKIT_PUBLIC_URL -----> Caddy L4 :443 -> LiveKit :7880
+Browser ---------- ICE/TURN ---------------> LiveKit RTC/TURN ports
+Egress ----------- Redis job bus ----------> LiveKit / Redis
+Egress ----------- recording object -------> S3 / MinIO
+```
+
+内部地址与公网地址必须分开：`LIVEKIT_URL` 面向服务端，`LIVEKIT_PUBLIC_URL` 面向浏览器。生产浏览器地址只接受显式 `wss://`；LED 不缓存、不拼接内部地址，而是直接使用 Join Plan。
+
+### 17.2 两种生产拓扑
+
+| 拓扑 | 代码入口 | 适用场景 | 关键约束 |
+| --- | --- | --- | --- |
+| 独立 Linux VM | `infra/livekit/` | 第一版、单区域、中小规模 | Linux host network、Caddy L4、内置 TURN、外部 S3/MinIO |
+| Kubernetes 外置集群 | `infra/k8s` 只配置客户端地址；媒体用官方 Helm chart | 多节点、已有 K8s 平台 | media Pod 节点网络、官方 chart、独立 DNS/TLS/节点调度 |
+
+仓库 production Compose 默认 external；`media-bundled` 仅供联调。仓库 K8s bundled LiveKit 也只允许 `bundled-dev`，不得作为生产验收拓扑。
+
+### 17.3 独立 VM 组成与端口
+
+1. Caddy L4：`443/tcp`，两个域名按 SNI 分流 WSS 与 TURN/TLS。
+2. LiveKit Server：信令 `7880/tcp`、ICE TCP `7881/tcp`、RTC UDP 可配置范围、TURN/TLS `5349/tcp` 内部监听、TURN/UDP `3478/udp`。
+3. Redis：只绑定 `127.0.0.1`，提供 LiveKit 集群状态和 Egress job bus。
+4. Egress：同一 Redis，`health_port=8091`，使用 `SYS_ADMIN`，写外部 S3/MinIO。
+5. 配置渲染：`npm run render:livekit-edge`；静态 Compose 检查：`npm run livekit:edge:config`。
+
+部署输入必须替换 signal domain、turn domain、ACME email、API key/secret、对象存储凭据。渲染器拒绝空值、占位秘密、无效端口和浮动媒体 tag，生成摘要不保存秘密原文。
+
+### 17.4 API 与能力协商变化
+
+已有 API 路径和 Join Plan 外层结构不变。行为变化只有两点：
+
+1. WebRTC Join Plan 的 `livekit_url` 改为浏览器公网地址；生产缺失或非 `wss://` 时返回配置错误。
+2. capabilities 增加 `livekit_public_url_configured`、`livekit_server_configured`、`livekit_browser_join_ready`，供 LED 在显示“开始视频”之前判断部署是否具备浏览器接入条件。
+
+### 17.5 版本与完成边界
+
+当前固定 Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。版本固定只表示构建可复现，不表示该组合已在目标服务器跑通。升级必须同时执行配置渲染、专项测试、真实双浏览器、强制 TURN 和 Egress 对象验收。
+
+production 不允许 LiveKit 配置不完整时回退为 dev token，Compose/Helm 必须提供内部 URL、API key、API secret 和公网 WSS。preflight/渲染器拒绝示例占位密钥与常见弱默认值，并在 standalone 模式校验 signal/turn DNS、域名互异、ACME 邮箱和 exact image tag。
+
+本地代码和静态配置已经完成；DNS、证书、WSS、ICE、TURN、双浏览器、真实录制、多节点与性能证据仍未完成。用户当前要求不上传服务器，因此这些门禁继续开放。

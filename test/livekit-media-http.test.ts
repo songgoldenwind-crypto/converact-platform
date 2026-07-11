@@ -1320,6 +1320,10 @@ test('media HTTP customer join fails closed in production when invite signing is
   const previousLegacyInviteSecret = process.env.LIVEKIT_MEDIA_INVITE_SECRET;
   const previousNodeEnv = process.env.NODE_ENV;
   const previousMediaToken = process.env.OPC_MEDIA_API_TOKEN;
+  const previousLiveKitUrl = process.env.LIVEKIT_URL;
+  const previousLiveKitPublicUrl = process.env.LIVEKIT_PUBLIC_URL;
+  const previousLiveKitApiKey = process.env.LIVEKIT_API_KEY;
+  const previousLiveKitApiSecret = process.env.LIVEKIT_API_SECRET;
   delete process.env.OPC_MEDIA_INVITE_SECRET;
   delete process.env.LIVEKIT_MEDIA_INVITE_SECRET;
   process.env.NODE_ENV = 'production';
@@ -1358,6 +1362,10 @@ test('media HTTP customer join fails closed in production when invite signing is
       }
     );
 
+    process.env.LIVEKIT_URL = 'ws://livekit:7880';
+    process.env.LIVEKIT_PUBLIC_URL = 'wss://livekit.example.com';
+    process.env.LIVEKIT_API_KEY = 'test-livekit-key';
+    process.env.LIVEKIT_API_SECRET = 'test-livekit-secret';
     const serviceJoin = await routeMediaApi(
       db,
       'GET',
@@ -1377,6 +1385,14 @@ test('media HTTP customer join fails closed in production when invite signing is
     else process.env.NODE_ENV = previousNodeEnv;
     if (previousMediaToken == null) delete process.env.OPC_MEDIA_API_TOKEN;
     else process.env.OPC_MEDIA_API_TOKEN = previousMediaToken;
+    if (previousLiveKitUrl == null) delete process.env.LIVEKIT_URL;
+    else process.env.LIVEKIT_URL = previousLiveKitUrl;
+    if (previousLiveKitPublicUrl == null) delete process.env.LIVEKIT_PUBLIC_URL;
+    else process.env.LIVEKIT_PUBLIC_URL = previousLiveKitPublicUrl;
+    if (previousLiveKitApiKey == null) delete process.env.LIVEKIT_API_KEY;
+    else process.env.LIVEKIT_API_KEY = previousLiveKitApiKey;
+    if (previousLiveKitApiSecret == null) delete process.env.LIVEKIT_API_SECRET;
+    else process.env.LIVEKIT_API_SECRET = previousLiveKitApiSecret;
     db.close();
   }
 });

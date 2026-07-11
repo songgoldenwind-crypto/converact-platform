@@ -26,6 +26,7 @@ const ENV_RULES: EnvRule[] = [
   { key: 'DATABASE_URL', description: 'PostgreSQL connection string', level: 'required' },
   { key: 'REDIS_URL', description: 'Redis connection for session cache + pubsub', level: 'recommended' },
   { key: 'LIVEKIT_URL', description: 'LiveKit server WebSocket URL', level: 'recommended' },
+  { key: 'LIVEKIT_PUBLIC_URL', description: 'Public LiveKit WebSocket URL returned to browser clients', level: 'recommended' },
   { key: 'LIVEKIT_API_KEY', description: 'LiveKit API key', level: 'recommended' },
   { key: 'LIVEKIT_API_SECRET', description: 'LiveKit API secret', level: 'recommended' },
   { key: 'OPC_API_KEY', description: 'API key for OPC internal auth', level: 'recommended' },

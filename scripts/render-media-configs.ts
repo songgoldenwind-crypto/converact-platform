@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,6 +12,7 @@ export interface MediaConfigRenderInput {
   livekitRtcTcpPort: number;
   livekitRtcUdpPort: string;
   livekitUseExternalIp: boolean;
+  egressHealthPort: number;
   minioEndpoint: string;
   minioBucket: string;
   minioAccessKey: string;
@@ -23,17 +24,38 @@ export interface MediaConfigRenderResult {
   egressConfigPath: string;
 }
 
+export interface LiveKitEdgeConfigRenderInput extends MediaConfigRenderInput {
+  signalDomain: string;
+  turnDomain: string;
+  acmeEmail: string;
+  rtcPortRangeStart: number;
+  rtcPortRangeEnd: number;
+  turnTlsPort: number;
+  turnUdpPort: number;
+  livekitServerImageTag: string;
+  livekitEgressImageTag: string;
+  livekitCaddyl4ImageTag: string;
+  livekitRedisImageTag: string;
+}
+
+export interface LiveKitEdgeConfigRenderResult extends MediaConfigRenderResult {
+  caddyConfigPath: string;
+  firewallChecklistPath: string;
+  summaryPath: string;
+}
+
 export function createMediaConfigRenderInputFromEnv(env: NodeJS.ProcessEnv): MediaConfigRenderInput {
   return {
     outputDir: normalizeOutputDir(env.OPC_MEDIA_CONFIG_DIR || '.runtime/media'),
-    livekitApiKey: requiredEnv(env, 'LIVEKIT_API_KEY'),
-    livekitApiSecret: requiredEnv(env, 'LIVEKIT_API_SECRET'),
+    livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
+    livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
     livekitWsUrl: env.OPC_MEDIA_CONFIG_LIVEKIT_URL || 'ws://livekit:7880',
     livekitRedisAddress: env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || 'redis:6379',
     livekitWebhookUrl: env.OPC_MEDIA_CONFIG_WEBHOOK_URL || 'http://opc:3000/api/media/webhooks/livekit',
     livekitRtcTcpPort: parsePort(env.OPC_MEDIA_CONFIG_RTC_TCP_PORT, 'OPC_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
     livekitRtcUdpPort: parsePortRange(env.OPC_MEDIA_CONFIG_RTC_UDP_PORT, 'OPC_MEDIA_CONFIG_RTC_UDP_PORT', '7882-7892'),
     livekitUseExternalIp: parseBoolean(env.OPC_MEDIA_CONFIG_USE_EXTERNAL_IP, 'OPC_MEDIA_CONFIG_USE_EXTERNAL_IP', true),
+    egressHealthPort: parsePort(env.OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT, 'OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
     minioEndpoint: env.MINIO_ENDPOINT || 'http://minio:9000',
     minioBucket: env.MINIO_BUCKET || 'recordings',
     minioAccessKey: requiredEnv(env, 'MINIO_ACCESS_KEY'),
@@ -48,10 +70,88 @@ export function renderMediaConfigs(input: MediaConfigRenderInput): MediaConfigRe
   const livekitConfigPath = join(outputDir, 'livekit.yaml');
   const egressConfigPath = join(outputDir, 'egress.yaml');
 
-  writeFileSync(livekitConfigPath, renderLiveKitConfig(input));
-  writeFileSync(egressConfigPath, renderEgressConfig(input));
+  writeSecretFile(livekitConfigPath, renderLiveKitConfig(input));
+  writeSecretFile(egressConfigPath, renderEgressConfig(input));
 
   return { livekitConfigPath, egressConfigPath };
+}
+
+export function createLiveKitEdgeConfigRenderInputFromEnv(
+  env: NodeJS.ProcessEnv
+): LiveKitEdgeConfigRenderInput {
+  const signalDomain = requiredDomain(env, 'LIVEKIT_SIGNAL_DOMAIN');
+  const turnDomain = requiredDomain(env, 'LIVEKIT_TURN_DOMAIN');
+  if (signalDomain === turnDomain) {
+    throw new Error('LIVEKIT_TURN_DOMAIN must differ from LIVEKIT_SIGNAL_DOMAIN');
+  }
+  const rtcPortRangeStart = parsePort(
+    env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START,
+    'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START',
+    50_000
+  );
+  const rtcPortRangeEnd = parsePort(
+    env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END,
+    'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END',
+    60_000
+  );
+  if (rtcPortRangeEnd < rtcPortRangeStart) {
+    throw new Error('RTC port range end must be greater than or equal to start');
+  }
+
+  return {
+    outputDir: normalizeEdgeOutputDir(env.OPC_LIVEKIT_EDGE_CONFIG_DIR || '.runtime/livekit-edge'),
+    signalDomain,
+    turnDomain,
+    acmeEmail: requiredEmail(env, 'LIVEKIT_ACME_EMAIL'),
+    livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
+    livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
+    livekitWsUrl: env.OPC_MEDIA_CONFIG_LIVEKIT_URL || 'ws://127.0.0.1:7880',
+    livekitRedisAddress: env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || '127.0.0.1:6379',
+    livekitWebhookUrl: requiredEnv(env, 'OPC_MEDIA_CONFIG_WEBHOOK_URL'),
+    livekitRtcTcpPort: parsePort(env.OPC_MEDIA_CONFIG_RTC_TCP_PORT, 'OPC_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
+    livekitRtcUdpPort: '',
+    livekitUseExternalIp: true,
+    rtcPortRangeStart,
+    rtcPortRangeEnd,
+    turnTlsPort: parsePort(env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT, 'OPC_LIVEKIT_EDGE_TURN_TLS_PORT', 5349),
+    turnUdpPort: parsePort(env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT, 'OPC_LIVEKIT_EDGE_TURN_UDP_PORT', 3478),
+    egressHealthPort: parsePort(env.OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT, 'OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
+    minioEndpoint: requiredEnv(env, 'MINIO_ENDPOINT'),
+    minioBucket: env.MINIO_BUCKET || 'recordings',
+    minioAccessKey: requiredRuntimeSecret(env, 'MINIO_ACCESS_KEY'),
+    minioSecretKey: requiredRuntimeSecret(env, 'MINIO_SECRET_KEY'),
+    livekitServerImageTag: requiredExactImageTag(env.LIVEKIT_SERVER_IMAGE_TAG, 'LIVEKIT_SERVER_IMAGE_TAG'),
+    livekitEgressImageTag: requiredExactImageTag(env.LIVEKIT_EGRESS_IMAGE_TAG, 'LIVEKIT_EGRESS_IMAGE_TAG'),
+    livekitCaddyl4ImageTag: requiredExactImageTag(env.LIVEKIT_CADDYL4_IMAGE_TAG, 'LIVEKIT_CADDYL4_IMAGE_TAG'),
+    livekitRedisImageTag: requiredExactImageTag(env.LIVEKIT_REDIS_IMAGE_TAG, 'LIVEKIT_REDIS_IMAGE_TAG')
+  };
+}
+
+export function renderLiveKitEdgeConfigs(
+  input: LiveKitEdgeConfigRenderInput
+): LiveKitEdgeConfigRenderResult {
+  const outputDir = resolve(input.outputDir);
+  mkdirSync(outputDir, { recursive: true });
+
+  const livekitConfigPath = join(outputDir, 'livekit.yaml');
+  const egressConfigPath = join(outputDir, 'egress.yaml');
+  const caddyConfigPath = join(outputDir, 'caddy.yaml');
+  const firewallChecklistPath = join(outputDir, 'firewall.md');
+  const summaryPath = join(outputDir, 'deployment-summary.json');
+
+  writeSecretFile(livekitConfigPath, renderLiveKitEdgeConfig(input));
+  writeSecretFile(egressConfigPath, renderEgressConfig(input));
+  writeFileSync(caddyConfigPath, renderCaddyL4Config(input), { mode: 0o644 });
+  writeFileSync(firewallChecklistPath, renderFirewallChecklist(input), { mode: 0o644 });
+  writeFileSync(summaryPath, `${JSON.stringify(renderEdgeSummary(input), null, 2)}\n`, { mode: 0o644 });
+
+  return {
+    livekitConfigPath,
+    egressConfigPath,
+    caddyConfigPath,
+    firewallChecklistPath,
+    summaryPath
+  };
 }
 
 function renderLiveKitConfig(input: MediaConfigRenderInput): string {
@@ -93,6 +193,7 @@ function renderEgressConfig(input: MediaConfigRenderInput): string {
     'insecure: true',
     'redis:',
     `  address: ${yamlQuote(input.livekitRedisAddress)}`,
+    `health_port: ${input.egressHealthPort}`,
     'storage:',
     '  s3:',
     `    access_key: ${yamlQuote(input.minioAccessKey)}`,
@@ -105,10 +206,169 @@ function renderEgressConfig(input: MediaConfigRenderInput): string {
   ].join('\n');
 }
 
+function renderLiveKitEdgeConfig(input: LiveKitEdgeConfigRenderInput): string {
+  return [
+    'port: 7880',
+    'bind_addresses:',
+    '  - ""',
+    'rtc:',
+    `  tcp_port: ${input.livekitRtcTcpPort}`,
+    `  port_range_start: ${input.rtcPortRangeStart}`,
+    `  port_range_end: ${input.rtcPortRangeEnd}`,
+    '  use_external_ip: true',
+    'redis:',
+    `  address: ${yamlQuote(input.livekitRedisAddress)}`,
+    'turn:',
+    '  enabled: true',
+    `  domain: ${yamlQuote(input.turnDomain)}`,
+    '  external_tls: true',
+    `  tls_port: ${input.turnTlsPort}`,
+    `  udp_port: ${input.turnUdpPort}`,
+    'keys:',
+    `  ${yamlQuote(input.livekitApiKey)}: ${yamlQuote(input.livekitApiSecret)}`,
+    'webhook:',
+    `  api_key: ${yamlQuote(input.livekitApiKey)}`,
+    '  urls:',
+    `    - ${yamlQuote(input.livekitWebhookUrl)}`,
+    'room:',
+    '  empty_timeout: 300',
+    '  max_participants: 10',
+    'logging:',
+    '  level: info',
+    ''
+  ].join('\n');
+}
+
+function renderCaddyL4Config(input: LiveKitEdgeConfigRenderInput): string {
+  return [
+    'logging:',
+    '  logs:',
+    '    default:',
+    '      level: INFO',
+    'storage:',
+    '  module: file_system',
+    '  root: /data',
+    'apps:',
+    '  tls:',
+    '    certificates:',
+    '      automate:',
+    `        - ${yamlQuote(input.signalDomain)}`,
+    `        - ${yamlQuote(input.turnDomain)}`,
+    '    automation:',
+    '      policies:',
+    '        - issuers:',
+    '            - module: acme',
+    `              email: ${yamlQuote(input.acmeEmail)}`,
+    '  layer4:',
+    '    servers:',
+    '      main:',
+    '        listen: [":443"]',
+    '        routes:',
+    '          - match:',
+    '              - tls:',
+    '                  sni:',
+    `                    - ${yamlQuote(input.turnDomain)}`,
+    '            handle:',
+    '              - handler: tls',
+    '              - handler: proxy',
+    '                upstreams:',
+    `                  - dial: ["localhost:${input.turnTlsPort}"]`,
+    '          - match:',
+    '              - tls:',
+    '                  sni:',
+    `                    - ${yamlQuote(input.signalDomain)}`,
+    '            handle:',
+    '              - handler: tls',
+    '                connection_policies:',
+    '                  - alpn: ["http/1.1"]',
+    '              - handler: proxy',
+    '                upstreams:',
+    '                  - dial: ["localhost:7880"]',
+    ''
+  ].join('\n');
+}
+
+function renderFirewallChecklist(input: LiveKitEdgeConfigRenderInput): string {
+  return [
+    '# LiveKit Standalone VM Firewall Checklist',
+    '',
+    '| Protocol | Port | Purpose |',
+    '| --- | --- | --- |',
+    '| TCP | 80/tcp | ACME certificate issuance |',
+    '| TCP | 443/tcp | LiveKit WSS and TURN/TLS via Caddy L4 |',
+    `| TCP | ${input.livekitRtcTcpPort}/tcp | WebRTC ICE/TCP |`,
+    `| UDP | ${input.turnUdpPort}/udp | Embedded TURN/UDP |`,
+    `| UDP | ${input.rtcPortRangeStart}-${input.rtcPortRangeEnd}/udp | WebRTC ICE/UDP |`,
+    '',
+    `Signal DNS: ${input.signalDomain}`,
+    `TURN DNS: ${input.turnDomain}`,
+    '',
+    'This file is generated offline. It does not prove DNS, TLS, firewall, ICE, or TURN reachability.',
+    ''
+  ].join('\n');
+}
+
+function renderEdgeSummary(input: LiveKitEdgeConfigRenderInput): Record<string, unknown> {
+  return {
+    mode: 'standalone-vm',
+    signal_url: `wss://${input.signalDomain}`,
+    turn_domain: input.turnDomain,
+    api_key_configured: Boolean(input.livekitApiKey),
+    api_secret_configured: Boolean(input.livekitApiSecret),
+    object_storage_configured: Boolean(input.minioEndpoint && input.minioAccessKey && input.minioSecretKey),
+    redis_address: input.livekitRedisAddress,
+    ports: {
+      signal_tls_tcp: 443,
+      rtc_tcp: input.livekitRtcTcpPort,
+      rtc_udp_start: input.rtcPortRangeStart,
+      rtc_udp_end: input.rtcPortRangeEnd,
+      turn_udp: input.turnUdpPort
+    },
+    images: {
+      server: input.livekitServerImageTag,
+      egress: input.livekitEgressImageTag,
+      caddyl4: input.livekitCaddyl4ImageTag,
+      redis: input.livekitRedisImageTag
+    },
+    evidence: 'offline_config_only'
+  };
+}
+
 function requiredEnv(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key];
   if (!value) throw new Error(`${key} is required`);
   return value;
+}
+
+function requiredDomain(env: NodeJS.ProcessEnv, key: string): string {
+  const domain = requiredEnv(env, key).toLowerCase();
+  if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{1,62}$/.test(domain)) {
+    throw new Error(`${key} must be a valid DNS domain`);
+  }
+  return domain;
+}
+
+function requiredRuntimeSecret(env: NodeJS.ProcessEnv, key: string): string {
+  const secret = requiredEnv(env, key).trim();
+  const weakValues = new Set(['admin', 'devkey', 'minioadmin', 'password', 'secret']);
+  if (/^(?:replace_with|change_me|your_)/i.test(secret) || weakValues.has(secret.toLowerCase())) {
+    throw new Error(`${key} must replace the example placeholder`);
+  }
+  return secret;
+}
+
+function requiredEmail(env: NodeJS.ProcessEnv, key: string): string {
+  const email = requiredEnv(env, key);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error(`${key} must be a valid email address`);
+  return email;
+}
+
+function requiredExactImageTag(value: string | undefined, key: string): string {
+  const tag = String(value || '').trim();
+  if (!/^v?\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(tag)) {
+    throw new Error(`${key} must be an exact semantic version tag and cannot use latest`);
+  }
+  return tag;
 }
 
 function parsePort(value: string | undefined, key: string, fallback: number): number {
@@ -143,12 +403,25 @@ function normalizeOutputDir(outputDir: string): string {
     : outputDir;
 }
 
+function normalizeEdgeOutputDir(outputDir: string): string {
+  return outputDir.startsWith('../')
+    ? resolve('infra/livekit', outputDir)
+    : outputDir;
+}
+
 function yamlQuote(value: string): string {
   return JSON.stringify(value);
 }
 
+function writeSecretFile(path: string, content: string): void {
+  writeFileSync(path, content, { mode: 0o600 });
+  chmodSync(path, 0o600);
+}
+
 async function main(): Promise<void> {
-  const result = renderMediaConfigs(createMediaConfigRenderInputFromEnv(process.env));
+  const result = process.argv.includes('--edge')
+    ? renderLiveKitEdgeConfigs(createLiveKitEdgeConfigRenderInputFromEnv(process.env))
+    : renderMediaConfigs(createMediaConfigRenderInputFromEnv(process.env));
   console.log(JSON.stringify(result, null, 2));
 }
 

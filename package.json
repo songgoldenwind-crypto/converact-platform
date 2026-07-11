@@ -19,6 +19,8 @@
     "check:voice-media": "tsx scripts/check-sidecars.ts voice-media",
     "check:sidecars": "tsx scripts/check-sidecars.ts all",
     "render:media-configs": "node --import tsx scripts/render-media-configs.ts",
+    "render:livekit-edge": "node --import tsx scripts/render-media-configs.ts --edge",
+    "livekit:edge:config": "docker compose --env-file infra/livekit/env.example -f infra/livekit/docker-compose.yml config",
     "dev:callcenter": "COMPOSE_DISABLE_ENV_FILE=1 docker compose --env-file .env.example -f docker-compose.callcenter.yml up",
     "dev:callcenter:detach": "COMPOSE_DISABLE_ENV_FILE=1 docker compose --env-file .env.example -f docker-compose.callcenter.yml up -d",
     "test:phase0": "node --import tsx --test test/call-center-phase0.test.ts test/call-center-phase0-http.test.ts test/rwi-client.test.ts",
