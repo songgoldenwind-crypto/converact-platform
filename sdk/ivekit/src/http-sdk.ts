@@ -36,6 +36,12 @@ import type {
   IveKitQualityReviewResult,
   IveKitWorkerRunResult
 } from './chat-types.js';
+import {
+  createIveKitUploadTransport,
+  type IveKitUploadOperation,
+  type IveKitUploadProgress,
+  type IveKitUploadTransport
+} from './upload-transport.js';
 
 export type IveKitSdkFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 export type IveKitSdkRequestBody = Exclude<RequestInit['body'], null | undefined>;
@@ -48,6 +54,7 @@ export interface IveKitHttpSdkInput {
   userId?: string;
   timeoutMs?: number;
   fetch?: IveKitSdkFetch;
+  uploadTransport?: IveKitUploadTransport;
 }
 
 export interface IveKitSdkBusinessRef {
@@ -87,6 +94,10 @@ export interface IveKitAttachmentUploadInput {
   filename: string;
   contentType: string;
   body: IveKitSdkRequestBody;
+}
+
+export interface IveKitAttachmentUploadOptions {
+  onProgress?: (progress: IveKitUploadProgress) => void;
 }
 
 export interface IveKitChatHttpClient {
@@ -142,6 +153,12 @@ export interface IveKitChatHttpClient {
   pinMessage(sessionId: string, messageId: string): Promise<IveKitChatPinResult>;
   unpinMessage(sessionId: string, messageId: string): Promise<IveKitChatPinResult>;
   uploadAttachment(sessionId: string, input: IveKitAttachmentUploadInput): Promise<IveKitChatAttachmentUploadDescriptor>;
+  uploadAttachmentWithProgress(
+    sessionId: string,
+    input: IveKitAttachmentUploadInput,
+    options?: IveKitAttachmentUploadOptions
+  ): IveKitUploadOperation<IveKitChatAttachmentUploadDescriptor>;
+  downloadAttachment(sessionId: string, attachmentId: string): Promise<IveKitSdkBinary>;
   getAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
   retryAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
   listFindings(
@@ -182,7 +199,7 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
   const transport = createTransport(input);
   return {
     media: createMediaClient(transport),
-    chat: createChatClient(transport)
+    chat: createChatClient(transport, createAttachmentUploadClient(input))
   };
 }
 
@@ -332,7 +349,10 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
   };
 }
 
-function createChatClient(transport: IveKitTransport): IveKitChatHttpClient {
+function createChatClient(
+  transport: IveKitTransport,
+  upload: ReturnType<typeof createAttachmentUploadClient>
+): IveKitChatHttpClient {
   const sessionPath = (sessionId: string) =>
     `/api/ivekit/chat/sessions/${pathSegment(sessionId, 'sessionId')}`;
   const messagePath = (sessionId: string, messageId: string) =>
@@ -474,6 +494,15 @@ function createChatClient(transport: IveKitTransport): IveKitChatHttpClient {
         }
       }
     ),
+    uploadAttachmentWithProgress: (sessionId, input, options = {}) => upload(
+      `${sessionPath(sessionId)}/attachments/upload`,
+      input,
+      options
+    ),
+    downloadAttachment: (sessionId, attachmentId) => transport.binary(
+      'GET',
+      `${attachmentPath(sessionId, attachmentId)}/download`
+    ),
     getAttachment: (sessionId, attachmentId) => transport.json('GET', attachmentPath(sessionId, attachmentId)),
     retryAttachment: (sessionId, attachmentId) => transport.json(
       'POST',
@@ -514,6 +543,57 @@ function createChatClient(transport: IveKitTransport): IveKitChatHttpClient {
       { body: input }
     )
   };
+}
+
+function createAttachmentUploadClient(input: IveKitHttpSdkInput) {
+  const baseUrl = validBaseUrl(input.baseUrl);
+  const tenantId = requiredString(input.tenantId, 'tenantId is required');
+  const apiKey = String(input.apiKey || '').trim();
+  const accessToken = String(input.accessToken || '').trim();
+  const userId = String(input.userId || '').trim();
+  const timeoutMs = validTimeout(input.timeoutMs);
+  const uploadTransport = input.uploadTransport || createIveKitUploadTransport();
+  return (
+    path: string,
+    attachment: IveKitAttachmentUploadInput,
+    options: IveKitAttachmentUploadOptions
+  ): IveKitUploadOperation<IveKitChatAttachmentUploadDescriptor> => {
+    const url = new URL(path, baseUrl);
+    url.searchParams.set('kind', requiredString(attachment.kind, 'kind is required'));
+    url.searchParams.set('filename', requiredString(attachment.filename, 'filename is required'));
+    const headers: Record<string, string> = {
+      'x-tenant-id': tenantId,
+      'content-type': requiredString(attachment.contentType, 'contentType is required'),
+      'x-upload-id': uploadId(),
+      ...(apiKey ? { 'x-api-key': apiKey } : { authorization: `Bearer ${accessToken}` }),
+      ...(apiKey && userId ? { 'x-user-id': userId } : {})
+    };
+    let loaded = 0;
+    let percent = 0;
+    const operation = uploadTransport.upload({
+      url: url.toString(),
+      headers,
+      body: attachment.body,
+      timeoutMs,
+      fetch: input.fetch,
+      onProgress: options.onProgress
+        ? (progress) => {
+          loaded = Math.max(loaded, progress.loaded);
+          percent = Math.max(percent, progress.percent);
+          options.onProgress?.({ ...progress, loaded, percent });
+        }
+        : undefined
+    });
+    return {
+      result: operation.result as Promise<IveKitChatAttachmentUploadDescriptor>,
+      abort: operation.abort
+    };
+  };
+}
+
+function uploadId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  return `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function validBaseUrl(value: string): URL {

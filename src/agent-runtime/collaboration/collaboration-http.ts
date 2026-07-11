@@ -698,6 +698,10 @@ function collaborationStorageUrl(uploaded: { storage_url: string; key: string })
   return uploaded.storage_url;
 }
 
+function iveKitChatStorageUrl(key: string): string {
+  return `/api/ivekit/chat/objects/${encodeURIComponent(key)}`;
+}
+
 async function ensureSessionChatBinding(input: {
   module: CollaborationModule;
   gateway: ReturnType<typeof configuredChatGateway>;
@@ -731,6 +735,10 @@ async function ensureSessionChatBinding(input: {
 
 function decodeLocalMediaKey(routePath: string): string | null {
   const rawKey = decodeURIComponent(routePath.slice('/api/collaboration/media/'.length));
+  return decodeStorageKey(rawKey);
+}
+
+function decodeStorageKey(rawKey: string): string | null {
   const parts = rawKey.split('/');
   if (!parts.length || parts.some((part) => !part || part === '.' || part === '..' || part.includes('\\'))) {
     return null;
@@ -1350,6 +1358,16 @@ export async function routeCollaborationApi(
     return { contentType: 'application/octet-stream', data: buffer };
   }
 
+  if (routePath.startsWith('/api/collaboration/ivekit-objects/') && method === 'GET') {
+    const key = decodeURIComponent(routePath.slice('/api/collaboration/ivekit-objects/'.length));
+    if (!key.startsWith(`${ctx.tenantId}/`) || !decodeStorageKey(key)) {
+      return { status: 404, data: { error: 'not found' } };
+    }
+    const buffer = await createObjectStorage().download(key, attachmentUploadMaxBytes());
+    if (!buffer) return { status: 404, data: { error: 'not found' } };
+    return { contentType: 'application/octet-stream', data: buffer };
+  }
+
   const module = createCollaborationModule({ pg: requirePg(pg) });
 
   if (routePath === '/api/collaboration/attachment-processing/run' && method === 'POST') {
@@ -1395,6 +1413,36 @@ export async function routeCollaborationApi(
     });
     if (!job) return { status: 409, data: { error: 'attachment processing job is not retryable' } };
     return { status: 201, data: { attachment_id: attachmentId, job } };
+  }
+
+  const attachmentDownloadMatch = routePath.match(
+    /^\/api\/collaboration\/sessions\/([^/]+)\/attachments\/([^/]+)\/download$/
+  );
+  if (attachmentDownloadMatch && method === 'GET') {
+    const sessionId = decodeURIComponent(attachmentDownloadMatch[1]);
+    const attachmentId = decodeURIComponent(attachmentDownloadMatch[2]);
+    const collaboration = await module.sessions.getSession(sessionId);
+    if (!collaboration || collaboration.tenant_id !== ctx.tenantId) {
+      return { status: 404, data: { error: 'collaboration session not found' } };
+    }
+    const attachment = await attachmentProcessingService(requirePg(pg), options).getAttachment({
+      tenant_id: ctx.tenantId,
+      attachment_id: attachmentId
+    });
+    if (!attachment || attachment.session_id !== sessionId) {
+      return { status: 404, data: { error: 'collaboration attachment not found' } };
+    }
+    const key = String(attachment.metadata.storage_key || '').trim();
+    if (!key.startsWith(`${ctx.tenantId}/`) || !decodeStorageKey(key)) {
+      return { status: 404, data: { error: 'attachment object not found' } };
+    }
+    const buffer = await createObjectStorage().download(key, attachmentUploadMaxBytes());
+    if (!buffer) return { status: 404, data: { error: 'attachment object not found' } };
+    return {
+      contentType: attachment.content_type || 'application/octet-stream',
+      headers: { 'content-disposition': `attachment; filename="${safeFilename(attachment.filename)}"` },
+      data: buffer
+    };
   }
 
   const findingReviewMatch = routePath.match(
@@ -2151,7 +2199,7 @@ export async function routeCollaborationApi(
         status: 201,
         data: {
           kind,
-          storage_url: collaborationStorageUrl(uploaded),
+          storage_url: iveKitChatStorageUrl(uploaded.key),
           filename,
           content_type: contentType,
           size_bytes: content.length,

@@ -276,10 +276,13 @@ receipt metadata 会递归遮蔽手机号/邮箱。read-through 按 `created_at,
 | --- | --- | --- |
 | POST | `/api/ivekit/chat/sessions/:session_id/attachments/upload?kind=image&filename=x.png` | 二进制 body；MIME/大小门禁 |
 | GET | `/api/ivekit/chat/sessions/:session_id/attachments/:attachment_id` | attachment + processing job |
+| GET | `/api/ivekit/chat/sessions/:session_id/attachments/:attachment_id/download` | 鉴权二进制下载；返回 MIME 和 Content-Disposition |
 | POST | `/api/ivekit/chat/sessions/:session_id/attachments/:attachment_id/retry` | 重新排 OCR/ASR |
 | POST | `/api/ivekit/chat/attachment-processing/run` | 运维/测试 due batch；生产通常 worker 驱动 |
 
-上传返回 descriptor，再放进消息 `attachments`。图片走 OCR，audio/video/screen_recording 走 ASR；提取文本回填后重新执行 policy 和 AI 质检。真实 provider 仍需服务器选型/验收。
+上传返回 descriptor，再放进消息 `attachments`。浏览器 SDK 的 `uploadAttachmentWithProgress()` 使用 XHR 报告字节进度并返回 `{result,abort}`；Node 使用可注入 fetch fallback。每次上传尝试生成新的 `x-upload-id`，但随后创建消息时重试必须复用原 `Idempotency-Key`。文件不做 base64 转换。图片走 OCR，audio/video/screen_recording 走 ASR；提取文本回填后重新执行 policy 和 AI 质检。客户端状态可区分 `uploading/uploaded/attached/processing_pending/processing/retry_wait/completed/failed/provider_unconfigured/cancelled`。真实 provider 仍需服务器选型/验收。
+
+descriptor 的 `storage_url` 只指向 `/api/ivekit/chat/objects/*` 受控路径；持久化为消息附件后优先使用按 session/attachment 鉴权的 `download` 路径。两种路径都不返回 MinIO/S3 凭据，也不暴露 `/api/call-center/media/*`。
 
 ### 3.7 finding、AI 质检和人审
 

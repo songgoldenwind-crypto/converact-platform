@@ -55,6 +55,17 @@ export type IveKitChatAttachmentJobStatus =
   | 'succeeded'
   | 'failed'
   | 'cancelled';
+export type IveKitAttachmentTransferPhase =
+  | 'uploading'
+  | 'uploaded'
+  | 'attached'
+  | 'processing_pending'
+  | 'processing'
+  | 'retry_wait'
+  | 'completed'
+  | 'failed'
+  | 'provider_unconfigured'
+  | 'cancelled';
 
 export interface IveKitChatAttachment {
   id: string;

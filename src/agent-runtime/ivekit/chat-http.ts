@@ -38,6 +38,8 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       cursor_message_history: true,
       attachments: true,
       attachment_upload: true,
+      attachment_upload_progress: true,
+      attachment_download: true,
       attachment_processing: true,
       ocr: hasValue(env.OPC_OCR_BASE_URL),
       asr: hasValue(env.OPC_ASR_BASE_URL),
@@ -80,6 +82,7 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       message_delivery_retry_path: '/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery/retry',
       attachment_upload_path: '/api/ivekit/chat/sessions/:session_id/attachments/upload',
       attachment_status_path: '/api/ivekit/chat/sessions/:session_id/attachments/:attachment_id',
+      attachment_download_path: '/api/ivekit/chat/sessions/:session_id/attachments/:attachment_id/download',
       attachment_retry_path: '/api/ivekit/chat/sessions/:session_id/attachments/:attachment_id/retry',
       attachment_processing_run_path: '/api/ivekit/chat/attachment-processing/run',
       quality_review_run_path: '/api/ivekit/chat/quality-review/run',
@@ -147,6 +150,9 @@ function collaborationPathForIveKitChat(routePath: string): string {
   if (routePath === '/api/ivekit/chat/quality-review/run') {
     return '/api/collaboration/quality-review/run';
   }
+  if (routePath.startsWith('/api/ivekit/chat/objects/')) {
+    return `/api/collaboration/ivekit-objects/${routePath.slice('/api/ivekit/chat/objects/'.length)}`;
+  }
 
   const qualityReviewMatch = routePath.match(
     /^\/api\/ivekit\/chat\/sessions\/([^/]+)\/messages\/([^/]+)\/quality-review$/
@@ -209,6 +215,13 @@ function collaborationPathForIveKitChat(routePath: string): string {
   );
   if (attachmentRetryMatch) {
     return `/api/collaboration/sessions/${attachmentRetryMatch[1]}/attachments/${attachmentRetryMatch[2]}/retry`;
+  }
+
+  const attachmentDownloadMatch = routePath.match(
+    /^\/api\/ivekit\/chat\/sessions\/([^/]+)\/attachments\/([^/]+)\/download$/
+  );
+  if (attachmentDownloadMatch) {
+    return `/api/collaboration/sessions/${attachmentDownloadMatch[1]}/attachments/${attachmentDownloadMatch[2]}/download`;
   }
 
   const findingReviewMatch = routePath.match(

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { id } from '../db-compat.js';
 
@@ -12,6 +12,7 @@ export interface ObjectStorageUploadInput {
 
 export interface ObjectStorage {
   upload(input: ObjectStorageUploadInput): Promise<{ storage_url: string; key: string }>;
+  download(key: string, maxBytes?: number): Promise<Buffer | null>;
 }
 
 class LocalObjectStorage implements ObjectStorage {
@@ -29,6 +30,10 @@ class LocalObjectStorage implements ObjectStorage {
     mkdirSync(dirname(fullPath), { recursive: true });
     writeFileSync(fullPath, input.body);
     return { key, storage_url: `/api/call-center/media/${key}` };
+  }
+
+  async download(key: string, maxBytes?: number): Promise<Buffer | null> {
+    return readLocalUpload(key, maxBytes);
   }
 }
 
@@ -60,6 +65,31 @@ class S3ObjectStorage implements ObjectStorage {
       })
     );
     return { key, storage_url: `${this.publicBaseUrl}/${key}` };
+  }
+
+  async download(key: string, maxBytes?: number): Promise<Buffer | null> {
+    const { GetObjectCommand, NoSuchKey, S3Client } = await import('@aws-sdk/client-s3');
+    const client = new S3Client({
+      region: this.region,
+      endpoint: this.endpoint,
+      forcePathStyle: Boolean(this.endpoint),
+      ...(this.credentials ? { credentials: this.credentials } : {})
+    });
+    try {
+      const result = await client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      if (!result.Body) return null;
+      if (maxBytes && Number(result.ContentLength || 0) > maxBytes) {
+        throw Object.assign(new Error('object exceeds configured download size limit'), { status: 413 });
+      }
+      const content = Buffer.from(await result.Body.transformToByteArray());
+      if (maxBytes && content.length > maxBytes) {
+        throw Object.assign(new Error('object exceeds configured download size limit'), { status: 413 });
+      }
+      return content;
+    } catch (error) {
+      if (error instanceof NoSuchKey || (error as { name?: string }).name === 'NoSuchKey') return null;
+      throw error;
+    }
   }
 }
 
@@ -93,11 +123,14 @@ export function createObjectStorage(): ObjectStorage {
   return storageSingleton;
 }
 
-export function readLocalUpload(key: string): Buffer | null {
+export function readLocalUpload(key: string, maxBytes?: number): Buffer | null {
   const root = localStorageRoot || process.env.OPC_UPLOAD_DIR || join(process.cwd(), 'data', 'uploads');
   const fullPath = resolveUploadPath(root, key);
   if (!fullPath) return null;
   if (!existsSync(fullPath)) return null;
+  if (maxBytes && statSync(fullPath).size > maxBytes) {
+    throw Object.assign(new Error('object exceeds configured download size limit'), { status: 413 });
+  }
   return readFileSync(fullPath);
 }
 

@@ -75,7 +75,8 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
     'listMessagesPage', 'postMessage', 'getSnapshot', 'getDelivery', 'retryDelivery', 'listReceipts',
     'markReceipt', 'getMessageState', 'setTyping', 'setPresence', 'listRealtimeState',
     'editMessage', 'deleteMessage', 'listMutations', 'listReactions', 'addReaction',
-    'removeReaction', 'listPins', 'pinMessage', 'unpinMessage', 'uploadAttachment', 'getAttachment',
+    'removeReaction', 'listPins', 'pinMessage', 'unpinMessage', 'uploadAttachment',
+    'uploadAttachmentWithProgress', 'downloadAttachment', 'getAttachment',
     'retryAttachment', 'listFindings', 'getFinding', 'reviewFinding', 'getQualityReview',
     'enqueueQualityReview', 'runAttachmentProcessing', 'runQualityReview'
   ]) assert.equal(typeof sdk.chat[method], 'function', `missing chat.${method}`);

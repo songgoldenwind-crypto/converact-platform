@@ -50,6 +50,12 @@ Chat writes always go through the iveKit HTTP facade. A Tinode client may subscr
 for receive-only acceleration, but it must converge messages from iveKit HTTP and
 must not publish directly.
 
+For browser file transfers use `chat.uploadAttachmentWithProgress()`. It returns
+`{result, abort}` and reports monotonic byte progress without base64 conversion.
+After the descriptor is attached to a message, use `chat.downloadAttachment()` for
+an authenticated binary response; object-store credentials and internal media paths
+are never returned to the client.
+
 `ivekit.rustdesk.startSession()` adds consent-scoped launch planning, while the same client retains lower-level methods such as `startGatewaySession()` for advanced integrations. It also exposes typed operation-audit helpers for control actions, file transfer, screen recording, and clipboard synchronization.
 
 Browser and desktop webview clients must use a short-lived `accessToken`. Backend integrations may use `apiKey` instead. Exactly one authentication mode is required, and an API key must never be embedded in a browser or desktop webview bundle.

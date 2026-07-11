@@ -242,7 +242,7 @@ function setCorsHeaders(response: import('node:http').ServerResponse, origin: st
   response.setHeader('access-control-allow-methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   response.setHeader(
     'access-control-allow-headers',
-    'authorization,content-type,idempotency-key,x-api-key,x-tenant-id,x-user-id'
+    'authorization,content-type,idempotency-key,x-api-key,x-tenant-id,x-upload-id,x-user-id'
   );
   response.setHeader('access-control-expose-headers', 'content-disposition,content-type');
   response.setHeader('access-control-max-age', '600');

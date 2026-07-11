@@ -196,23 +196,23 @@ git commit -m "feat(chat): add rich message actions"
 - Create: `test/ivekit-attachment-client.test.ts`
 - Modify: `docs/ivekit-openapi.md`
 
-- [ ] **Step 1: Write failing browser upload tests**
+- [x] **Step 1: Write failing browser upload tests**
 
 Use an injected fake upload transport to assert progress monotonicity, abort, timeout, auth headers, binary preservation, retry with a new upload id but stable message idempotency key, and structured HTTP errors.
 
-- [ ] **Step 2: Add progress transport**
+- [x] **Step 2: Add progress transport**
 
 Provide XHR progress in browsers and an injectable/fetch fallback in Node. Never base64 encode files. Expose an abort handle and typed progress `{loaded,total,percent}`.
 
-- [ ] **Step 3: Add authenticated attachment object retrieval**
+- [x] **Step 3: Add authenticated attachment object retrieval**
 
 Return either a controlled binary response or a short-lived object URL under `/api/ivekit/chat/*`. Do not return MinIO credentials or local `/api/call-center/media/*` paths.
 
-- [ ] **Step 4: Verify attachment processing states**
+- [x] **Step 4: Verify attachment processing states**
 
 The SDK must distinguish upload, message attachment, OCR/ASR pending, retry_wait, completed, failed, and provider_unconfigured.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 node --import tsx --test test/ivekit-attachment-client.test.ts test/collaboration-attachment-processing.test.ts

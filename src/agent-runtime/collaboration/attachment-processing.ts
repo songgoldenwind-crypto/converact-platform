@@ -1,5 +1,6 @@
 import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import { withPgBypass, withPgTenant } from '../../db-pg-tenant.js';
+import { createObjectStorage } from '../../storage/object-storage.js';
 import { resolveRecordingObjectContent } from '../media-recording-object.js';
 import { CollaborationStore } from './collaboration-store.js';
 import type {
@@ -486,8 +487,24 @@ export class AttachmentProcessingService {
       : withPgBypass(this.input.pg, reconcile);
   }
 
-  private resolveObject(attachment: CollaborationMessageAttachment): Promise<AttachmentObjectResult> {
-    return this.input.resolveObject?.(attachment) || resolveRecordingObjectContent(attachment);
+  private async resolveObject(attachment: CollaborationMessageAttachment): Promise<AttachmentObjectResult> {
+    if (this.input.resolveObject) return this.input.resolveObject(attachment);
+    const key = String(attachment.metadata.storage_key || '').trim();
+    if (key && key.startsWith(`${attachment.tenant_id}/`)) {
+      try {
+        const content = await createObjectStorage().download(key);
+        return content
+          ? { status: 'readable', source: 'object_storage', content }
+          : { status: 'not_found', source: 'object_storage' };
+      } catch (error) {
+        return {
+          status: 'fetch_failed',
+          source: 'object_storage',
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }
+    return resolveRecordingObjectContent(attachment);
   }
 
   private now(): Date {

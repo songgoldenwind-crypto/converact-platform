@@ -12,6 +12,7 @@ import {
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createHttpOcrProvider } from '../src/agent-runtime/collaboration/ocr-provider.js';
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
+import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
 import {
   AttachmentProcessingWorker,
   attachmentProcessingWorkerConfig
@@ -312,7 +313,8 @@ test('collaboration attachment upload enforces size and returns a pending proces
     assert.equal(result.data.content_type, 'image/png');
     assert.equal(result.data.size_bytes, 11);
     assert.match(String(result.data.checksum), /^sha256:/);
-    assert.match(String(result.data.storage_url), /^\/api\/collaboration\/media\//);
+    assert.match(String(result.data.storage_url), /^\/api\/ivekit\/chat\/objects\//);
+    assert.doesNotMatch(String(result.data.storage_url), /call-center|MinIO|S3_/i);
 
     const oversized = await routeCollaborationApi(
       pg,
@@ -402,6 +404,37 @@ test('collaboration attachment upload enforces size and returns a pending proces
     assert.equal(statusResult.data.attachment.processing_status, 'ready');
     assert.equal(statusResult.data.attachment.ocr_text, '图片联系电话 13900001111');
     assert.equal(statusResult.data.job.status, 'succeeded');
+
+    const downloadPath = `/api/ivekit/chat/sessions/${session.id}/attachments/${attachmentId}/download`;
+    const downloaded = await routeIveKitChatApi(
+      pg,
+      'GET',
+      downloadPath,
+      new URL(`http://localhost${downloadPath}`),
+      null,
+      '',
+      {
+        'x-api-key': API_KEY,
+        'x-tenant-id': 'tenant-attachment-upload'
+      }
+    ) as { contentType: string; data: Buffer; headers: Record<string, string> };
+    assert.equal(downloaded.contentType, 'image/png');
+    assert.deepEqual(downloaded.data, Buffer.from('image-bytes'));
+    assert.match(downloaded.headers['content-disposition'], /contact\.png/);
+
+    const foreignDownload = await routeIveKitChatApi(
+      pg,
+      'GET',
+      downloadPath,
+      new URL(`http://localhost${downloadPath}`),
+      null,
+      '',
+      {
+        'x-api-key': API_KEY,
+        'x-tenant-id': 'tenant-attachment-foreign'
+      }
+    ) as { status: number };
+    assert.equal(foreignDownload.status, 404);
   } finally {
     restoreEnv(previous);
   }

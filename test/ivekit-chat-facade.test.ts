@@ -108,6 +108,8 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
     assert.equal(result.data.capabilities.cursor_message_history, true);
     assert.equal(result.data.capabilities.attachments, true);
     assert.equal(result.data.capabilities.attachment_upload, true);
+    assert.equal(result.data.capabilities.attachment_upload_progress, true);
+    assert.equal(result.data.capabilities.attachment_download, true);
     assert.equal(result.data.capabilities.attachment_processing, true);
     assert.equal(result.data.capabilities.ocr, false);
     assert.equal(result.data.capabilities.asr, false);
