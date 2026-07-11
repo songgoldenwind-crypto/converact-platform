@@ -4,6 +4,8 @@ import type {
   RemoteToolSession,
   RustDeskClientConfig,
   RustDeskDevice,
+  RustDeskDeviceCommand,
+  RustDeskDeviceCommandStatus,
   RustDeskDisconnectState,
   RustDeskGatewayLaunchPlan,
   RustDeskObservedOperation,
@@ -79,7 +81,11 @@ export interface EndIveKitRustDeskGatewaySessionInput {
   actor_identity: string;
 }
 
-export type IveKitRustDeskGatewayDisconnectState = RustDeskDisconnectState;
+export interface IveKitRustDeskGatewayDisconnectState {
+  required: true;
+  status: RustDeskDeviceCommandStatus | 'unavailable';
+  command: RustDeskDeviceCommand | null;
+}
 
 export interface IveKitRustDeskHttpClient {
   getClientConfig(): Promise<RustDeskClientConfig>;
@@ -99,7 +105,7 @@ export interface IveKitRustDeskHttpClient {
     input?: ListIveKitRustDeskGatewayAuditEventsInput
   ): Promise<RemoteGatewayAuditEvent[]>;
   endGatewaySession(externalId: string, input: EndIveKitRustDeskGatewaySessionInput): Promise<void>;
-  getGatewayDisconnectState(externalId: string): Promise<IveKitRustDeskGatewayDisconnectState>;
+  getGatewayDisconnectState(externalId: string): Promise<RustDeskDisconnectState>;
 }
 
 export class IveKitRustDeskHttpError extends Error {
@@ -248,7 +254,7 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
       );
     },
     async getGatewayDisconnectState(externalId) {
-      const state = await request<IveKitRustDeskGatewayDisconnectState>(
+      const state = await request<RustDeskDisconnectState>(
         'GET',
         `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}/disconnect`
       );

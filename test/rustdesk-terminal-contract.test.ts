@@ -84,9 +84,13 @@ test('RustDesk HTTP client preserves the existing lifecycle and adopts the named
     'registerDevice',
     'startGatewaySession'
   ]);
+  const legacyDisconnect = interfaceBody(clientSource, 'IveKitRustDeskGatewayDisconnectState');
+  assert.match(legacyDisconnect, /required:\s*true/);
+  assert.match(legacyDisconnect, /status:\s*RustDeskDeviceCommandStatus \| 'unavailable'/);
+  assert.match(legacyDisconnect, /command:\s*RustDeskDeviceCommand \| null/);
   assert.match(
     clientSource,
-    /type IveKitRustDeskGatewayDisconnectState = RustDeskDisconnectState/
+    /getGatewayDisconnectState\(externalId: string\): Promise<RustDeskDisconnectState>/
   );
 });
 
@@ -137,8 +141,10 @@ test('RustDesk public docs link the frozen matrix and explain capability truth s
     assert.match(doc, /observed/);
     assert.match(doc, /not_observed/);
     assert.match(doc, /top-level `operation_id`[^.。\n]*authoritative/);
-    assert.match(doc, /IveKitRustDeskGatewayDisconnectState[^.。\n]*type alias/);
-    assert.match(doc, /TypeScript source-compatibility risk/);
+    assert.match(doc, /IveKitRustDeskGatewayDisconnectState[^.。\n]*interface/);
+    assert.match(doc, /declaration merging/);
+    assert.match(doc, /extends consumers/);
+    assert.doesNotMatch(doc, /TypeScript source-compatibility risk/);
     assert.match(doc, /base URL[^.。\n]*root[^.。\n]*path/);
     assert.match(doc, /`launch_url`[^。\n]*opaque/);
     assert.doesNotMatch(doc, /不接收[^。\n]*signed launch token/);

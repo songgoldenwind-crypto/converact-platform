@@ -1111,9 +1111,10 @@ evidence ref。The top-level `operation_id` is authoritative; evidence metadata 
 `RustDeskOperationEvidenceMetadata` 只允许 external/provider ID、direction、display ID、byte count、SHA-256 checksum、duration、reason 和 status
 detail，不提供任意键，也不允许内容、路径、凭据或 token 字段。
 
-`IveKitRustDeskGatewayDisconnectState` remains a named type alias because a TypeScript interface
-cannot extend the required discriminated union. This is a deliberate TypeScript source-compatibility risk
-for consumers that extended the former interface; use an intersection type instead. Runtime fields and methods remain compatible.
+`IveKitRustDeskGatewayDisconnectState` remains an exported compatibility interface for declaration merging and
+extends consumers, with the original `required` / `status` / `command` fields. `getGatewayDisconnectState()`
+and the runtime projector return the strict `RustDeskDisconnectState` union, which is structurally assignable
+to that interface; compatibility does not weaken the strict state invariants.
 
 The SDK and static-pack base URL must be an HTTP(S) origin root; any non-root path is rejected
 because absolute API paths would otherwise discard it.

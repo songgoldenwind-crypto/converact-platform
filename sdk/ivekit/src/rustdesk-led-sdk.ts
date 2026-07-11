@@ -4,6 +4,7 @@ import type {
   RemoteToolSession,
   RustDeskClientConfig,
   RustDeskDevice,
+  RustDeskDisconnectState,
   RustDeskGatewayLaunchPlan
 } from './types.js';
 import {
@@ -11,7 +12,6 @@ import {
   type IveKitRustDeskBusinessRefInput,
   type IveKitRustDeskFetch,
   type IveKitRustDeskHttpClient,
-  type IveKitRustDeskGatewayDisconnectState,
   type RecordIveKitRustDeskGatewayEventInput,
   type ListIveKitRustDeskGatewayAuditEventsInput,
   type EndIveKitRustDeskGatewaySessionInput
@@ -108,7 +108,7 @@ export interface IveKitRustDeskLedSdk {
     input?: ListIveKitRustDeskGatewayAuditEventsInput
   ): Promise<RemoteGatewayAuditEvent[]>;
   endGatewaySession(externalId: string, input: EndIveKitRustDeskGatewaySessionInput): Promise<void>;
-  getGatewayDisconnectState(externalId: string): Promise<IveKitRustDeskGatewayDisconnectState>;
+  getGatewayDisconnectState(externalId: string): Promise<RustDeskDisconnectState>;
 }
 
 export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): IveKitRustDeskLedSdk {

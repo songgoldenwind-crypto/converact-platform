@@ -4,6 +4,9 @@ import type {
   RustDeskOperationEvidence,
   RustDeskOperationObservedEvidence
 } from '../../sdk/ivekit/src/types.js';
+import type {
+  IveKitRustDeskGatewayDisconnectState
+} from '../../sdk/ivekit/src/rustdesk-http-client.js';
 
 const reference = {
   type: 'operator_report',
@@ -165,6 +168,19 @@ const notObservedDisconnect: RustDeskDisconnectState = {
   observed: disconnectNotObserved
 };
 
+interface ExtendedDisconnectState extends IveKitRustDeskGatewayDisconnectState {
+  consumer_label: string;
+}
+
+const extendedDisconnectState: ExtendedDisconnectState = {
+  required: true,
+  status: 'succeeded',
+  command: disconnectCommand,
+  consumer_label: 'consumer-compatible'
+};
+
+const strictDisconnectAsLegacy: IveKitRustDeskGatewayDisconnectState = observedDisconnect;
+
 // @ts-expect-error unavailable disconnect state cannot carry a command
 const invalidUnavailableCommand: RustDeskDisconnectState = {
   required: true,
@@ -210,5 +226,6 @@ void [notObserved, observed, invalidNotObservedObserver, invalidNotObservedTimes
   invalidNotObservedReference, invalidObservedObserver, invalidObservedTimestamp,
   invalidObservedReferences, invalidMetadata, duplicateOperationMetadata, unavailableDisconnect, succeededDisconnect,
   observedDisconnect, observedConnected, notObservedDisconnect, invalidUnavailableCommand, invalidConcreteWithoutCommand,
+  extendedDisconnectState, strictDisconnectAsLegacy,
   invalidCommandStatus, invalidObservedWithoutEvidence, invalidObservedOperation,
   invalidDisconnectedFailure, invalidConnectedSuccess, invalidNotObservedSuccess];
