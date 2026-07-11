@@ -291,8 +291,8 @@ test('message state avoids capped chat snapshots and uses stable message orderin
   assert.doesNotMatch(stateSource, /limit:\s*10_000/);
   assert.match(stateSource, /SELECT id, sender_identity, deleted_at FROM collaboration_messages/);
   assert.match(collaborationSource, /ORDER BY created_at ASC, id ASC/);
-  assert.match(collaborationSource, /provider_delivery_status, current_body\)/);
-  assert.match(collaborationSource, /\$13, \$14, \$15, \$6\)/);
+  assert.match(collaborationSource, /provider_delivery_status, current_body,/);
+  assert.match(collaborationSource, /\$13, \$14, \$15, \$6, \$16, \$17, \$18\)/);
 });
 
 test('message state migration defines receipt uniqueness and forced tenant RLS', () => {

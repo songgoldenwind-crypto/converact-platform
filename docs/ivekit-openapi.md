@@ -207,8 +207,16 @@ Client plan 请求：
 | POST | `/api/ivekit/chat/sessions/:session_id/messages` | 本地事务 + policy + durable provider delivery |
 | GET | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery` | delivery 状态和 attempt history |
 | POST | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery/retry` | 对到期 work 做 lease 保护的重试 |
+| GET | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/reactions` | reaction 列表和 emoji 聚合计数 |
+| PUT | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/reactions/:emoji` | 当前认证参与人幂等添加 reaction |
+| DELETE | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/reactions/:emoji` | 当前认证参与人幂等移除 reaction |
+| GET | `/api/ivekit/chat/sessions/:session_id/pins` | 按置顶时间倒序返回 |
+| PUT | `/api/ivekit/chat/sessions/:session_id/pins/:message_id` | 幂等置顶可见消息 |
+| DELETE | `/api/ivekit/chat/sessions/:session_id/pins/:message_id` | 幂等取消置顶 |
 
 分页响应统一为 `{items,next_cursor,has_more}`。会话按 `(created_at,id)` 倒序；消息页内始终按时间正序返回，`before` 从最新消息向历史加载，`after` 从最早消息向前收敛。游标是不可解释的版本化 token，并绑定资源和方向；客户端不得解析、修改或跨会话复用。`after` 页在暂时追平时仍返回高水位 `next_cursor`，此时用 `has_more=false` 表示当前没有更多消息，后续可持该游标继续增量请求。仅带 `limit` 的旧消息请求仍返回数组，供现有集成平滑迁移；新客户端应调用 SDK 的 `listMessagesPage()`。
+
+消息创建可带 `reply_to_message_id`、`forwarded_from_message_id` 和去重后的 `mentions`。关系目标必须是同租户、同会话且未删除的消息，mention 必须是当前活跃参与人。服务端只保存目标 ID，不复制被回复消息正文。Reaction 和 pin 写操作始终使用认证身份，忽略客户端伪造身份；变更分别广播 `collaboration.message.reaction_updated` 和 `collaboration.message.pin_updated`。
 
 ```http
 POST /api/ivekit/chat/sessions/collab_xxx/messages
@@ -321,6 +329,8 @@ Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collabo
 | `collaboration.presence.updated` | presence TTL 更新 |
 | `collaboration.message.edited` | 当前正文/version 更新 |
 | `collaboration.message.deleted` | 软删除更新 |
+| `collaboration.message.reaction_updated` | reaction 列表和聚合计数变化 |
+| `collaboration.message.pin_updated` | pin 列表变化 |
 | `collaboration.attachment.processed` | OCR/ASR 回填完成 |
 | `collaboration.quality_review.completed` | AI job 完成 |
 | `collaboration.policy.finding_reviewed` | 人审状态迁移 |

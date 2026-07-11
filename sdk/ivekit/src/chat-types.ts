@@ -118,9 +118,9 @@ export interface IveKitChatMessage {
   deleted_at: string | null;
   deleted_by: string;
   created_at: string;
-  reply_to_message_id?: string | null;
-  forwarded_from_message_id?: string | null;
-  mentions?: string[];
+  reply_to_message_id: string | null;
+  forwarded_from_message_id: string | null;
+  mentions: string[];
   reactions?: IveKitChatReaction[];
   pinned?: boolean;
 }
@@ -224,6 +224,9 @@ export interface IveKitPolicyFindingReview {
 }
 
 export interface IveKitChatReaction {
+  id: string;
+  tenant_id: string;
+  session_id: string;
   message_id: string;
   identity: string;
   emoji: string;
@@ -231,10 +234,25 @@ export interface IveKitChatReaction {
 }
 
 export interface IveKitChatPin {
+  id: string;
+  tenant_id: string;
   session_id: string;
   message_id: string;
   pinned_by: string;
   created_at: string;
+}
+
+export interface IveKitChatReactionResult {
+  session_id: string;
+  message_id: string;
+  reactions: IveKitChatReaction[];
+  counts: Record<string, number>;
+}
+
+export interface IveKitChatPinResult {
+  session_id: string;
+  message_id?: string;
+  pins: IveKitChatPin[];
 }
 
 export interface IveKitCursorPage<T = unknown> {

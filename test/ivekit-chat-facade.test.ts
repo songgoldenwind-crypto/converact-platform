@@ -120,6 +120,10 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
     assert.equal(result.data.capabilities.message_receipts, true);
     assert.equal(result.data.capabilities.presence, true);
     assert.equal(result.data.capabilities.message_mutation_audit, true);
+    assert.equal(result.data.capabilities.message_relations, true);
+    assert.equal(result.data.capabilities.message_mentions, true);
+    assert.equal(result.data.capabilities.message_reactions, true);
+    assert.equal(result.data.capabilities.message_pins, true);
     assert.equal(result.data.config.provider_configured, true);
     assert.equal(result.data.config.root_auth_configured, true);
     assert.equal(result.data.config.user_provisioning_configured, true);

@@ -32,6 +32,9 @@ export interface TinodeMessageDeliveryInput {
   provider_payload: string;
   policy_text?: string;
   idempotency_key?: string;
+  reply_to_message_id?: string;
+  forwarded_from_message_id?: string;
+  mentions?: string[];
 }
 
 export interface TinodeMessageDeliveryResult {
@@ -125,7 +128,10 @@ export class TinodeMessageDeliveryService {
         provider_topic_id: input.provider_topic_id,
         provider_payload: input.provider_payload,
         provider_metadata: this.gateway.provider === 'local' ? { mode: 'local_mirror' } : {},
-        provider_delivery_status: this.gateway.provider === 'tinode' ? 'pending' : 'not_required'
+        provider_delivery_status: this.gateway.provider === 'tinode' ? 'pending' : 'not_required',
+        reply_to_message_id: input.reply_to_message_id,
+        forwarded_from_message_id: input.forwarded_from_message_id,
+        mentions: input.mentions
       };
       const created = await sessions.postOutgoingMessage(outgoing);
       const policy = created.created
@@ -698,7 +704,10 @@ function deliveryPayloadHash(input: TinodeMessageDeliveryInput): string {
     metadata: input.metadata || {},
     attachments: input.attachments || [],
     provider_topic_id: input.provider_topic_id,
-    provider_payload: input.provider_payload
+    provider_payload: input.provider_payload,
+    reply_to_message_id: input.reply_to_message_id || '',
+    forwarded_from_message_id: input.forwarded_from_message_id || '',
+    mentions: input.mentions || []
   }));
 }
 

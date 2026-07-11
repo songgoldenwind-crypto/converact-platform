@@ -57,7 +57,11 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       presence: true,
       message_edit: true,
       message_soft_delete: true,
-      message_mutation_audit: true
+      message_mutation_audit: true,
+      message_relations: true,
+      message_mentions: true,
+      message_reactions: true,
+      message_pins: true
     },
     config: {
       provider_configured: providerConfigured,
@@ -163,6 +167,20 @@ function collaborationPathForIveKitChat(routePath: string): string {
   );
   if (mutationHistoryMatch) {
     return `/api/collaboration/sessions/${mutationHistoryMatch[1]}/messages/${mutationHistoryMatch[2]}/mutations`;
+  }
+
+  const reactionMatch = routePath.match(
+    /^\/api\/ivekit\/chat\/sessions\/([^/]+)\/messages\/([^/]+)\/reactions(?:\/([^/]+))?$/
+  );
+  if (reactionMatch) {
+    const suffix = reactionMatch[3] ? `/${reactionMatch[3]}` : '';
+    return `/api/collaboration/sessions/${reactionMatch[1]}/messages/${reactionMatch[2]}/reactions${suffix}`;
+  }
+
+  const pinMatch = routePath.match(/^\/api\/ivekit\/chat\/sessions\/([^/]+)\/pins(?:\/([^/]+))?$/);
+  if (pinMatch) {
+    const suffix = pinMatch[2] ? `/${pinMatch[2]}` : '';
+    return `/api/collaboration/sessions/${pinMatch[1]}/pins${suffix}`;
   }
 
   const messageMutationMatch = routePath.match(

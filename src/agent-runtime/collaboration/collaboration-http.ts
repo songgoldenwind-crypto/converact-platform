@@ -1739,6 +1739,75 @@ export async function routeCollaborationApi(
     return { data: sessions };
   }
 
+  const reactionMatch = routePath.match(
+    /^\/api\/collaboration\/sessions\/([^/]+)\/messages\/([^/]+)\/reactions(?:\/([^/]+))?$/
+  );
+  if (reactionMatch && ['GET', 'PUT', 'DELETE'].includes(method)) {
+    const sessionId = decodeURIComponent(reactionMatch[1]);
+    const messageId = decodeURIComponent(reactionMatch[2]);
+    const emoji = reactionMatch[3] ? decodeURIComponent(reactionMatch[3]) : '';
+    const collaboration = await module.sessions.getSession(sessionId);
+    if (!collaboration || collaboration.tenant_id !== ctx.tenantId) {
+      return { status: 404, data: { error: 'collaboration session not found' } };
+    }
+    if (method !== 'GET' && !emoji) return { status: 400, data: { error: 'emoji is required' } };
+    const actorIdentity = collaborationActorIdentity(ctx, headers);
+    const reactions = method === 'PUT'
+      ? await module.sessions.addReaction({
+        tenant_id: ctx.tenantId,
+        session_id: sessionId,
+        message_id: messageId,
+        identity: actorIdentity,
+        emoji
+      })
+      : method === 'DELETE'
+        ? await module.sessions.removeReaction({
+          tenant_id: ctx.tenantId,
+          session_id: sessionId,
+          message_id: messageId,
+          identity: actorIdentity,
+          emoji
+        })
+        : await module.sessions.listReactions({
+          tenant_id: ctx.tenantId,
+          session_id: sessionId,
+          message_id: messageId
+        });
+    const payload = { session_id: sessionId, message_id: messageId, reactions, counts: reactionCounts(reactions) };
+    if (method !== 'GET') wsBroadcast(ctx.tenantId, 'collaboration.message.reaction_updated', payload);
+    return { status: method === 'PUT' ? 201 : 200, data: payload };
+  }
+
+  const pinMatch = routePath.match(/^\/api\/collaboration\/sessions\/([^/]+)\/pins(?:\/([^/]+))?$/);
+  if (pinMatch && ['GET', 'PUT', 'DELETE'].includes(method)) {
+    const sessionId = decodeURIComponent(pinMatch[1]);
+    const messageId = pinMatch[2] ? decodeURIComponent(pinMatch[2]) : '';
+    const collaboration = await module.sessions.getSession(sessionId);
+    if (!collaboration || collaboration.tenant_id !== ctx.tenantId) {
+      return { status: 404, data: { error: 'collaboration session not found' } };
+    }
+    if (method !== 'GET' && !messageId) return { status: 400, data: { error: 'message_id is required' } };
+    const actorIdentity = collaborationActorIdentity(ctx, headers);
+    const pins = method === 'PUT'
+      ? await module.sessions.pinMessage({
+        tenant_id: ctx.tenantId,
+        session_id: sessionId,
+        message_id: messageId,
+        identity: actorIdentity
+      })
+      : method === 'DELETE'
+        ? await module.sessions.unpinMessage({
+          tenant_id: ctx.tenantId,
+          session_id: sessionId,
+          message_id: messageId,
+          identity: actorIdentity
+        })
+        : await module.sessions.listPins({ tenant_id: ctx.tenantId, session_id: sessionId });
+    const payload = { session_id: sessionId, message_id: messageId || undefined, pins };
+    if (method !== 'GET') wsBroadcast(ctx.tenantId, 'collaboration.message.pin_updated', payload);
+    return { status: method === 'PUT' ? 201 : 200, data: payload };
+  }
+
   const messageDeliveryMatch = routePath.match(
     /^\/api\/collaboration\/sessions\/([^/]+)\/messages\/([^/]+)\/delivery(?:\/(retry))?$/
   );
@@ -2332,7 +2401,12 @@ export async function routeCollaborationApi(
         provider_topic_id: binding.provider_topic_id,
         provider_payload: providerMessageBody(messageType, bodyText, attachments),
         policy_text: policyScanText(bodyText, attachments),
-        idempotency_key: headerValue(headers, 'idempotency-key') || String(input.idempotency_key || '')
+        idempotency_key: headerValue(headers, 'idempotency-key') || String(input.idempotency_key || ''),
+        reply_to_message_id: input.reply_to_message_id ? String(input.reply_to_message_id) : undefined,
+        forwarded_from_message_id: input.forwarded_from_message_id
+          ? String(input.forwarded_from_message_id)
+          : undefined,
+        mentions: stringArray(input.mentions)
       });
       const processingJobs = await attachmentProcessingService(requirePg(pg), options)
         .enqueueMessage(result.message);
@@ -2704,4 +2778,10 @@ export async function routeCollaborationApi(
 
 function optionalQueryNumber(value: string | null): number | undefined {
   return value == null || value === '' ? undefined : Number(value);
+}
+
+function reactionCounts(reactions: Array<{ emoji: string }>): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const reaction of reactions) counts[reaction.emoji] = (counts[reaction.emoji] || 0) + 1;
+  return counts;
 }

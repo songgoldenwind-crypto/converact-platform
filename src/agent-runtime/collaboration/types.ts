@@ -215,6 +215,28 @@ export interface CollaborationMessage {
   deleted_at: string | null;
   deleted_by: string;
   created_at: string;
+  reply_to_message_id: string | null;
+  forwarded_from_message_id: string | null;
+  mentions: string[];
+}
+
+export interface CollaborationMessageReaction {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  message_id: string;
+  identity: string;
+  emoji: string;
+  created_at: string;
+}
+
+export interface CollaborationMessagePin {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  message_id: string;
+  pinned_by: string;
+  created_at: string;
 }
 
 export type CollaborationMessageMutationAction = 'edit' | 'delete';

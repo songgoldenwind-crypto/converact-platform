@@ -39,6 +39,8 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('collaboration_message_receipts');
     this.ensureTable('collaboration_participant_realtime_state');
     this.ensureTable('collaboration_message_mutations');
+    this.ensureTable('collaboration_message_reactions');
+    this.ensureTable('collaboration_message_pins');
     this.ensureTable('collaboration_message_attachments');
     this.ensureTable('collaboration_attachment_processing_jobs');
     this.ensureTable('collaboration_message_translations');
@@ -513,6 +515,9 @@ export class MemoryPg implements PgQueryable {
         edited_at: null,
         deleted_at: null,
         deleted_by: '',
+        reply_to_message_id: params[15] || null,
+        forwarded_from_message_id: params[16] || null,
+        mentions: params[17] || '[]',
         created_at: createdAt
       };
       this.table('collaboration_messages').set(String(row.id), row);
@@ -586,6 +591,73 @@ export class MemoryPg implements PgQueryable {
           sender_identity: row.sender_identity,
           deleted_at: row.deleted_at
         }));
+    }
+
+    if (sql.startsWith('INSERT INTO collaboration_message_reactions')) {
+      const key = `${params[1]}:${params[3]}:${params[4]}:${params[5]}`;
+      if (!this.table('collaboration_message_reactions').has(key)) {
+        this.table('collaboration_message_reactions').set(key, {
+          id: params[0],
+          tenant_id: params[1],
+          session_id: params[2],
+          message_id: params[3],
+          identity: params[4],
+          emoji: params[5],
+          created_at: this.nowIso()
+        });
+      }
+      return [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_message_reactions')) {
+      return [...this.table('collaboration_message_reactions').values()]
+        .filter((row) => String(row.tenant_id) === String(params[0]))
+        .filter((row) => String(row.session_id) === String(params[1]))
+        .filter((row) => String(row.message_id) === String(params[2]))
+        .sort(compareRows);
+    }
+
+    if (sql.startsWith('DELETE FROM collaboration_message_reactions')) {
+      for (const [key, row] of this.table('collaboration_message_reactions')) {
+        if (
+          String(row.tenant_id) === String(params[0]) && String(row.session_id) === String(params[1]) &&
+          String(row.message_id) === String(params[2]) && String(row.identity) === String(params[3]) &&
+          String(row.emoji) === String(params[4])
+        ) this.table('collaboration_message_reactions').delete(key);
+      }
+      return [];
+    }
+
+    if (sql.startsWith('INSERT INTO collaboration_message_pins')) {
+      const key = `${params[1]}:${params[2]}:${params[3]}`;
+      if (!this.table('collaboration_message_pins').has(key)) {
+        this.table('collaboration_message_pins').set(key, {
+          id: params[0],
+          tenant_id: params[1],
+          session_id: params[2],
+          message_id: params[3],
+          pinned_by: params[4],
+          created_at: this.nowIso()
+        });
+      }
+      return [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_message_pins')) {
+      return [...this.table('collaboration_message_pins').values()]
+        .filter((row) => String(row.tenant_id) === String(params[0]))
+        .filter((row) => String(row.session_id) === String(params[1]))
+        .sort((a, b) => compareRows(b, a));
+    }
+
+    if (sql.startsWith('DELETE FROM collaboration_message_pins')) {
+      for (const [key, row] of this.table('collaboration_message_pins')) {
+        if (
+          String(row.tenant_id) === String(params[0]) && String(row.session_id) === String(params[1]) &&
+          String(row.message_id) === String(params[2])
+        ) this.table('collaboration_message_pins').delete(key);
+      }
+      return [];
     }
 
     if (sql.startsWith('SELECT COUNT(*) AS unread_count FROM collaboration_messages AS message')) {

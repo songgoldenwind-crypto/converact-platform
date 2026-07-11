@@ -149,15 +149,15 @@ git commit -m "feat(chat): add cursor history"
 - Create: `test/collaboration-im-features.test.ts`
 - Modify: `docs/ivekit-openapi.md`
 
-- [ ] **Step 1: Write failing domain and RLS tests**
+- [x] **Step 1: Write failing domain and RLS tests**
 
 Cover reply target existence, forward source lineage, active-participant mentions, one reaction per `(message,identity,emoji)`, idempotent remove, one session pin per message, pin ordering, soft-deleted target handling, event payloads, and forced tenant RLS.
 
-- [ ] **Step 2: Add schema**
+- [x] **Step 2: Add schema**
 
 Add explicit relation columns to `collaboration_messages`, plus tenant-scoped `collaboration_message_reactions` and `collaboration_message_pins`. Store no duplicated reply plaintext. Add indexes for session/message lookup and FORCE RLS policies.
 
-- [ ] **Step 3: Add HTTP contracts**
+- [x] **Step 3: Add HTTP contracts**
 
 ```text
 POST   /sessions/:id/messages                    reply_to_message_id, forwarded_from_message_id, mentions
@@ -171,11 +171,11 @@ GET    /sessions/:id/pins
 
 All identity-bearing writes use the authenticated user unless system API-key mode explicitly acts on behalf of a user.
 
-- [ ] **Step 4: Emit convergence events**
+- [x] **Step 4: Emit convergence events**
 
 Add `collaboration.message.reaction_updated` and `collaboration.message.pin_updated`. Events contain ids and aggregate counts, never copied message bodies.
 
-- [ ] **Step 5: Update SDK, verify, and commit**
+- [x] **Step 5: Update SDK, verify, and commit**
 
 ```bash
 node --import tsx --test test/collaboration-im-features.test.ts test/db-rls-integration.test.ts

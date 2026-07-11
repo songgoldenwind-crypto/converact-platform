@@ -11,6 +11,8 @@ import type {
   CollaborationMessageAttachment,
   CollaborationMessageAttachmentKind,
   CollaborationMessageAttachmentStatus,
+  CollaborationMessagePin,
+  CollaborationMessageReaction,
   CollaborationMessageTranslation,
   CollaborationParticipant,
   CollaborationParticipantRole,
@@ -49,6 +51,9 @@ export interface CollaborationOutgoingMessageInput {
   provider_payload: string;
   provider_metadata?: Record<string, unknown>;
   provider_delivery_status: CollaborationMessage['provider_delivery']['status'];
+  reply_to_message_id?: string;
+  forwarded_from_message_id?: string;
+  mentions?: string[];
 }
 
 export interface CollaborationOutgoingMessageResult {
@@ -308,6 +313,9 @@ export class CollaborationStore {
     original_language?: string;
     metadata?: Record<string, unknown>;
     attachments?: CollaborationMessageAttachmentInput[];
+    reply_to_message_id?: string;
+    forwarded_from_message_id?: string;
+    mentions?: string[];
   }): Promise<CollaborationMessage> {
     const result = await this.postOutgoingMessage({
       ...input,
@@ -339,13 +347,16 @@ export class CollaborationStore {
         }
       }
 
+      const relations = await this.validateMessageRelations(input);
+
       const messageId = pgId('cmsg');
       const result = await pg.query(
         `INSERT INTO collaboration_messages
           (id, tenant_id, session_id, sender_identity, message_type, body, original_language, metadata,
            idempotency_key, idempotency_payload_hash, provider, provider_topic_id, provider_payload,
-           provider_delivery_metadata, provider_delivery_status, current_body)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $6)
+           provider_delivery_metadata, provider_delivery_status, current_body,
+           reply_to_message_id, forwarded_from_message_id, mentions)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $6, $16, $17, $18)
          ON CONFLICT (tenant_id, session_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING`,
         [
           messageId,
@@ -362,7 +373,10 @@ export class CollaborationStore {
           input.provider_topic_id,
           input.provider_payload,
           toJson(input.provider_metadata || {}),
-          input.provider_delivery_status
+          input.provider_delivery_status,
+          relations.reply_to_message_id,
+          relations.forwarded_from_message_id,
+          toJson(relations.mentions)
         ]
       );
       const created = result.rowCount !== 0;
@@ -516,6 +530,107 @@ export class CollaborationStore {
     };
   }
 
+  async listReactions(input: {
+    tenant_id: string;
+    session_id: string;
+    message_id: string;
+  }): Promise<CollaborationMessageReaction[]> {
+    await this.requireMessageTarget(input);
+    const result = await this.pg.query(
+      `SELECT * FROM collaboration_message_reactions
+       WHERE tenant_id = $1 AND session_id = $2 AND message_id = $3
+       ORDER BY created_at ASC, id ASC`,
+      [input.tenant_id, input.session_id, input.message_id]
+    );
+    return result.rows.map(decodeReaction);
+  }
+
+  async addReaction(input: {
+    tenant_id: string;
+    session_id: string;
+    message_id: string;
+    identity: string;
+    emoji: string;
+  }): Promise<CollaborationMessageReaction[]> {
+    const identity = await this.requireActiveIdentity(input.tenant_id, input.session_id, input.identity);
+    await this.requireMessageTarget(input, true);
+    const emoji = normalizedEmoji(input.emoji);
+    await this.pg.query(
+      `INSERT INTO collaboration_message_reactions
+        (id, tenant_id, session_id, message_id, identity, emoji)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (tenant_id, message_id, identity, emoji) DO NOTHING`,
+      [pgId('cmreact'), input.tenant_id, input.session_id, input.message_id, identity, emoji]
+    );
+    return this.listReactions(input);
+  }
+
+  async removeReaction(input: {
+    tenant_id: string;
+    session_id: string;
+    message_id: string;
+    identity: string;
+    emoji: string;
+  }): Promise<CollaborationMessageReaction[]> {
+    const identity = await this.requireActiveIdentity(input.tenant_id, input.session_id, input.identity);
+    await this.requireMessageTarget(input);
+    await this.pg.query(
+      `DELETE FROM collaboration_message_reactions
+       WHERE tenant_id = $1 AND session_id = $2 AND message_id = $3
+         AND identity = $4 AND emoji = $5`,
+      [input.tenant_id, input.session_id, input.message_id, identity, normalizedEmoji(input.emoji)]
+    );
+    return this.listReactions(input);
+  }
+
+  async listPins(input: {
+    tenant_id: string;
+    session_id: string;
+  }): Promise<CollaborationMessagePin[]> {
+    await this.requireTenantSession(input.tenant_id, input.session_id);
+    const result = await this.pg.query(
+      `SELECT * FROM collaboration_message_pins
+       WHERE tenant_id = $1 AND session_id = $2
+       ORDER BY created_at DESC, id DESC`,
+      [input.tenant_id, input.session_id]
+    );
+    return result.rows.map(decodePin);
+  }
+
+  async pinMessage(input: {
+    tenant_id: string;
+    session_id: string;
+    message_id: string;
+    identity: string;
+  }): Promise<CollaborationMessagePin[]> {
+    const identity = await this.requireActiveIdentity(input.tenant_id, input.session_id, input.identity);
+    await this.requireMessageTarget(input, true);
+    await this.pg.query(
+      `INSERT INTO collaboration_message_pins
+        (id, tenant_id, session_id, message_id, pinned_by)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tenant_id, session_id, message_id) DO NOTHING`,
+      [pgId('cmpin'), input.tenant_id, input.session_id, input.message_id, identity]
+    );
+    return this.listPins(input);
+  }
+
+  async unpinMessage(input: {
+    tenant_id: string;
+    session_id: string;
+    message_id: string;
+    identity: string;
+  }): Promise<CollaborationMessagePin[]> {
+    await this.requireActiveIdentity(input.tenant_id, input.session_id, input.identity);
+    await this.requireMessageTarget(input);
+    await this.pg.query(
+      `DELETE FROM collaboration_message_pins
+       WHERE tenant_id = $1 AND session_id = $2 AND message_id = $3`,
+      [input.tenant_id, input.session_id, input.message_id]
+    );
+    return this.listPins(input);
+  }
+
   async scanPolicy(input: {
     tenant_id: string;
     session_id: string;
@@ -666,6 +781,62 @@ export class CollaborationStore {
     const result = await pg.query('SELECT * FROM collaboration_message_attachments WHERE id = $1', [attachmentId]);
     return decodeAttachment(result.rows[0]);
   }
+
+  private async validateMessageRelations(input: {
+    tenant_id: string;
+    session_id: string;
+    reply_to_message_id?: string;
+    forwarded_from_message_id?: string;
+    mentions?: string[];
+  }): Promise<{
+    reply_to_message_id: string | null;
+    forwarded_from_message_id: string | null;
+    mentions: string[];
+  }> {
+    const replyId = optionalId(input.reply_to_message_id);
+    const forwardId = optionalId(input.forwarded_from_message_id);
+    for (const [field, messageId] of [['reply_to_message_id', replyId], ['forwarded_from_message_id', forwardId]] as const) {
+      if (!messageId) continue;
+      const message = await this.getMessage({ tenant_id: input.tenant_id, message_id: messageId });
+      if (!message || message.session_id !== input.session_id || message.deleted_at) {
+        throw badRequest(`${field} must reference a visible message in the same session`);
+      }
+    }
+    const mentions = [...new Set((input.mentions || []).map((identity) => String(identity).trim()).filter(Boolean))];
+    if (mentions.length > 50) throw badRequest('mentions must contain at most 50 identities');
+    if (mentions.length) {
+      const participants = await this.listParticipants({
+        tenant_id: input.tenant_id,
+        session_id: input.session_id
+      });
+      const active = new Set(participants.filter((participant) => !participant.left_at).map((participant) => participant.identity));
+      if (mentions.some((identity) => !active.has(identity))) {
+        throw badRequest('mentions must reference active session participants');
+      }
+    }
+    return { reply_to_message_id: replyId, forwarded_from_message_id: forwardId, mentions };
+  }
+
+  private async requireActiveIdentity(tenantId: string, sessionId: string, value: string): Promise<string> {
+    const identity = String(value || '').trim();
+    if (!identity) throw badRequest('identity is required');
+    const participants = await this.listParticipants({ tenant_id: tenantId, session_id: sessionId });
+    if (!participants.some((participant) => participant.identity === identity && !participant.left_at)) {
+      throw Object.assign(new Error('active collaboration participant not found'), { status: 404 });
+    }
+    return identity;
+  }
+
+  private async requireMessageTarget(
+    input: { tenant_id: string; session_id: string; message_id: string },
+    requireVisible = false
+  ): Promise<CollaborationMessage> {
+    const message = await this.getMessage({ tenant_id: input.tenant_id, message_id: input.message_id });
+    if (!message || message.session_id !== input.session_id || (requireVisible && message.deleted_at)) {
+      throw Object.assign(new Error('collaboration message not found'), { status: 404 });
+    }
+    return message;
+  }
 }
 
 function assertTenantRef(tenantId: string, ref: BusinessRef): void {
@@ -739,6 +910,27 @@ function normalizedSearch(value: string | undefined): string {
 
 function badRequest(message: string): Error & { status: number } {
   return Object.assign(new Error(message), { status: 400 });
+}
+
+function optionalId(value: string | undefined): string | null {
+  const id = String(value || '').trim();
+  if (id.length > 200) throw badRequest('message relation id is too long');
+  return id || null;
+}
+
+function normalizedEmoji(value: string): string {
+  const emoji = String(value || '').trim();
+  if (!emoji || emoji.length > 64 || /[\r\n]/.test(emoji)) {
+    throw badRequest('emoji must be a single line of at most 64 characters');
+  }
+  return emoji;
+}
+
+function parseStringArray(value: unknown): string[] {
+  const parsed = Array.isArray(value)
+    ? value
+    : parseJson<unknown[]>(String(value || '[]'), []);
+  return parsed.map((item) => String(item).trim()).filter(Boolean);
 }
 
 function toJson(value: unknown): string {
@@ -837,6 +1029,32 @@ function decodeMessage(row: Record<string, unknown>): CollaborationMessage {
     edited_at: row.edited_at ? String(row.edited_at) : null,
     deleted_at: deletedAt,
     deleted_by: String(row.deleted_by || ''),
+    created_at: timestamp(row.created_at),
+    reply_to_message_id: row.reply_to_message_id ? String(row.reply_to_message_id) : null,
+    forwarded_from_message_id: row.forwarded_from_message_id ? String(row.forwarded_from_message_id) : null,
+    mentions: parseStringArray(row.mentions)
+  };
+}
+
+function decodeReaction(row: Record<string, unknown>): CollaborationMessageReaction {
+  return {
+    id: String(row.id),
+    tenant_id: String(row.tenant_id),
+    session_id: String(row.session_id),
+    message_id: String(row.message_id),
+    identity: String(row.identity),
+    emoji: String(row.emoji),
+    created_at: timestamp(row.created_at)
+  };
+}
+
+function decodePin(row: Record<string, unknown>): CollaborationMessagePin {
+  return {
+    id: String(row.id),
+    tenant_id: String(row.tenant_id),
+    session_id: String(row.session_id),
+    message_id: String(row.message_id),
+    pinned_by: String(row.pinned_by),
     created_at: timestamp(row.created_at)
   };
 }

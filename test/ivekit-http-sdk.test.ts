@@ -74,7 +74,8 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
     'createClientPlan', 'addParticipant', 'leaveParticipant', 'listMessages',
     'listMessagesPage', 'postMessage', 'getSnapshot', 'getDelivery', 'retryDelivery', 'listReceipts',
     'markReceipt', 'getMessageState', 'setTyping', 'setPresence', 'listRealtimeState',
-    'editMessage', 'deleteMessage', 'listMutations', 'uploadAttachment', 'getAttachment',
+    'editMessage', 'deleteMessage', 'listMutations', 'listReactions', 'addReaction',
+    'removeReaction', 'listPins', 'pinMessage', 'unpinMessage', 'uploadAttachment', 'getAttachment',
     'retryAttachment', 'listFindings', 'getFinding', 'reviewFinding', 'getQualityReview',
     'enqueueQualityReview', 'runAttachmentProcessing', 'runQualityReview'
   ]) assert.equal(typeof sdk.chat[method], 'function', `missing chat.${method}`);
@@ -135,6 +136,34 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
   }
   assert.equal(calls[7]?.headers['idempotency-key'], 'led-message-1');
   assert.equal(calls[11]?.headers['content-type'], 'image/png');
+});
+
+test('iveKit HTTP SDK maps reaction and pin commands', async () => {
+  const calls: Array<{ method: string; url: string }> = [];
+  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+    baseUrl: 'https://ivekit.example.com',
+    tenantId: 'tenant-rich',
+    accessToken: 'rich-token',
+    fetch: async (input: string | URL, init: RequestInit = {}) => {
+      calls.push({ method: init.method || 'GET', url: String(input) });
+      return Response.json({ reactions: [], counts: {}, pins: [] });
+    }
+  });
+  await sdk.chat.addReaction('session/1', 'message/1', 'thumbs up');
+  await sdk.chat.removeReaction('session/1', 'message/1', 'thumbs up');
+  await sdk.chat.listReactions('session/1', 'message/1');
+  await sdk.chat.pinMessage('session/1', 'message/1');
+  await sdk.chat.unpinMessage('session/1', 'message/1');
+  await sdk.chat.listPins('session/1');
+
+  assert.deepEqual(calls.map((call) => `${call.method} ${new URL(call.url).pathname}`), [
+    'PUT /api/ivekit/chat/sessions/session%2F1/messages/message%2F1/reactions/thumbs%20up',
+    'DELETE /api/ivekit/chat/sessions/session%2F1/messages/message%2F1/reactions/thumbs%20up',
+    'GET /api/ivekit/chat/sessions/session%2F1/messages/message%2F1/reactions',
+    'PUT /api/ivekit/chat/sessions/session%2F1/pins/message%2F1',
+    'DELETE /api/ivekit/chat/sessions/session%2F1/pins/message%2F1',
+    'GET /api/ivekit/chat/sessions/session%2F1/pins'
+  ]);
 });
 
 test('iveKit HTTP SDK exposes cursor session and message history requests', async () => {

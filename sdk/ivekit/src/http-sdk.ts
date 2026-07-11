@@ -22,9 +22,11 @@ import type {
   IveKitChatReceiptListResult,
   IveKitChatReceiptResult,
   IveKitChatRealtimeResult,
+  IveKitChatReactionResult,
   IveKitChatSession,
   IveKitChatSessionListInput,
   IveKitChatSnapshot,
+  IveKitChatPinResult,
   IveKitChatTypingInput,
   IveKitOpenChatSessionInput,
   IveKitCursorPage,
@@ -133,6 +135,12 @@ export interface IveKitChatHttpClient {
     input?: IveKitChatDeleteInput
   ): Promise<IveKitChatMutationResult>;
   listMutations(sessionId: string, messageId: string): Promise<IveKitChatMutationListResult>;
+  listReactions(sessionId: string, messageId: string): Promise<IveKitChatReactionResult>;
+  addReaction(sessionId: string, messageId: string, emoji: string): Promise<IveKitChatReactionResult>;
+  removeReaction(sessionId: string, messageId: string, emoji: string): Promise<IveKitChatReactionResult>;
+  listPins(sessionId: string): Promise<IveKitChatPinResult>;
+  pinMessage(sessionId: string, messageId: string): Promise<IveKitChatPinResult>;
+  unpinMessage(sessionId: string, messageId: string): Promise<IveKitChatPinResult>;
   uploadAttachment(sessionId: string, input: IveKitAttachmentUploadInput): Promise<IveKitChatAttachmentUploadDescriptor>;
   getAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
   retryAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
@@ -433,6 +441,27 @@ function createChatClient(transport: IveKitTransport): IveKitChatHttpClient {
       { body: input }
     ),
     listMutations: (sessionId, messageId) => transport.json('GET', `${messagePath(sessionId, messageId)}/mutations`),
+    listReactions: (sessionId, messageId) => transport.json(
+      'GET',
+      `${messagePath(sessionId, messageId)}/reactions`
+    ),
+    addReaction: (sessionId, messageId, emoji) => transport.json(
+      'PUT',
+      `${messagePath(sessionId, messageId)}/reactions/${pathSegment(emoji, 'emoji')}`
+    ),
+    removeReaction: (sessionId, messageId, emoji) => transport.json(
+      'DELETE',
+      `${messagePath(sessionId, messageId)}/reactions/${pathSegment(emoji, 'emoji')}`
+    ),
+    listPins: (sessionId) => transport.json('GET', `${sessionPath(sessionId)}/pins`),
+    pinMessage: (sessionId, messageId) => transport.json(
+      'PUT',
+      `${sessionPath(sessionId)}/pins/${pathSegment(messageId, 'messageId')}`
+    ),
+    unpinMessage: (sessionId, messageId) => transport.json(
+      'DELETE',
+      `${sessionPath(sessionId)}/pins/${pathSegment(messageId, 'messageId')}`
+    ),
     uploadAttachment: (sessionId, input) => transport.json(
       'POST',
       `${sessionPath(sessionId)}/attachments/upload`,
