@@ -4,8 +4,7 @@ import type {
   RemoteToolSession,
   RustDeskClientConfig,
   RustDeskDevice,
-  RustDeskDeviceCommand,
-  RustDeskDeviceCommandStatus,
+  RustDeskDisconnectState,
   RustDeskGatewayLaunchPlan
 } from './types.js';
 
@@ -73,11 +72,7 @@ export interface EndIveKitRustDeskGatewaySessionInput {
   actor_identity: string;
 }
 
-export interface IveKitRustDeskGatewayDisconnectState {
-  required: true;
-  status: RustDeskDeviceCommandStatus | 'unavailable';
-  command: RustDeskDeviceCommand | null;
-}
+export interface IveKitRustDeskGatewayDisconnectState extends RustDeskDisconnectState {}
 
 export interface IveKitRustDeskHttpClient {
   getClientConfig(): Promise<RustDeskClientConfig>;

@@ -13,6 +13,94 @@ export type RemoteConsentScope =
   | 'transfer_file'
   | 'clipboard';
 
+export type RustDeskTerminalPlatform = 'windows' | 'macos' | 'linux';
+export type RustDeskTerminalArchitecture = 'x86_64' | 'aarch64' | 'x86' | 'armv7';
+
+export interface RustDeskClientVersion {
+  product: 'rustdesk';
+  version: string;
+  channel: 'stable';
+  source: 'terminal_heartbeat' | 'operator_report' | 'unknown';
+  reported_at: string | null;
+}
+
+export interface RustDeskConfiguredFields {
+  id_server_configured: boolean;
+  relay_server_configured: boolean;
+  api_server_configured: boolean;
+  public_key_configured: boolean;
+  server_key_fingerprint: string;
+}
+
+export type RustDeskCapabilityAvailability = 'unknown' | 'available' | 'unavailable';
+
+export interface RustDeskRuntimeCapabilities {
+  source: 'terminal_heartbeat' | 'native_observer' | 'operator_report' | 'unknown';
+  reported_at: string | null;
+  view_screen: RustDeskCapabilityAvailability;
+  control_mouse_keyboard: RustDeskCapabilityAvailability;
+  multi_display: RustDeskCapabilityAvailability;
+  transfer_file: RustDeskCapabilityAvailability;
+  clipboard: RustDeskCapabilityAvailability;
+  record_screen: RustDeskCapabilityAvailability;
+  session_disconnect: RustDeskCapabilityAvailability;
+}
+
+export interface RustDeskPermissionScopes {
+  requested: RemoteConsentScope[];
+  consented: RemoteConsentScope[];
+  granted: RemoteConsentScope[];
+}
+
+export type RustDeskControlOwnershipStatus =
+  | 'unowned'
+  | 'owned'
+  | 'transferring'
+  | 'released'
+  | 'expired';
+
+export interface RustDeskControlOwnership {
+  status: RustDeskControlOwnershipStatus;
+  owner_identity: string | null;
+  lease_expires_at: string | null;
+  version: number;
+  updated_at: string;
+}
+
+export type RustDeskObservedOperation =
+  | RemoteConsentScope
+  | 'multi_display'
+  | 'session_disconnect';
+
+export interface RustDeskOperationEvidenceReference {
+  type: string;
+  ref: string;
+  sha256: string;
+}
+
+export interface RustDeskOperationEvidence {
+  operation_id: string;
+  operation: RustDeskObservedOperation;
+  status: 'not_observed' | 'observed_succeeded' | 'observed_failed';
+  observer: 'none' | 'native_client' | 'edge_adapter' | 'operator' | 'qa';
+  observed_at: string | null;
+  evidence_refs: RustDeskOperationEvidenceReference[];
+  metadata: Record<string, unknown>;
+}
+
+export interface RustDeskTerminalProfile {
+  device_id: string;
+  rustdesk_id: string;
+  platform: RustDeskTerminalPlatform;
+  architecture: RustDeskTerminalArchitecture;
+  client_version: RustDeskClientVersion;
+  configured: RustDeskConfiguredFields;
+  available: RustDeskRuntimeCapabilities;
+  granted: RustDeskPermissionScopes;
+  observed: RustDeskOperationEvidence[];
+  updated_at: string;
+}
+
 export interface RemoteGatewayAuditEvent {
   external_id: string;
   event_type: string;
@@ -42,6 +130,7 @@ export interface RustDeskClientConfig {
     api_server?: string;
     key: string;
   };
+  configured?: RustDeskConfiguredFields;
 }
 
 export interface RustDeskDevice {
@@ -59,6 +148,7 @@ export interface RustDeskDevice {
   created_at: string;
   updated_at: string;
   deactivated_at: string | null;
+  terminal_profile?: RustDeskTerminalProfile;
 }
 
 export type RustDeskDeviceCommandStatus = 'pending' | 'claimed' | 'succeeded' | 'failed';
@@ -96,6 +186,14 @@ export interface RustDeskDeviceCommand {
   updated_at: string;
 }
 
+export interface RustDeskDisconnectState {
+  required: true;
+  status: RustDeskDeviceCommandStatus | 'unavailable';
+  command: RustDeskDeviceCommand | null;
+  observation_status?: 'not_observed' | 'observed_disconnected' | 'observed_connected';
+  observed?: RustDeskOperationEvidence;
+}
+
 export interface RustDeskPhysicalDisconnectSummary {
   required: true;
   command_id?: string;
@@ -121,6 +219,10 @@ export interface RemoteToolSession {
   ended_at: string | null;
   metadata: Record<string, unknown>;
   physical_disconnect?: RustDeskPhysicalDisconnectSummary;
+  permission_scopes?: RustDeskPermissionScopes;
+  control_ownership?: RustDeskControlOwnership;
+  disconnect_state?: RustDeskDisconnectState;
+  operation_evidence?: RustDeskOperationEvidence[];
 }
 
 export interface RustDeskGatewayLaunchPlan {
@@ -156,4 +258,7 @@ export interface RustDeskGatewayLaunchPlan {
   metadata: Record<string, unknown>;
   created_at: string;
   ended_at: string | null;
+  permission_scopes?: RustDeskPermissionScopes;
+  control_ownership?: RustDeskControlOwnership;
+  operation_evidence?: RustDeskOperationEvidence[];
 }

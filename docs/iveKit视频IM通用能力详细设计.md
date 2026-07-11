@@ -1075,6 +1075,46 @@ RustDesk 推荐传内部注册设备 ID：
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/progress`
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/result`
 
+#### 真实终端契约冻结
+
+M4 真实终端 V1 不重新实现 RustDesk data plane。RustDesk OSS native client 继续
+负责画面、键鼠、多显示器、文件传输、剪贴板和客户端录屏；iveKit 只负责 tenant
+identity、business binding、device/session state、consent、permission scope、signed
+launch plan、control ownership、disconnect state、audit 和 evidence。
+
+SDK 使用命名 DTO 固定边界：`RustDeskTerminalProfile`、
+`RustDeskTerminalPlatform`、`RustDeskTerminalArchitecture`、
+`RustDeskClientVersion`、`RustDeskConfiguredFields`、
+`RustDeskRuntimeCapabilities`、`RustDeskPermissionScopes`、
+`RustDeskControlOwnership`、`RustDeskDisconnectState` 和
+`RustDeskOperationEvidence`。现有 RustDesk SDK 方法和 response 字段全部保留；DTO
+只通过 optional additive 字段接入现有 device/session/launch/disconnect/audit shape，
+不创建平行 store 或假 endpoint。
+
+每个 terminal profile 分开表达 `configured`、`available`、`granted`、`observed`：
+
+1. `configured` 只说明 ID/relay/API/public-key 配置及 server key fingerprint 已知。
+2. `available` 只说明 runtime heartbeat/native observer/operator report 给出的能力状态；无报告为 `unknown`。
+3. `granted` 只说明 requested scope 已被 active consent 和 iveKit policy 收窄授权。
+4. `observed` 必须来自 native/edge/operator/QA 的单项真实观察；缺少观察时固定为 `not_observed`。
+
+这四层禁止互相推导成功。配置齐全、客户端报告 available、scope granted、HTTP 2xx、
+拿到 launch URL、edge wrapper 退出码为 0 或 disconnect command 为 `succeeded`，都不
+等于操作者已看到屏幕、键鼠已生效、文件校验一致、剪贴板已同步、录屏可播放或终端
+已物理断开。每项真实行为需要独立 operation evidence，且只允许 metadata、checksum
+和 evidence ref；禁止收录屏幕像素、键盘输入、文件内容、剪贴板内容或录屏字节。
+
+V1 支持窗口和 Windows/macOS/Linux 限制见
+[RustDesk client/server 版本矩阵](rustdesk-client-version-matrix.md)。矩阵固定
+`rustdesk-server:1.1.15` 与 RustDesk OSS client `1.4.7`；真实终端证据尚未执行的
+能力保持 `not_run`，不得用 mock、controlled E2E 或配置检查替代。
+
+浏览器使用短期 Bearer token，不接收 API key、private key、edge signing secret、
+无人值守密码或 raw service credential。`launch_url` 必须作为 opaque、短期
+capability 使用；其中的 signed token 不得拆出展示、写日志或持久化。
+`@opc/ivekit-sdk` 只依赖 Web Platform API，不包含 OPC server source；服务端 API
+key 只能停留在可信后端。
+
 认证 Header 与 OPC 平台接口保持一致：
 
 ```http

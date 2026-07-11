@@ -435,6 +435,43 @@ RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveK
 | DELETE | `/api/ivekit/rustdesk/gateway-sessions/:external_id` | 结束控制面会话并触发物理断开命令 |
 | GET | `/api/ivekit/rustdesk/gateway-sessions/:external_id/disconnect` | pending/succeeded/failed/unavailable |
 
+### 4.1 真实终端 DTO 与能力事实
+
+SDK 在 `sdk/ivekit/src/types.ts` 导出 `RustDeskTerminalProfile`、
+`RustDeskTerminalPlatform`、`RustDeskTerminalArchitecture`、
+`RustDeskClientVersion`、`RustDeskConfiguredFields`、
+`RustDeskRuntimeCapabilities`、`RustDeskPermissionScopes`、
+`RustDeskControlOwnership`、`RustDeskDisconnectState` 和
+`RustDeskOperationEvidence`。现有 `RustDeskClientConfig`、`RustDeskDevice`、
+`RemoteToolSession`、`RustDeskGatewayLaunchPlan`、原 response 字段和 HTTP client
+方法保持不变；新增 profile/scope/ownership/disconnect/evidence 字段均为 additive
+optional contract，旧服务响应和旧调用方继续兼容。
+
+终端能力不能用一个 `ready` 布尔值表达，必须保留四个互不替代的状态：
+
+| 字段 | 含义 |
+| --- | --- |
+| `configured` | ID/relay/API/public-key 字段是否完成配置，以及 server key fingerprint；只表示配置存在 |
+| `available` | heartbeat/native observer/operator report 报告的 runtime capability；缺失为 `unknown` |
+| `granted` | requested scope 经 active consent 和 iveKit policy 收窄后的授权集合 |
+| `observed` | native/edge/operator/QA 对单项操作的独立观察；没有真实观察必须是 `not_observed` |
+
+`configured=true`、`available`、`granted`、HTTP 2xx、launch plan 或断开命令
+`succeeded` 都不能自动生成 `observed_succeeded`。屏幕、键鼠、多显示器、文件、
+剪贴板、录屏和物理断开分别需要自己的 observation/evidence；一个操作的证据不能
+替代另一个操作。operation evidence 只保存 metadata、checksum 和 evidence ref，
+不保存屏幕像素、键盘输入、文件内容、剪贴板内容或录屏字节。
+
+支持的 RustDesk OSS server/client/platform/architecture 组合冻结在
+[RustDesk 客户端版本矩阵](rustdesk-client-version-matrix.md)。矩阵中的
+`not_run` 不能由本地配置、mock、controlled E2E 或 wrapper exit code 改写。
+
+浏览器只使用短期 Bearer token，不接收 iveKit API key、private key、edge signing
+secret、无人值守密码或 raw service credential。`launch_url` 必须作为 opaque、短期
+capability 使用；其中的 signed token 不得拆出展示、写日志或持久化。可信后端可以
+使用 API key，但不得转发给浏览器。SDK 只依赖 Web Platform API，不导入 OPC server
+source 或 Node-only module。
+
 设备 claim/progress/result 路径只允许设备绑定 edge token，不属于 LED 普通前端/API key 的调用面。完整 scope、事件和验收规则见 RustDesk 专项设计。
 
 Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collaboration/*`；在独立服务抽离前由 iveKit session bundle/详细设计统一说明，不应与 RustDesk 系统级远控混为一类。
