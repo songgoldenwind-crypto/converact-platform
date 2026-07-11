@@ -7,7 +7,6 @@ import type {
   IveKitMediaModerationResult
 } from '@opc/ivekit-sdk';
 import { LiveKitClientAdapter } from './livekit-adapter.js';
-import type { LiveKitRoomLike } from './livekit-adapter.js';
 import {
   initialMediaCallState,
   isTerminalStatus,
@@ -17,14 +16,9 @@ import {
   type MediaLocalState
 } from './media-reducer.js';
 import type { LiveKitRoomAdapter, MediaAdapterEvent } from './types.js';
+import { openAuthenticatedWebSocket } from '../websocket-auth.js';
 
 export type MediaAdapterFactory = (onEvent: (event: MediaAdapterEvent) => void) => LiveKitRoomAdapter;
-
-declare global {
-  interface Window {
-    __IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__?: () => LiveKitRoomLike;
-  }
-}
 
 export interface UseMediaCallInput {
   client: IveKitClient | null;
@@ -226,7 +220,11 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     room = adapterFactory.current((event) => {
       if (!active || !isCurrent(operationId, room, requestId, adapter)) return;
       dispatch({ type: 'adapter_event', generation: event.generation, event });
-      if (event.type === 'state' && event.state === 'connected' && snapshot.current?.call.status === 'accepted') {
+      if (event.type === 'state' && event.state === 'connected' &&
+          snapshot.current?.call.status === 'accepted' &&
+          snapshot.current.participants.some((participant) =>
+            participant.identity === input.identity && participant.role === 'host' && participant.status !== 'removed'
+          )) {
         void transitionCurrent.current('activate').catch(() => undefined);
       }
     });
@@ -275,9 +273,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
   useEffect(() => {
     if (!input.websocketUrl || !input.accessToken || !input.callId) return;
     const operationId = requestId.current;
-    const url = new URL(input.websocketUrl);
-    url.searchParams.set('token', input.accessToken);
-    const socket = new WebSocket(url);
+    const socket = openAuthenticatedWebSocket(input.websocketUrl, input.accessToken);
     socket.onmessage = (message) => {
       if (requestId.current !== operationId) return;
       try {
@@ -392,11 +388,7 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
 }
 
 function defaultAdapterFactory(onEvent: (event: MediaAdapterEvent) => void): LiveKitRoomAdapter {
-  const development = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV;
-  const roomFactory = development && typeof window !== 'undefined'
-    ? window.__IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__
-    : undefined;
-  return new LiveKitClientAdapter({ onEvent, ...(roomFactory ? { roomFactory } : {}) });
+  return new LiveKitClientAdapter({ onEvent });
 }
 
 function defaultRandomId(): string {

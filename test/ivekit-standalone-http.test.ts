@@ -449,6 +449,7 @@ test('standalone iveKit server injects standalone media hooks', async (t) => {
         assert.equal(typeof options.onRecordingDeleted, 'function');
         assert.equal(typeof options.onRecordingAudit, 'function');
         assert.equal(typeof options.resolveRecordingObject, 'function');
+        assert.equal(typeof options.resolveRecordingObjectStream, 'function');
         assert.equal(typeof options.deleteRecordingObject, 'function');
         return { data: { hooks: true } };
       },

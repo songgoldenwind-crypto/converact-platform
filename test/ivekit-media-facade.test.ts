@@ -6,6 +6,7 @@ import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
 import { createLiveKitMediaModule } from '../src/agent-runtime/livekit/index.js';
 import { createDatabase } from '../src/db.js';
 import { createServer as createOpcServer } from '../src/http.js';
+import { signAccessToken } from '../src/middleware/auth.js';
 import { createTenant } from '../src/platform/tenant-core.js';
 
 const API_KEY = 'test-ivekit-media-key';
@@ -248,6 +249,30 @@ test('iveKit media facade keeps rooms tenant scoped', async () => {
     /media room not found/
   );
   db.close();
+});
+
+test('legacy room join is system-only so JWT users cannot mint arbitrary identities or agent roles', async () => {
+  const envSnapshot = snapshotEnv(['OPC_API_KEY', 'OPC_JWT_SECRET', ...LIVEKIT_ENV_KEYS]);
+  process.env.OPC_API_KEY = API_KEY;
+  process.env.OPC_JWT_SECRET = 'ivekit-media-facade-jwt-secret';
+  clearLiveKitEnv();
+  const db = createDatabase(':memory:');
+  const tenantId = createTenant(db, { name: 'Legacy join tenant' }).id;
+  try {
+    await route(db, 'POST', '/api/ivekit/media/rooms', {
+      room_name: 'legacy-system-room', purpose: 'video_service'
+    }, authHeaders(tenantId));
+    const token = signAccessToken({ sub: 'member-1', tid: tenantId, role: 'operator' });
+    await assert.rejects(
+      () => route(db, 'POST', '/api/ivekit/media/rooms/legacy-system-room/join', {
+        identity: 'forged-host', role: 'agent', channel: 'webrtc'
+      }, { authorization: `Bearer ${token}` }),
+      (error: any) => error.status === 403 && /system role required/i.test(error.message)
+    );
+  } finally {
+    db.close();
+    restoreEnv(envSnapshot);
+  }
 });
 
 test('iveKit media facade accepts LiveKit webhook raw bodies without platform auth', async () => {

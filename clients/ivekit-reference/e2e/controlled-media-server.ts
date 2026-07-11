@@ -57,10 +57,14 @@ export async function startControlledMediaServer(): Promise<ControlledMediaServe
       json(response, Number((cause as { status?: number }).status || 500), { error: errorMessage(cause) });
     });
   });
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({
+    noServer: true,
+    handleProtocols: (protocols) => protocols.has('ivekit.v1') ? 'ivekit.v1' : false
+  });
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url || '/', 'http://localhost');
-    if (url.pathname !== '/events' || !url.searchParams.get('token')) {
+    const protocols = String(request.headers['sec-websocket-protocol'] || '');
+    if (url.pathname !== '/events' || !protocols.split(',').some((value) => value.trim().startsWith('ivekit.jwt.'))) {
       socket.destroy();
       return;
     }
@@ -299,6 +303,7 @@ function applyTransition(value: ControlledCall, action: string, identity: string
     return;
   }
   if (action === 'activate' && value.call.status === 'accepted') {
+    if (actor.role !== 'host') throw statusError(403, 'host required');
     value.call.status = 'active';
     value.call.started_at = new Date().toISOString();
     for (const participant of value.participants) if (participant.status !== 'removed') participant.status = 'joined';
@@ -334,7 +339,7 @@ function recordingDto(value: ControlledCall, sequence: number, status: string): 
     business_ref: value.call.business_ref,
     source: 'livekit_egress',
     format: 'webm',
-    storage_url: 's3://controlled/never-render',
+    evidence_record_id: `evidence-${sequence}`,
     duration_ms: null,
     file_size_bytes: null,
     has_video: 1,

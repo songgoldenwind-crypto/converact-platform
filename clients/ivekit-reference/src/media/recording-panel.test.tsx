@@ -137,7 +137,7 @@ function item(status: IveKitMediaRecording['status']): IveKitMediaRecording {
   return {
     id: 'recording-1', tenant_id: 'tenant-1', call_session_id: '', media_call_id: 'call-1', room_name: 'room-1',
     business_ref_type: 'order', business_ref_id: 'order-1', business_ref: { type: 'order', id: 'order-1', metadata: {} },
-    source: 'livekit_egress', format: 'mp4', storage_url: 's3://secret/never-render', duration_ms: 5_000,
+    source: 'livekit_egress', format: 'mp4', duration_ms: 5_000,
     file_size_bytes: 42, has_video: 1, egress_id: 'egress-1', status, retention_until: '2027-01-01T00:00:00Z',
     object_status: status === 'completed' ? 'readable' : 'unchecked', object_checked_at: null, failure_code: '',
     completed_at: status === 'completed' ? '2026-07-12T00:01:00Z' : null, deleted_at: null,

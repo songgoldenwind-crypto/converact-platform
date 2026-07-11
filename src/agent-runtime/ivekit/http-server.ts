@@ -133,7 +133,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         return;
       }
       if (typeof output.contentType === 'string') {
-        send(
+        await send(
           response,
           Number.isInteger(output.status) ? Number(output.status) : 200,
           output.data,
@@ -268,19 +268,36 @@ function sendJson(response: import('node:http').ServerResponse, status: number, 
   send(response, status, JSON.stringify(data), 'application/json; charset=utf-8');
 }
 
-function send(
+async function send(
   response: import('node:http').ServerResponse,
   status: number,
   data: unknown,
   contentType: string,
   headers: Record<string, string | number | readonly string[]> = {}
-): void {
+): Promise<void> {
   response.writeHead(status, {
     'cache-control': 'no-store',
     ...headers,
     'content-type': contentType
   });
-  response.end(data as string | Buffer | Uint8Array);
+  if (!isAsyncIterable(data)) {
+    response.end(data as string | Buffer | Uint8Array);
+    return;
+  }
+  try {
+    for await (const chunk of data) {
+      if (!response.write(chunk)) {
+        await new Promise<void>((resolve) => response.once('drain', resolve));
+      }
+    }
+    response.end();
+  } catch (error) {
+    response.destroy(error as Error);
+  }
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<Uint8Array> {
+  return Boolean(value) && typeof (value as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function';
 }
 
 function isHeaderRecord(value: unknown): value is Record<string, string | number | readonly string[]> {

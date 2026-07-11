@@ -876,6 +876,7 @@ function migrateCallCenterSchema(db: unknown): void {
       source TEXT NOT NULL CHECK (source IN ('livekit_egress', 'rustpbx_sipflow')),
       format TEXT NOT NULL CHECK (format IN ('mp4', 'webm', 'wav', 'ogg')),
       storage_url TEXT NOT NULL DEFAULT '',
+      evidence_record_id TEXT NOT NULL DEFAULT '',
       duration_ms INTEGER,
       file_size_bytes INTEGER,
       has_video INTEGER NOT NULL DEFAULT 0,
@@ -1045,7 +1046,8 @@ function migrateCallRecordingsBusinessRef(db: unknown): void {
     lifecycleColumns.includes('failure_code') ? null : "ALTER TABLE call_recordings ADD COLUMN failure_code TEXT NOT NULL DEFAULT '';",
     lifecycleColumns.includes('completed_at') ? null : 'ALTER TABLE call_recordings ADD COLUMN completed_at TEXT;',
     lifecycleColumns.includes('deleted_at') ? null : 'ALTER TABLE call_recordings ADD COLUMN deleted_at TEXT;',
-    lifecycleColumns.includes('updated_at') ? null : 'ALTER TABLE call_recordings ADD COLUMN updated_at TEXT;'
+    lifecycleColumns.includes('updated_at') ? null : 'ALTER TABLE call_recordings ADD COLUMN updated_at TEXT;',
+    lifecycleColumns.includes('evidence_record_id') ? null : "ALTER TABLE call_recordings ADD COLUMN evidence_record_id TEXT NOT NULL DEFAULT '';"
   ].filter(Boolean) as string[];
   for (const sql of lifecycleAlters) database.exec(sql);
 
@@ -1057,6 +1059,7 @@ function migrateCallRecordingsBusinessRef(db: unknown): void {
     WHERE business_ref_type = '' AND COALESCE(call_session_id, '') != '';
     CREATE INDEX IF NOT EXISTS idx_call_recordings_session ON call_recordings(call_session_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_call_recordings_media_call ON call_recordings(tenant_id, media_call_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_call_recordings_evidence ON call_recordings(tenant_id, evidence_record_id) WHERE evidence_record_id != '';
     CREATE INDEX IF NOT EXISTS idx_call_recordings_room ON call_recordings(tenant_id, room_name, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_call_recordings_business ON call_recordings(tenant_id, business_ref_type, business_ref_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_call_recordings_retention ON call_recordings(tenant_id, retention_until, status);

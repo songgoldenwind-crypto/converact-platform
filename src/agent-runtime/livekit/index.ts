@@ -61,10 +61,13 @@ export function createLiveKitMediaModule(input: LiveKitMediaModuleInput): LiveKi
         requireOpenRoom(roomName, tenantId);
         return recordings.startRecording(tenantId, callSessionId, roomName, opts);
       },
+      startCallRecording: (tenantId, callSessionId, roomName, opts) =>
+        recordings.startRecording(tenantId, callSessionId, roomName, opts),
       stopRecording: (egressId) => recordings.stopRecording(egressId),
       getRecording: (recordingId) => recordings.getRecording(recordingId),
       getRecordingByEgressId: (egressId) => recordings.getRecordingByEgressId(egressId),
       getRecordingBySession: (callSessionId) => recordings.getRecordingBySession(callSessionId),
+      setEvidenceRecordId: (recordingId, evidenceRecordId) => recordings.setEvidenceRecordId(recordingId, evidenceRecordId),
       listRecordings: (tenantId, opts) => recordings.listRecordings(tenantId, opts),
       listRecordingsPage: (tenantId, opts) => recordings.listRecordingsPage(tenantId, opts),
       inspectObject: (recordingId) => recordings.inspectObject(recordingId),

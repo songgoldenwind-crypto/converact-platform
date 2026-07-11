@@ -13,6 +13,7 @@ import type {
   IveKitPolicyFindingResult,
   IveKitPolicyFindingReviewInput
 } from '@opc/ivekit-sdk';
+import { openAuthenticatedWebSocket } from '../websocket-auth.js';
 import { ChatConvergence } from './convergence.js';
 import { chatReducer, initialChatState } from './chat-reducer.js';
 import { ReceiveOnlyTinodeAdapter } from './tinode-adapter.js';
@@ -168,9 +169,7 @@ export function useChatSession(input: UseChatSessionInput) {
     window.addEventListener('offline', offline);
 
     if (input.websocketUrl && sessionStatus === 'open') {
-      const url = new URL(input.websocketUrl);
-      url.searchParams.set('token', input.accessToken);
-      socket = new WebSocket(url);
+      socket = openAuthenticatedWebSocket(input.websocketUrl, input.accessToken);
       socket.onmessage = (event) => {
         try {
           const envelope = JSON.parse(String(event.data)) as CollaborationRealtimeEnvelope;

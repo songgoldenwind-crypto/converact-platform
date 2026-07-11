@@ -526,7 +526,7 @@ git commit -m "test(client): add media acceptance flow"
 
 ## Task 11: M3 Milestone Verification And Review
 
-- [ ] **Step 1: Run all local gates**
+- [x] **Step 1: Run all local gates**
 
 ```bash
 npm run verify:ivekit:foundation
@@ -539,19 +539,19 @@ docker compose --env-file infra/ivekit/env.example -f infra/ivekit/docker-compos
 git diff --check
 ```
 
-- [ ] **Step 2: Inspect browser and package boundaries**
+- [x] **Step 2: Inspect browser and package boundaries**
 
 Reject M3 if the bundle contains service credentials, persists participant tokens, imports OPC frontend/server modules, exposes LiveKit Room/admin objects outside the adapter, or packages server source in the SDK.
 
-- [ ] **Step 3: Request independent review**
+- [x] **Step 3: Request independent review**
 
 Review tenant/RLS, JWT identity, lifecycle transition races, idempotency, provider revoke ordering, moderation roles, token lifetime/storage, media track cleanup, autoplay/permission handling, reconnect generations, XSS in participant labels, recording authorization, object export, and evidence honesty.
 
-- [ ] **Step 4: Resolve every Critical/Important finding with TDD**
+- [x] **Step 4: Resolve every Critical/Important finding with TDD**
 
 Repeat the complete local gates after the final fix. Mark real client evidence `not_run` because this plan does not upload or deploy to a server.
 
-- [ ] **Step 5: Update roadmap and write M4 plan**
+- [x] **Step 5: Update roadmap and write M4 plan**
 
 Mark M3 local code complete only after all local gates and independent review pass. Keep the overall Goal active until real LiveKit/TURN/Egress evidence and M4/M5 are complete.
 

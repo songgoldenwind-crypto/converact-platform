@@ -13,8 +13,8 @@ import type {
 export const ALLOWED_MEDIA_CALL_ACTIONS = {
   created: ['ring', 'cancel', 'fail'],
   ringing: ['accept', 'reject', 'cancel', 'timeout', 'fail'],
-  accepted: ['activate', 'end', 'fail'],
-  active: ['end', 'fail'],
+  accepted: ['accept', 'activate', 'end', 'fail'],
+  active: ['accept', 'end', 'fail'],
   rejected: [],
   cancelled: [],
   timed_out: [],
@@ -30,6 +30,8 @@ export interface MediaCallTransitionResult {
 }
 
 export interface MediaCallServiceOptions {
+  now?: () => Date;
+  onTimedOut?: (snapshot: IveKitMediaCallSnapshot) => void | Promise<void>;
   beforeTerminalTransition?: (
     snapshot: IveKitMediaCallSnapshot,
     context: { action: IveKitMediaCallAction; actor_identity: string; reason: string }
@@ -107,6 +109,37 @@ export class MediaCallService {
     return this.store.listParticipants(tenantId, callId);
   }
 
+  async timeoutExpired(tenantId: string, limit = 25): Promise<{
+    scanned: number;
+    timed_out: number;
+    skipped: number;
+  }> {
+    const now = this.now();
+    const calls = await this.store.listExpiredRingingCalls(tenantId, now, limit);
+    let timedOut = 0;
+    let skipped = 0;
+    for (const call of calls) {
+      try {
+        const transition = await this.transition({
+          tenant_id: tenantId,
+          call_id: call.id,
+          action: 'timeout',
+          actor_identity: 'media-timeout-worker',
+          actor_is_system: true,
+          idempotency_key: `media-timeout:${call.id}:${call.ring_expires_at}`,
+          reason: 'ring_timeout'
+        });
+        await this.options.onTimedOut?.(transition.snapshot);
+        timedOut += 1;
+      } catch (cause) {
+        const status = Number((cause as { status?: number }).status || 0);
+        if (status !== 404 && status !== 409) throw cause;
+        skipped += 1;
+      }
+    }
+    return { scanned: calls.length, timed_out: timedOut, skipped };
+  }
+
   withJoinAuthorization<T>(
     tenantId: string,
     callId: string,
@@ -130,6 +163,36 @@ export class MediaCallService {
           : participant?.status === 'accepted' || participant?.status === 'joined';
         if (!participant || !mayJoin) throw notFound('active media call participant not found');
         return fn({ call, participants }, participant);
+      })
+    );
+  }
+
+  withRecordingStartAuthorization<T>(
+    tenantId: string,
+    callId: string,
+    input: {
+      actor_identity: string;
+      actor_is_system?: boolean;
+      room_name: string;
+    },
+    fn: (snapshot: IveKitMediaCallSnapshot) => Promise<T>
+  ): Promise<T> {
+    const actor = requiredIdentity(input.actor_identity, 'actor_identity');
+    return this.withCallLock(tenantId, callId, () =>
+      this.store.transaction(async (store) => {
+        const call = await store.getCall(tenantId, callId, { forUpdate: true });
+        if (!call || call.room_name !== input.room_name) throw notFound('media call not found');
+        const participants = await store.listParticipants(tenantId, callId);
+        if (call.status !== 'accepted' && call.status !== 'active') {
+          throw conflict('media call must be accepted or active before recording');
+        }
+        if (!input.actor_is_system) {
+          const participant = participants.find((item) => item.identity === actor && item.status !== 'removed');
+          if (participant?.role !== 'host') {
+            throw Object.assign(new Error('recording command requires host role'), { status: 403 });
+          }
+        }
+        return fn({ call, participants });
       })
     );
   }
@@ -179,6 +242,13 @@ export class MediaCallService {
         if (!(ALLOWED_MEDIA_CALL_ACTIONS[call.status] as readonly string[]).includes(input.action)) {
           throw conflict(`media call action '${input.action}' is not allowed from '${call.status}'`);
         }
+        const now = this.now();
+        if (input.action === 'timeout') {
+          const expiry = call.ring_expires_at ? new Date(call.ring_expires_at).getTime() : Number.NaN;
+          if (!Number.isFinite(expiry) || now.getTime() < expiry) {
+            throw conflict('media call ring deadline has not expired');
+          }
+        }
 
         if (TERMINAL_MEDIA_CALL_ACTIONS.has(input.action)) {
           await this.options.beforeTerminalTransition?.(
@@ -188,7 +258,6 @@ export class MediaCallService {
         }
 
         const fromStatus = call.status;
-        const now = new Date();
         const nextCall = transitionCall(call, input.action, reason, now);
         const nextParticipants = participants.map((participant) =>
           transitionParticipant(participant, input.action, actor, now)
@@ -222,6 +291,10 @@ export class MediaCallService {
 
   private withCallLock<T>(tenantId: string, callId: string, fn: () => Promise<T>): Promise<T> {
     return this.withMemoryLock(`call\u0000${tenantId}\u0000${callId}`, fn);
+  }
+
+  private now(): Date {
+    return this.options.now?.() || new Date();
   }
 
   private withMemoryLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -263,8 +336,10 @@ function transitionCall(
       next.ring_expires_at = new Date(now.getTime() + call.ring_timeout_seconds * 1_000).toISOString();
       break;
     case 'accept':
-      next.status = 'accepted';
-      next.accepted_at = iso;
+      if (call.status === 'ringing') {
+        next.status = 'accepted';
+        next.accepted_at = iso;
+      }
       break;
     case 'reject':
       next.status = 'rejected';
@@ -340,7 +415,8 @@ function assertActionAuthorized(
 ): void {
   const participant = participants.find((item) => item.identity === actor);
   if (action === 'accept' || action === 'reject') {
-    if (!participant || participant.role !== 'participant') {
+    if (!participant || participant.role !== 'participant' ||
+        (participant.status !== 'invited' && participant.status !== 'ringing')) {
       throw Object.assign(new Error('only an invited participant may accept or reject'), { status: 403 });
     }
     return;

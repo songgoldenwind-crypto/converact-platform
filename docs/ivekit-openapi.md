@@ -135,7 +135,7 @@ Media Core 不返回 URL、API key 或 secret。与 LiveKit 浏览器接入有�
 | POST | `/api/ivekit/media/rooms` | 创建 tenant room；可带 business_ref |
 | GET | `/api/ivekit/media/rooms/:room_name` | 查询房间 |
 | POST | `/api/ivekit/media/rooms/:room_name/close` | 关闭房间，之后拒绝 join/recording/dispatch |
-| POST | `/api/ivekit/media/rooms/:room_name/join` | 返回 WebRTC 或 SIP/VoLTE join plan |
+| POST | `/api/ivekit/media/rooms/:room_name/join` | 仅 system/API-key 兼容调用；返回 WebRTC 或 SIP/VoLTE join plan |
 | GET | `/api/ivekit/media/rooms/:room_name/participants` | `include_left=1`、`limit` |
 
 创建房间：
@@ -161,7 +161,13 @@ Join Plan：
 }
 ```
 
-WebRTC 返回 LiveKit token/URL/join path；SIP bridge 返回 dial target/trunk 等 metadata。WebRTC 响应中的 `livekit_url` 是浏览器可连接的 `LIVEKIT_PUBLIC_URL`，不是服务端使用的 `LIVEKIT_URL`。生产环境缺少公网 URL 或使用 `ws://` 时，Join 会失败关闭，不会把容器内地址返回给浏览器。Token 不应写日志或持久化到 LED 业务表。
+普通 Bearer/JWT 浏览器用户不得调用 legacy room join，必须使用
+`POST /api/ivekit/media/calls/:call_id/join`；该入口把 JWT `sub` 固定为 LiveKit
+identity，并校验 durable call 成员与角色。WebRTC 返回 LiveKit token/URL/join path；
+SIP bridge 返回 dial target/trunk 等 metadata。WebRTC 响应中的 `livekit_url` 是浏览器
+可连接的 `LIVEKIT_PUBLIC_URL`，不是服务端使用的 `LIVEKIT_URL`。生产环境缺少公网 URL
+或使用 `ws://` 时，Join 会失败关闭，不会把容器内地址返回给浏览器。Token 不应写日志
+或持久化到 LED 业务表。
 
 ### 2.4 主持人管控与终态撤权
 
@@ -242,8 +248,11 @@ Recording start：
 `call_session_id` 保留给语音/呼叫中心兼容路径。`listRecordings()` 继续返回数组，
 `listRecordingsPage()` 返回 `{items,next_cursor,has_more}`。JWT 成员只可读取所属
 Media Call 的录制，启动和停止要求该 call 的 `host` 角色；system/API-key 管理模式
-保留 tenant 范围能力。对象播放与下载必须调用受鉴权的 `export`，客户端不得直接
-使用响应中的 `storage_url`。
+保留 tenant 范围能力。公开 recording DTO 不包含 `storage_url`；对象播放与下载必须
+调用受鉴权的 `export`。导出默认最多读取 64 MiB，可用
+`OPC_RECORDING_EXPORT_MAX_BYTES` 调整至 1 GiB；服务端通过 AsyncIterable 逐块写 HTTP
+响应，不聚合完整视频。文件在读取前检查大小，HTTP/S3 在 Content-Length 和逐块累计
+两处执行上限，超限会取消上游读取。
 
 同一 tenant 的同一房间只允许一个 `starting/pending/recording/stopping` 录制；
 重复启动返回 `409`。JWT 启动时 `media_call_id` 对应的持久化 `room_name`
@@ -448,7 +457,11 @@ Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collabo
 | `collaboration.quality_review.completed` | AI job 完成 |
 | `collaboration.policy.finding_reviewed` | 人审状态迁移 |
 
-WebSocket 可能断线或丢失瞬时事件。重连后必须 GET snapshot/message-state/realtime-state；事件不是唯一数据源。
+浏览器 WebSocket 使用 `Sec-WebSocket-Protocol: ivekit.v1, ivekit.jwt.<access-token>`
+完成握手认证，不把 access token 放入 URL。服务端在 JWT `exp` 到期时以 `4001`
+主动关闭连接；参考客户端提前 60 秒刷新短令牌并重新建立 HTTP/WS 客户端。WebSocket
+可能断线或丢失瞬时事件。重连后必须 GET snapshot/message-state/realtime-state；事件
+不是唯一数据源。
 
 ## 6. SDK 方法映射
 

@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto';
 import { EgressClient, EncodedFileOutput, EncodedFileType } from 'livekit-server-sdk';
 import { all, id, json, one, parseJson, run } from '../../db-compat.js';
 import {
+  assertRecordingObjectExportSize,
   deleteRecordingObject,
-  resolveRecordingObjectContent
+  resolveRecordingObjectContent,
+  resolveRecordingObjectStream
 } from '../media-recording-object.js';
 import { isLiveKitConfigured, readLiveKitConfig } from './config.js';
 import type {
@@ -243,6 +245,15 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     return this.getRecording(recordId)!;
   }
 
+  startCallRecording(
+    tenantId: string,
+    callSessionId: string | null | undefined,
+    roomName: string,
+    opts: StartRecordingOptions & { mediaCallId: string }
+  ): Promise<EgressRecord> {
+    return this.startRecording(tenantId, callSessionId, roomName, opts);
+  }
+
   async stopRecording(egressId: string): Promise<EgressRecord | null> {
     const record = this.getRecordingByEgressId(egressId);
     if (!record) return null;
@@ -317,6 +328,19 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     return row ? decodeEgressRecord(row) : null;
   }
 
+  setEvidenceRecordId(recordingId: string, evidenceRecordId: string): EgressRecord | null {
+    const normalized = String(evidenceRecordId || '').trim();
+    if (!normalized) return this.getRecording(recordingId);
+    run(
+      this.db,
+      `UPDATE call_recordings
+       SET evidence_record_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [normalized, recordingId]
+    );
+    return this.getRecording(recordingId);
+  }
+
   listRecordings(tenantId: string, opts: RecordingListOptions = {}): EgressRecord[] {
     return this.listRecordingsPage(tenantId, opts).items;
   }
@@ -358,6 +382,21 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
   async exportObject(recordingId: string): Promise<RecordingObjectExport | null> {
     const recording = this.getRecording(recordingId);
     if (!recording) return null;
+    if (this.deps.resolveRecordingObjectStream || !this.deps.resolveRecordingObject) {
+      const resolved = await (this.deps.resolveRecordingObjectStream?.(recording) || resolveRecordingObjectStream(recording));
+      const readable = resolved.status === 'readable' && Boolean(resolved.stream);
+      this.markObjectChecked(recording.id, resolved.status);
+      return {
+        status: resolved.status,
+        readable,
+        ...(resolved.source ? { source: resolved.source } : {}),
+        size_bytes: resolved.size_bytes || 0,
+        checksum: '',
+        stream: resolved.stream,
+        content_type: contentTypeForFormat(recording.format),
+        filename: `${safeStorageSegment(recording.id)}.${recording.format}`
+      };
+    }
     const resolved = await this.resolveObject(recording);
     const inspection = inspectionFromContent(resolved);
     this.markObjectChecked(recording.id, inspection.status);
@@ -500,8 +539,10 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     return this.deps.createEgressClient?.() || new EgressClient(toHttpUrl(url), apiKey, apiSecret);
   }
 
-  private resolveObject(recording: EgressRecord): Promise<RecordingObjectContentResult> {
-    return this.deps.resolveRecordingObject?.(recording) || resolveRecordingObjectContent(recording);
+  private async resolveObject(recording: EgressRecord): Promise<RecordingObjectContentResult> {
+    const result = await (this.deps.resolveRecordingObject?.(recording) || resolveRecordingObjectContent(recording));
+    if (result.content) assertRecordingObjectExportSize(result.content.length);
+    return result;
   }
 
   private deleteObject(recording: EgressRecord): Promise<RecordingObjectDeleteResult> {
@@ -644,6 +685,7 @@ export function decodeEgressRecord(row: Record<string, unknown>): EgressRecord {
     source: String(row.source) as EgressRecord['source'],
     format: String(row.format) as EgressRecord['format'],
     storage_url: String(row.storage_url || ''),
+    evidence_record_id: String(row.evidence_record_id || ''),
     duration_ms: row.duration_ms != null ? Number(row.duration_ms) : null,
     file_size_bytes: row.file_size_bytes != null ? Number(row.file_size_bytes) : null,
     has_video: Number(row.has_video || 0),

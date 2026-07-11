@@ -288,7 +288,6 @@ export interface IveKitMediaRecording {
   business_ref: IveKitSdkBusinessRef | null;
   source: 'livekit_egress' | 'rustpbx_sipflow';
   format: IveKitMediaRecordingFormat;
-  storage_url: string;
   duration_ms: number | null;
   file_size_bytes: number | null;
   has_video: number;
@@ -302,7 +301,7 @@ export interface IveKitMediaRecording {
   deleted_at: string | null;
   updated_at: string;
   created_at: string;
-  evidence_record_id?: string;
+  evidence_record_id: string;
   evidence_record?: Record<string, unknown>;
 }
 

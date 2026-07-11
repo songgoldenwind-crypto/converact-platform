@@ -7,6 +7,7 @@ import {
 } from '../collaboration/quality-review.js';
 import { startQualityReviewWorker } from '../collaboration/quality-review-worker.js';
 import { startTinodeSyncWorker } from '../collaboration/tinode-sync-worker.js';
+import { startMediaCallTimeoutWorker } from '../livekit/media-call-timeout-worker.js';
 import type { PgQueryable } from '../../db-pg.js';
 import { wsBroadcast } from '../../ws.js';
 
@@ -18,6 +19,7 @@ export interface IveKitRuntimeAdapters {
   startTinode(input: Parameters<typeof startTinodeSyncWorker>[0]): IveKitWorkerHandle;
   startAttachment(input: Parameters<typeof startAttachmentProcessingWorker>[0]): IveKitWorkerHandle;
   startQuality(input: Parameters<typeof startQualityReviewWorker>[0]): IveKitWorkerHandle;
+  startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
 }
 
 export interface IveKitApplicationInput {
@@ -50,7 +52,8 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
   const adapters: IveKitRuntimeAdapters = {
     startTinode: input.adapters?.startTinode || startTinodeSyncWorker,
     startAttachment: input.adapters?.startAttachment || startAttachmentProcessingWorker,
-    startQuality: input.adapters?.startQuality || startQualityReviewWorker
+    startQuality: input.adapters?.startQuality || startQualityReviewWorker,
+    startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker
   };
   const workers: IveKitWorkerHandle[] = [
     adapters.startTinode({
@@ -97,6 +100,15 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
           job,
           findings
         }
+      )
+    }),
+    adapters.startMediaTimeout({
+      pg: input.pg,
+      env,
+      onTimedOut: (snapshot) => publish(
+        snapshot.call.tenant_id,
+        'ivekit.media.call.updated',
+        snapshot
       )
     })
   ];

@@ -54,11 +54,34 @@ test('targeted WebSocket broadcast does not leak to another tenant member', asyn
   outsider.close();
 });
 
+test('WebSocket authentication uses a subprotocol and closes when the access token expires', async () => {
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  const token = signAccessToken({ sub: 'expiring-user', tid: 'tenant-targeted', role: 'operator' }, 1);
+  const socket = new WebSocket(
+    `ws://127.0.0.1:${address.port}/ws`,
+    ['ivekit.v1', `ivekit.jwt.${token}`]
+  );
+  assert.equal(new URL(socket.url).searchParams.has('token'), false);
+  await new Promise<void>((resolve, reject) => {
+    socket.once('open', resolve);
+    socket.once('error', reject);
+  });
+  const close = await new Promise<{ code: number; reason: string }>((resolve) => {
+    socket.once('close', (code, reason) => resolve({ code, reason: String(reason) }));
+  });
+  assert.equal(close.code, 4001);
+  assert.match(close.reason, /expired/i);
+});
+
 async function connect(tenantId: string, identity: string): Promise<WebSocket> {
   const address = server.address();
   assert.ok(address && typeof address === 'object');
   const token = signAccessToken({ sub: identity, tid: tenantId, role: 'operator' });
-  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws?token=${encodeURIComponent(token)}`);
+  const socket = new WebSocket(
+    `ws://127.0.0.1:${address.port}/ws`,
+    ['ivekit.v1', `ivekit.jwt.${token}`]
+  );
   await new Promise<void>((resolve, reject) => {
     socket.once('open', resolve);
     socket.once('error', reject);

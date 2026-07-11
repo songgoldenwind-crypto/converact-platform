@@ -79,6 +79,19 @@ export class MemoryPg implements PgQueryable {
   }
 
   private execute(sql: string, params: unknown[]): TableRow[] | { rows: TableRow[]; rowCount: number } {
+    if (sql.startsWith('SELECT tenant_id FROM opc_worker_tenant_ids')) {
+      const queue = String(params[0]);
+      if (queue !== 'media_call_timeout') return [];
+      const now = String(params[1]);
+      const limit = Number(params[2] || 100);
+      const tenantIds = new Set(
+        [...this.table('ivekit_media_calls').values()]
+          .filter((row) => row.status === 'ringing' && Boolean(row.ring_expires_at) && String(row.ring_expires_at) <= now)
+          .map((row) => String(row.tenant_id))
+      );
+      return [...tenantIds].sort().slice(0, limit).map((tenant_id) => ({ tenant_id }));
+    }
+
     if (sql.startsWith('SELECT version FROM schema_migrations')) {
       const version = String(params[0] ?? '');
       const applied = this.migrationVersions.has(version);
@@ -137,6 +150,18 @@ export class MemoryPg implements PgQueryable {
       };
       this.table('ivekit_media_call_participants').set(String(row.id), row);
       return [row];
+    }
+
+    if (sql.startsWith('SELECT * FROM ivekit_media_calls') && sql.includes("status = 'ringing'")) {
+      const tenantId = String(params[0]);
+      const now = String(params[1]);
+      const limit = Number(params[2] || 25);
+      return [...this.table('ivekit_media_calls').values()]
+        .filter((row) => String(row.tenant_id) === tenantId && row.status === 'ringing' &&
+          Boolean(row.ring_expires_at) && String(row.ring_expires_at) <= now)
+        .sort((left, right) => String(left.ring_expires_at).localeCompare(String(right.ring_expires_at)) ||
+          String(left.id).localeCompare(String(right.id)))
+        .slice(0, limit);
     }
 
     if (sql.startsWith('SELECT * FROM ivekit_media_calls')) {

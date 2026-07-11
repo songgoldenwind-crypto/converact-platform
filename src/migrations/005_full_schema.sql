@@ -2309,6 +2309,7 @@ CREATE TABLE IF NOT EXISTS call_recordings (
   source TEXT NOT NULL CHECK (source IN ('livekit_egress', 'rustpbx_sipflow')),
   format TEXT NOT NULL CHECK (format IN ('mp4', 'webm', 'wav', 'ogg')),
   storage_url TEXT NOT NULL DEFAULT '',
+  evidence_record_id TEXT NOT NULL DEFAULT '',
   duration_ms INTEGER,
   file_size_bytes INTEGER,
   has_video INTEGER NOT NULL DEFAULT 0,
@@ -2328,6 +2329,7 @@ CREATE INDEX IF NOT EXISTS idx_call_recordings_media_call ON call_recordings(ten
 CREATE INDEX IF NOT EXISTS idx_call_recordings_room ON call_recordings(tenant_id, room_name, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_call_recordings_business ON call_recordings(tenant_id, business_ref_type, business_ref_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_call_recordings_retention ON call_recordings(tenant_id, retention_until, status);
+CREATE INDEX IF NOT EXISTS idx_call_recordings_evidence ON call_recordings(tenant_id, evidence_record_id) WHERE evidence_record_id != '';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_egress_id ON call_recordings(egress_id) WHERE egress_id != '';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_active_room ON call_recordings(tenant_id, room_name)
   WHERE room_name != '' AND status IN ('starting', 'pending', 'recording', 'stopping');

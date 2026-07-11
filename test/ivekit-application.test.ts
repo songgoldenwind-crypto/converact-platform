@@ -21,7 +21,8 @@ test('iveKit application starts and stops every worker once', async () => {
     adapters: {
       startTinode: () => worker('tinode'),
       startAttachment: () => worker('attachment'),
-      startQuality: () => worker('quality')
+      startQuality: () => worker('quality'),
+      startMediaTimeout: () => worker('media-timeout')
     }
   });
 
@@ -32,6 +33,8 @@ test('iveKit application starts and stops every worker once', async () => {
     'start:tinode',
     'start:attachment',
     'start:quality',
+    'start:media-timeout',
+    'stop:media-timeout',
     'stop:quality',
     'stop:attachment',
     'stop:tinode'
@@ -58,12 +61,17 @@ test('iveKit application stops remaining workers after one stop failure', async 
         async stop() {
           stopped.push('quality');
         }
+      }),
+      startMediaTimeout: () => ({
+        async stop() {
+          stopped.push('media-timeout');
+        }
       })
     }
   });
 
   await assert.rejects(() => application.stop(), /failed to stop 1 iveKit worker/);
-  assert.deepEqual(stopped, ['quality', 'attachment', 'tinode']);
+  assert.deepEqual(stopped, ['media-timeout', 'quality', 'attachment', 'tinode']);
 });
 
 test('iveKit application publishes worker events and requeues attachment quality review', async () => {
@@ -72,6 +80,7 @@ test('iveKit application publishes worker events and requeues attachment quality
   let tinodeInput: any;
   let attachmentInput: any;
   let qualityInput: any;
+  let mediaTimeoutInput: any;
   const handle = { async stop() {} };
   const application = startIveKitApplication({
     pg: new MemoryPg(),
@@ -95,6 +104,10 @@ test('iveKit application publishes worker events and requeues attachment quality
       },
       startQuality: (input) => {
         qualityInput = input;
+        return handle;
+      },
+      startMediaTimeout: (input) => {
+        mediaTimeoutInput = input;
         return handle;
       }
     }
@@ -127,6 +140,7 @@ test('iveKit application publishes worker events and requeues attachment quality
     findings: [{ id: 'finding-1' }]
   };
   await qualityInput.onCompleted(completed);
+  await mediaTimeoutInput.onTimedOut({ call: { tenant_id: 'tenant-runtime', id: 'call-timeout-1' }, participants: [] });
 
   assert.deepEqual(published, [
     {
@@ -155,6 +169,11 @@ test('iveKit application publishes worker events and requeues attachment quality
         message_id: 'message-quality-1',
         ...completed
       }
+    },
+    {
+      tenantId: 'tenant-runtime',
+      type: 'ivekit.media.call.updated',
+      data: { call: { tenant_id: 'tenant-runtime', id: 'call-timeout-1' }, participants: [] }
     }
   ]);
   assert.deepEqual(enqueued, [{

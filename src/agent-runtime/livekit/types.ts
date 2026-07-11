@@ -253,6 +253,14 @@ export interface RecordingObjectContentResult {
   error?: string;
 }
 
+export interface RecordingObjectStreamResult {
+  status: RecordingObjectContentResult['status'];
+  stream?: AsyncIterable<Uint8Array>;
+  source?: MediaRecordingObjectSource;
+  size_bytes?: number;
+  error?: string;
+}
+
 export interface RecordingObjectDeleteResult {
   status: 'deleted' | 'not_found' | 'unsupported' | 'delete_failed';
   source?: MediaRecordingObjectSource;
@@ -269,6 +277,7 @@ export interface RecordingObjectInspection {
 
 export interface RecordingObjectExport extends RecordingObjectInspection {
   content?: Buffer;
+  stream?: AsyncIterable<Uint8Array>;
   content_type: string;
   filename: string;
 }
@@ -315,6 +324,7 @@ export interface EgressRecord {
   source: 'livekit_egress' | 'rustpbx_sipflow';
   format: RecordingFormat;
   storage_url: string;
+  evidence_record_id?: string;
   duration_ms: number | null;
   file_size_bytes: number | null;
   has_video: number;
@@ -344,6 +354,7 @@ export interface LiveKitRecordingDependencies {
   createEgressClient?: () => LiveKitEgressClientLike;
   resolveRetentionDays?: (tenantId: string) => number | Promise<number>;
   resolveRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectContentResult>;
+  resolveRecordingObjectStream?: (recording: EgressRecord) => Promise<RecordingObjectStreamResult>;
   deleteRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectDeleteResult>;
 }
 
@@ -354,10 +365,17 @@ export interface LiveKitRecordingServiceApi {
     roomName: string,
     opts?: StartRecordingOptions
   ): Promise<EgressRecord>;
+  startCallRecording(
+    tenantId: string,
+    callSessionId: string | null | undefined,
+    roomName: string,
+    opts: StartRecordingOptions & { mediaCallId: string }
+  ): Promise<EgressRecord>;
   stopRecording(egressId: string): Promise<EgressRecord | null>;
   getRecording(recordingId: string): EgressRecord | null;
   getRecordingByEgressId(egressId: string): EgressRecord | null;
   getRecordingBySession(callSessionId: string): EgressRecord | null;
+  setEvidenceRecordId(recordingId: string, evidenceRecordId: string): EgressRecord | null;
   listRecordings(tenantId: string, opts?: RecordingListOptions): EgressRecord[];
   listRecordingsPage(tenantId: string, opts?: RecordingListOptions): RecordingCursorPage;
   inspectObject(recordingId: string): Promise<RecordingObjectInspection | null>;

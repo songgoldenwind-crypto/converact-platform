@@ -7,7 +7,8 @@ import {
 } from '../media-recording-evidence.js';
 import {
   deleteRecordingObject,
-  resolveRecordingObjectContent
+  resolveRecordingObjectContent,
+  resolveRecordingObjectStream
 } from '../media-recording-object.js';
 import type { RecordingAuditEvent } from '../livekit/media-http.js';
 import type { RouteIveKitMediaApiOptions } from './media-http.js';
@@ -35,6 +36,7 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
       })
     ),
     resolveRecordingObject: resolveRecordingObjectContent,
+    resolveRecordingObjectStream,
     deleteRecordingObject,
     ...(retentionDays === undefined
       ? {}

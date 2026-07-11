@@ -7,6 +7,7 @@ export interface AuthContext {
   userId: string;
   role: AuthRole;
   authenticated: boolean;
+  expiresAt?: number;
 }
 
 export interface AccessTokenPayload {
@@ -96,7 +97,8 @@ function resolveHs256Context(token: string, secret: string): AuthContext {
     tenantId: String(tenantId),
     userId: String(payload.sub),
     role,
-    authenticated: true
+    authenticated: true,
+    expiresAt: payload.exp
   };
 }
 
@@ -146,18 +148,23 @@ function resolveJwtContext(
 
   const payload = verifyJwt(bearer, issuer);
 
-  const tenantId = payload.tenant_id || header(headers, 'X-Tenant-Id') || header(headers, 'x-tenant-id');
+  const tenantId = payload.tenant_id;
   if (!tenantId) {
-    throw Object.assign(new Error('tenant context required'), { status: 403 });
+    throw Object.assign(new Error('signed tenant claim required'), { status: 403 });
+  }
+  const userId = payload.sub || payload.user_id || '';
+  if (!userId) {
+    throw Object.assign(new Error('signed user claim required'), { status: 403 });
   }
 
   const role: AuthRole = VALID_ROLES.has(payload.role) ? (payload.role as AuthRole) : 'operator';
 
   return {
     tenantId,
-    userId: payload.sub || payload.user_id || '',
+    userId,
     role,
-    authenticated: true
+    authenticated: true,
+    expiresAt: payload.exp
   };
 }
 
@@ -235,7 +242,7 @@ function verifyHs256Jwt(token: string, secret: string): AccessTokenPayload {
   }
 
   const payload = JSON.parse(decodeCanonicalBase64Url(parts[1]).toString('utf8')) as AccessTokenPayload;
-  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+  if (payload.exp && payload.exp <= Math.floor(Date.now() / 1000)) {
     throw Object.assign(new Error('JWT expired'), { status: 401 });
   }
   return payload;
@@ -338,7 +345,7 @@ function verifyJwt(token: string, issuer: string): JwtPayload {
 
   const payload: JwtPayload = JSON.parse(base64UrlDecode(payloadRaw).toString('utf8'));
 
-  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+  if (payload.exp && payload.exp <= Math.floor(Date.now() / 1000)) {
     throw Object.assign(new Error('JWT expired'), { status: 401 });
   }
 

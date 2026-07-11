@@ -23,6 +23,7 @@ import type {
   MediaRoomPurpose,
   RecordingFormat,
   RecordingObjectContentResult,
+  RecordingObjectStreamResult,
   RecordingObjectDeleteResult
 } from '../livekit/types.js';
 import type {
@@ -39,6 +40,7 @@ export interface RouteIveKitMediaApiOptions {
   onRecordingStarted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   onRecordingCompleted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   resolveRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectContentResult>;
+  resolveRecordingObjectStream?: (recording: EgressRecord) => Promise<RecordingObjectStreamResult>;
   deleteRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectDeleteResult>;
   resolveRecordingRetentionDays?: (tenantId: string) => number | Promise<number>;
   onRecordingDeleted?: (
@@ -154,6 +156,19 @@ function requireTenantRecording<T extends { tenant_id?: string }>(recording: T |
   return recording;
 }
 
+function publicRecording(recording: EgressRecord): Omit<EgressRecord, 'storage_url'> {
+  const { storage_url: _storageUrl, ...safe } = recording;
+  return safe;
+}
+
+function publicRecordingPage(page: {
+  items: EgressRecord[];
+  next_cursor: string | null;
+  has_more: boolean;
+}) {
+  return { ...page, items: page.items.map(publicRecording) };
+}
+
 function capabilities(tenantId: string) {
   const livekitConfig = readLiveKitConfig();
   const livekitUrl = livekitConfig.url || '';
@@ -221,6 +236,7 @@ export async function routeIveKitMediaApi(
     db,
     recordingDependencies: {
       resolveRecordingObject: options.resolveRecordingObject,
+      resolveRecordingObjectStream: options.resolveRecordingObjectStream,
       deleteRecordingObject: options.deleteRecordingObject,
       resolveRetentionDays: options.resolveRecordingRetentionDays
     }
@@ -236,14 +252,22 @@ export async function routeIveKitMediaApi(
     const result = await media.webhooks.handleWebhook(rawBodyText, authHeader || undefined);
     await revokeTerminalCallRevival(rawBodyText, result, options);
     if (result.recording) await broadcastMediaRecording(options.pg, 'ivekit.media.recording.updated', result.recording);
-    if (!result.recording || !options.onRecordingCompleted) return result;
+    if (!result.recording || !options.onRecordingCompleted) {
+      return result.recording ? { ...result, recording: publicRecording(result.recording) } : result;
+    }
     const evidence = await options.onRecordingCompleted(result.recording, {
       roomName: result.room_name || result.recording.business_ref?.id || ''
     });
-    if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) return result;
+    if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
+      return { ...result, recording: publicRecording(result.recording) };
+    }
     const evidenceRecord = evidence as { id?: unknown };
+    const linked = evidenceRecord.id
+      ? media.recordings.setEvidenceRecordId(result.recording.id, String(evidenceRecord.id)) || result.recording
+      : result.recording;
     return {
       ...result,
+      recording: publicRecording(linked),
       evidence_record_id: evidenceRecord.id ? String(evidenceRecord.id) : '',
       evidence_record: evidence
     };
@@ -509,6 +533,9 @@ export async function routeIveKitMediaApi(
     }
 
     if (section === 'join' && method === 'POST') {
+      if (ctx.role !== 'system') {
+        throw Object.assign(new Error('system role required for legacy media room join'), { status: 403 });
+      }
       requireTenantRoom(media, { tenantId: ctx.tenantId, roomName, requireOpen: true });
       const input = bodyRecord(body);
       const role = String(input.role || 'customer') === 'customer' ? 'customer' : 'agent';
@@ -537,35 +564,60 @@ export async function routeIveKitMediaApi(
     }
 
     if (section === 'recordings' && action === 'start' && method === 'POST') {
-      const room = requireTenantRoom(media, { tenantId: ctx.tenantId, roomName, requireOpen: true });
       const input = bodyRecord(body);
-      const businessRef = optionalBusinessRef(ctx.tenantId, input) || roomBusinessRef(room);
-      const callSessionId =
-        optionalBodyString(input, 'call_session_id') || (businessRef?.type === 'call_session' ? businessRef.id : null);
       const mediaCallId = optionalBodyString(input, 'media_call_id');
-      if (!callSessionId && !mediaCallId && !businessRef) {
-        return { status: 400, data: { error: 'media_call_id, call_session_id, or business_ref is required' } };
-      }
-      await requireRecordingCallAccess(mediaCallId, true, roomName);
-      const recording = await media.recordings.startRecording(ctx.tenantId, callSessionId, roomName, {
-        format: optionalBodyString(input, 'format') as RecordingFormat | undefined,
-        hasVideo: Boolean(input.has_video),
-        businessRef,
-        retentionUntil: optionalBodyString(input, 'retention_until'),
-        retentionDays: optionalBodyNumber(input, 'retention_days'),
-        mediaCallId
-      });
+      const startRecording = async (defaultBusinessRef: MediaBusinessRef | null, callBound: boolean) => {
+        const businessRef = optionalBusinessRef(ctx.tenantId, input) || defaultBusinessRef;
+        const callSessionId = optionalBodyString(input, 'call_session_id') ||
+          (businessRef?.type === 'call_session' ? businessRef.id : null);
+        if (!callSessionId && !mediaCallId && !businessRef) {
+          throw badRequest('media_call_id, call_session_id, or business_ref is required');
+        }
+        const recordingInput = {
+          format: optionalBodyString(input, 'format') as RecordingFormat | undefined,
+          hasVideo: Boolean(input.has_video),
+          businessRef,
+          retentionUntil: optionalBodyString(input, 'retention_until'),
+          retentionDays: optionalBodyNumber(input, 'retention_days'),
+          mediaCallId
+        };
+        return callBound
+          ? media.recordings.startCallRecording(ctx.tenantId, callSessionId, roomName, {
+            ...recordingInput,
+            mediaCallId: mediaCallId!
+          })
+          : media.recordings.startRecording(ctx.tenantId, callSessionId, roomName, recordingInput);
+      };
+      const recording = mediaCallId
+        ? await mediaCallService().withRecordingStartAuthorization(
+          ctx.tenantId,
+          mediaCallId,
+          {
+            actor_identity: mediaActorIdentity(ctx, headers),
+            actor_is_system: ctx.role === 'system',
+            room_name: roomName
+          },
+          (snapshot) => startRecording(snapshot.call.business_ref, true)
+        )
+        : await (async () => {
+          const room = requireTenantRoom(media, { tenantId: ctx.tenantId, roomName, requireOpen: true });
+          await requireRecordingCallAccess(undefined, true, roomName);
+          return startRecording(roomBusinessRef(room), false);
+        })();
       await broadcastMediaRecording(options.pg, 'ivekit.media.recording.started', recording);
-      if (!options.onRecordingStarted) return { status: 201, data: recording };
+      if (!options.onRecordingStarted) return { status: 201, data: publicRecording(recording) };
       const evidence = await options.onRecordingStarted(recording, { roomName });
       if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
-        return { status: 201, data: recording };
+        return { status: 201, data: publicRecording(recording) };
       }
       const evidenceRecord = evidence as { id?: unknown };
+      const linked = evidenceRecord.id
+        ? media.recordings.setEvidenceRecordId(recording.id, String(evidenceRecord.id)) || recording
+        : recording;
       return {
         status: 201,
         data: {
-          ...recording,
+          ...publicRecording(linked),
           evidence_record_id: evidenceRecord.id ? String(evidenceRecord.id) : '',
           evidence_record: evidence
         }
@@ -586,8 +638,8 @@ export async function routeIveKitMediaApi(
     await requireRecordingCallAccess(listInput.mediaCallId, false);
     return {
       data: url.searchParams.get('page') === '1'
-        ? media.recordings.listRecordingsPage(ctx.tenantId, listInput)
-        : media.recordings.listRecordings(ctx.tenantId, listInput)
+        ? publicRecordingPage(media.recordings.listRecordingsPage(ctx.tenantId, listInput))
+        : media.recordings.listRecordings(ctx.tenantId, listInput).map(publicRecording)
     };
   }
 
@@ -634,7 +686,7 @@ export async function routeIveKitMediaApi(
     if (!action && method === 'GET') {
       const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
       await requireRecordingCallAccess(recording.media_call_id, false);
-      return { data: recording };
+      return { data: publicRecording(recording) };
     }
     if (action === 'object' && method === 'GET') {
       const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
@@ -654,7 +706,7 @@ export async function routeIveKitMediaApi(
       await requireRecordingCallAccess(recording.media_call_id, false);
       const exported = await media.recordings.exportObject(recordingId);
       if (!exported) throw notFound('media recording not found');
-      if (!exported.readable || !exported.content) {
+      if (!exported.readable || (!exported.content && !exported.stream)) {
         throw Object.assign(new Error(`recording object is not readable: ${exported.status}`), { status: 409 });
       }
       await options.onRecordingAudit?.(recordingAuditEvent(
@@ -664,7 +716,7 @@ export async function routeIveKitMediaApi(
         exported
       ));
       return {
-        data: exported.content,
+        data: exported.stream || exported.content,
         contentType: exported.content_type,
         filename: exported.filename,
         headers: {
@@ -682,7 +734,7 @@ export async function routeIveKitMediaApi(
         ? await media.recordings.stopRecording(recording.egress_id)
         : recording;
       if (stopped) await broadcastMediaRecording(options.pg, 'ivekit.media.recording.updated', stopped);
-      return { status: 201, data: stopped };
+      return { status: 201, data: stopped ? publicRecording(stopped) : stopped };
     }
   }
 

@@ -145,11 +145,9 @@ test('iveKit media call lifecycle is durable idempotent and tenant scoped', asyn
     );
 
     const timeoutCall = await createAndRing(db, pg, tenantId, 'SO-CALL-TIMEOUT', host);
-    const timedOut = await action(db, pg, timeoutCall.data.call.id, 'timeout', 'timeout-1', host);
-    assert.equal(timedOut.data.call.status, 'timed_out');
-    assert.equal(
-      timedOut.data.participants.find((item) => item.identity === 'customer-led')?.status,
-      'missed'
+    await assert.rejects(
+      () => action(db, pg, timeoutCall.data.call.id, 'timeout', 'timeout-1', host),
+      hasStatus(409)
     );
 
     const competing = await createAndRing(db, pg, tenantId, 'SO-CALL-COMPETE', host);
@@ -247,6 +245,69 @@ test('iveKit media call lifecycle is durable idempotent and tenant scoped', asyn
     restoreEnv('OPC_JWT_SECRET', previousSecret);
     restoreEnv('OPC_API_KEY', previousApiKey);
   }
+});
+
+test('media calls allow multiple invitees to accept and expire only after the ring deadline', async () => {
+  const pg = new MemoryPg();
+  let now = new Date('2026-07-12T10:00:00.000Z');
+  const service = new MediaCallService(new MediaCallStore(pg), { now: () => now });
+  const tenantId = 'tenant_multi_party';
+  const created = await service.createCall({
+    tenant_id: tenantId,
+    initiated_by: 'host-1',
+    media: 'video',
+    participant_identities: ['guest-1', 'guest-2'],
+    business_ref: { tenant_id: tenantId, type: 'order', id: 'order-multi', metadata: {} },
+    ring_timeout_seconds: 30
+  });
+  await service.transition({
+    tenant_id: tenantId, call_id: created.call.id, action: 'ring',
+    actor_identity: 'host-1', idempotency_key: 'multi-ring'
+  });
+  const first = await service.transition({
+    tenant_id: tenantId, call_id: created.call.id, action: 'accept',
+    actor_identity: 'guest-1', idempotency_key: 'multi-accept-1'
+  });
+  assert.equal(first.snapshot.call.status, 'accepted');
+  const second = await service.transition({
+    tenant_id: tenantId, call_id: created.call.id, action: 'accept',
+    actor_identity: 'guest-2', idempotency_key: 'multi-accept-2'
+  });
+  assert.equal(second.snapshot.call.status, 'accepted');
+  assert.deepEqual(
+    second.snapshot.participants.filter((item) => item.status === 'accepted').map((item) => item.identity).sort(),
+    ['guest-1', 'guest-2']
+  );
+  assert.equal(
+    await service.withJoinAuthorization(tenantId, created.call.id, 'guest-2', async () => 'authorized'),
+    'authorized'
+  );
+
+  const expiring = await service.createCall({
+    tenant_id: tenantId,
+    initiated_by: 'host-1',
+    media: 'voice',
+    participant_identities: ['guest-3'],
+    business_ref: { tenant_id: tenantId, type: 'order', id: 'order-timeout', metadata: {} },
+    ring_timeout_seconds: 30
+  });
+  await service.transition({
+    tenant_id: tenantId, call_id: expiring.call.id, action: 'ring',
+    actor_identity: 'host-1', idempotency_key: 'timeout-ring'
+  });
+  await assert.rejects(
+    () => service.transition({
+      tenant_id: tenantId, call_id: expiring.call.id, action: 'timeout',
+      actor_identity: 'host-1', idempotency_key: 'timeout-too-early'
+    }),
+    hasStatus(409)
+  );
+  now = new Date('2026-07-12T10:00:31.000Z');
+  const summary = await service.timeoutExpired(tenantId, 25);
+  assert.deepEqual(summary, { scanned: 1, timed_out: 1, skipped: 0 });
+  const expired = await service.getCall(tenantId, expiring.call.id);
+  assert.equal(expired?.call.status, 'timed_out');
+  assert.equal(expired?.participants.find((item) => item.identity === 'guest-3')?.status, 'missed');
 });
 
 test('iveKit media call migration defines indexed FORCE RLS lifecycle tables', () => {

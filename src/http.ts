@@ -132,7 +132,7 @@ export function createServer(db, pg: PgQueryable | null = null) {
 
       if (result?.contentType) {
         const payload = result.data;
-        send(
+        await send(
           res,
           Number.isInteger(result?.status) ? result.status : 200,
           payload,
@@ -413,13 +413,24 @@ function sendJson(res, status, data) {
   send(res, status, JSON.stringify(data, null, 2), 'application/json; charset=utf-8');
 }
 
-function send(res, status, body, contentType, extraHeaders = {}) {
+async function send(res, status, body, contentType, extraHeaders = {}) {
   res.writeHead(status, {
     'content-type': contentType,
     'cache-control': 'no-store',
     ...extraHeaders
   });
-  res.end(body);
+  if (!body || typeof body[Symbol.asyncIterator] !== 'function') {
+    res.end(body);
+    return;
+  }
+  try {
+    for await (const chunk of body) {
+      if (!res.write(chunk)) await new Promise((resolve) => res.once('drain', resolve));
+    }
+    res.end();
+  } catch (error) {
+    res.destroy(error);
+  }
 }
 
 function recordMediaAudit(db, event) {

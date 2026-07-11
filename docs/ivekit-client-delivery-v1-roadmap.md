@@ -68,7 +68,7 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 
 ### M3：LiveKit 音视频参考客户端
 
-**状态：详细实施计划已完成，等待按计划开发。** 计划见 [iveKit LiveKit Reference Client Implementation Plan](superpowers/plans/2026-07-11-ivekit-livekit-reference-client.md)。
+**状态：本地代码与本地交付门禁完成，真实环境尚未验收。** 计划见 [iveKit LiveKit Reference Client Implementation Plan](superpowers/plans/2026-07-11-ivekit-livekit-reference-client.md)。
 
 交付内容：
 
@@ -79,10 +79,25 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 5. 主持人静音、移除参与人和关闭房间。
 6. 网络质量、重连、设备变化、弱网和长时间通话状态。
 7. 开始/停止录制、录制列表、播放、下载和 evidence 展示。
+8. durable call/participant/action PostgreSQL 状态机、FORCE RLS、幂等和自动响铃超时 worker。
+9. 官方 `livekit-client` adapter 边界、prejoin、设备切换、主持控制、重连与终态撤权。
+10. 短令牌持续刷新、WebSocket subprotocol 认证、到期主动断开和零持久化。
+11. call-bound 录制行锁、evidence 持久化、公开 DTO 脱敏和服务端流式导出。
+
+本地验收证据：
+
+- 参考客户端单元/组件测试 `101/101`。
+- 受控浏览器 E2E `4/4`，其中媒体 `3/3`、IM `1/1`。
+- LiveKit 真实环境验收契约 `14/14`；无真实报告时明确返回 `not_run`。
+- 全仓 `1908` 项测试中 `1903` 通过、`5` 个预期跳过、`0` 失败；TypeScript、Go、Python、Rust、SDK、前端和 Compose 门禁通过。
+- 独立审查发现的 `3 Critical + 8 Important` 已全部用回归测试关闭，当前无未解决 Critical/Important。
+- 未上传或部署到服务器；真实 LiveKit/ICE/TURN/Egress/MinIO、真实摄像头麦克风、两个真实浏览器和长稳/弱网证据仍为 `not_run`。
 
 验收终点：两个真实浏览器完成完整呼叫生命周期，在网络切换后恢复，并产生可查询、可导出的录制证据。
 
 ### M4：RustDesk 真实终端闭环
+
+**状态：详细实施计划已完成，等待本地开发。** 计划见 [iveKit RustDesk Real Terminal V1 Implementation Plan](superpowers/plans/2026-07-12-ivekit-rustdesk-terminal-v1.md)。
 
 交付内容：
 

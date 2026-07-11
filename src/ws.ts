@@ -8,6 +8,8 @@ export interface WsClient {
   tenantId: string;
   userId: string;
   role: string;
+  expiresAt?: number;
+  expiryTimer?: NodeJS.Timeout;
 }
 
 interface WsEnvelope {
@@ -26,11 +28,15 @@ const WS_BROADCAST_CHANNEL = 'ws:broadcast';
 export function initWebSocket(server: HttpServer): WebSocketServer {
   if (wss) return wss;
 
-  wss = new WebSocketServer({ server, path: '/ws' });
+  wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    handleProtocols: (protocols) => protocols.has('ivekit.v1') ? 'ivekit.v1' : false
+  });
 
   wss.on('connection', (ws, req) => {
-    const url = new URL(req.url || '/ws', 'http://localhost');
-    const token = url.searchParams.get('token');
+    const token = websocketAccessToken(req.headers['sec-websocket-protocol']) ||
+      new URL(req.url || '/ws', 'http://localhost').searchParams.get('token');
     const auth = verifyAccessToken(token);
 
     if (!auth?.tenantId || !auth.userId) {
@@ -42,8 +48,15 @@ export function initWebSocket(server: HttpServer): WebSocketServer {
       ws,
       tenantId: auth.tenantId,
       userId: auth.userId,
-      role: auth.role
+      role: auth.role,
+      expiresAt: auth.expiresAt
     };
+
+    if (auth.expiresAt) {
+      const remainingMs = Math.max(0, auth.expiresAt * 1_000 - Date.now());
+      client.expiryTimer = setTimeout(() => ws.close(4001, 'access token expired'), remainingMs);
+      client.expiryTimer.unref?.();
+    }
 
     addClient(client);
     sendToSocket(ws, { type: 'connected', data: { userId: auth.userId, tenantId: auth.tenantId } });
@@ -132,10 +145,18 @@ function addClient(client: WsClient): void {
 }
 
 function removeClient(client: WsClient): void {
+  if (client.expiryTimer) clearTimeout(client.expiryTimer);
+  client.expiryTimer = undefined;
   const set = clientsByTenant.get(client.tenantId);
   if (!set) return;
   set.delete(client);
   if (set.size === 0) clientsByTenant.delete(client.tenantId);
+}
+
+function websocketAccessToken(value: string | string[] | undefined): string {
+  const raw = Array.isArray(value) ? value.join(',') : String(value || '');
+  const protocol = raw.split(',').map((item) => item.trim()).find((item) => item.startsWith('ivekit.jwt.'));
+  return protocol ? protocol.slice('ivekit.jwt.'.length) : '';
 }
 
 function broadcastLocal(

@@ -626,6 +626,7 @@ test('media module keeps dev LiveKit behavior for rooms, tokens, joins, and reco
   assert.equal(recording.call_session_id, session.id);
   assert.equal(recording.format, 'mp4');
   assert.equal(recording.has_video, 1);
+  await media.recordings.stopRecording(recording.egress_id);
 
   const compat = new EgressManager(db, {
     livekitUrl: '',

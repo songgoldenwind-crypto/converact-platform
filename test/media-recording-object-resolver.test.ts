@@ -7,7 +7,8 @@ import { test } from 'node:test';
 
 import {
   deleteRecordingObject,
-  resolveRecordingObjectContent
+  resolveRecordingObjectContent,
+  resolveRecordingObjectStream
 } from '../src/agent-runtime/media-recording-object.js';
 
 test('recording object resolver reads file urls', async () => {
@@ -27,6 +28,45 @@ test('recording object resolver reads file urls', async () => {
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('recording object resolver rejects files above the bounded export size before reading them', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-object-limit-'));
+  try {
+    const filePath = join(dir, 'oversized.mp4');
+    await writeFile(filePath, Buffer.alloc(5));
+    await assert.rejects(
+      () => resolveRecordingObjectContent(
+        { storage_url: pathToFileURL(filePath).toString() },
+        { maxBytes: 4 }
+      ),
+      (error: any) => error.status === 413 && /export limit/i.test(error.message)
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('recording export streams HTTP chunks and aborts once the bounded limit is crossed', async () => {
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(Buffer.from('abc'));
+      controller.enqueue(Buffer.from('de'));
+    },
+    cancel() { cancelled = true; }
+  });
+  const result = await resolveRecordingObjectStream(
+    { storage_url: 'https://recordings.example/stream.mp4' },
+    { maxBytes: 4, fetch: async () => new Response(body, { status: 200 }) }
+  );
+  assert.equal(result.status, 'readable');
+  assert.ok(result.stream);
+  await assert.rejects(
+    async () => { for await (const _chunk of result.stream!) { /* consume */ } },
+    (error: any) => error.status === 413 && /export limit/i.test(error.message)
+  );
+  assert.equal(cancelled, true);
 });
 
 test('recording object resolver reports forbidden http objects without content', async () => {

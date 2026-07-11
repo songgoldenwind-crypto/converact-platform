@@ -10,6 +10,8 @@ import { projectSessionSummary } from './chat/session-summary.js';
 import { useChatSession } from './chat/use-chat-session.js';
 import {
   loadRuntimeConfig,
+  accessTokenRefreshDelay,
+  startAccessTokenRefreshLoop,
   requestAccessToken,
   requestIdentity,
   type IveKitRuntimeConfig
@@ -77,19 +79,33 @@ export function App() {
 
   useEffect(() => {
     let active = true;
+    let refreshLoop: { stop(): void } | null = null;
     void (async () => {
       try {
-        const [runtime, accessToken] = await Promise.all([loadRuntimeConfig(), requestAccessToken()]);
-        const userIdentity = await requestIdentity(accessToken);
+        const runtime = await loadRuntimeConfig();
         if (!active) return;
         setConfig(runtime);
-        setToken(accessToken);
-        setIdentity(userIdentity);
+        refreshLoop = startAccessTokenRefreshLoop({
+          load: async () => {
+            const accessToken = await requestAccessToken();
+            return { accessToken, identity: await requestIdentity(accessToken) };
+          },
+          onToken: (credentials) => {
+            setToken(credentials.accessToken);
+            setIdentity(credentials.identity);
+            setBootstrapError('');
+          },
+          onError: (cause) => setBootstrapError(errorMessage(cause)),
+          refreshDelay: (credentials) => accessTokenRefreshDelay(credentials.accessToken)
+        });
       } catch (cause) {
         if (active) { setBootstrapError(errorMessage(cause)); setSessionLoading(false); }
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      refreshLoop?.stop();
+    };
   }, []);
   useEffect(() => {
     if (workspaceMode !== 'messages') return;

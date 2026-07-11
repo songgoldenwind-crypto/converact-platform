@@ -22,8 +22,10 @@ afterEach(() => cleanup());
 test('accepted call obtains a participant plan, connects, and activates after provider join', async () => {
   const sequence: string[] = [];
   const adapter = new FakeAdapter(sequence, true);
+  const accepted = snapshot('accepted');
+  accepted.participants[0].role = 'host';
   const client = fakeClient({
-    getCall: async () => { sequence.push('http:get'); return snapshot('accepted'); },
+    getCall: async () => { sequence.push('http:get'); return accepted; },
     createCallJoinPlan: async () => { sequence.push('http:join-plan'); return joinPlan(); },
     transitionCall: async (_id, input) => {
       sequence.push(`http:${input.action}`);
@@ -35,6 +37,25 @@ test('accepted call obtains a participant plan, connects, and activates after pr
   await waitFor(() => assert.equal(view.result.current.state.call?.status, 'active'));
   assert.deepEqual(sequence.slice(0, 5), ['http:get', 'http:join-plan', 'adapter:connect', 'http:activate']);
   assert.equal(view.result.current.state.connection, 'online');
+});
+
+test('accepted participant connects without attempting the host-only activate transition', async () => {
+  const sequence: string[] = [];
+  const adapter = new FakeAdapter(sequence, true);
+  const client = fakeClient({
+    getCall: async () => { sequence.push('http:get'); return snapshot('accepted'); },
+    createCallJoinPlan: async () => { sequence.push('http:join-plan'); return joinPlan(); },
+    transitionCall: async (_id, input) => {
+      sequence.push(`http:${input.action}`);
+      throw new Error('participant must not activate');
+    }
+  });
+  const view = renderHook(() => useMediaCall(input(client, () => adapter)));
+
+  await waitFor(() => assert.equal(view.result.current.state.connection, 'online'));
+  assert.deepEqual(sequence, ['http:get', 'http:join-plan', 'adapter:connect']);
+  assert.equal(view.result.current.state.call?.status, 'accepted');
+  assert.equal(view.result.current.state.revokedReason, '');
 });
 
 test('failed lifecycle retry reuses the original idempotency key and payload', async () => {
@@ -226,14 +247,15 @@ test('targeted media websocket invalidates recordings and converges call events'
   let loads = 0;
   const sockets: FakeWebSocket[] = [];
   const previous = globalThis.WebSocket;
-  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, writable: true, value: class extends FakeWebSocket { constructor(url: string | URL) { super(url); sockets.push(this); } } });
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, writable: true, value: class extends FakeWebSocket { constructor(url: string | URL, protocols?: string | string[]) { super(url, protocols); sockets.push(this); } } });
   try {
     const client = fakeClient({ getCall: async () => { loads += 1; return snapshot('ringing'); } });
     const view = renderHook(() => useMediaCall(input(client, () => new FakeAdapter([], false), {
       websocketUrl: 'wss://events.test/ws', accessToken: 'short-token'
     })));
     await waitFor(() => assert.equal(view.result.current.state.call?.status, 'ringing'));
-    assert.equal(new URL(sockets[0].url).searchParams.get('token'), 'short-token');
+    assert.equal(new URL(sockets[0].url).searchParams.get('token'), null);
+    assert.deepEqual(sockets[0].protocols, ['ivekit.v1', 'ivekit.jwt.short-token']);
     act(() => sockets[0].emit({ type: 'ivekit.media.recording.updated', data: { call_id: 'call-1' } }));
     assert.equal(view.result.current.state.recordingRevision, 1);
     act(() => sockets[0].emit({ type: 'ivekit.media.call.updated', data: { call_id: 'call-1' } }));
@@ -279,7 +301,11 @@ class FakeWebSocket {
   onmessage: ((message: { data: string }) => void) | null = null;
   closed = false;
   readonly url: string;
-  constructor(url: string | URL) { this.url = String(url); }
+  readonly protocols: string[];
+  constructor(url: string | URL, protocols?: string | string[]) {
+    this.url = String(url);
+    this.protocols = typeof protocols === 'string' ? [protocols] : protocols || [];
+  }
   emit(value: unknown) { this.onmessage?.({ data: JSON.stringify(value) }); }
   close() { this.closed = true; }
 }

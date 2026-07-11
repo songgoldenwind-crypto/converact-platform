@@ -461,6 +461,7 @@ function writePackEvidenceArtifact(
   const document = {
     schema_version: 1,
     kind: 'livekit_acceptance_evidence',
+    source: 'real_environment',
     run_id: acceptance.run_id,
     environment_id: acceptance.environment_id,
     deployed_commit: acceptance.deployed_commit,

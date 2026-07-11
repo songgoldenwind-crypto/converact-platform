@@ -119,6 +119,23 @@ export class MediaCallStore {
     return result.rows.map(decodeParticipant);
   }
 
+  async listExpiredRingingCalls(
+    tenantId: string,
+    now: Date,
+    limit = 25
+  ): Promise<IveKitMediaCall[]> {
+    const boundedLimit = Math.max(1, Math.min(100, Math.floor(limit)));
+    const result = await this.pg.query(
+      `SELECT * FROM ivekit_media_calls
+       WHERE tenant_id = $1 AND status = 'ringing'
+         AND ring_expires_at IS NOT NULL AND ring_expires_at <= $2
+       ORDER BY ring_expires_at ASC, id ASC
+       LIMIT $3`,
+      [tenantId, now.toISOString(), boundedLimit]
+    );
+    return result.rows.map(decodeCall);
+  }
+
   async snapshot(tenantId: string, callId: string): Promise<IveKitMediaCallSnapshot | null> {
     const call = await this.getCall(tenantId, callId);
     if (!call) return null;

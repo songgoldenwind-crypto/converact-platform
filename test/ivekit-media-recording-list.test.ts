@@ -87,7 +87,12 @@ test('JWT recording access is call-member scoped and writes are host-only', asyn
     }, host) as { data: { call: { id: string; room_name: string } } };
     const callId = created.data.call.id;
     const callRoom = created.data.call.room_name;
-    await media.rooms.createRoom({ tenant_id: tenant.id, room_name: callRoom, purpose: 'video_service' });
+    await routed('POST', `/api/ivekit/media/calls/${callId}/actions`, { action: 'ring' }, {
+      ...host, 'Idempotency-Key': 'recording-call-ring'
+    });
+    await routed('POST', `/api/ivekit/media/calls/${callId}/actions`, { action: 'accept' }, {
+      ...participant, 'Idempotency-Key': 'recording-call-accept'
+    });
     await assert.rejects(
       () => routed('POST', '/api/ivekit/media/rooms/jwt-room/recordings/start', {
         media_call_id: callId, business_ref: { type: 'order', id: 'order-jwt' }
@@ -100,15 +105,21 @@ test('JWT recording access is call-member scoped and writes are host-only', asyn
     );
     const started = await routed('POST', `/api/ivekit/media/rooms/${callRoom}/recordings/start`, {
       media_call_id: callId, business_ref: { type: 'order', id: 'order-jwt' }
-    }, host) as { data: { id: string; egress_id: string } };
+    }, host) as { data: { id: string; egress_id: string; evidence_record_id?: string; storage_url?: string } };
+    assert.equal(started.data.evidence_record_id, 'evidence-recording-test');
+    assert.equal('storage_url' in started.data, false);
     await assert.rejects(
       () => routed('POST', `/api/ivekit/media/rooms/${callRoom}/recordings/start`, {
         media_call_id: callId, business_ref: { type: 'order', id: 'order-jwt' }
       }, host),
       status(409)
     );
-    const listed = await routed('GET', `/api/ivekit/media/recordings?page=1&call_id=${callId}`, null, participant) as { data: { items: Array<{ id: string }> } };
+    const listed = await routed('GET', `/api/ivekit/media/recordings?page=1&call_id=${callId}`, null, participant) as {
+      data: { items: Array<{ id: string; evidence_record_id?: string; storage_url?: string }> }
+    };
     assert.deepEqual(listed.data.items.map((item) => item.id), [started.data.id]);
+    assert.equal(listed.data.items[0].evidence_record_id, 'evidence-recording-test');
+    assert.equal('storage_url' in listed.data.items[0], false);
     await assert.rejects(
       () => routed('GET', `/api/ivekit/media/recordings?page=1&call_id=${callId}`, null, outsider),
       status(404)
@@ -130,10 +141,22 @@ test('JWT recording access is call-member scoped and writes are host-only', asyn
     ) as { data: { id: string; status: string } };
     assert.equal(replayedStop.data.id, started.data.id);
     assert.equal(replayedStop.data.status, 'stopped');
+    await routed('POST', `/api/ivekit/media/calls/${callId}/actions`, { action: 'end' }, {
+      ...host, 'Idempotency-Key': 'recording-call-end'
+    });
+    await assert.rejects(
+      () => routed('POST', `/api/ivekit/media/rooms/${callRoom}/recordings/start`, {
+        media_call_id: callId, business_ref: { type: 'order', id: 'order-jwt' }
+      }, host),
+      status(409)
+    );
 
     function routed(method: string, path: string, body: unknown, headers: Record<string, string>) {
       const pathname = new URL(`http://localhost${path}`).pathname;
-      return routeIveKitMediaApi(db, method, pathname, new URL(`http://localhost${path}`), body, '', headers, { pg });
+      return routeIveKitMediaApi(db, method, pathname, new URL(`http://localhost${path}`), body, '', headers, {
+        pg,
+        onRecordingStarted: async () => ({ id: 'evidence-recording-test' })
+      });
     }
   } finally {
     db.close();
@@ -171,6 +194,7 @@ test('recording SDK keeps legacy arrays and exposes encoded page filters', async
 test('recording call/room migration is indexed and preserves forced tenant RLS', () => {
   const migration = readFileSync('src/migrations/036_media_recording_call_room.sql', 'utf8');
   const lifecycle = readFileSync('src/migrations/026_media_recording_lifecycle.sql', 'utf8');
+  const evidence = readFileSync('src/migrations/038_media_recording_evidence.sql', 'utf8');
   const fullSchema = readFileSync('src/migrations/005_full_schema.sql', 'utf8');
   const callRecordings = tableDefinition(fullSchema, 'call_recordings');
   const voiceWebrtcSessions = tableDefinition(fullSchema, 'voice_webrtc_sessions');
@@ -182,6 +206,8 @@ test('recording call/room migration is indexed and preserves forced tenant RLS',
   assert.match(callRecordings, /media_call_id TEXT NULL/i);
   assert.match(callRecordings, /room_name TEXT NOT NULL DEFAULT ''/i);
   assert.match(fullSchema, /uq_call_recordings_active_room/i);
+  assert.match(evidence, /evidence_record_id/i);
+  assert.match(callRecordings, /evidence_record_id TEXT NOT NULL DEFAULT ''/i);
   assert.doesNotMatch(voiceWebrtcSessions, /media_call_id|room_name/i);
 });
 

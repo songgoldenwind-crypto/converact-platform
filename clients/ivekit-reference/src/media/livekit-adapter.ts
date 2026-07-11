@@ -49,6 +49,12 @@ export interface LiveKitClientAdapterInput {
   onEvent?: (event: MediaAdapterEvent) => void;
 }
 
+declare global {
+  interface Window {
+    __IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__?: () => LiveKitRoomLike;
+  }
+}
+
 interface ActiveTrack {
   readonly raw: LiveKitTrackLike;
   readonly handle: MediaTrackHandle;
@@ -400,6 +406,11 @@ function webRtcCredentials(plan: IveKitMediaJoinPlan): WebRtcCredentials {
 }
 
 function defaultRoomFactory(): LiveKitRoomLike {
+  const development = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV;
+  const injected = development && typeof window !== 'undefined'
+    ? window.__IVEKIT_DEV_LIVEKIT_ROOM_FACTORY__
+    : undefined;
+  if (injected) return injected();
   return new Room({ adaptiveStream: true, dynacast: true }) as unknown as LiveKitRoomLike;
 }
 

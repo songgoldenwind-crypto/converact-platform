@@ -352,7 +352,7 @@ RustDesk 物理断开状态当前暴露在可独立复用的 `IveKitRustDeskHttp
 | `POST` | `/api/ivekit/media/rooms` | 按当前租户创建 LiveKit room，可携带 `business_ref` |
 | `GET` | `/api/ivekit/media/rooms/:room_name` | 查询当前租户房间 |
 | `POST` | `/api/ivekit/media/rooms/:room_name/close` | 关闭当前租户房间 |
-| `POST` | `/api/ivekit/media/rooms/:room_name/join` | 生成 WebRTC join plan，返回 token/livekit_url/joinPath |
+| `POST` | `/api/ivekit/media/rooms/:room_name/join` | 仅 system/API-key 兼容入口；生成 WebRTC join plan |
 | `GET` | `/api/ivekit/media/rooms/:room_name/participants` | 查询当前租户房间参与人 |
 | `POST` | `/api/ivekit/media/rooms/:room_name/recordings/start` | 按当前租户和 business_ref 启动 LiveKit Egress 录制 |
 | `GET` | `/api/ivekit/media/recordings` | 查询当前租户录制列表 |
@@ -653,13 +653,30 @@ Content-Type: application/json
 - `business_ref_id`
 - `source = livekit_egress`
 - `format`
-- `storage_url`
+- `evidence_record_id`（已绑定时）
 - `egress_id`
 - `status`
 - `retention_until`
 - `object_status` / `object_checked_at`
 - `failure_code` / `completed_at` / `deleted_at`
-- `evidence_record_id`，如果上层传入 evidence callback
+- `evidence_record_id`，如果上层传入 evidence callback；该关联会持久化并可在后续列表/详情查询中返回
+
+公开 media recording DTO 不返回内部 `storage_url` 或预签名下载地址。播放和下载必须
+走 `/api/ivekit/media/recordings/:recording_id/export`，并产生审计。导出默认 64 MiB
+上限，可通过 `OPC_RECORDING_EXPORT_MAX_BYTES` 调整至 1 GiB；服务端使用 AsyncIterable
+逐块写响应，不聚合完整录制。文件、HTTP 和 S3 读取均执行有界检查，超限会取消上游
+读取。
+
+durable Media Call 的录制不依赖 legacy `media_rooms` 镜像。带 `media_call_id` 的启动
+会在同一 call 行锁内校验 room、`accepted|active` 状态和 host 身份，因此不能与终态
+`end/fail` 竞态穿透。legacy room join 仅供 system/API-key 集成使用；Bearer 浏览器必须
+调用 `/api/ivekit/media/calls/:call_id/join`，identity 固定为 JWT `sub`。
+
+无人接听超时由 iveKit 内置 worker 自动扫描，默认每秒运行；配置项为
+`OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED`、`OPC_MEDIA_CALL_TIMEOUT_INTERVAL_MS`、
+`OPC_MEDIA_CALL_TIMEOUT_BATCH_SIZE` 和 `OPC_MEDIA_CALL_TIMEOUT_TENANT_LIMIT`。worker
+通过受限 `opc_worker_tenant_ids('media_call_timeout', ...)` 发现租户，再进入逐租户 RLS
+事务，复用 call transition、幂等键和行锁。
 
 #### 停止录制
 

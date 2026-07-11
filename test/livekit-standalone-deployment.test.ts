@@ -194,7 +194,7 @@ test('standalone iveKit application stack runs the iveKit-only process', () => {
   const compose = readFileSync(new URL('../infra/ivekit/docker-compose.yml', import.meta.url), 'utf8');
   const readme = readFileSync(new URL('../infra/ivekit/README.md', import.meta.url), 'utf8');
   const envExample = readFileSync(new URL('../infra/ivekit/env.example', import.meta.url), 'utf8');
-  const opcService = compose.match(/^  opc:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:|\Z)/m)?.[0] || '';
+  const opcService = compose.match(/^  opc:\n([\s\S]*?)(?=\n  [a-zA-Z0-9_-]+:\n|(?![\s\S]))/m)?.[0] || '';
 
   assert.match(opcService, /command:\s*\["npm",\s*"run",\s*"start:ivekit"\]/);
   assert.match(opcService, /aliases:\s*\n\s*- ivekit-api/);

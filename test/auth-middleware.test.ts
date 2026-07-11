@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { createSign, generateKeyPairSync } from 'node:crypto';
 import { test } from 'node:test';
-import { resolveAuthContext } from '../src/middleware/auth.js';
+import { _clearJwksCache, _injectJwksForTest, resolveAuthContext } from '../src/middleware/auth.js';
 
 test('dev mode: X-API-Key matching OPC_API_KEY returns system context', () => {
   const original = process.env.OPC_AUTH_DISABLED;
@@ -156,3 +157,58 @@ test('auth required: non-Bearer token throws 401', () => {
     process.env.OPC_AUTH_ISSUER = origIssuer;
   }
 });
+
+test('RS256 auth requires a signed tenant claim and never trusts X-Tenant-Id', () => {
+  const originalDisabled = process.env.OPC_AUTH_DISABLED;
+  const originalIssuer = process.env.OPC_AUTH_ISSUER;
+  const originalSecret = process.env.OPC_JWT_SECRET;
+  const issuer = 'https://auth.example.test';
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const jwk = publicKey.export({ format: 'jwk' });
+  try {
+    delete process.env.OPC_AUTH_DISABLED;
+    delete process.env.OPC_JWT_SECRET;
+    process.env.OPC_AUTH_ISSUER = issuer;
+    _injectJwksForTest(issuer, [{
+      kty: String(jwk.kty),
+      kid: 'auth-test-key',
+      n: String(jwk.n),
+      e: String(jwk.e),
+      use: 'sig',
+      alg: 'RS256'
+    }]);
+
+    const withoutTenant = signRs256({ sub: 'user-1', iss: issuer, exp: futureEpoch() }, privateKey);
+    assert.throws(
+      () => resolveAuthContext({ authorization: `Bearer ${withoutTenant}`, 'x-tenant-id': 'attacker-tenant' }),
+      (error: any) => error.status === 403 && /signed tenant/i.test(error.message)
+    );
+
+    const signedTenant = signRs256({
+      sub: 'user-1', tenant_id: 'signed-tenant', role: 'operator', iss: issuer, exp: futureEpoch()
+    }, privateKey);
+    const context = resolveAuthContext({
+      authorization: `Bearer ${signedTenant}`,
+      'x-tenant-id': 'attacker-tenant'
+    });
+    assert.equal(context.tenantId, 'signed-tenant');
+    assert.equal(context.userId, 'user-1');
+  } finally {
+    _clearJwksCache();
+    process.env.OPC_AUTH_DISABLED = originalDisabled;
+    process.env.OPC_AUTH_ISSUER = originalIssuer;
+    process.env.OPC_JWT_SECRET = originalSecret;
+  }
+});
+
+function futureEpoch(): number {
+  return Math.floor(Date.now() / 1000) + 60;
+}
+
+function signRs256(payload: Record<string, unknown>, privateKey: ReturnType<typeof generateKeyPairSync>['privateKey']): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'auth-test-key' })).toString('base64url');
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const input = `${header}.${body}`;
+  const signature = createSign('RSA-SHA256').update(input).sign(privateKey).toString('base64url');
+  return `${input}.${signature}`;
+}

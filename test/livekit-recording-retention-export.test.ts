@@ -89,6 +89,35 @@ test('recording start can resolve a tenant retention policy without coupling Med
   db.close();
 });
 
+test('default recording export returns a bounded stream instead of buffering the object', async () => {
+  const db = createDatabase(':memory:');
+  const tenant = createTenant(db, { name: 'Streaming recording export' });
+  const dir = await mkdtemp(join(tmpdir(), 'opc-recording-stream-'));
+  try {
+    const path = join(dir, 'recording.webm');
+    const body = Buffer.from('streamed-recording-body');
+    await writeFile(path, body);
+    const service = new LiveKitRecordingService(db);
+    const recording = await service.startRecording(tenant.id, null, 'streaming-room', {
+      format: 'webm',
+      businessRef: { tenant_id: tenant.id, type: 'order', id: 'stream-order' }
+    });
+    run(db, "UPDATE call_recordings SET storage_url = ?, status = 'completed' WHERE id = ?", [
+      pathToFileURL(path).toString(), recording.id
+    ]);
+
+    const exported = await service.exportObject(recording.id);
+    assert.equal(exported?.content, undefined);
+    assert.ok(exported?.stream);
+    const chunks: Buffer[] = [];
+    for await (const chunk of exported!.stream!) chunks.push(Buffer.from(chunk));
+    assert.deepEqual(Buffer.concat(chunks), body);
+  } finally {
+    db.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test('recording object inspection and export return content and emit an audit event', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Recording object export' });
