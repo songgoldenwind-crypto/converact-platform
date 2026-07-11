@@ -255,11 +255,11 @@ git commit -m "feat(media): enforce host moderation"
 - Create: `clients/ivekit-reference/src/media/livekit-adapter.test.ts`
 - Create: `clients/ivekit-reference/src/media/types.ts`
 
-- [ ] **Step 1: Add `livekit-client@^2.19.2` and failing state-machine tests**
+- [x] **Step 1: Add `livekit-client@^2.19.2` and failing state-machine tests**
 
 Use an injected fake Room to cover connect coalescing, disconnect during token fetch, stale-generation suppression, track subscribe/unsubscribe, active-speaker order, network quality, reconnect/reconnected, fatal disconnect, autoplay failure, and disposal.
 
-- [ ] **Step 2: Define a narrow adapter surface**
+- [x] **Step 2: Define a narrow adapter surface**
 
 ```typescript
 interface LiveKitRoomAdapter {
@@ -275,15 +275,15 @@ interface LiveKitRoomAdapter {
 
 Do not expose the Room instance, publish arbitrary data, or accept server credentials.
 
-- [ ] **Step 3: Normalize LiveKit events**
+- [x] **Step 3: Normalize LiveKit events**
 
 Map official Room/Participant/Track events into immutable `MediaAdapterEvent` objects. Store `MediaStreamTrack`/track handles only inside the adapter; React receives stable ids and explicit attach/detach callbacks.
 
-- [ ] **Step 4: Add bounded reconnect generations**
+- [x] **Step 4: Add bounded reconnect generations**
 
 LiveKit SDK owns transport retry. The adapter owns UI generation: a token/call change disconnects the old Room, and callbacks from old Rooms cannot update the new projection.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test

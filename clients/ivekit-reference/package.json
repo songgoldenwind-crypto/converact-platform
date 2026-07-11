@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@opc/ivekit-sdk": "file:../../sdk/ivekit",
+    "livekit-client": "^2.19.2",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
