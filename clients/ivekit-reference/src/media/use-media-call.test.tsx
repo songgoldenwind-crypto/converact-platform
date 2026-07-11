@@ -222,6 +222,29 @@ test('stale moderation 403 cannot revoke or poison a newly selected call', async
   assert.equal(Object.values(view.result.current.state.commands).some((command) => command.error), false);
 });
 
+test('targeted media websocket invalidates recordings and converges call events', async () => {
+  let loads = 0;
+  const sockets: FakeWebSocket[] = [];
+  const previous = globalThis.WebSocket;
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, writable: true, value: class extends FakeWebSocket { constructor(url: string | URL) { super(url); sockets.push(this); } } });
+  try {
+    const client = fakeClient({ getCall: async () => { loads += 1; return snapshot('ringing'); } });
+    const view = renderHook(() => useMediaCall(input(client, () => new FakeAdapter([], false), {
+      websocketUrl: 'wss://events.test/ws', accessToken: 'short-token'
+    })));
+    await waitFor(() => assert.equal(view.result.current.state.call?.status, 'ringing'));
+    assert.equal(new URL(sockets[0].url).searchParams.get('token'), 'short-token');
+    act(() => sockets[0].emit({ type: 'ivekit.media.recording.updated', data: { call_id: 'call-1' } }));
+    assert.equal(view.result.current.state.recordingRevision, 1);
+    act(() => sockets[0].emit({ type: 'ivekit.media.call.updated', data: { call_id: 'call-1' } }));
+    await waitFor(() => assert.equal(loads, 2));
+    view.unmount();
+    assert.equal(sockets[0].closed, true);
+  } finally {
+    Object.defineProperty(globalThis, 'WebSocket', { configurable: true, writable: true, value: previous });
+  }
+});
+
 class FakeAdapter implements LiveKitRoomAdapter {
   disposeCalls = 0;
   cameraError?: Error;
@@ -250,6 +273,15 @@ class FakeAdapter implements LiveKitRoomAdapter {
   async switchDevice(kind: 'audioinput' | 'videoinput' | 'audiooutput', deviceId: string) { this.sequence.push(`adapter:device:${kind}:${deviceId}`); }
   async startAudio() { this.sequence.push('adapter:start-audio'); }
   async dispose() { this.disposeCalls += 1; this.sequence.push('adapter:dispose'); }
+}
+
+class FakeWebSocket {
+  onmessage: ((message: { data: string }) => void) | null = null;
+  closed = false;
+  readonly url: string;
+  constructor(url: string | URL) { this.url = String(url); }
+  emit(value: unknown) { this.onmessage?.({ data: JSON.stringify(value) }); }
+  close() { this.closed = true; }
 }
 
 function input(

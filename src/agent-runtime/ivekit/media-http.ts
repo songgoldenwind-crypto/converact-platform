@@ -235,6 +235,7 @@ export async function routeIveKitMediaApi(
         : JSON.stringify(body || {});
     const result = await media.webhooks.handleWebhook(rawBodyText, authHeader || undefined);
     await revokeTerminalCallRevival(rawBodyText, result, options);
+    if (result.recording) await broadcastMediaRecording(options.pg, 'ivekit.media.recording.updated', result.recording);
     if (!result.recording || !options.onRecordingCompleted) return result;
     const evidence = await options.onRecordingCompleted(result.recording, {
       roomName: result.room_name || result.recording.business_ref?.id || ''
@@ -263,6 +264,26 @@ export async function routeIveKitMediaApi(
     return new MediaCallService(mediaCallStore(), {
       beforeTerminalTransition: (snapshot) => moderation.revokeForTerminal(snapshot)
     });
+  };
+  const requireRecordingCallAccess = async (
+    callId: string | undefined,
+    hostOnly = false,
+    expectedRoomName?: string
+  ) => {
+    if (ctx.role === 'system') return;
+    if (!callId) throw notFound('media recording not found');
+    const snapshot = await withPgTenant(requireMediaCallPg(options.pg), ctx.tenantId, (tenantPg) =>
+      new MediaCallStore(tenantPg).snapshot(ctx.tenantId, callId)
+    );
+    if (!snapshot) throw notFound('media recording not found');
+    if (expectedRoomName && snapshot.call.room_name !== expectedRoomName) {
+      throw notFound('media recording not found');
+    }
+    requireMediaCallReadAccess(ctx, headers, snapshot);
+    if (!hostOnly) return;
+    const identity = mediaActorIdentity(ctx, headers);
+    const participant = snapshot.participants.find((item) => item.identity === identity && item.status !== 'removed');
+    if (participant?.role !== 'host') throw Object.assign(new Error('recording command requires host role'), { status: 403 });
   };
 
   if (routePath === '/api/ivekit/media/calls' && method === 'POST') {
@@ -521,16 +542,20 @@ export async function routeIveKitMediaApi(
       const businessRef = optionalBusinessRef(ctx.tenantId, input) || roomBusinessRef(room);
       const callSessionId =
         optionalBodyString(input, 'call_session_id') || (businessRef?.type === 'call_session' ? businessRef.id : null);
-      if (!callSessionId && !businessRef) {
-        return { status: 400, data: { error: 'call_session_id or business_ref is required' } };
+      const mediaCallId = optionalBodyString(input, 'media_call_id');
+      if (!callSessionId && !mediaCallId && !businessRef) {
+        return { status: 400, data: { error: 'media_call_id, call_session_id, or business_ref is required' } };
       }
+      await requireRecordingCallAccess(mediaCallId, true, roomName);
       const recording = await media.recordings.startRecording(ctx.tenantId, callSessionId, roomName, {
         format: optionalBodyString(input, 'format') as RecordingFormat | undefined,
         hasVideo: Boolean(input.has_video),
         businessRef,
         retentionUntil: optionalBodyString(input, 'retention_until'),
-        retentionDays: optionalBodyNumber(input, 'retention_days')
+        retentionDays: optionalBodyNumber(input, 'retention_days'),
+        mediaCallId
       });
+      await broadcastMediaRecording(options.pg, 'ivekit.media.recording.started', recording);
       if (!options.onRecordingStarted) return { status: 201, data: recording };
       const evidence = await options.onRecordingStarted(recording, { roomName });
       if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
@@ -549,10 +574,20 @@ export async function routeIveKitMediaApi(
   }
 
   if (routePath === '/api/ivekit/media/recordings' && method === 'GET') {
+    const listInput = {
+      limit: Number(url.searchParams.get('limit') || 50),
+      cursor: url.searchParams.get('cursor') || undefined,
+      mediaCallId: url.searchParams.get('call_id') || undefined,
+      roomName: url.searchParams.get('room_name') || undefined,
+      businessRefType: url.searchParams.get('business_ref_type') || undefined,
+      businessRefId: url.searchParams.get('business_ref_id') || undefined,
+      status: (url.searchParams.get('status') || undefined) as import('../livekit/types.js').MediaRecordingStatus | undefined
+    };
+    await requireRecordingCallAccess(listInput.mediaCallId, false);
     return {
-      data: media.recordings.listRecordings(ctx.tenantId, {
-        limit: Number(url.searchParams.get('limit') || 50)
-      })
+      data: url.searchParams.get('page') === '1'
+        ? media.recordings.listRecordingsPage(ctx.tenantId, listInput)
+        : media.recordings.listRecordings(ctx.tenantId, listInput)
     };
   }
 
@@ -597,10 +632,13 @@ export async function routeIveKitMediaApi(
     const recordingId = decodeURIComponent(recordingMatch[1]);
     const action = recordingMatch[2] || '';
     if (!action && method === 'GET') {
-      return { data: requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId) };
+      const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
+      await requireRecordingCallAccess(recording.media_call_id, false);
+      return { data: recording };
     }
     if (action === 'object' && method === 'GET') {
       const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
+      await requireRecordingCallAccess(recording.media_call_id, false);
       const inspection = await media.recordings.inspectObject(recordingId);
       if (!inspection) throw notFound('media recording not found');
       await options.onRecordingAudit?.(recordingAuditEvent(
@@ -613,6 +651,7 @@ export async function routeIveKitMediaApi(
     }
     if (action === 'export' && method === 'GET') {
       const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
+      await requireRecordingCallAccess(recording.media_call_id, false);
       const exported = await media.recordings.exportObject(recordingId);
       if (!exported) throw notFound('media recording not found');
       if (!exported.readable || !exported.content) {
@@ -634,8 +673,16 @@ export async function routeIveKitMediaApi(
       };
     }
     if (action === 'stop' && method === 'POST') {
-      requireTenantRecording(media.recordings.getRecordingByEgressId(recordingId), ctx.tenantId);
-      return { status: 201, data: media.recordings.stopRecording(recordingId) };
+      const recording = requireTenantRecording(
+        media.recordings.getRecordingByEgressId(recordingId) || media.recordings.getRecording(recordingId),
+        ctx.tenantId
+      );
+      await requireRecordingCallAccess(recording.media_call_id, true);
+      const stopped = recording.egress_id
+        ? await media.recordings.stopRecording(recording.egress_id)
+        : recording;
+      if (stopped) await broadcastMediaRecording(options.pg, 'ivekit.media.recording.updated', stopped);
+      return { status: 201, data: stopped };
     }
   }
 
@@ -794,6 +841,24 @@ function headerValue(
 ): string {
   const match = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1];
   return Array.isArray(match) ? String(match[0] || '') : String(match || '');
+}
+
+async function broadcastMediaRecording(
+  pg: PgQueryable | undefined,
+  event: 'ivekit.media.recording.started' | 'ivekit.media.recording.updated',
+  recording: EgressRecord
+): Promise<void> {
+  if (!pg || !recording.media_call_id) return;
+  const snapshot = await withPgTenant(pg, recording.tenant_id, (tenantPg) =>
+    new MediaCallStore(tenantPg).snapshot(recording.tenant_id, recording.media_call_id!)
+  );
+  if (!snapshot) return;
+  wsBroadcastToUsers(
+    recording.tenant_id,
+    snapshot.participants.map((participant) => participant.identity),
+    event,
+    { recording_id: recording.id, call_id: recording.media_call_id, status: recording.status }
+  );
 }
 
 function recordingAuditEvent(

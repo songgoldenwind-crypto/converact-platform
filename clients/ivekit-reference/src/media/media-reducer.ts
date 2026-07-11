@@ -51,6 +51,7 @@ export interface MediaCallState {
   readonly autoplayBlocked: boolean;
   readonly fatalReason: string;
   readonly revokedReason: string;
+  readonly recordingRevision: number;
 }
 
 export type MediaAction =
@@ -65,6 +66,7 @@ export type MediaAction =
   | { type: 'layout_changed'; layout: MediaLayout }
   | { type: 'track_mute_confirmed'; trackId: string; muted: boolean }
   | { type: 'audio_started' }
+  | { type: 'recording_invalidated' }
   | { type: 'network_changed'; online: boolean }
   | { type: 'revoked'; reason: string };
 
@@ -92,7 +94,8 @@ export function initialMediaCallState(): MediaCallState {
     commands: {},
     autoplayBlocked: false,
     fatalReason: '',
-    revokedReason: ''
+    revokedReason: '',
+    recordingRevision: 0
   };
 }
 
@@ -132,6 +135,8 @@ export function mediaCallReducer(state: MediaCallState, action: MediaAction): Me
       return withTrackMuted(state, action.trackId, action.muted);
     case 'audio_started':
       return { ...state, autoplayBlocked: false };
+    case 'recording_invalidated':
+      return { ...state, recordingRevision: state.recordingRevision + 1 };
     case 'network_changed':
       if (state.connection === 'ended' || state.connection === 'fatal') return state;
       return { ...state, connection: action.online ? (state.connection === 'offline' ? 'reconnecting' : state.connection) : 'offline' };

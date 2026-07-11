@@ -26,6 +26,8 @@ export interface UseMediaCallInput {
   displayName?: string;
   adapterFactory?: MediaAdapterFactory;
   randomId?: () => string;
+  websocketUrl?: string;
+  accessToken?: string;
 }
 
 export interface MediaCallCommands {
@@ -262,6 +264,24 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
       window.removeEventListener('online', online);
     };
   }, [input.callId, refresh]);
+
+  useEffect(() => {
+    if (!input.websocketUrl || !input.accessToken || !input.callId) return;
+    const operationId = requestId.current;
+    const url = new URL(input.websocketUrl);
+    url.searchParams.set('token', input.accessToken);
+    const socket = new WebSocket(url);
+    socket.onmessage = (message) => {
+      if (requestId.current !== operationId) return;
+      try {
+        const envelope = JSON.parse(String(message.data)) as { type?: string; data?: { call_id?: string } };
+        if (envelope.data?.call_id !== input.callId) return;
+        if (envelope.type?.startsWith('ivekit.media.recording.')) dispatch({ type: 'recording_invalidated' });
+        else if (envelope.type?.startsWith('ivekit.media.')) void refresh();
+      } catch { /* malformed event */ }
+    };
+    return () => socket.close();
+  }, [input.websocketUrl, input.accessToken, input.callId, refresh]);
 
   const retry = useCallback((command: IveKitMediaCallAction) => {
     const saved = pending.current.get(`${input.callId}:${command}`);

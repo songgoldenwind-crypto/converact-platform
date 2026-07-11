@@ -66,6 +66,7 @@ export function createLiveKitMediaModule(input: LiveKitMediaModuleInput): LiveKi
       getRecordingByEgressId: (egressId) => recordings.getRecordingByEgressId(egressId),
       getRecordingBySession: (callSessionId) => recordings.getRecordingBySession(callSessionId),
       listRecordings: (tenantId, opts) => recordings.listRecordings(tenantId, opts),
+      listRecordingsPage: (tenantId, opts) => recordings.listRecordingsPage(tenantId, opts),
       inspectObject: (recordingId) => recordings.inspectObject(recordingId),
       exportObject: (recordingId) => recordings.exportObject(recordingId),
       listRetentionCandidates: (tenantId, opts) => recordings.listRetentionCandidates(tenantId, opts),

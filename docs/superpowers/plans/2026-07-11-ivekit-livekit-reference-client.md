@@ -455,23 +455,23 @@ git commit -m "feat(client): add media recovery controls"
 - Create: `test/ivekit-media-recording-list.test.ts`
 - Modify: `docs/ivekit-openapi.md`
 
-- [ ] **Step 1: Write failing recording filters and UI tests**
+- [x] **Step 1: Write failing recording filters and UI tests**
 
 Cover call/business-ref filtering, host-only start/stop, duplicate start, stopping by recording id and egress id, pending/active/completed/failed/deleted states, object availability, authenticated export, filename/content type, evidence id, and retention metadata.
 
-- [ ] **Step 2: Add typed list filters**
+- [x] **Step 2: Add typed list filters**
 
 Extend `listRecordings()` with `call_id`, `room_name`, `business_ref_type`, `business_ref_id`, `status`, cursor, and bounded limit. Preserve the old unfiltered call.
 
-- [ ] **Step 3: Build recording panel**
+- [x] **Step 3: Build recording panel**
 
 Show recording state and elapsed duration, object inspection, evidence reference, retention deadline, play when the browser supports the returned content type, and explicit authenticated export. Do not embed storage credentials or raw S3 URLs.
 
-- [ ] **Step 4: Reconcile webhook updates**
+- [x] **Step 4: Reconcile webhook updates**
 
 iveKit recording events invalidate the list. Poll only while a recording is pending/active and stop on completion, terminal call, unmount, or authorization failure.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 node --import tsx --test test/ivekit-media-recording-list.test.ts test/livekit-recording-retention-export.test.ts

@@ -18,6 +18,8 @@ import type {
   RecordingObjectExport,
   RecordingObjectInspection,
   RecordingRetentionCleanupResult,
+  RecordingCursorPage,
+  RecordingListOptions,
   StartRecordingOptions
 } from './types.js';
 
@@ -158,31 +160,42 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
       tenantRetentionDays ?? this.config.recordingRetentionDays
     );
 
-    run(
-      this.db,
-      `INSERT INTO call_recordings
-        (id, tenant_id, call_session_id, business_ref_type, business_ref_id, business_ref_metadata,
-         source, format, storage_url, has_video, egress_id, status, retention_until,
-         object_status, failure_code, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'livekit_egress', ?, ?, ?, ?, ?, ?, 'unchecked', '', CURRENT_TIMESTAMP)`,
-      [
-        recordId,
-        tenantId,
-        callSessionId || null,
-        businessRef?.type || '',
-        businessRef?.id || '',
-        json({
-          display_name: businessRef?.display_name || '',
-          metadata: businessRef?.metadata || {}
-        }),
-        format,
-        storageUrl,
-        opts.hasVideo ? 1 : 0,
-        pendingEgressId,
-        providerConfigured ? 'starting' : 'pending',
-        retentionUntil
-      ]
-    );
+    const activeRecording = this.getActiveRecordingByRoom(tenantId, roomName);
+    if (activeRecording) throw activeRecordingConflict(activeRecording.id);
+
+    try {
+      run(
+        this.db,
+        `INSERT INTO call_recordings
+          (id, tenant_id, call_session_id, media_call_id, room_name, business_ref_type, business_ref_id, business_ref_metadata,
+           source, format, storage_url, has_video, egress_id, status, retention_until,
+           object_status, failure_code, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'livekit_egress', ?, ?, ?, ?, ?, ?, 'unchecked', '', CURRENT_TIMESTAMP)`,
+        [
+          recordId,
+          tenantId,
+          callSessionId || null,
+          opts.mediaCallId || null,
+          roomName,
+          businessRef?.type || '',
+          businessRef?.id || '',
+          json({
+            display_name: businessRef?.display_name || '',
+            metadata: businessRef?.metadata || {}
+          }),
+          format,
+          storageUrl,
+          opts.hasVideo ? 1 : 0,
+          pendingEgressId,
+          providerConfigured ? 'starting' : 'pending',
+          retentionUntil
+        ]
+      );
+    } catch (cause) {
+      const concurrent = this.getActiveRecordingByRoom(tenantId, roomName);
+      if (concurrent) throw activeRecordingConflict(concurrent.id);
+      throw cause;
+    }
 
     if (providerConfigured) {
       let client: LiveKitEgressClientLike | undefined;
@@ -283,6 +296,18 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     return row ? decodeEgressRecord(row) : null;
   }
 
+  private getActiveRecordingByRoom(tenantId: string, roomName: string): EgressRecord | null {
+    if (!roomName) return null;
+    const row = one(
+      this.db,
+      `SELECT * FROM call_recordings
+       WHERE tenant_id = ? AND room_name = ? AND status IN ('starting', 'pending', 'recording', 'stopping')
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [tenantId, roomName]
+    );
+    return row ? decodeEgressRecord(row) : null;
+  }
+
   getRecordingBySession(callSessionId: string): EgressRecord | null {
     const row = one(
       this.db,
@@ -292,13 +317,33 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     return row ? decodeEgressRecord(row) : null;
   }
 
-  listRecordings(tenantId: string, opts: { limit?: number } = {}): EgressRecord[] {
+  listRecordings(tenantId: string, opts: RecordingListOptions = {}): EgressRecord[] {
+    return this.listRecordingsPage(tenantId, opts).items;
+  }
+
+  listRecordingsPage(tenantId: string, opts: RecordingListOptions = {}): RecordingCursorPage {
     const limit = boundedLimit(opts.limit, 50);
-    return all(
+    const where = ['tenant_id = ?'];
+    const params: Array<string | number | null> = [tenantId];
+    addRecordingFilter(where, params, 'media_call_id', opts.mediaCallId);
+    addRecordingFilter(where, params, 'room_name', opts.roomName);
+    addRecordingFilter(where, params, 'business_ref_type', opts.businessRefType);
+    addRecordingFilter(where, params, 'business_ref_id', opts.businessRefId);
+    addRecordingFilter(where, params, 'status', opts.status);
+    const cursor = decodeRecordingCursor(opts.cursor);
+    if (cursor) {
+      where.push('(created_at < ? OR (created_at = ? AND id < ?))');
+      params.push(cursor.created_at, cursor.created_at, cursor.id);
+    }
+    const rows = all(
       this.db,
-      'SELECT * FROM call_recordings WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?',
-      [tenantId, limit]
+      `SELECT * FROM call_recordings WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT ?`,
+      [...params, limit + 1]
     ).map(decodeEgressRecord);
+    const hasMore = rows.length > limit;
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    return { items, has_more: hasMore, next_cursor: hasMore && last ? encodeRecordingCursor(last) : null };
   }
 
   async inspectObject(recordingId: string): Promise<RecordingObjectInspection | null> {
@@ -507,6 +552,35 @@ function boundedLimit(value: number | undefined, fallback: number): number {
   return Math.min(Math.floor(value), 100);
 }
 
+function addRecordingFilter(
+  where: string[],
+  params: Array<string | number | null>,
+  column: 'media_call_id' | 'room_name' | 'business_ref_type' | 'business_ref_id' | 'status',
+  value: string | undefined
+): void {
+  const normalized = String(value || '').trim();
+  if (!normalized) return;
+  where.push(`${column} = ?`);
+  params.push(normalized);
+}
+
+function encodeRecordingCursor(recording: EgressRecord): string {
+  return Buffer.from(JSON.stringify({ created_at: recording.created_at, id: recording.id })).toString('base64url');
+}
+
+function decodeRecordingCursor(value: string | undefined): { created_at: string; id: string } | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Record<string, unknown>;
+    const createdAt = String(parsed.created_at || '');
+    const idValue = String(parsed.id || '');
+    if (!createdAt || !idValue) throw new Error('missing cursor fields');
+    return { created_at: createdAt, id: idValue };
+  } catch {
+    throw Object.assign(new Error('invalid recording cursor'), { status: 400 });
+  }
+}
+
 function contentTypeForFormat(format: RecordingFormat): string {
   switch (format) {
     case 'mp4':
@@ -528,6 +602,13 @@ function providerFailure(code: string, recordingId: string): Error & {
   return Object.assign(new Error('LiveKit egress provider request failed'), {
     status: 502,
     code,
+    recording_id: recordingId
+  });
+}
+
+function activeRecordingConflict(recordingId: string): Error & { status: number; recording_id: string } {
+  return Object.assign(new Error('an active recording already exists for this room'), {
+    status: 409,
     recording_id: recordingId
   });
 }
@@ -555,6 +636,8 @@ export function decodeEgressRecord(row: Record<string, unknown>): EgressRecord {
     id: String(row.id),
     tenant_id: String(row.tenant_id),
     call_session_id: row.call_session_id ? String(row.call_session_id) : '',
+    media_call_id: row.media_call_id ? String(row.media_call_id) : '',
+    room_name: String(row.room_name || ''),
     business_ref_type: businessRefType,
     business_ref_id: businessRefId,
     business_ref: businessRef,

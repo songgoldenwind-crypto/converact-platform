@@ -215,7 +215,7 @@ export function App() {
         onCloseFinding={() => setSelectedFindingId('')}
         onLoadFinding={chat.loadFinding}
         onReviewFinding={chat.reviewFinding}
-      /></> : <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} /></Suspense>}
+      /></> : <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );

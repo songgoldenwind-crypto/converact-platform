@@ -281,6 +281,8 @@ export interface IveKitMediaRecording {
   id: string;
   tenant_id: string;
   call_session_id: string;
+  media_call_id: string;
+  room_name: string;
   business_ref_type: string;
   business_ref_id: string;
   business_ref: IveKitSdkBusinessRef | null;
@@ -306,6 +308,7 @@ export interface IveKitMediaRecording {
 
 export interface IveKitStartMediaRecordingInput {
   call_session_id?: string;
+  media_call_id?: string;
   business_ref?: IveKitSdkBusinessRef;
   business_ref_type?: string;
   business_ref_id?: string;
@@ -315,6 +318,18 @@ export interface IveKitStartMediaRecordingInput {
   retention_until?: string;
   retention_days?: number;
 }
+
+export interface IveKitMediaRecordingListInput {
+  limit?: number;
+  cursor?: string;
+  call_id?: string;
+  room_name?: string;
+  business_ref_type?: string;
+  business_ref_id?: string;
+  status?: IveKitMediaRecordingStatus;
+}
+
+export type IveKitMediaRecordingPage = IveKitMediaCursorPage<IveKitMediaRecording>;
 
 export interface IveKitMediaRecordingObjectInspection {
   status: Exclude<IveKitMediaRecordingObjectStatus, 'unchecked' | 'deleted' | 'delete_failed'>;

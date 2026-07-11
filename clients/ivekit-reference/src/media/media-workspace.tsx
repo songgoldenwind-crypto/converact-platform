@@ -9,6 +9,7 @@ import { isTerminalStatus } from './media-reducer.js';
 import { MediaToolbar } from './media-toolbar.js';
 import { NetworkStatus } from './network-status.js';
 import { ParticipantGrid } from './participant-grid.js';
+import { RecordingPanel } from './recording-panel.js';
 import { useMediaCall } from './use-media-call.js';
 
 export function MediaWorkspace(props: {
@@ -16,11 +17,15 @@ export function MediaWorkspace(props: {
   identity: string;
   callId: string;
   onCallIdChange(callId: string): void;
+  websocketUrl?: string;
+  accessToken?: string;
 }) {
   const [draftCallId, setDraftCallId] = useState(props.callId);
   const [error, setError] = useState('');
-  const media = useMediaCall({ client: props.client, callId: props.callId, identity: props.identity });
+  const [recordingsOpen, setRecordingsOpen] = useState(false);
+  const media = useMediaCall({ client: props.client, callId: props.callId, identity: props.identity, websocketUrl: props.websocketUrl, accessToken: props.accessToken });
   useEffect(() => setDraftCallId(props.callId), [props.callId]);
+  useEffect(() => setRecordingsOpen(false), [props.callId]);
 
   const openCall = (event: FormEvent) => {
     event.preventDefault();
@@ -77,19 +82,21 @@ export function MediaWorkspace(props: {
             onRemove={(identity) => run(() => media.removeParticipant(identity, 'removed by host'))}
             onClose={() => run(() => media.transition('end', 'closed by host'))}
           />
+          {recordingsOpen && props.client && call && <RecordingPanel client={props.client} call={call} role={me?.role || 'participant'} invalidationKey={media.state.recordingRevision} />}
           <MediaToolbar
             local={media.state.local}
             layout={media.state.layout}
-            recording={false}
+            recording={recordingsOpen}
+            recordingControlMode="panel"
             disabled={toolbarDisabled}
             devicesDisabled
-            recordingDisabled
+            recordingDisabled={!props.client || !call}
             onMicrophone={(enabled) => run(() => media.setMicrophone(enabled))}
             onCamera={(enabled) => run(() => media.setCamera(enabled))}
             onScreenShare={(enabled, options) => run(() => media.setScreenShare(enabled, options))}
             onLayout={media.setLayout}
             onDevices={() => undefined}
-            onRecording={() => undefined}
+            onRecording={setRecordingsOpen}
             onHangup={() => command('end', 'user hangup')}
           />
           <button className="close-media-call" title="Close call workspace" onClick={() => props.onCallIdChange('')}><X size={16} /></button>

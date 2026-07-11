@@ -50,6 +50,8 @@ import type {
   IveKitMediaMuteInput,
   IveKitMediaProviderParticipant,
   IveKitMediaRecording,
+  IveKitMediaRecordingListInput,
+  IveKitMediaRecordingPage,
   IveKitMediaRecordingObjectInspection,
   IveKitMediaRecordingRetentionInput,
   IveKitMediaRecordingRetentionResult,
@@ -120,8 +122,9 @@ export interface IveKitMediaHttpClient {
   ): Promise<IveKitMediaModerationResult>;
   recoverModerationCommands(input?: { limit?: number }): Promise<IveKitMediaModerationRecoveryResult>;
   startRecording(roomName: string, input: IveKitStartMediaRecordingInput): Promise<IveKitMediaRecording>;
-  stopRecording(egressId: string): Promise<IveKitMediaRecording>;
-  listRecordings(input?: { limit?: number }): Promise<IveKitMediaRecording[]>;
+  stopRecording(recordingOrEgressId: string): Promise<IveKitMediaRecording>;
+  listRecordings(input?: Omit<IveKitMediaRecordingListInput, 'cursor'>): Promise<IveKitMediaRecording[]>;
+  listRecordingsPage(input?: IveKitMediaRecordingListInput): Promise<IveKitMediaRecordingPage>;
   getRecording(recordingId: string): Promise<IveKitMediaRecording>;
   inspectRecordingObject(recordingId: string): Promise<IveKitMediaRecordingObjectInspection>;
   exportRecordingObject(recordingId: string): Promise<IveKitSdkBinary>;
@@ -410,13 +413,16 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
       `${roomPath(roomName)}/recordings/start`,
       { body: input }
     ),
-    stopRecording: (egressId) => transport.json(
+    stopRecording: (recordingOrEgressId) => transport.json(
       'POST',
-      `/api/ivekit/media/recordings/${pathSegment(egressId, 'egressId')}/stop`,
+      `/api/ivekit/media/recordings/${pathSegment(recordingOrEgressId, 'recordingOrEgressId')}/stop`,
       { body: {} }
     ),
     listRecordings: (input = {}) => transport.json('GET', '/api/ivekit/media/recordings', {
-      query: { limit: optionalNumber(input.limit) }
+      query: recordingListQuery(input)
+    }),
+    listRecordingsPage: (input = {}) => transport.json('GET', '/api/ivekit/media/recordings', {
+      query: { ...recordingListQuery(input), cursor: input.cursor || '', page: '1' }
     }),
     getRecording: (recordingId) => transport.json('GET', recordingPath(recordingId)),
     inspectRecordingObject: (recordingId) => transport.json('GET', `${recordingPath(recordingId)}/object`),
@@ -705,6 +711,17 @@ function pathSegment(value: unknown, field: string): string {
 
 function optionalNumber(value: number | undefined): string {
   return value === undefined ? '' : String(value);
+}
+
+function recordingListQuery(input: IveKitMediaRecordingListInput): Record<string, string> {
+  return {
+    limit: optionalNumber(input.limit),
+    call_id: input.call_id || '',
+    room_name: input.room_name || '',
+    business_ref_type: input.business_ref_type || '',
+    business_ref_id: input.business_ref_id || '',
+    status: input.status || ''
+  };
 }
 
 async function readPayload(response: Response): Promise<unknown> {

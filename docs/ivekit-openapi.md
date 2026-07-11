@@ -217,9 +217,10 @@ participant 保持原非终态。LiveKit 管理端未配置时，显式 moderati
 
 | Method | Path | 说明 |
 | --- | --- | --- |
-| POST | `/api/ivekit/media/rooms/:room_name/recordings/start` | 启动录制，要求 call_session_id 或 business_ref |
-| POST | `/api/ivekit/media/recordings/:egress_id/stop` | 按 egress ID 停止 |
-| GET | `/api/ivekit/media/recordings?limit=50` | tenant 录制列表 |
+| POST | `/api/ivekit/media/rooms/:room_name/recordings/start` | 启动录制，要求 media_call_id、call_session_id 或 business_ref；Media Call 模式仅 host 可写 |
+| POST | `/api/ivekit/media/recordings/:recording_or_egress_id/stop` | 按录制 ID 或 Egress ID 停止；Media Call 模式仅 host 可写 |
+| GET | `/api/ivekit/media/recordings?limit=50` | 兼容数组列表；system 可按 tenant 查询，JWT 必须指定有成员关系的 call_id |
+| GET | `/api/ivekit/media/recordings?page=1&call_id=...` | 分页列表，支持 cursor、room_name、business_ref_type/id、status 和 limit |
 | GET | `/api/ivekit/media/recordings/:recording_id` | 录制状态、对象和失败信息 |
 | GET | `/api/ivekit/media/recordings/:recording_id/object` | 对象存在性/可读性/checksum 检查并写审计 |
 | GET | `/api/ivekit/media/recordings/:recording_id/export` | 鉴权受控二进制导出并写审计 |
@@ -229,12 +230,24 @@ Recording start：
 
 ```json
 {
+  "media_call_id": "call_ivekit_1001",
   "business_ref": { "type": "service_order", "id": "SO-1001" },
   "format": "webm",
   "has_video": true,
   "retention_days": 90
 }
 ```
+
+录制响应包含独立的 `media_call_id` 和 `room_name`；旧的
+`call_session_id` 保留给语音/呼叫中心兼容路径。`listRecordings()` 继续返回数组，
+`listRecordingsPage()` 返回 `{items,next_cursor,has_more}`。JWT 成员只可读取所属
+Media Call 的录制，启动和停止要求该 call 的 `host` 角色；system/API-key 管理模式
+保留 tenant 范围能力。对象播放与下载必须调用受鉴权的 `export`，客户端不得直接
+使用响应中的 `storage_url`。
+
+同一 tenant 的同一房间只允许一个 `starting/pending/recording/stopping` 录制；
+重复启动返回 `409`。JWT 启动时 `media_call_id` 对应的持久化 `room_name`
+必须与路径房间一致，否则按不可见资源返回 `404`。
 
 ## 3. Collaboration Session / Chat
 

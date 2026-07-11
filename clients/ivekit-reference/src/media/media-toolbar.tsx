@@ -22,6 +22,7 @@ export function MediaToolbar(props: {
   disabled: boolean;
   devicesDisabled?: boolean;
   recordingDisabled?: boolean;
+  recordingControlMode?: 'recording' | 'panel';
   onMicrophone(enabled: boolean): void | Promise<void>;
   onCamera(enabled: boolean): void | Promise<void>;
   onScreenShare(enabled: boolean, options?: { audio?: boolean }): void | Promise<void>;
@@ -47,7 +48,7 @@ export function MediaToolbar(props: {
         <button title="Screen share layout" aria-pressed={props.layout === 'screen_share'} disabled={props.disabled} onClick={() => props.onLayout('screen_share')}><Presentation size={17} /></button>
       </div>
       <button title="Choose devices" disabled={props.disabled || props.devicesDisabled} onClick={props.onDevices}><Settings2 size={18} /></button>
-      <button className={props.recording ? 'recording' : ''} title={props.recording ? 'Stop recording' : 'Start recording'} aria-pressed={props.recording} disabled={props.disabled || props.recordingDisabled} onClick={() => void props.onRecording(!props.recording)}>
+      <button className={props.recording ? 'recording' : ''} title={props.recordingControlMode === 'panel' ? (props.recording ? 'Close recordings' : 'Open recordings') : (props.recording ? 'Stop recording' : 'Start recording')} aria-pressed={props.recording} disabled={props.recordingDisabled || (props.disabled && props.recordingControlMode !== 'panel')} onClick={() => void props.onRecording(!props.recording)}>
         {props.recording ? <Square size={16} /> : <Circle size={18} />}
       </button>
       <button className="hangup" title="Hang up" disabled={props.disabled} onClick={() => void props.onHangup()}><PhoneOff size={18} /></button>

@@ -88,7 +88,7 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
 
   for (const method of [
     'getCapabilities', 'createRoom', 'getRoom', 'closeRoom', 'createJoinPlan',
-    'listParticipants', 'recoverModerationCommands', 'startRecording', 'stopRecording', 'listRecordings',
+    'listParticipants', 'recoverModerationCommands', 'startRecording', 'stopRecording', 'listRecordings', 'listRecordingsPage',
     'getRecording', 'inspectRecordingObject', 'exportRecordingObject', 'cleanupRecordings'
   ]) assert.equal(typeof sdk.media[method], 'function', `missing media.${method}`);
   for (const method of [

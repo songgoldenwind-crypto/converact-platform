@@ -300,12 +300,15 @@ export interface StartRecordingOptions {
   businessRef?: MediaBusinessRef | null;
   retentionUntil?: string | null;
   retentionDays?: number;
+  mediaCallId?: string | null;
 }
 
 export interface EgressRecord {
   id: string;
   tenant_id: string;
   call_session_id: string;
+  media_call_id?: string;
+  room_name?: string;
   business_ref_type: string;
   business_ref_id: string;
   business_ref: MediaBusinessRef | null;
@@ -355,7 +358,8 @@ export interface LiveKitRecordingServiceApi {
   getRecording(recordingId: string): EgressRecord | null;
   getRecordingByEgressId(egressId: string): EgressRecord | null;
   getRecordingBySession(callSessionId: string): EgressRecord | null;
-  listRecordings(tenantId: string, opts?: { limit?: number }): EgressRecord[];
+  listRecordings(tenantId: string, opts?: RecordingListOptions): EgressRecord[];
+  listRecordingsPage(tenantId: string, opts?: RecordingListOptions): RecordingCursorPage;
   inspectObject(recordingId: string): Promise<RecordingObjectInspection | null>;
   exportObject(recordingId: string): Promise<RecordingObjectExport | null>;
   listRetentionCandidates(
@@ -374,6 +378,22 @@ export interface LiveKitRecordingServiceApi {
       ) => void | Promise<void>;
     }
   ): Promise<RecordingRetentionCleanupResult>;
+}
+
+export interface RecordingListOptions {
+  limit?: number;
+  cursor?: string;
+  mediaCallId?: string;
+  roomName?: string;
+  businessRefType?: string;
+  businessRefId?: string;
+  status?: MediaRecordingStatus;
+}
+
+export interface RecordingCursorPage {
+  items: EgressRecord[];
+  next_cursor: string | null;
+  has_more: boolean;
 }
 
 export interface LiveKitAgentDispatchService {

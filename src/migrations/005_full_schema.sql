@@ -2301,6 +2301,8 @@ CREATE TABLE IF NOT EXISTS call_recordings (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   call_session_id TEXT NULL,
+  media_call_id TEXT NULL,
+  room_name TEXT NOT NULL DEFAULT '',
   business_ref_type TEXT NOT NULL DEFAULT '',
   business_ref_id TEXT NOT NULL DEFAULT '',
   business_ref_metadata TEXT NOT NULL DEFAULT '{}',
@@ -2322,9 +2324,13 @@ CREATE TABLE IF NOT EXISTS call_recordings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_call_recordings_session ON call_recordings(call_session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_recordings_media_call ON call_recordings(tenant_id, media_call_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_recordings_room ON call_recordings(tenant_id, room_name, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_call_recordings_business ON call_recordings(tenant_id, business_ref_type, business_ref_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_call_recordings_retention ON call_recordings(tenant_id, retention_until, status);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_egress_id ON call_recordings(egress_id) WHERE egress_id != '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_active_room ON call_recordings(tenant_id, room_name)
+  WHERE room_name != '' AND status IN ('starting', 'pending', 'recording', 'stopping');
 
 CREATE TABLE IF NOT EXISTS ai_conversation_turns (
   id TEXT PRIMARY KEY,

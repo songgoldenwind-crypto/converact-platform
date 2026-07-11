@@ -868,6 +868,8 @@ function migrateCallCenterSchema(db: unknown): void {
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
       call_session_id TEXT REFERENCES voice_call_sessions(id) ON DELETE CASCADE,
+      media_call_id TEXT,
+      room_name TEXT NOT NULL DEFAULT '',
       business_ref_type TEXT NOT NULL DEFAULT '',
       business_ref_id TEXT NOT NULL DEFAULT '',
       business_ref_metadata TEXT NOT NULL DEFAULT '{}',
@@ -892,7 +894,6 @@ function migrateCallCenterSchema(db: unknown): void {
     CREATE INDEX IF NOT EXISTS idx_call_recordings_business ON call_recordings(tenant_id, business_ref_type, business_ref_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_call_recordings_retention ON call_recordings(tenant_id, retention_until, status);
     CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_egress_id ON call_recordings(egress_id) WHERE egress_id != '';
-
     CREATE TABLE IF NOT EXISTS ai_conversation_turns (
       id TEXT PRIMARY KEY,
       call_session_id TEXT NOT NULL REFERENCES voice_call_sessions(id) ON DELETE CASCADE,
@@ -984,6 +985,8 @@ function migrateCallRecordingsBusinessRef(db: unknown): void {
         id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         call_session_id TEXT REFERENCES voice_call_sessions(id) ON DELETE CASCADE,
+        media_call_id TEXT,
+        room_name TEXT NOT NULL DEFAULT '',
         business_ref_type TEXT NOT NULL DEFAULT '',
         business_ref_id TEXT NOT NULL DEFAULT '',
         business_ref_metadata TEXT NOT NULL DEFAULT '{}',
@@ -1005,12 +1008,14 @@ function migrateCallRecordingsBusinessRef(db: unknown): void {
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
       INSERT INTO call_recordings_business_ref
-        (id, tenant_id, call_session_id, business_ref_type, business_ref_id, business_ref_metadata,
+        (id, tenant_id, call_session_id, media_call_id, room_name, business_ref_type, business_ref_id, business_ref_metadata,
          source, format, storage_url, duration_ms, file_size_bytes, has_video, egress_id, created_at)
       SELECT
         id,
         tenant_id,
         call_session_id,
+        NULL,
+        '',
         CASE WHEN business_ref_type != '' THEN business_ref_type ELSE 'call_session' END,
         CASE WHEN business_ref_id != '' THEN business_ref_id ELSE call_session_id END,
         COALESCE(business_ref_metadata, '{}'),
@@ -1031,6 +1036,8 @@ function migrateCallRecordingsBusinessRef(db: unknown): void {
 
   const lifecycleColumns = all(db, "PRAGMA table_info('call_recordings')").map((row) => String(row.name));
   const lifecycleAlters = [
+    lifecycleColumns.includes('media_call_id') ? null : 'ALTER TABLE call_recordings ADD COLUMN media_call_id TEXT;',
+    lifecycleColumns.includes('room_name') ? null : "ALTER TABLE call_recordings ADD COLUMN room_name TEXT NOT NULL DEFAULT '';",
     lifecycleColumns.includes('status') ? null : "ALTER TABLE call_recordings ADD COLUMN status TEXT NOT NULL DEFAULT 'completed';",
     lifecycleColumns.includes('retention_until') ? null : 'ALTER TABLE call_recordings ADD COLUMN retention_until TEXT;',
     lifecycleColumns.includes('object_status') ? null : "ALTER TABLE call_recordings ADD COLUMN object_status TEXT NOT NULL DEFAULT 'unchecked';",
@@ -1049,9 +1056,13 @@ function migrateCallRecordingsBusinessRef(db: unknown): void {
         business_ref_metadata = COALESCE(NULLIF(business_ref_metadata, ''), '{}')
     WHERE business_ref_type = '' AND COALESCE(call_session_id, '') != '';
     CREATE INDEX IF NOT EXISTS idx_call_recordings_session ON call_recordings(call_session_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_call_recordings_media_call ON call_recordings(tenant_id, media_call_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_call_recordings_room ON call_recordings(tenant_id, room_name, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_call_recordings_business ON call_recordings(tenant_id, business_ref_type, business_ref_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_call_recordings_retention ON call_recordings(tenant_id, retention_until, status);
     CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_egress_id ON call_recordings(egress_id) WHERE egress_id != '';
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_active_room ON call_recordings(tenant_id, room_name)
+      WHERE room_name != '' AND status IN ('starting', 'pending', 'recording', 'stopping');
     UPDATE call_recordings SET updated_at = COALESCE(updated_at, created_at);
   `);
 }
