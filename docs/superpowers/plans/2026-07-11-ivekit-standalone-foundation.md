@@ -300,7 +300,7 @@ git commit -m "refactor(ivekit): extract runtime lifecycle"
 - Create: `test/ivekit-server-entrypoint.test.ts`
 - Modify: `package.json`
 
-- [ ] **Step 1: Write a static entrypoint contract test**
+- [x] **Step 1: Write a static entrypoint contract test**
 
 The test reads `src/ivekit-server.ts` and asserts that it imports only the database, iveKit server/application, WebSocket, and environment validation modules. It must reject imports from call-center, NATS, IVR, and dialer paths.
 
@@ -313,7 +313,7 @@ test('iveKit entrypoint excludes unrelated OPC runtimes', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 ```bash
 node --import tsx --test test/ivekit-server-entrypoint.test.ts
@@ -321,7 +321,7 @@ node --import tsx --test test/ivekit-server-entrypoint.test.ts
 
 Expected: FAIL because the entrypoint does not exist.
 
-- [ ] **Step 3: Implement fail-fast startup and idempotent shutdown**
+- [x] **Step 3: Implement fail-fast startup and idempotent shutdown**
 
 The entrypoint performs this exact lifecycle:
 
@@ -338,25 +338,25 @@ server.listen(Number(process.env.PORT || 3000));
 
 Shutdown closes the HTTP server, application, synchronous DB adapter, and PostgreSQL pool exactly once. Do not run `migrateIvrRuntimeTables()`.
 
-- [ ] **Step 4: Add package commands**
+- [x] **Step 4: Add package commands**
 
 ```json
 {
   "start:ivekit": "tsx src/ivekit-server.ts",
-  "test:ivekit:foundation": "node --import tsx --test test/ivekit-standalone-http.test.ts test/ivekit-media-hooks.test.ts test/ivekit-application.test.ts test/ivekit-server-entrypoint.test.ts test/ivekit-sdk-package.test.ts test/livekit-standalone-deployment.test.ts",
-  "build:ivekit-sdk": "npm --prefix sdk/ivekit run build",
-  "pack:ivekit-sdk": "npm --prefix sdk/ivekit pack --dry-run"
+  "test:ivekit:foundation": "node --import tsx --test test/ivekit-standalone-http.test.ts test/ivekit-media-hooks.test.ts test/ivekit-application.test.ts test/ivekit-server-entrypoint.test.ts"
 }
 ```
 
-- [ ] **Step 5: Verify entrypoint and TypeScript**
+Task 4 adds `build:ivekit-sdk` and `pack:ivekit-sdk`; Task 5 appends its deployment test to `test:ivekit:foundation` after those files exist.
+
+- [x] **Step 5: Verify entrypoint and TypeScript**
 
 ```bash
 node --import tsx --test test/ivekit-server-entrypoint.test.ts
 npm run typecheck
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/ivekit-server.ts test/ivekit-server-entrypoint.test.ts package.json package-lock.json
