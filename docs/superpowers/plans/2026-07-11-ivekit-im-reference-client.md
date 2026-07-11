@@ -231,23 +231,23 @@ git commit -m "feat(chat): add attachment transfer client"
 - Create: `clients/ivekit-reference/src/chat/convergence.test.ts`
 - Create: `clients/ivekit-reference/src/chat/types.ts`
 
-- [ ] **Step 1: Write failing adapter state-machine tests**
+- [x] **Step 1: Write failing adapter state-machine tests**
 
 Cover connect/login/subscribe, duplicate connect coalescing, explicit disconnect during login, exponential reconnect with jitter injection, offline/online events, token refresh, stale-generation suppression, Tinode sequence notes, and disposal.
 
-- [ ] **Step 2: Prove no publish capability**
+- [x] **Step 2: Prove no publish capability**
 
 The adapter interface exposes only connect, disconnect, receipt notes, typing notes, and callbacks. Static tests reject `publish`, `send`, or `createMessage` methods.
 
-- [ ] **Step 3: Implement convergence**
+- [x] **Step 3: Implement convergence**
 
 On Tinode data, iveKit WebSocket event, reconnect, or visibility resume, fetch an `after` page from iveKit. Deduplicate by message id and order by `(created_at,id)`. A stale response must not overwrite a newer projection.
 
-- [ ] **Step 4: Add bounded backoff**
+- [x] **Step 4: Add bounded backoff**
 
 Use injectable clock/random. Reset after a stable connection. Stop immediately on session close, participant revoke, auth 401/403, or explicit disposal.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test
