@@ -1,4 +1,4 @@
-import TinodeSdk from 'tinode-sdk';
+import * as TinodeSdk from 'tinode-sdk';
 
 import type { IveKitChatClientPlan } from '@opc/ivekit-sdk';
 import type { ChatConnectionState, ChatConvergenceTrigger, ChatScheduler } from './types.js';
@@ -251,7 +251,9 @@ export class ReceiveOnlyTinodeAdapter {
 }
 
 function defaultClientFactory(config: Record<string, unknown>): TinodeClientLike {
-  return new TinodeSdk.Tinode(config as never) as unknown as TinodeClientLike;
+  const Tinode = TinodeSdk.Tinode || TinodeSdk.default?.Tinode;
+  if (!Tinode) throw new Error('Tinode SDK constructor is unavailable');
+  return new Tinode(config as never) as unknown as TinodeClientLike;
 }
 
 function clientConfig(plan: IveKitChatClientPlan): Record<string, unknown> {
@@ -280,7 +282,12 @@ function authStatus(error: unknown): 401 | 403 | null {
   return status === 401 || status === 403 ? status : null;
 }
 
-function asError(error: unknown): Error { return error instanceof Error ? error : new Error(String(error)); }
+function asError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (typeof Event !== 'undefined' && error instanceof Event) return new Error('Tinode connection failed');
+  const message = (error as { message?: unknown } | null)?.message;
+  return new Error(typeof message === 'string' && message ? message : String(error));
+}
 
 function validBackoff(value: readonly number[] | undefined): readonly number[] {
   const schedule = value?.length ? [...value] : [1_000, 2_000, 5_000, 10_000, 30_000];

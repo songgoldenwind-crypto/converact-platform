@@ -87,6 +87,8 @@ test('receive-only adapter source has no business-message write surface', () => 
   const publicClass = source.match(/export class ReceiveOnlyTinodeAdapter \{([\s\S]*?)\n\}/)?.[1] || '';
   assert.doesNotMatch(publicClass, /\b(?:publish|send|createMessage)\s*\(/);
   assert.doesNotMatch(source, /publishMessage|sendMessage/);
+  assert.match(source, /import \* as TinodeSdk from 'tinode-sdk'/);
+  assert.doesNotMatch(source, /import TinodeSdk from 'tinode-sdk'/);
 });
 
 test('adapter rejects unbounded retry schedules', () => {
@@ -120,6 +122,22 @@ test('adapter pauses offline, resumes online, and stops on auth failure', async 
   await flushMicrotasks();
   assert.equal(states.at(-1), 'fatal');
   assert.equal(scheduler.pending, 0);
+});
+
+test('adapter gives browser connection events a useful error message', async () => {
+  let reported = '';
+  const adapter = new ReceiveOnlyTinodeAdapter({
+    getPlan: async () => plan,
+    clientFactory: () => ({
+      ...fakeClient([], fakeTopic([])),
+      connect: async () => { throw new Event('error'); }
+    }),
+    scheduler: new FakeScheduler(),
+    onError: (error) => { reported = error.message; }
+  });
+  await assert.rejects(adapter.connect(), /Tinode connection failed/);
+  assert.equal(reported, 'Tinode connection failed');
+  await adapter.dispose();
 });
 
 function fakeTopic(calls: string[]): TinodeTopicLike {

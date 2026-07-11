@@ -2,7 +2,8 @@ import type {
   IveKitChatMessage,
   IveKitChatPin,
   IveKitChatReaction,
-  IveKitChatRealtimeState
+  IveKitChatRealtimeState,
+  IveKitChatReceipt
 } from '@opc/ivekit-sdk';
 import type { ChatConnectionState } from './types.js';
 
@@ -16,6 +17,7 @@ export interface ChatState {
   messages: ChatClientMessage[];
   realtime: IveKitChatRealtimeState[];
   pins: IveKitChatPin[];
+  receipts: IveKitChatReceipt[];
   unreadCount: number;
   requestId: number;
   historyPrependCount: number;
@@ -24,20 +26,22 @@ export interface ChatState {
 }
 
 export type ChatAction =
+  | { type: 'reset' }
   | { type: 'request_started'; requestId: number }
-  | { type: 'loaded'; requestId: number; messages: IveKitChatMessage[]; realtime?: IveKitChatRealtimeState[]; unreadCount?: number; pins?: IveKitChatPin[] }
-  | { type: 'history_prepended'; messages: IveKitChatMessage[] }
+  | { type: 'loaded'; requestId: number; messages: IveKitChatMessage[]; realtime?: IveKitChatRealtimeState[]; unreadCount?: number; pins?: IveKitChatPin[]; receipts?: IveKitChatReceipt[] }
+  | { type: 'history_prepended'; requestId: number; messages: IveKitChatMessage[] }
   | { type: 'converged'; messages: IveKitChatMessage[] }
   | { type: 'optimistic_sent'; message: IveKitChatMessage; idempotencyKey: string }
-  | { type: 'send_succeeded'; localId: string; message: IveKitChatMessage }
-  | { type: 'send_failed'; localId: string; retryable: boolean; error: string }
-  | { type: 'message_state_updated'; unreadCount: number }
+  | { type: 'send_succeeded'; requestId: number; localId: string; message: IveKitChatMessage }
+  | { type: 'send_retrying'; localId: string }
+  | { type: 'send_failed'; requestId: number; localId: string; retryable: boolean; error: string }
+  | { type: 'message_state_updated'; requestId: number; unreadCount: number; receipts?: IveKitChatReceipt[] }
   | { type: 'realtime_updated'; realtime: IveKitChatRealtimeState[] }
   | { type: 'realtime_expired'; now: number }
-  | { type: 'message_edited'; message: IveKitChatMessage }
-  | { type: 'message_deleted'; message: IveKitChatMessage }
-  | { type: 'reactions_updated'; messageId: string; reactions: IveKitChatReaction[] }
-  | { type: 'pins_updated'; pins: IveKitChatPin[] }
+  | { type: 'message_edited'; requestId: number; message: IveKitChatMessage }
+  | { type: 'message_deleted'; requestId: number; message: IveKitChatMessage }
+  | { type: 'reactions_updated'; requestId: number; messageId: string; reactions: IveKitChatReaction[] }
+  | { type: 'pins_updated'; requestId: number; pins: IveKitChatPin[] }
   | { type: 'connection_changed'; connection: ChatConnectionState }
   | { type: 'session_closed' };
 
@@ -46,6 +50,7 @@ export function initialChatState(): ChatState {
     messages: [],
     realtime: [],
     pins: [],
+    receipts: [],
     unreadCount: 0,
     requestId: 0,
     historyPrependCount: 0,
@@ -55,7 +60,15 @@ export function initialChatState(): ChatState {
 }
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
+  if (
+    action.type !== 'request_started' &&
+    action.type !== 'loaded' &&
+    'requestId' in action &&
+    action.requestId !== state.requestId
+  ) return state;
   switch (action.type) {
+    case 'reset':
+      return initialChatState();
     case 'request_started':
       return action.requestId < state.requestId ? state : { ...state, requestId: action.requestId };
     case 'loaded':
@@ -66,6 +79,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         messages: mergeMessages([], action.messages),
         realtime: action.realtime || [],
         pins: action.pins || [],
+        receipts: action.receipts || [],
         unreadCount: action.unreadCount ?? 0,
         historyPrependCount: 0
       });
@@ -94,6 +108,13 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
           [action.message]
         )
       });
+    case 'send_retrying':
+      return {
+        ...state,
+        messages: state.messages.map((message) => message.id === action.localId
+          ? { ...message, client_state: 'sending', client_error: undefined }
+          : message)
+      };
     case 'send_failed':
       return {
         ...state,
@@ -104,7 +125,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         } : message)
       };
     case 'message_state_updated':
-      return { ...state, unreadCount: Math.max(0, Math.floor(action.unreadCount)) };
+      return {
+        ...state,
+        unreadCount: Math.max(0, Math.floor(action.unreadCount)),
+        receipts: action.receipts ? mergeReceipts(state.receipts, action.receipts) : state.receipts
+      };
     case 'realtime_updated':
       return { ...state, realtime: dedupeRealtime(action.realtime) };
     case 'realtime_expired':
@@ -147,6 +172,15 @@ function markPins(state: ChatState): ChatState {
 
 function dedupeRealtime(items: readonly IveKitChatRealtimeState[]): IveKitChatRealtimeState[] {
   return [...new Map(items.map((item) => [item.identity, item])).values()];
+}
+
+function mergeReceipts(
+  current: readonly IveKitChatReceipt[],
+  incoming: readonly IveKitChatReceipt[]
+): IveKitChatReceipt[] {
+  const merged = new Map(current.map((receipt) => [`${receipt.message_id}:${receipt.identity}`, receipt]));
+  for (const receipt of incoming) merged.set(`${receipt.message_id}:${receipt.identity}`, receipt);
+  return [...merged.values()];
 }
 
 function expireRealtime(item: IveKitChatRealtimeState, now: number): IveKitChatRealtimeState {

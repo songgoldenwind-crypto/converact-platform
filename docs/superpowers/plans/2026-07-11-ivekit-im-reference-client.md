@@ -315,23 +315,23 @@ git commit -m "feat(client): scaffold iveKit reference app"
 
 Cover initial load, prepend history without scroll jump, realtime dedupe, optimistic send, 202 retry state, 502 terminal state, unread/read-through, presence expiry, typing expiry, edit/delete, reactions, pins, session close, and stale request suppression.
 
-- [ ] **Step 2: Implement session list**
+- [x] **Step 2: Implement session list**
 
 Include search, unread badge, last-message summary, participant presence, closed state, cursor loading, keyboard navigation, and empty/error/loading states.
 
-- [ ] **Step 3: Implement timeline**
+- [x] **Step 3: Implement timeline**
 
 Group consecutive messages, render date separators, reply/forward context, mentions, reactions, delivery/read state, edit/delete markers, attachment state, retry commands, and pinned-message navigation.
 
-- [ ] **Step 4: Implement composer**
+- [x] **Step 4: Implement composer**
 
 Support text, multiline, reply, forward, mentions, emoji reactions, file selection, drag/drop/paste, upload progress, cancel/retry, and a stable idempotency key per send attempt. Disable writes after leave/close.
 
-- [ ] **Step 5: Connect receipts/presence/typing**
+- [x] **Step 5: Connect receipts/presence/typing**
 
 Use visibility and intersection state before marking read. Presence heartbeat is independent from Tinode. Typing is debounced and explicitly cleared on send/blur/dispose.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test

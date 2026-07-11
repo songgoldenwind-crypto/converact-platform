@@ -29,6 +29,8 @@ const posted = await ivekit.chat.postMessage(
   { idempotencyKey: crypto.randomUUID() }
 );
 const message: IveKitChatMessage = posted.message;
+// Closing revokes every active provider participant before persisting closed state.
+await ivekit.chat.closeSession(chat.id);
 const room = await ivekit.media.createRoom({
   purpose: 'video_service',
   business_ref: orderRef
@@ -45,6 +47,10 @@ The chat client exports browser-safe JSON DTOs for sessions, participants, messa
 attachments and processing jobs, provider delivery, receipts, realtime state,
 mutations, policy findings and reviews, reactions, pins, and cursor pages. These
 types are structural and do not import OPC server modules.
+
+`chat.listSessions()` returns viewer-specific `summary` data for unread count,
+online participant count, and the latest-message preview. `chat.closeSession()`
+closes the session only after provider access has been revoked.
 
 Chat writes always go through the iveKit HTTP facade. A Tinode client may subscribe
 for receive-only acceleration, but it must converge messages from iveKit HTTP and

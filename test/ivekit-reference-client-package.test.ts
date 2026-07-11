@@ -28,10 +28,13 @@ test('iveKit reference client is independently buildable and SDK-only', () => {
   assert.ok(pkg.scripts.test);
 
   const source = sourceFiles(`${root}/src`).map((path) => readFileSync(path, 'utf8')).join('\n');
+  const appSource = readFileSync(`${root}/src/app.tsx`, 'utf8');
+  const tinodeAdapter = readFileSync(`${root}/src/chat/tinode-adapter.ts`, 'utf8');
   assert.doesNotMatch(source, /frontend\/src|src\/agent-runtime|api\/call-center/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|VITE_.*(?:KEY|TOKEN)|x-api-key/i);
-  assert.doesNotMatch(source, /publishMessage|sendMessage|\.publish\s*\(/);
+  assert.doesNotMatch(tinodeAdapter, /publishMessage|sendMessage|\.publish\s*\(/);
   assert.match(source, /@opc\/ivekit-sdk/);
+  assert.match(appSource, /<MessageComposer\s+key=\{selectedId\}/);
 });
 
 function sourceFiles(directory: string): string[] {

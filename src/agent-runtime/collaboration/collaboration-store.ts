@@ -172,6 +172,60 @@ export class CollaborationStore {
     };
   }
 
+  async listSessionSummaries(input: {
+    tenant_id: string;
+    session_ids: string[];
+    identity: string;
+  }): Promise<Map<string, NonNullable<CollaborationSession['summary']>>> {
+    if (!input.session_ids.length) return new Map();
+    const result = await this.pg.query(
+      `SELECT session.id AS session_id,
+              latest.id AS last_message_id,
+              latest.sender_identity AS last_message_sender_identity,
+              latest.message_type AS last_message_type,
+              CASE WHEN latest.deleted_at IS NOT NULL THEN ''
+                   ELSE COALESCE(NULLIF(latest.current_body, ''), latest.body, '') END AS last_message_body,
+              latest.created_at AS last_message_created_at,
+              (latest.deleted_at IS NOT NULL) AS last_message_deleted,
+              COALESCE((
+                SELECT COUNT(*) FROM collaboration_messages AS unread
+                WHERE $3 <> '' AND unread.tenant_id = session.tenant_id
+                  AND unread.session_id = session.id AND unread.sender_identity <> $3
+                  AND unread.deleted_at IS NULL AND NOT EXISTS (
+                    SELECT 1 FROM collaboration_message_receipts AS receipt
+                    WHERE receipt.tenant_id = unread.tenant_id AND receipt.message_id = unread.id
+                      AND receipt.identity = $3 AND receipt.read_at IS NOT NULL
+                  )
+              ), 0) AS unread_count,
+              COALESCE((
+                SELECT COUNT(*) FROM collaboration_participant_realtime_state AS realtime
+                JOIN collaboration_participants AS participant
+                  ON participant.tenant_id = realtime.tenant_id
+                 AND participant.session_id = realtime.session_id
+                 AND participant.identity = realtime.identity
+                WHERE realtime.tenant_id = session.tenant_id AND realtime.session_id = session.id
+                  AND participant.left_at IS NULL AND realtime.presence_status = 'online'
+                  AND realtime.presence_expires_at > CURRENT_TIMESTAMP
+              ), 0) AS online_participant_count
+       FROM collaboration_sessions AS session
+       LEFT JOIN LATERAL (
+         SELECT id, sender_identity, message_type, body, current_body, created_at, deleted_at
+         FROM collaboration_messages
+         WHERE tenant_id = session.tenant_id AND session_id = session.id
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1
+       ) AS latest ON TRUE
+       WHERE session.tenant_id = $1 AND session.id = ANY($2::text[])
+         AND EXISTS (
+           SELECT 1 FROM collaboration_participants AS viewer
+           WHERE viewer.tenant_id = session.tenant_id AND viewer.session_id = session.id
+             AND viewer.identity = $3 AND viewer.left_at IS NULL
+         )`,
+      [input.tenant_id, input.session_ids, String(input.identity || '').trim()]
+    );
+    return new Map(result.rows.map((row) => [String(row.session_id), decodeSessionSummary(row)]));
+  }
+
   async closeSession(sessionId: string): Promise<CollaborationSession | null> {
     await this.pg.query(
       `UPDATE collaboration_sessions
@@ -966,6 +1020,22 @@ function decodeSession(row: Record<string, unknown>): CollaborationSession {
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
     closed_at: row.closed_at ? String(row.closed_at) : null
+  };
+}
+
+function decodeSessionSummary(row: Record<string, unknown>): NonNullable<CollaborationSession['summary']> {
+  const lastMessageId = String(row.last_message_id || '');
+  return {
+    unread_count: Number(row.unread_count || 0),
+    online_participant_count: Number(row.online_participant_count || 0),
+    last_message: lastMessageId ? {
+      id: lastMessageId,
+      body: String(row.last_message_body || ''),
+      sender_identity: String(row.last_message_sender_identity || ''),
+      message_type: String(row.last_message_type || 'text') as CollaborationMessage['message_type'],
+      created_at: String(row.last_message_created_at || ''),
+      deleted: row.last_message_deleted === true || String(row.last_message_deleted) === 'true'
+    } : null
   };
 }
 

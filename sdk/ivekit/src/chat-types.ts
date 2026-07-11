@@ -18,6 +18,20 @@ export interface IveKitChatSession {
   created_at: string;
   updated_at: string;
   closed_at: string | null;
+  summary?: IveKitChatSessionSummary;
+}
+
+export interface IveKitChatSessionSummary {
+  unread_count: number;
+  online_participant_count: number;
+  last_message: {
+    id: string;
+    body: string;
+    sender_identity: string;
+    message_type: IveKitChatMessage['message_type'];
+    created_at: string;
+    deleted: boolean;
+  } | null;
 }
 
 export interface IveKitChatBinding {

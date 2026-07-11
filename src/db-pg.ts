@@ -343,6 +343,56 @@ export class MemoryPg implements PgQueryable {
       return row ? [row] : [];
     }
 
+    if (sql.startsWith('SELECT session.id AS session_id,') && sql.includes('online_participant_count')) {
+      const tenantId = String(params[0]);
+      const sessionIds = new Set((params[1] as unknown[] || []).map(String));
+      const identity = String(params[2] || '');
+      const now = Date.now();
+      return [...this.table('collaboration_sessions').values()]
+        .filter((session) => String(session.tenant_id) === tenantId && sessionIds.has(String(session.id)))
+        .filter((session) => [...this.table('collaboration_participants').values()].some(
+          (participant) => String(participant.tenant_id) === tenantId &&
+            String(participant.session_id) === String(session.id) &&
+            String(participant.identity) === identity && !participant.left_at
+        ))
+        .map((session) => {
+          const messages = [...this.table('collaboration_messages').values()]
+            .filter((message) => String(message.tenant_id) === tenantId)
+            .filter((message) => String(message.session_id) === String(session.id));
+          const latest = messages.sort((left, right) => compareRows(right, left))[0];
+          const unreadCount = identity ? messages
+            .filter((message) => String(message.sender_identity) !== identity && !message.deleted_at)
+            .filter((message) => ![...this.table('collaboration_message_receipts').values()].some(
+              (receipt) => String(receipt.tenant_id) === tenantId &&
+                String(receipt.message_id) === String(message.id) &&
+                String(receipt.identity) === identity && Boolean(receipt.read_at)
+            )).length : 0;
+          const onlineCount = [...this.table('collaboration_participant_realtime_state').values()]
+            .filter((state) => String(state.tenant_id) === tenantId)
+            .filter((state) => String(state.session_id) === String(session.id))
+            .filter((state) => String(state.presence_status) === 'online')
+            .filter((state) => new Date(String(state.presence_expires_at || 0)).getTime() > now)
+            .filter((state) => [...this.table('collaboration_participants').values()].some(
+              (participant) => String(participant.tenant_id) === tenantId &&
+                String(participant.session_id) === String(session.id) &&
+                String(participant.identity) === String(state.identity) && !participant.left_at
+            )).length;
+          return {
+            session_id: session.id,
+            last_message_id: latest?.id || null,
+            last_message_sender_identity: latest?.sender_identity || null,
+            last_message_type: latest?.message_type || null,
+            last_message_body: latest?.deleted_at
+              ? ''
+              : String(latest?.current_body || latest?.body || ''),
+            last_message_created_at: latest?.created_at || null,
+            last_message_deleted: Boolean(latest?.deleted_at),
+            unread_count: unreadCount,
+            online_participant_count: onlineCount
+          };
+        });
+    }
+
     if (sql.startsWith("SELECT * FROM collaboration_sessions WHERE tenant_id = $1 AND ($2 = '' OR status = $2)")) {
       const [tenantId, status, refType, refId, query, rawCursorCreatedAt, cursorId, rawLimit] = params;
       const cursorCreatedAt = rawCursorCreatedAt == null ? '' : String(rawCursorCreatedAt);

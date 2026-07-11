@@ -152,8 +152,9 @@ Recording start：
 | --- | --- | --- |
 | GET | `/api/ivekit/chat/capabilities` | provider、功能开关、配置布尔状态和 delivery policy |
 | POST | `/api/ivekit/chat/sessions` | 按 business_ref 建会话 |
-| GET | `/api/ivekit/chat/sessions` | 游标分页；query: `status/business_ref_type/business_ref_id/query/cursor/limit` |
+| GET | `/api/ivekit/chat/sessions` | 游标分页；query: `status/business_ref_type/business_ref_id/query/cursor/limit`；每项含 viewer summary |
 | GET | `/api/ivekit/chat/sessions/by-ref` | query: `business_ref_type/business_ref_id/limit` |
+| POST | `/api/ivekit/chat/sessions/:session_id/close` | 撤销全部活动参与人的 provider 权限后关闭会话 |
 | POST | `/api/ivekit/chat/sessions/:session_id/bind` | 创建/复用 local/Tinode binding |
 | GET | `/api/ivekit/chat/sessions/:session_id/snapshot` | session/binding/participants/messages/policy 快照 |
 
@@ -181,6 +182,8 @@ Recording start：
 ```
 
 强制裁决：`direct_client_publish=false`。Tinode client-plan 的 topic ACL 为 `JRP`，不含 `W`。业务消息只能走 `/messages`，否则本地镜像、防绕单、OCR/ASR 和 AI 质检会失去证据。
+
+会话分页项的 `summary` 包含 `unread_count`、`online_participant_count` 和 `last_message`。只有当前认证身份仍是该会话活动参与人时才返回消息摘要，否则返回全零/空摘要；未读数按当前认证身份计算；软删除消息返回空正文和 `deleted=true`；在线人数只统计未离开且 presence TTL 未过期的参与人。关闭操作要求当前身份仍是活动参与人，先把绑定 topic 上所有活动参与人的 mode 降为 `N`，任一 provider 撤权失败都不会把数据库提前标为 closed；成功后广播 `collaboration.session.closed`。
 
 ### 3.2 参与人和 Tinode plan
 
@@ -345,7 +348,7 @@ WebSocket 可能断线或丢失瞬时事件。重连后必须 GET snapshot/messa
 `createIveKitHttpSdk({baseUrl, tenantId, apiKey|accessToken, userId?, timeoutMs?, fetch?})` 返回：
 
 - `sdk.media.*`：capabilities、room、join、participant、recording、object、export、cleanup。
-- `sdk.chat.*`：`listSessions()`、`listMessagesPage()`、session、binding、client-plan、participant、message、delivery、receipt、state、mutation、attachment、finding、quality。
+- `sdk.chat.*`：`listSessions()`、`closeSession()`、`listMessagesPage()`、session、binding、client-plan、participant、message、delivery、receipt、state、mutation、attachment、finding、quality。
 - 二进制导出返回 `{bytes, contentType, filename}`。
 - 错误为 `IveKitHttpSdkError(status, method, path, payload)`；网络/超时 `status=0`。
 

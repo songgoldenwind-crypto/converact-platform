@@ -29,6 +29,20 @@ export interface CollaborationSession {
   created_at: string;
   updated_at: string;
   closed_at: string | null;
+  summary?: CollaborationSessionSummary;
+}
+
+export interface CollaborationSessionSummary {
+  unread_count: number;
+  online_participant_count: number;
+  last_message: {
+    id: string;
+    body: string;
+    sender_identity: string;
+    message_type: CollaborationMessageType;
+    created_at: string;
+    deleted: boolean;
+  } | null;
 }
 
 export type CollaborationParticipantRole =

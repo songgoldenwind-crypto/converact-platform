@@ -103,6 +103,7 @@ export interface IveKitAttachmentUploadOptions {
 export interface IveKitChatHttpClient {
   getCapabilities(): Promise<IveKitChatCapabilities>;
   openSession(input: IveKitOpenChatSessionInput): Promise<IveKitChatSession>;
+  closeSession(sessionId: string): Promise<IveKitChatSession>;
   listSessions(input?: IveKitChatSessionListInput): Promise<IveKitCursorPage<IveKitChatSession>>;
   listSessionsByBusinessRef(
     businessRef: IveKitSdkBusinessRef,
@@ -365,6 +366,7 @@ function createChatClient(
   return {
     getCapabilities: () => transport.json('GET', '/api/ivekit/chat/capabilities'),
     openSession: (input) => transport.json('POST', '/api/ivekit/chat/sessions', { body: input }),
+    closeSession: (sessionId) => transport.json('POST', `${sessionPath(sessionId)}/close`, { body: {} }),
     listSessions: (input = {}) => transport.json('GET', '/api/ivekit/chat/sessions', {
       query: {
         status: input.status || '',

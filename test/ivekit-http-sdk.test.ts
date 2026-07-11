@@ -31,6 +31,7 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
       }
     },
     { body: { id: 'collab_1' } },
+    { body: { id: 'collab_close', status: 'closed' } },
     { body: { provider: 'tinode', provider_topic_id: 'grp_1' } },
     { body: { message: { id: 'cmsg_1' } } },
     { body: { unread_count: 0, receipts: [] } },
@@ -70,7 +71,7 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
     'getRecording', 'inspectRecordingObject', 'exportRecordingObject', 'cleanupRecordings'
   ]) assert.equal(typeof sdk.media[method], 'function', `missing media.${method}`);
   for (const method of [
-    'getCapabilities', 'openSession', 'listSessions', 'listSessionsByBusinessRef', 'bindSession',
+    'getCapabilities', 'openSession', 'closeSession', 'listSessions', 'listSessionsByBusinessRef', 'bindSession',
     'createClientPlan', 'addParticipant', 'leaveParticipant', 'listMessages',
     'listMessagesPage', 'postMessage', 'getSnapshot', 'getDelivery', 'retryDelivery', 'listReceipts',
     'markReceipt', 'getMessageState', 'setTyping', 'setPresence', 'listRealtimeState',
@@ -98,6 +99,7 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
   assert.equal(exported.filename, 'recording.webm');
 
   await sdk.chat.openSession({ business_ref: { type: 'service_order', id: 'SO-1' } });
+  await sdk.chat.closeSession('collab_close');
   await sdk.chat.createClientPlan('collab_1', { identity: 'agent-led', role: 'agent' });
   await sdk.chat.postMessage('collab_1', { sender_identity: 'agent-led', body: 'hello' }, {
     idempotencyKey: 'led-message-1'
@@ -122,6 +124,7 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
     'POST /api/ivekit/media/rooms/led-room/recordings/start',
     'GET /api/ivekit/media/recordings/rec_1/export',
     'POST /api/ivekit/chat/sessions',
+    'POST /api/ivekit/chat/sessions/collab_close/close',
     'POST /api/ivekit/chat/sessions/collab_1/client-plan',
     'POST /api/ivekit/chat/sessions/collab_1/messages',
     'POST /api/ivekit/chat/sessions/collab_1/messages/cmsg_1/receipts',
@@ -135,8 +138,8 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
     assert.equal(call.headers['x-tenant-id'], 'tenant-led');
     assert.equal(call.headers['x-user-id'], 'agent-led');
   }
-  assert.equal(calls[7]?.headers['idempotency-key'], 'led-message-1');
-  assert.equal(calls[11]?.headers['content-type'], 'image/png');
+  assert.equal(calls[8]?.headers['idempotency-key'], 'led-message-1');
+  assert.equal(calls[12]?.headers['content-type'], 'image/png');
 });
 
 test('iveKit HTTP SDK maps reaction and pin commands', async () => {

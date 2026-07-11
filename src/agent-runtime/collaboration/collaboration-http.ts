@@ -1775,7 +1775,24 @@ export async function routeCollaborationApi(
       cursor: url.searchParams.get('cursor') || undefined,
       limit: optionalQueryNumber(url.searchParams.get('limit'))
     });
-    return { data: sessions };
+    const summaries = await module.sessions.listSessionSummaries({
+      tenant_id: ctx.tenantId,
+      session_ids: sessions.items.map((session) => session.id),
+      identity: collaborationActorIdentity(ctx, headers)
+    });
+    return {
+      data: {
+        ...sessions,
+        items: sessions.items.map((session) => ({
+          ...session,
+          summary: summaries.get(session.id) || {
+            unread_count: 0,
+            online_participant_count: 0,
+            last_message: null
+          }
+        }))
+      }
+    };
   }
 
   if (routePath === '/api/collaboration/sessions/by-ref' && method === 'GET') {
@@ -2073,6 +2090,44 @@ export async function routeCollaborationApi(
       return { status: 404, data: { error: 'collaboration session not found' } };
     }
     const input = bodyObject(body);
+
+    if (section === 'close' && !action && method === 'POST') {
+      const actorIdentity = collaborationActorIdentity(ctx, headers);
+      const participants = await module.sessions.listParticipants({
+        tenant_id: ctx.tenantId,
+        session_id: collaboration.id
+      });
+      if (!participants.some((participant) => participant.identity === actorIdentity && !participant.left_at)) {
+        return { status: 403, data: { error: 'active participant identity is required' } };
+      }
+      const gateway = options.chatGateway || configuredChatGateway();
+      const binding = await module.sessions.getChatBinding({
+        tenant_id: ctx.tenantId,
+        session_id: collaboration.id
+      });
+      if (binding && binding.provider !== gateway.provider) {
+        return { status: 503, data: { error: 'chat provider gateway is unavailable' } };
+      }
+      if (binding) {
+        await Promise.all(participants.filter((participant) => !participant.left_at).map((participant) =>
+          gateway.removeParticipant({
+            tenant_id: ctx.tenantId,
+            session_id: collaboration.id,
+            provider_topic_id: binding.provider_topic_id,
+            identity: participant.identity,
+            display_name: participant.display_name,
+            access_mode: 'N'
+          })
+        ));
+      }
+      const closed = await module.sessions.closeSession(collaboration.id);
+      wsBroadcast(ctx.tenantId, 'collaboration.session.closed', {
+        session_id: collaboration.id,
+        session: closed,
+        closed_by: actorIdentity
+      });
+      return { status: 200, data: closed };
+    }
 
     if (section === 'realtime-state' && !action && method === 'GET') {
       const states = await new CollaborationMessageStateStore(requirePg(pg)).listRealtimeStates({

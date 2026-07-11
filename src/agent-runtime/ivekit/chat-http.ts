@@ -255,7 +255,7 @@ function collaborationPathForIveKitChat(routePath: string): string {
   }
 
   const match = routePath.match(
-    /^\/api\/ivekit\/chat\/sessions\/([^/]+)\/(bind|client-plan|snapshot|messages|participants)(?:\/(leave))?$/
+    /^\/api\/ivekit\/chat\/sessions\/([^/]+)\/(bind|client-plan|snapshot|messages|participants|close)(?:\/(leave))?$/
   );
   if (!match) return '';
   const sessionId = match[1];
@@ -279,6 +279,9 @@ function collaborationPathForIveKitChat(routePath: string): string {
   }
   if (section === 'participants' && action === 'leave') {
     return `/api/collaboration/sessions/${sessionId}/participants/leave`;
+  }
+  if (section === 'close' && !action) {
+    return `/api/collaboration/sessions/${sessionId}/close`;
   }
   return '';
 }

@@ -8,7 +8,7 @@ declare module 'tinode-sdk' {
     persist: boolean;
   }
 
-  class Tinode {
+  export class Tinode {
     constructor(config: TinodeConfig);
     onDisconnect?: (error?: unknown) => void;
     connect(): Promise<unknown>;

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
+import { LocalChatGateway, type ChatParticipantInput } from '../src/agent-runtime/collaboration/chat-gateway.js';
 import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 
@@ -17,7 +18,7 @@ function headers(tenantId: string, userId = 'agent-page'): Record<string, string
   };
 }
 
-async function route(pg: MemoryPg, method: string, path: string, tenantId: string) {
+async function route(pg: MemoryPg, method: string, path: string, tenantId: string, userId = 'agent-page') {
   return routeIveKitChatApi(
     pg,
     method,
@@ -25,7 +26,7 @@ async function route(pg: MemoryPg, method: string, path: string, tenantId: strin
     new URL(`http://localhost${path}`),
     null,
     '',
-    headers(tenantId)
+    headers(tenantId, userId)
   );
 }
 
@@ -83,6 +84,105 @@ test('iveKit chat lists tenant sessions with filters and opaque stable cursors',
     tenantId
   ) as { data: { items: Array<{ id: string }> } };
   assert.deepEqual(closedPage.data.items.map((item) => item.id), [closed.id]);
+});
+
+test('iveKit session list includes viewer unread, latest message, and online participant summary', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_session_summary';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'SUMMARY-1' },
+    title: 'Summary session'
+  });
+  for (const [identity, role] of [['agent-page', 'agent'], ['customer-1', 'customer']] as const) {
+    await store.addParticipant({ tenant_id: tenantId, session_id: session.id, identity, role });
+  }
+  await store.postMessage({
+    tenant_id: tenantId, session_id: session.id, sender_identity: 'customer-1', message_type: 'text', body: 'first unread'
+  });
+  await store.postMessage({
+    tenant_id: tenantId, session_id: session.id, sender_identity: 'customer-1', message_type: 'text', body: 'second unread'
+  });
+  const latest = await store.postMessage({
+    tenant_id: tenantId, session_id: session.id, sender_identity: 'agent-page', message_type: 'text', body: 'latest reply'
+  });
+  await new CollaborationMessageStateStore(pg).updatePresence({
+    tenant_id: tenantId, session_id: session.id, identity: 'customer-1', status: 'online', ttl_ms: 90_000
+  });
+
+  const response = await route(pg, 'GET', '/api/ivekit/chat/sessions?limit=10', tenantId) as {
+    data: { items: Array<{ summary: {
+      unread_count: number;
+      online_participant_count: number;
+      last_message: { id: string; body: string; sender_identity: string } | null;
+    } }> };
+  };
+  const summary = response.data.items[0].summary;
+  assert.equal(summary.unread_count, 2);
+  assert.equal(summary.online_participant_count, 1);
+  assert.deepEqual(summary.last_message, {
+    id: latest.id,
+    body: 'latest reply',
+    sender_identity: 'agent-page',
+    message_type: 'text',
+    created_at: latest.created_at,
+    deleted: false
+  });
+
+  const outsiderResponse = await route(
+    pg,
+    'GET',
+    '/api/ivekit/chat/sessions?limit=10',
+    tenantId,
+    'tenant-outsider'
+  ) as { data: { items: Array<{ summary: {
+    unread_count: number;
+    online_participant_count: number;
+    last_message: unknown;
+  } }> } };
+  assert.deepEqual(outsiderResponse.data.items[0].summary, {
+    unread_count: 0,
+    online_participant_count: 0,
+    last_message: null
+  });
+});
+
+test('iveKit closes a session only after revoking every active provider participant', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_session_close';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'CLOSE-1' }
+  });
+  for (const [identity, role] of [['agent-page', 'agent'], ['customer-1', 'customer']] as const) {
+    await store.addParticipant({ tenant_id: tenantId, session_id: session.id, identity, role });
+  }
+  await store.ensureChatBinding({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'local',
+    provider_topic_id: 'local-topic'
+  });
+  const gateway = new TrackingLocalGateway();
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/close`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+    {},
+    '',
+    headers(tenantId),
+    { chatGateway: gateway }
+  ) as { status: number; data: { status: string } };
+
+  assert.equal(response.status, 200);
+  assert.equal(response.data.status, 'closed');
+  assert.deepEqual(gateway.removed.sort(), ['agent-page', 'customer-1']);
+  assert.equal((await store.getSession(session.id))?.status, 'closed');
 });
 
 test('iveKit chat pages message history in both directions and searches before limiting', async () => {
@@ -180,6 +280,14 @@ test('pagination uses nullable PostgreSQL cursor parameters', () => {
   assert.match(source, /ORDER BY created_at DESC, id DESC/);
   assert.match(source, /ORDER BY created_at \$\{order\}, id \$\{order\}/);
 });
+
+class TrackingLocalGateway extends LocalChatGateway {
+  readonly removed: string[] = [];
+
+  override async removeParticipant(input: ChatParticipantInput): Promise<void> {
+    this.removed.push(input.identity);
+  }
+}
 
 test('iveKit chat rejects malformed, wrong-direction, and cross-tenant pagination', async () => {
   process.env.OPC_API_KEY = API_KEY;

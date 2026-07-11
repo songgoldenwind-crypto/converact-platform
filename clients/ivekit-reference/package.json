@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "test": "node --import tsx --test 'src/**/*.test.ts' 'src/**/*.test.tsx'",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,9 +17,12 @@
     "tinode-sdk": "^0.25.1"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/jsdom": "^28.0.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "jsdom": "^27.0.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.3",
     "vite": "^6.0.0"
