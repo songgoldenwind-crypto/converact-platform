@@ -302,23 +302,23 @@ git commit -m "feat(client): add LiveKit room adapter"
 - Create: `clients/ivekit-reference/src/media/prejoin-panel.test.tsx`
 - Modify: `clients/ivekit-reference/src/styles.css`
 
-- [ ] **Step 1: Write failing permission/device tests**
+- [x] **Step 1: Write failing permission/device tests**
 
 Cover permission prompt, no-device state, permission denied, device unplug, remembered selection during one browser session, camera preview cleanup, microphone level sampling cleanup, and unsupported output selection.
 
-- [ ] **Step 2: Implement browser device controller**
+- [x] **Step 2: Implement browser device controller**
 
 Use `navigator.mediaDevices.getUserMedia`, `enumerateDevices`, `devicechange`, `MediaStreamTrack.stop`, and feature-detected `HTMLMediaElement.setSinkId`. Never persist labels or device ids outside component memory.
 
-- [ ] **Step 3: Build the prejoin panel**
+- [x] **Step 3: Build the prejoin panel**
 
 Show real preview, microphone meter, camera/microphone toggles, three device selectors, voice/video mode, and Join/Accept command. Permission errors must remain visible and must not claim the user joined.
 
-- [ ] **Step 4: Verify responsive layout**
+- [x] **Step 4: Verify responsive layout**
 
 Use stable preview aspect ratio and fixed control dimensions at 1440x900, 1024x768, and 390x844. Long device names truncate with accessible titles and do not resize controls.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test
