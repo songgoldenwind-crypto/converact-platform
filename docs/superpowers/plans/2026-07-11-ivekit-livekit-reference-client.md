@@ -418,23 +418,23 @@ git commit -m "feat(client): render media participants"
 - Create: `clients/ivekit-reference/src/media/network-status.test.tsx`
 - Modify: `clients/ivekit-reference/src/media/use-media-call.ts`
 
-- [ ] **Step 1: Write failing role and recovery tests**
+- [x] **Step 1: Write failing role and recovery tests**
 
 Cover participant-hidden host controls, host mute/remove/close confirmation, provider 403/502, reconnect banner, reconnect success, terminal disconnect, offline/online changes, device removal fallback, audio autoplay unblock, and session revoke during reconnect.
 
-- [ ] **Step 2: Implement host commands through iveKit**
+- [x] **Step 2: Implement host commands through iveKit**
 
 Never call LiveKit admin methods in the browser. After a successful mute/remove response, wait for provider/iveKit convergence; show a retryable error if confirmation does not arrive.
 
-- [ ] **Step 3: Project network quality**
+- [x] **Step 3: Project network quality**
 
 Normalize LiveKit quality to `excellent|good|poor|lost|unknown`, show per-participant indicators without exposing raw provider diagnostics, and store no IP/ICE candidate data in logs or audit metadata.
 
-- [ ] **Step 4: Make recovery generation-safe**
+- [x] **Step 4: Make recovery generation-safe**
 
 On call/token change or terminal event, invalidate all in-flight join/moderation requests, disconnect the old Room, stop local preview tracks, and ignore old callbacks. A stale 401/403 cannot mark a new call fatal.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test

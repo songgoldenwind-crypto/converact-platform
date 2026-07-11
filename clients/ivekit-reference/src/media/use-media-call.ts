@@ -3,7 +3,8 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type {
   IveKitClient,
   IveKitMediaCallAction,
-  IveKitMediaCallSnapshot
+  IveKitMediaCallSnapshot,
+  IveKitMediaModerationResult
 } from '@opc/ivekit-sdk';
 import { LiveKitClientAdapter } from './livekit-adapter.js';
 import {
@@ -37,6 +38,8 @@ export interface MediaCallCommands {
   setScreenShare(enabled: boolean, options?: { audio?: boolean }): Promise<void>;
   switchDevice(kind: 'audioinput' | 'videoinput' | 'audiooutput', deviceId: string): Promise<void>;
   startAudio(): Promise<void>;
+  muteParticipant(identity: string, track: import('./types.js').MediaTrackHandle): Promise<IveKitMediaModerationResult>;
+  removeParticipant(identity: string, reason?: string): Promise<IveKitMediaModerationResult>;
   setLayout(layout: MediaLayout): void;
 }
 
@@ -59,6 +62,8 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
   const snapshot = useRef<IveKitMediaCallSnapshot | null>(null);
   const pending = useRef(new Map<string, PendingLifecycleCommand>());
   const inFlight = useRef(new Map<string, Promise<IveKitMediaCallSnapshot>>());
+  const moderationKeys = useRef(new Map<string, string>());
+  const moderationInFlight = useRef(new Map<string, Promise<IveKitMediaModerationResult>>());
   const joinOperation = useRef<JoinOperation | null>(null);
   const joinedRequest = useRef(0);
   const disposedAdapters = useRef(new WeakSet<object>());
@@ -201,6 +206,8 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     snapshot.current = null;
     pending.current.clear();
     inFlight.current.clear();
+    moderationKeys.current.clear();
+    moderationInFlight.current.clear();
     joinOperation.current = null;
     joinedRequest.current = 0;
     dispatch({ type: 'call_selected', requestId: operationId, callId: input.callId });
@@ -241,6 +248,21 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     };
   }, [input.client, input.callId, input.identity, disposeAdapter, revoke]);
 
+  useEffect(() => {
+    if (!input.callId) return;
+    const offline = () => dispatch({ type: 'network_changed', online: false });
+    const online = () => {
+      dispatch({ type: 'network_changed', online: true });
+      void refresh();
+    };
+    window.addEventListener('offline', offline);
+    window.addEventListener('online', online);
+    return () => {
+      window.removeEventListener('offline', offline);
+      window.removeEventListener('online', online);
+    };
+  }, [input.callId, refresh]);
+
   const retry = useCallback((command: IveKitMediaCallAction) => {
     const saved = pending.current.get(`${input.callId}:${command}`);
     if (!saved) return Promise.reject(new Error(`Media command ${command} has no retryable attempt`));
@@ -269,6 +291,56 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     }
   }, []);
 
+  const moderate = useCallback((
+    action: 'mute' | 'remove',
+    identity: string,
+    track?: import('./types.js').MediaTrackHandle,
+    reason?: string
+  ): Promise<IveKitMediaModerationResult> => {
+    const call = snapshot.current?.call;
+    if (!input.client || !call || call.id !== input.callId) return Promise.reject(new Error('Media call is not ready'));
+    const me = snapshot.current?.participants.find((participant) => participant.identity === input.identity);
+    if (me?.role !== 'host') return Promise.reject(new Error('Host role is required'));
+    if (action === 'mute' && (!track || track.source === 'unknown')) return Promise.reject(new Error('Published media track is required'));
+    const command = `${action}:${identity}:${track?.id || ''}`;
+    const operationKey = `${call.id}:${command}`;
+    const existing = moderationInFlight.current.get(operationKey);
+    if (existing) return existing;
+    const key = moderationKeys.current.get(operationKey) || randomId.current();
+    moderationKeys.current.set(operationKey, key);
+    const operationId = requestId.current;
+    dispatch({ type: 'command_started', command });
+    let operation!: Promise<IveKitMediaModerationResult>;
+    operation = (async () => {
+      try {
+        const result = action === 'mute'
+          ? await input.client!.media.muteParticipant(call.room_name, identity, {
+              track_sid: track!.id,
+              source: track!.source as 'camera' | 'microphone' | 'screen_share' | 'screen_share_audio',
+              muted: true
+            }, { idempotencyKey: key })
+          : await input.client!.media.removeParticipant(call.room_name, identity, { ...(reason ? { reason } : {}) }, { idempotencyKey: key });
+        if (requestId.current !== operationId || snapshot.current?.call.id !== call.id) return result;
+        moderationKeys.current.delete(operationKey);
+        if (action === 'mute' && track) dispatch({ type: 'track_mute_confirmed', trackId: track.id, muted: true });
+        dispatch({ type: 'command_succeeded', command });
+        await refresh();
+        return result;
+      } catch (cause) {
+        if (requestId.current === operationId && snapshot.current?.call.id === call.id) {
+          const error = asError(cause);
+          if (isSessionRevocation(cause)) await revoke(error.message, operationId, adapter.current);
+          else dispatch({ type: 'command_failed', command, error: error.message });
+        }
+        throw cause;
+      } finally {
+        if (moderationInFlight.current.get(operationKey) === operation) moderationInFlight.current.delete(operationKey);
+      }
+    })();
+    moderationInFlight.current.set(operationKey, operation);
+    return operation;
+  }, [input.client, input.callId, input.identity, refresh, revoke]);
+
   return {
     state,
     refresh,
@@ -282,7 +354,12 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
       { screen: enabled, screenAudio: enabled && Boolean(options?.audio) }
     ),
     switchDevice: (kind, deviceId) => adapterCommand(`device:${kind}`, (room) => room.switchDevice(kind, deviceId)),
-    startAudio: () => adapterCommand('start_audio', (room) => room.startAudio()),
+    startAudio: async () => {
+      await adapterCommand('start_audio', (room) => room.startAudio());
+      dispatch({ type: 'audio_started' });
+    },
+    muteParticipant: (identity, track) => moderate('mute', identity, track),
+    removeParticipant: (identity, reason) => moderate('remove', identity, undefined, reason),
     setLayout: (layout) => dispatch({ type: 'layout_changed', layout })
   };
 }
@@ -312,6 +389,11 @@ function isCurrent(
 function isAuthorizationLoss(cause: unknown): boolean {
   const status = Number((cause as { status?: unknown })?.status || 0);
   return status === 401 || status === 403 || status === 404;
+}
+
+function isSessionRevocation(cause: unknown): boolean {
+  const status = Number((cause as { status?: unknown })?.status || 0);
+  return status === 401 || status === 404;
 }
 
 function asError(cause: unknown): Error {

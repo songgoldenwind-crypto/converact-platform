@@ -55,6 +55,12 @@ export type MediaAdapterEvent =
       participant_identity: string;
     }>
   | Readonly<{
+      type: 'track_mute_changed';
+      generation: number;
+      track_id: string;
+      muted: boolean;
+    }>
+  | Readonly<{
       type: 'active_speakers';
       generation: number;
       identities: readonly string[];

@@ -52,8 +52,12 @@ test('adapter generations normalize connection, tracks, presence, speakers, and 
   assert.equal(state.connection, 'online');
   assert.deepEqual(state.presentIdentities, ['customer-1']);
   assert.equal(state.tracks.TR_2.id, 'TR_2');
+  state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'track_mute_changed', generation: 2, track_id: 'TR_2', muted: true } });
+  assert.equal(state.tracks.TR_2.muted, true);
   assert.deepEqual(state.activeSpeakerIdentities, ['customer-1']);
   assert.deepEqual(state.networkQuality, { 'customer-1': 'poor' });
+  state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'network_quality', generation: 2, identity: 'customer-1', quality: 'raw-provider-secret' } });
+  assert.deepEqual(state.networkQuality, { 'customer-1': 'unknown' });
   state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'local_track_changed', generation: 2, source: 'screen_share', enabled: true } });
   state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'local_track_changed', generation: 2, source: 'screen_share_audio', enabled: true } });
   state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'local_track_changed', generation: 2, source: 'screen_share', enabled: false } });
@@ -90,6 +94,10 @@ test('command pending, failure, retry, and success states stay isolated by comma
   state = mediaCallReducer(state, { type: 'command_started', command: 'accept' });
   state = mediaCallReducer(state, { type: 'command_succeeded', command: 'accept' });
   assert.deepEqual(state.commands.accept, { pending: false, error: '' });
+  state = mediaCallReducer(state, { type: 'adapter_event', generation: 1, event: { type: 'autoplay_blocked', generation: 1, message: 'gesture' } });
+  assert.equal(state.autoplayBlocked, true);
+  state = mediaCallReducer(state, { type: 'audio_started' });
+  assert.equal(state.autoplayBlocked, false);
 });
 
 function snapshot(status: IveKitMediaCallStatus, id = 'call-1'): IveKitMediaCallSnapshot {

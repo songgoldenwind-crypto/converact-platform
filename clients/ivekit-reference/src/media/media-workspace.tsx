@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 
 import type { IveKitClient, IveKitMediaCallAction } from '@opc/ivekit-sdk';
 import { CallHeader } from './call-header.js';
+import { HostControls } from './host-controls.js';
 import { isTerminalStatus } from './media-reducer.js';
 import { MediaToolbar } from './media-toolbar.js';
+import { NetworkStatus } from './network-status.js';
 import { ParticipantGrid } from './participant-grid.js';
 import { useMediaCall } from './use-media-call.js';
 
@@ -49,6 +51,7 @@ export function MediaWorkspace(props: {
       ) : (
         <>
           <CallHeader state={media.state} />
+          <NetworkStatus connection={media.state.connection} autoplayBlocked={media.state.autoplayBlocked} fatalReason={media.state.fatalReason} onStartAudio={() => run(() => media.startAudio())} />
           {call && ['accepted', 'active'].includes(call.status) ? <ParticipantGrid
             participants={media.state.participants}
             tracks={media.state.tracks}
@@ -65,6 +68,15 @@ export function MediaWorkspace(props: {
               {call?.status === 'ringing' && !isHost && <><button disabled={pending} onClick={() => void command('accept')}>Accept</button><button disabled={pending} onClick={() => void command('reject', 'participant rejected')}>Reject</button></>}
             </div>
           </div>}
+          <HostControls
+            role={me?.role || 'participant'}
+            participants={media.state.participants}
+            tracks={media.state.tracks}
+            disabled={pending || terminal}
+            onMute={(identity, track) => run(() => media.muteParticipant(identity, track))}
+            onRemove={(identity) => run(() => media.removeParticipant(identity, 'removed by host'))}
+            onClose={() => run(() => media.transition('end', 'closed by host'))}
+          />
           <MediaToolbar
             local={media.state.local}
             layout={media.state.layout}

@@ -63,6 +63,9 @@ export type MediaAction =
   | { type: 'command_succeeded'; command: string }
   | { type: 'local_changed'; local: Partial<MediaLocalState> }
   | { type: 'layout_changed'; layout: MediaLayout }
+  | { type: 'track_mute_confirmed'; trackId: string; muted: boolean }
+  | { type: 'audio_started' }
+  | { type: 'network_changed'; online: boolean }
   | { type: 'revoked'; reason: string };
 
 const localOff: MediaLocalState = Object.freeze({
@@ -125,6 +128,13 @@ export function mediaCallReducer(state: MediaCallState, action: MediaAction): Me
       return { ...state, local: Object.freeze({ ...state.local, ...action.local }) };
     case 'layout_changed':
       return { ...state, layout: action.layout };
+    case 'track_mute_confirmed':
+      return withTrackMuted(state, action.trackId, action.muted);
+    case 'audio_started':
+      return { ...state, autoplayBlocked: false };
+    case 'network_changed':
+      if (state.connection === 'ended' || state.connection === 'fatal') return state;
+      return { ...state, connection: action.online ? (state.connection === 'offline' ? 'reconnecting' : state.connection) : 'offline' };
     case 'revoked':
       return {
         ...clearProviderProjection(state),
@@ -175,10 +185,12 @@ function applyAdapterEvent(state: MediaCallState, event: MediaAdapterEvent): Med
       delete tracks[event.track_id];
       return { ...state, tracks };
     }
+    case 'track_mute_changed':
+      return withTrackMuted(state, event.track_id, event.muted);
     case 'active_speakers':
       return { ...state, activeSpeakerIdentities: Object.freeze([...event.identities]) };
     case 'network_quality':
-      return { ...state, networkQuality: { ...state.networkQuality, [event.identity]: event.quality } };
+      return { ...state, networkQuality: { ...state.networkQuality, [event.identity]: normalizeNetworkQuality(event.quality) } };
     case 'local_track_changed':
       return { ...state, local: localFromTrackEvent(state.local, event.source, event.enabled) };
     case 'autoplay_blocked':
@@ -218,6 +230,12 @@ function updateCommand(
   commandState: MediaCommandState
 ): MediaCallState {
   return { ...state, commands: { ...state.commands, [command]: Object.freeze(commandState) } };
+}
+
+function withTrackMuted(state: MediaCallState, trackId: string, muted: boolean): MediaCallState {
+  const track = state.tracks[trackId];
+  if (!track || track.muted === muted) return state;
+  return { ...state, tracks: { ...state.tracks, [trackId]: Object.freeze({ ...track, muted }) } };
 }
 
 function localFromTrackEvent(
@@ -270,4 +288,10 @@ function connectionFromAdapter(
 
 export function isTerminalStatus(status: IveKitMediaCallStatus): boolean {
   return ['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(status);
+}
+
+export type NormalizedNetworkQuality = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
+
+export function normalizeNetworkQuality(value: string): NormalizedNetworkQuality {
+  return value === 'excellent' || value === 'good' || value === 'poor' || value === 'lost' ? value : 'unknown';
 }

@@ -151,6 +151,77 @@ test('local media state changes only after adapter success and refresh does not 
   assert.equal(sequence.filter((item) => item === 'adapter:connect').length, 1);
 });
 
+test('host moderation retries 502 with the same key while 403 stays a command error', async () => {
+  const keys: string[] = [];
+  let muteAttempts = 0;
+  const active = snapshot('active');
+  active.participants[0].role = 'host';
+  const client = fakeClient({
+    getCall: async () => active,
+    createCallJoinPlan: async () => joinPlan(),
+    muteParticipant: async (_room, identity, value, options) => {
+      keys.push(options.idempotencyKey);
+      muteAttempts += 1;
+      if (muteAttempts === 1) throw httpError(502, 'provider unavailable');
+      return { room_name: 'room-call-1', participant_identity: identity, action: 'mute', status: 'applied', actor_identity: 'customer-1', track_sid: value.track_sid, source: value.source, muted: true };
+    },
+    removeParticipant: async () => { throw httpError(403, 'host permission denied'); }
+  });
+  const view = renderHook(() => useMediaCall(input(client, () => new FakeAdapter([], false), { randomId: () => 'moderation-key' })));
+  await waitFor(() => assert.equal(view.result.current.state.call?.status, 'active'));
+  const track = { id: 'TR_MIC', participantIdentity: 'agent-2', source: 'microphone', kind: 'audio', muted: false } as never;
+  await act(async () => { await assert.rejects(view.result.current.muteParticipant('agent-2', track), /provider unavailable/); });
+  await act(async () => { await view.result.current.muteParticipant('agent-2', track); });
+  assert.deepEqual(keys, ['moderation-key', 'moderation-key']);
+  await act(async () => { await assert.rejects(view.result.current.removeParticipant('agent-2'), /permission denied/); });
+  assert.equal(view.result.current.state.revokedReason, '');
+  assert.equal(view.result.current.state.commands['remove:agent-2:'].error, 'host permission denied');
+});
+
+test('browser offline and online transitions wait for provider reconnect', async () => {
+  let loads = 0;
+  const adapter = new FakeAdapter([], false);
+  const client = fakeClient({
+    getCall: async () => { loads += 1; return snapshot('active'); },
+    createCallJoinPlan: async () => joinPlan()
+  });
+  const view = renderHook(() => useMediaCall(input(client, () => adapter)));
+  await waitFor(() => assert.equal(view.result.current.state.call?.status, 'active'));
+  act(() => window.dispatchEvent(new Event('offline')));
+  assert.equal(view.result.current.state.connection, 'offline');
+  act(() => window.dispatchEvent(new Event('online')));
+  await waitFor(() => assert.equal(loads, 2));
+  assert.equal(view.result.current.state.connection, 'reconnecting');
+  act(() => adapter.emit({ type: 'state', generation: 1, state: 'connected' }));
+  assert.equal(view.result.current.state.connection, 'online');
+});
+
+test('stale moderation 403 cannot revoke or poison a newly selected call', async () => {
+  const removal = deferred<never>();
+  const client = fakeClient({
+    getCall: async (id) => {
+      const value = snapshot('active', id);
+      value.participants[0].role = 'host';
+      return value;
+    },
+    createCallJoinPlan: async () => joinPlan(),
+    removeParticipant: async () => removal.promise
+  });
+  const view = renderHook(
+    ({ callId }) => useMediaCall(input(client, () => new FakeAdapter([], false), { callId })),
+    { initialProps: { callId: 'call-old' } }
+  );
+  await waitFor(() => assert.equal(view.result.current.state.call?.id, 'call-old'));
+  let operation!: Promise<unknown>;
+  act(() => { operation = view.result.current.removeParticipant('agent-2'); });
+  view.rerender({ callId: 'call-new' });
+  await waitFor(() => assert.equal(view.result.current.state.call?.id, 'call-new'));
+  removal.reject(httpError(403, 'old permission denied'));
+  await act(async () => { await assert.rejects(operation, /old permission denied/); });
+  assert.equal(view.result.current.state.revokedReason, '');
+  assert.equal(Object.values(view.result.current.state.commands).some((command) => command.error), false);
+});
+
 class FakeAdapter implements LiveKitRoomAdapter {
   disposeCalls = 0;
   cameraError?: Error;
@@ -161,6 +232,7 @@ class FakeAdapter implements LiveKitRoomAdapter {
     private onEvent?: (event: MediaAdapterEvent) => void
   ) {}
   setEventHandler(handler: (event: MediaAdapterEvent) => void) { this.onEvent = handler; }
+  emit(event: MediaAdapterEvent) { this.onEvent?.(event); }
   async connect(_plan: IveKitMediaJoinPlan) {
     this.sequence.push('adapter:connect');
     if (this.emitConnected) this.onEvent?.({ type: 'state', generation: 1, state: 'connected' });
@@ -254,6 +326,7 @@ function httpError(status: number, message: string): Error & { status: number } 
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (cause: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }

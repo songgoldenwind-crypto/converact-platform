@@ -59,6 +59,8 @@ const events = {
   participantDisconnected: RoomEvent.ParticipantDisconnected,
   trackSubscribed: RoomEvent.TrackSubscribed,
   trackUnsubscribed: RoomEvent.TrackUnsubscribed,
+  trackMuted: RoomEvent.TrackMuted,
+  trackUnmuted: RoomEvent.TrackUnmuted,
   activeSpeakersChanged: RoomEvent.ActiveSpeakersChanged,
   connectionQualityChanged: RoomEvent.ConnectionQualityChanged,
   reconnecting: RoomEvent.Reconnecting,
@@ -239,6 +241,12 @@ export class LiveKitClientAdapter implements LiveKitRoomAdapter {
         participant_identity: participant.identity
       });
     });
+    const emitMute = (rawPublication: unknown, muted: boolean) => {
+      const publication = asPublication(rawPublication);
+      if (publication?.trackSid) this.emit({ type: 'track_mute_changed', generation, track_id: publication.trackSid, muted });
+    };
+    bind(events.trackMuted, (rawPublication) => emitMute(rawPublication, true));
+    bind(events.trackUnmuted, (rawPublication) => emitMute(rawPublication, false));
     bind(events.activeSpeakersChanged, (value) => {
       if (!Array.isArray(value)) return;
       const identities = Object.freeze(value.map(asParticipant).filter(isParticipant).map((item) => item.identity));

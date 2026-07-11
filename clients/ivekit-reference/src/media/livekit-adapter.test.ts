@@ -82,6 +82,8 @@ test('LiveKit adapter normalizes tracks speakers quality reconnect and autoplay 
   room.emit('participantConnected', remote);
   room.emit('trackSubscribed', track, publication, remote);
   room.emit('trackSubscribed', track, publication, remote);
+  room.emit('trackMuted', publication, remote);
+  room.emit('trackUnmuted', publication, remote);
   room.emit('activeSpeakersChanged', [participant('customer-1'), participant('agent-1')]);
   room.emit('connectionQualityChanged', 'poor', remote);
   room.emit('reconnecting');
@@ -94,6 +96,8 @@ test('LiveKit adapter normalizes tracks speakers quality reconnect and autoplay 
   const subscribed = events.find((event) => event.type === 'track_subscribed');
   assert.ok(subscribed && subscribed.type === 'track_subscribed');
   assert.equal(events.filter((event) => event.type === 'track_subscribed').length, 1);
+  assert.equal(events.some((event) => event.type === 'track_mute_changed' && event.track_id === 'TR_SCREEN' && event.muted), true);
+  assert.equal(events.some((event) => event.type === 'track_mute_changed' && event.track_id === 'TR_SCREEN' && !event.muted), true);
   assert.equal(Object.isFrozen(subscribed), true);
   assert.equal(subscribed.track.source, 'screen_share');
   const element = {} as HTMLMediaElement;
@@ -143,7 +147,7 @@ test('a late old connection cannot orphan the new room listeners', async () => {
   await adapter.connect(plan('room-racing-new'));
   firstRoom.resolveConnect();
   await assert.rejects(firstConnect, /cancelled/);
-  assert.equal(secondRoom.listenerCount(), 12);
+  assert.equal(secondRoom.listenerCount(), 14);
   await adapter.disconnect();
   assert.equal(secondRoom.listenerCount(), 0);
 });
