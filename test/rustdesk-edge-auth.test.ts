@@ -47,6 +47,7 @@ test('RustDesk edge command token validates bounded claims and signing secret', 
       tenant_id: '',
       rustdesk_id: '123456789',
       edge_instance_id: 'edge-auth-1',
+      issued_at: '2026-07-10T12:00:00.000Z',
       expires_at: '2026-07-11T12:00:00.000Z'
     }, secret),
     /tenant_id is required/
@@ -56,6 +57,7 @@ test('RustDesk edge command token validates bounded claims and signing secret', 
       tenant_id: 'tenant_edge_auth',
       rustdesk_id: '123456789',
       edge_instance_id: 'edge-auth-1',
+      issued_at: '2026-07-10T12:00:00.000Z',
       expires_at: '2026-07-11T12:00:00.000Z'
     }, 'short'),
     /RustDesk edge token secret must contain at least 32 characters/
