@@ -36,6 +36,27 @@ import type {
   IveKitQualityReviewResult,
   IveKitWorkerRunResult
 } from './chat-types.js';
+import type {
+  IveKitCreateMediaCallInput,
+  IveKitCreateMediaRoomInput,
+  IveKitMediaCallActionInput,
+  IveKitMediaCallParticipantListResult,
+  IveKitMediaCallSnapshot,
+  IveKitMediaCapabilities,
+  IveKitMediaJoinInput,
+  IveKitMediaJoinPlan,
+  IveKitMediaModerationResult,
+  IveKitMediaMuteInput,
+  IveKitMediaProviderParticipant,
+  IveKitMediaRecording,
+  IveKitMediaRecordingObjectInspection,
+  IveKitMediaRecordingRetentionInput,
+  IveKitMediaRecordingRetentionResult,
+  IveKitMediaRoom,
+  IveKitMediaRoomJoinInput,
+  IveKitStartMediaRecordingInput
+} from './media-types.js';
+import type { IveKitSdkBusinessRef } from './types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -57,12 +78,7 @@ export interface IveKitHttpSdkInput {
   uploadTransport?: IveKitUploadTransport;
 }
 
-export interface IveKitSdkBusinessRef {
-  type: string;
-  id: string;
-  display_name?: string;
-  metadata?: Record<string, unknown>;
-}
+export type { IveKitSdkBusinessRef } from './types.js';
 
 export interface IveKitSdkBinary {
   bytes: Uint8Array;
@@ -71,22 +87,41 @@ export interface IveKitSdkBinary {
 }
 
 export interface IveKitMediaHttpClient {
-  getCapabilities(): Promise<Record<string, unknown>>;
-  createRoom(input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  getRoom(roomName: string): Promise<Record<string, unknown>>;
-  closeRoom(roomName: string): Promise<Record<string, unknown>>;
-  createJoinPlan(roomName: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
+  getCapabilities(): Promise<IveKitMediaCapabilities>;
+  createCall(input: IveKitCreateMediaCallInput): Promise<IveKitMediaCallSnapshot>;
+  getCall(callId: string): Promise<IveKitMediaCallSnapshot>;
+  transitionCall(
+    callId: string,
+    input: IveKitMediaCallActionInput,
+    options?: { idempotencyKey?: string }
+  ): Promise<IveKitMediaCallSnapshot>;
+  createCallJoinPlan(callId: string, input: IveKitMediaJoinInput): Promise<IveKitMediaJoinPlan>;
+  listCallParticipants(callId: string): Promise<IveKitMediaCallParticipantListResult>;
+  createRoom(input: IveKitCreateMediaRoomInput): Promise<IveKitMediaRoom>;
+  getRoom(roomName: string): Promise<IveKitMediaRoom>;
+  closeRoom(roomName: string): Promise<IveKitMediaRoom>;
+  createJoinPlan(roomName: string, input: IveKitMediaRoomJoinInput): Promise<IveKitMediaJoinPlan>;
   listParticipants(
     roomName: string,
     input?: { include_left?: boolean; limit?: number }
-  ): Promise<Record<string, unknown>[]>;
-  startRecording(roomName: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  stopRecording(egressId: string): Promise<Record<string, unknown>>;
-  listRecordings(input?: { limit?: number }): Promise<Record<string, unknown>[]>;
-  getRecording(recordingId: string): Promise<Record<string, unknown>>;
-  inspectRecordingObject(recordingId: string): Promise<Record<string, unknown>>;
+  ): Promise<IveKitMediaProviderParticipant[]>;
+  muteParticipant(
+    roomName: string,
+    identity: string,
+    input: IveKitMediaMuteInput
+  ): Promise<IveKitMediaModerationResult>;
+  removeParticipant(
+    roomName: string,
+    identity: string,
+    input?: { reason?: string }
+  ): Promise<IveKitMediaModerationResult>;
+  startRecording(roomName: string, input: IveKitStartMediaRecordingInput): Promise<IveKitMediaRecording>;
+  stopRecording(egressId: string): Promise<IveKitMediaRecording>;
+  listRecordings(input?: { limit?: number }): Promise<IveKitMediaRecording[]>;
+  getRecording(recordingId: string): Promise<IveKitMediaRecording>;
+  inspectRecordingObject(recordingId: string): Promise<IveKitMediaRecordingObjectInspection>;
   exportRecordingObject(recordingId: string): Promise<IveKitSdkBinary>;
-  cleanupRecordings(input?: Record<string, unknown>): Promise<Record<string, unknown>>;
+  cleanupRecordings(input?: IveKitMediaRecordingRetentionInput): Promise<IveKitMediaRecordingRetentionResult>;
 }
 
 export interface IveKitAttachmentUploadInput {
@@ -307,11 +342,30 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
 }
 
 function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
+  const callPath = (callId: string) => `/api/ivekit/media/calls/${pathSegment(callId, 'callId')}`;
   const roomPath = (roomName: string) => `/api/ivekit/media/rooms/${pathSegment(roomName, 'roomName')}`;
+  const participantPath = (roomName: string, identity: string) =>
+    `${roomPath(roomName)}/participants/${pathSegment(identity, 'identity')}`;
   const recordingPath = (recordingId: string) =>
     `/api/ivekit/media/recordings/${pathSegment(recordingId, 'recordingId')}`;
   return {
     getCapabilities: () => transport.json('GET', '/api/ivekit/media/capabilities'),
+    createCall: (input) => transport.json('POST', '/api/ivekit/media/calls', { body: input }),
+    getCall: (callId) => transport.json('GET', callPath(callId)),
+    transitionCall: (callId, input, options = {}) => transport.json(
+      'POST',
+      `${callPath(callId)}/actions`,
+      {
+        body: input,
+        headers: options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined
+      }
+    ),
+    createCallJoinPlan: (callId, input) => transport.json(
+      'POST',
+      `${callPath(callId)}/join`,
+      { body: input }
+    ),
+    listCallParticipants: (callId) => transport.json('GET', `${callPath(callId)}/participants`),
     createRoom: (input) => transport.json('POST', '/api/ivekit/media/rooms', { body: input }),
     getRoom: (roomName) => transport.json('GET', roomPath(roomName)),
     closeRoom: (roomName) => transport.json('POST', `${roomPath(roomName)}/close`, { body: {} }),
@@ -325,6 +379,16 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
           limit: optionalNumber(input.limit)
         }
       }
+    ),
+    muteParticipant: (roomName, identity, input) => transport.json(
+      'POST',
+      `${participantPath(roomName, identity)}/mute`,
+      { body: input }
+    ),
+    removeParticipant: (roomName, identity, input = {}) => transport.json(
+      'POST',
+      `${participantPath(roomName, identity)}/remove`,
+      { body: input }
     ),
     startRecording: (roomName, input) => transport.json(
       'POST',

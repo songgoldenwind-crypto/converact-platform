@@ -49,6 +49,7 @@ export function createIveKitClient(input: IveKitClientInput): IveKitClient {
 
 export * from './http-sdk.js';
 export type * from './chat-types.js';
+export type * from './media-types.js';
 export * from './upload-transport.js';
 export * from './rustdesk-http-client.js';
 export * from './rustdesk-led-sdk.js';

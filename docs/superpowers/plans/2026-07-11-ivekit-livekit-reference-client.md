@@ -75,11 +75,11 @@ The reducer is deterministic. React components render the projection and issue c
 - Modify: `test/ivekit-http-sdk.test.ts`
 - Modify: `test/ivekit-sdk-package.test.ts`
 
-- [ ] **Step 1: Write failing type and request-shape tests**
+- [x] **Step 1: Write failing type and request-shape tests**
 
 Assert named DTO exports for capabilities, business refs, calls, call participants, rooms, join plans, provider participants, moderation results, recordings, object inspection, and cursor/list results. Assert no Media method returns `Record<string, unknown>`.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```bash
 node --import tsx --test test/ivekit-http-sdk.test.ts test/ivekit-sdk-package.test.ts
@@ -87,7 +87,7 @@ node --import tsx --test test/ivekit-http-sdk.test.ts test/ivekit-sdk-package.te
 
 Expected: missing `media-types.ts` exports and typed call methods.
 
-- [ ] **Step 3: Add browser-safe JSON DTOs**
+- [x] **Step 3: Add browser-safe JSON DTOs**
 
 Define the status unions above plus:
 
@@ -113,7 +113,7 @@ export interface IveKitMediaCall {
 Keep all types structural, JSON-only, and independent from server source.
 Move the existing `IveKitSdkBusinessRef` interface to the SDK's shared `types.ts` module and re-export it from the old entrypoint so current consumers do not break.
 
-- [ ] **Step 4: Add typed methods without removing existing room methods**
+- [x] **Step 4: Add typed methods without removing existing room methods**
 
 ```typescript
 createCall(input: IveKitCreateMediaCallInput): Promise<IveKitMediaCallSnapshot>;
@@ -124,7 +124,7 @@ muteParticipant(roomName: string, identity: string, input: IveKitMediaMuteInput)
 removeParticipant(roomName: string, identity: string, input?: { reason?: string }): Promise<IveKitMediaModerationResult>;
 ```
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm run build:ivekit-sdk

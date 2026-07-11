@@ -2,6 +2,27 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import type {
+  IveKitCreateMediaRoomInput,
+  IveKitMediaRoomJoinInput,
+  IveKitStartMediaRecordingInput
+} from '../sdk/ivekit/src/media-types.js';
+
+const legacyRoomJoinInput: IveKitMediaRoomJoinInput = { identity: 'customer-defaults' };
+const legacyFlatRoomRef: IveKitCreateMediaRoomInput = {
+  business_ref_type: 'service_order',
+  business_ref_id: 'SO-FLAT-ROOM',
+  business_ref_metadata: { source: 'legacy' }
+};
+const legacyFlatRecordingRef: IveKitStartMediaRecordingInput = {
+  business_ref_type: 'service_order',
+  business_ref_id: 'SO-FLAT-RECORDING',
+  business_ref_metadata: { source: 'legacy' }
+};
+void legacyRoomJoinInput;
+void legacyFlatRoomRef;
+void legacyFlatRecordingRef;
+
 type FetchCall = {
   url: string;
   method: string;
@@ -170,6 +191,69 @@ test('iveKit HTTP SDK maps reaction and pin commands', async () => {
   ]);
 });
 
+test('iveKit media SDK maps durable call and moderation commands', async () => {
+  const calls: FetchCall[] = [];
+  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+    baseUrl: 'https://ivekit.example.com',
+    tenantId: 'tenant-media-sdk',
+    accessToken: 'media-access-token',
+    fetch: async (input: string | URL, init: RequestInit = {}) => {
+      calls.push({
+        url: String(input),
+        method: init.method || 'GET',
+        headers: headersToRecord(init.headers),
+        body: typeof init.body === 'string' ? init.body : null
+      });
+      return Response.json({});
+    }
+  });
+
+  await sdk.media.createCall({
+    media: 'video',
+    participant_identities: ['customer-led'],
+    business_ref: { type: 'service_order', id: 'SO-MEDIA-1' }
+  });
+  await sdk.media.getCall('call/1');
+  await sdk.media.transitionCall('call/1', { action: 'accept' }, {
+    idempotencyKey: 'call-action-1'
+  });
+  await sdk.media.createCallJoinPlan('call/1', {
+    identity: 'engineer-led',
+    role: 'host'
+  });
+  await sdk.media.listCallParticipants('call/1');
+  await sdk.media.muteParticipant('room/1', 'customer/1', {
+    track_sid: 'TR_audio_1',
+    source: 'microphone',
+    muted: true
+  });
+  await sdk.media.removeParticipant('room/1', 'customer/1', { reason: 'host_removed' });
+
+  assert.deepEqual(calls.map((call) => `${call.method} ${new URL(call.url).pathname}`), [
+    'POST /api/ivekit/media/calls',
+    'GET /api/ivekit/media/calls/call%2F1',
+    'POST /api/ivekit/media/calls/call%2F1/actions',
+    'POST /api/ivekit/media/calls/call%2F1/join',
+    'GET /api/ivekit/media/calls/call%2F1/participants',
+    'POST /api/ivekit/media/rooms/room%2F1/participants/customer%2F1/mute',
+    'POST /api/ivekit/media/rooms/room%2F1/participants/customer%2F1/remove'
+  ]);
+  assert.deepEqual(calls.map((call) => call.body && JSON.parse(call.body)), [
+    {
+      media: 'video',
+      participant_identities: ['customer-led'],
+      business_ref: { type: 'service_order', id: 'SO-MEDIA-1' }
+    },
+    null,
+    { action: 'accept' },
+    { identity: 'engineer-led', role: 'host' },
+    null,
+    { track_sid: 'TR_audio_1', source: 'microphone', muted: true },
+    { reason: 'host_removed' }
+  ]);
+  assert.equal(calls[2]?.headers['idempotency-key'], 'call-action-1');
+});
+
 test('iveKit HTTP SDK exposes cursor session and message history requests', async () => {
   const calls: string[] = [];
   const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
@@ -279,6 +363,38 @@ test('iveKit SDK exports named browser-safe chat DTOs', () => {
 
   assert.match(sdk, /from '\.\/chat-types\.js'/);
   assert.doesNotMatch(chatInterface, /Promise<Record<string, unknown>>/);
+  assert.doesNotMatch(types, /agent-runtime|db-pg|node:/);
+});
+
+test('iveKit SDK exports named browser-safe media DTOs without untyped returns', () => {
+  const typesPath = 'sdk/ivekit/src/media-types.ts';
+  assert.equal(existsSync(typesPath), true);
+  const types = readFileSync(typesPath, 'utf8');
+  const sharedTypes = readFileSync('sdk/ivekit/src/types.ts', 'utf8');
+  const sdk = readFileSync('sdk/ivekit/src/http-sdk.ts', 'utf8');
+  const entrypoint = readFileSync('sdk/ivekit/src/index.ts', 'utf8');
+  const mediaInterface = sdk.match(/export interface IveKitMediaHttpClient \{([\s\S]*?)\n\}/)?.[1] || '';
+
+  for (const name of [
+    'IveKitMediaCapabilities',
+    'IveKitMediaCall',
+    'IveKitMediaCallParticipant',
+    'IveKitMediaCallSnapshot',
+    'IveKitMediaRoom',
+    'IveKitMediaJoinPlan',
+    'IveKitMediaProviderParticipant',
+    'IveKitMediaModerationResult',
+    'IveKitMediaRecording',
+    'IveKitMediaRecordingObjectInspection',
+    'IveKitMediaCursorPage'
+  ]) assert.match(types, new RegExp(`export (?:interface|type) ${name}`));
+
+  assert.match(sharedTypes, /export interface IveKitSdkBusinessRef/);
+  assert.doesNotMatch(sdk, /export interface IveKitSdkBusinessRef/);
+  assert.match(sdk, /from '\.\/media-types\.js'/);
+  assert.match(entrypoint, /export type \* from '\.\/media-types\.js'/);
+  assert.doesNotMatch(mediaInterface, /Promise<Record<string, unknown>>/);
+  assert.doesNotMatch(mediaInterface, /Promise<Record<string, unknown>\[\]>/);
   assert.doesNotMatch(types, /agent-runtime|db-pg|node:/);
 });
 

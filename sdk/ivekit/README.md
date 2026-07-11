@@ -10,7 +10,8 @@ npm install @opc/ivekit-sdk
 import {
   createIveKitClient,
   type IveKitChatMessage,
-  type IveKitChatSnapshot
+  type IveKitChatSnapshot,
+  type IveKitMediaCallSnapshot
 } from '@opc/ivekit-sdk';
 
 const ivekit = createIveKitClient({
@@ -35,6 +36,11 @@ const room = await ivekit.media.createRoom({
   purpose: 'video_service',
   business_ref: orderRef
 });
+const call: IveKitMediaCallSnapshot = await ivekit.media.createCall({
+  media: 'video',
+  participant_identities: ['customer-1001'],
+  business_ref: orderRef
+});
 const device = await ivekit.rustdesk.ensureDevice({
   businessRef: orderRef,
   rustdeskId: '123456789',
@@ -47,6 +53,11 @@ The chat client exports browser-safe JSON DTOs for sessions, participants, messa
 attachments and processing jobs, provider delivery, receipts, realtime state,
 mutations, policy findings and reviews, reactions, pins, and cursor pages. These
 types are structural and do not import OPC server modules.
+
+The media client exports typed capabilities, durable call snapshots and actions,
+rooms, join plans, provider participants, host moderation, recordings, object
+inspection, retention cleanup, and cursor/list results. Existing room APIs remain
+available while products migrate to the durable call lifecycle.
 
 `chat.listSessions()` returns viewer-specific `summary` data for unread count,
 online participant count, and the latest-message preview. `chat.closeSession()`

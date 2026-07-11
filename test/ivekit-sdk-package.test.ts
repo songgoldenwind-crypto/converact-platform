@@ -49,7 +49,9 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
   const entrypoint = readFileSync('sdk/ivekit/src/index.ts', 'utf8');
   const readme = readFileSync('sdk/ivekit/README.md', 'utf8');
   assert.match(entrypoint, /export type \* from '\.\/chat-types\.js'/);
+  assert.match(entrypoint, /export type \* from '\.\/media-types\.js'/);
   assert.match(readme, /IveKitChatSnapshot/);
+  assert.match(readme, /IveKitMediaCallSnapshot/);
   assert.match(readme, /receive-only/);
 });
 
