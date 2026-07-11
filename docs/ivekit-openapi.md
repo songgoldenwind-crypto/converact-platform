@@ -23,6 +23,8 @@ X-Tenant-Id: tenant_led
 
 API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只取 JWT `sub`，忽略调用方伪造的用户 header。tenant 必须与数据库 RLS 上下文一致。
 
+部署信任边界：LED 服务只持有 iveKit API key/JWT，不持有 `opc_admin`、PostgreSQL runtime 密码、LiveKit API secret、Tinode 服务账号密码、MinIO root/service secret 或 RustDesk control-plane token。数据库迁移与角色初始化由一次性任务完成；长驻 OPC 使用不可自行开启 RLS bypass 的 `opc_runtime`，Tinode 使用仅能连接 Tinode 数据库的独立角色。此部署变化不修改下述 HTTP payload，但属于生产接入硬门禁。
+
 ### 1.2 数据与错误
 
 - JSON 请求使用 `Content-Type: application/json`。

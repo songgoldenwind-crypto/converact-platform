@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-11。面向 LED 项目架构师、后端、前端、部署和 QA。本文定义复用与抽离方法，不把本地 fake 测试描述成真实环境验收。
+> 版本：2026-07-11。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》；物理 RustDesk 客户端和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
 
 ## 1. 交付目标
 
@@ -16,20 +16,22 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 
 | 范围 | 代码状态 | 真实环境状态 |
 | --- | --- | --- |
-| Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器待服务器验证 |
-| Collaboration Session | Tinode durable outbound、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 真实 Tinode、OCR/ASR/AI provider、多副本 PostgreSQL/Redis 待服务器验证 |
-| Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、真实双客户端控制与断开观察待服务器验证 |
-| SDK | `createIveKitHttpSdk` 覆盖 Media + Chat；`createIveKitRustDeskLedSdk` 覆盖 RustDesk 流程 | SDK 本地 fetch 契约通过；真实服务调用待部署 |
+| Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
+| Collaboration Session | Tinode durable outbound、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 真实 Tinode/IM facade/防绕单/双实例幂等已通过；OCR/ASR/AI provider 待选型和配置 |
+| Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
+| SDK | `createIveKitHttpSdk` 覆盖 Media + Chat；`createIveKitRustDeskLedSdk` 覆盖 RustDesk 流程 | LED SDK 已在真实服务器完成 Media + IM 串联 |
 
-本地相关回归已通过，但这只证明代码和契约。真实环境验证清单见第 11 节。
+本地完整门禁和真实服务器验收均已执行，未具备外部服务或物理客户端的项目仍明确列在第 11 节，不以 fake 结果替代。
 
-2026-07-10 的部署加固已把 PostgreSQL 版 Tinode 纳入本地 Compose 和 production 自建 overlay，并修正 LiveKit ICE/Egress 配置。2026-07-11 又补齐 production PostgreSQL 多数据库与 MinIO bucket 的幂等 one-shot 初始化和启动门禁；这些仍属于本地代码、fake command 测试与静态配置通过，不代表容器或真实服务器已经运行成功。
+2026-07-11 的最终部署把 PostgreSQL 角色初始化、advisory-locked migration 和 Tinode 服务账号 bootstrap 拆成一次性任务。长驻 OPC 仅持有 `opc_runtime`，Tinode 仅持有 `tinode_app`；LED 不得获取 `opc_admin`、PostgreSQL 连接密码、LiveKit API secret、MinIO root 或桶级 service secret。MinIO 根账号只用于初始化，OPC/Egress 只使用限定 `recordings` 桶的业务账号。
 
 ## 3. 推荐部署拓扑
 
 ### 3.1 第一阶段：嵌入 OPC
 
 LED 后端调用现有 OPC `/api/ivekit/*`。优点是零搬迁、最快联调；缺点是部署生命周期暂时跟随 OPC。适合第一版。
+
+无论嵌入还是抽离，LED 只能通过 iveKit facade/SDK 和标准事件访问能力，不直连 PostgreSQL、Tinode 数据库或 MinIO 管理 API。浏览器只接收短期 LiveKit/Tinode 用户凭据，不接收服务端 provider secret。
 
 ```text
 LED backend/frontend
