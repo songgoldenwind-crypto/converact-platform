@@ -1716,6 +1716,20 @@ export async function routeCollaborationApi(
     return { status: 201, data: session };
   }
 
+  if (routePath === '/api/collaboration/sessions' && method === 'GET') {
+    const status = url.searchParams.get('status') || undefined;
+    const sessions = await module.sessions.listSessions({
+      tenant_id: ctx.tenantId,
+      status: status as 'open' | 'closed' | undefined,
+      business_ref_type: url.searchParams.get('business_ref_type') || undefined,
+      business_ref_id: url.searchParams.get('business_ref_id') || undefined,
+      query: url.searchParams.get('query') || undefined,
+      cursor: url.searchParams.get('cursor') || undefined,
+      limit: optionalQueryNumber(url.searchParams.get('limit'))
+    });
+    return { data: sessions };
+  }
+
   if (routePath === '/api/collaboration/sessions/by-ref' && method === 'GET') {
     const sessions = await module.sessions.listByBusinessRef({
       tenant_id: ctx.tenantId,
@@ -2256,6 +2270,19 @@ export async function routeCollaborationApi(
     }
 
     if (section === 'messages' && !action && method === 'GET') {
+      const paged = ['direction', 'cursor', 'query'].some((key) => url.searchParams.has(key));
+      if (paged) {
+        return {
+          data: await module.sessions.listMessagesPage({
+            tenant_id: ctx.tenantId,
+            session_id: collaboration.id,
+            direction: (url.searchParams.get('direction') || 'before') as 'before' | 'after',
+            query: url.searchParams.get('query') || undefined,
+            cursor: url.searchParams.get('cursor') || undefined,
+            limit: optionalQueryNumber(url.searchParams.get('limit'))
+          })
+        };
+      }
       return {
         data: await module.sessions.listMessages({
           tenant_id: ctx.tenantId,
@@ -2673,4 +2700,8 @@ export async function routeCollaborationApi(
   }
 
   return undefined;
+}
+
+function optionalQueryNumber(value: string | null): number | undefined {
+  return value == null || value === '' ? undefined : Number(value);
 }

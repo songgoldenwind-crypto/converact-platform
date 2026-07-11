@@ -10,6 +10,7 @@ import type {
   IveKitChatEditInput,
   IveKitChatMessage,
   IveKitChatMessageInput,
+  IveKitChatMessagePageInput,
   IveKitChatMessageState,
   IveKitChatMutationListResult,
   IveKitChatMutationResult,
@@ -22,9 +23,11 @@ import type {
   IveKitChatReceiptResult,
   IveKitChatRealtimeResult,
   IveKitChatSession,
+  IveKitChatSessionListInput,
   IveKitChatSnapshot,
   IveKitChatTypingInput,
   IveKitOpenChatSessionInput,
+  IveKitCursorPage,
   IveKitPolicyFindingListResult,
   IveKitPolicyFindingResult,
   IveKitPolicyFindingReviewInput,
@@ -87,6 +90,7 @@ export interface IveKitAttachmentUploadInput {
 export interface IveKitChatHttpClient {
   getCapabilities(): Promise<IveKitChatCapabilities>;
   openSession(input: IveKitOpenChatSessionInput): Promise<IveKitChatSession>;
+  listSessions(input?: IveKitChatSessionListInput): Promise<IveKitCursorPage<IveKitChatSession>>;
   listSessionsByBusinessRef(
     businessRef: IveKitSdkBusinessRef,
     input?: { limit?: number }
@@ -96,6 +100,10 @@ export interface IveKitChatHttpClient {
   addParticipant(sessionId: string, input: IveKitChatParticipantInput): Promise<IveKitChatParticipant>;
   leaveParticipant(sessionId: string, input: { identity?: string }): Promise<IveKitChatParticipant | null>;
   listMessages(sessionId: string, input?: { limit?: number }): Promise<IveKitChatMessage[]>;
+  listMessagesPage(
+    sessionId: string,
+    input?: IveKitChatMessagePageInput
+  ): Promise<IveKitCursorPage<IveKitChatMessage>>;
   postMessage(
     sessionId: string,
     input: IveKitChatMessageInput,
@@ -329,6 +337,16 @@ function createChatClient(transport: IveKitTransport): IveKitChatHttpClient {
   return {
     getCapabilities: () => transport.json('GET', '/api/ivekit/chat/capabilities'),
     openSession: (input) => transport.json('POST', '/api/ivekit/chat/sessions', { body: input }),
+    listSessions: (input = {}) => transport.json('GET', '/api/ivekit/chat/sessions', {
+      query: {
+        status: input.status || '',
+        business_ref_type: input.business_ref_type || '',
+        business_ref_id: input.business_ref_id || '',
+        query: input.query || '',
+        cursor: input.cursor || '',
+        limit: optionalNumber(input.limit)
+      }
+    }),
     listSessionsByBusinessRef: (businessRef, input = {}) => transport.json(
       'GET',
       '/api/ivekit/chat/sessions/by-ref',
@@ -360,6 +378,18 @@ function createChatClient(transport: IveKitTransport): IveKitChatHttpClient {
       'GET',
       `${sessionPath(sessionId)}/messages`,
       { query: { limit: optionalNumber(input.limit) } }
+    ),
+    listMessagesPage: (sessionId, input = {}) => transport.json(
+      'GET',
+      `${sessionPath(sessionId)}/messages`,
+      {
+        query: {
+          direction: input.direction || 'before',
+          query: input.query || '',
+          cursor: input.cursor || '',
+          limit: optionalNumber(input.limit)
+        }
+      }
     ),
     postMessage: (sessionId, input, options = {}) => transport.json(
       'POST',

@@ -341,6 +341,22 @@ export class MemoryPg implements PgQueryable {
       return row ? [row] : [];
     }
 
+    if (sql.startsWith("SELECT * FROM collaboration_sessions WHERE tenant_id = $1 AND ($2 = '' OR status = $2)")) {
+      const [tenantId, status, refType, refId, query, rawCursorCreatedAt, cursorId, rawLimit] = params;
+      const cursorCreatedAt = rawCursorCreatedAt == null ? '' : String(rawCursorCreatedAt);
+      const limit = Number(rawLimit || 51);
+      return [...this.table('collaboration_sessions').values()]
+        .filter((row) => String(row.tenant_id) === String(tenantId))
+        .filter((row) => !status || String(row.status) === String(status))
+        .filter((row) => !refType || String(row.business_ref_type) === String(refType))
+        .filter((row) => !refId || String(row.business_ref_id) === String(refId))
+        .filter((row) => !query || [row.title, row.business_ref_type, row.business_ref_id]
+          .map((value) => String(value || '').toLowerCase()).join(' ').includes(String(query)))
+        .filter((row) => !cursorCreatedAt || compareTuple(row, cursorCreatedAt, String(cursorId)) < 0)
+        .sort((a, b) => compareRows(b, a))
+        .slice(0, limit);
+    }
+
     if (sql.startsWith('SELECT * FROM collaboration_sessions') && sql.includes('business_ref_type')) {
       const tenantId = String(params[0]);
       const refType = String(params[1]);
@@ -526,6 +542,25 @@ export class MemoryPg implements PgQueryable {
         String(candidate.idempotency_key || '') === idempotencyKey
       );
       return row ? [row] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_messages AS message WHERE tenant_id = $1')) {
+      const [tenantId, sessionId, query, rawCursorCreatedAt, cursorId, rawLimit] = params;
+      const cursorCreatedAt = rawCursorCreatedAt == null ? '' : String(rawCursorCreatedAt);
+      const limit = Number(rawLimit || 51);
+      const before = sql.includes('(created_at, id) <') || sql.includes('ORDER BY created_at DESC');
+      return [...this.table('collaboration_messages').values()]
+        .filter((row) => String(row.tenant_id) === String(tenantId) && String(row.session_id) === String(sessionId))
+        .filter((row) => !query || (
+          !row.deleted_at && String(row.current_body || row.body || '').toLowerCase().includes(String(query))
+        ))
+        .filter((row) => {
+          if (!cursorCreatedAt) return true;
+          const compared = compareTuple(row, cursorCreatedAt, String(cursorId));
+          return before ? compared < 0 : compared > 0;
+        })
+        .sort((a, b) => before ? compareRows(b, a) : compareRows(a, b))
+        .slice(0, limit);
     }
 
     if (sql.startsWith('SELECT * FROM collaboration_messages WHERE session_id')) {
@@ -2211,6 +2246,15 @@ export class MemoryPg implements PgQueryable {
     this.timeCursor += 1;
     return new Date(this.timeCursor).toISOString();
   }
+}
+
+function compareRows(left: TableRow, right: TableRow): number {
+  return String(left.created_at).localeCompare(String(right.created_at)) ||
+    String(left.id).localeCompare(String(right.id));
+}
+
+function compareTuple(row: TableRow, createdAt: string, id: string): number {
+  return String(row.created_at).localeCompare(createdAt) || String(row.id).localeCompare(id);
 }
 
 function mergeJsonObjects(left: unknown, right: unknown): string {

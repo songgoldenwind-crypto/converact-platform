@@ -345,6 +345,12 @@ export interface CollaborationChatSnapshot {
   policy_findings: CollaborationPolicyFinding[];
 }
 
+export interface CollaborationCursorPage<T> {
+  items: T[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
 export type RemoteAssistanceMode =
   | 'web_remote_assist'
   | 'screen_share'

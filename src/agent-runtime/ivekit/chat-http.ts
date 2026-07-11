@@ -30,10 +30,12 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
     tenant_id: tenantId,
     capabilities: {
       sessions: true,
+      cursor_session_list: true,
       business_ref_lookup: true,
       binding: true,
       participants: true,
       messages: true,
+      cursor_message_history: true,
       attachments: true,
       attachment_upload: true,
       attachment_processing: true,

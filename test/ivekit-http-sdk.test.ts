@@ -70,9 +70,9 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
     'getRecording', 'inspectRecordingObject', 'exportRecordingObject', 'cleanupRecordings'
   ]) assert.equal(typeof sdk.media[method], 'function', `missing media.${method}`);
   for (const method of [
-    'getCapabilities', 'openSession', 'listSessionsByBusinessRef', 'bindSession',
+    'getCapabilities', 'openSession', 'listSessions', 'listSessionsByBusinessRef', 'bindSession',
     'createClientPlan', 'addParticipant', 'leaveParticipant', 'listMessages',
-    'postMessage', 'getSnapshot', 'getDelivery', 'retryDelivery', 'listReceipts',
+    'listMessagesPage', 'postMessage', 'getSnapshot', 'getDelivery', 'retryDelivery', 'listReceipts',
     'markReceipt', 'getMessageState', 'setTyping', 'setPresence', 'listRealtimeState',
     'editMessage', 'deleteMessage', 'listMutations', 'uploadAttachment', 'getAttachment',
     'retryAttachment', 'listFindings', 'getFinding', 'reviewFinding', 'getQualityReview',
@@ -135,6 +135,42 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
   }
   assert.equal(calls[7]?.headers['idempotency-key'], 'led-message-1');
   assert.equal(calls[11]?.headers['content-type'], 'image/png');
+});
+
+test('iveKit HTTP SDK exposes cursor session and message history requests', async () => {
+  const calls: string[] = [];
+  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+    baseUrl: 'https://ivekit.example.com',
+    tenantId: 'tenant-page',
+    accessToken: 'page-token',
+    fetch: async (input: string | URL) => {
+      calls.push(String(input));
+      return Response.json({ items: [], next_cursor: null, has_more: false });
+    }
+  });
+
+  await sdk.chat.listSessions({
+    status: 'open',
+    business_ref_type: 'service_order',
+    query: 'led',
+    cursor: 'session-cursor',
+    limit: 25
+  });
+  await sdk.chat.listMessagesPage('collab-1', {
+    direction: 'after',
+    query: 'needle',
+    cursor: 'message-cursor',
+    limit: 40
+  });
+
+  assert.equal(
+    new URL(calls[0]).pathname + new URL(calls[0]).search,
+    '/api/ivekit/chat/sessions?status=open&business_ref_type=service_order&query=led&cursor=session-cursor&limit=25'
+  );
+  assert.equal(
+    new URL(calls[1]).pathname + new URL(calls[1]).search,
+    '/api/ivekit/chat/sessions/collab-1/messages?direction=after&query=needle&cursor=message-cursor&limit=40'
+  );
 });
 
 test('iveKit HTTP SDK keeps Bearer identity authoritative and exposes structured errors', async () => {

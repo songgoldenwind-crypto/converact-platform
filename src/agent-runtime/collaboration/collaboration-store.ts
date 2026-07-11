@@ -6,6 +6,7 @@ import type {
   BusinessRef,
   CollaborationChatBinding,
   CollaborationChatSnapshot,
+  CollaborationCursorPage,
   CollaborationMessage,
   CollaborationMessageAttachment,
   CollaborationMessageAttachmentKind,
@@ -114,6 +115,56 @@ export class CollaborationStore {
       [input.tenant_id, input.business_ref.type, input.business_ref.id, input.limit || 50]
     );
     return result.rows.map(decodeSession);
+  }
+
+  async listSessions(input: {
+    tenant_id: string;
+    status?: CollaborationSession['status'];
+    business_ref_type?: string;
+    business_ref_id?: string;
+    query?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<CollaborationCursorPage<CollaborationSession>> {
+    const status = String(input.status || '').trim();
+    if (status && status !== 'open' && status !== 'closed') {
+      throw badRequest('status must be open or closed');
+    }
+    const limit = pageLimit(input.limit, 50);
+    const cursor = decodePageCursor(input.cursor, 'sessions', 'before');
+    const result = await this.pg.query(
+      `SELECT * FROM collaboration_sessions
+       WHERE tenant_id = $1
+         AND ($2 = '' OR status = $2)
+         AND ($3 = '' OR business_ref_type = $3)
+         AND ($4 = '' OR business_ref_id = $4)
+         AND ($5 = '' OR POSITION($5 IN LOWER(
+           COALESCE(title, '') || ' ' || business_ref_type || ' ' || business_ref_id
+         )) > 0)
+         AND ($6::timestamptz IS NULL OR (created_at, id) < ($6::timestamptz, $7))
+       ORDER BY created_at DESC, id DESC
+       LIMIT $8`,
+      [
+        input.tenant_id,
+        status,
+        String(input.business_ref_type || '').trim(),
+        String(input.business_ref_id || '').trim(),
+        normalizedSearch(input.query),
+        cursor?.created_at || null,
+        cursor?.id || '',
+        limit + 1
+      ]
+    );
+    const hasMore = result.rows.length > limit;
+    const selected = result.rows.slice(0, limit).map(decodeSession);
+    const tail = selected.at(-1);
+    return {
+      items: selected,
+      next_cursor: hasMore && tail
+        ? encodePageCursor('sessions', 'before', tail.created_at, tail.id)
+        : null,
+      has_more: hasMore
+    };
   }
 
   async closeSession(sessionId: string): Promise<CollaborationSession | null> {
@@ -412,6 +463,59 @@ export class CollaborationStore {
     return messages;
   }
 
+  async listMessagesPage(input: {
+    tenant_id: string;
+    session_id: string;
+    direction?: 'before' | 'after';
+    query?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<CollaborationCursorPage<CollaborationMessage>> {
+    await this.requireTenantSession(input.tenant_id, input.session_id);
+    const direction = input.direction || 'before';
+    if (direction !== 'before' && direction !== 'after') {
+      throw badRequest('direction must be before or after');
+    }
+    const limit = pageLimit(input.limit, 50);
+    const scope = `messages:${input.session_id}`;
+    const cursor = decodePageCursor(input.cursor, scope, direction);
+    const comparator = direction === 'before' ? '<' : '>';
+    const order = direction === 'before' ? 'DESC' : 'ASC';
+    const result = await this.pg.query(
+      `SELECT * FROM collaboration_messages AS message
+       WHERE tenant_id = $1 AND session_id = $2
+         AND ($3 = '' OR (
+           deleted_at IS NULL AND POSITION($3 IN LOWER(COALESCE(current_body, body, ''))) > 0
+         ))
+         AND ($4::timestamptz IS NULL OR (created_at, id) ${comparator} ($4::timestamptz, $5))
+       ORDER BY created_at ${order}, id ${order}
+       LIMIT $6`,
+      [
+        input.tenant_id,
+        input.session_id,
+        normalizedSearch(input.query),
+        cursor?.created_at || null,
+        cursor?.id || '',
+        limit + 1
+      ]
+    );
+    const hasMore = result.rows.length > limit;
+    const selectedRows = result.rows.slice(0, limit);
+    const cursorRow = selectedRows.at(-1);
+    const displayRows = direction === 'before' ? [...selectedRows].reverse() : selectedRows;
+    const messages: CollaborationMessage[] = [];
+    for (const row of displayRows) {
+      messages.push(await messageWithAttachments(this.pg, decodeMessage(row)));
+    }
+    return {
+      items: messages,
+      next_cursor: (hasMore || direction === 'after') && cursorRow
+        ? encodePageCursor(scope, direction, timestamp(cursorRow.created_at), String(cursorRow.id))
+        : null,
+      has_more: hasMore
+    };
+  }
+
   async scanPolicy(input: {
     tenant_id: string;
     session_id: string;
@@ -568,6 +672,73 @@ function assertTenantRef(tenantId: string, ref: BusinessRef): void {
   if (ref.tenant_id !== tenantId) {
     throw Object.assign(new Error('business_ref tenant mismatch'), { status: 400 });
   }
+}
+
+interface PageCursor {
+  v: 1;
+  scope: string;
+  direction: 'before' | 'after';
+  created_at: string;
+  id: string;
+}
+
+function encodePageCursor(
+  scope: string,
+  direction: PageCursor['direction'],
+  createdAt: string,
+  id: string
+): string {
+  return Buffer.from(JSON.stringify({
+    v: 1,
+    scope,
+    direction,
+    created_at: timestamp(createdAt),
+    id
+  } satisfies PageCursor)).toString('base64url');
+}
+
+function decodePageCursor(
+  value: string | undefined,
+  scope: string,
+  direction: PageCursor['direction']
+): PageCursor | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<PageCursor>;
+    if (
+      decoded.v !== 1 || decoded.scope !== scope || decoded.direction !== direction ||
+      !String(decoded.id || '').trim() || !String(decoded.created_at || '').trim() ||
+      Number.isNaN(new Date(String(decoded.created_at)).getTime())
+    ) throw new Error('invalid cursor payload');
+    return {
+      v: 1,
+      scope,
+      direction,
+      created_at: new Date(String(decoded.created_at)).toISOString(),
+      id: String(decoded.id)
+    };
+  } catch {
+    throw badRequest('invalid or incompatible cursor');
+  }
+}
+
+function pageLimit(value: number | undefined, fallback: number): number {
+  const limit = value == null ? fallback : Number(value);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+    throw badRequest('limit must be an integer from 1 to 200');
+  }
+  return limit;
+}
+
+function normalizedSearch(value: string | undefined): string {
+  const query = String(value || '').trim().toLowerCase();
+  if (query.length > 200) throw badRequest('query must be at most 200 characters');
+  return query;
+}
+
+function badRequest(message: string): Error & { status: number } {
+  return Object.assign(new Error(message), { status: 400 });
 }
 
 function toJson(value: unknown): string {

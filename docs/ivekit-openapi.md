@@ -152,6 +152,7 @@ Recording start：
 | --- | --- | --- |
 | GET | `/api/ivekit/chat/capabilities` | provider、功能开关、配置布尔状态和 delivery policy |
 | POST | `/api/ivekit/chat/sessions` | 按 business_ref 建会话 |
+| GET | `/api/ivekit/chat/sessions` | 游标分页；query: `status/business_ref_type/business_ref_id/query/cursor/limit` |
 | GET | `/api/ivekit/chat/sessions/by-ref` | query: `business_ref_type/business_ref_id/limit` |
 | POST | `/api/ivekit/chat/sessions/:session_id/bind` | 创建/复用 local/Tinode binding |
 | GET | `/api/ivekit/chat/sessions/:session_id/snapshot` | session/binding/participants/messages/policy 快照 |
@@ -202,9 +203,12 @@ Client plan 请求：
 | Method | Path | 说明 |
 | --- | --- | --- |
 | GET | `/api/ivekit/chat/sessions/:session_id/messages?limit=100` | 本地审计镜像 |
+| GET | `/api/ivekit/chat/sessions/:session_id/messages?direction=before&cursor=&query=&limit=50` | 游标历史页；`before/after` 游标不可混用 |
 | POST | `/api/ivekit/chat/sessions/:session_id/messages` | 本地事务 + policy + durable provider delivery |
 | GET | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery` | delivery 状态和 attempt history |
 | POST | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery/retry` | 对到期 work 做 lease 保护的重试 |
+
+分页响应统一为 `{items,next_cursor,has_more}`。会话按 `(created_at,id)` 倒序；消息页内始终按时间正序返回，`before` 从最新消息向历史加载，`after` 从最早消息向前收敛。游标是不可解释的版本化 token，并绑定资源和方向；客户端不得解析、修改或跨会话复用。`after` 页在暂时追平时仍返回高水位 `next_cursor`，此时用 `has_more=false` 表示当前没有更多消息，后续可持该游标继续增量请求。仅带 `limit` 的旧消息请求仍返回数组，供现有集成平滑迁移；新客户端应调用 SDK 的 `listMessagesPage()`。
 
 ```http
 POST /api/ivekit/chat/sessions/collab_xxx/messages
@@ -328,7 +332,7 @@ WebSocket 可能断线或丢失瞬时事件。重连后必须 GET snapshot/messa
 `createIveKitHttpSdk({baseUrl, tenantId, apiKey|accessToken, userId?, timeoutMs?, fetch?})` 返回：
 
 - `sdk.media.*`：capabilities、room、join、participant、recording、object、export、cleanup。
-- `sdk.chat.*`：session、binding、client-plan、participant、message、delivery、receipt、state、mutation、attachment、finding、quality。
+- `sdk.chat.*`：`listSessions()`、`listMessagesPage()`、session、binding、client-plan、participant、message、delivery、receipt、state、mutation、attachment、finding、quality。
 - 二进制导出返回 `{bytes, contentType, filename}`。
 - 错误为 `IveKitHttpSdkError(status, method, path, payload)`；网络/超时 `status=0`。
 

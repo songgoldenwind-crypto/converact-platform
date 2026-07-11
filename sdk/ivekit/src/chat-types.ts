@@ -243,6 +243,22 @@ export interface IveKitCursorPage<T = unknown> {
   has_more: boolean;
 }
 
+export interface IveKitChatSessionListInput {
+  status?: 'open' | 'closed';
+  business_ref_type?: string;
+  business_ref_id?: string;
+  query?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface IveKitChatMessagePageInput {
+  direction?: 'before' | 'after';
+  query?: string;
+  cursor?: string;
+  limit?: number;
+}
+
 export interface IveKitChatClientPlan {
   provider: 'tinode' | 'local' | string;
   provider_topic_id: string;

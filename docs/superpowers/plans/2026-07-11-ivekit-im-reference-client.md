@@ -105,15 +105,15 @@ git commit -m "feat(sdk): type iveKit chat contract"
 - Modify: `test/ivekit-http-sdk.test.ts`
 - Modify: `docs/ivekit-openapi.md`
 
-- [ ] **Step 1: Write failing pagination and isolation tests**
+- [x] **Step 1: Write failing pagination and isolation tests**
 
 Cover session list filters (`status`, `business_ref`, text query), opaque cursor validation, stable `(created_at,id)` ordering, no duplicates between pages, search before limit, soft-delete behavior, and cross-tenant rejection.
 
-- [ ] **Step 2: Implement opaque cursors**
+- [x] **Step 2: Implement opaque cursors**
 
 Use base64url JSON containing version, timestamp, and id. Reject malformed/foreign-direction cursors with 400. Do not expose SQL offsets.
 
-- [ ] **Step 3: Add stable endpoints**
+- [x] **Step 3: Add stable endpoints**
 
 ```text
 GET /api/ivekit/chat/sessions?status=&query=&cursor=&limit=
@@ -122,11 +122,11 @@ GET /api/ivekit/chat/sessions/:id/messages?cursor=&direction=before|after&query=
 
 Return `{items,next_cursor,has_more}`. Existing unpaged calls remain supported during migration.
 
-- [ ] **Step 4: Update SDK and docs**
+- [x] **Step 4: Update SDK and docs**
 
 Expose `listSessions()` and typed `listMessagesPage()`. Keep `listMessages()` compatibility until M5.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 node --import tsx --test test/collaboration-chat-pagination.test.ts test/collaboration-http.test.ts test/ivekit-http-sdk.test.ts
