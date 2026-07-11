@@ -394,7 +394,7 @@ export class MemoryPg implements PgQueryable {
     }
 
     if (sql.startsWith("SELECT * FROM collaboration_sessions WHERE tenant_id = $1 AND ($2 = '' OR status = $2)")) {
-      const [tenantId, status, refType, refId, query, rawCursorCreatedAt, cursorId, rawLimit] = params;
+      const [tenantId, status, refType, refId, query, identity, rawCursorCreatedAt, cursorId, rawLimit] = params;
       const cursorCreatedAt = rawCursorCreatedAt == null ? '' : String(rawCursorCreatedAt);
       const limit = Number(rawLimit || 51);
       return [...this.table('collaboration_sessions').values()]
@@ -404,6 +404,11 @@ export class MemoryPg implements PgQueryable {
         .filter((row) => !refId || String(row.business_ref_id) === String(refId))
         .filter((row) => !query || [row.title, row.business_ref_type, row.business_ref_id]
           .map((value) => String(value || '').toLowerCase()).join(' ').includes(String(query)))
+        .filter((row) => !identity || [...this.table('collaboration_participants').values()].some(
+          (participant) => String(participant.tenant_id) === String(tenantId) &&
+            String(participant.session_id) === String(row.id) &&
+            String(participant.identity) === String(identity) && !participant.left_at
+        ))
         .filter((row) => !cursorCreatedAt || compareTuple(row, cursorCreatedAt, String(cursorId)) < 0)
         .sort((a, b) => compareRows(b, a))
         .slice(0, limit);
@@ -413,9 +418,15 @@ export class MemoryPg implements PgQueryable {
       const tenantId = String(params[0]);
       const refType = String(params[1]);
       const refId = String(params[2]);
-      const limit = Number(params[3] || 50);
+      const identity = String(params[3] || '');
+      const limit = Number(params[4] || 50);
       return [...this.table('collaboration_sessions').values()]
         .filter((row) => String(row.tenant_id) === tenantId && String(row.business_ref_type) === refType && String(row.business_ref_id) === refId)
+        .filter((row) => !identity || [...this.table('collaboration_participants').values()].some(
+          (participant) => String(participant.tenant_id) === tenantId &&
+            String(participant.session_id) === String(row.id) &&
+            String(participant.identity) === identity && !participant.left_at
+        ))
         .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
         .slice(0, limit);
     }

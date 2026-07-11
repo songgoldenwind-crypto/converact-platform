@@ -109,15 +109,23 @@ export class CollaborationStore {
   async listByBusinessRef(input: {
     tenant_id: string;
     business_ref: BusinessRef;
+    identity?: string;
     limit?: number;
   }): Promise<CollaborationSession[]> {
     assertTenantRef(input.tenant_id, input.business_ref);
     const result = await this.pg.query(
       `SELECT * FROM collaboration_sessions
        WHERE tenant_id = $1 AND business_ref_type = $2 AND business_ref_id = $3
+         AND ($4 = '' OR EXISTS (
+           SELECT 1 FROM collaboration_participants AS visible_participant
+           WHERE visible_participant.tenant_id = collaboration_sessions.tenant_id
+             AND visible_participant.session_id = collaboration_sessions.id
+             AND visible_participant.identity = $4
+             AND visible_participant.left_at IS NULL
+         ))
        ORDER BY created_at DESC
-       LIMIT $4`,
-      [input.tenant_id, input.business_ref.type, input.business_ref.id, input.limit || 50]
+       LIMIT $5`,
+      [input.tenant_id, input.business_ref.type, input.business_ref.id, String(input.identity || '').trim(), input.limit || 50]
     );
     return result.rows.map(decodeSession);
   }
@@ -128,6 +136,7 @@ export class CollaborationStore {
     business_ref_type?: string;
     business_ref_id?: string;
     query?: string;
+    identity?: string;
     cursor?: string;
     limit?: number;
   }): Promise<CollaborationCursorPage<CollaborationSession>> {
@@ -146,15 +155,23 @@ export class CollaborationStore {
          AND ($5 = '' OR POSITION($5 IN LOWER(
            COALESCE(title, '') || ' ' || business_ref_type || ' ' || business_ref_id
          )) > 0)
-         AND ($6::timestamptz IS NULL OR (created_at, id) < ($6::timestamptz, $7))
+         AND ($6 = '' OR EXISTS (
+           SELECT 1 FROM collaboration_participants AS visible_participant
+           WHERE visible_participant.tenant_id = collaboration_sessions.tenant_id
+             AND visible_participant.session_id = collaboration_sessions.id
+             AND visible_participant.identity = $6
+             AND visible_participant.left_at IS NULL
+         ))
+         AND ($7::timestamptz IS NULL OR (created_at, id) < ($7::timestamptz, $8))
        ORDER BY created_at DESC, id DESC
-       LIMIT $8`,
+       LIMIT $9`,
       [
         input.tenant_id,
         status,
         String(input.business_ref_type || '').trim(),
         String(input.business_ref_id || '').trim(),
         normalizedSearch(input.query),
+        String(input.identity || '').trim(),
         cursor?.created_at || null,
         cursor?.id || '',
         limit + 1

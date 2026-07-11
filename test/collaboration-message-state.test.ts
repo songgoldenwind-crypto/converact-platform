@@ -523,6 +523,12 @@ test('JWT chat users cannot request credentials or post messages as another iden
     const opened = await route('POST', '/api/ivekit/chat/sessions', {
       business_ref: { type: 'service_order', id: 'identity-boundary' }
     }, authHeaders(tenantId, 'system-setup')) as { data: { id: string } };
+    await new CollaborationStore(pg).addParticipant({
+      tenant_id: tenantId,
+      session_id: opened.data.id,
+      identity: 'agent-jwt',
+      role: 'agent'
+    });
 
     const plan = await route(
       'POST',

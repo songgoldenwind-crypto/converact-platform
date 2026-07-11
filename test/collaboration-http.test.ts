@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { WebSocketServer } from 'ws';
 
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
+import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createRustDeskEdgeCommandToken } from '../src/agent-runtime/collaboration/rustdesk-edge-auth.js';
 import { createWebAssistJoinPath } from '../src/agent-runtime/ivekit/remote-assist-token.js';
 import { MemoryPg } from '../src/db-pg.js';
@@ -3889,6 +3890,13 @@ test('collaboration HTTP returns Tinode client join plan without leaking server 
       { business_ref: { type: 'service_order', id: 'order-chat-client-plan' } },
       authHeaders(tenantId)
     )) as { data: { id: string } };
+    await new CollaborationStore(pg).addParticipant({
+      tenant_id: tenantId,
+      session_id: sessionResult.data.id,
+      identity: 'customer-client',
+      role: 'customer',
+      display_name: 'Customer Client'
+    });
 
     const planResult = (await route(
       pg,

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { pgId, type PgQueryable } from '../../db-pg.js';
+import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { createObjectStorage, isLocalObjectStorage, readLocalUpload } from '../../storage/object-storage.js';
@@ -39,6 +39,8 @@ import type { RemoteGatewayProvider, RemoteGatewayTarget } from './remote-gatewa
 import type {
   BusinessRef,
   CollaborationMessage,
+  CollaborationParticipant,
+  CollaborationParticipantRole,
   EvidenceKind,
   RemoteAssistanceSession,
   RemoteAssistanceMode,
@@ -98,6 +100,50 @@ function requirePg(pg: PgQueryable | null): PgQueryable {
   return pg;
 }
 
+const memoryParticipantLockTails = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
+
+export async function withCollaborationParticipantLock<T>(
+  pg: PgQueryable,
+  input: { tenantId: string; sessionId: string; identity: string },
+  fn: (lockedPg: PgQueryable) => Promise<T>
+): Promise<T> {
+  const lockKey = `${input.tenantId}\u0000${input.sessionId}\u0000${input.identity}`;
+  if (pg instanceof MemoryPg) {
+    let locks = memoryParticipantLockTails.get(pg);
+    if (!locks) {
+      locks = new Map();
+      memoryParticipantLockTails.set(pg, locks);
+    }
+    const previous = locks.get(lockKey) || Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    locks.set(lockKey, current);
+    await previous;
+    try {
+      return await fn(pg);
+    } finally {
+      release();
+      if (locks.get(lockKey) === current) locks.delete(lockKey);
+    }
+  }
+  return withPgTransaction(pg, async (transactionPg) => {
+    const lock = await transactionPg.query<{ acquired: boolean }>(
+      'SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext($2)) AS acquired',
+      [`${input.tenantId}:${input.sessionId}`, input.identity]
+    );
+    if (lock.rows[0]?.acquired !== true) {
+      throw Object.assign(new Error('collaboration participant update in progress; retry request'), {
+        status: 409,
+        code: 'collaboration_participant_busy',
+        retryable: true
+      });
+    }
+    return fn(transactionPg);
+  });
+}
+
 function requireMediaDb(db: unknown): unknown {
   if (!db) {
     throw Object.assign(new Error('media database is required for Web Assist media join'), { status: 503 });
@@ -127,6 +173,27 @@ function collaborationActorIdentity(
 ): string {
   if (ctx.role === 'system') return headerValue(headers, 'x-user-id').trim() || ctx.userId;
   return ctx.userId;
+}
+
+function canManageCollaborationParticipants(
+  ctx: ReturnType<typeof requireAuth>,
+  participant: CollaborationParticipant | null
+): boolean {
+  return ctx.role === 'system' || ctx.role === 'owner' || ctx.role === 'admin' ||
+    participant?.role === 'supervisor' || participant?.role === 'admin';
+}
+
+function collaborationParticipantRole(value: unknown): CollaborationParticipantRole | null {
+  const role = String(value || '').trim();
+  return ['customer', 'agent', 'engineer', 'supervisor', 'ai', 'admin'].includes(role)
+    ? role as CollaborationParticipantRole
+    : null;
+}
+
+function creatorParticipantRole(ctx: ReturnType<typeof requireAuth>): CollaborationParticipantRole {
+  if (ctx.role === 'owner' || ctx.role === 'admin') return 'admin';
+  if (ctx.role === 'viewer') return 'customer';
+  return 'agent';
 }
 
 async function routeRustDeskDeviceHeartbeat(input: {
@@ -1369,6 +1436,28 @@ export async function routeCollaborationApi(
   }
 
   const module = createCollaborationModule({ pg: requirePg(pg) });
+  let activeSessionParticipant: CollaborationParticipant | null = null;
+  const protectedSessionMatch = routePath.match(
+    /^\/api\/collaboration\/sessions\/(?!by-ref(?:\/|$))([^/]+)/
+  );
+  if (protectedSessionMatch && ctx.role !== 'system') {
+    const protectedSessionId = decodeURIComponent(protectedSessionMatch[1]);
+    const protectedSession = await module.sessions.getSession(protectedSessionId);
+    if (!protectedSession || protectedSession.tenant_id !== ctx.tenantId) {
+      return { status: 404, data: { error: 'collaboration session not found' } };
+    }
+    const actorIdentity = collaborationActorIdentity(ctx, headers);
+    const participants = await module.sessions.listParticipants({
+      tenant_id: ctx.tenantId,
+      session_id: protectedSessionId
+    });
+    activeSessionParticipant = participants.find((participant) =>
+      participant.identity === actorIdentity && !participant.left_at
+    ) || null;
+    if (!activeSessionParticipant) {
+      return { status: 404, data: { error: 'collaboration session not found' } };
+    }
+  }
 
   if (routePath === '/api/collaboration/attachment-processing/run' && method === 'POST') {
     const input = bodyObject(body);
@@ -1767,11 +1856,27 @@ export async function routeCollaborationApi(
 
   if (routePath === '/api/collaboration/sessions' && method === 'POST') {
     const input = bodyObject(body);
-    const session = await module.sessions.openSession({
+    const sessionInput = {
       tenant_id: ctx.tenantId,
       business_ref: businessRefFromInput(ctx.tenantId, input),
       title: input.title ? String(input.title) : undefined,
       metadata: bodyObject(input.metadata)
+    };
+    if (ctx.role === 'system') {
+      const session = await module.sessions.openSession(sessionInput);
+      return { status: 201, data: session };
+    }
+    const session = await withPgTransaction(requirePg(pg), async (transactionPg) => {
+      const transactionModule = createCollaborationModule({ pg: transactionPg });
+      const created = await transactionModule.sessions.openSession(sessionInput);
+      await transactionModule.sessions.addParticipant({
+        tenant_id: ctx.tenantId,
+        session_id: created.id,
+        identity: collaborationActorIdentity(ctx, headers),
+        role: creatorParticipantRole(ctx),
+        display_name: input.creator_display_name ? String(input.creator_display_name) : undefined
+      });
+      return created;
     });
     return { status: 201, data: session };
   }
@@ -1784,6 +1889,7 @@ export async function routeCollaborationApi(
       business_ref_type: url.searchParams.get('business_ref_type') || undefined,
       business_ref_id: url.searchParams.get('business_ref_id') || undefined,
       query: url.searchParams.get('query') || undefined,
+      identity: ctx.role === 'system' ? undefined : collaborationActorIdentity(ctx, headers),
       cursor: url.searchParams.get('cursor') || undefined,
       limit: optionalQueryNumber(url.searchParams.get('limit'))
     });
@@ -1811,6 +1917,7 @@ export async function routeCollaborationApi(
     const sessions = await module.sessions.listByBusinessRef({
       tenant_id: ctx.tenantId,
       business_ref: queryBusinessRef(ctx.tenantId, url),
+      identity: ctx.role === 'system' ? undefined : collaborationActorIdentity(ctx, headers),
       limit: Number(url.searchParams.get('limit') || 50)
     });
     return { data: sessions };
@@ -2294,31 +2401,48 @@ export async function routeCollaborationApi(
     }
 
     if (section === 'participants' && action === 'leave' && method === 'POST') {
-      const identity = String(input.identity || '').trim();
+      const actorIdentity = collaborationActorIdentity(ctx, headers);
+      const identity = String(input.identity || actorIdentity || '').trim();
       if (!identity) return { status: 400, data: { error: 'identity required' } };
-      const participant = await module.sessions.leaveParticipant({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id,
+      if (
+        ctx.role !== 'system' &&
+        identity !== actorIdentity &&
+        !canManageCollaborationParticipants(ctx, activeSessionParticipant)
+      ) {
+        return { status: 403, data: { error: 'participant management requires an authorized role' } };
+      }
+      const participant = await withCollaborationParticipantLock(requirePg(pg), {
+        tenantId: ctx.tenantId,
+        sessionId: collaboration.id,
         identity
-      });
-      if (!participant) return { status: 404, data: { error: 'collaboration participant not found' } };
-      const gateway = options.chatGateway || configuredChatGateway();
-      const binding = await module.sessions.getChatBinding({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id,
-        provider: gateway.provider
-      });
-      if (binding) {
-        await gateway.removeParticipant({
+      }, async (lockedPg) => {
+        const lockedModule = createCollaborationModule({ pg: lockedPg });
+        const current = await lockedModule.sessions.leaveParticipant({
           tenant_id: ctx.tenantId,
           session_id: collaboration.id,
-          provider_topic_id: binding.provider_topic_id,
-          identity,
-          display_name: input.display_name ? String(input.display_name) : participant.display_name,
-          provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined,
-          access_mode: input.access_mode ? String(input.access_mode) : 'N'
+          identity
         });
-      }
+        if (!current) return null;
+        const gateway = options.chatGateway || configuredChatGateway();
+        const binding = await lockedModule.sessions.getChatBinding({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          provider: gateway.provider
+        });
+        if (binding) {
+          await gateway.removeParticipant({
+            tenant_id: ctx.tenantId,
+            session_id: collaboration.id,
+            provider_topic_id: binding.provider_topic_id,
+            identity,
+            display_name: input.display_name ? String(input.display_name) : current.display_name,
+            provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined,
+            access_mode: input.access_mode ? String(input.access_mode) : 'N'
+          });
+        }
+        return current;
+      });
+      if (!participant) return { status: 404, data: { error: 'collaboration participant not found' } };
       wsBroadcast(ctx.tenantId, 'collaboration.participant.left', {
         session_id: collaboration.id,
         participant
@@ -2328,37 +2452,48 @@ export async function routeCollaborationApi(
 
     if (section === 'participants' && !action && method === 'POST') {
       const identity = String(input.identity || '').trim();
-      const role = String(input.role || 'customer') as Parameters<typeof module.sessions.addParticipant>[0]['role'];
       if (!identity) return { status: 400, data: { error: 'identity required' } };
-      const gateway = options.chatGateway || configuredChatGateway();
-      const binding = await ensureSessionChatBinding({
-        module,
-        gateway,
+      if (!canManageCollaborationParticipants(ctx, activeSessionParticipant)) {
+        return { status: 403, data: { error: 'participant management requires an authorized role' } };
+      }
+      const role = collaborationParticipantRole(input.role || 'customer');
+      if (!role) return { status: 400, data: { error: 'unsupported participant role' } };
+      const participant = await withCollaborationParticipantLock(requirePg(pg), {
         tenantId: ctx.tenantId,
         sessionId: collaboration.id,
-        title: collaboration.title
-      });
-      const providerUser = await gateway.ensureUser({
-        tenant_id: ctx.tenantId,
-        identity,
-        display_name: input.display_name ? String(input.display_name) : undefined,
-        provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined
-      });
-      await gateway.addParticipant({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id,
-        provider_topic_id: binding.provider_topic_id,
-        identity,
-        display_name: input.display_name ? String(input.display_name) : undefined,
-        provider_user_id: providerUser.provider_user_id
-      });
-      const participant = await module.sessions.addParticipant({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id,
-        identity,
-        role,
-        display_name: input.display_name ? String(input.display_name) : undefined,
-        user_ref: input.user_ref ? businessRefFromInput(ctx.tenantId, input.user_ref as Record<string, unknown>) : undefined
+        identity
+      }, async (lockedPg) => {
+        const lockedModule = createCollaborationModule({ pg: lockedPg });
+        const gateway = options.chatGateway || configuredChatGateway();
+        const binding = await ensureSessionChatBinding({
+          module: lockedModule,
+          gateway,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id,
+          title: collaboration.title
+        });
+        const providerUser = await gateway.ensureUser({
+          tenant_id: ctx.tenantId,
+          identity,
+          display_name: input.display_name ? String(input.display_name) : undefined,
+          provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined
+        });
+        await gateway.addParticipant({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          provider_topic_id: binding.provider_topic_id,
+          identity,
+          display_name: input.display_name ? String(input.display_name) : undefined,
+          provider_user_id: providerUser.provider_user_id
+        });
+        return lockedModule.sessions.addParticipant({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          identity,
+          role,
+          display_name: input.display_name ? String(input.display_name) : undefined,
+          user_ref: input.user_ref ? businessRefFromInput(ctx.tenantId, input.user_ref as Record<string, unknown>) : undefined
+        });
       });
       wsBroadcast(ctx.tenantId, 'collaboration.participant.joined', {
         session_id: collaboration.id,
@@ -2368,7 +2503,7 @@ export async function routeCollaborationApi(
     }
 
     if (section === 'chat' && action === 'bind' && method === 'POST') {
-      const gateway = configuredChatGateway();
+      const gateway = options.chatGateway || configuredChatGateway();
       const binding = await ensureSessionChatBinding({
         module,
         gateway,
@@ -2387,60 +2522,74 @@ export async function routeCollaborationApi(
       if (ctx.role !== 'system' && identity !== actorIdentity) {
         return { status: 403, data: { error: 'chat identity must match authenticated user' } };
       }
-      const gateway = configuredChatGateway();
-      if (gateway.provider !== 'tinode') {
-        return { status: 503, data: { error: 'Tinode chat gateway is not configured' } };
-      }
-      const binding = await ensureSessionChatBinding({
-        module,
-        gateway,
+      return withCollaborationParticipantLock(requirePg(pg), {
         tenantId: ctx.tenantId,
         sessionId: collaboration.id,
-        title: collaboration.title
-      });
-      const user = await gateway.ensureUser({
-        tenant_id: ctx.tenantId,
-        identity,
-        display_name: input.display_name ? String(input.display_name) : undefined,
-        provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined
-      });
-      if (!user.provider_auth_token) {
-        return {
-          status: 503,
-          data: { error: 'Tinode user token unavailable; configure TINODE_USER_PASSWORD_SECRET or provide a token-capable provisioner' }
-        };
-      }
-      await gateway.addParticipant({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id,
-        provider_topic_id: binding.provider_topic_id,
-        identity,
-        display_name: input.display_name ? String(input.display_name) : undefined,
-        provider_user_id: user.provider_user_id,
-        access_mode: TINODE_RECEIVE_ONLY_ACCESS_MODE
-      });
-      const existing = await module.sessions.listParticipants({ tenant_id: ctx.tenantId, session_id: collaboration.id });
-      const participant = existing.find((item) => item.identity === identity) || await module.sessions.addParticipant({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id,
-        identity,
-        role: String(input.role || 'customer') as Parameters<typeof module.sessions.addParticipant>[0]['role'],
-        display_name: input.display_name ? String(input.display_name) : undefined
-      });
-      const clientWsUrl = tinodeClientWsUrl();
-      if (!clientWsUrl) return { status: 503, data: { error: 'Tinode client websocket URL is not configured' } };
-      return {
-        status: 201,
-        data: {
-          provider: gateway.provider,
-          provider_topic_id: binding.provider_topic_id,
-          provider_user_id: user.provider_user_id,
-          auth_token: user.provider_auth_token,
-          ws_url: clientWsUrl,
-          api_key: String(process.env.TINODE_API_KEY || ''),
-          participant
+        identity
+      }, async (lockedPg) => {
+        const lockedModule = createCollaborationModule({ pg: lockedPg });
+        const currentSession = await lockedModule.sessions.getSession(collaboration.id);
+        if (!currentSession || currentSession.tenant_id !== ctx.tenantId) {
+          return { status: 404, data: { error: 'collaboration session not found' } };
         }
-      };
+        if (currentSession.status !== 'open') {
+          return { status: 409, data: { error: 'collaboration session is closed' } };
+        }
+        const participants = await lockedModule.sessions.listParticipants({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id
+        });
+        const participant = participants.find((item) => item.identity === identity && !item.left_at);
+        if (!participant) {
+          return { status: 404, data: { error: 'active collaboration participant not found' } };
+        }
+        const gateway = options.chatGateway || configuredChatGateway();
+        if (gateway.provider !== 'tinode') {
+          return { status: 503, data: { error: 'Tinode chat gateway is not configured' } };
+        }
+        const binding = await ensureSessionChatBinding({
+          module: lockedModule,
+          gateway,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id,
+          title: currentSession.title
+        });
+        const user = await gateway.ensureUser({
+          tenant_id: ctx.tenantId,
+          identity,
+          display_name: input.display_name ? String(input.display_name) : undefined,
+          provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined
+        });
+        if (!user.provider_auth_token) {
+          return {
+            status: 503,
+            data: { error: 'Tinode user token unavailable; configure TINODE_USER_PASSWORD_SECRET or provide a token-capable provisioner' }
+          };
+        }
+        await gateway.addParticipant({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          provider_topic_id: binding.provider_topic_id,
+          identity,
+          display_name: input.display_name ? String(input.display_name) : undefined,
+          provider_user_id: user.provider_user_id,
+          access_mode: TINODE_RECEIVE_ONLY_ACCESS_MODE
+        });
+        const clientWsUrl = tinodeClientWsUrl();
+        if (!clientWsUrl) return { status: 503, data: { error: 'Tinode client websocket URL is not configured' } };
+        return {
+          status: 201,
+          data: {
+            provider: gateway.provider,
+            provider_topic_id: binding.provider_topic_id,
+            provider_user_id: user.provider_user_id,
+            auth_token: user.provider_auth_token,
+            ws_url: clientWsUrl,
+            api_key: String(process.env.TINODE_API_KEY || ''),
+            participant
+          }
+        };
+      });
     }
 
     if (section === 'chat' && !action && method === 'GET') {

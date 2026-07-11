@@ -274,9 +274,9 @@ test('iveKit chat pages message history in both directions and searches before l
 
 test('pagination uses nullable PostgreSQL cursor parameters', () => {
   const source = readFileSync('src/agent-runtime/collaboration/collaboration-store.ts', 'utf8');
-  assert.match(source, /\$6::timestamptz IS NULL/);
+  assert.match(source, /\$7::timestamptz IS NULL/);
   assert.match(source, /\$4::timestamptz IS NULL/);
-  assert.doesNotMatch(source, /\$[46] = '' OR \(created_at, id\)/);
+  assert.doesNotMatch(source, /\$[47] = '' OR \(created_at, id\)/);
   assert.match(source, /ORDER BY created_at DESC, id DESC/);
   assert.match(source, /ORDER BY created_at \$\{order\}, id \$\{order\}/);
 });
