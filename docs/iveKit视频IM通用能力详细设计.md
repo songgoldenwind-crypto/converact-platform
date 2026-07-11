@@ -1107,9 +1107,16 @@ SDK 使用命名 DTO 固定边界：`RustDeskTerminalProfile`、
 `RustDeskOperationEvidence` 是 discriminated union：`not_observed` 必须同时是
 `observer=none`、`observed_at=null` 和空 `evidence_refs`；
 `observed_succeeded/observed_failed` 必须有非 `none` observer、真实时间戳和至少一个
-evidence ref。`RustDeskOperationEvidenceMetadata` 只允许 operation/external/provider
-ID、direction、display ID、byte count、SHA-256 checksum、duration、reason 和 status
+evidence ref。The top-level `operation_id` is authoritative; evidence metadata does not repeat it.
+`RustDeskOperationEvidenceMetadata` 只允许 external/provider ID、direction、display ID、byte count、SHA-256 checksum、duration、reason 和 status
 detail，不提供任意键，也不允许内容、路径、凭据或 token 字段。
+
+`IveKitRustDeskGatewayDisconnectState` remains a named type alias because a TypeScript interface
+cannot extend the required discriminated union. This is a deliberate TypeScript source-compatibility risk
+for consumers that extended the former interface; use an intersection type instead. Runtime fields and methods remain compatible.
+
+The SDK and static-pack base URL must be an HTTP(S) origin root; any non-root path is rejected
+because absolute API paths would otherwise discard it.
 
 V1 支持窗口和 Windows/macOS/Linux 限制见
 [RustDesk client/server 版本矩阵](rustdesk-client-version-matrix.md)。矩阵固定

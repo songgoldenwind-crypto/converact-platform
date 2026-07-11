@@ -465,9 +465,16 @@ optional contract，旧服务响应和旧调用方继续兼容。
 `RustDeskOperationEvidence` 是 discriminated union：`not_observed` 固定要求
 `observer=none`、`observed_at=null`、`evidence_refs=[]`；
 `observed_succeeded/observed_failed` 必须使用非 `none` observer、真实时间戳和至少
-一个 evidence ref。`RustDeskOperationEvidenceMetadata` 没有任意键，只允许 operation/
-external/provider ID、direction、display ID、byte count、SHA-256 checksum、duration、
+一个 evidence ref。The top-level `operation_id` is authoritative; evidence metadata does not repeat it.
+`RustDeskOperationEvidenceMetadata` 没有任意键，只允许 external/provider ID、direction、display ID、byte count、SHA-256 checksum、duration、
 reason 和 status detail 等非内容审计字段。
+
+`IveKitRustDeskGatewayDisconnectState` remains a named type alias because a TypeScript interface
+cannot extend the required discriminated union. This is a deliberate TypeScript source-compatibility risk
+for consumers that extended the former interface; use an intersection type instead. Runtime fields and methods remain compatible.
+
+The SDK and static-pack base URL must be an HTTP(S) origin root; any non-root path is rejected
+because absolute API paths would otherwise discard it.
 
 支持的 RustDesk OSS server/client/platform/architecture 组合冻结在
 [RustDesk 客户端版本矩阵](rustdesk-client-version-matrix.md)。矩阵中的

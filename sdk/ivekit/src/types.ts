@@ -85,7 +85,6 @@ export type RustDeskOperationDirection =
   | 'device_to_agent';
 
 export interface RustDeskOperationEvidenceMetadata {
-  operation_id?: string;
   external_id?: string;
   provider_operation_id?: string;
   provider_session_id?: string;
@@ -249,8 +248,18 @@ type RustDeskDisconnectObservationState =
       observed?: RustDeskOperationNotObservedEvidence & { operation: 'session_disconnect' };
     }
   | {
-      observation_status: 'observed_disconnected' | 'observed_connected';
-      observed: RustDeskOperationObservedEvidence & { operation: 'session_disconnect' };
+      observation_status: 'observed_disconnected';
+      observed: RustDeskOperationObservedEvidence & {
+        operation: 'session_disconnect';
+        status: 'observed_succeeded';
+      };
+    }
+  | {
+      observation_status: 'observed_connected';
+      observed: RustDeskOperationObservedEvidence & {
+        operation: 'session_disconnect';
+        status: 'observed_failed';
+      };
     };
 
 export type RustDeskDisconnectState = RustDeskDisconnectAvailabilityState &

@@ -11,7 +11,8 @@ import type {
   RustDeskOperationEvidence,
   RustDeskOperationEvidenceMetadata,
   RustDeskOperationEvidenceReference,
-  RustDeskOperationObserver
+  RustDeskOperationObserver,
+  RustDeskTerminalProfile
 } from './types.js';
 
 export type IveKitRustDeskFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
@@ -173,32 +174,42 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
     getClientConfig() {
       return request<RustDeskClientConfig>('GET', '/api/ivekit/rustdesk/client-config');
     },
-    registerDevice(device) {
-      return request<RustDeskDevice>('POST', '/api/ivekit/rustdesk/devices', device);
+    async registerDevice(device) {
+      return projectRustDeskDevice(
+        await request<RustDeskDevice>('POST', '/api/ivekit/rustdesk/devices', device)
+      );
     },
-    getDevice(deviceId) {
-      return request<RustDeskDevice>('GET', `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}`);
+    async getDevice(deviceId) {
+      return projectRustDeskDevice(
+        await request<RustDeskDevice>('GET', `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}`)
+      );
     },
-    listDevicesByBusinessRef(input) {
+    async listDevicesByBusinessRef(input) {
       const businessRef = input.business_ref;
-      return request<RustDeskDevice[]>('GET', '/api/ivekit/rustdesk/devices/by-ref', undefined, {
+      const devices = await request<unknown>('GET', '/api/ivekit/rustdesk/devices/by-ref', undefined, {
         business_ref_type: requiredString(businessRef?.type, 'business_ref.type is required'),
         business_ref_id: requiredString(businessRef?.id, 'business_ref.id is required'),
         limit: input.limit === undefined ? '' : String(input.limit)
       });
+      if (!Array.isArray(devices)) throw new Error('invalid RustDesk device list');
+      return devices.map(projectRustDeskDevice);
     },
-    heartbeatDevice(deviceId, input) {
-      return request<RustDeskDevice>(
-        'POST',
-        `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}/heartbeat`,
-        input
+    async heartbeatDevice(deviceId, input) {
+      return projectRustDeskDevice(
+        await request<RustDeskDevice>(
+          'POST',
+          `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}/heartbeat`,
+          input
+        )
       );
     },
-    deactivateDevice(deviceId) {
-      return request<RustDeskDevice>(
-        'POST',
-        `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}/deactivate`,
-        {}
+    async deactivateDevice(deviceId) {
+      return projectRustDeskDevice(
+        await request<RustDeskDevice>(
+          'POST',
+          `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}/deactivate`,
+          {}
+        )
       );
     },
     async startGatewaySession(input) {
@@ -310,6 +321,24 @@ export function projectRustDeskOperationEvidence(value: unknown): RustDeskOperat
   };
 }
 
+export function projectRustDeskTerminalProfile(value: unknown): RustDeskTerminalProfile {
+  const profile = evidenceRecord(value, 'terminal_profile');
+  if (!Array.isArray(profile.observed)) throw invalidEvidence('terminal_profile.observed');
+  return {
+    ...profile,
+    observed: profile.observed.map(projectRustDeskOperationEvidence)
+  } as unknown as RustDeskTerminalProfile;
+}
+
+export function projectRustDeskDevice(value: unknown): RustDeskDevice {
+  const device = evidenceRecord(value, 'device');
+  if (device.terminal_profile === undefined) return device as unknown as RustDeskDevice;
+  return {
+    ...device,
+    terminal_profile: projectRustDeskTerminalProfile(device.terminal_profile)
+  } as unknown as RustDeskDevice;
+}
+
 function projectEvidenceContainer<T extends RemoteToolSession | RustDeskGatewayLaunchPlan>(
   value: T,
   label: string
@@ -358,6 +387,12 @@ function projectRustDeskDisconnectState(value: unknown): RustDeskDisconnectState
   if (observed.operation !== 'session_disconnect' || observed.status === 'not_observed') {
     throw invalidDisconnect('observed evidence');
   }
+  if (observationStatus === 'observed_disconnected' && observed.status !== 'observed_succeeded') {
+    throw invalidDisconnect('observed_disconnected evidence');
+  }
+  if (observationStatus === 'observed_connected' && observed.status !== 'observed_failed') {
+    throw invalidDisconnect('observed_connected evidence');
+  }
   return { ...state, observed } as RustDeskDisconnectState;
 }
 
@@ -365,7 +400,6 @@ function projectEvidenceMetadata(value: unknown): RustDeskOperationEvidenceMetad
   const source = evidenceRecord(value, 'metadata');
   const result: RustDeskOperationEvidenceMetadata = {};
   for (const key of [
-    'operation_id',
     'external_id',
     'provider_operation_id',
     'provider_session_id',
@@ -445,6 +479,10 @@ function validateBaseUrl(value: string): URL {
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('baseUrl must use http(s)');
   }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error('baseUrl must not include credentials, query, or fragment');
+  }
+  if (parsed.pathname !== '/') throw new Error('baseUrl must not include a path');
   return parsed;
 }
 

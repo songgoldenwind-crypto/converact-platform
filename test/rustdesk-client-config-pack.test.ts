@@ -65,12 +65,14 @@ test('RustDesk client config pack rejects base URL credentials, query, and fragm
     );
   }
 
-  const pathConfig = createRustDeskClientConfigPackConfigFromEnv({
-    OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com/ivekit/',
-    OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
-    OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
-  });
-  assert.equal(pathConfig.baseUrl, 'https://opc.example.com/ivekit');
+  assert.throws(
+    () => createRustDeskClientConfigPackConfigFromEnv({
+      OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com/ivekit/',
+      OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'api-secret',
+      OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led'
+    }),
+    /base URL must not include a path/
+  );
 });
 
 test('RustDesk client config pack renders launch availability without persisting signed or executable URLs', async () => {
@@ -152,7 +154,20 @@ test('RustDesk client config pack rejects configured target drift from the launc
       }),
       fakeClient({}, {}, { id: '987654321', type: 'device' })
     ),
-    /configured target RustDesk ID does not match launch plan target/
+    /launch plan runtime RustDesk ID does not match target/
+  );
+
+  await assert.rejects(
+    () => buildRustDeskClientConfigPack(
+      createRustDeskClientConfigPackConfigFromEnv({
+        OPC_RUSTDESK_CLIENT_CONFIG_BASE_URL: 'https://opc.example.com',
+        OPC_RUSTDESK_CLIENT_CONFIG_API_KEY: 'secret-token',
+        OPC_RUSTDESK_CLIENT_CONFIG_TENANT_ID: 'tenant_led',
+        OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID: 'rdgw_1'
+      }),
+      fakeClient({}, {}, { id: '987654321', type: 'device' })
+    ),
+    /launch plan runtime RustDesk ID does not match target/
   );
 });
 

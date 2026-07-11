@@ -59,7 +59,7 @@ test('iveKit RustDesk HTTP client calls the reusable facade lifecycle', async ()
     return jsonResponse(body === null ? 204 : 200, body);
   };
   const client = createIveKitRustDeskHttpClient({
-    baseUrl: 'https://opc.example.com/root/',
+    baseUrl: 'https://opc.example.com/',
     apiKey: 'opc-api-key',
     tenantId: 'tenant_led',
     userId: 'agent_led',
@@ -147,6 +147,24 @@ test('iveKit RustDesk HTTP client rejects bad configuration before calling fetch
   assert.throws(
     () => createIveKitRustDeskHttpClient({ baseUrl: 'file:///tmp/opc', apiKey: 'k', tenantId: 't' }),
     /baseUrl must use http\(s\)/
+  );
+  for (const baseUrl of [
+    'https://url-user:url-password@opc.example.com',
+    'https://opc.example.com?token=query-secret',
+    'https://opc.example.com#fragment-secret'
+  ]) {
+    assert.throws(
+      () => createIveKitRustDeskHttpClient({ baseUrl, apiKey: 'k', tenantId: 't' }),
+      (error) => {
+        assert.match(String(error), /baseUrl must not include credentials, query, or fragment/);
+        assert.doesNotMatch(String(error), /url-user|url-password|query-secret|fragment-secret/);
+        return true;
+      }
+    );
+  }
+  assert.throws(
+    () => createIveKitRustDeskHttpClient({ baseUrl: 'https://opc.example.com/ivekit/', apiKey: 'k', tenantId: 't' }),
+    /baseUrl must not include a path/
   );
   assert.throws(
     () => createIveKitRustDeskHttpClient({ baseUrl: 'https://opc.example.com', apiKey: '', tenantId: 't' }),
@@ -240,6 +258,109 @@ test('iveKit RustDesk HTTP client applies the configured request timeout', async
   );
 });
 
+test('iveKit RustDesk HTTP client projects terminal evidence from every device response path', async () => {
+  const unsafeEvidence = {
+    operation_id: 'terminal-operation-1',
+    operation: 'view_screen',
+    status: 'observed_succeeded',
+    observer: 'qa',
+    observed_at: '2026-07-12T12:00:00.000Z',
+    evidence_refs: [{
+      type: 'qa_report',
+      ref: 'evidence://run-1/terminal-1',
+      sha256: 'a'.repeat(64),
+      token: 'reference-token'
+    }],
+    metadata: {
+      external_id: 'rdgw_1',
+      provider_operation_id: 'native-view-1',
+      clipboard_text: 'terminal clipboard secret',
+      token: 'metadata-token',
+      arbitrary: 'drop-me'
+    },
+    credential: 'top-level-credential'
+  };
+  const device = (id: string) => ({
+    id,
+    rustdesk_id: '123456789',
+    terminal_profile: {
+      device_id: id,
+      rustdesk_id: '123456789',
+      observed: [unsafeEvidence]
+    }
+  });
+  const responses = [
+    device('registered'),
+    device('fetched'),
+    [device('listed')],
+    device('heartbeat'),
+    device('deactivated')
+  ];
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://opc.example.com',
+    accessToken: 'short-lived-browser-token',
+    tenantId: 'tenant_led',
+    fetch: async () => jsonResponse(200, responses.shift())
+  });
+
+  const devices = [
+    await client.registerDevice({
+      business_ref: { type: 'service_order', id: 'SO-1' },
+      rustdesk_id: '123456789',
+      display_name: 'LED controller'
+    }),
+    await client.getDevice('rdesk_1'),
+    ...(await client.listDevicesByBusinessRef({
+      business_ref: { type: 'service_order', id: 'SO-1' }
+    })),
+    await client.heartbeatDevice('rdesk_1', { actor_identity: 'edge-led-1' }),
+    await client.deactivateDevice('rdesk_1')
+  ];
+
+  assert.equal(devices.length, 5);
+  for (const projected of devices) {
+    assert.doesNotMatch(
+      JSON.stringify(projected),
+      /clipboard_text|terminal clipboard secret|metadata-token|reference-token|top-level-credential|arbitrary|drop-me/
+    );
+    assert.deepEqual(projected.terminal_profile?.observed[0].metadata, {
+      external_id: 'rdgw_1',
+      provider_operation_id: 'native-view-1'
+    });
+  }
+});
+
+test('iveKit RustDesk HTTP client fails closed on invalid terminal evidence', async () => {
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://opc.example.com',
+    accessToken: 'short-lived-browser-token',
+    tenantId: 'tenant_led',
+    fetch: async () => jsonResponse(200, {
+      id: 'rdesk_1',
+      terminal_profile: {
+        observed: [{
+          operation_id: 'terminal-operation-1',
+          operation: 'view_screen',
+          status: 'observed_succeeded',
+          observer: 'none',
+          observed_at: '2026-07-12T12:00:00.000Z',
+          evidence_refs: [{ type: 'qa_report', ref: 'evidence://run-1/view-1', sha256: 'a'.repeat(64) }],
+          metadata: { token: 'must-not-leak' }
+        }]
+      }
+    })
+  });
+
+  await assert.rejects(
+    () => client.getDevice('rdesk_1'),
+    (error) => {
+      assert.match(String(error), /invalid RustDesk operation evidence/);
+      assert.doesNotMatch(String(error), /must-not-leak/);
+      return true;
+    }
+  );
+});
+
 test('iveKit RustDesk HTTP client projects operation evidence onto browser-safe keys', async () => {
   const observed = {
     operation_id: 'operation-1',
@@ -318,7 +439,6 @@ test('iveKit RustDesk HTTP client projects operation evidence onto browser-safe 
     assert.doesNotMatch(serialized, /clipboard_text|sensitive clipboard text|metadata-token|disconnect-token|evidence-ref-token|top-level-credential|arbitrary|drop-me/);
   }
   assert.deepEqual(session.operation_evidence?.[0].metadata, {
-    operation_id: 'operation-1',
     external_id: 'rdgw_1',
     direction: 'agent_to_device',
     byte_count: 24,
@@ -406,6 +526,65 @@ test('iveKit RustDesk HTTP client fails closed on invalid evidence and disconnec
     () => clientFor(invalidPayloads[2]).getGatewayDisconnectState('rdgw_1'),
     /invalid RustDesk disconnect state/
   );
+});
+
+test('iveKit RustDesk HTTP client enforces non-contradictory disconnect observations', async () => {
+  const observed = (status: 'observed_succeeded' | 'observed_failed') => ({
+    operation_id: `disconnect-${status}`,
+    operation: 'session_disconnect',
+    status,
+    observer: 'qa',
+    observed_at: '2026-07-12T12:00:00.000Z',
+    evidence_refs: [{ type: 'qa_report', ref: `evidence://run-1/${status}`, sha256: 'a'.repeat(64) }],
+    metadata: {}
+  });
+  const notObserved = {
+    operation_id: 'disconnect-not-observed',
+    operation: 'session_disconnect',
+    status: 'not_observed',
+    observer: 'none',
+    observed_at: null,
+    evidence_refs: [],
+    metadata: {}
+  };
+  const state = (observation_status: string, evidence: unknown) => ({
+    required: true,
+    status: 'succeeded',
+    command: { id: 'rdcmd_1', status: 'succeeded' },
+    observation_status,
+    observed: evidence
+  });
+
+  for (const payload of [
+    state('observed_disconnected', observed('observed_succeeded')),
+    state('observed_connected', observed('observed_failed')),
+    state('not_observed', notObserved)
+  ]) {
+    const client = createIveKitRustDeskHttpClient({
+      baseUrl: 'https://opc.example.com',
+      accessToken: 'short-lived-browser-token',
+      tenantId: 'tenant_led',
+      fetch: async () => jsonResponse(200, payload)
+    });
+    await client.getGatewayDisconnectState('rdgw_1');
+  }
+
+  for (const payload of [
+    state('observed_disconnected', observed('observed_failed')),
+    state('observed_connected', observed('observed_succeeded')),
+    state('not_observed', observed('observed_succeeded'))
+  ]) {
+    const client = createIveKitRustDeskHttpClient({
+      baseUrl: 'https://opc.example.com',
+      accessToken: 'short-lived-browser-token',
+      tenantId: 'tenant_led',
+      fetch: async () => jsonResponse(200, payload)
+    });
+    await assert.rejects(
+      () => client.getGatewayDisconnectState('rdgw_1'),
+      /invalid RustDesk disconnect state/
+    );
+  }
 });
 
 function headersToRecord(headers: RequestInit['headers']): Record<string, string> {

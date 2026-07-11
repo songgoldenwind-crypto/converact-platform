@@ -29,7 +29,6 @@ const observed: RustDeskOperationEvidence = {
   observed_at: '2026-07-12T12:00:00.000Z',
   evidence_refs: [reference],
   metadata: {
-    operation_id: 'operation-2',
     external_id: 'rdgw_1',
     provider_operation_id: 'transfer-1',
     provider_session_id: 'native-session-1',
@@ -69,6 +68,14 @@ const invalidMetadata: RustDeskOperationEvidence = {
   }
 };
 
+const duplicateOperationMetadata: RustDeskOperationEvidence = {
+  ...observed,
+  metadata: {
+    // @ts-expect-error top-level operation_id is the single authoritative operation identifier
+    operation_id: 'duplicate-operation-id'
+  }
+};
+
 const disconnectCommand: RustDeskDeviceCommand & { status: 'succeeded' } = {
   id: 'rdcmd_1',
   tenant_id: 'tenant-led',
@@ -97,10 +104,29 @@ const disconnectCommand: RustDeskDeviceCommand & { status: 'succeeded' } = {
   updated_at: '2026-07-12T12:00:00.100Z'
 };
 
-const disconnectEvidence: RustDeskOperationObservedEvidence & { operation: 'session_disconnect' } = {
+const disconnectEvidence: RustDeskOperationObservedEvidence & {
+  operation: 'session_disconnect';
+  status: 'observed_succeeded';
+} = {
   ...observed,
   operation_id: 'disconnect-1',
-  operation: 'session_disconnect'
+  operation: 'session_disconnect',
+  status: 'observed_succeeded'
+};
+
+const connectedEvidence: RustDeskOperationObservedEvidence & {
+  operation: 'session_disconnect';
+  status: 'observed_failed';
+} = {
+  ...disconnectEvidence,
+  operation_id: 'disconnect-2',
+  status: 'observed_failed'
+};
+
+const disconnectNotObserved = {
+  ...notObserved,
+  operation_id: 'disconnect-3',
+  operation: 'session_disconnect' as const
 };
 
 const unavailableDisconnect: RustDeskDisconnectState = {
@@ -121,6 +147,22 @@ const observedDisconnect: RustDeskDisconnectState = {
   command: disconnectCommand,
   observation_status: 'observed_disconnected',
   observed: disconnectEvidence
+};
+
+const observedConnected: RustDeskDisconnectState = {
+  required: true,
+  status: 'succeeded',
+  command: disconnectCommand,
+  observation_status: 'observed_connected',
+  observed: connectedEvidence
+};
+
+const notObservedDisconnect: RustDeskDisconnectState = {
+  required: true,
+  status: 'succeeded',
+  command: disconnectCommand,
+  observation_status: 'not_observed',
+  observed: disconnectNotObserved
 };
 
 // @ts-expect-error unavailable disconnect state cannot carry a command
@@ -155,8 +197,18 @@ const invalidObservedWithoutEvidence: RustDeskDisconnectState = {
 // @ts-expect-error disconnect observation evidence must describe session_disconnect
 const invalidObservedOperation: RustDeskDisconnectState = { required: true, status: 'succeeded', command: disconnectCommand, observation_status: 'observed_connected', observed };
 
+// @ts-expect-error observed_disconnected requires observed_succeeded evidence
+const invalidDisconnectedFailure: RustDeskDisconnectState = { required: true, status: 'succeeded', command: disconnectCommand, observation_status: 'observed_disconnected', observed: connectedEvidence };
+
+// @ts-expect-error observed_connected requires observed_failed evidence
+const invalidConnectedSuccess: RustDeskDisconnectState = { required: true, status: 'succeeded', command: disconnectCommand, observation_status: 'observed_connected', observed: disconnectEvidence };
+
+// @ts-expect-error not_observed cannot carry an observed success claim
+const invalidNotObservedSuccess: RustDeskDisconnectState = { required: true, status: 'succeeded', command: disconnectCommand, observation_status: 'not_observed', observed: disconnectEvidence };
+
 void [notObserved, observed, invalidNotObservedObserver, invalidNotObservedTimestamp,
   invalidNotObservedReference, invalidObservedObserver, invalidObservedTimestamp,
-  invalidObservedReferences, invalidMetadata, unavailableDisconnect, succeededDisconnect,
-  observedDisconnect, invalidUnavailableCommand, invalidConcreteWithoutCommand,
-  invalidCommandStatus, invalidObservedWithoutEvidence, invalidObservedOperation];
+  invalidObservedReferences, invalidMetadata, duplicateOperationMetadata, unavailableDisconnect, succeededDisconnect,
+  observedDisconnect, observedConnected, notObservedDisconnect, invalidUnavailableCommand, invalidConcreteWithoutCommand,
+  invalidCommandStatus, invalidObservedWithoutEvidence, invalidObservedOperation,
+  invalidDisconnectedFailure, invalidConnectedSuccess, invalidNotObservedSuccess];

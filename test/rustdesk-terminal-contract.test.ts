@@ -45,7 +45,6 @@ test('RustDesk terminal DTOs keep configured, available, granted, and observed s
   assert.match(typesSource, /export type RustDeskOperationEvidence\s*=/);
   const evidenceMetadata = interfaceBody(typesSource, 'RustDeskOperationEvidenceMetadata');
   for (const field of [
-    'operation_id',
     'external_id',
     'provider_operation_id',
     'provider_session_id',
@@ -59,6 +58,7 @@ test('RustDesk terminal DTOs keep configured, available, granted, and observed s
   ]) {
     assert.match(evidenceMetadata, new RegExp(`${field}\\?`));
   }
+  assert.doesNotMatch(evidenceMetadata, /^\s*operation_id\?/m);
   assert.doesNotMatch(evidenceMetadata, /Record<|\[key:|clipboard_(?:content|text)|file_(?:content|path)|keystrokes|screen_pixels|token|credential|password/);
 });
 
@@ -136,6 +136,10 @@ test('RustDesk public docs link the frozen matrix and explain capability truth s
     assert.match(doc, /granted/);
     assert.match(doc, /observed/);
     assert.match(doc, /not_observed/);
+    assert.match(doc, /top-level `operation_id`[^.。\n]*authoritative/);
+    assert.match(doc, /IveKitRustDeskGatewayDisconnectState[^.。\n]*type alias/);
+    assert.match(doc, /TypeScript source-compatibility risk/);
+    assert.match(doc, /base URL[^.。\n]*root[^.。\n]*path/);
     assert.match(doc, /`launch_url`[^。\n]*opaque/);
     assert.doesNotMatch(doc, /不接收[^。\n]*signed launch token/);
   }

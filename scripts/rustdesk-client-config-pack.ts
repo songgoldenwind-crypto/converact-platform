@@ -241,6 +241,9 @@ function summarizeLaunchPlan(value: unknown, targetRustDeskId: string | undefine
   const protocolAvailable = canLaunch && Boolean(String(actions.protocol_url || '').trim());
   const runtimeTarget = String(runtime.rustdesk_id || '').trim();
   const declaredTarget = String(target.id || '').trim();
+  if (runtimeTarget && declaredTarget && runtimeTarget !== declaredTarget) {
+    throw new Error('RustDesk launch plan runtime RustDesk ID does not match target');
+  }
   const planTargets = [runtimeTarget, declaredTarget].filter(Boolean);
   if (targetRustDeskId && planTargets.some((planTarget) => planTarget !== targetRustDeskId)) {
     throw new Error('configured target RustDesk ID does not match launch plan target');
@@ -272,8 +275,10 @@ function normalizeBaseUrl(rawBaseUrl: string): string {
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error('RustDesk client config pack base URL must not include credentials, query, or fragment');
   }
-  parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
-  return parsed.pathname === '/' ? parsed.origin : `${parsed.origin}${parsed.pathname}`;
+  if (parsed.pathname !== '/') {
+    throw new Error('RustDesk client config pack base URL must not include a path');
+  }
+  return parsed.origin;
 }
 
 function requiredString(value: unknown, message: string): string {
