@@ -548,9 +548,11 @@ test('quality review worker validates config and coalesces concurrent batches', 
 
 test('production server starts quality worker and refreshes review after attachment extraction', () => {
   const server = readFileSync('src/server.ts', 'utf8');
-  assert.match(server, /startQualityReviewWorker/);
-  assert.match(server, /qualityReviewEnqueue\.enqueueMessage/);
-  assert.match(server, /await qualityWorker\.stop\(\)/);
+  const application = readFileSync('src/agent-runtime/ivekit/application.ts', 'utf8');
+  assert.match(server, /startIveKitApplication/);
+  assert.match(server, /await iveKitApplication\.stop\(\)/);
+  assert.match(application, /startQualityReviewWorker/);
+  assert.match(application, /qualityReviewEnqueuer\.enqueueMessage/);
 });
 
 test('quality review preflight validates PostgreSQL and provider settings without leaking secrets', () => {

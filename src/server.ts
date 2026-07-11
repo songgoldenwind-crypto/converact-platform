@@ -4,13 +4,7 @@ import { createServer } from './http.js';
 import { initWebSocket, wsBroadcast } from './ws.js';
 import { connectNats } from './infra/nats-client.js';
 import { startCallCenterRuntime } from './agent-runtime/call-center/call-center-runtime.js';
-import { startTinodeSyncWorker } from './agent-runtime/collaboration/tinode-sync-worker.js';
-import { startAttachmentProcessingWorker } from './agent-runtime/collaboration/attachment-processing-worker.js';
-import {
-  QualityReviewService,
-  configuredQualityReviewProvider
-} from './agent-runtime/collaboration/quality-review.js';
-import { startQualityReviewWorker } from './agent-runtime/collaboration/quality-review-worker.js';
+import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
 import { migrateIvrRuntimeTables } from './db-migrations/ivr-runtime-schema.js';
 import { validateEnvOrExit } from './env-config.js';
 
@@ -65,50 +59,7 @@ async function main() {
 
   const server = createServer(db, pg);
   initWebSocket(server);
-  const tinodeWorker = startTinodeSyncWorker({
-    pg,
-    onDeliveryUpdated: (message) => {
-      wsBroadcast(message.tenant_id, 'collaboration.message.delivery_updated', {
-        session_id: message.session_id,
-        message_id: message.id,
-        delivery: message.provider_delivery
-      });
-    }
-  });
-  const qualityReviewProvider = configuredQualityReviewProvider();
-  const qualityReviewEnqueue = new QualityReviewService({
-    pg,
-    provider: qualityReviewProvider
-  });
-  const attachmentWorker = startAttachmentProcessingWorker({
-    pg,
-    onProcessed: async ({ attachment, job, policy }) => {
-      wsBroadcast(attachment.tenant_id, 'collaboration.attachment.processed', {
-        session_id: attachment.session_id,
-        message_id: attachment.message_id,
-        attachment,
-        job,
-        policy
-      });
-      if (qualityReviewProvider || process.env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE === '1') {
-        await qualityReviewEnqueue.enqueueMessage({
-          tenant_id: attachment.tenant_id,
-          message_id: attachment.message_id
-        });
-      }
-    }
-  });
-  const qualityWorker = startQualityReviewWorker({
-    pg,
-    onCompleted: ({ job, findings }) => {
-      wsBroadcast(job.tenant_id, 'collaboration.quality_review.completed', {
-        session_id: job.session_id,
-        message_id: job.message_id,
-        job,
-        findings
-      });
-    }
-  });
+  const iveKitApplication = startIveKitApplication({ pg, publish: wsBroadcast });
 
   void connectNats().catch((error) => {
     console.warn('[nats] optional connect skipped:', error instanceof Error ? error.message : error);
@@ -124,9 +75,7 @@ async function main() {
 
   const shutdown = async () => {
     server.close();
-    await tinodeWorker.stop();
-    await attachmentWorker.stop();
-    await qualityWorker.stop();
+    await iveKitApplication.stop();
     db.close();
     await closePostgres();
     process.exit(0);

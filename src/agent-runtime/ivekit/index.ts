@@ -1,4 +1,13 @@
 export { createIveKitModule } from './module.js';
+export { startIveKitApplication } from './application.js';
+export type {
+  IveKitApplication,
+  IveKitApplicationInput,
+  IveKitEventPublisher,
+  IveKitQualityReviewEnqueuer,
+  IveKitRuntimeAdapters,
+  IveKitWorkerHandle
+} from './application.js';
 export { routeIveKitChatApi } from './chat-http.js';
 export { routeIveKitMediaApi } from './media-http.js';
 export { createIveKitHttpServer } from './http-server.js';

@@ -198,7 +198,7 @@ git commit -m "feat(ivekit): add standalone HTTP server"
 - Modify: `src/server.ts`
 - Modify: `src/agent-runtime/ivekit/index.ts`
 
-- [ ] **Step 1: Write the failing lifecycle test**
+- [x] **Step 1: Write the failing lifecycle test**
 
 ```typescript
 test('iveKit application starts and stops every worker once', async () => {
@@ -221,7 +221,7 @@ test('iveKit application starts and stops every worker once', async () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 ```bash
 node --import tsx --test test/ivekit-application.test.ts
@@ -229,7 +229,7 @@ node --import tsx --test test/ivekit-application.test.ts
 
 Expected: FAIL because `startIveKitApplication` does not exist.
 
-- [ ] **Step 3: Implement one lifecycle interface**
+- [x] **Step 3: Implement one lifecycle interface**
 
 ```typescript
 export interface IveKitApplication {
@@ -245,7 +245,7 @@ export function startIveKitApplication(input: {
 
 Default adapters start the existing Tinode delivery, attachment processing, and quality review workers. `publish` defaults to `wsBroadcast`. Stop order is reverse startup order and is idempotent.
 
-- [ ] **Step 4: Move existing callback behavior without changing event payloads**
+- [x] **Step 4: Move existing callback behavior without changing event payloads**
 
 Preserve these event names exactly:
 
@@ -257,7 +257,7 @@ Preserve these event names exactly:
 
 Preserve attachment-to-quality auto-enqueue behavior and provider configuration checks from `src/server.ts`.
 
-- [ ] **Step 5: Replace duplicated startup in the OPC process**
+- [x] **Step 5: Replace duplicated startup in the OPC process**
 
 In `src/server.ts`, replace direct worker construction with:
 
@@ -273,7 +273,7 @@ await iveKitApplication.stop();
 
 Do not change NATS or call-center runtime behavior in this task.
 
-- [ ] **Step 6: Verify focused and existing worker tests**
+- [x] **Step 6: Verify focused and existing worker tests**
 
 ```bash
 node --import tsx --test \
@@ -286,7 +286,7 @@ npm run typecheck
 
 Expected: all selected tests pass and TypeScript reports zero errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/application.ts src/agent-runtime/ivekit/index.ts src/server.ts test/ivekit-application.test.ts

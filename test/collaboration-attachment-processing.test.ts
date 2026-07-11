@@ -476,8 +476,11 @@ test('attachment worker coalesces concurrent runs and stops cleanly', async () =
 
 test('production server starts and stops the attachment processing worker', () => {
   const server = readFileSync('src/server.ts', 'utf8');
-  assert.match(server, /startAttachmentProcessingWorker/);
-  assert.match(server, /await attachmentWorker\.stop\(\)/);
+  const application = readFileSync('src/agent-runtime/ivekit/application.ts', 'utf8');
+  assert.match(server, /startIveKitApplication/);
+  assert.match(server, /await iveKitApplication\.stop\(\)/);
+  assert.match(application, /startAttachmentProcessingWorker/);
+  assert.match(application, /collaboration\.attachment\.processed/);
 });
 
 test('main HTTP server treats collaboration attachments as size-bounded binary uploads', () => {

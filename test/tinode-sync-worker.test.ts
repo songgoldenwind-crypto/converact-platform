@@ -87,6 +87,7 @@ test('Tinode sync worker coalesces overlapping runs', async () => {
 
 test('Tinode sync worker is wired into server shutdown and deployment env examples', () => {
   const server = readFileSync('src/server.ts', 'utf8');
+  const application = readFileSync('src/agent-runtime/ivekit/application.ts', 'utf8');
   const rootEnv = readFileSync('.env.example', 'utf8');
   const productionEnv = readFileSync('infra/env.example', 'utf8');
   const compose = readFileSync('docker-compose.callcenter.yml', 'utf8');
@@ -95,8 +96,10 @@ test('Tinode sync worker is wired into server shutdown and deployment env exampl
   const secrets = readFileSync('infra/k8s/templates/secrets.yaml', 'utf8');
   const values = readFileSync('infra/k8s/values.yaml', 'utf8');
 
-  assert.match(server, /startTinodeSyncWorker/);
-  assert.match(server, /tinodeWorker\.stop/);
+  assert.match(server, /startIveKitApplication/);
+  assert.match(server, /iveKitApplication\.stop/);
+  assert.match(application, /startTinodeSyncWorker/);
+  assert.match(application, /collaboration\.message\.delivery_updated/);
   for (const source of [rootEnv, productionEnv]) {
     assert.match(source, /OPC_TINODE_DELIVERY_WORKER_ENABLED/);
     assert.match(source, /OPC_TINODE_DELIVERY_INTERVAL_MS/);
