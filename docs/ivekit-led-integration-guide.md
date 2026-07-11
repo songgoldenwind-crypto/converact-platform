@@ -19,17 +19,17 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 | Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
 | Collaboration Session | Tinode durable outbound、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 真实 Tinode/IM facade/防绕单/双实例幂等已通过；OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
-| SDK | `createIveKitHttpSdk` 覆盖 Media + Chat；`createIveKitRustDeskLedSdk` 覆盖 RustDesk 流程 | LED SDK 已在真实服务器完成 Media + IM 串联 |
+| SDK | `@opc/ivekit-sdk` 已独立打包；`createIveKitClient` 一次提供 Media、Chat 和 RustDesk 高低层能力 | dry-run 发布物已验证只含编译产物、README 和 package metadata |
 
 本地完整门禁和真实服务器验收均已执行，未具备外部服务或物理客户端的项目仍明确列在第 11 节，不以 fake 结果替代。
 
-2026-07-11 的最终部署把 PostgreSQL 角色初始化、advisory-locked migration 和 Tinode 服务账号 bootstrap 拆成一次性任务。长驻 OPC 仅持有 `opc_runtime`，Tinode 仅持有 `tinode_app`；LED 不得获取 `opc_admin`、PostgreSQL 连接密码、LiveKit API secret、MinIO root 或桶级 service secret。MinIO 根账号只用于初始化，OPC/Egress 只使用限定 `recordings` 桶的业务账号。
+2026-07-11 的最终部署把 PostgreSQL 角色初始化、advisory-locked migration 和 Tinode 服务账号 bootstrap 拆成一次性任务。长驻 iveKit 仅持有 `opc_runtime`，Tinode 仅持有 `tinode_app`；LED 不得获取 `opc_admin`、PostgreSQL 连接密码、LiveKit API secret、MinIO root 或桶级 service secret。MinIO 根账号只用于初始化，iveKit/Egress 只使用限定 `recordings` 桶的业务账号。
 
 ## 3. 推荐部署拓扑
 
-### 3.1 第一阶段：嵌入 OPC
+### 3.1 推荐：独立 iveKit 服务
 
-LED 后端调用现有 OPC `/api/ivekit/*`。优点是零搬迁、最快联调；缺点是部署生命周期暂时跟随 OPC。适合第一版。
+`infra/ivekit/docker-compose.yml` 运行 `npm run start:ivekit`，只启动可复用 HTTP、WebSocket、Media/Chat/RustDesk 模块和 worker，不启动 call-center、IVR、外呼或 SQLite runtime。OPC 和 LED 都通过公网 base URL 调用它。
 
 无论嵌入还是抽离，LED 只能通过 iveKit facade/SDK 和标准事件访问能力，不直连 PostgreSQL、Tinode 数据库或 MinIO 管理 API。浏览器只接收短期 LiveKit/Tinode 用户凭据，不接收服务端 provider secret。
 
@@ -38,14 +38,14 @@ LED backend/frontend
         |
         | HTTPS /api/ivekit/*
         v
-OPC process + PostgreSQL/RLS
+iveKit process + PostgreSQL/RLS
    |          |          |
 LiveKit     Tinode    RustDesk control plane
 ```
 
-### 3.2 第二阶段：独立 iveKit 服务
+### 3.2 兼容：嵌入 OPC
 
-把 iveKit HTTP 路由、模块、迁移和 worker 一起搬到独立进程。OPC 和 LED 都作为调用方。不能只复制 SDK 或 route 文件，PostgreSQL tenant context、RLS、workers、事件总线和 provider 配置必须一起迁移。
+现有 OPC 进程仍导出相同 `/api/ivekit/*` 路由和兼容 SDK symbol，可作为迁移期入口。LED 只要保持 `baseUrl` 可配置，就能在嵌入式和独立部署间切换，不需要修改业务 payload。
 
 ### 3.3 第三阶段：共享通信平台
 
@@ -53,37 +53,109 @@ LiveKit     Tinode    RustDesk control plane
 
 ## 4. SDK 使用
 
-### 4.1 服务端 API key
+SDK 源码位于 `sdk/ivekit`，包名为 `@opc/ivekit-sdk`，Node.js 20 及以上可直接使用原生 `fetch`。仓库内验证和构建命令：
+
+```bash
+npm --prefix sdk/ivekit ci
+npm run build:ivekit-sdk
+npm run pack:ivekit-sdk
+```
+
+`pack:ivekit-sdk` 是 dry-run，不产生 tarball，用于确认发布物没有服务端源码、测试和凭据。LED 可从私有 registry 安装 `npm install @opc/ivekit-sdk`，或在联调阶段安装本地 `sdk/ivekit` 目录。
+
+### 4.1 Node 后端：API key
 
 ```ts
-import {
-  createIveKitHttpSdk,
-  createIveKitRustDeskLedSdk
-} from './src/agent-runtime/ivekit/index.js';
+import { createIveKitClient } from '@opc/ivekit-sdk';
 
-const sdk = createIveKitHttpSdk({
-  baseUrl: 'https://opc.example.com',
+const ivekit = createIveKitClient({
+  baseUrl: 'https://ivekit.example.com',
   apiKey: process.env.OPC_API_KEY!,
   tenantId: 'tenant_led',
-  userId: 'agent_1001'
+  userId: 'agent_1001',
+  timeoutMs: 10_000
+});
+
+const orderRef = { type: 'service_order', id: 'SO-1001' };
+const chat = await ivekit.chat.openSession({ business_ref: orderRef });
+const room = await ivekit.media.createRoom({
+  purpose: 'video_service',
+  business_ref: orderRef
 });
 ```
 
 SDK 自动发送 `X-API-Key`、`X-Tenant-Id` 和可选 `X-User-Id`。服务端 API key 是可信后端凭据，不能放进浏览器包。
 
-### 4.2 浏览器 Bearer token
+### 4.2 浏览器：短期 Bearer token
 
 ```ts
-const browserSdk = createIveKitHttpSdk({
-  baseUrl: 'https://opc.example.com',
+import { createIveKitClient } from '@opc/ivekit-sdk';
+
+const browserSdk = createIveKitClient({
+  baseUrl: 'https://ivekit.example.com',
   accessToken: signedUserJwt,
-  tenantId: 'tenant_led'
+  tenantId: 'tenant_led',
+  timeoutMs: 10_000
 });
 ```
 
-Bearer 模式不会发送 `X-User-Id`，身份以 JWT `sub` 为准。JWT 用户不能通过 body 冒用其他身份领取 Tinode client-plan、发送消息、上报 receipt/presence 或编辑消息。
+Bearer 模式不会发送 `X-User-Id`，身份以 JWT `sub` 为准。浏览器包中严禁出现 API key。JWT 用户不能通过 body 冒用其他身份领取 Tinode client-plan、发送消息、上报 receipt/presence 或编辑消息。
 
-### 4.3 可运行示例
+### 4.3 OPC 迁移期兼容导出
+
+现有 OPC 内部调用可暂时保持原路径：
+
+```ts
+import {
+  createIveKitClient,
+  createIveKitHttpSdk,
+  createIveKitRustDeskLedSdk
+} from './src/agent-runtime/ivekit/index.js';
+```
+
+这些 symbol 已转发到独立包源码，行为和 HTTP payload 不变。新项目必须直接依赖 `@opc/ivekit-sdk`，不要复制兼容文件。
+
+### 4.4 错误、超时、二进制和附件
+
+- Media/Chat 非 2xx 响应抛出 `IveKitHttpSdkError`，包含 `status`、`method`、`path`、`payload`；网络错误和 `timeoutMs` 超时的 `status=0`。
+- RustDesk 非 2xx 响应抛出 `IveKitRustDeskHttpError`，字段结构相同。
+- `media.exportRecordingObject()` 返回 `{bytes: Uint8Array, contentType, filename}`，调用方自行保存或交给浏览器下载。
+- `chat.uploadAttachment()` 接受 `Blob`、`ArrayBuffer`、`Uint8Array` 等 `BodyInit`，并要求显式提供 `kind`、`filename`、`contentType`。
+- 写消息时必须传稳定 `Idempotency-Key`；网络超时后用同一 key 重试，不生成新 key。
+
+### 4.5 RustDesk 启动与审计
+
+统一客户端的 `ivekit.rustdesk` 同时包含底层 HTTP 方法和 LED 高层流程：
+
+```ts
+const device = await ivekit.rustdesk.ensureDevice({
+  businessRef: orderRef,
+  rustdeskId: '123456789',
+  deviceDisplayName: 'LED service terminal',
+  actorIdentity: 'agent_1001'
+});
+const remote = await ivekit.rustdesk.startSession({
+  businessRef: orderRef,
+  deviceId: device.id,
+  deviceDisplayName: device.display_name,
+  actorIdentity: 'agent_1001',
+  remoteSessionId,
+  permissions: ['view_screen', 'control_mouse_keyboard']
+});
+await ivekit.rustdesk.recordControlAction(remote.gatewaySession.external_id, {
+  operationId: 'op-1',
+  actorIdentity: 'agent_1001',
+  action: 'mouse_click',
+  permission: 'control_mouse_keyboard'
+});
+await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
+  actor_identity: 'agent_1001'
+});
+```
+
+文件传输、剪贴板同步和屏幕录制分别使用 `recordFileTransfer`、`recordClipboardSync`、`recordScreenRecording`。结束后轮询 `getGatewayDisconnectState`，并在物理客户端验收中确认画面和输入控制确实停止。
+
+### 4.6 可运行示例
 
 ```bash
 OPC_IVEKIT_LED_BASE_URL=https://opc.example.com \
@@ -216,7 +288,7 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 - AI 数字人业务编排
 - LED 自己的订单、设备管理和审核工作台 UI
 
-HTTP SDK `src/agent-runtime/ivekit/http-sdk.ts` 没有 store、PostgreSQL 或 provider import，可先复制/发布为独立 npm package。服务端模块在迁移和事件边界稳定前不要机械搬目录。
+可交付客户端边界是 `sdk/ivekit`；`src/agent-runtime/ivekit/http-sdk.ts` 等旧文件仅是兼容导出，不应再复制。独立服务入口是 `src/ivekit-server.ts`，运行生命周期由 `src/agent-runtime/ivekit/application.ts` 统一管理；服务端抽离必须连同 PostgreSQL tenant context、RLS、migration、worker 和 provider 配置一起交付。
 
 ## 9. 错误、幂等和重试
 

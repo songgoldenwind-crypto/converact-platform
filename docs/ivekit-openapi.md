@@ -2,6 +2,8 @@
 
 > 契约版本：v1-draft / 2026-07-11。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
 
+本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@opc/ivekit-sdk`。稳定域是 `/api/ivekit/media/*`、`/api/ivekit/chat/*` 和 `/api/ivekit/rustdesk/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
+
 ## 1. 通用约定
 
 ### 1.1 鉴权
@@ -23,7 +25,7 @@ X-Tenant-Id: tenant_led
 
 API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只取 JWT `sub`，忽略调用方伪造的用户 header。tenant 必须与数据库 RLS 上下文一致。
 
-部署信任边界：LED 服务只持有 iveKit API key/JWT，不持有 `opc_admin`、PostgreSQL runtime 密码、LiveKit API secret、Tinode 服务账号密码、MinIO root/service secret 或 RustDesk control-plane token。数据库迁移与角色初始化由一次性任务完成；长驻 OPC 使用不可自行开启 RLS bypass 的 `opc_runtime`，Tinode 使用仅能连接 Tinode 数据库的独立角色。此部署变化不修改下述 HTTP payload，但属于生产接入硬门禁。
+部署信任边界：LED 服务只持有 iveKit API key/JWT，不持有 `opc_admin`、PostgreSQL runtime 密码、LiveKit API secret、Tinode 服务账号密码、MinIO root/service secret 或 RustDesk control-plane token。数据库迁移与角色初始化由一次性任务完成；长驻 iveKit 使用不可自行开启 RLS bypass 的 `opc_runtime`，Tinode 使用仅能连接 Tinode 数据库的独立角色。此部署变化不修改下述 HTTP payload，但属于生产接入硬门禁。
 
 ### 1.2 数据与错误
 
@@ -46,6 +48,12 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 | 413/415 | 附件过大/MIME 不匹配 |
 | 502 | provider 终态失败，本地记录仍保留 |
 | 503 | PostgreSQL/provider/必要配置不可用 |
+
+### 1.3 SDK 映射
+
+`createIveKitClient()` 返回 `media`、`chat`、`rustdesk` 三个客户端，与本文三个 API 域一一对应。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。Media/Chat 错误类型为 `IveKitHttpSdkError`，RustDesk 错误类型为 `IveKitRustDeskHttpError`，两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
+
+录制导出由 SDK 返回 `Uint8Array` 与 MIME/文件名元数据；附件上传接受标准 `BodyInit` 二进制 body，不做 base64 JSON 包装。RustDesk 高层方法 `ensureDevice/startSession` 负责设备、heartbeat 和 launch plan，操作审计与结束/物理断开状态仍是显式步骤。
 
 ## 2. Media Core
 

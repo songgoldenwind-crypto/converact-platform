@@ -584,7 +584,7 @@ git commit -m "build(ivekit): run standalone process"
 - Modify: `test/ivekit-standalone-http.test.ts`
 - Modify: `test/ivekit-sdk-package.test.ts`
 
-- [ ] **Step 1: Add documentation contract assertions**
+- [x] **Step 1: Add documentation contract assertions**
 
 Assert that the integration guide contains:
 
@@ -598,7 +598,7 @@ npm run start:ivekit
 
 Also assert that it no longer says the SDK has not been packaged or the standalone process has not been created.
 
-- [ ] **Step 2: Run the documentation tests and verify RED**
+- [x] **Step 2: Run the documentation tests and verify RED**
 
 ```bash
 node --import tsx --test test/ivekit-sdk-package.test.ts
@@ -606,7 +606,7 @@ node --import tsx --test test/ivekit-sdk-package.test.ts
 
 Expected: FAIL until documentation is updated.
 
-- [ ] **Step 3: Update the LED integration sequence**
+- [x] **Step 3: Update the LED integration sequence**
 
 Document three supported consumption modes:
 
@@ -616,7 +616,7 @@ Document three supported consumption modes:
 
 Include SDK build/install commands, error type behavior, timeout behavior, binary downloads, attachment upload body support, and RustDesk launch/audit sequence.
 
-- [ ] **Step 4: Add one foundation verification command**
+- [x] **Step 4: Add one foundation verification command**
 
 Add:
 
@@ -626,7 +626,7 @@ Add:
 }
 ```
 
-- [ ] **Step 5: Run the milestone verification**
+- [x] **Step 5: Run the milestone verification**
 
 ```bash
 npm run verify:ivekit:foundation
@@ -644,7 +644,7 @@ Expected:
 5. Frontend production build passes.
 6. Git status contains only this milestone's intended files.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/ivekit-led-integration-guide.md docs/ivekit-openapi.md package.json package-lock.json test/ivekit-sdk-package.test.ts test/ivekit-standalone-http.test.ts

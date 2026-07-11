@@ -54,5 +54,30 @@ test('root build commands and production image include the iveKit SDK', () => {
   const dockerfile = readFileSync('Dockerfile', 'utf8');
   assert.equal(root.scripts?.['build:ivekit-sdk'], 'npm --prefix sdk/ivekit run build');
   assert.equal(root.scripts?.['pack:ivekit-sdk'], 'npm pack ./sdk/ivekit --dry-run');
+  assert.equal(
+    root.scripts?.['verify:ivekit:foundation'],
+    'npm run test:ivekit:foundation && npm run build:ivekit-sdk && npm run pack:ivekit-sdk'
+  );
   assert.match(dockerfile, /COPY sdk\/ivekit \.\/sdk\/ivekit/);
+});
+
+test('LED integration documentation describes the delivered standalone contract', () => {
+  const guide = readFileSync('docs/ivekit-led-integration-guide.md', 'utf8');
+  const openapi = readFileSync('docs/ivekit-openapi.md', 'utf8');
+
+  for (const expected of [
+    '@opc/ivekit-sdk',
+    'npm run start:ivekit',
+    '/api/ivekit/media/*',
+    '/api/ivekit/chat/*',
+    '/api/ivekit/rustdesk/*',
+    'Node 后端',
+    '浏览器',
+    '兼容导出'
+  ]) {
+    assert.match(guide, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.doesNotMatch(guide, /尚未打包为独立 npm package|独立进程尚未创建/);
+  assert.match(openapi, /@opc\/ivekit-sdk/);
+  assert.match(openapi, /standalone|独立进程/i);
 });

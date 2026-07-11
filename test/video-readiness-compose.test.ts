@@ -266,6 +266,7 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   assert.match(tinodeBootstrap, /tinode:\n\s+condition: service_healthy/);
 
   const opc = readServiceBlock(compose, 'opc');
+  assert.match(opc, /command: \["npm", "run", "start:ivekit"\]/);
   assert.match(opc, /"127\.0\.0\.1:\$\{OPC_HTTP_PORT:-8300\}:3000"/);
   assert.match(opc, /postgres:\n\s+condition: service_healthy/);
   assert.match(opc, /tinode-bootstrap:\n\s+condition: service_completed_successfully/);
@@ -281,13 +282,16 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   assert.equal(opcEnvironment.TINODE_BASE_URL, 'http://tinode:6060');
   assert.equal(opcEnvironment.TINODE_WS_URL, 'ws://tinode:6060/v0/channels');
   assert.equal(opcEnvironment.TINODE_PUBLIC_WS_URL, '${TINODE_PUBLIC_WS_URL:?TINODE_PUBLIC_WS_URL is required}');
-  assert.equal(opcEnvironment.OPC_DISABLE_DIALER, '1');
+  assert.equal('OPC_DISABLE_DIALER' in opcEnvironment, false);
   assert.equal(opcEnvironment.OPC_SCHEMA_MANAGED_BY_MIGRATIONS, '1');
+  assert.equal(opcEnvironment.OPC_REMOTE_GATEWAY_BASE_URL, 'http://ivekit-api:3000');
+  assert.equal(opcEnvironment.OPC_RUSTDESK_CONTROL_PLANE_BASE_URL, 'http://ivekit-api:3000');
   assert.equal(
     opcEnvironment.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE,
     '${OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE:-rustdesk://connect/{rustdesk_id}?session={external_id}}'
   );
-  assert.match(opc, /- ivekit_media/);
+  assert.match(opc, /aliases:\n\s+- ivekit-api/);
+  assert.match(opc, /ivekit_media: \{\}/);
 
   for (const service of ['rustdesk-hbbs', 'rustdesk-hbbr']) {
     const block = readServiceBlock(compose, service);
