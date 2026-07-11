@@ -338,11 +338,11 @@ git commit -m "feat(client): add media prejoin"
 - Create: `clients/ivekit-reference/src/media/media-toolbar.tsx`
 - Modify: `clients/ivekit-reference/src/app.tsx`
 
-- [ ] **Step 1: Write failing reducer and hook tests**
+- [x] **Step 1: Write failing reducer and hook tests**
 
 Cover outgoing ring/cancel/timeout, incoming accept/reject/missed, accepted-to-active after provider join, idempotent end, stale HTTP/event suppression, call switch, terminal revoke, media command pending/error states, and retry with the original idempotency key.
 
-- [ ] **Step 2: Implement reducer actions**
+- [x] **Step 2: Implement reducer actions**
 
 ```typescript
 type MediaAction =
@@ -356,15 +356,15 @@ type MediaAction =
 
 Reject stale request ids and adapter generations before mutation.
 
-- [ ] **Step 3: Implement lifecycle commands through SDK**
+- [x] **Step 3: Implement lifecycle commands through SDK**
 
 Every action uses `transitionCall()` with a stable idempotency key. Connect to LiveKit only after iveKit returns an accepted join plan. On reject/cancel/end/revoke, dispose the adapter before clearing UI media.
 
-- [ ] **Step 4: Build call header and toolbar**
+- [x] **Step 4: Build call header and toolbar**
 
 Use icon controls with tooltips for microphone, camera, share, layout, devices, recording, and hangup. Disable controls while pending or terminal; show elapsed time only after `active`.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test

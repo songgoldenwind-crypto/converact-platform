@@ -8,7 +8,10 @@ let closeDom: () => void;
 
 before(() => { closeDom = installTestDom(); });
 after(() => { cleanup(); closeDom?.(); });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  window.history.replaceState({}, '', '/');
+});
 
 test('session cursor updates do not refetch the first page', async () => {
   let sessionRequests = 0;
@@ -43,4 +46,40 @@ test('mobile workspace switches between session and message views', () => {
   assert.equal(workspace.dataset.mobileView, 'chat');
   fireEvent.click(view.getByTitle('Show sessions'));
   assert.equal(workspace.dataset.mobileView, 'sessions');
+});
+
+test('call_id opens the media workspace and loads the durable call snapshot', async () => {
+  window.history.replaceState({}, '', '/?call_id=call-1');
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'customer-1';
+  let chatRequests = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === '/ivekit-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url.includes('/api/ivekit/media/calls/call-1')) return Response.json({
+      call: {
+        id: 'call-1', tenant_id: 'tenant-1', room_name: 'room-call-1', media: 'video', status: 'ringing',
+        initiated_by: 'agent-1', business_ref: { type: 'order', id: 'order-1', metadata: {} }, title: 'Support call',
+        metadata: {}, ring_timeout_seconds: 30, ring_expires_at: '2026-07-11T10:00:30.000Z', accepted_at: null,
+        started_at: null, ended_at: null, end_reason: '', created_at: '2026-07-11T10:00:00.000Z', updated_at: '2026-07-11T10:00:00.000Z'
+      },
+      participants: [{
+        id: 'participant-1', tenant_id: 'tenant-1', call_id: 'call-1', identity: 'customer-1', role: 'participant',
+        status: 'ringing', display_name: 'Customer', metadata: {}, invited_at: '2026-07-11T10:00:00.000Z',
+        accepted_at: null, joined_at: null, left_at: null, updated_at: '2026-07-11T10:00:00.000Z'
+      }]
+    });
+    if (url.includes('/api/ivekit/chat/sessions')) {
+      chatRequests += 1;
+      return Response.json({ items: [], next_cursor: null, has_more: false });
+    }
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+
+  const view = render(<App />);
+  await waitFor(() => assert.ok(view.getByText('Support call')));
+  assert.equal(view.getByTitle('Show calls workspace').getAttribute('aria-pressed'), 'true');
+  assert.ok(view.getByRole('button', { name: 'Accept' }));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(chatRequests, 0);
 });

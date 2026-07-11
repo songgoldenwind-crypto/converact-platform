@@ -1,6 +1,6 @@
 import { createIveKitClient, type IveKitChatMessage, type IveKitChatSession } from '@opc/ivekit-sdk';
-import { CircleStop, List, MessageSquare, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CircleStop, List, MessageSquare, Phone, RefreshCw } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { MessageComposer } from './chat/message-composer.js';
 import { MessageTimeline } from './chat/message-timeline.js';
@@ -14,6 +14,11 @@ import {
   requestIdentity,
   type IveKitRuntimeConfig
 } from './runtime-config.js';
+
+const MediaWorkspace = lazy(async () => {
+  const module = await import('./media/media-workspace.js');
+  return { default: module.MediaWorkspace };
+});
 
 export function App() {
   const [config, setConfig] = useState<IveKitRuntimeConfig | null>(null);
@@ -30,6 +35,8 @@ export function App() {
   const [forwardFrom, setForwardFrom] = useState<IveKitChatMessage | null>(null);
   const [mobileView, setMobileView] = useState<'sessions' | 'chat'>('sessions');
   const [selectedFindingId, setSelectedFindingId] = useState('');
+  const [mediaCallId, setMediaCallId] = useState(initialCallId);
+  const [workspaceMode, setWorkspaceMode] = useState<'messages' | 'calls'>(() => initialCallId() ? 'calls' : 'messages');
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
 
@@ -85,9 +92,10 @@ export function App() {
     return () => { active = false; };
   }, []);
   useEffect(() => {
+    if (workspaceMode !== 'messages') return;
     const timer = window.setTimeout(() => void refreshSessions(false), 250);
     return () => window.clearTimeout(timer);
-  }, [refreshSessions]);
+  }, [refreshSessions, workspaceMode]);
   useEffect(() => setSelectedFindingId(''), [selectedId]);
   useEffect(() => {
     if (!selectedId || chat.loading || chat.state.requestId === 0) return;
@@ -129,19 +137,29 @@ export function App() {
     const closed = await chat.closeSession();
     if (closed) setSessions((current) => current.map((session) => session.id === closed.id ? closed : session));
   }, [chat.closeSession, selected]);
+  const selectMediaCall = useCallback((callId: string) => {
+    setMediaCallId(callId);
+    const url = new URL(window.location.href);
+    if (callId) url.searchParams.set('call_id', callId);
+    else url.searchParams.delete('call_id');
+    window.history.replaceState({}, '', url);
+  }, []);
 
   return (
-    <main className="workspace" data-mobile-view={mobileView}>
+    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : ''}`} data-mobile-view={mobileView}>
       <header className="topbar">
         <div className="brand"><MessageSquare size={18} /> <strong>iveKit</strong></div>
-        <div className="mobile-tabs" role="group" aria-label="Mobile workspace">
+        <div className="workspace-tabs" role="group" aria-label="Workspace">
+          <button title="Show messages workspace" aria-pressed={workspaceMode === 'messages'} onClick={() => setWorkspaceMode('messages')}><MessageSquare size={16} /><span>Messages</span></button>
+          <button title="Show calls workspace" aria-pressed={workspaceMode === 'calls'} onClick={() => setWorkspaceMode('calls')}><Phone size={16} /><span>Calls</span></button>
+        </div>
+        {workspaceMode === 'messages' && <div className="mobile-tabs" role="group" aria-label="Mobile workspace">
           <button title="Show sessions" aria-pressed={mobileView === 'sessions'} onClick={() => setMobileView('sessions')}><List size={17} /></button>
           <button title="Show messages" aria-pressed={mobileView === 'chat'} onClick={() => setMobileView('chat')}><MessageSquare size={17} /></button>
-        </div>
-        <span className={`connection connection-${chat.state.connection}`}>{chat.state.connection}</span>
-        <button className="icon-button" title="Refresh sessions" onClick={() => void refreshSessions(false)}><RefreshCw size={17} /></button>
+        </div>}
+        {workspaceMode === 'messages' && <><span className={`connection connection-${chat.state.connection}`}>{chat.state.connection}</span><button className="icon-button" title="Refresh sessions" onClick={() => void refreshSessions(false)}><RefreshCw size={17} /></button></>}
       </header>
-      <SessionList
+      {workspaceMode === 'messages' ? <><SessionList
         sessions={sessions}
         selectedId={selectedId}
         query={query}
@@ -197,7 +215,7 @@ export function App() {
         onCloseFinding={() => setSelectedFindingId('')}
         onLoadFinding={chat.loadFinding}
         onReviewFinding={chat.reviewFinding}
-      />
+      /></> : <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );
@@ -216,4 +234,8 @@ function dedupeSessions(sessions: IveKitChatSession[]): IveKitChatSession[] {
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
+}
+
+function initialCallId(): string {
+  return typeof window === 'undefined' ? '' : new URL(window.location.href).searchParams.get('call_id')?.trim() || '';
 }
