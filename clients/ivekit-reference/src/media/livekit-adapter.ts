@@ -64,6 +64,8 @@ const events = {
   reconnecting: RoomEvent.Reconnecting,
   reconnected: RoomEvent.Reconnected,
   audioPlaybackChanged: RoomEvent.AudioPlaybackStatusChanged,
+  localTrackPublished: RoomEvent.LocalTrackPublished,
+  localTrackUnpublished: RoomEvent.LocalTrackUnpublished,
   disconnected: RoomEvent.Disconnected
 } as const;
 
@@ -216,6 +218,9 @@ export class LiveKitClientAdapter implements LiveKitRoomAdapter {
       const participant = asParticipant(rawParticipant);
       if (!track || !publication || !participant) return;
       const id = publication.trackSid || `${participant.identity}:${normalizeSource(publication.source)}:${++this.fallbackTrackSequence}`;
+      const existing = this.tracks.get(id);
+      if (existing?.raw === track) return;
+      if (existing) this.invalidateTrack(id);
       const handle = this.createTrackHandle(id, participant.identity, track, publication);
       this.tracks.set(id, { raw: track, handle });
       this.emit({ type: 'track_subscribed', generation, track: handle });
@@ -254,6 +259,8 @@ export class LiveKitClientAdapter implements LiveKitRoomAdapter {
     bind(events.audioPlaybackChanged, () => {
       if (!room.canPlaybackAudio) this.emitAutoplayBlocked(generation);
     });
+    bind(events.localTrackPublished, (rawPublication) => this.emitLocalTrack(rawPublication, generation, true));
+    bind(events.localTrackUnpublished, (rawPublication) => this.emitLocalTrack(rawPublication, generation, false));
     bind(events.disconnected, (reason) => this.handleUnexpectedDisconnect(room, generation, reason));
   }
 
@@ -267,6 +274,14 @@ export class LiveKitClientAdapter implements LiveKitRoomAdapter {
     const message = reason == null ? 'LiveKit room disconnected' : String(reason);
     this.setState('fatal', generation);
     this.emit({ type: 'fatal', generation, reason: message });
+  }
+
+  private emitLocalTrack(rawPublication: unknown, generation: number, enabled: boolean): void {
+    const publication = asPublication(rawPublication);
+    if (!publication) return;
+    const source = normalizeSource(publication.source);
+    if (source === 'unknown') return;
+    this.emit({ type: 'local_track_changed', generation, source, enabled });
   }
 
   private createTrackHandle(

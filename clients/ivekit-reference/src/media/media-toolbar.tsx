@@ -24,7 +24,7 @@ export function MediaToolbar(props: {
   recordingDisabled?: boolean;
   onMicrophone(enabled: boolean): void | Promise<void>;
   onCamera(enabled: boolean): void | Promise<void>;
-  onScreenShare(enabled: boolean): void | Promise<void>;
+  onScreenShare(enabled: boolean, options?: { audio?: boolean }): void | Promise<void>;
   onLayout(layout: MediaLayout): void;
   onDevices(): void;
   onRecording(recording: boolean): void | Promise<void>;
@@ -38,7 +38,7 @@ export function MediaToolbar(props: {
       <button className={props.local.camera ? 'active' : ''} title={props.local.camera ? 'Turn off camera' : 'Turn on camera'} aria-pressed={props.local.camera} disabled={props.disabled} onClick={() => void props.onCamera(!props.local.camera)}>
         {props.local.camera ? <Camera size={18} /> : <CameraOff size={18} />}
       </button>
-      <button className={props.local.screen ? 'active' : ''} title={props.local.screen ? 'Stop sharing' : 'Share screen'} aria-pressed={props.local.screen} disabled={props.disabled} onClick={() => void props.onScreenShare(!props.local.screen)}>
+      <button className={props.local.screen ? 'active' : ''} title={props.local.screen ? 'Stop sharing' : 'Share screen'} aria-pressed={props.local.screen} disabled={props.disabled} onClick={() => void props.onScreenShare(!props.local.screen, { audio: !props.local.screen })}>
         <MonitorUp size={18} />
       </button>
       <div className="layout-switch" role="group" aria-label="Call layout">

@@ -164,7 +164,9 @@ function applyAdapterEvent(state: MediaCallState, event: MediaAdapterEvent): Med
       return {
         ...state,
         presentIdentities: state.presentIdentities.filter((identity) => identity !== event.identity),
-        activeSpeakerIdentities: state.activeSpeakerIdentities.filter((identity) => identity !== event.identity)
+        activeSpeakerIdentities: state.activeSpeakerIdentities.filter((identity) => identity !== event.identity),
+        tracks: tracksWithoutParticipant(state.tracks, event.identity),
+        networkQuality: recordWithoutKey(state.networkQuality, event.identity)
       };
     case 'track_subscribed':
       return { ...state, tracks: { ...state.tracks, [event.track.id]: event.track } };
@@ -177,6 +179,8 @@ function applyAdapterEvent(state: MediaCallState, event: MediaAdapterEvent): Med
       return { ...state, activeSpeakerIdentities: Object.freeze([...event.identities]) };
     case 'network_quality':
       return { ...state, networkQuality: { ...state.networkQuality, [event.identity]: event.quality } };
+    case 'local_track_changed':
+      return { ...state, local: localFromTrackEvent(state.local, event.source, event.enabled) };
     case 'autoplay_blocked':
       return { ...state, autoplayBlocked: true };
     case 'fatal':
@@ -216,12 +220,36 @@ function updateCommand(
   return { ...state, commands: { ...state.commands, [command]: Object.freeze(commandState) } };
 }
 
+function localFromTrackEvent(
+  local: MediaLocalState,
+  source: 'camera' | 'microphone' | 'screen_share' | 'screen_share_audio',
+  enabled: boolean
+): MediaLocalState {
+  if (source === 'camera') return Object.freeze({ ...local, camera: enabled });
+  if (source === 'microphone') return Object.freeze({ ...local, microphone: enabled });
+  if (source === 'screen_share_audio') return Object.freeze({ ...local, screenAudio: enabled });
+  return Object.freeze({ ...local, screen: enabled, ...(!enabled ? { screenAudio: false } : {}) });
+}
+
 function matchesRequest(state: MediaCallState, requestId: number, callId: string): boolean {
   return requestId === state.requestId && callId === state.selectedCallId;
 }
 
 function addIdentity(identities: readonly string[], identity: string): readonly string[] {
   return identities.includes(identity) ? identities : Object.freeze([...identities, identity]);
+}
+
+function tracksWithoutParticipant(
+  tracks: Readonly<Record<string, MediaTrackHandle>>,
+  identity: string
+): Record<string, MediaTrackHandle> {
+  return Object.fromEntries(Object.entries(tracks).filter(([, track]) => track.participantIdentity !== identity));
+}
+
+function recordWithoutKey(record: Readonly<Record<string, string>>, key: string): Record<string, string> {
+  const next = { ...record };
+  delete next[key];
+  return next;
 }
 
 function connectionFromAdapter(

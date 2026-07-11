@@ -383,23 +383,23 @@ git commit -m "feat(client): implement media call workflow"
 - Create: `clients/ivekit-reference/src/media/screen-share-stage.tsx`
 - Modify: `clients/ivekit-reference/src/styles.css`
 
-- [ ] **Step 1: Write failing projection/layout tests**
+- [x] **Step 1: Write failing projection/layout tests**
 
 Cover 1-9 participants, camera-off avatar, speaking indicator, muted state, dominant speaker ordering, screen share as a separate track, screen-share audio state, track detach, participant leave, and duplicate subscription packets.
 
-- [ ] **Step 2: Build stable track projection**
+- [x] **Step 2: Build stable track projection**
 
 Key tiles by participant identity plus track source, never array index. A screen share track moves to the main stage while participant camera stays visible in the rail.
 
-- [ ] **Step 3: Add three layouts**
+- [x] **Step 3: Add three layouts**
 
 Grid uses bounded CSS tracks; speaker mode uses one focus stage plus participant rail; screen-share mode gives content priority and preserves a visible strip of participants. Mobile shows one main stage and a horizontal rail without overlap.
 
-- [ ] **Step 4: Implement screen share commands**
+- [x] **Step 4: Implement screen share commands**
 
 Call `setScreenShare(true, {audio})`, handle browser cancellation without erroring the call, listen for the browser's track-ended event, and always reconcile the toolbar to actual publication state.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm --prefix clients/ivekit-reference test

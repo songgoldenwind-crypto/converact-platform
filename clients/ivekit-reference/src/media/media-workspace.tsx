@@ -6,6 +6,7 @@ import type { IveKitClient, IveKitMediaCallAction } from '@opc/ivekit-sdk';
 import { CallHeader } from './call-header.js';
 import { isTerminalStatus } from './media-reducer.js';
 import { MediaToolbar } from './media-toolbar.js';
+import { ParticipantGrid } from './participant-grid.js';
 import { useMediaCall } from './use-media-call.js';
 
 export function MediaWorkspace(props: {
@@ -48,7 +49,13 @@ export function MediaWorkspace(props: {
       ) : (
         <>
           <CallHeader state={media.state} />
-          <div className="media-stage-placeholder">
+          {call && ['accepted', 'active'].includes(call.status) ? <ParticipantGrid
+            participants={media.state.participants}
+            tracks={media.state.tracks}
+            activeSpeakerIdentities={media.state.activeSpeakerIdentities}
+            networkQuality={media.state.networkQuality}
+            layout={media.state.layout}
+          /> : <div className="media-stage-placeholder">
             <PhoneCall size={30} />
             <strong>{connectionLabel(media.state.connection)}</strong>
             {call && <span>{call.room_name}</span>}
@@ -57,7 +64,7 @@ export function MediaWorkspace(props: {
               {call?.status === 'ringing' && isHost && <button disabled={pending} onClick={() => void command('cancel', 'host cancelled')}>Cancel</button>}
               {call?.status === 'ringing' && !isHost && <><button disabled={pending} onClick={() => void command('accept')}>Accept</button><button disabled={pending} onClick={() => void command('reject', 'participant rejected')}>Reject</button></>}
             </div>
-          </div>
+          </div>}
           <MediaToolbar
             local={media.state.local}
             layout={media.state.layout}
@@ -67,7 +74,7 @@ export function MediaWorkspace(props: {
             recordingDisabled
             onMicrophone={(enabled) => run(() => media.setMicrophone(enabled))}
             onCamera={(enabled) => run(() => media.setCamera(enabled))}
-            onScreenShare={(enabled) => run(() => media.setScreenShare(enabled))}
+            onScreenShare={(enabled, options) => run(() => media.setScreenShare(enabled, options))}
             onLayout={media.setLayout}
             onDevices={() => undefined}
             onRecording={() => undefined}

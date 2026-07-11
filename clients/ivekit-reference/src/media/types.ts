@@ -66,6 +66,12 @@ export type MediaAdapterEvent =
       quality: string;
     }>
   | Readonly<{
+      type: 'local_track_changed';
+      generation: number;
+      source: Exclude<MediaTrackSource, 'unknown'>;
+      enabled: boolean;
+    }>
+  | Readonly<{
       type: 'autoplay_blocked';
       generation: number;
       message: string;

@@ -81,15 +81,19 @@ test('LiveKit adapter normalizes tracks speakers quality reconnect and autoplay 
   };
   room.emit('participantConnected', remote);
   room.emit('trackSubscribed', track, publication, remote);
+  room.emit('trackSubscribed', track, publication, remote);
   room.emit('activeSpeakersChanged', [participant('customer-1'), participant('agent-1')]);
   room.emit('connectionQualityChanged', 'poor', remote);
   room.emit('reconnecting');
   room.emit('reconnected');
   room.canPlaybackAudio = false;
   room.emit('audioPlaybackChanged');
+  room.emit('localTrackPublished', { source: 'screen_share' });
+  room.emit('localTrackUnpublished', { source: 'screen_share' });
 
   const subscribed = events.find((event) => event.type === 'track_subscribed');
   assert.ok(subscribed && subscribed.type === 'track_subscribed');
+  assert.equal(events.filter((event) => event.type === 'track_subscribed').length, 1);
   assert.equal(Object.isFrozen(subscribed), true);
   assert.equal(subscribed.track.source, 'screen_share');
   const element = {} as HTMLMediaElement;
@@ -103,6 +107,8 @@ test('LiveKit adapter normalizes tracks speakers quality reconnect and autoplay 
   assert.equal(events.some((event) => event.type === 'network_quality' && event.quality === 'poor'), true);
   assert.equal(events.some((event) => event.type === 'state' && event.state === 'reconnecting'), true);
   assert.equal(events.some((event) => event.type === 'autoplay_blocked'), true);
+  assert.equal(events.some((event) => event.type === 'local_track_changed' && event.source === 'screen_share' && event.enabled), true);
+  assert.equal(events.some((event) => event.type === 'local_track_changed' && event.source === 'screen_share' && !event.enabled), true);
 
   room.emit('trackUnsubscribed', track, publication, remote);
   assert.equal(events.some((event) => event.type === 'track_unsubscribed' && event.track_id === 'TR_SCREEN'), true);
@@ -137,7 +143,7 @@ test('a late old connection cannot orphan the new room listeners', async () => {
   await adapter.connect(plan('room-racing-new'));
   firstRoom.resolveConnect();
   await assert.rejects(firstConnect, /cancelled/);
-  assert.equal(secondRoom.listenerCount(), 10);
+  assert.equal(secondRoom.listenerCount(), 12);
   await adapter.disconnect();
   assert.equal(secondRoom.listenerCount(), 0);
 });

@@ -54,6 +54,11 @@ test('adapter generations normalize connection, tracks, presence, speakers, and 
   assert.equal(state.tracks.TR_2.id, 'TR_2');
   assert.deepEqual(state.activeSpeakerIdentities, ['customer-1']);
   assert.deepEqual(state.networkQuality, { 'customer-1': 'poor' });
+  state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'local_track_changed', generation: 2, source: 'screen_share', enabled: true } });
+  state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'local_track_changed', generation: 2, source: 'screen_share_audio', enabled: true } });
+  state = mediaCallReducer(state, { type: 'adapter_event', generation: 2, event: { type: 'local_track_changed', generation: 2, source: 'screen_share', enabled: false } });
+  assert.equal(state.local.screen, false);
+  assert.equal(state.local.screenAudio, false);
 
   const stale = mediaCallReducer(state, { type: 'adapter_event', generation: 1, event: { type: 'fatal', generation: 1, reason: 'old room' } });
   assert.equal(stale, state);

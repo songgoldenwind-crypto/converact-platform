@@ -126,6 +126,7 @@ test('local media state changes only after adapter success and refresh does not 
   const sequence: string[] = [];
   const adapter = new FakeAdapter(sequence, false);
   adapter.cameraError = new Error('camera busy');
+  adapter.screenError = new Error('screen picker cancelled');
   let joinPlans = 0;
   const client = fakeClient({
     getCall: async () => snapshot('active'),
@@ -140,6 +141,11 @@ test('local media state changes only after adapter success and refresh does not 
   });
   assert.equal(view.result.current.state.local.camera, false);
   assert.equal(view.result.current.state.commands.camera.error, 'camera busy');
+  await act(async () => {
+    await assert.rejects(view.result.current.setScreenShare(true, { audio: true }), /picker cancelled/);
+  });
+  assert.equal(view.result.current.state.local.screen, false);
+  assert.equal(view.result.current.state.local.screenAudio, false);
   await act(async () => { await view.result.current.refresh(); });
   assert.equal(joinPlans, 1);
   assert.equal(sequence.filter((item) => item === 'adapter:connect').length, 1);
@@ -148,6 +154,7 @@ test('local media state changes only after adapter success and refresh does not 
 class FakeAdapter implements LiveKitRoomAdapter {
   disposeCalls = 0;
   cameraError?: Error;
+  screenError?: Error;
   constructor(
     private readonly sequence: string[],
     private readonly emitConnected: boolean,
@@ -164,7 +171,10 @@ class FakeAdapter implements LiveKitRoomAdapter {
     this.sequence.push(`adapter:camera:${enabled}`);
     if (this.cameraError) throw this.cameraError;
   }
-  async setScreenShare(enabled: boolean) { this.sequence.push(`adapter:screen:${enabled}`); }
+  async setScreenShare(enabled: boolean) {
+    this.sequence.push(`adapter:screen:${enabled}`);
+    if (this.screenError) throw this.screenError;
+  }
   async switchDevice(kind: 'audioinput' | 'videoinput' | 'audiooutput', deviceId: string) { this.sequence.push(`adapter:device:${kind}:${deviceId}`); }
   async startAudio() { this.sequence.push('adapter:start-audio'); }
   async dispose() { this.disposeCalls += 1; this.sequence.push('adapter:dispose'); }

@@ -19,7 +19,7 @@ test('media toolbar exposes bounded capture, layout, device, recording, and hang
     disabled={false}
     onMicrophone={(enabled) => { calls.push(`microphone:${enabled}`); }}
     onCamera={(enabled) => { calls.push(`camera:${enabled}`); }}
-    onScreenShare={(enabled) => { calls.push(`screen:${enabled}`); }}
+    onScreenShare={(enabled, options) => { calls.push(`screen:${enabled}:${Boolean(options?.audio)}`); }}
     onLayout={(layout) => { calls.push(`layout:${layout}`); }}
     onDevices={() => { calls.push('devices'); }}
     onRecording={(recording) => { calls.push(`recording:${recording}`); }}
@@ -33,7 +33,7 @@ test('media toolbar exposes bounded capture, layout, device, recording, and hang
   fireEvent.click(view.getByTitle('Start recording'));
   fireEvent.click(view.getByTitle('Hang up'));
   assert.deepEqual(calls, [
-    'microphone:true', 'camera:false', 'screen:true', 'layout:speaker',
+    'microphone:true', 'camera:false', 'screen:true:true', 'layout:speaker',
     'devices', 'recording:true', 'hangup'
   ]);
 });
