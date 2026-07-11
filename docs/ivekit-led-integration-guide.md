@@ -374,6 +374,9 @@ docker compose --profile omnichannel --env-file infra/env.example \
 
 1. 先用 `OPC_LIVEKIT_ACCEPTANCE_BUNDLE_DIR=<evidence-dir> npm run livekit:acceptance-bundle` 固定本轮路径，再按 manifest 运行 `livekit:deployment-preflight`、`livekit:server-evidence`、`smoke:media:readiness`、真实客户端验收和 `livekit:evidence-pack`；最终必须为 `ready_for_customer_review`。
 2. `npm run tinode:deployment-preflight`、`npm run smoke:chat:tinode`、双浏览器 SDK join/data/info/presence/read note。
+   - 本地先运行 `npm run verify:ivekit:im-client` 和 `npm run test:e2e:ivekit-im`；受控 E2E 覆盖两身份、合法 token/topic 订阅、Tinode-only `{data}` 触发 HTTP 镜像收敛、客户端零 publish、附件进度、receipt、typing/presence、edit/delete、reply/forward、reaction/pin、finding 人审、断网重连、会话关闭和桌面/手机布局。
+   - 用 `OPC_IVEKIT_IM_ACCEPTANCE_TEMPLATE_FILE=<path> npm run ivekit:im-client-acceptance` 生成故意不完整的真实环境模板。两台真实浏览器和真实 Tinode 完成后，设置 `OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE` 再运行 validator；没有报告时结果必须为 `not_run`，受控截图不得改写为真实证据。
+   - 每项通过检查引用唯一、非符号链接的 JSON observation，validator 会核对 SHA-256、`check_id`、`run_id`、`environment_id`、采集时间、工具和结构化 observation；布局证据还必须记录人工脱敏复核。报告与 observation 严禁写入 API key、Authorization、Bearer/Basic/JWT、cookie、密码、私钥或 provider secret。validator 成功只表示 `ready_for_review`，不能证明观察真实发生，也不能替代人工核对截图与脱敏结果。
 3. 验证 Tinode 用户只有 `JRP`，浏览器直接 publish 被拒绝。
 4. 真实 PostgreSQL 跑 migration/RLS、多副本 claim 竞争、10k+ 消息 unread/read-through。
 5. 真实 OCR/ASR/AI provider 的准确率、延迟、重试、限流和数据合规。

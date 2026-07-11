@@ -62,6 +62,26 @@ curl --fail http://127.0.0.1:8300/health
 curl --fail http://127.0.0.1:6060/health
 ```
 
+Reference-client local gates use a controlled HTTP/WebSocket/Tinode protocol server and two isolated Chromium contexts. They are deterministic regression evidence, not proof of the deployed Tinode environment:
+
+```bash
+npm run verify:ivekit:im-client
+npm run test:e2e:ivekit-im
+```
+
+Create the intentionally incomplete real-environment checklist, fill it from two real browsers and real Tinode, then validate it:
+
+```bash
+OPC_IVEKIT_IM_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/im-template.json \
+  npm run ivekit:im-client-acceptance || true
+
+OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE=/secure/evidence/im-report.json \
+OPC_IVEKIT_IM_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/im-result.json \
+  npm run ivekit:im-client-acceptance
+```
+
+Without `OPC_IVEKIT_IM_ACCEPTANCE_REPORT_FILE`, the command returns `not_run` and a nonzero exit status. Every passed check requires a unique, non-symlink JSON observation bound to the same check, run, environment, timestamp, and tool; layout observations also require a recorded human redaction review. Reports and observations must not contain API keys, authorization headers, JWTs, cookies, passwords, private keys, or provider secrets. A successful validator result means `ready_for_review`, not environment acceptance: a human must inspect the referenced captures and confirm the observations are genuine and redacted.
+
 Expected PostgreSQL roles:
 
 ```text

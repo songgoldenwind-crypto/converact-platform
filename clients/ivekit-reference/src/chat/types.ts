@@ -18,6 +18,7 @@ export type ChatConvergenceTrigger =
 
 export interface ChatConvergenceProjection {
   messages: IveKitChatMessage[];
+  changedMessages: IveKitChatMessage[];
   cursor: string | null;
   generation: number;
 }

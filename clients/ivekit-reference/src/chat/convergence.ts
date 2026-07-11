@@ -34,7 +34,11 @@ export class ChatConvergence {
     this.generation += 1;
     this.messages = new Map(messages.map((message) => [message.id, message]));
     this.cursor = cursor;
-    this.emit();
+    this.emit(messages);
+  }
+
+  supersede(): void {
+    if (!this.closed) this.generation += 1;
   }
 
   close(): void {
@@ -56,9 +60,10 @@ export class ChatConvergence {
         if (page.has_more && (!page.next_cursor || page.next_cursor === previousCursor)) {
           throw new Error('Chat convergence cursor did not advance');
         }
-        this.emit();
+        this.emit(page.items);
         if (page.has_more) this.queued = true;
       } catch (error) {
+        if (this.closed || generation !== this.generation) continue;
         const status = authStatus(error);
         if (status) {
           this.closed = true;
@@ -70,11 +75,14 @@ export class ChatConvergence {
     } while (this.queued && !this.closed);
   }
 
-  private emit(): void {
+  private emit(changed: IveKitChatMessage[]): void {
     const messages = [...this.messages.values()].sort((left, right) =>
       left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id)
     );
-    this.input.onProjection?.({ messages, cursor: this.cursor, generation: this.generation });
+    const changedMessages = [...new Map(changed.map((message) => [message.id, message])).values()].sort((left, right) =>
+      left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id)
+    );
+    this.input.onProjection?.({ messages, changedMessages, cursor: this.cursor, generation: this.generation });
   }
 }
 

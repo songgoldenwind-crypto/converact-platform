@@ -11,10 +11,14 @@ test('convergence deduplicates, orders, coalesces invalidations, and advances af
   ];
   const cursors: Array<string | null> = [];
   const projections: string[][] = [];
+  const changed: string[][] = [];
   let index = 0;
   const convergence = new ChatConvergence({
     fetchAfter: async (cursor) => { cursors.push(cursor); return pages[index++].promise; },
-    onProjection: (projection) => projections.push(projection.messages.map((message) => message.id))
+    onProjection: (projection) => {
+      projections.push(projection.messages.map((message) => message.id));
+      changed.push(projection.changedMessages.map((message) => message.id));
+    }
   });
   const first = convergence.invalidate('initial');
   const coalesced = convergence.invalidate('tinode_data');
@@ -25,6 +29,7 @@ test('convergence deduplicates, orders, coalesces invalidations, and advances af
   await Promise.all([first, coalesced]);
   assert.deepEqual(cursors, [null, 'cursor-2']);
   assert.deepEqual(projections.at(-1), ['a', 'b', 'c']);
+  assert.deepEqual(changed, [['a', 'b'], ['c']]);
 });
 
 test('convergence suppresses stale generations and closes on authorization failure', async () => {
@@ -50,6 +55,64 @@ test('convergence suppresses stale generations and closes on authorization failu
   await assert.rejects(convergence.invalidate('tinode_data'), /closed/);
 });
 
+test('convergence supersedes an in-flight stale page without advancing its cursor', async () => {
+  const oldPage = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const currentPage = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const pages = [oldPage, currentPage];
+  const cursors: Array<string | null> = [];
+  const changedBodies: string[][] = [];
+  let index = 0;
+  const convergence = new ChatConvergence({
+    fetchAfter: async (cursor) => { cursors.push(cursor); return pages[index++].promise; },
+    onProjection: (projection) => changedBodies.push(projection.changedMessages.map((item) => item.body || ''))
+  });
+
+  const running = convergence.invalidate('initial');
+  convergence.supersede();
+  const queued = convergence.invalidate('ivekit_event');
+  oldPage.resolve({ items: [{ ...message('same', 1), body: 'stale' }], next_cursor: 'cursor-stale', has_more: false });
+  await Promise.resolve();
+  await Promise.resolve();
+  currentPage.resolve({ items: [{ ...message('same', 1), body: 'current' }], next_cursor: 'cursor-current', has_more: false });
+  await Promise.all([running, queued]);
+
+  assert.deepEqual(cursors, [null, null]);
+  assert.deepEqual(changedBodies, [['current']]);
+});
+
+test('convergence ignores stale authorization failures after supersede or close', async () => {
+  const staleAfterSupersede = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const currentPage = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const fatal: number[] = [];
+  let index = 0;
+  const pages = [staleAfterSupersede, currentPage];
+  const convergence = new ChatConvergence({
+    fetchAfter: async () => pages[index++].promise,
+    onFatalAuth: (status) => fatal.push(status)
+  });
+  const running = convergence.invalidate('initial');
+  convergence.supersede();
+  const queued = convergence.invalidate('ivekit_event');
+  staleAfterSupersede.reject(Object.assign(new Error('stale unauthorized'), { status: 401 }));
+  await Promise.resolve();
+  await Promise.resolve();
+  currentPage.resolve({ items: [message('current', 1)], next_cursor: 'cursor-current', has_more: false });
+  await Promise.all([running, queued]);
+  assert.deepEqual(fatal, []);
+
+  const staleAfterClose = deferred<{ items: IveKitChatMessage[]; next_cursor: string | null; has_more: boolean }>();
+  const closedFatal: number[] = [];
+  const closed = new ChatConvergence({
+    fetchAfter: async () => staleAfterClose.promise,
+    onFatalAuth: (status) => closedFatal.push(status)
+  });
+  const closing = closed.invalidate('initial');
+  closed.close();
+  staleAfterClose.reject(Object.assign(new Error('closed unauthorized'), { status: 403 }));
+  await closing;
+  assert.deepEqual(closedFatal, []);
+});
+
 test('convergence rejects a non-advancing has-more cursor', async () => {
   const convergence = new ChatConvergence({
     fetchAfter: async () => ({ items: [], next_cursor: null, has_more: true })
@@ -63,6 +126,7 @@ function message(id: string, order: number): IveKitChatMessage {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }

@@ -382,19 +382,19 @@ git commit -m "feat(client): add chat quality review"
 - Modify: `infra/ivekit/README.md`
 - Modify: `docs/ivekit-led-integration-guide.md`
 
-- [ ] **Step 1: Add deterministic browser E2E**
+- [x] **Step 1: Add deterministic browser E2E**
 
 Run two browser identities against controlled HTTP/Tinode adapters. Cover send, receive, attachment progress, read receipt, typing, presence, edit/delete, reply, reaction, pin, finding review, offline/reconnect, and session close.
 
-- [ ] **Step 2: Add real-environment acceptance script**
+- [x] **Step 2: Add real-environment acceptance script**
 
 Generate a secret-safe checklist/artifact for two real browsers and real Tinode. Do not fabricate provider evidence when environment variables are absent.
 
-- [ ] **Step 3: Verify desktop/mobile layout**
+- [x] **Step 3: Verify desktop/mobile layout**
 
 Capture desktop and mobile screenshots. Check no text overflow, pane overlap, composer shift, blank content, or hidden primary controls.
 
-- [ ] **Step 4: Add commands**
+- [x] **Step 4: Add commands**
 
 ```json
 {
@@ -402,7 +402,7 @@ Capture desktop and mobile screenshots. Check no text overflow, pane overlap, co
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "test(client): add IM acceptance flow"

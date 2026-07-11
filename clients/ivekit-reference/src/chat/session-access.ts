@@ -1,10 +1,22 @@
-import type { IveKitChatParticipant, IveKitChatSession } from '@opc/ivekit-sdk';
+import type {
+  IveKitChatMessage,
+  IveKitChatParticipant,
+  IveKitChatPin,
+  IveKitChatReaction,
+  IveKitChatSession,
+  IveKitPolicyFinding
+} from '@opc/ivekit-sdk';
 
 export interface CollaborationRealtimeEnvelope {
   type?: string;
   data?: {
     session_id?: string;
     participant?: { identity?: string };
+    message_id?: string;
+    message?: IveKitChatMessage;
+    reactions?: IveKitChatReaction[];
+    pins?: IveKitChatPin[];
+    finding?: IveKitPolicyFinding;
   };
 }
 

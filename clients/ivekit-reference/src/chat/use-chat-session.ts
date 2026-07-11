@@ -19,6 +19,7 @@ import { ReceiveOnlyTinodeAdapter } from './tinode-adapter.js';
 import { eventRevokesSession, sessionAllowsWrites, type CollaborationRealtimeEnvelope } from './session-access.js';
 import { PendingSendStore } from './pending-send-store.js';
 import { dedupeFindingReviews } from './finding-view-model.js';
+import type { ChatConvergenceTrigger } from './types.js';
 
 export interface UseChatSessionInput {
   client: IveKitClient | null;
@@ -39,6 +40,7 @@ export function useChatSession(input: UseChatSessionInput) {
   const [hasOlder, setHasOlder] = useState(false);
   const requestId = useRef(0);
   const historyCursor = useRef<string | null>(null);
+  const ancillaryRefreshId = useRef(0);
   const convergence = useRef<ChatConvergence | null>(null);
   const pendingSends = useRef(new PendingSendStore());
   const revokeCurrentSession = useRef<() => void>(() => undefined);
@@ -49,13 +51,14 @@ export function useChatSession(input: UseChatSessionInput) {
   const refreshAncillary = useCallback(async () => {
     if (!client || !sessionId) return;
     const activeRequest = requestId.current;
+    const refreshId = ++ancillaryRefreshId.current;
     const [realtime, messageState, pins, findingResult] = await Promise.all([
       client.chat.listRealtimeState(sessionId),
       client.chat.getMessageState(sessionId),
       client.chat.listPins(sessionId),
       client.chat.listFindings(sessionId, { limit: 100 })
     ]);
-    if (activeRequest !== requestId.current) return;
+    if (activeRequest !== requestId.current || refreshId !== ancillaryRefreshId.current) return;
     dispatch({ type: 'realtime_updated', realtime: realtime.states || [] });
     dispatch({ type: 'message_state_updated', requestId: activeRequest, unreadCount: messageState.unread_count, receipts: messageState.receipts });
     dispatch({ type: 'pins_updated', requestId: activeRequest, pins: pins.pins });
@@ -81,17 +84,34 @@ export function useChatSession(input: UseChatSessionInput) {
     let expiryTimer: number | null = null;
     let presenceTimer: number | null = null;
     let presenceActive = false;
+    let recentRefreshId = 0;
 
     const sync = new ChatConvergence({
       fetchAfter: (cursor) => client.chat.listMessagesPage(sessionId, {
         direction: 'after', cursor: cursor || undefined, limit: 100
       }),
       onProjection: (projection) => {
-        if (active) dispatch({ type: 'converged', messages: projection.messages });
+        if (active) dispatch({ type: 'converged', messages: projection.changedMessages });
       },
-      onFatalAuth: () => dispatch({ type: 'connection_changed', connection: 'fatal' })
+      onFatalAuth: () => {
+        if (active && currentRequest === requestId.current) {
+          dispatch({ type: 'connection_changed', connection: 'fatal' });
+        }
+      }
     });
     convergence.current = sync;
+
+    const refreshRecentMessages = async () => {
+      const refreshId = ++recentRefreshId;
+      const recent = await activeClient.chat.listMessagesPage(sessionId, { direction: 'before', limit: 100 });
+      if (!active || currentRequest !== requestId.current || refreshId !== recentRefreshId) return;
+      dispatch({ type: 'converged', messages: recent.items });
+    };
+
+    const invalidateRealtime = (trigger: ChatConvergenceTrigger) => {
+      sync.supersede();
+      return Promise.all([sync.invalidate(trigger), refreshRecentMessages()]).then(() => undefined);
+    };
 
     const adapter = new ReceiveOnlyTinodeAdapter({
       getPlan: () => client.chat.createClientPlan(sessionId, {
@@ -99,7 +119,7 @@ export function useChatSession(input: UseChatSessionInput) {
         role: input.role || 'agent'
       }),
       onStateChange: (connection) => { if (active) dispatch({ type: 'connection_changed', connection }); },
-      onInvalidate: (trigger) => { void sync.invalidate(trigger).catch(reportError); },
+      onInvalidate: (trigger) => { void invalidateRealtime(trigger).catch(reportError); },
       onError: reportError
     });
 
@@ -139,7 +159,7 @@ export function useChatSession(input: UseChatSessionInput) {
     }).catch(reportError);
 
     const visibility = () => {
-      if (document.visibilityState === 'visible') void sync.invalidate('visibility').catch(reportError);
+      if (document.visibilityState === 'visible') void invalidateRealtime('visibility').catch(reportError);
     };
     const online = () => adapter.setNetworkOnline(true);
     const offline = () => adapter.setNetworkOnline(false);
@@ -160,7 +180,19 @@ export function useChatSession(input: UseChatSessionInput) {
             return;
           }
           if (envelope.type?.startsWith('collaboration.')) {
-            void sync.invalidate('ivekit_event').catch(reportError);
+            const payload = envelope.data;
+            if (envelope.type === 'collaboration.message.reaction_updated' && payload?.message_id && payload.reactions) {
+              dispatch({ type: 'reactions_updated', requestId: currentRequest, messageId: payload.message_id, reactions: payload.reactions });
+            } else if (envelope.type === 'collaboration.message.pin_updated' && payload?.pins) {
+              dispatch({ type: 'pins_updated', requestId: currentRequest, pins: payload.pins });
+            } else if (envelope.type === 'collaboration.message.edited' && payload?.message) {
+              dispatch({ type: 'message_edited', requestId: currentRequest, message: payload.message });
+            } else if (envelope.type === 'collaboration.message.deleted' && payload?.message) {
+              dispatch({ type: 'message_deleted', requestId: currentRequest, message: payload.message });
+            } else if (envelope.type === 'collaboration.policy.finding_reviewed' && payload?.finding) {
+              setFindings((current) => upsertFinding(current, payload.finding!));
+            }
+            void invalidateRealtime('ivekit_event').catch(reportError);
             if (/receipt|presence|typing|pin|finding/.test(envelope.type)) void refreshAncillary().catch(reportError);
           }
         } catch { /* malformed event */ }
