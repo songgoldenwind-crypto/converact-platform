@@ -110,7 +110,7 @@ export async function runIveKitLedExample(config: IveKitLedExampleConfig): Promi
     room_id: room.id,
     room_name: config.roomName,
     join_channel: joinPlan.mode || joinPlan.channel,
-    message_id: (message.message as Record<string, unknown> | undefined)?.id || message.id,
+    message_id: message.message.id,
     rustdesk
   };
 }

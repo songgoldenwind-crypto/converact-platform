@@ -45,6 +45,12 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
   assert.deepEqual(pkg.files, ['dist', 'README.md']);
   assert.equal(pkg.sideEffects, false);
   assert.ok(pkg.exports['.']);
+
+  const entrypoint = readFileSync('sdk/ivekit/src/index.ts', 'utf8');
+  const readme = readFileSync('sdk/ivekit/README.md', 'utf8');
+  assert.match(entrypoint, /export type \* from '\.\/chat-types\.js'/);
+  assert.match(readme, /IveKitChatSnapshot/);
+  assert.match(readme, /receive-only/);
 });
 
 test('root build commands and production image include the iveKit SDK', () => {

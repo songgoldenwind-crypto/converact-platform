@@ -7,7 +7,11 @@ npm install @opc/ivekit-sdk
 ```
 
 ```typescript
-import { createIveKitClient } from '@opc/ivekit-sdk';
+import {
+  createIveKitClient,
+  type IveKitChatMessage,
+  type IveKitChatSnapshot
+} from '@opc/ivekit-sdk';
 
 const ivekit = createIveKitClient({
   baseUrl: 'https://ivekit.example.com',
@@ -18,6 +22,13 @@ const ivekit = createIveKitClient({
 
 const orderRef = { type: 'service_order', id: 'order-1001' };
 const chat = await ivekit.chat.openSession({ business_ref: orderRef });
+const snapshot: IveKitChatSnapshot = await ivekit.chat.getSnapshot(chat.id);
+const posted = await ivekit.chat.postMessage(
+  chat.id,
+  { sender_identity: 'engineer-1', body: 'Connected to the LED terminal.' },
+  { idempotencyKey: crypto.randomUUID() }
+);
+const message: IveKitChatMessage = posted.message;
 const room = await ivekit.media.createRoom({
   purpose: 'video_service',
   business_ref: orderRef
@@ -29,6 +40,15 @@ const device = await ivekit.rustdesk.ensureDevice({
   actorIdentity: 'engineer-1'
 });
 ```
+
+The chat client exports browser-safe JSON DTOs for sessions, participants, messages,
+attachments and processing jobs, provider delivery, receipts, realtime state,
+mutations, policy findings and reviews, reactions, pins, and cursor pages. These
+types are structural and do not import OPC server modules.
+
+Chat writes always go through the iveKit HTTP facade. A Tinode client may subscribe
+for receive-only acceleration, but it must converge messages from iveKit HTTP and
+must not publish directly.
 
 `ivekit.rustdesk.startSession()` adds consent-scoped launch planning, while the same client retains lower-level methods such as `startGatewaySession()` for advanced integrations. It also exposes typed operation-audit helpers for control actions, file transfer, screen recording, and clipboard synchronization.
 

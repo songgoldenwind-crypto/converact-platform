@@ -187,6 +187,32 @@ test('iveKit HTTP SDK keeps Bearer identity authoritative and exposes structured
   );
 });
 
+test('iveKit SDK exports named browser-safe chat DTOs', () => {
+  const typesPath = 'sdk/ivekit/src/chat-types.ts';
+  assert.equal(existsSync(typesPath), true);
+  const types = readFileSync(typesPath, 'utf8');
+  const sdk = readFileSync('sdk/ivekit/src/http-sdk.ts', 'utf8');
+  const chatInterface = sdk.match(/export interface IveKitChatHttpClient \{([\s\S]*?)\n\}/)?.[1] || '';
+
+  for (const name of [
+    'IveKitChatSession',
+    'IveKitChatParticipant',
+    'IveKitChatMessage',
+    'IveKitChatAttachment',
+    'IveKitChatDelivery',
+    'IveKitChatReceipt',
+    'IveKitChatRealtimeState',
+    'IveKitPolicyFinding',
+    'IveKitChatReaction',
+    'IveKitChatPin',
+    'IveKitCursorPage'
+  ]) assert.match(types, new RegExp(`export interface ${name}`));
+
+  assert.match(sdk, /from '\.\/chat-types\.js'/);
+  assert.doesNotMatch(chatInterface, /Promise<Record<string, unknown>>/);
+  assert.doesNotMatch(types, /agent-runtime|db-pg|node:/);
+});
+
 test('iveKit LED handoff artifacts cover SDK, extraction, deployment, and validation boundaries', () => {
   const guidePath = 'docs/ivekit-led-integration-guide.md';
   const apiPath = 'docs/ivekit-openapi.md';

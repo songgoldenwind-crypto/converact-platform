@@ -1,3 +1,37 @@
+import type {
+  IveKitChatAttachmentResult,
+  IveKitChatAttachmentUploadDescriptor,
+  IveKitChatBinding,
+  IveKitChatCapabilities,
+  IveKitChatClientPlan,
+  IveKitChatClientPlanInput,
+  IveKitChatDeleteInput,
+  IveKitChatDeliveryResult,
+  IveKitChatEditInput,
+  IveKitChatMessage,
+  IveKitChatMessageInput,
+  IveKitChatMessageState,
+  IveKitChatMutationListResult,
+  IveKitChatMutationResult,
+  IveKitChatParticipant,
+  IveKitChatParticipantInput,
+  IveKitChatPostMessageResult,
+  IveKitChatPresenceInput,
+  IveKitChatReceiptInput,
+  IveKitChatReceiptListResult,
+  IveKitChatReceiptResult,
+  IveKitChatRealtimeResult,
+  IveKitChatSession,
+  IveKitChatSnapshot,
+  IveKitChatTypingInput,
+  IveKitOpenChatSessionInput,
+  IveKitPolicyFindingListResult,
+  IveKitPolicyFindingResult,
+  IveKitPolicyFindingReviewInput,
+  IveKitQualityReviewResult,
+  IveKitWorkerRunResult
+} from './chat-types.js';
+
 export type IveKitSdkFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 export type IveKitSdkRequestBody = Exclude<RequestInit['body'], null | undefined>;
 
@@ -51,63 +85,63 @@ export interface IveKitAttachmentUploadInput {
 }
 
 export interface IveKitChatHttpClient {
-  getCapabilities(): Promise<Record<string, unknown>>;
-  openSession(input: Record<string, unknown>): Promise<Record<string, unknown>>;
+  getCapabilities(): Promise<IveKitChatCapabilities>;
+  openSession(input: IveKitOpenChatSessionInput): Promise<IveKitChatSession>;
   listSessionsByBusinessRef(
     businessRef: IveKitSdkBusinessRef,
     input?: { limit?: number }
-  ): Promise<Record<string, unknown>[]>;
-  bindSession(sessionId: string, input?: Record<string, unknown>): Promise<Record<string, unknown>>;
-  createClientPlan(sessionId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  addParticipant(sessionId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  leaveParticipant(sessionId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  listMessages(sessionId: string, input?: { limit?: number }): Promise<Record<string, unknown>[]>;
+  ): Promise<IveKitChatSession[]>;
+  bindSession(sessionId: string, input?: Record<string, unknown>): Promise<IveKitChatBinding>;
+  createClientPlan(sessionId: string, input: IveKitChatClientPlanInput): Promise<IveKitChatClientPlan>;
+  addParticipant(sessionId: string, input: IveKitChatParticipantInput): Promise<IveKitChatParticipant>;
+  leaveParticipant(sessionId: string, input: { identity?: string }): Promise<IveKitChatParticipant | null>;
+  listMessages(sessionId: string, input?: { limit?: number }): Promise<IveKitChatMessage[]>;
   postMessage(
     sessionId: string,
-    input: Record<string, unknown>,
+    input: IveKitChatMessageInput,
     options?: { idempotencyKey?: string }
-  ): Promise<Record<string, unknown>>;
-  getSnapshot(sessionId: string, input?: { limit?: number }): Promise<Record<string, unknown>>;
-  getDelivery(sessionId: string, messageId: string): Promise<Record<string, unknown>>;
-  retryDelivery(sessionId: string, messageId: string): Promise<Record<string, unknown>>;
-  listReceipts(sessionId: string, messageId: string): Promise<Record<string, unknown>>;
+  ): Promise<IveKitChatPostMessageResult>;
+  getSnapshot(sessionId: string, input?: { limit?: number }): Promise<IveKitChatSnapshot>;
+  getDelivery(sessionId: string, messageId: string): Promise<IveKitChatDeliveryResult>;
+  retryDelivery(sessionId: string, messageId: string): Promise<IveKitChatDeliveryResult>;
+  listReceipts(sessionId: string, messageId: string): Promise<IveKitChatReceiptListResult>;
   markReceipt(
     sessionId: string,
     messageId: string,
-    input: Record<string, unknown>
-  ): Promise<Record<string, unknown>>;
-  getMessageState(sessionId: string): Promise<Record<string, unknown>>;
-  setTyping(sessionId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  setPresence(sessionId: string, input: Record<string, unknown>): Promise<Record<string, unknown>>;
-  listRealtimeState(sessionId: string): Promise<Record<string, unknown>>;
+    input: IveKitChatReceiptInput
+  ): Promise<IveKitChatReceiptResult>;
+  getMessageState(sessionId: string): Promise<IveKitChatMessageState>;
+  setTyping(sessionId: string, input: IveKitChatTypingInput): Promise<IveKitChatRealtimeResult>;
+  setPresence(sessionId: string, input: IveKitChatPresenceInput): Promise<IveKitChatRealtimeResult>;
+  listRealtimeState(sessionId: string): Promise<IveKitChatRealtimeResult>;
   editMessage(
     sessionId: string,
     messageId: string,
-    input: Record<string, unknown>
-  ): Promise<Record<string, unknown>>;
+    input: IveKitChatEditInput
+  ): Promise<IveKitChatMutationResult>;
   deleteMessage(
     sessionId: string,
     messageId: string,
-    input?: Record<string, unknown>
-  ): Promise<Record<string, unknown>>;
-  listMutations(sessionId: string, messageId: string): Promise<Record<string, unknown>>;
-  uploadAttachment(sessionId: string, input: IveKitAttachmentUploadInput): Promise<Record<string, unknown>>;
-  getAttachment(sessionId: string, attachmentId: string): Promise<Record<string, unknown>>;
-  retryAttachment(sessionId: string, attachmentId: string): Promise<Record<string, unknown>>;
+    input?: IveKitChatDeleteInput
+  ): Promise<IveKitChatMutationResult>;
+  listMutations(sessionId: string, messageId: string): Promise<IveKitChatMutationListResult>;
+  uploadAttachment(sessionId: string, input: IveKitAttachmentUploadInput): Promise<IveKitChatAttachmentUploadDescriptor>;
+  getAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
+  retryAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
   listFindings(
     sessionId: string,
     input?: { message_id?: string; source?: string; review_status?: string; limit?: number }
-  ): Promise<Record<string, unknown>>;
-  getFinding(sessionId: string, findingId: string): Promise<Record<string, unknown>>;
+  ): Promise<IveKitPolicyFindingListResult>;
+  getFinding(sessionId: string, findingId: string): Promise<IveKitPolicyFindingResult>;
   reviewFinding(
     sessionId: string,
     findingId: string,
-    input: Record<string, unknown>
-  ): Promise<Record<string, unknown>>;
-  getQualityReview(sessionId: string, messageId: string): Promise<Record<string, unknown>>;
-  enqueueQualityReview(sessionId: string, messageId: string): Promise<Record<string, unknown>>;
-  runAttachmentProcessing(input?: { limit?: number }): Promise<Record<string, unknown>>;
-  runQualityReview(input?: { limit?: number }): Promise<Record<string, unknown>>;
+    input: IveKitPolicyFindingReviewInput
+  ): Promise<IveKitPolicyFindingResult>;
+  getQualityReview(sessionId: string, messageId: string): Promise<IveKitQualityReviewResult>;
+  enqueueQualityReview(sessionId: string, messageId: string): Promise<IveKitQualityReviewResult>;
+  runAttachmentProcessing(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
+  runQualityReview(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
 }
 
 export interface IveKitHttpSdk {

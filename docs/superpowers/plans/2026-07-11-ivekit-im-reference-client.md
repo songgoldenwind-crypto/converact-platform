@@ -62,11 +62,11 @@ The reducer must be deterministic and independently testable. React components d
 - Modify: `test/ivekit-http-sdk.test.ts`
 - Modify: `test/ivekit-sdk-package.test.ts`
 
-- [ ] **Step 1: Write failing typed-contract tests**
+- [x] **Step 1: Write failing typed-contract tests**
 
 Assert that the SDK exports named DTOs for sessions, participants, messages, attachments, delivery, receipts, realtime state, findings, reactions, pins, and cursor pages. Assert that `IveKitChatHttpClient` no longer returns `Record<string, unknown>` for the M2 methods.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 ```bash
 node --import tsx --test test/ivekit-http-sdk.test.ts test/ivekit-sdk-package.test.ts
@@ -74,15 +74,15 @@ node --import tsx --test test/ivekit-http-sdk.test.ts test/ivekit-sdk-package.te
 
 Expected: missing named chat DTOs and methods.
 
-- [ ] **Step 3: Add browser-safe DTOs**
+- [x] **Step 3: Add browser-safe DTOs**
 
 Keep types structural and JSON-only. Do not import server types. Model provider delivery separately from participant receipts and include mutation, relation, reaction, pin, attachment-processing, and finding-review fields.
 
-- [ ] **Step 4: Add typed methods without changing existing payloads**
+- [x] **Step 4: Add typed methods without changing existing payloads**
 
 Retain all current methods and errors. Add optional cursor/query inputs in a backward-compatible way. Build must remain DOM + ES only.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 ```bash
 npm run build:ivekit-sdk
