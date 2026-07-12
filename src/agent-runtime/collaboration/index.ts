@@ -123,6 +123,8 @@ export { IntelligenceProviderHealthService } from './intelligence-provider-healt
 export type * from './intelligence-provider-health.js';
 export { createPolicyAttachmentProviderResolver } from './intelligence-provider-routing.js';
 export type * from './intelligence-provider-routing.js';
+export { IntelligenceSourceService } from './intelligence-source-service.js';
+export type * from './intelligence-source-service.js';
 export {
   sanitizeProviderErrorCode,
   sanitizeProviderMetadata,

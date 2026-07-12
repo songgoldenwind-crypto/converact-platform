@@ -863,6 +863,17 @@ export class RemoteAssistanceStore {
     return result.rows.map(decodeEvidence);
   }
 
+  async getEvidence(input: {
+    tenant_id: string;
+    evidence_id: string;
+  }): Promise<EvidenceRecord | null> {
+    const result = await this.pg.query(
+      'SELECT * FROM evidence_records WHERE id = $1 AND tenant_id = $2',
+      [input.evidence_id, input.tenant_id]
+    );
+    return result.rows[0] ? decodeEvidence(result.rows[0]) : null;
+  }
+
   async listEvidenceBySession(input: {
     tenant_id: string;
     session_id: string;

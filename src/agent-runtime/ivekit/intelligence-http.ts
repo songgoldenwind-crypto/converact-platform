@@ -14,10 +14,17 @@ import {
   IntelligenceProviderHealthService,
   type IntelligenceProviderHealthResult
 } from '../collaboration/intelligence-provider-health.js';
+import {
+  IntelligenceSourceService,
+  type IntelligenceSourceSnapshot
+} from '../collaboration/intelligence-source-service.js';
+import { createLiveKitMediaModule } from '../livekit/index.js';
 
 export interface RouteIveKitIntelligenceApiOptions {
   registry?: IntelligenceProviderRegistry;
   health?: { probe(input: { profile_ids?: string[] }): Promise<IntelligenceProviderHealthResult[]> };
+  db?: unknown;
+  source?: Pick<IntelligenceSourceService, 'importSource' | 'getSource' | 'retrySource'>;
   publish?: (tenantId: string, type: string, data: unknown) => void | Promise<void>;
 }
 
@@ -110,6 +117,62 @@ export async function routeIveKitIntelligenceApi(
     const profileIds = optionalProfileIds(input.profile_ids);
     const health = options.health || new IntelligenceProviderHealthService(registry);
     return { data: { items: await health.probe({ ...(profileIds ? { profile_ids: profileIds } : {}) }) } };
+  }
+
+  const sourceCreateMatch = routePath.match(
+    /^\/api\/ivekit\/intelligence\/sessions\/([^/]+)\/sources$/
+  );
+  if (sourceCreateMatch && method === 'POST') {
+    requireAdministrator(ctx.role);
+    const input = bodyRecord(body);
+    const unsupported = Object.keys(input).find((field) => !['source_type', 'source_ref_id'].includes(field));
+    if (unsupported) throw Object.assign(new Error(`unsupported intelligence source field: ${unsupported}`), { status: 400 });
+    const idempotencyKey = headerValue(headers, 'idempotency-key').trim();
+    if (!idempotencyKey) throw Object.assign(new Error('Idempotency-Key is required'), { status: 400 });
+    const sourceService = intelligenceSourceService(pg, registry, options);
+    const created = await sourceService.importSource({
+      tenant_id: ctx.tenantId,
+      session_id: decodeURIComponent(sourceCreateMatch[1]),
+      source_type: String(input.source_type || '') as 'media_recording' | 'remote_recording',
+      source_ref_id: String(input.source_ref_id || ''),
+      actor_identity: actorIdentity(ctx, headers),
+      idempotency_key: idempotencyKey
+    });
+    const publish = options.publish || wsBroadcast;
+    return {
+      status: created.replayed ? 200 : 201,
+      data: projectSourceSnapshot(created),
+      afterCommit: () => Promise.resolve(publish(
+        ctx.tenantId,
+        'collaboration.intelligence.source_created',
+        {
+          session_id: created.source.session_id,
+          source_id: created.source.id,
+          message_id: created.source.message_id,
+          attachment_id: created.source.attachment_id,
+          status: created.source.status,
+          replayed: created.replayed
+        }
+      ))
+    };
+  }
+
+  const sourceMatch = routePath.match(
+    /^\/api\/ivekit\/intelligence\/sessions\/([^/]+)\/sources\/([^/]+)(?:\/(retry))?$/
+  );
+  if (sourceMatch && (method === 'GET' || (method === 'POST' && sourceMatch[3] === 'retry'))) {
+    requireAdministrator(ctx.role);
+    const sourceService = intelligenceSourceService(pg, registry, options);
+    const sourceInput = {
+      tenant_id: ctx.tenantId,
+      session_id: decodeURIComponent(sourceMatch[1]),
+      source_id: decodeURIComponent(sourceMatch[2])
+    };
+    const snapshot = method === 'GET'
+      ? await sourceService.getSource(sourceInput)
+      : await sourceService.retrySource(sourceInput);
+    if (!snapshot) throw Object.assign(new Error('intelligence source not found'), { status: 404 });
+    return { data: projectSourceSnapshot(snapshot) };
   }
 
   return undefined;
@@ -213,4 +276,43 @@ function optionalProfileIds(value: unknown): string[] | undefined {
     throw Object.assign(new Error('profile_ids contains an invalid profile id'), { status: 400 });
   }
   return [...new Set(ids)];
+}
+
+function intelligenceSourceService(
+  pg: PgQueryable,
+  registry: IntelligenceProviderRegistry,
+  options: RouteIveKitIntelligenceApiOptions
+): Pick<IntelligenceSourceService, 'importSource' | 'getSource' | 'retrySource'> {
+  if (options.source) return options.source;
+  const media = options.db ? createLiveKitMediaModule({ db: options.db }) : null;
+  return new IntelligenceSourceService({
+    pg,
+    registry,
+    getMediaRecording: media ? (recordingId) => media.recordings.getRecording(recordingId) : undefined
+  });
+}
+
+function projectSourceSnapshot(snapshot: IntelligenceSourceSnapshot): Record<string, unknown> {
+  const {
+    idempotency_key: _idempotencyKey,
+    request_hash: _requestHash,
+    ...publicSource
+  } = snapshot.source;
+  return {
+    source: publicSource,
+    message_id: snapshot.message.id,
+    replayed: snapshot.replayed,
+    attachment: {
+      id: snapshot.attachment.id,
+      kind: snapshot.attachment.kind,
+      filename: snapshot.attachment.filename,
+      content_type: snapshot.attachment.content_type,
+      size_bytes: snapshot.attachment.size_bytes,
+      checksum: snapshot.attachment.checksum,
+      processing_status: snapshot.attachment.processing_status,
+      processing_error_code: snapshot.attachment.processing_error_code,
+      processed_at: snapshot.attachment.processed_at
+    },
+    job: snapshot.job
+  };
 }

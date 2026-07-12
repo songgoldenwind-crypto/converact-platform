@@ -24,6 +24,8 @@ test('V3 intelligence migration defines tenant policy, source links, and durable
 
   assert.match(sql, /source_type TEXT NOT NULL[\s\S]*CHECK \(source_type IN \('media_recording', 'remote_recording'\)\)/i);
   assert.match(sql, /UNIQUE \(tenant_id, source_type, source_ref_id, session_id\)/i);
+  assert.match(sql, /collaboration_intelligence_source_links[\s\S]*idempotency_key TEXT NOT NULL/i);
+  assert.match(sql, /collaboration_intelligence_source_links[\s\S]*request_hash TEXT NOT NULL/i);
   assert.match(sql, /processor_profile_id TEXT NOT NULL DEFAULT ''/i);
   assert.match(sql, /status TEXT NOT NULL DEFAULT 'pending'[\s\S]*'retry_wait'[\s\S]*'cancelled'/i);
   assert.match(sql, /source_hash TEXT NOT NULL[\s\S]*char_length\(source_hash\) = 64/i);

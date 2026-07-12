@@ -12,6 +12,7 @@ import { startMediaCallTimeoutWorker } from '../livekit/media-call-timeout-worke
 import { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
 import type { PgQueryable } from '../../db-pg.js';
 import { wsBroadcast } from '../../ws.js';
+import { syncIntelligenceSourceForAttachment } from '../collaboration/intelligence-source-service.js';
 
 export interface IveKitWorkerHandle {
   stop(): Promise<void>;
@@ -112,6 +113,11 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
       pg: input.pg,
       env,
       onProcessed: async ({ attachment, job, policy }) => {
+        const source = await syncIntelligenceSourceForAttachment(input.pg, {
+          tenant_id: attachment.tenant_id,
+          attachment_id: attachment.id,
+          job
+        });
         await publish(attachment.tenant_id, 'collaboration.attachment.processed', {
           session_id: attachment.session_id,
           message_id: attachment.message_id,
@@ -119,6 +125,16 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
           job,
           policy
         });
+        if (source) {
+          await publish(attachment.tenant_id, 'collaboration.intelligence.source_processed', {
+            session_id: source.session_id,
+            source_id: source.id,
+            message_id: source.message_id,
+            attachment_id: source.attachment_id,
+            status: source.status,
+            error_code: source.error_code
+          });
+        }
         if (qualityReviewEnqueuer.enabled) {
           await qualityReviewEnqueuer.enqueueMessage({
             tenant_id: attachment.tenant_id,

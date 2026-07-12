@@ -84,7 +84,10 @@ export class AttachmentProcessingService {
     this.claimLeaseMs = boundedInteger(input.claimLeaseMs ?? 60_000, 5_000, 600_000, 'claimLeaseMs');
   }
 
-  async enqueueMessage(message: CollaborationMessage): Promise<CollaborationAttachmentProcessingJob[]> {
+  async enqueueMessage(
+    message: CollaborationMessage,
+    options: { automatic?: boolean } = {}
+  ): Promise<CollaborationAttachmentProcessingJob[]> {
     return withPgTenant(this.input.pg, message.tenant_id, async (pg) => {
       const jobs: CollaborationAttachmentProcessingJob[] = [];
       for (const attachment of message.attachments) {
@@ -92,11 +95,11 @@ export class AttachmentProcessingService {
         if (!processor || attachment.extracted_text) continue;
         const resolution = await this.resolveProvider(message.tenant_id, processor);
         const provider = resolution.provider;
-        const cancelled = !resolution.enabled || !resolution.automatic;
+        const cancelled = !resolution.enabled || (options.automatic !== false && !resolution.automatic);
         const status = cancelled ? 'cancelled' : 'pending';
         const errorCode = !resolution.enabled
           ? resolution.error_code || 'policy_disabled'
-          : !resolution.automatic
+          : options.automatic !== false && !resolution.automatic
             ? 'automatic_processing_disabled'
             : provider
               ? ''

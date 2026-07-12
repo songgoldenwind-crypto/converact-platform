@@ -131,7 +131,10 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ...(pg ? { pg } : {})
         })
         ?? await routes.events(pg, method, path, url, headers)
-        ?? await routes.intelligence(pg, method, path, url, body, headers, input.intelligenceOptions)
+        ?? await routes.intelligence(pg, method, path, url, body, headers, {
+          db: input.db,
+          ...input.intelligenceOptions
+        })
         ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
         ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
       const buffered = await runWithWsBroadcastBuffer(() =>

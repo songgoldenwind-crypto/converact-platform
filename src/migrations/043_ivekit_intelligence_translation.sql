@@ -40,9 +40,12 @@ CREATE TABLE IF NOT EXISTS collaboration_intelligence_source_links (
     CHECK (status IN ('pending', 'processing', 'retry_wait', 'succeeded', 'failed', 'cancelled')),
   error_code TEXT NOT NULL DEFAULT '',
   created_by TEXT NOT NULL DEFAULT '',
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL CHECK (char_length(request_hash) = 64),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (tenant_id, source_type, source_ref_id, session_id)
+  UNIQUE (tenant_id, source_type, source_ref_id, session_id),
+  UNIQUE (tenant_id, idempotency_key)
 );
 
 CREATE INDEX IF NOT EXISTS idx_collaboration_intelligence_sources_session

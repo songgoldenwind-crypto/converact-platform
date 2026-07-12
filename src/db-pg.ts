@@ -56,6 +56,7 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('collaboration_policy_finding_reviews');
     this.ensureTable('collaboration_quality_review_jobs');
     this.ensureTable('collaboration_intelligence_policies');
+    this.ensureTable('collaboration_intelligence_source_links');
     this.ensureTable('remote_assistance_sessions');
     this.ensureTable('remote_consent_events');
     this.ensureTable('remote_tool_sessions');
@@ -91,6 +92,8 @@ export class MemoryPg implements PgQueryable {
   }
 
   private execute(sql: string, params: unknown[]): TableRow[] | { rows: TableRow[]; rowCount: number } {
+    if (sql.startsWith('SELECT pg_advisory_xact_lock')) return [];
+
     if (sql.includes('ivekit_unified_timeline')) {
       const tenantId = String(params[0]);
       const chatIds = new Set((params[1] as unknown[] || []).map(String));
@@ -1881,6 +1884,88 @@ export class MemoryPg implements PgQueryable {
       return [row];
     }
 
+    if (sql.startsWith('INSERT INTO collaboration_intelligence_source_links')) {
+      const existing = [...this.table('collaboration_intelligence_source_links').values()].find((row) =>
+        (String(row.tenant_id) === String(params[1]) && String(row.idempotency_key) === String(params[13])) ||
+        (
+          String(row.tenant_id) === String(params[1]) &&
+          String(row.session_id) === String(params[2]) &&
+          String(row.source_type) === String(params[3]) &&
+          String(row.source_ref_id) === String(params[4])
+        )
+      );
+      if (existing) return { rows: [], rowCount: 0 };
+      const now = this.nowIso();
+      const row: TableRow = {
+        id: params[0],
+        tenant_id: params[1],
+        session_id: params[2],
+        source_type: params[3],
+        source_ref_id: params[4],
+        message_id: params[5],
+        attachment_id: params[6],
+        processor_profile_id: params[7],
+        content_type: params[8],
+        checksum: params[9],
+        status: params[10],
+        error_code: params[11],
+        created_by: params[12],
+        idempotency_key: params[13],
+        request_hash: params[14],
+        created_at: now,
+        updated_at: now
+      };
+      this.table('collaboration_intelligence_source_links').set(String(row.id), row);
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_intelligence_source_links')) {
+      const rows = [...this.table('collaboration_intelligence_source_links').values()];
+      if (sql.includes('idempotency_key = $2')) {
+        return rows.filter((row) =>
+          String(row.tenant_id) === String(params[0]) && String(row.idempotency_key) === String(params[1])
+        );
+      }
+      if (sql.includes('source_type = $3')) {
+        return rows.filter((row) =>
+          String(row.tenant_id) === String(params[0]) &&
+          String(row.session_id) === String(params[1]) &&
+          String(row.source_type) === String(params[2]) &&
+          String(row.source_ref_id) === String(params[3])
+        );
+      }
+      return rows.filter((row) =>
+        String(row.id) === String(params[0]) &&
+        String(row.tenant_id) === String(params[1]) &&
+        String(row.session_id) === String(params[2])
+      );
+    }
+
+    if (sql.startsWith("UPDATE collaboration_intelligence_source_links SET status = 'pending'")) {
+      const row = this.table('collaboration_intelligence_source_links').get(String(params[0]));
+      if (row && String(row.tenant_id) === String(params[1]) && String(row.session_id) === String(params[2])) {
+        row.status = 'pending';
+        row.error_code = '';
+        row.processor_profile_id = params[3];
+        row.updated_at = this.nowIso();
+        return { rows: [row], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    }
+
+    if (sql.startsWith('UPDATE collaboration_intelligence_source_links SET status = $3')) {
+      const row = [...this.table('collaboration_intelligence_source_links').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) &&
+        String(candidate.attachment_id) === String(params[1])
+      );
+      if (!row) return { rows: [], rowCount: 0 };
+      row.status = params[2];
+      row.error_code = params[3];
+      row.processor_profile_id = params[4];
+      row.updated_at = this.nowIso();
+      return { rows: [row], rowCount: 1 };
+    }
+
     if (sql.startsWith('SELECT * FROM collaboration_message_translations WHERE id')) {
       const row = this.table('collaboration_message_translations').get(String(params[0]));
       return row ? [row] : [];
@@ -3083,7 +3168,8 @@ export class MemoryPg implements PgQueryable {
 
     if (sql.startsWith('SELECT * FROM evidence_records WHERE id')) {
       const row = this.table('evidence_records').get(String(params[0]));
-      return row ? [row] : [];
+      const tenantMatches = params[1] == null || String(row?.tenant_id) === String(params[1]);
+      return row && tenantMatches ? [row] : [];
     }
 
     if (sql.startsWith('SELECT * FROM evidence_records WHERE tenant_id') && sql.includes('session_id = $2')) {
