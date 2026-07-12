@@ -2369,6 +2369,66 @@ export class MemoryPg implements PgQueryable {
       return [];
     }
 
+    if (sql.startsWith('SELECT external_id, status, permissions FROM rustdesk_gateway_sessions')) {
+      const tenantId = String(params[0]);
+      const row = this.table('rustdesk_gateway_sessions').get(String(params[1]));
+      return row && String(row.tenant_id) === tenantId ? [row] : [];
+    }
+
+    if (sql.startsWith('INSERT INTO rustdesk_secondary_confirmations')) {
+      const row: TableRow = {
+        id: params[0], tenant_id: params[1], external_id: params[2], actor_identity: params[3],
+        operation: params[4], expires_at: params[5], consumed_at: null,
+        consumed_by_event_id: null, created_at: params[6]
+      };
+      this.table('rustdesk_secondary_confirmations').set(String(row.id), row);
+      return [row];
+    }
+
+    if (sql.startsWith('UPDATE rustdesk_secondary_confirmations SET consumed_at')) {
+      const row = this.table('rustdesk_secondary_confirmations').get(String(params[0]));
+      if (!row || String(row.tenant_id) !== String(params[1]) || String(row.external_id) !== String(params[2]) ||
+        String(row.actor_identity) !== String(params[3]) || String(row.operation) !== String(params[4]) ||
+        row.consumed_at || String(row.expires_at) <= String(params[5])) return [];
+      row.consumed_at = params[5];
+      row.consumed_by_event_id = params[6];
+      return [row];
+    }
+
+    if (sql.startsWith('SELECT * FROM rustdesk_control_locks')) {
+      const row = this.table('rustdesk_control_locks').get(`${params[0]}:${params[1]}`);
+      return row ? [row] : [];
+    }
+
+    if (sql.startsWith('INSERT INTO rustdesk_control_locks')) {
+      const key = `${params[0]}:${params[1]}`;
+      const row: TableRow = {
+        tenant_id: params[0], external_id: params[1], owner_identity: params[2], status: 'owned',
+        lease_expires_at: params[3], version: params[4], updated_at: params[5]
+      };
+      this.table('rustdesk_control_locks').set(key, row);
+      return [row];
+    }
+
+    if (sql.startsWith("UPDATE rustdesk_control_locks SET status = 'released'")) {
+      const row = this.table('rustdesk_control_locks').get(`${params[0]}:${params[1]}`);
+      if (!row) return { rows: [], rowCount: 0 };
+      row.status = 'released';
+      row.version = params[2];
+      row.updated_at = params[3];
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (sql.startsWith('INSERT INTO rustdesk_control_events')) {
+      const row: TableRow = {
+        id: params[0], tenant_id: params[1], external_id: params[2], event_type: params[3],
+        actor_identity: params[4], previous_owner_identity: params[5], owner_identity: params[6],
+        lock_version: params[7], metadata: {}, created_at: params[8]
+      };
+      this.table('rustdesk_control_events').set(String(row.id), row);
+      return [];
+    }
+
     if (sql.startsWith('SELECT * FROM rustdesk_gateway_sessions WHERE external_id')) {
       const row = this.table('rustdesk_gateway_sessions').get(String(params[0]));
       return row ? [row] : [];
