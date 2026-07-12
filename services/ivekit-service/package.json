@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "migrate": "node dist/ivekit-migrate.js",
     "start": "node dist/ivekit-server.js"
   },
   "engines": {

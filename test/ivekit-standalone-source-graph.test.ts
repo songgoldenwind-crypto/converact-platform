@@ -45,7 +45,7 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     assets: string[];
   };
 
-  assert.deepEqual(policy.entrypoints, ['src/ivekit-server.ts']);
+  assert.deepEqual(policy.entrypoints, ['src/ivekit-server.ts', 'src/ivekit-migrate.ts']);
   for (const prefix of [
     'src/agent-runtime/call-center/',
     'src/agent-runtime/ivr/',

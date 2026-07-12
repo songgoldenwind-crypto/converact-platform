@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Pool, QueryResult, QueryResultRow } from 'pg';
+import {
+  isPostgresMigrationFile,
+  readPostgresMigrationPlan,
+  runPostgresMigrationsOnClient
+} from './postgres-migrations.js';
 
 const migrationsDir = dirname(fileURLToPath(import.meta.url)) + '/migrations';
 
@@ -3055,14 +3059,15 @@ export function resetPostgresForTests(pool: PgQueryable | null = null): void {
   realPool = null;
 }
 
-export async function runMigrations(pg: PgQueryable): Promise<void> {
-  const files = readdirSync(migrationsDir)
-    .filter(isPostgresMigrationFile)
-    .sort();
+export async function runMigrations(
+  pg: PgQueryable,
+  options: { directory?: string; advisoryLockName?: string } = {}
+): Promise<void> {
+  const plan = readPostgresMigrationPlan(options.directory || migrationsDir);
 
   if (pg instanceof MemoryPg) {
-    for (const file of files) {
-      const version = file.replace(/\.sql$/, '');
+    for (const migration of plan) {
+      const version = migration.version;
       const existing = await pg.query('SELECT version FROM schema_migrations WHERE version = $1', [version]);
       if (existing.rowCount && existing.rowCount > 0) continue;
       await pg.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
@@ -3073,12 +3078,13 @@ export async function runMigrations(pg: PgQueryable): Promise<void> {
   const connection = pg as Pool & { release?: () => void };
   if (typeof connection.connect === 'function' && typeof connection.release !== 'function') {
     const conn = await connection.connect();
+    const lockName = options.advisoryLockName || 'opc_schema_migrations';
     try {
-      await conn.query(`SELECT pg_advisory_lock(hashtext('opc_schema_migrations'))`);
-      await runPostgresMigrationsOnClient(conn, files);
+      await conn.query('SELECT pg_advisory_lock(hashtext($1))', [lockName]);
+      await runPostgresMigrationsOnClient(conn, plan);
     } finally {
       try {
-        await conn.query(`SELECT pg_advisory_unlock(hashtext('opc_schema_migrations'))`);
+        await conn.query('SELECT pg_advisory_unlock(hashtext($1))', [lockName]);
       } finally {
         conn.release();
       }
@@ -3086,38 +3092,10 @@ export async function runMigrations(pg: PgQueryable): Promise<void> {
     return;
   }
 
-  await runPostgresMigrationsOnClient(pg, files);
+  await runPostgresMigrationsOnClient(pg, plan);
 }
 
-async function runPostgresMigrationsOnClient(pg: PgQueryable, files: string[]): Promise<void> {
-  await pg.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      version TEXT PRIMARY KEY,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  for (const file of files) {
-    const version = file.replace(/\.sql$/, '');
-    const existing = await pg.query('SELECT version FROM schema_migrations WHERE version = $1', [version]);
-    if (existing.rowCount && existing.rowCount > 0) continue;
-
-    const sql = readFileSync(join(migrationsDir, file), 'utf8');
-    await pg.query('BEGIN');
-    try {
-      await pg.query(sql);
-      await pg.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
-      await pg.query('COMMIT');
-    } catch (error) {
-      await pg.query('ROLLBACK');
-      throw error;
-    }
-  }
-}
-
-export function isPostgresMigrationFile(file: string): boolean {
-  return /^\d{3}_[a-z0-9_]+\.sql$/.test(file);
-}
+export { isPostgresMigrationFile };
 
 export async function withPgTransaction<T>(
   pg: PgQueryable,

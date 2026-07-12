@@ -10,4 +10,10 @@ npm run verify:ivekit:standalone-context
 
 The generated context contains only the iveKit source graph, this package manifest and lockfile, the standalone Dockerfile, and explicitly selected communication migrations. The boundary verifier rejects call-center, IVR, frontend, unresolved imports, undeclared runtime packages, symlinks, extra files, and lockfile drift.
 
-The V2 PostgreSQL foundation migration is delivered separately from the OPC full schema. Until that migration is present, the context proves independent compilation but is not a complete fresh-database deployment artifact.
+The generated `migrations/` directory includes the minimal fresh-database foundation, communication schema, forced tenant RLS, and standalone runtime security hardening. Apply migrations with the one-shot compiled entrypoint before starting the long-running service:
+
+```bash
+npm run migrate
+```
+
+Create the `opc_runtime` role before migration so restricted helper-function grants can be applied, then grant it schema/table/sequence access after migration and revoke all access to `schema_migrations`. The long-running service must use `opc_runtime` with `NOSUPERUSER NOBYPASSRLS`; only the one-shot migration job may use `opc_admin`.

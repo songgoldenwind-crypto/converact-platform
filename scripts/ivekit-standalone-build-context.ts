@@ -72,7 +72,8 @@ export function buildIveKitStandaloneContext(
   for (const source of policy.assets) copy(repoRoot, outputDir, source, basename(source));
   copy(repoRoot, outputDir, 'services/ivekit-service/source-policy.json', 'source-policy.json');
   for (const migration of policy.migrations || []) {
-    copy(repoRoot, outputDir, `src/migrations/${migration}`, `migrations/${migration}`);
+    const source = migration.includes('/') ? migration : `src/migrations/${migration}`;
+    copy(repoRoot, outputDir, source, `migrations/${basename(migration)}`);
   }
 
   assertNoSymlinks(outputDir);

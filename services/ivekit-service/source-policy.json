@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
   "entrypoints": [
-    "src/ivekit-server.ts"
+    "src/ivekit-server.ts",
+    "src/ivekit-migrate.ts"
   ],
   "forbidden_prefixes": [
     "src/agent-runtime/call-center/",
@@ -20,6 +21,9 @@
     "services/ivekit-service/README.md"
   ],
   "migrations": [
+    "services/ivekit-service/migrations/000_ivekit_foundation.sql",
+    "src/migrations/009_tenant_rls.sql",
+    "src/migrations/010_force_rls.sql",
     "011_collaboration_remote_assistance.sql",
     "012_livekit_participants.sql",
     "013_media_recording_business_ref.sql",
@@ -45,6 +49,7 @@
     "037_media_call_timeout_worker.sql",
     "038_media_recording_evidence.sql",
     "039_rustdesk_access_policy.sql",
-    "040_rustdesk_control_ownership.sql"
+    "040_rustdesk_control_ownership.sql",
+    "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }

@@ -6,10 +6,15 @@ import { createLiveKitRoomClient } from './token-service.js';
 export type CreateLiveKitRoomInput = CreateMediaRoomInput;
 export type { LiveKitRoomRow };
 
+export interface LiveKitRoomStoreOptions {
+  syncLegacyVoiceCallSession?: boolean;
+}
+
 export class LiveKitRoomStore {
   constructor(
     readonly db: unknown,
-    private readonly config?: LiveKitConfig
+    private readonly config?: LiveKitConfig,
+    private readonly options: LiveKitRoomStoreOptions = {}
   ) {}
 
   async createRoom(input: CreateLiveKitRoomInput): Promise<LiveKitRoomRow> {
@@ -40,7 +45,7 @@ export class LiveKitRoomStore {
       [roomId, input.tenant_id, roomName, roomSid, input.purpose, input.call_session_id || null, json(metadata)]
     );
 
-    if (input.call_session_id) {
+    if (input.call_session_id && this.options.syncLegacyVoiceCallSession !== false) {
       run(
         this.db,
         `UPDATE voice_call_sessions

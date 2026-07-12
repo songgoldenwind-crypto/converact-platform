@@ -18,8 +18,8 @@ test('PostgreSQL migrations hold one advisory lock for the whole migration pass'
   const client = {
     query: async (sql: string) => {
       queries.push(sql);
-      if (sql.includes('SELECT version FROM schema_migrations')) {
-        return { rows: [{ version: 'already_applied' }], rowCount: 1 };
+      if (sql.includes('SELECT version, checksum FROM schema_migrations')) {
+        return { rows: [{ version: 'already_applied', checksum: '' }], rowCount: 1 };
       }
       return { rows: [], rowCount: 0 };
     },
@@ -44,7 +44,7 @@ test('fresh PostgreSQL migrations define RLS helpers before policy execution', a
   const appliedVersions: string[] = [];
   const pg = {
     async query(sql: string, params: unknown[] = []) {
-      if (sql.includes('SELECT version FROM schema_migrations')) {
+      if (sql.includes('SELECT version, checksum FROM schema_migrations')) {
         return { rows: [], rowCount: 0 };
       }
       if (sql.includes('INSERT INTO schema_migrations')) {

@@ -16,7 +16,9 @@ function conflict(message: string): Error & { status: number } {
 }
 
 export function createLiveKitMediaModule(input: LiveKitMediaModuleInput): LiveKitMediaModule {
-  const rooms = new LiveKitRoomStore(input.db, input.config);
+  const rooms = new LiveKitRoomStore(input.db, input.config, {
+    syncLegacyVoiceCallSession: false
+  });
   const participants = new LiveKitParticipantStore(input.db);
   const gateways = input.gateways || getMediaGatewayRegistry();
   const recordings = new LiveKitRecordingService(input.db, {
