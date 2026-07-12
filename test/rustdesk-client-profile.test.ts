@@ -280,6 +280,43 @@ test('RustDesk artifact manifest rejects inexact release paths and contradictory
   }
 });
 
+test('RustDesk artifact manifest rejects noncanonical installer filenames', () => {
+  const safe = 'rustdesk-1.4.7-windows-x86_64.exe';
+  const base = 'https://downloads.example.com/releases/1.4.7/';
+  const invalidArtifacts = [
+    ['raw URL newline', safe, `${base}rustdesk-1.4.7-windows-x86_\n64.exe`],
+    ['encoded newline', 'rustdesk-1.4.7-windows-x86_64\n.exe', `${base}rustdesk-1.4.7-windows-x86_64%0A.exe`],
+    ['encoded control', 'rustdesk-1.4.7-windows-x86_64\u0000.exe', `${base}rustdesk-1.4.7-windows-x86_64%00.exe`],
+    ['whitespace', 'rustdesk 1.4.7-windows-x86_64.exe', `${base}rustdesk%201.4.7-windows-x86_64.exe`],
+    ['literal percent escape', 'rustdesk-%0A-1.4.7-windows-x86_64.exe', `${base}rustdesk-%250A-1.4.7-windows-x86_64.exe`],
+    ['encoded canonical basename', safe, `${base}rustdesk-1.4.7-windows-%7886_64.exe`],
+    ['Unicode confusable', 'rustdеsk-1.4.7-windows-x86_64.exe', `${base}rustdеsk-1.4.7-windows-x86_64.exe`],
+    ['disallowed ASCII', 'rustdesk@1.4.7-windows-x86_64.exe', `${base}rustdesk@1.4.7-windows-x86_64.exe`],
+    ['overlong filename', `${'a'.repeat(230)}-rustdesk-1.4.7-windows-x86_64.exe`, `${base}${'a'.repeat(230)}-rustdesk-1.4.7-windows-x86_64.exe`],
+    ['malformed percent encoding', safe, `${base}rustdesk-1.4.7-windows-x86_64%ZZ.exe`]
+  ] as const;
+
+  for (const [name, filename, url] of invalidArtifacts) {
+    assert.throws(
+      () => createRustDeskClientDistributionProfile(
+        pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
+        {
+          env: profileEnv(artifactManifest([{
+            platform: 'windows',
+            architecture: 'x86_64',
+            filename,
+            url,
+            sha256: SHA256
+          }])),
+          now: () => NOW
+        }
+      ),
+      /artifact/,
+      name
+    );
+  }
+});
+
 test('RustDesk client profile rejects configured server and key drift', () => {
   const env = profileEnv();
   const profile = createRustDeskClientDistributionProfile(

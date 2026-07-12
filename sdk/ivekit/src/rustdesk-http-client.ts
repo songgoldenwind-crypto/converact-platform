@@ -435,20 +435,13 @@ function projectDistributionInstallSource(
   const source = distributionRecord(value, 'install_source');
   if (source.state === 'not_configured') return { state: 'not_configured' };
   if (source.state !== 'configured') throw invalidDistribution('install_source.state');
-  let url: URL;
-  try {
-    url = new URL(distributionRequiredString(source.url, 'install_source.url'));
-  } catch {
-    throw invalidDistribution('install_source.url');
-  }
+  const url = distributionArtifactUrl(source.url);
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
     throw invalidDistribution('install_source.url');
   }
+  const filename = distributionArtifactFilename(source.filename);
+  validateDistributionCanonicalUrlFilename(url, filename);
   const pathSegments = distributionArtifactPathSegments(url);
-  const filename = distributionRequiredString(source.filename, 'install_source.filename');
-  if (filename === '.' || filename === '..' || filename.includes('/') || filename.includes('\\')) {
-    throw invalidDistribution('install_source.filename');
-  }
   const urlFilename = pathSegments.at(-1) || '';
   if (filename !== urlFilename) throw invalidDistribution('install_source.filename');
   validateDistributionArtifactReleasePath(url, pathSegments);
@@ -468,6 +461,34 @@ const distributionArtifactArchitectureTokens: Record<RustDeskClientDistributionA
   x86_64: ['x86_64', 'amd64'],
   aarch64: ['aarch64', 'arm64']
 };
+
+function distributionArtifactUrl(value: unknown): URL {
+  if (typeof value !== 'string' || !value || /[\u0000-\u0020\u007f-\u009f]/.test(value)) {
+    throw invalidDistribution('install_source.url');
+  }
+  try {
+    return new URL(value);
+  } catch {
+    throw invalidDistribution('install_source.url');
+  }
+}
+
+function distributionArtifactFilename(value: unknown): string {
+  if (
+    typeof value !== 'string' ||
+    value === '.' ||
+    value === '..' ||
+    !/^[A-Za-z0-9._+-]{1,255}$/.test(value)
+  ) {
+    throw invalidDistribution('install_source.filename');
+  }
+  return value;
+}
+
+function validateDistributionCanonicalUrlFilename(url: URL, filename: string): void {
+  const rawFilename = url.pathname.split('/').filter(Boolean).at(-1) || '';
+  if (rawFilename !== filename) throw invalidDistribution('install_source.filename');
+}
 
 function distributionArtifactPathSegments(url: URL): string[] {
   try {

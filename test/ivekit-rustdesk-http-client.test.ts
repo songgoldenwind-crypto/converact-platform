@@ -517,6 +517,42 @@ test('iveKit RustDesk profile projection rejects inexact release paths and contr
   }
 });
 
+test('iveKit RustDesk profile projection rejects noncanonical installer filenames', async () => {
+  const safe = 'rustdesk-1.4.7-windows-x86_64.exe';
+  const baseUrl = 'https://downloads.example.com/releases/1.4.7/';
+  const invalidSources = [
+    ['raw URL newline', safe, `${baseUrl}rustdesk-1.4.7-windows-x86_\n64.exe`],
+    ['encoded newline', 'rustdesk-1.4.7-windows-x86_64\n.exe', `${baseUrl}rustdesk-1.4.7-windows-x86_64%0A.exe`],
+    ['encoded control', 'rustdesk-1.4.7-windows-x86_64\u0000.exe', `${baseUrl}rustdesk-1.4.7-windows-x86_64%00.exe`],
+    ['whitespace', 'rustdesk 1.4.7-windows-x86_64.exe', `${baseUrl}rustdesk%201.4.7-windows-x86_64.exe`],
+    ['literal percent escape', 'rustdesk-%0A-1.4.7-windows-x86_64.exe', `${baseUrl}rustdesk-%250A-1.4.7-windows-x86_64.exe`],
+    ['encoded canonical basename', safe, `${baseUrl}rustdesk-1.4.7-windows-%7886_64.exe`],
+    ['Unicode confusable', 'rustdеsk-1.4.7-windows-x86_64.exe', `${baseUrl}rustdеsk-1.4.7-windows-x86_64.exe`],
+    ['disallowed ASCII', 'rustdesk@1.4.7-windows-x86_64.exe', `${baseUrl}rustdesk@1.4.7-windows-x86_64.exe`],
+    ['overlong filename', `${'a'.repeat(230)}-rustdesk-1.4.7-windows-x86_64.exe`, `${baseUrl}${'a'.repeat(230)}-rustdesk-1.4.7-windows-x86_64.exe`],
+    ['malformed percent encoding', safe, `${baseUrl}rustdesk-1.4.7-windows-x86_64%ZZ.exe`]
+  ] as const;
+  const expected = {
+    platform: 'windows' as const,
+    architecture: 'x86_64' as const,
+    client_version: '1.4.7',
+    expected_server_version: '1.1.15',
+    expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+  };
+
+  for (const [name, filename, url] of invalidSources) {
+    const profile = expectedClientDistributionProfile();
+    await assert.rejects(
+      () => projectRustDeskClientDistributionProfile({
+        ...profile,
+        install_source: { ...profile.install_source, filename, url }
+      }, expected, new Date('2026-07-12T12:05:00.000Z')),
+      /install_source/,
+      name
+    );
+  }
+});
+
 test('iveKit RustDesk profile projection rejects lifetime below 60 seconds', async () => {
   const profile = {
     ...expectedClientDistributionProfile(),

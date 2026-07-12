@@ -103,6 +103,46 @@ test('RustDesk client profile pack rejects profiles that expire during aggregati
   assert.equal(clockReads, 2);
 });
 
+test('RustDesk client profile pack cannot become ready with encoded or control filenames', async () => {
+  const unsafeSources = [
+    (filename: string, url: string) => ({
+      filename: filename.replace(/(\.[^.]+)$/, '\n$1'),
+      url: url.replace(/(\.[^.]+)$/, '%0A$1')
+    }),
+    (filename: string, url: string) => ({
+      filename: filename.replace(/(\.[^.]+)$/, '\u0000$1'),
+      url: url.replace(/(\.[^.]+)$/, '%00$1')
+    }),
+    (filename: string, url: string) => ({
+      filename,
+      url: url.replace('rustdesk', '%72ustdesk')
+    })
+  ];
+
+  for (const unsafeSource of unsafeSources) {
+    await assert.rejects(
+      () => buildRustDeskClientProfilePack(
+        packConfig(),
+        {
+          async getClientProfile(input) {
+            const profile = profileFor(input.platform, input.architecture);
+            if (profile.install_source.state !== 'configured') return profile;
+            return {
+              ...profile,
+              install_source: {
+                ...profile.install_source,
+                ...unsafeSource(profile.install_source.filename, profile.install_source.url)
+              }
+            };
+          }
+        },
+        () => NOW
+      ),
+      /install_source/
+    );
+  }
+});
+
 test('RustDesk client profile pack rejects drift, expiry, and unsafe fake-client responses', async () => {
   await assert.rejects(
     () => buildRustDeskClientProfilePack(

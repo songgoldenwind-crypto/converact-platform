@@ -181,6 +181,7 @@ function parseArtifactManifest(raw: string | undefined): ArtifactManifest | null
 
     const url = artifactUrl(artifact.url);
     const filename = artifactFilename(artifact.filename);
+    assertCanonicalArtifactUrlFilename(url, filename);
     const pathSegments = artifactPathSegments(url);
     const urlFilename = pathSegments.at(-1) || '';
     if (urlFilename !== filename) {
@@ -226,9 +227,12 @@ function assertSupportedTarget(
 }
 
 function artifactUrl(value: unknown): URL {
+  if (typeof value !== 'string' || !value || /[\u0000-\u0020\u007f-\u009f]/.test(value)) {
+    throw profileError('RustDesk client artifact URL is invalid', 500);
+  }
   let url: URL;
   try {
-    url = new URL(String(value || ''));
+    url = new URL(value);
   } catch {
     throw profileError('RustDesk client artifact URL is invalid', 500);
   }
@@ -247,11 +251,22 @@ function assertSafeApiServer(value: string): void {
 }
 
 function artifactFilename(value: unknown): string {
-  const filename = String(value || '').trim();
-  if (!filename || filename === '.' || filename === '..' || filename.includes('/') || filename.includes('\\')) {
+  if (
+    typeof value !== 'string' ||
+    value === '.' ||
+    value === '..' ||
+    !/^[A-Za-z0-9._+-]{1,255}$/.test(value)
+  ) {
     throw profileError('RustDesk client artifact filename is invalid', 500);
   }
-  return filename;
+  return value;
+}
+
+function assertCanonicalArtifactUrlFilename(url: URL, filename: string): void {
+  const rawFilename = url.pathname.split('/').filter(Boolean).at(-1) || '';
+  if (rawFilename !== filename) {
+    throw profileError('RustDesk client artifact URL filename must be canonical ASCII', 500);
+  }
 }
 
 function artifactPathSegments(url: URL): string[] {

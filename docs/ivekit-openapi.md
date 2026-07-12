@@ -509,7 +509,9 @@ browser Web Crypto 从返回 key 独立计算既有 SHA-256 fingerprint，并同
 调用方的 trusted expected fingerprint。时间戳必须是 canonical ISO 字符串，`issued_at`
 最多允许 60 秒 clock skew，profile lifetime 必须在 60 秒到 1 小时之间。Artifact URL
 只允许 GitHub `/download/1.4.7/<filename>` 或 mirror `/releases/1.4.7/<filename>` 精确后缀，
-path/filename 中不得出现冲突的版本、platform 或 architecture token。
+path/filename 中不得出现冲突的版本、platform 或 architecture token。Installer filename
+必须是 1–255 字符的 canonical ASCII，只允许 letters/digits/dot/underscore/plus/hyphen；
+URL raw basename 必须与 filename 完全一致，不接受 whitespace、control、Unicode 或 percent escape。
 
 Artifact 只从 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
 tuple 时 profile 返回 `install_source.state=not_configured`，不会猜 URL 或 checksum。
