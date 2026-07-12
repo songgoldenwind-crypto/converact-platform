@@ -254,8 +254,13 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 | `028_collaboration_policy_findings.sql` | 统一 finding 和人工复核 |
 | `029_collaboration_quality_review.sql` | AI 质检 durable job |
 | `030_collaboration_message_state.sql` | receipt、presence/typing、edit/delete audit |
+| `033_collaboration_im_features.sql` | reaction、pin、mention、reply/forward 等 IM 扩展 |
+| `034_ivekit_media_calls.sql` 到 `038_media_recording_evidence.sql` | 呼叫、主持控制、录制绑定、超时和 evidence |
+| `039_rustdesk_access_policy.sql`、`040_rustdesk_control_ownership.sql` | 无人值守策略、控制锁和移交 |
 
 迁移后必须验证 `ENABLE ROW LEVEL SECURITY`、`FORCE ROW LEVEL SECURITY`、tenant policy 和非 bypass 账号的跨租户拒绝。MemoryPg 测试不能替代真实 PostgreSQL。
+
+交付包的 `database/migrations/` 是通信域 overlay，不是通用空库初始化脚本；其中录制表、`tenants` 和 RLS helper 依赖 iveKit 应用镜像的 foundation migration。生产环境应由 Compose 中同一版本镜像的 `postgres-migrate` job 按数字顺序执行，不能挑选 SQL 直接套到无基础表的 LED 数据库。
 
 ## 7. 配置与依赖
 
@@ -350,6 +355,27 @@ LED 可订阅 OPC 租户 WebSocket。关键事件：
 WebSocket 是加速通道，页面重连后必须用 snapshot/message-state/realtime-state 重新收敛，不能只依赖内存事件。
 
 ## 11. 真实环境验收
+
+### 11.0 LED 独立交付包
+
+在仓库根目录执行：
+
+```bash
+OPC_IVEKIT_DELIVERY_DIR=/absolute/output/ivekit-led-delivery \
+  npm run ivekit:delivery-bundle
+```
+
+命令会先构建 `@opc/ivekit-sdk` 和参考客户端，再输出：
+
+- `sdk/*.tgz`：LED 可直接安装的 TypeScript SDK。
+- `client/`：已通过 chunk 预算的静态参考客户端。
+- `deploy/application/` 和 `deploy/livekit/`：应用面与媒体面分离 Compose；应用面必须设置 `IVEKIT_OPC_IMAGE_NAME`，不依赖 OPC 源码目录。
+- `database/migrations/`：显式白名单内的通信域 overlay migration。
+- `docs/`、`examples/`：OpenAPI、详细设计、升级/回滚说明和最小接入示例。
+- `acceptance/status.json`：LiveKit、Tinode、RustDesk 的真实环境状态；未执行时固定为 `not_run`。
+- `manifest.json`、`SHA256SUMS`：payload 大小/hash 与 manifest 的离线完整性校验。
+
+生成器不会复制 call-center/IVR 源码，不接受符号链接或清单外文件，并扫描常见私钥、云密钥、GitHub token、OpenAI key 和 JWT Authorization。`ready_for_handoff` 仅表示工程交付包完整，不代表真实服务器或物理终端验收通过。
 
 ### 11.1 已完成的本地部署准备
 

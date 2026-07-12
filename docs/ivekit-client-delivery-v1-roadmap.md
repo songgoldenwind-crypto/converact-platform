@@ -119,7 +119,7 @@ Task 10 最终本地证据：全仓 `2042` 项中 `2037` 通过、`5` 项真实 
 
 ### M5：统一协作客户端与交付验收
 
-**状态：进行中。** M5.1-M5.4 已完成：统一业务上下文、导航/深链接、参与人/授权摘要，以及 PostgreSQL 统一事件/evidence 时间线均已接入 SDK 和参考客户端。viewer 级 evidence 过滤、稳定 cursor、资源级 URL、浏览器历史、跨业务旧资源清理和只读授权投影均有自动化覆盖；受控三工作区 E2E 4/4 通过。
+**状态：本地代码与独立交付闭环已完成，真实环境未验收。** M5.1-M5.7 已完成：统一业务上下文、导航/深链接、参与人/授权摘要、PostgreSQL 统一事件/evidence 时间线、前端拆包预算和独立 LED 交付包均已完成。viewer 级 evidence 过滤、稳定 cursor、资源级 URL、浏览器历史、跨业务旧资源清理和只读授权投影均有自动化覆盖。`npm run ivekit:delivery-bundle` 可单命令生成 SDK tgz、参考客户端 dist、Compose、通信域迁移、文档、示例、验收状态、manifest 和 SHA-256 清单；交付版 Compose 不依赖 OPC 源码路径，必须使用同提交构建的 iveKit 应用镜像。最终本地门禁为全仓 2051 项中 2046 通过、5 项预期跳过、0 失败，客户端 113/113、完整受控 E2E 9/9，SDK、Compose、chunk 预算、交付秘密扫描与 checksum 均通过。按当前“不上传服务器”范围，LiveKit/Tinode/RustDesk 真实状态保持 `not_run`。
 
 交付内容：
 

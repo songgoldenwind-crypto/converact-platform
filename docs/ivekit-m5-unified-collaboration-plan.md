@@ -75,11 +75,15 @@ LED / other host
 
 ### Task M5.6：独立交付包
 
+**状态：已完成（2026-07-12）。** `npm run ivekit:delivery-bundle` 会构建 SDK 与参考客户端，并在 `OPC_IVEKIT_DELIVERY_DIR`（默认 `.tmp/ivekit-led-delivery`）生成 LED 交付目录。目录包含可安装 SDK tgz、客户端 dist、应用/LiveKit Compose、通信域迁移、API/架构/接入文档、示例和验收状态；`manifest.json` 记录所有 payload 的 SHA-256/字节数，`SHA256SUMS` 额外覆盖 manifest。生成器采用显式白名单、拒绝符号链接和额外文件、扫描常见私钥/token，并从交付版 Compose 移除源码仓库 `build` 路径，强制使用同提交构建的 `IVEKIT_OPC_IMAGE_NAME`。生成器只覆盖带版本所有权标记的既有目录，防止错误路径导致数据删除。本地生成包约 1.7 MB、59 个文件，Compose 静态解析和全部 checksum 已通过；LiveKit/Tinode/RustDesk 真实环境状态均为 `not_run`。
+
 1. 固定 SDK exports、参考客户端 host bridge、runtime config 和部署环境变量。
 2. 输出 LED 最小接入示例、升级/回滚、数据库 migration、Compose 与 provider 分离说明。
 3. 生成不含 OPC 内部源码依赖和秘密的 SDK dry pack、客户端 dist 与 acceptance bundle。
 
 ### Task M5.7：验收
+
+**状态：本地门禁已完成（2026-07-12），真实环境未执行。** 全仓 `npm run verify` 最终为 2051 项中 2046 通过、5 项真实 PostgreSQL 环境检查按预期跳过、0 失败，TypeScript、Go、Python、Rust 均通过。参考客户端 113/113、生产构建与五类 chunk 硬预算通过；完整受控浏览器 E2E 9/9；SDK build/pack、应用/LiveKit Compose config、交付包连续生成、秘密扫描和 SHA-256 离线复核均通过。按“不上传服务器”的当前范围，LiveKit、Tinode、RustDesk 的真实服务/物理终端验收继续为 `not_run`。
 
 1. 单元/组件：业务上下文、路由、聚合投影、撤权和终态。
 2. 受控 E2E：同一 business ref 在三个 workspace 间切换、深链接、移动布局、token 零持久化。
