@@ -19,10 +19,10 @@ import {
   AttachmentProcessingService,
   type AttachmentProcessingServiceInput
 } from './attachment-processing.js';
-import { configuredAsrProvider } from './asr-provider.js';
 import type { CollaborationMessageAttachmentInput } from './collaboration-store.js';
 import { createCollaborationModule } from './index.js';
-import { configuredOcrProvider } from './ocr-provider.js';
+import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
+import { createPolicyAttachmentProviderResolver } from './intelligence-provider-routing.js';
 import { PolicyFindingStore } from './policy-finding-store.js';
 import { CollaborationMessageStateStore } from './message-state-store.js';
 import {
@@ -457,14 +457,17 @@ function attachmentProcessingService(
   pg: PgQueryable,
   options: RouteCollaborationApiOptions
 ): AttachmentProcessingService {
-  const configuredProviders = {
-    ocr: configuredOcrProvider(),
-    asr: configuredAsrProvider()
-  };
+  const configured = options.attachmentProcessing || {};
+  const policyResolver = configured.providers || configured.resolveProvider
+    ? configured.resolveProvider
+    : createPolicyAttachmentProviderResolver({
+      pg,
+      registry: createIntelligenceProviderRegistry()
+    });
   return new AttachmentProcessingService({
     pg,
-    ...options.attachmentProcessing,
-    providers: options.attachmentProcessing?.providers || configuredProviders
+    ...configured,
+    ...(configured.providers ? {} : { resolveProvider: policyResolver })
   });
 }
 

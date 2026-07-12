@@ -12,7 +12,8 @@ export interface AttachmentTextExtractionInput {
   message_id: string;
   filename: string;
   content_type: string;
-  storage_url: string;
+  source_ref: string;
+  storage_url?: string;
   content: Buffer;
 }
 
@@ -71,6 +72,13 @@ export function createHttpAttachmentTextProvider(
     mode: config.mode,
     ...(config.profileId ? { profile_id: config.profileId } : {}),
     async extract(input) {
+      if (input.source_ref !== `ivekit://attachment/${input.attachment_id}`) {
+        throw new AttachmentProviderError(
+          `${config.processor} provider source reference is invalid`,
+          'provider_source_ref_invalid',
+          false
+        );
+      }
       const form = new FormData();
       form.set(
         'file',
@@ -83,7 +91,7 @@ export function createHttpAttachmentTextProvider(
       form.set('tenant_id', input.tenant_id);
       form.set('session_id', input.session_id);
       form.set('message_id', input.message_id);
-      form.set('storage_url', input.storage_url);
+      form.set('source_ref', input.source_ref);
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);

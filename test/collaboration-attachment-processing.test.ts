@@ -18,6 +18,9 @@ import {
   attachmentProcessingWorkerConfig
 } from '../src/agent-runtime/collaboration/attachment-processing-worker.js';
 import { inspectAttachmentProcessingEnv } from '../scripts/attachment-processing-preflight.js';
+import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
+import { IntelligencePolicyStore } from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
+import { createPolicyAttachmentProviderResolver } from '../src/agent-runtime/collaboration/intelligence-provider-routing.js';
 
 const API_KEY = 'attachment-processing-api-key';
 
@@ -265,6 +268,7 @@ test('generic HTTP OCR adapter sends multipart bytes and normalizes provider out
     message_id: 'message-1',
     filename: 'qr.png',
     content_type: 'image/png',
+    source_ref: 'ivekit://attachment/attachment-1',
     storage_url: 's3://bucket/qr.png',
     content: Buffer.from('png')
   });
@@ -272,8 +276,217 @@ test('generic HTTP OCR adapter sends multipart bytes and normalizes provider out
   assert.equal(requests[0]?.url, 'https://ocr.example.test/v1/ocr');
   assert.equal(new Headers(requests[0]?.init?.headers).get('authorization'), 'Bearer ocr-secret');
   assert.equal(requests[0]?.init?.body instanceof FormData, true);
+  const form = requests[0]?.init?.body as FormData;
+  assert.equal(form.get('source_ref'), 'ivekit://attachment/attachment-1');
+  assert.equal(form.has('storage_url'), false);
   assert.equal(result.text, '二维码内容 13900001111');
   assert.equal(result.provider_request_id, 'provider-ocr-1');
+});
+
+test('screen recording attachments select ASR processing', async () => {
+  const pg = new MemoryPg();
+  const { message, attachment } = await createAttachmentMessage(pg, {
+    kind: 'screen_recording',
+    contentType: 'video/webm',
+    storageUrl: 's3://opc-chat/screen.webm'
+  });
+  const service = new AttachmentProcessingService({
+    pg,
+    providers: {
+      asr: {
+        processor: 'asr',
+        profile_id: 'asr-screen',
+        name: 'screen-asr',
+        mode: 'self_hosted',
+        extract: async (input) => {
+          assert.equal(input.source_ref, `ivekit://attachment/${attachment.id}`);
+          assert.equal(input.storage_url, undefined);
+          return { text: '屏幕录制中的语音文本' };
+        }
+      }
+    },
+    resolveObject: async () => ({ status: 'readable', content: Buffer.from('webm') })
+  });
+
+  const jobs = await service.enqueueMessage(message);
+  assert.equal(jobs[0]?.processor, 'asr');
+  assert.equal((await service.runDue({ tenant_id: message.tenant_id })).succeeded, 1);
+  assert.equal((await service.getAttachment({
+    tenant_id: message.tenant_id,
+    attachment_id: attachment.id
+  }))?.asr_text, '屏幕录制中的语音文本');
+});
+
+test('tenant policy selects and audits attachment provider profiles', async () => {
+  const pg = new MemoryPg();
+  const env: NodeJS.ProcessEnv = {
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([
+      {
+        id: 'ocr-private-a',
+        capability: 'ocr',
+        mode: 'self_hosted',
+        base_url: 'http://ocr-a:8080'
+      },
+      {
+        id: 'ocr-cloud-b',
+        capability: 'ocr',
+        mode: 'third_party',
+        base_url: 'https://ocr-b.example.test'
+      }
+    ])
+  };
+  const registry = createIntelligenceProviderRegistry(env);
+  const policyStore = new IntelligencePolicyStore(pg, registry);
+  const basePolicy = {
+    ocr_enabled: true,
+    asr_enabled: false,
+    quality_review_enabled: false,
+    translation_enabled: false,
+    asr_profile_id: '',
+    quality_profile_id: '',
+    translation_profile_id: '',
+    auto_ocr: true,
+    auto_asr: false,
+    auto_quality_review: false,
+    auto_translation: false,
+    translation_target_languages: [],
+    min_ocr_confidence: 0,
+    min_asr_confidence: 0
+  };
+  const first = await createAttachmentMessage(pg, {
+    kind: 'image',
+    contentType: 'image/png',
+    storageUrl: 's3://opc-chat/a.png',
+    tenantId: 'tenant-profile-a'
+  });
+  const second = await createAttachmentMessage(pg, {
+    kind: 'image',
+    contentType: 'image/png',
+    storageUrl: 's3://opc-chat/b.png',
+    tenantId: 'tenant-profile-b'
+  });
+  await policyStore.updatePolicy({
+    tenant_id: first.message.tenant_id,
+    actor_identity: 'owner-a',
+    expected_version: 0,
+    policy: { ...basePolicy, ocr_profile_id: 'ocr-private-a', allow_third_party: false }
+  });
+  await policyStore.updatePolicy({
+    tenant_id: second.message.tenant_id,
+    actor_identity: 'owner-b',
+    expected_version: 0,
+    policy: { ...basePolicy, ocr_profile_id: 'ocr-cloud-b', allow_third_party: true }
+  });
+  const calledUrls: string[] = [];
+  const resolver = createPolicyAttachmentProviderResolver({
+    pg,
+    registry,
+    fetch: async (url) => {
+      calledUrls.push(String(url));
+      return new Response(JSON.stringify({ text: '识别文本' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }
+  });
+  const service = new AttachmentProcessingService({
+    pg,
+    resolveProvider: resolver,
+    resolveObject: async () => ({ status: 'readable', content: Buffer.from('image') })
+  });
+  await service.enqueueMessage(first.message);
+  await service.enqueueMessage(second.message);
+  await service.runDue({ tenant_id: first.message.tenant_id });
+  await service.runDue({ tenant_id: second.message.tenant_id });
+
+  assert.deepEqual(calledUrls, [
+    'http://ocr-a:8080/v1/ocr',
+    'https://ocr-b.example.test/v1/ocr'
+  ]);
+  assert.equal((await service.getJobForAttachment({
+    tenant_id: first.message.tenant_id,
+    attachment_id: first.attachment.id
+  }))?.provider_profile_id, 'ocr-private-a');
+  assert.equal((await service.getJobForAttachment({
+    tenant_id: second.message.tenant_id,
+    attachment_id: second.attachment.id
+  }))?.provider_profile_id, 'ocr-cloud-b');
+});
+
+test('disabled and non-automatic attachment policy records explicit retryable cancellation', async () => {
+  const pg = new MemoryPg();
+  const registry = createIntelligenceProviderRegistry({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'ocr-private',
+      capability: 'ocr',
+      mode: 'self_hosted',
+      base_url: 'http://ocr-worker:8080'
+    }])
+  });
+  const policyStore = new IntelligencePolicyStore(pg, registry);
+  const disabled = await createAttachmentMessage(pg, {
+    kind: 'image',
+    contentType: 'image/png',
+    storageUrl: 's3://opc-chat/disabled.png',
+    tenantId: 'tenant-policy-disabled'
+  });
+  const manual = await createAttachmentMessage(pg, {
+    kind: 'image',
+    contentType: 'image/png',
+    storageUrl: 's3://opc-chat/manual.png',
+    tenantId: 'tenant-policy-manual'
+  });
+  const policy = {
+    ocr_enabled: false,
+    asr_enabled: false,
+    quality_review_enabled: false,
+    translation_enabled: false,
+    ocr_profile_id: 'ocr-private',
+    asr_profile_id: '',
+    quality_profile_id: '',
+    translation_profile_id: '',
+    allow_third_party: false,
+    auto_ocr: false,
+    auto_asr: false,
+    auto_quality_review: false,
+    auto_translation: false,
+    translation_target_languages: [],
+    min_ocr_confidence: 0,
+    min_asr_confidence: 0
+  };
+  await policyStore.updatePolicy({
+    tenant_id: disabled.message.tenant_id,
+    actor_identity: 'owner-disabled',
+    expected_version: 0,
+    policy
+  });
+  await policyStore.updatePolicy({
+    tenant_id: manual.message.tenant_id,
+    actor_identity: 'owner-manual',
+    expected_version: 0,
+    policy: { ...policy, ocr_enabled: true }
+  });
+  const service = new AttachmentProcessingService({
+    pg,
+    resolveProvider: createPolicyAttachmentProviderResolver({ pg, registry })
+  });
+
+  const disabledJobs = await service.enqueueMessage(disabled.message);
+  const manualJobs = await service.enqueueMessage(manual.message);
+  assert.equal(disabledJobs[0]?.status, 'cancelled');
+  assert.equal(disabledJobs[0]?.error_code, 'policy_disabled');
+  assert.equal(manualJobs[0]?.status, 'cancelled');
+  assert.equal(manualJobs[0]?.error_code, 'automatic_processing_disabled');
+  const replayed = await service.enqueueMessage(manual.message);
+  assert.equal(replayed[0]?.status, 'cancelled');
+  assert.equal((await service.getAttachment({
+    tenant_id: manual.message.tenant_id,
+    attachment_id: manual.attachment.id
+  }))?.processing_status, 'failed');
+  assert.ok(await service.retryAttachment({
+    tenant_id: manual.message.tenant_id,
+    attachment_id: manual.attachment.id
+  }));
 });
 
 test('collaboration attachment upload enforces size and returns a pending processable descriptor', async () => {
@@ -568,9 +781,14 @@ test('attachment processing deployment surfaces expose every provider and worker
 
 async function createAttachmentMessage(
   pg: MemoryPg,
-  input: { kind: 'image' | 'audio'; contentType: string; storageUrl: string }
+  input: {
+    kind: 'image' | 'audio' | 'screen_recording';
+    contentType: string;
+    storageUrl: string;
+    tenantId?: string;
+  }
 ) {
-  const tenantId = `tenant_${input.kind}_processing`;
+  const tenantId = input.tenantId || `tenant_${input.kind}_processing`;
   const store = new CollaborationStore(pg);
   const session = await store.openSession({
     tenant_id: tenantId,
@@ -580,12 +798,12 @@ async function createAttachmentMessage(
     tenant_id: tenantId,
     session_id: session.id,
     sender_identity: 'customer-1',
-    message_type: input.kind === 'image' ? 'image' : 'file',
+    message_type: input.kind === 'image' ? 'image' : input.kind === 'screen_recording' ? 'video' : 'file',
     body: '',
     attachments: [{
       kind: input.kind,
       storage_url: input.storageUrl,
-      filename: input.kind === 'image' ? 'contact.png' : 'contact.ogg',
+      filename: input.kind === 'image' ? 'contact.png' : input.kind === 'screen_recording' ? 'screen.webm' : 'contact.ogg',
       content_type: input.contentType,
       size_bytes: 5,
       checksum: 'sha256:test',

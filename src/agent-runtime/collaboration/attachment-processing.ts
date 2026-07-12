@@ -15,6 +15,10 @@ import type {
   AttachmentTextExtractionResult
 } from './attachment-text-provider.js';
 import { listCollaborationWorkerTenants } from './worker-tenant-scope.js';
+import {
+  sanitizeProviderMetadata,
+  sanitizeProviderRequestId
+} from './provider-safety.js';
 
 export type {
   AttachmentProviderMode,
@@ -33,6 +37,7 @@ export interface AttachmentObjectResult {
 export interface AttachmentProcessingServiceInput {
   pg: PgQueryable;
   providers?: Partial<Record<CollaborationAttachmentProcessor, AttachmentTextProvider | null>>;
+  resolveProvider?: AttachmentProviderResolver;
   resolveObject?: (attachment: CollaborationMessageAttachment) => Promise<AttachmentObjectResult>;
   now?: () => Date;
   maxAttempts?: number;
@@ -44,6 +49,19 @@ export interface AttachmentProcessingServiceInput {
     policy: PolicyScanResult;
   }) => void | Promise<void>;
 }
+
+export interface AttachmentProviderResolution {
+  enabled: boolean;
+  automatic: boolean;
+  profile_id: string;
+  provider: AttachmentTextProvider | null;
+  error_code: string;
+}
+
+export type AttachmentProviderResolver = (input: {
+  tenant_id: string;
+  processor: CollaborationAttachmentProcessor;
+}) => Promise<AttachmentProviderResolution>;
 
 export interface AttachmentProcessingRunSummary {
   candidates: number;
@@ -72,13 +90,23 @@ export class AttachmentProcessingService {
       for (const attachment of message.attachments) {
         const processor = processorForAttachment(attachment);
         if (!processor || attachment.extracted_text) continue;
-        const provider = this.providers[processor];
+        const resolution = await this.resolveProvider(message.tenant_id, processor);
+        const provider = resolution.provider;
+        const cancelled = !resolution.enabled || !resolution.automatic;
+        const status = cancelled ? 'cancelled' : 'pending';
+        const errorCode = !resolution.enabled
+          ? resolution.error_code || 'policy_disabled'
+          : !resolution.automatic
+            ? 'automatic_processing_disabled'
+            : provider
+              ? ''
+              : resolution.error_code || 'provider_unavailable';
         const jobId = pgId('capj');
         const inserted = await pg.query(
           `INSERT INTO collaboration_attachment_processing_jobs
             (id, tenant_id, session_id, message_id, attachment_id, processor, status,
-             max_attempts, provider_mode, provider_name)
-           VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8, $9)
+             max_attempts, provider_profile_id, provider_mode, provider_name, error_code)
+           VALUES ($1, $2, $3, $4, $5, $6, $8, $7, $9, $10, $11, $12)
            ON CONFLICT (tenant_id, attachment_id, processor) DO NOTHING
            RETURNING *`,
           [
@@ -89,8 +117,11 @@ export class AttachmentProcessingService {
             attachment.id,
             processor,
             this.maxAttempts,
+            status,
+            resolution.profile_id,
             provider?.mode || 'unconfigured',
-            provider?.name || ''
+            provider?.name || '',
+            errorCode
           ]
         );
         const row = inserted.rows[0] || (await pg.query(
@@ -98,12 +129,21 @@ export class AttachmentProcessingService {
            WHERE tenant_id = $1 AND attachment_id = $2 AND processor = $3`,
           [message.tenant_id, attachment.id, processor]
         )).rows[0];
-        if (row) jobs.push(decodeJob(row));
+        if (!row) continue;
+        const storedJob = decodeJob(row);
+        jobs.push(storedJob);
+        const storedFailed = storedJob.status === 'failed' || storedJob.status === 'cancelled';
         await pg.query(
           `UPDATE collaboration_message_attachments
-           SET processing_status = 'pending', processing_error_code = '', updated_at = $3
+           SET processing_status = $3, processing_error_code = $4, updated_at = $5
            WHERE id = $1 AND tenant_id = $2 AND processing_status != 'ready'`,
-          [attachment.id, message.tenant_id, this.now().toISOString()]
+          [
+            attachment.id,
+            message.tenant_id,
+            storedFailed ? 'failed' : 'pending',
+            storedJob.error_code,
+            this.now().toISOString()
+          ]
         );
       }
       return jobs;
@@ -191,14 +231,14 @@ export class AttachmentProcessingService {
       return total;
     }
     await this.reconcileExpired(input.tenant_id, now);
-    const configuredProcessors = (['ocr', 'asr'] as const).filter(
-      (processor) => Boolean(this.providers[processor])
-    );
+    const configuredProcessors = this.input.resolveProvider
+      ? undefined
+      : (['ocr', 'asr'] as const).filter((processor) => Boolean(this.providers[processor]));
     const candidates = await this.listDue(
       input.tenant_id,
       now,
       limit,
-      configuredProcessors.length ? configuredProcessors : undefined
+      configuredProcessors?.length ? configuredProcessors : undefined
     );
     const summary: AttachmentProcessingRunSummary = {
       candidates: candidates.length,
@@ -209,9 +249,17 @@ export class AttachmentProcessingService {
     };
 
     for (const candidate of candidates) {
-      const provider = this.providers[candidate.processor];
-      if (!provider) continue;
-      const claimed = await this.claim(candidate, provider, now);
+      const resolution = await this.resolveProvider(candidate.tenant_id, candidate.processor);
+      if (!resolution.enabled) {
+        await this.cancelUnclaimed(candidate, resolution.error_code || 'policy_disabled', now);
+        continue;
+      }
+      const provider = resolution.provider;
+      if (!provider) {
+        await this.markProviderUnavailable(candidate, resolution.error_code || 'provider_unavailable', now);
+        continue;
+      }
+      const claimed = await this.claim(candidate, provider, resolution.profile_id, now);
       if (!claimed) continue;
       summary.claimed += 1;
       const status = await this.processClaim(claimed, provider);
@@ -244,7 +292,7 @@ export class AttachmentProcessingService {
         message_id: attachment.message_id,
         filename: attachment.filename,
         content_type: attachment.content_type,
-        storage_url: attachment.storage_url,
+        source_ref: `ivekit://attachment/${attachment.id}`,
         content: object.content
       });
       const completed = await this.complete(job, attachment, provider, output);
@@ -276,15 +324,18 @@ export class AttachmentProcessingService {
         const ocrText = job.processor === 'ocr' ? text : attachment.ocr_text;
         const asrText = job.processor === 'asr' ? text : attachment.asr_text;
         const extractedText = [ocrText, asrText].filter(Boolean).join('\n');
+        const safeOutputMetadata = sanitizeProviderMetadata(output.metadata || {});
+        const providerRequestId = sanitizeProviderRequestId(output.provider_request_id);
         const metadata = {
           ...attachment.metadata,
-          ...(output.metadata || {}),
+          ...safeOutputMetadata,
           extraction_processor: job.processor,
           extraction_provider: provider.name,
           extraction_provider_mode: provider.mode,
+          extraction_provider_profile_id: provider.profile_id || job.provider_profile_id,
           ...(output.confidence != null ? { extraction_confidence: output.confidence } : {}),
           ...(output.language ? { extraction_language: output.language } : {}),
-          ...(output.provider_request_id ? { provider_request_id: output.provider_request_id } : {})
+          ...(providerRequestId ? { provider_request_id: providerRequestId } : {})
         };
         const attachmentResult = await pg.query(
           `UPDATE collaboration_message_attachments
@@ -299,18 +350,27 @@ export class AttachmentProcessingService {
         const outputMetadata = {
           confidence: output.confidence ?? null,
           language: output.language || '',
-          provider_request_id: output.provider_request_id || '',
+          provider_request_id: providerRequestId,
           text_length: text.length,
           object_source: ''
         };
         const jobResult = await pg.query(
           `UPDATE collaboration_attachment_processing_jobs
-           SET status = 'succeeded', provider_mode = $4, provider_name = $5,
-               error_code = '', error_message = '', output_metadata = $6,
-               lease_until = NULL, worker_id = '', completed_at = $7, updated_at = $7
+           SET status = 'succeeded', provider_profile_id = $4, provider_mode = $5, provider_name = $6,
+               error_code = '', error_message = '', output_metadata = $7,
+               lease_until = NULL, worker_id = '', completed_at = $8, updated_at = $8
            WHERE id = $1 AND tenant_id = $2 AND status = 'processing' AND worker_id = $3
            RETURNING *`,
-          [job.id, job.tenant_id, job.worker_id, provider.mode, provider.name, JSON.stringify(outputMetadata), now]
+          [
+            job.id,
+            job.tenant_id,
+            job.worker_id,
+            provider.profile_id || job.provider_profile_id,
+            provider.mode,
+            provider.name,
+            JSON.stringify(outputMetadata),
+            now
+          ]
         );
         if (!jobResult.rows[0]) throw processingError('attachment_job_claim_lost', true);
         const policy = text
@@ -381,6 +441,7 @@ export class AttachmentProcessingService {
   private async claim(
     candidate: CollaborationAttachmentProcessingJob,
     provider: AttachmentTextProvider,
+    profileId: string,
     now: Date
   ): Promise<CollaborationAttachmentProcessingJob | null> {
     const workerId = pgId('capw');
@@ -390,16 +451,17 @@ export class AttachmentProcessingService {
         `UPDATE collaboration_attachment_processing_jobs
          SET status = 'processing', attempt_count = attempt_count + 1,
              lease_until = $4, worker_id = $3, next_attempt_at = NULL,
-             provider_mode = $5, provider_name = $6,
-             error_code = '', error_message = '', updated_at = $7
+             provider_profile_id = $5, provider_mode = $6, provider_name = $7,
+             error_code = '', error_message = '', updated_at = $8
          WHERE id = $1 AND tenant_id = $2 AND attempt_count < max_attempts
-           AND (status = 'pending' OR (status = 'retry_wait' AND (next_attempt_at IS NULL OR next_attempt_at <= $7)))
+           AND (status = 'pending' OR (status = 'retry_wait' AND (next_attempt_at IS NULL OR next_attempt_at <= $8)))
          RETURNING *`,
         [
           candidate.id,
           candidate.tenant_id,
           workerId,
           leaseUntil,
+          profileId || provider.profile_id || '',
           provider.mode,
           provider.name,
           now.toISOString()
@@ -407,6 +469,58 @@ export class AttachmentProcessingService {
       );
       return result.rows[0] ? decodeJob(result.rows[0]) : null;
     });
+  }
+
+  private async cancelUnclaimed(
+    job: CollaborationAttachmentProcessingJob,
+    errorCode: string,
+    now: Date
+  ): Promise<void> {
+    await withPgTenant(this.input.pg, job.tenant_id, async (pg) => {
+      await pg.query(
+        `UPDATE collaboration_attachment_processing_jobs
+         SET status = 'cancelled', error_code = $3, error_message = $3,
+             next_attempt_at = NULL, completed_at = $4, updated_at = $4
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('pending', 'retry_wait')`,
+        [job.id, job.tenant_id, errorCode, now.toISOString()]
+      );
+      await pg.query(
+        `UPDATE collaboration_message_attachments
+         SET processing_status = $3, processing_error_code = $4, updated_at = $5
+         WHERE id = $1 AND tenant_id = $2`,
+        [job.attachment_id, job.tenant_id, 'failed', errorCode, now.toISOString()]
+      );
+    });
+  }
+
+  private async markProviderUnavailable(
+    job: CollaborationAttachmentProcessingJob,
+    errorCode: string,
+    now: Date
+  ): Promise<void> {
+    await withPgTenant(this.input.pg, job.tenant_id, async (pg) => {
+      await pg.query(
+        `UPDATE collaboration_attachment_processing_jobs
+         SET error_code = $3, error_message = $3, updated_at = $4
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('pending', 'retry_wait')`,
+        [job.id, job.tenant_id, errorCode, now.toISOString()]
+      );
+    });
+  }
+
+  private async resolveProvider(
+    tenantId: string,
+    processor: CollaborationAttachmentProcessor
+  ): Promise<AttachmentProviderResolution> {
+    if (this.input.resolveProvider) return this.input.resolveProvider({ tenant_id: tenantId, processor });
+    const provider = this.providers[processor] || null;
+    return {
+      enabled: true,
+      automatic: true,
+      profile_id: provider?.profile_id || '',
+      provider,
+      error_code: provider ? '' : 'provider_unavailable'
+    };
   }
 
   private async listDue(
@@ -517,7 +631,11 @@ function processorForAttachment(
 ): CollaborationAttachmentProcessor | null {
   if (attachment.processing_status !== 'pending') return null;
   if (attachment.kind === 'image') return 'ocr';
-  if (attachment.kind === 'audio' || attachment.kind === 'video') return 'asr';
+  if (
+    attachment.kind === 'audio' ||
+    attachment.kind === 'video' ||
+    attachment.kind === 'screen_recording'
+  ) return 'asr';
   return null;
 }
 
@@ -559,6 +677,7 @@ function decodeJob(row: Record<string, unknown>): CollaborationAttachmentProcess
     next_attempt_at: row.next_attempt_at ? String(row.next_attempt_at) : null,
     lease_until: row.lease_until ? String(row.lease_until) : null,
     worker_id: String(row.worker_id || ''),
+    provider_profile_id: String(row.provider_profile_id || ''),
     provider_mode: String(row.provider_mode || 'unconfigured') as CollaborationAttachmentProcessingJob['provider_mode'],
     provider_name: String(row.provider_name || ''),
     error_code: String(row.error_code || ''),

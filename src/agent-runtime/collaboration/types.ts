@@ -121,6 +121,7 @@ export interface CollaborationAttachmentProcessingJob {
   next_attempt_at: string | null;
   lease_until: string | null;
   worker_id: string;
+  provider_profile_id: string;
   provider_mode: 'unconfigured' | 'self_hosted' | 'third_party';
   provider_name: string;
   error_code: string;

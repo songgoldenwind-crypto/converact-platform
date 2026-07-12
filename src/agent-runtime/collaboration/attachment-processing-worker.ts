@@ -4,8 +4,8 @@ import {
   type AttachmentProcessingRunSummary,
   type AttachmentProcessingServiceInput
 } from './attachment-processing.js';
-import { configuredAsrProvider } from './asr-provider.js';
-import { configuredOcrProvider } from './ocr-provider.js';
+import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
+import { createPolicyAttachmentProviderResolver } from './intelligence-provider-routing.js';
 
 export interface AttachmentProcessingWorkerConfig {
   enabled: boolean;
@@ -74,7 +74,9 @@ export class AttachmentProcessingWorker {
 export function attachmentProcessingWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): AttachmentProcessingWorkerConfig {
-  const configured = hasValue(env.OPC_OCR_BASE_URL) || hasValue(env.OPC_ASR_BASE_URL);
+  const configured = createIntelligenceProviderRegistry(env).list().some(
+    (profile) => profile.capability === 'ocr' || profile.capability === 'asr'
+  );
   const enabledFlag = String(env.OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
     throw new Error('OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED must be 0 or 1');
@@ -120,12 +122,10 @@ export function startAttachmentProcessingWorker(input: {
 }): AttachmentProcessingWorker {
   const env = input.env || process.env;
   const config = attachmentProcessingWorkerConfig(env);
+  const registry = createIntelligenceProviderRegistry(env);
   const service = new AttachmentProcessingService({
     pg: input.pg,
-    providers: {
-      ocr: configuredOcrProvider(env),
-      asr: configuredAsrProvider(env)
-    },
+    resolveProvider: createPolicyAttachmentProviderResolver({ pg: input.pg, registry }),
     maxAttempts: config.maxAttempts,
     claimLeaseMs: config.claimLeaseMs,
     retryDelaysMs: config.retryDelaysMs,

@@ -252,7 +252,12 @@ function defaultEndpoint(capability: IntelligenceProviderCapability): string {
 
 function isPrivateOrContainerHost(rawHostname: string): boolean {
   const hostname = rawHostname.replace(/^\[|\]$/g, '').toLowerCase();
-  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) return true;
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal')
+  ) return true;
   const ipVersion = isIP(hostname);
   if (ipVersion === 4) {
     const [a, b] = hostname.split('.').map(Number);

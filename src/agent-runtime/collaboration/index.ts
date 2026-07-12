@@ -121,6 +121,8 @@ export { IntelligencePolicyStore } from './intelligence-policy-store.js';
 export type * from './intelligence-policy-store.js';
 export { IntelligenceProviderHealthService } from './intelligence-provider-health.js';
 export type * from './intelligence-provider-health.js';
+export { createPolicyAttachmentProviderResolver } from './intelligence-provider-routing.js';
+export type * from './intelligence-provider-routing.js';
 export {
   sanitizeProviderErrorCode,
   sanitizeProviderMetadata,
