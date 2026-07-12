@@ -230,6 +230,7 @@ export async function executeRustDeskDisconnectCommand(
   config: RustDeskEdgeCommandExecutionConfig,
   reportProgress: ProgressReporter = async () => {}
 ): Promise<RustDeskEdgeCommandExecutionResult> {
+  validateExecutionCommand(command);
   const primary = config.disconnectAdapter
     ? await runAdapter(config.disconnectAdapter, command, config.timeoutMs)
     : missingAdapterResult('adapter_not_configured');
@@ -263,6 +264,7 @@ export async function executeRustDeskDisconnectCommand(
       ...baseMetadata(config),
       fallback_reason: fallbackReason,
       collateral_sessions_may_disconnect: true,
+      ...(!fallback.ok ? { fallback_result_reason: adapterFailureReason(fallback) } : {}),
       ...(fallback.timedOut ? { timed_out: true } : {}),
       ...(fallback.signal ? { signal: fallback.signal } : {}),
       ...(fallback.errorCode ? { error_code: fallback.errorCode } : {})
@@ -275,6 +277,7 @@ async function runAdapter(
   command: RustDeskEdgeClaimCommand,
   timeoutMs: number
 ): Promise<LocalAdapterResult> {
+  const adapterArgs = materializeAdapterArgs(adapter.args, command);
   const startedAt = Date.now();
   const stdoutHash = createHash('sha256');
   const stderrHash = createHash('sha256');
@@ -306,13 +309,14 @@ async function runAdapter(
     };
     let child;
     try {
-      child = spawn(adapter.executable, adapter.args, {
+      child = spawn(adapter.executable, adapterArgs, {
         shell: false,
         env: {
           ...process.env,
           OPC_RUSTDESK_COMMAND_ID: command.id,
           OPC_RUSTDESK_EXTERNAL_ID: command.external_id,
           OPC_RUSTDESK_TARGET_ID: command.target_id,
+          OPC_RUSTDESK_RUSTDESK_ID: command.rustdesk_id,
           OPC_RUSTDESK_DISCONNECT_REASON: command.requested_reason
         },
         detached: process.platform !== 'win32',
@@ -349,6 +353,43 @@ async function runAdapter(
       }, adapterTimeoutKillGraceMs);
     }, timeoutMs);
   });
+}
+
+function materializeAdapterArgs(
+  args: string[],
+  command: RustDeskEdgeClaimCommand
+): string[] {
+  const values: Record<string, string> = {
+    '{command_id}': command.id,
+    '{external_id}': command.external_id,
+    '{target_id}': command.target_id,
+    '{rustdesk_id}': command.rustdesk_id,
+    '{requested_reason}': command.requested_reason
+  };
+  return args.map((arg) => {
+    const placeholders = arg.match(/\{[a-z_]+\}/g) || [];
+    if (!placeholders.length) return arg;
+    if (placeholders.length !== 1 || arg !== placeholders[0] || !(arg in values)) {
+      throw new Error(`unsupported RustDesk adapter placeholder: ${placeholders.join(',') || arg}`);
+    }
+    return values[arg];
+  });
+}
+
+function validateExecutionCommand(command: RustDeskEdgeClaimCommand): void {
+  for (const [name, value] of [
+    ['id', command.id],
+    ['external_id', command.external_id],
+    ['target_id', command.target_id],
+    ['rustdesk_id', command.rustdesk_id]
+  ] as const) {
+    if (!/^[A-Za-z0-9._:@/-]{1,256}$/.test(String(value || ''))) {
+      throw new Error(`RustDesk command ${name} contains unsupported characters or length`);
+    }
+  }
+  if (!['consent_revoked', 'remote_session_ended', 'tool_ended', 'gateway_ended'].includes(command.requested_reason)) {
+    throw new Error('RustDesk command requested_reason is unsupported');
+  }
 }
 
 function terminateAdapterProcess(
@@ -402,6 +443,8 @@ function adapterFailureReason(result: LocalAdapterResult): string {
   if (result.timedOut) return 'adapter_timeout';
   if (result.errorCode) return 'adapter_spawn_error';
   if (result.signal) return 'adapter_signal';
+  if (result.exitCode === 20) return 'targeted_disconnect_unavailable';
+  if (result.exitCode === 21) return 'service_unavailable';
   return 'adapter_exit_nonzero';
 }
 

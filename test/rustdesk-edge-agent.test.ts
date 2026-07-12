@@ -234,6 +234,20 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
     }),
     /OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE must be an absolute path/
   );
+  assert.throws(
+    () => createRustDeskEdgeAgentConfigFromEnv({
+      OPC_BASE_URL: 'https://opc.example.com',
+      OPC_COLLABORATION_API_KEY: 'collaboration-key',
+      OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
+      OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
+      OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
+      OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+      OPC_RUSTDESK_EDGE_COMMAND_TOKEN: 'signed-edge-command-token',
+      OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect',
+      OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["--value={server_command}"]'
+    }),
+    /contains unsupported RustDesk adapter placeholder: \{server_command\}/
+  );
 });
 
 test('rustdesk edge agent rejects blank RustDesk ID files', () => {
@@ -658,6 +672,11 @@ test('rustdesk edge agent is wired into scripts and env examples', () => {
   ]) {
     assert.match(envExample, new RegExp(`^${key}`, 'm'));
   }
+  for (const key of [
+    'OPC_RUSTDESK_SESSION_DISCONNECT_HOOK=',
+    'OPC_RUSTDESK_SERVICE_NAME=',
+    'OPC_RUSTDESK_LAUNCHD_LABEL='
+  ]) assert.match(envExample, new RegExp(`^${key}`, 'm'));
 });
 
 function jsonResponse(status: number, body: unknown): Response {

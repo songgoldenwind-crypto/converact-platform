@@ -109,6 +109,26 @@ tinode_app  superuser=false  bypassrls=false
 
 All ordinary tables containing `tenant_id` must have both `relrowsecurity=true` and `relforcerowsecurity=true`. Run `test/db-rls-integration.test.ts` with temporary runtime/admin URLs as the final isolation gate; do not add the admin URL to the long-running iveKit container. The gate also proves `opc_runtime` cannot turn `app.bypass_rls` into a cross-tenant bypass.
 
+## Device-Side RustDesk Disconnect
+
+The iveKit application container never executes device commands. Install the edge agent and the matching files from `scripts/rustdesk-edge-adapters/` on each controlled Windows, macOS, or Linux device. Adapter processes are started with `shell:false`; dynamic values are individual allowlisted placeholders, never a server-provided command string.
+
+RustDesk OSS 1.4.7 does not expose a stable cross-platform CLI for terminating one incoming session. The `*-disconnect` wrapper therefore calls only a locally configured absolute-path session hook. If no version-specific hook exists it exits as unavailable, after which the `*-restart` adapter may restart the local RustDesk service with explicit collateral-session risk. Do not enable `OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1` until validate mode, command claim/result, and real two-client disconnect observation all pass.
+
+Every wrapper supports a non-mutating validate invocation. Linux example:
+
+```bash
+/opt/opc/bin/linux-disconnect.sh \
+  --mode validate --external-id gateway-check --target-id device-check \
+  --rustdesk-id 123456789 --reason gateway_ended
+
+/opt/opc/bin/linux-restart.sh \
+  --mode validate --external-id gateway-check --target-id device-check \
+  --rustdesk-id 123456789 --reason gateway_ended
+```
+
+Configure edge adapter args with the exact placeholders `{external_id}`, `{target_id}`, `{rustdesk_id}`, and `{requested_reason}`. The optional session hook, systemd service name, and launchd label are local-only settings (`OPC_RUSTDESK_SESSION_DISCONNECT_HOOK`, `OPC_RUSTDESK_SERVICE_NAME`, `OPC_RUSTDESK_LAUNCHD_LABEL`); the server cannot override them.
+
 ## Upgrade And Recovery
 
 Switching from the full OPC process to `npm run start:ivekit` changes only the application container command. No PostgreSQL downgrade or data copy is required, and existing host ports, public URLs, service key, databases, and named volumes remain stable. `postgres-runtime-role` and `tinode-bootstrap` are idempotent and rerun on `up`.

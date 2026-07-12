@@ -276,7 +276,8 @@ iveKit 的目标不是只服务 OPC 当前页面，而是作为“视频 + IM + 
 
 - 已完成：除原有 gateway/client-config/launch/audit/LED facade 能力外，已经增加 PostgreSQL `rustdesk_device_commands`、FORCE RLS、幂等 enqueue、并发 claim lease、claim token hash、设备绑定 HMAC edge token、进度/结果 API、并发 result 幂等、耗尽 lease 查询收敛、三次执行与退避、session adapter→service restart fallback、设备侧无 shell executor、超时进程组强制终止、结果摘要/哈希、全部结束入口的 reason 映射、严格 capability heartbeat 门禁、HTTP client/LED SDK 状态查询、physical-disconnect readiness、真实客户端 acceptance 字段与绑定审计要求，以及 Compose/K8s/server 与 edge 两个信任域的配置样例。详细实现和 API 见 §6.4.5。
 - 已完成：`clients/ivekit-reference` 增加独立 **Remote** 工作区，统一客户端通过顶层 Messages / Calls / Remote 三个工作区切换。Remote 工作区支持 business ref 解析注册设备、权限 scope 与 attended/unattended 选择、gateway session 创建、实际 granted scope、控制 owner/version、审计数量和物理断开状态展示，以及 ID server、relay、可选 API server、public key 和 fingerprint 手工配置。它只在用户点击时即时重取 launch plan，校验会话、目标、`rustdesk://` scheme 和 fingerprint 后拉起原生客户端，不把 signed launch URL/token 渲染到 DOM 或持久化。unattended 普通刷新不重复消费二次确认；主动拉起会重新确认。当前身份持有控制权时每 10 秒自动 heartbeat，失去 ownership、会话结束或卸载即停止；续租失败后以服务端 ownership 为准。控制权支持 acquire/release/transfer，组件提供 business ref、remote session 和 access mode 预填参数及可注入 protocol opener，便于 LED 壳层复用。
-- 待服务器验收：按 RustDesk profile 启动真实 `hbbs/hbbr`，部署 Linux/Windows 设备 wrapper 和 edge agent，确认真实 RustDesk 版本下 targeted disconnect 或 service restart 的实际效果；使用两个真实客户端建立连接，执行 consent revoke/tool end/direct gateway end，验证控制端屏幕和键鼠能力停止、命令状态为 `succeeded`、requested→claimed→succeeded 审计完整、旧 launch URL 返回 409，并确认 fallback 重启造成的其它会话影响符合预期。
+- 已完成：新增 Windows、macOS、Linux 六个设备端 targeted-disconnect/service-restart wrapper；支持无副作用 validate、固定 argv 占位符、local-only session hook、服务存在性检查、幂等重复调用、缺失精准 hook/服务的可区分退出语义，并继续复用 edge executor 的 timeout、进程组强杀、输出限长哈希和 restart collateral-risk 审计。RustDesk OSS 1.4.7 没有稳定跨平台 incoming-session disconnect CLI，因此精准能力由本地版本专用 hook 显式提供，不猜测私有 IPC。
+- 待服务器验收：按 RustDesk profile 启动真实 `hbbs/hbbr`，部署 Linux/Windows/macOS 设备 wrapper 和 edge agent，确认真实 RustDesk 版本下 targeted disconnect 或 service restart 的实际效果；使用两个真实客户端建立连接，执行 consent revoke/tool end/direct gateway end，验证控制端屏幕和键鼠能力停止、命令状态为 `succeeded`、requested→claimed→succeeded 审计完整、旧 launch URL 返回 409，并确认 fallback 重启造成的其它会话影响符合预期。
 - 第一版不做：fork RustDesk client、依赖 RustDesk Server Pro API、在应用表里保存 unattended password。
 
 参考：
@@ -2059,10 +2060,12 @@ OPC_RUSTDESK_EDGE_COMMAND_TOKEN_FILE=/etc/opc/rustdesk-edge-command.token
 OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS=2000
 OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS=40000
 OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS=15000
-OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE=/opt/opc/bin/disconnect-rustdesk-session
-OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON=[]
-OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE=/opt/opc/bin/restart-rustdesk-service
-OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON=[]
+OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE=/opt/opc/bin/linux-disconnect.sh
+OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON=["--mode","execute","--external-id","{external_id}","--target-id","{target_id}","--rustdesk-id","{rustdesk_id}","--reason","{requested_reason}"]
+OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE=/opt/opc/bin/linux-restart.sh
+OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON=["--mode","execute","--external-id","{external_id}","--target-id","{target_id}","--rustdesk-id","{rustdesk_id}","--reason","{requested_reason}"]
+OPC_RUSTDESK_SESSION_DISCONNECT_HOOK=/opt/opc/bin/rustdesk-native-session-hook
+OPC_RUSTDESK_SERVICE_NAME=rustdesk.service
 ```
 
 设备 token 必须在可信服务器/运维环境生成，不在 edge 设备上放置签名 secret：
@@ -2082,23 +2085,30 @@ npm run rustdesk:edge-token
 
 Linux 建议：
 
-1. 把两个 wrapper 安装到 root 或专用服务账号可执行、普通业务用户不可修改的目录，例如 `/opt/opc/bin/`。
+1. 将 `scripts/rustdesk-edge-adapters/linux-disconnect.sh` 和 `linux-restart.sh` 安装到 root 或专用服务账号可执行、普通业务用户不可修改的目录，例如 `/opt/opc/bin/`。
 2. 使用 systemd 以最小权限账号常驻运行 `npm run rustdesk:edge-agent`；仅 wrapper 需要的 service-manager 权限单独授予，不给 edge agent 通用 shell/sudo 权限。
-3. wrapper 应优先按当前 RustDesk 客户端版本实现“结束目标会话”；如果版本没有稳定的 targeted disconnect API，再把 service restart wrapper 作为明确 fallback。
-4. wrapper 必须可重复执行，并用退出码表达结果；不要把命令 ID 或 external ID 拼进 shell 字符串。
+3. `linux-disconnect.sh` 只调用本地绝对路径 `OPC_RUSTDESK_SESSION_DISCONNECT_HOOK`，并把 external/device/RustDesk ID 和 reason 作为独立 argv 传入。未配置 hook 时退出 20，edge agent 将其记为 `targeted_disconnect_unavailable` 后进入 fallback。
+4. `linux-restart.sh` 只接受受限 service name，使用 `systemctl restart`；服务不存在时退出 21。它会断开该设备上的其它 RustDesk 会话，结果固定标记 collateral risk。
 
 Windows 建议：
 
-1. 将签名的 `.exe`/`.cmd` 外壳放在受 ACL 保护的目录，例如 `C:\Program Files\OPC\RustDesk Edge\bin\`；生产优先使用可审计的 `.exe` wrapper。
+1. 将 `windows-disconnect.ps1`、`windows-restart.ps1` 和可选签名 native session hook 放在受 ACL 保护的目录，例如 `C:\Program Files\OPC\RustDesk Edge\bin\`。
 2. 用 Windows Service/NSSM/企业设备管理器常驻运行 edge agent，服务账号只授予控制本机 RustDesk service/process 所需权限。
-3. 示例值为 `OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE=C:\Program Files\OPC\RustDesk Edge\bin\disconnect-rustdesk-session.exe`；参数仍通过 JSON string array 固定配置。
+3. executable 配置为受信任 `powershell.exe`/`pwsh.exe` 绝对路径，固定 args 先传 `-NoProfile -NonInteractive -File <wrapper>`，再传 `-Mode execute -ExternalId {external_id} -TargetId {target_id} -RustDeskId {rustdesk_id} -Reason {requested_reason}`。不要使用 `cmd.exe`、`Invoke-Expression` 或拼接命令字符串。
 4. Windows service restart 可能断开该设备上的全部 RustDesk 会话，必须在 acceptance 中记录 collateral impact。
 
-edge agent 使用 Node `spawn(executable, args, {shell:false})`。服务端标识不会作为动态命令行参数，而只通过以下进程环境变量交给本地 wrapper：
+macOS 使用 `macos-disconnect.sh` / `macos-restart.sh`，默认 launchd label 为 `com.carriez.RustDesk_service`，可通过本机 `OPC_RUSTDESK_LAUNCHD_LABEL` 覆盖。restart wrapper 使用 `launchctl kickstart -k system/<label>`，同样属于可能影响其它会话的 fallback。
+
+六个 wrapper 均支持 `validate` 模式；该模式只检查本地 hook/service 可用性并输出无秘密 JSON，不执行断开或重启。edge agent 的正式 command args 必须使用 `execute`，不能把 validate 的退出 0 当作已物理断开。
+
+RustDesk OSS 1.4.7 当前没有公开、稳定、跨平台的 incoming-session targeted disconnect CLI。因此仓库不猜测私有 IPC：有本地版本专用 hook 时走精准路径，没有时明确失败并进入 service restart。真实控制端是否停止画面和键鼠仍必须由两台物理客户端观察，不能由 wrapper 退出码替代。
+
+edge agent 使用 Node `spawn(executable, args, {shell:false})`。固定 args 支持且只支持 `{command_id}`、`{external_id}`、`{target_id}`、`{rustdesk_id}`、`{requested_reason}` 五个整参数占位符；未知占位符在启动阶段失败，不做字符串内插。相同标识也会通过以下环境变量交给兼容旧 wrapper：
 
 - `OPC_RUSTDESK_COMMAND_ID`
 - `OPC_RUSTDESK_EXTERNAL_ID`
 - `OPC_RUSTDESK_TARGET_ID`
+- `OPC_RUSTDESK_RUSTDESK_ID`
 - `OPC_RUSTDESK_DISCONNECT_REASON`
 
 wrapper 的 stdout/stderr 每个最多读取并散列 64 KiB；服务端只收到 byte count 和 SHA-256，不收到原始输出。API key、claim token、命令参数和原始进程输出不进入 readiness/preflight 报告。

@@ -199,7 +199,7 @@ function parseEdgeAdapter(
   argsEnvName: string
 ): RustDeskEdgeAdapter | null {
   const executable = String(executableValue || '').trim();
-  const args = parseStringArray(argsValue, argsEnvName);
+  const args = validateAdapterArgs(parseStringArray(argsValue, argsEnvName), argsEnvName);
   if (!executable) {
     if (args.length) throw new Error(`${executableEnvName} is required when ${argsEnvName} is configured`);
     return null;
@@ -208,6 +208,25 @@ function parseEdgeAdapter(
     throw new Error(`${executableEnvName} must be an absolute path`);
   }
   return { executable, args };
+}
+
+function validateAdapterArgs(args: string[], envName: string): string[] {
+  const supported = new Set([
+    '{command_id}',
+    '{external_id}',
+    '{target_id}',
+    '{rustdesk_id}',
+    '{requested_reason}'
+  ]);
+  for (const arg of args) {
+    const placeholders = arg.match(/\{[a-z_]+\}/g) || [];
+    for (const placeholder of placeholders) {
+      if (arg !== placeholder || !supported.has(placeholder)) {
+        throw new Error(`${envName} contains unsupported RustDesk adapter placeholder: ${placeholder}`);
+      }
+    }
+  }
+  return args;
 }
 
 function isAbsoluteExecutable(value: string): boolean {

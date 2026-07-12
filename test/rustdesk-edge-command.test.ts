@@ -39,6 +39,7 @@ test('edge command executes the primary adapter with fixed args and server ident
             process.env.OPC_RUSTDESK_COMMAND_ID === 'rdcmd_edge_execution_1' &&
             process.env.OPC_RUSTDESK_EXTERNAL_ID === 'rdgw_edge_execution_1' &&
             process.env.OPC_RUSTDESK_TARGET_ID === 'rdesk_edge_execution_1' &&
+            process.env.OPC_RUSTDESK_RUSTDESK_ID === '123456789' &&
             process.env.OPC_RUSTDESK_DISCONNECT_REASON === 'consent_revoked';
            process.stdout.write('primary-adapter-output');
            process.exit(ok ? 0 : 9);`
@@ -65,6 +66,66 @@ test('edge command executes the primary adapter with fixed args and server ident
   assert.equal('stdout' in result, false);
   assert.equal('stderr' in result, false);
   assert.deepEqual(progress, []);
+});
+
+test('edge command expands only fixed command placeholders into argv without a shell', async () => {
+  const result = await executeRustDeskDisconnectCommand(command, {
+    timeoutMs: 2_000,
+    edgeInstanceId: 'edge-execution-argv',
+    edgeAgentVersion: '1.0.0',
+    os: process.platform,
+    disconnectAdapter: {
+      executable: process.execPath,
+      args: [
+        '-e',
+        `const expected = ['--external-id','rdgw_edge_execution_1','--target-id','rdesk_edge_execution_1','--rustdesk-id','123456789','--reason','consent_revoked'];
+         process.exit(JSON.stringify(process.argv.slice(1)) === JSON.stringify(expected) ? 0 : 8);`,
+        '--',
+        '--external-id', '{external_id}',
+        '--target-id', '{target_id}',
+        '--rustdesk-id', '{rustdesk_id}',
+        '--reason', '{requested_reason}'
+      ]
+    },
+    restartAdapter: null
+  });
+
+  assert.equal(result.status, 'succeeded');
+  assert.equal(result.execution_method, 'session_adapter');
+});
+
+test('edge command rejects unknown adapter placeholders before spawning', async () => {
+  await assert.rejects(
+    () => executeRustDeskDisconnectCommand(command, {
+      timeoutMs: 2_000,
+      edgeInstanceId: 'edge-execution-bad-placeholder',
+      edgeAgentVersion: '1.0.0',
+      os: process.platform,
+      disconnectAdapter: {
+        executable: process.execPath,
+        args: ['{arbitrary_server_command}']
+      },
+      restartAdapter: null
+    }),
+    /unsupported RustDesk adapter placeholder/
+  );
+});
+
+test('edge command rejects unbounded or unsafe server identifiers before spawning', async () => {
+  await assert.rejects(
+    () => executeRustDeskDisconnectCommand({
+      ...command,
+      external_id: 'gateway-1\n--service=malicious'
+    }, {
+      timeoutMs: 2_000,
+      edgeInstanceId: 'edge-execution-bad-id',
+      edgeAgentVersion: '1.0.0',
+      os: process.platform,
+      disconnectAdapter: { executable: process.execPath, args: ['-e', 'process.exit(0)'] },
+      restartAdapter: null
+    }),
+    /external_id contains unsupported characters or length/
+  );
 });
 
 test('edge command falls back to service restart after primary failure', async () => {
@@ -100,6 +161,28 @@ test('edge command falls back to service restart after primary failure', async (
     'fallback_started'
   ]);
   assert.equal(progress[0]?.exit_code, 2);
+});
+
+test('edge command preserves targeted-unavailable and missing-service reasons', async () => {
+  const result = await executeRustDeskDisconnectCommand(command, {
+    timeoutMs: 2_000,
+    edgeInstanceId: 'edge-execution-unavailable',
+    edgeAgentVersion: '1.0.0',
+    os: process.platform,
+    disconnectAdapter: {
+      executable: process.execPath,
+      args: ['-e', 'process.exit(20)']
+    },
+    restartAdapter: {
+      executable: process.execPath,
+      args: ['-e', 'process.exit(21)']
+    }
+  });
+
+  assert.equal(result.status, 'failed');
+  assert.equal(result.execution_method, 'service_restart');
+  assert.equal(result.metadata.fallback_reason, 'targeted_disconnect_unavailable');
+  assert.equal(result.metadata.fallback_result_reason, 'service_unavailable');
 });
 
 test('edge command times out the primary adapter before running fallback', async () => {

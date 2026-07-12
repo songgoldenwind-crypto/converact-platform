@@ -165,6 +165,8 @@ await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
 4. 当前身份取得控制权后每 10 秒调用 `heartbeatControl()` 续租；释放、转移、过期、会话结束或组件卸载后停止。续租失败会重新读取服务端 ownership，不在前端伪造所有权。
 5. 浏览器 protocol handler 必须由用户点击触发。LED 若封装桌面壳，应通过 `openProtocol(url)` 注入受控原生拉起实现，仍保留上述即时校验。
 
+设备侧物理断开使用 `scripts/rustdesk-edge-adapters/` 中 Windows、macOS、Linux 六个 wrapper。精准断开 wrapper 只调用设备本机预配置的绝对路径 session hook；RustDesk OSS 1.4.7 没有稳定的跨平台 incoming-session disconnect CLI，因此没有 hook 时会明确转入 service restart fallback，并保留 `collateral_sessions_may_disconnect=true`。所有标识均作为独立 argv 传入，未知占位符启动即失败；`validate` 模式不会断开或重启，可用于 LED 设备安装预检，但不能当作物理断开成功证据。
+
 ### 4.6 可运行示例
 
 ```bash
