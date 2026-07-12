@@ -35,7 +35,7 @@
     "check:ai-worker": "tsx scripts/check-sidecars.ts ai-worker",
     "dev:voice-media": "cargo run --manifest-path services/voice-media-rs/Cargo.toml",
     "check:voice-media": "tsx scripts/check-sidecars.ts voice-media",
-    "check:sidecars": "tsx scripts/check-sidecars.ts all",
+    "check:sidecars": "node --import tsx scripts/check-sidecars.ts all",
     "render:media-configs": "node --import tsx scripts/render-media-configs.ts",
     "render:livekit-edge": "node --import tsx scripts/render-media-configs.ts --edge",
     "livekit:edge:config": "docker compose --env-file infra/livekit/env.example -f infra/livekit/docker-compose.yml config",

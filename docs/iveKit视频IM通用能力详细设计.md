@@ -3585,3 +3585,9 @@ M4 本地代码和交付材料完成；全仓 `2042` 项中 `2037` 通过、`5` 
 ### 20.3 完成边界
 
 该增量完成“代码和交付物可拆、可构建、可安装、可校验”，不改变真实能力验收原则。LiveKit/Tinode/RustDesk 的 provider 状态按各自专项证据判断；交付 manifest 不把历史证据自动升级为本次通过，V2 未执行项继续明确为 `not_run` 或 `not_run_for_v2`。
+
+## 21. 2026-07-13 V2 最终状态
+
+M6.1-M6.7 已完成。最终门禁包括全仓 Node 2111 项 0 失败、真实 PostgreSQL V2 专项 4/4、参考客户端 117/117 与 production build、服务器 Playwright 9/9、SDK/event/delivery 32/32、SDK 实际 pack/install、91 文件 standalone context、4 组 Compose 和三类 sidecar。服务器 Playwright 覆盖 IM、媒体生命周期、RustDesk、移动端与三工作区深链；交付包独立镜像构建、checksum、SBOM 和干净安装证据保持有效。
+
+因此“作为 OPC 当前底座，同时方便拆给 LED/其它项目”这一技术目标已经达到。后续项目应继续通过 iveKit API/SDK 组合 OCR/ASR/AI、翻译和 SIP，不把 OPC 业务表或 call-center 流程搬入通用模块。LiveKit/RustDesk 真实物理数据面、外部 AI provider、SIP 线路和规模测试仍按独立上线门禁执行。

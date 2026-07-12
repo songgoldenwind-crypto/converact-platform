@@ -30,7 +30,7 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 | M6.4 Durable event replay | 已完成 | 32 号 migration、单调 event ID、签名/租户绑定/过期 cursor、当前参与人/RBAC 过滤、定向 audience、HTTP 增量页、WebSocket resume、请求事务后缓冲、持久化后 Redis fan-out、实例回送去重、retention worker 和独立回滚开关均已实现；本地/真实 PostgreSQL/standalone 门禁通过；服务器完成进程重启恢复、撤权、非法/跨租户 cursor、定向 audience、RLS、retention 与幂等复验 | 纳入 M6.7 最终全量回归 |
 | M6.5 RustDesk edge spool | 已完成 | crash-safe filesystem spool、执行 intent/result、恢复租约、terminal ack、uncertain/ownership quarantine、容量/年龄/权限/符号链接/单实例门禁和 preflight 已实现；本地、真实 PostgreSQL和隔离服务器故障矩阵均通过 | 纳入 M6.7 最终全量回归 |
 | M6.6 SDK、交付、兼容 | 已完成 | SDK event page/replay、三工作区恢复控制器、独立 service build context、32 个 migration manifest、image metadata、SPDX SBOM、RustDesk edge 可安装包和全量 checksum 已交付；服务器从包内独立构建并完成干净安装复验 | 纳入 M6.7 最终全量回归 |
-| M6.7 完成审计 | 进行中 | M6.1-M6.6 局部与服务器门禁通过 | 全量 verify、兼容矩阵、故障恢复和最终状态审计 |
+| M6.7 完成审计 | 已完成 | 全仓、真实 PostgreSQL、客户端、SDK、Compose、sidecar、独立构建、交付校验和服务器 Playwright 门禁通过；环境/外部 provider 限制已单列 | 进入 V3/V4；V2 未重跑 provider 项保持 `not_run_for_v2` |
 
 ## 2. 现状审计
 
@@ -374,6 +374,17 @@ worker 行为：
 11. delivery checksum、secret scan 和 forbidden-source scan。
 
 V2 未重新执行的 LiveKit、RustDesk provider 场景必须标记 `not_run_for_v2`；Tinode 仅可声明本次实际覆盖的消息、编辑、Drafty 引用、删除、离线补偿和重启幂等，不得扩写为容量、弱网或多节点生产验收。不得用 2026-07-11 的 V1 证据冒充 V2 重验，V1 已通过的真实链路仅保留为基线证据。
+
+完成证据（2026-07-13）：
+
+- 最终审计修复提交 `e23dd27` 补齐旧 RustDesk readiness/token fixture 的强制 spool 目录；没有放宽 production fail-closed 门禁。最小回归 9/9、全仓 `2111` 项中 `2102` 通过、`9` 项真实数据库检查按环境跳过、`0` 失败。
+- 临时真实 PostgreSQL 另行执行 fresh/upgrade/RLS、Tinode inbound store 和 projector，共 4/4 通过，覆盖了上述全仓跳过项中与 V2 相关的数据库路径。
+- 参考客户端 unit/component 117/117、production build 与 5 个 JS chunk budget 通过；服务器使用 `mcr.microsoft.com/playwright:v1.61.1-noble` 对当前客户端源码执行受控 IM/Media/RustDesk/移动端/深链 E2E，9/9 通过，证据为 `/opt/ivekit-v2-validation/d21a2eb/reference-client-e2e.txt`。
+- SDK/event/delivery 聚焦回归 32/32，SDK build、真实 tgz pack、干净目录安装及 `events.replay` 导入通过。standalone context 验证为 91 个白名单 source、6 个 runtime package，入口可加载。
+- iveKit application、production、LiveKit edge 和 storage overlay 共 4 组 Compose `config --quiet` 通过；Go provider gateway、Python AI worker 和 Rust voice media sidecar 检查通过。
+- `npm run verify` 的三个组成门禁均通过：`npm run typecheck`、已授权环境中的 `npm test`、无 IPC 的 `npm run check:sidecars`。受管本机直接运行包装命令时，嵌套测试服务器会被系统以 `listen EPERM` 拒绝，因此不把该次包装器退出码写成通过；结果以三个实际组成命令和服务器 Playwright 证据裁决。
+- M6.6 最终交付包与镜像摘要继续采用 `d21a2eb` 绑定结果；M6.7 后续提交只包含测试 fixture、无 IPC 门禁脚本和审计文档，不改变已构建服务运行源码。
+- 未执行边界：V2 没有重跑 LiveKit 双真实浏览器/TURN/Egress、RustDesk 物理客户端、OCR/ASR/AI provider、SIP 线路、多节点/容量/弱网。它们仍是外部上线门禁，不阻塞 V2 代码与可拆交付 Goal 完成。
 
 ## 7. 实施顺序
 
