@@ -437,7 +437,7 @@ RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveK
 | POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/heartbeat` | 当前控制者按版本续租 |
 | POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/release` | 当前控制者按版本释放 |
 | POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/transfer` | 使用转移确认原子转移控制权 |
-| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/operations` | 消费文件、剪贴板或键鼠操作确认 |
+| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/operations` | 消费文件、剪贴板或键鼠确认并返回一次性 operation grant |
 | POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/events` | 结构化操作审计 |
 | GET | `/api/ivekit/rustdesk/gateway-sessions/:external_id/audit` | 审计列表 |
 | DELETE | `/api/ivekit/rustdesk/gateway-sessions/:external_id` | 结束控制面会话并触发物理断开命令 |
@@ -457,8 +457,8 @@ session 和重放 challenge 返回 4xx。状态变化只推送给当前 active p
 
 `control_mouse_keyboard`、`transfer_file`、`clipboard`、`control_transfer` 和
 `unattended_launch` 必须使用新签发且未消费的 confirmation。新会话上报控制动作、文件
-started 或剪贴板事件时，metadata 必须额外携带 `secondary_confirmation_id` 和
-`control_version`；确认消费和审计写入处于同一数据库事务。旧 OPC 会话不增加该字段
+started 或剪贴板事件时，metadata 必须额外携带 `operation_grant_id` 和
+`control_version`；操作授权关联和审计写入处于同一数据库事务。旧 OPC 会话不增加该字段
 要求，以保持已发布 control-plane 合同。
 
 无人值守创建响应不会返回可直接使用的 `launch_url`。调用方应先创建 session，再申请

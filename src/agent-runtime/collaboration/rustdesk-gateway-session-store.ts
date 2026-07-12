@@ -235,13 +235,13 @@ export class RustDeskGatewaySessionStore {
       metadata,
       occurred_at: occurredAt || new Date().toISOString()
     };
-    const insert = async (pg: PgQueryable) => {
+    const insert = async (pg: PgQueryable, auditEventId = pgId('rdgev')) => {
       await pg.query(
         `INSERT INTO rustdesk_gateway_events
           (id, external_id, tenant_id, event_type, actor_identity, target, idempotency_key, metadata, occurred_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
         [
-          pgId('rdgev'), event.external_id, session.tenant_id, event.event_type,
+          auditEventId, event.external_id, session.tenant_id, event.event_type,
           event.actor_identity, event.target, idempotencyKey, toJson(event.metadata), event.occurred_at
         ]
       );
@@ -249,19 +249,19 @@ export class RustDeskGatewaySessionStore {
     };
     const confirmedOperation = rustDeskGatewaySecondaryConfirmationOperation(eventType, inputMetadata);
     if (Number(session.metadata.control_enforcement_version || 0) >= 1 && confirmedOperation) {
-      const confirmationId = String(inputMetadata.secondary_confirmation_id || '').trim();
+      const authorizationId = String(inputMetadata.operation_grant_id || '').trim();
       const controlVersion = Number(inputMetadata.control_version);
-      if (!confirmationId || !Number.isInteger(controlVersion) || controlVersion < 1) {
+      if (!authorizationId || !Number.isInteger(controlVersion) || controlVersion < 1) {
         throw Object.assign(new Error(
-          'RustDesk sensitive operation requires metadata.secondary_confirmation_id and metadata.control_version'
+          'RustDesk sensitive operation requires metadata.operation_grant_id and metadata.control_version'
         ), { status: 403 });
       }
-      return new RustDeskControlLockStore(this.pg).confirmOperationAndRun({
+      return new RustDeskControlLockStore(this.pg).linkOperationAuthorizationAndRun({
         tenant_id: session.tenant_id,
         external_id: session.external_id,
         actor_identity: actorIdentity,
         operation: confirmedOperation,
-        confirmation_id: confirmationId,
+        operation_authorization_id: authorizationId,
         version: controlVersion
       }, insert);
     }

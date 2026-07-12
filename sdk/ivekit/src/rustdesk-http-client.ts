@@ -26,6 +26,7 @@ import type {
   RustDeskOperationEvidenceMetadata,
   RustDeskOperationEvidenceReference,
   RustDeskOperationObserver,
+  RustDeskOperationAuthorization,
   RustDeskPermissionScopes,
   RustDeskRuntimeCapabilities,
   RustDeskSecondaryConfirmation,
@@ -205,7 +206,7 @@ export interface IveKitRustDeskControlHttpClient extends IveKitRustDeskAccessPol
   heartbeatControl(externalId: string, input: HeartbeatIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
   releaseControl(externalId: string, input: ReleaseIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
   transferControl(externalId: string, input: TransferIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
-  confirmOperation(externalId: string, input: ConfirmIveKitRustDeskOperationInput): Promise<void>;
+  confirmOperation(externalId: string, input: ConfirmIveKitRustDeskOperationInput): Promise<RustDeskOperationAuthorization>;
 }
 
 export class IveKitRustDeskHttpError extends Error {
@@ -408,7 +409,9 @@ export function createIveKitRustDeskHttpClient(
       ));
     },
     async confirmOperation(externalId, operationInput) {
-      await request<unknown>('POST', `${rustDeskControlPath(externalId)}/operations`, operationInput);
+      return projectRustDeskOperationAuthorization(await request<unknown>(
+        'POST', `${rustDeskControlPath(externalId)}/operations`, operationInput
+      ));
     },
     async startGatewaySession(input) {
       if (
@@ -620,6 +623,23 @@ export function projectRustDeskSecondaryConfirmation(value: unknown): RustDeskSe
     expires_at: controlTimestamp(row.expires_at, 'expires_at'),
     consumed_at: row.consumed_at === null ? null : controlTimestamp(row.consumed_at, 'consumed_at'),
     created_at: controlTimestamp(row.created_at, 'created_at')
+  };
+}
+
+export function projectRustDeskOperationAuthorization(value: unknown): RustDeskOperationAuthorization {
+  const row = controlRecord(value, 'operation_authorization');
+  const version = Number(row.control_version);
+  if (!Number.isInteger(version) || version < 0) throw invalidControl('control_version');
+  return {
+    id: controlString(row.id, 'id'),
+    external_id: controlString(row.external_id, 'external_id'),
+    actor_identity: controlString(row.actor_identity, 'actor_identity'),
+    operation: controlEnum(row.operation, [
+      'control_mouse_keyboard', 'transfer_file', 'clipboard', 'unattended_launch', 'control_transfer'
+    ] as const, 'operation'),
+    control_version: version,
+    expires_at: controlTimestamp(row.expires_at, 'expires_at'),
+    authorized_at: controlTimestamp(row.authorized_at, 'authorized_at')
   };
 }
 

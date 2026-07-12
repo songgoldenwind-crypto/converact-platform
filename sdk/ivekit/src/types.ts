@@ -120,6 +120,16 @@ export interface RustDeskSecondaryConfirmation {
   created_at: string;
 }
 
+export interface RustDeskOperationAuthorization {
+  id: string;
+  external_id: string;
+  actor_identity: string;
+  operation: RustDeskConfirmedOperation;
+  control_version: number;
+  expires_at: string;
+  authorized_at: string;
+}
+
 export type RustDeskObservedOperation =
   | RemoteConsentScope
   | 'multi_display'

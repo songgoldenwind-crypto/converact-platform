@@ -23,11 +23,17 @@ CREATE TABLE IF NOT EXISTS rustdesk_secondary_confirmations (
   expires_at TIMESTAMPTZ NOT NULL,
   consumed_at TIMESTAMPTZ,
   consumed_by_event_id TEXT,
+  audit_linked_at TIMESTAMPTZ,
+  audit_event_id TEXT REFERENCES rustdesk_gateway_events(id) DEFERRABLE INITIALLY DEFERRED,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_rustdesk_secondary_confirmations_lookup
   ON rustdesk_secondary_confirmations(tenant_id, external_id, actor_identity, operation, expires_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rustdesk_secondary_confirmations_audit_event
+  ON rustdesk_secondary_confirmations(audit_event_id)
+  WHERE audit_event_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS rustdesk_control_events (
   id TEXT PRIMARY KEY,

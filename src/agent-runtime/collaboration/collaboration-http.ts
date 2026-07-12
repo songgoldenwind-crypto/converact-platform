@@ -1894,13 +1894,13 @@ export async function routeCollaborationApi(
             lease_ms: input.lease_ms === undefined ? undefined : Number(input.lease_ms)
           });
         } else if (action === 'operations' && method === 'POST') {
-          await scopedModule.rustdeskControlLocks.confirmOperation({
+          const authorization = await scopedModule.rustdeskControlLocks.confirmOperation({
             ...common,
             operation: String(input.operation || '') as never,
             confirmation_id: String(input.confirmation_id || ''),
             version: Number(input.version)
           });
-          return { status: 204, data: null };
+          return { status: 201, data: authorization };
         } else {
           return { status: 405, data: { error: 'method not allowed' } };
         }

@@ -23,6 +23,8 @@ test('RustDesk control ownership migration defines leases confirmations and immu
   assert.match(migration, /CREATE TABLE IF NOT EXISTS rustdesk_secondary_confirmations \(/);
   assert.match(migration, /operation TEXT NOT NULL/);
   assert.match(migration, /consumed_at TIMESTAMPTZ/);
+  assert.match(migration, /audit_linked_at TIMESTAMPTZ/);
+  assert.match(migration, /audit_event_id TEXT/);
   assert.match(migration, /CREATE TABLE IF NOT EXISTS rustdesk_control_events \(/);
   assert.match(migration, /event_type TEXT NOT NULL/);
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/g);
@@ -172,12 +174,17 @@ test('control-enforced gateway events atomically consume the matching secondary 
     actor_identity: 'agent-a',
     metadata: { transfer_id: 'transfer-1', direction: 'upload' },
     occurred_at: now
-  }), /secondary_confirmation_id/);
+  }), /operation_grant_id/);
 
   const backdated = new Date(Date.now() - 10 * 60_000).toISOString();
   const expiredConfirmation = await locks.issueConfirmation({
     tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
     operation: 'transfer_file', now: backdated
+  });
+  const expiredAuthorization = await locks.confirmOperation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'transfer_file', confirmation_id: expiredConfirmation.id,
+    version: ownership.version, now: backdated
   });
   await assert.rejects(() => sessions.appendAuditEvent({
     external_id: session.external_id,
@@ -185,14 +192,18 @@ test('control-enforced gateway events atomically consume the matching secondary 
     actor_identity: 'agent-a',
     metadata: {
       transfer_id: 'transfer-expired', direction: 'upload',
-      secondary_confirmation_id: expiredConfirmation.id, control_version: ownership.version
+      operation_grant_id: expiredAuthorization.id, control_version: ownership.version
     },
     occurred_at: backdated
-  }), /fresh secondary confirmation required/);
+  }), /fresh operation authorization required/);
 
   const confirmation = await locks.issueConfirmation({
     tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
     operation: 'transfer_file', now
+  });
+  const authorization = await locks.confirmOperation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'transfer_file', confirmation_id: confirmation.id, version: ownership.version, now
   });
   const event = await sessions.appendAuditEvent({
     external_id: session.external_id,
@@ -200,7 +211,7 @@ test('control-enforced gateway events atomically consume the matching secondary 
     actor_identity: 'agent-a',
     metadata: {
       transfer_id: 'transfer-1', direction: 'upload',
-      secondary_confirmation_id: confirmation.id, control_version: ownership.version
+      operation_grant_id: authorization.id, control_version: ownership.version
     },
     occurred_at: now
   });
@@ -211,10 +222,10 @@ test('control-enforced gateway events atomically consume the matching secondary 
     actor_identity: 'agent-a',
     metadata: {
       transfer_id: 'transfer-2', direction: 'upload',
-      secondary_confirmation_id: confirmation.id, control_version: ownership.version
+      operation_grant_id: authorization.id, control_version: ownership.version
     },
     occurred_at: now
-  }), /fresh secondary confirmation required/);
+  }), /fresh operation authorization required/);
 });
 
 test('RustDesk control HTTP requires active participants and binds actor to JWT identity', async () => {
@@ -326,7 +337,11 @@ test('iveKit RustDesk SDK maps the complete control ownership lifecycle', async 
         operation: 'control_mouse_keyboard', expires_at: '2026-07-12T05:02:00.000Z',
         consumed_at: null, created_at: '2026-07-12T05:00:00.000Z'
       }, 201);
-      if (path.endsWith('/operations')) return response(null, 204);
+      if (path.endsWith('/operations')) return response({
+        id: 'authorization-1', external_id: 'gateway-1', actor_identity: 'agent-a',
+        operation: 'clipboard', control_version: 3,
+        expires_at: '2026-07-12T05:02:00.000Z', authorized_at: '2026-07-12T05:00:00.000Z'
+      }, 201);
       return response(ownership);
     }
   });
@@ -336,7 +351,10 @@ test('iveKit RustDesk SDK maps the complete control ownership lifecycle', async 
   await client.heartbeatControl('gateway-1', { version: 1 });
   await client.releaseControl('gateway-1', { version: 2 });
   await client.transferControl('gateway-1', { version: 2, to_identity: 'agent-b', confirmation_id: 'confirm-2' });
-  await client.confirmOperation('gateway-1', { operation: 'clipboard', confirmation_id: 'confirm-3', version: 3 });
+  const authorization = await client.confirmOperation(
+    'gateway-1', { operation: 'clipboard', confirmation_id: 'confirm-3', version: 3 }
+  );
+  assert.equal(authorization.id, 'authorization-1');
   assert.deepEqual(calls, [
     'POST /api/ivekit/rustdesk/gateway-sessions/gateway-1/control/confirmations',
     'GET /api/ivekit/rustdesk/gateway-sessions/gateway-1/control',

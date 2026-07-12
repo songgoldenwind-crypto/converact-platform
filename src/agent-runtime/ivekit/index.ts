@@ -28,6 +28,7 @@ export {
   projectRustDeskAccessPolicyHistory,
   projectRustDeskAccessPolicyMutationResult,
   projectRustDeskControlOwnership,
+  projectRustDeskOperationAuthorization,
   projectRustDeskSecondaryConfirmation,
   projectRustDeskClientDistributionProfile
 } from './rustdesk-http-client.js';

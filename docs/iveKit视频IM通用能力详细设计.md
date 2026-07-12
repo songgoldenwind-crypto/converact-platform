@@ -1089,8 +1089,8 @@ transfer，所有写操作都使用版本号拒绝 stale owner。`customer/ai` o
 
 键鼠、文件 started、剪贴板、控制转移和无人值守拉起使用 30-300 秒的一次性 secondary
 confirmation。控制动作、文件 started 和剪贴板审计 metadata 必须携带
-`secondary_confirmation_id` 与 `control_version`，后端在同一事务中消费 confirmation、
-写 `rustdesk_control_events` 并写 gateway audit，任何一步失败都会回滚。无人值守创建响应
+`operation_grant_id` 与 `control_version`。后端先消费 confirmation 生成一次性 operation
+grant；操作完成后在同一事务中关联 grant 并写 gateway audit，任何一步失败都会回滚。无人值守创建响应
 隐藏 `launch_url`，随后用 `unattended_launch` confirmation 调用
 `GET .../launch?confirmation_id=...` 才返回可拉起计划。旧 OPC control-plane session 不
 自动启用这一门禁，以维持历史 HTTP 契约。

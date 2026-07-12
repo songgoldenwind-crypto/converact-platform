@@ -2386,9 +2386,23 @@ export class MemoryPg implements PgQueryable {
       const row: TableRow = {
         id: params[0], tenant_id: params[1], external_id: params[2], actor_identity: params[3],
         operation: params[4], expires_at: params[5], consumed_at: null,
-        consumed_by_event_id: null, created_at: params[6]
+        consumed_by_event_id: null, audit_linked_at: null, audit_event_id: null, created_at: params[6]
       };
       this.table('rustdesk_secondary_confirmations').set(String(row.id), row);
+      return [row];
+    }
+
+    if (sql.startsWith('UPDATE rustdesk_secondary_confirmations SET audit_linked_at')) {
+      const row = [...this.table('rustdesk_secondary_confirmations').values()].find((candidate) =>
+        String(candidate.consumed_by_event_id) === String(params[0]) &&
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.external_id) === String(params[2]) &&
+        String(candidate.actor_identity) === String(params[3]) &&
+        String(candidate.operation) === String(params[4])
+      );
+      if (!row || !row.consumed_at || row.audit_linked_at || String(row.expires_at) <= String(params[5])) return [];
+      row.audit_linked_at = params[6];
+      row.audit_event_id = params[7];
       return [row];
     }
 

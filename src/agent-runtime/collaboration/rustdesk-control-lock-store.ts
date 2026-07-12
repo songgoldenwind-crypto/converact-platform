@@ -36,6 +36,26 @@ export interface ConfirmRustDeskOperationInput {
   now?: string;
 }
 
+export interface RustDeskOperationAuthorization {
+  id: string;
+  external_id: string;
+  actor_identity: string;
+  operation: RustDeskConfirmedOperation;
+  control_version: number;
+  expires_at: string;
+  authorized_at: string;
+}
+
+export interface LinkRustDeskOperationAuthorizationInput {
+  tenant_id: string;
+  external_id: string;
+  actor_identity: string;
+  operation: RustDeskConfirmedOperation;
+  operation_authorization_id: string;
+  version: number;
+  now?: string;
+}
+
 const OPERATIONS = new Set<RustDeskConfirmedOperation>([
   'control_mouse_keyboard', 'transfer_file', 'clipboard', 'unattended_launch', 'control_transfer'
 ]);
@@ -139,21 +159,36 @@ export class RustDeskControlLockStore {
     });
   }
 
-  async confirmOperation(input: ConfirmRustDeskOperationInput): Promise<void> {
-    await this.confirmOperationAndRun(input, async () => undefined);
+  async confirmOperation(input: ConfirmRustDeskOperationInput): Promise<RustDeskOperationAuthorization> {
+    return this.withLock(input, (store) => store.confirmOperationLocked(input));
   }
 
-  async confirmOperationAndRun<T>(
-    input: ConfirmRustDeskOperationInput,
-    run: (pg: PgQueryable) => Promise<T>
+  async linkOperationAuthorizationAndRun<T>(
+    input: LinkRustDeskOperationAuthorizationInput,
+    run: (pg: PgQueryable, auditEventId: string) => Promise<T>
   ): Promise<T> {
     return this.withLock(input, async (store) => {
-      await store.confirmOperationLocked(input);
-      return run(store.pg);
+      const now = input.now || new Date().toISOString();
+      await store.requireActiveSession(input.tenant_id, input.external_id, input.operation);
+      const current = ownership(await store.lockRow(input.tenant_id, input.external_id), now);
+      assertOwner(current, input.actor_identity, input.version);
+      const auditEventId = pgId('rdgev');
+      const linked = await store.pg.query(
+        `UPDATE rustdesk_secondary_confirmations
+         SET audit_linked_at = $7, audit_event_id = $8
+         WHERE consumed_by_event_id = $1 AND tenant_id = $2 AND external_id = $3
+           AND actor_identity = $4 AND operation = $5 AND consumed_at IS NOT NULL
+           AND audit_linked_at IS NULL AND expires_at > $6
+         RETURNING *`,
+        [required(input.operation_authorization_id, 'operation_authorization_id'), input.tenant_id,
+          input.external_id, input.actor_identity, normalizeOperation(input.operation), now, now, auditEventId]
+      );
+      if (!linked.rows[0]) throw controlError('fresh operation authorization required', 403);
+      return run(store.pg, auditEventId);
     });
   }
 
-  private async confirmOperationLocked(input: ConfirmRustDeskOperationInput): Promise<void> {
+  private async confirmOperationLocked(input: ConfirmRustDeskOperationInput): Promise<RustDeskOperationAuthorization> {
     const now = input.now || new Date().toISOString();
     await this.requireActiveSession(
       input.tenant_id,
@@ -164,15 +199,24 @@ export class RustDeskControlLockStore {
       const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
       assertOwner(current, input.actor_identity, Number(input.version));
     }
-    const eventId = await this.consumeConfirmation({ ...input, now });
+    const consumed = await this.consumeConfirmation({ ...input, now });
     await this.pg.query(
       `INSERT INTO rustdesk_control_events
         (id, tenant_id, external_id, event_type, actor_identity, operation,
          lock_version, confirmation_id, metadata, created_at)
        VALUES ($1, $2, $3, 'operation_confirmed', $4, $5, $6, $7, '{}'::jsonb, $8)`,
-      [eventId, input.tenant_id, input.external_id, input.actor_identity, input.operation,
+      [consumed.event_id, input.tenant_id, input.external_id, input.actor_identity, input.operation,
         input.version === undefined ? 0 : input.version, input.confirmation_id, now]
     );
+    return {
+      id: consumed.event_id,
+      external_id: input.external_id,
+      actor_identity: input.actor_identity,
+      operation: input.operation,
+      control_version: input.version === undefined ? 0 : input.version,
+      expires_at: String(consumed.confirmation.expires_at),
+      authorized_at: now
+    };
   }
 
   private async withLock<T>(
@@ -246,7 +290,7 @@ export class RustDeskControlLockStore {
         input.actor_identity, normalizeOperation(input.operation), input.now, eventId]
     );
     if (!result.rows[0]) throw controlError('fresh secondary confirmation required', 403);
-    return eventId;
+    return { event_id: eventId, confirmation: result.rows[0] };
   }
 
   private async writeLock(

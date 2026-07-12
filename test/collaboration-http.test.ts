@@ -662,6 +662,18 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
       { operation: 'control_mouse_keyboard' },
       controlHeaders
     )) as { data: { id: string } };
+    const operationAuthorization = (await route(
+      pg,
+      'POST',
+      `${controlBase}/operations`,
+      {
+        operation: 'control_mouse_keyboard',
+        confirmation_id: operationConfirmation.data.id,
+        version: ownership.data.version
+      },
+      controlHeaders
+    )) as { status: number; data: { id: string } };
+    assert.equal(operationAuthorization.status, 201);
     const operationOccurredAt = new Date().toISOString();
 
     const operationEvent = (await route(
@@ -678,7 +690,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
           operation_id: 'op-ivekit-1',
           action: 'mouse.click',
           permission: 'control_mouse_keyboard',
-          secondary_confirmation_id: operationConfirmation.data.id,
+          operation_grant_id: operationAuthorization.data.id,
           control_version: ownership.data.version
         }
       },
