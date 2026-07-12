@@ -8,6 +8,7 @@ import test from 'node:test';
 import { Pool } from 'pg';
 
 import { buildIveKitStandaloneContext } from '../scripts/ivekit-standalone-build-context.js';
+import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { TinodeInboundProjector } from '../src/agent-runtime/collaboration/tinode-inbound-projector.js';
 import { normalizeTinodeInboundPacket } from '../src/agent-runtime/collaboration/tinode-inbound-protocol.js';
 import { TinodeInboundStore } from '../src/agent-runtime/collaboration/tinode-inbound-store.js';
@@ -15,6 +16,7 @@ import { TinodeInboundService } from '../src/agent-runtime/collaboration/tinode-
 import { QualityReviewService } from '../src/agent-runtime/collaboration/quality-review.js';
 import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
 import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
+import { withPgTenant } from '../src/db-pg-tenant.js';
 
 const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
@@ -175,6 +177,19 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
     assert.equal(messages.rows[1].message_type, 'image');
     assert.ok(messages.rows[1].deleted_at);
     assert.equal(messages.rows.every((row) => row.provider_sender_id === providerUserId), true);
+    const messageDtos = await withPgTenant(runtime, tenantId, (pg) =>
+      new CollaborationStore(pg).listMessages({ tenant_id: tenantId, session_id: sessionId, limit: 20 })
+    );
+    assert.deepEqual(messageDtos.map((message) => ({
+      origin: message.provider_origin,
+      sequence: message.provider_sequence,
+      version: message.provider_version,
+      sender: message.provider_sender_id
+    })), [
+      { origin: 'tinode', sequence: 1, version: 2, sender: providerUserId },
+      { origin: 'tinode', sequence: 3, version: 3, sender: providerUserId },
+      { origin: 'tinode', sequence: 4, version: 4, sender: providerUserId }
+    ]);
 
     const attachments = await admin.query(
       `SELECT storage_url, filename, content_type, size_bytes, metadata

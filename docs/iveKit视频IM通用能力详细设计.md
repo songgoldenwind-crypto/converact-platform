@@ -2326,6 +2326,8 @@ API key/system 调用可代表业务身份发起服务端操作；JWT 用户的 
 
 权威投递状态是 `message.provider_delivery`，包含 `provider`、`provider_topic_id`、`provider_message_id`、`status`、`attempt_count`、`next_attempt_at`、`lease_until`、最后错误、`delivered_at` 和更新时间。状态流为 `pending -> publishing -> delivered`，可恢复失败走 `publishing -> retry_wait -> publishing`，达到最大尝试次数或明确不可恢复错误进入 `failed`。每次领取都会新增 attempt 行；worker 崩溃后 lease 过期会把旧 attempt 标成 `lease_expired`，旧 claim 的迟到结果因 token 不匹配不能覆盖新结果。
 
+消息 DTO 另有四个稳定 provider 坐标：`provider_origin`（`""|ivekit|tinode`）、`provider_sequence`、`provider_version`、`provider_sender_id`。LED 使用 topic + sequence 做 provider 侧去重，使用 version 判断 edit/delete 投影新旧；这些字段是一等 API 契约，不需要解析 metadata。
+
 Tinode `pub.head` 会携带 `x-opc-message-id` 和可选 `x-opc-idempotency-key`。inbound worker 看到本地 message ID 时只绑定 provider seq，不重复创建消息。整体仍按 at-least-once provider delivery 加本地幂等收敛设计，不把它表述为 Tinode 原生 exactly-once。
 
 主要错误语义：

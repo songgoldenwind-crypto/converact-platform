@@ -285,7 +285,9 @@ export function startTinodeInboundWorker(input: {
     config,
     runBatch: () => service ? service.runDue() : Promise.resolve(emptySummary()),
     onResult: (result) => {
-      if (result.claimed > 0) console.log('[tinode-inbound] batch', JSON.stringify(result));
+      if (result.packets > 0 || result.retried > 0 || result.dead_letter > 0 || result.failed > 0) {
+        console.log('[tinode-inbound] batch', JSON.stringify(result));
+      }
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : String(error);

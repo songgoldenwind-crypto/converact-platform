@@ -1098,6 +1098,10 @@ function decodeMessage(row: Record<string, unknown>): CollaborationMessage {
     },
     attachments: [],
     idempotency_key: String(row.idempotency_key || ''),
+    provider_origin: String(row.provider_origin || '') as CollaborationMessage['provider_origin'],
+    provider_sequence: Number(row.provider_sequence || 0),
+    provider_version: Number(row.provider_version || 0),
+    provider_sender_id: String(row.provider_sender_id || ''),
     provider_delivery: {
       provider,
       provider_topic_id: providerTopicId,

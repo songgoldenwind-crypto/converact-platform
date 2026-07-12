@@ -223,6 +223,10 @@ export interface CollaborationMessage {
   metadata: Record<string, unknown>;
   attachments: CollaborationMessageAttachment[];
   idempotency_key: string;
+  provider_origin: '' | 'ivekit' | 'tinode';
+  provider_sequence: number;
+  provider_version: number;
+  provider_sender_id: string;
   provider_delivery: CollaborationMessageProviderDelivery;
   edit_version: number;
   edited_at: string | null;

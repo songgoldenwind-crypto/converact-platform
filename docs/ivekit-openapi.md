@@ -354,6 +354,8 @@ Client plan 请求：
 
 分页响应统一为 `{items,next_cursor,has_more}`。会话按 `(created_at,id)` 倒序；消息页内始终按时间正序返回，`before` 从最新消息向历史加载，`after` 从最早消息向前收敛。游标是不可解释的版本化 token，并绑定资源和方向；客户端不得解析、修改或跨会话复用。`after` 页在暂时追平时仍返回高水位 `next_cursor`，此时用 `has_more=false` 表示当前没有更多消息，后续可持该游标继续增量请求。仅带 `limit` 的旧消息请求仍返回数组，供现有集成平滑迁移；新客户端应调用 SDK 的 `listMessagesPage()`。
 
+消息 DTO 直接返回 `provider_origin`、`provider_sequence`、`provider_version`、`provider_sender_id`。本地未绑定 provider seq 时分别为 `""/0/0/""`；Tinode 入站消息用 `(provider_topic_id,provider_sequence)` 去重，replace/delete 后 `provider_version` 单调不减。LED 不应从 `metadata` 猜测这些坐标。
+
 消息创建可带 `reply_to_message_id`、`forwarded_from_message_id` 和去重后的 `mentions`。关系目标必须是同租户、同会话且未删除的消息，mention 必须是当前活跃参与人。服务端只保存目标 ID，不复制被回复消息正文。Reaction 和 pin 写操作始终使用认证身份，忽略客户端伪造身份；变更分别广播 `collaboration.message.reaction_updated` 和 `collaboration.message.pin_updated`。
 
 ```http
