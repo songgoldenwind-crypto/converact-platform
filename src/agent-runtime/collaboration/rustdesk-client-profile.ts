@@ -102,9 +102,16 @@ export function createRustDeskClientDistributionProfile(
     throw profileError(`client_version must equal ${RUSTDESK_CLIENT_VERSION}`, 400);
   }
 
-  const serverVersion = String(env.RUSTDESK_SERVER_IMAGE_TAG || RUSTDESK_SERVER_VERSION).trim();
+  const serverVersion = String(env.RUSTDESK_SERVER_IMAGE_TAG || '').trim();
+  if (!serverVersion) {
+    throw profileError('RUSTDESK_SERVER_IMAGE_TAG is required', 500);
+  }
   if (serverVersion !== RUSTDESK_SERVER_VERSION) {
     throw profileError(`RustDesk server version must equal ${RUSTDESK_SERVER_VERSION}`, 409);
+  }
+  const configuredClientVersion = String(env.OPC_RUSTDESK_CLIENT_VERSION || RUSTDESK_CLIENT_VERSION).trim();
+  if (configuredClientVersion !== RUSTDESK_CLIENT_VERSION) {
+    throw profileError(`OPC_RUSTDESK_CLIENT_VERSION must equal ${RUSTDESK_CLIENT_VERSION}`, 500);
   }
 
   const config = rustDeskClientConfig(env);
@@ -288,10 +295,12 @@ function assertArtifactReleasePath(url: URL, pathSegments: readonly string[]): v
   }
 }
 
-const artifactExtensions: Record<RustDeskClientDistributionPlatform, readonly string[]> = {
-  windows: ['.exe', '.msi'],
-  macos: ['.dmg'],
-  linux: ['.deb', '.rpm', '.appimage', '.flatpak']
+const artifactExtensions: Record<string, readonly string[]> = {
+  'windows/x86_64': ['.exe', '.msi'],
+  'macos/x86_64': ['.dmg'],
+  'macos/aarch64': ['.dmg'],
+  'linux/x86_64': ['.deb'],
+  'linux/aarch64': ['.deb']
 };
 
 const artifactArchitectureTokens: Record<RustDeskClientDistributionArchitecture, readonly string[]> = {
@@ -315,16 +324,10 @@ function assertArtifactIdentity(
       throw profileError(`RustDesk client artifact identity contains conflicting version ${version}`, 500);
     }
   }
-  if (!hasArtifactToken(lower, platform)) {
-    throw profileError(`RustDesk client artifact filename must identify platform ${platform}`, 500);
-  }
   for (const candidate of ['windows', 'macos', 'linux'] as const) {
     if (candidate !== platform && hasArtifactToken(lowerIdentity, candidate)) {
       throw profileError(`RustDesk client artifact identity contains conflicting platform ${candidate}`, 500);
     }
-  }
-  if (!artifactArchitectureTokens[architecture].some((token) => hasArtifactToken(lower, token))) {
-    throw profileError(`RustDesk client artifact filename must identify architecture ${architecture}`, 500);
   }
   for (const candidate of ['x86_64', 'aarch64'] as const) {
     if (
@@ -334,8 +337,14 @@ function assertArtifactIdentity(
       throw profileError(`RustDesk client artifact identity contains conflicting architecture ${candidate}`, 500);
     }
   }
-  if (!artifactExtensions[platform].some((extension) => lower.endsWith(extension))) {
+  const extensions = artifactExtensions[`${platform}/${architecture}`] || [];
+  const extension = extensions.find((candidate) => lower.endsWith(candidate));
+  if (!extension) {
     throw profileError(`RustDesk client artifact filename extension is invalid for ${platform}`, 500);
+  }
+  const expectedFilename = `rustdesk-${RUSTDESK_CLIENT_VERSION}-${architecture}${extension}`;
+  if (filename !== expectedFilename) {
+    throw profileError(`RustDesk client artifact filename must equal ${expectedFilename}`, 500);
   }
 }
 
@@ -352,6 +361,13 @@ function hasArtifactToken(filename: string, token: string): boolean {
 }
 
 function profileTtlMs(env: NodeJS.ProcessEnv): number {
+  if (env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS !== undefined) {
+    const seconds = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS);
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 3_600) {
+      throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS must be an integer from 60 to 3600', 500);
+    }
+    return seconds * 1_000;
+  }
   const value = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS || 900_000);
   if (!Number.isInteger(value) || value < 60_000 || value > 3_600_000) {
     throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS must be an integer from 60000 to 3600000', 500);

@@ -512,14 +512,22 @@ browser Web Crypto 从返回 key 独立计算既有 SHA-256 fingerprint，并同
 path/filename 中不得出现冲突的版本、platform 或 architecture token。Installer filename
 必须是 1–255 字符的 canonical ASCII，只允许 letters/digits/dot/underscore/plus/hyphen；
 URL raw basename 必须与 filename 完全一致，不接受 whitespace、control、Unicode 或 percent escape。
+官方 V1 basename 固定为 `rustdesk-1.4.7-x86_64.exe`、
+`rustdesk-1.4.7-x86_64.dmg`、`rustdesk-1.4.7-aarch64.dmg`、
+`rustdesk-1.4.7-x86_64.deb` 或 `rustdesk-1.4.7-aarch64.deb`；platform 由请求 tuple
+和 extension 绑定，filename 不添加 `windows/macos/linux` token。
 
 Artifact 只从 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
 tuple 时 profile 返回 `install_source.state=not_configured`，不会猜 URL 或 checksum。
 `rustdesk:client-profile-pack` 聚合五个 desktop tuple，任一 artifact 缺失时
-`ready=false`；聚合完成时会使用新的 completion clock 重新验证全部 profile 和最早
+`ready=false`；每个 response 到达后立即使用新的 clock 验证，聚合完成时再使用新的
+completion clock 重新验证全部 profile 和最早
 `expires_at`，聚合期间过期会 fail closed。它只生成 JSON handoff，不下载或执行安装器。Task 3 前 unattended 固定为
 `mode=attended_only,state=not_configured`。profile 响应使用
 `Cache-Control: private, no-store`，并按认证、tenant 与 Origin 设置 `Vary`。
+部署必须显式设置 `RUSTDESK_SERVER_IMAGE_TAG=1.1.15`；Helm/Compose 同时向 OPC 注入
+`OPC_RUSTDESK_CLIENT_VERSION=1.4.7`、`OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900`
+和显式 artifact manifest，RustDesk server pods 与 OPC 使用同一个 image tag。
 
 设备 claim/progress/result 路径只允许设备绑定 edge token，不属于 LED 普通前端/API key 的调用面。完整 scope、事件和验收规则见 RustDesk 专项设计。
 

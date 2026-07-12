@@ -17,6 +17,7 @@ import {
 import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
+import { createServer as createOpcHttpServer } from '../src/http.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
 const NOW = new Date('2026-07-12T12:00:00.000Z');
@@ -105,7 +106,7 @@ test('RustDesk client profiles support only the pinned V1 desktop matrix', () =>
 
 test('RustDesk client profiles use only validated explicit artifact metadata', () => {
   const manifest = artifactManifest([
-    artifact('windows', 'x86_64', 'rustdesk-1.4.7-windows-x86_64.exe')
+    artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe')
   ]);
   const profile = createRustDeskClientDistributionProfile(
     pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
@@ -114,8 +115,8 @@ test('RustDesk client profiles use only validated explicit artifact metadata', (
 
   assert.deepEqual(profile.install_source, {
     state: 'configured',
-    url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-x86_64.exe',
-    filename: 'rustdesk-1.4.7-windows-x86_64.exe',
+    url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-x86_64.exe',
+    filename: 'rustdesk-1.4.7-x86_64.exe',
     sha256: SHA256
   });
   assert.deepEqual(profile.manual_fields, {
@@ -144,8 +145,27 @@ test('RustDesk client profiles use only validated explicit artifact metadata', (
   );
 });
 
+test('RustDesk client profiles accept the five official 1.4.7 desktop asset names', () => {
+  const officialAssets = [
+    ['windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe'],
+    ['macos', 'x86_64', 'rustdesk-1.4.7-x86_64.dmg'],
+    ['macos', 'aarch64', 'rustdesk-1.4.7-aarch64.dmg'],
+    ['linux', 'x86_64', 'rustdesk-1.4.7-x86_64.deb'],
+    ['linux', 'aarch64', 'rustdesk-1.4.7-aarch64.deb']
+  ] as const;
+
+  for (const [platform, architecture, filename] of officialAssets) {
+    const profile = createRustDeskClientDistributionProfile(
+      pinnedInput({ platform, architecture }),
+      { env: profileEnv(artifactManifest([artifact(platform, architecture, filename)])), now: () => NOW }
+    );
+    assert.equal(profile.install_source.state, 'configured');
+    if (profile.install_source.state === 'configured') assert.equal(profile.install_source.filename, filename);
+  }
+});
+
 test('RustDesk client artifact manifest rejects unsafe metadata and duplicate targets', () => {
-  const valid = artifact('windows', 'x86_64', 'rustdesk-1.4.7-windows-x86_64.exe');
+  const valid = artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe');
   const invalidManifests: Array<[string, unknown]> = [
     ['malformed JSON', '{'],
     ['wrong client version', artifactManifest([valid], { client_version: '1.4.8' })],
@@ -178,8 +198,8 @@ for (const [name, filename, urlFilename] of [
   ['version mismatch', 'rustdesk-1.4.8-windows-x86_64.exe', 'rustdesk-1.4.8-windows-x86_64.exe'],
   ['platform mismatch', 'rustdesk-1.4.7-linux-x86_64.exe', 'rustdesk-1.4.7-linux-x86_64.exe'],
   ['architecture mismatch', 'rustdesk-1.4.7-windows-aarch64.exe', 'rustdesk-1.4.7-windows-aarch64.exe'],
-  ['extension mismatch', 'rustdesk-1.4.7-windows-x86_64.dmg', 'rustdesk-1.4.7-windows-x86_64.dmg'],
-  ['URL basename mismatch', 'rustdesk-1.4.7-windows-x86_64.exe', 'other-1.4.7-windows-x86_64.exe']
+  ['extension mismatch', 'rustdesk-1.4.7-x86_64.dmg', 'rustdesk-1.4.7-x86_64.dmg'],
+  ['URL basename mismatch', 'rustdesk-1.4.7-x86_64.exe', 'other-1.4.7-x86_64.exe']
 ] as const) {
   test(`RustDesk artifact manifest rejects ${name}`, () => {
     const value = artifactManifest([{
@@ -206,7 +226,7 @@ for (const [name, filename, urlFilename] of [
 }
 
 test('RustDesk artifact manifest rejects inexact release paths and contradictory identity tokens', () => {
-  const expectedFilename = 'rustdesk-1.4.7-windows-x86_64.exe';
+  const expectedFilename = 'rustdesk-1.4.7-x86_64.exe';
   const invalidArtifacts = [
     {
       name: 'wrong release directory with correct basename',
@@ -281,19 +301,19 @@ test('RustDesk artifact manifest rejects inexact release paths and contradictory
 });
 
 test('RustDesk artifact manifest rejects noncanonical installer filenames', () => {
-  const safe = 'rustdesk-1.4.7-windows-x86_64.exe';
+  const safe = 'rustdesk-1.4.7-x86_64.exe';
   const base = 'https://downloads.example.com/releases/1.4.7/';
   const invalidArtifacts = [
-    ['raw URL newline', safe, `${base}rustdesk-1.4.7-windows-x86_\n64.exe`],
-    ['encoded newline', 'rustdesk-1.4.7-windows-x86_64\n.exe', `${base}rustdesk-1.4.7-windows-x86_64%0A.exe`],
-    ['encoded control', 'rustdesk-1.4.7-windows-x86_64\u0000.exe', `${base}rustdesk-1.4.7-windows-x86_64%00.exe`],
-    ['whitespace', 'rustdesk 1.4.7-windows-x86_64.exe', `${base}rustdesk%201.4.7-windows-x86_64.exe`],
-    ['literal percent escape', 'rustdesk-%0A-1.4.7-windows-x86_64.exe', `${base}rustdesk-%250A-1.4.7-windows-x86_64.exe`],
-    ['encoded canonical basename', safe, `${base}rustdesk-1.4.7-windows-%7886_64.exe`],
-    ['Unicode confusable', 'rustdеsk-1.4.7-windows-x86_64.exe', `${base}rustdеsk-1.4.7-windows-x86_64.exe`],
-    ['disallowed ASCII', 'rustdesk@1.4.7-windows-x86_64.exe', `${base}rustdesk@1.4.7-windows-x86_64.exe`],
-    ['overlong filename', `${'a'.repeat(230)}-rustdesk-1.4.7-windows-x86_64.exe`, `${base}${'a'.repeat(230)}-rustdesk-1.4.7-windows-x86_64.exe`],
-    ['malformed percent encoding', safe, `${base}rustdesk-1.4.7-windows-x86_64%ZZ.exe`]
+    ['raw URL newline', safe, `${base}rustdesk-1.4.7-x86_\n64.exe`],
+    ['encoded newline', 'rustdesk-1.4.7-x86_64\n.exe', `${base}rustdesk-1.4.7-x86_64%0A.exe`],
+    ['encoded control', 'rustdesk-1.4.7-x86_64\u0000.exe', `${base}rustdesk-1.4.7-x86_64%00.exe`],
+    ['whitespace', 'rustdesk 1.4.7-x86_64.exe', `${base}rustdesk%201.4.7-x86_64.exe`],
+    ['literal percent escape', 'rustdesk-%0A-1.4.7-x86_64.exe', `${base}rustdesk-%250A-1.4.7-x86_64.exe`],
+    ['encoded canonical basename', safe, `${base}rustdesk-1.4.7-%7886_64.exe`],
+    ['Unicode confusable', 'rustdеsk-1.4.7-x86_64.exe', `${base}rustdеsk-1.4.7-x86_64.exe`],
+    ['disallowed ASCII', 'rustdesk@1.4.7-x86_64.exe', `${base}rustdesk@1.4.7-x86_64.exe`],
+    ['overlong filename', `${'a'.repeat(230)}-rustdesk-1.4.7-x86_64.exe`, `${base}${'a'.repeat(230)}-rustdesk-1.4.7-x86_64.exe`],
+    ['malformed percent encoding', safe, `${base}rustdesk-1.4.7-x86_64%ZZ.exe`]
   ] as const;
 
   for (const [name, filename, url] of invalidArtifacts) {
@@ -357,6 +377,15 @@ test('RustDesk client profile rejects configured server and key drift', () => {
     ),
     /server version must equal 1\.1\.15/
   );
+  const missingServerTag = profileEnv();
+  delete missingServerTag.RUSTDESK_SERVER_IMAGE_TAG;
+  assert.throws(
+    () => createRustDeskClientDistributionProfile(
+      pinnedInput({ platform: 'linux', architecture: 'x86_64' }),
+      { env: missingServerTag, now: () => NOW }
+    ),
+    /RUSTDESK_SERVER_IMAGE_TAG.*required/
+  );
   assert.match(profile.server_key_fingerprint, /^sha256:/);
 });
 
@@ -380,7 +409,7 @@ test('RustDesk client profile requires both trusted drift pins before constructi
 test('authenticated client-profile endpoint returns private no-store responses and tenant-aware Vary', async (t) => {
   const previous = saveProfileProcessEnv();
   Object.assign(process.env, profileEnv(artifactManifest([
-    artifact('windows', 'x86_64', 'rustdesk-1.4.7-windows-x86_64.exe')
+    artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe')
   ])));
   process.env.OPC_API_KEY = 'profile-api-key';
   const db = createDatabase(':memory:');
@@ -429,6 +458,28 @@ test('authenticated client-profile endpoint returns private no-store responses a
   assert.equal(drifted.status, 409);
 });
 
+test('monolith client-profile endpoint preserves private no-store and tenant-aware Vary headers', async (t) => {
+  const previous = saveProfileProcessEnv();
+  Object.assign(process.env, profileEnv(artifactManifest([
+    artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe')
+  ])));
+  process.env.OPC_API_KEY = 'profile-api-key';
+  const server = createOpcHttpServer(createDatabase(':memory:'), new MemoryPg());
+  t.after(async () => {
+    restoreProfileProcessEnv(previous);
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  });
+  const port = await listenOnRandomPort(server);
+  const response = await fetch(
+    `http://127.0.0.1:${port}/api/ivekit/rustdesk/client-profile?platform=windows&architecture=x86_64&client_version=1.4.7&expected_server_version=1.1.15&expected_server_key_fingerprint=sha256%3Ac57cc3b55d39f9a6`,
+    { headers: { 'x-api-key': 'profile-api-key', 'x-tenant-id': 'tenant_profile' } }
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.equal(response.headers.get('vary'), 'Authorization, X-API-Key, X-Tenant-Id, Origin');
+});
+
 test('RustDesk client profile deployment passes pinned version and manifest into every API service', () => {
   for (const path of [
     '../docker-compose.callcenter.yml',
@@ -437,12 +488,16 @@ test('RustDesk client profile deployment passes pinned version and manifest into
   ]) {
     const compose = readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.match(compose, /RUSTDESK_SERVER_IMAGE_TAG:\s*\$\{RUSTDESK_SERVER_IMAGE_TAG/);
+    assert.match(compose, /OPC_RUSTDESK_CLIENT_VERSION:\s*\$\{OPC_RUSTDESK_CLIENT_VERSION/);
     assert.match(compose, /OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON:\s*\$\{OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON/);
+    assert.match(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS:\s*\$\{OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS/);
     assert.match(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS:\s*\$\{OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   }
   for (const path of ['../infra/env.example', '../infra/ivekit/env.example']) {
     const env = readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.match(env, /^OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON=$/m);
+    assert.match(env, /^OPC_RUSTDESK_CLIENT_VERSION=1\.4\.7$/m);
+    assert.match(env, /^OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900$/m);
     assert.match(env, /^OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS=900000$/m);
   }
 });
@@ -475,6 +530,8 @@ function profileEnv(manifest?: unknown): NodeJS.ProcessEnv {
     OPC_RUSTDESK_API_SERVER: 'https://rustdesk-api.example.com',
     OPC_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY,
     RUSTDESK_SERVER_IMAGE_TAG: '1.1.15',
+    OPC_RUSTDESK_CLIENT_VERSION: '1.4.7',
+    OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '900',
     ...(manifest === undefined ? {} : { OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON: String(manifest) })
   };
 }
@@ -497,6 +554,8 @@ const PROFILE_ENV_KEYS = [
   'OPC_RUSTDESK_PUBLIC_KEY',
   'OPC_RUSTDESK_PUBLIC_KEY_FILE',
   'RUSTDESK_SERVER_IMAGE_TAG',
+  'OPC_RUSTDESK_CLIENT_VERSION',
+  'OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS',
   'OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON'
 ] as const;
 

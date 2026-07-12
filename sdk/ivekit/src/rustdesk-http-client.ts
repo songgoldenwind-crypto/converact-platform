@@ -310,6 +310,8 @@ export async function projectRustDeskClientDistributionProfile(
   expected: GetIveKitRustDeskClientProfileInput,
   now = new Date()
 ): Promise<RustDeskClientDistributionProfile> {
+  const nowMs = now.getTime();
+  if (Number.isNaN(nowMs)) throw invalidDistribution('validation clock');
   const expectedServerVersion = distributionRequiredString(
     expected.expected_server_version,
     'expected_server_version is required'
@@ -355,8 +357,8 @@ export async function projectRustDeskClientDistributionProfile(
   const expiresAt = distributionTimestamp(profile.expires_at, 'expires_at');
   const issuedAtMs = Date.parse(issuedAt);
   const expiresAtMs = Date.parse(expiresAt);
-  if (expiresAtMs <= now.getTime()) throw invalidDistribution('expired');
-  if (issuedAtMs > now.getTime() + 60_000) throw invalidDistribution('issued_at');
+  if (expiresAtMs <= nowMs) throw invalidDistribution('expired');
+  if (issuedAtMs > nowMs + 60_000) throw invalidDistribution('issued_at');
   if (expiresAtMs <= issuedAtMs) throw invalidDistribution('expires_at');
   if (expiresAtMs - issuedAtMs < 60_000 || expiresAtMs - issuedAtMs > 3_600_000) {
     throw invalidDistribution('profile lifetime');
@@ -451,10 +453,12 @@ function projectDistributionInstallSource(
   return { state: 'configured', url: url.toString(), filename, sha256 };
 }
 
-const distributionArtifactExtensions: Record<RustDeskClientDistributionPlatform, readonly string[]> = {
-  windows: ['.exe', '.msi'],
-  macos: ['.dmg'],
-  linux: ['.deb', '.rpm', '.appimage', '.flatpak']
+const distributionArtifactExtensions: Record<string, readonly string[]> = {
+  'windows/x86_64': ['.exe', '.msi'],
+  'macos/x86_64': ['.dmg'],
+  'macos/aarch64': ['.dmg'],
+  'linux/x86_64': ['.deb'],
+  'linux/aarch64': ['.deb']
 };
 
 const distributionArtifactArchitectureTokens: Record<RustDeskClientDistributionArchitecture, readonly string[]> = {
@@ -521,14 +525,10 @@ function validateDistributionArtifactIdentity(
   for (const version of distributionSemanticVersionTokens(lowerIdentity)) {
     if (version !== '1.4.7') throw invalidDistribution('install_source.version');
   }
-  if (!distributionArtifactToken(lower, platform)) throw invalidDistribution('install_source.platform');
   for (const candidate of ['windows', 'macos', 'linux'] as const) {
     if (candidate !== platform && distributionArtifactToken(lowerIdentity, candidate)) {
       throw invalidDistribution('install_source.platform');
     }
-  }
-  if (!distributionArtifactArchitectureTokens[architecture].some((token) => distributionArtifactToken(lower, token))) {
-    throw invalidDistribution('install_source.architecture');
   }
   for (const candidate of ['x86_64', 'aarch64'] as const) {
     if (
@@ -538,8 +538,13 @@ function validateDistributionArtifactIdentity(
       throw invalidDistribution('install_source.architecture');
     }
   }
-  if (!distributionArtifactExtensions[platform].some((extension) => lower.endsWith(extension))) {
+  const extensions = distributionArtifactExtensions[`${platform}/${architecture}`] || [];
+  const extension = extensions.find((candidate) => lower.endsWith(candidate));
+  if (!extension) {
     throw invalidDistribution('install_source.extension');
+  }
+  if (filename !== `rustdesk-1.4.7-${architecture}${extension}`) {
+    throw invalidDistribution('install_source.filename');
   }
 }
 

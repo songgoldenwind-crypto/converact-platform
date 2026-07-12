@@ -55,6 +55,31 @@ test('RustDesk client profile pack creates a ready five-target handoff manifest'
   );
 });
 
+test('RustDesk client profile pack validates each slow response with a fresh clock', async () => {
+  const responseTimes = [0, 20_000, 40_000, 65_000, 80_000].map((offset) => new Date(NOW.getTime() + offset));
+  let current = NOW;
+  let calls = 0;
+  let clockReads = 0;
+  const pack = await buildRustDeskClientProfilePack(
+    packConfig(),
+    {
+      async getClientProfile(input) {
+        current = responseTimes[calls];
+        calls += 1;
+        return profileFor(input.platform, input.architecture, false, current);
+      }
+    },
+    () => {
+      clockReads += 1;
+      return current;
+    }
+  );
+
+  assert.equal(pack.ready, true);
+  assert.equal(calls, 5);
+  assert.equal(clockReads, 7);
+});
+
 test('RustDesk client profile pack marks missing artifacts not ready without inventing metadata', async () => {
   const pack = await buildRustDeskClientProfilePack(
     packConfig(),
@@ -78,6 +103,7 @@ test('RustDesk client profile pack marks missing artifacts not ready without inv
 });
 
 test('RustDesk client profile pack rejects profiles that expire during aggregation', async () => {
+  const responseTimes = [0, 20_000, 40_000, 65_000, 80_000].map((offset) => new Date(NOW.getTime() + offset));
   let current = NOW;
   let calls = 0;
   let clockReads = 0;
@@ -87,9 +113,13 @@ test('RustDesk client profile pack rejects profiles that expire during aggregati
       packConfig(),
       {
         async getClientProfile(input) {
+          current = responseTimes[calls];
+          const profile = profileFor(input.platform, input.architecture, false, current);
+          if (calls === 0) {
+            profile.expires_at = new Date(current.getTime() + 70_000).toISOString();
+          }
           calls += 1;
-          if (calls === 5) current = new Date('2026-07-12T12:16:00.000Z');
-          return profileFor(input.platform, input.architecture);
+          return profile;
         }
       },
       () => {
@@ -100,7 +130,7 @@ test('RustDesk client profile pack rejects profiles that expire during aggregati
     /expired/
   );
   assert.equal(calls, 5);
-  assert.equal(clockReads, 2);
+  assert.equal(clockReads, 7);
 });
 
 test('RustDesk client profile pack cannot become ready with encoded or control filenames', async () => {
@@ -317,16 +347,16 @@ function packConfig() {
   };
 }
 
-function profileFor(platform: string, architecture: string, missing = false) {
-  const extension = platform === 'windows' ? 'exe' : platform === 'macos' ? 'dmg' : 'appimage';
-  const filename = `rustdesk-1.4.7-${platform}-${architecture}.${extension}`;
+function profileFor(platform: string, architecture: string, missing = false, issuedAt = NOW) {
+  const extension = platform === 'windows' ? 'exe' : platform === 'macos' ? 'dmg' : 'deb';
+  const filename = `rustdesk-1.4.7-${architecture}.${extension}`;
   return {
     platform,
     architecture,
     client_version: { exact: '1.4.7', allowed: ['1.4.7'] },
     server_version: '1.1.15',
-    issued_at: NOW.toISOString(),
-    expires_at: '2026-07-12T12:15:00.000Z',
+    issued_at: issuedAt.toISOString(),
+    expires_at: new Date(issuedAt.getTime() + 900_000).toISOString(),
     manual_fields: {
       id_server: 'rustdesk-id.example.com',
       relay_server: 'rustdesk-relay.example.com',

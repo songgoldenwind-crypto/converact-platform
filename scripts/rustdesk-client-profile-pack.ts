@@ -145,7 +145,11 @@ export async function buildRustDeskClientProfilePack(
       expected_server_key_fingerprint: config.expectedServerKeyFingerprint
     };
     const value = await client.getClientProfile(input);
-    profiles.push(await projectRustDeskClientDistributionProfile(value, input, generatedAt));
+    const receivedAt = now();
+    if (Number.isNaN(receivedAt.getTime())) {
+      throw new Error('RustDesk client profile pack response clock is invalid');
+    }
+    profiles.push(await projectRustDeskClientDistributionProfile(value, input, receivedAt));
   }
 
   const first = profiles[0];

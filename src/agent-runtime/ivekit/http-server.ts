@@ -307,5 +307,9 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<Uint8Array> {
 }
 
 function isHeaderRecord(value: unknown): value is Record<string, string | number | readonly string[]> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(
+    (header) => typeof header === 'string' || typeof header === 'number' || (
+      Array.isArray(header) && header.every((item) => typeof item === 'string')
+    )
+  );
 }

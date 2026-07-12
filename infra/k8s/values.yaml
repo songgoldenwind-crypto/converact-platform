@@ -216,6 +216,9 @@ qualityReview:
 rustdesk:
   enabled: true
   provider: rustdesk
+  clientVersion: "1.4.7"
+  clientProfileTtlSeconds: "900"
+  clientArtifactsJson: ""
   publicHost: rustdesk.example.com
   relayHost: ""
   apiServer: ""
@@ -258,7 +261,7 @@ rustdesk:
   hostNetwork: false
   image:
     repository: rustdesk/rustdesk-server
-    tag: latest
+    tag: 1.1.15
     pullPolicy: IfNotPresent
   service:
     type: LoadBalancer

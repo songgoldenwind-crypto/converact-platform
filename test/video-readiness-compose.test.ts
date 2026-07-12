@@ -913,6 +913,7 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
 
 test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   const rustdesk = readFileSync(K8S_RUSTDESK_DEPLOYMENT_PATH, 'utf8');
+  const opc = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
   const values = readFileSync(K8S_VALUES_PATH, 'utf8');
 
   assert.match(rustdesk, /{{- if \.Values\.rustdesk\.enabled }}/);
@@ -938,7 +939,21 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
 
   assert.match(values, /^rustdesk:/m);
   assert.match(values, /repository: rustdesk\/rustdesk-server/);
+  assert.match(values, /^    tag: 1\.1\.15$/m);
+  assert.doesNotMatch(values.slice(values.indexOf('rustdesk:')), /^    tag: latest$/m);
   assert.match(values, /alwaysUseRelay: "N"/);
+  for (const [envName, valuePath] of [
+    ['RUSTDESK_SERVER_IMAGE_TAG', 'rustdesk.image.tag'],
+    ['OPC_RUSTDESK_CLIENT_VERSION', 'rustdesk.clientVersion'],
+    ['OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS', 'rustdesk.clientProfileTtlSeconds'],
+    ['OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON', 'rustdesk.clientArtifactsJson']
+  ]) {
+    assert.match(opc, new RegExp(`name: ${envName}\\n\\s+value: \\{\\{ \\.Values\\.${valuePath.replaceAll('.', '\\.')}`));
+  }
+  assert.match(rustdesk, /image: "{{ \.Values\.rustdesk\.image\.repository }}:{{ \.Values\.rustdesk\.image\.tag }}"/);
+  assert.match(values, /^  clientVersion: "1\.4\.7"$/m);
+  assert.match(values, /^  clientProfileTtlSeconds: "900"$/m);
+  assert.match(values, /^  clientArtifactsJson: ""$/m);
   for (const valueKey of [
     'enabled:',
     'publicHost:',

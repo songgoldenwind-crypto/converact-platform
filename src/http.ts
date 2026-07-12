@@ -137,12 +137,17 @@ export function createServer(db, pg: PgQueryable | null = null) {
           Number.isInteger(result?.status) ? result.status : 200,
           payload,
           result.contentType,
-          result.headers
+          isHeaderRecord(result.headers) ? result.headers : {}
         );
         return;
       }
 
-      sendJson(res, Number.isInteger(result?.status) ? result.status : 200, result?.data ?? result);
+      sendJson(
+        res,
+        Number.isInteger(result?.status) ? result.status : 200,
+        result?.data ?? result,
+        isHeaderRecord(result?.headers) ? result.headers : {}
+      );
     } catch (error) {
       const status = error.status || 500;
       if (status === 500) {
@@ -409,15 +414,17 @@ function sendStatic(res, path) {
   send(res, 200, body, contentTypes[extname(path)] || 'application/octet-stream');
 }
 
-function sendJson(res, status, data) {
-  send(res, status, JSON.stringify(data, null, 2), 'application/json; charset=utf-8');
+type HttpResponseHeaders = Record<string, string | number | readonly string[]>;
+
+function sendJson(res, status, data, extraHeaders: HttpResponseHeaders = {}) {
+  send(res, status, JSON.stringify(data, null, 2), 'application/json; charset=utf-8', extraHeaders);
 }
 
-async function send(res, status, body, contentType, extraHeaders = {}) {
+async function send(res, status, body, contentType, extraHeaders: HttpResponseHeaders = {}) {
   res.writeHead(status, {
-    'content-type': contentType,
     'cache-control': 'no-store',
-    ...extraHeaders
+    ...extraHeaders,
+    'content-type': contentType
   });
   if (!body || typeof body[Symbol.asyncIterator] !== 'function') {
     res.end(body);
@@ -431,6 +438,14 @@ async function send(res, status, body, contentType, extraHeaders = {}) {
   } catch (error) {
     res.destroy(error);
   }
+}
+
+function isHeaderRecord(value: unknown): value is HttpResponseHeaders {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(
+    (header) => typeof header === 'string' || typeof header === 'number' || (
+      Array.isArray(header) && header.every((item) => typeof item === 'string')
+    )
+  );
 }
 
 function recordMediaAudit(db, event) {
