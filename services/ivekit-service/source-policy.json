@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entrypoints": [
+    "src/ivekit-server.ts"
+  ],
+  "forbidden_prefixes": [
+    "src/agent-runtime/call-center/",
+    "src/agent-runtime/ivr/",
+    "src/agent-runtime/campaigns/",
+    "frontend/",
+    "src/server.ts",
+    "src/call-center-http.ts"
+  ],
+  "assets": [
+    "services/ivekit-service/package.json",
+    "services/ivekit-service/package-lock.json",
+    "services/ivekit-service/tsconfig.json",
+    "services/ivekit-service/Dockerfile",
+    "services/ivekit-service/.dockerignore",
+    "services/ivekit-service/README.md"
+  ],
+  "migrations": [
+    "011_collaboration_remote_assistance.sql",
+    "012_livekit_participants.sql",
+    "013_media_recording_business_ref.sql",
+    "014_remote_assistance_web_assist_mode.sql",
+    "016_collaboration_chat_bindings.sql",
+    "017_collaboration_message_attachments.sql",
+    "018_rustdesk_devices.sql",
+    "019_rustdesk_gateway_sessions.sql",
+    "020_rustdesk_gateway_events.sql",
+    "021_rustdesk_device_heartbeat.sql",
+    "022_rustdesk_tenant_rls.sql",
+    "024_rustdesk_device_commands.sql",
+    "025_collaboration_message_delivery.sql",
+    "026_media_recording_lifecycle.sql",
+    "027_collaboration_attachment_processing.sql",
+    "028_collaboration_policy_findings.sql",
+    "029_collaboration_quality_review.sql",
+    "030_collaboration_message_state.sql",
+    "033_collaboration_im_features.sql",
+    "034_ivekit_media_calls.sql",
+    "035_ivekit_media_moderation.sql",
+    "036_media_recording_call_room.sql",
+    "037_media_call_timeout_worker.sql",
+    "038_media_recording_evidence.sql",
+    "039_rustdesk_access_policy.sql",
+    "040_rustdesk_control_ownership.sql"
+  ]
+}

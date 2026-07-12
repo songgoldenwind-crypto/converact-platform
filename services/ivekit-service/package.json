@@ -1,0 +1,27 @@
+{
+  "name": "@opc/ivekit-service",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/ivekit-server.js"
+  },
+  "engines": {
+    "node": ">=23.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1073.0",
+    "ioredis": "5.11.1",
+    "livekit-server-sdk": "2.15.4",
+    "pg": "8.22.0",
+    "prom-client": "15.1.3",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.2",
+    "@types/pg": "8.20.0",
+    "@types/ws": "8.18.1",
+    "typescript": "5.9.3"
+  }
+}
