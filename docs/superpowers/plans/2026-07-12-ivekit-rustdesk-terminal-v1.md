@@ -192,12 +192,14 @@ The validator now uses report schema v2 (`source=real_terminal`) and observation
 
 ## Task 10: M4 Local Verification And Handoff
 
-- [ ] Run RustDesk unit/contract suites, SDK build/pack, reference-client tests/E2E, full `npm run verify`, frontend build, Compose config, and sidecar checks.
-- [ ] Scan browser bundles and generated packs for secrets, signed URLs, private keys, API keys, tokens, clipboard text, and file contents.
-- [ ] Request independent review of RLS, identity, consent, policy, lock races, launch expiry, edge command safety, physical disconnect honesty, audit granularity, and evidence binding.
-- [ ] Resolve every Critical/Important finding with TDD.
-- [ ] Update OpenAPI, LED guide, detailed design, roadmap, deployment runbook, rollback steps, and M5 plan.
-- [ ] Mark real hbbs/hbbr and native terminal checks `not_run` because local execution does not upload or deploy to a server.
+- [x] Run RustDesk unit/contract suites, SDK build/pack, reference-client tests/E2E, full `npm run verify`, frontend build, Compose config, and sidecar checks.
+- [x] Scan browser bundles and generated packs for secrets, signed URLs, private keys, API keys, tokens, clipboard text, and file contents.
+- [x] Review RLS, identity, consent, policy, lock races, launch expiry, edge command safety, physical disconnect honesty, audit granularity, and evidence binding directly; user prohibited superpowers/subagent workflows, so no independent subagent claim is made.
+- [x] Resolve every Critical/Important finding found in direct review with regression coverage.
+- [x] Update OpenAPI, LED guide, detailed design, roadmap, deployment runbook, rollback steps, and M5 plan.
+- [x] Mark real hbbs/hbbr and native terminal checks `not_run` because local execution does not upload or deploy to a server.
+
+Final local gate on 2026-07-12: full repository `2042` tests (`2037` pass, `5` expected real-PostgreSQL skips, `0` fail), sidecars pass, SDK build/pack pass, reference-client `105/105`, browser E2E `7/7`, frontend build and iveKit Compose static config pass. Real RustDesk native operations remain `not_run`.
 
 ---
 

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -442,7 +442,9 @@ function summarizeClientAcceptance(
     return {
       result: runRustDeskClientAcceptance({
         reportFile,
-        auditFile: config.artifacts.clientAcceptanceAuditFile
+        auditFile: config.artifacts.clientAcceptanceAuditFile && existsSync(config.artifacts.clientAcceptanceAuditFile)
+          ? config.artifacts.clientAcceptanceAuditFile
+          : undefined
       })
     };
   } catch (error) {

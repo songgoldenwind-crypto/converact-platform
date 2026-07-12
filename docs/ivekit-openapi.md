@@ -626,4 +626,6 @@ LiveKit 的交付门禁由部署/QA 脚本承担，不新增浏览器可调用�
 3. `livekit:evidence-pack` 重新校验 schema、完整 preflight/readiness check、JSON artifact 内容与完整 SHA-256、QA Ed25519 签名、CLI 期望 run metadata、部署模式和当前 24 小时时间窗，再输出 `incomplete` 或 `ready_for_customer_review`。
 4. LED 业务代码继续只调用本文件的 iveKit API/SDK；不得通过 API 上传一份自称 `ok=true` 的报告来绕过真实环境门禁。
 
+RustDesk 的真实终端验收同样不新增浏览器管理 API。`rustdesk:client-acceptance` 使用 schema-v2 `real_terminal` 报告，并要求每个检查引用唯一 observation JSON；validator 重算 SHA-256，绑定 run/environment/full commit/external_id/rustdesk_id/time/tool，校验 hbbs/hbbr 和两端客户端版本、平台/架构、target ID、key fingerprint、ID/relay 路径及不同 operator/QA 身份。controlled E2E、Playwright、mock、synthetic、符号链接、越目录、重复、过期、上下文不匹配和含敏感内容的 artifact 均拒绝。缺少真实报告时返回 `not_run`；物理断开 command 成功和人工观察到画面/控制停止是两个独立条件。
+
 证据文件不得包含 API key、LiveKit token、signed invite 或对象存储 secret。完整检查项、产物关系和执行顺序见 `docs/superpowers/specs/2026-07-11-livekit-acceptance-evidence-design.md`。

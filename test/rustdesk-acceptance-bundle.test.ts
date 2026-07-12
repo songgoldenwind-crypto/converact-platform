@@ -117,6 +117,8 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   assert.match(eventRunbook, /does not prove real RustDesk client operation/);
   const evidencePack = readFileSync(join(dir, 'evidence-pack.md'), 'utf8');
   assert.match(evidencePack, /Status: `not_run`/);
+  assert.match(evidencePack, /client acceptance: `not_run`/);
+  assert.equal(evidencePack.includes('client_acceptance_invalid'), false);
   assert.match(evidencePack, /client_config_pack/);
   assert.match(evidencePack, /client_acceptance_audit/);
   assert.match(evidencePack, /audit-export\.jsonl/);

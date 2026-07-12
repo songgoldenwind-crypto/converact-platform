@@ -3498,3 +3498,21 @@ LED 研发不需要了解 OPC 内部 smoke 实现，只接收同一 release 的 
 5. 每项 passed check 和 performance 的 evidence 是独立结构化引用，不是说明文字：`artifact_file` 必须是可解析 JSON，`sha256` 必须为完整 64 位且由 validator 重算匹配；JSON 内只声明一个对应 check ID、run/start/environment/commit/mode/fingerprint、`captured_at/tool`，并满足该检查专属 details schema。
 6. 全部自动/人工报告必须与 CLI 期望值共享 run、起始时间、环境、commit、部署模式和指纹，且必须位于当前 24 小时窗口；独立 QA approver 的 Ed25519 签名覆盖批准决策、preflight/server/readiness 和全部 client evidence 哈希，validator 同时校验受信任公钥文件及预配置指纹。
 7. evidence pack 对 schema、`ok`、check 集合和 client result 采用 fail-closed；旧目录中存在真实结果时不能重新初始化 bundle。
+
+## 19. 2026-07-12 RustDesk 本地闭环与真实验收绑定
+
+### 19.1 已完成控制面
+
+参考客户端 Remote workspace 已打通 business ref 设备解析、授权 scope、有人/无人值守 gateway、手工配置与宿主协议拉起、控制锁、heartbeat、释放/转交、审计、结束和物理断开进度。宿主可实现 `window.iveKitHost.openExternal(url)`；启动 URL 仅在用户点击时重新获取并校验 active 状态、target、scheme 与 key fingerprint，不写 DOM、localStorage、sessionStorage 或 IndexedDB。
+
+受控浏览器 E2E 为 `3/3`，统一 IM/媒体/Remote 套件为 `7/7`。该结果只证明 iveKit HTTP/UI 状态、租户/参与人隔离、幂等、旧链接失效、token 零持久化和响应式布局，不运行 RustDesk 原生客户端。
+
+### 19.2 真实终端证据
+
+真实报告使用 schema v2、`source=real_terminal`、`status=completed`。必须记录 hbbs/hbbr、agent/target 客户端版本、平台/架构、target ID、server key fingerprint、ID/relay 路径和不同 operator/QA 身份。屏幕变化、键鼠效果、多显示器切换、文件 byte count/checksum、剪贴板方向、录屏播放/checksum、断网重连、授权撤销和物理断开各有独立 observation JSON。
+
+每个 observation 按 SHA-256 绑定同一 run、environment、完整 commit、external_id、rustdesk_id、时间和真实采集工具。validator 拒绝 controlled/Playwright/mock/synthetic、符号链接、越目录、重复、过期、上下文/哈希不匹配、placeholder 及含 credential、signed URL、剪贴板/文件内容、键击、屏幕像素或录屏字节的 artifact。设备 command lifecycle 成功不能替代 operator 观察到画面和控制实际停止。
+
+### 19.3 当前裁决
+
+M4 本地代码和交付材料完成；全仓 `2042` 项中 `2037` 通过、`5` 项真实 PostgreSQL 环境检查跳过、`0` 失败。SDK、前端、统一 E2E、sidecar 和 Compose 静态解析通过。未上传服务器，真实 hbbs/hbbr、relay、Windows/macOS/Linux 客户端画面/键鼠/多显示器/文件/剪贴板/录屏/重连/物理断开均保持 `not_run`。

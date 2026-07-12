@@ -97,11 +97,13 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 
 ### M4：RustDesk 真实终端闭环
 
-**状态：本地开发进行中。** Task 1-9 已完成；下一步进入 Task 10 本地全量门禁、审查和交接。仍不上传服务器、不伪造物理客户端结果；真实服务器和物理双客户端验收按用户要求保持 `not_run`。计划见 [iveKit RustDesk Real Terminal V1 Implementation Plan](superpowers/plans/2026-07-12-ivekit-rustdesk-terminal-v1.md)。
+**状态：本地代码与交付材料完成。** Task 1-10 已完成；未上传服务器，真实 hbbs/hbbr 和物理双客户端验收按用户要求保持 `not_run`。下一步进入 [M5 统一协作客户端实施计划](ivekit-m5-unified-collaboration-plan.md)。RustDesk 专项计划见 [iveKit RustDesk Real Terminal V1 Implementation Plan](superpowers/plans/2026-07-12-ivekit-rustdesk-terminal-v1.md)。
 
 Task 8 本地受控浏览器 E2E 为 `3/3`：覆盖设备解析、scope 展示、会话创建、宿主协议拉起、控制锁获取/转交、操作审计幂等、结束、断开状态推进、撤权、旧链接失效、参与人/租户隔离、暂态重试、过期 launch 抑制、token 零持久化以及桌面/手机布局。该结果仅是控制面本地回归证据，不代表 RustDesk 原生画面、键鼠、多显示器、文件、剪贴板、录屏、relay 或物理断开已经真实运行。
 
 Task 9 已将真实终端报告升级为 schema v2：强制 hbbs/hbbr 与两端客户端版本、平台/架构、target ID、key fingerprint、ID/relay 路径、不同 operator/QA 身份；每个检查使用唯一 JSON observation 并按 SHA-256 绑定 run/environment/full commit/external_id/rustdesk_id/time/tool。受控 E2E、Playwright、mock、synthetic、符号链接、越目录、重复、过期、上下文或哈希不匹配以及含敏感内容的证据均被拒绝。命令成功与人工观察到物理断开独立校验；无真实报告时结果是 `not_run`。
+
+Task 10 最终本地证据：全仓 `2042` 项中 `2037` 通过、`5` 项真实 PostgreSQL 环境检查按预期跳过、`0` 失败；Go/Python/Rust sidecar、SDK build/pack（34 files，约 51.2 kB）、参考客户端 `105/105`、前端构建、统一浏览器 E2E `7/7` 和 iveKit Compose 静态解析通过。浏览器 dist、SDK dist 与新生成 acceptance bundle 未发现私钥、JWT、Authorization 或实际启动 token；无真实环境的 bundle 状态为 `not_run`。
 
 交付内容：
 
