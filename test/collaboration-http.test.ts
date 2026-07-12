@@ -14,6 +14,7 @@ import { createWebAssistJoinPath } from '../src/agent-runtime/ivekit/remote-assi
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-collaboration-http-key';
+const RUSTDESK_PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
 
 function authHeaders(tenantId: string, userId = 'agent-http'): Record<string, string> {
   return {
@@ -427,7 +428,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
   };
   process.env.OPC_BASE_URL = 'https://opc.example.com';
   process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'ivekit-rustdesk-launch-secret';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = 'ivekit-rustdesk-public-key';
+  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
   process.env.OPC_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
   process.env.OPC_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
   process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
@@ -505,7 +506,7 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     assert.deepEqual(clientConfig.data.manual_fields, {
       id_server: 'rustdesk-id.example.com',
       relay_server: 'rustdesk-relay.example.com',
-      key: 'ivekit-rustdesk-public-key'
+      key: RUSTDESK_PUBLIC_KEY
     });
 
     const gatewaySessionInput = {
@@ -2543,7 +2544,7 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
   process.env.OPC_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
   process.env.OPC_RUSTDESK_RELAY_SERVER = 'rustdesk-relay.example.com';
   process.env.OPC_RUSTDESK_API_SERVER = 'https://rustdesk-api.example.com';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = 'rustdesk-public-key';
+  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
   process.env.OPC_RUSTDESK_SERVER_KEY = 'rustdesk-server-key-secret';
 
   try {
@@ -2968,7 +2969,7 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
       id_server: 'rustdesk-id.example.com',
       relay_server: 'rustdesk-relay.example.com',
       api_server: 'https://rustdesk-api.example.com',
-      key: 'rustdesk-public-key'
+      key: RUSTDESK_PUBLIC_KEY
     });
     assert.equal(launchPlan.data.client_config.public_key_configured, true);
     assert.equal(launchPlan.data.client_config.public_key_source, 'env');
@@ -2980,7 +2981,7 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
     );
     assert.match(launchPage.html, /RustDesk Remote Launch/);
     assert.match(launchPage.html, new RegExp(created.data.external_id));
-    assert.match(launchPage.html, /rustdesk-public-key/);
+    assert.match(launchPage.html, new RegExp(RUSTDESK_PUBLIC_KEY));
     assert.doesNotMatch(launchPage.html, /rustdesk-server-key-secret/);
     assert.deepEqual(unsignedLaunchPage, { status: 401, data: { error: 'invalid RustDesk launch token' } });
     assert.deepEqual(malformedLaunchPage, { status: 401, data: { error: 'invalid RustDesk launch token' } });
@@ -3340,7 +3341,7 @@ test('collaboration HTTP exposes RustDesk client config from public key file', a
   };
   const rustdeskDataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-data-'));
   const publicKeyFile = join(rustdeskDataDir, 'id_ed25519.pub');
-  writeFileSync(publicKeyFile, 'rustdesk-public-key-from-file\n');
+  writeFileSync(publicKeyFile, RUSTDESK_PUBLIC_KEY);
   process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
   process.env.OPC_REMOTE_GATEWAY_API_TOKEN = 'different-remote-gateway-token';
   process.env.OPC_RUSTDESK_ID_SERVER = 'rustdesk-id.example.com';
@@ -3371,14 +3372,14 @@ test('collaboration HTTP exposes RustDesk client config from public key file', a
 
     assert.equal(clientConfig.data.id_server, 'rustdesk-id.example.com');
     assert.equal(clientConfig.data.relay_server, 'rustdesk-relay.example.com');
-    assert.equal(clientConfig.data.public_key, 'rustdesk-public-key-from-file');
+    assert.equal(clientConfig.data.public_key, RUSTDESK_PUBLIC_KEY);
     assert.equal(clientConfig.data.public_key_source, 'file');
     assert.equal(clientConfig.data.public_key_configured, true);
     assert.match(clientConfig.data.server_key_fingerprint, /^sha256:/);
     assert.deepEqual(clientConfig.data.manual_fields, {
       id_server: 'rustdesk-id.example.com',
       relay_server: 'rustdesk-relay.example.com',
-      key: 'rustdesk-public-key-from-file'
+      key: RUSTDESK_PUBLIC_KEY
     });
     assert.notEqual(clientConfig.data.public_key, 'do-not-expose-this-private-value');
   } finally {
@@ -3435,7 +3436,7 @@ test('collaboration HTTP rejects RustDesk API server without HTTP protocols', as
   };
   process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
   process.env.OPC_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = 'rustdesk-public-key';
+  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
   delete process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE;
 
   try {
@@ -3469,7 +3470,7 @@ test('collaboration HTTP rejects iveKit RustDesk client config API server withou
   };
   process.env.OPC_API_KEY = API_KEY;
   process.env.OPC_RUSTDESK_API_SERVER = 'ftp://rustdesk-api.example.com';
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = 'rustdesk-public-key';
+  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
   delete process.env.OPC_RUSTDESK_PUBLIC_KEY_FILE;
 
   try {

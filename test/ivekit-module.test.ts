@@ -8,6 +8,8 @@ import type { RemoteGatewayClient } from '../src/agent-runtime/collaboration/rem
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 import { createTenant } from '../src/platform/tenant-core.js';
 
+const RUSTDESK_PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
+
 test('createIveKitModule exposes the reusable first-version facades', () => {
   const db = createDatabase(':memory:');
   const pg = new MemoryPg();
@@ -790,7 +792,7 @@ test('rustdesk facade registers devices and starts gateway sessions by registere
   const previousIdServer = process.env.OPC_RUSTDESK_ID_SERVER;
   const previousRelayServer = process.env.OPC_RUSTDESK_RELAY_SERVER;
   const previousProtocolTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
-  process.env.OPC_RUSTDESK_PUBLIC_KEY = 'rustdesk-public-key';
+  process.env.OPC_RUSTDESK_PUBLIC_KEY = RUSTDESK_PUBLIC_KEY;
   process.env.OPC_RUSTDESK_ID_SERVER = 'id.ivekit.example';
   process.env.OPC_RUSTDESK_RELAY_SERVER = 'relay.ivekit.example';
   process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
@@ -845,7 +847,7 @@ test('rustdesk facade registers devices and starts gateway sessions by registere
     assert.equal(lastHeartbeat?.client_version, '1.2.3');
 
     const clientConfig = await iveKit.rustdesk.getClientConfig();
-    assert.equal(clientConfig.public_key, 'rustdesk-public-key');
+    assert.equal(clientConfig.public_key, RUSTDESK_PUBLIC_KEY);
     assert.equal(clientConfig.id_server, 'id.ivekit.example');
     assert.equal(clientConfig.manual_fields.relay_server, 'relay.ivekit.example');
 
@@ -925,7 +927,7 @@ test('rustdesk facade registers devices and starts gateway sessions by registere
     assert.deepEqual(launchPlan.client_config.manual_fields, {
       id_server: 'id.ivekit.example',
       relay_server: 'relay.ivekit.example',
-      key: 'rustdesk-public-key'
+      key: RUSTDESK_PUBLIC_KEY
     });
     assert.equal(launchPlan.client_config.public_key_configured, true);
     assert.equal(launchPlan.actions.can_launch, true);

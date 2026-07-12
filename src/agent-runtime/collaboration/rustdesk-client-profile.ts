@@ -56,8 +56,8 @@ export interface RustDeskClientDistributionProfileInput {
   platform: unknown;
   architecture: unknown;
   client_version: unknown;
-  expected_server_version?: unknown;
-  expected_server_key_fingerprint?: unknown;
+  expected_server_version: unknown;
+  expected_server_key_fingerprint: unknown;
 }
 
 export interface RustDeskClientDistributionProfileOptions {
@@ -81,6 +81,20 @@ export function createRustDeskClientDistributionProfile(
   options: RustDeskClientDistributionProfileOptions = {}
 ): RustDeskClientDistributionProfile {
   const env = options.env || process.env;
+  const expectedServerVersion = requiredExpectedPin(
+    input.expected_server_version,
+    'expected_server_version'
+  );
+  const expectedFingerprint = requiredExpectedPin(
+    input.expected_server_key_fingerprint,
+    'expected_server_key_fingerprint'
+  );
+  if (expectedServerVersion !== RUSTDESK_SERVER_VERSION) {
+    throw profileError('RustDesk server version drift', 409);
+  }
+  if (!/^sha256:[a-f0-9]{16}$/.test(expectedFingerprint)) {
+    throw profileError('expected_server_key_fingerprint is invalid', 400);
+  }
   const platform = distributionPlatform(input.platform);
   const architecture = distributionArchitecture(input.architecture);
   assertSupportedTarget(platform, architecture);
@@ -92,10 +106,6 @@ export function createRustDeskClientDistributionProfile(
   if (serverVersion !== RUSTDESK_SERVER_VERSION) {
     throw profileError(`RustDesk server version must equal ${RUSTDESK_SERVER_VERSION}`, 409);
   }
-  const expectedServerVersion = optionalString(input.expected_server_version);
-  if (expectedServerVersion && expectedServerVersion !== serverVersion) {
-    throw profileError('RustDesk server version drift', 409);
-  }
 
   const config = rustDeskClientConfig(env);
   if (config.public_key_error) throw profileError(config.public_key_error, 500);
@@ -105,8 +115,7 @@ export function createRustDeskClientDistributionProfile(
   if (!config.public_key || !config.server_key_fingerprint) {
     throw profileError('RustDesk client profile public key is not configured', 500);
   }
-  const expectedFingerprint = optionalString(input.expected_server_key_fingerprint);
-  if (expectedFingerprint && expectedFingerprint !== config.server_key_fingerprint) {
+  if (expectedFingerprint !== config.server_key_fingerprint) {
     throw profileError('RustDesk server key fingerprint drift', 409);
   }
 
@@ -173,9 +182,7 @@ function parseArtifactManifest(raw: string | undefined): ArtifactManifest | null
     const url = artifactUrl(artifact.url);
     const filename = artifactFilename(artifact.filename);
     const pathSegments = url.pathname.split('/').filter(Boolean);
-    if (!pathSegments.some((segment) => segment === RUSTDESK_CLIENT_VERSION || segment === `v${RUSTDESK_CLIENT_VERSION}`)) {
-      throw profileError(`RustDesk client artifact URL must identify release ${RUSTDESK_CLIENT_VERSION}`, 500);
-    }
+    assertArtifactIdentity(filename, platform, architecture);
     const encodedUrlFilename = pathSegments.at(-1) || '';
     let urlFilename = '';
     try {
@@ -252,6 +259,42 @@ function artifactFilename(value: unknown): string {
   return filename;
 }
 
+const artifactExtensions: Record<RustDeskClientDistributionPlatform, readonly string[]> = {
+  windows: ['.exe', '.msi'],
+  macos: ['.dmg'],
+  linux: ['.deb', '.rpm', '.appimage', '.flatpak']
+};
+
+const artifactArchitectureTokens: Record<RustDeskClientDistributionArchitecture, readonly string[]> = {
+  x86_64: ['x86_64', 'amd64'],
+  aarch64: ['aarch64', 'arm64']
+};
+
+function assertArtifactIdentity(
+  filename: string,
+  platform: RustDeskClientDistributionPlatform,
+  architecture: RustDeskClientDistributionArchitecture
+): void {
+  const lower = filename.toLowerCase();
+  if (!hasArtifactToken(lower, RUSTDESK_CLIENT_VERSION)) {
+    throw profileError(`RustDesk client artifact filename must identify version ${RUSTDESK_CLIENT_VERSION}`, 500);
+  }
+  if (!hasArtifactToken(lower, platform)) {
+    throw profileError(`RustDesk client artifact filename must identify platform ${platform}`, 500);
+  }
+  if (!artifactArchitectureTokens[architecture].some((token) => hasArtifactToken(lower, token))) {
+    throw profileError(`RustDesk client artifact filename must identify architecture ${architecture}`, 500);
+  }
+  if (!artifactExtensions[platform].some((extension) => lower.endsWith(extension))) {
+    throw profileError(`RustDesk client artifact filename extension is invalid for ${platform}`, 500);
+  }
+}
+
+function hasArtifactToken(filename: string, token: string): boolean {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, 'i').test(filename);
+}
+
 function profileTtlMs(env: NodeJS.ProcessEnv): number {
   const value = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS || 900_000);
   if (!Number.isInteger(value) || value < 60_000 || value > 3_600_000) {
@@ -267,8 +310,10 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function optionalString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+function requiredExpectedPin(value: unknown, field: string): string {
+  const pin = typeof value === 'string' ? value.trim() : '';
+  if (!pin) throw profileError(`${field} is required`, 400);
+  return pin;
 }
 
 function profileError(message: string, status: number): Error {

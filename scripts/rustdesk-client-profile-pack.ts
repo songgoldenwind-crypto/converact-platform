@@ -93,7 +93,7 @@ export function createRustDeskClientProfilePackConfigFromEnv(
     env.OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT,
     'OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT is required'
   );
-  if (!/^sha256:[a-f0-9]{16,64}$/.test(expectedServerKeyFingerprint)) {
+  if (!/^sha256:[a-f0-9]{16}$/.test(expectedServerKeyFingerprint)) {
     throw new Error('RustDesk client profile expected fingerprint is invalid');
   }
   const outputFile = optionalString(env.OPC_RUSTDESK_CLIENT_PROFILE_PACK_FILE);
@@ -122,6 +122,18 @@ export async function buildRustDeskClientProfilePack(
   }),
   now: () => Date = () => new Date()
 ): Promise<RustDeskClientProfilePack> {
+  if (!String(config.expectedServerVersion || '').trim()) {
+    throw new Error('RustDesk client profile expected server version is required');
+  }
+  if (config.expectedServerVersion !== '1.1.15') {
+    throw new Error('RustDesk client profile expected server version must equal 1.1.15');
+  }
+  if (!String(config.expectedServerKeyFingerprint || '').trim()) {
+    throw new Error('RustDesk client profile expected server key fingerprint is required');
+  }
+  if (!/^sha256:[a-f0-9]{16}$/.test(config.expectedServerKeyFingerprint)) {
+    throw new Error('RustDesk client profile expected server key fingerprint is invalid');
+  }
   const generatedAt = now();
   if (Number.isNaN(generatedAt.getTime())) throw new Error('RustDesk client profile pack clock is invalid');
   const profiles: RustDeskClientDistributionProfile[] = [];
@@ -133,7 +145,7 @@ export async function buildRustDeskClientProfilePack(
       expected_server_key_fingerprint: config.expectedServerKeyFingerprint
     };
     const value = await client.getClientProfile(input);
-    profiles.push(projectRustDeskClientDistributionProfile(value, input, generatedAt));
+    profiles.push(await projectRustDeskClientDistributionProfile(value, input, generatedAt));
   }
 
   const first = profiles[0];

@@ -423,7 +423,7 @@ RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveK
 | Method | Path | 说明 |
 | --- | --- | --- |
 | GET | `/api/ivekit/rustdesk/client-config` | ID/relay/API server、public key/fingerprint |
-| GET | `/api/ivekit/rustdesk/client-profile?platform=windows&architecture=x86_64&client_version=1.4.7` | 鉴权后的固定版本客户端分发 profile |
+| GET | `/api/ivekit/rustdesk/client-profile?platform=windows&architecture=x86_64&client_version=1.4.7&expected_server_version=1.1.15&expected_server_key_fingerprint=sha256%3A...` | 鉴权后的固定版本客户端分发 profile；两个 expected pin 必填 |
 | POST | `/api/ivekit/rustdesk/devices` | 注册 business_ref 设备 |
 | GET | `/api/ivekit/rustdesk/devices/by-ref` | business_ref 查设备 |
 | GET | `/api/ivekit/rustdesk/devices/:device_id` | 设备状态 |
@@ -504,6 +504,10 @@ opaque URL，不能从静态 pack 复用。
 `1.1.15`。调用方同时传入可信部署记录中的 expected server version 和 key
 fingerprint；服务端与 SDK 都拒绝漂移、过期 profile、错误 tuple、浮动版本、非 HTTPS
 artifact、URL userinfo/query/fragment、文件名不匹配和非 64-hex SHA-256。
+RustDesk public key 必须是单行 canonical standard base64，解码后恰好 32 bytes；SDK 使用
+browser Web Crypto 从返回 key 独立计算既有 SHA-256 fingerprint，并同时匹配 response 与
+调用方的 trusted expected fingerprint。时间戳必须是 canonical ISO 字符串，`issued_at`
+最多允许 60 秒 clock skew，profile lifetime 最长 1 小时。
 
 Artifact 只从 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
 tuple 时 profile 返回 `install_source.state=not_configured`，不会猜 URL 或 checksum。

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
@@ -8,6 +10,10 @@ import {
   RUSTDESK_SERVER_VERSION,
   SUPPORTED_RUSTDESK_CLIENT_TARGETS
 } from '../src/agent-runtime/collaboration/rustdesk-client-profile.js';
+import {
+  rustDeskClientConfig,
+  rustDeskPublicKey
+} from '../src/agent-runtime/collaboration/rustdesk-client-config.js';
 import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
 import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
@@ -15,6 +21,42 @@ import { listenOnRandomPort } from './test-helpers.js';
 
 const NOW = new Date('2026-07-12T12:00:00.000Z');
 const SHA256 = 'a'.repeat(64);
+const PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
+const PRIVATE_LENGTH_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ==';
+
+test('RustDesk public key loader accepts only canonical 32-byte Ed25519 public keys', () => {
+  assert.deepEqual(rustDeskPublicKey({ OPC_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY }), {
+    value: PUBLIC_KEY,
+    source: 'env',
+    file_path: ''
+  });
+
+  for (const invalid of [
+    'rustdesk-public-key',
+    ` ${PUBLIC_KEY}`,
+    `${PUBLIC_KEY}\n`,
+    `${PUBLIC_KEY.slice(0, 20)}\n${PUBLIC_KEY.slice(20)}`,
+    PUBLIC_KEY.slice(0, -1),
+    PRIVATE_LENGTH_KEY,
+    `-----BEGIN PRIVATE KEY-----\n${PRIVATE_LENGTH_KEY}\n-----END PRIVATE KEY-----`,
+    `-----BEGIN PUBLIC KEY-----\n${PUBLIC_KEY}\n-----END PUBLIC KEY-----`
+  ]) {
+    const loaded = rustDeskPublicKey({ OPC_RUSTDESK_PUBLIC_KEY: invalid });
+    assert.equal(loaded.value, '', invalid);
+    assert.match(loaded.error || '', /canonical.*base64.*32 bytes/i, invalid);
+    const config = rustDeskClientConfig({ OPC_RUSTDESK_PUBLIC_KEY: invalid });
+    assert.equal(config.public_key, '', invalid);
+    assert.equal(config.manual_fields.key, '', invalid);
+    assert.doesNotMatch(JSON.stringify(config), new RegExp(escapeRegExp(invalid)));
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), 'rustdesk-invalid-public-key-'));
+  const file = join(dir, 'id_ed25519.pub');
+  writeFileSync(file, PRIVATE_LENGTH_KEY, 'utf8');
+  const loadedFile = rustDeskPublicKey({ OPC_RUSTDESK_PUBLIC_KEY_FILE: file });
+  assert.equal(loadedFile.value, '');
+  assert.match(loadedFile.error || '', /canonical.*base64.*32 bytes/i);
+});
 
 test('RustDesk client profiles support only the pinned V1 desktop matrix', () => {
   const env = profileEnv();
@@ -31,7 +73,7 @@ test('RustDesk client profiles support only the pinned V1 desktop matrix', () =>
 
   for (const target of SUPPORTED_RUSTDESK_CLIENT_TARGETS) {
     const profile = createRustDeskClientDistributionProfile(
-      { ...target, client_version: '1.4.7' },
+      pinnedInput(target),
       { env, now: () => NOW }
     );
     assert.equal(profile.platform, target.platform);
@@ -55,7 +97,7 @@ test('RustDesk client profiles support only the pinned V1 desktop matrix', () =>
     { platform: 'linux', architecture: 'x86_64', client_version: '1.4.8' }
   ]) {
     assert.throws(
-      () => createRustDeskClientDistributionProfile(input, { env, now: () => NOW }),
+      () => createRustDeskClientDistributionProfile(pinnedInput(input), { env, now: () => NOW }),
       /unsupported RustDesk client|client_version must equal 1\.4\.7/
     );
   }
@@ -63,24 +105,24 @@ test('RustDesk client profiles support only the pinned V1 desktop matrix', () =>
 
 test('RustDesk client profiles use only validated explicit artifact metadata', () => {
   const manifest = artifactManifest([
-    artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe')
+    artifact('windows', 'x86_64', 'rustdesk-1.4.7-windows-x86_64.exe')
   ]);
   const profile = createRustDeskClientDistributionProfile(
-    { platform: 'windows', architecture: 'x86_64', client_version: '1.4.7' },
+    pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
     { env: profileEnv(manifest), now: () => NOW }
   );
 
   assert.deepEqual(profile.install_source, {
     state: 'configured',
-    url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-x86_64.exe',
-    filename: 'rustdesk-1.4.7-x86_64.exe',
+    url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-x86_64.exe',
+    filename: 'rustdesk-1.4.7-windows-x86_64.exe',
     sha256: SHA256
   });
   assert.deepEqual(profile.manual_fields, {
     id_server: 'rustdesk-id.example.com',
     relay_server: 'rustdesk-relay.example.com',
     api_server: 'https://rustdesk-api.example.com',
-    key: 'rustdesk-public-key'
+    key: PUBLIC_KEY
   });
   assert.match(profile.server_key_fingerprint, /^sha256:[a-f0-9]{16}$/);
   assert.doesNotMatch(
@@ -89,7 +131,7 @@ test('RustDesk client profiles use only validated explicit artifact metadata', (
   );
   assert.throws(
     () => createRustDeskClientDistributionProfile(
-      { platform: 'windows', architecture: 'x86_64', client_version: '1.4.7' },
+      pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
       {
         env: {
           ...profileEnv(manifest),
@@ -103,7 +145,7 @@ test('RustDesk client profiles use only validated explicit artifact metadata', (
 });
 
 test('RustDesk client artifact manifest rejects unsafe metadata and duplicate targets', () => {
-  const valid = artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe');
+  const valid = artifact('windows', 'x86_64', 'rustdesk-1.4.7-windows-x86_64.exe');
   const invalidManifests: Array<[string, unknown]> = [
     ['malformed JSON', '{'],
     ['wrong client version', artifactManifest([valid], { client_version: '1.4.8' })],
@@ -123,7 +165,7 @@ test('RustDesk client artifact manifest rejects unsafe metadata and duplicate ta
   for (const [name, value] of invalidManifests) {
     assert.throws(
       () => createRustDeskClientDistributionProfile(
-        { platform: 'windows', architecture: 'x86_64', client_version: '1.4.7' },
+        pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
         { env: profileEnv(value), now: () => NOW }
       ),
       /artifact manifest|artifact/,
@@ -132,10 +174,41 @@ test('RustDesk client artifact manifest rejects unsafe metadata and duplicate ta
   }
 });
 
+for (const [name, filename, urlFilename] of [
+  ['version mismatch', 'rustdesk-1.4.8-windows-x86_64.exe', 'rustdesk-1.4.8-windows-x86_64.exe'],
+  ['platform mismatch', 'rustdesk-1.4.7-linux-x86_64.exe', 'rustdesk-1.4.7-linux-x86_64.exe'],
+  ['architecture mismatch', 'rustdesk-1.4.7-windows-aarch64.exe', 'rustdesk-1.4.7-windows-aarch64.exe'],
+  ['extension mismatch', 'rustdesk-1.4.7-windows-x86_64.dmg', 'rustdesk-1.4.7-windows-x86_64.dmg'],
+  ['URL basename mismatch', 'rustdesk-1.4.7-windows-x86_64.exe', 'other-1.4.7-windows-x86_64.exe']
+] as const) {
+  test(`RustDesk artifact manifest rejects ${name}`, () => {
+    const value = artifactManifest([{
+      platform: 'windows',
+      architecture: 'x86_64',
+      filename,
+      url: `https://downloads.example.com/releases/1.4.7/${urlFilename}`,
+      sha256: SHA256
+    }]);
+    assert.throws(
+      () => createRustDeskClientDistributionProfile(
+        {
+          platform: 'windows',
+          architecture: 'x86_64',
+          client_version: '1.4.7',
+          expected_server_version: '1.1.15',
+          expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+        },
+        { env: { ...profileEnv(value), OPC_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY }, now: () => NOW }
+      ),
+      /artifact/
+    );
+  });
+}
+
 test('RustDesk client profile rejects configured server and key drift', () => {
   const env = profileEnv();
   const profile = createRustDeskClientDistributionProfile(
-    { platform: 'linux', architecture: 'x86_64', client_version: '1.4.7' },
+    pinnedInput({ platform: 'linux', architecture: 'x86_64' }),
     { env, now: () => NOW }
   );
 
@@ -145,6 +218,7 @@ test('RustDesk client profile rejects configured server and key drift', () => {
         platform: 'linux',
         architecture: 'x86_64',
         client_version: '1.4.7',
+        expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6',
         expected_server_version: '1.1.14'
       },
       { env, now: () => NOW }
@@ -157,6 +231,7 @@ test('RustDesk client profile rejects configured server and key drift', () => {
         platform: 'linux',
         architecture: 'x86_64',
         client_version: '1.4.7',
+        expected_server_version: '1.1.15',
         expected_server_key_fingerprint: 'sha256:0000000000000000'
       },
       { env, now: () => NOW }
@@ -165,7 +240,7 @@ test('RustDesk client profile rejects configured server and key drift', () => {
   );
   assert.throws(
     () => createRustDeskClientDistributionProfile(
-      { platform: 'linux', architecture: 'x86_64', client_version: '1.4.7' },
+      pinnedInput({ platform: 'linux', architecture: 'x86_64' }),
       { env: { ...env, RUSTDESK_SERVER_IMAGE_TAG: 'latest' }, now: () => NOW }
     ),
     /server version must equal 1\.1\.15/
@@ -173,10 +248,27 @@ test('RustDesk client profile rejects configured server and key drift', () => {
   assert.match(profile.server_key_fingerprint, /^sha256:/);
 });
 
+test('RustDesk client profile requires both trusted drift pins before construction', () => {
+  const base = { platform: 'linux', architecture: 'x86_64', client_version: '1.4.7' };
+  for (const input of [
+    base,
+    { ...base, expected_server_version: '', expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6' },
+    { ...base, expected_server_version: '1.1.15', expected_server_key_fingerprint: '' }
+  ]) {
+    assert.throws(
+      () => createRustDeskClientDistributionProfile(
+        input as Parameters<typeof createRustDeskClientDistributionProfile>[0],
+        { env: profileEnv(), now: () => NOW }
+      ),
+      /expected_server_(?:version|key_fingerprint) is required/
+    );
+  }
+});
+
 test('authenticated client-profile endpoint returns private no-store responses and tenant-aware Vary', async (t) => {
   const previous = saveProfileProcessEnv();
   Object.assign(process.env, profileEnv(artifactManifest([
-    artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe')
+    artifact('windows', 'x86_64', 'rustdesk-1.4.7-windows-x86_64.exe')
   ])));
   process.env.OPC_API_KEY = 'profile-api-key';
   const db = createDatabase(':memory:');
@@ -187,7 +279,7 @@ test('authenticated client-profile endpoint returns private no-store responses a
     db.close();
   });
   const port = await listenOnRandomPort(server);
-  const url = `http://127.0.0.1:${port}/api/ivekit/rustdesk/client-profile?platform=windows&architecture=x86_64&client_version=1.4.7`;
+  const url = `http://127.0.0.1:${port}/api/ivekit/rustdesk/client-profile?platform=windows&architecture=x86_64&client_version=1.4.7&expected_server_version=1.1.15&expected_server_key_fingerprint=sha256%3Ac57cc3b55d39f9a6`;
 
   const unauthenticated = await fetch(url);
   assert.equal(unauthenticated.status, 401);
@@ -216,8 +308,10 @@ test('authenticated client-profile endpoint returns private no-store responses a
   );
   assert.equal(unsupported.status, 400);
 
+  const driftedUrl = new URL(url);
+  driftedUrl.searchParams.set('expected_server_key_fingerprint', 'sha256:0000000000000000');
   const drifted = await fetch(
-    `${url}&expected_server_key_fingerprint=sha256%3A0000000000000000`,
+    driftedUrl,
     { headers: { 'x-api-key': 'profile-api-key', 'x-tenant-id': 'tenant_profile' } }
   );
   assert.equal(drifted.status, 409);
@@ -267,9 +361,19 @@ function profileEnv(manifest?: unknown): NodeJS.ProcessEnv {
     OPC_RUSTDESK_ID_SERVER: 'rustdesk-id.example.com',
     OPC_RUSTDESK_RELAY_SERVER: 'rustdesk-relay.example.com',
     OPC_RUSTDESK_API_SERVER: 'https://rustdesk-api.example.com',
-    OPC_RUSTDESK_PUBLIC_KEY: 'rustdesk-public-key',
+    OPC_RUSTDESK_PUBLIC_KEY: PUBLIC_KEY,
     RUSTDESK_SERVER_IMAGE_TAG: '1.1.15',
     ...(manifest === undefined ? {} : { OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON: String(manifest) })
+  };
+}
+
+function pinnedInput(input: { platform: unknown; architecture: unknown; client_version?: unknown }) {
+  return {
+    platform: input.platform,
+    architecture: input.architecture,
+    client_version: input.client_version || '1.4.7',
+    expected_server_version: '1.1.15',
+    expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   };
 }
 
@@ -293,4 +397,8 @@ function restoreProfileProcessEnv(saved: Record<string, string | undefined>): vo
     if (saved[key] === undefined) delete process.env[key];
     else process.env[key] = saved[key];
   }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -261,13 +261,19 @@ test('iveKit RustDesk HTTP client applies the configured request timeout', async
 
 test('iveKit RustDesk HTTP client requests and projects a pinned client distribution profile', async () => {
   const calls: string[] = [];
+  const now = Date.now();
+  const responseProfile = {
+    ...expectedClientDistributionProfile(),
+    issued_at: new Date(now - 60_000).toISOString(),
+    expires_at: new Date(now + 840_000).toISOString()
+  };
   const client = createIveKitRustDeskHttpClient({
     baseUrl: 'https://opc.example.com',
     accessToken: 'short-lived-browser-token',
     tenantId: 'tenant_led',
     fetch: async (input) => {
       calls.push(String(input));
-      return jsonResponse(200, unsafeClientDistributionProfile());
+      return jsonResponse(200, unsafeClientDistributionProfile(responseProfile));
     }
   });
 
@@ -276,15 +282,15 @@ test('iveKit RustDesk HTTP client requests and projects a pinned client distribu
     architecture: 'x86_64',
     client_version: '1.4.7',
     expected_server_version: '1.1.15',
-    expected_server_key_fingerprint: 'sha256:abcdef1234567890'
+    expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   });
 
   assert.equal(calls.length, 1);
   assert.equal(
     new URL(calls[0]).search,
-    '?platform=windows&architecture=x86_64&client_version=1.4.7&expected_server_version=1.1.15&expected_server_key_fingerprint=sha256%3Aabcdef1234567890'
+    '?platform=windows&architecture=x86_64&client_version=1.4.7&expected_server_version=1.1.15&expected_server_key_fingerprint=sha256%3Ac57cc3b55d39f9a6'
   );
-  assert.deepEqual(profile, expectedClientDistributionProfile());
+  assert.deepEqual(profile, responseProfile);
   assert.doesNotMatch(
     JSON.stringify(profile),
     /api_key|bearer|private_key|edge_secret|unattended_password|launch_token|installer_credential|drop-me/
@@ -298,7 +304,7 @@ test('iveKit RustDesk client profile projection rejects drift, expiry, and malfo
     architecture: 'x86_64' as const,
     client_version: '1.4.7',
     expected_server_version: '1.1.15',
-    expected_server_key_fingerprint: 'sha256:abcdef1234567890'
+    expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   };
   const invalid: Array<[string, unknown, RegExp]> = [
     ['platform drift', { ...base, platform: 'linux' }, /platform/],
@@ -306,7 +312,7 @@ test('iveKit RustDesk client profile projection rejects drift, expiry, and malfo
     ['client drift', { ...base, client_version: { exact: '1.4.8', allowed: ['1.4.8'] } }, /client_version/],
     ['floating allowed version', { ...base, client_version: { exact: '1.4.7', allowed: ['^1.4.7'] } }, /client_version/],
     ['server drift', { ...base, server_version: '1.1.14' }, /server_version/],
-    ['key drift', { ...base, server_key_fingerprint: 'sha256:0000000000000000' }, /server_key_fingerprint/],
+    ['key drift', { ...base, server_key_fingerprint: 'sha256:0000000000000000' }, /fingerprint/],
     ['expired', { ...base, expires_at: '2020-01-01T00:00:00.000Z' }, /expired/],
     ['bad timestamp', { ...base, issued_at: 'today' }, /issued_at/],
     ['unsafe URL', {
@@ -328,13 +334,158 @@ test('iveKit RustDesk client profile projection rejects drift, expiry, and malfo
   ];
 
   for (const [name, value, pattern] of invalid) {
-    assert.throws(
-      () => projectRustDeskClientDistributionProfile(value, expected, new Date('2026-07-12T12:05:00.000Z')),
+    await assert.rejects(
+      async () => projectRustDeskClientDistributionProfile(value, expected, new Date('2026-07-12T12:05:00.000Z')),
       pattern,
       name
     );
   }
 });
+
+test('iveKit RustDesk client profile binds the returned public key to both fingerprints', async () => {
+  const profile = {
+    ...expectedClientDistributionProfile(),
+    manual_fields: {
+      ...expectedClientDistributionProfile().manual_fields,
+      key: 'AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI='
+    },
+    server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+  };
+
+  await assert.rejects(
+    async () => projectRustDeskClientDistributionProfile(profile, {
+      platform: 'windows',
+      architecture: 'x86_64',
+      client_version: '1.4.7',
+      expected_server_version: '1.1.15',
+      expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+    }, new Date('2026-07-12T12:05:00.000Z')),
+    /public key fingerprint/
+  );
+});
+
+for (const [name, key] of [
+  ['malformed base64', 'not-base64'],
+  ['multiline base64', 'AQEBAQEBAQEBAQEBAQEB\nAQEBAQEBAQEBAQEBAQEBAQE='],
+  ['noncanonical base64', 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE'],
+  ['decoded private-key length', 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=='],
+  ['PEM private key', '-----BEGIN PRIVATE KEY-----\nAQEBAQ==\n-----END PRIVATE KEY-----']
+] as const) {
+  test(`iveKit RustDesk profile projection rejects ${name} public key`, async () => {
+    const profile = {
+      ...expectedClientDistributionProfile(),
+      manual_fields: { ...expectedClientDistributionProfile().manual_fields, key },
+      server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+    };
+    await assert.rejects(
+      async () => projectRustDeskClientDistributionProfile(profile, {
+        platform: 'windows',
+        architecture: 'x86_64',
+        client_version: '1.4.7',
+        expected_server_version: '1.1.15',
+        expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+      }, new Date('2026-07-12T12:05:00.000Z')),
+      /manual_fields.key/
+    );
+  });
+}
+
+test('iveKit RustDesk HTTP client rejects missing profile pins before fetch', async () => {
+  let calls = 0;
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://opc.example.com',
+    accessToken: 'short-lived-browser-token',
+    tenantId: 'tenant_led',
+    fetch: async () => {
+      calls += 1;
+      return jsonResponse(200, expectedClientDistributionProfile());
+    }
+  });
+  const base = {
+    platform: 'windows' as const,
+    architecture: 'x86_64' as const,
+    client_version: '1.4.7'
+  };
+
+  for (const input of [
+    { ...base, expected_server_version: '', expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6' },
+    { ...base, expected_server_version: '1.1.15', expected_server_key_fingerprint: '' }
+  ]) {
+    await assert.rejects(() => client.getClientProfile(input), /expected_server_(?:version|key_fingerprint) is required/);
+  }
+  assert.equal(calls, 0);
+});
+
+for (const [name, filename, urlFilename] of [
+  ['version mismatch', 'rustdesk-1.4.8-windows-x86_64.exe', 'rustdesk-1.4.8-windows-x86_64.exe'],
+  ['platform mismatch', 'rustdesk-1.4.7-linux-x86_64.exe', 'rustdesk-1.4.7-linux-x86_64.exe'],
+  ['architecture mismatch', 'rustdesk-1.4.7-windows-aarch64.exe', 'rustdesk-1.4.7-windows-aarch64.exe'],
+  ['extension mismatch', 'rustdesk-1.4.7-windows-x86_64.dmg', 'rustdesk-1.4.7-windows-x86_64.dmg'],
+  ['URL basename mismatch', 'rustdesk-1.4.7-windows-x86_64.exe', 'other-1.4.7-windows-x86_64.exe']
+] as const) {
+  test(`iveKit RustDesk profile projection rejects artifact ${name}`, async () => {
+    const profile = {
+      ...expectedClientDistributionProfile(),
+      manual_fields: {
+        ...expectedClientDistributionProfile().manual_fields,
+        key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE='
+      },
+      server_key_fingerprint: 'sha256:c57cc3b55d39f9a6',
+      install_source: {
+        state: 'configured',
+        filename,
+        url: `https://downloads.example.com/releases/1.4.7/${urlFilename}`,
+        sha256: 'a'.repeat(64)
+      }
+    };
+    await assert.rejects(
+      async () => projectRustDeskClientDistributionProfile(profile, {
+        platform: 'windows',
+        architecture: 'x86_64',
+        client_version: '1.4.7',
+        expected_server_version: '1.1.15',
+        expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+      }, new Date('2026-07-12T12:05:00.000Z')),
+      /install_source/
+    );
+  });
+}
+
+for (const [name, timestamps] of [
+  ['impossible calendar date', { issued_at: '2026-02-30T12:00:00.000Z' }],
+  ['timezone offset', { issued_at: '2026-07-12T20:00:00.000+08:00' }],
+  ['missing millisecond precision', { issued_at: '2026-07-12T12:00:00Z' }],
+  ['issued more than 60 seconds in the future', {
+    issued_at: '2026-07-12T12:06:01.000Z',
+    expires_at: '2026-07-12T12:21:01.000Z'
+  }],
+  ['lifetime above configured maximum', {
+    issued_at: '2026-07-12T12:00:00.000Z',
+    expires_at: '2026-07-12T13:00:00.001Z'
+  }]
+] as const) {
+  test(`iveKit RustDesk profile projection rejects ${name}`, async () => {
+    const profile = {
+      ...expectedClientDistributionProfile(),
+      ...timestamps,
+      manual_fields: {
+        ...expectedClientDistributionProfile().manual_fields,
+        key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE='
+      },
+      server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+    };
+    await assert.rejects(
+      async () => projectRustDeskClientDistributionProfile(profile, {
+        platform: 'windows',
+        architecture: 'x86_64',
+        client_version: '1.4.7',
+        expected_server_version: '1.1.15',
+        expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+      }, new Date('2026-07-12T12:05:00.000Z')),
+      /invalid RustDesk client distribution profile: (?:issued_at|expires_at|profile lifetime)/
+    );
+  });
+}
 
 test('iveKit RustDesk HTTP client projects complete terminal profiles from every device response path', async () => {
   const device = (id: string) => ({
@@ -855,22 +1006,22 @@ function expectedClientDistributionProfile() {
     },
     server_version: '1.1.15',
     issued_at: '2026-07-12T12:00:00.000Z',
-    expires_at: '2099-07-12T12:15:00.000Z',
+    expires_at: '2026-07-12T12:15:00.000Z',
     manual_fields: {
       id_server: 'rustdesk-id.example.com',
       relay_server: 'rustdesk-relay.example.com',
       api_server: 'https://rustdesk-api.example.com',
-      key: 'rustdesk-public-key'
+      key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE='
     },
-    server_key_fingerprint: 'sha256:abcdef1234567890',
+    server_key_fingerprint: 'sha256:c57cc3b55d39f9a6',
     protocol_handler: {
       supported: true,
       user_initiated_only: true
     },
     install_source: {
       state: 'configured' as const,
-      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-x86_64.exe',
-      filename: 'rustdesk-1.4.7-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-x86_64.exe',
+      filename: 'rustdesk-1.4.7-windows-x86_64.exe',
       sha256: 'a'.repeat(64)
     },
     unattended_policy: {
@@ -880,8 +1031,7 @@ function expectedClientDistributionProfile() {
   };
 }
 
-function unsafeClientDistributionProfile() {
-  const profile = expectedClientDistributionProfile();
+function unsafeClientDistributionProfile(profile = expectedClientDistributionProfile()) {
   return {
     ...profile,
     api_key: 'server-api-key',

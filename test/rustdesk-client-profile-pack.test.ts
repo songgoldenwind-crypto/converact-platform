@@ -12,7 +12,8 @@ import {
 } from '../scripts/rustdesk-client-profile-pack.js';
 
 const NOW = new Date('2026-07-12T12:00:00.000Z');
-const FINGERPRINT = 'sha256:abcdef1234567890';
+const FINGERPRINT = 'sha256:c57cc3b55d39f9a6';
+const PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
 
 test('RustDesk client profile pack creates a ready five-target handoff manifest', async () => {
   const calls: unknown[] = [];
@@ -32,7 +33,7 @@ test('RustDesk client profile pack creates a ready five-target handoff manifest'
   assert.equal(pack.client_version, '1.4.7');
   assert.equal(pack.server_version, '1.1.15');
   assert.equal(pack.generated_at, NOW.toISOString());
-  assert.equal(pack.expires_at, '2099-07-12T12:15:00.000Z');
+  assert.equal(pack.expires_at, '2026-07-12T12:15:00.000Z');
   assert.equal(pack.server_key_fingerprint, FINGERPRINT);
   assert.equal(pack.targets.length, 5);
   assert.deepEqual(pack.missing_targets, []);
@@ -90,7 +91,7 @@ test('RustDesk client profile pack rejects drift, expiry, and unsafe fake-client
       },
       () => NOW
     ),
-    /server_key_fingerprint/
+    /fingerprint/
   );
 
   await assert.rejects(
@@ -124,7 +125,7 @@ test('RustDesk client profile pack rejects drift, expiry, and unsafe fake-client
       },
       () => NOW
     ),
-    /install_source.url/
+    /install_source/
   );
 });
 
@@ -173,6 +174,37 @@ test('RustDesk client profile pack config validates trusted origin and expected 
     }),
     /expected server version must equal 1\.1\.15/
   );
+
+  assert.throws(
+    () => createRustDeskClientProfilePackConfigFromEnv({
+      OPC_RUSTDESK_CLIENT_PROFILE_PACK_BASE_URL: 'https://opc.example.com',
+      OPC_RUSTDESK_CLIENT_PROFILE_PACK_API_KEY: 'profile-pack-api-secret',
+      OPC_RUSTDESK_CLIENT_PROFILE_PACK_TENANT_ID: 'tenant_led',
+      OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION: '1.1.15',
+      OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT: `sha256:${'a'.repeat(64)}`
+    }),
+    /expected fingerprint is invalid/
+  );
+});
+
+test('RustDesk client profile pack rejects missing trusted pins before client calls', async () => {
+  let calls = 0;
+  const client = {
+    async getClientProfile() {
+      calls += 1;
+      return profileFor('windows', 'x86_64');
+    }
+  };
+  for (const config of [
+    { ...packConfig(), expectedServerVersion: '' },
+    { ...packConfig(), expectedServerKeyFingerprint: '' }
+  ]) {
+    await assert.rejects(
+      () => buildRustDeskClientProfilePack(config as ReturnType<typeof packConfig>, client, () => NOW),
+      /expected server (?:version|key fingerprint) is required/
+    );
+  }
+  assert.equal(calls, 0);
 });
 
 test('RustDesk client profile pack writes a secret-free JSON artifact and exposes local tooling', async () => {
@@ -220,19 +252,20 @@ function packConfig() {
 }
 
 function profileFor(platform: string, architecture: string, missing = false) {
-  const filename = `rustdesk-1.4.7-${platform}-${architecture}.bin`;
+  const extension = platform === 'windows' ? 'exe' : platform === 'macos' ? 'dmg' : 'appimage';
+  const filename = `rustdesk-1.4.7-${platform}-${architecture}.${extension}`;
   return {
     platform,
     architecture,
     client_version: { exact: '1.4.7', allowed: ['1.4.7'] },
     server_version: '1.1.15',
     issued_at: NOW.toISOString(),
-    expires_at: '2099-07-12T12:15:00.000Z',
+    expires_at: '2026-07-12T12:15:00.000Z',
     manual_fields: {
       id_server: 'rustdesk-id.example.com',
       relay_server: 'rustdesk-relay.example.com',
       api_server: 'https://rustdesk-api.example.com',
-      key: 'rustdesk-public-key'
+      key: PUBLIC_KEY
     },
     server_key_fingerprint: FINGERPRINT,
     protocol_handler: { supported: true, user_initiated_only: true },

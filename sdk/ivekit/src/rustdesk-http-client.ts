@@ -199,17 +199,28 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
       return request<RustDeskClientConfig>('GET', '/api/ivekit/rustdesk/client-config');
     },
     async getClientProfile(profileInput) {
+      const expectedServerVersion = requiredString(
+        profileInput.expected_server_version,
+        'expected_server_version is required'
+      );
+      if (expectedServerVersion !== '1.1.15') {
+        throw new Error('expected_server_version must equal 1.1.15');
+      }
+      const expectedFingerprint = requiredString(
+        profileInput.expected_server_key_fingerprint,
+        'expected_server_key_fingerprint is required'
+      );
+      if (!/^sha256:[a-f0-9]{16}$/.test(expectedFingerprint)) {
+        throw new Error('expected_server_key_fingerprint is invalid');
+      }
       const profile = await request<unknown>('GET', '/api/ivekit/rustdesk/client-profile', undefined, {
         platform: profileInput.platform,
         architecture: profileInput.architecture,
         client_version: profileInput.client_version,
-        expected_server_version: profileInput.expected_server_version,
-        expected_server_key_fingerprint: requiredString(
-          profileInput.expected_server_key_fingerprint,
-          'expected_server_key_fingerprint is required'
-        )
+        expected_server_version: expectedServerVersion,
+        expected_server_key_fingerprint: expectedFingerprint
       });
-      return projectRustDeskClientDistributionProfile(profile, profileInput);
+      return await projectRustDeskClientDistributionProfile(profile, profileInput);
     },
     async registerDevice(device) {
       return projectRustDeskDevice(
@@ -294,11 +305,23 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
   };
 }
 
-export function projectRustDeskClientDistributionProfile(
+export async function projectRustDeskClientDistributionProfile(
   value: unknown,
   expected: GetIveKitRustDeskClientProfileInput,
   now = new Date()
-): RustDeskClientDistributionProfile {
+): Promise<RustDeskClientDistributionProfile> {
+  const expectedServerVersion = distributionRequiredString(
+    expected.expected_server_version,
+    'expected_server_version is required'
+  );
+  const expectedFingerprint = distributionRequiredString(
+    expected.expected_server_key_fingerprint,
+    'expected_server_key_fingerprint is required'
+  );
+  if (expectedServerVersion !== '1.1.15') throw invalidDistribution('expected_server_version');
+  if (!/^sha256:[a-f0-9]{16}$/.test(expectedFingerprint)) {
+    throw invalidDistribution('expected_server_key_fingerprint');
+  }
   const profile = distributionRecord(value, 'payload');
   const platform = distributionEnum(
     profile.platform,
@@ -324,14 +347,18 @@ export function projectRustDeskClientDistributionProfile(
   ) {
     throw invalidDistribution('client_version');
   }
-  if (profile.server_version !== '1.1.15' || profile.server_version !== expected.expected_server_version) {
+  if (profile.server_version !== '1.1.15' || profile.server_version !== expectedServerVersion) {
     throw invalidDistribution('server_version drift');
   }
 
   const issuedAt = distributionTimestamp(profile.issued_at, 'issued_at');
   const expiresAt = distributionTimestamp(profile.expires_at, 'expires_at');
-  if (Date.parse(expiresAt) <= now.getTime()) throw invalidDistribution('expired');
-  if (Date.parse(expiresAt) <= Date.parse(issuedAt)) throw invalidDistribution('expires_at');
+  const issuedAtMs = Date.parse(issuedAt);
+  const expiresAtMs = Date.parse(expiresAt);
+  if (expiresAtMs <= now.getTime()) throw invalidDistribution('expired');
+  if (issuedAtMs > now.getTime() + 60_000) throw invalidDistribution('issued_at');
+  if (expiresAtMs <= issuedAtMs) throw invalidDistribution('expires_at');
+  if (expiresAtMs - issuedAtMs > 3_600_000) throw invalidDistribution('profile lifetime');
 
   const manual = distributionRecord(profile.manual_fields, 'manual_fields');
   const manualFields = {
@@ -341,6 +368,7 @@ export function projectRustDeskClientDistributionProfile(
     key: distributionRequiredString(manual.key, 'manual_fields.key')
   };
   validateDistributionApiServer(manualFields.api_server);
+  const derivedFingerprint = await distributionPublicKeyFingerprint(manualFields.key);
 
   const fingerprint = distributionRequiredString(
     profile.server_key_fingerprint,
@@ -349,7 +377,10 @@ export function projectRustDeskClientDistributionProfile(
   if (!/^sha256:[a-f0-9]{16,64}$/.test(fingerprint)) {
     throw invalidDistribution('server_key_fingerprint');
   }
-  if (fingerprint !== expected.expected_server_key_fingerprint) {
+  if (fingerprint !== derivedFingerprint) {
+    throw invalidDistribution('public key fingerprint');
+  }
+  if (fingerprint !== expectedFingerprint) {
     throw invalidDistribution('server_key_fingerprint drift');
   }
 
@@ -372,12 +403,33 @@ export function projectRustDeskClientDistributionProfile(
     manual_fields: manualFields,
     server_key_fingerprint: fingerprint,
     protocol_handler: { supported: true, user_initiated_only: true },
-    install_source: projectDistributionInstallSource(profile.install_source),
+    install_source: projectDistributionInstallSource(profile.install_source, platform, architecture),
     unattended_policy: { mode: 'attended_only', state: 'not_configured' }
   };
 }
 
-function projectDistributionInstallSource(value: unknown): RustDeskClientDistributionProfile['install_source'] {
+async function distributionPublicKeyFingerprint(value: string): Promise<string> {
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) throw invalidDistribution('manual_fields.key');
+  let binary: string;
+  try {
+    binary = globalThis.atob(value);
+  } catch {
+    throw invalidDistribution('manual_fields.key');
+  }
+  if (binary.length !== 32 || globalThis.btoa(binary) !== value) {
+    throw invalidDistribution('manual_fields.key');
+  }
+  if (!globalThis.crypto?.subtle) throw invalidDistribution('public key fingerprint');
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  const hex = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `sha256:${hex.slice(0, 16)}`;
+}
+
+function projectDistributionInstallSource(
+  value: unknown,
+  platform: RustDeskClientDistributionPlatform,
+  architecture: RustDeskClientDistributionArchitecture
+): RustDeskClientDistributionProfile['install_source'] {
   const source = distributionRecord(value, 'install_source');
   if (source.state === 'not_configured') return { state: 'not_configured' };
   if (source.state !== 'configured') throw invalidDistribution('install_source.state');
@@ -391,9 +443,6 @@ function projectDistributionInstallSource(value: unknown): RustDeskClientDistrib
     throw invalidDistribution('install_source.url');
   }
   const pathSegments = url.pathname.split('/').filter(Boolean);
-  if (!pathSegments.some((segment) => segment === '1.4.7' || segment === 'v1.4.7')) {
-    throw invalidDistribution('install_source.url');
-  }
   const filename = distributionRequiredString(source.filename, 'install_source.filename');
   if (filename === '.' || filename === '..' || filename.includes('/') || filename.includes('\\')) {
     throw invalidDistribution('install_source.filename');
@@ -405,9 +454,42 @@ function projectDistributionInstallSource(value: unknown): RustDeskClientDistrib
     throw invalidDistribution('install_source.url');
   }
   if (filename !== urlFilename) throw invalidDistribution('install_source.filename');
+  validateDistributionArtifactIdentity(filename, platform, architecture);
   const sha256 = distributionRequiredString(source.sha256, 'install_source.sha256').toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw invalidDistribution('install_source.sha256');
   return { state: 'configured', url: url.toString(), filename, sha256 };
+}
+
+const distributionArtifactExtensions: Record<RustDeskClientDistributionPlatform, readonly string[]> = {
+  windows: ['.exe', '.msi'],
+  macos: ['.dmg'],
+  linux: ['.deb', '.rpm', '.appimage', '.flatpak']
+};
+
+const distributionArtifactArchitectureTokens: Record<RustDeskClientDistributionArchitecture, readonly string[]> = {
+  x86_64: ['x86_64', 'amd64'],
+  aarch64: ['aarch64', 'arm64']
+};
+
+function validateDistributionArtifactIdentity(
+  filename: string,
+  platform: RustDeskClientDistributionPlatform,
+  architecture: RustDeskClientDistributionArchitecture
+): void {
+  const lower = filename.toLowerCase();
+  if (!distributionArtifactToken(lower, '1.4.7')) throw invalidDistribution('install_source.version');
+  if (!distributionArtifactToken(lower, platform)) throw invalidDistribution('install_source.platform');
+  if (!distributionArtifactArchitectureTokens[architecture].some((token) => distributionArtifactToken(lower, token))) {
+    throw invalidDistribution('install_source.architecture');
+  }
+  if (!distributionArtifactExtensions[platform].some((extension) => lower.endsWith(extension))) {
+    throw invalidDistribution('install_source.extension');
+  }
+}
+
+function distributionArtifactToken(filename: string, token: string): boolean {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, 'i').test(filename);
 }
 
 function isSupportedDistributionTarget(
@@ -439,10 +521,9 @@ function distributionString(value: unknown, field: string): string {
 }
 
 function distributionTimestamp(value: unknown, field: string): string {
-  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw invalidDistribution(field);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
-    throw invalidDistribution(field);
-  }
+  if (typeof value !== 'string') throw invalidDistribution(field);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== value) throw invalidDistribution(field);
   return value;
 }
 

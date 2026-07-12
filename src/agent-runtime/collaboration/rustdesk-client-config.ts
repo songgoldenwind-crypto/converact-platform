@@ -31,17 +31,44 @@ export interface RustDeskClientConfig {
 }
 
 export function rustDeskPublicKey(env: NodeJS.ProcessEnv = process.env): RustDeskPublicKeyInfo {
-  const envValue = String(env.OPC_RUSTDESK_PUBLIC_KEY || '').trim();
-  if (envValue) return { value: envValue, source: 'env', file_path: '' };
+  const envValue = String(env.OPC_RUSTDESK_PUBLIC_KEY || '');
+  if (envValue) return validatedRustDeskPublicKey(envValue, 'env', '');
   const filePath = String(env.OPC_RUSTDESK_PUBLIC_KEY_FILE || '').trim();
   if (!filePath) return { value: '', source: 'none', file_path: '' };
   try {
-    const fileValue = readFileSync(filePath, 'utf8').trim();
-    if (fileValue) return { value: fileValue, source: 'file', file_path: filePath };
+    const fileValue = readFileSync(filePath, 'utf8');
+    if (!fileValue.trim()) {
+      return { value: '', source: 'none', file_path: filePath, error: `RustDesk public key file is empty: ${filePath}` };
+    }
+    if (fileValue) return validatedRustDeskPublicKey(fileValue, 'file', filePath);
   } catch {
     return { value: '', source: 'none', file_path: filePath, error: `RustDesk public key file cannot be read: ${filePath}` };
   }
   return { value: '', source: 'none', file_path: filePath, error: `RustDesk public key file is empty: ${filePath}` };
+}
+
+function validatedRustDeskPublicKey(
+  value: string,
+  source: Exclude<RustDeskPublicKeySource, 'none'>,
+  filePath: string
+): RustDeskPublicKeyInfo {
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) {
+    return invalidRustDeskPublicKey(filePath);
+  }
+  const decoded = Buffer.from(value, 'base64');
+  if (decoded.length !== 32 || decoded.toString('base64') !== value) {
+    return invalidRustDeskPublicKey(filePath);
+  }
+  return { value, source, file_path: filePath };
+}
+
+function invalidRustDeskPublicKey(filePath: string): RustDeskPublicKeyInfo {
+  return {
+    value: '',
+    source: 'none',
+    file_path: filePath,
+    error: 'RustDesk public key must be canonical single-line standard base64 decoding to exactly 32 bytes'
+  };
 }
 
 export function rustDeskServerKeyFingerprint(env: NodeJS.ProcessEnv = process.env): string {
