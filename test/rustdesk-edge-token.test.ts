@@ -45,7 +45,8 @@ test('RustDesk edge token generator writes a device-bound token with restricted 
     OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-EDGE-TOKEN',
     OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
     OPC_RUSTDESK_EDGE_COMMAND_TOKEN_FILE: outputFile,
-    OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath
+    OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath,
+    OPC_RUSTDESK_EDGE_SPOOL_DIR: join(dir, 'spool')
   });
   assert.equal(edgeConfig.commandToken, token);
 });

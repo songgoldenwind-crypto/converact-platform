@@ -26,7 +26,11 @@ test('rustdesk readiness builds a strict RustDesk gateway check and can derive t
     OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME: 'LED control PC',
     OPC_RUSTDESK_EDGE_COMMAND_TOKEN: 'signed-readiness-edge-token',
     OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: process.execPath,
-    OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["-e","process.exit(0)"]'
+    OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["-e","process.exit(0)"]',
+    OPC_RUSTDESK_EDGE_SPOOL_DIR: join(
+      mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-config-')),
+      'spool'
+    )
   });
 
   assert.equal(config.runEdgeAgent, true);
@@ -176,7 +180,11 @@ test('rustdesk readiness runs edge heartbeat before the strict gateway smoke', a
       OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: JSON.stringify([
         '-e',
         "process.stdout.write('readiness-disconnected'); process.exit(0)"
-      ])
+      ]),
+      OPC_RUSTDESK_EDGE_SPOOL_DIR: join(
+        mkdtempSync(join(tmpdir(), 'opc-rustdesk-readiness-run-')),
+        'spool'
+      )
     }),
     async (input, init = {}) => {
       const url = new URL(String(input));
