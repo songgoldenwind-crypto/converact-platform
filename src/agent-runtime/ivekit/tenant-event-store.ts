@@ -424,16 +424,17 @@ function visibilityProbeQuery(scope: Exclude<IveKitEventVisibilityScope, 'tenant
 }
 
 function safeReplayPayload(value: unknown): unknown {
-  const seen = new WeakSet<object>();
-  const serialized = JSON.stringify(value ?? null, (key, nested) => {
-    if (/token|password|secret|authorization|cookie/i.test(key)) return undefined;
-    if (nested && typeof nested === 'object') {
-      if (seen.has(nested)) throw Object.assign(new Error('tenant event payload must be acyclic'), { status: 400 });
-      seen.add(nested);
+  try {
+    const serialized = JSON.stringify(value ?? null, (key, nested) =>
+      /token|password|secret|authorization|cookie/i.test(key) ? undefined : nested
+    );
+    return JSON.parse(serialized) as unknown;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw Object.assign(new Error('tenant event payload must be acyclic'), { status: 400 });
     }
-    return nested;
-  });
-  return JSON.parse(serialized) as unknown;
+    throw error;
+  }
 }
 
 function objectValue(value: unknown): Record<string, unknown> {

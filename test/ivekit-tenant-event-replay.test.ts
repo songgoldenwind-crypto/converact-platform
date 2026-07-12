@@ -171,3 +171,27 @@ test('tenant event retention prunes expired rows per tenant without touching liv
   });
   assert.deepEqual(live.items.map((event) => event.type), ['live.event']);
 });
+
+test('tenant event payload accepts shared references but rejects actual cycles', async () => {
+  const events = new IveKitTenantEventStore(new MemoryPg(), {
+    cursor_secret: 'tenant-event-shared-reference-secret'
+  });
+  const shared = { id: 'shared-message' };
+  const accepted = await events.append({
+    tenant_id: 'tenant_event_shared_reference',
+    type: 'collaboration.message.created',
+    data: { message: shared, result: { message: shared } }
+  });
+  assert.equal((accepted.data as any).message.id, 'shared-message');
+
+  const cyclic: Record<string, unknown> = {};
+  cyclic.self = cyclic;
+  await assert.rejects(
+    () => events.append({
+      tenant_id: 'tenant_event_shared_reference',
+      type: 'collaboration.message.created',
+      data: cyclic
+    }),
+    /must be acyclic/
+  );
+});
