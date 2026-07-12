@@ -62,6 +62,7 @@
     "rustdesk:edge-agent": "tsx scripts/rustdesk-edge-agent.ts",
     "rustdesk:edge-token": "tsx scripts/rustdesk-edge-token.ts",
     "rustdesk:event-forwarder": "tsx scripts/rustdesk-event-forwarder.ts",
+    "rustdesk:operation-observer": "tsx scripts/rustdesk-operation-observer.ts",
     "rustdesk:ivekit-smoke": "tsx scripts/rustdesk-ivekit-smoke.ts",
     "rustdesk:led-example": "tsx scripts/ivekit-rustdesk-led-example.ts",
     "rustdesk:acceptance-bundle": "tsx scripts/rustdesk-acceptance-bundle.ts",

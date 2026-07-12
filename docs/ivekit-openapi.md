@@ -443,6 +443,16 @@ RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveK
 | DELETE | `/api/ivekit/rustdesk/gateway-sessions/:external_id` | 结束控制面会话并触发物理断开命令 |
 | GET | `/api/ivekit/rustdesk/gateway-sessions/:external_id/disconnect` | pending/succeeded/failed/unavailable |
 
+`events` 保留既有 control/file/clipboard/recording 事件，并新增 canonical
+`remote.rustdesk.operation.observed`。metadata 必须包含 `operation_id`、`operation`、
+`status` 和 `observer`。`not_observed` 固定使用 `observer=none`、`observed_at=null`、空
+`evidence_refs`；成功/失败观察必须提供 ISO `observed_at` 和至少一个
+`{type,ref,sha256}` evidence ref。可选字段包括 provider operation/session ID、direction、
+display ID、byte count、checksum、duration、reason、status detail 和 control version。
+禁止提交 clipboard/file/keystroke/screen/recording 原始内容以及 token、password、API/private
+key。control/file/clipboard 观察在 control-enforced session 中必须由当前 controller 提交，
+并携带匹配的 `control_version`；检查和 audit insert 在同一个数据库锁/事务中完成。
+
 Legacy OPC compatibility route `/api/opc/rustdesk/sessions` is attended-only. An omitted
 `access_mode` keeps the historical attended create contract; when `remote_session_id` is
 provided, active consent and requested consent scopes are rechecked. Unattended creation must use `/api/ivekit/rustdesk/gateway-sessions`, which applies the registered-device, business-ref,

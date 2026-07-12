@@ -5,6 +5,7 @@ import type { RemoteGatewayAuditEvent } from './remote-gateway-client.js';
 import type { RemoteGatewayTarget } from './remote-gateway-adapter.js';
 import {
   rustDeskGatewayEventPermissionError,
+  rustDeskGatewayObservedOperationControllerRequirement,
   rustDeskGatewaySecondaryConfirmationOperation,
   rustDeskGatewayEventValidationError
 } from './rustdesk-gateway-event.js';
@@ -262,6 +263,20 @@ export class RustDeskGatewaySessionStore {
         actor_identity: actorIdentity,
         operation: confirmedOperation,
         operation_authorization_id: authorizationId,
+        version: controlVersion
+      }, insert);
+    }
+    const observedOperation = rustDeskGatewayObservedOperationControllerRequirement(eventType, inputMetadata);
+    if (Number(session.metadata.control_enforcement_version || 0) >= 1 && observedOperation) {
+      const controlVersion = Number(inputMetadata.control_version);
+      if (!Number.isInteger(controlVersion) || controlVersion < 1) {
+        throw Object.assign(new Error('RustDesk sensitive observation requires metadata.control_version'), { status: 403 });
+      }
+      return new RustDeskControlLockStore(this.pg).verifyOperationOwnerAndRun({
+        tenant_id: session.tenant_id,
+        external_id: session.external_id,
+        actor_identity: actorIdentity,
+        operation: observedOperation,
         version: controlVersion
       }, insert);
     }

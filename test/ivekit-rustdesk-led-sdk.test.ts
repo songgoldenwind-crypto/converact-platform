@@ -145,18 +145,24 @@ test('iveKit RustDesk LED SDK standardizes typed operation audit helpers', async
     direction: 'agent_to_device',
     contentKind: 'text'
   });
+  await sdk.recordOperationObservation('rdgw_1', {
+    actorIdentity: 'agent_led', target: '987654321', operationId: 'display_1',
+    operation: 'multi_display', status: 'not_observed', observer: 'none'
+  });
 
   assert.deepEqual(calls, [
     'recordGatewayEvent:rdgw_1:remote.rustdesk.control_action.performed',
     'recordGatewayEvent:rdgw_1:remote.rustdesk.file_transfer.completed',
     'recordGatewayEvent:rdgw_1:remote.rustdesk.recording.stopped',
-    'recordGatewayEvent:rdgw_1:remote.rustdesk.clipboard.synced'
+    'recordGatewayEvent:rdgw_1:remote.rustdesk.clipboard.synced',
+    'recordGatewayEvent:rdgw_1:remote.rustdesk.operation.observed'
   ]);
   assert.deepEqual(events.map((event) => event.idempotency_key), [
     'rustdesk-control:op_mouse_1',
     'rustdesk-file-transfer:file_1:completed',
     'rustdesk-recording:rec_1:stopped',
-    'rustdesk-clipboard:clip_1:agent_to_device'
+    'rustdesk-clipboard:clip_1:agent_to_device',
+    'rustdesk-observation:display_1:not_observed'
   ]);
   assert.deepEqual(events.map((event) => event.metadata), [
     {
@@ -180,6 +186,10 @@ test('iveKit RustDesk LED SDK standardizes typed operation audit helpers', async
       clipboard_id: 'clip_1',
       direction: 'agent_to_device',
       content_kind: 'text'
+    },
+    {
+      operation_id: 'display_1', operation: 'multi_display', status: 'not_observed',
+      observer: 'none', evidence_refs: []
     }
   ]);
 });

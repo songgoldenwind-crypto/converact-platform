@@ -5,7 +5,11 @@ import type {
   RustDeskClientConfig,
   RustDeskDevice,
   RustDeskDisconnectState,
-  RustDeskGatewayLaunchPlan
+  RustDeskGatewayLaunchPlan,
+  RustDeskObservedOperation,
+  RustDeskOperationDirection,
+  RustDeskOperationEvidenceReference,
+  RustDeskOperationObserver
 } from './types.js';
 import {
   createIveKitRustDeskHttpClient,
@@ -95,6 +99,25 @@ export interface RecordIveKitRustDeskClipboardSyncInput extends IveKitRustDeskLe
   contentKind?: string;
 }
 
+export interface RecordIveKitRustDeskOperationObservationInput extends IveKitRustDeskLedAuditBaseInput {
+  operationId: string;
+  operation: RustDeskObservedOperation;
+  status: 'not_observed' | 'observed_succeeded' | 'observed_failed';
+  observer: RustDeskOperationObserver | 'none';
+  observedAt?: string | null;
+  evidenceRefs?: RustDeskOperationEvidenceReference[];
+  providerOperationId?: string;
+  providerSessionId?: string;
+  direction?: RustDeskOperationDirection;
+  displayId?: string;
+  byteCount?: number;
+  checksumSha256?: string;
+  durationMs?: number;
+  reason?: string;
+  statusDetail?: string;
+  controlVersion?: number;
+}
+
 export interface IveKitRustDeskLedSdk {
   ensureDevice(input: EnsureIveKitRustDeskLedDeviceInput): Promise<RustDeskDevice>;
   startSession(input: StartIveKitRustDeskLedSessionInput): Promise<IveKitRustDeskLedSessionResult>;
@@ -103,6 +126,7 @@ export interface IveKitRustDeskLedSdk {
   recordFileTransfer(externalId: string, input: RecordIveKitRustDeskFileTransferInput): Promise<RemoteGatewayAuditEvent>;
   recordScreenRecording(externalId: string, input: RecordIveKitRustDeskScreenRecordingInput): Promise<RemoteGatewayAuditEvent>;
   recordClipboardSync(externalId: string, input: RecordIveKitRustDeskClipboardSyncInput): Promise<RemoteGatewayAuditEvent>;
+  recordOperationObservation(externalId: string, input: RecordIveKitRustDeskOperationObservationInput): Promise<RemoteGatewayAuditEvent>;
   listGatewayAuditEvents(
     externalId: string,
     input?: ListIveKitRustDeskGatewayAuditEventsInput
@@ -241,6 +265,35 @@ export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): Iv
           clipboard_id: clipboardId,
           direction,
           content_kind: optionalString(eventInput.contentKind)
+        })
+      });
+    },
+    recordOperationObservation(externalId, eventInput) {
+      const operationId = requiredString(eventInput.operationId, 'operationId is required');
+      return client.recordGatewayEvent(externalId, {
+        event_type: 'remote.rustdesk.operation.observed',
+        actor_identity: requiredString(eventInput.actorIdentity, 'actorIdentity is required'),
+        target: optionalString(eventInput.target),
+        idempotency_key: eventInput.idempotencyKey || `rustdesk-observation:${operationId}:${eventInput.status}`,
+        occurred_at: optionalString(eventInput.occurredAt),
+        metadata: compactRecord({
+          ...(eventInput.metadata || {}),
+          operation_id: operationId,
+          operation: eventInput.operation,
+          status: eventInput.status,
+          observer: eventInput.observer,
+          observed_at: eventInput.observedAt,
+          evidence_refs: eventInput.evidenceRefs || [],
+          provider_operation_id: optionalString(eventInput.providerOperationId),
+          provider_session_id: optionalString(eventInput.providerSessionId),
+          direction: eventInput.direction,
+          display_id: optionalString(eventInput.displayId),
+          byte_count: eventInput.byteCount,
+          checksum_sha256: optionalString(eventInput.checksumSha256),
+          duration_ms: eventInput.durationMs,
+          reason: optionalString(eventInput.reason),
+          status_detail: optionalString(eventInput.statusDetail),
+          control_version: eventInput.controlVersion
         })
       });
     },

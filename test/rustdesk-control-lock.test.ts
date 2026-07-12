@@ -228,6 +228,40 @@ test('control-enforced gateway events atomically consume the matching secondary 
   }), /fresh operation authorization required/);
 });
 
+test('sensitive native observations require the current control owner and version', async () => {
+  const { locks, sessions, session, tenantId } = await fixture('observed-owner', {
+    control_enforcement_version: 1
+  });
+  const now = new Date().toISOString();
+  const confirmation = await locks.issueConfirmation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'control_mouse_keyboard', now
+  });
+  const ownership = await locks.acquire({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    confirmation_id: confirmation.id, now
+  });
+  const metadata = {
+    operation_id: 'control-observed-1', operation: 'control_mouse_keyboard',
+    status: 'observed_succeeded', observer: 'native_client', observed_at: now,
+    evidence_refs: [{ type: 'audit', ref: 'evidence:control-1', sha256: `sha256:${'a'.repeat(64)}` }],
+    control_version: ownership.version
+  };
+  await assert.rejects(() => sessions.appendAuditEvent({
+    external_id: session.external_id, event_type: 'remote.rustdesk.operation.observed',
+    actor_identity: 'agent-b', metadata
+  }), /active control owner required/);
+  await assert.rejects(() => sessions.appendAuditEvent({
+    external_id: session.external_id, event_type: 'remote.rustdesk.operation.observed',
+    actor_identity: 'agent-a', metadata: { ...metadata, control_version: ownership.version + 1 }
+  }), /stale control ownership version/);
+  const event = await sessions.appendAuditEvent({
+    external_id: session.external_id, event_type: 'remote.rustdesk.operation.observed',
+    actor_identity: 'agent-a', metadata
+  });
+  assert.equal(event?.metadata.operation_id, 'control-observed-1');
+});
+
 test('RustDesk control HTTP requires active participants and binds actor to JWT identity', async () => {
   const previousSecret = process.env.OPC_JWT_SECRET;
   process.env.OPC_JWT_SECRET = 'rustdesk-control-http-test-secret-32-bytes';

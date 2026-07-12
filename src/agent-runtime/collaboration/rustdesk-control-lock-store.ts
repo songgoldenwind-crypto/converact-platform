@@ -56,6 +56,15 @@ export interface LinkRustDeskOperationAuthorizationInput {
   now?: string;
 }
 
+export interface VerifyRustDeskOperationOwnerInput {
+  tenant_id: string;
+  external_id: string;
+  actor_identity: string;
+  operation: RustDeskConfirmedOperation;
+  version: number;
+  now?: string;
+}
+
 const OPERATIONS = new Set<RustDeskConfirmedOperation>([
   'control_mouse_keyboard', 'transfer_file', 'clipboard', 'unattended_launch', 'control_transfer'
 ]);
@@ -185,6 +194,19 @@ export class RustDeskControlLockStore {
       );
       if (!linked.rows[0]) throw controlError('fresh operation authorization required', 403);
       return run(store.pg, auditEventId);
+    });
+  }
+
+  async verifyOperationOwnerAndRun<T>(
+    input: VerifyRustDeskOperationOwnerInput,
+    run: (pg: PgQueryable, auditEventId: string) => Promise<T>
+  ): Promise<T> {
+    return this.withLock(input, async (store) => {
+      const now = input.now || new Date().toISOString();
+      await store.requireActiveSession(input.tenant_id, input.external_id, input.operation);
+      const current = ownership(await store.lockRow(input.tenant_id, input.external_id), now);
+      assertOwner(current, input.actor_identity, input.version);
+      return run(store.pg, pgId('rdgev'));
     });
   }
 

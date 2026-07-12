@@ -167,6 +167,8 @@ await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
 
 设备侧物理断开使用 `scripts/rustdesk-edge-adapters/` 中 Windows、macOS、Linux 六个 wrapper。精准断开 wrapper 只调用设备本机预配置的绝对路径 session hook；RustDesk OSS 1.4.7 没有稳定的跨平台 incoming-session disconnect CLI，因此没有 hook 时会明确转入 service restart fallback，并保留 `collateral_sessions_may_disconnect=true`。所有标识均作为独立 argv 传入，未知占位符启动即失败；`validate` 模式不会断开或重启，可用于 LED 设备安装预检，但不能当作物理断开成功证据。
 
+原生 RustDesk/边车操作观测通过 `ivekit.rustdesk.recordOperationObservation()` 或 `npm run rustdesk:operation-observer` 上报。统一覆盖画面、键鼠、多显示器、文件、剪贴板、录屏和断开；同一 `operation_id + status` 使用稳定幂等键，并复用 event forwarder 的 retry/dead-letter/replay。LED 只能上报计数、方向、display ID、SHA-256、duration、状态和 evidence ref，不能发送文件内容、剪贴板正文、按键、屏幕像素、录像字节或凭证。没有 native observer 时必须展示 `not_observed`，不能从 HTTP 2xx 或 wrapper 成功推导真实操作成功。
+
 ### 4.6 可运行示例
 
 ```bash

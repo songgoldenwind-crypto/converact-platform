@@ -97,7 +97,7 @@ LED 不直接访问 PostgreSQL，不直接使用 OPC call-center 路由，不绕
 
 ### M4：RustDesk 真实终端闭环
 
-**状态：本地开发进行中。** Task 1-6 已完成；下一步进入 Task 7 原生操作遥测标准化。真实服务器和物理双客户端验收按用户要求暂缓。计划见 [iveKit RustDesk Real Terminal V1 Implementation Plan](superpowers/plans/2026-07-12-ivekit-rustdesk-terminal-v1.md)。
+**状态：本地开发进行中。** Task 1-7 已完成；下一步进入 Task 8 受控 Remote 浏览器 E2E。真实服务器和物理双客户端验收按用户要求暂缓。计划见 [iveKit RustDesk Real Terminal V1 Implementation Plan](superpowers/plans/2026-07-12-ivekit-rustdesk-terminal-v1.md)。
 
 交付内容：
 

@@ -490,6 +490,11 @@ function eventMetadata(
 }
 
 function derivedIdempotencyKey(eventType: string, metadata: Record<string, unknown>): string | undefined {
+  if (eventType === 'remote.rustdesk.operation.observed') {
+    const operationId = optionalStringValue(metadata.operation_id);
+    const status = optionalStringValue(metadata.status);
+    return operationId && status ? `rustdesk-observation:${operationId}:${status}` : undefined;
+  }
   if (eventType === 'remote.rustdesk.control_action.performed') {
     return knownEventKey('control-action', metadata.operation_id);
   }
