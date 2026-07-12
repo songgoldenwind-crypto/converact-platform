@@ -454,7 +454,7 @@ function projectDistributionInstallSource(
 }
 
 const distributionArtifactExtensions: Record<string, readonly string[]> = {
-  'windows/x86_64': ['.exe', '.msi'],
+  'windows/x86_64': ['.exe'],
   'macos/x86_64': ['.dmg'],
   'macos/aarch64': ['.dmg'],
   'linux/x86_64': ['.deb'],

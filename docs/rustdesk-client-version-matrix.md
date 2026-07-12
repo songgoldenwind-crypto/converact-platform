@@ -28,9 +28,9 @@ reviewed.
 
 | Platform | iveKit V1 architecture | Package expectation | Platform-specific limitation |
 | --- | --- | --- | --- |
-| Windows | `x86_64` | Official EXE or MSI for `1.4.7` | Windows `x86` is an upstream legacy build and is not in the iveKit V1 support window. Windows ARM64 has no pinned V1 artifact. Service/UAC and login-screen behavior require real-machine acceptance. |
-| macOS | `x86_64`, `aarch64` | Matching official DMG for `1.4.7` | Screen capture and control require macOS Screen Recording and Accessibility permissions; Input Monitoring can also be required. A configured permission is not proof that capture or input worked. See the [official macOS guide](https://rustdesk.com/docs/en/client/mac/). |
-| Linux | `x86_64`, `aarch64` | Matching official DEB/RPM/AppImage/Flatpak for `1.4.7` | Wayland support is experimental and a Wayland login screen is not supported; login-screen access after logout/reboot requires X11. `armv7` is outside the iveKit V1 support window. See the [official Linux guide](https://rustdesk.com/docs/en/client/linux/). |
+| Windows | `x86_64` | `rustdesk-1.4.7-x86_64.exe` (EXE) | Windows `x86` is an upstream legacy build and is not in the iveKit V1 support window. Windows ARM64 has no pinned V1 artifact. Service/UAC and login-screen behavior require real-machine acceptance. |
+| macOS | `x86_64`, `aarch64` | `rustdesk-1.4.7-x86_64.dmg`, `rustdesk-1.4.7-aarch64.dmg` (DMG) | Screen capture and control require macOS Screen Recording and Accessibility permissions; Input Monitoring can also be required. A configured permission is not proof that capture or input worked. See the [official macOS guide](https://rustdesk.com/docs/en/client/mac/). |
+| Linux | `x86_64`, `aarch64` | `rustdesk-1.4.7-x86_64.deb`, `rustdesk-1.4.7-aarch64.deb` (DEB) | Wayland support is experimental and a Wayland login screen is not supported; login-screen access after logout/reboot requires X11. `armv7` is outside the iveKit V1 support window. See the [official Linux guide](https://rustdesk.com/docs/en/client/linux/). |
 
 Package checksums must be taken from the selected official release asset and
 recorded in the distribution manifest. This document does not authorize a

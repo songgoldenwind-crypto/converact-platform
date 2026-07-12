@@ -104,6 +104,61 @@ test('RustDesk client profiles support only the pinned V1 desktop matrix', () =>
   }
 });
 
+test('RustDesk client profile TTL accepts canonical and legacy inputs without silent conflicts', () => {
+  const profileWithTtl = (overrides: NodeJS.ProcessEnv) => {
+    const env = { ...profileEnv(), ...overrides };
+    if (overrides.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS === undefined) {
+      delete env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS;
+    }
+    if (overrides.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS === undefined) {
+      delete env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS;
+    }
+    return createRustDeskClientDistributionProfile(
+      pinnedInput({ platform: 'linux', architecture: 'x86_64' }),
+      { env, now: () => NOW }
+    );
+  };
+  const lifetimeMs = (profile: ReturnType<typeof profileWithTtl>) =>
+    Date.parse(profile.expires_at) - Date.parse(profile.issued_at);
+
+  assert.equal(lifetimeMs(profileWithTtl({ OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '60000' })), 60_000);
+  assert.equal(lifetimeMs(profileWithTtl({ OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60' })), 60_000);
+  assert.equal(lifetimeMs(profileWithTtl({
+    OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60',
+    OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '60000'
+  })), 60_000);
+  assert.throws(
+    () => profileWithTtl({
+      OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '60',
+      OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '900000'
+    }),
+    /TTL_SECONDS.*TTL_MS.*conflict/
+  );
+
+  for (const overrides of [
+    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '59' },
+    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS: '3601' },
+    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '59999' },
+    { OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS: '3600001' }
+  ]) {
+    assert.throws(() => profileWithTtl(overrides), /must be an integer from/);
+  }
+});
+
+test('RustDesk V1 matrix names only the five selected installer assets', () => {
+  const matrix = readFileSync(new URL('../docs/rustdesk-client-version-matrix.md', import.meta.url), 'utf8');
+  for (const filename of [
+    'rustdesk-1.4.7-x86_64.exe',
+    'rustdesk-1.4.7-x86_64.dmg',
+    'rustdesk-1.4.7-aarch64.dmg',
+    'rustdesk-1.4.7-x86_64.deb',
+    'rustdesk-1.4.7-aarch64.deb'
+  ]) {
+    assert.match(matrix, new RegExp(filename.replaceAll('.', '\\.')));
+  }
+  assert.doesNotMatch(matrix, /\b(?:MSI|RPM|AppImage|Flatpak)\b/);
+});
+
 test('RustDesk client profiles use only validated explicit artifact metadata', () => {
   const manifest = artifactManifest([
     artifact('windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe')
@@ -491,14 +546,18 @@ test('RustDesk client profile deployment passes pinned version and manifest into
     assert.match(compose, /OPC_RUSTDESK_CLIENT_VERSION:\s*\$\{OPC_RUSTDESK_CLIENT_VERSION/);
     assert.match(compose, /OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON:\s*\$\{OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON/);
     assert.match(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS:\s*\$\{OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS/);
-    assert.match(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS:\s*\$\{OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
+    assert.doesNotMatch(compose, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   }
-  for (const path of ['../infra/env.example', '../infra/ivekit/env.example']) {
+  for (const path of ['../.env.example', '../infra/env.example', '../infra/ivekit/env.example']) {
     const env = readFileSync(new URL(path, import.meta.url), 'utf8');
     assert.match(env, /^OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON=$/m);
     assert.match(env, /^OPC_RUSTDESK_CLIENT_VERSION=1\.4\.7$/m);
     assert.match(env, /^OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900$/m);
-    assert.match(env, /^OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS=900000$/m);
+    assert.doesNotMatch(env, /^OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS=/m);
+  }
+  for (const path of ['../infra/k8s/values.yaml', '../infra/k8s/templates/opc-deployment.yaml']) {
+    const helm = readFileSync(new URL(path, import.meta.url), 'utf8');
+    assert.doesNotMatch(helm, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   }
 });
 

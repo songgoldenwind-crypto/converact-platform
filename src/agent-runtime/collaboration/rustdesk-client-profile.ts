@@ -296,7 +296,7 @@ function assertArtifactReleasePath(url: URL, pathSegments: readonly string[]): v
 }
 
 const artifactExtensions: Record<string, readonly string[]> = {
-  'windows/x86_64': ['.exe', '.msi'],
+  'windows/x86_64': ['.exe'],
   'macos/x86_64': ['.dmg'],
   'macos/aarch64': ['.dmg'],
   'linux/x86_64': ['.deb'],
@@ -361,18 +361,25 @@ function hasArtifactToken(filename: string, token: string): boolean {
 }
 
 function profileTtlMs(env: NodeJS.ProcessEnv): number {
+  let secondsMs: number | undefined;
   if (env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS !== undefined) {
     const seconds = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS);
     if (!Number.isInteger(seconds) || seconds < 60 || seconds > 3_600) {
       throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS must be an integer from 60 to 3600', 500);
     }
-    return seconds * 1_000;
+    secondsMs = seconds * 1_000;
   }
-  const value = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS || 900_000);
-  if (!Number.isInteger(value) || value < 60_000 || value > 3_600_000) {
-    throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS must be an integer from 60000 to 3600000', 500);
+  let legacyMs: number | undefined;
+  if (env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS !== undefined) {
+    legacyMs = Number(env.OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS);
+    if (!Number.isInteger(legacyMs) || legacyMs < 60_000 || legacyMs > 3_600_000) {
+      throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS must be an integer from 60000 to 3600000', 500);
+    }
   }
-  return value;
+  if (secondsMs !== undefined && legacyMs !== undefined && secondsMs !== legacyMs) {
+    throw profileError('OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS and OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS conflict', 500);
+  }
+  return secondsMs ?? legacyMs ?? 900_000;
 }
 
 function objectValue(value: unknown, label: string): Record<string, unknown> {

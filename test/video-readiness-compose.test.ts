@@ -950,6 +950,7 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   ]) {
     assert.match(opc, new RegExp(`name: ${envName}\\n\\s+value: \\{\\{ \\.Values\\.${valuePath.replaceAll('.', '\\.')}`));
   }
+  assert.doesNotMatch(opc, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   assert.match(rustdesk, /image: "{{ \.Values\.rustdesk\.image\.repository }}:{{ \.Values\.rustdesk\.image\.tag }}"/);
   assert.match(values, /^  clientVersion: "1\.4\.7"$/m);
   assert.match(values, /^  clientProfileTtlSeconds: "900"$/m);
