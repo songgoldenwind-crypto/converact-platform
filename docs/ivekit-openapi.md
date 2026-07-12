@@ -652,7 +652,7 @@ RustDesk 使用独立的 `createIveKitRustDeskLedSdk`，因为其设备注册、
 1. 当前 API 是 v1 draft 的 additive contract；能力差异先看 capabilities。
 2. Tinode inbound seq/cursor、Drafty 引用附件、native edit/delete 已实现 durable 同步；`inbound_sync_configured` 表示当前部署是否具备 URL、服务认证并启用 worker。
 3. `direct_client_publish=false` 和客户端 ACL `JRP` 仍保留；业务消息优先走 iveKit facade。入站同步用于 provider 历史补偿、批准的其他客户端/管理操作和防止本地镜像漏记，不改变本地镜像与审计权威边界。
-4. WebSocket 重连增量水位已完成本地实现和真实 PostgreSQL 验证；服务器进程离线/重启复验完成前，状态仍为 `server_validation_pending`。
+4. WebSocket 重连增量水位已完成服务器复验；HTTP/WS 从重启前 cursor 各恢复 2 个事件，撤权、跨租户、定向 audience、retention 和重复重启均通过。
 5. 真实 LiveKit/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待服务器验收；Tinode 单节点真实消息、编辑、Drafty 引用、删除和离线恢复已通过。
 6. 本地 MemoryPg、fake provider、preflight 不是生产通过证明。
 7. `LIVEKIT_URL` 是 OPC、AI Agent、Egress 等服务端可达地址；`LIVEKIT_PUBLIC_URL` 是浏览器 `Room.connect()` 使用的受信任 `wss://` 地址。LED 只消费 Join Plan 返回值，不自行拼接内部地址。

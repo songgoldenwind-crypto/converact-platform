@@ -2229,7 +2229,7 @@ OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1
 | Tinode 部署 preflight | 已完成本地代码 | 生成脱敏 env checklist 和 JSON report，真实服务器待执行 |
 | Tinode 附件同步 | 已完成本地代码 | Drafty `IM/VD/AU/EX` 仅同步 HTTPS 允许域名的引用和有界元数据，拒绝并不持久化内嵌 bytes |
 | Tinode inbound seq/cursor sync | 已完成并通过服务器验收 | 每 binding 持久化 data/del cursor、claim lease 和幂等 inbox；真实 Tinode 已覆盖普通消息、outbound echo 去重、replace、Drafty 引用、delete、policy scan、AI 质检入队、离线补偿和重启幂等 |
-| Durable tenant event replay | 本地实现完成，服务器验收中 | PostgreSQL 单调 event ID、签名 cursor、HTTP 增量页、WebSocket resume、当前参与人/RBAC、定向 audience、请求事务后缓冲和 Redis 去重 |
+| Durable tenant event replay | 已完成并通过服务器验收 | PostgreSQL 单调 event ID、签名 cursor、HTTP 增量页、WebSocket resume、当前参与人/RBAC、定向 audience、请求事务后缓冲、Redis 去重和 retention worker；重启、撤权、跨租户、定向可见性均通过 |
 | 浏览器 Tinode SDK join | 待真实环境 | 前端已领取 client-plan，但真实 SDK join 未验收 |
 
 ### 6.5.2 iveKit 稳定 HTTP facade

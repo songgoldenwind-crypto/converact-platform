@@ -27,7 +27,7 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 | M6.1 独立构建边界 | 已实现并上服验证 | 79 个白名单源码文件、6 个运行依赖；隔离 `npm ci`/build 通过；服务器 Docker build 和 `/health` 通过 | 纳入最终全量回归与发布门禁 |
 | M6.2 Standalone PostgreSQL | 已完成 | fresh schema 45 表、31 个 checksum migration、0 RLS gap、0 OPC 业务表；existing OPC 数据无损升级；runtime 跨租户读写、DDL 和迁移账本访问均被拦截；失败后前向重试通过 | 纳入 M6.7 最终全量回归 |
 | M6.3 Tinode inbound | 已完成 | provider user mapping、cursor/lease、幂等 inbox、普通消息/Drafty 附件/edit/delete projector、policy scan、AI 质检入队、脱敏死信与到期重试、WebSocket 断线续拉、应用生命周期和部署参数均已实现；本地协议/worker/真实 PostgreSQL 测试通过；服务器真实 Tinode E2E、服务离线后补偿、重启幂等、RLS 和凭据隔离均通过 | 纳入 M6.7 最终全量回归 |
-| M6.4 Durable event replay | 本地实现完成，服务器验收中 | 已实现 32 号 migration、单调 event ID、签名/租户绑定/过期 cursor、当前参与人/RBAC 过滤、定向 audience、HTTP 增量页、WebSocket resume、请求事务后缓冲、持久化后 Redis fan-out、实例回送去重和独立回滚开关；MemoryPg、真实 PostgreSQL、WebSocket、HTTP、typecheck、standalone context 和 Compose 门禁通过 | 提交并上传隔离服务器，执行进程离线事件恢复、撤权、非法 cursor、RLS 和重启幂等复验后收口 |
+| M6.4 Durable event replay | 已完成 | 32 号 migration、单调 event ID、签名/租户绑定/过期 cursor、当前参与人/RBAC 过滤、定向 audience、HTTP 增量页、WebSocket resume、请求事务后缓冲、持久化后 Redis fan-out、实例回送去重、retention worker 和独立回滚开关均已实现；本地/真实 PostgreSQL/standalone 门禁通过；服务器完成进程重启恢复、撤权、非法/跨租户 cursor、定向 audience、RLS、retention 与幂等复验 | 纳入 M6.7 最终全量回归 |
 | M6.5 RustDesk edge spool | 未开始 | 计划和安全边界已定义 | 实现 crash-safe spool/recovery lease |
 | M6.6 SDK、交付、兼容 | 未开始 | V1 SDK/交付包可复用 | 升级 cursor API、独立 Compose 和升级回滚材料 |
 | M6.7 完成审计 | 未开始 | 局部门禁通过 | 全量 verify、兼容矩阵、故障恢复和最终状态审计 |
@@ -295,7 +295,7 @@ worker 行为：
 - WebSocket `connected` 返回 `head_cursor/replay_from/replayed_events/snapshot_required`，断线期间事件按 event ID 重放；每个 envelope 返回 `event_id/cursor/type/data/timestamp`。
 - 当前参与人过滤、离开会话后撤权、严格定向 audience、请求缓冲、Redis 源实例回送去重和客户端 event ID 去重均有自动化测试。
 - 独立开关为 `OPC_IVEKIT_EVENT_REPLAY_ENABLED`；retention、payload 上限和 WS replay 上限分别由 `OPC_IVEKIT_EVENT_RETENTION_MS`、`OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES`、`OPC_IVEKIT_WS_REPLAY_MAX_EVENTS` 控制；过期清理 worker 使用安全 tenant 枚举函数并在 runtime RLS 事务内分批删除。
-- fresh standalone PostgreSQL 当前为 32 个 checksum migration、46 张表；事件 append/head/list、RLS、runtime sequence 权限和 existing OPC 无损升级通过。服务器结果待追加。
+- fresh standalone PostgreSQL 当前为 32 个 checksum migration、46 张表；事件 append/head/list、RLS、runtime sequence 权限和 existing OPC 无损升级通过。服务器提交 `823d28a` 的 HTTP/WS 重放各恢复 2 个事件，撤权后 0、定向 admin 0、跨租户读 0/写阻断、迁移和重启前后 event 计数均为 `6,6`，retention 删除通过且 worker failure 为 0。
 
 ### M6.5 RustDesk edge crash-safe spool
 
