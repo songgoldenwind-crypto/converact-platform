@@ -117,7 +117,13 @@ test('business reference deep link drives context, chat filtering, and remote de
       capabilities: { chat: true, media: false, remote_assistance: true },
       chat: { count: 2, sessions: [] },
       media: { count: 0, calls: [] },
-      remote_assistance: { count: 1, sessions: [{ id: 'remote-200' }], devices: [] }
+      remote_assistance: { count: 1, sessions: [{ id: 'remote-200' }], devices: [] },
+      authorization: {
+        chat: [], media: [], remote_assistance: [{
+          remote_session_id: 'remote-200', viewer_role: 'agent',
+          consent: { active: true, scopes: ['view_screen'], expires_at: null }, gateway: null
+        }]
+      }
     });
     if (url.includes('/api/ivekit/chat/sessions')) {
       return Response.json({ items: [], next_cursor: null, has_more: false });
@@ -134,6 +140,10 @@ test('business reference deep link drives context, chat filtering, and remote de
       url.searchParams.get('business_ref_id') === 'SO-200';
   })));
   assert.ok(view.getByText('2M · 0C · 1R'));
+  fireEvent.click(view.getByTitle('Show authorization summary'));
+  assert.ok(view.getByRole('complementary', { name: 'Business authorization summary' }));
+  assert.ok(view.getByText('view_screen'));
+  fireEvent.click(view.getByTitle('Close authorization summary'));
 
   assert.equal(new URL(window.location.href).searchParams.get('remote_session_id'), 'remote-200');
   fireEvent.click(view.getByTitle('Show remote workspace'));

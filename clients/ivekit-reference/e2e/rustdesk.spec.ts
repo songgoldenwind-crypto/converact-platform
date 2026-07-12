@@ -147,6 +147,10 @@ test('business deep link unifies messages calls remote and browser history', asy
     await expect(agent.page.getByText('0M · 1C · 1R')).toBeVisible();
     await expect.poll(() => new URL(agent.page.url()).searchParams.get('call_id')).toBe('call-context');
     await expect.poll(() => new URL(agent.page.url()).searchParams.get('remote_session_id')).toBe('remote-1');
+    await agent.page.getByTitle('Show authorization summary').click();
+    await expect(agent.page.getByRole('complementary', { name: 'Business authorization summary' })).toContainText('view_screen');
+    await expect(agent.page.getByRole('complementary', { name: 'Business authorization summary' })).toContainText('No gateway');
+    await agent.page.getByTitle('Close authorization summary').click();
 
     await agent.page.getByTitle('Show calls workspace').click();
     await expect(agent.page.getByText('Controlled completed call')).toBeVisible();

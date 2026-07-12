@@ -1,5 +1,5 @@
 import { createIveKitClient, type IveKitChatMessage, type IveKitChatSession } from '@opc/ivekit-sdk';
-import { BriefcaseBusiness, CircleStop, List, MessageSquare, MonitorCog, Phone, RefreshCw } from 'lucide-react';
+import { BriefcaseBusiness, CircleStop, List, MessageSquare, MonitorCog, Phone, RefreshCw, ShieldCheck } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { MessageComposer } from './chat/message-composer.js';
@@ -9,6 +9,7 @@ import { SessionList } from './chat/session-list.js';
 import { projectSessionSummary } from './chat/session-summary.js';
 import { useChatSession } from './chat/use-chat-session.js';
 import { useBusinessContext, type BusinessRefSelection } from './context/use-business-context.js';
+import { BusinessContextPanel } from './context/business-context-panel.js';
 import {
   readIveKitLocation,
   sessionLocationPatch,
@@ -55,6 +56,7 @@ export function App() {
   const [remoteSessionId, setRemoteSessionId] = useState(initialLocation.remoteSessionId);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(initialLocation.workspace);
   const [businessRef, setBusinessRef] = useState<BusinessRefSelection | null>(initialLocation.businessRef);
+  const [authorizationOpen, setAuthorizationOpen] = useState(false);
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
   const seededContext = useRef('');
@@ -151,6 +153,7 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [refreshSessions, workspaceMode]);
   useEffect(() => setSelectedFindingId(''), [selectedId]);
+  useEffect(() => setAuthorizationOpen(false), [businessRef?.id, businessRef?.type]);
   useEffect(() => {
     if (!selected) return;
     const next = { type: selected.business_ref.type, id: selected.business_ref.id };
@@ -250,6 +253,7 @@ export function App() {
           <BriefcaseBusiness size={15} />
           <strong>{businessRef.id}</strong>
           {businessContext.context && <span>{businessContext.context.chat.count}M · {businessContext.context.media.count}C · {businessContext.context.remote_assistance.count}R</span>}
+          <button title="Show authorization summary" disabled={!businessContext.context} onClick={() => setAuthorizationOpen((open) => !open)}><ShieldCheck size={14} /></button>
           <button title="Refresh business context" disabled={businessContext.loading} onClick={() => void businessContext.refresh()}><RefreshCw className={businessContext.loading ? 'spin' : ''} size={14} /></button>
         </div>}
         <div className="workspace-tabs" role="group" aria-label="Workspace">
@@ -263,6 +267,7 @@ export function App() {
         </div>}
         {workspaceMode === 'messages' && <><span className={`connection connection-${chat.state.connection}`}>{chat.state.connection}</span><button className="icon-button" title="Refresh sessions" onClick={() => void refreshSessions(false)}><RefreshCw size={17} /></button></>}
       </header>
+      {authorizationOpen && businessContext.context && <BusinessContextPanel context={businessContext.context} onClose={() => setAuthorizationOpen(false)} />}
       {workspaceMode === 'messages' ? <><SessionList
         sessions={sessions}
         selectedId={selectedId}

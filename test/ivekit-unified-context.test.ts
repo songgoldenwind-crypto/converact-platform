@@ -65,6 +65,13 @@ async function seedContext(pg: MemoryPg) {
     started_by: 'active-agent',
     metadata: { launch_url: 'https://secret.example/launch' }
   });
+  await module.remote.grantConsent({
+    tenant_id: TENANT_ID,
+    remote_session_id: remote.id,
+    actor_identity: 'customer-1',
+    scopes: ['view_screen', 'control_mouse_keyboard'],
+    expires_at: '2099-01-01T00:00:00.000Z'
+  });
   const device = await module.rustdeskDevices.registerDevice({
     tenant_id: TENANT_ID,
     business_ref: BUSINESS_REF,
@@ -120,6 +127,15 @@ test('iveKit context returns a projected system view without provider secrets', 
     assert.equal(result.data.media.calls[0].id, seeded.call.id);
     assert.equal(result.data.remote_assistance.sessions[0].id, seeded.remote.id);
     assert.equal(result.data.remote_assistance.devices[0].id, seeded.device.id);
+    assert.equal(result.data.authorization.chat[0].viewer_role, null);
+    assert.deepEqual(result.data.authorization.chat[0].participants.map((participant: { status: string }) => participant.status), ['active', 'left']);
+    assert.equal(result.data.authorization.media[0].participants.length, 2);
+    assert.deepEqual(result.data.authorization.remote_assistance[0].consent, {
+      active: true,
+      scopes: ['view_screen', 'control_mouse_keyboard'],
+      expires_at: '2099-01-01T00:00:00.000Z'
+    });
+    assert.equal(result.data.authorization.remote_assistance[0].gateway, null);
     assert.equal(result.headers?.['cache-control'], 'private, no-store');
     assert.doesNotMatch(JSON.stringify(result.data), /13800000000|chat-secret|media-secret|device-secret|123456789|secret\.example/);
   } finally {
@@ -141,6 +157,10 @@ test('iveKit context scopes chat and remote assistance to active membership', as
     assert.equal(active.data.media.count, 1);
     assert.equal(active.data.remote_assistance.count, 1);
     assert.equal(active.data.remote_assistance.devices.length, 1);
+    assert.equal(active.data.authorization.chat[0].viewer_role, 'agent');
+    assert.equal(active.data.authorization.media[0].viewer_role, 'host');
+    assert.equal(active.data.authorization.media[0].viewer_status, 'joined');
+    assert.equal(active.data.authorization.remote_assistance[0].viewer_role, 'agent');
 
     const mediaOnly = await getContext(pg, jwtHeaders('media-only'));
     assert.equal(mediaOnly.data.chat.count, 0);
@@ -148,6 +168,9 @@ test('iveKit context scopes chat and remote assistance to active membership', as
     assert.equal(mediaOnly.data.remote_assistance.count, 0);
     assert.equal(mediaOnly.data.remote_assistance.devices.length, 0);
     assert.equal(mediaOnly.data.capabilities.remote_assistance, false);
+    assert.equal(mediaOnly.data.authorization.chat.length, 0);
+    assert.equal(mediaOnly.data.authorization.media[0].viewer_role, 'participant');
+    assert.equal(mediaOnly.data.authorization.remote_assistance.length, 0);
 
     const outsider = await getContext(pg, jwtHeaders('outsider'));
     assert.equal(outsider.status, 404);

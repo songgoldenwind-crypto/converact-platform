@@ -65,6 +65,8 @@ GET /api/ivekit/context/by-ref?business_ref_type=service_order&business_ref_id=S
 
 `context.getByBusinessRef({type,id})` 返回当前 viewer 可见的 Chat session、Media call、Remote session 和 RustDesk device 脱敏摘要，供统一导航和深链接使用。响应不包含业务 metadata、消息正文、LiveKit token、RustDesk ID、launch URL、provider credential 或 evidence 内容，并设置 `Cache-Control: private, no-store`。
 
+响应的 `authorization` 包含按可见资源分组的只读授权事实：Chat participant role/active-left、Media participant role/status、Remote viewer role、active consent scopes、活动 RustDesk gateway permissions 及 control owner/version。它不包含 participant user_ref、底层 metadata、二次确认或 operation authorization；任何写操作仍必须调用对应模块命令并重新执行 RBAC/状态机校验。
+
 API-key system 调用可读取该 tenant 下业务引用的完整摘要。Bearer 调用至少必须是一个活跃 Chat participant 或非 `declined/left/missed/removed` 的 Media participant，否则返回 `404` 以避免枚举。普通用户只有在可见 Chat session 绑定该 Remote session 时才能看到远协摘要；仅参与 Media call 不会获得设备或远控可见性。关闭资源仍可按成员权限读取历史摘要，写操作继续由 Chat/Media/Remote 各自的终态规则拒绝。
 
 ## 2. Media Core

@@ -292,7 +292,7 @@ export class RemoteAssistanceStore {
     return Boolean(await this.getActiveConsent(remoteSessionId, now));
   }
 
-  private async getActiveConsent(remoteSessionId: string, now: Date = new Date()): Promise<RemoteConsentEvent | null> {
+  async getActiveConsent(remoteSessionId: string, now: Date = new Date()): Promise<RemoteConsentEvent | null> {
     const result = await this.pg.query(
       `SELECT * FROM remote_consent_events
        WHERE remote_session_id = $1

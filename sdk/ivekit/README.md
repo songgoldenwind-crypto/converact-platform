@@ -66,6 +66,9 @@ The context client returns a metadata-safe business projection for unified navig
 Bearer callers see only chat/media resources they participate in; remote sessions and
 device summaries additionally require visible chat membership. The projection never
 returns provider credentials, launch links, RustDesk IDs, tokens, or business metadata.
+Its read-only `authorization` projection includes participant roles/statuses, active
+remote consent scopes, gateway permissions, and current control ownership. Clients
+must still issue writes through the owning Chat, Media, or RustDesk command API.
 
 The media client exports typed capabilities, durable call snapshots and actions,
 rooms, join plans, provider participants, host moderation, recordings, object

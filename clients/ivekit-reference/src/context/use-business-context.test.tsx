@@ -43,6 +43,7 @@ function context(id: string): IveKitBusinessContext {
     capabilities: { chat: true, media: false, remote_assistance: false },
     chat: { count: 0, sessions: [] },
     media: { count: 0, calls: [] },
-    remote_assistance: { count: 0, sessions: [], devices: [] }
+    remote_assistance: { count: 0, sessions: [], devices: [] },
+    authorization: { chat: [], media: [], remote_assistance: [] }
   };
 }

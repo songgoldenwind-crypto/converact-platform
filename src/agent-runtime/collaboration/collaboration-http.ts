@@ -1604,6 +1604,78 @@ export async function routeCollaborationApi(
         limit: 50
       })
       : [];
+    const [chatAuthorization, mediaAuthorization] = await Promise.all([
+      Promise.all(chatSessions.map(async (session) => {
+        const participants = await module.sessions.listParticipants({
+          tenant_id: ctx.tenantId,
+          session_id: session.id
+        });
+        return {
+          session_id: session.id,
+          viewer_role: participants.find((participant) => participant.identity === identity && !participant.left_at)?.role || null,
+          participants: participants.map((participant) => ({
+            identity: participant.identity,
+            display_name: participant.display_name,
+            role: participant.role,
+            status: participant.left_at ? 'left' as const : 'active' as const
+          }))
+        };
+      })),
+      Promise.all(mediaCalls.map(async (call) => {
+        const participants = await new MediaCallStore(requirePg(pg)).listParticipants(ctx.tenantId, call.id);
+        const viewer = participants.find((participant) => participant.identity === identity);
+        return {
+          call_id: call.id,
+          viewer_role: viewer?.role || null,
+          viewer_status: viewer?.status || null,
+          participants: participants.map((participant) => ({
+            identity: participant.identity,
+            display_name: participant.display_name,
+            role: participant.role,
+            status: participant.status
+          }))
+        };
+      }))
+    ]);
+    const chatAuthorizationBySession = new Map(
+      chatAuthorization.map((authorization) => [authorization.session_id, authorization])
+    );
+    const remoteAuthorization = await Promise.all(remoteSessions.map(async (remote) => {
+      const [consent, tools] = await Promise.all([
+        module.remote.getActiveConsent(remote.id),
+        module.remote.listToolSessions(remote.id, 50)
+      ]);
+      const rustDeskTool = tools.find((tool) => tool.provider === 'rustdesk' && tool.status === 'active');
+      const gateway = rustDeskTool
+        ? await new RustDeskGatewaySessionStore(requirePg(pg)).getSession(rustDeskTool.external_id)
+        : null;
+      const controller = gateway?.status === 'active'
+        ? await module.rustdeskControlLocks.getOwnership({
+          tenant_id: ctx.tenantId,
+          external_id: gateway.external_id
+        })
+        : null;
+      return {
+        remote_session_id: remote.id,
+        viewer_role: chatAuthorizationBySession.get(remote.collaboration_session_id)?.viewer_role || null,
+        consent: {
+          active: Boolean(consent),
+          scopes: consent?.scopes || [],
+          expires_at: consent?.expires_at || null
+        },
+        gateway: gateway ? {
+          external_id: gateway.external_id,
+          status: gateway.status,
+          permissions: gateway.permissions,
+          controller: controller || {
+            status: 'unowned',
+            owner_identity: null,
+            lease_expires_at: null,
+            version: 0
+          }
+        } : null
+      };
+    }));
 
     return {
       data: {
@@ -1658,6 +1730,11 @@ export async function routeCollaborationApi(
             runtime_status: device.runtime_status,
             last_seen_at: device.last_seen_at
           }))
+        },
+        authorization: {
+          chat: chatAuthorization,
+          media: mediaAuthorization,
+          remote_assistance: remoteAuthorization
         }
       },
       headers: {

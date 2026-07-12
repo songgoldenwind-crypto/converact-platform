@@ -51,6 +51,8 @@ LED / other host
 
 ### Task M5.3：统一参与人与授权摘要
 
+**状态：已完成（2026-07-12）。** Context 响应按可见资源投影 Chat/Media 参与人、viewer role/status、Remote consent scopes、活动 RustDesk gateway permissions 和 control owner；不返回 user_ref、metadata、provider credential、launch URL、RustDesk ID 或确认/操作授权。参考客户端提供只读授权摘要抽屉，写操作仍由三个工作区调用各自命令。
+
 1. 投影 Chat participant、Media participant 与 Remote controller，不合并底层主键。
 2. 展示当前 viewer role、授权 scope、控制 owner、终态和撤权原因。
 3. 任何写操作继续调用对应模块命令，不从聚合层绕过 RBAC。

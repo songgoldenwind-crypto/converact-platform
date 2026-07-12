@@ -124,7 +124,18 @@ async function route(
       }], devices: [{
         id: DEVICE.id, display_name: DEVICE.display_name, status: DEVICE.status,
         runtime_status: DEVICE.runtime_status, last_seen_at: DEVICE.last_seen_at
-      }] }
+      }] },
+      authorization: {
+        chat: [],
+        media: [{ call_id: 'call-context', viewer_role: 'host', viewer_status: 'left', participants: [{
+          identity: actor.identity, display_name: actor.identity, role: 'host', status: 'left'
+        }] }],
+        remote_assistance: [{
+          remote_session_id: 'remote-1', viewer_role: 'agent',
+          consent: { active: true, scopes: ['view_screen', 'control_mouse_keyboard'], expires_at: null },
+          gateway: null
+        }]
+      }
     });
   }
 
