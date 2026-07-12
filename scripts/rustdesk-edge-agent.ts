@@ -32,6 +32,10 @@ export interface RustDeskEdgeAgentConfig {
   disconnectAdapter?: RustDeskEdgeAdapter | null;
   restartAdapter?: RustDeskEdgeAdapter | null;
   disconnectCommandCapable?: boolean;
+  spoolDir?: string;
+  spoolMaxBytes?: number;
+  spoolMaxAgeMs?: number;
+  spoolMaxQuarantineRecords?: number;
 }
 
 export interface RustDeskEdgeAdapter {
@@ -132,6 +136,13 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
   if ((disconnectAdapter || restartAdapter) && !commandToken) {
     throw new Error('OPC_RUSTDESK_EDGE_COMMAND_TOKEN is required when a command adapter is configured');
   }
+  const spoolDir = String(env.OPC_RUSTDESK_EDGE_SPOOL_DIR || '').trim();
+  if ((disconnectAdapter || restartAdapter) && !spoolDir) {
+    throw new Error('OPC_RUSTDESK_EDGE_SPOOL_DIR is required when a command adapter is configured');
+  }
+  if (spoolDir && !isAbsolute(spoolDir)) {
+    throw new Error('OPC_RUSTDESK_EDGE_SPOOL_DIR must be an absolute path');
+  }
   return {
     baseUrl,
     apiKey,
@@ -158,6 +169,32 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
     disconnectAdapter,
     restartAdapter,
     disconnectCommandCapable: Boolean(disconnectAdapter || restartAdapter),
+    ...(spoolDir
+      ? {
+        spoolDir,
+        spoolMaxBytes: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_SPOOL_MAX_BYTES,
+          'OPC_RUSTDESK_EDGE_SPOOL_MAX_BYTES',
+          64 * 1_024,
+          1_024,
+          1_048_576
+        ),
+        spoolMaxAgeMs: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS,
+          'OPC_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS',
+          7 * 24 * 60 * 60 * 1_000,
+          1_000,
+          365 * 24 * 60 * 60 * 1_000
+        ),
+        spoolMaxQuarantineRecords: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS,
+          'OPC_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS',
+          100,
+          1,
+          10_000
+        )
+      }
+      : {}),
     offlineOnExit: envFlag(env.OPC_RUSTDESK_EDGE_OFFLINE_ON_EXIT),
     metadata: {
       ...metadata,
@@ -366,7 +403,17 @@ export function createRustDeskEdgeCommandProcessor(
         os: String(config.metadata.os || process.platform),
         disconnectAdapter: config.disconnectAdapter || null,
         restartAdapter: config.restartAdapter || null
-      }
+      },
+      ...(config.spoolDir
+        ? {
+          spool: {
+            directory: config.spoolDir,
+            max_bytes: config.spoolMaxBytes,
+            max_age_ms: config.spoolMaxAgeMs,
+            max_quarantine_records: config.spoolMaxQuarantineRecords
+          }
+        }
+        : {})
     },
     fetchImpl
   );
@@ -378,7 +425,12 @@ export async function runRustDeskEdgeAgentCommandOnce(
   fetchImpl: FetchLike = fetch
 ): Promise<RustDeskEdgeCommandPollResult> {
   if (!disconnectCommandCapable(config)) return 'idle';
-  return createRustDeskEdgeCommandProcessor(config, fetchImpl).pollOnce(deviceId);
+  const processor = createRustDeskEdgeCommandProcessor(config, fetchImpl);
+  try {
+    return await processor.pollOnce(deviceId);
+  } finally {
+    await processor.close();
+  }
 }
 
 async function requestJson<T>(
@@ -549,6 +601,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
+    await commandProcessor.close();
     if (config.offlineOnExit) {
       try {
         const result = await runRustDeskEdgeAgentOffline(config);

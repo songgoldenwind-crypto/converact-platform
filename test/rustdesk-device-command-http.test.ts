@@ -152,12 +152,28 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
     assert.equal(claim.data.command.attempt, 1);
     assert.equal(typeof claim.data.claim_token, 'string');
 
+    const recovery = (await route(
+      fixture.pg,
+      'POST',
+      `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands/${fixture.command.id}/recover`,
+      { state: 'executed', attempt: 1, lease_ms: 30_000 },
+      fixture.tenantId,
+      edgeHeaders(token)
+    )) as {
+      status: number;
+      data: { action: string; claim_token: string; command: { attempt_count: number } };
+    };
+    assert.equal(recovery.status, 201);
+    assert.equal(recovery.data.action, 'resume_report');
+    assert.equal(recovery.data.command.attempt_count, 1);
+    assert.notEqual(recovery.data.claim_token, claim.data.claim_token);
+
     const progress = (await route(
       fixture.pg,
       'POST',
       `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands/${fixture.command.id}/progress`,
       {
-        claim_token: claim.data.claim_token,
+        claim_token: recovery.data.claim_token,
         progress: 'fallback_started',
         metadata: { collateral_sessions_may_disconnect: true }
       },
@@ -173,7 +189,7 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
       'POST',
       `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands/${fixture.command.id}/result`,
       {
-        claim_token: claim.data.claim_token,
+        claim_token: recovery.data.claim_token,
         status: 'succeeded',
         execution_method: 'service_restart',
         exit_code: 0,

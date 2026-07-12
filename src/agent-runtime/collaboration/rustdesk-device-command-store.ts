@@ -93,6 +93,26 @@ export interface CompleteRustDeskDeviceCommandInput extends RustDeskDeviceComman
   metadata?: Record<string, unknown>;
 }
 
+export interface RecoverRustDeskDeviceCommandInput {
+  tenant_id: string;
+  device_id: string;
+  command_id: string;
+  edge_instance_id: string;
+  attempt: number;
+  state: 'executing' | 'executed';
+  lease_ms: number;
+  result?: Omit<CompleteRustDeskDeviceCommandInput, keyof RustDeskDeviceCommandClaimIdentity>;
+  now?: string;
+}
+
+export interface RecoveredRustDeskDeviceCommand {
+  action: 'resume_report' | 'terminal' | 'quarantine';
+  command: RustDeskDeviceCommand;
+  claim_token?: string;
+  result_matches?: boolean;
+  reason?: string;
+}
+
 const disconnectReasons = new Set<RustDeskDisconnectReason>([
   'consent_revoked',
   'remote_session_ended',
@@ -317,6 +337,125 @@ export class RustDeskDeviceCommandStore {
       }
     );
     return command;
+  }
+
+  async recover(input: RecoverRustDeskDeviceCommandInput): Promise<RecoveredRustDeskDeviceCommand> {
+    return withPgTransaction(this.pg, async (pg) => {
+      const store = pg === this.pg ? this : new RustDeskDeviceCommandStore(pg);
+      return store.recoverInTransaction(input);
+    });
+  }
+
+  private async recoverInTransaction(
+    input: RecoverRustDeskDeviceCommandInput
+  ): Promise<RecoveredRustDeskDeviceCommand> {
+    const tenantId = requiredString(input.tenant_id, 'tenant_id is required');
+    const deviceId = requiredString(input.device_id, 'device_id is required');
+    const commandId = requiredString(input.command_id, 'command_id is required');
+    const edgeInstanceId = requiredString(input.edge_instance_id, 'edge_instance_id is required');
+    const attempt = positiveInteger(input.attempt, 'attempt must be a positive integer');
+    const state = recoveryState(input.state);
+    const leaseMs = commandLeaseMs(input.lease_ms);
+    const now = isoTimestamp(input.now, 'now must be an ISO timestamp');
+    const row = await this.getScopedRow({ tenant_id: tenantId, device_id: deviceId, command_id: commandId });
+    if (!row) throw Object.assign(new Error('rustdesk command not found'), { status: 404 });
+
+    if (state === 'executed' && (row.status === 'succeeded' || row.status === 'failed' || row.status === 'pending')) {
+      return {
+        action: 'terminal',
+        command: decodeCommand(row),
+        result_matches: completedOrAcceptedResultMatches(row, recoveryResult(input.result))
+      };
+    }
+    if (
+      row.status !== 'claimed' ||
+      String(row.claimed_by || '') !== edgeInstanceId ||
+      Number(row.attempt_count || 0) !== attempt
+    ) {
+      return {
+        action: 'quarantine',
+        command: decodeCommand(row),
+        reason: 'recovery_lease_owned_by_another_edge'
+      };
+    }
+
+    if (state === 'executing') {
+      const result = await this.pg.query(
+        `UPDATE rustdesk_device_commands
+         SET status = 'failed',
+             claim_token_hash = NULL,
+             lease_expires_at = NULL,
+             next_attempt_at = NULL,
+             execution_method = NULL,
+             exit_code = NULL,
+             duration_ms = NULL,
+             stdout_bytes = NULL,
+             stderr_bytes = NULL,
+             stdout_sha256 = NULL,
+             stderr_sha256 = NULL,
+             result_metadata = $7,
+             completed_at = $6,
+             updated_at = $6
+         WHERE tenant_id = $1 AND device_id = $2 AND id = $3
+           AND status = 'claimed' AND claimed_by = $4 AND attempt_count = $5
+         RETURNING *`,
+        [
+          tenantId,
+          deviceId,
+          commandId,
+          edgeInstanceId,
+          attempt,
+          now,
+          JSON.stringify({ error_code: 'edge_recovery_execution_uncertain', edge_instance_id: edgeInstanceId })
+        ]
+      );
+      const recovered = result.rows[0] || await this.getScopedRow({
+        tenant_id: tenantId,
+        device_id: deviceId,
+        command_id: commandId
+      });
+      if (!recovered) throw Object.assign(new Error('rustdesk command not found'), { status: 404 });
+      const command = decodeCommand(recovered);
+      if (result.rows[0]) await this.appendCompletionAudit(command);
+      return {
+        action: 'quarantine',
+        command,
+        reason: result.rows[0]
+          ? 'recovery_execution_state_uncertain'
+          : 'recovery_command_changed_concurrently'
+      };
+    }
+
+    const claimToken = randomBytes(32).toString('base64url');
+    const leaseExpiresAt = new Date(new Date(now).getTime() + leaseMs).toISOString();
+    const result = await this.pg.query(
+      `UPDATE rustdesk_device_commands
+       SET claim_token_hash = $6,
+           lease_expires_at = $7,
+           updated_at = $8
+       WHERE tenant_id = $1 AND device_id = $2 AND id = $3
+         AND status = 'claimed' AND claimed_by = $4 AND attempt_count = $5
+       RETURNING *`,
+      [tenantId, deviceId, commandId, edgeInstanceId, attempt, sha256(claimToken), leaseExpiresAt, now]
+    );
+    if (!result.rows[0]) {
+      const concurrent = await this.getScopedRow({ tenant_id: tenantId, device_id: deviceId, command_id: commandId });
+      if (!concurrent) throw Object.assign(new Error('rustdesk command not found'), { status: 404 });
+      return {
+        action: 'quarantine',
+        command: decodeCommand(concurrent),
+        reason: 'recovery_command_changed_concurrently'
+      };
+    }
+    const command = decodeCommand(result.rows[0]);
+    await this.appendAuditEvent(
+      command,
+      'remote.rustdesk.disconnect.recovered',
+      edgeInstanceId,
+      `recovered:${attempt}`,
+      { edge_instance_id: edgeInstanceId }
+    );
+    return { action: 'resume_report', command, claim_token: claimToken };
   }
 
   async complete(input: CompleteRustDeskDeviceCommandInput): Promise<RustDeskDeviceCommand> {
@@ -563,6 +702,36 @@ function commandLeaseMs(value: unknown): number {
   return leaseMs;
 }
 
+function positiveInteger(value: unknown, message: string): number {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1) {
+    throw Object.assign(new Error(message), { status: 400 });
+  }
+  return number;
+}
+
+function recoveryState(value: unknown): RecoverRustDeskDeviceCommandInput['state'] {
+  if (value === 'executing' || value === 'executed') return value;
+  throw Object.assign(new Error('recovery state must be executing or executed'), { status: 400 });
+}
+
+function recoveryResult(
+  input: RecoverRustDeskDeviceCommandInput['result']
+): Parameters<typeof completedOrAcceptedResultMatches>[1] | null {
+  if (!input) return null;
+  return {
+    status: commandResultStatus(input.status),
+    executionMethod: commandExecutionMethod(input.execution_method),
+    exitCode: optionalInteger(input.exit_code, 'exit_code must be an integer'),
+    durationMs: optionalNonNegativeInteger(input.duration_ms, 'duration_ms must be a non-negative integer'),
+    stdoutBytes: optionalNonNegativeInteger(input.stdout_bytes, 'stdout_bytes must be a non-negative integer'),
+    stderrBytes: optionalNonNegativeInteger(input.stderr_bytes, 'stderr_bytes must be a non-negative integer'),
+    stdoutSha256: optionalSha256(input.stdout_sha256, 'stdout_sha256'),
+    stderrSha256: optionalSha256(input.stderr_sha256, 'stderr_sha256'),
+    metadata: commandResultMetadata(input.metadata)
+  };
+}
+
 function commandClaimIdentity(input: RustDeskDeviceCommandClaimIdentity): Required<RustDeskDeviceCommandClaimIdentity> {
   return {
     tenant_id: requiredString(input.tenant_id, 'tenant_id is required'),
@@ -713,7 +882,28 @@ function completedResultMatches(
     nullableNumber(row.stderr_bytes) === result.stderrBytes &&
     String(row.stdout_sha256 || '') === result.stdoutSha256 &&
     String(row.stderr_sha256 || '') === result.stderrSha256 &&
-    JSON.stringify(jsonObject(row.result_metadata)) === JSON.stringify(result.metadata);
+    canonicalMetadata(jsonObject(row.result_metadata)) === canonicalMetadata(result.metadata);
+}
+
+function completedOrAcceptedResultMatches(
+  row: Record<string, unknown>,
+  result: Parameters<typeof completedResultMatches>[1] | null
+): boolean {
+  if (!result) return false;
+  const statusAccepted = row.status === result.status || (row.status === 'pending' && result.status === 'failed');
+  return statusAccepted &&
+    String(row.execution_method || '') === result.executionMethod &&
+    nullableNumber(row.exit_code) === result.exitCode &&
+    nullableNumber(row.duration_ms) === result.durationMs &&
+    nullableNumber(row.stdout_bytes) === result.stdoutBytes &&
+    nullableNumber(row.stderr_bytes) === result.stderrBytes &&
+    String(row.stdout_sha256 || '') === result.stdoutSha256 &&
+    String(row.stderr_sha256 || '') === result.stderrSha256 &&
+    canonicalMetadata(jsonObject(row.result_metadata)) === canonicalMetadata(result.metadata);
+}
+
+function canonicalMetadata(value: Record<string, unknown>): string {
+  return JSON.stringify(Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))));
 }
 
 function isoTimestamp(value: string | undefined, message: string): string {

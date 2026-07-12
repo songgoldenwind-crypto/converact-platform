@@ -1,6 +1,13 @@
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 
+import {
+  RustDeskEdgePendingFileStore,
+  type RustDeskEdgePendingFileStoreOptions,
+  type RustDeskEdgePendingRecord,
+  type RustDeskEdgeSpoolCommand
+} from './rustdesk-edge-pending-store.js';
+
 export interface RustDeskEdgeClaimCommand {
   id: string;
   command_type: 'disconnect_session';
@@ -51,9 +58,15 @@ export interface RustDeskEdgeCommandProcessorConfig {
   edgeInstanceId: string;
   commandLeaseMs: number;
   execution: RustDeskEdgeCommandExecutionConfig;
+  spool?: RustDeskEdgePendingFileStoreOptions;
 }
 
-export type RustDeskEdgeCommandPollResult = 'idle' | 'executed' | 'result_pending' | 'reported';
+export type RustDeskEdgeCommandPollResult =
+  | 'idle'
+  | 'executed'
+  | 'result_pending'
+  | 'reported'
+  | 'quarantined';
 
 interface LocalAdapterResult {
   ok: boolean;
@@ -73,7 +86,7 @@ type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<
 
 interface PendingCommandReport {
   deviceId: string;
-  command: RustDeskEdgeClaimCommand;
+  command: RustDeskEdgeSpoolCommand;
   claimToken: string;
   progress: RustDeskEdgeCommandProgressReport[];
   result: RustDeskEdgeCommandExecutionResult;
@@ -89,6 +102,8 @@ export function rustDeskMinimumCommandLeaseMs(commandTimeoutMs: number): number 
 
 export class RustDeskEdgeCommandProcessor {
   private pending: PendingCommandReport | null = null;
+  private store: RustDeskEdgePendingFileStore | null = null;
+  private storePromise: Promise<RustDeskEdgePendingFileStore> | null = null;
 
   constructor(
     private readonly config: RustDeskEdgeCommandProcessorConfig,
@@ -97,9 +112,12 @@ export class RustDeskEdgeCommandProcessor {
 
   async pollOnce(deviceIdValue: string): Promise<RustDeskEdgeCommandPollResult> {
     const deviceId = requiredString(deviceIdValue, 'deviceId is required');
+    const store = await this.pendingStore();
     if (this.pending) {
       return await this.deliverPending() ? 'reported' : 'result_pending';
     }
+    const recovered = await store?.load();
+    if (recovered) return this.recoverPending(recovered);
 
     const claim = await this.requestJson<{
       command?: unknown;
@@ -115,6 +133,12 @@ export class RustDeskEdgeCommandProcessor {
     if (!claim) return 'idle';
     const command = decodeClaimCommand(claim.command);
     const claimToken = requiredString(claim.claim_token, 'RustDesk command claim_token is required');
+    await store?.writeExecuting({
+      edge_instance_id: this.config.edgeInstanceId,
+      device_id: deviceId,
+      command,
+      progress: []
+    });
     const failedProgress: RustDeskEdgeCommandProgressReport[] = [];
     const result = await executeRustDeskDisconnectCommand(
       command,
@@ -134,7 +158,68 @@ export class RustDeskEdgeCommandProcessor {
       progress: failedProgress,
       result
     };
+    await store?.writeExecuted({
+      edge_instance_id: this.config.edgeInstanceId,
+      device_id: deviceId,
+      command,
+      progress: failedProgress,
+      result
+    });
     return await this.deliverPending() ? 'executed' : 'result_pending';
+  }
+
+  async close(): Promise<void> {
+    const store = this.store || (this.storePromise ? await this.storePromise : null);
+    await store?.close();
+  }
+
+  private async recoverPending(record: RustDeskEdgePendingRecord): Promise<RustDeskEdgeCommandPollResult> {
+    const expired = this.store?.isExpired(record) === true;
+    let recovered: {
+      action: 'resume_report' | 'terminal' | 'quarantine';
+      command: { status: string; lease_expires_at?: string | null };
+      claim_token?: string;
+      result_matches?: boolean;
+      reason?: string;
+    };
+    try {
+      recovered = (await this.requestJson(
+        `/api/ivekit/rustdesk/devices/${encodeURIComponent(record.device_id)}` +
+          `/commands/${encodeURIComponent(record.command.id)}/recover`,
+        {
+          state: record.state,
+          attempt: record.command.attempt,
+          lease_ms: this.config.commandLeaseMs,
+          ...(record.state === 'executed' ? { result: record.result } : {})
+        }
+      ))!;
+    } catch {
+      return 'result_pending';
+    }
+    if (record.state === 'executing') {
+      await this.store?.quarantine(
+        `${expired ? 'expired_' : ''}${recovered.reason || 'recovery_execution_state_uncertain'}`
+      );
+      return 'quarantined';
+    }
+    if (recovered.action === 'terminal' && recovered.result_matches) {
+      await this.store?.remove(record.command.id);
+      return 'reported';
+    }
+    if (recovered.action !== 'resume_report' || !recovered.claim_token) {
+      await this.store?.quarantine(
+        `${expired ? 'expired_' : ''}${recovered.reason || 'recovery_result_conflict'}`
+      );
+      return 'quarantined';
+    }
+    this.pending = {
+      deviceId: record.device_id,
+      command: record.command,
+      claimToken: recovered.claim_token,
+      progress: [...record.progress],
+      result: record.result
+    };
+    return await this.deliverPending() ? 'reported' : 'result_pending';
   }
 
   private async deliverPending(): Promise<boolean> {
@@ -158,15 +243,28 @@ export class RustDeskEdgeCommandProcessor {
           ...pending.result
         }
       );
+      await this.store?.remove(pending.command.id);
       this.pending = null;
       return true;
     } catch (error) {
       if (error instanceof RustDeskEdgeCommandHttpError && error.status === 409) {
+        if (this.store) {
+          this.pending = null;
+          return false;
+        }
         this.pending = null;
         return true;
       }
       return false;
     }
+  }
+
+  private async pendingStore(): Promise<RustDeskEdgePendingFileStore | null> {
+    if (!this.config.spool) return null;
+    if (this.store) return this.store;
+    this.storePromise ||= RustDeskEdgePendingFileStore.open(this.config.spool);
+    this.store = await this.storePromise;
+    return this.store;
   }
 
   private async postProgress(

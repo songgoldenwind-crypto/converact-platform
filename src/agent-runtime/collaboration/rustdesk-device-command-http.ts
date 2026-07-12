@@ -20,7 +20,7 @@ export interface RouteRustDeskDeviceCommandApiInput {
 export function isRustDeskEdgeDeviceCommandRoute(method: string, routePath: string): boolean {
   return method === 'POST' && (
     /^\/api\/ivekit\/rustdesk\/devices\/[^/]+\/commands\/claim$/.test(routePath) ||
-    /^\/api\/ivekit\/rustdesk\/devices\/[^/]+\/commands\/[^/]+\/(progress|result)$/.test(routePath)
+    /^\/api\/ivekit\/rustdesk\/devices\/[^/]+\/commands\/[^/]+\/(progress|result|recover)$/.test(routePath)
   );
 }
 
@@ -34,7 +34,7 @@ export async function routeRustDeskDeviceCommandApi(
     /^\/api\/ivekit\/rustdesk\/devices\/([^/]+)\/commands\/claim$/
   );
   const lifecycleMatch = input.routePath.match(
-    /^\/api\/ivekit\/rustdesk\/devices\/([^/]+)\/commands\/([^/]+)\/(progress|result)$/
+    /^\/api\/ivekit\/rustdesk\/devices\/([^/]+)\/commands\/([^/]+)\/(progress|result|recover)$/
   );
   const stateMatch = input.routePath.match(
     /^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)\/disconnect$/
@@ -89,6 +89,22 @@ export async function routeRustDeskDeviceCommandApi(
     }
     const body = bodyRecord(input.body);
     const metadata = edgeCommandMetadata(body.metadata, input.actorIdentity);
+    if (action === 'recover') {
+      const recovered = await commands.recover({
+        tenant_id: input.tenantId,
+        device_id: deviceId,
+        command_id: commandId,
+        edge_instance_id: input.actorIdentity,
+        attempt: Number(body.attempt),
+        state: body.state as 'executing' | 'executed',
+        lease_ms: Number(body.lease_ms),
+        ...(body.result === undefined
+          ? {}
+          : { result: recoveryResult(body.result, input.actorIdentity) })
+      });
+      await input.onCommandChanged?.(recovered.command);
+      return { status: 201, data: recovered };
+    }
     const common = {
       tenant_id: input.tenantId,
       device_id: deviceId,
@@ -139,6 +155,34 @@ export async function routeRustDeskDeviceCommandApi(
   }
 
   return undefined;
+}
+
+function recoveryResult(
+  value: unknown,
+  edgeInstanceId: string
+): {
+  status: 'succeeded' | 'failed';
+  execution_method: 'session_adapter' | 'service_restart';
+  exit_code?: number;
+  duration_ms?: number;
+  stdout_bytes?: number;
+  stderr_bytes?: number;
+  stdout_sha256?: string;
+  stderr_sha256?: string;
+  metadata: Record<string, unknown>;
+} {
+  const result = bodyRecord(value);
+  return {
+    status: result.status as 'succeeded' | 'failed',
+    execution_method: result.execution_method as 'session_adapter' | 'service_restart',
+    exit_code: optionalNumber(result.exit_code),
+    duration_ms: optionalNumber(result.duration_ms),
+    stdout_bytes: optionalNumber(result.stdout_bytes),
+    stderr_bytes: optionalNumber(result.stderr_bytes),
+    stdout_sha256: optionalString(result.stdout_sha256),
+    stderr_sha256: optionalString(result.stderr_sha256),
+    metadata: edgeCommandMetadata(result.metadata, edgeInstanceId)
+  };
 }
 
 function bodyRecord(value: unknown): Record<string, unknown> {

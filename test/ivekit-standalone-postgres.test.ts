@@ -11,6 +11,8 @@ import { runMigrations } from '../src/db-pg.js';
 import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
 import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
 import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
+import { RustDeskDeviceCommandStore } from '../src/agent-runtime/collaboration/rustdesk-device-command-store.js';
+import { withPgTenant } from '../src/db-pg-tenant.js';
 
 const freshAdminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const freshRuntimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
@@ -105,6 +107,79 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     });
 
     await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_a', 'A'), ('ivekit_rls_b', 'B')`);
+    await admin.query(`
+      INSERT INTO rustdesk_devices
+        (id, tenant_id, business_ref_type, business_ref_id, rustdesk_id, display_name)
+      VALUES ('ivekit_recovery_device', 'ivekit_rls_a', 'order', 'A-1', '123456789', 'Recovery device');
+      INSERT INTO rustdesk_gateway_sessions
+        (external_id, tenant_id, target_id, actor_identity)
+      VALUES
+        ('ivekit_recovery_executed', 'ivekit_rls_a', 'ivekit_recovery_device', 'tester'),
+        ('ivekit_recovery_uncertain', 'ivekit_rls_a', 'ivekit_recovery_device', 'tester');
+      INSERT INTO rustdesk_device_commands
+        (id, tenant_id, device_id, external_id, requested_by, requested_reason)
+      VALUES
+        ('ivekit_recovery_command_executed', 'ivekit_rls_a', 'ivekit_recovery_device', 'ivekit_recovery_executed', 'tester', 'gateway_ended'),
+        ('ivekit_recovery_command_uncertain', 'ivekit_rls_a', 'ivekit_recovery_device', 'ivekit_recovery_uncertain', 'tester', 'gateway_ended')
+    `);
+    await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      const commands = new RustDeskDeviceCommandStore(tenantPg);
+      const executedClaim = (await commands.claimNext({
+        tenant_id: 'ivekit_rls_a',
+        device_id: 'ivekit_recovery_device',
+        edge_instance_id: 'ivekit-recovery-edge',
+        lease_ms: 1_000,
+        now: '2026-07-12T00:00:00.000Z'
+      }))!;
+      assert.equal(executedClaim.command.id, 'ivekit_recovery_command_executed');
+      const resumed = await commands.recover({
+        tenant_id: 'ivekit_rls_a',
+        device_id: 'ivekit_recovery_device',
+        command_id: executedClaim.command.id,
+        edge_instance_id: 'ivekit-recovery-edge',
+        attempt: 1,
+        state: 'executed',
+        lease_ms: 30_000,
+        now: '2026-07-12T00:00:05.000Z'
+      });
+      assert.equal(resumed.action, 'resume_report');
+      assert.equal(resumed.command.attempt_count, 1);
+      await commands.complete({
+        tenant_id: 'ivekit_rls_a',
+        device_id: 'ivekit_recovery_device',
+        command_id: executedClaim.command.id,
+        claim_token: resumed.claim_token!,
+        status: 'succeeded',
+        execution_method: 'session_adapter',
+        exit_code: 0,
+        duration_ms: 10,
+        stdout_bytes: 0,
+        stderr_bytes: 0,
+        now: '2026-07-12T00:00:05.100Z'
+      });
+
+      const uncertainClaim = (await commands.claimNext({
+        tenant_id: 'ivekit_rls_a',
+        device_id: 'ivekit_recovery_device',
+        edge_instance_id: 'ivekit-recovery-edge',
+        lease_ms: 1_000,
+        now: '2026-07-12T00:01:00.000Z'
+      }))!;
+      assert.equal(uncertainClaim.command.id, 'ivekit_recovery_command_uncertain');
+      const uncertain = await commands.recover({
+        tenant_id: 'ivekit_rls_a',
+        device_id: 'ivekit_recovery_device',
+        command_id: uncertainClaim.command.id,
+        edge_instance_id: 'ivekit-recovery-edge',
+        attempt: 1,
+        state: 'executing',
+        lease_ms: 30_000,
+        now: '2026-07-12T00:01:05.000Z'
+      });
+      assert.equal(uncertain.action, 'quarantine');
+      assert.equal(uncertain.command.status, 'failed');
+      assert.equal(uncertain.command.result_metadata.error_code, 'edge_recovery_execution_uncertain');
+    });
     await admin.query(`
       INSERT INTO collaboration_sessions (id, tenant_id, business_ref_type, business_ref_id, title)
       VALUES ('ivekit_rls_session_b', 'ivekit_rls_b', 'order', 'B-1', 'private B')

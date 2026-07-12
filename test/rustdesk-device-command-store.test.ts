@@ -158,6 +158,155 @@ test('RustDeskDeviceCommandStore leases one command and reclaims it after expiry
   assert.notEqual(reclaimed?.claim_token, firstClaim?.claim_token);
 });
 
+test('RustDeskDeviceCommandStore recovers an executed attempt without incrementing or re-executing', async () => {
+  const fixture = await commandFixture('tenant_rustdesk_command_recovery');
+  const command = await fixture.commands.enqueueDisconnect({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    external_id: fixture.session.external_id,
+    requested_by: 'customer-command-recovery',
+    requested_reason: 'consent_revoked'
+  });
+  const claim = (await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-recovery',
+    lease_ms: 1_000,
+    now: '2026-07-10T12:00:00.000Z'
+  }))!;
+
+  const recovered = await fixture.commands.recover({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    command_id: command.id,
+    edge_instance_id: 'edge-command-recovery',
+    attempt: 1,
+    state: 'executed',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:00:05.000Z'
+  });
+
+  assert.equal(recovered.action, 'resume_report');
+  assert.equal(recovered.command.attempt_count, 1);
+  assert.equal(recovered.command.lease_expires_at, '2026-07-10T12:00:35.000Z');
+  assert.notEqual(recovered.claim_token, claim.claim_token);
+  const completed = await fixture.commands.complete({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    command_id: command.id,
+    claim_token: recovered.claim_token!,
+    status: 'succeeded',
+    execution_method: 'session_adapter',
+    exit_code: 0,
+    duration_ms: 20,
+    stdout_bytes: 0,
+    stderr_bytes: 0,
+    metadata: { os: 'linux', edge_instance_id: 'edge-command-recovery' },
+    now: '2026-07-10T12:00:05.100Z'
+  });
+  assert.equal(completed.status, 'succeeded');
+  const terminal = await fixture.commands.recover({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    command_id: command.id,
+    edge_instance_id: 'edge-command-recovery',
+    attempt: 1,
+    state: 'executed',
+    lease_ms: 30_000,
+    result: {
+      status: 'succeeded',
+      execution_method: 'session_adapter',
+      exit_code: 0,
+      duration_ms: 20,
+      stdout_bytes: 0,
+      stderr_bytes: 0,
+      metadata: { edge_instance_id: 'edge-command-recovery', os: 'linux' }
+    },
+    now: '2026-07-10T12:00:06.000Z'
+  });
+  assert.equal(terminal.action, 'terminal');
+  assert.equal(terminal.result_matches, true);
+});
+
+test('RustDeskDeviceCommandStore terminalizes uncertain executing recovery without retry', async () => {
+  const fixture = await commandFixture('tenant_rustdesk_command_uncertain');
+  const command = await fixture.commands.enqueueDisconnect({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    external_id: fixture.session.external_id,
+    requested_by: 'customer-command-uncertain',
+    requested_reason: 'consent_revoked'
+  });
+  await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-uncertain',
+    lease_ms: 1_000,
+    now: '2026-07-10T12:00:00.000Z'
+  });
+
+  const recovered = await fixture.commands.recover({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    command_id: command.id,
+    edge_instance_id: 'edge-command-uncertain',
+    attempt: 1,
+    state: 'executing',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:00:05.000Z'
+  });
+
+  assert.equal(recovered.action, 'quarantine');
+  assert.equal(recovered.command.status, 'failed');
+  assert.equal(recovered.command.result_metadata.error_code, 'edge_recovery_execution_uncertain');
+  assert.equal(await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-after-uncertain',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:00:06.000Z'
+  }), null);
+});
+
+test('RustDeskDeviceCommandStore refuses recovery owned by another edge attempt', async () => {
+  const fixture = await commandFixture('tenant_rustdesk_command_recovery_owner');
+  const command = await fixture.commands.enqueueDisconnect({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    external_id: fixture.session.external_id,
+    requested_by: 'customer-command-owner',
+    requested_reason: 'consent_revoked'
+  });
+  await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-owner-a',
+    lease_ms: 1_000,
+    now: '2026-07-10T12:00:00.000Z'
+  });
+  await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-owner-b',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:00:02.000Z'
+  });
+
+  const recovered = await fixture.commands.recover({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    command_id: command.id,
+    edge_instance_id: 'edge-command-owner-a',
+    attempt: 1,
+    state: 'executed',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:00:03.000Z'
+  });
+  assert.equal(recovered.action, 'quarantine');
+  assert.equal(recovered.command.claimed_by, 'edge-command-owner-b');
+  assert.equal(recovered.command.attempt_count, 2);
+});
+
 test('RustDeskDeviceCommandStore validates command claim inputs', async () => {
   const fixture = await commandFixture('tenant_rustdesk_command_claim_invalid');
 

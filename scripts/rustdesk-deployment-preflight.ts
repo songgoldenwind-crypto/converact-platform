@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { rustDeskMinimumCommandLeaseMs } from './rustdesk-edge-command.js';
@@ -30,6 +30,7 @@ export interface RustDeskDeploymentPreflightReport {
     edgeCommandExecutionEnabled: boolean;
     edgeCommandTokenConfigured: boolean;
     edgeTokenSecretConfigured: boolean;
+    edgeSpoolConfigured: boolean;
     commandPollIntervalMs: number;
     commandLeaseMs: number;
     commandTimeoutMs: number;
@@ -89,6 +90,8 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
   const edgeTokenSecretConfigured = String(
     env.OPC_RUSTDESK_EDGE_TOKEN_SECRET || ''
   ).length >= 32;
+  const edgeSpoolDir = String(env.OPC_RUSTDESK_EDGE_SPOOL_DIR || '').trim();
+  const edgeSpoolConfigured = Boolean(edgeSpoolDir && isAbsolute(edgeSpoolDir));
   const edgeCommandChecksEnabled =
     (runEdgeAgent && physicalDisconnectReadinessCheck) || adapterConfigured;
   const commandPollIntervalMs = configuredInteger(
@@ -246,6 +249,14 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
         ? 'A RustDesk local disconnect or service-restart adapter is configured'
         : 'OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE or OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE is required for command execution'
     );
+    addCheck(
+      checks,
+      'physical_disconnect_spool',
+      edgeSpoolConfigured ? 'pass' : 'fail',
+      edgeSpoolConfigured
+        ? 'A private absolute RustDesk edge spool directory is configured'
+        : 'OPC_RUSTDESK_EDGE_SPOOL_DIR must be an absolute path for crash-safe command execution'
+    );
     const timingValid =
       Number.isInteger(commandPollIntervalMs) && commandPollIntervalMs >= 250 &&
       Number.isInteger(commandTimeoutMs) && commandTimeoutMs >= 100 &&
@@ -283,6 +294,7 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       edgeCommandExecutionEnabled: edgeCommandChecksEnabled && adapterConfigured,
       edgeCommandTokenConfigured,
       edgeTokenSecretConfigured,
+      edgeSpoolConfigured,
       commandPollIntervalMs,
       commandLeaseMs,
       commandTimeoutMs,
@@ -400,6 +412,10 @@ function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDe
     item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS', false, 'Command polling interval in milliseconds. Defaults to 2000.', env.OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS),
     item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS', false, 'Command lease in milliseconds. Defaults to 40000 and must cover primary and fallback timeouts plus reporting margin.', env.OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS),
     item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS', false, 'Local adapter timeout in milliseconds. Defaults to 15000.', env.OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS),
+    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_DIR', false, 'Private absolute directory for crash-safe sanitized command state. Required when a local adapter is configured.', env.OPC_RUSTDESK_EDGE_SPOOL_DIR),
+    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_MAX_BYTES', false, 'Maximum bytes in the active sanitized spool record. Defaults to 65536.', env.OPC_RUSTDESK_EDGE_SPOOL_MAX_BYTES),
+    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS', false, 'Maximum active spool age before quarantine. Defaults to seven days.', env.OPC_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS),
+    item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS', false, 'Maximum retained quarantine records. Defaults to 100.', env.OPC_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS),
     item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE', false, 'Device-local session disconnect wrapper. At least one local adapter is required for command execution.', env.OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE, true),
     item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON', false, 'Fixed JSON string array passed to the disconnect wrapper. Server identifiers are supplied only through environment variables.', env.OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON, true),
     item(env, 'Edge Command', 'OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE', false, 'Device-local RustDesk service restart wrapper used as fallback.', env.OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE, true),

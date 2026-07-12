@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -365,6 +365,119 @@ test('edge command processor retains and retries a failed result report without 
     `POST /api/ivekit/rustdesk/devices/rdesk_edge_retry/commands/${command.id}/result`,
     `POST /api/ivekit/rustdesk/devices/rdesk_edge_retry/commands/${command.id}/result`
   ]);
+});
+
+test('edge command processor recovers an executed spool and reports without re-executing', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-recovery-'));
+  const spoolDir = join(dataDir, 'spool');
+  const executionFile = join(dataDir, 'executions.txt');
+  const calls: string[] = [];
+  let resultAttempts = 0;
+  const fetchImpl = async (input: string | URL | Request, init: RequestInit = {}) => {
+    const url = new URL(String(input));
+    calls.push(`${init.method || 'GET'} ${url.pathname}`);
+    if (url.pathname.endsWith('/commands/claim')) {
+      return jsonResponse(201, { command, claim_token: 'initial-claim-token' });
+    }
+    if (url.pathname.endsWith('/recover')) {
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      assert.equal(body.state, 'executed');
+      assert.equal(JSON.stringify(body).includes('claim_token'), false);
+      return jsonResponse(201, {
+        action: 'resume_report',
+        command: { status: 'claimed', lease_expires_at: '2099-01-01T00:00:00.000Z' },
+        claim_token: 'recovered-claim-token'
+      });
+    }
+    if (url.pathname.endsWith('/result')) {
+      resultAttempts += 1;
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      if (resultAttempts === 1) return jsonResponse(503, { error: 'response lost' });
+      assert.equal(body.claim_token, 'recovered-claim-token');
+      return jsonResponse(201, { command: { status: 'succeeded' } });
+    }
+    return jsonResponse(500, { error: 'unexpected request' });
+  };
+  const config = {
+    baseUrl: 'https://opc.example.com',
+    commandToken: 'edge-command-token-recovery',
+    edgeInstanceId: 'edge-processor-recovery',
+    commandLeaseMs: 30_000,
+    spool: { directory: spoolDir },
+    execution: {
+      timeoutMs: 2_000,
+      edgeInstanceId: 'edge-processor-recovery',
+      edgeAgentVersion: '1.0.0',
+      os: process.platform,
+      disconnectAdapter: {
+        executable: process.execPath,
+        args: ['-e', `require('node:fs').appendFileSync(${JSON.stringify(executionFile)}, 'x')`]
+      },
+      restartAdapter: null
+    }
+  };
+
+  const first = new RustDeskEdgeCommandProcessor(config, fetchImpl);
+  assert.equal(await first.pollOnce(command.target_id), 'result_pending');
+  await first.close();
+  assert.equal(readFileSync(executionFile, 'utf8'), 'x');
+
+  const restarted = new RustDeskEdgeCommandProcessor(config, fetchImpl);
+  assert.equal(await restarted.pollOnce(command.target_id), 'reported');
+  await restarted.close();
+  assert.equal(readFileSync(executionFile, 'utf8'), 'x');
+  assert.equal(readdirSync(spoolDir).includes('active.json'), false);
+  assert.deepEqual(calls.map((item) => item.split('/').at(-1)), ['claim', 'result', 'recover', 'result']);
+});
+
+test('edge command processor quarantines uncertain executing state without running an adapter', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-uncertain-'));
+  const spoolDir = join(dataDir, 'spool');
+  const executionFile = join(dataDir, 'executions.txt');
+  const { RustDeskEdgePendingFileStore } = await import('../scripts/rustdesk-edge-pending-store.js');
+  const seed = await RustDeskEdgePendingFileStore.open({ directory: spoolDir });
+  await seed.writeExecuting({
+    edge_instance_id: 'edge-processor-uncertain',
+    device_id: command.target_id,
+    command,
+    progress: []
+  });
+  await seed.close();
+
+  const processor = new RustDeskEdgeCommandProcessor(
+    {
+      baseUrl: 'https://opc.example.com',
+      commandToken: 'edge-command-token-uncertain',
+      edgeInstanceId: 'edge-processor-uncertain',
+      commandLeaseMs: 30_000,
+      spool: { directory: spoolDir },
+      execution: {
+        timeoutMs: 2_000,
+        edgeInstanceId: 'edge-processor-uncertain',
+        edgeAgentVersion: '1.0.0',
+        os: process.platform,
+        disconnectAdapter: {
+          executable: process.execPath,
+          args: ['-e', `require('node:fs').appendFileSync(${JSON.stringify(executionFile)}, 'x')`]
+        },
+        restartAdapter: null
+      }
+    },
+    async (input) => {
+      const url = new URL(String(input));
+      assert.equal(url.pathname.endsWith('/recover'), true);
+      return jsonResponse(201, {
+        action: 'quarantine',
+        command: { status: 'failed' },
+        reason: 'recovery_execution_state_uncertain'
+      });
+    }
+  );
+
+  assert.equal(await processor.pollOnce(command.target_id), 'quarantined');
+  await processor.close();
+  assert.throws(() => readFileSync(executionFile, 'utf8'), /ENOENT/);
+  assert.equal(readdirSync(join(spoolDir, 'quarantine')).length, 1);
 });
 
 test('edge command processor reports fallback progress and completion', async () => {

@@ -2809,6 +2809,59 @@ export class MemoryPg implements PgQueryable {
 
     if (
       sql.startsWith("UPDATE rustdesk_device_commands SET status = 'failed'") &&
+      sql.includes('claimed_by = $4') &&
+      sql.includes('attempt_count = $5')
+    ) {
+      const row = this.table('rustdesk_device_commands').get(String(params[2]));
+      const canUpdate = Boolean(
+        row &&
+        String(row.tenant_id) === String(params[0]) &&
+        String(row.device_id) === String(params[1]) &&
+        row.status === 'claimed' &&
+        String(row.claimed_by || '') === String(params[3]) &&
+        Number(row.attempt_count) === Number(params[4])
+      );
+      if (!row || !canUpdate) return { rows: [], rowCount: 0 };
+      row.status = 'failed';
+      row.claim_token_hash = null;
+      row.lease_expires_at = null;
+      row.next_attempt_at = null;
+      row.execution_method = null;
+      row.exit_code = null;
+      row.duration_ms = null;
+      row.stdout_bytes = null;
+      row.stderr_bytes = null;
+      row.stdout_sha256 = null;
+      row.stderr_sha256 = null;
+      row.result_metadata = params[6];
+      row.completed_at = params[5];
+      row.updated_at = params[5];
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (
+      sql.startsWith('UPDATE rustdesk_device_commands SET claim_token_hash = $6') &&
+      sql.includes('claimed_by = $4') &&
+      sql.includes('attempt_count = $5')
+    ) {
+      const row = this.table('rustdesk_device_commands').get(String(params[2]));
+      const canUpdate = Boolean(
+        row &&
+        String(row.tenant_id) === String(params[0]) &&
+        String(row.device_id) === String(params[1]) &&
+        row.status === 'claimed' &&
+        String(row.claimed_by || '') === String(params[3]) &&
+        Number(row.attempt_count) === Number(params[4])
+      );
+      if (!row || !canUpdate) return { rows: [], rowCount: 0 };
+      row.claim_token_hash = params[5];
+      row.lease_expires_at = params[6];
+      row.updated_at = params[7];
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (
+      sql.startsWith("UPDATE rustdesk_device_commands SET status = 'failed'") &&
       sql.includes('attempt_count >= max_attempts')
     ) {
       const tenantId = String(params[0]);

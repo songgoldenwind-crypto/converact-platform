@@ -36,7 +36,8 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
     OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect-rustdesk-session',
     OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["--mode","session"]',
     OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE: '/opt/opc/bin/restart-rustdesk-service',
-    OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON: '["--service","rustdesk"]'
+    OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON: '["--service","rustdesk"]',
+    OPC_RUSTDESK_EDGE_SPOOL_DIR: '/var/lib/opc/rustdesk-edge-spool'
   });
 
   assert.equal(config.baseUrl, 'https://opc.example.com');
@@ -62,6 +63,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
     args: ['--service', 'rustdesk']
   });
   assert.equal(config.disconnectCommandCapable, true);
+  assert.equal(config.spoolDir, '/var/lib/opc/rustdesk-edge-spool');
   assert.equal(config.metadata.client_version, '1.3.0');
   assert.equal(config.metadata.os, 'windows');
   assert.equal(config.metadata.site_id, 'shenzhen-store-7');

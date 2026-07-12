@@ -151,6 +151,12 @@ test('RustDesk deployment preflight gates strict physical disconnect and sanitiz
   assert.equal(invalidTiming.ok, false);
   assert.equal(failedCheckIds(invalidTiming).includes('physical_disconnect_timing'), true);
 
+  const missingSpoolEnv = physicalDisconnectPreflightEnv();
+  delete missingSpoolEnv.OPC_RUSTDESK_EDGE_SPOOL_DIR;
+  const missingSpool = createRustDeskDeploymentPreflightReport(missingSpoolEnv);
+  assert.equal(missingSpool.ok, false);
+  assert.equal(failedCheckIds(missingSpool).includes('physical_disconnect_spool'), true);
+
   const ready = createRustDeskDeploymentPreflightReport(physicalDisconnectPreflightEnv());
   assert.equal(ready.ok, true);
   assert.equal(ready.summary.physicalDisconnectRequired, true);
@@ -158,6 +164,7 @@ test('RustDesk deployment preflight gates strict physical disconnect and sanitiz
   assert.equal(ready.summary.edgeCommandExecutionEnabled, true);
   assert.equal(ready.summary.edgeCommandTokenConfigured, true);
   assert.equal(ready.summary.edgeTokenSecretConfigured, true);
+  assert.equal(ready.summary.edgeSpoolConfigured, true);
   assert.equal(ready.summary.commandPollIntervalMs, 2000);
   assert.equal(ready.summary.commandLeaseMs, 40000);
   assert.equal(ready.summary.commandTimeoutMs, 15000);
@@ -425,6 +432,7 @@ function physicalDisconnectPreflightEnv(): NodeJS.ProcessEnv {
     OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS: '2000',
     OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS: '40000',
     OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS: '15000',
+    OPC_RUSTDESK_EDGE_SPOOL_DIR: '/var/lib/opc/rustdesk-edge-spool',
     OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect-rustdesk-session',
     OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["super-secret-adapter-argument"]'
   };

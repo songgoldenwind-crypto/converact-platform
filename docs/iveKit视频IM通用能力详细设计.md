@@ -1084,6 +1084,7 @@ RustDesk 推荐传内部注册设备 ID：
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/claim`
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/progress`
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/result`
+- `POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/recover`
 
 新建 iveKit RustDesk session 使用 `control_enforcement_version=1`：单 session 只允许一个
 active controller；租约支持 acquire、heartbeat、release、expiry 和 transactional
@@ -1974,7 +1975,34 @@ POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/result
 
 结果 metadata 只接受固定字段：`fallback_reason`、`edge_agent_version`、`edge_instance_id`、`os`、`collateral_sessions_may_disconnect`、`timed_out`、`signal`、`error_code`。除 key allowlist 外还会校验值：fallback reason/OS 使用枚举，collateral/timed-out 必须是 boolean，version/signal/error code 有格式和长度上限，`edge_instance_id` 由签名 edge token 覆盖为可信值。这防止把原始输出或长 secret 塞进“合法 key”上传。过期/错误 claim token 返回 409；已经完成的命令只接受完全一致的幂等重报，并发相同结果也都返回成功，不一致结果返回 409。
 
-4. 查询 gateway 的物理断开状态：
+4. edge 重启恢复：
+
+```http
+POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/recover
+```
+
+```json
+{
+  "state": "executed",
+  "attempt": 1,
+  "lease_ms": 40000,
+  "result": {
+    "status": "succeeded",
+    "execution_method": "session_adapter",
+    "exit_code": 0,
+    "duration_ms": 842,
+    "stdout_bytes": 0,
+    "stderr_bytes": 0,
+    "stdout_sha256": "sha256:<64-hex>",
+    "stderr_sha256": "sha256:<64-hex>",
+    "metadata": { "edge_instance_id": "edge-led-001" }
+  }
+}
+```
+
+`executed` 且仍由同一 edge/attempt 持有时返回 `action=resume_report` 和新 `claim_token`；服务端已接受相同结果时返回 `action=terminal,result_matches=true`；所有权变化或结果冲突返回 `action=quarantine`。`executing` 表示崩溃窗口内执行结果不确定，服务端终止该 attempt 并返回 quarantine。恢复请求不接受旧 claim token，认证只使用设备绑定 edge token。
+
+5. 查询 gateway 的物理断开状态：
 
 ```http
 GET /api/ivekit/rustdesk/gateway-sessions/:external_id/disconnect
@@ -2061,6 +2089,10 @@ OPC_RUSTDESK_EDGE_COMMAND_TOKEN_FILE=/etc/opc/rustdesk-edge-command.token
 OPC_RUSTDESK_EDGE_COMMAND_POLL_INTERVAL_MS=2000
 OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS=40000
 OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS=15000
+OPC_RUSTDESK_EDGE_SPOOL_DIR=/var/lib/opc/rustdesk-edge-spool
+OPC_RUSTDESK_EDGE_SPOOL_MAX_BYTES=65536
+OPC_RUSTDESK_EDGE_SPOOL_MAX_AGE_MS=604800000
+OPC_RUSTDESK_EDGE_SPOOL_MAX_QUARANTINE_RECORDS=100
 OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE=/opt/opc/bin/linux-disconnect.sh
 OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON=["--mode","execute","--external-id","{external_id}","--target-id","{target_id}","--rustdesk-id","{rustdesk_id}","--reason","{requested_reason}"]
 OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE=/opt/opc/bin/linux-restart.sh
@@ -2121,9 +2153,12 @@ wrapper 的 stdout/stderr 每个最多读取并散列 64 KiB；服务端只收�
 3. service restart 成功时 command 状态为 `succeeded`、`execution_method=service_restart`，metadata 明确标记 `collateral_sessions_may_disconnect=true`。
 4. 一次完整执行失败后，前两次分别等待 2 秒、10 秒重新进入 pending；第三次失败成为终态 `failed`。
 5. edge 失联且 lease 过期后，未耗尽尝试次数的命令可被重新 claim，设备 wrapper 因此必须尽量幂等。如果已是最后一次 claim，下一次同设备 poll 或业务端查询 disconnect 状态时，都会原子地把过期命令终止为 `failed`，并写入 `result_metadata.error_code=claim_lease_expired`，不会永久停留在 `claimed`。真实 PostgreSQL 中状态迁移与 failed audit 在同一事务内提交。
-6. result 上报临时失败时，当前 edge 进程在内存保留 progress/result，下一轮先重报，不重新执行；收到 409 说明 token/lease 已失效，会丢弃本地 pending，让服务端租约规则决定后续 claim。
-7. 当前第一版没有把 edge 本地 pending result 持久化到磁盘。设备在 wrapper 已执行、result 未送达期间崩溃，lease 过期后可能再次执行；这是服务器压测和后续可靠性增强要重点观察的剩余风险。
-8. adapter timeout 先向独立进程组发送 SIGTERM，250ms 宽限后仍未退出则发送 SIGKILL；Windows 使用 Node 的强制终止语义。即使 wrapper 忽略普通终止信号，adapter Promise 也会在有界时间内收敛。
+6. 配置任一本地 adapter 时必须同时配置绝对路径 `OPC_RUSTDESK_EDGE_SPOOL_DIR`。目录强制 `0700`，active/lock/quarantine 文件为 `0600`；versioned JSON 通过临时文件、`fsync`、rename 和目录同步原子替换，并用进程锁拒绝同目录多实例。
+7. edge 在执行 wrapper 前写 `executing`，执行完成后写 `executed`。spool 只保存命令标识、attempt、脱敏 progress、退出码、耗时、字节数和 SHA-256；不保存 API key、command/claim token、RustDesk 密码、stdout/stderr 原文、剪贴板、文件或屏幕内容。
+8. 进程重启发现 `executed` 时调用 `POST .../recover`，由设备绑定 edge token 证明身份；服务端仅在 command、device、edge instance、attempt 全部一致时轮换新的短 claim token，edge 只补报 progress/result，不再次运行 wrapper。服务端已接受相同结果但响应丢失时返回 terminal match，edge 直接清理 active record。
+9. 重启发现 `executing` 时无法证明 wrapper 是否完成，服务端把该 attempt 终止为 `failed/error_code=edge_recovery_execution_uncertain`，不进入自动重试；本地记录移入 quarantine，等待人工核对。attempt 已被其他 edge 领取或结果冲突时也 quarantine，绝不盲目重执行。
+10. active record 默认最大 64 KiB、最长保留 7 天，quarantine 默认最多 100 条；符号链接、未知 schema、非法字段、超限或锁冲突均 fail closed。以上默认值可通过 `OPC_RUSTDESK_EDGE_SPOOL_MAX_*` 调整，但不能取消边界。
+11. adapter timeout 先向独立进程组发送 SIGTERM，250ms 宽限后仍未退出则发送 SIGKILL；Windows 使用 Node 的强制终止语义。即使 wrapper 忽略普通终止信号，adapter Promise 也会在有界时间内收敛。
 
 #### 6.4.5.8 LED/其它服务复用契约
 
