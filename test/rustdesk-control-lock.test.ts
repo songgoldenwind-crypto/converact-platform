@@ -42,7 +42,7 @@ test('full schema includes RustDesk control ownership tables without early RLS h
   );
 });
 
-async function fixture(name: string) {
+async function fixture(name: string, metadata: Record<string, unknown> = {}) {
   const pg = new MemoryPg();
   const tenantId = `tenant_control_${name}`;
   const sessions = new RustDeskGatewaySessionStore(pg);
@@ -51,7 +51,8 @@ async function fixture(name: string) {
     target: { type: 'device', id: `device-${name}` },
     permissions: ['view_screen', 'control_mouse_keyboard', 'transfer_file', 'clipboard'],
     actor_identity: 'agent-a',
-    launch_url: `https://opc.example.test/rustdesk/${name}`
+    launch_url: `https://opc.example.test/rustdesk/${name}`,
+    metadata
   });
   return { pg, sessions, session, tenantId, locks: new RustDeskControlLockStore(pg) };
 }
@@ -130,6 +131,17 @@ test('RustDesk control lock expires and transfers atomically with fresh confirma
   });
   assert.equal(expired.status, 'expired');
   assert.equal(expired.owner_identity, null);
+  assert.equal(expired.version, transferred.version + 1);
+  const reacquireConfirmation = await locks.issueConfirmation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-c',
+    operation: 'control_mouse_keyboard', now: '2026-07-12T04:00:07.000Z'
+  });
+  const reacquired = await locks.acquire({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-c',
+    confirmation_id: reacquireConfirmation.id, now: '2026-07-12T04:00:07.000Z'
+  });
+  assert.equal(reacquired.owner_identity, 'agent-c');
+  assert.equal(reacquired.version, expired.version + 1);
 });
 
 test('RustDesk terminal gateway session rejects confirmations and lock changes', async () => {
@@ -139,6 +151,70 @@ test('RustDesk terminal gateway session rejects confirmations and lock changes',
     tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
     operation: 'control_mouse_keyboard'
   }), /gateway session is terminal/);
+});
+
+test('control-enforced gateway events atomically consume the matching secondary confirmation', async () => {
+  const { locks, sessions, session, tenantId } = await fixture('event-confirmation', {
+    control_enforcement_version: 1
+  });
+  const now = new Date().toISOString();
+  const acquireConfirmation = await locks.issueConfirmation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'control_mouse_keyboard', now
+  });
+  const ownership = await locks.acquire({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    confirmation_id: acquireConfirmation.id, now
+  });
+  await assert.rejects(() => sessions.appendAuditEvent({
+    external_id: session.external_id,
+    event_type: 'remote.rustdesk.file_transfer.started',
+    actor_identity: 'agent-a',
+    metadata: { transfer_id: 'transfer-1', direction: 'upload' },
+    occurred_at: now
+  }), /secondary_confirmation_id/);
+
+  const backdated = new Date(Date.now() - 10 * 60_000).toISOString();
+  const expiredConfirmation = await locks.issueConfirmation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'transfer_file', now: backdated
+  });
+  await assert.rejects(() => sessions.appendAuditEvent({
+    external_id: session.external_id,
+    event_type: 'remote.rustdesk.file_transfer.started',
+    actor_identity: 'agent-a',
+    metadata: {
+      transfer_id: 'transfer-expired', direction: 'upload',
+      secondary_confirmation_id: expiredConfirmation.id, control_version: ownership.version
+    },
+    occurred_at: backdated
+  }), /fresh secondary confirmation required/);
+
+  const confirmation = await locks.issueConfirmation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'transfer_file', now
+  });
+  const event = await sessions.appendAuditEvent({
+    external_id: session.external_id,
+    event_type: 'remote.rustdesk.file_transfer.started',
+    actor_identity: 'agent-a',
+    metadata: {
+      transfer_id: 'transfer-1', direction: 'upload',
+      secondary_confirmation_id: confirmation.id, control_version: ownership.version
+    },
+    occurred_at: now
+  });
+  assert.equal(event?.event_type, 'remote.rustdesk.file_transfer.started');
+  await assert.rejects(() => sessions.appendAuditEvent({
+    external_id: session.external_id,
+    event_type: 'remote.rustdesk.file_transfer.started',
+    actor_identity: 'agent-a',
+    metadata: {
+      transfer_id: 'transfer-2', direction: 'upload',
+      secondary_confirmation_id: confirmation.id, control_version: ownership.version
+    },
+    occurred_at: now
+  }), /fresh secondary confirmation required/);
 });
 
 test('RustDesk control HTTP requires active participants and binds actor to JWT identity', async () => {

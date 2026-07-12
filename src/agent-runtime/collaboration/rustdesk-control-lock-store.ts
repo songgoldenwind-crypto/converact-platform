@@ -26,6 +26,16 @@ export interface RustDeskSecondaryConfirmation {
   created_at: string;
 }
 
+export interface ConfirmRustDeskOperationInput {
+  tenant_id: string;
+  external_id: string;
+  actor_identity: string;
+  operation: RustDeskConfirmedOperation;
+  confirmation_id: string;
+  version?: number;
+  now?: string;
+}
+
 const OPERATIONS = new Set<RustDeskConfirmedOperation>([
   'control_mouse_keyboard', 'transfer_file', 'clipboard', 'unattended_launch', 'control_transfer'
 ]);
@@ -34,8 +44,10 @@ export class RustDeskControlLockStore {
   constructor(private readonly pg: PgQueryable) {}
 
   async getOwnership(input: { tenant_id: string; external_id: string; now?: string }): Promise<RustDeskControlOwnership> {
-    const row = await this.lockRow(input.tenant_id, input.external_id);
-    return ownership(row, input.now || new Date().toISOString());
+    return this.withLock({ ...input, actor_identity: 'system' }, async (store) => {
+      const now = input.now || new Date().toISOString();
+      return store.expireOwnershipIfNeeded(input.tenant_id, input.external_id, now);
+    });
   }
 
   async issueConfirmation(input: {
@@ -67,15 +79,15 @@ export class RustDeskControlLockStore {
     tenant_id: string; external_id: string; actor_identity: string; confirmation_id: string;
     lease_ms?: number; now?: string;
   }): Promise<RustDeskControlOwnership> {
-    return this.withLock(input, async () => {
+    return this.withLock(input, async (store) => {
       const now = input.now || new Date().toISOString();
-      await this.requireActiveSession(input.tenant_id, input.external_id, 'control_mouse_keyboard');
-      const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
+      await store.requireActiveSession(input.tenant_id, input.external_id, 'control_mouse_keyboard');
+      const current = await store.expireOwnershipIfNeeded(input.tenant_id, input.external_id, now);
       if (current.status === 'owned' && current.owner_identity !== input.actor_identity) {
         throw controlError('RustDesk control is already owned', 409);
       }
-      await this.consumeConfirmation({ ...input, operation: 'control_mouse_keyboard', now });
-      return this.writeLock(input, input.actor_identity, current.version + 1, now, 'acquired');
+      await store.consumeConfirmation({ ...input, operation: 'control_mouse_keyboard', now });
+      return store.writeLock(input, input.actor_identity, current.version + 1, now, 'acquired');
     });
   }
 
@@ -83,30 +95,30 @@ export class RustDeskControlLockStore {
     tenant_id: string; external_id: string; actor_identity: string; version: number;
     lease_ms?: number; now?: string;
   }): Promise<RustDeskControlOwnership> {
-    return this.withLock(input, async () => {
+    return this.withLock(input, async (store) => {
       const now = input.now || new Date().toISOString();
-      await this.requireActiveSession(input.tenant_id, input.external_id);
-      const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
+      await store.requireActiveSession(input.tenant_id, input.external_id);
+      const current = ownership(await store.lockRow(input.tenant_id, input.external_id), now);
       assertOwner(current, input.actor_identity, input.version);
-      return this.writeLock(input, input.actor_identity, current.version + 1, now, 'heartbeat');
+      return store.writeLock(input, input.actor_identity, current.version + 1, now, 'heartbeat');
     });
   }
 
   async release(input: {
     tenant_id: string; external_id: string; actor_identity: string; version: number; now?: string;
   }): Promise<RustDeskControlOwnership> {
-    return this.withLock(input, async () => {
+    return this.withLock(input, async (store) => {
       const now = input.now || new Date().toISOString();
-      await this.requireActiveSession(input.tenant_id, input.external_id);
-      const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
+      await store.requireActiveSession(input.tenant_id, input.external_id);
+      const current = ownership(await store.lockRow(input.tenant_id, input.external_id), now);
       assertOwner(current, input.actor_identity, input.version);
       const version = current.version + 1;
-      await this.pg.query(
+      await store.pg.query(
         `UPDATE rustdesk_control_locks SET status = 'released', version = $3, updated_at = $4
          WHERE tenant_id = $1 AND external_id = $2`,
         [input.tenant_id, input.external_id, version, now]
       );
-      await this.insertEvent(input, 'released', version, now, input.actor_identity, null);
+      await store.insertEvent(input, 'released', version, now, input.actor_identity, null);
       return { status: 'released', owner_identity: null, lease_expires_at: null, version, updated_at: now };
     });
   }
@@ -115,44 +127,64 @@ export class RustDeskControlLockStore {
     tenant_id: string; external_id: string; actor_identity: string; to_identity: string;
     confirmation_id: string; version: number; lease_ms?: number; now?: string;
   }): Promise<RustDeskControlOwnership> {
-    return this.withLock(input, async () => {
+    return this.withLock(input, async (store) => {
       const now = input.now || new Date().toISOString();
-      await this.requireActiveSession(input.tenant_id, input.external_id, 'control_mouse_keyboard');
+      await store.requireActiveSession(input.tenant_id, input.external_id, 'control_mouse_keyboard');
       const target = required(input.to_identity, 'to_identity');
       if (target === input.actor_identity) throw controlError('control transfer target must be different', 400);
-      const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
+      const current = ownership(await store.lockRow(input.tenant_id, input.external_id), now);
       assertOwner(current, input.actor_identity, input.version);
-      await this.consumeConfirmation({ ...input, operation: 'control_transfer', now });
-      return this.writeLock(input, target, current.version + 1, now, 'transferred', input.actor_identity);
+      await store.consumeConfirmation({ ...input, operation: 'control_transfer', now });
+      return store.writeLock(input, target, current.version + 1, now, 'transferred', input.actor_identity);
     });
   }
 
-  async confirmOperation(input: {
-    tenant_id: string; external_id: string; actor_identity: string; operation: RustDeskConfirmedOperation;
-    confirmation_id: string; version?: number; now?: string;
-  }): Promise<void> {
-    await this.withLock(input, async () => {
-      const now = input.now || new Date().toISOString();
-      await this.requireActiveSession(input.tenant_id, input.external_id, input.operation === 'unattended_launch' ? undefined : input.operation);
-      if (input.operation !== 'unattended_launch') {
-        const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
-        assertOwner(current, input.actor_identity, Number(input.version));
-      }
-      const eventId = await this.consumeConfirmation({ ...input, now });
-      await this.pg.query(
-        `INSERT INTO rustdesk_control_events
-          (id, tenant_id, external_id, event_type, actor_identity, operation,
-           lock_version, confirmation_id, metadata, created_at)
-         VALUES ($1, $2, $3, 'operation_confirmed', $4, $5, $6, $7, '{}'::jsonb, $8)`,
-        [eventId, input.tenant_id, input.external_id, input.actor_identity, input.operation,
-          input.version === undefined ? 0 : input.version, input.confirmation_id, now]
-      );
+  async confirmOperation(input: ConfirmRustDeskOperationInput): Promise<void> {
+    await this.confirmOperationAndRun(input, async () => undefined);
+  }
+
+  async confirmOperationAndRun<T>(
+    input: ConfirmRustDeskOperationInput,
+    run: (pg: PgQueryable) => Promise<T>
+  ): Promise<T> {
+    return this.withLock(input, async (store) => {
+      await store.confirmOperationLocked(input);
+      return run(store.pg);
     });
   }
 
-  private async withLock<T>(input: { tenant_id: string; external_id: string; actor_identity: string }, fn: () => Promise<T>) {
+  private async confirmOperationLocked(input: ConfirmRustDeskOperationInput): Promise<void> {
+    const now = input.now || new Date().toISOString();
+    await this.requireActiveSession(
+      input.tenant_id,
+      input.external_id,
+      input.operation === 'unattended_launch' ? undefined : input.operation
+    );
+    if (input.operation !== 'unattended_launch') {
+      const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
+      assertOwner(current, input.actor_identity, Number(input.version));
+    }
+    const eventId = await this.consumeConfirmation({ ...input, now });
+    await this.pg.query(
+      `INSERT INTO rustdesk_control_events
+        (id, tenant_id, external_id, event_type, actor_identity, operation,
+         lock_version, confirmation_id, metadata, created_at)
+       VALUES ($1, $2, $3, 'operation_confirmed', $4, $5, $6, $7, '{}'::jsonb, $8)`,
+      [eventId, input.tenant_id, input.external_id, input.actor_identity, input.operation,
+        input.version === undefined ? 0 : input.version, input.confirmation_id, now]
+    );
+  }
+
+  private async withLock<T>(
+    input: { tenant_id: string; external_id: string; actor_identity: string },
+    fn: (store: RustDeskControlLockStore) => Promise<T>
+  ) {
     normalizeIdentity(input);
-    return withRustDeskAuthorizationLocks(this.pg, [`control:${input.tenant_id}:${input.external_id}`], () => fn());
+    return withRustDeskAuthorizationLocks(
+      this.pg,
+      [`control:${input.tenant_id}:${input.external_id}`],
+      (lockedPg) => fn(lockedPg === this.pg ? this : new RustDeskControlLockStore(lockedPg))
+    );
   }
 
   private async requireActiveSession(tenantId: string, externalId: string, permission?: string) {
@@ -172,6 +204,32 @@ export class RustDeskControlLockStore {
       [tenantId, externalId]
     );
     return result.rows[0] || null;
+  }
+
+  private async expireOwnershipIfNeeded(
+    tenantId: string,
+    externalId: string,
+    now: string
+  ): Promise<RustDeskControlOwnership> {
+    const row = await this.lockRow(tenantId, externalId);
+    const current = ownership(row, now);
+    if (!row || current.status !== 'expired' || String(row.status) === 'expired') return current;
+    const version = Number(row.version) + 1;
+    const previousOwner = String(row.owner_identity || '');
+    await this.pg.query(
+      `UPDATE rustdesk_control_locks SET status = 'expired', version = $3, updated_at = $4
+       WHERE tenant_id = $1 AND external_id = $2`,
+      [tenantId, externalId, version, now]
+    );
+    await this.insertEvent(
+      { tenant_id: tenantId, external_id: externalId, actor_identity: 'system' },
+      'expired',
+      version,
+      now,
+      previousOwner || null,
+      null
+    );
+    return { status: 'expired', owner_identity: null, lease_expires_at: null, version, updated_at: now };
   }
 
   private async consumeConfirmation(input: {

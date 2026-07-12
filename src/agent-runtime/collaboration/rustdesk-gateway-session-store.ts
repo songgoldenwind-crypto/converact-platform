@@ -5,9 +5,11 @@ import type { RemoteGatewayAuditEvent } from './remote-gateway-client.js';
 import type { RemoteGatewayTarget } from './remote-gateway-adapter.js';
 import {
   rustDeskGatewayEventPermissionError,
+  rustDeskGatewaySecondaryConfirmationOperation,
   rustDeskGatewayEventValidationError
 } from './rustdesk-gateway-event.js';
 import { rustDeskGatewayMetadata } from './rustdesk-gateway-security.js';
+import { RustDeskControlLockStore } from './rustdesk-control-lock-store.js';
 
 const RUSTDESK_GATEWAY_SESSION_PERMISSION_SCOPES = new Set<string>([
   'view_screen',
@@ -233,23 +235,37 @@ export class RustDeskGatewaySessionStore {
       metadata,
       occurred_at: occurredAt || new Date().toISOString()
     };
-    await this.pg.query(
-      `INSERT INTO rustdesk_gateway_events
-        (id, external_id, tenant_id, event_type, actor_identity, target, idempotency_key, metadata, occurred_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        pgId('rdgev'),
-        event.external_id,
-        session.tenant_id,
-        event.event_type,
-        event.actor_identity,
-        event.target,
-        idempotencyKey,
-        toJson(event.metadata),
-        event.occurred_at
-      ]
-    );
-    return event;
+    const insert = async (pg: PgQueryable) => {
+      await pg.query(
+        `INSERT INTO rustdesk_gateway_events
+          (id, external_id, tenant_id, event_type, actor_identity, target, idempotency_key, metadata, occurred_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          pgId('rdgev'), event.external_id, session.tenant_id, event.event_type,
+          event.actor_identity, event.target, idempotencyKey, toJson(event.metadata), event.occurred_at
+        ]
+      );
+      return event;
+    };
+    const confirmedOperation = rustDeskGatewaySecondaryConfirmationOperation(eventType, inputMetadata);
+    if (Number(session.metadata.control_enforcement_version || 0) >= 1 && confirmedOperation) {
+      const confirmationId = String(inputMetadata.secondary_confirmation_id || '').trim();
+      const controlVersion = Number(inputMetadata.control_version);
+      if (!confirmationId || !Number.isInteger(controlVersion) || controlVersion < 1) {
+        throw Object.assign(new Error(
+          'RustDesk sensitive operation requires metadata.secondary_confirmation_id and metadata.control_version'
+        ), { status: 403 });
+      }
+      return new RustDeskControlLockStore(this.pg).confirmOperationAndRun({
+        tenant_id: session.tenant_id,
+        external_id: session.external_id,
+        actor_identity: actorIdentity,
+        operation: confirmedOperation,
+        confirmation_id: confirmationId,
+        version: controlVersion
+      }, insert);
+    }
+    return insert(this.pg);
   }
 }
 

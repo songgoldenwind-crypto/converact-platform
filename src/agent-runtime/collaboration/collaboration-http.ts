@@ -2002,6 +2002,7 @@ export async function routeCollaborationApi(
           remote_session_id: remote.id,
           collaboration_session_id: remote.collaboration_session_id,
           rustdesk_target_mode: 'registered_device',
+          control_enforcement_version: 1,
           rustdesk_device_id: device.id,
           rustdesk_id: device.rustdesk_id,
           target_id: device.id,

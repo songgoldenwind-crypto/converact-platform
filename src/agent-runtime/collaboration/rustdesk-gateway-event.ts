@@ -1,4 +1,5 @@
 import type { RemoteConsentScope } from './types.js';
+import type { RustDeskConfirmedOperation } from './rustdesk-control-lock-store.js';
 
 const RUSTDESK_EVENT_METADATA_REQUIREMENTS = {
   'remote.rustdesk.control_action.performed': {
@@ -163,4 +164,17 @@ export function rustDeskGatewayEventPermissionError(
   return granted.has(requirement.scope)
     ? ''
     : `RustDesk ${requirement.label} event requires ${requirement.scope} permission`;
+}
+
+export function rustDeskGatewaySecondaryConfirmationOperation(
+  eventType: string,
+  metadata: Record<string, unknown> = {}
+): RustDeskConfirmedOperation | null {
+  if (eventType === 'remote.rustdesk.file_transfer.started') return 'transfer_file';
+  if (eventType === 'remote.rustdesk.clipboard.synced') return 'clipboard';
+  if (eventType !== 'remote.rustdesk.control_action.performed') return null;
+  const permission = String(metadata.permission || '').trim();
+  return permission === 'control_mouse_keyboard' || permission === 'transfer_file' || permission === 'clipboard'
+    ? permission
+    : null;
 }

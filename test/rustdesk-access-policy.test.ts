@@ -601,6 +601,7 @@ test('unattended gateway launch requires matching active policy and consent whil
     };
     assert.equal(attended.status, 201, 'omitted access_mode must remain attended');
     assert.equal('access_mode' in attended.data.metadata, false);
+    assert.equal(attended.data.metadata.control_enforcement_version, 1);
     const invalidMode = await gatewayRoute(pg, {
       ...gatewayInput,
       access_mode: 'background'
@@ -629,9 +630,11 @@ test('unattended gateway launch requires matching active policy and consent whil
     const unattended = await gatewayRoute(pg, {
       ...gatewayInput,
       access_mode: 'unattended'
-    }, headers) as { status: number; data: { metadata: Record<string, unknown> } };
+    }, headers) as { status: number; data: { metadata: Record<string, unknown>; launch_url: string } };
     assert.equal(unattended.status, 201);
     assert.equal(unattended.data.metadata.access_mode, 'unattended');
+    assert.equal(unattended.data.metadata.control_enforcement_version, 1);
+    assert.equal(unattended.data.launch_url, '');
 
     await module.remote.revokeConsent({
       tenant_id: tenantId,

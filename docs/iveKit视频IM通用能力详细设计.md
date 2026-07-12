@@ -1067,6 +1067,13 @@ RustDesk 推荐传内部注册设备 ID：
 - `POST /api/ivekit/rustdesk/devices/:device_id/deactivate`
 - `POST /api/ivekit/rustdesk/gateway-sessions`
 - `GET /api/ivekit/rustdesk/gateway-sessions/:external_id/launch`
+- `GET /api/ivekit/rustdesk/gateway-sessions/:external_id/control`
+- `POST /api/ivekit/rustdesk/gateway-sessions/:external_id/control/confirmations`
+- `POST /api/ivekit/rustdesk/gateway-sessions/:external_id/control/acquire`
+- `POST /api/ivekit/rustdesk/gateway-sessions/:external_id/control/heartbeat`
+- `POST /api/ivekit/rustdesk/gateway-sessions/:external_id/control/release`
+- `POST /api/ivekit/rustdesk/gateway-sessions/:external_id/control/transfer`
+- `POST /api/ivekit/rustdesk/gateway-sessions/:external_id/control/operations`
 - `GET /api/ivekit/rustdesk/gateway-sessions/:external_id/audit`
 - `POST /api/ivekit/rustdesk/gateway-sessions/:external_id/events`
 - `DELETE /api/ivekit/rustdesk/gateway-sessions/:external_id`
@@ -1074,6 +1081,19 @@ RustDesk 推荐传内部注册设备 ID：
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/claim`
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/progress`
 - `POST /api/ivekit/rustdesk/devices/:device_id/commands/:command_id/result`
+
+新建 iveKit RustDesk session 使用 `control_enforcement_version=1`：单 session 只允许一个
+active controller；租约支持 acquire、heartbeat、release、expiry 和 transactional
+transfer，所有写操作都使用版本号拒绝 stale owner。`customer/ai` observer 只能读取状态，
+不能获取控制权；控制变化通过用户定向 WebSocket 仅发送给当前 active participants。
+
+键鼠、文件 started、剪贴板、控制转移和无人值守拉起使用 30-300 秒的一次性 secondary
+confirmation。控制动作、文件 started 和剪贴板审计 metadata 必须携带
+`secondary_confirmation_id` 与 `control_version`，后端在同一事务中消费 confirmation、
+写 `rustdesk_control_events` 并写 gateway audit，任何一步失败都会回滚。无人值守创建响应
+隐藏 `launch_url`，随后用 `unattended_launch` confirmation 调用
+`GET .../launch?confirmation_id=...` 才返回可拉起计划。旧 OPC control-plane session 不
+自动启用这一门禁，以维持历史 HTTP 契约。
 
 #### 真实终端契约冻结
 

@@ -431,6 +431,13 @@ RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveK
 | POST | `/api/ivekit/rustdesk/devices/:device_id/deactivate` | 停用设备 |
 | POST | `/api/ivekit/rustdesk/gateway-sessions` | 授权范围内创建会话 |
 | GET | `/api/ivekit/rustdesk/gateway-sessions/:external_id/launch` | launch plan |
+| GET | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control` | 当前控制者、租约和版本 |
+| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/confirmations` | 为指定敏感操作签发 30-300 秒一次性确认 |
+| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/acquire` | 使用键鼠确认获取单控制者租约 |
+| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/heartbeat` | 当前控制者按版本续租 |
+| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/release` | 当前控制者按版本释放 |
+| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/transfer` | 使用转移确认原子转移控制权 |
+| POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/control/operations` | 消费文件、剪贴板或键鼠操作确认 |
 | POST | `/api/ivekit/rustdesk/gateway-sessions/:external_id/events` | 结构化操作审计 |
 | GET | `/api/ivekit/rustdesk/gateway-sessions/:external_id/audit` | 审计列表 |
 | DELETE | `/api/ivekit/rustdesk/gateway-sessions/:external_id` | 结束控制面会话并触发物理断开命令 |
@@ -441,6 +448,22 @@ Legacy OPC compatibility route `/api/opc/rustdesk/sessions` is attended-only. An
 provided, active consent and requested consent scopes are rechecked. Unattended creation must use `/api/ivekit/rustdesk/gateway-sessions`, which applies the registered-device, business-ref,
 active-policy, expiry, and active-consent checks. The legacy control plane rejects explicit
 `access_mode=unattended` and access-mode or unattended aliases hidden in metadata.
+
+新建 iveKit gateway session 固定写入 `control_enforcement_version=1`。只有 active
+collaboration participant 可以读取控制状态；`agent/engineer/supervisor/admin` 可以申请
+控制，`customer/ai` observer 只能查看。每个 session 同时最多一个控制者，租约为
+5-120 秒；heartbeat、release、transfer 都携带当前 `version`，旧 owner、旧版本、终态
+session 和重放 challenge 返回 4xx。状态变化只推送给当前 active participants。
+
+`control_mouse_keyboard`、`transfer_file`、`clipboard`、`control_transfer` 和
+`unattended_launch` 必须使用新签发且未消费的 confirmation。新会话上报控制动作、文件
+started 或剪贴板事件时，metadata 必须额外携带 `secondary_confirmation_id` 和
+`control_version`；确认消费和审计写入处于同一数据库事务。旧 OPC 会话不增加该字段
+要求，以保持已发布 control-plane 合同。
+
+无人值守创建响应不会返回可直接使用的 `launch_url`。调用方应先创建 session，再申请
+`unattended_launch` confirmation，最后调用
+`GET .../launch?confirmation_id=...`；确认只能使用一次。
 
 ### 4.1 真实终端 DTO 与能力事实
 

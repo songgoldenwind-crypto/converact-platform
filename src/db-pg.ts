@@ -2426,6 +2426,15 @@ export class MemoryPg implements PgQueryable {
       return { rows: [], rowCount: 1 };
     }
 
+    if (sql.startsWith("UPDATE rustdesk_control_locks SET status = 'expired'")) {
+      const row = this.table('rustdesk_control_locks').get(`${params[0]}:${params[1]}`);
+      if (!row) return { rows: [], rowCount: 0 };
+      row.status = 'expired';
+      row.version = params[2];
+      row.updated_at = params[3];
+      return { rows: [], rowCount: 1 };
+    }
+
     if (sql.startsWith('INSERT INTO rustdesk_control_events') && sql.includes("'operation_confirmed'")) {
       const row: TableRow = {
         id: params[0], tenant_id: params[1], external_id: params[2], event_type: 'operation_confirmed',
