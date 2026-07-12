@@ -168,6 +168,24 @@ export class MemoryPg implements PgQueryable {
         .slice(0, limit);
     }
 
+    if (sql.startsWith('SELECT * FROM ivekit_media_calls') && sql.includes('business_ref_type = $2')) {
+      const [tenantId, refType, refId, identity] = params.map((value) => String(value || ''));
+      const limit = Number(params[4] || 50);
+      const visibleCallIds = new Set(
+        [...this.table('ivekit_media_call_participants').values()]
+          .filter((row) => String(row.tenant_id) === tenantId && String(row.identity) === identity &&
+            !['declined', 'left', 'missed', 'removed'].includes(String(row.status)))
+          .map((row) => String(row.call_id))
+      );
+      return [...this.table('ivekit_media_calls').values()]
+        .filter((row) => String(row.tenant_id) === tenantId &&
+          String(row.business_ref_type) === refType && String(row.business_ref_id) === refId &&
+          (!identity || visibleCallIds.has(String(row.id))))
+        .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)) ||
+          String(right.id).localeCompare(String(left.id)))
+        .slice(0, limit);
+    }
+
     if (sql.startsWith('SELECT * FROM ivekit_media_calls')) {
       const tenantId = String(params[0]);
       const lookup = String(params[1]);

@@ -63,6 +63,15 @@ export function RustDeskLaunchPanel({
   const sessionActive = plan?.status === 'active';
   const grantedScopes = plan?.permission_scopes?.granted || plan?.permissions || [];
 
+  useEffect(() => {
+    if (sessionActive || !initialBusinessRef) return;
+    setBusinessType(initialBusinessRef.type);
+    setBusinessId(initialBusinessRef.id);
+  }, [initialBusinessRef?.id, initialBusinessRef?.type, sessionActive]);
+  useEffect(() => {
+    if (!sessionActive && initialRemoteSessionId) setRemoteSessionId(initialRemoteSessionId);
+  }, [initialRemoteSessionId, sessionActive]);
+
   const run = useCallback(async <T,>(label: string, action: () => Promise<T>): Promise<T | null> => {
     if (!client) return null;
     setBusy(label);

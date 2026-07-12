@@ -442,6 +442,43 @@ test('iveKit LED handoff artifacts cover SDK, extraction, deployment, and valida
   assert.match(pkg, /"ivekit:led-example"/);
 });
 
+test('iveKit HTTP SDK exposes the unified business context endpoint', async () => {
+  const calls: FetchCall[] = [];
+  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+    baseUrl: 'https://ivekit.example.com/',
+    tenantId: 'tenant-led',
+    accessToken: 'user-token',
+    fetch: async (input, init = {}) => {
+      calls.push({
+        url: String(input),
+        method: init.method || 'GET',
+        headers: headersToRecord(init.headers),
+        body: typeof init.body === 'string' ? init.body : null
+      });
+      return new Response(JSON.stringify({
+        tenant_id: 'tenant-led',
+        business_ref: { type: 'service_order', id: 'SO-1' },
+        viewer: { identity: 'agent-led', system: false },
+        capabilities: { chat: true, media: true, remote_assistance: false },
+        chat: { count: 0, sessions: [] },
+        media: { count: 0, calls: [] },
+        remote_assistance: { count: 0, sessions: [], devices: [] }
+      }), { headers: { 'content-type': 'application/json' } });
+    }
+  });
+
+  assert.equal(typeof sdk.context.getByBusinessRef, 'function');
+  const context = await sdk.context.getByBusinessRef({ type: 'service_order', id: 'SO-1' });
+  assert.equal(context.business_ref.id, 'SO-1');
+  assert.equal(calls.length, 1);
+  const request = new URL(calls[0].url);
+  assert.equal(calls[0].method, 'GET');
+  assert.equal(request.pathname, '/api/ivekit/context/by-ref');
+  assert.equal(request.searchParams.get('business_ref_type'), 'service_order');
+  assert.equal(request.searchParams.get('business_ref_id'), 'SO-1');
+  assert.equal(calls[0].headers.authorization, 'Bearer user-token');
+});
+
 function headersToRecord(headers: RequestInit['headers']): Record<string, string> {
   const record: Record<string, string> = {};
   new Headers(headers).forEach((value, key) => {

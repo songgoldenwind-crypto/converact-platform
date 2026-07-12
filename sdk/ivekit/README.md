@@ -22,6 +22,7 @@ const ivekit = createIveKitClient({
 });
 
 const orderRef = { type: 'service_order', id: 'order-1001' };
+const context = await ivekit.context.getByBusinessRef(orderRef);
 const chat = await ivekit.chat.openSession({ business_ref: orderRef });
 const snapshot: IveKitChatSnapshot = await ivekit.chat.getSnapshot(chat.id);
 const posted = await ivekit.chat.postMessage(
@@ -60,6 +61,11 @@ The chat client exports browser-safe JSON DTOs for sessions, participants, messa
 attachments and processing jobs, provider delivery, receipts, realtime state,
 mutations, policy findings and reviews, reactions, pins, and cursor pages. These
 types are structural and do not import OPC server modules.
+
+The context client returns a metadata-safe business projection for unified navigation.
+Bearer callers see only chat/media resources they participate in; remote sessions and
+device summaries additionally require visible chat membership. The projection never
+returns provider credentials, launch links, RustDesk IDs, tokens, or business metadata.
 
 The media client exports typed capabilities, durable call snapshots and actions,
 rooms, join plans, provider participants, host moderation, recordings, object

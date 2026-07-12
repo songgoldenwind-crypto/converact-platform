@@ -1,5 +1,5 @@
 import { createIveKitClient, type IveKitChatMessage, type IveKitChatSession } from '@opc/ivekit-sdk';
-import { CircleStop, List, MessageSquare, MonitorCog, Phone, RefreshCw } from 'lucide-react';
+import { BriefcaseBusiness, CircleStop, List, MessageSquare, MonitorCog, Phone, RefreshCw } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { MessageComposer } from './chat/message-composer.js';
@@ -8,6 +8,7 @@ import { ParticipantRail } from './chat/participant-rail.js';
 import { SessionList } from './chat/session-list.js';
 import { projectSessionSummary } from './chat/session-summary.js';
 import { useChatSession } from './chat/use-chat-session.js';
+import { useBusinessContext, type BusinessRefSelection } from './context/use-business-context.js';
 import {
   loadRuntimeConfig,
   accessTokenRefreshDelay,
@@ -43,15 +44,18 @@ export function App() {
   const [mobileView, setMobileView] = useState<'sessions' | 'chat'>('sessions');
   const [selectedFindingId, setSelectedFindingId] = useState('');
   const [mediaCallId, setMediaCallId] = useState(initialCallId);
-  const [workspaceMode, setWorkspaceMode] = useState<'messages' | 'calls' | 'remote'>(() => initialCallId() ? 'calls' : 'messages');
+  const [workspaceMode, setWorkspaceMode] = useState<'messages' | 'calls' | 'remote'>(initialWorkspaceMode);
+  const [businessRef, setBusinessRef] = useState<BusinessRefSelection | null>(initialBusinessRef);
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
+  const seededContext = useRef('');
 
   const client = useMemo(() => config && token ? createIveKitClient({
     baseUrl: config.baseUrl,
     tenantId: config.tenantId,
     accessToken: token
   }) : null, [config, token]);
+  const businessContext = useBusinessContext(client, businessRef);
   const selected = sessions.find((session) => session.id === selectedId) || null;
   const chat = useChatSession({
     client,
@@ -66,7 +70,13 @@ export function App() {
     const request = ++sessionRequest.current;
     setSessionLoading(true);
     try {
-      const page = await client.chat.listSessions({ query, cursor: append ? sessionCursor.current || undefined : undefined, limit: 50 });
+      const page = await client.chat.listSessions({
+        query,
+        cursor: append ? sessionCursor.current || undefined : undefined,
+        limit: 50,
+        business_ref_type: businessRef?.type,
+        business_ref_id: businessRef?.id
+      });
       if (request !== sessionRequest.current) return;
       setSessions((current) => append ? dedupeSessions([...current, ...page.items]) : page.items);
       sessionCursor.current = page.next_cursor;
@@ -80,7 +90,7 @@ export function App() {
     } finally {
       if (request === sessionRequest.current) setSessionLoading(false);
     }
-  }, [client, query]);
+  }, [businessRef?.id, businessRef?.type, client, query]);
 
   useEffect(() => {
     let active = true;
@@ -118,6 +128,23 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [refreshSessions, workspaceMode]);
   useEffect(() => setSelectedFindingId(''), [selectedId]);
+  useEffect(() => {
+    if (!selected) return;
+    const next = { type: selected.business_ref.type, id: selected.business_ref.id };
+    if (businessRef?.type === next.type && businessRef.id === next.id) return;
+    setBusinessRef(next);
+    replaceUrlState({ businessRef: next });
+  }, [businessRef?.id, businessRef?.type, selected]);
+  useEffect(() => {
+    if (!businessContext.context || !businessRef) return;
+    const key = `${businessRef.type}:${businessRef.id}`;
+    if (seededContext.current === key) return;
+    seededContext.current = key;
+    if (!mediaCallId) {
+      const callId = businessContext.context.media.calls[0]?.id || '';
+      if (callId) selectMediaCallValue(callId, setMediaCallId);
+    }
+  }, [businessContext.context, businessRef, mediaCallId]);
   useEffect(() => {
     if (!selectedId || chat.loading || chat.state.requestId === 0) return;
     setSessions((current) => current.map((session) => session.id === selectedId
@@ -163,28 +190,34 @@ export function App() {
     setCommandError('');
     chat.clearError();
   }, [chat.clearError]);
-  const visibleError = bootstrapError || commandError || chat.error;
+  const visibleError = bootstrapError || businessContext.error || commandError || chat.error;
   const closeSelected = useCallback(async () => {
     if (!selected || !window.confirm('Close this session for every participant?')) return;
     const closed = await chat.closeSession();
     if (closed) setSessions((current) => current.map((session) => session.id === closed.id ? closed : session));
   }, [chat.closeSession, selected]);
   const selectMediaCall = useCallback((callId: string) => {
-    setMediaCallId(callId);
-    const url = new URL(window.location.href);
-    if (callId) url.searchParams.set('call_id', callId);
-    else url.searchParams.delete('call_id');
-    window.history.replaceState({}, '', url);
+    selectMediaCallValue(callId, setMediaCallId);
+  }, []);
+  const selectWorkspace = useCallback((mode: 'messages' | 'calls' | 'remote') => {
+    setWorkspaceMode(mode);
+    replaceUrlState({ workspace: mode });
   }, []);
 
   return (
     <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'remote' ? 'workspace-remote' : ''}`} data-mobile-view={mobileView}>
       <header className="topbar">
         <div className="brand"><MessageSquare size={18} /> <strong>iveKit</strong></div>
+        {businessRef && <div className="business-context" title={`${businessRef.type}: ${businessRef.id}`}>
+          <BriefcaseBusiness size={15} />
+          <strong>{businessRef.id}</strong>
+          {businessContext.context && <span>{businessContext.context.chat.count}M · {businessContext.context.media.count}C · {businessContext.context.remote_assistance.count}R</span>}
+          <button title="Refresh business context" disabled={businessContext.loading} onClick={() => void businessContext.refresh()}><RefreshCw className={businessContext.loading ? 'spin' : ''} size={14} /></button>
+        </div>}
         <div className="workspace-tabs" role="group" aria-label="Workspace">
-          <button title="Show messages workspace" aria-pressed={workspaceMode === 'messages'} onClick={() => setWorkspaceMode('messages')}><MessageSquare size={16} /><span>Messages</span></button>
-          <button title="Show calls workspace" aria-pressed={workspaceMode === 'calls'} onClick={() => setWorkspaceMode('calls')}><Phone size={16} /><span>Calls</span></button>
-          <button title="Show remote workspace" aria-pressed={workspaceMode === 'remote'} onClick={() => setWorkspaceMode('remote')}><MonitorCog size={16} /><span>Remote</span></button>
+          <button title="Show messages workspace" aria-pressed={workspaceMode === 'messages'} onClick={() => selectWorkspace('messages')}><MessageSquare size={16} /><span>Messages</span></button>
+          <button title="Show calls workspace" aria-pressed={workspaceMode === 'calls'} onClick={() => selectWorkspace('calls')}><Phone size={16} /><span>Calls</span></button>
+          <button title="Show remote workspace" aria-pressed={workspaceMode === 'remote'} onClick={() => selectWorkspace('remote')}><MonitorCog size={16} /><span>Remote</span></button>
         </div>
         {workspaceMode === 'messages' && <div className="mobile-tabs" role="group" aria-label="Mobile workspace">
           <button title="Show sessions" aria-pressed={mobileView === 'sessions'} onClick={() => setMobileView('sessions')}><List size={17} /></button>
@@ -250,7 +283,7 @@ export function App() {
         onReviewFinding={chat.reviewFinding}
       /></> : workspaceMode === 'calls'
         ? <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>
-        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} /></Suspense>}
+        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={businessContext.context?.remote_assistance.sessions[0]?.id} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );
@@ -273,4 +306,43 @@ function errorMessage(cause: unknown): string {
 
 function initialCallId(): string {
   return typeof window === 'undefined' ? '' : new URL(window.location.href).searchParams.get('call_id')?.trim() || '';
+}
+
+function initialBusinessRef(): BusinessRefSelection | null {
+  if (typeof window === 'undefined') return null;
+  const url = new URL(window.location.href);
+  const type = url.searchParams.get('business_ref_type')?.trim() || '';
+  const id = url.searchParams.get('business_ref_id')?.trim() || '';
+  return type && id ? { type, id } : null;
+}
+
+function initialWorkspaceMode(): 'messages' | 'calls' | 'remote' {
+  if (typeof window === 'undefined') return 'messages';
+  const url = new URL(window.location.href);
+  const mode = url.searchParams.get('workspace');
+  if (mode === 'messages' || mode === 'calls' || mode === 'remote') return mode;
+  return initialCallId() ? 'calls' : 'messages';
+}
+
+function selectMediaCallValue(callId: string, setCallId: (value: string) => void): void {
+  setCallId(callId);
+  replaceUrlState({ callId });
+}
+
+function replaceUrlState(input: {
+  businessRef?: BusinessRefSelection;
+  callId?: string;
+  workspace?: 'messages' | 'calls' | 'remote';
+}): void {
+  const url = new URL(window.location.href);
+  if (input.businessRef) {
+    url.searchParams.set('business_ref_type', input.businessRef.type);
+    url.searchParams.set('business_ref_id', input.businessRef.id);
+  }
+  if (input.callId !== undefined) {
+    if (input.callId) url.searchParams.set('call_id', input.callId);
+    else url.searchParams.delete('call_id');
+  }
+  if (input.workspace) url.searchParams.set('workspace', input.workspace);
+  window.history.replaceState({}, '', url);
 }

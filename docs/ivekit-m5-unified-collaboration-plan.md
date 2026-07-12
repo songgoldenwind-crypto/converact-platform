@@ -34,11 +34,16 @@ LED / other host
 
 ### Task M5.1：统一业务上下文
 
+**状态：已完成（2026-07-12）。**
+
 1. 定义 `CollaborationContext`：tenant、business_ref、viewer identity、会话/通话/远协摘要。
 2. 增加按 business ref 获取聚合摘要的 facade/SDK 方法；不返回 provider secret。
-3. 验证跨租户、非参与人、已离开参与人和关闭资源的访问拒绝。
+3. 已验证跨租户、非参与人和已离开参与人的访问拒绝；关闭资源允许成员读取历史摘要，但各模块继续拒绝终态写入。
+4. 已接入参考客户端：business ref 深链接驱动消息筛选、最新通话、远协默认值和顶栏脱敏数量摘要。
 
 ### Task M5.2：统一导航与深链接
+
+**状态：进行中。** `workspace`、`call_id`、`business_ref_type`、`business_ref_id` 已进入 URL；待补浏览器前进/后退同步、资源级链接和受控 E2E。
 
 1. 将 workspace 路由编码为 URL 参数或 host route state，支持 messages/calls/remote 深链接。
 2. 保持移动端返回、刷新和宿主嵌入行为一致。

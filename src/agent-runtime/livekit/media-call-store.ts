@@ -109,6 +109,37 @@ export class MediaCallStore {
     return result.rows[0] ? decodeCall(result.rows[0]) : null;
   }
 
+  async listByBusinessRef(input: {
+    tenant_id: string;
+    business_ref: Pick<MediaBusinessRef, 'type' | 'id'>;
+    identity?: string;
+    limit?: number;
+  }): Promise<IveKitMediaCall[]> {
+    const tenantId = String(input.tenant_id || '').trim();
+    const type = String(input.business_ref?.type || '').trim();
+    const id = String(input.business_ref?.id || '').trim();
+    if (!tenantId || !type || !id) {
+      throw Object.assign(new Error('tenant_id, business_ref.type and business_ref.id are required'), { status: 400 });
+    }
+    const identity = String(input.identity || '').trim();
+    const limit = Math.max(1, Math.min(100, Math.floor(input.limit || 50)));
+    const result = await this.pg.query(
+      `SELECT * FROM ivekit_media_calls
+       WHERE tenant_id = $1 AND business_ref_type = $2 AND business_ref_id = $3
+         AND ($4 = '' OR EXISTS (
+           SELECT 1 FROM ivekit_media_call_participants AS visible_participant
+           WHERE visible_participant.tenant_id = ivekit_media_calls.tenant_id
+             AND visible_participant.call_id = ivekit_media_calls.id
+             AND visible_participant.identity = $4
+             AND visible_participant.status NOT IN ('declined', 'left', 'missed', 'removed')
+         ))
+       ORDER BY created_at DESC, id DESC
+       LIMIT $5`,
+      [tenantId, type, id, identity, limit]
+    );
+    return result.rows.map(decodeCall);
+  }
+
   async listParticipants(tenantId: string, callId: string): Promise<IveKitMediaCallParticipant[]> {
     const result = await this.pg.query(
       `SELECT * FROM ivekit_media_call_participants

@@ -7,6 +7,7 @@ import { createObjectStorage, isLocalObjectStorage, readLocalUpload } from '../.
 import { wsBroadcast, wsBroadcastToUsers } from '../../ws.js';
 import { verifyWebAssistJoinToken } from '../ivekit/remote-assist-token.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
+import { MediaCallStore } from '../livekit/media-call-store.js';
 import { recordMediaRecordingEvidence } from '../media-recording-evidence.js';
 import {
   configuredChatGateway,
@@ -1176,9 +1177,11 @@ export async function routeCollaborationApi(
   const routePath = path.split('?')[0];
   const isCollaborationRoute = routePath.startsWith('/api/collaboration/');
   const isIveKitRustDeskRoute = routePath.startsWith('/api/ivekit/rustdesk/');
+  const isIveKitContextRoute = routePath.startsWith('/api/ivekit/context/');
   const isRustDeskControlPlaneRoute = routePath.startsWith('/api/opc/rustdesk/');
   const isRustDeskLaunchRoute = routePath === '/remote/rustdesk/launch';
-  if (!isCollaborationRoute && !isIveKitRustDeskRoute && !isRustDeskControlPlaneRoute && !isRustDeskLaunchRoute) {
+  if (!isCollaborationRoute && !isIveKitRustDeskRoute && !isIveKitContextRoute &&
+      !isRustDeskControlPlaneRoute && !isRustDeskLaunchRoute) {
     return undefined;
   }
 
@@ -1564,6 +1567,106 @@ export async function routeCollaborationApi(
   }
 
   const module = createCollaborationModule({ pg: requirePg(pg) });
+
+  if (routePath === '/api/ivekit/context/by-ref') {
+    if (method !== 'GET') return { status: 405, data: { error: 'method not allowed' } };
+    const businessRef = queryBusinessRef(ctx.tenantId, url);
+    const system = ctx.role === 'system';
+    const identity = system ? '' : collaborationActorIdentity(ctx, headers);
+    const [chatSessions, mediaCalls] = await Promise.all([
+      module.sessions.listByBusinessRef({
+        tenant_id: ctx.tenantId,
+        business_ref: businessRef,
+        identity: identity || undefined,
+        limit: 50
+      }),
+      new MediaCallStore(requirePg(pg)).listByBusinessRef({
+        tenant_id: ctx.tenantId,
+        business_ref: businessRef,
+        identity: identity || undefined,
+        limit: 50
+      })
+    ]);
+    if (!system && chatSessions.length === 0 && mediaCalls.length === 0) {
+      return { status: 404, data: { error: 'business context not found' } };
+    }
+
+    const visibleChatIds = new Set(chatSessions.map((session) => session.id));
+    const remoteSessions = (await module.remote.listByBusinessRef({
+      tenant_id: ctx.tenantId,
+      business_ref: businessRef,
+      limit: 50
+    })).filter((session) => system || visibleChatIds.has(session.collaboration_session_id));
+    const devices = system || chatSessions.length > 0
+      ? await module.rustdeskDevices.getByBusinessRef({
+        tenant_id: ctx.tenantId,
+        business_ref: businessRef,
+        limit: 50
+      })
+      : [];
+
+    return {
+      data: {
+        tenant_id: ctx.tenantId,
+        business_ref: { type: businessRef.type, id: businessRef.id },
+        viewer: { identity: identity || collaborationActorIdentity(ctx, headers), system },
+        capabilities: {
+          chat: system || chatSessions.length > 0,
+          media: system || mediaCalls.length > 0,
+          remote_assistance: system || remoteSessions.length > 0 || devices.length > 0
+        },
+        chat: {
+          count: chatSessions.length,
+          sessions: chatSessions.map((session) => ({
+            id: session.id,
+            title: session.title,
+            status: session.status,
+            created_at: session.created_at,
+            updated_at: session.updated_at,
+            closed_at: session.closed_at
+          }))
+        },
+        media: {
+          count: mediaCalls.length,
+          calls: mediaCalls.map((call) => ({
+            id: call.id,
+            title: call.title,
+            media: call.media,
+            status: call.status,
+            room_name: call.room_name,
+            created_at: call.created_at,
+            updated_at: call.updated_at,
+            ended_at: call.ended_at
+          }))
+        },
+        remote_assistance: {
+          count: remoteSessions.length,
+          sessions: remoteSessions.map((session) => ({
+            id: session.id,
+            collaboration_session_id: session.collaboration_session_id,
+            status: session.status,
+            mode: session.mode,
+            adapter_provider: session.adapter_provider,
+            created_at: session.created_at,
+            started_at: session.started_at,
+            ended_at: session.ended_at
+          })),
+          devices: devices.map((device) => ({
+            id: device.id,
+            display_name: device.display_name,
+            status: device.status,
+            runtime_status: device.runtime_status,
+            last_seen_at: device.last_seen_at
+          }))
+        }
+      },
+      headers: {
+        'cache-control': 'private, no-store',
+        vary: 'Authorization, X-API-Key, X-Tenant-Id, X-User-Id, Origin'
+      }
+    };
+  }
+
   let activeSessionParticipant: CollaborationParticipant | null = null;
   const protectedSessionMatch = routePath.match(
     /^\/api\/collaboration\/sessions\/(?!by-ref(?:\/|$))([^/]+)/

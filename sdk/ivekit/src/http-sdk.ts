@@ -60,6 +60,7 @@ import type {
   IveKitStartMediaRecordingInput
 } from './media-types.js';
 import type { IveKitSdkBusinessRef } from './types.js';
+import type { IveKitBusinessContext } from './context-types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -220,9 +221,14 @@ export interface IveKitChatHttpClient {
   runQualityReview(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
 }
 
+export interface IveKitContextHttpClient {
+  getByBusinessRef(businessRef: Pick<IveKitSdkBusinessRef, 'type' | 'id'>): Promise<IveKitBusinessContext>;
+}
+
 export interface IveKitHttpSdk {
   media: IveKitMediaHttpClient;
   chat: IveKitChatHttpClient;
+  context: IveKitContextHttpClient;
 }
 
 export class IveKitHttpSdkError extends Error {
@@ -242,7 +248,8 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
   const transport = createTransport(input);
   return {
     media: createMediaClient(transport),
-    chat: createChatClient(transport, createAttachmentUploadClient(input))
+    chat: createChatClient(transport, createAttachmentUploadClient(input)),
+    context: createContextClient(transport)
   };
 }
 
@@ -629,6 +636,17 @@ function createChatClient(
       '/api/ivekit/chat/quality-review/run',
       { body: input }
     )
+  };
+}
+
+function createContextClient(transport: IveKitTransport): IveKitContextHttpClient {
+  return {
+    getByBusinessRef: (businessRef) => transport.json('GET', '/api/ivekit/context/by-ref', {
+      query: {
+        business_ref_type: requiredString(businessRef.type, 'businessRef.type is required'),
+        business_ref_id: requiredString(businessRef.id, 'businessRef.id is required')
+      }
+    })
   };
 }
 

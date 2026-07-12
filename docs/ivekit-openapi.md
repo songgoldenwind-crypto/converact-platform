@@ -2,7 +2,7 @@
 
 > 契约版本：v1-draft / 2026-07-11。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
 
-本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@opc/ivekit-sdk`。稳定域是 `/api/ivekit/media/*`、`/api/ivekit/chat/*` 和 `/api/ivekit/rustdesk/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
+本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@opc/ivekit-sdk`。稳定域是 `/api/ivekit/context/*`、`/api/ivekit/media/*`、`/api/ivekit/chat/*` 和 `/api/ivekit/rustdesk/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
 
 ## 1. 通用约定
 
@@ -53,9 +53,19 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 
 ### 1.3 SDK 映射
 
-`createIveKitClient()` 返回 `media`、`chat`、`rustdesk` 三个客户端，与本文三个 API 域一一对应。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。Media/Chat 错误类型为 `IveKitHttpSdkError`，RustDesk 错误类型为 `IveKitRustDeskHttpError`，两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
+`createIveKitClient()` 返回 `context`、`media`、`chat`、`rustdesk` 四个客户端。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。Context/Media/Chat 错误类型为 `IveKitHttpSdkError`，RustDesk 错误类型为 `IveKitRustDeskHttpError`，两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
 
 录制导出由 SDK 返回 `Uint8Array` 与 MIME/文件名元数据；附件上传接受标准 `BodyInit` 二进制 body，不做 base64 JSON 包装。RustDesk 高层方法 `ensureDevice/startSession` 负责设备、heartbeat 和 launch plan，操作审计与结束/物理断开状态仍是显式步骤。
+
+### 1.4 Unified Business Context
+
+```text
+GET /api/ivekit/context/by-ref?business_ref_type=service_order&business_ref_id=SO-1001
+```
+
+`context.getByBusinessRef({type,id})` 返回当前 viewer 可见的 Chat session、Media call、Remote session 和 RustDesk device 脱敏摘要，供统一导航和深链接使用。响应不包含业务 metadata、消息正文、LiveKit token、RustDesk ID、launch URL、provider credential 或 evidence 内容，并设置 `Cache-Control: private, no-store`。
+
+API-key system 调用可读取该 tenant 下业务引用的完整摘要。Bearer 调用至少必须是一个活跃 Chat participant 或非 `declined/left/missed/removed` 的 Media participant，否则返回 `404` 以避免枚举。普通用户只有在可见 Chat session 绑定该 Remote session 时才能看到远协摘要；仅参与 Media call 不会获得设备或远控可见性。关闭资源仍可按成员权限读取历史摘要，写操作继续由 Chat/Media/Remote 各自的终态规则拒绝。
 
 ## 2. Media Core
 

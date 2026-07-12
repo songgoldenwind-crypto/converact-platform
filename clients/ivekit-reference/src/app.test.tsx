@@ -99,3 +99,43 @@ test('remote tab opens the RustDesk workspace without starting a session', async
   assert.equal(view.getByTitle('Show remote workspace').getAttribute('aria-pressed'), 'true');
   assert.ok(view.getByRole('button', { name: 'Start session' }));
 });
+
+test('business reference deep link drives context, chat filtering, and remote defaults', async () => {
+  window.history.replaceState({}, '', '/?business_ref_type=service_order&business_ref_id=SO-200');
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'agent-context';
+  const requests: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    requests.push(url);
+    if (url === '/ivekit-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url.includes('/api/ivekit/context/by-ref')) return Response.json({
+      tenant_id: 'tenant-1',
+      business_ref: { type: 'service_order', id: 'SO-200' },
+      viewer: { identity: 'agent-context', system: false },
+      capabilities: { chat: true, media: false, remote_assistance: true },
+      chat: { count: 2, sessions: [] },
+      media: { count: 0, calls: [] },
+      remote_assistance: { count: 1, sessions: [{ id: 'remote-200' }], devices: [] }
+    });
+    if (url.includes('/api/ivekit/chat/sessions')) {
+      return Response.json({ items: [], next_cursor: null, has_more: false });
+    }
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+
+  const view = render(<App />);
+  await waitFor(() => assert.ok(view.getByTitle('service_order: SO-200')));
+  await waitFor(() => assert.ok(requests.some((request) => {
+    const url = new URL(request, 'http://ivekit.test');
+    return url.pathname === '/api/ivekit/chat/sessions' &&
+      url.searchParams.get('business_ref_type') === 'service_order' &&
+      url.searchParams.get('business_ref_id') === 'SO-200';
+  })));
+  assert.ok(view.getByText('2M · 0C · 1R'));
+
+  fireEvent.click(view.getByTitle('Show remote workspace'));
+  await waitFor(() => assert.equal((view.getByLabelText('Business ID') as HTMLInputElement).value, 'SO-200'));
+  assert.equal((view.getByLabelText('Remote session ID') as HTMLInputElement).value, 'remote-200');
+  assert.equal(new URL(window.location.href).searchParams.get('workspace'), 'remote');
+});

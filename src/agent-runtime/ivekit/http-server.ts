@@ -34,6 +34,7 @@ export interface IveKitHttpServerInput {
 const allowedPrefixes = [
   '/api/ivekit/media/',
   '/api/ivekit/chat/',
+  '/api/ivekit/context/',
   '/api/ivekit/rustdesk/',
   '/api/opc/rustdesk/'
 ];
