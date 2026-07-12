@@ -59,6 +59,9 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('rustdesk_gateway_sessions');
     this.ensureTable('rustdesk_gateway_events');
     this.ensureTable('rustdesk_device_commands');
+    this.ensureTable('rustdesk_control_locks');
+    this.ensureTable('rustdesk_secondary_confirmations');
+    this.ensureTable('rustdesk_control_events');
     this.ensureTable('ivekit_media_calls');
     this.ensureTable('ivekit_media_call_participants');
     this.ensureTable('ivekit_media_call_actions');
