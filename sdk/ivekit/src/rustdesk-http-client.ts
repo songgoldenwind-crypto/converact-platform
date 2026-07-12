@@ -2,6 +2,11 @@ import type {
   RemoteConsentScope,
   RemoteGatewayAuditEvent,
   RemoteToolSession,
+  RustDeskAccessPolicyCurrent,
+  RustDeskAccessPolicyEvent,
+  RustDeskAccessPolicyHistory,
+  RustDeskAccessPolicyMode,
+  RustDeskAccessPolicyMutationResult,
   RustDeskClientConfig,
   RustDeskClientDistributionArchitecture,
   RustDeskClientDistributionPlatform,
@@ -77,8 +82,25 @@ export interface StartIveKitRustDeskGatewaySessionInput {
   remote_session_id: string;
   device_id: string;
   actor_identity: string;
-  permissions: RemoteConsentScope[];
+  permissions: readonly RemoteConsentScope[];
+  access_mode?: 'attended' | 'unattended';
   metadata?: Record<string, unknown>;
+}
+
+export interface ConfigureIveKitRustDeskAccessPolicyInput {
+  mode: RustDeskAccessPolicyMode;
+  allowed_scopes: readonly RemoteConsentScope[];
+  business_ref: Pick<IveKitRustDeskBusinessRefInput, 'type' | 'id'>;
+  expires_at?: string | null;
+  reason: string;
+}
+
+export interface RevokeIveKitRustDeskAccessPolicyInput {
+  reason: string;
+}
+
+export interface IveKitRustDeskAccessPolicyMutationOptions {
+  idempotencyKey: string;
 }
 
 export interface RecordIveKitRustDeskGatewayEventInput {
@@ -126,6 +148,21 @@ export interface IveKitRustDeskHttpClient {
   getGatewayDisconnectState(externalId: string): Promise<RustDeskDisconnectState>;
 }
 
+export interface IveKitRustDeskAccessPolicyHttpClient extends IveKitRustDeskHttpClient {
+  getAccessPolicy(deviceId: string): Promise<RustDeskAccessPolicyCurrent>;
+  listAccessPolicyHistory(deviceId: string): Promise<RustDeskAccessPolicyHistory>;
+  configureAccessPolicy(
+    deviceId: string,
+    input: ConfigureIveKitRustDeskAccessPolicyInput,
+    options: IveKitRustDeskAccessPolicyMutationOptions
+  ): Promise<RustDeskAccessPolicyMutationResult>;
+  revokeAccessPolicy(
+    deviceId: string,
+    input: RevokeIveKitRustDeskAccessPolicyInput,
+    options: IveKitRustDeskAccessPolicyMutationOptions
+  ): Promise<RustDeskAccessPolicyMutationResult>;
+}
+
 export class IveKitRustDeskHttpError extends Error {
   constructor(
     message: string,
@@ -139,7 +176,9 @@ export class IveKitRustDeskHttpError extends Error {
   }
 }
 
-export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientInput): IveKitRustDeskHttpClient {
+export function createIveKitRustDeskHttpClient(
+  input: IveKitRustDeskHttpClientInput
+): IveKitRustDeskAccessPolicyHttpClient {
   const baseUrl = validateBaseUrl(input.baseUrl);
   const apiKey = String(input.apiKey || '').trim();
   const accessToken = String(input.accessToken || '').trim();
@@ -152,14 +191,21 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
   const fetchImpl = input.fetch || globalThis.fetch;
   if (!fetchImpl) throw new Error('fetch is required');
 
-  const request = async <T>(method: string, path: string, body?: unknown, query?: Record<string, string>): Promise<T> => {
+  const request = async <T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    query?: Record<string, string>,
+    requestHeaders?: Record<string, string>
+  ): Promise<T> => {
     const url = new URL(path, baseUrl);
     for (const [key, value] of Object.entries(query || {})) {
       if (value) url.searchParams.set(key, value);
     }
     const headers: Record<string, string> = {
       ...(apiKey ? { 'x-api-key': apiKey } : { authorization: `Bearer ${accessToken}` }),
-      'x-tenant-id': tenantId
+      'x-tenant-id': tenantId,
+      ...(requestHeaders || {})
     };
     if (apiKey && userId) headers['x-user-id'] = userId;
     const init: RequestInit = { method, headers };
@@ -260,7 +306,42 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
         )
       );
     },
+    async getAccessPolicy(deviceId) {
+      const path = rustDeskAccessPolicyPath(deviceId);
+      return projectRustDeskAccessPolicyCurrent(
+        await request<unknown>('GET', path)
+      );
+    },
+    async listAccessPolicyHistory(deviceId) {
+      const path = `${rustDeskAccessPolicyPath(deviceId)}/history`;
+      return projectRustDeskAccessPolicyHistory(
+        await request<unknown>('GET', path)
+      );
+    },
+    async configureAccessPolicy(deviceId, policyInput, options) {
+      const path = rustDeskAccessPolicyPath(deviceId);
+      const mutation = projectConfigureAccessPolicyInput(policyInput);
+      const idempotencyKey = policyIdempotencyKey(options);
+      return projectRustDeskAccessPolicyMutationResult(
+        await request<unknown>('PUT', path, mutation, undefined, { 'idempotency-key': idempotencyKey })
+      );
+    },
+    async revokeAccessPolicy(deviceId, policyInput, options) {
+      const path = `${rustDeskAccessPolicyPath(deviceId)}/revoke`;
+      const mutation = projectRevokeAccessPolicyInput(policyInput);
+      const idempotencyKey = policyIdempotencyKey(options);
+      return projectRustDeskAccessPolicyMutationResult(
+        await request<unknown>('POST', path, mutation, undefined, { 'idempotency-key': idempotencyKey })
+      );
+    },
     async startGatewaySession(input) {
+      if (
+        input.access_mode !== undefined &&
+        input.access_mode !== 'attended' &&
+        input.access_mode !== 'unattended'
+      ) {
+        throw new Error('access_mode must be attended or unattended');
+      }
       const session = await request<RemoteToolSession>('POST', '/api/ivekit/rustdesk/gateway-sessions', input);
       return projectEvidenceContainer(session, 'remote tool session');
     },
@@ -303,6 +384,174 @@ export function createIveKitRustDeskHttpClient(input: IveKitRustDeskHttpClientIn
       return projectRustDeskDisconnectState(state);
     }
   };
+}
+
+export function projectRustDeskAccessPolicyCurrent(value: unknown): RustDeskAccessPolicyCurrent {
+  const current = policyRecord(value, 'current policy');
+  const deviceId = policyString(current.device_id, 'device_id');
+  const state = policyEnum(
+    current.state,
+    ['not_configured', 'active', 'expired', 'revoked'] as const,
+    'state'
+  );
+  if (state === 'not_configured') {
+    if (current.policy !== null) throw invalidPolicy('policy');
+    return { device_id: deviceId, state, policy: null };
+  }
+  const policy = projectRustDeskAccessPolicyEvent(current.policy);
+  if (policy.device_id !== deviceId || policy.state !== state) throw invalidPolicy('current policy binding');
+  return { device_id: deviceId, state, policy };
+}
+
+export function projectRustDeskAccessPolicyHistory(value: unknown): RustDeskAccessPolicyHistory {
+  const history = policyRecord(value, 'policy history');
+  const deviceId = policyString(history.device_id, 'device_id');
+  if (!Array.isArray(history.events)) throw invalidPolicy('events');
+  const events = history.events.map(projectRustDeskAccessPolicyEvent);
+  let previousVersion = 0;
+  for (const event of events) {
+    if (event.device_id !== deviceId || event.version <= previousVersion) {
+      throw invalidPolicy('history ordering or binding');
+    }
+    previousVersion = event.version;
+  }
+  return { device_id: deviceId, events };
+}
+
+export function projectRustDeskAccessPolicyMutationResult(
+  value: unknown
+): RustDeskAccessPolicyMutationResult {
+  const result = policyRecord(value, 'policy mutation');
+  if (typeof result.replayed !== 'boolean') throw invalidPolicy('replayed');
+  return {
+    policy: projectRustDeskAccessPolicyEvent(result.policy),
+    replayed: result.replayed
+  };
+}
+
+export function projectRustDeskAccessPolicyEvent(value: unknown): RustDeskAccessPolicyEvent {
+  const event = policyRecord(value, 'policy event');
+  const scopes = policyScopes(event.allowed_scopes, 'allowed_scopes');
+  const businessRef = policyRecord(event.business_ref, 'business_ref');
+  const version = Number(event.version);
+  if (!Number.isInteger(version) || version < 1) throw invalidPolicy('version');
+  return {
+    id: policyString(event.id, 'id'),
+    tenant_id: policyString(event.tenant_id, 'tenant_id'),
+    device_id: policyString(event.device_id, 'device_id'),
+    event_type: policyEnum(event.event_type, ['configured', 'revoked'] as const, 'event_type'),
+    mode: policyEnum(event.mode, ['attended_only', 'unattended_allowed'] as const, 'mode'),
+    allowed_scopes: scopes,
+    business_ref: {
+      type: policyString(businessRef.type, 'business_ref.type'),
+      id: policyString(businessRef.id, 'business_ref.id')
+    },
+    approved_by: policyString(event.approved_by, 'approved_by'),
+    reason: policyReason(event.reason),
+    expires_at: policyNullableTimestamp(event.expires_at, 'expires_at'),
+    version,
+    state: policyEnum(event.state, ['active', 'expired', 'revoked', 'superseded'] as const, 'state'),
+    created_at: policyTimestamp(event.created_at, 'created_at')
+  };
+}
+
+function projectConfigureAccessPolicyInput(input: ConfigureIveKitRustDeskAccessPolicyInput) {
+  const policy = policyMutationInput(input, [
+    'mode',
+    'allowed_scopes',
+    'business_ref',
+    'expires_at',
+    'reason'
+  ]);
+  const businessRef = policyMutationInput(policy.business_ref, ['type', 'id']);
+  const mode = policyEnum(policy.mode, ['attended_only', 'unattended_allowed'] as const, 'mode');
+  const allowedScopes = policyScopes(policy.allowed_scopes, 'allowed_scopes');
+  if (mode === 'unattended_allowed' && !allowedScopes.length) {
+    throw invalidPolicyInput();
+  }
+  if (mode === 'attended_only' && allowedScopes.length) {
+    throw invalidPolicyInput();
+  }
+  return {
+    mode,
+    allowed_scopes: allowedScopes,
+    business_ref: {
+      type: policyString(businessRef.type, 'business_ref.type'),
+      id: policyString(businessRef.id, 'business_ref.id')
+    },
+    expires_at: policy.expires_at == null
+      ? null
+      : policyTimestamp(policy.expires_at, 'expires_at'),
+    reason: policyReason(policy.reason)
+  };
+}
+
+function projectRevokeAccessPolicyInput(input: RevokeIveKitRustDeskAccessPolicyInput) {
+  const policy = policyMutationInput(input, ['reason']);
+  return { reason: policyReason(policy.reason) };
+}
+
+function policyMutationInput(value: unknown, allowed: readonly string[]): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidPolicyInput();
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).some((key) => !allowed.includes(key))) throw invalidPolicyInput();
+  return input;
+}
+
+function policyIdempotencyKey(options: IveKitRustDeskAccessPolicyMutationOptions): string {
+  const key = String(options?.idempotencyKey || '').trim();
+  if (!key) throw new Error('idempotencyKey is required');
+  if (key.length > 200) throw new Error('idempotencyKey must be at most 200 characters');
+  return key;
+}
+
+function rustDeskAccessPolicyPath(deviceId: string): string {
+  return `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}/access-policy`;
+}
+
+function policyRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidPolicy(field);
+  return value as Record<string, unknown>;
+}
+
+function policyString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) throw invalidPolicy(field);
+  return value.trim();
+}
+
+function policyReason(value: unknown): string {
+  const reason = policyString(value, 'reason');
+  if (reason.length > 1000) throw invalidPolicy('reason');
+  return reason;
+}
+
+function policyEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+  if (typeof value !== 'string' || !allowed.includes(value as T)) throw invalidPolicy(field);
+  return value as T;
+}
+
+function policyScopes(value: unknown, field: string): RemoteConsentScope[] {
+  if (!Array.isArray(value)) throw invalidPolicy(field);
+  const scopes = value.map((scope) => policyEnum(scope, remoteConsentScopes, field));
+  if (new Set(scopes).size !== scopes.length) throw invalidPolicy(field);
+  return scopes;
+}
+
+function policyTimestamp(value: unknown, field: string): string {
+  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw invalidPolicy(field);
+  return value;
+}
+
+function policyNullableTimestamp(value: unknown, field: string): string | null {
+  return value === null ? null : policyTimestamp(value, field);
+}
+
+function invalidPolicy(field: string): Error {
+  return new Error(`invalid RustDesk access policy: ${field}`);
+}
+
+function invalidPolicyInput(): Error {
+  return new Error('unsupported or sensitive RustDesk access policy field');
 }
 
 export async function projectRustDeskClientDistributionProfile(

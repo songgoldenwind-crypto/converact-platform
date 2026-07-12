@@ -13,6 +13,42 @@ export type RemoteConsentScope =
   | 'transfer_file'
   | 'clipboard';
 
+export type RustDeskAccessPolicyMode = 'attended_only' | 'unattended_allowed';
+export type RustDeskAccessPolicyEventType = 'configured' | 'revoked';
+export type RustDeskAccessPolicyEventState = 'active' | 'expired' | 'revoked' | 'superseded';
+
+export interface RustDeskAccessPolicyEvent {
+  id: string;
+  tenant_id: string;
+  device_id: string;
+  event_type: RustDeskAccessPolicyEventType;
+  mode: RustDeskAccessPolicyMode;
+  allowed_scopes: RemoteConsentScope[];
+  business_ref: Pick<IveKitSdkBusinessRef, 'type' | 'id'>;
+  approved_by: string;
+  reason: string;
+  expires_at: string | null;
+  version: number;
+  state: RustDeskAccessPolicyEventState;
+  created_at: string;
+}
+
+export interface RustDeskAccessPolicyCurrent {
+  device_id: string;
+  state: 'not_configured' | 'active' | 'expired' | 'revoked';
+  policy: RustDeskAccessPolicyEvent | null;
+}
+
+export interface RustDeskAccessPolicyHistory {
+  device_id: string;
+  events: RustDeskAccessPolicyEvent[];
+}
+
+export interface RustDeskAccessPolicyMutationResult {
+  policy: RustDeskAccessPolicyEvent;
+  replayed: boolean;
+}
+
 export type RustDeskTerminalPlatform = 'windows' | 'macos' | 'linux';
 export type RustDeskTerminalArchitecture = 'x86_64' | 'aarch64' | 'x86' | 'armv7';
 

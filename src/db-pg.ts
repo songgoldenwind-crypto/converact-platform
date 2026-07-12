@@ -55,6 +55,7 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('remote_audit_events');
     this.ensureTable('evidence_records');
     this.ensureTable('rustdesk_devices');
+    this.ensureTable('rustdesk_access_policy_events');
     this.ensureTable('rustdesk_gateway_sessions');
     this.ensureTable('rustdesk_gateway_events');
     this.ensureTable('rustdesk_device_commands');
@@ -2225,6 +2226,62 @@ export class MemoryPg implements PgQueryable {
       };
       this.table('rustdesk_devices').set(String(row.id), row);
       return [];
+    }
+
+    if (sql.startsWith('SELECT id, business_ref_type, business_ref_id FROM rustdesk_devices')) {
+      const row = this.table('rustdesk_devices').get(String(params[1]));
+      return row && String(row.tenant_id) === String(params[0]) ? [row] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM rustdesk_access_policy_events') && sql.includes('idempotency_key')) {
+      const row = [...this.table('rustdesk_access_policy_events').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) &&
+        String(candidate.idempotency_key) === String(params[1])
+      );
+      return row ? [row] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM rustdesk_access_policy_events') && sql.includes('device_id')) {
+      const rows = [...this.table('rustdesk_access_policy_events').values()]
+        .filter((row) =>
+          String(row.tenant_id) === String(params[0]) &&
+          String(row.device_id) === String(params[1])
+        )
+        .sort((left, right) => Number(left.version) - Number(right.version));
+      return sql.includes('ORDER BY version DESC') ? rows.reverse().slice(0, 1) : rows;
+    }
+
+    if (sql.startsWith('INSERT INTO rustdesk_access_policy_events')) {
+      const duplicateKey = [...this.table('rustdesk_access_policy_events').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.idempotency_key) === String(params[13])
+      );
+      const duplicateVersion = [...this.table('rustdesk_access_policy_events').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.device_id) === String(params[2]) &&
+        Number(candidate.version) === Number(params[12])
+      );
+      if (duplicateKey || duplicateVersion) throw new Error('duplicate rustdesk access policy event');
+      const row: TableRow = {
+        id: params[0],
+        tenant_id: params[1],
+        device_id: params[2],
+        event_type: params[3],
+        mode: params[4],
+        allowed_scopes: JSON.parse(String(params[5] || '[]')),
+        business_ref_type: params[6],
+        business_ref_id: params[7],
+        approved_by: params[8],
+        reason: params[9],
+        expires_at: params[10] || null,
+        supersedes_id: params[11] || null,
+        version: params[12],
+        idempotency_key: params[13],
+        request_hash: params[14],
+        created_at: this.nowIso()
+      };
+      this.table('rustdesk_access_policy_events').set(String(row.id), row);
+      return [row];
     }
 
     if (sql.startsWith('SELECT * FROM rustdesk_devices') && sql.includes('rustdesk_id')) {

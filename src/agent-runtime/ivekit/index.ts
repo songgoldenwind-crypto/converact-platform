@@ -23,15 +23,22 @@ export {
 export {
   createIveKitRustDeskHttpClient,
   IveKitRustDeskHttpError,
+  projectRustDeskAccessPolicyCurrent,
+  projectRustDeskAccessPolicyEvent,
+  projectRustDeskAccessPolicyHistory,
+  projectRustDeskAccessPolicyMutationResult,
   projectRustDeskClientDistributionProfile
 } from './rustdesk-http-client.js';
 export {
   createIveKitRustDeskLedSdk
 } from './rustdesk-led-sdk.js';
 export type {
+  ConfigureIveKitRustDeskAccessPolicyInput,
   EndIveKitRustDeskGatewaySessionInput,
   GetIveKitRustDeskClientProfileInput,
   HeartbeatIveKitRustDeskDeviceInput,
+  IveKitRustDeskAccessPolicyHttpClient,
+  IveKitRustDeskAccessPolicyMutationOptions,
   IveKitRustDeskBusinessRefInput,
   IveKitRustDeskFetch,
   IveKitRustDeskGatewayDisconnectState,
@@ -41,6 +48,7 @@ export type {
   ListIveKitRustDeskGatewayAuditEventsInput,
   RecordIveKitRustDeskGatewayEventInput,
   RegisterIveKitRustDeskDeviceInput,
+  RevokeIveKitRustDeskAccessPolicyInput,
   StartIveKitRustDeskGatewaySessionInput
 } from './rustdesk-http-client.js';
 export type {

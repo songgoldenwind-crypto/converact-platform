@@ -11,6 +11,7 @@ import {
 import { normalizeRemoteGatewaySession } from './remote-gateway-adapter.js';
 import { RemoteAssistanceStore } from './remote-assistance-store.js';
 import { RustDeskDeviceCommandStore } from './rustdesk-device-command-store.js';
+import { RustDeskAccessPolicyStore } from './rustdesk-access-policy-store.js';
 import { RustDeskDeviceStore } from './rustdesk-device-store.js';
 import { RustDeskPhysicalDisconnectService } from './rustdesk-physical-disconnect.js';
 import type { PgQueryable } from '../../db-pg.js';
@@ -24,6 +25,7 @@ export function createCollaborationModule(input: CollaborationModuleInput) {
     sessions: new CollaborationStore(input.pg),
     remote: new RemoteAssistanceStore(input.pg),
     rustdeskCommands: new RustDeskDeviceCommandStore(input.pg),
+    rustdeskAccessPolicies: new RustDeskAccessPolicyStore(input.pg),
     rustdeskDevices: new RustDeskDeviceStore(input.pg),
     rustdeskPhysicalDisconnect: new RustDeskPhysicalDisconnectService(input.pg),
     policy: {
@@ -121,6 +123,8 @@ export {
 } from './rustdesk-launch-plan.js';
 export type * from './rustdesk-launch-plan.js';
 export { RustDeskDeviceStore } from './rustdesk-device-store.js';
+export { RustDeskAccessPolicyStore } from './rustdesk-access-policy-store.js';
+export type * from './rustdesk-access-policy-store.js';
 export { RustDeskDeviceCommandStore } from './rustdesk-device-command-store.js';
 export {
   createRustDeskEdgeCommandToken,

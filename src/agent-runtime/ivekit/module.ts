@@ -658,6 +658,10 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         if (input.remoteGateway.provider !== 'rustdesk') {
           throw badRequest('rustdesk facade requires a rustdesk remote gateway client');
         }
+        const accessMode = gatewayInput.access_mode || 'attended';
+        if (accessMode !== 'attended' && accessMode !== 'unattended') {
+          throw badRequest('access_mode must be attended or unattended');
+        }
         const remote = await collaboration.remote.getSession(gatewayInput.remote_session_id);
         if (!remote || remote.tenant_id !== gatewayInput.tenant_id) {
           throw badRequest('remote session not found');
@@ -671,6 +675,14 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         }
         assertRustDeskDeviceOnlineIfRequired(device);
         assertRustDeskPhysicalDisconnectCapableIfRequired(device);
+        if (accessMode === 'unattended') {
+          await collaboration.rustdeskAccessPolicies.assertUnattendedAccess({
+            tenant_id: gatewayInput.tenant_id,
+            device_id: device.id,
+            business_ref: remote.business_ref,
+            permissions: gatewayInput.permissions
+          });
+        }
         return collaboration.remote.startGatewayClientSession({
           tenant_id: gatewayInput.tenant_id,
           remote_session_id: gatewayInput.remote_session_id,
@@ -684,6 +696,7 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
           permissions: gatewayInput.permissions,
           metadata: {
             ...(gatewayInput.metadata || {}),
+            ...(gatewayInput.access_mode ? { access_mode: accessMode } : {}),
             remote_session_id: remote.id,
             collaboration_session_id: remote.collaboration_session_id,
             rustdesk_target_mode: 'registered_device',

@@ -197,6 +197,49 @@ function creatorParticipantRole(ctx: ReturnType<typeof requireAuth>): Collaborat
   return 'agent';
 }
 
+function rustDeskPolicyMutationAuthorizationError(
+  ctx: ReturnType<typeof requireAuth>,
+  headers: Record<string, string | string[] | undefined>
+) {
+  const bearer = headerValue(headers, 'authorization').startsWith('Bearer ');
+  if (bearer && (ctx.role === 'owner' || ctx.role === 'admin')) return null;
+  return {
+    status: 403,
+    data: { error: 'RustDesk access policy changes require an owner or admin JWT' }
+  };
+}
+
+function rustDeskPolicyInputError(
+  input: Record<string, unknown>,
+  action: 'configure' | 'revoke'
+): string {
+  if (containsSensitivePolicyField(input)) return 'sensitive access policy fields are not allowed';
+  if ('approved_by' in input || 'approver' in input || 'actor_identity' in input || 'actor' in input) {
+    return 'RustDesk access policy approver comes from authenticated context';
+  }
+  const allowed = action === 'configure'
+    ? new Set(['mode', 'allowed_scopes', 'business_ref', 'expires_at', 'reason'])
+    : new Set(['reason']);
+  const unknown = Object.keys(input).find((key) => !allowed.has(key));
+  if (unknown) return `unsupported RustDesk access policy field: ${unknown}`;
+  if (action === 'configure') {
+    const businessRef = bodyObject(input.business_ref);
+    const unknownRef = Object.keys(businessRef).find((key) => key !== 'type' && key !== 'id');
+    if (unknownRef) return `unsupported RustDesk access policy business_ref field: ${unknownRef}`;
+  }
+  if (!String(input.reason || '').trim()) return 'reason is required';
+  return '';
+}
+
+function containsSensitivePolicyField(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  if (Array.isArray(value)) return value.some(containsSensitivePolicyField);
+  return Object.entries(value as Record<string, unknown>).some(([key, nested]) => {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return /password|secret|token|credential/.test(normalized) || containsSensitivePolicyField(nested);
+  });
+}
+
 async function routeRustDeskDeviceHeartbeat(input: {
   pg: PgQueryable;
   tenantId: string;
@@ -1642,6 +1685,74 @@ export async function routeCollaborationApi(
       return { data: devices };
     }
 
+    const accessPolicyMatch = routePath.match(
+      /^\/api\/ivekit\/rustdesk\/devices\/([^/]+)\/access-policy(?:\/(history|revoke))?$/
+    );
+    if (accessPolicyMatch) {
+      const deviceId = decodeURIComponent(accessPolicyMatch[1]);
+      const action = accessPolicyMatch[2] || '';
+      return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
+        const scopedModule = createCollaborationModule({ pg: scopedPg });
+        const device = await scopedModule.rustdeskDevices.getDevice({
+          tenant_id: ctx.tenantId,
+          device_id: deviceId
+        });
+        if (!device) return { status: 404, data: { error: 'rustdesk device not found' } };
+        if (!action && method === 'GET') {
+          return {
+            data: await scopedModule.rustdeskAccessPolicies.getCurrentPolicy({
+              tenant_id: ctx.tenantId,
+              device_id: device.id
+            })
+          };
+        }
+        if (action === 'history' && method === 'GET') {
+          return {
+            data: await scopedModule.rustdeskAccessPolicies.listPolicyHistory({
+              tenant_id: ctx.tenantId,
+              device_id: device.id
+            })
+          };
+        }
+        if ((!action && method === 'PUT') || (action === 'revoke' && method === 'POST')) {
+          const authorizationError = rustDeskPolicyMutationAuthorizationError(ctx, headers);
+          if (authorizationError) return authorizationError;
+          const idempotencyKey = headerValue(headers, 'idempotency-key').trim();
+          if (!idempotencyKey) return { status: 400, data: { error: 'Idempotency-Key is required' } };
+          const policyInput = bodyObject(body);
+          const inputError = rustDeskPolicyInputError(
+            policyInput,
+            action === 'revoke' ? 'revoke' : 'configure'
+          );
+          if (inputError) return { status: 400, data: { error: inputError } };
+          const result = action === 'revoke'
+            ? await scopedModule.rustdeskAccessPolicies.revokePolicy({
+                tenant_id: ctx.tenantId,
+                device_id: device.id,
+                approved_by: ctx.userId,
+                reason: String(policyInput.reason),
+                idempotency_key: idempotencyKey
+              })
+            : await scopedModule.rustdeskAccessPolicies.configurePolicy({
+                tenant_id: ctx.tenantId,
+                device_id: device.id,
+                business_ref: {
+                  type: String(bodyObject(policyInput.business_ref).type || ''),
+                  id: String(bodyObject(policyInput.business_ref).id || '')
+                },
+                mode: String(policyInput.mode || '') as 'attended_only' | 'unattended_allowed',
+                allowed_scopes: remoteConsentScopes(policyInput.allowed_scopes),
+                approved_by: ctx.userId,
+                reason: String(policyInput.reason),
+                expires_at: policyInput.expires_at == null ? null : String(policyInput.expires_at),
+                idempotency_key: idempotencyKey
+              });
+          return { status: result.replayed ? 200 : 201, data: result };
+        }
+        return { status: 405, data: { error: 'method not allowed' } };
+      });
+    }
+
     const iveKitDeviceMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/devices\/([^/]+)(?:\/([^/]+))?$/);
     if (iveKitDeviceMatch) {
       const deviceId = decodeURIComponent(iveKitDeviceMatch[1]);
@@ -1684,6 +1795,11 @@ export async function routeCollaborationApi(
       if (!remoteSessionId) return { status: 400, data: { error: 'remote_session_id is required' } };
       if (!deviceId) return { status: 400, data: { error: 'device_id is required' } };
       if (!actorIdentity) return { status: 400, data: { error: 'actor_identity is required' } };
+      const accessModeExplicit = input.access_mode !== undefined;
+      const accessMode = accessModeExplicit ? String(input.access_mode).trim() : 'attended';
+      if (accessMode !== 'attended' && accessMode !== 'unattended') {
+        return { status: 400, data: { error: 'access_mode must be attended or unattended' } };
+      }
       const requestedPermissions = stringArray(input.permissions || input.scopes);
       const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
       if (unsupportedPermission) {
@@ -1700,6 +1816,14 @@ export async function routeCollaborationApi(
       if (!device || device.status !== 'active') return { status: 404, data: { error: 'rustdesk device not found' } };
       assertRustDeskDeviceOnlineIfRequired(device);
       assertRustDeskPhysicalDisconnectCapableIfRequired(device);
+      if (accessMode === 'unattended') {
+        await module.rustdeskAccessPolicies.assertUnattendedAccess({
+          tenant_id: ctx.tenantId,
+          device_id: device.id,
+          business_ref: remote.business_ref,
+          permissions
+        });
+      }
       const tool = await module.remote.startGatewayClientSession({
         tenant_id: ctx.tenantId,
         remote_session_id: remote.id,
@@ -1713,6 +1837,7 @@ export async function routeCollaborationApi(
         permissions,
         metadata: {
           ...bodyObject(input.metadata),
+          ...(accessModeExplicit ? { access_mode: accessMode } : {}),
           tenant_id: ctx.tenantId,
           remote_session_id: remote.id,
           collaboration_session_id: remote.collaboration_session_id,

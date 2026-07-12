@@ -375,7 +375,8 @@ export interface IveKitModule {
       remote_session_id: string;
       actor_identity: string;
       device_id: string;
-      permissions: RemoteConsentScope[];
+      permissions: readonly RemoteConsentScope[];
+      access_mode?: 'attended' | 'unattended';
       metadata?: Record<string, unknown>;
     }): Promise<RemoteToolSession>;
   };
