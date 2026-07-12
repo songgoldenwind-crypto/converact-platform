@@ -3580,7 +3580,7 @@ M4 本地代码和交付材料完成；全仓 `2042` 项中 `2037` 通过、`5` 
 
 交付包现在同时携带 service build context、32 个 migration manifest、SDK tgz、参考客户端、RustDesk edge source/预编译零依赖包、image metadata、SPDX 2.3 SBOM、artifact manifest 和 SHA-256 清单。LED 可在不读取 OPC 根源码的目录中构建服务镜像；部署时必须把 service image、migration、SDK 和 edge 包视作同一 release，不得混用 commit。
 
-服务器已从 source commit `d21a2eb` 的交付包独立构建镜像，镜像 ID 为 `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。最终归档 SHA-256 为 `3d9182e92c8e04cbc14fadb4683667dfafa7d7bc2e3f8c05aea228812e2a6559`，两层清单和干净容器 SDK/edge 安装已复验。
+服务器已从 source commit `18a16bde967d2339f093dea35909fad51882b72a` 的交付包独立构建镜像，镜像 ID 为 `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。当前归档 SHA-256 为 `14b84ad409b9c6c271d4dc9b38a19042f54a2ed615ab7e8c2c697d6047b0f73c`，两层清单和干净容器 SDK/edge 安装已复验。
 
 ### 20.3 完成边界
 

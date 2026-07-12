@@ -214,7 +214,7 @@ LED 浏览器建议复用 `clients/ivekit-reference/src/realtime/event-replay.ts
 | `rustdesk-edge/` | edge source、adapter、预编译 JS 和零运行依赖 npm 包 |
 | `sbom/`、`artifact-manifest.json`、`SHA256SUMS` | SPDX 2.3 SBOM、产物绑定和总校验清单 |
 
-当前可复验归档 source commit 为 `d21a2eb`，归档 SHA-256 为 `3d9182e92c8e04cbc14fadb4683667dfafa7d7bc2e3f8c05aea228812e2a6559`，绑定镜像 ID `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。接收方先校验顶层和 `service/build-context/SHA256SUMS`，再按 image metadata 对照部署镜像；不得只拿 SDK 而省略 migration、RLS、provider 和 edge 运维材料。
+当前可复验归档 source commit 为 `18a16bde967d2339f093dea35909fad51882b72a`，路径为 `/opt/ivekit-v2-validation/18a16bd/ivekit-delivery-18a16bd-final.tgz`，归档 SHA-256 为 `14b84ad409b9c6c271d4dc9b38a19042f54a2ed615ab7e8c2c697d6047b0f73c`，绑定镜像 ID `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。接收方先校验顶层和 `service/build-context/SHA256SUMS`，再按 image metadata 对照部署镜像；不得只拿 SDK 而省略 migration、RLS、provider 和 edge 运维材料。
 
 V2 最终代码门禁已完成：全仓 Node 0 失败、真实 PostgreSQL V2 专项、参考客户端 117/117、服务器受控 Playwright 9/9、SDK 实际安装、独立 context、Compose 和 sidecar 均通过。这里的 Playwright 是受控 API/UI 验收，不替代 LiveKit/RustDesk 物理数据面和外部 OCR/ASR/AI/SIP provider 验收。
 
