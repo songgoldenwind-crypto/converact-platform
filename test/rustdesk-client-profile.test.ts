@@ -205,6 +205,81 @@ for (const [name, filename, urlFilename] of [
   });
 }
 
+test('RustDesk artifact manifest rejects inexact release paths and contradictory identity tokens', () => {
+  const expectedFilename = 'rustdesk-1.4.7-windows-x86_64.exe';
+  const invalidArtifacts = [
+    {
+      name: 'wrong release directory with correct basename',
+      filename: expectedFilename,
+      url: `https://downloads.example.com/releases/latest/${expectedFilename}`
+    },
+    {
+      name: 'wrong release version with correct basename',
+      filename: expectedFilename,
+      url: `https://downloads.example.com/releases/1.4.8/${expectedFilename}`
+    },
+    {
+      name: 'conflicting semantic version in filename',
+      filename: 'rustdesk-1.4.7-1.4.8-windows-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-1.4.8-windows-x86_64.exe'
+    },
+    {
+      name: 'conflicting semantic version in path',
+      filename: expectedFilename,
+      url: `https://downloads.example.com/archive-1.4.8/releases/1.4.7/${expectedFilename}`
+    },
+    {
+      name: 'conflicting platform token',
+      filename: 'rustdesk-1.4.7-windows-linux-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-linux-x86_64.exe'
+    },
+    {
+      name: 'conflicting architecture token',
+      filename: 'rustdesk-1.4.7-windows-x86_64-aarch64.exe',
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-x86_64-aarch64.exe'
+    }
+  ];
+
+  for (const { name, filename, url } of invalidArtifacts) {
+    assert.throws(
+      () => createRustDeskClientDistributionProfile(
+        pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
+        {
+          env: profileEnv(artifactManifest([{
+            platform: 'windows',
+            architecture: 'x86_64',
+            filename,
+            url,
+            sha256: SHA256
+          }])),
+          now: () => NOW
+        }
+      ),
+      /artifact/,
+      name
+    );
+  }
+
+  const githubUrl = `https://github.com/rustdesk/rustdesk/releases/download/1.4.7/${expectedFilename}`;
+  const githubProfile = createRustDeskClientDistributionProfile(
+    pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
+    {
+      env: profileEnv(artifactManifest([{
+        platform: 'windows',
+        architecture: 'x86_64',
+        filename: expectedFilename,
+        url: githubUrl,
+        sha256: SHA256
+      }])),
+      now: () => NOW
+    }
+  );
+  assert.equal(githubProfile.install_source.state, 'configured');
+  if (githubProfile.install_source.state === 'configured') {
+    assert.equal(githubProfile.install_source.url, githubUrl);
+  }
+});
+
 test('RustDesk client profile rejects configured server and key drift', () => {
   const env = profileEnv();
   const profile = createRustDeskClientDistributionProfile(

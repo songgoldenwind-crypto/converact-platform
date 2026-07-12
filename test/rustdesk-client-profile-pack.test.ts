@@ -77,6 +77,32 @@ test('RustDesk client profile pack marks missing artifacts not ready without inv
   assert.doesNotMatch(JSON.stringify(missing), /sha256|https:\/\//);
 });
 
+test('RustDesk client profile pack rejects profiles that expire during aggregation', async () => {
+  let current = NOW;
+  let calls = 0;
+  let clockReads = 0;
+
+  await assert.rejects(
+    () => buildRustDeskClientProfilePack(
+      packConfig(),
+      {
+        async getClientProfile(input) {
+          calls += 1;
+          if (calls === 5) current = new Date('2026-07-12T12:16:00.000Z');
+          return profileFor(input.platform, input.architecture);
+        }
+      },
+      () => {
+        clockReads += 1;
+        return current;
+      }
+    ),
+    /expired/
+  );
+  assert.equal(calls, 5);
+  assert.equal(clockReads, 2);
+});
+
 test('RustDesk client profile pack rejects drift, expiry, and unsafe fake-client responses', async () => {
   await assert.rejects(
     () => buildRustDeskClientProfilePack(

@@ -507,12 +507,15 @@ artifact、URL userinfo/query/fragment、文件名不匹配和非 64-hex SHA-256
 RustDesk public key 必须是单行 canonical standard base64，解码后恰好 32 bytes；SDK 使用
 browser Web Crypto 从返回 key 独立计算既有 SHA-256 fingerprint，并同时匹配 response 与
 调用方的 trusted expected fingerprint。时间戳必须是 canonical ISO 字符串，`issued_at`
-最多允许 60 秒 clock skew，profile lifetime 最长 1 小时。
+最多允许 60 秒 clock skew，profile lifetime 必须在 60 秒到 1 小时之间。Artifact URL
+只允许 GitHub `/download/1.4.7/<filename>` 或 mirror `/releases/1.4.7/<filename>` 精确后缀，
+path/filename 中不得出现冲突的版本、platform 或 architecture token。
 
 Artifact 只从 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
 tuple 时 profile 返回 `install_source.state=not_configured`，不会猜 URL 或 checksum。
 `rustdesk:client-profile-pack` 聚合五个 desktop tuple，任一 artifact 缺失时
-`ready=false`。它只生成 JSON handoff，不下载或执行安装器。Task 3 前 unattended 固定为
+`ready=false`；聚合完成时会使用新的 completion clock 重新验证全部 profile 和最早
+`expires_at`，聚合期间过期会 fail closed。它只生成 JSON handoff，不下载或执行安装器。Task 3 前 unattended 固定为
 `mode=attended_only,state=not_configured`。profile 响应使用
 `Cache-Control: private, no-store`，并按认证、tenant 与 Origin 设置 `Vary`。
 

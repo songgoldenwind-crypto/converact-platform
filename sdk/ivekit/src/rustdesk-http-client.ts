@@ -358,7 +358,9 @@ export async function projectRustDeskClientDistributionProfile(
   if (expiresAtMs <= now.getTime()) throw invalidDistribution('expired');
   if (issuedAtMs > now.getTime() + 60_000) throw invalidDistribution('issued_at');
   if (expiresAtMs <= issuedAtMs) throw invalidDistribution('expires_at');
-  if (expiresAtMs - issuedAtMs > 3_600_000) throw invalidDistribution('profile lifetime');
+  if (expiresAtMs - issuedAtMs < 60_000 || expiresAtMs - issuedAtMs > 3_600_000) {
+    throw invalidDistribution('profile lifetime');
+  }
 
   const manual = distributionRecord(profile.manual_fields, 'manual_fields');
   const manualFields = {
@@ -442,19 +444,15 @@ function projectDistributionInstallSource(
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
     throw invalidDistribution('install_source.url');
   }
-  const pathSegments = url.pathname.split('/').filter(Boolean);
+  const pathSegments = distributionArtifactPathSegments(url);
   const filename = distributionRequiredString(source.filename, 'install_source.filename');
   if (filename === '.' || filename === '..' || filename.includes('/') || filename.includes('\\')) {
     throw invalidDistribution('install_source.filename');
   }
-  let urlFilename = '';
-  try {
-    urlFilename = decodeURIComponent(pathSegments.at(-1) || '');
-  } catch {
-    throw invalidDistribution('install_source.url');
-  }
+  const urlFilename = pathSegments.at(-1) || '';
   if (filename !== urlFilename) throw invalidDistribution('install_source.filename');
-  validateDistributionArtifactIdentity(filename, platform, architecture);
+  validateDistributionArtifactReleasePath(url, pathSegments);
+  validateDistributionArtifactIdentity(pathSegments.join('/'), filename, platform, architecture);
   const sha256 = distributionRequiredString(source.sha256, 'install_source.sha256').toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw invalidDistribution('install_source.sha256');
   return { state: 'configured', url: url.toString(), filename, sha256 };
@@ -471,20 +469,64 @@ const distributionArtifactArchitectureTokens: Record<RustDeskClientDistributionA
   aarch64: ['aarch64', 'arm64']
 };
 
+function distributionArtifactPathSegments(url: URL): string[] {
+  try {
+    return url.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
+  } catch {
+    throw invalidDistribution('install_source.url');
+  }
+}
+
+function validateDistributionArtifactReleasePath(url: URL, pathSegments: readonly string[]): void {
+  const releaseDirectory = url.hostname.toLowerCase() === 'github.com' ? 'download' : 'releases';
+  if (
+    pathSegments.length < 3 ||
+    pathSegments.at(-3) !== releaseDirectory ||
+    pathSegments.at(-2) !== '1.4.7'
+  ) {
+    throw invalidDistribution('install_source.release');
+  }
+}
+
 function validateDistributionArtifactIdentity(
+  pathIdentity: string,
   filename: string,
   platform: RustDeskClientDistributionPlatform,
   architecture: RustDeskClientDistributionArchitecture
 ): void {
   const lower = filename.toLowerCase();
+  const lowerIdentity = pathIdentity.toLowerCase();
   if (!distributionArtifactToken(lower, '1.4.7')) throw invalidDistribution('install_source.version');
+  for (const version of distributionSemanticVersionTokens(lowerIdentity)) {
+    if (version !== '1.4.7') throw invalidDistribution('install_source.version');
+  }
   if (!distributionArtifactToken(lower, platform)) throw invalidDistribution('install_source.platform');
+  for (const candidate of ['windows', 'macos', 'linux'] as const) {
+    if (candidate !== platform && distributionArtifactToken(lowerIdentity, candidate)) {
+      throw invalidDistribution('install_source.platform');
+    }
+  }
   if (!distributionArtifactArchitectureTokens[architecture].some((token) => distributionArtifactToken(lower, token))) {
     throw invalidDistribution('install_source.architecture');
+  }
+  for (const candidate of ['x86_64', 'aarch64'] as const) {
+    if (
+      candidate !== architecture &&
+      distributionArtifactArchitectureTokens[candidate].some((token) => distributionArtifactToken(lowerIdentity, token))
+    ) {
+      throw invalidDistribution('install_source.architecture');
+    }
   }
   if (!distributionArtifactExtensions[platform].some((extension) => lower.endsWith(extension))) {
     throw invalidDistribution('install_source.extension');
   }
+}
+
+function distributionSemanticVersionTokens(value: string): string[] {
+  return Array.from(
+    value.matchAll(/(?:^|[^0-9])(\d+\.\d+\.\d+)(?=$|[^0-9])/g),
+    (match) => match[1]
+  );
 }
 
 function distributionArtifactToken(filename: string, token: string): boolean {

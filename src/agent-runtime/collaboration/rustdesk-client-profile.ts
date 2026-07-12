@@ -181,18 +181,13 @@ function parseArtifactManifest(raw: string | undefined): ArtifactManifest | null
 
     const url = artifactUrl(artifact.url);
     const filename = artifactFilename(artifact.filename);
-    const pathSegments = url.pathname.split('/').filter(Boolean);
-    assertArtifactIdentity(filename, platform, architecture);
-    const encodedUrlFilename = pathSegments.at(-1) || '';
-    let urlFilename = '';
-    try {
-      urlFilename = decodeURIComponent(encodedUrlFilename);
-    } catch {
-      throw profileError('RustDesk client artifact URL filename is malformed', 500);
-    }
+    const pathSegments = artifactPathSegments(url);
+    const urlFilename = pathSegments.at(-1) || '';
     if (urlFilename !== filename) {
       throw profileError('RustDesk client artifact filename must match URL', 500);
     }
+    assertArtifactReleasePath(url, pathSegments);
+    assertArtifactIdentity(pathSegments.join('/'), filename, platform, architecture);
     const sha256 = String(artifact.sha256 || '').trim().toLowerCase();
     if (!/^[a-f0-9]{64}$/.test(sha256)) {
       throw profileError('RustDesk client artifact sha256 must be 64 hexadecimal characters', 500);
@@ -259,6 +254,25 @@ function artifactFilename(value: unknown): string {
   return filename;
 }
 
+function artifactPathSegments(url: URL): string[] {
+  try {
+    return url.pathname.split('/').filter(Boolean).map((segment) => decodeURIComponent(segment));
+  } catch {
+    throw profileError('RustDesk client artifact URL path is malformed', 500);
+  }
+}
+
+function assertArtifactReleasePath(url: URL, pathSegments: readonly string[]): void {
+  const releaseDirectory = url.hostname.toLowerCase() === 'github.com' ? 'download' : 'releases';
+  if (
+    pathSegments.length < 3 ||
+    pathSegments.at(-3) !== releaseDirectory ||
+    pathSegments.at(-2) !== RUSTDESK_CLIENT_VERSION
+  ) {
+    throw profileError(`RustDesk client artifact URL must end with /${releaseDirectory}/${RUSTDESK_CLIENT_VERSION}/<filename>`, 500);
+  }
+}
+
 const artifactExtensions: Record<RustDeskClientDistributionPlatform, readonly string[]> = {
   windows: ['.exe', '.msi'],
   macos: ['.dmg'],
@@ -271,23 +285,50 @@ const artifactArchitectureTokens: Record<RustDeskClientDistributionArchitecture,
 };
 
 function assertArtifactIdentity(
+  pathIdentity: string,
   filename: string,
   platform: RustDeskClientDistributionPlatform,
   architecture: RustDeskClientDistributionArchitecture
 ): void {
   const lower = filename.toLowerCase();
+  const lowerIdentity = pathIdentity.toLowerCase();
   if (!hasArtifactToken(lower, RUSTDESK_CLIENT_VERSION)) {
     throw profileError(`RustDesk client artifact filename must identify version ${RUSTDESK_CLIENT_VERSION}`, 500);
+  }
+  for (const version of semanticVersionTokens(lowerIdentity)) {
+    if (version !== RUSTDESK_CLIENT_VERSION) {
+      throw profileError(`RustDesk client artifact identity contains conflicting version ${version}`, 500);
+    }
   }
   if (!hasArtifactToken(lower, platform)) {
     throw profileError(`RustDesk client artifact filename must identify platform ${platform}`, 500);
   }
+  for (const candidate of ['windows', 'macos', 'linux'] as const) {
+    if (candidate !== platform && hasArtifactToken(lowerIdentity, candidate)) {
+      throw profileError(`RustDesk client artifact identity contains conflicting platform ${candidate}`, 500);
+    }
+  }
   if (!artifactArchitectureTokens[architecture].some((token) => hasArtifactToken(lower, token))) {
     throw profileError(`RustDesk client artifact filename must identify architecture ${architecture}`, 500);
+  }
+  for (const candidate of ['x86_64', 'aarch64'] as const) {
+    if (
+      candidate !== architecture &&
+      artifactArchitectureTokens[candidate].some((token) => hasArtifactToken(lowerIdentity, token))
+    ) {
+      throw profileError(`RustDesk client artifact identity contains conflicting architecture ${candidate}`, 500);
+    }
   }
   if (!artifactExtensions[platform].some((extension) => lower.endsWith(extension))) {
     throw profileError(`RustDesk client artifact filename extension is invalid for ${platform}`, 500);
   }
+}
+
+function semanticVersionTokens(value: string): string[] {
+  return Array.from(
+    value.matchAll(/(?:^|[^0-9])(\d+\.\d+\.\d+)(?=$|[^0-9])/g),
+    (match) => match[1]
+  );
 }
 
 function hasArtifactToken(filename: string, token: string): boolean {

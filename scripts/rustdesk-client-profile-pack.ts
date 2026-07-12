@@ -173,6 +173,20 @@ export async function buildRustDeskClientProfilePack(
   const expiresAt = profiles
     .map((profile) => profile.expires_at)
     .sort((left, right) => Date.parse(left) - Date.parse(right))[0];
+  const completedAt = now();
+  if (Number.isNaN(completedAt.getTime())) throw new Error('RustDesk client profile pack completion clock is invalid');
+  for (const profile of profiles) {
+    await projectRustDeskClientDistributionProfile(profile, {
+      platform: profile.platform,
+      architecture: profile.architecture,
+      client_version: profile.client_version.exact,
+      expected_server_version: config.expectedServerVersion,
+      expected_server_key_fingerprint: config.expectedServerKeyFingerprint
+    }, completedAt);
+  }
+  if (Date.parse(expiresAt) <= completedAt.getTime()) {
+    throw new Error('RustDesk client profile pack expired before completion');
+  }
 
   return {
     schema_version: 1,

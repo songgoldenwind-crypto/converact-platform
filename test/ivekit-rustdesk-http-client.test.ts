@@ -451,6 +451,91 @@ for (const [name, filename, urlFilename] of [
   });
 }
 
+test('iveKit RustDesk profile projection rejects inexact release paths and contradictory identity tokens', async () => {
+  const expectedFilename = 'rustdesk-1.4.7-windows-x86_64.exe';
+  const invalidSources = [
+    {
+      name: 'wrong release directory with correct basename',
+      filename: expectedFilename,
+      url: `https://downloads.example.com/releases/latest/${expectedFilename}`
+    },
+    {
+      name: 'wrong release version with correct basename',
+      filename: expectedFilename,
+      url: `https://downloads.example.com/releases/1.4.8/${expectedFilename}`
+    },
+    {
+      name: 'conflicting semantic version in filename',
+      filename: 'rustdesk-1.4.7-1.4.8-windows-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-1.4.8-windows-x86_64.exe'
+    },
+    {
+      name: 'conflicting semantic version in path',
+      filename: expectedFilename,
+      url: `https://downloads.example.com/archive-1.4.8/releases/1.4.7/${expectedFilename}`
+    },
+    {
+      name: 'conflicting platform token',
+      filename: 'rustdesk-1.4.7-windows-linux-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-linux-x86_64.exe'
+    },
+    {
+      name: 'conflicting architecture token',
+      filename: 'rustdesk-1.4.7-windows-x86_64-aarch64.exe',
+      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-x86_64-aarch64.exe'
+    }
+  ];
+  const expected = {
+    platform: 'windows' as const,
+    architecture: 'x86_64' as const,
+    client_version: '1.4.7',
+    expected_server_version: '1.1.15',
+    expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+  };
+
+  for (const { name, filename, url } of invalidSources) {
+    const base = expectedClientDistributionProfile();
+    await assert.rejects(
+      () => projectRustDeskClientDistributionProfile({
+        ...base,
+        install_source: { ...base.install_source, filename, url }
+      }, expected, new Date('2026-07-12T12:05:00.000Z')),
+      /install_source/,
+      name
+    );
+  }
+
+  const base = expectedClientDistributionProfile();
+  const githubUrl = `https://github.com/rustdesk/rustdesk/releases/download/1.4.7/${expectedFilename}`;
+  const githubProfile = await projectRustDeskClientDistributionProfile({
+    ...base,
+    install_source: { ...base.install_source, url: githubUrl }
+  }, expected, new Date('2026-07-12T12:05:00.000Z'));
+  assert.equal(githubProfile.install_source.state, 'configured');
+  if (githubProfile.install_source.state === 'configured') {
+    assert.equal(githubProfile.install_source.url, githubUrl);
+  }
+});
+
+test('iveKit RustDesk profile projection rejects lifetime below 60 seconds', async () => {
+  const profile = {
+    ...expectedClientDistributionProfile(),
+    issued_at: '2026-07-12T12:00:00.000Z',
+    expires_at: '2026-07-12T12:00:00.005Z'
+  };
+
+  await assert.rejects(
+    () => projectRustDeskClientDistributionProfile(profile, {
+      platform: 'windows',
+      architecture: 'x86_64',
+      client_version: '1.4.7',
+      expected_server_version: '1.1.15',
+      expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+    }, new Date('2026-07-12T12:00:00.000Z')),
+    /profile lifetime/
+  );
+});
+
 for (const [name, timestamps] of [
   ['impossible calendar date', { issued_at: '2026-02-30T12:00:00.000Z' }],
   ['timezone offset', { issued_at: '2026-07-12T20:00:00.000+08:00' }],
