@@ -10,6 +10,13 @@ import { projectSessionSummary } from './chat/session-summary.js';
 import { useChatSession } from './chat/use-chat-session.js';
 import { useBusinessContext, type BusinessRefSelection } from './context/use-business-context.js';
 import {
+  readIveKitLocation,
+  sessionLocationPatch,
+  updateIveKitLocation,
+  type IveKitLocationPatch,
+  type WorkspaceMode
+} from './navigation.js';
+import {
   loadRuntimeConfig,
   accessTokenRefreshDelay,
   startAccessTokenRefreshLoop,
@@ -29,11 +36,12 @@ const RustDeskLaunchPanel = lazy(async () => {
 });
 
 export function App() {
+  const initialLocation = useRef(currentIveKitLocation()).current;
   const [config, setConfig] = useState<IveKitRuntimeConfig | null>(null);
   const [token, setToken] = useState('');
   const [identity, setIdentity] = useState('');
   const [sessions, setSessions] = useState<IveKitChatSession[]>([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(initialLocation.sessionId);
   const [query, setQuery] = useState('');
   const [sessionHasMore, setSessionHasMore] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -43,9 +51,10 @@ export function App() {
   const [forwardFrom, setForwardFrom] = useState<IveKitChatMessage | null>(null);
   const [mobileView, setMobileView] = useState<'sessions' | 'chat'>('sessions');
   const [selectedFindingId, setSelectedFindingId] = useState('');
-  const [mediaCallId, setMediaCallId] = useState(initialCallId);
-  const [workspaceMode, setWorkspaceMode] = useState<'messages' | 'calls' | 'remote'>(initialWorkspaceMode);
-  const [businessRef, setBusinessRef] = useState<BusinessRefSelection | null>(initialBusinessRef);
+  const [mediaCallId, setMediaCallId] = useState(initialLocation.callId);
+  const [remoteSessionId, setRemoteSessionId] = useState(initialLocation.remoteSessionId);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(initialLocation.workspace);
+  const [businessRef, setBusinessRef] = useState<BusinessRefSelection | null>(initialLocation.businessRef);
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
   const seededContext = useRef('');
@@ -123,6 +132,20 @@ export function App() {
     };
   }, []);
   useEffect(() => {
+    const onPopState = () => {
+      const next = currentIveKitLocation();
+      setWorkspaceMode(next.workspace);
+      setBusinessRef(next.businessRef);
+      setSelectedId(next.sessionId);
+      setMediaCallId(next.callId);
+      setRemoteSessionId(next.remoteSessionId);
+      setMobileView(next.sessionId ? 'chat' : 'sessions');
+      seededContext.current = '';
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+  useEffect(() => {
     if (workspaceMode !== 'messages') return;
     const timer = window.setTimeout(() => void refreshSessions(false), 250);
     return () => window.clearTimeout(timer);
@@ -131,20 +154,35 @@ export function App() {
   useEffect(() => {
     if (!selected) return;
     const next = { type: selected.business_ref.type, id: selected.business_ref.id };
-    if (businessRef?.type === next.type && businessRef.id === next.id) return;
-    setBusinessRef(next);
-    replaceUrlState({ businessRef: next });
+    const locationPatch = sessionLocationPatch(businessRef, next, selected.id);
+    const businessChanged = locationPatch.callId === '';
+    if (businessChanged) {
+      setBusinessRef(next);
+      setMediaCallId('');
+      setRemoteSessionId('');
+      seededContext.current = '';
+    }
+    navigateIveKitLocation(locationPatch);
   }, [businessRef?.id, businessRef?.type, selected]);
   useEffect(() => {
     if (!businessContext.context || !businessRef) return;
+    if (businessContext.context.business_ref.type !== businessRef.type ||
+        businessContext.context.business_ref.id !== businessRef.id) return;
     const key = `${businessRef.type}:${businessRef.id}`;
     if (seededContext.current === key) return;
     seededContext.current = key;
     if (!mediaCallId) {
       const callId = businessContext.context.media.calls[0]?.id || '';
-      if (callId) selectMediaCallValue(callId, setMediaCallId);
+      if (callId) selectMediaCallValue(callId, setMediaCallId, 'replace');
     }
-  }, [businessContext.context, businessRef, mediaCallId]);
+    if (!remoteSessionId) {
+      const nextRemoteSessionId = businessContext.context.remote_assistance.sessions[0]?.id || '';
+      if (nextRemoteSessionId) {
+        setRemoteSessionId(nextRemoteSessionId);
+        navigateIveKitLocation({ remoteSessionId: nextRemoteSessionId });
+      }
+    }
+  }, [businessContext.context, businessRef, mediaCallId, remoteSessionId]);
   useEffect(() => {
     if (!selectedId || chat.loading || chat.state.requestId === 0) return;
     setSessions((current) => current.map((session) => session.id === selectedId
@@ -197,11 +235,11 @@ export function App() {
     if (closed) setSessions((current) => current.map((session) => session.id === closed.id ? closed : session));
   }, [chat.closeSession, selected]);
   const selectMediaCall = useCallback((callId: string) => {
-    selectMediaCallValue(callId, setMediaCallId);
+    selectMediaCallValue(callId, setMediaCallId, 'push');
   }, []);
-  const selectWorkspace = useCallback((mode: 'messages' | 'calls' | 'remote') => {
+  const selectWorkspace = useCallback((mode: WorkspaceMode) => {
     setWorkspaceMode(mode);
-    replaceUrlState({ workspace: mode });
+    navigateIveKitLocation({ workspace: mode }, 'push');
   }, []);
 
   return (
@@ -235,7 +273,14 @@ export function App() {
           setSessionHasMore(false);
           setQuery(value);
         }}
-        onSelect={(id) => { setSelectedId(id); setSelectedFindingId(''); setReplyTo(null); setForwardFrom(null); setMobileView('chat'); }}
+        onSelect={(id) => {
+          const nextSession = sessions.find((session) => session.id === id);
+          setSelectedId(id); setSelectedFindingId(''); setReplyTo(null); setForwardFrom(null); setMobileView('chat');
+          navigateIveKitLocation({
+            sessionId: id,
+            businessRef: nextSession ? { type: nextSession.business_ref.type, id: nextSession.business_ref.id } : undefined
+          }, 'push');
+        }}
         onLoadMore={sessionHasMore ? () => void refreshSessions(true) : undefined}
       />
       <section className="timeline-pane">
@@ -283,7 +328,7 @@ export function App() {
         onReviewFinding={chat.reviewFinding}
       /></> : workspaceMode === 'calls'
         ? <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>
-        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={businessContext.context?.remote_assistance.sessions[0]?.id} /></Suspense>}
+        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );
@@ -304,45 +349,21 @@ function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-function initialCallId(): string {
-  return typeof window === 'undefined' ? '' : new URL(window.location.href).searchParams.get('call_id')?.trim() || '';
+function currentIveKitLocation() {
+  return readIveKitLocation(typeof window === 'undefined' ? 'http://ivekit.local/' : window.location.href);
 }
 
-function initialBusinessRef(): BusinessRefSelection | null {
-  if (typeof window === 'undefined') return null;
-  const url = new URL(window.location.href);
-  const type = url.searchParams.get('business_ref_type')?.trim() || '';
-  const id = url.searchParams.get('business_ref_id')?.trim() || '';
-  return type && id ? { type, id } : null;
-}
-
-function initialWorkspaceMode(): 'messages' | 'calls' | 'remote' {
-  if (typeof window === 'undefined') return 'messages';
-  const url = new URL(window.location.href);
-  const mode = url.searchParams.get('workspace');
-  if (mode === 'messages' || mode === 'calls' || mode === 'remote') return mode;
-  return initialCallId() ? 'calls' : 'messages';
-}
-
-function selectMediaCallValue(callId: string, setCallId: (value: string) => void): void {
+function selectMediaCallValue(
+  callId: string,
+  setCallId: (value: string) => void,
+  history: 'push' | 'replace'
+): void {
   setCallId(callId);
-  replaceUrlState({ callId });
+  navigateIveKitLocation({ callId }, history);
 }
 
-function replaceUrlState(input: {
-  businessRef?: BusinessRefSelection;
-  callId?: string;
-  workspace?: 'messages' | 'calls' | 'remote';
-}): void {
-  const url = new URL(window.location.href);
-  if (input.businessRef) {
-    url.searchParams.set('business_ref_type', input.businessRef.type);
-    url.searchParams.set('business_ref_id', input.businessRef.id);
-  }
-  if (input.callId !== undefined) {
-    if (input.callId) url.searchParams.set('call_id', input.callId);
-    else url.searchParams.delete('call_id');
-  }
-  if (input.workspace) url.searchParams.set('workspace', input.workspace);
-  window.history.replaceState({}, '', url);
+function navigateIveKitLocation(patch: IveKitLocationPatch, history: 'push' | 'replace' = 'replace'): void {
+  const url = updateIveKitLocation(window.location.href, patch);
+  if (url.toString() === window.location.href) return;
+  window.history[history === 'push' ? 'pushState' : 'replaceState']({}, '', url);
 }

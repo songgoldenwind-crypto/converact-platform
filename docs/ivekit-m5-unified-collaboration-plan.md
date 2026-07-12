@@ -43,7 +43,7 @@ LED / other host
 
 ### Task M5.2：统一导航与深链接
 
-**状态：进行中。** `workspace`、`call_id`、`business_ref_type`、`business_ref_id` 已进入 URL；待补浏览器前进/后退同步、资源级链接和受控 E2E。
+**状态：已完成（2026-07-12）。** `workspace`、`business_ref_type`、`business_ref_id`、`session_id`、`call_id`、`remote_session_id` 均进入 URL；用户导航使用 history push，自动补全和输入同步使用 replace，浏览器前进/后退可恢复状态。跨 business ref 会原子清除旧 Call/Remote ID，旧 context 响应不能污染新业务。受控浏览器 E2E 已覆盖三工作区切换、后退恢复和桌面无横向溢出。
 
 1. 将 workspace 路由编码为 URL 参数或 host route state，支持 messages/calls/remote 深链接。
 2. 保持移动端返回、刷新和宿主嵌入行为一致。

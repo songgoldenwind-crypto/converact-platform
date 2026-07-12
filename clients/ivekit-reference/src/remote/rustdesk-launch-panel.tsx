@@ -26,6 +26,7 @@ interface RustDeskLaunchPanelProps {
   openProtocol?(url: string): void;
   initialBusinessRef?: { type: string; id: string };
   initialRemoteSessionId?: string;
+  onRemoteSessionIdChange?(remoteSessionId: string): void;
   initialAccessMode?: 'attended' | 'unattended';
   controlHeartbeatIntervalMs?: number;
 }
@@ -37,6 +38,7 @@ export function RustDeskLaunchPanel({
   openProtocol = (url) => window.location.assign(url),
   initialBusinessRef,
   initialRemoteSessionId = '',
+  onRemoteSessionIdChange,
   initialAccessMode = 'attended',
   controlHeartbeatIntervalMs = 10_000
 }: RustDeskLaunchPanelProps) {
@@ -265,7 +267,7 @@ export function RustDeskLaunchPanel({
         <label><span>Business ID</span><input disabled={sessionActive} value={businessId} onChange={(event) => setBusinessId(event.target.value)} /></label>
         <button className="remote-command secondary" disabled={sessionActive || !client || !businessType.trim() || !businessId.trim() || Boolean(busy)} onClick={() => void resolveDevices()}>{busy === 'Devices resolved' ? <LoaderCircle className="spin" size={16} /> : <Search size={16} />} Resolve devices</button>
         <label><span>Device</span><select disabled={sessionActive} value={deviceId} onChange={(event) => setDeviceId(event.target.value)}><option value="">Select a device</option>{devices.map((device) => <option key={device.id} value={device.id}>{device.display_name} · {device.rustdesk_id}</option>)}</select></label>
-        <label><span>Remote session ID</span><input disabled={sessionActive} value={remoteSessionId} onChange={(event) => setRemoteSessionId(event.target.value)} /></label>
+        <label><span>Remote session ID</span><input disabled={sessionActive} value={remoteSessionId} onChange={(event) => { setRemoteSessionId(event.target.value); onRemoteSessionIdChange?.(event.target.value); }} /></label>
         <fieldset disabled={sessionActive}><legend>Permissions</legend>{CONTROL_SCOPES.map((scope) => <label key={scope.value} className="scope-option"><input type="checkbox" checked={scopes.includes(scope.value)} onChange={() => setScopes((current) => current.includes(scope.value) ? current.filter((value) => value !== scope.value) : [...current, scope.value])} /><span>{scope.label}</span></label>)}</fieldset>
         <div className="mode-switch remote-mode" role="group" aria-label="Remote access mode"><button disabled={sessionActive} aria-pressed={accessMode === 'attended'} onClick={() => setAccessMode('attended')}>Attended</button><button disabled={sessionActive} aria-pressed={accessMode === 'unattended'} onClick={() => setAccessMode('unattended')}>Unattended</button></div>
         <button className="remote-command" disabled={sessionActive || !client || !identity || !deviceId || !remoteSessionId.trim() || !scopes.length || Boolean(busy)} onClick={() => void startSession()}><ShieldCheck size={16} /> Start session</button>

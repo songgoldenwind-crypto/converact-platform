@@ -43,5 +43,9 @@ export function useBusinessContext(
     return () => { requestId.current += 1; };
   }, [refresh]);
 
-  return { context, loading, error, refresh };
+  const visibleContext = context && businessRef &&
+    context.business_ref.type === businessRef.type && context.business_ref.id === businessRef.id
+    ? context
+    : null;
+  return { context: visibleContext, loading, error, refresh };
 }

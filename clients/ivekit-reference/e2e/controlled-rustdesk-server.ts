@@ -102,6 +102,50 @@ async function route(
     throw statusError(403, 'cross-tenant access denied');
   }
 
+  if (url.pathname === '/api/ivekit/context/by-ref' && method === 'GET') {
+    requireParticipant(actor.identity);
+    const matches = url.searchParams.get('business_ref_type') === 'service_order' &&
+      url.searchParams.get('business_ref_id') === 'SO-100';
+    if (!matches) throw statusError(404, 'business context not found');
+    return json(response, 200, {
+      tenant_id: TENANT,
+      business_ref: { type: 'service_order', id: 'SO-100' },
+      viewer: { identity: actor.identity, system: false },
+      capabilities: { chat: true, media: true, remote_assistance: true },
+      chat: { count: 0, sessions: [] },
+      media: { count: 1, calls: [{
+        id: 'call-context', title: 'Controlled completed call', media: 'video', status: 'ended',
+        room_name: 'room-context', created_at: NOW, updated_at: NOW, ended_at: NOW
+      }] },
+      remote_assistance: { count: 1, sessions: [{
+        id: 'remote-1', collaboration_session_id: 'collab-context', status: 'created',
+        mode: 'remote_desktop_gateway', adapter_provider: 'rustdesk', created_at: NOW,
+        started_at: null, ended_at: null
+      }], devices: [{
+        id: DEVICE.id, display_name: DEVICE.display_name, status: DEVICE.status,
+        runtime_status: DEVICE.runtime_status, last_seen_at: DEVICE.last_seen_at
+      }] }
+    });
+  }
+
+  if (url.pathname === '/api/ivekit/media/calls/call-context' && method === 'GET') {
+    requireParticipant(actor.identity);
+    return json(response, 200, {
+      call: {
+        id: 'call-context', tenant_id: TENANT, room_name: 'room-context', media: 'video', status: 'ended',
+        initiated_by: 'agent-1', business_ref: { type: 'service_order', id: 'SO-100', metadata: {} },
+        title: 'Controlled completed call', metadata: {}, ring_timeout_seconds: 30,
+        ring_expires_at: null, accepted_at: NOW, started_at: NOW, ended_at: NOW,
+        end_reason: 'controlled completion', created_at: NOW, updated_at: NOW
+      },
+      participants: [{
+        id: 'participant-context', tenant_id: TENANT, call_id: 'call-context', identity: actor.identity,
+        role: actor.identity === 'agent-1' ? 'host' : 'participant', status: 'left', display_name: actor.identity,
+        metadata: {}, invited_at: NOW, accepted_at: NOW, joined_at: NOW, left_at: NOW, updated_at: NOW
+      }]
+    });
+  }
+
   if (url.pathname === '/api/ivekit/chat/sessions' && method === 'GET') {
     requireParticipant(actor.identity);
     return json(response, 200, { items: [], next_cursor: null, has_more: false });

@@ -96,6 +96,7 @@ test('remote tab opens the RustDesk workspace without starting a session', async
   const view = render(<App />);
   fireEvent.click(view.getByTitle('Show remote workspace'));
   await waitFor(() => assert.ok(view.getByText('Remote assistance')));
+  assert.equal(new URL(window.location.href).searchParams.get('workspace'), 'remote');
   assert.equal(view.getByTitle('Show remote workspace').getAttribute('aria-pressed'), 'true');
   assert.ok(view.getByRole('button', { name: 'Start session' }));
 });
@@ -134,8 +135,22 @@ test('business reference deep link drives context, chat filtering, and remote de
   })));
   assert.ok(view.getByText('2M · 0C · 1R'));
 
+  assert.equal(new URL(window.location.href).searchParams.get('remote_session_id'), 'remote-200');
   fireEvent.click(view.getByTitle('Show remote workspace'));
-  await waitFor(() => assert.equal((view.getByLabelText('Business ID') as HTMLInputElement).value, 'SO-200'));
-  assert.equal((view.getByLabelText('Remote session ID') as HTMLInputElement).value, 'remote-200');
-  assert.equal(new URL(window.location.href).searchParams.get('workspace'), 'remote');
+  await waitFor(() => assert.ok(view.getByText('Remote assistance')));
+});
+
+test('popstate restores workspace and resource deep-link state', async () => {
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'agent-history';
+  globalThis.fetch = (() => new Promise(() => undefined)) as typeof fetch;
+  const view = render(<App />);
+
+  window.history.replaceState({}, '', '/?workspace=calls&call_id=call-back&business_ref_type=service_order&business_ref_id=SO-BACK');
+  fireEvent(window, new window.Event('popstate'));
+
+  await waitFor(() => assert.equal(view.getByTitle('Show calls workspace').getAttribute('aria-pressed'), 'true'));
+  assert.ok(view.getByTitle('service_order: SO-BACK'));
+  await waitFor(() => assert.ok(view.container.querySelector('.media-workspace-pane')));
+  assert.equal(new URL(window.location.href).searchParams.get('call_id'), 'call-back');
 });

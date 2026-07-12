@@ -10,7 +10,7 @@ iveKit 将 OPC 已有通信能力分成三个可复用域：
 2. **Collaboration Session**：业务会话、Tinode IM、本地消息镜像、附件、receipt/unread、typing/presence、编辑/软删除、防绕单、OCR/ASR、AI 质检和人工复核。
 3. **Remote Assistance**：Web Assist、授权、页面内控制、录屏/证据、RustDesk 系统级远控、设备命令和审计；MeshCentral/Guacamole 保留为 fallback。
 
-LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit/media/*`、`/api/ivekit/chat/*`、`/api/ivekit/rustdesk/*` 和标准租户事件。SDK 只封装这些 HTTP 契约，后续把能力搬到独立服务时，LED 只需要更换 `baseUrl`。
+LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit/context/*`、`/api/ivekit/media/*`、`/api/ivekit/chat/*`、`/api/ivekit/rustdesk/*` 和标准租户事件。SDK 只封装这些 HTTP 契约，后续把能力搬到独立服务时，LED 只需要更换 `baseUrl`。
 
 ## 2. 当前完成度
 
@@ -19,7 +19,7 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 | Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
 | Collaboration Session | Tinode durable outbound、独立 IM 参考客户端、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 既有后端/Tinode server smoke 保留；本轮参考客户端双真实浏览器验收未运行，OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
-| SDK | `@opc/ivekit-sdk` 已独立打包；`createIveKitClient` 一次提供 Media、Chat 和 RustDesk 高低层能力 | dry-run 发布物已验证只含编译产物、README 和 package metadata |
+| SDK | `@opc/ivekit-sdk` 已独立打包；`createIveKitClient` 一次提供 Context、Media、Chat 和 RustDesk 高低层能力 | dry-run 发布物已验证只含编译产物、README 和 package metadata |
 
 本地完整门禁和既有服务器验收材料均已保留；本轮新增的 IM 参考客户端按用户要求未上传服务器，双真实浏览器/Tinode 结果仍标记为未运行。所有缺少外部服务或物理客户端的项目继续列在第 11 节，不以受控 E2E 结果替代。
 
@@ -97,9 +97,16 @@ const browserSdk = createIveKitClient({
   tenantId: 'tenant_led',
   timeoutMs: 10_000
 });
+
+const context = await browserSdk.context.getByBusinessRef({
+  type: 'service_order',
+  id: 'SO-1001'
+});
 ```
 
 Bearer 模式不会发送 `X-User-Id`，身份以 JWT `sub` 为准。浏览器包中严禁出现 API key。JWT 用户不能通过 body 冒用其他身份领取 Tinode client-plan、发送消息、上报 receipt/presence 或编辑消息。
+
+参考客户端深链接使用以下 query：`workspace=messages|calls|remote`、`business_ref_type`、`business_ref_id`、`session_id`、`call_id`、`remote_session_id`。宿主至少应提供完整 business ref；资源 ID 可省略，由脱敏 context 摘要选择最新可见资源。用户切换工作区/资源会产生可后退的 history entry，自动补全和远协输入只替换当前 entry。切换到另一 business ref 时客户端会清除旧 Call/Remote ID，防止跨订单错配。
 
 ### 4.3 OPC 迁移期兼容导出
 

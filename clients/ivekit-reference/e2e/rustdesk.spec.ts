@@ -137,11 +137,39 @@ test('mobile UI suppresses a stale launch and reflects consent revocation', asyn
   }
 });
 
+test('business deep link unifies messages calls remote and browser history', async ({ browser }) => {
+  const agent = await openIdentity(browser, 'agent-1', 'token-agent', { width: 1280, height: 800 }, {
+    path: '/?business_ref_type=service_order&business_ref_id=SO-100',
+    openRemote: false
+  });
+  try {
+    await expect(agent.page.getByTitle('service_order: SO-100')).toBeVisible();
+    await expect(agent.page.getByText('0M · 1C · 1R')).toBeVisible();
+    await expect.poll(() => new URL(agent.page.url()).searchParams.get('call_id')).toBe('call-context');
+    await expect.poll(() => new URL(agent.page.url()).searchParams.get('remote_session_id')).toBe('remote-1');
+
+    await agent.page.getByTitle('Show calls workspace').click();
+    await expect(agent.page.getByText('Controlled completed call')).toBeVisible();
+    await agent.page.getByTitle('Show remote workspace').click();
+    await expect(agent.page.getByLabel('Business ID')).toHaveValue('SO-100');
+    await expect(agent.page.getByLabel('Remote session ID')).toHaveValue('remote-1');
+
+    await agent.page.goBack();
+    await expect(agent.page.getByTitle('Show calls workspace')).toHaveAttribute('aria-pressed', 'true');
+    await expect(agent.page.getByText('Controlled completed call')).toBeVisible();
+    const layout = await agent.page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+    expect(layout.scrollWidth).toBe(layout.width);
+  } finally {
+    await agent.context.close();
+  }
+});
+
 async function openIdentity(
   browser: Browser,
   identity: string,
   token: string,
-  viewport = { width: 1440, height: 900 }
+  viewport = { width: 1440, height: 900 },
+  options: { path?: string; openRemote?: boolean } = {}
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ viewport });
   await context.addInitScript(({ accessToken, userIdentity }) => {
@@ -158,9 +186,11 @@ async function openIdentity(
     contentType: 'application/json',
     body: JSON.stringify({ baseUrl: controlled.baseUrl, tenantId: 'tenant-e2e' })
   }));
-  await page.goto('/');
-  await page.getByTitle('Show remote workspace').click();
-  await expect(page.getByText('Remote assistance')).toBeVisible();
+  await page.goto(options.path || '/');
+  if (options.openRemote !== false) {
+    await page.getByTitle('Show remote workspace').click();
+    await expect(page.getByText('Remote assistance')).toBeVisible();
+  }
   return { context, page };
 }
 
