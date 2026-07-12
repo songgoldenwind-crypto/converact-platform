@@ -25,8 +25,8 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 | 里程碑 | 状态 | 已有证据 | 剩余工作 |
 | --- | --- | --- | --- |
 | M6.1 独立构建边界 | 已实现并上服验证 | 79 个白名单源码文件、6 个运行依赖；隔离 `npm ci`/build 通过；服务器 Docker build 和 `/health` 通过 | 纳入最终全量回归与发布门禁 |
-| M6.2 Standalone PostgreSQL | 已完成 | fresh schema 41 表、30 个 checksum migration、0 RLS gap、0 OPC 业务表；existing OPC 数据无损升级；runtime 跨租户读写、DDL 和迁移账本访问均被拦截；失败后前向重试通过 | 纳入 M6.7 最终全量回归 |
-| M6.3 Tinode inbound | 未开始 | 计划和状态机已定义 | 实现 cursor/inbox/projector/dead letter/reconnect |
+| M6.2 Standalone PostgreSQL | 已完成 | fresh schema 45 表、31 个 checksum migration、0 RLS gap、0 OPC 业务表；existing OPC 数据无损升级；runtime 跨租户读写、DDL 和迁移账本访问均被拦截；失败后前向重试通过 | 纳入 M6.7 最终全量回归 |
+| M6.3 Tinode inbound | 本地实现完成，服务器验收中 | 已实现 provider user mapping、cursor/lease、幂等 inbox、普通消息/Drafty 附件/edit/delete projector、policy scan、AI 质检入队、脱敏死信与到期重试、WebSocket 断线续拉、应用生命周期和部署参数；协议/worker/真实 PostgreSQL/standalone 构建边界测试通过 | 上传独立服务器，执行 31 migration、fake/real Tinode 链路和故障恢复验收后收口 |
 | M6.4 Durable event replay | 未开始 | 计划和 cursor 不变量已定义 | 实现 event log/replay/WebSocket resume |
 | M6.5 RustDesk edge spool | 未开始 | 计划和安全边界已定义 | 实现 crash-safe spool/recovery lease |
 | M6.6 SDK、交付、兼容 | 未开始 | V1 SDK/交付包可复用 | 升级 cursor API、独立 Compose 和升级回滚材料 |

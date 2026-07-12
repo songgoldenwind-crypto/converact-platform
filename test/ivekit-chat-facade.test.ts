@@ -116,6 +116,7 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
     assert.equal(result.data.capabilities.ai_quality_review, true);
     assert.equal(result.data.capabilities.human_review, true);
     assert.equal(result.data.capabilities.client_plan, true);
+    assert.equal(result.data.capabilities.provider_inbound_sync, true);
     assert.equal(result.data.capabilities.durable_provider_delivery, true);
     assert.equal(result.data.capabilities.provider_delivery_attempt_history, true);
     assert.equal(result.data.capabilities.idempotent_message_create, true);
@@ -129,6 +130,7 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
     assert.equal(result.data.config.provider_configured, true);
     assert.equal(result.data.config.root_auth_configured, true);
     assert.equal(result.data.config.user_provisioning_configured, true);
+    assert.equal(result.data.config.inbound_sync_configured, true);
     assert.equal(result.data.config.message_mutation_window_ms, 600000);
     assert.equal(result.data.config.tinode_client_access_mode, 'JRP');
     assert.equal(result.data.delivery_policy.direct_client_publish, false);

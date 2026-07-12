@@ -20,7 +20,7 @@
 | Phase 1 LiveKit preflight | 工作区已出现实现和测试 | `scripts/livekit-deployment-preflight.ts`、`test/livekit-deployment-preflight.test.ts`、`package.json` 中 `livekit:deployment-preflight` | 服务器仍需实际执行 preflight/readiness，不能把本地单测等同真实部署验收 |
 | Phase 2 LiveKit facade | 工作区已出现 `/api/ivekit/media/*` facade | `src/agent-runtime/ivekit/media-http.ts`、`src/http.ts` 中 iveKit media route | 静态 OpenAPI/完整错误码表仍需补；服务器 LiveKit 仍需真联调 |
 | Phase 6 IM/Tinode facade | 本地代码已完成 | `scripts/tinode-deployment-preflight.ts`、`src/agent-runtime/ivekit/chat-http.ts`、`test/tinode-deployment-preflight.test.ts`、`test/ivekit-chat-facade.test.ts` | 真实 Tinode 仍需服务器执行 preflight/smoke；不得把本地 fake 协议测试当成部署验收 |
-| Phase 7 IM 同步/可靠性 | 7A durable outbound 已完成本地代码 | `025_collaboration_message_delivery.sql`、`tinode-message-delivery.ts`、`tinode-sync-worker.ts`、投递状态/attempt API 与测试 | `direct_client_publish=false` 继续生效；只有未来开放客户端直发时才启动 7B inbound seq/cursor sync |
+| Phase 7 IM 同步/可靠性 | 7A outbound 与 7B inbound 均完成本地代码 | outbound delivery/attempt 与 inbound mapping/cursor/inbox/projector/dead-letter/reconnect 已通过单元及真实 PostgreSQL 测试 | `direct_client_publish=false` 继续生效；真实 Tinode、多副本与断网恢复待服务器验收 |
 | Phase 8 附件、OCR/ASR | 本地代码已完成 | `027_collaboration_attachment_processing.sql`、provider/worker/preflight/API/测试 | 真实对象存储与 OCR/ASR provider 待服务器验证 |
 | Phase 9 AI 质检/人审 | 本地代码已完成 | `028_collaboration_policy_findings.sql`、`029_collaboration_quality_review.sql`、provider/worker/facade/测试 | 真实模型效果、吞吐、阈值和人工审核 UI 待后续验证/开发 |
 | Phase 10 IM 高级状态 | 本地代码已完成 | `030_collaboration_message_state.sql`、`message-state-store.ts`、官方 `tinode-sdk` receive-only adapter、iveKit API/事件/前端契约与测试 | 真实 Tinode 浏览器 join、真实多副本 WebSocket/Redis 和 PostgreSQL RLS 仍待服务器验证；客户端保持 `JRP`、不得直发业务消息 |
@@ -491,7 +491,7 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 
 **Recommended decision:** 第一版生产策略是“所有业务消息必须通过 OPC/iveKit facade 发送”；Tinode SDK 只负责实时连接、收消息、typing/presence。若 LED 强要求客户端直接发 Tinode，则必须先完成 sync worker。
 
-**Status:** Phase 7A durable outbound 本地代码已完成（2026-07-10）。消息先进入 PostgreSQL 并完成 policy scan，再通过 claim lease 发布 Tinode；失败进入退避、到期由后台 worker 重试，attempt 历史可查询。`direct_client_publish=false` / `provider_inbound_sync=false` 仍是明确门禁，因此 Phase 7B inbound seq/cursor worker 尚未启动，也没有被误报为完成。
+**Status:** Phase 7A durable outbound 与 Phase 7B durable inbound 本地代码均已完成（2026-07-12）。outbound 先落 PostgreSQL 并完成 policy scan，再通过 claim lease 发布；inbound 按 binding cursor 补拉 Tinode `data/del`，经幂等 inbox 投影消息、引用附件、replace/delete、policy scan 和 AI 质检。`direct_client_publish=false` 仍是业务写入门禁，但 `provider_inbound_sync=true` 已作为漏记兜底和历史补偿能力存在。真实 Tinode、多副本和断网恢复仍待服务器验收。
 
 **Files:**
 - Create: `src/agent-runtime/collaboration/tinode-sync-worker.ts`
@@ -512,10 +512,12 @@ IM 能力的核心不是聊天 UI，而是“消息必须能实时到达、能�
 - claim lease 必须覆盖五段 provider timeout 加 1 秒；preflight、Compose 和 K8s 已接入。
 - root token、API key、basic password 和用户密码派生 secret 不写入消息、attempt、API 响应或 worker 日志。
 
-**Phase 7B 条件式待办:**
-- 只有产品决定把 `direct_client_publish` 改为 `true` 时，才按 topic 维护 last seq/cursor。
-- 届时 Tinode inbound `data` 必须按 provider topic + seq 幂等写入 `collaboration_messages` 并触发 `scanPolicy()`。
-- Phase 7B 完成前，浏览器 SDK 只能收消息、typing/presence，不能发布业务消息。
+**Phase 7B 已完成的本地能力:**
+- `collaboration_provider_users` 固化 Tinode user 与活动 participant identity 的租户内映射，离会即撤销。
+- `tinode_inbound_cursors/events/dead_letters` 提供 claim lease、data/del 水位、payload hash、幂等键、脱敏死信和有界重试。
+- `data`、outbound echo、Drafty 引用附件、`head.replace`、`meta.del/pres.del` 均有受约束投影；文本进入 policy scan，首次成功投影按配置进入 AI quality review。
+- WebSocket service account 每次从 durable cursor 请求 later data/del；断线后的下一轮重新连接并续拉。
+- 浏览器 SDK 仍保持 `JRP` 和 receive-only 业务裁决；是否未来开放 `W` 是独立产品决策，不再是实现 inbound 的前置条件。
 
 **Verification:**
 - `node --import tsx --test --test-reporter=dot test/tinode-message-delivery.test.ts test/tinode-sync-worker.test.ts test/tinode-deployment-preflight.test.ts test/collaboration-chat.test.ts test/ivekit-chat-facade.test.ts test/collaboration-http.test.ts test/tinode-chat-smoke.test.ts`

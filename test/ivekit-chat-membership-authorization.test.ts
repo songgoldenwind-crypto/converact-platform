@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import type { ChatGateway } from '../src/agent-runtime/collaboration/chat-gateway.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
+import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
 import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
@@ -268,6 +269,14 @@ test('iveKit serializes participant leave against Tinode client-plan grants', as
     assert.equal(plan.status, 201);
     assert.equal(leave.status, 201);
     assert.deepEqual(operations, ['grant', 'revoke']);
+    const mapping = await new TinodeProviderUserStore(pg).getByIdentity({
+      tenant_id: tenantId,
+      session_id: session.id,
+      provider: 'tinode',
+      identity: 'race-member'
+    });
+    assert.equal(mapping?.provider_user_id, 'usr-membership-race');
+    assert.equal(mapping?.status, 'revoked');
   } finally {
     releaseProvisioning.resolve();
     restoreEnv('OPC_API_KEY', previous.apiKey);

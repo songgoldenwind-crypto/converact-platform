@@ -120,6 +120,22 @@ spec:
               value: {{ .Values.tinode.deliveryWorker.claimLeaseMs | default "30000" | quote }}
             - name: OPC_TINODE_DELIVERY_RETRY_DELAYS_MS
               value: {{ .Values.tinode.deliveryWorker.retryDelaysMs | default "2000,10000" | quote }}
+            - name: OPC_TINODE_INBOUND_WORKER_ENABLED
+              value: {{ .Values.tinode.inboundWorker.enabled | default "1" | quote }}
+            - name: OPC_TINODE_INBOUND_INTERVAL_MS
+              value: {{ .Values.tinode.inboundWorker.intervalMs | default "5000" | quote }}
+            - name: OPC_TINODE_INBOUND_TENANT_LIMIT
+              value: {{ .Values.tinode.inboundWorker.tenantLimit | default "100" | quote }}
+            - name: OPC_TINODE_INBOUND_PULL_LIMIT
+              value: {{ .Values.tinode.inboundWorker.pullLimit | default "100" | quote }}
+            - name: OPC_TINODE_INBOUND_CLAIM_LEASE_MS
+              value: {{ .Values.tinode.inboundWorker.claimLeaseMs | default "60000" | quote }}
+            - name: OPC_TINODE_INBOUND_RETRY_DELAY_MS
+              value: {{ .Values.tinode.inboundWorker.retryDelayMs | default "10000" | quote }}
+            - name: OPC_TINODE_INBOUND_DEAD_LETTER_MAX_ATTEMPTS
+              value: {{ .Values.tinode.inboundWorker.deadLetterMaxAttempts | default "3" | quote }}
+            - name: OPC_TINODE_ATTACHMENT_ALLOWED_HOSTS
+              value: {{ .Values.tinode.inboundWorker.attachmentAllowedHosts | default "" | quote }}
             - name: OPC_COLLABORATION_ATTACHMENT_MAX_BYTES
               value: {{ .Values.attachmentProcessing.attachmentMaxBytes | default "26214400" | quote }}
             - name: OPC_OCR_PROVIDER_MODE

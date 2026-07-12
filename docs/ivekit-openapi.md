@@ -297,7 +297,7 @@ Media Call 的录制，启动和停止要求该 call 的 `host` 角色；system/
 ```json
 {
   "capabilities": {
-    "provider_inbound_sync": false,
+    "provider_inbound_sync": true,
     "durable_provider_delivery": true,
     "message_receipts": true,
     "typing": true,
@@ -306,6 +306,7 @@ Media Call 的录制，启动和停止要求该 call 的 `host` 角色；system/
     "message_soft_delete": true
   },
   "config": {
+    "inbound_sync_configured": true,
     "message_mutation_window_ms": 900000,
     "tinode_client_access_mode": "JRP"
   },
@@ -630,8 +631,8 @@ RustDesk 使用独立的 `createIveKitRustDeskLedSdk`，因为其设备注册、
 ## 7. 兼容与未完成边界
 
 1. 当前 API 是 v1 draft 的 additive contract；能力差异先看 capabilities。
-2. Tinode inbound seq/cursor 未实现，因为 `direct_client_publish=false` 且 ACL 无 `W`。
-3. Tinode 附件/native edit-delete 同步未实现；本地镜像是业务权威。
+2. Tinode inbound seq/cursor、Drafty 引用附件、native edit/delete 已实现 durable 同步；`inbound_sync_configured` 表示当前部署是否具备 URL、服务认证并启用 worker。
+3. `direct_client_publish=false` 和客户端 ACL `JRP` 仍保留；业务消息优先走 iveKit facade。入站同步用于 provider 历史补偿、批准的其他客户端/管理操作和防止本地镜像漏记，不改变本地镜像与审计权威边界。
 4. WebSocket 重连增量水位尚未完成，必须 snapshot 收敛。
 5. 真实 LiveKit/Tinode/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待服务器验收。
 6. 本地 MemoryPg、fake provider、preflight 不是生产通过证明。

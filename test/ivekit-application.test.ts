@@ -20,6 +20,7 @@ test('iveKit application starts and stops every worker once', async () => {
     pg: new MemoryPg(),
     adapters: {
       startTinode: () => worker('tinode'),
+      startTinodeInbound: () => worker('tinode-inbound'),
       startAttachment: () => worker('attachment'),
       startQuality: () => worker('quality'),
       startMediaTimeout: () => worker('media-timeout')
@@ -31,12 +32,14 @@ test('iveKit application starts and stops every worker once', async () => {
 
   assert.deepEqual(events, [
     'start:tinode',
+    'start:tinode-inbound',
     'start:attachment',
     'start:quality',
     'start:media-timeout',
     'stop:media-timeout',
     'stop:quality',
     'stop:attachment',
+    'stop:tinode-inbound',
     'stop:tinode'
   ]);
 });
@@ -49,6 +52,11 @@ test('iveKit application stops remaining workers after one stop failure', async 
       startTinode: () => ({
         async stop() {
           stopped.push('tinode');
+        }
+      }),
+      startTinodeInbound: () => ({
+        async stop() {
+          stopped.push('tinode-inbound');
         }
       }),
       startAttachment: () => ({
@@ -71,13 +79,14 @@ test('iveKit application stops remaining workers after one stop failure', async 
   });
 
   await assert.rejects(() => application.stop(), /failed to stop 1 iveKit worker/);
-  assert.deepEqual(stopped, ['media-timeout', 'quality', 'attachment', 'tinode']);
+  assert.deepEqual(stopped, ['media-timeout', 'quality', 'attachment', 'tinode-inbound', 'tinode']);
 });
 
 test('iveKit application publishes worker events and requeues attachment quality review', async () => {
   const published: Array<{ tenantId: string; type: string; data: unknown }> = [];
   const enqueued: Array<{ tenant_id: string; message_id: string }> = [];
   let tinodeInput: any;
+  let tinodeInboundInput: any;
   let attachmentInput: any;
   let qualityInput: any;
   let mediaTimeoutInput: any;
@@ -96,6 +105,10 @@ test('iveKit application publishes worker events and requeues attachment quality
     adapters: {
       startTinode: (input) => {
         tinodeInput = input;
+        return handle;
+      },
+      startTinodeInbound: (input) => {
+        tinodeInboundInput = input;
         return handle;
       },
       startAttachment: (input) => {
@@ -120,6 +133,31 @@ test('iveKit application publishes worker events and requeues attachment quality
     provider_delivery: { status: 'delivered' }
   };
   await tinodeInput.onDeliveryUpdated(delivery);
+  const inboundInput = {
+    claim: {
+      tenant_id: 'tenant-runtime',
+      session_id: 'session-runtime',
+      binding_id: 'binding-runtime'
+    },
+    event: {
+      kind: 'data',
+      provider_sequence: 11,
+      provider_delete_id: 0
+    },
+    result: {
+      event_id: 'inbound-event-11',
+      status: 'projected',
+      message_id: 'message-inbound-11',
+      replayed: false
+    }
+  };
+  await tinodeInboundInput.onProjected({
+    pg: new MemoryPg(),
+    claim: inboundInput.claim,
+    event: inboundInput.event,
+    projection: { status: 'projected', message_id: 'message-inbound-11' }
+  });
+  await tinodeInboundInput.onProcessed(inboundInput);
   const processed = {
     attachment: {
       tenant_id: 'tenant-runtime',
@@ -154,6 +192,21 @@ test('iveKit application publishes worker events and requeues attachment quality
     },
     {
       tenantId: 'tenant-runtime',
+      type: 'collaboration.message.provider_synced',
+      data: {
+        session_id: 'session-runtime',
+        binding_id: 'binding-runtime',
+        event_id: 'inbound-event-11',
+        event_kind: 'data',
+        provider_sequence: 11,
+        provider_delete_id: 0,
+        status: 'projected',
+        message_id: 'message-inbound-11',
+        replayed: false
+      }
+    },
+    {
+      tenantId: 'tenant-runtime',
       type: 'collaboration.attachment.processed',
       data: {
         session_id: 'session-runtime',
@@ -177,6 +230,9 @@ test('iveKit application publishes worker events and requeues attachment quality
     }
   ]);
   assert.deepEqual(enqueued, [{
+    tenant_id: 'tenant-runtime',
+    message_id: 'message-inbound-11'
+  }, {
     tenant_id: 'tenant-runtime',
     message_id: 'message-attachment-1'
   }]);

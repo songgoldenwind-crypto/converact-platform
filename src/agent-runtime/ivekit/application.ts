@@ -6,6 +6,7 @@ import {
   QualityReviewService
 } from '../collaboration/quality-review.js';
 import { startQualityReviewWorker } from '../collaboration/quality-review-worker.js';
+import { startTinodeInboundWorker } from '../collaboration/tinode-inbound-worker.js';
 import { startTinodeSyncWorker } from '../collaboration/tinode-sync-worker.js';
 import { startMediaCallTimeoutWorker } from '../livekit/media-call-timeout-worker.js';
 import type { PgQueryable } from '../../db-pg.js';
@@ -17,6 +18,7 @@ export interface IveKitWorkerHandle {
 
 export interface IveKitRuntimeAdapters {
   startTinode(input: Parameters<typeof startTinodeSyncWorker>[0]): IveKitWorkerHandle;
+  startTinodeInbound(input: Parameters<typeof startTinodeInboundWorker>[0]): IveKitWorkerHandle;
   startAttachment(input: Parameters<typeof startAttachmentProcessingWorker>[0]): IveKitWorkerHandle;
   startQuality(input: Parameters<typeof startQualityReviewWorker>[0]): IveKitWorkerHandle;
   startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
@@ -42,7 +44,10 @@ export type IveKitEventPublisher = (
 
 export interface IveKitQualityReviewEnqueuer {
   enabled: boolean;
-  enqueueMessage(input: { tenant_id: string; message_id: string }): Promise<unknown>;
+  enqueueMessage(
+    input: { tenant_id: string; message_id: string },
+    pg?: PgQueryable
+  ): Promise<unknown>;
 }
 
 export function startIveKitApplication(input: IveKitApplicationInput): IveKitApplication {
@@ -51,6 +56,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
   const qualityReviewEnqueuer = input.qualityReviewEnqueuer || createQualityReviewEnqueuer(input.pg, env);
   const adapters: IveKitRuntimeAdapters = {
     startTinode: input.adapters?.startTinode || startTinodeSyncWorker,
+    startTinodeInbound: input.adapters?.startTinodeInbound || startTinodeInboundWorker,
     startAttachment: input.adapters?.startAttachment || startAttachmentProcessingWorker,
     startQuality: input.adapters?.startQuality || startQualityReviewWorker,
     startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker
@@ -68,6 +74,36 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
           delivery: message.provider_delivery
         }
       )
+    }),
+    adapters.startTinodeInbound({
+      pg: input.pg,
+      env,
+      onProjected: async ({ pg, claim, event, projection }) => {
+        if (
+          qualityReviewEnqueuer.enabled &&
+          event.kind === 'data' &&
+          projection.status === 'projected' &&
+          projection.message_id
+        ) {
+          await qualityReviewEnqueuer.enqueueMessage({
+            tenant_id: claim.tenant_id,
+            message_id: projection.message_id
+          }, pg);
+        }
+      },
+      onProcessed: async ({ claim, event, result }) => {
+        await publish(claim.tenant_id, 'collaboration.message.provider_synced', {
+          session_id: claim.session_id,
+          binding_id: claim.binding_id,
+          event_id: result.event_id,
+          event_kind: event.kind,
+          provider_sequence: event.provider_sequence,
+          provider_delete_id: event.provider_delete_id,
+          status: result.status,
+          message_id: result.message_id,
+          replayed: result.replayed
+        });
+      }
     }),
     adapters.startAttachment({
       pg: input.pg,
@@ -142,9 +178,11 @@ function createQualityReviewEnqueuer(
   env: NodeJS.ProcessEnv
 ): IveKitQualityReviewEnqueuer {
   const provider = configuredQualityReviewProvider(env);
-  const service = new QualityReviewService({ pg, provider });
   return {
     enabled: Boolean(provider || env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE === '1'),
-    enqueueMessage: (enqueueInput) => service.enqueueMessage(enqueueInput)
+    enqueueMessage: (enqueueInput, transactionPg) => new QualityReviewService({
+      pg: transactionPg || pg,
+      provider
+    }).enqueueMessage(enqueueInput)
   };
 }

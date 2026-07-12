@@ -74,6 +74,9 @@ export async function initializeIveKitRuntimeRole(
         IF to_regprocedure('public.opc_worker_tenant_ids(text,timestamp with time zone,integer)') IS NOT NULL THEN
           GRANT EXECUTE ON FUNCTION public.opc_worker_tenant_ids(TEXT, TIMESTAMPTZ, INTEGER) TO opc_runtime;
         END IF;
+        IF to_regprocedure('public.opc_tinode_inbound_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_tinode_inbound_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
+        END IF;
       END
       $$
     `);

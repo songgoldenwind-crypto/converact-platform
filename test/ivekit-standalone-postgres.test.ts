@@ -61,7 +61,7 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     const checksums = await admin.query<{ version: string; checksum: string }>(
       `SELECT version, checksum FROM schema_migrations ORDER BY version`
     );
-    assert.equal(checksums.rows.length, 30);
+    assert.equal(checksums.rows.length, 31);
     assert.equal(checksums.rows.every((row) => /^[a-f0-9]{64}$/.test(row.checksum)), true);
 
     const rlsGaps = await admin.query<{ relname: string }>(`

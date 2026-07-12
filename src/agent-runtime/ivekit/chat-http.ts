@@ -24,6 +24,8 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
   const userProvisioningConfigured = hasValue(env.TINODE_USER_PASSWORD_SECRET);
   const clientWsConfigured = providerUrlConfigured || hasValue(env.TINODE_PUBLIC_BASE_URL) || hasValue(env.TINODE_PUBLIC_WS_URL);
   const providerConfigured = providerUrlConfigured && apiKeyConfigured && rootAuthConfigured;
+  const inboundSyncConfigured = providerUrlConfigured && rootAuthConfigured &&
+    String(env.OPC_TINODE_INBOUND_WORKER_ENABLED || '1').trim() !== '0';
 
   return {
     provider: providerUrlConfigured ? 'tinode' : 'local',
@@ -49,7 +51,7 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       human_review: true,
       snapshot: true,
       client_plan: providerConfigured && userProvisioningConfigured && clientWsConfigured,
-      provider_inbound_sync: false,
+      provider_inbound_sync: true,
       durable_provider_delivery: true,
       provider_delivery_attempt_history: true,
       idempotent_message_create: true,
@@ -72,6 +74,7 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       root_auth_configured: rootAuthConfigured,
       user_provisioning_configured: userProvisioningConfigured,
       client_ws_configured: clientWsConfigured,
+      inbound_sync_configured: inboundSyncConfigured,
       quality_review_configured: hasValue(env.OPC_QUALITY_REVIEW_BASE_URL),
       message_mutation_window_ms: messageMutationWindowMs(env),
       tinode_client_access_mode: TINODE_RECEIVE_ONLY_ACCESS_MODE

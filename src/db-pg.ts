@@ -49,6 +49,7 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('collaboration_attachment_processing_jobs');
     this.ensureTable('collaboration_message_translations');
     this.ensureTable('collaboration_chat_bindings');
+    this.ensureTable('collaboration_provider_users');
     this.ensureTable('collaboration_policy_events');
     this.ensureTable('collaboration_policy_findings');
     this.ensureTable('collaboration_policy_finding_reviews');
@@ -898,6 +899,106 @@ export class MemoryPg implements PgQueryable {
         .filter((row) => !provider || String(row.provider) === provider)
         .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
       return rows.slice(0, 1);
+    }
+
+    if (sql.startsWith('SELECT id FROM collaboration_participants WHERE tenant_id')) {
+      const row = [...this.table('collaboration_participants').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) &&
+        String(candidate.session_id) === String(params[1]) &&
+        String(candidate.identity) === String(params[2]) &&
+        !candidate.left_at
+      );
+      return row ? [{ id: row.id }] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_provider_users WHERE tenant_id')) {
+      const tenantId = String(params[0]);
+      const sessionId = String(params[1]);
+      if (sql.includes('provider_user_id = $3')) {
+        const providerUserId = String(params[2]);
+        const row = [...this.table('collaboration_provider_users').values()].find((candidate) =>
+          String(candidate.tenant_id) === tenantId &&
+          String(candidate.session_id) === sessionId &&
+          String(candidate.provider) === 'tinode' &&
+          String(candidate.provider_user_id) === providerUserId &&
+          String(candidate.status) === 'active'
+        );
+        return row ? [row] : [];
+      }
+      const provider = String(params[2]);
+      const identity = String(params[3]);
+      const row = [...this.table('collaboration_provider_users').values()].find((candidate) =>
+        String(candidate.tenant_id) === tenantId &&
+        String(candidate.session_id) === sessionId &&
+        String(candidate.provider) === provider &&
+        String(candidate.identity) === identity
+      );
+      return row ? [row] : [];
+    }
+
+    if (sql.startsWith('INSERT INTO collaboration_provider_users')) {
+      const existing = [...this.table('collaboration_provider_users').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.session_id) === String(params[2]) &&
+        String(candidate.provider) === 'tinode' &&
+        String(candidate.identity) === String(params[5])
+      );
+      const conflicting = [...this.table('collaboration_provider_users').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[1]) &&
+        String(candidate.session_id) === String(params[2]) &&
+        String(candidate.provider) === 'tinode' &&
+        String(candidate.provider_user_id) === String(params[4]) &&
+        String(candidate.identity) !== String(params[5])
+      );
+      if (conflicting) throw Object.assign(new Error('duplicate provider user'), { code: '23505' });
+      const now = this.nowIso();
+      const row = existing || {
+        id: params[0],
+        tenant_id: params[1],
+        session_id: params[2],
+        provider: 'tinode',
+        identity: params[5],
+        created_at: now
+      };
+      row.binding_id = params[3];
+      row.provider_user_id = params[4];
+      row.status = 'active';
+      row.metadata = params[6];
+      row.updated_at = now;
+      this.table('collaboration_provider_users').set(String(row.id), row);
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith('SELECT provider_user.identity FROM collaboration_provider_users')) {
+      const row = [...this.table('collaboration_provider_users').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) &&
+        String(candidate.binding_id) === String(params[1]) &&
+        String(candidate.provider) === 'tinode' &&
+        String(candidate.provider_user_id) === String(params[2]) &&
+        String(candidate.status) === 'active' &&
+        [...this.table('collaboration_participants').values()].some((participant) =>
+          String(participant.tenant_id) === String(candidate.tenant_id) &&
+          String(participant.session_id) === String(candidate.session_id) &&
+          String(participant.identity) === String(candidate.identity) &&
+          !participant.left_at
+        )
+      );
+      return row ? [{ identity: row.identity }] : [];
+    }
+
+    if (sql.startsWith("UPDATE collaboration_provider_users SET status = 'revoked'")) {
+      for (const row of this.table('collaboration_provider_users').values()) {
+        if (
+          String(row.tenant_id) === String(params[0]) &&
+          String(row.session_id) === String(params[1]) &&
+          String(row.provider) === String(params[2]) &&
+          String(row.identity) === String(params[3])
+        ) {
+          row.status = 'revoked';
+          row.updated_at = this.nowIso();
+        }
+      }
+      return [];
     }
 
     if (sql.startsWith('INSERT INTO collaboration_messages')) {

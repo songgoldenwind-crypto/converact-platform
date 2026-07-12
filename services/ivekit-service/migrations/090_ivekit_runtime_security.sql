@@ -17,12 +17,14 @@ $$;
 
 REVOKE ALL ON FUNCTION opc_rustdesk_session_by_external_id(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION opc_worker_tenant_ids(TEXT, TIMESTAMPTZ, INTEGER) FROM PUBLIC;
+REVOKE ALL ON FUNCTION opc_tinode_inbound_tenant_ids(TIMESTAMPTZ, INTEGER) FROM PUBLIC;
 
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'opc_runtime') THEN
     EXECUTE 'GRANT EXECUTE ON FUNCTION opc_rustdesk_session_by_external_id(TEXT) TO opc_runtime';
     EXECUTE 'GRANT EXECUTE ON FUNCTION opc_worker_tenant_ids(TEXT, TIMESTAMPTZ, INTEGER) TO opc_runtime';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION opc_tinode_inbound_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime';
   END IF;
 END
 $$;

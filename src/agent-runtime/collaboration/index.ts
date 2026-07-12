@@ -67,6 +67,26 @@ export {
 export type * from './tinode-sync-worker.js';
 export { TinodeMessageDeliveryService } from './tinode-message-delivery.js';
 export type * from './tinode-message-delivery.js';
+export { TinodeProviderUserStore } from './tinode-provider-user-store.js';
+export type * from './tinode-provider-user-store.js';
+export {
+  TinodeInboundProjectionError,
+  TinodeInboundStore
+} from './tinode-inbound-store.js';
+export type * from './tinode-inbound-store.js';
+export { TinodeInboundProjector } from './tinode-inbound-projector.js';
+export {
+  configuredTinodeInboundSource,
+  TinodeInboundWireSource
+} from './tinode-inbound-source.js';
+export type * from './tinode-inbound-source.js';
+export {
+  startTinodeInboundWorker,
+  TinodeInboundService,
+  TinodeInboundWorker,
+  tinodeInboundWorkerConfig
+} from './tinode-inbound-worker.js';
+export type * from './tinode-inbound-worker.js';
 export { normalizeExternalRemoteTool } from './external-link-adapter.js';
 export { scanTextPolicy } from './policy-scan.js';
 export {

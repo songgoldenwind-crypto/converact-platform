@@ -53,6 +53,7 @@
     "038_media_recording_evidence.sql",
     "039_rustdesk_access_policy.sql",
     "040_rustdesk_control_ownership.sql",
+    "041_tinode_inbound_sync.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }

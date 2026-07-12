@@ -69,6 +69,7 @@ import {
   TinodeMessageDeliveryService,
   type TinodeMessageDeliveryServiceInput
 } from './tinode-message-delivery.js';
+import { TinodeProviderUserStore } from './tinode-provider-user-store.js';
 import {
   assertRustDeskDeviceOnlineIfRequired,
   assertRustDeskPhysicalDisconnectCapableIfRequired,
@@ -2976,6 +2977,15 @@ export async function routeCollaborationApi(
           session_id: collaboration.id,
           provider: gateway.provider
         });
+        const providerUsers = new TinodeProviderUserStore(lockedPg);
+        const mappedUser = gateway.provider === 'tinode'
+          ? await providerUsers.getByIdentity({
+            tenant_id: ctx.tenantId,
+            session_id: collaboration.id,
+            provider: 'tinode',
+            identity
+          })
+          : null;
         if (binding) {
           await gateway.removeParticipant({
             tenant_id: ctx.tenantId,
@@ -2983,8 +2993,18 @@ export async function routeCollaborationApi(
             provider_topic_id: binding.provider_topic_id,
             identity,
             display_name: input.display_name ? String(input.display_name) : current.display_name,
-            provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined,
+            provider_user_id: input.provider_user_id
+              ? String(input.provider_user_id)
+              : mappedUser?.provider_user_id,
             access_mode: input.access_mode ? String(input.access_mode) : 'N'
+          });
+        }
+        if (gateway.provider === 'tinode') {
+          await providerUsers.revokeIdentity({
+            tenant_id: ctx.tenantId,
+            session_id: collaboration.id,
+            provider: 'tinode',
+            identity
           });
         }
         return current;
@@ -3025,6 +3045,24 @@ export async function routeCollaborationApi(
           display_name: input.display_name ? String(input.display_name) : undefined,
           provider_user_id: input.provider_user_id ? String(input.provider_user_id) : undefined
         });
+        const participant = await lockedModule.sessions.addParticipant({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          identity,
+          role,
+          display_name: input.display_name ? String(input.display_name) : undefined,
+          user_ref: input.user_ref ? businessRefFromInput(ctx.tenantId, input.user_ref as Record<string, unknown>) : undefined
+        });
+        if (gateway.provider === 'tinode') {
+          await new TinodeProviderUserStore(lockedPg).upsert({
+            tenant_id: ctx.tenantId,
+            session_id: collaboration.id,
+            binding_id: binding.id,
+            provider_user_id: providerUser.provider_user_id,
+            identity,
+            metadata: { source: 'participant_add' }
+          });
+        }
         await gateway.addParticipant({
           tenant_id: ctx.tenantId,
           session_id: collaboration.id,
@@ -3033,14 +3071,7 @@ export async function routeCollaborationApi(
           display_name: input.display_name ? String(input.display_name) : undefined,
           provider_user_id: providerUser.provider_user_id
         });
-        return lockedModule.sessions.addParticipant({
-          tenant_id: ctx.tenantId,
-          session_id: collaboration.id,
-          identity,
-          role,
-          display_name: input.display_name ? String(input.display_name) : undefined,
-          user_ref: input.user_ref ? businessRefFromInput(ctx.tenantId, input.user_ref as Record<string, unknown>) : undefined
-        });
+        return participant;
       });
       wsBroadcast(ctx.tenantId, 'collaboration.participant.joined', {
         session_id: collaboration.id,
@@ -3113,6 +3144,14 @@ export async function routeCollaborationApi(
             data: { error: 'Tinode user token unavailable; configure TINODE_USER_PASSWORD_SECRET or provide a token-capable provisioner' }
           };
         }
+        await new TinodeProviderUserStore(lockedPg).upsert({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          binding_id: binding.id,
+          provider_user_id: user.provider_user_id,
+          identity,
+          metadata: { source: 'client_plan' }
+        });
         await gateway.addParticipant({
           tenant_id: ctx.tenantId,
           session_id: collaboration.id,

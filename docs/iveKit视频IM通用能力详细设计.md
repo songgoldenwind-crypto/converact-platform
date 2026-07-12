@@ -2227,8 +2227,8 @@ OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1
 | 消息编辑 / 删除 | 已完成 | 仅发送者、文本消息、默认 15 分钟；编辑重扫 policy，删除软删除；不可变 hash mutation audit |
 | iveKit Chat HTTP facade | 已完成第一版 | LED/其它项目统一使用 `/api/ivekit/chat/*` |
 | Tinode 部署 preflight | 已完成本地代码 | 生成脱敏 env checklist 和 JSON report，真实服务器待执行 |
-| Tinode 附件同步 | 未完成 | 当前附件只在本地镜像 |
-| Tinode inbound seq/cursor sync | 条件式未实现 | 第一版 `direct_client_publish=false`；只有未来允许浏览器直发业务消息时才必须实现 topic cursor、seq 幂等入库和 policy scan |
+| Tinode 附件同步 | 已完成本地代码 | Drafty `IM/VD/AU/EX` 仅同步 HTTPS 允许域名的引用和有界元数据，拒绝并不持久化内嵌 bytes |
+| Tinode inbound seq/cursor sync | 已完成本地代码 | 每 binding 持久化 data/del cursor、claim lease 和幂等 inbox；支持普通消息、outbound echo 去重、replace、delete、policy scan、AI 质检入队、脱敏死信和到期重试；真实 Tinode 服务器待验收 |
 | 浏览器 Tinode SDK join | 待真实环境 | 前端已领取 client-plan，但真实 SDK join 未验收 |
 
 ### 6.5.2 iveKit 稳定 HTTP facade
@@ -2284,7 +2284,7 @@ Content-Type: application/json
     "policy_scan": true,
     "snapshot": true,
     "client_plan": true,
-    "provider_inbound_sync": false,
+    "provider_inbound_sync": true,
     "durable_provider_delivery": true,
     "provider_delivery_attempt_history": true,
     "idempotent_message_create": true,
@@ -2303,6 +2303,7 @@ Content-Type: application/json
     "root_auth_configured": true,
     "user_provisioning_configured": true,
     "client_ws_configured": true,
+    "inbound_sync_configured": true,
     "message_mutation_window_ms": 900000,
     "tinode_client_access_mode": "JRP"
   },
@@ -2321,11 +2322,11 @@ Content-Type: application/json
 
 API key/system 调用可代表业务身份发起服务端操作；JWT 用户的 `client-plan`、消息发送、receipt、typing、presence 和 mutation 身份必须来自 token `sub`，不能用 body/header 冒用其他参与人。浏览器获得的 Tinode token 仅有 `JRP` topic 权限，`direct_client_publish=false` 不只是前端约定，也由 Tinode ACL 去掉 `W` 权限落实。
 
-第一版生产消息策略为：业务文本和附件消息必须调用 facade 的 `POST .../messages`。该入口先把消息、附件、provider payload、幂等键和 `pending` 状态写入 PostgreSQL，并立即执行 policy scan；事务提交后才发 Tinode。provider 超时或失败时消息返回 `retry_wait`/`failed`，不会因为外部服务异常而丢掉本地镜像、防绕单证据或审计上下文。浏览器 Tinode SDK 第一版只用于实时收消息、typing/presence 等 provider 能力，不允许绕过 OPC 直接发布业务消息。`provider_inbound_sync=false` 是当前真实状态；文件名为 `tinode-sync-worker.ts` 的第一版 worker 只负责 durable outbound delivery，不代表 Tinode 双向入站同步已完成。
+第一版生产消息策略仍是：业务文本和附件消息优先调用 facade 的 `POST .../messages`。该入口先把消息、附件、provider payload、幂等键和 `pending` 状态写入 PostgreSQL，并立即执行 policy scan；事务提交后才发 Tinode。provider 超时或失败时消息返回 `retry_wait`/`failed`，不会因为外部服务异常而丢掉本地镜像、防绕单证据或审计上下文。浏览器 Tinode SDK 保持 `JRP`、`direct_client_publish=false`。同时，独立 `tinode-inbound-worker.ts` 已提供 provider 历史补偿和批准的其他客户端/管理操作入站兜底：按 durable cursor 拉取 `data/del`，在 PostgreSQL 事务内做 inbox 幂等、消息/附件/edit/delete 投影、policy scan 和 AI 质检入队；坏事件进入脱敏死信并推进游标，可恢复投影错误按上限重试。
 
 权威投递状态是 `message.provider_delivery`，包含 `provider`、`provider_topic_id`、`provider_message_id`、`status`、`attempt_count`、`next_attempt_at`、`lease_until`、最后错误、`delivered_at` 和更新时间。状态流为 `pending -> publishing -> delivered`，可恢复失败走 `publishing -> retry_wait -> publishing`，达到最大尝试次数或明确不可恢复错误进入 `failed`。每次领取都会新增 attempt 行；worker 崩溃后 lease 过期会把旧 attempt 标成 `lease_expired`，旧 claim 的迟到结果因 token 不匹配不能覆盖新结果。
 
-Tinode `pub.head` 会携带 `x-opc-message-id` 和可选 `x-opc-idempotency-key`。这给真实 Tinode 审计和未来 inbound sync 提供稳定去重依据，但第一版仍按 at-least-once provider delivery 设计，不把它表述为 Tinode 原生 exactly-once。
+Tinode `pub.head` 会携带 `x-opc-message-id` 和可选 `x-opc-idempotency-key`。inbound worker 看到本地 message ID 时只绑定 provider seq，不重复创建消息。整体仍按 at-least-once provider delivery 加本地幂等收敛设计，不把它表述为 Tinode 原生 exactly-once。
 
 主要错误语义：
 
@@ -2685,7 +2686,7 @@ npm run quality:deployment-preflight
 4. `collaboration_message_mutations` 只保存 before/after SHA-256、动作、版本、操作者、脱敏 reason 和时间，不复制保存历史正文。编辑后重新执行规则扫描；软删除后取消未完成 AI 质检 job。
 5. 前端 `TinodeRealtimeAdapter` 使用官方 `tinode-sdk@0.25.1`，只暴露 connect/disconnect、data/info/presence 回调和 recv/read/typing note。类上没有 publish/sendMessage；慢登录期间卸载会取消连接，旧客户端回调不能覆盖新连接。
 6. 前端本地/Tinode 两种 binding 都上报 presence heartbeat；打开会话后在参与人/client-plan 准备完成再推进历史已读；相同 client-plan 不替换 state，Tinode data 刷新快照不会触发无意义重连。
-7. Tinode 客户端权限固定 `JRP`：`J` join、`R` read、`P` presence，不含 `W`。后端 root/管理身份继续负责 `{pub}`。如果未来把 `direct_client_publish` 改为 `true`，必须同时实现 Phase 7B inbound seq/cursor、幂等镜像和 policy scan，不能只把 ACL 改回写权限。
+7. Tinode 客户端权限固定 `JRP`：`J` join、`R` read、`P` presence，不含 `W`。后端 root/管理身份继续负责 `{pub}`。如果未来把 `direct_client_publish` 改为 `true`，必须保持 Phase 7B inbound worker 启用并先完成真实多副本、断网恢复和 policy/AI 不漏扫验收，不能只把 ACL 改回写权限。
 8. edit/delete 当前不调用 Tinode 原生消息 mutation；OPC WebSocket 的 `collaboration.message.edited/deleted` 和后续 snapshot 是业务 UI 权威。真实 Tinode 客户端若绕过 OPC 自行展示 provider 历史，可能看不到本地 mutation，因此 LED 前端必须以 iveKit snapshot 合并展示。
 
 新增租户 WebSocket 事件：
