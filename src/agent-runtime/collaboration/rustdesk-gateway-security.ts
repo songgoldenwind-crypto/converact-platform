@@ -26,6 +26,9 @@ const PUBLIC_METADATA_KEYS = new Set([
   'tenant_id'
 ]);
 
+const MAX_METADATA_DEPTH = 32;
+const MAX_METADATA_NODES = 10_000;
+
 export function rustDeskGatewayAccessMode(value: unknown): RustDeskGatewayAccessMode {
   if (value === undefined) return 'attended';
   if (value === 'attended' || value === 'unattended') return value;
@@ -67,36 +70,138 @@ export function hasRustDeskGatewayUnattendedAlias(value: unknown): boolean {
 
 function copySafeRecord(value: Record<string, unknown>, path: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (isSensitiveKey(key)) sensitiveMetadata(path, key);
-    if (entry !== undefined) result[key] = copySafeValue(entry, `${path}.${key}`);
+  const states = new WeakMap<object, 'visiting' | 'done'>([[value, 'visiting']]);
+  const copies = new WeakMap<object, MetadataContainer>([[value, result]]);
+  const stack: CopyFrame[] = [copyFrame(value, result, path, 0)];
+  let nodes = 1;
+
+  while (stack.length) {
+    const frame = stack.at(-1)!;
+    if (frame.index >= frame.entries.length) {
+      states.set(frame.source, 'done');
+      stack.pop();
+      continue;
+    }
+    const [key, entry] = frame.entries[frame.index++];
+    nodes += 1;
+    if (nodes > MAX_METADATA_NODES) metadataTraversalLimit('node');
+    const location = metadataLocation(frame.path, key, Array.isArray(frame.source));
+    if (!Array.isArray(frame.source) && isSensitiveKey(String(key))) {
+      sensitiveMetadata(frame.path, String(key));
+    }
+    if (typeof entry === 'string') {
+      if (isPrivateKeyMaterial(entry) || isCredentialBearingUrl(entry)) sensitiveMetadata(location);
+      assignMetadata(frame.target, key, entry);
+      continue;
+    }
+    if (!isMetadataContainer(entry)) {
+      if (entry !== undefined) assignMetadata(frame.target, key, entry);
+      continue;
+    }
+    const depth = frame.depth + 1;
+    if (depth > MAX_METADATA_DEPTH) metadataTraversalLimit('depth');
+    const state = states.get(entry);
+    if (state === 'visiting') metadataCycle(location);
+    if (state === 'done') {
+      assignMetadata(frame.target, key, copies.get(entry));
+      continue;
+    }
+    const copy: MetadataContainer = Array.isArray(entry) ? [] : {};
+    assignMetadata(frame.target, key, copy);
+    states.set(entry, 'visiting');
+    copies.set(entry, copy);
+    stack.push(copyFrame(entry, copy, location, depth));
   }
   return result;
-}
-
-function copySafeValue(value: unknown, path: string): unknown {
-  if (typeof value === 'string') {
-    if (isPrivateKeyMaterial(value) || isCredentialBearingUrl(value)) sensitiveMetadata(path);
-    return value;
-  }
-  if (Array.isArray(value)) return value.map((entry, index) => copySafeValue(entry, `${path}[${index}]`));
-  if (isRecord(value)) return copySafeRecord(value, path);
-  return value;
 }
 
 function hasMetadataAlias(
   value: unknown,
   predicate: (key: string, entry: unknown) => boolean
 ): boolean {
-  if (Array.isArray(value)) return value.some((entry) => hasMetadataAlias(entry, predicate));
-  if (!isRecord(value)) return false;
-  return Object.entries(value).some(([key, entry]) =>
-    predicate(key, entry) || hasMetadataAlias(entry, predicate)
-  );
+  if (!isMetadataContainer(value)) return false;
+  const states = new WeakMap<object, 'visiting' | 'done'>([[value, 'visiting']]);
+  const stack: ScanFrame[] = [scanFrame(value, 0)];
+  let nodes = 1;
+  while (stack.length) {
+    const frame = stack.at(-1)!;
+    if (frame.index >= frame.entries.length) {
+      states.set(frame.source, 'done');
+      stack.pop();
+      continue;
+    }
+    const [key, entry] = frame.entries[frame.index++];
+    nodes += 1;
+    if (nodes > MAX_METADATA_NODES) metadataTraversalLimit('node');
+    if (!Array.isArray(frame.source) && predicate(String(key), entry)) return true;
+    if (!isMetadataContainer(entry)) continue;
+    const depth = frame.depth + 1;
+    if (depth > MAX_METADATA_DEPTH) metadataTraversalLimit('depth');
+    const state = states.get(entry);
+    if (state === 'visiting') metadataCycle('RustDesk gateway metadata');
+    if (state === 'done') continue;
+    states.set(entry, 'visiting');
+    stack.push(scanFrame(entry, depth));
+  }
+  return false;
 }
 
 function normalizedMetadataKey(key: string): string {
   return key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+type MetadataContainer = Record<string, unknown> | unknown[];
+
+interface ScanFrame {
+  source: MetadataContainer;
+  entries: Array<[string | number, unknown]>;
+  index: number;
+  depth: number;
+}
+
+interface CopyFrame extends ScanFrame {
+  target: MetadataContainer;
+  path: string;
+}
+
+function scanFrame(source: MetadataContainer, depth: number): ScanFrame {
+  return { source, entries: metadataEntries(source), index: 0, depth };
+}
+
+function copyFrame(
+  source: MetadataContainer,
+  target: MetadataContainer,
+  path: string,
+  depth: number
+): CopyFrame {
+  return { ...scanFrame(source, depth), target, path };
+}
+
+function metadataEntries(value: MetadataContainer): Array<[string | number, unknown]> {
+  return Array.isArray(value)
+    ? value.map((entry, index) => [index, entry])
+    : Object.entries(value);
+}
+
+function isMetadataContainer(value: unknown): value is MetadataContainer {
+  return Array.isArray(value) || isRecord(value);
+}
+
+function assignMetadata(target: MetadataContainer, key: string | number, value: unknown): void {
+  if (Array.isArray(target)) target[Number(key)] = value;
+  else target[String(key)] = value;
+}
+
+function metadataLocation(path: string, key: string | number, array: boolean): string {
+  return array ? `${path}[${key}]` : `${path}.${key}`;
+}
+
+function metadataTraversalLimit(kind: 'depth' | 'node'): never {
+  throw Object.assign(new Error(`RustDesk gateway metadata exceeds ${kind} limit`), { status: 413 });
+}
+
+function metadataCycle(path: string): never {
+  throw Object.assign(new Error(`RustDesk gateway metadata contains cyclic input at ${path}`), { status: 400 });
 }
 
 function isSensitiveKey(key: string): boolean {

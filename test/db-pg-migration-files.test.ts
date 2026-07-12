@@ -38,3 +38,56 @@ test('PostgreSQL migrations hold one advisory lock for the whole migration pass'
   assert.match(queries.at(-2) || '', /pg_advisory_unlock/);
   assert.equal(queries.at(-1), 'RELEASE_CLIENT');
 });
+
+test('fresh PostgreSQL migrations define RLS helpers before policy execution', async () => {
+  const availableFunctions = new Set<string>();
+  const appliedVersions: string[] = [];
+  const pg = {
+    async query(sql: string, params: unknown[] = []) {
+      if (sql.includes('SELECT version FROM schema_migrations')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (sql.includes('INSERT INTO schema_migrations')) {
+        appliedVersions.push(String(params[0]));
+      } else {
+        assertRlsHelpersAvailable(sql, availableFunctions);
+      }
+      return { rows: [], rowCount: 0 };
+    }
+  } as PgQueryable;
+
+  await runMigrations(pg);
+
+  assert.equal(appliedVersions.includes('005_full_schema'), true);
+  assert.equal(appliedVersions.includes('009_tenant_rls'), true);
+  assert.deepEqual([...availableFunctions].sort(), ['opc_current_tenant', 'opc_rls_bypass']);
+});
+
+function assertRlsHelpersAvailable(sql: string, availableFunctions: Set<string>): void {
+  const events: Array<{ index: number; kind: 'definition' | 'policy'; value: string }> = [];
+  for (const match of sql.matchAll(
+    /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+(opc_(?:rls_bypass|current_tenant))\s*\(/gi
+  )) {
+    events.push({ index: match.index, kind: 'definition', value: match[1].toLowerCase() });
+  }
+  for (const match of sql.matchAll(/CREATE\s+POLICY\b[\s\S]*?(?:;|$)/gi)) {
+    events.push({ index: match.index, kind: 'policy', value: match[0] });
+  }
+  events.sort((left, right) => left.index - right.index);
+
+  for (const event of events) {
+    if (event.kind === 'definition') {
+      availableFunctions.add(event.value);
+      continue;
+    }
+    for (const functionName of ['opc_rls_bypass', 'opc_current_tenant']) {
+      if (new RegExp(`\\b${functionName}\\s*\\(`, 'i').test(event.value)) {
+        assert.equal(
+          availableFunctions.has(functionName),
+          true,
+          `${functionName} must be defined before CREATE POLICY executes`
+        );
+      }
+    }
+  }
+}

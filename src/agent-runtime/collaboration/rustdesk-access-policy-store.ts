@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
+import { pgId, type PgQueryable } from '../../db-pg.js';
+import {
+  rustDeskPolicyAuthorizationLock,
+  withRustDeskAuthorizationLocks
+} from './rustdesk-gateway-authorization-lock.js';
 import type { BusinessRef, RemoteConsentScope } from './types.js';
 
 export type RustDeskAccessPolicyMode = 'attended_only' | 'unattended_allowed';
@@ -81,8 +85,6 @@ const REMOTE_SCOPES = new Set<RemoteConsentScope>([
   'clipboard'
 ]);
 
-const memoryPolicyLockTails = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
-
 export class RustDeskAccessPolicyStore {
   constructor(private readonly pg: PgQueryable) {}
 
@@ -91,7 +93,7 @@ export class RustDeskAccessPolicyStore {
     const requestHash = requestHashFor({ action: 'configure', ...normalized });
     return withPolicyWriteLock(this.pg, normalized, async (pg) => {
       const replay = await findIdempotentPolicy(pg, normalized.tenant_id, normalized.idempotency_key);
-      if (replay) return replayResult(replay, requestHash);
+      if (replay) return replayResult(pg, replay, requestHash);
       const device = await lockPolicyDevice(pg, normalized.tenant_id, normalized.device_id);
       if (!device) throw policyError('rustdesk device not found', 404);
       if (
@@ -127,7 +129,7 @@ export class RustDeskAccessPolicyStore {
     const requestHash = requestHashFor({ action: 'revoke', ...normalized });
     return withPolicyWriteLock(this.pg, normalized, async (pg) => {
       const replay = await findIdempotentPolicy(pg, normalized.tenant_id, normalized.idempotency_key);
-      if (replay) return replayResult(replay, requestHash);
+      if (replay) return replayResult(pg, replay, requestHash);
       if (!(await lockPolicyDevice(pg, normalized.tenant_id, normalized.device_id))) {
         throw policyError('rustdesk device not found', 404);
       }
@@ -233,34 +235,11 @@ async function withPolicyWriteLock<T>(
   input: { tenant_id: string; device_id: string; idempotency_key: string },
   fn: (lockedPg: PgQueryable) => Promise<T>
 ): Promise<T> {
-  if (pg instanceof MemoryPg) {
-    let locks = memoryPolicyLockTails.get(pg);
-    if (!locks) {
-      locks = new Map();
-      memoryPolicyLockTails.set(pg, locks);
-    }
-    const lockKey = `${input.tenant_id}\u0000${input.device_id}`;
-    const previous = locks.get(lockKey) || Promise.resolve();
-    let release!: () => void;
-    const current = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    locks.set(lockKey, current);
-    await previous;
-    try {
-      return await fn(pg);
-    } finally {
-      release();
-      if (locks.get(lockKey) === current) locks.delete(lockKey);
-    }
-  }
-  return withPgTransaction(pg, async (client) => {
-    await client.query(
-      'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
-      [input.tenant_id, input.idempotency_key]
-    );
-    return fn(client);
-  });
+  return withRustDeskAuthorizationLocks(
+    pg,
+    [rustDeskPolicyAuthorizationLock(input.tenant_id, input.device_id)],
+    fn
+  );
 }
 
 async function lockPolicyDevice(pg: PgQueryable, tenantId: string, deviceId: string) {
@@ -334,11 +313,19 @@ async function insertPolicyEvent(
   return decodeStoredPolicy(result.rows[0]);
 }
 
-function replayResult(stored: StoredPolicy, requestHash: string): RustDeskAccessPolicyMutationResult {
+async function replayResult(
+  pg: PgQueryable,
+  stored: StoredPolicy,
+  requestHash: string
+): Promise<RustDeskAccessPolicyMutationResult> {
   if (stored.request_hash !== requestHash) {
     throw policyError('idempotency key was already used for a different request', 409);
   }
-  return { policy: toPublicPolicy(stored, stored.version, new Date()), replayed: true };
+  const latest = await findLatestStoredPolicy(pg, stored.tenant_id, stored.device_id);
+  return {
+    policy: toPublicPolicy(stored, latest?.version || stored.version, new Date()),
+    replayed: true
+  };
 }
 
 function normalizeConfigureInput(input: ConfigureRustDeskAccessPolicyInput) {

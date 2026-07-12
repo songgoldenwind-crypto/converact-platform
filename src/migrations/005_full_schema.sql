@@ -2469,15 +2469,6 @@ CREATE TRIGGER rustdesk_access_policy_events_immutable
 BEFORE UPDATE OR DELETE ON rustdesk_access_policy_events
 FOR EACH ROW EXECUTE FUNCTION reject_rustdesk_access_policy_event_mutation();
 
-ALTER TABLE rustdesk_access_policy_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rustdesk_access_policy_events FORCE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS tenant_isolation ON rustdesk_access_policy_events;
-CREATE POLICY tenant_isolation ON rustdesk_access_policy_events
-  FOR ALL
-  USING (opc_rls_bypass() OR tenant_id = opc_current_tenant())
-  WITH CHECK (opc_rls_bypass() OR tenant_id = opc_current_tenant());
-
 CREATE TABLE IF NOT EXISTS rustdesk_gateway_sessions (
   external_id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL DEFAULT 'system',

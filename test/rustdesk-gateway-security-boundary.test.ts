@@ -8,6 +8,7 @@ import type { RemoteGatewayClient } from '../src/agent-runtime/collaboration/rem
 import { RustDeskDeviceStore } from '../src/agent-runtime/collaboration/rustdesk-device-store.js';
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 import { MemoryPg } from '../src/db-pg.js';
+import { signAccessToken } from '../src/middleware/auth.js';
 import { createIveKitRustDeskHttpClient } from '../sdk/ivekit/src/rustdesk-http-client.js';
 
 test('iveKit API docs keep the legacy control plane attended-only', () => {
@@ -281,10 +282,12 @@ test('RustDesk control plane preserves the minimal legacy attended create contra
       actor_identity: 'control-plane-agent'
     }, '', { authorization: 'Bearer rustdesk-control-token' });
     assert.equal((response as { status: number }).status, 201);
-    assert.equal((await new RustDeskGatewaySessionStore(pg).listSessions({
+    const sessions = await new RustDeskGatewaySessionStore(pg).listSessions({
       tenant_id: 'tenant-control-attended-security',
       status: 'active'
-    })).length, 1);
+    });
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0]?.actor_identity, 'control-plane-agent');
   } finally {
     restoreGatewayEnv(previous);
   }
@@ -428,6 +431,124 @@ test('generic HTTP RustDesk tool creation is rejected before persistence', async
   }
 });
 
+test('direct RustDesk gateway metadata rejects excessive depth before persistence', async () => {
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'metadata-depth-direct');
+
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayToolSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-metadata-depth-direct',
+      gateway: directGateway(fixture.device.rustdesk_id, deepMetadata(40))
+    }),
+    controlledMetadataError(413, /depth limit/)
+  );
+  assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+});
+
+test('direct RustDesk gateway metadata rejects excessive node count before persistence', async () => {
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'metadata-nodes-direct');
+  const metadata = Object.fromEntries(
+    Array.from({ length: 10_001 }, (_, index) => [`safe_${index}`, index])
+  );
+
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayToolSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-metadata-nodes-direct',
+      gateway: directGateway(fixture.device.rustdesk_id, metadata)
+    }),
+    controlledMetadataError(413, /node limit/)
+  );
+  assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+});
+
+test('direct RustDesk gateway metadata rejects cyclic input before persistence', async () => {
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'metadata-cycle-direct');
+  const cyclic: Record<string, unknown> = { source: 'direct-cycle' };
+  cyclic.self = cyclic;
+
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayToolSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-metadata-cycle-direct',
+      gateway: directGateway(fixture.device.rustdesk_id, cyclic)
+    }),
+    controlledMetadataError(400, /cyclic input/)
+  );
+  assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+});
+
+test('RustDesk control plane rejects excessive metadata depth before store writes', async () => {
+  await assertControlPlaneMetadataRejected(deepMetadata(40), 413, /depth limit/, 'depth');
+});
+
+test('RustDesk control plane rejects cyclic metadata before store writes', async () => {
+  const cyclic: Record<string, unknown> = { source: 'http-cycle' };
+  cyclic.self = cyclic;
+  await assertControlPlaneMetadataRejected(cyclic, 400, /cyclic input/, 'cycle');
+});
+
+test('JWT collaboration routes reject body actor spoofing before audit or gateway writes', async () => {
+  const previous = gatewayEnv();
+  const previousJwtSecret = process.env.OPC_JWT_SECRET;
+  process.env.OPC_JWT_SECRET = 'rustdesk-jwt-actor-secret';
+  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'jwt-actor');
+  const headers = {
+    authorization: `Bearer ${signAccessToken({
+      sub: 'operator-jwt-actor',
+      tid: fixture.tenantId,
+      role: 'operator'
+    })}`
+  };
+  const auditPath = `/api/collaboration/remote-assistance/${fixture.remoteId}/audit`;
+  const gatewayPath = '/api/ivekit/rustdesk/gateway-sessions';
+  const auditCount = (await fixture.module.remote.listAuditEvents({
+    tenant_id: fixture.tenantId,
+    remote_session_id: fixture.remoteId
+  })).length;
+
+  try {
+    await assert.rejects(
+      () => routeCollaborationApi(pg, 'POST', auditPath, new URL(`http://localhost${auditPath}`), {
+        actor_identity: 'spoofed-auditor',
+        event_type: 'remote.jwt.spoofed'
+      }, '', headers),
+      jwtActorConflict
+    );
+    await assert.rejects(
+      () => routeCollaborationApi(pg, 'POST', gatewayPath, new URL(`http://localhost${gatewayPath}`), {
+        remote_session_id: fixture.remoteId,
+        device_id: fixture.device.id,
+        actor_identity: 'spoofed-gateway-operator',
+        permissions: ['view_screen'],
+        access_mode: 'attended'
+      }, '', headers),
+      jwtActorConflict
+    );
+    assert.equal((await fixture.module.remote.listAuditEvents({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId
+    })).length, auditCount);
+    assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+    assert.equal((await new RustDeskGatewaySessionStore(pg).listSessions({
+      tenant_id: fixture.tenantId,
+      status: 'active'
+    })).length, 0);
+  } finally {
+    restoreGatewayEnv(previous);
+    restoreEnv('OPC_JWT_SECRET', previousJwtSecret);
+  }
+});
+
 test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {
   const responses: unknown[] = [
     {
@@ -547,6 +668,76 @@ function recordingRustDeskClient(onCreate: () => void): RemoteGatewayClient {
     async endSession() {},
     async listAuditEvents() { return []; }
   };
+}
+
+function directGateway(rustdeskId: string, metadata: Record<string, unknown>) {
+  return {
+    provider: 'rustdesk' as const,
+    external_id: `rdgw-${rustdeskId}`,
+    launch_url: `https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-${rustdeskId}`,
+    target: { type: 'device', id: rustdeskId },
+    permissions: ['view_screen'] as const,
+    metadata
+  };
+}
+
+function deepMetadata(depth: number): Record<string, unknown> {
+  const root: Record<string, unknown> = {};
+  let current = root;
+  for (let index = 0; index < depth; index += 1) {
+    const child: Record<string, unknown> = {};
+    current.child = child;
+    current = child;
+  }
+  current.source = 'deep-metadata';
+  return root;
+}
+
+function controlledMetadataError(status: number, message: RegExp) {
+  return (error: unknown) => {
+    assert.equal((error as { status?: number }).status, status);
+    assert.match(String(error), message);
+    return true;
+  };
+}
+
+function jwtActorConflict(error: unknown): boolean {
+  assert.equal((error as { status?: number }).status, 403);
+  assert.match(String(error), /actor_identity must match authenticated identity/);
+  return true;
+}
+
+async function assertControlPlaneMetadataRejected(
+  metadata: Record<string, unknown>,
+  status: number,
+  message: RegExp,
+  suffix: string
+): Promise<void> {
+  const previous = gatewayEnv();
+  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  const pg = new MemoryPg();
+  const tenantId = `tenant-control-metadata-${suffix}`;
+  const path = '/api/opc/rustdesk/sessions';
+  try {
+    await assert.rejects(
+      () => routeCollaborationApi(pg, 'POST', path, new URL(`http://localhost${path}`), {
+        tenant_id: tenantId,
+        target: { type: 'device', id: `rustdesk-control-metadata-${suffix}` },
+        permissions: ['view_screen'],
+        actor_identity: 'control-plane-agent',
+        metadata
+      }, '', { authorization: 'Bearer rustdesk-control-token' }),
+      controlledMetadataError(status, message)
+    );
+    assert.equal((await new RustDeskGatewaySessionStore(pg).listSessions({
+      tenant_id: tenantId,
+      status: 'active'
+    })).length, 0);
+  } finally {
+    restoreGatewayEnv(previous);
+  }
 }
 
 function gatewayEnv() {

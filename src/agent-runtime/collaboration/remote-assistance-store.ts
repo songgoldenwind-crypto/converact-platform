@@ -15,6 +15,11 @@ import {
   rustDeskGatewayMetadata,
   type RustDeskGatewayAccessMode
 } from './rustdesk-gateway-security.js';
+import {
+  rustDeskConsentAuthorizationLock,
+  rustDeskPolicyAuthorizationLock,
+  withRustDeskAuthorizationLocks
+} from './rustdesk-gateway-authorization-lock.js';
 import type {
   BusinessRef,
   EvidenceRecord,
@@ -26,6 +31,13 @@ import type {
   RemoteToolProvider,
   RemoteToolSession
 } from './types.js';
+
+interface PendingGatewayAuthorization {
+  access_mode: RustDeskGatewayAccessMode;
+  consent_event_id: string;
+  device_id?: string;
+  policy_version?: number;
+}
 
 export class RemoteAssistanceStore {
   constructor(private readonly pg: PgQueryable) {}
@@ -206,7 +218,15 @@ export class RemoteAssistanceStore {
     ) => Promise<RemoteGatewayClient | undefined> | RemoteGatewayClient | undefined;
     metadata?: Record<string, unknown>;
   }): Promise<RemoteConsentEvent> {
-    const event = await this.insertConsent({ ...input, event_type: 'revoked', expires_at: null });
+    const event = await withRustDeskAuthorizationLocks(
+      this.pg,
+      [rustDeskConsentAuthorizationLock(input.tenant_id, input.remote_session_id)],
+      (pg) => new RemoteAssistanceStore(pg).insertConsent({
+        ...input,
+        event_type: 'revoked',
+        expires_at: null
+      })
+    );
     const remote = await this.getSession(input.remote_session_id);
     const activeTools = await this.pg.query(
       `SELECT * FROM remote_tool_sessions
@@ -413,8 +433,9 @@ export class RemoteAssistanceStore {
     const metadata = input.client.provider === 'rustdesk'
       ? rustDeskGatewayMetadata(input.metadata)
       : input.metadata;
+    let authorization: PendingGatewayAuthorization;
     if (input.client.provider === 'rustdesk') {
-      await this.authorizeRustDeskGatewayCreation({
+      authorization = await this.authorizeRustDeskGatewayCreation({
         tenant_id: input.tenant_id,
         remote_session_id: input.remote_session_id,
         target: input.target,
@@ -424,7 +445,8 @@ export class RemoteAssistanceStore {
         metadata
       });
     } else {
-      await this.assertActiveConsent(input.remote_session_id, input.permissions);
+      const consent = await this.assertActiveConsent(input.remote_session_id, input.permissions);
+      authorization = { consent_event_id: consent.id, access_mode: 'attended' };
     }
     const createInput = {
       target: input.target,
@@ -441,12 +463,20 @@ export class RemoteAssistanceStore {
       })
       : await input.client.createSession(createInput);
     const normalized = normalizeRemoteGatewaySession(gateway);
-    return this.persistToolSession({
-      tenant_id: input.tenant_id,
-      remote_session_id: input.remote_session_id,
-      actor_identity: input.actor_identity,
-      normalized
-    });
+    try {
+      return await this.activateAuthorizedGatewaySession(input, authorization, normalized);
+    } catch (error) {
+      try {
+        await input.client.endSession({
+          external_id: normalized.external_id,
+          actor_identity: input.actor_identity,
+          reason: 'gateway_ended'
+        });
+      } catch {
+        // The authorization failure remains authoritative; callers can retry cleanup separately.
+      }
+      throw error;
+    }
   }
 
   async authorizeRustDeskGatewayCreation(input: {
@@ -457,7 +487,7 @@ export class RemoteAssistanceStore {
     access_mode?: RustDeskGatewayAccessMode;
     device_id?: string;
     metadata?: Record<string, unknown>;
-  }): Promise<{ access_mode: RustDeskGatewayAccessMode }> {
+  }): Promise<PendingGatewayAuthorization> {
     const accessMode = rustDeskGatewayAccessMode(input.access_mode);
     rustDeskGatewayMetadata(input.metadata);
     const remote = await this.getSession(input.remote_session_id);
@@ -465,8 +495,8 @@ export class RemoteAssistanceStore {
       throw Object.assign(new Error('remote session not found'), { status: 404 });
     }
     if (accessMode === 'attended') {
-      await this.assertActiveConsent(input.remote_session_id, input.permissions);
-      return { access_mode: accessMode };
+      const consent = await this.assertActiveConsent(input.remote_session_id, input.permissions);
+      return { access_mode: accessMode, consent_event_id: consent.id };
     }
 
     const deviceId = String(input.device_id || '').trim();
@@ -487,20 +517,25 @@ export class RemoteAssistanceStore {
         status: 403
       });
     }
-    await new RustDeskAccessPolicyStore(this.pg).assertUnattendedAccess({
+    const policy = await new RustDeskAccessPolicyStore(this.pg).assertUnattendedAccess({
       tenant_id: input.tenant_id,
       device_id: device.id,
       business_ref: remote.business_ref,
       permissions: input.permissions
     });
-    await this.assertActiveConsent(input.remote_session_id, input.permissions);
-    return { access_mode: accessMode };
+    const consent = await this.assertActiveConsent(input.remote_session_id, input.permissions);
+    return {
+      access_mode: accessMode,
+      consent_event_id: consent.id,
+      device_id: device.id,
+      policy_version: policy.version
+    };
   }
 
   private async assertActiveConsent(
     remoteSessionId: string,
     permissions: readonly RemoteConsentScope[]
-  ): Promise<void> {
+  ): Promise<RemoteConsentEvent> {
     const activeConsent = await this.getActiveConsent(remoteSessionId);
     if (!activeConsent) {
       throw Object.assign(new Error('active consent required before starting remote tool session'), { status: 403 });
@@ -513,6 +548,62 @@ export class RemoteAssistanceStore {
         permission: missingPermission
       });
     }
+    return activeConsent;
+  }
+
+  private async activateAuthorizedGatewaySession(
+    input: {
+      tenant_id: string;
+      remote_session_id: string;
+      actor_identity: string;
+      client: RemoteGatewayClient;
+      target: RemoteGatewaySessionInput['target'];
+      permissions: RemoteGatewaySessionInput['permissions'];
+      access_mode?: RustDeskGatewayAccessMode;
+      device_id?: string;
+      metadata?: Record<string, unknown>;
+    },
+    pending: PendingGatewayAuthorization,
+    normalized: ReturnType<typeof normalizeRemoteGatewaySession>
+  ): Promise<RemoteToolSession> {
+    const locks = [rustDeskConsentAuthorizationLock(input.tenant_id, input.remote_session_id)];
+    if (pending.device_id) {
+      locks.push(rustDeskPolicyAuthorizationLock(input.tenant_id, pending.device_id));
+    }
+    return withRustDeskAuthorizationLocks(this.pg, locks, async (pg) => {
+      const store = new RemoteAssistanceStore(pg);
+      let current: PendingGatewayAuthorization;
+      try {
+        current = input.client.provider === 'rustdesk'
+          ? await store.authorizeRustDeskGatewayCreation({
+            tenant_id: input.tenant_id,
+            remote_session_id: input.remote_session_id,
+            target: input.target,
+            permissions: input.permissions,
+            access_mode: input.access_mode,
+            device_id: input.device_id,
+            metadata: input.metadata
+          })
+          : {
+            access_mode: 'attended',
+            consent_event_id: (await store.assertActiveConsent(
+              input.remote_session_id,
+              input.permissions
+            )).id
+          };
+      } catch (error) {
+        throw gatewayAuthorizationChanged(error);
+      }
+      if (!sameGatewayAuthorization(pending, current)) {
+        throw gatewayAuthorizationChanged();
+      }
+      return store.persistToolSession({
+        tenant_id: input.tenant_id,
+        remote_session_id: input.remote_session_id,
+        actor_identity: input.actor_identity,
+        normalized
+      });
+    });
   }
 
   async syncGatewayAuditEvents(input: {
@@ -917,6 +1008,23 @@ function rustDeskGatewaySyncTargetError(target: string, tool: RemoteToolSession 
 function rustDeskToolMetadataString(value: unknown): string {
   if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
   return '';
+}
+
+function sameGatewayAuthorization(
+  pending: PendingGatewayAuthorization,
+  current: PendingGatewayAuthorization
+): boolean {
+  return pending.access_mode === current.access_mode &&
+    pending.consent_event_id === current.consent_event_id &&
+    pending.device_id === current.device_id &&
+    pending.policy_version === current.policy_version;
+}
+
+function gatewayAuthorizationChanged(cause?: unknown): Error & { status: number; cause?: unknown } {
+  return Object.assign(new Error('gateway authorization changed during upstream creation'), {
+    status: 409,
+    ...(cause === undefined ? {} : { cause })
+  });
 }
 
 function gatewayAuditDedupeKey(event: {

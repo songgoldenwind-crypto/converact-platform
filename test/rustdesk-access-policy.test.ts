@@ -70,7 +70,8 @@ test('full schema includes the RustDesk access policy append-only history', () =
 
   assert.match(schema, /CREATE TABLE IF NOT EXISTS rustdesk_access_policy_events \(/);
   assert.match(schema, /BEFORE UPDATE OR DELETE ON rustdesk_access_policy_events/);
-  assert.equal(accessPolicyRlsBlock(schema), accessPolicyRlsBlock(migration));
+  assert.equal(accessPolicyRlsBlock(schema), '');
+  assert.notEqual(accessPolicyRlsBlock(migration), '');
   assert.doesNotMatch(schema, /rustdesk_access_policy[\s\S]{0,500}(password|credential_ref|credential-ref)/i);
 });
 
@@ -180,6 +181,38 @@ test('RustDesk access policy store enforces idempotency and serializes concurren
     (await store.listPolicyHistory({ tenant_id: tenantId, device_id: device.id })).events.map((event) => event.version),
     [1, 2, 3]
   );
+});
+
+test('RustDesk access policy idempotency replay projects state against the latest device version', async () => {
+  const pg = new MemoryPg();
+  const { tenantId, device } = await createDevice(pg, 'replay-state');
+  const store = new RustDeskAccessPolicyStore(pg);
+  const firstInput = {
+    tenant_id: tenantId,
+    device_id: device.id,
+    business_ref: { type: device.business_ref_type, id: device.business_ref_id },
+    mode: 'unattended_allowed' as const,
+    allowed_scopes: ['view_screen'] as const,
+    approved_by: 'owner-replay-state',
+    reason: 'Create the policy that will later be replayed',
+    expires_at: '2099-01-01T00:00:00.000Z',
+    idempotency_key: 'policy-replay-state-1'
+  };
+  await store.configurePolicy(firstInput);
+  await store.configurePolicy({
+    ...firstInput,
+    mode: 'attended_only',
+    allowed_scopes: [],
+    expires_at: null,
+    reason: 'Supersede the original policy event',
+    idempotency_key: 'policy-replay-state-2'
+  });
+
+  const replay = await store.configurePolicy(firstInput);
+
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.policy.version, 1);
+  assert.equal(replay.policy.state, 'superseded');
 });
 
 test('RustDesk access policy store derives expiry and revocation without mutating history', async () => {
@@ -749,6 +782,7 @@ test('unattended gateway launch requires matching active policy and consent whil
 
     const crossTenant = await gatewayRoute(pg, {
       ...gatewayInput,
+      actor_identity: 'operator-other',
       access_mode: 'unattended'
     }, jwtHeaders('tenant-policy-launch-other', 'operator-other', 'operator'));
     assert.deepEqual(crossTenant, { status: 404, data: { error: 'remote session not found' } });
@@ -812,6 +846,89 @@ test('in-process iveKit facade applies the same unattended policy gate', async (
   assert.equal(tool.provider, 'rustdesk');
   assert.equal(createCalls.length, 1);
   assert.equal(createCalls[0]?.metadata?.access_mode, 'unattended');
+});
+
+test('gateway activation compensates when consent is revoked during upstream creation', async () => {
+  const pg = new MemoryPg();
+  const { tenantId, device } = await createDevice(pg, 'consent-race');
+  const businessRef = {
+    tenant_id: tenantId,
+    type: device.business_ref_type,
+    id: device.business_ref_id
+  };
+  const remote = await createRemoteWithConsent(pg, tenantId, 'consent-race', businessRef, ['view_screen']);
+  const module = createCollaborationModule({ pg });
+  const gateway = new DeferredRustDeskGatewayClient('rdgw-consent-race');
+  const start = module.remote.startGatewayClientSession({
+    tenant_id: tenantId,
+    remote_session_id: remote.id,
+    actor_identity: 'operator-consent-race',
+    client: gateway,
+    target: { type: 'device', id: device.rustdesk_id },
+    permissions: ['view_screen'],
+    access_mode: 'attended'
+  });
+
+  await gateway.createEntered;
+  await module.remote.revokeConsent({
+    tenant_id: tenantId,
+    remote_session_id: remote.id,
+    actor_identity: 'customer-consent-race',
+    scopes: ['view_screen']
+  });
+  gateway.allowCreate();
+
+  await assert.rejects(start, /gateway authorization changed during upstream creation/);
+  assert.equal(gateway.endCalls.length, 1);
+  assert.equal((await module.remote.listToolSessions(remote.id)).length, 0);
+});
+
+test('unattended gateway activation compensates when policy is revoked during upstream creation', async () => {
+  const pg = new MemoryPg();
+  const { tenantId, device } = await createDevice(pg, 'policy-race');
+  const businessRef = {
+    tenant_id: tenantId,
+    type: device.business_ref_type,
+    id: device.business_ref_id
+  };
+  const remote = await createRemoteWithConsent(pg, tenantId, 'policy-race', businessRef, ['view_screen']);
+  const module = createCollaborationModule({ pg });
+  await module.rustdeskAccessPolicies.configurePolicy({
+    tenant_id: tenantId,
+    device_id: device.id,
+    business_ref: businessRef,
+    mode: 'unattended_allowed',
+    allowed_scopes: ['view_screen'],
+    approved_by: 'owner-policy-race',
+    reason: 'Allow the deferred unattended launch',
+    expires_at: '2099-01-01T00:00:00.000Z',
+    idempotency_key: 'policy-race-configure'
+  });
+  const gateway = new DeferredRustDeskGatewayClient('rdgw-policy-race');
+  const start = module.remote.startGatewayClientSession({
+    tenant_id: tenantId,
+    remote_session_id: remote.id,
+    actor_identity: 'operator-policy-race',
+    client: gateway,
+    target: { type: 'device', id: device.rustdesk_id },
+    permissions: ['view_screen'],
+    access_mode: 'unattended',
+    device_id: device.id
+  });
+
+  await gateway.createEntered;
+  await module.rustdeskAccessPolicies.revokePolicy({
+    tenant_id: tenantId,
+    device_id: device.id,
+    approved_by: 'owner-policy-race',
+    reason: 'Revoke while the upstream launch is pending',
+    idempotency_key: 'policy-race-revoke'
+  });
+  gateway.allowCreate();
+
+  await assert.rejects(start, /gateway authorization changed during upstream creation/);
+  assert.equal(gateway.endCalls.length, 1);
+  assert.equal((await module.remote.listToolSessions(remote.id)).length, 0);
 });
 
 test('iveKit RustDesk SDK maps policy routes, idempotency, access mode, and allowlisted DTOs', async () => {
@@ -1045,6 +1162,49 @@ function unsafePolicyEvent(overrides: Record<string, unknown> = {}) {
     credential_ref: 'drop-me',
     ...overrides
   };
+}
+
+class DeferredRustDeskGatewayClient implements RemoteGatewayClient {
+  readonly provider = 'rustdesk' as const;
+  readonly endCalls: Array<Parameters<RemoteGatewayClient['endSession']>[0]> = [];
+  readonly createEntered: Promise<void>;
+  private allowCreateNow!: () => void;
+  private markCreateEntered!: () => void;
+  private readonly createGate: Promise<void>;
+
+  constructor(private readonly externalId: string) {
+    this.createEntered = new Promise((resolve) => {
+      this.markCreateEntered = resolve;
+    });
+    this.createGate = new Promise((resolve) => {
+      this.allowCreateNow = resolve;
+    });
+  }
+
+  async createSession(input: Parameters<RemoteGatewayClient['createSession']>[0]) {
+    this.markCreateEntered();
+    await this.createGate;
+    return {
+      provider: 'rustdesk' as const,
+      external_id: this.externalId,
+      launch_url: `https://opc.example.com/remote/rustdesk/launch?session_id=${this.externalId}`,
+      target: input.target,
+      permissions: [...input.permissions],
+      metadata: input.metadata || {}
+    };
+  }
+
+  allowCreate(): void {
+    this.allowCreateNow();
+  }
+
+  async endSession(input: Parameters<RemoteGatewayClient['endSession']>[0]) {
+    this.endCalls.push(input);
+  }
+
+  async listAuditEvents() {
+    return [];
+  }
 }
 
 function accessPolicyRlsBlock(sql: string): string {

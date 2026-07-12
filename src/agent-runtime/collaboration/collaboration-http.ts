@@ -183,6 +183,20 @@ function collaborationActorIdentity(
   return ctx.userId;
 }
 
+function collaborationRequestActorIdentity(
+  ctx: ReturnType<typeof requireAuth>,
+  headers: Record<string, string | string[] | undefined>,
+  input: Record<string, unknown>
+): string {
+  const authenticated = collaborationActorIdentity(ctx, headers);
+  const supplied = String(input.actor_identity || '').trim();
+  const bearer = headerValue(headers, 'authorization').startsWith('Bearer ');
+  if (bearer && supplied && supplied !== authenticated) {
+    throw Object.assign(new Error('actor_identity must match authenticated identity'), { status: 403 });
+  }
+  return bearer ? authenticated : supplied || authenticated;
+}
+
 function canManageCollaborationParticipants(
   ctx: ReturnType<typeof requireAuth>,
   participant: CollaborationParticipant | null
@@ -1846,7 +1860,7 @@ export async function routeCollaborationApi(
       rustDeskGatewayMetadata(input, 'RustDesk gateway request');
       const remoteSessionId = String(input.remote_session_id || '').trim();
       const deviceId = String(input.device_id || '').trim();
-      const actorIdentity = String(input.actor_identity || '').trim();
+      const actorIdentity = collaborationRequestActorIdentity(ctx, headers, input);
       if (!remoteSessionId) return { status: 400, data: { error: 'remote_session_id is required' } };
       if (!deviceId) return { status: 400, data: { error: 'device_id is required' } };
       if (!actorIdentity) return { status: 400, data: { error: 'actor_identity is required' } };
@@ -1936,8 +1950,7 @@ export async function routeCollaborationApi(
         const input = bodyObject(body);
         const eventType = String(input.event_type || '').trim();
         if (!eventType) return { status: 400, data: { error: 'event_type is required' } };
-        const actorIdentity = String(input.actor_identity || '').trim();
-        if (!actorIdentity) return { status: 400, data: { error: 'actor_identity is required' } };
+        const actorIdentity = collaborationRequestActorIdentity(ctx, headers, input);
         const occurredAt = String(input.occurred_at || '').trim();
         if (occurredAt && Number.isNaN(new Date(occurredAt).getTime())) {
           return { status: 400, data: { error: 'occurred_at must be an ISO timestamp' } };
@@ -1971,8 +1984,7 @@ export async function routeCollaborationApi(
       }
       if (!action && method === 'DELETE') {
         const input = bodyObject(body);
-        const actorIdentity = String(input.actor_identity || '').trim();
-        if (!actorIdentity) return { status: 400, data: { error: 'actor_identity is required' } };
+        const actorIdentity = collaborationRequestActorIdentity(ctx, headers, input);
         const ended = await module.rustdeskPhysicalDisconnect.endGatewaySession({
           tenant_id: ctx.tenantId,
           external_id: externalId,
@@ -2939,7 +2951,7 @@ export async function routeCollaborationApi(
   const remote = await requireRemoteSession(module.remote, ctx.tenantId, remoteSessionId);
   if (!remote) return { status: 404, data: { error: 'remote session not found' } };
   const input = bodyObject(body);
-  const actorIdentity = input.actor_identity ? String(input.actor_identity) : ctx.userId;
+  const actorIdentity = collaborationRequestActorIdentity(ctx, headers, input);
 
   if (section === 'end' && method === 'POST') {
     const activeToolSessions = await module.remote.listToolSessions(remote.id);
