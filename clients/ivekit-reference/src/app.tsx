@@ -147,6 +147,17 @@ export function App() {
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }, [client, selected]);
   const reportCommandError = useCallback((cause: unknown) => setCommandError(errorMessage(cause)), []);
+  const openExternal = useCallback((url: string) => {
+    try {
+      if (window.iveKitHost?.openExternal) {
+        void Promise.resolve(window.iveKitHost.openExternal(url)).catch(reportCommandError);
+        return;
+      }
+      window.location.assign(url);
+    } catch (cause) {
+      reportCommandError(cause);
+    }
+  }, [reportCommandError]);
   const dismissError = useCallback(() => {
     setBootstrapError('');
     setCommandError('');
@@ -239,7 +250,7 @@ export function App() {
         onReviewFinding={chat.reviewFinding}
       /></> : workspaceMode === 'calls'
         ? <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>
-        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} /></Suspense>}
+        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );

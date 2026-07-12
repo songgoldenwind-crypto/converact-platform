@@ -9,6 +9,7 @@ declare global {
     iveKitHost?: {
       getAccessToken(): Promise<string> | string;
       getIdentity?(): Promise<string> | string;
+      openExternal?(url: string): Promise<void> | void;
     };
     __IVEKIT_DEV_ACCESS_TOKEN__?: string;
     __IVEKIT_DEV_IDENTITY__?: string;

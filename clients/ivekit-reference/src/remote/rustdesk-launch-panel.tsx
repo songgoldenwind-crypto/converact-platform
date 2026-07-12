@@ -138,7 +138,11 @@ export function RustDeskLaunchPanel({
     if (refreshed.nextPlan) setPlan(refreshed.nextPlan);
     setOwnership(refreshed.nextOwnership);
     setAuditCount(refreshed.events.length);
-    setDisconnectStatus(refreshed.disconnect.observation_status || refreshed.disconnect.status);
+    setDisconnectStatus(
+      refreshed.disconnect.status === 'pending' || refreshed.disconnect.status === 'claimed'
+        ? refreshed.disconnect.status
+        : refreshed.disconnect.observation_status || refreshed.disconnect.status
+    );
   }, [accessMode, client, externalId, loadLaunchPlan, run]);
 
   useEffect(() => {

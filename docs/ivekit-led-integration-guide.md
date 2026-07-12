@@ -399,6 +399,8 @@ docker compose --profile omnichannel --env-file infra/env.example \
 4. 真实 PostgreSQL 跑 migration/RLS、多副本 claim 竞争、10k+ 消息 unread/read-through。
 5. 真实 OCR/ASR/AI provider 的准确率、延迟、重试、限流和数据合规。
 6. RustDesk server evidence/readiness/client acceptance/audit coverage/evidence pack，包含真实物理断开观察。
+   - 本地先运行 `npm run test:e2e:ivekit-rustdesk`；受控 E2E 覆盖设备、授权 scope、gateway、宿主协议拉起、控制权、转交、操作审计、结束/撤权、断开进度、旧链接失效、租户/参与人隔离、幂等重试、token 零持久化和响应式布局。
+   - 该命令只产生控制面本地回归证据。它不启动 RustDesk 原生客户端，也不得把画面、键鼠、多显示器、文件、剪贴板、录屏、relay 流量或物理断开标记为真实通过；这些项目必须由 Task 9 的真实终端报告提供，否则保持 `not_run`。
 7. 多实例 Redis/WebSocket 广播、断网重连、旧 SDK 连接不复活。
 
 ### 11.4 当前不得声称通过

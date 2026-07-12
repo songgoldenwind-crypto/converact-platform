@@ -164,10 +164,12 @@ M4 must extend these contracts instead of creating parallel device/session/audit
 - Modify: `clients/ivekit-reference/playwright.config.ts`
 - Modify: `package.json`
 
-- [ ] Cover device resolution, consent, scope display, gateway creation, protocol/manual launch, lock acquisition, transfer, operation event projection, end, disconnect progression, revoke, and old-link invalidation.
-- [ ] Verify participant/user isolation, cross-tenant denial, stale launch suppression, retry idempotency, and zero token persistence.
-- [ ] Capture desktop/mobile layouts without overlap or hidden revoke/end controls.
-- [ ] Label all controlled results as local regression evidence; do not emulate native screen/control success.
+- [x] Cover device resolution, consent, scope display, gateway creation, protocol/manual launch, lock acquisition, transfer, operation event projection, end, disconnect progression, revoke, and old-link invalidation.
+- [x] Verify participant/user isolation, cross-tenant denial, stale launch suppression, retry idempotency, and zero token persistence.
+- [x] Capture desktop/mobile layouts without overlap or hidden revoke/end controls.
+- [x] Label all controlled results as local regression evidence; do not emulate native screen/control success.
+
+Local regression command: `npm run test:e2e:ivekit-rustdesk` (`3/3` on 2026-07-12). These controlled results validate only iveKit HTTP/UI state, authorization, idempotency, link handling, persistence, and responsive layout. They do not run a native RustDesk client and do not claim screen pixels, keyboard/mouse effects, file/clipboard operations, recording, relay traffic, or physical disconnect success.
 
 ## Task 9: Bind Real Terminal Acceptance Without Fabrication
 
