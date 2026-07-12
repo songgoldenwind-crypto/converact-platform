@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-11。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》；物理 RustDesk 客户端和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
+> 版本：2026-07-12。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》；物理 RustDesk 客户端和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
 
 ## 1. 交付目标
 
@@ -154,6 +154,16 @@ await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
 ```
 
 文件传输、剪贴板同步和屏幕录制分别使用 `recordFileTransfer`、`recordClipboardSync`、`recordScreenRecording`。结束后轮询 `getGatewayDisconnectState`，并在物理客户端验收中确认画面和输入控制确实停止。
+
+仓库内 `clients/ivekit-reference` 的 **Remote** 工作区是可运行的 RustDesk 对接参考实现，LED 可以复用其流程，也可以直接嵌入 `RustDeskLaunchPanel`。组件支持通过 `initialBusinessRef`、`initialRemoteSessionId`、`initialAccessMode` 预填订单/工单和远协会话；运行时完成设备解析、scope 选择、attended/unattended 建会话、授权 scope 展示、ID/relay/API server 与 public key 手工配置展示、原生 `rustdesk://` 拉起、控制权取得/释放/转移、审计数量和物理断开状态展示。
+
+安全与并发约束如下：
+
+1. signed `launch_url` 和 token 不渲染到 DOM，也不持久化；界面只展示客户端手工配置字段。
+2. 点击 **Open RustDesk** 时即时重新读取 launch plan，并校验 active 状态、目标 RustDesk ID、protocol scheme 和 server key fingerprint 后才调用浏览器 protocol handler。
+3. unattended 模式只在建会话和用户主动拉起时签发并消费 `unattended_launch` 二次确认；普通状态刷新不会消耗一次性确认。
+4. 当前身份取得控制权后每 10 秒调用 `heartbeatControl()` 续租；释放、转移、过期、会话结束或组件卸载后停止。续租失败会重新读取服务端 ownership，不在前端伪造所有权。
+5. 浏览器 protocol handler 必须由用户点击触发。LED 若封装桌面壳，应通过 `openProtocol(url)` 注入受控原生拉起实现，仍保留上述即时校验。
 
 ### 4.6 可运行示例
 

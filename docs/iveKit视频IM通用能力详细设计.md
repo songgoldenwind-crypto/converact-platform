@@ -2,7 +2,7 @@
 
 > 面向 LED 项目研发对接。本文档汇总 OPC 当前已经沉淀的 iveKit 后端能力，覆盖视频/语音、屏幕共享、Web 远程协助、页面内控制、录屏、审计、证据、远程网关、IM/Tinode、附件消息、防绕单扫描等能力。
 >
-> 文档日期：2026-07-03
+> 文档日期：2026-07-12
 >
 > 代码基线：当前 OPC 仓库 `/Users/songjinfeng/Desktop/opc`
 >
@@ -275,6 +275,7 @@ iveKit 的目标不是只服务 OPC 当前页面，而是作为“视频 + IM + 
 当前状态：
 
 - 已完成：除原有 gateway/client-config/launch/audit/LED facade 能力外，已经增加 PostgreSQL `rustdesk_device_commands`、FORCE RLS、幂等 enqueue、并发 claim lease、claim token hash、设备绑定 HMAC edge token、进度/结果 API、并发 result 幂等、耗尽 lease 查询收敛、三次执行与退避、session adapter→service restart fallback、设备侧无 shell executor、超时进程组强制终止、结果摘要/哈希、全部结束入口的 reason 映射、严格 capability heartbeat 门禁、HTTP client/LED SDK 状态查询、physical-disconnect readiness、真实客户端 acceptance 字段与绑定审计要求，以及 Compose/K8s/server 与 edge 两个信任域的配置样例。详细实现和 API 见 §6.4.5。
+- 已完成：`clients/ivekit-reference` 增加独立 **Remote** 工作区，统一客户端通过顶层 Messages / Calls / Remote 三个工作区切换。Remote 工作区支持 business ref 解析注册设备、权限 scope 与 attended/unattended 选择、gateway session 创建、实际 granted scope、控制 owner/version、审计数量和物理断开状态展示，以及 ID server、relay、可选 API server、public key 和 fingerprint 手工配置。它只在用户点击时即时重取 launch plan，校验会话、目标、`rustdesk://` scheme 和 fingerprint 后拉起原生客户端，不把 signed launch URL/token 渲染到 DOM 或持久化。unattended 普通刷新不重复消费二次确认；主动拉起会重新确认。当前身份持有控制权时每 10 秒自动 heartbeat，失去 ownership、会话结束或卸载即停止；续租失败后以服务端 ownership 为准。控制权支持 acquire/release/transfer，组件提供 business ref、remote session 和 access mode 预填参数及可注入 protocol opener，便于 LED 壳层复用。
 - 待服务器验收：按 RustDesk profile 启动真实 `hbbs/hbbr`，部署 Linux/Windows 设备 wrapper 和 edge agent，确认真实 RustDesk 版本下 targeted disconnect 或 service restart 的实际效果；使用两个真实客户端建立连接，执行 consent revoke/tool end/direct gateway end，验证控制端屏幕和键鼠能力停止、命令状态为 `succeeded`、requested→claimed→succeeded 审计完整、旧 launch URL 返回 409，并确认 fallback 重启造成的其它会话影响符合预期。
 - 第一版不做：fork RustDesk client、依赖 RustDesk Server Pro API、在应用表里保存 unattended password。
 

@@ -83,3 +83,19 @@ test('call_id opens the media workspace and loads the durable call snapshot', as
   await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(chatRequests, 0);
 });
+
+test('remote tab opens the RustDesk workspace without starting a session', async () => {
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'agent-remote';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === '/ivekit-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url.includes('/api/ivekit/chat/sessions')) return Response.json({ items: [], next_cursor: null, has_more: false });
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+  const view = render(<App />);
+  fireEvent.click(view.getByTitle('Show remote workspace'));
+  await waitFor(() => assert.ok(view.getByText('Remote assistance')));
+  assert.equal(view.getByTitle('Show remote workspace').getAttribute('aria-pressed'), 'true');
+  assert.ok(view.getByRole('button', { name: 'Start session' }));
+});

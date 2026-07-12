@@ -1,5 +1,5 @@
 import { createIveKitClient, type IveKitChatMessage, type IveKitChatSession } from '@opc/ivekit-sdk';
-import { CircleStop, List, MessageSquare, Phone, RefreshCw } from 'lucide-react';
+import { CircleStop, List, MessageSquare, MonitorCog, Phone, RefreshCw } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { MessageComposer } from './chat/message-composer.js';
@@ -22,6 +22,11 @@ const MediaWorkspace = lazy(async () => {
   return { default: module.MediaWorkspace };
 });
 
+const RustDeskLaunchPanel = lazy(async () => {
+  const module = await import('./remote/rustdesk-launch-panel.js');
+  return { default: module.RustDeskLaunchPanel };
+});
+
 export function App() {
   const [config, setConfig] = useState<IveKitRuntimeConfig | null>(null);
   const [token, setToken] = useState('');
@@ -38,7 +43,7 @@ export function App() {
   const [mobileView, setMobileView] = useState<'sessions' | 'chat'>('sessions');
   const [selectedFindingId, setSelectedFindingId] = useState('');
   const [mediaCallId, setMediaCallId] = useState(initialCallId);
-  const [workspaceMode, setWorkspaceMode] = useState<'messages' | 'calls'>(() => initialCallId() ? 'calls' : 'messages');
+  const [workspaceMode, setWorkspaceMode] = useState<'messages' | 'calls' | 'remote'>(() => initialCallId() ? 'calls' : 'messages');
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
 
@@ -162,12 +167,13 @@ export function App() {
   }, []);
 
   return (
-    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : ''}`} data-mobile-view={mobileView}>
+    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'remote' ? 'workspace-remote' : ''}`} data-mobile-view={mobileView}>
       <header className="topbar">
         <div className="brand"><MessageSquare size={18} /> <strong>iveKit</strong></div>
         <div className="workspace-tabs" role="group" aria-label="Workspace">
           <button title="Show messages workspace" aria-pressed={workspaceMode === 'messages'} onClick={() => setWorkspaceMode('messages')}><MessageSquare size={16} /><span>Messages</span></button>
           <button title="Show calls workspace" aria-pressed={workspaceMode === 'calls'} onClick={() => setWorkspaceMode('calls')}><Phone size={16} /><span>Calls</span></button>
+          <button title="Show remote workspace" aria-pressed={workspaceMode === 'remote'} onClick={() => setWorkspaceMode('remote')}><MonitorCog size={16} /><span>Remote</span></button>
         </div>
         {workspaceMode === 'messages' && <div className="mobile-tabs" role="group" aria-label="Mobile workspace">
           <button title="Show sessions" aria-pressed={mobileView === 'sessions'} onClick={() => setMobileView('sessions')}><List size={17} /></button>
@@ -231,7 +237,9 @@ export function App() {
         onCloseFinding={() => setSelectedFindingId('')}
         onLoadFinding={chat.loadFinding}
         onReviewFinding={chat.reviewFinding}
-      /></> : <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>}
+      /></> : workspaceMode === 'calls'
+        ? <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>
+        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );
