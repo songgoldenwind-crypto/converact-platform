@@ -2,6 +2,7 @@ import {
   createIveKitHttpSdk,
   type IveKitChatHttpClient,
   type IveKitContextHttpClient,
+  type IveKitEventHttpClient,
   type IveKitHttpSdkInput,
   type IveKitMediaHttpClient
 } from './http-sdk.js';
@@ -20,6 +21,7 @@ export interface IveKitClient {
   media: IveKitMediaHttpClient;
   chat: IveKitChatHttpClient;
   context: IveKitContextHttpClient;
+  events: IveKitEventHttpClient;
   rustdesk: IveKitRustDeskClient;
 }
 
@@ -53,6 +55,7 @@ export * from './http-sdk.js';
 export type * from './chat-types.js';
 export type * from './media-types.js';
 export type * from './context-types.js';
+export type * from './event-types.js';
 export * from './upload-transport.js';
 export * from './rustdesk-http-client.js';
 export * from './rustdesk-led-sdk.js';

@@ -73,6 +73,22 @@ Use `context.listTimeline(orderRef, { limit, cursor })` for the redacted cross-d
 activity/evidence index. Its cursor is opaque and business-ref scoped; timeline items
 never contain message bodies, provider metadata, storage URLs, or captured content.
 
+The event client provides durable reconnect convergence without provider credentials:
+
+```typescript
+const cursor = await ivekit.events.getHeadCursor();
+const replay = await ivekit.events.replay({ cursor, limit: 100, max_pages: 20 });
+if (replay.snapshot_required) {
+  // Refresh Chat, Media, and Remote snapshots, then request a new head cursor.
+} else {
+  // Apply events once by event_id and retain replay.next_cursor in runtime memory.
+}
+```
+
+Event cursors are opaque, tenant-bound, signed, and retention-limited. A 409 snapshot
+fallback is returned as a typed page instead of an exception. The SDK never exposes
+the cursor signing secret, provider credentials, or unrestricted tenant events.
+
 The media client exports typed capabilities, durable call snapshots and actions,
 rooms, join plans, provider participants, host moderation, recordings, object
 inspection, retention cleanup, and cursor/list results. Existing room APIs remain

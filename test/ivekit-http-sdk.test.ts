@@ -298,6 +298,63 @@ test('iveKit HTTP SDK exposes cursor session and message history requests', asyn
   );
 });
 
+test('iveKit HTTP SDK exposes durable event pages, bounded replay, and snapshot fallback', async () => {
+  const calls: string[] = [];
+  const responses = [
+    { status: 200, body: { items: [], next_cursor: 'head-1', has_more: false, snapshot_required: false } },
+    {
+      status: 200,
+      body: {
+        items: [{ event_id: '1', cursor: 'cursor-1', tenant_id: 'tenant-events', type: 'collaboration.message.created', data: {}, timestamp: '2026-07-12T00:00:00.000Z', expires_at: '2026-07-13T00:00:00.000Z', visibility_scope: 'chat_session', visibility_ref_id: 'chat-1', audience_user_ids: [] }],
+        next_cursor: 'cursor-1',
+        has_more: true,
+        snapshot_required: false
+      }
+    },
+    {
+      status: 200,
+      body: {
+        items: [{ event_id: '2', cursor: 'cursor-2', tenant_id: 'tenant-events', type: 'media.call.updated', data: {}, timestamp: '2026-07-12T00:00:01.000Z', expires_at: '2026-07-13T00:00:01.000Z', visibility_scope: 'media_call', visibility_ref_id: 'call-1', audience_user_ids: [] }],
+        next_cursor: 'cursor-2',
+        has_more: false,
+        snapshot_required: false
+      }
+    },
+    {
+      status: 409,
+      body: {
+        items: [], next_cursor: '', has_more: false, snapshot_required: true, reason: 'cursor_expired'
+      }
+    }
+  ];
+  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+    baseUrl: 'https://ivekit.example.com',
+    tenantId: 'tenant-events',
+    accessToken: 'event-token',
+    fetch: async (input: string | URL) => {
+      calls.push(String(input));
+      const next = responses.shift();
+      assert.ok(next);
+      return Response.json(next.body, { status: next.status });
+    }
+  });
+
+  assert.equal(await sdk.events.getHeadCursor(), 'head-1');
+  const replay = await sdk.events.replay({ cursor: 'head-1', limit: 1, max_pages: 2 });
+  assert.deepEqual(replay.items.map((event) => event.event_id), ['1', '2']);
+  assert.equal(replay.next_cursor, 'cursor-2');
+  assert.equal(replay.pages, 2);
+  const expired = await sdk.events.listPage({ cursor: 'expired-cursor' });
+  assert.equal(expired.snapshot_required, true);
+  assert.equal(expired.reason, 'cursor_expired');
+  assert.deepEqual(calls.map((url) => new URL(url).pathname + new URL(url).search), [
+    '/api/ivekit/events',
+    '/api/ivekit/events?cursor=head-1&limit=1',
+    '/api/ivekit/events?cursor=cursor-1&limit=1',
+    '/api/ivekit/events?cursor=expired-cursor'
+  ]);
+});
+
 test('iveKit HTTP SDK keeps Bearer identity authoritative and exposes structured errors', async () => {
   const sdkPath = 'src/agent-runtime/ivekit/http-sdk.ts';
   assert.equal(existsSync(sdkPath), true);

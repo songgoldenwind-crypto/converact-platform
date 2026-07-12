@@ -17,6 +17,11 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  buildIveKitStandaloneContext,
+  validateIveKitStandaloneContext
+} from './ivekit-standalone-build-context.js';
+
 export interface DeliverySourceFile {
   source: string;
   destination: string;
@@ -41,6 +46,15 @@ export interface IveKitDeliveryManifest {
     database: string;
     documentation: string;
     acceptance: string;
+    service_source: string;
+  };
+  artifacts: {
+    sdk_package: { path: string; sha256: string };
+    reference_client: { path: string; tree_sha256: string };
+    service_build_context: { path: string; manifest_sha256: string };
+    migration_manifest: { path: string; sha256: string };
+    image_metadata: { path: string; sha256: string };
+    sbom: { path: string; sha256: string };
   };
   provider_ownership: {
     livekit: string;
@@ -60,11 +74,16 @@ export interface BuildIveKitDeliveryBundleOptions {
   outputDir: string;
   sdkTarball: string;
   clientDist: string;
+  imageReference?: string;
+  imageDigest?: string;
   sourceCommit?: string;
   generatedAt?: string;
 }
 
-const COMMUNICATION_MIGRATIONS = [
+const STANDALONE_MIGRATIONS = [
+  'services/ivekit-service/migrations/000_ivekit_foundation.sql',
+  'src/migrations/009_tenant_rls.sql',
+  'src/migrations/010_force_rls.sql',
   '011_collaboration_remote_assistance.sql',
   '012_livekit_participants.sql',
   '013_media_recording_business_ref.sql',
@@ -90,7 +109,10 @@ const COMMUNICATION_MIGRATIONS = [
   '037_media_call_timeout_worker.sql',
   '038_media_recording_evidence.sql',
   '039_rustdesk_access_policy.sql',
-  '040_rustdesk_control_ownership.sql'
+  '040_rustdesk_control_ownership.sql',
+  '041_tinode_inbound_sync.sql',
+  '042_ivekit_tenant_events.sql',
+  'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
 ];
 
 export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
@@ -107,9 +129,9 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'env.example',
     'config/redis.conf'
   ].map((name) => ({ source: `infra/livekit/${name}`, destination: `deploy/livekit/${name}` })),
-  ...COMMUNICATION_MIGRATIONS.map((name) => ({
-    source: `src/migrations/${name}`,
-    destination: `database/migrations/${name}`
+  ...STANDALONE_MIGRATIONS.map((source) => ({
+    source: source.includes('/') ? source : `src/migrations/${source}`,
+    destination: `database/migrations/${basename(source)}`
   })),
   ...[
     'iveKit\u89c6\u9891IM\u901a\u7528\u80fd\u529b\u8be6\u7ec6\u8bbe\u8ba1.md',
@@ -123,7 +145,23 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   ...[
     'ivekit-led-integration-example.ts',
     'ivekit-rustdesk-led-example.ts'
-  ].map((name) => ({ source: `scripts/${name}`, destination: `examples/${name}` }))
+  ].map((name) => ({ source: `scripts/${name}`, destination: `examples/${name}` })),
+  ...[
+    'rustdesk-edge-agent.ts',
+    'rustdesk-edge-command.ts',
+    'rustdesk-edge-pending-store.ts'
+  ].map((name) => ({ source: `scripts/${name}`, destination: `edge/src/${name}` })),
+  ...[
+    'linux-disconnect.sh',
+    'linux-restart.sh',
+    'macos-disconnect.sh',
+    'macos-restart.sh',
+    'windows-disconnect.ps1',
+    'windows-restart.ps1'
+  ].map((name) => ({ source: `scripts/rustdesk-edge-adapters/${name}`, destination: `edge/adapters/${name}` })),
+  { source: 'services/rustdesk-edge-agent/package.json', destination: 'edge/package.json' },
+  { source: 'services/rustdesk-edge-agent/package-lock.json', destination: 'edge/package-lock.json' },
+  { source: 'services/rustdesk-edge-agent/README.md', destination: 'edge/README.md' }
 ] as const;
 
 const DELIVERY_ROOT_MARKER = '.ivekit-delivery-root';
@@ -142,7 +180,7 @@ const SECRET_PATTERNS = [
   /\bBearer\s+eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/
 ];
 const TEXT_EXTENSIONS = new Set([
-  '', '.conf', '.css', '.html', '.js', '.json', '.md', '.mjs', '.sh', '.sql', '.ts', '.txt', '.yaml', '.yml'
+  '', '.conf', '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.sh', '.sql', '.ts', '.txt', '.yaml', '.yml'
 ]);
 
 export function buildIveKitDeliveryBundle(
@@ -150,6 +188,8 @@ export function buildIveKitDeliveryBundle(
 ): { outputDir: string; manifest: IveKitDeliveryManifest } {
   const repoRoot = resolve(options.repoRoot);
   const outputDir = resolve(options.outputDir);
+  const sourceCommit = options.sourceCommit || resolveSourceCommit(repoRoot);
+  const generatedAt = options.generatedAt || new Date().toISOString();
   assertSafeOutputDirectory(repoRoot, outputDir);
   requireFile(options.sdkTarball, 'SDK tarball');
   requireDirectory(options.clientDist, 'reference client dist');
@@ -164,9 +204,76 @@ export function buildIveKitDeliveryBundle(
     requireFile(source, `delivery source ${entry.source}`);
     copyDeliverySource(outputDir, source, entry.destination);
   }
+  const edgeStaging = mkdtempSync(join(tmpdir(), 'ivekit-delivery-edge-'));
+  try {
+    run('npx', [
+      'tsc',
+      '--outDir', edgeStaging,
+      '--rootDir', 'scripts',
+      '--module', 'NodeNext',
+      '--moduleResolution', 'NodeNext',
+      '--target', 'ES2022',
+      '--types', 'node',
+      '--skipLibCheck',
+      'scripts/rustdesk-edge-agent.ts',
+      'scripts/rustdesk-edge-command.ts',
+      'scripts/rustdesk-edge-pending-store.ts'
+    ], repoRoot);
+    for (const name of [
+      'rustdesk-edge-agent.js',
+      'rustdesk-edge-command.js',
+      'rustdesk-edge-pending-store.js'
+    ]) copyFile(outputDir, join(edgeStaging, name), `edge/dist/${name}`);
+  } finally {
+    rmSync(edgeStaging, { recursive: true, force: true });
+  }
 
   cpSync(options.clientDist, join(outputDir, 'client'), { recursive: true, dereference: false });
   copyFile(outputDir, options.sdkTarball, `sdk/${basename(options.sdkTarball)}`);
+  const serviceStaging = mkdtempSync(join(tmpdir(), 'ivekit-delivery-service-'));
+  try {
+    const contextDir = join(serviceStaging, 'build-context');
+    const context = buildIveKitStandaloneContext({
+      repoRoot,
+      outputDir: contextDir,
+      sourceCommit,
+      generatedAt
+    });
+    cpSync(contextDir, join(outputDir, 'service', 'build-context'), {
+      recursive: true,
+      dereference: false
+    });
+    const migrations = context.manifest.files
+      .filter((entry) => entry.path.startsWith('migrations/'))
+      .map((entry) => ({
+        version: basename(entry.path, '.sql').split('_', 1)[0],
+        file: basename(entry.path),
+        bytes: entry.bytes,
+        sha256: entry.sha256
+      }));
+    writeFileSync(join(outputDir, 'service', 'migration-manifest.json'), `${JSON.stringify({
+      schema_version: 1,
+      source_commit: sourceCommit,
+      migrations
+    }, null, 2)}\n`, 'utf8');
+  } finally {
+    rmSync(serviceStaging, { recursive: true, force: true });
+  }
+  const imageDigest = validatedImageDigest(options.imageDigest);
+  writeFileSync(join(outputDir, 'service', 'image-metadata.json'), `${JSON.stringify({
+    schema_version: 1,
+    source_commit: sourceCommit,
+    reference: String(options.imageReference || `ivekit-service:${sourceCommit.slice(0, 12)}`).trim(),
+    digest: imageDigest,
+    status: imageDigest ? 'digest_pinned' : 'build_required',
+    build_context: 'service/build-context/'
+  }, null, 2)}\n`, 'utf8');
+  const sbom = JSON.parse(run(
+    'npm',
+    ['sbom', '--package-lock-only', '--sbom-format', 'spdx'],
+    join(repoRoot, 'services', 'ivekit-service')
+  )) as Record<string, unknown>;
+  writeFileSync(join(outputDir, 'service', 'sbom.spdx.json'), `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
   writeFileSync(join(outputDir, 'README.md'), renderBundleReadme(), 'utf8');
   mkdirSync(join(outputDir, 'acceptance'), { recursive: true });
   writeFileSync(join(outputDir, 'acceptance', 'status.json'), `${JSON.stringify({
@@ -187,15 +294,42 @@ export function buildIveKitDeliveryBundle(
     schema_version: 1,
     product: 'iveKit',
     status: 'ready_for_handoff',
-    source_commit: options.sourceCommit || resolveSourceCommit(repoRoot),
-    generated_at: options.generatedAt || new Date().toISOString(),
+    source_commit: sourceCommit,
+    generated_at: generatedAt,
     contents: {
       sdk: 'sdk/',
       reference_client: 'client/',
       deployment: 'deploy/',
       database: 'database/migrations/',
       documentation: 'docs/',
-      acceptance: 'acceptance/status.json'
+      acceptance: 'acceptance/status.json',
+      service_source: 'service/build-context/'
+    },
+    artifacts: {
+      sdk_package: {
+        path: `sdk/${basename(options.sdkTarball)}`,
+        sha256: sha256(join(outputDir, 'sdk', basename(options.sdkTarball)))
+      },
+      reference_client: {
+        path: 'client/',
+        tree_sha256: treeSha256(join(outputDir, 'client'))
+      },
+      service_build_context: {
+        path: 'service/build-context/',
+        manifest_sha256: sha256(join(outputDir, 'service', 'build-context', 'context-manifest.json'))
+      },
+      migration_manifest: {
+        path: 'service/migration-manifest.json',
+        sha256: sha256(join(outputDir, 'service', 'migration-manifest.json'))
+      },
+      image_metadata: {
+        path: 'service/image-metadata.json',
+        sha256: sha256(join(outputDir, 'service', 'image-metadata.json'))
+      },
+      sbom: {
+        path: 'service/sbom.spdx.json',
+        sha256: sha256(join(outputDir, 'service', 'sbom.spdx.json'))
+      }
     },
     provider_ownership: {
       livekit: 'audio, video, rooms, screen share, recording and webhooks',
@@ -237,6 +371,11 @@ export function validateIveKitDeliveryBundle(outputDirInput: string): IveKitDeli
   if (Object.values(manifest.real_environment_acceptance).some((status) => status !== 'not_run')) {
     throw new Error('delivery generation cannot claim real-environment acceptance');
   }
+  const contextManifest = validateIveKitStandaloneContext(join(outputDir, 'service', 'build-context'));
+  if (contextManifest.source_commit !== manifest.source_commit) {
+    throw new Error('service build context source commit does not match delivery manifest');
+  }
+  validateArtifactBindings(outputDir, manifest);
 
   const payloadFiles = files.filter((path) => path !== 'manifest.json' && path !== 'SHA256SUMS');
   if (JSON.stringify(manifest.files.map((entry) => entry.path)) !== JSON.stringify(payloadFiles)) {
@@ -281,7 +420,9 @@ function prepareBundleFromCli(): { outputDir: string; manifest: IveKitDeliveryMa
       repoRoot,
       outputDir,
       sdkTarball: join(stagingDir, filename),
-      clientDist: join(repoRoot, 'clients', 'ivekit-reference', 'dist')
+      clientDist: join(repoRoot, 'clients', 'ivekit-reference', 'dist'),
+      imageReference: process.env.OPC_IVEKIT_DELIVERY_IMAGE_REFERENCE,
+      imageDigest: process.env.OPC_IVEKIT_DELIVERY_IMAGE_DIGEST
     });
   } finally {
     rmSync(stagingDir, { recursive: true, force: true });
@@ -305,6 +446,11 @@ function renderBundleReadme(): string {
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',
     '- `examples/`: minimal LED SDK and RustDesk integration examples.',
     '- `acceptance/status.json`: honest target-environment acceptance state.',
+    '- `service/build-context/`: independently buildable iveKit service source context with its own package lock.',
+    '- `service/migration-manifest.json`: ordered standalone migration checksums.',
+    '- `service/image-metadata.json`: source-bound image reference/digest state.',
+    '- `service/sbom.spdx.json`: npm dependency SBOM in SPDX 2.3 format.',
+    '- `edge/`: RustDesk device agent source, crash-safe spool, package manifest, and OS adapter examples.',
     '',
     '## Integrity',
     '',
@@ -313,8 +459,8 @@ function renderBundleReadme(): string {
     '',
     '## Deployment boundary',
     '',
-    'The Compose stack references an iveKit application image. Build or distribute that image from the same source commit',
-    'recorded in `manifest.json`; this bundle deliberately does not copy the wider OPC source tree.',
+    'Build the iveKit image directly from `service/build-context/`; no OPC root checkout is required.',
+    'The context and image metadata are bound to the same source commit recorded in `manifest.json`.',
     'The SQL files are application-owned overlay migrations and must be run by the image migration job in numeric order.',
     'Do not apply them to an unrelated schema without the foundation tables and RLS helpers documented in the integration guide.',
     '',
@@ -334,6 +480,9 @@ function assertAllowedDeliveryPath(path: string): void {
   if (fixed.has(path)) return;
   if (path.startsWith('client/') && path.length > 'client/'.length) return;
   if (/^sdk\/[^/]+\.tgz$/.test(path)) return;
+  if (path.startsWith('service/build-context/') && path.length > 'service/build-context/'.length) return;
+  if (/^edge\/dist\/rustdesk-edge-(?:agent|command|pending-store)\.js$/.test(path)) return;
+  if (path === 'service/migration-manifest.json' || path === 'service/image-metadata.json' || path === 'service/sbom.spdx.json') return;
   throw new Error(`unexpected delivery file: ${path}`);
 }
 
@@ -402,6 +551,37 @@ function fileEntry(root: string, path: string): IveKitDeliveryManifestFile {
 
 function sha256(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+function treeSha256(root: string): string {
+  return createHash('sha256').update(listDeliveryFiles(root)
+    .map((path) => `${path}\0${sha256(join(root, path))}\n`)
+    .join('')).digest('hex');
+}
+
+function validatedImageDigest(value: string | undefined): string {
+  const digest = String(value || '').trim();
+  if (digest && !/^sha256:[a-f0-9]{64}$/.test(digest)) {
+    throw new Error('imageDigest must be a sha256 digest');
+  }
+  return digest;
+}
+
+function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryManifest): void {
+  const artifacts = manifest.artifacts;
+  const checks: Array<[string, string]> = [
+    [artifacts.sdk_package.path, artifacts.sdk_package.sha256],
+    [artifacts.migration_manifest.path, artifacts.migration_manifest.sha256],
+    [artifacts.image_metadata.path, artifacts.image_metadata.sha256],
+    [artifacts.sbom.path, artifacts.sbom.sha256],
+    ['service/build-context/context-manifest.json', artifacts.service_build_context.manifest_sha256]
+  ];
+  for (const [path, expected] of checks) {
+    if (sha256(join(outputDir, path)) !== expected) throw new Error(`artifact checksum mismatch: ${path}`);
+  }
+  if (treeSha256(join(outputDir, artifacts.reference_client.path)) !== artifacts.reference_client.tree_sha256) {
+    throw new Error('reference client tree checksum mismatch');
+  }
 }
 
 function copyFile(outputDir: string, source: string, destination: string): void {

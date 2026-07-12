@@ -29,6 +29,7 @@ export interface UseChatSessionInput {
   role?: string;
   accessToken: string;
   websocketUrl?: string;
+  replayVersion?: number;
 }
 
 export function useChatSession(input: UseChatSessionInput) {
@@ -240,7 +241,7 @@ export function useChatSession(input: UseChatSessionInput) {
         identity: input.identity, status: 'offline'
       }).catch(() => undefined);
     };
-  }, [client, sessionId, sessionStatus, input.identity, input.role, input.accessToken, input.websocketUrl, refreshAncillary]);
+  }, [client, sessionId, sessionStatus, input.identity, input.role, input.accessToken, input.websocketUrl, input.replayVersion, refreshAncillary]);
 
   const loadOlder = useCallback(async () => {
     if (!client || !sessionId || !historyCursor.current) return;

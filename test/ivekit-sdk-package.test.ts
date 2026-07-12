@@ -20,6 +20,8 @@ test('iveKit SDK exposes media chat and rustdesk through one factory', () => {
   assert.equal(typeof sdk.rustdesk.startGatewaySession, 'function');
   assert.equal(typeof sdk.rustdesk.ensureDevice, 'function');
   assert.equal(typeof sdk.rustdesk.startSession, 'function');
+  assert.equal(typeof sdk.events.getHeadCursor, 'function');
+  assert.equal(typeof sdk.events.replay, 'function');
 });
 
 test('legacy iveKit module entrypoint keeps the unified client export', () => {
@@ -50,6 +52,7 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
   const readme = readFileSync('sdk/ivekit/README.md', 'utf8');
   assert.match(entrypoint, /export type \* from '\.\/chat-types\.js'/);
   assert.match(entrypoint, /export type \* from '\.\/media-types\.js'/);
+  assert.match(entrypoint, /export type \* from '\.\/event-types\.js'/);
   assert.match(readme, /IveKitChatSnapshot/);
   assert.match(readme, /IveKitMediaCallSnapshot/);
   assert.match(readme, /receive-only/);

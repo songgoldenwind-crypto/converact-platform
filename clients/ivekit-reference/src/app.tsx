@@ -25,6 +25,7 @@ import {
   requestIdentity,
   type IveKitRuntimeConfig
 } from './runtime-config.js';
+import { EventReplayController, eventWorkspace } from './realtime/event-replay.js';
 
 const MediaWorkspace = lazy(async () => {
   const module = await import('./media/media-workspace.js');
@@ -57,6 +58,9 @@ export function App() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(initialLocation.workspace);
   const [businessRef, setBusinessRef] = useState<BusinessRefSelection | null>(initialLocation.businessRef);
   const [authorizationOpen, setAuthorizationOpen] = useState(false);
+  const [chatReplayVersion, setChatReplayVersion] = useState(0);
+  const [mediaReplayVersion, setMediaReplayVersion] = useState(0);
+  const [remoteReplayVersion, setRemoteReplayVersion] = useState(0);
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
   const seededContext = useRef('');
@@ -73,7 +77,8 @@ export function App() {
     session: selected,
     identity,
     accessToken: token,
-    websocketUrl: config?.websocketUrl
+    websocketUrl: config?.websocketUrl,
+    replayVersion: chatReplayVersion
   });
 
   const refreshSessions = useCallback(async (append = false) => {
@@ -186,6 +191,57 @@ export function App() {
       }
     }
   }, [businessContext.context, businessRef, mediaCallId, remoteSessionId]);
+  useEffect(() => {
+    if (!client) return;
+    let refreshTimer: number | null = null;
+    const pending = new Set<'chat' | 'media' | 'remote' | 'context'>();
+    const refresh = async (workspace: 'chat' | 'media' | 'remote' | 'context') => {
+      if (workspace === 'chat') {
+        setChatReplayVersion((value) => value + 1);
+        await refreshSessions(false);
+      } else if (workspace === 'media') {
+        setMediaReplayVersion((value) => value + 1);
+        await businessContext.refresh();
+      } else if (workspace === 'remote') {
+        setRemoteReplayVersion((value) => value + 1);
+        await businessContext.refresh();
+      } else {
+        await businessContext.refresh();
+      }
+    };
+    const flush = () => {
+      refreshTimer = null;
+      const workspaces = [...pending];
+      pending.clear();
+      void Promise.all(workspaces.map(refresh)).catch(() => undefined);
+    };
+    const schedule = (workspace: 'chat' | 'media' | 'remote' | 'context') => {
+      pending.add(workspace);
+      if (refreshTimer === null) refreshTimer = window.setTimeout(flush, 50);
+    };
+    const controller = new EventReplayController({
+      events: client.events,
+      onEvent: (event) => { schedule(eventWorkspace(event.type)); },
+      snapshots: {
+        chat: () => refresh('chat'),
+        media: () => refresh('media'),
+        remote: () => refresh('remote')
+      }
+    });
+    const resume = () => { void controller.resume().catch(() => undefined); };
+    const visible = () => { if (document.visibilityState === 'visible') resume(); };
+    void controller.start().catch(() => undefined);
+    const interval = window.setInterval(resume, 15_000);
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      controller.stop();
+      window.clearInterval(interval);
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      window.removeEventListener('online', resume);
+      document.removeEventListener('visibilitychange', visible);
+    };
+  }, [businessContext.refresh, client, refreshSessions]);
   useEffect(() => {
     if (!selectedId || chat.loading || chat.state.requestId === 0) return;
     setSessions((current) => current.map((session) => session.id === selectedId
@@ -336,8 +392,8 @@ export function App() {
         onLoadFinding={chat.loadFinding}
         onReviewFinding={chat.reviewFinding}
       /></> : workspaceMode === 'calls'
-        ? <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>
-        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>}
+        ? <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace key={`media-replay-${mediaReplayVersion}`} client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>
+        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel key={`remote-replay-${remoteReplayVersion}`} client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );

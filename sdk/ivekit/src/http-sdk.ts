@@ -61,6 +61,12 @@ import type {
 } from './media-types.js';
 import type { IveKitSdkBusinessRef } from './types.js';
 import type { IveKitBusinessContext, IveKitUnifiedTimelinePage } from './context-types.js';
+import type {
+  IveKitEventPage,
+  IveKitEventPageInput,
+  IveKitEventReplayInput,
+  IveKitEventReplayResult
+} from './event-types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -229,10 +235,17 @@ export interface IveKitContextHttpClient {
   ): Promise<IveKitUnifiedTimelinePage>;
 }
 
+export interface IveKitEventHttpClient {
+  getHeadCursor(): Promise<string>;
+  listPage<T = unknown>(input: IveKitEventPageInput): Promise<IveKitEventPage<T>>;
+  replay<T = unknown>(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult<T>>;
+}
+
 export interface IveKitHttpSdk {
   media: IveKitMediaHttpClient;
   chat: IveKitChatHttpClient;
   context: IveKitContextHttpClient;
+  events: IveKitEventHttpClient;
 }
 
 export class IveKitHttpSdkError extends Error {
@@ -253,7 +266,8 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
   return {
     media: createMediaClient(transport),
     chat: createChatClient(transport, createAttachmentUploadClient(input)),
-    context: createContextClient(transport)
+    context: createContextClient(transport),
+    events: createEventClient(transport)
   };
 }
 
@@ -662,6 +676,49 @@ function createContextClient(transport: IveKitTransport): IveKitContextHttpClien
   };
 }
 
+function createEventClient(transport: IveKitTransport): IveKitEventHttpClient {
+  const listPage = async <T = unknown>(input: IveKitEventPageInput): Promise<IveKitEventPage<T>> => {
+    const cursor = requiredString(input.cursor, 'cursor is required');
+    try {
+      return await transport.json<IveKitEventPage<T>>('GET', '/api/ivekit/events', {
+        query: { cursor, limit: optionalNumber(input.limit) }
+      });
+    } catch (error) {
+      if (
+        error instanceof IveKitHttpSdkError &&
+        error.status === 409 &&
+        isEventPage(error.payload)
+      ) return error.payload as IveKitEventPage<T>;
+      throw error;
+    }
+  };
+  return {
+    async getHeadCursor() {
+      const page = await transport.json<IveKitEventPage>('GET', '/api/ivekit/events');
+      return requiredString(page.next_cursor, 'event head cursor is missing');
+    },
+    listPage,
+    async replay<T = unknown>(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult<T>> {
+      const maxPages = boundedInteger(input.max_pages, 20, 1, 100, 'max_pages');
+      const items: IveKitEventReplayResult<T>['items'] = [];
+      let cursor = requiredString(input.cursor, 'cursor is required');
+      let page: IveKitEventPage<T> = {
+        items: [], next_cursor: cursor, has_more: false, snapshot_required: false
+      };
+      let pages = 0;
+      while (pages < maxPages) {
+        page = await listPage<T>({ cursor, limit: input.limit });
+        pages += 1;
+        if (page.snapshot_required) return { ...page, items: [], pages };
+        items.push(...page.items);
+        cursor = page.next_cursor;
+        if (!page.has_more) break;
+      }
+      return { ...page, items, next_cursor: cursor, pages };
+    }
+  };
+}
+
 function createAttachmentUploadClient(input: IveKitHttpSdkInput) {
   const baseUrl = validBaseUrl(input.baseUrl);
   const tenantId = requiredString(input.tenantId, 'tenantId is required');
@@ -741,6 +798,29 @@ function pathSegment(value: unknown, field: string): string {
 
 function optionalNumber(value: number | undefined): string {
   return value === undefined ? '' : String(value);
+}
+
+function boundedInteger(
+  value: number | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+  field: string
+): number {
+  const resolved = value === undefined ? fallback : Number(value);
+  if (!Number.isInteger(resolved) || resolved < minimum || resolved > maximum) {
+    throw new Error(`${field} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return resolved;
+}
+
+function isEventPage(value: unknown): value is IveKitEventPage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const page = value as Partial<IveKitEventPage>;
+  return Array.isArray(page.items) &&
+    typeof page.next_cursor === 'string' &&
+    typeof page.has_more === 'boolean' &&
+    page.snapshot_required === true;
 }
 
 function recordingListQuery(input: IveKitMediaRecordingListInput): Record<string, string> {

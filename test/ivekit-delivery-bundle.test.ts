@@ -33,8 +33,24 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       sourceCommit: 'a'.repeat(40)
     });
     const files = listDeliveryFiles(outputDir);
+    const contextManifest = JSON.parse(readFileSync(
+      join(outputDir, 'service', 'build-context', 'context-manifest.json'),
+      'utf8'
+    )) as { files: Array<{ path: string }>; source_commit: string };
+    const contextFiles = [
+      ...contextManifest.files.map((entry) => `service/build-context/${entry.path}`),
+      'service/build-context/context-manifest.json',
+      'service/build-context/SHA256SUMS',
+      'service/image-metadata.json',
+      'service/migration-manifest.json',
+      'service/sbom.spdx.json'
+    ];
     const expected = [
       ...DELIVERY_SOURCE_FILES.map((entry) => entry.destination),
+      ...contextFiles,
+      'edge/dist/rustdesk-edge-agent.js',
+      'edge/dist/rustdesk-edge-command.js',
+      'edge/dist/rustdesk-edge-pending-store.js',
       '.ivekit-delivery-root',
       'README.md',
       'SHA256SUMS',
@@ -55,6 +71,11 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(result.manifest.files.length, files.length - 2);
     assert.equal(result.manifest.files.some((entry) => entry.path === 'manifest.json'), false);
     assert.equal(result.manifest.files.some((entry) => entry.path === 'SHA256SUMS'), false);
+    assert.equal(contextManifest.source_commit, 'a'.repeat(40));
+    assert.equal(result.manifest.contents.service_source, 'service/build-context/');
+    assert.equal(result.manifest.artifacts.sdk_package.sha256, createHash('sha256').update('test sdk archive').digest('hex'));
+    assert.equal(result.manifest.artifacts.service_build_context.path, 'service/build-context/');
+    assert.match(result.manifest.artifacts.reference_client.tree_sha256, /^[a-f0-9]{64}$/);
 
     for (const entry of result.manifest.files) {
       const content = readFileSync(join(outputDir, entry.path));
@@ -64,9 +85,35 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
 
     const sums = readFileSync(join(outputDir, 'SHA256SUMS'), 'utf8');
     assert.match(sums, /  manifest\.json$/m);
-    assert.doesNotMatch(sums, /SHA256SUMS/);
+    assert.doesNotMatch(sums, /  SHA256SUMS$/m);
     assert.deepEqual(validateIveKitDeliveryBundle(outputDir), result.manifest);
-    assert.equal(files.some((file) => /call-center|ivr|src\//i.test(file)), false);
+    assert.equal(files.some((file) => /call-center|ivr/i.test(file)), false);
+    const migrationManifest = JSON.parse(readFileSync(
+      join(outputDir, 'service', 'migration-manifest.json'),
+      'utf8'
+    )) as { migrations: Array<{ file: string; sha256: string }> };
+    assert.equal(migrationManifest.migrations.length, 32);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
+    assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
+    const imageMetadata = JSON.parse(readFileSync(
+      join(outputDir, 'service', 'image-metadata.json'),
+      'utf8'
+    )) as { source_commit: string; status: string; build_context: string };
+    assert.deepEqual(imageMetadata, {
+      schema_version: 1,
+      source_commit: 'a'.repeat(40),
+      reference: `ivekit-service:${'a'.repeat(12)}`,
+      digest: '',
+      status: 'build_required',
+      build_context: 'service/build-context/'
+    });
+    const sbom = JSON.parse(readFileSync(join(outputDir, 'service', 'sbom.spdx.json'), 'utf8')) as {
+      spdxVersion: string;
+      packages: unknown[];
+    };
+    assert.equal(sbom.spdxVersion, 'SPDX-2.3');
+    assert.ok(sbom.packages.length > 1);
     const applicationCompose = readFileSync(join(outputDir, 'deploy/application/docker-compose.yml'), 'utf8');
     assert.doesNotMatch(applicationCompose, /^\s+build:/m);
     assert.doesNotMatch(applicationCompose, /ivekit-opc:local/);
