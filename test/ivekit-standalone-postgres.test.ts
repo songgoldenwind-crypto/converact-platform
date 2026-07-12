@@ -57,6 +57,9 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     for (const required of [
       'tenants',
       'collaboration_sessions',
+      'collaboration_intelligence_policies',
+      'collaboration_intelligence_source_links',
+      'collaboration_translation_jobs',
       'ivekit_media_calls',
       'ivekit_tenant_events',
       'rustdesk_gateway_sessions'
@@ -65,7 +68,7 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     const checksums = await admin.query<{ version: string; checksum: string }>(
       `SELECT version, checksum FROM schema_migrations ORDER BY version`
     );
-    assert.equal(checksums.rows.length, 32);
+    assert.equal(checksums.rows.length, 33);
     assert.equal(checksums.rows.every((row) => /^[a-f0-9]{64}$/.test(row.checksum)), true);
 
     const rlsGaps = await admin.query<{ relname: string }>(`
@@ -108,6 +111,13 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
 
     await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_a', 'A'), ('ivekit_rls_b', 'B')`);
     await admin.query(`
+      INSERT INTO collaboration_intelligence_policies
+        (tenant_id, translation_enabled, translation_profile_id, updated_by)
+      VALUES
+        ('ivekit_rls_a', TRUE, 'translation-a', 'admin'),
+        ('ivekit_rls_b', TRUE, 'translation-b', 'admin')
+    `);
+    await admin.query(`
       INSERT INTO rustdesk_devices
         (id, tenant_id, business_ref_type, business_ref_id, rustdesk_id, display_name)
       VALUES ('ivekit_recovery_device', 'ivekit_rls_a', 'order', 'A-1', '123456789', 'Recovery device');
@@ -123,6 +133,28 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         ('ivekit_recovery_command_uncertain', 'ivekit_rls_a', 'ivekit_recovery_device', 'ivekit_recovery_uncertain', 'tester', 'gateway_ended')
     `);
     await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      const visiblePolicies = await tenantPg.query<{ tenant_id: string; translation_profile_id: string }>(
+        `SELECT tenant_id, translation_profile_id
+         FROM collaboration_intelligence_policies
+         ORDER BY tenant_id`
+      );
+      assert.deepEqual(visiblePolicies.rows, [{
+        tenant_id: 'ivekit_rls_a',
+        translation_profile_id: 'translation-a'
+      }]);
+      await assert.rejects(
+        () => tenantPg.query(`
+          UPDATE collaboration_intelligence_policies
+          SET translation_profile_id = 'cross-tenant-write'
+          WHERE tenant_id = 'ivekit_rls_b'
+          RETURNING tenant_id
+        `).then((result) => {
+          if (result.rowCount === 0) throw new Error('row-level security blocked cross-tenant policy update');
+          return result;
+        }),
+        /row-level security/i
+      );
+
       const commands = new RustDeskDeviceCommandStore(tenantPg);
       const executedClaim = (await commands.claimNext({
         tenant_id: 'ivekit_rls_a',
@@ -312,12 +344,17 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
     const standaloneVersions = await admin.query<{ version: string; count: string }>(`
       SELECT version, count(*)::text AS count
       FROM schema_migrations
-      WHERE version IN ('000_ivekit_foundation', '090_ivekit_runtime_security')
+      WHERE version IN (
+        '000_ivekit_foundation',
+        '043_ivekit_intelligence_translation',
+        '090_ivekit_runtime_security'
+      )
       GROUP BY version
       ORDER BY version
     `);
     assert.deepEqual(standaloneVersions.rows, [
       { version: '000_ivekit_foundation', count: '1' },
+      { version: '043_ivekit_intelligence_translation', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 

@@ -52,6 +52,7 @@ For every implementation task:
 - Test: `test/ivekit-standalone-migrations.test.ts`
 - Test: `test/postgres-migrations-checksum.test.ts`
 - Test: `test/ivekit-runtime-role.test.ts`
+- Test: `test/ivekit-delivery-bundle.test.ts`
 
 **Steps:**
 
@@ -672,4 +673,3 @@ npm run test:ivekit:delivery
 9. Migration, runtime role, Compose, Kubernetes, SDK package, reference client, delivery bundle, upgrade, and rollback surfaces include V3.
 10. Focused, full repository, real PostgreSQL, controlled provider, browser, restart-recovery, and isolated server gates pass with evidence.
 11. Real vendor accuracy, compliance, quota, and latency remain clearly marked `not_run` until provider selection and credentials are supplied.
-

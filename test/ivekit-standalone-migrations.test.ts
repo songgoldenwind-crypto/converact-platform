@@ -41,6 +41,12 @@ test('standalone migration order includes RLS and communication overlays but exc
     '032_runtime_least_privilege.sql'
   ]) assert.equal(migrations.includes(excluded), false, excluded);
   assert.equal(migrations.includes('042_ivekit_tenant_events.sql'), true);
+  assert.equal(migrations.includes('043_ivekit_intelligence_translation.sql'), true);
+  assert.equal(
+    migrations.indexOf('043_ivekit_intelligence_translation.sql') <
+      migrations.indexOf('090_ivekit_runtime_security.sql'),
+    true
+  );
   assert.equal(migrations.at(-1), '090_ivekit_runtime_security.sql');
   const runtimeSecurity = readFileSync(
     'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
