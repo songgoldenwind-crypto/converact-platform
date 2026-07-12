@@ -1,21 +1,49 @@
 import assert from 'node:assert/strict';
-import { resolve } from 'node:path';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 
 import { Pool } from 'pg';
 
+import { buildIveKitStandaloneContext } from '../scripts/ivekit-standalone-build-context.js';
 import { runMigrations } from '../src/db-pg.js';
+import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
+import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
 
-const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
-const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
-const maybe = adminUrl && runtimeUrl ? test : test.skip;
+const freshAdminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
+const freshRuntimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
+const upgradeAdminUrl = process.env.OPC_IVEKIT_UPGRADE_TEST_DATABASE_URL || '';
+const upgradeRuntimeUrl = process.env.OPC_IVEKIT_UPGRADE_TEST_RUNTIME_DATABASE_URL || '';
+const runtimePassword = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD || '';
+const freshTest = freshAdminUrl && freshRuntimeUrl && runtimePassword ? test : test.skip;
+const upgradeTest = upgradeAdminUrl && upgradeRuntimeUrl && runtimePassword ? test : test.skip;
 
-maybe('standalone PostgreSQL fresh migration is minimal, checksummed, idempotent, and RLS enforced', async () => {
-  const admin = new Pool({ connectionString: adminUrl, max: 1 });
-  const runtime = new Pool({ connectionString: runtimeUrl, max: 1 });
-  const directory = resolve('services/ivekit-service/migrations');
+function standaloneMigrations(): { directory: string; cleanup(): void } {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-standalone-postgres-'));
+  const outputDir = join(root, 'context');
+  buildIveKitStandaloneContext({
+    repoRoot: resolve('.'),
+    outputDir,
+    sourceCommit: 'integration-test',
+    generatedAt: '2026-07-12T00:00:00.000Z'
+  });
+  return {
+    directory: join(outputDir, 'migrations'),
+    cleanup: () => rmSync(root, { recursive: true, force: true })
+  };
+}
+
+freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempotent, and RLS enforced', async () => {
+  const admin = new Pool({ connectionString: freshAdminUrl, max: 1 });
+  const runtime = new Pool({ connectionString: freshRuntimeUrl, max: 1 });
+  const migrations = standaloneMigrations();
   try {
-    await runMigrations(admin, { directory, advisoryLockName: 'ivekit_test_migrations' });
+    await initializeIveKitRuntimeRole(admin, runtimePassword);
+    await applyIveKitMigrations(admin, {
+      directory: migrations.directory,
+      advisoryLockName: 'ivekit_test_fresh_migrations'
+    });
 
     const tables = await admin.query<{ tablename: string }>(
       `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
@@ -33,7 +61,7 @@ maybe('standalone PostgreSQL fresh migration is minimal, checksummed, idempotent
     const checksums = await admin.query<{ version: string; checksum: string }>(
       `SELECT version, checksum FROM schema_migrations ORDER BY version`
     );
-    assert.equal(checksums.rows.length > 20, true);
+    assert.equal(checksums.rows.length, 30);
     assert.equal(checksums.rows.every((row) => /^[a-f0-9]{64}$/.test(row.checksum)), true);
 
     const rlsGaps = await admin.query<{ relname: string }>(`
@@ -50,11 +78,34 @@ maybe('standalone PostgreSQL fresh migration is minimal, checksummed, idempotent
     `);
     assert.deepEqual(rlsGaps.rows, []);
 
-    await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_a', 'A'), ('ivekit_rls_b', 'B') ON CONFLICT DO NOTHING`);
+    const privileges = await admin.query<{
+      can_create: boolean;
+      can_read_ledger: boolean;
+      is_superuser: boolean;
+      bypasses_rls: boolean;
+      can_create_role: boolean;
+    }>(`
+      SELECT
+        has_schema_privilege('opc_runtime', 'public', 'CREATE') AS can_create,
+        has_table_privilege('opc_runtime', 'public.schema_migrations', 'SELECT') AS can_read_ledger,
+        rolsuper AS is_superuser,
+        rolbypassrls AS bypasses_rls,
+        rolcreaterole AS can_create_role
+      FROM pg_roles
+      WHERE rolname = 'opc_runtime'
+    `);
+    assert.deepEqual(privileges.rows[0], {
+      can_create: false,
+      can_read_ledger: false,
+      is_superuser: false,
+      bypasses_rls: false,
+      can_create_role: false
+    });
+
+    await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_a', 'A'), ('ivekit_rls_b', 'B')`);
     await admin.query(`
       INSERT INTO collaboration_sessions (id, tenant_id, business_ref_type, business_ref_id, title)
       VALUES ('ivekit_rls_session_b', 'ivekit_rls_b', 'order', 'B-1', 'private B')
-      ON CONFLICT DO NOTHING
     `);
 
     const client = await runtime.connect();
@@ -79,12 +130,86 @@ maybe('standalone PostgreSQL fresh migration is minimal, checksummed, idempotent
       client.release();
     }
 
-    await runMigrations(admin, { directory, advisoryLockName: 'ivekit_test_migrations' });
+    await applyIveKitMigrations(admin, {
+      directory: migrations.directory,
+      advisoryLockName: 'ivekit_test_fresh_migrations'
+    });
     const preserved = await admin.query(
       `SELECT id FROM collaboration_sessions WHERE id = 'ivekit_rls_session_b'`
     );
     assert.equal(preserved.rowCount, 1);
   } finally {
+    migrations.cleanup();
+    await runtime.end();
+    await admin.end();
+  }
+});
+
+upgradeTest('existing OPC schema upgrades through standalone runner without product or communication data loss', async () => {
+  const admin = new Pool({ connectionString: upgradeAdminUrl, max: 1 });
+  const runtime = new Pool({ connectionString: upgradeRuntimeUrl, max: 1 });
+  const migrations = standaloneMigrations();
+  try {
+    await runMigrations(admin, {
+      directory: resolve('src/migrations'),
+      advisoryLockName: 'ivekit_test_opc_root_migrations'
+    });
+    await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_upgrade_tenant', 'Upgrade tenant')`);
+    await admin.query(`
+      INSERT INTO campaigns (id, tenant_id, name)
+      VALUES ('ivekit_upgrade_campaign', 'ivekit_upgrade_tenant', 'Preserved campaign')
+    `);
+    await admin.query(`
+      INSERT INTO collaboration_sessions (id, tenant_id, business_ref_type, business_ref_id, title)
+      VALUES ('ivekit_upgrade_session', 'ivekit_upgrade_tenant', 'order', 'UP-1', 'Preserved session')
+    `);
+    const productTablesBefore = await admin.query<{ count: string }>(`
+      SELECT count(*)::text AS count FROM pg_tables WHERE schemaname = 'public'
+    `);
+
+    await initializeIveKitRuntimeRole(admin, runtimePassword);
+    await applyIveKitMigrations(admin, {
+      directory: migrations.directory,
+      advisoryLockName: 'ivekit_test_upgrade_migrations'
+    });
+    await applyIveKitMigrations(admin, {
+      directory: migrations.directory,
+      advisoryLockName: 'ivekit_test_upgrade_migrations'
+    });
+
+    const productTablesAfter = await admin.query<{ count: string }>(`
+      SELECT count(*)::text AS count FROM pg_tables WHERE schemaname = 'public'
+    `);
+    assert.equal(Number(productTablesAfter.rows[0].count) >= Number(productTablesBefore.rows[0].count), true);
+    assert.equal((await admin.query(
+      `SELECT id FROM campaigns WHERE id = 'ivekit_upgrade_campaign'`
+    )).rowCount, 1);
+    assert.equal((await admin.query(
+      `SELECT id FROM collaboration_sessions WHERE id = 'ivekit_upgrade_session'`
+    )).rowCount, 1);
+
+    const standaloneVersions = await admin.query<{ version: string; count: string }>(`
+      SELECT version, count(*)::text AS count
+      FROM schema_migrations
+      WHERE version IN ('000_ivekit_foundation', '090_ivekit_runtime_security')
+      GROUP BY version
+      ORDER BY version
+    `);
+    assert.deepEqual(standaloneVersions.rows, [
+      { version: '000_ivekit_foundation', count: '1' },
+      { version: '090_ivekit_runtime_security', count: '1' }
+    ]);
+
+    await assert.rejects(
+      () => runtime.query('SELECT version FROM schema_migrations'),
+      /permission denied/i
+    );
+    await assert.rejects(
+      () => runtime.query('CREATE TABLE ivekit_runtime_must_not_create (id TEXT)'),
+      /permission denied/i
+    );
+  } finally {
+    migrations.cleanup();
     await runtime.end();
     await admin.end();
   }

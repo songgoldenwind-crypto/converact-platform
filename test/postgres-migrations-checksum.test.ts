@@ -37,6 +37,18 @@ class MigrationPg implements MigrationQueryable {
   }
 }
 
+class FailOnceMigrationPg extends MigrationPg {
+  failed = false;
+
+  override async query(text: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
+    if (!this.failed && text.includes('CREATE TABLE recoverable')) {
+      this.failed = true;
+      throw new Error('simulated migration failure');
+    }
+    return super.query(text, params);
+  }
+}
+
 test('migration executor records checksums, skips exact replay, and rejects drift', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'ivekit-migrations-'));
   const file = join(directory, '100_example.sql');
@@ -75,6 +87,25 @@ test('migration executor backfills a legacy blank checksum without rerunning SQL
     await runPostgresMigrationsOnClient(pg, plan);
     assert.equal(pg.executedSql.length, 0);
     assert.equal(pg.versions.get('101_legacy'), plan[0].checksum);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('failed migration rolls back without a ledger entry and succeeds on forward retry', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'ivekit-migrations-recovery-'));
+  writeFileSync(join(directory, '102_recoverable.sql'), 'CREATE TABLE recoverable (id TEXT PRIMARY KEY);\n');
+  const pg = new FailOnceMigrationPg();
+  try {
+    const plan = readPostgresMigrationPlan(directory);
+    await assert.rejects(
+      () => runPostgresMigrationsOnClient(pg, plan),
+      /simulated migration failure/
+    );
+    assert.equal(pg.versions.has('102_recoverable'), false);
+
+    await runPostgresMigrationsOnClient(pg, plan);
+    assert.equal(pg.versions.get('102_recoverable'), plan[0].checksum);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

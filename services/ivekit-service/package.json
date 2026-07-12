@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "init:runtime-role": "node dist/ivekit-init-runtime-role.js",
     "migrate": "node dist/ivekit-migrate.js",
     "start": "node dist/ivekit-server.js"
   },

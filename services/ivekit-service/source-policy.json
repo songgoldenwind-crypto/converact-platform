@@ -2,7 +2,8 @@
   "schema_version": 1,
   "entrypoints": [
     "src/ivekit-server.ts",
-    "src/ivekit-migrate.ts"
+    "src/ivekit-migrate.ts",
+    "src/ivekit-init-runtime-role.ts"
   ],
   "forbidden_prefixes": [
     "src/agent-runtime/call-center/",
@@ -18,7 +19,9 @@
     "services/ivekit-service/tsconfig.json",
     "services/ivekit-service/Dockerfile",
     "services/ivekit-service/.dockerignore",
-    "services/ivekit-service/README.md"
+    "services/ivekit-service/README.md",
+    "services/ivekit-service/docker-compose.yml",
+    "services/ivekit-service/env.example"
   ],
   "migrations": [
     "services/ivekit-service/migrations/000_ivekit_foundation.sql",

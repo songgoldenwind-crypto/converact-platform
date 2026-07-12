@@ -16,4 +16,12 @@ The generated `migrations/` directory includes the minimal fresh-database founda
 npm run migrate
 ```
 
-Create the `opc_runtime` role before migration so restricted helper-function grants can be applied, then grant it schema/table/sequence access after migration and revoke all access to `schema_migrations`. The long-running service must use `opc_runtime` with `NOSUPERUSER NOBYPASSRLS`; only the one-shot migration job may use `opc_admin`.
+The included Compose file runs the compiled `init:runtime-role` entrypoint before `migrate`. It creates or rotates `opc_runtime`, applies default and existing-object grants, and revokes schema creation and migration-ledger access. The long-running service uses `opc_runtime` with `NOSUPERUSER NOBYPASSRLS`; only the one-shot role and migration jobs receive `opc_admin` credentials.
+
+For an isolated foundation deployment, generate the context, replace both passwords in `env.example`, and run Compose from the generated directory:
+
+```bash
+docker compose --env-file env.example up --build
+```
+
+The default provider workers are disabled. Enable each worker only after its corresponding LiveKit, Tinode, storage, Redis, or quality provider configuration has been supplied.

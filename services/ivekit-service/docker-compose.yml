@@ -1,0 +1,88 @@
+x-ivekit-image: &ivekit-image
+  image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+  build:
+    context: .
+
+services:
+  postgres:
+    image: postgres:${IVEKIT_POSTGRES_IMAGE_TAG:-16-alpine}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opc_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: opc
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opc_admin -d opc"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  runtime-role-init:
+    <<: *ivekit-image
+    entrypoint: ["node", "dist/ivekit-init-runtime-role.js"]
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: opc
+      PGUSER: opc_admin
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      OPC_RUNTIME_DB_PASSWORD: ${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate:
+    <<: *ivekit-image
+    entrypoint: ["node", "dist/ivekit-migrate.js"]
+    restart: "no"
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: opc
+      PGUSER: opc_admin
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    depends_on:
+      runtime-role-init:
+        condition: service_completed_successfully
+
+  ivekit:
+    <<: *ivekit-image
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${IVEKIT_HTTP_PORT:-8300}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: opc
+      PGUSER: opc_runtime
+      PGPASSWORD: ${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}
+      OPC_SCHEMA_MANAGED_BY_MIGRATIONS: "1"
+      REDIS_URL: ${REDIS_URL:-}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      OPC_API_KEY: ${OPC_API_KEY:-}
+      OPC_JWT_SECRET: ${OPC_JWT_SECRET:-}
+      OPC_IVEKIT_ALLOWED_ORIGINS: ${OPC_IVEKIT_ALLOWED_ORIGINS:-}
+      OPC_TINODE_DELIVERY_WORKER_ENABLED: ${OPC_TINODE_DELIVERY_WORKER_ENABLED:-0}
+      OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: ${OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED:-0}
+      OPC_QUALITY_REVIEW_WORKER_ENABLED: ${OPC_QUALITY_REVIEW_WORKER_ENABLED:-0}
+      OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED: ${OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED:-0}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres_data:

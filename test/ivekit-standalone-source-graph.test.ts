@@ -45,7 +45,11 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     assets: string[];
   };
 
-  assert.deepEqual(policy.entrypoints, ['src/ivekit-server.ts', 'src/ivekit-migrate.ts']);
+  assert.deepEqual(policy.entrypoints, [
+    'src/ivekit-server.ts',
+    'src/ivekit-migrate.ts',
+    'src/ivekit-init-runtime-role.ts'
+  ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',
     'src/agent-runtime/ivr/',
@@ -54,4 +58,6 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
   ]) assert.equal(policy.forbidden_prefixes.includes(prefix), true, prefix);
   assert.equal(policy.assets.includes('services/ivekit-service/package.json'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/Dockerfile'), true);
+  assert.equal(policy.assets.includes('services/ivekit-service/docker-compose.yml'), true);
+  assert.equal(policy.assets.includes('services/ivekit-service/env.example'), true);
 });

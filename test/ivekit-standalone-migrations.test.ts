@@ -60,6 +60,20 @@ test('standalone service exposes a compiled migration entrypoint', () => {
   assert.doesNotMatch(dockerfile, /tsx|scripts\/run-postgres-migrations/);
 });
 
+test('standalone service owns compiled runtime-role bootstrap and Compose ordering', () => {
+  const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+  const compose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
+
+  assert.equal(servicePackage.scripts['init:runtime-role'], 'node dist/ivekit-init-runtime-role.js');
+  assert.match(compose, /runtime-role-init:[\s\S]*dist\/ivekit-init-runtime-role\.js/);
+  assert.match(compose, /migrate:[\s\S]*runtime-role-init:[\s\S]*condition: service_completed_successfully/);
+  assert.match(compose, /ivekit:[\s\S]*migrate:[\s\S]*condition: service_completed_successfully/);
+  assert.match(compose, /PGUSER: opc_runtime/);
+  assert.doesNotMatch(compose, /\.\.\/\.\.|opc-growth-platform|src\/server\.ts/);
+});
+
 test('generic media module does not write the legacy OPC voice session', async () => {
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Standalone media tenant' });
