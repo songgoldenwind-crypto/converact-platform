@@ -436,6 +436,12 @@ RustDesk 稳定路径前缀为 `/api/ivekit/rustdesk`，推荐使用 `createIveK
 | DELETE | `/api/ivekit/rustdesk/gateway-sessions/:external_id` | 结束控制面会话并触发物理断开命令 |
 | GET | `/api/ivekit/rustdesk/gateway-sessions/:external_id/disconnect` | pending/succeeded/failed/unavailable |
 
+Legacy OPC compatibility route `/api/opc/rustdesk/sessions` is attended-only. An omitted
+`access_mode` keeps the historical attended create contract; when `remote_session_id` is
+provided, active consent and requested consent scopes are rechecked. Unattended creation must use `/api/ivekit/rustdesk/gateway-sessions`, which applies the registered-device, business-ref,
+active-policy, expiry, and active-consent checks. The legacy control plane rejects explicit
+`access_mode=unattended` and access-mode or unattended aliases hidden in metadata.
+
 ### 4.1 真实终端 DTO 与能力事实
 
 SDK 在 `sdk/ivekit/src/types.ts` 导出 `RustDeskTerminalProfile`、

@@ -77,6 +77,8 @@ import {
   rustDeskGatewayEventValidationError
 } from './rustdesk-gateway-event.js';
 import {
+  hasRustDeskGatewayAccessModeAlias,
+  hasRustDeskGatewayUnattendedAlias,
   rustDeskGatewayAccessMode,
   rustDeskGatewayMetadata
 } from './rustdesk-gateway-security.js';
@@ -901,10 +903,19 @@ async function routeRustDeskControlPlane(
       const input = bodyObject(body);
       rustDeskGatewayMetadata(input, 'RustDesk gateway request');
       const metadata = rustDeskGatewayMetadata(input.metadata);
-      if (metadata.access_mode !== undefined) {
+      if (
+        hasRustDeskGatewayAccessModeAlias(metadata) ||
+        hasRustDeskGatewayUnattendedAlias(metadata)
+      ) {
         return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
       }
-      rustDeskGatewayAccessMode(input.access_mode);
+      const accessMode = rustDeskGatewayAccessMode(input.access_mode);
+      if (accessMode === 'unattended') {
+        return {
+          status: 403,
+          data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+        };
+      }
       const requestedPermissions = stringArray(input.permissions || input.scopes);
       const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
       if (unsupportedPermission) {
@@ -941,10 +952,19 @@ async function routeRustDeskControlPlane(
     const input = bodyObject(body);
     rustDeskGatewayMetadata(input, 'RustDesk gateway request');
     const inputMetadata = rustDeskGatewayMetadata(input.metadata);
-    if (inputMetadata.access_mode !== undefined) {
+    if (
+      hasRustDeskGatewayAccessModeAlias(inputMetadata) ||
+      hasRustDeskGatewayUnattendedAlias(inputMetadata)
+    ) {
       return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
     }
     const accessMode = rustDeskGatewayAccessMode(input.access_mode);
+    if (accessMode === 'unattended') {
+      return {
+        status: 403,
+        data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+      };
+    }
     const requestedPermissions = stringArray(input.permissions || input.scopes);
     const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
     if (unsupportedPermission) {
@@ -957,22 +977,17 @@ async function routeRustDeskControlPlane(
     const target = remoteGatewayTargetFromInput(input);
     const remoteSessionId = String(input.remote_session_id || '').trim();
     const deviceId = String(input.device_id || '').trim();
-    if (accessMode === 'unattended' && (!remoteSessionId || !deviceId)) {
-      return {
-        status: 403,
-        data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
-      };
+    if (remoteSessionId) {
+      await new RemoteAssistanceStore(pg).authorizeRustDeskGatewayCreation({
+        tenant_id: tenantScope,
+        remote_session_id: remoteSessionId,
+        target,
+        permissions,
+        access_mode: 'attended',
+        device_id: deviceId || undefined,
+        metadata: inputMetadata
+      });
     }
-    if (!remoteSessionId) return { status: 400, data: { error: 'remote_session_id is required' } };
-    await new RemoteAssistanceStore(pg).authorizeRustDeskGatewayCreation({
-      tenant_id: tenantScope,
-      remote_session_id: remoteSessionId,
-      target,
-      permissions,
-      access_mode: accessMode,
-      device_id: deviceId || undefined,
-      metadata: inputMetadata
-    });
     const metadata = rustDeskRuntimeMetadata(input, target);
     if (input.access_mode !== undefined) metadata.access_mode = accessMode;
     if (rustDeskRequirePhysicalDisconnect()) {

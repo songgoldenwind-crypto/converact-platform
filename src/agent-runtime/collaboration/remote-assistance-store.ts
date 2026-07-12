@@ -10,6 +10,7 @@ import { rustDeskGatewayEventPermissionError } from './rustdesk-gateway-event.js
 import { RustDeskAccessPolicyStore } from './rustdesk-access-policy-store.js';
 import { RustDeskDeviceStore } from './rustdesk-device-store.js';
 import {
+  hasRustDeskGatewayUnattendedAlias,
   rustDeskGatewayAccessMode,
   rustDeskGatewayMetadata,
   type RustDeskGatewayAccessMode
@@ -307,13 +308,35 @@ export class RemoteAssistanceStore {
     launch_url?: string;
     metadata?: Record<string, unknown>;
   }): Promise<RemoteToolSession> {
-    const metadata = input.provider === 'rustdesk'
-      ? rustDeskGatewayMetadata(input.metadata)
-      : input.metadata;
+    if (input.provider === 'rustdesk') {
+      throw Object.assign(new Error(
+        'generic RustDesk tool creation is not allowed; use the dedicated RustDesk gateway path'
+      ), { status: 400 });
+    }
     if (!(await this.hasActiveConsent(input.remote_session_id))) {
       throw Object.assign(new Error('active consent required before starting remote tool session'), { status: 403 });
     }
-    const normalized = normalizeExternalRemoteTool({ ...input, metadata });
+    const normalized = normalizeExternalRemoteTool(input);
+    return this.persistToolSession({
+      tenant_id: input.tenant_id,
+      remote_session_id: input.remote_session_id,
+      actor_identity: input.actor_identity,
+      normalized
+    });
+  }
+
+  private async persistToolSession(input: {
+    tenant_id: string;
+    remote_session_id: string;
+    actor_identity: string;
+    normalized: {
+      provider: RemoteToolProvider;
+      external_id: string;
+      launch_url: string;
+      metadata: Record<string, unknown>;
+    };
+  }): Promise<RemoteToolSession> {
+    const { normalized } = input;
     const toolId = pgId('rtool');
     await this.pg.query(
       `INSERT INTO remote_tool_sessions
@@ -359,14 +382,19 @@ export class RemoteAssistanceStore {
     gateway: RemoteGatewaySessionInput;
   }): Promise<RemoteToolSession> {
     const normalized = normalizeRemoteGatewaySession(input.gateway);
-    return this.startToolSession({
+    if (normalized.provider === 'rustdesk') {
+      if (hasRustDeskGatewayUnattendedAlias(input.gateway)) {
+        throw Object.assign(new Error('direct RustDesk gateway tool start is attended-only'), { status: 403 });
+      }
+      await this.assertActiveConsent(input.remote_session_id, input.gateway.permissions);
+    } else if (!(await this.hasActiveConsent(input.remote_session_id))) {
+      throw Object.assign(new Error('active consent required before starting remote tool session'), { status: 403 });
+    }
+    return this.persistToolSession({
       tenant_id: input.tenant_id,
       remote_session_id: input.remote_session_id,
       actor_identity: input.actor_identity,
-      provider: normalized.provider,
-      external_id: normalized.external_id,
-      launch_url: normalized.launch_url,
-      metadata: normalized.metadata
+      normalized
     });
   }
 
@@ -412,11 +440,12 @@ export class RemoteAssistanceStore {
         access_mode: accessMode
       })
       : await input.client.createSession(createInput);
-    return this.startGatewayToolSession({
+    const normalized = normalizeRemoteGatewaySession(gateway);
+    return this.persistToolSession({
       tenant_id: input.tenant_id,
       remote_session_id: input.remote_session_id,
       actor_identity: input.actor_identity,
-      gateway
+      normalized
     });
   }
 

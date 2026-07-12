@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
@@ -8,6 +9,12 @@ import { RustDeskDeviceStore } from '../src/agent-runtime/collaboration/rustdesk
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { createIveKitRustDeskHttpClient } from '../sdk/ivekit/src/rustdesk-http-client.js';
+
+test('iveKit API docs keep the legacy control plane attended-only', () => {
+  const docs = readFileSync(new URL('../docs/ivekit-openapi.md', import.meta.url), 'utf8');
+  assert.match(docs, /\/api\/opc\/rustdesk\/sessions[^\n]*attended-only/i);
+  assert.match(docs, /unattended[^\n]*\/api\/ivekit\/rustdesk\/gateway-sessions/i);
+});
 
 test('shared RustDesk creator rejects unattended launch before the upstream call', async () => {
   const pg = new MemoryPg();
@@ -38,6 +45,117 @@ test('shared RustDesk creator rejects unattended launch before the upstream call
   });
   assert.equal(attended.provider, 'rustdesk');
   assert.equal(createCalls, 1);
+
+  await fixture.module.rustdeskAccessPolicies.configurePolicy({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    business_ref: {
+      type: fixture.device.business_ref_type,
+      id: fixture.device.business_ref_id
+    },
+    mode: 'unattended_allowed',
+    allowed_scopes: ['view_screen'],
+    approved_by: 'owner-shared',
+    reason: 'Allow the dedicated unattended regression path',
+    expires_at: '2099-01-01T00:00:00.000Z',
+    idempotency_key: 'policy-shared-dedicated-1'
+  });
+  const unattended = await fixture.module.remote.startGatewayClientSession(input);
+  assert.equal(unattended.provider, 'rustdesk');
+  assert.equal(createCalls, 2);
+});
+
+test('direct attended RustDesk client start requires the consent permission subset before upstream', async () => {
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'direct-client-subset');
+  let createCalls = 0;
+  const client = recordingRustDeskClient(() => { createCalls += 1; });
+
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayClientSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-direct-client-subset',
+      client,
+      target: { type: 'device', id: fixture.device.rustdesk_id },
+      permissions: ['control_mouse_keyboard'],
+      access_mode: 'attended',
+      device_id: fixture.device.id
+    }),
+    /active consent does not cover requested remote permissions/
+  );
+  assert.equal(createCalls, 0);
+  assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+});
+
+test('public RustDesk gateway tool start is attended-only and enforces consent scopes before persistence', async () => {
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'direct-gateway-tool');
+  const gateway = {
+    provider: 'rustdesk' as const,
+    external_id: 'rdgw-direct-gateway-tool',
+    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-direct-gateway-tool',
+    target: { type: 'device', id: fixture.device.rustdesk_id },
+    permissions: ['view_screen'] as const,
+    metadata: { source: 'direct-test' }
+  };
+
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayToolSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-direct-gateway-tool',
+      gateway: {
+        ...gateway,
+        metadata: { access_mode: 'unattended' }
+      }
+    }),
+    /direct RustDesk gateway tool start is attended-only/
+  );
+  const topLevelAliasGateway = Object.assign({}, gateway, { access_mode: 'unattended' });
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayToolSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-direct-gateway-tool',
+      gateway: topLevelAliasGateway
+    }),
+    /direct RustDesk gateway tool start is attended-only/
+  );
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayToolSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-direct-gateway-tool',
+      gateway: {
+        ...gateway,
+        metadata: { mode: ' UNATTENDED ' }
+      }
+    }),
+    /direct RustDesk gateway tool start is attended-only/
+  );
+  await assert.rejects(
+    () => fixture.module.remote.startGatewayToolSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'operator-direct-gateway-tool',
+      gateway: {
+        ...gateway,
+        permissions: ['control_mouse_keyboard']
+      }
+    }),
+    /active consent does not cover requested remote permissions/
+  );
+  assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+
+  const attended = await fixture.module.remote.startGatewayToolSession({
+    tenant_id: fixture.tenantId,
+    remote_session_id: fixture.remoteId,
+    actor_identity: 'operator-direct-gateway-tool',
+    gateway
+  });
+  assert.equal(attended.provider, 'rustdesk');
+  assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 1);
 });
 
 test('legacy RustDesk tools gateway rejects unattended launch before the HTTP upstream call', async () => {
@@ -99,7 +217,7 @@ test('legacy RustDesk tools gateway rejects unattended launch before the HTTP up
   }
 });
 
-test('RustDesk control plane rejects unattended and metadata aliases before store writes', async () => {
+test('RustDesk control plane rejects unattended and nested metadata aliases before store writes', async () => {
   const previous = gatewayEnv();
   process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
   process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
@@ -125,7 +243,7 @@ test('RustDesk control plane rejects unattended and metadata aliases before stor
 
     const alias = await routeCollaborationApi(pg, 'POST', path, new URL(`http://localhost${path}`), {
       ...base,
-      metadata: { tenant_id: base.tenant_id, access_mode: 'unattended' }
+      metadata: { tenant_id: base.tenant_id, nested: { accessMode: 'unattended' } }
     }, '', { authorization: 'Bearer rustdesk-control-token' });
     assert.deepEqual(alias, {
       status: 400,
@@ -147,7 +265,7 @@ test('RustDesk control plane rejects unattended and metadata aliases before stor
   }
 });
 
-test('RustDesk control plane rejects attended creation without remote consent context', async () => {
+test('RustDesk control plane preserves the minimal legacy attended create contract', async () => {
   const previous = gatewayEnv();
   process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
   process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
@@ -162,12 +280,55 @@ test('RustDesk control plane rejects attended creation without remote consent co
       permissions: ['view_screen'],
       actor_identity: 'control-plane-agent'
     }, '', { authorization: 'Bearer rustdesk-control-token' });
-    assert.deepEqual(response, {
-      status: 400,
-      data: { error: 'remote_session_id is required' }
-    });
+    assert.equal((response as { status: number }).status, 201);
     assert.equal((await new RustDeskGatewaySessionStore(pg).listSessions({
       tenant_id: 'tenant-control-attended-security',
+      status: 'active'
+    })).length, 1);
+  } finally {
+    restoreGatewayEnv(previous);
+  }
+});
+
+test('RustDesk control plane rejects explicit unattended even with valid policy and consent', async () => {
+  const previous = gatewayEnv();
+  process.env.OPC_RUSTDESK_API_TOKEN = 'rustdesk-control-token';
+  process.env.OPC_RUSTDESK_LAUNCH_SECRET = 'rustdesk-launch-secret';
+  process.env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT = '0';
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'control-unattended');
+  await fixture.module.rustdeskAccessPolicies.configurePolicy({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    business_ref: {
+      type: fixture.device.business_ref_type,
+      id: fixture.device.business_ref_id
+    },
+    mode: 'unattended_allowed',
+    allowed_scopes: ['view_screen'],
+    approved_by: 'owner-control-unattended',
+    reason: 'Prove the legacy control plane remains attended-only',
+    expires_at: '2099-01-01T00:00:00.000Z',
+    idempotency_key: 'policy-control-unattended-1'
+  });
+  const path = '/api/opc/rustdesk/sessions';
+
+  try {
+    const response = await routeCollaborationApi(pg, 'POST', path, new URL(`http://localhost${path}`), {
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      device_id: fixture.device.id,
+      access_mode: 'unattended',
+      target: { type: 'device', id: fixture.device.rustdesk_id },
+      permissions: ['view_screen'],
+      actor_identity: 'control-plane-agent'
+    }, '', { authorization: 'Bearer rustdesk-control-token' });
+    assert.deepEqual(response, {
+      status: 403,
+      data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+    });
+    assert.equal((await new RustDeskGatewaySessionStore(pg).listSessions({
+      tenant_id: fixture.tenantId,
       status: 'active'
     })).length, 0);
   } finally {
@@ -220,7 +381,7 @@ test('iveKit RustDesk ingress rejects metadata mode aliases and nested secrets b
   }
 });
 
-test('generic RustDesk tool persistence rejects nested secret metadata', async () => {
+test('generic direct RustDesk tool persistence is rejected even with safe metadata', async () => {
   const pg = new MemoryPg();
   const fixture = await remoteFixture(pg, 'generic-tool');
 
@@ -232,11 +393,39 @@ test('generic RustDesk tool persistence rejects nested secret metadata', async (
       provider: 'rustdesk',
       external_id: 'rdgw-generic-tool',
       launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-generic-tool',
-      metadata: { nested: [{ credential_ref: 'secret://rustdesk/generic' }] }
+      metadata: { source: 'generic-tool-reviewer-probe' }
     }),
-    /RustDesk gateway metadata contains sensitive material/
+    /use the dedicated RustDesk gateway path/
   );
   assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+});
+
+test('generic HTTP RustDesk tool creation is rejected before persistence', async () => {
+  const previous = gatewayEnv();
+  process.env.OPC_API_KEY = 'rustdesk-security-api-key';
+  const pg = new MemoryPg();
+  const fixture = await remoteFixture(pg, 'generic-http');
+  const path = `/api/collaboration/remote-assistance/${fixture.remoteId}/tools`;
+
+  try {
+    await assert.rejects(
+      () => routeCollaborationApi(pg, 'POST', path, new URL(`http://localhost${path}`), {
+        actor_identity: 'operator-generic-http',
+        provider: 'rustdesk',
+        external_id: 'rdgw-generic-http',
+        launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-generic-http',
+        metadata: { access_mode: 'attended' }
+      }, '', {
+        'x-api-key': 'rustdesk-security-api-key',
+        'x-tenant-id': fixture.tenantId,
+        'x-user-id': 'operator-generic-http'
+      }),
+      /use the dedicated RustDesk gateway path/
+    );
+    assert.equal((await fixture.module.remote.listToolSessions(fixture.remoteId)).length, 0);
+  } finally {
+    restoreGatewayEnv(previous);
+  }
 });
 
 test('iveKit SDK allowlists RustDesk session and launch metadata', async () => {

@@ -133,8 +133,8 @@ test('remote assistance revoking consent ends active tool sessions', async () =>
     tenant_id: tenantId,
     remote_session_id: remote.id,
     actor_identity: 'agent_revoke',
-    provider: 'rustdesk',
-    external_id: 'rd-revoke-1'
+    provider: 'anydesk',
+    external_id: 'ad-revoke-1'
   });
 
   await module.remote.revokeConsent({
@@ -166,8 +166,8 @@ test('remote assistance revoking consent ends active tool sessions', async () =>
         tenant_id: tenantId,
         remote_session_id: remote.id,
         actor_identity: 'agent_revoke',
-        provider: 'rustdesk',
-        external_id: 'rd-revoke-2'
+        provider: 'anydesk',
+        external_id: 'ad-revoke-2'
       }),
     /active consent required/
   );

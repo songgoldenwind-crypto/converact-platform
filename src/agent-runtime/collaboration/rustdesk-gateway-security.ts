@@ -52,6 +52,19 @@ export function projectPublicRustDeskGatewayMetadata(value: unknown): Record<str
   return projected;
 }
 
+export function hasRustDeskGatewayAccessModeAlias(value: unknown): boolean {
+  return hasMetadataAlias(value, (key) => normalizedMetadataKey(key) === 'accessmode');
+}
+
+export function hasRustDeskGatewayUnattendedAlias(value: unknown): boolean {
+  return hasMetadataAlias(value, (key, entry) => {
+    const normalizedKey = normalizedMetadataKey(key);
+    const normalizedEntry = typeof entry === 'string' ? entry.trim().toLowerCase() : entry;
+    return normalizedKey.includes('unattended') ||
+      ((normalizedKey === 'accessmode' || normalizedKey === 'mode') && normalizedEntry === 'unattended');
+  });
+}
+
 function copySafeRecord(value: Record<string, unknown>, path: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value)) {
@@ -69,6 +82,21 @@ function copySafeValue(value: unknown, path: string): unknown {
   if (Array.isArray(value)) return value.map((entry, index) => copySafeValue(entry, `${path}[${index}]`));
   if (isRecord(value)) return copySafeRecord(value, path);
   return value;
+}
+
+function hasMetadataAlias(
+  value: unknown,
+  predicate: (key: string, entry: unknown) => boolean
+): boolean {
+  if (Array.isArray(value)) return value.some((entry) => hasMetadataAlias(entry, predicate));
+  if (!isRecord(value)) return false;
+  return Object.entries(value).some(([key, entry]) =>
+    predicate(key, entry) || hasMetadataAlias(entry, predicate)
+  );
+}
+
+function normalizedMetadataKey(key: string): string {
+  return key.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 
 function isSensitiveKey(key: string): boolean {

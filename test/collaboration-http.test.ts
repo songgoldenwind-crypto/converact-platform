@@ -83,7 +83,7 @@ test('collaboration HTTP exposes remote assistance consent tool audit and eviden
     {
       collaboration_session_id: sessionResult.data.id,
       mode: 'third_party_remote_tool',
-      adapter_provider: 'rustdesk'
+      adapter_provider: 'anydesk'
     },
     authHeaders(tenantId)
   )) as { status: number; data: { id: string; status: string; business_ref: { id: string } } };
@@ -96,7 +96,7 @@ test('collaboration HTTP exposes remote assistance consent tool audit and eviden
         pg,
         'POST',
         `/api/collaboration/remote-assistance/${remoteResult.data.id}/tools`,
-        { provider: 'rustdesk', external_id: 'rd-1', launch_url: 'https://remote.example/rd-1' },
+        { provider: 'anydesk', external_id: 'ad-1', launch_url: 'https://remote.example/ad-1' },
         authHeaders(tenantId)
       ),
     /active consent required/
@@ -125,11 +125,11 @@ test('collaboration HTTP exposes remote assistance consent tool audit and eviden
     pg,
     'POST',
     `/api/collaboration/remote-assistance/${remoteResult.data.id}/tools`,
-    { provider: 'rustdesk', external_id: 'rd-1', launch_url: 'https://remote.example/rd-1' },
+    { provider: 'anydesk', external_id: 'ad-1', launch_url: 'https://remote.example/ad-1' },
     authHeaders(tenantId)
   )) as { status: number; data: { provider: string; status: string } };
   assert.equal(toolResult.status, 201);
-  assert.equal(toolResult.data.provider, 'rustdesk');
+  assert.equal(toolResult.data.provider, 'anydesk');
 
   const uploadPath =
     `/api/collaboration/remote-assistance/${remoteResult.data.id}` +
@@ -188,7 +188,7 @@ test('collaboration HTTP exposes remote assistance consent tool audit and eviden
   };
   assert.equal(timeline.data.session.id, remoteResult.data.id);
   assert.deepEqual(timeline.data.consent_events.map((event) => event.event_type), ['requested', 'granted']);
-  assert.equal(timeline.data.tool_sessions[0]?.provider, 'rustdesk');
+  assert.equal(timeline.data.tool_sessions[0]?.provider, 'anydesk');
   assert.equal(timeline.data.audit_events.some((event) => event.event_type === 'remote.evidence.recorded'), true);
   assert.equal(timeline.data.evidence.some((record) => record.kind === 'screen_recording'), true);
 
@@ -273,7 +273,7 @@ test('collaboration HTTP rejects unsupported remote consent scopes before storin
     {
       collaboration_session_id: sessionResult.data.id,
       mode: 'remote_desktop_gateway',
-      adapter_provider: 'rustdesk'
+      adapter_provider: 'anydesk'
     },
     authHeaders(tenantId)
   )) as { data: { id: string } };
@@ -1069,9 +1069,9 @@ test('collaboration HTTP can explicitly end remote tool and assistance sessions'
     `/api/collaboration/remote-assistance/${remoteResult.data.id}/tools`,
     {
       actor_identity: 'agent-end-http',
-      provider: 'rustdesk',
-      external_id: 'rd-end-http-1',
-      launch_url: 'https://remote.example/rd-end-http-1'
+      provider: 'anydesk',
+      external_id: 'ad-end-http-1',
+      launch_url: 'https://remote.example/ad-end-http-1'
     },
     authHeaders(tenantId)
   )) as { data: { id: string; status: string } };
@@ -1097,9 +1097,9 @@ test('collaboration HTTP can explicitly end remote tool and assistance sessions'
     `/api/collaboration/remote-assistance/${remoteResult.data.id}/tools`,
     {
       actor_identity: 'agent-end-http',
-      provider: 'rustdesk',
-      external_id: 'rd-end-http-2',
-      launch_url: 'https://remote.example/rd-end-http-2'
+      provider: 'anydesk',
+      external_id: 'ad-end-http-2',
+      launch_url: 'https://remote.example/ad-end-http-2'
     },
     authHeaders(tenantId)
   )) as { data: { id: string; status: string } };
@@ -1249,7 +1249,7 @@ test('collaboration HTTP records denied remote consent and keeps tools blocked',
         pg,
         'POST',
         `/api/collaboration/remote-assistance/${remoteResult.data.id}/tools`,
-        { provider: 'rustdesk', external_id: 'blocked' },
+        { provider: 'anydesk', external_id: 'blocked' },
         authHeaders(tenantId)
       ),
     /active consent required/

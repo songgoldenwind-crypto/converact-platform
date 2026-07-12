@@ -416,7 +416,7 @@ test('remote facade can explicitly end external tools and remote sessions', asyn
     remote_assistance: {
       enabled: true,
       mode: 'third_party_remote_tool',
-      adapter_provider: 'rustdesk',
+      adapter_provider: 'anydesk',
       started_by: 'engineer_42'
     }
   });
@@ -433,9 +433,9 @@ test('remote facade can explicitly end external tools and remote sessions', asyn
     tenant_id: tenantId,
     remote_session_id: bundle.remote_session_id!,
     actor_identity: 'engineer_42',
-    provider: 'rustdesk',
-    external_id: 'rd-facade-end-1',
-    launch_url: 'https://remote.example/rd-facade-end-1'
+    provider: 'anydesk',
+    external_id: 'ad-facade-end-1',
+    launch_url: 'https://remote.example/ad-facade-end-1'
   });
   assert.equal(firstTool.status, 'active');
 
@@ -452,9 +452,9 @@ test('remote facade can explicitly end external tools and remote sessions', asyn
     tenant_id: tenantId,
     remote_session_id: bundle.remote_session_id!,
     actor_identity: 'engineer_42',
-    provider: 'rustdesk',
-    external_id: 'rd-facade-end-2',
-    launch_url: 'https://remote.example/rd-facade-end-2'
+    provider: 'anydesk',
+    external_id: 'ad-facade-end-2',
+    launch_url: 'https://remote.example/ad-facade-end-2'
   });
   assert.equal(secondTool.status, 'active');
 
@@ -483,6 +483,7 @@ test('remote facade ends RustDesk upstream gateway sessions when ending a tool',
   const tenantId = tenant.id;
   const gateway = new RecordingGatewayClient('rustdesk');
   const iveKit = createIveKitModule({ db, pg, remoteGateway: gateway });
+  const collaboration = createCollaborationModule({ pg });
 
   const bundle = await iveKit.sessions.open({
     tenant_id: tenantId,
@@ -507,14 +508,18 @@ test('remote facade ends RustDesk upstream gateway sessions when ending a tool',
     expires_at: '2099-01-01T00:00:00.000Z'
   });
 
-  const tool = await iveKit.remote.startExternalTool({
+  const tool = await collaboration.remote.startGatewayToolSession({
     tenant_id: tenantId,
     remote_session_id: bundle.remote_session_id!,
     actor_identity: 'engineer_42',
-    provider: 'rustdesk',
-    external_id: 'rdgw-facade-end-1',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-facade-end-1',
-    metadata: { gateway_provider: 'rustdesk' }
+    gateway: {
+      provider: 'rustdesk',
+      external_id: 'rdgw-facade-end-1',
+      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-facade-end-1',
+      target: { type: 'device', id: 'rustdesk-facade-end-target' },
+      permissions: ['view_screen', 'control_mouse_keyboard'],
+      metadata: { gateway_provider: 'rustdesk' }
+    }
   });
 
   const ended = await iveKit.remote.endExternalTool({
@@ -578,19 +583,23 @@ test('remote facade revoke closes a local RustDesk gateway and queues physical d
       rustdesk_id: device.rustdesk_id
     }
   });
-  await iveKit.remote.startExternalTool({
+  await collaboration.remote.startGatewayToolSession({
     tenant_id: tenantId,
     remote_session_id: bundle.remote_session_id!,
     actor_identity: 'engineer_42',
-    provider: 'rustdesk',
-    external_id: gateway.external_id,
-    launch_url: gateway.launch_url,
-    metadata: {
-      gateway_provider: 'rustdesk',
-      target_id: device.rustdesk_id,
-      rustdesk_id: device.rustdesk_id,
-      rustdesk_device_id: device.id,
-      permissions: ['view_screen', 'control_mouse_keyboard']
+    gateway: {
+      provider: 'rustdesk',
+      external_id: gateway.external_id,
+      launch_url: gateway.launch_url,
+      target: { type: 'device', id: device.rustdesk_id },
+      permissions: ['view_screen', 'control_mouse_keyboard'],
+      metadata: {
+        gateway_provider: 'rustdesk',
+        target_id: device.rustdesk_id,
+        rustdesk_id: device.rustdesk_id,
+        rustdesk_device_id: device.id,
+        permissions: ['view_screen', 'control_mouse_keyboard']
+      }
     }
   });
 
@@ -620,6 +629,7 @@ test('remote facade ends active RustDesk upstream gateway sessions when ending a
   const tenantId = tenant.id;
   const gateway = new RecordingGatewayClient('rustdesk');
   const iveKit = createIveKitModule({ db, pg, remoteGateway: gateway });
+  const collaboration = createCollaborationModule({ pg });
 
   const bundle = await iveKit.sessions.open({
     tenant_id: tenantId,
@@ -644,14 +654,18 @@ test('remote facade ends active RustDesk upstream gateway sessions when ending a
     expires_at: '2099-01-01T00:00:00.000Z'
   });
 
-  await iveKit.remote.startExternalTool({
+  await collaboration.remote.startGatewayToolSession({
     tenant_id: tenantId,
     remote_session_id: bundle.remote_session_id!,
     actor_identity: 'engineer_42',
-    provider: 'rustdesk',
-    external_id: 'rdgw-facade-remote-end-1',
-    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-facade-remote-end-1',
-    metadata: { gateway_provider: 'rustdesk' }
+    gateway: {
+      provider: 'rustdesk',
+      external_id: 'rdgw-facade-remote-end-1',
+      launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-facade-remote-end-1',
+      target: { type: 'device', id: 'rustdesk-facade-remote-end-target' },
+      permissions: ['view_screen', 'control_mouse_keyboard'],
+      metadata: { gateway_provider: 'rustdesk' }
+    }
   });
 
   const ended = await iveKit.remote.end({
