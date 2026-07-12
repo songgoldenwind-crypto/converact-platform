@@ -4,7 +4,7 @@ import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { createObjectStorage, isLocalObjectStorage, readLocalUpload } from '../../storage/object-storage.js';
-import { wsBroadcast } from '../../ws.js';
+import { wsBroadcast, wsBroadcastToUsers } from '../../ws.js';
 import { verifyWebAssistJoinToken } from '../ivekit/remote-assist-token.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
 import { recordMediaRecordingEvidence } from '../media-recording-evidence.js';
@@ -1821,6 +1821,99 @@ export async function routeCollaborationApi(
       });
     }
 
+    const controlMatch = routePath.match(
+      /^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)\/control(?:\/(confirmations|acquire|heartbeat|release|transfer|operations))?$/
+    );
+    if (controlMatch) {
+      const externalId = decodeURIComponent(controlMatch[1]);
+      const action = controlMatch[2] || '';
+      return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
+        const scopedModule = createCollaborationModule({ pg: scopedPg });
+        const tool = await scopedModule.remote.getToolSessionByExternalId({
+          tenant_id: ctx.tenantId,
+          external_id: externalId
+        });
+        if (!tool || tool.provider !== 'rustdesk') {
+          return { status: 404, data: { error: 'rustdesk gateway session not found' } };
+        }
+        const remote = await scopedModule.remote.getSession(tool.remote_session_id);
+        if (!remote || remote.tenant_id !== ctx.tenantId) {
+          return { status: 404, data: { error: 'rustdesk gateway session not found' } };
+        }
+        const participants = await scopedModule.sessions.listParticipants({
+          tenant_id: ctx.tenantId,
+          session_id: remote.collaboration_session_id
+        });
+        const activeParticipants = participants.filter((participant) => !participant.left_at);
+        const actorIdentity = collaborationActorIdentity(ctx, headers);
+        const actorParticipant = activeParticipants.find((participant) => participant.identity === actorIdentity);
+        if (!actorParticipant) {
+          return { status: 403, data: { error: 'active participant identity is required' } };
+        }
+        const input = bodyObject(body);
+        const common = { tenant_id: ctx.tenantId, external_id: externalId, actor_identity: actorIdentity };
+        if (!action && method === 'GET') {
+          return { data: await scopedModule.rustdeskControlLocks.getOwnership(common) };
+        }
+        if (!['agent', 'engineer', 'supervisor', 'admin'].includes(actorParticipant.role)) {
+          return { status: 403, data: { error: 'observer participants have view-only remote access' } };
+        }
+        if (action === 'confirmations' && method === 'POST') {
+          const confirmation = await scopedModule.rustdeskControlLocks.issueConfirmation({
+            ...common,
+            operation: String(input.operation || '') as never,
+            ttl_seconds: input.ttl_seconds === undefined ? undefined : Number(input.ttl_seconds)
+          });
+          return { status: 201, data: confirmation };
+        }
+        let ownership;
+        if (action === 'acquire' && method === 'POST') {
+          ownership = await scopedModule.rustdeskControlLocks.acquire({
+            ...common,
+            confirmation_id: String(input.confirmation_id || ''),
+            lease_ms: input.lease_ms === undefined ? undefined : Number(input.lease_ms)
+          });
+        } else if (action === 'heartbeat' && method === 'POST') {
+          ownership = await scopedModule.rustdeskControlLocks.heartbeat({
+            ...common,
+            version: Number(input.version),
+            lease_ms: input.lease_ms === undefined ? undefined : Number(input.lease_ms)
+          });
+        } else if (action === 'release' && method === 'POST') {
+          ownership = await scopedModule.rustdeskControlLocks.release({ ...common, version: Number(input.version) });
+        } else if (action === 'transfer' && method === 'POST') {
+          const target = String(input.to_identity || '').trim();
+          if (!activeParticipants.some((participant) => participant.identity === target)) {
+            return { status: 403, data: { error: 'control transfer target must be an active participant' } };
+          }
+          ownership = await scopedModule.rustdeskControlLocks.transfer({
+            ...common,
+            to_identity: target,
+            confirmation_id: String(input.confirmation_id || ''),
+            version: Number(input.version),
+            lease_ms: input.lease_ms === undefined ? undefined : Number(input.lease_ms)
+          });
+        } else if (action === 'operations' && method === 'POST') {
+          await scopedModule.rustdeskControlLocks.confirmOperation({
+            ...common,
+            operation: String(input.operation || '') as never,
+            confirmation_id: String(input.confirmation_id || ''),
+            version: Number(input.version)
+          });
+          return { status: 204, data: null };
+        } else {
+          return { status: 405, data: { error: 'method not allowed' } };
+        }
+        wsBroadcastToUsers(
+          ctx.tenantId,
+          activeParticipants.map((participant) => participant.identity),
+          'ivekit.rustdesk.control.updated',
+          { external_id: externalId, ownership }
+        );
+        return { data: ownership };
+      });
+    }
+
     const iveKitDeviceMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/devices\/([^/]+)(?:\/([^/]+))?$/);
     if (iveKitDeviceMatch) {
       const deviceId = decodeURIComponent(iveKitDeviceMatch[1]);
@@ -1920,7 +2013,10 @@ export async function routeCollaborationApi(
           business_ref_id: device.business_ref_id
         }
       });
-      return { status: 201, data: tool };
+      return {
+        status: 201,
+        data: accessMode === 'unattended' ? { ...tool, launch_url: '' } : tool
+      };
     }
 
     const iveKitGatewayMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)(?:\/([^/]+))?$/);
@@ -1933,6 +2029,22 @@ export async function routeCollaborationApi(
         return { status: 404, data: { error: 'rustdesk gateway session not found' } };
       }
       if (action === 'launch' && method === 'GET') {
+        if (session.metadata.access_mode === 'unattended') {
+          const confirmationId = String(url.searchParams.get('confirmation_id') || '').trim();
+          if (!confirmationId) {
+            return { status: 403, data: { error: 'fresh secondary confirmation required for unattended launch' } };
+          }
+          const actorIdentity = collaborationActorIdentity(ctx, headers);
+          await withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
+            await createCollaborationModule({ pg: scopedPg }).rustdeskControlLocks.confirmOperation({
+              tenant_id: ctx.tenantId,
+              external_id: externalId,
+              actor_identity: actorIdentity,
+              operation: 'unattended_launch',
+              confirmation_id: confirmationId
+            });
+          });
+        }
         return { data: rustDeskLaunchPlan(session) };
       }
       if (action === 'audit' && method === 'GET') {

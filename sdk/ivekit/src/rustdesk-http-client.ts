@@ -13,6 +13,8 @@ import type {
   RustDeskClientDistributionProfile,
   RustDeskClientVersion,
   RustDeskConfiguredFields,
+  RustDeskConfirmedOperation,
+  RustDeskControlOwnership,
   RustDeskDevice,
   RustDeskDeviceCommand,
   RustDeskDeviceCommandStatus,
@@ -26,6 +28,7 @@ import type {
   RustDeskOperationObserver,
   RustDeskPermissionScopes,
   RustDeskRuntimeCapabilities,
+  RustDeskSecondaryConfirmation,
   RustDeskTerminalArchitecture,
   RustDeskTerminalPlatform,
   RustDeskTerminalProfile
@@ -87,6 +90,10 @@ export interface StartIveKitRustDeskGatewaySessionInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface GetIveKitRustDeskGatewayLaunchPlanInput {
+  confirmation_id?: string;
+}
+
 export interface ConfigureIveKitRustDeskAccessPolicyInput {
   mode: RustDeskAccessPolicyMode;
   allowed_scopes: readonly RemoteConsentScope[];
@@ -101,6 +108,34 @@ export interface RevokeIveKitRustDeskAccessPolicyInput {
 
 export interface IveKitRustDeskAccessPolicyMutationOptions {
   idempotencyKey: string;
+}
+
+export interface IssueIveKitRustDeskConfirmationInput {
+  operation: RustDeskConfirmedOperation;
+  ttl_seconds?: number;
+}
+
+export interface AcquireIveKitRustDeskControlInput {
+  confirmation_id: string;
+  lease_ms?: number;
+}
+
+export interface HeartbeatIveKitRustDeskControlInput {
+  version: number;
+  lease_ms?: number;
+}
+
+export interface ReleaseIveKitRustDeskControlInput { version: number; }
+
+export interface TransferIveKitRustDeskControlInput extends HeartbeatIveKitRustDeskControlInput {
+  to_identity: string;
+  confirmation_id: string;
+}
+
+export interface ConfirmIveKitRustDeskOperationInput {
+  operation: RustDeskConfirmedOperation;
+  confirmation_id: string;
+  version?: number;
 }
 
 export interface RecordIveKitRustDeskGatewayEventInput {
@@ -135,7 +170,7 @@ export interface IveKitRustDeskHttpClient {
   heartbeatDevice(deviceId: string, input: HeartbeatIveKitRustDeskDeviceInput): Promise<RustDeskDevice>;
   deactivateDevice(deviceId: string): Promise<RustDeskDevice>;
   startGatewaySession(input: StartIveKitRustDeskGatewaySessionInput): Promise<RemoteToolSession>;
-  getGatewayLaunchPlan(externalId: string): Promise<RustDeskGatewayLaunchPlan>;
+  getGatewayLaunchPlan(externalId: string, input?: GetIveKitRustDeskGatewayLaunchPlanInput): Promise<RustDeskGatewayLaunchPlan>;
   recordGatewayEvent(
     externalId: string,
     input: RecordIveKitRustDeskGatewayEventInput
@@ -163,6 +198,16 @@ export interface IveKitRustDeskAccessPolicyHttpClient extends IveKitRustDeskHttp
   ): Promise<RustDeskAccessPolicyMutationResult>;
 }
 
+export interface IveKitRustDeskControlHttpClient extends IveKitRustDeskAccessPolicyHttpClient {
+  getControlOwnership(externalId: string): Promise<RustDeskControlOwnership>;
+  issueControlConfirmation(externalId: string, input: IssueIveKitRustDeskConfirmationInput): Promise<RustDeskSecondaryConfirmation>;
+  acquireControl(externalId: string, input: AcquireIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  heartbeatControl(externalId: string, input: HeartbeatIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  releaseControl(externalId: string, input: ReleaseIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  transferControl(externalId: string, input: TransferIveKitRustDeskControlInput): Promise<RustDeskControlOwnership>;
+  confirmOperation(externalId: string, input: ConfirmIveKitRustDeskOperationInput): Promise<void>;
+}
+
 export class IveKitRustDeskHttpError extends Error {
   constructor(
     message: string,
@@ -178,7 +223,7 @@ export class IveKitRustDeskHttpError extends Error {
 
 export function createIveKitRustDeskHttpClient(
   input: IveKitRustDeskHttpClientInput
-): IveKitRustDeskAccessPolicyHttpClient {
+): IveKitRustDeskControlHttpClient {
   const baseUrl = validateBaseUrl(input.baseUrl);
   const apiKey = String(input.apiKey || '').trim();
   const accessToken = String(input.accessToken || '').trim();
@@ -334,6 +379,37 @@ export function createIveKitRustDeskHttpClient(
         await request<unknown>('POST', path, mutation, undefined, { 'idempotency-key': idempotencyKey })
       );
     },
+    async getControlOwnership(externalId) {
+      return projectRustDeskControlOwnership(await request<unknown>('GET', rustDeskControlPath(externalId)));
+    },
+    async issueControlConfirmation(externalId, confirmationInput) {
+      return projectRustDeskSecondaryConfirmation(await request<unknown>(
+        'POST', `${rustDeskControlPath(externalId)}/confirmations`, confirmationInput
+      ));
+    },
+    async acquireControl(externalId, controlInput) {
+      return projectRustDeskControlOwnership(await request<unknown>(
+        'POST', `${rustDeskControlPath(externalId)}/acquire`, controlInput
+      ));
+    },
+    async heartbeatControl(externalId, controlInput) {
+      return projectRustDeskControlOwnership(await request<unknown>(
+        'POST', `${rustDeskControlPath(externalId)}/heartbeat`, controlInput
+      ));
+    },
+    async releaseControl(externalId, controlInput) {
+      return projectRustDeskControlOwnership(await request<unknown>(
+        'POST', `${rustDeskControlPath(externalId)}/release`, controlInput
+      ));
+    },
+    async transferControl(externalId, controlInput) {
+      return projectRustDeskControlOwnership(await request<unknown>(
+        'POST', `${rustDeskControlPath(externalId)}/transfer`, controlInput
+      ));
+    },
+    async confirmOperation(externalId, operationInput) {
+      await request<unknown>('POST', `${rustDeskControlPath(externalId)}/operations`, operationInput);
+    },
     async startGatewaySession(input) {
       if (
         input.access_mode !== undefined &&
@@ -345,10 +421,12 @@ export function createIveKitRustDeskHttpClient(
       const session = await request<RemoteToolSession>('POST', '/api/ivekit/rustdesk/gateway-sessions', input);
       return projectEvidenceContainer(session, 'remote tool session');
     },
-    async getGatewayLaunchPlan(externalId) {
+    async getGatewayLaunchPlan(externalId, launchInput = {}) {
       const plan = await request<RustDeskGatewayLaunchPlan>(
         'GET',
-        `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}/launch`
+        `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}/launch`,
+        undefined,
+        { confirmation_id: String(launchInput.confirmation_id || '').trim() }
       );
       return projectEvidenceContainer(plan, 'gateway launch plan');
     },
@@ -508,6 +586,60 @@ function policyIdempotencyKey(options: IveKitRustDeskAccessPolicyMutationOptions
 function rustDeskAccessPolicyPath(deviceId: string): string {
   return `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}/access-policy`;
 }
+
+function rustDeskControlPath(externalId: string): string {
+  return `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}/control`;
+}
+
+export function projectRustDeskControlOwnership(value: unknown): RustDeskControlOwnership {
+  const row = controlRecord(value, 'ownership');
+  const status = controlEnum(row.status, ['unowned', 'owned', 'transferring', 'released', 'expired'] as const, 'status');
+  const owner = row.owner_identity === null ? null : controlString(row.owner_identity, 'owner_identity');
+  const lease = row.lease_expires_at === null ? null : controlTimestamp(row.lease_expires_at, 'lease_expires_at');
+  const version = Number(row.version);
+  if (!Number.isInteger(version) || version < 0) throw invalidControl('version');
+  if ((status === 'owned' || status === 'transferring') !== Boolean(owner && lease)) throw invalidControl('owner_identity');
+  return {
+    status,
+    owner_identity: owner,
+    lease_expires_at: lease,
+    version,
+    updated_at: controlTimestamp(row.updated_at, 'updated_at')
+  };
+}
+
+export function projectRustDeskSecondaryConfirmation(value: unknown): RustDeskSecondaryConfirmation {
+  const row = controlRecord(value, 'confirmation');
+  return {
+    id: controlString(row.id, 'id'),
+    external_id: controlString(row.external_id, 'external_id'),
+    actor_identity: controlString(row.actor_identity, 'actor_identity'),
+    operation: controlEnum(row.operation, [
+      'control_mouse_keyboard', 'transfer_file', 'clipboard', 'unattended_launch', 'control_transfer'
+    ] as const, 'operation'),
+    expires_at: controlTimestamp(row.expires_at, 'expires_at'),
+    consumed_at: row.consumed_at === null ? null : controlTimestamp(row.consumed_at, 'consumed_at'),
+    created_at: controlTimestamp(row.created_at, 'created_at')
+  };
+}
+
+function controlRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidControl(field);
+  return value as Record<string, unknown>;
+}
+function controlString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) throw invalidControl(field);
+  return value.trim();
+}
+function controlTimestamp(value: unknown, field: string): string {
+  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw invalidControl(field);
+  return value;
+}
+function controlEnum<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+  if (typeof value !== 'string' || !allowed.includes(value as T)) throw invalidControl(field);
+  return value as T;
+}
+function invalidControl(field: string): Error { return new Error(`invalid RustDesk control response: ${field}`); }
 
 function policyRecord(value: unknown, field: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalidPolicy(field);

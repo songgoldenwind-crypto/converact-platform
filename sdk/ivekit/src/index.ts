@@ -6,14 +6,14 @@ import {
 } from './http-sdk.js';
 import {
   createIveKitRustDeskHttpClient,
-  type IveKitRustDeskAccessPolicyHttpClient
+  type IveKitRustDeskControlHttpClient
 } from './rustdesk-http-client.js';
 import {
   createIveKitRustDeskLedSdk,
   type IveKitRustDeskLedSdk
 } from './rustdesk-led-sdk.js';
 
-export type IveKitRustDeskClient = IveKitRustDeskAccessPolicyHttpClient & IveKitRustDeskLedSdk;
+export type IveKitRustDeskClient = IveKitRustDeskControlHttpClient & IveKitRustDeskLedSdk;
 
 export interface IveKitClient {
   media: IveKitMediaHttpClient;

@@ -103,6 +103,23 @@ export interface RustDeskControlOwnership {
   updated_at: string;
 }
 
+export type RustDeskConfirmedOperation =
+  | 'control_mouse_keyboard'
+  | 'transfer_file'
+  | 'clipboard'
+  | 'unattended_launch'
+  | 'control_transfer';
+
+export interface RustDeskSecondaryConfirmation {
+  id: string;
+  external_id: string;
+  actor_identity: string;
+  operation: RustDeskConfirmedOperation;
+  expires_at: string;
+  consumed_at: string | null;
+  created_at: string;
+}
+
 export type RustDeskObservedOperation =
   | RemoteConsentScope
   | 'multi_display'

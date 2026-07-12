@@ -4,7 +4,11 @@ import { test } from 'node:test';
 
 import { RustDeskControlLockStore } from '../src/agent-runtime/collaboration/rustdesk-control-lock-store.js';
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
+import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
+import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
 import { MemoryPg } from '../src/db-pg.js';
+import { signAccessToken } from '../src/middleware/auth.js';
+import { createIveKitRustDeskHttpClient } from '../sdk/ivekit/src/rustdesk-http-client.js';
 
 test('RustDesk control ownership migration defines leases confirmations and immutable events', () => {
   const migrationUrl = new URL('../src/migrations/040_rustdesk_control_ownership.sql', import.meta.url);
@@ -75,6 +79,19 @@ test('RustDesk control lock allows one owner and rejects stale heartbeat or chal
     version: acquired.version - 1, now: '2026-07-12T03:00:01.000Z'
   }), /stale control ownership version/);
 
+  const clipboardConfirmation = await locks.issueConfirmation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'clipboard', now
+  });
+  await locks.confirmOperation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'clipboard', confirmation_id: clipboardConfirmation.id, version: acquired.version, now
+  });
+  await assert.rejects(() => locks.confirmOperation({
+    tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
+    operation: 'clipboard', confirmation_id: clipboardConfirmation.id, version: acquired.version, now
+  }), /fresh secondary confirmation required/);
+
   const otherConfirmation = await locks.issueConfirmation({
     tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-b',
     operation: 'control_mouse_keyboard', now
@@ -122,4 +139,135 @@ test('RustDesk terminal gateway session rejects confirmations and lock changes',
     tenant_id: tenantId, external_id: session.external_id, actor_identity: 'agent-a',
     operation: 'control_mouse_keyboard'
   }), /gateway session is terminal/);
+});
+
+test('RustDesk control HTTP requires active participants and binds actor to JWT identity', async () => {
+  const previousSecret = process.env.OPC_JWT_SECRET;
+  process.env.OPC_JWT_SECRET = 'rustdesk-control-http-test-secret-32-bytes';
+  try {
+    const pg = new MemoryPg();
+    const tenantId = 'tenant_control_http';
+    const module = createCollaborationModule({ pg });
+    const collaboration = await module.sessions.openSession({
+      tenant_id: tenantId,
+      business_ref: { tenant_id: tenantId, type: 'service_order', id: 'control-http' }
+    });
+    await module.sessions.addParticipant({ tenant_id: tenantId, session_id: collaboration.id, identity: 'agent-a', role: 'agent' });
+    await module.sessions.addParticipant({ tenant_id: tenantId, session_id: collaboration.id, identity: 'agent-b', role: 'supervisor' });
+    await module.sessions.addParticipant({ tenant_id: tenantId, session_id: collaboration.id, identity: 'observer', role: 'customer' });
+    const remote = await module.remote.createSession({
+      tenant_id: tenantId, collaboration_session_id: collaboration.id,
+      business_ref: collaboration.business_ref, mode: 'remote_desktop_gateway',
+      adapter_provider: 'rustdesk', started_by: 'agent-a'
+    });
+    await module.remote.grantConsent({
+      tenant_id: tenantId, remote_session_id: remote.id, actor_identity: 'customer',
+      scopes: ['view_screen', 'control_mouse_keyboard']
+    });
+    const gateway = await new RustDeskGatewaySessionStore(pg).createSession({
+      tenant_id: tenantId, target: { type: 'device', id: 'http-device' },
+      permissions: ['view_screen', 'control_mouse_keyboard'], actor_identity: 'agent-a',
+      launch_url: 'https://opc.example.test/rustdesk/control-http'
+    });
+    await module.remote.startGatewayToolSession({
+      tenant_id: tenantId, remote_session_id: remote.id, actor_identity: 'agent-a', gateway: {
+        provider: 'rustdesk', external_id: gateway.external_id, launch_url: gateway.launch_url,
+        target: gateway.target, permissions: gateway.permissions, metadata: gateway.metadata
+      }
+    });
+    const headers = { authorization: `Bearer ${signAccessToken({ sub: 'agent-a', tid: tenantId, role: 'operator' })}` };
+    const base = `/api/ivekit/rustdesk/gateway-sessions/${gateway.external_id}/control`;
+    const confirmationResponse = await routeCollaborationApi(
+      pg, 'POST', `${base}/confirmations`, new URL(`http://localhost${base}/confirmations`),
+      { operation: 'control_mouse_keyboard', actor_identity: 'spoofed' }, '', headers
+    );
+    const confirmationHttp = confirmationResponse as { status?: number; data: unknown };
+    assert.equal(confirmationHttp.status, 201);
+    const confirmation = confirmationHttp.data as { id: string; actor_identity: string };
+    assert.equal(confirmation.actor_identity, 'agent-a');
+    const acquireResponse = await routeCollaborationApi(
+      pg, 'POST', `${base}/acquire`, new URL(`http://localhost${base}/acquire`),
+      { confirmation_id: confirmation.id }, '', headers
+    );
+    assert.equal(((acquireResponse as { data: unknown }).data as { owner_identity: string }).owner_identity, 'agent-a');
+
+    const unattendedGateway = await new RustDeskGatewaySessionStore(pg).createSession({
+      tenant_id: tenantId, target: { type: 'device', id: 'unattended-device' },
+      permissions: ['view_screen'], actor_identity: 'agent-a',
+      launch_url: 'https://opc.example.test/rustdesk/unattended', metadata: { access_mode: 'unattended' }
+    });
+    await pg.query(
+      `INSERT INTO remote_tool_sessions
+        (id, tenant_id, remote_session_id, provider, external_id, launch_url, started_by, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      ['tool-unattended', tenantId, remote.id, 'rustdesk', unattendedGateway.external_id,
+        unattendedGateway.launch_url, 'agent-a', '{}']
+    );
+    const launchPath = `/api/ivekit/rustdesk/gateway-sessions/${unattendedGateway.external_id}/launch`;
+    const launchDenied = await routeCollaborationApi(
+      pg, 'GET', launchPath, new URL(`http://localhost${launchPath}`), undefined, '', headers
+    );
+    assert.equal((launchDenied as { status?: number }).status, 403);
+    const observerHeaders = {
+      authorization: `Bearer ${signAccessToken({ sub: 'observer', tid: tenantId, role: 'viewer' })}`
+    };
+    const observerRead = await routeCollaborationApi(
+      pg, 'GET', base, new URL(`http://localhost${base}`), undefined, '', observerHeaders
+    );
+    assert.equal((observerRead as { status?: number }).status, undefined);
+    const observerControl = await routeCollaborationApi(
+      pg, 'POST', `${base}/confirmations`, new URL(`http://localhost${base}/confirmations`),
+      { operation: 'control_mouse_keyboard' }, '', observerHeaders
+    );
+    assert.equal((observerControl as { status?: number }).status, 403);
+    await module.sessions.leaveParticipant({ tenant_id: tenantId, session_id: collaboration.id, identity: 'agent-a' });
+    const denied = await routeCollaborationApi(
+      pg, 'GET', base, new URL(`http://localhost${base}`), undefined, '', headers
+    );
+    assert.equal((denied as { status?: number }).status, 403);
+  } finally {
+    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
+    else process.env.OPC_JWT_SECRET = previousSecret;
+  }
+});
+
+test('iveKit RustDesk SDK maps the complete control ownership lifecycle', async () => {
+  const calls: string[] = [];
+  const response = (value: unknown, status = 200) => new Response(status === 204 ? null : JSON.stringify(value), {
+    status, headers: { 'content-type': 'application/json' }
+  });
+  const ownership = {
+    status: 'owned', owner_identity: 'agent-a', lease_expires_at: '2026-07-12T05:01:00.000Z',
+    version: 1, updated_at: '2026-07-12T05:00:00.000Z'
+  };
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://ivekit.example.test', tenantId: 'tenant-sdk-control', apiKey: 'sdk-key',
+    fetch: async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      calls.push(`${init?.method} ${path}`);
+      if (path.endsWith('/confirmations')) return response({
+        id: 'confirm-1', external_id: 'gateway-1', actor_identity: 'agent-a',
+        operation: 'control_mouse_keyboard', expires_at: '2026-07-12T05:02:00.000Z',
+        consumed_at: null, created_at: '2026-07-12T05:00:00.000Z'
+      }, 201);
+      if (path.endsWith('/operations')) return response(null, 204);
+      return response(ownership);
+    }
+  });
+  const confirmation = await client.issueControlConfirmation('gateway-1', { operation: 'control_mouse_keyboard' });
+  await client.getControlOwnership('gateway-1');
+  await client.acquireControl('gateway-1', { confirmation_id: confirmation.id });
+  await client.heartbeatControl('gateway-1', { version: 1 });
+  await client.releaseControl('gateway-1', { version: 2 });
+  await client.transferControl('gateway-1', { version: 2, to_identity: 'agent-b', confirmation_id: 'confirm-2' });
+  await client.confirmOperation('gateway-1', { operation: 'clipboard', confirmation_id: 'confirm-3', version: 3 });
+  assert.deepEqual(calls, [
+    'POST /api/ivekit/rustdesk/gateway-sessions/gateway-1/control/confirmations',
+    'GET /api/ivekit/rustdesk/gateway-sessions/gateway-1/control',
+    'POST /api/ivekit/rustdesk/gateway-sessions/gateway-1/control/acquire',
+    'POST /api/ivekit/rustdesk/gateway-sessions/gateway-1/control/heartbeat',
+    'POST /api/ivekit/rustdesk/gateway-sessions/gateway-1/control/release',
+    'POST /api/ivekit/rustdesk/gateway-sessions/gateway-1/control/transfer',
+    'POST /api/ivekit/rustdesk/gateway-sessions/gateway-1/control/operations'
+  ]);
 });

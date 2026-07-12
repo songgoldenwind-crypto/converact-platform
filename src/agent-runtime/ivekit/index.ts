@@ -27,6 +27,8 @@ export {
   projectRustDeskAccessPolicyEvent,
   projectRustDeskAccessPolicyHistory,
   projectRustDeskAccessPolicyMutationResult,
+  projectRustDeskControlOwnership,
+  projectRustDeskSecondaryConfirmation,
   projectRustDeskClientDistributionProfile
 } from './rustdesk-http-client.js';
 export {
@@ -34,11 +36,16 @@ export {
 } from './rustdesk-led-sdk.js';
 export type {
   ConfigureIveKitRustDeskAccessPolicyInput,
+  AcquireIveKitRustDeskControlInput,
+  ConfirmIveKitRustDeskOperationInput,
   EndIveKitRustDeskGatewaySessionInput,
   GetIveKitRustDeskClientProfileInput,
+  GetIveKitRustDeskGatewayLaunchPlanInput,
   HeartbeatIveKitRustDeskDeviceInput,
+  HeartbeatIveKitRustDeskControlInput,
   IveKitRustDeskAccessPolicyHttpClient,
   IveKitRustDeskAccessPolicyMutationOptions,
+  IveKitRustDeskControlHttpClient,
   IveKitRustDeskBusinessRefInput,
   IveKitRustDeskFetch,
   IveKitRustDeskGatewayDisconnectState,
@@ -46,9 +53,12 @@ export type {
   IveKitRustDeskHttpClientInput,
   ListIveKitRustDeskDevicesByRefInput,
   ListIveKitRustDeskGatewayAuditEventsInput,
+  IssueIveKitRustDeskConfirmationInput,
   RecordIveKitRustDeskGatewayEventInput,
   RegisterIveKitRustDeskDeviceInput,
   RevokeIveKitRustDeskAccessPolicyInput,
+  ReleaseIveKitRustDeskControlInput,
+  TransferIveKitRustDeskControlInput,
   StartIveKitRustDeskGatewaySessionInput
 } from './rustdesk-http-client.js';
 export type {

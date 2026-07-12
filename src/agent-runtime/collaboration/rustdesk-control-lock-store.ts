@@ -70,11 +70,11 @@ export class RustDeskControlLockStore {
     return this.withLock(input, async () => {
       const now = input.now || new Date().toISOString();
       await this.requireActiveSession(input.tenant_id, input.external_id, 'control_mouse_keyboard');
-      await this.consumeConfirmation({ ...input, operation: 'control_mouse_keyboard', now });
       const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
       if (current.status === 'owned' && current.owner_identity !== input.actor_identity) {
         throw controlError('RustDesk control is already owned', 409);
       }
+      await this.consumeConfirmation({ ...input, operation: 'control_mouse_keyboard', now });
       return this.writeLock(input, input.actor_identity, current.version + 1, now, 'acquired');
     });
   }
@@ -138,7 +138,15 @@ export class RustDeskControlLockStore {
         const current = ownership(await this.lockRow(input.tenant_id, input.external_id), now);
         assertOwner(current, input.actor_identity, Number(input.version));
       }
-      await this.consumeConfirmation({ ...input, now });
+      const eventId = await this.consumeConfirmation({ ...input, now });
+      await this.pg.query(
+        `INSERT INTO rustdesk_control_events
+          (id, tenant_id, external_id, event_type, actor_identity, operation,
+           lock_version, confirmation_id, metadata, created_at)
+         VALUES ($1, $2, $3, 'operation_confirmed', $4, $5, $6, $7, '{}'::jsonb, $8)`,
+        [eventId, input.tenant_id, input.external_id, input.actor_identity, input.operation,
+          input.version === undefined ? 0 : input.version, input.confirmation_id, now]
+      );
     });
   }
 

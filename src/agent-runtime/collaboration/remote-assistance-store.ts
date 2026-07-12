@@ -748,6 +748,19 @@ export class RemoteAssistanceStore {
     return result.rows[0] ? decodeToolSession(result.rows[0]) : null;
   }
 
+  async getToolSessionByExternalId(input: {
+    tenant_id: string;
+    external_id: string;
+  }): Promise<RemoteToolSession | null> {
+    const result = await this.pg.query(
+      `SELECT * FROM remote_tool_sessions
+       WHERE tenant_id = $1 AND external_id = $2
+       LIMIT 1`,
+      [input.tenant_id, input.external_id]
+    );
+    return result.rows[0] ? decodeToolSession(result.rows[0]) : null;
+  }
+
   async listToolSessions(remoteSessionId: string, limit = 50): Promise<RemoteToolSession[]> {
     const result = await this.pg.query(
       `SELECT * FROM remote_tool_sessions

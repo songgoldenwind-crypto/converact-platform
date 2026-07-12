@@ -2154,6 +2154,13 @@ export class MemoryPg implements PgQueryable {
       return row ? [row] : [];
     }
 
+    if (sql.startsWith('SELECT * FROM remote_tool_sessions WHERE tenant_id')) {
+      const row = [...this.table('remote_tool_sessions').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) && String(candidate.external_id) === String(params[1])
+      );
+      return row ? [row] : [];
+    }
+
     if (sql.startsWith('SELECT * FROM remote_tool_sessions WHERE remote_session_id')) {
       const remoteSessionId = String(params[0]);
       const limit = Number(params[1] || 50);
@@ -2417,6 +2424,16 @@ export class MemoryPg implements PgQueryable {
       row.version = params[2];
       row.updated_at = params[3];
       return { rows: [], rowCount: 1 };
+    }
+
+    if (sql.startsWith('INSERT INTO rustdesk_control_events') && sql.includes("'operation_confirmed'")) {
+      const row: TableRow = {
+        id: params[0], tenant_id: params[1], external_id: params[2], event_type: 'operation_confirmed',
+        actor_identity: params[3], operation: params[4], lock_version: params[5],
+        confirmation_id: params[6], metadata: {}, created_at: params[7]
+      };
+      this.table('rustdesk_control_events').set(String(row.id), row);
+      return [];
     }
 
     if (sql.startsWith('INSERT INTO rustdesk_control_events')) {
