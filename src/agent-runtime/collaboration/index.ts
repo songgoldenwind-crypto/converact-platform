@@ -115,6 +115,14 @@ export { CollaborationMessageStateStore } from './message-state-store.js';
 export type * from './message-state-store.js';
 export { createHttpOcrProvider, configuredOcrProvider } from './ocr-provider.js';
 export { createHttpAsrProvider, configuredAsrProvider } from './asr-provider.js';
+export { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
+export type * from './intelligence-provider-registry.js';
+export {
+  sanitizeProviderErrorCode,
+  sanitizeProviderMetadata,
+  sanitizeProviderRequestId
+} from './provider-safety.js';
+export type * from './provider-safety.js';
 export {
   createGuacamoleGatewayClient,
   createInMemoryRemoteGatewayClient,

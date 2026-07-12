@@ -30,6 +30,14 @@ test('V3 intelligence migration defines tenant policy, source links, and durable
   assert.match(sql, /UNIQUE \(tenant_id, idempotency_key\)/i);
   assert.match(sql, /UNIQUE \(tenant_id, source_type, source_ref_id, target_language, source_hash\)/i);
   assert.match(sql, /idx_collaboration_translation_jobs_due/i);
+  assert.match(
+    sql,
+    /ALTER TABLE collaboration_attachment_processing_jobs[\s\S]*ADD COLUMN IF NOT EXISTS provider_profile_id/i
+  );
+  assert.match(
+    sql,
+    /ALTER TABLE collaboration_quality_review_jobs[\s\S]*ADD COLUMN IF NOT EXISTS provider_profile_id/i
+  );
 });
 
 test('V3 intelligence migration extends translation results without dropping legacy data', () => {

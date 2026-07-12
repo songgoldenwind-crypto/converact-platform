@@ -3,6 +3,7 @@ import {
   type AttachmentTextProvider,
   type HttpAttachmentTextProviderConfig
 } from './attachment-text-provider.js';
+import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 
 export interface HttpAsrProviderConfig
   extends Omit<HttpAttachmentTextProviderConfig, 'processor' | 'endpoint'> {
@@ -21,25 +22,17 @@ export function configuredAsrProvider(
   env: NodeJS.ProcessEnv = process.env,
   deps: { fetch?: typeof fetch } = {}
 ): AttachmentTextProvider | null {
-  const baseUrl = String(env.OPC_ASR_BASE_URL || '').trim();
-  if (!baseUrl) return null;
+  const registry = createIntelligenceProviderRegistry(env);
+  const profile = registry.defaultProfile('asr');
+  if (!profile) return null;
   return createHttpAsrProvider({
-    mode: providerMode(env.OPC_ASR_PROVIDER_MODE),
-    baseUrl,
-    endpoint: env.OPC_ASR_ENDPOINT || '/v1/asr',
-    token: env.OPC_ASR_TOKEN,
-    timeoutMs: optionalTimeout(env.OPC_ASR_TIMEOUT_MS),
-    name: env.OPC_ASR_PROVIDER_NAME || undefined,
+    mode: profile.mode,
+    baseUrl: profile.base_url,
+    endpoint: profile.endpoint,
+    token: registry.resolveToken(profile),
+    timeoutMs: profile.timeout_ms,
+    name: profile.name,
+    profileId: profile.id,
     fetch: deps.fetch
   });
-}
-
-function providerMode(value: string | undefined): 'self_hosted' | 'third_party' {
-  const mode = String(value || 'self_hosted').trim();
-  if (mode === 'self_hosted' || mode === 'third_party') return mode;
-  throw new Error('OPC_ASR_PROVIDER_MODE must be self_hosted or third_party');
-}
-
-function optionalTimeout(value: string | undefined): number | undefined {
-  return value == null || !String(value).trim() ? undefined : Number(value);
 }

@@ -1,6 +1,10 @@
+import {
+  sanitizeProviderMetadata,
+  sanitizeProviderRequestId
+} from './provider-safety.js';
+
 export type AttachmentProcessor = 'ocr' | 'asr';
 export type AttachmentProviderMode = 'self_hosted' | 'third_party';
-
 export interface AttachmentTextExtractionInput {
   attachment_id: string;
   tenant_id: string;
@@ -24,6 +28,7 @@ export interface AttachmentTextProvider {
   processor: AttachmentProcessor;
   name: string;
   mode: AttachmentProviderMode;
+  profile_id?: string;
   extract(input: AttachmentTextExtractionInput): Promise<AttachmentTextExtractionResult>;
 }
 
@@ -35,6 +40,7 @@ export interface HttpAttachmentTextProviderConfig {
   token?: string;
   timeoutMs?: number;
   name?: string;
+  profileId?: string;
   fetch?: typeof fetch;
 }
 
@@ -63,6 +69,7 @@ export function createHttpAttachmentTextProvider(
     processor: config.processor,
     name: config.name || `${config.mode}-${config.processor}`,
     mode: config.mode,
+    ...(config.profileId ? { profile_id: config.profileId } : {}),
     async extract(input) {
       const form = new FormData();
       form.set(
@@ -131,14 +138,16 @@ export function createHttpAttachmentTextProvider(
       const confidence = Number(payload.confidence);
       return {
         text: payload.text.slice(0, 200_000),
-        ...(Number.isFinite(confidence) ? { confidence } : {}),
-        ...(typeof payload.language === 'string' ? { language: payload.language } : {}),
+        ...(Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? { confidence } : {}),
+        ...(typeof payload.language === 'string' ? { language: payload.language.trim().slice(0, 35) } : {}),
         ...(typeof payload.request_id === 'string'
-          ? { provider_request_id: payload.request_id }
+          ? { provider_request_id: sanitizeProviderRequestId(payload.request_id) }
           : typeof payload.provider_request_id === 'string'
-            ? { provider_request_id: payload.provider_request_id }
+            ? { provider_request_id: sanitizeProviderRequestId(payload.provider_request_id) }
             : {}),
-        ...(isRecord(payload.metadata) ? { metadata: payload.metadata } : {})
+        ...(isRecord(payload.metadata)
+          ? { metadata: sanitizeProviderMetadata(payload.metadata, { secretValues: [config.token || ''] }) }
+          : {})
       };
     }
   };

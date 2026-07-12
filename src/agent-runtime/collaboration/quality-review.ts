@@ -10,6 +10,8 @@ import type {
   PolicySeverity
 } from './types.js';
 import { listCollaborationWorkerTenants } from './worker-tenant-scope.js';
+import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
+import { sanitizeProviderMetadata } from './provider-safety.js';
 
 export type QualityReviewProviderMode = 'self_hosted' | 'third_party';
 export type QualityReviewJobStatus =
@@ -48,6 +50,7 @@ export interface QualityReviewProviderOutput {
 export interface QualityReviewProvider {
   name: string;
   mode: QualityReviewProviderMode;
+  profile_id?: string;
   review(input: QualityReviewProviderInput): Promise<QualityReviewProviderOutput>;
 }
 
@@ -505,6 +508,7 @@ export interface HttpQualityReviewProviderConfig {
   token?: string;
   timeoutMs?: number;
   name?: string;
+  profileId?: string;
   fetch?: typeof fetch;
 }
 
@@ -522,6 +526,7 @@ export function createHttpQualityReviewProvider(
   return {
     name: config.name || `${config.mode}-quality-review`,
     mode: config.mode,
+    ...(config.profileId ? { profile_id: config.profileId } : {}),
     async review(input) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -578,9 +583,13 @@ export function createHttpQualityReviewProvider(
           recommended_action: String(finding.recommended_action || 'review'),
           rationale: String(finding.rationale || ''),
           matched_text: typeof finding.matched_text === 'string' ? finding.matched_text : undefined,
-          metadata: isRecord(finding.metadata) ? finding.metadata : {}
+          metadata: isRecord(finding.metadata)
+            ? sanitizeProviderMetadata(finding.metadata, { secretValues: [config.token || ''] })
+            : {}
         })),
-        metadata: isRecord(payload.metadata) ? payload.metadata : {}
+        metadata: isRecord(payload.metadata)
+          ? sanitizeProviderMetadata(payload.metadata, { secretValues: [config.token || ''] })
+          : {}
       };
     }
   };
@@ -590,19 +599,17 @@ export function configuredQualityReviewProvider(
   env: NodeJS.ProcessEnv = process.env,
   deps: { fetch?: typeof fetch } = {}
 ): QualityReviewProvider | null {
-  const baseUrl = String(env.OPC_QUALITY_REVIEW_BASE_URL || '').trim();
-  if (!baseUrl) return null;
-  const mode = String(env.OPC_QUALITY_REVIEW_PROVIDER_MODE || 'self_hosted').trim();
-  if (mode !== 'self_hosted' && mode !== 'third_party') {
-    throw new Error('OPC_QUALITY_REVIEW_PROVIDER_MODE must be self_hosted or third_party');
-  }
+  const registry = createIntelligenceProviderRegistry(env);
+  const profile = registry.defaultProfile('quality_review');
+  if (!profile) return null;
   return createHttpQualityReviewProvider({
-    mode,
-    baseUrl,
-    endpoint: env.OPC_QUALITY_REVIEW_ENDPOINT || '/v1/quality-review',
-    token: env.OPC_QUALITY_REVIEW_TOKEN,
-    timeoutMs: env.OPC_QUALITY_REVIEW_TIMEOUT_MS ? Number(env.OPC_QUALITY_REVIEW_TIMEOUT_MS) : undefined,
-    name: env.OPC_QUALITY_REVIEW_PROVIDER_NAME || undefined,
+    mode: profile.mode,
+    baseUrl: profile.base_url,
+    endpoint: profile.endpoint,
+    token: registry.resolveToken(profile),
+    timeoutMs: profile.timeout_ms,
+    name: profile.name,
+    profileId: profile.id,
     fetch: deps.fetch
   });
 }

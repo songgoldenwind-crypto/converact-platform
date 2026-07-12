@@ -88,6 +88,12 @@ CREATE INDEX IF NOT EXISTS idx_collaboration_translation_jobs_due
 CREATE INDEX IF NOT EXISTS idx_collaboration_translation_jobs_session
   ON collaboration_translation_jobs(tenant_id, session_id, message_id, created_at DESC);
 
+ALTER TABLE collaboration_attachment_processing_jobs
+  ADD COLUMN IF NOT EXISTS provider_profile_id TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE collaboration_quality_review_jobs
+  ADD COLUMN IF NOT EXISTS provider_profile_id TEXT NOT NULL DEFAULT '';
+
 ALTER TABLE collaboration_message_translations
   ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'message';
 
