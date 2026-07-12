@@ -18,7 +18,19 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 4. LiveKit、Tinode、RustDesk 的独立 provider 配置和 Compose。
 5. 升级、回滚、故障恢复和本地验收材料。
 
-本 Goal 不上传服务器，不把本地测试写成真实 provider 验收。
+本 Goal 原计划只做本地交付门禁；2026-07-12 按用户最新要求增加服务器隔离验证。服务器验证只提升实际执行过的独立镜像、fresh PostgreSQL、迁移、RLS 和 health 状态，不把它写成 V2 的 LiveKit、Tinode 或 RustDesk provider E2E。
+
+### 1.1 当前执行状态（2026-07-12）
+
+| 里程碑 | 状态 | 已有证据 | 剩余工作 |
+| --- | --- | --- | --- |
+| M6.1 独立构建边界 | 已实现并上服验证 | 79 个白名单源码文件、6 个运行依赖；隔离 `npm ci`/build 通过；服务器 Docker build 和 `/health` 通过 | 纳入最终全量回归与发布门禁 |
+| M6.2 Standalone PostgreSQL | 部分完成 | fresh schema 41 表、30 个 checksum migration、0 RLS gap、0 OPC 业务表；runtime 跨租户读写拦截通过 | existing OPC upgrade、前向恢复和正式 Compose 角色初始化仍待收口 |
+| M6.3 Tinode inbound | 未开始 | 计划和状态机已定义 | 实现 cursor/inbox/projector/dead letter/reconnect |
+| M6.4 Durable event replay | 未开始 | 计划和 cursor 不变量已定义 | 实现 event log/replay/WebSocket resume |
+| M6.5 RustDesk edge spool | 未开始 | 计划和安全边界已定义 | 实现 crash-safe spool/recovery lease |
+| M6.6 SDK、交付、兼容 | 未开始 | V1 SDK/交付包可复用 | 升级 cursor API、独立 Compose 和升级回滚材料 |
+| M6.7 完成审计 | 未开始 | 局部门禁通过 | 全量 verify、兼容矩阵、故障恢复和最终状态审计 |
 
 ## 2. 现状审计
 
@@ -95,7 +107,7 @@ V2 必须提供本地持久 spool，并且不能把 command token、stdout/stder
 
 1. RTMP/HLS 直播。
 2. 数字人。
-3. 服务器上传、DNS、证书、真实摄像头、真实 hbbs/hbbr 验收。
+3. V2 的 DNS/证书、真实摄像头和真实 hbbs/hbbr 重验；独立镜像与 PostgreSQL 的服务器隔离验证已纳入。
 4. OPC call-center、IVR、CRM、外呼和坐席业务功能。
 
 ### 3.3 已纳入共用底座后续目标
@@ -320,7 +332,7 @@ worker 行为：
 10. 全仓 `npm run verify`。
 11. delivery checksum、secret scan 和 forbidden-source scan。
 
-真实 LiveKit、Tinode、RustDesk 没有服务器报告时，最终统一状态仍为 `not_run`。
+V2 未重新执行的 LiveKit、Tinode、RustDesk provider 场景必须标记 `not_run_for_v2`；不得用 2026-07-11 的 V1 证据冒充 V2 重验。V1 已通过的真实链路仍保留为基线证据。
 
 ## 7. 实施顺序
 
