@@ -10,9 +10,14 @@ import {
   type IntelligenceProviderRegistry
 } from '../collaboration/intelligence-provider-registry.js';
 import { wsBroadcast } from '../../ws.js';
+import {
+  IntelligenceProviderHealthService,
+  type IntelligenceProviderHealthResult
+} from '../collaboration/intelligence-provider-health.js';
 
 export interface RouteIveKitIntelligenceApiOptions {
   registry?: IntelligenceProviderRegistry;
+  health?: { probe(input: { profile_ids?: string[] }): Promise<IntelligenceProviderHealthResult[]> };
   publish?: (tenantId: string, type: string, data: unknown) => void | Promise<void>;
 }
 
@@ -95,6 +100,16 @@ export async function routeIveKitIntelligenceApi(
   if (routePath === '/api/ivekit/intelligence/providers' && method === 'GET') {
     requireAdministrator(ctx.role);
     return { data: { items: registry.listSafe() } };
+  }
+
+  if (routePath === '/api/ivekit/intelligence/providers/health' && method === 'POST') {
+    requireAdministrator(ctx.role);
+    const input = bodyRecord(body);
+    const unsupported = Object.keys(input).find((field) => field !== 'profile_ids');
+    if (unsupported) throw Object.assign(new Error(`unsupported provider health field: ${unsupported}`), { status: 400 });
+    const profileIds = optionalProfileIds(input.profile_ids);
+    const health = options.health || new IntelligenceProviderHealthService(registry);
+    return { data: { items: await health.probe({ ...(profileIds ? { profile_ids: profileIds } : {}) }) } };
   }
 
   return undefined;
@@ -186,4 +201,16 @@ function bodyRecord(value: unknown): Record<string, unknown> {
     throw Object.assign(new Error('JSON object body is required'), { status: 400 });
   }
   return value as Record<string, unknown>;
+}
+
+function optionalProfileIds(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 20) {
+    throw Object.assign(new Error('profile_ids must contain at most 20 items'), { status: 400 });
+  }
+  const ids = value.map((item) => String(item || '').trim());
+  if (ids.some((id) => !id || !/^[a-z][a-z0-9_-]{0,63}$/.test(id))) {
+    throw Object.assign(new Error('profile_ids contains an invalid profile id'), { status: 400 });
+  }
+  return [...new Set(ids)];
 }
