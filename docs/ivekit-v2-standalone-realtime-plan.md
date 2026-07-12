@@ -89,16 +89,24 @@ V2 必须提供本地持久 spool，并且不能把 command token、stdout/stder
 5. tenant event durable log、opaque cursor、replay 和 WebSocket resume。
 6. RustDesk edge pending result crash recovery。
 7. SDK、客户端、Compose、交付包、升级回滚文档和自动化门禁。
+8. 为后续 OCR、ASR、AI 质检、翻译和 SIP/VoLTE 共用模块建立独立 service extension boundary，禁止这些能力反向依赖 OPC call-center 业务。
 
 ### 3.2 明确不纳入
 
-1. SIP/VoLTE。
-2. RTMP/HLS 直播。
-3. 数字人。
-4. 翻译产品化。
-5. 真实 OCR/ASR/AI provider 选型。
-6. 服务器上传、DNS、证书、真实摄像头、真实 hbbs/hbbr 验收。
-7. OPC call-center、IVR、CRM、外呼和坐席业务功能。
+1. RTMP/HLS 直播。
+2. 数字人。
+3. 服务器上传、DNS、证书、真实摄像头、真实 hbbs/hbbr 验收。
+4. OPC call-center、IVR、CRM、外呼和坐席业务功能。
+
+### 3.3 已纳入共用底座后续目标
+
+以下能力必须由 iveKit 共用层提供给 LED 和其他项目，不放进 LED 业务代码，也不再作为长期排除项：
+
+1. 图片 OCR、音视频 ASR 和 AI 质检，支持 self-hosted 与 third-party provider。
+2. 消息和附件提取文本的按需/自动翻译、结果缓存、审计和人工复核。
+3. LiveKit SIP/VoLTE trunk、dispatch rule、入呼/外呼、DTMF、录制和呼叫生命周期。
+
+当前 M6 先保证独立 service/schema/event extension boundary 可以承载这些模块；完整产品实现分别进入 V3 和 V4 Goal，避免与实时可靠性状态机一次性混写。
 
 ## 4. 不变量
 
@@ -128,6 +136,9 @@ LED / other host
             -> message/attachment/mutation projector
             -> durable cursor + dead letter
        -> LiveKit adapter / webhook / recording evidence
+       -> optional intelligence providers (OCR / ASR / AI quality)
+       -> optional translation provider
+       -> optional LiveKit SIP / VoLTE plane
        -> RustDesk control plane
        -> attachment and quality workers
 
@@ -359,14 +370,17 @@ M6.3 和 M6.4 共用 durable event transaction，必须先定义 inbox/event sto
 5. 三工作区可用 tenant event cursor 断线续传，并在 gap/撤权时安全回退 snapshot。
 6. RustDesk edge executed result 可跨进程恢复且不重复 wrapper。
 7. SDK、client、Compose、migration、delivery 和文档全部更新。
-8. 全仓和专项门禁通过，无未解决 Critical/Important。
-9. 未运行的真实 provider 验收仍准确标记 `not_run`。
+8. standalone dependency policy 为 intelligence、translation、SIP 模块保留 iveKit-owned extension boundary，且不允许导入 OPC call-center/IVR。
+9. 全仓和专项门禁通过，无未解决 Critical/Important。
+10. 未运行的真实 provider 验收仍准确标记 `not_run`。
 
 ## 11. 共用底座剩余目标
 
-从当前 V1 基线开始，共用底座只保留两个目标：
+从当前 V1 基线开始，共用底座保留四个目标：
 
 1. **当前 Goal：iveKit V2 独立服务与可靠实时同步闭环。** 解决代码、数据、实时和边缘可靠性。
-2. **最终 Goal：iveKit Release 1.0 与真实环境验收。** 发布独立 image/SDK、部署目标环境，完成真实 Tinode/LiveKit/RustDesk、对象存储、网络、双浏览器/双桌面、容量、弱网、升级和回滚证据。
+2. **iveKit V3 多模态智能与翻译。** 完成 OCR、ASR、AI 质检、人工复核和消息翻译，统一支持 self-hosted/third-party provider，并交付 LED SDK/API/UI 参考模块。
+3. **iveKit V4 SIP/VoLTE 通信。** 完成 LiveKit SIP trunk/dispatch、号码、入呼/外呼、DTMF、录制、状态机和 LED 接入，不引入 OPC 坐席、CRM、营销外呼业务。
+4. **最终 Goal：iveKit Release 1.0 与真实环境验收。** 发布独立 image/SDK、部署目标环境，完成真实 Tinode/LiveKit/RustDesk/OCR/ASR/AI/translation/SIP、对象存储、网络、双浏览器/双桌面、容量、弱网、升级和回滚证据。
 
-第二个 Goal 完成后冻结 iveKit 共用底座，后续 OCR/ASR/AI、翻译、SIP、直播和数字人按具体产品需求作为可选扩展，不再阻塞 OPC 主项目架构设计。
+第四个 Goal 完成后冻结 iveKit 共用底座并开始 OPC 主项目架构设计。RTMP/HLS 直播和数字人继续作为未来可选扩展，不阻塞 OPC 主架构。
