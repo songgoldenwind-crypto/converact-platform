@@ -125,7 +125,7 @@ Task 10 最终本地证据：全仓 `2042` 项中 `2037` 通过、`5` 项真实 
 
 1. 同一个 `business_ref` 下统一会话、IM、音视频和远控入口。
 2. 统一参与人、授权状态、事件时间线和 evidence 列表。
-3. 路由级代码拆分；当前主 chunk 约 413 kB、Remote 约 13 kB，Media 动态 chunk 约 572 kB，仍需消除超过 500 kB 的构建警告或固定可解释预算。
+3. 路由/provider 拆分与硬预算已完成：initial 约 315 kB、Tinode 103 kB、Media workspace 62 kB、Remote 13 kB、LiveKit vendor 509 kB；初始 HTML 不 preload provider，构建无超限警告。
 4. 桌面和移动端关键视口 Playwright 截图与交互验收。
 5. SDK、Compose、迁移、升级、回滚和 LED 对接文档。
 6. 完整单测、契约测试、浏览器 E2E、真实服务 smoke 和真实桌面验收包。

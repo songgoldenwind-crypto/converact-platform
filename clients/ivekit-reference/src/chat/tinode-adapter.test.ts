@@ -87,8 +87,8 @@ test('receive-only adapter source has no business-message write surface', () => 
   const publicClass = source.match(/export class ReceiveOnlyTinodeAdapter \{([\s\S]*?)\n\}/)?.[1] || '';
   assert.doesNotMatch(publicClass, /\b(?:publish|send|createMessage)\s*\(/);
   assert.doesNotMatch(source, /publishMessage|sendMessage/);
-  assert.match(source, /import \* as TinodeSdk from 'tinode-sdk'/);
-  assert.doesNotMatch(source, /import TinodeSdk from 'tinode-sdk'/);
+  assert.match(source, /await import\('tinode-sdk'\)/);
+  assert.doesNotMatch(source, /^import .* from 'tinode-sdk'/m);
 });
 
 test('adapter rejects unbounded retry schedules', () => {

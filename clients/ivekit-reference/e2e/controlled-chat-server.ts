@@ -228,6 +228,33 @@ async function routeRequest(
   const input = jsonBody(body);
   const session = sessionDto(state, identity);
 
+  if (method === 'GET' && path === '/api/ivekit/context/by-ref') {
+    const participantRows = participants();
+    const viewer = participantRows.find((participant) => participant.identity === identity);
+    return json(response, 200, {
+      tenant_id: TENANT_ID,
+      business_ref: { type: 'service_order', id: 'LED-E2E-1' },
+      viewer: { identity, system: false },
+      capabilities: { chat: true, media: false, remote_assistance: false },
+      chat: { count: 1, sessions: [{
+        id: SESSION_ID, title: 'LED display support', status: state.sessionClosed ? 'closed' : 'open',
+        created_at: NOW, updated_at: new Date().toISOString(), closed_at: null
+      }] },
+      media: { count: 0, calls: [] },
+      remote_assistance: { count: 0, sessions: [], devices: [] },
+      authorization: {
+        chat: [{
+          session_id: SESSION_ID, viewer_role: viewer?.role || null,
+          participants: participantRows.map((participant) => ({
+            identity: participant.identity, display_name: participant.display_name,
+            role: participant.role, status: participant.left_at ? 'left' : 'active'
+          }))
+        }],
+        media: [], remote_assistance: []
+      }
+    });
+  }
+
   if (method === 'GET' && path === '/api/ivekit/chat/sessions') {
     return json(response, 200, { items: [session], next_cursor: null, has_more: false });
   }

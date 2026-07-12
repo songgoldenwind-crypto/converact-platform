@@ -63,6 +63,8 @@ npm run pack:ivekit-sdk
 
 `pack:ivekit-sdk` 是 dry-run，不产生 tarball，用于确认发布物没有服务端源码、测试和凭据。LED 可从私有 registry 安装 `npm install @opc/ivekit-sdk`，或在联调阶段安装本地 `sdk/ivekit` 目录。
 
+参考客户端生产构建会自动运行 `check:bundle`：initial、Tinode、Media、Remote、LiveKit vendor 均有独立字节预算，并检查 `index.html` 不预加载 provider/workspace chunk。不要通过删除该门禁或单纯提高 Vite warning limit 接受无界增长。
+
 ### 4.1 Node 后端：API key
 
 ```ts

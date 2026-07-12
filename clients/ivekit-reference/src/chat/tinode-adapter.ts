@@ -1,5 +1,3 @@
-import * as TinodeSdk from 'tinode-sdk';
-
 import type { IveKitChatClientPlan } from '@opc/ivekit-sdk';
 import type { ChatConnectionState, ChatConvergenceTrigger, ChatScheduler } from './types.js';
 
@@ -28,7 +26,7 @@ export interface TinodeClientLike {
 
 export interface ReceiveOnlyTinodeAdapterInput {
   getPlan(): Promise<IveKitChatClientPlan>;
-  clientFactory?: (config: Record<string, unknown>) => TinodeClientLike;
+  clientFactory?: (config: Record<string, unknown>) => TinodeClientLike | Promise<TinodeClientLike>;
   scheduler?: ChatScheduler;
   random?: () => number;
   backoffMs?: readonly number[];
@@ -131,7 +129,7 @@ export class ReceiveOnlyTinodeAdapter {
       const plan = await this.input.getPlan();
       this.assertCurrent(generation);
       const factory = this.input.clientFactory || defaultClientFactory;
-      client = factory(clientConfig(plan));
+      client = await factory(clientConfig(plan));
       this.client = client;
       client.onDisconnect = (error) => this.handleDisconnect(generation, client!, error);
       await client.connect();
@@ -250,7 +248,8 @@ export class ReceiveOnlyTinodeAdapter {
   private clearTimers(): void { this.clearReconnectTimer(); this.clearStableTimer(); }
 }
 
-function defaultClientFactory(config: Record<string, unknown>): TinodeClientLike {
+async function defaultClientFactory(config: Record<string, unknown>): Promise<TinodeClientLike> {
+  const TinodeSdk = await import('tinode-sdk');
   const Tinode = TinodeSdk.Tinode || TinodeSdk.default?.Tinode;
   if (!Tinode) throw new Error('Tinode SDK constructor is unavailable');
   return new Tinode(config as never) as unknown as TinodeClientLike;

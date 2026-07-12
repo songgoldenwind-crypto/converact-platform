@@ -171,6 +171,32 @@ test('business deep link unifies messages calls remote and browser history', asy
   }
 });
 
+test('320px unified shell and context panel stay inside the viewport', async ({ browser }) => {
+  const mobile = await openIdentity(browser, 'agent-1', 'token-agent', { width: 320, height: 700 }, {
+    path: '/?business_ref_type=service_order&business_ref_id=SO-100',
+    openRemote: false
+  });
+  try {
+    await expect(mobile.page.getByTitle('Show authorization summary')).toBeVisible();
+    await mobile.page.getByTitle('Show authorization summary').click();
+    await expect(mobile.page.getByRole('complementary', { name: 'Business authorization summary' })).toBeVisible();
+    const layout = await mobile.page.evaluate(() => {
+      const panel = document.querySelector('.business-context-panel')?.getBoundingClientRect();
+      return {
+        width: innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+        panel: panel ? { left: panel.left, right: panel.right, width: panel.width } : null
+      };
+    });
+    expect(layout.scrollWidth).toBe(layout.width);
+    expect(layout.panel).not.toBeNull();
+    expect(layout.panel!.left).toBeGreaterThanOrEqual(0);
+    expect(layout.panel!.right).toBeLessThanOrEqual(layout.width);
+  } finally {
+    await mobile.context.close();
+  }
+});
+
 async function openIdentity(
   browser: Browser,
   identity: string,

@@ -67,7 +67,9 @@ LED / other host
 
 ### Task M5.5：前端拆包与性能
 
-1. Messages、Calls、Remote 按路由懒加载；LiveKit 和 Tinode 不进入初始 Remote chunk。
+**状态：已完成（2026-07-12）。** 默认 Messages 壳同步渲染，Tinode provider 改为连接时动态加载；Calls/Remote 按工作区懒加载，LiveKit 独立 vendor。构建产物约为 initial 315 kB、Tinode 103 kB、Media workspace 62 kB、Remote 13 kB、LiveKit vendor 509 kB。`check:bundle` 对五类 chunk 设置硬预算并拒绝初始 HTML preload provider/workspace；Vite 构建无超限警告。1440/390 既有 E2E 与新增 320px shell/context panel 均无横向溢出。
+
+1. 默认 Messages 壳同步渲染，Tinode provider 动态加载；Calls、Remote 按工作区懒加载；LiveKit 和 Tinode 不进入初始 HTML。
 2. 为 chunk 大小建立可重复门禁，消除当前媒体 chunk 超过 500 kB 的构建警告或记录可接受预算。
 3. 验证桌面 1440x900、手机 390x844、窄屏 320px 无横向溢出和控件遮挡。
 
