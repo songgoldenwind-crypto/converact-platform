@@ -7,6 +7,8 @@
 > 代码基线：当前 OPC 仓库 `/Users/songjinfeng/Desktop/opc`
 >
 > 服务器验收更新（2026-07-11）：LiveKit 双浏览器音视频/屏幕共享、Egress/MinIO、Tinode、IM facade、防绕单、RustDesk 控制面/审计、PostgreSQL 强制 RLS、LED SDK、双实例幂等和恢复测试已在真实服务器通过。交付前独立审查又完成了 OPC/Tinode 数据库角色隔离、一次性迁移服务、不可自启的 RLS bypass、MinIO 根/桶级账号分离及并发迁移锁。证据与剩余物理客户端人工项见 [iveKit 服务器部署验收报告](iveKit服务器部署验收报告-2026-07-11.md)。本文后文早期章节中的“仍需服务器验证”应以该报告的新口径为准。
+>
+> M6.5 更新（2026-07-12）：RustDesk edge crash-safe spool 与 recovery API 已在隔离服务器 `ivekit-v2-c13f503` 验收。executed 重启只补报、terminal 幂等确认、executing 不确定状态终止、跨 edge ownership quarantine、Linux 权限/符号链接/原子落盘以及应用重启持久性均通过；服务器证据路径和摘要见 [iveKit V2 standalone realtime plan](ivekit-v2-standalone-realtime-plan.md)。
 
 ---
 

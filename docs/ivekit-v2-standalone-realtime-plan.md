@@ -28,7 +28,7 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 | M6.2 Standalone PostgreSQL | 已完成 | fresh schema 45 表、31 个 checksum migration、0 RLS gap、0 OPC 业务表；existing OPC 数据无损升级；runtime 跨租户读写、DDL 和迁移账本访问均被拦截；失败后前向重试通过 | 纳入 M6.7 最终全量回归 |
 | M6.3 Tinode inbound | 已完成 | provider user mapping、cursor/lease、幂等 inbox、普通消息/Drafty 附件/edit/delete projector、policy scan、AI 质检入队、脱敏死信与到期重试、WebSocket 断线续拉、应用生命周期和部署参数均已实现；本地协议/worker/真实 PostgreSQL 测试通过；服务器真实 Tinode E2E、服务离线后补偿、重启幂等、RLS 和凭据隔离均通过 | 纳入 M6.7 最终全量回归 |
 | M6.4 Durable event replay | 已完成 | 32 号 migration、单调 event ID、签名/租户绑定/过期 cursor、当前参与人/RBAC 过滤、定向 audience、HTTP 增量页、WebSocket resume、请求事务后缓冲、持久化后 Redis fan-out、实例回送去重、retention worker 和独立回滚开关均已实现；本地/真实 PostgreSQL/standalone 门禁通过；服务器完成进程重启恢复、撤权、非法/跨租户 cursor、定向 audience、RLS、retention 与幂等复验 | 纳入 M6.7 最终全量回归 |
-| M6.5 RustDesk edge spool | 代码完成，待最终回归 | crash-safe filesystem spool、执行 intent/result、恢复租约、terminal ack、uncertain/ownership quarantine、容量/年龄/权限/符号链接/单实例门禁和 preflight 已实现；专项测试通过 | 纳入 M6.7 全量回归与服务器故障注入 |
+| M6.5 RustDesk edge spool | 已完成 | crash-safe filesystem spool、执行 intent/result、恢复租约、terminal ack、uncertain/ownership quarantine、容量/年龄/权限/符号链接/单实例门禁和 preflight 已实现；本地、真实 PostgreSQL和隔离服务器故障矩阵均通过 | 纳入 M6.7 最终全量回归 |
 | M6.6 SDK、交付、兼容 | 未开始 | V1 SDK/交付包可复用 | 升级 cursor API、独立 Compose 和升级回滚材料 |
 | M6.7 完成审计 | 未开始 | 局部门禁通过 | 全量 verify、兼容矩阵、故障恢复和最终状态审计 |
 
@@ -319,6 +319,15 @@ worker 行为：
 - 已有 executed result 的重启路径不再次调用 wrapper。
 - 损坏、符号链接、越目录、权限过宽和 schema 未知文件均 fail closed。
 - secret scan 证明 spool fixture 不含 token 或执行内容。
+
+完成证据（2026-07-12）：
+
+- 提交 `27575fe` 完成 edge spool/recovery，`c13f503` 补齐 standalone Compose 的 edge token secret 传递；均已推送 `codex/ivekit-v2-realtime-standalone`。
+- 本地 M6.5 专项 56/56、`npm run typecheck`、`git diff --check`、`npm run test:fast`（93 pass + 5 环境 skip）、standalone context build 全部通过；临时真实 PostgreSQL fresh/upgrade/RLS/recovery SQL 通过。
+- 服务器 `64.225.122.227` 使用隔离 project `ivekit-v2-c13f503`、独立 fresh PostgreSQL volume 和 `127.0.0.1:18306`。镜像 `ivekit-service:c13f503` 健康，源码提交为 `c13f50396b4e98ac9aaff4c9992bb51c7fbeaa51`。
+- 真实 HTTP 矩阵通过：无 edge token 为 401；executed recovery 保持 attempt 1、轮换 token 后只补报；terminal result match 为 true；executing recovery 终止为 `failed/edge_recovery_execution_uncertain`；旧 edge 在另一 edge 领取 attempt 2 后只能 quarantine。
+- Linux 容器 edge/spool 专项 18/18；应用容器重启后 3 条命令状态、attempt、owner 和 recovered/succeeded/failed audit 均保持。32 个 migration，`opc_runtime` 为非超级用户、无 bypass RLS/createrole。
+- 证据位于 `/opt/ivekit-v2-validation/c13f503/`：`rustdesk-recovery-result.json`、`rustdesk-edge-linux-test.txt`、`rustdesk-recovery-audit.txt`、`final-m6.5-audit.txt`，全部 mode `0600`。context archive SHA-256 为 `633d3f62e4fb70ba078722f7c0bae01893521b571d2054e8f35066edf4c4ccfd`，无 AppleDouble 和 build residue。
 
 ### M6.6 SDK、交付与兼容收口
 
