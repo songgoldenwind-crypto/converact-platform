@@ -69,6 +69,9 @@ returns provider credentials, launch links, RustDesk IDs, tokens, or business me
 Its read-only `authorization` projection includes participant roles/statuses, active
 remote consent scopes, gateway permissions, and current control ownership. Clients
 must still issue writes through the owning Chat, Media, or RustDesk command API.
+Use `context.listTimeline(orderRef, { limit, cursor })` for the redacted cross-domain
+activity/evidence index. Its cursor is opaque and business-ref scoped; timeline items
+never contain message bodies, provider metadata, storage URLs, or captured content.
 
 The media client exports typed capabilities, durable call snapshots and actions,
 rooms, join plans, provider participants, host moderation, recordings, object

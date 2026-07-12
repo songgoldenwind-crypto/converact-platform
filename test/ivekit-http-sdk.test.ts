@@ -470,13 +470,23 @@ test('iveKit HTTP SDK exposes the unified business context endpoint', async () =
   assert.equal(typeof sdk.context.getByBusinessRef, 'function');
   const context = await sdk.context.getByBusinessRef({ type: 'service_order', id: 'SO-1' });
   assert.equal(context.business_ref.id, 'SO-1');
-  assert.equal(calls.length, 1);
+  await sdk.context.listTimeline(
+    { type: 'service_order', id: 'SO-1' },
+    { cursor: 'opaque-cursor', limit: 25 }
+  );
+  assert.equal(calls.length, 2);
   const request = new URL(calls[0].url);
   assert.equal(calls[0].method, 'GET');
   assert.equal(request.pathname, '/api/ivekit/context/by-ref');
   assert.equal(request.searchParams.get('business_ref_type'), 'service_order');
   assert.equal(request.searchParams.get('business_ref_id'), 'SO-1');
   assert.equal(calls[0].headers.authorization, 'Bearer user-token');
+  const timelineRequest = new URL(calls[1].url);
+  assert.equal(timelineRequest.pathname, '/api/ivekit/context/timeline');
+  assert.equal(timelineRequest.searchParams.get('business_ref_type'), 'service_order');
+  assert.equal(timelineRequest.searchParams.get('business_ref_id'), 'SO-1');
+  assert.equal(timelineRequest.searchParams.get('cursor'), 'opaque-cursor');
+  assert.equal(timelineRequest.searchParams.get('limit'), '25');
 });
 
 function headersToRecord(headers: RequestInit['headers']): Record<string, string> {

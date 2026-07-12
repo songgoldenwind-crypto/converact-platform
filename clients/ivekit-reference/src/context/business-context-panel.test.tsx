@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type { IveKitBusinessContext } from '@opc/ivekit-sdk';
 
 import { installTestDom } from '../test-dom.js';
@@ -10,9 +10,23 @@ let closeDom: () => void;
 before(() => { closeDom = installTestDom(); });
 after(() => { cleanup(); closeDom?.(); });
 
-test('business authorization panel projects roles scopes and control without metadata', () => {
+test('business context panel projects authorization and paged redacted activity', async () => {
   let closed = false;
-  const view = render(<BusinessContextPanel context={context()} onClose={() => { closed = true; }} />);
+  const cursors: Array<string | undefined> = [];
+  const view = render(<BusinessContextPanel
+    context={context()}
+    loadTimeline={async (input) => {
+      cursors.push(input?.cursor);
+      return input?.cursor ? {
+        items: [event('evidence:2', 'evidence', 'evidence.video_recording', true)],
+        has_more: false, next_cursor: null
+      } : {
+        items: [event('media_action:1', 'media', 'media.call.end', false)],
+        has_more: true, next_cursor: 'cursor-2'
+      };
+    }}
+    onClose={() => { closed = true; }}
+  />);
   assert.equal(view.getAllByText('agent').length, 2);
   assert.ok(view.getByText('1 active / 2'));
   assert.ok(view.getByText('host'));
@@ -20,6 +34,12 @@ test('business authorization panel projects roles scopes and control without met
   assert.ok(view.getByText('view_screen, control_mouse_keyboard'));
   assert.ok(view.getByText('agent-controller'));
   assert.doesNotMatch(view.container.textContent || '', /secret|launch_url|rustdesk_id/);
+  fireEvent.click(view.getByRole('tab', { name: 'Activity' }));
+  await waitFor(() => assert.ok(view.getByText('media.call.end')));
+  fireEvent.click(view.getByRole('button', { name: 'Load older' }));
+  await waitFor(() => assert.ok(view.getByText('evidence.video_recording')));
+  assert.deepEqual(cursors, [undefined, 'cursor-2']);
+  assert.doesNotMatch(view.container.textContent || '', /private body|storage_url/);
   fireEvent.click(view.getByTitle('Close authorization summary'));
   assert.equal(closed, true);
 });
@@ -48,5 +68,17 @@ function context(): IveKitBusinessContext {
         }
       }]
     }
+  };
+}
+
+function event(id: string, source: 'media' | 'evidence', eventType: string, evidence: boolean) {
+  return {
+    id, source, event_type: eventType,
+    resource_type: evidence ? 'evidence' as const : 'media_call' as const,
+    resource_id: evidence ? 'recording-1' : 'call-1', actor_identity: 'agent-1',
+    occurred_at: '2026-07-12T08:00:00.000Z', attributes: {},
+    evidence_ref: evidence ? {
+      id: 'evidence-2', kind: 'video_recording', checksum: 'a'.repeat(64), retention_until: null
+    } : null
   };
 }

@@ -150,6 +150,9 @@ test('business deep link unifies messages calls remote and browser history', asy
     await agent.page.getByTitle('Show authorization summary').click();
     await expect(agent.page.getByRole('complementary', { name: 'Business authorization summary' })).toContainText('view_screen');
     await expect(agent.page.getByRole('complementary', { name: 'Business authorization summary' })).toContainText('No gateway');
+    await agent.page.getByRole('tab', { name: 'Activity' }).click();
+    await expect(agent.page.getByText('remote.consent.granted')).toBeVisible();
+    await expect(agent.page.getByText('evidence.video_recording')).toBeVisible();
     await agent.page.getByTitle('Close authorization summary').click();
 
     await agent.page.getByTitle('Show calls workspace').click();

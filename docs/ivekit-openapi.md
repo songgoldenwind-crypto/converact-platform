@@ -69,6 +69,14 @@ GET /api/ivekit/context/by-ref?business_ref_type=service_order&business_ref_id=S
 
 API-key system 调用可读取该 tenant 下业务引用的完整摘要。Bearer 调用至少必须是一个活跃 Chat participant 或非 `declined/left/missed/removed` 的 Media participant，否则返回 `404` 以避免枚举。普通用户只有在可见 Chat session 绑定该 Remote session 时才能看到远协摘要；仅参与 Media call 不会获得设备或远控可见性。关闭资源仍可按成员权限读取历史摘要，写操作继续由 Chat/Media/Remote 各自的终态规则拒绝。
 
+统一时间线：
+
+```text
+GET /api/ivekit/context/timeline?business_ref_type=service_order&business_ref_id=SO-1001&limit=50&cursor=...
+```
+
+`context.listTimeline(ref, {limit,cursor})` 返回 Chat message/mutation、Media call action、Remote consent/audit、quality finding 和 evidence 的统一倒序页。cursor 与 business ref 绑定，不可跨业务复用。事件只有稳定 ID、source/type、资源 ID、actor、服务端时间和白名单 attributes；evidence 仅返回 evidence ID/kind/checksum/retention，不返回正文、reason、metadata、storage URL、录屏字节、屏幕像素、剪贴板或文件内容。Bearer evidence 必须绑定当前可见 Chat/Remote session，或通过 evidence metadata 的 `call_session_id` 绑定当前可见 Media call。
+
 ## 2. Media Core
 
 ### 2.1 Durable call lifecycle

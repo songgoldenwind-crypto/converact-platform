@@ -139,6 +139,25 @@ async function route(
     });
   }
 
+  if (url.pathname === '/api/ivekit/context/timeline' && method === 'GET') {
+    requireParticipant(actor.identity);
+    return json(response, 200, {
+      items: [{
+        id: 'remote_consent:controlled-1', source: 'remote', event_type: 'remote.consent.granted',
+        resource_type: 'remote_session', resource_id: 'remote-1', actor_identity: 'customer-1',
+        occurred_at: NOW, attributes: { scopes: ['view_screen', 'control_mouse_keyboard'] }, evidence_ref: null
+      }, {
+        id: 'evidence:controlled-2', source: 'evidence', event_type: 'evidence.video_recording',
+        resource_type: 'evidence', resource_id: 'recording-1', actor_identity: 'media-core',
+        occurred_at: NOW, attributes: { kind: 'video_recording' }, evidence_ref: {
+          id: 'controlled-2', kind: 'video_recording', checksum: 'c'.repeat(64), retention_until: null
+        }
+      }],
+      has_more: false,
+      next_cursor: null
+    });
+  }
+
   if (url.pathname === '/api/ivekit/media/calls/call-context' && method === 'GET') {
     requireParticipant(actor.identity);
     return json(response, 200, {

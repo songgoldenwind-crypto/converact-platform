@@ -83,6 +83,81 @@ export class MemoryPg implements PgQueryable {
   }
 
   private execute(sql: string, params: unknown[]): TableRow[] | { rows: TableRow[]; rowCount: number } {
+    if (sql.includes('ivekit_unified_timeline')) {
+      const tenantId = String(params[0]);
+      const chatIds = new Set((params[1] as unknown[] || []).map(String));
+      const mediaIds = new Set((params[2] as unknown[] || []).map(String));
+      const remoteIds = new Set((params[3] as unknown[] || []).map(String));
+      const refType = String(params[4]);
+      const refId = String(params[5]);
+      const system = params[6] === true;
+      const cursorAt = params[7] == null ? '' : String(params[7]);
+      const cursorId = String(params[8] || '');
+      const limit = Number(params[9] || 51);
+      const events: TableRow[] = [];
+      const add = (row: TableRow) => {
+        if (String(row.tenant_id) === tenantId) events.push(row);
+      };
+      for (const row of this.table('collaboration_messages').values()) {
+        if (!chatIds.has(String(row.session_id))) continue;
+        add({ id: `chat_message:${row.id}`, tenant_id: row.tenant_id, source: 'chat',
+          event_type: 'chat.message.created', resource_type: 'chat_session', resource_id: row.session_id,
+          actor_identity: row.sender_identity, occurred_at: row.created_at,
+          attributes: { message_type: row.message_type }, evidence_ref: null });
+      }
+      for (const row of this.table('collaboration_message_mutations').values()) {
+        if (!chatIds.has(String(row.session_id))) continue;
+        add({ id: `chat_mutation:${row.id}`, tenant_id: row.tenant_id, source: 'chat',
+          event_type: `chat.message.${row.action}`, resource_type: 'chat_session', resource_id: row.session_id,
+          actor_identity: row.actor_identity, occurred_at: row.created_at,
+          attributes: { message_id: row.message_id, version: row.version }, evidence_ref: null });
+      }
+      for (const row of this.table('ivekit_media_call_actions').values()) {
+        if (!mediaIds.has(String(row.call_id))) continue;
+        add({ id: `media_action:${row.id}`, tenant_id: row.tenant_id, source: 'media',
+          event_type: `media.call.${row.action}`, resource_type: 'media_call', resource_id: row.call_id,
+          actor_identity: row.actor_identity, occurred_at: row.created_at,
+          attributes: { from_status: row.from_status, to_status: row.to_status }, evidence_ref: null });
+      }
+      for (const row of this.table('remote_consent_events').values()) {
+        if (!remoteIds.has(String(row.remote_session_id))) continue;
+        add({ id: `remote_consent:${row.id}`, tenant_id: row.tenant_id, source: 'remote',
+          event_type: `remote.consent.${row.event_type}`, resource_type: 'remote_session', resource_id: row.remote_session_id,
+          actor_identity: row.actor_identity, occurred_at: row.created_at,
+          attributes: { scopes: jsonArray(row.scopes), expires_at: row.expires_at || null }, evidence_ref: null });
+      }
+      for (const row of this.table('remote_audit_events').values()) {
+        if (!remoteIds.has(String(row.remote_session_id))) continue;
+        add({ id: `remote_audit:${row.id}`, tenant_id: row.tenant_id, source: 'remote',
+          event_type: row.event_type, resource_type: 'remote_session', resource_id: row.remote_session_id,
+          actor_identity: row.actor_identity, occurred_at: row.created_at, attributes: {}, evidence_ref: null });
+      }
+      for (const row of this.table('evidence_records').values()) {
+        const metadata = jsonObject(row.metadata);
+        const visible = system || chatIds.has(String(row.session_id)) || remoteIds.has(String(row.session_id)) ||
+          mediaIds.has(String(metadata.call_session_id || ''));
+        if (!visible || String(row.business_ref_type) !== refType || String(row.business_ref_id) !== refId) continue;
+        add({ id: `evidence:${row.id}`, tenant_id: row.tenant_id, source: 'evidence',
+          event_type: `evidence.${row.kind}`, resource_type: 'evidence', resource_id: row.session_id,
+          actor_identity: row.created_by, occurred_at: row.created_at, attributes: { kind: row.kind },
+          evidence_ref: { id: row.id, kind: row.kind, checksum: row.checksum, retention_until: row.retention_until || null } });
+      }
+      for (const row of this.table('collaboration_policy_findings').values()) {
+        if (!chatIds.has(String(row.session_id))) continue;
+        add({ id: `quality_finding:${row.id}`, tenant_id: row.tenant_id, source: 'quality',
+          event_type: `quality.finding.${row.review_status}`, resource_type: 'finding', resource_id: row.session_id,
+          actor_identity: row.reviewed_by, occurred_at: row.updated_at,
+          attributes: { source: row.source, policy_type: row.policy_type, severity: row.severity,
+            review_status: row.review_status }, evidence_ref: null });
+      }
+      return events
+        .filter((row) => !cursorAt || String(row.occurred_at).localeCompare(cursorAt) < 0 ||
+          (String(row.occurred_at) === cursorAt && String(row.id).localeCompare(cursorId) < 0))
+        .sort((left, right) => String(right.occurred_at).localeCompare(String(left.occurred_at)) ||
+          String(right.id).localeCompare(String(left.id)))
+        .slice(0, limit);
+    }
+
     if (sql.startsWith('SELECT tenant_id FROM opc_worker_tenant_ids')) {
       const queue = String(params[0]);
       if (queue !== 'media_call_timeout') return [];
@@ -2847,6 +2922,26 @@ function mergeJsonObjects(left: unknown, right: unknown): string {
     }
   };
   return JSON.stringify({ ...parse(left), ...parse(right) });
+}
+
+function jsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(String(value || '{}')) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function jsonArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(String(value || '[]')) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 let sharedPool: PgQueryable | null = null;

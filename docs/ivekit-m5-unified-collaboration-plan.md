@@ -59,6 +59,8 @@ LED / other host
 
 ### Task M5.4：统一事件时间线与 evidence 索引
 
+**状态：已完成（2026-07-12）。** `/api/ivekit/context/timeline` 在 PostgreSQL 内合并 Chat message/mutation、Media call action、Remote consent/audit、quality finding 和 evidence，按 `(occurred_at, prefixed_event_id)` 稳定倒序分页。普通用户只看到可见资源绑定的 evidence；返回体不含正文、reason、任意底层 metadata、storage URL、RustDesk ID、屏幕/剪贴板/文件内容。SDK `context.listTimeline()` 和参考客户端 Activity 分页 tab 已完成。
+
 1. 以服务端发生时间、稳定 event ID 和资源类型分页。
 2. 聚合消息变更、呼叫生命周期、录制 evidence、远协操作观察与断开状态。
 3. 时间线只保存脱敏 metadata 和 evidence ref，不保存正文副本、屏幕像素、剪贴板或文件内容。

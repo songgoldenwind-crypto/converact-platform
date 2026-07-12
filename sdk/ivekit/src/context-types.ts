@@ -115,3 +115,26 @@ export interface IveKitBusinessContextRemoteAuthorization {
     };
   } | null;
 }
+
+export interface IveKitUnifiedTimelineEvent {
+  id: string;
+  source: 'chat' | 'media' | 'remote' | 'evidence' | 'quality';
+  event_type: string;
+  resource_type: 'chat_session' | 'media_call' | 'remote_session' | 'evidence' | 'finding';
+  resource_id: string;
+  actor_identity: string;
+  occurred_at: string;
+  attributes: Record<string, unknown>;
+  evidence_ref: {
+    id: string;
+    kind: string;
+    checksum: string;
+    retention_until: string | null;
+  } | null;
+}
+
+export interface IveKitUnifiedTimelinePage {
+  items: IveKitUnifiedTimelineEvent[];
+  has_more: boolean;
+  next_cursor: string | null;
+}

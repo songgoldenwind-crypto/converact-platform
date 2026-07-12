@@ -244,6 +244,10 @@ export function App() {
     setWorkspaceMode(mode);
     navigateIveKitLocation({ workspace: mode }, 'push');
   }, []);
+  const loadBusinessTimeline = useCallback((input?: { cursor?: string; limit?: number }) => {
+    if (!client || !businessRef) return Promise.reject(new Error('business context unavailable'));
+    return client.context.listTimeline(businessRef, input);
+  }, [businessRef?.id, businessRef?.type, client]);
 
   return (
     <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'remote' ? 'workspace-remote' : ''}`} data-mobile-view={mobileView}>
@@ -267,7 +271,7 @@ export function App() {
         </div>}
         {workspaceMode === 'messages' && <><span className={`connection connection-${chat.state.connection}`}>{chat.state.connection}</span><button className="icon-button" title="Refresh sessions" onClick={() => void refreshSessions(false)}><RefreshCw size={17} /></button></>}
       </header>
-      {authorizationOpen && businessContext.context && <BusinessContextPanel context={businessContext.context} onClose={() => setAuthorizationOpen(false)} />}
+      {authorizationOpen && businessContext.context && <BusinessContextPanel context={businessContext.context} loadTimeline={loadBusinessTimeline} onClose={() => setAuthorizationOpen(false)} />}
       {workspaceMode === 'messages' ? <><SessionList
         sessions={sessions}
         selectedId={selectedId}

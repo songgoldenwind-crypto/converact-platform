@@ -60,7 +60,7 @@ import type {
   IveKitStartMediaRecordingInput
 } from './media-types.js';
 import type { IveKitSdkBusinessRef } from './types.js';
-import type { IveKitBusinessContext } from './context-types.js';
+import type { IveKitBusinessContext, IveKitUnifiedTimelinePage } from './context-types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -223,6 +223,10 @@ export interface IveKitChatHttpClient {
 
 export interface IveKitContextHttpClient {
   getByBusinessRef(businessRef: Pick<IveKitSdkBusinessRef, 'type' | 'id'>): Promise<IveKitBusinessContext>;
+  listTimeline(
+    businessRef: Pick<IveKitSdkBusinessRef, 'type' | 'id'>,
+    input?: { cursor?: string; limit?: number }
+  ): Promise<IveKitUnifiedTimelinePage>;
 }
 
 export interface IveKitHttpSdk {
@@ -645,6 +649,14 @@ function createContextClient(transport: IveKitTransport): IveKitContextHttpClien
       query: {
         business_ref_type: requiredString(businessRef.type, 'businessRef.type is required'),
         business_ref_id: requiredString(businessRef.id, 'businessRef.id is required')
+      }
+    }),
+    listTimeline: (businessRef, input = {}) => transport.json('GET', '/api/ivekit/context/timeline', {
+      query: {
+        business_ref_type: requiredString(businessRef.type, 'businessRef.type is required'),
+        business_ref_id: requiredString(businessRef.id, 'businessRef.id is required'),
+        cursor: input.cursor || '',
+        limit: optionalNumber(input.limit)
       }
     })
   };

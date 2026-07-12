@@ -6,6 +6,7 @@ import { resolveAuthContext } from '../../middleware/auth.js';
 import { createObjectStorage, isLocalObjectStorage, readLocalUpload } from '../../storage/object-storage.js';
 import { wsBroadcast, wsBroadcastToUsers } from '../../ws.js';
 import { verifyWebAssistJoinToken } from '../ivekit/remote-assist-token.js';
+import { IveKitUnifiedTimelineStore } from '../ivekit/unified-timeline-store.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
 import { MediaCallStore } from '../livekit/media-call-store.js';
 import { recordMediaRecordingEvidence } from '../media-recording-evidence.js';
@@ -1567,6 +1568,52 @@ export async function routeCollaborationApi(
   }
 
   const module = createCollaborationModule({ pg: requirePg(pg) });
+
+  if (routePath === '/api/ivekit/context/timeline') {
+    if (method !== 'GET') return { status: 405, data: { error: 'method not allowed' } };
+    const businessRef = queryBusinessRef(ctx.tenantId, url);
+    const system = ctx.role === 'system';
+    const identity = system ? '' : collaborationActorIdentity(ctx, headers);
+    const [chatSessions, mediaCalls] = await Promise.all([
+      module.sessions.listByBusinessRef({
+        tenant_id: ctx.tenantId,
+        business_ref: businessRef,
+        identity: identity || undefined,
+        limit: 50
+      }),
+      new MediaCallStore(requirePg(pg)).listByBusinessRef({
+        tenant_id: ctx.tenantId,
+        business_ref: businessRef,
+        identity: identity || undefined,
+        limit: 50
+      })
+    ]);
+    if (!system && chatSessions.length === 0 && mediaCalls.length === 0) {
+      return { status: 404, data: { error: 'business timeline not found' } };
+    }
+    const visibleChatIds = new Set(chatSessions.map((session) => session.id));
+    const remoteSessions = (await module.remote.listByBusinessRef({
+      tenant_id: ctx.tenantId,
+      business_ref: businessRef,
+      limit: 50
+    })).filter((session) => system || visibleChatIds.has(session.collaboration_session_id));
+    return {
+      data: await new IveKitUnifiedTimelineStore(requirePg(pg)).list({
+        tenant_id: ctx.tenantId,
+        business_ref: businessRef,
+        chat_session_ids: chatSessions.map((session) => session.id),
+        media_call_ids: mediaCalls.map((call) => call.id),
+        remote_session_ids: remoteSessions.map((session) => session.id),
+        system,
+        cursor: url.searchParams.get('cursor') || undefined,
+        limit: optionalQueryNumber(url.searchParams.get('limit'))
+      }),
+      headers: {
+        'cache-control': 'private, no-store',
+        vary: 'Authorization, X-API-Key, X-Tenant-Id, X-User-Id, Origin'
+      }
+    };
+  }
 
   if (routePath === '/api/ivekit/context/by-ref') {
     if (method !== 'GET') return { status: 405, data: { error: 'method not allowed' } };

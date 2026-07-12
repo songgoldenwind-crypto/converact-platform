@@ -31,6 +31,24 @@ async function getContext(pg: MemoryPg, headers: Record<string, string>) {
   }>;
 }
 
+async function getTimeline(
+  pg: MemoryPg,
+  headers: Record<string, string>,
+  input: { cursor?: string; limit?: number; businessId?: string } = {}
+) {
+  const query = new URLSearchParams({
+    business_ref_type: 'service_order',
+    business_ref_id: input.businessId || 'SO-CONTEXT-1'
+  });
+  if (input.cursor) query.set('cursor', input.cursor);
+  if (input.limit !== undefined) query.set('limit', String(input.limit));
+  const path = `/api/ivekit/context/timeline?${query}`;
+  return routeCollaborationApi(pg, 'GET', path, new URL(`http://localhost${path}`), null, '', headers) as Promise<{
+    status?: number;
+    data: { items?: Array<Record<string, any>>; has_more?: boolean; next_cursor?: string | null; error?: string };
+  }>;
+}
+
 async function seedContext(pg: MemoryPg) {
   const module = createCollaborationModule({ pg });
   const chat = await module.sessions.openSession({
@@ -103,7 +121,28 @@ async function seedContext(pg: MemoryPg) {
     role: 'participant',
     status: 'accepted'
   });
-  return { chat, remote, device, call };
+  const message = await module.sessions.postMessage({
+    tenant_id: TENANT_ID,
+    session_id: chat.id,
+    sender_identity: 'active-agent',
+    message_type: 'text',
+    body: 'timeline body must stay private',
+    metadata: { private_message_secret: 'message-secret' }
+  });
+  await media.insertAction({
+    tenant_id: TENANT_ID,
+    call_id: call.id,
+    idempotency_key: 'timeline-media-action',
+    payload_hash: 'a'.repeat(64),
+    action: 'ring',
+    actor_identity: 'active-agent',
+    reason: 'private media reason',
+    metadata: { private_media_secret: 'media-action-secret' },
+    from_status: 'created',
+    to_status: 'ringing',
+    result_snapshot: { call: { ...call, status: 'ringing' }, participants: [] }
+  });
+  return { chat, remote, device, call, message };
 }
 
 test('iveKit context returns a projected system view without provider secrets', async () => {
@@ -205,6 +244,51 @@ test('iveKit context validates query and rejects mutations', async () => {
     apiHeaders()
   ) as { status: number };
   assert.equal(mutation.status, 405);
+});
+
+test('iveKit unified timeline is stable, paged, redacted, and viewer scoped', async () => {
+  const previous = { apiKey: process.env.OPC_API_KEY, jwtSecret: process.env.OPC_JWT_SECRET };
+  process.env.OPC_API_KEY = API_KEY;
+  process.env.OPC_JWT_SECRET = JWT_SECRET;
+  try {
+    const pg = new MemoryPg();
+    await seedContext(pg);
+
+    const first = await getTimeline(pg, apiHeaders(), { limit: 2 });
+    assert.equal(first.data.items?.length, 2);
+    assert.equal(first.data.has_more, true);
+    assert.ok(first.data.next_cursor);
+    const second = await getTimeline(pg, apiHeaders(), { limit: 100, cursor: first.data.next_cursor! });
+    assert.ok((second.data.items?.length || 0) > 1);
+    const ids = [...(first.data.items || []), ...(second.data.items || [])].map((item) => item.id);
+    assert.equal(new Set(ids).size, ids.length);
+    assert.ok(ids.some((id) => id.startsWith('chat_message:')));
+    assert.ok(ids.some((id) => id.startsWith('media_action:')));
+    assert.ok(ids.some((id) => id.startsWith('remote_consent:')));
+    assert.ok(ids.some((id) => id.startsWith('evidence:')));
+    assert.doesNotMatch(JSON.stringify([...first.data.items || [], ...second.data.items || []]),
+      /timeline body|message-secret|private media reason|media-action-secret|launch_url|rustdesk_id/);
+
+    const active = await getTimeline(pg, jwtHeaders('active-agent'), { limit: 100 });
+    assert.ok(active.data.items?.some((item) => item.source === 'chat'));
+    assert.ok(active.data.items?.some((item) => item.source === 'remote'));
+    assert.ok(active.data.items?.some((item) => item.source === 'evidence'));
+
+    const mediaOnly = await getTimeline(pg, jwtHeaders('media-only'), { limit: 100 });
+    assert.deepEqual([...new Set((mediaOnly.data.items || []).map((item) => item.source))], ['media']);
+
+    const outsider = await getTimeline(pg, jwtHeaders('outsider'));
+    assert.equal(outsider.status, 404);
+    assert.equal(outsider.data.error, 'business timeline not found');
+
+    await assert.rejects(
+      () => getTimeline(pg, apiHeaders(), { businessId: 'SO-OTHER', cursor: first.data.next_cursor! }),
+      /invalid or incompatible timeline cursor/
+    );
+  } finally {
+    restore('OPC_API_KEY', previous.apiKey);
+    restore('OPC_JWT_SECRET', previous.jwtSecret);
+  }
 });
 
 function restore(key: string, value: string | undefined): void {
