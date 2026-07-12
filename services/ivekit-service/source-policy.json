@@ -54,6 +54,7 @@
     "039_rustdesk_access_policy.sql",
     "040_rustdesk_control_ownership.sql",
     "041_tinode_inbound_sync.sql",
+    "042_ivekit_tenant_events.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }

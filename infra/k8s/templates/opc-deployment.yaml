@@ -136,6 +136,22 @@ spec:
               value: {{ .Values.tinode.inboundWorker.deadLetterMaxAttempts | default "3" | quote }}
             - name: OPC_TINODE_ATTACHMENT_ALLOWED_HOSTS
               value: {{ .Values.tinode.inboundWorker.attachmentAllowedHosts | default "" | quote }}
+            - name: OPC_IVEKIT_EVENT_REPLAY_ENABLED
+              value: {{ .Values.opc.eventReplay.enabled | default "1" | quote }}
+            - name: OPC_IVEKIT_EVENT_RETENTION_MS
+              value: {{ .Values.opc.eventReplay.retentionMs | default "86400000" | quote }}
+            - name: OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES
+              value: {{ .Values.opc.eventReplay.maxPayloadBytes | default "65536" | quote }}
+            - name: OPC_IVEKIT_WS_REPLAY_MAX_EVENTS
+              value: {{ .Values.opc.eventReplay.wsReplayMaxEvents | default "500" | quote }}
+            - name: OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED
+              value: {{ .Values.opc.eventReplay.retentionWorkerEnabled | default "1" | quote }}
+            - name: OPC_IVEKIT_EVENT_RETENTION_INTERVAL_MS
+              value: {{ .Values.opc.eventReplay.retentionIntervalMs | default "60000" | quote }}
+            - name: OPC_IVEKIT_EVENT_RETENTION_TENANT_LIMIT
+              value: {{ .Values.opc.eventReplay.retentionTenantLimit | default "100" | quote }}
+            - name: OPC_IVEKIT_EVENT_RETENTION_BATCH_SIZE
+              value: {{ .Values.opc.eventReplay.retentionBatchSize | default "1000" | quote }}
             - name: OPC_COLLABORATION_ATTACHMENT_MAX_BYTES
               value: {{ .Values.attachmentProcessing.attachmentMaxBytes | default "26214400" | quote }}
             - name: OPC_OCR_PROVIDER_MODE

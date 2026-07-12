@@ -6,6 +6,7 @@ import {
 } from '../collaboration/collaboration-http.js';
 import { messageMutationWindowMs } from '../collaboration/message-state-store.js';
 import { TINODE_RECEIVE_ONLY_ACCESS_MODE } from '../collaboration/chat-gateway.js';
+import { iveKitEventReplayEnabled } from './tenant-event-store.js';
 
 function requireAuth(headers: Record<string, string | string[] | undefined>) {
   const ctx = resolveAuthContext(headers);
@@ -52,6 +53,7 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       snapshot: true,
       client_plan: providerConfigured && userProvisioningConfigured && clientWsConfigured,
       provider_inbound_sync: true,
+      durable_event_replay: iveKitEventReplayEnabled(env),
       durable_provider_delivery: true,
       provider_delivery_attempt_history: true,
       idempotent_message_create: true,
@@ -81,6 +83,7 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
     },
     delivery_policy: {
       business_message_write_path: '/api/ivekit/chat/sessions/:session_id/messages',
+      tenant_event_replay_path: '/api/ivekit/events',
       message_delivery_status_path: '/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery',
       message_delivery_retry_path: '/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery/retry',
       attachment_upload_path: '/api/ivekit/chat/sessions/:session_id/attachments/upload',

@@ -25,6 +25,7 @@ type TableRow = Record<string, unknown>;
  */
 export class MemoryPg implements PgQueryable {
   private readonly tables = new Map<string, Map<string, TableRow>>();
+  private readonly identityCounters = new Map<string, bigint>();
   private migrationVersions = new Set<string>();
   private timeCursor = Date.now();
 
@@ -72,6 +73,7 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('ivekit_media_call_actions');
     this.ensureTable('ivekit_media_moderation_actions');
     this.ensureTable('ivekit_media_moderation_commands');
+    this.ensureTable('ivekit_tenant_events');
   }
 
   async query<R extends QueryResultRow = QueryResultRow>(
@@ -2985,7 +2987,140 @@ export class MemoryPg implements PgQueryable {
         .slice(0, limit);
     }
 
+    if (sql.startsWith('INSERT INTO ivekit_tenant_events')) {
+      const id = this.nextIdentity('ivekit_tenant_events');
+      const row: TableRow = {
+        id,
+        tenant_id: params[0],
+        event_type: params[1],
+        visibility_scope: params[2],
+        visibility_ref_id: params[3],
+        audience_user_ids: params[4],
+        payload: params[5],
+        occurred_at: params[6],
+        expires_at: params[7]
+      };
+      this.table('ivekit_tenant_events').set(id, row);
+      return [row];
+    }
+
+    if (sql.startsWith('SELECT COALESCE(MAX(id), 0)::text AS head_event_id FROM ivekit_tenant_events')) {
+      const tenantId = String(params[0]);
+      const ids = [...this.table('ivekit_tenant_events').values()]
+        .filter((row) => String(row.tenant_id) === tenantId)
+        .map((row) => BigInt(String(row.id)));
+      return [{ head_event_id: ids.length ? String(ids.reduce((left, right) => left > right ? left : right)) : '0' }];
+    }
+
+    if (sql.startsWith('SELECT event.*, CASE') && sql.includes('FROM ivekit_tenant_events event')) {
+      const tenantId = String(params[0]);
+      const afterId = BigInt(String(params[1]));
+      const now = String(params[2]);
+      const userId = String(params[3]);
+      const privileged = params[4] === true;
+      const limit = Number(params[5]);
+      return [...this.table('ivekit_tenant_events').values()]
+        .filter((row) =>
+          String(row.tenant_id) === tenantId &&
+          BigInt(String(row.id)) > afterId &&
+          String(row.expires_at) > now
+        )
+        .sort((left, right) => Number(BigInt(String(left.id)) - BigInt(String(right.id))))
+        .slice(0, limit)
+        .map((row) => ({ ...row, visible: this.memoryTenantEventVisible(row, userId, privileged) }));
+    }
+
+    if (sql.startsWith('SELECT tenant_id FROM opc_ivekit_event_retention_tenant_ids')) {
+      const now = String(params[0]);
+      const limit = Number(params[1]);
+      const oldest = new Map<string, string>();
+      for (const row of this.table('ivekit_tenant_events').values()) {
+        if (String(row.expires_at) > now) continue;
+        const tenantId = String(row.tenant_id);
+        const current = oldest.get(tenantId);
+        if (!current || String(row.expires_at) < current) oldest.set(tenantId, String(row.expires_at));
+      }
+      return [...oldest.entries()]
+        .sort((left, right) => left[1].localeCompare(right[1]) || left[0].localeCompare(right[0]))
+        .slice(0, limit)
+        .map(([tenant_id]) => ({ tenant_id }));
+    }
+
+    if (sql.startsWith('WITH doomed AS (') && sql.includes('DELETE FROM ivekit_tenant_events')) {
+      const tenantId = String(params[0]);
+      const now = String(params[1]);
+      const limit = Number(params[2]);
+      const doomed = [...this.table('ivekit_tenant_events').values()]
+        .filter((row) => String(row.tenant_id) === tenantId && String(row.expires_at) <= now)
+        .sort((left, right) => Number(BigInt(String(left.id)) - BigInt(String(right.id))))
+        .slice(0, limit);
+      for (const row of doomed) this.table('ivekit_tenant_events').delete(String(row.id));
+      return { rows: doomed.map((row) => ({ id: row.id })), rowCount: doomed.length };
+    }
+
+    if (sql.startsWith('SELECT EXISTS (') && sql.includes('AS visible')) {
+      const tenantId = String(params[0]);
+      const refId = String(params[1]);
+      const userId = String(params[2]);
+      if (sql.includes('FROM ivekit_media_call_participants')) {
+        return [{ visible: [...this.table('ivekit_media_call_participants').values()].some((participant) =>
+          String(participant.tenant_id) === tenantId &&
+          String(participant.call_id) === refId &&
+          String(participant.identity) === userId &&
+          ['invited', 'ringing', 'accepted', 'joined'].includes(String(participant.status))
+        ) }];
+      }
+      if (sql.includes('FROM remote_assistance_sessions')) {
+        const remote = this.table('remote_assistance_sessions').get(refId);
+        return [{ visible: Boolean(remote) && [...this.table('collaboration_participants').values()].some(
+          (participant) =>
+            String(participant.tenant_id) === tenantId &&
+            String(participant.session_id) === String(remote?.collaboration_session_id) &&
+            String(participant.identity) === userId &&
+            !participant.left_at
+        ) }];
+      }
+      return [{ visible: [...this.table('collaboration_participants').values()].some((participant) =>
+        String(participant.tenant_id) === tenantId &&
+        String(participant.session_id) === refId &&
+        String(participant.identity) === userId &&
+        !participant.left_at
+      ) }];
+    }
+
     throw new Error(`MemoryPg: unsupported SQL: ${sql.slice(0, 120)}`);
+  }
+
+  private memoryTenantEventVisible(row: TableRow, userId: string, privileged: boolean): boolean {
+    const audience = Array.isArray(row.audience_user_ids) ? row.audience_user_ids.map(String) : [];
+    if (audience.length > 0) return audience.includes(userId);
+    if (privileged || row.visibility_scope === 'tenant') return true;
+    if (row.visibility_scope === 'chat_session') {
+      return [...this.table('collaboration_participants').values()].some((participant) =>
+        String(participant.tenant_id) === String(row.tenant_id) &&
+        String(participant.session_id) === String(row.visibility_ref_id) &&
+        String(participant.identity) === userId &&
+        !participant.left_at
+      );
+    }
+    if (row.visibility_scope === 'media_call') {
+      return [...this.table('ivekit_media_call_participants').values()].some((participant) =>
+        String(participant.tenant_id) === String(row.tenant_id) &&
+        String(participant.call_id) === String(row.visibility_ref_id) &&
+        String(participant.identity) === userId &&
+        ['invited', 'ringing', 'accepted', 'joined'].includes(String(participant.status))
+      );
+    }
+    if (row.visibility_scope === 'remote_session') {
+      const remote = this.table('remote_assistance_sessions').get(String(row.visibility_ref_id));
+      return Boolean(remote) && [...this.table('collaboration_participants').values()].some((participant) =>
+        String(participant.tenant_id) === String(row.tenant_id) &&
+        String(participant.session_id) === String(remote?.collaboration_session_id) &&
+        String(participant.identity) === userId &&
+        !participant.left_at
+      );
+    }
+    return false;
   }
 
   private ensureTable(name: string): void {
@@ -3000,6 +3135,12 @@ export class MemoryPg implements PgQueryable {
   private nowIso(): string {
     this.timeCursor += 1;
     return new Date(this.timeCursor).toISOString();
+  }
+
+  private nextIdentity(table: string): string {
+    const value = (this.identityCounters.get(table) || 0n) + 1n;
+    this.identityCounters.set(table, value);
+    return String(value);
   }
 }
 

@@ -2219,7 +2219,7 @@ OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1
 | Durable provider delivery | 已完成第一版 | 本地消息与附件先入 PostgreSQL 并完成 policy scan，再领取 provider claim；失败进入退避而不是丢失本地证据 |
 | 消息创建幂等 | 已完成 | `Idempotency-Key` / `idempotency_key` 绑定消息 payload；同 key 同 payload 返回原消息，不重复发布或扫描，不同 payload 返回 409 |
 | 投递 attempt 审计 | 已完成 | `collaboration_message_delivery_attempts` 保存 started/delivered/retry_wait/failed/lease_expired 历史并启用 FORCE RLS |
-| Tinode 自动重试 worker | 已完成本地代码 | OPC 进程启动 worker，按 due queue、claim token 和 lease 自动重试；真实 PostgreSQL/Tinode 多副本仍待服务器验证 |
+| Tinode 自动重试 worker | 已完成并通过单节点服务器验收 | OPC 进程启动 worker，按 due queue、claim token 和 lease 自动重试；真实 PostgreSQL、Tinode 离线补偿和重启幂等已通过，多副本与容量仍待验证 |
 | Tinode client-plan | 已完成 | 给前端 topic/user/token/ws_url/api_key |
 | 官方 Tinode browser adapter | 已完成本地代码 | `tinode-sdk@0.25.1`；subscribe/data/info/presence/noteRecv/noteRead/noteKeyPress；无 publish/sendMessage |
 | 参与人 receipt / unread | 已完成 | delivered/read read-through 持久化到 PostgreSQL/RLS；未读由数据库计数，软删除消息不计入 |
@@ -2228,7 +2228,8 @@ OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1
 | iveKit Chat HTTP facade | 已完成第一版 | LED/其它项目统一使用 `/api/ivekit/chat/*` |
 | Tinode 部署 preflight | 已完成本地代码 | 生成脱敏 env checklist 和 JSON report，真实服务器待执行 |
 | Tinode 附件同步 | 已完成本地代码 | Drafty `IM/VD/AU/EX` 仅同步 HTTPS 允许域名的引用和有界元数据，拒绝并不持久化内嵌 bytes |
-| Tinode inbound seq/cursor sync | 已完成本地代码 | 每 binding 持久化 data/del cursor、claim lease 和幂等 inbox；支持普通消息、outbound echo 去重、replace、delete、policy scan、AI 质检入队、脱敏死信和到期重试；真实 Tinode 服务器待验收 |
+| Tinode inbound seq/cursor sync | 已完成并通过服务器验收 | 每 binding 持久化 data/del cursor、claim lease 和幂等 inbox；真实 Tinode 已覆盖普通消息、outbound echo 去重、replace、Drafty 引用、delete、policy scan、AI 质检入队、离线补偿和重启幂等 |
+| Durable tenant event replay | 本地实现完成，服务器验收中 | PostgreSQL 单调 event ID、签名 cursor、HTTP 增量页、WebSocket resume、当前参与人/RBAC、定向 audience、请求事务后缓冲和 Redis 去重 |
 | 浏览器 Tinode SDK join | 待真实环境 | 前端已领取 client-plan，但真实 SDK join 未验收 |
 
 ### 6.5.2 iveKit 稳定 HTTP facade
@@ -2617,6 +2618,10 @@ policy scan 会读取：
 | `collaboration.policy.finding_reviewed` | 人工复核状态发生有效迁移 |
 | `remote.web_assist.event` | Web Assist 事件 |
 
+M6.4 起每个持久事件 envelope 增加 `event_id/cursor/type/data/timestamp`。首次连接从 `connected.data.head_cursor` 建立水位；重连传 `cursor` 后服务端先 replay，再释放连接期间积压事件。`GET /api/ivekit/events?cursor=&limit=` 提供同一可见性语义的 HTTP 增量页。cursor 签名错误、跨 tenant、过期或超过 replay 上限会明确返回 `snapshot_required`，客户端此时回退 snapshot，而不是静默跳过。
+
+Replay 使用当前权限，不复用历史授权：定向事件只对 audience 用户可见，chat/media/remote 资源按当前 participant 检查，退出后不能重放旧私有事件。默认 retention 24 小时、payload 上限 64 KiB、单次 WS replay 上限 500，均可通过 iveKit 环境变量调整。
+
 ### 6.5.5 防绕单规则
 
 当前是规则版扫描，不是大模型：
@@ -2699,15 +2704,16 @@ npm run quality:deployment-preflight
 - `collaboration.message.edited`
 - `collaboration.message.deleted`
 
+所有上述事件已进入 durable tenant event log；页面可用 event ID 去重并用 cursor 恢复断线 gap。SDK 的 `events.*` 封装在 M6.6 补齐，底层 HTTP/WS 契约已稳定。
+
 本地验证覆盖 `test/collaboration-message-state.test.ts`、`test/tinode-realtime-adapter.test.ts`、`test/collaboration-chat-page-contract.test.ts`，并与 Collaboration/Tinode/OCR/ASR/质检/远协回归合计 176/176 通过。该证据不替代真实 Tinode 双浏览器、网络重连、多副本 Redis、真实 PostgreSQL migration/RLS 和大群性能验收。
 
 ### 6.5.8 未完成事项
 
 1. Tinode 浏览器 SDK 真实 join topic。
-2. Tinode 附件消息同步。
-3. S3 presigned 上传/下载；当前已有后端受控二进制上传和对象引用。
-4. 真实 OCR/ASR/AI provider 选型及服务器效果、吞吐、限流验收。
-5. 人工审核 UI、申诉流程和业务处置编排；后端审核 API 与 audit 已完成。
+2. S3 presigned 上传/下载；当前已有后端受控二进制上传和对象引用。
+3. 真实 OCR/ASR/AI provider 选型及服务器效果、吞吐、限流验收。
+4. 人工审核 UI、申诉流程和业务处置编排；后端审核 API 与 audit 已完成。
 6. 多语言翻译 HTTP API 完整暴露。
 7. 会话关闭时自动回收全部 IM 参与人权限。
 8. 附件病毒扫描、二维码结构化解析和内容安全服务。
@@ -3020,6 +3026,11 @@ OPC_TINODE_PREFLIGHT_REPORT_FILE=/tmp/tinode-preflight.json
 - `OPC_TINODE_DELIVERY_MAX_ATTEMPTS` / `OPC_TINODE_DELIVERY_RETRY_DELAYS_MS`：最大尝试次数与退避序列。
 - `OPC_TINODE_DELIVERY_CLAIM_LEASE_MS`：claim lease，必须至少为 `5 * TINODE_REQUEST_TIMEOUT_MS + 1000`；默认 timeout 下为 30000ms，过短会被 worker 配置和 preflight 拒绝。
 - `OPC_TINODE_PREFLIGHT_ENV_CHECKLIST_FILE` / `OPC_TINODE_PREFLIGHT_REPORT_FILE`：可选部署产物路径。
+- `OPC_IVEKIT_EVENT_REPLAY_ENABLED`：durable event replay 独立开关，默认 `1`，关闭后客户端回退 snapshot 收敛。
+- `OPC_IVEKIT_EVENT_RETENTION_MS`：cursor 与事件默认保留窗口，默认 `86400000`。
+- `OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES`：单个 replay payload 上限，默认 `65536`；credential 字段会递归移除。
+- `OPC_IVEKIT_WS_REPLAY_MAX_EVENTS`：单次 WebSocket 自动重放上限，默认 `500`，超限返回 `snapshot_required`。
+- `OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED/INTERVAL_MS/TENANT_LIMIT/BATCH_SIZE`：过期事件分租户清理 worker，默认启用、60 秒一轮、100 个租户、每租户 1000 条；实际 DELETE 始终受 runtime RLS 约束。
 
 服务器部署后先执行：
 

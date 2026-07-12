@@ -11,6 +11,9 @@ export type {
   IveKitWorkerHandle
 } from './application.js';
 export { routeIveKitChatApi } from './chat-http.js';
+export { routeIveKitEventApi } from './event-http.js';
+export { IveKitTenantEventStore } from './tenant-event-store.js';
+export { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
 export { routeIveKitMediaApi } from './media-http.js';
 export { createIveKitHttpServer } from './http-server.js';
 export type { IveKitHttpServerInput, IveKitRouteAdapters } from './http-server.js';

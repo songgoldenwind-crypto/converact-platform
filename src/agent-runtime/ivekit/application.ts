@@ -9,6 +9,7 @@ import { startQualityReviewWorker } from '../collaboration/quality-review-worker
 import { startTinodeInboundWorker } from '../collaboration/tinode-inbound-worker.js';
 import { startTinodeSyncWorker } from '../collaboration/tinode-sync-worker.js';
 import { startMediaCallTimeoutWorker } from '../livekit/media-call-timeout-worker.js';
+import { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
 import type { PgQueryable } from '../../db-pg.js';
 import { wsBroadcast } from '../../ws.js';
 
@@ -22,6 +23,7 @@ export interface IveKitRuntimeAdapters {
   startAttachment(input: Parameters<typeof startAttachmentProcessingWorker>[0]): IveKitWorkerHandle;
   startQuality(input: Parameters<typeof startQualityReviewWorker>[0]): IveKitWorkerHandle;
   startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
+  startEventRetention(input: Parameters<typeof startIveKitTenantEventRetentionWorker>[0]): IveKitWorkerHandle;
 }
 
 export interface IveKitApplicationInput {
@@ -59,7 +61,8 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     startTinodeInbound: input.adapters?.startTinodeInbound || startTinodeInboundWorker,
     startAttachment: input.adapters?.startAttachment || startAttachmentProcessingWorker,
     startQuality: input.adapters?.startQuality || startQualityReviewWorker,
-    startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker
+    startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker,
+    startEventRetention: input.adapters?.startEventRetention || startIveKitTenantEventRetentionWorker
   };
   const workers: IveKitWorkerHandle[] = [
     adapters.startTinode({
@@ -146,7 +149,8 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
         'ivekit.media.call.updated',
         snapshot
       )
-    })
+    }),
+    adapters.startEventRetention({ pg: input.pg, env })
   ];
   let stopPromise: Promise<void> | null = null;
 

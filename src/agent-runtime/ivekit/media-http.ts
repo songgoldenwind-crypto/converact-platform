@@ -511,7 +511,7 @@ export async function routeIveKitMediaApi(
         try {
           await moderation.completeCommand(ctx.tenantId, idempotencyKey, result);
         } finally {
-          broadcastMediaModeration(ctx.tenantId, recipients, result);
+          await broadcastMediaModeration(ctx.tenantId, recipients, result);
         }
       }
     };
@@ -841,19 +841,19 @@ function requireMediaCallReadAccess(
   }
 }
 
-function broadcastMediaCallTransition(tenantId: string, snapshot: IveKitMediaCallSnapshot): void {
+async function broadcastMediaCallTransition(tenantId: string, snapshot: IveKitMediaCallSnapshot): Promise<void> {
   const recipients = snapshot.participants.map((participant) => participant.identity);
-  broadcastMediaCall(tenantId, 'ivekit.media.call.updated', snapshot);
-  for (const participant of snapshot.participants) {
+  await broadcastMediaCall(tenantId, 'ivekit.media.call.updated', snapshot);
+  await Promise.all(snapshot.participants.map((participant) =>
     wsBroadcastToUsers(tenantId, recipients, 'ivekit.media.participant.updated', {
       call_id: snapshot.call.id,
       identity: participant.identity,
       role: participant.role,
       status: participant.status
-    });
-  }
+    })
+  ));
   if (['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(snapshot.call.status)) {
-    broadcastMediaCall(tenantId, 'ivekit.media.call.ended', snapshot);
+    await broadcastMediaCall(tenantId, 'ivekit.media.call.ended', snapshot);
   }
 }
 
@@ -861,8 +861,8 @@ function broadcastMediaCall(
   tenantId: string,
   event: 'ivekit.media.call.created' | 'ivekit.media.call.updated' | 'ivekit.media.call.ended',
   snapshot: IveKitMediaCallSnapshot
-): void {
-  wsBroadcastToUsers(tenantId, snapshot.participants.map((participant) => participant.identity), event, {
+): Promise<void> {
+  return wsBroadcastToUsers(tenantId, snapshot.participants.map((participant) => participant.identity), event, {
     call_id: snapshot.call.id,
     room_name: snapshot.call.room_name,
     status: snapshot.call.status
@@ -873,8 +873,8 @@ function broadcastMediaModeration(
   tenantId: string,
   recipients: string[],
   result: LiveKitModerationResult
-): void {
-  wsBroadcastToUsers(tenantId, recipients, 'ivekit.media.participant.moderated', {
+): Promise<void> {
+  return wsBroadcastToUsers(tenantId, recipients, 'ivekit.media.participant.moderated', {
     room_name: result.room_name,
     participant_identity: result.participant_identity,
     action: result.action,
@@ -905,7 +905,7 @@ async function broadcastMediaRecording(
     new MediaCallStore(tenantPg).snapshot(recording.tenant_id, recording.media_call_id!)
   );
   if (!snapshot) return;
-  wsBroadcastToUsers(
+  await wsBroadcastToUsers(
     recording.tenant_id,
     snapshot.participants.map((participant) => participant.identity),
     event,

@@ -10,6 +10,7 @@ import { buildIveKitStandaloneContext } from '../scripts/ivekit-standalone-build
 import { runMigrations } from '../src/db-pg.js';
 import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
 import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
+import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
 
 const freshAdminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const freshRuntimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
@@ -55,13 +56,14 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       'tenants',
       'collaboration_sessions',
       'ivekit_media_calls',
+      'ivekit_tenant_events',
       'rustdesk_gateway_sessions'
     ]) assert.equal(tables.rows.some((row) => row.tablename === required), true, required);
 
     const checksums = await admin.query<{ version: string; checksum: string }>(
       `SELECT version, checksum FROM schema_migrations ORDER BY version`
     );
-    assert.equal(checksums.rows.length, 31);
+    assert.equal(checksums.rows.length, 32);
     assert.equal(checksums.rows.every((row) => /^[a-f0-9]{64}$/.test(row.checksum)), true);
 
     const rlsGaps = await admin.query<{ relname: string }>(`
@@ -107,6 +109,50 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       INSERT INTO collaboration_sessions (id, tenant_id, business_ref_type, business_ref_id, title)
       VALUES ('ivekit_rls_session_b', 'ivekit_rls_b', 'order', 'B-1', 'private B')
     `);
+
+    const eventStore = new IveKitTenantEventStore(runtime, {
+      cursor_secret: 'standalone-postgres-event-secret'
+    });
+    const eventHead = await eventStore.headCursor('ivekit_rls_a');
+    const durableEvent = await eventStore.append({
+      tenant_id: 'ivekit_rls_a',
+      type: 'tenant.acceptance.updated',
+      data: { acceptance_id: 'event-a' }
+    });
+    const replay = await eventStore.list({
+      tenant_id: 'ivekit_rls_a',
+      user_id: 'runtime-user-a',
+      role: 'operator',
+      cursor: eventHead,
+      limit: 10
+    });
+    assert.deepEqual(replay.items.map((event) => event.event_id), [durableEvent.event_id]);
+    const foreignReplay = await eventStore.list({
+      tenant_id: 'ivekit_rls_b',
+      user_id: 'runtime-user-b',
+      role: 'admin',
+      cursor: await eventStore.headCursor('ivekit_rls_b'),
+      limit: 10
+    });
+    assert.deepEqual(foreignReplay.items, []);
+
+    let retentionNow = new Date('2026-07-12T10:00:00.000Z');
+    const retentionStore = new IveKitTenantEventStore(runtime, {
+      cursor_secret: 'standalone-postgres-retention-secret',
+      retention_ms: 1_000,
+      now: () => retentionNow
+    });
+    await retentionStore.append({
+      tenant_id: 'ivekit_rls_a',
+      type: 'tenant.expired.acceptance',
+      data: { acceptance_id: 'expired-event-a' }
+    });
+    retentionNow = new Date('2026-07-12T10:00:02.000Z');
+    assert.deepEqual(await retentionStore.pruneExpired({
+      now: retentionNow,
+      tenant_limit: 10,
+      batch_size: 100
+    }), { tenants: 1, deleted: 1 });
 
     const client = await runtime.connect();
     try {

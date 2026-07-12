@@ -352,7 +352,9 @@ LED 可订阅 OPC 租户 WebSocket。关键事件：
 - `ivekit.media.participant.updated/moderated`
 - Web Assist consent/event/recording 与 RustDesk gateway/audit 事件
 
-WebSocket 是加速通道，页面重连后必须用 snapshot/message-state/realtime-state 重新收敛，不能只依赖内存事件。
+WebSocket 是持久事件的加速通道。首次连接保存 `connected.data.head_cursor`；重连把该 opaque cursor 作为 `cursor` 参数，服务端先 replay 再恢复 live delivery。每个 durable envelope 都有 `event_id/cursor/type/data/timestamp`，客户端按 event ID 去重并仅把 cursor 保存在内存或宿主短期 bridge。也可调用 `GET /api/ivekit/events?cursor=&limit=` 增量拉取。
+
+当 connected 或 HTTP 返回 `snapshot_required=true`（cursor 篡改、跨租户、过期或 replay 超限）时，重新读取 snapshot/message-state/realtime-state，再使用新的 head cursor。服务端 replay 会按当前 chat/media/remote participant 和定向 audience 重新鉴权，已退出会话的用户不能读取旧私有事件。
 
 ## 11. 真实环境验收
 

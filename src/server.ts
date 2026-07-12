@@ -5,6 +5,10 @@ import { initWebSocket, wsBroadcast } from './ws.js';
 import { connectNats } from './infra/nats-client.js';
 import { startCallCenterRuntime } from './agent-runtime/call-center/call-center-runtime.js';
 import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
+import {
+  IveKitTenantEventStore,
+  iveKitEventReplayEnabled
+} from './agent-runtime/ivekit/tenant-event-store.js';
 import { migrateIvrRuntimeTables } from './db-migrations/ivr-runtime-schema.js';
 import { validateEnvOrExit } from './env-config.js';
 
@@ -58,7 +62,9 @@ async function main() {
   migrateIvrRuntimeTables(db);
 
   const server = createServer(db, pg);
-  initWebSocket(server);
+  initWebSocket(server, iveKitEventReplayEnabled()
+    ? { eventStore: new IveKitTenantEventStore(pg) }
+    : {});
   const iveKitApplication = startIveKitApplication({ pg, publish: wsBroadcast });
 
   void connectNats().catch((error) => {

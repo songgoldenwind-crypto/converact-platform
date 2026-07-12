@@ -23,6 +23,15 @@ opc:
       cpu: "500m"
   env:
     PORT: "3000"
+  eventReplay:
+    enabled: "1"
+    retentionMs: "86400000"
+    maxPayloadBytes: "65536"
+    wsReplayMaxEvents: "500"
+    retentionWorkerEnabled: "1"
+    retentionIntervalMs: "60000"
+    retentionTenantLimit: "100"
+    retentionBatchSize: "1000"
 
 aiAgent:
   replicaCount: 2

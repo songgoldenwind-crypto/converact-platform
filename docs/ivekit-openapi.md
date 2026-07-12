@@ -597,7 +597,19 @@ Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collabo
 
 ## 5. 租户 WebSocket 事件
 
-事件 envelope 由 OPC WebSocket 通道提供，data 至少包含 `session_id` 或资源 ID。关键事件：
+事件 envelope 由 iveKit WebSocket 通道提供。M6.4 起事件先写入 PostgreSQL durable log，再进行本机和 Redis fan-out：
+
+```json
+{
+  "event_id": "42",
+  "cursor": "<opaque-signed-cursor>",
+  "type": "collaboration.message.created",
+  "data": { "session_id": "collab_...", "message_id": "cmsg_..." },
+  "timestamp": "2026-07-12T12:00:00.000Z"
+}
+```
+
+`event_id` 是服务端单调水位，客户端只能按字符串保存和去重；`cursor` 是签名、版本化、tenant 绑定且有 retention 的 opaque token，禁止解析或修改。关键事件：
 
 | Event | 说明 |
 | --- | --- |
@@ -615,9 +627,13 @@ Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collabo
 
 浏览器 WebSocket 使用 `Sec-WebSocket-Protocol: ivekit.v1, ivekit.jwt.<access-token>`
 完成握手认证，不把 access token 放入 URL。服务端在 JWT `exp` 到期时以 `4001`
-主动关闭连接；参考客户端提前 60 秒刷新短令牌并重新建立 HTTP/WS 客户端。WebSocket
-可能断线或丢失瞬时事件。重连后必须 GET snapshot/message-state/realtime-state；事件
-不是唯一数据源。
+主动关闭连接；参考客户端提前 60 秒刷新短令牌并重新建立 HTTP/WS 客户端。
+
+首次连接不带 cursor，`connected.data` 返回当前 `head_cursor`。重连时在 WebSocket URL 增加 `cursor=<opaque-cursor>`；cursor 不是凭据，但仍不得写入日志或长期浏览器存储。服务端先冻结 live delivery，完成 replay 后再释放连接期间积压事件。`connected.data` 同时返回 `head_cursor/replay_from/replayed_events/snapshot_required/reason?`。
+
+也可通过 `GET /api/ivekit/events?cursor=<opaque>&limit=50` 拉取 `{items,next_cursor,has_more,snapshot_required}`。不带 cursor 时返回空 items 和当前 head。签名错误、跨 tenant、超过 retention 或单次 WS replay 超限时明确返回 `snapshot_required`；HTTP 状态为 409，WebSocket 在 connected data 中给出 reason。此时客户端必须重新获取 snapshot/message-state/realtime-state，再以新的 head cursor 继续。
+
+Replay 每次按当前权限重新判断：定向事件只对 audience 用户可见；chat/media/remote 事件检查当前 participant，离开或被移除后不能读取历史私有事件；owner/admin/system 仅可旁路非定向资源事件，不能读取发给其他用户的定向事件。
 
 ## 6. SDK 方法映射
 
@@ -625,6 +641,7 @@ Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collabo
 
 - `sdk.media.*`：capabilities、room、join、participant、recording、object、export、cleanup。
 - `sdk.chat.*`：`listSessions()`、`closeSession()`、`listMessagesPage()`、session、binding、client-plan、participant、message、delivery、receipt、state、mutation、attachment、finding、quality。
+- M6.4 已稳定 `/api/ivekit/events` 和 WebSocket cursor 契约；`sdk.events.*` 封装在 M6.6 交付，当前集成可直接按本节 HTTP 契约调用。
 - 二进制导出返回 `{bytes, contentType, filename}`。
 - 错误为 `IveKitHttpSdkError(status, method, path, payload)`；网络/超时 `status=0`。
 
@@ -635,8 +652,8 @@ RustDesk 使用独立的 `createIveKitRustDeskLedSdk`，因为其设备注册、
 1. 当前 API 是 v1 draft 的 additive contract；能力差异先看 capabilities。
 2. Tinode inbound seq/cursor、Drafty 引用附件、native edit/delete 已实现 durable 同步；`inbound_sync_configured` 表示当前部署是否具备 URL、服务认证并启用 worker。
 3. `direct_client_publish=false` 和客户端 ACL `JRP` 仍保留；业务消息优先走 iveKit facade。入站同步用于 provider 历史补偿、批准的其他客户端/管理操作和防止本地镜像漏记，不改变本地镜像与审计权威边界。
-4. WebSocket 重连增量水位尚未完成，必须 snapshot 收敛。
-5. 真实 LiveKit/Tinode/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待服务器验收。
+4. WebSocket 重连增量水位已完成本地实现和真实 PostgreSQL 验证；服务器进程离线/重启复验完成前，状态仍为 `server_validation_pending`。
+5. 真实 LiveKit/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待服务器验收；Tinode 单节点真实消息、编辑、Drafty 引用、删除和离线恢复已通过。
 6. 本地 MemoryPg、fake provider、preflight 不是生产通过证明。
 7. `LIVEKIT_URL` 是 OPC、AI Agent、Egress 等服务端可达地址；`LIVEKIT_PUBLIC_URL` 是浏览器 `Room.connect()` 使用的受信任 `wss://` 地址。LED 只消费 Join Plan 返回值，不自行拼接内部地址。
 

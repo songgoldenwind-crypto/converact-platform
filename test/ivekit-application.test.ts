@@ -23,7 +23,8 @@ test('iveKit application starts and stops every worker once', async () => {
       startTinodeInbound: () => worker('tinode-inbound'),
       startAttachment: () => worker('attachment'),
       startQuality: () => worker('quality'),
-      startMediaTimeout: () => worker('media-timeout')
+      startMediaTimeout: () => worker('media-timeout'),
+      startEventRetention: () => worker('event-retention')
     }
   });
 
@@ -36,6 +37,8 @@ test('iveKit application starts and stops every worker once', async () => {
     'start:attachment',
     'start:quality',
     'start:media-timeout',
+    'start:event-retention',
+    'stop:event-retention',
     'stop:media-timeout',
     'stop:quality',
     'stop:attachment',
@@ -74,12 +77,17 @@ test('iveKit application stops remaining workers after one stop failure', async 
         async stop() {
           stopped.push('media-timeout');
         }
+      }),
+      startEventRetention: () => ({
+        async stop() {
+          stopped.push('event-retention');
+        }
       })
     }
   });
 
   await assert.rejects(() => application.stop(), /failed to stop 1 iveKit worker/);
-  assert.deepEqual(stopped, ['media-timeout', 'quality', 'attachment', 'tinode-inbound', 'tinode']);
+  assert.deepEqual(stopped, ['event-retention', 'media-timeout', 'quality', 'attachment', 'tinode-inbound', 'tinode']);
 });
 
 test('iveKit application publishes worker events and requeues attachment quality review', async () => {
@@ -122,7 +130,8 @@ test('iveKit application publishes worker events and requeues attachment quality
       startMediaTimeout: (input) => {
         mediaTimeoutInput = input;
         return handle;
-      }
+      },
+      startEventRetention: () => handle
     }
   });
 

@@ -25,7 +25,9 @@ import { routeVoiceApi } from './http-api/voice-http.js';
 import { routeMediaApi } from './agent-runtime/livekit/media-http.js';
 import { routeCollaborationApi } from './agent-runtime/collaboration/collaboration-http.js';
 import { routeIveKitChatApi } from './agent-runtime/ivekit/chat-http.js';
+import { routeIveKitEventApi } from './agent-runtime/ivekit/event-http.js';
 import { routeIveKitMediaApi } from './agent-runtime/ivekit/media-http.js';
+import { runWithWsBroadcastBuffer } from './ws.js';
 import {
   markMediaRecordingEvidenceDeleted,
   recordMediaRecordingEvidence
@@ -106,13 +108,17 @@ export function createServer(db, pg: PgQueryable | null = null) {
             : safeJsonParse(rawBody))
           : await readJsonRequest(req);
       const pgTenantCtx = resolvePgTenantContextForRequest(path, req.headers, { url, body });
-      const result = await runWithPgTenantContextAsync(pgTenantCtx, () => {
-        if (!pg) return route(db, harness, null, req.method, url, body, rawBody, req.headers);
-        return withPgRequestContext(pg, pgTenantCtx, (scopedPg) =>
-          route(db, harness, scopedPg, req.method, url, body, rawBody, req.headers)
-        );
-      });
+      const buffered = await runWithWsBroadcastBuffer(() =>
+        runWithPgTenantContextAsync(pgTenantCtx, () => {
+          if (!pg) return route(db, harness, null, req.method, url, body, rawBody, req.headers);
+          return withPgRequestContext(pg, pgTenantCtx, (scopedPg) =>
+            route(db, harness, scopedPg, req.method, url, body, rawBody, req.headers)
+          );
+        })
+      );
+      const result = buffered.result;
 
+      await buffered.flush();
       await runAfterCommit(result);
 
       if (result?.sse && typeof result.attach === 'function') {
@@ -236,6 +242,9 @@ async function route(db, harness, pg: PgQueryable | null, method, url, body, raw
 
   const iveKitChatResult = await routeIveKitChatApi(pg, method, path, url, body, rawBody, headers, { db });
   if (iveKitChatResult !== undefined) return iveKitChatResult;
+
+  const iveKitEventResult = await routeIveKitEventApi(pg, method, path, url, headers);
+  if (iveKitEventResult !== undefined) return iveKitEventResult;
 
   const mediaResult = await routeMediaApi(db, method, path, url, body, rawBody, headers, {
     onRecordingStarted: pg

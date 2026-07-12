@@ -8,19 +8,23 @@ import {
 } from '../../db-pg-tenant.js';
 import { routeCollaborationApi } from '../collaboration/collaboration-http.js';
 import { routeIveKitChatApi } from './chat-http.js';
+import { routeIveKitEventApi } from './event-http.js';
 import { createIveKitMediaHooks } from './media-hooks.js';
 import {
   routeIveKitMediaApi,
   type RouteIveKitMediaApiOptions
 } from './media-http.js';
+import { runWithWsBroadcastBuffer } from '../../ws.js';
 
 type MediaRoute = typeof routeIveKitMediaApi;
 type ChatRoute = typeof routeIveKitChatApi;
+type EventRoute = typeof routeIveKitEventApi;
 type CollaborationRoute = typeof routeCollaborationApi;
 
 export interface IveKitRouteAdapters {
   media: MediaRoute;
   chat: ChatRoute;
+  events: EventRoute;
   collaboration: CollaborationRoute;
 }
 
@@ -42,6 +46,7 @@ const allowedPrefixes = [
 const allowedExactPaths = new Set([
   '/health',
   '/metrics',
+  '/api/ivekit/events',
   '/api/media/webhooks/livekit',
   '/remote/rustdesk/launch'
 ]);
@@ -50,6 +55,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
   const routes: IveKitRouteAdapters = {
     media: input.routes?.media || routeIveKitMediaApi,
     chat: input.routes?.chat || routeIveKitChatApi,
+    events: input.routes?.events || routeIveKitEventApi,
     collaboration: input.routes?.collaboration || routeCollaborationApi
   };
   const mediaOptions = input.mediaOptions || (input.pg
@@ -115,18 +121,23 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ...mediaOptions,
           ...(pg ? { pg } : {})
         })
+        ?? await routes.events(pg, method, path, url, headers)
         ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
         ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
-      const result = await runWithPgTenantContextAsync(tenantContext, () =>
-        input.pg
-          ? withPgRequestContext(input.pg, tenantContext, (scopedPg) => dispatch(scopedPg))
-          : dispatch(null)
+      const buffered = await runWithWsBroadcastBuffer(() =>
+        runWithPgTenantContextAsync(tenantContext, () =>
+          input.pg
+            ? withPgRequestContext(input.pg, tenantContext, (scopedPg) => dispatch(scopedPg))
+            : dispatch(null)
+        )
       );
+      const result = buffered.result;
 
       if (result === undefined) {
         sendJson(response, 404, { error: { message: 'not found', status: 404 } });
         return;
       }
+      await buffered.flush();
       await runAfterCommit(result);
       const output = result as Record<string, unknown>;
       if (typeof output.html === 'string') {

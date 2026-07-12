@@ -1,5 +1,9 @@
 import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
 import { createIveKitHttpServer } from './agent-runtime/ivekit/http-server.js';
+import {
+  IveKitTenantEventStore,
+  iveKitEventReplayEnabled
+} from './agent-runtime/ivekit/tenant-event-store.js';
 import { closePostgres, initPostgres } from './db-pg.js';
 import { PgSyncDatabase } from './db-pg-sync.js';
 import { validateEnvOrExit } from './env-config.js';
@@ -22,7 +26,9 @@ async function main(): Promise<void> {
 
   const db = new PgSyncDatabase();
   const server = createIveKitHttpServer({ db, pg });
-  initWebSocket(server);
+  initWebSocket(server, iveKitEventReplayEnabled()
+    ? { eventStore: new IveKitTenantEventStore(pg) }
+    : {});
   const application = startIveKitApplication({ pg, publish: wsBroadcast });
   const port = Number(process.env.PORT || 3000);
   let shutdownPromise: Promise<void> | null = null;
