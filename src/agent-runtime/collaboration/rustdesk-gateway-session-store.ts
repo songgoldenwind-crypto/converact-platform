@@ -7,6 +7,7 @@ import {
   rustDeskGatewayEventPermissionError,
   rustDeskGatewayEventValidationError
 } from './rustdesk-gateway-event.js';
+import { rustDeskGatewayMetadata } from './rustdesk-gateway-security.js';
 
 const RUSTDESK_GATEWAY_SESSION_PERMISSION_SCOPES = new Set<string>([
   'view_screen',
@@ -66,6 +67,7 @@ export class RustDeskGatewaySessionStore {
     const permissions = rustDeskGatewaySessionPermissions(input.permissions);
     const actorIdentity = rustDeskGatewayRequiredString(input.actor_identity, 'actor_identity is required');
     const launchUrl = rustDeskGatewayLaunchUrl(input.launch_url);
+    const metadata = rustDeskGatewayMetadata(input.metadata);
     await this.pg.query(
       `INSERT INTO rustdesk_gateway_sessions
         (external_id, tenant_id, status, target_type, target_id, target_display_name,
@@ -80,7 +82,7 @@ export class RustDeskGatewaySessionStore {
         toJson(permissions),
         actorIdentity,
         launchUrl,
-        toJson(input.metadata || {})
+        toJson(metadata)
       ]
     );
     return (await this.getSession(externalId))!;
@@ -191,7 +193,10 @@ export class RustDeskGatewaySessionStore {
     if (session.status !== 'active') {
       throw Object.assign(new Error('RustDesk gateway session is not active'), { status: 409 });
     }
-    const inputMetadata = rustDeskGatewayEventMetadata(input.metadata);
+    const inputMetadata = rustDeskGatewayMetadata(
+      rustDeskGatewayEventMetadata(input.metadata),
+      'RustDesk gateway event metadata'
+    );
     const validationError = rustDeskGatewayEventValidationError(eventType, inputMetadata);
     if (validationError) {
       throw Object.assign(new Error(validationError), { status: 400 });

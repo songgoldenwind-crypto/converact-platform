@@ -8,6 +8,8 @@ import { test } from 'node:test';
 import { WebSocketServer } from 'ws';
 
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
+import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
+import type { RemoteConsentScope } from '../src/agent-runtime/collaboration/types.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createRustDeskEdgeCommandToken } from '../src/agent-runtime/collaboration/rustdesk-edge-auth.js';
 import { createWebAssistJoinPath } from '../src/agent-runtime/ivekit/remote-assist-token.js';
@@ -2549,6 +2551,12 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
 
   try {
     const pg = new MemoryPg();
+    const controlRemoteId = await createAttendedControlPlaneRemote(
+      pg,
+      'tenant_rustdesk_control_plane',
+      'SO-10001',
+      ['view_screen', 'control_mouse_keyboard', 'record_screen', 'transfer_file', 'clipboard']
+    );
     const unauthorized = await route(
       pg,
       'POST',
@@ -2579,6 +2587,7 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
         target: { type: 'device', id: '123456789', display_name: 'LED controller' },
         permissions: ['view_screen', 'control_mouse_keyboard', 'record_screen', 'transfer_file', 'clipboard'],
         actor_identity: 'agent-control-plane',
+        remote_session_id: controlRemoteId,
         metadata: {
           tenant_id: 'tenant_rustdesk_control_plane',
           rustdesk_device_id: 'rdesk-device-1',
@@ -3078,6 +3087,12 @@ test('collaboration HTTP requires RustDesk control-plane actor identities', asyn
 
   try {
     const pg = new MemoryPg();
+    const remoteSessionId = await createAttendedControlPlaneRemote(
+      pg,
+      'tenant_rustdesk_actor_required',
+      '123456789',
+      ['view_screen']
+    );
     const missingCreateActor = await route(
       pg,
       'POST',
@@ -3098,6 +3113,7 @@ test('collaboration HTTP requires RustDesk control-plane actor identities', asyn
         target: { type: 'device', id: '123456789', display_name: 'LED controller' },
         permissions: ['view_screen'],
         actor_identity: 'agent-control-plane-required',
+        remote_session_id: remoteSessionId,
         metadata: { tenant_id: 'tenant_rustdesk_actor_required' }
       },
       { authorization: 'Bearer rustdesk-control-token' }
@@ -3143,6 +3159,12 @@ test('collaboration HTTP rejects RustDesk operation events outside session permi
 
   try {
     const pg = new MemoryPg();
+    const remoteSessionId = await createAttendedControlPlaneRemote(
+      pg,
+      'tenant_rustdesk_permissions',
+      '123456789',
+      ['view_screen']
+    );
     const created = (await route(
       pg,
       'POST',
@@ -3151,6 +3173,7 @@ test('collaboration HTTP rejects RustDesk operation events outside session permi
         target: { type: 'device', id: '123456789', display_name: 'LED controller' },
         permissions: ['view_screen'],
         actor_identity: 'agent-control-plane',
+        remote_session_id: remoteSessionId,
         metadata: { tenant_id: 'tenant_rustdesk_permissions' }
       },
       { authorization: 'Bearer rustdesk-control-token' }
@@ -3201,18 +3224,24 @@ test('collaboration HTTP lists RustDesk control-plane sessions by tenant and sta
 
   try {
     const pg = new MemoryPg();
-    const createSession = async (tenantId: string, targetId: string) => route(
-      pg,
-      'POST',
-      '/api/opc/rustdesk/sessions',
-      {
+    const createSession = async (tenantId: string, targetId: string) => {
+      const remoteSessionId = await createAttendedControlPlaneRemote(
+        pg,
+        tenantId,
+        targetId,
+        ['view_screen']
+      );
+      return route(pg, 'POST', '/api/opc/rustdesk/sessions', {
         target: { type: 'device', id: targetId, display_name: `Device ${targetId}` },
         permissions: ['view_screen'],
         actor_identity: 'agent-control-plane',
+        remote_session_id: remoteSessionId,
         metadata: { tenant_id: tenantId, business_ref_type: 'service_order', business_ref_id: targetId }
-      },
-      { authorization: 'Bearer rustdesk-control-token' }
-    ) as Promise<{ status: number; data: { external_id: string; target: { id: string } } }>;
+      }, { authorization: 'Bearer rustdesk-control-token' }) as Promise<{
+        status: number;
+        data: { external_id: string; target: { id: string } };
+      }>;
+    };
 
     const first = await createSession('tenant_rustdesk_list', '100001');
     const second = await createSession('tenant_rustdesk_list', '100002');
@@ -3268,6 +3297,12 @@ test('collaboration HTTP rejects invalid RustDesk control-plane query params', a
 
   try {
     const pg = new MemoryPg();
+    const remoteSessionId = await createAttendedControlPlaneRemote(
+      pg,
+      'tenant_rustdesk_query_params',
+      '123456789',
+      ['view_screen']
+    );
     const created = await route(
       pg,
       'POST',
@@ -3276,6 +3311,7 @@ test('collaboration HTTP rejects invalid RustDesk control-plane query params', a
         target: { type: 'device', id: '123456789', display_name: 'Device 123456789' },
         permissions: ['view_screen'],
         actor_identity: 'agent-control-plane',
+        remote_session_id: remoteSessionId,
         metadata: { tenant_id: 'tenant_rustdesk_query_params' }
       },
       { authorization: 'Bearer rustdesk-control-token' }
@@ -3956,6 +3992,37 @@ function restoreEnv(key: string, value: string | undefined): void {
   } else {
     process.env[key] = value;
   }
+}
+
+async function createAttendedControlPlaneRemote(
+  pg: MemoryPg,
+  tenantId: string,
+  businessRefId: string,
+  scopes: readonly RemoteConsentScope[]
+): Promise<string> {
+  const module = createCollaborationModule({ pg });
+  const businessRef = { tenant_id: tenantId, type: 'service_order', id: businessRefId };
+  const collaboration = await module.sessions.openSession({
+    tenant_id: tenantId,
+    business_ref: businessRef,
+    title: `Control-plane ${businessRefId}`
+  });
+  const remote = await module.remote.createSession({
+    tenant_id: tenantId,
+    collaboration_session_id: collaboration.id,
+    business_ref: businessRef,
+    mode: 'remote_desktop_gateway',
+    adapter_provider: 'rustdesk',
+    started_by: 'control-plane-test'
+  });
+  await module.remote.grantConsent({
+    tenant_id: tenantId,
+    remote_session_id: remote.id,
+    actor_identity: 'control-plane-customer',
+    scopes: [...scopes],
+    expires_at: '2099-01-01T00:00:00.000Z'
+  });
+  return remote.id;
 }
 
 async function startFakeTinodeServerForHttp(): Promise<{

@@ -59,6 +59,10 @@ test('RustDesk access policy migration is append-only and protected by forced te
 });
 
 test('full schema includes the RustDesk access policy append-only history', () => {
+  const migration = readFileSync(
+    new URL('../src/migrations/039_rustdesk_access_policy.sql', import.meta.url),
+    'utf8'
+  );
   const schema = readFileSync(
     new URL('../src/migrations/005_full_schema.sql', import.meta.url),
     'utf8'
@@ -66,6 +70,7 @@ test('full schema includes the RustDesk access policy append-only history', () =
 
   assert.match(schema, /CREATE TABLE IF NOT EXISTS rustdesk_access_policy_events \(/);
   assert.match(schema, /BEFORE UPDATE OR DELETE ON rustdesk_access_policy_events/);
+  assert.equal(accessPolicyRlsBlock(schema), accessPolicyRlsBlock(migration));
   assert.doesNotMatch(schema, /rustdesk_access_policy[\s\S]{0,500}(password|credential_ref|credential-ref)/i);
 });
 
@@ -1040,4 +1045,10 @@ function unsafePolicyEvent(overrides: Record<string, unknown> = {}) {
     credential_ref: 'drop-me',
     ...overrides
   };
+}
+
+function accessPolicyRlsBlock(sql: string): string {
+  return sql.match(
+    /ALTER TABLE rustdesk_access_policy_events ENABLE ROW LEVEL SECURITY;[\s\S]*?WITH CHECK \(opc_rls_bypass\(\) OR tenant_id = opc_current_tenant\(\)\);/
+  )?.[0] || '';
 }

@@ -7,6 +7,13 @@ import type { RustDeskPhysicalDisconnectSummary } from './rustdesk-physical-disc
 import { normalizeRemoteGatewaySession } from './remote-gateway-adapter.js';
 import type { RemoteGatewaySessionInput } from './remote-gateway-adapter.js';
 import { rustDeskGatewayEventPermissionError } from './rustdesk-gateway-event.js';
+import { RustDeskAccessPolicyStore } from './rustdesk-access-policy-store.js';
+import { RustDeskDeviceStore } from './rustdesk-device-store.js';
+import {
+  rustDeskGatewayAccessMode,
+  rustDeskGatewayMetadata,
+  type RustDeskGatewayAccessMode
+} from './rustdesk-gateway-security.js';
 import type {
   BusinessRef,
   EvidenceRecord,
@@ -300,10 +307,13 @@ export class RemoteAssistanceStore {
     launch_url?: string;
     metadata?: Record<string, unknown>;
   }): Promise<RemoteToolSession> {
+    const metadata = input.provider === 'rustdesk'
+      ? rustDeskGatewayMetadata(input.metadata)
+      : input.metadata;
     if (!(await this.hasActiveConsent(input.remote_session_id))) {
       throw Object.assign(new Error('active consent required before starting remote tool session'), { status: 403 });
     }
-    const normalized = normalizeExternalRemoteTool(input);
+    const normalized = normalizeExternalRemoteTool({ ...input, metadata });
     const toolId = pgId('rtool');
     await this.pg.query(
       `INSERT INTO remote_tool_sessions
@@ -367,32 +377,113 @@ export class RemoteAssistanceStore {
     client: RemoteGatewayClient;
     target: RemoteGatewaySessionInput['target'];
     permissions: RemoteGatewaySessionInput['permissions'];
+    access_mode?: RustDeskGatewayAccessMode;
+    device_id?: string;
     metadata?: Record<string, unknown>;
   }): Promise<RemoteToolSession> {
-    const activeConsent = await this.getActiveConsent(input.remote_session_id);
-    if (!activeConsent) {
-      throw Object.assign(new Error('active consent required before starting remote tool session'), { status: 403 });
-    }
-    const grantedScopes = new Set(activeConsent.scopes);
-    const missingPermission = input.permissions.find((permission) => !grantedScopes.has(permission));
-    if (missingPermission) {
-      throw Object.assign(new Error('active consent does not cover requested remote permissions'), {
-        status: 403,
-        permission: missingPermission
+    const accessMode = rustDeskGatewayAccessMode(input.access_mode);
+    const metadata = input.client.provider === 'rustdesk'
+      ? rustDeskGatewayMetadata(input.metadata)
+      : input.metadata;
+    if (input.client.provider === 'rustdesk') {
+      await this.authorizeRustDeskGatewayCreation({
+        tenant_id: input.tenant_id,
+        remote_session_id: input.remote_session_id,
+        target: input.target,
+        permissions: input.permissions,
+        access_mode: accessMode,
+        device_id: input.device_id,
+        metadata
       });
+    } else {
+      await this.assertActiveConsent(input.remote_session_id, input.permissions);
     }
-    const gateway = await input.client.createSession({
+    const createInput = {
       target: input.target,
       permissions: input.permissions,
       actor_identity: input.actor_identity,
-      metadata: input.metadata
-    });
+      metadata
+    };
+    const gateway = input.client.createAuthorizedSession
+      ? await input.client.createAuthorizedSession(createInput, {
+        tenant_id: input.tenant_id,
+        remote_session_id: input.remote_session_id,
+        device_id: input.device_id,
+        access_mode: accessMode
+      })
+      : await input.client.createSession(createInput);
     return this.startGatewayToolSession({
       tenant_id: input.tenant_id,
       remote_session_id: input.remote_session_id,
       actor_identity: input.actor_identity,
       gateway
     });
+  }
+
+  async authorizeRustDeskGatewayCreation(input: {
+    tenant_id: string;
+    remote_session_id: string;
+    target: RemoteGatewaySessionInput['target'];
+    permissions: readonly RemoteConsentScope[];
+    access_mode?: RustDeskGatewayAccessMode;
+    device_id?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<{ access_mode: RustDeskGatewayAccessMode }> {
+    const accessMode = rustDeskGatewayAccessMode(input.access_mode);
+    rustDeskGatewayMetadata(input.metadata);
+    const remote = await this.getSession(input.remote_session_id);
+    if (!remote || remote.tenant_id !== input.tenant_id) {
+      throw Object.assign(new Error('remote session not found'), { status: 404 });
+    }
+    if (accessMode === 'attended') {
+      await this.assertActiveConsent(input.remote_session_id, input.permissions);
+      return { access_mode: accessMode };
+    }
+
+    const deviceId = String(input.device_id || '').trim();
+    if (!deviceId) {
+      throw Object.assign(new Error('registered RustDesk device required for unattended access'), { status: 403 });
+    }
+    const device = await new RustDeskDeviceStore(this.pg).getDevice({
+      tenant_id: input.tenant_id,
+      device_id: deviceId
+    });
+    if (
+      !device ||
+      device.status !== 'active' ||
+      input.target.type !== 'device' ||
+      input.target.id !== device.rustdesk_id
+    ) {
+      throw Object.assign(new Error('registered RustDesk device does not match the remote business reference'), {
+        status: 403
+      });
+    }
+    await new RustDeskAccessPolicyStore(this.pg).assertUnattendedAccess({
+      tenant_id: input.tenant_id,
+      device_id: device.id,
+      business_ref: remote.business_ref,
+      permissions: input.permissions
+    });
+    await this.assertActiveConsent(input.remote_session_id, input.permissions);
+    return { access_mode: accessMode };
+  }
+
+  private async assertActiveConsent(
+    remoteSessionId: string,
+    permissions: readonly RemoteConsentScope[]
+  ): Promise<void> {
+    const activeConsent = await this.getActiveConsent(remoteSessionId);
+    if (!activeConsent) {
+      throw Object.assign(new Error('active consent required before starting remote tool session'), { status: 403 });
+    }
+    const grantedScopes = new Set(activeConsent.scopes);
+    const missingPermission = permissions.find((permission) => !grantedScopes.has(permission));
+    if (missingPermission) {
+      throw Object.assign(new Error('active consent does not cover requested remote permissions'), {
+        status: 403,
+        permission: missingPermission
+      });
+    }
   }
 
   async syncGatewayAuditEvents(input: {

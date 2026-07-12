@@ -4,6 +4,10 @@ import type { RemoteConsentScope } from './types.js';
 import type { RustDeskGatewaySession } from './rustdesk-gateway-session-store.js';
 import type { RemoteGatewayTarget } from './remote-gateway-adapter.js';
 import { rustDeskApiServer, rustDeskPublicKey, rustDeskServerKeyFingerprint } from './rustdesk-client-config.js';
+import {
+  projectPublicRustDeskGatewayMetadata,
+  rustDeskGatewayMetadata
+} from './rustdesk-gateway-security.js';
 
 export interface RustDeskGatewayLaunchPlan {
   external_id: string;
@@ -84,7 +88,7 @@ export function isValidRustDeskLaunchToken(externalId: string, token: string, ex
 }
 
 export function rustDeskRuntimeMetadata(input: Record<string, unknown>, target: RemoteGatewayTarget): Record<string, unknown> {
-  const metadata = bodyObject(input.metadata);
+  const metadata = rustDeskGatewayMetadata(bodyObject(input.metadata));
   const fingerprint = rustDeskServerKeyFingerprint();
   const apiServer = rustDeskApiServer();
   if (apiServer.error) throw new Error(apiServer.error);
@@ -99,6 +103,7 @@ export function rustDeskRuntimeMetadata(input: Record<string, unknown>, target: 
 }
 
 export function rustDeskLaunchPlan(session: RustDeskGatewaySession): RustDeskGatewayLaunchPlan {
+  rustDeskGatewayMetadata(session.metadata);
   const runtime = rustDeskRuntimeFromSession(session);
   const canLaunch = session.status === 'active';
   return {
@@ -114,7 +119,7 @@ export function rustDeskLaunchPlan(session: RustDeskGatewaySession): RustDeskGat
       open_url: canLaunch ? session.launch_url : '',
       protocol_url: canLaunch ? rustDeskProtocolUrl(session, runtime) : ''
     },
-    metadata: session.metadata,
+    metadata: projectPublicRustDeskGatewayMetadata(session.metadata),
     created_at: session.created_at,
     ended_at: session.ended_at
   };

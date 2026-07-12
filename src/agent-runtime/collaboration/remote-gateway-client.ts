@@ -3,12 +3,24 @@ import type { RustDeskDisconnectReason } from './rustdesk-device-command-store.j
 import type { RustDeskPhysicalDisconnectSummary } from './rustdesk-physical-disconnect.js';
 import type { RemoteGatewayProvider, RemoteGatewaySessionInput, RemoteGatewayTarget } from './remote-gateway-adapter.js';
 import { rustDeskGatewayEventValidationError } from './rustdesk-gateway-event.js';
+import {
+  rustDeskGatewayAccessMode,
+  rustDeskGatewayMetadata,
+  type RustDeskGatewayAccessMode
+} from './rustdesk-gateway-security.js';
 
 export interface RemoteGatewayCreateInput {
   target: RemoteGatewayTarget;
   permissions: readonly RemoteConsentScope[];
   actor_identity: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface RemoteGatewayAuthorizationContext {
+  tenant_id: string;
+  remote_session_id: string;
+  device_id?: string;
+  access_mode: RustDeskGatewayAccessMode;
 }
 
 export interface RemoteGatewayEndInput {
@@ -45,6 +57,10 @@ export interface RemoteGatewayAuditEvent {
 export interface RemoteGatewayClient {
   readonly provider: RemoteGatewayProvider;
   createSession(input: RemoteGatewayCreateInput): Promise<RemoteGatewaySessionInput>;
+  createAuthorizedSession?(
+    input: RemoteGatewayCreateInput,
+    context: RemoteGatewayAuthorizationContext
+  ): Promise<RemoteGatewaySessionInput>;
   endSession(input: RemoteGatewayEndInput): Promise<RemoteGatewayEndResult | void>;
   listAuditEvents(input: RemoteGatewayAuditInput): Promise<RemoteGatewayAuditEvent[]>;
 }
@@ -88,17 +104,34 @@ export class InMemoryRemoteGatewayClient implements RemoteGatewayClient {
   }
 
   async createSession(input: RemoteGatewayCreateInput): Promise<RemoteGatewaySessionInput> {
+    return this.createSessionWithContext(input);
+  }
+
+  async createAuthorizedSession(
+    input: RemoteGatewayCreateInput,
+    context: RemoteGatewayAuthorizationContext
+  ): Promise<RemoteGatewaySessionInput> {
+    return this.createSessionWithContext(input, context);
+  }
+
+  private async createSessionWithContext(
+    input: RemoteGatewayCreateInput,
+    context?: RemoteGatewayAuthorizationContext
+  ): Promise<RemoteGatewaySessionInput> {
     const target = remoteGatewayTarget(input.target);
     const permissions = remoteGatewayPermissions(input.permissions);
     const actorIdentity = remoteGatewayRequiredString(input.actor_identity, 'actor_identity is required');
     const externalId = `${this.provider}_${++this.sequence}`;
+    const metadata = this.provider === 'rustdesk'
+      ? rustDeskGatewayMetadata(input.metadata)
+      : input.metadata;
     const descriptor: RemoteGatewaySessionInput = {
       provider: this.provider,
       external_id: externalId,
       launch_url: `${this.baseUrl}/remote/${this.provider}/${target.type}/${target.id}`,
       target,
       permissions,
-      metadata: input.metadata
+      metadata
     };
     this.sessions.set(externalId, { external_id: externalId, status: 'active', descriptor });
     await this.appendAuditEvent({
@@ -195,16 +228,39 @@ class HttpRemoteGatewayClient implements RemoteGatewayClient {
   }
 
   async createSession(input: RemoteGatewayCreateInput): Promise<RemoteGatewaySessionInput> {
+    return this.createSessionWithContext(input);
+  }
+
+  async createAuthorizedSession(
+    input: RemoteGatewayCreateInput,
+    context: RemoteGatewayAuthorizationContext
+  ): Promise<RemoteGatewaySessionInput> {
+    return this.createSessionWithContext(input, context);
+  }
+
+  private async createSessionWithContext(
+    input: RemoteGatewayCreateInput,
+    context?: RemoteGatewayAuthorizationContext
+  ): Promise<RemoteGatewaySessionInput> {
     const target = remoteGatewayTarget(input.target);
     const permissions = remoteGatewayPermissions(input.permissions);
     const actorIdentity = remoteGatewayRequiredString(input.actor_identity, 'actor_identity is required');
+    const metadata = this.provider === 'rustdesk'
+      ? rustDeskGatewayMetadata(input.metadata)
+      : input.metadata || {};
     const payload = await this.request<Record<string, unknown>>(this.createPath, {
       method: 'POST',
       body: JSON.stringify({
         target,
         permissions,
         actor_identity: actorIdentity,
-        metadata: input.metadata || {}
+        ...(this.provider === 'rustdesk' && context ? {
+          tenant_id: context.tenant_id,
+          remote_session_id: context.remote_session_id,
+          device_id: context.device_id,
+          access_mode: rustDeskGatewayAccessMode(context.access_mode)
+        } : {}),
+        metadata
       })
     });
     const externalId = String(payload.external_id || '');
@@ -220,10 +276,15 @@ class HttpRemoteGatewayClient implements RemoteGatewayClient {
       launch_url: launchUrl,
       target: (payload.target as RemoteGatewayTarget | undefined) || target,
       permissions: (payload.permissions as RemoteConsentScope[] | undefined) || permissions,
-      metadata: {
-        ...(input.metadata || {}),
-        ...((payload.metadata as Record<string, unknown> | undefined) || {})
-      }
+      metadata: this.provider === 'rustdesk'
+        ? rustDeskGatewayMetadata({
+          ...metadata,
+          ...((payload.metadata as Record<string, unknown> | undefined) || {})
+        })
+        : {
+          ...metadata,
+          ...((payload.metadata as Record<string, unknown> | undefined) || {})
+        }
     };
   }
 

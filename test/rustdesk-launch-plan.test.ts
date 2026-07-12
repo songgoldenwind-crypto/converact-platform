@@ -145,6 +145,26 @@ test('RustDesk launch plan clears the launch URL after the session ends', () => 
   assert.equal(plan.actions.protocol_url, '');
 });
 
+test('RustDesk launch plan rejects secret-bearing metadata and preserves safe metadata', () => {
+  assert.throws(
+    () => rustDeskLaunchPlan({
+      ...rustDeskSession(),
+      metadata: {
+        source: 'ivekit',
+        nested: [{ credential_ref: 'secret://rustdesk/launch' }]
+      }
+    }),
+    /RustDesk gateway metadata contains sensitive material/
+  );
+
+  const plan = rustDeskLaunchPlan({
+    ...rustDeskSession(),
+    metadata: { source: 'ivekit', site: 'showroom-7', rustdesk_id: '123456789' }
+  });
+  assert.equal(plan.metadata.source, 'ivekit');
+  assert.equal(plan.metadata.site, 'showroom-7');
+});
+
 test('RustDesk launch plan rejects unsupported protocol URL template placeholders', () => {
   const previousTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
   process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdeskid}?session={external_id}';

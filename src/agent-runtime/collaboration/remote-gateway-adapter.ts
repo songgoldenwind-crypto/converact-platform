@@ -1,4 +1,5 @@
 import type { RemoteConsentScope, RemoteToolProvider } from './types.js';
+import { rustDeskGatewayMetadata } from './rustdesk-gateway-security.js';
 
 export type RemoteGatewayProvider = 'meshcentral' | 'guacamole' | 'rustdesk';
 
@@ -28,7 +29,9 @@ export function normalizeRemoteGatewaySession(input: RemoteGatewaySessionInput):
   const provider = normalizeGatewayProvider(input.provider);
   const externalId = String(input.external_id || '').trim();
   const launchUrl = String(input.launch_url || '').trim();
-  const metadata = input.metadata || {};
+  const metadata = input.provider === 'rustdesk'
+    ? rustDeskGatewayMetadata(input.metadata)
+    : input.metadata || {};
   if (!externalId) {
     throw Object.assign(new Error('remote gateway external_id is required'), { status: 400 });
   }

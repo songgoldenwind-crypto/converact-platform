@@ -1048,8 +1048,48 @@ function projectEvidenceContainer<T extends RemoteToolSession | RustDeskGatewayL
   label: string
 ): T {
   const record = evidenceRecord(value, label);
-  if (record.operation_evidence === undefined && record.disconnect_state === undefined) return value;
-  const projected = { ...record };
+  const allowedKeys = label === 'remote tool session'
+    ? [
+      'id',
+      'tenant_id',
+      'remote_session_id',
+      'provider',
+      'external_id',
+      'launch_url',
+      'status',
+      'started_by',
+      'started_at',
+      'ended_at',
+      'metadata',
+      'physical_disconnect',
+      'permission_scopes',
+      'control_ownership',
+      'disconnect_state',
+      'operation_evidence'
+    ]
+    : [
+      'external_id',
+      'status',
+      'launch_url',
+      'target',
+      'permissions',
+      'runtime',
+      'client_config',
+      'actions',
+      'metadata',
+      'created_at',
+      'ended_at',
+      'permission_scopes',
+      'control_ownership',
+      'operation_evidence'
+    ];
+  const projected: Record<string, unknown> = {};
+  for (const key of allowedKeys) {
+    if (record[key] !== undefined) projected[key] = record[key];
+  }
+  if (record.metadata !== undefined) {
+    projected.metadata = projectRustDeskGatewayMetadata(record.metadata);
+  }
   if (record.operation_evidence !== undefined) {
     if (!Array.isArray(record.operation_evidence)) throw invalidEvidence('operation_evidence');
     projected.operation_evidence = record.operation_evidence.map(projectRustDeskOperationEvidence);
@@ -1058,6 +1098,60 @@ function projectEvidenceContainer<T extends RemoteToolSession | RustDeskGatewayL
     projected.disconnect_state = projectRustDeskDisconnectState(record.disconnect_state);
   }
   return projected as unknown as T;
+}
+
+function projectRustDeskGatewayMetadata(value: unknown): Record<string, unknown> {
+  const source = evidenceRecord(value, 'metadata');
+  const result: Record<string, unknown> = {};
+  for (const key of [
+    'access_mode',
+    'api_server',
+    'business_ref_id',
+    'business_ref_type',
+    'collaboration_session_id',
+    'gateway_provider',
+    'id_server',
+    'permissions',
+    'relay_server',
+    'remote_session_id',
+    'rustdesk_device_id',
+    'rustdesk_device_last_seen_actor',
+    'rustdesk_device_last_seen_at',
+    'rustdesk_device_runtime_status',
+    'rustdesk_id',
+    'rustdesk_target_mode',
+    'server_key_fingerprint',
+    'site',
+    'source',
+    'target_display_name',
+    'target_id',
+    'target_type',
+    'tenant_id'
+  ] as const) {
+    const entry = source[key];
+    if (key === 'permissions') {
+      if (Array.isArray(entry) && entry.every((scope) => typeof scope === 'string')) {
+        result[key] = [...entry];
+      }
+      continue;
+    }
+    if (typeof entry === 'string' && !sdkSensitiveMetadataString(entry)) result[key] = entry;
+  }
+  return result;
+}
+
+function sdkSensitiveMetadataString(value: string): boolean {
+  if (/-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----/i.test(value)) return true;
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return false;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return true;
+    return [...url.searchParams.keys()].some((key) =>
+      /password|passphrase|secret|token|credential|api[_-]?key|private[_-]?key|auth|cookie/i.test(key)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function projectRustDeskDisconnectState(value: unknown): RustDeskDisconnectState {

@@ -36,6 +36,7 @@ import {
   type RemoteGatewayClient
 } from './remote-gateway-client.js';
 import type { RemoteGatewayProvider, RemoteGatewayTarget } from './remote-gateway-adapter.js';
+import { RemoteAssistanceStore } from './remote-assistance-store.js';
 import type {
   BusinessRef,
   CollaborationMessage,
@@ -75,6 +76,10 @@ import {
   rustDeskGatewayEventPermissionError,
   rustDeskGatewayEventValidationError
 } from './rustdesk-gateway-event.js';
+import {
+  rustDeskGatewayAccessMode,
+  rustDeskGatewayMetadata
+} from './rustdesk-gateway-security.js';
 import {
   isValidRustDeskLaunchToken,
   rustDeskLaunchHtml,
@@ -545,7 +550,7 @@ function createLocalRustDeskGatewayClient(pg: PgQueryable): RemoteGatewayClient 
   return {
     provider: 'rustdesk',
     createSession: async (input) => {
-      const metadata = bodyObject(input.metadata);
+      const metadata = rustDeskGatewayMetadata(input.metadata);
       const tenantId = String(metadata.tenant_id || '').trim();
       if (!tenantId) {
         throw Object.assign(new Error('tenant_id is required'), { status: 400 });
@@ -620,9 +625,11 @@ async function resolveRemoteGatewayRequest(input: {
   tenantId: string;
   provider: RemoteGatewayProvider;
   body: Record<string, unknown>;
-}): Promise<{ target: RemoteGatewayTarget; metadata: Record<string, unknown> }> {
+}): Promise<{ target: RemoteGatewayTarget; metadata: Record<string, unknown>; deviceId?: string }> {
   const target = remoteGatewayTargetFromInput(input.body);
-  const metadata = bodyObject(input.body.metadata);
+  const metadata = input.provider === 'rustdesk'
+    ? rustDeskGatewayMetadata(input.body.metadata)
+    : bodyObject(input.body.metadata);
   if (
     input.provider === 'rustdesk' &&
     rustDeskRequirePhysicalDisconnect() &&
@@ -660,7 +667,8 @@ async function resolveRemoteGatewayRequest(input: {
       rustdesk_device_last_seen_actor: device.last_seen_actor || '',
       business_ref_type: device.business_ref_type,
       business_ref_id: device.business_ref_id
-    }
+    },
+    deviceId: device.id
   };
 }
 
@@ -891,6 +899,12 @@ async function routeRustDeskControlPlane(
     let tenantId = '';
     if (routePath === '/api/opc/rustdesk/sessions' && method === 'POST') {
       const input = bodyObject(body);
+      rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+      const metadata = rustDeskGatewayMetadata(input.metadata);
+      if (metadata.access_mode !== undefined) {
+        return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
+      }
+      rustDeskGatewayAccessMode(input.access_mode);
       const requestedPermissions = stringArray(input.permissions || input.scopes);
       const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
       if (unsupportedPermission) {
@@ -925,6 +939,12 @@ async function routeRustDeskControlPlane(
 
   if (routePath === '/api/opc/rustdesk/sessions' && method === 'POST') {
     const input = bodyObject(body);
+    rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+    const inputMetadata = rustDeskGatewayMetadata(input.metadata);
+    if (inputMetadata.access_mode !== undefined) {
+      return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
+    }
+    const accessMode = rustDeskGatewayAccessMode(input.access_mode);
     const requestedPermissions = stringArray(input.permissions || input.scopes);
     const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
     if (unsupportedPermission) {
@@ -935,7 +955,26 @@ async function routeRustDeskControlPlane(
     const actorIdentity = String(input.actor_identity || '').trim();
     if (!actorIdentity) return { status: 400, data: { error: 'actor_identity is required' } };
     const target = remoteGatewayTargetFromInput(input);
+    const remoteSessionId = String(input.remote_session_id || '').trim();
+    const deviceId = String(input.device_id || '').trim();
+    if (accessMode === 'unattended' && (!remoteSessionId || !deviceId)) {
+      return {
+        status: 403,
+        data: { error: 'unattended RustDesk creation requires the policy-aware iveKit route' }
+      };
+    }
+    if (!remoteSessionId) return { status: 400, data: { error: 'remote_session_id is required' } };
+    await new RemoteAssistanceStore(pg).authorizeRustDeskGatewayCreation({
+      tenant_id: tenantScope,
+      remote_session_id: remoteSessionId,
+      target,
+      permissions,
+      access_mode: accessMode,
+      device_id: deviceId || undefined,
+      metadata: inputMetadata
+    });
     const metadata = rustDeskRuntimeMetadata(input, target);
+    if (input.access_mode !== undefined) metadata.access_mode = accessMode;
     if (rustDeskRequirePhysicalDisconnect()) {
       const deviceId = String(metadata.rustdesk_device_id || '').trim();
       if (!deviceId) {
@@ -1019,7 +1058,7 @@ async function routeRustDeskControlPlane(
       if (occurredAt && Number.isNaN(new Date(occurredAt).getTime())) {
         return { status: 400, data: { error: 'occurred_at must be an ISO timestamp' } };
       }
-      const metadata = bodyObject(input.metadata);
+      const metadata = rustDeskGatewayMetadata(input.metadata, 'RustDesk gateway event metadata');
       const eventValidationError = rustDeskGatewayEventValidationError(eventType, metadata);
       if (eventValidationError) return { status: 400, data: { error: eventValidationError } };
       const session = await store.getSession(externalId);
@@ -1789,6 +1828,7 @@ export async function routeCollaborationApi(
 
     if (routePath === '/api/ivekit/rustdesk/gateway-sessions' && method === 'POST') {
       const input = bodyObject(body);
+      rustDeskGatewayMetadata(input, 'RustDesk gateway request');
       const remoteSessionId = String(input.remote_session_id || '').trim();
       const deviceId = String(input.device_id || '').trim();
       const actorIdentity = String(input.actor_identity || '').trim();
@@ -1796,10 +1836,10 @@ export async function routeCollaborationApi(
       if (!deviceId) return { status: 400, data: { error: 'device_id is required' } };
       if (!actorIdentity) return { status: 400, data: { error: 'actor_identity is required' } };
       const accessModeExplicit = input.access_mode !== undefined;
-      const accessMode = accessModeExplicit ? String(input.access_mode).trim() : 'attended';
-      if (accessMode !== 'attended' && accessMode !== 'unattended') {
+      if (accessModeExplicit && input.access_mode !== 'attended' && input.access_mode !== 'unattended') {
         return { status: 400, data: { error: 'access_mode must be attended or unattended' } };
       }
+      const accessMode = rustDeskGatewayAccessMode(input.access_mode);
       const requestedPermissions = stringArray(input.permissions || input.scopes);
       const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
       if (unsupportedPermission) {
@@ -1816,13 +1856,9 @@ export async function routeCollaborationApi(
       if (!device || device.status !== 'active') return { status: 404, data: { error: 'rustdesk device not found' } };
       assertRustDeskDeviceOnlineIfRequired(device);
       assertRustDeskPhysicalDisconnectCapableIfRequired(device);
-      if (accessMode === 'unattended') {
-        await module.rustdeskAccessPolicies.assertUnattendedAccess({
-          tenant_id: ctx.tenantId,
-          device_id: device.id,
-          business_ref: remote.business_ref,
-          permissions
-        });
+      const requestMetadata = rustDeskGatewayMetadata(input.metadata);
+      if (requestMetadata.access_mode !== undefined) {
+        return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
       }
       const tool = await module.remote.startGatewayClientSession({
         tenant_id: ctx.tenantId,
@@ -1835,8 +1871,10 @@ export async function routeCollaborationApi(
           display_name: device.display_name
         },
         permissions,
+        access_mode: accessMode,
+        device_id: device.id,
         metadata: {
-          ...bodyObject(input.metadata),
+          ...requestMetadata,
           ...(accessModeExplicit ? { access_mode: accessMode } : {}),
           tenant_id: ctx.tenantId,
           remote_session_id: remote.id,
@@ -3023,6 +3061,16 @@ export async function routeCollaborationApi(
     const permissions = remoteConsentScopes(requestedPermissions);
     if (!permissions.length) return { status: 400, data: { error: 'permissions required' } };
     const gatewayClient = configuredRemoteGatewayClient();
+    const accessMode = gatewayClient.provider === 'rustdesk'
+      ? rustDeskGatewayAccessMode(input.access_mode)
+      : undefined;
+    if (gatewayClient.provider === 'rustdesk') {
+      rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+      const requestMetadata = rustDeskGatewayMetadata(input.metadata);
+      if (requestMetadata.access_mode !== undefined) {
+        return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
+      }
+    }
     const gatewayRequest = await resolveRemoteGatewayRequest({
       module,
       tenantId: ctx.tenantId,
@@ -3036,17 +3084,21 @@ export async function routeCollaborationApi(
       client: gatewayClient,
       target: gatewayRequest.target,
       permissions,
+      access_mode: accessMode,
+      device_id: gatewayRequest.deviceId,
       metadata: gatewayRequest.metadata
     });
     return { status: 201, data: tool };
   }
 
   if (section === 'tools' && !action && method === 'POST') {
+    const provider = String(input.provider || 'external_link') as RemoteToolProvider;
+    if (provider === 'rustdesk') rustDeskGatewayMetadata(input, 'RustDesk gateway request');
     const tool = await module.remote.startToolSession({
       tenant_id: ctx.tenantId,
       remote_session_id: remote.id,
       actor_identity: actorIdentity,
-      provider: String(input.provider || 'external_link') as RemoteToolProvider,
+      provider,
       external_id: input.external_id ? String(input.external_id) : undefined,
       launch_url: input.launch_url ? String(input.launch_url) : undefined,
       metadata: bodyObject(input.metadata)

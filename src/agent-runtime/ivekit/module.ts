@@ -12,6 +12,10 @@ import {
   RustDeskGatewaySessionStore,
   type RustDeskGatewaySession
 } from '../collaboration/rustdesk-gateway-session-store.js';
+import {
+  rustDeskGatewayAccessMode,
+  rustDeskGatewayMetadata
+} from '../collaboration/rustdesk-gateway-security.js';
 import type { RemoteGatewayClient } from '../collaboration/remote-gateway-client.js';
 import { rustDeskLaunchPlan } from '../collaboration/rustdesk-launch-plan.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
@@ -658,10 +662,8 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         if (input.remoteGateway.provider !== 'rustdesk') {
           throw badRequest('rustdesk facade requires a rustdesk remote gateway client');
         }
-        const accessMode = gatewayInput.access_mode || 'attended';
-        if (accessMode !== 'attended' && accessMode !== 'unattended') {
-          throw badRequest('access_mode must be attended or unattended');
-        }
+        rustDeskGatewayMetadata(gatewayInput, 'RustDesk gateway request');
+        const accessMode = rustDeskGatewayAccessMode(gatewayInput.access_mode);
         const remote = await collaboration.remote.getSession(gatewayInput.remote_session_id);
         if (!remote || remote.tenant_id !== gatewayInput.tenant_id) {
           throw badRequest('remote session not found');
@@ -675,13 +677,9 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         }
         assertRustDeskDeviceOnlineIfRequired(device);
         assertRustDeskPhysicalDisconnectCapableIfRequired(device);
-        if (accessMode === 'unattended') {
-          await collaboration.rustdeskAccessPolicies.assertUnattendedAccess({
-            tenant_id: gatewayInput.tenant_id,
-            device_id: device.id,
-            business_ref: remote.business_ref,
-            permissions: gatewayInput.permissions
-          });
+        const requestMetadata = rustDeskGatewayMetadata(gatewayInput.metadata);
+        if (requestMetadata.access_mode !== undefined) {
+          throw badRequest('RustDesk access_mode must be a top-level field');
         }
         return collaboration.remote.startGatewayClientSession({
           tenant_id: gatewayInput.tenant_id,
@@ -694,8 +692,10 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
             display_name: device.display_name
           },
           permissions: gatewayInput.permissions,
+          access_mode: accessMode,
+          device_id: device.id,
           metadata: {
-            ...(gatewayInput.metadata || {}),
+            ...requestMetadata,
             ...(gatewayInput.access_mode ? { access_mode: accessMode } : {}),
             remote_session_id: remote.id,
             collaboration_session_id: remote.collaboration_session_id,

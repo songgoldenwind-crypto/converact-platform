@@ -76,6 +76,52 @@ test('RustDeskGatewaySessionStore rejects invalid core session fields', async ()
   assert.deepEqual(sessions, []);
 });
 
+test('RustDeskGatewaySessionStore recursively rejects secret-bearing metadata before persistence', async () => {
+  const pg = new MemoryPg();
+  const store = new RustDeskGatewaySessionStore(pg);
+  const validInput: Parameters<RustDeskGatewaySessionStore['createSession']>[0] = {
+    tenant_id: 'tenant_rustdesk_store_secret_boundary',
+    target: { type: 'device', id: '123456789' },
+    permissions: ['view_screen'],
+    actor_identity: 'engineer_42',
+    launch_url: 'https://opc.example.com/remote/rustdesk/launch?session_id=rdgw-store-secret&token=launch-token'
+  };
+  const unsafeMetadata = [
+    { nested: [{ unattended_password: 'do-not-store' }] },
+    { Nested: { CredentialRef: 'secret://rustdesk/one' } },
+    { provider: { clientsecretref: 'secret://rustdesk/two' } },
+    { provider: { auth_token: 'do-not-store' } },
+    { material: '-----BEGIN PRIVATE KEY-----\ndo-not-store\n-----END PRIVATE KEY-----' },
+    { callback_url: 'https://operator:do-not-store@rustdesk.example.com/session' },
+    { callback_url: 'https://rustdesk.example.com/session?access_token=do-not-store' }
+  ];
+
+  for (const metadata of unsafeMetadata) {
+    await assert.rejects(
+      () => store.createSession({ ...validInput, metadata }),
+      /RustDesk gateway metadata contains sensitive material/
+    );
+  }
+
+  const session = await store.createSession({
+    ...validInput,
+    metadata: { source: 'ivekit', site: 'showroom-7' }
+  });
+  await assert.rejects(
+    () => store.appendAuditEvent({
+      external_id: session.external_id,
+      event_type: 'remote.rustdesk.smoke.probe',
+      actor_identity: 'edge-agent',
+      metadata: { nested: [{ launchToken: 'do-not-store' }] }
+    }),
+    /RustDesk gateway metadata contains sensitive material/
+  );
+
+  assert.deepEqual(session.metadata, { source: 'ivekit', site: 'showroom-7' });
+  assert.equal((await store.listSessions({ tenant_id: validInput.tenant_id })).length, 1);
+  assert.equal((await store.listAuditEvents({ external_id: session.external_id }))?.length, 1);
+});
+
 test('RustDeskGatewaySessionStore rejects invalid list session filters', async () => {
   const store = new RustDeskGatewaySessionStore(new MemoryPg());
 

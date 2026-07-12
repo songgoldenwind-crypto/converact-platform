@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
+import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
 import { RustDeskDeviceStore } from '../src/agent-runtime/collaboration/rustdesk-device-store.js';
 import { createRustDeskEdgeCommandToken } from '../src/agent-runtime/collaboration/rustdesk-edge-auth.js';
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
@@ -458,6 +459,32 @@ test('RustDesk control plane strict mode requires a capable registered device an
       edge_instance_id: 'edge-control-plane-strict'
     }
   });
+  const module = createCollaborationModule({ pg });
+  const businessRef = {
+    tenant_id: tenantId,
+    type: device.business_ref_type,
+    id: device.business_ref_id
+  };
+  const collaboration = await module.sessions.openSession({
+    tenant_id: tenantId,
+    business_ref: businessRef,
+    title: 'RustDesk control-plane strict'
+  });
+  const remote = await module.remote.createSession({
+    tenant_id: tenantId,
+    collaboration_session_id: collaboration.id,
+    business_ref: businessRef,
+    mode: 'remote_desktop_gateway',
+    adapter_provider: 'rustdesk',
+    started_by: 'agent-control-plane-strict'
+  });
+  await module.remote.grantConsent({
+    tenant_id: tenantId,
+    remote_session_id: remote.id,
+    actor_identity: 'customer-control-plane-strict',
+    scopes: ['view_screen'],
+    expires_at: '2099-01-01T00:00:00.000Z'
+  });
   const controlPlaneRoute = (
     method: string,
     path: string,
@@ -476,6 +503,7 @@ test('RustDesk control plane strict mode requires a capable registered device an
     await assert.rejects(
       () => controlPlaneRoute('POST', '/api/opc/rustdesk/sessions', {
         tenant_id: tenantId,
+        remote_session_id: remote.id,
         actor_identity: 'agent-control-plane-raw',
         target: { type: 'device', id: '864209753' },
         permissions: ['view_screen'],
@@ -486,6 +514,7 @@ test('RustDesk control plane strict mode requires a capable registered device an
 
     const created = (await controlPlaneRoute('POST', '/api/opc/rustdesk/sessions', {
       tenant_id: tenantId,
+      remote_session_id: remote.id,
       actor_identity: 'agent-control-plane-strict',
       target: { type: 'device', id: device.rustdesk_id },
       permissions: ['view_screen'],
