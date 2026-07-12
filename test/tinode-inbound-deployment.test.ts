@@ -38,5 +38,7 @@ test('Tinode inbound worker is configurable in OPC and standalone deployment sur
     assert.match(content, /TINODE_AUTH_TOKEN/, path);
     assert.match(content, /TINODE_BASIC_USER/, path);
     assert.match(content, /TINODE_BASIC_PASSWORD/, path);
+    assert.match(content, /TINODE_USER_PASSWORD_SECRET/, path);
+    assert.match(content, /TINODE_PUBLIC_WS_URL/, path);
   }
 });
