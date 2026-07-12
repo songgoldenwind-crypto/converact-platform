@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -10,6 +11,7 @@ import {
   createRustDeskClientAcceptanceTemplateConfigFromEnv,
   runRustDeskClientAcceptance
   ,
+  runRustDeskClientAcceptanceFromEnv,
   writeRustDeskClientAcceptanceRunbook,
   writeRustDeskClientAcceptanceTemplate
 } from '../scripts/rustdesk-client-acceptance.js';
@@ -31,19 +33,12 @@ test('RustDesk client acceptance passes a complete real-operation report and wri
   const reportFile = join(dir, 'report.json');
   const auditFile = join(dir, 'audit.jsonl');
   const outputFile = join(dir, 'result.json');
-  writeFileSync(reportFile, JSON.stringify({
-    external_id: 'rdgw_1',
-    rustdesk_id: '987654321',
-    operator: 'agent_1',
-    checked_at: '2026-07-06T00:00:00.000Z',
-    physical_disconnect: completePhysicalDisconnect(),
-    checks: completeChecks()
-  }), 'utf8');
+  writeFileSync(reportFile, JSON.stringify(completeReport(dir)), 'utf8');
   writeFileSync(auditFile, auditEvents('rdgw_1').map((event) => JSON.stringify(event)).join('\n'), 'utf8');
 
   const result = runRustDeskClientAcceptance({ reportFile, auditFile, outputFile });
 
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result.failures));
   assert.equal(result.summary.failed, 0);
   assert.equal(result.summary.missing, 0);
   assert.equal(result.audit.missing_event_types.length, 0);
@@ -57,27 +52,25 @@ test('RustDesk client acceptance passes a complete real-operation report and wri
 test('RustDesk client acceptance fails missing operation evidence and audit events', () => {
   const dir = mkdtempSync(join(tmpdir(), 'rustdesk-acceptance-'));
   const reportFile = join(dir, 'report.json');
+  const report = completeReport(dir);
   writeFileSync(reportFile, JSON.stringify({
-    external_id: 'rdgw_1',
-    rustdesk_id: '987654321',
-    operator: 'agent_1',
-    checked_at: '2026-07-06T00:00:00.000Z',
+    ...report,
     physical_disconnect: {
       ...completePhysicalDisconnect(),
       operator_observed_disconnect: false
     },
     checks: {
-      ...completeChecks(),
+      ...report.checks,
       operations: {
-        ...completeChecks().operations,
-        file_transfer: { passed: true, evidence: '' }
+        ...report.checks.operations,
+        file_transfer: { passed: true, evidence: {} }
       },
       revoke: {
         authorization_revoke_disconnects: { passed: false, evidence: 'revoke clicked but remote stayed connected' },
         ended_launch_url_rejected: { passed: true, evidence: 'old launch URL returned 409' }
       }
     },
-    audit_events: auditEvents('rdgw_1').filter((event) => event.event_type !== 'remote.rustdesk.clipboard.synced')
+    audit_events: report.audit_events.filter((event) => event.event_type !== 'remote.rustdesk.clipboard.synced')
   }), 'utf8');
 
   const result = runRustDeskClientAcceptance({ reportFile });
@@ -92,13 +85,9 @@ test('RustDesk client acceptance fails missing operation evidence and audit even
 test('RustDesk client acceptance reports invalid known audit event metadata', () => {
   const dir = mkdtempSync(join(tmpdir(), 'rustdesk-acceptance-'));
   const reportFile = join(dir, 'report.json');
+  const report = completeReport(dir);
   writeFileSync(reportFile, JSON.stringify({
-    external_id: 'rdgw_1',
-    rustdesk_id: '987654321',
-    operator: 'agent_1',
-    checked_at: '2026-07-06T00:00:00.000Z',
-    physical_disconnect: completePhysicalDisconnect(),
-    checks: completeChecks(),
+    ...report,
     audit_events: auditEvents('rdgw_1').map((event) =>
       event.event_type === 'remote.rustdesk.recording.stopped'
         ? { ...event, metadata: { recording_id: 'rec_1', evidence_type: 'video_recording' } }
@@ -116,13 +105,9 @@ test('RustDesk client acceptance reports invalid known audit event metadata', ()
 test('RustDesk client acceptance binds every event and disconnect phase to one session command', () => {
   const dir = mkdtempSync(join(tmpdir(), 'rustdesk-acceptance-binding-'));
   const reportFile = join(dir, 'report.json');
+  const report = completeReport(dir);
   writeFileSync(reportFile, JSON.stringify({
-    external_id: 'rdgw_1',
-    rustdesk_id: '987654321',
-    operator: 'agent_1',
-    checked_at: '2026-07-06T00:00:00.000Z',
-    physical_disconnect: completePhysicalDisconnect(),
-    checks: completeChecks(),
+    ...report,
     audit_events: auditEvents('rdgw_1').map((event) => {
       if (event.event_type === 'remote.rustdesk.control_action.performed') {
         const { external_id: _externalId, ...withoutExternalId } = event;
@@ -164,11 +149,16 @@ test('RustDesk client acceptance can generate a complete report template', () =>
   assert.equal(template.rustdesk_id, '987654321');
   assert.equal(template.operator, 'agent_template');
   assert.equal(template.checks.server.hbbs_started.passed, false);
-  assert.match(template.checks.server.hbbs_started.evidence, /hbbs/);
+  assert.match(template.checks.server.hbbs_started.evidence.artifact_file, /hbbs/);
   assert.equal(template.checks.operations.keyboard_mouse_control.passed, false);
-  assert.match(template.checks.operations.keyboard_mouse_control.evidence, /keyboard\/mouse/);
+  assert.match(template.checks.operations.keyboard_mouse_control.evidence.artifact_file, /keyboard_mouse/);
+  assert.equal(template.checks.operations.multi_display.passed, false);
+  assert.equal(template.checks.resilience.reconnect.passed, false);
+  assert.equal(template.checks.revoke.physical_disconnect.passed, false);
   assert.deepEqual(template.physical_disconnect, {
     control_plane_ended: false,
+    command_id: '',
+    device_id: '',
     command_status: '',
     execution_method: '',
     operator_observed_disconnect: false
@@ -197,6 +187,59 @@ test('RustDesk client acceptance can generate a complete report template', () =>
   const written = JSON.parse(readFileSync(templateFile, 'utf8'));
   assert.equal(written.external_id, 'rdgw_template');
   assert.equal(written.checks.revoke.ended_launch_url_rejected.passed, false);
+});
+
+test('RustDesk client acceptance reports not_run when no real report is supplied', () => {
+  assert.deepEqual(runRustDeskClientAcceptanceFromEnv({}), {
+    ok: false,
+    status: 'not_run',
+    missing_environment: ['OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE']
+  });
+});
+
+test('RustDesk client acceptance rejects controlled browser evidence even with a matching hash', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rustdesk-acceptance-controlled-'));
+  const report = completeReport(dir);
+  const evidence = report.checks.operations.screen_view.evidence;
+  const artifact = join(dir, evidence.artifact_file);
+  const document = JSON.parse(readFileSync(artifact, 'utf8'));
+  document.source = 'controlled_e2e';
+  document.tool = 'Playwright controlled RustDesk';
+  writeFileSync(artifact, `${JSON.stringify(document)}\n`);
+  evidence.sha256 = sha256(artifact);
+  evidence.tool = document.tool;
+  const reportFile = join(dir, 'report.json');
+  writeFileSync(reportFile, JSON.stringify(report));
+
+  const result = runRustDeskClientAcceptance({ reportFile });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failures.some((failure) => failure.id === 'operations.screen_view'), true);
+});
+
+test('RustDesk client acceptance enforces runtime identity and real observation semantics', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rustdesk-acceptance-semantics-'));
+  const report = completeReport(dir);
+  report.qa_approver = report.operator;
+  report.runtime.server.hbbs_version = 'replace-with-version';
+  report.runtime.target.platform = 'browser';
+  const evidence = report.checks.operations.screen_view.evidence;
+  const artifact = join(dir, evidence.artifact_file);
+  const document = JSON.parse(readFileSync(artifact, 'utf8'));
+  document.observation.frame_change_observed = false;
+  writeFileSync(artifact, `${JSON.stringify(document)}\n`);
+  evidence.sha256 = sha256(artifact);
+  const reportFile = join(dir, 'report.json');
+  writeFileSync(reportFile, JSON.stringify(report));
+
+  const result = runRustDeskClientAcceptance({ reportFile });
+  const ids = result.failures.map((failure) => failure.id);
+
+  assert.equal(result.ok, false);
+  assert.ok(ids.includes('report.qa_approver'));
+  assert.ok(ids.includes('runtime.server.hbbs_version'));
+  assert.ok(ids.includes('runtime.target.platform'));
+  assert.ok(ids.includes('operations.screen_view'));
 });
 
 test('RustDesk client acceptance can generate a real-client operation runbook', () => {
@@ -260,46 +303,130 @@ test('RustDesk client acceptance is exposed as a package script with env samples
   assert.match(productionEnv, /OPC_RUSTDESK_ACCEPTANCE_RUSTDESK_ID=/);
 });
 
-function completeChecks() {
-  const check = (evidence: string) => ({ passed: true, evidence });
+function completeReport(dir: string) {
+  return {
+    schema_version: 2,
+    source: 'real_terminal',
+    status: 'completed',
+    run_id: 'run-rustdesk-20260706',
+    environment_id: 'led-staging-sfo2',
+    deployed_commit: 'a'.repeat(40),
+    external_id: 'rdgw_1',
+    rustdesk_id: '987654321',
+    operator: 'agent_1',
+    qa_approver: 'qa_1',
+    checked_at: '2026-07-06T00:10:00.000Z',
+    runtime: {
+      server: {
+        hbbs_version: '1.1.15', hbbr_version: '1.1.15', key_fingerprint: `sha256:${'b'.repeat(64)}`,
+        id_server: 'rd-id.internal.company', relay_server: 'rd-relay.internal.company'
+      },
+      agent: { platform: 'macos', architecture: 'aarch64', client_version: '1.4.7' },
+      target: { platform: 'windows', architecture: 'x86_64', client_version: '1.4.7', rustdesk_id: '987654321' }
+    },
+    physical_disconnect: completePhysicalDisconnect(),
+    checks: completeChecks(dir),
+    audit_events: auditEvents('rdgw_1')
+  };
+}
+
+function completeChecks(dir: string) {
+  const check = (id: string) => ({ passed: true, evidence: writeObservation(dir, id, observationFor(id)) });
   return {
     server: {
-      hbbs_started: check('hbbs container is running and logs show listening'),
-      hbbr_started: check('hbbr container is running and logs show relay listening'),
-      public_key_readable: check('/rustdesk/id_ed25519.pub is readable by OPC'),
-      tcp_ports_reachable: check('21115-21119 TCP checked from smoke host'),
-      udp_relay_reachable: check('21116 UDP checked from smoke host'),
-      dns_tls_ingress_ok: check('public launch page opens through HTTPS ingress')
+      hbbs_started: check('server.hbbs_started'),
+      hbbr_started: check('server.hbbr_started'),
+      public_key_readable: check('server.public_key_readable'),
+      tcp_ports_reachable: check('server.tcp_ports_reachable'),
+      udp_relay_reachable: check('server.udp_relay_reachable'),
+      dns_tls_ingress_ok: check('server.dns_tls_ingress_ok')
     },
     client: {
-      installed: check('RustDesk client installed on agent and target device'),
-      manual_fields_match: check('ID server, relay, API server, key match client-config'),
-      launch_page_opens: check('signed launch page opens current rdgw_1'),
-      protocol_or_manual_launch_works: check('RustDesk opens target 987654321'),
-      target_id_matches: check('client target ID equals launch plan runtime id'),
-      relay_connection_ok: check('session uses expected self-hosted relay')
+      installed: check('client.installed'),
+      manual_fields_match: check('client.manual_fields_match'),
+      launch_page_opens: check('client.launch_page_opens'),
+      protocol_or_manual_launch_works: check('client.protocol_or_manual_launch_works'),
+      target_id_matches: check('client.target_id_matches'),
+      relay_connection_ok: check('client.relay_connection_ok')
     },
     operations: {
-      screen_view: check('agent can see target screen'),
-      keyboard_mouse_control: check('agent clicked test button on target'),
-      file_transfer: check('agent uploaded and downloaded acceptance file'),
-      clipboard_sync: check('clipboard sync works both directions'),
-      recording: check('screen recording created and is playable')
+      screen_view: check('operations.screen_view'),
+      keyboard_mouse_control: check('operations.keyboard_mouse_control'),
+      multi_display: check('operations.multi_display'),
+      file_transfer: check('operations.file_transfer'),
+      clipboard_sync: check('operations.clipboard_sync'),
+      recording: check('operations.recording')
+    },
+    resilience: {
+      reconnect: check('resilience.reconnect')
     },
     revoke: {
-      authorization_revoke_disconnects: check('consent revoke disconnects session'),
-      ended_launch_url_rejected: check('old launch URL returns 409 after end')
+      authorization_revoke_disconnects: check('revoke.authorization_revoke_disconnects'),
+      physical_disconnect: check('revoke.physical_disconnect'),
+      ended_launch_url_rejected: check('revoke.ended_launch_url_rejected')
     },
     audit: {
-      operation_events_forwarded: check('event forwarder sent all required operation events'),
-      audit_timeline_visible: check('OPC/iveKit timeline shows operation events')
+      operation_events_forwarded: check('audit.operation_events_forwarded'),
+      audit_timeline_visible: check('audit.audit_timeline_visible')
     }
   };
+}
+
+function writeObservation(dir: string, checkId: string, observation: Record<string, unknown>) {
+  const observations = join(dir, 'observations');
+  mkdirSync(observations, { recursive: true });
+  const filename = `${checkId.replaceAll('.', '-')}.json`;
+  const file = join(observations, filename);
+  const document = {
+    schema_version: 1,
+    source: 'real_terminal',
+    check_id: checkId,
+    run_id: 'run-rustdesk-20260706',
+    environment_id: 'led-staging-sfo2',
+    deployed_commit: 'a'.repeat(40),
+    external_id: 'rdgw_1',
+    rustdesk_id: '987654321',
+    captured_at: '2026-07-06T00:05:00.000Z',
+    tool: 'rustdesk-native-qa-recorder',
+    observation
+  };
+  writeFileSync(file, `${JSON.stringify(document)}\n`);
+  return {
+    artifact_file: `observations/${filename}`,
+    sha256: sha256(file),
+    captured_at: document.captured_at,
+    tool: document.tool,
+    run_id: document.run_id
+  };
+}
+
+function observationFor(id: string): Record<string, unknown> {
+  const specialized: Record<string, Record<string, unknown>> = {
+    'operations.screen_view': { target_display_id: 'display-1', frame_change_observed: true },
+    'operations.keyboard_mouse_control': { action: 'mouse.click', target_effect_observed: true },
+    'operations.multi_display': { display_count: 2, selected_display_id: 'display-2', switch_observed: true },
+    'operations.file_transfer': { direction: 'upload', byte_count: 1024, checksum_sha256: `sha256:${'c'.repeat(64)}` },
+    'operations.clipboard_sync': { direction: 'agent_to_device', target_effect_observed: true },
+    'operations.recording': { recording_id: 'recording-1', duration_ms: 3000, playback_verified: true, checksum_sha256: `sha256:${'d'.repeat(64)}` },
+    'resilience.reconnect': { disconnected_at: '2026-07-06T00:01:00.000Z', reconnected_at: '2026-07-06T00:02:00.000Z', target_restored: true },
+    'revoke.authorization_revoke_disconnects': { revoked_at: '2026-07-06T00:03:00.000Z', screen_stopped: true, control_stopped: true },
+    'revoke.physical_disconnect': { observed_at: '2026-07-06T00:04:00.000Z', screen_stopped: true, control_stopped: true, command_id: 'rdcmd_1' },
+    'revoke.ended_launch_url_rejected': { request_at: '2026-07-06T00:04:30.000Z', http_status: 409 },
+    'audit.operation_events_forwarded': { external_id: 'rdgw_1', observed_operations: ['view_screen', 'control_mouse_keyboard', 'multi_display', 'transfer_file', 'clipboard', 'record_screen', 'session_disconnect'] },
+    'audit.audit_timeline_visible': { external_id: 'rdgw_1', event_count: 10 }
+  };
+  return specialized[id] || { verified: true, check_id: id };
+}
+
+function sha256(file: string): string {
+  return createHash('sha256').update(readFileSync(file)).digest('hex');
 }
 
 function completePhysicalDisconnect() {
   return {
     control_plane_ended: true,
+    command_id: 'rdcmd_1',
+    device_id: 'rdesk_1',
     command_status: 'succeeded',
     execution_method: 'session_adapter',
     operator_observed_disconnect: true

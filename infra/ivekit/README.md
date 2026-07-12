@@ -69,6 +69,7 @@ npm run verify:ivekit:im-client
 npm run test:e2e:ivekit-im
 npm run verify:ivekit:media-client
 npm run test:e2e:ivekit-media
+npm run test:e2e:ivekit-rustdesk
 ```
 
 Create the intentionally incomplete real-environment checklist, fill it from two real browsers and real Tinode, then validate it:
@@ -98,6 +99,20 @@ OPC_LIVEKIT_ACCEPTANCE_QA_PUBLIC_KEY_FINGERPRINT=replace_with_sha256 \
 ```
 
 Without `OPC_LIVEKIT_ACCEPTANCE_REPORT_FILE`, this validator also returns `not_run` with a nonzero exit status. Every passed check needs a distinct SHA-256-bound JSON artifact from the real environment and an independent QA attestation. Controlled Playwright screenshots and events cannot satisfy real LiveKit, ICE/TURN, physical device, or Egress checks.
+
+Generate the RustDesk schema-v2 template separately. It requires exact hbbs/hbbr and native-client versions, agent/target platform and architecture, target ID, server key fingerprint, ID/relay path, and distinct operator/QA identities:
+
+```bash
+OPC_RUSTDESK_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/rustdesk-report.json \
+  npm run rustdesk:client-acceptance || true
+
+OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=/secure/evidence/rustdesk-report.json \
+OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=/secure/evidence/rustdesk-audit.jsonl \
+OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/rustdesk-result.json \
+  npm run rustdesk:client-acceptance
+```
+
+Without a real report the result is `not_run`. Every check references a unique, non-symlink JSON observation bound by SHA-256 to the same run, environment, full deployed commit, gateway external ID, target RustDesk ID, timestamp, and real capture tool. Screen, keyboard/mouse, multi-display, file checksum, clipboard direction, recording playback, reconnect, authorization revoke, and physical disconnect need separate observations. Command success and operator-observed physical disconnect are independent requirements. Controlled E2E, Playwright, mock and synthetic artifacts are rejected.
 
 Expected PostgreSQL roles:
 

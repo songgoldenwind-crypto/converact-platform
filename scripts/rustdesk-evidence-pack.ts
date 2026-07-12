@@ -44,7 +44,7 @@ export interface RustDeskEvidenceArtifact {
 export interface RustDeskEvidencePack {
   ok: boolean;
   title: string;
-  status: 'ready_for_customer_review' | 'incomplete';
+  status: 'ready_for_customer_review' | 'incomplete' | 'not_run';
   missing_required: string[];
   artifacts: RustDeskEvidenceArtifact[];
   preflight?: {
@@ -172,10 +172,15 @@ export function buildRustDeskEvidencePack(config: RustDeskEvidencePackConfig): R
 
   const uniqueMissing = [...new Set(missingRequired)];
   const ok = uniqueMissing.length === 0;
+  const status = ok
+    ? 'ready_for_customer_review'
+    : !clientAcceptanceResult || clientAcceptanceResult.status === 'not_run'
+      ? 'not_run'
+      : 'incomplete';
   return {
     ok,
     title: config.title,
-    status: ok ? 'ready_for_customer_review' : 'incomplete',
+    status,
     missing_required: uniqueMissing,
     artifacts,
     ...(preflight ? { preflight } : {}),
@@ -244,7 +249,7 @@ export function renderRustDeskEvidencePack(pack: RustDeskEvidencePack): string {
 
   if (pack.client_acceptance) {
     lines.push('## Client Acceptance', '');
-    lines.push(`- client acceptance: \`${pack.client_acceptance.ok ? 'pass' : 'fail'}\``);
+    lines.push(`- client acceptance: \`${pack.client_acceptance.status}\``);
     lines.push(`- external_id: \`${pack.client_acceptance.external_id || 'missing'}\``);
     lines.push(`- rustdesk_id: \`${pack.client_acceptance.rustdesk_id || 'missing'}\``);
     lines.push(`- checks: \`passed=${pack.client_acceptance.summary.passed} failed=${pack.client_acceptance.summary.failed} missing=${pack.client_acceptance.summary.missing}\``);

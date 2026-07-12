@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -46,7 +47,7 @@ test('RustDesk evidence pack marks a complete server and client evidence set as 
   assert.match(markdown, /Status: `ready_for_customer_review`/);
   assert.match(markdown, /server evidence: `pass`/);
   assert.match(markdown, /client_config_pack/);
-  assert.match(markdown, /client acceptance: `pass`/);
+  assert.match(markdown, /client acceptance: `ready_for_review`/);
   assert.match(markdown, /audit coverage: `pass`/);
   assert.match(markdown, /remote\.rustdesk\.clipboard\.synced/);
   assert.match(markdown, /id_ed25519\.pub/);
@@ -81,7 +82,7 @@ test('RustDesk evidence pack reports missing required artifacts without claiming
   assert.equal(result.missing_required.includes('audit_coverage_report'), true);
 
   const markdown = readFileSync(outputFile, 'utf8');
-  assert.match(markdown, /Status: `incomplete`/);
+  assert.match(markdown, /Status: `not_run`/);
   assert.match(markdown, /deployment_commands/);
   assert.match(markdown, /client_acceptance_report/);
   assert.match(markdown, /audit_coverage_report/);
@@ -292,7 +293,7 @@ function writeCompleteEvidenceFiles(dir: string): Record<string, string> {
   writeFileSync(files.handoff, '# RustDesk Integration Handoff\n');
   writeFileSync(files.clientConfigPack, '# RustDesk Client Config Pack\n\nManual fields ready.\n');
   writeFileSync(files.eventTemplate, '{"event_type":"remote.rustdesk.control_action.performed"}\n');
-  writeJson(files.acceptance, completeAcceptanceReport());
+  writeJson(files.acceptance, completeAcceptanceReport(dir));
   writeJson(files.auditCoverage, completeAuditCoverageReport());
   return files;
 }
@@ -323,8 +324,8 @@ function completeAuditCoverageReport(): Record<string, unknown> {
   };
 }
 
-function completeAcceptanceReport(): Record<string, unknown> {
-  const checks: Record<string, Record<string, { passed: boolean; evidence: string }>> = {};
+function completeAcceptanceReport(dir: string): Record<string, unknown> {
+  const checks: Record<string, Record<string, { passed: boolean; evidence: Record<string, unknown> }>> = {};
   for (const checkId of [
     'server.hbbs_started',
     'server.hbbr_started',
@@ -340,26 +341,41 @@ function completeAcceptanceReport(): Record<string, unknown> {
     'client.relay_connection_ok',
     'operations.screen_view',
     'operations.keyboard_mouse_control',
+    'operations.multi_display',
     'operations.file_transfer',
     'operations.clipboard_sync',
     'operations.recording',
+    'resilience.reconnect',
     'revoke.authorization_revoke_disconnects',
+    'revoke.physical_disconnect',
     'revoke.ended_launch_url_rejected',
     'audit.operation_events_forwarded',
     'audit.audit_timeline_visible'
   ]) {
     const [group, key] = checkId.split('.');
     checks[group] ||= {};
-    checks[group][key] = { passed: true, evidence: `${checkId} evidence` };
+    checks[group][key] = { passed: true, evidence: writeAcceptanceObservation(dir, checkId) };
   }
 
   return {
+    schema_version: 2,
+    source: 'real_terminal',
+    status: 'completed',
+    run_id: 'run-rustdesk-pack-1',
+    environment_id: 'led-staging-sfo2',
+    deployed_commit: 'a'.repeat(40),
     external_id: 'rdgw_1',
-    rustdesk_id: '123456789',
-    operator: 'qa',
-    checked_at: '2026-07-08T10:00:00.000Z',
+    rustdesk_id: '123456789', operator: 'operator-1', qa_approver: 'qa-1',
+    checked_at: '2026-07-08T10:10:00.000Z',
+    runtime: {
+      server: { hbbs_version: '1.1.15', hbbr_version: '1.1.15', key_fingerprint: `sha256:${'b'.repeat(64)}`, id_server: 'rd-id.internal.company', relay_server: 'rd-relay.internal.company' },
+      agent: { platform: 'macos', architecture: 'aarch64', client_version: '1.4.7' },
+      target: { platform: 'windows', architecture: 'x86_64', client_version: '1.4.7', rustdesk_id: '123456789' }
+    },
     physical_disconnect: {
       control_plane_ended: true,
+      command_id: 'rdcmd_1',
+      device_id: 'rdesk_1',
       command_status: 'succeeded',
       execution_method: 'session_adapter',
       operator_observed_disconnect: true
@@ -392,6 +408,41 @@ function completeAcceptanceReport(): Record<string, unknown> {
         edge_instance_id: 'edge-led-1'
       })
     ]
+  };
+}
+
+function writeAcceptanceObservation(dir: string, checkId: string): Record<string, unknown> {
+  const observationDir = join(dir, 'observations');
+  mkdirSync(observationDir, { recursive: true });
+  const filename = `${checkId.replaceAll('.', '-')}.json`;
+  const file = join(observationDir, filename);
+  const details: Record<string, Record<string, unknown>> = {
+    'operations.screen_view': { target_display_id: 'display-1', frame_change_observed: true },
+    'operations.keyboard_mouse_control': { action: 'mouse.click', target_effect_observed: true },
+    'operations.multi_display': { display_count: 2, selected_display_id: 'display-2', switch_observed: true },
+    'operations.file_transfer': { direction: 'upload', byte_count: 1024, checksum_sha256: `sha256:${'c'.repeat(64)}` },
+    'operations.clipboard_sync': { direction: 'agent_to_device', target_effect_observed: true },
+    'operations.recording': { recording_id: 'rec-1', duration_ms: 3000, playback_verified: true, checksum_sha256: `sha256:${'d'.repeat(64)}` },
+    'resilience.reconnect': { disconnected_at: '2026-07-08T10:01:00.000Z', reconnected_at: '2026-07-08T10:02:00.000Z', target_restored: true },
+    'revoke.authorization_revoke_disconnects': { revoked_at: '2026-07-08T10:03:00.000Z', screen_stopped: true, control_stopped: true },
+    'revoke.physical_disconnect': { observed_at: '2026-07-08T10:04:00.000Z', screen_stopped: true, control_stopped: true, command_id: 'rdcmd_1' },
+    'revoke.ended_launch_url_rejected': { request_at: '2026-07-08T10:04:30.000Z', http_status: 409 },
+    'audit.operation_events_forwarded': { external_id: 'rdgw_1', observed_operations: ['view_screen', 'control_mouse_keyboard', 'multi_display', 'transfer_file', 'clipboard', 'record_screen', 'session_disconnect'] },
+    'audit.audit_timeline_visible': { external_id: 'rdgw_1', event_count: 10 }
+  };
+  const document = {
+    schema_version: 1, source: 'real_terminal', check_id: checkId,
+    run_id: 'run-rustdesk-pack-1', environment_id: 'led-staging-sfo2', deployed_commit: 'a'.repeat(40),
+    external_id: 'rdgw_1', rustdesk_id: '123456789', captured_at: '2026-07-08T10:05:00.000Z',
+    tool: 'rustdesk-native-qa-recorder', observation: details[checkId] || { verified: true, check_id: checkId }
+  };
+  writeFileSync(file, `${JSON.stringify(document)}\n`);
+  return {
+    artifact_file: `observations/${filename}`,
+    sha256: createHash('sha256').update(readFileSync(file)).digest('hex'),
+    captured_at: document.captured_at,
+    tool: document.tool,
+    run_id: document.run_id
   };
 }
 

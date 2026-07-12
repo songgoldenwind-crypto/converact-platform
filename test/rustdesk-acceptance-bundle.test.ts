@@ -21,7 +21,7 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   const result = writeRustDeskAcceptanceBundle(config, bundleEnv());
 
   assert.equal(result.outputDir, dir);
-  assert.equal(result.artifacts.length, 13);
+  assert.equal(result.artifacts.length, 14);
   assert.equal(result.evidencePackOk, false);
   assert.deepEqual(result.missingRequired.includes('readiness_report'), true);
   for (const artifact of result.artifacts) {
@@ -40,6 +40,9 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   assert.equal(manifest.artifacts.led_integration_quickstart.path, join(dir, 'led-integration-quickstart.md'));
   assert.equal(manifest.artifacts.led_sdk_minimal_example.path, join(dir, 'led-sdk-minimal-example.ts'));
   assert.equal(manifest.artifacts.client_acceptance_runbook.path, join(dir, 'client-acceptance-runbook.md'));
+  assert.equal(manifest.artifacts.observation_contract.path, join(dir, 'observations', 'README.md'));
+  assert.equal(manifest.expected_artifacts.real_terminal_observations.expected_path, join(dir, 'observations'));
+  assert.match(manifest.expected_artifacts.real_terminal_observations.command, /controlled E2E.*invalid/i);
   assert.equal(manifest.artifacts.event_forwarder_runbook.path, join(dir, 'event-forwarder-runbook.md'));
   assert.equal(manifest.artifacts.readiness_report.expected_path, join(dir, 'readiness.json'));
   assert.equal(manifest.expected_artifacts.audit_export.expected_path, join(dir, 'audit-export.jsonl'));
@@ -97,7 +100,7 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   assert.equal(ledSdkExample.includes('rustdesk-secret-token'), false);
   assert.equal(ledSdkExample.includes('collaboration-secret'), false);
   assert.equal(JSON.parse(readFileSync(join(dir, 'preflight.json'), 'utf8')).ok, true);
-  assert.match(readFileSync(join(dir, 'client-acceptance-template.json'), 'utf8'), /keyboard\/mouse/);
+  assert.match(readFileSync(join(dir, 'client-acceptance-template.json'), 'utf8'), /keyboard_mouse_control/);
   assert.match(readFileSync(join(dir, 'client-acceptance-runbook.md'), 'utf8'), /old signed launch URL returns 409/);
   assert.match(readFileSync(join(dir, 'events-template.jsonl'), 'utf8'), /remote\.rustdesk\.clipboard\.synced/);
   const eventRunbook = readFileSync(join(dir, 'event-forwarder-runbook.md'), 'utf8');
@@ -113,7 +116,7 @@ test('RustDesk acceptance bundle writes the server handoff artifact set', () => 
   assert.match(eventRunbook, /npm run rustdesk:audit-coverage/);
   assert.match(eventRunbook, /does not prove real RustDesk client operation/);
   const evidencePack = readFileSync(join(dir, 'evidence-pack.md'), 'utf8');
-  assert.match(evidencePack, /Status: `incomplete`/);
+  assert.match(evidencePack, /Status: `not_run`/);
   assert.match(evidencePack, /client_config_pack/);
   assert.match(evidencePack, /client_acceptance_audit/);
   assert.match(evidencePack, /audit-export\.jsonl/);
@@ -136,7 +139,7 @@ test('RustDesk acceptance bundle CLI writes a bundle directory and exposes packa
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.outputDir, dir);
-  assert.equal(payload.artifacts.length, 13);
+  assert.equal(payload.artifacts.length, 14);
   assert.equal(payload.evidencePackOk, false);
   assert.equal(existsSync(join(dir, 'manifest.json')), true);
   assert.equal(result.stdout.includes('rustdesk-secret-token'), false);

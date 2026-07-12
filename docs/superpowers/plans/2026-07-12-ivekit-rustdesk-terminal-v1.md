@@ -182,11 +182,13 @@ Local regression command: `npm run test:e2e:ivekit-rustdesk` (`3/3` on 2026-07-1
 - Modify: `test/rustdesk-evidence-pack.test.ts`
 - Modify: `infra/ivekit/README.md`
 
-- [ ] Require real client/server versions, platform/architecture, target ID, key fingerprint, ID/relay path, and distinct operator/QA identities.
-- [ ] Require separate structured observations for screen pixels, keyboard/mouse effect, multi-display, file checksum, clipboard direction, recording playback, reconnect, and physical disconnect.
-- [ ] Bind every observation to run/environment/commit/external ID with a unique artifact and SHA-256.
-- [ ] Require audit coverage and physical disconnect command lifecycle, but keep operator observation independent from command success.
-- [ ] Return `not_run` when no real report is supplied; controlled E2E cannot satisfy real-terminal checks.
+- [x] Require real client/server versions, platform/architecture, target ID, key fingerprint, ID/relay path, and distinct operator/QA identities.
+- [x] Require separate structured observations for screen pixels, keyboard/mouse effect, multi-display, file checksum, clipboard direction, recording playback, reconnect, and physical disconnect.
+- [x] Bind every observation to run/environment/commit/external ID with a unique artifact and SHA-256.
+- [x] Require audit coverage and physical disconnect command lifecycle, but keep operator observation independent from command success.
+- [x] Return `not_run` when no real report is supplied; controlled E2E cannot satisfy real-terminal checks.
+
+The validator now uses report schema v2 (`source=real_terminal`) and observation schema v1. It rejects controlled E2E, Playwright, mock, synthetic, duplicate, symlinked, out-of-directory, stale, context-mismatched, hash-mismatched, placeholder, and secret-bearing artifacts. Local development intentionally leaves the real terminal result as `not_run`.
 
 ## Task 10: M4 Local Verification And Handoff
 

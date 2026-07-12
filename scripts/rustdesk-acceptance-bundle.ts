@@ -71,6 +71,8 @@ export function writeRustDeskAcceptanceBundle(
     ledSdkMinimalExample: join(config.outputDir, 'led-sdk-minimal-example.ts'),
     clientAcceptanceTemplate: join(config.outputDir, 'client-acceptance-template.json'),
     clientAcceptanceRunbook: join(config.outputDir, 'client-acceptance-runbook.md'),
+    observationsDir: join(config.outputDir, 'observations'),
+    observationsReadme: join(config.outputDir, 'observations', 'README.md'),
     eventTemplate: join(config.outputDir, 'events-template.jsonl'),
     eventForwarderRunbook: join(config.outputDir, 'event-forwarder-runbook.md'),
     handoff: join(config.outputDir, 'handoff.md'),
@@ -96,6 +98,14 @@ export function writeRustDeskAcceptanceBundle(
       OPC_RUSTDESK_ACCEPTANCE_RUNBOOK_FILE: paths.clientAcceptanceRunbook
     })
   );
+  mkdirSync(paths.observationsDir, { recursive: true });
+  writeFileSync(paths.observationsReadme, [
+    '# Real RustDesk terminal observations', '',
+    'Create one JSON file for every check referenced by client-acceptance-template.json.',
+    'Each file must use source `real_terminal` and match the report run_id, environment_id, deployed_commit, external_id, rustdesk_id, captured_at, and tool.',
+    'Controlled E2E, Playwright, mock and synthetic output is rejected. Never store credentials, signed URLs, clipboard/file content, keystrokes, screen pixels, or recording bytes here.',
+    ''
+  ].join('\n'), 'utf8');
   writeRustDeskEventTemplate(
     createRustDeskEventForwarderConfigFromEnv({
       ...env,
@@ -134,6 +144,7 @@ export function writeRustDeskAcceptanceBundle(
     artifact('led_sdk_minimal_example', 'LED SDK minimal TypeScript example', paths.ledSdkMinimalExample),
     artifact('client_acceptance_template', 'Real-client acceptance report template', paths.clientAcceptanceTemplate),
     artifact('client_acceptance_runbook', 'Real-client operation runbook', paths.clientAcceptanceRunbook),
+    artifact('observation_contract', 'Real-terminal observation contract', paths.observationsReadme),
     artifact('event_template', 'RustDesk operation event JSONL template', paths.eventTemplate),
     artifact('event_forwarder_runbook', 'RustDesk operation event forwarder runbook', paths.eventForwarderRunbook),
     artifact('handoff', 'RustDesk integration handoff', paths.handoff),
@@ -182,6 +193,11 @@ export function writeRustDeskAcceptanceBundle(
         expected_path: paths.clientAcceptanceTemplate,
         command: 'OPC_RUSTDESK_ACCEPTANCE_REPORT_FILE=<bundle>/client-acceptance-template.json OPC_RUSTDESK_ACCEPTANCE_AUDIT_FILE=<bundle>/audit-export.jsonl npm run rustdesk:client-acceptance'
       },
+      real_terminal_observations: {
+        label: 'One unique SHA-256-bound JSON observation per acceptance check',
+        expected_path: paths.observationsDir,
+        command: 'Capture real native-client observations under <bundle>/observations; controlled E2E, Playwright, mock and synthetic files are invalid'
+      },
       audit_export: {
         label: 'Real RustDesk operation audit export for the same gateway external_id',
         expected_path: paths.auditExport,
@@ -203,9 +219,10 @@ export function writeRustDeskAcceptanceBundle(
       'Run rustdesk:server-evidence with OPC_RUSTDESK_SERVER_EVIDENCE_FILE pointing at server-evidence.json.',
       'Run rustdesk:readiness with OPC_RUSTDESK_READINESS_REPORT_FILE pointing at readiness.json.',
       'Run rustdesk:client-config-pack with OPC_RUSTDESK_CLIENT_CONFIG_PACK_FILE pointing at client-config-pack.md before client setup.',
-      'Perform real RustDesk client screen, keyboard/mouse, file, clipboard, recording, revoke, and old-link checks.',
+      'Record exact server/client versions, platforms, architectures, target ID, key fingerprint, ID/relay path, and distinct operator/QA identities.',
+      'Perform real RustDesk client screen, keyboard/mouse, multi-display, file, clipboard, recording, reconnect, revoke, physical-disconnect, and old-link checks.',
       'Use event-forwarder-runbook.md to validate and forward real operation events from the RustDesk client sidecar or helper process.',
-      'Fill client-acceptance-template.json with real evidence and export the same gateway audit to audit-export.jsonl.',
+      'Create one unique observation JSON per check under observations/, fill client-acceptance-template.json with its SHA-256, and export the same gateway audit to audit-export.jsonl.',
       'Run rustdesk:audit-coverage against audit-export.jsonl.',
       'Regenerate evidence-pack.md and require ready_for_customer_review before customer handoff.'
     ]
