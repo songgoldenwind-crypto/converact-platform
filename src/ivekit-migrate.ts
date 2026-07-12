@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Pool } from 'pg';
 
-import { runMigrations } from './db-pg.js';
+import { applyIveKitMigrations } from './ivekit-migrations.js';
 
 async function main(): Promise<void> {
   const migrationsDirectory = resolve(
@@ -13,19 +13,10 @@ async function main(): Promise<void> {
   const pool = new Pool({ max: 1 });
   try {
     await pool.query('SELECT 1');
-    await runMigrations(pool, {
+    await applyIveKitMigrations(pool, {
       directory: migrationsDirectory,
       advisoryLockName: 'ivekit_schema_migrations'
     });
-    await pool.query(`
-      DO $$
-      BEGIN
-        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'opc_runtime') THEN
-          REVOKE ALL PRIVILEGES ON TABLE schema_migrations FROM opc_runtime;
-        END IF;
-      END
-      $$
-    `);
     console.log('iveKit PostgreSQL migrations applied');
   } finally {
     await pool.end();
