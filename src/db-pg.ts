@@ -55,6 +55,7 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('collaboration_policy_findings');
     this.ensureTable('collaboration_policy_finding_reviews');
     this.ensureTable('collaboration_quality_review_jobs');
+    this.ensureTable('collaboration_intelligence_policies');
     this.ensureTable('remote_assistance_sessions');
     this.ensureTable('remote_consent_events');
     this.ensureTable('remote_tool_sessions');
@@ -1812,6 +1813,44 @@ export class MemoryPg implements PgQueryable {
       };
       this.table('collaboration_message_translations').set(String(row.id), row);
       return [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_intelligence_policies WHERE tenant_id')) {
+      const row = this.table('collaboration_intelligence_policies').get(String(params[0]));
+      return row ? [row] : [];
+    }
+
+    if (sql.startsWith('INSERT INTO collaboration_intelligence_policies')) {
+      const tenantId = String(params[0]);
+      const existing = this.table('collaboration_intelligence_policies').get(tenantId);
+      const expectedVersion = Number(params[18]);
+      if (existing && Number(existing.version) !== expectedVersion) return [];
+      const now = this.nowIso();
+      const row: TableRow = {
+        tenant_id: tenantId,
+        ocr_enabled: params[1],
+        asr_enabled: params[2],
+        quality_review_enabled: params[3],
+        translation_enabled: params[4],
+        ocr_profile_id: params[5],
+        asr_profile_id: params[6],
+        quality_profile_id: params[7],
+        translation_profile_id: params[8],
+        allow_third_party: params[9],
+        auto_ocr: params[10],
+        auto_asr: params[11],
+        auto_quality_review: params[12],
+        auto_translation: params[13],
+        translation_target_languages: params[14],
+        min_ocr_confidence: params[15],
+        min_asr_confidence: params[16],
+        version: existing ? Number(existing.version) + 1 : 1,
+        updated_by: params[17],
+        created_at: existing?.created_at || now,
+        updated_at: now
+      };
+      this.table('collaboration_intelligence_policies').set(tenantId, row);
+      return [row];
     }
 
     if (sql.startsWith('SELECT * FROM collaboration_message_translations WHERE id')) {

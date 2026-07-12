@@ -9,6 +9,7 @@ import { listenOnRandomPort } from './test-helpers.js';
 
 test('standalone iveKit server exposes only approved routes', async (t) => {
   const calls: string[] = [];
+  const intelligenceCalls: string[] = [];
   const collaborationCalls: string[] = [];
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({
@@ -19,6 +20,12 @@ test('standalone iveKit server exposes only approved routes', async (t) => {
         calls.push(path);
         return path === '/api/ivekit/media/capabilities'
           ? { data: { media: true } }
+          : undefined;
+      },
+      intelligence: async (_pg, _method, path) => {
+        intelligenceCalls.push(path);
+        return path === '/api/ivekit/intelligence/capabilities'
+          ? { data: { intelligence: true } }
           : undefined;
       },
       chat: async () => undefined,
@@ -49,10 +56,22 @@ test('standalone iveKit server exposes only approved routes', async (t) => {
   assert.equal(context.status, 200);
   assert.deepEqual(await context.json(), { business_ref: { type: 'service_order', id: 'SO-1' } });
 
+  const intelligence = await fetch(`${baseUrl}/api/ivekit/intelligence/capabilities`);
+  assert.equal(intelligence.status, 200);
+  assert.deepEqual(await intelligence.json(), { intelligence: true });
+
   const unrelated = await fetch(`${baseUrl}/api/call-center/dashboard`);
   assert.equal(unrelated.status, 404);
-  assert.deepEqual(calls, ['/api/ivekit/media/capabilities', '/api/ivekit/context/by-ref']);
+  assert.deepEqual(calls, [
+    '/api/ivekit/media/capabilities',
+    '/api/ivekit/context/by-ref',
+    '/api/ivekit/intelligence/capabilities'
+  ]);
   assert.deepEqual(collaborationCalls, ['/api/ivekit/context/by-ref']);
+  assert.deepEqual(intelligenceCalls, [
+    '/api/ivekit/context/by-ref',
+    '/api/ivekit/intelligence/capabilities'
+  ]);
 });
 
 test('standalone iveKit server exposes Prometheus metrics', async (t) => {

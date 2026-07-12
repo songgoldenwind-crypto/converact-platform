@@ -117,6 +117,8 @@ export { createHttpOcrProvider, configuredOcrProvider } from './ocr-provider.js'
 export { createHttpAsrProvider, configuredAsrProvider } from './asr-provider.js';
 export { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 export type * from './intelligence-provider-registry.js';
+export { IntelligencePolicyStore } from './intelligence-policy-store.js';
+export type * from './intelligence-policy-store.js';
 export {
   sanitizeProviderErrorCode,
   sanitizeProviderMetadata,

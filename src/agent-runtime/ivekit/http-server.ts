@@ -8,6 +8,10 @@ import {
 } from '../../db-pg-tenant.js';
 import { routeCollaborationApi } from '../collaboration/collaboration-http.js';
 import { routeIveKitChatApi } from './chat-http.js';
+import {
+  routeIveKitIntelligenceApi,
+  type RouteIveKitIntelligenceApiOptions
+} from './intelligence-http.js';
 import { routeIveKitEventApi } from './event-http.js';
 import { createIveKitMediaHooks } from './media-hooks.js';
 import {
@@ -18,12 +22,14 @@ import { runWithWsBroadcastBuffer } from '../../ws.js';
 
 type MediaRoute = typeof routeIveKitMediaApi;
 type ChatRoute = typeof routeIveKitChatApi;
+type IntelligenceRoute = typeof routeIveKitIntelligenceApi;
 type EventRoute = typeof routeIveKitEventApi;
 type CollaborationRoute = typeof routeCollaborationApi;
 
 export interface IveKitRouteAdapters {
   media: MediaRoute;
   chat: ChatRoute;
+  intelligence: IntelligenceRoute;
   events: EventRoute;
   collaboration: CollaborationRoute;
 }
@@ -33,11 +39,13 @@ export interface IveKitHttpServerInput {
   pg: PgQueryable | null;
   routes?: Partial<IveKitRouteAdapters>;
   mediaOptions?: RouteIveKitMediaApiOptions;
+  intelligenceOptions?: RouteIveKitIntelligenceApiOptions;
 }
 
 const allowedPrefixes = [
   '/api/ivekit/media/',
   '/api/ivekit/chat/',
+  '/api/ivekit/intelligence/',
   '/api/ivekit/context/',
   '/api/ivekit/rustdesk/',
   '/api/opc/rustdesk/'
@@ -55,6 +63,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
   const routes: IveKitRouteAdapters = {
     media: input.routes?.media || routeIveKitMediaApi,
     chat: input.routes?.chat || routeIveKitChatApi,
+    intelligence: input.routes?.intelligence || routeIveKitIntelligenceApi,
     events: input.routes?.events || routeIveKitEventApi,
     collaboration: input.routes?.collaboration || routeCollaborationApi
   };
@@ -122,6 +131,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ...(pg ? { pg } : {})
         })
         ?? await routes.events(pg, method, path, url, headers)
+        ?? await routes.intelligence(pg, method, path, url, body, headers, input.intelligenceOptions)
         ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
         ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
       const buffered = await runWithWsBroadcastBuffer(() =>

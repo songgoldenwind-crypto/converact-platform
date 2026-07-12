@@ -11,6 +11,8 @@ export type {
   IveKitWorkerHandle
 } from './application.js';
 export { routeIveKitChatApi } from './chat-http.js';
+export { routeIveKitIntelligenceApi } from './intelligence-http.js';
+export type * from './intelligence-http.js';
 export { routeIveKitEventApi } from './event-http.js';
 export { IveKitTenantEventStore } from './tenant-event-store.js';
 export { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
