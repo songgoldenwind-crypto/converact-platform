@@ -18,7 +18,7 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 4. LiveKit、Tinode、RustDesk 的独立 provider 配置和 Compose。
 5. 升级、回滚、故障恢复和本地验收材料。
 
-本 Goal 原计划只做本地交付门禁；2026-07-12 按用户最新要求增加服务器隔离验证。服务器验证只提升实际执行过的独立镜像、fresh PostgreSQL、迁移、RLS 和 health 状态，不把它写成 V2 的 LiveKit、Tinode 或 RustDesk provider E2E。
+本 Goal 原计划只做本地交付门禁；2026-07-12 按用户最新要求增加服务器隔离验证。服务器已验证独立镜像、fresh PostgreSQL、迁移、RLS、health 和真实 Tinode inbound E2E；尚未执行的 LiveKit、RustDesk 等 provider 场景仍不得写成 V2 已验收。
 
 ### 1.1 当前执行状态（2026-07-12）
 
@@ -26,7 +26,7 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 | --- | --- | --- | --- |
 | M6.1 独立构建边界 | 已实现并上服验证 | 79 个白名单源码文件、6 个运行依赖；隔离 `npm ci`/build 通过；服务器 Docker build 和 `/health` 通过 | 纳入最终全量回归与发布门禁 |
 | M6.2 Standalone PostgreSQL | 已完成 | fresh schema 45 表、31 个 checksum migration、0 RLS gap、0 OPC 业务表；existing OPC 数据无损升级；runtime 跨租户读写、DDL 和迁移账本访问均被拦截；失败后前向重试通过 | 纳入 M6.7 最终全量回归 |
-| M6.3 Tinode inbound | 本地实现完成，服务器验收中 | 已实现 provider user mapping、cursor/lease、幂等 inbox、普通消息/Drafty 附件/edit/delete projector、policy scan、AI 质检入队、脱敏死信与到期重试、WebSocket 断线续拉、应用生命周期和部署参数；协议/worker/真实 PostgreSQL/standalone 构建边界测试通过 | 上传独立服务器，执行 31 migration、fake/real Tinode 链路和故障恢复验收后收口 |
+| M6.3 Tinode inbound | 已完成 | provider user mapping、cursor/lease、幂等 inbox、普通消息/Drafty 附件/edit/delete projector、policy scan、AI 质检入队、脱敏死信与到期重试、WebSocket 断线续拉、应用生命周期和部署参数均已实现；本地协议/worker/真实 PostgreSQL 测试通过；服务器真实 Tinode E2E、服务离线后补偿、重启幂等、RLS 和凭据隔离均通过 | 纳入 M6.7 最终全量回归 |
 | M6.4 Durable event replay | 未开始 | 计划和 cursor 不变量已定义 | 实现 event log/replay/WebSocket resume |
 | M6.5 RustDesk edge spool | 未开始 | 计划和安全边界已定义 | 实现 crash-safe spool/recovery lease |
 | M6.6 SDK、交付、兼容 | 未开始 | V1 SDK/交付包可复用 | 升级 cursor API、独立 Compose 和升级回滚材料 |
@@ -59,7 +59,7 @@ iveKit 运行时实际需要的基础对象包括：
 
 独立部署不能再以完整 `005_full_schema.sql` 作为基础，但现有 OPC 数据库升级路径必须保持不变。
 
-### 2.3 当前 Tinode worker 只有出站重试
+### 2.3 V1 基线的 Tinode worker 只有出站重试（M6.3 已解决）
 
 `TinodeSyncWorker` 当前实际封装 `TinodeMessageDeliveryService.runDue()`，只负责 PostgreSQL outbox 到 Tinode 的 durable publish。它没有：
 
@@ -72,6 +72,8 @@ iveKit 运行时实际需要的基础对象包括：
 - `meta.del.clear/delseq` 删除同步。
 
 因此 V2 会保留现有 outbound worker，并新增语义独立的 inbound synchronization worker，不继续用一个 `sync` 名称混合两种状态机。
+
+M6.3 已按上述设计完成：inbound worker、真实 WebSocket source、durable cursor/inbox/dead letter、事务 projector 和 provider 坐标 DTO 均已落地并完成服务器验收。本节保留为问题来源和设计依据。
 
 ### 2.4 当前租户事件流不可 replay
 
@@ -242,6 +244,15 @@ worker 行为：
 - attachment URL、mime、size 和 entity 数量都有上限。
 - inbound message 自动执行防绕单文本扫描，并按现有配置 enqueue AI quality review。
 
+完成证据（2026-07-12）：
+
+- 提交：`2fb74f4b142a4169cf593b16fa11208148533652`。
+- 服务器隔离项目：`ivekit-v2-2fb74f4`，HTTP 仅绑定 `127.0.0.1:18303`。
+- 真实 Tinode 链路完成 plain message、`head.replace` edit、Drafty image reference 和 provider delete；本地最终保留 seq 1/3 语义对应的 2 条有效消息、1 个附件、3 条 mutation、3 条 policy event、2 个 quality job，dead letter 为 0，敏感正文未进入验收结果文件。
+- 停止 iveKit 后向真实 Tinode 发布 seq 4，重启后 cursor 从 3 追到 4；再次重启 message/inbox/policy/quality 数量不增长，worker failure 为 0。
+- 最终 PostgreSQL 为 31 个 checksum migration、45 张表、0 RLS gap；runtime role 四项管理员标志均为 false，跨租户读取为 0、写入被拒绝，长驻容器只使用 `opc_runtime`。
+- 服务器证据文件：`/opt/ivekit-v2-validation/2fb74f4/tinode-inbound-acceptance-result.json` 与 `/opt/ivekit-v2-validation/2fb74f4/final-audit-result.txt`，权限均为 `600`。
+
 ### M6.4 Durable tenant event replay
 
 目标：客户端从短暂断线恢复时按 cursor 增量收敛，不必总是全量刷新。
@@ -332,7 +343,7 @@ worker 行为：
 10. 全仓 `npm run verify`。
 11. delivery checksum、secret scan 和 forbidden-source scan。
 
-V2 未重新执行的 LiveKit、Tinode、RustDesk provider 场景必须标记 `not_run_for_v2`；不得用 2026-07-11 的 V1 证据冒充 V2 重验。V1 已通过的真实链路仍保留为基线证据。
+V2 未重新执行的 LiveKit、RustDesk provider 场景必须标记 `not_run_for_v2`；Tinode 仅可声明本次实际覆盖的消息、编辑、Drafty 引用、删除、离线补偿和重启幂等，不得扩写为容量、弱网或多节点生产验收。不得用 2026-07-11 的 V1 证据冒充 V2 重验，V1 已通过的真实链路仅保留为基线证据。
 
 ## 7. 实施顺序
 
