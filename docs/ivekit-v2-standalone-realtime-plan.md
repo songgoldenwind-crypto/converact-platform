@@ -20,7 +20,7 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 
 本 Goal 原计划只做本地交付门禁；2026-07-12 按用户最新要求增加服务器隔离验证。服务器已验证独立镜像、fresh PostgreSQL、迁移、RLS、health 和真实 Tinode inbound E2E；尚未执行的 LiveKit、RustDesk 等 provider 场景仍不得写成 V2 已验收。
 
-### 1.1 当前执行状态（2026-07-12）
+### 1.1 当前执行状态（2026-07-13）
 
 | 里程碑 | 状态 | 已有证据 | 剩余工作 |
 | --- | --- | --- | --- |
@@ -29,8 +29,8 @@ iveKit V2 要把 V1 已完成的 IM、LiveKit 音视频、RustDesk 远程协助�
 | M6.3 Tinode inbound | 已完成 | provider user mapping、cursor/lease、幂等 inbox、普通消息/Drafty 附件/edit/delete projector、policy scan、AI 质检入队、脱敏死信与到期重试、WebSocket 断线续拉、应用生命周期和部署参数均已实现；本地协议/worker/真实 PostgreSQL 测试通过；服务器真实 Tinode E2E、服务离线后补偿、重启幂等、RLS 和凭据隔离均通过 | 纳入 M6.7 最终全量回归 |
 | M6.4 Durable event replay | 已完成 | 32 号 migration、单调 event ID、签名/租户绑定/过期 cursor、当前参与人/RBAC 过滤、定向 audience、HTTP 增量页、WebSocket resume、请求事务后缓冲、持久化后 Redis fan-out、实例回送去重、retention worker 和独立回滚开关均已实现；本地/真实 PostgreSQL/standalone 门禁通过；服务器完成进程重启恢复、撤权、非法/跨租户 cursor、定向 audience、RLS、retention 与幂等复验 | 纳入 M6.7 最终全量回归 |
 | M6.5 RustDesk edge spool | 已完成 | crash-safe filesystem spool、执行 intent/result、恢复租约、terminal ack、uncertain/ownership quarantine、容量/年龄/权限/符号链接/单实例门禁和 preflight 已实现；本地、真实 PostgreSQL和隔离服务器故障矩阵均通过 | 纳入 M6.7 最终全量回归 |
-| M6.6 SDK、交付、兼容 | 未开始 | V1 SDK/交付包可复用 | 升级 cursor API、独立 Compose 和升级回滚材料 |
-| M6.7 完成审计 | 未开始 | 局部门禁通过 | 全量 verify、兼容矩阵、故障恢复和最终状态审计 |
+| M6.6 SDK、交付、兼容 | 已完成 | SDK event page/replay、三工作区恢复控制器、独立 service build context、32 个 migration manifest、image metadata、SPDX SBOM、RustDesk edge 可安装包和全量 checksum 已交付；服务器从包内独立构建并完成干净安装复验 | 纳入 M6.7 最终全量回归 |
+| M6.7 完成审计 | 进行中 | M6.1-M6.6 局部与服务器门禁通过 | 全量 verify、兼容矩阵、故障恢复和最终状态审计 |
 
 ## 2. 现状审计
 
@@ -346,6 +346,16 @@ worker 行为：
 - V1 SDK 和 URL contract test 全通过。
 - 新 SDK 可从断线 cursor 恢复三工作区。
 - delivery manifest 绑定 source commit、migration checksums、SDK tgz、client dist 和 service image/build context。
+
+完成证据（2026-07-13）：
+
+- 提交 `d21a2eb` 已推送；SDK 新增 `events.getHeadCursor()`、`events.listPage()` 和有界 `events.replay()`，HTTP 409 被保留为类型化 `snapshot_required` 页，不会被误判为普通网络异常。
+- 参考客户端使用内存 cursor、有界 event ID 去重、并发 resume 合并和三工作区 snapshot fallback；projection 失败不会提前标记事件已消费，浏览器不持久化 cursor 或 provider credential。
+- 交付生成器产出 216 个 payload 文件；包含可独立构建的 `service/build-context/`、32 个带 checksum migration、SDK tgz、参考客户端、image metadata、SPDX 2.3 npm SBOM、RustDesk edge source/预编译零依赖包、artifact binding 和两层 SHA-256 清单。
+- 本地参考客户端 117/117、SDK/交付 20/20、SDK build、客户端 production build/bundle budget、根 TypeScript 检查和 secret/forbidden-source scan 均通过。本机 Docker daemon 未运行，因此独立镜像构建移至隔离服务器执行。
+- 服务器仅凭交付归档成功构建 `ivekit-service:d21a2eb`，镜像 ID 为 `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`；SDK 与 RustDesk edge 包在干净 `node:23-slim` 容器安装通过。
+- 最终归档 `/opt/ivekit-v2-validation/d21a2eb/ivekit-delivery-d21a2eb-final.tgz` SHA-256 为 `3d9182e92c8e04cbc14fadb4683667dfafa7d7bc2e3f8c05aea228812e2a6559`。服务器复验 218 个总文件、归档与两层清单、镜像摘要均一致，AppleDouble 和 build residue 均为 0。
+- 交付包中的 `real_environment_acceptance` 继续诚实标记 LiveKit/Tinode/RustDesk 为 `not_run`；本节只证明 M6.6 的独立构建、安装和交付完整性，不替代 provider 数据面验收。
 
 ### M6.7 完成审计
 

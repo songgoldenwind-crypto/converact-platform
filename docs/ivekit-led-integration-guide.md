@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-12。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》；物理 RustDesk 客户端和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
+> 版本：2026-07-13。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
 
 ## 1. 交付目标
 
@@ -19,9 +19,9 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 | Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
 | Collaboration Session | Tinode durable outbound、独立 IM 参考客户端、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 既有后端/Tinode server smoke 保留；本轮参考客户端双真实浏览器验收未运行，OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
-| SDK | `@opc/ivekit-sdk` 已独立打包；`createIveKitClient` 一次提供 Context、Media、Chat 和 RustDesk 高低层能力 | dry-run 发布物已验证只含编译产物、README 和 package metadata |
+| SDK 与交付 | `@opc/ivekit-sdk` 已独立打包；统一客户端提供 Context、Media、Chat、Events 和 RustDesk；交付包包含独立服务构建上下文、migration、SBOM 和 edge 包 | SDK/edge 干净容器安装和交付包独立镜像构建已在服务器通过；provider 数据面按各自验收状态裁决 |
 
-本地完整门禁和既有服务器验收材料均已保留；本轮新增的 IM 参考客户端按用户要求未上传服务器，双真实浏览器/Tinode 结果仍标记为未运行。所有缺少外部服务或物理客户端的项目继续列在第 11 节，不以受控 E2E 结果替代。
+本地完整门禁和服务器验收材料均已保留。V2 已在隔离服务器验证真实 Tinode inbound/event replay/RustDesk edge recovery，并验证最终交付包可独立构建和安装；本轮没有重跑的 LiveKit 数据面、物理 RustDesk 双客户端以及 OCR/ASR/AI provider 仍保持 `not_run_for_v2`。所有缺少外部服务或物理客户端的项目继续列在第 11 节，不以受控 E2E 结果替代。
 
 2026-07-11 的最终部署把 PostgreSQL 角色初始化、advisory-locked migration 和 Tinode 服务账号 bootstrap 拆成一次性任务。长驻 iveKit 仅持有 `opc_runtime`，Tinode 仅持有 `tinode_app`；LED 不得获取 `opc_admin`、PostgreSQL 连接密码、LiveKit API secret、MinIO root 或桶级 service secret。MinIO 根账号只用于初始化，iveKit/Egress 只使用限定 `recordings` 桶的业务账号。
 
@@ -190,6 +190,31 @@ npm run ivekit:led-example
 ```
 
 示例创建 collaboration session、参与人、LiveKit room、join plan 和幂等 IM 消息。只有额外提供 `OPC_IVEKIT_LED_REMOTE_SESSION_ID` 以及 RustDesk device/runtime ID 时才启动已有授权范围内的 RustDesk session。
+
+### 4.7 Durable event replay
+
+统一客户端的 `ivekit.events` 提供：
+
+- `getHeadCursor()`：不回放历史，只取得当前水位；用于 snapshot 完成后的新起点。
+- `listPage({cursor, limit})`：读取单页增量；过期、跨租户或超出 retention 时返回类型化 `snapshot_required` 页。
+- `replay({cursor, limit?, maxPages?})`：有界翻页，返回事件、下一 cursor、页数和 snapshot 状态；调用方必须保留 `maxPages` 上限。
+
+LED 浏览器建议复用 `clients/ivekit-reference/src/realtime/event-replay.ts` 的状态机：cursor 只放内存；按 `event_id` 有界去重；online、visibility 和定时恢复合并为一次进行中的 resume；消息事件做局部 projection，媒体/远控事件刷新对应 snapshot。遇到 `snapshot_required` 时依次刷新 Chat、Media、Remote，再调用 `getHeadCursor()` 建立新水位。projection 或 snapshot 任一步失败都不得推进 cursor。
+
+### 4.8 最终交付包
+
+`npm run ivekit:delivery-bundle` 生成的目录是 LED/其它项目的可移交边界，不要求接收方持有 OPC 根仓库。关键内容如下：
+
+| 路径 | 用途 |
+| --- | --- |
+| `service/build-context/` | 白名单独立服务源码、Dockerfile、lockfile、32 个 migration，可直接构建镜像 |
+| `service/image-metadata.json` | source commit、image reference 和已验证 image digest |
+| `database/migration-manifest.json` | migration 顺序和逐文件 SHA-256 |
+| `sdk/`、`client/` | SDK tgz、类型/README、参考客户端交付树 |
+| `rustdesk-edge/` | edge source、adapter、预编译 JS 和零运行依赖 npm 包 |
+| `sbom/`、`artifact-manifest.json`、`SHA256SUMS` | SPDX 2.3 SBOM、产物绑定和总校验清单 |
+
+当前可复验归档 source commit 为 `d21a2eb`，归档 SHA-256 为 `3d9182e92c8e04cbc14fadb4683667dfafa7d7bc2e3f8c05aea228812e2a6559`，绑定镜像 ID `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。接收方先校验顶层和 `service/build-context/SHA256SUMS`，再按 image metadata 对照部署镜像；不得只拿 SDK 而省略 migration、RLS、provider 和 edge 运维材料。
 
 ## 5. LED 主流程
 

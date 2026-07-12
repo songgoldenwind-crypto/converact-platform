@@ -641,7 +641,7 @@ Replay 每次按当前权限重新判断：定向事件只对 audience 用户可
 
 - `sdk.media.*`：capabilities、room、join、participant、recording、object、export、cleanup。
 - `sdk.chat.*`：`listSessions()`、`closeSession()`、`listMessagesPage()`、session、binding、client-plan、participant、message、delivery、receipt、state、mutation、attachment、finding、quality。
-- M6.4 已稳定 `/api/ivekit/events` 和 WebSocket cursor 契约；`sdk.events.*` 封装在 M6.6 交付，当前集成可直接按本节 HTTP 契约调用。
+- `sdk.events.getHeadCursor()`、`listPage()` 和有界 `replay()` 已交付；409 snapshot fallback 返回类型化 `snapshot_required` 结果，调用方按第 5 节刷新三工作区 snapshot 后取得新 head cursor。
 - 二进制导出返回 `{bytes, contentType, filename}`。
 - 错误为 `IveKitHttpSdkError(status, method, path, payload)`；网络/超时 `status=0`。
 

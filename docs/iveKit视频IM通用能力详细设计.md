@@ -3567,3 +3567,21 @@ LED 研发不需要了解 OPC 内部 smoke 实现，只接收同一 release 的 
 ### 19.3 当前裁决
 
 M4 本地代码和交付材料完成；全仓 `2042` 项中 `2037` 通过、`5` 项真实 PostgreSQL 环境检查跳过、`0` 失败。SDK、前端、统一 E2E、sidecar 和 Compose 静态解析通过。未上传服务器，真实 hbbs/hbbr、relay、Windows/macOS/Linux 客户端画面/键鼠/多显示器/文件/剪贴板/录屏/重连/物理断开均保持 `not_run`。
+
+## 20. 2026-07-13 V2 SDK、实时恢复与独立交付增量设计
+
+### 20.1 SDK 与客户端恢复
+
+`@opc/ivekit-sdk` 的统一 client 新增 `events` 域：`getHeadCursor()`、`listPage()`、`replay()`。服务端 cursor 是 opaque、签名、租户绑定的短期恢复水位；SDK 不解析 cursor，也不暴露 provider credential。HTTP 409 表示必须刷新 snapshot，SDK 将其返回为类型化页面而非普通异常。
+
+参考客户端增加独立 replay controller：cursor 仅驻内存，event ID 使用有界集合去重，多个 online/visibility/timer 恢复触发合并为单次任务。消息事件按 projection 刷新，媒体与远控事件刷新对应 workspace；cursor 过期时重新获取 Chat、Media、Remote snapshot 后取得新 head。任何 projection/snapshot 失败都保留旧水位，避免“界面未更新但事件已确认”的丢更新。
+
+### 20.2 独立交付结构
+
+交付包现在同时携带 service build context、32 个 migration manifest、SDK tgz、参考客户端、RustDesk edge source/预编译零依赖包、image metadata、SPDX 2.3 SBOM、artifact manifest 和 SHA-256 清单。LED 可在不读取 OPC 根源码的目录中构建服务镜像；部署时必须把 service image、migration、SDK 和 edge 包视作同一 release，不得混用 commit。
+
+服务器已从 source commit `d21a2eb` 的交付包独立构建镜像，镜像 ID 为 `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。最终归档 SHA-256 为 `3d9182e92c8e04cbc14fadb4683667dfafa7d7bc2e3f8c05aea228812e2a6559`，两层清单和干净容器 SDK/edge 安装已复验。
+
+### 20.3 完成边界
+
+该增量完成“代码和交付物可拆、可构建、可安装、可校验”，不改变真实能力验收原则。LiveKit/Tinode/RustDesk 的 provider 状态按各自专项证据判断；交付 manifest 不把历史证据自动升级为本次通过，V2 未执行项继续明确为 `not_run` 或 `not_run_for_v2`。
