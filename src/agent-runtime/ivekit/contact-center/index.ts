@@ -1,4 +1,6 @@
 export * from './canonical.js';
+export * from './callback-service.js';
+export * from './callback-runtime.js';
 export * from './configuration-ports.js';
 export * from './configuration-service.js';
 export * from './errors.js';
@@ -14,3 +16,4 @@ export * from './queue-service.js';
 export * from './routing.js';
 export * from './state-machine.js';
 export * from './types.js';
+export * from './voice-callback-adapter.js';

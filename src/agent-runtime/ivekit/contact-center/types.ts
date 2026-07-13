@@ -219,3 +219,60 @@ export interface ContactCenterQueueEntrySnapshot {
   entry: ContactCenterQueueEntry;
   assignments: ContactCenterAssignment[];
 }
+
+export interface ContactCenterCallbackRecord {
+  id: string;
+  tenant_id: string;
+  queue_id: string;
+  queue_entry_id: string;
+  source_call_id: string;
+  outbound_call_id: string | null;
+  business_ref_type: string;
+  business_ref_id: string;
+  address_kind: 'e164' | 'extension' | 'sip_uri';
+  address_ciphertext: string;
+  address_hmac: string;
+  address_redacted: string;
+  state: ContactCenterCallbackState;
+  scheduled_for: string | null;
+  attempt_count: number;
+  max_attempts: number;
+  idempotency_key: string;
+  requested_by: string;
+  cancelled_by: string;
+  failure_code: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface ContactCenterCallback {
+  id: string;
+  tenant_id: string;
+  queue_id: string;
+  queue_entry_id: string;
+  source_call_id: string;
+  outbound_call_id: string | null;
+  business_ref: { type: string; id: string };
+  address: { kind: ContactCenterCallbackRecord['address_kind']; redacted: string };
+  state: ContactCenterCallbackState;
+  scheduled_for: string | null;
+  attempt_count: number;
+  max_attempts: number;
+  requested_by: string;
+  cancelled_by: string;
+  failure_code: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface ContactCenterCallbackListInput {
+  tenant_id: string;
+  queue_id?: string;
+  state?: ContactCenterCallbackState;
+  limit?: number;
+  cursor?: string;
+}

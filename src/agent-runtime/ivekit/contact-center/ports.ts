@@ -1,6 +1,8 @@
 import type {
   ContactCenterAgentPresence,
   ContactCenterAssignment,
+  ContactCenterCallbackListInput,
+  ContactCenterCallbackRecord,
   ContactCenterQueue,
   ContactCenterQueueEntry,
   ContactCenterQueueEntryListInput,
@@ -26,6 +28,11 @@ export interface ContactCenterRepository {
   insertAssignment(assignment: ContactCenterAssignment): Promise<ContactCenterAssignment>;
   findAssignmentByIdempotencyKey(tenantId: string, key: string): Promise<ContactCenterAssignment | null>;
   getAssignment(tenantId: string, assignmentId: string, options?: { for_update?: boolean }): Promise<ContactCenterAssignment | null>;
+  getActiveAssignmentForEntry(
+    tenantId: string,
+    queueEntryId: string,
+    options?: { for_update?: boolean }
+  ): Promise<ContactCenterAssignment | null>;
   updateAssignment(assignment: ContactCenterAssignment, expectedRevision: number): Promise<ContactCenterAssignment>;
   getPresence(tenantId: string, agentId: string, options?: { for_update?: boolean }): Promise<ContactCenterAgentPresence | null>;
   updatePresence(presence: ContactCenterAgentPresence, expectedRevision: number): Promise<ContactCenterAgentPresence>;
@@ -34,6 +41,60 @@ export interface ContactCenterRepository {
   listRoutableQueueIds(tenantId: string, now: Date, limit: number): Promise<string[]>;
   listEntries(input: ContactCenterQueueEntryListInput): Promise<ContactCenterPage<ContactCenterQueueEntry>>;
   listAssignmentsForEntries(tenantId: string, entryIds: string[]): Promise<ContactCenterAssignment[]>;
+  findCallbackByIdempotencyKey(tenantId: string, key: string): Promise<ContactCenterCallbackRecord | null>;
+  insertCallback(callback: ContactCenterCallbackRecord): Promise<ContactCenterCallbackRecord>;
+  getCallback(
+    tenantId: string,
+    callbackId: string,
+    options?: { for_update?: boolean }
+  ): Promise<ContactCenterCallbackRecord | null>;
+  updateCallback(
+    callback: ContactCenterCallbackRecord,
+    expectedRevision: number
+  ): Promise<ContactCenterCallbackRecord>;
+  listCallbacks(
+    input: ContactCenterCallbackListInput
+  ): Promise<ContactCenterPage<ContactCenterCallbackRecord>>;
+  getNextDueCallback(
+    tenantId: string,
+    now: Date
+  ): Promise<ContactCenterCallbackRecord | null>;
+  listCallbacksForReconciliation(
+    tenantId: string,
+    limit: number
+  ): Promise<ContactCenterCallbackRecord[]>;
+}
+
+export interface ContactCenterAddressProtector {
+  protect(
+    tenantId: string,
+    value: string,
+    kind: 'e164' | 'extension' | 'sip_uri'
+  ): Promise<{ ciphertext: string; hmac: string; redacted: string }>;
+  reveal(
+    tenantId: string,
+    ciphertext: string,
+    kind: 'e164' | 'extension' | 'sip_uri'
+  ): Promise<string>;
+}
+
+export interface ContactCenterCallbackVoicePort {
+  getSourceCall(tenantId: string, callId: string): Promise<{
+    id: string;
+    tenant_id: string;
+    profile_id: string;
+    direction: 'inbound' | 'outbound';
+    business_ref: { type: string; id: string };
+  } | null>;
+  createOutbound(input: {
+    callback: ContactCenterCallbackRecord;
+    clear_target: string;
+    attempt: number;
+  }): Promise<{ call_id: string }>;
+  getCallState(tenantId: string, callId: string): Promise<{
+    state: string;
+    termination_reason: string;
+  } | null>;
 }
 
 export interface ContactCenterUnitOfWorkContext {

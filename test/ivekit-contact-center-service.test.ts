@@ -7,6 +7,7 @@ import {
   createContactCenterIvrQueuePort,
   type ContactCenterAgentPresence,
   type ContactCenterAssignment,
+  type ContactCenterCallbackRecord,
   type ContactCenterQueue,
   type ContactCenterQueueEntry,
   type ContactCenterRepository,
@@ -257,6 +258,7 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
   queue: ContactCenterQueue;
   readonly entries = new Map<string, ContactCenterQueueEntry>();
   readonly assignments = new Map<string, ContactCenterAssignment>();
+  readonly callbacks = new Map<string, ContactCenterCallbackRecord>();
   readonly presences = new Map<string, ContactCenterAgentPresence>();
   readonly candidates: ContactCenterRoutingCandidate[] = [];
   cursor: string | null = null;
@@ -329,6 +331,11 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
     return structuredClone([...this.assignments.values()].find((value) => value.idempotency_key === key) || null);
   }
   async getAssignment(_tenantId: string, id: string) { return structuredClone(this.assignments.get(id) || null); }
+  async getActiveAssignmentForEntry(_tenantId: string, entryId: string) {
+    return structuredClone([...this.assignments.values()].find((value) =>
+      value.queue_entry_id === entryId && ['offered', 'accepted', 'connected'].includes(value.state)
+    ) || null);
+  }
   async updateAssignment(value: ContactCenterAssignment) {
     const next = { ...value, revision: value.revision + 1 };
     this.assignments.set(value.id, structuredClone(next));
@@ -379,6 +386,35 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
     return [...this.assignments.values()]
       .filter((assignment) => ids.has(assignment.queue_entry_id))
       .map((assignment) => structuredClone(assignment));
+  }
+  async findCallbackByIdempotencyKey(_tenantId: string, key: string) {
+    return structuredClone([...this.callbacks.values()].find((value) => value.idempotency_key === key) || null);
+  }
+  async insertCallback(value: ContactCenterCallbackRecord) {
+    this.callbacks.set(value.id, structuredClone(value));
+    return structuredClone(value);
+  }
+  async getCallback(_tenantId: string, id: string) {
+    return structuredClone(this.callbacks.get(id) || null);
+  }
+  async updateCallback(value: ContactCenterCallbackRecord) {
+    const next = { ...value, revision: value.revision + 1 };
+    this.callbacks.set(value.id, structuredClone(next));
+    return structuredClone(next);
+  }
+  async listCallbacks() {
+    return { items: [...this.callbacks.values()].map((value) => structuredClone(value)), next_cursor: null };
+  }
+  async getNextDueCallback(_tenantId: string, now: Date) {
+    return structuredClone([...this.callbacks.values()].find((value) =>
+      ['requested', 'scheduled'].includes(value.state) &&
+      (!value.scheduled_for || value.scheduled_for <= now.toISOString())
+    ) || null);
+  }
+  async listCallbacksForReconciliation(_tenantId: string, limit: number) {
+    return [...this.callbacks.values()].filter((value) =>
+      ['dialing', 'connected'].includes(value.state) && Boolean(value.outbound_call_id)
+    ).slice(0, limit).map((value) => structuredClone(value));
   }
 }
 

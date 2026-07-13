@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -32,18 +33,31 @@ test('Contact Center maintenance batch expires, times out, then offers per tenan
 
   const summary = await runContactCenterMaintenanceBatch({
     pg: new MemoryPg(), now: new Date('2026-07-13T09:00:00.000Z'),
-    tenant_limit: 10, batch_size: 20, offer_ttl_seconds: 25,
+    tenant_limit: 10, batch_size: 20, offer_ttl_seconds: 25, callback_retry_delay_ms: 30_000,
     list_tenants: async () => ['tenant-a'],
     create_service: () => service,
+    create_callback_service: () => ({
+      async processDue(input) {
+        operations.push(`callbacks:${input.tenant_id}:${input.retry_delay_ms}`);
+        return { processed: 2, started: 1, retried: 1, failed: 0 };
+      },
+      async reconcile(input) {
+        operations.push(`reconcile:${input.tenant_id}:${input.limit}`);
+        return { scanned: 1, updated: 1 };
+      }
+    }),
     idempotency_key: (_tenantId, queueId) => `worker:${queueId}`
   });
 
   assert.deepEqual(summary, {
     tenants: 1, failed_tenants: 0, expired_offers: 2,
-    timed_out_entries: 1, queues_scanned: 2, offers_created: 1
+    timed_out_entries: 1, queues_scanned: 2, offers_created: 1,
+    callbacks_processed: 2, callbacks_started: 1, callbacks_retried: 1,
+    callbacks_failed: 0, callbacks_reconciled: 1
   });
   assert.deepEqual(operations, [
-    'expire:tenant-a:20', 'timeout:tenant-a:20', 'list:tenant-a:20',
+    'expire:tenant-a:20', 'timeout:tenant-a:20',
+    'callbacks:tenant-a:30000', 'reconcile:tenant-a:20', 'list:tenant-a:20',
     'offer:queue-a:25', 'offer:queue-b:25'
   ]);
 });
@@ -51,6 +65,7 @@ test('Contact Center maintenance batch expires, times out, then offers per tenan
 test('Contact Center maintenance batch isolates a tenant failure', async () => {
   const summary = await runContactCenterMaintenanceBatch({
     pg: new MemoryPg(), tenant_limit: 10, batch_size: 20, offer_ttl_seconds: 20,
+    callback_retry_delay_ms: 30_000,
     list_tenants: async () => ['tenant-bad', 'tenant-good'],
     create_service: (tenantId) => ({
       async expireOffers() {
@@ -60,6 +75,10 @@ test('Contact Center maintenance batch isolates a tenant failure', async () => {
       async timeoutWaitingEntries() { return []; },
       async listRoutableQueueIds() { return []; },
       async offerNext() { return null; }
+    }),
+    create_callback_service: () => ({
+      async processDue() { return { processed: 0, started: 0, retried: 0, failed: 0 }; },
+      async reconcile() { return { scanned: 0, updated: 0 }; }
     }),
     on_tenant_error: () => undefined
   });
@@ -75,14 +94,16 @@ test('Contact Center maintenance worker coalesces concurrent runs and stops clea
   const worker = new ContactCenterMaintenanceWorker({
     config: {
       enabled: true, interval_ms: 1_000, tenant_limit: 10,
-      batch_size: 20, offer_ttl_seconds: 20
+      batch_size: 20, offer_ttl_seconds: 20, callback_retry_delay_ms: 30_000
     },
     async run_batch() {
       calls += 1;
       await blocked;
       return {
         tenants: 0, failed_tenants: 0, expired_offers: 0,
-        timed_out_entries: 0, queues_scanned: 0, offers_created: 0
+        timed_out_entries: 0, queues_scanned: 0, offers_created: 0,
+        callbacks_processed: 0, callbacks_started: 0, callbacks_retried: 0,
+        callbacks_failed: 0, callbacks_reconciled: 0
       };
     }
   });
@@ -98,7 +119,7 @@ test('Contact Center maintenance worker coalesces concurrent runs and stops clea
 test('Contact Center maintenance worker configuration is optional and bounded', () => {
   assert.deepEqual(contactCenterMaintenanceWorkerConfig({}), {
     enabled: false, interval_ms: 1_000, tenant_limit: 100,
-    batch_size: 100, offer_ttl_seconds: 20
+    batch_size: 100, offer_ttl_seconds: 20, callback_retry_delay_ms: 30_000
   });
   assert.equal(contactCenterMaintenanceWorkerConfig({
     OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED: '1'
@@ -109,4 +130,23 @@ test('Contact Center maintenance worker configuration is optional and bounded', 
   assert.throws(() => contactCenterMaintenanceWorkerConfig({
     OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE: '0'
   }), /must be an integer/);
+});
+
+test('Contact Center callback retry configuration is wired across deployment surfaces', () => {
+  for (const path of [
+    'infra/env.example',
+    'infra/ivekit/env.example',
+    'services/ivekit-service/env.example',
+    'infra/ivekit/docker-compose.yml',
+    'infra/docker-compose.production.yml',
+    'services/ivekit-service/docker-compose.yml',
+    'infra/k8s/templates/opc-deployment.yaml'
+  ]) {
+    assert.match(
+      readFileSync(path, 'utf8'),
+      /OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS/,
+      path
+    );
+  }
+  assert.match(readFileSync('infra/k8s/values.yaml', 'utf8'), /callbackRetryDelayMs: "30000"/);
 });

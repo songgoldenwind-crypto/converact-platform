@@ -10,6 +10,7 @@ import {
   PostgresContactCenterUnitOfWork,
   type ContactCenterAgent,
   type ContactCenterAgentPresence,
+  type ContactCenterCallbackRecord,
   type ContactCenterQueue
 } from '../src/agent-runtime/ivekit/contact-center/index.js';
 import type { PgQueryable } from '../src/db-pg.js';
@@ -108,6 +109,50 @@ test('Contact Center queue entry cursors cannot cross queue or state scope', asy
     }),
     (error: unknown) => error instanceof ContactCenterError && error.code === 'validation_failed'
   );
+});
+
+test('Contact Center PostgreSQL persists protected callbacks and pages safe records', async () => {
+  const pg = new ScriptedPg((sql) => {
+    if (sql.includes('INSERT INTO ivekit_cc_callbacks')) return [callbackRow()];
+    if (sql.includes('FROM ivekit_cc_callbacks callback')) return [callbackRow()];
+    if (sql.includes("assignment.state IN ('offered', 'accepted', 'connected')")) {
+      return [assignmentRow()];
+    }
+    return [];
+  });
+  const store = new PostgresContactCenterRepository(pg);
+  const inserted = await store.insertCallback(callbackEntity());
+  assert.equal(inserted.address_redacted, '+86******9000');
+  assert.equal((await store.getActiveAssignmentForEntry(
+    'tenant-a', 'entry-a', { for_update: true }
+  ))?.id, 'assignment-a');
+  const page = await store.listCallbacks({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'scheduled', limit: 10
+  });
+  assert.equal(page.items[0]?.id, 'callback-a');
+  const now = new Date('2026-07-13T00:05:00.000Z');
+  assert.equal((await store.getNextDueCallback('tenant-a', now))?.id, 'callback-a');
+  assert.equal((await store.listCallbacksForReconciliation('tenant-a', 10))[0]?.id, 'callback-a');
+  const insert = pg.queries.find((query) => query.sql.includes('INSERT INTO ivekit_cc_callbacks'))!;
+  assert.equal(insert.params[9], 'v1.encrypted.callback');
+  assert.equal(JSON.stringify(insert.params).includes('+8613900139000'), false);
+  const list = pg.queries.find((query) => query.sql.includes('FROM ivekit_cc_callbacks callback'))!;
+  assert.match(list.sql, /ORDER BY callback\.created_at DESC, callback\.id DESC/);
+  assert.deepEqual(list.params.slice(0, 3), ['tenant-a', 'queue-a', 'scheduled']);
+  const active = pg.queries.find((query) =>
+    query.sql.includes("assignment.state IN ('offered', 'accepted', 'connected')")
+  )!;
+  assert.match(active.sql, /FOR UPDATE/);
+  const due = pg.queries.find((query) =>
+    query.sql.includes("callback.state IN ('requested', 'scheduled')")
+  )!;
+  assert.match(due.sql, /FOR UPDATE SKIP LOCKED/);
+  assert.deepEqual(due.params, ['tenant-a', now]);
+  const reconcile = pg.queries.find((query) =>
+    query.sql.includes("callback.state IN ('dialing', 'connected')")
+  )!;
+  assert.match(reconcile.sql, /FOR UPDATE SKIP LOCKED/);
+  assert.deepEqual(reconcile.params, ['tenant-a', 10]);
 });
 
 test('Contact Center PostgreSQL locks eligible presence and applies queue skill requirements', async () => {
@@ -260,6 +305,25 @@ function assignmentRow(): Record<string, unknown> {
     offer_expires_at: '2026-07-13T00:00:20.000Z', accepted_at: null, connected_at: null,
     completed_at: null, outcome_reason: '', revision: 1,
     created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function callbackRow(): Record<string, unknown> {
+  return { ...callbackEntity() };
+}
+
+function callbackEntity(): ContactCenterCallbackRecord {
+  return {
+    id: 'callback-a', tenant_id: 'tenant-a', queue_id: 'queue-a',
+    queue_entry_id: 'entry-a', source_call_id: 'call-a', outbound_call_id: null,
+    business_ref_type: 'ticket', business_ref_id: 'ticket-a', address_kind: 'e164',
+    address_ciphertext: 'v1.encrypted.callback', address_hmac: 'b'.repeat(64),
+    address_redacted: '+86******9000', state: 'scheduled',
+    scheduled_for: '2026-07-13T00:05:00.000Z', attempt_count: 0, max_attempts: 3,
+    idempotency_key: 'callback-key-a', requested_by: 'agent-a', cancelled_by: '',
+    failure_code: '', revision: 1,
+    created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z',
+    completed_at: null
   };
 }
 

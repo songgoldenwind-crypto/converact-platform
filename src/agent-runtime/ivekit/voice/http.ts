@@ -1,7 +1,7 @@
 import type { PgQueryable } from '../../../db-pg.js';
 import { withPgTenant } from '../../../db-pg-tenant.js';
 import { resolveAuthContext, type AuthContext } from '../../../middleware/auth.js';
-import { EncryptedVoiceAddressProtector } from './address-protector.js';
+import { configuredVoiceAddressProtector } from './address-protector.js';
 import { RustPbxEventsAdapter } from './adapters/rustpbx-events.js';
 import { RustPbxRouterAdapter } from './adapters/rustpbx-routing.js';
 import { VoiceCallService } from './call-service.js';
@@ -515,7 +515,7 @@ export function createPostgresVoiceHttpModule(
   const providerEventRepository = new PostgresVoiceProviderEventStore(pg);
   const recordings = new PostgresVoiceRecordingStore(pg);
   const registry = options.provider_registry ?? createIveKitVoiceProviderRegistry();
-  const addressProtector = options.address_protector ?? configuredAddressProtector();
+  const addressProtector = options.address_protector ?? configuredVoiceAddressProtector();
   const eventPort = options.event_port ?? { publish: () => undefined };
   const configuration = new VoiceConfigurationService({
     unit_of_work: new PostgresVoiceConfigurationUnitOfWork(pg),
@@ -638,22 +638,6 @@ function configuredWebhookSecretResolver(): VoiceSecretResolver {
   return new EnvVoiceSecretResolver({
     allowlist: { webhook_hmac: names, webhook_service_key: names }
   });
-}
-
-function configuredAddressProtector(): VoiceAddressProtector {
-  const encryptionKey = String(
-    process.env.OPC_IVEKIT_VOICE_ADDRESS_KEY
-    || process.env.OPC_IVEKIT_VOICE_ADDRESS_ENCRYPTION_KEY
-    || ''
-  );
-  const hmacKey = String(process.env.OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY || '');
-  if (encryptionKey && hmacKey) {
-    return new EncryptedVoiceAddressProtector({ encryption_key: encryptionKey, hmac_key: hmacKey });
-  }
-  const unavailable = async (): Promise<never> => {
-    throw new VoiceError({ code: 'secret_unavailable', retryable: true, status: 503 });
-  };
-  return { protect: unavailable, reveal: unavailable };
 }
 
 function requireVoiceAuth(headers: Headers): AuthContext {

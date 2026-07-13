@@ -6,6 +6,8 @@ import type { ContactCenterRepository } from '../ports.js';
 import type {
   ContactCenterAgentPresence,
   ContactCenterAssignment,
+  ContactCenterCallbackListInput,
+  ContactCenterCallbackRecord,
   ContactCenterPage,
   ContactCenterQueue,
   ContactCenterQueueEntry,
@@ -48,6 +50,17 @@ const PRESENCE_COLUMNS = `
   presence.active_voice_count, presence.voice_capacity, presence.current_call_id,
   presence.idle_since, presence.heartbeat_at, presence.session_ref,
   presence.revision, presence.updated_at`;
+
+const CALLBACK_COLUMNS = `
+  callback.id, callback.tenant_id, callback.queue_id, callback.queue_entry_id,
+  callback.source_call_id, callback.outbound_call_id,
+  callback.business_ref_type, callback.business_ref_id,
+  callback.address_kind, callback.address_ciphertext, callback.address_hmac,
+  callback.address_redacted, callback.state, callback.scheduled_for,
+  callback.attempt_count, callback.max_attempts, callback.idempotency_key,
+  callback.requested_by, callback.cancelled_by, callback.failure_code,
+  callback.revision, callback.created_at,
+  callback.updated_at, callback.completed_at`;
 
 export class PostgresContactCenterRepository implements ContactCenterRepository {
   constructor(private readonly pg: PgQueryable) {}
@@ -393,6 +406,24 @@ export class PostgresContactCenterRepository implements ContactCenterRepository 
     });
   }
 
+  getActiveAssignmentForEntry(
+    tenantId: string,
+    queueEntryId: string,
+    options: { for_update?: boolean } = {}
+  ): Promise<ContactCenterAssignment | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${ASSIGNMENT_COLUMNS}
+         FROM ivekit_cc_assignments assignment
+         WHERE assignment.tenant_id = $1 AND assignment.queue_entry_id = $2
+           AND assignment.state IN ('offered', 'accepted', 'connected')
+         ${options.for_update ? 'FOR UPDATE' : ''}`,
+        [tenantId, queueEntryId]
+      );
+      return result.rows[0] ? decodeAssignment(result.rows[0]) : null;
+    });
+  }
+
   updateAssignment(assignment: ContactCenterAssignment, expectedRevision: number): Promise<ContactCenterAssignment> {
     return withPgTenant(this.pg, assignment.tenant_id, async (pg) => {
       const result = await pg.query<ContactCenterPgRow>(
@@ -441,6 +472,157 @@ export class PostgresContactCenterRepository implements ContactCenterRepository 
         ]
       );
       return decodePresence(ccRequiredRow(result.rows[0], 'conflict'));
+    });
+  }
+
+  findCallbackByIdempotencyKey(
+    tenantId: string,
+    key: string
+  ): Promise<ContactCenterCallbackRecord | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${CALLBACK_COLUMNS}
+         FROM ivekit_cc_callbacks callback
+         WHERE callback.tenant_id = $1 AND callback.idempotency_key = $2`,
+        [tenantId, key]
+      );
+      return result.rows[0] ? decodeCallback(result.rows[0]) : null;
+    });
+  }
+
+  insertCallback(callback: ContactCenterCallbackRecord): Promise<ContactCenterCallbackRecord> {
+    return withPgTenant(this.pg, callback.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `INSERT INTO ivekit_cc_callbacks
+          (id, tenant_id, queue_id, queue_entry_id, source_call_id, outbound_call_id,
+           business_ref_type, business_ref_id, address_kind, address_ciphertext,
+           address_hmac, address_redacted, state, scheduled_for, attempt_count,
+           max_attempts, idempotency_key, requested_by, cancelled_by,
+           failure_code, revision, created_at, updated_at, completed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                 $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+                 $23, $24)
+         ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+         RETURNING *`,
+        callbackParameters(callback)
+      );
+      if (result.rows[0]) return decodeCallback(result.rows[0]);
+      const replay = await this.findCallbackByIdempotencyKey(
+        callback.tenant_id,
+        callback.idempotency_key
+      );
+      if (!replay) throw conflict();
+      return replay;
+    });
+  }
+
+  getCallback(
+    tenantId: string,
+    callbackId: string,
+    options: { for_update?: boolean } = {}
+  ): Promise<ContactCenterCallbackRecord | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${CALLBACK_COLUMNS}
+         FROM ivekit_cc_callbacks callback
+         WHERE callback.tenant_id = $1 AND callback.id = $2
+         ${options.for_update ? 'FOR UPDATE' : ''}`,
+        [tenantId, callbackId]
+      );
+      return result.rows[0] ? decodeCallback(result.rows[0]) : null;
+    });
+  }
+
+  updateCallback(
+    callback: ContactCenterCallbackRecord,
+    expectedRevision: number
+  ): Promise<ContactCenterCallbackRecord> {
+    return withPgTenant(this.pg, callback.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `UPDATE ivekit_cc_callbacks
+         SET outbound_call_id = $3, state = $4, scheduled_for = $5,
+             attempt_count = $6, cancelled_by = $7, failure_code = $8,
+             completed_at = $9, revision = revision + 1, updated_at = $10
+         WHERE tenant_id = $1 AND id = $2 AND revision = $11
+         RETURNING *`,
+        [
+          callback.tenant_id, callback.id, callback.outbound_call_id,
+          callback.state, callback.scheduled_for, callback.attempt_count,
+          callback.cancelled_by, callback.failure_code, callback.completed_at,
+          callback.updated_at,
+          expectedRevision
+        ]
+      );
+      return decodeCallback(ccRequiredRow(result.rows[0], 'conflict'));
+    });
+  }
+
+  listCallbacks(
+    input: ContactCenterCallbackListInput
+  ): Promise<ContactCenterPage<ContactCenterCallbackRecord>> {
+    const limit = Math.min(200, Math.max(1, input.limit ?? 50));
+    const scope = canonicalContactCenterPayloadHash({
+      tenant_id: input.tenant_id,
+      queue_id: input.queue_id ?? '',
+      state: input.state ?? ''
+    });
+    const cursor = decodeCallbackCursor(input.cursor, scope);
+    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${CALLBACK_COLUMNS}
+         FROM ivekit_cc_callbacks callback
+         WHERE callback.tenant_id = $1
+           AND ($2 = '' OR callback.queue_id = $2)
+           AND ($3 = '' OR callback.state = $3)
+           AND (callback.created_at, callback.id) < ($4::timestamptz, $5::text)
+         ORDER BY callback.created_at DESC, callback.id DESC
+         LIMIT $6`,
+        [
+          input.tenant_id, input.queue_id ?? '', input.state ?? '',
+          cursor.created_at, cursor.id, limit + 1
+        ]
+      );
+      return callbackPage(result.rows.map(decodeCallback), limit, scope);
+    });
+  }
+
+  getNextDueCallback(
+    tenantId: string,
+    now: Date
+  ): Promise<ContactCenterCallbackRecord | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${CALLBACK_COLUMNS}
+         FROM ivekit_cc_callbacks callback
+         WHERE callback.tenant_id = $1
+           AND callback.state IN ('requested', 'scheduled')
+           AND COALESCE(callback.scheduled_for, callback.created_at) <= $2
+         ORDER BY COALESCE(callback.scheduled_for, callback.created_at), callback.id
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1`,
+        [tenantId, now]
+      );
+      return result.rows[0] ? decodeCallback(result.rows[0]) : null;
+    });
+  }
+
+  listCallbacksForReconciliation(
+    tenantId: string,
+    limit: number
+  ): Promise<ContactCenterCallbackRecord[]> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${CALLBACK_COLUMNS}
+         FROM ivekit_cc_callbacks callback
+         WHERE callback.tenant_id = $1
+           AND callback.state IN ('dialing', 'connected')
+           AND callback.outbound_call_id IS NOT NULL
+         ORDER BY callback.updated_at, callback.id
+         FOR UPDATE SKIP LOCKED
+         LIMIT $2`,
+        [tenantId, limit]
+      );
+      return result.rows.map(decodeCallback);
     });
   }
 
@@ -553,6 +735,25 @@ function decodePresence(row: ContactCenterPgRow): ContactCenterAgentPresence {
   };
 }
 
+function decodeCallback(row: ContactCenterPgRow): ContactCenterCallbackRecord {
+  return {
+    id: String(row.id), tenant_id: String(row.tenant_id), queue_id: String(row.queue_id),
+    queue_entry_id: String(row.queue_entry_id), source_call_id: String(row.source_call_id),
+    outbound_call_id: row.outbound_call_id ? String(row.outbound_call_id) : null,
+    business_ref_type: String(row.business_ref_type), business_ref_id: String(row.business_ref_id),
+    address_kind: row.address_kind as ContactCenterCallbackRecord['address_kind'],
+    address_ciphertext: String(row.address_ciphertext), address_hmac: String(row.address_hmac),
+    address_redacted: String(row.address_redacted),
+    state: row.state as ContactCenterCallbackRecord['state'],
+    scheduled_for: ccNullableTimestamp(row.scheduled_for),
+    attempt_count: ccNumber(row.attempt_count), max_attempts: ccNumber(row.max_attempts),
+    idempotency_key: String(row.idempotency_key), requested_by: String(row.requested_by || ''),
+    cancelled_by: String(row.cancelled_by || ''), failure_code: String(row.failure_code || ''),
+    revision: ccNumber(row.revision), created_at: ccTimestamp(row.created_at),
+    updated_at: ccTimestamp(row.updated_at), completed_at: ccNullableTimestamp(row.completed_at)
+  };
+}
+
 function decodeCandidate(row: ContactCenterPgRow): ContactCenterRoutingCandidate {
   const skills = Object.fromEntries(Object.entries(ccJsonRecord(row.skills)).map(([key, value]) => [key, ccNumber(value)]));
   return {
@@ -581,6 +782,19 @@ function assignmentParameters(assignment: ContactCenterAssignment): unknown[] {
     assignment.offer_expires_at, assignment.accepted_at, assignment.connected_at,
     assignment.completed_at, assignment.outcome_reason, assignment.revision,
     assignment.created_at, assignment.updated_at
+  ];
+}
+
+function callbackParameters(callback: ContactCenterCallbackRecord): unknown[] {
+  return [
+    callback.id, callback.tenant_id, callback.queue_id, callback.queue_entry_id,
+    callback.source_call_id, callback.outbound_call_id, callback.business_ref_type,
+    callback.business_ref_id, callback.address_kind, callback.address_ciphertext,
+    callback.address_hmac, callback.address_redacted, callback.state,
+    callback.scheduled_for, callback.attempt_count, callback.max_attempts,
+    callback.idempotency_key, callback.requested_by, callback.cancelled_by,
+    callback.failure_code, callback.revision, callback.created_at,
+    callback.updated_at, callback.completed_at
   ];
 }
 
@@ -617,6 +831,39 @@ function entryPage(
     items,
     next_cursor: hasMore && last ? Buffer.from(JSON.stringify({
       v: 1, scope, entered_at: last.entered_at, id: last.id
+    }), 'utf8').toString('base64url') : null
+  };
+}
+
+function decodeCallbackCursor(
+  cursor: string | undefined,
+  scope: string
+): { created_at: string; id: string } {
+  if (!cursor) return { created_at: '9999-12-31T23:59:59.999Z', id: '\uffff' };
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Record<string, unknown>;
+    if (value.v !== 1 || value.scope !== scope || typeof value.created_at !== 'string' ||
+      typeof value.id !== 'string') throw new Error('invalid cursor');
+    return { created_at: ccTimestamp(value.created_at), id: value.id };
+  } catch {
+    throw new ContactCenterError({
+      code: 'validation_failed', status: 400, details: { field: 'cursor' }
+    });
+  }
+}
+
+function callbackPage(
+  rows: ContactCenterCallbackRecord[],
+  limit: number,
+  scope: string
+): ContactCenterPage<ContactCenterCallbackRecord> {
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const last = items.at(-1);
+  return {
+    items,
+    next_cursor: hasMore && last ? Buffer.from(JSON.stringify({
+      v: 1, scope, created_at: last.created_at, id: last.id
     }), 'utf8').toString('base64url') : null
   };
 }

@@ -53,6 +53,7 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('052_ivekit_contact_center.sql'), true);
   assert.equal(migrations.includes('053_ivekit_contact_center_configuration_idempotency.sql'), true);
   assert.equal(migrations.includes('054_ivekit_contact_center_worker.sql'), true);
+  assert.equal(migrations.includes('055_ivekit_contact_center_callbacks.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -77,6 +78,8 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('053_ivekit_contact_center_configuration_idempotency.sql') <
       migrations.indexOf('054_ivekit_contact_center_worker.sql') &&
       migrations.indexOf('054_ivekit_contact_center_worker.sql') <
+      migrations.indexOf('055_ivekit_contact_center_callbacks.sql') &&
+      migrations.indexOf('055_ivekit_contact_center_callbacks.sql') <
       migrations.indexOf('090_ivekit_runtime_security.sql'),
     true
   );

@@ -180,6 +180,7 @@ contactCenter:
     tenantLimit: "100"
     batchSize: "100"
     offerTtlSeconds: "20"
+    callbackRetryDelayMs: "30000"
 
 media:
   apiToken: ""

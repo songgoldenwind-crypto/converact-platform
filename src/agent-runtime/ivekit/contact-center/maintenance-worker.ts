@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
+import { createPostgresContactCenterCallbackService } from './callback-runtime.js';
 import { PostgresContactCenterUnitOfWork } from './postgres/unit-of-work.js';
 import {
   ContactCenterQueueService,
@@ -14,6 +15,7 @@ export interface ContactCenterMaintenanceWorkerConfig {
   tenant_limit: number;
   batch_size: number;
   offer_ttl_seconds: number;
+  callback_retry_delay_ms: number;
 }
 
 export interface ContactCenterMaintenanceSummary {
@@ -23,6 +25,11 @@ export interface ContactCenterMaintenanceSummary {
   timed_out_entries: number;
   queues_scanned: number;
   offers_created: number;
+  callbacks_processed: number;
+  callbacks_started: number;
+  callbacks_retried: number;
+  callbacks_failed: number;
+  callbacks_reconciled: number;
 }
 
 export interface ContactCenterMaintenanceService {
@@ -38,6 +45,18 @@ export interface ContactCenterMaintenanceService {
     idempotency_key: string;
     offer_ttl_seconds: number;
   }): Promise<ContactCenterOfferResult | null>;
+}
+
+export interface ContactCenterCallbackMaintenanceService {
+  processDue(input: {
+    tenant_id: string;
+    limit: number;
+    retry_delay_ms: number;
+  }): Promise<{ processed: number; started: number; retried: number; failed: number }>;
+  reconcile(input: {
+    tenant_id: string;
+    limit: number;
+  }): Promise<{ scanned: number; updated: number }>;
 }
 
 export class ContactCenterMaintenanceWorker {
@@ -92,8 +111,10 @@ export async function runContactCenterMaintenanceBatch(input: {
   tenant_limit: number;
   batch_size: number;
   offer_ttl_seconds: number;
+  callback_retry_delay_ms: number;
   list_tenants?: (now: Date, limit: number) => Promise<string[]>;
   create_service?: (tenantId: string) => ContactCenterMaintenanceService;
+  create_callback_service?: (tenantId: string) => ContactCenterCallbackMaintenanceService;
   idempotency_key?: (tenantId: string, queueId: string) => string;
   on_tenant_error?: (tenantId: string, error: unknown) => void;
 }): Promise<ContactCenterMaintenanceSummary> {
@@ -108,7 +129,12 @@ export async function runContactCenterMaintenanceBatch(input: {
     expired_offers: 0,
     timed_out_entries: 0,
     queues_scanned: 0,
-    offers_created: 0
+    offers_created: 0,
+    callbacks_processed: 0,
+    callbacks_started: 0,
+    callbacks_retried: 0,
+    callbacks_failed: 0,
+    callbacks_reconciled: 0
   };
   for (const tenantId of tenants) {
     try {
@@ -123,6 +149,21 @@ export async function runContactCenterMaintenanceBatch(input: {
         tenant_id: tenantId,
         limit: input.batch_size
       })).length;
+      const callbacks = input.create_callback_service?.(tenantId) ??
+        createPostgresContactCenterCallbackService(input.pg, { now: () => now });
+      const processedCallbacks = await callbacks.processDue({
+        tenant_id: tenantId,
+        limit: input.batch_size,
+        retry_delay_ms: input.callback_retry_delay_ms
+      });
+      summary.callbacks_processed += processedCallbacks.processed;
+      summary.callbacks_started += processedCallbacks.started;
+      summary.callbacks_retried += processedCallbacks.retried;
+      summary.callbacks_failed += processedCallbacks.failed;
+      summary.callbacks_reconciled += (await callbacks.reconcile({
+        tenant_id: tenantId,
+        limit: input.batch_size
+      })).updated;
       const queueIds = await service.listRoutableQueueIds({
         tenant_id: tenantId,
         limit: input.batch_size
@@ -174,7 +215,14 @@ export function contactCenterMaintenanceWorkerConfig(
     batch_size: bounded(env.OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE, 100, 1, 1_000,
       'OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE'),
     offer_ttl_seconds: bounded(env.OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS, 20, 1, 300,
-      'OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS')
+      'OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS'),
+    callback_retry_delay_ms: bounded(
+      env.OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS,
+      30_000,
+      1_000,
+      3_600_000,
+      'OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS'
+    )
   };
 }
 
@@ -190,6 +238,7 @@ export function startContactCenterMaintenanceWorker(input: {
       tenant_limit: config.tenant_limit,
       batch_size: config.batch_size,
       offer_ttl_seconds: config.offer_ttl_seconds,
+      callback_retry_delay_ms: config.callback_retry_delay_ms,
       on_tenant_error: (tenantId, error) => {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[ivekit-contact-center] tenant ${tenantId} failed:`, message.slice(0, 500));

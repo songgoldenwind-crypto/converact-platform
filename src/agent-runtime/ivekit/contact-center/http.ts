@@ -1,5 +1,7 @@
 import type { PgQueryable } from '../../../db-pg.js';
 import { resolveAuthContext, type AuthContext } from '../../../middleware/auth.js';
+import { ContactCenterCallbackService } from './callback-service.js';
+import { createPostgresContactCenterCallbackService } from './callback-runtime.js';
 import { ContactCenterConfigurationService } from './configuration-service.js';
 import { ContactCenterError } from './errors.js';
 import { PostgresContactCenterConfigurationUnitOfWork } from './postgres/configuration-unit-of-work.js';
@@ -7,6 +9,7 @@ import { PostgresContactCenterUnitOfWork } from './postgres/unit-of-work.js';
 import { ContactCenterQueueService } from './queue-service.js';
 import type {
   ContactCenterAgent,
+  ContactCenterCallbackListInput,
   ContactCenterQueue,
   ContactCenterQueueEntryListInput,
   ContactCenterRoutingStrategy
@@ -17,6 +20,7 @@ type Headers = Record<string, string | string[] | undefined>;
 export interface ContactCenterHttpModule {
   configuration: ContactCenterConfigurationService;
   queues: ContactCenterQueueService;
+  callbacks: ContactCenterCallbackService;
 }
 
 export interface RouteIveKitContactCenterApiOptions {
@@ -49,12 +53,57 @@ export async function routeIveKitContactCenterApi(
         agents: true, skills: true, presence: true, queues: true,
         memberships: true, skill_requirements: true, acd_routing: true,
         queue_entries: true,
-        callbacks: false, supervisor: false
+        callbacks: true, supervisor: false
       }
     } };
   }
 
   const module = await resolveModule(pg, context.tenantId, options);
+
+  if (routePath === '/api/ivekit/contact-center/callbacks') {
+    if (method === 'GET') return { data: await module.callbacks.list(callbackListInput(context.tenantId, url)) };
+    if (method === 'POST') {
+      requireOperator(context);
+      const input = record(body);
+      const address = record(input.address);
+      return { status: 201, data: await module.callbacks.request({
+        tenant_id: context.tenantId,
+        queue_entry_id: requiredString(input.queue_entry_id),
+        source_call_id: requiredString(input.source_call_id),
+        address: {
+          kind: requiredString(address.kind) as 'e164' | 'extension' | 'sip_uri',
+          value: requiredString(address.value)
+        },
+        ...(input.scheduled_for === undefined
+          ? {} : { scheduled_for: requiredString(input.scheduled_for) }),
+        ...(input.max_attempts === undefined
+          ? {} : { max_attempts: requiredInteger(input.max_attempts, 1, 20) }),
+        actor: context.userId,
+        idempotency_key: idempotencyKey(headers)
+      }) };
+    }
+  }
+
+  const callbackMatch = routePath.match(
+    /^\/api\/ivekit\/contact-center\/callbacks\/([^/]+)(?:\/(cancel))?$/
+  );
+  if (callbackMatch) {
+    const callbackId = decodeSegment(callbackMatch[1]!);
+    const action = callbackMatch[2] || '';
+    if (!action && method === 'GET') return {
+      data: await module.callbacks.get(context.tenantId, callbackId)
+    };
+    if (action === 'cancel' && method === 'POST') {
+      requireOperator(context);
+      const input = record(body);
+      return { data: await module.callbacks.cancel({
+        tenant_id: context.tenantId,
+        callback_id: callbackId,
+        actor: context.userId,
+        ...(input.reason === undefined ? {} : { reason: requiredString(input.reason) })
+      }) };
+    }
+  }
 
   if (routePath === '/api/ivekit/contact-center/skills') {
     if (method === 'GET') return { data: await module.configuration.listSkills(
@@ -265,7 +314,8 @@ export function createPostgresContactCenterHttpModule(pg: PgQueryable): ContactC
     configuration: new ContactCenterConfigurationService(
       new PostgresContactCenterConfigurationUnitOfWork(pg)
     ),
-    queues: new ContactCenterQueueService(new PostgresContactCenterUnitOfWork(pg))
+    queues: new ContactCenterQueueService(new PostgresContactCenterUnitOfWork(pg)),
+    callbacks: createPostgresContactCenterCallbackService(pg)
   };
 }
 
@@ -370,6 +420,22 @@ function queueEntryListInput(
     limit: input.limit,
     ...(input.cursor ? { cursor: input.cursor } : {}),
     ...(state ? { state: state as ContactCenterQueueEntryListInput['state'] } : {})
+  };
+}
+
+function callbackListInput(
+  tenantId: string,
+  url: URL
+): ContactCenterCallbackListInput {
+  const input = listInput(tenantId, url);
+  const queueId = url.searchParams.get('queue_id') || '';
+  const state = url.searchParams.get('state') || '';
+  return {
+    tenant_id: tenantId,
+    limit: input.limit,
+    ...(input.cursor ? { cursor: input.cursor } : {}),
+    ...(queueId ? { queue_id: queueId } : {}),
+    ...(state ? { state: state as ContactCenterCallbackListInput['state'] } : {})
   };
 }
 

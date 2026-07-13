@@ -8,6 +8,7 @@ import {
 } from 'node:crypto';
 
 import { VoiceError } from './errors.js';
+import type { VoiceAddressProtector } from './ports.js';
 import type { VoiceAddressKind } from './types.js';
 
 export interface EncryptedVoiceAddressProtectorOptions {
@@ -71,6 +72,24 @@ export class EncryptedVoiceAddressProtector {
       throw new VoiceError({ code: 'address_decryption_failed', status: 422 });
     }
   }
+}
+
+export function configuredVoiceAddressProtector(
+  env: NodeJS.ProcessEnv = process.env
+): VoiceAddressProtector {
+  const encryptionKey = String(
+    env.OPC_IVEKIT_VOICE_ADDRESS_KEY
+    || env.OPC_IVEKIT_VOICE_ADDRESS_ENCRYPTION_KEY
+    || ''
+  );
+  const hmacKey = String(env.OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY || '');
+  if (encryptionKey && hmacKey) {
+    return new EncryptedVoiceAddressProtector({ encryption_key: encryptionKey, hmac_key: hmacKey });
+  }
+  const unavailable = async (): Promise<never> => {
+    throw new VoiceError({ code: 'secret_unavailable', retryable: true, status: 503 });
+  };
+  return { protect: unavailable, reveal: unavailable };
 }
 
 function decodeRootKey(value: string): Buffer {

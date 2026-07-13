@@ -171,7 +171,7 @@ test('Contact Center HTTP advertises implemented and pending capability truth', 
   ) as { data: { capabilities: Record<string, boolean> } };
   assert.equal(result.data.capabilities.acd_routing, true);
   assert.equal(result.data.capabilities.queue_entries, true);
-  assert.equal(result.data.capabilities.callbacks, false);
+  assert.equal(result.data.capabilities.callbacks, true);
   assert.equal(result.data.capabilities.supervisor, false);
 });
 
@@ -195,6 +195,67 @@ test('Contact Center HTTP lists tenant-bound queue entry snapshots', async (t) =
   assert.deepEqual(observed, [{
     tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'waiting', limit: 25
   }]);
+});
+
+test('Contact Center HTTP creates lists and cancels callbacks under authenticated tenant', async (t) => {
+  const token = installAuth(t, 'identity-a', 'operator');
+  const observed: Array<Record<string, unknown>> = [];
+  const module = {
+    callbacks: {
+      async request(input: Record<string, unknown>) {
+        observed.push({ operation: 'request', ...input });
+        return { callback: { id: 'callback-a', address: { kind: 'e164', redacted: '+86******9000' } }, replayed: false };
+      },
+      async list(input: Record<string, unknown>) {
+        observed.push({ operation: 'list', ...input });
+        return { items: [], next_cursor: null };
+      },
+      async cancel(input: Record<string, unknown>) {
+        observed.push({ operation: 'cancel', ...input });
+        return { id: input.callback_id, state: 'cancelled' };
+      }
+    }
+  } as unknown as ContactCenterHttpModule;
+  const headers = { authorization: `Bearer ${token}` };
+
+  const created = await routeIveKitContactCenterApi(
+    null, 'POST', '/api/ivekit/contact-center/callbacks',
+    new URL('http://localhost/api/ivekit/contact-center/callbacks'),
+    {
+      queue_entry_id: 'entry-a', source_call_id: 'call-a',
+      address: { kind: 'e164', value: '+8613900139000' },
+      scheduled_for: '2026-07-13T00:05:00.000Z', max_attempts: 4
+    }, '', { ...headers, 'idempotency-key': 'callback-key-a' }, { module }
+  ) as { status: number; data: { callback: { address: { redacted: string } } } };
+  assert.equal(created.status, 201);
+  assert.equal(created.data.callback.address.redacted, '+86******9000');
+
+  await routeIveKitContactCenterApi(
+    null, 'GET', '/api/ivekit/contact-center/callbacks',
+    new URL('http://localhost/api/ivekit/contact-center/callbacks?queue_id=queue-a&state=scheduled&limit=20'),
+    {}, '', headers, { module }
+  );
+  await routeIveKitContactCenterApi(
+    null, 'POST', '/api/ivekit/contact-center/callbacks/callback-a/cancel',
+    new URL('http://localhost/api/ivekit/contact-center/callbacks/callback-a/cancel'),
+    { reason: 'customer_changed_mind' }, '', headers, { module }
+  );
+
+  assert.deepEqual(observed, [
+    {
+      operation: 'request', tenant_id: 'tenant-a', queue_entry_id: 'entry-a',
+      source_call_id: 'call-a', address: { kind: 'e164', value: '+8613900139000' },
+      scheduled_for: '2026-07-13T00:05:00.000Z', max_attempts: 4,
+      actor: 'identity-a',
+      idempotency_key: 'callback-key-a'
+    },
+    { operation: 'list', tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'scheduled', limit: 20 },
+    {
+      operation: 'cancel', tenant_id: 'tenant-a', callback_id: 'callback-a',
+      actor: 'identity-a',
+      reason: 'customer_changed_mind'
+    }
+  ]);
 });
 
 function installAuth(

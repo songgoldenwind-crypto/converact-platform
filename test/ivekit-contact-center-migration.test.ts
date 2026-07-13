@@ -6,6 +6,7 @@ const migrationPath = 'src/migrations/052_ivekit_contact_center.sql';
 const idempotencyMigrationPath =
   'src/migrations/053_ivekit_contact_center_configuration_idempotency.sql';
 const workerMigrationPath = 'src/migrations/054_ivekit_contact_center_worker.sql';
+const callbackMigrationPath = 'src/migrations/055_ivekit_contact_center_callbacks.sql';
 const tables = [
   'ivekit_cc_skills',
   'ivekit_cc_agents',
@@ -110,6 +111,31 @@ test('Contact Center worker migration discovers only tenants with due maintenanc
   assert.ok(sourcePolicy.indexOf('053_ivekit_contact_center_configuration_idempotency.sql') <
     sourcePolicy.indexOf('054_ivekit_contact_center_worker.sql'));
   assert.ok(sourcePolicy.indexOf('054_ivekit_contact_center_worker.sql') <
+    sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
+});
+
+test('Contact Center callback migration discovers due and active callback tenants', () => {
+  assert.equal(existsSync(callbackMigrationPath), true, callbackMigrationPath);
+  const sql = readFileSync(callbackMigrationPath, 'utf8');
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_ivekit_cc_callbacks_reconcile/i);
+  assert.match(sql, /CREATE TRIGGER ivekit_cc_callbacks_immutable_delete[\s\S]*BEFORE DELETE ON ivekit_cc_callbacks/i);
+  assert.match(sql, /callback\.state IN \('requested', 'scheduled'\)/i);
+  assert.match(sql, /COALESCE\(callback\.scheduled_for, callback\.created_at\) <= p_now/i);
+  assert.match(sql, /callback\.state IN \('dialing', 'connected'\)/i);
+  assert.match(sql, /callback\.outbound_call_id IS NOT NULL/i);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS requested_by TEXT NOT NULL DEFAULT ''/i);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS cancelled_by TEXT NOT NULL DEFAULT ''/i);
+  assert.match(sql, /SECURITY DEFINER/i);
+  assert.match(sql, /REVOKE ALL ON FUNCTION opc_ivekit_cc_worker_tenant_ids/i);
+
+  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
+  for (const source of [sourcePolicy, delivery]) {
+    assert.match(source, /055_ivekit_contact_center_callbacks\.sql/);
+  }
+  assert.ok(sourcePolicy.indexOf('054_ivekit_contact_center_worker.sql') <
+    sourcePolicy.indexOf('055_ivekit_contact_center_callbacks.sql'));
+  assert.ok(sourcePolicy.indexOf('055_ivekit_contact_center_callbacks.sql') <
     sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
 });
 
