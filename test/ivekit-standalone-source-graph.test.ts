@@ -29,9 +29,9 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
     'src/agent-runtime/ivekit/voice/ports.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
     'src/agent-runtime/ivekit/ivr/types.ts',
+    'src/agent-runtime/ivekit/ivr/graph-types.ts',
     'src/agent-runtime/ivekit/ivr/ports.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts',
-    'shared/ivr/graph-types.ts'
+    'src/agent-runtime/ivekit/ivr/index.ts'
   ]) assert.equal(graph.files.includes(path), true, path);
   assert.equal(graph.files.includes('src/server.ts'), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/call-center/')), false);

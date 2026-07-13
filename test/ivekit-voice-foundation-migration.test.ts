@@ -201,8 +201,8 @@ test('IVR published graphs and execution steps are immutable', () => {
   );
 });
 
-test('shared IVR graph schema declares the approved 25 node types', () => {
-  const source = readFileSync('shared/ivr/graph-types.ts', 'utf8');
+test('iveKit IVR graph schema declares the approved 25 node types', () => {
+  const source = readFileSync('src/agent-runtime/ivekit/ivr/graph-types.ts', 'utf8');
   const union = source.match(/export type IvrNodeType =([\s\S]*?);/);
   assert.ok(union, 'IvrNodeType union');
   const nodeTypes = [...union[1].matchAll(/'([^']+)'/g)].map((match) => match[1]);

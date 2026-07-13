@@ -5,9 +5,9 @@ export type {
   IvrNodeBase,
   IvrNodeType,
   IvrVariable
-} from '../../../../shared/ivr/graph-types.js';
+} from './graph-types.js';
 
-import type { IvrFlowGraph } from '../../../../shared/ivr/graph-types.js';
+import type { IvrFlowGraph } from './graph-types.js';
 
 export type IvrSessionState = 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled';
 

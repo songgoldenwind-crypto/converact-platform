@@ -23,9 +23,9 @@ test('Voice Foundation source graph owns new modules and excludes OPC legacy run
     'src/agent-runtime/ivekit/voice/ports.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
     'src/agent-runtime/ivekit/ivr/types.ts',
+    'src/agent-runtime/ivekit/ivr/graph-types.ts',
     'src/agent-runtime/ivekit/ivr/ports.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts',
-    'shared/ivr/graph-types.ts'
+    'src/agent-runtime/ivekit/ivr/index.ts'
   ]) assert.equal(graph.files.includes(required), true, required);
 
   for (const forbidden of [
@@ -43,6 +43,7 @@ test('Voice Foundation public files do not import forbidden runtime modules', ()
     'src/agent-runtime/ivekit/voice/ports.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
     'src/agent-runtime/ivekit/ivr/types.ts',
+    'src/agent-runtime/ivekit/ivr/graph-types.ts',
     'src/agent-runtime/ivekit/ivr/ports.ts',
     'src/agent-runtime/ivekit/ivr/index.ts'
   ];
