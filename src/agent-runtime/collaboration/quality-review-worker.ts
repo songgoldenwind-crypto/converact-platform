@@ -1,7 +1,8 @@
 import type { PgQueryable } from '../../db-pg.js';
+import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
+import { createPolicyQualityReviewProviderResolver } from './intelligence-provider-routing.js';
 import {
   QualityReviewService,
-  configuredQualityReviewProvider,
   type QualityReviewRunSummary,
   type QualityReviewServiceInput
 } from './quality-review.js';
@@ -73,7 +74,8 @@ export class QualityReviewWorker {
 export function qualityReviewWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): QualityReviewWorkerConfig {
-  const configured = hasValue(env.OPC_QUALITY_REVIEW_BASE_URL);
+  const configured = createIntelligenceProviderRegistry(env).list()
+    .some((profile) => profile.capability === 'quality_review');
   const enabledFlag = String(env.OPC_QUALITY_REVIEW_WORKER_ENABLED || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
     throw new Error('OPC_QUALITY_REVIEW_WORKER_ENABLED must be 0 or 1');
@@ -119,9 +121,10 @@ export function startQualityReviewWorker(input: {
 }): QualityReviewWorker {
   const env = input.env || process.env;
   const config = qualityReviewWorkerConfig(env);
+  const registry = createIntelligenceProviderRegistry(env);
   const service = new QualityReviewService({
     pg: input.pg,
-    provider: configuredQualityReviewProvider(env),
+    resolveProvider: createPolicyQualityReviewProviderResolver({ pg: input.pg, registry }),
     maxAttempts: config.maxAttempts,
     claimLeaseMs: config.claimLeaseMs,
     retryDelaysMs: config.retryDelaysMs,

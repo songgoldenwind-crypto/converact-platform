@@ -54,6 +54,18 @@ export interface QualityReviewProvider {
   review(input: QualityReviewProviderInput): Promise<QualityReviewProviderOutput>;
 }
 
+export interface QualityProviderResolution {
+  enabled: boolean;
+  automatic: boolean;
+  profile_id: string;
+  provider: QualityReviewProvider | null;
+  error_code: string;
+}
+
+export type QualityReviewProviderResolver = (input: {
+  tenant_id: string;
+}) => Promise<QualityProviderResolution>;
+
 export interface CollaborationQualityReviewJob {
   id: string;
   tenant_id: string;
@@ -68,6 +80,8 @@ export interface CollaborationQualityReviewJob {
   worker_id: string;
   provider_mode: 'unconfigured' | QualityReviewProviderMode;
   provider_name: string;
+  provider_profile_id: string;
+  automatic: boolean;
   error_code: string;
   error_message: string;
   output_metadata: Record<string, unknown>;
@@ -87,6 +101,7 @@ export interface QualityReviewRunSummary {
 export interface QualityReviewServiceInput {
   pg: PgQueryable;
   provider?: QualityReviewProvider | null;
+  resolveProvider?: QualityReviewProviderResolver;
   now?: () => Date;
   maxAttempts?: number;
   retryDelaysMs?: number[];
@@ -111,55 +126,92 @@ export class QualityReviewService {
   async enqueueMessage(input: {
     tenant_id: string;
     message_id: string;
-  }): Promise<CollaborationQualityReviewJob | null> {
+  }, options: { automatic?: boolean } = {}): Promise<CollaborationQualityReviewJob | null> {
+    const automatic = options.automatic !== false;
+    const resolution = await this.resolveProvider(input.tenant_id);
     return withPgTenant(this.input.pg, input.tenant_id, async (pg) => {
       const message = await new CollaborationStore(pg).getMessage(input);
       if (!message) throw Object.assign(new Error('collaboration message not found'), { status: 404 });
       const content = qualityContent(message);
       if (!content) return null;
       const inputHash = sha256(content);
-      const provider = this.input.provider;
+      const provider = resolution.provider;
+      const cancelled = !resolution.enabled || (automatic && !resolution.automatic);
+      const status = cancelled ? 'cancelled' : 'pending';
+      const errorCode = !resolution.enabled
+        ? resolution.error_code || 'policy_disabled'
+        : automatic && !resolution.automatic
+          ? 'automatic_quality_review_disabled'
+          : provider
+            ? ''
+            : resolution.error_code || 'provider_unavailable';
       const now = this.now().toISOString();
       const result = await pg.query(
         `INSERT INTO collaboration_quality_review_jobs
           (id, tenant_id, session_id, message_id, input_hash, status, max_attempts,
-           provider_mode, provider_name, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9, $9)
+           provider_profile_id, provider_mode, provider_name, automatic, error_code,
+           created_at, updated_at, completed_at)
+         VALUES ($1, $2, $3, $4, $5, $7, $6, $8, $9, $10, $11, $12,
+                 $13, $13, CASE WHEN $7 = 'cancelled' THEN $13 ELSE NULL END)
          ON CONFLICT (tenant_id, message_id) DO UPDATE SET
            session_id = EXCLUDED.session_id,
            input_hash = EXCLUDED.input_hash,
            status = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN 'pending'
+             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN EXCLUDED.status
+             WHEN collaboration_quality_review_jobs.status = 'succeeded' THEN 'succeeded'
+             WHEN EXCLUDED.status = 'cancelled' THEN 'cancelled'
+             WHEN collaboration_quality_review_jobs.status = 'cancelled' THEN 'pending'
              ELSE collaboration_quality_review_jobs.status
            END,
            attempt_count = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN 0
+             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash
+               OR collaboration_quality_review_jobs.status = 'cancelled' THEN 0
              ELSE collaboration_quality_review_jobs.attempt_count
            END,
            next_attempt_at = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN NULL
+             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash
+               OR collaboration_quality_review_jobs.status = 'cancelled' THEN NULL
              ELSE collaboration_quality_review_jobs.next_attempt_at
            END,
            lease_until = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN NULL
+             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash
+               OR collaboration_quality_review_jobs.status = 'cancelled' THEN NULL
              ELSE collaboration_quality_review_jobs.lease_until
            END,
            worker_id = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN ''
+             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash
+               OR collaboration_quality_review_jobs.status = 'cancelled' THEN ''
              ELSE collaboration_quality_review_jobs.worker_id
            END,
+           provider_profile_id = EXCLUDED.provider_profile_id,
            provider_mode = EXCLUDED.provider_mode,
            provider_name = EXCLUDED.provider_name,
+           automatic = EXCLUDED.automatic,
            error_code = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN ''
+             WHEN collaboration_quality_review_jobs.status = 'succeeded'
+               AND collaboration_quality_review_jobs.input_hash = EXCLUDED.input_hash
+               THEN collaboration_quality_review_jobs.error_code
+             WHEN EXCLUDED.status = 'cancelled'
+               OR collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash
+               OR collaboration_quality_review_jobs.status = 'cancelled' THEN EXCLUDED.error_code
              ELSE collaboration_quality_review_jobs.error_code
            END,
            error_message = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN ''
+             WHEN collaboration_quality_review_jobs.status = 'succeeded'
+               AND collaboration_quality_review_jobs.input_hash = EXCLUDED.input_hash
+               THEN collaboration_quality_review_jobs.error_message
+             WHEN EXCLUDED.status = 'cancelled'
+               OR collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash
+               OR collaboration_quality_review_jobs.status = 'cancelled' THEN EXCLUDED.error_code
              ELSE collaboration_quality_review_jobs.error_message
            END,
            completed_at = CASE
-             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash THEN NULL
+             WHEN collaboration_quality_review_jobs.status = 'succeeded'
+               AND collaboration_quality_review_jobs.input_hash = EXCLUDED.input_hash
+               THEN collaboration_quality_review_jobs.completed_at
+             WHEN EXCLUDED.status = 'cancelled' THEN EXCLUDED.completed_at
+             WHEN collaboration_quality_review_jobs.input_hash != EXCLUDED.input_hash
+               OR collaboration_quality_review_jobs.status = 'cancelled' THEN NULL
              ELSE collaboration_quality_review_jobs.completed_at
            END,
            updated_at = EXCLUDED.updated_at
@@ -171,8 +223,12 @@ export class QualityReviewService {
           message.id,
           inputHash,
           this.maxAttempts,
+          status,
+          resolution.profile_id,
           provider?.mode || 'unconfigured',
           provider?.name || '',
+          automatic,
+          errorCode,
           now
         ]
       );
@@ -260,13 +316,32 @@ export class QualityReviewService {
       retry_wait: 0,
       failed: 0
     };
-    if (!this.input.provider) return summary;
-
     for (const candidate of candidates) {
-      const claimed = await this.claim(candidate, this.input.provider, now);
+      const resolution = await this.resolveProvider(candidate.tenant_id);
+      if (!resolution.enabled || (candidate.automatic && !resolution.automatic)) {
+        await this.cancelUnclaimed(
+          candidate,
+          !resolution.enabled
+            ? resolution.error_code || 'policy_disabled'
+            : 'automatic_quality_review_disabled',
+          now
+        );
+        continue;
+      }
+      const provider = resolution.provider;
+      if (!provider) {
+        await this.markProviderUnavailable(
+          candidate,
+          resolution.profile_id,
+          resolution.error_code || 'provider_unavailable',
+          now
+        );
+        continue;
+      }
+      const claimed = await this.claim(candidate, provider, resolution.profile_id, now);
       if (!claimed) continue;
       summary.claimed += 1;
-      const status = await this.processClaim(claimed, this.input.provider);
+      const status = await this.processClaim(claimed, provider);
       summary[status] += 1;
     }
     return summary;
@@ -290,11 +365,11 @@ export class QualityReviewService {
           tenant_id: job.tenant_id,
           session_id: job.session_id,
           message_id: job.message_id,
-          limit: 500
+          limit: 100
         })).filter((finding) => finding.source !== 'ai');
         const evidenceRefs: PolicyEvidenceRef[] = [
           { type: 'message', id: message.id },
-          ...message.attachments.map((attachment) => ({
+          ...message.attachments.slice(0, 100).map((attachment) => ({
             type: 'attachment',
             id: attachment.id,
             checksum: attachment.checksum,
@@ -307,7 +382,7 @@ export class QualityReviewService {
         const refreshed = await this.enqueueMessage({
           tenant_id: job.tenant_id,
           message_id: job.message_id
-        });
+        }, { automatic: job.automatic });
         if (!refreshed) throw qualityError('quality_input_empty', false);
         return 'retry_wait';
       }
@@ -343,9 +418,10 @@ export class QualityReviewService {
       withPgTransaction(scopedPg, async (pg) => {
         const updated = await pg.query(
           `UPDATE collaboration_quality_review_jobs
-           SET status = 'succeeded', provider_mode = $5, provider_name = $6,
-               error_code = '', error_message = '', output_metadata = $7,
-               lease_until = NULL, worker_id = '', completed_at = $8, updated_at = $8
+           SET status = 'succeeded', provider_profile_id = $5,
+               provider_mode = $6, provider_name = $7,
+               error_code = '', error_message = '', output_metadata = $8,
+               lease_until = NULL, worker_id = '', completed_at = $9, updated_at = $9
            WHERE id = $1 AND tenant_id = $2 AND status = 'processing'
              AND worker_id = $3 AND input_hash = $4
            RETURNING *`,
@@ -354,11 +430,12 @@ export class QualityReviewService {
             job.tenant_id,
             job.worker_id,
             job.input_hash,
+            provider.profile_id || job.provider_profile_id,
             provider.mode,
             provider.name,
             JSON.stringify(sanitizePolicyMetadata({
-              finding_count: output.findings.length,
-              ...(output.metadata || {})
+              ...sanitizeProviderMetadata(output.metadata || {}),
+              finding_count: Math.min(output.findings.length, 100)
             })),
             now
           ]
@@ -366,8 +443,9 @@ export class QualityReviewService {
         if (!updated.rows[0]) throw qualityError('quality_job_claim_lost', true);
         const findingStore = new PolicyFindingStore(pg);
         const findings: CollaborationPolicyFinding[] = [];
-        for (const [index, candidate] of output.findings.slice(0, 100).entries()) {
-          const policyType = String(candidate.policy_type || '').trim();
+        for (const [index, rawCandidate] of output.findings.slice(0, 100).entries()) {
+          const candidate = normalizeCandidate(rawCandidate);
+          const policyType = candidate.policy_type;
           if (!policyType) continue;
           const matchedHash = candidate.matched_text
             ? sha256(candidate.matched_text.trim().toLowerCase())
@@ -386,10 +464,11 @@ export class QualityReviewService {
             rationale: candidate.rationale,
             evidence_refs: evidenceRefs,
             metadata: {
+              ...(candidate.metadata || {}),
               provider: provider.name,
               provider_mode: provider.mode,
-              recommended_action: String(candidate.recommended_action || 'review'),
-              ...(candidate.metadata || {})
+              provider_profile_id: provider.profile_id || job.provider_profile_id,
+              recommended_action: String(candidate.recommended_action || 'review')
             }
           }));
         }
@@ -401,6 +480,7 @@ export class QualityReviewService {
   private async claim(
     job: CollaborationQualityReviewJob,
     provider: QualityReviewProvider,
+    profileId: string,
     now: Date
   ): Promise<CollaborationQualityReviewJob | null> {
     return withPgTenant(this.input.pg, job.tenant_id, async (pg) => {
@@ -410,12 +490,21 @@ export class QualityReviewService {
         `UPDATE collaboration_quality_review_jobs
          SET status = 'processing', attempt_count = attempt_count + 1,
              lease_until = $4, worker_id = $3, next_attempt_at = NULL,
-             provider_mode = $5, provider_name = $6,
-             error_code = '', error_message = '', updated_at = $7
+             provider_profile_id = $5, provider_mode = $6, provider_name = $7,
+             error_code = '', error_message = '', updated_at = $8
          WHERE id = $1 AND tenant_id = $2 AND attempt_count < max_attempts
-           AND (status = 'pending' OR (status = 'retry_wait' AND (next_attempt_at IS NULL OR next_attempt_at <= $7)))
+           AND (status = 'pending' OR (status = 'retry_wait' AND (next_attempt_at IS NULL OR next_attempt_at <= $8)))
          RETURNING *`,
-        [job.id, job.tenant_id, workerId, leaseUntil, provider.mode, provider.name, now.toISOString()]
+        [
+          job.id,
+          job.tenant_id,
+          workerId,
+          leaseUntil,
+          profileId || provider.profile_id || '',
+          provider.mode,
+          provider.name,
+          now.toISOString()
+        ]
       );
       return result.rows[0] ? decodeJob(result.rows[0]) : null;
     });
@@ -496,6 +585,46 @@ export class QualityReviewService {
     else await withPgBypass(this.input.pg, reconcile);
   }
 
+  private async cancelUnclaimed(
+    job: CollaborationQualityReviewJob,
+    errorCode: string,
+    now: Date
+  ): Promise<void> {
+    await withPgTenant(this.input.pg, job.tenant_id, (pg) => pg.query(
+      `UPDATE collaboration_quality_review_jobs
+       SET status = 'cancelled', error_code = $3, error_message = $3,
+           next_attempt_at = NULL, completed_at = $4, updated_at = $4
+       WHERE id = $1 AND tenant_id = $2 AND status IN ('pending', 'retry_wait')`,
+      [job.id, job.tenant_id, errorCode, now.toISOString()]
+    ));
+  }
+
+  private async markProviderUnavailable(
+    job: CollaborationQualityReviewJob,
+    profileId: string,
+    errorCode: string,
+    now: Date
+  ): Promise<void> {
+    await withPgTenant(this.input.pg, job.tenant_id, (pg) => pg.query(
+      `UPDATE collaboration_quality_review_jobs
+       SET provider_profile_id = $3, error_code = $4, error_message = $4, updated_at = $5
+       WHERE id = $1 AND tenant_id = $2 AND status IN ('pending', 'retry_wait')`,
+      [job.id, job.tenant_id, profileId, errorCode, now.toISOString()]
+    ));
+  }
+
+  private async resolveProvider(tenantId: string): Promise<QualityProviderResolution> {
+    if (this.input.resolveProvider) return this.input.resolveProvider({ tenant_id: tenantId });
+    const provider = this.input.provider || null;
+    return {
+      enabled: true,
+      automatic: true,
+      profile_id: provider?.profile_id || '',
+      provider,
+      error_code: provider ? '' : 'provider_unavailable'
+    };
+  }
+
   private now(): Date {
     return this.input.now?.() || new Date();
   }
@@ -531,9 +660,9 @@ export function createHttpQualityReviewProvider(
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       timer.unref?.();
-      let response: Response;
+      let payload: unknown;
       try {
-        response = await fetchImpl(endpoint, {
+        const response = await fetchImpl(endpoint, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -545,44 +674,42 @@ export function createHttpQualityReviewProvider(
             message_id: input.message_id,
             content: input.content,
             content_hash: input.content_hash,
-            rule_findings: input.rule_findings.map((finding) => ({
+            rule_findings: input.rule_findings.slice(0, 100).map((finding) => ({
               policy_type: finding.policy_type,
               severity: finding.severity,
               matched_text_hash: finding.matched_text_hash,
               source: finding.source
             })),
-            evidence_refs: input.evidence_refs
+            evidence_refs: input.evidence_refs.slice(0, 101)
           }),
           signal: controller.signal
         });
-      } catch {
+        if (!response.ok) {
+          throw qualityError(
+            `provider_http_${response.status}`,
+            response.status === 408 || response.status === 425 || response.status === 429 || response.status >= 500
+          );
+        }
+        payload = await readBoundedJson(response, 1_048_576);
+      } catch (error) {
+        if (isQualityError(error)) throw error;
         throw qualityError(controller.signal.aborted ? 'provider_timeout' : 'provider_unavailable', true);
       } finally {
         clearTimeout(timer);
-      }
-      if (!response.ok) {
-        throw qualityError(
-          `provider_http_${response.status}`,
-          response.status === 408 || response.status === 425 || response.status === 429 || response.status >= 500
-        );
-      }
-      let payload: unknown;
-      try {
-        payload = await response.json();
-      } catch {
-        throw qualityError('provider_invalid_response', false);
       }
       if (!isRecord(payload) || !Array.isArray(payload.findings)) {
         throw qualityError('provider_invalid_response', false);
       }
       return {
-        findings: payload.findings.filter(isRecord).map((finding) => ({
-          policy_type: String(finding.policy_type || ''),
+        findings: payload.findings.slice(0, 100).filter(isRecord).map((finding) => normalizeCandidate({
+          policy_type: boundedText(finding.policy_type, 100),
           severity: normalizeSeverity(finding.severity),
-          confidence: finiteNumber(finding.confidence),
-          recommended_action: String(finding.recommended_action || 'review'),
-          rationale: String(finding.rationale || ''),
-          matched_text: typeof finding.matched_text === 'string' ? finding.matched_text : undefined,
+          confidence: boundedConfidence(finding.confidence),
+          recommended_action: boundedText(finding.recommended_action || 'review', 100),
+          rationale: boundedText(finding.rationale, 1_000),
+          matched_text: typeof finding.matched_text === 'string'
+            ? boundedText(finding.matched_text, 2_000)
+            : undefined,
           metadata: isRecord(finding.metadata)
             ? sanitizeProviderMetadata(finding.metadata, { secretValues: [config.token || ''] })
             : {}
@@ -622,7 +749,7 @@ function qualityContent(message: Awaited<ReturnType<CollaborationStore['getMessa
       legacyExtractedText(attachment.metadata);
     if (extracted) chunks.push(extracted);
   }
-  return chunks.map((chunk) => String(chunk || '').trim()).filter(Boolean).join('\n').slice(0, 500_000);
+  return chunks.map((chunk) => String(chunk || '').trim()).filter(Boolean).join('\n').slice(0, 200_000);
 }
 
 function legacyExtractedText(metadata: Record<string, unknown>): string {
@@ -647,6 +774,8 @@ function decodeJob(row: Record<string, unknown>): CollaborationQualityReviewJob 
     worker_id: String(row.worker_id || ''),
     provider_mode: String(row.provider_mode || 'unconfigured') as CollaborationQualityReviewJob['provider_mode'],
     provider_name: String(row.provider_name || ''),
+    provider_profile_id: String(row.provider_profile_id || ''),
+    automatic: row.automatic !== false && row.automatic !== 'false' && row.automatic !== 0,
     error_code: String(row.error_code || ''),
     error_message: String(row.error_message || ''),
     output_metadata: parseRecord(row.output_metadata),
@@ -660,13 +789,66 @@ function normalizeSeverity(value: unknown): PolicySeverity {
   return value === 'high' || value === 'medium' || value === 'low' ? value : 'medium';
 }
 
-function finiteNumber(value: unknown): number | undefined {
+function boundedConfidence(value: unknown): number | undefined {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : undefined;
+}
+
+function normalizeCandidate(candidate: QualityReviewCandidate): QualityReviewCandidate {
+  return {
+    policy_type: boundedText(candidate.policy_type, 100),
+    severity: normalizeSeverity(candidate.severity),
+    confidence: boundedConfidence(candidate.confidence),
+    recommended_action: boundedText(candidate.recommended_action || 'review', 100),
+    rationale: boundedText(candidate.rationale, 1_000),
+    matched_text: candidate.matched_text === undefined
+      ? undefined
+      : boundedText(candidate.matched_text, 2_000),
+    metadata: sanitizeProviderMetadata(candidate.metadata || {})
+  };
+}
+
+function boundedText(value: unknown, maxLength: number): string {
+  return String(value || '').trim().slice(0, maxLength);
 }
 
 function qualityError(code: string, retryable: boolean): Error {
   return Object.assign(new Error(code), { code, retryable });
+}
+
+function isQualityError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && 'retryable' in error);
+}
+
+async function readBoundedJson(response: Response, maxBytes: number): Promise<unknown> {
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw qualityError('provider_response_too_large', false);
+  }
+  if (!response.body) throw qualityError('provider_invalid_response', false);
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      length += value.byteLength;
+      if (length > maxBytes) {
+        await reader.cancel();
+        throw qualityError('provider_response_too_large', false);
+      }
+      chunks.push(value);
+    }
+    const body = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString('utf8');
+    return JSON.parse(body) as unknown;
+  } catch (error) {
+    if (isQualityError(error)) throw error;
+    throw qualityError('provider_invalid_response', false);
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 function classifyError(error: unknown): { code: string; message: string; retryable: boolean } {

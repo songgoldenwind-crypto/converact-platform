@@ -2213,21 +2213,40 @@ export class MemoryPg implements PgQueryable {
       );
       if (existing) {
         const changed = String(existing.input_hash) !== String(params[4]);
+        const wasCancelled = String(existing.status) === 'cancelled';
+        const wasSucceeded = String(existing.status) === 'succeeded';
+        const incomingStatus = String(params[6]);
         existing.session_id = params[2];
         existing.input_hash = params[4];
         if (changed) {
+          existing.status = incomingStatus;
+          existing.attempt_count = 0;
+          existing.next_attempt_at = null;
+          existing.lease_until = null;
+          existing.worker_id = '';
+          existing.error_code = params[11];
+          existing.error_message = params[11];
+          existing.completed_at = incomingStatus === 'cancelled' ? params[12] : null;
+        } else if (!wasSucceeded && incomingStatus === 'cancelled') {
+          existing.status = 'cancelled';
+          existing.error_code = params[11];
+          existing.error_message = params[11];
+          existing.completed_at = params[12];
+        } else if (!wasSucceeded && wasCancelled) {
           existing.status = 'pending';
           existing.attempt_count = 0;
           existing.next_attempt_at = null;
           existing.lease_until = null;
           existing.worker_id = '';
-          existing.error_code = '';
-          existing.error_message = '';
+          existing.error_code = params[11];
+          existing.error_message = params[11];
           existing.completed_at = null;
         }
-        existing.provider_mode = params[6];
-        existing.provider_name = params[7];
-        existing.updated_at = params[8];
+        existing.provider_profile_id = params[7];
+        existing.provider_mode = params[8];
+        existing.provider_name = params[9];
+        existing.automatic = params[10];
+        existing.updated_at = params[12];
         return { rows: [existing], rowCount: 1 };
       }
       const row: TableRow = {
@@ -2236,20 +2255,22 @@ export class MemoryPg implements PgQueryable {
         session_id: params[2],
         message_id: params[3],
         input_hash: params[4],
-        status: 'pending',
+        status: params[6],
         attempt_count: 0,
         max_attempts: params[5],
         next_attempt_at: null,
         lease_until: null,
         worker_id: '',
-        provider_mode: params[6],
-        provider_name: params[7],
-        error_code: '',
-        error_message: '',
+        provider_profile_id: params[7],
+        provider_mode: params[8],
+        provider_name: params[9],
+        automatic: params[10],
+        error_code: params[11],
+        error_message: params[11],
         output_metadata: {},
-        created_at: params[8],
-        updated_at: params[8],
-        completed_at: null
+        created_at: params[12],
+        updated_at: params[12],
+        completed_at: String(params[6]) === 'cancelled' ? params[12] : null
       };
       this.table('collaboration_quality_review_jobs').set(String(row.id), row);
       return { rows: [row], rowCount: 1 };
@@ -2293,7 +2314,7 @@ export class MemoryPg implements PgQueryable {
 
     if (sql.startsWith("UPDATE collaboration_quality_review_jobs SET status = 'processing'")) {
       const row = this.table('collaboration_quality_review_jobs').get(String(params[0]));
-      const now = String(params[6]);
+      const now = String(params[7]);
       const claimable = row &&
         String(row.tenant_id) === String(params[1]) &&
         Number(row.attempt_count) < Number(row.max_attempts) &&
@@ -2307,20 +2328,26 @@ export class MemoryPg implements PgQueryable {
       row.lease_until = params[3];
       row.worker_id = params[2];
       row.next_attempt_at = null;
-      row.provider_mode = params[4];
-      row.provider_name = params[5];
+      row.provider_profile_id = params[4];
+      row.provider_mode = params[5];
+      row.provider_name = params[6];
       row.error_code = '';
       row.error_message = '';
-      row.updated_at = params[6];
+      row.updated_at = params[7];
       return { rows: [row], rowCount: 1 };
     }
 
     if (sql.startsWith("UPDATE collaboration_quality_review_jobs SET status = 'cancelled'")) {
-      const row = [...this.table('collaboration_quality_review_jobs').values()].find(
-        (candidate) =>
-          String(candidate.tenant_id) === String(params[0]) &&
-          String(candidate.message_id) === String(params[1])
-      );
+      const row = sql.includes('WHERE id = $1')
+        ? this.table('collaboration_quality_review_jobs').get(String(params[0]))
+        : [...this.table('collaboration_quality_review_jobs').values()].find(
+          (candidate) =>
+            String(candidate.tenant_id) === String(params[0]) &&
+            String(candidate.message_id) === String(params[1])
+        );
+      if (sql.includes('WHERE id = $1') && row && String(row.tenant_id) !== String(params[1])) {
+        return { rows: [], rowCount: 0 };
+      }
       if (!row || row.status === 'succeeded' || row.status === 'cancelled') {
         return { rows: [], rowCount: 0 };
       }
@@ -2335,6 +2362,20 @@ export class MemoryPg implements PgQueryable {
       return { rows: [row], rowCount: 1 };
     }
 
+    if (sql.startsWith('UPDATE collaboration_quality_review_jobs SET provider_profile_id')) {
+      const row = this.table('collaboration_quality_review_jobs').get(String(params[0]));
+      if (
+        !row ||
+        String(row.tenant_id) !== String(params[1]) ||
+        !['pending', 'retry_wait'].includes(String(row.status))
+      ) return { rows: [], rowCount: 0 };
+      row.provider_profile_id = params[2];
+      row.error_code = params[3];
+      row.error_message = params[3];
+      row.updated_at = params[4];
+      return { rows: [row], rowCount: 1 };
+    }
+
     if (sql.startsWith("UPDATE collaboration_quality_review_jobs SET status = 'succeeded'")) {
       const row = this.table('collaboration_quality_review_jobs').get(String(params[0]));
       if (
@@ -2345,15 +2386,16 @@ export class MemoryPg implements PgQueryable {
         String(row.input_hash) !== String(params[3])
       ) return { rows: [], rowCount: 0 };
       row.status = 'succeeded';
-      row.provider_mode = params[4];
-      row.provider_name = params[5];
+      row.provider_profile_id = params[4];
+      row.provider_mode = params[5];
+      row.provider_name = params[6];
       row.error_code = '';
       row.error_message = '';
-      row.output_metadata = params[6];
+      row.output_metadata = params[7];
       row.lease_until = null;
       row.worker_id = '';
-      row.completed_at = params[7];
-      row.updated_at = params[7];
+      row.completed_at = params[8];
+      row.updated_at = params[8];
       return { rows: [row], rowCount: 1 };
     }
 

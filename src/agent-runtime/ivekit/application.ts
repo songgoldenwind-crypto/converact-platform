@@ -2,7 +2,6 @@ import {
   startAttachmentProcessingWorker
 } from '../collaboration/attachment-processing-worker.js';
 import {
-  configuredQualityReviewProvider,
   QualityReviewService
 } from '../collaboration/quality-review.js';
 import { startQualityReviewWorker } from '../collaboration/quality-review-worker.js';
@@ -13,6 +12,8 @@ import { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-
 import type { PgQueryable } from '../../db-pg.js';
 import { wsBroadcast } from '../../ws.js';
 import { syncIntelligenceSourceForAttachment } from '../collaboration/intelligence-source-service.js';
+import { createIntelligenceProviderRegistry } from '../collaboration/intelligence-provider-registry.js';
+import { createPolicyQualityReviewProviderResolver } from '../collaboration/intelligence-provider-routing.js';
 
 export interface IveKitWorkerHandle {
   stop(): Promise<void>;
@@ -197,12 +198,18 @@ function createQualityReviewEnqueuer(
   pg: PgQueryable,
   env: NodeJS.ProcessEnv
 ): IveKitQualityReviewEnqueuer {
-  const provider = configuredQualityReviewProvider(env);
+  const registry = createIntelligenceProviderRegistry(env);
+  const enabled = registry.list().some((profile) => profile.capability === 'quality_review');
   return {
-    enabled: Boolean(provider || env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE === '1'),
-    enqueueMessage: (enqueueInput, transactionPg) => new QualityReviewService({
-      pg: transactionPg || pg,
-      provider
-    }).enqueueMessage(enqueueInput)
+    enabled: enabled || env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE === '1',
+    enqueueMessage: (enqueueInput, transactionPg) => {
+      const servicePg = transactionPg || pg;
+      return new QualityReviewService({
+        pg: servicePg,
+        ...(enabled
+          ? { resolveProvider: createPolicyQualityReviewProviderResolver({ pg: servicePg, registry }) }
+          : { provider: null })
+      }).enqueueMessage(enqueueInput);
+    }
   };
 }

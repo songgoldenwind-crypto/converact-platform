@@ -17,6 +17,12 @@ import {
   qualityReviewWorkerConfig
 } from '../src/agent-runtime/collaboration/quality-review-worker.js';
 import { inspectQualityReviewEnv } from '../scripts/quality-review-preflight.js';
+import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
+import {
+  IntelligencePolicyStore,
+  type IntelligencePolicyUpdate
+} from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
+import { createPolicyQualityReviewProviderResolver } from '../src/agent-runtime/collaboration/intelligence-provider-routing.js';
 
 const API_KEY = 'policy-finding-api-key';
 
@@ -420,6 +426,101 @@ test('unconfigured AI quality provider keeps hashed durable work pending', async
   assert.equal(summary.claimed, 0);
 });
 
+test('tenant intelligence policy selects and retains the quality provider profile', async () => {
+  const pg = new MemoryPg();
+  const { tenantId, messageId } = await createMessage(pg, '请判断是否存在私下联系意图');
+  const requests: string[] = [];
+  const registry = createIntelligenceProviderRegistry({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'quality-tenant-profile',
+      capability: 'quality_review',
+      mode: 'self_hosted',
+      base_url: 'http://quality-worker:8080'
+    }])
+  });
+  await new IntelligencePolicyStore(pg, registry).updatePolicy({
+    tenant_id: tenantId,
+    actor_identity: 'quality-admin',
+    expected_version: 0,
+    policy: qualityPolicy('quality-tenant-profile', true)
+  });
+  const service = new QualityReviewService({
+    pg,
+    resolveProvider: createPolicyQualityReviewProviderResolver({
+      pg,
+      registry,
+      fetch: async (url) => {
+        requests.push(String(url));
+        return new Response(JSON.stringify({ findings: [] }), { status: 200 });
+      }
+    })
+  });
+
+  const job = await service.enqueueMessage({ tenant_id: tenantId, message_id: messageId });
+  assert.equal(job?.provider_profile_id, 'quality-tenant-profile');
+  assert.equal(job?.status, 'pending');
+  assert.equal((await service.runDue({ tenant_id: tenantId })).succeeded, 1);
+  assert.equal(requests[0], 'http://quality-worker:8080/v1/quality-review');
+  assert.equal(
+    (await service.getJob({ tenant_id: tenantId, message_id: messageId }))?.provider_profile_id,
+    'quality-tenant-profile'
+  );
+});
+
+test('quality policy can disable automatic review while retaining manual review', async () => {
+  const pg = new MemoryPg();
+  const { tenantId, messageId } = await createMessage(pg, 'manual quality review');
+  const registry = createIntelligenceProviderRegistry({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'quality-manual-profile',
+      capability: 'quality_review',
+      mode: 'self_hosted',
+      base_url: 'http://quality-worker:8080'
+    }])
+  });
+  const policies = new IntelligencePolicyStore(pg, registry);
+  await policies.updatePolicy({
+    tenant_id: tenantId,
+    actor_identity: 'quality-admin',
+    expected_version: 0,
+    policy: qualityPolicy('quality-manual-profile', true)
+  });
+  const service = new QualityReviewService({
+    pg,
+    resolveProvider: createPolicyQualityReviewProviderResolver({
+      pg,
+      registry,
+      fetch: async () => new Response(JSON.stringify({ findings: [] }), { status: 200 })
+    })
+  });
+
+  const queued = await service.enqueueMessage({ tenant_id: tenantId, message_id: messageId });
+  assert.equal(queued?.status, 'pending');
+  await policies.updatePolicy({
+    tenant_id: tenantId,
+    actor_identity: 'quality-admin',
+    expected_version: 1,
+    policy: qualityPolicy('quality-manual-profile', false)
+  });
+  assert.equal((await service.runDue({ tenant_id: tenantId })).claimed, 0);
+  assert.equal(
+    (await service.getJob({ tenant_id: tenantId, message_id: messageId }))?.error_code,
+    'automatic_quality_review_disabled'
+  );
+
+  const automatic = await service.enqueueMessage({ tenant_id: tenantId, message_id: messageId });
+  assert.equal(automatic?.status, 'cancelled');
+  assert.equal(automatic?.error_code, 'automatic_quality_review_disabled');
+
+  const manual = await service.enqueueMessage(
+    { tenant_id: tenantId, message_id: messageId },
+    { automatic: false }
+  );
+  assert.equal(manual?.status, 'pending');
+  assert.equal(manual?.error_code, '');
+  assert.equal((await service.runDue({ tenant_id: tenantId })).succeeded, 1);
+});
+
 test('generic HTTP AI quality provider supports self-hosted and third-party endpoints', async () => {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const provider = createHttpQualityReviewProvider({
@@ -452,6 +553,43 @@ test('generic HTTP AI quality provider supports self-hosted and third-party endp
   assert.equal(requests[0]?.url, 'https://quality.example.test/v1/quality-review');
   assert.equal(new Headers(requests[0]?.init?.headers).get('authorization'), 'Bearer quality-secret');
   assert.equal(output.findings[0]?.policy_type, 'contact_exchange');
+});
+
+test('generic HTTP AI quality provider bounds and sanitizes untrusted output', async () => {
+  const provider = createHttpQualityReviewProvider({
+    mode: 'self_hosted',
+    baseUrl: 'http://quality-worker:8080',
+    fetch: async () => new Response(JSON.stringify({
+      findings: Array.from({ length: 150 }, (_, index) => ({
+        policy_type: `policy-${index}-${'p'.repeat(150)}`,
+        severity: 'critical',
+        confidence: 5,
+        recommended_action: 'a'.repeat(150),
+        rationale: 'r'.repeat(1_500),
+        matched_text: 'm'.repeat(2_500),
+        metadata: { model: 'quality-v3', api_key: 'must-not-survive' }
+      })),
+      metadata: { summary: 'bounded', token: 'must-not-survive' }
+    }), { status: 200 })
+  });
+
+  const output = await provider.review({
+    tenant_id: 'tenant-bounds',
+    session_id: 'session-bounds',
+    message_id: 'message-bounds',
+    content: 'review me',
+    content_hash: 'b'.repeat(64),
+    rule_findings: [],
+    evidence_refs: []
+  });
+  assert.equal(output.findings.length, 100);
+  assert.equal(output.findings[0]?.policy_type.length, 100);
+  assert.equal(output.findings[0]?.recommended_action?.length, 100);
+  assert.equal(output.findings[0]?.rationale?.length, 1_000);
+  assert.equal(output.findings[0]?.matched_text?.length, 2_000);
+  assert.equal(output.findings[0]?.severity, 'medium');
+  assert.equal(output.findings[0]?.confidence, undefined);
+  assert.doesNotMatch(JSON.stringify(output), /must-not-survive|api_key|token/);
 });
 
 test('quality review migration defines hashed leased jobs and forced tenant RLS', () => {
@@ -641,4 +779,25 @@ async function createMessage(pg: MemoryPg, body: string) {
     body
   });
   return { store, tenantId, sessionId: session.id, messageId: message.id };
+}
+
+function qualityPolicy(profileId: string, automatic: boolean): IntelligencePolicyUpdate {
+  return {
+    ocr_enabled: false,
+    asr_enabled: false,
+    quality_review_enabled: true,
+    translation_enabled: false,
+    ocr_profile_id: '',
+    asr_profile_id: '',
+    quality_profile_id: profileId,
+    translation_profile_id: '',
+    allow_third_party: false,
+    auto_ocr: false,
+    auto_asr: false,
+    auto_quality_review: automatic,
+    auto_translation: false,
+    translation_target_languages: [],
+    min_ocr_confidence: 0,
+    min_asr_confidence: 0
+  };
 }

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migrationPath = 'src/migrations/043_ivekit_intelligence_translation.sql';
+const qualityRoutingMigrationPath = 'src/migrations/044_quality_review_policy_routing.sql';
 
 test('V3 intelligence migration defines tenant policy, source links, and durable translation jobs', () => {
   const sql = readFileSync(migrationPath, 'utf8');
@@ -40,6 +41,15 @@ test('V3 intelligence migration defines tenant policy, source links, and durable
     sql,
     /ALTER TABLE collaboration_quality_review_jobs[\s\S]*ADD COLUMN IF NOT EXISTS provider_profile_id/i
   );
+});
+
+test('quality routing migration records whether work was automatically triggered', () => {
+  const sql = readFileSync(qualityRoutingMigrationPath, 'utf8');
+  assert.match(
+    sql,
+    /ALTER TABLE collaboration_quality_review_jobs[\s\S]*ADD COLUMN IF NOT EXISTS automatic BOOLEAN NOT NULL DEFAULT TRUE/i
+  );
+  assert.doesNotMatch(sql, /DROP TABLE|TRUNCATE|DELETE FROM/i);
 });
 
 test('V3 intelligence migration extends translation results without dropping legacy data', () => {

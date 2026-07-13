@@ -112,6 +112,8 @@ const STANDALONE_MIGRATIONS = [
   '040_rustdesk_control_ownership.sql',
   '041_tinode_inbound_sync.sql',
   '042_ivekit_tenant_events.sql',
+  '043_ivekit_intelligence_translation.sql',
+  '044_quality_review_policy_routing.sql',
   'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
 ];
 

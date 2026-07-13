@@ -22,12 +22,14 @@ import {
 import type { CollaborationMessageAttachmentInput } from './collaboration-store.js';
 import { createCollaborationModule } from './index.js';
 import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
-import { createPolicyAttachmentProviderResolver } from './intelligence-provider-routing.js';
+import {
+  createPolicyAttachmentProviderResolver,
+  createPolicyQualityReviewProviderResolver
+} from './intelligence-provider-routing.js';
 import { PolicyFindingStore } from './policy-finding-store.js';
 import { CollaborationMessageStateStore } from './message-state-store.js';
 import {
   QualityReviewService,
-  configuredQualityReviewProvider,
   type QualityReviewProvider,
   type QualityReviewServiceInput
 } from './quality-review.js';
@@ -474,29 +476,40 @@ function attachmentProcessingService(
 function qualityReviewService(
   pg: PgQueryable,
   options: RouteCollaborationApiOptions
-): { service: QualityReviewService; provider: QualityReviewProvider | null } {
-  const provider = options.qualityReview?.provider === undefined
-    ? configuredQualityReviewProvider()
-    : options.qualityReview.provider;
+): { service: QualityReviewService; provider: QualityReviewProvider | null; policyAware: boolean } {
+  const configured = options.qualityReview || {};
+  const explicitlyConfigured = configured.provider !== undefined || configured.resolveProvider !== undefined;
+  const provider = configured.provider || null;
+  const registry = explicitlyConfigured ? null : createIntelligenceProviderRegistry();
+  const hasQualityProfile = Boolean(
+    registry?.list().some((profile) => profile.capability === 'quality_review')
+  );
+  const resolveProvider = explicitlyConfigured
+    ? configured.resolveProvider
+    : hasQualityProfile && registry
+      ? createPolicyQualityReviewProviderResolver({ pg, registry })
+      : undefined;
   return {
     service: new QualityReviewService({
       pg,
-      ...options.qualityReview,
-      provider
+      ...configured,
+      provider,
+      resolveProvider
     }),
-    provider
+    provider,
+    policyAware: Boolean(resolveProvider)
   };
 }
 
 function qualityReviewAutoEnqueue(
-  provider: QualityReviewProvider | null,
+  quality: { provider: QualityReviewProvider | null; policyAware: boolean },
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
   const value = String(env.OPC_QUALITY_REVIEW_AUTO_ENQUEUE || '').trim();
   if (value && value !== '0' && value !== '1') {
     throw new Error('OPC_QUALITY_REVIEW_AUTO_ENQUEUE must be 0 or 1');
   }
-  return value === '1' || (value !== '0' && provider !== null);
+  return quality.policyAware || value === '1' || (value !== '0' && quality.provider !== null);
 }
 
 function attachmentUploadMaxBytes(env: NodeJS.ProcessEnv = process.env): number {
@@ -2600,7 +2613,10 @@ export async function routeCollaborationApi(
     }
     const quality = qualityReviewService(requirePg(pg), options);
     const job = method === 'POST'
-      ? await quality.service.enqueueMessage({ tenant_id: ctx.tenantId, message_id: messageId })
+      ? await quality.service.enqueueMessage(
+        { tenant_id: ctx.tenantId, message_id: messageId },
+        { automatic: false }
+      )
       : await quality.service.getJob({ tenant_id: ctx.tenantId, message_id: messageId });
     return {
       status: method === 'POST' ? 201 : 200,
@@ -2722,7 +2738,7 @@ export async function routeCollaborationApi(
         reason: input.reason ? String(input.reason) : undefined
       });
     const quality = qualityReviewService(requirePg(pg), options);
-    const qualityReviewJob = method === 'PATCH' && qualityReviewAutoEnqueue(quality.provider)
+    const qualityReviewJob = method === 'PATCH' && qualityReviewAutoEnqueue(quality)
       ? await quality.service.enqueueMessage({ tenant_id: ctx.tenantId, message_id: messageId })
       : method === 'DELETE'
         ? await quality.service.cancelMessage({
@@ -3264,7 +3280,7 @@ export async function routeCollaborationApi(
       const processingJobs = await attachmentProcessingService(requirePg(pg), options)
         .enqueueMessage(result.message);
       const quality = qualityReviewService(requirePg(pg), options);
-      const qualityReviewJob = qualityReviewAutoEnqueue(quality.provider)
+      const qualityReviewJob = qualityReviewAutoEnqueue(quality)
         ? await quality.service.enqueueMessage({
           tenant_id: ctx.tenantId,
           message_id: result.message.id
