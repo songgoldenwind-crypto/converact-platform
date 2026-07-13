@@ -50,6 +50,51 @@ test('LiveKit SIP factory resolves refs only for client construction and preflig
   assert.equal(serialized.includes('livekit-api-secret'), false);
 });
 
+test('LiveKit SIP factory wires participant lookup for ambiguous bridge reconciliation', async () => {
+  const bridges = bridgeRepository();
+  bridges.items.push(bridgeRecord({ status: 'creating' }));
+  const lookupFactories: unknown[][] = [];
+  const adapter = await createLiveKitSipBridgeAdapter({
+    profile_id: 'profile-livekit', config_hash: 'a'.repeat(64), host: 'https://livekit.internal',
+    api_key_ref: 'env://LIVEKIT_SIP_API_KEY', api_secret_ref: 'env://LIVEKIT_SIP_API_SECRET',
+    secret_resolver: { async resolve(_ref, purpose) {
+      return purpose === 'livekit_sip_api_key' ? 'livekit-api-key' : 'livekit-api-secret';
+    } },
+    client_factory: () => sipClient().client,
+    participant_lookup_factory(...args) {
+      lookupFactories.push(args);
+      return { async find() {
+        return { participant_id: 'participant-recovered', provider_call_id: 'sip-call-recovered' };
+      } };
+    },
+    bridges: bridges.repository
+  });
+
+  const reconciled = await adapter.reconcile({ tenant_id: 'tenant-a', bridge_id: 'bridge-a' });
+  assert.equal(reconciled.state, 'active');
+  assert.deepEqual(lookupFactories, [[
+    'https://livekit.internal', 'livekit-api-key', 'livekit-api-secret'
+  ]]);
+});
+
+test('LiveKit SIP factory permits production HTTP only for an explicit internal service', async () => {
+  const options = {
+    profile_id: 'profile-livekit', config_hash: 'a'.repeat(64), host: 'http://livekit.internal',
+    api_key_ref: 'env://LIVEKIT_SIP_API_KEY', api_secret_ref: 'env://LIVEKIT_SIP_API_SECRET',
+    secret_resolver: { async resolve(_ref: string, purpose: string) {
+      return purpose === 'livekit_sip_api_key' ? 'livekit-api-key' : 'livekit-api-secret';
+    } },
+    client_factory: () => sipClient().client,
+    participant_lookup_factory: () => ({ async find() { return null; } }),
+    bridges: bridgeRepository().repository,
+    production: true
+  };
+
+  await assert.rejects(() => createLiveKitSipBridgeAdapter(options), hasVoiceCode('validation_failed'));
+  const adapter = await createLiveKitSipBridgeAdapter({ ...options, internal_service: true });
+  assert.equal((await adapter.preflight({ sip_trunk_provider_ref: 'trunk-a' })).ready, true);
+});
+
 test('Voice LiveKit bridge creates Media Core first, persists pending, and dials once', async () => {
   const operations: string[] = [];
   const sip = sipClient(operations);

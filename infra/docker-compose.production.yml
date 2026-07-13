@@ -36,6 +36,25 @@ services:
         condition: service_healthy
     restart: "no"
 
+  rustpbx-postgres-bootstrap:
+    image: postgres:16-alpine
+    profiles: ["voice"]
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-postgres-databases.sh"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: opc
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_MAINTENANCE_DATABASE: postgres
+      OPC_POSTGRES_BOOTSTRAP_DATABASES: rustpbx
+      RUSTPBX_DB_PASSWORD: ${RUSTPBX_DB_PASSWORD:?RUSTPBX_DB_PASSWORD is required}
+    volumes:
+      - ./scripts/bootstrap-postgres-databases.sh:/bootstrap/bootstrap-postgres-databases.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   pgbouncer:
     image: bitnami/pgbouncer:latest
     environment:
@@ -180,6 +199,7 @@ services:
 
   kamailio:
     image: kamailio/kamailio:5.8
+    profiles: ["voice"]
     ports:
       - "5060:5060/udp"
       - "5060:5060/tcp"
@@ -188,19 +208,58 @@ services:
     depends_on:
       - rustpbx
 
-  rustpbx:
-    image: ghcr.io/restsend/rustpbx:latest
-    ports:
-      - "8080:8080"
+  rustpbx-config-render:
+    build: ..
+    profiles: ["voice"]
+    command: ["node", "--import", "tsx", "scripts/render-rustpbx-config.ts"]
+    environment:
+      RUSTPBX_CONFIG_OUTPUT: /app/config/rustpbx.toml
+      RUSTPBX_IMAGE: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+      RUSTPBX_DATABASE_URL: postgresql://rustpbx_app@postgres:5432/rustpbx
+      RUSTPBX_DB_PASSWORD: ${RUSTPBX_DB_PASSWORD:?RUSTPBX_DB_PASSWORD is required}
+      RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:?RUSTPBX_RWI_TOKEN is required}
+      RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      RUSTPBX_ROUTER_URL: http://opc:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
+      RUSTPBX_CDR_WEBHOOK_URL: http://opc:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/cdrs
+      RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
+      RUSTPBX_SIP_PORT: "5060"
+      RUSTPBX_RTP_START_PORT: "20000"
+      RUSTPBX_RTP_END_PORT: "20100"
     volumes:
-      - ../config/rustpbx.docker.toml:/app/rustpbx.toml:ro
-      - rustpbx_data:/app/db
-      - rustpbx_recordings:/app/recordings
+      - rustpbx-runtime-config:/app/config
     depends_on:
-      redis:
-        condition: service_healthy
-      minio-init:
+      rustpbx-postgres-bootstrap:
         condition: service_completed_successfully
+    restart: "no"
+
+  rustpbx:
+    image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+    profiles: ["voice"]
+    command: ["--conf", "/app/config/rustpbx.toml"]
+    init: true
+    restart: unless-stopped
+    expose:
+      - "8080"
+    ports:
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/udp"
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/tcp"
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_RTP_START_PORT:-20000}-${RUSTPBX_RTP_END_PORT:-20100}:20000-20100/udp"
+    volumes:
+      - rustpbx-runtime-config:/app/config:ro
+      - rustpbx-storage:/app/storage
+    depends_on:
+      rustpbx-postgres-bootstrap:
+        condition: service_completed_successfully
+      rustpbx-config-render:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/app/rustpbx", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
 
   rustdesk-hbbs:
     image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
@@ -339,6 +398,14 @@ services:
       OPC_TRANSLATION_MAX_ATTEMPTS: ${OPC_TRANSLATION_MAX_ATTEMPTS:-3}
       OPC_TRANSLATION_CLAIM_LEASE_MS: ${OPC_TRANSLATION_CLAIM_LEASE_MS:-120000}
       OPC_TRANSLATION_RETRY_DELAYS_MS: ${OPC_TRANSLATION_RETRY_DELAYS_MS:-5000,30000}
+      OPC_IVEKIT_VOICE_WORKERS_ENABLED: ${OPC_IVEKIT_VOICE_WORKERS_ENABLED:-0}
+      OPC_IVEKIT_VOICE_ADDRESS_KEY: ${OPC_IVEKIT_VOICE_ADDRESS_KEY:-}
+      OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY: ${OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY:-}
+      OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN
+      OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES: RUSTPBX_WEBHOOK_TOKEN
+      RUSTPBX_MANAGEMENT_TOKEN: ${RUSTPBX_RWI_TOKEN:-}
+      RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:-}
+      RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:-}
       MINIO_ENDPOINT: http://minio:9000
       MINIO_BUCKET: ${MINIO_BUCKET:-recordings}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
@@ -400,8 +467,6 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
-      rustpbx:
-        condition: service_started
       minio-init:
         condition: service_completed_successfully
     volumes:
@@ -454,6 +519,6 @@ volumes:
   redis_data:
   nats_data:
   minio_data:
-  rustpbx_data:
-  rustpbx_recordings:
+  rustpbx-runtime-config:
+  rustpbx-storage:
   rustdesk_data:

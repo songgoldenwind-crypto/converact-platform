@@ -99,6 +99,66 @@ livekit:
       memory: "512Mi"
       cpu: "500m"
 
+voice:
+  enabled: false
+  replicaCount: 2
+  profileId: ""
+  image:
+    repository: ghcr.io/restsend/rustpbx
+    tag: "0.4.10"
+    pullPolicy: IfNotPresent
+  database:
+    username: rustpbx_app
+    name: rustpbx
+    host: ""
+    port: 5432
+    password: ""
+  rwiToken: ""
+  webhookToken: ""
+  addressKey: ""
+  addressHmacKey: ""
+  externalIp: ""
+  service:
+    managementPort: 8080
+    sip:
+      type: LoadBalancer
+      port: 5060
+    rtp:
+      type: LoadBalancer
+      startPort: 20000
+      endPort: 20100
+  workers:
+    commandIntervalMs: "1000"
+    commandBatchSize: "25"
+    commandLeaseMs: "30000"
+    commandMaxAttempts: "5"
+    commandRetryDelaysMs: "1000,5000,30000"
+    eventIntervalMs: "1000"
+    eventBatchSize: "25"
+    eventLeaseMs: "30000"
+    reconciliationIntervalMs: "5000"
+    reconciliationMaxAgeMs: "900000"
+    providerTimeoutMs: "10000"
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  disruptionBudget:
+    minAvailable: 1
+
 media:
   apiToken: ""
   inviteSecret: ""

@@ -34,6 +34,7 @@ import {
 } from './postgres/unit-of-work.js';
 import { VoiceProviderEventService, VoiceRouterDecisionService } from './provider-event-service.js';
 import { VoiceProviderRegistry } from './provider-registry.js';
+import { createIveKitVoiceProviderRegistry } from './runtime.js';
 import { EnvVoiceSecretResolver } from './secret-resolver.js';
 import type {
   VoiceAdapter,
@@ -491,7 +492,7 @@ export function createPostgresVoiceHttpModule(
   const callRepository = new PostgresVoiceCallStore(pg);
   const providerEventRepository = new PostgresVoiceProviderEventStore(pg);
   const recordings = new PostgresVoiceRecordingStore(pg);
-  const registry = options.provider_registry ?? new VoiceProviderRegistry();
+  const registry = options.provider_registry ?? createIveKitVoiceProviderRegistry();
   const addressProtector = options.address_protector ?? configuredAddressProtector();
   const eventPort = options.event_port ?? { publish: () => undefined };
   const configuration = new VoiceConfigurationService({
@@ -618,7 +619,11 @@ function configuredWebhookSecretResolver(): VoiceSecretResolver {
 }
 
 function configuredAddressProtector(): VoiceAddressProtector {
-  const encryptionKey = String(process.env.OPC_IVEKIT_VOICE_ADDRESS_ENCRYPTION_KEY || '');
+  const encryptionKey = String(
+    process.env.OPC_IVEKIT_VOICE_ADDRESS_KEY
+    || process.env.OPC_IVEKIT_VOICE_ADDRESS_ENCRYPTION_KEY
+    || ''
+  );
   const hmacKey = String(process.env.OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY || '');
   if (encryptionKey && hmacKey) {
     return new EncryptedVoiceAddressProtector({ encryption_key: encryptionKey, hmac_key: hmacKey });

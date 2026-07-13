@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { canonicalVoicePayloadHash, safeVoiceProviderPayload } from './canonical.js';
 import { assertVoiceConfigContainsNoSecrets, voiceProfileConfigHash } from './deployment-profile-service.js';
 import { VoiceError } from './errors.js';
+import { observeVoiceCall, observeVoiceCommand } from './metrics.js';
 import type {
   VoiceAddressProtector,
   VoiceCallUnitOfWork,
@@ -377,9 +378,19 @@ export class VoiceProviderCallCommandExecutor {
       clearAddress = await this.#addressProtector.reveal(command.tenant_id, address.ciphertext, address.kind);
     }
     let adapter: Awaited<ReturnType<VoiceProviderRegistry['create']>> | null = null;
+    const startedAt = performance.now();
     try {
       adapter = await this.#registry.create(profile, { purpose: 'execute' });
       const executed = await adapter.execute({ call, command, clear_address: clearAddress });
+      observeVoiceCommand({
+        adapter: profile.adapter,
+        kind: command.kind,
+        result: 'succeeded',
+        duration_seconds: (performance.now() - startedAt) / 1_000
+      });
+      if (command.kind === 'originate') {
+        observeVoiceCall({ adapter: profile.adapter, direction: call.direction, state: call.state });
+      }
       return {
         provider_command_id: executed.provider_command_id,
         result: safeVoiceProviderPayload({
@@ -387,6 +398,17 @@ export class VoiceProviderCallCommandExecutor {
           accepted: executed.accepted
         })
       };
+    } catch (error) {
+      observeVoiceCommand({
+        adapter: profile.adapter,
+        kind: command.kind,
+        result: error instanceof VoiceError && error.code === 'provider_timeout'
+          ? 'uncertain'
+          : 'failed',
+        error_code: error instanceof VoiceError ? error.code : 'provider_unavailable',
+        duration_seconds: (performance.now() - startedAt) / 1_000
+      });
+      throw error;
     } finally {
       clearAddress = undefined;
       await adapter?.close().catch(() => undefined);

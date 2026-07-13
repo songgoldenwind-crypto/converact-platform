@@ -67,6 +67,25 @@ test('Voice reconciliation delegates LiveKit bridge commands to the specialized 
   assert.equal(fixture.calls.get('call-succeeded')?.media_call_id, 'media-specialized');
 });
 
+test('Voice reconciliation releases a command when its call cannot be loaded', async () => {
+  const fixture = reconciliationFixture();
+  fixture.calls.delete('call-succeeded');
+  const worker = new VoiceReconciliationWorker({
+    unit_of_work: fixture.unitOfWork,
+    provider_registry: fixture.registry,
+    worker_id: 'reconcile-worker', batch_size: 10, lease_ms: 5_000,
+    reconcile_delay_ms: 2_000, max_reconcile_age_ms: 60_000,
+    now: () => new Date('2026-07-13T00:02:00.000Z')
+  });
+
+  const result = await worker.runOnce('tenant-a');
+  assert.equal(result.pending, 2);
+  assert.equal(
+    fixture.released.find((item) => item.command_id === 'command-succeeded')?.state,
+    'uncertain'
+  );
+});
+
 function reconciliationFixture() {
   const outcomes: Record<string, { state: 'pending' | 'succeeded' | 'failed' | 'unknown'; provider_state: string; provider_call_id?: string }> = {
     'command-succeeded': { state: 'succeeded', provider_state: 'dialing', provider_call_id: 'provider-call-succeeded' },

@@ -31,6 +31,7 @@ case "$*" in
   *keycloak*) database=keycloak ;;
   *tinode*) database=tinode ;;
   *chatwoot*) database=chatwoot ;;
+  *rustpbx*) database=rustpbx ;;
   *opc*) database=opc ;;
 esac
 case "$*" in
@@ -40,7 +41,13 @@ case "$*" in
     ;;
   *"SELECT r.rolname FROM pg_database"*)
     if [ -f "$FAKE_PSQL_STATE/$database" ]; then
-      if [ "\${FAKE_PSQL_WRONG_OWNER:-0}" = "1" ]; then printf 'postgres\n'; else printf 'opc\n'; fi
+      if [ "\${FAKE_PSQL_WRONG_OWNER:-0}" = "1" ]; then
+        printf 'postgres\n'
+      elif [ "$database" = 'rustpbx' ]; then
+        printf 'rustpbx_app\n'
+      else
+        printf 'opc\n'
+      fi
     fi
     ;;
   *"SELECT 1 FROM pg_database"*)
@@ -210,6 +217,33 @@ test('PostgreSQL bootstrap rejects an existing database owned by another role', 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /database owner verification failed: keycloak/);
   assert.doesNotMatch(readFileSync(fixture.logFile, 'utf8'), /CREATE DATABASE/);
+});
+
+test('PostgreSQL bootstrap isolates RustPBX behind its dedicated role', () => {
+  const fixture = createPostgresFixture({
+    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'rustpbx',
+    RUSTPBX_DB_PASSWORD: 'rustpbx-database-secret'
+  });
+  const result = fixture.run();
+
+  assert.equal(result.status, 0, result.stderr);
+  const log = readFileSync(fixture.logFile, 'utf8');
+  assert.match(log, /CREATE DATABASE "rustpbx" OWNER "rustpbx_app"/);
+  assert.match(log, /ALTER DATABASE "rustpbx" OWNER TO "rustpbx_app"/);
+  assert.match(log, /REVOKE CONNECT ON DATABASE rustpbx FROM PUBLIC/);
+  assert.equal(`${result.stdout}${result.stderr}${log}`.includes('rustpbx-database-secret'), false);
+});
+
+test('PostgreSQL bootstrap refuses RustPBX without its distinct password', () => {
+  const fixture = createPostgresFixture({
+    OPC_POSTGRES_BOOTSTRAP_DATABASES: 'rustpbx',
+    RUSTPBX_DB_PASSWORD: ''
+  });
+  const result = fixture.run();
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /RUSTPBX_DB_PASSWORD is required for rustpbx/);
+  assert.equal(existsSync(fixture.logFile), false);
 });
 
 test('MinIO bootstrap retries, creates a private bucket, and verifies it', () => {

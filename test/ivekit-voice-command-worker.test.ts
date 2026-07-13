@@ -105,15 +105,54 @@ test('Voice command worker never retries ambiguous LiveKit bridge timeouts', asy
     configuration: fixture.configuration,
     provider_registry: fixture.registry,
     call_executor: async () => {
-      throw new VoiceError({ code: 'provider_timeout', retryable: true, status: 504 });
+      throw new VoiceError({
+        code: 'provider_timeout', retryable: true, status: 504,
+        details: { provider_command_id: 'rwi-action-bridge-timeout' }
+      });
     },
     worker_id: 'worker-bridge', batch_size: 10, lease_ms: 5_000,
     now: () => new Date('2026-07-13T00:00:00.000Z'), random: () => 0.5
   });
   const result = await worker.runOnce('tenant-a');
   assert.equal(releaseFor(fixture.released, 'bridge-timeout').state, 'uncertain');
+  assert.equal(
+    releaseFor(fixture.released, 'bridge-timeout').provider_command_id,
+    'rwi-action-bridge-timeout'
+  );
   assert.equal(result.uncertain, 1);
   assert.equal(result.retry_wait, 0);
+});
+
+test('Voice command worker honors configured retry delays and attempt cap', async () => {
+  const fixture = workerFixture({
+    configurationCommands: [
+      configurationCommand({
+        id: 'configured-retry', profile_id: 'profile-retry', resource_id: 'trunk-retry',
+        operation: 'test', attempt_count: 1, max_attempts: 10
+      }),
+      configurationCommand({
+        id: 'configured-cap', profile_id: 'profile-retry', resource_id: 'trunk-retry',
+        operation: 'test', attempt_count: 2, max_attempts: 10
+      })
+    ]
+  });
+  const worker = new VoiceCommandWorker({
+    commands: fixture.commands,
+    configuration: fixture.configuration,
+    provider_registry: fixture.registry,
+    worker_id: 'worker-configured-retry', batch_size: 10, lease_ms: 5_000,
+    max_attempts: 2, retry_delays_ms: [7_000, 13_000],
+    now: () => new Date('2026-07-13T00:00:00.000Z'), random: () => 0.5
+  });
+
+  await worker.runOnce('tenant-a');
+
+  assert.equal(releaseFor(fixture.released, 'configured-retry').state, 'retry_wait');
+  assert.equal(
+    releaseFor(fixture.released, 'configured-retry').next_attempt_at?.toISOString(),
+    '2026-07-13T00:00:07.000Z'
+  );
+  assert.equal(releaseFor(fixture.released, 'configured-cap').state, 'failed');
 });
 
 test('Voice command worker rejects unsafe runtime bounds', () => {

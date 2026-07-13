@@ -1,4 +1,5 @@
 import { VoiceError } from '../errors.js';
+import { observeVoiceProviderEvent } from '../metrics.js';
 import type { VoiceProviderEventUnitOfWork } from '../ports.js';
 import { mergeProviderCallState } from '../state-machine.js';
 import type { VoiceCall, VoiceProviderEvent } from '../types.js';
@@ -84,8 +85,16 @@ export class VoiceProviderEventWorker {
   }
 
   async #process(event: VoiceProviderEvent, result: VoiceProviderEventWorkerResult): Promise<void> {
+    let adapter = 'other';
     try {
       await this.#unitOfWork.run(event.tenant_id, async (context) => {
+        try {
+          adapter = (await context.configuration.getProfile(event.tenant_id, event.profile_id))?.adapter
+            ?? 'other';
+        } catch {
+          // Metrics metadata is best-effort and must never change event convergence.
+          adapter = 'other';
+        }
         const call = event.call_id
           ? await context.calls.get(event.tenant_id, event.call_id, { for_update: true })
           : await context.calls.findByProviderCallId(
@@ -109,19 +118,30 @@ export class VoiceProviderEventWorker {
         });
       });
       result.processed += 1;
+      observeVoiceProviderEvent({
+        adapter,
+        event_type: event.event_type,
+        result: 'processed',
+        lag_seconds: eventLagSeconds(event, this.#now())
+      });
     } catch (error) {
       if (error instanceof VoiceError && error.code === 'lease_lost') {
         result.stale += 1;
+        observeVoiceProviderEvent({
+          adapter, event_type: event.event_type, result: 'stale',
+          lag_seconds: eventLagSeconds(event, this.#now())
+        });
         return;
       }
-      await this.#release(event, error, result);
+      await this.#release(event, error, result, adapter);
     }
   }
 
   async #release(
     event: VoiceProviderEvent,
     error: unknown,
-    result: VoiceProviderEventWorkerResult
+    result: VoiceProviderEventWorkerResult,
+    adapter: string
   ): Promise<void> {
     const classified = classify(error);
     const retry = classified.retryable && event.attempt_count < this.#maxAttempts;
@@ -138,6 +158,10 @@ export class VoiceProviderEventWorker {
         error_code: classified.code
       }));
       result[state] += 1;
+      observeVoiceProviderEvent({
+        adapter, event_type: event.event_type, result: state,
+        lag_seconds: eventLagSeconds(event, this.#now())
+      });
     } catch (releaseError) {
       if (releaseError instanceof VoiceError && releaseError.code === 'lease_lost') {
         result.stale += 1;
@@ -152,6 +176,12 @@ export class VoiceProviderEventWorker {
     const jitter = exponential * this.#retryJitterRatio * ((this.#random() * 2) - 1);
     return Math.max(this.#retryBaseMs, Math.min(this.#retryMaxMs, Math.round(exponential + jitter)));
   }
+}
+
+function eventLagSeconds(event: VoiceProviderEvent, now: Date): number {
+  const timestamp = event.occurred_at || event.received_at;
+  const time = new Date(timestamp).getTime();
+  return Number.isFinite(time) ? Math.max(0, (now.getTime() - time) / 1_000) : 0;
 }
 
 function projectCall(call: VoiceCall, event: VoiceProviderEvent, now: string): VoiceCall {

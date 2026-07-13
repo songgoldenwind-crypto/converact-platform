@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { canonicalVoicePayloadHash } from './canonical.js';
 import { VoiceError } from './errors.js';
+import { observeVoicePreflight } from './metrics.js';
 import type { VoiceConfigurationRepository } from './ports.js';
 import { VoiceProviderRegistry } from './provider-registry.js';
 import type {
@@ -78,6 +79,8 @@ export class VoiceDeploymentProfileService {
     } finally {
       await adapter?.close().catch(() => undefined);
     }
+
+    observeVoicePreflight({ adapter: profile.adapter, result: status });
 
     return this.#repository.insertCapabilitySnapshot({
       id: this.#id(),

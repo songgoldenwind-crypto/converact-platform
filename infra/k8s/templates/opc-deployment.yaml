@@ -259,6 +259,61 @@ spec:
               value: {{ .Values.intelligence.translationWorker.claimLeaseMs | default "120000" | quote }}
             - name: OPC_TRANSLATION_RETRY_DELAYS_MS
               value: {{ .Values.intelligence.translationWorker.retryDelaysMs | default "5000,30000" | quote }}
+            {{- if .Values.voice.enabled }}
+            - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_VOICE_COMMAND_INTERVAL_MS
+              value: {{ .Values.voice.workers.commandIntervalMs | quote }}
+            - name: OPC_IVEKIT_VOICE_COMMAND_BATCH_SIZE
+              value: {{ .Values.voice.workers.commandBatchSize | quote }}
+            - name: OPC_IVEKIT_VOICE_COMMAND_LEASE_MS
+              value: {{ .Values.voice.workers.commandLeaseMs | quote }}
+            - name: OPC_IVEKIT_VOICE_COMMAND_MAX_ATTEMPTS
+              value: {{ .Values.voice.workers.commandMaxAttempts | quote }}
+            - name: OPC_IVEKIT_VOICE_COMMAND_RETRY_DELAYS_MS
+              value: {{ .Values.voice.workers.commandRetryDelaysMs | quote }}
+            - name: OPC_IVEKIT_VOICE_EVENT_INTERVAL_MS
+              value: {{ .Values.voice.workers.eventIntervalMs | quote }}
+            - name: OPC_IVEKIT_VOICE_EVENT_BATCH_SIZE
+              value: {{ .Values.voice.workers.eventBatchSize | quote }}
+            - name: OPC_IVEKIT_VOICE_EVENT_LEASE_MS
+              value: {{ .Values.voice.workers.eventLeaseMs | quote }}
+            - name: OPC_IVEKIT_VOICE_RECONCILIATION_INTERVAL_MS
+              value: {{ .Values.voice.workers.reconciliationIntervalMs | quote }}
+            - name: OPC_IVEKIT_VOICE_RECONCILIATION_MAX_AGE_MS
+              value: {{ .Values.voice.workers.reconciliationMaxAgeMs | quote }}
+            - name: OPC_IVEKIT_VOICE_PROVIDER_TIMEOUT_MS
+              value: {{ .Values.voice.workers.providerTimeoutMs | quote }}
+            - name: OPC_IVEKIT_VOICE_ADDRESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-voice-address-key
+            - name: OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-voice-address-hmac-key
+            - name: OPC_IVEKIT_VOICE_SECRET_ENV_NAMES
+              value: RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN
+            - name: OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES
+              value: RUSTPBX_WEBHOOK_TOKEN
+            - name: RUSTPBX_MANAGEMENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-rwi-token
+            - name: RUSTPBX_RWI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-rwi-token
+            - name: RUSTPBX_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-webhook-token
+            {{- end }}
             - name: OPC_REMOTE_GATEWAY_PROVIDER
               value: {{ .Values.rustdesk.provider | default "rustdesk" | quote }}
             - name: OPC_REMOTE_GATEWAY_BASE_URL

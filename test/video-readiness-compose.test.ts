@@ -98,7 +98,8 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.ok(readServiceVolumes(compose, 'livekit-egress').includes('${OPC_MEDIA_CONFIG_DIR:-../.runtime/media}/egress.yaml:/etc/egress.yaml:ro'));
   assert.ok(!readServiceVolumes(compose, 'livekit').includes('../config/livekit.yaml:/etc/livekit.yaml:ro'));
   assert.ok(!readServiceVolumes(compose, 'livekit-egress').includes('../config/egress.yaml:/etc/egress.yaml:ro'));
-  assert.ok(readServiceVolumes(compose, 'rustpbx').includes('../config/rustpbx.docker.toml:/app/rustpbx.toml:ro'));
+  assert.ok(readServiceVolumes(compose, 'rustpbx').includes('rustpbx-runtime-config:/app/config:ro'));
+  assert.ok(!readServiceVolumes(compose, 'rustpbx').includes('../config/rustpbx.docker.toml:/app/rustpbx.toml:ro'));
 
   const opcEnvironment = readServiceEnvironment(compose, 'opc');
   assert.equal(opcEnvironment.LIVEKIT_URL, '${LIVEKIT_URL:?LIVEKIT_URL is required}');
@@ -184,12 +185,16 @@ test('production compose gates databases PgBouncer and object storage', () => {
   assert.match(minioInit, /minio:\n\s+condition: service_started/);
   assert.match(minioInit, /restart: "no"/);
 
-  for (const serviceName of ['livekit-egress', 'rustpbx', 'opc']) {
+  for (const serviceName of ['livekit-egress', 'opc']) {
     assert.match(
       readServiceBlock(compose, serviceName),
       /minio-init:\n\s+condition: service_completed_successfully/
     );
   }
+  const rustpbx = readServiceBlock(compose, 'rustpbx');
+  assert.match(rustpbx, /rustpbx-postgres-bootstrap:\n\s+condition: service_completed_successfully/);
+  assert.match(rustpbx, /rustpbx-config-render:\n\s+condition: service_completed_successfully/);
+  assert.doesNotMatch(rustpbx, /minio-init:/);
   assert.match(readServiceBlock(compose, 'opc'), /pgbouncer:\n\s+condition: service_healthy/);
 });
 

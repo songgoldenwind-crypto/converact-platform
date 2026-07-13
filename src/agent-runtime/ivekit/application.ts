@@ -25,6 +25,12 @@ import { TranslationService } from '../collaboration/translation-service.js';
 import { startTranslationWorker } from '../collaboration/translation-worker.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { IveKitTenantEventStore, iveKitEventReplayEnabled } from './tenant-event-store.js';
+import {
+  iveKitVoiceWorkerConfig,
+  startIveKitVoiceCommandWorker,
+  startIveKitVoiceProviderEventWorker,
+  startIveKitVoiceReconciliationWorker
+} from './voice/runtime.js';
 
 export interface IveKitWorkerHandle {
   stop(): Promise<void>;
@@ -38,6 +44,9 @@ export interface IveKitRuntimeAdapters {
   startTranslation(input: Parameters<typeof startTranslationWorker>[0]): IveKitWorkerHandle;
   startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
   startEventRetention(input: Parameters<typeof startIveKitTenantEventRetentionWorker>[0]): IveKitWorkerHandle;
+  startVoiceCommand(input: Parameters<typeof startIveKitVoiceCommandWorker>[0]): IveKitWorkerHandle;
+  startVoiceEvent(input: Parameters<typeof startIveKitVoiceProviderEventWorker>[0]): IveKitWorkerHandle;
+  startVoiceReconciliation(input: Parameters<typeof startIveKitVoiceReconciliationWorker>[0]): IveKitWorkerHandle;
 }
 
 export interface IveKitApplicationInput {
@@ -79,6 +88,7 @@ export interface IveKitTranslationEnqueuer {
 
 export function startIveKitApplication(input: IveKitApplicationInput): IveKitApplication {
   const env = input.env || process.env;
+  const voiceConfig = iveKitVoiceWorkerConfig(env);
   const publish = input.publish || applicationPublisher(input.pg, env);
   const qualityReviewEnqueuer = input.qualityReviewEnqueuer || createQualityReviewEnqueuer(input.pg, env);
   const translationEnqueuer = input.translationEnqueuer || createTranslationEnqueuer(input.pg, env);
@@ -89,7 +99,10 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     startQuality: input.adapters?.startQuality || startQualityReviewWorker,
     startTranslation: input.adapters?.startTranslation || startTranslationWorker,
     startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker,
-    startEventRetention: input.adapters?.startEventRetention || startIveKitTenantEventRetentionWorker
+    startEventRetention: input.adapters?.startEventRetention || startIveKitTenantEventRetentionWorker,
+    startVoiceCommand: input.adapters?.startVoiceCommand || startIveKitVoiceCommandWorker,
+    startVoiceEvent: input.adapters?.startVoiceEvent || startIveKitVoiceProviderEventWorker,
+    startVoiceReconciliation: input.adapters?.startVoiceReconciliation || startIveKitVoiceReconciliationWorker
   };
   const workers: IveKitWorkerHandle[] = [
     adapters.startTinode({
@@ -235,7 +248,12 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
         snapshot
       )
     }),
-    adapters.startEventRetention({ pg: input.pg, env })
+    adapters.startEventRetention({ pg: input.pg, env }),
+    ...(voiceConfig.enabled ? [
+      adapters.startVoiceCommand({ pg: input.pg, env }),
+      adapters.startVoiceEvent({ pg: input.pg, env }),
+      adapters.startVoiceReconciliation({ pg: input.pg, env })
+    ] : [])
   ];
   let stopPromise: Promise<void> | null = null;
 

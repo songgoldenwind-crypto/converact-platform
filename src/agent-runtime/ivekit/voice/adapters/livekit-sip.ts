@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { SipClient } from 'livekit-server-sdk';
+import { RoomServiceClient, SipClient } from 'livekit-server-sdk';
 
 import { canonicalVoicePayloadHash, safeVoiceProviderPayload } from '../canonical.js';
 import { VoiceError } from '../errors.js';
+import { observeVoiceBridge, observeVoiceCommand } from '../metrics.js';
 import type {
   VoiceAddressProtector,
   VoiceCallRepository,
@@ -76,13 +77,23 @@ export interface CreateLiveKitSipBridgeAdapterOptions extends Omit<LiveKitSipBri
   api_secret_ref: string;
   secret_resolver: VoiceSecretResolver;
   client_factory?: (host: string, apiKey: string, apiSecret: string) => LiveKitSipClientPort;
+  participant_lookup_factory?: (
+    host: string,
+    apiKey: string,
+    apiSecret: string
+  ) => LiveKitSipParticipantLookupPort;
   production?: boolean;
+  internal_service?: boolean;
 }
 
 export async function createLiveKitSipBridgeAdapter(
   options: CreateLiveKitSipBridgeAdapterOptions
 ): Promise<LiveKitSipBridgeAdapter> {
-  const host = validatedHost(options.host, options.production === true);
+  const host = validatedHost(
+    options.host,
+    options.production === true,
+    options.internal_service === true
+  );
   let apiKey: string;
   let apiSecret: string;
   try {
@@ -95,7 +106,29 @@ export async function createLiveKitSipBridgeAdapter(
   const factory = options.client_factory
     ?? ((clientHost: string, key: string, secret: string) => new SipClient(clientHost, key, secret));
   const client = factory(host, apiKey, apiSecret);
-  return new LiveKitSipBridgeAdapter({ ...options, client });
+  const lookup = options.participant_lookup
+    ?? options.participant_lookup_factory?.(host, apiKey, apiSecret)
+    ?? liveKitParticipantLookup(host, apiKey, apiSecret);
+  return new LiveKitSipBridgeAdapter({ ...options, client, participant_lookup: lookup });
+}
+
+function liveKitParticipantLookup(
+  host: string,
+  apiKey: string,
+  apiSecret: string
+): LiveKitSipParticipantLookupPort {
+  const rooms = new RoomServiceClient(host, apiKey, apiSecret);
+  return {
+    async find(roomName, participantIdentity) {
+      const participant = (await rooms.listParticipants(roomName))
+        .find((candidate) => candidate.identity === participantIdentity);
+      const providerCallId = String(participant?.attributes?.['sip.callID'] || '').trim();
+      const participantId = String(participant?.sid || '').trim();
+      return participantId && providerCallId
+        ? { participant_id: participantId, provider_call_id: providerCallId }
+        : null;
+    }
+  };
 }
 
 export class LiveKitSipBridgeAdapter implements VoiceMediaBridgePort {
@@ -374,6 +407,32 @@ export class VoiceLiveKitBridgeCommandExecutor {
     provider_command_id: string;
     result: Record<string, unknown>;
   }> {
+    const startedAt = performance.now();
+    try {
+      const result = await this.#execute(command);
+      observeVoiceBridge({ adapter: 'livekit_sip', result: 'active' });
+      observeVoiceCommand({
+        adapter: 'livekit_sip', kind: command.kind, result: 'succeeded',
+        duration_seconds: (performance.now() - startedAt) / 1_000
+      });
+      return result;
+    } catch (error) {
+      const uncertain = error instanceof VoiceError && error.code === 'provider_timeout';
+      observeVoiceBridge({ adapter: 'livekit_sip', result: uncertain ? 'unknown' : 'failed' });
+      observeVoiceCommand({
+        adapter: 'livekit_sip', kind: command.kind,
+        result: uncertain ? 'uncertain' : 'failed',
+        error_code: error instanceof VoiceError ? error.code : 'provider_unavailable',
+        duration_seconds: (performance.now() - startedAt) / 1_000
+      });
+      throw error;
+    }
+  }
+
+  async #execute(command: VoiceCallCommand): Promise<{
+    provider_command_id: string;
+    result: Record<string, unknown>;
+  }> {
     if (command.kind !== 'livekit_bridge_create') {
       throw new VoiceError({ code: 'capability_unavailable', status: 501 });
     }
@@ -457,7 +516,10 @@ export class VoiceLiveKitBridgeCommandReconciler {
       input.command.tenant_id,
       input.command.idempotency_key
     );
-    if (!bridge) return { state: 'unknown' };
+    if (!bridge) {
+      observeVoiceBridge({ adapter: 'livekit_sip', result: 'unknown' });
+      return { state: 'unknown' };
+    }
     const profileId = boundedIdentifier(bridge.metadata.livekit_profile_id);
     const bridgePort = typeof this.options.bridge === 'function'
       ? await this.options.bridge(profileId)
@@ -466,6 +528,7 @@ export class VoiceLiveKitBridgeCommandReconciler {
       tenant_id: input.command.tenant_id,
       bridge_id: bridge.id
     });
+    observeVoiceBridge({ adapter: 'livekit_sip', result: result.state });
     if (result.state === 'active' || result.state === 'completed') {
       return { state: 'succeeded', provider_state: input.call.state, media_call_id: result.media_call_id };
     }
@@ -545,7 +608,7 @@ function clearDestination(value: unknown): string {
   return result;
 }
 
-function validatedHost(value: unknown, production: boolean): string {
+function validatedHost(value: unknown, production: boolean, internalService: boolean): string {
   if (typeof value !== 'string' || value.length > 2_048) throw validationError();
   let url: URL;
   try {
@@ -553,8 +616,10 @@ function validatedHost(value: unknown, production: boolean): string {
   } catch {
     throw validationError();
   }
-  if (url.username || url.password || url.search || url.hash || (url.protocol !== 'https:'
-    && !(url.protocol === 'http:' && !production && isLoopback(url.hostname)))) throw validationError();
+  const allowedHttp = url.protocol === 'http:'
+    && (internalService || (!production && isLoopback(url.hostname)));
+  if (url.username || url.password || url.search || url.hash
+    || (url.protocol !== 'https:' && !allowedHttp)) throw validationError();
   return url.toString().replace(/\/$/, '');
 }
 

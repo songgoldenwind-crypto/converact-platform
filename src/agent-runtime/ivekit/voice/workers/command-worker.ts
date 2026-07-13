@@ -34,6 +34,8 @@ export interface VoiceCommandWorkerOptions {
   lease_ms?: number;
   retry_base_ms?: number;
   retry_max_ms?: number;
+  retry_delays_ms?: readonly number[];
+  max_attempts?: number;
   retry_jitter_ratio?: number;
   now?: () => Date;
   random?: () => number;
@@ -64,6 +66,8 @@ export class VoiceCommandWorker {
   readonly #leaseMs: number;
   readonly #retryBaseMs: number;
   readonly #retryMaxMs: number;
+  readonly #retryDelays: readonly number[] | null;
+  readonly #maxAttempts: number;
   readonly #retryJitterRatio: number;
   readonly #now: () => Date;
   readonly #random: () => number;
@@ -81,6 +85,10 @@ export class VoiceCommandWorker {
     this.#leaseMs = boundedInteger(options.lease_ms, 30_000, 1_000, 15 * 60_000);
     this.#retryBaseMs = boundedInteger(options.retry_base_ms, 1_000, 100, 60_000);
     this.#retryMaxMs = boundedInteger(options.retry_max_ms, 60_000, this.#retryBaseMs, 24 * 60 * 60_000);
+    this.#retryDelays = options.retry_delays_ms === undefined
+      ? null
+      : boundedRetryDelays(options.retry_delays_ms);
+    this.#maxAttempts = boundedInteger(options.max_attempts, 100, 1, 100);
     this.#retryJitterRatio = boundedNumber(options.retry_jitter_ratio, 0.2, 0, 1);
     this.#now = options.now ?? (() => new Date());
     this.#random = options.random ?? Math.random;
@@ -285,14 +293,16 @@ export class VoiceCommandWorker {
     let nextAttemptAt: Date | null = null;
     if (classified.code === 'provider_timeout' && ambiguous) {
       state = 'uncertain';
-    } else if (classified.retryable && command.attempt_count < command.max_attempts) {
+    } else if (classified.retryable
+      && command.attempt_count < Math.min(command.max_attempts, this.#maxAttempts)) {
       state = 'retry_wait';
       nextAttemptAt = new Date(this.#now().getTime() + this.#retryDelay(command.attempt_count));
     }
     try {
       const input = {
         tenant_id: command.tenant_id, command_id: command.id, worker_id: this.#workerId,
-        state, next_attempt_at: nextAttemptAt, error_code: classified.code
+        state, next_attempt_at: nextAttemptAt, error_code: classified.code,
+        provider_command_id: providerCommandIdFromError(error) || command.provider_command_id
       };
       if (queue === 'call') await this.#commands.releaseCall(input);
       else await this.#commands.releaseConfiguration(input);
@@ -307,6 +317,12 @@ export class VoiceCommandWorker {
   }
 
   #retryDelay(attemptCount: number): number {
+    if (this.#retryDelays) {
+      return this.#retryDelays[Math.min(
+        Math.max(0, attemptCount - 1),
+        this.#retryDelays.length - 1
+      )];
+    }
     const exponential = Math.min(this.#retryMaxMs, this.#retryBaseMs * (2 ** Math.max(0, attemptCount)));
     const jitter = exponential * this.#retryJitterRatio * ((this.#random() * 2) - 1);
     return Math.max(this.#retryBaseMs, Math.min(this.#retryMaxMs, Math.round(exponential + jitter)));
@@ -353,6 +369,15 @@ function completionUnknown(): VoiceError {
   return new VoiceError({ code: 'provider_timeout', retryable: true, status: 504 });
 }
 
+function providerCommandIdFromError(error: unknown): string {
+  if (!(error instanceof VoiceError)) return '';
+  const value = error.details.provider_command_id;
+  return typeof value === 'string' && value.length <= 256
+    && !/[\u0000-\u001f\u007f]/.test(value)
+    ? value
+    : '';
+}
+
 function boundedIdentifier(value: unknown): string {
   const result = typeof value === 'string' ? value.trim() : '';
   if (!result || result.length > 256 || /[\u0000-\u001f\u007f]/.test(result)) throw validationError();
@@ -369,6 +394,14 @@ function boundedNumber(value: number | undefined, fallback: number, min: number,
   const resolved = value ?? fallback;
   if (!Number.isFinite(resolved) || resolved < min || resolved > max) throw validationError();
   return resolved;
+}
+
+function boundedRetryDelays(value: readonly number[]): readonly number[] {
+  if (!Array.isArray(value) || !value.length || value.length > 20
+    || value.some((delay) => !Number.isInteger(delay) || delay < 0 || delay > 3_600_000)) {
+    throw validationError();
+  }
+  return [...value];
 }
 
 function validationError(): VoiceError {

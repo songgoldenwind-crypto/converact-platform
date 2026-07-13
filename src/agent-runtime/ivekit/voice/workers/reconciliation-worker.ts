@@ -1,5 +1,6 @@
 import { safeVoiceProviderPayload } from '../canonical.js';
 import { VoiceError } from '../errors.js';
+import { observeVoiceReconciliation } from '../metrics.js';
 import type { VoiceCallUnitOfWork } from '../ports.js';
 import { VoiceProviderRegistry } from '../provider-registry.js';
 import { mergeProviderCallState } from '../state-machine.js';
@@ -102,6 +103,7 @@ export class VoiceReconciliationWorker {
       call = loaded.call;
       profile = loaded.profile;
     } catch (error) {
+      observeVoiceReconciliation({ adapter: 'other', result: 'pending' });
       await this.#release(command, classifyError(error), result, 'pending');
       return;
     }
@@ -124,6 +126,7 @@ export class VoiceReconciliationWorker {
     }
 
     try {
+      observeVoiceReconciliation({ adapter: profile.adapter, result: outcome.state });
       if (outcome.state === 'succeeded') {
         await this.#settleTerminal(command, outcome, 'succeeded');
         result.succeeded += 1;

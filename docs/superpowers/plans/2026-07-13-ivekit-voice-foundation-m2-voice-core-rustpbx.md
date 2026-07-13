@@ -801,11 +801,11 @@ Implementation note: the existing `withPgTenant` contract in `src/db-pg-tenant.t
 - Modify: `config/rustpbx.docker.toml`
 - Modify: `package.json`
 
-- [ ] **Step 1: Write failing worker lifecycle tests**
+- [x] **Step 1: Write failing worker lifecycle tests**
 
 Add injectable starts for command, event, and reconciliation workers. Verify all start only when Voice worker config is enabled and PostgreSQL exists, stop in reverse order, wait for active batches, aggregate stop failures, and do not affect existing Media/IM/Intelligence workers.
 
-- [ ] **Step 2: Implement bounded worker config**
+- [x] **Step 2: Implement bounded worker config**
 
 Declare and validate:
 
@@ -827,21 +827,21 @@ OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY
 
 Lease must exceed the provider timeout budget. Disabled Voice must not require address keys or provider profiles.
 
-- [ ] **Step 3: Add metrics with bounded labels**
+- [x] **Step 3: Add metrics with bounded labels**
 
 Record calls by adapter/direction/state, command totals/duration by adapter/kind/result/error code, uncertain/reconciliation totals, event lag by adapter/type, bridge results, and preflight results. Do not label tenant id, call id, business reference, profile id, flow id, or phone number.
 
-- [ ] **Step 4: Implement preflight CLI**
+- [x] **Step 4: Implement preflight CLI**
 
 Report PostgreSQL migration presence, runtime role, address-key validity, worker lease budgets, enabled profiles, capability snapshot age/config hash, endpoint schemes, secret-ref resolution status, and LiveKit/RustPBX configuration. Output only booleans, coarse status, safe URL origin/path, and error codes. Add `npm run ivekit:voice-preflight`.
 
-- [ ] **Step 5: Write failing deployment contract tests**
+- [x] **Step 5: Write failing deployment contract tests**
 
 Prove that every production-capable RustPBX surface uses an explicit immutable image reference, never `latest`; uses a dedicated PostgreSQL database named `rustpbx` and a least-privilege `rustpbx_app` role, never SQLite and never `opc_runtime`; mounts generated configuration without committed webhook/RWI tokens; exposes SIP/RTP intentionally while keeping Management/RWI internal by default; and does not give the OPC process RustPBX database credentials.
 
 For Helm, cover enable/disable, image reference, PostgreSQL DSN secret binding, SIP/RTP services, internal Management/RWI endpoints, resources, health checks, and PodDisruptionBudget. For Compose, render both the core file and optional Voice overlay and assert service dependencies, health gates, networks, volumes, profiles, and port ranges.
 
-- [ ] **Step 6: Implement PostgreSQL-only RustPBX deployment**
+- [x] **Step 6: Implement PostgreSQL-only RustPBX deployment**
 
 Extend the standalone PostgreSQL bootstrap with an idempotent `rustpbx_app` role and separate `rustpbx` database. The RustPBX data plane owns that database; iveKit migrations, `opc_admin`, and `opc_runtime` must not own or read it. Production compose must bootstrap the same database/role isolation rather than relying on a local file volume.
 
@@ -851,7 +851,7 @@ Add `infra/ivekit/docker-compose.voice.yml` as an optional overlay/profile. Rust
 
 Add an opt-in Helm RustPBX workload with immutable image configuration, generated config Secret/ConfigMap, separate database credential Secret, SIP and RTP service settings, readiness/liveness checks, resources, security context, and disruption budget. Defaults stay disabled until all required values are supplied.
 
-- [ ] **Step 7: Run application, preflight, and deployment tests**
+- [x] **Step 7: Run application, preflight, and deployment tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-application.test.ts test/ivekit-voice-preflight.test.ts test/ivekit-voice-deployment.test.ts test/ivekit-application.test.ts
@@ -862,7 +862,7 @@ COMPOSE_DISABLE_ENV_FILE=1 docker compose --env-file infra/ivekit/env.example -f
 
 Expected: PASS; rendered deployment contains no SQLite DSN, no floating RustPBX image, no committed service token, and no RustPBX database credential in the OPC container.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/application.ts src/agent-runtime/ivekit/voice/preflight.ts src/agent-runtime/ivekit/voice/metrics.ts src/ivekit-server.ts scripts/ivekit-voice-preflight.ts scripts/render-rustpbx-config.ts services/ivekit-service/env.example infra/env.example infra/docker-compose.production.yml infra/ivekit/docker-compose.yml infra/ivekit/docker-compose.voice.yml infra/ivekit/init-postgres-runtime-role.sh infra/k8s/templates/opc-deployment.yaml infra/k8s/templates/rustpbx-deployment.yaml infra/k8s/templates/secrets.yaml infra/k8s/values.yaml config/rustpbx.docker.toml package.json test/ivekit-voice-application.test.ts test/ivekit-voice-preflight.test.ts test/ivekit-voice-deployment.test.ts
