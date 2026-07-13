@@ -67,6 +67,20 @@ import type {
   IveKitEventReplayInput,
   IveKitEventReplayResult
 } from './event-types.js';
+import type {
+  IveKitFindingQueueInput,
+  IveKitFindingQueuePage,
+  IveKitIntelligenceCapabilities,
+  IveKitIntelligencePolicy,
+  IveKitIntelligencePolicyWrite,
+  IveKitIntelligenceSourceSnapshot,
+  IveKitProviderHealthResult,
+  IveKitProviderProfileSummary,
+  IveKitTranslationListResult,
+  IveKitTranslationRequestInput,
+  IveKitTranslationRequestResult,
+  IveKitTranslationJob
+} from './intelligence-types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -225,6 +239,46 @@ export interface IveKitChatHttpClient {
   enqueueQualityReview(sessionId: string, messageId: string): Promise<IveKitQualityReviewResult>;
   runAttachmentProcessing(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
   runQualityReview(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
+  listMessageTranslations(
+    sessionId: string,
+    messageId: string,
+    input?: { target_language?: string; history?: boolean }
+  ): Promise<IveKitTranslationListResult>;
+  requestMessageTranslation(
+    sessionId: string,
+    messageId: string,
+    input: IveKitTranslationRequestInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitTranslationRequestResult>;
+  listAttachmentTranslations(
+    sessionId: string,
+    attachmentId: string,
+    input?: { target_language?: string; history?: boolean }
+  ): Promise<IveKitTranslationListResult>;
+  requestAttachmentTranslation(
+    sessionId: string,
+    attachmentId: string,
+    input: IveKitTranslationRequestInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitTranslationRequestResult>;
+  retryTranslation(sessionId: string, jobId: string): Promise<{ job: IveKitTranslationJob }>;
+  runTranslation(input?: { limit?: number }): Promise<IveKitWorkerRunResult>;
+}
+
+export interface IveKitIntelligenceHttpClient {
+  getCapabilities(): Promise<IveKitIntelligenceCapabilities>;
+  getPolicy(): Promise<IveKitIntelligencePolicy>;
+  updatePolicy(input: IveKitIntelligencePolicyWrite): Promise<IveKitIntelligencePolicy>;
+  listProviders(): Promise<{ items: IveKitProviderProfileSummary[] }>;
+  probeProviderHealth(input?: { profile_ids?: string[] }): Promise<{ items: IveKitProviderHealthResult[] }>;
+  importSource(
+    sessionId: string,
+    input: { source_type: 'media_recording' | 'remote_recording'; source_ref_id: string },
+    options: { idempotencyKey: string }
+  ): Promise<IveKitIntelligenceSourceSnapshot>;
+  getSource(sessionId: string, sourceId: string): Promise<IveKitIntelligenceSourceSnapshot>;
+  retrySource(sessionId: string, sourceId: string): Promise<IveKitIntelligenceSourceSnapshot>;
+  listFindings(input?: IveKitFindingQueueInput): Promise<IveKitFindingQueuePage>;
 }
 
 export interface IveKitContextHttpClient {
@@ -246,6 +300,7 @@ export interface IveKitHttpSdk {
   chat: IveKitChatHttpClient;
   context: IveKitContextHttpClient;
   events: IveKitEventHttpClient;
+  intelligence: IveKitIntelligenceHttpClient;
 }
 
 export class IveKitHttpSdkError extends Error {
@@ -267,7 +322,8 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
     media: createMediaClient(transport),
     chat: createChatClient(transport, createAttachmentUploadClient(input)),
     context: createContextClient(transport),
-    events: createEventClient(transport)
+    events: createEventClient(transport),
+    intelligence: createIntelligenceClient(transport)
   };
 }
 
@@ -653,7 +709,59 @@ function createChatClient(
       'POST',
       '/api/ivekit/chat/quality-review/run',
       { body: input }
+    ),
+    listMessageTranslations: (sessionId, messageId, input = {}) => transport.json(
+      'GET', `${messagePath(sessionId, messageId)}/translations`,
+      { query: translationListQuery(input) }
+    ),
+    requestMessageTranslation: (sessionId, messageId, input, options) => transport.json(
+      'POST', `${messagePath(sessionId, messageId)}/translations`,
+      { body: input, headers: { 'idempotency-key': requiredString(options.idempotencyKey, 'idempotencyKey is required') } }
+    ),
+    listAttachmentTranslations: (sessionId, attachmentId, input = {}) => transport.json(
+      'GET', `${attachmentPath(sessionId, attachmentId)}/translations`,
+      { query: translationListQuery(input) }
+    ),
+    requestAttachmentTranslation: (sessionId, attachmentId, input, options) => transport.json(
+      'POST', `${attachmentPath(sessionId, attachmentId)}/translations`,
+      { body: input, headers: { 'idempotency-key': requiredString(options.idempotencyKey, 'idempotencyKey is required') } }
+    ),
+    retryTranslation: (sessionId, jobId) => transport.json(
+      'POST', `${sessionPath(sessionId)}/translations/${pathSegment(jobId, 'jobId')}/retry`, { body: {} }
+    ),
+    runTranslation: (input = {}) => transport.json(
+      'POST', '/api/ivekit/chat/translation/run', { body: input }
     )
+  };
+}
+
+function createIntelligenceClient(transport: IveKitTransport): IveKitIntelligenceHttpClient {
+  const sourcePath = (sessionId: string, sourceId?: string) =>
+    `/api/ivekit/intelligence/sessions/${pathSegment(sessionId, 'sessionId')}/sources` +
+    (sourceId ? `/${pathSegment(sourceId, 'sourceId')}` : '');
+  return {
+    getCapabilities: () => transport.json('GET', '/api/ivekit/intelligence/capabilities'),
+    getPolicy: () => transport.json('GET', '/api/ivekit/intelligence/policy'),
+    updatePolicy: (input) => transport.json('PUT', '/api/ivekit/intelligence/policy', { body: input }),
+    listProviders: () => transport.json('GET', '/api/ivekit/intelligence/providers'),
+    probeProviderHealth: (input = {}) => transport.json(
+      'POST', '/api/ivekit/intelligence/providers/health', { body: input }
+    ),
+    importSource: (sessionId, input, options) => transport.json('POST', sourcePath(sessionId), {
+      body: input,
+      headers: { 'idempotency-key': requiredString(options.idempotencyKey, 'idempotencyKey is required') }
+    }),
+    getSource: (sessionId, sourceId) => transport.json('GET', sourcePath(sessionId, sourceId)),
+    retrySource: (sessionId, sourceId) => transport.json('POST', `${sourcePath(sessionId, sourceId)}/retry`, {
+      body: {}
+    }),
+    listFindings: (input = {}) => transport.json('GET', '/api/ivekit/intelligence/findings', {
+      query: {
+        session_id: input.session_id || '', source: input.source || '', severity: input.severity || '',
+        review_status: input.review_status || '', created_from: input.created_from || '',
+        created_to: input.created_to || '', cursor: input.cursor || '', limit: optionalNumber(input.limit)
+      }
+    })
   };
 }
 
@@ -798,6 +906,16 @@ function pathSegment(value: unknown, field: string): string {
 
 function optionalNumber(value: number | undefined): string {
   return value === undefined ? '' : String(value);
+}
+
+function translationListQuery(input: {
+  target_language?: string;
+  history?: boolean;
+}): Record<string, string> {
+  return {
+    target_language: input.target_language || '',
+    history: input.history ? '1' : ''
+  };
 }
 
 function boundedInteger(
