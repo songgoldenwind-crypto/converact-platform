@@ -262,7 +262,7 @@ git commit -m "feat(ivekit): add durable voice configuration operations"
 - Create: `src/agent-runtime/ivekit/voice/canonical.ts`
 - Create: `test/ivekit-voice-security.test.ts`
 
-- [ ] **Step 1: Write failing security tests**
+- [x] **Step 1: Write failing security tests**
 
 Test an E.164, extension, and SIP URI round trip; tenant A ciphertext must not decrypt under tenant B. The encrypted envelope must be `v1.<nonce>.<tag>.<ciphertext>` and contain no plaintext. HMAC must be 64 lowercase hex characters and stable for the same tenant/normalized address. Redaction examples:
 
@@ -274,7 +274,7 @@ sip:alice@example.test -> sip:a***@example.test
 
 Reject keys that are not base64-encoded 32-byte values. Resolve only `env://UPPER_SNAKE_CASE`; reject missing variables, direct secret strings, nested objects, and names outside the allowlist. Safe payload projection must remove SDP/body, Authorization, cookies, passwords, tokens, raw phone fields, and recursively bound depth/string/array sizes.
 
-- [ ] **Step 2: Observe failures**
+- [x] **Step 2: Observe failures**
 
 ```bash
 node --import tsx --test test/ivekit-voice-security.test.ts
@@ -282,15 +282,15 @@ node --import tsx --test test/ivekit-voice-security.test.ts
 
 Expected: FAIL because the security modules do not exist.
 
-- [ ] **Step 3: Implement cryptographic protection**
+- [x] **Step 3: Implement cryptographic protection**
 
 Use HKDF-SHA256 to derive per-tenant encryption and HMAC keys from separate 32-byte roots. Use AES-256-GCM with tenant id and address kind as authenticated data. Normalize E.164, extension, and SIP URI before HMAC. Do not log values or include clear addresses in thrown errors.
 
-- [ ] **Step 4: Implement secret refs and canonical hashing**
+- [x] **Step 4: Implement secret refs and canonical hashing**
 
 `EnvVoiceSecretResolver.resolve(ref, purpose)` returns a string only for allowed env refs. `canonicalVoicePayloadHash` recursively sorts object keys and hashes canonical JSON. `safeVoiceProviderPayload` returns a bounded redacted object used by event persistence and diagnostics.
 
-- [ ] **Step 5: Run security and type checks**
+- [x] **Step 5: Run security and type checks**
 
 ```bash
 node --import tsx --test test/ivekit-voice-security.test.ts
@@ -299,7 +299,7 @@ npm run typecheck
 
 Expected: PASS with no secret/plain-address assertion failure.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/address-protector.ts src/agent-runtime/ivekit/voice/secret-resolver.ts src/agent-runtime/ivekit/voice/canonical.ts test/ivekit-voice-security.test.ts

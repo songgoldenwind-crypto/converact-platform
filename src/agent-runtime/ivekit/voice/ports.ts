@@ -15,7 +15,15 @@ export interface VoiceAddressProtector {
     value: string,
     kind: 'e164' | 'extension' | 'sip_uri'
   ): Promise<{ ciphertext: string; hmac: string; redacted: string }>;
-  reveal(tenantId: string, ciphertext: string): Promise<string>;
+  reveal(
+    tenantId: string,
+    ciphertext: string,
+    kind: 'e164' | 'extension' | 'sip_uri'
+  ): Promise<string>;
+}
+
+export interface VoiceSecretResolver {
+  resolve(ref: unknown, purpose: string): Promise<string>;
 }
 
 export interface VoiceCallRepository {
