@@ -87,13 +87,60 @@ export interface IvrAction {
   kind:
     | 'play'
     | 'collect'
+    | 'flush'
     | 'queue'
     | 'transfer'
     | 'record'
     | 'webhook'
+    | 'knowledge'
+    | 'ai'
     | 'media'
     | 'hangup'
     | 'wait';
   node_id: string;
   payload: Record<string, unknown>;
+}
+
+export interface IvrSessionStep {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  step_index: number;
+  node_id: string;
+  action: IvrAction;
+  branch_taken: string;
+  duration_ms: number;
+  error_code: string;
+  created_at: string;
+}
+
+export type IvrActionDispatchMode = 'worker' | 'provider_exchange';
+
+export interface IvrPendingAction {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  step_index: number;
+  node_id: string;
+  action_kind: IvrAction['kind'];
+  state: IvrPendingActionState;
+  dispatch_mode: IvrActionDispatchMode;
+  idempotency_key: string;
+  payload_hash: string;
+  payload: Record<string, unknown>;
+  result: Record<string, unknown>;
+  attempt_count: number;
+  max_attempts: number;
+  next_attempt_at: string | null;
+  lease_until: string | null;
+  worker_id: string;
+  provider_profile_id: string;
+  provider_action_id: string;
+  error_code: string;
+  error_message: string;
+  trace_id: string;
+  reconciliation_count: number;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
 }

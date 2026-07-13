@@ -1,6 +1,13 @@
 import type { IvrDependencyManifest } from './dependencies.js';
 import type { IvrValidationIssue } from './validation.js';
-import type { IvrAction, IvrFlow, IvrFlowVersion, IvrSession } from './types.js';
+import type {
+  IvrAction,
+  IvrFlow,
+  IvrFlowVersion,
+  IvrPendingAction,
+  IvrSession,
+  IvrSessionStep
+} from './types.js';
 
 export interface IvrFlowRepository {
   getFlow(
@@ -48,18 +55,46 @@ export interface IvrSessionRepository {
     sessionId: string,
     options?: { for_update?: boolean }
   ): Promise<IvrSession | null>;
+  findByProviderBinding(
+    tenantId: string,
+    profileId: string,
+    providerSessionId: string,
+    options?: { for_update?: boolean }
+  ): Promise<IvrSession | null>;
   insert(session: IvrSession): Promise<IvrSession>;
   update(session: IvrSession, expectedRevision: number): Promise<IvrSession>;
-  appendStep(input: {
+}
+
+export interface IvrSessionStepRepository {
+  append(step: IvrSessionStep): Promise<void>;
+  list(tenantId: string, sessionId: string): Promise<IvrSessionStep[]>;
+}
+
+export interface IvrPendingActionRepository {
+  findOpenForSession(tenantId: string, sessionId: string): Promise<IvrPendingAction | null>;
+  insert(action: IvrPendingAction): Promise<IvrPendingAction>;
+  settle(input: {
     tenant_id: string;
-    session_id: string;
-    step_index: number;
-    node_id: string;
-    action: IvrAction;
-    branch_taken: string;
-    duration_ms: number;
+    action_id: string;
+    state: 'succeeded' | 'failed' | 'cancelled';
+    result: Record<string, unknown>;
     error_code: string;
-  }): Promise<void>;
+    completed_at: string;
+  }): Promise<IvrPendingAction>;
+}
+
+export interface IvrSessionUnitOfWorkContext {
+  flows: IvrFlowRepository;
+  sessions: IvrSessionRepository;
+  steps: IvrSessionStepRepository;
+  actions: IvrPendingActionRepository;
+}
+
+export interface IvrSessionUnitOfWork {
+  run<T>(
+    tenantId: string,
+    operation: (context: IvrSessionUnitOfWorkContext) => Promise<T>
+  ): Promise<T>;
 }
 
 export interface IvrCallControlPort {

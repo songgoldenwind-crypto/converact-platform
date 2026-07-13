@@ -1,0 +1,231 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import {
+  IvrError,
+  IvrSessionService,
+  type IvrFlow,
+  type IvrFlowGraph,
+  type IvrFlowRepository,
+  type IvrFlowVersion,
+  type IvrPendingAction,
+  type IvrPendingActionRepository,
+  type IvrSession,
+  type IvrSessionRepository,
+  type IvrSessionStep,
+  type IvrSessionUnitOfWork
+} from '../src/agent-runtime/ivekit/ivr/index.js';
+
+test('IVR durable session advances, persists actions, replays exactly, and reaches terminal state', async () => {
+  const fixture = createFixture();
+  const started = await fixture.service.startSession({
+    tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a',
+    provider_profile_id: 'profile-a', provider_session_id: 'provider-session-a', trace_id: 'trace-a'
+  });
+  assert.equal(started.session.state, 'running');
+  assert.equal(started.session.current_node_id, 'start');
+
+  const first = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+  assert.equal(first.action?.kind, 'play');
+  assert.equal(first.session.state, 'waiting');
+  assert.equal(first.session.current_node_id, 'play');
+  assert.equal(first.session.step_count, 1, 'start step is append-only before play waits');
+  assert.equal(fixture.actions.items.length, 1);
+
+  const replay = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.action, first.action);
+  assert.equal(fixture.steps.items.length, 1);
+  assert.equal(fixture.actions.items.length, 1);
+
+  const menu = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 2, action_revision: 2,
+    event: { type: 'action_succeeded', result: {} }
+  });
+  assert.equal(menu.action?.kind, 'collect');
+  assert.equal(menu.session.current_node_id, 'menu');
+  assert.equal(fixture.actions.items[0]?.state, 'succeeded');
+
+  const hangup = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 3, action_revision: 3,
+    event: { type: 'dtmf', digit: '1' }
+  });
+  assert.equal(hangup.action?.kind, 'hangup');
+  assert.equal(hangup.session.current_node_id, 'end');
+
+  const completed = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 4, action_revision: 4,
+    event: { type: 'action_succeeded', result: {} }
+  });
+  assert.equal(completed.action, null);
+  assert.equal(completed.session.state, 'completed');
+  assert.equal(completed.session.step_count, 4);
+  assert.equal(fixture.steps.items.length, 4);
+  assert.deepEqual(fixture.steps.items.map((step) => step.node_id), ['start', 'play', 'menu', 'end']);
+});
+
+test('IVR durable session rejects sequence gaps, altered replays, and terminal advances', async () => {
+  const fixture = createFixture();
+  const started = await fixture.service.startSession({ tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a' });
+  await fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' } });
+
+  await assert.rejects(() => fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 3, action_revision: 2, event: { type: 'action_succeeded', result: {} } }),
+  hasIvrCode('event_sequence_conflict'));
+  await assert.rejects(() => fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'timeout' } }),
+  hasIvrCode('event_sequence_conflict'));
+
+  await fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 2, action_revision: 2, event: { type: 'action_succeeded', result: {} } });
+  await fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 3, action_revision: 3, event: { type: 'dtmf', digit: '1' } });
+  await fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 4, action_revision: 4, event: { type: 'action_succeeded', result: {} } });
+  await assert.rejects(() => fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 5, action_revision: 5, event: { type: 'enter' } }), hasIvrCode('invalid_session_state'));
+});
+
+test('IVR session start idempotently binds one provider session to one published flow version', async () => {
+  const fixture = createFixture();
+  const input = {
+    tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a',
+    provider_profile_id: 'profile-a', provider_session_id: 'provider-session-a'
+  };
+  const first = await fixture.service.startSession(input);
+  const replay = await fixture.service.startSession(input);
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.session.id, first.session.id);
+  assert.equal(fixture.sessions.items.length, 1);
+
+  await assert.rejects(() => fixture.service.startSession({ ...input, call_id: 'call-b' }),
+    hasIvrCode('idempotency_conflict'));
+});
+
+function createFixture() {
+  const flow = publishedFlow();
+  const flows = new MemoryFlowRepository(flow);
+  const sessions = new MemorySessionRepository();
+  const steps = new MemoryStepRepository();
+  const actions = new MemoryActionRepository();
+  const unitOfWork: IvrSessionUnitOfWork = {
+    run: async (_tenantId, operation) => operation({ flows, sessions, actions, steps })
+  };
+  let id = 0;
+  const service = new IvrSessionService({
+    unit_of_work: unitOfWork,
+    id: (kind) => `${kind}-${++id}`,
+    now: () => new Date('2026-07-13T01:00:00.000Z')
+  });
+  return { actions, flows, service, sessions, steps };
+}
+
+class MemoryFlowRepository implements IvrFlowRepository {
+  constructor(readonly published: IvrFlowVersion) {}
+  async getPublished(tenantId: string, flowId: string, version?: number): Promise<IvrFlowVersion | null> {
+    return tenantId === this.published.tenant_id && flowId === this.published.flow_id
+      && (version === undefined || version === this.published.version) ? clone(this.published) : null;
+  }
+  async getVersion(tenantId: string, flowId: string, version: number) { return this.getPublished(tenantId, flowId, version); }
+  async getFlow(): Promise<IvrFlow | null> { return null; }
+  async listFlows(): Promise<IvrFlow[]> { return []; }
+  async insertFlow(): Promise<IvrFlow> { throw new Error('not used'); }
+  async updateDraft(): Promise<IvrFlow> { throw new Error('not used'); }
+  async updatePublication(): Promise<IvrFlow> { throw new Error('not used'); }
+  async listVersions(): Promise<IvrFlowVersion[]> { return [clone(this.published)]; }
+  async findVersionByPublicationKey(): Promise<IvrFlowVersion | null> { return null; }
+  async insertVersion(): Promise<IvrFlowVersion> { throw new Error('not used'); }
+}
+
+class MemorySessionRepository implements IvrSessionRepository {
+  readonly items: IvrSession[] = [];
+  async get(tenantId: string, sessionId: string): Promise<IvrSession | null> {
+    return clone(this.items.find((item) => item.tenant_id === tenantId && item.id === sessionId) ?? null);
+  }
+  async findByProviderBinding(tenantId: string, profileId: string, providerSessionId: string): Promise<IvrSession | null> {
+    return clone(this.items.find((item) => item.tenant_id === tenantId && item.provider_profile_id === profileId
+      && item.provider_session_id === providerSessionId) ?? null);
+  }
+  async insert(session: IvrSession): Promise<IvrSession> { this.items.push(clone(session)); return clone(session); }
+  async update(session: IvrSession, expectedRevision: number): Promise<IvrSession> {
+    const index = this.items.findIndex((item) => item.id === session.id && item.revision === expectedRevision);
+    if (index < 0) throw new IvrError({ code: 'revision_conflict' });
+    this.items[index] = clone(session);
+    return clone(session);
+  }
+}
+
+class MemoryStepRepository {
+  readonly items: IvrSessionStep[] = [];
+  async append(step: IvrSessionStep): Promise<void> { this.items.push(clone(step)); }
+  async list(tenantId: string, sessionId: string): Promise<IvrSessionStep[]> {
+    return clone(this.items.filter((item) => item.tenant_id === tenantId && item.session_id === sessionId));
+  }
+}
+
+class MemoryActionRepository implements IvrPendingActionRepository {
+  readonly items: IvrPendingAction[] = [];
+  async findOpenForSession(tenantId: string, sessionId: string): Promise<IvrPendingAction | null> {
+    return clone(this.items.find((item) => item.tenant_id === tenantId && item.session_id === sessionId
+      && ['pending', 'processing', 'retry_wait', 'uncertain'].includes(item.state)) ?? null);
+  }
+  async insert(action: IvrPendingAction): Promise<IvrPendingAction> { this.items.push(clone(action)); return clone(action); }
+  async settle(input: { tenant_id: string; action_id: string; state: 'succeeded' | 'failed' | 'cancelled'; result: Record<string, unknown>; error_code: string; completed_at: string }): Promise<IvrPendingAction> {
+    const item = this.items.find((candidate) => candidate.tenant_id === input.tenant_id && candidate.id === input.action_id)!;
+    Object.assign(item, input, { id: item.id, state: input.state, updated_at: input.completed_at });
+    return clone(item);
+  }
+}
+
+function publishedFlow(): IvrFlowVersion {
+  return {
+    id: 'version-a', tenant_id: 'tenant-a', flow_id: 'flow-a', version: 1, schema_version: 1,
+    graph: graph(), graph_hash: 'a'.repeat(64), dependencies: emptyDependencies(),
+    release_kind: 'publish', source_version: null, publication_key: 'publish-flow-a',
+    publication_payload_hash: 'b'.repeat(64), release_metadata: {}, published_by: 'admin-a',
+    published_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function graph(): IvrFlowGraph {
+  return {
+    version: 1, entryNodeId: 'start', variables: [],
+    nodes: [
+      { id: 'start', type: 'start', name: 'Start', position: { x: 0, y: 0 }, data: {} },
+      { id: 'play', type: 'play', name: 'Play', position: { x: 1, y: 0 }, data: { text: 'Welcome' } },
+      { id: 'menu', type: 'menu', name: 'Menu', position: { x: 2, y: 0 }, data: { options: [{ digit: '1' }] } },
+      { id: 'end', type: 'disconnect', name: 'End', position: { x: 3, y: 0 }, data: {} }
+    ],
+    edges: [
+      { id: 'e1', source: 'start', target: 'play', sourceHandle: 'out' },
+      { id: 'e2', source: 'play', target: 'menu', sourceHandle: 'out' },
+      { id: 'e3', source: 'menu', target: 'end', sourceHandle: 'digit_1' },
+      { id: 'e4', source: 'menu', target: 'end', sourceHandle: 'timeout' },
+      { id: 'e5', source: 'menu', target: 'end', sourceHandle: 'invalid' },
+      { id: 'e6', source: 'menu', target: 'end', sourceHandle: 'max_retries' }
+    ]
+  };
+}
+
+function emptyDependencies() {
+  return { node_types: ['collect', 'disconnect', 'menu', 'play', 'start'] as never[], audio_assets: [],
+    time_groups: [], region_groups: [], ring_groups: [], queues: [], subflows: [], webhook_refs: [],
+    knowledge_profiles: [], ai_profiles: [], provider_profile_ids: [], media_capabilities: [],
+    voice_capabilities: ['collect', 'hangup', 'play'] };
+}
+
+function hasIvrCode(code: string): (error: unknown) => boolean {
+  return (error: unknown) => error instanceof IvrError && error.code === code;
+}
+
+function clone<T>(value: T): T { return structuredClone(value); }

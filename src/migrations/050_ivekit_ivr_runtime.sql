@@ -63,8 +63,20 @@ CREATE INDEX IF NOT EXISTS idx_ivekit_ivr_sessions_tenant_updated
 
 ALTER TABLE ivekit_ivr_pending_actions
   ADD COLUMN IF NOT EXISTS trace_id TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS dispatch_mode TEXT NOT NULL DEFAULT 'worker'
+    CHECK (dispatch_mode IN ('worker', 'provider_exchange')),
   ADD COLUMN IF NOT EXISTS reconciliation_count INTEGER NOT NULL DEFAULT 0
     CHECK (reconciliation_count >= 0);
+
+ALTER TABLE ivekit_ivr_pending_actions
+  DROP CONSTRAINT IF EXISTS ivekit_ivr_pending_actions_action_kind_check;
+ALTER TABLE ivekit_ivr_pending_actions
+  ADD CONSTRAINT ivekit_ivr_pending_actions_action_kind_check CHECK (
+    action_kind IN (
+      'play', 'collect', 'flush', 'queue', 'transfer', 'record', 'webhook',
+      'knowledge', 'ai', 'media', 'hangup', 'wait'
+    )
+  );
 
 CREATE INDEX IF NOT EXISTS idx_ivekit_ivr_actions_tenant_due
   ON ivekit_ivr_pending_actions(
@@ -154,7 +166,7 @@ BEGIN
   ELSIF p_queue = 'ivr_pending_action' THEN
     RETURN QUERY
       SELECT a.tenant_id FROM public.ivekit_ivr_pending_actions a
-      WHERE (
+      WHERE a.dispatch_mode = 'worker' AND (
         ((a.state = 'pending'
           OR (a.state = 'retry_wait' AND (a.next_attempt_at IS NULL OR a.next_attempt_at <= p_now))
           OR (a.state = 'processing' AND a.lease_until <= p_now))

@@ -51,11 +51,19 @@ test('IVR runtime migration extends durable action recovery and tenant discovery
   const sql = readFileSync(migrationPath, 'utf8');
 
   assert.match(sql, /ALTER TABLE ivekit_ivr_pending_actions[\s\S]*ADD COLUMN IF NOT EXISTS trace_id/i);
+  assert.match(sql, /DROP CONSTRAINT IF EXISTS ivekit_ivr_pending_actions_action_kind_check/i);
+  for (const kind of [
+    'play', 'collect', 'flush', 'queue', 'transfer', 'record', 'webhook',
+    'knowledge', 'ai', 'media', 'hangup', 'wait'
+  ]) assert.match(sql, new RegExp(`'${kind}'`), kind);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS dispatch_mode TEXT NOT NULL DEFAULT 'worker'/i);
+  assert.match(sql, /dispatch_mode IN \('worker', 'provider_exchange'\)/i);
   assert.match(sql, /ADD COLUMN IF NOT EXISTS reconciliation_count INTEGER NOT NULL DEFAULT 0/i);
   assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_ivekit_ivr_actions_tenant_due/i);
   assert.match(sql, /CREATE OR REPLACE FUNCTION opc_worker_tenant_ids\(/i);
   assert.match(sql, /p_queue = 'ivr_pending_action'/i);
   assert.match(sql, /FROM public\.ivekit_ivr_pending_actions/i);
+  assert.match(sql, /a\.dispatch_mode = 'worker'/i);
   for (const queue of [
     'tinode', 'attachment', 'quality', 'translation', 'media_call_timeout',
     'voice_command', 'voice_configuration', 'voice_provider_event', 'ivr_pending_action'
