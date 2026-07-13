@@ -1,15 +1,19 @@
-import type { IveKitChatMessage, IveKitChatReceipt, IveKitPolicyFinding } from '@opc/ivekit-sdk';
+import type { IveKitChatMessage, IveKitChatReceipt, IveKitClient, IveKitPolicyFinding } from '@opc/ivekit-sdk';
 import { Download, Forward, Pencil, Pin, Reply, RotateCcw, ShieldAlert, SmilePlus, Trash2 } from 'lucide-react';
 import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { ChatClientMessage } from './chat-reducer.js';
 import { projectFindings } from './finding-view-model.js';
+import { TranslationPanel } from './translation-panel.js';
 
 export function MessageTimeline(props: {
   messages: ChatClientMessage[];
   identity: string;
   receipts?: IveKitChatReceipt[];
   findings?: IveKitPolicyFinding[];
+  client?: IveKitClient | null;
+  sessionId?: string;
+  refreshVersion?: number;
   canLoadOlder: boolean;
   onLoadOlder(): void;
   onReply(message: IveKitChatMessage): void;
@@ -84,6 +88,13 @@ export function MessageTimeline(props: {
             {message.reply_to_message_id && <div className="relation">Reply · <span>{relationLabel(message.reply_to_message_id, byId)}</span></div>}
             {message.forwarded_from_message_id && <div className="relation">Forwarded · <span>{relationLabel(message.forwarded_from_message_id, byId)}</span></div>}
             {editing === message.id ? <div className="inline-edit"><textarea value={draft} onChange={(event) => setDraft(event.target.value)} /><button onClick={() => { props.onEdit(message.id, draft); setEditing(''); }}>Save</button><button onClick={() => setEditing('')}>Cancel</button></div> : <p className={message.deleted_at ? 'deleted' : ''}>{message.deleted_at ? 'Message deleted' : renderMentions(message.body, message.mentions)}</p>}
+            {props.client && props.sessionId && !message.deleted_at && !message.id.startsWith('local-') && !!message.body.trim() && <TranslationPanel
+              client={props.client}
+              sessionId={props.sessionId}
+              sourceType="message"
+              sourceRefId={message.id}
+              refreshVersion={props.refreshVersion}
+            />}
             {message.edited_at && !message.deleted_at && <small className="edited-label">Edited</small>}
             {!!messageFindings.length && <button
               className={`quality-marker ${messageFindings[0].severity}`}
@@ -91,7 +102,16 @@ export function MessageTimeline(props: {
               title="Open quality review"
               onClick={() => props.onSelectFinding?.(messageFindings[0].id)}
             ><ShieldAlert size={13} /><span>{messageFindings.length}</span></button>}
-            {message.attachments.map((attachment) => <div className="attachment-row" key={attachment.id}><span>{attachment.filename || attachment.kind}</span><small>{attachment.processing_status}</small><button className="icon-button light" title="Download attachment" onClick={() => props.onDownload(attachment.id)}><Download size={14} /></button></div>)}
+            {message.attachments.map((attachment) => <div className="attachment-block" key={attachment.id}>
+              <div className="attachment-row"><span>{attachment.filename || attachment.kind}</span><small>{attachment.processing_status}</small><button className="icon-button light" title="Download attachment" onClick={() => props.onDownload(attachment.id)}><Download size={14} /></button></div>
+              {props.client && props.sessionId && !message.deleted_at && attachment.processing_status === 'ready' && !!attachment.extracted_text.trim() && <TranslationPanel
+                client={props.client}
+                sessionId={props.sessionId}
+                sourceType="attachment"
+                sourceRefId={attachment.id}
+                refreshVersion={props.refreshVersion}
+              />}
+            </div>)}
             {!!message.reactions?.length && <div className="reactions">{aggregateReactions(message.reactions).map(([emoji, count]) => <button key={emoji} onClick={() => props.onReact(message.id, emoji, message.reactions?.some((item) => item.emoji === emoji && item.identity === props.identity))}>{emoji} {count}</button>)}</div>}
             <footer>
               {!message.deleted_at && <><button title="Reply" onClick={() => props.onReply(message)}><Reply size={14} /></button><button title="Forward" onClick={() => props.onForward(message)}><Forward size={14} /></button><button title="Add reaction" onClick={() => setReactionFor((current) => current === message.id ? '' : message.id)}><SmilePlus size={14} /></button><button title={message.pinned ? 'Unpin' : 'Pin'} onClick={() => props.onPin(message.id, message.pinned)}><Pin size={14} /></button>{reactionFor === message.id && <span className="reaction-picker" role="menu">{REACTION_EMOJIS.map((emoji) => <button key={emoji} title={`React with ${emoji}`} onClick={() => { props.onReact(message.id, emoji); setReactionFor(''); }}>{emoji}</button>)}</span>}</>}

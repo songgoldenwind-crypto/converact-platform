@@ -352,6 +352,9 @@ export function App() {
         <div className="pane-heading"><h2>{selected?.title || 'Messages'}</h2><span className="pane-actions"><span>{chat.state.unreadCount ? `${chat.state.unreadCount} unread` : chat.state.messages.length}</span><button className="icon-button light" title="Close session" disabled={!selected || chat.state.closed} onClick={() => void closeSelected().catch(reportCommandError)}><CircleStop size={16} /></button></span></div>
         <MessageTimeline
           messages={chat.state.messages}
+          client={client}
+          sessionId={selected?.id}
+          refreshVersion={chatReplayVersion}
           identity={identity}
           receipts={chat.state.receipts}
           findings={chat.findings}

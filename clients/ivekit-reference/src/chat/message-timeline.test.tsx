@@ -3,7 +3,7 @@ import { after, afterEach, before, test } from 'node:test';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { installTestDom } from '../test-dom.js';
-import type { IveKitPolicyFinding } from '@opc/ivekit-sdk';
+import type { IveKitClient, IveKitPolicyFinding } from '@opc/ivekit-sdk';
 import type { ChatClientMessage } from './chat-reducer.js';
 import { MessageTimeline } from './message-timeline.js';
 
@@ -134,6 +134,38 @@ test('timeline shows a restrained finding marker and selects its review detail',
   />);
   fireEvent.click(view.getByRole('button', { name: 'Review 1 quality finding' }));
   assert.equal(selected, 'finding-1');
+});
+
+test('timeline keeps original content and only translates ready text sources', () => {
+  const ready = {
+    id: 'attachment-ready', filename: 'ready.png', kind: 'image', processing_status: 'ready',
+    extracted_text: 'visible phone number'
+  };
+  const waiting = {
+    id: 'attachment-waiting', filename: 'waiting.png', kind: 'image', processing_status: 'processing',
+    extracted_text: ''
+  };
+  const view = render(<MessageTimeline
+    messages={[{ ...message(), body: 'Original source', attachments: [ready, waiting] } as ChatClientMessage]}
+    client={{ chat: {} } as unknown as IveKitClient}
+    sessionId="session-1"
+    identity="agent-1"
+    canLoadOlder={false}
+    onLoadOlder={() => undefined}
+    onReply={() => undefined}
+    onForward={() => undefined}
+    onRetry={() => undefined}
+    onReact={() => undefined}
+    onPin={() => undefined}
+    onEdit={() => undefined}
+    onDelete={() => undefined}
+    onRead={() => undefined}
+    onDownload={() => undefined}
+  />);
+
+  assert.ok(view.getByText('Original source'));
+  assert.equal(view.getAllByTitle('Translate message').length, 1);
+  assert.equal(view.getAllByTitle('Translate attachment').length, 1);
 });
 
 function fireClick(element: Element) {
