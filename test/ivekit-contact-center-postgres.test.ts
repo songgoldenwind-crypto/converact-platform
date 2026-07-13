@@ -11,6 +11,7 @@ import {
   type ContactCenterAgent,
   type ContactCenterAgentPresence,
   type ContactCenterCallbackRecord,
+  type ContactCenterOverflowAction,
   type ContactCenterQueue,
   type ContactCenterSupervisorSession
 } from '../src/agent-runtime/ivekit/contact-center/index.js';
@@ -194,6 +195,39 @@ test('Contact Center PostgreSQL persists supervisor sessions only for assigned c
   assert.match(locked.sql, /FOR UPDATE/);
   const update = pg.queries.find((query) =>
     query.sql.includes('UPDATE ivekit_cc_supervisor_sessions')
+  )!;
+  assert.match(update.sql, /revision = revision \+ 1/);
+  assert.equal(update.params.at(-1), 1);
+});
+
+test('Contact Center PostgreSQL claims and updates durable overflow actions', async () => {
+  const pg = new ScriptedPg((sql) => {
+    if (sql.includes('UPDATE ivekit_cc_overflow_actions')) {
+      return [{ ...overflowActionRow(), state: 'completed', result_ref: 'voice-command-a', revision: 2 }];
+    }
+    if (sql.includes('ivekit_cc_overflow_actions')) return [overflowActionRow()];
+    return [];
+  });
+  const store = new PostgresContactCenterRepository(pg);
+  assert.equal((await store.insertOverflowAction(overflowActionEntity())).id, 'overflow-a');
+  const now = new Date('2026-07-13T00:05:00.000Z');
+  assert.equal((await store.getNextDueOverflowAction('tenant-a', now))?.action, 'hangup');
+  const completed = await store.updateOverflowAction({
+    ...overflowActionEntity(), state: 'completed', result_ref: 'voice-command-a',
+    attempt_count: 1, completed_at: now.toISOString()
+  }, 1);
+  assert.equal(completed.state, 'completed');
+  const insert = pg.queries.find((query) =>
+    query.sql.includes('INSERT INTO ivekit_cc_overflow_actions')
+  )!;
+  assert.equal(insert.params[10], 'overflow:entry-a');
+  const claim = pg.queries.find((query) =>
+    query.sql.includes("overflow.state IN ('pending', 'retry_wait')")
+  )!;
+  assert.match(claim.sql, /FOR UPDATE SKIP LOCKED/);
+  assert.deepEqual(claim.params, ['tenant-a', now]);
+  const update = pg.queries.find((query) =>
+    query.sql.includes('UPDATE ivekit_cc_overflow_actions')
   )!;
   assert.match(update.sql, /revision = revision \+ 1/);
   assert.equal(update.params.at(-1), 1);
@@ -383,6 +417,22 @@ function supervisorEntity(): ContactCenterSupervisorSession {
     provider_session_id: '', reason: '', requested_at: '2026-07-13T00:00:00.000Z',
     started_at: null, ended_at: null, revision: 1,
     created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function overflowActionRow(): Record<string, unknown> {
+  return { ...overflowActionEntity() };
+}
+
+function overflowActionEntity(): ContactCenterOverflowAction {
+  return {
+    id: 'overflow-a', tenant_id: 'tenant-a', source_entry_id: 'entry-a',
+    source_queue_id: 'queue-a', call_id: 'call-a', priority: 4, action: 'hangup',
+    target_queue_id: null, target: '', state: 'pending',
+    idempotency_key: 'overflow:entry-a', attempt_count: 0, max_attempts: 5,
+    scheduled_for: '2026-07-13T00:05:00.000Z', result_ref: '', error_code: '',
+    revision: 1, created_at: '2026-07-13T00:05:00.000Z',
+    updated_at: '2026-07-13T00:05:00.000Z', completed_at: null
   };
 }
 

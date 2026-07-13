@@ -32,6 +32,8 @@ export type ContactCenterCallbackState =
   | 'failed';
 export type ContactCenterSupervisorMode = 'monitor' | 'whisper' | 'barge';
 export type ContactCenterSupervisorSessionState = 'requested' | 'active' | 'denied' | 'ended' | 'failed';
+export type ContactCenterOverflowActionKind = 'queue' | 'voicemail' | 'hangup' | 'external';
+export type ContactCenterOverflowActionState = 'pending' | 'retry_wait' | 'completed' | 'failed';
 
 export interface ContactCenterRoutingCandidate {
   agent_id: string;
@@ -295,4 +297,27 @@ export interface ContactCenterSupervisorSession {
   revision: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface ContactCenterOverflowAction {
+  id: string;
+  tenant_id: string;
+  source_entry_id: string;
+  source_queue_id: string;
+  call_id: string;
+  priority: number;
+  action: ContactCenterOverflowActionKind;
+  target_queue_id: string | null;
+  target: string;
+  state: ContactCenterOverflowActionState;
+  idempotency_key: string;
+  attempt_count: number;
+  max_attempts: number;
+  scheduled_for: string;
+  result_ref: string;
+  error_code: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
 }

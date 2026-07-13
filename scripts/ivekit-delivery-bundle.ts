@@ -172,6 +172,7 @@ const STANDALONE_MIGRATIONS = [
   '053_ivekit_contact_center_configuration_idempotency.sql',
   '054_ivekit_contact_center_worker.sql',
   '055_ivekit_contact_center_callbacks.sql',
+  '056_ivekit_contact_center_overflow.sql',
   'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
 ];
 

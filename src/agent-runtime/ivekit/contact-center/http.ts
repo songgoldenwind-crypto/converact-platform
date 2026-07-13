@@ -59,7 +59,8 @@ export async function routeIveKitContactCenterApi(
         agents: true, skills: true, presence: true, queues: true,
         memberships: true, skill_requirements: true, acd_routing: true,
         queue_entries: true,
-        callbacks: true, supervisor: supervisorAvailable(options.supervisor_control)
+        callbacks: true, overflow: true,
+        supervisor: supervisorAvailable(options.supervisor_control)
       }
     } };
   }

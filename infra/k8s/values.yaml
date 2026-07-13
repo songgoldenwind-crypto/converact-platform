@@ -181,6 +181,7 @@ contactCenter:
     batchSize: "100"
     offerTtlSeconds: "20"
     callbackRetryDelayMs: "30000"
+    overflowRetryDelayMs: "30000"
 
 media:
   apiToken: ""

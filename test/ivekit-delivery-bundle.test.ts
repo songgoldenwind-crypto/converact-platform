@@ -175,13 +175,14 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       '052_ivekit_contact_center.sql',
       '053_ivekit_contact_center_configuration_idempotency.sql',
       '054_ivekit_contact_center_worker.sql',
-      '055_ivekit_contact_center_callbacks.sql'
+      '055_ivekit_contact_center_callbacks.sql',
+      '056_ivekit_contact_center_overflow.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 45);
+    assert.equal(migrationManifest.migrations.length, 46);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -197,6 +198,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '053_ivekit_contact_center_configuration_idempotency.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '054_ivekit_contact_center_worker.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '055_ivekit_contact_center_callbacks.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '056_ivekit_contact_center_overflow.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),

@@ -7,6 +7,7 @@ import type {
   ContactCenterQueueEntry,
   ContactCenterQueueEntryListInput,
   ContactCenterPage,
+  ContactCenterOverflowAction,
   ContactCenterRoutingCandidate,
   ContactCenterSupervisorMode,
   ContactCenterSupervisorSession
@@ -86,6 +87,15 @@ export interface ContactCenterRepository {
     session: ContactCenterSupervisorSession,
     expectedRevision: number
   ): Promise<ContactCenterSupervisorSession>;
+  insertOverflowAction(action: ContactCenterOverflowAction): Promise<ContactCenterOverflowAction>;
+  getNextDueOverflowAction(
+    tenantId: string,
+    now: Date
+  ): Promise<ContactCenterOverflowAction | null>;
+  updateOverflowAction(
+    action: ContactCenterOverflowAction,
+    expectedRevision: number
+  ): Promise<ContactCenterOverflowAction>;
 }
 
 export interface ContactCenterAddressProtector {
@@ -136,6 +146,16 @@ export interface ContactCenterSupervisorControlPort {
     provider_session_id: string;
     idempotency_key: string;
   }): Promise<void>;
+}
+
+export interface ContactCenterOverflowVoicePort {
+  enqueue(input: {
+    tenant_id: string;
+    call_id: string;
+    action: 'voicemail' | 'hangup' | 'external';
+    target: string;
+    idempotency_key: string;
+  }): Promise<{ command_id: string }>;
 }
 
 export interface ContactCenterUnitOfWorkContext {

@@ -172,6 +172,7 @@ test('Contact Center HTTP advertises implemented and pending capability truth', 
   assert.equal(result.data.capabilities.acd_routing, true);
   assert.equal(result.data.capabilities.queue_entries, true);
   assert.equal(result.data.capabilities.callbacks, true);
+  assert.equal(result.data.capabilities.overflow, true);
   assert.equal(result.data.capabilities.supervisor, false);
 
   const enabled = await routeIveKitContactCenterApi(

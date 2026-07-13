@@ -113,7 +113,8 @@ function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): 
       '052_ivekit_contact_center.sql',
       '053_ivekit_contact_center_configuration_idempotency.sql',
       '054_ivekit_contact_center_worker.sql',
-      '055_ivekit_contact_center_callbacks.sql'
+      '055_ivekit_contact_center_callbacks.sql',
+      '056_ivekit_contact_center_overflow.sql'
     ].includes(name)) continue;
     copyFileSync(resolve('src/migrations', name), join(directory, name));
   }
@@ -1177,6 +1178,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         '053_ivekit_contact_center_configuration_idempotency',
         '054_ivekit_contact_center_worker',
         '055_ivekit_contact_center_callbacks',
+        '056_ivekit_contact_center_overflow',
         '090_ivekit_runtime_security'
       )
       GROUP BY version
@@ -1197,6 +1199,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       { version: '053_ivekit_contact_center_configuration_idempotency', count: '1' },
       { version: '054_ivekit_contact_center_worker', count: '1' },
       { version: '055_ivekit_contact_center_callbacks', count: '1' },
+      { version: '056_ivekit_contact_center_overflow', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 

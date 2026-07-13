@@ -8,6 +8,7 @@ import type {
   ContactCenterAssignment,
   ContactCenterCallbackListInput,
   ContactCenterCallbackRecord,
+  ContactCenterOverflowAction,
   ContactCenterPage,
   ContactCenterQueue,
   ContactCenterQueueEntry,
@@ -71,6 +72,15 @@ const SUPERVISOR_COLUMNS = `
   supervisor.reason, supervisor.requested_at, supervisor.started_at,
   supervisor.ended_at, supervisor.revision, supervisor.created_at,
   supervisor.updated_at`;
+
+const OVERFLOW_COLUMNS = `
+  overflow.id, overflow.tenant_id, overflow.source_entry_id,
+  overflow.source_queue_id, overflow.call_id, overflow.priority, overflow.action,
+  overflow.target_queue_id, overflow.target, overflow.state,
+  overflow.idempotency_key, overflow.attempt_count, overflow.max_attempts,
+  overflow.scheduled_for, overflow.result_ref, overflow.error_code,
+  overflow.revision, overflow.created_at, overflow.updated_at,
+  overflow.completed_at`;
 
 export class PostgresContactCenterRepository implements ContactCenterRepository {
   constructor(private readonly pg: PgQueryable) {}
@@ -740,6 +750,73 @@ export class PostgresContactCenterRepository implements ContactCenterRepository 
     });
   }
 
+  insertOverflowAction(action: ContactCenterOverflowAction): Promise<ContactCenterOverflowAction> {
+    return withPgTenant(this.pg, action.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `INSERT INTO ivekit_cc_overflow_actions
+          (id, tenant_id, source_entry_id, source_queue_id, call_id, priority, action,
+           target_queue_id, target, state, idempotency_key, attempt_count,
+           max_attempts, scheduled_for, result_ref, error_code, revision,
+           created_at, updated_at, completed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                 $12, $13, $14, $15, $16, $17, $18, $19, $20)
+         ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+         RETURNING *`,
+        overflowParameters(action)
+      );
+      if (result.rows[0]) return decodeOverflow(result.rows[0]);
+      const replay = await pg.query<ContactCenterPgRow>(
+        `SELECT ${OVERFLOW_COLUMNS}
+         FROM ivekit_cc_overflow_actions overflow
+         WHERE overflow.tenant_id = $1 AND overflow.idempotency_key = $2`,
+        [action.tenant_id, action.idempotency_key]
+      );
+      return decodeOverflow(ccRequiredRow(replay.rows[0], 'conflict'));
+    });
+  }
+
+  getNextDueOverflowAction(
+    tenantId: string,
+    now: Date
+  ): Promise<ContactCenterOverflowAction | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${OVERFLOW_COLUMNS}
+         FROM ivekit_cc_overflow_actions overflow
+         WHERE overflow.tenant_id = $1
+           AND overflow.state IN ('pending', 'retry_wait')
+           AND overflow.scheduled_for <= $2
+         ORDER BY overflow.scheduled_for, overflow.id
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1`,
+        [tenantId, now]
+      );
+      return result.rows[0] ? decodeOverflow(result.rows[0]) : null;
+    });
+  }
+
+  updateOverflowAction(
+    action: ContactCenterOverflowAction,
+    expectedRevision: number
+  ): Promise<ContactCenterOverflowAction> {
+    return withPgTenant(this.pg, action.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `UPDATE ivekit_cc_overflow_actions
+         SET state = $3, attempt_count = $4, scheduled_for = $5,
+             result_ref = $6, error_code = $7, completed_at = $8,
+             revision = revision + 1, updated_at = $9
+         WHERE tenant_id = $1 AND id = $2 AND revision = $10
+         RETURNING *`,
+        [
+          action.tenant_id, action.id, action.state, action.attempt_count,
+          action.scheduled_for, action.result_ref, action.error_code,
+          action.completed_at, action.updated_at, expectedRevision
+        ]
+      );
+      return decodeOverflow(ccRequiredRow(result.rows[0], 'conflict'));
+    });
+  }
+
   listExpiredOffers(tenantId: string, now: Date, limit: number): Promise<ContactCenterAssignment[]> {
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const result = await pg.query<ContactCenterPgRow>(
@@ -885,6 +962,25 @@ function decodeSupervisor(row: ContactCenterPgRow): ContactCenterSupervisorSessi
   };
 }
 
+function decodeOverflow(row: ContactCenterPgRow): ContactCenterOverflowAction {
+  return {
+    id: String(row.id), tenant_id: String(row.tenant_id),
+    source_entry_id: String(row.source_entry_id),
+    source_queue_id: String(row.source_queue_id), call_id: String(row.call_id),
+    priority: ccNumber(row.priority),
+    action: row.action as ContactCenterOverflowAction['action'],
+    target_queue_id: row.target_queue_id ? String(row.target_queue_id) : null,
+    target: String(row.target || ''),
+    state: row.state as ContactCenterOverflowAction['state'],
+    idempotency_key: String(row.idempotency_key),
+    attempt_count: ccNumber(row.attempt_count), max_attempts: ccNumber(row.max_attempts),
+    scheduled_for: ccTimestamp(row.scheduled_for), result_ref: String(row.result_ref || ''),
+    error_code: String(row.error_code || ''), revision: ccNumber(row.revision),
+    created_at: ccTimestamp(row.created_at), updated_at: ccTimestamp(row.updated_at),
+    completed_at: ccNullableTimestamp(row.completed_at)
+  };
+}
+
 function decodeCandidate(row: ContactCenterPgRow): ContactCenterRoutingCandidate {
   const skills = Object.fromEntries(Object.entries(ccJsonRecord(row.skills)).map(([key, value]) => [key, ccNumber(value)]));
   return {
@@ -937,6 +1033,17 @@ function supervisorParameters(session: ContactCenterSupervisorSession): unknown[
     session.provider_session_id, session.reason, session.requested_at,
     session.started_at, session.ended_at, session.revision,
     session.created_at, session.updated_at
+  ];
+}
+
+function overflowParameters(action: ContactCenterOverflowAction): unknown[] {
+  return [
+    action.id, action.tenant_id, action.source_entry_id, action.source_queue_id,
+    action.call_id, action.priority, action.action, action.target_queue_id, action.target,
+    action.state, action.idempotency_key, action.attempt_count,
+    action.max_attempts, action.scheduled_for, action.result_ref,
+    action.error_code, action.revision, action.created_at, action.updated_at,
+    action.completed_at
   ];
 }
 

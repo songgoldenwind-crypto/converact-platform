@@ -7,6 +7,7 @@ const idempotencyMigrationPath =
   'src/migrations/053_ivekit_contact_center_configuration_idempotency.sql';
 const workerMigrationPath = 'src/migrations/054_ivekit_contact_center_worker.sql';
 const callbackMigrationPath = 'src/migrations/055_ivekit_contact_center_callbacks.sql';
+const overflowMigrationPath = 'src/migrations/056_ivekit_contact_center_overflow.sql';
 const tables = [
   'ivekit_cc_skills',
   'ivekit_cc_agents',
@@ -136,6 +137,32 @@ test('Contact Center callback migration discovers due and active callback tenant
   assert.ok(sourcePolicy.indexOf('054_ivekit_contact_center_worker.sql') <
     sourcePolicy.indexOf('055_ivekit_contact_center_callbacks.sql'));
   assert.ok(sourcePolicy.indexOf('055_ivekit_contact_center_callbacks.sql') <
+    sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
+});
+
+test('Contact Center overflow migration is durable immutable and worker-discoverable', () => {
+  assert.equal(existsSync(overflowMigrationPath), true, overflowMigrationPath);
+  const sql = readFileSync(overflowMigrationPath, 'utf8');
+  assert.deepEqual(createdTables(sql), ['ivekit_cc_overflow_actions']);
+  assertTenantRls(sql, 'ivekit_cc_overflow_actions');
+  const table = tableDefinition(sql, 'ivekit_cc_overflow_actions');
+  assert.match(table, /priority INTEGER NOT NULL DEFAULT 0 CHECK \(priority BETWEEN -100 AND 100\)/i);
+  assert.match(table, /action TEXT NOT NULL CHECK \(action IN \('queue', 'voicemail', 'hangup', 'external'\)\)/i);
+  assert.match(table, /UNIQUE \(tenant_id, source_entry_id\)/i);
+  assert.match(table, /UNIQUE \(tenant_id, idempotency_key\)/i);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_ivekit_cc_overflow_due/i);
+  assert.match(sql, /CREATE TRIGGER ivekit_cc_overflow_actions_immutable_delete[\s\S]*BEFORE DELETE ON ivekit_cc_overflow_actions/i);
+  assert.match(sql, /overflow\.state IN \('pending', 'retry_wait'\)/i);
+  assert.match(sql, /overflow\.scheduled_for <= p_now/i);
+
+  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
+  for (const source of [sourcePolicy, delivery]) {
+    assert.match(source, /056_ivekit_contact_center_overflow\.sql/);
+  }
+  assert.ok(sourcePolicy.indexOf('055_ivekit_contact_center_callbacks.sql') <
+    sourcePolicy.indexOf('056_ivekit_contact_center_overflow.sql'));
+  assert.ok(sourcePolicy.indexOf('056_ivekit_contact_center_overflow.sql') <
     sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
 });
 

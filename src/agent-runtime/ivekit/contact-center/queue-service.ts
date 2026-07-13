@@ -13,7 +13,9 @@ import {
 import type {
   ContactCenterAgentPresence,
   ContactCenterAssignment,
+  ContactCenterOverflowAction,
   ContactCenterPage,
+  ContactCenterQueue,
   ContactCenterQueueEntry,
   ContactCenterQueueEntryListInput,
   ContactCenterQueueEntrySnapshot,
@@ -66,11 +68,25 @@ export class ContactCenterQueueService {
         return this.#enqueueResult(repository, replay);
       }
       if (queue.status !== 'active') throw conflict('queue_not_active');
-      if (await repository.countActiveEntries(tenantId, queueId) >= queue.max_size) {
+      const full = await repository.countActiveEntries(tenantId, queueId) >= queue.max_size;
+      if (full && queue.overflow_action === 'none') {
         throw new ContactCenterError({ code: 'capacity_exhausted', details: { queue_id: queueId } });
       }
       const now = this.#now();
       const timestamp = now.toISOString();
+      if (full) {
+        const entry = await repository.insertEntry({
+          id: this.#id(), tenant_id: tenantId, queue_id: queueId, call_id: callId,
+          state: 'overflowed', priority, idempotency_key: idempotencyKey,
+          payload_hash: payloadHash, entered_at: timestamp, offered_at: null,
+          assigned_at: null, answered_at: null, ended_at: timestamp, timeout_at: null,
+          outcome_reason: `overflow_${queue.overflow_action}`,
+          metadata: { overflow_trigger: 'queue_capacity' }, revision: 1,
+          created_at: timestamp, updated_at: timestamp
+        });
+        await this.#scheduleOverflow(repository, queue, entry, timestamp);
+        return this.#enqueueResult(repository, entry);
+      }
       const entry = await repository.insertEntry({
         id: this.#id(), tenant_id: tenantId, queue_id: queueId, call_id: callId,
         state: 'waiting', priority, idempotency_key: idempotencyKey, payload_hash: payloadHash,
@@ -189,6 +205,21 @@ export class ContactCenterQueueService {
       const now = this.#now().toISOString();
       const timedOut: ContactCenterQueueEntry[] = [];
       for (const entry of entries) {
+        const queue = required(
+          await repository.getQueue(tenantId, entry.queue_id, { for_update: true }),
+          'queue'
+        );
+        if (queue.overflow_action !== 'none') {
+          await this.#scheduleOverflow(repository, queue, entry, now);
+          timedOut.push(await repository.updateEntry({
+            ...entry,
+            state: transitionQueueEntry(entry.state, 'overflow'),
+            ended_at: now,
+            outcome_reason: `overflow_${queue.overflow_action}`,
+            updated_at: now
+          }, entry.revision));
+          continue;
+        }
         timedOut.push(await repository.updateEntry({
           ...entry,
           state: transitionQueueEntry(entry.state, 'timeout'),
@@ -323,6 +354,9 @@ export class ContactCenterQueueService {
     repository: ContactCenterRepository,
     entry: ContactCenterQueueEntry
   ): Promise<ContactCenterEnqueueResult> {
+    if (!['waiting', 'offered'].includes(entry.state)) {
+      return { entry, position: null, estimated_wait_seconds: 0 };
+    }
     const position = await repository.positionOfEntry(entry.tenant_id, entry.queue_id, entry.id);
     const candidates = await repository.listRoutingCandidates(entry.tenant_id, entry.queue_id);
     const capacity = candidates.reduce((total, candidate) => total + (
@@ -341,6 +375,25 @@ export class ContactCenterQueueService {
         available_agents: capacity
       })
     };
+  }
+
+  async #scheduleOverflow(
+    repository: ContactCenterRepository,
+    queue: ContactCenterQueue,
+    entry: ContactCenterQueueEntry,
+    timestamp: string
+  ): Promise<ContactCenterOverflowAction> {
+    if (queue.overflow_action === 'none') throw conflict('overflow_not_configured');
+    return repository.insertOverflowAction({
+      id: this.#id(), tenant_id: entry.tenant_id, source_entry_id: entry.id,
+      source_queue_id: entry.queue_id, call_id: entry.call_id, priority: entry.priority,
+      action: queue.overflow_action,
+      target_queue_id: queue.overflow_queue_id, target: queue.overflow_target,
+      state: 'pending', idempotency_key: `overflow:${entry.id}`,
+      attempt_count: 0, max_attempts: 5, scheduled_for: timestamp,
+      result_ref: '', error_code: '', revision: 1,
+      created_at: timestamp, updated_at: timestamp, completed_at: null
+    });
   }
 }
 

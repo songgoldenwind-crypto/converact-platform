@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
 import { createPostgresContactCenterCallbackService } from './callback-runtime.js';
+import { createPostgresContactCenterOverflowService } from './overflow-runtime.js';
 import { PostgresContactCenterUnitOfWork } from './postgres/unit-of-work.js';
 import {
   ContactCenterQueueService,
@@ -16,6 +17,7 @@ export interface ContactCenterMaintenanceWorkerConfig {
   batch_size: number;
   offer_ttl_seconds: number;
   callback_retry_delay_ms: number;
+  overflow_retry_delay_ms: number;
 }
 
 export interface ContactCenterMaintenanceSummary {
@@ -23,6 +25,11 @@ export interface ContactCenterMaintenanceSummary {
   failed_tenants: number;
   expired_offers: number;
   timed_out_entries: number;
+  overflow_scheduled: number;
+  overflows_processed: number;
+  overflows_completed: number;
+  overflows_retried: number;
+  overflows_failed: number;
   queues_scanned: number;
   offers_created: number;
   callbacks_processed: number;
@@ -57,6 +64,14 @@ export interface ContactCenterCallbackMaintenanceService {
     tenant_id: string;
     limit: number;
   }): Promise<{ scanned: number; updated: number }>;
+}
+
+export interface ContactCenterOverflowMaintenanceService {
+  processDue(input: {
+    tenant_id: string;
+    limit: number;
+    retry_delay_ms: number;
+  }): Promise<{ processed: number; completed: number; retried: number; failed: number }>;
 }
 
 export class ContactCenterMaintenanceWorker {
@@ -112,9 +127,11 @@ export async function runContactCenterMaintenanceBatch(input: {
   batch_size: number;
   offer_ttl_seconds: number;
   callback_retry_delay_ms: number;
+  overflow_retry_delay_ms: number;
   list_tenants?: (now: Date, limit: number) => Promise<string[]>;
   create_service?: (tenantId: string) => ContactCenterMaintenanceService;
   create_callback_service?: (tenantId: string) => ContactCenterCallbackMaintenanceService;
+  create_overflow_service?: (tenantId: string) => ContactCenterOverflowMaintenanceService;
   idempotency_key?: (tenantId: string, queueId: string) => string;
   on_tenant_error?: (tenantId: string, error: unknown) => void;
 }): Promise<ContactCenterMaintenanceSummary> {
@@ -128,6 +145,11 @@ export async function runContactCenterMaintenanceBatch(input: {
     failed_tenants: 0,
     expired_offers: 0,
     timed_out_entries: 0,
+    overflow_scheduled: 0,
+    overflows_processed: 0,
+    overflows_completed: 0,
+    overflows_retried: 0,
+    overflows_failed: 0,
     queues_scanned: 0,
     offers_created: 0,
     callbacks_processed: 0,
@@ -145,10 +167,27 @@ export async function runContactCenterMaintenanceBatch(input: {
         tenant_id: tenantId,
         limit: input.batch_size
       });
-      summary.timed_out_entries += (await service.timeoutWaitingEntries({
+      const expiredEntries = await service.timeoutWaitingEntries({
         tenant_id: tenantId,
         limit: input.batch_size
-      })).length;
+      });
+      summary.timed_out_entries += expiredEntries.filter((entry) =>
+        entry.state === 'timed_out'
+      ).length;
+      summary.overflow_scheduled += expiredEntries.filter((entry) =>
+        entry.state === 'overflowed'
+      ).length;
+      const overflows = input.create_overflow_service?.(tenantId) ??
+        createPostgresContactCenterOverflowService(input.pg, { now: () => now });
+      const processedOverflows = await overflows.processDue({
+        tenant_id: tenantId,
+        limit: input.batch_size,
+        retry_delay_ms: input.overflow_retry_delay_ms
+      });
+      summary.overflows_processed += processedOverflows.processed;
+      summary.overflows_completed += processedOverflows.completed;
+      summary.overflows_retried += processedOverflows.retried;
+      summary.overflows_failed += processedOverflows.failed;
       const callbacks = input.create_callback_service?.(tenantId) ??
         createPostgresContactCenterCallbackService(input.pg, { now: () => now });
       const processedCallbacks = await callbacks.processDue({
@@ -222,6 +261,13 @@ export function contactCenterMaintenanceWorkerConfig(
       1_000,
       3_600_000,
       'OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS'
+    ),
+    overflow_retry_delay_ms: bounded(
+      env.OPC_IVEKIT_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS,
+      30_000,
+      1_000,
+      3_600_000,
+      'OPC_IVEKIT_CONTACT_CENTER_OVERFLOW_RETRY_DELAY_MS'
     )
   };
 }
@@ -239,6 +285,7 @@ export function startContactCenterMaintenanceWorker(input: {
       batch_size: config.batch_size,
       offer_ttl_seconds: config.offer_ttl_seconds,
       callback_retry_delay_ms: config.callback_retry_delay_ms,
+      overflow_retry_delay_ms: config.overflow_retry_delay_ms,
       on_tenant_error: (tenantId, error) => {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`[ivekit-contact-center] tenant ${tenantId} failed:`, message.slice(0, 500));

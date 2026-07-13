@@ -8,6 +8,7 @@ import {
   type ContactCenterAgentPresence,
   type ContactCenterAssignment,
   type ContactCenterCallbackRecord,
+  type ContactCenterOverflowAction,
   type ContactCenterQueue,
   type ContactCenterQueueEntry,
   type ContactCenterRepository,
@@ -80,6 +81,42 @@ test('Contact Center enqueue fails closed when the queue is disabled or full', a
     }),
     (error: unknown) => error instanceof ContactCenterError && error.code === 'conflict'
   );
+});
+
+test('Contact Center schedules configured overflow when the source queue is full', async () => {
+  const fixture = setup({ max_size: 1 });
+  await fixture.service.enqueue({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', call_id: 'call-a', priority: 0,
+    idempotency_key: 'key-a'
+  });
+  fixture.repository.queue = {
+    ...fixture.repository.queue,
+    overflow_action: 'hangup', overflow_queue_id: null, overflow_target: ''
+  };
+
+  const result = await fixture.service.enqueue({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', call_id: 'call-b', priority: 7,
+    idempotency_key: 'key-b'
+  });
+
+  assert.equal(result.entry.state, 'overflowed');
+  assert.equal(result.entry.outcome_reason, 'overflow_hangup');
+  assert.equal(result.position, null);
+  assert.equal(result.estimated_wait_seconds, 0);
+  assert.deepEqual([...fixture.repository.overflowActions.values()], [{
+    id: 'id-3', tenant_id: 'tenant-a', source_entry_id: result.entry.id,
+    source_queue_id: 'queue-a', call_id: 'call-b', priority: 7, action: 'hangup',
+    target_queue_id: null, target: '', state: 'pending',
+    idempotency_key: `overflow:${result.entry.id}`, attempt_count: 0, max_attempts: 5,
+    scheduled_for: fixture.now.toISOString(), result_ref: '', error_code: '', revision: 1,
+    created_at: fixture.now.toISOString(), updated_at: fixture.now.toISOString(),
+    completed_at: null
+  }]);
+  assert.deepEqual(await fixture.service.enqueue({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', call_id: 'call-b', priority: 7,
+    idempotency_key: 'key-b'
+  }), result);
+  assert.equal(fixture.repository.overflowActions.size, 1);
 });
 
 test('Contact Center ACD offer, reject, accept, connect, and complete converge atomically', async () => {
@@ -200,6 +237,33 @@ test('Contact Center times out expired waiting entries and releases queue capaci
   }), []);
 });
 
+test('Contact Center schedules configured overflow instead of dropping an expired call', async () => {
+  const fixture = setup();
+  fixture.repository.queue = {
+    ...fixture.repository.queue,
+    overflow_action: 'hangup', overflow_queue_id: null, overflow_target: ''
+  };
+  const queued = await fixture.service.enqueue({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', call_id: 'call-a', priority: 0,
+    idempotency_key: 'entry-key'
+  });
+  fixture.now = new Date('2026-07-13T00:05:01.000Z');
+  const expired = await fixture.service.timeoutWaitingEntries({
+    tenant_id: 'tenant-a', limit: 10
+  });
+  assert.equal(expired[0]?.state, 'overflowed');
+  assert.equal(expired[0]?.outcome_reason, 'overflow_hangup');
+  assert.deepEqual([...fixture.repository.overflowActions.values()], [{
+    id: 'id-2', tenant_id: 'tenant-a', source_entry_id: queued.entry.id,
+    source_queue_id: 'queue-a', call_id: 'call-a', priority: 0, action: 'hangup',
+    target_queue_id: null, target: '', state: 'pending',
+    idempotency_key: `overflow:${queued.entry.id}`, attempt_count: 0, max_attempts: 5,
+    scheduled_for: fixture.now.toISOString(), result_ref: '', error_code: '', revision: 1,
+    created_at: fixture.now.toISOString(), updated_at: fixture.now.toISOString(),
+    completed_at: null
+  }]);
+});
+
 test('Contact Center exposes routable queues after expired offers are released', async () => {
   const fixture = setup();
   await fixture.service.enqueue({
@@ -260,6 +324,7 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
   readonly entries = new Map<string, ContactCenterQueueEntry>();
   readonly assignments = new Map<string, ContactCenterAssignment>();
   readonly callbacks = new Map<string, ContactCenterCallbackRecord>();
+  readonly overflowActions = new Map<string, ContactCenterOverflowAction>();
   readonly supervisorSessions = new Map<string, ContactCenterSupervisorSession>();
   readonly presences = new Map<string, ContactCenterAgentPresence>();
   readonly candidates: ContactCenterRoutingCandidate[] = [];
@@ -440,6 +505,24 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
   async updateSupervisorSession(value: ContactCenterSupervisorSession) {
     const next = { ...value, revision: value.revision + 1 };
     this.supervisorSessions.set(value.id, structuredClone(next));
+    return structuredClone(next);
+  }
+  async insertOverflowAction(value: ContactCenterOverflowAction) {
+    const replay = [...this.overflowActions.values()].find((item) =>
+      item.idempotency_key === value.idempotency_key
+    );
+    if (replay) return structuredClone(replay);
+    this.overflowActions.set(value.id, structuredClone(value));
+    return structuredClone(value);
+  }
+  async getNextDueOverflowAction(_tenantId: string, now: Date) {
+    return structuredClone([...this.overflowActions.values()].find((value) =>
+      ['pending', 'retry_wait'].includes(value.state) && value.scheduled_for <= now.toISOString()
+    ) || null);
+  }
+  async updateOverflowAction(value: ContactCenterOverflowAction) {
+    const next = { ...value, revision: value.revision + 1 };
+    this.overflowActions.set(value.id, structuredClone(next));
     return structuredClone(next);
   }
 }
