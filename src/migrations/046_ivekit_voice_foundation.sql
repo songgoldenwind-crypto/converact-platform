@@ -427,6 +427,11 @@ SECURITY INVOKER
 SET search_path = pg_catalog, public
 AS $$
 BEGIN
+  IF TG_OP = 'DELETE' AND NOT EXISTS (
+    SELECT 1 FROM public.tenants WHERE id = OLD.tenant_id
+  ) THEN
+    RETURN OLD;
+  END IF;
   RAISE EXCEPTION 'iveKit Voice route versions are immutable'
     USING ERRCODE = '55000';
 END;
