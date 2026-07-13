@@ -142,8 +142,7 @@ test('timeline keeps original content and only translates ready text sources', (
     extracted_text: 'visible phone number'
   };
   const waiting = {
-    id: 'attachment-waiting', filename: 'waiting.png', kind: 'image', processing_status: 'processing',
-    extracted_text: ''
+    id: 'attachment-waiting', filename: 'waiting.png', kind: 'image', processing_status: 'processing'
   };
   const view = render(<MessageTimeline
     messages={[{ ...message(), body: 'Original source', attachments: [ready, waiting] } as ChatClientMessage]}

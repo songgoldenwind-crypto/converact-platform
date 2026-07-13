@@ -104,7 +104,7 @@ export function MessageTimeline(props: {
             ><ShieldAlert size={13} /><span>{messageFindings.length}</span></button>}
             {message.attachments.map((attachment) => <div className="attachment-block" key={attachment.id}>
               <div className="attachment-row"><span>{attachment.filename || attachment.kind}</span><small>{attachment.processing_status}</small><button className="icon-button light" title="Download attachment" onClick={() => props.onDownload(attachment.id)}><Download size={14} /></button></div>
-              {props.client && props.sessionId && !message.deleted_at && attachment.processing_status === 'ready' && !!attachment.extracted_text.trim() && <TranslationPanel
+              {props.client && props.sessionId && !message.deleted_at && attachment.processing_status === 'ready' && !!String(attachment.extracted_text || '').trim() && <TranslationPanel
                 client={props.client}
                 sessionId={props.sessionId}
                 sourceType="attachment"
