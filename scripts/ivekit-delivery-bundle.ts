@@ -46,6 +46,10 @@ export interface IveKitDeliveryManifest {
     database: string;
     documentation: string;
     acceptance: string;
+    provider_profiles: string;
+    operations: string;
+    completion_audit: string;
+    intelligence_preflight: string;
     service_source: string;
   };
   artifacts: {
@@ -55,6 +59,8 @@ export interface IveKitDeliveryManifest {
     migration_manifest: { path: string; sha256: string };
     image_metadata: { path: string; sha256: string };
     sbom: { path: string; sha256: string };
+    acceptance_status: { path: string; sha256: string };
+    provider_profiles_example: { path: string; sha256: string };
   };
   provider_ownership: {
     livekit: string;
@@ -65,8 +71,25 @@ export interface IveKitDeliveryManifest {
     livekit: 'not_run';
     tinode: 'not_run';
     rustdesk: 'not_run';
+    ocr: 'not_run';
+    asr: 'not_run';
+    quality_review: 'not_run';
+    translation: 'not_run';
   };
+  controlled_environment_acceptance: {
+    postgres: 'not_run';
+    provider_protocol: 'not_run';
+    browser: 'not_run';
+    restart_recovery: 'not_run';
+  };
+  known_not_run: IveKitKnownNotRun[];
   files: IveKitDeliveryManifestFile[];
+}
+
+export interface IveKitKnownNotRun {
+  id: string;
+  status: 'not_run';
+  reason: string;
 }
 
 export interface BuildIveKitDeliveryBundleOptions {
@@ -142,6 +165,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-led-integration-guide.md',
     'ivekit-m5-unified-collaboration-plan.md',
     'ivekit-client-delivery-v1-roadmap.md',
+    'ivekit-v3-intelligence-operations.md',
+    'ivekit-v3-completion-audit.md',
     'livekit-im-full-capability-plan.md',
     'rustdesk-client-version-matrix.md'
   ].map((name) => ({ source: `docs/${name}`, destination: `docs/${name}` })),
@@ -149,6 +174,10 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-led-integration-example.ts',
     'ivekit-rustdesk-led-example.ts'
   ].map((name) => ({ source: `scripts/${name}`, destination: `examples/${name}` })),
+  {
+    source: 'scripts/ivekit-controlled-provider.ts',
+    destination: 'acceptance/tools/ivekit-controlled-provider.ts'
+  },
   ...[
     'rustdesk-edge-agent.ts',
     'rustdesk-edge-command.ts',
@@ -171,6 +200,7 @@ const DELIVERY_ROOT_MARKER = '.ivekit-delivery-root';
 const GENERATED_FILES = new Set([
   DELIVERY_ROOT_MARKER,
   'README.md',
+  'acceptance/provider-profiles.example.json',
   'acceptance/status.json',
   'manifest.json',
   'SHA256SUMS'
@@ -186,12 +216,57 @@ const TEXT_EXTENSIONS = new Set([
   '', '.conf', '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.sh', '.sql', '.ts', '.txt', '.yaml', '.yml'
 ]);
 
+const REAL_ENVIRONMENT_ACCEPTANCE = {
+  livekit: 'not_run',
+  tinode: 'not_run',
+  rustdesk: 'not_run',
+  ocr: 'not_run',
+  asr: 'not_run',
+  quality_review: 'not_run',
+  translation: 'not_run'
+} as const;
+
+const CONTROLLED_ENVIRONMENT_ACCEPTANCE = {
+  postgres: 'not_run',
+  provider_protocol: 'not_run',
+  browser: 'not_run',
+  restart_recovery: 'not_run'
+} as const;
+
+const KNOWN_NOT_RUN: readonly IveKitKnownNotRun[] = [
+  { id: 'real_livekit_clients', status: 'not_run', reason: 'Current release requires fresh real browser media and Egress evidence.' },
+  { id: 'real_tinode_clients', status: 'not_run', reason: 'Current release requires fresh real Tinode multi-client evidence.' },
+  { id: 'real_rustdesk_clients', status: 'not_run', reason: 'Current release requires fresh physical RustDesk client evidence.' },
+  { id: 'real_ocr_vendor', status: 'not_run', reason: 'No production OCR vendor, credentials, quota, or accuracy corpus is selected.' },
+  { id: 'real_asr_vendor', status: 'not_run', reason: 'No production ASR vendor, credentials, quota, or accuracy corpus is selected.' },
+  { id: 'real_quality_vendor', status: 'not_run', reason: 'No production AI quality vendor, credentials, or evaluation corpus is selected.' },
+  { id: 'real_translation_vendor', status: 'not_run', reason: 'No production translation vendor, credentials, quota, or evaluation corpus is selected.' }
+] as const;
+
+const CONTROLLED_PROVIDER_PROFILES = [
+  ['ocr', 'OPC_IVEKIT_OCR_TOKEN', '/v1/ocr'],
+  ['asr', 'OPC_IVEKIT_ASR_TOKEN', '/v1/asr'],
+  ['quality_review', 'OPC_IVEKIT_QUALITY_TOKEN', '/v1/quality-review'],
+  ['translation', 'OPC_IVEKIT_TRANSLATION_TOKEN', '/v1/translate']
+].map(([capability, tokenEnv, endpoint]) => ({
+  id: `controlled-${capability.replace('_', '-')}`,
+  capability,
+  mode: 'self_hosted',
+  base_url: 'http://controlled-intelligence-provider:8790',
+  endpoint,
+  health_endpoint: '/health',
+  token_env: tokenEnv,
+  timeout_ms: 30_000,
+  name: `controlled-${capability.replace('_', '-')}`
+}));
+
 export function buildIveKitDeliveryBundle(
   options: BuildIveKitDeliveryBundleOptions
 ): { outputDir: string; manifest: IveKitDeliveryManifest } {
   const repoRoot = resolve(options.repoRoot);
   const outputDir = resolve(options.outputDir);
   const sourceCommit = options.sourceCommit || resolveSourceCommit(repoRoot);
+  assertIveKitDeliverySourceState(sourceCommit, '');
   const generatedAt = options.generatedAt || new Date().toISOString();
   assertSafeOutputDirectory(repoRoot, outputDir);
   requireFile(options.sdkTarball, 'SDK tarball');
@@ -279,14 +354,22 @@ export function buildIveKitDeliveryBundle(
   writeFileSync(join(outputDir, 'service', 'sbom.spdx.json'), `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
   writeFileSync(join(outputDir, 'README.md'), renderBundleReadme(), 'utf8');
   mkdirSync(join(outputDir, 'acceptance'), { recursive: true });
+  writeFileSync(
+    join(outputDir, 'acceptance', 'provider-profiles.example.json'),
+    `${JSON.stringify(CONTROLLED_PROVIDER_PROFILES, null, 2)}\n`,
+    'utf8'
+  );
   writeFileSync(join(outputDir, 'acceptance', 'status.json'), `${JSON.stringify({
-    schema_version: 1,
+    schema_version: 2,
+    product: 'iveKit',
+    source_commit: sourceCommit,
+    generated_at: generatedAt,
     status: 'not_run',
-    livekit: 'not_run',
-    tinode: 'not_run',
-    rustdesk: 'not_run',
+    controlled_environment: CONTROLLED_ENVIRONMENT_ACCEPTANCE,
+    real_environment: REAL_ENVIRONMENT_ACCEPTANCE,
+    known_not_run: KNOWN_NOT_RUN,
     reason: 'Real provider and server acceptance must be executed in the target environment.',
-    local_controlled_tests_are_acceptance_evidence: false
+    controlled_tests_are_real_vendor_evidence: false
   }, null, 2)}\n`, 'utf8');
 
   assertNoSymlinks(outputDir);
@@ -306,6 +389,10 @@ export function buildIveKitDeliveryBundle(
       database: 'database/migrations/',
       documentation: 'docs/',
       acceptance: 'acceptance/status.json',
+      provider_profiles: 'acceptance/provider-profiles.example.json',
+      operations: 'docs/ivekit-v3-intelligence-operations.md',
+      completion_audit: 'docs/ivekit-v3-completion-audit.md',
+      intelligence_preflight: 'service/build-context/src/ivekit-intelligence-preflight.ts',
       service_source: 'service/build-context/'
     },
     artifacts: {
@@ -332,6 +419,14 @@ export function buildIveKitDeliveryBundle(
       sbom: {
         path: 'service/sbom.spdx.json',
         sha256: sha256(join(outputDir, 'service', 'sbom.spdx.json'))
+      },
+      acceptance_status: {
+        path: 'acceptance/status.json',
+        sha256: sha256(join(outputDir, 'acceptance', 'status.json'))
+      },
+      provider_profiles_example: {
+        path: 'acceptance/provider-profiles.example.json',
+        sha256: sha256(join(outputDir, 'acceptance', 'provider-profiles.example.json'))
       }
     },
     provider_ownership: {
@@ -339,11 +434,9 @@ export function buildIveKitDeliveryBundle(
       tinode: 'instant messaging, topics, delivery and presence',
       rustdesk: 'native remote desktop transport and controlled operations'
     },
-    real_environment_acceptance: {
-      livekit: 'not_run',
-      tinode: 'not_run',
-      rustdesk: 'not_run'
-    },
+    real_environment_acceptance: { ...REAL_ENVIRONMENT_ACCEPTANCE },
+    controlled_environment_acceptance: { ...CONTROLLED_ENVIRONMENT_ACCEPTANCE },
+    known_not_run: KNOWN_NOT_RUN.map((entry) => ({ ...entry })),
     files: payloadFiles.map((path) => fileEntry(outputDir, path))
   };
   writeFileSync(join(outputDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
@@ -374,6 +467,7 @@ export function validateIveKitDeliveryBundle(outputDirInput: string): IveKitDeli
   if (Object.values(manifest.real_environment_acceptance).some((status) => status !== 'not_run')) {
     throw new Error('delivery generation cannot claim real-environment acceptance');
   }
+  validateAcceptanceMetadata(outputDir, manifest);
   const contextManifest = validateIveKitStandaloneContext(join(outputDir, 'service', 'build-context'));
   if (contextManifest.source_commit !== manifest.source_commit) {
     throw new Error('service build context source commit does not match delivery manifest');
@@ -411,6 +505,11 @@ export function listDeliveryFiles(root: string): string[] {
 function prepareBundleFromCli(): { outputDir: string; manifest: IveKitDeliveryManifest } {
   const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
   const outputDir = resolve(process.env.OPC_IVEKIT_DELIVERY_DIR || join(repoRoot, '.tmp', 'ivekit-led-delivery'));
+  const sourceCommit = resolveSourceCommit(repoRoot);
+  assertIveKitDeliverySourceState(
+    sourceCommit,
+    run('git', ['status', '--porcelain=v1', '--untracked-files=all'], repoRoot)
+  );
   const stagingDir = mkdtempSync(join(tmpdir(), 'ivekit-delivery-build-'));
   try {
     run('npm', ['--prefix', 'sdk/ivekit', 'run', 'build'], repoRoot);
@@ -425,10 +524,21 @@ function prepareBundleFromCli(): { outputDir: string; manifest: IveKitDeliveryMa
       sdkTarball: join(stagingDir, filename),
       clientDist: join(repoRoot, 'clients', 'ivekit-reference', 'dist'),
       imageReference: process.env.OPC_IVEKIT_DELIVERY_IMAGE_REFERENCE,
-      imageDigest: process.env.OPC_IVEKIT_DELIVERY_IMAGE_DIGEST
+      imageDigest: process.env.OPC_IVEKIT_DELIVERY_IMAGE_DIGEST,
+      sourceCommit
     });
   } finally {
     rmSync(stagingDir, { recursive: true, force: true });
+  }
+}
+
+export function assertIveKitDeliverySourceState(sourceCommit: string, porcelainStatus: string): void {
+  if (!/^[a-f0-9]{40}$/.test(String(sourceCommit || '').trim())) {
+    throw new Error('iveKit delivery source must be a full 40-character Git commit');
+  }
+  const changedEntries = String(porcelainStatus || '').split(/\r?\n/).filter(Boolean).length;
+  if (changedEntries) {
+    throw new Error(`iveKit delivery worktree is dirty (${changedEntries} entries)`);
   }
 }
 
@@ -449,6 +559,8 @@ function renderBundleReadme(): string {
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',
     '- `examples/`: minimal LED SDK and RustDesk integration examples.',
     '- `acceptance/status.json`: honest target-environment acceptance state.',
+    '- `acceptance/provider-profiles.example.json`: secret-free controlled Provider profiles.',
+    '- `acceptance/tools/`: deterministic controlled Provider source for isolated acceptance.',
     '- `service/build-context/`: independently buildable iveKit service source context with its own package lock.',
     '- `service/migration-manifest.json`: ordered standalone migration checksums.',
     '- `service/image-metadata.json`: source-bound image reference/digest state.',
@@ -469,8 +581,9 @@ function renderBundleReadme(): string {
     '',
     '## Acceptance',
     '',
-    'A generated bundle is ready for engineering handoff, not production acceptance. LiveKit, Tinode and RustDesk remain',
-    '`not_run` until the existing provider acceptance commands are executed against the target server and real clients.',
+    'A generated bundle is ready for engineering handoff, not production acceptance. Controlled PostgreSQL, Provider,',
+    'browser and restart checks remain separate from real LiveKit, Tinode, RustDesk, OCR, ASR, quality and translation',
+    'vendor evidence. Every unexecuted surface remains `not_run`; controlled evidence never upgrades a real vendor result.',
     ''
   ].join('\n');
 }
@@ -577,6 +690,8 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
     [artifacts.migration_manifest.path, artifacts.migration_manifest.sha256],
     [artifacts.image_metadata.path, artifacts.image_metadata.sha256],
     [artifacts.sbom.path, artifacts.sbom.sha256],
+    [artifacts.acceptance_status.path, artifacts.acceptance_status.sha256],
+    [artifacts.provider_profiles_example.path, artifacts.provider_profiles_example.sha256],
     ['service/build-context/context-manifest.json', artifacts.service_build_context.manifest_sha256]
   ];
   for (const [path, expected] of checks) {
@@ -584,6 +699,92 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
   }
   if (treeSha256(join(outputDir, artifacts.reference_client.path)) !== artifacts.reference_client.tree_sha256) {
     throw new Error('reference client tree checksum mismatch');
+  }
+  const migrationManifest = JSON.parse(readFileSync(
+    join(outputDir, artifacts.migration_manifest.path), 'utf8'
+  )) as { source_commit?: unknown };
+  const imageMetadata = JSON.parse(readFileSync(
+    join(outputDir, artifacts.image_metadata.path), 'utf8'
+  )) as { source_commit?: unknown };
+  if (migrationManifest.source_commit !== manifest.source_commit) {
+    throw new Error('migration manifest source commit does not match delivery manifest');
+  }
+  if (imageMetadata.source_commit !== manifest.source_commit) {
+    throw new Error('image metadata source commit does not match delivery manifest');
+  }
+}
+
+function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryManifest): void {
+  if (
+    JSON.stringify(manifest.controlled_environment_acceptance) !==
+    JSON.stringify(CONTROLLED_ENVIRONMENT_ACCEPTANCE)
+  ) throw new Error('controlled acceptance contract is incomplete');
+  if (
+    JSON.stringify(manifest.real_environment_acceptance) !==
+    JSON.stringify(REAL_ENVIRONMENT_ACCEPTANCE)
+  ) throw new Error('real-environment acceptance contract is incomplete');
+  const status = JSON.parse(readFileSync(join(outputDir, 'acceptance', 'status.json'), 'utf8')) as {
+    schema_version?: unknown;
+    product?: unknown;
+    source_commit?: unknown;
+    generated_at?: unknown;
+    status?: unknown;
+    controlled_environment?: unknown;
+    real_environment?: unknown;
+    known_not_run?: unknown;
+    controlled_tests_are_real_vendor_evidence?: unknown;
+  };
+  if (status.schema_version !== 2 || status.product !== 'iveKit' || status.status !== 'not_run') {
+    throw new Error('invalid V3 acceptance status');
+  }
+  if (status.source_commit !== manifest.source_commit) {
+    throw new Error('acceptance source commit does not match delivery manifest');
+  }
+  if (status.generated_at !== manifest.generated_at) {
+    throw new Error('acceptance generated_at does not match delivery manifest');
+  }
+  if (JSON.stringify(status.controlled_environment) !== JSON.stringify(manifest.controlled_environment_acceptance)) {
+    throw new Error('controlled acceptance state does not match delivery manifest');
+  }
+  if (JSON.stringify(status.real_environment) !== JSON.stringify(manifest.real_environment_acceptance)) {
+    throw new Error('real-environment acceptance state does not match delivery manifest');
+  }
+  if (status.controlled_tests_are_real_vendor_evidence !== false) {
+    throw new Error('controlled tests cannot claim real vendor evidence');
+  }
+  if (!Array.isArray(status.known_not_run)) throw new Error('known_not_run must be an array');
+  const entries = status.known_not_run as Array<{ id?: unknown; status?: unknown; reason?: unknown }>;
+  const ids = entries.map((entry) => String(entry.id || ''));
+  if (new Set(ids).size !== ids.length) throw new Error('duplicate known_not_run id');
+  if (JSON.stringify(ids) !== JSON.stringify(KNOWN_NOT_RUN.map((entry) => entry.id))) {
+    throw new Error('known_not_run items do not match the V3 acceptance contract');
+  }
+  for (const entry of entries) {
+    const reason = String(entry.reason || '').trim();
+    if (entry.status !== 'not_run') throw new Error(`known_not_run ${entry.id} must remain not_run`);
+    if (reason.length < 20 || /\b(?:TBD|TODO|placeholder|replace[_ -]?me)\b/i.test(reason)) {
+      throw new Error(`placeholder known_not_run reason: ${entry.id}`);
+    }
+  }
+  if (JSON.stringify(entries) !== JSON.stringify(manifest.known_not_run)) {
+    throw new Error('known_not_run items do not match delivery manifest');
+  }
+
+  const profiles = JSON.parse(readFileSync(
+    join(outputDir, 'acceptance', 'provider-profiles.example.json'), 'utf8'
+  )) as Array<Record<string, unknown>>;
+  if (!Array.isArray(profiles) || profiles.length !== 4) throw new Error('invalid controlled provider profiles');
+  const capabilities = profiles.map((profile) => profile.capability);
+  if (JSON.stringify(capabilities) !== JSON.stringify(['ocr', 'asr', 'quality_review', 'translation'])) {
+    throw new Error('controlled provider profiles are incomplete or duplicated');
+  }
+  for (const profile of profiles) {
+    if (
+      profile.mode !== 'self_hosted' ||
+      profile.base_url !== 'http://controlled-intelligence-provider:8790' ||
+      typeof profile.token_env !== 'string' ||
+      !String(profile.token_env).startsWith('OPC_IVEKIT_')
+    ) throw new Error('controlled provider profile is unsafe');
   }
 }
 

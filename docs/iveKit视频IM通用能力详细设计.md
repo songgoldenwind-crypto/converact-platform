@@ -3591,3 +3591,51 @@ M4 本地代码和交付材料完成；全仓 `2042` 项中 `2037` 通过、`5` 
 M6.1-M6.7 已完成。最终门禁包括全仓 Node 2111 项 0 失败、真实 PostgreSQL V2 专项 4/4、参考客户端 117/117 与 production build、服务器 Playwright 9/9、SDK/event/delivery 32/32、SDK 实际 pack/install、91 文件 standalone context、4 组 Compose 和三类 sidecar。服务器 Playwright 覆盖 IM、媒体生命周期、RustDesk、移动端与三工作区深链；交付包独立镜像构建、checksum、SBOM 和干净安装证据保持有效。
 
 因此“作为 OPC 当前底座，同时方便拆给 LED/其它项目”这一技术目标已经达到。后续项目应继续通过 iveKit API/SDK 组合 OCR/ASR/AI、翻译和 SIP，不把 OPC 业务表或 call-center 流程搬入通用模块。LiveKit/RustDesk 真实物理数据面、外部 AI provider、SIP 线路和规模测试仍按独立上线门禁执行。
+
+## 22. 2026-07-13 V3 多模态智能与翻译
+
+### 22.1 能力边界
+
+V3 在 V2 独立 iveKit 服务内增加 OCR、ASR、AI 防绕单质检、人工复核、录制源导入和消息/附件翻译，不引入 SQLite，也不依赖 OPC call-center。LED 与 OPC 都只通过 `@opc/ivekit-sdk`、`/api/ivekit/*` 和租户事件接入。
+
+Provider registry 支持 `ocr|asr|quality_review|translation` 和 `self_hosted|third_party`。非敏感配置放 `OPC_IVEKIT_PROVIDER_PROFILES_JSON`，凭据由 profile 的 `token_env` 指向环境变量/Kubernetes Secret。第三方 URL 强制 HTTPS，租户 policy 还必须显式 `allow_third_party=true`；Provider health 与 preflight 不返回 URL、token 或响应 body。
+
+### 22.2 数据流与状态
+
+```text
+message/image/audio/video/screen/recording stable ID
+                  |
+                  v
+tenant policy + authorized source resolution
+                  |
+                  v
+attachment / quality / translation durable job
+                  |
+        pending -> processing -> succeeded
+                  |             |
+             retry_wait       result/finding/event
+                  |
+             failed/cancelled
+```
+
+图片走 OCR，audio/video/screen_recording 和导入录制走 ASR。抽取文本重新触发规则扫描与可选 AI 质检；AI finding 固定进入人工 review，不直接执行处罚或删除。翻译结果按 `(tenant, source type, source id, target language, source hash)` 唯一，原文编辑/删除后旧任务取消或仅留授权历史。
+
+Migration `043_ivekit_intelligence_translation.sql` 创建租户策略、录制源 link 和翻译 job，并扩展翻译结果；`044_quality_review_policy_routing.sql` 区分自动/手动质检；`045_translation_worker_routing.sql` 增加翻译自动标记和多租户 worker selector。新表启用 `ENABLE/FORCE ROW LEVEL SECURITY`，长驻 `opc_runtime` 保持 `NOSUPERUSER NOBYPASSRLS`。
+
+### 22.3 API、SDK 与客户端
+
+- `/api/ivekit/intelligence/capabilities|policy|providers|providers/health`：能力、租户策略和脱敏 Provider 运维。
+- `/api/ivekit/intelligence/findings*`：operator/admin 租户审核队列、详情和 review。
+- `/api/ivekit/intelligence/sessions/:session_id/sources*`：LiveKit/远控录制稳定 ID 导入、状态和重试。
+- `/api/ivekit/chat/sessions/:session_id/messages|attachments/:id/translations`：翻译请求、结果和 job 状态。
+- `sdk.intelligence.*` 和 `sdk.chat.*Translation*`：LED 唯一推荐调用面。
+
+参考客户端增加 Quality 与 Translation 工作区；原文始终保留，UI 只采用当前 source hash 的结果，并区分 pending/processing/retry_wait/failed/cancelled。未知 Provider 或 policy disabled 不伪装成功。
+
+### 22.4 部署与交付
+
+附件、质检和翻译 worker 在 Compose/Kubernetes 中默认关闭。profile、token、对象存储、migration、租户 policy、`ivekit:intelligence-preflight` 和 health 通过后再逐类启用。Claim lease 初始 120 秒，必须至少比 Provider timeout 多 5 秒。
+
+`npm run ivekit:delivery-bundle` 交付 V3 migration、独立 source context、SDK、客户端、Provider profile 示例、受控 Provider、运维手册、完成审计、SBOM、image metadata 和 acceptance v2 状态。manifest 分开记录 controlled PostgreSQL/Provider/browser/restart 与真实 LiveKit/Tinode/RustDesk/OCR/ASR/quality/translation 状态；受控通过不能改写真实厂商 `not_run`。
+
+详细 Provider 协议、RBAC、重试、监控、升级和回滚见 `docs/ivekit-v3-intelligence-operations.md`。完整实现与服务器证据见 `docs/ivekit-v3-completion-audit.md`。

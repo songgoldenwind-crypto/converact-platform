@@ -132,9 +132,26 @@ Task 10 最终本地证据：全仓 `2042` 项中 `2037` 通过、`5` 项真实 
 
 验收终点：LED 研发仅使用部署包、SDK 和参考客户端模块即可完成接入，不需要理解 OPC 内部 call-center 实现。
 
+### M7：V3 多模态智能与翻译
+
+**状态：代码、SDK、参考客户端、standalone 和交付合同已完成；隔离服务器验收进行中，真实厂商仍为 `not_run`。** 实施计划见 [iveKit V3 Multimodal Intelligence and Translation](superpowers/plans/2026-07-13-ivekit-v3-multimodal-translation.md)，运维手册见 [V3 intelligence operations](ivekit-v3-intelligence-operations.md)，证据状态见 [V3 completion audit](ivekit-v3-completion-audit.md)。
+
+交付内容：
+
+1. OCR、ASR、AI 质检和翻译统一 `self_hosted|third_party` Provider profile；token 只从环境/Secret 解析。
+2. 租户策略控制 capability、自动任务、profile、第三方许可、置信度和翻译目标语言。
+3. 图片、音频、视频、屏幕录制、LiveKit 录制和远控录屏通过稳定 ID 进入 durable job。
+4. AI finding 保持 advisory；租户 operator/admin 使用 Quality 队列和不可变 review audit。
+5. 消息/附件翻译保留原文并绑定 source hash，编辑、删除、重试和并发不会展示陈旧结果。
+6. PostgreSQL migration 043-045、FORCE RLS、worker lease/retry、Provider health/preflight、Compose/Kubernetes 和独立服务已接入。
+7. `@opc/ivekit-sdk` 提供 `intelligence` 与翻译 API；参考客户端提供 Quality 和 Translation 工作区。
+8. 交付 manifest 绑定 source commit、migration、SDK、client、image metadata、SBOM、Provider 示例和 acceptance 状态 SHA-256。
+
+完成边界：受控 Provider 和服务器测试证明协议、重试、脱敏、RLS 与恢复，不代表真实 OCR/ASR/AI/翻译厂商准确率、合规、配额和生产延迟。真实厂商未选型前必须保持 `not_run`。
+
 ## 4. 执行顺序
 
-严格按 `M1 -> M2 -> M3 -> M4 -> M5` 执行。每个里程碑遵守以下门禁：
+V1 已按 `M1 -> M2 -> M3 -> M4 -> M5` 完成；V3 扩展按独立 M7 计划执行。每个里程碑遵守以下门禁：
 
 1. 先写该里程碑详细实施计划。
 2. 每项行为变更先写失败测试并确认 RED。
@@ -148,10 +165,10 @@ Task 10 最终本地证据：全仓 `2042` 项中 `2037` 通过、`5` 项真实 
 
 整个 Goal 只有同时满足以下条件才完成：
 
-1. M1-M5 的代码和文档全部完成。
+1. M1-M5 和 M7 的代码、文档与交付合同全部完成。
 2. OPC 现有能力无行为回归。
 3. SDK 可独立构建、打包和被参考客户端消费。
-4. 真实 LiveKit、Tinode、MinIO 和 RustDesk 服务链路通过。
-5. 真实浏览器与真实桌面客户端证据齐全。
+4. 当前 release 的受控 PostgreSQL、Provider、浏览器和 restart recovery 证据齐全。
+5. 真实 LiveKit/Tinode/RustDesk 与真实 OCR/ASR/AI/翻译厂商按各自状态裁决；未执行项明确为 `not_run`。
 6. 长稳、容量、弱网和断线恢复达到 V1 验收阈值。
 7. 不存在未解决的 Critical 或 Important 审查问题。

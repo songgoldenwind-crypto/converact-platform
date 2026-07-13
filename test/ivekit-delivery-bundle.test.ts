@@ -7,6 +7,7 @@ import test from 'node:test';
 
 import {
   DELIVERY_SOURCE_FILES,
+  assertIveKitDeliverySourceState,
   buildIveKitDeliveryBundle,
   listDeliveryFiles,
   validateIveKitDeliveryBundle
@@ -30,7 +31,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       outputDir,
       sdkTarball,
       clientDist,
-      sourceCommit: 'a'.repeat(40)
+      sourceCommit: 'a'.repeat(40),
+      generatedAt: '2026-07-13T00:00:00.000Z'
     });
     const files = listDeliveryFiles(outputDir);
     const contextManifest = JSON.parse(readFileSync(
@@ -54,6 +56,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       '.ivekit-delivery-root',
       'README.md',
       'SHA256SUMS',
+      'acceptance/provider-profiles.example.json',
       'acceptance/status.json',
       'client/assets/index.js',
       'client/index.html',
@@ -66,16 +69,53 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.deepEqual(result.manifest.real_environment_acceptance, {
       livekit: 'not_run',
       tinode: 'not_run',
-      rustdesk: 'not_run'
+      rustdesk: 'not_run',
+      ocr: 'not_run',
+      asr: 'not_run',
+      quality_review: 'not_run',
+      translation: 'not_run'
     });
+    const v3Manifest = result.manifest as typeof result.manifest & {
+      controlled_environment_acceptance: Record<string, string>;
+      known_not_run: Array<{ id: string; status: string; reason: string }>;
+      artifacts: typeof result.manifest.artifacts & {
+        acceptance_status: { path: string; sha256: string };
+        provider_profiles_example: { path: string; sha256: string };
+      };
+    };
+    assert.deepEqual(v3Manifest.controlled_environment_acceptance, {
+      postgres: 'not_run',
+      provider_protocol: 'not_run',
+      browser: 'not_run',
+      restart_recovery: 'not_run'
+    });
+    assert.deepEqual(v3Manifest.known_not_run.map((entry) => entry.id), [
+      'real_livekit_clients',
+      'real_tinode_clients',
+      'real_rustdesk_clients',
+      'real_ocr_vendor',
+      'real_asr_vendor',
+      'real_quality_vendor',
+      'real_translation_vendor'
+    ]);
+    assert.equal(v3Manifest.known_not_run.every((entry) => entry.status === 'not_run' && entry.reason.length > 20), true);
     assert.equal(result.manifest.files.length, files.length - 2);
     assert.equal(result.manifest.files.some((entry) => entry.path === 'manifest.json'), false);
     assert.equal(result.manifest.files.some((entry) => entry.path === 'SHA256SUMS'), false);
     assert.equal(contextManifest.source_commit, 'a'.repeat(40));
     assert.equal(result.manifest.contents.service_source, 'service/build-context/');
+    assert.equal(
+      (result.manifest.contents as typeof result.manifest.contents & { intelligence_preflight: string })
+        .intelligence_preflight,
+      'service/build-context/src/ivekit-intelligence-preflight.ts'
+    );
     assert.equal(result.manifest.artifacts.sdk_package.sha256, createHash('sha256').update('test sdk archive').digest('hex'));
     assert.equal(result.manifest.artifacts.service_build_context.path, 'service/build-context/');
     assert.match(result.manifest.artifacts.reference_client.tree_sha256, /^[a-f0-9]{64}$/);
+    assert.equal(v3Manifest.artifacts.acceptance_status.path, 'acceptance/status.json');
+    assert.equal(v3Manifest.artifacts.provider_profiles_example.path, 'acceptance/provider-profiles.example.json');
+    assert.match(v3Manifest.artifacts.acceptance_status.sha256, /^[a-f0-9]{64}$/);
+    assert.match(v3Manifest.artifacts.provider_profiles_example.sha256, /^[a-f0-9]{64}$/);
 
     for (const entry of result.manifest.files) {
       const content = readFileSync(join(outputDir, entry.path));
@@ -121,6 +161,84 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.doesNotMatch(applicationCompose, /^\s+build:/m);
     assert.doesNotMatch(applicationCompose, /ivekit-opc:local/);
     assert.match(applicationCompose, /IVEKIT_OPC_IMAGE_NAME:\?IVEKIT_OPC_IMAGE_NAME is required/);
+    const acceptance = JSON.parse(readFileSync(
+      join(outputDir, 'acceptance', 'status.json'),
+      'utf8'
+    )) as Record<string, unknown>;
+    assert.equal(acceptance.schema_version, 2);
+    assert.equal(acceptance.source_commit, 'a'.repeat(40));
+    assert.equal(acceptance.generated_at, '2026-07-13T00:00:00.000Z');
+    assert.deepEqual(acceptance.controlled_environment, v3Manifest.controlled_environment_acceptance);
+    assert.deepEqual(acceptance.real_environment, result.manifest.real_environment_acceptance);
+    assert.deepEqual(acceptance.known_not_run, v3Manifest.known_not_run);
+    assert.equal(acceptance.controlled_tests_are_real_vendor_evidence, false);
+    const profiles = JSON.parse(readFileSync(
+      join(outputDir, 'acceptance', 'provider-profiles.example.json'),
+      'utf8'
+    )) as Array<Record<string, unknown>>;
+    assert.deepEqual(profiles.map((profile) => profile.capability), [
+      'ocr', 'asr', 'quality_review', 'translation'
+    ]);
+    assert.equal(profiles.every((profile) => profile.base_url === 'http://controlled-intelligence-provider:8790'), true);
+    assert.equal(files.includes('docs/ivekit-v3-intelligence-operations.md'), true);
+    assert.equal(files.includes('docs/ivekit-v3-completion-audit.md'), true);
+    assert.equal(files.includes('acceptance/tools/ivekit-controlled-provider.ts'), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('delivery validation rejects stale, duplicate, or placeholder acceptance metadata', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-delivery-acceptance-'));
+  const outputDir = join(root, 'bundle');
+  const sdkTarball = join(root, 'sdk.tgz');
+  const clientDist = join(root, 'client-dist');
+  writeFileSync(sdkTarball, 'sdk');
+  mkdirSync(clientDist);
+  writeFileSync(join(clientDist, 'index.html'), '<!doctype html>');
+
+  try {
+    buildIveKitDeliveryBundle({
+      repoRoot,
+      outputDir,
+      sdkTarball,
+      clientDist,
+      sourceCommit: 'a'.repeat(40),
+      generatedAt: '2026-07-13T00:00:00.000Z'
+    });
+    const path = join(outputDir, 'acceptance', 'status.json');
+    const original = JSON.parse(readFileSync(path, 'utf8')) as {
+      source_commit: string;
+      known_not_run: Array<{ id: string; status: string; reason: string }>;
+    };
+    writeFileSync(path, `${JSON.stringify({ ...original, source_commit: 'b'.repeat(40) }, null, 2)}\n`);
+    assert.throws(() => validateIveKitDeliveryBundle(outputDir), /acceptance source commit/i);
+
+    writeFileSync(path, `${JSON.stringify({
+      ...original,
+      known_not_run: [...original.known_not_run, original.known_not_run[0]]
+    }, null, 2)}\n`);
+    assert.throws(() => validateIveKitDeliveryBundle(outputDir), /duplicate known_not_run/i);
+
+    writeFileSync(path, `${JSON.stringify({
+      ...original,
+      known_not_run: original.known_not_run.map((entry, index) => index === 0
+        ? { ...entry, reason: 'TBD' }
+        : entry)
+    }, null, 2)}\n`);
+    assert.throws(() => validateIveKitDeliveryBundle(outputDir), /placeholder known_not_run/i);
+
+    const manifestPath = join(outputDir, 'manifest.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+    writeFileSync(manifestPath, `${JSON.stringify({
+      ...manifest,
+      controlled_environment_acceptance: {}
+    }, null, 2)}\n`);
+    writeFileSync(path, `${JSON.stringify({
+      ...original,
+      controlled_environment: {}
+    }, null, 2)}\n`);
+    assert.throws(() => validateIveKitDeliveryBundle(outputDir), /controlled acceptance contract/i);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -160,6 +278,32 @@ test('delivery source paths remain inside the repository and destinations are un
     assert.equal(destinations.has(entry.destination), false, entry.destination);
     destinations.add(entry.destination);
   }
+});
+
+test('delivery CLI source binding rejects invalid commits and dirty worktrees', () => {
+  assert.doesNotThrow(() => assertIveKitDeliverySourceState('a'.repeat(40), ''));
+  assert.throws(
+    () => assertIveKitDeliverySourceState('not-a-full-commit', ''),
+    /full 40-character Git commit/i
+  );
+  assert.throws(
+    () => assertIveKitDeliverySourceState('a'.repeat(40), ' M docs/a.md\n?? secret.txt\n'),
+    /worktree is dirty/i
+  );
+});
+
+test('V3 handoff documents state implemented, configurable, and not-run boundaries', () => {
+  const roadmap = readFileSync('docs/ivekit-client-delivery-v1-roadmap.md', 'utf8');
+  const design = readFileSync('docs/iveKit视频IM通用能力详细设计.md', 'utf8');
+  const audit = readFileSync('docs/ivekit-v3-completion-audit.md', 'utf8');
+
+  assert.match(roadmap, /M7：V3 多模态智能与翻译/);
+  assert.match(roadmap, /OCR.*ASR.*AI.*翻译/s);
+  assert.match(design, /## 22\. 2026-07-13 V3 多模态智能与翻译/);
+  assert.match(design, /OPC_IVEKIT_PROVIDER_PROFILES_JSON/);
+  assert.match(design, /043_ivekit_intelligence_translation/);
+  assert.match(audit, /受控 Provider/);
+  assert.match(audit, /not_run/);
 });
 
 test('delivery generation refuses to erase an unowned existing directory', () => {
