@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { MemoryPg } from '../../db-pg.js';
+import { withPgTenant } from '../../db-pg-tenant.js';
 import { MediaCallStore } from './media-call-store.js';
 import type {
   IveKitMediaCall,
@@ -99,6 +100,71 @@ export class MediaCallService {
       }
       return (await store.snapshot(input.tenant_id, call.id))!;
     });
+  }
+
+  ensureVoiceBridge(input: {
+    tenant_id: string;
+    voice_call_id: string;
+    initiated_by: string;
+    participant_identity: string;
+    idempotency_key: string;
+    business_ref: MediaBusinessRef;
+  }): Promise<{ media_call_id: string; room_name: string }> {
+    const tenantId = requiredIdentity(input.tenant_id, 'tenant_id');
+    const voiceCallId = requiredIdentity(input.voice_call_id, 'voice_call_id');
+    const actor = requiredIdentity(input.initiated_by, 'initiated_by');
+    const participantIdentity = requiredIdentity(input.participant_identity, 'participant_identity');
+    const idempotencyKey = requiredIdentity(input.idempotency_key, 'idempotency_key');
+    const businessRef = validatedBusinessRef(tenantId, input.business_ref);
+    const roomName = `ivekit-pstn-${createHash('sha256')
+      .update(`${tenantId}\u0000${idempotencyKey}`)
+      .digest('hex')
+      .slice(0, 32)}`;
+    return this.withMemoryLock(`voice-bridge\u0000${tenantId}\u0000${idempotencyKey}`, () =>
+      withPgTenant(this.store.pg, tenantId, (tenantPg) =>
+        new MediaCallStore(tenantPg).transaction(async (store) => {
+          if (!await store.tryLockIdempotencyKey(tenantId, `voice-bridge:${idempotencyKey}`)) {
+            throw Object.assign(conflict('voice bridge idempotency key is currently in progress'), {
+              code: 'media_call_idempotency_busy',
+              retryable: true
+            });
+          }
+          const existing = await store.getCallByRoom(tenantId, roomName, { forUpdate: true });
+          if (existing) {
+            assertVoiceBridgeReplay(existing, voiceCallId, businessRef);
+            return { media_call_id: existing.id, room_name: existing.room_name };
+          }
+          const call = await store.insertCall({
+            tenant_id: tenantId,
+            room_name: roomName,
+            media: 'voice',
+            initiated_by: actor,
+            business_ref: businessRef,
+            title: '',
+            metadata: { bridge_kind: 'pstn', voice_call_id: voiceCallId },
+            ring_timeout_seconds: 30
+          });
+          await store.insertParticipant({
+            tenant_id: tenantId,
+            call_id: call.id,
+            identity: actor,
+            role: 'host',
+            status: 'joined'
+          });
+          if (participantIdentity !== actor) {
+            await store.insertParticipant({
+              tenant_id: tenantId,
+              call_id: call.id,
+              identity: participantIdentity,
+              role: 'participant',
+              status: 'invited',
+              metadata: { participant_kind: 'sip' }
+            });
+          }
+          return { media_call_id: call.id, room_name: call.room_name };
+        })
+      )
+    );
   }
 
   getCall(tenantId: string, callId: string): Promise<IveKitMediaCallSnapshot | null> {
@@ -440,6 +506,20 @@ function validatedBusinessRef(tenantId: string, ref: MediaBusinessRef): MediaBus
     display_name: String(ref.display_name || '').trim() || undefined,
     metadata: ref.metadata || {}
   };
+}
+
+function assertVoiceBridgeReplay(
+  call: IveKitMediaCall,
+  voiceCallId: string,
+  businessRef: MediaBusinessRef
+): void {
+  if (call.media !== 'voice'
+    || call.metadata.bridge_kind !== 'pstn'
+    || call.metadata.voice_call_id !== voiceCallId
+    || call.business_ref.type !== businessRef.type
+    || call.business_ref.id !== businessRef.id) {
+    throw conflict('voice bridge idempotency key was already used for another call');
+  }
 }
 
 function requiredIdentity(value: string, name: string): string {

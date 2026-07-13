@@ -44,6 +44,29 @@ test('Voice reconciliation converges uncertain commands without resubmitting pro
   await worker.shutdown();
 });
 
+test('Voice reconciliation delegates LiveKit bridge commands to the specialized reconciler', async () => {
+  const fixture = reconciliationFixture();
+  fixture.commands[0]!.kind = 'livekit_bridge_create';
+  let specializedCalls = 0;
+  const worker = new VoiceReconciliationWorker({
+    unit_of_work: fixture.unitOfWork,
+    provider_registry: fixture.registry,
+    command_reconciler: async ({ call, command }) => {
+      if (command.kind !== 'livekit_bridge_create') return null;
+      specializedCalls += 1;
+      return { state: 'succeeded', provider_state: call.state, media_call_id: 'media-specialized' };
+    },
+    worker_id: 'reconcile-worker', batch_size: 10, lease_ms: 5_000,
+    reconcile_delay_ms: 2_000, max_reconcile_age_ms: 60_000,
+    now: () => new Date('2026-07-13T00:02:00.000Z')
+  });
+  const result = await worker.runOnce('tenant-a');
+  assert.equal(specializedCalls, 1);
+  assert.equal(fixture.reconcileCalls, 4);
+  assert.equal(result.succeeded, 1);
+  assert.equal(fixture.calls.get('call-succeeded')?.media_call_id, 'media-specialized');
+});
+
 function reconciliationFixture() {
   const outcomes: Record<string, { state: 'pending' | 'succeeded' | 'failed' | 'unknown'; provider_state: string; provider_call_id?: string }> = {
     'command-succeeded': { state: 'succeeded', provider_state: 'dialing', provider_call_id: 'provider-call-succeeded' },
@@ -109,7 +132,7 @@ function reconciliationFixture() {
     }
   } as VoiceProviderFactory);
   return {
-    unitOfWork, registry, calls, completed, released,
+    unitOfWork, registry, calls, commands, completed, released,
     get executeCalls() { return executeCalls; },
     get reconcileCalls() { return reconcileCalls; }
   };

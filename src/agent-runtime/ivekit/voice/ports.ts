@@ -245,17 +245,62 @@ export interface VoiceCompliancePort {
   }): Promise<{ allowed: boolean; reason: string; evidence_ref: string }>;
 }
 
-export interface VoiceMediaBridgePort {
-  create(input: {
+export interface VoiceMediaCallPort {
+  ensureVoiceBridge(input: {
     tenant_id: string;
-    call_id: string;
-    business_ref: { type: string; id: string };
+    voice_call_id: string;
+    initiated_by: string;
+    participant_identity: string;
     idempotency_key: string;
+    business_ref: { tenant_id: string; type: string; id: string };
   }): Promise<{
     media_call_id: string;
     room_name: string;
-    sip_participant_id: string;
   }>;
+}
+
+export interface VoiceMediaBridgeCreateInput {
+  tenant_id: string;
+  call_id: string;
+  media_call_id: string;
+  room_name: string;
+  business_ref: { type: string; id: string };
+  sip_trunk_provider_ref: string;
+  clear_destination: string;
+  destination_fingerprint: string;
+  participant_identity: string;
+  idempotency_key: string;
+}
+
+export interface VoiceMediaBridgeResult {
+  bridge_id: string;
+  media_call_id: string;
+  room_name: string;
+  provider_participant_id: string;
+  provider_call_id: string;
+  provider_state: string;
+  state: 'pending' | 'creating' | 'active' | 'completed' | 'failed' | 'cancelled' | 'unknown';
+  replayed: boolean;
+}
+
+export interface VoiceMediaBridgePort {
+  preflight(input: { sip_trunk_provider_ref: string }): Promise<{
+    ready: boolean;
+    provider: 'livekit_sip';
+    provider_version: string;
+    config_hash: string;
+    safe_diagnostics: Record<string, unknown>;
+  }>;
+  create(input: VoiceMediaBridgeCreateInput): Promise<VoiceMediaBridgeResult>;
+  transfer(input: {
+    tenant_id: string;
+    bridge_id: string;
+    room_name: string;
+    participant_identity: string;
+    clear_target: string;
+    idempotency_key: string;
+  }): Promise<{ provider_state: 'transferring' }>;
+  reconcile(input: { tenant_id: string; bridge_id: string }): Promise<VoiceMediaBridgeResult>;
 }
 
 export interface VoiceEventPort {

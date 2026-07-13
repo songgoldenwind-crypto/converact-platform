@@ -97,6 +97,25 @@ test('Voice command worker gates capabilities and classifies retry, uncertain, a
   await worker.shutdown();
 });
 
+test('Voice command worker never retries ambiguous LiveKit bridge timeouts', async () => {
+  const command = callCommand({ id: 'bridge-timeout', kind: 'livekit_bridge_create', attempt_count: 1 });
+  const fixture = workerFixture({ callCommands: [command] });
+  const worker = new VoiceCommandWorker({
+    commands: fixture.commands,
+    configuration: fixture.configuration,
+    provider_registry: fixture.registry,
+    call_executor: async () => {
+      throw new VoiceError({ code: 'provider_timeout', retryable: true, status: 504 });
+    },
+    worker_id: 'worker-bridge', batch_size: 10, lease_ms: 5_000,
+    now: () => new Date('2026-07-13T00:00:00.000Z'), random: () => 0.5
+  });
+  const result = await worker.runOnce('tenant-a');
+  assert.equal(releaseFor(fixture.released, 'bridge-timeout').state, 'uncertain');
+  assert.equal(result.uncertain, 1);
+  assert.equal(result.retry_wait, 0);
+});
+
 test('Voice command worker rejects unsafe runtime bounds', () => {
   const fixture = workerFixture({});
   assert.throws(() => new VoiceCommandWorker({

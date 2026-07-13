@@ -24,6 +24,8 @@ import { RustDeskDeviceCommandStore } from '../src/agent-runtime/collaboration/r
 import { TranslationService } from '../src/agent-runtime/collaboration/translation-service.js';
 import type { TranslationProvider } from '../src/agent-runtime/collaboration/translation-provider.js';
 import { withPgTenant } from '../src/db-pg-tenant.js';
+import { MediaCallService } from '../src/agent-runtime/livekit/media-call-service.js';
+import { MediaCallStore } from '../src/agent-runtime/livekit/media-call-store.js';
 import {
   PostgresVoiceCallStore,
   PostgresVoiceCommandStore,
@@ -450,6 +452,18 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       () => callStore.update(updatedCall, voiceCall!.revision),
       (error: unknown) => (error as { code?: string }).code === 'revision_conflict'
     );
+
+    const mediaCallService = new MediaCallService(new MediaCallStore(runtime));
+    const mediaBridge = await mediaCallService.ensureVoiceBridge({
+      tenant_id: 'ivekit_rls_a', voice_call_id: voiceCall!.id, initiated_by: 'postgres-store-test',
+      participant_identity: 'voice-sip-postgres-a', idempotency_key: 'voice-bridge-postgres-a',
+      business_ref: { tenant_id: 'ivekit_rls_a', type: 'order', id: 'VOICE-BRIDGE-A' }
+    });
+    assert.deepEqual(await mediaCallService.ensureVoiceBridge({
+      tenant_id: 'ivekit_rls_a', voice_call_id: voiceCall!.id, initiated_by: 'postgres-store-test',
+      participant_identity: 'voice-sip-postgres-a', idempotency_key: 'voice-bridge-postgres-a',
+      business_ref: { tenant_id: 'ivekit_rls_a', type: 'order', id: 'VOICE-BRIDGE-A' }
+    }), mediaBridge);
 
     const commandStore = new PostgresVoiceCommandStore(runtime);
     const durableCallCommand: VoiceCallCommand = {

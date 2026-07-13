@@ -239,6 +239,8 @@ export class VoiceCallService {
       payload = { ...payload, target_address: protectedTarget };
     } else if (kind === 'dtmf') {
       payload = { digits: dtmfDigits(input.payload.digits) };
+    } else if (kind === 'livekit_bridge_create') {
+      payload = { sip_trunk_id: boundedIdentifier(input.payload.sip_trunk_id) };
     } else {
       payload = safeActionPayload(input.payload);
     }

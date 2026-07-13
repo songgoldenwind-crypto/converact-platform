@@ -108,7 +108,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1073.0",
     "ioredis": "^5.11.1",
-    "livekit-server-sdk": "^2.15.4",
+    "livekit-server-sdk": "2.15.4",
     "nats": "^2.29.3",
     "node-cron": "^4.2.1",
     "nodemailer": "^6.10.0",

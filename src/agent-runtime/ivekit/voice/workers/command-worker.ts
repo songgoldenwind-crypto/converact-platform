@@ -130,7 +130,7 @@ export class VoiceCommandWorker {
       if (!this.#callExecutor) throw new VoiceError({ code: 'capability_unavailable', status: 501 });
       executed = await this.#callExecutor(command);
     } catch (error) {
-      await this.#settleFailure('call', command, error, command.kind === 'originate', result);
+      await this.#settleFailure('call', command, error, true, result);
       return;
     }
     try {

@@ -8,12 +8,24 @@ import type { VoiceCall, VoiceCallCommand, VoiceDeploymentProfile } from '../typ
 export interface VoiceReconciliationWorkerOptions {
   unit_of_work: VoiceCallUnitOfWork;
   provider_registry: VoiceProviderRegistry;
+  command_reconciler?: (input: {
+    call: VoiceCall;
+    command: VoiceCallCommand;
+  }) => Promise<VoiceCallCommandReconcileResult | null>;
   worker_id: string;
   batch_size?: number;
   lease_ms?: number;
   reconcile_delay_ms?: number;
   max_reconcile_age_ms?: number;
   now?: () => Date;
+}
+
+export interface VoiceCallCommandReconcileResult {
+  state: 'pending' | 'succeeded' | 'failed' | 'unknown';
+  provider_state?: string;
+  provider_call_id?: string;
+  provider_dialog_id?: string;
+  media_call_id?: string;
 }
 
 export interface VoiceReconciliationRunResult {
@@ -25,11 +37,12 @@ export interface VoiceReconciliationRunResult {
   stale: number;
 }
 
-type ReconcileOutcome = Awaited<ReturnType<Awaited<ReturnType<VoiceProviderRegistry['create']>>['reconcile']>>;
+type ReconcileOutcome = VoiceCallCommandReconcileResult;
 
 export class VoiceReconciliationWorker {
   readonly #unitOfWork: VoiceCallUnitOfWork;
   readonly #registry: VoiceProviderRegistry;
+  readonly #commandReconciler?: VoiceReconciliationWorkerOptions['command_reconciler'];
   readonly #workerId: string;
   readonly #batchSize: number;
   readonly #leaseMs: number;
@@ -42,6 +55,7 @@ export class VoiceReconciliationWorker {
   constructor(options: VoiceReconciliationWorkerOptions) {
     this.#unitOfWork = options.unit_of_work;
     this.#registry = options.provider_registry;
+    this.#commandReconciler = options.command_reconciler;
     this.#workerId = boundedIdentifier(options.worker_id);
     this.#batchSize = boundedInteger(options.batch_size, 25, 1, 200);
     this.#leaseMs = boundedInteger(options.lease_ms, 30_000, 1_000, 15 * 60_000);
@@ -95,8 +109,13 @@ export class VoiceReconciliationWorker {
     let adapter: Awaited<ReturnType<VoiceProviderRegistry['create']>> | null = null;
     let outcome: ReconcileOutcome;
     try {
-      adapter = await this.#registry.create(profile, { purpose: 'execute' });
-      outcome = await adapter.reconcile({ call, command });
+      const specialized = await this.#commandReconciler?.({ call, command });
+      if (specialized) {
+        outcome = specialized;
+      } else {
+        adapter = await this.#registry.create(profile, { purpose: 'execute' });
+        outcome = await adapter.reconcile({ call, command });
+      }
     } catch (error) {
       await this.#release(command, classifyError(error), result, 'pending');
       return;
@@ -159,11 +178,15 @@ export class VoiceReconciliationWorker {
         ...call,
         provider_call_id: outcome.provider_call_id || call.provider_call_id,
         provider_dialog_id: outcome.provider_dialog_id || call.provider_dialog_id,
+        media_call_id: outcome.media_call_id || call.media_call_id,
         state: transition.state,
         ringing_at: transition.ringing_at,
         answered_at: transition.answered_at,
         ended_at: transition.ended_at,
-        termination_reason: commandState === 'failed' ? errorCode : call.termination_reason,
+        termination_reason: commandState === 'failed'
+          && (command.kind === 'originate' || outcome.provider_state === 'failed')
+          ? errorCode
+          : call.termination_reason,
         revision: call.revision + 1,
         updated_at: this.#now().toISOString()
       };
@@ -175,7 +198,8 @@ export class VoiceReconciliationWorker {
         result: safeVoiceProviderPayload({
           provider_state: outcome.provider_state,
           provider_call_id: outcome.provider_call_id,
-          provider_dialog_id: outcome.provider_dialog_id
+          provider_dialog_id: outcome.provider_dialog_id,
+          media_call_id: outcome.media_call_id
         }),
         error_code: errorCode
       });

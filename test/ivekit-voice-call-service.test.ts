@@ -144,7 +144,7 @@ test('Voice call actions cover call control, recording, and LiveKit bridge witho
     { call: active, kind: 'recording_pause' },
     { call: active, kind: 'recording_resume' },
     { call: active, kind: 'recording_stop' },
-    { call: active, kind: 'livekit_bridge_create' }
+    { call: active, kind: 'livekit_bridge_create', payload: { sip_trunk_id: 'trunk-livekit-a' } }
   ];
   for (const [index, item] of cases.entries()) {
     const command = await fixture.service.enqueueAction({
@@ -156,6 +156,10 @@ test('Voice call actions cover call control, recording, and LiveKit bridge witho
   }
   assert.equal(fixture.providerCalls, 0);
   assert.equal(fixture.commands.size, cases.length);
+  assert.equal(
+    [...fixture.commands.values()].find((command) => command.kind === 'livekit_bridge_create')?.payload.sip_trunk_id,
+    'trunk-livekit-a'
+  );
   const transfers = [...fixture.commands.values()].filter((command) => command.kind.includes('transfer'));
   assert.equal(transfers.every((command) => !JSON.stringify(command.payload).includes('+8613700137000')), true);
 

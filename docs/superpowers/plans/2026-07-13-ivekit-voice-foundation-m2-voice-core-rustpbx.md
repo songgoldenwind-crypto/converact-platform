@@ -676,20 +676,26 @@ git commit -m "feat(ivekit): converge rustpbx events and cdrs"
 - Create: `src/agent-runtime/ivekit/voice/adapters/livekit-sip.ts`
 - Create: `test/ivekit-livekit-sip-adapter.test.ts`
 - Modify: `src/agent-runtime/ivekit/voice/ports.ts`
+- Modify: `src/agent-runtime/ivekit/voice/call-service.ts`
+- Modify: `src/agent-runtime/ivekit/voice/workers/command-worker.ts`
+- Modify: `src/agent-runtime/ivekit/voice/workers/reconciliation-worker.ts`
+- Modify: `src/agent-runtime/livekit/media-call-service.ts`
+- Modify: `test/ivekit-standalone-postgres.test.ts`
+- Modify: `package.json`
 
-- [ ] **Step 1: Write failing adapter tests with a fake `SipClient`**
+- [x] **Step 1: Write failing adapter tests with a fake `SipClient`**
 
 Verify preflight lists/validates the configured trunk without returning API secrets; bridge creation uses `createSipParticipant(trunkId, number, roomName, options)` with stable participant identity/metadata; replay returns the existing bridge; transfer uses `transferSipParticipant`; SDK timeout/error is classified and sanitized; no clear number enters bridge metadata or logs.
 
-- [ ] **Step 2: Refine the media bridge port**
+- [x] **Step 2: Refine the media bridge port**
 
 The adapter input must include resolved SIP trunk provider ref, clear destination only for the call duration, room name/media call id, participant identity, and idempotency key. The result contains provider participant id and safe provider state. Core code may depend only on the port, not `livekit-server-sdk`.
 
-- [ ] **Step 3: Implement `LiveKitSipBridgeAdapter`**
+- [x] **Step 3: Implement `LiveKitSipBridgeAdapter`**
 
 Construct `SipClient` from resolved secret refs. Create/reuse an `ivekit_media_calls` voice/pstn bridge through the existing Media Core service before dialing. Persist bridge `pending` before the SDK call, then `active`/`failed`; ambiguous SDK timeout becomes `uncertain` command and is reconciled from room participant state/webhooks.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 node --import tsx --test test/ivekit-livekit-sip-adapter.test.ts test/ivekit-media-call-lifecycle.test.ts
@@ -697,7 +703,7 @@ node --import tsx --test test/ivekit-livekit-sip-adapter.test.ts test/ivekit-med
 
 Expected: PASS without regression to Media Core.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/adapters/livekit-sip.ts src/agent-runtime/ivekit/voice/ports.ts test/ivekit-livekit-sip-adapter.test.ts
