@@ -6,6 +6,7 @@ import { withPgTenant } from '../src/db-pg-tenant.js';
 import {
   IvrFlowService,
   IvrSessionService,
+  RustPbxStepIvrService,
   PostgresIvrFlowStore,
   PostgresIvrFlowUnitOfWork,
   PostgresIvrPendingActionStore,
@@ -101,39 +102,46 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
       id: (kind) => `${kind}-pg-${++id}`,
       now: () => new Date('2026-07-13T00:01:00.000Z')
     });
-    const started = await sessionService.startSession({
-      tenant_id: tenantA, call_id: callId, flow_id: flow.id,
-      provider_profile_id: profileId, provider_session_id: 'rustpbx-session-a'
+    const stepService = new RustPbxStepIvrService({
+      sessions: sessionService,
+      bindings: new PostgresRustPbxStepIvrBindingResolver(pool)
     });
-    const play = await sessionService.advance({
-      tenant_id: tenantA, session_id: started.session.id,
-      event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+    const stepRequest = (sequence: number, type: string) => ({
+      profile_id: profileId, provider_session_id: 'rustpbx-session-a',
+      event_sequence: sequence, action_revision: sequence, event: { type }
     });
-    assert.equal(play.action?.kind, 'play');
-    const hangup = await sessionService.advance({
-      tenant_id: tenantA, session_id: started.session.id,
-      event_sequence: 2, action_revision: 2, event: { type: 'action_succeeded', result: {} }
+    const started = await stepService.handle({
+      tenant_id: tenantA, profile_id: profileId, request: stepRequest(1, 'session_start')
     });
-    assert.equal(hangup.action?.kind, 'hangup');
-    const completed = await sessionService.advance({
-      tenant_id: tenantA, session_id: started.session.id,
-      event_sequence: 3, action_revision: 3, event: { type: 'action_succeeded', result: {} }
+    assert.equal(started.action_node.type, 'prompt');
+    const stepReplay = await stepService.handle({
+      tenant_id: tenantA, profile_id: profileId, request: stepRequest(1, 'session_start')
     });
-    assert.equal(completed.session.state, 'completed');
+    assert.equal(stepReplay.replayed, true);
+    assert.deepEqual(stepReplay.action_node, started.action_node);
+    const hangup = await stepService.handle({
+      tenant_id: tenantA, profile_id: profileId, request: stepRequest(2, 'audio_complete')
+    });
+    assert.equal(hangup.action_node.type, 'hangup');
+    const completed = await stepService.handle({
+      tenant_id: tenantA, profile_id: profileId, request: stepRequest(3, 'hangup')
+    });
+    assert.equal(completed.session_state, 'completed');
+    const sessionId = started.session_id;
     assert.deepEqual(
-      (await new PostgresIvrSessionStepStore(pool).list(tenantA, started.session.id)).map((step) => step.node_id),
+      (await new PostgresIvrSessionStepStore(pool).list(tenantA, sessionId)).map((step) => step.node_id),
       ['start', 'play', 'end']
     );
     const actionCounts = await withPgTenant(pool, tenantA, (client) => client.query<{ state: string; count: string }>(
       `SELECT state, count(*)::text AS count FROM ivekit_ivr_pending_actions
        WHERE tenant_id = $1 AND session_id = $2 GROUP BY state`,
-      [tenantA, started.session.id]
+      [tenantA, sessionId]
     ));
     assert.deepEqual(actionCounts.rows, [{ state: 'succeeded', count: '2' }]);
 
     const actionStore = new PostgresIvrPendingActionStore(pool);
     await actionStore.insert({
-      id: 'ivr-worker-action-a', tenant_id: tenantA, session_id: started.session.id,
+      id: 'ivr-worker-action-a', tenant_id: tenantA, session_id: sessionId,
       step_index: 99, node_id: 'worker-webhook', action_kind: 'webhook', state: 'pending',
       dispatch_mode: 'worker', idempotency_key: 'ivr-worker-action-a', payload_hash: 'c'.repeat(64),
       payload: { webhook_ref: 'controlled' }, result: {}, attempt_count: 0, max_attempts: 3,
@@ -163,7 +171,7 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
       completed_at: '2026-07-13T00:04:01.000Z' });
 
     await actionStore.insert({
-      id: 'ivr-uncertain-action-a', tenant_id: tenantA, session_id: started.session.id,
+      id: 'ivr-uncertain-action-a', tenant_id: tenantA, session_id: sessionId,
       step_index: 100, node_id: 'worker-transfer', action_kind: 'transfer', state: 'uncertain',
       dispatch_mode: 'worker', idempotency_key: 'ivr-uncertain-action-a', payload_hash: 'd'.repeat(64),
       payload: { target_ref: 'agent-a' }, result: {}, attempt_count: 1, max_attempts: 3,
