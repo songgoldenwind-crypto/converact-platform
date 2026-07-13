@@ -23,6 +23,20 @@ Replace every `replace_with_...` value. Generate independent secrets rather than
 
 Set `OPC_IVEKIT_ALLOWED_ORIGINS` to the comma-separated HTTPS origins that may call iveKit directly from a browser, for example the LED web application origin. Do not include paths. `OPC_IVEKIT_HTTP_BODY_MAX_BYTES` limits every non-attachment JSON and webhook body; attachment uploads keep their separate larger limit.
 
+Configure V3 OCR, ASR, quality, and translation through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`. Keep provider tokens in the four `OPC_IVEKIT_*_TOKEN` variables, never inline in the JSON. Attachment, quality, and translation workers default to disabled; run `npm run ivekit:intelligence-preflight`, probe provider health, and configure the tenant policy before enabling a worker. Self-hosted and third-party examples, retry recovery, alerts, upgrade, and rollback are documented in [V3 intelligence operations](../../docs/ivekit-v3-intelligence-operations.md).
+
+For isolated server acceptance only, the optional `acceptance` profile starts the deterministic controlled provider on the Compose network without publishing a host port:
+
+```bash
+docker compose \
+  --project-name ivekit-app \
+  --env-file /secure/path/application.env \
+  -f infra/ivekit/docker-compose.yml \
+  --profile acceptance up -d controlled-intelligence-provider
+```
+
+Point test profiles at `http://controlled-intelligence-provider:8790`. Use independent service/control tokens and remove the acceptance container after evidence collection. This provider is not a production OCR, ASR, quality, or translation service.
+
 Deploy Media Core first so its Docker network exists and Caddy has routes for iveKit and Tinode.
 
 ## Deploy

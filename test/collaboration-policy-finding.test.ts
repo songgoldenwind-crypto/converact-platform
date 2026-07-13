@@ -551,6 +551,7 @@ test('generic HTTP AI quality provider supports self-hosted and third-party endp
     evidence_refs: []
   });
   assert.equal(requests[0]?.url, 'https://quality.example.test/v1/quality-review');
+  assert.equal(requests[0]?.init?.redirect, 'manual');
   assert.equal(new Headers(requests[0]?.init?.headers).get('authorization'), 'Bearer quality-secret');
   assert.equal(output.findings[0]?.policy_type, 'contact_exchange');
 });

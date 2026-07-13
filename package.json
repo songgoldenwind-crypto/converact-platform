@@ -65,6 +65,7 @@
     "attachment:deployment-preflight": "tsx scripts/attachment-processing-preflight.ts",
     "quality:deployment-preflight": "tsx scripts/quality-review-preflight.ts",
     "ivekit:intelligence-preflight": "tsx scripts/ivekit-intelligence-preflight.ts",
+    "ivekit:controlled-provider": "tsx scripts/ivekit-controlled-provider.ts",
     "ivekit:led-example": "tsx scripts/ivekit-led-integration-example.ts",
     "smoke:remote-gateway": "tsx scripts/remote-gateway-smoke.ts",
     "rustdesk:edge-agent": "tsx scripts/rustdesk-edge-agent.ts",

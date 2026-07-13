@@ -193,6 +193,20 @@ tinode:
     deadLetterMaxAttempts: "3"
     attachmentAllowedHosts: ""
 
+intelligence:
+  providerProfilesJson: "[]"
+  ocrToken: ""
+  asrToken: ""
+  qualityToken: ""
+  translationToken: ""
+  translationWorker:
+    enabled: "0"
+    intervalMs: "5000"
+    batchSize: "25"
+    maxAttempts: "3"
+    claimLeaseMs: "120000"
+    retryDelaysMs: "5000,30000"
+
 attachmentProcessing:
   attachmentMaxBytes: "26214400"
   ocrProviderMode: self_hosted
@@ -208,12 +222,12 @@ attachmentProcessing:
   asrToken: ""
   asrTimeoutMs: "30000"
   worker:
-    enabled: "1"
+    enabled: "0"
     intervalMs: "5000"
     batchSize: "25"
     maxAttempts: "3"
-    claimLeaseMs: "60000"
-    retryDelaysMs: "2000,10000"
+    claimLeaseMs: "120000"
+    retryDelaysMs: "5000,30000"
 
 qualityReview:
   providerMode: self_hosted
@@ -222,9 +236,9 @@ qualityReview:
   endpoint: /v1/quality-review
   token: ""
   timeoutMs: "30000"
-  autoEnqueue: "1"
+  autoEnqueue: "0"
   worker:
-    enabled: "1"
+    enabled: "0"
     intervalMs: "5000"
     batchSize: "25"
     maxAttempts: "3"

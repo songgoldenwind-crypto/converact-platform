@@ -45,6 +45,7 @@ test('translation provider sends bounded opaque-source JSON and normalizes outpu
   });
 
   assert.equal(requests[0]?.url, 'https://translation.example.test/v2/translate');
+  assert.equal(requests[0]?.init?.redirect, 'manual');
   assert.equal(new Headers(requests[0]?.init?.headers).get('authorization'), 'Bearer translation-secret');
   assert.deepEqual(JSON.parse(String(requests[0]?.init?.body)), {
     source_ref: 'ivekit://message/message-translate',

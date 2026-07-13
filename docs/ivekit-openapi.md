@@ -53,7 +53,7 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 
 ### 1.3 SDK 映射
 
-`createIveKitClient()` 返回 `context`、`media`、`chat`、`rustdesk` 四个客户端。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。Context/Media/Chat 错误类型为 `IveKitHttpSdkError`，RustDesk 错误类型为 `IveKitRustDeskHttpError`，两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
+`createIveKitClient()` 返回 `context`、`media`、`chat`、`intelligence`、`events`、`rustdesk` 客户端。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。Context/Media/Chat/Intelligence/Events 错误类型为 `IveKitHttpSdkError`，RustDesk 错误类型为 `IveKitRustDeskHttpError`，两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
 
 录制导出由 SDK 返回 `Uint8Array` 与 MIME/文件名元数据；附件上传接受标准 `BodyInit` 二进制 body，不做 base64 JSON 包装。RustDesk 高层方法 `ensureDevice/startSession` 负责设备、heartbeat 和 launch plan，操作审计与结束/物理断开状态仍是显式步骤。
 
@@ -438,6 +438,37 @@ descriptor 的 `storage_url` 只指向 `/api/ivekit/chat/objects/*` 受控路径
 AI finding 的执行 action 固定为 `review`；provider 的建议只进入脱敏 metadata。模型不能直接封单、处罚或执行不可逆动作。
 
 人工复核只允许会话内仍活跃的 `agent/engineer/supervisor/admin` 参与人；`customer/ai`、已离开参与人和跨租户身份返回 `403`。参考客户端按 `high/medium/low` 排序并按 fingerprint 去重，消息只显示克制的风险标记；详情仅呈现二次脱敏 rationale、证据类型和不可变 review history，不展示 `matched_text_hash`、fingerprint、checksum 或 provider 私有 metadata。复核提交必须填写原因，切换 finding/会话会清空未提交原因，实时 finding 更新按 `updated_at` 重新加载详情；窄屏通过可关闭抽屉完成同一复核流程。重复提交当前状态返回 `200` 和 `review=null`，不广播重复事件，客户端也按 review audit ID 去重。
+
+### 3.8 Intelligence policy、Provider 与租户审核队列
+
+| Method | Path | RBAC | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/ivekit/intelligence/capabilities` | authenticated | 返回租户 OCR/ASR/质检/翻译的 enabled/automatic/available/reason |
+| GET | `/api/ivekit/intelligence/policy` | owner/admin/system | 返回租户策略和乐观锁 `version` |
+| PUT | `/api/ivekit/intelligence/policy` | owner/admin/system | 全量策略写入；版本冲突 409 |
+| GET | `/api/ivekit/intelligence/providers` | owner/admin/system | 只返回脱敏 profile 和 `token_configured` |
+| POST | `/api/ivekit/intelligence/providers/health` | owner/admin/system | 可选 `profile_ids[]`，返回健康等级和延迟，不返回 URL/token |
+| GET | `/api/ivekit/intelligence/findings` | operator/admin/system | 租户审核队列；支持 session/source/severity/status/time/cursor/limit |
+| GET | `/api/ivekit/intelligence/findings/:finding_id` | operator/admin/system | finding 与不可变 review history |
+| POST | `/api/ivekit/intelligence/findings/:finding_id/review` | operator/admin/system | confirmed/false_positive/resolved/escalated |
+
+policy 字段包括四类 enabled/profile id/automatic、`allow_third_party`、目标语言和 OCR/ASR confidence threshold。第三方 profile 只有在 `allow_third_party=true` 时可选。租户队列供 Quality 工作区使用，不要求审核员仍是每个会话的 participant，但仍受 tenant、RBAC、软删除和 RLS 约束；普通 viewer 返回 403。
+
+### 3.9 录制源导入与翻译
+
+| Method | Path | 说明 |
+| --- | --- | --- |
+| POST | `/api/ivekit/intelligence/sessions/:session_id/sources` | 导入 `media_recording|remote_recording`；必须带 `Idempotency-Key` |
+| GET | `/api/ivekit/intelligence/sessions/:session_id/sources/:source_id` | source、合成 message/attachment、processing job 和 findings |
+| POST | `/api/ivekit/intelligence/sessions/:session_id/sources/:source_id/retry` | 重新排失败/取消的录制源处理 |
+| GET/POST | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/translations` | 查询或请求消息翻译 |
+| GET/POST | `/api/ivekit/chat/sessions/:session_id/attachments/:attachment_id/translations` | 查询或请求附件抽取文本翻译 |
+| POST | `/api/ivekit/chat/sessions/:session_id/translations/:job_id/retry` | 仅重试允许重试的 failed job |
+| POST | `/api/ivekit/chat/translation/run` | system 运行当前 tenant due batch；生产通常 worker 驱动 |
+
+翻译 POST body 为 `{source_language?: "auto", target_language}`，且必须带稳定 `Idempotency-Key`。GET 可带 `target_language`；`history=1` 仅 admin/system 可读。返回同时包含 current result `items` 和 durable `jobs`，状态为 `pending|processing|retry_wait|succeeded|failed|cancelled`。结果绑定 `source_hash`，原消息编辑、删除或附件提取结果变化后旧 job 不会覆盖当前原文。
+
+相关 SDK 方法位于 `sdk.intelligence.*`、`sdk.chat.list/request*Translations()` 和 `sdk.chat.retryTranslation()`。LED 不应自行拼接 Provider 请求。
 
 ## 4. Remote Assistance / RustDesk
 

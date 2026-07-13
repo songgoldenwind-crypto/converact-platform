@@ -664,6 +664,7 @@ export function createHttpQualityReviewProvider(
       try {
         const response = await fetchImpl(endpoint, {
           method: 'POST',
+          redirect: 'manual',
           headers: {
             'content-type': 'application/json',
             ...(config.token ? { authorization: `Bearer ${config.token}` } : {})

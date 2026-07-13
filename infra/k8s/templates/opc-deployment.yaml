@@ -154,6 +154,28 @@ spec:
               value: {{ .Values.opc.eventReplay.retentionBatchSize | default "1000" | quote }}
             - name: OPC_COLLABORATION_ATTACHMENT_MAX_BYTES
               value: {{ .Values.attachmentProcessing.attachmentMaxBytes | default "26214400" | quote }}
+            - name: OPC_IVEKIT_PROVIDER_PROFILES_JSON
+              value: {{ .Values.intelligence.providerProfilesJson | default "[]" | quote }}
+            - name: OPC_IVEKIT_OCR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-ocr-provider-token
+            - name: OPC_IVEKIT_ASR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-asr-provider-token
+            - name: OPC_IVEKIT_QUALITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-quality-provider-token
+            - name: OPC_IVEKIT_TRANSLATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-translation-provider-token
             - name: OPC_OCR_PROVIDER_MODE
               value: {{ .Values.attachmentProcessing.ocrProviderMode | default "self_hosted" | quote }}
             - name: OPC_OCR_PROVIDER_NAME
@@ -185,7 +207,7 @@ spec:
             - name: OPC_ASR_TIMEOUT_MS
               value: {{ .Values.attachmentProcessing.asrTimeoutMs | default "30000" | quote }}
             - name: OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED
-              value: {{ .Values.attachmentProcessing.worker.enabled | default "1" | quote }}
+              value: {{ .Values.attachmentProcessing.worker.enabled | default "0" | quote }}
             - name: OPC_ATTACHMENT_PROCESSING_INTERVAL_MS
               value: {{ .Values.attachmentProcessing.worker.intervalMs | default "5000" | quote }}
             - name: OPC_ATTACHMENT_PROCESSING_BATCH_SIZE
@@ -193,9 +215,9 @@ spec:
             - name: OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS
               value: {{ .Values.attachmentProcessing.worker.maxAttempts | default "3" | quote }}
             - name: OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS
-              value: {{ .Values.attachmentProcessing.worker.claimLeaseMs | default "60000" | quote }}
+              value: {{ .Values.attachmentProcessing.worker.claimLeaseMs | default "120000" | quote }}
             - name: OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS
-              value: {{ .Values.attachmentProcessing.worker.retryDelaysMs | default "2000,10000" | quote }}
+              value: {{ .Values.attachmentProcessing.worker.retryDelaysMs | default "5000,30000" | quote }}
             - name: OPC_QUALITY_REVIEW_PROVIDER_MODE
               value: {{ .Values.qualityReview.providerMode | default "self_hosted" | quote }}
             - name: OPC_QUALITY_REVIEW_PROVIDER_NAME
@@ -212,9 +234,9 @@ spec:
             - name: OPC_QUALITY_REVIEW_TIMEOUT_MS
               value: {{ .Values.qualityReview.timeoutMs | default "30000" | quote }}
             - name: OPC_QUALITY_REVIEW_AUTO_ENQUEUE
-              value: {{ .Values.qualityReview.autoEnqueue | default "1" | quote }}
+              value: {{ .Values.qualityReview.autoEnqueue | default "0" | quote }}
             - name: OPC_QUALITY_REVIEW_WORKER_ENABLED
-              value: {{ .Values.qualityReview.worker.enabled | default "1" | quote }}
+              value: {{ .Values.qualityReview.worker.enabled | default "0" | quote }}
             - name: OPC_QUALITY_REVIEW_INTERVAL_MS
               value: {{ .Values.qualityReview.worker.intervalMs | default "5000" | quote }}
             - name: OPC_QUALITY_REVIEW_BATCH_SIZE
@@ -225,6 +247,18 @@ spec:
               value: {{ .Values.qualityReview.worker.claimLeaseMs | default "120000" | quote }}
             - name: OPC_QUALITY_REVIEW_RETRY_DELAYS_MS
               value: {{ .Values.qualityReview.worker.retryDelaysMs | default "5000,30000" | quote }}
+            - name: OPC_TRANSLATION_WORKER_ENABLED
+              value: {{ .Values.intelligence.translationWorker.enabled | default "0" | quote }}
+            - name: OPC_TRANSLATION_INTERVAL_MS
+              value: {{ .Values.intelligence.translationWorker.intervalMs | default "5000" | quote }}
+            - name: OPC_TRANSLATION_BATCH_SIZE
+              value: {{ .Values.intelligence.translationWorker.batchSize | default "25" | quote }}
+            - name: OPC_TRANSLATION_MAX_ATTEMPTS
+              value: {{ .Values.intelligence.translationWorker.maxAttempts | default "3" | quote }}
+            - name: OPC_TRANSLATION_CLAIM_LEASE_MS
+              value: {{ .Values.intelligence.translationWorker.claimLeaseMs | default "120000" | quote }}
+            - name: OPC_TRANSLATION_RETRY_DELAYS_MS
+              value: {{ .Values.intelligence.translationWorker.retryDelaysMs | default "5000,30000" | quote }}
             - name: OPC_REMOTE_GATEWAY_PROVIDER
               value: {{ .Values.rustdesk.provider | default "rustdesk" | quote }}
             - name: OPC_REMOTE_GATEWAY_BASE_URL

@@ -320,6 +320,16 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 - `OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS`
 - OCR/ASR/AI provider mode、URL、token、timeout
 
+### Multimodal Intelligence / Translation
+
+- LED 必须通过 `@opc/ivekit-sdk` 的 `intelligence` 与 `chat` 方法访问 OCR/ASR/AI/翻译能力，不得直连 PostgreSQL、worker 表或任何 self_hosted/third_party provider。
+- 宿主按 `sdk.intelligence.getCapabilities()` 决定是否展示入口；`available=false` 时展示不可用状态，不能自行回退到另一个厂商。
+- 租户管理员通过 `getPolicy/updatePolicy` 选择 profile、third-party 开关、自动任务和目标语言；普通用户不接触 token/profile URL。
+- Quality 工作区使用租户级 `listFindings/getFinding/reviewFinding`；operator/admin 可跨本租户会话处理队列，viewer 不可审核。
+- 消息和附件翻译必须保留原文。请求使用稳定 `Idempotency-Key`，UI 只采用与当前 `source_hash` 对应的结果；`retry_wait/failed/cancelled` 不得伪装为成功。
+- 录制或远控录屏由 LED 传 business/session 标识后调用 `importSource`，iveKit 负责生成受控 message/attachment、ASR job、finding 和审计链。
+- Provider 部署、密钥、worker、重试和真实验收见 `docs/ivekit-v3-intelligence-operations.md`；未完成真实厂商测试时状态必须保持 `not_run`。
+
 ### Remote Assistance
 
 - RustDesk hbbs/hbbr、public key、ID/relay/API server

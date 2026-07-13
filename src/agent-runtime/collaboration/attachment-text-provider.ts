@@ -100,6 +100,7 @@ export function createHttpAttachmentTextProvider(
       try {
         response = await fetchImpl(endpoint, {
           method: 'POST',
+          redirect: 'manual',
           headers: config.token ? { authorization: `Bearer ${config.token}` } : undefined,
           body: form,
           signal: controller.signal
@@ -126,8 +127,9 @@ export function createHttpAttachmentTextProvider(
 
       let payload: unknown;
       try {
-        payload = await response.json();
-      } catch {
+        payload = await readBoundedJson(response, 1_048_576, config.processor);
+      } catch (error) {
+        if (error instanceof AttachmentProviderError) throw error;
         throw new AttachmentProviderError(
           `${config.processor} provider returned invalid JSON`,
           'provider_invalid_response',
@@ -170,6 +172,56 @@ function boundedTimeout(value: number): number {
     throw new Error('attachment provider timeout must be between 1000 and 300000 ms');
   }
   return Math.floor(value);
+}
+
+async function readBoundedJson(
+  response: Response,
+  maxBytes: number,
+  processor: AttachmentProcessor
+): Promise<unknown> {
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new AttachmentProviderError(
+      `${processor} provider response is too large`,
+      'provider_response_too_large',
+      false,
+      response.status
+    );
+  }
+  if (!response.body) {
+    throw new AttachmentProviderError(
+      `${processor} provider returned invalid JSON`,
+      'provider_invalid_response',
+      false,
+      response.status
+    );
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) {
+        await reader.cancel();
+        throw new AttachmentProviderError(
+          `${processor} provider response is too large`,
+          'provider_response_too_large',
+          false,
+          response.status
+        );
+      }
+      chunks.push(value);
+    }
+    return JSON.parse(
+      Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString('utf8')
+    ) as unknown;
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

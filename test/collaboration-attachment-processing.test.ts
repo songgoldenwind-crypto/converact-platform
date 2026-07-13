@@ -274,6 +274,7 @@ test('generic HTTP OCR adapter sends multipart bytes and normalizes provider out
   });
 
   assert.equal(requests[0]?.url, 'https://ocr.example.test/v1/ocr');
+  assert.equal(requests[0]?.init?.redirect, 'manual');
   assert.equal(new Headers(requests[0]?.init?.headers).get('authorization'), 'Bearer ocr-secret');
   assert.equal(requests[0]?.init?.body instanceof FormData, true);
   const form = requests[0]?.init?.body as FormData;
@@ -281,6 +282,35 @@ test('generic HTTP OCR adapter sends multipart bytes and normalizes provider out
   assert.equal(form.has('storage_url'), false);
   assert.equal(result.text, '二维码内容 13900001111');
   assert.equal(result.provider_request_id, 'provider-ocr-1');
+});
+
+test('generic HTTP OCR adapter rejects oversized provider responses', async () => {
+  const provider = createHttpOcrProvider({
+    mode: 'self_hosted',
+    baseUrl: 'http://ocr-provider:8080',
+    fetch: async () => new Response('{}', {
+      status: 200,
+      headers: { 'content-length': '1048577' }
+    })
+  });
+
+  await assert.rejects(
+    () => provider.extract({
+      attachment_id: 'attachment-oversized',
+      tenant_id: 'tenant-1',
+      session_id: 'session-1',
+      message_id: 'message-1',
+      filename: 'oversized.png',
+      content_type: 'image/png',
+      source_ref: 'ivekit://attachment/attachment-oversized',
+      content: Buffer.from('png')
+    }),
+    (error: unknown) => (
+      error instanceof Error &&
+      'code' in error &&
+      error.code === 'provider_response_too_large'
+    )
+  );
 });
 
 test('screen recording attachments select ASR processing', async () => {

@@ -25,3 +25,11 @@ docker compose --env-file env.example up --build
 ```
 
 The default provider workers are disabled. Enable each worker only after its corresponding LiveKit, Tinode, storage, Redis, or quality provider configuration has been supplied.
+
+Run the compiled V3 configuration gate before enabling OCR, ASR, quality, or translation workers:
+
+```bash
+npm run preflight:intelligence
+```
+
+Provider profile metadata is supplied through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`; secrets stay in dedicated environment variables or an external secret manager. The complete self-hosted/third-party profile format, RBAC, durable retry behavior, health checks, alerts, controlled-provider acceptance, upgrade, and rollback procedure is in `docs/ivekit-v3-intelligence-operations.md` in the source repository.
