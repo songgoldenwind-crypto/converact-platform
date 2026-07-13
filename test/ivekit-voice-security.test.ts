@@ -147,7 +147,8 @@ test('Safe Voice provider payload recursively removes secrets and bounds untrust
       value: 'x'.repeat(400),
       list: Array.from({ length: 40 }, (_, index) => index)
     },
-    circular
+    circular,
+    untrusted: JSON.parse('{"__proto__":{"polluted":true},"constructor":{"secret":"value"}}')
   }, {
     max_depth: 4,
     max_string_length: 32,
@@ -171,6 +172,7 @@ test('Safe Voice provider payload recursively removes secrets and bounds untrust
   assert.equal(serialized.includes('[circular]'), true);
   assert.equal((safe.nested as { value: string }).value.length <= 32, true);
   assert.deepEqual((safe.nested as { list: unknown[] }).list, [0, 1, 2, 3, 4]);
+  assert.equal(({} as { polluted?: boolean }).polluted, undefined);
 });
 
 function hasVoiceCode(code: string): (error: unknown) => boolean {

@@ -64,6 +64,10 @@ test('Voice configuration store decodes profiles, uses tuple cursors, and hides 
   assert.deepEqual(did?.e164, { kind: 'e164', redacted: '+86******8000' });
   const didSelect = pg.calls.find((call) => /FROM ivekit_voice_dids did/i.test(call.text))!;
   assert.doesNotMatch(didSelect.text, /e164_ciphertext|e164_hmac/i);
+  await store.findDidByAddressHmac('tenant-a', 'a'.repeat(64));
+  const lookup = pg.calls.find((call) => /did\.e164_hmac = \$2/i.test(call.text))!;
+  assert.deepEqual(lookup.params, ['tenant-a', 'a'.repeat(64)]);
+  assert.doesNotMatch(lookup.text.split(/\bFROM\b/i)[0]!, /e164_ciphertext|e164_hmac/i);
 });
 
 test('Voice configuration writes are parameterized and optimistic conflicts are stable', async () => {
@@ -117,6 +121,11 @@ test('Voice call store writes protected addresses but only decodes projections',
   const select = pg.calls.find((item) => /FROM ivekit_voice_calls call/i.test(item.text))!;
   assert.match(select.text, /FOR UPDATE/i);
   assert.doesNotMatch(select.text, /address_ciphertext|address_hmac/i);
+  const byProvider = await store.findByProviderCallId('tenant-a', 'profile-a', 'provider-call-a', { for_update: true });
+  assert.equal(byProvider?.id, 'call-a');
+  const providerSelect = pg.calls.find((item) => /provider_profile_id = \$2[\s\S]*provider_call_id = \$3/i.test(item.text))!;
+  assert.deepEqual(providerSelect.params, ['tenant-a', 'profile-a', 'provider-call-a']);
+  assert.match(providerSelect.text, /FOR UPDATE/i);
 
   const protectedTo = await store.getProtectedAddress('tenant-a', 'call-a', 'to');
   assert.deepEqual(protectedTo, {

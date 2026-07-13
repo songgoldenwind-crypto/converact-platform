@@ -633,27 +633,27 @@ git commit -m "feat(ivekit): execute and reconcile voice calls"
 - Create: `test/ivekit-rustpbx-events.test.ts`
 - Create: `test/ivekit-voice-provider-events.test.ts`
 
-- [ ] **Step 1: Write failing webhook/auth tests**
+- [x] **Step 1: Write failing webhook/auth tests**
 
 Support either a profile-bound service key (`X-PBX-Key`) or preferred HMAC headers `X-IveKit-Timestamp` and `X-IveKit-Signature` over `<timestamp>.<raw-body>`. Enforce five-minute skew, constant-time comparison, body byte limit, and no secret in errors. Resolve tenant only through `opc_ivekit_voice_profile_context`; ignore `X-Tenant-Id` and payload tenant fields.
 
-- [ ] **Step 2: Write failing normalization/dedupe tests**
+- [x] **Step 2: Write failing normalization/dedupe tests**
 
 Normalize RWI call events, HTTP event webhooks, Router INVITE requests, and multipart/JSON CDR metadata. Persist only safe summaries. Duplicate external ids or canonical hashes replay; malformed/unsupported events fail before state mutation; event insertion happens before projection.
 
-- [ ] **Step 3: Implement event convergence**
+- [x] **Step 3: Implement event convergence**
 
 Map `call.incoming/ringing/answered/hold/hangup/no_answer/busy/transfer` through the state machine. Late/duplicate events remain no-ops. CDR can fill duration, termination reason, recording/provider refs, and ended timestamp without reviving terminal state. Recording rows require consent/policy, object/evidence ref, checksum, and retention timestamp.
 
-- [ ] **Step 4: Implement the provider event worker**
+- [x] **Step 4: Implement the provider event worker**
 
 Claim tenant queues using the security-definer worker function, apply events inside tenant transactions, mark processed only after projection commit, retry transient store/provider lookup failures, and dead-end malformed events with a coarse code.
 
-- [ ] **Step 5: Implement Router decision service**
+- [x] **Step 5: Implement Router decision service**
 
 Find tenant/profile from the verified webhook path, DID by keyed HMAC, and published route by immutable version. Return `reject` when no verified mapping exists. Route actions that require M3/M4 dependencies return configured RustPBX fallback or a deterministic reject; never claim an IVR/queue was started when it was not.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 ```bash
 node --import tsx --test test/ivekit-rustpbx-events.test.ts test/ivekit-voice-provider-events.test.ts
@@ -661,7 +661,7 @@ node --import tsx --test test/ivekit-rustpbx-events.test.ts test/ivekit-voice-pr
 
 Expected: PASS for duplicate, out-of-order, timeout, CDR, recording, and cross-tenant cases.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/adapters/rustpbx-events.ts src/agent-runtime/ivekit/voice/provider-event-service.ts src/agent-runtime/ivekit/voice/recording-service.ts src/agent-runtime/ivekit/voice/workers/provider-event-worker.ts src/agent-runtime/ivekit/voice/webhook-auth.ts test/ivekit-rustpbx-events.test.ts test/ivekit-voice-provider-events.test.ts

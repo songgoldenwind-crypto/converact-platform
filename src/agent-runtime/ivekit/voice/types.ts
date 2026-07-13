@@ -350,6 +350,7 @@ export interface VoiceNormalizedProviderEvent {
   external_event_id: string;
   event_type: string;
   provider_state: string;
+  provider_call_id?: string;
   occurred_at: string | null;
   safe_payload: Record<string, unknown>;
 }

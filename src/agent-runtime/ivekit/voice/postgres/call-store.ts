@@ -59,6 +59,25 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
     });
   }
 
+  findByProviderCallId(
+    tenantId: string,
+    profileId: string,
+    providerCallId: string,
+    options: { for_update?: boolean } = {}
+  ): Promise<VoiceCall | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<VoicePgRow>(
+        `SELECT ${CALL_COLUMNS}
+         FROM ivekit_voice_calls call
+         WHERE call.tenant_id = $1 AND call.provider_profile_id = $2
+           AND call.provider_call_id = $3
+         ${options.for_update ? 'FOR UPDATE' : ''}`,
+        [tenantId, profileId, providerCallId]
+      );
+      return result.rows[0] ? decodeCall(result.rows[0]) : null;
+    });
+  }
+
   getProtectedAddress(
     tenantId: string,
     callId: string,

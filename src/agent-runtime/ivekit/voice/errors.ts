@@ -19,6 +19,7 @@ export type VoiceErrorCode =
   | 'event_sequence_conflict'
   | 'compliance_denied'
   | 'provider_result_unknown'
+  | 'webhook_auth_failed'
   | 'secret_ref_invalid'
   | 'secret_unavailable';
 

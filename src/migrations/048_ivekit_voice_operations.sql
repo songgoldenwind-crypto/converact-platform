@@ -138,7 +138,8 @@ AS $$
   SELECT p.tenant_id, p.id, p.adapter, p.secret_refs
   FROM public.ivekit_voice_deployment_profiles p
   WHERE p.id = p_profile_id
-    AND p.status <> 'archived';
+    AND p.status <> 'archived'
+    AND p.status IN ('enabled', 'degraded');
 $$;
 
 REVOKE ALL ON FUNCTION opc_worker_tenant_ids(TEXT, TIMESTAMPTZ, INTEGER) FROM PUBLIC;

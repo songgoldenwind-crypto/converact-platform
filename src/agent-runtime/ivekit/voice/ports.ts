@@ -57,6 +57,7 @@ export interface VoiceConfigurationRepository {
   insertTrunk(input: VoiceSipTrunk): Promise<VoiceSipTrunk>;
   updateTrunk(input: VoiceSipTrunk, expectedRevision: number): Promise<VoiceSipTrunk>;
   getDid(tenantId: string, id: string, options?: { for_update?: boolean }): Promise<VoiceDid | null>;
+  findDidByAddressHmac?(tenantId: string, hmac: string): Promise<VoiceDid | null>;
   listDids(input: VoiceListInput & { trunk_id?: string }): Promise<VoicePage<VoiceDid>>;
   insertDid(input: VoiceDid, address: VoiceProtectedAddress): Promise<VoiceDid>;
   updateDid(input: VoiceDid, expectedRevision: number): Promise<VoiceDid>;
@@ -79,6 +80,12 @@ export interface VoiceConfigurationRepository {
 export interface VoiceCallRepository {
   get(tenantId: string, callId: string, options?: { for_update?: boolean }): Promise<VoiceCall | null>;
   findByIdempotencyKey(tenantId: string, key: string): Promise<VoiceCall | null>;
+  findByProviderCallId(
+    tenantId: string,
+    profileId: string,
+    providerCallId: string,
+    options?: { for_update?: boolean }
+  ): Promise<VoiceCall | null>;
   getProtectedAddress(
     tenantId: string,
     callId: string,
@@ -277,5 +284,19 @@ export interface VoiceCallUnitOfWork {
   run<T>(
     tenantId: string,
     operation: (context: VoiceCallUnitOfWorkContext) => Promise<T>
+  ): Promise<T>;
+}
+
+export interface VoiceProviderEventUnitOfWorkContext {
+  calls: VoiceCallRepository;
+  events: VoiceProviderEventRepository;
+  configuration: VoiceConfigurationRepository;
+  recordings: VoiceRecordingRepository;
+}
+
+export interface VoiceProviderEventUnitOfWork {
+  run<T>(
+    tenantId: string,
+    operation: (context: VoiceProviderEventUnitOfWorkContext) => Promise<T>
   ): Promise<T>;
 }

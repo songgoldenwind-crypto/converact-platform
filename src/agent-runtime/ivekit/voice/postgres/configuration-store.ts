@@ -210,6 +210,18 @@ export class PostgresVoiceConfigurationStore implements VoiceConfigurationReposi
     return this.getDesiredState(tenantId, id, DID_COLUMNS, 'ivekit_voice_dids', 'did', decodeDid, options);
   }
 
+  findDidByAddressHmac(tenantId: string, hmac: string): Promise<VoiceDid | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<VoicePgRow>(
+        `SELECT ${DID_COLUMNS} FROM ivekit_voice_dids did
+         WHERE did.tenant_id = $1 AND did.e164_hmac = $2 AND did.status = 'active'
+         LIMIT 1`,
+        [tenantId, hmac]
+      );
+      return result.rows[0] ? decodeDid(result.rows[0]) : null;
+    });
+  }
+
   listDids(input: VoiceListInput & { trunk_id?: string }): Promise<VoicePage<VoiceDid>> {
     return this.listDesiredState(input, DID_COLUMNS, 'ivekit_voice_dids', 'did', 'trunk_id', input.trunk_id, decodeDid);
   }

@@ -38,7 +38,10 @@ const SENSITIVE_KEYS = new Set([
   'callernumber',
   'calleenumber',
   'sipauthorization',
-  'icepassword'
+  'icepassword',
+  'proto',
+  'prototype',
+  'constructor'
 ]);
 
 export function canonicalVoicePayloadHash(input: unknown): string {

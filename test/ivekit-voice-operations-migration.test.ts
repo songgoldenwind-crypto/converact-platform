@@ -97,6 +97,7 @@ test('Voice profile context lookup exposes only tenant binding and secret refs',
   assert.match(definition, /FROM public\.ivekit_voice_deployment_profiles/i);
   assert.match(definition, /p\.id = p_profile_id/i);
   assert.match(definition, /p\.status <> 'archived'/i);
+  assert.match(definition, /p\.status IN \('enabled', 'degraded'\)/i);
   assert.doesNotMatch(definition, /base_url|desired_version|\bp\.config\b/i);
   assert.match(sql, /REVOKE ALL ON FUNCTION opc_ivekit_voice_profile_context\(TEXT\) FROM PUBLIC/i);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION opc_ivekit_voice_profile_context\(TEXT\) TO opc_runtime/i);
