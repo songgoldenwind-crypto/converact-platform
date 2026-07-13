@@ -16,6 +16,7 @@ export type VoiceErrorCode =
   | 'provider_timeout'
   | 'provider_response_too_large'
   | 'protocol_mismatch'
+  | 'event_sequence_conflict'
   | 'secret_ref_invalid'
   | 'secret_unavailable';
 

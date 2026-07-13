@@ -486,7 +486,7 @@ git commit -m "feat(ivekit): add rustpbx management and routing adapters"
 - Create: `test/ivekit-rustpbx-rwi.test.ts`
 - Create: `test/ivekit-rustpbx-step-ivr.test.ts`
 
-- [ ] **Step 1: Write failing RWI protocol tests**
+- [x] **Step 1: Write failing RWI protocol tests**
 
 Run a loopback `WebSocketServer` and assert:
 
@@ -499,11 +499,11 @@ Run a loopback `WebSocketServer` and assert:
 - `call.originate/answer/hangup/hold/unhold/transfer`, recording, conference, and DTMF map exactly;
 - park/pickup or any unavailable command fails `capability_unavailable`.
 
-- [ ] **Step 2: Implement the RWI client**
+- [x] **Step 2: Implement the RWI client**
 
 Keep connection lifecycle separate from command correlation. Use bounded exponential reconnect with jitter, one pending promise per action id, and a `close()` that rejects pending commands and cancels reconnection. Preflight sends `session.list_calls` and derives supported command groups from the stored provider version/matrix plus successful protocol probe.
 
-- [ ] **Step 3: Write and implement Step IVR normalization tests**
+- [x] **Step 3: Write and implement Step IVR normalization tests**
 
 Validate profile id, provider session id, monotonic event sequence, action revision, event type, DTMF digit, and bounded metadata. Map portable actions:
 
@@ -519,7 +519,7 @@ wait -> wait
 
 Reject unsupported `webhook`/`media` actions at this adapter boundary unless the IVR executor resolves them first. Duplicate event sequence must replay the same action revision; out-of-order sequence returns `event_sequence_conflict`.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 ```bash
 node --import tsx --test test/ivekit-rustpbx-rwi.test.ts test/ivekit-rustpbx-step-ivr.test.ts
@@ -527,7 +527,7 @@ node --import tsx --test test/ivekit-rustpbx-rwi.test.ts test/ivekit-rustpbx-ste
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/adapters/rustpbx-rwi.ts src/agent-runtime/ivekit/ivr/adapters/rustpbx-step-ivr.ts test/ivekit-rustpbx-rwi.test.ts test/ivekit-rustpbx-step-ivr.test.ts
