@@ -663,7 +663,7 @@ git status --short
 
 Expected: no whitespace errors and no untracked generated context. Commit only scoped corrections with `fix(ivekit): complete voice foundation m1 gates` when needed.
 
-- [ ] **Step 6: Push the branch**
+- [x] **Step 6: Push the branch**
 
 ```bash
 git push origin codex/ivekit-v4-voice-foundation
