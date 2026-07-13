@@ -170,8 +170,31 @@ test('Contact Center HTTP advertises implemented and pending capability truth', 
     {}, '', { authorization: `Bearer ${token}` }
   ) as { data: { capabilities: Record<string, boolean> } };
   assert.equal(result.data.capabilities.acd_routing, true);
+  assert.equal(result.data.capabilities.queue_entries, true);
   assert.equal(result.data.capabilities.callbacks, false);
   assert.equal(result.data.capabilities.supervisor, false);
+});
+
+test('Contact Center HTTP lists tenant-bound queue entry snapshots', async (t) => {
+  const token = installAuth(t, 'admin-a', 'admin');
+  const observed: Array<Record<string, unknown>> = [];
+  const module = {
+    queues: {
+      async listQueueEntries(input: Record<string, unknown>) {
+        observed.push(input);
+        return { items: [], next_cursor: null };
+      }
+    }
+  } as unknown as ContactCenterHttpModule;
+  const result = await routeIveKitContactCenterApi(
+    null, 'GET', '/api/ivekit/contact-center/queues/queue-a/entries',
+    new URL('http://localhost/api/ivekit/contact-center/queues/queue-a/entries?state=waiting&limit=25'),
+    {}, '', { authorization: `Bearer ${token}` }, { module }
+  ) as { data: { items: unknown[] } };
+  assert.deepEqual(result.data.items, []);
+  assert.deepEqual(observed, [{
+    tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'waiting', limit: 25
+  }]);
 });
 
 function installAuth(

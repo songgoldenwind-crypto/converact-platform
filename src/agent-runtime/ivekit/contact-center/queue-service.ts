@@ -13,7 +13,11 @@ import {
 import type {
   ContactCenterAgentPresence,
   ContactCenterAssignment,
-  ContactCenterQueueEntry
+  ContactCenterPage,
+  ContactCenterQueueEntry,
+  ContactCenterQueueEntryListInput,
+  ContactCenterQueueEntrySnapshot,
+  ContactCenterQueueEntryState
 } from './types.js';
 
 export interface ContactCenterEnqueueResult {
@@ -205,6 +209,43 @@ export class ContactCenterQueueService {
     );
   }
 
+  listQueueEntries(
+    input: ContactCenterQueueEntryListInput
+  ): Promise<ContactCenterPage<ContactCenterQueueEntrySnapshot>> {
+    const tenantId = identifier(input.tenant_id, 'tenant_id');
+    const queueId = identifier(input.queue_id, 'queue_id');
+    const limit = integer(input.limit ?? 50, 1, 200, 'limit');
+    const state = input.state === undefined ? undefined : queueEntryState(input.state);
+    const cursor = input.cursor === undefined ? undefined : boundedCursor(input.cursor);
+    return this.#unitOfWork.run(tenantId, async ({ repository }) => {
+      required(await repository.getQueue(tenantId, queueId), 'queue');
+      const page = await repository.listEntries({
+        tenant_id: tenantId,
+        queue_id: queueId,
+        limit,
+        ...(state ? { state } : {}),
+        ...(cursor ? { cursor } : {})
+      });
+      const assignments = await repository.listAssignmentsForEntries(
+        tenantId,
+        page.items.map((entry) => entry.id)
+      );
+      const byEntry = new Map<string, ContactCenterAssignment[]>();
+      for (const assignment of assignments) {
+        const history = byEntry.get(assignment.queue_entry_id) ?? [];
+        history.push(assignment);
+        byEntry.set(assignment.queue_entry_id, history);
+      }
+      return {
+        items: page.items.map((entry) => ({
+          entry,
+          assignments: byEntry.get(entry.id) ?? []
+        })),
+        next_cursor: page.next_cursor
+      };
+    });
+  }
+
   async #changeAssignment(input: {
     tenant_id: string;
     assignment_id: string;
@@ -330,6 +371,29 @@ function integer(value: unknown, minimum: number, maximum: number, field: string
     throw new ContactCenterError({ code: 'validation_failed', status: 422, details: { field } });
   }
   return output;
+}
+
+function queueEntryState(value: unknown): ContactCenterQueueEntryState {
+  const states: ContactCenterQueueEntryState[] = [
+    'waiting', 'offered', 'assigned', 'answered', 'completed', 'abandoned',
+    'timed_out', 'cancelled', 'overflowed', 'callback_requested'
+  ];
+  if (!states.includes(value as ContactCenterQueueEntryState)) {
+    throw new ContactCenterError({
+      code: 'validation_failed', status: 422, details: { field: 'state' }
+    });
+  }
+  return value as ContactCenterQueueEntryState;
+}
+
+function boundedCursor(value: unknown): string {
+  const cursor = typeof value === 'string' ? value : '';
+  if (!cursor || cursor.length > 2_000 || /[\u0000-\u001f\u007f]/.test(cursor)) {
+    throw new ContactCenterError({
+      code: 'validation_failed', status: 422, details: { field: 'cursor' }
+    });
+  }
+  return cursor;
 }
 
 function conflict(reason: string): ContactCenterError {

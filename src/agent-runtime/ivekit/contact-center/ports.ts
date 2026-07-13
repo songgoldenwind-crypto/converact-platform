@@ -3,6 +3,8 @@ import type {
   ContactCenterAssignment,
   ContactCenterQueue,
   ContactCenterQueueEntry,
+  ContactCenterQueueEntryListInput,
+  ContactCenterPage,
   ContactCenterRoutingCandidate
 } from './types.js';
 
@@ -30,6 +32,8 @@ export interface ContactCenterRepository {
   listExpiredOffers(tenantId: string, now: Date, limit: number): Promise<ContactCenterAssignment[]>;
   listExpiredWaitingEntries(tenantId: string, now: Date, limit: number): Promise<ContactCenterQueueEntry[]>;
   listRoutableQueueIds(tenantId: string, now: Date, limit: number): Promise<string[]>;
+  listEntries(input: ContactCenterQueueEntryListInput): Promise<ContactCenterPage<ContactCenterQueueEntry>>;
+  listAssignmentsForEntries(tenantId: string, entryIds: string[]): Promise<ContactCenterAssignment[]>;
 }
 
 export interface ContactCenterUnitOfWorkContext {

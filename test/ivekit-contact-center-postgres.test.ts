@@ -63,6 +63,53 @@ test('Contact Center PostgreSQL claims expired waiting entries and lists active 
   assert.deepEqual(queues.params, ['tenant-a', now, 10]);
 });
 
+test('Contact Center PostgreSQL pages queue entries and batches assignment history', async () => {
+  const pg = new ScriptedPg((sql) => {
+    if (sql.includes('FROM ivekit_cc_queue_entries entry')) return [entryRow()];
+    if (sql.includes('FROM ivekit_cc_assignments assignment')) return [assignmentRow()];
+    return [];
+  });
+  const store = new PostgresContactCenterRepository(pg);
+  const page = await store.listEntries({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'waiting', limit: 10
+  });
+  assert.equal(page.items[0]?.id, 'entry-a');
+  assert.equal(page.next_cursor, null);
+  const assignments = await store.listAssignmentsForEntries('tenant-a', ['entry-a']);
+  assert.equal(assignments[0]?.id, 'assignment-a');
+  const list = pg.queries.find((query) => query.sql.includes('FROM ivekit_cc_queue_entries entry'))!;
+  assert.match(list.sql, /ORDER BY entry\.entered_at DESC, entry\.id DESC/);
+  assert.deepEqual(list.params.slice(0, 3), ['tenant-a', 'queue-a', 'waiting']);
+  const history = pg.queries.find((query) => query.sql.includes('queue_entry_id = ANY'))!;
+  assert.deepEqual(history.params, ['tenant-a', ['entry-a']]);
+});
+
+test('Contact Center queue entry cursors cannot cross queue or state scope', async () => {
+  const pg = new ScriptedPg((sql) => sql.includes('FROM ivekit_cc_queue_entries entry') ? [
+    { ...entryRow(), id: 'entry-b', entered_at: '2026-07-13T00:00:01.000Z' },
+    entryRow()
+  ] : []);
+  const store = new PostgresContactCenterRepository(pg);
+  const first = await store.listEntries({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'waiting', limit: 1
+  });
+  assert.ok(first.next_cursor);
+  await assert.rejects(
+    async () => store.listEntries({
+      tenant_id: 'tenant-a', queue_id: 'queue-b', state: 'waiting', limit: 1,
+      cursor: first.next_cursor!
+    }),
+    (error: unknown) => error instanceof ContactCenterError && error.code === 'validation_failed'
+  );
+  await assert.rejects(
+    async () => store.listEntries({
+      tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'completed', limit: 1,
+      cursor: first.next_cursor!
+    }),
+    (error: unknown) => error instanceof ContactCenterError && error.code === 'validation_failed'
+  );
+});
+
 test('Contact Center PostgreSQL locks eligible presence and applies queue skill requirements', async () => {
   const pg = new ScriptedPg((sql) => sql.includes('FROM ivekit_cc_queue_memberships membership') ? [{
     agent_id: 'agent-a', presence_state: 'available', active_voice_count: 0, voice_capacity: 1,

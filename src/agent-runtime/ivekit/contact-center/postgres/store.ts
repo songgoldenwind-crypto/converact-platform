@@ -1,12 +1,15 @@
 import type { PgQueryable } from '../../../../db-pg.js';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
+import { canonicalContactCenterPayloadHash } from '../canonical.js';
 import { ContactCenterError } from '../errors.js';
 import type { ContactCenterRepository } from '../ports.js';
 import type {
   ContactCenterAgentPresence,
   ContactCenterAssignment,
+  ContactCenterPage,
   ContactCenterQueue,
   ContactCenterQueueEntry,
+  ContactCenterQueueEntryListInput,
   ContactCenterRoutingCandidate
 } from '../types.js';
 import {
@@ -117,6 +120,56 @@ export class PostgresContactCenterRepository implements ContactCenterRepository 
         [tenantId, entryId]
       );
       return result.rows[0] ? decodeEntry(result.rows[0]) : null;
+    });
+  }
+
+  listEntries(
+    input: ContactCenterQueueEntryListInput
+  ): Promise<ContactCenterPage<ContactCenterQueueEntry>> {
+    const limit = Math.min(200, Math.max(1, input.limit ?? 50));
+    const scope = canonicalContactCenterPayloadHash({
+      tenant_id: input.tenant_id,
+      queue_id: input.queue_id,
+      state: input.state ?? ''
+    });
+    const cursor = decodeEntryCursor(input.cursor, scope);
+    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${ENTRY_COLUMNS}
+         FROM ivekit_cc_queue_entries entry
+         WHERE entry.tenant_id = $1 AND entry.queue_id = $2
+           AND ($3 = '' OR entry.state = $3)
+           AND (entry.entered_at, entry.id) < ($4::timestamptz, $5::text)
+         ORDER BY entry.entered_at DESC, entry.id DESC
+         LIMIT $6`,
+        [
+          input.tenant_id,
+          input.queue_id,
+          input.state ?? '',
+          cursor.entered_at,
+          cursor.id,
+          limit + 1
+        ]
+      );
+      return entryPage(result.rows.map(decodeEntry), limit, scope);
+    });
+  }
+
+  listAssignmentsForEntries(
+    tenantId: string,
+    entryIds: string[]
+  ): Promise<ContactCenterAssignment[]> {
+    if (entryIds.length === 0) return Promise.resolve([]);
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${ASSIGNMENT_COLUMNS}
+         FROM ivekit_cc_assignments assignment
+         WHERE assignment.tenant_id = $1
+           AND assignment.queue_entry_id = ANY($2::text[])
+         ORDER BY assignment.queue_entry_id, assignment.attempt, assignment.id`,
+        [tenantId, entryIds]
+      );
+      return result.rows.map(decodeAssignment);
     });
   }
 
@@ -533,4 +586,37 @@ function assignmentParameters(assignment: ContactCenterAssignment): unknown[] {
 
 function conflict(): ContactCenterError {
   return new ContactCenterError({ code: 'conflict' });
+}
+
+function decodeEntryCursor(
+  cursor: string | undefined,
+  scope: string
+): { entered_at: string; id: string } {
+  if (!cursor) return { entered_at: '9999-12-31T23:59:59.999Z', id: '\uffff' };
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as Record<string, unknown>;
+    if (value.v !== 1 || value.scope !== scope || typeof value.entered_at !== 'string' ||
+      typeof value.id !== 'string') throw new Error('invalid cursor');
+    return { entered_at: ccTimestamp(value.entered_at), id: value.id };
+  } catch {
+    throw new ContactCenterError({
+      code: 'validation_failed', status: 400, details: { field: 'cursor' }
+    });
+  }
+}
+
+function entryPage(
+  rows: ContactCenterQueueEntry[],
+  limit: number,
+  scope: string
+): ContactCenterPage<ContactCenterQueueEntry> {
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const last = items.at(-1);
+  return {
+    items,
+    next_cursor: hasMore && last ? Buffer.from(JSON.stringify({
+      v: 1, scope, entered_at: last.entered_at, id: last.id
+    }), 'utf8').toString('base64url') : null
+  };
 }

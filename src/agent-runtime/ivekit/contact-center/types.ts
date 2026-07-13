@@ -206,3 +206,16 @@ export interface ContactCenterAssignment {
   created_at: string;
   updated_at: string;
 }
+
+export interface ContactCenterQueueEntryListInput {
+  tenant_id: string;
+  queue_id: string;
+  state?: ContactCenterQueueEntryState;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ContactCenterQueueEntrySnapshot {
+  entry: ContactCenterQueueEntry;
+  assignments: ContactCenterAssignment[];
+}

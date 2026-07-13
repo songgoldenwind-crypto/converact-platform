@@ -8,6 +8,7 @@ import { ContactCenterQueueService } from './queue-service.js';
 import type {
   ContactCenterAgent,
   ContactCenterQueue,
+  ContactCenterQueueEntryListInput,
   ContactCenterRoutingStrategy
 } from './types.js';
 
@@ -47,6 +48,7 @@ export async function routeIveKitContactCenterApi(
       capabilities: {
         agents: true, skills: true, presence: true, queues: true,
         memberships: true, skill_requirements: true, acd_routing: true,
+        queue_entries: true,
         callbacks: false, supervisor: false
       }
     } };
@@ -167,7 +169,7 @@ export async function routeIveKitContactCenterApi(
   }
 
   const queueMatch = routePath.match(
-    /^\/api\/ivekit\/contact-center\/queues\/([^/]+)(?:\/(memberships|skill-requirements))?(?:\/([^/]+))?$/
+    /^\/api\/ivekit\/contact-center\/queues\/([^/]+)(?:\/(memberships|skill-requirements|entries))?(?:\/([^/]+))?$/
   );
   if (queueMatch) {
     const queueId = decodeSegment(queueMatch[1]!);
@@ -215,6 +217,9 @@ export async function routeIveKitContactCenterApi(
         requirements: array(input.requirements) as never
       }) } };
     }
+    if (action === 'entries' && !childId && method === 'GET') return {
+      data: await module.queues.listQueueEntries(queueEntryListInput(context.tenantId, queueId, url))
+    };
   }
 
   if (routePath === '/api/ivekit/contact-center/routing/assignments' && method === 'POST') {
@@ -349,6 +354,22 @@ function listInput(tenantId: string, url: URL): {
     tenant_id: tenantId, limit,
     ...(cursor ? { cursor } : {}),
     ...(status ? { status } : {})
+  };
+}
+
+function queueEntryListInput(
+  tenantId: string,
+  queueId: string,
+  url: URL
+): ContactCenterQueueEntryListInput {
+  const input = listInput(tenantId, url);
+  const state = url.searchParams.get('state') || '';
+  return {
+    tenant_id: tenantId,
+    queue_id: queueId,
+    limit: input.limit,
+    ...(input.cursor ? { cursor: input.cursor } : {}),
+    ...(state ? { state: state as ContactCenterQueueEntryListInput['state'] } : {})
   };
 }
 

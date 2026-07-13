@@ -221,6 +221,27 @@ test('Contact Center exposes routable queues after expired offers are released',
   assert.equal(offered?.assignment.attempt, 2);
 });
 
+test('Contact Center lists queue entry snapshots with assignment history', async () => {
+  const fixture = setup();
+  const queued = await fixture.service.enqueue({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', call_id: 'call-a', priority: 0,
+    idempotency_key: 'entry-key'
+  });
+  await fixture.service.offerNext({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', idempotency_key: 'offer-key',
+    offer_ttl_seconds: 20
+  });
+
+  const page = await fixture.service.listQueueEntries({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', state: 'offered', limit: 10
+  });
+  assert.equal(page.items.length, 1);
+  assert.equal(page.items[0]?.entry.id, queued.entry.id);
+  assert.equal(page.items[0]?.assignments.length, 1);
+  assert.equal(page.items[0]?.assignments[0]?.state, 'offered');
+  assert.equal(page.next_cursor, null);
+});
+
 test('Contact Center IVR queue port exposes only the stable enqueue result', async () => {
   const fixture = setup();
   const port = createContactCenterIvrQueuePort(fixture.service);
@@ -340,6 +361,24 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
       (!entry.timeout_at || entry.timeout_at > now.toISOString())
     );
     return hasWaiting && this.queue.status === 'active' ? [this.queue.id].slice(0, limit) : [];
+  }
+  async listEntries(input: {
+    queue_id: string;
+    state?: string;
+    limit?: number;
+  }) {
+    const items = [...this.entries.values()]
+      .filter((entry) => entry.queue_id === input.queue_id &&
+        (!input.state || entry.state === input.state))
+      .slice(0, input.limit ?? 50)
+      .map((entry) => structuredClone(entry));
+    return { items, next_cursor: null };
+  }
+  async listAssignmentsForEntries(_tenantId: string, entryIds: string[]) {
+    const ids = new Set(entryIds);
+    return [...this.assignments.values()]
+      .filter((assignment) => ids.has(assignment.queue_entry_id))
+      .map((assignment) => structuredClone(assignment));
   }
 }
 
