@@ -19,6 +19,7 @@ const freshRuntimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_
 const upgradeAdminUrl = process.env.OPC_IVEKIT_UPGRADE_TEST_DATABASE_URL || '';
 const upgradeRuntimeUrl = process.env.OPC_IVEKIT_UPGRADE_TEST_RUNTIME_DATABASE_URL || '';
 const runtimePassword = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD || '';
+const testSourceCommit = 'c'.repeat(40);
 const freshTest = freshAdminUrl && freshRuntimeUrl && runtimePassword ? test : test.skip;
 const upgradeTest = upgradeAdminUrl && upgradeRuntimeUrl && runtimePassword ? test : test.skip;
 
@@ -28,7 +29,7 @@ function standaloneMigrations(): { directory: string; cleanup(): void } {
   buildIveKitStandaloneContext({
     repoRoot: resolve('.'),
     outputDir,
-    sourceCommit: 'integration-test',
+    sourceCommit: testSourceCommit,
     generatedAt: '2026-07-12T00:00:00.000Z'
   });
   return {
