@@ -19,7 +19,7 @@ export type ContactCenterQueueEntryEvent =
   | 'overflow'
   | 'request_callback';
 export type ContactCenterAssignmentEvent = 'accept' | 'connect' | 'reject' | 'expire' | 'revoke' | 'complete' | 'fail';
-export type ContactCenterPresenceEvent = 'available' | 'reserve' | 'release' | 'away' | 'offline';
+export type ContactCenterPresenceEvent = 'available' | 'reserve' | 'release' | 'wrap_up' | 'away' | 'offline';
 export type ContactCenterSupervisorEvent = 'authorize' | 'deny' | 'end' | 'fail';
 
 const QUEUE_ENTRY_TRANSITIONS: Record<ContactCenterQueueEntryState, Partial<Record<ContactCenterQueueEntryEvent, ContactCenterQueueEntryState>>> = {
@@ -55,7 +55,7 @@ const ASSIGNMENT_TRANSITIONS: Record<ContactCenterAssignmentState, Partial<Recor
 const PRESENCE_TRANSITIONS: Record<ContactCenterPresenceState, Partial<Record<ContactCenterPresenceEvent, ContactCenterPresenceState>>> = {
   offline: { available: 'available', away: 'away' },
   available: { reserve: 'busy', away: 'away', offline: 'offline' },
-  busy: { reserve: 'busy', release: 'after_call', offline: 'offline' },
+  busy: { reserve: 'busy', release: 'available', wrap_up: 'after_call', offline: 'offline' },
   after_call: { available: 'available', away: 'away', offline: 'offline' },
   away: { available: 'available', offline: 'offline' }
 };

@@ -145,6 +145,10 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/voice/index.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/ivr/index.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/index.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/ivr-queue-port.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/queue-service.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/store.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/unit-of-work.ts'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-controlled-voice-provider.ts'), true);
     assert.equal(files.includes('docs/ivekit-voice-foundation-v1-design.md'), true);
     assert.equal(files.includes('deploy/application/docker-compose.voice.yml'), true);

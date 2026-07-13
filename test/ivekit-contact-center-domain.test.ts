@@ -39,7 +39,8 @@ test('Contact Center assignment and supervisor states reject invalid jumps', () 
 test('Contact Center presence enforces voice capacity before assignment', () => {
   assert.equal(transitionPresence('offline', 'available'), 'available');
   assert.equal(transitionPresence('available', 'reserve'), 'busy');
-  assert.equal(transitionPresence('busy', 'release'), 'after_call');
+  assert.equal(transitionPresence('busy', 'release'), 'available');
+  assert.equal(transitionPresence('busy', 'wrap_up'), 'after_call');
   assert.equal(transitionPresence('after_call', 'available'), 'available');
   assert.equal(canAcceptVoiceWork({ state: 'available', active_voice_count: 0, voice_capacity: 1 }), true);
   assert.equal(canAcceptVoiceWork({ state: 'available', active_voice_count: 1, voice_capacity: 1 }), false);

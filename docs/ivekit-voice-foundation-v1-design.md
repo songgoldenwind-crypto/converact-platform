@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 领域与 PostgreSQL schema 已开始落地，受控 PostgreSQL/RustPBX 协议验收通过；完整 Contact Center runtime、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、原子排队分配服务与 IVR queue adapter，受控 PostgreSQL/RustPBX 协议验收通过；Contact Center 配置/API/worker/SDK/UI、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -21,7 +21,7 @@
 | IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
 | Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
 | React Voice 控制工作台 | 已实现控制面 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、呼入/外呼、状态门禁控制、DTMF、转接、会议、Park/Pickup、录音、LiveKit bridge 和分机 session readiness；不渲染 session credential |
-| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序和 `052_ivekit_contact_center.sql` 已实现；PostgreSQL store、服务/API、worker、SDK 与 Queue Monitor 尚未完成 |
+| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052_ivekit_contact_center.sql`、tenant-scoped PostgreSQL store、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；配置服务、公开 API、worker、callback/supervisor、SDK 与 Queue Monitor 尚未完成 |
 | 浏览器 SIP/WebRTC 媒体接入 | 未实现 | 属于 M5；不得从已有 OPC call-center 页面、控制工作台或 headless controller 推断真实软电话媒体已交付 |
 
 当前新增迁移为：
@@ -850,7 +850,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M4：Contact Center Kit
 
-状态：共享领域状态机、容量门禁、ACD ranking 和 PostgreSQL authority schema 已实现；store、原子分配服务、API、worker、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
+状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；配置服务、公开 API、worker、callback/supervisor runtime、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
 
 - presence、skill、queue、ACD、callback 和 supervisor。
 - IVR queue port 接入，不引入 OPC 业务依赖。

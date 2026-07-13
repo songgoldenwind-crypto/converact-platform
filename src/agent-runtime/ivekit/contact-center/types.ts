@@ -54,3 +54,77 @@ export interface ContactCenterQueueEstimateInput {
   average_handle_seconds: number;
   available_agents: number;
 }
+
+export interface ContactCenterQueue {
+  id: string;
+  tenant_id: string;
+  name: string;
+  routing_strategy: ContactCenterRoutingStrategy;
+  max_wait_seconds: number;
+  max_size: number;
+  callback_after_seconds: number;
+  overflow_action: 'none' | 'queue' | 'voicemail' | 'hangup' | 'external';
+  overflow_queue_id: string | null;
+  overflow_target: string;
+  service_level_seconds: number;
+  status: ContactCenterQueueStatus;
+  metadata: Record<string, unknown>;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactCenterAgentPresence {
+  tenant_id: string;
+  agent_id: string;
+  state: ContactCenterPresenceState;
+  active_voice_count: number;
+  voice_capacity: number;
+  current_call_id: string | null;
+  idle_since: string | null;
+  heartbeat_at: string | null;
+  session_ref: string;
+  revision: number;
+  updated_at: string;
+}
+
+export interface ContactCenterQueueEntry {
+  id: string;
+  tenant_id: string;
+  queue_id: string;
+  call_id: string;
+  state: ContactCenterQueueEntryState;
+  priority: number;
+  idempotency_key: string;
+  payload_hash: string;
+  entered_at: string;
+  offered_at: string | null;
+  assigned_at: string | null;
+  answered_at: string | null;
+  ended_at: string | null;
+  timeout_at: string | null;
+  outcome_reason: string;
+  metadata: Record<string, unknown>;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactCenterAssignment {
+  id: string;
+  tenant_id: string;
+  queue_entry_id: string;
+  agent_id: string;
+  capacity_slot: number;
+  state: ContactCenterAssignmentState;
+  attempt: number;
+  idempotency_key: string;
+  offer_expires_at: string;
+  accepted_at: string | null;
+  connected_at: string | null;
+  completed_at: string | null;
+  outcome_reason: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
