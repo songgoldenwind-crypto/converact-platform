@@ -10,9 +10,12 @@ import {
 const repoRoot = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 
 test('iveKit standalone graph resolves every local module and excludes OPC product domains', () => {
+  const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+    entrypoints: string[];
+  };
   const graph = analyzeIveKitStandaloneSourceGraph({
     repoRoot,
-    entrypoints: ['src/ivekit-server.ts']
+    entrypoints: policy.entrypoints
   });
 
   assert.equal(graph.unresolved.length, 0, graph.unresolved.join('\n'));
@@ -21,7 +24,14 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
     'src/agent-runtime/collaboration/intelligence-provider-registry.ts',
     'src/agent-runtime/collaboration/intelligence-policy-store.ts',
     'src/agent-runtime/collaboration/intelligence-source-service.ts',
-    'src/agent-runtime/collaboration/translation-worker.ts'
+    'src/agent-runtime/collaboration/translation-worker.ts',
+    'src/agent-runtime/ivekit/voice/types.ts',
+    'src/agent-runtime/ivekit/voice/ports.ts',
+    'src/agent-runtime/ivekit/voice/index.ts',
+    'src/agent-runtime/ivekit/ivr/types.ts',
+    'src/agent-runtime/ivekit/ivr/ports.ts',
+    'src/agent-runtime/ivekit/ivr/index.ts',
+    'shared/ivr/graph-types.ts'
   ]) assert.equal(graph.files.includes(path), true, path);
   assert.equal(graph.files.includes('src/server.ts'), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/call-center/')), false);
@@ -55,7 +65,9 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/ivekit-server.ts',
     'src/ivekit-migrate.ts',
     'src/ivekit-init-runtime-role.ts',
-    'src/ivekit-intelligence-preflight.ts'
+    'src/ivekit-intelligence-preflight.ts',
+    'src/agent-runtime/ivekit/voice/index.ts',
+    'src/agent-runtime/ivekit/ivr/index.ts'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',

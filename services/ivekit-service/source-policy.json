@@ -4,7 +4,9 @@
     "src/ivekit-server.ts",
     "src/ivekit-migrate.ts",
     "src/ivekit-init-runtime-role.ts",
-    "src/ivekit-intelligence-preflight.ts"
+    "src/ivekit-intelligence-preflight.ts",
+    "src/agent-runtime/ivekit/voice/index.ts",
+    "src/agent-runtime/ivekit/ivr/index.ts"
   ],
   "forbidden_prefixes": [
     "src/agent-runtime/call-center/",
@@ -59,6 +61,8 @@
     "043_ivekit_intelligence_translation.sql",
     "044_quality_review_policy_routing.sql",
     "045_translation_worker_routing.sql",
+    "046_ivekit_voice_foundation.sql",
+    "047_ivekit_ivr_foundation.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }
