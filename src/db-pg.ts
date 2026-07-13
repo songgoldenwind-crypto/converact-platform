@@ -2171,6 +2171,34 @@ export class MemoryPg implements PgQueryable {
         .slice(0, Number(params[5]));
     }
 
+    if (sql.startsWith('SELECT finding.* FROM collaboration_policy_findings AS finding')) {
+      const cursorCreatedAt = String(params[7] || '');
+      const cursorId = String(params[8] || '');
+      const messages = this.table('collaboration_messages');
+      return [...this.table('collaboration_policy_findings').values()]
+        .filter((row) => String(row.tenant_id) === String(params[0]))
+        .filter((row) => !String(params[1] || '') || String(row.session_id) === String(params[1]))
+        .filter((row) => !String(params[2] || '') || String(row.source) === String(params[2]))
+        .filter((row) => !String(params[3] || '') || String(row.severity) === String(params[3]))
+        .filter((row) => !String(params[4] || '') || String(row.review_status) === String(params[4]))
+        .filter((row) => !String(params[5] || '') || String(row.created_at) >= String(params[5]))
+        .filter((row) => !String(params[6] || '') || String(row.created_at) <= String(params[6]))
+        .filter((row) => !cursorCreatedAt || String(row.created_at) < cursorCreatedAt || (
+          String(row.created_at) === cursorCreatedAt && String(row.id) < cursorId
+        ))
+        .filter((row) => {
+          const messageId = String(row.message_id || '');
+          if (!messageId) return true;
+          const message = messages.get(messageId);
+          return Boolean(message && !message.deleted_at);
+        })
+        .sort((left, right) =>
+          String(right.created_at).localeCompare(String(left.created_at)) ||
+          String(right.id).localeCompare(String(left.id))
+        )
+        .slice(0, Number(params[9]));
+    }
+
     if (sql.startsWith('UPDATE collaboration_policy_findings SET review_status')) {
       const row = this.table('collaboration_policy_findings').get(String(params[0]));
       if (!row || String(row.tenant_id) !== String(params[1])) return { rows: [], rowCount: 0 };

@@ -26,6 +26,23 @@ export interface RecordPolicyFindingInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface TenantFindingQueueInput {
+  tenant_id: string;
+  session_id?: string;
+  source?: PolicyFindingSource;
+  severity?: PolicySeverity;
+  review_status?: PolicyFindingReviewStatus;
+  created_from?: string;
+  created_to?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface TenantFindingQueuePage {
+  items: CollaborationPolicyFinding[];
+  next_cursor: string;
+}
+
 export class PolicyFindingStore {
   constructor(private readonly pg: PgQueryable) {}
 
@@ -107,6 +124,63 @@ export class PolicyFindingStore {
       ]
     );
     return result.rows.map(decodeFinding);
+  }
+
+  async listTenantReviewQueue(input: TenantFindingQueueInput): Promise<TenantFindingQueuePage> {
+    const tenantId = requiredText(input.tenant_id, 'tenant_id');
+    const sessionId = optionalBoundedText(input.session_id, 200, 'session_id');
+    const source = optionalEnum(input.source, ['text', 'ocr', 'asr', 'ai'], 'source');
+    const severity = optionalEnum(input.severity, ['low', 'medium', 'high'], 'severity');
+    const reviewStatus = optionalEnum(
+      input.review_status,
+      ['pending', 'confirmed', 'false_positive', 'resolved', 'escalated'],
+      'review_status'
+    );
+    const createdFrom = optionalIsoDate(input.created_from, 'created_from');
+    const createdTo = optionalIsoDate(input.created_to, 'created_to');
+    if (createdFrom && createdTo && createdFrom > createdTo) {
+      throw badRequest('created_from cannot be after created_to');
+    }
+    const cursor = decodeFindingCursor(input.cursor);
+    const limit = queueLimit(input.limit);
+    const result = await this.pg.query(
+      `SELECT finding.* FROM collaboration_policy_findings AS finding
+       LEFT JOIN collaboration_messages AS message
+         ON message.id = finding.message_id AND message.tenant_id = finding.tenant_id
+       WHERE finding.tenant_id = $1
+         AND ($2 = '' OR finding.session_id = $2)
+         AND ($3 = '' OR finding.source = $3)
+         AND ($4 = '' OR finding.severity = $4)
+         AND ($5 = '' OR finding.review_status = $5)
+         AND ($6::timestamptz IS NULL OR finding.created_at >= $6::timestamptz)
+         AND ($7::timestamptz IS NULL OR finding.created_at <= $7::timestamptz)
+         AND ($8::timestamptz IS NULL OR finding.created_at < $8::timestamptz
+           OR (finding.created_at = $8::timestamptz AND finding.id < $9))
+         AND (finding.message_id = '' OR (message.id IS NOT NULL AND message.deleted_at IS NULL))
+       ORDER BY finding.created_at DESC, finding.id DESC
+       LIMIT $10`,
+      [
+        tenantId,
+        sessionId,
+        source,
+        severity,
+        reviewStatus,
+        createdFrom || null,
+        createdTo || null,
+        cursor?.created_at || null,
+        cursor?.id || '',
+        limit + 1
+      ]
+    );
+    const decoded = result.rows.map(decodeFinding);
+    const items = decoded.slice(0, limit);
+    const last = items.at(-1);
+    return {
+      items,
+      next_cursor: decoded.length > limit && last
+        ? encodeFindingCursor({ created_at: last.created_at, id: last.id })
+        : ''
+    };
   }
 
   async reviewFinding(input: {
@@ -233,6 +307,70 @@ function findingListLimit(value: number | undefined): number {
     throw Object.assign(new Error('limit must be an integer'), { status: 400 });
   }
   return Math.min(Math.max(value, 1), 500);
+}
+
+function queueLimit(value: number | undefined): number {
+  if (value == null) return 50;
+  if (!Number.isInteger(value) || value < 1 || value > 500) {
+    throw badRequest('limit must be an integer between 1 and 500');
+  }
+  return value;
+}
+
+function requiredText(value: unknown, field: string): string {
+  const text = String(value || '').trim();
+  if (!text) throw badRequest(`${field} is required`);
+  return text;
+}
+
+function optionalBoundedText(value: unknown, max: number, field: string): string {
+  const text = String(value || '').trim();
+  if (text.length > max) throw badRequest(`${field} is too long`);
+  return text;
+}
+
+function optionalEnum<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  field: string
+): T | '' {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (!allowed.includes(text as T)) throw badRequest(`${field} is invalid`);
+  return text as T;
+}
+
+function optionalIsoDate(value: unknown, field: string): string {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const timestamp = Date.parse(text);
+  if (!Number.isFinite(timestamp)) throw badRequest(`${field} must be an ISO date-time`);
+  return new Date(timestamp).toISOString();
+}
+
+function encodeFindingCursor(cursor: { created_at: string; id: string }): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function decodeFindingCursor(value: unknown): { created_at: string; id: string } | null {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(text, 'base64url').toString('utf8')) as unknown;
+    if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) throw new Error('invalid');
+    const record = decoded as Record<string, unknown>;
+    if (Object.keys(record).some((key) => key !== 'created_at' && key !== 'id')) throw new Error('invalid');
+    const createdAt = optionalIsoDate(record.created_at, 'cursor');
+    const id = optionalBoundedText(record.id, 200, 'cursor id');
+    if (!createdAt || !id) throw new Error('invalid');
+    return { created_at: createdAt, id };
+  } catch {
+    throw badRequest('cursor is invalid');
+  }
+}
+
+function badRequest(message: string): Error {
+  return Object.assign(new Error(message), { status: 400 });
 }
 
 function finiteConfidence(value: number | null | undefined): number | null {

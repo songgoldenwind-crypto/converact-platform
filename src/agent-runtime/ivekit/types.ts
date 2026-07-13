@@ -9,6 +9,10 @@ import type {
   CollaborationMessageAttachmentKind,
   CollaborationMessageAttachmentStatus,
   CollaborationMessageTranslation,
+  PolicyEvidenceRef,
+  PolicyFindingReviewStatus,
+  PolicyFindingSource,
+  PolicySeverity,
   PolicyScanResult,
   RemoteAssistanceSession,
   RemoteAuditEvent,
@@ -17,6 +21,33 @@ import type {
   RemoteToolSession
 } from '../collaboration/types.js';
 import type { LiveKitConfig } from '../livekit/config.js';
+
+export interface IveKitFindingQueueItem {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  message_id: string;
+  source: PolicyFindingSource;
+  source_ref_id: string;
+  policy_type: string;
+  severity: PolicySeverity;
+  action: string;
+  confidence: number | null;
+  rationale: string;
+  evidence_refs: PolicyEvidenceRef[];
+  review_status: PolicyFindingReviewStatus;
+  reviewed_by: string;
+  reviewed_at: string | null;
+  review_note: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+}
+
+export interface IveKitFindingQueuePage {
+  items: IveKitFindingQueueItem[];
+  next_cursor: string;
+}
 
 export interface IveBusinessRef {
   tenant_id: string;

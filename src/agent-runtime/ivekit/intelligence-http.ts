@@ -19,6 +19,8 @@ import {
   type IntelligenceSourceSnapshot
 } from '../collaboration/intelligence-source-service.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
+import { PolicyFindingStore } from '../collaboration/policy-finding-store.js';
+import type { CollaborationPolicyFinding, PolicyEvidenceRef } from '../collaboration/types.js';
 
 export interface RouteIveKitIntelligenceApiOptions {
   registry?: IntelligenceProviderRegistry;
@@ -51,7 +53,7 @@ export async function routeIveKitIntelligenceApi(
   pg: PgQueryable | null,
   method: string,
   path: string,
-  _url: URL,
+  url: URL,
   body: unknown,
   headers: Record<string, string | string[] | undefined> = {},
   options: RouteIveKitIntelligenceApiOptions = {}
@@ -66,6 +68,30 @@ export async function routeIveKitIntelligenceApi(
   if (routePath === '/api/ivekit/intelligence/capabilities' && method === 'GET') {
     const policy = await store.getEffectivePolicy(ctx.tenantId);
     return { data: publicCapabilities(policy, registry) };
+  }
+
+  if (routePath === '/api/ivekit/intelligence/findings' && method === 'GET') {
+    requireReviewer(ctx.role);
+    const page = await new PolicyFindingStore(pg).listTenantReviewQueue({
+      tenant_id: ctx.tenantId,
+      session_id: url.searchParams.get('session_id') || undefined,
+      source: (url.searchParams.get('source') || undefined) as
+        | 'text' | 'ocr' | 'asr' | 'ai' | undefined,
+      severity: (url.searchParams.get('severity') || undefined) as
+        | 'low' | 'medium' | 'high' | undefined,
+      review_status: (url.searchParams.get('review_status') || undefined) as
+        | 'pending' | 'confirmed' | 'false_positive' | 'resolved' | 'escalated' | undefined,
+      created_from: url.searchParams.get('created_from') || undefined,
+      created_to: url.searchParams.get('created_to') || undefined,
+      cursor: url.searchParams.get('cursor') || undefined,
+      limit: queryLimit(url.searchParams.get('limit'))
+    });
+    return {
+      data: {
+        items: page.items.map(projectReviewQueueFinding),
+        next_cursor: page.next_cursor
+      }
+    };
   }
 
   if (routePath === '/api/ivekit/intelligence/policy' && method === 'GET') {
@@ -242,6 +268,11 @@ function requireAdministrator(role: string): void {
   throw Object.assign(new Error('intelligence policy administration requires owner or admin role'), { status: 403 });
 }
 
+function requireReviewer(role: string): void {
+  if (role === 'system' || role === 'owner' || role === 'admin' || role === 'operator') return;
+  throw Object.assign(new Error('intelligence finding review requires operator or admin role'), { status: 403 });
+}
+
 function actorIdentity(
   ctx: ReturnType<typeof requireAuth>,
   headers: Record<string, string | string[] | undefined>
@@ -276,6 +307,45 @@ function optionalProfileIds(value: unknown): string[] | undefined {
     throw Object.assign(new Error('profile_ids contains an invalid profile id'), { status: 400 });
   }
   return [...new Set(ids)];
+}
+
+function queryLimit(value: string | null): number | undefined {
+  if (value == null || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) throw Object.assign(new Error('limit must be an integer'), { status: 400 });
+  return parsed;
+}
+
+function projectReviewQueueFinding(finding: CollaborationPolicyFinding): Record<string, unknown> {
+  return {
+    id: finding.id,
+    tenant_id: finding.tenant_id,
+    session_id: finding.session_id,
+    message_id: finding.message_id,
+    source: finding.source,
+    source_ref_id: finding.source_ref_id,
+    policy_type: finding.policy_type,
+    severity: finding.severity,
+    action: finding.action,
+    confidence: finding.confidence,
+    rationale: finding.rationale,
+    evidence_refs: finding.evidence_refs.slice(0, 20).map(projectEvidenceRef),
+    review_status: finding.review_status,
+    reviewed_by: finding.reviewed_by,
+    reviewed_at: finding.reviewed_at,
+    review_note: finding.review_note,
+    created_at: finding.created_at,
+    updated_at: finding.updated_at,
+    resolved_at: finding.resolved_at
+  };
+}
+
+function projectEvidenceRef(ref: PolicyEvidenceRef): Record<string, unknown> {
+  return Object.fromEntries(
+    ['type', 'id', 'kind', 'processor', 'checksum']
+      .filter((key) => typeof ref[key] === 'string')
+      .map((key) => [key, String(ref[key]).slice(0, 200)])
+  );
 }
 
 function intelligenceSourceService(
