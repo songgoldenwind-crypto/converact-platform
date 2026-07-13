@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -11,7 +12,17 @@ import { runMigrations } from '../src/db-pg.js';
 import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
 import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
 import { IveKitTenantEventStore } from '../src/agent-runtime/ivekit/tenant-event-store.js';
+import {
+  AttachmentProcessingService,
+  type AttachmentTextProvider
+} from '../src/agent-runtime/collaboration/attachment-processing.js';
+import {
+  QualityReviewService,
+  type QualityReviewProvider
+} from '../src/agent-runtime/collaboration/quality-review.js';
 import { RustDeskDeviceCommandStore } from '../src/agent-runtime/collaboration/rustdesk-device-command-store.js';
+import { TranslationService } from '../src/agent-runtime/collaboration/translation-service.js';
+import type { TranslationProvider } from '../src/agent-runtime/collaboration/translation-provider.js';
 import { withPgTenant } from '../src/db-pg-tenant.js';
 
 const freshAdminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
@@ -122,6 +133,132 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         ('ivekit_rls_a', TRUE, 'translation-a', 'admin'),
         ('ivekit_rls_b', TRUE, 'translation-b', 'admin')
     `);
+    const recoveryNow = new Date('2026-07-12T12:00:00.000Z');
+    const qualityBody = 'controlled quality recovery source';
+    const translationBody = 'controlled translation recovery source';
+    const qualityHash = createHash('sha256').update(qualityBody).digest('hex');
+    const translationHash = createHash('sha256').update(translationBody).digest('hex');
+    await admin.query(`
+      INSERT INTO collaboration_sessions
+        (id, tenant_id, business_ref_type, business_ref_id, title)
+      VALUES ('ivekit_worker_recovery_session', 'ivekit_rls_a', 'order', 'RECOVERY-1', 'Worker recovery');
+      INSERT INTO collaboration_messages
+        (id, tenant_id, session_id, sender_identity, message_type, body)
+      VALUES
+        ('ivekit_worker_attachment_message', 'ivekit_rls_a', 'ivekit_worker_recovery_session', 'agent-a', 'file', ''),
+        ('ivekit_worker_quality_message', 'ivekit_rls_a', 'ivekit_worker_recovery_session', 'agent-a', 'text', '${qualityBody}'),
+        ('ivekit_worker_translation_message', 'ivekit_rls_a', 'ivekit_worker_recovery_session', 'agent-a', 'text', '${translationBody}');
+      INSERT INTO collaboration_message_attachments
+        (id, tenant_id, session_id, message_id, kind, storage_url, filename,
+         content_type, size_bytes, checksum, processing_status)
+      VALUES
+        ('ivekit_worker_attachment', 'ivekit_rls_a', 'ivekit_worker_recovery_session',
+         'ivekit_worker_attachment_message', 'image', 'ivekit://controlled/recovery',
+         'recovery.txt', 'text/plain', 19, 'sha256-worker-recovery', 'pending');
+      INSERT INTO collaboration_attachment_processing_jobs
+        (id, tenant_id, session_id, message_id, attachment_id, processor, status,
+         attempt_count, max_attempts, lease_until, worker_id)
+      VALUES
+        ('ivekit_worker_attachment_job', 'ivekit_rls_a', 'ivekit_worker_recovery_session',
+         'ivekit_worker_attachment_message', 'ivekit_worker_attachment', 'ocr', 'processing',
+         1, 3, '2026-07-12T11:59:00.000Z', 'crashed-attachment-worker');
+      INSERT INTO collaboration_quality_review_jobs
+        (id, tenant_id, session_id, message_id, input_hash, status, attempt_count,
+         max_attempts, lease_until, worker_id, automatic)
+      VALUES
+        ('ivekit_worker_quality_job', 'ivekit_rls_a', 'ivekit_worker_recovery_session',
+         'ivekit_worker_quality_message', '${qualityHash}', 'processing', 1, 3,
+         '2026-07-12T11:59:00.000Z', 'crashed-quality-worker', FALSE);
+      INSERT INTO collaboration_translation_jobs
+        (id, tenant_id, session_id, message_id, source_type, source_ref_id,
+         source_language, target_language, source_hash, status, attempt_count, max_attempts,
+         lease_until, worker_id, idempotency_key, payload_hash, automatic)
+      VALUES
+        ('ivekit_worker_translation_job', 'ivekit_rls_a', 'ivekit_worker_recovery_session',
+         'ivekit_worker_translation_message', 'message', 'ivekit_worker_translation_message',
+         'auto', 'zh-CN', '${translationHash}', 'processing', 1, 3,
+         '2026-07-12T11:59:00.000Z', 'crashed-translation-worker',
+         'ivekit-worker-translation-recovery', '${'d'.repeat(64)}', FALSE)
+    `);
+    const attachmentProvider: AttachmentTextProvider = {
+      processor: 'ocr',
+      name: 'controlled-recovery-ocr',
+      mode: 'self_hosted',
+      profile_id: 'controlled-recovery-ocr',
+      extract: async () => ({ text: 'controlled OCR recovery', confidence: 0.99 })
+    };
+    const qualityProvider: QualityReviewProvider = {
+      name: 'controlled-recovery-quality',
+      mode: 'self_hosted',
+      profile_id: 'controlled-recovery-quality',
+      review: async () => ({ findings: [], metadata: { recovery: true } })
+    };
+    const translationProvider: TranslationProvider = {
+      name: 'controlled-recovery-translation',
+      mode: 'self_hosted',
+      profile_id: 'controlled-recovery-translation',
+      translate: async (input) => ({
+        translated_text: `[${input.target_language}] ${input.text}`,
+        detected_language: 'en-US',
+        confidence: 0.99
+      })
+    };
+    const attachmentRecovery = new AttachmentProcessingService({
+      pg: runtime,
+      providers: { ocr: attachmentProvider },
+      resolveObject: async () => ({ status: 'readable', content: Buffer.from('controlled recovery') }),
+      now: () => recoveryNow,
+      claimLeaseMs: 30_000
+    });
+    const qualityRecovery = new QualityReviewService({
+      pg: runtime,
+      provider: qualityProvider,
+      now: () => recoveryNow,
+      claimLeaseMs: 30_000
+    });
+    const translationRecovery = new TranslationService({
+      pg: runtime,
+      provider: translationProvider,
+      now: () => recoveryNow,
+      claimLeaseMs: 30_000
+    });
+    assert.deepEqual(await attachmentRecovery.runDue({ tenant_id: 'ivekit_rls_a', limit: 10 }), {
+      candidates: 1, claimed: 1, succeeded: 1, retry_wait: 0, failed: 0
+    });
+    assert.deepEqual(await qualityRecovery.runDue({ tenant_id: 'ivekit_rls_a', limit: 10 }), {
+      candidates: 1, claimed: 1, succeeded: 1, retry_wait: 0, failed: 0
+    });
+    assert.deepEqual(await translationRecovery.runDue({ tenant_id: 'ivekit_rls_a', limit: 10 }), {
+      candidates: 1, claimed: 1, succeeded: 1, retry_wait: 0, failed: 0
+    });
+    const recoveredJobs = await admin.query<{
+      id: string;
+      status: string;
+      attempt_count: number;
+      worker_id: string;
+      lease_until: string | null;
+    }>(`
+      SELECT id, status, attempt_count, worker_id, lease_until
+      FROM (
+        SELECT id, status, attempt_count, worker_id, lease_until
+        FROM collaboration_attachment_processing_jobs
+        WHERE id = 'ivekit_worker_attachment_job'
+        UNION ALL
+        SELECT id, status, attempt_count, worker_id, lease_until
+        FROM collaboration_quality_review_jobs
+        WHERE id = 'ivekit_worker_quality_job'
+        UNION ALL
+        SELECT id, status, attempt_count, worker_id, lease_until
+        FROM collaboration_translation_jobs
+        WHERE id = 'ivekit_worker_translation_job'
+      ) recovered
+      ORDER BY id
+    `);
+    assert.deepEqual(recoveredJobs.rows, [
+      { id: 'ivekit_worker_attachment_job', status: 'succeeded', attempt_count: 2, worker_id: '', lease_until: null },
+      { id: 'ivekit_worker_quality_job', status: 'succeeded', attempt_count: 2, worker_id: '', lease_until: null },
+      { id: 'ivekit_worker_translation_job', status: 'succeeded', attempt_count: 2, worker_id: '', lease_until: null }
+    ]);
     await admin.query(`
       INSERT INTO rustdesk_devices
         (id, tenant_id, business_ref_type, business_ref_id, rustdesk_id, display_name)
