@@ -33,7 +33,7 @@ test('recording source import uses stable IDs and refreshes processing status', 
   assert.equal(imports[0].source_type, 'remote_recording');
   assert.equal(imports[0].source_ref_id, 'evidence-1');
   assert.ok(imports[0].idempotencyKey);
-  assert.ok(view.getByText('Pending'));
+  assert.ok(await view.findByText('Pending'));
 
   current = snapshot('succeeded');
   view.rerender(<IntelligenceSourcePanel client={client} initialSessionId="session-1" refreshVersion={1} />);
