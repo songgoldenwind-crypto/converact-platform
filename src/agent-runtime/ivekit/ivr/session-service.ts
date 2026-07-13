@@ -42,6 +42,13 @@ export interface AdvanceIvrSessionInput {
   event: IvrExecutionEvent;
 }
 
+export interface CompleteIvrWorkerActionInput {
+  tenant_id: string;
+  action_id: string;
+  worker_id: string;
+  result: Record<string, unknown>;
+}
+
 export interface IvrSessionResult {
   session: IvrSession;
   action: IvrAction | null;
@@ -124,12 +131,42 @@ export class IvrSessionService {
     });
   }
 
+  async completeWorkerAction(input: CompleteIvrWorkerActionInput): Promise<IvrSessionResult> {
+    const tenantId = identifier(input.tenant_id);
+    const actionId = identifier(input.action_id);
+    const workerId = identifier(input.worker_id);
+    return this.#unitOfWork.run(tenantId, async (context) => {
+      const action = required(await context.actions.get(tenantId, actionId, { for_update: true }));
+      if (action.dispatch_mode !== 'worker' || action.state !== 'processing' || action.worker_id !== workerId) {
+        throw new IvrError({ code: 'lease_lost', status: 409 });
+      }
+      const session = required(await context.sessions.get(tenantId, action.session_id, { for_update: true }));
+      if (session.state !== 'waiting' || session.current_node_id !== action.node_id) {
+        throw new IvrError({ code: 'invalid_session_state', status: 409 });
+      }
+      const version = required(await context.flows.getPublished(tenantId, session.flow_id, session.flow_version));
+      return this.#drive(
+        context,
+        session,
+        version.graph,
+        { type: 'action_succeeded', result: safeResult(input.result) },
+        {
+          eventSequence: session.last_event_sequence,
+          actionRevision: session.last_action_revision,
+          eventHash: session.last_event_payload_hash
+        },
+        workerId
+      );
+    });
+  }
+
   async #drive(
     stores: IvrSessionUnitOfWorkContext,
     current: IvrSession,
     graph: import('./graph-types.js').IvrFlowGraph,
     initialEvent: IvrExecutionEvent,
-    sequence: { eventSequence: number; actionRevision: number; eventHash: string }
+    sequence: { eventSequence: number; actionRevision: number; eventHash: string },
+    settlementWorkerId?: string
   ): Promise<IvrSessionResult> {
     let session = { ...current, context: structuredClone(current.context) };
     let event = initialEvent;
@@ -143,6 +180,7 @@ export class IvrSessionService {
       await stores.actions.settle({
         tenant_id: session.tenant_id,
         action_id: previousAction.id,
+        ...(settlementWorkerId ? { worker_id: settlementWorkerId } : {}),
         state: settlement.state,
         result: settlement.result,
         error_code: settlement.error_code,
@@ -342,4 +380,15 @@ function boundedErrorCode(value: string): string {
 
 function isTerminal(state: IvrSession['state']): boolean {
   return state === 'completed' || state === 'failed' || state === 'cancelled';
+}
+
+function safeResult(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+  const serialized = JSON.stringify(value);
+  if (Buffer.byteLength(serialized, 'utf8') > 65_536) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+  return structuredClone(value) as Record<string, unknown>;
 }

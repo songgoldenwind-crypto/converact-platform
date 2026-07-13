@@ -112,8 +112,29 @@ test('IVR session start idempotently binds one provider session to one published
     hasIvrCode('idempotency_conflict'));
 });
 
-function createFixture() {
-  const flow = publishedFlow();
+test('IVR worker action completion atomically settles and resumes the session', async () => {
+  const fixture = createFixture(workerGraph());
+  const started = await fixture.service.startSession({ tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a' });
+  const waiting = await fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' } });
+  assert.equal(waiting.action?.kind, 'webhook');
+  const pending = fixture.actions.items[0]!;
+  pending.state = 'processing'; pending.worker_id = 'worker-a'; pending.attempt_count = 1;
+
+  await assert.rejects(() => fixture.service.completeWorkerAction({
+    tenant_id: 'tenant-a', action_id: pending.id, worker_id: 'worker-b', result: { status: 200 }
+  }), hasIvrCode('lease_lost'));
+  const resumed = await fixture.service.completeWorkerAction({
+    tenant_id: 'tenant-a', action_id: pending.id, worker_id: 'worker-a', result: { status: 200 }
+  });
+  assert.equal(resumed.action?.kind, 'hangup');
+  assert.equal(resumed.session.current_node_id, 'end');
+  assert.equal(fixture.actions.items.find((item) => item.id === pending.id)?.state, 'succeeded');
+  assert.deepEqual(fixture.steps.items.map((step) => step.node_id), ['start', 'http']);
+});
+
+function createFixture(graphOverride?: IvrFlowGraph) {
+  const flow = publishedFlow(graphOverride);
   const flows = new MemoryFlowRepository(flow);
   const sessions = new MemorySessionRepository();
   const steps = new MemoryStepRepository();
@@ -175,6 +196,12 @@ class MemoryStepRepository {
 
 class MemoryActionRepository implements IvrPendingActionRepository {
   readonly items: IvrPendingAction[] = [];
+  async claimDue(): Promise<IvrPendingAction[]> { return []; }
+  async claimUncertain(): Promise<IvrPendingAction[]> { return []; }
+  async release(): Promise<IvrPendingAction> { throw new Error('not used'); }
+  async get(tenantId: string, actionId: string): Promise<IvrPendingAction | null> {
+    return clone(this.items.find((item) => item.tenant_id === tenantId && item.id === actionId) ?? null);
+  }
   async findOpenForSession(tenantId: string, sessionId: string): Promise<IvrPendingAction | null> {
     return clone(this.items.find((item) => item.tenant_id === tenantId && item.session_id === sessionId
       && ['pending', 'processing', 'retry_wait', 'uncertain'].includes(item.state)) ?? null);
@@ -187,13 +214,30 @@ class MemoryActionRepository implements IvrPendingActionRepository {
   }
 }
 
-function publishedFlow(): IvrFlowVersion {
+function publishedFlow(graphOverride?: IvrFlowGraph): IvrFlowVersion {
   return {
     id: 'version-a', tenant_id: 'tenant-a', flow_id: 'flow-a', version: 1, schema_version: 1,
-    graph: graph(), graph_hash: 'a'.repeat(64), dependencies: emptyDependencies(),
+    graph: graphOverride ?? graph(), graph_hash: 'a'.repeat(64), dependencies: emptyDependencies(),
     release_kind: 'publish', source_version: null, publication_key: 'publish-flow-a',
     publication_payload_hash: 'b'.repeat(64), release_metadata: {}, published_by: 'admin-a',
     published_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function workerGraph(): IvrFlowGraph {
+  return {
+    version: 1, entryNodeId: 'start', variables: [],
+    nodes: [
+      { id: 'start', type: 'start', name: 'Start', position: { x: 0, y: 0 }, data: {} },
+      { id: 'http', type: 'http', name: 'HTTP', position: { x: 1, y: 0 }, data: { webhook_ref: 'crm' } },
+      { id: 'end', type: 'disconnect', name: 'End', position: { x: 2, y: 0 }, data: {} }
+    ],
+    edges: [
+      { id: 'e1', source: 'start', target: 'http', sourceHandle: 'out' },
+      { id: 'e2', source: 'http', target: 'end', sourceHandle: 'success' },
+      { id: 'e3', source: 'http', target: 'end', sourceHandle: 'fail' },
+      { id: 'e4', source: 'http', target: 'end', sourceHandle: 'timeout' }
+    ]
   };
 }
 

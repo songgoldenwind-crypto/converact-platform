@@ -71,16 +71,65 @@ export interface IvrSessionStepRepository {
 }
 
 export interface IvrPendingActionRepository {
+  claimDue(input: IvrPendingActionClaimInput): Promise<IvrPendingAction[]>;
+  claimUncertain(input: IvrPendingActionClaimInput): Promise<IvrPendingAction[]>;
+  get(
+    tenantId: string,
+    actionId: string,
+    options?: { for_update?: boolean }
+  ): Promise<IvrPendingAction | null>;
   findOpenForSession(tenantId: string, sessionId: string): Promise<IvrPendingAction | null>;
   insert(action: IvrPendingAction): Promise<IvrPendingAction>;
   settle(input: {
     tenant_id: string;
     action_id: string;
+    worker_id?: string;
     state: 'succeeded' | 'failed' | 'cancelled';
     result: Record<string, unknown>;
     error_code: string;
     completed_at: string;
   }): Promise<IvrPendingAction>;
+  release(input: IvrPendingActionReleaseInput): Promise<IvrPendingAction>;
+}
+
+export interface IvrPendingActionClaimInput {
+  tenant_id: string;
+  worker_id: string;
+  now: string;
+  limit: number;
+  lease_ms: number;
+}
+
+export interface IvrPendingActionReleaseInput {
+  tenant_id: string;
+  action_id: string;
+  worker_id: string;
+  state: 'retry_wait' | 'uncertain' | 'failed';
+  next_attempt_at: string | null;
+  error_code: string;
+  error_message: string;
+  now: string;
+}
+
+export interface IvrPendingActionExecutor {
+  execute(action: IvrPendingAction): Promise<Record<string, unknown>>;
+}
+
+export interface IvrPendingActionCompletionPort {
+  complete(input: {
+    action: IvrPendingAction;
+    worker_id: string;
+    result: Record<string, unknown>;
+  }): Promise<void>;
+}
+
+export type IvrPendingActionReconciliationResult =
+  | { disposition: 'succeeded'; result: Record<string, unknown> }
+  | { disposition: 'failed'; error_code: string; result?: Record<string, unknown> }
+  | { disposition: 'unknown'; error_code: string };
+
+export interface IvrPendingActionReconciler {
+  reconcile(action: IvrPendingAction): Promise<IvrPendingActionReconciliationResult>;
 }
 
 export interface IvrSessionUnitOfWorkContext {

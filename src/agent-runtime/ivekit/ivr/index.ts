@@ -1,4 +1,5 @@
 export * from './adapters/rustpbx-step-ivr.js';
+export * from './action-executor.js';
 export * from './canonical.js';
 export * from './dependencies.js';
 export * from './errors.js';
@@ -11,7 +12,10 @@ export * from './postgres/flow-store.js';
 export * from './postgres/session-store.js';
 export * from './postgres/unit-of-work.js';
 export * from './session-service.js';
+export * from './session-action-completion.js';
 export * from './types.js';
 export * from './validation.js';
+export * from './workers/pending-action-worker.js';
+export * from './workers/reconciliation-worker.js';
 export * from './ports.js';
 export * from './types.js';

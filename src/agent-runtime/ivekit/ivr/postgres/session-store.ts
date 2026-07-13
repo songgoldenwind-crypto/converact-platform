@@ -1,6 +1,9 @@
 import type { PgQueryable } from '../../../../db-pg.js';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
+import { IvrError } from '../errors.js';
 import type {
+  IvrPendingActionClaimInput,
+  IvrPendingActionReleaseInput,
   IvrPendingActionRepository,
   IvrSessionRepository,
   IvrSessionStepRepository
@@ -143,6 +146,83 @@ export class PostgresIvrSessionStepStore implements IvrSessionStepRepository {
 export class PostgresIvrPendingActionStore implements IvrPendingActionRepository {
   constructor(private readonly pg: PgQueryable) {}
 
+  get(tenantId: string, actionId: string, options: { for_update?: boolean } = {}): Promise<IvrPendingAction | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<IvrPgRow>(
+        `SELECT ${ACTION_COLUMNS}
+         FROM ivekit_ivr_pending_actions action
+         WHERE action.tenant_id = $1 AND action.id = $2
+         ${options.for_update ? 'FOR UPDATE' : ''}`,
+        [tenantId, actionId]
+      );
+      return result.rows[0] ? decodeAction(result.rows[0]) : null;
+    });
+  }
+
+  claimDue(input: IvrPendingActionClaimInput): Promise<IvrPendingAction[]> {
+    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      const limit = boundedInteger(input.limit, 50, 1, 200);
+      const leaseMs = boundedInteger(input.lease_ms, 30_000, 1_000, 300_000);
+      const now = timestamp(input.now);
+      const leaseUntil = new Date(new Date(now).getTime() + leaseMs).toISOString();
+      const result = await pg.query<IvrPgRow>(
+        `WITH candidate AS (
+           SELECT action.id
+           FROM ivekit_ivr_pending_actions action
+           WHERE action.tenant_id = $1 AND action.dispatch_mode = 'worker'
+             AND action.attempt_count < action.max_attempts
+             AND (
+               action.state = 'pending'
+               OR (action.state = 'retry_wait'
+                 AND (action.next_attempt_at IS NULL OR action.next_attempt_at <= $2))
+               OR (action.state = 'processing' AND action.lease_until <= $2)
+             )
+           ORDER BY COALESCE(action.next_attempt_at, action.created_at), action.id
+           FOR UPDATE SKIP LOCKED
+           LIMIT $5
+         )
+         UPDATE ivekit_ivr_pending_actions action
+         SET state = 'processing', worker_id = $3, lease_until = $4,
+             attempt_count = action.attempt_count + 1, updated_at = $2
+         FROM candidate
+         WHERE action.tenant_id = $1 AND action.id = candidate.id
+         RETURNING action.*`,
+        [input.tenant_id, now, input.worker_id, leaseUntil, limit]
+      );
+      return result.rows.map(decodeAction);
+    });
+  }
+
+  claimUncertain(input: IvrPendingActionClaimInput): Promise<IvrPendingAction[]> {
+    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      const limit = boundedInteger(input.limit, 50, 1, 200);
+      const leaseMs = boundedInteger(input.lease_ms, 30_000, 1_000, 300_000);
+      const now = timestamp(input.now);
+      const leaseUntil = new Date(new Date(now).getTime() + leaseMs).toISOString();
+      const result = await pg.query<IvrPgRow>(
+        `WITH candidate AS (
+           SELECT action.id
+           FROM ivekit_ivr_pending_actions action
+           WHERE action.tenant_id = $1 AND action.dispatch_mode = 'worker'
+             AND action.state = 'uncertain'
+             AND (action.next_attempt_at IS NULL OR action.next_attempt_at <= $2)
+             AND (action.lease_until IS NULL OR action.lease_until <= $2)
+           ORDER BY COALESCE(action.next_attempt_at, action.created_at), action.id
+           FOR UPDATE SKIP LOCKED
+           LIMIT $5
+         )
+         UPDATE ivekit_ivr_pending_actions action
+         SET worker_id = $3, lease_until = $4,
+             reconciliation_count = action.reconciliation_count + 1, updated_at = $2
+         FROM candidate
+         WHERE action.tenant_id = $1 AND action.id = candidate.id
+         RETURNING action.*`,
+        [input.tenant_id, now, input.worker_id, leaseUntil, limit]
+      );
+      return result.rows.map(decodeAction);
+    });
+  }
+
   findOpenForSession(tenantId: string, sessionId: string): Promise<IvrPendingAction | null> {
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const result = await pg.query<IvrPgRow>(
@@ -180,6 +260,7 @@ export class PostgresIvrPendingActionStore implements IvrPendingActionRepository
   settle(input: {
     tenant_id: string;
     action_id: string;
+    worker_id?: string;
     state: 'succeeded' | 'failed' | 'cancelled';
     result: Record<string, unknown>;
     error_code: string;
@@ -192,11 +273,38 @@ export class PostgresIvrPendingActionStore implements IvrPendingActionRepository
              worker_id = '', lease_until = NULL, next_attempt_at = NULL,
              updated_at = $6, completed_at = $6
          WHERE action.tenant_id = $1 AND action.id = $2
+           AND ($7 = '' OR action.worker_id = $7)
            AND action.state IN ('pending', 'processing', 'retry_wait', 'uncertain')
          RETURNING action.*`,
-        [input.tenant_id, input.action_id, input.state, JSON.stringify(input.result), input.error_code, input.completed_at]
+        [
+          input.tenant_id, input.action_id, input.state, JSON.stringify(input.result),
+          input.error_code, input.completed_at, input.worker_id ?? ''
+        ]
       );
       return decodeAction(requiredRow(result.rows[0], 'revision_conflict'));
+    });
+  }
+
+  release(input: IvrPendingActionReleaseInput): Promise<IvrPendingAction> {
+    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      const result = await pg.query<IvrPgRow>(
+        `UPDATE ivekit_ivr_pending_actions action
+         SET state = $4, next_attempt_at = $5, error_code = $6, error_message = $7,
+             worker_id = '', lease_until = NULL, updated_at = $8,
+             completed_at = CASE WHEN $4 = 'failed' THEN $8::timestamptz ELSE NULL END
+         WHERE action.tenant_id = $1 AND action.id = $2 AND action.worker_id = $3
+           AND (
+             action.state = 'processing'
+             OR (action.state = 'uncertain' AND $4 IN ('uncertain', 'failed'))
+           )
+         RETURNING action.*`,
+        [
+          input.tenant_id, input.action_id, input.worker_id, input.state,
+          input.next_attempt_at, input.error_code, input.error_message, timestamp(input.now)
+        ]
+      );
+      if (!result.rows[0]) throw new IvrError({ code: 'lease_lost', status: 409 });
+      return decodeAction(result.rows[0]);
     });
   }
 }
@@ -276,4 +384,8 @@ function nullableTimestamp(value: unknown): string | null {
 
 function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
+}
+
+function boundedInteger(value: number, fallback: number, min: number, max: number): number {
+  return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
 }

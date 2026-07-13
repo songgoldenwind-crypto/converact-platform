@@ -8,6 +8,7 @@ import {
   IvrSessionService,
   PostgresIvrFlowStore,
   PostgresIvrFlowUnitOfWork,
+  PostgresIvrPendingActionStore,
   PostgresIvrSessionStepStore,
   PostgresIvrSessionUnitOfWork,
   type IvrFlowGraph
@@ -110,6 +111,64 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
       [tenantA, started.session.id]
     ));
     assert.deepEqual(actionCounts.rows, [{ state: 'succeeded', count: '2' }]);
+
+    const actionStore = new PostgresIvrPendingActionStore(pool);
+    await actionStore.insert({
+      id: 'ivr-worker-action-a', tenant_id: tenantA, session_id: started.session.id,
+      step_index: 99, node_id: 'worker-webhook', action_kind: 'webhook', state: 'pending',
+      dispatch_mode: 'worker', idempotency_key: 'ivr-worker-action-a', payload_hash: 'c'.repeat(64),
+      payload: { webhook_ref: 'controlled' }, result: {}, attempt_count: 0, max_attempts: 3,
+      next_attempt_at: null, lease_until: null, worker_id: '', provider_profile_id: '',
+      provider_action_id: '', error_code: '', error_message: '', trace_id: 'trace-worker-a',
+      reconciliation_count: 0, created_at: '2026-07-13T00:02:00.000Z',
+      updated_at: '2026-07-13T00:02:00.000Z', completed_at: null
+    });
+    const claimedA = await actionStore.claimDue({ tenant_id: tenantA, worker_id: 'worker-a',
+      now: '2026-07-13T00:03:00.000Z', limit: 10, lease_ms: 30_000 });
+    assert.deepEqual(claimedA.map((action) => action.id), ['ivr-worker-action-a']);
+    assert.deepEqual(await actionStore.claimDue({ tenant_id: tenantA, worker_id: 'worker-b',
+      now: '2026-07-13T00:03:01.000Z', limit: 10, lease_ms: 30_000 }), []);
+    await actionStore.release({ tenant_id: tenantA, action_id: 'ivr-worker-action-a', worker_id: 'worker-a',
+      state: 'retry_wait', next_attempt_at: '2026-07-13T00:04:00.000Z', error_code: 'provider_unavailable',
+      error_message: 'provider_unavailable', now: '2026-07-13T00:03:02.000Z' });
+    assert.deepEqual(await actionStore.claimDue({ tenant_id: tenantA, worker_id: 'worker-b',
+      now: '2026-07-13T00:03:59.000Z', limit: 10, lease_ms: 30_000 }), []);
+    const claimedB = await actionStore.claimDue({ tenant_id: tenantA, worker_id: 'worker-b',
+      now: '2026-07-13T00:04:00.000Z', limit: 10, lease_ms: 30_000 });
+    assert.equal(claimedB[0]?.attempt_count, 2);
+    await assert.rejects(() => actionStore.settle({ tenant_id: tenantA, action_id: 'ivr-worker-action-a',
+      worker_id: 'worker-a', state: 'succeeded', result: {}, error_code: '',
+      completed_at: '2026-07-13T00:04:01.000Z' }));
+    await actionStore.settle({ tenant_id: tenantA, action_id: 'ivr-worker-action-a',
+      worker_id: 'worker-b', state: 'succeeded', result: { ok: true }, error_code: '',
+      completed_at: '2026-07-13T00:04:01.000Z' });
+
+    await actionStore.insert({
+      id: 'ivr-uncertain-action-a', tenant_id: tenantA, session_id: started.session.id,
+      step_index: 100, node_id: 'worker-transfer', action_kind: 'transfer', state: 'uncertain',
+      dispatch_mode: 'worker', idempotency_key: 'ivr-uncertain-action-a', payload_hash: 'd'.repeat(64),
+      payload: { target_ref: 'agent-a' }, result: {}, attempt_count: 1, max_attempts: 3,
+      next_attempt_at: '2026-07-13T00:05:00.000Z', lease_until: null, worker_id: '',
+      provider_profile_id: profileId, provider_action_id: '', error_code: 'provider_timeout',
+      error_message: '', trace_id: 'trace-uncertain-a', reconciliation_count: 0,
+      created_at: '2026-07-13T00:04:00.000Z', updated_at: '2026-07-13T00:04:00.000Z', completed_at: null
+    });
+    assert.deepEqual(await actionStore.claimDue({ tenant_id: tenantA, worker_id: 'executor-must-not-replay',
+      now: '2026-07-13T00:05:00.000Z', limit: 10, lease_ms: 30_000 }), []);
+    const reconClaim = await actionStore.claimUncertain({ tenant_id: tenantA, worker_id: 'reconcile-a',
+      now: '2026-07-13T00:05:00.000Z', limit: 10, lease_ms: 30_000 });
+    assert.equal(reconClaim[0]?.state, 'uncertain');
+    assert.equal(reconClaim[0]?.reconciliation_count, 1);
+    assert.deepEqual(await actionStore.claimUncertain({ tenant_id: tenantA, worker_id: 'reconcile-b',
+      now: '2026-07-13T00:05:01.000Z', limit: 10, lease_ms: 30_000 }), []);
+    await actionStore.release({ tenant_id: tenantA, action_id: 'ivr-uncertain-action-a', worker_id: 'reconcile-a',
+      state: 'uncertain', next_attempt_at: '2026-07-13T00:06:00.000Z',
+      error_code: 'provider_result_unknown', error_message: 'provider_result_unknown',
+      now: '2026-07-13T00:05:02.000Z' });
+    assert.deepEqual(await actionStore.claimUncertain({ tenant_id: tenantA, worker_id: 'reconcile-b',
+      now: '2026-07-13T00:05:59.000Z', limit: 10, lease_ms: 30_000 }), []);
+    assert.equal((await actionStore.claimUncertain({ tenant_id: tenantA, worker_id: 'reconcile-b',
+      now: '2026-07-13T00:06:00.000Z', limit: 10, lease_ms: 30_000 }))[0]?.reconciliation_count, 2);
 
     await assert.rejects(
       () => withPgTenant(pool, tenantA, (client) => client.query(
