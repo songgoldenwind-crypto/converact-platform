@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -69,7 +69,11 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     const checksums = await admin.query<{ version: string; checksum: string }>(
       `SELECT version, checksum FROM schema_migrations ORDER BY version`
     );
-    assert.equal(checksums.rows.length, 33);
+    const expectedVersions = readdirSync(migrations.directory)
+      .filter((name) => name.endsWith('.sql'))
+      .map((name) => name.slice(0, -4))
+      .sort();
+    assert.deepEqual(checksums.rows.map((row) => row.version), expectedVersions);
     assert.equal(checksums.rows.every((row) => /^[a-f0-9]{64}$/.test(row.checksum)), true);
 
     const rlsGaps = await admin.query<{ relname: string }>(`
