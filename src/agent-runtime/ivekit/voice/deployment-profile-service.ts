@@ -43,19 +43,19 @@ export class VoiceDeploymentProfileService {
   }
 
   async create(profile: VoiceDeploymentProfile): Promise<VoiceDeploymentProfile> {
-    validateProfile(profile);
+    validateVoiceDeploymentProfile(profile);
     return this.#repository.insertProfile(profile);
   }
 
   async update(profile: VoiceDeploymentProfile, expectedRevision: number): Promise<VoiceDeploymentProfile> {
-    validateProfile(profile);
+    validateVoiceDeploymentProfile(profile);
     return this.#repository.updateProfile(profile, expectedRevision);
   }
 
   async preflight(tenantId: string, profileId: string): Promise<VoiceCapabilitySnapshot> {
     const profile = await this.#repository.getProfile(tenantId, profileId);
     if (!profile) throw new VoiceError({ code: 'not_found', status: 404 });
-    validateProfile(profile);
+    validateVoiceDeploymentProfile(profile);
     const checkedAt = this.#now().toISOString();
     const configHash = voiceProfileConfigHash(profile);
     let adapter: Awaited<ReturnType<VoiceProviderRegistry['create']>> | null = null;
@@ -106,7 +106,7 @@ export function voiceProfileConfigHash(profile: VoiceDeploymentProfile): string 
   });
 }
 
-function validateProfile(profile: VoiceDeploymentProfile): void {
+export function validateVoiceDeploymentProfile(profile: VoiceDeploymentProfile): void {
   if (!profile.id || !profile.tenant_id || !profile.name) {
     throw new VoiceError({ code: 'validation_failed', status: 422 });
   }
@@ -132,7 +132,11 @@ function validateProfile(profile: VoiceDeploymentProfile): void {
       throw new VoiceError({ code: 'secret_ref_invalid', status: 422 });
     }
   }
-  assertNoSecretConfig(profile.config, new Set());
+  assertVoiceConfigContainsNoSecrets(profile.config);
+}
+
+export function assertVoiceConfigContainsNoSecrets(value: unknown): void {
+  assertNoSecretConfig(value, new Set());
 }
 
 function assertNoSecretConfig(value: unknown, ancestors: Set<object>): void {

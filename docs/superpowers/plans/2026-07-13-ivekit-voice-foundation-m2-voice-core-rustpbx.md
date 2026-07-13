@@ -544,25 +544,25 @@ git commit -m "feat(ivekit): add rustpbx rwi and step ivr adapters"
 - Create: `test/ivekit-voice-configuration-service.test.ts`
 - Create: `test/ivekit-voice-command-worker.test.ts`
 
-- [ ] **Step 1: Write failing desired-state service tests**
+- [x] **Step 1: Write failing desired-state service tests**
 
 Cover profile/trunk/DID/extension/route/policy/consent create/list/get/update. Require revision on every mutable update, normalized/unique DID HMAC, secret refs instead of credentials, route canonical hash/version immutability, and immutable tenant events for admin changes.
 
 For `apply`/`test`/`preflight`, same idempotency key plus same payload returns the existing operation; same key with another hash returns `idempotency_conflict`.
 
-- [ ] **Step 2: Implement configuration services**
+- [x] **Step 2: Implement configuration services**
 
 Validate bounded names, codec/transport/direction, generic identity, E.164, route schema, and secret refs before writing. Route publish creates an immutable version and a configuration command in one transaction. Do not call providers from the request transaction.
 
-- [ ] **Step 3: Write failing configuration worker tests**
+- [x] **Step 3: Write failing configuration worker tests**
 
 Prove one active batch at a time, bounded batch/lease config, capability gate before execution, success/failure/retry transitions, stale completion rejection, shutdown waiting for active work, and expired-lease recovery. Provider timeouts on an operation with no safe lookup become `uncertain`, not automatic success.
 
-- [ ] **Step 4: Implement the shared command worker**
+- [x] **Step 4: Implement the shared command worker**
 
 The worker claims call and configuration queues independently, resolves tenant-scoped profile/adapter, and executes outside the claim transaction. Retry delays are deterministic by attempt plus bounded jitter. `originate`, route apply, and trunk apply are never blindly repeated after an ambiguous acceptance; they enter reconciliation.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-configuration-service.test.ts test/ivekit-voice-command-worker.test.ts
@@ -570,7 +570,7 @@ node --import tsx --test test/ivekit-voice-configuration-service.test.ts test/iv
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/configuration-service.ts src/agent-runtime/ivekit/voice/workers/command-worker.ts test/ivekit-voice-configuration-service.test.ts test/ivekit-voice-command-worker.test.ts

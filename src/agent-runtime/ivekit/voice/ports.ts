@@ -247,3 +247,15 @@ export interface VoiceMediaBridgePort {
 export interface VoiceEventPort {
   publish(tenantId: string, type: string, data: unknown): void | Promise<void>;
 }
+
+export interface VoiceConfigurationUnitOfWorkContext {
+  configuration: VoiceConfigurationRepository;
+  commands: VoiceCommandRepository;
+}
+
+export interface VoiceConfigurationUnitOfWork {
+  run<T>(
+    tenantId: string,
+    operation: (context: VoiceConfigurationUnitOfWorkContext) => Promise<T>
+  ): Promise<T>;
+}
