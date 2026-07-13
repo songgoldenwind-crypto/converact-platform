@@ -5,6 +5,7 @@ import test from 'node:test';
 const migrationPath = 'src/migrations/052_ivekit_contact_center.sql';
 const idempotencyMigrationPath =
   'src/migrations/053_ivekit_contact_center_configuration_idempotency.sql';
+const workerMigrationPath = 'src/migrations/054_ivekit_contact_center_worker.sql';
 const tables = [
   'ivekit_cc_skills',
   'ivekit_cc_agents',
@@ -84,6 +85,31 @@ test('Contact Center configuration idempotency upgrades after migration 052', ()
   assert.ok(sourcePolicy.indexOf('052_ivekit_contact_center.sql') <
     sourcePolicy.indexOf('053_ivekit_contact_center_configuration_idempotency.sql'));
   assert.ok(sourcePolicy.indexOf('053_ivekit_contact_center_configuration_idempotency.sql') <
+    sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
+});
+
+test('Contact Center worker migration discovers only tenants with due maintenance', () => {
+  assert.equal(existsSync(workerMigrationPath), true, workerMigrationPath);
+  const sql = readFileSync(workerMigrationPath, 'utf8');
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_ivekit_cc_queue_entries_timeout/i);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION opc_ivekit_cc_worker_tenant_ids\(/i);
+  assert.match(sql, /assignment\.state = 'offered'/i);
+  assert.match(sql, /entry\.state = 'waiting'/i);
+  assert.match(sql, /entry\.timeout_at <= p_now/i);
+  assert.match(sql, /queue\.status = 'active'/i);
+  assert.match(sql, /SECURITY DEFINER/i);
+  assert.match(sql, /SET search_path = pg_catalog, public/i);
+  assert.match(sql, /REVOKE ALL ON FUNCTION opc_ivekit_cc_worker_tenant_ids\(TIMESTAMPTZ, INTEGER\)\s+FROM PUBLIC/i);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION opc_ivekit_cc_worker_tenant_ids\(TIMESTAMPTZ, INTEGER\)\s+TO opc_runtime/i);
+
+  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
+  for (const source of [sourcePolicy, delivery]) {
+    assert.match(source, /054_ivekit_contact_center_worker\.sql/);
+  }
+  assert.ok(sourcePolicy.indexOf('053_ivekit_contact_center_configuration_idempotency.sql') <
+    sourcePolicy.indexOf('054_ivekit_contact_center_worker.sql'));
+  assert.ok(sourcePolicy.indexOf('054_ivekit_contact_center_worker.sql') <
     sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
 });
 

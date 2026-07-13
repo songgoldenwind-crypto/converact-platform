@@ -173,6 +173,14 @@ ivr:
     reconciliationMaxAttempts: "20"
     tenantLimit: "100"
 
+contactCenter:
+  worker:
+    enabled: "0"
+    intervalMs: "1000"
+    tenantLimit: "100"
+    batchSize: "100"
+    offerTtlSeconds: "20"
+
 media:
   apiToken: ""
   inviteSecret: ""

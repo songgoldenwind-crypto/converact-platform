@@ -405,6 +405,44 @@ export class PostgresContactCenterRepository implements ContactCenterRepository 
       return result.rows.map(decodeAssignment);
     });
   }
+
+  listExpiredWaitingEntries(
+    tenantId: string,
+    now: Date,
+    limit: number
+  ): Promise<ContactCenterQueueEntry[]> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${ENTRY_COLUMNS}
+         FROM ivekit_cc_queue_entries entry
+         WHERE entry.tenant_id = $1 AND entry.state = 'waiting'
+           AND entry.timeout_at IS NOT NULL AND entry.timeout_at <= $2
+         ORDER BY entry.timeout_at, entry.id
+         FOR UPDATE SKIP LOCKED LIMIT $3`,
+        [tenantId, now, limit]
+      );
+      return result.rows.map(decodeEntry);
+    });
+  }
+
+  listRoutableQueueIds(tenantId: string, now: Date, limit: number): Promise<string[]> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT queue.id
+         FROM ivekit_cc_queues queue
+         WHERE queue.tenant_id = $1 AND queue.status = 'active'
+           AND EXISTS (
+             SELECT 1 FROM ivekit_cc_queue_entries entry
+             WHERE entry.tenant_id = queue.tenant_id AND entry.queue_id = queue.id
+               AND entry.state = 'waiting'
+               AND (entry.timeout_at IS NULL OR entry.timeout_at > $2)
+           )
+         ORDER BY queue.id LIMIT $3`,
+        [tenantId, now, limit]
+      );
+      return result.rows.map((row) => String(row.id));
+    });
+  }
 }
 
 function decodeQueue(row: ContactCenterPgRow): ContactCenterQueue {

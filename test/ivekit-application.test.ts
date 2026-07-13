@@ -25,7 +25,8 @@ test('iveKit application starts and stops every worker once', async () => {
       startQuality: () => worker('quality'),
       startTranslation: () => worker('translation'),
       startMediaTimeout: () => worker('media-timeout'),
-      startEventRetention: () => worker('event-retention')
+      startEventRetention: () => worker('event-retention'),
+      startContactCenter: () => worker('contact-center')
     }
   });
 
@@ -40,6 +41,8 @@ test('iveKit application starts and stops every worker once', async () => {
     'start:translation',
     'start:media-timeout',
     'start:event-retention',
+    'start:contact-center',
+    'stop:contact-center',
     'stop:event-retention',
     'stop:media-timeout',
     'stop:translation',
@@ -90,13 +93,19 @@ test('iveKit application stops remaining workers after one stop failure', async 
         async stop() {
           stopped.push('event-retention');
         }
+      }),
+      startContactCenter: () => ({
+        async stop() {
+          stopped.push('contact-center');
+        }
       })
     }
   });
 
   await assert.rejects(() => application.stop(), /failed to stop 1 iveKit worker/);
   assert.deepEqual(stopped, [
-    'event-retention', 'media-timeout', 'translation', 'quality', 'attachment', 'tinode-inbound', 'tinode'
+    'contact-center', 'event-retention', 'media-timeout', 'translation', 'quality',
+    'attachment', 'tinode-inbound', 'tinode'
   ]);
 });
 

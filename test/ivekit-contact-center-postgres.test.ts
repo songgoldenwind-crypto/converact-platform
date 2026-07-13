@@ -41,6 +41,28 @@ test('Contact Center PostgreSQL claims waiting entries and offers without blocki
   assert.match(assignmentQuery, /FOR UPDATE SKIP LOCKED/);
 });
 
+test('Contact Center PostgreSQL claims expired waiting entries and lists active queues', async () => {
+  const pg = new ScriptedPg((sql) => {
+    if (sql.includes("entry.state = 'waiting'") && sql.includes('entry.timeout_at <=')) {
+      return [entryRow()];
+    }
+    if (sql.includes('SELECT queue.id')) return [{ id: 'queue-a' }, { id: 'queue-b' }];
+    return [];
+  });
+  const store = new PostgresContactCenterRepository(pg);
+  const now = new Date('2026-07-13T00:06:00.000Z');
+  assert.equal((await store.listExpiredWaitingEntries('tenant-a', now, 10))[0]?.id, 'entry-a');
+  assert.deepEqual(await store.listRoutableQueueIds('tenant-a', now, 10), ['queue-a', 'queue-b']);
+
+  const expired = pg.queries.find((query) => query.sql.includes('entry.timeout_at <='))!;
+  assert.match(expired.sql, /FOR UPDATE SKIP LOCKED/);
+  assert.deepEqual(expired.params, ['tenant-a', now, 10]);
+  const queues = pg.queries.find((query) => query.sql.includes('SELECT queue.id'))!;
+  assert.match(queues.sql, /queue.status = 'active'/);
+  assert.match(queues.sql, /entry.state = 'waiting'/);
+  assert.deepEqual(queues.params, ['tenant-a', now, 10]);
+});
+
 test('Contact Center PostgreSQL locks eligible presence and applies queue skill requirements', async () => {
   const pg = new ScriptedPg((sql) => sql.includes('FROM ivekit_cc_queue_memberships membership') ? [{
     agent_id: 'agent-a', presence_state: 'available', active_voice_count: 0, voice_capacity: 1,

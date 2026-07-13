@@ -23,6 +23,17 @@ export type * from './ivr/http.js';
 export { routeIveKitContactCenterApi } from './contact-center/http.js';
 export type * from './contact-center/http.js';
 export {
+  contactCenterMaintenanceWorkerConfig,
+  listContactCenterWorkerTenants,
+  runContactCenterMaintenanceBatch,
+  startContactCenterMaintenanceWorker
+} from './contact-center/maintenance-worker.js';
+export type {
+  ContactCenterMaintenanceService,
+  ContactCenterMaintenanceSummary,
+  ContactCenterMaintenanceWorkerConfig
+} from './contact-center/maintenance-worker.js';
+export {
   iveKitIvrWorkerConfig,
   listIvrWorkerTenants,
   startIveKitIvrPendingActionWorker,

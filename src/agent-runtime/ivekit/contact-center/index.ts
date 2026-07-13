@@ -4,6 +4,7 @@ export * from './configuration-service.js';
 export * from './errors.js';
 export * from './http.js';
 export * from './ivr-queue-port.js';
+export * from './maintenance-worker.js';
 export * from './ports.js';
 export * from './postgres/store.js';
 export * from './postgres/configuration-store.js';

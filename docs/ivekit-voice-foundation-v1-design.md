@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配服务与 IVR queue adapter，受控 PostgreSQL/RustPBX 协议验收通过；Contact Center worker/callback/supervisor/SDK/UI、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列超时/Offer 回收/自动派单 worker 与 IVR queue adapter，受控 PostgreSQL/RustPBX 协议验收通过；Contact Center overflow/callback/supervisor/SDK/UI、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -21,7 +21,7 @@
 | IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
 | Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
 | React Voice 控制工作台 | 已实现控制面 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、呼入/外呼、状态门禁控制、DTMF、转接、会议、Park/Pickup、录音、LiveKit bridge 和分机 session readiness；不渲染 session credential |
-| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052_ivekit_contact_center.sql`、tenant-scoped PostgreSQL store、Agent/Skill/Presence/Queue/Membership 配置 API、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；queue maintenance worker、callback/supervisor、SDK 与 Queue Monitor 尚未完成 |
+| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`054` migrations、tenant-scoped PostgreSQL store、Agent/Skill/Presence/Queue/Membership 配置 API、原子 enqueue/offer/accept/reject/connect/complete/expire/timeout 服务、租户发现与自动派单 worker 和 IVR queue adapter 已实现；overflow action、callback/supervisor、SDK 与 Queue Monitor 尚未完成 |
 | 浏览器 SIP/WebRTC 媒体接入 | 未实现 | 属于 M5；不得从已有 OPC call-center 页面、控制工作台或 headless controller 推断真实软电话媒体已交付 |
 
 当前新增迁移为：
@@ -33,6 +33,8 @@
 - `050_ivekit_ivr_runtime.sql`：IVR durable session、step、pending action、lease 和恢复状态。
 - `051_ivekit_ivr_resources.sql`：IVR 音频、时段、区域、振铃组和 runtime settings 权威表。
 - `052_ivekit_contact_center.sql`：Contact Center Agent、Presence、Skill、Queue、Assignment、Callback 与 Supervisor 权威表。
+- `053_ivekit_contact_center_configuration_idempotency.sql`：配置创建的耐久幂等账本。
+- `054_ivekit_contact_center_worker.sql`：过期等待项索引和最小权限租户发现函数。
 - `053_ivekit_contact_center_configuration_idempotency.sql`：可升级的配置创建幂等账本；不回写已经发布的 052。
 
 受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 RTP/录音、真实 LiveKit SIP 和软电话浏览器均保持 `not_run`。
@@ -789,6 +791,9 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 | `OPC_IVEKIT_VOICE_WORKERS_ENABLED` | 总开关；只有 `1` 启动 command/event/reconciliation workers |
 | `OPC_IVEKIT_IVR_WORKERS_ENABLED` | IVR durable action 总开关；默认 `0`，启用时宿主必须同时注入 executor 与 reconciler，否则应用拒绝启动 |
 | `OPC_IVEKIT_IVR_ACTION_INTERVAL_MS` / `BATCH_SIZE` / `LEASE_MS` | IVR worker 动作的轮询周期、单租户批量和租约 |
+| `OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED` | Contact Center maintenance/offer worker 总开关；默认 `0` |
+| `OPC_IVEKIT_CONTACT_CENTER_INTERVAL_MS` / `TENANT_LIMIT` / `BATCH_SIZE` | 队列维护轮询周期、单轮租户上限和单租户处理上限 |
+| `OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS` | 自动派单 Offer 的接受期限，范围 1-300 秒 |
 | `OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS` / `RETRY_MAX_MS` | 已知可重试失败的指数退避下限和上限；Provider 超时进入 `uncertain`，不得直接重放 |
 | `OPC_IVEKIT_IVR_RECONCILIATION_INTERVAL_MS` / `LEASE_MS` / `RETRY_MS` / `MAX_ATTEMPTS` | `uncertain` action 对账轮询、租约、再次对账周期和终止上限；达到上限后以 `provider_result_unknown` 失败并恢复会话 |
 | `OPC_IVEKIT_IVR_TENANT_LIMIT` | 单轮 IVR worker tenant 扫描上限；tenant 由 PostgreSQL `opc_worker_tenant_ids('ivr_pending_action', ...)` 发现 |
@@ -867,7 +872,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M4：Contact Center Kit
 
-状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、Agent/Skill/Presence/Queue/Membership 配置服务与公开 API、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；queue maintenance/offer worker、callback/supervisor runtime、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
+状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、Agent/Skill/Presence/Queue/Membership 配置服务与公开 API、原子 enqueue/offer/accept/reject/connect/complete/expire/timeout 服务、queue maintenance/offer worker 和 IVR queue adapter 已实现；overflow action、callback/supervisor runtime、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
 
 - presence、skill、queue、ACD、callback 和 supervisor。
 - IVR queue port 接入，不引入 OPC 业务依赖。

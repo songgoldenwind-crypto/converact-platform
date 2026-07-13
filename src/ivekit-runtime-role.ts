@@ -80,6 +80,9 @@ export async function initializeIveKitRuntimeRole(
         IF to_regprocedure('public.opc_ivekit_event_retention_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
           GRANT EXECUTE ON FUNCTION public.opc_ivekit_event_retention_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
         END IF;
+        IF to_regprocedure('public.opc_ivekit_cc_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_ivekit_cc_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
+        END IF;
         IF to_regprocedure('public.opc_ivekit_voice_profile_context(text)') IS NOT NULL THEN
           GRANT EXECUTE ON FUNCTION public.opc_ivekit_voice_profile_context(TEXT) TO opc_runtime;
         END IF;

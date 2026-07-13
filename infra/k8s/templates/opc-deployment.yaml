@@ -281,6 +281,16 @@ spec:
               value: {{ .Values.ivr.workers.reconciliationMaxAttempts | default "20" | quote }}
             - name: OPC_IVEKIT_IVR_TENANT_LIMIT
               value: {{ .Values.ivr.workers.tenantLimit | default "100" | quote }}
+            - name: OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED
+              value: {{ .Values.contactCenter.worker.enabled | default "0" | quote }}
+            - name: OPC_IVEKIT_CONTACT_CENTER_INTERVAL_MS
+              value: {{ .Values.contactCenter.worker.intervalMs | default "1000" | quote }}
+            - name: OPC_IVEKIT_CONTACT_CENTER_TENANT_LIMIT
+              value: {{ .Values.contactCenter.worker.tenantLimit | default "100" | quote }}
+            - name: OPC_IVEKIT_CONTACT_CENTER_BATCH_SIZE
+              value: {{ .Values.contactCenter.worker.batchSize | default "100" | quote }}
+            - name: OPC_IVEKIT_CONTACT_CENTER_OFFER_TTL_SECONDS
+              value: {{ .Values.contactCenter.worker.offerTtlSeconds | default "20" | quote }}
             {{- if .Values.voice.enabled }}
             - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
               value: "1"

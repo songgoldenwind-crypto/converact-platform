@@ -37,6 +37,7 @@ import {
   startIveKitVoiceProviderEventWorker,
   startIveKitVoiceReconciliationWorker
 } from './voice/runtime.js';
+import { startContactCenterMaintenanceWorker } from './contact-center/maintenance-worker.js';
 
 export interface IveKitWorkerHandle {
   stop(): Promise<void>;
@@ -50,6 +51,7 @@ export interface IveKitRuntimeAdapters {
   startTranslation(input: Parameters<typeof startTranslationWorker>[0]): IveKitWorkerHandle;
   startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
   startEventRetention(input: Parameters<typeof startIveKitTenantEventRetentionWorker>[0]): IveKitWorkerHandle;
+  startContactCenter(input: Parameters<typeof startContactCenterMaintenanceWorker>[0]): IveKitWorkerHandle;
   startIvrAction(input: Parameters<typeof startIveKitIvrPendingActionWorker>[0]): IveKitWorkerHandle;
   startIvrReconciliation(input: Parameters<typeof startIveKitIvrReconciliationWorker>[0]): IveKitWorkerHandle;
   startVoiceCommand(input: Parameters<typeof startIveKitVoiceCommandWorker>[0]): IveKitWorkerHandle;
@@ -117,6 +119,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     startTranslation: input.adapters?.startTranslation || startTranslationWorker,
     startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker,
     startEventRetention: input.adapters?.startEventRetention || startIveKitTenantEventRetentionWorker,
+    startContactCenter: input.adapters?.startContactCenter || startContactCenterMaintenanceWorker,
     startIvrAction: input.adapters?.startIvrAction || startIveKitIvrPendingActionWorker,
     startIvrReconciliation: input.adapters?.startIvrReconciliation || startIveKitIvrReconciliationWorker,
     startVoiceCommand: input.adapters?.startVoiceCommand || startIveKitVoiceCommandWorker,
@@ -268,6 +271,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
       )
     }),
     adapters.startEventRetention({ pg: input.pg, env }),
+    adapters.startContactCenter({ pg: input.pg, env }),
     ...(ivrConfig.enabled ? [
       adapters.startIvrAction({
         pg: input.pg, env, executor: input.ivr_executor, publish

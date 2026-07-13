@@ -174,6 +174,37 @@ export class ContactCenterQueueService {
     });
   }
 
+  timeoutWaitingEntries(input: {
+    tenant_id: string;
+    limit: number;
+  }): Promise<ContactCenterQueueEntry[]> {
+    const tenantId = identifier(input.tenant_id, 'tenant_id');
+    const limit = integer(input.limit, 1, 1_000, 'limit');
+    return this.#unitOfWork.run(tenantId, async ({ repository }) => {
+      const entries = await repository.listExpiredWaitingEntries(tenantId, this.#now(), limit);
+      const now = this.#now().toISOString();
+      const timedOut: ContactCenterQueueEntry[] = [];
+      for (const entry of entries) {
+        timedOut.push(await repository.updateEntry({
+          ...entry,
+          state: transitionQueueEntry(entry.state, 'timeout'),
+          ended_at: now,
+          outcome_reason: 'max_wait_exceeded',
+          updated_at: now
+        }, entry.revision));
+      }
+      return timedOut;
+    });
+  }
+
+  listRoutableQueueIds(input: { tenant_id: string; limit: number }): Promise<string[]> {
+    const tenantId = identifier(input.tenant_id, 'tenant_id');
+    const limit = integer(input.limit, 1, 1_000, 'limit');
+    return this.#unitOfWork.run(tenantId, ({ repository }) =>
+      repository.listRoutableQueueIds(tenantId, this.#now(), limit)
+    );
+  }
+
   async #changeAssignment(input: {
     tenant_id: string;
     assignment_id: string;

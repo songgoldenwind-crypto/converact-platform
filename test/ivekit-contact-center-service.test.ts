@@ -175,6 +175,52 @@ test('Contact Center expires an unaccepted offer and releases its capacity slot'
   assert.equal(fixture.repository.presences.get(offered!.assignment.agent_id)?.state, 'available');
 });
 
+test('Contact Center times out expired waiting entries and releases queue capacity', async () => {
+  const fixture = setup({ max_size: 1 });
+  const queued = await fixture.service.enqueue({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', call_id: 'call-a', priority: 0,
+    idempotency_key: 'entry-key'
+  });
+  fixture.now = new Date('2026-07-13T00:05:01.000Z');
+
+  const timedOut = await fixture.service.timeoutWaitingEntries({
+    tenant_id: 'tenant-a', limit: 10
+  });
+
+  assert.equal(timedOut.length, 1);
+  assert.equal(timedOut[0]?.id, queued.entry.id);
+  assert.equal(timedOut[0]?.state, 'timed_out');
+  assert.equal(timedOut[0]?.ended_at, fixture.now.toISOString());
+  assert.equal(timedOut[0]?.outcome_reason, 'max_wait_exceeded');
+  assert.equal(await fixture.repository.countActiveEntries('tenant-a', 'queue-a'), 0);
+  assert.deepEqual(await fixture.service.timeoutWaitingEntries({
+    tenant_id: 'tenant-a', limit: 10
+  }), []);
+});
+
+test('Contact Center exposes routable queues after expired offers are released', async () => {
+  const fixture = setup();
+  await fixture.service.enqueue({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', call_id: 'call-a', priority: 0,
+    idempotency_key: 'entry-key'
+  });
+  await fixture.service.offerNext({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', idempotency_key: 'offer-key',
+    offer_ttl_seconds: 20
+  });
+  fixture.now = new Date('2026-07-13T00:00:30.000Z');
+
+  assert.equal(await fixture.service.expireOffers({ tenant_id: 'tenant-a', limit: 10 }), 1);
+  assert.deepEqual(await fixture.service.listRoutableQueueIds({
+    tenant_id: 'tenant-a', limit: 10
+  }), ['queue-a']);
+  const offered = await fixture.service.offerNext({
+    tenant_id: 'tenant-a', queue_id: 'queue-a', idempotency_key: 'offer-key-2',
+    offer_ttl_seconds: 20
+  });
+  assert.equal(offered?.assignment.attempt, 2);
+});
+
 test('Contact Center IVR queue port exposes only the stable enqueue result', async () => {
   const fixture = setup();
   const port = createContactCenterIvrQueuePort(fixture.service);
@@ -223,7 +269,11 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
   async findEntryByIdempotencyKey(_tenantId: string, key: string) {
     return structuredClone([...this.entries.values()].find((entry) => entry.idempotency_key === key) || null);
   }
-  async countActiveEntries() { return [...this.entries.values()].filter((entry) => ['waiting', 'offered', 'assigned', 'answered'].includes(entry.state)).length; }
+  async countActiveEntries(_tenantId?: string, _queueId?: string) {
+    return [...this.entries.values()].filter((entry) =>
+      ['waiting', 'offered', 'assigned', 'answered'].includes(entry.state)
+    ).length;
+  }
   async insertEntry(entry: ContactCenterQueueEntry) { this.entries.set(entry.id, structuredClone(entry)); return structuredClone(entry); }
   async getEntry(_tenantId: string, id: string) { return structuredClone(this.entries.get(id) || null); }
   async getNextWaitingEntry() {
@@ -274,6 +324,22 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
       .filter((value) => value.state === 'offered' && value.offer_expires_at <= now.toISOString())
       .slice(0, limit)
       .map((value) => structuredClone(value));
+  }
+  async listExpiredWaitingEntries(_tenantId: string, now: Date, limit: number) {
+    return [...this.entries.values()]
+      .filter((entry) => entry.state === 'waiting' && Boolean(entry.timeout_at) &&
+        entry.timeout_at! <= now.toISOString())
+      .sort((left, right) => left.timeout_at!.localeCompare(right.timeout_at!) ||
+        left.id.localeCompare(right.id))
+      .slice(0, limit)
+      .map((entry) => structuredClone(entry));
+  }
+  async listRoutableQueueIds(_tenantId: string, now: Date, limit: number) {
+    const hasWaiting = [...this.entries.values()].some((entry) =>
+      entry.queue_id === this.queue.id && entry.state === 'waiting' &&
+      (!entry.timeout_at || entry.timeout_at > now.toISOString())
+    );
+    return hasWaiting && this.queue.status === 'active' ? [this.queue.id].slice(0, limit) : [];
   }
 }
 

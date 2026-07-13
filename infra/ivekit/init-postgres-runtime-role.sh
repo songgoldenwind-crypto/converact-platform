@@ -45,6 +45,9 @@ BEGIN
   IF to_regclass('public.schema_migrations') IS NOT NULL THEN
     REVOKE ALL PRIVILEGES ON TABLE schema_migrations FROM opc_runtime;
   END IF;
+  IF to_regprocedure('public.opc_ivekit_cc_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
+    GRANT EXECUTE ON FUNCTION public.opc_ivekit_cc_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
+  END IF;
 END
 $$;
 

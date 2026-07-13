@@ -28,6 +28,8 @@ export interface ContactCenterRepository {
   getPresence(tenantId: string, agentId: string, options?: { for_update?: boolean }): Promise<ContactCenterAgentPresence | null>;
   updatePresence(presence: ContactCenterAgentPresence, expectedRevision: number): Promise<ContactCenterAgentPresence>;
   listExpiredOffers(tenantId: string, now: Date, limit: number): Promise<ContactCenterAssignment[]>;
+  listExpiredWaitingEntries(tenantId: string, now: Date, limit: number): Promise<ContactCenterQueueEntry[]>;
+  listRoutableQueueIds(tenantId: string, now: Date, limit: number): Promise<string[]>;
 }
 
 export interface ContactCenterUnitOfWorkContext {
