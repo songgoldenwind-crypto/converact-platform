@@ -1,5 +1,7 @@
 export * from './address-protector.js';
 export * from './adapters/controlled-provider.js';
+export * from './adapters/rustpbx-management.js';
+export * from './adapters/rustpbx-routing.js';
 export * from './canonical.js';
 export * from './deployment-profile-service.js';
 export * from './errors.js';

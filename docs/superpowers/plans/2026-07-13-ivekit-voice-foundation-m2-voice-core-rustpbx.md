@@ -434,7 +434,7 @@ git commit -m "feat(ivekit): negotiate voice provider capabilities"
 - Create: `test/ivekit-rustpbx-management.test.ts`
 - Create: `test/ivekit-rustpbx-routing.test.ts`
 
-- [ ] **Step 1: Write failing bounded-HTTP tests**
+- [x] **Step 1: Write failing bounded-HTTP tests**
 
 Use a loopback `http.Server` and verify:
 
@@ -445,11 +445,11 @@ Use a loopback `http.Server` and verify:
 - health/version, AMI health/dialog/SipFlow, trunk apply/test, extension apply, route evaluate/reload map to configured endpoints;
 - profile-configured paths must start with `/` and cannot contain credentials or traversal.
 
-- [ ] **Step 2: Implement Management HTTP transport**
+- [x] **Step 2: Implement Management HTTP transport**
 
 Use `fetch` with `AbortSignal.timeout`, manual bounded text parsing, `redirect: 'error'`, and headers resolved from secret refs. Do not use console session-cookie login. A profile that lacks a service-token-compatible management endpoint reports `management_http=false` instead of claiming CRUD support.
 
-- [ ] **Step 3: Implement strict Router normalization**
+- [x] **Step 3: Implement strict Router normalization**
 
 Accept RustPBX fields `call_id`, `from`, `to`, `source_addr`, `direction`, `method`, `uri`, and headers, but discard SDP/body and unsafe headers before persistence. Return only:
 
@@ -461,7 +461,7 @@ type RustPbxRouterResponse =
 
 Portable route decisions `forward_sip`, `start_ivr`, `enqueue`, `bridge_livekit`, and `voicemail` must map explicitly or return a capability error; do not invent an unsupported RustPBX action.
 
-- [ ] **Step 4: Run adapter tests**
+- [x] **Step 4: Run adapter tests**
 
 ```bash
 node --import tsx --test test/ivekit-rustpbx-management.test.ts test/ivekit-rustpbx-routing.test.ts
@@ -469,7 +469,7 @@ node --import tsx --test test/ivekit-rustpbx-management.test.ts test/ivekit-rust
 
 Expected: PASS, including timeout/oversize/secret-redaction cases.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/adapters/rustpbx-management.ts src/agent-runtime/ivekit/voice/adapters/rustpbx-routing.ts test/ivekit-rustpbx-management.test.ts test/ivekit-rustpbx-routing.test.ts
