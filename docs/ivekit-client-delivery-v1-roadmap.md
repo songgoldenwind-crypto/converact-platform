@@ -134,7 +134,7 @@ Task 10 最终本地证据：全仓 `2042` 项中 `2037` 通过、`5` 项真实 
 
 ### M7：V3 多模态智能与翻译
 
-**状态：代码、SDK、参考客户端、standalone 和交付合同已完成；隔离服务器验收进行中，真实厂商仍为 `not_run`。** 实施计划见 [iveKit V3 Multimodal Intelligence and Translation](superpowers/plans/2026-07-13-ivekit-v3-multimodal-translation.md)，运维手册见 [V3 intelligence operations](ivekit-v3-intelligence-operations.md)，证据状态见 [V3 completion audit](ivekit-v3-completion-audit.md)。
+**状态：代码、SDK、参考客户端、standalone、交付合同和隔离服务器受控验收已完成；真实厂商/物理客户端仍为 `not_run`。** 实施计划见 [iveKit V3 Multimodal Intelligence and Translation](superpowers/plans/2026-07-13-ivekit-v3-multimodal-translation.md)，运维手册见 [V3 intelligence operations](ivekit-v3-intelligence-operations.md)，证据状态见 [V3 completion audit](ivekit-v3-completion-audit.md)。
 
 交付内容：
 
@@ -145,7 +145,7 @@ Task 10 最终本地证据：全仓 `2042` 项中 `2037` 通过、`5` 项真实 
 5. 消息/附件翻译保留原文并绑定 source hash，编辑、删除、重试和并发不会展示陈旧结果。
 6. PostgreSQL migration 043-045、FORCE RLS、worker lease/retry、Provider health/preflight、Compose/Kubernetes 和独立服务已接入。
 7. `@opc/ivekit-sdk` 提供 `intelligence` 与翻译 API；参考客户端提供 Quality 和 Translation 工作区。
-8. 交付 manifest 绑定 source commit、migration、SDK、client、image metadata、SBOM、Provider 示例和 acceptance 状态 SHA-256。
+8. 交付 manifest 绑定 source commit、migration、SDK、client、image metadata、SBOM、Provider 示例和 acceptance 状态 SHA-256；受控验收 `passed` 还必须绑定交付内证据文件大小/hash。
 
 完成边界：受控 Provider 和服务器测试证明协议、重试、脱敏、RLS 与恢复，不代表真实 OCR/ASR/AI/翻译厂商准确率、合规、配额和生产延迟。真实厂商未选型前必须保持 `not_run`。
 
@@ -170,5 +170,5 @@ V1 已按 `M1 -> M2 -> M3 -> M4 -> M5` 完成；V3 扩展按独立 M7 计划执�
 3. SDK 可独立构建、打包和被参考客户端消费。
 4. 当前 release 的受控 PostgreSQL、Provider、浏览器和 restart recovery 证据齐全。
 5. 真实 LiveKit/Tinode/RustDesk 与真实 OCR/ASR/AI/翻译厂商按各自状态裁决；未执行项明确为 `not_run`。
-6. 长稳、容量、弱网和断线恢复达到 V1 验收阈值。
+6. 受控功能、重启和断线恢复达到代码交付阈值；真实多副本长稳、容量和弱网在目标环境验收，未执行前保持 `not_run`，不冒充代码门禁。
 7. 不存在未解决的 Critical 或 Important 审查问题。

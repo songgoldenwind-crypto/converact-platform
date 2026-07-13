@@ -10,6 +10,7 @@ import {
   assertIveKitDeliverySourceState,
   buildIveKitDeliveryBundle,
   listDeliveryFiles,
+  loadControlledAcceptancePackage,
   validateIveKitDeliveryBundle
 } from '../scripts/ivekit-delivery-bundle.js';
 
@@ -297,6 +298,97 @@ test('delivery CLI source binding rejects invalid commits and dirty worktrees', 
     () => assertIveKitDeliverySourceState('a'.repeat(40), ' M docs/a.md\n?? secret.txt\n'),
     /worktree is dirty/i
   );
+});
+
+test('controlled acceptance package binds passed checks to source-scoped evidence', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-controlled-acceptance-'));
+  const evidenceDir = join(root, 'evidence');
+  mkdirSync(evidenceDir);
+  const evidence = {
+    'postgres.log': 'fresh upgrade RLS and worker recovery passed\n',
+    'provider.log': 'OCR ASR quality translation failure matrix passed\n',
+    'browser.log': '128 unit and 9 Playwright checks passed\n',
+    'restart.log': 'attachment quality translation expired leases recovered\n'
+  };
+  for (const [name, content] of Object.entries(evidence)) writeFileSync(join(evidenceDir, name), content);
+  const entries = Object.entries(evidence).map(([path, content]) => ({
+    path,
+    bytes: Buffer.byteLength(content),
+    sha256: createHash('sha256').update(content).digest('hex')
+  }));
+  const reportPath = join(root, 'report.json');
+  const report = {
+    schema_version: 1,
+    product: 'iveKit',
+    source_commit: testSourceCommit,
+    controlled_tests_are_real_vendor_evidence: false,
+    controlled_environment: {
+      postgres: { status: 'passed', evidence: ['postgres.log'] },
+      provider_protocol: { status: 'passed', evidence: ['provider.log'] },
+      browser: { status: 'passed', evidence: ['browser.log'] },
+      restart_recovery: { status: 'passed', evidence: ['restart.log'] }
+    },
+    evidence: entries
+  };
+  writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+
+  try {
+    const accepted = loadControlledAcceptancePackage(root, testSourceCommit);
+    assert.deepEqual(accepted.statuses, {
+      postgres: 'passed',
+      provider_protocol: 'passed',
+      browser: 'passed',
+      restart_recovery: 'passed'
+    });
+    assert.equal(accepted.evidence.length, 4);
+    const sdkTarball = join(root, 'sdk.tgz');
+    const clientDist = join(root, 'client-dist');
+    const outputDir = join(root, 'bundle');
+    writeFileSync(sdkTarball, 'sdk');
+    mkdirSync(clientDist);
+    writeFileSync(join(clientDist, 'index.html'), '<!doctype html>');
+    const built = buildIveKitDeliveryBundle({
+      repoRoot,
+      outputDir,
+      sdkTarball,
+      clientDist,
+      sourceCommit: testSourceCommit,
+      controlledAcceptanceDir: root,
+      generatedAt: '2026-07-13T06:00:00.000Z'
+    });
+    assert.deepEqual(built.manifest.controlled_environment_acceptance, accepted.statuses);
+    const status = JSON.parse(readFileSync(join(outputDir, 'acceptance', 'status.json'), 'utf8')) as {
+      status: string;
+      evidence: Array<{ path: string }>;
+    };
+    assert.equal(status.status, 'passed');
+    assert.deepEqual(status.evidence.map((entry) => entry.path).sort(), Object.keys(evidence).sort());
+    assert.doesNotThrow(() => validateIveKitDeliveryBundle(outputDir));
+    writeFileSync(join(evidenceDir, 'provider.log'), 'tampered\n');
+    assert.throws(
+      () => loadControlledAcceptancePackage(root, testSourceCommit),
+      /controlled acceptance evidence checksum mismatch/
+    );
+    writeFileSync(join(evidenceDir, 'provider.log'), evidence['provider.log']);
+    writeFileSync(reportPath, `${JSON.stringify({ ...report, real_environment: { ocr: 'passed' } }, null, 2)}\n`);
+    assert.throws(
+      () => loadControlledAcceptancePackage(root, testSourceCommit),
+      /controlled acceptance cannot claim real vendor evidence/
+    );
+    writeFileSync(reportPath, `${JSON.stringify({
+      ...report,
+      controlled_environment: {
+        ...report.controlled_environment,
+        browser: { status: 'passed', evidence: [] }
+      }
+    }, null, 2)}\n`);
+    assert.throws(
+      () => loadControlledAcceptancePackage(root, testSourceCommit),
+      /controlled acceptance evidence state is invalid: browser/
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('V3 handoff documents state implemented, configurable, and not-run boundaries', () => {

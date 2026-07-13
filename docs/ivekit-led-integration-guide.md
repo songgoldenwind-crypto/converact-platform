@@ -401,6 +401,9 @@ WebSocket 是持久事件的加速通道。首次连接保存 `connected.data.he
 
 ```bash
 OPC_IVEKIT_DELIVERY_DIR=/absolute/output/ivekit-led-delivery \
+OPC_IVEKIT_DELIVERY_CONTROLLED_ACCEPTANCE_DIR=/absolute/input/controlled-acceptance \
+OPC_IVEKIT_DELIVERY_IMAGE_REFERENCE=ivekit-service:<release-commit> \
+OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
   npm run ivekit:delivery-bundle
 ```
 
@@ -411,10 +414,11 @@ OPC_IVEKIT_DELIVERY_DIR=/absolute/output/ivekit-led-delivery \
 - `deploy/application/` 和 `deploy/livekit/`：应用面与媒体面分离 Compose；应用面必须设置 `IVEKIT_OPC_IMAGE_NAME`，不依赖 OPC 源码目录。
 - `database/migrations/`：显式白名单内的通信域 overlay migration。
 - `docs/`、`examples/`：OpenAPI、详细设计、升级/回滚说明和最小接入示例。
-- `acceptance/status.json`：LiveKit、Tinode、RustDesk 的真实环境状态；未执行时固定为 `not_run`。
+- `acceptance/status.json`：受控 PostgreSQL/Provider/browser/restart 与真实 Provider/客户端分层状态；未执行项保持 `not_run`。
+- `acceptance/evidence/`：可选的受控环境日志/截图；只有 source commit、大小和 SHA-256 全部匹配时才能把对应受控项标为 `passed`。
 - `manifest.json`、`SHA256SUMS`：payload 大小/hash 与 manifest 的离线完整性校验。
 
-生成器不会复制 call-center/IVR 源码，不接受符号链接或清单外文件，并扫描常见私钥、云密钥、GitHub token、OpenAI key 和 JWT Authorization。`ready_for_handoff` 仅表示工程交付包完整，不代表真实服务器或物理终端验收通过。
+生成器不会复制 call-center/IVR 源码，不接受符号链接或清单外文件，并扫描常见私钥、云密钥、GitHub token、OpenAI key 和 JWT Authorization。受控证据不能提升真实 LiveKit/Tinode/RustDesk 客户端或真实 OCR/ASR/AI/翻译厂商状态；`ready_for_handoff` 仅表示工程交付包完整，不代表所有生产验收通过。
 
 ### 11.1 已完成的本地部署准备
 

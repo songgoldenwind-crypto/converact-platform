@@ -77,10 +77,10 @@ export interface IveKitDeliveryManifest {
     translation: 'not_run';
   };
   controlled_environment_acceptance: {
-    postgres: 'not_run';
-    provider_protocol: 'not_run';
-    browser: 'not_run';
-    restart_recovery: 'not_run';
+    postgres: IveKitControlledAcceptanceStatus;
+    provider_protocol: IveKitControlledAcceptanceStatus;
+    browser: IveKitControlledAcceptanceStatus;
+    restart_recovery: IveKitControlledAcceptanceStatus;
   };
   known_not_run: IveKitKnownNotRun[];
   files: IveKitDeliveryManifestFile[];
@@ -92,6 +92,24 @@ export interface IveKitKnownNotRun {
   reason: string;
 }
 
+export type IveKitControlledAcceptanceStatus = 'not_run' | 'passed';
+
+export interface IveKitControlledAcceptanceEvidence {
+  path: string;
+  bytes: number;
+  sha256: string;
+}
+
+export interface LoadedControlledAcceptancePackage {
+  root: string;
+  statuses: IveKitDeliveryManifest['controlled_environment_acceptance'];
+  checks: Record<keyof IveKitDeliveryManifest['controlled_environment_acceptance'], {
+    status: IveKitControlledAcceptanceStatus;
+    evidence: string[];
+  }>;
+  evidence: IveKitControlledAcceptanceEvidence[];
+}
+
 export interface BuildIveKitDeliveryBundleOptions {
   repoRoot: string;
   outputDir: string;
@@ -99,6 +117,7 @@ export interface BuildIveKitDeliveryBundleOptions {
   clientDist: string;
   imageReference?: string;
   imageDigest?: string;
+  controlledAcceptanceDir?: string;
   sourceCommit?: string;
   generatedAt?: string;
 }
@@ -233,6 +252,13 @@ const CONTROLLED_ENVIRONMENT_ACCEPTANCE = {
   restart_recovery: 'not_run'
 } as const;
 
+const CONTROLLED_ACCEPTANCE_KEYS = [
+  'postgres',
+  'provider_protocol',
+  'browser',
+  'restart_recovery'
+] as const;
+
 const KNOWN_NOT_RUN: readonly IveKitKnownNotRun[] = [
   { id: 'real_livekit_clients', status: 'not_run', reason: 'Current release requires fresh real browser media and Egress evidence.' },
   { id: 'real_tinode_clients', status: 'not_run', reason: 'Current release requires fresh real Tinode multi-client evidence.' },
@@ -260,6 +286,125 @@ const CONTROLLED_PROVIDER_PROFILES = [
   name: `controlled-${capability.replace('_', '-')}`
 }));
 
+export function loadControlledAcceptancePackage(
+  inputDir: string,
+  sourceCommit: string
+): LoadedControlledAcceptancePackage {
+  const root = resolve(inputDir);
+  assertIveKitDeliverySourceState(sourceCommit, '');
+  requireDirectory(root, 'controlled acceptance package');
+  assertNoSymlinks(root);
+  const reportPath = join(root, 'report.json');
+  requireFile(reportPath, 'controlled acceptance report');
+  const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
+    schema_version?: unknown;
+    product?: unknown;
+    source_commit?: unknown;
+    controlled_tests_are_real_vendor_evidence?: unknown;
+    controlled_environment?: unknown;
+    evidence?: unknown;
+    real_environment?: unknown;
+  };
+  if (report.schema_version !== 1 || report.product !== 'iveKit') {
+    throw new Error('invalid controlled acceptance report');
+  }
+  if (report.source_commit !== sourceCommit) {
+    throw new Error('controlled acceptance source commit mismatch');
+  }
+  if (report.controlled_tests_are_real_vendor_evidence !== false || report.real_environment !== undefined) {
+    throw new Error('controlled acceptance cannot claim real vendor evidence');
+  }
+  if (!isRecord(report.controlled_environment)) {
+    throw new Error('controlled acceptance checks are missing');
+  }
+  const checkKeys = Object.keys(report.controlled_environment).sort();
+  if (JSON.stringify(checkKeys) !== JSON.stringify([...CONTROLLED_ACCEPTANCE_KEYS].sort())) {
+    throw new Error('controlled acceptance checks are incomplete');
+  }
+
+  const evidenceDir = join(root, 'evidence');
+  requireDirectory(evidenceDir, 'controlled acceptance evidence');
+  const actualFiles = readdirSync(evidenceDir).sort();
+  for (const name of actualFiles) {
+    const path = join(evidenceDir, name);
+    if (lstatSync(path).isSymbolicLink() || !statSync(path).isFile()) {
+      throw new Error(`controlled acceptance evidence must be a regular file: ${name}`);
+    }
+    if (!/^[a-z0-9][a-z0-9._-]{0,127}\.(?:json|log|md|png|txt)$/.test(name)) {
+      throw new Error(`controlled acceptance evidence path is invalid: ${name}`);
+    }
+  }
+  if (!Array.isArray(report.evidence)) throw new Error('controlled acceptance evidence manifest is missing');
+  const evidence = report.evidence as Array<{ path?: unknown; bytes?: unknown; sha256?: unknown }>;
+  const evidencePaths = evidence.map((entry) => String(entry.path || ''));
+  if (new Set(evidencePaths).size !== evidencePaths.length ||
+      JSON.stringify([...evidencePaths].sort()) !== JSON.stringify(actualFiles)) {
+    throw new Error('controlled acceptance evidence file list mismatch');
+  }
+  let totalBytes = 0;
+  const verifiedEvidence: IveKitControlledAcceptanceEvidence[] = [];
+  for (const entry of evidence) {
+    const path = String(entry.path || '');
+    const absolute = join(evidenceDir, path);
+    const bytes = statSync(absolute).size;
+    totalBytes += bytes;
+    if (bytes < 1 || bytes > 10_485_760 || totalBytes > 26_214_400) {
+      throw new Error('controlled acceptance evidence size is invalid');
+    }
+    if (Number(entry.bytes) !== bytes || String(entry.sha256 || '') !== sha256(absolute)) {
+      throw new Error(`controlled acceptance evidence checksum mismatch: ${path}`);
+    }
+    verifiedEvidence.push({ path, bytes, sha256: String(entry.sha256) });
+  }
+
+  const evidenceSet = new Set(evidencePaths);
+  const referenced = new Set<string>();
+  const statuses = {} as IveKitDeliveryManifest['controlled_environment_acceptance'];
+  const checks = {} as LoadedControlledAcceptancePackage['checks'];
+  for (const key of CONTROLLED_ACCEPTANCE_KEYS) {
+    const raw = report.controlled_environment[key];
+    if (!isRecord(raw) || (raw.status !== 'passed' && raw.status !== 'not_run') || !Array.isArray(raw.evidence)) {
+      throw new Error(`controlled acceptance check is invalid: ${key}`);
+    }
+    const names = raw.evidence.map((value) => String(value));
+    if (new Set(names).size !== names.length || names.some((name) => !evidenceSet.has(name))) {
+      throw new Error(`controlled acceptance evidence reference is invalid: ${key}`);
+    }
+    if ((raw.status === 'passed' && names.length === 0) || (raw.status === 'not_run' && names.length !== 0)) {
+      throw new Error(`controlled acceptance evidence state is invalid: ${key}`);
+    }
+    for (const name of names) referenced.add(name);
+    statuses[key] = raw.status;
+    checks[key] = { status: raw.status, evidence: names };
+  }
+  if (referenced.size !== evidenceSet.size) {
+    throw new Error('controlled acceptance contains unreferenced evidence');
+  }
+  return { root, statuses, checks, evidence: verifiedEvidence };
+}
+
+function emptyControlledAcceptancePackage(): LoadedControlledAcceptancePackage {
+  const statuses = { ...CONTROLLED_ENVIRONMENT_ACCEPTANCE };
+  return {
+    root: '',
+    statuses,
+    checks: {
+      postgres: { status: statuses.postgres, evidence: [] },
+      provider_protocol: { status: statuses.provider_protocol, evidence: [] },
+      browser: { status: statuses.browser, evidence: [] },
+      restart_recovery: { status: statuses.restart_recovery, evidence: [] }
+    },
+    evidence: []
+  };
+}
+
+function controlledAcceptanceStatus(
+  statuses: IveKitDeliveryManifest['controlled_environment_acceptance']
+): 'not_run' | 'partial' | 'passed' {
+  const passed = Object.values(statuses).filter((status) => status === 'passed').length;
+  return passed === 0 ? 'not_run' : passed === CONTROLLED_ACCEPTANCE_KEYS.length ? 'passed' : 'partial';
+}
+
 export function buildIveKitDeliveryBundle(
   options: BuildIveKitDeliveryBundleOptions
 ): { outputDir: string; manifest: IveKitDeliveryManifest } {
@@ -268,6 +413,9 @@ export function buildIveKitDeliveryBundle(
   const sourceCommit = options.sourceCommit || resolveSourceCommit(repoRoot);
   assertIveKitDeliverySourceState(sourceCommit, '');
   const generatedAt = options.generatedAt || new Date().toISOString();
+  const controlledAcceptance = options.controlledAcceptanceDir
+    ? loadControlledAcceptancePackage(options.controlledAcceptanceDir, sourceCommit)
+    : emptyControlledAcceptancePackage();
   assertSafeOutputDirectory(repoRoot, outputDir);
   requireFile(options.sdkTarball, 'SDK tarball');
   requireDirectory(options.clientDist, 'reference client dist');
@@ -354,6 +502,16 @@ export function buildIveKitDeliveryBundle(
   writeFileSync(join(outputDir, 'service', 'sbom.spdx.json'), `${JSON.stringify(sbom, null, 2)}\n`, 'utf8');
   writeFileSync(join(outputDir, 'README.md'), renderBundleReadme(), 'utf8');
   mkdirSync(join(outputDir, 'acceptance'), { recursive: true });
+  if (controlledAcceptance.evidence.length) {
+    const evidenceDir = join(outputDir, 'acceptance', 'evidence');
+    mkdirSync(evidenceDir, { recursive: true });
+    for (const entry of controlledAcceptance.evidence) {
+      copyFileSync(
+        join(controlledAcceptance.root, 'evidence', entry.path),
+        join(evidenceDir, entry.path)
+      );
+    }
+  }
   writeFileSync(
     join(outputDir, 'acceptance', 'provider-profiles.example.json'),
     `${JSON.stringify(CONTROLLED_PROVIDER_PROFILES, null, 2)}\n`,
@@ -364,11 +522,15 @@ export function buildIveKitDeliveryBundle(
     product: 'iveKit',
     source_commit: sourceCommit,
     generated_at: generatedAt,
-    status: 'not_run',
-    controlled_environment: CONTROLLED_ENVIRONMENT_ACCEPTANCE,
+    status: controlledAcceptanceStatus(controlledAcceptance.statuses),
+    controlled_environment: controlledAcceptance.statuses,
+    controlled_checks: controlledAcceptance.checks,
+    evidence: controlledAcceptance.evidence,
     real_environment: REAL_ENVIRONMENT_ACCEPTANCE,
     known_not_run: KNOWN_NOT_RUN,
-    reason: 'Real provider and server acceptance must be executed in the target environment.',
+    reason: controlledAcceptance.evidence.length
+      ? 'Controlled acceptance passed only for checks bound to packaged evidence; real providers and clients remain not_run.'
+      : 'Controlled and real provider acceptance must be executed in the target environment.',
     controlled_tests_are_real_vendor_evidence: false
   }, null, 2)}\n`, 'utf8');
 
@@ -435,7 +597,7 @@ export function buildIveKitDeliveryBundle(
       rustdesk: 'native remote desktop transport and controlled operations'
     },
     real_environment_acceptance: { ...REAL_ENVIRONMENT_ACCEPTANCE },
-    controlled_environment_acceptance: { ...CONTROLLED_ENVIRONMENT_ACCEPTANCE },
+    controlled_environment_acceptance: { ...controlledAcceptance.statuses },
     known_not_run: KNOWN_NOT_RUN.map((entry) => ({ ...entry })),
     files: payloadFiles.map((path) => fileEntry(outputDir, path))
   };
@@ -525,6 +687,7 @@ function prepareBundleFromCli(): { outputDir: string; manifest: IveKitDeliveryMa
       clientDist: join(repoRoot, 'clients', 'ivekit-reference', 'dist'),
       imageReference: process.env.OPC_IVEKIT_DELIVERY_IMAGE_REFERENCE,
       imageDigest: process.env.OPC_IVEKIT_DELIVERY_IMAGE_DIGEST,
+      controlledAcceptanceDir: process.env.OPC_IVEKIT_DELIVERY_CONTROLLED_ACCEPTANCE_DIR,
       sourceCommit
     });
   } finally {
@@ -559,6 +722,7 @@ function renderBundleReadme(): string {
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',
     '- `examples/`: minimal LED SDK and RustDesk integration examples.',
     '- `acceptance/status.json`: honest target-environment acceptance state.',
+    '- `acceptance/evidence/`: optional source-bound controlled-environment evidence with verified hashes.',
     '- `acceptance/provider-profiles.example.json`: secret-free controlled Provider profiles.',
     '- `acceptance/tools/`: deterministic controlled Provider source for isolated acceptance.',
     '- `service/build-context/`: independently buildable iveKit service source context with its own package lock.',
@@ -582,8 +746,9 @@ function renderBundleReadme(): string {
     '## Acceptance',
     '',
     'A generated bundle is ready for engineering handoff, not production acceptance. Controlled PostgreSQL, Provider,',
-    'browser and restart checks remain separate from real LiveKit, Tinode, RustDesk, OCR, ASR, quality and translation',
-    'vendor evidence. Every unexecuted surface remains `not_run`; controlled evidence never upgrades a real vendor result.',
+    'browser and restart checks may be marked passed only when source-bound evidence is packaged and hash verified.',
+    'They remain separate from real LiveKit, Tinode, RustDesk, OCR, ASR, quality and translation vendor evidence.',
+    'Every unexecuted surface remains `not_run`; controlled evidence never upgrades a real vendor result.',
     ''
   ].join('\n');
 }
@@ -594,6 +759,7 @@ function assertAllowedDeliveryPath(path: string): void {
     ...GENERATED_FILES
   ]);
   if (fixed.has(path)) return;
+  if (/^acceptance\/evidence\/[a-z0-9][a-z0-9._-]{0,127}\.(?:json|log|md|png|txt)$/.test(path)) return;
   if (path.startsWith('client/') && path.length > 'client/'.length) return;
   if (/^sdk\/[^/]+\.tgz$/.test(path)) return;
   if (path.startsWith('service/build-context/') && path.length > 'service/build-context/'.length) return;
@@ -715,10 +881,13 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
 }
 
 function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryManifest): void {
-  if (
-    JSON.stringify(manifest.controlled_environment_acceptance) !==
-    JSON.stringify(CONTROLLED_ENVIRONMENT_ACCEPTANCE)
-  ) throw new Error('controlled acceptance contract is incomplete');
+  if (!isRecord(manifest.controlled_environment_acceptance) ||
+      JSON.stringify(Object.keys(manifest.controlled_environment_acceptance).sort()) !==
+        JSON.stringify([...CONTROLLED_ACCEPTANCE_KEYS].sort()) ||
+      Object.values(manifest.controlled_environment_acceptance)
+        .some((value) => value !== 'not_run' && value !== 'passed')) {
+    throw new Error('controlled acceptance contract is incomplete');
+  }
   if (
     JSON.stringify(manifest.real_environment_acceptance) !==
     JSON.stringify(REAL_ENVIRONMENT_ACCEPTANCE)
@@ -730,11 +899,14 @@ function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryM
     generated_at?: unknown;
     status?: unknown;
     controlled_environment?: unknown;
+    controlled_checks?: unknown;
+    evidence?: unknown;
     real_environment?: unknown;
     known_not_run?: unknown;
     controlled_tests_are_real_vendor_evidence?: unknown;
   };
-  if (status.schema_version !== 2 || status.product !== 'iveKit' || status.status !== 'not_run') {
+  if (status.schema_version !== 2 || status.product !== 'iveKit' ||
+      status.status !== controlledAcceptanceStatus(manifest.controlled_environment_acceptance)) {
     throw new Error('invalid V3 acceptance status');
   }
   if (status.source_commit !== manifest.source_commit) {
@@ -745,6 +917,44 @@ function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryM
   }
   if (JSON.stringify(status.controlled_environment) !== JSON.stringify(manifest.controlled_environment_acceptance)) {
     throw new Error('controlled acceptance state does not match delivery manifest');
+  }
+  if (!isRecord(status.controlled_checks) || !Array.isArray(status.evidence)) {
+    throw new Error('controlled acceptance evidence contract is missing');
+  }
+  const evidence = status.evidence as Array<{ path?: unknown; bytes?: unknown; sha256?: unknown }>;
+  const evidencePaths = evidence.map((entry) => String(entry.path || ''));
+  if (new Set(evidencePaths).size !== evidencePaths.length) {
+    throw new Error('duplicate controlled acceptance evidence');
+  }
+  const actualEvidenceDir = join(outputDir, 'acceptance', 'evidence');
+  const actualEvidence = existsSync(actualEvidenceDir) ? listDeliveryFiles(actualEvidenceDir) : [];
+  if (JSON.stringify([...evidencePaths].sort()) !== JSON.stringify(actualEvidence)) {
+    throw new Error('controlled acceptance evidence file list mismatch');
+  }
+  const referenced = new Set<string>();
+  for (const entry of evidence) {
+    const path = String(entry.path || '');
+    const absolute = join(actualEvidenceDir, path);
+    if (Number(entry.bytes) !== statSync(absolute).size || String(entry.sha256 || '') !== sha256(absolute)) {
+      throw new Error(`controlled acceptance evidence checksum mismatch: ${path}`);
+    }
+  }
+  for (const key of CONTROLLED_ACCEPTANCE_KEYS) {
+    const check = status.controlled_checks[key];
+    if (!isRecord(check) || check.status !== manifest.controlled_environment_acceptance[key] ||
+        !Array.isArray(check.evidence)) {
+      throw new Error(`controlled acceptance check does not match manifest: ${key}`);
+    }
+    const names = check.evidence.map((value) => String(value));
+    if (new Set(names).size !== names.length || names.some((name) => !evidencePaths.includes(name)) ||
+        (check.status === 'passed' && names.length === 0) ||
+        (check.status === 'not_run' && names.length !== 0)) {
+      throw new Error(`controlled acceptance evidence state is invalid: ${key}`);
+    }
+    for (const name of names) referenced.add(name);
+  }
+  if (referenced.size !== evidencePaths.length) {
+    throw new Error('controlled acceptance contains unreferenced evidence');
   }
   if (JSON.stringify(status.real_environment) !== JSON.stringify(manifest.real_environment_acceptance)) {
     throw new Error('real-environment acceptance state does not match delivery manifest');
@@ -827,6 +1037,10 @@ function requireDirectory(path: string, label: string): void {
   if (!existsSync(path) || !statSync(path).isDirectory()) throw new Error(`${label} is missing: ${path}`);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
 function walk(root: string, current: string, files: string[]): void {
   if (!existsSync(current)) return;
   for (const name of readdirSync(current).sort()) {
@@ -871,6 +1085,7 @@ if (invokedPath === fileURLToPath(import.meta.url)) {
     status: result.manifest.status,
     source_commit: result.manifest.source_commit,
     payload_files: result.manifest.files.length,
+    controlled_environment_acceptance: result.manifest.controlled_environment_acceptance,
     real_environment_acceptance: result.manifest.real_environment_acceptance
   }, null, 2)}\n`);
 }

@@ -229,6 +229,22 @@ OPC_IVEKIT_CONTROL_TOKEN=replace_with_test_control_token \
 
 健康检查可由 admin 调 `POST /api/ivekit/intelligence/providers/health`。缺 token 返回 `http_class=not_run`，网络/超时不会回显 URL 或 secret。
 
+### 9.1 把受控验收证据装入交付包
+
+服务器验收完成后，可准备一个不含凭据的目录：根目录为 `report.json`，实际日志/截图放在 `evidence/`。报告 schema v1 必须绑定完整 40 位 source commit，`controlled_tests_are_real_vendor_evidence` 必须为 `false`，并为 `postgres/provider_protocol/browser/restart_recovery` 四个固定检查分别声明 `passed|not_run` 和证据文件名。`evidence` 清单记录每个文件的字节数与 SHA-256；`passed` 不允许没有证据，`not_run` 不允许引用证据。
+
+生成最终包：
+
+```bash
+OPC_IVEKIT_DELIVERY_DIR=/absolute/output/ivekit-led-delivery \
+OPC_IVEKIT_DELIVERY_CONTROLLED_ACCEPTANCE_DIR=/absolute/input/controlled-acceptance \
+OPC_IVEKIT_DELIVERY_IMAGE_REFERENCE=ivekit-service:<release-commit> \
+OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
+  npm run ivekit:delivery-bundle
+```
+
+生成器会重新计算所有证据大小/hash、拒绝符号链接/额外文件/提交漂移/秘密材料，并把通过项写入 `acceptance/status.json`、把证据复制到 `acceptance/evidence/`。该状态只提升受控环境；真实 LiveKit/Tinode/RustDesk 客户端与真实 OCR/ASR/AI/翻译厂商不受影响，仍按 `not_run` 裁决。
+
 ## 10. 监控与告警
 
 `GET /metrics` 提供 HTTP 延迟/状态和 Node 运行指标。V3 队列状态目前以 PostgreSQL durable job 为权威，部署侧应按 tenant 聚合，禁止在 Prometheus label 中放 message/session/job id。
