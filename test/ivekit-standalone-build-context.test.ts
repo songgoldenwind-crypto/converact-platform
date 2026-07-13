@@ -68,10 +68,26 @@ test('standalone context refuses to erase a directory it does not own', () => {
   writeFileSync(join(outputDir, 'important.txt'), 'keep');
   try {
     assert.throws(
-      () => buildIveKitStandaloneContext({ repoRoot, outputDir }),
+      () => buildIveKitStandaloneContext({ repoRoot, outputDir, sourceCommit: 'b'.repeat(40) }),
       /ownership marker/
     );
     assert.equal(readFileSync(join(outputDir, 'important.txt'), 'utf8'), 'keep');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('standalone context rejects an invalid explicit source commit', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-context-commit-'));
+  try {
+    assert.throws(
+      () => buildIveKitStandaloneContext({
+        repoRoot,
+        outputDir: join(root, 'context'),
+        sourceCommit: 'snapshot'
+      }),
+      /full 40-character Git commit/
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

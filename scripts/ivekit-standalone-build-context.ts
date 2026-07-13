@@ -56,6 +56,7 @@ export function buildIveKitStandaloneContext(
 ): { outputDir: string; manifest: IveKitStandaloneContextManifest } {
   const repoRoot = resolve(options.repoRoot);
   const outputDir = resolve(options.outputDir);
+  const sourceCommit = resolveIveKitStandaloneSourceCommit(repoRoot, options.sourceCommit);
   const policy = readIveKitStandaloneSourcePolicy(repoRoot);
   const graph = analyzeIveKitStandaloneSourceGraph({ repoRoot, entrypoints: policy.entrypoints });
   assertIveKitStandaloneBoundary(graph, policy.forbidden_prefixes);
@@ -82,7 +83,7 @@ export function buildIveKitStandaloneContext(
     schema_version: 1,
     product: 'iveKit standalone service',
     status: 'ready_to_build',
-    source_commit: options.sourceCommit || gitCommit(repoRoot),
+    source_commit: sourceCommit,
     generated_at: options.generatedAt || new Date().toISOString(),
     entrypoints: graph.entrypoints,
     source_files: graph.files.length,
@@ -242,11 +243,23 @@ function gitCommit(repoRoot: string): string {
   return result.stdout.trim();
 }
 
+export function resolveIveKitStandaloneSourceCommit(repoRoot: string, override?: string): string {
+  const sourceCommit = override?.trim() || gitCommit(repoRoot);
+  if (!/^[a-f0-9]{40}$/.test(sourceCommit)) {
+    throw new Error('iveKit source commit must be a full 40-character Git commit');
+  }
+  return sourceCommit;
+}
+
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {
   const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
   const outputDir = resolve(process.env.OPC_IVEKIT_STANDALONE_CONTEXT_DIR || join(repoRoot, '.tmp', 'ivekit-standalone-context'));
-  const result = buildIveKitStandaloneContext({ repoRoot, outputDir });
+  const result = buildIveKitStandaloneContext({
+    repoRoot,
+    outputDir,
+    sourceCommit: process.env.OPC_IVEKIT_SOURCE_COMMIT
+  });
   process.stdout.write(`${JSON.stringify({
     output_dir: result.outputDir,
     source_commit: result.manifest.source_commit,

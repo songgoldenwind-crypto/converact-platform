@@ -9,7 +9,11 @@ const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const outputDir = resolve(
   process.env.OPC_IVEKIT_STANDALONE_CONTEXT_DIR || join(repoRoot, '.tmp', 'ivekit-standalone-context')
 );
-const result = buildIveKitStandaloneContext({ repoRoot, outputDir });
+const result = buildIveKitStandaloneContext({
+  repoRoot,
+  outputDir,
+  sourceCommit: process.env.OPC_IVEKIT_SOURCE_COMMIT
+});
 const npmCiArgs = ['ci', '--ignore-scripts'];
 if (process.env.OPC_IVEKIT_STANDALONE_NPM_OFFLINE === '1') npmCiArgs.push('--offline');
 run('npm', npmCiArgs, outputDir);
