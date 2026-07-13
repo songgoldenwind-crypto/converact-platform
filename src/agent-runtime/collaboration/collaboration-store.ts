@@ -498,6 +498,18 @@ export class CollaborationStore {
     return result.rows.map(decodeAttachment);
   }
 
+  async getAttachment(input: {
+    tenant_id: string;
+    attachment_id: string;
+  }): Promise<CollaborationMessageAttachment | null> {
+    const result = await this.pg.query(
+      `SELECT * FROM collaboration_message_attachments
+       WHERE id = $1 AND tenant_id = $2`,
+      [input.attachment_id, input.tenant_id]
+    );
+    return result.rows[0] ? decodeAttachment(result.rows[0]) : null;
+  }
+
   async addTranslation(input: {
     tenant_id: string;
     message_id: string;

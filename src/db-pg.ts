@@ -57,6 +57,7 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('collaboration_quality_review_jobs');
     this.ensureTable('collaboration_intelligence_policies');
     this.ensureTable('collaboration_intelligence_source_links');
+    this.ensureTable('collaboration_translation_jobs');
     this.ensureTable('remote_assistance_sessions');
     this.ensureTable('remote_consent_events');
     this.ensureTable('remote_tool_sessions');
@@ -1832,6 +1833,26 @@ export class MemoryPg implements PgQueryable {
     }
 
     if (sql.startsWith('INSERT INTO collaboration_message_translations')) {
+      if (sql.includes('source_type, source_ref_id')) {
+        const duplicate = [...this.table('collaboration_message_translations').values()].find((candidate) =>
+          String(candidate.tenant_id) === String(params[1]) &&
+          String(candidate.source_type) === String(params[7]) &&
+          String(candidate.source_ref_id) === String(params[8]) &&
+          String(candidate.target_language) === String(params[3]) &&
+          String(candidate.source_hash) === String(params[9])
+        );
+        if (duplicate) return { rows: [], rowCount: 0 };
+        const row: TableRow = {
+          id: params[0], tenant_id: params[1], message_id: params[2], target_language: params[3],
+          translated_body: params[4], provider: params[5], confidence: params[6],
+          source_type: params[7], source_ref_id: params[8], source_hash: params[9],
+          source_language: params[10], provider_profile_id: params[11], provider_mode: params[12],
+          provider_request_id: params[13], output_metadata: params[14],
+          created_at: params[15], updated_at: params[15]
+        };
+        this.table('collaboration_message_translations').set(String(row.id), row);
+        return { rows: [], rowCount: 1 };
+      }
       const row: TableRow = {
         id: params[0],
         tenant_id: params[1],
@@ -1844,6 +1865,159 @@ export class MemoryPg implements PgQueryable {
       };
       this.table('collaboration_message_translations').set(String(row.id), row);
       return [];
+    }
+
+    if (sql.startsWith('INSERT INTO collaboration_translation_jobs')) {
+      const duplicate = [...this.table('collaboration_translation_jobs').values()].find((candidate) =>
+        (String(candidate.tenant_id) === String(params[1]) && String(candidate.idempotency_key) === String(params[15])) ||
+        (String(candidate.tenant_id) === String(params[1]) && String(candidate.source_type) === String(params[4]) &&
+          String(candidate.source_ref_id) === String(params[5]) &&
+          String(candidate.target_language) === String(params[7]) && String(candidate.source_hash) === String(params[8]))
+      );
+      if (duplicate) return { rows: [], rowCount: 0 };
+      const row: TableRow = {
+        id: params[0], tenant_id: params[1], session_id: params[2], message_id: params[3],
+        source_type: params[4], source_ref_id: params[5], source_language: params[6],
+        target_language: params[7], source_hash: params[8], status: params[9],
+        attempt_count: 0, max_attempts: params[10], next_attempt_at: null, lease_until: null,
+        worker_id: '', provider_profile_id: params[11], provider_mode: params[12], provider_name: params[13],
+        provider_request_id: '', error_code: params[14], error_message: params[14], output_metadata: {},
+        idempotency_key: params[15], payload_hash: params[16], automatic: params[17],
+        created_at: params[18], updated_at: params[18],
+        completed_at: String(params[9]) === 'cancelled' ? params[18] : null
+      };
+      this.table('collaboration_translation_jobs').set(String(row.id), row);
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE tenant_id') && sql.includes('idempotency_key')) {
+      const row = [...this.table('collaboration_translation_jobs').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) && String(candidate.idempotency_key) === String(params[1])
+      );
+      return row ? [row] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE tenant_id') && sql.includes('source_type = $2')) {
+      const row = [...this.table('collaboration_translation_jobs').values()].find((candidate) =>
+        String(candidate.tenant_id) === String(params[0]) && String(candidate.source_type) === String(params[1]) &&
+        String(candidate.source_ref_id) === String(params[2]) && String(candidate.target_language) === String(params[3]) &&
+        String(candidate.source_hash) === String(params[4])
+      );
+      return row ? [row] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE id')) {
+      const row = this.table('collaboration_translation_jobs').get(String(params[0]));
+      return row && String(row.tenant_id) === String(params[1]) ? [row] : [];
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE tenant_id') && sql.includes('attempt_count')) {
+      const now = String(params[1]);
+      return [...this.table('collaboration_translation_jobs').values()]
+        .filter((row) => String(row.tenant_id) === String(params[0]))
+        .filter((row) => Number(row.attempt_count) < Number(row.max_attempts))
+        .filter((row) => row.status === 'pending' || (row.status === 'retry_wait' &&
+          (!row.next_attempt_at || String(row.next_attempt_at) <= now)))
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+        .slice(0, Number(params[2]));
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE attempt_count')) {
+      const now = String(params[0]);
+      return [...this.table('collaboration_translation_jobs').values()]
+        .filter((row) => Number(row.attempt_count) < Number(row.max_attempts))
+        .filter((row) => row.status === 'pending' || (row.status === 'retry_wait' &&
+          (!row.next_attempt_at || String(row.next_attempt_at) <= now)))
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+        .slice(0, Number(params[1]));
+    }
+
+    if (sql.startsWith("UPDATE collaboration_translation_jobs SET status = 'processing'")) {
+      const row = this.table('collaboration_translation_jobs').get(String(params[0]));
+      const now = String(params[7]);
+      if (!row || String(row.tenant_id) !== String(params[1]) || Number(row.attempt_count) >= Number(row.max_attempts) ||
+        !(row.status === 'pending' || (row.status === 'retry_wait' &&
+          (!row.next_attempt_at || String(row.next_attempt_at) <= now)))) return { rows: [], rowCount: 0 };
+      row.status = 'processing'; row.attempt_count = Number(row.attempt_count) + 1;
+      row.lease_until = params[3]; row.worker_id = params[2]; row.next_attempt_at = null;
+      row.provider_profile_id = params[4]; row.provider_mode = params[5]; row.provider_name = params[6];
+      row.error_code = ''; row.error_message = ''; row.updated_at = params[7];
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith("UPDATE collaboration_translation_jobs SET status = 'succeeded'")) {
+      const row = this.table('collaboration_translation_jobs').get(String(params[0]));
+      if (!row || String(row.tenant_id) !== String(params[1]) || row.status !== 'processing' ||
+        String(row.worker_id) !== String(params[2]) || String(row.source_hash) !== String(params[3])) {
+        return { rows: [], rowCount: 0 };
+      }
+      row.status = 'succeeded'; row.provider_profile_id = params[4]; row.provider_mode = params[5];
+      row.provider_name = params[6]; row.provider_request_id = params[7]; row.output_metadata = params[8];
+      row.error_code = ''; row.error_message = ''; row.lease_until = null; row.worker_id = '';
+      row.completed_at = params[9]; row.updated_at = params[9];
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith('UPDATE collaboration_translation_jobs SET status = $4')) {
+      const row = this.table('collaboration_translation_jobs').get(String(params[0]));
+      if (!row || String(row.tenant_id) !== String(params[1]) || row.status !== 'processing' ||
+        String(row.worker_id) !== String(params[2])) return { rows: [], rowCount: 0 };
+      row.status = params[3]; row.next_attempt_at = params[4]; row.lease_until = null; row.worker_id = '';
+      row.error_code = params[5]; row.error_message = params[6];
+      row.completed_at = params[3] === 'failed' ? params[7] : null; row.updated_at = params[7];
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith("UPDATE collaboration_translation_jobs SET status = 'cancelled'")) {
+      const row = this.table('collaboration_translation_jobs').get(String(params[0]));
+      if (!row || String(row.tenant_id) !== String(params[1]) ||
+        !['pending', 'retry_wait', 'processing'].includes(String(row.status))) return { rows: [], rowCount: 0 };
+      row.status = 'cancelled'; row.next_attempt_at = null; row.lease_until = null; row.worker_id = '';
+      row.error_code = params[2]; row.error_message = params[2]; row.completed_at = params[3]; row.updated_at = params[3];
+      return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith('UPDATE collaboration_translation_jobs SET provider_profile_id')) {
+      const row = this.table('collaboration_translation_jobs').get(String(params[0]));
+      if (!row || String(row.tenant_id) !== String(params[1]) ||
+        !['pending', 'retry_wait'].includes(String(row.status))) return { rows: [], rowCount: 0 };
+      row.provider_profile_id = params[2]; row.error_code = params[3]; row.error_message = params[3];
+      row.updated_at = params[4]; return { rows: [row], rowCount: 1 };
+    }
+
+    if (sql.startsWith('UPDATE collaboration_translation_jobs SET status = CASE')) {
+      const tenantId = String(params[0] || ''); const now = String(params[1]); let count = 0;
+      for (const row of this.table('collaboration_translation_jobs').values()) {
+        if (tenantId && String(row.tenant_id) !== tenantId) continue;
+        if (row.status !== 'processing' || !row.lease_until || String(row.lease_until) > now) continue;
+        const terminal = Number(row.attempt_count) >= Number(row.max_attempts);
+        row.status = terminal ? 'failed' : 'retry_wait'; row.next_attempt_at = terminal ? null : now;
+        row.lease_until = null; row.worker_id = ''; row.error_code = 'claim_lease_expired';
+        row.error_message = 'translation claim lease expired'; row.updated_at = now;
+        row.completed_at = terminal ? now : null; count += 1;
+      }
+      return { rows: [], rowCount: count };
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_message_translations WHERE tenant_id')) {
+      if (!sql.includes("($4 = ''")) {
+        const row = [...this.table('collaboration_message_translations').values()].find((candidate) =>
+          String(candidate.tenant_id) === String(params[0]) &&
+          String(candidate.source_type) === String(params[1]) &&
+          String(candidate.source_ref_id) === String(params[2]) &&
+          String(candidate.target_language) === String(params[3]) &&
+          String(candidate.source_hash) === String(params[4])
+        );
+        return row ? [row] : [];
+      }
+      const history = params[4] === true;
+      return [...this.table('collaboration_message_translations').values()]
+        .filter((row) => String(row.tenant_id) === String(params[0]))
+        .filter((row) => String(row.source_type) === String(params[1]) && String(row.source_ref_id) === String(params[2]))
+        .filter((row) => !String(params[3] || '') || String(row.target_language) === String(params[3]))
+        .filter((row) => history || String(row.source_hash) === String(params[5]))
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(b.id).localeCompare(String(a.id)))
+        .slice(0, 500);
     }
 
     if (sql.startsWith('SELECT * FROM collaboration_intelligence_policies WHERE tenant_id')) {

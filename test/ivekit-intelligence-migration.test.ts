@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const migrationPath = 'src/migrations/043_ivekit_intelligence_translation.sql';
 const qualityRoutingMigrationPath = 'src/migrations/044_quality_review_policy_routing.sql';
+const translationWorkerMigrationPath = 'src/migrations/045_translation_worker_routing.sql';
 
 test('V3 intelligence migration defines tenant policy, source links, and durable translation jobs', () => {
   const sql = readFileSync(migrationPath, 'utf8');
@@ -50,6 +51,14 @@ test('quality routing migration records whether work was automatically triggered
     /ALTER TABLE collaboration_quality_review_jobs[\s\S]*ADD COLUMN IF NOT EXISTS automatic BOOLEAN NOT NULL DEFAULT TRUE/i
   );
   assert.doesNotMatch(sql, /DROP TABLE|TRUNCATE|DELETE FROM/i);
+});
+
+test('translation worker migration adds trigger origin and tenant discovery without weakening function security', () => {
+  const sql = readFileSync(translationWorkerMigrationPath, 'utf8');
+  assert.match(sql, /collaboration_translation_jobs[\s\S]*automatic BOOLEAN NOT NULL DEFAULT FALSE/i);
+  assert.match(sql, /p_queue = 'translation'[\s\S]*collaboration_translation_jobs/i);
+  assert.match(sql, /SECURITY DEFINER[\s\S]*SET search_path = pg_catalog, public/i);
+  assert.match(sql, /REVOKE ALL ON FUNCTION opc_worker_tenant_ids/i);
 });
 
 test('V3 intelligence migration extends translation results without dropping legacy data', () => {

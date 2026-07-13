@@ -57,6 +57,7 @@
     "042_ivekit_tenant_events.sql",
     "043_ivekit_intelligence_translation.sql",
     "044_quality_review_policy_routing.sql",
+    "045_translation_worker_routing.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }

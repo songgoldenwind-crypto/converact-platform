@@ -13,6 +13,13 @@ import {
   type QualityProviderResolution,
   type QualityReviewProviderResolver
 } from './quality-review.js';
+import {
+  createHttpTranslationProvider
+} from './translation-provider.js';
+import type {
+  TranslationProviderResolution,
+  TranslationProviderResolver
+} from './translation-service.js';
 
 export function createPolicyAttachmentProviderResolver(input: {
   pg: PgQueryable;
@@ -103,6 +110,48 @@ export function createPolicyQualityReviewProviderResolver(input: {
   };
 }
 
+export function createPolicyTranslationProviderResolver(input: {
+  pg: PgQueryable;
+  registry: IntelligenceProviderRegistry;
+  fetch?: typeof fetch;
+}): TranslationProviderResolver {
+  return async ({ tenant_id }) => {
+    const policy = await withPgTenant(input.pg, tenant_id, (pg) =>
+      new IntelligencePolicyStore(pg, input.registry).getEffectivePolicy(tenant_id)
+    );
+    if (!policy.translation_enabled) {
+      return unavailableTranslation(false, policy.auto_translation, policy.translation_profile_id, 'policy_disabled');
+    }
+    if (!policy.translation_profile_id) {
+      return unavailableTranslation(true, policy.auto_translation, '', 'provider_unavailable');
+    }
+    const profile = input.registry.requireProfile(policy.translation_profile_id, 'translation');
+    if (profile.mode === 'third_party' && !policy.allow_third_party) {
+      return unavailableTranslation(false, policy.auto_translation, profile.id, 'third_party_not_allowed');
+    }
+    const token = input.registry.resolveToken(profile);
+    if (profile.token_env && !token) {
+      return unavailableTranslation(true, policy.auto_translation, profile.id, 'provider_credential_unavailable');
+    }
+    return {
+      enabled: true,
+      automatic: policy.auto_translation,
+      profile_id: profile.id,
+      provider: createHttpTranslationProvider({
+        mode: profile.mode,
+        baseUrl: profile.base_url,
+        endpoint: profile.endpoint,
+        token,
+        timeoutMs: profile.timeout_ms,
+        name: profile.name,
+        profileId: profile.id,
+        fetch: input.fetch
+      }),
+      error_code: ''
+    };
+  };
+}
+
 function unavailable(
   enabled: boolean,
   automatic: boolean,
@@ -131,4 +180,13 @@ function unavailableQuality(
     provider: null,
     error_code: errorCode
   };
+}
+
+function unavailableTranslation(
+  enabled: boolean,
+  automatic: boolean,
+  profileId: string,
+  errorCode: string
+): TranslationProviderResolution {
+  return { enabled, automatic, profile_id: profileId, provider: null, error_code: errorCode };
 }

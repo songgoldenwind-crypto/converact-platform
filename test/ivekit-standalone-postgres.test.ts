@@ -348,6 +348,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         '000_ivekit_foundation',
         '043_ivekit_intelligence_translation',
         '044_quality_review_policy_routing',
+        '045_translation_worker_routing',
         '090_ivekit_runtime_security'
       )
       GROUP BY version
@@ -357,6 +358,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       { version: '000_ivekit_foundation', count: '1' },
       { version: '043_ivekit_intelligence_translation', count: '1' },
       { version: '044_quality_review_policy_routing', count: '1' },
+      { version: '045_translation_worker_routing', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 

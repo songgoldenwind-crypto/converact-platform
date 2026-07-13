@@ -1,6 +1,6 @@
 import type { PgQueryable } from '../../db-pg.js';
 
-export type CollaborationWorkerQueue = 'tinode' | 'attachment' | 'quality';
+export type CollaborationWorkerQueue = 'tinode' | 'attachment' | 'quality' | 'translation';
 
 export async function listCollaborationWorkerTenants(
   pg: PgQueryable,
