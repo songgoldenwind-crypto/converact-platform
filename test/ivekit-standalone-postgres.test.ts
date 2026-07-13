@@ -45,6 +45,7 @@ const voiceFoundationTables = [
   'ivekit_voice_calls',
   'ivekit_voice_call_participants',
   'ivekit_voice_call_commands',
+  'ivekit_voice_configuration_commands',
   'ivekit_voice_provider_events',
   'ivekit_voice_livekit_bridges',
   'ivekit_voice_recordings',
@@ -86,7 +87,11 @@ function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): 
   const directory = join(root, 'migrations');
   mkdirSync(directory);
   for (const name of readdirSync(resolve('src/migrations')).filter((name) => name.endsWith('.sql'))) {
-    if (['046_ivekit_voice_foundation.sql', '047_ivekit_ivr_foundation.sql'].includes(name)) continue;
+    if ([
+      '046_ivekit_voice_foundation.sql',
+      '047_ivekit_ivr_foundation.sql',
+      '048_ivekit_voice_operations.sql'
+    ].includes(name)) continue;
     copyFileSync(resolve('src/migrations', name), join(directory, name));
   }
   return {
@@ -178,7 +183,7 @@ async function seedVoiceIvrTenant(pg: Pool, suffix: string): Promise<void> {
 
 freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempotent, and RLS enforced', async () => {
   const admin = new Pool({ connectionString: freshAdminUrl, max: 1 });
-  const runtime = new Pool({ connectionString: freshRuntimeUrl, max: 1 });
+  const runtime = new Pool({ connectionString: freshRuntimeUrl, max: 4 });
   const migrations = standaloneMigrations();
   try {
     await initializeIveKitRuntimeRole(admin, runtimePassword);
@@ -270,6 +275,141 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         `SELECT tenant_id, id FROM ivekit_ivr_sessions ORDER BY id`
       );
       assert.deepEqual(sessions.rows, [{ tenant_id: 'ivekit_rls_a', id: 'ivekit_ivr_session_a' }]);
+    });
+
+    await admin.query(`
+      INSERT INTO ivekit_voice_configuration_commands
+        (id, tenant_id, profile_id, resource_type, resource_id, operation, state,
+         idempotency_key, payload_hash, attempt_count, max_attempts, lease_until, worker_id)
+      VALUES
+        ('ivekit_voice_config_a_pending', 'ivekit_rls_a', 'ivekit_voice_profile_a',
+         'sip_trunk', 'trunk-a', 'apply', 'pending', 'voice-config-a-pending',
+         '${'a'.repeat(64)}', 0, 3, NULL, ''),
+        ('ivekit_voice_config_a_expired', 'ivekit_rls_a', 'ivekit_voice_profile_a',
+         'route', 'route-a', 'apply', 'processing', 'voice-config-a-expired',
+         '${'b'.repeat(64)}', 1, 3, '2026-07-12T11:59:00.000Z', 'crashed-worker'),
+        ('ivekit_voice_config_a_race', 'ivekit_rls_a', 'ivekit_voice_profile_a',
+         'extension', 'extension-a', 'apply', 'pending', 'voice-config-a-race',
+         '${'c'.repeat(64)}', 0, 3, NULL, ''),
+        ('ivekit_voice_config_b_pending', 'ivekit_rls_b', 'ivekit_voice_profile_b',
+         'sip_trunk', 'trunk-b', 'apply', 'pending', 'voice-config-b-pending',
+         '${'d'.repeat(64)}', 0, 3, NULL, '')
+    `);
+
+    await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      const commands = await tenantPg.query<{ id: string; tenant_id: string }>(`
+        SELECT id, tenant_id
+        FROM ivekit_voice_configuration_commands
+        ORDER BY id
+      `);
+      assert.deepEqual(commands.rows, [
+        { id: 'ivekit_voice_config_a_expired', tenant_id: 'ivekit_rls_a' },
+        { id: 'ivekit_voice_config_a_pending', tenant_id: 'ivekit_rls_a' },
+        { id: 'ivekit_voice_config_a_race', tenant_id: 'ivekit_rls_a' }
+      ]);
+      const foreignClaim = await tenantPg.query(`
+        UPDATE ivekit_voice_configuration_commands
+        SET worker_id = 'cross-tenant-worker'
+        WHERE id = 'ivekit_voice_config_b_pending'
+        RETURNING id
+      `);
+      assert.equal(foreignClaim.rowCount, 0);
+    });
+
+    const discoveredVoiceTenants = await runtime.query<{ tenant_id: string }>(
+      `SELECT tenant_id
+       FROM opc_worker_tenant_ids('voice_configuration', $1::TIMESTAMPTZ, 10)
+       ORDER BY tenant_id`,
+      ['2026-07-12T12:00:00.000Z']
+    );
+    assert.deepEqual(discoveredVoiceTenants.rows, [
+      { tenant_id: 'ivekit_rls_a' },
+      { tenant_id: 'ivekit_rls_b' }
+    ]);
+
+    const directProfiles = await runtime.query(
+      `SELECT id FROM ivekit_voice_deployment_profiles WHERE id = 'ivekit_voice_profile_b'`
+    );
+    assert.equal(directProfiles.rowCount, 0);
+    const profileContext = await runtime.query<{
+      tenant_id: string;
+      profile_id: string;
+      adapter: string;
+      secret_refs: Record<string, unknown>;
+    }>(`SELECT * FROM opc_ivekit_voice_profile_context($1)`, ['ivekit_voice_profile_b']);
+    assert.deepEqual(profileContext.rows, [{
+      tenant_id: 'ivekit_rls_b',
+      profile_id: 'ivekit_voice_profile_b',
+      adapter: 'controlled',
+      secret_refs: {}
+    }]);
+
+    const firstWorker = await runtime.connect();
+    const secondWorker = await runtime.connect();
+    try {
+      await firstWorker.query('BEGIN');
+      await secondWorker.query('BEGIN');
+      await firstWorker.query(`SELECT set_config('app.current_tenant', 'ivekit_rls_a', true)`);
+      await secondWorker.query(`SELECT set_config('app.current_tenant', 'ivekit_rls_a', true)`);
+      const firstClaim = await firstWorker.query(`
+        WITH candidate AS (
+          SELECT id
+          FROM ivekit_voice_configuration_commands
+          WHERE id = 'ivekit_voice_config_a_race' AND state = 'pending'
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE ivekit_voice_configuration_commands command
+        SET state = 'processing', worker_id = 'voice-worker-one',
+            lease_until = '2026-07-12T12:01:00.000Z'
+        FROM candidate
+        WHERE command.id = candidate.id
+        RETURNING command.id
+      `);
+      assert.deepEqual(firstClaim.rows, [{ id: 'ivekit_voice_config_a_race' }]);
+      const secondClaim = await secondWorker.query(`
+        WITH candidate AS (
+          SELECT id
+          FROM ivekit_voice_configuration_commands
+          WHERE id = 'ivekit_voice_config_a_race' AND state = 'pending'
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE ivekit_voice_configuration_commands command
+        SET state = 'processing', worker_id = 'voice-worker-two',
+            lease_until = '2026-07-12T12:01:00.000Z'
+        FROM candidate
+        WHERE command.id = candidate.id
+        RETURNING command.id
+      `);
+      assert.equal(secondClaim.rowCount, 0);
+      await secondWorker.query('ROLLBACK');
+      await firstWorker.query('ROLLBACK');
+    } finally {
+      secondWorker.release();
+      firstWorker.release();
+    }
+
+    await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      const reclaimed = await tenantPg.query<{ id: string; worker_id: string }>(`
+        WITH candidate AS (
+          SELECT id
+          FROM ivekit_voice_configuration_commands
+          WHERE id = 'ivekit_voice_config_a_expired'
+            AND state = 'processing'
+            AND lease_until <= '2026-07-12T12:00:00.000Z'
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE ivekit_voice_configuration_commands command
+        SET worker_id = 'voice-recovery-worker',
+            lease_until = '2026-07-12T12:01:00.000Z',
+            attempt_count = attempt_count + 1
+        FROM candidate
+        WHERE command.id = candidate.id
+        RETURNING command.id, command.worker_id
+      `);
+      assert.deepEqual(reclaimed.rows, [{
+        id: 'ivekit_voice_config_a_expired',
+        worker_id: 'voice-recovery-worker'
+      }]);
     });
 
     await assert.rejects(
@@ -774,6 +914,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         '045_translation_worker_routing',
         '046_ivekit_voice_foundation',
         '047_ivekit_ivr_foundation',
+        '048_ivekit_voice_operations',
         '090_ivekit_runtime_security'
       )
       GROUP BY version
@@ -786,6 +927,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       { version: '045_translation_worker_routing', count: '1' },
       { version: '046_ivekit_voice_foundation', count: '1' },
       { version: '047_ivekit_ivr_foundation', count: '1' },
+      { version: '048_ivekit_voice_operations', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 

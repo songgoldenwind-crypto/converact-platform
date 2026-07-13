@@ -40,6 +40,10 @@ test('runtime-role initializer parameterizes password and commits least-privileg
   assert.equal(pg.calls.some((call) => call.text.includes('REVOKE CREATE ON SCHEMA public')), true);
   assert.equal(pg.calls.some((call) => call.text.includes('ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin')), true);
   assert.equal(pg.calls.some((call) => call.text.includes('schema_migrations')), true);
+  assert.equal(
+    pg.calls.some((call) => call.text.includes('opc_ivekit_voice_profile_context')),
+    true
+  );
 });
 
 test('runtime-role initializer rejects an unexpected migration role', async () => {

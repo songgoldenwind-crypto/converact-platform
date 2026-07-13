@@ -194,11 +194,14 @@ git commit -m "feat(ivekit): define voice core state machine"
 **Files:**
 - Create: `src/migrations/048_ivekit_voice_operations.sql`
 - Create: `test/ivekit-voice-operations-migration.test.ts`
+- Modify: `src/ivekit-runtime-role.ts`
 - Modify: `services/ivekit-service/source-policy.json`
 - Modify: `test/ivekit-standalone-migrations.test.ts`
 - Modify: `test/ivekit-standalone-postgres.test.ts`
+- Modify: `test/ivekit-runtime-role.test.ts`
+- Modify: `test/ivekit-delivery-bundle.test.ts`
 
-- [ ] **Step 1: Write failing migration assertions**
+- [x] **Step 1: Write failing migration assertions**
 
 Require one new authority table:
 
@@ -210,7 +213,7 @@ Required columns are `tenant_id`, `profile_id`, `resource_type`, `resource_id`, 
 
 Require `opc_worker_tenant_ids` branches for `voice_command`, `voice_configuration`, and `voice_provider_event`. Require a `SECURITY DEFINER` function `opc_ivekit_voice_profile_context(profile_id)` that returns only `tenant_id`, `profile_id`, `adapter`, and `secret_refs`; set `search_path`, revoke PUBLIC, and grant only `opc_runtime` when that role exists.
 
-- [ ] **Step 2: Observe the red test**
+- [x] **Step 2: Observe the red test**
 
 ```bash
 node --import tsx --test test/ivekit-voice-operations-migration.test.ts
@@ -218,11 +221,11 @@ node --import tsx --test test/ivekit-voice-operations-migration.test.ts
 
 Expected: FAIL because migration 048 is absent.
 
-- [ ] **Step 3: Implement migration 048 and policy order**
+- [x] **Step 3: Implement migration 048 and policy order**
 
 Place 048 after 047 and before standalone 090. The profile lookup function must select by globally unique profile `id`, expose no base URL/config/secret value, and return zero rows for archived profiles. Preserve all existing worker queue branches when replacing `opc_worker_tenant_ids`.
 
-- [ ] **Step 4: Extend real PostgreSQL acceptance**
+- [x] **Step 4: Extend real PostgreSQL acceptance**
 
 Prove:
 
@@ -233,7 +236,7 @@ Prove:
 - runtime role still has `NOSUPERUSER`, `NOBYPASSRLS`, no schema CREATE, and no migration-ledger access;
 - fresh/upgrade migration reruns remain checksum-idempotent.
 
-- [ ] **Step 5: Run static and real PostgreSQL tests**
+- [x] **Step 5: Run static and real PostgreSQL tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-operations-migration.test.ts test/ivekit-standalone-migrations.test.ts
@@ -242,7 +245,7 @@ sh scripts/verify-ivekit-postgres.sh
 
 Expected: all static tests and fresh/upgrade PostgreSQL cases pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/migrations/048_ivekit_voice_operations.sql services/ivekit-service/source-policy.json test/ivekit-voice-operations-migration.test.ts test/ivekit-standalone-migrations.test.ts test/ivekit-standalone-postgres.test.ts

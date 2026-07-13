@@ -63,6 +63,7 @@
     "045_translation_worker_routing.sql",
     "046_ivekit_voice_foundation.sql",
     "047_ivekit_ivr_foundation.sql",
+    "048_ivekit_voice_operations.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }
