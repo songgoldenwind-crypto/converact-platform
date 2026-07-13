@@ -18,6 +18,8 @@ export { IveKitTenantEventStore } from './tenant-event-store.js';
 export { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
 export { routeIveKitMediaApi } from './media-http.js';
 export { createIveKitHttpServer } from './http-server.js';
+export { routeIveKitIvrApi } from './ivr/http.js';
+export type * from './ivr/http.js';
 export type { IveKitHttpServerInput, IveKitRouteAdapters } from './http-server.js';
 export { createIveKitMediaHooks } from './media-hooks.js';
 export type { IveKitMediaHooksInput } from './media-hooks.js';

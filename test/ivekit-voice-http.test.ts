@@ -29,6 +29,10 @@ test('standalone server routes Voice before collaboration and never trusts webho
         routed.push(`voice:${path}:${getPgTenantContext().tenantId || ''}`);
         return { data: { route: 'voice' } };
       },
+      ivr: async (_pg, _method, path) => {
+        routed.push(`ivr:${path}:${getPgTenantContext().tenantId || ''}`);
+        return { data: { type: 'hangup' } };
+      },
       media: async () => undefined,
       chat: async () => undefined,
       intelligence: async () => undefined,
@@ -58,11 +62,22 @@ test('standalone server routes Voice before collaboration and never trusts webho
     body: JSON.stringify({ event_id: 'event-a' })
   });
   assert.equal(webhook.status, 200);
+  const ivrWebhook = await fetch(
+    `${baseUrl}/api/ivekit/ivr/provider-webhooks/rustpbx/profile-a/step`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-tenant-id': 'tenant-attacker' },
+      body: JSON.stringify({ profile_id: 'profile-a' })
+    }
+  );
+  assert.equal(ivrWebhook.status, 200);
+  assert.deepEqual(await ivrWebhook.json(), { type: 'hangup' });
   assert.equal(queries.filter((query) => query.includes("set_config('app.current_tenant'")).length, 1);
   assert.equal(queries.some((query) => query.includes('tenant-attacker')), false);
   assert.deepEqual(routed, [
     'voice:/api/ivekit/voice/profiles:tenant-auth',
-    'voice:/api/ivekit/voice/providers/profile-a/events:'
+    'voice:/api/ivekit/voice/providers/profile-a/events:',
+    'ivr:/api/ivekit/ivr/provider-webhooks/rustpbx/profile-a/step:'
   ]);
 });
 

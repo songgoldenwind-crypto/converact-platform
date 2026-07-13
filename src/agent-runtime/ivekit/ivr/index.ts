@@ -7,6 +7,7 @@ export * from './executor.js';
 export * from './expression.js';
 export * from './flow-service.js';
 export * from './graph-types.js';
+export * from './http.js';
 export * from './ports.js';
 export * from './postgres/flow-store.js';
 export * from './postgres/rustpbx-step-binding.js';

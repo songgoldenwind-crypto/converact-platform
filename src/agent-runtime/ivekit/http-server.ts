@@ -23,7 +23,12 @@ import {
   routeIveKitVoiceApi,
   type RouteIveKitVoiceApiOptions
 } from './voice/http.js';
+import {
+  routeIveKitIvrApi,
+  type RouteIveKitIvrApiOptions
+} from './ivr/http.js';
 import { VoiceError } from './voice/errors.js';
+import { IvrError } from './ivr/errors.js';
 import { runWithWsBroadcastBuffer } from '../../ws.js';
 
 type MediaRoute = typeof routeIveKitMediaApi;
@@ -32,6 +37,7 @@ type IntelligenceRoute = typeof routeIveKitIntelligenceApi;
 type EventRoute = typeof routeIveKitEventApi;
 type CollaborationRoute = typeof routeCollaborationApi;
 type VoiceRoute = typeof routeIveKitVoiceApi;
+type IvrRoute = typeof routeIveKitIvrApi;
 
 export interface IveKitRouteAdapters {
   media: MediaRoute;
@@ -39,6 +45,7 @@ export interface IveKitRouteAdapters {
   intelligence: IntelligenceRoute;
   events: EventRoute;
   voice: VoiceRoute;
+  ivr: IvrRoute;
   collaboration: CollaborationRoute;
 }
 
@@ -49,6 +56,7 @@ export interface IveKitHttpServerInput {
   mediaOptions?: RouteIveKitMediaApiOptions;
   intelligenceOptions?: RouteIveKitIntelligenceApiOptions;
   voiceOptions?: RouteIveKitVoiceApiOptions;
+  ivrOptions?: RouteIveKitIvrApiOptions;
 }
 
 const allowedPrefixes = [
@@ -56,6 +64,7 @@ const allowedPrefixes = [
   '/api/ivekit/chat/',
   '/api/ivekit/intelligence/',
   '/api/ivekit/voice/',
+  '/api/ivekit/ivr/',
   '/api/ivekit/context/',
   '/api/ivekit/rustdesk/',
   '/api/opc/rustdesk/'
@@ -76,6 +85,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
     intelligence: input.routes?.intelligence || routeIveKitIntelligenceApi,
     events: input.routes?.events || routeIveKitEventApi,
     voice: input.routes?.voice || routeIveKitVoiceApi,
+    ivr: input.routes?.ivr || routeIveKitIvrApi,
     collaboration: input.routes?.collaboration || routeCollaborationApi
   };
   const mediaOptions = input.mediaOptions || (input.pg
@@ -153,6 +163,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ...input.intelligenceOptions
         })
         ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
+        ?? await routes.ivr(pg, method, path, url, body, rawBody, headers, input.ivrOptions)
         ?? await routes.voice(pg, method, path, url, body, rawBody, headers, input.voiceOptions)
         ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
       const buffered = await runWithWsBroadcastBuffer(() =>
@@ -165,7 +176,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       const result = buffered.result;
 
       if (result === undefined) {
-        if (path.startsWith('/api/ivekit/voice/')) {
+        if (path.startsWith('/api/ivekit/voice/') || path.startsWith('/api/ivekit/ivr/')) {
           sendJson(response, 404, voiceErrorEnvelope('not_found', false, requestId));
         } else {
           sendJson(response, 404, { error: { message: 'not found', status: 404 } });
@@ -197,13 +208,13 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       );
     } catch (error) {
       const status = Number((error as { status?: number }).status || 500);
-      if (requestPath.startsWith('/api/ivekit/voice/')) {
-        const voiceError = error instanceof VoiceError ? error : null;
-        const code = voiceError?.code ?? (status >= 500 ? 'internal_error' : httpVoiceErrorCode(status));
+      if (requestPath.startsWith('/api/ivekit/voice/') || requestPath.startsWith('/api/ivekit/ivr/')) {
+        const domainError = error instanceof VoiceError || error instanceof IvrError ? error : null;
+        const code = domainError?.code ?? (status >= 500 ? 'internal_error' : httpVoiceErrorCode(status));
         sendJson(
           response,
           status,
-          voiceErrorEnvelope(code, voiceError?.retryable === true, requestId)
+          voiceErrorEnvelope(code, domainError?.retryable === true, requestId)
         );
         return;
       }
@@ -219,7 +230,8 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
 
 function isVoiceProviderWebhook(method: string, path: string): boolean {
   return method === 'POST'
-    && /^\/api\/ivekit\/voice\/providers\/[^/]+\/(router|events|cdrs)$/.test(path);
+    && (/^\/api\/ivekit\/voice\/providers\/[^/]+\/(router|events|cdrs)$/.test(path)
+      || /^\/api\/ivekit\/ivr\/provider-webhooks\/rustpbx\/[^/]+\/step$/.test(path));
 }
 
 function requestIdentifier(headers: Record<string, string | string[] | undefined>): string {
