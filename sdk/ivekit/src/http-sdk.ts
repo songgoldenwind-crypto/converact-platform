@@ -83,6 +83,10 @@ import type {
   IveKitTranslationRequestResult,
   IveKitTranslationJob
 } from './intelligence-types.js';
+import type {
+  IveKitIvrCompilationReport, IveKitIvrFlow, IveKitIvrFlowGraph, IveKitIvrFlowVersion,
+  IveKitIvrSession, IveKitIvrSessionResult, IveKitIvrSimulationResult
+} from './ivr-types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -299,12 +303,29 @@ export interface IveKitEventHttpClient {
   replay<T = unknown>(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult<T>>;
 }
 
+export interface IveKitIvrHttpClient {
+  listFlows(): Promise<IveKitIvrFlow[]>;
+  createFlow(input: { name: string; graph: IveKitIvrFlowGraph; metadata?: Record<string, unknown> }): Promise<IveKitIvrFlow>;
+  getFlow(flowId: string): Promise<IveKitIvrFlow>;
+  updateFlow(flowId: string, input: { expected_revision: number; name?: string; graph?: IveKitIvrFlowGraph; metadata?: Record<string, unknown> }): Promise<IveKitIvrFlow>;
+  listVersions(flowId: string): Promise<IveKitIvrFlowVersion[]>;
+  validateFlow(flowId: string): Promise<IveKitIvrCompilationReport>;
+  publishFlow(flowId: string, expectedDraftRevision: number, options: { idempotencyKey: string }): Promise<{ flow: IveKitIvrFlow; version: IveKitIvrFlowVersion; replayed: boolean }>;
+  rollbackFlow(flowId: string, input: { expected_draft_revision: number; source_version: number }, options: { idempotencyKey: string }): Promise<{ flow: IveKitIvrFlow; version: IveKitIvrFlowVersion; replayed: boolean }>;
+  simulate(input: Record<string, unknown> & { flow_id: string }): Promise<IveKitIvrSimulationResult>;
+  listSessions(input?: { limit?: number }): Promise<IveKitIvrSession[]>;
+  startSession(input: { call_id: string; flow_id: string; flow_version?: number; variables?: Record<string, unknown>; trace_id?: string }): Promise<IveKitIvrSessionResult>;
+  getSession(sessionId: string): Promise<{ session: IveKitIvrSession; steps: Array<Record<string, unknown>> }>;
+  advanceSession(sessionId: string, input: { event_sequence: number; action_revision: number; event: Record<string, unknown> }): Promise<IveKitIvrSessionResult>;
+}
+
 export interface IveKitHttpSdk {
   media: IveKitMediaHttpClient;
   chat: IveKitChatHttpClient;
   context: IveKitContextHttpClient;
   events: IveKitEventHttpClient;
   intelligence: IveKitIntelligenceHttpClient;
+  ivr: IveKitIvrHttpClient;
 }
 
 export class IveKitHttpSdkError extends Error {
@@ -327,7 +348,8 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
     chat: createChatClient(transport, createAttachmentUploadClient(input)),
     context: createContextClient(transport),
     events: createEventClient(transport),
-    intelligence: createIntelligenceClient(transport)
+    intelligence: createIntelligenceClient(transport),
+    ivr: createIvrClient(transport)
   };
 }
 
@@ -430,6 +452,34 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
         filename: responseFilename(response.headers.get('content-disposition'))
       };
     }
+  };
+}
+
+function createIvrClient(transport: IveKitTransport): IveKitIvrHttpClient {
+  const flowPath = (id: string) => `/api/ivekit/ivr/flows/${pathSegment(id, 'flowId')}`;
+  const sessionPath = (id: string) => `/api/ivekit/ivr/sessions/${pathSegment(id, 'sessionId')}`;
+  return {
+    async listFlows() { return (await transport.json<{ items: IveKitIvrFlow[] }>('GET', '/api/ivekit/ivr/flows')).items; },
+    createFlow: (body) => transport.json('POST', '/api/ivekit/ivr/flows', { body }),
+    getFlow: (id) => transport.json('GET', flowPath(id)),
+    updateFlow: (id, body) => transport.json('PATCH', flowPath(id), { body }),
+    async listVersions(id) { return (await transport.json<{ items: IveKitIvrFlowVersion[] }>('GET', `${flowPath(id)}/versions`)).items; },
+    validateFlow: (id) => transport.json('POST', `${flowPath(id)}/validate`),
+    publishFlow: (id, expected, options) => transport.json('POST', `${flowPath(id)}/publish`, {
+      body: { expected_draft_revision: expected }, headers: { 'idempotency-key': options.idempotencyKey }
+    }),
+    rollbackFlow: (id, body, options) => transport.json('POST', `${flowPath(id)}/rollback`, {
+      body, headers: { 'idempotency-key': options.idempotencyKey }
+    }),
+    simulate: (body) => transport.json('POST', '/api/ivekit/ivr/simulations', { body }),
+    async listSessions(input = {}) {
+      return (await transport.json<{ items: IveKitIvrSession[] }>('GET', '/api/ivekit/ivr/sessions', {
+        query: { limit: optionalNumber(input.limit) }
+      })).items;
+    },
+    startSession: (body) => transport.json('POST', '/api/ivekit/ivr/sessions', { body }),
+    getSession: (id) => transport.json('GET', sessionPath(id)),
+    advanceSession: (id, body) => transport.json('POST', `${sessionPath(id)}/advance`, { body })
   };
 }
 

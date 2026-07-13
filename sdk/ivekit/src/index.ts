@@ -5,6 +5,7 @@ import {
   type IveKitEventHttpClient,
   type IveKitHttpSdkInput,
   type IveKitIntelligenceHttpClient,
+  type IveKitIvrHttpClient,
   type IveKitMediaHttpClient
 } from './http-sdk.js';
 import {
@@ -24,6 +25,7 @@ export interface IveKitClient {
   context: IveKitContextHttpClient;
   events: IveKitEventHttpClient;
   intelligence: IveKitIntelligenceHttpClient;
+  ivr: IveKitIvrHttpClient;
   rustdesk: IveKitRustDeskClient;
 }
 
@@ -59,6 +61,7 @@ export type * from './media-types.js';
 export type * from './context-types.js';
 export type * from './event-types.js';
 export type * from './intelligence-types.js';
+export type * from './ivr-types.js';
 export * from './upload-transport.js';
 export * from './rustdesk-http-client.js';
 export * from './rustdesk-led-sdk.js';
