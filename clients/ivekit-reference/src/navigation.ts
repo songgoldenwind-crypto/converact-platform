@@ -1,12 +1,13 @@
 import type { BusinessRefSelection } from './context/use-business-context.js';
 
-export type WorkspaceMode = 'messages' | 'calls' | 'remote' | 'quality';
+export type WorkspaceMode = 'messages' | 'calls' | 'voice' | 'remote' | 'quality';
 
 export interface IveKitLocationState {
   workspace: WorkspaceMode;
   businessRef: BusinessRefSelection | null;
   sessionId: string;
   callId: string;
+  voiceCallId: string;
   remoteSessionId: string;
 }
 
@@ -17,10 +18,11 @@ export type IveKitLocationPatch = Partial<Omit<IveKitLocationState, 'businessRef
 export function readIveKitLocation(value: string | URL): IveKitLocationState {
   const url = typeof value === 'string' ? new URL(value, 'http://ivekit.local') : value;
   const callId = parameter(url, 'call_id');
+  const voiceCallId = parameter(url, 'voice_call_id');
   const workspaceValue = parameter(url, 'workspace');
-  const workspace = workspaceValue === 'messages' || workspaceValue === 'calls' || workspaceValue === 'remote' || workspaceValue === 'quality'
+  const workspace = workspaceValue === 'messages' || workspaceValue === 'calls' || workspaceValue === 'voice' || workspaceValue === 'remote' || workspaceValue === 'quality'
     ? workspaceValue
-    : callId ? 'calls' : 'messages';
+    : voiceCallId ? 'voice' : callId ? 'calls' : 'messages';
   const type = parameter(url, 'business_ref_type');
   const id = parameter(url, 'business_ref_id');
   return {
@@ -28,6 +30,7 @@ export function readIveKitLocation(value: string | URL): IveKitLocationState {
     businessRef: type && id ? { type, id } : null,
     sessionId: parameter(url, 'session_id'),
     callId,
+    voiceCallId,
     remoteSessionId: parameter(url, 'remote_session_id')
   };
 }
@@ -41,6 +44,7 @@ export function updateIveKitLocation(value: string | URL, patch: IveKitLocationP
   if (patch.workspace !== undefined) setParameter(url, 'workspace', patch.workspace);
   if (patch.sessionId !== undefined) setParameter(url, 'session_id', patch.sessionId);
   if (patch.callId !== undefined) setParameter(url, 'call_id', patch.callId);
+  if (patch.voiceCallId !== undefined) setParameter(url, 'voice_call_id', patch.voiceCallId);
   if (patch.remoteSessionId !== undefined) setParameter(url, 'remote_session_id', patch.remoteSessionId);
   return url;
 }
@@ -55,7 +59,7 @@ export function sessionLocationPatch(
   return {
     businessRef: nextBusinessRef,
     sessionId,
-    ...(businessChanged ? { callId: '', remoteSessionId: '' } : {})
+    ...(businessChanged ? { callId: '', voiceCallId: '', remoteSessionId: '' } : {})
   };
 }
 

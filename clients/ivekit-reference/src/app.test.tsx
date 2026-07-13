@@ -84,6 +84,38 @@ test('call_id opens the media workspace and loads the durable call snapshot', as
   assert.equal(chatRequests, 0);
 });
 
+test('voice_call_id opens the Voice workspace and loads the durable voice snapshot', async () => {
+  window.history.replaceState({}, '', '/?voice_call_id=voice-call-1');
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'agent-voice';
+  let chatRequests = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === '/ivekit-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url.includes('/api/ivekit/voice/calls/voice-call-1')) return Response.json({
+      id: 'voice-call-1', tenant_id: 'tenant-1', business_ref: { type: 'service_order', id: 'SO-VOICE' },
+      provider_profile_id: 'profile-1', provider_call_id: 'provider-call-1', provider_dialog_id: '', media_call_id: null,
+      direction: 'inbound', state: 'ringing', from: { kind: 'e164', redacted: '+8613*******00' },
+      to: { kind: 'extension', redacted: '10**' }, idempotency_key: 'dial-key', initiated_by: 'customer-1',
+      metadata: {}, ringing_at: '2026-07-13T00:00:00.000Z', answered_at: null, ended_at: null,
+      termination_reason: '', revision: 1, created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
+    });
+    if (url.includes('/api/ivekit/chat/sessions')) {
+      chatRequests += 1;
+      return Response.json({ items: [], next_cursor: null, has_more: false });
+    }
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+
+  const view = render(<App />);
+  await waitFor(() => assert.ok(view.getByText('+8613*******00')));
+  assert.equal(view.getByTitle('Show voice workspace').getAttribute('aria-pressed'), 'true');
+  assert.equal((view.getByTitle('Answer call') as HTMLButtonElement).disabled, false);
+  assert.equal(new URL(window.location.href).searchParams.get('voice_call_id'), 'voice-call-1');
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(chatRequests, 0);
+});
+
 test('remote tab opens the RustDesk workspace without starting a session', async () => {
   window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
   window.__IVEKIT_DEV_IDENTITY__ = 'agent-remote';

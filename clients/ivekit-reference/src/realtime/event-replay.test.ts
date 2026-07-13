@@ -67,12 +67,13 @@ test('event replay refreshes all workspaces on snapshot fallback before moving t
     snapshots: {
       chat: async () => { snapshots.push('chat'); },
       media: async () => { snapshots.push('media'); },
-      remote: async () => { snapshots.push('remote'); }
+      remote: async () => { snapshots.push('remote'); },
+      voice: async () => { snapshots.push('voice'); }
     }
   });
 
   await controller.start();
-  assert.deepEqual(snapshots.sort(), ['chat', 'media', 'remote']);
+  assert.deepEqual(snapshots.sort(), ['chat', 'media', 'remote', 'voice']);
   assert.equal(controller.getCursor(), 'head-1');
   controller.stop();
   await controller.resume();
@@ -110,6 +111,8 @@ test('durable event types route to the matching workspace', () => {
   assert.equal(eventWorkspace('collaboration.message.created'), 'chat');
   assert.equal(eventWorkspace('media.call.updated'), 'media');
   assert.equal(eventWorkspace('remote.rustdesk.session.ended'), 'remote');
+  assert.equal(eventWorkspace('voice.call.state_changed'), 'voice');
+  assert.equal(eventWorkspace('ivr.session.completed'), 'voice');
   assert.equal(eventWorkspace('tenant.settings.updated'), 'context');
 });
 

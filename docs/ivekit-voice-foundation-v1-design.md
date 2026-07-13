@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller 代码完成，受控 PostgreSQL/RustPBX 协议验收通过；M4 Contact Center Kit、React WebPhone 和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，受控 PostgreSQL/RustPBX 协议验收通过；M4 Contact Center Kit、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -20,7 +20,8 @@
 | standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、三个编译入口、Compose merge、Helm/交付清单测试通过；真实容器和 RustPBX 数据面启动仍为 `not_run` |
 | IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
 | Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
-| Contact Center Kit、React WebPhone 接入面 | 未实现 | 属于 M4/M5；不得从已有 OPC call-center 页面或 headless controller 推断为共享模块已交付 |
+| React Voice 控制工作台 | 已实现控制面 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、呼入/外呼、状态门禁控制、DTMF、转接、会议、Park/Pickup、录音、LiveKit bridge 和分机 session readiness；不渲染 session credential |
+| Contact Center Kit、浏览器 SIP/WebRTC 媒体接入 | 未实现 | 属于 M4/M5；不得从已有 OPC call-center 页面、控制工作台或 headless controller 推断真实软电话媒体已交付 |
 
 当前新增迁移为：
 
@@ -674,7 +675,8 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 浏览器接入分两层：
 
 1. headless Voice controller：已交付 call state、控制命令、分机能力门禁和稳定幂等重试；真实 SIP/WebRTC 媒体 adapter 尚未联调。
-2. 可嵌入 React workspace：WebPhone、Call Detail、IVR Designer、Queue Monitor 尚未交付。
+2. 可嵌入 React Voice 控制工作台：已交付 durable call 深链、脱敏 Call Detail、呼入/外呼和完整控制动作，Voice/IVR durable event 会触发快照刷新；它不保存或显示分机 credential，也不声称已经完成软电话注册和 RTP 媒体。
+3. 浏览器 SIP/WebRTC media adapter、IVR Designer、Queue Monitor：尚未交付。
 
 参考客户端继续作为完整示例，OPC 和 LED 不复制其源码。
 
@@ -854,21 +856,21 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M5：SDK、UI 与交付
 
-状态：完整 Voice/IVR TypeScript SDK 和 headless WebPhone controller 已完成；React WebPhone、IVR Designer、Queue Monitor 尚未完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
+状态：完整 Voice/IVR TypeScript SDK、headless WebPhone controller 和 React Voice 控制工作台已完成；浏览器 SIP/WebRTC media adapter、IVR Designer、Queue Monitor 尚未完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
 
 - SDK、headless hooks、WebPhone、IVR Designer、Queue Monitor。
 - Compose、Helm、SBOM、image metadata、upgrade/rollback 和 LED/OPC 示例。
 
 ### M6：验证
 
-状态：单元、静态交付和受控 PostgreSQL 部分已执行；真实 RustPBX/PSTN/LiveKit SIP、浏览器 WebPhone 和隔离服务器仍未执行。
+状态：单元、客户端生产构建/分块预算、静态交付和受控 PostgreSQL 部分已执行；真实 RustPBX/PSTN/LiveKit SIP、浏览器软电话媒体和隔离服务器仍未执行。
 
 - 全仓回归。
 - standalone 独立安装/build。
 - 真实 PostgreSQL fresh/upgrade/RLS/restart recovery。
 - 受控 RustPBX/Step IVR/RWI capability matrix。
 - 真实 RustPBX 双向 SIP、真实号码/软电话、录音、LiveKit SIP bridge。
-- 浏览器 WebPhone/IVR/queue E2E。
+- 浏览器 SIP/WebRTC WebPhone media、IVR designer、queue monitor E2E。
 - 交付 evidence 与 source commit/hash 绑定。
 
 ## 20. 验收定义
@@ -880,7 +882,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 | 单元 | 状态机、graph validation、号码规范化、幂等、adapter mapping、错误分类 | 新 Voice/IVR 核心不访问网络和 SQLite SQL；使用 port fake。旧 compatibility regression 可在迁移期继续使用 legacy SQLite harness |
 | PostgreSQL 集成 | fresh/upgrade/checksum、RLS、tenant 事务、lease claim/recovery、唯一约束、importer dry-run/rejection | 使用真实 PostgreSQL，不能用内存 fake 冒充 |
 | 受控协议 | RustPBX management/router/Step IVR/RWI、事件乱序/重复/超时、CDR、LiveKit SIP adapter | 受控 Provider 结果必须标记 `controlled` |
-| 浏览器 | WebPhone 注册、呼入/外呼状态、设备切换、Hold/Transfer、IVR designer、queue monitor | 使用真实浏览器和构建产物 |
+| 浏览器 | WebPhone 注册、RTP 媒体、呼入/外呼状态、设备切换、Hold/Transfer、IVR designer、queue monitor | 使用真实浏览器和构建产物；React 控制工作台单元测试不能替代本层 |
 | 隔离服务器 | standalone 安装、Compose/Helm render、重启恢复、网络端口、对象存储、evidence bundle | source commit、镜像 digest、配置 hash 必须一致 |
 | 真实通信环境 | 双向 SIP/PSTN、真实号码/软电话、RTP/录音、LiveKit SIP bridge、RWI 实际能力 | 未配置运营商或真实客户端时保持 `not_run`，不得写 `passed` |
 
