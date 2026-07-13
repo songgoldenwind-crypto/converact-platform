@@ -92,6 +92,45 @@ import type {
   IveKitIvrUpdateRegionGroupInput, IveKitIvrUpdateRingGroupInput, IveKitIvrUpdateSettingsInput,
   IveKitIvrUpdateTimeGroupInput
 } from './ivr-types.js';
+import type {
+  IveKitVoiceCall,
+  IveKitVoiceCallActionInput,
+  IveKitVoiceCallCommand,
+  IveKitVoiceCallState,
+  IveKitVoiceCapabilities,
+  IveKitVoiceCapabilitySnapshot,
+  IveKitVoiceConfigurationCommand,
+  IveKitVoiceConsent,
+  IveKitVoiceCreateCallResult,
+  IveKitVoiceCreateConsentInput,
+  IveKitVoiceCreateDidInput,
+  IveKitVoiceCreateExtensionInput,
+  IveKitVoiceCreateOutboundCallInput,
+  IveKitVoiceCreateProfileInput,
+  IveKitVoiceCreateRouteInput,
+  IveKitVoiceCreateTrunkInput,
+  IveKitVoiceDeploymentProfile,
+  IveKitVoiceDid,
+  IveKitVoiceDidPatch,
+  IveKitVoiceExtension,
+  IveKitVoiceExtensionPatch,
+  IveKitVoiceExtensionSessionPlan,
+  IveKitVoiceLiveKitBridge,
+  IveKitVoicePage,
+  IveKitVoicePageInput,
+  IveKitVoiceParticipant,
+  IveKitVoicePolicy,
+  IveKitVoicePolicyWrite,
+  IveKitVoiceProfilePatch,
+  IveKitVoiceProviderEvent,
+  IveKitVoicePublishRouteResult,
+  IveKitVoiceRecording,
+  IveKitVoiceRoute,
+  IveKitVoiceRoutePatch,
+  IveKitVoiceRouteVersion,
+  IveKitVoiceSipTrunk,
+  IveKitVoiceTrunkPatch
+} from './voice-types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -342,6 +381,122 @@ export interface IveKitIvrHttpClient {
   updateSettings(input: IveKitIvrUpdateSettingsInput): Promise<IveKitIvrSettings>;
 }
 
+export interface IveKitVoiceIdempotencyOptions {
+  idempotencyKey: string;
+}
+
+export interface IveKitVoiceHttpClient {
+  getCapabilities(): Promise<IveKitVoiceCapabilities>;
+  listProfiles(input?: IveKitVoicePageInput): Promise<IveKitVoicePage<IveKitVoiceDeploymentProfile>>;
+  createProfile(input: IveKitVoiceCreateProfileInput): Promise<IveKitVoiceDeploymentProfile>;
+  getProfile(profileId: string): Promise<IveKitVoiceDeploymentProfile>;
+  updateProfile(
+    profileId: string,
+    input: { revision: number; patch: IveKitVoiceProfilePatch }
+  ): Promise<IveKitVoiceDeploymentProfile>;
+  preflightProfile(profileId: string): Promise<IveKitVoiceCapabilitySnapshot>;
+  listTrunks(
+    input?: IveKitVoicePageInput & { profile_id?: string }
+  ): Promise<IveKitVoicePage<IveKitVoiceSipTrunk>>;
+  createTrunk(input: IveKitVoiceCreateTrunkInput): Promise<IveKitVoiceSipTrunk>;
+  getTrunk(trunkId: string): Promise<IveKitVoiceSipTrunk>;
+  updateTrunk(
+    trunkId: string,
+    input: { revision: number; patch: IveKitVoiceTrunkPatch }
+  ): Promise<IveKitVoiceSipTrunk>;
+  applyTrunk(trunkId: string, options: IveKitVoiceIdempotencyOptions): Promise<IveKitVoiceConfigurationCommand>;
+  testTrunk(trunkId: string, options: IveKitVoiceIdempotencyOptions): Promise<IveKitVoiceConfigurationCommand>;
+  listDids(
+    input?: IveKitVoicePageInput & { trunk_id?: string }
+  ): Promise<IveKitVoicePage<IveKitVoiceDid>>;
+  createDid(input: IveKitVoiceCreateDidInput): Promise<IveKitVoiceDid>;
+  getDid(didId: string): Promise<IveKitVoiceDid>;
+  updateDid(
+    didId: string,
+    input: { revision: number; patch: IveKitVoiceDidPatch }
+  ): Promise<IveKitVoiceDid>;
+  applyDid(didId: string, options: IveKitVoiceIdempotencyOptions): Promise<IveKitVoiceConfigurationCommand>;
+  listExtensions(
+    input?: IveKitVoicePageInput & { profile_id?: string }
+  ): Promise<IveKitVoicePage<IveKitVoiceExtension>>;
+  createExtension(input: IveKitVoiceCreateExtensionInput): Promise<IveKitVoiceExtension>;
+  getExtension(extensionId: string): Promise<IveKitVoiceExtension>;
+  updateExtension(
+    extensionId: string,
+    input: { revision: number; patch: IveKitVoiceExtensionPatch }
+  ): Promise<IveKitVoiceExtension>;
+  applyExtension(
+    extensionId: string,
+    options: IveKitVoiceIdempotencyOptions
+  ): Promise<IveKitVoiceConfigurationCommand>;
+  createExtensionSession(
+    extensionId: string,
+    options: IveKitVoiceIdempotencyOptions
+  ): Promise<IveKitVoiceExtensionSessionPlan>;
+  listRoutes(
+    input?: IveKitVoicePageInput & { profile_id?: string }
+  ): Promise<IveKitVoicePage<IveKitVoiceRoute>>;
+  createRoute(input: IveKitVoiceCreateRouteInput): Promise<IveKitVoiceRoute>;
+  getRoute(routeId: string): Promise<IveKitVoiceRoute>;
+  updateRoute(
+    routeId: string,
+    input: { revision: number; patch: IveKitVoiceRoutePatch }
+  ): Promise<IveKitVoiceRoute>;
+  validateRoute(
+    routeId: string,
+    input?: { rules?: Record<string, unknown> }
+  ): Promise<{ valid: true; payload_hash: string }>;
+  listRouteVersions(routeId: string): Promise<IveKitVoicePage<IveKitVoiceRouteVersion>>;
+  publishRoute(
+    routeId: string,
+    input: { revision: number },
+    options: IveKitVoiceIdempotencyOptions
+  ): Promise<IveKitVoicePublishRouteResult>;
+  listCalls(
+    input?: IveKitVoicePageInput & {
+      state?: IveKitVoiceCallState;
+      business_ref?: Pick<IveKitSdkBusinessRef, 'type' | 'id'>;
+    }
+  ): Promise<IveKitVoicePage<IveKitVoiceCall>>;
+  createOutboundCall(
+    input: IveKitVoiceCreateOutboundCallInput,
+    options: IveKitVoiceIdempotencyOptions
+  ): Promise<IveKitVoiceCreateCallResult>;
+  getCall(callId: string): Promise<IveKitVoiceCall>;
+  enqueueCallAction(
+    callId: string,
+    input: IveKitVoiceCallActionInput,
+    options: IveKitVoiceIdempotencyOptions
+  ): Promise<IveKitVoiceCallCommand>;
+  createLiveKitBridge(
+    callId: string,
+    input: { sip_trunk_id: string },
+    options: IveKitVoiceIdempotencyOptions
+  ): Promise<IveKitVoiceCallCommand>;
+  listCallEvents(
+    callId: string,
+    input?: IveKitVoicePageInput
+  ): Promise<IveKitVoicePage<IveKitVoiceProviderEvent>>;
+  listCallRecordings(
+    callId: string,
+    input?: IveKitVoicePageInput & { status?: IveKitVoiceRecording['status'] }
+  ): Promise<IveKitVoicePage<IveKitVoiceRecording>>;
+  listCallBridges(callId: string): Promise<IveKitVoicePage<IveKitVoiceLiveKitBridge>>;
+  listCallParticipants(callId: string): Promise<IveKitVoicePage<IveKitVoiceParticipant>>;
+  getPolicy(): Promise<IveKitVoicePolicy | null>;
+  updatePolicy(input: IveKitVoicePolicyWrite): Promise<IveKitVoicePolicy>;
+  listConsents(
+    input?: IveKitVoicePageInput & { subject_ref_type?: string; subject_ref_id?: string }
+  ): Promise<IveKitVoicePage<IveKitVoiceConsent>>;
+  createConsent(input: IveKitVoiceCreateConsentInput): Promise<IveKitVoiceConsent>;
+  listRecordings(
+    input?: IveKitVoicePageInput & {
+      call_id?: string;
+      status?: IveKitVoiceRecording['status'];
+    }
+  ): Promise<IveKitVoicePage<IveKitVoiceRecording>>;
+}
+
 export interface IveKitHttpSdk {
   media: IveKitMediaHttpClient;
   chat: IveKitChatHttpClient;
@@ -349,6 +504,7 @@ export interface IveKitHttpSdk {
   events: IveKitEventHttpClient;
   intelligence: IveKitIntelligenceHttpClient;
   ivr: IveKitIvrHttpClient;
+  voice: IveKitVoiceHttpClient;
 }
 
 export class IveKitHttpSdkError extends Error {
@@ -372,7 +528,8 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
     context: createContextClient(transport),
     events: createEventClient(transport),
     intelligence: createIntelligenceClient(transport),
-    ivr: createIvrClient(transport)
+    ivr: createIvrClient(transport),
+    voice: createVoiceClient(transport)
   };
 }
 
@@ -523,6 +680,122 @@ function createIvrClient(transport: IveKitTransport): IveKitIvrHttpClient {
     updateRingGroup: (id, body) => transport.json('PATCH', resourcePath('ring-groups', id), { body }),
     getSettings: () => transport.json('GET', '/api/ivekit/ivr/settings'),
     updateSettings: (body) => transport.json('PATCH', '/api/ivekit/ivr/settings', { body })
+  };
+}
+
+function createVoiceClient(transport: IveKitTransport): IveKitVoiceHttpClient {
+  const resourcePath = (collection: string, id: string, field: string) =>
+    `/api/ivekit/voice/${collection}/${pathSegment(id, field)}`;
+  const profilePath = (id: string) => resourcePath('profiles', id, 'profileId');
+  const trunkPath = (id: string) => resourcePath('trunks', id, 'trunkId');
+  const didPath = (id: string) => resourcePath('dids', id, 'didId');
+  const extensionPath = (id: string) => resourcePath('extensions', id, 'extensionId');
+  const routePath = (id: string) => resourcePath('routes', id, 'routeId');
+  const callPath = (id: string) => resourcePath('calls', id, 'callId');
+  const idempotencyHeaders = (options: IveKitVoiceIdempotencyOptions) => ({
+    'Idempotency-Key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
+  });
+
+  return {
+    getCapabilities: () => transport.json('GET', '/api/ivekit/voice/capabilities'),
+    listProfiles: (input = {}) => transport.json('GET', '/api/ivekit/voice/profiles', {
+      query: voicePageQuery(input)
+    }),
+    createProfile: (body) => transport.json('POST', '/api/ivekit/voice/profiles', { body }),
+    getProfile: (id) => transport.json('GET', profilePath(id)),
+    updateProfile: (id, body) => transport.json('PATCH', profilePath(id), { body }),
+    preflightProfile: (id) => transport.json('POST', `${profilePath(id)}/preflight`),
+    listTrunks: (input = {}) => transport.json('GET', '/api/ivekit/voice/trunks', {
+      query: { ...voicePageQuery(input), profile_id: input.profile_id || '' }
+    }),
+    createTrunk: (body) => transport.json('POST', '/api/ivekit/voice/trunks', { body }),
+    getTrunk: (id) => transport.json('GET', trunkPath(id)),
+    updateTrunk: (id, body) => transport.json('PATCH', trunkPath(id), { body }),
+    applyTrunk: (id, options) => transport.json('POST', `${trunkPath(id)}/apply`, {
+      headers: idempotencyHeaders(options)
+    }),
+    testTrunk: (id, options) => transport.json('POST', `${trunkPath(id)}/test`, {
+      headers: idempotencyHeaders(options)
+    }),
+    listDids: (input = {}) => transport.json('GET', '/api/ivekit/voice/dids', {
+      query: { ...voicePageQuery(input), trunk_id: input.trunk_id || '' }
+    }),
+    createDid: (body) => transport.json('POST', '/api/ivekit/voice/dids', { body }),
+    getDid: (id) => transport.json('GET', didPath(id)),
+    updateDid: (id, body) => transport.json('PATCH', didPath(id), { body }),
+    applyDid: (id, options) => transport.json('POST', `${didPath(id)}/apply`, {
+      headers: idempotencyHeaders(options)
+    }),
+    listExtensions: (input = {}) => transport.json('GET', '/api/ivekit/voice/extensions', {
+      query: { ...voicePageQuery(input), profile_id: input.profile_id || '' }
+    }),
+    createExtension: (body) => transport.json('POST', '/api/ivekit/voice/extensions', { body }),
+    getExtension: (id) => transport.json('GET', extensionPath(id)),
+    updateExtension: (id, body) => transport.json('PATCH', extensionPath(id), { body }),
+    applyExtension: (id, options) => transport.json('POST', `${extensionPath(id)}/apply`, {
+      headers: idempotencyHeaders(options)
+    }),
+    createExtensionSession: (id, options) => transport.json('POST', `${extensionPath(id)}/session`, {
+      headers: idempotencyHeaders(options)
+    }),
+    listRoutes: (input = {}) => transport.json('GET', '/api/ivekit/voice/routes', {
+      query: { ...voicePageQuery(input), profile_id: input.profile_id || '' }
+    }),
+    createRoute: (body) => transport.json('POST', '/api/ivekit/voice/routes', { body }),
+    getRoute: (id) => transport.json('GET', routePath(id)),
+    updateRoute: (id, body) => transport.json('PATCH', routePath(id), { body }),
+    validateRoute: (id, body = {}) => transport.json('POST', `${routePath(id)}/validate`, { body }),
+    listRouteVersions: (id) => transport.json('GET', `${routePath(id)}/versions`),
+    publishRoute: (id, body, options) => transport.json('POST', `${routePath(id)}/publish`, {
+      body,
+      headers: idempotencyHeaders(options)
+    }),
+    listCalls: (input = {}) => transport.json('GET', '/api/ivekit/voice/calls', {
+      query: {
+        ...voicePageQuery(input),
+        state: input.state || '',
+        business_ref_type: input.business_ref?.type || '',
+        business_ref_id: input.business_ref?.id || ''
+      }
+    }),
+    createOutboundCall: (body, options) => transport.json('POST', '/api/ivekit/voice/calls', {
+      body,
+      headers: idempotencyHeaders(options)
+    }),
+    getCall: (id) => transport.json('GET', callPath(id)),
+    enqueueCallAction: (id, body, options) => transport.json('POST', `${callPath(id)}/actions`, {
+      body,
+      headers: idempotencyHeaders(options)
+    }),
+    createLiveKitBridge: (id, body, options) => transport.json('POST', `${callPath(id)}/livekit-bridge`, {
+      body,
+      headers: idempotencyHeaders(options)
+    }),
+    listCallEvents: (id, input = {}) => transport.json('GET', `${callPath(id)}/events`, {
+      query: voicePageQuery(input)
+    }),
+    listCallRecordings: (id, input = {}) => transport.json('GET', `${callPath(id)}/recordings`, {
+      query: { ...voicePageQuery(input), status: input.status || '' }
+    }),
+    listCallBridges: (id) => transport.json('GET', `${callPath(id)}/bridges`),
+    listCallParticipants: (id) => transport.json('GET', `${callPath(id)}/participants`),
+    getPolicy: () => transport.json('GET', '/api/ivekit/voice/policy'),
+    updatePolicy: (body) => transport.json('PATCH', '/api/ivekit/voice/policy', { body }),
+    listConsents: (input = {}) => transport.json('GET', '/api/ivekit/voice/consents', {
+      query: {
+        ...voicePageQuery(input),
+        subject_ref_type: input.subject_ref_type || '',
+        subject_ref_id: input.subject_ref_id || ''
+      }
+    }),
+    createConsent: (body) => transport.json('POST', '/api/ivekit/voice/consents', { body }),
+    listRecordings: (input = {}) => transport.json('GET', '/api/ivekit/voice/recordings', {
+      query: {
+        ...voicePageQuery(input),
+        call_id: input.call_id || '',
+        status: input.status || ''
+      }
+    })
   };
 }
 
@@ -1009,6 +1282,13 @@ function pathSegment(value: unknown, field: string): string {
 
 function optionalNumber(value: number | undefined): string {
   return value === undefined ? '' : String(value);
+}
+
+function voicePageQuery(input: IveKitVoicePageInput): Record<string, string> {
+  return {
+    cursor: input.cursor || '',
+    limit: optionalNumber(input.limit)
+  };
 }
 
 function translationListQuery(input: {

@@ -1,6 +1,6 @@
 # @opc/ivekit-sdk
 
-TypeScript client for the reusable iveKit Media, IM, RustDesk, and IVR HTTP facades.
+TypeScript client for the reusable iveKit Media, IM, RustDesk, Voice, and IVR HTTP facades.
 
 ```bash
 npm install @opc/ivekit-sdk
@@ -56,6 +56,18 @@ const distribution = await ivekit.rustdesk.getClientProfile({
   expected_server_key_fingerprint: '<fingerprint-from-trusted-deployment-record>'
 });
 
+const outbound = await ivekit.voice.createOutboundCall({
+  profile_id: 'rustpbx-primary',
+  from: { kind: 'extension', value: '1001' },
+  to: { kind: 'e164', value: '+8613800138000' },
+  business_ref: orderRef,
+  metadata: { source: 'led-webphone' }
+}, { idempotencyKey: crypto.randomUUID() });
+await ivekit.voice.enqueueCallAction(outbound.call.id, {
+  action: 'dtmf',
+  payload: { digits: '123#' }
+}, { idempotencyKey: crypto.randomUUID() });
+
 const prompt = await ivekit.ivr.createAudioAsset({
   name: 'LED support welcome',
   source_kind: 'tts',
@@ -69,6 +81,19 @@ await ivekit.ivr.updateSettings({
   allowed_webhook_refs: ['service-order-status']
 });
 ```
+
+The Voice client covers deployment profiles and capability preflight, SIP trunks,
+DIDs, extensions and browser-session plans, versioned routes, outbound calls,
+call control, provider event projections, participants, recordings, consent and
+retention policy, plus PSTN-to-LiveKit bridge commands. It returns cursor pages for
+all durable collections and exposes only redacted `from`, `to`, and DID addresses.
+Provider webhook endpoints are intentionally server-only and are not SDK methods.
+
+Every provider-changing Voice operation requires a stable idempotency key. Reuse the
+same key and identical payload after an ambiguous timeout or 5xx. A new intent must
+use a new key. Browser WebPhones must use a short-lived bearer token and must first
+check `voice.getCapabilities().capabilities.extension_sessions`; the returned plan is
+adapter-defined and never contains iveKit API keys or server-side provider secrets.
 
 The IVR client exposes revisioned flows, immutable publish/rollback versions,
 deterministic simulations, durable sessions, audio assets, time/region/ring groups,

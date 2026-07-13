@@ -1,7 +1,7 @@
 {
   "name": "@opc/ivekit-sdk",
   "version": "0.1.0",
-  "description": "TypeScript client for iveKit media, IM, remote assistance, and IVR capabilities",
+  "description": "TypeScript client for iveKit media, IM, remote assistance, Voice, and IVR capabilities",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
