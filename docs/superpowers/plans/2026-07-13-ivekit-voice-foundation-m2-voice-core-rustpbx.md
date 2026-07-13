@@ -716,15 +716,22 @@ git commit -m "feat(ivekit): bridge voice calls through livekit sip"
 
 **Files:**
 - Create: `src/agent-runtime/ivekit/voice/http.ts`
+- Create: `src/agent-runtime/ivekit/voice/compliance-service.ts`
 - Create: `test/ivekit-voice-http.test.ts`
+- Create: `test/ivekit-voice-compliance.test.ts`
 - Modify: `src/agent-runtime/ivekit/http-server.ts`
-- Modify: `src/db-pg-tenant.ts`
+- Modify: `src/agent-runtime/ivekit/voice/call-service.ts`
+- Modify: `src/agent-runtime/ivekit/voice/configuration-service.ts`
+- Modify: `src/agent-runtime/ivekit/voice/index.ts`
+- Modify: `src/agent-runtime/ivekit/voice/ports.ts`
+- Modify: `test/ivekit-standalone-postgres.test.ts`
+- Modify: `test/ivekit-voice-configuration-service.test.ts`
 
-- [ ] **Step 1: Write failing route-composition tests**
+- [x] **Step 1: Write failing route-composition tests**
 
 Add `voice` to `IveKitRouteAdapters`, `/api/ivekit/voice/` to the allowlist, and dispatch Voice before legacy collaboration. Verify Bearer tenant is authoritative, body/query tenant is ignored/rejected, system role cannot silently cross tenant without the normal request context, and provider webhooks use the verified profile context.
 
-- [ ] **Step 2: Write failing stable API tests**
+- [x] **Step 2: Write failing stable API tests**
 
 Cover:
 
@@ -736,7 +743,7 @@ Cover:
 
 Every list returns `{ items, next_cursor }`; mutable writes require revision; side-effect POSTs require `Idempotency-Key`; accepted commands return 202; conflicts use stable error codes; addresses are redacted.
 
-- [ ] **Step 3: Implement HTTP input/output helpers**
+- [x] **Step 3: Implement HTTP input/output helpers**
 
 Use one `VoiceHttpContext` built from existing auth. Define bounded body/string/number/limit/cursor helpers locally or reuse existing generic helpers only when their contract matches exactly. Return errors as:
 
@@ -746,11 +753,11 @@ Use one `VoiceHttpContext` built from existing auth. Define bounded body/string/
 
 No error details may contain secret refs' values, full phone numbers, SIP authorization, SDP, or raw provider body.
 
-- [ ] **Step 4: Implement async provider webhook tenant resolution**
+- [x] **Step 4: Implement async provider webhook tenant resolution**
 
 Before opening the request RLS transaction, call the restricted profile-context function, verify service key/signature, and then set `app.current_tenant`. The route re-verifies the profile id/context before mutation. Unverified webhook requests never run with bypass and return 401/404 without revealing whether a profile exists.
 
-- [ ] **Step 5: Run HTTP and server tests**
+- [x] **Step 5: Run HTTP and server tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-http.test.ts test/ivekit-standalone-http.test.ts test/ivekit-server-entrypoint.test.ts
@@ -758,12 +765,14 @@ node --import tsx --test test/ivekit-voice-http.test.ts test/ivekit-standalone-h
 
 Expected: PASS; non-iveKit OPC Voice/call-center routes remain absent from the standalone server.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-git add src/agent-runtime/ivekit/voice/http.ts src/agent-runtime/ivekit/http-server.ts src/db-pg-tenant.ts test/ivekit-voice-http.test.ts
+git add src/agent-runtime/ivekit/voice/http.ts src/agent-runtime/ivekit/voice/compliance-service.ts src/agent-runtime/ivekit/voice/call-service.ts src/agent-runtime/ivekit/voice/configuration-service.ts src/agent-runtime/ivekit/voice/index.ts src/agent-runtime/ivekit/voice/ports.ts src/agent-runtime/ivekit/http-server.ts test/ivekit-voice-http.test.ts test/ivekit-voice-compliance.test.ts test/ivekit-voice-configuration-service.test.ts test/ivekit-standalone-postgres.test.ts
 git commit -m "feat(ivekit): expose standalone voice api"
 ```
+
+Implementation note: the existing `withPgTenant` contract in `src/db-pg-tenant.ts` already provided the required transaction boundary, so Task 12 did not change that shared module. The standalone server leaves provider webhooks outside the normal request transaction, authenticates the profile binding first, and only then opens the verified tenant transaction. Normal system API-key requests require an explicit tenant header; request body/query values cannot become tenant authority. Mutable configuration patches are also allowlisted again at the service boundary so non-HTTP callers cannot alter immutable identity or tenant fields.
 
 ---
 

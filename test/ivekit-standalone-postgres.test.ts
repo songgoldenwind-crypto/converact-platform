@@ -27,11 +27,15 @@ import { withPgTenant } from '../src/db-pg-tenant.js';
 import { MediaCallService } from '../src/agent-runtime/livekit/media-call-service.js';
 import { MediaCallStore } from '../src/agent-runtime/livekit/media-call-store.js';
 import {
+  ControlledVoiceProviderFactory,
+  EncryptedVoiceAddressProtector,
   PostgresVoiceCallStore,
   PostgresVoiceCommandStore,
   PostgresVoiceConfigurationStore,
   PostgresVoiceProviderEventStore,
   PostgresVoiceRecordingStore,
+  VoiceProviderRegistry,
+  routeIveKitVoiceApi,
   type VoiceCallCommand,
   type VoiceProviderEvent,
   type VoiceRecording
@@ -464,6 +468,75 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       participant_identity: 'voice-sip-postgres-a', idempotency_key: 'voice-bridge-postgres-a',
       business_ref: { tenant_id: 'ivekit_rls_a', type: 'order', id: 'VOICE-BRIDGE-A' }
     }), mediaBridge);
+
+    const previousApiKey = process.env.OPC_API_KEY;
+    process.env.OPC_API_KEY = 'ivekit-voice-http-postgres-key';
+    try {
+      const registry = new VoiceProviderRegistry();
+      registry.register('controlled', new ControlledVoiceProviderFactory({
+        now: () => new Date('2026-07-12T12:00:00.000Z')
+      }));
+      const voiceHttpOptions = {
+        provider_registry: registry,
+        address_protector: new EncryptedVoiceAddressProtector({
+          encryption_key: Buffer.alloc(32, 1).toString('base64'),
+          hmac_key: Buffer.alloc(32, 2).toString('base64')
+        })
+      };
+      const authHeaders = {
+        'x-api-key': 'ivekit-voice-http-postgres-key',
+        'x-tenant-id': 'ivekit_rls_a',
+        'x-user-id': 'postgres-http-admin'
+      };
+      const invokeVoice = (
+        method: string,
+        path: string,
+        body: Record<string, unknown> = {},
+        headers: Record<string, string> = authHeaders
+      ) => routeIveKitVoiceApi(
+        runtime, method, path, new URL(`http://localhost${path}`), body,
+        JSON.stringify(body), headers, voiceHttpOptions
+      ) as Promise<{ status?: number; data: any }>;
+
+      await invokeVoice('PATCH', '/api/ivekit/voice/policy', {
+        revision: null, require_outbound_consent: true, recording_mode: 'consent_required',
+        recording_retention_days: 30, require_ai_disclosure: true,
+        allowed_calling_windows: [], masking_policy: {}, status: 'active'
+      });
+      await invokeVoice('POST', '/api/ivekit/voice/consents', {
+        subject_ref_type: 'order', subject_ref_id: 'VOICE-HTTP-A',
+        business_ref_type: 'order', business_ref_id: 'VOICE-HTTP-A',
+        consent_type: 'outbound_call', status: 'granted', evidence_ref: 'evidence-http-a',
+        expires_at: null
+      });
+      const preflight = await invokeVoice(
+        'POST', '/api/ivekit/voice/profiles/ivekit_voice_profile_a/preflight'
+      );
+      assert.equal(preflight.data.status, 'ready');
+      const clearNumber = '+8613800138000';
+      const created = await invokeVoice('POST', '/api/ivekit/voice/calls', {
+        profile_id: 'ivekit_voice_profile_a',
+        from: { kind: 'extension', value: '1001' },
+        to: { kind: 'e164', value: clearNumber },
+        business_ref: { type: 'order', id: 'VOICE-HTTP-A' }, metadata: {}
+      }, { ...authHeaders, 'idempotency-key': 'voice-http-call-a' });
+      assert.equal(created.status, 202);
+      assert.equal(created.data.call.to.redacted, '+86******8000');
+      assert.equal(created.data.command.kind, 'originate');
+      assert.equal(JSON.stringify(created).includes(clearNumber), false);
+      assert.equal(JSON.stringify(created).includes('ciphertext'), false);
+      const listed = await invokeVoice('GET', '/api/ivekit/voice/calls?limit=100');
+      assert.equal(listed.data.items.some((item: { id: string }) => item.id === created.data.call.id), true);
+      await withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(
+        `UPDATE ivekit_voice_call_commands
+         SET state = 'succeeded', completed_at = CURRENT_TIMESTAMP
+         WHERE tenant_id = $1 AND id = $2`,
+        ['ivekit_rls_a', created.data.command.id]
+      ));
+    } finally {
+      if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
+      else process.env.OPC_API_KEY = previousApiKey;
+    }
 
     const commandStore = new PostgresVoiceCommandStore(runtime);
     const durableCallCommand: VoiceCallCommand = {

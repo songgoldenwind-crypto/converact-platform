@@ -207,7 +207,9 @@ export class VoiceConfigurationService {
       assertRevision(current.revision, input.expected_revision);
       const profile: VoiceDeploymentProfile = {
         ...current,
-        ...definedPatch(input.patch),
+        ...definedPatch(input.patch, [
+          'name', 'adapter', 'status', 'base_url', 'desired_version', 'config', 'secret_refs'
+        ]),
         id: current.id,
         tenant_id: tenantId,
         revision: current.revision + 1,
@@ -252,7 +254,10 @@ export class VoiceConfigurationService {
     const updated = await this.#unitOfWork.run(tenantId, async ({ configuration }) => {
       const current = required(await configuration.getTrunk(tenantId, boundedIdentifier(input.trunk_id), { for_update: true }));
       assertRevision(current.revision, input.expected_revision);
-      const trunk = { ...current, ...definedPatch(input.patch), revision: current.revision + 1,
+      const trunk = { ...current, ...definedPatch(input.patch, [
+        'name', 'direction', 'transport', 'codecs', 'max_channels', 'credential_secret_ref',
+        'desired_state', 'status'
+      ]), revision: current.revision + 1,
         updated_by: boundedIdentifier(input.actor), updated_at: this.#timestamp() };
       trunk.name = boundedName(trunk.name);
       trunk.direction = routeDirection(trunk.direction);
@@ -293,7 +298,9 @@ export class VoiceConfigurationService {
     const updated = await this.#unitOfWork.run(tenantId, async ({ configuration }) => {
       const current = required(await configuration.getDid(tenantId, boundedIdentifier(input.did_id), { for_update: true }));
       assertRevision(current.revision, input.expected_revision);
-      const did = { ...current, ...definedPatch(input.patch), id: current.id, tenant_id: tenantId,
+      const did = { ...current, ...definedPatch(input.patch, [
+        'trunk_id', 'route_id', 'provider_ref', 'status', 'metadata'
+      ]), id: current.id, tenant_id: tenantId,
         e164: current.e164, revision: current.revision + 1, updated_at: this.#timestamp() };
       did.trunk_id = boundedIdentifier(did.trunk_id);
       did.route_id = nullableIdentifier(did.route_id);
@@ -328,7 +335,10 @@ export class VoiceConfigurationService {
     const updated = await this.#unitOfWork.run(tenantId, async ({ configuration }) => {
       const current = required(await configuration.getExtension(tenantId, boundedIdentifier(input.extension_id), { for_update: true }));
       assertRevision(current.revision, input.expected_revision);
-      const extension = { ...current, ...definedPatch(input.patch), id: current.id, tenant_id: tenantId,
+      const extension = { ...current, ...definedPatch(input.patch, [
+        'identity', 'extension', 'display_name', 'credential_secret_ref', 'permissions',
+        'webrtc_enabled', 'status'
+      ]), id: current.id, tenant_id: tenantId,
         revision: current.revision + 1, updated_at: this.#timestamp() };
       extension.identity = genericIdentity(extension.identity);
       extension.extension = extensionNumber(extension.extension);
@@ -366,7 +376,9 @@ export class VoiceConfigurationService {
     const updated = await this.#unitOfWork.run(tenantId, async ({ configuration }) => {
       const current = required(await configuration.getRoute(tenantId, boundedIdentifier(input.route_id), { for_update: true }));
       assertRevision(current.draft_revision, input.expected_revision);
-      const route = { ...current, ...definedPatch(input.patch), id: current.id, tenant_id: tenantId,
+      const route = { ...current, ...definedPatch(input.patch, [
+        'name', 'direction', 'status', 'draft_rules'
+      ]), id: current.id, tenant_id: tenantId,
         draft_revision: current.draft_revision + 1, updated_by: boundedIdentifier(input.actor), updated_at: this.#timestamp() };
       route.name = boundedName(route.name);
       route.direction = routeDirection(route.direction);
@@ -702,9 +714,12 @@ function policyStatus(value: unknown): VoicePolicy['status'] {
   return value;
 }
 
-function definedPatch<T extends object>(patch: T): Partial<T> {
+function definedPatch<T extends object>(patch: T, allowedFields: readonly string[]): Partial<T> {
   if (!isRecord(patch)) throw validationError();
-  return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as Partial<T>;
+  const entries = Object.entries(patch);
+  const allowed = new Set(allowedFields);
+  if (entries.some(([field]) => !allowed.has(field))) throw validationError();
+  return Object.fromEntries(entries.filter(([, value]) => value !== undefined)) as Partial<T>;
 }
 
 function nullableIdentifier(value: unknown): string | null {

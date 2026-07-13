@@ -1,4 +1,5 @@
 import { createServer as createHttpServer, type Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
 import {
@@ -18,6 +19,11 @@ import {
   routeIveKitMediaApi,
   type RouteIveKitMediaApiOptions
 } from './media-http.js';
+import {
+  routeIveKitVoiceApi,
+  type RouteIveKitVoiceApiOptions
+} from './voice/http.js';
+import { VoiceError } from './voice/errors.js';
 import { runWithWsBroadcastBuffer } from '../../ws.js';
 
 type MediaRoute = typeof routeIveKitMediaApi;
@@ -25,12 +31,14 @@ type ChatRoute = typeof routeIveKitChatApi;
 type IntelligenceRoute = typeof routeIveKitIntelligenceApi;
 type EventRoute = typeof routeIveKitEventApi;
 type CollaborationRoute = typeof routeCollaborationApi;
+type VoiceRoute = typeof routeIveKitVoiceApi;
 
 export interface IveKitRouteAdapters {
   media: MediaRoute;
   chat: ChatRoute;
   intelligence: IntelligenceRoute;
   events: EventRoute;
+  voice: VoiceRoute;
   collaboration: CollaborationRoute;
 }
 
@@ -40,12 +48,14 @@ export interface IveKitHttpServerInput {
   routes?: Partial<IveKitRouteAdapters>;
   mediaOptions?: RouteIveKitMediaApiOptions;
   intelligenceOptions?: RouteIveKitIntelligenceApiOptions;
+  voiceOptions?: RouteIveKitVoiceApiOptions;
 }
 
 const allowedPrefixes = [
   '/api/ivekit/media/',
   '/api/ivekit/chat/',
   '/api/ivekit/intelligence/',
+  '/api/ivekit/voice/',
   '/api/ivekit/context/',
   '/api/ivekit/rustdesk/',
   '/api/opc/rustdesk/'
@@ -65,6 +75,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
     chat: input.routes?.chat || routeIveKitChatApi,
     intelligence: input.routes?.intelligence || routeIveKitIntelligenceApi,
     events: input.routes?.events || routeIveKitEventApi,
+    voice: input.routes?.voice || routeIveKitVoiceApi,
     collaboration: input.routes?.collaboration || routeCollaborationApi
   };
   const mediaOptions = input.mediaOptions || (input.pg
@@ -72,9 +83,13 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
     : {});
 
   return createHttpServer(async (request, response) => {
+    const requestId = requestIdentifier(request.headers);
+    response.setHeader('x-request-id', requestId);
+    let requestPath = '/';
     try {
       const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
       const path = url.pathname;
+      requestPath = path;
       if (!isAllowedIveKitPath(path)) {
         sendJson(response, 404, { error: { message: 'not found', status: 404 } });
         return;
@@ -120,7 +135,9 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ? rawBody
           : parseJsonBody(rawBody);
       const headers = request.headers;
-      const tenantContext = resolvePgTenantContextForRequest(path, headers, { url, body });
+      const tenantContext = isVoiceProviderWebhook(method, path)
+        ? {}
+        : resolvePgTenantContextForRequest(path, headers, { url, body });
       const mediaPath = path === '/api/media/webhooks/livekit'
         ? '/api/ivekit/media/webhooks/livekit'
         : path;
@@ -136,6 +153,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ...input.intelligenceOptions
         })
         ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
+        ?? await routes.voice(pg, method, path, url, body, rawBody, headers, input.voiceOptions)
         ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
       const buffered = await runWithWsBroadcastBuffer(() =>
         runWithPgTenantContextAsync(tenantContext, () =>
@@ -147,7 +165,11 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       const result = buffered.result;
 
       if (result === undefined) {
-        sendJson(response, 404, { error: { message: 'not found', status: 404 } });
+        if (path.startsWith('/api/ivekit/voice/')) {
+          sendJson(response, 404, voiceErrorEnvelope('not_found', false, requestId));
+        } else {
+          sendJson(response, 404, { error: { message: 'not found', status: 404 } });
+        }
         return;
       }
       await buffered.flush();
@@ -175,6 +197,16 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       );
     } catch (error) {
       const status = Number((error as { status?: number }).status || 500);
+      if (requestPath.startsWith('/api/ivekit/voice/')) {
+        const voiceError = error instanceof VoiceError ? error : null;
+        const code = voiceError?.code ?? (status >= 500 ? 'internal_error' : httpVoiceErrorCode(status));
+        sendJson(
+          response,
+          status,
+          voiceErrorEnvelope(code, voiceError?.retryable === true, requestId)
+        );
+        return;
+      }
       sendJson(response, status, {
         error: {
           message: status === 500 ? 'internal server error' : (error as Error).message,
@@ -183,6 +215,60 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       });
     }
   });
+}
+
+function isVoiceProviderWebhook(method: string, path: string): boolean {
+  return method === 'POST'
+    && /^\/api\/ivekit\/voice\/providers\/[^/]+\/(router|events|cdrs)$/.test(path);
+}
+
+function requestIdentifier(headers: Record<string, string | string[] | undefined>): string {
+  const provided = requestHeader(headers, 'x-request-id');
+  return provided && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(provided)
+    ? provided
+    : randomUUID();
+}
+
+function voiceErrorEnvelope(code: string, retryable: boolean, requestId: string): Record<string, unknown> {
+  return {
+    error: {
+      code,
+      message: voiceErrorMessage(code),
+      retryable,
+      request_id: requestId,
+      details: {}
+    }
+  };
+}
+
+function voiceErrorMessage(code: string): string {
+  const messages: Record<string, string> = {
+    invalid_call_transition: 'voice call transition is not allowed',
+    terminal_call_state: 'voice call is already terminal',
+    invalid_address: 'voice address is invalid',
+    validation_failed: 'voice request validation failed',
+    not_found: 'voice resource was not found',
+    revision_conflict: 'voice resource revision changed',
+    idempotency_conflict: 'voice idempotency key conflicts with an existing request',
+    capability_unavailable: 'voice capability is unavailable',
+    provider_auth_failed: 'voice provider authentication failed',
+    provider_unavailable: 'voice provider is unavailable',
+    provider_timeout: 'voice provider result is uncertain',
+    protocol_mismatch: 'voice provider protocol response is invalid',
+    compliance_denied: 'voice compliance policy denied the request',
+    webhook_auth_failed: 'voice provider webhook authentication failed',
+    secret_ref_invalid: 'voice secret reference is invalid',
+    secret_unavailable: 'voice secret is unavailable',
+    internal_error: 'internal server error'
+  };
+  return messages[code] || 'voice request failed';
+}
+
+function httpVoiceErrorCode(status: number): string {
+  if (status === 401 || status === 403) return 'webhook_auth_failed';
+  if (status === 404) return 'not_found';
+  if (status === 409) return 'revision_conflict';
+  return 'validation_failed';
 }
 
 async function runAfterCommit(result: unknown): Promise<void> {

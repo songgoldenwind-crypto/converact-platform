@@ -242,6 +242,7 @@ export interface VoiceCompliancePort {
     call_id: string;
     command: VoiceCommandKind;
     actor_identity: string;
+    business_ref?: { type: string; id: string };
   }): Promise<{ allowed: boolean; reason: string; evidence_ref: string }>;
 }
 

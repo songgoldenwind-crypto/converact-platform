@@ -128,7 +128,8 @@ export class VoiceCallService {
       tenant_id: tenantId,
       call_id: callId,
       command: 'originate',
-      actor_identity: actor
+      actor_identity: actor,
+      business_ref: businessRef(input.business_ref)
     });
     if (!compliance.allowed || !compliance.evidence_ref) throw complianceDenied();
     const now = this.#timestamp();

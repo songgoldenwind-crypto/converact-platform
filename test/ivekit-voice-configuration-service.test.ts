@@ -102,6 +102,18 @@ test('Voice configuration updates require revisions and reject credentials in de
     credential_secret_ref: 'plain-password', desired_state: { password: 'private' }, actor: 'admin-a'
   }), (error: unknown) => error instanceof VoiceError
     && ['secret_ref_invalid', 'validation_failed'].includes(error.code));
+
+  const trunk = await fixture.service.createTrunk({
+    tenant_id: 'tenant-a', profile_id: profile.id, name: 'Safe', direction: 'both',
+    transport: 'tls', codecs: ['PCMU'], max_channels: 10,
+    credential_secret_ref: 'env://RUSTPBX_TRUNK_CREDENTIAL', desired_state: {}, actor: 'admin-a'
+  });
+  await assert.rejects(() => fixture.service.updateTrunk({
+    tenant_id: 'tenant-a', trunk_id: trunk.id, expected_revision: 1,
+    patch: { id: 'another-trunk', tenant_id: 'tenant-b', max_channels: 20 } as never,
+    actor: 'admin-b'
+  }), hasVoiceCode('validation_failed'));
+  assert.equal((await fixture.service.getTrunk('tenant-a', trunk.id)).max_channels, 10);
 });
 
 test('Voice route publish atomically versions desired state and enqueues an idempotent operation', async () => {
