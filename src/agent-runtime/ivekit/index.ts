@@ -20,8 +20,17 @@ export { routeIveKitMediaApi } from './media-http.js';
 export { createIveKitHttpServer } from './http-server.js';
 export { routeIveKitIvrApi } from './ivr/http.js';
 export type * from './ivr/http.js';
-export { routeIveKitContactCenterApi } from './contact-center/http.js';
+export {
+  createPostgresContactCenterHttpModule,
+  routeIveKitContactCenterApi
+} from './contact-center/http.js';
 export type * from './contact-center/http.js';
+export type { ContactCenterSupervisorControlPort } from './contact-center/ports.js';
+export type {
+  ContactCenterSupervisorMode,
+  ContactCenterSupervisorSession
+} from './contact-center/types.js';
+export { UnsupportedContactCenterSupervisorControl } from './contact-center/supervisor-control.js';
 export {
   contactCenterMaintenanceWorkerConfig,
   listContactCenterWorkerTenants,

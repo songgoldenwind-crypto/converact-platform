@@ -12,6 +12,7 @@ import {
   type ContactCenterQueueEntry,
   type ContactCenterRepository,
   type ContactCenterRoutingCandidate,
+  type ContactCenterSupervisorSession,
   type ContactCenterUnitOfWork
 } from '../src/agent-runtime/ivekit/contact-center/index.js';
 
@@ -259,6 +260,7 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
   readonly entries = new Map<string, ContactCenterQueueEntry>();
   readonly assignments = new Map<string, ContactCenterAssignment>();
   readonly callbacks = new Map<string, ContactCenterCallbackRecord>();
+  readonly supervisorSessions = new Map<string, ContactCenterSupervisorSession>();
   readonly presences = new Map<string, ContactCenterAgentPresence>();
   readonly candidates: ContactCenterRoutingCandidate[] = [];
   cursor: string | null = null;
@@ -415,6 +417,30 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
     return [...this.callbacks.values()].filter((value) =>
       ['dialing', 'connected'].includes(value.state) && Boolean(value.outbound_call_id)
     ).slice(0, limit).map((value) => structuredClone(value));
+  }
+  async findSupervisorByIdempotencyKey(_tenantId: string, key: string) {
+    return structuredClone([...this.supervisorSessions.values()].find((value) =>
+      value.idempotency_key === key
+    ) || null);
+  }
+  async isAgentAssignedToCall(_tenantId: string, callId: string, agentId: string) {
+    return [...this.assignments.values()].some((assignment) => {
+      const entry = this.entries.get(assignment.queue_entry_id);
+      return entry?.call_id === callId && assignment.agent_id === agentId &&
+        ['accepted', 'connected'].includes(assignment.state);
+    });
+  }
+  async insertSupervisorSession(value: ContactCenterSupervisorSession) {
+    this.supervisorSessions.set(value.id, structuredClone(value));
+    return structuredClone(value);
+  }
+  async getSupervisorSession(_tenantId: string, id: string) {
+    return structuredClone(this.supervisorSessions.get(id) || null);
+  }
+  async updateSupervisorSession(value: ContactCenterSupervisorSession) {
+    const next = { ...value, revision: value.revision + 1 };
+    this.supervisorSessions.set(value.id, structuredClone(next));
+    return structuredClone(next);
   }
 }
 

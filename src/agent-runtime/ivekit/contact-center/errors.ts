@@ -8,7 +8,8 @@ export type ContactCenterErrorCode =
   | 'revision_conflict'
   | 'idempotency_conflict'
   | 'conflict'
-  | 'capacity_exhausted';
+  | 'capacity_exhausted'
+  | 'capability_unavailable';
 
 export class ContactCenterError extends Error {
   readonly code: ContactCenterErrorCode;

@@ -276,3 +276,23 @@ export interface ContactCenterCallbackListInput {
   limit?: number;
   cursor?: string;
 }
+
+export interface ContactCenterSupervisorSession {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  target_agent_id: string;
+  supervisor_identity: string;
+  mode: ContactCenterSupervisorMode;
+  state: ContactCenterSupervisorSessionState;
+  authorization_ref: string;
+  idempotency_key: string;
+  provider_session_id: string;
+  reason: string;
+  requested_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}

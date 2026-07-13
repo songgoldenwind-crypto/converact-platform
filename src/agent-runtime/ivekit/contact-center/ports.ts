@@ -7,7 +7,9 @@ import type {
   ContactCenterQueueEntry,
   ContactCenterQueueEntryListInput,
   ContactCenterPage,
-  ContactCenterRoutingCandidate
+  ContactCenterRoutingCandidate,
+  ContactCenterSupervisorMode,
+  ContactCenterSupervisorSession
 } from './types.js';
 
 export interface ContactCenterRepository {
@@ -63,6 +65,27 @@ export interface ContactCenterRepository {
     tenantId: string,
     limit: number
   ): Promise<ContactCenterCallbackRecord[]>;
+  findSupervisorByIdempotencyKey(
+    tenantId: string,
+    key: string
+  ): Promise<ContactCenterSupervisorSession | null>;
+  isAgentAssignedToCall(
+    tenantId: string,
+    callId: string,
+    agentId: string
+  ): Promise<boolean>;
+  insertSupervisorSession(
+    session: ContactCenterSupervisorSession
+  ): Promise<ContactCenterSupervisorSession>;
+  getSupervisorSession(
+    tenantId: string,
+    sessionId: string,
+    options?: { for_update?: boolean }
+  ): Promise<ContactCenterSupervisorSession | null>;
+  updateSupervisorSession(
+    session: ContactCenterSupervisorSession,
+    expectedRevision: number
+  ): Promise<ContactCenterSupervisorSession>;
 }
 
 export interface ContactCenterAddressProtector {
@@ -95,6 +118,24 @@ export interface ContactCenterCallbackVoicePort {
     state: string;
     termination_reason: string;
   } | null>;
+}
+
+export interface ContactCenterSupervisorControlPort {
+  supports(mode: ContactCenterSupervisorMode): boolean;
+  start(input: {
+    session_id: string;
+    tenant_id: string;
+    call_id: string;
+    target_agent_id: string;
+    supervisor_identity: string;
+    mode: ContactCenterSupervisorMode;
+    authorization_ref: string;
+  }): Promise<{ provider_session_id: string }>;
+  end(input: {
+    tenant_id: string;
+    provider_session_id: string;
+    idempotency_key: string;
+  }): Promise<void>;
 }
 
 export interface ContactCenterUnitOfWorkContext {

@@ -12,7 +12,8 @@ import type {
   ContactCenterQueue,
   ContactCenterQueueEntry,
   ContactCenterQueueEntryListInput,
-  ContactCenterRoutingCandidate
+  ContactCenterRoutingCandidate,
+  ContactCenterSupervisorSession
 } from '../types.js';
 import {
   ccJsonRecord,
@@ -61,6 +62,15 @@ const CALLBACK_COLUMNS = `
   callback.requested_by, callback.cancelled_by, callback.failure_code,
   callback.revision, callback.created_at,
   callback.updated_at, callback.completed_at`;
+
+const SUPERVISOR_COLUMNS = `
+  supervisor.id, supervisor.tenant_id, supervisor.call_id,
+  supervisor.target_agent_id, supervisor.supervisor_identity,
+  supervisor.mode, supervisor.state, supervisor.authorization_ref,
+  supervisor.idempotency_key, supervisor.provider_session_id,
+  supervisor.reason, supervisor.requested_at, supervisor.started_at,
+  supervisor.ended_at, supervisor.revision, supervisor.created_at,
+  supervisor.updated_at`;
 
 export class PostgresContactCenterRepository implements ContactCenterRepository {
   constructor(private readonly pg: PgQueryable) {}
@@ -626,6 +636,110 @@ export class PostgresContactCenterRepository implements ContactCenterRepository 
     });
   }
 
+  findSupervisorByIdempotencyKey(
+    tenantId: string,
+    key: string
+  ): Promise<ContactCenterSupervisorSession | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${SUPERVISOR_COLUMNS}
+         FROM ivekit_cc_supervisor_sessions supervisor
+         WHERE supervisor.tenant_id = $1 AND supervisor.idempotency_key = $2`,
+        [tenantId, key]
+      );
+      return result.rows[0] ? decodeSupervisor(result.rows[0]) : null;
+    });
+  }
+
+  isAgentAssignedToCall(
+    tenantId: string,
+    callId: string,
+    agentId: string
+  ): Promise<boolean> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT EXISTS (
+           SELECT 1
+           FROM ivekit_cc_assignments assignment
+           JOIN ivekit_cc_queue_entries entry
+             ON entry.tenant_id = assignment.tenant_id
+            AND entry.id = assignment.queue_entry_id
+           WHERE assignment.tenant_id = $1
+             AND entry.call_id = $2
+             AND assignment.agent_id = $3
+             AND assignment.state IN ('accepted', 'connected')
+         ) AS assigned`,
+        [tenantId, callId, agentId]
+      );
+      return result.rows[0]?.assigned === true;
+    });
+  }
+
+  insertSupervisorSession(
+    session: ContactCenterSupervisorSession
+  ): Promise<ContactCenterSupervisorSession> {
+    return withPgTenant(this.pg, session.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `INSERT INTO ivekit_cc_supervisor_sessions
+          (id, tenant_id, call_id, target_agent_id, supervisor_identity,
+           mode, state, authorization_ref, idempotency_key,
+           provider_session_id, reason, requested_at, started_at, ended_at,
+           revision, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+                 $12, $13, $14, $15, $16, $17)
+         ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+         RETURNING *`,
+        supervisorParameters(session)
+      );
+      if (result.rows[0]) return decodeSupervisor(result.rows[0]);
+      const replay = await this.findSupervisorByIdempotencyKey(
+        session.tenant_id,
+        session.idempotency_key
+      );
+      if (!replay) throw conflict();
+      return replay;
+    });
+  }
+
+  getSupervisorSession(
+    tenantId: string,
+    sessionId: string,
+    options: { for_update?: boolean } = {}
+  ): Promise<ContactCenterSupervisorSession | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `SELECT ${SUPERVISOR_COLUMNS}
+         FROM ivekit_cc_supervisor_sessions supervisor
+         WHERE supervisor.tenant_id = $1 AND supervisor.id = $2
+         ${options.for_update ? 'FOR UPDATE' : ''}`,
+        [tenantId, sessionId]
+      );
+      return result.rows[0] ? decodeSupervisor(result.rows[0]) : null;
+    });
+  }
+
+  updateSupervisorSession(
+    session: ContactCenterSupervisorSession,
+    expectedRevision: number
+  ): Promise<ContactCenterSupervisorSession> {
+    return withPgTenant(this.pg, session.tenant_id, async (pg) => {
+      const result = await pg.query<ContactCenterPgRow>(
+        `UPDATE ivekit_cc_supervisor_sessions
+         SET state = $3, provider_session_id = $4, reason = $5,
+             started_at = $6, ended_at = $7,
+             revision = revision + 1, updated_at = $8
+         WHERE tenant_id = $1 AND id = $2 AND revision = $9
+         RETURNING *`,
+        [
+          session.tenant_id, session.id, session.state,
+          session.provider_session_id, session.reason, session.started_at,
+          session.ended_at, session.updated_at, expectedRevision
+        ]
+      );
+      return decodeSupervisor(ccRequiredRow(result.rows[0], 'conflict'));
+    });
+  }
+
   listExpiredOffers(tenantId: string, now: Date, limit: number): Promise<ContactCenterAssignment[]> {
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const result = await pg.query<ContactCenterPgRow>(
@@ -754,6 +868,23 @@ function decodeCallback(row: ContactCenterPgRow): ContactCenterCallbackRecord {
   };
 }
 
+function decodeSupervisor(row: ContactCenterPgRow): ContactCenterSupervisorSession {
+  return {
+    id: String(row.id), tenant_id: String(row.tenant_id), call_id: String(row.call_id),
+    target_agent_id: String(row.target_agent_id),
+    supervisor_identity: String(row.supervisor_identity),
+    mode: row.mode as ContactCenterSupervisorSession['mode'],
+    state: row.state as ContactCenterSupervisorSession['state'],
+    authorization_ref: String(row.authorization_ref),
+    idempotency_key: String(row.idempotency_key),
+    provider_session_id: String(row.provider_session_id || ''),
+    reason: String(row.reason || ''), requested_at: ccTimestamp(row.requested_at),
+    started_at: ccNullableTimestamp(row.started_at), ended_at: ccNullableTimestamp(row.ended_at),
+    revision: ccNumber(row.revision), created_at: ccTimestamp(row.created_at),
+    updated_at: ccTimestamp(row.updated_at)
+  };
+}
+
 function decodeCandidate(row: ContactCenterPgRow): ContactCenterRoutingCandidate {
   const skills = Object.fromEntries(Object.entries(ccJsonRecord(row.skills)).map(([key, value]) => [key, ccNumber(value)]));
   return {
@@ -795,6 +926,17 @@ function callbackParameters(callback: ContactCenterCallbackRecord): unknown[] {
     callback.idempotency_key, callback.requested_by, callback.cancelled_by,
     callback.failure_code, callback.revision, callback.created_at,
     callback.updated_at, callback.completed_at
+  ];
+}
+
+function supervisorParameters(session: ContactCenterSupervisorSession): unknown[] {
+  return [
+    session.id, session.tenant_id, session.call_id, session.target_agent_id,
+    session.supervisor_identity, session.mode, session.state,
+    session.authorization_ref, session.idempotency_key,
+    session.provider_session_id, session.reason, session.requested_at,
+    session.started_at, session.ended_at, session.revision,
+    session.created_at, session.updated_at
   ];
 }
 

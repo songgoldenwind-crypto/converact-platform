@@ -38,6 +38,8 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
     'src/agent-runtime/ivekit/contact-center/http.ts',
     'src/agent-runtime/ivekit/contact-center/ivr-queue-port.ts',
     'src/agent-runtime/ivekit/contact-center/queue-service.ts',
+    'src/agent-runtime/ivekit/contact-center/supervisor-control.ts',
+    'src/agent-runtime/ivekit/contact-center/supervisor-service.ts',
     'src/agent-runtime/ivekit/contact-center/postgres/store.ts',
     'src/agent-runtime/ivekit/contact-center/postgres/configuration-store.ts',
     'src/agent-runtime/ivekit/contact-center/postgres/unit-of-work.ts'

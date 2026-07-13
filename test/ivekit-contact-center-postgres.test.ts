@@ -11,7 +11,8 @@ import {
   type ContactCenterAgent,
   type ContactCenterAgentPresence,
   type ContactCenterCallbackRecord,
-  type ContactCenterQueue
+  type ContactCenterQueue,
+  type ContactCenterSupervisorSession
 } from '../src/agent-runtime/ivekit/contact-center/index.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
@@ -153,6 +154,49 @@ test('Contact Center PostgreSQL persists protected callbacks and pages safe reco
   )!;
   assert.match(reconcile.sql, /FOR UPDATE SKIP LOCKED/);
   assert.deepEqual(reconcile.params, ['tenant-a', 10]);
+});
+
+test('Contact Center PostgreSQL persists supervisor sessions only for assigned calls', async () => {
+  const pg = new ScriptedPg((sql) => {
+    if (sql.includes('SELECT EXISTS') && sql.includes('ivekit_cc_assignments')) {
+      return [{ assigned: true }];
+    }
+    if (sql.includes('INSERT INTO ivekit_cc_supervisor_sessions')) return [supervisorRow()];
+    if (sql.includes('UPDATE ivekit_cc_supervisor_sessions')) {
+      return [{ ...supervisorRow(), state: 'active', provider_session_id: 'provider-a', revision: 2 }];
+    }
+    if (sql.includes('FROM ivekit_cc_supervisor_sessions supervisor')) return [supervisorRow()];
+    return [];
+  });
+  const store = new PostgresContactCenterRepository(pg);
+  assert.equal(await store.isAgentAssignedToCall('tenant-a', 'call-a', 'agent-a'), true);
+  assert.equal((await store.insertSupervisorSession(supervisorEntity())).id, 'supervisor-a');
+  assert.equal((await store.getSupervisorSession(
+    'tenant-a', 'supervisor-a', { for_update: true }
+  ))?.authorization_ref, 'policy:42');
+  const active = await store.updateSupervisorSession({
+    ...supervisorEntity(), state: 'active', provider_session_id: 'provider-a',
+    started_at: '2026-07-13T00:00:01.000Z', updated_at: '2026-07-13T00:00:01.000Z'
+  }, 1);
+  assert.equal(active.state, 'active');
+
+  const assignment = pg.queries.find((query) => query.sql.includes('SELECT EXISTS'))!;
+  assert.match(assignment.sql, /entry\.call_id = \$2/);
+  assert.match(assignment.sql, /assignment\.state IN \('accepted', 'connected'\)/);
+  assert.deepEqual(assignment.params, ['tenant-a', 'call-a', 'agent-a']);
+  const insert = pg.queries.find((query) =>
+    query.sql.includes('INSERT INTO ivekit_cc_supervisor_sessions')
+  )!;
+  assert.equal(insert.params[7], 'policy:42');
+  const locked = pg.queries.find((query) =>
+    query.sql.includes('FROM ivekit_cc_supervisor_sessions supervisor')
+  )!;
+  assert.match(locked.sql, /FOR UPDATE/);
+  const update = pg.queries.find((query) =>
+    query.sql.includes('UPDATE ivekit_cc_supervisor_sessions')
+  )!;
+  assert.match(update.sql, /revision = revision \+ 1/);
+  assert.equal(update.params.at(-1), 1);
 });
 
 test('Contact Center PostgreSQL locks eligible presence and applies queue skill requirements', async () => {
@@ -324,6 +368,21 @@ function callbackEntity(): ContactCenterCallbackRecord {
     failure_code: '', revision: 1,
     created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z',
     completed_at: null
+  };
+}
+
+function supervisorRow(): Record<string, unknown> {
+  return { ...supervisorEntity() };
+}
+
+function supervisorEntity(): ContactCenterSupervisorSession {
+  return {
+    id: 'supervisor-a', tenant_id: 'tenant-a', call_id: 'call-a',
+    target_agent_id: 'agent-a', supervisor_identity: 'admin-a', mode: 'whisper',
+    state: 'requested', authorization_ref: 'policy:42', idempotency_key: 'supervisor-key-a',
+    provider_session_id: '', reason: '', requested_at: '2026-07-13T00:00:00.000Z',
+    started_at: null, ended_at: null, revision: 1,
+    created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
   };
 }
 

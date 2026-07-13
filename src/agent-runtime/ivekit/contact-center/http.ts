@@ -7,12 +7,16 @@ import { ContactCenterError } from './errors.js';
 import { PostgresContactCenterConfigurationUnitOfWork } from './postgres/configuration-unit-of-work.js';
 import { PostgresContactCenterUnitOfWork } from './postgres/unit-of-work.js';
 import { ContactCenterQueueService } from './queue-service.js';
+import type { ContactCenterSupervisorControlPort } from './ports.js';
+import { UnsupportedContactCenterSupervisorControl } from './supervisor-control.js';
+import { ContactCenterSupervisorService } from './supervisor-service.js';
 import type {
   ContactCenterAgent,
   ContactCenterCallbackListInput,
   ContactCenterQueue,
   ContactCenterQueueEntryListInput,
-  ContactCenterRoutingStrategy
+  ContactCenterRoutingStrategy,
+  ContactCenterSupervisorMode
 } from './types.js';
 
 type Headers = Record<string, string | string[] | undefined>;
@@ -21,6 +25,7 @@ export interface ContactCenterHttpModule {
   configuration: ContactCenterConfigurationService;
   queues: ContactCenterQueueService;
   callbacks: ContactCenterCallbackService;
+  supervisor: ContactCenterSupervisorService;
 }
 
 export interface RouteIveKitContactCenterApiOptions {
@@ -29,6 +34,7 @@ export interface RouteIveKitContactCenterApiOptions {
     pg: PgQueryable,
     tenantId: string
   ) => ContactCenterHttpModule | Promise<ContactCenterHttpModule>;
+  supervisor_control?: ContactCenterSupervisorControlPort;
 }
 
 export async function routeIveKitContactCenterApi(
@@ -53,12 +59,34 @@ export async function routeIveKitContactCenterApi(
         agents: true, skills: true, presence: true, queues: true,
         memberships: true, skill_requirements: true, acd_routing: true,
         queue_entries: true,
-        callbacks: true, supervisor: false
+        callbacks: true, supervisor: supervisorAvailable(options.supervisor_control)
       }
     } };
   }
 
   const module = await resolveModule(pg, context.tenantId, options);
+
+  if (routePath === '/api/ivekit/contact-center/supervisor/actions' && method === 'POST') {
+    requireAdmin(context);
+    const input = record(body);
+    const action = requiredString(input.action);
+    if (action === 'start') return { status: 201, data: await module.supervisor.start({
+      tenant_id: context.tenantId,
+      call_id: requiredString(input.call_id),
+      target_agent_id: requiredString(input.target_agent_id),
+      supervisor_identity: context.userId,
+      mode: requiredString(input.mode) as ContactCenterSupervisorMode,
+      authorization_ref: requiredString(input.authorization_ref),
+      idempotency_key: idempotencyKey(headers)
+    }) };
+    if (action === 'end') return { data: await module.supervisor.end({
+      tenant_id: context.tenantId,
+      session_id: requiredString(input.session_id),
+      supervisor_identity: context.userId,
+      ...(input.reason === undefined ? {} : { reason: requiredString(input.reason) })
+    }) };
+    throw validation();
+  }
 
   if (routePath === '/api/ivekit/contact-center/callbacks') {
     if (method === 'GET') return { data: await module.callbacks.list(callbackListInput(context.tenantId, url)) };
@@ -309,13 +337,21 @@ export async function routeIveKitContactCenterApi(
   return undefined;
 }
 
-export function createPostgresContactCenterHttpModule(pg: PgQueryable): ContactCenterHttpModule {
+export function createPostgresContactCenterHttpModule(
+  pg: PgQueryable,
+  options: { supervisor_control?: ContactCenterSupervisorControlPort } = {}
+): ContactCenterHttpModule {
+  const unitOfWork = new PostgresContactCenterUnitOfWork(pg);
   return {
     configuration: new ContactCenterConfigurationService(
       new PostgresContactCenterConfigurationUnitOfWork(pg)
     ),
-    queues: new ContactCenterQueueService(new PostgresContactCenterUnitOfWork(pg)),
-    callbacks: createPostgresContactCenterCallbackService(pg)
+    queues: new ContactCenterQueueService(unitOfWork),
+    callbacks: createPostgresContactCenterCallbackService(pg),
+    supervisor: new ContactCenterSupervisorService({
+      unit_of_work: unitOfWork,
+      control: options.supervisor_control ?? new UnsupportedContactCenterSupervisorControl()
+    })
   };
 }
 
@@ -326,7 +362,15 @@ async function resolveModule(
 ): Promise<ContactCenterHttpModule> {
   if (options.module) return options.module;
   if (!pg) throw new ContactCenterError({ code: 'conflict', status: 503, details: { reason: 'postgres_unavailable' } });
-  return await options.create_module?.(pg, tenantId) ?? createPostgresContactCenterHttpModule(pg);
+  return await options.create_module?.(pg, tenantId) ?? createPostgresContactCenterHttpModule(pg, {
+    ...(options.supervisor_control ? { supervisor_control: options.supervisor_control } : {})
+  });
+}
+
+function supervisorAvailable(control: ContactCenterSupervisorControlPort | undefined): boolean {
+  return Boolean(control && (['monitor', 'whisper', 'barge'] as const).some((mode) =>
+    control.supports(mode)
+  ));
 }
 
 async function requireSelfOrAdmin(

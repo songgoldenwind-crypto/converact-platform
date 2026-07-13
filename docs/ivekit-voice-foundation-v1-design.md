@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker 与 IVR queue adapter，受控 PostgreSQL/RustPBX 协议验收通过；Contact Center overflow/supervisor/SDK/UI、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker、IVR queue adapter，以及 supervisor 监听/耳语/强插通用控制面；受控 PostgreSQL/RustPBX 协议验收通过。Contact Center overflow、supervisor 的真实 provider adapter、SDK/UI、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -21,7 +21,7 @@
 | IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
 | Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
 | React Voice 控制工作台 | 已实现控制面 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、呼入/外呼、状态门禁控制、DTMF、转接、会议、Park/Pickup、录音、LiveKit bridge 和分机 session readiness；不渲染 session credential |
-| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`055` migrations、tenant-scoped PostgreSQL store、Agent/Skill/Presence/Queue/Membership 配置 API、原子 enqueue/offer/accept/reject/connect/complete/expire/timeout 服务、租户/队列/状态绑定游标的条目与分配历史查询、加密 callback 与合规 Voice 外呼闭环、租户发现与自动派单 worker 和 IVR queue adapter 已实现；overflow action、supervisor、SDK 与 Queue Monitor 尚未完成 |
+| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`055` migrations、tenant-scoped PostgreSQL store、Agent/Skill/Presence/Queue/Membership 配置 API、原子 enqueue/offer/accept/reject/connect/complete/expire/timeout 服务、租户/队列/状态绑定游标的条目与分配历史查询、加密 callback 与合规 Voice 外呼闭环、租户发现与自动派单 worker、IVR queue adapter，以及 supervisor 控制端口/权限/幂等/审计状态/API 已实现；默认 RustPBX supervisor provider 明确不可用，overflow action、Contact Center SDK 与 Queue Monitor 尚未完成 |
 | 浏览器 SIP/WebRTC 媒体接入 | 未实现 | 属于 M5；不得从已有 OPC call-center 页面、控制工作台或 headless controller 推断真实软电话媒体已交付 |
 
 当前新增迁移为：
@@ -36,7 +36,6 @@
 - `053_ivekit_contact_center_configuration_idempotency.sql`：配置创建的耐久幂等账本。
 - `054_ivekit_contact_center_worker.sql`：过期等待项索引和最小权限租户发现函数。
 - `055_ivekit_contact_center_callbacks.sql`：callback 对账索引、不可删除审计约束，以及包含到期/活动 callback 的 worker 租户发现升级。
-- `053_ivekit_contact_center_configuration_idempotency.sql`：可升级的配置创建幂等账本；不回写已经发布的 052。
 
 受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 RTP/录音、真实 LiveKit SIP 和软电话浏览器均保持 `not_run`。
 
@@ -390,7 +389,7 @@ Contact Center migration pack 与 runtime profile 可单独启用：
 - `ivekit_cc_queue_entries`
 - `ivekit_cc_assignments`
 - `ivekit_cc_callbacks`
-- `ivekit_cc_supervisor_actions`
+- `ivekit_cc_supervisor_sessions`
 
 这些表只使用 iveKit identity、call id 和 business reference，不保存 OPC 用户、lead、campaign 或 workspace 外键。
 
@@ -659,14 +658,15 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 | `POST` | `/api/ivekit/contact-center/callbacks/:id/cancel` | 在尚未拨号时取消 callback |
 | `POST` | `/api/ivekit/contact-center/routing/assignments` | 使用 Idempotency-Key 原子创建下一次 Offer |
 | `POST` | `/api/ivekit/contact-center/assignments/:id/{accept,reject,connect,complete}` | 推进受 agent 绑定的分配状态 |
+| `POST` | `/api/ivekit/contact-center/supervisor/actions` | 管理员启动或结束 monitor/whisper/barge 会话；启动要求 Idempotency-Key 和 authorization_ref |
 
 Skill、Agent、Queue、routing assignment 和 callback 创建均要求 `Idempotency-Key`。前三类配置创建通过 `053_ivekit_contact_center_configuration_idempotency.sql` 的不可变 tenant 账本与 advisory transaction lock 保证同 key 同 payload 重放、同 key 不同 payload 返回 `409 idempotency_conflict`；callback 使用目标地址的 tenant 派生 HMAC、队列条目、源呼叫、调度时间和最大次数共同校验重放，不比较随机密文。
 
 callback 请求从源 Voice Call 继承 profile 与业务引用，目标地址复用 Voice Core AES-256-GCM/HMAC 保护器，数据库与 API 均不保存或返回明文；`requested_by` 和 `cancelled_by` 从认证上下文写入不可删除记录。请求会原子地把 waiting/offered 条目转为 `callback_requested`；若存在未接受 Offer，同时 revoke assignment 并释放坐席容量。worker 使用 `FOR UPDATE SKIP LOCKED` 领取到期记录，以 `cc-callback:{callbackId}:attempt:{n}` 调用合规 Voice 外呼；可重试错误按 `OPC_IVEKIT_CONTACT_CENTER_CALLBACK_RETRY_DELAY_MS` 重新调度，达到 `max_attempts` 或遇到不可重试错误后终止。进程在 Voice Call 创建后中断时，callback 事务回滚，下一轮使用同一 attempt 幂等重放，不重复创建呼叫。Voice call 的 active/held/transferring/completed/failed 等状态会对账为 callback 的 connected/completed/failed。
 
-以下路径仍是 M4 待实现目标，capabilities 对 callback 返回 `true`、对 supervisor 返回 `false`：
+supervisor action 只允许 `owner/admin/system`。启动前必须确认目标坐席在同租户、同 Voice Call 的 accepted/connected assignment 上；请求先以 `requested` 写入不可删除的 `ivekit_cc_supervisor_sessions`，provider 成功后推进为 `active`，结束后推进为 `ended`，失败只保存经过白名单清洗的错误码，不保存 provider 原文或凭据。同一 Idempotency-Key 会核对 call、agent、supervisor、mode 和 authorization_ref，payload 不同返回 `409 idempotency_conflict`。provider 调用使用 session id 作为启动幂等标识，结束使用 `{sessionId}:end`。
 
-- `POST /api/ivekit/contact-center/supervisor/actions`
+`ContactCenterSupervisorControlPort` 是独立 provider 插槽，可由 RustPBX、LiveKit SIP/Room 或其他语音数据面实现。当前已确认的 RustPBX RWI 基线没有 monitor/whisper/barge action，因此默认注入 `UnsupportedContactCenterSupervisorControl`，调用返回 `501 capability_unavailable`，`GET /capabilities` 的 `supervisor` 保持 `false`；部署方注入至少支持一种 mode 的真实 control port 后才返回 `true`。这表示通用控制面已完成，不表示真实监听媒体已经验收。
 
 ### 12.4 API 安全规则
 
@@ -877,7 +877,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M4：Contact Center Kit
 
-状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、Agent/Skill/Presence/Queue/Membership 配置服务与公开 API、原子 enqueue/offer/accept/reject/connect/complete/expire/timeout 服务、队列条目与分配历史查询、加密 callback 请求/取消/重试/Voice 外呼/状态对账、queue maintenance/offer worker 和 IVR queue adapter 已实现；overflow action、supervisor runtime、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
+状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、Agent/Skill/Presence/Queue/Membership 配置服务与公开 API、原子 enqueue/offer/accept/reject/connect/complete/expire/timeout 服务、队列条目与分配历史查询、加密 callback 请求/取消/重试/Voice 外呼/状态对账、queue maintenance/offer worker、IVR queue adapter，以及 supervisor 通用控制面、授权门禁、provider port、耐久会话和公开 API 已实现；默认 RustPBX supervisor provider 仍不可执行，overflow action、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
 
 - presence、skill、queue、ACD、callback 和 supervisor。
 - IVR queue port 接入，不引入 OPC 业务依赖。

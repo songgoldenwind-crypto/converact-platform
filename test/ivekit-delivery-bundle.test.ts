@@ -470,7 +470,7 @@ test('V3 handoff documents state implemented, configurable, and not-run boundari
   assert.match(voiceDesign, /DTMF.*Park.*Pickup.*capability_unavailable/s);
   assert.match(voiceDesign, /049_ivekit_voice_route_deployment/);
   assert.match(voiceDesign, /真实 RustPBX.*not_run/s);
-  assert.match(design, /Voice Foundation M2.*受控 PostgreSQL.*通过/s);
+  assert.match(design, /Voice Foundation V1.*受控 PostgreSQL.*通过/s);
   assert.match(design, /真实 RustPBX.*not_run/s);
 });
 

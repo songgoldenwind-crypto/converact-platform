@@ -173,6 +173,19 @@ test('Contact Center HTTP advertises implemented and pending capability truth', 
   assert.equal(result.data.capabilities.queue_entries, true);
   assert.equal(result.data.capabilities.callbacks, true);
   assert.equal(result.data.capabilities.supervisor, false);
+
+  const enabled = await routeIveKitContactCenterApi(
+    null, 'GET', '/api/ivekit/contact-center/capabilities',
+    new URL('http://localhost/api/ivekit/contact-center/capabilities'),
+    {}, '', { authorization: `Bearer ${token}` }, {
+      supervisor_control: {
+        supports: (mode) => mode === 'monitor',
+        async start() { return { provider_session_id: 'provider-a' }; },
+        async end() {}
+      }
+    }
+  ) as { data: { capabilities: Record<string, boolean> } };
+  assert.equal(enabled.data.capabilities.supervisor, true);
 });
 
 test('Contact Center HTTP lists tenant-bound queue entry snapshots', async (t) => {
@@ -256,6 +269,65 @@ test('Contact Center HTTP creates lists and cancels callbacks under authenticate
       reason: 'customer_changed_mind'
     }
   ]);
+});
+
+test('Contact Center HTTP restricts supervisor actions to administrators and binds audit identity', async (t) => {
+  const admin = installAuth(t, 'admin-a', 'admin');
+  const observed: Array<Record<string, unknown>> = [];
+  const module = {
+    supervisor: {
+      async start(input: Record<string, unknown>) {
+        observed.push({ operation: 'start', ...input });
+        return { id: 'supervisor-a', state: 'active' };
+      },
+      async end(input: Record<string, unknown>) {
+        observed.push({ operation: 'end', ...input });
+        return { id: input.session_id, state: 'ended' };
+      }
+    }
+  } as unknown as ContactCenterHttpModule;
+  const url = new URL('http://localhost/api/ivekit/contact-center/supervisor/actions');
+
+  const started = await routeIveKitContactCenterApi(
+    null, 'POST', '/api/ivekit/contact-center/supervisor/actions', url,
+    {
+      action: 'start', call_id: 'call-a', target_agent_id: 'agent-a',
+      mode: 'whisper', authorization_ref: 'policy:supervisor:42'
+    }, '', {
+      authorization: `Bearer ${admin}`, 'idempotency-key': 'supervisor-key-a'
+    }, { module }
+  ) as { status: number };
+  assert.equal(started.status, 201);
+  await routeIveKitContactCenterApi(
+    null, 'POST', '/api/ivekit/contact-center/supervisor/actions', url,
+    { action: 'end', session_id: 'supervisor-a', reason: 'review_complete' }, '',
+    { authorization: `Bearer ${admin}` }, { module }
+  );
+  assert.deepEqual(observed, [
+    {
+      operation: 'start', tenant_id: 'tenant-a', call_id: 'call-a',
+      target_agent_id: 'agent-a', supervisor_identity: 'admin-a', mode: 'whisper',
+      authorization_ref: 'policy:supervisor:42', idempotency_key: 'supervisor-key-a'
+    },
+    {
+      operation: 'end', tenant_id: 'tenant-a', session_id: 'supervisor-a',
+      supervisor_identity: 'admin-a', reason: 'review_complete'
+    }
+  ]);
+
+  const operator = installAuth(t, 'operator-a', 'operator');
+  await assert.rejects(
+    () => routeIveKitContactCenterApi(
+      null, 'POST', '/api/ivekit/contact-center/supervisor/actions', url,
+      {
+        action: 'start', call_id: 'call-a', target_agent_id: 'agent-a',
+        mode: 'monitor', authorization_ref: 'policy:42'
+      }, '', {
+        authorization: `Bearer ${operator}`, 'idempotency-key': 'operator-key-a'
+      }, { module }
+    ),
+    (error: unknown) => error instanceof ContactCenterError && error.status === 403
+  );
 });
 
 function installAuth(
