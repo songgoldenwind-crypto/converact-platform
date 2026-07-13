@@ -62,6 +62,28 @@ import type {
 import type { IveKitSdkBusinessRef } from './types.js';
 import type { IveKitBusinessContext, IveKitUnifiedTimelinePage } from './context-types.js';
 import type {
+  IveKitContactCenterAgent,
+  IveKitContactCenterAgentSkill,
+  IveKitContactCenterAgentSnapshot,
+  IveKitContactCenterCallback,
+  IveKitContactCenterCallbackState,
+  IveKitContactCenterCapabilities,
+  IveKitContactCenterCreateQueueInput,
+  IveKitContactCenterListInput,
+  IveKitContactCenterMembership,
+  IveKitContactCenterMonitorSnapshot,
+  IveKitContactCenterPage,
+  IveKitContactCenterPresence,
+  IveKitContactCenterQueue,
+  IveKitContactCenterQueueConfiguration,
+  IveKitContactCenterQueueEntrySnapshot,
+  IveKitContactCenterQueueEntryState,
+  IveKitContactCenterSkill,
+  IveKitContactCenterSkillRequirement,
+  IveKitContactCenterSupervisorMode,
+  IveKitContactCenterSupervisorSession
+} from './contact-center-types.js';
+import type {
   IveKitEventPage,
   IveKitEventPageInput,
   IveKitEventReplayInput,
@@ -341,6 +363,95 @@ export interface IveKitContextHttpClient {
   ): Promise<IveKitUnifiedTimelinePage>;
 }
 
+export interface IveKitContactCenterHttpClient {
+  getCapabilities(): Promise<IveKitContactCenterCapabilities>;
+  getMonitorSnapshot(): Promise<IveKitContactCenterMonitorSnapshot>;
+  listSkills(input?: IveKitContactCenterListInput): Promise<IveKitContactCenterPage<IveKitContactCenterSkill>>;
+  createSkill(
+    input: { name: string; description?: string; status?: IveKitContactCenterSkill['status'] },
+    options: { idempotencyKey: string }
+  ): Promise<IveKitContactCenterSkill>;
+  getSkill(skillId: string): Promise<IveKitContactCenterSkill>;
+  updateSkill(
+    skillId: string,
+    input: { revision: number; patch: Partial<Pick<IveKitContactCenterSkill, 'name' | 'description' | 'status'>> }
+  ): Promise<IveKitContactCenterSkill>;
+  listAgents(input?: IveKitContactCenterListInput): Promise<IveKitContactCenterPage<IveKitContactCenterAgent>>;
+  createAgent(input: {
+    identity: string; display_name?: string; voice_extension_id?: string | null;
+    voice_capacity?: number; metadata?: Record<string, unknown>;
+    status?: IveKitContactCenterAgent['status'];
+  }, options: { idempotencyKey: string }): Promise<IveKitContactCenterAgentSnapshot>;
+  getAgent(agentId: string): Promise<IveKitContactCenterAgentSnapshot>;
+  updateAgent(agentId: string, input: {
+    revision: number;
+    patch: Partial<Pick<IveKitContactCenterAgent,
+      'identity' | 'display_name' | 'voice_extension_id' | 'voice_capacity' | 'metadata' | 'status'>>;
+  }): Promise<IveKitContactCenterAgentSnapshot>;
+  updatePresence(
+    agentId: string,
+    input: { state: 'available' | 'away' | 'offline'; session_ref?: string }
+  ): Promise<IveKitContactCenterPresence>;
+  listAgentSkills(agentId: string): Promise<IveKitContactCenterAgentSkill[]>;
+  replaceAgentSkills(
+    agentId: string,
+    skills: IveKitContactCenterAgentSkill[]
+  ): Promise<IveKitContactCenterAgentSkill[]>;
+  listQueues(input?: IveKitContactCenterListInput): Promise<IveKitContactCenterPage<IveKitContactCenterQueue>>;
+  createQueue(
+    input: IveKitContactCenterCreateQueueInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitContactCenterQueueConfiguration>;
+  getQueue(queueId: string): Promise<IveKitContactCenterQueueConfiguration>;
+  updateQueue(queueId: string, input: {
+    revision: number;
+    patch: Partial<Omit<IveKitContactCenterCreateQueueInput, 'name'> & { name: string }>;
+  }): Promise<IveKitContactCenterQueueConfiguration>;
+  listMemberships(queueId: string): Promise<IveKitContactCenterMembership[]>;
+  upsertMembership(
+    queueId: string,
+    input: { agent_id: string; priority?: number; enabled?: boolean }
+  ): Promise<IveKitContactCenterMembership>;
+  removeMembership(queueId: string, agentId: string): Promise<{ removed: boolean }>;
+  listQueueSkillRequirements(queueId: string): Promise<IveKitContactCenterSkillRequirement[]>;
+  replaceQueueSkillRequirements(
+    queueId: string,
+    requirements: IveKitContactCenterSkillRequirement[]
+  ): Promise<IveKitContactCenterSkillRequirement[]>;
+  listQueueEntries(queueId: string, input?: {
+    state?: IveKitContactCenterQueueEntryState; cursor?: string; limit?: number;
+  }): Promise<IveKitContactCenterPage<IveKitContactCenterQueueEntrySnapshot>>;
+  listCallbacks(input?: {
+    queue_id?: string; state?: IveKitContactCenterCallbackState; cursor?: string; limit?: number;
+  }): Promise<IveKitContactCenterPage<IveKitContactCenterCallback>>;
+  requestCallback(input: {
+    queue_entry_id: string; source_call_id: string;
+    address: { kind: 'e164' | 'extension' | 'sip_uri'; value: string };
+    scheduled_for?: string; max_attempts?: number;
+  }, options: { idempotencyKey: string }): Promise<{
+    callback: IveKitContactCenterCallback; replayed: boolean;
+  }>;
+  getCallback(callbackId: string): Promise<IveKitContactCenterCallback>;
+  cancelCallback(callbackId: string, input?: { reason?: string }): Promise<IveKitContactCenterCallback>;
+  offerNext(
+    input: { queue_id: string; offer_ttl_seconds: number },
+    options: { idempotencyKey: string }
+  ): Promise<{ entry: IveKitContactCenterQueueEntrySnapshot['entry']; assignment: IveKitContactCenterQueueEntrySnapshot['assignments'][number] } | null>;
+  actOnAssignment(
+    assignmentId: string,
+    action: 'accept' | 'reject' | 'connect' | 'complete',
+    input?: { agent_id?: string; reason?: string }
+  ): Promise<{ entry: IveKitContactCenterQueueEntrySnapshot['entry']; assignment: IveKitContactCenterQueueEntrySnapshot['assignments'][number] }>;
+  startSupervisor(input: {
+    call_id: string; target_agent_id: string; mode: IveKitContactCenterSupervisorMode;
+    authorization_ref: string;
+  }, options: { idempotencyKey: string }): Promise<IveKitContactCenterSupervisorSession>;
+  endSupervisor(
+    sessionId: string,
+    input?: { reason?: string }
+  ): Promise<IveKitContactCenterSupervisorSession>;
+}
+
 export interface IveKitEventHttpClient {
   getHeadCursor(): Promise<string>;
   listPage<T = unknown>(input: IveKitEventPageInput): Promise<IveKitEventPage<T>>;
@@ -500,6 +611,7 @@ export interface IveKitVoiceHttpClient {
 export interface IveKitHttpSdk {
   media: IveKitMediaHttpClient;
   chat: IveKitChatHttpClient;
+  contactCenter: IveKitContactCenterHttpClient;
   context: IveKitContextHttpClient;
   events: IveKitEventHttpClient;
   intelligence: IveKitIntelligenceHttpClient;
@@ -525,11 +637,108 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
   return {
     media: createMediaClient(transport),
     chat: createChatClient(transport, createAttachmentUploadClient(input)),
+    contactCenter: createContactCenterClient(transport),
     context: createContextClient(transport),
     events: createEventClient(transport),
     intelligence: createIntelligenceClient(transport),
     ivr: createIvrClient(transport),
     voice: createVoiceClient(transport)
+  };
+}
+
+function createContactCenterClient(transport: IveKitTransport): IveKitContactCenterHttpClient {
+  const root = '/api/ivekit/contact-center';
+  const resourcePath = (collection: string, id: string, field: string) =>
+    `${root}/${collection}/${pathSegment(id, field)}`;
+  const skillPath = (id: string) => resourcePath('skills', id, 'skillId');
+  const agentPath = (id: string) => resourcePath('agents', id, 'agentId');
+  const queuePath = (id: string) => resourcePath('queues', id, 'queueId');
+  const callbackPath = (id: string) => resourcePath('callbacks', id, 'callbackId');
+  const idempotencyHeaders = (options: { idempotencyKey: string }) => ({
+    'Idempotency-Key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
+  });
+  const listQuery = (input: IveKitContactCenterListInput) => ({
+    status: input.status || '', cursor: input.cursor || '', limit: optionalNumber(input.limit)
+  });
+  return {
+    getCapabilities: () => transport.json('GET', `${root}/capabilities`),
+    getMonitorSnapshot: () => transport.json('GET', `${root}/monitor`),
+    listSkills: (input = {}) => transport.json('GET', `${root}/skills`, { query: listQuery(input) }),
+    createSkill: (body, options) => transport.json('POST', `${root}/skills`, {
+      body, headers: idempotencyHeaders(options)
+    }),
+    getSkill: (id) => transport.json('GET', skillPath(id)),
+    updateSkill: (id, body) => transport.json('PATCH', skillPath(id), { body }),
+    listAgents: (input = {}) => transport.json('GET', `${root}/agents`, { query: listQuery(input) }),
+    createAgent: (body, options) => transport.json('POST', `${root}/agents`, {
+      body, headers: idempotencyHeaders(options)
+    }),
+    getAgent: (id) => transport.json('GET', agentPath(id)),
+    updateAgent: (id, body) => transport.json('PATCH', agentPath(id), { body }),
+    updatePresence: (id, body) => transport.json('POST', `${agentPath(id)}/presence`, { body }),
+    async listAgentSkills(id) {
+      return (await transport.json<{ items: IveKitContactCenterAgentSkill[] }>(
+        'GET', `${agentPath(id)}/skills`
+      )).items;
+    },
+    async replaceAgentSkills(id, skills) {
+      return (await transport.json<{ items: IveKitContactCenterAgentSkill[] }>(
+        'PUT', `${agentPath(id)}/skills`, { body: { skills } }
+      )).items;
+    },
+    listQueues: (input = {}) => transport.json('GET', `${root}/queues`, { query: listQuery(input) }),
+    createQueue: (body, options) => transport.json('POST', `${root}/queues`, {
+      body, headers: idempotencyHeaders(options)
+    }),
+    getQueue: (id) => transport.json('GET', queuePath(id)),
+    updateQueue: (id, body) => transport.json('PATCH', queuePath(id), { body }),
+    async listMemberships(id) {
+      return (await transport.json<{ items: IveKitContactCenterMembership[] }>(
+        'GET', `${queuePath(id)}/memberships`
+      )).items;
+    },
+    upsertMembership: (id, body) => transport.json('POST', `${queuePath(id)}/memberships`, { body }),
+    removeMembership: (queueId, agentId) => transport.json(
+      'DELETE', `${queuePath(queueId)}/memberships/${pathSegment(agentId, 'agentId')}`
+    ),
+    async listQueueSkillRequirements(id) {
+      return (await transport.json<{ items: IveKitContactCenterSkillRequirement[] }>(
+        'GET', `${queuePath(id)}/skill-requirements`
+      )).items;
+    },
+    async replaceQueueSkillRequirements(id, requirements) {
+      return (await transport.json<{ items: IveKitContactCenterSkillRequirement[] }>(
+        'PUT', `${queuePath(id)}/skill-requirements`, { body: { requirements } }
+      )).items;
+    },
+    listQueueEntries: (id, input = {}) => transport.json('GET', `${queuePath(id)}/entries`, {
+      query: {
+        state: input.state || '', cursor: input.cursor || '', limit: optionalNumber(input.limit)
+      }
+    }),
+    listCallbacks: (input = {}) => transport.json('GET', `${root}/callbacks`, {
+      query: {
+        queue_id: input.queue_id || '', state: input.state || '',
+        cursor: input.cursor || '', limit: optionalNumber(input.limit)
+      }
+    }),
+    requestCallback: (body, options) => transport.json('POST', `${root}/callbacks`, {
+      body, headers: idempotencyHeaders(options)
+    }),
+    getCallback: (id) => transport.json('GET', callbackPath(id)),
+    cancelCallback: (id, body = {}) => transport.json('POST', `${callbackPath(id)}/cancel`, { body }),
+    offerNext: (body, options) => transport.json('POST', `${root}/routing/assignments`, {
+      body, headers: idempotencyHeaders(options)
+    }),
+    actOnAssignment: (id, action, body = {}) => transport.json(
+      'POST', `${root}/assignments/${pathSegment(id, 'assignmentId')}/${action}`, { body }
+    ),
+    startSupervisor: (input, options) => transport.json('POST', `${root}/supervisor/actions`, {
+      body: { action: 'start', ...input }, headers: idempotencyHeaders(options)
+    }),
+    endSupervisor: (sessionId, input = {}) => transport.json('POST', `${root}/supervisor/actions`, {
+      body: { action: 'end', session_id: sessionId, ...input }
+    })
   };
 }
 

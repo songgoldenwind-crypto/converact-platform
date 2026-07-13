@@ -173,6 +173,7 @@ test('Contact Center HTTP advertises implemented and pending capability truth', 
   assert.equal(result.data.capabilities.queue_entries, true);
   assert.equal(result.data.capabilities.callbacks, true);
   assert.equal(result.data.capabilities.overflow, true);
+  assert.equal(result.data.capabilities.queue_monitor, true);
   assert.equal(result.data.capabilities.supervisor, false);
 
   const enabled = await routeIveKitContactCenterApi(
@@ -187,6 +188,34 @@ test('Contact Center HTTP advertises implemented and pending capability truth', 
     }
   ) as { data: { capabilities: Record<string, boolean> } };
   assert.equal(enabled.data.capabilities.supervisor, true);
+});
+
+test('Contact Center HTTP exposes tenant-bound monitor snapshots to read-only users', async (t) => {
+  const token = installAuth(t, 'viewer-a', 'viewer');
+  const observed: string[] = [];
+  const module = {
+    monitor: {
+      async snapshot(input: { tenant_id: string }) {
+        observed.push(input.tenant_id);
+        return { generated_at: '2026-07-13T09:30:00.000Z', queues: [], alerts: [] };
+      }
+    }
+  } as unknown as ContactCenterHttpModule;
+  const result = await routeIveKitContactCenterApi(
+    null, 'GET', '/api/ivekit/contact-center/monitor',
+    new URL('http://localhost/api/ivekit/contact-center/monitor'),
+    {}, '', { authorization: `Bearer ${token}` }, { module }
+  ) as { data: { generated_at: string } };
+  assert.equal(result.data.generated_at, '2026-07-13T09:30:00.000Z');
+  assert.deepEqual(observed, ['tenant-a']);
+  await assert.rejects(
+    () => routeIveKitContactCenterApi(
+      null, 'GET', '/api/ivekit/contact-center/monitor',
+      new URL('http://localhost/api/ivekit/contact-center/monitor?tenant_id=tenant-b'),
+      {}, '', { authorization: `Bearer ${token}` }, { module }
+    ),
+    (error: unknown) => error instanceof ContactCenterError && error.code === 'validation_failed'
+  );
 });
 
 test('Contact Center HTTP lists tenant-bound queue entry snapshots', async (t) => {
@@ -334,7 +363,7 @@ test('Contact Center HTTP restricts supervisor actions to administrators and bin
 function installAuth(
   t: TestContext,
   userId: string,
-  role: 'admin' | 'operator'
+  role: 'admin' | 'operator' | 'viewer'
 ): string {
   const previousSecret = process.env.OPC_JWT_SECRET;
   const previousIssuer = process.env.OPC_AUTH_ISSUER;

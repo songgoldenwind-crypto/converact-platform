@@ -1,6 +1,7 @@
 import {
   createIveKitHttpSdk,
   type IveKitChatHttpClient,
+  type IveKitContactCenterHttpClient,
   type IveKitContextHttpClient,
   type IveKitEventHttpClient,
   type IveKitHttpSdkInput,
@@ -23,6 +24,7 @@ export type IveKitRustDeskClient = IveKitRustDeskControlHttpClient & IveKitRustD
 export interface IveKitClient {
   media: IveKitMediaHttpClient;
   chat: IveKitChatHttpClient;
+  contactCenter: IveKitContactCenterHttpClient;
   context: IveKitContextHttpClient;
   events: IveKitEventHttpClient;
   intelligence: IveKitIntelligenceHttpClient;
@@ -61,6 +63,7 @@ export * from './http-sdk.js';
 export type * from './chat-types.js';
 export type * from './media-types.js';
 export type * from './context-types.js';
+export type * from './contact-center-types.js';
 export type * from './event-types.js';
 export type * from './intelligence-types.js';
 export type * from './ivr-types.js';

@@ -2,7 +2,7 @@
 
 > 契约版本：v1-draft / 2026-07-11。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
 
-本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@opc/ivekit-sdk`。稳定域是 `/api/ivekit/context/*`、`/api/ivekit/media/*`、`/api/ivekit/chat/*` 和 `/api/ivekit/rustdesk/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
+本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@opc/ivekit-sdk`。稳定域还包括 `/api/ivekit/voice/*`、`/api/ivekit/ivr/*` 和 `/api/ivekit/contact-center/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
 
 ## 1. 通用约定
 
@@ -53,7 +53,23 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 
 ### 1.3 SDK 映射
 
-`createIveKitClient()` 返回 `context`、`media`、`chat`、`intelligence`、`events`、`rustdesk` 客户端。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。Context/Media/Chat/Intelligence/Events 错误类型为 `IveKitHttpSdkError`，RustDesk 错误类型为 `IveKitRustDeskHttpError`，两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
+`createIveKitClient()` 返回 `context`、`media`、`chat`、`intelligence`、`events`、`rustdesk`、`voice`、`ivr` 和 `contactCenter` 客户端。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。除 RustDesk 外的 HTTP facade 使用 `IveKitHttpSdkError`，RustDesk 使用 `IveKitRustDeskHttpError`；两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
+
+### 1.5 Contact Center 与监控投影
+
+```text
+GET  /api/ivekit/contact-center/capabilities
+GET  /api/ivekit/contact-center/monitor
+GET|POST /api/ivekit/contact-center/skills
+GET|POST /api/ivekit/contact-center/agents
+GET|POST /api/ivekit/contact-center/queues
+GET|POST /api/ivekit/contact-center/callbacks
+POST /api/ivekit/contact-center/routing/assignments
+POST /api/ivekit/contact-center/assignments/:id/{accept,reject,connect,complete}
+POST /api/ivekit/contact-center/supervisor/actions
+```
+
+配置创建、callback、routing assignment 和 supervisor start 要求 `Idempotency-Key`。`monitor` 是 tenant-scoped 一致快照，包含坐席 Presence/容量、活动 Voice Call、各队列等待与可用技能容量、UTC 当日 SLA、callback/overflow/supervisor 运行计数和不含敏感正文的告警。无可用容量时 `estimated_wait_seconds=null`。完整方法与 DTO 由 `ivekit.contactCenter` 导出。
 
 录制导出由 SDK 返回 `Uint8Array` 与 MIME/文件名元数据；附件上传接受标准 `BodyInit` 二进制 body，不做 base64 JSON 包装。RustDesk 高层方法 `ensureDevice/startSession` 负责设备、heartbeat 和 launch plan，操作审计与结束/物理断开状态仍是显式步骤。
 

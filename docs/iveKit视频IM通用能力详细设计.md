@@ -62,7 +62,7 @@ flowchart TB
 | --- | --- | --- |
 | Voice Core | 代码完成，受控 PostgreSQL/RustPBX 验收通过 | profile/capability、trunk/DID/extension/route、外呼/状态机、durable command/event/reconciliation、CDR/录音、策略/consent 和 LiveKit SIP bridge 已闭环；真实 RustPBX/PSTN/LiveKit SIP 为 `not_run` |
 | IVR Runtime | 后端、SDK 和参考控制工作台已完成 | 25 节点、版本发布/回滚、资源门禁、模拟器、durable action/worker/reconciliation 已闭环；真实语音数据面仍为 `not_run` |
-| Contact Center Kit | 后端主体完成 | Agent/Skill/Presence/Queue、ACD、条目历史、加密 callback、满队列/超时 durable overflow、maintenance worker、IVR queue port 和 supervisor 通用控制面已完成；SDK/Queue Monitor 和真实 supervisor provider 未完成 |
+| Contact Center Kit | 后端与 SDK 完成 | Agent/Skill/Presence/Queue、ACD、条目历史、加密 callback、满队列/超时 durable overflow、maintenance worker、Queue Monitor 后端投影、完整 TypeScript SDK、IVR queue port 和 supervisor 通用控制面已完成；Queue Monitor UI 和真实 supervisor provider 未完成 |
 | LiveKit 音视频房间、Token、Join Plan | 已实现，测试通过 | 已有 HTTP API 和 `createIveKitModule()` 门面；真实部署还需要服务器 smoke |
 | LiveKit 录制/Egress、录制 evidence 回填 | 生产生命周期代码已闭环，测试通过 | 支持 business_ref、状态/retention、对象检查、受控导出、导出审计、确认式清理和 evidence 删除回写；真实 Egress/MinIO 仍需服务器验证 |
 | Web Assist 屏幕共享/远程协助 session | 已实现第一版，测试通过 | 支持授权、join token、事件、timeline、录屏入口 |

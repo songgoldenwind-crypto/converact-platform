@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { createIveKitClient } from '../sdk/ivekit/src/index.js';
 import { createIveKitClient as createLegacyIveKitClient } from '../src/agent-runtime/ivekit/index.js';
 
-test('iveKit SDK exposes media chat voice and rustdesk through one factory', () => {
+test('iveKit SDK exposes media chat voice contact center and rustdesk through one factory', () => {
   const sdk = createIveKitClient({
     baseUrl: 'https://ivekit.example.test',
     tenantId: 'tenant-led',
@@ -24,6 +24,7 @@ test('iveKit SDK exposes media chat voice and rustdesk through one factory', () 
   assert.equal(typeof sdk.events.replay, 'function');
   assert.equal(typeof sdk.voice.createOutboundCall, 'function');
   assert.equal(typeof sdk.voice.createExtensionSession, 'function');
+  assert.equal(typeof sdk.contactCenter.getMonitorSnapshot, 'function');
 });
 
 test('legacy iveKit module entrypoint keeps the unified client export', () => {
@@ -56,6 +57,7 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
   assert.match(entrypoint, /export type \* from '\.\/media-types\.js'/);
   assert.match(entrypoint, /export type \* from '\.\/event-types\.js'/);
   assert.match(entrypoint, /export type \* from '\.\/voice-types\.js'/);
+  assert.match(entrypoint, /export type \* from '\.\/contact-center-types\.js'/);
   assert.match(entrypoint, /export \* from '\.\/voice-controller\.js'/);
   assert.match(readme, /IveKitChatSnapshot/);
   assert.match(readme, /IveKitMediaCallSnapshot/);

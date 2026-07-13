@@ -1,6 +1,6 @@
 # @opc/ivekit-sdk
 
-TypeScript client for the reusable iveKit Media, IM, RustDesk, Voice, and IVR HTTP facades.
+TypeScript client for the reusable iveKit Media, IM, RustDesk, Voice, IVR, and Contact Center HTTP facades.
 
 ```bash
 npm install @opc/ivekit-sdk
@@ -87,6 +87,11 @@ await ivekit.ivr.updateSettings({
   max_steps: 700,
   allowed_webhook_refs: ['service-order-status']
 });
+
+const contactCenter = await ivekit.contactCenter.getMonitorSnapshot();
+for (const queue of contactCenter.queues) {
+  renderQueue(queue);
+}
 ```
 
 The Voice client covers deployment profiles and capability preflight, SIP trunks,
@@ -116,6 +121,15 @@ and tenant execution settings. Published flow dependencies are validated against
 active resources and provider capabilities. Runtime fields of a resource referenced
 by any published version cannot be changed in place; create a new resource ID and
 publish a new flow version instead.
+
+The Contact Center client covers Agent, Skill, Presence, Queue, Membership and
+skill-requirement configuration; queue-entry and assignment lifecycles; encrypted
+callback requests; supervisor control requests; and the tenant monitor projection.
+Configuration creation, callback requests, routing offers, and supervisor starts
+require stable idempotency keys. `getMonitorSnapshot()` returns one UTC-day snapshot
+with eligible ACD capacity, queue backlog, wait estimates, SLA counters, active Voice
+calls, callback/overflow health, and safe operational alerts. It contains no clear
+phone numbers or provider credentials.
 
 The chat client exports browser-safe JSON DTOs for sessions, participants, messages,
 attachments and processing jobs, provider delivery, receipts, realtime state,

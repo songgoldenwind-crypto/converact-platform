@@ -4,7 +4,9 @@ import { ContactCenterCallbackService } from './callback-service.js';
 import { createPostgresContactCenterCallbackService } from './callback-runtime.js';
 import { ContactCenterConfigurationService } from './configuration-service.js';
 import { ContactCenterError } from './errors.js';
+import { ContactCenterMonitorService } from './monitor-service.js';
 import { PostgresContactCenterConfigurationUnitOfWork } from './postgres/configuration-unit-of-work.js';
+import { PostgresContactCenterMonitorSource } from './postgres/monitor-source.js';
 import { PostgresContactCenterUnitOfWork } from './postgres/unit-of-work.js';
 import { ContactCenterQueueService } from './queue-service.js';
 import type { ContactCenterSupervisorControlPort } from './ports.js';
@@ -26,6 +28,7 @@ export interface ContactCenterHttpModule {
   queues: ContactCenterQueueService;
   callbacks: ContactCenterCallbackService;
   supervisor: ContactCenterSupervisorService;
+  monitor: ContactCenterMonitorService;
 }
 
 export interface RouteIveKitContactCenterApiOptions {
@@ -59,13 +62,17 @@ export async function routeIveKitContactCenterApi(
         agents: true, skills: true, presence: true, queues: true,
         memberships: true, skill_requirements: true, acd_routing: true,
         queue_entries: true,
-        callbacks: true, overflow: true,
+        callbacks: true, overflow: true, queue_monitor: true,
         supervisor: supervisorAvailable(options.supervisor_control)
       }
     } };
   }
 
   const module = await resolveModule(pg, context.tenantId, options);
+
+  if (routePath === '/api/ivekit/contact-center/monitor' && method === 'GET') {
+    return { data: await module.monitor.snapshot({ tenant_id: context.tenantId }) };
+  }
 
   if (routePath === '/api/ivekit/contact-center/supervisor/actions' && method === 'POST') {
     requireAdmin(context);
@@ -349,6 +356,7 @@ export function createPostgresContactCenterHttpModule(
     ),
     queues: new ContactCenterQueueService(unitOfWork),
     callbacks: createPostgresContactCenterCallbackService(pg),
+    monitor: new ContactCenterMonitorService(new PostgresContactCenterMonitorSource(pg)),
     supervisor: new ContactCenterSupervisorService({
       unit_of_work: unitOfWork,
       control: options.supervisor_control ?? new UnsupportedContactCenterSupervisorControl()

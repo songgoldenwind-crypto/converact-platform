@@ -4,13 +4,14 @@
 
 ## 1. 交付目标
 
-iveKit 将 OPC 已有通信能力分成三个可复用域：
+iveKit 将 OPC 已有通信能力分成四个可复用域：
 
 1. **Media Core**：LiveKit 房间、Join Plan、参与人、视频/语音/屏幕共享、Recording/Egress、对象检查与受控导出。
 2. **Collaboration Session**：业务会话、Tinode IM、本地消息镜像、附件、receipt/unread、typing/presence、编辑/软删除、防绕单、OCR/ASR、AI 质检和人工复核。
 3. **Remote Assistance**：Web Assist、授权、页面内控制、录屏/证据、RustDesk 系统级远控、设备命令和审计；MeshCentral/Guacamole 保留为 fallback。
+4. **Voice Foundation**：RustPBX/LiveKit SIP 控制面、Voice Call、IVR、Contact Center、callback、overflow、supervisor port 与 Queue Monitor 投影。
 
-LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit/context/*`、`/api/ivekit/media/*`、`/api/ivekit/chat/*`、`/api/ivekit/rustdesk/*` 和标准租户事件。SDK 只封装这些 HTTP 契约，后续把能力搬到独立服务时，LED 只需要更换 `baseUrl`。
+LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit/context/*`、`/api/ivekit/media/*`、`/api/ivekit/chat/*`、`/api/ivekit/rustdesk/*`、`/api/ivekit/voice/*`、`/api/ivekit/ivr/*`、`/api/ivekit/contact-center/*` 和标准租户事件。SDK 只封装这些 HTTP 契约，后续把能力搬到独立服务时，LED 只需要更换 `baseUrl`。
 
 ## 2. 当前完成度
 
@@ -19,7 +20,8 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 | Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
 | Collaboration Session | Tinode durable outbound、独立 IM 参考客户端、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 既有后端/Tinode server smoke 保留；本轮参考客户端双真实浏览器验收未运行，OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
-| SDK 与交付 | `@opc/ivekit-sdk` 已独立打包；统一客户端提供 Context、Media、Chat、Events 和 RustDesk；交付包包含独立服务构建上下文、migration、SBOM 和 edge 包 | SDK/edge 干净容器安装和交付包独立镜像构建已在服务器通过；provider 数据面按各自验收状态裁决 |
+| Voice/IVR/Contact Center | Voice/IVR 后端、Contact Center ACD/callback/overflow/supervisor 控制面、监控投影和 SDK 已完成 | 受控 PostgreSQL/RustPBX 通过；真实 SIP/PSTN、浏览器媒体和 supervisor provider 保持 `not_run` |
+| SDK 与交付 | `@opc/ivekit-sdk` 已独立打包；统一客户端提供 Context、Media、Chat、Events、RustDesk、Voice、IVR 和 Contact Center；交付包包含独立服务构建上下文、migration、SBOM 和 edge 包 | SDK/edge 干净容器安装和交付包独立镜像构建已在服务器通过；provider 数据面按各自验收状态裁决 |
 
 本地完整门禁和服务器验收材料均已保留。V2 已在隔离服务器验证真实 Tinode inbound/event replay/RustDesk edge recovery，并验证最终交付包可独立构建和安装；本轮没有重跑的 LiveKit 数据面、物理 RustDesk 双客户端以及 OCR/ASR/AI provider 仍保持 `not_run_for_v2`。所有缺少外部服务或物理客户端的项目继续列在第 11 节，不以受控 E2E 结果替代。
 
@@ -29,7 +31,7 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 
 ### 3.1 推荐：独立 iveKit 服务
 
-`infra/ivekit/docker-compose.yml` 运行 `npm run start:ivekit`，只启动可复用 HTTP、WebSocket、Media/Chat/RustDesk 模块和 worker，不启动 call-center、IVR、外呼或 SQLite runtime。OPC 和 LED 都通过公网 base URL 调用它。
+`infra/ivekit/docker-compose.yml` 运行 `npm run start:ivekit`，启动可复用 HTTP、WebSocket、Media/Chat/RustDesk/Voice/IVR/Contact Center 模块和已启用的 worker，不启动 OPC 历史 call-center 或 SQLite runtime。OPC 和 LED 都通过公网 base URL 调用它。
 
 无论嵌入还是抽离，LED 只能通过 iveKit facade/SDK 和标准事件访问能力，不直连 PostgreSQL、Tinode 数据库或 MinIO 管理 API。浏览器只接收短期 LiveKit/Tinode 用户凭据，不接收服务端 provider secret。
 

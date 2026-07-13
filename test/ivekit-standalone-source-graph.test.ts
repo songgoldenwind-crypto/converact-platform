@@ -38,6 +38,8 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
     'src/agent-runtime/ivekit/contact-center/http.ts',
     'src/agent-runtime/ivekit/contact-center/ivr-queue-port.ts',
     'src/agent-runtime/ivekit/contact-center/queue-service.ts',
+    'src/agent-runtime/ivekit/contact-center/monitor-service.ts',
+    'src/agent-runtime/ivekit/contact-center/postgres/monitor-source.ts',
     'src/agent-runtime/ivekit/contact-center/overflow-service.ts',
     'src/agent-runtime/ivekit/contact-center/overflow-runtime.ts',
     'src/agent-runtime/ivekit/contact-center/voice-overflow-adapter.ts',
