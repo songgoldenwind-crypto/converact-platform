@@ -13,6 +13,7 @@ export * from './postgres/session-store.js';
 export * from './postgres/unit-of-work.js';
 export * from './session-service.js';
 export * from './session-action-completion.js';
+export * from './simulation.js';
 export * from './types.js';
 export * from './validation.js';
 export * from './workers/pending-action-worker.js';

@@ -8,6 +8,8 @@ export type IvrErrorCode =
   | 'event_sequence_conflict'
   | 'invalid_session_state'
   | 'step_limit_exceeded'
+  | 'simulation_limit_exceeded'
+  | 'simulation_script_mismatch'
   | 'branch_missing'
   | 'lease_lost'
   | 'provider_timeout'
