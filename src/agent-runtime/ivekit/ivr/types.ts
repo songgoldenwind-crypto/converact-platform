@@ -8,8 +8,27 @@ export type {
 } from './graph-types.js';
 
 import type { IvrFlowGraph } from './graph-types.js';
+import type { IvrDependencyManifest } from './dependencies.js';
 
 export type IvrSessionState = 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled';
+
+export type IvrFlowStatus = 'draft' | 'published' | 'disabled' | 'archived';
+export type IvrReleaseKind = 'publish' | 'rollback';
+
+export interface IvrFlow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  status: IvrFlowStatus;
+  draft_graph: IvrFlowGraph;
+  draft_revision: number;
+  current_published_version: number | null;
+  metadata: Record<string, unknown>;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export type IvrPendingActionState =
   | 'pending'
@@ -28,7 +47,12 @@ export interface IvrFlowVersion {
   schema_version: number;
   graph: IvrFlowGraph;
   graph_hash: string;
-  dependencies: Record<string, unknown>;
+  dependencies: IvrDependencyManifest;
+  release_kind: IvrReleaseKind;
+  source_version: number | null;
+  publication_key: string;
+  publication_payload_hash: string;
+  release_metadata: Record<string, unknown>;
   published_by: string;
   published_at: string;
 }
@@ -49,6 +73,14 @@ export interface IvrSession {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+  provider_profile_id: string | null;
+  provider_session_id: string | null;
+  last_event_sequence: number;
+  last_event_payload_hash: string;
+  last_action_revision: number;
+  last_action: Record<string, unknown>;
+  provider_metadata: Record<string, unknown>;
+  trace_id: string;
 }
 
 export interface IvrAction {

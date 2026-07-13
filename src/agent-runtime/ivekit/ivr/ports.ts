@@ -1,11 +1,45 @@
-import type { IvrAction, IvrFlowVersion, IvrSession } from './types.js';
+import type { IvrDependencyManifest } from './dependencies.js';
+import type { IvrValidationIssue } from './validation.js';
+import type { IvrAction, IvrFlow, IvrFlowVersion, IvrSession } from './types.js';
 
 export interface IvrFlowRepository {
+  getFlow(
+    tenantId: string,
+    flowId: string,
+    options?: { for_update?: boolean }
+  ): Promise<IvrFlow | null>;
+  listFlows(tenantId: string): Promise<IvrFlow[]>;
+  insertFlow(flow: IvrFlow): Promise<IvrFlow>;
+  updateDraft(flow: IvrFlow, expectedRevision: number): Promise<IvrFlow>;
+  updatePublication(flow: IvrFlow, expectedRevision: number): Promise<IvrFlow>;
+  listVersions(tenantId: string, flowId: string): Promise<IvrFlowVersion[]>;
+  getVersion(tenantId: string, flowId: string, version: number): Promise<IvrFlowVersion | null>;
   getPublished(
     tenantId: string,
     flowId: string,
     version?: number
   ): Promise<IvrFlowVersion | null>;
+  findVersionByPublicationKey(tenantId: string, key: string): Promise<IvrFlowVersion | null>;
+  insertVersion(version: IvrFlowVersion): Promise<IvrFlowVersion>;
+}
+
+export interface IvrFlowUnitOfWorkContext {
+  flows: IvrFlowRepository;
+}
+
+export interface IvrFlowUnitOfWork {
+  run<T>(
+    tenantId: string,
+    operation: (context: IvrFlowUnitOfWorkContext) => Promise<T>
+  ): Promise<T>;
+}
+
+export interface IvrDependencyResolver {
+  validate(input: {
+    tenant_id: string;
+    flow_id: string;
+    dependencies: IvrDependencyManifest;
+  }): Promise<IvrValidationIssue[]>;
 }
 
 export interface IvrSessionRepository {

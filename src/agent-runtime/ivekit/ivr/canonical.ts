@@ -39,6 +39,10 @@ export function canonicalIvrGraphHash(graph: IvrFlowGraph): string {
   return createHash('sha256').update(canonicalJson(normalizeIvrGraph(graph))).digest('hex');
 }
 
+export function canonicalIvrPayloadHash(value: unknown): string {
+  return createHash('sha256').update(canonicalJson(value)).digest('hex');
+}
+
 export function redactSensitiveIvrGraph(graph: IvrFlowGraph): IvrFlowGraph {
   return sanitizeGraphValue(graph) as IvrFlowGraph;
 }
