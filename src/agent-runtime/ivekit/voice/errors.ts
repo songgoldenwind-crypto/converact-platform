@@ -8,6 +8,7 @@ export type VoiceErrorCode =
   | 'validation_failed'
   | 'not_found'
   | 'revision_conflict'
+  | 'lease_lost'
   | 'idempotency_conflict'
   | 'capability_unavailable'
   | 'provider_auth_failed'

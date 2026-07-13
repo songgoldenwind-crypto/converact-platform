@@ -101,6 +101,11 @@ export interface VoiceAddressProjection {
   redacted: string;
 }
 
+export interface VoiceProtectedAddress extends VoiceAddressProjection {
+  ciphertext: string;
+  hmac: string;
+}
+
 export interface VoiceListInput {
   tenant_id: string;
   cursor?: string;

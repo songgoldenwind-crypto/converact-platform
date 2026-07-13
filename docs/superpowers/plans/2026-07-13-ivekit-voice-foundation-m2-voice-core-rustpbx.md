@@ -316,14 +316,15 @@ git commit -m "feat(ivekit): protect voice addresses and provider secrets"
 - Create: `src/agent-runtime/ivekit/voice/postgres/command-store.ts`
 - Create: `src/agent-runtime/ivekit/voice/postgres/provider-event-store.ts`
 - Create: `src/agent-runtime/ivekit/voice/postgres/recording-store.ts`
+- Create: `src/agent-runtime/ivekit/voice/postgres/row-utils.ts`
 - Create: `test/ivekit-voice-postgres-stores.test.ts`
 - Modify: `src/agent-runtime/ivekit/voice/ports.ts`
 
-- [ ] **Step 1: Write failing store contract tests with a recording `PgQueryable`**
+- [x] **Step 1: Write failing store contract tests with a recording `PgQueryable`**
 
 Assert parameterized SQL and decoding for every store. Explicitly test optimistic updates use `WHERE tenant_id=$1 AND id=$2 AND revision=$expected`, idempotent inserts use `ON CONFLICT ... DO NOTHING` then reload, cursor ordering is `(created_at,id)`, and no query selects clear address columns into public DTOs.
 
-- [ ] **Step 2: Define complete repository ports**
+- [x] **Step 2: Define complete repository ports**
 
 Add focused interfaces rather than one broad store:
 
@@ -340,15 +341,15 @@ export interface VoiceConfigurationRepository {
 
 Define analogous explicit ports for desired-state resources, calls/participants, call/configuration commands, provider events, recordings, and bridges. Claim methods take worker id, now, lease, and bounded limit; completion methods require the current worker id so stale workers cannot commit.
 
-- [ ] **Step 3: Implement configuration and call stores**
+- [x] **Step 3: Implement configuration and call stores**
 
 Use `withPgTransaction` for compound writes. Return typed DTOs with JSONB/arrays/timestamps decoded. A missing optimistic update row throws `revision_conflict`; a tenant mismatch remains indistinguishable from not found.
 
-- [ ] **Step 4: Implement command/event/recording stores**
+- [x] **Step 4: Implement command/event/recording stores**
 
 Use one SQL claim statement per queue with `FOR UPDATE SKIP LOCKED`. Reclaim rows whose lease expired. `complete` and `release` update only rows owned by the current worker. Event insert deduplicates both external event id and canonical hash and returns `{ event, replayed }`.
 
-- [ ] **Step 5: Run store tests and real PostgreSQL probes**
+- [x] **Step 5: Run store tests and real PostgreSQL probes**
 
 ```bash
 node --import tsx --test test/ivekit-voice-postgres-stores.test.ts
@@ -357,7 +358,7 @@ sh scripts/verify-ivekit-postgres.sh
 
 Expected: store tests pass; real PostgreSQL proves claims, revisions, unique idempotency, and RLS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/ports.ts src/agent-runtime/ivekit/voice/postgres test/ivekit-voice-postgres-stores.test.ts test/ivekit-standalone-postgres.test.ts

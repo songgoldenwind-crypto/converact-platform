@@ -24,6 +24,16 @@ import { RustDeskDeviceCommandStore } from '../src/agent-runtime/collaboration/r
 import { TranslationService } from '../src/agent-runtime/collaboration/translation-service.js';
 import type { TranslationProvider } from '../src/agent-runtime/collaboration/translation-provider.js';
 import { withPgTenant } from '../src/db-pg-tenant.js';
+import {
+  PostgresVoiceCallStore,
+  PostgresVoiceCommandStore,
+  PostgresVoiceConfigurationStore,
+  PostgresVoiceProviderEventStore,
+  PostgresVoiceRecordingStore,
+  type VoiceCallCommand,
+  type VoiceProviderEvent,
+  type VoiceRecording
+} from '../src/agent-runtime/ivekit/voice/index.js';
 
 const freshAdminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const freshRuntimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
@@ -411,6 +421,147 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         worker_id: 'voice-recovery-worker'
       }]);
     });
+
+    const configurationStore = new PostgresVoiceConfigurationStore(runtime);
+    const profile = await configurationStore.getProfile('ivekit_rls_a', 'ivekit_voice_profile_a');
+    assert.equal(profile?.name, 'Controlled a');
+    const updatedProfile = await configurationStore.updateProfile({
+      ...profile!,
+      name: 'Controlled a updated',
+      updated_by: 'postgres-store-test',
+      updated_at: '2026-07-12T12:00:00.000Z'
+    }, profile!.revision);
+    assert.equal(updatedProfile.revision, 2);
+    await assert.rejects(
+      () => configurationStore.updateProfile(updatedProfile, profile!.revision),
+      (error: unknown) => (error as { code?: string }).code === 'revision_conflict'
+    );
+
+    const callStore = new PostgresVoiceCallStore(runtime);
+    const voiceCall = await callStore.get('ivekit_rls_a', 'ivekit_voice_call_a');
+    assert.deepEqual(voiceCall?.from, { kind: 'e164', redacted: '+86******01' });
+    const updatedCall = await callStore.update({
+      ...voiceCall!,
+      metadata: { postgres_store_verified: true },
+      updated_at: '2026-07-12T12:00:00.000Z'
+    }, voiceCall!.revision);
+    assert.equal(updatedCall.revision, 2);
+    await assert.rejects(
+      () => callStore.update(updatedCall, voiceCall!.revision),
+      (error: unknown) => (error as { code?: string }).code === 'revision_conflict'
+    );
+
+    const commandStore = new PostgresVoiceCommandStore(runtime);
+    const durableCallCommand: VoiceCallCommand = {
+      id: 'ivekit_voice_store_call_command',
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_voice_call_a',
+      kind: 'hangup',
+      state: 'pending',
+      idempotency_key: 'ivekit-voice-store-call-command',
+      payload_hash: 'e'.repeat(64),
+      payload: { reason: 'controlled_acceptance' },
+      attempt_count: 0,
+      max_attempts: 3,
+      next_attempt_at: null,
+      lease_until: null,
+      worker_id: '',
+      provider_command_id: '',
+      result: {},
+      error_code: '',
+      error_message: '',
+      created_at: '2026-07-12T12:00:00.000Z',
+      updated_at: '2026-07-12T12:00:00.000Z',
+      completed_at: null
+    };
+    assert.equal((await commandStore.insertCall(durableCallCommand)).id, durableCallCommand.id);
+    assert.equal((await commandStore.insertCall(durableCallCommand)).id, durableCallCommand.id);
+    const claimedCallCommands = await commandStore.claimCallDue({
+      tenant_id: 'ivekit_rls_a',
+      worker_id: 'voice-postgres-store-worker',
+      now: new Date('2026-07-12T12:00:01.000Z'),
+      lease_ms: 30_000,
+      limit: 10
+    });
+    assert.deepEqual(claimedCallCommands.map((command) => command.id), [durableCallCommand.id]);
+    const completedCallCommand = await commandStore.completeCall({
+      tenant_id: 'ivekit_rls_a',
+      command_id: durableCallCommand.id,
+      worker_id: 'voice-postgres-store-worker',
+      state: 'succeeded',
+      result: { accepted: true }
+    });
+    assert.equal(completedCallCommand.state, 'succeeded');
+    await assert.rejects(
+      () => commandStore.completeCall({
+        tenant_id: 'ivekit_rls_a',
+        command_id: durableCallCommand.id,
+        worker_id: 'stale-voice-worker',
+        state: 'succeeded'
+      }),
+      (error: unknown) => (error as { code?: string }).code === 'lease_lost'
+    );
+
+    const providerEventStore = new PostgresVoiceProviderEventStore(runtime);
+    const providerEvent: VoiceProviderEvent = {
+      id: 'ivekit_voice_store_event',
+      tenant_id: 'ivekit_rls_a',
+      profile_id: 'ivekit_voice_profile_a',
+      call_id: 'ivekit_voice_call_a',
+      external_event_id: 'ivekit-provider-event-store-a',
+      canonical_hash: 'f'.repeat(64),
+      event_type: 'call.ringing',
+      provider_state: 'ringing',
+      safe_payload: { state: 'ringing' },
+      processing_state: 'pending',
+      attempt_count: 0,
+      next_attempt_at: null,
+      lease_until: null,
+      worker_id: '',
+      error_code: '',
+      occurred_at: '2026-07-12T12:00:00.000Z',
+      received_at: '2026-07-12T12:00:00.000Z',
+      processed_at: null
+    };
+    assert.equal((await providerEventStore.insert(providerEvent)).replayed, false);
+    assert.equal((await providerEventStore.insert(providerEvent)).replayed, true);
+    const claimedEvents = await providerEventStore.claimDue({
+      tenant_id: 'ivekit_rls_a',
+      worker_id: 'voice-event-store-worker',
+      now: new Date('2026-07-12T12:00:01.000Z'),
+      lease_ms: 30_000,
+      limit: 10
+    });
+    assert.deepEqual(claimedEvents.map((event) => event.id), [providerEvent.id]);
+    assert.equal((await providerEventStore.complete({
+      tenant_id: 'ivekit_rls_a',
+      event_id: providerEvent.id,
+      worker_id: 'voice-event-store-worker'
+    })).processing_state, 'processed');
+
+    const recordingStore = new PostgresVoiceRecordingStore(runtime);
+    const recording: VoiceRecording = {
+      id: 'ivekit_voice_store_recording',
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_voice_call_a',
+      profile_id: 'ivekit_voice_profile_a',
+      provider_recording_id: 'provider-recording-store-a',
+      status: 'available',
+      recording_mode: 'always',
+      consent_id: null,
+      object_ref: 'ivekit://recording/store-a',
+      evidence_ref: 'evidence-store-a',
+      checksum: '1'.repeat(64),
+      duration_ms: 1200,
+      retention_until: '2026-08-12T12:00:00.000Z',
+      captured_at: '2026-07-12T12:00:00.000Z',
+      deleted_at: null,
+      metadata: { controlled: true },
+      created_at: '2026-07-12T12:00:00.000Z',
+      updated_at: '2026-07-12T12:00:00.000Z'
+    };
+    assert.equal((await recordingStore.insertRecording(recording)).id, recording.id);
+    assert.equal((await recordingStore.insertRecording(recording)).id, recording.id);
 
     await assert.rejects(
       () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(`
