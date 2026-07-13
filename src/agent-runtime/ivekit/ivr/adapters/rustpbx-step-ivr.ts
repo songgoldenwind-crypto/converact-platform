@@ -29,6 +29,11 @@ export interface RustPbxStepIvrNormalizedRequest {
   safe_metadata: Record<string, unknown>;
 }
 
+export interface RustPbxStepIvrRequestIdentity {
+  profile_id: string;
+  provider_session_id: string;
+}
+
 export interface RustPbxStepIvrActionNode {
   type: string;
   [key: string]: unknown;
@@ -57,11 +62,19 @@ export class RustPbxStepIvrAdapter {
     this.#maxMetadataBytes = boundedInteger(options.max_metadata_bytes, 64 * 1024, 256, 1024 * 1024);
   }
 
-  normalizeRequest(input: unknown, state: RustPbxStepIvrSequenceState): RustPbxStepIvrNormalizedRequest {
-    if (!isRecord(input) || !isRecord(state)) throw validationError();
+  readIdentity(input: unknown): RustPbxStepIvrRequestIdentity {
+    if (!isRecord(input)) throw validationError();
     const profileId = boundedString(input.profile_id, 256);
     if (profileId !== this.#profileId) throw validationError();
-    const providerSessionId = boundedString(input.provider_session_id, 256);
+    return {
+      profile_id: profileId,
+      provider_session_id: boundedString(input.provider_session_id, 256)
+    };
+  }
+
+  normalizeRequest(input: unknown, state: RustPbxStepIvrSequenceState): RustPbxStepIvrNormalizedRequest {
+    if (!isRecord(input) || !isRecord(state)) throw validationError();
+    const identity = this.readIdentity(input);
     const eventSequence = nonNegativeInteger(input.event_sequence);
     const actionRevision = nonNegativeInteger(input.action_revision);
     const lastEventSequence = nonNegativeInteger(state.last_event_sequence);
@@ -85,8 +98,8 @@ export class RustPbxStepIvrAdapter {
     const metadata = input.metadata ?? {};
     if (!isRecord(metadata) || jsonBytes(metadata) > this.#maxMetadataBytes) throw validationError();
     return {
-      profile_id: profileId,
-      provider_session_id: providerSessionId,
+      profile_id: identity.profile_id,
+      provider_session_id: identity.provider_session_id,
       event_sequence: eventSequence,
       action_revision: actionRevision,
       disposition,
@@ -104,7 +117,14 @@ export class RustPbxStepIvrAdapter {
       case 'queue':
         return { type: 'queue', queue: boundedString(action.payload.queue_id, 256) };
       case 'transfer':
-        return { type: 'transfer', target: boundedString(action.payload.target, 1024) };
+        return {
+          type: 'transfer',
+          target: boundedString(
+            action.payload.target ?? action.payload.target_ref
+              ?? action.payload.sip_uri ?? action.payload.destination,
+            1024
+          )
+        };
       case 'record':
         return {
           type: 'record',
@@ -112,7 +132,7 @@ export class RustPbxStepIvrAdapter {
           beep: optionalBoolean(action.payload.beep, true)
         };
       case 'hangup': {
-        const prompt = optionalString(action.payload.prompt, 4_096);
+        const prompt = optionalString(action.payload.prompt ?? action.payload.text, 4_096);
         return prompt ? { type: 'play_and_hangup', tts_text: prompt } : { type: 'hangup' };
       }
       case 'wait':
@@ -168,7 +188,7 @@ function promptFields(payload: Record<string, unknown>, textField: string): Reco
     if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw validationError();
     return { file: parsed.toString() };
   }
-  return { tts_text: boundedString(payload[textField], 4_096) };
+  return { tts_text: boundedString(payload[textField] ?? payload.text, 4_096) };
 }
 
 function normalizedEvent(value: unknown): RustPbxStepIvrEvent {

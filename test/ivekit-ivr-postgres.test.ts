@@ -9,6 +9,7 @@ import {
   PostgresIvrFlowStore,
   PostgresIvrFlowUnitOfWork,
   PostgresIvrPendingActionStore,
+  PostgresRustPbxStepIvrBindingResolver,
   PostgresIvrSessionStepStore,
   PostgresIvrSessionUnitOfWork,
   type IvrFlowGraph
@@ -76,6 +77,24 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
     const store = new PostgresIvrFlowStore(pool);
     assert.equal((await store.listVersions(tenantA, flow.id)).length, 3);
     assert.equal(await store.getFlow(tenantB, flow.id), null);
+
+    await withPgTenant(pool, tenantA, (client) => client.query(
+      `UPDATE ivekit_voice_calls
+       SET provider_call_id = $3,
+           metadata = jsonb_build_object('_ivekit_ivr', jsonb_build_object(
+             'flow_id', $4::text, 'flow_version', 3, 'variables', jsonb_build_object('locale', 'zh-CN')
+           ))
+       WHERE tenant_id = $1 AND id = $2`,
+      [tenantA, callId, 'rustpbx-session-a', flow.id]
+    ));
+    const binding = await new PostgresRustPbxStepIvrBindingResolver(pool).resolve({
+      tenant_id: tenantA, profile_id: profileId, provider_session_id: 'rustpbx-session-a',
+      safe_metadata: {}
+    });
+    assert.deepEqual(binding, {
+      call_id: callId, flow_id: flow.id, flow_version: 3,
+      variables: { locale: 'zh-CN' }, trace_id: undefined
+    });
 
     const sessionService = new IvrSessionService({
       unit_of_work: new PostgresIvrSessionUnitOfWork(pool),

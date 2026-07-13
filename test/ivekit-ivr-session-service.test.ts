@@ -131,6 +131,52 @@ test('IVR worker action completion atomically settles and resumes the session', 
   assert.equal(resumed.session.current_node_id, 'end');
   assert.equal(fixture.actions.items.find((item) => item.id === pending.id)?.state, 'succeeded');
   assert.deepEqual(fixture.steps.items.map((step) => step.node_id), ['start', 'http']);
+
+  const originalReplay = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+  assert.equal(originalReplay.action?.kind, 'webhook', 'worker completion must not mutate prior provider response');
+
+  const poll = await fixture.service.acknowledgeProviderPoll({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 2, action_revision: 2, event: { type: 'provider_wait_complete' }
+  });
+  assert.equal(poll.action?.kind, 'hangup');
+  const pollReplay = await fixture.service.acknowledgeProviderPoll({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 2, action_revision: 2, event: { type: 'provider_wait_complete' }
+  });
+  assert.equal(pollReplay.replayed, true);
+  assert.equal(pollReplay.action?.kind, 'hangup');
+});
+
+test('IVR session cancellation atomically closes its pending action and is exactly replayable', async () => {
+  const fixture = createFixture();
+  const started = await fixture.service.startSession({
+    tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a'
+  });
+  await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+
+  const cancelled = await fixture.service.cancelSession({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 2, action_revision: 2, reason: 'caller_hangup'
+  });
+  assert.equal(cancelled.session.state, 'cancelled');
+  assert.equal(cancelled.session.termination_reason, 'caller_hangup');
+  assert.equal(cancelled.action, null);
+  assert.equal(fixture.actions.items[0]?.state, 'cancelled');
+  assert.deepEqual(fixture.steps.items.map((step) => step.node_id), ['start', 'play']);
+
+  const replay = await fixture.service.cancelSession({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 2, action_revision: 2, reason: 'caller_hangup'
+  });
+  assert.equal(replay.replayed, true);
+  assert.equal(fixture.steps.items.length, 2);
 });
 
 test('IVR subflow executes an immutable child version and returns to the parent out branch', async () => {

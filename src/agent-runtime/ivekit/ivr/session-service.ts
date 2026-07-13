@@ -51,6 +51,22 @@ export interface CompleteIvrWorkerActionInput {
   result: Record<string, unknown>;
 }
 
+export interface AcknowledgeIvrProviderPollInput {
+  tenant_id: string;
+  session_id: string;
+  event_sequence: number;
+  action_revision: number;
+  event: Record<string, unknown>;
+}
+
+export interface CancelIvrSessionInput {
+  tenant_id: string;
+  session_id: string;
+  event_sequence: number;
+  action_revision: number;
+  reason: string;
+}
+
 export interface IvrSessionResult {
   session: IvrSession;
   action: IvrAction | null;
@@ -123,7 +139,7 @@ export class IvrSessionService {
       const current = required(await context.sessions.get(tenantId, sessionId, { for_update: true }));
       if (eventSequence === current.last_event_sequence && actionRevision === current.last_action_revision) {
         if (eventHash !== current.last_event_payload_hash) throw sequenceConflict(current);
-        return { session: current, action: actionFromRecord(current.last_action), replayed: true, steps_appended: 0 };
+        return { session: current, action: providerReplayAction(current), replayed: true, steps_appended: 0 };
       }
       if (isTerminal(current.state)) throw new IvrError({ code: 'invalid_session_state', status: 409 });
       if (eventSequence !== current.last_event_sequence + 1 || actionRevision !== current.last_action_revision + 1) {
@@ -159,6 +175,100 @@ export class IvrSessionService {
         },
         workerId
       );
+    });
+  }
+
+  async findProviderSession(input: {
+    tenant_id: string;
+    profile_id: string;
+    provider_session_id: string;
+  }): Promise<IvrSession | null> {
+    const tenantId = identifier(input.tenant_id);
+    const profileId = identifier(input.profile_id);
+    const providerSessionId = identifier(input.provider_session_id);
+    return this.#unitOfWork.run(tenantId, ({ sessions }) => sessions.findByProviderBinding(
+      tenantId, profileId, providerSessionId
+    ));
+  }
+
+  async acknowledgeProviderPoll(input: AcknowledgeIvrProviderPollInput): Promise<IvrSessionResult> {
+    const tenantId = identifier(input.tenant_id);
+    const sessionId = identifier(input.session_id);
+    const eventSequence = nonNegativeInteger(input.event_sequence);
+    const actionRevision = nonNegativeInteger(input.action_revision);
+    const eventHash = canonicalIvrPayloadHash(safeResult(input.event));
+    return this.#unitOfWork.run(tenantId, async ({ sessions }) => {
+      const current = required(await sessions.get(tenantId, sessionId, { for_update: true }));
+      if (eventSequence === current.last_event_sequence && actionRevision === current.last_action_revision) {
+        if (eventHash !== current.last_event_payload_hash) throw sequenceConflict(current);
+        return { session: current, action: providerReplayAction(current), replayed: true, steps_appended: 0 };
+      }
+      if (isTerminal(current.state)) throw new IvrError({ code: 'invalid_session_state', status: 409 });
+      if (eventSequence !== current.last_event_sequence + 1 || actionRevision !== current.last_action_revision + 1) {
+        throw sequenceConflict(current);
+      }
+      const previousResponse = providerReplayAction(current);
+      if (!previousResponse || !isIvrWorkerAction(previousResponse)) {
+        throw new IvrError({ code: 'invalid_session_state', status: 409 });
+      }
+      const action = actionFromRecord(current.last_action);
+      const updated = await sessions.update({
+        ...current,
+        last_event_sequence: eventSequence,
+        last_event_payload_hash: eventHash,
+        last_action_revision: actionRevision,
+        provider_metadata: withProviderReplayAction(current.provider_metadata, action, 'poll'),
+        revision: current.revision + 1,
+        updated_at: this.#timestamp()
+      }, current.revision);
+      return { session: updated, action, replayed: false, steps_appended: 0 };
+    });
+  }
+
+  async cancelSession(input: CancelIvrSessionInput): Promise<IvrSessionResult> {
+    const tenantId = identifier(input.tenant_id);
+    const sessionId = identifier(input.session_id);
+    const eventSequence = nonNegativeInteger(input.event_sequence);
+    const actionRevision = nonNegativeInteger(input.action_revision);
+    const reason = boundedErrorCode(input.reason);
+    const eventHash = canonicalIvrPayloadHash({ type: 'cancel', reason });
+    return this.#unitOfWork.run(tenantId, async ({ sessions, actions, steps }) => {
+      const current = required(await sessions.get(tenantId, sessionId, { for_update: true }));
+      if (eventSequence === current.last_event_sequence && actionRevision === current.last_action_revision) {
+        if (eventHash !== current.last_event_payload_hash) throw sequenceConflict(current);
+        return { session: current, action: providerReplayAction(current), replayed: true, steps_appended: 0 };
+      }
+      if (isTerminal(current.state)) throw new IvrError({ code: 'invalid_session_state', status: 409 });
+      if (eventSequence !== current.last_event_sequence + 1 || actionRevision !== current.last_action_revision + 1) {
+        throw sequenceConflict(current);
+      }
+      const now = this.#timestamp();
+      const open = current.state === 'waiting'
+        ? required(await actions.findOpenForSession(tenantId, sessionId))
+        : null;
+      if (open) {
+        await actions.settle({
+          tenant_id: tenantId, action_id: open.id, state: 'cancelled', result: {},
+          error_code: reason, completed_at: now
+        });
+      }
+      const activeFlow = executionContext(current.context, current).active_flow;
+      await steps.append({
+        id: this.#newId('ivr-step'), tenant_id: tenantId, session_id: current.id,
+        step_index: current.step_count, flow_id: activeFlow.flow_id,
+        flow_version: activeFlow.flow_version, node_id: current.current_node_id,
+        action: open ? pendingToAction(open) : auditAction(current.current_node_id, { type: 'enter' }),
+        branch_taken: 'cancelled', duration_ms: 0, error_code: reason, created_at: now
+      });
+      const updated = await sessions.update({
+        ...current, state: 'cancelled', step_count: current.step_count + 1,
+        waiting_reason: '', termination_reason: reason, completed_at: now,
+        last_event_sequence: eventSequence, last_event_payload_hash: eventHash,
+        last_action_revision: actionRevision, last_action: {},
+        provider_metadata: withProviderReplayAction(current.provider_metadata, null, 'cancel'),
+        revision: current.revision + 1, updated_at: now
+      }, current.revision);
+      return { session: updated, action: null, replayed: false, steps_appended: 1 };
     });
   }
 
@@ -235,6 +345,9 @@ export class IvrSessionService {
           last_event_payload_hash: sequence.eventHash,
           last_action_revision: sequence.actionRevision,
           last_action: structuredClone(planned) as unknown as Record<string, unknown>,
+          provider_metadata: settlementWorkerId
+            ? session.provider_metadata
+            : withProviderReplayAction(session.provider_metadata, planned, 'advance'),
           updated_at: now,
           revision: current.revision + 1
         };
@@ -330,6 +443,9 @@ export class IvrSessionService {
         last_event_payload_hash: sequence.eventHash,
         last_action_revision: sequence.actionRevision,
         last_action: {},
+        provider_metadata: settlementWorkerId
+          ? session.provider_metadata
+          : withProviderReplayAction(session.provider_metadata, null, 'advance'),
         updated_at: now,
         revision: current.revision + 1
       };
@@ -471,6 +587,39 @@ function actionFromRecord(value: Record<string, unknown>): IvrAction | null {
   if (typeof value.kind !== 'string' || typeof value.node_id !== 'string'
     || !value.payload || typeof value.payload !== 'object' || Array.isArray(value.payload)) return null;
   return structuredClone(value) as unknown as IvrAction;
+}
+
+export function isIvrWorkerAction(action: IvrAction): boolean {
+  return !PROVIDER_EXCHANGE_ACTIONS.has(action.kind);
+}
+
+export function providerReplayAction(session: IvrSession): IvrAction | null {
+  if (Object.prototype.hasOwnProperty.call(session.provider_metadata, '_ivekit_last_exchange_action')) {
+    const value = session.provider_metadata._ivekit_last_exchange_action;
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? actionFromRecord(value as Record<string, unknown>)
+      : null;
+  }
+  return actionFromRecord(session.last_action);
+}
+
+export function providerReplayOperation(session: IvrSession): 'advance' | 'poll' | 'cancel' {
+  const value = session.provider_metadata._ivekit_last_exchange_operation;
+  return value === 'poll' || value === 'cancel' ? value : 'advance';
+}
+
+function withProviderReplayAction(
+  metadata: Record<string, unknown>,
+  action: IvrAction | null,
+  operation: 'advance' | 'poll' | 'cancel'
+): Record<string, unknown> {
+  return {
+    ...structuredClone(metadata),
+    _ivekit_last_exchange_action: action
+      ? structuredClone(action) as unknown as Record<string, unknown>
+      : null,
+    _ivekit_last_exchange_operation: operation
+  };
 }
 
 function providerBinding(profileId: unknown, sessionId: unknown): { profile_id: string; session_id: string } | null {
