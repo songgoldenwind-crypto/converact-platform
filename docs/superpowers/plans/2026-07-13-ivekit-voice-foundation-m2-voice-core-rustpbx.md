@@ -126,7 +126,7 @@ The Step IVR adapter in M2 validates/normalizes RustPBX envelopes and maps porta
 - Modify: `src/agent-runtime/ivekit/voice/types.ts`
 - Modify: `src/agent-runtime/ivekit/voice/index.ts`
 
-- [ ] **Step 1: Write failing transition-table tests**
+- [x] **Step 1: Write failing transition-table tests**
 
 Cover every allowed edge and representative rejected edges:
 
@@ -145,7 +145,7 @@ assert.throws(() => transitionVoiceCall('planned', 'hold'), /invalid_call_transi
 
 Also prove duplicate provider states are no-ops, late `ringing` cannot revive `active`/terminal calls, CDR can enrich but not revive a terminal call, and timestamps are set only on the first matching transition.
 
-- [ ] **Step 2: Run the test and verify missing exports fail**
+- [x] **Step 2: Run the test and verify missing exports fail**
 
 Run:
 
@@ -155,7 +155,7 @@ node --import tsx --test test/ivekit-voice-state-machine.test.ts
 
 Expected: FAIL because `state-machine.ts` does not exist.
 
-- [ ] **Step 3: Add complete public domain records**
+- [x] **Step 3: Add complete public domain records**
 
 Add records for `VoiceDeploymentProfile`, `VoiceCapabilitySnapshot`, `VoiceSipTrunk`, `VoiceDid`, `VoiceExtension`, `VoiceRoute`, `VoiceRouteVersion`, `VoiceParticipant`, `VoiceProviderEvent`, `VoiceRecording`, `VoiceConsent`, `VoicePolicy`, `VoiceLiveKitBridge`, and `VoiceConfigurationCommand`. All records use snake_case fields matching PostgreSQL; address-bearing public records expose only `VoiceAddressProjection`.
 
@@ -168,11 +168,11 @@ export type VoiceCallTransition =
   | 'fail' | 'timeout';
 ```
 
-- [ ] **Step 4: Implement the pure reducer**
+- [x] **Step 4: Implement the pure reducer**
 
 `transitionVoiceCall` returns `{ state, ringing_at?, answered_at?, ended_at? }` and throws `VoiceError` with stable codes. `mergeProviderCallState` maps RustPBX/LiveKit states into reducer transitions with precedence instead of directly assigning database states.
 
-- [ ] **Step 5: Run state-machine and boundary tests**
+- [x] **Step 5: Run state-machine and boundary tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-state-machine.test.ts test/ivekit-voice-foundation-boundary.test.ts
@@ -180,7 +180,7 @@ node --import tsx --test test/ivekit-voice-state-machine.test.ts test/ivekit-voi
 
 Expected: PASS; source graph still contains no legacy Voice/IVR/call-center runtime.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add test/ivekit-voice-state-machine.test.ts src/agent-runtime/ivekit/voice
