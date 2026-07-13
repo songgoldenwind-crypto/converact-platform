@@ -61,6 +61,38 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_ivekit_ivr_sessions_provider_binding
 CREATE INDEX IF NOT EXISTS idx_ivekit_ivr_sessions_tenant_updated
   ON ivekit_ivr_sessions(tenant_id, updated_at DESC, id DESC);
 
+ALTER TABLE ivekit_ivr_session_steps
+  ADD COLUMN IF NOT EXISTS flow_id TEXT,
+  ADD COLUMN IF NOT EXISTS flow_version INTEGER CHECK (flow_version > 0);
+
+UPDATE ivekit_ivr_session_steps step
+SET flow_id = session.flow_id,
+    flow_version = session.flow_version
+FROM ivekit_ivr_sessions session
+WHERE step.tenant_id = session.tenant_id
+  AND step.session_id = session.id
+  AND (step.flow_id IS NULL OR step.flow_version IS NULL);
+
+ALTER TABLE ivekit_ivr_session_steps
+  ALTER COLUMN flow_id SET NOT NULL,
+  ALTER COLUMN flow_version SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ivekit_ivr_session_steps_flow_version_fk'
+  ) THEN
+    ALTER TABLE ivekit_ivr_session_steps
+      ADD CONSTRAINT ivekit_ivr_session_steps_flow_version_fk
+      FOREIGN KEY (tenant_id, flow_id, flow_version)
+      REFERENCES ivekit_ivr_flow_versions(tenant_id, flow_id, version) ON DELETE RESTRICT;
+  END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS idx_ivekit_ivr_steps_flow_version
+  ON ivekit_ivr_session_steps(tenant_id, flow_id, flow_version, session_id, step_index);
+
 ALTER TABLE ivekit_ivr_pending_actions
   ADD COLUMN IF NOT EXISTS trace_id TEXT NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS dispatch_mode TEXT NOT NULL DEFAULT 'worker'

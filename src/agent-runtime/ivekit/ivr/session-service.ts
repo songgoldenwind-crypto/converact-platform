@@ -15,12 +15,14 @@ import type {
   IvrSession,
   IvrSessionStep
 } from './types.js';
+import type { IvrFlowGraph, IvrNodeBase } from './graph-types.js';
 
 export interface IvrSessionServiceOptions {
   unit_of_work: IvrSessionUnitOfWork;
   id?: (kind: string) => string;
   now?: () => Date;
   max_steps?: number;
+  max_subflow_depth?: number;
 }
 
 export interface StartIvrSessionInput {
@@ -65,12 +67,14 @@ export class IvrSessionService {
   readonly #id: (kind: string) => string;
   readonly #now: () => Date;
   readonly #maxSteps: number;
+  readonly #maxSubflowDepth: number;
 
   constructor(options: IvrSessionServiceOptions) {
     this.#unitOfWork = options.unit_of_work;
     this.#id = options.id ?? (() => randomUUID());
     this.#now = options.now ?? (() => new Date());
     this.#maxSteps = boundedInteger(options.max_steps, 500, 1, 10_000);
+    this.#maxSubflowDepth = boundedInteger(options.max_subflow_depth, 5, 1, 32);
   }
 
   async startSession(input: StartIvrSessionInput): Promise<IvrSessionResult> {
@@ -97,7 +101,8 @@ export class IvrSessionService {
         id: this.#newId('ivr-session'), tenant_id: tenantId, call_id: callId,
         flow_id: flowId, flow_version: version.version, state: 'running',
         current_node_id: version.graph.entryNodeId,
-        context: initialContext(input.variables) as unknown as Record<string, unknown>, step_count: 0, revision: 1,
+        context: initialContext(input.variables, flowId, version.version) as unknown as Record<string, unknown>,
+        step_count: 0, revision: 1,
         waiting_reason: '', termination_reason: '', created_at: now, updated_at: now,
         completed_at: null, provider_profile_id: binding?.profile_id ?? null,
         provider_session_id: binding?.session_id ?? null, last_event_sequence: 0,
@@ -124,8 +129,7 @@ export class IvrSessionService {
       if (eventSequence !== current.last_event_sequence + 1 || actionRevision !== current.last_action_revision + 1) {
         throw sequenceConflict(current);
       }
-      const version = required(await context.flows.getPublished(tenantId, current.flow_id, current.flow_version));
-      return this.#drive(context, current, version.graph, input.event, {
+      return this.#drive(context, current, input.event, {
         eventSequence, actionRevision, eventHash
       });
     });
@@ -144,11 +148,9 @@ export class IvrSessionService {
       if (session.state !== 'waiting' || session.current_node_id !== action.node_id) {
         throw new IvrError({ code: 'invalid_session_state', status: 409 });
       }
-      const version = required(await context.flows.getPublished(tenantId, session.flow_id, session.flow_version));
       return this.#drive(
         context,
         session,
-        version.graph,
         { type: 'action_succeeded', result: safeResult(input.result) },
         {
           eventSequence: session.last_event_sequence,
@@ -163,7 +165,6 @@ export class IvrSessionService {
   async #drive(
     stores: IvrSessionUnitOfWorkContext,
     current: IvrSession,
-    graph: import('./graph-types.js').IvrFlowGraph,
     initialEvent: IvrExecutionEvent,
     sequence: { eventSequence: number; actionRevision: number; eventHash: string },
     settlementWorkerId?: string
@@ -173,6 +174,11 @@ export class IvrSessionService {
     let previousAction: IvrPendingAction | null = null;
     let stepsAppended = 0;
     const now = this.#timestamp();
+    let execution = executionContext(session.context, session);
+    let activeVersion = required(await stores.flows.getPublished(
+      session.tenant_id, execution.active_flow.flow_id, execution.active_flow.flow_version
+    ));
+    let graph = activeVersion.graph;
 
     if (session.state === 'waiting') {
       previousAction = required(await stores.actions.findOpenForSession(session.tenant_id, session.id));
@@ -195,8 +201,28 @@ export class IvrSessionService {
     for (let loop = 0; loop <= this.#maxSteps; loop += 1) {
       if (session.step_count >= this.#maxSteps) throw new IvrError({ code: 'step_limit_exceeded', status: 422 });
       const nodeId = session.current_node_id;
+      const node = graph.nodes.find((candidate) => candidate.id === nodeId);
+      if (!node) throw new IvrError({ code: 'invalid_session_state', status: 409 });
+
+      if (node.type === 'disconnect' && execution.subflow_stack.length > 0) {
+        const returned = returnFromSubflow(execution, node);
+        const outcome = syntheticAdvance(returned.context, returned.branch, returned.next_node_id);
+        await stores.steps.append(this.#step(session, nodeId, auditAction(nodeId, event), outcome, now));
+        stepsAppended += 1;
+        session.step_count += 1;
+        execution = returned.context;
+        session.context = execution as unknown as Record<string, unknown>;
+        session.current_node_id = returned.next_node_id;
+        activeVersion = required(await stores.flows.getPublished(
+          session.tenant_id, execution.active_flow.flow_id, execution.active_flow.flow_version
+        ));
+        graph = activeVersion.graph;
+        event = { type: 'enter' };
+        continue;
+      }
+
       const outcome = executeIvrNode({
-        graph, node_id: nodeId, context: executionContext(session.context), event
+        graph, node_id: nodeId, context: execution, event
       });
       if (outcome.state === 'waiting') {
         const planned = required(outcome.action);
@@ -216,6 +242,56 @@ export class IvrSessionService {
         return { session: updated, action: planned, replayed: false, steps_appended: stepsAppended };
       }
 
+      if (outcome.state === 'delegated') {
+        const delegation = required(outcome.delegation);
+        const failureCode = execution.subflow_stack.length >= this.#maxSubflowDepth
+          ? 'subflow_depth_exceeded'
+          : '';
+        const child = failureCode ? null : await stores.flows.getPublished(
+          session.tenant_id, delegation.flow_id, delegation.flow_version ?? undefined
+        );
+        const errorCode = failureCode || (child ? '' : 'subflow_not_found');
+        const outTarget = branchTarget(graph, nodeId, 'out');
+        const errorTarget = branchTarget(graph, nodeId, 'error');
+
+        if (errorCode) {
+          const failedDelegation = syntheticAdvance(outcome.context, 'error', errorTarget, errorCode);
+          await stores.steps.append(this.#step(
+            session, nodeId, auditAction(nodeId, event), failedDelegation, now
+          ));
+          stepsAppended += 1;
+          session.step_count += 1;
+          session.context = failedDelegation.context as unknown as Record<string, unknown>;
+          execution = failedDelegation.context;
+          session.current_node_id = errorTarget;
+          event = { type: 'enter' };
+          continue;
+        }
+
+        const childVersion = required(child);
+        const entered = structuredClone(outcome.context);
+        entered.subflow_stack.push({
+          flow_id: entered.active_flow.flow_id,
+          flow_version: entered.active_flow.flow_version,
+          subflow_node_id: nodeId,
+          return_node_id: outTarget,
+          error_return_node_id: errorTarget
+        });
+        entered.active_flow = { flow_id: childVersion.flow_id, flow_version: childVersion.version };
+        const enteredOutcome = syntheticAdvance(entered, 'subflow', childVersion.graph.entryNodeId);
+        await stores.steps.append(this.#step(
+          session, nodeId, auditAction(nodeId, event), enteredOutcome, now
+        ));
+        stepsAppended += 1;
+        session.step_count += 1;
+        session.context = entered as unknown as Record<string, unknown>;
+        execution = entered;
+        session.current_node_id = childVersion.graph.entryNodeId;
+        graph = childVersion.graph;
+        event = { type: 'enter' };
+        continue;
+      }
+
       const stepAction = previousAction ? pendingToAction(previousAction) : auditAction(nodeId, event);
       const step = this.#step(session, nodeId, stepAction, outcome, now);
       await stores.steps.append(step);
@@ -223,14 +299,27 @@ export class IvrSessionService {
       previousAction = null;
       session.step_count += 1;
       session.context = outcome.context as unknown as Record<string, unknown>;
+      execution = outcome.context;
 
       if (outcome.state === 'advanced') {
         session.current_node_id = required(outcome.next_node_id);
         event = { type: 'enter' };
         continue;
       }
-      if (outcome.state === 'delegated') {
-        throw new IvrError({ code: 'capability_unavailable', status: 501, details: { node_type: 'subflow' } });
+      if (execution.subflow_stack.length > 0) {
+        const returned = popSubflow(
+          execution,
+          outcome.state === 'completed' ? 'out' : 'error'
+        );
+        execution = returned.context;
+        session.context = execution as unknown as Record<string, unknown>;
+        session.current_node_id = returned.next_node_id;
+        activeVersion = required(await stores.flows.getPublished(
+          session.tenant_id, execution.active_flow.flow_id, execution.active_flow.flow_version
+        ));
+        graph = activeVersion.graph;
+        event = { type: 'enter' };
+        continue;
       }
       session = {
         ...session,
@@ -274,9 +363,11 @@ export class IvrSessionService {
     outcome: IvrExecutionOutcome,
     now: string
   ): IvrSessionStep {
+    const activeFlow = executionContext(session.context, session).active_flow;
     return {
       id: this.#newId('ivr-step'), tenant_id: session.tenant_id, session_id: session.id,
-      step_index: session.step_count, node_id: nodeId, action,
+      step_index: session.step_count, flow_id: activeFlow.flow_id,
+      flow_version: activeFlow.flow_version, node_id: nodeId, action,
       branch_taken: outcome.branch ?? '', duration_ms: 0,
       error_code: outcome.error_code, created_at: now
     };
@@ -304,17 +395,68 @@ function actionSettlement(event: IvrExecutionEvent): {
   throw new IvrError({ code: 'invalid_session_state', status: 409 });
 }
 
-function initialContext(variables: Record<string, unknown> = {}): IvrExecutionContext {
+function initialContext(
+  variables: Record<string, unknown> = {},
+  flowId: string,
+  flowVersion: number
+): IvrExecutionContext {
   const serialized = JSON.stringify(variables);
   if (Buffer.byteLength(serialized, 'utf8') > 65_536) throw new IvrError({ code: 'validation_failed', status: 422 });
-  return { variables: structuredClone(variables), interaction_attempts: {}, subflow_stack: [] };
+  return {
+    variables: structuredClone(variables), interaction_attempts: {},
+    active_flow: { flow_id: flowId, flow_version: flowVersion }, subflow_stack: []
+  };
 }
 
-function executionContext(value: Record<string, unknown>): IvrExecutionContext {
+function executionContext(value: Record<string, unknown>, session: IvrSession): IvrExecutionContext {
   if (!value.variables || !value.interaction_attempts || !Array.isArray(value.subflow_stack)) {
     throw new IvrError({ code: 'invalid_session_state', status: 409 });
   }
-  return structuredClone(value) as unknown as IvrExecutionContext;
+  const cloned = structuredClone(value) as unknown as IvrExecutionContext;
+  cloned.active_flow ??= { flow_id: session.flow_id, flow_version: session.flow_version };
+  return cloned;
+}
+
+function returnFromSubflow(
+  context: IvrExecutionContext,
+  node: IvrNodeBase
+): { context: IvrExecutionContext; branch: 'out' | 'error'; next_node_id: string } {
+  const value = String(node.data.return_code ?? node.data.returnCode ?? 'ok').toLowerCase();
+  return popSubflow(context, ['ok', 'out', 'success'].includes(value) ? 'out' : 'error');
+}
+
+function popSubflow(
+  context: IvrExecutionContext,
+  branch: 'out' | 'error'
+): { context: IvrExecutionContext; branch: 'out' | 'error'; next_node_id: string } {
+  const next = structuredClone(context);
+  const frame = next.subflow_stack.pop();
+  if (!frame) throw new IvrError({ code: 'invalid_session_state', status: 409 });
+  next.active_flow = { flow_id: frame.flow_id, flow_version: frame.flow_version };
+  return {
+    context: next,
+    branch,
+    next_node_id: branch === 'out' ? frame.return_node_id : frame.error_return_node_id
+  };
+}
+
+function branchTarget(graph: IvrFlowGraph, nodeId: string, branch: string): string {
+  const edge = graph.edges.find((candidate) => candidate.source === nodeId
+    && (candidate.sourceHandle || 'out') === branch);
+  if (!edge) throw new IvrError({ code: 'invalid_session_state', status: 409 });
+  return edge.target;
+}
+
+function syntheticAdvance(
+  context: IvrExecutionContext,
+  branch: string,
+  nextNodeId: string,
+  errorCode = ''
+): IvrExecutionOutcome {
+  return {
+    state: 'advanced', context, branch, next_node_id: nextNodeId,
+    action: null, delegation: null, error_code: errorCode
+  };
 }
 
 function pendingToAction(action: IvrPendingAction): IvrAction {

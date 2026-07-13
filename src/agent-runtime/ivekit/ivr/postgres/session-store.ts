@@ -118,11 +118,12 @@ export class PostgresIvrSessionStepStore implements IvrSessionStepRepository {
     return withPgTenant(this.pg, step.tenant_id, async (pg) => {
       await pg.query(
         `INSERT INTO ivekit_ivr_session_steps
-          (id, tenant_id, session_id, step_index, node_id, action,
+          (id, tenant_id, session_id, step_index, flow_id, flow_version, node_id, action,
            branch_taken, duration_ms, error_code, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12)`,
         [
-          step.id, step.tenant_id, step.session_id, step.step_index, step.node_id,
+          step.id, step.tenant_id, step.session_id, step.step_index,
+          step.flow_id, step.flow_version, step.node_id,
           JSON.stringify(step.action), step.branch_taken, step.duration_ms,
           step.error_code, step.created_at
         ]
@@ -353,7 +354,8 @@ function decodeSession(row: IvrPgRow): IvrSession {
 function decodeStep(row: IvrPgRow): IvrSessionStep {
   return {
     id: String(row.id), tenant_id: String(row.tenant_id), session_id: String(row.session_id),
-    step_index: numberValue(row.step_index), node_id: String(row.node_id),
+    step_index: numberValue(row.step_index), flow_id: String(row.flow_id),
+    flow_version: numberValue(row.flow_version), node_id: String(row.node_id),
     action: jsonRecord(row.action) as unknown as IvrAction,
     branch_taken: String(row.branch_taken ?? ''), duration_ms: numberValue(row.duration_ms),
     error_code: String(row.error_code ?? ''), created_at: timestamp(row.created_at)

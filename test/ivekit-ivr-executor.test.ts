@@ -10,7 +10,7 @@ import {
 } from '../src/agent-runtime/ivekit/ivr/index.js';
 
 test('IVR executor deterministically runs start, set_var, condition, and time_condition', () => {
-  const context: IvrExecutionContext = { variables: {}, interaction_attempts: {}, subflow_stack: [] };
+  const context = emptyContext();
   const start = executeIvrNode({ graph: single('start', {}, ['out']), node_id: 'node', context, event: { type: 'enter' } });
   assert.equal(start.state, 'advanced');
   assert.equal(start.branch, 'out');
@@ -176,5 +176,8 @@ function branches(type: IvrNodeType): string[] {
 }
 
 function emptyContext(): IvrExecutionContext {
-  return { variables: {}, interaction_attempts: {}, subflow_stack: [] };
+  return {
+    variables: {}, interaction_attempts: {},
+    active_flow: { flow_id: 'flow-a', flow_version: 1 }, subflow_stack: []
+  };
 }

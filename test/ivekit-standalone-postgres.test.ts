@@ -193,9 +193,9 @@ async function seedVoiceIvrTenant(pg: Pool, suffix: string): Promise<void> {
   );
   await pg.query(
     `INSERT INTO ivekit_ivr_session_steps
-      (id, tenant_id, session_id, step_index, node_id, action)
-     VALUES ($1, $2, $3, 0, 'start', '{"kind":"wait"}'::JSONB)`,
-    [`ivekit_ivr_step_${suffix}`, tenantId, `ivekit_ivr_session_${suffix}`]
+      (id, tenant_id, session_id, step_index, flow_id, flow_version, node_id, action)
+     VALUES ($1, $2, $3, 0, $4, 1, 'start', '{"kind":"wait"}'::JSONB)`,
+    [`ivekit_ivr_step_${suffix}`, tenantId, `ivekit_ivr_session_${suffix}`, flowId]
   );
 }
 

@@ -44,6 +44,11 @@ test('IVR runtime migration persists provider sequence and replay state on sessi
   assert.match(sql, /FOREIGN KEY \(tenant_id, provider_profile_id\)[\s\S]*ivekit_voice_deployment_profiles\(tenant_id, id\)/i);
   assert.match(sql, /CHECK \([\s\S]*provider_profile_id IS NULL[\s\S]*provider_session_id IS NULL[\s\S]*provider_profile_id <> ''[\s\S]*provider_session_id <> ''/i);
   assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS idx_ivekit_ivr_sessions_provider_binding/i);
+  assert.match(sql, /ALTER TABLE ivekit_ivr_session_steps[\s\S]*ADD COLUMN IF NOT EXISTS flow_id TEXT/i);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS flow_version INTEGER CHECK \(flow_version > 0\)/i);
+  assert.match(sql, /UPDATE ivekit_ivr_session_steps step[\s\S]*SET flow_id = session\.flow_id/i);
+  assert.match(sql, /FOREIGN KEY \(tenant_id, flow_id, flow_version\)[\s\S]*ivekit_ivr_flow_versions/i);
+  assert.match(sql, /CREATE INDEX IF NOT EXISTS idx_ivekit_ivr_steps_flow_version/i);
 });
 
 test('IVR runtime migration extends durable action recovery and tenant discovery', () => {

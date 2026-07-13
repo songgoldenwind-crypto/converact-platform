@@ -133,9 +133,84 @@ test('IVR worker action completion atomically settles and resumes the session', 
   assert.deepEqual(fixture.steps.items.map((step) => step.node_id), ['start', 'http']);
 });
 
-function createFixture(graphOverride?: IvrFlowGraph) {
+test('IVR subflow executes an immutable child version and returns to the parent out branch', async () => {
+  const child = publishedFlow(childReturnGraph('ok'), 'child-flow', 3);
+  const fixture = createFixture(parentSubflowGraph('child-flow', 3), [child]);
+  const started = await fixture.service.startSession({
+    tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a'
+  });
+
+  const waiting = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+
+  assert.equal(waiting.action?.kind, 'hangup');
+  assert.equal(waiting.session.current_node_id, 'parent-ok');
+  assert.deepEqual((waiting.session.context.active_flow as Record<string, unknown>), {
+    flow_id: 'flow-a', flow_version: 1
+  });
+  assert.deepEqual(waiting.session.context.subflow_stack, []);
+  assert.deepEqual(fixture.steps.items.map((step) => step.node_id), [
+    'parent-start', 'child-call', 'child-start', 'child-return'
+  ]);
+  assert.deepEqual(fixture.steps.items.map((step) => [step.flow_id, step.flow_version]), [
+    ['flow-a', 1], ['flow-a', 1], ['child-flow', 3], ['child-flow', 3]
+  ]);
+});
+
+test('IVR subflow error return routes the exact parent error branch', async () => {
+  const child = publishedFlow(childReturnGraph('error'), 'child-flow', 3);
+  const fixture = createFixture(parentSubflowGraph('child-flow', 3), [child]);
+  const started = await fixture.service.startSession({
+    tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a'
+  });
+
+  const waiting = await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+
+  assert.equal(waiting.action?.kind, 'hangup');
+  assert.equal(waiting.session.current_node_id, 'parent-error');
+  assert.equal(fixture.steps.items.find((step) => step.node_id === 'child-return')?.branch_taken, 'error');
+});
+
+test('IVR subflow routes missing child versions and excessive depth through error branches', async () => {
+  const missingFixture = createFixture(parentSubflowGraph('missing-flow', 1));
+  const missingStarted = await missingFixture.service.startSession({
+    tenant_id: 'tenant-a', call_id: 'call-missing', flow_id: 'flow-a'
+  });
+  const missing = await missingFixture.service.advance({
+    tenant_id: 'tenant-a', session_id: missingStarted.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+  assert.equal(missing.session.current_node_id, 'parent-error');
+  assert.equal(missingFixture.steps.items.find((step) => step.node_id === 'child-call')?.error_code,
+    'subflow_not_found');
+
+  const nested = publishedFlow(parentSubflowGraph('grandchild-flow', 1, 'child'), 'child-flow', 1);
+  const grandchild = publishedFlow(childReturnGraph('ok'), 'grandchild-flow', 1);
+  const depthFixture = createFixture(parentSubflowGraph('child-flow', 1), [nested, grandchild], 1);
+  const depthStarted = await depthFixture.service.startSession({
+    tenant_id: 'tenant-a', call_id: 'call-depth', flow_id: 'flow-a'
+  });
+  const depth = await depthFixture.service.advance({
+    tenant_id: 'tenant-a', session_id: depthStarted.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+  assert.equal(depth.session.current_node_id, 'parent-error');
+  assert.equal(depthFixture.steps.items.find((step) => step.error_code === 'subflow_depth_exceeded')?.node_id,
+    'child-call');
+});
+
+function createFixture(
+  graphOverride?: IvrFlowGraph,
+  additionalVersions: IvrFlowVersion[] = [],
+  maxSubflowDepth?: number
+) {
   const flow = publishedFlow(graphOverride);
-  const flows = new MemoryFlowRepository(flow);
+  const flows = new MemoryFlowRepository([flow, ...additionalVersions]);
   const sessions = new MemorySessionRepository();
   const steps = new MemoryStepRepository();
   const actions = new MemoryActionRepository();
@@ -146,16 +221,19 @@ function createFixture(graphOverride?: IvrFlowGraph) {
   const service = new IvrSessionService({
     unit_of_work: unitOfWork,
     id: (kind) => `${kind}-${++id}`,
-    now: () => new Date('2026-07-13T01:00:00.000Z')
+    now: () => new Date('2026-07-13T01:00:00.000Z'),
+    max_subflow_depth: maxSubflowDepth
   });
   return { actions, flows, service, sessions, steps };
 }
 
 class MemoryFlowRepository implements IvrFlowRepository {
-  constructor(readonly published: IvrFlowVersion) {}
+  constructor(readonly published: IvrFlowVersion[]) {}
   async getPublished(tenantId: string, flowId: string, version?: number): Promise<IvrFlowVersion | null> {
-    return tenantId === this.published.tenant_id && flowId === this.published.flow_id
-      && (version === undefined || version === this.published.version) ? clone(this.published) : null;
+    const matches = this.published.filter((candidate) => candidate.tenant_id === tenantId
+      && candidate.flow_id === flowId && (version === undefined || version === candidate.version));
+    const selected = matches.sort((left, right) => right.version - left.version)[0] ?? null;
+    return clone(selected);
   }
   async getVersion(tenantId: string, flowId: string, version: number) { return this.getPublished(tenantId, flowId, version); }
   async getFlow(): Promise<IvrFlow | null> { return null; }
@@ -163,7 +241,7 @@ class MemoryFlowRepository implements IvrFlowRepository {
   async insertFlow(): Promise<IvrFlow> { throw new Error('not used'); }
   async updateDraft(): Promise<IvrFlow> { throw new Error('not used'); }
   async updatePublication(): Promise<IvrFlow> { throw new Error('not used'); }
-  async listVersions(): Promise<IvrFlowVersion[]> { return [clone(this.published)]; }
+  async listVersions(): Promise<IvrFlowVersion[]> { return clone(this.published); }
   async findVersionByPublicationKey(): Promise<IvrFlowVersion | null> { return null; }
   async insertVersion(): Promise<IvrFlowVersion> { throw new Error('not used'); }
 }
@@ -214,13 +292,54 @@ class MemoryActionRepository implements IvrPendingActionRepository {
   }
 }
 
-function publishedFlow(graphOverride?: IvrFlowGraph): IvrFlowVersion {
+function publishedFlow(
+  graphOverride?: IvrFlowGraph,
+  flowId = 'flow-a',
+  version = 1
+): IvrFlowVersion {
   return {
-    id: 'version-a', tenant_id: 'tenant-a', flow_id: 'flow-a', version: 1, schema_version: 1,
+    id: `version-${flowId}-${version}`, tenant_id: 'tenant-a', flow_id: flowId, version, schema_version: 1,
     graph: graphOverride ?? graph(), graph_hash: 'a'.repeat(64), dependencies: emptyDependencies(),
-    release_kind: 'publish', source_version: null, publication_key: 'publish-flow-a',
+    release_kind: 'publish', source_version: null, publication_key: `publish-${flowId}-${version}`,
     publication_payload_hash: 'b'.repeat(64), release_metadata: {}, published_by: 'admin-a',
     published_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function parentSubflowGraph(
+  childFlowId: string,
+  childFlowVersion: number,
+  prefix = 'parent'
+): IvrFlowGraph {
+  return {
+    version: 1, entryNodeId: `${prefix}-start`, variables: [],
+    nodes: [
+      { id: `${prefix}-start`, type: 'start', name: 'Start', position: { x: 0, y: 0 }, data: {} },
+      { id: 'child-call', type: 'subflow', name: 'Child', position: { x: 1, y: 0 },
+        data: { flow_id: childFlowId, flow_version: childFlowVersion } },
+      { id: `${prefix}-ok`, type: 'disconnect', name: 'Success', position: { x: 2, y: 0 }, data: {} },
+      { id: `${prefix}-error`, type: 'disconnect', name: 'Error', position: { x: 2, y: 1 },
+        data: { return_code: 'error' } }
+    ],
+    edges: [
+      { id: `${prefix}-e1`, source: `${prefix}-start`, target: 'child-call', sourceHandle: 'out' },
+      { id: `${prefix}-e2`, source: 'child-call', target: `${prefix}-ok`, sourceHandle: 'out' },
+      { id: `${prefix}-e3`, source: 'child-call', target: `${prefix}-error`, sourceHandle: 'error' }
+    ]
+  };
+}
+
+function childReturnGraph(returnCode: 'ok' | 'error'): IvrFlowGraph {
+  return {
+    version: 1, entryNodeId: 'child-start', variables: [],
+    nodes: [
+      { id: 'child-start', type: 'start', name: 'Start', position: { x: 0, y: 0 }, data: {} },
+      { id: 'child-return', type: 'disconnect', name: 'Return', position: { x: 1, y: 0 },
+        data: { return_code: returnCode } }
+    ],
+    edges: [
+      { id: 'child-e1', source: 'child-start', target: 'child-return', sourceHandle: 'out' }
+    ]
   };
 }
 

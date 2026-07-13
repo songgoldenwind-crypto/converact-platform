@@ -106,6 +106,8 @@ export interface IvrSessionStep {
   tenant_id: string;
   session_id: string;
   step_index: number;
+  flow_id: string;
+  flow_version: number;
   node_id: string;
   action: IvrAction;
   branch_taken: string;

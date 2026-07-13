@@ -5,7 +5,14 @@ import type { IvrFlowGraph, IvrNodeBase } from './graph-types.js';
 export interface IvrExecutionContext {
   variables: Record<string, unknown>;
   interaction_attempts: Record<string, number>;
-  subflow_stack: Array<{ flow_id: string; flow_version: number; return_node_id: string }>;
+  active_flow: { flow_id: string; flow_version: number };
+  subflow_stack: Array<{
+    flow_id: string;
+    flow_version: number;
+    subflow_node_id: string;
+    return_node_id: string;
+    error_return_node_id: string;
+  }>;
 }
 
 export type IvrExecutionEvent =
@@ -290,7 +297,11 @@ function cloneContext(context: IvrExecutionContext): IvrExecutionContext {
 function boundedContext(context: IvrExecutionContext): IvrExecutionContext {
   const serialized = JSON.stringify(context);
   if (Buffer.byteLength(serialized, 'utf8') > 262_144) {
-    return { variables: {}, interaction_attempts: {}, subflow_stack: [] };
+    return {
+      variables: {}, interaction_attempts: {},
+      active_flow: context.active_flow,
+      subflow_stack: context.subflow_stack
+    };
   }
   return context;
 }
