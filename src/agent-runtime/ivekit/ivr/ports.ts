@@ -121,6 +121,12 @@ export interface IvrPendingActionCompletionPort {
     worker_id: string;
     result: Record<string, unknown>;
   }): Promise<void>;
+  fail?(input: {
+    action: IvrPendingAction;
+    worker_id: string;
+    error_code: string;
+    result?: Record<string, unknown>;
+  }): Promise<void>;
 }
 
 export type IvrPendingActionReconciliationResult =

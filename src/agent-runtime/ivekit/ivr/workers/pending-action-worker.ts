@@ -74,7 +74,13 @@ export class IvrPendingActionWorker {
           await this.#release(action, 'retry_wait', classified.code, this.#backoff(action.attempt_count));
           result.retry_wait += 1;
         } else {
-          await this.#release(action, 'failed', classified.code, null);
+          if (this.#completion?.fail) {
+            await this.#completion.fail({
+              action, worker_id: this.#workerId, error_code: classified.code
+            });
+          } else {
+            await this.#release(action, 'failed', classified.code, null);
+          }
           result.failed += 1;
         }
         continue;

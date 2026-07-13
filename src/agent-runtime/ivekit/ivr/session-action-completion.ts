@@ -12,4 +12,13 @@ export class IvrSessionActionCompletion implements IvrPendingActionCompletionPor
       result: input.result
     });
   }
+
+  async fail(input: Parameters<NonNullable<IvrPendingActionCompletionPort['fail']>>[0]): Promise<void> {
+    await this.sessions.failWorkerAction({
+      tenant_id: input.action.tenant_id,
+      action_id: input.action.id,
+      worker_id: input.worker_id,
+      error_code: input.error_code
+    });
+  }
 }

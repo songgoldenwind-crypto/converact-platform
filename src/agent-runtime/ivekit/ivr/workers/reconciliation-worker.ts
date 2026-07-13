@@ -75,7 +75,15 @@ export class IvrPendingActionReconciliationWorker {
           }
           summary.succeeded += 1;
         } else if (result.disposition === 'failed') {
-          await this.#release(action.id, action.tenant_id, 'failed', boundedErrorCode(result.error_code), null);
+          const errorCode = boundedErrorCode(result.error_code);
+          if (this.#completion?.fail) {
+            await this.#completion.fail({
+              action, worker_id: this.#workerId, error_code: errorCode,
+              result: result.result
+            });
+          } else {
+            await this.#release(action.id, action.tenant_id, 'failed', errorCode, null);
+          }
           summary.failed += 1;
         } else {
           await this.#release(

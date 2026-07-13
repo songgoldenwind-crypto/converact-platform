@@ -179,6 +179,23 @@ test('IVR session cancellation atomically closes its pending action and is exact
   assert.equal(fixture.steps.items.length, 2);
 });
 
+test('IVR worker failure atomically settles and resumes through the exact fail branch', async () => {
+  const fixture = createFixture(workerGraph());
+  const started = await fixture.service.startSession({ tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a' });
+  await fixture.service.advance({ tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' } });
+  const pending = fixture.actions.items[0]!;
+  pending.state = 'processing'; pending.worker_id = 'worker-a'; pending.attempt_count = 3;
+
+  const resumed = await fixture.service.failWorkerAction({
+    tenant_id: 'tenant-a', action_id: pending.id, worker_id: 'worker-a', error_code: 'provider_rejected'
+  });
+  assert.equal(resumed.action?.kind, 'hangup');
+  assert.equal(resumed.session.current_node_id, 'end');
+  assert.equal(fixture.actions.items[0]?.state, 'failed');
+  assert.equal(fixture.steps.items.find((step) => step.node_id === 'http')?.branch_taken, 'fail');
+});
+
 test('IVR subflow executes an immutable child version and returns to the parent out branch', async () => {
   const child = publishedFlow(childReturnGraph('ok'), 'child-flow', 3);
   const fixture = createFixture(parentSubflowGraph('child-flow', 3), [child]);

@@ -51,6 +51,13 @@ export interface CompleteIvrWorkerActionInput {
   result: Record<string, unknown>;
 }
 
+export interface FailIvrWorkerActionInput {
+  tenant_id: string;
+  action_id: string;
+  worker_id: string;
+  error_code: string;
+}
+
 export interface AcknowledgeIvrProviderPollInput {
   tenant_id: string;
   session_id: string;
@@ -152,6 +159,21 @@ export class IvrSessionService {
   }
 
   async completeWorkerAction(input: CompleteIvrWorkerActionInput): Promise<IvrSessionResult> {
+    return this.#settleWorkerAction(input, {
+      type: 'action_succeeded', result: safeResult(input.result)
+    });
+  }
+
+  async failWorkerAction(input: FailIvrWorkerActionInput): Promise<IvrSessionResult> {
+    return this.#settleWorkerAction(input, {
+      type: 'action_failed', error_code: boundedErrorCode(input.error_code)
+    });
+  }
+
+  async #settleWorkerAction(
+    input: { tenant_id: string; action_id: string; worker_id: string },
+    event: IvrExecutionEvent
+  ): Promise<IvrSessionResult> {
     const tenantId = identifier(input.tenant_id);
     const actionId = identifier(input.action_id);
     const workerId = identifier(input.worker_id);
@@ -167,7 +189,7 @@ export class IvrSessionService {
       return this.#drive(
         context,
         session,
-        { type: 'action_succeeded', result: safeResult(input.result) },
+        event,
         {
           eventSequence: session.last_event_sequence,
           actionRevision: session.last_action_revision,

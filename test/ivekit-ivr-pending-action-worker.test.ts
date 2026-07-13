@@ -59,6 +59,33 @@ test('IVR pending action worker makes provider timeouts uncertain and terminal e
   assert.equal(actions.items.find((item) => item.id === 'terminal')?.state, 'failed');
 });
 
+test('IVR pending action worker resumes the session when a terminal failure is known', async () => {
+  const actions = new MemoryActions([pendingAction()]);
+  const failed: string[] = [];
+  const worker = new IvrPendingActionWorker({
+    actions,
+    executor: { async execute() {
+      throw new IvrError({ code: 'capability_unavailable', status: 501 });
+    } },
+    completion: {
+      async complete() { throw new Error('not called'); },
+      async fail(input) {
+        failed.push(input.error_code);
+        await actions.settle({
+          tenant_id: input.action.tenant_id, action_id: input.action.id,
+          worker_id: input.worker_id, state: 'failed', result: {},
+          error_code: input.error_code, completed_at: fixedNow().toISOString()
+        });
+      }
+    },
+    worker_id: 'worker-a', now: fixedNow
+  });
+  const result = await worker.runTenant('tenant-a');
+  assert.equal(result.failed, 1);
+  assert.deepEqual(failed, ['capability_unavailable']);
+  assert.equal(actions.items[0]?.state, 'failed');
+});
+
 test('IVR pending action worker never replays a successful effect when session completion fails', async () => {
   const actions = new MemoryActions([pendingAction()]);
   let executions = 0;
