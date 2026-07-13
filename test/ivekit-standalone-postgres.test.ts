@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -34,6 +34,38 @@ const testSourceCommit = 'c'.repeat(40);
 const freshTest = freshAdminUrl && freshRuntimeUrl && runtimePassword ? test : test.skip;
 const upgradeTest = upgradeAdminUrl && upgradeRuntimeUrl && runtimePassword ? test : test.skip;
 
+const voiceFoundationTables = [
+  'ivekit_voice_deployment_profiles',
+  'ivekit_voice_capability_snapshots',
+  'ivekit_voice_sip_trunks',
+  'ivekit_voice_dids',
+  'ivekit_voice_extensions',
+  'ivekit_voice_routes',
+  'ivekit_voice_route_versions',
+  'ivekit_voice_calls',
+  'ivekit_voice_call_participants',
+  'ivekit_voice_call_commands',
+  'ivekit_voice_provider_events',
+  'ivekit_voice_livekit_bridges',
+  'ivekit_voice_recordings',
+  'ivekit_voice_consents',
+  'ivekit_voice_policies',
+  'ivekit_voice_webrtc_sessions'
+];
+
+const ivrFoundationTables = [
+  'ivekit_ivr_flows',
+  'ivekit_ivr_flow_versions',
+  'ivekit_ivr_sessions',
+  'ivekit_ivr_session_steps',
+  'ivekit_ivr_pending_actions',
+  'ivekit_ivr_audio_assets',
+  'ivekit_ivr_time_groups',
+  'ivekit_ivr_region_groups',
+  'ivekit_ivr_ring_groups',
+  'ivekit_ivr_settings'
+];
+
 function standaloneMigrations(): { directory: string; cleanup(): void } {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-standalone-postgres-'));
   const outputDir = join(root, 'context');
@@ -47,6 +79,101 @@ function standaloneMigrations(): { directory: string; cleanup(): void } {
     directory: join(outputDir, 'migrations'),
     cleanup: () => rmSync(root, { recursive: true, force: true })
   };
+}
+
+function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): void } {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-v3-shaped-migrations-'));
+  const directory = join(root, 'migrations');
+  mkdirSync(directory);
+  for (const name of readdirSync(resolve('src/migrations')).filter((name) => name.endsWith('.sql'))) {
+    if (['046_ivekit_voice_foundation.sql', '047_ivekit_ivr_foundation.sql'].includes(name)) continue;
+    copyFileSync(resolve('src/migrations', name), join(directory, name));
+  }
+  return {
+    directory,
+    cleanup: () => rmSync(root, { recursive: true, force: true })
+  };
+}
+
+async function seedVoiceIvrTenant(pg: Pool, suffix: string): Promise<void> {
+  const tenantId = `ivekit_rls_${suffix}`;
+  const profileId = `ivekit_voice_profile_${suffix}`;
+  const routeId = `ivekit_voice_route_${suffix}`;
+  const callId = `ivekit_voice_call_${suffix}`;
+  const flowId = `ivekit_ivr_flow_${suffix}`;
+  const hash = (label: string) => createHash('sha256').update(`${suffix}:${label}`).digest('hex');
+  const graph = JSON.stringify({
+    version: 1,
+    entryNodeId: 'start',
+    nodes: [
+      { id: 'start', type: 'start', name: 'Start', position: { x: 0, y: 0 }, data: {} },
+      { id: 'end', type: 'disconnect', name: 'End', position: { x: 100, y: 0 }, data: {} }
+    ],
+    edges: [{ id: 'start-end', source: 'start', target: 'end', sourceHandle: 'out' }],
+    variables: []
+  });
+  await pg.query(
+    `INSERT INTO ivekit_voice_deployment_profiles
+      (id, tenant_id, name, adapter, status)
+     VALUES ($1, $2, $3, 'controlled', 'enabled')`,
+    [profileId, tenantId, `Controlled ${suffix}`]
+  );
+  await pg.query(
+    `INSERT INTO ivekit_voice_routes
+      (id, tenant_id, profile_id, name, direction, status)
+     VALUES ($1, $2, $3, $4, 'both', 'active')`,
+    [routeId, tenantId, profileId, `Route ${suffix}`]
+  );
+  await pg.query(
+    `INSERT INTO ivekit_voice_route_versions
+      (id, tenant_id, route_id, version, rules, payload_hash, published_by)
+     VALUES ($1, $2, $3, 1, '{}'::JSONB, $4, 'postgres-test')`,
+    [`ivekit_voice_route_version_${suffix}`, tenantId, routeId, hash('route')]
+  );
+  await pg.query(
+    `INSERT INTO ivekit_voice_calls
+      (id, tenant_id, business_ref_type, business_ref_id, provider_profile_id,
+       direction, from_address_kind, from_address_ciphertext, from_address_hmac,
+       from_address_redacted, to_address_kind, to_address_ciphertext, to_address_hmac,
+       to_address_redacted, idempotency_key)
+     VALUES ($1, $2, 'order', $3, $4, 'inbound', 'e164', $5, $6, '+86******01',
+             'extension', $7, $8, '10**', $9)`,
+    [
+      callId,
+      tenantId,
+      `ORDER-${suffix}`,
+      profileId,
+      `cipher-from-${suffix}`,
+      hash('from'),
+      `cipher-to-${suffix}`,
+      hash('to'),
+      `voice-call-${suffix}`
+    ]
+  );
+  await pg.query(
+    `INSERT INTO ivekit_ivr_flows
+      (id, tenant_id, name, status, draft_graph, current_published_version)
+     VALUES ($1, $2, $3, 'published', $4::JSONB, 1)`,
+    [flowId, tenantId, `Flow ${suffix}`, graph]
+  );
+  await pg.query(
+    `INSERT INTO ivekit_ivr_flow_versions
+      (id, tenant_id, flow_id, version, graph, graph_hash, published_by)
+     VALUES ($1, $2, $3, 1, $4::JSONB, $5, 'postgres-test')`,
+    [`ivekit_ivr_flow_version_${suffix}`, tenantId, flowId, graph, hash('graph')]
+  );
+  await pg.query(
+    `INSERT INTO ivekit_ivr_sessions
+      (id, tenant_id, call_id, flow_id, flow_version, current_node_id)
+     VALUES ($1, $2, $3, $4, 1, 'start')`,
+    [`ivekit_ivr_session_${suffix}`, tenantId, callId, flowId]
+  );
+  await pg.query(
+    `INSERT INTO ivekit_ivr_session_steps
+      (id, tenant_id, session_id, step_index, node_id, action)
+     VALUES ($1, $2, $3, 0, 'start', '{"kind":"wait"}'::JSONB)`,
+    [`ivekit_ivr_step_${suffix}`, tenantId, `ivekit_ivr_session_${suffix}`]
+  );
 }
 
 freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempotent, and RLS enforced', async () => {
@@ -63,7 +190,10 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     const tables = await admin.query<{ tablename: string }>(
       `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
     );
-    for (const forbidden of ['users', 'voice_call_sessions', 'leads', 'campaigns', 'ivr_flows']) {
+    for (const forbidden of [
+      'users', 'voice_call_sessions', 'leads', 'campaigns', 'ivr_flows',
+      'ivr_sessions', 'audio_library'
+    ]) {
       assert.equal(tables.rows.some((row) => row.tablename === forbidden), false, forbidden);
     }
     for (const required of [
@@ -74,7 +204,9 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       'collaboration_translation_jobs',
       'ivekit_media_calls',
       'ivekit_tenant_events',
-      'rustdesk_gateway_sessions'
+      'rustdesk_gateway_sessions',
+      ...voiceFoundationTables,
+      ...ivrFoundationTables
     ]) assert.equal(tables.rows.some((row) => row.tablename === required), true, required);
 
     const checksums = await admin.query<{ version: string; checksum: string }>(
@@ -126,6 +258,109 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     });
 
     await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_a', 'A'), ('ivekit_rls_b', 'B')`);
+    await seedVoiceIvrTenant(admin, 'a');
+    await seedVoiceIvrTenant(admin, 'b');
+
+    await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      const calls = await tenantPg.query<{ tenant_id: string; id: string }>(
+        `SELECT tenant_id, id FROM ivekit_voice_calls ORDER BY id`
+      );
+      assert.deepEqual(calls.rows, [{ tenant_id: 'ivekit_rls_a', id: 'ivekit_voice_call_a' }]);
+      const sessions = await tenantPg.query<{ tenant_id: string; id: string }>(
+        `SELECT tenant_id, id FROM ivekit_ivr_sessions ORDER BY id`
+      );
+      assert.deepEqual(sessions.rows, [{ tenant_id: 'ivekit_rls_a', id: 'ivekit_ivr_session_a' }]);
+    });
+
+    await assert.rejects(
+      () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(`
+        INSERT INTO ivekit_voice_deployment_profiles
+          (id, tenant_id, name, adapter)
+        VALUES ('ivekit_cross_tenant_voice_profile', 'ivekit_rls_b', 'Cross tenant', 'controlled')
+      `)),
+      /row-level security|policy/i
+    );
+    await assert.rejects(
+      () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(`
+        INSERT INTO ivekit_voice_calls
+          (id, tenant_id, business_ref_type, business_ref_id, provider_profile_id,
+           direction, from_address_kind, from_address_ciphertext, from_address_hmac,
+           from_address_redacted, to_address_kind, to_address_ciphertext, to_address_hmac,
+           to_address_redacted, idempotency_key)
+        VALUES
+          ('ivekit_bad_hmac', 'ivekit_rls_a', 'order', 'BAD-HMAC', 'ivekit_voice_profile_a',
+           'outbound', 'e164', 'cipher-a', '${'a'.repeat(63)}', '+86******11',
+           'e164', 'cipher-b', '${'b'.repeat(64)}', '+86******12', 'bad-hmac')
+      `)),
+      /check constraint/i
+    );
+    await assert.rejects(
+      () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(`
+        INSERT INTO ivekit_voice_calls
+          (id, tenant_id, business_ref_type, business_ref_id, provider_profile_id,
+           direction, from_address_kind, from_address_ciphertext, from_address_hmac,
+           from_address_redacted, to_address_kind, to_address_ciphertext, to_address_hmac,
+           to_address_redacted, idempotency_key)
+        VALUES
+          ('ivekit_duplicate_call', 'ivekit_rls_a', 'order', 'DUPLICATE', 'ivekit_voice_profile_a',
+           'outbound', 'e164', 'cipher-a', '${'a'.repeat(64)}', '+86******11',
+           'e164', 'cipher-b', '${'b'.repeat(64)}', '+86******12', 'voice-call-a')
+      `)),
+      /duplicate key|unique constraint/i
+    );
+    await assert.rejects(
+      () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(`
+        INSERT INTO ivekit_voice_call_commands
+          (id, tenant_id, call_id, kind, idempotency_key, payload_hash, attempt_count, max_attempts)
+        VALUES
+          ('ivekit_bad_attempts', 'ivekit_rls_a', 'ivekit_voice_call_a', 'hangup',
+           'bad-attempts', '${'c'.repeat(64)}', 2, 1)
+      `)),
+      /check constraint/i
+    );
+    await assert.rejects(
+      () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(`
+        INSERT INTO ivekit_ivr_flow_versions
+          (id, tenant_id, flow_id, version, graph, graph_hash, published_by)
+        VALUES
+          ('ivekit_duplicate_flow_version', 'ivekit_rls_a', 'ivekit_ivr_flow_a', 1,
+           '{}'::JSONB, '${'d'.repeat(64)}', 'postgres-test')
+      `)),
+      /duplicate key|unique constraint/i
+    );
+    await assert.rejects(
+      () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(`
+        INSERT INTO ivekit_ivr_sessions
+          (id, tenant_id, call_id, flow_id, flow_version)
+        VALUES
+          ('ivekit_cross_tenant_session', 'ivekit_rls_a', 'ivekit_voice_call_b',
+           'ivekit_ivr_flow_a', 1)
+      `)),
+      /foreign key constraint/i
+    );
+
+    for (const statement of [
+      `UPDATE ivekit_voice_route_versions SET provider_revision = 'changed'
+       WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_voice_route_version_a'`,
+      `DELETE FROM ivekit_voice_route_versions
+       WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_voice_route_version_a'`,
+      `UPDATE ivekit_ivr_flow_versions SET graph = '{}'::JSONB
+       WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_ivr_flow_version_a'`,
+      `DELETE FROM ivekit_ivr_flow_versions
+       WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_ivr_flow_version_a'`,
+      `UPDATE ivekit_ivr_session_steps SET branch_taken = 'changed'
+       WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_ivr_step_a'`,
+      `DELETE FROM ivekit_ivr_session_steps
+       WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_ivr_step_a'`
+    ]) await assert.rejects(() => admin.query(statement), /immutable/i);
+
+    await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_cascade', 'Cascade')`);
+    await seedVoiceIvrTenant(admin, 'cascade');
+    await admin.query(`DELETE FROM tenants WHERE id = 'ivekit_rls_cascade'`);
+    assert.equal((await admin.query(
+      `SELECT id FROM ivekit_ivr_session_steps WHERE tenant_id = 'ivekit_rls_cascade'`
+    )).rowCount, 0);
+
     await admin.query(`
       INSERT INTO collaboration_intelligence_policies
         (tenant_id, translation_enabled, translation_profile_id, updated_by)
@@ -444,9 +679,10 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
   const admin = new Pool({ connectionString: upgradeAdminUrl, max: 1 });
   const runtime = new Pool({ connectionString: upgradeRuntimeUrl, max: 1 });
   const migrations = standaloneMigrations();
+  const legacyMigrations = opcMigrationsWithoutVoiceFoundation();
   try {
     await runMigrations(admin, {
-      directory: resolve('src/migrations'),
+      directory: legacyMigrations.directory,
       advisoryLockName: 'ivekit_test_opc_root_migrations'
     });
     await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_upgrade_tenant', 'Upgrade tenant')`);
@@ -457,6 +693,37 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
     await admin.query(`
       INSERT INTO collaboration_sessions (id, tenant_id, business_ref_type, business_ref_id, title)
       VALUES ('ivekit_upgrade_session', 'ivekit_upgrade_tenant', 'order', 'UP-1', 'Preserved session')
+    `);
+    await admin.query(`
+      INSERT INTO ivekit_media_calls
+        (id, tenant_id, room_name, media, initiated_by,
+         business_ref_type, business_ref_id, title)
+      VALUES
+        ('ivekit_upgrade_media', 'ivekit_upgrade_tenant', 'ivekit-upgrade-room', 'video',
+         'upgrade-test', 'order', 'UP-1', 'Preserved media')
+    `);
+    await admin.query(`
+      INSERT INTO remote_assistance_sessions
+        (id, tenant_id, collaboration_session_id, business_ref_type, business_ref_id,
+         status, mode, started_by)
+      VALUES
+        ('ivekit_upgrade_remote', 'ivekit_upgrade_tenant', 'ivekit_upgrade_session',
+         'order', 'UP-1', 'active', 'platform_remote_control', 'upgrade-test')
+    `);
+    await admin.query(`
+      INSERT INTO collaboration_intelligence_policies
+        (tenant_id, translation_enabled, translation_profile_id, updated_by)
+      VALUES ('ivekit_upgrade_tenant', TRUE, 'upgrade-translation', 'upgrade-test')
+    `);
+    const preservedBefore = await admin.query<{ snapshot: Record<string, unknown> }>(`
+      SELECT jsonb_build_object(
+        'campaign', (SELECT to_jsonb(c) FROM campaigns c WHERE id = 'ivekit_upgrade_campaign'),
+        'session', (SELECT to_jsonb(s) FROM collaboration_sessions s WHERE id = 'ivekit_upgrade_session'),
+        'media', (SELECT to_jsonb(m) FROM ivekit_media_calls m WHERE id = 'ivekit_upgrade_media'),
+        'remote', (SELECT to_jsonb(r) FROM remote_assistance_sessions r WHERE id = 'ivekit_upgrade_remote'),
+        'intelligence', (SELECT to_jsonb(i) FROM collaboration_intelligence_policies i
+          WHERE tenant_id = 'ivekit_upgrade_tenant')
+      ) AS snapshot
     `);
     const productTablesBefore = await admin.query<{ count: string }>(`
       SELECT count(*)::text AS count FROM pg_tables WHERE schemaname = 'public'
@@ -475,13 +742,27 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
     const productTablesAfter = await admin.query<{ count: string }>(`
       SELECT count(*)::text AS count FROM pg_tables WHERE schemaname = 'public'
     `);
-    assert.equal(Number(productTablesAfter.rows[0].count) >= Number(productTablesBefore.rows[0].count), true);
+    assert.equal(
+      Number(productTablesAfter.rows[0].count) - Number(productTablesBefore.rows[0].count),
+      voiceFoundationTables.length + ivrFoundationTables.length
+    );
     assert.equal((await admin.query(
       `SELECT id FROM campaigns WHERE id = 'ivekit_upgrade_campaign'`
     )).rowCount, 1);
     assert.equal((await admin.query(
       `SELECT id FROM collaboration_sessions WHERE id = 'ivekit_upgrade_session'`
     )).rowCount, 1);
+    const preservedAfter = await admin.query<{ snapshot: Record<string, unknown> }>(`
+      SELECT jsonb_build_object(
+        'campaign', (SELECT to_jsonb(c) FROM campaigns c WHERE id = 'ivekit_upgrade_campaign'),
+        'session', (SELECT to_jsonb(s) FROM collaboration_sessions s WHERE id = 'ivekit_upgrade_session'),
+        'media', (SELECT to_jsonb(m) FROM ivekit_media_calls m WHERE id = 'ivekit_upgrade_media'),
+        'remote', (SELECT to_jsonb(r) FROM remote_assistance_sessions r WHERE id = 'ivekit_upgrade_remote'),
+        'intelligence', (SELECT to_jsonb(i) FROM collaboration_intelligence_policies i
+          WHERE tenant_id = 'ivekit_upgrade_tenant')
+      ) AS snapshot
+    `);
+    assert.deepEqual(preservedAfter.rows[0].snapshot, preservedBefore.rows[0].snapshot);
 
     const standaloneVersions = await admin.query<{ version: string; count: string }>(`
       SELECT version, count(*)::text AS count
@@ -491,6 +772,8 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         '043_ivekit_intelligence_translation',
         '044_quality_review_policy_routing',
         '045_translation_worker_routing',
+        '046_ivekit_voice_foundation',
+        '047_ivekit_ivr_foundation',
         '090_ivekit_runtime_security'
       )
       GROUP BY version
@@ -501,6 +784,8 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       { version: '043_ivekit_intelligence_translation', count: '1' },
       { version: '044_quality_review_policy_routing', count: '1' },
       { version: '045_translation_worker_routing', count: '1' },
+      { version: '046_ivekit_voice_foundation', count: '1' },
+      { version: '047_ivekit_ivr_foundation', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 
@@ -513,6 +798,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       /permission denied/i
     );
   } finally {
+    legacyMigrations.cleanup();
     migrations.cleanup();
     await runtime.end();
     await admin.end();
