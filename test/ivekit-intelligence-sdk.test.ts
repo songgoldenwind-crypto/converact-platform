@@ -36,6 +36,10 @@ test('iveKit SDK maps intelligence, review queue, source, and translation workfl
   await client.intelligence.listFindings({
     source: 'ai', severity: 'high', review_status: 'pending', session_id: 'session/1', limit: 25
   });
+  await client.intelligence.getFinding('finding/1');
+  await client.intelligence.reviewFinding('finding/1', {
+    review_status: 'confirmed', note: 'Validated'
+  });
   await client.chat.requestMessageTranslation('session/1', 'message/1', {
     target_language: 'en-US'
   }, { idempotencyKey: 'translate-message-1' });
@@ -57,6 +61,8 @@ test('iveKit SDK maps intelligence, review queue, source, and translation workfl
     'GET /api/ivekit/intelligence/sessions/session%2F1/sources/source%2F1',
     'POST /api/ivekit/intelligence/sessions/session%2F1/sources/source%2F1/retry',
     'GET /api/ivekit/intelligence/findings',
+    'GET /api/ivekit/intelligence/findings/finding%2F1',
+    'POST /api/ivekit/intelligence/findings/finding%2F1/review',
     'POST /api/ivekit/chat/sessions/session%2F1/messages/message%2F1/translations',
     'GET /api/ivekit/chat/sessions/session%2F1/messages/message%2F1/translations',
     'POST /api/ivekit/chat/sessions/session%2F1/attachments/attachment%2F1/translations',
@@ -65,8 +71,8 @@ test('iveKit SDK maps intelligence, review queue, source, and translation workfl
     'POST /api/ivekit/chat/translation/run'
   ]);
   assert.equal(calls[5]?.headers.get('idempotency-key'), 'source-import-1');
-  assert.equal(calls[9]?.headers.get('idempotency-key'), 'translate-message-1');
-  assert.equal(calls[11]?.headers.get('idempotency-key'), 'translate-attachment-1');
+  assert.equal(calls[11]?.headers.get('idempotency-key'), 'translate-message-1');
+  assert.equal(calls[13]?.headers.get('idempotency-key'), 'translate-attachment-1');
   assert.equal(calls[8]?.url.searchParams.get('severity'), 'high');
-  assert.equal(calls[12]?.url.searchParams.get('history'), '1');
+  assert.equal(calls[14]?.url.searchParams.get('history'), '1');
 });

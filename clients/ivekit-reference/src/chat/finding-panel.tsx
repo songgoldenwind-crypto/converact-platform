@@ -110,7 +110,7 @@ export function FindingPanel(props: {
         </div>)}
       </div>}
       {props.canReview && !!actions.length && <div className="review-controls">
-        <textarea aria-label="Review reason" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Reason for this decision" />
+        <textarea aria-label="Review reason" value={note} onInput={(event) => setNote(event.currentTarget.value)} placeholder="Reason for this decision" />
         <div>{actions.map((action) => <button
           key={action.status}
           title={action.accessibleName}

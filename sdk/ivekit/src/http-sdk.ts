@@ -69,7 +69,9 @@ import type {
 } from './event-types.js';
 import type {
   IveKitFindingQueueInput,
+  IveKitFindingQueueDetail,
   IveKitFindingQueuePage,
+  IveKitFindingQueueReviewInput,
   IveKitIntelligenceCapabilities,
   IveKitIntelligencePolicy,
   IveKitIntelligencePolicyWrite,
@@ -279,6 +281,8 @@ export interface IveKitIntelligenceHttpClient {
   getSource(sessionId: string, sourceId: string): Promise<IveKitIntelligenceSourceSnapshot>;
   retrySource(sessionId: string, sourceId: string): Promise<IveKitIntelligenceSourceSnapshot>;
   listFindings(input?: IveKitFindingQueueInput): Promise<IveKitFindingQueuePage>;
+  getFinding(findingId: string): Promise<IveKitFindingQueueDetail>;
+  reviewFinding(findingId: string, input: IveKitFindingQueueReviewInput): Promise<IveKitFindingQueueDetail>;
 }
 
 export interface IveKitContextHttpClient {
@@ -761,7 +765,13 @@ function createIntelligenceClient(transport: IveKitTransport): IveKitIntelligenc
         review_status: input.review_status || '', created_from: input.created_from || '',
         created_to: input.created_to || '', cursor: input.cursor || '', limit: optionalNumber(input.limit)
       }
-    })
+    }),
+    getFinding: (findingId) => transport.json(
+      'GET', `/api/ivekit/intelligence/findings/${pathSegment(findingId, 'findingId')}`
+    ),
+    reviewFinding: (findingId, input) => transport.json(
+      'POST', `/api/ivekit/intelligence/findings/${pathSegment(findingId, 'findingId')}/review`, { body: input }
+    )
   };
 }
 

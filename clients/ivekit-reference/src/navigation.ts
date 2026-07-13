@@ -1,6 +1,6 @@
 import type { BusinessRefSelection } from './context/use-business-context.js';
 
-export type WorkspaceMode = 'messages' | 'calls' | 'remote';
+export type WorkspaceMode = 'messages' | 'calls' | 'remote' | 'quality';
 
 export interface IveKitLocationState {
   workspace: WorkspaceMode;
@@ -18,7 +18,7 @@ export function readIveKitLocation(value: string | URL): IveKitLocationState {
   const url = typeof value === 'string' ? new URL(value, 'http://ivekit.local') : value;
   const callId = parameter(url, 'call_id');
   const workspaceValue = parameter(url, 'workspace');
-  const workspace = workspaceValue === 'messages' || workspaceValue === 'calls' || workspaceValue === 'remote'
+  const workspace = workspaceValue === 'messages' || workspaceValue === 'calls' || workspaceValue === 'remote' || workspaceValue === 'quality'
     ? workspaceValue
     : callId ? 'calls' : 'messages';
   const type = parameter(url, 'business_ref_type');

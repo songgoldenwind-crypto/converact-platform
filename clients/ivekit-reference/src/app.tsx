@@ -1,5 +1,5 @@
 import { createIveKitClient, type IveKitChatMessage, type IveKitChatSession } from '@opc/ivekit-sdk';
-import { BriefcaseBusiness, CircleStop, List, MessageSquare, MonitorCog, Phone, RefreshCw, ShieldCheck } from 'lucide-react';
+import { BriefcaseBusiness, CircleStop, List, MessageSquare, MonitorCog, Phone, RefreshCw, ScanSearch, ShieldCheck } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { MessageComposer } from './chat/message-composer.js';
@@ -35,6 +35,11 @@ const MediaWorkspace = lazy(async () => {
 const RustDeskLaunchPanel = lazy(async () => {
   const module = await import('./remote/rustdesk-launch-panel.js');
   return { default: module.RustDeskLaunchPanel };
+});
+
+const QualityWorkspace = lazy(async () => {
+  const module = await import('./chat/quality-workspace.js');
+  return { default: module.QualityWorkspace };
 });
 
 export function App() {
@@ -306,7 +311,7 @@ export function App() {
   }, [businessRef?.id, businessRef?.type, client]);
 
   return (
-    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'remote' ? 'workspace-remote' : ''}`} data-mobile-view={mobileView}>
+    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'remote' ? 'workspace-remote' : workspaceMode === 'quality' ? 'workspace-quality' : ''}`} data-mobile-view={mobileView}>
       <header className="topbar">
         <div className="brand"><MessageSquare size={18} /> <strong>iveKit</strong></div>
         {businessRef && <div className="business-context" title={`${businessRef.type}: ${businessRef.id}`}>
@@ -320,6 +325,7 @@ export function App() {
           <button title="Show messages workspace" aria-pressed={workspaceMode === 'messages'} onClick={() => selectWorkspace('messages')}><MessageSquare size={16} /><span>Messages</span></button>
           <button title="Show calls workspace" aria-pressed={workspaceMode === 'calls'} onClick={() => selectWorkspace('calls')}><Phone size={16} /><span>Calls</span></button>
           <button title="Show remote workspace" aria-pressed={workspaceMode === 'remote'} onClick={() => selectWorkspace('remote')}><MonitorCog size={16} /><span>Remote</span></button>
+          <button title="Show quality workspace" aria-pressed={workspaceMode === 'quality'} onClick={() => selectWorkspace('quality')}><ScanSearch size={16} /><span>Quality</span></button>
         </div>
         {workspaceMode === 'messages' && <div className="mobile-tabs" role="group" aria-label="Mobile workspace">
           <button title="Show sessions" aria-pressed={mobileView === 'sessions'} onClick={() => setMobileView('sessions')}><List size={17} /></button>
@@ -396,7 +402,9 @@ export function App() {
         onReviewFinding={chat.reviewFinding}
       /></> : workspaceMode === 'calls'
         ? <Suspense fallback={<div className="media-workspace-loading">Loading call</div>}><MediaWorkspace key={`media-replay-${mediaReplayVersion}`} client={client} identity={identity} callId={mediaCallId} onCallIdChange={selectMediaCall} websocketUrl={config?.websocketUrl} accessToken={token} /></Suspense>
-        : <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel key={`remote-replay-${remoteReplayVersion}`} client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>}
+        : workspaceMode === 'remote'
+          ? <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel key={`remote-replay-${remoteReplayVersion}`} client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>
+          : client && <Suspense fallback={<div className="media-workspace-loading">Loading quality workspace</div>}><QualityWorkspace client={client} selectedSessionId={selectedId} refreshVersion={chatReplayVersion} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );

@@ -20,6 +20,7 @@ import {
 } from '../collaboration/intelligence-source-service.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
 import { PolicyFindingStore } from '../collaboration/policy-finding-store.js';
+import { CollaborationStore } from '../collaboration/collaboration-store.js';
 import type { CollaborationPolicyFinding, PolicyEvidenceRef } from '../collaboration/types.js';
 
 export interface RouteIveKitIntelligenceApiOptions {
@@ -91,6 +92,55 @@ export async function routeIveKitIntelligenceApi(
         items: page.items.map(projectReviewQueueFinding),
         next_cursor: page.next_cursor
       }
+    };
+  }
+
+  const findingMatch = routePath.match(/^\/api\/ivekit\/intelligence\/findings\/([^/]+)(?:\/(review))?$/);
+  if (findingMatch && (method === 'GET' || (method === 'POST' && findingMatch[2] === 'review'))) {
+    requireReviewer(ctx.role);
+    const findings = new PolicyFindingStore(pg);
+    const findingId = decodeURIComponent(findingMatch[1]);
+    const existing = await findings.getFinding({ tenant_id: ctx.tenantId, finding_id: findingId });
+    if (!existing || !(await findingVisible(pg, existing))) {
+      return { status: 404, data: { error: 'policy finding not found' } };
+    }
+    if (method === 'GET') {
+      return { data: {
+        session_id: existing.session_id,
+        finding: projectReviewQueueFinding(existing),
+        reviews: await findings.listReviews({ tenant_id: ctx.tenantId, finding_id: findingId })
+      } };
+    }
+
+    const input = bodyRecord(body);
+    const unsupported = Object.keys(input).find((field) => !['review_status', 'note', 'metadata'].includes(field));
+    if (unsupported) throw Object.assign(new Error(`unsupported finding review field: ${unsupported}`), { status: 400 });
+    const reviewStatus = String(input.review_status || '').trim();
+    if (!['confirmed', 'false_positive', 'resolved', 'escalated'].includes(reviewStatus)) {
+      throw Object.assign(new Error('unsupported finding review_status'), { status: 400 });
+    }
+    const reviewChanged = existing.review_status !== reviewStatus;
+    const finding = await findings.reviewFinding({
+      tenant_id: ctx.tenantId,
+      finding_id: findingId,
+      review_status: reviewStatus as 'confirmed' | 'false_positive' | 'resolved' | 'escalated',
+      reviewed_by: actorIdentity(ctx, headers),
+      note: input.note == null ? undefined : String(input.note),
+      metadata: recordValue(input.metadata)
+    });
+    const reviews = await findings.listReviews({ tenant_id: ctx.tenantId, finding_id: findingId });
+    const publish = options.publish || wsBroadcast;
+    return {
+      status: reviewChanged ? 201 : 200,
+      data: { session_id: finding.session_id, finding: projectReviewQueueFinding(finding), reviews },
+      afterCommit: () => reviewChanged
+        ? Promise.resolve(publish(ctx.tenantId, 'collaboration.policy.finding_reviewed', {
+          session_id: finding.session_id,
+          finding_id: finding.id,
+          review_status: finding.review_status,
+          reviewed_at: finding.reviewed_at
+        }))
+        : Promise.resolve()
     };
   }
 
@@ -295,6 +345,21 @@ function bodyRecord(value: unknown): Record<string, unknown> {
     throw Object.assign(new Error('JSON object body is required'), { status: 400 });
   }
   return value as Record<string, unknown>;
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+async function findingVisible(pg: PgQueryable, finding: CollaborationPolicyFinding): Promise<boolean> {
+  if (!finding.message_id) return true;
+  const message = await new CollaborationStore(pg).getMessage({
+    tenant_id: finding.tenant_id,
+    message_id: finding.message_id
+  });
+  return Boolean(message && !message.deleted_at);
 }
 
 function optionalProfileIds(value: unknown): string[] | undefined {

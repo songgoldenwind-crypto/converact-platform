@@ -101,6 +101,28 @@ test('remote tab opens the RustDesk workspace without starting a session', async
   assert.ok(view.getByRole('button', { name: 'Start session' }));
 });
 
+test('quality tab opens the tenant review queue and recording source workspace', async () => {
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'quality-operator';
+  const requests: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    requests.push(url);
+    if (url === '/ivekit-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url.includes('/api/ivekit/chat/sessions')) return Response.json({ items: [], next_cursor: null, has_more: false });
+    if (url.includes('/api/ivekit/intelligence/findings')) return Response.json({ items: [], next_cursor: '' });
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+  const view = render(<App />);
+
+  fireEvent.click(view.getByTitle('Show quality workspace'));
+
+  await waitFor(() => assert.ok(view.getByText('Recording sources')));
+  assert.ok(view.getByRole('region', { name: 'Tenant quality review queue' }));
+  assert.ok(requests.some((request) => request.includes('/api/ivekit/intelligence/findings')));
+  assert.equal(new URL(window.location.href).searchParams.get('workspace'), 'quality');
+});
+
 test('business reference deep link drives context, chat filtering, and remote defaults', async () => {
   window.history.replaceState({}, '', '/?business_ref_type=service_order&business_ref_id=SO-200');
   window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
@@ -133,12 +155,13 @@ test('business reference deep link drives context, chat filtering, and remote de
 
   const view = render(<App />);
   await waitFor(() => assert.ok(view.getByTitle('service_order: SO-200')));
-  await waitFor(() => assert.ok(requests.some((request) => {
+  await waitFor(() => assert.ok(view.getByText('No sessions')));
+  assert.ok(requests.some((request) => {
     const url = new URL(request, 'http://ivekit.test');
     return url.pathname === '/api/ivekit/chat/sessions' &&
       url.searchParams.get('business_ref_type') === 'service_order' &&
       url.searchParams.get('business_ref_id') === 'SO-200';
-  })));
+  }));
   assert.ok(view.getByText('2M · 0C · 1R'));
   fireEvent.click(view.getByTitle('Show authorization summary'));
   assert.ok(view.getByRole('complementary', { name: 'Business authorization summary' }));

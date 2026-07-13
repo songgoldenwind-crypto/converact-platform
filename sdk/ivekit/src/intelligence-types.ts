@@ -1,3 +1,5 @@
+import type { IveKitPolicyFindingReview, IveKitPolicyFindingReviewInput } from './chat-types.js';
+
 export type IveKitProviderCapability = 'ocr' | 'asr' | 'quality_review' | 'translation';
 export type IveKitProviderMode = 'self_hosted' | 'third_party';
 
@@ -86,9 +88,39 @@ export interface IveKitFindingQueueInput {
 }
 
 export interface IveKitFindingQueuePage {
-  items: Array<Record<string, unknown> & { id: string; session_id: string; review_status: string }>;
+  items: IveKitFindingQueueItem[];
   next_cursor: string;
 }
+
+export interface IveKitFindingQueueItem {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  message_id: string;
+  source: 'text' | 'ocr' | 'asr' | 'ai';
+  source_ref_id: string;
+  policy_type: string;
+  severity: 'low' | 'medium' | 'high';
+  action: string;
+  confidence: number | null;
+  rationale: string;
+  evidence_refs: Array<Record<string, unknown>>;
+  review_status: 'pending' | 'confirmed' | 'false_positive' | 'resolved' | 'escalated';
+  reviewed_by: string;
+  reviewed_at: string | null;
+  review_note: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+}
+
+export interface IveKitFindingQueueDetail {
+  session_id: string;
+  finding: IveKitFindingQueueItem;
+  reviews: IveKitPolicyFindingReview[];
+}
+
+export type IveKitFindingQueueReviewInput = IveKitPolicyFindingReviewInput;
 
 export type IveKitTranslationStatus =
   | 'pending' | 'processing' | 'retry_wait' | 'succeeded' | 'failed' | 'cancelled';

@@ -28,6 +28,12 @@ test('tenant finding queue is authorized, filtered, cursor-paged, and deletion a
     await createFinding(pg, otherTenantId, 'other-session', 'asr', 'high', 'pending');
 
     const operator = token('reviewer', tenantId, 'operator');
+    const deletedDetailPath = `/api/ivekit/intelligence/findings/${encodeURIComponent(deleted.findingId)}`;
+    const deletedDetail = await routeIveKitIntelligenceApi(
+      pg, 'GET', deletedDetailPath, new URL(`http://localhost${deletedDetailPath}`), {},
+      { authorization: operator }
+    ) as { status: number };
+    assert.equal(deletedDetail.status, 404);
     const pageOne = await queue(pg, operator, '?limit=1');
     assert.equal(pageOne.items.length, 1);
     assert.ok(pageOne.next_cursor);
@@ -98,6 +104,61 @@ test('tenant finding queue rejects invalid filters and cursors', async () => {
         query
       );
     }
+  } finally {
+    if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
+    else process.env.OPC_JWT_SECRET = previousSecret;
+  }
+});
+
+test('tenant reviewers can inspect and review queue findings without session membership', async () => {
+  const previousSecret = process.env.OPC_JWT_SECRET;
+  process.env.OPC_JWT_SECRET = 'review-queue-jwt-secret-with-sufficient-length';
+  try {
+    const pg = new MemoryPg();
+    const tenantId = 'tenant-review-workflow';
+    const created = await createFinding(pg, tenantId, 'workflow', 'ai', 'high', 'pending');
+    const published: Array<{ type: string; data: Record<string, unknown> }> = [];
+    const authorization = token('operator-1', tenantId, 'operator');
+    const detailPath = `/api/ivekit/intelligence/findings/${encodeURIComponent(created.findingId)}`;
+    const detail = await routeIveKitIntelligenceApi(
+      pg, 'GET', detailPath, new URL(`http://localhost${detailPath}`), {}, { authorization }
+    ) as { data: { finding: { id: string; review_status: string }; reviews: unknown[] } };
+    assert.equal(detail.data.finding.id, created.findingId);
+    assert.equal(detail.data.reviews.length, 0);
+
+    const reviewPath = `${detailPath}/review`;
+    const reviewed = await routeIveKitIntelligenceApi(
+      pg,
+      'POST',
+      reviewPath,
+      new URL(`http://localhost${reviewPath}`),
+      { review_status: 'confirmed', note: 'Validated by operations' },
+      { authorization },
+      { publish: async (_publishedTenant, type, data) => { published.push({ type, data: data as Record<string, unknown> }); } }
+    ) as {
+      status: number;
+      data: { finding: { review_status: string }; reviews: unknown[] };
+      afterCommit(): Promise<void>;
+    };
+    await reviewed.afterCommit();
+    assert.equal(reviewed.status, 201);
+    assert.equal(reviewed.data.finding.review_status, 'confirmed');
+    assert.equal(reviewed.data.reviews.length, 1);
+    assert.equal(published[0]?.type, 'collaboration.policy.finding_reviewed');
+    assert.equal(JSON.stringify(published[0]?.data).includes('Validated by operations'), false);
+
+    await assert.rejects(
+      () => routeIveKitIntelligenceApi(
+        pg, 'GET', detailPath, new URL(`http://localhost${detailPath}`), {},
+        { authorization: token('viewer-1', tenantId, 'viewer') }
+      ),
+      (error: unknown) => errorStatus(error) === 403
+    );
+    const crossTenant = await routeIveKitIntelligenceApi(
+      pg, 'GET', detailPath, new URL(`http://localhost${detailPath}`), {},
+      { authorization: token('admin-other', 'tenant-other', 'admin') }
+    ) as { status: number };
+    assert.equal(crossTenant.status, 404);
   } finally {
     if (previousSecret === undefined) delete process.env.OPC_JWT_SECRET;
     else process.env.OPC_JWT_SECRET = previousSecret;
