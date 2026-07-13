@@ -36,6 +36,18 @@ const ACTION_COLUMNS = `
 export class PostgresIvrSessionStore implements IvrSessionRepository {
   constructor(private readonly pg: PgQueryable) {}
 
+  list(tenantId: string, limit = 50): Promise<IvrSession[]> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<IvrPgRow>(
+        `SELECT * FROM ivekit_ivr_sessions session
+         WHERE session.tenant_id = $1
+         ORDER BY session.updated_at DESC, session.id DESC LIMIT $2`,
+        [tenantId, limit]
+      );
+      return result.rows.map(decodeSession);
+    });
+  }
+
   get(tenantId: string, sessionId: string, options: { for_update?: boolean } = {}): Promise<IvrSession | null> {
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const result = await pg.query<IvrPgRow>(

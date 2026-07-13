@@ -1,4 +1,5 @@
 import type { PgQueryable } from '../../../db-pg.js';
+import { resolveAuthContext, type AuthContext } from '../../../middleware/auth.js';
 import { VoiceError } from '../voice/errors.js';
 import type { VoiceSecretResolver } from '../voice/ports.js';
 import { EnvVoiceSecretResolver } from '../voice/secret-resolver.js';
@@ -7,7 +8,19 @@ import {
   VoiceWebhookAuthenticator
 } from '../voice/webhook-auth.js';
 import { PostgresRustPbxStepIvrBindingResolver } from './postgres/rustpbx-step-binding.js';
-import { PostgresIvrSessionUnitOfWork } from './postgres/unit-of-work.js';
+import { PostgresIvrFlowStore } from './postgres/flow-store.js';
+import {
+  PostgresIvrSessionStepStore,
+  PostgresIvrSessionStore
+} from './postgres/session-store.js';
+import {
+  PostgresIvrFlowUnitOfWork,
+  PostgresIvrSessionUnitOfWork
+} from './postgres/unit-of-work.js';
+import { IvrFlowService } from './flow-service.js';
+import { IvrError } from './errors.js';
+import { IvrSimulationService } from './simulation.js';
+import type { IvrFlowGraph } from './graph-types.js';
 import {
   RustPbxStepIvrService,
   type RustPbxStepIvrHandleInput,
@@ -27,6 +40,17 @@ export interface RouteIveKitIvrApiOptions {
   webhook_authenticator?: Pick<VoiceWebhookAuthenticator, 'authenticate'>;
   secret_resolver?: VoiceSecretResolver;
   worker_poll_interval_ms?: number;
+  module?: IvrHttpModule;
+  create_module?: (pg: PgQueryable, tenantId: string) => IvrHttpModule | Promise<IvrHttpModule>;
+}
+
+export interface IvrHttpModule {
+  flows: IvrFlowService;
+  flow_store: PostgresIvrFlowStore;
+  sessions: IvrSessionService;
+  session_store: PostgresIvrSessionStore;
+  step_store: PostgresIvrSessionStepStore;
+  simulations: IvrSimulationService;
 }
 
 export async function routeIveKitIvrApi(
@@ -43,9 +67,126 @@ export async function routeIveKitIvrApi(
   const match = path.match(
     /^\/api\/ivekit\/ivr\/provider-webhooks\/rustpbx\/([^/]+)\/step$/
   );
-  if (!match || method !== 'POST') return undefined;
+  if (match && method === 'POST') {
+    return routeStepWebhook(pg, match[1]!, body, rawBody, headers, options);
+  }
+  if (match) return undefined;
+  const ctx = requireIvrAuth(headers);
+  rejectTenantOverride(ctx.tenantId, _url, body);
+  const module = options.module ?? await options.create_module?.(requiredPg(pg), ctx.tenantId)
+    ?? createPostgresIvrHttpModule(requiredPg(pg));
+  const segments = path.split('/').filter(Boolean);
+
+  if (path === '/api/ivekit/ivr/flows') {
+    if (method === 'GET') return { data: { items: await module.flow_store.listFlows(ctx.tenantId) } };
+    if (method === 'POST') {
+      requireAdmin(ctx);
+      const input = record(body);
+      return { status: 201, data: await module.flows.createFlow({
+        tenant_id: ctx.tenantId, actor: ctx.userId,
+        name: stringValue(input.name), graph: graphValue(input.graph),
+        metadata: optionalRecord(input.metadata)
+      }) };
+    }
+  }
+  const flowId = segments[4] ? decodeSegment(segments[4]) : '';
+  if (segments.length === 5 && segments[3] === 'flows') {
+    if (method === 'GET') return { data: required(await module.flow_store.getFlow(ctx.tenantId, flowId)) };
+    if (method === 'PATCH') {
+      requireAdmin(ctx);
+      const input = record(body);
+      return { data: await module.flows.updateDraft({
+        tenant_id: ctx.tenantId, actor: ctx.userId, flow_id: flowId,
+        expected_revision: positiveInteger(input.expected_revision),
+        ...(input.name === undefined ? {} : { name: stringValue(input.name) }),
+        ...(input.graph === undefined ? {} : { graph: graphValue(input.graph) }),
+        ...(input.metadata === undefined ? {} : { metadata: record(input.metadata) })
+      }) };
+    }
+  }
+  if (segments.length === 6 && segments[3] === 'flows') {
+    const action = segments[5];
+    if (action === 'versions' && method === 'GET') {
+      return { data: { items: await module.flow_store.listVersions(ctx.tenantId, flowId) } };
+    }
+    if (action === 'validate' && method === 'POST') {
+      return { data: await module.flows.validate({ tenant_id: ctx.tenantId, flow_id: flowId }) };
+    }
+    if (action === 'publish' && method === 'POST') {
+      requireAdmin(ctx);
+      const input = record(body);
+      return { data: await module.flows.publish({
+        tenant_id: ctx.tenantId, actor: ctx.userId, flow_id: flowId,
+        expected_draft_revision: positiveInteger(input.expected_draft_revision),
+        idempotency_key: idempotencyKey(headers)
+      }) };
+    }
+    if (action === 'rollback' && method === 'POST') {
+      requireAdmin(ctx);
+      const input = record(body);
+      return { data: await module.flows.rollback({
+        tenant_id: ctx.tenantId, actor: ctx.userId, flow_id: flowId,
+        expected_draft_revision: positiveInteger(input.expected_draft_revision),
+        source_version: positiveInteger(input.source_version),
+        idempotency_key: idempotencyKey(headers)
+      }) };
+    }
+  }
+  if (path === '/api/ivekit/ivr/simulations' && method === 'POST') {
+    const input = record(body);
+    return { data: await module.simulations.simulate({
+      tenant_id: ctx.tenantId, flow_id: stringValue(input.flow_id),
+      flow_version: optionalPositiveInteger(input.flow_version),
+      variables: optionalRecord(input.variables),
+      started_at: optionalString(input.started_at),
+      script: input.script as never,
+      max_actions: optionalPositiveInteger(input.max_actions),
+      max_steps: optionalPositiveInteger(input.max_steps)
+    }) };
+  }
+  if (path === '/api/ivekit/ivr/sessions') {
+    requireOperator(ctx);
+    if (method === 'GET') return { data: { items: await module.session_store.list(
+      ctx.tenantId, listLimit(_url)
+    ) } };
+    if (method === 'POST') {
+      const input = record(body);
+      return { status: 201, data: await module.sessions.startSession({
+        tenant_id: ctx.tenantId, call_id: stringValue(input.call_id),
+        flow_id: stringValue(input.flow_id), flow_version: optionalPositiveInteger(input.flow_version),
+        variables: optionalRecord(input.variables), trace_id: optionalString(input.trace_id)
+      }) };
+    }
+  }
+  const sessionId = segments[4] ? decodeSegment(segments[4]) : '';
+  if (segments[3] === 'sessions' && segments.length === 5 && method === 'GET') {
+    requireOperator(ctx);
+    const session = required(await module.session_store.get(ctx.tenantId, sessionId));
+    return { data: { session, steps: await module.step_store.list(ctx.tenantId, sessionId) } };
+  }
+  if (segments[3] === 'sessions' && segments[5] === 'advance' && method === 'POST') {
+    requireOperator(ctx);
+    const input = record(body);
+    return { data: await module.sessions.advance({
+      tenant_id: ctx.tenantId, session_id: sessionId,
+      event_sequence: nonNegativeInteger(input.event_sequence),
+      action_revision: nonNegativeInteger(input.action_revision),
+      event: record(input.event) as never
+    }) };
+  }
+  return undefined;
+}
+
+async function routeStepWebhook(
+  pg: PgQueryable | null,
+  profileSegment: string,
+  body: unknown,
+  rawBody: string | Buffer,
+  headers: Headers,
+  options: RouteIveKitIvrApiOptions
+): Promise<unknown> {
   const required = requiredPg(pg);
-  const profileId = decodeSegment(match[1]!);
+  const profileId = decodeSegment(profileSegment);
   const authenticator = options.webhook_authenticator ?? new VoiceWebhookAuthenticator({
     context_resolver: new PostgresVoiceProfileContextResolver(required),
     secret_resolver: options.secret_resolver ?? configuredSecretResolver()
@@ -80,6 +221,117 @@ export async function routeIveKitIvrApi(
       'x-ivekit-ivr-action-revision': String(result.action_revision)
     }
   };
+}
+
+export function createPostgresIvrHttpModule(pg: PgQueryable): IvrHttpModule {
+  const flowStore = new PostgresIvrFlowStore(pg);
+  return {
+    flows: new IvrFlowService({ unit_of_work: new PostgresIvrFlowUnitOfWork(pg) }),
+    flow_store: flowStore,
+    sessions: new IvrSessionService({ unit_of_work: new PostgresIvrSessionUnitOfWork(pg) }),
+    session_store: new PostgresIvrSessionStore(pg),
+    step_store: new PostgresIvrSessionStepStore(pg),
+    simulations: new IvrSimulationService({ flows: flowStore })
+  };
+}
+
+function requireIvrAuth(headers: Headers): AuthContext {
+  let context: AuthContext;
+  try { context = resolveAuthContext(headers); } catch {
+    throw new IvrError({ code: 'validation_failed', status: 401 });
+  }
+  if (!context.authenticated || !context.tenantId || !context.userId
+    || (context.role === 'system' && context.tenantId === 'system')) {
+    throw new IvrError({ code: 'validation_failed', status: 401 });
+  }
+  return context;
+}
+
+function requireAdmin(context: AuthContext): void {
+  if (!['owner', 'admin', 'system'].includes(context.role)) {
+    throw new IvrError({ code: 'capability_unavailable', status: 403 });
+  }
+}
+
+function requireOperator(context: AuthContext): void {
+  if (context.role === 'viewer') throw new IvrError({ code: 'capability_unavailable', status: 403 });
+}
+
+function rejectTenantOverride(tenantId: string, url: URL, body: unknown): void {
+  const input = body && typeof body === 'object' && !Array.isArray(body)
+    ? body as Record<string, unknown> : {};
+  const queryTenant = url.searchParams.get('tenant_id') ?? '';
+  const bodyTenant = typeof input.tenant_id === 'string' ? input.tenant_id.trim() : '';
+  if ((queryTenant && queryTenant !== tenantId) || (bodyTenant && bodyTenant !== tenantId)) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+}
+
+function record(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+  return value as Record<string, unknown>;
+}
+
+function optionalRecord(value: unknown): Record<string, unknown> | undefined {
+  return value === undefined ? undefined : record(value);
+}
+
+function graphValue(value: unknown): IvrFlowGraph {
+  return record(value) as unknown as IvrFlowGraph;
+}
+
+function stringValue(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+  return value.trim();
+}
+
+function optionalString(value: unknown): string | undefined {
+  return value === undefined || value === null || value === '' ? undefined : stringValue(value);
+}
+
+function positiveInteger(value: unknown): number {
+  if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > Number.MAX_SAFE_INTEGER) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+  return Number(value);
+}
+
+function optionalPositiveInteger(value: unknown): number | undefined {
+  return value === undefined || value === null ? undefined : positiveInteger(value);
+}
+
+function nonNegativeInteger(value: unknown): number {
+  if (!Number.isInteger(value) || Number(value) < 0 || Number(value) > Number.MAX_SAFE_INTEGER) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+  return Number(value);
+}
+
+function idempotencyKey(headers: Headers): string {
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== 'idempotency-key') continue;
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  throw new IvrError({ code: 'validation_failed', status: 422 });
+}
+
+function listLimit(url: URL): number {
+  const value = url.searchParams.get('limit');
+  if (!value) return 50;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 200) {
+    throw new IvrError({ code: 'validation_failed', status: 422 });
+  }
+  return parsed;
+}
+
+function required<T>(value: T | null): T {
+  if (value === null) throw new IvrError({ code: 'not_found', status: 404 });
+  return value;
 }
 
 function configuredSecretResolver(): VoiceSecretResolver {
