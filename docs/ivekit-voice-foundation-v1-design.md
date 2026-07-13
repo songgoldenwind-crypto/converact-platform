@@ -1,0 +1,827 @@
+# iveKit Voice Foundation V1 详细设计
+
+> 状态：待实现，方向已确认，本文待产品负责人复核
+> 日期：2026-07-13
+> 目标仓库：`opc-platform`
+> 基线：`d4bef8115345b449547ce26215173fa44531903d`
+> 适用消费者：OPC、LED 及后续独立业务系统
+
+## 1. 目标
+
+在现有 iveKit Media、IM、Remote、Intelligence 之上增加可独立部署和版本化的语音呼叫底座。V1 必须把现有 RustPBX、Voice、IVR 和通用联络中心能力从 OPC 产品代码中解耦，同时保留 OPC 现有行为。
+
+最终交付形态不是把 RustPBX 嵌入 Node.js 进程，也不是复制整个 OPC call-center，而是：
+
+1. RustPBX、LiveKit SIP 和可选 Active Call/LiveKit Agents 继续作为独立数据面进程。
+2. iveKit 提供统一语音控制面、PostgreSQL 权威状态、业务绑定、权限、审计和 SDK。
+3. Voice Core 与 IVR Runtime 为必选模块。
+4. ACD、队列、坐席和班长控制作为可选 Contact Center Kit。
+5. OPC 和 LED 只通过稳定 API、SDK、事件与 UI 接入面使用语音能力。
+
+## 2. 非目标
+
+以下能力不进入共享 Voice Foundation V1：
+
+- OPC Lead、CRM、获客、销售线索评分和营销业务流。
+- OPC 特有的 Campaign 运营页面与营销名单管理。
+- Stripe SaaS 订阅计费、WFM 排班和 OPC 白标产品逻辑。
+- LED 设备、门店、工单和售后业务表。
+- 在 iveKit 数据库保存 SIP trunk、分机、对象存储或 Provider 明文密钥。
+- 用受控测试冒充真实运营商、真实号码、真实桌面软电话或生产网络验收。
+- 在第一阶段重写 RustPBX、LiveKit SIP 或现有 IVR 执行器。
+
+通用预测拨号、运营商话费核算和 WFM 可以在后续作为独立扩展设计，不能阻塞 Voice Core 和 IVR 的可复用闭环。
+
+## 3. 当前资产审计
+
+### 3.1 已有能力
+
+当前基线已经包含：
+
+- 60 个 `src/agent-runtime/ivr/` 文件。
+- 75 个 IVR 专项测试。
+- 25 种后端 IVR 节点：`start`、`play`、`menu`、`collect`、`set_var`、`condition`、`time_condition`、`queue`、`http`、`transfer`、`voicemail`、`sip`、`disconnect`、`flush_audio`、`ai_dialogue`、`intent`、`knowledge_qa`、`avatar_switch`、`compliance`、`video_play`、`screen_share`、`visual_menu`、`subflow`、`recording`、`webhook`。
+- Step IVR adapter、RWI bridge、Audio Queue、Barge-in、DTMF、语音菜单、流程模拟、发布校验和可视化设计器。
+- RustPBX call router、CDR receiver、RWI client、呼入 ACD、队列、坐席、转接、会议、Park/Pickup、语音信箱和录音能力。
+- 15 张 `voice_*`/`tenant_voice_*` 历史基础表，以及 IVR session、step、settings、history 等迁移。
+- Voice、IVR、LiveKit 和 RustPBX 的大量单元与受控集成测试。
+
+### 3.2 必须关闭的结构问题
+
+1. 至少 7 个 IVR 文件直接 import `call-center` 实现，包括 ACD、坐席、转接、知识库、Egress、RWI 和 outbound session lookup。
+2. 至少 16 个 Voice、LiveKit、IVR 文件直接 import `db.ts` 或旧 migration bootstrap。
+3. `ivr-runtime-schema.ts` 同时包含 SQLite DDL、PostgreSQL 探测和运行时 ALTER，不能进入独立生产运行图。
+4. `/api/voice/*` 仍通过 query/body 接收 `tenant_id`，并依赖 OPC `harness.toolExecutor`，不满足 iveKit Bearer 身份权威和独立进程边界。
+5. `voice_call_sessions` 等历史表仍含 `lead_id`、`customer_id`、`workspace_id` 和 TEXT JSON 等 OPC/SQLite 语义，不能直接成为 standalone 权威模型。
+6. 当前 Voice 状态与 `ivekit_media_calls`、collaboration session、录制 evidence 之间没有统一资源绑定合同。
+7. RustPBX 早期 community 镜像的 RWI 能力与当前官方能力存在版本漂移，不能把单一 RWI 路径写死为生产前提。
+8. 旧抽取备忘录以 `@opc/voice` 进程内包为目标，已不符合 iveKit standalone 服务和双项目独立升级方向。
+
+## 4. 核心架构决策
+
+### 4.1 同一 iveKit 产品，不新建第二套 Voice 服务产品
+
+Voice Core 进入 iveKit 控制面，原因如下：
+
+- IM、视频、远控和电话必须共享 tenant、business reference、参与人、事件、审计和 evidence。
+- OPC 与 LED 不应同时集成两套认证、两套 WebSocket、两套 SDK 和两套存储策略。
+- RustPBX 和 LiveKit SIP 已经提供独立扩缩容边界，Node.js 控制面无需再按功能拆成更多网络服务。
+
+代码内部仍保持深模块边界，Voice、IVR、Contact Center 之间只通过公开 port 通信。
+
+### 4.2 PostgreSQL-only 生产权威状态
+
+- iveKit standalone 的 Voice/IVR 生产运行只支持 PostgreSQL。
+- 单元测试可以使用实现相同 port 的内存 fake，但不能把 SQLite DDL 打入 standalone source graph。
+- RustPBX 自身数据库使用独立 PostgreSQL database/schema，不与 iveKit runtime role 混用。
+- 可以共用 PostgreSQL 集群，但必须使用不同 database、role、migration ledger 和备份策略。
+- Redis 只负责短时 presence、事件加速、分布式锁或 Provider 内部需要，不作为呼叫生命周期权威来源。
+
+### 4.3 数据面能力协商，不猜版本
+
+每个 RustPBX deployment profile 必须通过 preflight 产生能力快照：
+
+- `management_http`
+- `json_rpc_routing`
+- `step_ivr`
+- `rwi`
+- `webrtc_extension`
+- `recording`
+- `sipflow`
+- `queue`
+- `postgres_backend`
+
+路由和操作只能调用快照声明为 available 的能力。RWI 不可用时不得伪造成功；Step IVR 是 IVR 的确定性兼容路径，RWI 是可选实时增强路径。
+
+### 4.4 OPC/LED 业务只通过 business reference 绑定
+
+共享底座不知道 lead、order、device 或 ticket 的内部表。所有资源统一使用：
+
+```text
+tenant_id
+business_ref_type
+business_ref_id
+```
+
+消费者可以使用 `lead`、`order`、`ticket`、`device_service` 等值，但 iveKit 只做格式、权限和一致性校验，不查询消费者业务数据库。
+
+## 5. 目标运行拓扑
+
+```text
+OPC / LED
+  |
+  | @opc/ivekit-sdk, React integration, Webhook
+  v
+iveKit Control Plane
+  |- Shared Kernel
+  |    tenant, auth, business_ref, durable events, audit, evidence
+  |- Voice Core
+  |    calls, trunks, DID, extensions, recording, provider control
+  |- IVR Runtime
+  |    flow, session, action, side-effect ports, Step IVR/RWI adapters
+  |- Contact Center Kit (optional)
+  |    queue, ACD, presence, skill, callback, supervisor control
+  |- Existing Media / IM / Remote / Intelligence
+  |
+  +--> PostgreSQL: ivekit database
+  +--> Redis
+  +--> S3/MinIO
+  |
+  +--> RustPBX: SIP/PBX/RTP/CDR/SipFlow
+  +--> LiveKit SIP: PSTN to LiveKit room bridge
+  +--> Active Call or LiveKit Agents: optional realtime voice AI
+```
+
+RustPBX、LiveKit SIP、Active Call 和 iveKit 使用独立 service account、网络策略、健康检查和资源限制。
+
+## 6. 模块边界
+
+### 6.1 Shared Kernel
+
+复用现有 iveKit 能力：
+
+- Bearer 认证和 request-scoped tenant PostgreSQL transaction。
+- `business_ref` 资源绑定。
+- durable tenant event replay。
+- evidence timeline。
+- object storage resolver。
+- secret ref 和 deployment profile 规则。
+- idempotency key、cursor、结构化错误和审计字段规则。
+
+Voice/IVR 不允许复制这些能力。
+
+### 6.2 Voice Core
+
+Voice Core 负责：
+
+- RustPBX deployment profile 与 capability snapshot。
+- trunk、DID、extension 和 route desired state。
+- 呼入/外呼 call lifecycle。
+- provider call id、SIP dialog id、LiveKit room/call 的稳定映射。
+- DTMF、接听、挂断、Hold/Resume、转接、会议、Park/Pickup 等控制命令。
+- CDR、录音、同意、保留、导出和 evidence。
+- WebRTC softphone join/config，不代理长时媒体字节。
+- PSTN 与 LiveKit SIP 的 bridge orchestration。
+
+Voice Core 不负责：
+
+- 业务名单来源。
+- CRM writeback。
+- 营销节奏。
+- IVR 图执行。
+- ACD 选座算法。
+
+### 6.3 IVR Runtime
+
+IVR Runtime 只依赖以下 ports：
+
+```typescript
+interface IvrFlowRepository {}
+interface IvrSessionRepository {}
+interface IvrAudioResolver {}
+interface IvrCallControlPort {}
+interface IvrQueuePort {}
+interface IvrKnowledgePort {}
+interface IvrRealtimeAiPort {}
+interface IvrRecordingPort {}
+interface IvrWebhookPort {}
+interface IvrClock {}
+```
+
+执行器不得 import `call-center/*`、`db.ts`、OPC harness 或消费者业务模块。Contact Center、Knowledge、LiveKit、RustPBX 都通过 port adapter 注入。
+
+### 6.4 Contact Center Kit
+
+可选模块负责：
+
+- agent presence、skill、capacity。
+- queue、membership、优先级和 overflow。
+- ACD 分配、排队位置、预估等待和回呼。
+- 盲转、暖转、会议、Park/Pickup 的坐席策略。
+- supervisor 监听、耳语、强插和强制断开授权。
+- 通用 wallboard projection。
+
+Contact Center Kit 可以依赖 Voice Core，Voice Core 不得反向依赖 Contact Center Kit。IVR 的 queue 节点只调用 `IvrQueuePort`。
+
+### 6.5 Realtime Voice AI Port
+
+V1 定义稳定 port 和受控 adapter，允许以下实现：
+
+- Active Call。
+- LiveKit Agents。
+- 自建 streaming ASR + LLM + TTS pipeline。
+- 第三方实时语音 Provider。
+
+统一能力包括 VAD、streaming ASR、streaming TTS、打断、DTMF、tool call、延迟指标和 transcript event。具体模型和厂商继续由 deployment profile 决定。
+
+最小运行合同：
+
+```typescript
+interface RealtimeVoiceAiPort {
+  capabilities(profileId: string): Promise<RealtimeVoiceAiCapabilities>;
+  startSession(input: {
+    tenantId: string;
+    callId: string;
+    profileId: string;
+    language: string;
+    tools: ReadonlyArray<PublishedToolRef>;
+    idempotencyKey: string;
+  }): Promise<{ providerSessionId: string }>;
+  sendDtmf(sessionId: string, digits: string): Promise<void>;
+  interrupt(sessionId: string, reason: string): Promise<void>;
+  endSession(sessionId: string, reason: string): Promise<void>;
+}
+```
+
+ASR/TTS/LLM 流量不经过普通 HTTP request 生命周期持久化；控制面只保存授权后的 transcript projection、tool call、延迟指标和 evidence ref。需要字幕翻译时，transcript event 调用现有 Intelligence Translation port，不在 Voice 中复制翻译引擎。未经策略允许不得默认保存原始音频或完整提示词。
+
+## 7. 建议代码布局
+
+```text
+src/agent-runtime/ivekit/
+  voice/
+    application.ts
+    types.ts
+    ports.ts
+    call-service.ts
+    recording-service.ts
+    deployment-profile.ts
+    capability-service.ts
+    workers/
+      command-worker.ts
+      provider-event-worker.ts
+      reconciliation-worker.ts
+    http.ts
+    events.ts
+    postgres/
+      call-store.ts
+      configuration-store.ts
+      recording-store.ts
+    adapters/
+      rustpbx-management.ts
+      rustpbx-routing.ts
+      rustpbx-rwi.ts
+      livekit-sip.ts
+      controlled-voice-provider.ts
+  ivr/
+    types.ts
+    ports.ts
+    executor.ts
+    validation.ts
+    workers/
+      pending-action-worker.ts
+    http.ts
+    postgres/
+      flow-store.ts
+      session-store.ts
+    adapters/
+      step-ivr.ts
+      rwi.ts
+      voice-call-control.ts
+  contact-center/
+    ports.ts
+    presence-store.ts
+    queue-store.ts
+    acd-service.ts
+    supervisor-service.ts
+    http.ts
+  compatibility/
+    opc-voice-http.ts
+    opc-ivr-http.ts
+    opc-importer.ts
+```
+
+现有文件先通过兼容 re-export 和 adapter 迁移，不能一次性移动 60 个 IVR 文件造成不可审查 diff。
+
+## 8. 数据模型
+
+### 8.1 表归属原则
+
+V3 standalone 验收明确排除 `voice_call_sessions`、`ivr_flows` 等 OPC 历史表。V4 继续保持这个边界：
+
+- `voice_*`、`tenant_voice_*`、`ivr_*` 和 `audio_library` 历史表只作为 OPC migration importer 的读取来源。
+- 新的生产权威表统一使用 `ivekit_voice_*`、`ivekit_ivr_*`；可选联络中心表使用 `ivekit_cc_*`。
+- 新 application service 不双写旧表；OPC compatibility adapter 读取新 DTO，并在迁移窗口内保留旧字段映射。
+- standalone migration 不能复制 `005_full_schema.sql`、`007_ivr_runtime_tables.sql` 或运行时 SQLite DDL。
+- `ivekit_voice_calls` 只描述 SIP/PSTN 呼叫；需要视频、屏幕共享或 LiveKit 房间时，通过 `media_call_id` 关联现有 `ivekit_media_calls`。
+
+### 8.2 Voice Core 权威表
+
+| 表 | 作用 |
+| --- | --- |
+| `ivekit_voice_deployment_profiles` | 非秘密 Provider 配置、adapter 类型、desired version、启用状态 |
+| `ivekit_voice_capability_snapshots` | preflight 能力、上游版本、探测时间、粗粒度错误和配置 hash |
+| `ivekit_voice_sip_trunks` | trunk desired state、方向、codec、并发限制和 credential secret ref |
+| `ivekit_voice_dids` | 号码归属、入口 route、trunk 和状态；号码使用密文、HMAC lookup 和脱敏 projection |
+| `ivekit_voice_extensions` | 分机 desired state、identity、权限、WebRTC 能力和 credential ref |
+| `ivekit_voice_routes` | route identity、draft revision、启用状态 |
+| `ivekit_voice_route_versions` | 不可变已发布条件、动作、hash 和 deployment result |
+| `ivekit_voice_calls` | 通用 business reference、方向、状态、号码 projection、provider/媒体映射和时间线 |
+| `ivekit_voice_call_participants` | SIP、PSTN、WebRTC、LiveKit、AI 和坐席参与人及其状态 |
+| `ivekit_voice_call_commands` | durable control command、幂等、lease、attempt、uncertain 和最终结果 |
+| `ivekit_voice_provider_events` | 去重后的标准化 provider event、canonical hash、处理状态和安全原始摘要 |
+| `ivekit_voice_livekit_bridges` | call、SIP participant、LiveKit media call/room 和 bridge 终态映射 |
+| `ivekit_voice_recordings` | 录音生命周期、对象存储 ref、时长、同意、保留和 evidence ref |
+| `ivekit_voice_consents` | 通用 subject/business reference 的外呼、录音和 AI 披露同意证据 |
+| `ivekit_voice_policies` | 租户外呼、录音、披露、保留和号码脱敏策略 |
+| `ivekit_voice_webrtc_sessions` | 短期 softphone 会话、extension、token hash、能力和过期时间 |
+
+`ivekit_voice_calls` 至少包含：`tenant_id`、`business_ref_type`、`business_ref_id`、`provider_profile_id`、`provider_call_id`、`provider_dialog_id`、`media_call_id`、`direction`、`state`、加密的 from/to address、address HMAC、脱敏 projection、`idempotency_key`、`ringing_at`、`answered_at`、`ended_at`、`termination_reason`、`revision` 和审计时间。密钥由外部 KMS/secret ref 提供，数据库不保存解密密钥。
+
+### 8.3 IVR Runtime 权威表
+
+| 表 | 作用 |
+| --- | --- |
+| `ivekit_ivr_flows` | flow identity、名称、draft revision、当前 published version、状态 |
+| `ivekit_ivr_flow_versions` | 不可变 graph JSONB、schema version、SHA-256、依赖快照和发布者 |
+| `ivekit_ivr_sessions` | call、flow version、上下文、当前节点、revision、等待原因和终态 |
+| `ivekit_ivr_session_steps` | 不可变节点输入、输出、branch、耗时和错误摘要 |
+| `ivekit_ivr_pending_actions` | 外部副作用、幂等、lease、attempt、Provider ref 和恢复状态 |
+| `ivekit_ivr_audio_assets` | 对象存储 ref、TTS source、语言、duration、checksum 和可见范围 |
+| `ivekit_ivr_time_groups` | 时区、日历、营业时间和节假日规则 |
+| `ivekit_ivr_region_groups` | 规范化区域匹配集合 |
+| `ivekit_ivr_ring_groups` | 通用成员 identity、策略和超时；不引用 OPC seat 表 |
+| `ivekit_ivr_settings` | 租户级执行上限、默认语言、超时和安全策略 |
+
+### 8.4 可选 Contact Center 表
+
+Contact Center migration pack 与 runtime profile 可单独启用：
+
+- `ivekit_cc_agents`
+- `ivekit_cc_agent_presence`
+- `ivekit_cc_skills`
+- `ivekit_cc_agent_skills`
+- `ivekit_cc_queues`
+- `ivekit_cc_queue_memberships`
+- `ivekit_cc_queue_entries`
+- `ivekit_cc_assignments`
+- `ivekit_cc_callbacks`
+- `ivekit_cc_supervisor_actions`
+
+这些表只使用 iveKit identity、call id 和 business reference，不保存 OPC 用户、lead、campaign 或 workspace 外键。
+
+### 8.5 旧表导入映射
+
+| 旧来源 | 新目标 | 迁移规则 |
+| --- | --- | --- |
+| `voice_call_sessions`、`voice_call_logs` | `ivekit_voice_calls`、commands/events | `lead_id/customer_id` 映射为 business reference；TEXT JSON 解析失败进入 rejection report |
+| `voice_call_consents`、`tenant_voice_policies` | `ivekit_voice_consents`、`ivekit_voice_policies` | `subject_type=lead/customer` 只保留为字符串 reference，不建消费者外键 |
+| `voice_recordings` | `ivekit_voice_recordings` | URL 转 object storage ref；无法确认对象时标为 `external_unverified` |
+| presence、queue、membership、routing 历史表 | `ivekit_cc_*` | 仅在启用 Contact Center Kit 时导入，workspace 转 metadata 或 consumer scope ref |
+| `voice_agent_specs` 中带 `entryNodeId` 的 graph 与 `ivr_flow_history` | `ivekit_ivr_flows`、`ivekit_ivr_flow_versions` | 校验 graph、计算 hash、保留原 version；非法 graph 拒绝导入 |
+| `ivr_sessions`、`ivr_session_steps` | 不迁移活动执行 | 历史只导出审计；切换前排空或终止旧 session，避免跨执行器续跑 |
+| `audio_library`、时间/区域/组呼设置 | 对应 `ivekit_ivr_*` | 校验 tenant、对象存储、identity 和 JSON 后导入 |
+
+importer 是离线工具，使用独立只读 source DSN 和 target migration role，不进入 standalone runtime source graph。它必须支持 dry-run、计数核对、逐行 rejection report、重复执行和 source checksum；禁止通过数据库 trigger 双写新旧模型。
+
+### 8.6 PostgreSQL 约束
+
+- 所有 tenant 表启用并 FORCE RLS。
+- `opc_runtime` 保持 `NOSUPERUSER`、`NOBYPASSRLS`、无 schema CREATE 权限。
+- migration runner 使用独立 admin role。
+- 时间统一使用 `TIMESTAMPTZ`。
+- JSON 使用 `JSONB`，不继续新增 TEXT JSON。
+- Provider idempotency 使用 tenant + profile + external id 唯一约束。
+- command claim 使用 `FOR UPDATE SKIP LOCKED` 和 lease。
+- 已发布 IVR graph 不可原地修改。
+- Voice/IVR migration 只允许追加新 migration；已发布 SQL 由 checksum ledger 防篡改。
+
+## 9. 呼叫状态机
+
+统一状态：
+
+```text
+planned
+  -> queued
+  -> dialing
+  -> ringing
+  -> active
+  -> held
+  -> transferring
+  -> completed
+
+planned/queued/dialing/ringing
+  -> cancelled | missed | rejected | failed | timed_out
+
+active/held/transferring
+  -> completed | failed
+```
+
+规则：
+
+- provider webhook、CDR、控制命令和客户端刷新都必须收敛到同一状态机。
+- 终态不能回到非终态。
+- 重复 provider event 通过 provider event id 或 canonical payload hash 去重。
+- API 请求超时不等于命令失败；未知结果进入 `uncertain` command 状态并由 reconciliation worker 查询。
+- CDR 可以补全 duration、termination reason 和 recording，但不能复活已结束 call。
+- call、IVR session、recording 和 bridge 结束必须按稳定顺序收敛。
+
+## 10. RustPBX adapter 合同
+
+### 10.1 Management Port
+
+- health/version。
+- trunk list/apply/test。
+- DID/extension desired state apply。
+- route evaluate/reload。
+- active dialog lookup。
+- recording/CDR reconciliation。
+
+### 10.2 Routing Port
+
+RustPBX 发起呼叫路由请求时，iveKit 返回严格动作：
+
+```text
+reject
+forward_sip
+start_ivr
+enqueue
+bridge_livekit
+voicemail
+```
+
+路由请求必须通过签名或专用 service token，tenant 由已验证 DID/trunk/profile 映射得出，不能相信来电方自带 `X-Tenant-Id`。
+
+### 10.3 Step IVR Port
+
+- RustPBX session id 与 iveKit call/IVR session 一一绑定。
+- event 序号和 action revision 防止重放或乱序。
+- adapter 把 iveKit action 映射为 RustPBX 支持的 prompt、DTMF、queue、transfer 和 hangup。
+- 不支持的 action 返回明确能力错误，不静默降级成成功。
+
+### 10.4 RWI Port
+
+- preflight 确认 endpoint、认证、协议版本和命令集合。
+- 支持时用于低延迟控制、Audio Queue、打断和事件。
+- 不支持时 `rwi=not_available`，调用方选择 Step IVR 或失败，不伪造执行。
+- 每个 command 使用稳定 idempotency key 并写 `voice_call_commands`。
+
+## 11. IVR 设计
+
+### 11.1 Graph 版本
+
+- draft 可编辑。
+- publish 产生不可变 version 和 SHA-256。
+- session 启动后绑定 version，不跟随 draft 变化。
+- rollback 创建新 version 指向历史 graph，不覆盖历史记录。
+- 后端和前端使用同一 `shared/ivr` graph schema 与 validation policy。
+
+### 11.2 执行模型
+
+- 纯节点计算保持无副作用。
+- 外部动作全部通过 port。
+- 每次 advance 使用 session revision 乐观锁。
+- 每一步写不可变 `ivr_session_steps`。
+- pending external action 写 durable state，进程重启后可恢复或 reconciliation。
+- 超时、错误、取消和 branch miss 必须有明确结果。
+
+### 11.3 发布门禁
+
+发布必须拒绝：
+
+- 无唯一 start。
+- 无可达终态。
+- 必需 edge 缺失。
+- 目标 node 不存在。
+- 非法循环或超过执行上限。
+- 引用不存在或未授权的 queue、audio、subflow、knowledge profile、AI profile。
+- 需要 Provider capability 但 deployment profile 未声明。
+- secret、完整电话号码或 Authorization 出现在 graph。
+
+### 11.4 视频升级
+
+`avatar_switch`、`video_play`、`screen_share` 和 `visual_menu` 通过现有 Media Core port 实现。IVR 不直接 import LiveKit SDK。
+
+### 11.5 25 种节点的执行归属
+
+| 节点 | 执行归属 | 外部依赖/要求 |
+| --- | --- | --- |
+| `start`、`set_var`、`condition`、`time_condition`、`disconnect` | IVR 纯执行器 | graph/context/clock；`disconnect` 最终通过 call control 挂断 |
+| `play`、`menu`、`collect`、`flush_audio` | IVR + audio/call control port | audio asset、DTMF/ASR、Step IVR 或 RWI capability |
+| `http`、`webhook` | Webhook port | allowlist、secret ref、timeout、响应 schema 和 durable pending action |
+| `subflow` | IVR flow repository | 发布版本固定、递归深度和循环限制 |
+| `queue` | `IvrQueuePort` | Contact Center Kit 可用；不可用时发布失败或走图中显式 fallback |
+| `transfer`、`sip` | Voice call control port | transfer/SIP route capability、目标权限和号码策略 |
+| `voicemail` | Voice recording + notification port | 对象存储、录音策略、通知 webhook |
+| `recording`、`compliance` | Voice policy/recording port | consent、AI disclosure、PCI pause/resume 和 evidence |
+| `intent`、`knowledge_qa`、`ai_dialogue` | Knowledge/Realtime AI port | profile capability、超时、内容策略和显式错误分支 |
+| `avatar_switch`、`video_play`、`screen_share`、`visual_menu` | Media Core port | 已绑定 `media_call_id`、参与人授权和相应 Media capability |
+
+节点 adapter 缺失时不得返回伪成功。发布器根据 deployment profile 和启用模块生成依赖清单；执行期能力发生变化时，进入图中明确的 error/fallback edge，否则终止为 `capability_unavailable`。
+
+## 12. HTTP API
+
+所有新稳定端点使用 `/api/ivekit/*`，旧 `/api/voice/*`、`/api/ivr/*` 和 call-center 路由仅作为 OPC compatibility adapter。
+
+### 12.1 Voice
+
+| Method | Path | 用途 |
+| --- | --- | --- |
+| `GET` | `/api/ivekit/voice/capabilities` | 返回租户可用模块和 deployment capability 摘要 |
+| `GET` / `POST` | `/api/ivekit/voice/deployment-profiles` | 管理 Provider profile；创建仅保存 secret ref |
+| `GET` / `PATCH` | `/api/ivekit/voice/deployment-profiles/:id` | 查看或按 revision 更新 profile |
+| `POST` | `/api/ivekit/voice/deployment-profiles/:id/preflight` | 执行探测并生成 capability snapshot |
+| `GET` / `POST` | `/api/ivekit/voice/trunks` | 查询或创建 trunk desired state |
+| `GET` / `PATCH` | `/api/ivekit/voice/trunks/:id` | 查看或按 revision 更新 trunk |
+| `POST` | `/api/ivekit/voice/trunks/:id/apply` | 将 desired state 幂等应用到 Provider |
+| `POST` | `/api/ivekit/voice/trunks/:id/test` | 执行不产生真实收费呼叫的配置测试 |
+| `GET` / `POST` | `/api/ivekit/voice/dids` | 查询或登记 DID |
+| `GET` / `PATCH` | `/api/ivekit/voice/dids/:id` | 查看或更新 DID 与入口 route |
+| `GET` / `POST` | `/api/ivekit/voice/extensions` | 查询或创建分机 |
+| `GET` / `PATCH` | `/api/ivekit/voice/extensions/:id` | 查看或更新分机 |
+| `POST` | `/api/ivekit/voice/extensions/:id/session` | 签发短期 WebRTC softphone session |
+| `GET` / `POST` | `/api/ivekit/voice/routes` | 查询或创建 route draft |
+| `GET` / `PATCH` | `/api/ivekit/voice/routes/:id` | 查看或按 revision 更新 draft |
+| `POST` | `/api/ivekit/voice/routes/:id/validate` | 静态校验 route 和 capability |
+| `POST` | `/api/ivekit/voice/routes/:id/publish` | 创建不可变 route version 并 apply |
+| `GET` / `POST` | `/api/ivekit/voice/calls` | 查询 call 或发起呼叫意图 |
+| `GET` | `/api/ivekit/voice/calls/:id` | 返回 call、参与人、bridge 和当前状态 |
+| `POST` | `/api/ivekit/voice/calls/:id/actions` | answer、hangup、DTMF、hold、resume、transfer、conference、park/pickup、recording |
+| `GET` | `/api/ivekit/voice/calls/:id/events` | 按 cursor 查询标准化事件 |
+| `GET` | `/api/ivekit/voice/calls/:id/recordings` | 查询录音和 evidence 状态 |
+| `POST` | `/api/ivekit/voice/calls/:id/livekit-bridges` | 幂等创建 PSTN 与 LiveKit bridge |
+| `GET` / `PATCH` | `/api/ivekit/voice/policies` | 查询或按 revision 更新租户语音策略 |
+| `GET` / `POST` | `/api/ivekit/voice/consents` | 查询或登记外呼、录音和 AI 披露同意 |
+| `GET` | `/api/ivekit/voice/recordings` | 按 call、business reference、状态和 retention cursor 查询 |
+| `POST` | `/api/ivekit/voice/recordings/:id/exports` | 创建短期导出 command 和审计证据 |
+| `POST` | `/api/ivekit/voice/recordings/retention-runs` | 管理权限下执行幂等保留任务 |
+| `POST` | `/api/ivekit/voice/provider-webhooks/rustpbx/:profileId/router` | RustPBX 路由决策入口 |
+| `POST` | `/api/ivekit/voice/provider-webhooks/rustpbx/:profileId/events` | 实时事件入口 |
+| `POST` | `/api/ivekit/voice/provider-webhooks/rustpbx/:profileId/cdr` | CDR reconciliation 入口 |
+
+### 12.2 IVR
+
+| Method | Path | 用途 |
+| --- | --- | --- |
+| `GET` / `POST` | `/api/ivekit/ivr/flows` | 查询或创建 flow draft |
+| `GET` / `PATCH` | `/api/ivekit/ivr/flows/:id` | 查看或按 draft revision 更新 graph |
+| `GET` | `/api/ivekit/ivr/flows/:id/versions` | 查询不可变版本 |
+| `POST` | `/api/ivekit/ivr/flows/:id/validate` | 返回结构、依赖、安全和 capability 报告 |
+| `POST` | `/api/ivekit/ivr/flows/:id/publish` | 发布指定 draft revision |
+| `POST` | `/api/ivekit/ivr/flows/:id/rollback` | 从历史版本创建并发布新版本 |
+| `POST` | `/api/ivekit/ivr/simulations` | 使用虚拟 clock/provider 执行流程模拟 |
+| `GET` / `POST` | `/api/ivekit/ivr/sessions` | 查询 session 或以已发布 version 启动 session |
+| `GET` | `/api/ivekit/ivr/sessions/:id` | 返回执行位置、等待原因和步骤摘要 |
+| `POST` | `/api/ivekit/ivr/sessions/:id/advance` | 受控测试/adapter 推进；要求 event sequence |
+| `POST` | `/api/ivekit/ivr/provider-webhooks/rustpbx/:profileId/step` | RustPBX Step IVR 事件与 action 交换 |
+| `GET` / `POST` | `/api/ivekit/ivr/audio-assets` | 查询或登记音频/TTS 资产 |
+| `GET` / `PATCH` | `/api/ivekit/ivr/audio-assets/:id` | 更新 metadata；已发布引用的 checksum 不可替换 |
+| `GET` / `POST` | `/api/ivekit/ivr/time-groups` | 管理时段和节假日规则 |
+| `GET` / `POST` | `/api/ivekit/ivr/region-groups` | 管理区域规则 |
+| `GET` / `POST` | `/api/ivekit/ivr/ring-groups` | 管理通用 identity 组呼 |
+| `GET` / `PATCH` | `/api/ivekit/ivr/settings` | 查询或按 revision 更新执行策略 |
+
+### 12.3 Contact Center
+
+- `GET` / `POST` `/api/ivekit/contact-center/agents`
+- `GET` / `PATCH` `/api/ivekit/contact-center/agents/:id`
+- `POST /api/ivekit/contact-center/agents/:id/presence`
+- `GET` / `POST` `/api/ivekit/contact-center/skills`
+- `GET` / `POST` `/api/ivekit/contact-center/queues`
+- `GET` / `PATCH` `/api/ivekit/contact-center/queues/:id`
+- `GET` / `POST` `/api/ivekit/contact-center/queues/:id/memberships`
+- `GET /api/ivekit/contact-center/queues/:id/entries`
+- `POST /api/ivekit/contact-center/routing/assignments`
+- `GET` / `POST` `/api/ivekit/contact-center/callbacks`
+- `POST /api/ivekit/contact-center/supervisor/actions`
+
+### 12.4 API 安全规则
+
+- tenant 只来自认证上下文；body/query 中 tenant 仅允许 system-to-system compatibility adapter 使用并必须交叉校验。
+- 管理、线路、录音、班长控制使用明确 RBAC。
+- RustPBX webhook 使用 deployment profile 绑定的 secret ref 或签名，不复用浏览器 token。
+- 所有 list API 使用稳定 cursor 和硬 limit。
+- 电话号码默认只返回脱敏值。
+- 呼叫恢复需要的完整号码只以 envelope-encrypted address 保存；检索使用 keyed HMAC，解密权限与普通查询权限分离。
+- SDP、ICE credential、SIP Authorization、trunk password 不写日志、事件或 DTO。
+
+### 12.5 通用合同
+
+- 创建和有外部副作用的 `POST` 必须携带 `Idempotency-Key`；同 key 不同 payload 返回 `409 idempotency_conflict`。
+- draft `PATCH` 必须携带 `If-Match` 或 body revision；过期 revision 返回 `409 revision_conflict`。
+- Provider 已接受但结果异步的操作返回 `202` 和 command resource；不能用 HTTP timeout 推断呼叫失败。
+- list response 固定为 `{ items, next_cursor }`，cursor 绑定 tenant、filter 和排序。
+- 错误固定为 `{ error: { code, message, retryable, request_id, details } }`，`details` 不含 secret 或完整号码。
+- 时间使用 RFC 3339 UTC，duration 使用整数毫秒，电话号码写入时使用 E.164 或明确的 extension 类型。
+- SDK DTO 只暴露通用 business reference；OPC compatibility DTO 的 `lead_id/customer_id/workspace_id` 不进入稳定 OpenAPI。
+
+## 13. SDK 与前端
+
+`@opc/ivekit-sdk` 增加：
+
+- `voice.capabilities`
+- `voice.calls`
+- `voice.callActions`
+- `voice.recordings`
+- `voice.trunks/dids/extensions/routes`
+- `ivr.flows/versions/simulations/sessions`
+- `contactCenter.agents/queues/routing/supervisor`
+
+浏览器接入分两层：
+
+1. headless controller/hooks：call state、device、softphone、IVR designer data、queue state。
+2. 可嵌入 React workspace：WebPhone、Call Detail、IVR Designer、Queue Monitor。
+
+参考客户端继续作为完整示例，OPC 和 LED 不复制其源码。
+
+## 14. 事件合同
+
+新增 durable event 类型：
+
+- `voice.call.created`
+- `voice.call.state_changed`
+- `voice.call.command_updated`
+- `voice.call.dtmf_received`
+- `voice.call.recording_updated`
+- `voice.call.bridge_updated`
+- `voice.provider.capability_updated`
+- `ivr.session.started`
+- `ivr.session.step_completed`
+- `ivr.session.waiting`
+- `ivr.session.completed`
+- `contact_center.queue.updated`
+- `contact_center.assignment.updated`
+- `contact_center.supervisor_action`
+
+事件 payload 只包含公开 DTO、稳定 resource id、business reference 和 coarse provider state。
+
+## 15. 错误、重试与恢复
+
+- RustPBX 5xx、timeout、connection reset 归类 retryable。
+- 认证、能力缺失、非法号码、非法状态转换归类 terminal。
+- originate、transfer、recording 等非幂等 Provider 操作必须先持久化 command，再调用 Provider。
+- 请求超时后由 reconciliation 查询 provider，不自动重复 originate。
+- webhook 先去重再更新权威状态，处理失败进入 durable inbox/retry。
+- IVR pending side effect 和 call command 均支持 lease 回收。
+- 进程关闭时停止 claim，新实例接管过期 lease。
+- Provider 数据不可确认时写 `uncertain`，不得写 `succeeded`。
+
+## 16. 安全与合规
+
+### 16.1 安全控制
+
+- 线路和 Provider secret 只通过环境变量、Kubernetes Secret 或 secret ref 解析。
+- trunk/DID/route 变更写不可变 admin audit。
+- 外呼前通过可注入 compliance port；OPC 可以提供 DNC/时窗/频次策略，LED 可以使用较简单策略。
+- 录音策略支持 disabled、consent_required、always，并绑定 consent/evidence。
+- 录音导出使用短期签名 URL 或服务端流式代理。
+- PCI pause/resume 保存原始格式和 provider command 证据。
+- 班长监听、耳语、强插和强制断开要求二次权限检查和 reason。
+- webhook、日志和 acceptance evidence 执行 secret scan。
+
+### 16.2 可观测性
+
+- liveness 只判断进程事件循环；readiness 判断 PostgreSQL、migration version 和启用模块的本地依赖，不因未启用的 RustPBX/LiveKit profile 失败。
+- deployment profile 单独暴露 `ready/degraded/not_configured`，避免一个租户的线路故障拖垮整个 iveKit readiness。
+- 指标覆盖 call setup latency、active calls、command duration/retry/uncertain、provider event lag、IVR step duration/error、pending action lease、queue wait、bridge success 和 recording reconciliation。
+- Prometheus label 禁止完整号码、call id、business ref、tenant id、flow id 等高基数或敏感值；按 adapter、direction、state、error code 和 capability 聚合。
+- trace 在 HTTP、durable command、Provider webhook、IVR pending action、LiveKit bridge 之间传播 `trace_id`；日志使用稳定 resource id，但号码始终脱敏。
+- 每个 capability snapshot、route publish、IVR publish 和 migration import 生成可导出的诊断报告，报告先经过 secret scan。
+
+## 17. 部署
+
+### 17.1 Compose
+
+新增显式 profiles：
+
+- `voice`：RustPBX + iveKit Voice workers。
+- `voice-livekit-bridge`：LiveKit SIP + LiveKit。
+- `voice-ai`：受控或配置的 Active Call/Agents adapter。
+- `voice-acceptance`：受控 SIP/Step IVR Provider，不声明真实 PSTN。
+
+### 17.2 Kubernetes
+
+- RustPBX 使用独立 Deployment/Service、UDP/TCP/TLS/RTP 端口和 PodDisruptionBudget。
+- iveKit Voice worker 可独立扩缩，但与 HTTP 使用同一镜像。
+- LiveKit SIP 与 LiveKit 采用独立 chart values。
+- PostgreSQL、Redis、对象存储使用外部生产服务或明确持久卷。
+- 网络策略只允许所需 service-to-service 路径。
+
+### 17.3 镜像与版本
+
+- RustPBX、LiveKit SIP、iveKit 均按不可变 tag/digest 记录。
+- release manifest 记录 RustPBX capability matrix。
+- 上游版本升级先通过 adapter contract、受控呼叫和回滚演练。
+
+## 18. 兼容迁移
+
+迁移采用小步双读/单写：
+
+1. 建立新 port 与 standalone PostgreSQL stores，不改旧路由行为。
+2. 旧 `/api/voice/*` 和 `/api/ivr/*` 调用新 application service。
+3. 新 `/api/ivekit/*` 直接调用同一 service。
+4. OPC lead/customer 字段映射为 business reference。
+5. 对比新旧 projection 与事件结果。
+6. standalone source graph 纳入 Voice/IVR，明确排除 OPC 产品模块。
+7. OPC 改用 SDK 或 compatibility adapter。
+8. 完成一个 release deprecation 周期后删除旧反向 import 和 runtime SQLite DDL。
+
+迁移期间禁止双写两个互不校验的生命周期状态机。
+
+## 19. 实施里程碑
+
+### M0：设计与审计
+
+- 本文、依赖图、表归属、API/事件清单和验收边界。
+- 固定 `opc-platform` 为共享底座权威来源。
+
+### M1：边界与 PostgreSQL
+
+- 定义 Voice/IVR ports。
+- 建 standalone source graph。
+- 新 migration、RLS、runtime role 和 upgrade tests。
+- 逐步消除 `db.ts`、harness 和 call-center 反向 import。
+
+### M2：Voice Core 与 RustPBX
+
+- deployment profile、capability/preflight。
+- call lifecycle、durable command、event inbox、CDR/recording。
+- trunk/DID/extension/route desired state。
+- Step IVR/RWI/LiveKit SIP adapters。
+
+### M3：IVR Runtime
+
+- 25 种节点、版本、发布、回滚、simulation 和 session recovery。
+- 前后端共享 graph schema。
+- RustPBX Step IVR 与可选 RWI 实际协议闭环。
+
+### M4：Contact Center Kit
+
+- presence、skill、queue、ACD、callback 和 supervisor。
+- IVR queue port 接入，不引入 OPC 业务依赖。
+
+### M5：SDK、UI 与交付
+
+- SDK、headless hooks、WebPhone、IVR Designer、Queue Monitor。
+- Compose、Helm、SBOM、image metadata、upgrade/rollback 和 LED/OPC 示例。
+
+### M6：验证
+
+- 全仓回归。
+- standalone 独立安装/build。
+- 真实 PostgreSQL fresh/upgrade/RLS/restart recovery。
+- 受控 RustPBX/Step IVR/RWI capability matrix。
+- 真实 RustPBX 双向 SIP、真实号码/软电话、录音、LiveKit SIP bridge。
+- 浏览器 WebPhone/IVR/queue E2E。
+- 交付 evidence 与 source commit/hash 绑定。
+
+## 20. 验收定义
+
+### 20.1 分层验证矩阵
+
+| 层级 | 必须验证 | 不可替代项 |
+| --- | --- | --- |
+| 单元 | 状态机、graph validation、号码规范化、幂等、adapter mapping、错误分类 | 新 Voice/IVR 核心不访问网络和 SQLite SQL；使用 port fake。旧 compatibility regression 可在迁移期继续使用 legacy SQLite harness |
+| PostgreSQL 集成 | fresh/upgrade/checksum、RLS、tenant 事务、lease claim/recovery、唯一约束、importer dry-run/rejection | 使用真实 PostgreSQL，不能用内存 fake 冒充 |
+| 受控协议 | RustPBX management/router/Step IVR/RWI、事件乱序/重复/超时、CDR、LiveKit SIP adapter | 受控 Provider 结果必须标记 `controlled` |
+| 浏览器 | WebPhone 注册、呼入/外呼状态、设备切换、Hold/Transfer、IVR designer、queue monitor | 使用真实浏览器和构建产物 |
+| 隔离服务器 | standalone 安装、Compose/Helm render、重启恢复、网络端口、对象存储、evidence bundle | source commit、镜像 digest、配置 hash 必须一致 |
+| 真实通信环境 | 双向 SIP/PSTN、真实号码/软电话、RTP/录音、LiveKit SIP bridge、RWI 实际能力 | 未配置运营商或真实客户端时保持 `not_run`，不得写 `passed` |
+
+### 20.2 完成条件
+
+代码交付完成必须同时满足：
+
+1. standalone source graph 不包含 OPC Lead、CRM、Stripe、WFM、Campaign 产品模块。
+2. Voice/IVR production runtime 不加载 SQLite。
+3. Voice/IVR 不 import OPC harness、call-center concrete class 或 `db.ts`。
+4. OPC 旧行为通过 compatibility tests。
+5. LED 示例仅用 SDK、HTTP、事件和公开 UI 包完成呼入/外呼/IVR 接入。
+6. PostgreSQL fresh/upgrade、RLS、lease、restart recovery 通过。
+7. RustPBX capability 缺失时准确失败或选择兼容路径。
+8. 受控 provider、真实 SIP/PSTN、真实浏览器和生产网络状态分层记录。
+9. 没有未解决的 Critical 或 Important 审查问题。
+10. 交付包绑定 source commit、SDK、client、migration、镜像 digest、SBOM 和 evidence SHA-256。
+
+## 21. 风险控制
+
+| 风险 | 控制措施 |
+| --- | --- |
+| 一次性移动 IVR 导致大面积回归 | compatibility re-export、小步 port 注入、每步跑现有 75 项 IVR 测试 |
+| RustPBX 版本能力漂移 | digest pin、capability preflight、协议矩阵、Step IVR 与 RWI 双 adapter |
+| 重复 originate 导致真实重复呼叫 | durable command 先写、稳定幂等、timeout 后 reconciliation |
+| tenant 来自 SIP header 导致越权 | DID/trunk/profile 服务端映射，忽略未经验证 tenant header |
+| SQLite/PG 双实现继续漂移 | production PostgreSQL-only，单元测试使用 port fake，不复制 SQL |
+| OPC 业务重新渗入底座 | source graph denylist、依赖方向测试、consumer adapter |
+| IVR 外部动作在重启后重复 | session revision、durable pending action、lease 和 provider reconciliation |
+| 录音和电话数据泄露 | secret ref、号码脱敏、短期下载、retention、RLS、evidence scan |
+
+## 22. 已确定决策
+
+- Voice Core、IVR 和可选 Contact Center Kit 进入 iveKit。
+- RustPBX、LiveKit SIP、Active Call/LiveKit Agents 保持独立运行组件。
+- `opc-platform` 是共享底座权威仓库。
+- iveKit 生产控制面只使用 PostgreSQL，不使用 SQLite。
+- Step IVR 是基础兼容路径，RWI 由 capability 决定。
+- OPC 与 LED 都是消费者，不拥有共享模块的分叉源码。
+- 真实环境未执行项必须保持 `not_run`。
+
+## 23. 设计依据
+
+- 本仓库 [架构总纲](design/architecture-v3.md)、[视频语音呼叫中心架构](architecture-video-voice-callcenter.md) 和 [新功能准入清单](new-feature-application-checklist.md)。
+- [RustPBX 官方仓库](https://github.com/restsend/rustpbx)：上游代码、模块和发布信息。
+- [RustPBX Overview](https://miuda.ai/docs/rustpbx/overview)：当前组件与运行边界。
+- [RustPBX Specifications](https://miuda.ai/docs/rustpbx/specs/)：SIP、WebRTC、数据库和协议能力。
+- [RustPBX Routing, Trunk and Billing](https://miuda.ai/docs/rustpbx/routing-trunk-billing/)：路由和 trunk 配置依据。
+
+上游链接只用于能力基线，最终交付以锁定 digest 的 capability preflight 和协议验收结果为准。
