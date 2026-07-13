@@ -17,6 +17,12 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
 
   assert.equal(graph.unresolved.length, 0, graph.unresolved.join('\n'));
   assert.equal(graph.files.includes('src/ivekit-server.ts'), true);
+  for (const path of [
+    'src/agent-runtime/collaboration/intelligence-provider-registry.ts',
+    'src/agent-runtime/collaboration/intelligence-policy-store.ts',
+    'src/agent-runtime/collaboration/intelligence-source-service.ts',
+    'src/agent-runtime/collaboration/translation-worker.ts'
+  ]) assert.equal(graph.files.includes(path), true, path);
   assert.equal(graph.files.includes('src/server.ts'), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/call-center/')), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/ivr/')), false);
@@ -48,7 +54,8 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
   assert.deepEqual(policy.entrypoints, [
     'src/ivekit-server.ts',
     'src/ivekit-migrate.ts',
-    'src/ivekit-init-runtime-role.ts'
+    'src/ivekit-init-runtime-role.ts',
+    'src/ivekit-intelligence-preflight.ts'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',

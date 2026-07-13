@@ -3,7 +3,8 @@
   "entrypoints": [
     "src/ivekit-server.ts",
     "src/ivekit-migrate.ts",
-    "src/ivekit-init-runtime-role.ts"
+    "src/ivekit-init-runtime-role.ts",
+    "src/ivekit-intelligence-preflight.ts"
   ],
   "forbidden_prefixes": [
     "src/agent-runtime/call-center/",

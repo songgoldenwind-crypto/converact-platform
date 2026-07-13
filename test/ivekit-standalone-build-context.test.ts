@@ -76,3 +76,32 @@ test('standalone context refuses to erase a directory it does not own', () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('standalone V3 examples expose provider profiles, storage, and bounded worker settings', () => {
+  const required = [
+    'OPC_IVEKIT_PROVIDER_PROFILES_JSON=[]',
+    'OPC_ATTACHMENT_PROCESSING_INTERVAL_MS=5000',
+    'OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS=120000',
+    'OPC_QUALITY_REVIEW_AUTO_ENQUEUE=0',
+    'OPC_QUALITY_REVIEW_CLAIM_LEASE_MS=120000',
+    'OPC_TRANSLATION_WORKER_ENABLED=0',
+    'OPC_TRANSLATION_INTERVAL_MS=5000',
+    'OPC_TRANSLATION_BATCH_SIZE=25',
+    'OPC_TRANSLATION_MAX_ATTEMPTS=3',
+    'OPC_TRANSLATION_CLAIM_LEASE_MS=120000',
+    'OPC_TRANSLATION_RETRY_DELAYS_MS=5000,30000'
+  ];
+  for (const file of ['.env.example', 'infra/ivekit/env.example', 'services/ivekit-service/env.example']) {
+    const content = readFileSync(file, 'utf8');
+    for (const value of required) assert.equal(content.split('\n').includes(value), true, `${file}: ${value}`);
+    assert.equal(content.split('\n').some((line) => line.startsWith('MINIO_BUCKET=')), true, `${file}: MINIO_BUCKET`);
+  }
+  const compose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
+  for (const value of ['OPC_IVEKIT_PROVIDER_PROFILES_JSON', 'OPC_TRANSLATION_WORKER_ENABLED', 'MINIO_BUCKET']) {
+    assert.match(compose, new RegExp(`${value}:`), value);
+  }
+  const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+  assert.equal(servicePackage.scripts['preflight:intelligence'], 'node dist/ivekit-intelligence-preflight.js');
+});

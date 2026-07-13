@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "init:runtime-role": "node dist/ivekit-init-runtime-role.js",
     "migrate": "node dist/ivekit-migrate.js",
+    "preflight:intelligence": "node dist/ivekit-intelligence-preflight.js",
     "start": "node dist/ivekit-server.js"
   },
   "engines": {
