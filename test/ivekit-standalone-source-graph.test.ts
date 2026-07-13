@@ -31,7 +31,9 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
     'src/agent-runtime/ivekit/ivr/types.ts',
     'src/agent-runtime/ivekit/ivr/graph-types.ts',
     'src/agent-runtime/ivekit/ivr/ports.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts'
+    'src/agent-runtime/ivekit/ivr/index.ts',
+    'src/agent-runtime/ivekit/contact-center/types.ts',
+    'src/agent-runtime/ivekit/contact-center/index.ts'
   ]) assert.equal(graph.files.includes(path), true, path);
   assert.equal(graph.files.includes('src/server.ts'), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/call-center/')), false);
@@ -69,7 +71,8 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/ivekit-render-rustpbx-config.ts',
     'src/ivekit-voice-preflight.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
-    'src/agent-runtime/ivekit/ivr/index.ts'
+    'src/agent-runtime/ivekit/ivr/index.ts',
+    'src/agent-runtime/ivekit/contact-center/index.ts'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',

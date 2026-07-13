@@ -109,7 +109,8 @@ function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): 
       '048_ivekit_voice_operations.sql',
       '049_ivekit_voice_route_deployment.sql',
       '050_ivekit_ivr_runtime.sql',
-      '051_ivekit_ivr_resources.sql'
+      '051_ivekit_ivr_resources.sql',
+      '052_ivekit_contact_center.sql'
     ].includes(name)) continue;
     copyFileSync(resolve('src/migrations', name), join(directory, name));
   }
@@ -1169,6 +1170,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         '049_ivekit_voice_route_deployment',
         '050_ivekit_ivr_runtime',
         '051_ivekit_ivr_resources',
+        '052_ivekit_contact_center',
         '090_ivekit_runtime_security'
       )
       GROUP BY version
@@ -1185,6 +1187,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       { version: '049_ivekit_voice_route_deployment', count: '1' },
       { version: '050_ivekit_ivr_runtime', count: '1' },
       { version: '051_ivekit_ivr_resources', count: '1' },
+      { version: '052_ivekit_contact_center', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 

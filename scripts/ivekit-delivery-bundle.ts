@@ -168,6 +168,7 @@ const STANDALONE_MIGRATIONS = [
   '049_ivekit_voice_route_deployment.sql',
   '050_ivekit_ivr_runtime.sql',
   '051_ivekit_ivr_resources.sql',
+  '052_ivekit_contact_center.sql',
   'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
 ];
 

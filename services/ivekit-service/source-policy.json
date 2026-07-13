@@ -8,7 +8,8 @@
     "src/ivekit-render-rustpbx-config.ts",
     "src/ivekit-voice-preflight.ts",
     "src/agent-runtime/ivekit/voice/index.ts",
-    "src/agent-runtime/ivekit/ivr/index.ts"
+    "src/agent-runtime/ivekit/ivr/index.ts",
+    "src/agent-runtime/ivekit/contact-center/index.ts"
   ],
   "forbidden_prefixes": [
     "src/agent-runtime/call-center/",
@@ -71,6 +72,7 @@
     "049_ivekit_voice_route_deployment.sql",
     "050_ivekit_ivr_runtime.sql",
     "051_ivekit_ivr_resources.sql",
+    "052_ivekit_contact_center.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }
