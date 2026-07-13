@@ -1,6 +1,7 @@
 import type { QmScores } from './qm-policy.js';
 import { computeOverallScore } from './qm-policy.js';
 import { chatCompletionsWithFallback } from '../../integrations/llm-env-client.js';
+import { completeWithLlmFallback } from '../../integrations/llm-provider.js';
 
 export interface QmEvaluatorDeps {
   apiKey?: string;
@@ -45,14 +46,26 @@ export async function evaluateCallQuality(
   }
 
   try {
-    const result = await chatCompletionsWithFallback({
+    const request = {
       messages: [
         { role: 'system', content: systemMessage },
         { role: 'user', content: conversationText }
-      ],
+      ] as Array<{ role: 'system' | 'user'; content: string }>,
       temperature: 0.1,
       extraBody: { response_format: { type: 'json_object' } }
-    });
+    };
+    const result = opts.deps?.apiKey && opts.deps.baseUrl
+      ? await completeWithLlmFallback(request, {
+          primary: {
+            apiKey: opts.deps.apiKey,
+            baseUrl: opts.deps.baseUrl.replace(/\/$/, ''),
+            model: opts.deps.model || 'qm-evaluator',
+            maxTokens: 8192,
+            timeoutMs: 60_000
+          },
+          fallback: null
+        })
+      : await chatCompletionsWithFallback(request);
 
     const parsed = JSON.parse(result.text) as Partial<QmEvaluationResult>;
     return validateResult(parsed);

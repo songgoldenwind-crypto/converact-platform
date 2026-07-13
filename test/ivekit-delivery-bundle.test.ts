@@ -14,6 +14,7 @@ import {
 } from '../scripts/ivekit-delivery-bundle.js';
 
 const repoRoot = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
+const testSourceCommit = 'a'.repeat(40);
 
 test('iveKit delivery bundle contains only curated handoff artifacts with verified hashes', () => {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-delivery-'));
@@ -31,7 +32,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       outputDir,
       sdkTarball,
       clientDist,
-      sourceCommit: 'a'.repeat(40),
+      sourceCommit: testSourceCommit,
       generatedAt: '2026-07-13T00:00:00.000Z'
     });
     const files = listDeliveryFiles(outputDir);
@@ -102,7 +103,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(result.manifest.files.length, files.length - 2);
     assert.equal(result.manifest.files.some((entry) => entry.path === 'manifest.json'), false);
     assert.equal(result.manifest.files.some((entry) => entry.path === 'SHA256SUMS'), false);
-    assert.equal(contextManifest.source_commit, 'a'.repeat(40));
+    assert.equal(contextManifest.source_commit, testSourceCommit);
     assert.equal(result.manifest.contents.service_source, 'service/build-context/');
     assert.equal(
       (result.manifest.contents as typeof result.manifest.contents & { intelligence_preflight: string })
@@ -254,7 +255,13 @@ test('iveKit delivery validation rejects extra files and secret material', () =>
   writeFileSync(join(clientDist, 'index.html'), '<!doctype html>');
 
   try {
-    buildIveKitDeliveryBundle({ repoRoot, outputDir, sdkTarball, clientDist });
+    buildIveKitDeliveryBundle({
+      repoRoot,
+      outputDir,
+      sdkTarball,
+      clientDist,
+      sourceCommit: testSourceCommit
+    });
     writeFileSync(join(outputDir, 'private-key.pem'), [
       '-----BEGIN PRIVATE KEY-----',
       'not-real-but-must-never-ship',
@@ -319,7 +326,13 @@ test('delivery generation refuses to erase an unowned existing directory', () =>
 
   try {
     assert.throws(
-      () => buildIveKitDeliveryBundle({ repoRoot, outputDir, sdkTarball, clientDist }),
+      () => buildIveKitDeliveryBundle({
+        repoRoot,
+        outputDir,
+        sdkTarball,
+        clientDist,
+        sourceCommit: testSourceCommit
+      }),
       /refusing to replace an existing directory without the iveKit ownership marker/
     );
     assert.equal(readFileSync(join(outputDir, 'important.txt'), 'utf8'), 'keep me');

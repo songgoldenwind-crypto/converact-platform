@@ -54,7 +54,7 @@ test('memory maintenance: importance_score refresh', async () => {
   const mem = memoryStore.write({
     tenant_id: tenant.id,
     memory_type: 'fact',
-    content: 'test fact',
+    content: 'test fact with durable detail',
     confidence: 0.9
   });
 

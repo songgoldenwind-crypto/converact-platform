@@ -36,13 +36,13 @@ test('TimeGroup: checkTimeGroupActive during business hours', () => {
     schedule: { mon: [9, 18], tue: [9, 18], wed: [9, 18], thu: [9, 18], fri: [9, 18], sat: [0, 0], sun: [0, 0] },
   });
   // Monday 10:00 → active
-  const monday = new Date('2026-06-29T10:00:00'); // Monday
+  const monday = new Date('2026-06-29T02:00:00.000Z'); // Monday 10:00 in Asia/Shanghai
   assert.equal(store.checkTimeGroupActive('tg-2', tenantId, monday), true);
   // Monday 20:00 → inactive
-  const mondayNight = new Date('2026-06-29T20:00:00');
+  const mondayNight = new Date('2026-06-29T12:00:00.000Z');
   assert.equal(store.checkTimeGroupActive('tg-2', tenantId, mondayNight), false);
   // Saturday → inactive (0-0 = closed)
-  const saturday = new Date('2026-06-27T10:00:00');
+  const saturday = new Date('2026-06-27T02:00:00.000Z');
   assert.equal(store.checkTimeGroupActive('tg-2', tenantId, saturday), false);
   // Non-existent group → active (no schedule = always open)
   assert.equal(store.checkTimeGroupActive('nonexistent', tenantId, monday), true);
