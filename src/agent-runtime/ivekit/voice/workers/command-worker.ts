@@ -4,8 +4,10 @@ import { safeVoiceProviderPayload } from '../canonical.js';
 import { voiceProfileConfigHash } from '../deployment-profile-service.js';
 import { VoiceError } from '../errors.js';
 import type {
+  VoiceAddressProtector,
   VoiceCommandRepository,
   VoiceConfigurationRepository,
+  VoiceManagementApplyResult,
   VoiceProviderAdapter
 } from '../ports.js';
 import { VoiceProviderRegistry } from '../provider-registry.js';
@@ -13,6 +15,7 @@ import type {
   VoiceCallCommand,
   VoiceCapability,
   VoiceConfigurationCommand,
+  VoiceDid,
   VoiceExtension,
   VoiceRoute,
   VoiceRouteVersion,
@@ -28,6 +31,7 @@ export interface VoiceCommandWorkerOptions {
   commands: VoiceCommandRepository;
   configuration: VoiceConfigurationRepository;
   provider_registry: VoiceProviderRegistry;
+  address_protector?: VoiceAddressProtector;
   call_executor?: (command: VoiceCallCommand) => Promise<VoiceCallCommandExecutorResult>;
   worker_id: string;
   batch_size?: number;
@@ -60,6 +64,7 @@ export class VoiceCommandWorker {
   readonly #commands: VoiceCommandRepository;
   readonly #configuration: VoiceConfigurationRepository;
   readonly #registry: VoiceProviderRegistry;
+  readonly #addressProtector?: VoiceAddressProtector;
   readonly #callExecutor?: (command: VoiceCallCommand) => Promise<VoiceCallCommandExecutorResult>;
   readonly #workerId: string;
   readonly #batchSize: number;
@@ -79,6 +84,7 @@ export class VoiceCommandWorker {
     this.#commands = options.commands;
     this.#configuration = options.configuration;
     this.#registry = options.provider_registry;
+    this.#addressProtector = options.address_protector;
     this.#callExecutor = options.call_executor;
     this.#workerId = boundedIdentifier(options.worker_id);
     this.#batchSize = boundedInteger(options.batch_size, 25, 1, 200);
@@ -144,7 +150,7 @@ export class VoiceCommandWorker {
     try {
       await this.#complete('call', command, executed.provider_command_id, executed.result, result);
     } catch {
-      await this.#settleFailure('call', command, completionUnknown(), true, result);
+      await this.#settleFailure('call', command, completionUnknown(executed.provider_command_id), true, result);
     }
   }
 
@@ -160,7 +166,9 @@ export class VoiceCommandWorker {
     try {
       await this.#complete('configuration', command, executed.provider_command_id, executed.result, result);
     } catch {
-      await this.#settleFailure('configuration', command, completionUnknown(), true, result);
+      await this.#settleFailure(
+        'configuration', command, completionUnknown(executed.provider_command_id), true, result
+      );
     }
   }
 
@@ -193,21 +201,74 @@ export class VoiceCommandWorker {
       if (command.operation !== 'apply') throw new VoiceError({ code: 'capability_unavailable', status: 501 });
       if (command.resource_type === 'sip_trunk') {
         const trunk = await this.#trunk(command);
-        return managementResult(await adapter.management.applyTrunk({ resource_id: trunk.id, desired_state: trunk.desired_state }));
+        const superseded = supersededResult(command, trunk.revision);
+        if (superseded) return superseded;
+        const applied = await adapter.management.applyTrunk({
+          resource_id: trunk.id,
+          desired_state: trunk.desired_state
+        });
+        return managementResult(applied, await this.#convergeTrunk(trunk, applied));
+      }
+      if (command.resource_type === 'did') {
+        const did = await this.#did(command);
+        const superseded = supersededResult(command, did.did.revision);
+        if (superseded) return superseded;
+        if (!this.#addressProtector) {
+          throw new VoiceError({ code: 'capability_unavailable', status: 501 });
+        }
+        const address = await this.#configuration.getDidProtectedAddress(command.tenant_id, did.did.id);
+        if (!address) throw new VoiceError({ code: 'not_found', status: 404 });
+        let clearAddress = await this.#addressProtector.reveal(
+          command.tenant_id, address.ciphertext, 'e164'
+        );
+        let applied: VoiceManagementApplyResult;
+        try {
+          applied = await adapter.management.applyDid({
+            resource_id: did.did.id,
+            desired_state: {
+              e164: clearAddress,
+              trunk_id: did.trunk.id,
+              trunk_provider_ref: did.trunk.provider_ref,
+              route_id: did.did.route_id,
+              status: did.did.status,
+              metadata: did.did.metadata
+            }
+          });
+        } finally {
+          clearAddress = '';
+        }
+        return managementResult(applied, await this.#convergeDid(did.did, applied));
       }
       if (command.resource_type === 'extension') {
         const extension = await this.#extension(command);
-        return managementResult(await adapter.management.applyExtension({
+        const superseded = supersededResult(command, extension.revision);
+        if (superseded) return superseded;
+        const applied = await adapter.management.applyExtension({
           resource_id: extension.id,
           desired_state: extensionDesiredState(extension)
-        }));
+        });
+        return managementResult(applied, await this.#convergeExtension(extension));
       }
       if (command.resource_type === 'route') {
         const { route, version } = await this.#route(command);
-        return managementResult(await adapter.management.applyRoute({
+        if (version && route.current_published_version !== version.version) {
+          return {
+            provider_command_id: '',
+            result: {
+              resource_update: 'superseded',
+              route_version: version.version,
+              current_published_version: route.current_published_version
+            }
+          };
+        }
+        const applied = await adapter.management.applyRoute({
           resource_id: route.id,
           desired_state: { version: version?.version ?? route.current_published_version, rules: version?.rules ?? route.draft_rules }
-        }));
+        });
+        const resourceUpdate = version
+          ? await this.#convergeRouteVersion(version, applied)
+          : 'not_tracked';
+        return managementResult(applied, resourceUpdate);
       }
       throw new VoiceError({ code: 'capability_unavailable', status: 501 });
     } finally {
@@ -241,6 +302,15 @@ export class VoiceCommandWorker {
     return extension;
   }
 
+  async #did(command: VoiceConfigurationCommand): Promise<{ did: VoiceDid; trunk: VoiceSipTrunk }> {
+    const did = await this.#configuration.getDid(command.tenant_id, command.resource_id);
+    if (!did) throw new VoiceError({ code: 'not_found', status: 404 });
+    const trunk = await this.#configuration.getTrunk(command.tenant_id, did.trunk_id);
+    if (!trunk) throw new VoiceError({ code: 'not_found', status: 404 });
+    assertResourceProfile(trunk.profile_id, command.profile_id);
+    return { did, trunk };
+  }
+
   async #route(command: VoiceConfigurationCommand): Promise<{ route: VoiceRoute; version: VoiceRouteVersion | null }> {
     const route = await this.#configuration.getRoute(command.tenant_id, command.resource_id);
     if (!route) throw new VoiceError({ code: 'not_found', status: 404 });
@@ -250,6 +320,72 @@ export class VoiceCommandWorker {
     const version = versionId ? versions.find((candidate) => candidate.id === versionId) ?? null : null;
     if (versionId && !version) throw new VoiceError({ code: 'not_found', status: 404 });
     return { route, version };
+  }
+
+  async #convergeTrunk(
+    trunk: VoiceSipTrunk,
+    applied: VoiceManagementApplyResult
+  ): Promise<'applied' | 'superseded'> {
+    try {
+      await this.#configuration.updateTrunk({
+        ...trunk,
+        provider_ref: applied.provider_ref,
+        status: ['draft', 'applying', 'degraded'].includes(trunk.status) ? 'active' : trunk.status,
+        revision: trunk.revision + 1,
+        updated_by: this.#workerId,
+        updated_at: this.#now().toISOString()
+      }, trunk.revision);
+      return 'applied';
+    } catch (error) {
+      if (isRevisionConflict(error)) return 'superseded';
+      throw error;
+    }
+  }
+
+  async #convergeDid(
+    did: VoiceDid,
+    applied: VoiceManagementApplyResult
+  ): Promise<'applied' | 'superseded'> {
+    try {
+      await this.#configuration.updateDid({
+        ...did,
+        provider_ref: applied.provider_ref,
+        revision: did.revision + 1,
+        updated_at: this.#now().toISOString()
+      }, did.revision);
+      return 'applied';
+    } catch (error) {
+      if (isRevisionConflict(error)) return 'superseded';
+      throw error;
+    }
+  }
+
+  async #convergeExtension(
+    extension: VoiceExtension
+  ): Promise<'applied' | 'superseded'> {
+    try {
+      await this.#configuration.updateExtension({
+        ...extension,
+        revision: extension.revision + 1,
+        updated_at: this.#now().toISOString()
+      }, extension.revision);
+      return 'applied';
+    } catch (error) {
+      if (isRevisionConflict(error)) return 'superseded';
+      throw error;
+    }
+  }
+
+  async #convergeRouteVersion(
+    version: VoiceRouteVersion,
+    applied: VoiceManagementApplyResult
+  ): Promise<'applied'> {
+    await this.#configuration.updateRouteVersionDeployment({
+      ...version,
+      deployment_state: 'applied',
+      provider_revision: applied.provider_revision
+    });
+    return 'applied';
   }
 
   async #complete(
@@ -333,13 +469,32 @@ function managementResult(value: {
   provider_ref: string;
   provider_revision: string;
   safe_diagnostics: Record<string, unknown>;
-}): VoiceCallCommandExecutorResult {
+}, resourceUpdate: string = 'not_tracked'): VoiceCallCommandExecutorResult {
   return {
     provider_command_id: [value.provider_ref, value.provider_revision].filter(Boolean).join(':'),
     result: {
       provider_ref: value.provider_ref,
       provider_revision: value.provider_revision,
+      resource_update: resourceUpdate,
       safe_diagnostics: value.safe_diagnostics
+    }
+  };
+}
+
+function supersededResult(
+  command: VoiceConfigurationCommand,
+  currentRevision: number
+): VoiceCallCommandExecutorResult | null {
+  const value = command.payload.source_revision;
+  if (value === undefined) return null;
+  if (!Number.isInteger(value) || Number(value) < 1) throw validationError();
+  if (Number(value) === currentRevision) return null;
+  return {
+    provider_command_id: '',
+    result: {
+      resource_update: 'superseded',
+      source_revision: Number(value),
+      current_revision: currentRevision
     }
   };
 }
@@ -365,8 +520,15 @@ function classifyWorkerError(error: unknown): { code: string; retryable: boolean
   return { code: 'provider_unavailable', retryable: true };
 }
 
-function completionUnknown(): VoiceError {
-  return new VoiceError({ code: 'provider_timeout', retryable: true, status: 504 });
+function completionUnknown(providerCommandId: string): VoiceError {
+  return new VoiceError({
+    code: 'provider_timeout', retryable: true, status: 504,
+    details: providerCommandId ? { provider_command_id: providerCommandId } : {}
+  });
+}
+
+function isRevisionConflict(error: unknown): boolean {
+  return error instanceof VoiceError && error.code === 'revision_conflict';
 }
 
 function providerCommandIdFromError(error: unknown): string {

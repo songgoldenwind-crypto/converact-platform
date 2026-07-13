@@ -250,17 +250,29 @@ export async function routeIveKitVoiceApi(
     }
   }
 
-  const didMatch = routePath.match(/^\/api\/ivekit\/voice\/dids\/([^/]+)$/);
+  const didMatch = routePath.match(/^\/api\/ivekit\/voice\/dids\/([^/]+)(?:\/(apply))?$/);
   if (didMatch) {
     const didId = decodeSegment(didMatch[1]);
-    if (method === 'GET') return { data: await module.configuration.getDid(ctx.tenantId, didId) };
-    if (method === 'PATCH') {
+    const action = didMatch[2] || '';
+    if (!action && method === 'GET') return { data: await module.configuration.getDid(ctx.tenantId, didId) };
+    if (!action && method === 'PATCH') {
       requireAdmin(ctx);
       const input = bodyRecord(body);
       return { data: await module.configuration.updateDid({
         tenant_id: ctx.tenantId, actor: ctx.userId, did_id: didId,
         expected_revision: requiredRevision(input.revision), patch: bodyRecord(input.patch) as never
       }) };
+    }
+    if (action === 'apply' && method === 'POST') {
+      requireAdmin(ctx);
+      const did = await module.configuration.getDid(ctx.tenantId, didId);
+      const trunk = await module.configuration.getTrunk(ctx.tenantId, did.trunk_id);
+      const command = await module.configuration.enqueueOperation({
+        tenant_id: ctx.tenantId, actor: ctx.userId, profile_id: trunk.profile_id,
+        resource_type: 'did', resource_id: did.id, operation: 'apply',
+        idempotency_key: requireIdempotencyKey(headers), payload: { source_revision: did.revision }
+      });
+      return { status: 202, data: publicConfigurationCommand(command) };
     }
   }
 
@@ -283,7 +295,7 @@ export async function routeIveKitVoiceApi(
     }
   }
 
-  const extensionMatch = routePath.match(/^\/api\/ivekit\/voice\/extensions\/([^/]+)(?:\/(session))?$/);
+  const extensionMatch = routePath.match(/^\/api\/ivekit\/voice\/extensions\/([^/]+)(?:\/(apply|session))?$/);
   if (extensionMatch) {
     const extensionId = decodeSegment(extensionMatch[1]);
     const action = extensionMatch[2] || '';
@@ -295,6 +307,16 @@ export async function routeIveKitVoiceApi(
         tenant_id: ctx.tenantId, actor: ctx.userId, extension_id: extensionId,
         expected_revision: requiredRevision(input.revision), patch: bodyRecord(input.patch) as never
       }) };
+    }
+    if (action === 'apply' && method === 'POST') {
+      requireAdmin(ctx);
+      const extension = await module.configuration.getExtension(ctx.tenantId, extensionId);
+      const command = await module.configuration.enqueueOperation({
+        tenant_id: ctx.tenantId, actor: ctx.userId, profile_id: extension.profile_id,
+        resource_type: 'extension', resource_id: extension.id, operation: 'apply',
+        idempotency_key: requireIdempotencyKey(headers), payload: { source_revision: extension.revision }
+      });
+      return { status: 202, data: publicConfigurationCommand(command) };
     }
     if (action === 'session' && method === 'POST') {
       requireOperator(ctx);

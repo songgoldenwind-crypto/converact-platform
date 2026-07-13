@@ -168,6 +168,7 @@ test('Controlled Voice adapter is deterministic across commands, reconciliation,
 
   assert.equal((await adapter.management.applyTrunk({ resource_id: 'trunk-a', desired_state: {} })).provider_ref, 'controlled:trunk-a');
   assert.equal((await adapter.management.testTrunk({ resource_id: 'trunk-a' })).ready, true);
+  assert.equal((await adapter.management.applyDid({ resource_id: 'did-a', desired_state: {} })).provider_ref, 'controlled:did-a');
   assert.equal((await adapter.management.applyExtension({ resource_id: 'extension-a', desired_state: {} })).provider_ref, 'controlled:extension-a');
   assert.equal((await adapter.management.applyRoute({ resource_id: 'route-a', desired_state: {} })).provider_ref, 'controlled:route-a');
   assert.equal((await adapter.management.lookupDialog({ provider_call_id: first.provider_call_id! })).state, 'succeeded');

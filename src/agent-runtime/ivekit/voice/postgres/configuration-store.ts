@@ -210,6 +210,24 @@ export class PostgresVoiceConfigurationStore implements VoiceConfigurationReposi
     return this.getDesiredState(tenantId, id, DID_COLUMNS, 'ivekit_voice_dids', 'did', decodeDid, options);
   }
 
+  getDidProtectedAddress(tenantId: string, id: string): Promise<VoiceProtectedAddress | null> {
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<VoicePgRow>(
+        `SELECT e164_ciphertext, e164_hmac, e164_redacted
+         FROM ivekit_voice_dids
+         WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id]
+      );
+      const row = result.rows[0];
+      return row ? {
+        kind: 'e164',
+        ciphertext: String(row.e164_ciphertext),
+        hmac: String(row.e164_hmac),
+        redacted: String(row.e164_redacted)
+      } : null;
+    });
+  }
+
   findDidByAddressHmac(tenantId: string, hmac: string): Promise<VoiceDid | null> {
     return withPgTenant(this.pg, tenantId, async (pg) => {
       const result = await pg.query<VoicePgRow>(
@@ -388,6 +406,19 @@ export class PostgresVoiceConfigurationStore implements VoiceConfigurationReposi
         [tenantId, routeId]
       );
       return result.rows.map(decodeRouteVersion);
+    });
+  }
+
+  updateRouteVersionDeployment(input: VoiceRouteVersion): Promise<VoiceRouteVersion> {
+    return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      const result = await pg.query<VoicePgRow>(
+        `UPDATE ivekit_voice_route_versions
+         SET deployment_state = $4, provider_revision = $5
+         WHERE tenant_id = $1 AND id = $2 AND route_id = $3
+         RETURNING *`,
+        [input.tenant_id, input.id, input.route_id, input.deployment_state, input.provider_revision]
+      );
+      return decodeRouteVersion(requiredRow(result.rows[0]));
     });
   }
 

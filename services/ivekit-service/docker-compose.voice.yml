@@ -1,0 +1,89 @@
+# Optional RustPBX data plane for the generated standalone iveKit build context.
+services:
+  rustpbx-db-init:
+    image: postgres:${IVEKIT_POSTGRES_IMAGE_TAG:-16-alpine}
+    profiles: ["voice"]
+    entrypoint: ["sh", "/bootstrap/init-rustpbx-database.sh"]
+    restart: "no"
+    environment:
+      POSTGRES_USER: opc_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: opc
+      RUSTPBX_DB_PASSWORD: ${RUSTPBX_DB_PASSWORD:?RUSTPBX_DB_PASSWORD is required}
+    volumes:
+      - ./init-rustpbx-database.sh:/bootstrap/init-rustpbx-database.sh:ro
+    depends_on:
+      runtime-role-init:
+        condition: service_completed_successfully
+
+  rustpbx-config-render:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice"]
+    command: ["node", "dist/ivekit-render-rustpbx-config.js"]
+    restart: "no"
+    environment:
+      RUSTPBX_CONFIG_OUTPUT: /app/config/rustpbx.toml
+      RUSTPBX_IMAGE: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+      RUSTPBX_DATABASE_URL: postgresql://rustpbx_app@postgres:5432/rustpbx
+      RUSTPBX_DB_PASSWORD: ${RUSTPBX_DB_PASSWORD:?RUSTPBX_DB_PASSWORD is required}
+      RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:?RUSTPBX_RWI_TOKEN is required}
+      RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      RUSTPBX_ROUTER_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
+      RUSTPBX_CDR_WEBHOOK_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/cdrs
+      RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
+      RUSTPBX_SIP_PORT: "5060"
+      RUSTPBX_RTP_START_PORT: "20000"
+      RUSTPBX_RTP_END_PORT: "20100"
+    volumes:
+      - rustpbx-runtime-config:/app/config
+    depends_on:
+      rustpbx-db-init:
+        condition: service_completed_successfully
+
+  rustpbx:
+    image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+    profiles: ["voice"]
+    command: ["--conf", "/app/config/rustpbx.toml"]
+    init: true
+    restart: unless-stopped
+    expose:
+      - "8080"
+    ports:
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/udp"
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/tcp"
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_RTP_START_PORT:-20000}-${RUSTPBX_RTP_END_PORT:-20100}:20000-20100/udp"
+    volumes:
+      - rustpbx-runtime-config:/app/config:ro
+      - rustpbx-storage:/app/storage
+    depends_on:
+      rustpbx-db-init:
+        condition: service_completed_successfully
+      rustpbx-config-render:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/app/rustpbx", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+
+  ivekit:
+    environment:
+      OPC_IVEKIT_VOICE_WORKERS_ENABLED: "1"
+      OPC_IVEKIT_VOICE_ADDRESS_KEY: ${OPC_IVEKIT_VOICE_ADDRESS_KEY:?OPC_IVEKIT_VOICE_ADDRESS_KEY is required}
+      OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY: ${OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY:?OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY is required}
+      OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN
+      OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES: RUSTPBX_WEBHOOK_TOKEN
+      RUSTPBX_MANAGEMENT_TOKEN: ${RUSTPBX_RWI_TOKEN:?RUSTPBX_RWI_TOKEN is required}
+      RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:?RUSTPBX_RWI_TOKEN is required}
+      RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+    depends_on:
+      rustpbx:
+        condition: service_healthy
+        required: false
+
+volumes:
+  rustpbx-runtime-config:
+  rustpbx-storage:

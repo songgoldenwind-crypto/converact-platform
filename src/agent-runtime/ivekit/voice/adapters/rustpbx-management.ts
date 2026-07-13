@@ -20,6 +20,7 @@ export interface RustPbxManagementPaths {
   ami_sipflow: string;
   trunk_apply: string;
   trunk_test: string;
+  did_apply: string;
   extension_apply: string;
   route_evaluate: string;
   route_reload: string;
@@ -115,6 +116,10 @@ export class RustPbxManagementClient implements VoiceManagementPort {
     };
   }
 
+  async applyDid(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult> {
+    return this.#apply('did_apply', input);
+  }
+
   async applyExtension(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult> {
     return this.#apply('extension_apply', input);
   }
@@ -126,14 +131,20 @@ export class RustPbxManagementClient implements VoiceManagementPort {
   async lookupDialog(input: { provider_call_id: string }): Promise<{
     state: 'pending' | 'succeeded' | 'failed' | 'unknown';
     provider_state: string;
+    provider_call_id?: string;
     safe_diagnostics: Record<string, unknown>;
   }> {
     const providerCallId = boundedIdentifier(input.provider_call_id);
     const response = await this.#request('ami_dialog', 'GET', undefined, providerCallId);
     const providerState = boundedOptionalString(response.state, 128) || 'unknown';
+    const resolvedCallId = boundedOptionalString(
+      response.provider_call_id ?? response.call_id,
+      256
+    );
     return {
       state: normalizedDialogState(providerState),
       provider_state: providerState,
+      ...(resolvedCallId ? { provider_call_id: resolvedCallId } : {}),
       safe_diagnostics: safeVoiceProviderPayload(response)
     };
   }
@@ -175,7 +186,7 @@ export class RustPbxManagementClient implements VoiceManagementPort {
   }
 
   async #apply(
-    path: 'trunk_apply' | 'extension_apply' | 'route_evaluate',
+    path: 'trunk_apply' | 'did_apply' | 'extension_apply' | 'route_evaluate',
     input: VoiceManagementApplyInput
   ): Promise<VoiceManagementApplyResult> {
     const resourceId = boundedIdentifier(input.resource_id);
@@ -277,7 +288,7 @@ function validatedPaths(input: RustPbxManagementPaths): RustPbxManagementPaths {
   const output = {} as RustPbxManagementPaths;
   for (const key of [
     'health', 'version', 'ami_health', 'ami_dialog', 'ami_sipflow', 'trunk_apply',
-    'trunk_test', 'extension_apply', 'route_evaluate', 'route_reload', 'recording_lookup'
+    'trunk_test', 'did_apply', 'extension_apply', 'route_evaluate', 'route_reload', 'recording_lookup'
   ] as const) {
     output[key] = validatedPath(input[key]);
   }

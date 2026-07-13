@@ -8,6 +8,8 @@
     "init:runtime-role": "node dist/ivekit-init-runtime-role.js",
     "migrate": "node dist/ivekit-migrate.js",
     "preflight:intelligence": "node dist/ivekit-intelligence-preflight.js",
+    "preflight:voice": "node dist/ivekit-voice-preflight.js",
+    "render:rustpbx": "node dist/ivekit-render-rustpbx-config.js",
     "start": "node dist/ivekit-server.js"
   },
   "engines": {

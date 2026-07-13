@@ -143,6 +143,10 @@ class ControlledVoiceManagement implements VoiceManagementPort {
     return { ready: Boolean(input.resource_id), error_code: '', safe_diagnostics: { mode: 'controlled' } };
   }
 
+  async applyDid(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult> {
+    return applied(input.resource_id);
+  }
+
   async applyExtension(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult> {
     return applied(input.resource_id);
   }
@@ -154,12 +158,17 @@ class ControlledVoiceManagement implements VoiceManagementPort {
   async lookupDialog(input: { provider_call_id: string }): Promise<{
     state: 'pending' | 'succeeded' | 'failed' | 'unknown';
     provider_state: string;
+    provider_call_id?: string;
     safe_diagnostics: Record<string, unknown>;
   }> {
-    const found = [...this.outcomes.values()].some((outcome) => outcome.provider_call_id === input.provider_call_id);
+    const found = [...this.outcomes.values()].find((outcome) =>
+      outcome.provider_call_id === input.provider_call_id
+      || outcome.provider_command_id === input.provider_call_id
+    );
     return {
       state: found ? 'succeeded' : 'unknown',
       provider_state: found ? 'accepted' : 'not_found',
+      ...(found ? { provider_call_id: found.provider_call_id } : {}),
       safe_diagnostics: { mode: 'controlled' }
     };
   }

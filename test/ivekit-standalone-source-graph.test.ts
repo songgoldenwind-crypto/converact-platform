@@ -66,6 +66,8 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/ivekit-migrate.ts',
     'src/ivekit-init-runtime-role.ts',
     'src/ivekit-intelligence-preflight.ts',
+    'src/ivekit-render-rustpbx-config.ts',
+    'src/ivekit-voice-preflight.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
     'src/agent-runtime/ivekit/ivr/index.ts'
   ]);
@@ -78,5 +80,7 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
   assert.equal(policy.assets.includes('services/ivekit-service/package.json'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/Dockerfile'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/docker-compose.yml'), true);
+  assert.equal(policy.assets.includes('services/ivekit-service/docker-compose.voice.yml'), true);
+  assert.equal(policy.assets.includes('services/ivekit-service/init-rustpbx-database.sh'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/env.example'), true);
 });

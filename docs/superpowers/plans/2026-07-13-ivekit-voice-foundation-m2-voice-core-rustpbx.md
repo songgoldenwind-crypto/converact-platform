@@ -58,6 +58,7 @@ The Step IVR adapter in M2 validates/normalizes RustPBX envelopes and maps porta
 - `http.ts`: stable `/api/ivekit/voice/*` routes.
 - `webhook-auth.ts`: profile-bound provider signature/service-key verification.
 - `preflight.ts`: deployment/runtime Voice preflight report.
+- `rustpbx-config.ts`: production RustPBX TOML validation and atomic `0600` writer.
 - `metrics.ts`: bounded-label Voice metrics.
 - `postgres/configuration-store.ts`: profiles, snapshots, trunks, DIDs, extensions, routes, policies, consents.
 - `postgres/call-store.ts`: calls and participants.
@@ -83,11 +84,15 @@ The Step IVR adapter in M2 validates/normalizes RustPBX envelopes and maps porta
 - `src/migrations/048_ivekit_voice_operations.sql`: durable configuration commands and worker/profile lookup functions.
 - `scripts/ivekit-voice-preflight.ts`: secret-safe CLI report.
 - `scripts/ivekit-controlled-voice-provider.ts`: controlled HTTP/RWI provider for acceptance.
-- `scripts/render-rustpbx-config.ts`: validated RustPBX TOML renderer; rejects SQLite and missing production secrets.
+- `scripts/render-rustpbx-config.ts`: repository-development wrapper around the shared renderer.
+- `src/ivekit-voice-preflight.ts`: compiled standalone Voice preflight entrypoint.
+- `src/ivekit-render-rustpbx-config.ts`: compiled standalone RustPBX config entrypoint.
 
 **Create deployment surfaces:**
 
-- `infra/ivekit/docker-compose.voice.yml`: optional standalone Voice data plane with PostgreSQL-backed RustPBX.
+- `infra/ivekit/docker-compose.voice.yml`: optional full-repository integration Voice data plane with PostgreSQL-backed RustPBX.
+- `services/ivekit-service/docker-compose.voice.yml`: generated standalone build-context overlay using only compiled image entrypoints.
+- `services/ivekit-service/init-rustpbx-database.sh`: standalone least-privilege RustPBX role/database bootstrap.
 - `infra/k8s/templates/rustpbx-deployment.yaml`: opt-in RustPBX Deployment, Service, and disruption policy.
 - `test/ivekit-voice-deployment.test.ts`: immutable image, database isolation, secret, port, and render gates.
 
@@ -876,7 +881,8 @@ git commit -m "feat(ivekit): operate standalone voice workers"
 **Files:**
 - Create: `scripts/ivekit-controlled-voice-provider.ts`
 - Create: `test/ivekit-controlled-voice-provider.test.ts`
-- Create: `test/ivekit-voice-controlled-acceptance.test.ts`
+- Create: `test/ivekit-voice-controlled-postgres.test.ts`
+- Create: `src/migrations/049_ivekit_voice_route_deployment.sql`
 - Modify: `services/ivekit-service/source-policy.json`
 - Modify: `test/ivekit-standalone-source-graph.test.ts`
 - Modify: `test/ivekit-delivery-bundle.test.ts`
@@ -884,11 +890,11 @@ git commit -m "feat(ivekit): operate standalone voice workers"
 - Modify: `docs/ivekit-voice-foundation-v1-design.md`
 - Modify: `docs/iveKit视频IM通用能力详细设计.md`
 
-- [ ] **Step 1: Build a controlled RustPBX-compatible provider**
+- [x] **Step 1: Build a controlled RustPBX-compatible provider**
 
 Expose loopback HTTP health/AMI/management/Router/CDR endpoints and RWI `/rwi/v1`. Support deterministic profiles for success, retryable 503, delayed/timeout, async success after timeout, duplicate events, out-of-order events, malformed response, auth failure, and declared capability absence. Mark all evidence `controlled`; do not call it real RustPBX evidence.
 
-- [ ] **Step 2: Write end-to-end controlled acceptance**
+- [x] **Step 2: Write end-to-end controlled acceptance**
 
 Against real PostgreSQL and the controlled provider, execute:
 
@@ -903,15 +909,15 @@ Against real PostgreSQL and the controlled provider, execute:
 9. restart workers and recover expired leases;
 10. prove tenant B cannot read or mutate tenant A resources.
 
-- [ ] **Step 3: Include the complete source graph and delivery artifacts**
+- [x] **Step 3: Include the complete source graph and delivery artifacts**
 
-Standalone context must include every new M2 source, migration 048, preflight/config-render CLI source, optional Voice Compose overlay, Helm RustPBX workload, and runtime dependency already declared. It must still exclude `src/agent-runtime/voice`, legacy `src/agent-runtime/ivr`, `src/agent-runtime/call-center`, `src/db.ts`, SQLite runtime DDL, and OPC harness. Delivery migration count and hashes must include 048. Delivery tests must reject floating RustPBX images, SQLite DSNs, committed service tokens, and accidental RustPBX database credentials in the OPC service.
+The standalone build context must include every new M2 runtime source, migrations 048 and 049, compiled preflight/config-render entrypoints, the standalone Voice Compose overlay, and the RustPBX database bootstrap. It must still exclude the controlled provider, `src/agent-runtime/voice`, legacy `src/agent-runtime/ivr`, `src/agent-runtime/call-center`, `src/db.ts`, SQLite runtime DDL, and OPC harness. The delivery bundle, outside the runtime image, must include the controlled provider under `acceptance/tools`, the integrated Compose overlay, the complete Helm chart, and the standalone build context. Delivery migration count and hashes must include 048 and 049. Delivery tests must reject floating RustPBX images, SQLite DSNs, committed service tokens, and accidental RustPBX database credentials in the iveKit control-plane service.
 
-- [ ] **Step 4: Update detailed design status**
+- [x] **Step 4: Update detailed design status**
 
 Record implemented/controlled/not-run boundaries, the new configuration command table, exact RustPBX RWI baseline and known partial capabilities, all API paths implemented in M2, environment variables, and M3/M4 remaining work. Do not mark real RustPBX/PSTN/LiveKit SIP acceptance passed.
 
-- [ ] **Step 5: Run M2 focused acceptance**
+- [x] **Step 5: Run M2 focused acceptance**
 
 ```bash
 node --import tsx --test \
@@ -926,7 +932,7 @@ npm run typecheck
 
 Expected: all implemented/controlled cases pass; real-provider cases remain explicitly not run.
 
-- [ ] **Step 6: Build and verify standalone delivery**
+- [x] **Step 6: Build and verify standalone delivery**
 
 ```bash
 npm run ivekit:standalone:context
@@ -935,9 +941,9 @@ npm run test:ivekit:delivery
 npm_config_cache=/private/tmp/ivekit-voice-npm-cache npm run pack:ivekit-sdk
 ```
 
-Expected: standalone compile/entrypoint/checksums pass and delivery contains migration 048 plus M2 Voice sources.
+Expected: standalone compile/checksums pass; the main server, Voice preflight, and RustPBX renderer are emitted under `dist`; delivery contains migrations 048 and 049, the standalone Voice overlay, integrated Compose overlay, full Helm chart, and controlled acceptance source in their declared boundaries.
 
-- [ ] **Step 7: Run full repository regression**
+- [x] **Step 7: Run full repository regression**
 
 ```bash
 npm test
@@ -945,16 +951,18 @@ npm test
 
 Expected: zero failures; environment-gated cases may be explicitly skipped.
 
-- [ ] **Step 8: Commit and push M2**
+- [x] **Step 8: Commit and push M2**
 
 ```bash
-git add scripts/ivekit-controlled-voice-provider.ts test/ivekit-controlled-voice-provider.test.ts test/ivekit-voice-controlled-acceptance.test.ts services/ivekit-service/source-policy.json test/ivekit-standalone-source-graph.test.ts test/ivekit-delivery-bundle.test.ts test/ivekit-voice-deployment.test.ts package.json docs/ivekit-voice-foundation-v1-design.md docs/iveKit视频IM通用能力详细设计.md
+git add -A
 git commit -m "feat(ivekit): complete voice core rustpbx m2"
 git push origin codex/ivekit-v4-voice-foundation
 git ls-remote origin refs/heads/codex/ivekit-v4-voice-foundation
 ```
 
 Expected: remote branch head equals local HEAD.
+
+Verification recorded before the M2 commit: 143 focused Voice/RustPBX/LiveKit SIP tests passed with one real-environment case skipped; PostgreSQL fresh/upgrade and controlled RustPBX E2E passed; standalone isolated build emitted all three operational entrypoints; delivery tests were 8/8; SDK dry pack and typecheck passed; full repository regression was 2315 total, 2305 passed, 0 failed, and 10 explicitly skipped environment cases. Production, integrated, and generated standalone Voice Compose configurations all rendered successfully. Real RustPBX/PSTN/LiveKit SIP/browser evidence remains `not_run`.
 
 ---
 

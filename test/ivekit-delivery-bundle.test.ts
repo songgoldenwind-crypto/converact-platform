@@ -72,6 +72,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       livekit: 'not_run',
       tinode: 'not_run',
       rustdesk: 'not_run',
+      rustpbx: 'not_run',
       ocr: 'not_run',
       asr: 'not_run',
       quality_review: 'not_run',
@@ -95,6 +96,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'real_livekit_clients',
       'real_tinode_clients',
       'real_rustdesk_clients',
+      'real_rustpbx',
       'real_ocr_vendor',
       'real_asr_vendor',
       'real_quality_vendor',
@@ -111,6 +113,10 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
         .intelligence_preflight,
       'service/build-context/src/ivekit-intelligence-preflight.ts'
     );
+    assert.equal(result.manifest.contents.voice_preflight, 'service/build-context/src/ivekit-voice-preflight.ts');
+    assert.equal(result.manifest.contents.voice_compose, 'service/build-context/docker-compose.voice.yml');
+    assert.equal(result.manifest.contents.voice_helm, 'deploy/kubernetes/ivekit/');
+    assert.match(result.manifest.provider_ownership.rustpbx, /SIP|PSTN|call/i);
     assert.equal(result.manifest.artifacts.sdk_package.sha256, createHash('sha256').update('test sdk archive').digest('hex'));
     assert.equal(result.manifest.artifacts.service_build_context.path, 'service/build-context/');
     assert.match(result.manifest.artifacts.reference_client.tree_sha256, /^[a-f0-9]{64}$/);
@@ -138,11 +144,29 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     );
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/voice/index.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/ivr/index.ts'), true);
+    assert.equal(files.includes('acceptance/tools/ivekit-controlled-voice-provider.ts'), true);
+    assert.equal(files.includes('docs/ivekit-voice-foundation-v1-design.md'), true);
+    assert.equal(files.includes('deploy/application/docker-compose.voice.yml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/Chart.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/values.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/templates/rustpbx-deployment.yaml'), true);
+    for (const migration of [
+      '040_rustdesk_control_ownership.sql',
+      '041_tinode_inbound_sync.sql',
+      '042_ivekit_tenant_events.sql',
+      '043_ivekit_intelligence_translation.sql',
+      '044_quality_review_policy_routing.sql',
+      '045_translation_worker_routing.sql',
+      '046_ivekit_voice_foundation.sql',
+      '047_ivekit_ivr_foundation.sql',
+      '048_ivekit_voice_operations.sql',
+      '049_ivekit_voice_route_deployment.sql'
+    ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 38);
+    assert.equal(migrationManifest.migrations.length, 39);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -151,6 +175,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '046_ivekit_voice_foundation.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '047_ivekit_ivr_foundation.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '048_ivekit_voice_operations.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '049_ivekit_voice_route_deployment.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),
@@ -174,6 +199,9 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.doesNotMatch(applicationCompose, /^\s+build:/m);
     assert.doesNotMatch(applicationCompose, /ivekit-opc:local/);
     assert.match(applicationCompose, /IVEKIT_OPC_IMAGE_NAME:\?IVEKIT_OPC_IMAGE_NAME is required/);
+    const voiceCompose = readFileSync(join(outputDir, 'service/build-context/docker-compose.voice.yml'), 'utf8');
+    assert.match(voiceCompose, /command: \["node", "dist\/ivekit-render-rustpbx-config\.js"\]/);
+    assert.doesNotMatch(voiceCompose, /--import|\btsx\b|scripts\/render-rustpbx-config\.ts/);
     const acceptance = JSON.parse(readFileSync(
       join(outputDir, 'acceptance', 'status.json'),
       'utf8'
@@ -406,6 +434,7 @@ test('V3 handoff documents state implemented, configurable, and not-run boundari
   const roadmap = readFileSync('docs/ivekit-client-delivery-v1-roadmap.md', 'utf8');
   const design = readFileSync('docs/iveKit视频IM通用能力详细设计.md', 'utf8');
   const audit = readFileSync('docs/ivekit-v3-completion-audit.md', 'utf8');
+  const voiceDesign = readFileSync('docs/ivekit-voice-foundation-v1-design.md', 'utf8');
 
   assert.match(roadmap, /M7：V3 多模态智能与翻译/);
   assert.match(roadmap, /OCR.*ASR.*AI.*翻译/s);
@@ -414,6 +443,14 @@ test('V3 handoff documents state implemented, configurable, and not-run boundari
   assert.match(design, /043_ivekit_intelligence_translation/);
   assert.match(audit, /受控 Provider/);
   assert.match(audit, /not_run/);
+  assert.match(voiceDesign, /M2.*代码完成.*受控 PostgreSQL.*通过/s);
+  assert.match(voiceDesign, /\/api\/ivekit\/voice\/dids\/:id\/apply/);
+  assert.match(voiceDesign, /\/api\/ivekit\/voice\/providers\/:profileId\/cdrs/);
+  assert.match(voiceDesign, /DTMF.*Park.*Pickup.*capability_unavailable/s);
+  assert.match(voiceDesign, /049_ivekit_voice_route_deployment/);
+  assert.match(voiceDesign, /真实 RustPBX.*not_run/s);
+  assert.match(design, /Voice Foundation M2.*受控 PostgreSQL.*通过/s);
+  assert.match(design, /真实 RustPBX.*not_run/s);
 });
 
 test('delivery generation refuses to erase an unowned existing directory', () => {

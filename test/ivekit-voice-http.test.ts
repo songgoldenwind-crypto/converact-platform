@@ -271,6 +271,9 @@ test('Voice HTTP exposes the complete configuration call evidence and bridge rou
     trunk_id: 'trunk-a', route_id: null, e164: '+8613800138000', metadata: {}
   })).status, 201);
   await invoke('PATCH', '/api/ivekit/voice/dids/did-a', { revision: 1, patch: { status: 'disabled' } });
+  assert.equal((await invoke(
+    'POST', '/api/ivekit/voice/dids/did-a/apply', {}, idempotentHeaders
+  )).status, 202);
 
   assert.equal((await invoke('POST', '/api/ivekit/voice/extensions', {
     profile_id: 'profile-a', identity: 'agent-a', extension: '1001', display_name: 'Agent A',
@@ -279,6 +282,9 @@ test('Voice HTTP exposes the complete configuration call evidence and bridge rou
   await invoke('PATCH', '/api/ivekit/voice/extensions/extension-a', {
     revision: 1, patch: { display_name: 'Agent A2' }
   });
+  assert.equal((await invoke(
+    'POST', '/api/ivekit/voice/extensions/extension-a/apply', {}, idempotentHeaders
+  )).status, 202);
   assert.equal((await invoke(
     'POST', '/api/ivekit/voice/extensions/extension-a/session', {}, idempotentHeaders
   )).status, 201);
@@ -321,7 +327,9 @@ test('Voice HTTP exposes the complete configuration call evidence and bridge rou
   assert.deepEqual(operations, [
     'profile:create', 'profile:update', 'profile:preflight',
     'trunk:create', 'trunk:update', 'trunk:get', 'operation:apply', 'trunk:get', 'operation:test',
-    'did:create', 'did:update', 'extension:create', 'extension:update', 'extension:get', 'extension:session',
+    'did:create', 'did:update', 'did:get', 'trunk:get', 'operation:apply',
+    'extension:create', 'extension:update', 'extension:get', 'operation:apply',
+    'extension:get', 'extension:session',
     'route:create', 'route:update', 'route:get', 'route:publish', 'route:versions',
     'policy:upsert', 'consent:create', 'event:list', 'recording:list', 'bridge:list',
     'participant:list', 'call:livekit_bridge_create', 'recording:list'
@@ -471,7 +479,10 @@ function completeVoiceModule(operations: string[]): VoiceHttpModule {
       },
       async createDid(input: unknown) { operations.push('did:create'); return input; },
       async updateDid(input: unknown) { operations.push('did:update'); return input; },
-      async getDid() { return { id: 'did-a' }; },
+      async getDid() {
+        operations.push('did:get');
+        return { id: 'did-a', trunk_id: 'trunk-a', revision: 1 };
+      },
       async listDids() { return { items: [], next_cursor: null }; },
       async createExtension(input: unknown) { operations.push('extension:create'); return input; },
       async updateExtension(input: unknown) { operations.push('extension:update'); return input; },

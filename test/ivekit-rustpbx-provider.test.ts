@@ -82,6 +82,7 @@ test('RustPBX provider reconciles by provider call id then durable RWI action id
 
   assert.equal(active.state, 'succeeded');
   assert.equal(fallback.state, 'succeeded');
+  assert.equal(fallback.provider_call_id, 'provider-call-from-action');
   assert.deepEqual(lookedUp, ['provider-call-a', 'rwi-action-b']);
 });
 
@@ -128,11 +129,18 @@ function fakeManagement(
     },
     async applyTrunk() { throw new Error('not used'); },
     async testTrunk() { throw new Error('not used'); },
+    async applyDid() { throw new Error('not used'); },
     async applyExtension() { throw new Error('not used'); },
     async applyRoute() { throw new Error('not used'); },
     async lookupDialog(input) {
       lookedUp.push(input.provider_call_id);
-      return { state: 'succeeded', provider_state: 'active', safe_diagnostics: {} };
+      return {
+        state: 'succeeded', provider_state: 'active',
+        ...(input.provider_call_id === 'rwi-action-b'
+          ? { provider_call_id: 'provider-call-from-action' }
+          : {}),
+        safe_diagnostics: {}
+      };
     },
     async lookupRecording() { return { state: 'unknown', object_ref: '', safe_diagnostics: {} }; }
   };

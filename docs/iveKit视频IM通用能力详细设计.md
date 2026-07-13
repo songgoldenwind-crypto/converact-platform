@@ -1,14 +1,16 @@
-# iveKit 视频、远程协助与 IM 通用能力详细设计
+# iveKit 视频、语音呼叫、远程协助与 IM 通用能力详细设计
 
 > 面向 LED 项目研发对接。本文档汇总 OPC 当前已经沉淀的 iveKit 后端能力，覆盖视频/语音、屏幕共享、Web 远程协助、页面内控制、录屏、审计、证据、远程网关、IM/Tinode、附件消息、防绕单扫描等能力。
 >
-> 文档日期：2026-07-12
+> 文档日期：2026-07-13
 >
 > 代码基线：当前 OPC 仓库 `/Users/songjinfeng/Desktop/opc`
 >
 > 服务器验收更新（2026-07-11）：LiveKit 双浏览器音视频/屏幕共享、Egress/MinIO、Tinode、IM facade、防绕单、RustDesk 控制面/审计、PostgreSQL 强制 RLS、LED SDK、双实例幂等和恢复测试已在真实服务器通过。交付前独立审查又完成了 OPC/Tinode 数据库角色隔离、一次性迁移服务、不可自启的 RLS bypass、MinIO 根/桶级账号分离及并发迁移锁。证据与剩余物理客户端人工项见 [iveKit 服务器部署验收报告](iveKit服务器部署验收报告-2026-07-11.md)。本文后文早期章节中的“仍需服务器验证”应以该报告的新口径为准。
 >
 > M6.5 更新（2026-07-12）：RustDesk edge crash-safe spool 与 recovery API 已在隔离服务器 `ivekit-v2-c13f503` 验收。executed 重启只补报、terminal 幂等确认、executing 不确定状态终止、跨 edge ownership quarantine、Linux 权限/符号链接/原子落盘以及应用重启持久性均通过；服务器证据路径和摘要见 [iveKit V2 standalone realtime plan](ivekit-v2-standalone-realtime-plan.md)。
+>
+> Voice Foundation M2 更新（2026-07-13）：共享 PostgreSQL-only Voice Core、RustPBX Management/AMI/Router/RWI adapter、配置/事件/对账 workers、CDR/录音投影和 LiveKit SIP bridge orchestration 已完成；受控 PostgreSQL/RustPBX 验收通过。standalone 镜像现已包含编译后的 Voice preflight 和 RustPBX 配置入口，独立 Voice Compose、完整 Helm chart 与受控工具按运行/部署/验收边界交付。真实 RustPBX、真实 SIP/PSTN、RTP/录音、真实 LiveKit SIP 和 WebPhone 仍为 `not_run`。权威细节见 [iveKit Voice Foundation V1 详细设计](ivekit-voice-foundation-v1-design.md)。
 
 ---
 
@@ -53,6 +55,7 @@ flowchart TB
 
 | 能力域 | 当前状态 | 说明 |
 | --- | --- | --- |
+| Voice Foundation M2 | 代码完成，受控 PostgreSQL/RustPBX 验收通过 | profile/capability、trunk/DID/extension/route、外呼/状态机、durable command/event/reconciliation、CDR/录音、策略/consent 和 LiveKit SIP bridge 已闭环；真实 RustPBX/PSTN/LiveKit SIP 为 `not_run` |
 | LiveKit 音视频房间、Token、Join Plan | 已实现，测试通过 | 已有 HTTP API 和 `createIveKitModule()` 门面；真实部署还需要服务器 smoke |
 | LiveKit 录制/Egress、录制 evidence 回填 | 生产生命周期代码已闭环，测试通过 | 支持 business_ref、状态/retention、对象检查、受控导出、导出审计、确认式清理和 evidence 删除回写；真实 Egress/MinIO 仍需服务器验证 |
 | Web Assist 屏幕共享/远程协助 session | 已实现第一版，测试通过 | 支持授权、join token、事件、timeline、录屏入口 |
@@ -89,6 +92,25 @@ flowchart TB
 | 既有 call-center 能力 | OPC 里还有 Chatwoot、omnichannel、voicemail ASR、QM 等邻近能力 | 这些不是当前 iveKit 视频/IM 模块的一部分，LED 若要用需要另做抽象和对接 |
 
 因此，本文档作为第一版研发对接文档是可用的，但交给 LED 研发时建议把上表放在评审第一页讲，避免大家把“已有代码入口”理解成“生产级全链路已验收”。
+
+### 2.2 Voice Foundation M2 对接摘要（2026-07-13）
+
+Voice 作为与 Media、IM、Remote 同级的共享模块，代码位于 `src/agent-runtime/ivekit/voice/`，不依赖 OPC Lead、CRM、Campaign、Stripe、WFM、旧 call-center concrete class、`db.ts` 或 SQLite runtime DDL。OPC 与 LED 都以 `tenant_id + business_ref` 作为业务绑定，只通过 `/api/ivekit/voice/*`、durable event 和后续 Voice SDK 接入。
+
+当前已实现：
+
+1. Provider profile、capability snapshot 和 preflight，支持 `rustpbx`、`livekit_sip` 以及测试用 controlled adapter。
+2. SIP trunk、DID、extension、route draft/publish/apply；DID 明文只在创建和 Provider apply 边界出现，数据库保存密文、HMAC 和脱敏 projection。
+3. 外呼创建、通话状态机、参与人、策略/consent、durable call/configuration command、重试、lease 回收和 `uncertain` 对账。
+4. RustPBX Management/AMI、Router webhook、events/CDR webhook 和 RWI v1；重复事件按 external event id/canonical hash 去重，乱序状态不能让终态回退。
+5. CDR 与 recording metadata 投影，PSTN call 到 `ivekit_media_calls`/LiveKit SIP participant 的 bridge orchestration。
+6. standalone migration `046`、`047`、`048`、`049`，FORCE RLS、fresh/upgrade、交付 checksum 和独立 source graph。
+
+现有主要 HTTP 根路径是 `/api/ivekit/voice/profiles`、`trunks`、`dids`、`extensions`、`routes`、`calls`、`policy`、`consents`、`recordings`，Provider 回调为 `/api/ivekit/voice/providers/:profileId/router|events|cdrs`。DID/extension apply 分别是 `/dids/:id/apply` 和 `/extensions/:id/apply`；LiveKit bridge 创建是 `/calls/:id/livekit-bridge`。所有异步写操作必须使用 `Idempotency-Key`，tenant 只能来自认证上下文。
+
+RustPBX RWI 当前确认执行的动作包括 originate、answer、hangup、hold/unhold、盲转、暖转协议映射、conference add 和 recording start/pause/resume/stop。DTMF、Park、Pickup 没有在当前官方 RWI 基线中找到可确认的执行 action，因此明确返回 `capability_unavailable`；Audio Queue、Barge-in、Step IVR、完整会议生命周期、supervisor control 属于后续 IVR/Contact Center 里程碑。
+
+验收边界：`scripts/verify-ivekit-postgres.sh` 已证明真实 PostgreSQL fresh/upgrade/RLS、受控 RustPBX 配置与通话、CDR/录音、LiveKit 受控 `SipClient`、timeout reconciliation、重复/乱序事件、worker restart 和 tenant isolation。它不证明真实 RustPBX、运营商 trunk/DID、PSTN 收费线路、RTP、真实录音文件、LiveKit SIP 服务或 WebPhone 浏览器；这些项目继续保持 `not_run`。
 
 ---
 

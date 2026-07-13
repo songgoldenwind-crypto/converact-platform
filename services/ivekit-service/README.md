@@ -32,4 +32,11 @@ Run the compiled V3 configuration gate before enabling OCR, ASR, quality, or tra
 npm run preflight:intelligence
 ```
 
+For the optional Voice profile, render the RustPBX configuration and run the Voice gate with compiled entrypoints that are included in the production image:
+
+```bash
+npm run render:rustpbx
+npm run preflight:voice
+```
+
 Provider profile metadata is supplied through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`; secrets stay in dedicated environment variables or an external secret manager. The complete self-hosted/third-party profile format, RBAC, durable retry behavior, health checks, alerts, controlled-provider acceptance, upgrade, and rollback procedure is in `docs/ivekit-v3-intelligence-operations.md` in the source repository.

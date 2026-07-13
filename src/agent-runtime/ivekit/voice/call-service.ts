@@ -14,7 +14,7 @@ import type {
   VoiceEventPort
 } from './ports.js';
 import { VoiceProviderRegistry } from './provider-registry.js';
-import { isVoiceTerminalState } from './state-machine.js';
+import { isVoiceTerminalState, mergeProviderCallState } from './state-machine.js';
 import type {
   VoiceAddressKind,
   VoiceBusinessRef,
@@ -43,6 +43,7 @@ export interface VoiceProviderCallCommandExecutorOptions {
   configuration: VoiceConfigurationRepository;
   address_protector: VoiceAddressProtector;
   provider_registry: VoiceProviderRegistry;
+  now?: () => Date;
 }
 
 export interface VoiceClearAddressInput {
@@ -349,12 +350,14 @@ export class VoiceProviderCallCommandExecutor {
   readonly #configuration: VoiceConfigurationRepository;
   readonly #addressProtector: VoiceAddressProtector;
   readonly #registry: VoiceProviderRegistry;
+  readonly #now: () => Date;
 
   constructor(options: VoiceProviderCallCommandExecutorOptions) {
     this.#calls = options.calls;
     this.#configuration = options.configuration;
     this.#addressProtector = options.address_protector;
     this.#registry = options.provider_registry;
+    this.#now = options.now ?? (() => new Date());
   }
 
   async execute(command: VoiceCallCommand): Promise<{
@@ -362,6 +365,16 @@ export class VoiceProviderCallCommandExecutor {
     result: Record<string, unknown>;
   }> {
     const call = required(await this.#calls.get(command.tenant_id, command.call_id));
+    if (command.kind === 'originate' && call.provider_call_id) {
+      return {
+        provider_command_id: command.provider_command_id || call.provider_call_id,
+        result: safeVoiceProviderPayload({
+          provider_call_id: call.provider_call_id,
+          accepted: true,
+          replayed: true
+        })
+      };
+    }
     const profile = required(await this.#configuration.getProfile(command.tenant_id, call.provider_profile_id));
     const capability = requiredCapabilityForVoiceCommand(command.kind);
     const snapshot = await this.#configuration.getLatestCapabilitySnapshot(command.tenant_id, profile.id);
@@ -382,6 +395,17 @@ export class VoiceProviderCallCommandExecutor {
     try {
       adapter = await this.#registry.create(profile, { purpose: 'execute' });
       const executed = await adapter.execute({ call, command, clear_address: clearAddress });
+      if (command.kind === 'originate') {
+        if (!executed.provider_call_id) {
+          throw providerExecutionUnknown(executed.provider_command_id);
+        }
+        try {
+          await this.#convergeOriginate(call, executed.provider_call_id);
+        } catch (error) {
+          if (error instanceof VoiceError && error.code === 'protocol_mismatch') throw error;
+          throw providerExecutionUnknown(executed.provider_command_id);
+        }
+      }
       observeVoiceCommand({
         adapter: profile.adapter,
         kind: command.kind,
@@ -414,6 +438,48 @@ export class VoiceProviderCallCommandExecutor {
       await adapter?.close().catch(() => undefined);
     }
   }
+
+  async #convergeOriginate(initial: VoiceCall, providerCallId: string): Promise<void> {
+    let current = initial;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (current.provider_call_id && current.provider_call_id !== providerCallId) {
+        throw new VoiceError({ code: 'protocol_mismatch', status: 502 });
+      }
+      const transition = mergeProviderCallState(current.state, 'dialing', {
+        ringing_at: current.ringing_at,
+        answered_at: current.answered_at,
+        ended_at: current.ended_at,
+        occurred_at: this.#now().toISOString()
+      });
+      if (current.provider_call_id === providerCallId && !transition.changed) return;
+      try {
+        await this.#calls.update({
+          ...current,
+          provider_call_id: providerCallId,
+          state: transition.state,
+          ringing_at: transition.ringing_at,
+          answered_at: transition.answered_at,
+          ended_at: transition.ended_at,
+          revision: current.revision + 1,
+          updated_at: this.#now().toISOString()
+        }, current.revision);
+        return;
+      } catch (error) {
+        if (!(error instanceof VoiceError) || error.code !== 'revision_conflict') throw error;
+        current = required(await this.#calls.get(current.tenant_id, current.id));
+      }
+    }
+    throw new VoiceError({ code: 'revision_conflict', retryable: true, status: 409 });
+  }
+}
+
+function providerExecutionUnknown(providerCommandId: string): VoiceError {
+  return new VoiceError({
+    code: 'provider_timeout',
+    retryable: true,
+    status: 504,
+    details: providerCommandId ? { provider_command_id: providerCommandId } : {}
+  });
 }
 
 function callRequestHash(

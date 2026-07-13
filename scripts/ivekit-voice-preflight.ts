@@ -1,26 +1,9 @@
 import { fileURLToPath } from 'node:url';
 
-import { inspectIveKitVoice } from '../src/agent-runtime/ivekit/voice/preflight.js';
-import { closePostgres, initPostgres } from '../src/db-pg.js';
+import { runIveKitVoicePreflight } from '../src/ivekit-voice-preflight.js';
 
-export { inspectIveKitVoice };
-
-async function main(): Promise<void> {
-  let pg = null;
-  try {
-    pg = await initPostgres();
-  } catch {
-    pg = null;
-  }
-  try {
-    const report = await inspectIveKitVoice({ pg, env: process.env });
-    console.log(JSON.stringify(report, null, 2));
-    if (!report.ready) process.exitCode = 1;
-  } finally {
-    if (pg) await closePostgres().catch(() => undefined);
-  }
-}
+export { inspectIveKitVoice } from '../src/agent-runtime/ivekit/voice/preflight.js';
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  void main().catch(() => { process.exitCode = 1; });
+  void runIveKitVoicePreflight().catch(() => { process.exitCode = 1; });
 }

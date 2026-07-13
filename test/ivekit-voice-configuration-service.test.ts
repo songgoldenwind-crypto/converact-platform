@@ -182,6 +182,7 @@ function buildFixture() {
     insertTrunk: async (value: VoiceSipTrunk) => (trunks.set(value.id, value), value),
     updateTrunk: async (value: VoiceSipTrunk, expected: number) => updateMap(trunks, value.id, value, expected, 'revision'),
     getDid: async (_tenant: string, id: string) => dids.get(id) ?? null,
+    getDidProtectedAddress: async () => null,
     listDids: async () => page([...dids.values()]),
     insertDid: async (value: VoiceDid, address: { hmac: string }) => {
       if ([...dids.values()].some((did) => (did.metadata as { address_hmac?: string }).address_hmac === address.hmac)) {
@@ -207,6 +208,11 @@ function buildFixture() {
       return value;
     },
     listRouteVersions: async (_tenant: string, routeId: string) => routeVersions.filter((value) => value.route_id === routeId),
+    updateRouteVersionDeployment: async (value: VoiceRouteVersion) => {
+      const index = routeVersions.findIndex((item) => item.id === value.id);
+      if (index >= 0) routeVersions[index] = value;
+      return value;
+    },
     getPolicy: async (tenantId: string) => policies.get(tenantId) ?? null,
     upsertPolicy: async (value: VoicePolicy, expected: number | null) => {
       const current = policies.get(value.tenant_id);

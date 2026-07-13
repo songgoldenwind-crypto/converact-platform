@@ -122,7 +122,9 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
     return {
       state: found.state,
       provider_state: found.provider_state,
-      ...(input.call.provider_call_id ? { provider_call_id: input.call.provider_call_id } : {})
+      ...(input.call.provider_call_id || found.provider_call_id
+        ? { provider_call_id: input.call.provider_call_id || found.provider_call_id }
+        : {})
     };
   }
 
@@ -195,6 +197,7 @@ const DEFAULT_MANAGEMENT_PATHS: RustPbxManagementPaths = {
   ami_sipflow: '/ami/v1/sipflow/{id}',
   trunk_apply: '/management/trunks/{id}',
   trunk_test: '/management/trunks/{id}/test',
+  did_apply: '/management/dids/{id}',
   extension_apply: '/management/extensions/{id}',
   route_evaluate: '/management/routes/{id}',
   route_reload: '/management/routes/reload',

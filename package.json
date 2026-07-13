@@ -68,6 +68,7 @@
     "ivekit:voice-preflight": "tsx scripts/ivekit-voice-preflight.ts",
     "render:rustpbx-config": "tsx scripts/render-rustpbx-config.ts",
     "ivekit:controlled-provider": "tsx scripts/ivekit-controlled-provider.ts",
+    "ivekit:controlled-voice-provider": "tsx scripts/ivekit-controlled-voice-provider.ts",
     "ivekit:led-example": "tsx scripts/ivekit-led-integration-example.ts",
     "smoke:remote-gateway": "tsx scripts/remote-gateway-smoke.ts",
     "rustdesk:edge-agent": "tsx scripts/rustdesk-edge-agent.ts",

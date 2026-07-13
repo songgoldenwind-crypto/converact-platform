@@ -13,9 +13,9 @@ import {
 
 test('RustPBX RWI authenticates by header and correlates durable action ids once', async () => {
   const fixture = await rwiFixture((socket, message) => {
-    socket.send(JSON.stringify({ event: 'command_completed', action_id: message.action_id, result: { accepted: true } }));
+    socket.send(JSON.stringify({ type: 'command_completed', action_id: message.action_id, data: { accepted: true } }));
     if (message.action === 'call.originate') {
-      socket.send(JSON.stringify({ event: 'command_completed', action_id: message.action_id, result: { duplicate: true } }));
+      socket.send(JSON.stringify({ type: 'command_completed', action_id: message.action_id, data: { duplicate: true } }));
     }
   });
   const client = rwiClient(fixture.url);
@@ -30,7 +30,9 @@ test('RustPBX RWI authenticates by header and correlates durable action ids once
       command_id: 'durable-command-a', kind: 'originate', call_id: 'call-a',
       payload: { to: 'sip:1001@pbx.internal' }
     });
-    assert.equal(result.state, 'succeeded');
+    assert.deepEqual(result, {
+      state: 'succeeded', action_id: 'durable-command-a', result: { accepted: true }
+    });
     const originate = fixture.messages.find((message) => message.action === 'call.originate');
     assert.deepEqual(originate, {
       action: 'call.originate', action_id: 'durable-command-a',
@@ -99,14 +101,13 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     ['originate', 'call.originate'],
     ['answer', 'call.answer'],
     ['hangup', 'call.hangup'],
-    ['dtmf', 'call.dtmf'],
     ['hold', 'call.hold'],
     ['resume', 'call.unhold'],
-    ['conference', 'call.conference'],
-    ['recording_start', 'call.recording.start'],
-    ['recording_pause', 'call.recording.pause'],
-    ['recording_resume', 'call.recording.resume'],
-    ['recording_stop', 'call.recording.stop']
+    ['conference', 'conference.add'],
+    ['recording_start', 'record.start'],
+    ['recording_pause', 'record.pause'],
+    ['recording_resume', 'record.resume'],
+    ['recording_stop', 'record.stop']
   ] as const) {
     assert.deepEqual(mapRustPbxRwiCommand({
       command_id: `command-${kind}`, kind, call_id: 'call-a', payload: {}
@@ -116,12 +117,19 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     command_id: 'b', kind: 'blind_transfer', call_id: 'call-b', payload: { target: 'sip:1003@pbx.internal' }
   }), {
     action: 'call.transfer', action_id: 'b',
-    params: { call_id: 'call-b', target: 'sip:1003@pbx.internal', mode: 'blind' }
+    params: { call_id: 'call-b', target: 'sip:1003@pbx.internal' }
   });
   assert.deepEqual(mapRustPbxRwiCommand({
     command_id: 'c', kind: 'recording_start', call_id: 'call-c', payload: {}
-  }), { action: 'call.recording.start', action_id: 'c', params: { call_id: 'call-c' } });
-  for (const kind of ['park', 'pickup'] as const) {
+  }), { action: 'record.start', action_id: 'c', params: { call_id: 'call-c' } });
+  assert.deepEqual(mapRustPbxRwiCommand({
+    command_id: 'w', kind: 'warm_transfer', call_id: 'call-w',
+    payload: { target: 'sip:1004@pbx.internal' }
+  }), {
+    action: 'call.transfer.attended', action_id: 'w',
+    params: { call_id: 'call-w', target: 'sip:1004@pbx.internal' }
+  });
+  for (const kind of ['dtmf', 'park', 'pickup'] as const) {
     assert.throws(
       () => mapRustPbxRwiCommand({ command_id: `unsupported-${kind}`, kind, call_id: 'call-a', payload: {} }),
       hasVoiceCode('capability_unavailable')

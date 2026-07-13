@@ -72,6 +72,7 @@ export OPC_IVEKIT_UPGRADE_TEST_RUNTIME_DATABASE_URL="postgresql://opc_runtime:$R
 export OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD="$RUNTIME_PASSWORD"
 
 node --import tsx --test test/ivekit-standalone-postgres.test.ts
+node --import tsx --test test/ivekit-voice-controlled-postgres.test.ts
 
 trap - INT TERM HUP EXIT
 "$PG_CTL" -D "$DATA" -m fast -w stop >/dev/null

@@ -17,6 +17,7 @@ const paths: RustPbxManagementPaths = {
   ami_sipflow: '/ami/v1/sipflow/{id}',
   trunk_apply: '/management/trunks/{id}',
   trunk_test: '/management/trunks/{id}/test',
+  did_apply: '/management/dids/{id}',
   extension_apply: '/management/extensions/{id}',
   route_evaluate: '/management/routes/evaluate',
   route_reload: '/management/routes/reload',
@@ -36,7 +37,9 @@ test('RustPBX management client maps bounded authenticated endpoints', async () 
     const url = request.url || '';
     if (url === '/health') return json(response, 200, { ready: true, database: 'postgres' });
     if (url === '/version') return json(response, 200, { version: 'rustpbx-test-1' });
-    if (url.includes('/dialogs/')) return json(response, 200, { state: 'active' });
+    if (url.includes('/dialogs/')) return json(response, 200, {
+      state: 'active', provider_call_id: 'provider-call-from-dialog'
+    });
     if (url.includes('/sipflow/')) return json(response, 200, { items: [{ event: 'invite' }] });
     if (url.includes('/recordings/')) return json(response, 200, { state: 'available', object_ref: 's3://recording-a' });
     if (url.endsWith('/test')) return json(response, 200, { ready: true });
@@ -52,9 +55,14 @@ test('RustPBX management client maps bounded authenticated endpoints', async () 
 
     assert.equal((await client.applyTrunk({ resource_id: 'trunk a', desired_state: { codec: 'PCMU' } })).provider_ref, 'provider-resource-a');
     assert.equal((await client.testTrunk({ resource_id: 'trunk a' })).ready, true);
+    assert.equal((await client.applyDid({ resource_id: 'did a', desired_state: { e164: '+8613800138000' } })).provider_ref, 'provider-resource-a');
     assert.equal((await client.applyExtension({ resource_id: '1001', desired_state: { enabled: true } })).provider_revision, 'revision-a');
     assert.equal((await client.applyRoute({ resource_id: 'route a', desired_state: { action: 'forward' } })).provider_ref, 'provider-resource-a');
-    assert.equal((await client.lookupDialog({ provider_call_id: 'call/a' })).state, 'succeeded');
+    assert.deepEqual(await client.lookupDialog({ provider_call_id: 'call/a' }), {
+      state: 'succeeded', provider_state: 'active',
+      provider_call_id: 'provider-call-from-dialog',
+      safe_diagnostics: { state: 'active', provider_call_id: 'provider-call-from-dialog' }
+    });
     assert.equal((await client.lookupRecording({ provider_recording_id: 'recording/a' })).state, 'available');
     assert.deepEqual((await client.getSipFlow('call/a')).items, [{ event: 'invite' }]);
     assert.equal((await client.evaluateRoute({ call_id: 'call-a' })).accepted, true);

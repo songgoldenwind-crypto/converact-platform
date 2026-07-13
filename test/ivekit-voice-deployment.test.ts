@@ -3,9 +3,13 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { renderRustPbxConfig } from '../scripts/render-rustpbx-config.js';
+import { createVoiceQueueTenantLister } from '../src/agent-runtime/ivekit/voice/runtime.js';
+import type { PgQueryable } from '../src/db-pg.js';
 
 const STANDALONE_COMPOSE = new URL('../infra/ivekit/docker-compose.yml', import.meta.url);
 const VOICE_COMPOSE = new URL('../infra/ivekit/docker-compose.voice.yml', import.meta.url);
+const SERVICE_VOICE_COMPOSE = new URL('../services/ivekit-service/docker-compose.voice.yml', import.meta.url);
+const SERVICE_RUSTPBX_INIT = new URL('../services/ivekit-service/init-rustpbx-database.sh', import.meta.url);
 const PRODUCTION_COMPOSE = new URL('../infra/docker-compose.production.yml', import.meta.url);
 const STANDALONE_BOOTSTRAP = new URL('../infra/ivekit/init-postgres-runtime-role.sh', import.meta.url);
 const CHECKED_IN_CONFIG = new URL('../config/rustpbx.docker.toml', import.meta.url);
@@ -13,6 +17,9 @@ const HELM_VALUES = new URL('../infra/k8s/values.yaml', import.meta.url);
 const HELM_SECRETS = new URL('../infra/k8s/templates/secrets.yaml', import.meta.url);
 const HELM_OPC = new URL('../infra/k8s/templates/opc-deployment.yaml', import.meta.url);
 const HELM_RUSTPBX = new URL('../infra/k8s/templates/rustpbx-deployment.yaml', import.meta.url);
+const VOICE_RUNTIME = new URL('../src/agent-runtime/ivekit/voice/runtime.ts', import.meta.url);
+const SERVICE_PACKAGE = new URL('../services/ivekit-service/package.json', import.meta.url);
+const SOURCE_POLICY = new URL('../services/ivekit-service/source-policy.json', import.meta.url);
 
 const SECRET_VALUES = {
   RUSTPBX_DATABASE_URL: 'postgresql://rustpbx_app:database-secret@postgres:5432/rustpbx',
@@ -85,7 +92,7 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.match(bootstrap, /REVOKE CONNECT ON DATABASE rustpbx FROM PUBLIC/);
   assert.match(voice, /image: \$\{RUSTPBX_IMAGE:\?RUSTPBX_IMAGE is required\}/);
   assert.match(voice, /profiles: \["voice"\]/);
-  assert.match(voice, /render-rustpbx-config\.ts/);
+  assert.match(voice, /scripts\/render-rustpbx-config\.ts/);
   assert.match(voice, /rustpbx-runtime-config:\/app\/config/);
   assert.match(voice, /RUSTPBX_DATABASE_URL: postgresql:\/\/rustpbx_app@postgres:5432\/rustpbx/);
   assert.match(voice, /RUSTPBX_DB_PASSWORD/);
@@ -95,6 +102,42 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.doesNotMatch(serviceBlock(voice, 'opc'), /RUSTPBX_DB_PASSWORD/);
   assert.doesNotMatch(serviceBlock(core, 'opc'), /RUSTPBX_DB_PASSWORD/);
   assert.doesNotMatch(voice, /sqlite/i);
+});
+
+test('standalone service Voice overlay uses only compiled image entrypoints', () => {
+  const voice = readFileSync(SERVICE_VOICE_COMPOSE, 'utf8');
+  const bootstrap = readFileSync(SERVICE_RUSTPBX_INIT, 'utf8');
+
+  assert.match(voice, /command: \["node", "dist\/ivekit-render-rustpbx-config\.js"\]/);
+  assert.doesNotMatch(voice, /--import|\btsx\b|scripts\//);
+  assert.match(voice, /rustpbx-db-init:/);
+  assert.match(voice, /ivekit:/);
+  assert.doesNotMatch(voice, /^\s+opc:/m);
+  assert.match(voice, /http:\/\/ivekit:3000\/api\/ivekit\/voice\/providers/);
+  assert.match(bootstrap, /CREATE ROLE rustpbx_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS/);
+  assert.match(bootstrap, /CREATE DATABASE rustpbx OWNER rustpbx_app/);
+  assert.match(bootstrap, /REVOKE CONNECT ON DATABASE rustpbx FROM opc_runtime/);
+  assert.doesNotMatch(voice, /sqlite/i);
+});
+
+test('standalone image exposes compiled Voice config and preflight entrypoints', () => {
+  const servicePackage = JSON.parse(readFileSync(SERVICE_PACKAGE, 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+  const sourcePolicy = JSON.parse(readFileSync(SOURCE_POLICY, 'utf8')) as {
+    entrypoints: string[];
+  };
+
+  assert.equal(
+    servicePackage.scripts['render:rustpbx'],
+    'node dist/ivekit-render-rustpbx-config.js'
+  );
+  assert.equal(
+    servicePackage.scripts['preflight:voice'],
+    'node dist/ivekit-voice-preflight.js'
+  );
+  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-render-rustpbx-config.ts'), true);
+  assert.equal(sourcePolicy.entrypoints.includes('src/ivekit-voice-preflight.ts'), true);
 });
 
 test('production compose has no floating or SQLite RustPBX deployment', () => {
@@ -148,6 +191,37 @@ test('Helm Voice workload is opt-in, immutable, isolated, and operationally boun
   assert.match(rustpbx, /name: rtp-/);
   assert.doesNotMatch(opc, /rustpbx-database-url/);
   assert.doesNotMatch(opc, /RUSTPBX_DB_PASSWORD/);
+});
+
+test('Voice reconciliation scheduler discovers call and configuration unknowns', () => {
+  const runtime = readFileSync(VOICE_RUNTIME, 'utf8');
+  const worker = runtime.slice(
+    runtime.indexOf('export function startIveKitVoiceReconciliationWorker'),
+    runtime.indexOf('export async function listVoiceWorkerTenants')
+  );
+
+  assert.match(worker, /createVoiceQueueTenantLister\([\s\S]*'voice_command', 'voice_configuration'/);
+});
+
+test('Voice multi-queue tenant lister rotates scarce capacity without exceeding the limit', async () => {
+  const pg = {
+    async query(_text: string, values: unknown[]) {
+      const queue = values[0];
+      const rows = queue === 'voice_command'
+        ? [{ tenant_id: 'tenant-call' }, { tenant_id: 'tenant-shared' }]
+        : [{ tenant_id: 'tenant-config' }, { tenant_id: 'tenant-shared' }];
+      return { rows, rowCount: rows.length, command: '', oid: 0, fields: [] };
+    }
+  } as unknown as PgQueryable;
+  const list = createVoiceQueueTenantLister(
+    pg,
+    ['voice_command', 'voice_configuration'],
+    1
+  );
+
+  assert.deepEqual(await list(), ['tenant-call']);
+  assert.deepEqual(await list(), ['tenant-config']);
+  assert.deepEqual(await list(), ['tenant-call']);
 });
 
 function serviceBlock(compose: string, serviceName: string): string {

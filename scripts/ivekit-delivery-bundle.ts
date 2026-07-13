@@ -50,6 +50,9 @@ export interface IveKitDeliveryManifest {
     operations: string;
     completion_audit: string;
     intelligence_preflight: string;
+    voice_preflight: string;
+    voice_compose: string;
+    voice_helm: string;
     service_source: string;
   };
   artifacts: {
@@ -66,11 +69,13 @@ export interface IveKitDeliveryManifest {
     livekit: string;
     tinode: string;
     rustdesk: string;
+    rustpbx: string;
   };
   real_environment_acceptance: {
     livekit: 'not_run';
     tinode: 'not_run';
     rustdesk: 'not_run';
+    rustpbx: 'not_run';
     ocr: 'not_run';
     asr: 'not_run';
     quality_review: 'not_run';
@@ -157,6 +162,10 @@ const STANDALONE_MIGRATIONS = [
   '043_ivekit_intelligence_translation.sql',
   '044_quality_review_policy_routing.sql',
   '045_translation_worker_routing.sql',
+  '046_ivekit_voice_foundation.sql',
+  '047_ivekit_ivr_foundation.sql',
+  '048_ivekit_voice_operations.sql',
+  '049_ivekit_voice_route_deployment.sql',
   'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
 ];
 
@@ -164,9 +173,33 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   ...[
     'README.md',
     'docker-compose.yml',
+    'docker-compose.voice.yml',
     'env.example',
     'init-postgres-runtime-role.sh'
   ].map((name) => ({ source: `infra/ivekit/${name}`, destination: `deploy/application/${name}` })),
+  ...[
+    'Chart.yaml',
+    'values.yaml',
+    'files/nats.conf',
+    'templates/_helpers.tpl',
+    'templates/ai-agent-deployment.yaml',
+    'templates/frontend-deployment.yaml',
+    'templates/ingress.yaml',
+    'templates/livekit-deployment.yaml',
+    'templates/livekit-egress-deployment.yaml',
+    'templates/livekit-sip-deployment.yaml',
+    'templates/minio-deployment.yaml',
+    'templates/nats-statefulset.yaml',
+    'templates/opc-deployment.yaml',
+    'templates/postgres-statefulset.yaml',
+    'templates/redis-deployment.yaml',
+    'templates/rustdesk-server-deployment.yaml',
+    'templates/rustpbx-deployment.yaml',
+    'templates/secrets.yaml'
+  ].map((name) => ({
+    source: `infra/k8s/${name}`,
+    destination: `deploy/kubernetes/ivekit/${name}`
+  })),
   ...[
     'README.md',
     'docker-compose.yml',
@@ -184,6 +217,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-led-integration-guide.md',
     'ivekit-m5-unified-collaboration-plan.md',
     'ivekit-client-delivery-v1-roadmap.md',
+    'ivekit-voice-foundation-v1-design.md',
     'ivekit-v3-intelligence-operations.md',
     'ivekit-v3-completion-audit.md',
     'livekit-im-full-capability-plan.md',
@@ -196,6 +230,10 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   {
     source: 'scripts/ivekit-controlled-provider.ts',
     destination: 'acceptance/tools/ivekit-controlled-provider.ts'
+  },
+  {
+    source: 'scripts/ivekit-controlled-voice-provider.ts',
+    destination: 'acceptance/tools/ivekit-controlled-voice-provider.ts'
   },
   ...[
     'rustdesk-edge-agent.ts',
@@ -239,6 +277,7 @@ const REAL_ENVIRONMENT_ACCEPTANCE = {
   livekit: 'not_run',
   tinode: 'not_run',
   rustdesk: 'not_run',
+  rustpbx: 'not_run',
   ocr: 'not_run',
   asr: 'not_run',
   quality_review: 'not_run',
@@ -263,6 +302,7 @@ const KNOWN_NOT_RUN: readonly IveKitKnownNotRun[] = [
   { id: 'real_livekit_clients', status: 'not_run', reason: 'Current release requires fresh real browser media and Egress evidence.' },
   { id: 'real_tinode_clients', status: 'not_run', reason: 'Current release requires fresh real Tinode multi-client evidence.' },
   { id: 'real_rustdesk_clients', status: 'not_run', reason: 'Current release requires fresh physical RustDesk client evidence.' },
+  { id: 'real_rustpbx', status: 'not_run', reason: 'Current release requires fresh real RustPBX SIP, media, RWI, and webhook evidence.' },
   { id: 'real_ocr_vendor', status: 'not_run', reason: 'No production OCR vendor, credentials, quota, or accuracy corpus is selected.' },
   { id: 'real_asr_vendor', status: 'not_run', reason: 'No production ASR vendor, credentials, quota, or accuracy corpus is selected.' },
   { id: 'real_quality_vendor', status: 'not_run', reason: 'No production AI quality vendor, credentials, or evaluation corpus is selected.' },
@@ -555,6 +595,9 @@ export function buildIveKitDeliveryBundle(
       operations: 'docs/ivekit-v3-intelligence-operations.md',
       completion_audit: 'docs/ivekit-v3-completion-audit.md',
       intelligence_preflight: 'service/build-context/src/ivekit-intelligence-preflight.ts',
+      voice_preflight: 'service/build-context/src/ivekit-voice-preflight.ts',
+      voice_compose: 'service/build-context/docker-compose.voice.yml',
+      voice_helm: 'deploy/kubernetes/ivekit/',
       service_source: 'service/build-context/'
     },
     artifacts: {
@@ -594,7 +637,8 @@ export function buildIveKitDeliveryBundle(
     provider_ownership: {
       livekit: 'audio, video, rooms, screen share, recording and webhooks',
       tinode: 'instant messaging, topics, delivery and presence',
-      rustdesk: 'native remote desktop transport and controlled operations'
+      rustdesk: 'native remote desktop transport and controlled operations',
+      rustpbx: 'SIP and PSTN signaling, media, call control, CDR and telephony webhooks'
     },
     real_environment_acceptance: { ...REAL_ENVIRONMENT_ACCEPTANCE },
     controlled_environment_acceptance: { ...controlledAcceptance.statuses },

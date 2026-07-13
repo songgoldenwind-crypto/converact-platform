@@ -4,7 +4,12 @@ import { observeVoiceReconciliation } from '../metrics.js';
 import type { VoiceCallUnitOfWork } from '../ports.js';
 import { VoiceProviderRegistry } from '../provider-registry.js';
 import { mergeProviderCallState } from '../state-machine.js';
-import type { VoiceCall, VoiceCallCommand, VoiceDeploymentProfile } from '../types.js';
+import type {
+  VoiceCall,
+  VoiceCallCommand,
+  VoiceConfigurationCommand,
+  VoiceDeploymentProfile
+} from '../types.js';
 
 export interface VoiceReconciliationWorkerOptions {
   unit_of_work: VoiceCallUnitOfWork;
@@ -80,15 +85,83 @@ export class VoiceReconciliationWorker {
 
   async #run(tenantId: string): Promise<VoiceReconciliationRunResult> {
     const now = this.#now();
-    const commands = await this.#unitOfWork.run(tenantId, ({ commands }) => commands.claimCallUncertain({
-      tenant_id: tenantId, worker_id: this.#workerId, now,
-      lease_ms: this.#leaseMs, limit: this.#batchSize
-    }));
-    const result: VoiceReconciliationRunResult = {
-      claimed: commands.length, succeeded: 0, failed: 0, pending: 0, unknown: 0, stale: 0
+    let callClaimError: unknown;
+    let configurationClaimError: unknown;
+    const claim = {
+      tenant_id: tenantId,
+      worker_id: this.#workerId,
+      now,
+      lease_ms: this.#leaseMs,
+      limit: this.#batchSize
     };
-    for (const command of commands) await this.#reconcile(command, result);
+    const callCommands = await this.#unitOfWork.run(
+      tenantId,
+      ({ commands }) => commands.claimCallUncertain(claim)
+    ).catch((error) => {
+      callClaimError = error;
+      return [];
+    });
+    const remaining = this.#batchSize - callCommands.length;
+    const configurationCommands = remaining > 0
+      ? await this.#unitOfWork.run(
+        tenantId,
+        ({ commands }) => commands.claimConfigurationUncertain({ ...claim, limit: remaining })
+      ).catch((error) => {
+        configurationClaimError = error;
+        return [];
+      })
+      : [];
+    if (callClaimError && configurationClaimError) throw callClaimError;
+    const result: VoiceReconciliationRunResult = {
+      claimed: callCommands.length + configurationCommands.length,
+      succeeded: 0,
+      failed: 0,
+      pending: 0,
+      unknown: 0,
+      stale: 0
+    };
+    for (const command of callCommands) await this.#reconcile(command, result);
+    for (const command of configurationCommands) {
+      await this.#reconcileConfiguration(command, result);
+    }
     return result;
+  }
+
+  async #reconcileConfiguration(
+    command: VoiceConfigurationCommand,
+    result: VoiceReconciliationRunResult
+  ): Promise<void> {
+    const expired = this.#now().getTime() - new Date(command.created_at).getTime()
+      >= this.#maxReconcileAgeMs;
+    try {
+      observeVoiceReconciliation({ adapter: 'other', result: 'unknown' });
+      await this.#unitOfWork.run(command.tenant_id, ({ commands }) => expired
+        ? commands.completeConfiguration({
+          tenant_id: command.tenant_id,
+          command_id: command.id,
+          worker_id: this.#workerId,
+          state: 'failed',
+          provider_command_id: command.provider_command_id,
+          result: {},
+          error_code: 'provider_result_unknown'
+        })
+        : commands.releaseConfiguration({
+          tenant_id: command.tenant_id,
+          command_id: command.id,
+          worker_id: this.#workerId,
+          state: 'uncertain',
+          next_attempt_at: new Date(this.#now().getTime() + this.#reconcileDelayMs),
+          provider_command_id: command.provider_command_id,
+          error_code: 'provider_result_unknown'
+        }));
+      result[expired ? 'failed' : 'unknown'] += 1;
+    } catch (error) {
+      if (error instanceof VoiceError && error.code === 'lease_lost') {
+        result.stale += 1;
+        return;
+      }
+      throw error;
+    }
   }
 
   async #reconcile(command: VoiceCallCommand, result: VoiceReconciliationRunResult): Promise<void> {

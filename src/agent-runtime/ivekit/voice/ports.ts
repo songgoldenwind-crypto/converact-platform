@@ -57,6 +57,7 @@ export interface VoiceConfigurationRepository {
   insertTrunk(input: VoiceSipTrunk): Promise<VoiceSipTrunk>;
   updateTrunk(input: VoiceSipTrunk, expectedRevision: number): Promise<VoiceSipTrunk>;
   getDid(tenantId: string, id: string, options?: { for_update?: boolean }): Promise<VoiceDid | null>;
+  getDidProtectedAddress(tenantId: string, id: string): Promise<VoiceProtectedAddress | null>;
   findDidByAddressHmac?(tenantId: string, hmac: string): Promise<VoiceDid | null>;
   listDids(input: VoiceListInput & { trunk_id?: string }): Promise<VoicePage<VoiceDid>>;
   insertDid(input: VoiceDid, address: VoiceProtectedAddress): Promise<VoiceDid>;
@@ -71,6 +72,7 @@ export interface VoiceConfigurationRepository {
   updateRoute(input: VoiceRoute, expectedRevision: number): Promise<VoiceRoute>;
   insertRouteVersion(input: VoiceRouteVersion): Promise<VoiceRouteVersion>;
   listRouteVersions(tenantId: string, routeId: string): Promise<VoiceRouteVersion[]>;
+  updateRouteVersionDeployment(input: VoiceRouteVersion): Promise<VoiceRouteVersion>;
   getPolicy(tenantId: string): Promise<VoicePolicy | null>;
   upsertPolicy(input: VoicePolicy, expectedRevision: number | null): Promise<VoicePolicy>;
   insertConsent(input: VoiceConsent): Promise<VoiceConsent>;
@@ -212,11 +214,13 @@ export interface VoiceManagementPort {
     error_code: string;
     safe_diagnostics: Record<string, unknown>;
   }>;
+  applyDid(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult>;
   applyExtension(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult>;
   applyRoute(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult>;
   lookupDialog(input: { provider_call_id: string }): Promise<{
     state: 'pending' | 'succeeded' | 'failed' | 'unknown';
     provider_state: string;
+    provider_call_id?: string;
     safe_diagnostics: Record<string, unknown>;
   }>;
   lookupRecording(input: { provider_recording_id: string }): Promise<{

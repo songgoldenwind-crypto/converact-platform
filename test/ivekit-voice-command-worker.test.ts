@@ -6,6 +6,7 @@ import {
   VoiceError,
   VoiceProviderRegistry,
   voiceProfileConfigHash,
+  type VoiceAddressProtector,
   type VoiceCallCommand,
   type VoiceCapability,
   type VoiceCapabilitySnapshot,
@@ -14,9 +15,12 @@ import {
   type VoiceConfigurationCommand,
   type VoiceConfigurationRepository,
   type VoiceDeploymentProfile,
+  type VoiceDid,
+  type VoiceExtension,
   type VoiceProviderAdapter,
   type VoiceProviderFactory,
   type VoiceRoute,
+  type VoiceRouteVersion,
   type VoiceSipTrunk
 } from '../src/agent-runtime/ivekit/voice/index.js';
 
@@ -89,7 +93,9 @@ test('Voice command worker gates capabilities and classifies retry, uncertain, a
   assert.equal(retry.next_attempt_at?.toISOString(), '2026-07-13T00:00:02.000Z');
   assert.equal(releaseFor(fixture.released, 'uncertain-route').state, 'uncertain');
   assert.equal(releaseFor(fixture.released, 'uncertain-route').error_code, 'provider_timeout');
-  assert.equal(releaseFor(fixture.released, 'completion-db-failure').state, 'uncertain');
+  const completionFailure = releaseFor(fixture.released, 'completion-db-failure');
+  assert.equal(completionFailure.state, 'uncertain');
+  assert.equal(completionFailure.provider_command_id, 'provider-resource:revision-a');
   assert.equal(result.stale, 1);
   assert.equal(result.failed, 1);
   assert.equal(result.retry_wait, 1);
@@ -155,6 +161,81 @@ test('Voice command worker honors configured retry delays and attempt cap', asyn
   assert.equal(releaseFor(fixture.released, 'configured-cap').state, 'failed');
 });
 
+test('Voice command worker converges every configuration resource after provider apply', async () => {
+  const fixture = workerFixture({
+    configurationCommands: [
+      configurationCommand({
+        id: 'apply-trunk', resource_type: 'sip_trunk', resource_id: 'trunk-a',
+        payload: { source_revision: 1 }
+      }),
+      configurationCommand({
+        id: 'apply-did', resource_type: 'did', resource_id: 'did-a',
+        payload: { source_revision: 1 }
+      }),
+      configurationCommand({
+        id: 'apply-extension', resource_type: 'extension', resource_id: 'extension-a',
+        payload: { source_revision: 1 }
+      }),
+      configurationCommand({
+        id: 'apply-route', resource_type: 'route', resource_id: 'route-a',
+        payload: { route_version_id: 'route-version-a', source_revision: 1 }
+      })
+    ]
+  });
+  const worker = new VoiceCommandWorker({
+    commands: fixture.commands,
+    configuration: fixture.configuration,
+    provider_registry: fixture.registry,
+    address_protector: fixture.addressProtector,
+    worker_id: 'worker-convergence', batch_size: 10, lease_ms: 5_000,
+    now: () => new Date('2026-07-13T00:00:00.000Z')
+  });
+
+  const result = await worker.runOnce('tenant-a');
+
+  assert.equal(result.succeeded, 4);
+  assert.deepEqual(fixture.didApplications, [{
+    e164: '+8613800138000', trunk_id: 'trunk-a', trunk_provider_ref: '', route_id: null,
+    status: 'active', metadata: {}
+  }]);
+  assert.deepEqual(fixture.reveals, [{
+    tenant_id: 'tenant-a', ciphertext: 'encrypted-did-a', kind: 'e164'
+  }]);
+  assert.deepEqual(fixture.resourceUpdates, [
+    'trunk:trunk-a:provider-resource:active',
+    'did:did-a:provider-resource:active',
+    'extension:extension-a:active',
+    'route-version:route-version-a:applied:revision-a'
+  ]);
+  assert.equal(JSON.stringify(fixture.completed).includes('+8613800138000'), false);
+});
+
+test('Voice command worker completes superseded desired-state commands without provider mutation', async () => {
+  const fixture = workerFixture({
+    trunkRevision: 2,
+    routeCurrentPublishedVersion: 2,
+    configurationCommands: [
+      configurationCommand({
+        id: 'superseded-trunk', resource_id: 'trunk-a', payload: { source_revision: 1 }
+      }),
+      configurationCommand({
+        id: 'superseded-route', resource_type: 'route', resource_id: 'route-a',
+        payload: { route_version_id: 'route-version-a', source_revision: 1 }
+      })
+    ]
+  });
+  const worker = new VoiceCommandWorker({
+    commands: fixture.commands, configuration: fixture.configuration,
+    provider_registry: fixture.registry, worker_id: 'worker-superseded', lease_ms: 5_000
+  });
+
+  const result = await worker.runOnce('tenant-a');
+
+  assert.equal(result.succeeded, 2);
+  assert.equal(fixture.managementApplies, 0);
+  assert.deepEqual(fixture.resourceUpdates, []);
+});
+
 test('Voice command worker rejects unsafe runtime bounds', () => {
   const fixture = workerFixture({});
   assert.throws(() => new VoiceCommandWorker({
@@ -172,12 +253,17 @@ function workerFixture(input: {
   configurationCommands?: VoiceConfigurationCommand[];
   staleCompletionId?: string;
   completionFailureId?: string;
+  trunkRevision?: number;
+  routeCurrentPublishedVersion?: number;
 }) {
   const completed: Array<{ command_id: string; state: string }> = [];
   const released: VoiceCommandReleaseInput[] = [];
   let callClaims = 0;
   let configurationClaims = 0;
   let managementApplies = 0;
+  const resourceUpdates: string[] = [];
+  const didApplications: Record<string, unknown>[] = [];
+  const reveals: Array<{ tenant_id: string; ciphertext: string; kind: string }> = [];
   const profiles = new Map<string, VoiceDeploymentProfile>();
   const capabilities = new Map<string, VoiceCapabilitySnapshot>();
   for (const profileId of ['profile-a', 'profile-disabled', 'profile-retry', 'profile-timeout', 'profile-ok']) {
@@ -185,8 +271,14 @@ function workerFixture(input: {
     profiles.set(profileId, profile);
     capabilities.set(profileId, capabilitySnapshot(profileId, true, profile));
   }
-  const trunk = sipTrunk();
-  const route = voiceRoute();
+  const trunk = { ...sipTrunk(), revision: input.trunkRevision ?? 1 };
+  const did = voiceDid();
+  const extension = voiceExtension();
+  const route = {
+    ...voiceRoute(),
+    current_published_version: input.routeCurrentPublishedVersion ?? 1
+  };
+  const routeVersion = voiceRouteVersion();
 
   const commands = {
     async findCallByIdempotencyKey() { return null; },
@@ -214,21 +306,56 @@ function workerFixture(input: {
     async getTrunk(_tenantId: string, resourceId: string) {
       return { ...trunk, id: resourceId, profile_id: resourceProfile(resourceId, 'trunk') };
     },
+    async updateTrunk(value: VoiceSipTrunk) {
+      resourceUpdates.push(`trunk:${value.id}:${value.provider_ref}:${value.status}`);
+      return value;
+    },
+    async getDid(_tenantId: string, resourceId: string) {
+      return { ...did, id: resourceId };
+    },
+    async getDidProtectedAddress(_tenantId: string, resourceId: string) {
+      return {
+        kind: 'e164' as const, ciphertext: `encrypted-${resourceId}`,
+        hmac: 'a'.repeat(64), redacted: '+86******8000'
+      };
+    },
+    async updateDid(value: VoiceDid) {
+      resourceUpdates.push(`did:${value.id}:${value.provider_ref}:${value.status}`);
+      return value;
+    },
+    async getExtension(_tenantId: string, resourceId: string) {
+      return { ...extension, id: resourceId, profile_id: resourceProfile(resourceId, 'extension') };
+    },
+    async updateExtension(value: VoiceExtension) {
+      resourceUpdates.push(`extension:${value.id}:${value.status}`);
+      return value;
+    },
     async getRoute(_tenantId: string, resourceId: string) {
       return { ...route, id: resourceId, profile_id: resourceProfile(resourceId, 'route') };
     },
-    async listRouteVersions(_tenantId: string, resourceId: string) { return [{
-      id: 'route-version-a', tenant_id: 'tenant-a', route_id: resourceId, version: 1,
-      rules: route.draft_rules, payload_hash: 'a'.repeat(64), deployment_state: 'pending',
-      provider_revision: '', published_by: 'admin', published_at: '2026-07-13T00:00:00.000Z'
-    }]; }
-  } as VoiceConfigurationRepository;
+    async listRouteVersions(_tenantId: string, resourceId: string) {
+      return [{ ...routeVersion, route_id: resourceId }];
+    },
+    async updateRouteVersionDeployment(value: VoiceRouteVersion) {
+      resourceUpdates.push(`route-version:${value.id}:${value.deployment_state}:${value.provider_revision}`);
+      return value;
+    }
+  } as unknown as VoiceConfigurationRepository;
+
+  const addressProtector: VoiceAddressProtector = {
+    async protect() { throw new Error('not used'); },
+    async reveal(tenantId, ciphertext, kind) {
+      reveals.push({ tenant_id: tenantId, ciphertext, kind });
+      return '+8613800138000';
+    }
+  };
 
   const registry = new VoiceProviderRegistry();
   registry.register('rustpbx', {
     async create(profile) {
       return providerAdapter(profile.id, {
         apply() { managementApplies += 1; },
+        didApplications,
         mode: profile.id === 'profile-retry' ? 'retry' : profile.id === 'profile-timeout' ? 'timeout' : 'ok'
       });
     }
@@ -236,13 +363,18 @@ function workerFixture(input: {
 
   return {
     commands, configuration, registry, profiles, capabilities, completed, released,
+    addressProtector, resourceUpdates, didApplications, reveals,
     get callClaims() { return callClaims; },
     get configurationClaims() { return configurationClaims; },
     get managementApplies() { return managementApplies; }
   };
 }
 
-function providerAdapter(profileId: string, input: { apply(): void; mode: 'ok' | 'retry' | 'timeout' }): VoiceProviderAdapter {
+function providerAdapter(profileId: string, input: {
+  apply(): void;
+  didApplications: Record<string, unknown>[];
+  mode: 'ok' | 'retry' | 'timeout';
+}): VoiceProviderAdapter {
   const fail = () => {
     if (input.mode === 'retry') throw new VoiceError({ code: 'provider_unavailable', retryable: true, status: 503 });
     if (input.mode === 'timeout') throw new VoiceError({ code: 'provider_timeout', retryable: true, status: 504 });
@@ -257,6 +389,7 @@ function providerAdapter(profileId: string, input: { apply(): void; mode: 'ok' |
       async preflight() { return providerCapabilities(profileId); },
       async applyTrunk() { fail(); input.apply(); return applied(); },
       async testTrunk() { fail(); return { ready: true, error_code: '', safe_diagnostics: {} }; },
+      async applyDid(value) { fail(); input.apply(); input.didApplications.push(value.desired_state); return applied(); },
       async applyExtension() { fail(); input.apply(); return applied(); },
       async applyRoute() { fail(); input.apply(); return applied(); },
       async lookupDialog() { return { state: 'unknown', provider_state: '', safe_diagnostics: {} }; },
@@ -337,11 +470,37 @@ function sipTrunk(): VoiceSipTrunk {
   };
 }
 
+function voiceDid(): VoiceDid {
+  return {
+    id: 'did-a', tenant_id: 'tenant-a', trunk_id: 'trunk-a', route_id: null,
+    e164: { kind: 'e164', redacted: '+86******8000' }, provider_ref: '', status: 'active',
+    metadata: {}, revision: 1, created_at: '2026-07-13T00:00:00.000Z',
+    updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function voiceExtension(): VoiceExtension {
+  return {
+    id: 'extension-a', tenant_id: 'tenant-a', profile_id: 'profile-a', identity: 'agent-a',
+    extension: '1001', display_name: 'Agent A', credential_secret_ref: 'env://EXTENSION_AUTH',
+    permissions: {}, webrtc_enabled: true, status: 'active', revision: 1,
+    created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
 function voiceRoute(): VoiceRoute {
   return {
     id: 'route-a', tenant_id: 'tenant-a', profile_id: 'profile-a', name: 'Route', direction: 'inbound',
     status: 'active', draft_revision: 2, draft_rules: { action: 'forward_sip' }, current_published_version: 1,
     created_by: 'admin', updated_by: 'admin', created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function voiceRouteVersion(): VoiceRouteVersion {
+  return {
+    id: 'route-version-a', tenant_id: 'tenant-a', route_id: 'route-a', version: 1,
+    rules: { action: 'forward_sip' }, payload_hash: 'a'.repeat(64), deployment_state: 'pending',
+    provider_revision: '', published_by: 'admin', published_at: '2026-07-13T00:00:00.000Z'
   };
 }
 

@@ -66,7 +66,7 @@ export interface IveKitVoiceWorkerHandle {
   stop(): Promise<void>;
 }
 
-type VoiceQueue = 'voice_command' | 'voice_configuration' | 'voice_provider_event';
+export type VoiceQueue = 'voice_command' | 'voice_configuration' | 'voice_provider_event';
 
 export function iveKitVoiceWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
@@ -157,13 +157,15 @@ export function startIveKitVoiceCommandWorker(
   const registry = input.provider_registry ?? createIveKitVoiceProviderRegistry(input.env);
   const protector = requiredProtector(input);
   const workerId = `voice-command:${process.pid}:${randomUUID()}`;
+  const listTenants = createVoiceQueueTenantLister(
+    input.pg,
+    ['voice_command', 'voice_configuration'],
+    config.tenant_limit
+  );
   return startTenantLoop({
     enabled: config.enabled,
     interval_ms: config.command_interval_ms,
-    list_tenants: async () => unique([
-      ...await listVoiceWorkerTenants(input.pg, 'voice_command', config.tenant_limit),
-      ...await listVoiceWorkerTenants(input.pg, 'voice_configuration', config.tenant_limit)
-    ]).slice(0, config.tenant_limit),
+    list_tenants: listTenants,
     // Claims must commit before a non-idempotent provider call can begin.
     run_tenant: (tenantId) => {
       const commands = new PostgresVoiceCommandStore(input.pg);
@@ -195,6 +197,7 @@ export function startIveKitVoiceCommandWorker(
         commands,
         configuration,
         provider_registry: registry,
+        address_protector: protector,
         call_executor: (command) => dispatchIveKitVoiceCallCommand(
           command,
           (providerCommand) => executor.execute(providerCommand),
@@ -275,10 +278,15 @@ export function startIveKitVoiceReconciliationWorker(
       }
     )
   });
+  const listTenants = createVoiceQueueTenantLister(
+    input.pg,
+    ['voice_command', 'voice_configuration'],
+    config.tenant_limit
+  );
   return startTenantLoop({
     enabled: config.enabled,
     interval_ms: config.reconciliation_interval_ms,
-    list_tenants: () => listVoiceWorkerTenants(input.pg, 'voice_command', config.tenant_limit),
+    list_tenants: listTenants,
     run_tenant: (tenantId) => worker.runOnce(tenantId),
     shutdown: () => worker.shutdown(),
     label: 'voice-reconciliation'
@@ -296,6 +304,27 @@ export async function listVoiceWorkerTenants(
     [queue, now.toISOString(), limit]
   );
   return result.rows.map((row) => String(row.tenant_id || '')).filter(Boolean);
+}
+
+export function createVoiceQueueTenantLister(
+  pg: PgQueryable,
+  queues: readonly VoiceQueue[],
+  limit: number,
+  now: () => Date = () => new Date()
+): () => Promise<string[]> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1_000 || queues.length === 0) {
+    throw new VoiceError({ code: 'validation_failed', status: 422 });
+  }
+  let rotation = 0;
+  return async () => {
+    const timestamp = now();
+    const pages = await Promise.all(queues.map((queue) =>
+      listVoiceWorkerTenants(pg, queue, limit, timestamp)
+    ));
+    const rotated = [...pages.slice(rotation), ...pages.slice(0, rotation)];
+    rotation = (rotation + 1) % pages.length;
+    return roundRobinUnique(rotated, limit);
+  };
 }
 
 export function createIveKitVoiceProviderRegistry(
@@ -471,6 +500,22 @@ function canonicalKey(value: string | undefined, field: string): void {
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function roundRobinUnique(pages: readonly string[][], limit: number): string[] {
+  const selected: string[] = [];
+  const seen = new Set<string>();
+  const maxLength = Math.max(0, ...pages.map((page) => page.length));
+  for (let index = 0; index < maxLength && selected.length < limit; index += 1) {
+    for (const page of pages) {
+      const tenantId = page[index];
+      if (!tenantId || seen.has(tenantId)) continue;
+      seen.add(tenantId);
+      selected.push(tenantId);
+      if (selected.length === limit) break;
+    }
+  }
+  return selected;
 }
 
 function envNames(value: string | undefined): string[] {

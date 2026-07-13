@@ -104,6 +104,108 @@ test('Voice provider command executor reveals addresses only for the provider ca
   assert.equal(clearAddress, '+8613900139000');
   assert.equal(result.provider_command_id, 'provider-command-a');
   assert.equal(JSON.stringify(result).includes('+8613900139000'), false);
+  assert.equal(fixture.calls.get(created.call.id)?.provider_call_id, 'provider-call-a');
+  assert.equal(fixture.calls.get(created.call.id)?.state, 'dialing');
+});
+
+test('Voice originate treats a post-provider persistence failure as uncertain', async () => {
+  const fixture = callFixture();
+  const created = await fixture.service.createOutbound({
+    tenant_id: 'tenant-a', profile_id: 'profile-a',
+    from: { kind: 'extension', value: '1001' }, to: { kind: 'e164', value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-uncertain' }, actor: 'agent-a',
+    idempotency_key: 'executor-uncertain-a', metadata: {}
+  });
+  let providerCalls = 0;
+  const registry = new VoiceProviderRegistry();
+  registry.register('rustpbx', {
+    async create() {
+      return {
+        management: {} as VoiceProviderAdapter['management'],
+        async preflight() { throw new Error('not used'); },
+        async execute() {
+          providerCalls += 1;
+          return {
+            provider_command_id: 'provider-command-uncertain',
+            provider_call_id: 'provider-call-uncertain',
+            accepted: true
+          };
+        },
+        async reconcile() { return { state: 'unknown' as const }; },
+        normalizeEvent() { throw new Error('not used'); },
+        async close() {}
+      } as VoiceProviderAdapter;
+    }
+  });
+  const calls = {
+    ...fixture.callRepository,
+    async update() { throw new Error('database unavailable after provider acceptance'); }
+  } as VoiceCallRepository;
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls,
+    configuration: fixture.configuration,
+    address_protector: fixture.addressProtector,
+    provider_registry: registry
+  });
+
+  await assert.rejects(
+    () => executor.execute(created.command),
+    (error: unknown) => error instanceof VoiceError
+      && error.code === 'provider_timeout'
+      && error.details.provider_command_id === 'provider-command-uncertain'
+  );
+  assert.equal(providerCalls, 1);
+});
+
+test('Voice originate replay reuses a converged provider call without dialing again', async () => {
+  const fixture = callFixture();
+  const created = await fixture.service.createOutbound({
+    tenant_id: 'tenant-a', profile_id: 'profile-a',
+    from: { kind: 'extension', value: '1001' }, to: { kind: 'e164', value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-replay' }, actor: 'agent-a',
+    idempotency_key: 'executor-replay-a', metadata: {}
+  });
+  let providerCalls = 0;
+  const registry = new VoiceProviderRegistry();
+  registry.register('rustpbx', {
+    async create() {
+      return {
+        management: {} as VoiceProviderAdapter['management'],
+        async preflight() { throw new Error('not used'); },
+        async execute() {
+          providerCalls += 1;
+          return {
+            provider_command_id: 'provider-command-replay',
+            provider_call_id: 'provider-call-replay',
+            accepted: true
+          };
+        },
+        async reconcile() { return { state: 'unknown' as const }; },
+        normalizeEvent() { throw new Error('not used'); },
+        async close() {}
+      } as VoiceProviderAdapter;
+    }
+  });
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    address_protector: fixture.addressProtector,
+    provider_registry: registry
+  });
+
+  await executor.execute(created.command);
+  const replayed = await executor.execute({
+    ...created.command,
+    provider_command_id: 'provider-command-replay'
+  });
+
+  assert.equal(providerCalls, 1);
+  assert.equal(replayed.provider_command_id, 'provider-command-replay');
+  assert.deepEqual(replayed.result, {
+    provider_call_id: 'provider-call-replay',
+    accepted: true,
+    replayed: true
+  });
 });
 
 test('Voice call service creates trusted inbound calls without accepting payload tenant authority', async () => {

@@ -10,6 +10,7 @@ import {
   type VoiceCallUnitOfWork,
   type VoiceCallUnitOfWorkContext,
   type VoiceCommandRepository,
+  type VoiceConfigurationCommand,
   type VoiceConfigurationRepository,
   type VoiceDeploymentProfile,
   type VoiceProviderAdapter,
@@ -84,6 +85,76 @@ test('Voice reconciliation releases a command when its call cannot be loaded', a
     fixture.released.find((item) => item.command_id === 'command-succeeded')?.state,
     'uncertain'
   );
+});
+
+test('Voice reconciliation ages configuration unknowns without replaying provider apply', async () => {
+  const commands = [
+    uncertainConfigurationCommand('recent', '2026-07-13T00:01:30.000Z'),
+    uncertainConfigurationCommand('old', '2026-07-12T23:00:00.000Z')
+  ];
+  const released: Array<{ command_id: string; state: string; error_code?: string }> = [];
+  const completed: Array<{ command_id: string; state: string; error_code?: string }> = [];
+  const commandRepository = {
+    async claimCallUncertain() { return []; },
+    async claimConfigurationUncertain() { return commands; },
+    async releaseConfiguration(input) {
+      released.push({
+        command_id: input.command_id,
+        state: input.state,
+        error_code: input.error_code
+      });
+      return commands.find((command) => command.id === input.command_id)!;
+    },
+    async completeConfiguration(input) {
+      completed.push({
+        command_id: input.command_id,
+        state: input.state,
+        error_code: input.error_code
+      });
+      return commands.find((command) => command.id === input.command_id)!;
+    }
+  } as unknown as VoiceCommandRepository;
+  const context = {
+    calls: {} as VoiceCallRepository,
+    commands: commandRepository,
+    configuration: {} as VoiceConfigurationRepository
+  } satisfies VoiceCallUnitOfWorkContext;
+  const unitOfWork: VoiceCallUnitOfWork = {
+    async run<T>(_tenantId: string, operation: (value: VoiceCallUnitOfWorkContext) => Promise<T>) {
+      return operation(context);
+    }
+  };
+  const worker = new VoiceReconciliationWorker({
+    unit_of_work: unitOfWork,
+    provider_registry: new VoiceProviderRegistry(),
+    worker_id: 'configuration-reconcile-worker',
+    batch_size: 10,
+    lease_ms: 5_000,
+    reconcile_delay_ms: 2_000,
+    max_reconcile_age_ms: 60_000,
+    now: () => new Date('2026-07-13T00:02:00.000Z')
+  });
+
+  const result = await worker.runOnce('tenant-a');
+
+  assert.deepEqual(result, {
+    claimed: 2,
+    succeeded: 0,
+    failed: 1,
+    pending: 0,
+    unknown: 1,
+    stale: 0
+  });
+  assert.deepEqual(released, [{
+    command_id: 'configuration-recent',
+    state: 'uncertain',
+    error_code: 'provider_result_unknown'
+  }]);
+  assert.deepEqual(completed, [{
+    command_id: 'configuration-old',
+    state: 'failed',
+    error_code: 'provider_result_unknown'
+  }]);
 });
 
 function reconciliationFixture() {
@@ -165,6 +236,36 @@ function uncertainCommand(label: string, createdAt: string): VoiceCallCommand {
     lease_until: '2026-07-13T00:03:00.000Z', worker_id: 'reconcile-worker', provider_command_id: '',
     result: {}, error_code: 'provider_timeout', error_message: '', created_at: createdAt,
     updated_at: createdAt, completed_at: null
+  };
+}
+
+function uncertainConfigurationCommand(
+  label: string,
+  createdAt: string
+): VoiceConfigurationCommand {
+  return {
+    id: `configuration-${label}`,
+    tenant_id: 'tenant-a',
+    profile_id: 'profile-a',
+    resource_type: 'sip_trunk',
+    resource_id: 'trunk-a',
+    operation: 'apply',
+    state: 'processing',
+    idempotency_key: `configuration-key-${label}`,
+    payload_hash: 'b'.repeat(64),
+    payload: { source_revision: 1 },
+    attempt_count: 1,
+    max_attempts: 5,
+    next_attempt_at: null,
+    lease_until: '2026-07-13T00:03:00.000Z',
+    worker_id: 'configuration-reconcile-worker',
+    provider_command_id: '',
+    result: {},
+    error_code: 'provider_timeout',
+    error_message: '',
+    created_at: createdAt,
+    updated_at: createdAt,
+    completed_at: null
   };
 }
 

@@ -106,7 +106,8 @@ function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): 
     if ([
       '046_ivekit_voice_foundation.sql',
       '047_ivekit_ivr_foundation.sql',
-      '048_ivekit_voice_operations.sql'
+      '048_ivekit_voice_operations.sql',
+      '049_ivekit_voice_route_deployment.sql'
     ].includes(name)) continue;
     copyFileSync(resolve('src/migrations', name), join(directory, name));
   }
@@ -717,8 +718,18 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       /foreign key constraint/i
     );
 
+    const deployedRouteVersion = await admin.query<{ deployment_state: string; provider_revision: string }>(`
+      UPDATE ivekit_voice_route_versions
+      SET deployment_state = 'applied', provider_revision = 'changed'
+      WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_voice_route_version_a'
+      RETURNING deployment_state, provider_revision
+    `);
+    assert.deepEqual(deployedRouteVersion.rows, [{
+      deployment_state: 'applied', provider_revision: 'changed'
+    }]);
+
     for (const statement of [
-      `UPDATE ivekit_voice_route_versions SET provider_revision = 'changed'
+      `UPDATE ivekit_voice_route_versions SET rules = '{"action":"reject"}'::JSONB
        WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_voice_route_version_a'`,
       `DELETE FROM ivekit_voice_route_versions
        WHERE tenant_id = 'ivekit_rls_a' AND id = 'ivekit_voice_route_version_a'`,
@@ -1153,6 +1164,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         '046_ivekit_voice_foundation',
         '047_ivekit_ivr_foundation',
         '048_ivekit_voice_operations',
+        '049_ivekit_voice_route_deployment',
         '090_ivekit_runtime_security'
       )
       GROUP BY version
@@ -1166,6 +1178,7 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       { version: '046_ivekit_voice_foundation', count: '1' },
       { version: '047_ivekit_ivr_foundation', count: '1' },
       { version: '048_ivekit_voice_operations', count: '1' },
+      { version: '049_ivekit_voice_route_deployment', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 

@@ -5,6 +5,8 @@
     "src/ivekit-migrate.ts",
     "src/ivekit-init-runtime-role.ts",
     "src/ivekit-intelligence-preflight.ts",
+    "src/ivekit-render-rustpbx-config.ts",
+    "src/ivekit-voice-preflight.ts",
     "src/agent-runtime/ivekit/voice/index.ts",
     "src/agent-runtime/ivekit/ivr/index.ts"
   ],
@@ -24,6 +26,8 @@
     "services/ivekit-service/.dockerignore",
     "services/ivekit-service/README.md",
     "services/ivekit-service/docker-compose.yml",
+    "services/ivekit-service/docker-compose.voice.yml",
+    "services/ivekit-service/init-rustpbx-database.sh",
     "services/ivekit-service/env.example"
   ],
   "migrations": [
@@ -64,6 +68,7 @@
     "046_ivekit_voice_foundation.sql",
     "047_ivekit_ivr_foundation.sql",
     "048_ivekit_voice_operations.sql",
+    "049_ivekit_voice_route_deployment.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }

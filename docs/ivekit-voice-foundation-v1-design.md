@@ -1,10 +1,34 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：待实现，方向已确认，本文待产品负责人复核
+> 状态：M2 Voice Core 代码完成，受控 PostgreSQL/RustPBX 协议验收通过；M3 IVR Runtime、M4 Contact Center Kit 和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
-> 基线：`d4bef8115345b449547ce26215173fa44531903d`
+> 实现分支：`codex/ivekit-v4-voice-foundation`
 > 适用消费者：OPC、LED 及后续独立业务系统
+
+## 0. 当前实现状态
+
+本节是代码事实口径，优先级高于本文后续仍保留的目标设计。2026-07-13 的 M2 状态如下：
+
+| 范围 | 状态 | 证据边界 |
+| --- | --- | --- |
+| Voice Core domain、PostgreSQL store、RLS、号码加密/HMAC | 已实现 | fresh migration、旧库 upgrade、跨租户不可见和真实 PostgreSQL 受控验收通过 |
+| profile/capability、trunk、DID、extension、route desired state | 已实现 | apply/test durable command、revision 收敛、过期 lease 接管和 superseded command 测试通过；apply 结果不明时不重复下发，超过对账窗口终止为 `provider_result_unknown` |
+| 外呼、provider event、CDR、录音、策略和 consent | 已实现 | dialing/ringing/active/held/transferring/completed、重复/乱序事件和 recording metadata 受控验收通过 |
+| RustPBX Management/AMI、Router、RWI v1 adapter | 已实现协议边界 | 本仓库受控 provider 通过；真实 RustPBX 仍为 `not_run` |
+| PSTN 到 LiveKit SIP bridge orchestration | 已实现 | 注入受控 `SipClient`、超时后 participant lookup 对账且不重复创建通过；真实 LiveKit SIP/PSTN 为 `not_run` |
+| standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、三个编译入口、Compose merge、Helm/交付清单测试通过；真实容器和 RustPBX 数据面启动仍为 `not_run` |
+| IVR schema/port 基础 | 已有 M1 foundation | 25 节点执行器、发布/回滚、Step IVR 闭环属于 M3，尚未按本设计完成 |
+| Contact Center Kit、WebPhone/React 接入面 | 未实现 | 属于 M4/M5，不得按现有 Voice HTTP API 推断为已具备 |
+
+当前新增迁移为：
+
+- `046_ivekit_voice_foundation.sql`：Voice Core 权威表、RLS、号码密文和基础约束。
+- `047_ivekit_ivr_foundation.sql`：IVR foundation 表和边界占位，不等于完整 IVR Runtime。
+- `048_ivekit_voice_operations.sql`：configuration command、worker claim/lease、route operation 等运行闭环。
+- `049_ivekit_voice_route_deployment.sql`：已发布 route payload 不可变，单独允许 deployment state/provider revision 单向收敛。
+
+受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 RTP/录音、真实 LiveKit SIP 和软电话浏览器均保持 `not_run`。
 
 ## 1. 目标
 
@@ -454,7 +478,23 @@ voicemail
 - preflight 确认 endpoint、认证、协议版本和命令集合。
 - 支持时用于低延迟控制、Audio Queue、打断和事件。
 - 不支持时 `rwi=not_available`，调用方选择 Step IVR 或失败，不伪造执行。
-- 每个 command 使用稳定 idempotency key 并写 `voice_call_commands`。
+- 每个 command 使用稳定 idempotency key 并写 `ivekit_voice_call_commands`。
+
+M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, params}`，完成事件兼容官方 `{type, action_id, data}`，呼叫状态事件使用 `event=call_state_change`、`event_id`、`call_id` 和 `state`。当前映射如下：
+
+| iveKit command | RWI action | M2 状态 |
+| --- | --- | --- |
+| `originate` | `call.originate` | 已实现，timeout 进入 `uncertain` 并用 AMI dialog lookup 对账 |
+| `answer` / `hangup` | `call.answer` / `call.hangup` | 已实现 |
+| `hold` / `resume` | `call.hold` / `call.unhold` | 已实现 |
+| `blind_transfer` | `call.transfer` | 已实现 |
+| `warm_transfer` | `call.transfer.attended` | 已实现协议映射；真实 RustPBX 行为未验证 |
+| `conference` | `conference.add` | 已实现协议映射；会议生命周期和真实多方媒体未验证 |
+| `recording_start/pause/resume/stop` | `record.start/pause/resume/stop` | 已实现协议映射；真实录音文件链路未验证 |
+| `dtmf` / `park` / `pickup` | 无已确认的官方可执行 RWI action | 明确返回 `capability_unavailable`，不伪造成功 |
+| `livekit_bridge_create` | 不走 RustPBX RWI | 使用独立 LiveKit SIP adapter |
+
+因此，DTMF、Park、Pickup 虽已进入通用 command type 和 API 校验面，但当前 RustPBX adapter 不具备可执行实现。Audio Queue、Barge-in、supervisor whisper/barge 和完整会议控制也不属于 M2 已完成能力，需在 M3/M4 基于实际 Provider capability 落地。
 
 ## 11. IVR 设计
 
@@ -515,41 +555,50 @@ voicemail
 
 ### 12.1 Voice
 
+以下是 `src/agent-runtime/ivekit/voice/http.ts` 当前已经注册的路径，不是目标草案：
+
 | Method | Path | 用途 |
 | --- | --- | --- |
 | `GET` | `/api/ivekit/voice/capabilities` | 返回租户可用模块和 deployment capability 摘要 |
-| `GET` / `POST` | `/api/ivekit/voice/deployment-profiles` | 管理 Provider profile；创建仅保存 secret ref |
-| `GET` / `PATCH` | `/api/ivekit/voice/deployment-profiles/:id` | 查看或按 revision 更新 profile |
-| `POST` | `/api/ivekit/voice/deployment-profiles/:id/preflight` | 执行探测并生成 capability snapshot |
+| `GET` / `POST` | `/api/ivekit/voice/profiles` | 管理 Provider profile；创建只保存 `env://` secret ref |
+| `GET` / `PATCH` | `/api/ivekit/voice/profiles/:id` | 查看或按 revision 更新 profile |
+| `POST` | `/api/ivekit/voice/profiles/:id/preflight` | 执行探测并持久化 capability snapshot |
 | `GET` / `POST` | `/api/ivekit/voice/trunks` | 查询或创建 trunk desired state |
 | `GET` / `PATCH` | `/api/ivekit/voice/trunks/:id` | 查看或按 revision 更新 trunk |
-| `POST` | `/api/ivekit/voice/trunks/:id/apply` | 将 desired state 幂等应用到 Provider |
+| `POST` | `/api/ivekit/voice/trunks/:id/apply` | 入队幂等 apply command |
 | `POST` | `/api/ivekit/voice/trunks/:id/test` | 执行不产生真实收费呼叫的配置测试 |
 | `GET` / `POST` | `/api/ivekit/voice/dids` | 查询或登记 DID |
 | `GET` / `PATCH` | `/api/ivekit/voice/dids/:id` | 查看或更新 DID 与入口 route |
+| `POST` | `/api/ivekit/voice/dids/:id/apply` | 解密号码仅到 Provider 边界并入队 apply command |
 | `GET` / `POST` | `/api/ivekit/voice/extensions` | 查询或创建分机 |
 | `GET` / `PATCH` | `/api/ivekit/voice/extensions/:id` | 查看或更新分机 |
-| `POST` | `/api/ivekit/voice/extensions/:id/session` | 签发短期 WebRTC softphone session |
+| `POST` | `/api/ivekit/voice/extensions/:id/apply` | 入队分机 apply command |
+| `POST` | `/api/ivekit/voice/extensions/:id/session` | 可选注入 extension-session provider；未注入返回 capability error |
 | `GET` / `POST` | `/api/ivekit/voice/routes` | 查询或创建 route draft |
 | `GET` / `PATCH` | `/api/ivekit/voice/routes/:id` | 查看或按 revision 更新 draft |
-| `POST` | `/api/ivekit/voice/routes/:id/validate` | 静态校验 route 和 capability |
-| `POST` | `/api/ivekit/voice/routes/:id/publish` | 创建不可变 route version 并 apply |
+| `POST` | `/api/ivekit/voice/routes/:id/validate` | 静态校验并返回 canonical payload hash |
+| `GET` | `/api/ivekit/voice/routes/:id/versions` | 查询不可变 route version |
+| `POST` | `/api/ivekit/voice/routes/:id/publish` | 创建不可变 version 并入队 apply command |
 | `GET` / `POST` | `/api/ivekit/voice/calls` | 查询 call 或发起呼叫意图 |
-| `GET` | `/api/ivekit/voice/calls/:id` | 返回 call、参与人、bridge 和当前状态 |
-| `POST` | `/api/ivekit/voice/calls/:id/actions` | answer、hangup、DTMF、hold、resume、transfer、conference、park/pickup、recording |
+| `GET` | `/api/ivekit/voice/calls/:id` | 返回 call 权威状态 |
+| `POST` | `/api/ivekit/voice/calls/:id/actions` | 入队通用 call command；Provider 不支持的动作明确失败 |
 | `GET` | `/api/ivekit/voice/calls/:id/events` | 按 cursor 查询标准化事件 |
 | `GET` | `/api/ivekit/voice/calls/:id/recordings` | 查询录音和 evidence 状态 |
-| `POST` | `/api/ivekit/voice/calls/:id/livekit-bridges` | 幂等创建 PSTN 与 LiveKit bridge |
-| `GET` / `PATCH` | `/api/ivekit/voice/policies` | 查询或按 revision 更新租户语音策略 |
+| `GET` | `/api/ivekit/voice/calls/:id/bridges` | 查询 call 的 LiveKit SIP bridge |
+| `GET` | `/api/ivekit/voice/calls/:id/participants` | 查询参与人 |
+| `POST` | `/api/ivekit/voice/calls/:id/livekit-bridge` | 入队幂等 PSTN 到 LiveKit SIP bridge command |
+| `GET` / `PATCH` | `/api/ivekit/voice/policy` | 查询或按 revision 更新租户语音策略 |
 | `GET` / `POST` | `/api/ivekit/voice/consents` | 查询或登记外呼、录音和 AI 披露同意 |
-| `GET` | `/api/ivekit/voice/recordings` | 按 call、business reference、状态和 retention cursor 查询 |
-| `POST` | `/api/ivekit/voice/recordings/:id/exports` | 创建短期导出 command 和审计证据 |
-| `POST` | `/api/ivekit/voice/recordings/retention-runs` | 管理权限下执行幂等保留任务 |
-| `POST` | `/api/ivekit/voice/provider-webhooks/rustpbx/:profileId/router` | RustPBX 路由决策入口 |
-| `POST` | `/api/ivekit/voice/provider-webhooks/rustpbx/:profileId/events` | 实时事件入口 |
-| `POST` | `/api/ivekit/voice/provider-webhooks/rustpbx/:profileId/cdr` | CDR reconciliation 入口 |
+| `GET` | `/api/ivekit/voice/recordings` | 按 call、状态和 cursor 查询 |
+| `POST` | `/api/ivekit/voice/providers/:profileId/router` | RustPBX 路由决策入口 |
+| `POST` | `/api/ivekit/voice/providers/:profileId/events` | RustPBX HTTP 事件入口 |
+| `POST` | `/api/ivekit/voice/providers/:profileId/cdrs` | CDR/recording reconciliation 入口 |
+
+写操作按角色分为 admin/operator，tenant 只来自认证上下文；trunk apply/test、DID/extension apply、route publish、call create/action/bridge 都要求 `Idempotency-Key`。当前没有注册 recording export、retention-run、静态 OpenAPI 或完整 TypeScript Voice SDK 路由，不能按规划表调用。
 
 ### 12.2 IVR
+
+本节是 M3 目标 API，当前 `src/agent-runtime/ivekit/ivr/` 只有 foundation types/ports/graph types，尚未注册以下 HTTP 路由。
 
 | Method | Path | 用途 |
 | --- | --- | --- |
@@ -572,6 +621,8 @@ voicemail
 | `GET` / `PATCH` | `/api/ivekit/ivr/settings` | 查询或按 revision 更新执行策略 |
 
 ### 12.3 Contact Center
+
+以下全部属于 M4 目标，当前 standalone iveKit 未注册这些路径：
 
 - `GET` / `POST` `/api/ivekit/contact-center/agents`
 - `GET` / `PATCH` `/api/ivekit/contact-center/agents/:id`
@@ -655,6 +706,7 @@ voicemail
 - IVR pending side effect 和 call command 均支持 lease 回收。
 - 进程关闭时停止 claim，新实例接管过期 lease。
 - Provider 数据不可确认时写 `uncertain`，不得写 `succeeded`。
+- configuration apply 暂无经过真实 RustPBX 确认的安全查询 API；`uncertain` 期间只做 lease/age reconciliation，不重放 PUT，超过最大窗口以 `provider_result_unknown` 终止，避免永久悬挂或重复变更。
 
 ## 16. 安全与合规
 
@@ -682,12 +734,12 @@ voicemail
 
 ### 17.1 Compose
 
-新增显式 profiles：
+仓库保留两套用途不同、不可混为一谈的 Compose：
 
-- `voice`：RustPBX + iveKit Voice workers。
-- `voice-livekit-bridge`：LiveKit SIP + LiveKit。
-- `voice-ai`：受控或配置的 Active Call/Agents adapter。
-- `voice-acceptance`：受控 SIP/Step IVR Provider，不声明真实 PSTN。
+1. `infra/ivekit/docker-compose.yml` + `infra/ivekit/docker-compose.voice.yml` 是 OPC 仓库完整集成拓扑，使用仓库主镜像，继续承载内置 Tinode、RustDesk 和验收 profile。
+2. 生成后的 `service/build-context/docker-compose.yml` + `docker-compose.voice.yml` 是 iveKit standalone 拓扑，只使用独立镜像内的 `dist/ivekit-server.js`、`dist/ivekit-render-rustpbx-config.js`、`dist/ivekit-voice-preflight.js` 等编译入口。Voice overlay 通过 `init-rustpbx-database.sh` 建立 `rustpbx_app/rustpbx`，不会把 RustPBX 数据库凭据交给长期运行的 iveKit 服务。
+
+两套拓扑都让 RustPBX Management/RWI 保持内部可达，只显式暴露 SIP/RTP。LiveKit 继续使用现有独立部署。`voice-ai` 和完整 `voice-acceptance` Compose profile 是后续目标；M2 的 controlled provider 只作为交付包 `acceptance/tools` 源码，不进入生产 runtime image，也不声明真实 PSTN。
 
 ### 17.2 Kubernetes
 
@@ -702,6 +754,35 @@ voicemail
 - RustPBX、LiveKit SIP、iveKit 均按不可变 tag/digest 记录。
 - release manifest 记录 RustPBX capability matrix。
 - 上游版本升级先通过 adapter contract、受控呼叫和回滚演练。
+- standalone source policy 显式收录 Voice preflight 和 RustPBX config renderer；隔离构建门禁要求三个 operational entrypoint 都实际生成。
+
+### 17.4 M2 环境变量
+
+| 变量 | 用途 |
+| --- | --- |
+| `OPC_IVEKIT_VOICE_WORKERS_ENABLED` | 总开关；只有 `1` 启动 command/event/reconciliation workers |
+| `OPC_IVEKIT_VOICE_COMMAND_INTERVAL_MS` / `BATCH_SIZE` / `LEASE_MS` / `MAX_ATTEMPTS` / `RETRY_DELAYS_MS` | 配置命令和通话命令的轮询、批量、租约和重试 |
+| `OPC_IVEKIT_VOICE_EVENT_INTERVAL_MS` / `BATCH_SIZE` / `LEASE_MS` | provider event inbox worker 参数 |
+| `OPC_IVEKIT_VOICE_RECONCILIATION_INTERVAL_MS` / `MAX_AGE_MS` | `uncertain` command 对账周期和最终未知上限 |
+| `OPC_IVEKIT_VOICE_PROVIDER_TIMEOUT_MS` | Provider 操作超时预算；command/event lease 必须覆盖安全余量 |
+| `OPC_IVEKIT_VOICE_TENANT_LIMIT` | 单轮 worker tenant 扫描上限 |
+| `OPC_IVEKIT_VOICE_ADDRESS_KEY` / `ADDRESS_HMAC_KEY` | 两把不同的 32-byte base64 key，分别用于号码加密和稳定 HMAC lookup |
+| `OPC_IVEKIT_VOICE_SECRET_ENV_NAMES` | Management/RWI secret resolver 允许读取的环境变量名 |
+| `OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES` | Provider webhook 认证允许读取的环境变量名 |
+| `RUSTPBX_MANAGEMENT_TOKEN` / `RUSTPBX_RWI_TOKEN` / `RUSTPBX_WEBHOOK_TOKEN` | 由 profile 中的 `env://...` secret ref 引用，不写入 profile config |
+| `RUSTPBX_IMAGE` / `PROFILE_ID` / `DB_PASSWORD` / `DATABASE_URL` | RustPBX 镜像、profile 映射和独立 PostgreSQL 数据库配置 |
+| `RUSTPBX_ROUTER_URL` / `CDR_WEBHOOK_URL` | 指向 `/api/ivekit/voice/providers/:profileId/router` 和 `/cdrs` |
+| `RUSTPBX_SIP_PORT` / `RTP_START_PORT` / `RTP_END_PORT` / `EXTERNAL_IP` | SIP/RTP 暴露和 NAT 输入 |
+
+完整默认值见 `services/ivekit-service/env.example` 和 `infra/ivekit/env.example`。生产配置禁止把 token、数据库密码、号码明文或带 credentials/query/fragment 的 Provider URL 写入 profile `config`。
+
+### 17.5 M2 交付包边界
+
+- `service/build-context/`：standalone runtime source、Dockerfile、migrations、compiled-entrypoint source、standalone Compose/Voice overlay 和数据库 bootstrap；不含 controlled provider。
+- `deploy/application/`：OPC 仓库完整集成 Compose 及 Voice overlay。
+- `deploy/kubernetes/ivekit/`：完整 Helm chart，包括 Voice values、Secret、RustPBX Deployment/Service/PDB 和 iveKit worker 配置。
+- `acceptance/tools/ivekit-controlled-voice-provider.ts`：仅用于受控协议验收，不进入 runtime image。
+- `manifest.json`：直接声明 `voice_preflight`、`voice_compose`、`voice_helm` 和 RustPBX provider ownership；`real_environment_acceptance.rustpbx` 固定为 `not_run`，直到 source-bound 真实证据完成。
 
 ## 18. 兼容迁移
 
@@ -722,10 +803,14 @@ voicemail
 
 ### M0：设计与审计
 
+状态：已完成。
+
 - 本文、依赖图、表归属、API/事件清单和验收边界。
 - 固定 `opc-platform` 为共享底座权威来源。
 
 ### M1：边界与 PostgreSQL
+
+状态：Voice/IVR foundation 边界已完成；旧 OPC compatibility 清理仍按后续迁移推进。
 
 - 定义 Voice/IVR ports。
 - 建 standalone source graph。
@@ -734,12 +819,16 @@ voicemail
 
 ### M2：Voice Core 与 RustPBX
 
+状态：代码完成，受控 PostgreSQL/RustPBX/LiveKit SIP adapter 验收通过；真实通信环境保持 `not_run`。
+
 - deployment profile、capability/preflight。
 - call lifecycle、durable command、event inbox、CDR/recording。
 - trunk/DID/extension/route desired state。
-- Step IVR/RWI/LiveKit SIP adapters。
+- RWI、Router、Management/AMI 和 LiveKit SIP adapters；Step IVR 执行闭环进入 M3。
 
 ### M3：IVR Runtime
+
+状态：未开始完整实现，只有 foundation schema/types/ports。
 
 - 25 种节点、版本、发布、回滚、simulation 和 session recovery。
 - 前后端共享 graph schema。
@@ -747,15 +836,21 @@ voicemail
 
 ### M4：Contact Center Kit
 
+状态：未开始共享模块实现；OPC 历史 call-center 代码不算 iveKit M4。
+
 - presence、skill、queue、ACD、callback 和 supervisor。
 - IVR queue port 接入，不引入 OPC 业务依赖。
 
 ### M5：SDK、UI 与交付
 
+状态：Voice 专用 SDK/WebPhone/IVR Designer/Queue Monitor 未完成；standalone source context、Compose/Helm 和交付包已有 M2 基础。
+
 - SDK、headless hooks、WebPhone、IVR Designer、Queue Monitor。
 - Compose、Helm、SBOM、image metadata、upgrade/rollback 和 LED/OPC 示例。
 
 ### M6：验证
+
+状态：单元、静态交付和受控 PostgreSQL 部分已执行；真实 RustPBX/PSTN/LiveKit SIP、浏览器 WebPhone 和隔离服务器仍未执行。
 
 - 全仓回归。
 - standalone 独立安装/build。

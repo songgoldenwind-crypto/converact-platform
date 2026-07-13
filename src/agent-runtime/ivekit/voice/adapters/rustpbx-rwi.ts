@@ -257,12 +257,17 @@ export class RustPbxRwiClient {
       this.#protocolViolation(socket, 'invalid_json', 1007);
       return;
     }
-    if (!isRecord(message) || typeof message.event !== 'string') {
+    if (!isRecord(message)) {
       this.#protocolViolation(socket, 'invalid_envelope', 1007);
       return;
     }
-    if (message.event === 'command_completed' || message.event === 'command_failed') {
-      this.#handleCompletion(message);
+    const completionType = typeof message.type === 'string' ? message.type : message.event;
+    if (completionType === 'command_completed' || completionType === 'command_failed') {
+      this.#handleCompletion({ ...message, event: completionType });
+      return;
+    }
+    if (typeof message.event !== 'string') {
+      this.#protocolViolation(socket, 'invalid_envelope', 1007);
       return;
     }
     this.#emit({
@@ -286,10 +291,13 @@ export class RustPbxRwiClient {
     this.#pending.delete(actionId);
     clearTimeout(pending.timer);
     if (message.event === 'command_completed') {
+      const data = isRecord(message.data)
+        ? message.data
+        : isRecord(message.result) ? message.result : {};
       pending.resolve({
         state: 'succeeded',
         action_id: actionId,
-        result: isRecord(message.result) ? safeVoiceProviderPayload(message.result) : {}
+        result: safeVoiceProviderPayload(data)
       });
       return;
     }
@@ -365,15 +373,15 @@ const SUPPORTED_ACTIONS = [
   'call.originate',
   'call.answer',
   'call.hangup',
-  'call.dtmf',
   'call.hold',
   'call.unhold',
   'call.transfer',
-  'call.conference',
-  'call.recording.start',
-  'call.recording.pause',
-  'call.recording.resume',
-  'call.recording.stop'
+  'call.transfer.attended',
+  'conference.add',
+  'record.start',
+  'record.pause',
+  'record.resume',
+  'record.stop'
 ] as const;
 
 export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiEnvelope {
@@ -387,22 +395,16 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
     case 'originate': action = 'call.originate'; break;
     case 'answer': action = 'call.answer'; break;
     case 'hangup': action = 'call.hangup'; break;
-    case 'dtmf': action = 'call.dtmf'; break;
     case 'hold': action = 'call.hold'; break;
     case 'resume': action = 'call.unhold'; break;
-    case 'blind_transfer':
-      action = 'call.transfer';
-      params.mode = 'blind';
-      break;
-    case 'warm_transfer':
-      action = 'call.transfer';
-      params.mode = 'warm';
-      break;
-    case 'conference': action = 'call.conference'; break;
-    case 'recording_start': action = 'call.recording.start'; break;
-    case 'recording_pause': action = 'call.recording.pause'; break;
-    case 'recording_resume': action = 'call.recording.resume'; break;
-    case 'recording_stop': action = 'call.recording.stop'; break;
+    case 'blind_transfer': action = 'call.transfer'; break;
+    case 'warm_transfer': action = 'call.transfer.attended'; break;
+    case 'conference': action = 'conference.add'; break;
+    case 'recording_start': action = 'record.start'; break;
+    case 'recording_pause': action = 'record.pause'; break;
+    case 'recording_resume': action = 'record.resume'; break;
+    case 'recording_stop': action = 'record.stop'; break;
+    case 'dtmf':
     case 'park':
     case 'pickup':
     case 'livekit_bridge_create':

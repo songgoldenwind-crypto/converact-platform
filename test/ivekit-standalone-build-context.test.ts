@@ -33,6 +33,9 @@ test('standalone context contains the complete allowed graph and no OPC product 
     for (const path of ['package.json', 'package-lock.json', 'tsconfig.json', 'Dockerfile']) {
       assert.equal(result.manifest.files.some((entry) => entry.path === path), true, path);
     }
+    for (const path of ['docker-compose.voice.yml', 'init-rustpbx-database.sh']) {
+      assert.equal(result.manifest.files.some((entry) => entry.path === path), true, path);
+    }
     assert.equal(result.manifest.source_files, graph.files.length);
     assert.deepEqual(result.manifest.runtime_packages, graph.packages);
     assert.equal(result.manifest.source_commit, 'b'.repeat(40));
@@ -120,4 +123,16 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
     scripts: Record<string, string>;
   };
   assert.equal(servicePackage.scripts['preflight:intelligence'], 'node dist/ivekit-intelligence-preflight.js');
+  assert.equal(servicePackage.scripts['render:rustpbx'], 'node dist/ivekit-render-rustpbx-config.js');
+  assert.equal(servicePackage.scripts['preflight:voice'], 'node dist/ivekit-voice-preflight.js');
+});
+
+test('standalone verifier requires every compiled operational entrypoint', () => {
+  const verifier = readFileSync('scripts/verify-ivekit-standalone-context.ts', 'utf8');
+
+  for (const entrypoint of [
+    'ivekit-server.js',
+    'ivekit-render-rustpbx-config.js',
+    'ivekit-voice-preflight.js'
+  ]) assert.match(verifier, new RegExp(entrypoint.replaceAll('.', '\\.')));
 });

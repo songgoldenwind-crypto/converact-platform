@@ -18,8 +18,16 @@ const npmCiArgs = ['ci', '--ignore-scripts'];
 if (process.env.OPC_IVEKIT_STANDALONE_NPM_OFFLINE === '1') npmCiArgs.push('--offline');
 run('npm', npmCiArgs, outputDir);
 run('npm', ['run', 'build'], outputDir);
-const entrypoint = join(outputDir, 'dist', 'ivekit-server.js');
-if (!existsSync(entrypoint)) throw new Error('iveKit standalone build did not emit dist/ivekit-server.js');
+const entrypoints = [
+  'ivekit-server.js',
+  'ivekit-render-rustpbx-config.js',
+  'ivekit-voice-preflight.js'
+].map((name) => join(outputDir, 'dist', name));
+for (const entrypoint of entrypoints) {
+  if (!existsSync(entrypoint)) {
+    throw new Error(`iveKit standalone build did not emit ${entrypoint}`);
+  }
+}
 
 process.stdout.write(`${JSON.stringify({
   status: 'passed',
@@ -27,7 +35,7 @@ process.stdout.write(`${JSON.stringify({
   source_commit: result.manifest.source_commit,
   source_files: result.manifest.source_files,
   runtime_packages: result.manifest.runtime_packages,
-  entrypoint
+  entrypoints
 }, null, 2)}\n`);
 
 function run(command: string, args: string[], cwd: string): void {
