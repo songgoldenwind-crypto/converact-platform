@@ -59,6 +59,32 @@ export class PostgresVoiceCallStore implements VoiceCallRepository {
     });
   }
 
+  getProtectedAddress(
+    tenantId: string,
+    callId: string,
+    side: 'from' | 'to'
+  ): Promise<VoiceProtectedAddress | null> {
+    const prefix = side === 'from' ? 'from' : 'to';
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const result = await pg.query<VoicePgRow>(
+        `SELECT ${prefix}_address_kind AS kind,
+                ${prefix}_address_ciphertext AS ciphertext,
+                ${prefix}_address_hmac AS hmac,
+                ${prefix}_address_redacted AS redacted
+         FROM ivekit_voice_calls
+         WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, callId]
+      );
+      const row = result.rows[0];
+      return row ? {
+        kind: row.kind as VoiceProtectedAddress['kind'],
+        ciphertext: String(row.ciphertext),
+        hmac: String(row.hmac),
+        redacted: String(row.redacted)
+      } : null;
+    });
+  }
+
   list(input: VoiceListInput & {
     state?: VoiceCall['state'];
     business_ref?: { type: string; id: string };

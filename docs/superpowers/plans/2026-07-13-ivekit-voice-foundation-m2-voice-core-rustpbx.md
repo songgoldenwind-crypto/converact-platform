@@ -587,25 +587,25 @@ git commit -m "feat(ivekit): apply voice desired state durably"
 - Create: `test/ivekit-voice-call-service.test.ts`
 - Create: `test/ivekit-voice-reconciliation.test.ts`
 
-- [ ] **Step 1: Write failing call creation tests**
+- [x] **Step 1: Write failing call creation tests**
 
 An outbound call requires profile, from/to address, business reference, actor, and idempotency key. Verify addresses are protected before persistence, response contains only redacted values, profile/capability/policy/compliance are checked, and call plus `originate` command are committed atomically. Replayed requests return the same call; changed payload conflicts.
 
 Inbound creation uses provider event id/call id as idempotency source and cannot trust a provider-supplied tenant header.
 
-- [ ] **Step 2: Write failing action tests**
+- [x] **Step 2: Write failing action tests**
 
 Cover answer, hangup, DTMF, hold/resume, blind/warm transfer, conference, park/pickup, recording start/pause/resume/stop, and LiveKit bridge. Validate call state and capability before enqueuing. External side effects are never executed inline. Recording actions require policy/consent evidence; outbound originate uses `VoiceCompliancePort`.
 
-- [ ] **Step 3: Implement `VoiceCallService`**
+- [x] **Step 3: Implement `VoiceCallService`**
 
 Use store transactions and state-machine projections. Reveal clear addresses only inside the worker immediately before adapter execution; do not persist them in command payload/result or events. Publish `voice.call.created` and `voice.call.command_updated` only after commit.
 
-- [ ] **Step 4: Implement reconciliation**
+- [x] **Step 4: Implement reconciliation**
 
 Claim only due `uncertain` commands. `succeeded` updates provider refs and legal call state, `failed` records terminal error, `pending` schedules another reconcile, and `unknown` remains uncertain until max reconcile age then fails `provider_result_unknown`. Originate is never resubmitted during reconcile.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-call-service.test.ts test/ivekit-voice-reconciliation.test.ts
@@ -613,7 +613,7 @@ node --import tsx --test test/ivekit-voice-call-service.test.ts test/ivekit-voic
 
 Expected: PASS, including consent denial and unknown originate behavior.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/call-service.ts src/agent-runtime/ivekit/voice/workers/reconciliation-worker.ts test/ivekit-voice-call-service.test.ts test/ivekit-voice-reconciliation.test.ts

@@ -79,6 +79,11 @@ export interface VoiceConfigurationRepository {
 export interface VoiceCallRepository {
   get(tenantId: string, callId: string, options?: { for_update?: boolean }): Promise<VoiceCall | null>;
   findByIdempotencyKey(tenantId: string, key: string): Promise<VoiceCall | null>;
+  getProtectedAddress(
+    tenantId: string,
+    callId: string,
+    side: 'from' | 'to'
+  ): Promise<VoiceProtectedAddress | null>;
   list(input: VoiceListInput & { state?: VoiceCall['state']; business_ref?: { type: string; id: string } }): Promise<VoicePage<VoiceCall>>;
   insert(call: VoiceCall, from: VoiceProtectedAddress, to: VoiceProtectedAddress): Promise<VoiceCall>;
   update(call: VoiceCall, expectedRevision: number): Promise<VoiceCall>;
@@ -176,6 +181,8 @@ export interface VoiceProviderPort {
   }): Promise<{
     state: 'pending' | 'succeeded' | 'failed' | 'unknown';
     provider_state?: string;
+    provider_call_id?: string;
+    provider_dialog_id?: string;
   }>;
 }
 
@@ -257,5 +264,18 @@ export interface VoiceConfigurationUnitOfWork {
   run<T>(
     tenantId: string,
     operation: (context: VoiceConfigurationUnitOfWorkContext) => Promise<T>
+  ): Promise<T>;
+}
+
+export interface VoiceCallUnitOfWorkContext {
+  calls: VoiceCallRepository;
+  commands: VoiceCommandRepository;
+  configuration: VoiceConfigurationRepository;
+}
+
+export interface VoiceCallUnitOfWork {
+  run<T>(
+    tenantId: string,
+    operation: (context: VoiceCallUnitOfWorkContext) => Promise<T>
   ): Promise<T>;
 }

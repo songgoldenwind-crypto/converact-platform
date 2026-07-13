@@ -99,6 +99,9 @@ test('Voice call store writes protected addresses but only decodes projections',
   const pg = new RecordingPg((sql) => {
     if (/INSERT INTO ivekit_voice_calls/i.test(sql)) return [callRow()];
     if (/FROM ivekit_voice_calls call/i.test(sql)) return [callRow()];
+    if (/FROM ivekit_voice_calls\s+WHERE/i.test(sql)) return [{
+      kind: 'e164', ciphertext: 'cipher-to', hmac: 'hmac-to', redacted: '+86******8000'
+    }];
     return [];
   });
   const store = new PostgresVoiceCallStore(pg);
@@ -114,6 +117,14 @@ test('Voice call store writes protected addresses but only decodes projections',
   const select = pg.calls.find((item) => /FROM ivekit_voice_calls call/i.test(item.text))!;
   assert.match(select.text, /FOR UPDATE/i);
   assert.doesNotMatch(select.text, /address_ciphertext|address_hmac/i);
+
+  const protectedTo = await store.getProtectedAddress('tenant-a', 'call-a', 'to');
+  assert.deepEqual(protectedTo, {
+    kind: 'e164', ciphertext: 'cipher-to', hmac: 'hmac-to', redacted: '+86******8000'
+  });
+  const protectedSelect = pg.calls.find((item) => /to_address_ciphertext AS ciphertext/i.test(item.text))!;
+  assert.equal(protectedSelect.params[0], 'tenant-a');
+  assert.equal(protectedSelect.params[1], 'call-a');
 
   const conflictPg = new RecordingPg();
   await assert.rejects(

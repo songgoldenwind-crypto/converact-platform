@@ -92,9 +92,15 @@ class ControlledVoiceProviderAdapter implements VoiceProviderAdapter {
   async reconcile(input: { call: VoiceCall; command: VoiceCallCommand }): Promise<{
     state: 'pending' | 'succeeded' | 'failed' | 'unknown';
     provider_state?: string;
+    provider_call_id?: string;
+    provider_dialog_id?: string;
   }> {
     const found = this.#outcomes.get(`${input.command.tenant_id}:${input.command.idempotency_key}`);
-    if (found) return { state: found.accepted ? 'succeeded' : 'failed', provider_state: found.accepted ? 'accepted' : 'rejected' };
+    if (found) return {
+      state: found.accepted ? 'succeeded' : 'failed',
+      provider_state: found.accepted ? 'dialing' : 'rejected',
+      provider_call_id: found.provider_call_id
+    };
     return { state: 'unknown', provider_state: 'not_found' };
   }
 
