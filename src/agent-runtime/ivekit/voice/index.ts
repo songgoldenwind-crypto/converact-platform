@@ -1,5 +1,7 @@
 export * from './address-protector.js';
+export * from './adapters/controlled-provider.js';
 export * from './canonical.js';
+export * from './deployment-profile-service.js';
 export * from './errors.js';
 export * from './ports.js';
 export * from './postgres/call-store.js';
@@ -7,6 +9,7 @@ export * from './postgres/command-store.js';
 export * from './postgres/configuration-store.js';
 export * from './postgres/provider-event-store.js';
 export * from './postgres/recording-store.js';
+export * from './provider-registry.js';
 export * from './secret-resolver.js';
 export * from './state-machine.js';
 export * from './types.js';

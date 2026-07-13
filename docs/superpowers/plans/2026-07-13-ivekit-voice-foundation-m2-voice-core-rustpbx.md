@@ -376,13 +376,13 @@ git commit -m "feat(ivekit): add voice postgres repositories"
 - Create: `test/ivekit-voice-capabilities.test.ts`
 - Modify: `src/agent-runtime/ivekit/voice/ports.ts`
 
-- [ ] **Step 1: Write failing capability tests**
+- [x] **Step 1: Write failing capability tests**
 
 Prove profile creation stores secret refs but not resolved values, revision conflicts return `revision_conflict`, disabled/archived profiles cannot execute commands, and preflight writes an immutable snapshot containing provider version, exact config hash, status, error code, and all nine booleans.
 
-The controlled provider must support profiles that deliberately report each capability combination and failures `auth_failed`, `connection_failed`, `protocol_mismatch`, and `capability_unavailable`.
+The controlled provider must support profiles that deliberately report each capability combination and failures `provider_auth_failed`, `provider_unavailable`, `protocol_mismatch`, and `capability_unavailable`.
 
-- [ ] **Step 2: Extend provider ports**
+- [x] **Step 2: Extend provider ports**
 
 Keep `VoiceProviderPort` for call commands and add:
 
@@ -400,15 +400,15 @@ export interface VoiceProviderFactory {
 
 `VoiceManagementPort` exposes `preflight`, `applyTrunk`, `testTrunk`, `applyExtension`, `applyRoute`, `lookupDialog`, and `lookupRecording`; each returns a provider ref/revision plus safe diagnostics.
 
-- [ ] **Step 3: Implement the registry and profile service**
+- [x] **Step 3: Implement the registry and profile service**
 
 Register `controlled`, `rustpbx`, and `livekit_sip` factories explicitly. Unknown adapters are rejected. Compute config hash from non-secret profile config plus secret-ref names, never resolved secret values. Persist failed snapshots as `failed`/`not_available` rather than losing diagnostics.
 
-- [ ] **Step 4: Implement the controlled adapter**
+- [x] **Step 4: Implement the controlled adapter**
 
 It must be deterministic, use supplied clock, expose no network, honor command idempotency, and retain enough command/provider state to exercise success, retry, timeout/unknown, duplicate event, and reconciliation paths.
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-capabilities.test.ts
@@ -417,7 +417,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/agent-runtime/ivekit/voice/provider-registry.ts src/agent-runtime/ivekit/voice/deployment-profile-service.ts src/agent-runtime/ivekit/voice/adapters/controlled-provider.ts src/agent-runtime/ivekit/voice/ports.ts test/ivekit-voice-capabilities.test.ts

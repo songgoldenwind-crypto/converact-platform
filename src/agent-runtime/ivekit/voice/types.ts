@@ -346,6 +346,14 @@ export interface VoiceProviderEvent {
   processed_at: string | null;
 }
 
+export interface VoiceNormalizedProviderEvent {
+  external_event_id: string;
+  event_type: string;
+  provider_state: string;
+  occurred_at: string | null;
+  safe_payload: Record<string, unknown>;
+}
+
 export interface VoiceLiveKitBridge {
   id: string;
   tenant_id: string;

@@ -17,6 +17,7 @@ import type {
   VoiceProtectedAddress,
   VoiceProviderCapabilities,
   VoiceProviderEvent,
+  VoiceNormalizedProviderEvent,
   VoiceRecording,
   VoiceRoute,
   VoiceRouteVersion,
@@ -176,6 +177,49 @@ export interface VoiceProviderPort {
     state: 'pending' | 'succeeded' | 'failed' | 'unknown';
     provider_state?: string;
   }>;
+}
+
+export interface VoiceManagementApplyInput {
+  resource_id: string;
+  desired_state: Record<string, unknown>;
+}
+
+export interface VoiceManagementApplyResult {
+  provider_ref: string;
+  provider_revision: string;
+  safe_diagnostics: Record<string, unknown>;
+}
+
+export interface VoiceManagementPort {
+  preflight(): Promise<VoiceProviderCapabilities>;
+  applyTrunk(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult>;
+  testTrunk(input: { resource_id: string }): Promise<{
+    ready: boolean;
+    error_code: string;
+    safe_diagnostics: Record<string, unknown>;
+  }>;
+  applyExtension(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult>;
+  applyRoute(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult>;
+  lookupDialog(input: { provider_call_id: string }): Promise<{
+    state: 'pending' | 'succeeded' | 'failed' | 'unknown';
+    provider_state: string;
+    safe_diagnostics: Record<string, unknown>;
+  }>;
+  lookupRecording(input: { provider_recording_id: string }): Promise<{
+    state: 'processing' | 'available' | 'failed' | 'unknown';
+    object_ref: string;
+    safe_diagnostics: Record<string, unknown>;
+  }>;
+}
+
+export interface VoiceProviderAdapter extends VoiceProviderPort {
+  management: VoiceManagementPort;
+  normalizeEvent(input: unknown): VoiceNormalizedProviderEvent;
+  close(): Promise<void>;
+}
+
+export interface VoiceProviderFactory {
+  create(profile: VoiceDeploymentProfile): Promise<VoiceProviderAdapter>;
 }
 
 export interface VoiceCompliancePort {
