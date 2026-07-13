@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
@@ -6,6 +7,13 @@ import {
   type TinodeClientLike,
   type TinodeTopicLike
 } from '../frontend/src/pages/tinode-realtime.js';
+
+test('root package declares the Tinode runtime used by root typecheck and tests', () => {
+  const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+    dependencies?: Record<string, string>;
+  };
+  assert.match(packageJson.dependencies?.['tinode-sdk'] ?? '', /^\^0\.25\./);
+});
 
 test('Tinode realtime adapter connects with client plan and exposes receive-only events plus notes', async () => {
   const calls: string[] = [];
