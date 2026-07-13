@@ -142,6 +142,26 @@ test('IVR reconciliation confirms outcomes without replaying the original action
   void originalExecutions;
 });
 
+test('IVR reconciliation terminates an unknown action at its configured attempt ceiling', async () => {
+  const actions = new MemoryActions([pendingAction({
+    state: 'uncertain', next_attempt_at: '2026-07-13T01:59:00.000Z',
+    reconciliation_count: 2
+  })]);
+  const worker = new IvrPendingActionReconciliationWorker({
+    actions,
+    reconciler: { async reconcile() {
+      return { disposition: 'unknown' as const, error_code: 'provider_result_unknown' };
+    } },
+    worker_id: 'reconcile-a', now: fixedNow, max_reconciliations: 3
+  });
+
+  const result = await worker.runTenant('tenant-a');
+  assert.deepEqual(result, { claimed: 1, succeeded: 0, failed: 1, uncertain: 0 });
+  assert.equal(actions.items[0]?.state, 'failed');
+  assert.equal(actions.items[0]?.error_code, 'provider_result_unknown');
+  assert.equal(actions.items[0]?.next_attempt_at, null);
+});
+
 class MemoryActions implements IvrPendingActionRepository {
   readonly items: IvrPendingAction[];
   constructor(items: IvrPendingAction[]) { this.items = structuredClone(items); }

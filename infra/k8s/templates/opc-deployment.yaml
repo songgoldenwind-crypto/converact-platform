@@ -259,6 +259,28 @@ spec:
               value: {{ .Values.intelligence.translationWorker.claimLeaseMs | default "120000" | quote }}
             - name: OPC_TRANSLATION_RETRY_DELAYS_MS
               value: {{ .Values.intelligence.translationWorker.retryDelaysMs | default "5000,30000" | quote }}
+            - name: OPC_IVEKIT_IVR_WORKERS_ENABLED
+              value: {{ .Values.ivr.workers.enabled | default "0" | quote }}
+            - name: OPC_IVEKIT_IVR_ACTION_INTERVAL_MS
+              value: {{ .Values.ivr.workers.actionIntervalMs | default "1000" | quote }}
+            - name: OPC_IVEKIT_IVR_ACTION_BATCH_SIZE
+              value: {{ .Values.ivr.workers.actionBatchSize | default "25" | quote }}
+            - name: OPC_IVEKIT_IVR_ACTION_LEASE_MS
+              value: {{ .Values.ivr.workers.actionLeaseMs | default "30000" | quote }}
+            - name: OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS
+              value: {{ .Values.ivr.workers.actionRetryBaseMs | default "1000" | quote }}
+            - name: OPC_IVEKIT_IVR_ACTION_RETRY_MAX_MS
+              value: {{ .Values.ivr.workers.actionRetryMaxMs | default "60000" | quote }}
+            - name: OPC_IVEKIT_IVR_RECONCILIATION_INTERVAL_MS
+              value: {{ .Values.ivr.workers.reconciliationIntervalMs | default "10000" | quote }}
+            - name: OPC_IVEKIT_IVR_RECONCILIATION_LEASE_MS
+              value: {{ .Values.ivr.workers.reconciliationLeaseMs | default "30000" | quote }}
+            - name: OPC_IVEKIT_IVR_RECONCILIATION_RETRY_MS
+              value: {{ .Values.ivr.workers.reconciliationRetryMs | default "10000" | quote }}
+            - name: OPC_IVEKIT_IVR_RECONCILIATION_MAX_ATTEMPTS
+              value: {{ .Values.ivr.workers.reconciliationMaxAttempts | default "20" | quote }}
+            - name: OPC_IVEKIT_IVR_TENANT_LIMIT
+              value: {{ .Values.ivr.workers.tenantLimit | default "100" | quote }}
             {{- if .Values.voice.enabled }}
             - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
               value: "1"

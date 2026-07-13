@@ -25,6 +25,12 @@ import { TranslationService } from '../collaboration/translation-service.js';
 import { startTranslationWorker } from '../collaboration/translation-worker.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { IveKitTenantEventStore, iveKitEventReplayEnabled } from './tenant-event-store.js';
+import type { IvrPendingActionExecutor, IvrPendingActionReconciler } from './ivr/ports.js';
+import {
+  iveKitIvrWorkerConfig,
+  startIveKitIvrPendingActionWorker,
+  startIveKitIvrReconciliationWorker
+} from './ivr/runtime.js';
 import {
   iveKitVoiceWorkerConfig,
   startIveKitVoiceCommandWorker,
@@ -44,6 +50,8 @@ export interface IveKitRuntimeAdapters {
   startTranslation(input: Parameters<typeof startTranslationWorker>[0]): IveKitWorkerHandle;
   startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
   startEventRetention(input: Parameters<typeof startIveKitTenantEventRetentionWorker>[0]): IveKitWorkerHandle;
+  startIvrAction(input: Parameters<typeof startIveKitIvrPendingActionWorker>[0]): IveKitWorkerHandle;
+  startIvrReconciliation(input: Parameters<typeof startIveKitIvrReconciliationWorker>[0]): IveKitWorkerHandle;
   startVoiceCommand(input: Parameters<typeof startIveKitVoiceCommandWorker>[0]): IveKitWorkerHandle;
   startVoiceEvent(input: Parameters<typeof startIveKitVoiceProviderEventWorker>[0]): IveKitWorkerHandle;
   startVoiceReconciliation(input: Parameters<typeof startIveKitVoiceReconciliationWorker>[0]): IveKitWorkerHandle;
@@ -55,6 +63,8 @@ export interface IveKitApplicationInput {
   publish?: IveKitEventPublisher;
   qualityReviewEnqueuer?: IveKitQualityReviewEnqueuer;
   translationEnqueuer?: IveKitTranslationEnqueuer;
+  ivr_executor?: IvrPendingActionExecutor;
+  ivr_reconciler?: IvrPendingActionReconciler;
   adapters?: Partial<IveKitRuntimeAdapters>;
 }
 
@@ -89,6 +99,13 @@ export interface IveKitTranslationEnqueuer {
 export function startIveKitApplication(input: IveKitApplicationInput): IveKitApplication {
   const env = input.env || process.env;
   const voiceConfig = iveKitVoiceWorkerConfig(env);
+  const ivrConfig = iveKitIvrWorkerConfig(env);
+  if (ivrConfig.enabled && !input.ivr_executor) {
+    throw new Error('enabled iveKit IVR pending-action executor must be injected');
+  }
+  if (ivrConfig.enabled && !input.ivr_reconciler) {
+    throw new Error('enabled iveKit IVR pending-action reconciler must be injected');
+  }
   const publish = input.publish || applicationPublisher(input.pg, env);
   const qualityReviewEnqueuer = input.qualityReviewEnqueuer || createQualityReviewEnqueuer(input.pg, env);
   const translationEnqueuer = input.translationEnqueuer || createTranslationEnqueuer(input.pg, env);
@@ -100,6 +117,8 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     startTranslation: input.adapters?.startTranslation || startTranslationWorker,
     startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker,
     startEventRetention: input.adapters?.startEventRetention || startIveKitTenantEventRetentionWorker,
+    startIvrAction: input.adapters?.startIvrAction || startIveKitIvrPendingActionWorker,
+    startIvrReconciliation: input.adapters?.startIvrReconciliation || startIveKitIvrReconciliationWorker,
     startVoiceCommand: input.adapters?.startVoiceCommand || startIveKitVoiceCommandWorker,
     startVoiceEvent: input.adapters?.startVoiceEvent || startIveKitVoiceProviderEventWorker,
     startVoiceReconciliation: input.adapters?.startVoiceReconciliation || startIveKitVoiceReconciliationWorker
@@ -249,6 +268,14 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
       )
     }),
     adapters.startEventRetention({ pg: input.pg, env }),
+    ...(ivrConfig.enabled ? [
+      adapters.startIvrAction({
+        pg: input.pg, env, executor: input.ivr_executor, publish
+      }),
+      adapters.startIvrReconciliation({
+        pg: input.pg, env, reconciler: input.ivr_reconciler, publish
+      })
+    ] : []),
     ...(voiceConfig.enabled ? [
       adapters.startVoiceCommand({ pg: input.pg, env }),
       adapters.startVoiceEvent({ pg: input.pg, env }),

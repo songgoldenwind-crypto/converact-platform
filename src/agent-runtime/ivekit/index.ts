@@ -20,6 +20,21 @@ export { routeIveKitMediaApi } from './media-http.js';
 export { createIveKitHttpServer } from './http-server.js';
 export { routeIveKitIvrApi } from './ivr/http.js';
 export type * from './ivr/http.js';
+export {
+  iveKitIvrWorkerConfig,
+  listIvrWorkerTenants,
+  startIveKitIvrPendingActionWorker,
+  startIveKitIvrReconciliationWorker
+} from './ivr/runtime.js';
+export type {
+  IveKitIvrRuntimeInput,
+  IveKitIvrWorkerConfig,
+  IveKitIvrWorkerHandle
+} from './ivr/runtime.js';
+export type {
+  IvrPendingActionExecutor,
+  IvrPendingActionReconciler
+} from './ivr/ports.js';
 export type { IveKitHttpServerInput, IveKitRouteAdapters } from './http-server.js';
 export { createIveKitMediaHooks } from './media-hooks.js';
 export type { IveKitMediaHooksInput } from './media-hooks.js';

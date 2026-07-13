@@ -4,6 +4,10 @@ import {
   type RustPbxStepIvrEvent
 } from './adapters/rustpbx-step-ivr.js';
 import { IvrError } from './errors.js';
+import {
+  projectIvrSessionEvents,
+  type IvrSessionEvent
+} from './events.js';
 import type { IvrExecutionEvent } from './executor.js';
 import {
   isIvrWorkerAction,
@@ -65,6 +69,7 @@ export interface RustPbxStepIvrHandleResult {
   replayed: boolean;
   event_sequence: number;
   action_revision: number;
+  events?: IvrSessionEvent[];
 }
 
 export class RustPbxStepIvrService {
@@ -93,6 +98,7 @@ export class RustPbxStepIvrService {
       last_action_revision: session?.last_action_revision ?? 0
     });
 
+    const events: IvrSessionEvent[] = [];
     if (!session) {
       if (normalized.disposition !== 'advance' || normalized.event.type !== 'session_start') {
         throw new IvrError({ code: 'invalid_session_state', status: 409 });
@@ -115,16 +121,19 @@ export class RustPbxStepIvrService {
         trace_id: binding.trace_id
       });
       session = started.session;
+      events.push(...projectIvrSessionEvents(started, { started: !started.replayed }));
     }
 
     const result = await this.#exchange(session, normalized);
+    events.push(...projectIvrSessionEvents(result));
     return {
       action_node: stepAction(adapter, result.action, this.#workerPollIntervalMs),
       session_id: result.session.id,
       session_state: result.session.state,
       replayed: result.replayed,
       event_sequence: normalized.event_sequence,
-      action_revision: normalized.action_revision
+      action_revision: normalized.action_revision,
+      events
     };
   }
 

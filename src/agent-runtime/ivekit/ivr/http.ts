@@ -1,4 +1,5 @@
 import type { PgQueryable } from '../../../db-pg.js';
+import { wsBroadcast } from '../../../ws.js';
 import { resolveAuthContext, type AuthContext } from '../../../middleware/auth.js';
 import { VoiceError } from '../voice/errors.js';
 import type { VoiceSecretResolver } from '../voice/ports.js';
@@ -20,6 +21,16 @@ import {
 } from './postgres/unit-of-work.js';
 import { IvrFlowService } from './flow-service.js';
 import { IvrError } from './errors.js';
+import {
+  emitIvrSessionEvents,
+  projectIvrSessionEvents,
+  type IvrSessionEvent,
+  type IvrSessionEventPublisher
+} from './events.js';
+import {
+  IveKitTenantEventStore,
+  iveKitEventReplayEnabled
+} from '../tenant-event-store.js';
 import { IvrSimulationService } from './simulation.js';
 import type { IvrFlowGraph } from './graph-types.js';
 import {
@@ -44,6 +55,8 @@ export interface RouteIveKitIvrApiOptions {
   worker_poll_interval_ms?: number;
   module?: IvrHttpModule;
   create_module?: (pg: PgQueryable, tenantId: string) => IvrHttpModule | Promise<IvrHttpModule>;
+  event_store?: Pick<IveKitTenantEventStore, 'append'>;
+  publish?: IvrSessionEventPublisher;
 }
 
 export interface IvrHttpModule {
@@ -157,11 +170,13 @@ export async function routeIveKitIvrApi(
     ) } };
     if (method === 'POST') {
       const input = record(body);
-      return { status: 201, data: await module.sessions.startSession({
+      const result = await module.sessions.startSession({
         tenant_id: ctx.tenantId, call_id: stringValue(input.call_id),
         flow_id: stringValue(input.flow_id), flow_version: optionalPositiveInteger(input.flow_version),
         variables: optionalRecord(input.variables), trace_id: optionalString(input.trace_id)
-      }) };
+      });
+      const events = projectIvrSessionEvents(result, { started: !result.replayed });
+      return sessionResponse(requiredPg(pg), options, result.replayed ? 200 : 201, result, events);
     }
   }
   const sessionId = segments[4] ? decodeSegment(segments[4]) : '';
@@ -173,12 +188,13 @@ export async function routeIveKitIvrApi(
   if (segments[3] === 'sessions' && segments[5] === 'advance' && method === 'POST') {
     requireOperator(ctx);
     const input = record(body);
-    return { data: await module.sessions.advance({
+    const result = await module.sessions.advance({
       tenant_id: ctx.tenantId, session_id: sessionId,
       event_sequence: nonNegativeInteger(input.event_sequence),
       action_revision: nonNegativeInteger(input.action_revision),
       event: record(input.event) as never
-    }) };
+    });
+    return sessionResponse(requiredPg(pg), options, 200, result, projectIvrSessionEvents(result));
   }
   return undefined;
 }
@@ -225,8 +241,40 @@ async function routeStepWebhook(
       'x-ivekit-ivr-replayed': String(result.replayed),
       'x-ivekit-ivr-event-sequence': String(result.event_sequence),
       'x-ivekit-ivr-action-revision': String(result.action_revision)
-    }
+    },
+    ...(result.events?.length ? {
+      afterCommit: () => publishSessionEvents(required, options, result.events!)
+    } : {})
   };
+}
+
+function sessionResponse(
+  pg: PgQueryable,
+  options: RouteIveKitIvrApiOptions,
+  status: number,
+  data: unknown,
+  events: IvrSessionEvent[]
+): Record<string, unknown> {
+  return {
+    status,
+    data,
+    ...(events.length ? { afterCommit: () => publishSessionEvents(pg, options, events) } : {})
+  };
+}
+
+async function publishSessionEvents(
+  pg: PgQueryable,
+  options: RouteIveKitIvrApiOptions,
+  events: readonly IvrSessionEvent[]
+): Promise<void> {
+  const store = options.event_store ?? (
+    iveKitEventReplayEnabled() ? new IveKitTenantEventStore(pg) : null
+  );
+  const publish = options.publish ?? wsBroadcast;
+  await emitIvrSessionEvents(events, async (tenantId, type, data) => {
+    if (store) await store.append({ tenant_id: tenantId, type, data });
+    await Promise.resolve(publish(tenantId, type, data));
+  });
 }
 
 export function createPostgresIvrHttpModule(pg: PgQueryable): IvrHttpModule {

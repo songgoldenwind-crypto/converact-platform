@@ -159,6 +159,20 @@ voice:
   disruptionBudget:
     minAvailable: 1
 
+ivr:
+  workers:
+    enabled: "0"
+    actionIntervalMs: "1000"
+    actionBatchSize: "25"
+    actionLeaseMs: "30000"
+    actionRetryBaseMs: "1000"
+    actionRetryMaxMs: "60000"
+    reconciliationIntervalMs: "10000"
+    reconciliationLeaseMs: "30000"
+    reconciliationRetryMs: "10000"
+    reconciliationMaxAttempts: "20"
+    tenantLimit: "100"
+
 media:
   apiToken: ""
   inviteSecret: ""

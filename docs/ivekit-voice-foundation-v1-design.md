@@ -701,6 +701,8 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 
 事件 payload 只包含公开 DTO、稳定 resource id、business reference 和 coarse provider state。
 
+IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、RustPBX Step webhook、pending-action worker 和 reconciliation worker 使用同一事件结构；幂等重放返回原响应但不重复发布。载荷固定为 `ivr_session_id`、`voice_call_id`、`flow_id/version`、state、node、step/revision、action kind、waiting/termination reason，不发布 session context、变量值、号码、Provider 原文或外部动作 payload。HTTP 通过 `afterCommit` 写 `ivekit_tenant_events` 后广播；worker 在自己的 PostgreSQL transaction 返回后执行同一流程，事件发布失败只告警，不反向篡改已经提交的 action/session 状态。
+
 ## 15. 错误、重试与恢复
 
 - RustPBX 5xx、timeout、connection reset 归类 retryable。
@@ -731,6 +733,7 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 - liveness 只判断进程事件循环；readiness 判断 PostgreSQL、migration version 和启用模块的本地依赖，不因未启用的 RustPBX/LiveKit profile 失败。
 - deployment profile 单独暴露 `ready/degraded/not_configured`，避免一个租户的线路故障拖垮整个 iveKit readiness。
 - 指标覆盖 call setup latency、active calls、command duration/retry/uncertain、provider event lag、IVR step duration/error、pending action lease、queue wait、bridge success 和 recording reconciliation。
+- 当前 IVR runtime 已暴露 `opc_ivekit_ivr_pending_actions_total`、`opc_ivekit_ivr_pending_action_duration_seconds`、`opc_ivekit_ivr_reconciliations_total` 和 `opc_ivekit_ivr_session_events_total`；action kind、result、error、event type、session state 均先折叠到固定枚举，未知输入统一为 `other`。
 - Prometheus label 禁止完整号码、call id、business ref、tenant id、flow id 等高基数或敏感值；按 adapter、direction、state、error code 和 capability 聚合。
 - trace 在 HTTP、durable command、Provider webhook、IVR pending action、LiveKit bridge 之间传播 `trace_id`；日志使用稳定 resource id，但号码始终脱敏。
 - 每个 capability snapshot、route publish、IVR publish 和 migration import 生成可导出的诊断报告，报告先经过 secret scan。
@@ -766,6 +769,11 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 | 变量 | 用途 |
 | --- | --- |
 | `OPC_IVEKIT_VOICE_WORKERS_ENABLED` | 总开关；只有 `1` 启动 command/event/reconciliation workers |
+| `OPC_IVEKIT_IVR_WORKERS_ENABLED` | IVR durable action 总开关；默认 `0`，启用时宿主必须同时注入 executor 与 reconciler，否则应用拒绝启动 |
+| `OPC_IVEKIT_IVR_ACTION_INTERVAL_MS` / `BATCH_SIZE` / `LEASE_MS` | IVR worker 动作的轮询周期、单租户批量和租约 |
+| `OPC_IVEKIT_IVR_ACTION_RETRY_BASE_MS` / `RETRY_MAX_MS` | 已知可重试失败的指数退避下限和上限；Provider 超时进入 `uncertain`，不得直接重放 |
+| `OPC_IVEKIT_IVR_RECONCILIATION_INTERVAL_MS` / `LEASE_MS` / `RETRY_MS` / `MAX_ATTEMPTS` | `uncertain` action 对账轮询、租约、再次对账周期和终止上限；达到上限后以 `provider_result_unknown` 失败并恢复会话 |
+| `OPC_IVEKIT_IVR_TENANT_LIMIT` | 单轮 IVR worker tenant 扫描上限；tenant 由 PostgreSQL `opc_worker_tenant_ids('ivr_pending_action', ...)` 发现 |
 | `OPC_IVEKIT_VOICE_COMMAND_INTERVAL_MS` / `BATCH_SIZE` / `LEASE_MS` / `MAX_ATTEMPTS` / `RETRY_DELAYS_MS` | 配置命令和通话命令的轮询、批量、租约和重试 |
 | `OPC_IVEKIT_VOICE_EVENT_INTERVAL_MS` / `BATCH_SIZE` / `LEASE_MS` | provider event inbox worker 参数 |
 | `OPC_IVEKIT_VOICE_RECONCILIATION_INTERVAL_MS` / `MAX_AGE_MS` | `uncertain` command 对账周期和最终未知上限 |

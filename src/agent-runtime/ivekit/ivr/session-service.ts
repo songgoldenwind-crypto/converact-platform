@@ -179,7 +179,9 @@ export class IvrSessionService {
     const workerId = identifier(input.worker_id);
     return this.#unitOfWork.run(tenantId, async (context) => {
       const action = required(await context.actions.get(tenantId, actionId, { for_update: true }));
-      if (action.dispatch_mode !== 'worker' || action.state !== 'processing' || action.worker_id !== workerId) {
+      if (action.dispatch_mode !== 'worker'
+        || (action.state !== 'processing' && action.state !== 'uncertain')
+        || action.worker_id !== workerId) {
         throw new IvrError({ code: 'lease_lost', status: 409 });
       }
       const session = required(await context.sessions.get(tenantId, action.session_id, { for_update: true }));

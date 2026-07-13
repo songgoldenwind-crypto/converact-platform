@@ -9,6 +9,7 @@ const url = new URL('http://localhost/api/ivekit/ivr/provider-webhooks/rustpbx/p
 
 test('IVR Step HTTP authenticates profile before passing trusted tenant context to the service', async () => {
   const calls: unknown[] = [];
+  const published: string[] = [];
   const result = await routeIveKitIvrApi(
     pg, 'POST', url.pathname, url,
     { profile_id: 'profile-a', provider_session_id: 'provider-a' },
@@ -29,17 +30,27 @@ test('IVR Step HTTP authenticates profile before passing trusted tenant context 
           return {
             action_node: { type: 'prompt', tts_text: 'Welcome' },
             session_id: 'session-a', session_state: 'waiting', replayed: false,
-            event_sequence: 1, action_revision: 1
+            event_sequence: 1, action_revision: 1,
+            events: [{
+              tenant_id: 'trusted-tenant', type: 'ivr.session.waiting' as const,
+              data: { ivr_session_id: 'session-a' }
+            }]
           };
         }
-      }
+      },
+      event_store: { append: async (event) => { calls.push(event); return {} as never; } },
+      publish: async (_tenantId, type) => { published.push(type); }
     }
-  ) as { data: unknown; headers: Record<string, string> };
+  ) as { data: unknown; headers: Record<string, string>; afterCommit: () => Promise<void> };
 
   assert.deepEqual(result.data, { type: 'prompt', tts_text: 'Welcome' });
   assert.equal(result.headers['x-ivekit-ivr-session-id'], 'session-a');
   assert.equal((calls[1] as { tenant_id: string }).tenant_id, 'trusted-tenant');
   assert.equal((calls[0] as { raw_body: string }).raw_body, '{"profile_id":"profile-a"}');
+  assert.deepEqual(published, []);
+  await result.afterCommit();
+  assert.deepEqual(published, ['ivr.session.waiting']);
+  assert.equal((calls[2] as { type: string }).type, 'ivr.session.waiting');
 });
 
 test('IVR Step HTTP rejects non-RustPBX profiles and leaves unrelated routes untouched', async () => {

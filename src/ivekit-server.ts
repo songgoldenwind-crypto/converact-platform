@@ -7,7 +7,7 @@ import {
 import { closePostgres, initPostgres } from './db-pg.js';
 import { PgSyncDatabase } from './db-pg-sync.js';
 import { validateEnvOrExit } from './env-config.js';
-import { initWebSocket, wsBroadcast } from './ws.js';
+import { initWebSocket } from './ws.js';
 
 validateEnvOrExit();
 
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   initWebSocket(server, iveKitEventReplayEnabled()
     ? { eventStore: new IveKitTenantEventStore(pg) }
     : {});
-  const application = startIveKitApplication({ pg, publish: wsBroadcast });
+  const application = startIveKitApplication({ pg });
   const port = Number(process.env.PORT || 3000);
   let shutdownPromise: Promise<void> | null = null;
 

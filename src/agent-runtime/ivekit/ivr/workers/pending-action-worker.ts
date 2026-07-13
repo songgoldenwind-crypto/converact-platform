@@ -1,4 +1,5 @@
 import { IvrError } from '../errors.js';
+import { observeIvrPendingAction } from '../metrics.js';
 import type {
   IvrPendingActionCompletionPort,
   IvrPendingActionExecutor,
@@ -62,6 +63,7 @@ export class IvrPendingActionWorker {
       claimed: claimed.length, succeeded: 0, retry_wait: 0, uncertain: 0, failed: 0
     };
     for (const action of claimed) {
+      const startedAt = performance.now();
       let output: Record<string, unknown>;
       try {
         output = await this.#executor.execute(action);
@@ -70,9 +72,11 @@ export class IvrPendingActionWorker {
         if (classified.uncertain) {
           await this.#release(action, 'uncertain', classified.code, this.#backoff(action.attempt_count));
           result.uncertain += 1;
+          observe(action.action_kind, 'uncertain', classified.code, startedAt);
         } else if (classified.retryable && action.attempt_count < action.max_attempts) {
           await this.#release(action, 'retry_wait', classified.code, this.#backoff(action.attempt_count));
           result.retry_wait += 1;
+          observe(action.action_kind, 'retry_wait', classified.code, startedAt);
         } else {
           if (this.#completion?.fail) {
             await this.#completion.fail({
@@ -82,6 +86,7 @@ export class IvrPendingActionWorker {
             await this.#release(action, 'failed', classified.code, null);
           }
           result.failed += 1;
+          observe(action.action_kind, 'failed', classified.code, startedAt);
         }
         continue;
       }
@@ -100,9 +105,11 @@ export class IvrPendingActionWorker {
           });
         }
         result.succeeded += 1;
+        observe(action.action_kind, 'succeeded', '', startedAt);
       } catch {
         await this.#release(action, 'uncertain', 'provider_result_unknown', this.#backoff(action.attempt_count));
         result.uncertain += 1;
+        observe(action.action_kind, 'uncertain', 'provider_result_unknown', startedAt);
       }
     }
     return result;
@@ -138,6 +145,19 @@ export class IvrPendingActionWorker {
       throw new IvrError({ code: 'internal_error', status: 500 });
     }
     return value.toISOString();
+  }
+}
+
+function observe(kind: string, result: string, errorCode: string, startedAt: number): void {
+  try {
+    observeIvrPendingAction({
+      kind,
+      result,
+      error_code: errorCode,
+      duration_seconds: Math.max(0, performance.now() - startedAt) / 1_000
+    });
+  } catch {
+    // Metrics must never change durable action state.
   }
 }
 

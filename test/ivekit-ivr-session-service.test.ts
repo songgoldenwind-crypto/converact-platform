@@ -151,6 +151,29 @@ test('IVR worker action completion atomically settles and resumes the session', 
   assert.equal(pollReplay.action?.kind, 'hangup');
 });
 
+test('IVR reconciliation can settle an uncertain leased action without replaying it', async () => {
+  const fixture = createFixture(workerGraph());
+  const started = await fixture.service.startSession({
+    tenant_id: 'tenant-a', call_id: 'call-a', flow_id: 'flow-a'
+  });
+  await fixture.service.advance({
+    tenant_id: 'tenant-a', session_id: started.session.id,
+    event_sequence: 1, action_revision: 1, event: { type: 'enter' }
+  });
+  const action = fixture.actions.items[0]!;
+  action.state = 'uncertain';
+  action.worker_id = 'reconcile-a';
+  action.reconciliation_count = 1;
+
+  const resumed = await fixture.service.completeWorkerAction({
+    tenant_id: 'tenant-a', action_id: action.id, worker_id: 'reconcile-a',
+    result: { provider_action_id: 'provider-a' }
+  });
+  assert.equal(resumed.action?.kind, 'hangup');
+  assert.equal(fixture.actions.items[0]?.state, 'succeeded');
+  assert.equal(resumed.session.state, 'waiting');
+});
+
 test('IVR session cancellation atomically closes its pending action and is exactly replayable', async () => {
   const fixture = createFixture();
   const started = await fixture.service.startSession({

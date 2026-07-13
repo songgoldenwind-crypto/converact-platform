@@ -33,6 +33,9 @@ test('RustPBX Step service binds, waits for a worker, polls, and exactly replays
     tenant_id: 'tenant-a', profile_id: 'profile-a', request: startRequest
   });
   assert.deepEqual(started.action_node, { type: 'wait', duration_ms: 250, reason: 'ivekit_worker' });
+  assert.deepEqual(started.events?.map((event) => event.type), [
+    'ivr.session.started', 'ivr.session.step_completed', 'ivr.session.waiting'
+  ]);
   assert.equal(bindingCalls, 1);
   assert.deepEqual(fixture.steps.items.map((item) => item.node_id), ['start']);
 
@@ -40,6 +43,7 @@ test('RustPBX Step service binds, waits for a worker, polls, and exactly replays
     tenant_id: 'tenant-a', profile_id: 'profile-a', request: startRequest
   });
   assert.equal(startReplay.replayed, true);
+  assert.deepEqual(startReplay.events, []);
   assert.deepEqual(startReplay.action_node, started.action_node);
   assert.equal(bindingCalls, 1);
   assert.equal(fixture.steps.items.length, 1);
