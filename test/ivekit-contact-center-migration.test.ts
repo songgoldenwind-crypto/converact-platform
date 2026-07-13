@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migrationPath = 'src/migrations/052_ivekit_contact_center.sql';
+const idempotencyMigrationPath =
+  'src/migrations/053_ivekit_contact_center_configuration_idempotency.sql';
 const tables = [
   'ivekit_cc_skills',
   'ivekit_cc_agents',
@@ -63,6 +65,26 @@ test('Contact Center history is immutable and standalone manifests include migra
   for (const source of [sourcePolicy, delivery]) assert.match(source, /052_ivekit_contact_center\.sql/);
   assert.ok(sourcePolicy.indexOf('051_ivekit_ivr_resources.sql') < sourcePolicy.indexOf('052_ivekit_contact_center.sql'));
   assert.ok(sourcePolicy.indexOf('052_ivekit_contact_center.sql') < sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
+});
+
+test('Contact Center configuration idempotency upgrades after migration 052', () => {
+  const sql = readFileSync(idempotencyMigrationPath, 'utf8');
+  assert.deepEqual(createdTables(sql), ['ivekit_cc_configuration_idempotency']);
+  assertTenantRls(sql, 'ivekit_cc_configuration_idempotency');
+  const table = tableDefinition(sql, 'ivekit_cc_configuration_idempotency');
+  assert.match(table, /PRIMARY KEY \(tenant_id, idempotency_key\)/);
+  assert.match(table, /payload_hash TEXT NOT NULL CHECK \(char_length\(payload_hash\) = 64\)/);
+  assert.match(sql, /CREATE TRIGGER ivekit_cc_configuration_idempotency_immutable_delete[\s\S]*BEFORE DELETE ON ivekit_cc_configuration_idempotency/i);
+
+  const sourcePolicy = readFileSync('services/ivekit-service/source-policy.json', 'utf8');
+  const delivery = readFileSync('scripts/ivekit-delivery-bundle.ts', 'utf8');
+  for (const source of [sourcePolicy, delivery]) {
+    assert.match(source, /053_ivekit_contact_center_configuration_idempotency\.sql/);
+  }
+  assert.ok(sourcePolicy.indexOf('052_ivekit_contact_center.sql') <
+    sourcePolicy.indexOf('053_ivekit_contact_center_configuration_idempotency.sql'));
+  assert.ok(sourcePolicy.indexOf('053_ivekit_contact_center_configuration_idempotency.sql') <
+    sourcePolicy.indexOf('090_ivekit_runtime_security.sql'));
 });
 
 function createdTables(sql: string): string[] {

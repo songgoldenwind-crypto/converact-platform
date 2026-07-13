@@ -20,6 +20,8 @@ export { routeIveKitMediaApi } from './media-http.js';
 export { createIveKitHttpServer } from './http-server.js';
 export { routeIveKitIvrApi } from './ivr/http.js';
 export type * from './ivr/http.js';
+export { routeIveKitContactCenterApi } from './contact-center/http.js';
+export type * from './contact-center/http.js';
 export {
   iveKitIvrWorkerConfig,
   listIvrWorkerTenants,

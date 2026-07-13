@@ -23,7 +23,7 @@ const QUEUE_COLUMNS = `
   queue.max_wait_seconds, queue.max_size, queue.callback_after_seconds,
   queue.overflow_action, queue.overflow_queue_id, queue.overflow_target,
   queue.service_level_seconds, queue.status, queue.metadata, queue.revision,
-  queue.created_at, queue.updated_at`;
+  queue.created_by, queue.updated_by, queue.created_at, queue.updated_at`;
 
 const ENTRY_COLUMNS = `
   entry.id, entry.tenant_id, entry.queue_id, entry.call_id, entry.state,
@@ -418,7 +418,9 @@ function decodeQueue(row: ContactCenterPgRow): ContactCenterQueue {
     overflow_target: String(row.overflow_target || ''),
     service_level_seconds: ccNumber(row.service_level_seconds),
     status: row.status as ContactCenterQueue['status'], metadata: ccJsonRecord(row.metadata),
-    revision: ccNumber(row.revision), created_at: ccTimestamp(row.created_at), updated_at: ccTimestamp(row.updated_at)
+    revision: ccNumber(row.revision), created_by: String(row.created_by || ''),
+    updated_by: String(row.updated_by || ''), created_at: ccTimestamp(row.created_at),
+    updated_at: ccTimestamp(row.updated_at)
   };
 }
 

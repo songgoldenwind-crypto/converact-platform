@@ -154,11 +154,11 @@ export class ContactCenterQueueService {
     return this.#changeAssignment({ ...input, event: 'reject', reason: input.reason });
   }
 
-  connectAssignment(input: { tenant_id: string; assignment_id: string }): Promise<ContactCenterOfferResult> {
+  connectAssignment(input: { tenant_id: string; assignment_id: string; agent_id?: string }): Promise<ContactCenterOfferResult> {
     return this.#changeAssignment({ ...input, event: 'connect' });
   }
 
-  completeAssignment(input: { tenant_id: string; assignment_id: string }): Promise<ContactCenterOfferResult> {
+  completeAssignment(input: { tenant_id: string; assignment_id: string; agent_id?: string }): Promise<ContactCenterOfferResult> {
     return this.#changeAssignment({ ...input, event: 'complete' });
   }
 

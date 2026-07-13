@@ -49,6 +49,18 @@ export interface ContactCenterSkillRequirement {
   minimum_proficiency: number;
 }
 
+export interface ContactCenterListInput {
+  tenant_id: string;
+  limit?: number;
+  cursor?: string;
+  status?: string;
+}
+
+export interface ContactCenterPage<T> {
+  items: T[];
+  next_cursor: string | null;
+}
+
 export interface ContactCenterQueueEstimateInput {
   position: number;
   average_handle_seconds: number;
@@ -70,8 +82,74 @@ export interface ContactCenterQueue {
   status: ContactCenterQueueStatus;
   metadata: Record<string, unknown>;
   revision: number;
+  created_by: string;
+  updated_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ContactCenterSkill {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string;
+  status: ContactCenterAgentStatus;
+  revision: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactCenterAgent {
+  id: string;
+  tenant_id: string;
+  identity: string;
+  display_name: string;
+  voice_extension_id: string | null;
+  status: ContactCenterAgentStatus;
+  voice_capacity: number;
+  metadata: Record<string, unknown>;
+  revision: number;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactCenterAgentSkill {
+  skill_id: string;
+  proficiency: number;
+}
+
+export interface ContactCenterQueueMembership {
+  queue_id: string;
+  agent_id: string;
+  priority: number;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactCenterAgentSnapshot {
+  agent: ContactCenterAgent;
+  presence: ContactCenterAgentPresence;
+  skills: ContactCenterAgentSkill[];
+}
+
+export interface ContactCenterQueueConfiguration {
+  queue: ContactCenterQueue;
+  memberships: ContactCenterQueueMembership[];
+  skill_requirements: ContactCenterSkillRequirement[];
+}
+
+export interface ContactCenterConfigurationIdempotencyRecord {
+  tenant_id: string;
+  idempotency_key: string;
+  resource_type: 'skill' | 'agent' | 'queue';
+  payload_hash: string;
+  resource_id: string;
+  created_at: string;
 }
 
 export interface ContactCenterAgentPresence {

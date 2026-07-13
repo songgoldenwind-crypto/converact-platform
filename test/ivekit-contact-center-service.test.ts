@@ -200,6 +200,7 @@ class MemoryContactCenterRepository implements ContactCenterRepository {
       max_wait_seconds: 300, max_size: maxSize, callback_after_seconds: 120,
       overflow_action: 'none', overflow_queue_id: null, overflow_target: '', service_level_seconds: 20,
       status: 'active', metadata: {}, revision: 1,
+      created_by: 'admin-a', updated_by: 'admin-a',
       created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
     };
     for (const agentId of ['agent-a', 'agent-b']) {

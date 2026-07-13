@@ -10,6 +10,7 @@ import { listenOnRandomPort } from './test-helpers.js';
 test('standalone iveKit server exposes only approved routes', async (t) => {
   const calls: string[] = [];
   const intelligenceCalls: string[] = [];
+  const contactCenterCalls: string[] = [];
   const collaborationCalls: string[] = [];
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({
@@ -29,6 +30,12 @@ test('standalone iveKit server exposes only approved routes', async (t) => {
           : undefined;
       },
       chat: async () => undefined,
+      contactCenter: async (_pg, _method, path) => {
+        contactCenterCalls.push(path);
+        return path === '/api/ivekit/contact-center/capabilities'
+          ? { data: { contact_center: true } }
+          : undefined;
+      },
       collaboration: async (_pg, _method, path) => {
         collaborationCalls.push(path);
         return path === '/api/ivekit/context/by-ref'
@@ -60,18 +67,25 @@ test('standalone iveKit server exposes only approved routes', async (t) => {
   assert.equal(intelligence.status, 200);
   assert.deepEqual(await intelligence.json(), { intelligence: true });
 
+  const contactCenter = await fetch(`${baseUrl}/api/ivekit/contact-center/capabilities`);
+  assert.equal(contactCenter.status, 200);
+  assert.deepEqual(await contactCenter.json(), { contact_center: true });
+
   const unrelated = await fetch(`${baseUrl}/api/call-center/dashboard`);
   assert.equal(unrelated.status, 404);
   assert.deepEqual(calls, [
     '/api/ivekit/media/capabilities',
     '/api/ivekit/context/by-ref',
-    '/api/ivekit/intelligence/capabilities'
+    '/api/ivekit/intelligence/capabilities',
+    '/api/ivekit/contact-center/capabilities'
   ]);
   assert.deepEqual(collaborationCalls, ['/api/ivekit/context/by-ref']);
   assert.deepEqual(intelligenceCalls, [
     '/api/ivekit/context/by-ref',
-    '/api/ivekit/intelligence/capabilities'
+    '/api/ivekit/intelligence/capabilities',
+    '/api/ivekit/contact-center/capabilities'
   ]);
+  assert.deepEqual(contactCenterCalls, ['/api/ivekit/contact-center/capabilities']);
 });
 
 test('standalone iveKit server exposes Prometheus metrics', async (t) => {

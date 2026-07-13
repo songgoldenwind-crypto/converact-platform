@@ -145,9 +145,12 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/voice/index.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/ivr/index.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/index.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/configuration-service.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/http.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/ivr-queue-port.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/queue-service.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/store.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/configuration-store.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/unit-of-work.ts'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-controlled-voice-provider.ts'), true);
     assert.equal(files.includes('docs/ivekit-voice-foundation-v1-design.md'), true);
@@ -168,13 +171,14 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       '049_ivekit_voice_route_deployment.sql',
       '050_ivekit_ivr_runtime.sql',
       '051_ivekit_ivr_resources.sql',
-      '052_ivekit_contact_center.sql'
+      '052_ivekit_contact_center.sql',
+      '053_ivekit_contact_center_configuration_idempotency.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 42);
+    assert.equal(migrationManifest.migrations.length, 43);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -187,6 +191,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '050_ivekit_ivr_runtime.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '051_ivekit_ivr_resources.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '052_ivekit_contact_center.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '053_ivekit_contact_center_configuration_idempotency.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),

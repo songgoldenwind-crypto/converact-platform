@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、原子排队分配服务与 IVR queue adapter，受控 PostgreSQL/RustPBX 协议验收通过；Contact Center 配置/API/worker/SDK/UI、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配服务与 IVR queue adapter，受控 PostgreSQL/RustPBX 协议验收通过；Contact Center worker/callback/supervisor/SDK/UI、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -21,7 +21,7 @@
 | IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
 | Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
 | React Voice 控制工作台 | 已实现控制面 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、呼入/外呼、状态门禁控制、DTMF、转接、会议、Park/Pickup、录音、LiveKit bridge 和分机 session readiness；不渲染 session credential |
-| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052_ivekit_contact_center.sql`、tenant-scoped PostgreSQL store、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；配置服务、公开 API、worker、callback/supervisor、SDK 与 Queue Monitor 尚未完成 |
+| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052_ivekit_contact_center.sql`、tenant-scoped PostgreSQL store、Agent/Skill/Presence/Queue/Membership 配置 API、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；queue maintenance worker、callback/supervisor、SDK 与 Queue Monitor 尚未完成 |
 | 浏览器 SIP/WebRTC 媒体接入 | 未实现 | 属于 M5；不得从已有 OPC call-center 页面、控制工作台或 headless controller 推断真实软电话媒体已交付 |
 
 当前新增迁移为：
@@ -30,6 +30,10 @@
 - `047_ivekit_ivr_foundation.sql`：IVR foundation 表和边界占位，不等于完整 IVR Runtime。
 - `048_ivekit_voice_operations.sql`：configuration command、worker claim/lease、route operation 等运行闭环。
 - `049_ivekit_voice_route_deployment.sql`：已发布 route payload 不可变，单独允许 deployment state/provider revision 单向收敛。
+- `050_ivekit_ivr_runtime.sql`：IVR durable session、step、pending action、lease 和恢复状态。
+- `051_ivekit_ivr_resources.sql`：IVR 音频、时段、区域、振铃组和 runtime settings 权威表。
+- `052_ivekit_contact_center.sql`：Contact Center Agent、Presence、Skill、Queue、Assignment、Callback 与 Supervisor 权威表。
+- `053_ivekit_contact_center_configuration_idempotency.sql`：可升级的配置创建幂等账本；不回写已经发布的 052。
 
 受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 RTP/录音、真实 LiveKit SIP 和软电话浏览器均保持 `not_run`。
 
@@ -630,17 +634,30 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 
 ### 12.3 Contact Center
 
-以下全部属于 M4 目标，当前 standalone iveKit 未注册这些路径：
+以下路径已在 standalone iveKit 注册；tenant 仅取自认证上下文，配置写操作要求 admin，Presence 要求坐席本人或 admin，分配动作按认证 identity 反查 agent：
 
-- `GET` / `POST` `/api/ivekit/contact-center/agents`
-- `GET` / `PATCH` `/api/ivekit/contact-center/agents/:id`
-- `POST /api/ivekit/contact-center/agents/:id/presence`
-- `GET` / `POST` `/api/ivekit/contact-center/skills`
-- `GET` / `POST` `/api/ivekit/contact-center/queues`
-- `GET` / `PATCH` `/api/ivekit/contact-center/queues/:id`
-- `GET` / `POST` `/api/ivekit/contact-center/queues/:id/memberships`
+| Method | Path | 用途 |
+| --- | --- | --- |
+| `GET` | `/api/ivekit/contact-center/capabilities` | 返回已实现与待实现能力真值 |
+| `GET` / `POST` | `/api/ivekit/contact-center/skills` | 分页查询或创建技能 |
+| `GET` / `PATCH` | `/api/ivekit/contact-center/skills/:id` | 查询或按 revision 更新技能 |
+| `GET` / `POST` | `/api/ivekit/contact-center/agents` | 分页查询或创建坐席与初始离线 Presence |
+| `GET` / `PATCH` | `/api/ivekit/contact-center/agents/:id` | 查询坐席快照或按 revision 更新坐席 |
+| `POST` | `/api/ivekit/contact-center/agents/:id/presence` | 上线、离开或下线；活动工作期间禁止降容/下线 |
+| `GET` / `PUT` | `/api/ivekit/contact-center/agents/:id/skills` | 查询或整体替换坐席技能熟练度 |
+| `GET` / `POST` | `/api/ivekit/contact-center/queues` | 分页查询或创建队列 |
+| `GET` / `PATCH` | `/api/ivekit/contact-center/queues/:id` | 查询队列完整配置或按 revision 更新 |
+| `GET` / `POST` | `/api/ivekit/contact-center/queues/:id/memberships` | 查询或 upsert 队列成员 |
+| `DELETE` | `/api/ivekit/contact-center/queues/:id/memberships/:agentId` | 移除队列成员 |
+| `GET` / `PUT` | `/api/ivekit/contact-center/queues/:id/skill-requirements` | 查询或整体替换技能门槛 |
+| `POST` | `/api/ivekit/contact-center/routing/assignments` | 使用 Idempotency-Key 原子创建下一次 Offer |
+| `POST` | `/api/ivekit/contact-center/assignments/:id/{accept,reject,connect,complete}` | 推进受 agent 绑定的分配状态 |
+
+Skill、Agent、Queue 创建和 routing assignment 创建均要求 `Idempotency-Key`。前三类创建通过 `053_ivekit_contact_center_configuration_idempotency.sql` 的不可变 tenant 账本与 advisory transaction lock 保证同 key 同 payload 重放、同 key 不同 payload 返回 `409 idempotency_conflict`。
+
+以下路径仍是 M4 待实现目标，capabilities 对 callback/supervisor 明确返回 `false`：
+
 - `GET /api/ivekit/contact-center/queues/:id/entries`
-- `POST /api/ivekit/contact-center/routing/assignments`
 - `GET` / `POST` `/api/ivekit/contact-center/callbacks`
 - `POST /api/ivekit/contact-center/supervisor/actions`
 
@@ -850,7 +867,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M4：Contact Center Kit
 
-状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；配置服务、公开 API、worker、callback/supervisor runtime、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
+状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、Agent/Skill/Presence/Queue/Membership 配置服务与公开 API、原子 enqueue/offer/accept/reject/connect/complete/expire 服务和 IVR queue adapter 已实现；queue maintenance/offer worker、callback/supervisor runtime、SDK 和 Queue Monitor 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
 
 - presence、skill、queue、ACD、callback 和 supervisor。
 - IVR queue port 接入，不引入 OPC 业务依赖。

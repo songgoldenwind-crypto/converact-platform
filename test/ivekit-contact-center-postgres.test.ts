@@ -3,8 +3,14 @@ import test from 'node:test';
 import type { QueryResult, QueryResultRow } from 'pg';
 
 import {
+  ContactCenterError,
+  PostgresContactCenterConfigurationStore,
+  PostgresContactCenterConfigurationUnitOfWork,
   PostgresContactCenterRepository,
-  PostgresContactCenterUnitOfWork
+  PostgresContactCenterUnitOfWork,
+  type ContactCenterAgent,
+  type ContactCenterAgentPresence,
+  type ContactCenterQueue
 } from '../src/agent-runtime/ivekit/contact-center/index.js';
 import type { PgQueryable } from '../src/db-pg.js';
 
@@ -62,6 +68,89 @@ test('Contact Center unit of work exposes one transaction-scoped repository', as
   assert.ok(pg.queries.some((query) => query.sql.includes("set_config('app.current_tenant'")));
 });
 
+test('Contact Center configuration store creates agent and presence atomically', async () => {
+  const pg = new ScriptedPg((sql) => sql.includes('INSERT INTO ivekit_cc_agents') ? [agentRow()] : []);
+  const store = new PostgresContactCenterConfigurationStore(pg);
+  const created = await store.insertAgent(agentEntity(), presenceEntity());
+  assert.equal(created.identity, 'agent-a');
+  const agentInsert = pg.queries.find((query) => query.sql.includes('INSERT INTO ivekit_cc_agents'))!;
+  const presenceInsert = pg.queries.find((query) => query.sql.includes('INSERT INTO ivekit_cc_agent_presence'))!;
+  assert.equal(agentInsert.params[1], 'tenant-a');
+  assert.deepEqual(presenceInsert.params.slice(0, 3), ['tenant-a', 'agent-a', 'offline']);
+});
+
+test('Contact Center configuration serializes and persists idempotency receipts', async () => {
+  const receipt = {
+    tenant_id: 'tenant-a', idempotency_key: 'create-agent-a', resource_type: 'agent',
+    payload_hash: 'a'.repeat(64), resource_id: 'agent-a',
+    created_at: '2026-07-13T00:00:00.000Z'
+  } as const;
+  const pg = new ScriptedPg((sql) => {
+    if (sql.includes('INSERT INTO ivekit_cc_configuration_idempotency')) return [receipt];
+    if (sql.includes('FROM ivekit_cc_configuration_idempotency')) return [receipt];
+    return [];
+  });
+  const store = new PostgresContactCenterConfigurationStore(pg);
+  await store.lockIdempotencyKey('tenant-a', receipt.idempotency_key);
+  assert.deepEqual(await store.insertIdempotencyRecord(receipt), receipt);
+  assert.deepEqual(await store.findIdempotencyRecord('tenant-a', receipt.idempotency_key), receipt);
+  const lock = pg.queries.find((query) => query.sql.includes('pg_advisory_xact_lock'))!;
+  assert.equal(lock.params[0], 'ivekit:cc:configuration:tenant-a:create-agent-a');
+});
+
+test('Contact Center configuration cursors are bound to tenant resource and filter', async () => {
+  const rows = [skillRow('skill-c'), skillRow('skill-b'), skillRow('skill-a')];
+  const pg = new ScriptedPg((sql) => sql.includes('FROM ivekit_cc_skills skill') ? rows : []);
+  const store = new PostgresContactCenterConfigurationStore(pg);
+  const first = await store.listSkills({ tenant_id: 'tenant-a', status: 'active', limit: 2 });
+  assert.deepEqual(first.items.map((item) => item.id), ['skill-c', 'skill-b']);
+  assert.ok(first.next_cursor);
+  await store.listSkills({
+    tenant_id: 'tenant-a', status: 'active', limit: 2, cursor: first.next_cursor!
+  });
+  const listQueries = pg.queries.filter((query) => query.sql.includes('FROM ivekit_cc_skills skill'));
+  assert.equal(listQueries[1]!.params[1], 'active');
+  assert.equal(listQueries[1]!.params[3], 'skill-b');
+  await assert.rejects(
+    () => store.listSkills({
+      tenant_id: 'tenant-a', status: 'disabled', limit: 2, cursor: first.next_cursor!
+    }),
+    (error: unknown) => error instanceof ContactCenterError && error.status === 400
+  );
+});
+
+test('Contact Center configuration replaces skill sets with structured PostgreSQL input', async () => {
+  const pg = new ScriptedPg(() => []);
+  const store = new PostgresContactCenterConfigurationStore(pg);
+  await store.replaceAgentSkills('tenant-a', 'agent-a', [
+    { skill_id: 'sales', proficiency: 90 }
+  ], '2026-07-13T00:00:00.000Z');
+  const insert = pg.queries.find((query) => query.sql.includes('jsonb_to_recordset'))!;
+  assert.match(insert.sql, /AS input\(skill_id text, proficiency integer\)/);
+  assert.equal(insert.params[0], 'tenant-a');
+  assert.equal(insert.params[1], 'agent-a');
+  assert.equal(insert.params[2], '[{"skill_id":"sales","proficiency":90}]');
+});
+
+test('Contact Center configuration updates queues with revision compare-and-swap', async () => {
+  const pg = new ScriptedPg((sql) => sql.includes('UPDATE ivekit_cc_queues') ? [queueRow()] : []);
+  const queue = queueEntity();
+  const updated = await new PostgresContactCenterConfigurationStore(pg).updateQueue(queue, 4);
+  assert.equal(updated.id, 'queue-a');
+  const query = pg.queries.find((value) => value.sql.includes('UPDATE ivekit_cc_queues'))!;
+  assert.match(query.sql, /revision = revision \+ 1/);
+  assert.equal(query.params.at(-1), 4);
+});
+
+test('Contact Center configuration unit of work exposes the tenant-scoped store', async () => {
+  const pg = new ScriptedPg(() => []);
+  const result = await new PostgresContactCenterConfigurationUnitOfWork(pg).run(
+    'tenant-a', async (repository) => repository instanceof PostgresContactCenterConfigurationStore
+  );
+  assert.equal(result, true);
+  assert.ok(pg.queries.some((query) => query.sql.includes("set_config('app.current_tenant'")));
+});
+
 class ScriptedPg implements PgQueryable {
   readonly queries: Array<{ sql: string; params: unknown[] }> = [];
   constructor(private readonly rows: (sql: string, params: unknown[]) => Record<string, unknown>[]) {}
@@ -79,6 +168,7 @@ function queueRow(): Record<string, unknown> {
     max_wait_seconds: 300, max_size: 100, callback_after_seconds: 120,
     overflow_action: 'none', overflow_queue_id: null, overflow_target: '', service_level_seconds: 20,
     status: 'active', metadata: { channel: 'voice' }, revision: 1,
+    created_by: 'admin-a', updated_by: 'admin-a',
     created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
   };
 }
@@ -100,6 +190,46 @@ function assignmentRow(): Record<string, unknown> {
     capacity_slot: 1, state: 'offered', attempt: 1, idempotency_key: 'offer-key',
     offer_expires_at: '2026-07-13T00:00:20.000Z', accepted_at: null, connected_at: null,
     completed_at: null, outcome_reason: '', revision: 1,
+    created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function skillRow(id: string): Record<string, unknown> {
+  return {
+    id, tenant_id: 'tenant-a', name: id, description: '', status: 'active', revision: 1,
+    created_by: 'admin-a', updated_by: 'admin-a',
+    created_at: `2026-07-13T00:00:0${id.endsWith('a') ? 1 : id.endsWith('b') ? 2 : 3}.000Z`,
+    updated_at: '2026-07-13T00:00:03.000Z'
+  };
+}
+
+function agentRow(): Record<string, unknown> {
+  return { ...agentEntity() };
+}
+
+function agentEntity(): ContactCenterAgent {
+  return {
+    id: 'agent-a', tenant_id: 'tenant-a', identity: 'agent-a', display_name: 'Agent A',
+    voice_extension_id: null, status: 'active', voice_capacity: 1, metadata: {}, revision: 1,
+    created_by: 'admin-a', updated_by: 'admin-a',
+    created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function presenceEntity(): ContactCenterAgentPresence {
+  return {
+    tenant_id: 'tenant-a', agent_id: 'agent-a', state: 'offline', active_voice_count: 0,
+    voice_capacity: 1, current_call_id: null, idle_since: null, heartbeat_at: null,
+    session_ref: '', revision: 1, updated_at: '2026-07-13T00:00:00.000Z'
+  };
+}
+
+function queueEntity(): ContactCenterQueue {
+  return {
+    id: 'queue-a', tenant_id: 'tenant-a', name: 'Support', routing_strategy: 'longest_idle',
+    max_wait_seconds: 300, max_size: 100, callback_after_seconds: 120,
+    overflow_action: 'none', overflow_queue_id: null, overflow_target: '', service_level_seconds: 20,
+    status: 'active', metadata: {}, revision: 5, created_by: 'admin-a', updated_by: 'admin-a',
     created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z'
   };
 }
