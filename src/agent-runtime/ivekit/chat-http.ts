@@ -203,14 +203,18 @@ export async function routeIveKitChatApi(
       if (history && !['system', 'owner', 'admin'].includes(ctx.role)) {
         throw Object.assign(new Error('translation history requires admin role'), { status: 403 });
       }
-      return { data: await service.listTranslations({
+      const translations = await service.listTranslations({
         tenant_id: ctx.tenantId,
         session_id: sessionId,
         source_type: sourceType,
         source_ref_id: sourceRefId,
         target_language: url.searchParams.get('target_language') || undefined,
         history
-      }) };
+      });
+      return { data: {
+        items: translations.items,
+        jobs: translations.jobs.map(projectTranslationJob)
+      } };
     }
     const idempotencyKey = headerValue(headers, 'idempotency-key').trim();
     if (!idempotencyKey) throw Object.assign(new Error('Idempotency-Key is required'), { status: 400 });

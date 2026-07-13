@@ -265,7 +265,7 @@ export class TranslationService {
     source_ref_id: string;
     target_language?: string;
     history?: boolean;
-  }): Promise<{ items: CollaborationTranslationResult[] }> {
+  }): Promise<{ items: CollaborationTranslationResult[]; jobs: CollaborationTranslationJob[] }> {
     return withPgTenant(this.input.pg, input.tenant_id, async (pg) => {
       let source: TranslationSource;
       try {
@@ -277,7 +277,7 @@ export class TranslationService {
           source_language: 'auto'
         });
       } catch (error) {
-        if (errorStatus(error) === 404 || errorCode(error) === 'source_deleted') return { items: [] };
+        if (errorStatus(error) === 404 || errorCode(error) === 'source_deleted') return { items: [], jobs: [] };
         throw error;
       }
       const target = input.target_language ? language(input.target_language, false, 'target_language') : '';
@@ -289,7 +289,15 @@ export class TranslationService {
          ORDER BY created_at DESC, id DESC LIMIT 500`,
         [input.tenant_id, input.source_type, input.source_ref_id, target, input.history === true, source.hash]
       );
-      return { items: result.rows.map(decodeResult) };
+      const jobs = await pg.query(
+        `SELECT * FROM collaboration_translation_jobs
+         WHERE tenant_id = $1 AND source_type = $2 AND source_ref_id = $3
+           AND ($4 = '' OR target_language = $4)
+           AND ($5 = TRUE OR source_hash = $6)
+         ORDER BY created_at DESC, id DESC LIMIT 500`,
+        [input.tenant_id, input.source_type, input.source_ref_id, target, input.history === true, source.hash]
+      );
+      return { items: result.rows.map(decodeResult), jobs: jobs.rows.map(decodeJob) };
     });
   }
 

@@ -1897,7 +1897,8 @@ export class MemoryPg implements PgQueryable {
       return row ? [row] : [];
     }
 
-    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE tenant_id') && sql.includes('source_type = $2')) {
+    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE tenant_id') &&
+      sql.includes('source_type = $2') && !sql.includes("($4 = ''")) {
       const row = [...this.table('collaboration_translation_jobs').values()].find((candidate) =>
         String(candidate.tenant_id) === String(params[0]) && String(candidate.source_type) === String(params[1]) &&
         String(candidate.source_ref_id) === String(params[2]) && String(candidate.target_language) === String(params[3]) &&
@@ -1931,6 +1932,17 @@ export class MemoryPg implements PgQueryable {
           (!row.next_attempt_at || String(row.next_attempt_at) <= now)))
         .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
         .slice(0, Number(params[2]));
+    }
+
+    if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE tenant_id') && sql.includes("($4 = ''")) {
+      const history = params[4] === true;
+      return [...this.table('collaboration_translation_jobs').values()]
+        .filter((row) => String(row.tenant_id) === String(params[0]))
+        .filter((row) => String(row.source_type) === String(params[1]) && String(row.source_ref_id) === String(params[2]))
+        .filter((row) => !String(params[3] || '') || String(row.target_language) === String(params[3]))
+        .filter((row) => history || String(row.source_hash) === String(params[5]))
+        .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(b.id).localeCompare(String(a.id)))
+        .slice(0, 500);
     }
 
     if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE attempt_count')) {

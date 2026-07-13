@@ -149,4 +149,5 @@ export interface IveKitTranslationRequestResult {
 
 export interface IveKitTranslationListResult {
   items: IveKitTranslationResult[];
+  jobs: IveKitTranslationJob[];
 }

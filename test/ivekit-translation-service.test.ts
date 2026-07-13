@@ -316,7 +316,7 @@ test('deleted messages cancel unfinished jobs and hide completed translations', 
     source_type: 'message',
     source_ref_id: source.messageId,
     history: true
-  }), { items: [] });
+  }), { items: [], jobs: [] });
 });
 
 test('message edits create a new source version while preserving authorized history', async () => {
