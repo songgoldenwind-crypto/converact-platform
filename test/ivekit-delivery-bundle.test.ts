@@ -129,17 +129,27 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.match(sums, /  manifest\.json$/m);
     assert.doesNotMatch(sums, /  SHA256SUMS$/m);
     assert.deepEqual(validateIveKitDeliveryBundle(outputDir), result.manifest);
-    assert.equal(files.some((file) => /call-center|ivr/i.test(file)), false);
+    assert.equal(
+      files.some((file) => [
+        'service/build-context/src/agent-runtime/call-center/',
+        'service/build-context/src/agent-runtime/ivr/'
+      ].some((prefix) => file.startsWith(prefix))),
+      false
+    );
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/voice/index.ts'), true);
+    assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/ivr/index.ts'), true);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 35);
+    assert.equal(migrationManifest.migrations.length, 37);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '044_quality_review_policy_routing.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '045_translation_worker_routing.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '046_ivekit_voice_foundation.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '047_ivekit_ivr_foundation.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),
