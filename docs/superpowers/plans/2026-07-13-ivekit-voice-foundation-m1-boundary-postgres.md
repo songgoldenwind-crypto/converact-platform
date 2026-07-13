@@ -17,7 +17,8 @@
 - `src/agent-runtime/ivekit/voice/types.ts`: stable Voice Core domain types with no provider or persistence imports.
 - `src/agent-runtime/ivekit/voice/ports.ts`: repository, provider, clock, encryption, event, compliance, and media bridge ports.
 - `src/agent-runtime/ivekit/voice/index.ts`: public Voice M1 exports.
-- `src/agent-runtime/ivekit/ivr/types.ts`: standalone IVR flow/session/action types based on `shared/ivr/graph-types.ts`.
+- `src/agent-runtime/ivekit/ivr/graph-types.ts`: canonical provider-neutral IVR graph contract.
+- `src/agent-runtime/ivekit/ivr/types.ts`: standalone IVR flow/session/action types based on the canonical graph contract.
 - `src/agent-runtime/ivekit/ivr/ports.ts`: IVR repository and side-effect ports.
 - `src/agent-runtime/ivekit/ivr/index.ts`: public IVR M1 exports.
 - `src/migrations/046_ivekit_voice_foundation.sql`: Voice Core authority tables, indexes, constraints, and FORCE RLS.
@@ -49,7 +50,7 @@
 **Files:**
 - Create: `test/ivekit-voice-foundation-boundary.test.ts`
 
-- [ ] **Step 1: Write the failing boundary test**
+- [x] **Step 1: Write the failing boundary test**
 
 ```typescript
 import assert from 'node:assert/strict';
@@ -79,7 +80,7 @@ test('Voice Foundation source graph owns new modules and excludes OPC legacy run
     'src/agent-runtime/ivekit/ivr/types.ts',
     'src/agent-runtime/ivekit/ivr/ports.ts',
     'src/agent-runtime/ivekit/ivr/index.ts',
-    'shared/ivr/graph-types.ts'
+    'src/agent-runtime/ivekit/ivr/graph-types.ts'
   ]) assert.equal(graph.files.includes(required), true, required);
 
   for (const forbidden of [
@@ -116,7 +117,7 @@ test('Voice Foundation public files do not import forbidden runtime modules', ()
 });
 ```
 
-- [ ] **Step 2: Run the test and verify it fails for missing modules**
+- [x] **Step 2: Run the test and verify it fails for missing modules**
 
 Run:
 
@@ -126,7 +127,7 @@ node --import tsx --test test/ivekit-voice-foundation-boundary.test.ts
 
 Expected: FAIL because the six new source files and policy entrypoints do not exist.
 
-- [ ] **Step 3: Commit the red test only**
+- [x] **Step 3: Commit the red test only**
 
 ```bash
 git add test/ivekit-voice-foundation-boundary.test.ts
@@ -145,7 +146,7 @@ git commit -m "test(ivekit): define voice foundation boundary"
 - Create: `src/agent-runtime/ivekit/ivr/ports.ts`
 - Create: `src/agent-runtime/ivekit/ivr/index.ts`
 
-- [ ] **Step 1: Define Voice Core types**
+- [x] **Step 1: Define Voice Core types**
 
 `voice/types.ts` must export these exact unions and records:
 
@@ -216,7 +217,7 @@ export interface VoiceCallCommand {
 }
 ```
 
-- [ ] **Step 2: Define Voice ports**
+- [x] **Step 2: Define Voice ports**
 
 `voice/ports.ts` must use only `voice/types.ts` and define:
 
@@ -265,15 +266,15 @@ export interface VoiceEventPort {
 }
 ```
 
-- [ ] **Step 3: Define IVR types without importing the legacy executor**
+- [x] **Step 3: Define IVR types without importing the legacy executor**
 
-`ivr/types.ts` imports only `shared/ivr/graph-types.ts` and exports:
+`ivr/types.ts` imports only the iveKit-owned `./graph-types.ts` and exports:
 
 ```typescript
 export type {
   GlobalShortcut, IvrEdge, IvrFlowGraph, IvrNodeBase, IvrNodeType, IvrVariable
-} from '../../../../shared/ivr/graph-types.js';
-import type { IvrFlowGraph } from '../../../../shared/ivr/graph-types.js';
+} from './graph-types.js';
+import type { IvrFlowGraph } from './graph-types.js';
 
 export type IvrSessionState = 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled';
 export type IvrPendingActionState =
@@ -315,7 +316,7 @@ export interface IvrAction {
 }
 ```
 
-- [ ] **Step 4: Define IVR ports**
+- [x] **Step 4: Define IVR ports**
 
 `ivr/ports.ts` must define repositories and side effects without concrete imports:
 
@@ -341,15 +342,15 @@ export interface IvrWebhookPort { request(input: { tenant_id: string; url_ref: s
 export interface IvrClock { now(): Date; }
 ```
 
-- [ ] **Step 5: Add public exports**
+- [x] **Step 5: Add public exports**
 
 Each `index.ts` exports `./types.js` and `./ports.js` only.
 
-- [ ] **Step 6: Keep the boundary test failing only on source policy**
+- [x] **Step 6: Keep the boundary test failing only on source policy**
 
 Run the Task 1 test. Expected: source files exist and import scan passes; graph-required assertions still fail because policy entrypoints have not been updated.
 
-- [ ] **Step 7: Commit the contracts**
+- [x] **Step 7: Commit the contracts**
 
 ```bash
 git add src/agent-runtime/ivekit/voice src/agent-runtime/ivekit/ivr
@@ -364,7 +365,7 @@ git commit -m "feat(ivekit): define standalone voice and ivr ports"
 - Create: `test/ivekit-voice-foundation-migration.test.ts`
 - Create: `src/migrations/046_ivekit_voice_foundation.sql`
 
-- [ ] **Step 1: Write a failing static migration test**
+- [x] **Step 1: Write a failing static migration test**
 
 The test reads migration `046` and asserts the exact table set below, `tenant_id` foreign keys, JSONB use, FORCE RLS, encrypted address fields, command leases, and absence of legacy fields:
 
@@ -391,7 +392,7 @@ const voiceTables = [
 
 For every table, assert `ALTER TABLE <name> ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, and a tenant policy. Assert no `lead_id`, `customer_id`, `campaign_id`, `workspace_id`, `sqlite`, `voice_call_sessions`, or `ivr_flows` tokens.
 
-- [ ] **Step 2: Run the test and verify missing migration failure**
+- [x] **Step 2: Run the test and verify missing migration failure**
 
 Run:
 
@@ -401,7 +402,7 @@ node --import tsx --test test/ivekit-voice-foundation-migration.test.ts
 
 Expected: FAIL with `ENOENT` for migration `046`.
 
-- [ ] **Step 3: Create migration 046**
+- [x] **Step 3: Create migration 046**
 
 Use PostgreSQL-native types and implement all sixteen tables. Required invariants:
 
@@ -418,11 +419,11 @@ Use PostgreSQL-native types and implement all sixteen tables. Required invariant
 - Apply ENABLE/FORCE RLS and `tenant_isolation` policy to all tables.
 - Add a `SECURITY INVOKER` trigger function and `BEFORE UPDATE OR DELETE` trigger that rejects mutation of `ivekit_voice_route_versions` with SQLSTATE `55000`.
 
-- [ ] **Step 4: Run static migration test**
+- [x] **Step 4: Run static migration test**
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit Voice DDL**
+- [x] **Step 5: Commit Voice DDL**
 
 ```bash
 git add test/ivekit-voice-foundation-migration.test.ts src/migrations/046_ivekit_voice_foundation.sql
@@ -437,7 +438,7 @@ git commit -m "feat(ivekit): add voice foundation postgres schema"
 - Modify: `test/ivekit-voice-foundation-migration.test.ts`
 - Create: `src/migrations/047_ivekit_ivr_foundation.sql`
 
-- [ ] **Step 1: Add a failing exact-table IVR migration test**
+- [x] **Step 1: Add a failing exact-table IVR migration test**
 
 Assert this exact table set:
 
@@ -458,11 +459,11 @@ const ivrTables = [
 
 Also assert JSONB graph/context/action columns, immutable version uniqueness, session revision, pending-action lease fields, object-storage refs, exact 25-node schema ownership through `shared/ivr`, FORCE RLS, and no legacy table/import tokens.
 
-- [ ] **Step 2: Run and observe missing 047 failure**
+- [x] **Step 2: Run and observe missing 047 failure**
 
 Run the migration test. Expected: Voice assertions pass and IVR migration read fails.
 
-- [ ] **Step 3: Create migration 047**
+- [x] **Step 3: Create migration 047**
 
 Required invariants:
 
@@ -475,11 +476,11 @@ Required invariants:
 - Apply exact tenant FKs, indexes, ENABLE/FORCE RLS, and tenant policies to all ten tables.
 - Add a `SECURITY INVOKER` trigger function and `BEFORE UPDATE OR DELETE` trigger that rejects mutation of `ivekit_ivr_flow_versions` with SQLSTATE `55000`.
 
-- [ ] **Step 4: Run migration test**
+- [x] **Step 4: Run migration test**
 
 Expected: PASS for both 046 and 047.
 
-- [ ] **Step 5: Commit IVR DDL**
+- [x] **Step 5: Commit IVR DDL**
 
 ```bash
 git add test/ivekit-voice-foundation-migration.test.ts src/migrations/047_ivekit_ivr_foundation.sql
@@ -495,7 +496,7 @@ git commit -m "feat(ivekit): add ivr foundation postgres schema"
 - Modify: `test/ivekit-standalone-source-graph.test.ts`
 - Modify: `test/ivekit-standalone-migrations.test.ts`
 
-- [ ] **Step 1: Update failing source-graph expectations**
+- [x] **Step 1: Update failing source-graph expectations**
 
 The policy entrypoint list must become:
 
@@ -512,11 +513,11 @@ The policy entrypoint list must become:
 
 Update source graph tests to expect these entrypoints and all six M1 public files, while retaining every existing forbidden-prefix assertion.
 
-- [ ] **Step 2: Update failing migration-order expectations**
+- [x] **Step 2: Update failing migration-order expectations**
 
 Assert `046_ivekit_voice_foundation.sql` and `047_ivekit_ivr_foundation.sql` occur in that order after `045_translation_worker_routing.sql` and before `090_ivekit_runtime_security.sql`. Keep explicit exclusions for `005_full_schema.sql`, `007_ivr_runtime_tables.sql`, `023_ivr_tenant_rls.sql`, and legacy runtime security migrations.
 
-- [ ] **Step 3: Run tests and observe policy failures**
+- [x] **Step 3: Run tests and observe policy failures**
 
 ```bash
 node --import tsx --test test/ivekit-voice-foundation-boundary.test.ts test/ivekit-standalone-source-graph.test.ts test/ivekit-standalone-migrations.test.ts
@@ -524,11 +525,11 @@ node --import tsx --test test/ivekit-voice-foundation-boundary.test.ts test/ivek
 
 Expected: FAIL until the policy is updated.
 
-- [ ] **Step 4: Update source policy**
+- [x] **Step 4: Update source policy**
 
 Add the two library entrypoints. Add migrations `046` and `047` immediately before standalone `090`. Do not relax any forbidden prefix.
 
-- [ ] **Step 5: Regenerate the standalone service lock only if package graph changed**
+- [x] **Step 5: Regenerate the standalone service lock only if package graph changed**
 
 Run:
 
@@ -538,7 +539,7 @@ node --import tsx scripts/generate-ivekit-service-lock.ts
 
 Expected: no dependency addition because M1 contracts import only repository-local types. If lock output changes for another reason, inspect and reject unrelated churn.
 
-- [ ] **Step 6: Run source graph, migration, and context tests**
+- [x] **Step 6: Run source graph, migration, and context tests**
 
 ```bash
 node --import tsx --test test/ivekit-voice-foundation-boundary.test.ts test/ivekit-voice-foundation-migration.test.ts test/ivekit-standalone-source-graph.test.ts test/ivekit-standalone-migrations.test.ts test/ivekit-standalone-build-context.test.ts
@@ -546,7 +547,7 @@ node --import tsx --test test/ivekit-voice-foundation-boundary.test.ts test/ivek
 
 Expected: PASS and standalone context contains the new source and SQL, no legacy Voice/IVR runtime.
 
-- [ ] **Step 7: Commit delivery graph changes**
+- [x] **Step 7: Commit delivery graph changes**
 
 ```bash
 git add services/ivekit-service/source-policy.json services/ivekit-service/package-lock.json test/ivekit-standalone-source-graph.test.ts test/ivekit-standalone-migrations.test.ts
@@ -561,15 +562,15 @@ git commit -m "build(ivekit): package voice foundation m1"
 - Create: `scripts/verify-ivekit-postgres.sh`
 - Modify: `test/ivekit-standalone-postgres.test.ts`
 
-- [ ] **Step 1: Extend fresh migration required-table assertions**
+- [x] **Step 1: Extend fresh migration required-table assertions**
 
 Add all 26 new Voice/IVR tables to required tables. Keep old `voice_call_sessions`, `ivr_flows`, `ivr_sessions`, `audio_library`, `leads`, and `campaigns` forbidden.
 
-- [ ] **Step 2: Add tenant-isolation fixtures**
+- [x] **Step 2: Add tenant-isolation fixtures**
 
 Insert two tenants through the admin role, then use `withPgTenant(runtime, tenantA, ...)` and `withPgTenant(runtime, tenantB, ...)` to create one deployment profile, call, IVR flow/version/session each. Assert each runtime transaction sees only its tenant rows and cannot insert a row with the other tenant id.
 
-- [ ] **Step 3: Add constraint and immutability probes**
+- [x] **Step 3: Add constraint and immutability probes**
 
 Inside tenant A transaction assert rejection for:
 
@@ -581,11 +582,11 @@ Inside tenant A transaction assert rejection for:
 - UPDATE and DELETE of a published route version;
 - UPDATE and DELETE of a published IVR flow version.
 
-- [ ] **Step 4: Extend upgrade checks with a V3-shaped migration directory**
+- [x] **Step 4: Extend upgrade checks with a V3-shaped migration directory**
 
 Create a temporary migration directory by copying `src/migrations/*.sql` except `046_ivekit_voice_foundation.sql` and `047_ivekit_ivr_foundation.sql`. Use it to initialize the upgrade database, seed OPC/Media/IM/Remote/Intelligence rows, then apply the standalone context containing 046/047. Assert all 26 tables are added, seeded row counts and content hashes stay unchanged, and a second standalone migration run leaves one ledger row per version.
 
-- [ ] **Step 5: Run controlled test without PostgreSQL URLs**
+- [x] **Step 5: Run controlled test without PostgreSQL URLs**
 
 ```bash
 node --import tsx --test test/ivekit-standalone-postgres.test.ts
@@ -593,7 +594,7 @@ node --import tsx --test test/ivekit-standalone-postgres.test.ts
 
 Expected locally: test file loads and PostgreSQL cases are explicitly SKIP when URLs are absent, with no failure.
 
-- [ ] **Step 6: Add and run a repository-owned PostgreSQL harness**
+- [x] **Step 6: Add and run a repository-owned PostgreSQL harness**
 
 Create `scripts/verify-ivekit-postgres.sh` from the proven V3 harness. It must use `mktemp`, choose an isolated port, initialize PostgreSQL as `opc_admin`, create fresh/upgrade databases, export the five `OPC_IVEKIT_*` URLs/password variables, run `test/ivekit-standalone-postgres.test.ts`, stop PostgreSQL in a trap, print the server log on failure, and remove only its marker-owned temporary directory.
 
@@ -605,7 +606,7 @@ sh scripts/verify-ivekit-postgres.sh
 
 Expected: fresh and upgrade cases PASS, RLS gap query returns `[]`, immutable triggers reject UPDATE/DELETE, runtime role remains `NOSUPERUSER/NOBYPASSRLS` with no schema CREATE and no migration-ledger access.
 
-- [ ] **Step 7: Commit PostgreSQL acceptance coverage**
+- [x] **Step 7: Commit PostgreSQL acceptance coverage**
 
 ```bash
 git add scripts/verify-ivekit-postgres.sh test/ivekit-standalone-postgres.test.ts
@@ -619,7 +620,7 @@ git commit -m "test(ivekit): verify voice ivr postgres isolation"
 **Files:**
 - Modify only files needed to fix failures introduced by Tasks 1-6.
 
-- [ ] **Step 1: Run focused M1 suite**
+- [x] **Step 1: Run focused M1 suite**
 
 ```bash
 node --import tsx --test test/ivekit-voice-foundation-boundary.test.ts test/ivekit-voice-foundation-migration.test.ts test/ivekit-standalone-source-graph.test.ts test/ivekit-standalone-migrations.test.ts test/ivekit-standalone-build-context.test.ts test/ivekit-standalone-http.test.ts
@@ -627,7 +628,7 @@ node --import tsx --test test/ivekit-voice-foundation-boundary.test.ts test/ivek
 
 Expected: all pass.
 
-- [ ] **Step 2: Run typecheck and standalone foundation verification**
+- [x] **Step 2: Run typecheck and standalone foundation verification**
 
 ```bash
 npm run typecheck
@@ -636,7 +637,7 @@ npm run verify:ivekit:foundation
 
 Expected: exit 0; SDK packaging remains unchanged.
 
-- [ ] **Step 3: Run full repository tests**
+- [x] **Step 3: Run full repository tests**
 
 ```bash
 npm test
@@ -644,7 +645,7 @@ npm test
 
 Expected: no new failure; environment-gated cases may remain explicitly skipped.
 
-- [ ] **Step 4: Build and verify standalone context**
+- [x] **Step 4: Build and verify standalone context**
 
 ```bash
 npm run ivekit:standalone:context
@@ -653,7 +654,7 @@ npm run verify:ivekit:standalone-context
 
 Expected: manifest includes both new entrypoints and migrations, source commit is full length, checksums verify, and no legacy IVR/call-center path exists.
 
-- [ ] **Step 5: Inspect final diff and commit any test-only fixes**
+- [x] **Step 5: Inspect final diff and commit any test-only fixes**
 
 ```bash
 git diff --check
