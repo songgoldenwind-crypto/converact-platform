@@ -65,7 +65,7 @@ async function main() {
   initWebSocket(server, iveKitEventReplayEnabled()
     ? { eventStore: new IveKitTenantEventStore(pg) }
     : {});
-  const iveKitApplication = startIveKitApplication({ pg, publish: wsBroadcast });
+  const iveKitApplication = startIveKitApplication({ pg });
 
   void connectNats().catch((error) => {
     console.warn('[nats] optional connect skipped:', error instanceof Error ? error.message : error);

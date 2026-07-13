@@ -216,6 +216,48 @@ export class TranslationService {
     });
   }
 
+  async retryJob(input: {
+    tenant_id: string;
+    session_id: string;
+    job_id: string;
+  }): Promise<CollaborationTranslationJob> {
+    return withPgTenant(this.input.pg, input.tenant_id, (scopedPg) =>
+      withPgTransaction(scopedPg, async (pg) => {
+        const result = await pg.query(
+          `SELECT * FROM collaboration_translation_jobs
+           WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+          [input.job_id, input.tenant_id]
+        );
+        if (!result.rows[0]) throw notFound('translation job not found');
+        const job = decodeJob(result.rows[0]);
+        if (job.session_id !== input.session_id) throw notFound('translation job not found');
+        if (job.status !== 'failed' || !retryableTranslationCode(job.error_code)) {
+          throw conflict('translation job is not retryable');
+        }
+        const current = await this.resolveSource(pg, {
+          tenant_id: job.tenant_id,
+          session_id: job.session_id,
+          source_type: job.source_type,
+          source_ref_id: job.source_ref_id,
+          source_language: job.source_language
+        });
+        if (current.hash !== job.source_hash) throw conflict('translation source has changed');
+        const now = this.now().toISOString();
+        const updated = await pg.query(
+          `UPDATE collaboration_translation_jobs
+           SET status = 'pending', attempt_count = 0, next_attempt_at = NULL,
+               lease_until = NULL, worker_id = '', error_code = '', error_message = '',
+               completed_at = NULL, updated_at = $3
+           WHERE id = $1 AND tenant_id = $2 AND status = 'failed'
+           RETURNING *`,
+          [job.id, job.tenant_id, now]
+        );
+        if (!updated.rows[0]) throw conflict('translation retry conflict');
+        return decodeJob(updated.rows[0]);
+      })
+    );
+  }
+
   async listTranslations(input: {
     tenant_id: string;
     session_id: string;
@@ -641,4 +683,13 @@ function emptySummary(): TranslationRunSummary { return { candidates: 0, claimed
 function addSummary(target: TranslationRunSummary, value: TranslationRunSummary): void {
   target.candidates += value.candidates; target.claimed += value.claimed; target.succeeded += value.succeeded;
   target.retry_wait += value.retry_wait; target.failed += value.failed;
+}
+
+function retryableTranslationCode(code: string): boolean {
+  if (['provider_timeout', 'provider_unavailable', 'claim_lease_expired',
+    'translation_result_missing', 'translation_job_claim_lost'].includes(code)) return true;
+  const match = code.match(/^provider_http_(\d{3})$/);
+  if (!match) return false;
+  const status = Number(match[1]);
+  return status === 408 || status === 425 || status === 429 || status >= 500;
 }

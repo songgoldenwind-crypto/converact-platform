@@ -23,6 +23,7 @@ test('iveKit application starts and stops every worker once', async () => {
       startTinodeInbound: () => worker('tinode-inbound'),
       startAttachment: () => worker('attachment'),
       startQuality: () => worker('quality'),
+      startTranslation: () => worker('translation'),
       startMediaTimeout: () => worker('media-timeout'),
       startEventRetention: () => worker('event-retention')
     }
@@ -36,10 +37,12 @@ test('iveKit application starts and stops every worker once', async () => {
     'start:tinode-inbound',
     'start:attachment',
     'start:quality',
+    'start:translation',
     'start:media-timeout',
     'start:event-retention',
     'stop:event-retention',
     'stop:media-timeout',
+    'stop:translation',
     'stop:quality',
     'stop:attachment',
     'stop:tinode-inbound',
@@ -73,6 +76,11 @@ test('iveKit application stops remaining workers after one stop failure', async 
           stopped.push('quality');
         }
       }),
+      startTranslation: () => ({
+        async stop() {
+          stopped.push('translation');
+        }
+      }),
       startMediaTimeout: () => ({
         async stop() {
           stopped.push('media-timeout');
@@ -87,16 +95,20 @@ test('iveKit application stops remaining workers after one stop failure', async 
   });
 
   await assert.rejects(() => application.stop(), /failed to stop 1 iveKit worker/);
-  assert.deepEqual(stopped, ['event-retention', 'media-timeout', 'quality', 'attachment', 'tinode-inbound', 'tinode']);
+  assert.deepEqual(stopped, [
+    'event-retention', 'media-timeout', 'translation', 'quality', 'attachment', 'tinode-inbound', 'tinode'
+  ]);
 });
 
 test('iveKit application publishes worker events and requeues attachment quality review', async () => {
   const published: Array<{ tenantId: string; type: string; data: unknown }> = [];
   const enqueued: Array<{ tenant_id: string; message_id: string }> = [];
+  const translated: Array<{ tenant_id: string; session_id: string; source_type: string; source_ref_id: string }> = [];
   let tinodeInput: any;
   let tinodeInboundInput: any;
   let attachmentInput: any;
   let qualityInput: any;
+  let translationInput: any;
   let mediaTimeoutInput: any;
   const handle = { async stop() {} };
   const application = startIveKitApplication({
@@ -108,6 +120,12 @@ test('iveKit application publishes worker events and requeues attachment quality
       enabled: true,
       async enqueueMessage(input) {
         enqueued.push(input);
+      }
+    },
+    translationEnqueuer: {
+      enabled: true,
+      async enqueueSource(source) {
+        translated.push(source);
       }
     },
     adapters: {
@@ -125,6 +143,10 @@ test('iveKit application publishes worker events and requeues attachment quality
       },
       startQuality: (input) => {
         qualityInput = input;
+        return handle;
+      },
+      startTranslation: (input) => {
+        translationInput = input;
         return handle;
       },
       startMediaTimeout: (input) => {
@@ -169,6 +191,7 @@ test('iveKit application publishes worker events and requeues attachment quality
   await tinodeInboundInput.onProcessed(inboundInput);
   const processed = {
     attachment: {
+      id: 'attachment-1',
       tenant_id: 'tenant-runtime',
       session_id: 'session-runtime',
       message_id: 'message-attachment-1'
@@ -187,6 +210,19 @@ test('iveKit application publishes worker events and requeues attachment quality
     findings: [{ id: 'finding-1' }]
   };
   await qualityInput.onCompleted(completed);
+  await translationInput.onCompleted({
+    job: {
+      id: 'translation-job-1', tenant_id: 'tenant-runtime', session_id: 'session-runtime',
+      message_id: 'message-translation-1', source_type: 'message', source_ref_id: 'message-translation-1',
+      source_language: 'zh-CN', target_language: 'en-US', status: 'succeeded'
+    },
+    result: { translated_text: 'must-not-enter-event' }
+  });
+  await translationInput.onFailed({
+    id: 'translation-job-2', tenant_id: 'tenant-runtime', session_id: 'session-runtime',
+    message_id: 'message-translation-2', source_type: 'attachment', source_ref_id: 'attachment-2',
+    target_language: 'ja-JP', status: 'failed', error_code: 'provider_http_503'
+  });
   await mediaTimeoutInput.onTimedOut({ call: { tenant_id: 'tenant-runtime', id: 'call-timeout-1' }, participants: [] });
 
   assert.deepEqual(published, [
@@ -234,16 +270,52 @@ test('iveKit application publishes worker events and requeues attachment quality
     },
     {
       tenantId: 'tenant-runtime',
+      type: 'collaboration.translation.completed',
+      data: {
+        job_id: 'translation-job-1', session_id: 'session-runtime',
+        message_id: 'message-translation-1', source_type: 'message',
+        source_ref_id: 'message-translation-1', source_language: 'zh-CN',
+        target_language: 'en-US', status: 'succeeded'
+      }
+    },
+    {
+      tenantId: 'tenant-runtime',
+      type: 'collaboration.translation.failed',
+      data: {
+        job_id: 'translation-job-2', session_id: 'session-runtime',
+        message_id: 'message-translation-2', source_type: 'attachment',
+        source_ref_id: 'attachment-2', target_language: 'ja-JP',
+        status: 'failed', error_code: 'provider_http_503'
+      }
+    },
+    {
+      tenantId: 'tenant-runtime',
       type: 'ivekit.media.call.updated',
       data: { call: { tenant_id: 'tenant-runtime', id: 'call-timeout-1' }, participants: [] }
-    }
+    },
   ]);
+  const completedEvent = published.find((event) => event.type === 'collaboration.translation.completed');
+  const failedEvent = published.find((event) => event.type === 'collaboration.translation.failed');
+  assert.ok(completedEvent);
+  assert.ok(failedEvent);
+  assert.doesNotMatch(JSON.stringify([completedEvent, failedEvent]), /must-not-enter-event|translated_text/);
   assert.deepEqual(enqueued, [{
     tenant_id: 'tenant-runtime',
     message_id: 'message-inbound-11'
   }, {
     tenant_id: 'tenant-runtime',
     message_id: 'message-attachment-1'
+  }]);
+  assert.deepEqual(translated, [{
+    tenant_id: 'tenant-runtime',
+    session_id: 'session-runtime',
+    source_type: 'message',
+    source_ref_id: 'message-inbound-11'
+  }, {
+    tenant_id: 'tenant-runtime',
+    session_id: 'session-runtime',
+    source_type: 'attachment',
+    source_ref_id: 'attachment-1'
   }]);
   await application.stop();
 });

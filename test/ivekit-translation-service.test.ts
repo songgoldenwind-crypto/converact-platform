@@ -18,6 +18,12 @@ import {
   TranslationWorker,
   translationWorkerConfig
 } from '../src/agent-runtime/collaboration/translation-worker.js';
+import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
+import {
+  IntelligencePolicyStore,
+  type IntelligencePolicyUpdate
+} from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
+import { createPolicyTranslationProviderResolver } from '../src/agent-runtime/collaboration/intelligence-provider-routing.js';
 
 test('translation jobs derive message source and enforce idempotency payload identity', async () => {
   const pg = new MemoryPg();
@@ -72,6 +78,57 @@ test('translation jobs derive message source and enforce idempotency payload ide
   });
   assert.equal(results.items[0]?.translated_text, 'translated result');
   assert.equal(results.items[0]?.source_hash, requested.job.source_hash);
+});
+
+test('tenant policy selects translation profile and enforces its automatic switch', async () => {
+  const pg = new MemoryPg();
+  const source = await createSourceMessage(pg, 'tenant-translation-policy', 'policy source');
+  const registry = createIntelligenceProviderRegistry({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'translation-policy-profile', capability: 'translation', mode: 'self_hosted',
+      base_url: 'http://translation-worker:8080'
+    }])
+  });
+  const policies = new IntelligencePolicyStore(pg, registry);
+  await policies.updatePolicy({
+    tenant_id: source.tenantId,
+    actor_identity: 'translation-admin',
+    expected_version: 0,
+    policy: translationPolicy('translation-policy-profile', false)
+  });
+  const service = new TranslationService({
+    pg,
+    resolveProvider: createPolicyTranslationProviderResolver({
+      pg,
+      registry,
+      fetch: async () => new Response(JSON.stringify({ translated_text: 'policy translation' }), { status: 200 })
+    })
+  });
+  const disabled = await service.requestTranslation({
+    tenant_id: source.tenantId, session_id: source.sessionId, source_type: 'message',
+    source_ref_id: source.messageId, target_language: 'en-US', idempotency_key: 'policy-auto-off',
+    automatic: true
+  });
+  assert.equal(disabled.job.status, 'cancelled');
+  assert.equal(disabled.job.error_code, 'automatic_translation_disabled');
+
+  await policies.updatePolicy({
+    tenant_id: source.tenantId,
+    actor_identity: 'translation-admin',
+    expected_version: 1,
+    policy: translationPolicy('translation-policy-profile', true)
+  });
+  const enabled = await service.requestTranslation({
+    tenant_id: source.tenantId, session_id: source.sessionId, source_type: 'message',
+    source_ref_id: source.messageId, target_language: 'ja-JP', idempotency_key: 'policy-auto-on',
+    automatic: true
+  });
+  assert.equal(enabled.job.provider_profile_id, 'translation-policy-profile');
+  assert.equal((await service.runDue({ tenant_id: source.tenantId })).succeeded, 1);
+  assert.equal(
+    (await service.getJob({ tenant_id: source.tenantId, job_id: enabled.job.id }))?.provider_profile_id,
+    'translation-policy-profile'
+  );
 });
 
 test('attachment translation waits for extracted text and sends only the current extraction', async () => {
@@ -166,6 +223,69 @@ test('translation jobs retry transient provider errors and converge to one resul
   });
   assert.equal(results.items.length, 1);
   assert.equal(results.items[0]?.provider_request_id, 'retry-request');
+});
+
+test('terminal transient failures can be retried but terminal validation failures cannot', async () => {
+  const pg = new MemoryPg();
+  const source = await createSourceMessage(pg, 'tenant-translation-manual-retry', 'manual retry source');
+  let calls = 0;
+  const service = new TranslationService({
+    pg,
+    maxAttempts: 1,
+    provider: {
+      name: 'manual-retry-provider',
+      mode: 'self_hosted',
+      translate: async () => {
+        calls += 1;
+        if (calls === 1) throw new TranslationProviderError('temporary', 'provider_http_503', true, 503);
+        return { translated_text: 'manual retry succeeded' };
+      }
+    }
+  });
+  const requested = await service.requestTranslation({
+    tenant_id: source.tenantId,
+    session_id: source.sessionId,
+    source_type: 'message',
+    source_ref_id: source.messageId,
+    target_language: 'en-US',
+    idempotency_key: 'manual-retry-key'
+  });
+  assert.equal((await service.runDue({ tenant_id: source.tenantId })).failed, 1);
+  assert.equal((await service.retryJob({
+    tenant_id: source.tenantId,
+    session_id: source.sessionId,
+    job_id: requested.job.id
+  })).status, 'pending');
+  assert.equal((await service.runDue({ tenant_id: source.tenantId })).succeeded, 1);
+
+  const invalidService = new TranslationService({
+    pg,
+    maxAttempts: 1,
+    provider: {
+      name: 'invalid-provider',
+      mode: 'self_hosted',
+      translate: async () => {
+        throw new TranslationProviderError('invalid', 'provider_invalid_response', false);
+      }
+    }
+  });
+  const invalid = await invalidService.requestTranslation({
+    tenant_id: source.tenantId,
+    session_id: source.sessionId,
+    source_type: 'message',
+    source_ref_id: source.messageId,
+    target_language: 'ja-JP',
+    idempotency_key: 'invalid-retry-key'
+  });
+  await invalidService.runDue({ tenant_id: source.tenantId });
+  await assert.rejects(
+    () => invalidService.retryJob({
+      tenant_id: source.tenantId,
+      session_id: source.sessionId,
+      job_id: invalid.job.id
+    }),
+    (error: unknown) => errorStatus(error) === 409
+  );
 });
 
 test('deleted messages cancel unfinished jobs and hide completed translations', async () => {
@@ -369,4 +489,15 @@ async function createSourceMessage(
 
 function errorStatus(error: unknown): number {
   return Number((error as { status?: unknown })?.status || 0);
+}
+
+function translationPolicy(profileId: string, automatic: boolean): IntelligencePolicyUpdate {
+  return {
+    ocr_enabled: false, asr_enabled: false, quality_review_enabled: false,
+    translation_enabled: true, ocr_profile_id: '', asr_profile_id: '', quality_profile_id: '',
+    translation_profile_id: profileId, allow_third_party: false, auto_ocr: false, auto_asr: false,
+    auto_quality_review: false, auto_translation: automatic,
+    translation_target_languages: automatic ? ['en-US', 'ja-JP'] : [],
+    min_ocr_confidence: 0, min_asr_confidence: 0
+  };
 }

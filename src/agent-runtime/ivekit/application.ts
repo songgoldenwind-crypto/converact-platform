@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   startAttachmentProcessingWorker
 } from '../collaboration/attachment-processing-worker.js';
@@ -13,7 +15,16 @@ import type { PgQueryable } from '../../db-pg.js';
 import { wsBroadcast } from '../../ws.js';
 import { syncIntelligenceSourceForAttachment } from '../collaboration/intelligence-source-service.js';
 import { createIntelligenceProviderRegistry } from '../collaboration/intelligence-provider-registry.js';
-import { createPolicyQualityReviewProviderResolver } from '../collaboration/intelligence-provider-routing.js';
+import {
+  createPolicyQualityReviewProviderResolver,
+  createPolicyTranslationProviderResolver
+} from '../collaboration/intelligence-provider-routing.js';
+import { IntelligencePolicyStore } from '../collaboration/intelligence-policy-store.js';
+import { CollaborationStore } from '../collaboration/collaboration-store.js';
+import { TranslationService } from '../collaboration/translation-service.js';
+import { startTranslationWorker } from '../collaboration/translation-worker.js';
+import { withPgTenant } from '../../db-pg-tenant.js';
+import { IveKitTenantEventStore, iveKitEventReplayEnabled } from './tenant-event-store.js';
 
 export interface IveKitWorkerHandle {
   stop(): Promise<void>;
@@ -24,6 +35,7 @@ export interface IveKitRuntimeAdapters {
   startTinodeInbound(input: Parameters<typeof startTinodeInboundWorker>[0]): IveKitWorkerHandle;
   startAttachment(input: Parameters<typeof startAttachmentProcessingWorker>[0]): IveKitWorkerHandle;
   startQuality(input: Parameters<typeof startQualityReviewWorker>[0]): IveKitWorkerHandle;
+  startTranslation(input: Parameters<typeof startTranslationWorker>[0]): IveKitWorkerHandle;
   startMediaTimeout(input: Parameters<typeof startMediaCallTimeoutWorker>[0]): IveKitWorkerHandle;
   startEventRetention(input: Parameters<typeof startIveKitTenantEventRetentionWorker>[0]): IveKitWorkerHandle;
 }
@@ -33,6 +45,7 @@ export interface IveKitApplicationInput {
   env?: NodeJS.ProcessEnv;
   publish?: IveKitEventPublisher;
   qualityReviewEnqueuer?: IveKitQualityReviewEnqueuer;
+  translationEnqueuer?: IveKitTranslationEnqueuer;
   adapters?: Partial<IveKitRuntimeAdapters>;
 }
 
@@ -54,15 +67,27 @@ export interface IveKitQualityReviewEnqueuer {
   ): Promise<unknown>;
 }
 
+export interface IveKitTranslationEnqueuer {
+  enabled: boolean;
+  enqueueSource(input: {
+    tenant_id: string;
+    session_id: string;
+    source_type: 'message' | 'attachment';
+    source_ref_id: string;
+  }, pg?: PgQueryable): Promise<unknown>;
+}
+
 export function startIveKitApplication(input: IveKitApplicationInput): IveKitApplication {
   const env = input.env || process.env;
-  const publish = input.publish || wsBroadcast;
+  const publish = input.publish || applicationPublisher(input.pg, env);
   const qualityReviewEnqueuer = input.qualityReviewEnqueuer || createQualityReviewEnqueuer(input.pg, env);
+  const translationEnqueuer = input.translationEnqueuer || createTranslationEnqueuer(input.pg, env);
   const adapters: IveKitRuntimeAdapters = {
     startTinode: input.adapters?.startTinode || startTinodeSyncWorker,
     startTinodeInbound: input.adapters?.startTinodeInbound || startTinodeInboundWorker,
     startAttachment: input.adapters?.startAttachment || startAttachmentProcessingWorker,
     startQuality: input.adapters?.startQuality || startQualityReviewWorker,
+    startTranslation: input.adapters?.startTranslation || startTranslationWorker,
     startMediaTimeout: input.adapters?.startMediaTimeout || startMediaCallTimeoutWorker,
     startEventRetention: input.adapters?.startEventRetention || startIveKitTenantEventRetentionWorker
   };
@@ -93,6 +118,17 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
           await qualityReviewEnqueuer.enqueueMessage({
             tenant_id: claim.tenant_id,
             message_id: projection.message_id
+          }, pg);
+        }
+        if (
+          translationEnqueuer.enabled && event.kind === 'data' &&
+          projection.status === 'projected' && projection.message_id
+        ) {
+          await translationEnqueuer.enqueueSource({
+            tenant_id: claim.tenant_id,
+            session_id: claim.session_id,
+            source_type: 'message',
+            source_ref_id: projection.message_id
           }, pg);
         }
       },
@@ -142,6 +178,14 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
             message_id: attachment.message_id
           });
         }
+        if (translationEnqueuer.enabled) {
+          await translationEnqueuer.enqueueSource({
+            tenant_id: attachment.tenant_id,
+            session_id: attachment.session_id,
+            source_type: 'attachment',
+            source_ref_id: attachment.id
+          });
+        }
       }
     }),
     adapters.startQuality({
@@ -157,6 +201,30 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
           findings
         }
       )
+    }),
+    adapters.startTranslation({
+      pg: input.pg,
+      env,
+      onCompleted: ({ job }) => publish(job.tenant_id, 'collaboration.translation.completed', {
+        job_id: job.id,
+        session_id: job.session_id,
+        message_id: job.message_id,
+        source_type: job.source_type,
+        source_ref_id: job.source_ref_id,
+        source_language: job.source_language,
+        target_language: job.target_language,
+        status: job.status
+      }),
+      onFailed: (job) => publish(job.tenant_id, 'collaboration.translation.failed', {
+        job_id: job.id,
+        session_id: job.session_id,
+        message_id: job.message_id,
+        source_type: job.source_type,
+        source_ref_id: job.source_ref_id,
+        target_language: job.target_language,
+        status: job.status,
+        error_code: job.error_code
+      })
     }),
     adapters.startMediaTimeout({
       pg: input.pg,
@@ -211,5 +279,72 @@ function createQualityReviewEnqueuer(
           : { provider: null })
       }).enqueueMessage(enqueueInput);
     }
+  };
+}
+
+function createTranslationEnqueuer(
+  pg: PgQueryable,
+  env: NodeJS.ProcessEnv
+): IveKitTranslationEnqueuer {
+  const registry = createIntelligenceProviderRegistry(env);
+  const enabled = registry.list().some((profile) => profile.capability === 'translation');
+  return {
+    enabled,
+    async enqueueSource(sourceInput, transactionPg) {
+      if (!enabled) return [];
+      const servicePg = transactionPg || pg;
+      const details = await withPgTenant(servicePg, sourceInput.tenant_id, async (scopedPg) => {
+        const policy = await new IntelligencePolicyStore(scopedPg, registry)
+          .getEffectivePolicy(sourceInput.tenant_id);
+        if (!policy.translation_enabled || !policy.auto_translation) return null;
+        const store = new CollaborationStore(scopedPg);
+        let text = '';
+        if (sourceInput.source_type === 'message') {
+          const message = await store.getMessage({
+            tenant_id: sourceInput.tenant_id,
+            message_id: sourceInput.source_ref_id
+          });
+          if (!message || message.session_id !== sourceInput.session_id || message.deleted_at) return null;
+          text = message.body;
+        } else {
+          const attachment = await store.getAttachment({
+            tenant_id: sourceInput.tenant_id,
+            attachment_id: sourceInput.source_ref_id
+          });
+          if (!attachment || attachment.session_id !== sourceInput.session_id) return null;
+          text = attachment.extracted_text || attachment.ocr_text || attachment.asr_text;
+        }
+        if (!String(text || '').trim()) return null;
+        return {
+          targets: policy.translation_target_languages,
+          source_hash: createHash('sha256').update(String(text).trim()).digest('hex')
+        };
+      });
+      if (!details) return [];
+      const service = new TranslationService({
+        pg: servicePg,
+        resolveProvider: createPolicyTranslationProviderResolver({ pg: servicePg, registry })
+      });
+      return Promise.all(details.targets.map((target) => service.requestTranslation({
+        ...sourceInput,
+        target_language: target,
+        idempotency_key: `auto-${createHash('sha256').update([
+          sourceInput.tenant_id,
+          sourceInput.source_type,
+          sourceInput.source_ref_id,
+          details.source_hash,
+          target
+        ].join('\u0000')).digest('hex')}`,
+        automatic: true
+      })));
+    }
+  };
+}
+
+function applicationPublisher(pg: PgQueryable, env: NodeJS.ProcessEnv): IveKitEventPublisher {
+  const eventStore = iveKitEventReplayEnabled(env) ? new IveKitTenantEventStore(pg) : null;
+  return async (tenantId, type, data) => {
+    if (eventStore) await eventStore.append({ tenant_id: tenantId, type, data });
+    wsBroadcast(tenantId, type, data);
   };
 }

@@ -1911,6 +1911,17 @@ export class MemoryPg implements PgQueryable {
       return row && String(row.tenant_id) === String(params[1]) ? [row] : [];
     }
 
+    if (sql.startsWith("UPDATE collaboration_translation_jobs SET status = 'pending'")) {
+      const row = this.table('collaboration_translation_jobs').get(String(params[0]));
+      if (!row || String(row.tenant_id) !== String(params[1]) || row.status !== 'failed') {
+        return { rows: [], rowCount: 0 };
+      }
+      row.status = 'pending'; row.attempt_count = 0; row.next_attempt_at = null;
+      row.lease_until = null; row.worker_id = ''; row.error_code = ''; row.error_message = '';
+      row.completed_at = null; row.updated_at = params[2];
+      return { rows: [row], rowCount: 1 };
+    }
+
     if (sql.startsWith('SELECT * FROM collaboration_translation_jobs WHERE tenant_id') && sql.includes('attempt_count')) {
       const now = String(params[1]);
       return [...this.table('collaboration_translation_jobs').values()]
