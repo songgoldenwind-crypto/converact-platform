@@ -56,10 +56,12 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
   assert.match(entrypoint, /export type \* from '\.\/media-types\.js'/);
   assert.match(entrypoint, /export type \* from '\.\/event-types\.js'/);
   assert.match(entrypoint, /export type \* from '\.\/voice-types\.js'/);
+  assert.match(entrypoint, /export \* from '\.\/voice-controller\.js'/);
   assert.match(readme, /IveKitChatSnapshot/);
   assert.match(readme, /IveKitMediaCallSnapshot/);
   assert.match(readme, /createOutboundCall/);
   assert.match(readme, /extension_sessions/);
+  assert.match(readme, /createIveKitVoiceController/);
   assert.match(readme, /receive-only/);
 });
 

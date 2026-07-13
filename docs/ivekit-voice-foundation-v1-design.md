@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core 代码完成，受控 PostgreSQL/RustPBX 协议验收通过；M3 IVR Runtime、M4 Contact Center Kit 和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice SDK/headless controller 代码完成，受控 PostgreSQL/RustPBX 协议验收通过；M4 Contact Center Kit、React WebPhone 和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -8,7 +8,7 @@
 
 ## 0. 当前实现状态
 
-本节是代码事实口径，优先级高于本文后续仍保留的目标设计。2026-07-13 的 M2 状态如下：
+本节是代码事实口径，优先级高于本文后续仍保留的目标设计。2026-07-13 的当前状态如下：
 
 | 范围 | 状态 | 证据边界 |
 | --- | --- | --- |
@@ -18,8 +18,9 @@
 | RustPBX Management/AMI、Router、RWI v1 adapter | 已实现协议边界 | 本仓库受控 provider 通过；真实 RustPBX 仍为 `not_run` |
 | PSTN 到 LiveKit SIP bridge orchestration | 已实现 | 注入受控 `SipClient`、超时后 participant lookup 对账且不重复创建通过；真实 LiveKit SIP/PSTN 为 `not_run` |
 | standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、三个编译入口、Compose merge、Helm/交付清单测试通过；真实容器和 RustPBX 数据面启动仍为 `not_run` |
-| IVR schema/port 基础 | 已有 M1 foundation | 25 节点执行器、发布/回滚、Step IVR 闭环属于 M3，尚未按本设计完成 |
-| Contact Center Kit、WebPhone/React 接入面 | 未实现 | 属于 M4/M5，不得按现有 Voice HTTP API 推断为已具备 |
+| IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
+| Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
+| Contact Center Kit、React WebPhone 接入面 | 未实现 | 属于 M4/M5；不得从已有 OPC call-center 页面或 headless controller 推断为共享模块已交付 |
 
 当前新增迁移为：
 
@@ -594,7 +595,7 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 | `POST` | `/api/ivekit/voice/providers/:profileId/events` | RustPBX HTTP 事件入口 |
 | `POST` | `/api/ivekit/voice/providers/:profileId/cdrs` | CDR/recording reconciliation 入口 |
 
-写操作按角色分为 admin/operator，tenant 只来自认证上下文；trunk apply/test、DID/extension apply、route publish、call create/action/bridge 都要求 `Idempotency-Key`。当前没有注册 recording export、retention-run、静态 OpenAPI 或完整 TypeScript Voice SDK 路由，不能按规划表调用。
+写操作按角色分为 admin/operator，tenant 只来自认证上下文；trunk apply/test、DID/extension apply、route publish、call create/action/bridge 都要求 `Idempotency-Key`。`@opc/ivekit-sdk` 已覆盖本节全部公开控制面，Provider webhook 仍仅供服务端使用。当前仍没有注册 recording export、retention-run 或机器可读 OpenAPI 产物，不能按未注册的规划路径调用。
 
 ### 12.2 IVR
 
@@ -663,20 +664,17 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 
 ## 13. SDK 与前端
 
-`@opc/ivekit-sdk` 增加：
+`@opc/ivekit-sdk` 当前已交付：
 
-- `voice.capabilities`
-- `voice.calls`
-- `voice.callActions`
-- `voice.recordings`
-- `voice.trunks/dids/extensions/routes`
-- `ivr.flows/versions/simulations/sessions`
-- `contactCenter.agents/queues/routing/supervisor`
+- `voice`：capability、profile、trunk、DID、extension/session plan、route/version、call/action、participant/event/recording、policy/consent 和 LiveKit bridge。
+- `ivr`：flow/version、validate/publish/rollback、simulation、durable session、audio/time/region/ring resource 和 settings。
+- `createIveKitVoiceController`：框架无关的拨号、接听、挂断、DTMF、Hold/Resume、转接、会议、Park/Pickup、录音和 LiveKit bridge 控制器。
+- `contactCenter`：尚未进入共享 SDK，等待 M4 的共享 domain/API 完成后再发布。
 
 浏览器接入分两层：
 
-1. headless controller/hooks：call state、device、softphone、IVR designer data、queue state。
-2. 可嵌入 React workspace：WebPhone、Call Detail、IVR Designer、Queue Monitor。
+1. headless Voice controller：已交付 call state、控制命令、分机能力门禁和稳定幂等重试；真实 SIP/WebRTC 媒体 adapter 尚未联调。
+2. 可嵌入 React workspace：WebPhone、Call Detail、IVR Designer、Queue Monitor 尚未交付。
 
 参考客户端继续作为完整示例，OPC 和 LED 不复制其源码。
 
@@ -841,7 +839,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M3：IVR Runtime
 
-状态：未开始完整实现，只有 foundation schema/types/ports。
+状态：代码完成；单元、受控 RustPBX Step 和真实 PostgreSQL durable runtime 验收通过，真实语音数据面保持 `not_run`。
 
 - 25 种节点、版本、发布、回滚、simulation 和 session recovery。
 - 前后端共享 graph schema。
@@ -856,7 +854,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M5：SDK、UI 与交付
 
-状态：Voice 专用 SDK/WebPhone/IVR Designer/Queue Monitor 未完成；standalone source context、Compose/Helm 和交付包已有 M2 基础。
+状态：完整 Voice/IVR TypeScript SDK 和 headless WebPhone controller 已完成；React WebPhone、IVR Designer、Queue Monitor 尚未完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
 
 - SDK、headless hooks、WebPhone、IVR Designer、Queue Monitor。
 - Compose、Helm、SBOM、image metadata、upgrade/rollback 和 LED/OPC 示例。

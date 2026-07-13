@@ -65,6 +65,7 @@ export type * from './event-types.js';
 export type * from './intelligence-types.js';
 export type * from './ivr-types.js';
 export type * from './voice-types.js';
+export * from './voice-controller.js';
 export * from './upload-transport.js';
 export * from './rustdesk-http-client.js';
 export * from './rustdesk-led-sdk.js';

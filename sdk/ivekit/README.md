@@ -9,6 +9,7 @@ npm install @opc/ivekit-sdk
 ```typescript
 import {
   createIveKitClient,
+  createIveKitVoiceController,
   type IveKitChatMessage,
   type IveKitChatSnapshot,
   type IveKitMediaCallSnapshot
@@ -68,6 +69,12 @@ await ivekit.voice.enqueueCallAction(outbound.call.id, {
   payload: { digits: '123#' }
 }, { idempotencyKey: crypto.randomUUID() });
 
+const webPhone = createIveKitVoiceController({ client: ivekit.voice });
+webPhone.subscribe((state) => renderWebPhone(state));
+await webPhone.selectCall(outbound.call.id);
+await webPhone.hold();
+await webPhone.resume();
+
 const prompt = await ivekit.ivr.createAudioAsset({
   name: 'LED support welcome',
   source_kind: 'tts',
@@ -94,6 +101,14 @@ same key and identical payload after an ambiguous timeout or 5xx. A new intent m
 use a new key. Browser WebPhones must use a short-lived bearer token and must first
 check `voice.getCapabilities().capabilities.extension_sessions`; the returned plan is
 adapter-defined and never contains iveKit API keys or server-side provider secrets.
+
+`createIveKitVoiceController()` is a framework-neutral WebPhone control-plane
+controller. It publishes immutable top-level snapshots, exposes dial/answer/hangup,
+DTMF, hold/resume, blind/warm transfer, conference, park/pickup, recording and
+LiveKit bridge commands, and retains an idempotency key only after an ambiguous
+timeout or retryable provider failure. `refresh()` converges the selected call with
+the server authority. It deliberately does not implement SIP/WebRTC media; use the
+capability-gated extension session plan with the deployment's media adapter.
 
 The IVR client exposes revisioned flows, immutable publish/rollback versions,
 deterministic simulations, durable sessions, audio assets, time/region/ring groups,
