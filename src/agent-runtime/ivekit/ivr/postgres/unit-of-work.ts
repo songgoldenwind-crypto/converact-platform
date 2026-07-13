@@ -6,12 +6,15 @@ import type {
   IvrSessionUnitOfWork,
   IvrSessionUnitOfWorkContext
 } from '../ports.js';
+import type { IvrResourceUnitOfWork, IvrResourceUnitOfWorkContext } from '../resource-types.js';
+import { PostgresIvrDependencyResolver } from './dependency-resolver.js';
 import { PostgresIvrFlowStore } from './flow-store.js';
 import {
   PostgresIvrPendingActionStore,
   PostgresIvrSessionStepStore,
   PostgresIvrSessionStore
 } from './session-store.js';
+import { PostgresIvrResourceStore } from './resource-store.js';
 
 export class PostgresIvrFlowUnitOfWork implements IvrFlowUnitOfWork {
   constructor(private readonly pg: PgQueryable) {}
@@ -21,7 +24,8 @@ export class PostgresIvrFlowUnitOfWork implements IvrFlowUnitOfWork {
     operation: (context: IvrFlowUnitOfWorkContext) => Promise<T>
   ): Promise<T> {
     return withPgTenant(this.pg, tenantId, (client) => operation({
-      flows: new PostgresIvrFlowStore(client)
+      flows: new PostgresIvrFlowStore(client),
+      dependencies: new PostgresIvrDependencyResolver(client)
     }));
   }
 }
@@ -38,6 +42,19 @@ export class PostgresIvrSessionUnitOfWork implements IvrSessionUnitOfWork {
       sessions: new PostgresIvrSessionStore(client),
       steps: new PostgresIvrSessionStepStore(client),
       actions: new PostgresIvrPendingActionStore(client)
+    }));
+  }
+}
+
+export class PostgresIvrResourceUnitOfWork implements IvrResourceUnitOfWork {
+  constructor(private readonly pg: PgQueryable) {}
+
+  run<T>(
+    tenantId: string,
+    operation: (context: IvrResourceUnitOfWorkContext) => Promise<T>
+  ): Promise<T> {
+    return withPgTenant(this.pg, tenantId, (client) => operation({
+      resources: new PostgresIvrResourceStore(client)
     }));
   }
 }

@@ -152,8 +152,14 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         ? '/api/ivekit/media/webhooks/livekit'
         : path;
       const mediaUrl = mediaPath === path ? url : new URL(mediaPath, url);
-      const dispatch = async (pg: PgQueryable | null) =>
-        await routes.media(input.db, method, mediaPath, mediaUrl, body, rawBody, headers, {
+      const dispatch = async (pg: PgQueryable | null) => {
+        const voiceResult = path.startsWith('/api/ivekit/voice/')
+          ? await routes.voice(pg, method, path, url, body, rawBody, headers, input.voiceOptions)
+          : undefined;
+        const ivrResult = path.startsWith('/api/ivekit/ivr/')
+          ? await routes.ivr(pg, method, path, url, body, rawBody, headers, input.ivrOptions)
+          : undefined;
+        return await routes.media(input.db, method, mediaPath, mediaUrl, body, rawBody, headers, {
           ...mediaOptions,
           ...(pg ? { pg } : {})
         })
@@ -163,9 +169,10 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           ...input.intelligenceOptions
         })
         ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
-        ?? await routes.ivr(pg, method, path, url, body, rawBody, headers, input.ivrOptions)
-        ?? await routes.voice(pg, method, path, url, body, rawBody, headers, input.voiceOptions)
+        ?? ivrResult
+        ?? voiceResult
         ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
+      };
       const buffered = await runWithWsBroadcastBuffer(() =>
         runWithPgTenantContextAsync(tenantContext, () =>
           input.pg

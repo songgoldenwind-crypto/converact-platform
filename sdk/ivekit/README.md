@@ -1,6 +1,6 @@
 # @opc/ivekit-sdk
 
-TypeScript client for the reusable iveKit Media, IM, and RustDesk HTTP facades.
+TypeScript client for the reusable iveKit Media, IM, RustDesk, and IVR HTTP facades.
 
 ```bash
 npm install @opc/ivekit-sdk
@@ -55,7 +55,27 @@ const distribution = await ivekit.rustdesk.getClientProfile({
   expected_server_version: '1.1.15',
   expected_server_key_fingerprint: '<fingerprint-from-trusted-deployment-record>'
 });
+
+const prompt = await ivekit.ivr.createAudioAsset({
+  name: 'LED support welcome',
+  source_kind: 'tts',
+  tts_text: 'Welcome to LED support.',
+  tts_profile_id: 'tts-main'
+});
+const settings = await ivekit.ivr.getSettings();
+await ivekit.ivr.updateSettings({
+  expected_revision: settings.revision,
+  max_steps: 700,
+  allowed_webhook_refs: ['service-order-status']
+});
 ```
+
+The IVR client exposes revisioned flows, immutable publish/rollback versions,
+deterministic simulations, durable sessions, audio assets, time/region/ring groups,
+and tenant execution settings. Published flow dependencies are validated against
+active resources and provider capabilities. Runtime fields of a resource referenced
+by any published version cannot be changed in place; create a new resource ID and
+publish a new flow version instead.
 
 The chat client exports browser-safe JSON DTOs for sessions, participants, messages,
 attachments and processing jobs, provider delivery, receipts, realtime state,

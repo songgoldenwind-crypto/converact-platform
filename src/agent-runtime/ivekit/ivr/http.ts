@@ -15,6 +15,7 @@ import {
 } from './postgres/session-store.js';
 import {
   PostgresIvrFlowUnitOfWork,
+  PostgresIvrResourceUnitOfWork,
   PostgresIvrSessionUnitOfWork
 } from './postgres/unit-of-work.js';
 import { IvrFlowService } from './flow-service.js';
@@ -27,6 +28,7 @@ import {
   type RustPbxStepIvrHandleResult
 } from './rustpbx-step-service.js';
 import { IvrSessionService } from './session-service.js';
+import { IvrResourceService } from './resource-service.js';
 
 type Headers = Record<string, string | string[] | undefined>;
 
@@ -51,6 +53,7 @@ export interface IvrHttpModule {
   session_store: PostgresIvrSessionStore;
   step_store: PostgresIvrSessionStepStore;
   simulations: IvrSimulationService;
+  resources: IvrResourceService;
 }
 
 export async function routeIveKitIvrApi(
@@ -76,6 +79,9 @@ export async function routeIveKitIvrApi(
   const module = options.module ?? await options.create_module?.(requiredPg(pg), ctx.tenantId)
     ?? createPostgresIvrHttpModule(requiredPg(pg));
   const segments = path.split('/').filter(Boolean);
+
+  const resourceResult = await routeResources(method, path, segments, body, ctx, module);
+  if (resourceResult !== undefined) return resourceResult;
 
   if (path === '/api/ivekit/ivr/flows') {
     if (method === 'GET') return { data: { items: await module.flow_store.listFlows(ctx.tenantId) } };
@@ -231,8 +237,68 @@ export function createPostgresIvrHttpModule(pg: PgQueryable): IvrHttpModule {
     sessions: new IvrSessionService({ unit_of_work: new PostgresIvrSessionUnitOfWork(pg) }),
     session_store: new PostgresIvrSessionStore(pg),
     step_store: new PostgresIvrSessionStepStore(pg),
-    simulations: new IvrSimulationService({ flows: flowStore })
+    simulations: new IvrSimulationService({ flows: flowStore }),
+    resources: new IvrResourceService({ unit_of_work: new PostgresIvrResourceUnitOfWork(pg) })
   };
+}
+
+async function routeResources(
+  method: string,
+  path: string,
+  segments: string[],
+  body: unknown,
+  context: AuthContext,
+  module: IvrHttpModule
+): Promise<unknown | undefined> {
+  if (path === '/api/ivekit/ivr/settings') {
+    if (method === 'GET') return { data: await module.resources.getSettings(context.tenantId) };
+    if (method === 'PATCH') {
+      requireAdmin(context);
+      return { data: await module.resources.updateSettings(resourceInput(body, context) as never) };
+    }
+    return undefined;
+  }
+  const collections = new Set(['audio-assets', 'time-groups', 'region-groups', 'ring-groups']);
+  const collection = segments[3] ?? '';
+  if (!collections.has(collection)) return undefined;
+  if (segments.length === 4) {
+    if (method === 'GET') {
+      if (collection === 'audio-assets') return { data: { items: await module.resources.listAudioAssets(context.tenantId) } };
+      if (collection === 'time-groups') return { data: { items: await module.resources.listTimeGroups(context.tenantId) } };
+      if (collection === 'region-groups') return { data: { items: await module.resources.listRegionGroups(context.tenantId) } };
+      return { data: { items: await module.resources.listRingGroups(context.tenantId) } };
+    }
+    if (method === 'POST') {
+      requireAdmin(context);
+      const input = resourceInput(body, context);
+      if (collection === 'audio-assets') return { status: 201, data: await module.resources.createAudioAsset(input as never) };
+      if (collection === 'time-groups') return { status: 201, data: await module.resources.createTimeGroup(input as never) };
+      if (collection === 'region-groups') return { status: 201, data: await module.resources.createRegionGroup(input as never) };
+      return { status: 201, data: await module.resources.createRingGroup(input as never) };
+    }
+    return undefined;
+  }
+  if (segments.length !== 5) return undefined;
+  const id = decodeSegment(segments[4]!);
+  if (method === 'GET') {
+    if (collection === 'audio-assets') return { data: await module.resources.getAudioAsset(context.tenantId, id) };
+    if (collection === 'time-groups') return { data: await module.resources.getTimeGroup(context.tenantId, id) };
+    if (collection === 'region-groups') return { data: await module.resources.getRegionGroup(context.tenantId, id) };
+    return { data: await module.resources.getRingGroup(context.tenantId, id) };
+  }
+  if (method === 'PATCH') {
+    requireAdmin(context);
+    const input = { ...resourceInput(body, context), id };
+    if (collection === 'audio-assets') return { data: await module.resources.updateAudioAsset(input as never) };
+    if (collection === 'time-groups') return { data: await module.resources.updateTimeGroup(input as never) };
+    if (collection === 'region-groups') return { data: await module.resources.updateRegionGroup(input as never) };
+    return { data: await module.resources.updateRingGroup(input as never) };
+  }
+  return undefined;
+}
+
+function resourceInput(body: unknown, context: AuthContext): Record<string, unknown> {
+  return { ...record(body), tenant_id: context.tenantId, actor: context.userId };
 }
 
 function requireIvrAuth(headers: Headers): AuthContext {

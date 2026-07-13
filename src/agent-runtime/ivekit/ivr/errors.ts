@@ -2,6 +2,7 @@ export type IvrErrorCode =
   | 'validation_failed'
   | 'publish_validation_failed'
   | 'not_found'
+  | 'resource_in_use'
   | 'revision_conflict'
   | 'idempotency_conflict'
   | 'capability_unavailable'

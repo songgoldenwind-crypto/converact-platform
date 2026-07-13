@@ -32,6 +32,7 @@ export interface IvrFlowRepository {
 
 export interface IvrFlowUnitOfWorkContext {
   flows: IvrFlowRepository;
+  dependencies?: IvrDependencyResolver;
 }
 
 export interface IvrFlowUnitOfWork {

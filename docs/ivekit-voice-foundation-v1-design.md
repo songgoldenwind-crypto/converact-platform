@@ -598,7 +598,7 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 
 ### 12.2 IVR
 
-本节是 M3 目标 API，当前 `src/agent-runtime/ivekit/ivr/` 只有 foundation types/ports/graph types，尚未注册以下 HTTP 路由。
+以下 IVR 控制面现已在 `src/agent-runtime/ivekit/ivr/` 注册，并通过签名租户认证、RBAC、revision、幂等和 PostgreSQL RLS 验收。RustPBX Step 路由使用 deployment profile 绑定的 webhook 鉴权，不接受浏览器 tenant 覆盖。
 
 | Method | Path | 用途 |
 | --- | --- | --- |
@@ -616,9 +616,14 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 | `GET` / `POST` | `/api/ivekit/ivr/audio-assets` | 查询或登记音频/TTS 资产 |
 | `GET` / `PATCH` | `/api/ivekit/ivr/audio-assets/:id` | 更新 metadata；已发布引用的 checksum 不可替换 |
 | `GET` / `POST` | `/api/ivekit/ivr/time-groups` | 管理时段和节假日规则 |
+| `GET` / `PATCH` | `/api/ivekit/ivr/time-groups/:id` | 查看或按 revision 更新时间组 |
 | `GET` / `POST` | `/api/ivekit/ivr/region-groups` | 管理区域规则 |
+| `GET` / `PATCH` | `/api/ivekit/ivr/region-groups/:id` | 查看或按 revision 更新地区组 |
 | `GET` / `POST` | `/api/ivekit/ivr/ring-groups` | 管理通用 identity 组呼 |
+| `GET` / `PATCH` | `/api/ivekit/ivr/ring-groups/:id` | 查看或按 revision 更新组呼成员和策略 |
 | `GET` / `PATCH` | `/api/ivekit/ivr/settings` | 查询或按 revision 更新执行策略 |
+
+资源发布规则：草稿可暂时引用未就绪资源，但 validate/publish 会检查音频、时间组、地区组、振铃组、子流程、Voice profile/Step capability、Webhook allowlist 以及显式绑定的 queue/knowledge/AI/media capability。任何不可变发布版本引用资源后，checksum、对象引用、TTS 文本、时段、区域和组呼运行字段均禁止原地变更；替换时创建新资源 ID，再发布新的 flow version。显示名称和非敏感 metadata 仍可按 revision 更新。资源和 settings 不保存 Authorization、password、private key、access token 或 secret。
 
 ### 12.3 Contact Center
 

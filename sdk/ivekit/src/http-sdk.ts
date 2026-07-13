@@ -84,8 +84,13 @@ import type {
   IveKitTranslationJob
 } from './intelligence-types.js';
 import type {
-  IveKitIvrCompilationReport, IveKitIvrFlow, IveKitIvrFlowGraph, IveKitIvrFlowVersion,
-  IveKitIvrSession, IveKitIvrSessionResult, IveKitIvrSimulationResult
+  IveKitIvrAudioAsset, IveKitIvrCompilationReport, IveKitIvrCreateAudioAssetInput,
+  IveKitIvrCreateRegionGroupInput, IveKitIvrCreateRingGroupInput, IveKitIvrCreateTimeGroupInput,
+  IveKitIvrFlow, IveKitIvrFlowGraph, IveKitIvrFlowVersion, IveKitIvrRegionGroup,
+  IveKitIvrRingGroup, IveKitIvrSession, IveKitIvrSessionResult, IveKitIvrSettings,
+  IveKitIvrSimulationResult, IveKitIvrTimeGroup, IveKitIvrUpdateAudioAssetInput,
+  IveKitIvrUpdateRegionGroupInput, IveKitIvrUpdateRingGroupInput, IveKitIvrUpdateSettingsInput,
+  IveKitIvrUpdateTimeGroupInput
 } from './ivr-types.js';
 import {
   createIveKitUploadTransport,
@@ -317,6 +322,24 @@ export interface IveKitIvrHttpClient {
   startSession(input: { call_id: string; flow_id: string; flow_version?: number; variables?: Record<string, unknown>; trace_id?: string }): Promise<IveKitIvrSessionResult>;
   getSession(sessionId: string): Promise<{ session: IveKitIvrSession; steps: Array<Record<string, unknown>> }>;
   advanceSession(sessionId: string, input: { event_sequence: number; action_revision: number; event: Record<string, unknown> }): Promise<IveKitIvrSessionResult>;
+  listAudioAssets(): Promise<IveKitIvrAudioAsset[]>;
+  createAudioAsset(input: IveKitIvrCreateAudioAssetInput): Promise<IveKitIvrAudioAsset>;
+  getAudioAsset(id: string): Promise<IveKitIvrAudioAsset>;
+  updateAudioAsset(id: string, input: IveKitIvrUpdateAudioAssetInput): Promise<IveKitIvrAudioAsset>;
+  listTimeGroups(): Promise<IveKitIvrTimeGroup[]>;
+  createTimeGroup(input: IveKitIvrCreateTimeGroupInput): Promise<IveKitIvrTimeGroup>;
+  getTimeGroup(id: string): Promise<IveKitIvrTimeGroup>;
+  updateTimeGroup(id: string, input: IveKitIvrUpdateTimeGroupInput): Promise<IveKitIvrTimeGroup>;
+  listRegionGroups(): Promise<IveKitIvrRegionGroup[]>;
+  createRegionGroup(input: IveKitIvrCreateRegionGroupInput): Promise<IveKitIvrRegionGroup>;
+  getRegionGroup(id: string): Promise<IveKitIvrRegionGroup>;
+  updateRegionGroup(id: string, input: IveKitIvrUpdateRegionGroupInput): Promise<IveKitIvrRegionGroup>;
+  listRingGroups(): Promise<IveKitIvrRingGroup[]>;
+  createRingGroup(input: IveKitIvrCreateRingGroupInput): Promise<IveKitIvrRingGroup>;
+  getRingGroup(id: string): Promise<IveKitIvrRingGroup>;
+  updateRingGroup(id: string, input: IveKitIvrUpdateRingGroupInput): Promise<IveKitIvrRingGroup>;
+  getSettings(): Promise<IveKitIvrSettings>;
+  updateSettings(input: IveKitIvrUpdateSettingsInput): Promise<IveKitIvrSettings>;
 }
 
 export interface IveKitHttpSdk {
@@ -458,6 +481,8 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
 function createIvrClient(transport: IveKitTransport): IveKitIvrHttpClient {
   const flowPath = (id: string) => `/api/ivekit/ivr/flows/${pathSegment(id, 'flowId')}`;
   const sessionPath = (id: string) => `/api/ivekit/ivr/sessions/${pathSegment(id, 'sessionId')}`;
+  const resourcePath = (collection: string, id: string) =>
+    `/api/ivekit/ivr/${collection}/${pathSegment(id, 'resourceId')}`;
   return {
     async listFlows() { return (await transport.json<{ items: IveKitIvrFlow[] }>('GET', '/api/ivekit/ivr/flows')).items; },
     createFlow: (body) => transport.json('POST', '/api/ivekit/ivr/flows', { body }),
@@ -479,7 +504,25 @@ function createIvrClient(transport: IveKitTransport): IveKitIvrHttpClient {
     },
     startSession: (body) => transport.json('POST', '/api/ivekit/ivr/sessions', { body }),
     getSession: (id) => transport.json('GET', sessionPath(id)),
-    advanceSession: (id, body) => transport.json('POST', `${sessionPath(id)}/advance`, { body })
+    advanceSession: (id, body) => transport.json('POST', `${sessionPath(id)}/advance`, { body }),
+    async listAudioAssets() { return (await transport.json<{ items: IveKitIvrAudioAsset[] }>('GET', '/api/ivekit/ivr/audio-assets')).items; },
+    createAudioAsset: (body) => transport.json('POST', '/api/ivekit/ivr/audio-assets', { body }),
+    getAudioAsset: (id) => transport.json('GET', resourcePath('audio-assets', id)),
+    updateAudioAsset: (id, body) => transport.json('PATCH', resourcePath('audio-assets', id), { body }),
+    async listTimeGroups() { return (await transport.json<{ items: IveKitIvrTimeGroup[] }>('GET', '/api/ivekit/ivr/time-groups')).items; },
+    createTimeGroup: (body) => transport.json('POST', '/api/ivekit/ivr/time-groups', { body }),
+    getTimeGroup: (id) => transport.json('GET', resourcePath('time-groups', id)),
+    updateTimeGroup: (id, body) => transport.json('PATCH', resourcePath('time-groups', id), { body }),
+    async listRegionGroups() { return (await transport.json<{ items: IveKitIvrRegionGroup[] }>('GET', '/api/ivekit/ivr/region-groups')).items; },
+    createRegionGroup: (body) => transport.json('POST', '/api/ivekit/ivr/region-groups', { body }),
+    getRegionGroup: (id) => transport.json('GET', resourcePath('region-groups', id)),
+    updateRegionGroup: (id, body) => transport.json('PATCH', resourcePath('region-groups', id), { body }),
+    async listRingGroups() { return (await transport.json<{ items: IveKitIvrRingGroup[] }>('GET', '/api/ivekit/ivr/ring-groups')).items; },
+    createRingGroup: (body) => transport.json('POST', '/api/ivekit/ivr/ring-groups', { body }),
+    getRingGroup: (id) => transport.json('GET', resourcePath('ring-groups', id)),
+    updateRingGroup: (id, body) => transport.json('PATCH', resourcePath('ring-groups', id), { body }),
+    getSettings: () => transport.json('GET', '/api/ivekit/ivr/settings'),
+    updateSettings: (body) => transport.json('PATCH', '/api/ivekit/ivr/settings', { body })
   };
 }
 

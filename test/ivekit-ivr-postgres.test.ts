@@ -5,11 +5,13 @@ import pg from 'pg';
 import { withPgTenant } from '../src/db-pg-tenant.js';
 import {
   IvrFlowService,
+  IvrResourceService,
   IvrSessionService,
   RustPbxStepIvrService,
   PostgresIvrFlowStore,
   PostgresIvrFlowUnitOfWork,
   PostgresIvrPendingActionStore,
+  PostgresIvrResourceUnitOfWork,
   PostgresRustPbxStepIvrBindingResolver,
   PostgresIvrSessionStepStore,
   PostgresIvrSessionUnitOfWork,
@@ -39,6 +41,14 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
         [profileId, tenantA]
       );
       await admin.query(
+        `INSERT INTO ivekit_voice_capability_snapshots
+          (id, tenant_id, profile_id, provider, provider_version, status,
+           capabilities, config_hash, checked_at, created_at)
+         VALUES ('ivekit_ivr_capabilities_a', $1, $2, 'controlled', 'test', 'ready',
+                 '{"step_ivr":true}'::jsonb, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [tenantA, profileId, 'c'.repeat(64)]
+      );
+      await admin.query(
         `INSERT INTO ivekit_voice_calls
           (id, tenant_id, business_ref_type, business_ref_id, provider_profile_id,
            direction, from_address_kind, from_address_ciphertext, from_address_hmac,
@@ -53,21 +63,41 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
     }
 
     let id = 0;
+    const resourceService = new IvrResourceService({
+      unit_of_work: new PostgresIvrResourceUnitOfWork(pool),
+      id: (kind) => `${kind}-pg-${++id}`,
+      now: () => new Date('2026-07-13T00:00:00.000Z')
+    });
+    const audio = await resourceService.createAudioAsset({
+      tenant_id: tenantA, actor: 'admin-a', name: 'Welcome', source_kind: 'tts',
+      tts_text: 'Welcome', tts_profile_id: 'tts-controlled'
+    });
     const service = new IvrFlowService({
       unit_of_work: new PostgresIvrFlowUnitOfWork(pool),
       id: (kind) => `${kind}-pg-${++id}`,
       now: () => new Date(`2026-07-13T00:00:0${Math.min(id, 9)}.000Z`)
     });
-    const flow = await service.createFlow({ tenant_id: tenantA, actor: 'admin-a', name: 'Main', graph: graph('V1') });
+    const flow = await service.createFlow({
+      tenant_id: tenantA, actor: 'admin-a', name: 'Main', graph: graph('V1', audio.id)
+    });
     const first = await service.publish({ tenant_id: tenantA, actor: 'admin-a', flow_id: flow.id,
       expected_draft_revision: 1, idempotency_key: 'postgres-publish-v1' });
     const replay = await service.publish({ tenant_id: tenantA, actor: 'admin-a', flow_id: flow.id,
       expected_draft_revision: 1, idempotency_key: 'postgres-publish-v1' });
     assert.equal(replay.replayed, true);
     assert.equal(replay.version.id, first.version.id);
+    await assert.rejects(() => resourceService.updateAudioAsset({
+      tenant_id: tenantA, actor: 'admin-a', id: audio.id, expected_revision: 1,
+      tts_text: 'must not mutate while published'
+    }), (error: unknown) => error instanceof Error && 'code' in error && error.code === 'resource_in_use');
+    const renamedAudio = await resourceService.updateAudioAsset({
+      tenant_id: tenantA, actor: 'admin-a', id: audio.id, expected_revision: 1,
+      name: 'Welcome display name'
+    });
+    assert.equal(renamedAudio.revision, 2);
 
     await service.updateDraft({ tenant_id: tenantA, actor: 'admin-a', flow_id: flow.id,
-      expected_revision: 1, graph: graph('V2') });
+      expected_revision: 1, graph: graph('V2', audio.id) });
     await service.publish({ tenant_id: tenantA, actor: 'admin-a', flow_id: flow.id,
       expected_draft_revision: 2, idempotency_key: 'postgres-publish-v2' });
     const rolledBack = await service.rollback({ tenant_id: tenantA, actor: 'admin-b', flow_id: flow.id,
@@ -209,12 +239,13 @@ test('PostgreSQL IVR flow store publishes, replays, rolls back, isolates, and pr
   }
 });
 
-function graph(text: string): IvrFlowGraph {
+function graph(text: string, audioAssetId: string): IvrFlowGraph {
   return {
     version: 1, entryNodeId: 'start', variables: [],
     nodes: [
       { id: 'start', type: 'start', name: 'Start', position: { x: 0, y: 0 }, data: {} },
-      { id: 'play', type: 'play', name: 'Play', position: { x: 1, y: 0 }, data: { text } },
+      { id: 'play', type: 'play', name: 'Play', position: { x: 1, y: 0 },
+        data: { text, audio_asset_id: audioAssetId } },
       { id: 'end', type: 'disconnect', name: 'End', position: { x: 2, y: 0 }, data: {} }
     ],
     edges: [

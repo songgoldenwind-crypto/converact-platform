@@ -106,9 +106,9 @@ export class IvrFlowService {
   async validate(input: { tenant_id: string; flow_id: string }): Promise<IvrCompilationReport> {
     const tenantId = identifier(input.tenant_id);
     const flowId = identifier(input.flow_id);
-    return this.#unitOfWork.run(tenantId, async ({ flows }) => {
+    return this.#unitOfWork.run(tenantId, async ({ flows, dependencies }) => {
       const flow = required(await flows.getFlow(tenantId, flowId));
-      return this.#compileRelease(tenantId, flowId, flow.draft_graph);
+      return this.#compileRelease(tenantId, flowId, flow.draft_graph, dependencies);
     });
   }
 
@@ -134,7 +134,7 @@ export class IvrFlowService {
       release_kind: input.release_kind,
       source_version: input.source_version
     });
-    return this.#unitOfWork.run(tenantId, async ({ flows }) => {
+    return this.#unitOfWork.run(tenantId, async ({ flows, dependencies }) => {
       const replay = await flows.findVersionByPublicationKey(tenantId, key);
       if (replay) {
         if (replay.publication_payload_hash !== payloadHash || replay.flow_id !== flowId) {
@@ -149,7 +149,7 @@ export class IvrFlowService {
         ? null
         : required(await flows.getVersion(tenantId, flowId, input.source_version));
       const graph = source?.graph ?? flow.draft_graph;
-      const report = await this.#compileRelease(tenantId, flowId, graph);
+      const report = await this.#compileRelease(tenantId, flowId, graph, dependencies);
       if (report.errors.length > 0) throw publishValidationError(report);
       const versions = await flows.listVersions(tenantId, flowId);
       const versionNumber = Math.max(0, ...versions.map((version) => version.version)) + 1;
@@ -183,10 +183,15 @@ export class IvrFlowService {
     });
   }
 
-  async #compileRelease(tenantId: string, flowId: string, graph: IvrFlowGraph): Promise<IvrCompilationReport> {
+  async #compileRelease(
+    tenantId: string,
+    flowId: string,
+    graph: IvrFlowGraph,
+    transactionResolver?: IvrDependencyResolver
+  ): Promise<IvrCompilationReport> {
     const report = compileIvrGraph(graph);
     if (report.errors.length > 0) return report;
-    const dependencyIssues = await this.#dependencyResolver.validate({
+    const dependencyIssues = await (transactionResolver ?? this.#dependencyResolver).validate({
       tenant_id: tenantId,
       flow_id: flowId,
       dependencies: report.dependencies

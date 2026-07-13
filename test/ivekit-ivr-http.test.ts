@@ -116,3 +116,64 @@ test('IVR HTTP exposes flow release, simulation, and session surfaces under sign
     {}, '', headers, { module }
   ), (error: unknown) => error instanceof IvrError && error.code === 'validation_failed');
 });
+
+test('IVR HTTP exposes tenant-scoped resource catalogs and revisioned settings', async (t) => {
+  const previous = process.env.OPC_API_KEY;
+  process.env.OPC_API_KEY = 'ivr-system-key';
+  t.after(() => {
+    if (previous === undefined) delete process.env.OPC_API_KEY;
+    else process.env.OPC_API_KEY = previous;
+  });
+  const observed: unknown[] = [];
+  const resources = {
+    listAudioAssets: async (tenantId: string) => [{ id: 'audio-a', tenant_id: tenantId }],
+    listTimeGroups: async () => [], listRegionGroups: async () => [], listRingGroups: async () => [],
+    getAudioAsset: async (_tenantId: string, id: string) => ({ id }),
+    getTimeGroup: async () => ({}), getRegionGroup: async () => ({}), getRingGroup: async () => ({}),
+    createAudioAsset: async (input: unknown) => { observed.push(input); return input; },
+    createTimeGroup: async (input: unknown) => input,
+    createRegionGroup: async (input: unknown) => input,
+    createRingGroup: async (input: unknown) => input,
+    updateAudioAsset: async (input: unknown) => { observed.push(input); return input; },
+    updateTimeGroup: async (input: unknown) => input,
+    updateRegionGroup: async (input: unknown) => input,
+    updateRingGroup: async (input: unknown) => input,
+    getSettings: async (tenantId: string) => ({ tenant_id: tenantId, revision: 0 }),
+    updateSettings: async (input: unknown) => { observed.push(input); return input; }
+  };
+  const module = { resources } as unknown as IvrHttpModule;
+  const headers = { 'x-api-key': 'ivr-system-key', 'x-tenant-id': 'tenant-a' };
+
+  const listed = await routeIveKitIvrApi(
+    pg, 'GET', '/api/ivekit/ivr/audio-assets',
+    new URL('http://localhost/api/ivekit/ivr/audio-assets'), {}, '', headers, { module }
+  ) as { data: { items: Array<{ tenant_id: string }> } };
+  assert.equal(listed.data.items[0]?.tenant_id, 'tenant-a');
+
+  await routeIveKitIvrApi(
+    pg, 'POST', '/api/ivekit/ivr/audio-assets',
+    new URL('http://localhost/api/ivekit/ivr/audio-assets'),
+    { name: 'Welcome', source_kind: 'tts', tts_text: 'Hello' }, '', headers, { module }
+  );
+  await routeIveKitIvrApi(
+    pg, 'PATCH', '/api/ivekit/ivr/audio-assets/audio-a',
+    new URL('http://localhost/api/ivekit/ivr/audio-assets/audio-a'),
+    { expected_revision: 1, name: 'Welcome v2' }, '', headers, { module }
+  );
+  await routeIveKitIvrApi(
+    pg, 'PATCH', '/api/ivekit/ivr/settings',
+    new URL('http://localhost/api/ivekit/ivr/settings'),
+    { expected_revision: 0, max_steps: 700 }, '', headers, { module }
+  );
+  assert.deepEqual(observed, [
+    {
+      name: 'Welcome', source_kind: 'tts', tts_text: 'Hello',
+      tenant_id: 'tenant-a', actor: 'system'
+    },
+    {
+      expected_revision: 1, name: 'Welcome v2',
+      tenant_id: 'tenant-a', actor: 'system', id: 'audio-a'
+    },
+    { expected_revision: 0, max_steps: 700, tenant_id: 'tenant-a', actor: 'system' }
+  ]);
+});
