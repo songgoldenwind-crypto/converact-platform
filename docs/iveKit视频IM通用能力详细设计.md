@@ -10,7 +10,7 @@
 >
 > M6.5 更新（2026-07-12）：RustDesk edge crash-safe spool 与 recovery API 已在隔离服务器 `ivekit-v2-c13f503` 验收。executed 重启只补报、terminal 幂等确认、executing 不确定状态终止、跨 edge ownership quarantine、Linux 权限/符号链接/原子落盘以及应用重启持久性均通过；服务器证据路径和摘要见 [iveKit V2 standalone realtime plan](ivekit-v2-standalone-realtime-plan.md)。
 >
-> Voice Foundation V1 更新（2026-07-13）：共享 PostgreSQL-only Voice Core、25 节点 IVR Runtime、Voice/IVR SDK 与 React 控制工作台、Contact Center 配置/ACD/队列/callback/maintenance，以及 supervisor 通用控制面已完成；受控 PostgreSQL/RustPBX 验收通过。standalone 镜像包含 Voice preflight、RustPBX 配置和 Contact Center runtime。真实 RustPBX、真实 SIP/PSTN、RTP/录音、真实 LiveKit SIP、WebPhone 和 supervisor provider 执行仍为 `not_run`。权威细节见 [iveKit Voice Foundation V1 详细设计](ivekit-voice-foundation-v1-design.md)。
+> Voice Foundation V1 更新（2026-07-13）：共享 PostgreSQL-only Voice Core、25 节点 IVR Runtime、Voice/IVR SDK、SIP.js WebPhone adapter 与 React 控制工作台、Contact Center 配置/ACD/队列/callback/maintenance，以及 supervisor 通用控制面已完成；受控 PostgreSQL/RustPBX 和 WebPhone 桌面/移动浏览器验收通过。standalone 镜像包含 Voice preflight、RustPBX 配置和 Contact Center runtime。真实 RustPBX、真实 SIP/PSTN、WebSocket 注册、SDP/ICE、RTP/录音、真实 LiveKit SIP 和 supervisor provider 执行仍为 `not_run`。权威细节见 [iveKit Voice Foundation V1 详细设计](ivekit-voice-foundation-v1-design.md)。
 
 ---
 
@@ -117,7 +117,7 @@ Voice 作为与 Media、IM、Remote 同级的共享模块，代码位于 `src/ag
 
 RustPBX RWI 当前确认执行的动作包括 originate、answer、hangup、hold/unhold、盲转、暖转协议映射、conference add 和 recording start/pause/resume/stop。DTMF、Park、Pickup 没有在当前官方 RWI 基线中找到可确认的执行 action，因此明确返回 `capability_unavailable`。Audio Queue、Barge-in、Step IVR 已在独立 IVR Runtime 落地；supervisor 的 monitor/whisper/barge 通用控制端口、管理员授权、坐席归属校验、幂等会话、PostgreSQL 审计状态和 `/api/ivekit/contact-center/supervisor/actions` 已完成，但当前 RustPBX 基线没有对应 action，默认 provider 仍返回 `capability_unavailable`。完整会议生命周期和真实 supervisor 媒体执行仍是后续 provider 里程碑。
 
-验收边界：`scripts/verify-ivekit-postgres.sh` 已证明真实 PostgreSQL fresh/upgrade/RLS、受控 RustPBX 配置与通话、CDR/录音、LiveKit 受控 `SipClient`、timeout reconciliation、重复/乱序事件、worker restart 和 tenant isolation。它不证明真实 RustPBX、运营商 trunk/DID、PSTN 收费线路、RTP、真实录音文件、LiveKit SIP 服务或 WebPhone 浏览器；这些项目继续保持 `not_run`。
+验收边界：`scripts/verify-ivekit-postgres.sh` 已证明真实 PostgreSQL fresh/upgrade/RLS、受控 RustPBX 配置与通话、CDR/录音、LiveKit 受控 `SipClient`、timeout reconciliation、重复/乱序事件、worker restart 和 tenant isolation；`clients/ivekit-reference/e2e/voice.spec.ts` 已证明 WebPhone 懒加载、受控呼入/外呼 UI、Hold、DTMF、设备切换、凭证不进 DOM 和桌面/移动布局。它们不证明真实 RustPBX、运营商 trunk/DID、PSTN 收费线路、WSS 注册、SDP/ICE、RTP、物理设备、真实录音文件或 LiveKit SIP 服务；这些项目继续保持 `not_run`。
 
 ---
 

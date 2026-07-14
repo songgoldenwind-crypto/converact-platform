@@ -208,6 +208,33 @@ export interface VoiceExtension {
   updated_at: string;
 }
 
+export interface VoiceExtensionSessionPlan {
+  session_id: string;
+  extension_id: string;
+  transport: 'wss';
+  websocket_url: string;
+  address_of_record: string;
+  authorization_username: string;
+  authorization_password: string;
+  display_name?: string;
+  expires_at: string;
+  register_expires_seconds: number;
+  ice_servers: Array<{
+    urls: string | string[];
+    username?: string;
+    credential?: string;
+  }>;
+  capabilities: {
+    incoming: boolean;
+    outgoing: boolean;
+    dtmf: boolean;
+    hold: boolean;
+    transfer: boolean;
+    audio_input: boolean;
+    audio_output: boolean;
+  };
+}
+
 export interface VoiceRoute {
   id: string;
   tenant_id: string;

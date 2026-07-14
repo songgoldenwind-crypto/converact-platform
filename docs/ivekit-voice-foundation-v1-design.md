@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core、M3 IVR Runtime、Voice/IVR/Contact Center SDK、headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker、满队列与超时 durable overflow、Queue Monitor 后端投影与参考客户端 UI、IVR queue adapter，以及 supervisor 监听/耳语/强插通用控制面；受控 PostgreSQL/RustPBX 协议和 Queue Monitor 桌面/移动浏览器验收通过。supervisor 的真实 provider adapter、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice/IVR/Contact Center SDK、headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker、满队列与超时 durable overflow、Queue Monitor 后端投影与参考客户端 UI、IVR queue adapter，以及 supervisor 监听/耳语/强插通用控制面；SIP.js 浏览器 WebPhone adapter、懒加载 React 面板和受控桌面/移动浏览器验收已完成。supervisor 的真实 provider adapter、真实 RustPBX WebSocket 注册、真实 RTP/设备媒体和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -19,10 +19,10 @@
 | PSTN 到 LiveKit SIP bridge orchestration | 已实现 | 注入受控 `SipClient`、超时后 participant lookup 对账且不重复创建通过；真实 LiveKit SIP/PSTN 为 `not_run` |
 | standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、三个编译入口、Compose merge、Helm/交付清单测试通过；真实容器和 RustPBX 数据面启动仍为 `not_run` |
 | IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
-| Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
-| React Voice 控制工作台 | 已实现控制面 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、呼入/外呼、状态门禁控制、DTMF、转接、会议、Park/Pickup、录音、LiveKit bridge 和分机 session readiness；不渲染 session credential |
+| Voice SDK/headless WebPhone controller | 已实现 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖 durable 呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试；独立 `@opc/ivekit-sdk/sip-webphone` 子入口封装 SIP.js 媒体状态机 |
+| React Voice 控制工作台 | 已实现 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、durable 呼叫控制，以及按分机会话懒加载的 WebPhone 注册、呼入/外呼、接听/拒接、挂断、静音、Hold/Resume、DTMF 和音频设备控件；不渲染 session credential |
 | Contact Center Kit | 通用控制面已实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`056` migrations、tenant-scoped PostgreSQL store、配置/排队/callback/supervisor API、租户与状态绑定历史查询、自动派单 worker、durable overflow、UTC 日窗口 Queue Monitor 后端投影、参考客户端 UI、完整 TypeScript SDK 和 IVR queue adapter 已实现；默认 RustPBX supervisor provider 明确不可用 |
-| 浏览器 SIP/WebRTC 媒体接入 | 未实现 | 属于 M5；不得从已有 OPC call-center 页面、控制工作台或 headless controller 推断真实软电话媒体已交付 |
+| 浏览器 SIP/WebRTC 媒体接入 | 代码完成、受控浏览器通过 | SIP.js adapter、严格 session plan、到期注销、注册/重连、单通话状态机、远端音频、输入/输出设备切换和分块预算已实现；Playwright 使用注入 engine 验证 UI，不证明真实 RustPBX 注册、SDP/ICE、RTP 双向音频或硬件设备 |
 
 当前新增迁移为：
 
@@ -38,7 +38,7 @@
 - `055_ivekit_contact_center_callbacks.sql`：callback 对账索引、不可删除审计约束，以及包含到期/活动 callback 的 worker 租户发现升级。
 - `056_ivekit_contact_center_overflow.sql`：不可删除的 overflow outbox、重试状态、RLS、租户发现，以及源条目/队列/Voice Call 完整性约束。
 
-受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 RTP/录音、真实 LiveKit SIP 和软电话浏览器均保持 `not_run`。
+受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts`、`clients/ivekit-reference/e2e/voice.spec.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 WebSocket 注册、SDP/ICE、RTP/录音、真实 LiveKit SIP 和物理音频设备均保持 `not_run`。
 
 ## 1. 目标
 
@@ -584,7 +584,7 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 | `GET` / `POST` | `/api/ivekit/voice/extensions` | 查询或创建分机 |
 | `GET` / `PATCH` | `/api/ivekit/voice/extensions/:id` | 查看或更新分机 |
 | `POST` | `/api/ivekit/voice/extensions/:id/apply` | 入队分机 apply command |
-| `POST` | `/api/ivekit/voice/extensions/:id/session` | 可选注入 extension-session provider；未注入返回 capability error |
+| `POST` | `/api/ivekit/voice/extensions/:id/session` | 签发严格类型的短期 WSS/SIP WebPhone plan；未注入 provider 返回 capability error |
 | `GET` / `POST` | `/api/ivekit/voice/routes` | 查询或创建 route draft |
 | `GET` / `PATCH` | `/api/ivekit/voice/routes/:id` | 查看或按 revision 更新 draft |
 | `POST` | `/api/ivekit/voice/routes/:id/validate` | 静态校验并返回 canonical payload hash |
@@ -606,6 +606,8 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 | `POST` | `/api/ivekit/voice/providers/:profileId/cdrs` | CDR/recording reconciliation 入口 |
 
 写操作按角色分为 admin/operator，tenant 只来自认证上下文；trunk apply/test、DID/extension apply、route publish、call create/action/bridge 都要求 `Idempotency-Key`。`@opc/ivekit-sdk` 已覆盖本节全部公开控制面，Provider webhook 仍仅供服务端使用。当前仍没有注册 recording export、retention-run 或机器可读 OpenAPI 产物，不能按未注册的规划路径调用。
+
+分机 session plan 固定包含 `session_id`、`extension_id`、`transport=wss`、`websocket_url`、`address_of_record`、短期 `authorization_username/password`、`expires_at`、REGISTER 有效期、ICE server 和能力位。服务端只允许 operator 获取 `extension.identity` 与 JWT `sub` 相同且 `active + webrtc_enabled` 的分机；owner/admin/system 可代管。返回前会拒绝过期、非 WSS、错误分机绑定、非法 SIP AOR/ICE URL 和超出 plan 生命周期的 REGISTER。短期 SIP password 是浏览器建立注册所必需的瞬时凭证，不得进入 DOM、日志、持久存储或 durable event；长期分机 secret ref 仍只存在服务端。
 
 ### 12.2 IVR
 
@@ -706,10 +708,11 @@ Queue Monitor 后端使用同一 tenant-scoped PostgreSQL 事务生成一致快�
 
 浏览器接入分两层：
 
-1. headless Voice controller：已交付 call state、控制命令、分机能力门禁和稳定幂等重试；真实 SIP/WebRTC 媒体 adapter 尚未联调。
-2. 可嵌入 React Voice 控制工作台：已交付 durable call 深链、脱敏 Call Detail、呼入/外呼和完整控制动作，Voice/IVR durable event 会触发快照刷新；它不保存或显示分机 credential，也不声称已经完成软电话注册和 RTP 媒体。
-3. Queue Monitor：已交付独立 `operations` 工作区、桌面/移动响应式布局、刷新/筛选/告警和受控浏览器 E2E。
-4. 浏览器 SIP/WebRTC media adapter、IVR Designer：尚未交付。
+1. headless Voice controller：已交付 durable call state、控制命令、分机能力门禁和稳定幂等重试。
+2. `@opc/ivekit-sdk/sip-webphone`：已交付 SIP.js 单通话 adapter，覆盖短期计划校验、WSS 注册/重连、呼入/外呼、接听/拒接/挂断、静音、Hold/Resume、RFC 4733 DTMF、远端音频、输入/输出设备切换、到期注销和可注入 engine 测试；真实 RustPBX/RTP 尚未联调。
+3. 可嵌入 React Voice 控制工作台：已交付 durable call 深链、脱敏 Call Detail、完整控制动作和懒加载 WebPhone 面板；Voice/IVR durable event 会触发快照刷新，session credential 不进入 DOM。
+4. Queue Monitor：已交付独立 `operations` 工作区、桌面/移动响应式布局、刷新/筛选/告警和受控浏览器 E2E。
+5. IVR Designer：尚未交付。
 
 参考客户端继续作为完整示例，OPC 和 LED 不复制其源码。
 
@@ -894,21 +897,21 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M5：SDK、UI 与交付
 
-状态：完整 Voice/IVR/Contact Center TypeScript SDK、headless WebPhone controller、React Voice 控制工作台、Queue Monitor 后端投影与参考客户端 UI 已完成；浏览器 SIP/WebRTC media adapter、IVR Designer 尚未完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
+状态：完整 Voice/IVR/Contact Center TypeScript SDK、headless Voice controller、SIP.js WebPhone adapter、React Voice/WebPhone 工作台、Queue Monitor 后端投影与参考客户端 UI 已完成；IVR Designer 尚未完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
 
 - SDK、headless hooks、WebPhone、IVR Designer、Queue Monitor。
 - Compose、Helm、SBOM、image metadata、upgrade/rollback 和 LED/OPC 示例。
 
 ### M6：验证
 
-状态：单元、客户端生产构建/分块预算、静态交付和受控 PostgreSQL 部分已执行；真实 RustPBX/PSTN/LiveKit SIP、浏览器软电话媒体和隔离服务器仍未执行。
+状态：单元、客户端生产构建/分块预算、WebPhone 受控桌面/移动 Playwright、静态交付和受控 PostgreSQL 部分已执行；真实 RustPBX/PSTN/LiveKit SIP、真实浏览器注册/RTP 媒体和隔离服务器仍未执行。
 
 - 全仓回归。
 - standalone 独立安装/build。
 - 真实 PostgreSQL fresh/upgrade/RLS/restart recovery。
 - 受控 RustPBX/Step IVR/RWI capability matrix。
 - 真实 RustPBX 双向 SIP、真实号码/软电话、录音、LiveKit SIP bridge。
-- 浏览器 SIP/WebRTC WebPhone media、IVR designer，以及真实 PostgreSQL 数据驱动的 queue monitor E2E；Queue Monitor 受控桌面/移动 E2E 已完成。
+- 真实 RustPBX 浏览器 SIP/WebRTC WebPhone 注册与 RTP、IVR designer，以及真实 PostgreSQL 数据驱动的 queue monitor E2E；WebPhone 与 Queue Monitor 的受控桌面/移动 E2E 已完成。
 - 交付 evidence 与 source commit/hash 绑定。
 
 ## 20. 验收定义
@@ -920,9 +923,9 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 | 单元 | 状态机、graph validation、号码规范化、幂等、adapter mapping、错误分类 | 新 Voice/IVR 核心不访问网络和 SQLite SQL；使用 port fake。旧 compatibility regression 可在迁移期继续使用 legacy SQLite harness |
 | PostgreSQL 集成 | fresh/upgrade/checksum、RLS、tenant 事务、lease claim/recovery、唯一约束、importer dry-run/rejection | 使用真实 PostgreSQL，不能用内存 fake 冒充 |
 | 受控协议 | RustPBX management/router/Step IVR/RWI、事件乱序/重复/超时、CDR、LiveKit SIP adapter | 受控 Provider 结果必须标记 `controlled` |
-| 浏览器 | WebPhone 注册、RTP 媒体、呼入/外呼状态、设备切换、Hold/Transfer、IVR designer、queue monitor | 使用真实浏览器和构建产物；React 控制工作台单元测试不能替代本层 |
+| 受控浏览器 | WebPhone 懒加载、呼入/外呼 UI、设备切换、Hold、DTMF、凭证不进 DOM、响应式布局、queue monitor | 使用真实浏览器和构建产物并注入受控 engine；结果不代表真实 SIP 注册或 RTP |
 | 隔离服务器 | standalone 安装、Compose/Helm render、重启恢复、网络端口、对象存储、evidence bundle | source commit、镜像 digest、配置 hash 必须一致 |
-| 真实通信环境 | 双向 SIP/PSTN、真实号码/软电话、RTP/录音、LiveKit SIP bridge、RWI 实际能力 | 未配置运营商或真实客户端时保持 `not_run`，不得写 `passed` |
+| 真实通信环境 | 双向 SIP/PSTN、真实号码/软电话、WebSocket 注册、SDP/ICE、RTP/物理设备/录音、LiveKit SIP bridge、RWI 实际能力 | 未配置运营商或真实客户端时保持 `not_run`，不得用受控浏览器结果替代 |
 
 ### 20.2 完成条件
 

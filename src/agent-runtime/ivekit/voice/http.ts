@@ -43,6 +43,7 @@ import type {
   VoiceCallState,
   VoiceConfigurationCommand,
   VoiceExtension,
+  VoiceExtensionSessionPlan,
   VoiceRecording,
   VoiceRouteDirection,
   VoiceSipTrunk
@@ -58,7 +59,7 @@ export interface VoiceExtensionSessionPort {
     extension: VoiceExtension;
     actor: string;
     idempotency_key: string;
-  }): Promise<Record<string, unknown>>;
+  }): Promise<VoiceExtensionSessionPlan>;
 }
 
 export interface VoiceHttpModule {
@@ -322,10 +323,12 @@ export async function routeIveKitVoiceApi(
       requireOperator(ctx);
       if (!module.extension_sessions) throw capabilityUnavailable('webrtc_extension');
       const extension = await module.configuration.getExtension(ctx.tenantId, extensionId);
-      return { status: 201, data: await module.extension_sessions.create({
+      requireExtensionSessionAccess(ctx, extension);
+      const plan = await module.extension_sessions.create({
         tenant_id: ctx.tenantId, extension, actor: ctx.userId,
         idempotency_key: requireIdempotencyKey(headers)
-      }) };
+      });
+      return { status: 201, data: publicExtensionSessionPlan(plan, extension.id) };
     }
   }
 
@@ -671,6 +674,89 @@ function requireAdmin(ctx: AuthContext): void {
 
 function requireOperator(ctx: AuthContext): void {
   if (ctx.role === 'viewer') throw new VoiceError({ code: 'compliance_denied', status: 403 });
+}
+
+function requireExtensionSessionAccess(ctx: AuthContext, extension: VoiceExtension): void {
+  if (extension.status !== 'active' || !extension.webrtc_enabled) {
+    throw capabilityUnavailable('webrtc_extension');
+  }
+  if (ctx.role !== 'owner' && ctx.role !== 'admin' && ctx.role !== 'system'
+    && extension.identity !== ctx.userId) {
+    throw new VoiceError({ code: 'compliance_denied', status: 403 });
+  }
+}
+
+function publicExtensionSessionPlan(
+  plan: VoiceExtensionSessionPlan,
+  extensionId: string
+): VoiceExtensionSessionPlan {
+  try {
+    const websocket = new URL(plan.websocket_url);
+    const expiresAt = Date.parse(plan.expires_at);
+    const remainingSeconds = Math.floor((expiresAt - Date.now()) / 1_000);
+    if (plan.transport !== 'wss' || websocket.protocol !== 'wss:'
+      || websocket.username || websocket.password || websocket.hash
+      || plan.extension_id !== extensionId || !Number.isFinite(expiresAt) || expiresAt <= Date.now()
+      || !Number.isInteger(plan.register_expires_seconds)
+      || plan.register_expires_seconds < 30 || plan.register_expires_seconds > 3_600
+      || plan.register_expires_seconds > remainingSeconds
+      || !/^sips?:[^\s@]+@[^\s@]+$/i.test(plan.address_of_record)
+      || !Array.isArray(plan.ice_servers) || plan.ice_servers.length > 16) {
+      throw new Error('invalid session plan');
+    }
+    const capabilities = plan.capabilities;
+    const capabilityKeys = [
+      'incoming', 'outgoing', 'dtmf', 'hold', 'transfer', 'audio_input', 'audio_output'
+    ] as const;
+    if (!capabilities || capabilityKeys.some((key) => typeof capabilities[key] !== 'boolean')) {
+      throw new Error('invalid capabilities');
+    }
+    const iceServers = plan.ice_servers.map((server) => {
+      const urls = Array.isArray(server.urls)
+        ? server.urls.map((url) => safeIceUrl(url))
+        : safeIceUrl(server.urls);
+      if (Array.isArray(urls) && !urls.length) throw new Error('invalid ICE server');
+      return {
+        urls,
+        ...(server.username === undefined ? {} : { username: safeProviderString(server.username, 512) }),
+        ...(server.credential === undefined ? {} : { credential: safeProviderString(server.credential, 2_048) })
+      };
+    });
+    return {
+      session_id: safeProviderString(plan.session_id),
+      extension_id: safeProviderString(plan.extension_id),
+      transport: 'wss', websocket_url: websocket.toString(),
+      address_of_record: safeProviderString(plan.address_of_record, 1_024),
+      authorization_username: safeProviderString(plan.authorization_username, 512),
+      authorization_password: safeProviderString(plan.authorization_password, 4_096),
+      ...(plan.display_name === undefined ? {} : { display_name: safeProviderString(plan.display_name, 256) }),
+      expires_at: new Date(expiresAt).toISOString(),
+      register_expires_seconds: plan.register_expires_seconds,
+      ice_servers: iceServers,
+      capabilities: Object.fromEntries(
+        capabilityKeys.map((key) => [key, capabilities[key]])
+      ) as VoiceExtensionSessionPlan['capabilities']
+    };
+  } catch (cause) {
+    if (cause instanceof VoiceError) throw cause;
+    throw new VoiceError({ code: 'protocol_mismatch', status: 502 });
+  }
+}
+
+function safeProviderString(value: unknown, max = 256): string {
+  if (typeof value !== 'string' || !value || value.length > max
+    || /[\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error('invalid provider value');
+  }
+  return value;
+}
+
+function safeIceUrl(value: unknown): string {
+  const result = safeProviderString(value, 2_048);
+  if (!/^(?:stun|stuns|turn|turns):[^\s]+$/i.test(result)) {
+    throw new Error('invalid ICE server URL');
+  }
+  return result;
 }
 
 function listInput(tenantId: string, url: URL): { tenant_id: string; limit: number; cursor?: string } {

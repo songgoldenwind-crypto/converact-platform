@@ -130,7 +130,9 @@ test('Voice controller prepares extension sessions only when the capability is a
   });
 
   const plan = await controller.prepareExtensionSession('extension/a');
-  assert.deepEqual(plan, { protocol: 'wss', url: 'wss://pbx.example/ws' });
+  assert.equal(plan.transport, 'wss');
+  assert.equal(plan.websocket_url, 'wss://pbx.example/ws');
+  assert.equal(plan.authorization_password, 'ephemeral-secret');
   assert.deepEqual(controller.getSnapshot().extension_session, plan);
   assert.equal(controller.getSnapshot().capabilities?.capabilities.extension_sessions, true);
 
@@ -168,7 +170,16 @@ function voiceClient(input: {
       return command('livekit_bridge_create');
     },
     async createExtensionSession() {
-      return { protocol: 'wss', url: 'wss://pbx.example/ws' };
+      return {
+        session_id: 'session-a', extension_id: 'extension-a', transport: 'wss',
+        websocket_url: 'wss://pbx.example/ws', address_of_record: 'sip:1001@pbx.example',
+        authorization_username: 'session-a', authorization_password: 'ephemeral-secret',
+        expires_at: '2099-07-13T09:05:00.000Z', register_expires_seconds: 300,
+        ice_servers: [], capabilities: {
+          incoming: true, outgoing: true, dtmf: true, hold: true, transfer: false,
+          audio_input: true, audio_output: true
+        }
+      };
     }
   };
 }

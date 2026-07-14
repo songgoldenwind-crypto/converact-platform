@@ -487,7 +487,114 @@ export interface IveKitVoiceCreateConsentInput {
   expires_at?: string | null;
 }
 
-export type IveKitVoiceExtensionSessionPlan = Readonly<Record<string, unknown>>;
+export interface IveKitVoiceIceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface IveKitVoiceExtensionSessionCapabilities {
+  incoming: boolean;
+  outgoing: boolean;
+  dtmf: boolean;
+  hold: boolean;
+  transfer: boolean;
+  audio_input: boolean;
+  audio_output: boolean;
+}
+
+export interface IveKitVoiceExtensionSessionPlan {
+  session_id: string;
+  extension_id: string;
+  transport: 'wss';
+  websocket_url: string;
+  address_of_record: string;
+  authorization_username: string;
+  authorization_password: string;
+  display_name?: string;
+  expires_at: string;
+  register_expires_seconds: number;
+  ice_servers: IveKitVoiceIceServer[];
+  capabilities: IveKitVoiceExtensionSessionCapabilities;
+}
+
+export function parseIveKitVoiceExtensionSessionPlan(
+  value: unknown,
+  options: { now?: () => number } = {}
+): IveKitVoiceExtensionSessionPlan {
+  const invalid = () => new TypeError('invalid voice extension session plan');
+  if (!isSessionRecord(value)) throw invalid();
+  const string = (input: unknown, max = 2_048): string => {
+    if (typeof input !== 'string' || !input || input.length > max
+      || /[\u0000-\u001f\u007f]/.test(input)) throw invalid();
+    return input;
+  };
+  let websocket: URL;
+  try {
+    websocket = new URL(string(value.websocket_url));
+  } catch {
+    throw invalid();
+  }
+  if (value.transport !== 'wss' || websocket.protocol !== 'wss:'
+    || websocket.username || websocket.password || websocket.hash) throw invalid();
+  const expiresAt = Date.parse(string(value.expires_at));
+  const now = options.now?.() ?? Date.now();
+  if (!Number.isFinite(expiresAt)) throw invalid();
+  if (expiresAt <= now) throw new TypeError('expired voice extension session plan');
+  const registerExpires = value.register_expires_seconds;
+  const remainingSeconds = Math.floor((expiresAt - now) / 1_000);
+  if (!Number.isInteger(registerExpires) || Number(registerExpires) < 30
+    || Number(registerExpires) > 3_600 || Number(registerExpires) > remainingSeconds) throw invalid();
+  if (!Array.isArray(value.ice_servers) || value.ice_servers.length > 16) throw invalid();
+  const iceServers = value.ice_servers.map((candidate) => {
+    if (!isSessionRecord(candidate)) throw invalid();
+    const urls = Array.isArray(candidate.urls)
+      ? candidate.urls.map((url) => validIceUrl(string(url)))
+      : validIceUrl(string(candidate.urls));
+    if (Array.isArray(urls) && !urls.length) throw invalid();
+    return {
+      urls,
+      ...(candidate.username === undefined ? {} : { username: string(candidate.username, 512) }),
+      ...(candidate.credential === undefined ? {} : { credential: string(candidate.credential, 2_048) })
+    };
+  });
+  if (!isSessionRecord(value.capabilities)) throw invalid();
+  const capabilities = value.capabilities;
+  const boolean = (key: keyof IveKitVoiceExtensionSessionCapabilities): boolean => {
+    if (typeof capabilities[key] !== 'boolean') throw invalid();
+    return capabilities[key];
+  };
+  const addressOfRecord = string(value.address_of_record, 1_024);
+  if (!/^sips?:[^\s@]+@[^\s@]+$/i.test(addressOfRecord)) throw invalid();
+  return {
+    session_id: string(value.session_id, 256),
+    extension_id: string(value.extension_id, 256),
+    transport: 'wss', websocket_url: websocket.toString(),
+    address_of_record: addressOfRecord,
+    authorization_username: string(value.authorization_username, 512),
+    authorization_password: string(value.authorization_password, 4_096),
+    ...(value.display_name === undefined ? {} : { display_name: string(value.display_name, 256) }),
+    expires_at: new Date(expiresAt).toISOString(),
+    register_expires_seconds: Number(registerExpires),
+    ice_servers: iceServers,
+    capabilities: {
+      incoming: boolean('incoming'), outgoing: boolean('outgoing'), dtmf: boolean('dtmf'),
+      hold: boolean('hold'), transfer: boolean('transfer'),
+      audio_input: boolean('audio_input'), audio_output: boolean('audio_output')
+    }
+  };
+}
+
+function validIceUrl(value: string): string {
+  if (!/^(?:stun|stuns|turn|turns):[^\s]+$/i.test(value)) {
+    throw new TypeError('invalid voice extension session plan');
+  }
+  return value;
+}
+
+function isSessionRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
 export interface IveKitVoiceCreateCallResult {
   call: IveKitVoiceCall;

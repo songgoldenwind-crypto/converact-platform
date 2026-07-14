@@ -23,7 +23,12 @@ import {
   Users,
   X
 } from 'lucide-react';
-import React, { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+
+const SipPhonePanel = lazy(async () => {
+  const module = await import('./sip-phone-panel.js');
+  return { default: module.SipPhonePanel };
+});
 
 type VoicePanel = 'keypad' | 'transfer' | 'more' | null;
 type VoiceAction = 'answer' | 'hangup' | 'dtmf' | 'hold' | 'resume' | 'transfer' |
@@ -118,6 +123,9 @@ export function VoiceWorkspace(props: {
   };
   const busy = state.phase === 'loading' || state.phase === 'submitting';
   const call = state.call;
+  const preparedExtensionSession = state.extension_session?.extension_id === extensionId.trim()
+    ? state.extension_session
+    : null;
   const allowed = (action: VoiceAction) => Boolean(
     call && !busy && ACTION_STATES[action].includes(call.state)
   );
@@ -184,7 +192,8 @@ export function VoiceWorkspace(props: {
           <header><RadioTower size={15} /><strong>Extension session</strong></header>
           <label><span>Extension ID</span><input aria-label="Extension ID" value={extensionId} onChange={(event) => setExtensionId(event.target.value)} /></label>
           <button title="Prepare extension session" disabled={!controller || busy || !extensionId.trim()} onClick={() => void run((voice) => voice.prepareExtensionSession(extensionId))}><RadioTower size={15} />Prepare</button>
-          <output className={state.extension_session ? 'ready' : ''}>{state.extension_session ? 'Session ready' : state.capabilities?.capabilities.extension_sessions === false ? 'Unavailable' : 'Not prepared'}</output>
+          <output className={preparedExtensionSession ? 'ready' : ''}>{preparedExtensionSession ? 'Session ready' : state.capabilities?.capabilities.extension_sessions === false ? 'Unavailable' : 'Not prepared'}</output>
+          {preparedExtensionSession && <Suspense fallback={<output>Loading WebPhone...</output>}><SipPhonePanel plan={preparedExtensionSession} /></Suspense>}
         </section>
       </aside>
 

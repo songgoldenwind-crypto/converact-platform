@@ -75,6 +75,15 @@ await webPhone.selectCall(outbound.call.id);
 await webPhone.hold();
 await webPhone.resume();
 
+const extensionPlan = await ivekit.voice.createExtensionSession('extension-1001', {
+  idempotencyKey: crypto.randomUUID()
+});
+const { createIveKitSipWebPhone } = await import('@opc/ivekit-sdk/sip-webphone');
+const sipPhone = createIveKitSipWebPhone({ plan: extensionPlan });
+sipPhone.attachRemoteAudio(document.querySelector('#remote-audio')!);
+await sipPhone.connect();
+await sipPhone.dial('1002');
+
 const prompt = await ivekit.ivr.createAudioAsset({
   name: 'LED support welcome',
   source_kind: 'tts',
@@ -104,16 +113,20 @@ Provider webhook endpoints are intentionally server-only and are not SDK methods
 Every provider-changing Voice operation requires a stable idempotency key. Reuse the
 same key and identical payload after an ambiguous timeout or 5xx. A new intent must
 use a new key. Browser WebPhones must use a short-lived bearer token and must first
-check `voice.getCapabilities().capabilities.extension_sessions`; the returned plan is
-adapter-defined and never contains iveKit API keys or server-side provider secrets.
+check `voice.getCapabilities().capabilities.extension_sessions`. The fixed plan contains
+only a short-lived SIP authorization credential plus WSS/AOR/ICE configuration; never
+persist it, log it, render it, or confuse it with a server-side long-lived secret.
 
 `createIveKitVoiceController()` is a framework-neutral WebPhone control-plane
 controller. It publishes immutable top-level snapshots, exposes dial/answer/hangup,
 DTMF, hold/resume, blind/warm transfer, conference, park/pickup, recording and
 LiveKit bridge commands, and retains an idempotency key only after an ambiguous
 timeout or retryable provider failure. `refresh()` converges the selected call with
-the server authority. It deliberately does not implement SIP/WebRTC media; use the
-capability-gated extension session plan with the deployment's media adapter.
+the server authority. SIP/WebRTC media is provided separately by the lazy-loadable
+`@opc/ivekit-sdk/sip-webphone` entry point. Its SIP.js adapter validates plan expiry
+and WSS transport, supports registration/reconnect, incoming and outgoing single-call
+control, mute, hold/resume, DTMF, remote audio, input/output selection, and automatic
+unregistration when the ephemeral plan expires.
 
 The IVR client exposes revisioned flows, immutable publish/rollback versions,
 deterministic simulations, durable sessions, audio assets, time/region/ring groups,

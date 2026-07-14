@@ -9,6 +9,8 @@ const budgets = [
   [/^media-workspace-.*\.js$/, 80 * 1024, 'media workspace'],
   [/^voice-workspace-.*\.js$/, 35 * 1024, 'voice workspace'],
   [/^play-.*\.js$/, 2 * 1024, 'shared workspace play icon'],
+  [/^wifi-off-.*\.js$/, 4 * 1024, 'shared WebPhone status icon'],
+  [/^sip-phone-panel-.*\.js$/, 250 * 1024, 'SIP WebPhone'],
   [/^tinode\..*\.js$/, 120 * 1024, 'Tinode provider'],
   [/^rustdesk-launch-panel-.*\.js$/, 25 * 1024, 'RustDesk workspace'],
   [/^quality-workspace-.*\.js$/, 25 * 1024, 'quality workspace'],
@@ -28,7 +30,7 @@ const unknown = files.filter((file) => !known.has(file));
 if (unknown.length) throw new Error(`unbudgeted JavaScript chunks: ${unknown.join(', ')}`);
 
 const html = readFileSync(join(dist.pathname, 'index.html'), 'utf8');
-if (/livekit-vendor|tinode\.|media-workspace|voice-workspace|play-|rustdesk-launch-panel|quality-workspace|queue-monitor-workspace/.test(html)) {
+if (/livekit-vendor|tinode\.|media-workspace|voice-workspace|sip-phone-panel|wifi-off-|play-|rustdesk-launch-panel|quality-workspace|queue-monitor-workspace/.test(html)) {
   throw new Error('initial HTML must not preload provider or non-default workspace chunks');
 }
 

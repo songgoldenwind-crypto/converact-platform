@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./sip-webphone": {
+      "types": "./dist/sip-webphone.d.ts",
+      "import": "./dist/sip-webphone.js"
     }
   },
   "files": [
@@ -25,5 +29,8 @@
   },
   "devDependencies": {
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "sip.js": "^0.21.2"
   }
 }

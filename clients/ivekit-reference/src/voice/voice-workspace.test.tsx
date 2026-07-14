@@ -85,6 +85,7 @@ test('Voice workspace dials with a business reference and prepares an extension 
     await Promise.resolve();
   });
   await waitFor(() => assert.ok(view.getByText('Session ready')));
+  await waitFor(() => assert.ok(view.getByRole('region', { name: 'SIP WebPhone' })));
   assert.ok(requests.includes('capabilities'));
   assert.ok(requests.includes('extension:extension-a'));
   assert.equal(view.container.textContent?.includes('private-provider-secret'), false);
@@ -153,7 +154,17 @@ function fakeClient(
     },
     async createExtensionSession(extensionId) {
       requests.push(`extension:${extensionId}`);
-      return { protocol: 'wss', url: 'wss://pbx.example/ws', credential: 'private-provider-secret' };
+      return {
+        session_id: 'webrtc-session-a', extension_id: extensionId, transport: 'wss',
+        websocket_url: 'wss://pbx.example/ws', address_of_record: 'sip:1001@pbx.example',
+        authorization_username: 'webrtc-session-a',
+        authorization_password: 'private-provider-secret', display_name: 'Agent A',
+        expires_at: '2099-07-13T09:05:00.000Z', register_expires_seconds: 300,
+        ice_servers: [], capabilities: {
+          incoming: true, outgoing: true, dtmf: true, hold: true, transfer: false,
+          audio_input: true, audio_output: true
+        }
+      };
     },
     ...overrides
   };

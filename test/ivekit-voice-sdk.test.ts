@@ -47,11 +47,22 @@ test('iveKit Voice client preserves paths, filters, request bodies, and idempote
       body: typeof init.body === 'string' ? JSON.parse(init.body) : null
     });
     const path = new URL(String(input)).pathname;
-    const data = path.endsWith('/versions') || path.endsWith('/events') ||
-      path.endsWith('/recordings') || path.endsWith('/bridges') ||
-      path.endsWith('/participants') || path === '/api/ivekit/voice/calls'
-      ? { items: [], next_cursor: null }
-      : {};
+    const data = path.endsWith('/session')
+      ? {
+          session_id: 'session-a', extension_id: 'extension/a', transport: 'wss',
+          websocket_url: 'wss://pbx.example/ws', address_of_record: 'sip:1001@pbx.example',
+          authorization_username: 'session-a', authorization_password: 'ephemeral-secret',
+          expires_at: '2099-07-13T09:05:00.000Z', register_expires_seconds: 300,
+          ice_servers: [], capabilities: {
+            incoming: true, outgoing: true, dtmf: true, hold: true, transfer: false,
+            audio_input: true, audio_output: true
+          }
+        }
+      : path.endsWith('/versions') || path.endsWith('/events') ||
+        path.endsWith('/recordings') || path.endsWith('/bridges') ||
+        path.endsWith('/participants') || path === '/api/ivekit/voice/calls'
+        ? { items: [], next_cursor: null }
+        : {};
     return new Response(JSON.stringify(data), {
       status: 200,
       headers: { 'content-type': 'application/json' }

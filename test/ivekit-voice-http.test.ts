@@ -5,6 +5,7 @@ import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
 import {
   VoiceError,
   routeIveKitVoiceApi,
+  type VoiceExtension,
   type VoiceHttpModule
 } from '../src/agent-runtime/ivekit/voice/index.js';
 import { createDatabase } from '../src/db.js';
@@ -360,6 +361,47 @@ test('Voice HTTP exposes the complete configuration call evidence and bridge rou
   );
 });
 
+test('Voice extension sessions bind operators to active WebRTC-enabled extensions', async (t) => {
+  installJwtAuth(t);
+  const issued: string[] = [];
+  let extension: VoiceExtension = {
+    id: 'extension-a', tenant_id: 'tenant-auth', profile_id: 'profile-a', identity: 'agent-a',
+    extension: '1001', display_name: 'Agent A', credential_secret_ref: 'env://EXTENSION_AUTH',
+    permissions: {}, webrtc_enabled: true, status: 'active', revision: 1,
+    created_at: NOW, updated_at: NOW
+  };
+  const module = {
+    configuration: {
+      async getExtension() { return extension; }
+    },
+    extension_sessions: {
+      async create(input: { actor: string }) {
+        issued.push(input.actor);
+        return extensionSessionPlan();
+      }
+    }
+  } as unknown as VoiceHttpModule;
+  const invoke = (token: string) => routeIveKitVoiceApi(
+    null, 'POST', '/api/ivekit/voice/extensions/extension-a/session',
+    new URL('http://localhost/api/ivekit/voice/extensions/extension-a/session'), {}, '',
+    { authorization: `Bearer ${token}`, 'idempotency-key': 'session-key-a' }, { module }
+  ) as Promise<{ status: number; data: { session_id: string } }>;
+
+  const ownerToken = signAccessToken({ sub: 'agent-a', tid: 'tenant-auth', role: 'operator' });
+  const issuedSession = await invoke(ownerToken);
+  assert.equal(issuedSession.status, 201);
+  assert.equal(issuedSession.data.session_id, 'webrtc-session-a');
+
+  const otherToken = signAccessToken({ sub: 'agent-b', tid: 'tenant-auth', role: 'operator' });
+  await assert.rejects(() => invoke(otherToken), hasVoiceCode('compliance_denied'));
+
+  extension = { ...extension, status: 'disabled' };
+  await assert.rejects(() => invoke(ownerToken), hasVoiceCode('capability_unavailable'));
+  extension = { ...extension, status: 'active', webrtc_enabled: false };
+  await assert.rejects(() => invoke(ownerToken), hasVoiceCode('capability_unavailable'));
+  assert.deepEqual(issued, ['agent-a']);
+});
+
 test('standalone Voice errors use the stable secret-safe envelope', async (t) => {
   const db = createDatabase(':memory:');
   const server = createIveKitHttpServer({
@@ -550,7 +592,21 @@ function completeVoiceModule(operations: string[]): VoiceHttpModule {
     rustpbx_events: {} as never,
     router: {} as never,
     extension_sessions: {
-      async create() { operations.push('extension:session'); return { token: 'ephemeral-session' }; }
+      async create() { operations.push('extension:session'); return extensionSessionPlan(); }
+    }
+  };
+}
+
+function extensionSessionPlan() {
+  return {
+    session_id: 'webrtc-session-a', extension_id: 'extension-a', transport: 'wss' as const,
+    websocket_url: 'wss://pbx.example/ws', address_of_record: 'sip:1001@pbx.example',
+    authorization_username: 'webrtc-session-a', authorization_password: 'ephemeral-session-secret',
+    display_name: 'Agent A', expires_at: '2099-07-13T09:05:00.000Z',
+    register_expires_seconds: 300, ice_servers: [{ urls: 'stun:stun.example:3478' }],
+    capabilities: {
+      incoming: true, outgoing: true, dtmf: true, hold: true, transfer: false,
+      audio_input: true, audio_output: true
     }
   };
 }
