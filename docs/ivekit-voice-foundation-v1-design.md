@@ -40,7 +40,7 @@
 - `055_ivekit_contact_center_callbacks.sql`：callback 对账索引、不可删除审计约束，以及包含到期/活动 callback 的 worker 租户发现升级。
 - `056_ivekit_contact_center_overflow.sql`：不可删除的 overflow outbox、重试状态、RLS、租户发现，以及源条目/队列/Voice Call 完整性约束。
 
-受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts`、`clients/ivekit-reference/e2e/voice.spec.ts`、`clients/ivekit-reference/e2e/ivr.spec.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 WebSocket 注册、SDP/ICE、RTP/录音、真实 LiveKit SIP 和物理音频设备均保持 `not_run`。
+受控验收入口为 `scripts/ivekit-controlled-voice-provider.ts`、`test/ivekit-controlled-voice-provider.test.ts`、`test/ivekit-voice-controlled-postgres.test.ts`、`clients/ivekit-reference/e2e/voice.spec.ts`、`clients/ivekit-reference/e2e/ivr.spec.ts` 和 `scripts/verify-ivekit-postgres.sh`。这些结果只能标记为 `controlled`；真实 RustPBX、真实 SIP trunk/DID/PSTN、真实 WebSocket 注册、SDP/ICE、RTP/录音、真实 LiveKit SIP 和物理音频设备均保持 `not_run`。真实环境执行入口 `npm run ivekit:voice-acceptance`、45 项 source-bound 模板和 runbook 已完成，但当前没有真实报告，因此没有改变上述状态。
 
 ## 1. 目标
 
@@ -803,7 +803,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 1. `infra/ivekit/docker-compose.yml` + `infra/ivekit/docker-compose.voice.yml` 是 OPC 仓库完整集成拓扑，使用仓库主镜像，继续承载内置 Tinode、RustDesk 和验收 profile。
 2. 生成后的 `service/build-context/docker-compose.yml` + `docker-compose.voice.yml` 是 iveKit standalone 拓扑，只使用独立镜像内的 `dist/ivekit-server.js`、`dist/ivekit-render-rustpbx-config.js`、`dist/ivekit-voice-preflight.js` 等编译入口。Voice overlay 通过 `init-rustpbx-database.sh` 建立 `rustpbx_app/rustpbx`，不会把 RustPBX 数据库凭据交给长期运行的 iveKit 服务。
 
-两套拓扑都让 RustPBX Management/RWI 保持内部可达，只显式暴露 SIP/RTP。LiveKit 继续使用现有独立部署。`voice-ai` 和完整 `voice-acceptance` Compose profile 是后续目标；M2 的 controlled provider 只作为交付包 `acceptance/tools` 源码，不进入生产 runtime image，也不声明真实 PSTN。
+两套拓扑都让 RustPBX Management/RWI 保持内部可达，只显式暴露 SIP/RTP。LiveKit 继续使用现有独立部署。`voice-ai` runtime profile 仍是后续目标；真实 Voice 验收不另起一个可伪造数据面的 Compose profile，而是在实际部署拓扑上运行 `ivekit:voice-acceptance`，读取独立 observation。M2 的 controlled provider 只作为交付包 `acceptance/tools` 源码，不进入生产 runtime image，也不声明真实 PSTN。
 
 ### 17.2 Kubernetes
 
@@ -859,6 +859,9 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 - `operations/release-contract.json`：绑定 source commit、image metadata、migration manifest、Compose/Helm 路径和 forward-only/restore-only 策略。
 - `operations/upgrade-runbook.md`：先验 checksum/备份，再执行迁移和 rollout；应用可回退到兼容旧 digest，数据库不得自动 down migration，只能恢复已验证的升级前备份。
 - `acceptance/tools/ivekit-controlled-voice-provider.ts`：仅用于受控协议验收，不进入 runtime image。
+- `acceptance/tools/ivekit-voice-acceptance.ts`：真实环境报告 validator 源码，可在交付环境中执行；拒绝 controlled/mock/Playwright/synthetic 证据。
+- `acceptance/voice-real-template.json`：绑定交付包 source commit、故意保持 `incomplete` 的 45 项真实验收模板。
+- `acceptance/voice-real-runbook.md`：RustPBX、SIP/PSTN、WebPhone/RTP、IVR、Realtime AI、LiveKit SIP bridge、Contact Center、恢复、隔离和性能的采证顺序。
 - `manifest.json`：直接声明 `voice_preflight`、`voice_compose`、`voice_helm` 和 RustPBX provider ownership；`real_environment_acceptance.rustpbx` 固定为 `not_run`，直到 source-bound 真实证据完成。
 
 ## 18. 兼容迁移
@@ -927,7 +930,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M6：验证
 
-状态：单元、客户端生产构建/分块预算、WebPhone/IVR Designer/Queue Monitor 受控桌面/移动 Playwright、静态交付和受控 PostgreSQL 部分已执行；真实 RustPBX/PSTN/LiveKit SIP、真实浏览器注册/RTP 媒体和隔离服务器仍未执行。
+状态：单元、客户端生产构建/分块预算、WebPhone/IVR Designer/Queue Monitor 受控桌面/移动 Playwright、静态交付和受控 PostgreSQL 部分已执行；45 项真实环境验收模板、validator、runbook 和交付篡改门禁已完成。真实 RustPBX/PSTN/LiveKit SIP、真实浏览器注册/RTP 媒体和隔离服务器仍未执行。
 
 - 全仓回归。
 - standalone 独立安装/build。
@@ -964,6 +967,37 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 8. 受控 provider、真实 SIP/PSTN、真实浏览器和生产网络状态分层记录。
 9. 没有未解决的 Critical 或 Important 审查问题。
 10. 交付包绑定 source commit、SDK、client、migration、image metadata、release contract、SBOM 和 evidence SHA-256；没有镜像 digest 时必须明确 `blocked_build_required`，不得执行升级。
+
+### 20.3 真实 Voice 验收执行合同
+
+交付包已包含 `acceptance/voice-real-template.json`、`acceptance/voice-real-runbook.md` 和 `acceptance/tools/ivekit-voice-acceptance.ts`。也可在源码仓库生成绑定当前部署信息的新模板：
+
+```bash
+OPC_IVEKIT_VOICE_ACCEPTANCE_TEMPLATE_FILE=/secure/evidence/voice-report.json \
+OPC_IVEKIT_VOICE_ACCEPTANCE_RUNBOOK_FILE=/secure/evidence/voice-runbook.md \
+OPC_IVEKIT_VOICE_ACCEPTANCE_RUN_ID=voice-20260714-01 \
+OPC_IVEKIT_VOICE_ACCEPTANCE_ENVIRONMENT_ID=voice-staging \
+OPC_IVEKIT_VOICE_ACCEPTANCE_DEPLOYMENT_MODE=standalone-helm \
+OPC_IVEKIT_VOICE_ACCEPTANCE_DEPLOYED_COMMIT=<full-40-char-commit> \
+OPC_IVEKIT_VOICE_ACCEPTANCE_DEPLOYMENT_FINGERPRINT=<sha256> \
+OPC_IVEKIT_VOICE_ACCEPTANCE_OPERATOR=<operator-id> \
+OPC_IVEKIT_VOICE_ACCEPTANCE_QA_APPROVER=<different-qa-id> \
+OPC_IVEKIT_VOICE_ACCEPTANCE_RUN_STARTED_AT=<iso-8601> \
+OPC_IVEKIT_VOICE_ACCEPTANCE_CHECKED_AT=<iso-8601> \
+  npm run ivekit:voice-acceptance
+```
+
+真实操作完成后把报告设为 `source=real_voice_environment`、`status=completed`，每个 passed check 引用报告目录下 `evidence/*.json` 的唯一 observation，再运行：
+
+```bash
+OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \
+OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
+  npm run ivekit:voice-acceptance
+```
+
+45 项检查覆盖部署/source binding、RustPBX preflight、trunk/DID/PSTN、CDR、WSS/SDP/ICE/RTP/物理设备、DTMF/Hold/转接/会议/能力降级、录音、IVR 全节点链路、Realtime Voice AI、双向 LiveKit SIP bridge、ACD/callback/supervisor、乱序/重启/RLS、性能和独立 QA。每个 artifact 必须绑定同一 run、environment、完整 commit、deployment fingerprint、operator 和 24 小时运行窗口，并通过 SHA-256、结构和 secret scan。symlink、越目录、重复 artifact、placeholder、credential，以及 controlled/mock/fake/synthetic/Playwright 工具都会失败。
+
+validator 全部通过只返回 `ready_for_review`，不会自动修改交付包中的 `real_environment_acceptance.rustpbx=not_run`。独立 QA 必须检查真实采集来源和脱敏结果，再由发布流程显式归档批准结论。
 
 ## 21. 风险控制
 

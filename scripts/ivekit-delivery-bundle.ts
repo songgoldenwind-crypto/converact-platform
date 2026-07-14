@@ -26,6 +26,11 @@ import {
   validateIveKitReleaseOperations,
   type IveKitReleaseContract
 } from './ivekit-release-operations.js';
+import {
+  VOICE_REQUIRED_ACCEPTANCE_CHECKS,
+  createIveKitVoiceAcceptanceTemplate,
+  renderIveKitVoiceAcceptanceRunbook
+} from './ivekit-voice-acceptance.js';
 
 export interface DeliverySourceFile {
   source: string;
@@ -59,6 +64,8 @@ export interface IveKitDeliveryManifest {
     voice_preflight: string;
     voice_compose: string;
     voice_helm: string;
+    voice_acceptance_template: string;
+    voice_acceptance_runbook: string;
     service_source: string;
   };
   artifacts: {
@@ -244,6 +251,10 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     source: 'scripts/ivekit-controlled-voice-provider.ts',
     destination: 'acceptance/tools/ivekit-controlled-voice-provider.ts'
   },
+  {
+    source: 'scripts/ivekit-voice-acceptance.ts',
+    destination: 'acceptance/tools/ivekit-voice-acceptance.ts'
+  },
   ...[
     'rustdesk-edge-agent.ts',
     'rustdesk-edge-command.ts',
@@ -268,6 +279,8 @@ const GENERATED_FILES = new Set([
   'README.md',
   'acceptance/provider-profiles.example.json',
   'acceptance/status.json',
+  'acceptance/voice-real-template.json',
+  'acceptance/voice-real-runbook.md',
   'operations/release-contract.json',
   'operations/upgrade-runbook.md',
   'manifest.json',
@@ -587,6 +600,26 @@ export function buildIveKitDeliveryBundle(
     `${JSON.stringify(CONTROLLED_PROVIDER_PROFILES, null, 2)}\n`,
     'utf8'
   );
+  writeFileSync(
+    join(outputDir, 'acceptance', 'voice-real-template.json'),
+    `${JSON.stringify(createIveKitVoiceAcceptanceTemplate({
+      runId: 'replace-with-run-id',
+      environmentId: 'replace-with-environment-id',
+      deploymentMode: 'standalone-compose',
+      deployedCommit: sourceCommit,
+      deploymentFingerprint: 'replace-with-deployment-sha256',
+      operator: 'replace-with-operator',
+      qaApprover: 'replace-with-independent-qa',
+      runStartedAt: '',
+      checkedAt: ''
+    }), null, 2)}\n`,
+    'utf8'
+  );
+  writeFileSync(
+    join(outputDir, 'acceptance', 'voice-real-runbook.md'),
+    renderIveKitVoiceAcceptanceRunbook(),
+    'utf8'
+  );
   writeFileSync(join(outputDir, 'acceptance', 'status.json'), `${JSON.stringify({
     schema_version: 2,
     product: 'iveKit',
@@ -629,6 +662,8 @@ export function buildIveKitDeliveryBundle(
       voice_preflight: 'service/build-context/src/ivekit-voice-preflight.ts',
       voice_compose: 'service/build-context/docker-compose.voice.yml',
       voice_helm: 'deploy/kubernetes/ivekit/',
+      voice_acceptance_template: 'acceptance/voice-real-template.json',
+      voice_acceptance_runbook: 'acceptance/voice-real-runbook.md',
       service_source: 'service/build-context/'
     },
     artifacts: {
@@ -713,6 +748,7 @@ export function validateIveKitDeliveryBundle(outputDirInput: string): IveKitDeli
     throw new Error('delivery generation cannot claim real-environment acceptance');
   }
   validateAcceptanceMetadata(outputDir, manifest);
+  validateVoiceAcceptanceAssets(outputDir, manifest);
   const contextManifest = validateIveKitStandaloneContext(join(outputDir, 'service', 'build-context'));
   if (contextManifest.source_commit !== manifest.source_commit) {
     throw new Error('service build context source commit does not match delivery manifest');
@@ -809,6 +845,8 @@ function renderBundleReadme(): string {
     '- `acceptance/evidence/`: optional source-bound controlled-environment evidence with verified hashes.',
     '- `acceptance/provider-profiles.example.json`: secret-free controlled Provider profiles.',
     '- `acceptance/tools/`: deterministic controlled Provider source for isolated acceptance.',
+    '- `acceptance/voice-real-template.json`: source-bound, intentionally incomplete real Voice evidence template.',
+    '- `acceptance/voice-real-runbook.md`: RustPBX/SIP/PSTN/RTP/IVR/bridge real-environment procedure.',
     '- `service/build-context/`: independently buildable iveKit service source context with its own package lock.',
     '- `service/migration-manifest.json`: ordered standalone migration checksums.',
     '- `service/image-metadata.json`: source-bound image reference/digest state.',
@@ -1100,6 +1138,30 @@ function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryM
       typeof profile.token_env !== 'string' ||
       !String(profile.token_env).startsWith('OPC_IVEKIT_')
     ) throw new Error('controlled provider profile is unsafe');
+  }
+}
+
+function validateVoiceAcceptanceAssets(outputDir: string, manifest: IveKitDeliveryManifest): void {
+  const template = JSON.parse(readFileSync(
+    join(outputDir, manifest.contents.voice_acceptance_template), 'utf8'
+  )) as Record<string, unknown>;
+  if (template.schema_version !== 1 || template.source !== 'real_voice_environment' ||
+      template.status !== 'incomplete' || template.deployed_commit !== manifest.source_commit) {
+    throw new Error('invalid source-bound Voice acceptance template');
+  }
+  const checks = isRecord(template.checks) ? template.checks : {};
+  if (JSON.stringify(Object.keys(checks)) !== JSON.stringify([...VOICE_REQUIRED_ACCEPTANCE_CHECKS])) {
+    throw new Error('Voice acceptance template check set is incomplete');
+  }
+  for (const checkId of VOICE_REQUIRED_ACCEPTANCE_CHECKS) {
+    const check = checks[checkId];
+    if (!isRecord(check) || check.passed !== false) {
+      throw new Error(`Voice acceptance template must remain incomplete: ${checkId}`);
+    }
+  }
+  const runbook = readFileSync(join(outputDir, manifest.contents.voice_acceptance_runbook), 'utf8');
+  if (runbook !== renderIveKitVoiceAcceptanceRunbook()) {
+    throw new Error('Voice acceptance runbook does not match the validator contract');
   }
 }
 

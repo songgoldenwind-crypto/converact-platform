@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-13。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
+> 版本：2026-07-14。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端、真实 Voice/PSTN/RTP 和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
 
 ## 1. 交付目标
 
@@ -422,6 +422,7 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 - `database/migrations/`：显式白名单内的通信域 overlay migration。
 - `docs/`、`examples/`：OpenAPI、详细设计、升级/回滚说明和最小接入示例。
 - `acceptance/status.json`：受控 PostgreSQL/Provider/browser/restart 与真实 Provider/客户端分层状态；未执行项保持 `not_run`。
+- `acceptance/voice-real-template.json`、`voice-real-runbook.md` 和 `tools/ivekit-voice-acceptance.ts`：绑定本次 source commit 的 45 项真实 Voice 验收合同；模板初始必须是 `incomplete`。
 - `acceptance/evidence/`：可选的受控环境日志/截图；只有 source commit、大小和 SHA-256 全部匹配时才能把对应受控项标为 `passed`。
 - `manifest.json`、`SHA256SUMS`：payload 大小/hash 与 manifest 的离线完整性校验。
 
@@ -487,11 +488,20 @@ docker compose --profile omnichannel --env-file infra/env.example \
    - 本地先运行 `npm run test:e2e:ivekit-rustdesk`；受控 E2E 覆盖设备、授权 scope、gateway、宿主协议拉起、控制权、转交、操作审计、结束/撤权、断开进度、旧链接失效、租户/参与人隔离、幂等重试、token 零持久化和响应式布局。
    - 该命令只产生控制面本地回归证据。它不启动 RustDesk 原生客户端，也不得把画面、键鼠、多显示器、文件、剪贴板、录屏、relay 流量或物理断开标记为真实通过；这些项目必须由 Task 9 的真实终端报告提供，否则保持 `not_run`。
    - 真实终端报告使用 schema v2 (`source=real_terminal`)：记录 hbbs/hbbr、agent/target 客户端版本与平台/架构、target ID、key fingerprint、ID/relay 路径和不同 operator/QA 身份。每个检查必须引用唯一 JSON observation，并按 SHA-256 绑定同一 run、environment、完整 commit、external_id、rustdesk_id、时间和真实采集工具；controlled/Playwright/mock/synthetic 证据会被拒绝。
-7. 多实例 Redis/WebSocket 广播、断网重连、旧 SDK 连接不复活。
+7. 在实际 Voice 部署上按 `acceptance/voice-real-runbook.md` 完成 RustPBX、trunk/DID/PSTN、WSS/SDP/ICE/RTP、物理音频、录音、IVR、LiveKit SIP bridge、Contact Center 和恢复/隔离/性能采证；每项使用独立 JSON observation。然后运行：
+
+```bash
+OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \
+OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
+  npm run ivekit:voice-acceptance
+```
+
+   没有真实报告时命令返回 `not_run`；完整报告通过时只返回 `ready_for_review`，不会自动把交付状态改为已验收。受控 Provider、Playwright、mock 或 synthetic artifact 会被拒绝，QA approver 必须不同于采证 operator。
+8. 多实例 Redis/WebSocket 广播、断网重连、旧 SDK 连接不复活。
 
 ### 11.4 当前不得声称通过
 
-真实 LiveKit/Tinode/RustDesk 客户端、真实对象存储、真实 OCR/ASR/AI、电话线路、多副本和生产网络尚未在当前本地环境验证。preflight 和 fake provider 只证明配置/协议形状。
+真实 LiveKit/Tinode/RustDesk 客户端、真实对象存储、真实 OCR/ASR/AI、RustPBX/电话线路/RTP/物理音频、多副本和生产网络尚未在当前本地环境验证。Voice validator 已经可执行，但模板、runbook 或 `ready_for_review` 本身不能证明观察真实发生；preflight 和 fake provider 只证明配置/协议形状。
 
 TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 模板仍未补齐。MinIO bucket 与 PostgreSQL 多数据库初始化的代码和 Compose 门禁已经补齐，但真实 fresh/existing volume、bucket 私有性/持久化、Egress 写入和重启恢复仍必须在服务器验证，不能由 fake command 测试或 Compose 静态解析替代。
 

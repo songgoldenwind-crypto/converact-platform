@@ -130,6 +130,16 @@ OPC_RUSTDESK_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/rustdesk-result.json \
 
 Without a real report the result is `not_run`. Every check references a unique, non-symlink JSON observation bound by SHA-256 to the same run, environment, full deployed commit, gateway external ID, target RustDesk ID, timestamp, and real capture tool. Screen, keyboard/mouse, multi-display, file checksum, clipboard direction, recording playback, reconnect, authorization revoke, and physical disconnect need separate observations. Command success and operator-observed physical disconnect are independent requirements. Controlled E2E, Playwright, mock and synthetic artifacts are rejected.
 
+Generate the real Voice template and runbook before testing RustPBX, a SIP trunk/DID or approved SIP endpoint, browser WebRTC audio, IVR, recording, LiveKit SIP bridge, and Contact Center behavior. The full environment binding variables are documented in `docs/ivekit-voice-foundation-v1-design.md`; the validation step is:
+
+```bash
+OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE=/secure/evidence/voice-report.json \
+OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
+  npm run ivekit:voice-acceptance
+```
+
+Without a report this command returns `not_run`. The 45 passed checks must each reference a distinct, non-symlink JSON artifact from a real tool and physical observation, bound to the same run, environment, full deployed commit, deployment fingerprint, operator, and fresh 24-hour window. Controlled providers, Playwright, mock, fake, synthetic and simulated evidence are rejected. `ready_for_review` still requires an independent QA decision and does not automatically change delivery acceptance.
+
 Expected PostgreSQL roles:
 
 ```text

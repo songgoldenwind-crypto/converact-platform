@@ -41,4 +41,6 @@ npm run render:rustpbx
 npm run preflight:voice
 ```
 
+Real Voice acceptance is an operator-run release gate, not a long-running service or a controlled Compose profile. Generate the source-bound 45-check template and runbook from the repository with `npm run ivekit:voice-acceptance`, or use `acceptance/voice-real-template.json`, `acceptance/voice-real-runbook.md`, and `acceptance/tools/ivekit-voice-acceptance.ts` from the delivery bundle. Validation requires distinct SHA-256-bound observations from real RustPBX, SIP/PSTN, browser RTP, IVR, recording, bridge, Contact Center, recovery, isolation, and performance runs. A successful result is `ready_for_review`; real RustPBX remains `not_run` until independent QA approves those artifacts.
+
 Provider profile metadata is supplied through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`; secrets stay in dedicated environment variables or an external secret manager. The generated delivery bundle carries `operations/release-contract.json` and `operations/upgrade-runbook.md`. Migrations are forward-only; application rollback selects a compatible prior immutable image, while schema recovery restores a verified pre-upgrade backup.

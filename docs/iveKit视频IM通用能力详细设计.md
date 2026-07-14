@@ -2,7 +2,7 @@
 
 > 面向 LED 项目研发对接。本文档汇总 OPC 当前已经沉淀的 iveKit 后端能力，覆盖视频/语音、屏幕共享、Web 远程协助、页面内控制、录屏、审计、证据、远程网关、IM/Tinode、附件消息、防绕单扫描等能力。
 >
-> 文档日期：2026-07-13
+> 文档日期：2026-07-14
 >
 > 代码基线：当前 OPC 仓库 `/Users/songjinfeng/Desktop/opc`
 >
@@ -10,7 +10,7 @@
 >
 > M6.5 更新（2026-07-12）：RustDesk edge crash-safe spool 与 recovery API 已在隔离服务器 `ivekit-v2-c13f503` 验收。executed 重启只补报、terminal 幂等确认、executing 不确定状态终止、跨 edge ownership quarantine、Linux 权限/符号链接/原子落盘以及应用重启持久性均通过；服务器证据路径和摘要见 [iveKit V2 standalone realtime plan](ivekit-v2-standalone-realtime-plan.md)。
 >
-> Voice Foundation V1 更新（2026-07-14）：共享 PostgreSQL-only Voice Core、26 节点 IVR Runtime（含调查）、Voice/IVR SDK、SIP.js WebPhone adapter 与 React 控制工作台、完整 IVR Designer、Contact Center 配置/ACD/队列/callback/maintenance，以及 supervisor 通用控制面已完成；受控 PostgreSQL/RustPBX 和 WebPhone、IVR Designer 桌面/移动浏览器基线验收通过。standalone 镜像包含 Voice preflight、RustPBX 配置和 Contact Center runtime。真实 RustPBX、真实 SIP/PSTN、WebSocket 注册、SDP/ICE、RTP/录音、真实 LiveKit SIP 和 supervisor provider 执行仍为 `not_run`。权威细节见 [iveKit Voice Foundation V1 详细设计](ivekit-voice-foundation-v1-design.md)。
+> Voice Foundation V1 更新（2026-07-14）：共享 PostgreSQL-only Voice Core、26 节点 IVR Runtime（含调查）、Voice/IVR SDK、SIP.js WebPhone adapter 与 React 控制工作台、完整 IVR Designer、Contact Center 配置/ACD/队列/callback/maintenance，以及 supervisor 通用控制面已完成；受控 PostgreSQL/RustPBX 和 WebPhone、IVR Designer 桌面/移动浏览器基线验收通过。standalone 镜像包含 Voice preflight、RustPBX 配置和 Contact Center runtime，交付包包含 45 项 source-bound 真实 Voice 验收模板、validator 和 runbook。真实 RustPBX、真实 SIP/PSTN、WebSocket 注册、SDP/ICE、RTP/录音、真实 LiveKit SIP 和 supervisor provider 执行仍为 `not_run`。权威细节见 [iveKit Voice Foundation V1 详细设计](ivekit-voice-foundation-v1-design.md)。
 
 ---
 
@@ -3669,3 +3669,55 @@ Migration `043_ivekit_intelligence_translation.sql` 创建租户策略、录制�
 `npm run ivekit:delivery-bundle` 交付 V3 migration、独立 source context、SDK、客户端、Provider profile 示例、受控 Provider、运维手册、完成审计、SBOM、image metadata 和 acceptance v2 状态。manifest 分开记录 controlled PostgreSQL/Provider/browser/restart 与真实 LiveKit/Tinode/RustDesk/OCR/ASR/quality/translation 状态；受控通过不能改写真实厂商 `not_run`。
 
 详细 Provider 协议、RBAC、重试、监控、升级和回滚见 `docs/ivekit-v3-intelligence-operations.md`。完整实现与服务器证据见 `docs/ivekit-v3-completion-audit.md`。
+
+## 23. 2026-07-14 Voice 真实环境验收合同
+
+### 23.1 交付物与入口
+
+Voice Foundation 的真实环境验收代码已经完成，入口为 `npm run ivekit:voice-acceptance`，实现位于 `scripts/ivekit-voice-acceptance.ts`。独立交付包固定包含以下三项：
+
+| 文件 | 用途 | 初始状态 |
+| --- | --- | --- |
+| `acceptance/voice-real-template.json` | 绑定本次交付 source commit 的报告骨架和 45 项检查 | `incomplete`，所有 `passed=false` |
+| `acceptance/voice-real-runbook.md` | 部署、SIP/PSTN、WebPhone/RTP、IVR、AI、bridge、Contact Center 和治理的采证顺序 | 操作手册，不是通过证据 |
+| `acceptance/tools/ivekit-voice-acceptance.ts` | 离线校验报告、observation、SHA-256、上下文和敏感信息 | 只返回 `not_run`、`incomplete` 或 `ready_for_review` |
+
+交付包 validator 会重新检查模板的 source commit、精确检查集合和所有初始 false 值，并要求 runbook 与当前代码合同完全一致。模板或 runbook 被篡改后交付包校验直接失败。
+
+### 23.2 45 项真实检查矩阵
+
+| 分组 | 数量 | 真实数据面 |
+| --- | ---: | --- |
+| Deployment | 4 | immutable image/source binding、migration/RLS、iveKit health/preflight、RustPBX health/preflight |
+| SIP/PSTN | 4 | trunk 注册、DID 呼入、PSTN 外呼、CDR webhook 幂等 |
+| WebPhone/RTP | 4 | WSS 注册、SDP/ICE、双向 RTP、物理输入输出设备切换与重连 |
+| Call Control | 6 | DTMF、Hold/Resume、盲转、暖转、conference 生命周期、不可用 action fail-closed |
+| Recording | 3 | consent/lifecycle、对象 byte/checksum/播放、retention/export/audit |
+| IVR | 9 | 呼入路由/播放、菜单收号、ASR 语音匹配、HTTP/subflow、队列/Audio Queue、Barge-in、语音信箱、survey、发布与恢复 |
+| Realtime Voice AI | 3 | ASR/VAD、TTS/Barge-in、LLM tool/result 事件 |
+| LiveKit SIP Bridge | 2 | PSTN 到 LiveKit、LiveKit 到 PSTN 的双向音频与关联 ID |
+| Contact Center | 3 | ACD offer/accept、callback/overflow、supervisor capability truth |
+| Resilience/Isolation | 4 | 重复乱序事件、command reconciliation、进程重启恢复、跨租户 RLS 拒绝 |
+| Performance/Governance | 3 | 并发与呼叫建立 P95、business_ref 全链审计、独立 QA review |
+
+能力真实性按运行时 capability 裁决。当前官方 RustPBX RWI 没有确认可执行的 DTMF/Park/Pickup，supervisor 媒体也未接通，因此验收必须记录 `dtmf/park/pickup/supervisor` 请求及 HTTP 501 fail-closed，而不能填成成功。supervisor evidence 同时记录 listen/whisper/barge/takeover 的 requested modes 和实际 effective modes；有效集合允许为空，但不能隐瞒能力缺失。
+
+### 23.3 报告与 observation 合同
+
+主报告必须使用 `schema_version=1`、`source=real_voice_environment`、`status=completed`，并记录唯一 run ID、environment ID、部署模式、完整 40 字符 Git commit、deployment fingerprint、operator、不同身份的 QA approver、开始/结束时间，以及 digest 固定的 iveKit/RustPBX 镜像和 RustPBX/PostgreSQL/LiveKit SIP/浏览器/SIP 测试工具版本。
+
+每个 passed check 都引用报告目录下一个不同的 `evidence/*.json`。引用记录 artifact 相对路径、SHA-256、采集时间、真实工具和 run ID；observation 文件再次记录 check ID、run/environment/commit/fingerprint/operator/time/tool，并提供该检查专属结构化字段。validator 会重新读取并散列文件，检查时间处于同一轮最多 24 小时的窗口中，不接受自由文本“已经验证”替代具体字段。
+
+以下输入 fail-closed：
+
+1. symlink、越目录、缺失、空文件、超过大小上限、无效 JSON 或重复 artifact。
+2. hash、check ID、run、environment、commit、fingerprint、operator、时间或工具不一致。
+3. controlled、Playwright、mock、fake、synthetic、simulated 或 placeholder 采集工具。
+4. Authorization、cookie、password、private key、API key、secret、token、JWT 或带签名参数 URL。
+5. 必填观察字段缺失、布尔真实性字段不是 true、录音字节为空/checksum 非法、跨租户拒绝不是 403/404，或性能数值无效。
+
+### 23.4 状态裁决
+
+没有 `OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE` 时结果固定为 `not_run` 且命令返回非零；报告或任何 evidence 不完整时为 `incomplete`；全部 45 项通过时只到 `ready_for_review`。validator 明确输出 `automatically_updates_delivery_acceptance=false`，不会把 `acceptance/status.json` 中的 `real_environment.rustpbx=not_run` 自动改为 passed。
+
+当前已完成的是验收代码、模板、runbook、交付清单、篡改门禁和本地专项测试。由于本轮按要求不上传服务器，真实 RustPBX、运营商/测试 SIP 线路、PSTN/RTP、物理音频设备、录音对象和 LiveKit SIP bridge 仍未执行；这些状态必须等部署操作员采证、独立 QA 复核和发布流程显式归档后再变更。

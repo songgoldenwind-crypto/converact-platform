@@ -13,6 +13,7 @@ import {
   loadControlledAcceptancePackage,
   validateIveKitDeliveryBundle
 } from '../scripts/ivekit-delivery-bundle.js';
+import { VOICE_REQUIRED_ACCEPTANCE_CHECKS } from '../scripts/ivekit-voice-acceptance.js';
 
 const repoRoot = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 const testSourceCommit = 'a'.repeat(40);
@@ -62,6 +63,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'SHA256SUMS',
       'acceptance/provider-profiles.example.json',
       'acceptance/status.json',
+      'acceptance/voice-real-runbook.md',
+      'acceptance/voice-real-template.json',
       'client/assets/index.js',
       'client/index.html',
       'manifest.json',
@@ -118,6 +121,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(result.manifest.contents.voice_preflight, 'service/build-context/src/ivekit-voice-preflight.ts');
     assert.equal(result.manifest.contents.voice_compose, 'service/build-context/docker-compose.voice.yml');
     assert.equal(result.manifest.contents.voice_helm, 'deploy/kubernetes/ivekit/');
+    assert.equal(result.manifest.contents.voice_acceptance_template, 'acceptance/voice-real-template.json');
+    assert.equal(result.manifest.contents.voice_acceptance_runbook, 'acceptance/voice-real-runbook.md');
     assert.equal(result.manifest.contents.operations, 'docs/ivekit-v3-intelligence-operations.md');
     assert.equal(result.manifest.contents.release_operations, 'operations/upgrade-runbook.md');
     assert.match(result.manifest.provider_ownership.rustpbx, /SIP|PSTN|call/i);
@@ -160,6 +165,26 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/configuration-store.ts'), true);
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/unit-of-work.ts'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-controlled-voice-provider.ts'), true);
+    assert.equal(files.includes('acceptance/tools/ivekit-voice-acceptance.ts'), true);
+    const voiceTemplate = JSON.parse(readFileSync(
+      join(outputDir, 'acceptance', 'voice-real-template.json'),
+      'utf8'
+    )) as {
+      source: string;
+      status: string;
+      deployed_commit: string;
+      checks: Record<string, { passed: boolean }>;
+    };
+    assert.equal(voiceTemplate.source, 'real_voice_environment');
+    assert.equal(voiceTemplate.status, 'incomplete');
+    assert.equal(voiceTemplate.deployed_commit, testSourceCommit);
+    assert.deepEqual(Object.keys(voiceTemplate.checks), [...VOICE_REQUIRED_ACCEPTANCE_CHECKS]);
+    assert.equal(Object.values(voiceTemplate.checks).every((check) => check.passed === false), true);
+    const voiceRunbook = readFileSync(join(outputDir, 'acceptance', 'voice-real-runbook.md'), 'utf8');
+    assert.match(voiceRunbook, /RustPBX/);
+    assert.match(voiceRunbook, /SIP And PSTN/);
+    assert.match(voiceRunbook, /WebPhone And RTP/);
+    assert.match(voiceRunbook, /does not change any delivery `not_run` result automatically/);
     assert.equal(files.includes('docs/ivekit-voice-foundation-v1-design.md'), true);
     assert.equal(files.includes('deploy/application/docker-compose.voice.yml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/Chart.yaml'), true);
@@ -267,6 +292,52 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('docs/ivekit-v3-intelligence-operations.md'), true);
     assert.equal(files.includes('docs/ivekit-v3-completion-audit.md'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-controlled-provider.ts'), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('delivery validation rejects tampered Voice acceptance assets', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-delivery-voice-acceptance-'));
+  const outputDir = join(root, 'bundle');
+  const sdkTarball = join(root, 'sdk.tgz');
+  const clientDist = join(root, 'client-dist');
+  writeFileSync(sdkTarball, 'sdk');
+  mkdirSync(clientDist);
+  writeFileSync(join(clientDist, 'index.html'), '<!doctype html>');
+
+  try {
+    buildIveKitDeliveryBundle({
+      repoRoot,
+      outputDir,
+      sdkTarball,
+      clientDist,
+      sourceCommit: testSourceCommit
+    });
+    const templatePath = join(outputDir, 'acceptance', 'voice-real-template.json');
+    const template = JSON.parse(readFileSync(templatePath, 'utf8')) as {
+      checks: Record<string, { passed: boolean }>;
+    };
+    template.checks[VOICE_REQUIRED_ACCEPTANCE_CHECKS[0]].passed = true;
+    writeFileSync(templatePath, `${JSON.stringify(template, null, 2)}\n`);
+    assert.throws(
+      () => validateIveKitDeliveryBundle(outputDir),
+      /Voice acceptance template must remain incomplete/
+    );
+
+    buildIveKitDeliveryBundle({
+      repoRoot,
+      outputDir,
+      sdkTarball,
+      clientDist,
+      sourceCommit: testSourceCommit
+    });
+    const runbookPath = join(outputDir, 'acceptance', 'voice-real-runbook.md');
+    writeFileSync(runbookPath, `${readFileSync(runbookPath, 'utf8')}tampered\n`);
+    assert.throws(
+      () => validateIveKitDeliveryBundle(outputDir),
+      /Voice acceptance runbook does not match the validator contract/
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
