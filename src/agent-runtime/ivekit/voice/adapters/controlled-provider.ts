@@ -1,5 +1,6 @@
 import { safeVoiceProviderPayload } from '../canonical.js';
-import { VOICE_CAPABILITIES, voiceProfileConfigHash } from '../deployment-profile-service.js';
+import { VOICE_CAPABILITIES } from '../capabilities.js';
+import { voiceProfileConfigHash } from '../deployment-profile-service.js';
 import { VoiceError } from '../errors.js';
 import type {
   VoiceManagementApplyInput,

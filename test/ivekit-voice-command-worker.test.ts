@@ -17,6 +17,7 @@ import {
   type VoiceDeploymentProfile,
   type VoiceDid,
   type VoiceExtension,
+  type VoiceManagementApplyInput,
   type VoiceProviderAdapter,
   type VoiceProviderFactory,
   type VoiceRoute,
@@ -198,6 +199,26 @@ test('Voice command worker converges every configuration resource after provider
     e164: '+8613800138000', trunk_id: 'trunk-a', trunk_provider_ref: '', route_id: null,
     status: 'active', metadata: {}
   }]);
+  const trunkApplication = fixture.managementApplications.find((item) => item.type === 'trunk')?.value;
+  assert.deepEqual(trunkApplication, {
+    resource_id: 'trunk-a', provider_ref: '',
+    desired_state: {
+      provider_name: 'trunk-a', name: 'Trunk', direction: 'both', transport: 'tls',
+      codecs: ['PCMU'], max_channels: 10, credential_secret_ref: 'env://TRUNK_CREDENTIAL',
+      status: 'draft'
+    }
+  });
+  assert.deepEqual(
+    fixture.managementApplications.find((item) => item.type === 'extension')?.value,
+    {
+      resource_id: 'extension-a',
+      desired_state: {
+        identity: 'agent-a', extension: '1001', display_name: 'Agent A',
+        credential_secret_ref: 'env://EXTENSION_AUTH', permissions: {},
+        webrtc_enabled: true, status: 'active'
+      }
+    }
+  );
   assert.deepEqual(fixture.reveals, [{
     tenant_id: 'tenant-a', ciphertext: 'encrypted-did-a', kind: 'e164'
   }]);
@@ -263,6 +284,7 @@ function workerFixture(input: {
   let managementApplies = 0;
   const resourceUpdates: string[] = [];
   const didApplications: Record<string, unknown>[] = [];
+  const managementApplications: Array<{ type: string; value: VoiceManagementApplyInput }> = [];
   const reveals: Array<{ tenant_id: string; ciphertext: string; kind: string }> = [];
   const profiles = new Map<string, VoiceDeploymentProfile>();
   const capabilities = new Map<string, VoiceCapabilitySnapshot>();
@@ -356,6 +378,7 @@ function workerFixture(input: {
       return providerAdapter(profile.id, {
         apply() { managementApplies += 1; },
         didApplications,
+        managementApplications,
         mode: profile.id === 'profile-retry' ? 'retry' : profile.id === 'profile-timeout' ? 'timeout' : 'ok'
       });
     }
@@ -363,7 +386,7 @@ function workerFixture(input: {
 
   return {
     commands, configuration, registry, profiles, capabilities, completed, released,
-    addressProtector, resourceUpdates, didApplications, reveals,
+    addressProtector, resourceUpdates, didApplications, managementApplications, reveals,
     get callClaims() { return callClaims; },
     get configurationClaims() { return configurationClaims; },
     get managementApplies() { return managementApplies; }
@@ -373,6 +396,7 @@ function workerFixture(input: {
 function providerAdapter(profileId: string, input: {
   apply(): void;
   didApplications: Record<string, unknown>[];
+  managementApplications: Array<{ type: string; value: VoiceManagementApplyInput }>;
   mode: 'ok' | 'retry' | 'timeout';
 }): VoiceProviderAdapter {
   const fail = () => {
@@ -387,11 +411,11 @@ function providerAdapter(profileId: string, input: {
     async close() {},
     management: {
       async preflight() { return providerCapabilities(profileId); },
-      async applyTrunk() { fail(); input.apply(); return applied(); },
+      async applyTrunk(value) { fail(); input.apply(); input.managementApplications.push({ type: 'trunk', value }); return applied(); },
       async testTrunk() { fail(); return { ready: true, error_code: '', safe_diagnostics: {} }; },
-      async applyDid(value) { fail(); input.apply(); input.didApplications.push(value.desired_state); return applied(); },
-      async applyExtension() { fail(); input.apply(); return applied(); },
-      async applyRoute() { fail(); input.apply(); return applied(); },
+      async applyDid(value) { fail(); input.apply(); input.didApplications.push(value.desired_state); input.managementApplications.push({ type: 'did', value }); return applied(); },
+      async applyExtension(value) { fail(); input.apply(); input.managementApplications.push({ type: 'extension', value }); return applied(); },
+      async applyRoute(value) { fail(); input.apply(); input.managementApplications.push({ type: 'route', value }); return applied(); },
       async lookupDialog() { return { state: 'unknown', provider_state: '', safe_diagnostics: {} }; },
       async lookupRecording() { return { state: 'unknown', object_ref: '', safe_diagnostics: {} }; }
     }

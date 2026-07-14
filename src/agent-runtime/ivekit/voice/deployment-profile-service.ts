@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { VOICE_CAPABILITIES } from './capabilities.js';
 import { canonicalVoicePayloadHash } from './canonical.js';
 import { VoiceError } from './errors.js';
 import { observeVoicePreflight } from './metrics.js';
@@ -11,17 +12,7 @@ import type {
   VoiceDeploymentProfile
 } from './types.js';
 
-export const VOICE_CAPABILITIES: readonly VoiceCapability[] = [
-  'management_http',
-  'json_rpc_routing',
-  'step_ivr',
-  'rwi',
-  'webrtc_extension',
-  'recording',
-  'sipflow',
-  'queue',
-  'postgres_backend'
-];
+export { VOICE_CAPABILITIES } from './capabilities.js';
 
 export interface VoiceDeploymentProfileServiceOptions {
   repository: VoiceConfigurationRepository;

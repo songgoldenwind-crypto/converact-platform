@@ -147,6 +147,7 @@ export class VoiceRouterDecisionService {
           strategy: rules.strategy as 'parallel' | 'sequential' | undefined,
           record: rules.record as boolean | undefined,
           timeout: rules.timeout as number | undefined,
+          max_ring_time: rules.max_ring_time as number | undefined,
           headers: rules.headers as Record<string, string> | undefined
         }, capabilities);
       }
@@ -204,11 +205,11 @@ function destinationE164(input: string): string | null {
 }
 
 function routeNotFound(): RustPbxRouterResponse {
-  return { action: 'reject', code: 404, reason: 'route_not_found' };
+  return { action: 'reject', status: 404, reason: 'route_not_found' };
 }
 
 function dependencyUnavailable(): RustPbxRouterResponse {
-  return { action: 'reject', code: 503, reason: 'route_dependency_unavailable' };
+  return { action: 'reject', status: 503, reason: 'route_dependency_unavailable' };
 }
 
 function isRouteDependency(value: string): value is VoiceRouteDependency {

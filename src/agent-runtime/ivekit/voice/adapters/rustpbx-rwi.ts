@@ -47,9 +47,9 @@ export interface RustPbxRwiSafeEvent {
 }
 
 const RUSTPBX_RWI_PROTOCOL_CAPABILITIES_VALUE = {
-  baseline_image_tag: '0.4.10',
+  baseline_image_tag: '0.4.11-6c49ee7-community',
   dtmf_receive: true,
-  dtmf_send: false,
+  dtmf_send: true,
   park: false,
   pickup: false,
   conference: { create: true, add: true, remove: true, destroy: true, mute: true, unmute: true },
@@ -173,7 +173,6 @@ export class RustPbxRwiClient {
       protocol_capabilities: RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
       effective_capabilities: RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
       limitations: [
-        'dtmf_send_action_unavailable',
         'park_action_unavailable',
         'pickup_action_unavailable',
         'conference_mute_audio_unavailable',
@@ -350,7 +349,7 @@ export class RustPbxRwiClient {
     pending.resolve({
       state: 'failed',
       action_id: actionId,
-      error_code: boundedProviderErrorCode(message.error_code)
+      error_code: classifiedProviderErrorCode(message.error_code, message.error)
     });
   }
 
@@ -421,6 +420,7 @@ const SUPPORTED_ACTIONS = [
   'call.hangup',
   'call.hold',
   'call.unhold',
+  'call.send_dtmf',
   'call.transfer',
   'call.transfer.attended',
   'conference.create',
@@ -446,6 +446,7 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
     case 'hangup': action = 'call.hangup'; break;
     case 'hold': action = 'call.hold'; break;
     case 'resume': action = 'call.unhold'; break;
+    case 'dtmf': return mapDtmfCommand(actionId, callId, payload);
     case 'blind_transfer': action = 'call.transfer'; break;
     case 'warm_transfer': action = 'call.transfer.attended'; break;
     case 'conference': return mapConferenceCommand(actionId, callId, payload);
@@ -453,7 +454,6 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
     case 'recording_pause': action = 'record.pause'; break;
     case 'recording_resume': action = 'record.resume'; break;
     case 'recording_stop': action = 'record.stop'; break;
-    case 'dtmf':
     case 'park':
     case 'pickup':
     case 'livekit_bridge_create':
@@ -462,6 +462,20 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
       throw new VoiceError({ code: 'capability_unavailable', status: 501 });
   }
   return { action, action_id: actionId, params };
+}
+
+function mapDtmfCommand(
+  actionId: string,
+  callId: string,
+  payload: Record<string, unknown>
+): RustPbxRwiEnvelope {
+  const allowed = new Set(['digits', 'leg_id']);
+  if (Object.keys(payload).some((key) => !allowed.has(key))) throw validationError();
+  const digits = boundedString(payload.digits, 32).toUpperCase();
+  if (!/^[0-9A-D*#]+$/.test(digits)) throw validationError();
+  const params: Record<string, unknown> = { call_id: callId, digits };
+  if (payload.leg_id !== undefined) params.leg_id = boundedString(payload.leg_id, 256);
+  return { action: 'call.send_dtmf', action_id: actionId, params };
 }
 
 function validatedRwiUrl(value: unknown, production: boolean, internalService: boolean): URL {
@@ -564,8 +578,17 @@ function rawDataText(value: RawData): string {
   return Buffer.from(value as ArrayBuffer).toString('utf8');
 }
 
-function boundedProviderErrorCode(value: unknown): string {
-  return typeof value === 'string' && /^[a-z0-9_.-]{1,128}$/i.test(value) ? value : 'provider_command_failed';
+function classifiedProviderErrorCode(code: unknown, message: unknown): string {
+  const value = `${typeof code === 'string' ? code : ''} ${typeof message === 'string' ? message : ''}`
+    .trim()
+    .toLowerCase();
+  if (/unknown_action|not implemented|unsupported|capability/.test(value)) return 'capability_unavailable';
+  if (/call not found|not_found|not found/.test(value)) return 'provider_call_not_found';
+  if (/invalid state|invalid_state|state conflict/.test(value)) return 'invalid_call_transition';
+  if (/already owned|ownership|owner conflict/.test(value)) return 'call_control_conflict';
+  if (/unauthor|forbidden|permission|auth_failed/.test(value)) return 'provider_auth_failed';
+  if (/timeout|timed out/.test(value)) return 'provider_timeout';
+  return 'provider_command_failed';
 }
 
 function boundedEventType(value: string): string {

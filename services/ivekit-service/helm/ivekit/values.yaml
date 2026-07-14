@@ -33,6 +33,8 @@ config:
     OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED: "0"
     OPC_IVEKIT_IVR_WORKERS_ENABLED: "0"
     OPC_IVEKIT_VOICE_WORKERS_ENABLED: "0"
+    OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: "RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN"
+    OPC_IVEKIT_VOICE_WEBHOOK_SECRET_ENV_NAMES: "RUSTPBX_WEBHOOK_TOKEN"
     OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED: "0"
 
 service:
@@ -78,8 +80,11 @@ voice:
     pullPolicy: IfNotPresent
   databaseUrlKey: rustpbx-database-url
   databasePasswordKey: rustpbx-database-password
+  managementTokenKey: rustpbx-management-token
   rwiTokenKey: rustpbx-rwi-token
   webhookTokenKey: rustpbx-webhook-token
+  amiAllows:
+    - 127.0.0.1
   externalIp: ""
   sipPort: 5060
   rtpStartPort: 20000

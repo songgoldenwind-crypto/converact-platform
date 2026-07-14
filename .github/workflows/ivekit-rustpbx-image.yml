@@ -1,0 +1,76 @@
+name: iveKit RustPBX image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'codex/**'
+    paths:
+      - '.github/workflows/ivekit-rustpbx-image.yml'
+      - 'infra/ivekit/rustpbx/**'
+      - 'package.json'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ivekit-rustpbx-image-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/songgoldenwind-crypto/opc-rustpbx
+  VERSION: 0.4.11-ivekit.1
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build pinned RustPBX
+        env:
+          TARGETARCH: ${{ matrix.arch }}
+          IVEKIT_RUSTPBX_IMAGE: ${{ env.IMAGE }}:${{ env.VERSION }}-${{ matrix.arch }}
+        run: bash infra/ivekit/rustpbx/build.sh
+      - name: Smoke test image
+        run: docker run --rm ${{ env.IMAGE }}:${{ env.VERSION }}-${{ matrix.arch }} --version
+      - name: Push architecture image
+        run: docker push ${{ env.IMAGE }}:${{ env.VERSION }}-${{ matrix.arch }}
+
+  manifest:
+    name: Publish multi-architecture manifest
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and push manifest
+        run: |
+          docker manifest create "${IMAGE}:${VERSION}" \
+            "${IMAGE}:${VERSION}-amd64" \
+            "${IMAGE}:${VERSION}-arm64"
+          docker manifest annotate "${IMAGE}:${VERSION}" "${IMAGE}:${VERSION}-amd64" --arch amd64
+          docker manifest annotate "${IMAGE}:${VERSION}" "${IMAGE}:${VERSION}-arm64" --arch arm64
+          docker manifest push "${IMAGE}:${VERSION}"
+      - name: Inspect published manifest
+        run: docker manifest inspect "${IMAGE}:${VERSION}"

@@ -1,8 +1,10 @@
 {{- if .Values.voice.enabled }}
-{{- $tag := required "voice.image.tag is required" .Values.voice.image.tag -}}
-{{- if or (eq $tag "latest") (not (regexMatch "^v?[0-9]+\\.[0-9]+\\.[0-9]+(?:-[A-Za-z0-9.-]+)?$" $tag)) -}}
-{{- fail "voice.image.tag must be an exact semantic version and cannot use latest" -}}
+{{- $repository := required "voice.image.repository is required" .Values.voice.image.repository -}}
+{{- $digest := required "voice.image.digest is required" .Values.voice.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "voice.image.digest must be an immutable sha256 digest" -}}
 {{- end -}}
+{{- $rustpbxImage := printf "%s@%s" $repository $digest -}}
 {{- if ne .Values.voice.database.username "rustpbx_app" -}}
 {{- fail "voice.database.username must be rustpbx_app" -}}
 {{- end -}}
@@ -23,8 +25,18 @@
 {{- $databasePassword := required "voice.database.password is required" .Values.voice.database.password -}}
 {{- $databaseHost := .Values.voice.database.host | default (printf "%s-postgres" .Release.Name) -}}
 {{- $databaseUrl := printf "postgresql://rustpbx_app:%s@%s:%v/rustpbx" ($databasePassword | urlquery) $databaseHost .Values.voice.database.port -}}
+{{- $managementToken := required "voice.managementToken is required" .Values.voice.managementToken -}}
 {{- $rwiToken := required "voice.rwiToken is required" .Values.voice.rwiToken -}}
+{{- if eq $managementToken $rwiToken -}}
+{{- fail "voice.managementToken and voice.rwiToken must be distinct" -}}
+{{- end -}}
 {{- $webhookToken := required "voice.webhookToken is required" .Values.voice.webhookToken -}}
+{{- if not (has "127.0.0.1" .Values.voice.amiAllows) -}}
+{{- fail "voice.amiAllows must include 127.0.0.1 for local runtime recovery" -}}
+{{- end -}}
+{{- if has "*" .Values.voice.amiAllows -}}
+{{- fail "voice.amiAllows must not contain a wildcard" -}}
+{{- end -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -49,13 +61,27 @@ stringData:
     allow_registration = false
     secure_cookie = false
 
+    [[console.api_tokens]]
+    token = {{ $managementToken | quote }}
+    scopes = ["extensions.write", "trunks.write", "routing.write"]
+    description = "iveKit management adapter"
+
+    [ami]
+    allows = [{{- range $index, $allow := .Values.voice.amiAllows }}{{ if $index }}, {{ end }}{{ $allow | quote }}{{- end }}]
+
     [proxy]
     addr = "0.0.0.0"
+    generated_dir = "/app/generated"
     udp_port = {{ $sipPort }}
+    tcp_port = {{ $sipPort }}
     modules = ["acl", "auth", "presence", "registrar", "call"]
     media_proxy = "auto"
     ensure_user = true
     acl_rules = ["allow all", "deny all"]
+
+    [[proxy.user_backends]]
+    type = "extension"
+    ttl = 30
 
     [proxy.http_router]
     url = {{ printf "http://%s-opc:3000/api/ivekit/voice/providers/%s/router" .Release.Name $profileId | quote }}
@@ -112,9 +138,30 @@ spec:
       {{- end }}
       containers:
         - name: rustpbx
-          image: "{{ .Values.voice.image.repository }}:{{ .Values.voice.image.tag }}"
+          image: {{ $rustpbxImage | quote }}
           imagePullPolicy: {{ .Values.voice.image.pullPolicy | default "IfNotPresent" }}
           args: ["--conf", "/app/config/rustpbx.toml"]
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    reload_trunks() {
+                      local status=""
+                      exec 3<>/dev/tcp/127.0.0.1/{{ $managementPort }} || return 1
+                      printf 'POST /ami/v1/reload/trunks HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n' >&3
+                      IFS= read -r status <&3 || return 1
+                      exec 3>&- 3<&-
+                      [[ "$status" == *" 200 "* ]]
+                    }
+                    attempt=0
+                    until reload_trunks; do
+                      attempt=$((attempt + 1))
+                      [ "$attempt" -lt 60 ] || exit 1
+                      sleep 1
+                    done
           ports:
             - name: management
               containerPort: {{ $managementPort }}
@@ -129,6 +176,8 @@ spec:
             - name: config
               mountPath: /app/config
               readOnly: true
+            - name: generated
+              mountPath: /app/generated
             - name: storage
               mountPath: /app/storage
             - name: tmp
@@ -138,16 +187,14 @@ spec:
           resources:
             {{- toYaml .Values.voice.resources | nindent 12 }}
           readinessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: management
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 12
           livenessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: management
             initialDelaySeconds: 20
             periodSeconds: 15
@@ -158,6 +205,8 @@ spec:
           secret:
             secretName: {{ .Release.Name }}-rustpbx-config
             defaultMode: 0400
+        - name: generated
+          emptyDir: {}
         - name: storage
           emptyDir: {}
         - name: tmp

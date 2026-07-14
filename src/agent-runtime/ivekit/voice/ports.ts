@@ -197,6 +197,7 @@ export interface VoiceProviderPort {
 
 export interface VoiceManagementApplyInput {
   resource_id: string;
+  provider_ref?: string;
   desired_state: Record<string, unknown>;
 }
 
@@ -209,7 +210,11 @@ export interface VoiceManagementApplyResult {
 export interface VoiceManagementPort {
   preflight(): Promise<VoiceProviderCapabilities>;
   applyTrunk(input: VoiceManagementApplyInput): Promise<VoiceManagementApplyResult>;
-  testTrunk(input: { resource_id: string }): Promise<{
+  testTrunk(input: {
+    resource_id: string;
+    provider_ref?: string;
+    desired_state?: Record<string, unknown>;
+  }): Promise<{
     ready: boolean;
     error_code: string;
     safe_diagnostics: Record<string, unknown>;

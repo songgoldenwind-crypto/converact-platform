@@ -338,7 +338,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
-                  key: rustpbx-rwi-token
+                  key: rustpbx-management-token
             - name: RUSTPBX_RWI_TOKEN
               valueFrom:
                 secretKeyRef:

@@ -186,10 +186,11 @@ test('Router decisions bind DID HMAC and immutable published route to trusted te
   });
 
   assert.deepEqual(await service.decide({ tenant_id: 'tenant-a', profile_id: 'profile-a', request }), {
-    action: 'forward', targets: ['sip:1001@pbx.internal'], strategy: 'sequential', record: false, timeout: 30, headers: {}
+    action: 'forward', targets: ['sip:1001@pbx.internal'], strategy: 'sequential', record: false,
+    timeout: 30, max_ring_time: 30, headers: {}
   });
   assert.deepEqual(await service.decide({ tenant_id: 'tenant-b', profile_id: 'profile-a', request }), {
-    action: 'reject', code: 404, reason: 'route_not_found'
+    action: 'reject', status: 404, reason: 'route_not_found'
   });
 });
 
@@ -205,7 +206,7 @@ test('Router decisions reject unavailable IVR/queue dependencies unless a safe f
     direction: 'inbound', method: 'INVITE', uri: 'sip:+8613800138000@pbx.test'
   });
   assert.deepEqual(await service.decide({ tenant_id: 'tenant-a', profile_id: 'profile-a', request }), {
-    action: 'reject', code: 503, reason: 'route_dependency_unavailable'
+    action: 'reject', status: 503, reason: 'route_dependency_unavailable'
   });
 
   const fallback = new VoiceRouterDecisionService({

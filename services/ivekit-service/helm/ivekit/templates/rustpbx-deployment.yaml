@@ -1,6 +1,12 @@
 {{- if .Values.voice.enabled }}
 {{- $rustpbxImage := include "ivekit.rustpbxImage" . -}}
 {{- $profileId := required "voice.profileId is required when voice is enabled" .Values.voice.profileId -}}
+{{- if not (has "127.0.0.1" .Values.voice.amiAllows) -}}
+{{- fail "voice.amiAllows must include 127.0.0.1 for local runtime recovery" -}}
+{{- end -}}
+{{- if has "*" .Values.voice.amiAllows -}}
+{{- fail "voice.amiAllows must not contain a wildcard" -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,6 +50,8 @@ spec:
               value: /app/config/rustpbx.toml
             - name: RUSTPBX_IMAGE
               value: {{ $rustpbxImage | quote }}
+            - name: RUSTPBX_AMI_ALLOWS
+              value: {{ join "," .Values.voice.amiAllows | quote }}
             - name: RUSTPBX_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -54,6 +62,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" . }}
                   key: {{ .Values.voice.databasePasswordKey }}
+            - name: RUSTPBX_MANAGEMENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.managementTokenKey }}
             - name: RUSTPBX_RWI_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -86,6 +99,27 @@ spec:
           image: {{ $rustpbxImage | quote }}
           imagePullPolicy: {{ .Values.voice.image.pullPolicy }}
           args: ["--conf", "/app/config/rustpbx.toml"]
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    reload_trunks() {
+                      local status=""
+                      exec 3<>/dev/tcp/127.0.0.1/8080 || return 1
+                      printf 'POST /ami/v1/reload/trunks HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Length: 0\r\n\r\n' >&3
+                      IFS= read -r status <&3 || return 1
+                      exec 3>&- 3<&-
+                      [[ "$status" == *" 200 "* ]]
+                    }
+                    attempt=0
+                    until reload_trunks; do
+                      attempt=$((attempt + 1))
+                      [ "$attempt" -lt 60 ] || exit 1
+                      sleep 1
+                    done
           ports:
             - name: management
               containerPort: 8080
@@ -97,16 +131,14 @@ spec:
               containerPort: {{ .Values.voice.sipPort }}
               protocol: TCP
           readinessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: management
             initialDelaySeconds: 5
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 12
           livenessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: management
             initialDelaySeconds: 20
             periodSeconds: 15
@@ -120,12 +152,16 @@ spec:
             - name: config
               mountPath: /app/config
               readOnly: true
+            - name: generated
+              mountPath: /app/generated
             - name: storage
               mountPath: /app/storage
             - name: tmp
               mountPath: /tmp
       volumes:
         - name: config
+          emptyDir: {}
+        - name: generated
           emptyDir: {}
         - name: storage
           {{- if .Values.voice.persistence.enabled }}

@@ -67,6 +67,37 @@ test('RustPBX provider reveals call targets only in the RWI command and preserve
   );
 });
 
+test('RustPBX provider preserves safe RWI failure semantics', async () => {
+  const profile = rustPbxProfile();
+  const rwi = fakeRwi();
+  const adapter = new RustPbxVoiceProviderAdapter({
+    profile,
+    management: fakeManagement(profile),
+    rwi
+  });
+  const expected = [
+    ['provider_call_not_found', 'not_found', 404],
+    ['invalid_call_transition', 'invalid_call_transition', 409],
+    ['capability_unavailable', 'capability_unavailable', 501],
+    ['provider_auth_failed', 'provider_auth_failed', 403],
+    ['call_control_conflict', 'revision_conflict', 409]
+  ] as const;
+  for (const [providerCode, voiceCode, status] of expected) {
+    rwi.mode = 'failed';
+    rwi.errorCode = providerCode;
+    await assert.rejects(
+      () => adapter.execute({
+        call: voiceCall(),
+        command: voiceCommand({ id: `command-${providerCode}`, kind: 'hold' })
+      }),
+      (error: unknown) => error instanceof VoiceError
+        && error.code === voiceCode
+        && error.status === status
+        && error.details.provider_command_id === `command-${providerCode}`
+    );
+  }
+});
+
 test('RustPBX provider reconciles by provider call id then durable RWI action id', async () => {
   const profile = rustPbxProfile();
   const lookedUp: string[] = [];
@@ -90,7 +121,8 @@ test('RustPBX provider reconciles by provider call id then durable RWI action id
 
 function fakeRwi() {
   const state = {
-    mode: 'success' as 'success' | 'uncertain',
+    mode: 'success' as 'success' | 'uncertain' | 'failed',
+    errorCode: 'provider_command_failed',
     events: [] as string[],
     commands: [] as Array<{ command_id: string; payload: Record<string, unknown> }>,
     async connect() { state.events.push('connect'); },
@@ -111,6 +143,9 @@ function fakeRwi() {
       state.commands.push(input);
       if (state.mode === 'uncertain') {
         return { state: 'uncertain' as const, action_id: input.command_id, error_code: 'timeout' };
+      }
+      if (state.mode === 'failed') {
+        return { state: 'failed' as const, action_id: input.command_id, error_code: state.errorCode };
       }
       return {
         state: 'succeeded' as const,

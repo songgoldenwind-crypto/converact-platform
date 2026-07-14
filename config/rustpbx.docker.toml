@@ -6,13 +6,33 @@ database_url = "__RUSTPBX_DATABASE_URL_REQUIRED__"
 rtp_start_port = 20000
 rtp_end_port = 20100
 
+[console]
+base_path = "/console"
+api_prefix = "/api"
+allow_registration = false
+secure_cookie = false
+
+[[console.api_tokens]]
+token = "__RUSTPBX_MANAGEMENT_TOKEN_REQUIRED__"
+scopes = ["extensions.write", "trunks.write", "routing.write"]
+description = "iveKit management adapter"
+
+[ami]
+allows = ["127.0.0.1"]
+
 [proxy]
 addr = "0.0.0.0"
+generated_dir = "/app/generated"
 udp_port = 5060
+tcp_port = 5060
 modules = ["acl", "auth", "registrar", "call"]
 media_proxy = "auto"
 ensure_user = true
 acl_rules = ["allow all", "deny all"]
+
+[[proxy.user_backends]]
+type = "extension"
+ttl = 30
 
 [proxy.http_router]
 url = "__RUSTPBX_ROUTER_URL_REQUIRED__"

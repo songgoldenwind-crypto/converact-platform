@@ -66,6 +66,8 @@ export interface IveKitDeliveryManifest {
     voice_helm: string;
     voice_acceptance_template: string;
     voice_acceptance_runbook: string;
+    rustpbx_image_build: string;
+    rustpbx_acceptance: string;
     service_source: string;
   };
   artifacts: {
@@ -243,6 +245,43 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-led-integration-example.ts',
     'ivekit-rustdesk-led-example.ts'
   ].map((name) => ({ source: `scripts/${name}`, destination: `examples/${name}` })),
+  ...[
+    'README.md',
+    'Dockerfile.runtime',
+    'Cargo.lock',
+    'build.sh'
+  ].map((name) => ({ source: `infra/ivekit/rustpbx/${name}`, destination: `deploy/rustpbx/${name}` })),
+  ...[
+    'rsipstack-tcp-reconnect.patch',
+    'rustpbx-local-rsipstack.patch'
+  ].map((name) => ({
+    source: `infra/ivekit/rustpbx/patches/${name}`,
+    destination: `deploy/rustpbx/patches/${name}`
+  })),
+  {
+    source: 'services/ivekit-service/acceptance/rustpbx-router.py',
+    destination: 'acceptance/rustpbx/router.py'
+  },
+  ...[
+    'answer-bye-uac.xml',
+    'answer-bye-uas.xml',
+    'busy-486-uas.xml',
+    'delayed-busy-486-uas.xml',
+    'early-cancel-uac.xml',
+    'early-cancel-uas.xml',
+    'expect-486-uac.xml',
+    'expect-487-timeout-uac.xml',
+    'expect-503-uac.xml',
+    'inbound-reject-486-uac.xml',
+    'no-answer-uas.xml',
+    'options-uas.xml',
+    'register-digest-uac.xml',
+    'register-invalid-digest-uac.xml',
+    'unavailable-503-uas.xml'
+  ].map((name) => ({
+    source: `services/ivekit-service/acceptance/sipp/${name}`,
+    destination: `acceptance/rustpbx/sipp/${name}`
+  })),
   {
     source: 'scripts/ivekit-controlled-provider.ts',
     destination: 'acceptance/tools/ivekit-controlled-provider.ts'
@@ -274,6 +313,18 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
 ] as const;
 
 const DELIVERY_ROOT_MARKER = '.ivekit-delivery-root';
+const RUSTPBX_ACCEPTANCE_GENERATED_FILES = [
+  'acceptance/rustpbx/package.json',
+  'acceptance/rustpbx/scripts/ivekit-rustpbx-management-acceptance.js',
+  'acceptance/rustpbx/scripts/ivekit-rustpbx-sipp-acceptance.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-management.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/canonical.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/capabilities.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/ports.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/secret-resolver.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js'
+] as const;
 const GENERATED_FILES = new Set([
   DELIVERY_ROOT_MARKER,
   'README.md',
@@ -281,6 +332,7 @@ const GENERATED_FILES = new Set([
   'acceptance/status.json',
   'acceptance/voice-real-template.json',
   'acceptance/voice-real-runbook.md',
+  ...RUSTPBX_ACCEPTANCE_GENERATED_FILES,
   'operations/release-contract.json',
   'operations/upgrade-runbook.md',
   'manifest.json',
@@ -294,7 +346,7 @@ const SECRET_PATTERNS = [
   /\bBearer\s+eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/
 ];
 const TEXT_EXTENSIONS = new Set([
-  '', '.conf', '.css', '.html', '.js', '.json', '.md', '.mjs', '.ps1', '.sh', '.sql', '.ts', '.txt', '.yaml', '.yml'
+  '', '.conf', '.css', '.html', '.js', '.json', '.lock', '.md', '.mjs', '.patch', '.ps1', '.py', '.sh', '.sql', '.toml', '.ts', '.txt', '.xml', '.yaml', '.yml'
 ]);
 
 const REAL_ENVIRONMENT_ACCEPTANCE = {
@@ -517,6 +569,39 @@ export function buildIveKitDeliveryBundle(
   } finally {
     rmSync(edgeStaging, { recursive: true, force: true });
   }
+  const rustPbxAcceptanceStaging = mkdtempSync(join(tmpdir(), 'ivekit-delivery-rustpbx-acceptance-'));
+  try {
+    run('npx', [
+      'tsc',
+      '--outDir', rustPbxAcceptanceStaging,
+      '--rootDir', '.',
+      '--module', 'NodeNext',
+      '--moduleResolution', 'NodeNext',
+      '--target', 'ES2022',
+      '--types', 'node',
+      '--skipLibCheck',
+      'scripts/ivekit-rustpbx-management-acceptance.ts',
+      'scripts/ivekit-rustpbx-sipp-acceptance.ts'
+    ], repoRoot);
+    cpSync(rustPbxAcceptanceStaging, join(outputDir, 'acceptance', 'rustpbx'), {
+      recursive: true,
+      dereference: false
+    });
+    writeFileSync(
+      join(outputDir, 'acceptance', 'rustpbx', 'package.json'),
+      `${JSON.stringify({
+        private: true,
+        type: 'module',
+        scripts: {
+          management: 'node scripts/ivekit-rustpbx-management-acceptance.js',
+          sipp: 'node scripts/ivekit-rustpbx-sipp-acceptance.js'
+        }
+      }, null, 2)}\n`,
+      'utf8'
+    );
+  } finally {
+    rmSync(rustPbxAcceptanceStaging, { recursive: true, force: true });
+  }
 
   cpSync(options.clientDist, join(outputDir, 'client'), { recursive: true, dereference: false });
   copyFile(outputDir, options.sdkTarball, `sdk/${basename(options.sdkTarball)}`);
@@ -664,6 +749,8 @@ export function buildIveKitDeliveryBundle(
       voice_helm: 'deploy/kubernetes/ivekit/',
       voice_acceptance_template: 'acceptance/voice-real-template.json',
       voice_acceptance_runbook: 'acceptance/voice-real-runbook.md',
+      rustpbx_image_build: 'deploy/rustpbx/',
+      rustpbx_acceptance: 'acceptance/rustpbx/',
       service_source: 'service/build-context/'
     },
     artifacts: {
@@ -838,6 +925,7 @@ function renderBundleReadme(): string {
     '- `deploy/application/`: standalone iveKit service Compose with PostgreSQL and optional RustPBX overlay.',
     '- `deploy/kubernetes/ivekit/`: standalone digest-pinned Helm Chart with a migration gate.',
     '- `deploy/livekit/`: separately deployable LiveKit media plane.',
+    '- `deploy/rustpbx/`: pinned RustPBX/rsipstack source patches and reproducible native image build.',
     '- `database/migrations/`: ordered communication-domain overlay migrations used by the application image.',
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',
     '- `examples/`: minimal LED SDK and RustDesk integration examples.',
@@ -847,6 +935,7 @@ function renderBundleReadme(): string {
     '- `acceptance/tools/`: deterministic controlled Provider source for isolated acceptance.',
     '- `acceptance/voice-real-template.json`: source-bound, intentionally incomplete real Voice evidence template.',
     '- `acceptance/voice-real-runbook.md`: RustPBX/SIP/PSTN/RTP/IVR/bridge real-environment procedure.',
+    '- `acceptance/rustpbx/`: compiled management and SIPp acceptance runners, Router fixture, and SIP scenarios.',
     '- `service/build-context/`: independently buildable iveKit service source context with its own package lock.',
     '- `service/migration-manifest.json`: ordered standalone migration checksums.',
     '- `service/image-metadata.json`: source-bound image reference/digest state.',
@@ -875,6 +964,7 @@ function renderBundleReadme(): string {
     'browser and restart checks may be marked passed only when source-bound evidence is packaged and hash verified.',
     'They remain separate from real LiveKit, Tinode, RustDesk, OCR, ASR, quality and translation vendor evidence.',
     'Every unexecuted surface remains `not_run`; controlled evidence never upgrades a real vendor result.',
+    'RustPBX SIP acceptance requires an external SIPp 3.7.7 binary whose pinned SHA-256 is verified before execution.',
     ''
   ].join('\n');
 }

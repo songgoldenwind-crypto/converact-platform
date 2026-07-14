@@ -10,6 +10,7 @@
     "preflight:intelligence": "node dist/ivekit-intelligence-preflight.js",
     "preflight:voice": "node dist/ivekit-voice-preflight.js",
     "render:rustpbx": "node dist/ivekit-render-rustpbx-config.js",
+    "recover:rustpbx": "node dist/ivekit-rustpbx-recovery.js",
     "start": "node dist/ivekit-server.js"
   },
   "engines": {

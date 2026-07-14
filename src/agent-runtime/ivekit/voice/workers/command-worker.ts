@@ -194,7 +194,11 @@ export class VoiceCommandWorker {
       }
       if (command.operation === 'test' && command.resource_type === 'sip_trunk') {
         const trunk = await this.#trunk(command);
-        const tested = await adapter.management.testTrunk({ resource_id: trunk.id });
+        const tested = await adapter.management.testTrunk({
+          resource_id: trunk.id,
+          provider_ref: trunk.provider_ref,
+          desired_state: trunkDesiredState(trunk)
+        });
         if (!tested.ready) throw new VoiceError({ code: 'provider_unavailable', retryable: true, status: 503 });
         return { provider_command_id: '', result: safeVoiceProviderPayload(tested) };
       }
@@ -205,7 +209,8 @@ export class VoiceCommandWorker {
         if (superseded) return superseded;
         const applied = await adapter.management.applyTrunk({
           resource_id: trunk.id,
-          desired_state: trunk.desired_state
+          provider_ref: trunk.provider_ref,
+          desired_state: trunkDesiredState(trunk)
         });
         return managementResult(applied, await this.#convergeTrunk(trunk, applied));
       }
@@ -225,6 +230,7 @@ export class VoiceCommandWorker {
         try {
           applied = await adapter.management.applyDid({
             resource_id: did.did.id,
+            provider_ref: did.did.provider_ref,
             desired_state: {
               e164: clearAddress,
               trunk_id: did.trunk.id,
@@ -263,7 +269,13 @@ export class VoiceCommandWorker {
         }
         const applied = await adapter.management.applyRoute({
           resource_id: route.id,
-          desired_state: { version: version?.version ?? route.current_published_version, rules: version?.rules ?? route.draft_rules }
+          desired_state: {
+            name: route.name,
+            direction: route.direction,
+            status: route.status,
+            version: version?.version ?? route.current_published_version,
+            rules: version?.rules ?? route.draft_rules
+          }
         });
         const resourceUpdate = version
           ? await this.#convergeRouteVersion(version, applied)
@@ -508,6 +520,20 @@ function extensionDesiredState(extension: VoiceExtension): Record<string, unknow
     permissions: extension.permissions,
     webrtc_enabled: extension.webrtc_enabled,
     status: extension.status
+  };
+}
+
+function trunkDesiredState(trunk: VoiceSipTrunk): Record<string, unknown> {
+  return {
+    ...trunk.desired_state,
+    provider_name: trunk.id,
+    name: trunk.name,
+    direction: trunk.direction,
+    transport: trunk.transport,
+    codecs: trunk.codecs,
+    max_channels: trunk.max_channels,
+    credential_secret_ref: trunk.credential_secret_ref,
+    status: trunk.status
   };
 }
 

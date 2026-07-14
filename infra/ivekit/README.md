@@ -27,6 +27,8 @@ Set `OPC_IVEKIT_ALLOWED_ORIGINS` to the comma-separated HTTPS origins that may c
 
 Configure V3 OCR, ASR, quality, and translation through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`. Keep provider tokens in the four `OPC_IVEKIT_*_TOKEN` variables, never inline in the JSON. Attachment, quality, and translation workers default to disabled; run `npm run ivekit:intelligence-preflight`, probe provider health, and configure the tenant policy before enabling a worker. Self-hosted and third-party examples, retry recovery, alerts, upgrade, and rollback are documented in [V3 intelligence operations](../../docs/ivekit-v3-intelligence-operations.md).
 
+Voice trunk and extension credentials use `env://NAME` references. Put extra values in the optional file selected by `OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE` (default `./voice-runtime.env`), mode it `0600`, and list the exact variable names in `OPC_IVEKIT_VOICE_SECRET_ENV_NAMES`. Compose injects that file only into the application service. Never add credential values to Provider profile JSON or commit the runtime env file.
+
 For isolated server acceptance only, the optional `acceptance` profile starts the deterministic controlled provider on the Compose network without publishing a host port:
 
 ```bash

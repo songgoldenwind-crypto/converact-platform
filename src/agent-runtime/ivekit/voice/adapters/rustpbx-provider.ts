@@ -16,6 +16,7 @@ import type {
 } from '../types.js';
 import { RustPbxEventsAdapter } from './rustpbx-events.js';
 import {
+  DEFAULT_RUSTPBX_MANAGEMENT_PATHS,
   RustPbxManagementClient,
   type RustPbxManagementPaths
 } from './rustpbx-management.js';
@@ -97,10 +98,7 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
       });
     }
     if (result.state === 'failed') {
-      throw new VoiceError({
-        code: 'provider_unavailable', retryable: false, status: 502,
-        details: { provider_command_id: result.action_id }
-      });
+      throw rwiFailure(result.error_code, result.action_id);
     }
     const safe = safeVoiceProviderPayload(result.result);
     const providerCallId = optionalIdentifier(safe.call_id || safe.provider_call_id);
@@ -190,21 +188,6 @@ export class RustPbxVoiceProviderFactory implements VoiceProviderFactory {
   }
 }
 
-const DEFAULT_MANAGEMENT_PATHS: RustPbxManagementPaths = {
-  health: '/health',
-  version: '/version',
-  ami_health: '/ami/v1/health',
-  ami_dialog: '/ami/v1/dialogs/{id}',
-  ami_sipflow: '/ami/v1/sipflow/{id}',
-  trunk_apply: '/management/trunks/{id}',
-  trunk_test: '/management/trunks/{id}/test',
-  did_apply: '/management/dids/{id}',
-  extension_apply: '/management/extensions/{id}',
-  route_evaluate: '/management/routes/{id}',
-  route_reload: '/management/routes/reload',
-  recording_lookup: '/management/recordings/{id}'
-};
-
 function providerCommandPayload(command: VoiceCallCommand, clearAddress: string | undefined): Record<string, unknown> {
   const payload = Object.fromEntries(Object.entries(command.payload).filter(([key]) =>
     key !== 'target_address' && key !== 'compliance_evidence_ref'
@@ -218,9 +201,9 @@ function providerCommandPayload(command: VoiceCallCommand, clearAddress: string 
 }
 
 function managementPaths(value: unknown): RustPbxManagementPaths {
-  if (value === undefined || value === null) return { ...DEFAULT_MANAGEMENT_PATHS };
+  if (value === undefined || value === null) return { ...DEFAULT_RUSTPBX_MANAGEMENT_PATHS };
   const input = record(value);
-  const output = { ...DEFAULT_MANAGEMENT_PATHS };
+  const output = { ...DEFAULT_RUSTPBX_MANAGEMENT_PATHS };
   for (const key of Object.keys(output) as Array<keyof RustPbxManagementPaths>) {
     if (input[key] !== undefined) output[key] = requiredString(input[key], 2_048);
   }
@@ -276,6 +259,29 @@ function optionalStringArray(value: unknown): string[] {
 
 function capabilityUnavailable(): VoiceError {
   return new VoiceError({ code: 'capability_unavailable', status: 501 });
+}
+
+function rwiFailure(errorCode: string, actionId: string): VoiceError {
+  const details = { provider_command_id: actionId };
+  if (errorCode === 'provider_call_not_found') {
+    return new VoiceError({ code: 'not_found', status: 404, details });
+  }
+  if (errorCode === 'invalid_call_transition') {
+    return new VoiceError({ code: 'invalid_call_transition', status: 409, details });
+  }
+  if (errorCode === 'capability_unavailable') {
+    return new VoiceError({ code: 'capability_unavailable', status: 501, details });
+  }
+  if (errorCode === 'provider_auth_failed') {
+    return new VoiceError({ code: 'provider_auth_failed', status: 403, details });
+  }
+  if (errorCode === 'call_control_conflict') {
+    return new VoiceError({ code: 'revision_conflict', status: 409, details });
+  }
+  if (errorCode === 'provider_timeout') {
+    return new VoiceError({ code: 'provider_timeout', retryable: true, status: 504, details });
+  }
+  return new VoiceError({ code: 'provider_unavailable', status: 502, details });
 }
 
 function validationError(): VoiceError {

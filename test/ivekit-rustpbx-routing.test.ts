@@ -47,10 +47,10 @@ test('RustPBX Router maps portable forwarding decisions only through explicit SI
   const adapter = new RustPbxRouterAdapter();
   assert.deepEqual(adapter.mapDecision({
     action: 'forward_sip', targets: ['sip:1001@pbx.internal'], strategy: 'parallel',
-    record: true, timeout: 30, headers: { 'X-Route-Id': 'route-a' }
+    record: true, timeout: 90, max_ring_time: 30, headers: { 'X-Route-Id': 'route-a' }
   }, capabilities()), {
     action: 'forward', targets: ['sip:1001@pbx.internal'], strategy: 'parallel',
-    record: true, timeout: 30, headers: { 'x-route-id': 'route-a' }
+    record: true, timeout: 90, max_ring_time: 30, headers: { 'x-route-id': 'route-a' }
   });
   assert.equal(adapter.mapDecision({
     action: 'start_ivr', target: 'sip:ivr-main@pbx.internal', timeout: 20
@@ -87,12 +87,18 @@ test('RustPBX Router rejects unavailable portable actions and unsafe targets', (
     }, capabilities()),
     hasVoiceCode('validation_failed')
   );
+  assert.throws(
+    () => adapter.mapDecision({
+      action: 'forward_sip', targets: ['sip:1001@pbx.internal'], max_ring_time: 29
+    }, capabilities()),
+    hasVoiceCode('validation_failed')
+  );
 });
 
 test('RustPBX Router maps terminal decisions without inventing actions', () => {
   const adapter = new RustPbxRouterAdapter();
   assert.deepEqual(adapter.mapDecision({ action: 'reject', code: 486, reason: 'busy' }, capabilities()), {
-    action: 'reject', code: 486, reason: 'busy'
+    action: 'reject', status: 486, reason: 'busy'
   });
   assert.deepEqual(adapter.mapDecision({ action: 'abort', reason: 'policy' }, capabilities()), {
     action: 'abort', reason: 'policy'

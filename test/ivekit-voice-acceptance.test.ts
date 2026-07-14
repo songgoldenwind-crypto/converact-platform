@@ -255,11 +255,11 @@ function completeReport(dir: string) {
     versions: {
       ivekit_image: `registry.voice.internal/ivekit/service@sha256:${'c'.repeat(64)}`,
       rustpbx_image: `ghcr.io/restsend/rustpbx@sha256:${'d'.repeat(64)}`,
-      rustpbx: '0.4.10',
+      rustpbx: '0.4.11',
       postgres: '16.14',
       livekit_sip: '1.6.0',
       browser: 'Chrome 140.0.0',
-      sip_test_tool: 'SIPp 3.7.3'
+      sip_test_tool: 'SIPp 3.7.7'
     },
     checks
   };

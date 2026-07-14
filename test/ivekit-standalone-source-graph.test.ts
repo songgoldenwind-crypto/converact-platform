@@ -82,9 +82,10 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/ivekit-server.ts',
     'src/ivekit-migrate.ts',
     'src/ivekit-init-runtime-role.ts',
-    'src/ivekit-intelligence-preflight.ts',
-    'src/ivekit-render-rustpbx-config.ts',
-    'src/ivekit-voice-preflight.ts',
+      'src/ivekit-intelligence-preflight.ts',
+      'src/ivekit-render-rustpbx-config.ts',
+      'src/ivekit-rustpbx-recovery.ts',
+      'src/ivekit-voice-preflight.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
     'src/agent-runtime/ivekit/ivr/index.ts',
     'src/agent-runtime/ivekit/contact-center/index.ts'

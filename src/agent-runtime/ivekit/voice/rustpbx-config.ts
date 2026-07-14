@@ -1,4 +1,5 @@
 import { chmodSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { isIP } from 'node:net';
 import { dirname, resolve } from 'node:path';
 
 export interface RustPbxConfigSummary {
@@ -19,6 +20,8 @@ export interface RustPbxRenderedConfig {
 interface RustPbxRenderInput {
   database_url: string;
   image: string;
+  ami_allows: string[];
+  management_token: string;
   rwi_token: string;
   webhook_token: string;
   router_url: string;
@@ -74,10 +77,17 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
   const rtpStartPort = port(env.RUSTPBX_RTP_START_PORT, 'RUSTPBX_RTP_START_PORT', 20_000);
   const rtpEndPort = port(env.RUSTPBX_RTP_END_PORT, 'RUSTPBX_RTP_END_PORT', 20_100);
   validateRtpRange(rtpStartPort, rtpEndPort, [sipPort, HTTP_PORT]);
+  const managementToken = runtimeSecret(env, 'RUSTPBX_MANAGEMENT_TOKEN');
+  const rwiToken = runtimeSecret(env, 'RUSTPBX_RWI_TOKEN');
+  if (managementToken === rwiToken) {
+    throw new Error('RUSTPBX_MANAGEMENT_TOKEN and RUSTPBX_RWI_TOKEN must be distinct');
+  }
   return {
     database_url: databaseUrl,
     image,
-    rwi_token: runtimeSecret(env, 'RUSTPBX_RWI_TOKEN'),
+    ami_allows: amiAllows(required(env, 'RUSTPBX_AMI_ALLOWS')),
+    management_token: managementToken,
+    rwi_token: rwiToken,
     webhook_token: runtimeSecret(env, 'RUSTPBX_WEBHOOK_TOKEN'),
     router_url: internalHttpUrl(required(env, 'RUSTPBX_ROUTER_URL'), 'RUSTPBX_ROUTER_URL'),
     cdr_webhook_url: internalHttpUrl(
@@ -108,13 +118,27 @@ function renderConfig(input: RustPbxRenderInput): string {
     'allow_registration = false',
     'secure_cookie = false',
     '',
+    '[[console.api_tokens]]',
+    `token = ${tomlString(input.management_token)}`,
+    'scopes = ["extensions.write", "trunks.write", "routing.write"]',
+    'description = "iveKit management adapter"',
+    '',
+    '[ami]',
+    `allows = [${input.ami_allows.map(tomlString).join(', ')}]`,
+    '',
     '[proxy]',
     'addr = "0.0.0.0"',
+    'generated_dir = "/app/generated"',
     `udp_port = ${input.sip_port}`,
+    `tcp_port = ${input.sip_port}`,
     'modules = ["acl", "auth", "presence", "registrar", "call"]',
     'media_proxy = "auto"',
     'ensure_user = true',
     'acl_rules = ["allow all", "deny all"]',
+    '',
+    '[[proxy.user_backends]]',
+    'type = "extension"',
+    'ttl = 30',
     '',
     '[proxy.http_router]',
     `url = ${tomlString(input.router_url)}`,
@@ -206,6 +230,24 @@ function optionalIp(value: string | undefined): string {
     throw new Error('RUSTPBX_EXTERNAL_IP must be an IPv4 address without a port');
   }
   return ip;
+}
+
+function amiAllows(value: string): string[] {
+  const items = [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))];
+  if (!items.length || items.length > 64) {
+    throw new Error('RUSTPBX_AMI_ALLOWS must contain 1 to 64 IP addresses or CIDRs');
+  }
+  for (const item of items) {
+    const [address, rawPrefix, extra] = item.split('/');
+    const family = isIP(address || '');
+    const maxPrefix = family === 4 ? 32 : 128;
+    const prefix = rawPrefix === undefined ? maxPrefix : Number(rawPrefix);
+    if (extra !== undefined || family === 0 || !Number.isInteger(prefix)
+      || prefix < 0 || prefix > maxPrefix) {
+      throw new Error('RUSTPBX_AMI_ALLOWS must contain only explicit IP addresses or CIDRs; wildcard access is forbidden');
+    }
+  }
+  return items;
 }
 
 function runtimeSecret(env: NodeJS.ProcessEnv, field: string): string {

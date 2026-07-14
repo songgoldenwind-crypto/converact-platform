@@ -1,0 +1,14 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 28a72f1..692fe8e 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -145,7 +145,7 @@ chrono = { version = "0.4", features = ["serde"] }
+ chrono-tz = "0.10.4"
+-rsipstack = "0.5.18"
++rsipstack = { path = "../rsipstack" }
+ hex = { version = "0.4.3", optional = true }
+ #rsipstack = { path = "../rsipstack" }
+ audio-codec = "0.3.40"
+-rustrtc = "0.3.90"
++rustrtc = "=0.3.90"
+ reqwest = { version = "0.13.4", default-features = false, features = [

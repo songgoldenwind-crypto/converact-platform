@@ -31,7 +31,10 @@ test('RustPBX RWI authenticates by header and correlates durable action ids once
     assert.equal(preflight.runtime_version_verified, false);
     assert.equal(preflight.protocol_capabilities.supervisor.listen, true);
     assert.equal(preflight.effective_capabilities.supervisor.listen, false);
+    assert.equal(preflight.effective_capabilities.dtmf_send, true);
+    assert.equal(preflight.effective_capabilities.park, false);
     assert.equal(preflight.commands.includes('conference.create'), true);
+    assert.equal(preflight.commands.includes('call.send_dtmf'), true);
     assert.equal(preflight.commands.includes('conference.mute'), false);
     assert.equal(fixture.messages.some((message) => message.action === 'session.list_calls'), true);
     const result = await client.execute({
@@ -74,6 +77,36 @@ test('RustPBX RWI timeout is uncertain and never retries originate', async () =>
     assert.equal((await answer).state, 'succeeded');
     assert.deepEqual(await slow, { state: 'uncertain', action_id: 'durable-timeout', error_code: 'provider_timeout' });
     assert.equal(fixture.messages.filter((message) => message.action_id === 'durable-timeout').length, 1);
+  } finally {
+    await client.close();
+    await fixture.close();
+  }
+});
+
+test('RustPBX RWI classifies command_failed error text without exposing provider details', async () => {
+  const fixture = await rwiFixture((socket, message) => {
+    if (message.action === 'call.answer') {
+      socket.send(JSON.stringify({
+        type: 'command_failed', action_id: message.action_id,
+        error: 'Call not found: private-provider-call-id'
+      }));
+    }
+    if (message.action === 'call.hold') {
+      socket.send(JSON.stringify({
+        type: 'command_failed', action_id: message.action_id,
+        error: 'invalid state: internal provider detail'
+      }));
+    }
+  });
+  const client = rwiClient(fixture.url);
+  try {
+    await client.connect();
+    assert.deepEqual(await client.execute({
+      command_id: 'missing-call', kind: 'answer', call_id: 'call-a', payload: {}
+    }), { state: 'failed', action_id: 'missing-call', error_code: 'provider_call_not_found' });
+    assert.deepEqual(await client.execute({
+      command_id: 'invalid-state', kind: 'hold', call_id: 'call-a', payload: {}
+    }), { state: 'failed', action_id: 'invalid-state', error_code: 'invalid_call_transition' });
   } finally {
     await client.close();
     await fixture.close();
@@ -137,6 +170,20 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     params: { call_id: 'call-w', target: 'sip:1004@pbx.internal' }
   });
   assert.deepEqual(mapRustPbxRwiCommand({
+    command_id: 'dtmf-a', kind: 'dtmf', call_id: 'call-a',
+    payload: { digits: '12#A', leg_id: 'leg-a' }
+  }), {
+    action: 'call.send_dtmf', action_id: 'dtmf-a',
+    params: { call_id: 'call-a', digits: '12#A', leg_id: 'leg-a' }
+  });
+  assert.throws(
+    () => mapRustPbxRwiCommand({
+      command_id: 'dtmf-invalid', kind: 'dtmf', call_id: 'call-a',
+      payload: { digits: '12Z', private: 'provider-detail' }
+    }),
+    hasVoiceCode('validation_failed')
+  );
+  assert.deepEqual(mapRustPbxRwiCommand({
     command_id: 'conference-create', kind: 'conference', call_id: 'call-a',
     payload: {
       operation: 'create', conference_id: 'conference-a', backend: 'internal',
@@ -175,7 +222,7 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     }),
     hasVoiceCode('validation_failed')
   );
-  for (const kind of ['dtmf', 'park', 'pickup'] as const) {
+  for (const kind of ['park', 'pickup'] as const) {
     assert.throws(
       () => mapRustPbxRwiCommand({ command_id: `unsupported-${kind}`, kind, call_id: 'call-a', payload: {} }),
       hasVoiceCode('capability_unavailable')

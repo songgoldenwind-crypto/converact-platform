@@ -234,7 +234,7 @@ test('Voice call actions cover call control, recording, and LiveKit bridge witho
   }> = [
     { call: ringing, kind: 'answer' },
     { call: active, kind: 'hangup' },
-    { call: active, kind: 'dtmf', payload: { digits: '12#' } },
+    { call: active, kind: 'dtmf', payload: { digits: '12#', leg_id: 'leg-a' } },
     { call: active, kind: 'hold' },
     { call: held, kind: 'resume' },
     { call: active, kind: 'blind_transfer', payload: { target: 'sip:1002@pbx.internal' } },
@@ -262,6 +262,10 @@ test('Voice call actions cover call control, recording, and LiveKit bridge witho
     [...fixture.commands.values()].find((command) => command.kind === 'conference')?.payload,
     { operation: 'add', conference_id: 'conference-a' }
   );
+  assert.deepEqual(
+    [...fixture.commands.values()].find((command) => command.kind === 'dtmf')?.payload,
+    { digits: '12#', leg_id: 'leg-a' }
+  );
   assert.equal(
     [...fixture.commands.values()].find((command) => command.kind === 'livekit_bridge_create')?.payload.sip_trunk_id,
     'trunk-livekit-a'
@@ -277,6 +281,10 @@ test('Voice call actions cover call control, recording, and LiveKit bridge witho
   await assert.rejects(() => fixture.service.enqueueAction({
     tenant_id: 'tenant-a', call_id: active.id, kind: 'conference', payload: {},
     actor: 'agent-a', idempotency_key: 'conference-without-id'
+  }), hasVoiceCode('validation_failed'));
+  await assert.rejects(() => fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: active.id, kind: 'dtmf', payload: { digits: '1', unexpected: true },
+    actor: 'agent-a', idempotency_key: 'dtmf-unknown-field'
   }), hasVoiceCode('validation_failed'));
 });
 

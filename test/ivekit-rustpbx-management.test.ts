@@ -10,18 +10,19 @@ import {
 } from '../src/agent-runtime/ivekit/voice/index.js';
 
 const paths: RustPbxManagementPaths = {
-  health: '/health',
-  version: '/version',
+  management_health: '/api/pending-reloads',
   ami_health: '/ami/v1/health',
-  ami_dialog: '/ami/v1/dialogs/{id}',
-  ami_sipflow: '/ami/v1/sipflow/{id}',
-  trunk_apply: '/management/trunks/{id}',
-  trunk_test: '/management/trunks/{id}/test',
-  did_apply: '/management/dids/{id}',
-  extension_apply: '/management/extensions/{id}',
-  route_evaluate: '/management/routes/evaluate',
-  route_reload: '/management/routes/reload',
-  recording_lookup: '/management/recordings/{id}'
+  ami_dialogs: '/ami/v1/dialogs',
+  ami_sipflow: '/ami/v1/sipflow/flow/{id}',
+  trunk_collection: '/api/sip-trunk',
+  trunk_item: '/api/sip-trunk/{id}',
+  trunk_test: '/api/diagnostics/trunks/options',
+  trunk_reload: '/ami/v1/reload/trunks',
+  extension_collection: '/api/extensions',
+  extension_item: '/api/extensions/{id}',
+  route_evaluate: '/api/diagnostics/routes/evaluate',
+  route_reload: '/ami/v1/reload/routes',
+  recording_lookup: '/api/call-records/{id}/metadata'
 };
 
 test('RustPBX management client maps bounded authenticated endpoints', async () => {
@@ -35,15 +36,25 @@ test('RustPBX management client maps bounded authenticated endpoints', async () 
       body
     });
     const url = request.url || '';
-    if (url === '/health') return json(response, 200, { ready: true, database: 'postgres' });
-    if (url === '/version') return json(response, 200, { version: 'rustpbx-test-1' });
-    if (url.includes('/dialogs/')) return json(response, 200, {
-      state: 'active', provider_call_id: 'provider-call-from-dialog'
+    if (url === '/api/pending-reloads') return json(response, 200, { targets: [] });
+    if (url === '/ami/v1/health') return json(response, 200, {
+      status: 'running', version: 'rustpbx-test-1'
     });
-    if (url.includes('/sipflow/')) return json(response, 200, { items: [{ event: 'invite' }] });
-    if (url.includes('/recordings/')) return json(response, 200, { state: 'available', object_ref: 's3://recording-a' });
-    if (url.endsWith('/test')) return json(response, 200, { ready: true });
-    return json(response, 200, { provider_ref: 'provider-resource-a', revision: 'revision-a', accepted: true });
+    if (url === '/ami/v1/dialogs') return json(response, 200, [{
+      id: 'call/a', state: 'active', provider_call_id: 'provider-call-from-dialog'
+    }]);
+    if (url.includes('/sipflow/flow/')) return json(response, 200, { flow: [{ event: 'invite' }] });
+    if (url.includes('/call-records/')) return json(response, 200, { state: 'available', object_ref: 's3://recording-a' });
+    if (url === '/api/diagnostics/trunks/options') return json(response, 200, { success: true });
+    if (url === '/api/sip-trunk' && request.method === 'POST') {
+      return json(response, 200, { items: [] });
+    }
+    if (url === '/api/extensions' && request.method === 'POST') {
+      return json(response, 200, { items: [] });
+    }
+    if (url === '/api/sip-trunk' && request.method === 'PUT') return json(response, 200, { status: 'ok', id: 41 });
+    if (url === '/api/extensions' && request.method === 'PUT') return json(response, 200, { status: 'ok', id: 42 });
+    return json(response, 200, { status: 'ok', accepted: true });
   });
   const baseUrl = await listen(server);
   try {
@@ -53,11 +64,35 @@ test('RustPBX management client maps bounded authenticated endpoints', async () 
     assert.equal(preflight.capabilities.management_http, true);
     assert.equal(preflight.capabilities.postgres_backend, true);
 
-    assert.equal((await client.applyTrunk({ resource_id: 'trunk a', desired_state: { codec: 'PCMU' } })).provider_ref, 'provider-resource-a');
-    assert.equal((await client.testTrunk({ resource_id: 'trunk a' })).ready, true);
-    assert.equal((await client.applyDid({ resource_id: 'did a', desired_state: { e164: '+8613800138000' } })).provider_ref, 'provider-resource-a');
-    assert.equal((await client.applyExtension({ resource_id: '1001', desired_state: { enabled: true } })).provider_revision, 'revision-a');
-    assert.equal((await client.applyRoute({ resource_id: 'route a', desired_state: { action: 'forward' } })).provider_ref, 'provider-resource-a');
+    const trunkInput = {
+      resource_id: 'trunk-a',
+      desired_state: {
+        provider_name: 'ivekit-trunk-a', name: 'Carrier A', direction: 'both', transport: 'tls',
+        codecs: ['PCMU'], max_channels: 10, credential_secret_ref: 'env://TRUNK_AUTH', sip_server: 'sip.carrier.test',
+        auth_username: 'carrier-user', status: 'active'
+      }
+    };
+    assert.equal((await client.applyTrunk(trunkInput)).provider_ref, '41');
+    assert.equal((await client.applyTrunk({ ...trunkInput, provider_ref: '41' })).provider_ref, '41');
+    assert.equal((await client.testTrunk({ resource_id: 'trunk-a', desired_state: trunkInput.desired_state })).ready, true);
+    assert.equal((await client.applyDid({
+      resource_id: 'did-a', desired_state: { e164: '+8613800138000' }
+    })).provider_ref, 'ivekit-http-router:did:did-a');
+    const extensionInput = {
+      resource_id: 'extension-a',
+      desired_state: {
+        extension: '1001', display_name: 'Agent A', credential_secret_ref: 'env://EXTENSION_AUTH',
+        status: 'active', identity: 'agent-a', permissions: {}, webrtc_enabled: true
+      }
+    };
+    assert.equal((await client.applyExtension(extensionInput)).provider_ref, '42');
+    assert.equal((await client.applyExtension({ ...extensionInput, provider_ref: '42' })).provider_ref, '42');
+    assert.deepEqual(await client.applyRoute({
+      resource_id: 'route-a', desired_state: { version: 3, rules: { action: 'forward_sip' } }
+    }), {
+      provider_ref: 'ivekit-http-router:route:route-a', provider_revision: '3',
+      safe_diagnostics: { authority: 'ivekit_http_router' }
+    });
     assert.deepEqual(await client.lookupDialog({ provider_call_id: 'call/a' }), {
       state: 'succeeded', provider_state: 'active',
       provider_call_id: 'provider-call-from-dialog',
@@ -70,9 +105,15 @@ test('RustPBX management client maps bounded authenticated endpoints', async () 
 
     assert.equal(requests.every((request) => request.authorization === 'Bearer management-secret-value'), true);
     assert.equal(requests.some((request) => request.url === '/ami/v1/health'), true);
-    assert.equal(requests.some((request) => request.url === '/management/trunks/trunk%20a'), true);
-    assert.equal(requests.some((request) => request.url === '/ami/v1/dialogs/call%2Fa'), true);
+    assert.equal(requests.some((request) => request.url === '/api/sip-trunk'), true);
+    assert.equal(requests.some((request) => request.url === '/api/sip-trunk/41'), true);
+    assert.equal(requests.some((request) => request.url === '/ami/v1/dialogs'), true);
+    assert.equal(requests.some((request) => isRecord(request.body)
+      && request.body.auth_password === 'trunk-password'), true);
+    assert.equal(requests.some((request) => isRecord(request.body)
+      && request.body.sip_password === 'extension-password'), true);
     assert.equal(requests.some((request) => request.method === 'PUT'), true);
+    assert.equal(requests.some((request) => request.method === 'PATCH'), true);
     assert.equal(requests.some((request) => request.method === 'POST'), true);
   } finally {
     await close(server);
@@ -101,10 +142,10 @@ test('RustPBX management client classifies HTTP failures without leaking secrets
     ] as const) {
       const client = managementClient(baseUrl, {
         ...paths,
-        trunk_apply: `/failure?status=${status}`
+        trunk_collection: `/failure?status=${status}`
       });
       await assert.rejects(
-        () => client.applyTrunk({ resource_id: 'trunk-a', desired_state: {} }),
+        () => client.applyTrunk(validTrunkInput()),
         (error: unknown) => error instanceof VoiceError
           && error.code === code
           && error.retryable === retryable
@@ -112,8 +153,8 @@ test('RustPBX management client classifies HTTP failures without leaking secrets
       );
     }
     await assert.rejects(
-      () => managementClient(baseUrl, { ...paths, trunk_apply: '/reset/{id}' })
-        .applyTrunk({ resource_id: 'trunk-a', desired_state: {} }),
+      () => managementClient(baseUrl, { ...paths, trunk_collection: '/reset' })
+        .applyTrunk(validTrunkInput()),
       (error: unknown) => error instanceof VoiceError
         && error.code === 'provider_unavailable'
         && error.retryable
@@ -136,18 +177,18 @@ test('RustPBX management client enforces timeout, response bytes, and JSON shape
   const baseUrl = await listen(server);
   try {
     await assert.rejects(
-      () => managementClient(baseUrl, { ...paths, trunk_apply: '/slow/{id}' }, { timeout_ms: 20 })
-        .applyTrunk({ resource_id: 'trunk-a', desired_state: {} }),
+      () => managementClient(baseUrl, { ...paths, trunk_collection: '/slow' }, { timeout_ms: 20 })
+        .applyTrunk(validTrunkInput()),
       hasVoiceCode('provider_timeout')
     );
     await assert.rejects(
-      () => managementClient(baseUrl, { ...paths, trunk_apply: '/large/{id}' }, { max_response_bytes: 128 })
-        .applyTrunk({ resource_id: 'trunk-a', desired_state: {} }),
+      () => managementClient(baseUrl, { ...paths, trunk_collection: '/large' }, { max_response_bytes: 128 })
+        .applyTrunk(validTrunkInput()),
       hasVoiceCode('provider_response_too_large')
     );
     await assert.rejects(
-      () => managementClient(baseUrl, { ...paths, trunk_apply: '/malformed/{id}' })
-        .applyTrunk({ resource_id: 'trunk-a', desired_state: {} }),
+      () => managementClient(baseUrl, { ...paths, trunk_collection: '/malformed' })
+        .applyTrunk(validTrunkInput()),
       hasVoiceCode('protocol_mismatch')
     );
   } finally {
@@ -182,7 +223,7 @@ test('RustPBX management client validates URL security and configured paths', ()
       () => new RustPbxManagementClient({
         base_url: 'https://pbx.internal', profile_id: 'profile-a', config_hash: 'a'.repeat(64),
         service_token_ref: 'env://RUSTPBX_MANAGEMENT_TOKEN', secret_resolver: secretResolver,
-        paths: { ...paths, trunk_apply: invalidPath }
+        paths: { ...paths, trunk_collection: invalidPath }
       }),
       hasVoiceCode('validation_failed')
     );
@@ -208,9 +249,31 @@ function managementClient(
 
 function resolver(): EnvVoiceSecretResolver {
   return new EnvVoiceSecretResolver({
-    env: { RUSTPBX_MANAGEMENT_TOKEN: 'management-secret-value' },
-    allowlist: { rustpbx_management: ['RUSTPBX_MANAGEMENT_TOKEN'] }
+    env: {
+      RUSTPBX_MANAGEMENT_TOKEN: 'management-secret-value',
+      TRUNK_AUTH: 'trunk-password',
+      EXTENSION_AUTH: 'extension-password'
+    },
+    allowlist: {
+      rustpbx_management: ['RUSTPBX_MANAGEMENT_TOKEN'],
+      rustpbx_resource_credential: ['TRUNK_AUTH', 'EXTENSION_AUTH']
+    }
   });
+}
+
+function validTrunkInput() {
+  return {
+    resource_id: 'trunk-a',
+    desired_state: {
+      provider_name: 'ivekit-trunk-a', name: 'Carrier A', direction: 'both', transport: 'udp',
+      codecs: ['PCMU'], max_channels: 10, credential_secret_ref: 'env://TRUNK_AUTH',
+      sip_server: 'sip.carrier.test', status: 'active'
+    }
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 async function listen(server: ReturnType<typeof createServer>): Promise<string> {

@@ -105,7 +105,7 @@ voice:
   profileId: ""
   image:
     repository: ghcr.io/restsend/rustpbx
-    tag: "0.4.10"
+    digest: "sha256:2dc00f409f49bf48a23de6101d9d7371692eb7f067e70f4d449f16e158302526"
     pullPolicy: IfNotPresent
   database:
     username: rustpbx_app
@@ -113,8 +113,11 @@ voice:
     host: ""
     port: 5432
     password: ""
+  managementToken: ""
   rwiToken: ""
   webhookToken: ""
+  amiAllows:
+    - 127.0.0.1
   addressKey: ""
   addressHmacKey: ""
   externalIp: ""

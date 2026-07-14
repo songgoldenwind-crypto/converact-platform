@@ -322,7 +322,7 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
       headers: {}
     })
   });
-  assert.deepEqual(routeDecision, { action: 'reject', code: 486, reason: 'controlled_busy' });
+  assert.deepEqual(routeDecision, { action: 'reject', status: 486, reason: 'controlled_busy' });
 
   await invoke('PATCH', '/api/ivekit/voice/policy', {
     revision: null,

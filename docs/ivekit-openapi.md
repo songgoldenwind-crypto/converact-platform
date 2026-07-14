@@ -705,7 +705,7 @@ Voice API 的租户只能来自认证上下文。`owner/admin/system` 管理 pro
 }
 ```
 
-`actions` 支持 `answer`、`hangup`、`hold`、`resume`、`dtmf`、`blind_transfer`、`warm_transfer`、`conference`、`park`、`pickup`、`recording_start`、`recording_pause`、`recording_resume` 和 `recording_stop`。`conference` payload 使用 `operation=create|add|remove|destroy` 和 `conference_id`。能力是否可执行以 profile preflight 的 `effective_capabilities` 为准；当前 RustPBX RWI 未确认 DTMF/Park/Pickup，supervisor 媒体也未接通时必须返回 `501 capability_unavailable`，不得伪造 command succeeded。浏览器内 DTMF 可由 `@opc/ivekit-sdk/sip-webphone` 通过已建立的 SIP media handler 发送，但不改变服务端 RWI 能力事实。
+`actions` 支持 `answer`、`hangup`、`hold`、`resume`、`dtmf`、`blind_transfer`、`warm_transfer`、`conference`、`park`、`pickup`、`recording_start`、`recording_pause`、`recording_resume` 和 `recording_stop`。`conference` payload 使用 `operation=create|add|remove|destroy` 和 `conference_id`；`dtmf` payload 只接受经校验的数字、`*`、`#` 及受限时长。能力是否可执行以 profile preflight 的 `effective_capabilities` 为准；RustPBX `0.4.11` 基线通过 `call.send_dtmf` 发送 DTMF，但只有 `dtmf_send=true` 时才能开放。Park/Pickup 以及未接通媒体的 supervisor action 必须返回 `501 capability_unavailable`，不得伪造 command succeeded。浏览器内 DTMF 也可由 `@opc/ivekit-sdk/sip-webphone` 通过已建立的 SIP media handler 发送，两条路径都必须以当前 session/profile capability 裁决。
 
 WebPhone session plan 只返回 `wss://`、短期 SIP credential、AoR、ICE server 和布尔 capability。服务端拒绝过期计划、非 WSS、带 URL credential、越权分机、空 ICE URL 和未知 capability；客户端不得持久化 credential 或把它写入 DOM/日志。
 

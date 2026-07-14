@@ -41,6 +41,16 @@ npm run render:rustpbx
 npm run preflight:voice
 ```
 
+Voice trunk and extension objects store only `env://NAME` references. For Compose, put any additional credential values in `voice-runtime.env`, set `OPC_IVEKIT_VOICE_SECRET_ENV_NAMES` to the complete comma-separated allowlist, and keep the file mode at `0600`. The optional file is injected only into the iveKit API service; it is not mounted into RustPBX, PostgreSQL, migration, or recovery containers. `RUSTPBX_MANAGEMENT_TOKEN` and `RUSTPBX_RWI_TOKEN` remain separate required variables and must stay in the allowlist.
+
+```dotenv
+OPC_IVEKIT_VOICE_SECRET_ENV_NAMES=RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN,ACME_SIP_TRUNK_PASSWORD,AGENT_8199_PASSWORD
+ACME_SIP_TRUNK_PASSWORD=replace-with-provider-secret
+AGENT_8199_PASSWORD=replace-with-extension-secret
+```
+
+For Helm, place the same named keys in `secrets.runtimeEnvironmentSecret` and set the same allowlist under `config.env.OPC_IVEKIT_VOICE_SECRET_ENV_NAMES`. Secret values must never be put in Provider profile JSON, API payload metadata, Helm `config.env`, or committed environment examples.
+
 Real Voice acceptance is an operator-run release gate, not a long-running service or a controlled Compose profile. Generate the source-bound 45-check template and runbook from the repository with `npm run ivekit:voice-acceptance`, or use `acceptance/voice-real-template.json`, `acceptance/voice-real-runbook.md`, and `acceptance/tools/ivekit-voice-acceptance.ts` from the delivery bundle. Validation requires distinct SHA-256-bound observations from real RustPBX, SIP/PSTN, browser RTP, IVR, recording, bridge, Contact Center, recovery, isolation, and performance runs. A successful result is `ready_for_review`; real RustPBX remains `not_run` until independent QA approves those artifacts.
 
 Provider profile metadata is supplied through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`; secrets stay in dedicated environment variables or an external secret manager. The generated delivery bundle carries `operations/release-contract.json` and `operations/upgrade-runbook.md`. Migrations are forward-only; application rollback selects a compatible prior immutable image, while schema recovery restores a verified pre-upgrade backup.

@@ -241,7 +241,7 @@ export class VoiceCallService {
       const protectedTarget = await this.#protectAddress(tenantId, target);
       payload = { ...payload, target_address: protectedTarget };
     } else if (kind === 'dtmf') {
-      payload = { digits: dtmfDigits(input.payload.digits) };
+      payload = dtmfActionPayload(input.payload);
     } else if (kind === 'conference') {
       payload = conferenceActionPayload(input.payload);
     } else if (kind === 'livekit_bridge_create') {
@@ -607,6 +607,14 @@ function dtmfDigits(value: unknown): string {
   const digits = boundedText(value, 32);
   if (!/^[0-9A-D*#]+$/i.test(digits)) throw validationError();
   return digits.toUpperCase();
+}
+
+function dtmfActionPayload(value: unknown): Record<string, unknown> {
+  const input = plainRecord(value);
+  if (Object.keys(input).some((key) => key !== 'digits' && key !== 'leg_id')) throw validationError();
+  const payload: Record<string, unknown> = { digits: dtmfDigits(input.digits) };
+  if (input.leg_id !== undefined) payload.leg_id = boundedIdentifier(input.leg_id);
+  return payload;
 }
 
 function conferenceActionPayload(value: unknown): Record<string, unknown> {

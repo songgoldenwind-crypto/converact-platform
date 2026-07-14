@@ -58,6 +58,16 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'edge/dist/rustdesk-edge-agent.js',
       'edge/dist/rustdesk-edge-command.js',
       'edge/dist/rustdesk-edge-pending-store.js',
+      'acceptance/rustpbx/package.json',
+      'acceptance/rustpbx/scripts/ivekit-rustpbx-management-acceptance.js',
+      'acceptance/rustpbx/scripts/ivekit-rustpbx-sipp-acceptance.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-management.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/canonical.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/capabilities.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/ports.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/secret-resolver.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js',
       '.ivekit-delivery-root',
       'README.md',
       'SHA256SUMS',
@@ -123,6 +133,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(result.manifest.contents.voice_helm, 'deploy/kubernetes/ivekit/');
     assert.equal(result.manifest.contents.voice_acceptance_template, 'acceptance/voice-real-template.json');
     assert.equal(result.manifest.contents.voice_acceptance_runbook, 'acceptance/voice-real-runbook.md');
+    assert.equal(result.manifest.contents.rustpbx_image_build, 'deploy/rustpbx/');
+    assert.equal(result.manifest.contents.rustpbx_acceptance, 'acceptance/rustpbx/');
     assert.equal(result.manifest.contents.operations, 'docs/ivekit-v3-intelligence-operations.md');
     assert.equal(result.manifest.contents.release_operations, 'operations/upgrade-runbook.md');
     assert.match(result.manifest.provider_ownership.rustpbx, /SIP|PSTN|call/i);
@@ -166,6 +178,34 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('service/build-context/src/agent-runtime/ivekit/contact-center/postgres/unit-of-work.ts'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-controlled-voice-provider.ts'), true);
     assert.equal(files.includes('acceptance/tools/ivekit-voice-acceptance.ts'), true);
+    assert.equal(files.includes('deploy/rustpbx/build.sh'), true);
+    assert.equal(files.includes('deploy/rustpbx/Cargo.lock'), true);
+    assert.equal(files.includes('deploy/rustpbx/patches/rsipstack-tcp-reconnect.patch'), true);
+    assert.equal(files.includes('acceptance/rustpbx/router.py'), true);
+    assert.equal(files.includes('acceptance/rustpbx/sipp/answer-bye-uac.xml'), true);
+    const rustPbxAcceptancePackage = JSON.parse(readFileSync(
+      join(outputDir, 'acceptance', 'rustpbx', 'package.json'),
+      'utf8'
+    )) as { type: string; scripts: Record<string, string> };
+    assert.deepEqual(rustPbxAcceptancePackage, {
+      private: true,
+      type: 'module',
+      scripts: {
+        management: 'node scripts/ivekit-rustpbx-management-acceptance.js',
+        sipp: 'node scripts/ivekit-rustpbx-sipp-acceptance.js'
+      }
+    });
+    const compiledSippAcceptance = readFileSync(
+      join(outputDir, 'acceptance', 'rustpbx', 'scripts', 'ivekit-rustpbx-sipp-acceptance.js'),
+      'utf8'
+    );
+    assert.match(compiledSippAcceptance, /\.\.\/sipp\//);
+    assert.doesNotMatch(compiledSippAcceptance, /--import|\btsx\b/);
+    const tcpReconnectPatch = readFileSync(
+      join(outputDir, 'deploy', 'rustpbx', 'patches', 'rsipstack-tcp-reconnect.patch'),
+      'utf8'
+    );
+    assert.match(tcpReconnectPatch, /closed_tcp_connection_is_removed_before_reconnect/);
     const voiceTemplate = JSON.parse(readFileSync(
       join(outputDir, 'acceptance', 'voice-real-template.json'),
       'utf8'
@@ -560,7 +600,8 @@ test('V3 handoff documents state implemented, configurable, and not-run boundari
   assert.match(voiceDesign, /M2.*代码完成.*受控 PostgreSQL.*通过/s);
   assert.match(voiceDesign, /\/api\/ivekit\/voice\/dids\/:id\/apply/);
   assert.match(voiceDesign, /\/api\/ivekit\/voice\/providers\/:profileId\/cdrs/);
-  assert.match(voiceDesign, /DTMF.*Park.*Pickup.*capability_unavailable/s);
+  assert.match(voiceDesign, /call\.send_dtmf.*Park.*Pickup.*capability_unavailable/s);
+  assert.match(voiceDesign, /12\/12.*TCP reconnect.*10 路并发/s);
   assert.match(voiceDesign, /049_ivekit_voice_route_deployment/);
   assert.match(voiceDesign, /真实 RustPBX.*not_run/s);
   assert.match(design, /Voice Foundation V1.*受控 PostgreSQL.*通过/s);

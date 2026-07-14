@@ -33,6 +33,7 @@ export type RustPbxPortableRouteDecision =
     strategy?: 'parallel' | 'sequential';
     record?: boolean;
     timeout?: number;
+    max_ring_time?: number;
     headers?: Record<string, string>;
   }
   | { action: 'start_ivr' | 'enqueue' | 'bridge_livekit' | 'voicemail'; target: string; timeout?: number }
@@ -47,9 +48,10 @@ export type RustPbxRouterResponse =
     strategy: 'parallel' | 'sequential';
     record: boolean;
     timeout: number;
+    max_ring_time: number;
     headers: Record<string, string>;
   }
-  | { action: 'reject'; code?: number; reason?: string }
+  | { action: 'reject'; status?: number; reason?: string }
   | { action: 'abort'; reason?: string }
   | { action: 'spam' | 'not_handled' };
 
@@ -118,7 +120,7 @@ export class RustPbxRouterAdapter {
     }
     if (input.action === 'reject') {
       const output: Extract<RustPbxRouterResponse, { action: 'reject' }> = { action: 'reject' };
-      if (input.code !== undefined) output.code = boundedSipCode(input.code);
+      if (input.code !== undefined) output.status = boundedSipCode(input.code);
       if (input.reason !== undefined) output.reason = boundedReason(input.reason);
       return output;
     }
@@ -134,7 +136,13 @@ export class RustPbxRouterAdapter {
 
 function forwardResponse(
   targets: unknown,
-  options: { strategy?: unknown; record?: unknown; timeout?: unknown; headers?: unknown }
+  options: {
+    strategy?: unknown;
+    record?: unknown;
+    timeout?: unknown;
+    max_ring_time?: unknown;
+    headers?: unknown;
+  }
 ): Extract<RustPbxRouterResponse, { action: 'forward' }> {
   if (!Array.isArray(targets) || targets.length === 0 || targets.length > 32) throw validationError();
   const strategy = options.strategy ?? 'sequential';
@@ -146,6 +154,7 @@ function forwardResponse(
     strategy,
     record: options.record === true,
     timeout: boundedTimeout(options.timeout),
+    max_ring_time: boundedRingTimeout(options.max_ring_time),
     headers: normalizeDecisionHeaders(options.headers)
   };
 }
@@ -188,6 +197,12 @@ function validatedSipTarget(value: unknown): string {
 function boundedTimeout(value: unknown): number {
   if (value === undefined) return 30;
   if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 300) throw validationError();
+  return Number(value);
+}
+
+function boundedRingTimeout(value: unknown): number {
+  if (value === undefined) return 30;
+  if (!Number.isInteger(value) || Number(value) < 30 || Number(value) > 120) throw validationError();
   return Number(value);
 }
 

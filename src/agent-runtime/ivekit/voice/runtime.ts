@@ -359,6 +359,7 @@ function createIveKitVoiceSecretResolver(
       rustpbx_management: unique([
         'RUSTPBX_MANAGEMENT_TOKEN', 'OPC_IVEKIT_RUSTPBX_MANAGEMENT_TOKEN', ...configured
       ]),
+      rustpbx_resource_credential: unique(configured),
       rwi: unique([
         'RUSTPBX_RWI_TOKEN', 'OPC_IVEKIT_RUSTPBX_RWI_TOKEN', ...configured
       ]),
