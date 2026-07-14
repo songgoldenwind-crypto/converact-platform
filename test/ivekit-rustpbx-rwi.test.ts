@@ -5,6 +5,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 
 import {
   EnvVoiceSecretResolver,
+  RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
   RustPbxRwiClient,
   VoiceError,
   mapRustPbxRwiCommand,
@@ -25,6 +26,13 @@ test('RustPBX RWI authenticates by header and correlates durable action ids once
     await client.connect();
     const preflight = await client.preflight();
     assert.equal(preflight.ready, true);
+    assert.deepEqual(preflight.effective_capabilities, RUSTPBX_RWI_EFFECTIVE_CAPABILITIES);
+    assert.equal(preflight.capability_source, 'pinned_baseline');
+    assert.equal(preflight.runtime_version_verified, false);
+    assert.equal(preflight.protocol_capabilities.supervisor.listen, true);
+    assert.equal(preflight.effective_capabilities.supervisor.listen, false);
+    assert.equal(preflight.commands.includes('conference.create'), true);
+    assert.equal(preflight.commands.includes('conference.mute'), false);
     assert.equal(fixture.messages.some((message) => message.action === 'session.list_calls'), true);
     const result = await client.execute({
       command_id: 'durable-command-a', kind: 'originate', call_id: 'call-a',
@@ -103,7 +111,6 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     ['hangup', 'call.hangup'],
     ['hold', 'call.hold'],
     ['resume', 'call.unhold'],
-    ['conference', 'conference.add'],
     ['recording_start', 'record.start'],
     ['recording_pause', 'record.pause'],
     ['recording_resume', 'record.resume'],
@@ -129,6 +136,45 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     action: 'call.transfer.attended', action_id: 'w',
     params: { call_id: 'call-w', target: 'sip:1004@pbx.internal' }
   });
+  assert.deepEqual(mapRustPbxRwiCommand({
+    command_id: 'conference-create', kind: 'conference', call_id: 'call-a',
+    payload: {
+      operation: 'create', conference_id: 'conference-a', backend: 'internal',
+      max_members: 10, record: true
+    }
+  }), {
+    action: 'conference.create', action_id: 'conference-create',
+    params: { conf_id: 'conference-a', backend: 'internal', max_members: 10, record: true }
+  });
+  for (const operation of ['add', 'remove'] as const) {
+    assert.deepEqual(mapRustPbxRwiCommand({
+      command_id: `conference-${operation}`, kind: 'conference', call_id: 'call-a',
+      payload: { operation, conference_id: 'conference-a' }
+    }), {
+      action: `conference.${operation}`, action_id: `conference-${operation}`,
+      params: { conference_id: 'conference-a', call_id: 'call-a' }
+    });
+  }
+  assert.deepEqual(mapRustPbxRwiCommand({
+    command_id: 'conference-destroy', kind: 'conference', call_id: 'call-a',
+    payload: { operation: 'destroy', conference_id: 'conference-a' }
+  }), {
+    action: 'conference.destroy', action_id: 'conference-destroy',
+    params: { conference_id: 'conference-a' }
+  });
+  assert.throws(
+    () => mapRustPbxRwiCommand({
+      command_id: 'conference-missing', kind: 'conference', call_id: 'call-a', payload: {}
+    }),
+    hasVoiceCode('validation_failed')
+  );
+  assert.throws(
+    () => mapRustPbxRwiCommand({
+      command_id: 'nested-secret', kind: 'answer', call_id: 'call-a',
+      payload: { values: [{ token: 'must-not-cross-provider-boundary' }] }
+    }),
+    hasVoiceCode('validation_failed')
+  );
   for (const kind of ['dtmf', 'park', 'pickup'] as const) {
     assert.throws(
       () => mapRustPbxRwiCommand({ command_id: `unsupported-${kind}`, kind, call_id: 'call-a', payload: {} }),

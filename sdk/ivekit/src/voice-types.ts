@@ -47,6 +47,14 @@ export type IveKitVoiceCommandKind =
   | 'recording_stop'
   | 'livekit_bridge_create';
 
+export type IveKitVoiceConferenceOperation = 'create' | 'add' | 'remove' | 'destroy';
+
+export interface IveKitVoiceConferenceCreateOptions {
+  backend?: 'internal' | 'external';
+  max_members?: number;
+  record?: boolean;
+}
+
 export type IveKitVoiceConfigurationResourceType =
   | 'deployment_profile'
   | 'sip_trunk'

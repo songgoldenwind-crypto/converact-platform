@@ -59,6 +59,8 @@ export type VoiceCommandKind =
   | 'recording_stop'
   | 'livekit_bridge_create';
 
+export type VoiceConferenceOperation = 'create' | 'add' | 'remove' | 'destroy';
+
 export type VoiceConfigurationResourceType =
   | 'deployment_profile'
   | 'sip_trunk'

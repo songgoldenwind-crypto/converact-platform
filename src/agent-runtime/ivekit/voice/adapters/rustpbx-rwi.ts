@@ -46,6 +46,36 @@ export interface RustPbxRwiSafeEvent {
   safe_payload: Record<string, unknown>;
 }
 
+const RUSTPBX_RWI_PROTOCOL_CAPABILITIES_VALUE = {
+  baseline_image_tag: '0.4.10',
+  dtmf_receive: true,
+  dtmf_send: false,
+  park: false,
+  pickup: false,
+  conference: { create: true, add: true, remove: true, destroy: true, mute: true, unmute: true },
+  supervisor: { listen: true, whisper: true, barge: true, takeover: true }
+} as const;
+
+const RUSTPBX_RWI_EFFECTIVE_CAPABILITIES_VALUE = {
+  ...RUSTPBX_RWI_PROTOCOL_CAPABILITIES_VALUE,
+  conference: { create: true, add: true, remove: true, destroy: true, mute: false, unmute: false },
+  supervisor: { listen: false, whisper: false, barge: false, takeover: false }
+} as const;
+
+export const RUSTPBX_RWI_PROTOCOL_CAPABILITIES = deepFreeze(RUSTPBX_RWI_PROTOCOL_CAPABILITIES_VALUE);
+export const RUSTPBX_RWI_EFFECTIVE_CAPABILITIES = deepFreeze(RUSTPBX_RWI_EFFECTIVE_CAPABILITIES_VALUE);
+
+export interface RustPbxRwiPreflightResult {
+  ready: boolean;
+  protocol: 'rwi-v1';
+  commands: string[];
+  capability_source: 'pinned_baseline';
+  runtime_version_verified: false;
+  protocol_capabilities: typeof RUSTPBX_RWI_PROTOCOL_CAPABILITIES;
+  effective_capabilities: typeof RUSTPBX_RWI_EFFECTIVE_CAPABILITIES;
+  limitations: string[];
+}
+
 interface PendingAction {
   timer: ReturnType<typeof setTimeout>;
   resolve: (result: RustPbxRwiCommandResult) => void;
@@ -121,7 +151,7 @@ export class RustPbxRwiClient {
     this.#handlers.delete(handler);
   }
 
-  async preflight(): Promise<{ ready: boolean; protocol: 'rwi-v1'; commands: string[] }> {
+  async preflight(): Promise<RustPbxRwiPreflightResult> {
     const result = await this.#sendEnvelope({
       action: 'session.list_calls',
       action_id: `preflight:${++this.#preflightRevision}`,
@@ -134,7 +164,23 @@ export class RustPbxRwiClient {
         status: result.state === 'uncertain' ? 504 : 503
       });
     }
-    return { ready: true, protocol: 'rwi-v1', commands: [...SUPPORTED_ACTIONS] };
+    return {
+      ready: true,
+      protocol: 'rwi-v1',
+      commands: [...SUPPORTED_ACTIONS],
+      capability_source: 'pinned_baseline',
+      runtime_version_verified: false,
+      protocol_capabilities: RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
+      effective_capabilities: RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
+      limitations: [
+        'dtmf_send_action_unavailable',
+        'park_action_unavailable',
+        'pickup_action_unavailable',
+        'conference_mute_audio_unavailable',
+        'supervisor_audio_mixing_unavailable',
+        'runtime_version_not_negotiated_by_rwi_v1'
+      ]
+    };
   }
 
   execute(input: RustPbxRwiCommandInput): Promise<RustPbxRwiCommandResult> {
@@ -377,7 +423,10 @@ const SUPPORTED_ACTIONS = [
   'call.unhold',
   'call.transfer',
   'call.transfer.attended',
+  'conference.create',
   'conference.add',
+  'conference.remove',
+  'conference.destroy',
   'record.start',
   'record.pause',
   'record.resume',
@@ -399,7 +448,7 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
     case 'resume': action = 'call.unhold'; break;
     case 'blind_transfer': action = 'call.transfer'; break;
     case 'warm_transfer': action = 'call.transfer.attended'; break;
-    case 'conference': action = 'conference.add'; break;
+    case 'conference': return mapConferenceCommand(actionId, callId, payload);
     case 'recording_start': action = 'record.start'; break;
     case 'recording_pause': action = 'record.pause'; break;
     case 'recording_resume': action = 'record.resume'; break;
@@ -441,15 +490,62 @@ function validatedCommandPayload(value: Record<string, unknown>): Record<string,
   return { ...value };
 }
 
+function mapConferenceCommand(
+  actionId: string,
+  callId: string,
+  payload: Record<string, unknown>
+): RustPbxRwiEnvelope {
+  const operation = boundedString(payload.operation ?? 'add', 16);
+  if (!['create', 'add', 'remove', 'destroy'].includes(operation)) throw validationError();
+  const conferenceId = boundedString(payload.conference_id, 256);
+  const allowed = operation === 'create'
+    ? new Set(['operation', 'conference_id', 'backend', 'max_members', 'record'])
+    : new Set(['operation', 'conference_id']);
+  if (Object.keys(payload).some((key) => !allowed.has(key))) throw validationError();
+  if (operation === 'create') {
+    const params: Record<string, unknown> = { conf_id: conferenceId };
+    if (payload.backend !== undefined) {
+      if (payload.backend !== 'internal' && payload.backend !== 'external') throw validationError();
+      params.backend = payload.backend;
+    }
+    if (payload.max_members !== undefined) {
+      if (!Number.isInteger(payload.max_members) || Number(payload.max_members) < 2
+        || Number(payload.max_members) > 1_000) throw validationError();
+      params.max_members = payload.max_members;
+    }
+    if (payload.record !== undefined) {
+      if (typeof payload.record !== 'boolean') throw validationError();
+      params.record = payload.record;
+    }
+    return { action: 'conference.create', action_id: actionId, params };
+  }
+  if (operation === 'destroy') {
+    return {
+      action: 'conference.destroy', action_id: actionId,
+      params: { conference_id: conferenceId }
+    };
+  }
+  return {
+    action: `conference.${operation}`, action_id: actionId,
+    params: { conference_id: conferenceId, call_id: callId }
+  };
+}
+
 function containsSensitiveKey(value: unknown, depth: number): boolean {
   if (depth > 6) return true;
   if (Array.isArray(value)) return value.some((child) => containsSensitiveKey(child, depth + 1));
   if (!isRecord(value)) return false;
   for (const [key, child] of Object.entries(value)) {
     if (/(?:authorization|cookie|credential|password|secret|token|api[-_]?key)/i.test(key)) return true;
-    if (isRecord(child) && containsSensitiveKey(child, depth + 1)) return true;
+    if (typeof child === 'object' && child !== null && containsSensitiveKey(child, depth + 1)) return true;
   }
   return false;
+}
+
+function deepFreeze<T>(value: T): Readonly<T> {
+  if (typeof value !== 'object' || value === null || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.freeze(value);
 }
 
 function normalizedContexts(values: unknown[]): string[] {

@@ -258,6 +258,10 @@ test('Voice call actions cover call control, recording, and LiveKit bridge witho
   }
   assert.equal(fixture.providerCalls, 0);
   assert.equal(fixture.commands.size, cases.length);
+  assert.deepEqual(
+    [...fixture.commands.values()].find((command) => command.kind === 'conference')?.payload,
+    { operation: 'add', conference_id: 'conference-a' }
+  );
   assert.equal(
     [...fixture.commands.values()].find((command) => command.kind === 'livekit_bridge_create')?.payload.sip_trunk_id,
     'trunk-livekit-a'
@@ -270,6 +274,46 @@ test('Voice call actions cover call control, recording, and LiveKit bridge witho
     tenant_id: 'tenant-a', call_id: terminal.id, kind: 'hangup', payload: {},
     actor: 'agent-a', idempotency_key: 'terminal-action'
   }), hasVoiceCode('terminal_call_state'));
+  await assert.rejects(() => fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: active.id, kind: 'conference', payload: {},
+    actor: 'agent-a', idempotency_key: 'conference-without-id'
+  }), hasVoiceCode('validation_failed'));
+});
+
+test('Voice call service canonicalizes the executable conference lifecycle', async () => {
+  const fixture = callFixture();
+  const active = fixture.seedCall('active');
+  const cases = [
+    {
+      operation: 'create',
+      input: { conference_id: 'conference-a', backend: 'internal', max_members: 10, record: true },
+      expected: {
+        operation: 'create', conference_id: 'conference-a', backend: 'internal',
+        max_members: 10, record: true
+      }
+    },
+    { operation: 'add', input: { conference_id: 'conference-a' }, expected: { operation: 'add', conference_id: 'conference-a' } },
+    { operation: 'remove', input: { conference_id: 'conference-a' }, expected: { operation: 'remove', conference_id: 'conference-a' } },
+    { operation: 'destroy', input: { conference_id: 'conference-a' }, expected: { operation: 'destroy', conference_id: 'conference-a' } }
+  ] as const;
+  for (const item of cases) {
+    const command = await fixture.service.enqueueAction({
+      tenant_id: 'tenant-a', call_id: active.id, kind: 'conference',
+      payload: { operation: item.operation, ...item.input }, actor: 'agent-a',
+      idempotency_key: `conference-${item.operation}`
+    });
+    assert.deepEqual(command.payload, item.expected);
+  }
+  await assert.rejects(() => fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: active.id, kind: 'conference',
+    payload: { operation: 'create', conference_id: 'conference-a', max_members: 1 },
+    actor: 'agent-a', idempotency_key: 'conference-invalid-size'
+  }), hasVoiceCode('validation_failed'));
+  await assert.rejects(() => fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: active.id, kind: 'conference',
+    payload: { operation: 'add', conference_id: 'conference-a', secret: 'no' },
+    actor: 'agent-a', idempotency_key: 'conference-extra-field'
+  }), hasVoiceCode('validation_failed'));
 });
 
 function callFixture(options: { complianceAllowed?: boolean } = {}) {

@@ -242,6 +242,8 @@ export class VoiceCallService {
       payload = { ...payload, target_address: protectedTarget };
     } else if (kind === 'dtmf') {
       payload = { digits: dtmfDigits(input.payload.digits) };
+    } else if (kind === 'conference') {
+      payload = conferenceActionPayload(input.payload);
     } else if (kind === 'livekit_bridge_create') {
       payload = { sip_trunk_id: boundedIdentifier(input.payload.sip_trunk_id) };
     } else {
@@ -605,6 +607,36 @@ function dtmfDigits(value: unknown): string {
   const digits = boundedText(value, 32);
   if (!/^[0-9A-D*#]+$/i.test(digits)) throw validationError();
   return digits.toUpperCase();
+}
+
+function conferenceActionPayload(value: unknown): Record<string, unknown> {
+  const input = plainRecord(value);
+  const operation = input.operation ?? 'add';
+  if (typeof operation !== 'string' || !['create', 'add', 'remove', 'destroy'].includes(operation)) {
+    throw validationError();
+  }
+  const conferenceId = boundedIdentifier(input.conference_id);
+  const allowed = operation === 'create'
+    ? new Set(['operation', 'conference_id', 'backend', 'max_members', 'record'])
+    : new Set(['operation', 'conference_id']);
+  if (Object.keys(input).some((key) => !allowed.has(key))) throw validationError();
+  const payload: Record<string, unknown> = { operation, conference_id: conferenceId };
+  if (operation !== 'create') return payload;
+  if (input.backend !== undefined) {
+    if (input.backend !== 'internal' && input.backend !== 'external') throw validationError();
+    payload.backend = input.backend;
+  }
+  if (input.max_members !== undefined) {
+    if (!Number.isInteger(input.max_members) || Number(input.max_members) < 2 || Number(input.max_members) > 1_000) {
+      throw validationError();
+    }
+    payload.max_members = input.max_members;
+  }
+  if (input.record !== undefined) {
+    if (typeof input.record !== 'boolean') throw validationError();
+    payload.record = input.record;
+  }
+  return payload;
 }
 
 function businessRef(value: unknown): VoiceBusinessRef {

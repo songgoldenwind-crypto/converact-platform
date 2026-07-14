@@ -37,6 +37,10 @@ test('Voice controller exposes every WebPhone action and publishes stable state'
   await controller.blindTransfer({ kind: 'extension', value: '1002' });
   await controller.warmTransfer({ kind: 'sip_uri', value: 'sip:1003@pbx.internal' });
   await controller.conference('conference-a');
+  await controller.createConference('conference-b', { backend: 'internal', max_members: 10, record: true });
+  await controller.addToConference('conference-b');
+  await controller.removeFromConference('conference-b');
+  await controller.destroyConference('conference-b');
   await controller.park('701');
   await controller.pickup('701');
   await controller.startRecording();
@@ -49,14 +53,22 @@ test('Voice controller exposes every WebPhone action and publishes stable state'
 
   assert.deepEqual(requests.map((request) => request.kind), [
     'answer', 'dtmf', 'hold', 'resume', 'blind_transfer', 'warm_transfer',
-    'conference', 'park', 'pickup', 'recording_start', 'recording_pause',
+    'conference', 'conference', 'conference', 'conference', 'conference',
+    'park', 'pickup', 'recording_start', 'recording_pause',
     'recording_resume', 'recording_stop', 'hangup'
   ]);
   assert.deepEqual(requests[1]!.payload, { digits: '12#' });
   assert.deepEqual(requests[4]!.payload, { target: '1002' });
   assert.deepEqual(requests[5]!.payload, { target: 'sip:1003@pbx.internal' });
   assert.deepEqual(requests[6]!.payload, { conference_id: 'conference-a' });
-  assert.deepEqual(requests[7]!.payload, { slot: '701' });
+  assert.deepEqual(requests[7]!.payload, {
+    operation: 'create', conference_id: 'conference-b', backend: 'internal',
+    max_members: 10, record: true
+  });
+  assert.deepEqual(requests[8]!.payload, { operation: 'add', conference_id: 'conference-b' });
+  assert.deepEqual(requests[9]!.payload, { operation: 'remove', conference_id: 'conference-b' });
+  assert.deepEqual(requests[10]!.payload, { operation: 'destroy', conference_id: 'conference-b' });
+  assert.deepEqual(requests[11]!.payload, { slot: '701' });
   assert.equal(controller.getSnapshot().call?.id, 'call-a');
   assert.equal(controller.getSnapshot().command?.kind, 'hangup');
   assert.equal(controller.getSnapshot().phase, 'ready');

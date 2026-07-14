@@ -9,6 +9,7 @@ import type {
   IveKitVoiceCapabilities,
   IveKitVoiceClearAddress,
   IveKitVoiceCommandKind,
+  IveKitVoiceConferenceCreateOptions,
   IveKitVoiceCreateCallResult,
   IveKitVoiceCreateOutboundCallInput,
   IveKitVoiceExtensionSessionPlan
@@ -57,6 +58,10 @@ export interface IveKitVoiceController {
   blindTransfer(target: IveKitVoiceClearAddress): Promise<IveKitVoiceCallCommand>;
   warmTransfer(target: IveKitVoiceClearAddress): Promise<IveKitVoiceCallCommand>;
   conference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
+  createConference(conferenceId: string, options?: IveKitVoiceConferenceCreateOptions): Promise<IveKitVoiceCallCommand>;
+  addToConference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
+  removeFromConference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
+  destroyConference(conferenceId: string): Promise<IveKitVoiceCallCommand>;
   park(slot: string): Promise<IveKitVoiceCallCommand>;
   pickup(slot: string): Promise<IveKitVoiceCallCommand>;
   startRecording(): Promise<IveKitVoiceCallCommand>;
@@ -186,6 +191,29 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
     return this.#action('conference', { conference_id: requiredValue(conferenceId, 'conferenceId') });
   }
 
+  createConference(
+    conferenceId: string,
+    options: IveKitVoiceConferenceCreateOptions = {}
+  ): Promise<IveKitVoiceCallCommand> {
+    return this.#action('conference', {
+      ...options,
+      operation: 'create',
+      conference_id: requiredValue(conferenceId, 'conferenceId')
+    });
+  }
+
+  addToConference(conferenceId: string): Promise<IveKitVoiceCallCommand> {
+    return this.#conferenceAction('add', conferenceId);
+  }
+
+  removeFromConference(conferenceId: string): Promise<IveKitVoiceCallCommand> {
+    return this.#conferenceAction('remove', conferenceId);
+  }
+
+  destroyConference(conferenceId: string): Promise<IveKitVoiceCallCommand> {
+    return this.#conferenceAction('destroy', conferenceId);
+  }
+
   park(slot: string): Promise<IveKitVoiceCallCommand> {
     return this.#action('park', { slot: requiredValue(slot, 'slot') });
   }
@@ -208,6 +236,13 @@ class DefaultIveKitVoiceController implements IveKitVoiceController {
 
   stopRecording(): Promise<IveKitVoiceCallCommand> {
     return this.#action('recording_stop');
+  }
+
+  #conferenceAction(operation: 'add' | 'remove' | 'destroy', conferenceId: string): Promise<IveKitVoiceCallCommand> {
+    return this.#action('conference', {
+      operation,
+      conference_id: requiredValue(conferenceId, 'conferenceId')
+    });
   }
 
   async createLiveKitBridge(sipTrunkIdInput: string): Promise<IveKitVoiceCallCommand> {

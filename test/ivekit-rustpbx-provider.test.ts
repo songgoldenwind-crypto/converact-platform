@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
+  RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
   RustPbxVoiceProviderAdapter,
   VoiceError,
   voiceProfileConfigHash,
@@ -94,7 +96,16 @@ function fakeRwi() {
     async connect() { state.events.push('connect'); },
     async preflight() {
       state.events.push('preflight');
-      return { ready: true as const, protocol: 'rwi-v1' as const, commands: ['call.originate'] };
+      return {
+        ready: true as const,
+        protocol: 'rwi-v1' as const,
+        commands: ['call.originate'],
+        capability_source: 'pinned_baseline' as const,
+        runtime_version_verified: false as const,
+        protocol_capabilities: RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
+        effective_capabilities: RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
+        limitations: []
+      };
     },
     async execute(input: { command_id: string; payload: Record<string, unknown> }) {
       state.commands.push(input);

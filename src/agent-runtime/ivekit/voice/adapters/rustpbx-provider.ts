@@ -22,12 +22,13 @@ import {
 import {
   RustPbxRwiClient,
   type RustPbxRwiCommandInput,
-  type RustPbxRwiCommandResult
+  type RustPbxRwiCommandResult,
+  type RustPbxRwiPreflightResult
 } from './rustpbx-rwi.js';
 
 export interface RustPbxRwiPort {
   connect(): Promise<void>;
-  preflight(): Promise<{ ready: boolean; protocol: 'rwi-v1'; commands: string[] }>;
+  preflight(): Promise<RustPbxRwiPreflightResult>;
   execute(input: RustPbxRwiCommandInput): Promise<RustPbxRwiCommandResult>;
   close(): Promise<void>;
 }

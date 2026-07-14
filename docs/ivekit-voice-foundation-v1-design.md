@@ -489,6 +489,7 @@ voicemail
 - 支持时用于低延迟控制、Audio Queue、打断和事件。
 - 不支持时 `rwi=not_available`，调用方选择 Step IVR 或失败，不伪造执行。
 - 每个 command 使用稳定 idempotency key 并写 `ivekit_voice_call_commands`。
+- preflight 同时返回 `protocol_capabilities` 与 `effective_capabilities`。前者描述上游接受的 action，后者只描述在锁定版本中具备真实业务效果的能力；产品开关必须读取后者。RWI v1 不返回运行版本，因此结果还会声明 `capability_source=pinned_baseline`、`runtime_version_verified=false`；镜像 tag/digest 必须由部署证据核验。
 
 M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, params}`，完成事件兼容官方 `{type, action_id, data}`，呼叫状态事件使用 `event=call_state_change`、`event_id`、`call_id` 和 `state`。当前映射如下：
 
@@ -499,12 +500,16 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 | `hold` / `resume` | `call.hold` / `call.unhold` | 已实现 |
 | `blind_transfer` | `call.transfer` | 已实现 |
 | `warm_transfer` | `call.transfer.attended` | 已实现协议映射；真实 RustPBX 行为未验证 |
-| `conference` | `conference.add` | 已实现协议映射；会议生命周期和真实多方媒体未验证 |
+| `conference(create/add/remove/destroy)` | `conference.create/add/remove/destroy` | 已实现严格 payload 校验和完整可执行生命周期映射；真实多方媒体仍待服务器验收 |
 | `recording_start/pause/resume/stop` | `record.start/pause/resume/stop` | 已实现协议映射；真实录音文件链路未验证 |
 | `dtmf` / `park` / `pickup` | 无已确认的官方可执行 RWI action | 明确返回 `capability_unavailable`，不伪造成功 |
 | `livekit_bridge_create` | 不走 RustPBX RWI | 使用独立 LiveKit SIP adapter |
 
-因此，DTMF、Park、Pickup 虽已进入通用 command type 和 API 校验面，但当前 RustPBX adapter 不具备可执行实现。Audio Queue、Barge-in、supervisor whisper/barge 和完整会议控制也不属于 M2 已完成能力，需在 M3/M4 基于实际 Provider capability 落地。
+锁定的 `0.4.10` 基线中，`conference.create/add/remove/destroy` 被上游列为可执行，`conference.mute/unmute` 只产生事件而不会真正改变 mixer 音频，因此后两项不会进入 iveKit 的 effective capability 或 SDK 成功路径。`supervisor.listen/whisper/barge/takeover` 虽有协议 action，但上游同样明确标注实际音频混音尚未接通；默认 `UnsupportedContactCenterSupervisorControl` 因此保持不变。DTMF 只确认了接收事件和本地规则 `send_dtmf`，没有可供 iveKit 调用的 RWI 发送 action；Park、Pickup 也没有确认 action，三者继续明确返回 `capability_unavailable`。
+
+`conference` payload 使用白名单合同：`operation=create|add|remove|destroy` 与 `conference_id` 必填，create 可附带 `backend=internal|external`、`max_members` 和 `record`。旧 SDK `conference(id)` 保留为 add 兼容入口；新 SDK 提供 `createConference`、`addToConference`、`removeFromConference`、`destroyConference`。Provider 边界不允许任意 metadata 或 secret 字段穿透，嵌套对象和数组都会递归检查。
+
+当前 `/api/ivekit/voice/capabilities` 是模块级能力，不是 profile 逐 action 探测，不能据此显示 DTMF/Park/Pickup 或 supervisor 可用。RustPBX 细粒度结果由 `RustPbxRwiPreflightResult` 在 provider 边界承载；本版本尚未把该嵌套矩阵写入 `ivekit_voice_capability_snapshots` 公共合同。产品在这一阶段应以明确的 provider/SDK 功能开关和 `capability_unavailable` 收敛，后续若需要动态按钮，再以独立版本化 details 字段扩展 snapshot，不能把粗粒度 `rwi=true` 等同于所有 RWI action 可执行。
 
 ## 11. IVR 设计
 
@@ -672,7 +677,7 @@ overflow 在源队列达到 `max_size` 或 waiting 条目超过 `max_wait_second
 
 supervisor action 只允许 `owner/admin/system`。启动前必须确认目标坐席在同租户、同 Voice Call 的 accepted/connected assignment 上；请求先以 `requested` 写入不可删除的 `ivekit_cc_supervisor_sessions`，provider 成功后推进为 `active`，结束后推进为 `ended`，失败只保存经过白名单清洗的错误码，不保存 provider 原文或凭据。同一 Idempotency-Key 会核对 call、agent、supervisor、mode 和 authorization_ref，payload 不同返回 `409 idempotency_conflict`。provider 调用使用 session id 作为启动幂等标识，结束使用 `{sessionId}:end`。
 
-`ContactCenterSupervisorControlPort` 是独立 provider 插槽，可由 RustPBX、LiveKit SIP/Room 或其他语音数据面实现。当前已确认的 RustPBX RWI 基线没有 monitor/whisper/barge action，因此默认注入 `UnsupportedContactCenterSupervisorControl`，调用返回 `501 capability_unavailable`，`GET /capabilities` 的 `supervisor` 保持 `false`；部署方注入至少支持一种 mode 的真实 control port 后才返回 `true`。这表示通用控制面已完成，不表示真实监听媒体已经验收。
+`ContactCenterSupervisorControlPort` 是独立 provider 插槽，可由 RustPBX、LiveKit SIP/Room 或其他语音数据面实现。RustPBX RWI `0.4.10` 已声明 listen/whisper/barge/takeover action，但官方实现状态仍是 partial，实际 supervisor 音频混音未接通。因此默认继续注入 `UnsupportedContactCenterSupervisorControl`，调用返回 `501 capability_unavailable`，`GET /capabilities` 的 `supervisor` 保持 `false`；部署方注入并验收至少支持一种 mode 的真实 control port 后才返回 `true`。这表示通用控制面已完成，不表示真实监听媒体已经验收。
 
 Queue Monitor 后端使用同一 tenant-scoped PostgreSQL 事务生成一致快照。可用容量按 queue membership、Presence、voice capacity 和技能门槛计算；当日指标采用 UTC `[day_start, day_end)` 窗口。服务水平分母为当日 answered、abandoned、timed_out 和 overflowed，分子为在 queue `service_level_seconds` 内 answered 的条目。无可用容量时预估等待返回 `null`，不会伪造一个可等待秒数。`@opc/ivekit-sdk` 的 `contactCenter.getMonitorSnapshot()` 直接消费该合同；参考客户端提供 `workspace=operations` 懒加载工作区、10 秒可暂停轮询、手动刷新、状态/告警筛选、运营总览、告警流和队列表。受控 Playwright 已覆盖 1440×900 与 390×844，真实 PostgreSQL 运营数据验收仍在服务器阶段执行。
 
@@ -893,7 +898,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 - deployment profile、capability/preflight。
 - call lifecycle、durable command、event inbox、CDR/recording。
 - trunk/DID/extension/route desired state。
-- RWI、Router、Management/AMI 和 LiveKit SIP adapters；Step IVR 执行闭环进入 M3。
+- RWI、Router、Management/AMI 和 LiveKit SIP adapters；RWI 已覆盖会议 create/add/remove/destroy，并以双层能力矩阵隔离上游“接受命令但无真实媒体效果”的功能；Step IVR 执行闭环进入 M3。
 
 ### M3：IVR Runtime
 
@@ -984,6 +989,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 - 本仓库 [架构总纲](design/architecture-v3.md)、[视频语音呼叫中心架构](architecture-video-voice-callcenter.md) 和 [新功能准入清单](new-feature-application-checklist.md)。
 - [RustPBX 官方仓库](https://github.com/restsend/rustpbx)：上游代码、模块和发布信息。
+- [RustPBX 官方 RWI 协议与实现状态](https://github.com/restsend/rustpbx/blob/main/docs/rwi.md)：action 参数、会议/班长能力和已知实现限制。
 - [RustPBX Overview](https://miuda.ai/docs/rustpbx/overview)：当前组件与运行边界。
 - [RustPBX Specifications](https://miuda.ai/docs/rustpbx/specs/)：SIP、WebRTC、数据库和协议能力。
 - [RustPBX Routing, Trunk and Billing](https://miuda.ai/docs/rustpbx/routing-trunk-billing/)：路由和 trunk 配置依据。
