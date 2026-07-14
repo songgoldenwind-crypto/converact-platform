@@ -83,6 +83,23 @@ const ivrFoundationTables = [
   'ivekit_ivr_settings'
 ];
 
+const contactCenterTables = [
+  'ivekit_cc_skills',
+  'ivekit_cc_agents',
+  'ivekit_cc_agent_skills',
+  'ivekit_cc_agent_presence',
+  'ivekit_cc_queues',
+  'ivekit_cc_queue_memberships',
+  'ivekit_cc_queue_skill_requirements',
+  'ivekit_cc_queue_entries',
+  'ivekit_cc_assignments',
+  'ivekit_cc_callbacks',
+  'ivekit_cc_supervisor_sessions',
+  'ivekit_cc_routing_cursors',
+  'ivekit_cc_configuration_idempotency',
+  'ivekit_cc_overflow_actions'
+];
+
 function standaloneMigrations(): { directory: string; cleanup(): void } {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-standalone-postgres-'));
   const outputDir = join(root, 'context');
@@ -235,7 +252,8 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       'ivekit_tenant_events',
       'rustdesk_gateway_sessions',
       ...voiceFoundationTables,
-      ...ivrFoundationTables
+      ...ivrFoundationTables,
+      ...contactCenterTables
     ]) assert.equal(tables.rows.some((row) => row.tablename === required), true, required);
 
     const checksums = await admin.query<{ version: string; checksum: string }>(
@@ -289,6 +307,12 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_a', 'A'), ('ivekit_rls_b', 'B')`);
     await seedVoiceIvrTenant(admin, 'a');
     await seedVoiceIvrTenant(admin, 'b');
+    await admin.query(`
+      INSERT INTO ivekit_cc_skills (id, tenant_id, name, created_by, updated_by)
+      VALUES
+        ('ivekit_cc_skill_a', 'ivekit_rls_a', 'Skill A', 'postgres-test', 'postgres-test'),
+        ('ivekit_cc_skill_b', 'ivekit_rls_b', 'Skill B', 'postgres-test', 'postgres-test')
+    `);
 
     await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
       const calls = await tenantPg.query<{ tenant_id: string; id: string }>(
@@ -299,6 +323,17 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         `SELECT tenant_id, id FROM ivekit_ivr_sessions ORDER BY id`
       );
       assert.deepEqual(sessions.rows, [{ tenant_id: 'ivekit_rls_a', id: 'ivekit_ivr_session_a' }]);
+      const skills = await tenantPg.query<{ tenant_id: string; id: string }>(
+        `SELECT tenant_id, id FROM ivekit_cc_skills ORDER BY id`
+      );
+      assert.deepEqual(skills.rows, [{ tenant_id: 'ivekit_rls_a', id: 'ivekit_cc_skill_a' }]);
+      await assert.rejects(
+        () => tenantPg.query(`
+          INSERT INTO ivekit_cc_skills (id, tenant_id, name, created_by, updated_by)
+          VALUES ('ivekit_cc_cross_tenant', 'ivekit_rls_b', 'Cross tenant', 'postgres-test', 'postgres-test')
+        `),
+        /row-level security policy/i
+      );
     });
 
     await admin.query(`
@@ -1140,7 +1175,17 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
     `);
     assert.equal(
       Number(productTablesAfter.rows[0].count) - Number(productTablesBefore.rows[0].count),
-      voiceFoundationTables.length + ivrFoundationTables.length
+      voiceFoundationTables.length + ivrFoundationTables.length + contactCenterTables.length
+    );
+    const sharedTablesAfter = await admin.query<{ tablename: string }>(`
+      SELECT tablename
+      FROM pg_tables
+      WHERE schemaname = 'public' AND tablename = ANY($1::TEXT[])
+      ORDER BY tablename
+    `, [[...voiceFoundationTables, ...ivrFoundationTables, ...contactCenterTables]]);
+    assert.deepEqual(
+      sharedTablesAfter.rows.map((row) => row.tablename),
+      [...voiceFoundationTables, ...ivrFoundationTables, ...contactCenterTables].sort()
     );
     assert.equal((await admin.query(
       `SELECT id FROM campaigns WHERE id = 'ivekit_upgrade_campaign'`

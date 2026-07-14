@@ -23,7 +23,7 @@
 | IVR Designer | 已实现 | `workspace=ivr&flow_id=...` 独立深链、26 节点组件库、React Flow 画布、节点/流程属性、导入导出、revision 保存、服务端校验、发布/回滚、版本历史和确定性模拟已接入 typed SDK；桌面/移动受控 Playwright 基线通过，新增 `survey` 的 E2E 门禁已更新 |
 | Voice SDK/headless WebPhone controller | 已实现 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖 durable 呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试；独立 `@opc/ivekit-sdk/sip-webphone` 子入口封装 SIP.js 媒体状态机 |
 | React Voice 控制工作台 | 已实现 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、durable 呼叫控制，以及按分机会话懒加载的 WebPhone 注册、呼入/外呼、接听/拒接、挂断、静音、Hold/Resume、DTMF 和音频设备控件；不渲染 session credential |
-| Contact Center Kit | 通用控制面已实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`056` migrations、tenant-scoped PostgreSQL store、配置/排队/callback/supervisor API、租户与状态绑定历史查询、自动派单 worker、durable overflow、UTC 日窗口 Queue Monitor 后端投影、参考客户端 UI、完整 TypeScript SDK 和 IVR queue adapter 已实现；默认 RustPBX supervisor provider 明确不可用 |
+| Contact Center Kit | 通用控制面已实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`056` migrations、tenant-scoped PostgreSQL store、配置/排队/callback/supervisor API、租户与状态绑定历史查询、自动派单 worker、durable overflow、UTC 日窗口 Queue Monitor 后端投影、参考客户端 UI、完整 TypeScript SDK 和 IVR queue adapter 已实现；14 张 Contact Center 表已纳入 standalone fresh/upgrade 和真实 PostgreSQL skill 跨租户 RLS 门禁；默认 RustPBX supervisor provider 明确不可用 |
 | 浏览器 SIP/WebRTC 媒体接入 | 代码完成、受控浏览器通过 | SIP.js adapter、严格 session plan、到期注销、注册/重连、单通话状态机、远端音频、输入/输出设备切换和分块预算已实现；Playwright 使用注入 engine 验证 UI，不证明真实 RustPBX 注册、SDP/ICE、RTP 双向音频或硬件设备 |
 
 当前新增迁移为：

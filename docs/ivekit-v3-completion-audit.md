@@ -90,3 +90,5 @@ LiveKit/Tinode/RustDesk 的历史 V2 证据不会自动升级成当前 V3 releas
 当前交付改为复制 `services/ivekit-service` 的 Compose，并新增独立 Helm Chart：应用和可选 RustPBX 镜像必须使用 digest，外部 Secret 由接收方管理，`pre-install,pre-upgrade` hook 顺序执行 runtime-role 初始化和 advisory-locked migration。交付包新增 `operations/release-contract.json` 与 `operations/upgrade-runbook.md`，绑定 source commit、image metadata 和 migration manifest SHA-256；无 digest 时状态为 `blocked_build_required`。迁移为 forward-only expand/contract，应用回退只选择兼容旧 digest，数据库回退只能恢复已验证的升级前备份。
 
 这些新增 Chart/操作材料已通过本地类型、静态合同和交付包篡改门禁，但尚未在本轮目标 Kubernetes 集群执行 `helm template/upgrade/rollback`，也未启动真实 RustPBX/SIP/PSTN/RTP。因此第 2 节 V3 旧 Chart 的服务器证据不能自动升级为本次 V4 Chart 证据，相关环境项保持 `not_run`。
+
+V4 当前 release 又在本机独立 PostgreSQL 14 harness 重跑 `scripts/verify-ivekit-postgres.sh`：standalone fresh/OPC upgrade `2/2`、IVR durable store `1/1`、受控 RustPBX Voice 收敛 `1/1`，共 `4/4`、0 失败。fresh 与 upgrade 都读取当前 source policy 的 46 个 migration；升级断言显式核对 17 张 Voice、10 张 IVR 和 14 张 Contact Center 表，不再用旧的 Voice+IVR 表数代替完整 shared foundation。`opc_runtime` 对 Contact Center skill 的本租户读取成功，读取不到另一租户记录，跨租户写入由 FORCE RLS 拒绝。该结果证明当前 PostgreSQL schema、升级保留和基础隔离，不证明真实 RustPBX/PSTN/RTP 数据面。
