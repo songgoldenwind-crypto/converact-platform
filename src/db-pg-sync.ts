@@ -17,21 +17,18 @@
  */
 
 import { Worker } from 'node:worker_threads';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { getPgTenantContext } from './db-pg-tenant.js';
 
 const WORKER_CODE = `
-const { parentPort, workerData } = require('worker_threads');
+const { parentPort } = require('worker_threads');
 const { Pool } = require('pg');
 
 let pool = null;
-const buf = workerData;
-const arr = new Int32Array(buf);
+const RESPONSE_BYTES = 262140;
 
 function getPool() {
   if (!pool) {
-    const connStr = process.env.DATABASE_URL;
+    const connStr = process.env.DATABASE_URL || process.env.PG_TEST_URL;
     pool = new Pool(connStr ? { connectionString: connStr, max: 5 } : { max: 5 });
   }
   return pool;
@@ -53,10 +50,30 @@ function convertPlaceholders(sql) {
   return pg;
 }
 
-parentPort.on('message', async ({ sql, params, tenantId, bypassRls }) => {
-  const client = await getPool().connect();
+function writeResponse(responseBuffer, payload) {
+  const signal = new Int32Array(responseBuffer, 0, 1);
+  const output = new Uint8Array(responseBuffer, 4, RESPONSE_BYTES);
+  let encoded = new TextEncoder().encode(JSON.stringify(payload));
+  if (encoded.byteLength > output.byteLength) {
+    encoded = new TextEncoder().encode(JSON.stringify({
+      ok: false,
+      error: 'Postgres compatibility response exceeds 256 KiB'
+    }));
+  }
+  output.fill(0);
+  output.set(encoded);
+  Atomics.store(signal, 0, 1);
+  Atomics.notify(signal, 0);
+}
+
+parentPort.on('message', async ({ sql, params, tenantId, bypassRls, responseBuffer }) => {
+  let client = null;
+  let transactionStarted = false;
+  let response;
   try {
+    client = await getPool().connect();
     await client.query('BEGIN');
+    transactionStarted = true;
     if (bypassRls) {
       await client.query("SELECT set_config('app.bypass_rls', 'on', true)");
     } else if (tenantId) {
@@ -64,59 +81,53 @@ parentPort.on('message', async ({ sql, params, tenantId, bypassRls }) => {
     }
     const result = await client.query(convertPlaceholders(sql), params || []);
     await client.query('COMMIT');
-    const json = JSON.stringify({ ok: true, rows: result.rows, rowCount: result.rowCount });
-    new TextEncoder().encodeInto(json, new Uint8Array(buf, 4, 262140));
-    arr[0] = 1;
+    transactionStarted = false;
+    response = { ok: true, rows: result.rows, rowCount: result.rowCount };
   } catch (err) {
-    await client.query('ROLLBACK');
-    const json = JSON.stringify({ ok: false, error: err.message });
-    new TextEncoder().encodeInto(json, new Uint8Array(buf, 4, 262140));
-    arr[0] = 2;
+    if (client && transactionStarted) {
+      try { await client.query('ROLLBACK'); } catch {}
+    }
+    response = { ok: false, error: err instanceof Error ? err.message : 'Postgres query failed' };
   } finally {
-    client.release();
+    client?.release();
   }
-  Atomics.notify(arr, 0);
+  writeResponse(responseBuffer, response);
 });
 `;
 
-const SHARED_BUF_SIZE = 4 + 262140; // 4 bytes for signal + 256KB for JSON result
-const SHARED_BUF = new SharedArrayBuffer(SHARED_BUF_SIZE);
-const SHARED_ARR = new Int32Array(SHARED_BUF);
+const RESPONSE_BYTES = 262140;
+const RESPONSE_BUFFER_SIZE = 4 + RESPONSE_BYTES;
 
 let workerInstance: Worker | null = null;
 
 function getWorker(): Worker {
   if (workerInstance) return workerInstance;
-
-  // Always rewrite worker file (ensures code updates take effect, no stale cache)
-  const workerPath = join(process.cwd(), '.pg-sync-worker.cjs');
-  writeFileSync(workerPath, WORKER_CODE);
-
-  workerInstance = new Worker(workerPath, { workerData: SHARED_BUF });
+  workerInstance = new Worker(WORKER_CODE, { eval: true });
   return workerInstance;
 }
 
 function syncQuery(sql: string, params: unknown[]): { ok: boolean; rows?: any[]; rowCount?: number; error?: string } {
-  SHARED_ARR[0] = 0;
-  // Clear the result buffer
-  new Uint8Array(SHARED_BUF, 4, 262140).fill(0);
-
+  const responseBuffer = new SharedArrayBuffer(RESPONSE_BUFFER_SIZE);
+  const responseSignal = new Int32Array(responseBuffer, 0, 1);
   const ctx = getPgTenantContext();
   const worker = getWorker();
   worker.postMessage({
     sql,
     params,
     tenantId: ctx.tenantId ?? '',
-    bypassRls: ctx.bypassRls ?? false
+    bypassRls: ctx.bypassRls ?? false,
+    responseBuffer
   });
 
   // Synchronously block until worker signals (max 5 second timeout)
-  const result = Atomics.wait(SHARED_ARR, 0, 0, 5000);
+  const result = Atomics.wait(responseSignal, 0, 0, 5000);
   if (result === 'timed-out') {
+    void worker.terminate();
+    if (workerInstance === worker) workerInstance = null;
     throw new Error(`Postgres query timed out after 5s: ${sql.slice(0, 100)}`);
   }
 
-  const json = new TextDecoder().decode(new Uint8Array(SHARED_BUF, 4, 262140));
+  const json = new TextDecoder().decode(new Uint8Array(responseBuffer, 4, RESPONSE_BYTES));
   const nul = json.indexOf('\0');
   const clean = nul >= 0 ? json.slice(0, nul) : json;
   return JSON.parse(clean);

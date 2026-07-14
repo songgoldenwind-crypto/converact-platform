@@ -1,4 +1,4 @@
-import { IVR_BRANCH, REQUIRED_HANDLES_BY_TYPE } from '../../../../shared/ivr/branch-handles.js';
+import { IVR_BRANCH, REQUIRED_HANDLES_BY_TYPE } from '../../../shared/ivr/branch-handles.js';
 
 import { canonicalIvrGraphHash, normalizeIvrGraph, redactSensitiveIvrGraph } from './canonical.js';
 import { extractIvrDependencies, type IvrDependencyManifest } from './dependencies.js';

@@ -52,6 +52,7 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
   assert.equal(graph.files.includes('src/server.ts'), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/call-center/')), false);
   assert.equal(graph.files.some((path) => path.startsWith('src/agent-runtime/ivr/')), false);
+  assert.equal(graph.files.some((path) => path.startsWith('shared/')), false);
   assert.equal(graph.files.some((path) => path.startsWith('frontend/')), false);
   assert.doesNotThrow(() => assertIveKitStandaloneBoundary(graph));
 });
@@ -100,4 +101,13 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
   assert.equal(policy.assets.includes('services/ivekit-service/docker-compose.voice.yml'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/init-rustpbx-database.sh'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/env.example'), true);
+});
+
+test('standalone PostgreSQL compatibility worker requires no writable application filesystem', () => {
+  const source = readFileSync('src/db-pg-sync.ts', 'utf8');
+
+  assert.doesNotMatch(source, /writeFileSync\s*\(/);
+  assert.match(source, /new Worker\(WORKER_CODE,\s*\{\s*eval:\s*true\s*\}\)/);
+  assert.match(source, /responseBuffer/);
+  assert.doesNotMatch(source, /const SHARED_BUF\b/);
 });

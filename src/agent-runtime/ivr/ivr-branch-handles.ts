@@ -7,4 +7,4 @@ export {
   menuRequiredDigitHandles,
   type GraphValidationError,
   type MenuOptionLike,
-} from '../../../shared/ivr/branch-handles.js';
+} from '../../shared/ivr/branch-handles.js';
