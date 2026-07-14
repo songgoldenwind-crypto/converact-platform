@@ -20,7 +20,7 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 | Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
 | Collaboration Session | Tinode durable outbound、独立 IM 参考客户端、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 既有后端/Tinode server smoke 保留；本轮参考客户端双真实浏览器验收未运行，OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
-| Voice/IVR/Contact Center | Voice/IVR 后端、Contact Center ACD/callback/overflow/supervisor 控制面、监控投影和 SDK 已完成 | 受控 PostgreSQL/RustPBX 通过；真实 SIP/PSTN、浏览器媒体和 supervisor provider 保持 `not_run` |
+| Voice/IVR/Contact Center | Voice/IVR 后端、Contact Center ACD/callback/overflow/supervisor 控制面、监控投影、SDK 和 Queue Monitor 参考工作区已完成 | 受控 PostgreSQL/RustPBX 与 Queue Monitor 桌面/移动浏览器通过；真实 SIP/PSTN、浏览器媒体和 supervisor provider 保持 `not_run` |
 | SDK 与交付 | `@opc/ivekit-sdk` 已独立打包；统一客户端提供 Context、Media、Chat、Events、RustDesk、Voice、IVR 和 Contact Center；交付包包含独立服务构建上下文、migration、SBOM 和 edge 包 | SDK/edge 干净容器安装和交付包独立镜像构建已在服务器通过；provider 数据面按各自验收状态裁决 |
 
 本地完整门禁和服务器验收材料均已保留。V2 已在隔离服务器验证真实 Tinode inbound/event replay/RustDesk edge recovery，并验证最终交付包可独立构建和安装；本轮没有重跑的 LiveKit 数据面、物理 RustDesk 双客户端以及 OCR/ASR/AI provider 仍保持 `not_run_for_v2`。所有缺少外部服务或物理客户端的项目继续列在第 11 节，不以受控 E2E 结果替代。
@@ -65,7 +65,7 @@ npm run pack:ivekit-sdk
 
 `pack:ivekit-sdk` 是 dry-run，不产生 tarball，用于确认发布物没有服务端源码、测试和凭据。LED 可从私有 registry 安装 `npm install @opc/ivekit-sdk`，或在联调阶段安装本地 `sdk/ivekit` 目录。
 
-参考客户端生产构建会自动运行 `check:bundle`：initial、Tinode、Media、Remote、LiveKit vendor 均有独立字节预算，并检查 `index.html` 不预加载 provider/workspace chunk。不要通过删除该门禁或单纯提高 Vite warning limit 接受无界增长。
+参考客户端生产构建会自动运行 `check:bundle`：initial、Tinode、Media、Voice、Remote、Quality、Queue Monitor 和 LiveKit vendor 均有独立字节预算，并检查 `index.html` 不预加载 provider/workspace chunk。不要通过删除该门禁或单纯提高 Vite warning limit 接受无界增长。
 
 ### 4.1 Node 后端：API key
 
@@ -110,7 +110,7 @@ const context = await browserSdk.context.getByBusinessRef({
 
 Bearer 模式不会发送 `X-User-Id`，身份以 JWT `sub` 为准。浏览器包中严禁出现 API key。JWT 用户不能通过 body 冒用其他身份领取 Tinode client-plan、发送消息、上报 receipt/presence 或编辑消息。
 
-参考客户端深链接使用以下 query：`workspace=messages|calls|remote`、`business_ref_type`、`business_ref_id`、`session_id`、`call_id`、`remote_session_id`。宿主至少应提供完整 business ref；资源 ID 可省略，由脱敏 context 摘要选择最新可见资源。用户切换工作区/资源会产生可后退的 history entry，自动补全和远协输入只替换当前 entry。切换到另一 business ref 时客户端会清除旧 Call/Remote ID，防止跨订单错配。
+参考客户端深链接使用以下 query：`workspace=messages|calls|voice|remote|quality|operations`、`business_ref_type`、`business_ref_id`、`session_id`、`call_id`、`voice_call_id`、`remote_session_id`。`operations` 是租户级 Queue Monitor，不要求 business ref；其他业务工作区的宿主至少应提供完整 business ref，资源 ID 可省略，由脱敏 context 摘要选择最新可见资源。用户切换工作区/资源会产生可后退的 history entry，自动补全和远协输入只替换当前 entry。切换到另一 business ref 时客户端会清除旧 Call/Voice/Remote ID，防止跨订单错配。
 
 ### 4.3 OPC 迁移期兼容导出
 

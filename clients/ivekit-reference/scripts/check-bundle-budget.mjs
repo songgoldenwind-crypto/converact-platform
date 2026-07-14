@@ -4,14 +4,15 @@ import { join } from 'node:path';
 const dist = new URL('../dist/', import.meta.url);
 const assets = join(dist.pathname, 'assets');
 const budgets = [
-  [/^index-.*\.js$/, 330 * 1024, 'initial application'],
+  [/^index-.*\.js$/, 332 * 1024, 'initial application'],
   [/^livekit-vendor-.*\.js$/, 520 * 1024, 'LiveKit vendor'],
   [/^media-workspace-.*\.js$/, 80 * 1024, 'media workspace'],
   [/^voice-workspace-.*\.js$/, 35 * 1024, 'voice workspace'],
   [/^play-.*\.js$/, 2 * 1024, 'shared workspace play icon'],
   [/^tinode\..*\.js$/, 120 * 1024, 'Tinode provider'],
   [/^rustdesk-launch-panel-.*\.js$/, 25 * 1024, 'RustDesk workspace'],
-  [/^quality-workspace-.*\.js$/, 25 * 1024, 'quality workspace']
+  [/^quality-workspace-.*\.js$/, 25 * 1024, 'quality workspace'],
+  [/^queue-monitor-workspace-.*\.js$/, 15 * 1024, 'Queue Monitor workspace']
 ];
 const files = readdirSync(assets).filter((file) => file.endsWith('.js'));
 
@@ -27,7 +28,7 @@ const unknown = files.filter((file) => !known.has(file));
 if (unknown.length) throw new Error(`unbudgeted JavaScript chunks: ${unknown.join(', ')}`);
 
 const html = readFileSync(join(dist.pathname, 'index.html'), 'utf8');
-if (/livekit-vendor|tinode\.|media-workspace|voice-workspace|play-|rustdesk-launch-panel|quality-workspace/.test(html)) {
+if (/livekit-vendor|tinode\.|media-workspace|voice-workspace|play-|rustdesk-launch-panel|quality-workspace|queue-monitor-workspace/.test(html)) {
   throw new Error('initial HTML must not preload provider or non-default workspace chunks');
 }
 

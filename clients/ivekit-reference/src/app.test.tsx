@@ -155,6 +155,55 @@ test('quality tab opens the tenant review queue and recording source workspace',
   assert.equal(new URL(window.location.href).searchParams.get('workspace'), 'quality');
 });
 
+test('operations deep link opens the tenant Queue Monitor without loading chat', async () => {
+  window.history.replaceState({}, '', '/?workspace=operations');
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'operations-viewer';
+  let chatRequests = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === '/ivekit-config.json') {
+      return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    }
+    if (url.includes('/api/ivekit/contact-center/monitor')) return Response.json({
+      generated_at: '2026-07-13T09:30:00.000Z',
+      agents: {
+        configured: 1, active: 1, offline: 0, available: 1, busy: 0,
+        after_call: 0, away: 0, active_voice_count: 0, voice_capacity: 1
+      },
+      calls: { active_inbound: 0, active_outbound: 0 },
+      operations: {
+        callbacks_pending: 0, callbacks_failed_today: 0,
+        overflows_pending: 0, overflows_failed_today: 0,
+        supervisor_requested: 0, supervisor_active: 0
+      },
+      queues: [{
+        queue_id: 'queue-1', queue_name: 'LED Support', status: 'active',
+        routing_strategy: 'longest_idle', max_wait_seconds: 300,
+        service_level_seconds: 20, waiting_count: 0, offered_count: 0,
+        assigned_count: 0, answered_count: 0, available_agents: 1,
+        available_capacity: 1, oldest_wait_seconds: 0, average_handle_seconds: 60,
+        estimated_wait_seconds: 0, answered_today: 0,
+        answered_in_service_level_today: 0, abandoned_today: 0,
+        timed_out_today: 0, overflowed_today: 0, average_wait_seconds_today: 0,
+        service_level_percent_today: 100, callbacks_pending: 0,
+        callbacks_failed_today: 0, overflows_pending: 0, overflows_failed_today: 0
+      }],
+      alerts: []
+    });
+    if (url.includes('/api/ivekit/chat/sessions')) {
+      chatRequests += 1;
+      return Response.json({ items: [], next_cursor: null, has_more: false });
+    }
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+
+  const view = render(<App />);
+  await waitFor(() => assert.ok(view.getByText('LED Support')));
+  assert.equal(view.getByTitle('Show operations workspace').getAttribute('aria-pressed'), 'true');
+  assert.equal(chatRequests, 0);
+});
+
 test('business reference deep link drives context, chat filtering, and remote defaults', async () => {
   window.history.replaceState({}, '', '/?business_ref_type=service_order&business_ref_id=SO-200');
   window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';

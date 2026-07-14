@@ -47,6 +47,11 @@ const VoiceWorkspace = lazy(async () => {
   return { default: module.VoiceWorkspace };
 });
 
+const QueueMonitorWorkspace = lazy(async () => {
+  const module = await import('./contact-center/queue-monitor-workspace.js');
+  return { default: module.QueueMonitorWorkspace };
+});
+
 export function App() {
   const initialLocation = useRef(currentIveKitLocation()).current;
   const [config, setConfig] = useState<IveKitRuntimeConfig | null>(null);
@@ -327,7 +332,7 @@ export function App() {
   }, [businessRef?.id, businessRef?.type, client]);
 
   return (
-    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'voice' ? 'workspace-voice' : workspaceMode === 'remote' ? 'workspace-remote' : workspaceMode === 'quality' ? 'workspace-quality' : ''}`} data-mobile-view={mobileView}>
+    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'voice' ? 'workspace-voice' : workspaceMode === 'remote' ? 'workspace-remote' : workspaceMode === 'quality' ? 'workspace-quality' : workspaceMode === 'operations' ? 'workspace-operations' : ''}`} data-mobile-view={mobileView}>
       <header className="topbar">
         <div className="brand"><MessageSquare size={18} /> <strong>iveKit</strong></div>
         {businessRef && <div className="business-context" title={`${businessRef.type}: ${businessRef.id}`}>
@@ -343,6 +348,7 @@ export function App() {
           <button title="Show voice workspace" aria-pressed={workspaceMode === 'voice'} onClick={() => selectWorkspace('voice')}><Headset size={16} /><span>Voice</span></button>
           <button title="Show remote workspace" aria-pressed={workspaceMode === 'remote'} onClick={() => selectWorkspace('remote')}><MonitorCog size={16} /><span>Remote</span></button>
           <button title="Show quality workspace" aria-pressed={workspaceMode === 'quality'} onClick={() => selectWorkspace('quality')}><ScanSearch size={16} /><span>Quality</span></button>
+          <button title="Show operations workspace" aria-pressed={workspaceMode === 'operations'} onClick={() => selectWorkspace('operations')}><List size={16} /><span>Operations</span></button>
         </div>
         {workspaceMode === 'messages' && <div className="mobile-tabs" role="group" aria-label="Mobile workspace">
           <button title="Show sessions" aria-pressed={mobileView === 'sessions'} onClick={() => setMobileView('sessions')}><List size={17} /></button>
@@ -423,7 +429,9 @@ export function App() {
           ? <Suspense fallback={<div className="media-workspace-loading">Loading voice workspace</div>}><VoiceWorkspace client={client} callId={voiceCallId} onCallIdChange={selectVoiceCall} refreshVersion={voiceReplayVersion} businessRef={businessRef || undefined} /></Suspense>
           : workspaceMode === 'remote'
             ? <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel key={`remote-replay-${remoteReplayVersion}`} client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>
-            : client && <Suspense fallback={<div className="media-workspace-loading">Loading quality workspace</div>}><QualityWorkspace client={client} selectedSessionId={selectedId} refreshVersion={chatReplayVersion} /></Suspense>}
+            : workspaceMode === 'quality'
+              ? client && <Suspense fallback={<div className="media-workspace-loading">Loading quality workspace</div>}><QualityWorkspace client={client} selectedSessionId={selectedId} refreshVersion={chatReplayVersion} /></Suspense>
+              : <Suspense fallback={<div className="media-workspace-loading">Loading operations workspace</div>}><QueueMonitorWorkspace client={client} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );

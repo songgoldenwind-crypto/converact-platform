@@ -1,6 +1,6 @@
 # iveKit Voice Foundation V1 详细设计
 
-> 状态：M2 Voice Core、M3 IVR Runtime、Voice/IVR/Contact Center SDK、headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker、满队列与超时 durable overflow、Queue Monitor 后端投影、IVR queue adapter，以及 supervisor 监听/耳语/强插通用控制面；受控 PostgreSQL/RustPBX 协议验收通过。Queue Monitor UI、supervisor 的真实 provider adapter、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
+> 状态：M2 Voice Core、M3 IVR Runtime、Voice/IVR/Contact Center SDK、headless controller、React Voice 控制工作台代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker、满队列与超时 durable overflow、Queue Monitor 后端投影与参考客户端 UI、IVR queue adapter，以及 supervisor 监听/耳语/强插通用控制面；受控 PostgreSQL/RustPBX 协议和 Queue Monitor 桌面/移动浏览器验收通过。supervisor 的真实 provider adapter、浏览器 SIP/WebRTC 媒体接入和真实通信环境验收未完成
 > 日期：2026-07-13
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
@@ -21,7 +21,7 @@
 | IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
 | Voice SDK/headless WebPhone controller | 已实现控制面 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试，不等于浏览器 SIP/WebRTC 媒体已联通 |
 | React Voice 控制工作台 | 已实现控制面 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、呼入/外呼、状态门禁控制、DTMF、转接、会议、Park/Pickup、录音、LiveKit bridge 和分机 session readiness；不渲染 session credential |
-| Contact Center Kit | 部分实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`056` migrations、tenant-scoped PostgreSQL store、配置/排队/callback/supervisor API、租户与状态绑定历史查询、自动派单 worker、durable overflow、UTC 日窗口 Queue Monitor 后端投影、完整 TypeScript SDK 和 IVR queue adapter 已实现；默认 RustPBX supervisor provider 明确不可用，Queue Monitor UI 尚未完成 |
+| Contact Center Kit | 通用控制面已实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`056` migrations、tenant-scoped PostgreSQL store、配置/排队/callback/supervisor API、租户与状态绑定历史查询、自动派单 worker、durable overflow、UTC 日窗口 Queue Monitor 后端投影、参考客户端 UI、完整 TypeScript SDK 和 IVR queue adapter 已实现；默认 RustPBX supervisor provider 明确不可用 |
 | 浏览器 SIP/WebRTC 媒体接入 | 未实现 | 属于 M5；不得从已有 OPC call-center 页面、控制工作台或 headless controller 推断真实软电话媒体已交付 |
 
 当前新增迁移为：
@@ -673,7 +673,7 @@ supervisor action 只允许 `owner/admin/system`。启动前必须确认目标�
 
 `ContactCenterSupervisorControlPort` 是独立 provider 插槽，可由 RustPBX、LiveKit SIP/Room 或其他语音数据面实现。当前已确认的 RustPBX RWI 基线没有 monitor/whisper/barge action，因此默认注入 `UnsupportedContactCenterSupervisorControl`，调用返回 `501 capability_unavailable`，`GET /capabilities` 的 `supervisor` 保持 `false`；部署方注入至少支持一种 mode 的真实 control port 后才返回 `true`。这表示通用控制面已完成，不表示真实监听媒体已经验收。
 
-Queue Monitor 后端使用同一 tenant-scoped PostgreSQL 事务生成一致快照。可用容量按 queue membership、Presence、voice capacity 和技能门槛计算；当日指标采用 UTC `[day_start, day_end)` 窗口。服务水平分母为当日 answered、abandoned、timed_out 和 overflowed，分子为在 queue `service_level_seconds` 内 answered 的条目。无可用容量时预估等待返回 `null`，不会伪造一个可等待秒数。`@opc/ivekit-sdk` 的 `contactCenter.getMonitorSnapshot()` 直接消费该合同；真实 UI 仍单独验收。
+Queue Monitor 后端使用同一 tenant-scoped PostgreSQL 事务生成一致快照。可用容量按 queue membership、Presence、voice capacity 和技能门槛计算；当日指标采用 UTC `[day_start, day_end)` 窗口。服务水平分母为当日 answered、abandoned、timed_out 和 overflowed，分子为在 queue `service_level_seconds` 内 answered 的条目。无可用容量时预估等待返回 `null`，不会伪造一个可等待秒数。`@opc/ivekit-sdk` 的 `contactCenter.getMonitorSnapshot()` 直接消费该合同；参考客户端提供 `workspace=operations` 懒加载工作区、10 秒可暂停轮询、手动刷新、状态/告警筛选、运营总览、告警流和队列表。受控 Playwright 已覆盖 1440×900 与 390×844，真实 PostgreSQL 运营数据验收仍在服务器阶段执行。
 
 ### 12.4 API 安全规则
 
@@ -702,13 +702,14 @@ Queue Monitor 后端使用同一 tenant-scoped PostgreSQL 事务生成一致快�
 - `voice`：capability、profile、trunk、DID、extension/session plan、route/version、call/action、participant/event/recording、policy/consent 和 LiveKit bridge。
 - `ivr`：flow/version、validate/publish/rollback、simulation、durable session、audio/time/region/ring resource 和 settings。
 - `createIveKitVoiceController`：框架无关的拨号、接听、挂断、DTMF、Hold/Resume、转接、会议、Park/Pickup、录音和 LiveKit bridge 控制器。
-- `contactCenter`：尚未进入共享 SDK，等待 M4 的共享 domain/API 完成后再发布。
+- `contactCenter`：capability、Skill/Agent/Presence/Queue、membership、技能门槛、队列条目、callback、ACD assignment、supervisor 和 Queue Monitor。
 
 浏览器接入分两层：
 
 1. headless Voice controller：已交付 call state、控制命令、分机能力门禁和稳定幂等重试；真实 SIP/WebRTC 媒体 adapter 尚未联调。
 2. 可嵌入 React Voice 控制工作台：已交付 durable call 深链、脱敏 Call Detail、呼入/外呼和完整控制动作，Voice/IVR durable event 会触发快照刷新；它不保存或显示分机 credential，也不声称已经完成软电话注册和 RTP 媒体。
-3. 浏览器 SIP/WebRTC media adapter、IVR Designer、Queue Monitor：尚未交付。
+3. Queue Monitor：已交付独立 `operations` 工作区、桌面/移动响应式布局、刷新/筛选/告警和受控浏览器 E2E。
+4. 浏览器 SIP/WebRTC media adapter、IVR Designer：尚未交付。
 
 参考客户端继续作为完整示例，OPC 和 LED 不复制其源码。
 
@@ -886,14 +887,14 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M4：Contact Center Kit
 
-状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、配置与公开 API、原子排队分配、历史查询、加密 callback、durable overflow、queue worker、Queue Monitor 后端投影、完整 Contact Center SDK、IVR queue adapter，以及 supervisor 通用控制面均已实现；默认 RustPBX supervisor provider 仍不可执行，Queue Monitor UI 尚未完成。OPC 历史 call-center 代码不算 iveKit M4。
+状态：共享领域状态机、容量门禁、ACD ranking、PostgreSQL authority schema/store、配置与公开 API、原子排队分配、历史查询、加密 callback、durable overflow、queue worker、Queue Monitor 后端投影与参考客户端 UI、完整 Contact Center SDK、IVR queue adapter，以及 supervisor 通用控制面均已实现；默认 RustPBX supervisor provider 仍不可执行。OPC 历史 call-center 代码不算 iveKit M4。
 
 - presence、skill、queue、ACD、callback 和 supervisor。
 - IVR queue port 接入，不引入 OPC 业务依赖。
 
 ### M5：SDK、UI 与交付
 
-状态：完整 Voice/IVR/Contact Center TypeScript SDK、headless WebPhone controller、React Voice 控制工作台和 Queue Monitor 后端投影已完成；浏览器 SIP/WebRTC media adapter、IVR Designer、Queue Monitor UI 尚未完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
+状态：完整 Voice/IVR/Contact Center TypeScript SDK、headless WebPhone controller、React Voice 控制工作台、Queue Monitor 后端投影与参考客户端 UI 已完成；浏览器 SIP/WebRTC media adapter、IVR Designer 尚未完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
 
 - SDK、headless hooks、WebPhone、IVR Designer、Queue Monitor。
 - Compose、Helm、SBOM、image metadata、upgrade/rollback 和 LED/OPC 示例。
@@ -907,7 +908,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 - 真实 PostgreSQL fresh/upgrade/RLS/restart recovery。
 - 受控 RustPBX/Step IVR/RWI capability matrix。
 - 真实 RustPBX 双向 SIP、真实号码/软电话、录音、LiveKit SIP bridge。
-- 浏览器 SIP/WebRTC WebPhone media、IVR designer、queue monitor E2E。
+- 浏览器 SIP/WebRTC WebPhone media、IVR designer，以及真实 PostgreSQL 数据驱动的 queue monitor E2E；Queue Monitor 受控桌面/移动 E2E 已完成。
 - 交付 evidence 与 source commit/hash 绑定。
 
 ## 20. 验收定义

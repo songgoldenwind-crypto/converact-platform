@@ -17,6 +17,7 @@ test('iveKit navigation parses complete resource deep links and call fallback', 
   assert.equal(readIveKitLocation('https://led.example/support?call_id=call-2').workspace, 'calls');
   assert.equal(readIveKitLocation('https://led.example/support?voice_call_id=voice-2').workspace, 'voice');
   assert.equal(readIveKitLocation('https://led.example/support?workspace=quality').workspace, 'quality');
+  assert.equal(readIveKitLocation('https://led.example/support?workspace=operations').workspace, 'operations');
   assert.equal(readIveKitLocation('https://led.example/support?workspace=unknown').workspace, 'messages');
 });
 
