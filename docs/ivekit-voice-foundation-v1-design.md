@@ -17,7 +17,7 @@
 | 外呼、provider event、CDR、录音、策略和 consent | 已实现 | dialing/ringing/active/held/transferring/completed、重复/乱序事件和 recording metadata 受控验收通过 |
 | RustPBX Management/AMI、Router、RWI v1 adapter | 已实现协议边界 | 本仓库受控 provider 通过；真实 RustPBX 仍为 `not_run` |
 | PSTN 到 LiveKit SIP bridge orchestration | 已实现 | 注入受控 `SipClient`、超时后 participant lookup 对账且不重复创建通过；真实 LiveKit SIP/PSTN 为 `not_run` |
-| standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、三个编译入口、Compose merge、Helm/交付清单测试通过；真实容器和 RustPBX 数据面启动仍为 `not_run` |
+| standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、编译入口、standalone Compose、digest-pinned Helm、升级/回滚合同和交付清单测试通过；新 Chart 的真实集群 render、容器和 RustPBX 数据面启动仍为 `not_run` |
 | Realtime Voice AI port | 稳定合同与受控 adapter 已实现 | Active Call、LiveKit Agents、自建 pipeline、第三方 Provider 共用 capability/session/DTMF/interrupt/end/event 合同；幂等、终态和安全投影专项通过，真实 Provider 网络 adapter、流式媒体和 HTTP 产品面未实现 |
 | IVR Runtime | 已实现 | 26 节点执行器（含原生 `survey`）、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收；`survey` 新增代码尚未重跑真实语音数据面 |
 | IVR Designer | 已实现 | `workspace=ivr&flow_id=...` 独立深链、26 节点组件库、React Flow 画布、节点/流程属性、导入导出、revision 保存、服务端校验、发布/回滚、版本历史和确定性模拟已接入 typed SDK；桌面/移动受控 Playwright 基线通过，新增 `survey` 的 E2E 门禁已更新 |
@@ -807,15 +807,16 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### 17.2 Kubernetes
 
-- RustPBX 使用独立 Deployment/Service、UDP/TCP/TLS/RTP 端口和 PodDisruptionBudget。
-- iveKit Voice worker 可独立扩缩，但与 HTTP 使用同一镜像。
-- LiveKit SIP 与 LiveKit 采用独立 chart values。
-- PostgreSQL、Redis、对象存储使用外部生产服务或明确持久卷。
-- 网络策略只允许所需 service-to-service 路径。
+- `services/ivekit-service/helm/ivekit/` 是可拆分的 standalone Chart；旧 `infra/k8s` 仍归 OPC 产品，不进入 iveKit 交付 Chart。
+- Chart 强制 iveKit `repository@sha256:digest`，数据库 bootstrap Secret 只按单键引用，API 只读取 runtime DSN；Provider 运行时变量使用可选的第二个 Secret，避免 admin DSN 被长驻进程通过 `envFrom` 导入。所有 Secret 都由外部管理，不写入 values/release manifest。
+- `pre-install,pre-upgrade` Job 先以 admin DSN 初始化/轮换 `opc_runtime`，再运行 advisory-locked forward migration；任一步失败都阻断 API rollout。
+- API 使用滚动更新、readiness/liveness、PDB、只读根文件系统和 `opc_runtime` DSN；PostgreSQL、Redis、Tinode、LiveKit、对象存储等作为外部生产依赖接入。
+- RustPBX 为 opt-in 单副本 Recreate workload，镜像也必须 digest 固定；配置由 iveKit init container 写入内存卷，Management/RWI 仅集群内可达，SIP/RTP 暴露由目标集群网络适配。
+- RustPBX 数据库和角色需由平台预置；Chart 不申请数据库管理员常驻权限，也不把 RustPBX 数据库凭据交给长期运行的 iveKit API。
 
 ### 17.3 镜像与版本
 
-- RustPBX、LiveKit SIP、iveKit 均按不可变 tag/digest 记录。
+- iveKit standalone Helm 和可选 RustPBX 必须使用 registry digest；Compose 交付只有记录 digest 后才从 `blocked_build_required` 变为 `ready`。
 - release manifest 记录 RustPBX capability matrix。
 - 上游版本升级先通过 adapter contract、受控呼叫和回滚演练。
 - standalone source policy 显式收录 Voice preflight 和 RustPBX config renderer；隔离构建门禁要求三个 operational entrypoint 都实际生成。
@@ -853,8 +854,10 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 ### 17.5 M2 交付包边界
 
 - `service/build-context/`：standalone runtime source、Dockerfile、migrations、compiled-entrypoint source、standalone Compose/Voice overlay 和数据库 bootstrap；不含 controlled provider。
-- `deploy/application/`：OPC 仓库完整集成 Compose 及 Voice overlay。
-- `deploy/kubernetes/ivekit/`：完整 Helm chart，包括 Voice values、Secret、RustPBX Deployment/Service/PDB 和 iveKit worker 配置。
+- `deploy/application/`：由 `services/ivekit-service` 生成的 standalone Compose 与 Voice overlay；交付版去掉源码 `build`，强制设置 `IVEKIT_SERVICE_IMAGE`。
+- `deploy/kubernetes/ivekit/`：独立 Helm Chart，包含迁移 hook、iveKit Deployment/Service/PDB 和可选 RustPBX；只引用接收方已有 Secret，不包含 OPC frontend/AI agent/call-center 或旧 `opc-platform` workload。
+- `operations/release-contract.json`：绑定 source commit、image metadata、migration manifest、Compose/Helm 路径和 forward-only/restore-only 策略。
+- `operations/upgrade-runbook.md`：先验 checksum/备份，再执行迁移和 rollout；应用可回退到兼容旧 digest，数据库不得自动 down migration，只能恢复已验证的升级前备份。
 - `acceptance/tools/ivekit-controlled-voice-provider.ts`：仅用于受控协议验收，不进入 runtime image。
 - `manifest.json`：直接声明 `voice_preflight`、`voice_compose`、`voice_helm` 和 RustPBX provider ownership；`real_environment_acceptance.rustpbx` 固定为 `not_run`，直到 source-bound 真实证据完成。
 
@@ -917,7 +920,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 ### M5：SDK、UI 与交付
 
-状态：完整 Voice/IVR/Contact Center TypeScript SDK、headless Voice controller、SIP.js WebPhone adapter、React Voice/WebPhone 工作台、IVR Designer、Queue Monitor 后端投影与参考客户端 UI 已完成。standalone source context、Compose/Helm 和交付包已有可运行基础。
+状态：代码交付完成。完整 Voice/IVR/Contact Center TypeScript SDK、headless Voice controller、SIP.js WebPhone adapter、React Voice/WebPhone 工作台、IVR Designer、Queue Monitor、standalone source context/Compose、独立 digest-pinned Helm Chart、SBOM/image metadata、升级/回滚合同和交付包均已实现并通过本地静态门禁。目标集群 Helm render/rollout 归 M6 环境验收，保持 `not_run`。
 
 - SDK、headless hooks、WebPhone、IVR Designer、Queue Monitor。
 - Compose、Helm、SBOM、image metadata、upgrade/rollback 和 LED/OPC 示例。
@@ -960,7 +963,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 7. RustPBX capability 缺失时准确失败或选择兼容路径。
 8. 受控 provider、真实 SIP/PSTN、真实浏览器和生产网络状态分层记录。
 9. 没有未解决的 Critical 或 Important 审查问题。
-10. 交付包绑定 source commit、SDK、client、migration、镜像 digest、SBOM 和 evidence SHA-256。
+10. 交付包绑定 source commit、SDK、client、migration、image metadata、release contract、SBOM 和 evidence SHA-256；没有镜像 digest 时必须明确 `blocked_build_required`，不得执行升级。
 
 ## 21. 风险控制
 

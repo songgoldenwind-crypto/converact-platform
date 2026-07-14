@@ -1,0 +1,100 @@
+replicaCount: 2
+
+image:
+  repository: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+secrets:
+  existingSecret: ""
+  runtimeEnvironmentSecret: ""
+  adminDatabaseUrlKey: admin-database-url
+  runtimeDatabaseUrlKey: runtime-database-url
+  runtimeDatabasePasswordKey: runtime-database-password
+
+config:
+  allowedOrigins: ""
+  env:
+    OPC_IVEKIT_EVENT_REPLAY_ENABLED: "1"
+    OPC_IVEKIT_EVENT_RETENTION_MS: "86400000"
+    OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES: "65536"
+    OPC_IVEKIT_WS_REPLAY_MAX_EVENTS: "500"
+    OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED: "1"
+    OPC_IVEKIT_EVENT_RETENTION_INTERVAL_MS: "60000"
+    OPC_IVEKIT_EVENT_RETENTION_TENANT_LIMIT: "100"
+    OPC_IVEKIT_EVENT_RETENTION_BATCH_SIZE: "1000"
+    OPC_TINODE_DELIVERY_WORKER_ENABLED: "0"
+    OPC_TINODE_INBOUND_WORKER_ENABLED: "0"
+    OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: "0"
+    OPC_QUALITY_REVIEW_WORKER_ENABLED: "0"
+    OPC_TRANSLATION_WORKER_ENABLED: "0"
+    OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED: "0"
+    OPC_IVEKIT_IVR_WORKERS_ENABLED: "0"
+    OPC_IVEKIT_VOICE_WORKERS_ENABLED: "0"
+    OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED: "0"
+
+service:
+  type: ClusterIP
+  port: 3000
+
+migration:
+  activeDeadlineSeconds: 900
+  backoffLimit: 1
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+voice:
+  enabled: false
+  profileId: ""
+  image:
+    repository: ghcr.io/restsend/rustpbx
+    digest: ""
+    pullPolicy: IfNotPresent
+  databaseUrlKey: rustpbx-database-url
+  databasePasswordKey: rustpbx-database-password
+  rwiTokenKey: rustpbx-rwi-token
+  webhookTokenKey: rustpbx-webhook-token
+  externalIp: ""
+  sipPort: 5060
+  rtpStartPort: 20000
+  rtpEndPort: 20100
+  service:
+    sipType: LoadBalancer
+    rtpType: LoadBalancer
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

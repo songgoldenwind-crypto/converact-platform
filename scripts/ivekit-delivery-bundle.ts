@@ -21,6 +21,11 @@ import {
   buildIveKitStandaloneContext,
   validateIveKitStandaloneContext
 } from './ivekit-standalone-build-context.js';
+import {
+  createIveKitReleaseOperations,
+  validateIveKitReleaseOperations,
+  type IveKitReleaseContract
+} from './ivekit-release-operations.js';
 
 export interface DeliverySourceFile {
   source: string;
@@ -48,6 +53,7 @@ export interface IveKitDeliveryManifest {
     acceptance: string;
     provider_profiles: string;
     operations: string;
+    release_operations: string;
     completion_audit: string;
     intelligence_preflight: string;
     voice_preflight: string;
@@ -64,6 +70,8 @@ export interface IveKitDeliveryManifest {
     sbom: { path: string; sha256: string };
     acceptance_status: { path: string; sha256: string };
     provider_profiles_example: { path: string; sha256: string };
+    release_contract: { path: string; sha256: string };
+    upgrade_runbook: { path: string; sha256: string };
   };
   provider_ownership: {
     livekit: string;
@@ -182,29 +190,23 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'docker-compose.yml',
     'docker-compose.voice.yml',
     'env.example',
-    'init-postgres-runtime-role.sh'
-  ].map((name) => ({ source: `infra/ivekit/${name}`, destination: `deploy/application/${name}` })),
+    'init-rustpbx-database.sh'
+  ].map((name) => ({
+    source: `services/ivekit-service/${name}`,
+    destination: `deploy/application/${name}`
+  })),
   ...[
     'Chart.yaml',
+    'README.md',
     'values.yaml',
-    'files/nats.conf',
     'templates/_helpers.tpl',
-    'templates/ai-agent-deployment.yaml',
-    'templates/frontend-deployment.yaml',
-    'templates/ingress.yaml',
-    'templates/livekit-deployment.yaml',
-    'templates/livekit-egress-deployment.yaml',
-    'templates/livekit-sip-deployment.yaml',
-    'templates/minio-deployment.yaml',
-    'templates/nats-statefulset.yaml',
-    'templates/opc-deployment.yaml',
-    'templates/postgres-statefulset.yaml',
-    'templates/redis-deployment.yaml',
-    'templates/rustdesk-server-deployment.yaml',
+    'templates/deployment.yaml',
+    'templates/migrate-job.yaml',
+    'templates/pdb.yaml',
     'templates/rustpbx-deployment.yaml',
-    'templates/secrets.yaml'
+    'templates/service.yaml'
   ].map((name) => ({
-    source: `infra/k8s/${name}`,
+    source: `services/ivekit-service/helm/ivekit/${name}`,
     destination: `deploy/kubernetes/ivekit/${name}`
   })),
   ...[
@@ -266,6 +268,8 @@ const GENERATED_FILES = new Set([
   'README.md',
   'acceptance/provider-profiles.example.json',
   'acceptance/status.json',
+  'operations/release-contract.json',
+  'operations/upgrade-runbook.md',
   'manifest.json',
   'SHA256SUMS'
 ]);
@@ -541,6 +545,25 @@ export function buildIveKitDeliveryBundle(
     status: imageDigest ? 'digest_pinned' : 'build_required',
     build_context: 'service/build-context/'
   }, null, 2)}\n`, 'utf8');
+  const releaseOperations = createIveKitReleaseOperations({
+    sourceCommit,
+    generatedAt,
+    imageReference: String(options.imageReference || `ivekit-service:${sourceCommit.slice(0, 12)}`).trim(),
+    imageDigest,
+    imageMetadataSha256: sha256(join(outputDir, 'service', 'image-metadata.json')),
+    migrationManifestSha256: sha256(join(outputDir, 'service', 'migration-manifest.json'))
+  });
+  mkdirSync(join(outputDir, 'operations'), { recursive: true });
+  writeFileSync(
+    join(outputDir, 'operations', 'release-contract.json'),
+    `${JSON.stringify(releaseOperations.contract, null, 2)}\n`,
+    'utf8'
+  );
+  writeFileSync(
+    join(outputDir, 'operations', 'upgrade-runbook.md'),
+    releaseOperations.runbook,
+    'utf8'
+  );
   const sbom = JSON.parse(run(
     'npm',
     ['sbom', '--package-lock-only', '--sbom-format', 'spdx'],
@@ -600,6 +623,7 @@ export function buildIveKitDeliveryBundle(
       acceptance: 'acceptance/status.json',
       provider_profiles: 'acceptance/provider-profiles.example.json',
       operations: 'docs/ivekit-v3-intelligence-operations.md',
+      release_operations: 'operations/upgrade-runbook.md',
       completion_audit: 'docs/ivekit-v3-completion-audit.md',
       intelligence_preflight: 'service/build-context/src/ivekit-intelligence-preflight.ts',
       voice_preflight: 'service/build-context/src/ivekit-voice-preflight.ts',
@@ -639,6 +663,14 @@ export function buildIveKitDeliveryBundle(
       provider_profiles_example: {
         path: 'acceptance/provider-profiles.example.json',
         sha256: sha256(join(outputDir, 'acceptance', 'provider-profiles.example.json'))
+      },
+      release_contract: {
+        path: 'operations/release-contract.json',
+        sha256: sha256(join(outputDir, 'operations', 'release-contract.json'))
+      },
+      upgrade_runbook: {
+        path: 'operations/upgrade-runbook.md',
+        sha256: sha256(join(outputDir, 'operations', 'upgrade-runbook.md'))
       }
     },
     provider_ownership: {
@@ -767,7 +799,8 @@ function renderBundleReadme(): string {
     '',
     '- `sdk/`: installable `@opc/ivekit-sdk` npm package.',
     '- `client/`: production reference client static assets.',
-    '- `deploy/application/`: PostgreSQL, Redis, Tinode, object storage, RustDesk and iveKit application Compose.',
+    '- `deploy/application/`: standalone iveKit service Compose with PostgreSQL and optional RustPBX overlay.',
+    '- `deploy/kubernetes/ivekit/`: standalone digest-pinned Helm Chart with a migration gate.',
     '- `deploy/livekit/`: separately deployable LiveKit media plane.',
     '- `database/migrations/`: ordered communication-domain overlay migrations used by the application image.',
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',
@@ -780,6 +813,8 @@ function renderBundleReadme(): string {
     '- `service/migration-manifest.json`: ordered standalone migration checksums.',
     '- `service/image-metadata.json`: source-bound image reference/digest state.',
     '- `service/sbom.spdx.json`: npm dependency SBOM in SPDX 2.3 format.',
+    '- `operations/release-contract.json`: source, image, migration, deployment and rollback contract.',
+    '- `operations/upgrade-runbook.md`: integrity-gated Compose and Helm upgrade/application rollback procedure.',
     '- `edge/`: RustDesk device agent source, crash-safe spool, package manifest, and OS adapter examples.',
     '',
     '## Integrity',
@@ -793,6 +828,8 @@ function renderBundleReadme(): string {
     'The context and image metadata are bound to the same source commit recorded in `manifest.json`.',
     'The SQL files are application-owned overlay migrations and must be run by the image migration job in numeric order.',
     'Do not apply them to an unrelated schema without the foundation tables and RLS helpers documented in the integration guide.',
+    'Migrations are forward-only. Application rollback may select a compatible prior immutable image; database rollback',
+    'requires restoring a verified pre-upgrade backup and is never synthesized as a down migration.',
     '',
     '## Acceptance',
     '',
@@ -909,6 +946,8 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
     [artifacts.sbom.path, artifacts.sbom.sha256],
     [artifacts.acceptance_status.path, artifacts.acceptance_status.sha256],
     [artifacts.provider_profiles_example.path, artifacts.provider_profiles_example.sha256],
+    [artifacts.release_contract.path, artifacts.release_contract.sha256],
+    [artifacts.upgrade_runbook.path, artifacts.upgrade_runbook.sha256],
     ['service/build-context/context-manifest.json', artifacts.service_build_context.manifest_sha256]
   ];
   for (const [path, expected] of checks) {
@@ -928,6 +967,21 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
   }
   if (imageMetadata.source_commit !== manifest.source_commit) {
     throw new Error('image metadata source commit does not match delivery manifest');
+  }
+  const releaseContract = JSON.parse(readFileSync(
+    join(outputDir, artifacts.release_contract.path), 'utf8'
+  )) as IveKitReleaseContract;
+  validateIveKitReleaseOperations({
+    contract: releaseContract,
+    runbook: readFileSync(join(outputDir, artifacts.upgrade_runbook.path), 'utf8')
+  });
+  if (artifacts.release_contract.path !== 'operations/release-contract.json' ||
+      artifacts.upgrade_runbook.path !== 'operations/upgrade-runbook.md' ||
+      releaseContract.source_commit !== manifest.source_commit ||
+      releaseContract.generated_at !== manifest.generated_at ||
+      releaseContract.image.metadata_sha256 !== artifacts.image_metadata.sha256 ||
+      releaseContract.migrations.manifest_sha256 !== artifacts.migration_manifest.sha256) {
+    throw new Error('release operations do not match delivery artifacts');
   }
 }
 
@@ -1056,19 +1110,20 @@ function copyFile(outputDir: string, source: string, destination: string): void 
 }
 
 function copyDeliverySource(outputDir: string, source: string, destination: string): void {
-  if (destination !== 'deploy/application/docker-compose.yml') {
+  if (!['deploy/application/docker-compose.yml', 'deploy/application/docker-compose.voice.yml']
+    .includes(destination)) {
     copyFile(outputDir, source, destination);
     return;
   }
   const target = join(outputDir, destination);
   mkdirSync(dirname(target), { recursive: true });
   const portableCompose = readFileSync(source, 'utf8')
-    .replace(/\n    build:\n      context: \.\.\/\.\.\n      dockerfile: Dockerfile/, '')
+    .replace(/\n  build:\n    context: \./, '')
     .replaceAll(
-      '${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}',
-      '${IVEKIT_OPC_IMAGE_NAME:?IVEKIT_OPC_IMAGE_NAME is required}'
+      '${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}',
+      '${IVEKIT_SERVICE_IMAGE:?IVEKIT_SERVICE_IMAGE is required}'
     );
-  if (/^\s+build:/m.test(portableCompose) || portableCompose.includes('ivekit-opc:local')) {
+  if (/^\s+build:/m.test(portableCompose) || portableCompose.includes('ivekit-service:local')) {
     throw new Error('failed to remove repository-only build settings from delivery Compose');
   }
   writeFileSync(target, portableCompose, 'utf8');

@@ -47,7 +47,9 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'service/build-context/SHA256SUMS',
       'service/image-metadata.json',
       'service/migration-manifest.json',
-      'service/sbom.spdx.json'
+      'service/sbom.spdx.json',
+      'operations/release-contract.json',
+      'operations/upgrade-runbook.md'
     ];
     const expected = [
       ...DELIVERY_SOURCE_FILES.map((entry) => entry.destination),
@@ -116,6 +118,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(result.manifest.contents.voice_preflight, 'service/build-context/src/ivekit-voice-preflight.ts');
     assert.equal(result.manifest.contents.voice_compose, 'service/build-context/docker-compose.voice.yml');
     assert.equal(result.manifest.contents.voice_helm, 'deploy/kubernetes/ivekit/');
+    assert.equal(result.manifest.contents.operations, 'docs/ivekit-v3-intelligence-operations.md');
+    assert.equal(result.manifest.contents.release_operations, 'operations/upgrade-runbook.md');
     assert.match(result.manifest.provider_ownership.rustpbx, /SIP|PSTN|call/i);
     assert.equal(result.manifest.artifacts.sdk_package.sha256, createHash('sha256').update('test sdk archive').digest('hex'));
     assert.equal(result.manifest.artifacts.service_build_context.path, 'service/build-context/');
@@ -124,6 +128,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(v3Manifest.artifacts.provider_profiles_example.path, 'acceptance/provider-profiles.example.json');
     assert.match(v3Manifest.artifacts.acceptance_status.sha256, /^[a-f0-9]{64}$/);
     assert.match(v3Manifest.artifacts.provider_profiles_example.sha256, /^[a-f0-9]{64}$/);
+    assert.equal(result.manifest.artifacts.release_contract.path, 'operations/release-contract.json');
+    assert.equal(result.manifest.artifacts.upgrade_runbook.path, 'operations/upgrade-runbook.md');
 
     for (const entry of result.manifest.files) {
       const content = readFileSync(join(outputDir, entry.path));
@@ -159,6 +165,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('deploy/kubernetes/ivekit/Chart.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/values.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/templates/rustpbx-deployment.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/templates/migrate-job.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/templates/deployment.yaml'), true);
     for (const migration of [
       '040_rustdesk_control_ownership.sql',
       '041_tinode_inbound_sync.sql',
@@ -220,11 +228,23 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.ok(sbom.packages.length > 1);
     const applicationCompose = readFileSync(join(outputDir, 'deploy/application/docker-compose.yml'), 'utf8');
     assert.doesNotMatch(applicationCompose, /^\s+build:/m);
-    assert.doesNotMatch(applicationCompose, /ivekit-opc:local/);
-    assert.match(applicationCompose, /IVEKIT_OPC_IMAGE_NAME:\?IVEKIT_OPC_IMAGE_NAME is required/);
+    assert.doesNotMatch(applicationCompose, /ivekit-(?:opc|service):local/);
+    assert.match(applicationCompose, /IVEKIT_SERVICE_IMAGE:\?IVEKIT_SERVICE_IMAGE is required/);
+    assert.match(applicationCompose, /^  ivekit:/m);
+    assert.doesNotMatch(applicationCompose, /^  opc:/m);
     const voiceCompose = readFileSync(join(outputDir, 'service/build-context/docker-compose.voice.yml'), 'utf8');
     assert.match(voiceCompose, /command: \["node", "dist\/ivekit-render-rustpbx-config\.js"\]/);
     assert.doesNotMatch(voiceCompose, /--import|\btsx\b|scripts\/render-rustpbx-config\.ts/);
+    const releaseContract = JSON.parse(readFileSync(
+      join(outputDir, 'operations', 'release-contract.json'),
+      'utf8'
+    )) as { source_commit: string; execution_status: string; database: { rollback: string } };
+    assert.equal(releaseContract.source_commit, testSourceCommit);
+    assert.equal(releaseContract.execution_status, 'blocked_build_required');
+    assert.equal(releaseContract.database.rollback, 'restore_verified_pre_upgrade_backup_only');
+    const upgradeRunbook = readFileSync(join(outputDir, 'operations', 'upgrade-runbook.md'), 'utf8');
+    assert.match(upgradeRunbook, /blocked_build_required/);
+    assert.doesNotMatch(upgradeRunbook, /down\s+-v|DROP\s+(?:DATABASE|TABLE)|:latest/i);
     const acceptance = JSON.parse(readFileSync(
       join(outputDir, 'acceptance', 'status.json'),
       'utf8'

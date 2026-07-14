@@ -2,6 +2,8 @@
 
 This directory deploys the reusable iveKit application plane: the standalone iveKit facade, PostgreSQL, Redis, Tinode, and RustDesk OSS `hbbs`/`hbbr`. It pairs with `infra/livekit` Media Core and does not use SQLite.
 
+This is the OPC repository integration topology and still uses the OPC root image for Tinode bootstrap and controlled-provider tooling. The portable delivery bundle uses `services/ivekit-service` Compose and Helm artifacts instead; do not present this directory as the independently versioned LED handoff.
+
 ## Boundaries
 
 - PostgreSQL, Redis, Tinode uploads, and RustDesk keys use named volumes.
@@ -158,7 +160,7 @@ Every wrapper supports a non-mutating validate invocation. Linux example:
 
 Configure edge adapter args with the exact placeholders `{external_id}`, `{target_id}`, `{rustdesk_id}`, and `{requested_reason}`. The optional session hook, systemd service name, and launchd label are local-only settings (`OPC_RUSTDESK_SESSION_DISCONNECT_HOOK`, `OPC_RUSTDESK_SERVICE_NAME`, `OPC_RUSTDESK_LAUNCHD_LABEL`); the server cannot override them.
 
-## Upgrade And Recovery
+## OPC Integration Upgrade And Recovery
 
 Switching from the full OPC process to `npm run start:ivekit` changes only the application container command. No PostgreSQL downgrade or data copy is required, and existing host ports, public URLs, service key, databases, and named volumes remain stable. `postgres-runtime-role` and `tinode-bootstrap` are idempotent and rerun on `up`.
 

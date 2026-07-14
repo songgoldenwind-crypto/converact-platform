@@ -1,0 +1,213 @@
+{{- if .Values.voice.enabled }}
+{{- $rustpbxImage := include "ivekit.rustpbxImage" . -}}
+{{- $profileId := required "voice.profileId is required when voice is enabled" .Values.voice.profileId -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ivekit.fullname" . }}-rustpbx
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rustpbx
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rustpbx
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: rustpbx
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: render-config
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/ivekit-render-rustpbx-config.js"]
+          env:
+            - name: RUSTPBX_CONFIG_OUTPUT
+              value: /app/config/rustpbx.toml
+            - name: RUSTPBX_IMAGE
+              value: {{ $rustpbxImage | quote }}
+            - name: RUSTPBX_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.databaseUrlKey }}
+            - name: RUSTPBX_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.databasePasswordKey }}
+            - name: RUSTPBX_RWI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.rwiTokenKey }}
+            - name: RUSTPBX_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.webhookTokenKey }}
+            - name: RUSTPBX_ROUTER_URL
+              value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/router" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
+            - name: RUSTPBX_CDR_WEBHOOK_URL
+              value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/cdrs" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
+            - name: RUSTPBX_EXTERNAL_IP
+              value: {{ .Values.voice.externalIp | quote }}
+            - name: RUSTPBX_SIP_PORT
+              value: {{ .Values.voice.sipPort | quote }}
+            - name: RUSTPBX_RTP_START_PORT
+              value: {{ .Values.voice.rtpStartPort | quote }}
+            - name: RUSTPBX_RTP_END_PORT
+              value: {{ .Values.voice.rtpEndPort | quote }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      containers:
+        - name: rustpbx
+          image: {{ $rustpbxImage | quote }}
+          imagePullPolicy: {{ .Values.voice.image.pullPolicy }}
+          args: ["--conf", "/app/config/rustpbx.toml"]
+          ports:
+            - name: management
+              containerPort: 8080
+              protocol: TCP
+            - name: sip-udp
+              containerPort: {{ .Values.voice.sipPort }}
+              protocol: UDP
+            - name: sip-tcp
+              containerPort: {{ .Values.voice.sipPort }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: management
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: management
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 4
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: storage
+              mountPath: /app/storage
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: storage
+          {{- if .Values.voice.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "ivekit.fullname" . }}-rustpbx
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.fullname" . }}-rustpbx-internal
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: rustpbx
+  ports:
+    - name: management
+      port: 8080
+      targetPort: management
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.fullname" . }}-rustpbx-sip
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.voice.service.sipType }}
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: rustpbx
+  ports:
+    - name: sip-udp
+      port: {{ .Values.voice.sipPort }}
+      targetPort: sip-udp
+      protocol: UDP
+    - name: sip-tcp
+      port: {{ .Values.voice.sipPort }}
+      targetPort: sip-tcp
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.fullname" . }}-rustpbx-rtp
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.voice.service.rtpType }}
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: rustpbx
+  ports:
+    {{- range $port := untilStep (int .Values.voice.rtpStartPort) (add1 (int .Values.voice.rtpEndPort)) 1 }}
+    - name: rtp-{{ $port }}
+      port: {{ $port }}
+      targetPort: {{ $port }}
+      protocol: UDP
+    {{- end }}
+{{- if .Values.voice.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ivekit.fullname" . }}-rustpbx
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.voice.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.voice.persistence.size }}
+{{- end }}
+{{- end }}

@@ -209,12 +209,15 @@ LED 浏览器建议复用 `clients/ivekit-reference/src/realtime/event-replay.ts
 
 | 路径 | 用途 |
 | --- | --- |
-| `service/build-context/` | 白名单独立服务源码、Dockerfile、lockfile、32 个 migration，可直接构建镜像 |
+| `service/build-context/` | 白名单独立服务源码、Dockerfile、lockfile 和 manifest 内列出的 migration，可直接构建镜像 |
 | `service/image-metadata.json` | source commit、image reference 和已验证 image digest |
-| `database/migration-manifest.json` | migration 顺序和逐文件 SHA-256 |
+| `service/migration-manifest.json` | migration 顺序和逐文件 SHA-256 |
+| `deploy/application/` | standalone Compose/Voice overlay；交付版要求 `IVEKIT_SERVICE_IMAGE` |
+| `deploy/kubernetes/ivekit/` | digest-pinned standalone Helm Chart、迁移 hook 和可选 RustPBX |
+| `operations/release-contract.json`、`operations/upgrade-runbook.md` | source/image/migration 哈希绑定、升级顺序、应用回退和数据库 restore-only 边界 |
 | `sdk/`、`client/` | SDK tgz、类型/README、参考客户端交付树 |
-| `rustdesk-edge/` | edge source、adapter、预编译 JS 和零运行依赖 npm 包 |
-| `sbom/`、`artifact-manifest.json`、`SHA256SUMS` | SPDX 2.3 SBOM、产物绑定和总校验清单 |
+| `edge/` | RustDesk edge source、adapter、预编译 JS 和独立 npm 包 |
+| `service/sbom.spdx.json`、`manifest.json`、`SHA256SUMS` | SPDX 2.3 SBOM、产物绑定和总校验清单 |
 
 当前可复验归档 source commit 为 `18a16bde967d2339f093dea35909fad51882b72a`，路径为 `/opt/ivekit-v2-validation/18a16bd/ivekit-delivery-18a16bd-final.tgz`，归档 SHA-256 为 `14b84ad409b9c6c271d4dc9b38a19042f54a2ed615ab7e8c2c697d6047b0f73c`，绑定镜像 ID `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。接收方先校验顶层和 `service/build-context/SHA256SUMS`，再按 image metadata 对照部署镜像；不得只拿 SDK 而省略 migration、RLS、provider 和 edge 运维材料。
 
@@ -413,14 +416,16 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 
 - `sdk/*.tgz`：LED 可直接安装的 TypeScript SDK。
 - `client/`：已通过 chunk 预算的静态参考客户端。
-- `deploy/application/` 和 `deploy/livekit/`：应用面与媒体面分离 Compose；应用面必须设置 `IVEKIT_OPC_IMAGE_NAME`，不依赖 OPC 源码目录。
+- `deploy/application/` 和 `deploy/livekit/`：应用面与媒体面分离 Compose；应用面必须设置 digest 固定的 `IVEKIT_SERVICE_IMAGE`，不依赖 OPC 源码目录。
+- `deploy/kubernetes/ivekit/`：只部署 standalone iveKit 和可选 RustPBX；PostgreSQL/Redis/Tinode/LiveKit 等通过外部服务配置接入，凭据来自接收方已有 Secret。
+- `operations/`：升级前完整性/备份门禁、Compose/Helm rollout 与应用回退手册；数据库只允许从已验证升级前备份恢复。
 - `database/migrations/`：显式白名单内的通信域 overlay migration。
 - `docs/`、`examples/`：OpenAPI、详细设计、升级/回滚说明和最小接入示例。
 - `acceptance/status.json`：受控 PostgreSQL/Provider/browser/restart 与真实 Provider/客户端分层状态；未执行项保持 `not_run`。
 - `acceptance/evidence/`：可选的受控环境日志/截图；只有 source commit、大小和 SHA-256 全部匹配时才能把对应受控项标为 `passed`。
 - `manifest.json`、`SHA256SUMS`：payload 大小/hash 与 manifest 的离线完整性校验。
 
-生成器不会复制 call-center/IVR 源码，不接受符号链接或清单外文件，并扫描常见私钥、云密钥、GitHub token、OpenAI key 和 JWT Authorization。受控证据不能提升真实 LiveKit/Tinode/RustDesk 客户端或真实 OCR/ASR/AI/翻译厂商状态；`ready_for_handoff` 仅表示工程交付包完整，不代表所有生产验收通过。
+生成器不会复制 OPC call-center、legacy IVR 或产品前端源码，但会保留 standalone `agent-runtime/ivekit/ivr`；它不接受符号链接或清单外文件，并扫描常见私钥、云密钥、GitHub token、OpenAI key 和 JWT Authorization。受控证据不能提升真实 LiveKit/Tinode/RustDesk/RustPBX 客户端或真实 OCR/ASR/AI/翻译厂商状态；`ready_for_handoff` 仅表示工程交付包完整，不代表 release 已有 digest 或所有生产验收通过。
 
 ### 11.1 已完成的本地部署准备
 

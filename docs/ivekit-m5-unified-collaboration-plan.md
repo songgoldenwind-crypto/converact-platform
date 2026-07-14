@@ -75,7 +75,7 @@ LED / other host
 
 ### Task M5.6：独立交付包
 
-**状态：已完成（2026-07-12）。** `npm run ivekit:delivery-bundle` 会构建 SDK 与参考客户端，并在 `OPC_IVEKIT_DELIVERY_DIR`（默认 `.tmp/ivekit-led-delivery`）生成 LED 交付目录。目录包含可安装 SDK tgz、客户端 dist、应用/LiveKit Compose、通信域迁移、API/架构/接入文档、示例和验收状态；`manifest.json` 记录所有 payload 的 SHA-256/字节数，`SHA256SUMS` 额外覆盖 manifest。生成器采用显式白名单、拒绝符号链接和额外文件、扫描常见私钥/token，并从交付版 Compose 移除源码仓库 `build` 路径，强制使用同提交构建的 `IVEKIT_OPC_IMAGE_NAME`。生成器只覆盖带版本所有权标记的既有目录，防止错误路径导致数据删除。本地生成包约 1.7 MB、59 个文件，Compose 静态解析和全部 checksum 已通过；LiveKit/Tinode/RustDesk 真实环境状态均为 `not_run`。
+**状态：已完成并在 2026-07-14 收敛 standalone 边界。** `npm run ivekit:delivery-bundle` 会构建 SDK 与参考客户端，并在 `OPC_IVEKIT_DELIVERY_DIR`（默认 `.tmp/ivekit-led-delivery`）生成 LED 交付目录。目录包含可安装 SDK tgz、客户端 dist、standalone 应用/LiveKit Compose、独立 iveKit Helm Chart、通信域迁移、API/架构/接入文档、升级/回滚合同、示例和验收状态；`manifest.json` 记录所有 payload 的 SHA-256/字节数，`SHA256SUMS` 额外覆盖 manifest。生成器采用显式白名单、拒绝符号链接和额外文件、扫描常见私钥/token，并从交付版 Compose 移除源码 `build` 路径，强制使用 `IVEKIT_SERVICE_IMAGE`。没有 registry digest 时 release contract 固定为 `blocked_build_required`；数据库只支持 forward migration 与已验证备份恢复。旧 OPC `infra/k8s` 不再作为 iveKit Chart 打包。LiveKit/Tinode/RustDesk/RustPBX 真实环境状态仍按 acceptance manifest 独立记录，未执行项保持 `not_run`。
 
 1. 固定 SDK exports、参考客户端 host bridge、runtime config 和部署环境变量。
 2. 输出 LED 最小接入示例、升级/回滚、数据库 migration、Compose 与 provider 分离说明。

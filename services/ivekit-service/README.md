@@ -8,13 +8,15 @@ Do not build this directory directly inside the OPC monorepo because its `src/` 
 npm run verify:ivekit:standalone-context
 ```
 
-The generated context contains only the iveKit source graph, this package manifest and lockfile, the standalone Dockerfile, and explicitly selected communication migrations. The boundary verifier rejects call-center, IVR, frontend, unresolved imports, undeclared runtime packages, symlinks, extra files, and lockfile drift.
+The generated context contains only the iveKit source graph, this package manifest and lockfile, the standalone Dockerfile, and explicitly selected communication migrations. The boundary verifier rejects OPC call-center, legacy OPC IVR, frontend, unresolved imports, undeclared runtime packages, symlinks, extra files, and lockfile drift while retaining standalone `agent-runtime/ivekit/ivr`.
 
 The generated `migrations/` directory includes the minimal fresh-database foundation, communication schema, forced tenant RLS, and standalone runtime security hardening. Apply migrations with the one-shot compiled entrypoint before starting the long-running service:
 
 ```bash
 npm run migrate
 ```
+
+The standalone Helm Chart source is under `helm/ivekit/`. It requires an immutable application image digest and an externally managed Secret, runs runtime-role initialization plus advisory-locked forward migrations as a `pre-install,pre-upgrade` hook, and deploys the API only after that hook succeeds. PostgreSQL and communication providers remain external dependencies; optional RustPBX is enabled separately with its own digest and database.
 
 The included Compose file runs the compiled `init:runtime-role` entrypoint before `migrate`. It creates or rotates `opc_runtime`, applies default and existing-object grants, and revokes schema creation and migration-ledger access. The long-running service uses `opc_runtime` with `NOSUPERUSER NOBYPASSRLS`; only the one-shot role and migration jobs receive `opc_admin` credentials.
 
@@ -39,4 +41,4 @@ npm run render:rustpbx
 npm run preflight:voice
 ```
 
-Provider profile metadata is supplied through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`; secrets stay in dedicated environment variables or an external secret manager. The complete self-hosted/third-party profile format, RBAC, durable retry behavior, health checks, alerts, controlled-provider acceptance, upgrade, and rollback procedure is in `docs/ivekit-v3-intelligence-operations.md` in the source repository.
+Provider profile metadata is supplied through `OPC_IVEKIT_PROVIDER_PROFILES_JSON`; secrets stay in dedicated environment variables or an external secret manager. The generated delivery bundle carries `operations/release-contract.json` and `operations/upgrade-runbook.md`. Migrations are forward-only; application rollback selects a compatible prior immutable image, while schema recovery restores a verified pre-upgrade backup.

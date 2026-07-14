@@ -82,3 +82,11 @@ LiveKit/Tinode/RustDesk 的历史 V2 证据不会自动升级成当前 V3 releas
 - 根 OPC 依赖树的 `nodemailer@6.10.1` 被 `npm audit` 报 1 个 high（修复版本为 major upgrade）；standalone iveKit package/lock 不含 nodemailer。该项留给后续 OPC 架构阶段单独升级和回归，不影响本次可拆分 iveKit 交付边界。
 
 结论：V3 可复用 OCR/ASR/AI 质检/人工复核/翻译底座及其 SDK、参考客户端、RLS、durable worker、部署和受控验收已闭环；真实厂商与物理客户端状态没有被夸大。最终交付包必须从干净 release commit 生成，并以包内 manifest/checksum 和外部归档 hash 完成最后绑定。
+
+## 8. V4 standalone 交付补充（2026-07-14）
+
+后续 Voice Foundation 审计发现，V3 交付包曾复制 OPC `infra/k8s` Chart，并把 OPC 集成 Compose 转换后作为应用交付面；它们不能证明 iveKit 已可独立升级。该问题现已从交付白名单中移除，OPC 原部署文件保留给 OPC 本体，不再进入 standalone iveKit Chart。
+
+当前交付改为复制 `services/ivekit-service` 的 Compose，并新增独立 Helm Chart：应用和可选 RustPBX 镜像必须使用 digest，外部 Secret 由接收方管理，`pre-install,pre-upgrade` hook 顺序执行 runtime-role 初始化和 advisory-locked migration。交付包新增 `operations/release-contract.json` 与 `operations/upgrade-runbook.md`，绑定 source commit、image metadata 和 migration manifest SHA-256；无 digest 时状态为 `blocked_build_required`。迁移为 forward-only expand/contract，应用回退只选择兼容旧 digest，数据库回退只能恢复已验证的升级前备份。
+
+这些新增 Chart/操作材料已通过本地类型、静态合同和交付包篡改门禁，但尚未在本轮目标 Kubernetes 集群执行 `helm template/upgrade/rollback`，也未启动真实 RustPBX/SIP/PSTN/RTP。因此第 2 节 V3 旧 Chart 的服务器证据不能自动升级为本次 V4 Chart 证据，相关环境项保持 `not_run`。
