@@ -1,6 +1,6 @@
 # iveKit HTTP API 与事件契约
 
-> 契约版本：v1-draft / 2026-07-11。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
+> 契约版本：v1-draft / 2026-07-14。Base path 为 `/api/ivekit`。本文是 LED/OPC 对接用的 Markdown 契约；真实运行能力先读取 capabilities。更完整背景见《iveKit视频IM通用能力详细设计》。
 
 本契约由独立进程 `npm run start:ivekit` 提供，正式 TypeScript 客户端为 `@opc/ivekit-sdk`。稳定域还包括 `/api/ivekit/voice/*`、`/api/ivekit/ivr/*` 和 `/api/ivekit/contact-center/*`；旧 OPC 进程在迁移期间继续提供兼容入口。
 
@@ -48,6 +48,8 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 | 404 | tenant-scoped 资源不存在 |
 | 409 | 生命周期、幂等 payload、mutation window 或并发冲突 |
 | 413/415 | 附件过大/MIME 不匹配 |
+| 422 | Voice/IVR 请求结构、Revision、地址或路由规则无效 |
+| 501 | 当前部署或 Provider 没有声明该 capability；不得当作成功重试 |
 | 502 | provider 操作失败；Media moderation/终态保持原状态并可重试，消息投递等接口按各自章节保留本地记录 |
 | 503 | PostgreSQL/provider/必要配置不可用 |
 
@@ -55,7 +57,7 @@ API key 的 `X-User-Id` 表示可信后端代表的操作者。Bearer 身份只�
 
 `createIveKitClient()` 返回 `context`、`media`、`chat`、`intelligence`、`events`、`rustdesk`、`voice`、`ivr` 和 `contactCenter` 客户端。Node 后端使用 API key，浏览器使用短期 bearer token；恰好只能配置一种认证方式。除 RustDesk 外的 HTTP facade 使用 `IveKitHttpSdkError`，RustDesk 使用 `IveKitRustDeskHttpError`；两者都保留 `status/method/path/payload`。`timeoutMs` 触发或网络失败时 `status=0`，幂等写请求必须使用原 `Idempotency-Key` 重试。
 
-### 1.5 Contact Center 与监控投影
+### 1.4 Contact Center 与监控投影
 
 ```text
 GET  /api/ivekit/contact-center/capabilities
@@ -73,7 +75,7 @@ POST /api/ivekit/contact-center/supervisor/actions
 
 录制导出由 SDK 返回 `Uint8Array` 与 MIME/文件名元数据；附件上传接受标准 `BodyInit` 二进制 body，不做 base64 JSON 包装。RustDesk 高层方法 `ensureDevice/startSession` 负责设备、heartbeat 和 launch plan，操作审计与结束/物理断开状态仍是显式步骤。
 
-### 1.4 Unified Business Context
+### 1.5 Unified Business Context
 
 ```text
 GET /api/ivekit/context/by-ref?business_ref_type=service_order&business_ref_id=SO-1001
@@ -642,7 +644,133 @@ completion clock 重新验证全部 profile 和最早
 
 Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collaboration/*`；在独立服务抽离前由 iveKit session bundle/详细设计统一说明，不应与 RustDesk 系统级远控混为一类。
 
-## 5. 租户 WebSocket 事件
+## 5. Voice Foundation、IVR 与 Contact Center
+
+### 5.1 Voice 通用规则
+
+Voice API 的租户只能来自认证上下文。`owner/admin/system` 管理 profile、trunk、DID、extension、route、policy 和 consent；非 viewer 的 operator 可以创建/控制通话、创建 LiveKit bridge 和获取本人或管理员授权的 WebPhone session。查询默认 `limit=50`，允许 `1..200`，cursor 是 opaque；响应页统一使用 `{items,next_cursor}`。
+
+创建真实外呼、配置 apply/test、route publish、WebPhone session、call action 和 LiveKit bridge 都必须携带 `Idempotency-Key`。同 key 同 payload 返回原结果；同 key 不同 payload 返回 `409`。配置 apply/test、route publish 和 call action 返回 `202` durable command，调用方根据 command state 和租户事件收敛，不能因 HTTP 超时换 key 重放。更新配置使用当前 `revision`；过期 revision 返回冲突，不能最后写入覆盖。
+
+号码只在创建/Provider 边界以明文输入；持久化和普通响应使用加密值、HMAC lookup 与 projection。profile `config` 禁止 credential、token、password、private key、Authorization、带 userinfo/query/fragment 的 URL；秘密只能通过 `secret_refs` 指向服务端 allowlist 环境变量。
+
+### 5.2 Voice HTTP 路径
+
+| Method | Path | 角色与结果 |
+| --- | --- | --- |
+| GET | `/api/ivekit/voice/capabilities` | 任意已认证调用；模块级能力事实 |
+| GET/POST | `/api/ivekit/voice/profiles` | 查询；admin 创建 Provider profile |
+| GET/PATCH | `/api/ivekit/voice/profiles/:profile_id` | 查询；admin + revision 更新 |
+| POST | `/api/ivekit/voice/profiles/:profile_id/preflight` | admin；获取 protocol/effective capability snapshot |
+| GET/POST | `/api/ivekit/voice/trunks` | 查询；admin 创建 SIP trunk |
+| GET/PATCH | `/api/ivekit/voice/trunks/:trunk_id` | 查询；admin + revision 更新 |
+| POST | `/api/ivekit/voice/trunks/:trunk_id/apply` | admin + idempotency；返回配置 command |
+| POST | `/api/ivekit/voice/trunks/:trunk_id/test` | admin + idempotency；返回线路测试 command |
+| GET/POST | `/api/ivekit/voice/dids` | 查询；admin 创建加密 DID |
+| GET/PATCH | `/api/ivekit/voice/dids/:did_id` | 查询；admin + revision 更新 |
+| POST | `/api/ivekit/voice/dids/:did_id/apply` | admin + idempotency；返回配置 command |
+| GET/POST | `/api/ivekit/voice/extensions` | 查询；admin 创建分机 |
+| GET/PATCH | `/api/ivekit/voice/extensions/:extension_id` | 查询；admin + revision 更新 |
+| POST | `/api/ivekit/voice/extensions/:extension_id/apply` | admin + idempotency；返回配置 command |
+| POST | `/api/ivekit/voice/extensions/:extension_id/session` | operator/self-or-admin；返回短期 WSS SIP session plan |
+| GET/POST | `/api/ivekit/voice/routes` | 查询；admin 创建 draft route |
+| GET/PATCH | `/api/ivekit/voice/routes/:route_id` | 查询；admin + revision 更新 draft |
+| POST | `/api/ivekit/voice/routes/:route_id/validate` | 校验当前或传入 rules，不发布 |
+| POST | `/api/ivekit/voice/routes/:route_id/publish` | admin + revision + idempotency；创建 immutable version 和 apply command |
+| GET | `/api/ivekit/voice/routes/:route_id/versions` | 查询不可变发布版本 |
+| GET/POST | `/api/ivekit/voice/calls` | 查询；operator + idempotency 创建外呼 |
+| GET | `/api/ivekit/voice/calls/:call_id` | tenant-scoped call snapshot |
+| POST | `/api/ivekit/voice/calls/:call_id/actions` | operator + idempotency；返回 call command |
+| POST | `/api/ivekit/voice/calls/:call_id/livekit-bridge` | operator + idempotency；创建 PSTN/LiveKit SIP bridge command |
+| GET | `/api/ivekit/voice/calls/:call_id/events` | Provider event inbox 投影 |
+| GET | `/api/ivekit/voice/calls/:call_id/recordings` | 该通话录音 metadata |
+| GET | `/api/ivekit/voice/calls/:call_id/bridges` | 该通话 LiveKit SIP bridge 投影 |
+| GET | `/api/ivekit/voice/calls/:call_id/participants` | 该通话参与人投影 |
+| GET/PATCH | `/api/ivekit/voice/policy` | 查询；admin 更新 consent/recording/disclosure/calling-window 策略 |
+| GET/POST | `/api/ivekit/voice/consents` | 查询；admin 写入带 evidence ref 的 consent |
+| GET | `/api/ivekit/voice/recordings` | 按 call/status 分页查询录音 metadata |
+| POST | `/api/ivekit/voice/providers/:profile_id/router` | RustPBX 签名/服务密钥 webhook；DID/profile 服务端映射租户 |
+| POST | `/api/ivekit/voice/providers/:profile_id/events` | RustPBX 鉴权事件 webhook；返回 `202` inbox 状态 |
+| POST | `/api/ivekit/voice/providers/:profile_id/cdrs` | RustPBX 鉴权 CDR webhook；按 provider event id/canonical hash 幂等 |
+
+外呼请求至少包含 `profile_id`、`from`、`to`、`business_ref`；地址 kind 为 `e164|extension|sip_uri`。示例：
+
+```json
+{
+  "profile_id": "profile_rustpbx",
+  "from": { "kind": "extension", "value": "1001" },
+  "to": { "kind": "e164", "value": "+8613800000000" },
+  "business_ref": { "type": "service_order", "id": "SO-1001" },
+  "metadata": {}
+}
+```
+
+`actions` 支持 `answer`、`hangup`、`hold`、`resume`、`dtmf`、`blind_transfer`、`warm_transfer`、`conference`、`park`、`pickup`、`recording_start`、`recording_pause`、`recording_resume` 和 `recording_stop`。`conference` payload 使用 `operation=create|add|remove|destroy` 和 `conference_id`。能力是否可执行以 profile preflight 的 `effective_capabilities` 为准；当前 RustPBX RWI 未确认 DTMF/Park/Pickup，supervisor 媒体也未接通时必须返回 `501 capability_unavailable`，不得伪造 command succeeded。浏览器内 DTMF 可由 `@opc/ivekit-sdk/sip-webphone` 通过已建立的 SIP media handler 发送，但不改变服务端 RWI 能力事实。
+
+WebPhone session plan 只返回 `wss://`、短期 SIP credential、AoR、ICE server 和布尔 capability。服务端拒绝过期计划、非 WSS、带 URL credential、越权分机、空 ICE URL 和未知 capability；客户端不得持久化 credential 或把它写入 DOM/日志。
+
+### 5.3 IVR HTTP 路径
+
+| Method | Path | 角色与结果 |
+| --- | --- | --- |
+| GET/POST | `/api/ivekit/ivr/flows` | 查询；admin 创建 draft flow |
+| GET/PATCH | `/api/ivekit/ivr/flows/:flow_id` | 查询；admin + expected revision 更新 |
+| GET | `/api/ivekit/ivr/flows/:flow_id/versions` | immutable 发布版本 |
+| POST | `/api/ivekit/ivr/flows/:flow_id/validate` | graph、资源和能力编译报告 |
+| POST | `/api/ivekit/ivr/flows/:flow_id/publish` | admin + revision + idempotency；发布门禁 |
+| POST | `/api/ivekit/ivr/flows/:flow_id/rollback` | admin + revision + idempotency；从历史版本生成新发布版本 |
+| POST | `/api/ivekit/ivr/simulations` | 确定性模拟，不执行真实 Provider side effect |
+| GET/POST | `/api/ivekit/ivr/sessions` | operator 查询或启动 durable session |
+| GET | `/api/ivekit/ivr/sessions/:session_id` | session 与 step history |
+| POST | `/api/ivekit/ivr/sessions/:session_id/advance` | operator；必须提交当前 event sequence/action revision |
+| GET/PATCH | `/api/ivekit/ivr/settings` | 查询；admin 更新 tenant IVR settings |
+| GET/POST | `/api/ivekit/ivr/audio-assets` | 查询；admin 创建音频资源 |
+| GET/PATCH | `/api/ivekit/ivr/audio-assets/:asset_id` | 查询；admin 更新音频资源 |
+| GET/POST | `/api/ivekit/ivr/time-groups` | 查询；admin 创建时段组 |
+| GET/PATCH | `/api/ivekit/ivr/time-groups/:group_id` | 查询；admin 更新时段组 |
+| GET/POST | `/api/ivekit/ivr/region-groups` | 查询；admin 创建区域组 |
+| GET/PATCH | `/api/ivekit/ivr/region-groups/:group_id` | 查询；admin 更新区域组 |
+| GET/POST | `/api/ivekit/ivr/ring-groups` | 查询；admin 创建振铃组 |
+| GET/PATCH | `/api/ivekit/ivr/ring-groups/:group_id` | 查询；admin 更新振铃组 |
+| POST | `/api/ivekit/ivr/provider-webhooks/rustpbx/:profile_id/step` | RustPBX 鉴权 Step IVR；响应 action node 与 session revision headers |
+
+Flow graph 支持播放、菜单、收号、语音匹配、条件、变量、子流程、HTTP/Webhook、知识库、AI 对话、队列、转接、Audio Queue、Barge-in、语音信箱、调查和终态等 26 类节点。publish 必须先通过图结构、可达性、资源和 capability 校验；simulation 结果不能作为真实语音 side effect 的通过证据。session advance 使用 `(event_sequence,action_revision)` 防重复和乱序；外部动作持久化后由 worker claim/reconcile，Provider 超时进入 `uncertain`，不能直接重放。
+
+### 5.4 Contact Center 完整路径
+
+| Method | Path | 角色与结果 |
+| --- | --- | --- |
+| GET | `/api/ivekit/contact-center/capabilities` | 模块和 supervisor 真实能力 |
+| GET | `/api/ivekit/contact-center/monitor` | tenant-scoped 一致 Queue Monitor snapshot |
+| GET/POST | `/api/ivekit/contact-center/skills` | 查询；admin + idempotency 创建 |
+| GET/PATCH | `/api/ivekit/contact-center/skills/:skill_id` | 查询；admin + revision 更新 |
+| GET/POST | `/api/ivekit/contact-center/agents` | 查询；admin + idempotency 创建 |
+| GET/PATCH | `/api/ivekit/contact-center/agents/:agent_id` | 查询；admin + revision 更新 |
+| POST | `/api/ivekit/contact-center/agents/:agent_id/presence` | 坐席本人或 admin 更新 Presence |
+| GET/PUT | `/api/ivekit/contact-center/agents/:agent_id/skills` | 查询；admin 原子替换技能集合 |
+| GET/POST | `/api/ivekit/contact-center/queues` | 查询；admin + idempotency 创建 |
+| GET/PATCH | `/api/ivekit/contact-center/queues/:queue_id` | 查询；admin + revision 更新 |
+| GET/POST | `/api/ivekit/contact-center/queues/:queue_id/memberships` | 查询；admin upsert membership |
+| DELETE | `/api/ivekit/contact-center/queues/:queue_id/memberships/:agent_id` | admin 移除 membership |
+| GET/PUT | `/api/ivekit/contact-center/queues/:queue_id/skill-requirements` | 查询；admin 原子替换技能门槛 |
+| GET | `/api/ivekit/contact-center/queues/:queue_id/entries` | state/cursor/limit 查询条目和 assignment history |
+| GET/POST | `/api/ivekit/contact-center/callbacks` | 查询；operator + idempotency 请求 callback |
+| GET | `/api/ivekit/contact-center/callbacks/:callback_id` | callback 状态/attempt 投影 |
+| POST | `/api/ivekit/contact-center/callbacks/:callback_id/cancel` | operator 取消未终态 callback |
+| POST | `/api/ivekit/contact-center/routing/assignments` | operator + idempotency 执行一次确定性 ACD offer |
+| POST | `/api/ivekit/contact-center/assignments/:assignment_id/:action` | `accept|reject|connect|complete`，坐席本人或 admin |
+| POST | `/api/ivekit/contact-center/supervisor/actions` | admin；`start` 需要 idempotency/authorization ref，或 `end` |
+
+队列支持 `longest_idle|round_robin|fewest_active|highest_skill`，容量、Presence、membership 和 skill requirement 在同一 tenant transaction 内裁决。callback 保存加密目标并通过 Voice durable command 外呼；queue timeout、offer 回收、callback retry 和 overflow 由 PostgreSQL lease worker 处理。supervisor 只有部署注入经过验收的 control port 时 capability 才为 true；默认端口返回 `501`。
+
+### 5.5 SDK 与事件映射
+
+- `IveKitVoiceHttpClient` 覆盖本节全部 Voice 配置、call、recording、bridge 和 policy 路径；`createIveKitVoiceController` 提供 durable call 高层控制；`@opc/ivekit-sdk/sip-webphone` 管理浏览器 SIP.js 生命周期。
+- `IveKitIvrHttpClient` 覆盖 flow/version/validate/publish/rollback/simulation/session/resource/settings。
+- `IveKitContactCenterHttpClient` 覆盖配置、Presence、ACD、assignment、callback、monitor 和 supervisor。
+- Voice/IVR/Contact Center 变更通过租户 durable event 加速刷新；HTTP/PostgreSQL projection 仍是恢复后的权威 snapshot，消费者按 event ID 去重并使用 opaque cursor replay。
+
+## 6. 租户 WebSocket 事件
 
 事件 envelope 由 iveKit WebSocket 通道提供。M6.4 起事件先写入 PostgreSQL durable log，再进行本机和 Redis fan-out：
 
@@ -682,29 +810,32 @@ Web Assist 的 consent/event/media/recording 兼容路径仍位于 `/api/collabo
 
 Replay 每次按当前权限重新判断：定向事件只对 audience 用户可见；chat/media/remote 事件检查当前 participant，离开或被移除后不能读取历史私有事件；owner/admin/system 仅可旁路非定向资源事件，不能读取发给其他用户的定向事件。
 
-## 6. SDK 方法映射
+## 7. SDK 方法映射
 
 `createIveKitHttpSdk({baseUrl, tenantId, apiKey|accessToken, userId?, timeoutMs?, fetch?})` 返回：
 
 - `sdk.media.*`：capabilities、room、join、participant、recording、object、export、cleanup。
 - `sdk.chat.*`：`listSessions()`、`closeSession()`、`listMessagesPage()`、session、binding、client-plan、participant、message、delivery、receipt、state、mutation、attachment、finding、quality。
-- `sdk.events.getHeadCursor()`、`listPage()` 和有界 `replay()` 已交付；409 snapshot fallback 返回类型化 `snapshot_required` 结果，调用方按第 5 节刷新三工作区 snapshot 后取得新 head cursor。
+- `sdk.voice.*`：profile、trunk、DID、extension、route、call、command、bridge、recording、policy 和 consent。
+- `sdk.ivr.*`：flow、version、publish/rollback、simulation、session、audio/time/region/ring resource 和 settings。
+- `sdk.contactCenter.*`：skill、agent、Presence、queue、membership、ACD assignment、callback、monitor 和 supervisor。
+- `sdk.events.getHeadCursor()`、`listPage()` 和有界 `replay()` 已交付；409 snapshot fallback 返回类型化 `snapshot_required` 结果，调用方按第 6 节刷新三工作区 snapshot 后取得新 head cursor。
 - 二进制导出返回 `{bytes, contentType, filename}`。
 - 错误为 `IveKitHttpSdkError(status, method, path, payload)`；网络/超时 `status=0`。
 
 RustDesk 使用独立的 `createIveKitRustDeskLedSdk`，因为其设备注册、launch、操作审计和物理断开是一个更高层流程，不塞进通用 JSON client。
 
-## 7. 兼容与未完成边界
+## 8. 兼容与未完成边界
 
 1. 当前 API 是 v1 draft 的 additive contract；能力差异先看 capabilities。
 2. Tinode inbound seq/cursor、Drafty 引用附件、native edit/delete 已实现 durable 同步；`inbound_sync_configured` 表示当前部署是否具备 URL、服务认证并启用 worker。
 3. `direct_client_publish=false` 和客户端 ACL `JRP` 仍保留；业务消息优先走 iveKit facade。入站同步用于 provider 历史补偿、批准的其他客户端/管理操作和防止本地镜像漏记，不改变本地镜像与审计权威边界。
 4. WebSocket 重连增量水位已完成服务器复验；HTTP/WS 从重启前 cursor 各恢复 2 个事件，撤权、跨租户、定向 audience、retention 和重复重启均通过。
-5. 真实 LiveKit/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待服务器验收；Tinode 单节点真实消息、编辑、Drafty 引用、删除和离线恢复已通过。
+5. 真实 RustPBX、SIP/PSTN、WSS/SDP/ICE/RTP、物理音频、真实录音和 LiveKit SIP bridge，以及 LiveKit/RustDesk/OCR/ASR/AI/PostgreSQL 多副本/网络环境仍待对应服务器验收；Tinode 单节点真实消息、编辑、Drafty 引用、删除和离线恢复已通过。
 6. 本地 MemoryPg、fake provider、preflight 不是生产通过证明。
 7. `LIVEKIT_URL` 是 OPC、AI Agent、Egress 等服务端可达地址；`LIVEKIT_PUBLIC_URL` 是浏览器 `Room.connect()` 使用的受信任 `wss://` 地址。LED 只消费 Join Plan 返回值，不自行拼接内部地址。
 
-## 8. 非 HTTP 验收面
+## 9. 非 HTTP 验收面
 
 LiveKit 的交付门禁由部署/QA 脚本承担，不新增浏览器可调用的管理 API：
 
@@ -714,5 +845,7 @@ LiveKit 的交付门禁由部署/QA 脚本承担，不新增浏览器可调用�
 4. LED 业务代码继续只调用本文件的 iveKit API/SDK；不得通过 API 上传一份自称 `ok=true` 的报告来绕过真实环境门禁。
 
 RustDesk 的真实终端验收同样不新增浏览器管理 API。`rustdesk:client-acceptance` 使用 schema-v2 `real_terminal` 报告，并要求每个检查引用唯一 observation JSON；validator 重算 SHA-256，绑定 run/environment/full commit/external_id/rustdesk_id/time/tool，校验 hbbs/hbbr 和两端客户端版本、平台/架构、target ID、key fingerprint、ID/relay 路径及不同 operator/QA 身份。controlled E2E、Playwright、mock、synthetic、符号链接、越目录、重复、过期、上下文不匹配和含敏感内容的 artifact 均拒绝。缺少真实报告时返回 `not_run`；物理断开 command 成功和人工观察到画面/控制停止是两个独立条件。
+
+Voice 的真实通信验收也不提供可由业务端伪造的 passed API。交付包携带 `acceptance/voice-real-template.json`、`voice-real-runbook.md` 和 `tools/ivekit-voice-acceptance.ts`；45 项检查分别绑定真实 RustPBX、SIP/PSTN、WebPhone/RTP、IVR、Realtime AI、LiveKit SIP bridge、Contact Center、恢复/RLS 和性能 observation。validator 拒绝 controlled/Playwright/mock/fake/synthetic/simulated、符号链接或父目录逃逸、重复、过期、hash/context 不匹配及含 secret 的 artifact。全部通过只返回 `ready_for_review`，不会自动修改 delivery 的 `real_environment.rustpbx=not_run`。
 
 证据文件不得包含 API key、LiveKit token、signed invite 或对象存储 secret。完整检查项、产物关系和执行顺序见 `docs/superpowers/specs/2026-07-11-livekit-acceptance-evidence-design.md`。
