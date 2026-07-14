@@ -128,6 +128,15 @@ and WSS transport, supports registration/reconnect, incoming and outgoing single
 control, mute, hold/resume, DTMF, remote audio, input/output selection, and automatic
 unregistration when the ephemeral plan expires.
 
+### Realtime Voice AI
+
+The root package exports provider-neutral Realtime Voice AI types for Active Call,
+LiveKit Agents, self-hosted streaming ASR/LLM/TTS pipelines, and third-party
+providers. The contract covers capabilities, session plans, published tool
+references, DTMF, interruption, transcript/tool events, latency metrics, and
+evidence-safe projections. These are integration types; a deployment must still
+install and verify a concrete server-side provider adapter.
+
 The IVR client exposes revisioned flows, immutable publish/rollback versions,
 deterministic simulations, durable sessions, audio assets, time/region/ring groups,
 and tenant execution settings. Published flow dependencies are validated against
@@ -136,7 +145,7 @@ by any published version cannot be changed in place; create a new resource ID an
 publish a new flow version instead.
 
 The reference client includes a lazy-loaded IVR Designer at
-`?workspace=ivr&flow_id=<flow-id>`. It maps all 25 provider-neutral runtime node types
+`?workspace=ivr&flow_id=<flow-id>`. It maps all 26 provider-neutral runtime node types
 onto a React Flow canvas and uses only this typed IVR client for optimistic draft
 saves, server validation, idempotent publishing, immutable rollback, and deterministic
 simulation. Product applications may embed the workspace or build their own UI while

@@ -64,7 +64,27 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
   assert.match(readme, /createOutboundCall/);
   assert.match(readme, /extension_sessions/);
   assert.match(readme, /createIveKitVoiceController/);
+  assert.match(readme, /Realtime Voice AI/);
   assert.match(readme, /receive-only/);
+});
+
+test('iveKit SDK publishes the provider-neutral Realtime Voice AI contract', () => {
+  const source = readFileSync('sdk/ivekit/src/voice-types.ts', 'utf8');
+  for (const expected of [
+    'IveKitRealtimeVoiceAiProvider',
+    'active_call',
+    'livekit_agents',
+    'self_hosted',
+    'third_party',
+    'IveKitRealtimeVoiceAiCapabilities',
+    'IveKitStartRealtimeVoiceAiSessionInput',
+    'IveKitRealtimeVoiceAiSessionPlan',
+    'IveKitRealtimeVoiceAiSessionCommandInput',
+    'IveKitRealtimeVoiceAiDtmfInput',
+    'IveKitRealtimeVoiceAiProjectedEvent',
+    'IveKitRealtimeVoiceAiProjectionPolicy',
+    'transcript_persisted'
+  ]) assert.match(source, new RegExp(expected));
 });
 
 test('root build commands and production image include the iveKit SDK', () => {

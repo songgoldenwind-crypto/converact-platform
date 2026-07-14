@@ -1,5 +1,6 @@
 export * from './address-protector.js';
 export * from './adapters/controlled-provider.js';
+export * from './adapters/controlled-realtime-ai.js';
 export * from './adapters/livekit-sip.js';
 export * from './adapters/rustpbx-management.js';
 export * from './adapters/rustpbx-provider.js';
@@ -24,6 +25,8 @@ export * from './postgres/recording-store.js';
 export * from './postgres/unit-of-work.js';
 export * from './provider-event-service.js';
 export * from './provider-registry.js';
+export * from './realtime-ai.js';
+export * from './realtime-ai-events.js';
 export * from './secret-resolver.js';
 export * from './recording-service.js';
 export * from './runtime.js';

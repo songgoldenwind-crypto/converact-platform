@@ -100,7 +100,7 @@ flowchart TB
 
 因此，本文档作为第一版研发对接文档是可用的，但交给 LED 研发时建议把上表放在评审第一页讲，避免大家把“已有代码入口”理解成“生产级全链路已验收”。
 
-### 2.2 Voice Foundation V1 对接摘要（2026-07-13）
+### 2.2 Voice Foundation V1 对接摘要（2026-07-14）
 
 Voice 作为与 Media、IM、Remote 同级的共享模块，代码位于 `src/agent-runtime/ivekit/voice/`，不依赖 OPC Lead、CRM、Campaign、Stripe、WFM、旧 call-center concrete class、`db.ts` 或 SQLite runtime DDL。OPC 与 LED 都以 `tenant_id + business_ref` 作为业务绑定，只通过 `/api/ivekit/voice/*`、durable event 和后续 Voice SDK 接入。
 
@@ -112,6 +112,7 @@ Voice 作为与 Media、IM、Remote 同级的共享模块，代码位于 `src/ag
 4. RustPBX Management/AMI、Router webhook、events/CDR webhook 和 RWI v1；重复事件按 external event id/canonical hash 去重，乱序状态不能让终态回退。
 5. CDR 与 recording metadata 投影，PSTN call 到 `ivekit_media_calls`/LiveKit SIP participant 的 bridge orchestration。
 6. standalone migration `046`、`047`、`048`、`049`，FORCE RLS、fresh/upgrade、交付 checksum 和独立 source graph。
+7. Realtime Voice AI 已提供 Active Call、LiveKit Agents、自建 streaming pipeline 和第三方 Provider 共用的 port/registry/service、controlled adapter、安全事件投影及 SDK 类型；真实 Provider 网络 adapter、流式音频和产品 HTTP API 尚未实现，不计入真实环境通过。
 
 现有主要 HTTP 根路径是 `/api/ivekit/voice/profiles`、`trunks`、`dids`、`extensions`、`routes`、`calls`、`policy`、`consents`、`recordings`，Provider 回调为 `/api/ivekit/voice/providers/:profileId/router|events|cdrs`。DID/extension apply 分别是 `/dids/:id/apply` 和 `/extensions/:id/apply`；LiveKit bridge 创建是 `/calls/:id/livekit-bridge`。所有异步写操作必须使用 `Idempotency-Key`，tenant 只能来自认证上下文。
 

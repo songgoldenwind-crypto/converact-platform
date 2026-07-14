@@ -79,6 +79,116 @@ export type IveKitVoiceAdapter =
   | 'livekit_agents'
   | 'controlled';
 
+export type IveKitRealtimeVoiceAiProvider =
+  | 'active_call'
+  | 'livekit_agents'
+  | 'self_hosted'
+  | 'third_party';
+
+export type IveKitRealtimeVoiceAiCapability =
+  | 'vad'
+  | 'streaming_asr'
+  | 'streaming_tts'
+  | 'barge_in'
+  | 'dtmf'
+  | 'tool_calls'
+  | 'transcript_events'
+  | 'latency_metrics';
+
+export interface IveKitRealtimeVoiceAiProfile {
+  id: string;
+  tenant_id: string;
+  name: string;
+  provider: IveKitRealtimeVoiceAiProvider;
+  status: 'disabled' | 'enabled' | 'degraded' | 'archived';
+  endpoint: string;
+  provider_version: string;
+  config: Record<string, unknown>;
+  secret_refs: Record<string, string>;
+  revision: number;
+}
+
+export interface IveKitRealtimeVoiceAiToolRef {
+  tool_id: string;
+  version: number;
+  schema_hash: string;
+}
+
+export interface IveKitRealtimeVoiceAiCapabilities {
+  profile_id: string;
+  provider: IveKitRealtimeVoiceAiProvider;
+  provider_version: string;
+  capabilities: Readonly<Record<IveKitRealtimeVoiceAiCapability, boolean>>;
+  checked_at: string;
+}
+
+export interface IveKitStartRealtimeVoiceAiSessionInput {
+  tenant_id: string;
+  call_id: string;
+  profile_id: string;
+  language: string;
+  tools: ReadonlyArray<IveKitRealtimeVoiceAiToolRef>;
+  idempotency_key: string;
+}
+
+export interface IveKitRealtimeVoiceAiSessionPlan {
+  provider_session_id: string;
+  provider: IveKitRealtimeVoiceAiProvider;
+  provider_version: string;
+  capabilities: Readonly<Record<IveKitRealtimeVoiceAiCapability, boolean>>;
+}
+
+export interface IveKitRealtimeVoiceAiSessionCommandInput {
+  tenant_id: string;
+  call_id: string;
+  provider_session_id: string;
+  reason: string;
+  idempotency_key: string;
+}
+
+export interface IveKitRealtimeVoiceAiDtmfInput {
+  tenant_id: string;
+  call_id: string;
+  provider_session_id: string;
+  digits: string;
+  idempotency_key: string;
+}
+
+export type IveKitRealtimeVoiceAiEventType =
+  | 'session.started'
+  | 'session.ended'
+  | 'vad.started'
+  | 'vad.stopped'
+  | 'transcript.partial'
+  | 'transcript.final'
+  | 'tool.started'
+  | 'tool.completed'
+  | 'tool.failed'
+  | 'interrupted'
+  | 'latency.measured';
+
+export interface IveKitRealtimeVoiceAiProjectedEvent {
+  external_event_id: string;
+  type: IveKitRealtimeVoiceAiEventType;
+  provider_session_id: string;
+  occurred_at: string;
+  transcript_text: string;
+  transcript_persisted: boolean;
+  language: string;
+  tool_ref: string;
+  tool_call_id: string;
+  latency_ms: Record<string, number>;
+  evidence_ref: string;
+  safe_metadata: Record<string, unknown>;
+}
+
+export interface IveKitRealtimeVoiceAiProjectionPolicy {
+  persist_transcripts: boolean;
+  persist_partial_transcripts: boolean;
+  allowed_tool_refs: ReadonlyArray<string>;
+  max_transcript_chars: number;
+}
+
 export interface IveKitVoiceAddressProjection {
   kind: IveKitVoiceAddressKind;
   redacted: string;

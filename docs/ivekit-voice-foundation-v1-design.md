@@ -18,6 +18,7 @@
 | RustPBX Management/AMI、Router、RWI v1 adapter | 已实现协议边界 | 本仓库受控 provider 通过；真实 RustPBX 仍为 `not_run` |
 | PSTN 到 LiveKit SIP bridge orchestration | 已实现 | 注入受控 `SipClient`、超时后 participant lookup 对账且不重复创建通过；真实 LiveKit SIP/PSTN 为 `not_run` |
 | standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、三个编译入口、Compose merge、Helm/交付清单测试通过；真实容器和 RustPBX 数据面启动仍为 `not_run` |
+| Realtime Voice AI port | 稳定合同与受控 adapter 已实现 | Active Call、LiveKit Agents、自建 pipeline、第三方 Provider 共用 capability/session/DTMF/interrupt/end/event 合同；幂等、终态和安全投影专项通过，真实 Provider 网络 adapter、流式媒体和 HTTP 产品面未实现 |
 | IVR Runtime | 已实现 | 26 节点执行器（含原生 `survey`）、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收；`survey` 新增代码尚未重跑真实语音数据面 |
 | IVR Designer | 已实现 | `workspace=ivr&flow_id=...` 独立深链、26 节点组件库、React Flow 画布、节点/流程属性、导入导出、revision 保存、服务端校验、发布/回滚、版本历史和确定性模拟已接入 typed SDK；桌面/移动受控 Playwright 基线通过，新增 `survey` 的 E2E 门禁已更新 |
 | Voice SDK/headless WebPhone controller | 已实现 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖 durable 呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试；独立 `@opc/ivekit-sdk/sip-webphone` 子入口封装 SIP.js 媒体状态机 |
@@ -247,28 +248,25 @@ V1 定义稳定 port 和受控 adapter，允许以下实现：
 - 自建 streaming ASR + LLM + TTS pipeline。
 - 第三方实时语音 Provider。
 
-统一能力包括 VAD、streaming ASR、streaming TTS、打断、DTMF、tool call、延迟指标和 transcript event。具体模型和厂商继续由 deployment profile 决定。
+统一能力包括 VAD、streaming ASR、streaming TTS、打断、DTMF、tool call、延迟指标和 transcript event。具体模型和厂商继续由 deployment profile 决定。代码权威入口是 `voice/realtime-ai.ts`、`voice/realtime-ai-events.ts` 和 `voice/adapters/controlled-realtime-ai.ts`；SDK 在 `IveKitRealtimeVoiceAi*` 类型中公开同一传输合同。
 
 最小运行合同：
 
 ```typescript
 interface RealtimeVoiceAiPort {
-  capabilities(profileId: string): Promise<RealtimeVoiceAiCapabilities>;
-  startSession(input: {
-    tenantId: string;
-    callId: string;
-    profileId: string;
-    language: string;
-    tools: ReadonlyArray<PublishedToolRef>;
-    idempotencyKey: string;
-  }): Promise<{ providerSessionId: string }>;
-  sendDtmf(sessionId: string, digits: string): Promise<void>;
-  interrupt(sessionId: string, reason: string): Promise<void>;
-  endSession(sessionId: string, reason: string): Promise<void>;
+  preflight(): Promise<RealtimeVoiceAiCapabilities>;
+  startSession(input: StartRealtimeVoiceAiSessionInput): Promise<RealtimeVoiceAiSessionPlan>;
+  sendDtmf(input: RealtimeVoiceAiDtmfInput): Promise<void>;
+  interrupt(input: RealtimeVoiceAiSessionCommandInput): Promise<void>;
+  endSession(input: RealtimeVoiceAiSessionCommandInput): Promise<void>;
+  normalizeEvent(input: unknown): RealtimeVoiceAiNormalizedEvent;
+  close(): Promise<void>;
 }
 ```
 
-ASR/TTS/LLM 流量不经过普通 HTTP request 生命周期持久化；控制面只保存授权后的 transcript projection、tool call、延迟指标和 evidence ref。需要字幕翻译时，transcript event 调用现有 Intelligence Translation port，不在 Voice 中复制翻译引擎。未经策略允许不得默认保存原始音频或完整提示词。
+`RealtimeVoiceAiRegistry` 只接受四种显式 Provider family，不允许重复注册；`RealtimeVoiceAiService` 统一租户/profile、语言、tool ref、DTMF、reason 和幂等键校验。controlled adapter 可验证开始重放、冲突 payload、DTMF、打断、结束和终态拒绝。事件先由 adapter 规范化，再由 `projectRealtimeVoiceAiEvent` 按策略决定是否保留 final/partial transcript，并校验 tool allowlist；raw audio、prompt、tool arguments 和其他内容字段不会进入 safe metadata。
+
+ASR/TTS/LLM 流量不经过普通 HTTP request 生命周期持久化；控制面只保存授权后的 transcript projection、tool ref、延迟指标和 evidence ref。需要字幕翻译时，transcript event 调用现有 Intelligence Translation port，不在 Voice 中复制翻译引擎。未经策略允许不得默认保存原始音频或完整提示词。当前没有声称 Active Call、LiveKit Agents、自建 pipeline 或第三方 Provider 的真实网络 adapter 已完成；它们必须实现上述 port，并通过相同 capability/幂等/事件安全测试后才能启用。
 
 ## 7. 建议代码布局
 
