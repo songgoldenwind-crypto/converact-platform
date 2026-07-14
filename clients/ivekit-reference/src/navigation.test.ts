@@ -12,12 +12,15 @@ test('iveKit navigation parses complete resource deep links and call fallback', 
     sessionId: 'chat-1',
     callId: 'call-1',
     voiceCallId: 'voice-1',
-    remoteSessionId: 'remote-1'
+    remoteSessionId: 'remote-1',
+    flowId: ''
   });
   assert.equal(readIveKitLocation('https://led.example/support?call_id=call-2').workspace, 'calls');
   assert.equal(readIveKitLocation('https://led.example/support?voice_call_id=voice-2').workspace, 'voice');
   assert.equal(readIveKitLocation('https://led.example/support?workspace=quality').workspace, 'quality');
   assert.equal(readIveKitLocation('https://led.example/support?workspace=operations').workspace, 'operations');
+  assert.equal(readIveKitLocation('https://led.example/support?workspace=ivr&flow_id=flow-1').workspace, 'ivr');
+  assert.equal(readIveKitLocation('https://led.example/support?workspace=ivr&flow_id=flow-1').flowId, 'flow-1');
   assert.equal(readIveKitLocation('https://led.example/support?workspace=unknown').workspace, 'messages');
 });
 
@@ -28,7 +31,8 @@ test('iveKit navigation updates only patched fields and removes empty resources'
     businessRef: { type: 'service_order', id: 'SO-2' },
     sessionId: '',
     voiceCallId: 'voice-2',
-    remoteSessionId: 'remote-2'
+    remoteSessionId: 'remote-2',
+    flowId: 'flow-2'
   });
   assert.equal(next.searchParams.get('host'), 'embedded');
   assert.equal(next.searchParams.get('workspace'), 'remote');
@@ -38,6 +42,7 @@ test('iveKit navigation updates only patched fields and removes empty resources'
   assert.equal(next.searchParams.get('call_id'), 'call-1');
   assert.equal(next.searchParams.get('voice_call_id'), 'voice-2');
   assert.equal(next.searchParams.get('remote_session_id'), 'remote-2');
+  assert.equal(next.searchParams.get('flow_id'), 'flow-2');
 });
 
 test('iveKit navigation rejects incomplete business references', () => {
@@ -59,7 +64,8 @@ test('session navigation clears resource ids only when the business context chan
     sessionId: 'chat-2',
     callId: '',
     voiceCallId: '',
-    remoteSessionId: ''
+    remoteSessionId: '',
+    flowId: ''
   });
   assert.deepEqual(sessionLocationPatch(
     { type: 'service_order', id: 'SO-1' },

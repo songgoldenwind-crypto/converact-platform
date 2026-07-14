@@ -1,5 +1,5 @@
 import { createIveKitClient, type IveKitChatMessage, type IveKitChatSession } from '@opc/ivekit-sdk';
-import { BriefcaseBusiness, CircleStop, Headset, List, MessageSquare, MonitorCog, Phone, RefreshCw, ScanSearch, ShieldCheck } from 'lucide-react';
+import { BriefcaseBusiness, CircleStop, Headset, List, MessageSquare, MonitorCog, Phone, RefreshCw, ScanSearch, ShieldCheck, Workflow } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { MessageComposer } from './chat/message-composer.js';
@@ -25,7 +25,7 @@ import {
   requestIdentity,
   type IveKitRuntimeConfig
 } from './runtime-config.js';
-import { EventReplayController, eventWorkspace } from './realtime/event-replay.js';
+import { EventReplayController, eventWorkspace, type EventWorkspace } from './realtime/event-replay.js';
 
 const MediaWorkspace = lazy(async () => {
   const module = await import('./media/media-workspace.js');
@@ -52,6 +52,15 @@ const QueueMonitorWorkspace = lazy(async () => {
   return { default: module.QueueMonitorWorkspace };
 });
 
+const IvrDesignerWorkspace = lazy(async () => {
+  const processLike = (globalThis as {
+    process?: { versions?: { node?: string } };
+  }).process;
+  if (!processLike?.versions?.node) await import('@xyflow/react/dist/style.css');
+  const module = await import('./ivr/ivr-designer-browser.js');
+  return { default: module.IvrDesignerWorkspace };
+});
+
 export function App() {
   const initialLocation = useRef(currentIveKitLocation()).current;
   const [config, setConfig] = useState<IveKitRuntimeConfig | null>(null);
@@ -71,6 +80,7 @@ export function App() {
   const [mediaCallId, setMediaCallId] = useState(initialLocation.callId);
   const [voiceCallId, setVoiceCallId] = useState(initialLocation.voiceCallId);
   const [remoteSessionId, setRemoteSessionId] = useState(initialLocation.remoteSessionId);
+  const [flowId, setFlowId] = useState(initialLocation.flowId);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(initialLocation.workspace);
   const [businessRef, setBusinessRef] = useState<BusinessRefSelection | null>(initialLocation.businessRef);
   const [authorizationOpen, setAuthorizationOpen] = useState(false);
@@ -78,6 +88,7 @@ export function App() {
   const [mediaReplayVersion, setMediaReplayVersion] = useState(0);
   const [voiceReplayVersion, setVoiceReplayVersion] = useState(0);
   const [remoteReplayVersion, setRemoteReplayVersion] = useState(0);
+  const [ivrReplayVersion, setIvrReplayVersion] = useState(0);
   const sessionRequest = useRef(0);
   const sessionCursor = useRef<string | null>(null);
   const seededContext = useRef('');
@@ -164,6 +175,7 @@ export function App() {
       setMediaCallId(next.callId);
       setVoiceCallId(next.voiceCallId);
       setRemoteSessionId(next.remoteSessionId);
+      setFlowId(next.flowId);
       setMobileView(next.sessionId ? 'chat' : 'sessions');
       seededContext.current = '';
     };
@@ -187,6 +199,7 @@ export function App() {
       setMediaCallId('');
       setVoiceCallId('');
       setRemoteSessionId('');
+      setFlowId('');
       seededContext.current = '';
     }
     navigateIveKitLocation(locationPatch);
@@ -213,8 +226,8 @@ export function App() {
   useEffect(() => {
     if (!client) return;
     let refreshTimer: number | null = null;
-    const pending = new Set<'chat' | 'media' | 'voice' | 'remote' | 'context'>();
-    const refresh = async (workspace: 'chat' | 'media' | 'voice' | 'remote' | 'context') => {
+    const pending = new Set<EventWorkspace>();
+    const refresh = async (workspace: EventWorkspace) => {
       if (workspace === 'chat') {
         setChatReplayVersion((value) => value + 1);
         await refreshSessions(false);
@@ -226,6 +239,8 @@ export function App() {
       } else if (workspace === 'remote') {
         setRemoteReplayVersion((value) => value + 1);
         await businessContext.refresh();
+      } else if (workspace === 'ivr') {
+        setIvrReplayVersion((value) => value + 1);
       } else {
         await businessContext.refresh();
       }
@@ -236,7 +251,7 @@ export function App() {
       pending.clear();
       void Promise.all(workspaces.map(refresh)).catch(() => undefined);
     };
-    const schedule = (workspace: 'chat' | 'media' | 'voice' | 'remote' | 'context') => {
+    const schedule = (workspace: EventWorkspace) => {
       pending.add(workspace);
       if (refreshTimer === null) refreshTimer = window.setTimeout(flush, 50);
     };
@@ -247,7 +262,8 @@ export function App() {
         chat: () => refresh('chat'),
         media: () => refresh('media'),
         voice: () => refresh('voice'),
-        remote: () => refresh('remote')
+        remote: () => refresh('remote'),
+        ivr: () => refresh('ivr')
       }
     });
     const resume = () => { void controller.resume().catch(() => undefined); };
@@ -332,7 +348,7 @@ export function App() {
   }, [businessRef?.id, businessRef?.type, client]);
 
   return (
-    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'voice' ? 'workspace-voice' : workspaceMode === 'remote' ? 'workspace-remote' : workspaceMode === 'quality' ? 'workspace-quality' : workspaceMode === 'operations' ? 'workspace-operations' : ''}`} data-mobile-view={mobileView}>
+    <main className={`workspace ${workspaceMode === 'calls' ? 'workspace-media' : workspaceMode === 'voice' ? 'workspace-voice' : workspaceMode === 'remote' ? 'workspace-remote' : workspaceMode === 'quality' ? 'workspace-quality' : workspaceMode === 'operations' ? 'workspace-operations' : workspaceMode === 'ivr' ? 'workspace-ivr' : ''}`} data-mobile-view={mobileView}>
       <header className="topbar">
         <div className="brand"><MessageSquare size={18} /> <strong>iveKit</strong></div>
         {businessRef && <div className="business-context" title={`${businessRef.type}: ${businessRef.id}`}>
@@ -349,6 +365,7 @@ export function App() {
           <button title="Show remote workspace" aria-pressed={workspaceMode === 'remote'} onClick={() => selectWorkspace('remote')}><MonitorCog size={16} /><span>Remote</span></button>
           <button title="Show quality workspace" aria-pressed={workspaceMode === 'quality'} onClick={() => selectWorkspace('quality')}><ScanSearch size={16} /><span>Quality</span></button>
           <button title="Show operations workspace" aria-pressed={workspaceMode === 'operations'} onClick={() => selectWorkspace('operations')}><List size={16} /><span>Operations</span></button>
+          <button title="Show IVR Designer" aria-pressed={workspaceMode === 'ivr'} onClick={() => selectWorkspace('ivr')}><Workflow size={16} /><span>IVR</span></button>
         </div>
         {workspaceMode === 'messages' && <div className="mobile-tabs" role="group" aria-label="Mobile workspace">
           <button title="Show sessions" aria-pressed={mobileView === 'sessions'} onClick={() => setMobileView('sessions')}><List size={17} /></button>
@@ -431,7 +448,9 @@ export function App() {
             ? <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel key={`remote-replay-${remoteReplayVersion}`} client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>
             : workspaceMode === 'quality'
               ? client && <Suspense fallback={<div className="media-workspace-loading">Loading quality workspace</div>}><QualityWorkspace client={client} selectedSessionId={selectedId} refreshVersion={chatReplayVersion} /></Suspense>
-              : <Suspense fallback={<div className="media-workspace-loading">Loading operations workspace</div>}><QueueMonitorWorkspace client={client} /></Suspense>}
+              : workspaceMode === 'operations'
+                ? <Suspense fallback={<div className="media-workspace-loading">Loading operations workspace</div>}><QueueMonitorWorkspace client={client} /></Suspense>
+                : <Suspense fallback={<div className="media-workspace-loading">Loading IVR Designer</div>}><IvrDesignerWorkspace client={client} flowId={flowId} refreshVersion={ivrReplayVersion} onFlowIdChange={(value) => { setFlowId(value); navigateIveKitLocation({ flowId: value }); }} /></Suspense>}
       {visibleError && <div className="error-toast" role="alert">{visibleError}<button title="Dismiss error" onClick={dismissError}>×</button></div>}
     </main>
   );

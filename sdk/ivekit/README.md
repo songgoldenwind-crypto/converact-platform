@@ -135,6 +135,13 @@ active resources and provider capabilities. Runtime fields of a resource referen
 by any published version cannot be changed in place; create a new resource ID and
 publish a new flow version instead.
 
+The reference client includes a lazy-loaded IVR Designer at
+`?workspace=ivr&flow_id=<flow-id>`. It maps all 25 provider-neutral runtime node types
+onto a React Flow canvas and uses only this typed IVR client for optimistic draft
+saves, server validation, idempotent publishing, immutable rollback, and deterministic
+simulation. Product applications may embed the workspace or build their own UI while
+keeping the same `IveKitIvrFlowGraph` and HTTP contracts.
+
 The Contact Center client covers Agent, Skill, Presence, Queue, Membership and
 skill-requirement configuration; queue-entry and assignment lifecycles; encrypted
 callback requests; supervisor control requests; and the tenant monitor projection.

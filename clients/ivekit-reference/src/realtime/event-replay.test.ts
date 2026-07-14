@@ -113,6 +113,7 @@ test('durable event types route to the matching workspace', () => {
   assert.equal(eventWorkspace('remote.rustdesk.session.ended'), 'remote');
   assert.equal(eventWorkspace('voice.call.state_changed'), 'voice');
   assert.equal(eventWorkspace('ivr.session.completed'), 'voice');
+  assert.equal(eventWorkspace('ivr.flow.published'), 'ivr');
   assert.equal(eventWorkspace('tenant.settings.updated'), 'context');
 });
 

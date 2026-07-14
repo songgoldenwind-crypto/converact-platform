@@ -18,6 +18,7 @@ export interface EventReplayControllerOptions {
     media(): void | Promise<void>;
     remote(): void | Promise<void>;
     voice?(): void | Promise<void>;
+    ivr?(): void | Promise<void>;
   };
   onStatus?(status: EventReplayStatus, error?: unknown): void;
 }
@@ -87,7 +88,8 @@ export class EventReplayController {
           this.options.snapshots.chat(),
           this.options.snapshots.media(),
           this.options.snapshots.remote(),
-          this.options.snapshots.voice?.()
+          this.options.snapshots.voice?.(),
+          this.options.snapshots.ivr?.()
         ]);
         if (this.stopped) return;
         this.cursor = await this.options.events.getHeadCursor();
@@ -124,11 +126,14 @@ export class EventReplayController {
   }
 }
 
-export function eventWorkspace(type: string): 'chat' | 'media' | 'voice' | 'remote' | 'context' {
+export type EventWorkspace = 'chat' | 'media' | 'voice' | 'remote' | 'ivr' | 'context';
+
+export function eventWorkspace(type: string): EventWorkspace {
   if (type.startsWith('collaboration.')) return 'chat';
   if (type.startsWith('media.') || type.startsWith('livekit.')) return 'media';
   if (type.startsWith('remote.') || type.startsWith('rustdesk.')) return 'remote';
-  if (type.startsWith('voice.') || type.startsWith('ivr.')) return 'voice';
+  if (type.startsWith('voice.') || type.startsWith('ivr.session.') || type.startsWith('ivr.pending_action.')) return 'voice';
+  if (type.startsWith('ivr.')) return 'ivr';
   return 'context';
 }
 

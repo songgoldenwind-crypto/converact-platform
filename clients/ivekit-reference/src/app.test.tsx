@@ -204,6 +204,50 @@ test('operations deep link opens the tenant Queue Monitor without loading chat',
   assert.equal(chatRequests, 0);
 });
 
+test('IVR deep link loads the selected flow without loading chat', async () => {
+  window.history.replaceState({}, '', '/?workspace=ivr&flow_id=flow-a');
+  window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';
+  window.__IVEKIT_DEV_IDENTITY__ = 'ivr-designer';
+  let chatRequests = 0;
+  const graph = {
+    version: 1,
+    entryNodeId: 'start',
+    variables: [],
+    nodes: [
+      { id: 'start', type: 'start', name: 'Start', position: { x: 40, y: 80 }, data: {} },
+      { id: 'end', type: 'disconnect', name: 'End', position: { x: 340, y: 80 }, data: {} }
+    ],
+    edges: [{ id: 'edge-1', source: 'start', target: 'end', sourceHandle: 'out' }]
+  };
+  const flow = {
+    id: 'flow-a', tenant_id: 'tenant-1', name: 'LED inbound support', status: 'draft',
+    draft_graph: graph, draft_revision: 3, current_published_version: 2, metadata: {},
+    created_by: 'ivr-designer', updated_by: 'ivr-designer',
+    created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T01:00:00.000Z'
+  };
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === '/ivekit-config.json') {
+      return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    }
+    if (url.endsWith('/api/ivekit/ivr/flows')) return Response.json({ items: [flow] });
+    if (url.endsWith('/api/ivekit/ivr/flows/flow-a')) return Response.json(flow);
+    if (url.includes('/api/ivekit/chat/sessions')) {
+      chatRequests += 1;
+      return Response.json({ items: [], next_cursor: null, has_more: false });
+    }
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+
+  const view = render(<App />);
+  await waitFor(() => assert.equal((view.getByLabelText('Flow name') as HTMLInputElement).value, 'LED inbound support'));
+  assert.equal(view.getByTitle('Show IVR Designer').getAttribute('aria-pressed'), 'true');
+  assert.equal(view.container.querySelectorAll('.ivr-palette button').length, 25);
+  assert.equal(new URL(window.location.href).searchParams.get('flow_id'), 'flow-a');
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(chatRequests, 0);
+});
+
 test('business reference deep link drives context, chat filtering, and remote defaults', async () => {
   window.history.replaceState({}, '', '/?business_ref_type=service_order&business_ref_id=SO-200');
   window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';

@@ -21,6 +21,7 @@
     "test:e2e:ivekit-im": "npm --prefix clients/ivekit-reference run test:e2e -- e2e/chat.spec.ts",
     "test:e2e:ivekit-media": "npm --prefix clients/ivekit-reference run test:e2e -- e2e/media.spec.ts",
     "test:e2e:ivekit-voice": "npm --prefix clients/ivekit-reference run test:e2e -- e2e/voice.spec.ts",
+    "test:e2e:ivekit-ivr": "npm --prefix clients/ivekit-reference run test:e2e -- e2e/ivr.spec.ts",
     "test:e2e:ivekit-rustdesk": "npm --prefix clients/ivekit-reference run test:e2e -- e2e/rustdesk.spec.ts",
     "ivekit:im-client-acceptance": "tsx scripts/ivekit-im-client-acceptance.ts",
     "verify:ivekit:im-client": "npm --prefix clients/ivekit-reference test && npm --prefix clients/ivekit-reference run build && node --import tsx --test test/ivekit-im-client-acceptance.test.ts",

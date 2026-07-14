@@ -19,5 +19,23 @@ export function installTestDom() {
     URL: dom.window.URL,
     IS_REACT_ACT_ENVIRONMENT: true
   })) Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
+  class Observer {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  const request = (callback: FrameRequestCallback) => dom.window.setTimeout(() => callback(Date.now()), 0);
+  const cancel = (handle: number) => dom.window.clearTimeout(handle);
+  Object.defineProperty(globalThis, 'ResizeObserver', { configurable: true, writable: true, value: Observer });
+  Object.defineProperty(dom.window, 'ResizeObserver', { configurable: true, writable: true, value: Observer });
+  Object.defineProperty(dom.window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+  });
+  Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, writable: true, value: request });
+  Object.defineProperty(globalThis, 'cancelAnimationFrame', { configurable: true, writable: true, value: cancel });
+  Object.defineProperty(dom.window, 'requestAnimationFrame', { configurable: true, writable: true, value: request });
+  Object.defineProperty(dom.window, 'cancelAnimationFrame', { configurable: true, writable: true, value: cancel });
   return () => dom.window.close();
 }

@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@opc/ivekit-sdk": "file:../../sdk/ivekit",
+    "@xyflow/react": "^12.11.1",
     "livekit-client": "^2.19.2",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
