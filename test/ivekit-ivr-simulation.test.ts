@@ -59,6 +59,37 @@ test('IVR simulator pauses without inventing provider input and reports unused s
   assert.equal(terminal.remaining_script_entries, 0);
 });
 
+test('IVR simulator records a survey score through the durable provider exchange path', async () => {
+  const version = flowVersion();
+  version.graph.nodes[2] = {
+    id: 'survey', type: 'survey', name: 'CSAT', position: { x: 2, y: 0 },
+    data: { variable: 'csat', min_score: 1, max_score: 5 }
+  };
+  version.graph.edges = [
+    { id: 'e1', source: 'start', target: 'play', sourceHandle: 'out' },
+    { id: 'e2', source: 'play', target: 'survey', sourceHandle: 'out' },
+    { id: 'e3', source: 'play', target: 'end', sourceHandle: 'error' },
+    { id: 'e4', source: 'survey', target: 'end', sourceHandle: 'submitted' },
+    { id: 'e5', source: 'survey', target: 'end', sourceHandle: 'invalid' },
+    { id: 'e6', source: 'survey', target: 'end', sourceHandle: 'timeout' }
+  ];
+  const result = await new IvrSimulationService({
+    flows: new SimulationFlowRepository(version)
+  }).simulate({
+    tenant_id: 'tenant-a', flow_id: 'flow-a', script: [
+      { expected_action_kind: 'play', event: { type: 'action_succeeded', result: {} } },
+      { expected_action_kind: 'collect', expected_node_id: 'survey', event: { type: 'dtmf', digit: '5' } },
+      { expected_action_kind: 'hangup', event: { type: 'action_succeeded', result: {} } }
+    ]
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal((result.session.context.variables as Record<string, unknown>).csat, 5);
+  const step = result.steps.find((item) => item.node_id === 'survey');
+  assert.equal(step?.branch_taken, 'submitted');
+  assert.equal(step?.action.payload.mode, 'survey');
+});
+
 test('IVR simulator fails closed on script mismatches and input limits', async () => {
   const simulator = new IvrSimulationService({ flows: new SimulationFlowRepository(flowVersion()) });
   await assert.rejects(() => simulator.simulate({

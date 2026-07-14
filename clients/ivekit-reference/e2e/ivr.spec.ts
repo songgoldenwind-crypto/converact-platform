@@ -13,7 +13,7 @@ test('desktop IVR Designer lazy-loads and completes the draft-to-simulation work
 
     await expect(designer.page.getByRole('region', { name: 'IVR Designer' })).toBeVisible();
     await expect(designer.page.getByLabel('Flow name')).toHaveValue('LED inbound support');
-    await expect(designer.page.locator('.ivr-palette button')).toHaveCount(25);
+    await expect(designer.page.locator('.ivr-palette button')).toHaveCount(26);
     expect((await loadedDesignerResources(designer.page)).length).toBeGreaterThan(0);
 
     await designer.page.getByLabel('Flow name').fill('LED inbound support v2');
@@ -71,7 +71,7 @@ test('mobile IVR Designer keeps every workspace inside the viewport', async ({ b
   const designer = await openDesigner(browser, { width: 390, height: 844 }, true);
   try {
     await expect(designer.page.getByRole('region', { name: 'IVR Designer' })).toBeVisible();
-    await expect(designer.page.locator('.ivr-palette button')).toHaveCount(25);
+    await expect(designer.page.locator('.ivr-palette button')).toHaveCount(26);
     await expect(designer.page.getByLabel('Flow name')).toHaveValue('LED inbound support');
     const layout = await designer.page.evaluate(() => {
       const read = (selector: string) => {

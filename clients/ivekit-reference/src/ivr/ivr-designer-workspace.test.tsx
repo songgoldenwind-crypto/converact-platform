@@ -30,7 +30,7 @@ test('IVR Designer loads, edits, saves, validates, and publishes through the typ
   />);
 
   await waitFor(() => assert.equal((view.getByLabelText('Flow name') as HTMLInputElement).value, 'Support flow'));
-  assert.equal(view.container.querySelectorAll('.ivr-palette button').length, 25);
+  assert.equal(view.container.querySelectorAll('.ivr-palette button').length, 26);
   fireEvent.change(view.getByLabelText('Flow name'), { target: { value: 'Support flow v2' } });
   fireEvent.click(view.getByRole('button', { name: 'Add Play audio' }));
   assert.ok(view.getByRole('heading', { name: 'Play audio' }));

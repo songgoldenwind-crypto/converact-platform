@@ -1,6 +1,13 @@
+export type IveKitIvrNodeType =
+  | 'start' | 'play' | 'menu' | 'collect' | 'survey' | 'set_var'
+  | 'condition' | 'time_condition' | 'queue' | 'http'
+  | 'transfer' | 'voicemail' | 'sip' | 'disconnect' | 'flush_audio'
+  | 'ai_dialogue' | 'intent' | 'knowledge_qa' | 'avatar_switch' | 'compliance'
+  | 'video_play' | 'screen_share' | 'visual_menu' | 'subflow' | 'recording' | 'webhook';
+
 export interface IveKitIvrFlowGraph {
   version: number; entryNodeId: string;
-  nodes: Array<{ id: string; type: string; name: string; position: { x: number; y: number }; data: Record<string, unknown> }>;
+  nodes: Array<{ id: string; type: IveKitIvrNodeType; name: string; position: { x: number; y: number }; data: Record<string, unknown> }>;
   edges: Array<{ id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string }>;
   variables: Array<{ name: string; defaultValue?: unknown }>;
   [key: string]: unknown;

@@ -77,6 +77,7 @@ function collectCapabilities(type: IvrNodeType, manifest: IvrDependencyManifest)
     play: 'play',
     menu: 'collect',
     collect: 'collect',
+    survey: 'collect',
     flush_audio: 'flush_audio',
     transfer: 'transfer',
     sip: 'sip_transfer',

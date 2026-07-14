@@ -54,6 +54,7 @@ export function compileIvrGraph(
 
   validateEnvelope(graph, limits, errors);
   const uniqueNodes = validateNodes(graph, errors);
+  validateNodeConfiguration(uniqueNodes, errors);
   const reachable = reachableNodes(graph, uniqueNodes);
   validateEdges(graph, uniqueNodes, reachable, errors);
   validateVariables(graph, errors);
@@ -121,6 +122,29 @@ function validateNodes(graph: IvrFlowGraph, errors: IvrValidationIssue[]): Map<s
     errors.push(issue('entry_node_not_start', 'entry node must be the start node', graph.entryNodeId));
   }
   return nodes;
+}
+
+function validateNodeConfiguration(
+  nodes: ReadonlyMap<string, IvrNodeBase>,
+  errors: IvrValidationIssue[]
+): void {
+  for (const node of nodes.values()) {
+    if (node.type !== 'survey') continue;
+    const min = node.data.min_score ?? node.data.minScore ?? 1;
+    const max = node.data.max_score ?? node.data.maxScore ?? 5;
+    if (!Number.isInteger(min) || !Number.isInteger(max)
+      || Number(min) < 0 || Number(max) > 9 || Number(min) > Number(max)) {
+      errors.push(issue(
+        'invalid_survey_score_range',
+        'survey score range must be ordered integers between 0 and 9',
+        node.id
+      ));
+    }
+    const variable = node.data.variable ?? 'survey_score';
+    if (typeof variable !== 'string' || !IDENTIFIER.test(variable)) {
+      errors.push(issue('invalid_survey_variable', 'survey variable is invalid', node.id));
+    }
+  }
 }
 
 function validateEdges(

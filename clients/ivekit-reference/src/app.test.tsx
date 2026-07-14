@@ -242,7 +242,7 @@ test('IVR deep link loads the selected flow without loading chat', async () => {
   const view = render(<App />);
   await waitFor(() => assert.equal((view.getByLabelText('Flow name') as HTMLInputElement).value, 'LED inbound support'));
   assert.equal(view.getByTitle('Show IVR Designer').getAttribute('aria-pressed'), 'true');
-  assert.equal(view.container.querySelectorAll('.ivr-palette button').length, 25);
+  assert.equal(view.container.querySelectorAll('.ivr-palette button').length, 26);
   assert.equal(new URL(window.location.href).searchParams.get('flow_id'), 'flow-a');
   await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(chatRequests, 0);

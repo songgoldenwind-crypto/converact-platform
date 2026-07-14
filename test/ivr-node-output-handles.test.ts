@@ -24,6 +24,11 @@ test('webhook includes timeout handle', () => {
   assert.deepEqual(handles.sort(), ['fail', 'success', 'timeout'].sort());
 });
 
+test('survey exposes submitted invalid and timeout handles', () => {
+  const handles = getNodeOutputHandles({ type: 'survey', data: {} });
+  assert.deepEqual(handles, ['submitted', 'invalid', 'timeout']);
+});
+
 test('compliance recording_consent dynamic handles', () => {
   const handles = getNodeOutputHandles({
     type: 'compliance',

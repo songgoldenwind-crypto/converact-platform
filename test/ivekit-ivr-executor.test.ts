@@ -41,6 +41,7 @@ test('IVR executor plans every provider-neutral action family', () => {
     ['play', { text: 'Welcome' }, 'play'],
     ['menu', { prompt: 'Press one' }, 'collect'],
     ['collect', { variable: 'account' }, 'collect'],
+    ['survey', { prompt: 'Rate from one to five' }, 'collect'],
     ['flush_audio', {}, 'flush'],
     ['queue', { queue_id: 'support' }, 'queue'],
     ['http', { webhook_ref: 'crm' }, 'webhook'],
@@ -88,6 +89,20 @@ test('IVR executor routes interaction events with exact handles and updates vari
     node_id: 'node', context: emptyContext(), event: { type: 'dtmf', digit: '1' }
   });
   assert.equal(invalid.branch, 'invalid');
+
+  const survey = executeIvrNode({
+    graph: single('survey', { variable: 'csat', min_score: 1, max_score: 5 }, ['submitted', 'timeout', 'invalid']),
+    node_id: 'node', context: emptyContext(), event: { type: 'dtmf', digit: '5' }
+  });
+  assert.equal(survey.branch, 'submitted');
+  assert.equal(survey.context.variables.csat, 5);
+
+  const invalidSurvey = executeIvrNode({
+    graph: single('survey', { variable: 'csat', min_score: 1, max_score: 5 }, ['submitted', 'timeout', 'invalid']),
+    node_id: 'node', context: emptyContext(), event: { type: 'selection', value: '0' }
+  });
+  assert.equal(invalidSurvey.branch, 'invalid');
+  assert.equal(invalidSurvey.context.variables.csat, undefined);
 
   const visual = executeIvrNode({
     graph: single('visual_menu', { items: [{ digit: '2' }] }, ['digit_2', 'timeout', 'invalid']),
@@ -165,6 +180,7 @@ function branches(type: IvrNodeType): string[] {
   const values: Partial<Record<IvrNodeType, string[]>> = {
     play: ['out', 'error'], menu: ['timeout', 'invalid', 'max_retries'],
     collect: ['out', 'timeout', 'invalid'], flush_audio: ['out', 'error'],
+    survey: ['submitted', 'timeout', 'invalid'],
     queue: ['out', 'timeout', 'at_capacity', 'error'], http: ['success', 'fail', 'timeout'],
     webhook: ['success', 'fail', 'timeout'], recording: ['out', 'skipped', 'error'],
     knowledge_qa: ['found', 'not_found', 'error'], ai_dialogue: ['out', 'timeout', 'error'],

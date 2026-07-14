@@ -11,15 +11,15 @@ import {
   toIvrFlowGraph
 } from './ivr-designer-model.js';
 
-test('IVR designer declares all 25 runtime node types exactly once', () => {
-  assert.equal(IVR_NODE_DEFINITIONS.length, 25);
-  assert.equal(new Set(IVR_NODE_DEFINITIONS.map((item) => item.type)).size, 25);
+test('IVR designer declares all 26 runtime node types exactly once', () => {
+  assert.equal(IVR_NODE_DEFINITIONS.length, 26);
+  assert.equal(new Set(IVR_NODE_DEFINITIONS.map((item) => item.type)).size, 26);
   assert.deepEqual(
     IVR_NODE_DEFINITIONS.map((item) => item.type).sort(),
     [
       'ai_dialogue', 'avatar_switch', 'collect', 'compliance', 'condition', 'disconnect',
       'flush_audio', 'http', 'intent', 'knowledge_qa', 'menu', 'play', 'queue', 'recording',
-      'screen_share', 'set_var', 'sip', 'start', 'subflow', 'time_condition', 'transfer',
+      'screen_share', 'set_var', 'sip', 'start', 'subflow', 'survey', 'time_condition', 'transfer',
       'video_play', 'visual_menu', 'voicemail', 'webhook'
     ]
   );
@@ -54,6 +54,7 @@ test('IVR designer exposes optional success and failure branches used by the run
   assert.deepEqual(ivrNodeOutputHandles(createIvrNode('sip', { x: 0, y: 0 })), ['out', 'failed']);
   assert.deepEqual(ivrNodeOutputHandles(createIvrNode('voicemail', { x: 0, y: 0 })), ['out', 'failed']);
   assert.deepEqual(ivrNodeOutputHandles(createIvrNode('recording', { x: 0, y: 0 })), ['out', 'skipped', 'error']);
+  assert.deepEqual(ivrNodeOutputHandles(createIvrNode('survey', { x: 0, y: 0 })), ['submitted', 'invalid', 'timeout']);
 });
 
 test('IVR designer import validates the provider-neutral graph envelope', () => {

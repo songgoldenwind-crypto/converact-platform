@@ -102,6 +102,7 @@ function reduceNode(
     case 'play': return waiting(context, action('play', node));
     case 'menu': return waiting(context, action('collect', node, { mode: 'menu' }));
     case 'collect': return waiting(context, action('collect', node, { mode: 'digits' }));
+    case 'survey': return waiting(context, action('collect', node, { mode: 'survey' }));
     case 'flush_audio': return waiting(context, action('flush', node));
     case 'queue': return waiting(context, action('queue', node));
     case 'http': return waiting(context, action('webhook', node, { operation: 'http' }));
@@ -154,6 +155,7 @@ function reduceInteraction(
     context.variables[variable] = value;
     return route(graph, node, context, 'out');
   }
+  if (node.type === 'survey') return reduceSurvey(graph, node, context, value);
   if (node.type === 'compliance') {
     const acknowledged = String(node.data.acknowledge_digit ?? '1');
     const declined = String(node.data.decline_digit ?? '2');
@@ -195,6 +197,8 @@ function reduceActionSuccess(
     }
     case 'queue':
       return route(graph, node, context, result.status === 'at_capacity' ? 'at_capacity' : 'out');
+    case 'survey':
+      return reduceSurvey(graph, node, context, result.score ?? result.value ?? result.digit);
     case 'knowledge_qa': {
       if (typeof result.answer === 'string') context.variables.knowledge_answer = result.answer.slice(0, 8_192);
       const found = Boolean(result.answer) && Number(result.confidence ?? 0) >= Number(node.data.min_confidence ?? 0);
@@ -229,6 +233,23 @@ function routeKeywordIntent(graph: IvrFlowGraph, node: IvrNodeBase, context: Ivr
   const source = String(context.variables[node.data.variable as string] ?? context.variables.transcript ?? '').toLowerCase();
   const keywords = Array.isArray(node.data.keywords) ? node.data.keywords.map(String) : [];
   return route(graph, node, context, keywords.some((keyword) => source.includes(keyword.toLowerCase())) ? 'high' : 'continue');
+}
+
+function reduceSurvey(
+  graph: IvrFlowGraph,
+  node: IvrNodeBase,
+  context: IvrExecutionContext,
+  value: unknown
+): IvrExecutionOutcome {
+  const text = String(value ?? '').trim();
+  const min = boundedInteger(node.data.min_score ?? node.data.minScore, 1, 0, 9);
+  const max = boundedInteger(node.data.max_score ?? node.data.maxScore, 5, min, 9);
+  if (!/^\d$/.test(text)) return route(graph, node, context, 'invalid');
+  const score = Number(text);
+  if (score < min || score > max) return route(graph, node, context, 'invalid');
+  const variable = boundedVariableName(node.data.variable ?? 'survey_score');
+  context.variables[variable] = score;
+  return route(graph, node, context, 'submitted');
 }
 
 function routeFailure(

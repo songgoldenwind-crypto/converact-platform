@@ -1,14 +1,14 @@
 # iveKit Voice Foundation V1 详细设计
 
 > 状态：M2 Voice Core、M3 IVR Runtime、Voice/IVR/Contact Center SDK、headless controller、React Voice 控制工作台和 IVR Designer 代码完成，M4 Contact Center 已完成领域模型、PostgreSQL schema/store、配置服务/API、原子排队分配、队列条目与分配历史查询、加密 callback 请求/重试/Voice 外呼/状态对账、队列超时/Offer 回收/自动派单 worker、满队列与超时 durable overflow、Queue Monitor 后端投影与参考客户端 UI、IVR queue adapter，以及 supervisor 监听/耳语/强插通用控制面；SIP.js 浏览器 WebPhone、IVR Designer 和 Queue Monitor 的受控桌面/移动浏览器验收已完成。supervisor 的真实 provider adapter、真实 RustPBX WebSocket 注册、真实 RTP/设备媒体和真实通信环境验收未完成
-> 日期：2026-07-13
+> 日期：2026-07-14
 > 目标仓库：`opc-platform`
 > 实现分支：`codex/ivekit-v4-voice-foundation`
 > 适用消费者：OPC、LED 及后续独立业务系统
 
 ## 0. 当前实现状态
 
-本节是代码事实口径，优先级高于本文后续仍保留的目标设计。2026-07-13 的当前状态如下：
+本节是代码事实口径，优先级高于本文后续仍保留的目标设计。2026-07-14 的当前状态如下：
 
 | 范围 | 状态 | 证据边界 |
 | --- | --- | --- |
@@ -18,8 +18,8 @@
 | RustPBX Management/AMI、Router、RWI v1 adapter | 已实现协议边界 | 本仓库受控 provider 通过；真实 RustPBX 仍为 `not_run` |
 | PSTN 到 LiveKit SIP bridge orchestration | 已实现 | 注入受控 `SipClient`、超时后 participant lookup 对账且不重复创建通过；真实 LiveKit SIP/PSTN 为 `not_run` |
 | standalone Voice 镜像与部署材料 | 已实现静态交付 | 隔离 source graph/build、三个编译入口、Compose merge、Helm/交付清单测试通过；真实容器和 RustPBX 数据面启动仍为 `not_run` |
-| IVR Runtime | 已实现 | 25 节点执行器、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收 |
-| IVR Designer | 已实现 | `workspace=ivr&flow_id=...` 独立深链、25 节点组件库、React Flow 画布、节点/流程属性、导入导出、revision 保存、服务端校验、发布/回滚、版本历史和确定性模拟已接入 typed SDK；桌面/移动受控 Playwright 通过 |
+| IVR Runtime | 已实现 | 26 节点执行器（含原生 `survey`）、资源门禁、发布/回滚、模拟器、耐久 session/action、Step IVR、worker/reconciliation 和提交后事件通过单元及真实 PostgreSQL 受控验收；`survey` 新增代码尚未重跑真实语音数据面 |
+| IVR Designer | 已实现 | `workspace=ivr&flow_id=...` 独立深链、26 节点组件库、React Flow 画布、节点/流程属性、导入导出、revision 保存、服务端校验、发布/回滚、版本历史和确定性模拟已接入 typed SDK；桌面/移动受控 Playwright 基线通过，新增 `survey` 的 E2E 门禁已更新 |
 | Voice SDK/headless WebPhone controller | 已实现 | `@opc/ivekit-sdk` 覆盖全部公开 Voice API；controller 覆盖 durable 呼叫动作、状态订阅、分机 session plan 和模糊失败幂等重试；独立 `@opc/ivekit-sdk/sip-webphone` 子入口封装 SIP.js 媒体状态机 |
 | React Voice 控制工作台 | 已实现 | 参考客户端提供独立懒加载工作区、`voice_call_id` 深链、durable 呼叫控制，以及按分机会话懒加载的 WebPhone 注册、呼入/外呼、接听/拒接、挂断、静音、Hold/Resume、DTMF 和音频设备控件；不渲染 session credential |
 | Contact Center Kit | 通用控制面已实现 | 通用状态机、容量门禁、四种确定性 ACD 排序、`052`-`056` migrations、tenant-scoped PostgreSQL store、配置/排队/callback/supervisor API、租户与状态绑定历史查询、自动派单 worker、durable overflow、UTC 日窗口 Queue Monitor 后端投影、参考客户端 UI、完整 TypeScript SDK 和 IVR queue adapter 已实现；默认 RustPBX supervisor provider 明确不可用 |
@@ -75,7 +75,7 @@
 
 - 60 个 `src/agent-runtime/ivr/` 文件。
 - 75 个 IVR 专项测试。
-- 25 种后端 IVR 节点：`start`、`play`、`menu`、`collect`、`set_var`、`condition`、`time_condition`、`queue`、`http`、`transfer`、`voicemail`、`sip`、`disconnect`、`flush_audio`、`ai_dialogue`、`intent`、`knowledge_qa`、`avatar_switch`、`compliance`、`video_play`、`screen_share`、`visual_menu`、`subflow`、`recording`、`webhook`。
+- 26 种后端 IVR 节点：`start`、`play`、`menu`、`collect`、`survey`、`set_var`、`condition`、`time_condition`、`queue`、`http`、`transfer`、`voicemail`、`sip`、`disconnect`、`flush_audio`、`ai_dialogue`、`intent`、`knowledge_qa`、`avatar_switch`、`compliance`、`video_play`、`screen_share`、`visual_menu`、`subflow`、`recording`、`webhook`。
 - Step IVR adapter、RWI bridge、Audio Queue、Barge-in、DTMF、语音菜单、流程模拟、发布校验和可视化设计器。
 - RustPBX call router、CDR receiver、RWI client、呼入 ACD、队列、坐席、转接、会议、Park/Pickup、语音信箱和录音能力。
 - 15 张 `voice_*`/`tenant_voice_*` 历史基础表，以及 IVR session、step、settings、history 等迁移。
@@ -544,12 +544,12 @@ M2 实现严格使用官方 RWI v1 envelope：请求为 `{action, action_id, par
 
 `avatar_switch`、`video_play`、`screen_share` 和 `visual_menu` 通过现有 Media Core port 实现。IVR 不直接 import LiveKit SDK。
 
-### 11.5 25 种节点的执行归属
+### 11.5 26 种节点的执行归属
 
 | 节点 | 执行归属 | 外部依赖/要求 |
 | --- | --- | --- |
 | `start`、`set_var`、`condition`、`time_condition`、`disconnect` | IVR 纯执行器 | graph/context/clock；`disconnect` 最终通过 call control 挂断 |
-| `play`、`menu`、`collect`、`flush_audio` | IVR + audio/call control port | audio asset、DTMF/ASR、Step IVR 或 RWI capability |
+| `play`、`menu`、`collect`、`survey`、`flush_audio` | IVR + audio/call control port | audio asset、DTMF/ASR、Step IVR 或 RWI capability；`survey` 接收 0-9 的单字符 DTMF/visual selection，按发布配置校验范围，写入数值变量并严格走 `submitted`、`invalid` 或 `timeout` |
 | `http`、`webhook` | Webhook port | allowlist、secret ref、timeout、响应 schema 和 durable pending action |
 | `subflow` | IVR flow repository | 发布版本固定、递归深度和循环限制 |
 | `queue` | `IvrQueuePort` | Contact Center Kit 可用；不可用时发布失败或走图中显式 fallback |
@@ -713,7 +713,7 @@ Queue Monitor 后端使用同一 tenant-scoped PostgreSQL 事务生成一致快�
 2. `@opc/ivekit-sdk/sip-webphone`：已交付 SIP.js 单通话 adapter，覆盖短期计划校验、WSS 注册/重连、呼入/外呼、接听/拒接/挂断、静音、Hold/Resume、RFC 4733 DTMF、远端音频、输入/输出设备切换、到期注销和可注入 engine 测试；真实 RustPBX/RTP 尚未联调。
 3. 可嵌入 React Voice 控制工作台：已交付 durable call 深链、脱敏 Call Detail、完整控制动作和懒加载 WebPhone 面板；Voice/IVR durable event 会触发快照刷新，session credential 不进入 DOM。
 4. Queue Monitor：已交付独立 `operations` 工作区、桌面/移动响应式布局、刷新/筛选/告警和受控浏览器 E2E。
-5. IVR Designer：已交付独立 `ivr` 工作区、`flow_id` 深链、完整 25 节点库、画布编辑、typed SDK 命令和受控浏览器 E2E。
+5. IVR Designer：已交付独立 `ivr` 工作区、`flow_id` 深链、完整 26 节点库、画布编辑、typed SDK 命令和受控浏览器 E2E。
 
 参考客户端继续作为完整示例，OPC 和 LED 不复制其源码。
 
@@ -723,7 +723,7 @@ IVR Designer 位于 `clients/ivekit-reference/src/ivr/`，采用 `@xyflow/react`
 
 当前交付能力如下：
 
-1. 节点库与画布：与运行时一致的 25 类节点，支持点击或拖放新增、移动、连线、删除、缩放、适配视图和 MiniMap。`menu`、`visual_menu` 等动态分支使用稳定 source handle 保存分支语义。
+1. 节点库与画布：与运行时一致的 26 类节点，支持点击或拖放新增、移动、连线、删除、缩放、适配视图和 MiniMap。`menu`、`visual_menu` 等动态分支使用稳定 source handle 保存分支语义；`survey` 暴露固定的 `submitted`、`invalid` 和 `timeout` source handle。
 2. 流程属性：流程名、入口节点、变量、全局快捷键；节点属性提供按字段类型生成的输入、枚举、布尔和高级 JSON 编辑器。
 3. 生命周期：`list/get/create/PATCH` draft，按 `draft_revision` 乐观并发；保存后调用服务端 `validate`，阻断性错误直接标记到节点；发布使用稳定 `Idempotency-Key`。
 4. 版本：展示 immutable version history，按 `source_version + expected_draft_revision` 回滚，并把新版本结果重新收敛到当前 flow。
@@ -731,7 +731,7 @@ IVR Designer 位于 `clients/ivekit-reference/src/ivr/`，采用 `@xyflow/react`
 6. 可移植性：JSON 导入先校验 graph envelope，导出只包含通用 graph；OPC/LED 业务主键不进入节点 schema，通过通用 resource ID、变量和 `business_ref` 在服务端解析。
 7. 导航与刷新：`workspace=ivr&flow_id=<id>` 可直接打开；`ivr.flow.*`、资源和 settings durable event 只刷新 Designer，`ivr.session.*` 继续刷新 Voice 运行工作区，避免通话步骤事件打断编辑。
 
-受控验收覆盖 1440×900 和 390×844，验证懒加载、25 节点、深链、编辑、保存、服务端校验、发布、simulation、无页面级横向溢出和面板不重叠。该验收使用真实 Chromium 和受控 HTTP provider，不替代目标服务器上的真实 PostgreSQL 并发冲突、跨浏览器协同编辑或真实 RustPBX 通话执行验收。V1 没有多人实时协同画布、自动布局、撤销/重做历史和 AI 生成流程；这些是后续增强，不影响 LED/OPC 使用当前完整 draft-to-publish 闭环。
+受控验收覆盖 1440×900 和 390×844，验证懒加载、26 节点、深链、编辑、保存、服务端校验、发布、simulation、无页面级横向溢出和面板不重叠。该验收使用真实 Chromium 和受控 HTTP provider，不替代目标服务器上的真实 PostgreSQL 并发冲突、跨浏览器协同编辑或真实 RustPBX 通话执行验收。V1 没有多人实时协同画布、自动布局、撤销/重做历史和 AI 生成流程；这些是后续增强，不影响 LED/OPC 使用当前完整 draft-to-publish 闭环。
 
 ## 14. 事件合同
 
@@ -901,7 +901,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 
 状态：代码完成；单元、受控 RustPBX Step 和真实 PostgreSQL durable runtime 验收通过，真实语音数据面保持 `not_run`。
 
-- 25 种节点、版本、发布、回滚、simulation 和 session recovery。
+- 26 种节点（含调查）、版本、发布、回滚、simulation 和 session recovery。
 - 前后端共享 graph schema。
 - RustPBX Step IVR 与可选 RWI 实际协议闭环。
 

@@ -1,11 +1,6 @@
-import type { IveKitIvrFlowGraph } from '@opc/ivekit-sdk';
+import type { IveKitIvrFlowGraph, IveKitIvrNodeType as SdkIveKitIvrNodeType } from '@opc/ivekit-sdk';
 
-export type IveKitIvrNodeType =
-  | 'start' | 'play' | 'menu' | 'collect' | 'set_var'
-  | 'condition' | 'time_condition' | 'queue' | 'http'
-  | 'transfer' | 'voicemail' | 'sip' | 'disconnect' | 'flush_audio'
-  | 'ai_dialogue' | 'intent' | 'knowledge_qa' | 'avatar_switch' | 'compliance'
-  | 'video_play' | 'screen_share' | 'visual_menu' | 'subflow' | 'recording' | 'webhook';
+export type IveKitIvrNodeType = SdkIveKitIvrNodeType;
 
 export type IveKitIvrNodeCategory = 'call' | 'logic' | 'intelligence' | 'media';
 
@@ -59,6 +54,10 @@ const definitions: IveKitIvrNodeDefinition[] = [
   }),
   node('collect', 'Collect digits', 'Collect and validate a digit sequence', 'call', {
     prompt: 'Enter digits', min_digits: 1, max_digits: 8, variable: 'digits', timeout_seconds: 10
+  }),
+  node('survey', 'Survey', 'Collect a bounded DTMF or visual rating', 'call', {
+    prompt: 'Rate from 1 to 5', min_score: 1, max_score: 5,
+    variable: 'survey_score', input_mode: 'dtmf', timeout_seconds: 10
   }),
   node('flush_audio', 'Flush audio', 'Wait for queued audio to finish', 'call', {}),
   node('transfer', 'Transfer', 'Transfer to an approved Voice target', 'call', {
@@ -156,6 +155,7 @@ export function ivrNodeOutputHandles(node: Pick<IveKitIvrGraphNode, 'type' | 'da
       ...dynamicDigitHandles(node.data.options), 'timeout', 'invalid', 'max_retries'
     ];
     case 'collect': return ['out', 'timeout', 'invalid'];
+    case 'survey': return ['submitted', 'invalid', 'timeout'];
     case 'condition': case 'time_condition': return ['true', 'false'];
     case 'queue': return ['out', 'timeout', 'at_capacity', 'error'];
     case 'http': case 'webhook': return ['success', 'fail', 'timeout'];

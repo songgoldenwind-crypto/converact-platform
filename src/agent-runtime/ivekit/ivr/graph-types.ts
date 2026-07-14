@@ -3,14 +3,14 @@
  */
 
 export type IvrNodeType =
-  | 'start' | 'play' | 'menu' | 'collect' | 'set_var'
+  | 'start' | 'play' | 'menu' | 'collect' | 'survey' | 'set_var'
   | 'condition' | 'time_condition' | 'queue' | 'http'
   | 'transfer' | 'voicemail' | 'sip' | 'disconnect' | 'flush_audio'
   | 'ai_dialogue' | 'intent' | 'knowledge_qa' | 'avatar_switch' | 'compliance'
   | 'video_play' | 'screen_share' | 'visual_menu' | 'subflow' | 'recording' | 'webhook';
 
 export const IVR_NODE_TYPES = [
-  'start', 'play', 'menu', 'collect', 'set_var',
+  'start', 'play', 'menu', 'collect', 'survey', 'set_var',
   'condition', 'time_condition', 'queue', 'http',
   'transfer', 'voicemail', 'sip', 'disconnect', 'flush_audio',
   'ai_dialogue', 'intent', 'knowledge_qa', 'avatar_switch', 'compliance',

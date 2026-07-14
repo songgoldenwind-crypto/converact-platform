@@ -110,7 +110,7 @@ test('IVR publication gate validates variables, shortcuts, graph limits, and sen
 
 test('IVR dependency extraction covers all node families without retaining credentials', () => {
   const nodeTypes: IvrNodeType[] = [
-    'start', 'play', 'menu', 'collect', 'set_var', 'condition', 'time_condition',
+    'start', 'play', 'menu', 'collect', 'survey', 'set_var', 'condition', 'time_condition',
     'queue', 'http', 'transfer', 'voicemail', 'sip', 'disconnect', 'flush_audio',
     'ai_dialogue', 'intent', 'knowledge_qa', 'avatar_switch', 'compliance',
     'video_play', 'screen_share', 'visual_menu', 'subflow', 'recording', 'webhook'
@@ -172,6 +172,7 @@ function dependencyData(type: IvrNodeType): Record<string, unknown> {
     play: { audio_asset_id: 'audio-main' },
     menu: { audio_asset_id: 'audio-main' },
     collect: { audio_asset_id: 'audio-main' },
+    survey: { audio_asset_id: 'audio-main' },
     time_condition: { time_group_id: 'time-business' },
     condition: { region_group_id: 'region-cn' },
     queue: { queue_id: 'queue-support' },
@@ -190,3 +191,19 @@ function dependencyData(type: IvrNodeType): Record<string, unknown> {
   };
   return values[type] ?? {};
 }
+
+test('IVR compiler validates survey score ranges and required branches', () => {
+  const graph = validGraph();
+  graph.nodes.splice(1, 0, node('survey', 'survey', {
+    variable: 'csat', min_score: 5, max_score: 1
+  }));
+  graph.edges = [
+    { id: 'edge-start-survey', source: 'start', target: 'survey', sourceHandle: 'out' },
+    { id: 'edge-survey-end', source: 'survey', target: 'end', sourceHandle: 'submitted' },
+    { id: 'edge-survey-invalid', source: 'survey', target: 'end', sourceHandle: 'invalid' }
+  ];
+
+  const report = compileIvrGraph(graph);
+  assert.equal(report.errors.some((issue) => issue.code === 'invalid_survey_score_range'), true);
+  assert.equal(report.errors.some((issue) => issue.handle === 'timeout'), true);
+});

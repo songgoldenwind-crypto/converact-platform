@@ -18,6 +18,7 @@ export const IVR_BRANCH = {
   DECLINED: 'declined',
   SKIPPED: 'skipped',
   DENIED: 'denied',
+  SUBMITTED: 'submitted',
   digit: (digit: string) => `digit_${digit}`
 } as const;
 
@@ -56,6 +57,9 @@ export const REQUIRED_HANDLES_BY_TYPE: Record<
   },
   collect: {
     required: [IVR_BRANCH.OUT, IVR_BRANCH.TIMEOUT, IVR_BRANCH.INVALID]
+  },
+  survey: {
+    required: [IVR_BRANCH.SUBMITTED, IVR_BRANCH.INVALID, IVR_BRANCH.TIMEOUT]
   },
   condition: { required: [IVR_BRANCH.TRUE, IVR_BRANCH.FALSE] },
   time_condition: { required: [IVR_BRANCH.TRUE, IVR_BRANCH.FALSE] },

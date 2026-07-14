@@ -86,6 +86,10 @@ test('REQUIRED_HANDLES_BY_TYPE: queue requires at_capacity and error', () => {
   assert.ok(rule.required.includes(IVR_BRANCH.ERROR));
 });
 
+test('REQUIRED_HANDLES_BY_TYPE: survey requires submitted invalid and timeout', () => {
+  assert.deepEqual(REQUIRED_HANDLES_BY_TYPE.survey.required, ['submitted', 'invalid', 'timeout']);
+});
+
 test('REQUIRED_HANDLES_BY_TYPE: transfer terminal has no required handles', () => {
   assert.deepEqual(REQUIRED_HANDLES_BY_TYPE.transfer.required, []);
 });
