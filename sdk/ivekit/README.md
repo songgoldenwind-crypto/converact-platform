@@ -117,6 +117,11 @@ check `voice.getCapabilities().capabilities.extension_sessions`. The fixed plan 
 only a short-lived SIP authorization credential plus WSS/AOR/ICE configuration; never
 persist it, log it, render it, or confuse it with a server-side long-lived secret.
 
+Call-control surfaces must also call `voice.getProfileCapabilities(profileId)` and use
+the versioned `action_capabilities` matrix. Missing snapshots, unknown schema versions,
+and commands marked false are unavailable. `voice.preflightProfile(profileId)` refreshes
+that matrix and is an administrative operation; a normal browser should only read it.
+
 `createIveKitVoiceController()` is a framework-neutral WebPhone control-plane
 controller. It publishes immutable top-level snapshots, exposes dial/answer/hangup,
 DTMF, hold/resume, blind/warm transfer, conference create/add/remove/destroy,
@@ -125,7 +130,8 @@ LiveKit bridge commands, and retains an idempotency key only after an ambiguous
 timeout or retryable provider failure. `refresh()` converges the selected call with
 the server authority. `conference(id)` remains an add alias; new integrations should
 use `createConference`, `addToConference`, `removeFromConference`, and
-`destroyConference`. SIP/WebRTC media is provided separately by the lazy-loadable
+`destroyConference`. `voice.listParkingSlots()` returns the PostgreSQL-backed parking
+authority with profile/state filters and cursor pagination. SIP/WebRTC media is provided separately by the lazy-loadable
 `@opc/ivekit-sdk/sip-webphone` entry point. Its SIP.js adapter validates plan expiry
 and WSS transport, supports registration/reconnect, incoming and outgoing single-call
 control, mute, hold/resume, DTMF, remote audio, input/output selection, and automatic

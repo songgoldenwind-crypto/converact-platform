@@ -143,6 +143,11 @@ export interface ContactCenterSupervisorControlPort {
   }): Promise<{ provider_session_id: string }>;
   end(input: {
     tenant_id: string;
+    session_id: string;
+    call_id: string;
+    target_agent_id: string;
+    supervisor_identity: string;
+    mode: ContactCenterSupervisorMode;
     provider_session_id: string;
     idempotency_key: string;
   }): Promise<void>;

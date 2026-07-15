@@ -6,7 +6,8 @@ import type {
   IveKitVoiceCall,
   IveKitVoiceCallCommand,
   IveKitVoiceCommandKind,
-  IveKitVoiceControllerClient
+  IveKitVoiceControllerClient,
+  IveKitVoiceHttpClient
 } from '@opc/ivekit-sdk';
 
 import { installTestDom } from '../test-dom.js';
@@ -30,6 +31,7 @@ test('Voice workspace loads a call and executes state-valid controls', async () 
   />);
 
   await waitFor(() => assert.ok(view.getByText('+8613*******00')));
+  await waitFor(() => assert.equal((view.getByTitle('Answer call') as HTMLButtonElement).disabled, false));
   assert.equal(view.getAllByText('ringing').length >= 1, true);
   assert.equal((view.getByTitle('Answer call') as HTMLButtonElement).disabled, false);
   assert.equal((view.getByTitle('Hold call') as HTMLButtonElement).disabled, true);
@@ -109,6 +111,7 @@ test('Voice workspace defers realtime refresh until an active command completes'
   };
   const view = render(<VoiceWorkspace {...common} refreshVersion={0} />);
   await waitFor(() => assert.equal(requests.filter((value) => value === 'get:voice-call-a').length, 1));
+  await waitFor(() => assert.equal((view.getByTitle('Hold call') as HTMLButtonElement).disabled, false));
 
   fireEvent.click(view.getByTitle('Hold call'));
   await waitFor(() => assert.ok(requests.includes('action:hold')));
@@ -119,22 +122,68 @@ test('Voice workspace defers realtime refresh until an active command completes'
   await waitFor(() => assert.equal(requests.filter((value) => value === 'get:voice-call-a').length, 2));
 });
 
+test('Voice workspace fails closed for provider actions omitted by preflight', async () => {
+  const requests: string[] = [];
+  const client = fakeClient(requests, voiceCall('active'), {
+    async getProfileCapabilities() {
+      return voiceActionSnapshot({ park: false, pickup: false, dtmf: false });
+    }
+  });
+  const view = render(<VoiceWorkspace
+    client={client}
+    callId="voice-call-a"
+    onCallIdChange={() => undefined}
+    refreshVersion={0}
+  />);
+
+  await waitFor(() => assert.ok(requests.includes('get:voice-call-a')));
+  await waitFor(() => assert.equal((view.getByTitle('Open more voice controls') as HTMLButtonElement).disabled, false));
+  await waitFor(() => assert.equal((view.getByTitle('Open DTMF keypad') as HTMLButtonElement).disabled, true));
+  fireEvent.click(view.getByTitle('Open more voice controls'));
+  assert.equal((view.getByTitle('Park call') as HTMLButtonElement).disabled, true);
+  assert.equal((view.getByTitle('Pickup call') as HTMLButtonElement).disabled, true);
+  assert.equal(requests.some((value) => value === 'action:park' || value === 'action:pickup'), false);
+});
+
+test('Voice workspace fails closed when the provider capability snapshot is not ready', async () => {
+  const requests: string[] = [];
+  const client = fakeClient(requests, voiceCall('active'), {
+    async getProfileCapabilities() {
+      return { ...voiceActionSnapshot(), status: 'failed' };
+    }
+  });
+  const view = render(<VoiceWorkspace
+    client={client}
+    callId="voice-call-a"
+    onCallIdChange={() => undefined}
+    refreshVersion={0}
+  />);
+
+  await waitFor(() => assert.ok(requests.includes('get:voice-call-a')));
+  await waitFor(() => assert.equal((view.getByTitle('Hold call') as HTMLButtonElement).disabled, true));
+  assert.equal((view.getByTitle('Open more voice controls') as HTMLButtonElement).disabled, true);
+});
+
 function fakeClient(
   requests: string[],
   call: IveKitVoiceCall,
-  overrides: Partial<IveKitVoiceControllerClient> = {}
+  overrides: Partial<VoiceWorkspaceTestClient> = {}
 ): IveKitClient {
-  const voice: IveKitVoiceControllerClient = {
+  const voice: VoiceWorkspaceTestClient = {
     async getCapabilities() {
       requests.push('capabilities');
       return {
         api_version: 'v1', tenant_id: 'tenant-a', capabilities: {
           deployment_profiles: true, sip_trunks: true, dids: true, extensions: true,
           extension_sessions: true, routes: true, calls: true, call_control: true,
-          provider_events: true, recordings: true, livekit_sip_bridge: true,
+          provider_events: true, recordings: true, parking_slots: true, livekit_sip_bridge: true,
           provider_webhooks: true
         }
       };
+    },
+    async getProfileCapabilities() {
+      requests.push('profile-capabilities');
+      return voiceActionSnapshot();
     },
     async createOutboundCall(input) {
       requests.push(`dial:${input.business_ref.type}:${input.business_ref.id}`);
@@ -169,6 +218,35 @@ function fakeClient(
     ...overrides
   };
   return { voice } as unknown as IveKitClient;
+}
+
+type VoiceWorkspaceTestClient = IveKitVoiceControllerClient & Pick<
+  IveKitVoiceHttpClient,
+  'getProfileCapabilities'
+>;
+
+function voiceActionSnapshot(overrides: Partial<Record<IveKitVoiceCommandKind, boolean>> = {}) {
+  const kinds: IveKitVoiceCommandKind[] = [
+    'originate', 'answer', 'hangup', 'dtmf', 'hold', 'resume', 'blind_transfer',
+    'warm_transfer', 'conference', 'park', 'pickup', 'recording_start',
+    'recording_pause', 'recording_resume', 'recording_stop', 'livekit_bridge_create'
+  ];
+  return {
+    id: 'voice-capabilities-a', tenant_id: 'tenant-a', profile_id: 'profile-a',
+    provider: 'controlled', provider_version: 'controlled-v1', status: 'ready' as const,
+    capabilities: {
+      management_http: true, json_rpc_routing: true, step_ivr: true, rwi: true,
+      webrtc_extension: true, recording: true, sipflow: true, queue: true,
+      postgres_backend: true
+    },
+    capability_schema_version: 1 as const,
+    action_capabilities: {
+      commands: Object.fromEntries(kinds.map((kind) => [kind, overrides[kind] ?? true])) as Record<IveKitVoiceCommandKind, boolean>,
+      conference_operations: { create: true, add: true, remove: true, destroy: true }
+    },
+    config_hash: 'a'.repeat(64), error_code: '', error_message: '',
+    checked_at: '2026-07-13T00:00:00.000Z', created_at: '2026-07-13T00:00:00.000Z'
+  };
 }
 
 function voiceCall(state: IveKitVoiceCall['state']): IveKitVoiceCall {

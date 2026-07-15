@@ -10,7 +10,7 @@
 >
 > M6.5 更新（2026-07-12）：RustDesk edge crash-safe spool 与 recovery API 已在隔离服务器 `ivekit-v2-c13f503` 验收。executed 重启只补报、terminal 幂等确认、executing 不确定状态终止、跨 edge ownership quarantine、Linux 权限/符号链接/原子落盘以及应用重启持久性均通过；服务器证据路径和摘要见 [iveKit V2 standalone realtime plan](ivekit-v2-standalone-realtime-plan.md)。
 >
-> Voice Foundation V1 更新（2026-07-14）：共享 PostgreSQL-only Voice Core、26 节点 IVR Runtime（含调查）、Voice/IVR SDK、SIP.js WebPhone adapter 与 React 控制工作台、完整 IVR Designer、Contact Center 配置/ACD/队列/callback/maintenance，以及 supervisor 通用控制面已完成；受控 PostgreSQL/RustPBX 和 WebPhone、IVR Designer 桌面/移动浏览器基线验收通过。standalone 镜像包含 Voice preflight、RustPBX 配置和 Contact Center runtime，交付包包含 45 项 source-bound 真实 Voice 验收模板、validator 和 runbook。真实 RustPBX、真实 SIP/PSTN、WebSocket 注册、SDP/ICE、RTP/录音、真实 LiveKit SIP 和 supervisor provider 执行仍为 `not_run`。权威细节见 [iveKit Voice Foundation V1 详细设计](ivekit-voice-foundation-v1-design.md)。
+> Voice Foundation V1 更新（2026-07-14）：共享 PostgreSQL-only Voice Core、26 节点 IVR Runtime（含调查）、Voice/IVR SDK、SIP.js WebPhone adapter 与 React 控制工作台、完整 IVR Designer、Contact Center 配置/ACD/队列/callback/maintenance、supervisor 通用控制面及 capability 驱动的 RustPBX typed adapter 已完成；受控 PostgreSQL/RustPBX 和 WebPhone、IVR Designer 桌面/移动浏览器基线验收通过。standalone 镜像包含 Voice preflight、RustPBX 配置和 Contact Center runtime，交付包包含 45 项 source-bound 真实 Voice 验收模板、validator 和 runbook。当前锁定 RustPBX 基线的 supervisor effective capability 为 false；真实 SIP/PSTN、WebSocket supervisor 媒体、SDP/ICE、RTP/录音和真实 LiveKit SIP 仍为 `not_run`。权威细节见 [iveKit Voice Foundation V1 详细设计](ivekit-voice-foundation-v1-design.md)。
 
 ---
 
@@ -62,7 +62,7 @@ flowchart TB
 | --- | --- | --- |
 | Voice Core | 代码完成，受控 PostgreSQL/RustPBX 验收通过 | profile/capability、trunk/DID/extension/route、外呼/状态机、durable command/event/reconciliation、CDR/录音、策略/consent 和 LiveKit SIP bridge 已闭环；真实 RustPBX/PSTN/LiveKit SIP 为 `not_run` |
 | IVR Runtime 与 Designer | 后端、SDK 和参考工作台已完成 | 26 节点（含 `survey`）、版本发布/回滚、资源门禁、模拟器、durable action/worker/reconciliation，以及 `workspace=ivr&flow_id=...` 的画布编辑、导入导出、服务端校验、版本历史和模拟已闭环；真实语音数据面仍为 `not_run` |
-| Contact Center Kit | 通用控制面与参考 UI 完成 | Agent/Skill/Presence/Queue、ACD、条目历史、加密 callback、满队列/超时 durable overflow、maintenance worker、Queue Monitor 后端投影与 `operations` 参考工作区、完整 TypeScript SDK、IVR queue port 和 supervisor 通用控制面已完成；真实 supervisor provider 未完成 |
+| Contact Center Kit | 通用控制面、参考 UI 与 RustPBX typed adapter 完成 | Agent/Skill/Presence/Queue、ACD、条目历史、加密 callback、满队列/超时 durable overflow、maintenance worker、Queue Monitor 后端投影与 `operations` 参考工作区、完整 TypeScript SDK、IVR queue port 和 supervisor adapter 已完成；adapter 仅在 preflight effective mode 为 true 时开放，当前基线仍 fail closed，真实 supervisor 媒体未验收 |
 | LiveKit 音视频房间、Token、Join Plan | 已实现，测试通过 | 已有 HTTP API 和 `createIveKitModule()` 门面；真实部署还需要服务器 smoke |
 | LiveKit 录制/Egress、录制 evidence 回填 | 生产生命周期代码已闭环，测试通过 | 支持 business_ref、状态/retention、对象检查、受控导出、导出审计、确认式清理和 evidence 删除回写；真实 Egress/MinIO 仍需服务器验证 |
 | Web Assist 屏幕共享/远程协助 session | 已实现第一版，测试通过 | 支持授权、join token、事件、timeline、录屏入口 |
@@ -111,12 +111,12 @@ Voice 作为与 Media、IM、Remote 同级的共享模块，代码位于 `src/ag
 3. 外呼创建、通话状态机、参与人、策略/consent、durable call/configuration command、重试、lease 回收和 `uncertain` 对账。
 4. RustPBX Management/AMI、Router webhook、events/CDR webhook 和 RWI v1；重复事件按 external event id/canonical hash 去重，乱序状态不能让终态回退。
 5. CDR 与 recording metadata 投影，PSTN call 到 `ivekit_media_calls`/LiveKit SIP participant 的 bridge orchestration。
-6. standalone migration `046`、`047`、`048`、`049`，FORCE RLS、fresh/upgrade、交付 checksum 和独立 source graph。
+6. standalone migration `046`-`057`，FORCE RLS、fresh/upgrade、交付 checksum 和独立 source graph；`057` 增加版本化、fail-closed 的 profile action capability 快照。
 7. Realtime Voice AI 已提供 Active Call、LiveKit Agents、自建 streaming pipeline 和第三方 Provider 共用的 port/registry/service、controlled adapter、安全事件投影及 SDK 类型；真实 Provider 网络 adapter、流式音频和产品 HTTP API 尚未实现，不计入真实环境通过。
 
-现有主要 HTTP 根路径是 `/api/ivekit/voice/profiles`、`trunks`、`dids`、`extensions`、`routes`、`calls`、`policy`、`consents`、`recordings`，Provider 回调为 `/api/ivekit/voice/providers/:profileId/router|events|cdrs`。DID/extension apply 分别是 `/dids/:id/apply` 和 `/extensions/:id/apply`；LiveKit bridge 创建是 `/calls/:id/livekit-bridge`。所有异步写操作必须使用 `Idempotency-Key`，tenant 只能来自认证上下文。
+现有主要 HTTP 根路径是 `/api/ivekit/voice/profiles`、`trunks`、`dids`、`extensions`、`routes`、`calls`、`policy`、`consents`、`recordings`，Provider 回调为 `/api/ivekit/voice/providers/:profileId/router|events|cdrs`。DID/extension apply 分别是 `/dids/:id/apply` 和 `/extensions/:id/apply`；`GET /profiles/:id/capabilities` 返回最近一次与当前 profile config hash 一致的动作能力快照，LiveKit bridge 创建是 `/calls/:id/livekit-bridge`。所有异步写操作必须使用 `Idempotency-Key`，tenant 只能来自认证上下文。
 
-RustPBX RWI 当前确认执行的动作包括 originate、answer、hangup、hold/unhold、盲转、暖转协议映射、`call.send_dtmf`、conference create/add/remove/destroy 和 recording start/pause/resume/stop。会议与 DTMF payload 已做字段白名单，SDK 提供 create/add/remove/destroy 四个显式会议入口并保留旧 add 入口兼容。preflight 分开返回上游 `protocol_capabilities` 和 iveKit `effective_capabilities`：RustPBX `0.4.11-6c49ee7-community` 虽接受 conference mute/unmute 以及 supervisor listen/whisper/barge/takeover，但官方明确说明会议静音只发事件、supervisor 实际音频混音尚未接通，所以这些能力不会被 adapter 标记为可执行。Park、Pickup 没有可确认的官方 RWI 执行 action，继续返回 `capability_unavailable`；DTMF 仅在 profile 的 `effective_capabilities.dtmf_send=true` 时开放。supervisor 通用控制端口、管理员授权、坐席归属校验、幂等会话、PostgreSQL 审计状态和 `/api/ivekit/contact-center/supervisor/actions` 已完成，但默认 provider 仍为 `UnsupportedContactCenterSupervisorControl`；真实会议媒体和 supervisor 媒体执行继续保持 `not_run`。注意 `/api/ivekit/voice/capabilities` 仍是模块级合同，粗粒度 `rwi=true` 不代表每个 RWI action 都可执行；逐 action 矩阵目前只在 provider preflight 边界，尚未持久化到公共 capability snapshot。
+RustPBX RWI 当前确认执行的动作包括 originate、answer、hangup、hold/unhold、`call.bridge`、盲转、暖转协议映射、`call.send_dtmf`、conference create/add/remove/destroy 和 recording start/pause/resume/stop。会议与 DTMF payload 已做字段白名单，SDK 提供 create/add/remove/destroy 四个显式会议入口并保留旧 add 入口兼容。preflight 分开返回上游 `protocol_capabilities` 和 iveKit `effective_capabilities`：RustPBX `0.4.11-6c49ee7-community` 虽接受 conference mute/unmute 以及 supervisor listen/whisper/barge/takeover，但官方明确说明会议静音只发事件、supervisor 实际音频混音尚未接通，所以这些能力不会被 adapter 标记为可执行。RustPBX 原生 Park/Pickup 仍为 false；iveKit 已用 PostgreSQL/RLS 槽位权威和 hold/unhold/bridge 组合完成通用 Park/Pickup 代码链、SDK 查询和不确定对账，真实双向媒体效果保持 `not_run`，待隔离服务器验收。DTMF 仅在 profile 的 `effective_capabilities.dtmf_send=true` 时开放。supervisor 通用控制端口、管理员授权、坐席归属校验、幂等会话、PostgreSQL 审计状态和 `/api/ivekit/contact-center/supervisor/actions` 已完成，但默认 provider 仍为 `UnsupportedContactCenterSupervisorControl`；真实会议媒体和 supervisor 媒体执行继续保持 `not_run`。`/api/ivekit/voice/capabilities` 仍是模块级合同，粗粒度 `rwi=true` 不代表每个 RWI action 都可执行；逐 action 与 conference operation 矩阵已经由 preflight 写入公共 snapshot，并由服务端入队/执行双门禁、SDK 查询和参考 WebPhone 共同使用。旧快照、未知 schema 或 profile config hash 已变化时一律关闭具体动作，直到重新 preflight。
 
 验收边界：`scripts/verify-ivekit-postgres.sh` 已证明真实 PostgreSQL fresh/upgrade/RLS、受控 RustPBX 配置与通话、CDR/录音、LiveKit 受控 `SipClient`、timeout reconciliation、重复/乱序事件、worker restart 和 tenant isolation；`clients/ivekit-reference/e2e/voice.spec.ts` 已证明 WebPhone 懒加载、受控呼入/外呼 UI、Hold、DTMF、设备切换、凭证不进 DOM 和桌面/移动布局；`clients/ivekit-reference/e2e/ivr.spec.ts` 的代码门禁已更新为 26 节点，并覆盖 Designer 按需加载、深链、编辑、保存、服务端校验、发布、模拟和响应式布局。2026-07-14 的隔离服务器又使用真实 RustPBX `0.4.11`、PostgreSQL 16 和固定校验和 SIPp `3.7.7` 完成 Management 幂等/probe 以及 12/12 SIP 信令场景，含连续 TCP 重连、UDP 重传、10 并发和 Digest 注册；Router/CDR 各记录 19 次请求。这仍不证明运营商 trunk/DID、PSTN 收费线路、WSS 注册、SDP/ICE、RTP、物理设备、真实录音文件、RWI WebSocket 媒体或 LiveKit SIP 服务；这些项目继续保持 `not_run`。
 
@@ -3608,7 +3608,7 @@ M4 本地代码和交付材料完成；全仓 `2042` 项中 `2037` 通过、`5` 
 
 ### 20.2 独立交付结构
 
-交付包现在同时携带 service build context、32 个 migration manifest、SDK tgz、参考客户端、RustDesk edge source/预编译零依赖包、image metadata、SPDX 2.3 SBOM、artifact manifest 和 SHA-256 清单。LED 可在不读取 OPC 根源码的目录中构建服务镜像；部署时必须把 service image、migration、SDK 和 edge 包视作同一 release，不得混用 commit。
+交付包现在同时携带 service build context、48 个 migration manifest、SDK tgz、参考客户端、RustDesk edge source/预编译零依赖包、image metadata、SPDX 2.3 SBOM、artifact manifest 和 SHA-256 清单。LED 可在不读取 OPC 根源码的目录中构建服务镜像；部署时必须把 service image、migration、SDK 和 edge 包视作同一 release，不得混用 commit。
 
 服务器已从 source commit `18a16bde967d2339f093dea35909fad51882b72a` 的交付包独立构建镜像，镜像 ID 为 `sha256:0eebeca7ea3736869a7cbb7a644931db21618ad826136c1f477af6b39b03390f`。当前归档 SHA-256 为 `14b84ad409b9c6c271d4dc9b38a19042f54a2ed615ab7e8c2c697d6047b0f73c`，两层清单和干净容器 SDK/edge 安装已复验。
 
@@ -3681,8 +3681,8 @@ Voice Foundation 的真实环境验收代码已经完成，入口为 `npm run iv
 | `acceptance/voice-real-template.json` | 绑定本次交付 source commit 的报告骨架和 45 项检查 | `incomplete`，所有 `passed=false` |
 | `acceptance/voice-real-runbook.md` | 部署、SIP/PSTN、WebPhone/RTP、IVR、AI、bridge、Contact Center 和治理的采证顺序 | 操作手册，不是通过证据 |
 | `acceptance/tools/ivekit-voice-acceptance.ts` | 离线校验报告、observation、SHA-256、上下文和敏感信息 | 只返回 `not_run`、`incomplete` 或 `ready_for_review` |
-| `acceptance/rustpbx/` | 编译后的 Management/SIPp runner、Router/CDR fixture 和 15 个 SIPp XML | 工程验证工具；不自动改变发布验收状态 |
-| `deploy/rustpbx/` | 固定源码 commit、Cargo lock、native image build、runtime Dockerfile 和 TCP reconnect patch | 可复现镜像输入；发布仍必须绑定 registry digest |
+| `acceptance/rustpbx/` | 编译后的 Management、RWI/AMI reconciliation、SIPp runner，Router/CDR fixture 和 15 个 SIPp XML | RWI/AMI 报告同时固化 protocol actions、DTMF/会议/Park/Pickup/supervisor effective capability 和 limitations；属于工程验证工具，不自动改变发布验收状态 |
+| `deploy/rustpbx/` | 固定源码 commit、Cargo lock、native image build、runtime Dockerfile、TCP reconnect patch、AMI call-id patch 和 RWI originate CANCEL/BYE patch | 可复现镜像输入；发布仍必须绑定 registry digest |
 
 交付包 validator 会重新检查模板的 source commit、精确检查集合和所有初始 false 值，并要求 runbook 与当前代码合同完全一致。模板或 runbook 被篡改后交付包校验直接失败。
 
@@ -3702,7 +3702,11 @@ Voice Foundation 的真实环境验收代码已经完成，入口为 `npm run iv
 | Resilience/Isolation | 4 | 重复乱序事件、command reconciliation、进程重启恢复、跨租户 RLS 拒绝 |
 | Performance/Governance | 3 | 并发与呼叫建立 P95、business_ref 全链审计、独立 QA review |
 
-能力真实性按运行时 capability 裁决。当前 `0.4.11` 基线确认 `call.send_dtmf`，因此只有 profile preflight 返回 `effective_capabilities.dtmf_send=true` 时 DTMF 才能进入真实成功验收；Park/Pickup 仍必须记录 HTTP 501 fail-closed。supervisor 媒体尚未接通，evidence 必须同时记录 listen/whisper/barge/takeover 的 requested modes 和实际 effective modes；有效集合允许为空，但不能隐瞒能力缺失。
+能力真实性按运行时 capability 裁决。当前 `0.4.11` 基线确认 `call.send_dtmf`，因此只有 profile preflight 返回 `effective_capabilities.dtmf_send=true` 时 DTMF 才能进入真实成功验收；组合式 Park 要求 `call.hold`，Pickup 要求 `call.unhold` 与 `call.bridge`，并必须采集槽位终态和真实媒体证据，缺少任一原语仍记录 HTTP 501 fail-closed。supervisor 媒体尚未接通，evidence 必须同时记录 listen/whisper/barge/takeover 的 requested modes 和实际 effective modes；有效集合允许为空，但不能隐瞒能力缺失。
+
+RWI `originate` 使用 iveKit call id 作为上游 `call_id`；`0.4.11-ivekit.3` 的 AMI patch 同时返回 active-call registry 的 `id/call_id/provider_call_id`，RWI hangup patch 负责接通前 CANCEL 和接通后 BYE。`ivekit:rustpbx-rwi-acceptance` 会验证 preflight、呼起、AMI 只读对账、挂断命令和控制面终态，并明确输出 `sip_signaling_evidence=external_sipp_required`；最终通过还必须由下游 SIPp UAS 观察到 BYE，不能仅凭命令返回。该工程检查不证明 RTP 音频质量。Hold、Resume、转接和录音等动作超时后，若没有动作专属状态证据则保持 `unknown`，不能因为 dialog 仍活动就记录成功。
+
+2026-07-15 隔离服务器已完成 `.3` 工程复验。镜像 `ivekit/rustpbx:0.4.11-ivekit.3-6c49ee76` 的本地 digest 为 `sha256:a9465e4c359fc77c6fec4b8f8fd6e4137505d6461b02d2190ab2a22bc143e842`；RWI 呼叫在 AMI 收敛为 `Terminated UacBye`，独立 SIPp UAS 实际收到 1 条 BYE 且成功 1/失败 0。镜像切换后的完整 SIPp 回归为 12/12 通过，Router/CDR 请求增量各 19。该结论把 `.3` 提升为已验证工程基线，但不改变 RTP、真实 PSTN、supervisor 媒体和 45 项发布验收的 `not_run` 状态。
 
 ### 23.3 报告与 observation 合同
 
@@ -3722,4 +3726,4 @@ Voice Foundation 的真实环境验收代码已经完成，入口为 `npm run iv
 
 没有 `OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE` 时结果固定为 `not_run` 且命令返回非零；报告或任何 evidence 不完整时为 `incomplete`；全部 45 项通过时只到 `ready_for_review`。validator 明确输出 `automatically_updates_delivery_acceptance=false`，不会把 `acceptance/status.json` 中的 `real_environment.rustpbx=not_run` 自动改为 passed。
 
-当前已完成验收代码、模板、runbook、交付清单、篡改门禁、本地专项测试，以及隔离服务器真实 RustPBX Management/SIPp 工程验收。服务器结果覆盖 Management preflight、trunk/extension 幂等 apply、SIP OPTIONS probe、DID/route authority、12 场景 SIP 信令、Router/CDR、recovery 和 TCP stale-connection 修复，不包含运营商/测试 SIP trunk、PSTN/RTP、物理音频设备、录音对象、RWI WebSocket 媒体、LiveKit SIP bridge 或独立 QA。后续项目仍必须由部署操作员按 45 项合同采证、独立 QA 复核并由发布流程显式归档，才能改变交付 manifest 的 `not_run`。
+当前已完成验收代码、模板、runbook、交付清单、篡改门禁、本地专项测试，以及隔离服务器真实 RustPBX Management/SIPp 工程验收。服务器结果覆盖 Management preflight、trunk/extension 幂等 apply、SIP OPTIONS probe、DID/route authority、RWI preflight/originate/hangup、AMI 终态对账、下游 SIPp BYE、12 场景 SIP 信令、Router/CDR、recovery 和 TCP stale-connection 修复，不包含运营商/测试 SIP trunk、PSTN/RTP、物理音频设备、录音对象、RWI WebSocket 媒体、LiveKit SIP bridge 或独立 QA。后续项目仍必须由部署操作员按 45 项合同采证、独立 QA 复核并由发布流程显式归档，才能改变交付 manifest 的 `not_run`。

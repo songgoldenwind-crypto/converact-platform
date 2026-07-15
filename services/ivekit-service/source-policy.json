@@ -78,6 +78,8 @@
     "054_ivekit_contact_center_worker.sql",
     "055_ivekit_contact_center_callbacks.sql",
     "056_ivekit_contact_center_overflow.sql",
+    "057_ivekit_voice_action_capabilities.sql",
+    "058_ivekit_voice_parking.sql",
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql"
   ]
 }

@@ -14,16 +14,20 @@ export type ControlledVoiceProviderMode =
   | 'auth_failure'
   | 'capability_absence';
 
+export interface ControlledVoiceProviderResource {
+  kind: string;
+  provider_id: number;
+  revision: number;
+  desired_state: Record<string, unknown>;
+}
+
 export interface ControlledVoiceProviderState {
   mode: ControlledVoiceProviderMode;
   token: string;
   control_token: string;
   response_delay_ms: number;
-  resources: Map<string, {
-    kind: string;
-    revision: number;
-    desired_state: Record<string, unknown>;
-  }>;
+  resources: Map<string, ControlledVoiceProviderResource>;
+  next_resource_id: number;
   calls: Map<string, { state: string; action_id: string }>;
   recordings: Map<string, { state: string; object_ref: string }>;
   action_counts: Map<string, number>;
@@ -81,6 +85,7 @@ export function createControlledVoiceProviderState(input: {
     control_token: String(input.control_token || ''),
     response_delay_ms: boundedDelay(input.response_delay_ms ?? 65_000),
     resources: new Map(),
+    next_resource_id: 1,
     calls: new Map(),
     recordings: new Map(),
     action_counts: new Map(),
@@ -115,6 +120,9 @@ export async function handleControlledVoiceProviderRequest(
 
   const response = routeManagement(method, path, request.body, state);
   if (state.mode === 'delayed_timeout') return { ...response, delay_ms: state.response_delay_ms };
+  if (state.mode === 'async_success_after_timeout' && ['PUT', 'PATCH'].includes(method)) {
+    return { ...response, delay_ms: state.response_delay_ms };
+  }
   return response;
 }
 
@@ -185,51 +193,70 @@ function routeManagement(
   body: unknown,
   state: ControlledVoiceProviderState
 ): ControlledVoiceProviderResponse {
-  if (method === 'GET' && path === '/health') {
+  const capabilities = providerCapabilities(state);
+  if (method === 'GET' && path === '/api/pending-reloads') {
     return json(200, {
-      ready: true,
-      database: 'postgres',
-      capabilities: state.mode === 'capability_absence'
-        ? { ...CAPABILITIES, queue: false, step_ivr: false }
-        : CAPABILITIES
+      pending_reloads: 0,
+      capabilities
     });
   }
-  if (method === 'GET' && path === '/version') return json(200, { version: 'controlled-rustpbx-v1' });
   if (method === 'GET' && path === '/ami/v1/health') {
-    return json(200, { ready: true, capabilities: CAPABILITIES });
+    return json(200, { ready: true, version: 'controlled-rustpbx-0.4.11', capabilities });
   }
-  if (method === 'POST' && path === '/management/routes/reload') {
+  if (method === 'POST' && (path === '/ami/v1/reload/trunks' || path === '/ami/v1/reload/routes')) {
     return json(200, { reloaded: true });
   }
 
-  const trunkTest = resourcePath(path, /^\/management\/trunks\/([^/]+)\/test$/);
-  if (method === 'POST' && trunkTest) {
+  if (method === 'POST' && path === '/api/sip-trunk') {
+    return listResources('trunk', body, state);
+  }
+  if (method === 'PUT' && path === '/api/sip-trunk') {
+    return createResource('trunk', 'name', body, state);
+  }
+  const trunkId = resourcePath(path, /^\/api\/sip-trunk\/([^/]+)$/);
+  if (method === 'PATCH' && trunkId) {
+    return updateResource('trunk', trunkId, body, state);
+  }
+  if (method === 'POST' && path === '/api/diagnostics/trunks/options') {
+    const input = record(body);
+    const trunk = safeIdentifier(input.trunk);
+    const found = [...state.resources.values()].find((resource) =>
+      resource.kind === 'trunk' && resource.desired_state.name === trunk
+    );
     return json(200, {
-      ready: state.resources.has(`trunk:${trunkTest}`),
-      error_code: state.resources.has(`trunk:${trunkTest}`) ? '' : 'not_applied'
+      trunk,
+      transport: safeIdentifier(input.transport),
+      attempts: found ? [{ success: true, status_code: 200, reason: 'OK' }] : [],
+      success: Boolean(found)
     });
   }
-  const apply = applyResourcePath(path);
-  if (method === 'PUT' && apply) return applyResource(apply.kind, apply.id, body, state);
 
-  const route = resourcePath(path, /^\/management\/routes\/([^/]+)$/);
-  if (method === 'POST' && route) {
-    return json(200, { action: 'reject', code: 503, reason: 'controlled_route_only' });
+  if (method === 'POST' && path === '/api/extensions') {
+    return listResources('extension', body, state);
   }
-  const dialog = resourcePath(path, /^\/ami\/v1\/dialogs\/([^/]+)$/);
-  if (method === 'GET' && dialog) {
-    const direct = state.calls.get(dialog);
-    const matched = direct
-      ? [dialog, direct] as const
-      : [...state.calls.entries()].find(([, value]) => value.action_id === dialog);
-    return json(200, {
-      state: matched?.[1].state ?? 'unknown',
-      provider_call_id: matched?.[0] ?? ''
-    });
+  if (method === 'PUT' && path === '/api/extensions') {
+    return createResource('extension', 'extension', body, state);
   }
-  const sipflow = resourcePath(path, /^\/ami\/v1\/sipflow\/([^/]+)$/);
-  if (method === 'GET' && sipflow) return json(200, { items: [], provider_call_id: sipflow });
-  const recording = resourcePath(path, /^\/management\/recordings\/([^/]+)$/);
+  const extensionId = resourcePath(path, /^\/api\/extensions\/([^/]+)$/);
+  if (method === 'PATCH' && extensionId) {
+    return updateResource('extension', extensionId, body, state);
+  }
+
+  if (method === 'POST' && path === '/api/diagnostics/routes/evaluate') {
+    return json(200, { action: 'reject', status: 503, reason: 'controlled_route_only' });
+  }
+  if (method === 'GET' && path === '/ami/v1/dialogs') {
+    return json(200, [...state.calls.entries()].map(([callId, call]) => ({
+      id: callId,
+      call_id: callId,
+      provider_call_id: callId,
+      state: call.state,
+      source: 'active_call_registry'
+    })));
+  }
+  const sipflow = resourcePath(path, /^\/ami\/v1\/sipflow\/flow\/([^/]+)$/);
+  if (method === 'GET' && sipflow) return json(200, { flow: [], provider_call_id: sipflow });
+  const recording = resourcePath(path, /^\/api\/call-records\/([^/]+)\/metadata$/);
   if (method === 'GET' && recording) {
     const found = state.recordings.get(recording);
     return json(200, {
@@ -246,20 +273,69 @@ function routeManagement(
   return json(404, { error: 'controlled Voice provider route not found' });
 }
 
-function applyResource(
-  kind: 'trunk' | 'did' | 'extension' | 'route',
-  id: string,
+function providerCapabilities(state: ControlledVoiceProviderState): typeof CAPABILITIES {
+  return state.mode === 'capability_absence'
+    ? { ...CAPABILITIES, queue: false, step_ivr: false }
+    : CAPABILITIES;
+}
+
+function createResource(
+  kind: 'trunk' | 'extension',
+  identityField: 'name' | 'extension',
   body: unknown,
   state: ControlledVoiceProviderState
 ): ControlledVoiceProviderResponse {
   const input = record(body);
-  if (input.resource_id !== id || !isRecord(input.desired_state)) {
-    return json(422, { error: 'resource_id and desired_state are required' });
+  if (!safeIdentifier(input[identityField])) {
+    return json(422, { error: `${identityField} is required` });
   }
-  const key = `${kind}:${id}`;
-  const revision = (state.resources.get(key)?.revision ?? 0) + 1;
-  state.resources.set(key, { kind, revision, desired_state: { ...input.desired_state } });
-  return json(200, { provider_ref: `controlled:${kind}:${id}`, revision: String(revision), applied: true });
+  const providerId = state.next_resource_id++;
+  state.resources.set(`${kind}:${providerId}`, {
+    kind,
+    provider_id: providerId,
+    revision: 1,
+    desired_state: { ...input }
+  });
+  return json(200, providerResource(state.resources.get(`${kind}:${providerId}`)!));
+}
+
+function updateResource(
+  kind: 'trunk' | 'extension',
+  providerRef: string,
+  body: unknown,
+  state: ControlledVoiceProviderState
+): ControlledVoiceProviderResponse {
+  if (!/^[1-9][0-9]{0,18}$/.test(providerRef)) return json(422, { error: 'invalid provider id' });
+  const key = `${kind}:${providerRef}`;
+  const current = state.resources.get(key);
+  if (!current) return json(404, { error: 'resource not found' });
+  const input = record(body);
+  const next = {
+    ...current,
+    revision: current.revision + 1,
+    desired_state: { ...current.desired_state, ...input }
+  };
+  state.resources.set(key, next);
+  return json(200, providerResource(next));
+}
+
+function listResources(
+  kind: 'trunk' | 'extension',
+  body: unknown,
+  state: ControlledVoiceProviderState
+): ControlledVoiceProviderResponse {
+  const query = safeIdentifier(record(record(body).filters).q);
+  const identity = kind === 'trunk' ? 'name' : 'extension';
+  const items = [...state.resources.values()]
+    .filter((resource) => resource.kind === kind)
+    .filter((resource) => !query || resource.desired_state[identity] === query)
+    .map(providerResource);
+  return json(200, { items, total: items.length, page: 1, per_page: 100 });
+}
+
+function providerResource(resource: ControlledVoiceProviderResource): Record<string, unknown> {
+  const { auth_password: _authPassword, sip_password: _sipPassword, ...safe } = resource.desired_state;
+  return { id: resource.provider_id, revision: resource.revision, ...safe };
 }
 
 function handleRwiMessage(
@@ -299,9 +375,7 @@ function handleRwiMessage(
     return;
   }
 
-  const callId = action === 'call.originate'
-    ? `controlled-call:${actionId}`
-    : safeIdentifier(record(message.params).call_id) || `controlled-call:${actionId}`;
+  const callId = safeIdentifier(record(message.params).call_id) || `controlled-call:${actionId}`;
   const result = { accepted: true, call_id: callId };
   state.action_results.set(actionId, result);
   const complete = () => {
@@ -380,19 +454,6 @@ async function routeHttp(
   }, state);
   if (result.delay_ms) await delay(result.delay_ms);
   if (!response.destroyed) write(response, result);
-}
-
-function applyResourcePath(path: string): { kind: 'trunk' | 'did' | 'extension' | 'route'; id: string } | null {
-  for (const [kind, pattern] of [
-    ['trunk', /^\/management\/trunks\/([^/]+)$/],
-    ['did', /^\/management\/dids\/([^/]+)$/],
-    ['extension', /^\/management\/extensions\/([^/]+)$/],
-    ['route', /^\/management\/routes\/([^/]+)$/]
-  ] as const) {
-    const id = resourcePath(path, pattern);
-    if (id) return { kind, id };
-  }
-  return null;
 }
 
 function resourcePath(path: string, pattern: RegExp): string {

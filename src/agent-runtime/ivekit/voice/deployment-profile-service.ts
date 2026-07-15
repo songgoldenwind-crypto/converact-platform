@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
-import { VOICE_CAPABILITIES } from './capabilities.js';
+import {
+  normalizeVoiceActionCapabilities,
+  VOICE_CAPABILITIES,
+  VOICE_CAPABILITY_SCHEMA_VERSION
+} from './capabilities.js';
 import { canonicalVoicePayloadHash } from './canonical.js';
 import { VoiceError } from './errors.js';
 import { observeVoicePreflight } from './metrics.js';
@@ -54,6 +58,7 @@ export class VoiceDeploymentProfileService {
     let provider: string = profile.adapter;
     let providerVersion = profile.desired_version;
     let capabilities = emptyCapabilities();
+    let actionCapabilities = normalizeVoiceActionCapabilities();
     let status: VoiceCapabilitySnapshot['status'] = 'failed';
     let errorCode = '';
 
@@ -63,6 +68,7 @@ export class VoiceDeploymentProfileService {
       provider = result.provider || profile.adapter;
       providerVersion = result.provider_version || profile.desired_version;
       capabilities = normalizeCapabilities(result.capabilities);
+      actionCapabilities = normalizeVoiceActionCapabilities(result.action_capabilities);
       status = 'ready';
     } catch (error) {
       errorCode = classifyPreflightError(error);
@@ -81,12 +87,22 @@ export class VoiceDeploymentProfileService {
       provider_version: providerVersion,
       status,
       capabilities,
+      capability_schema_version: VOICE_CAPABILITY_SCHEMA_VERSION,
+      action_capabilities: actionCapabilities,
       config_hash: configHash,
       error_code: errorCode,
       error_message: errorCode,
       checked_at: checkedAt,
       created_at: checkedAt
     });
+  }
+
+  async getCapabilities(tenantId: string, profileId: string): Promise<VoiceCapabilitySnapshot | null> {
+    const profile = await this.#repository.getProfile(tenantId, profileId);
+    if (!profile) throw new VoiceError({ code: 'not_found', status: 404 });
+    const snapshot = await this.#repository.getLatestCapabilitySnapshot(tenantId, profileId);
+    if (!snapshot || snapshot.config_hash !== voiceProfileConfigHash(profile)) return null;
+    return snapshot;
   }
 }
 

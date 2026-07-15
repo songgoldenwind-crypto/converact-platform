@@ -1,6 +1,7 @@
 import type { PgQueryable } from '../../../../db-pg.js';
 import { withPgTenant } from '../../../../db-pg-tenant.js';
 import type { VoiceConfigurationRepository } from '../ports.js';
+import { normalizeVoiceActionCapabilities, VOICE_CAPABILITY_SCHEMA_VERSION } from '../capabilities.js';
 import type {
   VoiceCapabilitySnapshot,
   VoiceConsent,
@@ -131,12 +132,14 @@ export class PostgresVoiceConfigurationStore implements VoiceConfigurationReposi
       const result = await pg.query<VoicePgRow>(
         `INSERT INTO ivekit_voice_capability_snapshots
           (id, tenant_id, profile_id, provider, provider_version, status, capabilities,
-           config_hash, error_code, error_message, checked_at, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12)
+           capability_schema_version, action_capabilities, config_hash, error_code, error_message,
+           checked_at, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, $13, $14)
          RETURNING *`,
         [
           input.id, input.tenant_id, input.profile_id, input.provider, input.provider_version,
-          input.status, JSON.stringify(input.capabilities), input.config_hash, input.error_code,
+          input.status, JSON.stringify(input.capabilities), input.capability_schema_version,
+          JSON.stringify(input.action_capabilities), input.config_hash, input.error_code,
           input.error_message, input.checked_at, input.created_at
         ]
       );
@@ -563,6 +566,10 @@ function decodeCapability(row: VoicePgRow): VoiceCapabilitySnapshot {
     id: String(row.id), tenant_id: String(row.tenant_id), profile_id: String(row.profile_id),
     provider: String(row.provider), provider_version: String(row.provider_version ?? ''),
     status: row.status as VoiceCapabilitySnapshot['status'], capabilities: jsonRecord(row.capabilities) as VoiceCapabilitySnapshot['capabilities'],
+    capability_schema_version: VOICE_CAPABILITY_SCHEMA_VERSION,
+    action_capabilities: normalizeVoiceActionCapabilities(
+      jsonRecord(row.action_capabilities) as unknown as VoiceCapabilitySnapshot['action_capabilities']
+    ),
     config_hash: String(row.config_hash), error_code: String(row.error_code ?? ''), error_message: String(row.error_message ?? ''),
     checked_at: timestamp(row.checked_at), created_at: timestamp(row.created_at)
   };

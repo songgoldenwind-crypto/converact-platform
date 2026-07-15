@@ -5,6 +5,7 @@ import {
   VoiceCommandWorker,
   VoiceError,
   VoiceProviderRegistry,
+  normalizeVoiceActionCapabilities,
   voiceProfileConfigHash,
   type VoiceAddressProtector,
   type VoiceCallCommand,
@@ -440,6 +441,8 @@ function capabilitySnapshot(profileId: string, management: boolean, profile: Voi
     id: `snapshot-${profileId}`, tenant_id: 'tenant-a', profile_id: profileId,
     provider: 'rustpbx', provider_version: '1', status: management ? 'ready' : 'not_available',
     capabilities: capabilityMap(management), config_hash: voiceProfileConfigHash(profile),
+    capability_schema_version: 1 as const,
+    action_capabilities: allActionCapabilities(management),
     error_code: '', error_message: '', checked_at: '2026-07-13T00:00:00.000Z',
     created_at: '2026-07-13T00:00:00.000Z'
   };
@@ -450,8 +453,23 @@ function providerCapabilities(profileId: string) {
   return {
     profile_id: profileId, provider: 'rustpbx', provider_version: '1',
     capabilities: capabilityMap(true), checked_at: '2026-07-13T00:00:00.000Z',
+    capability_schema_version: 1 as const,
+    action_capabilities: allActionCapabilities(true),
     config_hash: voiceProfileConfigHash(profile)
   };
+}
+
+function allActionCapabilities(enabled: boolean) {
+  return normalizeVoiceActionCapabilities({
+    commands: Object.fromEntries([
+      'originate', 'answer', 'hangup', 'dtmf', 'hold', 'resume', 'blind_transfer',
+      'warm_transfer', 'conference', 'park', 'pickup', 'recording_start',
+      'recording_pause', 'recording_resume', 'recording_stop', 'livekit_bridge_create'
+    ].map((kind) => [kind, enabled])) as never,
+    conference_operations: Object.fromEntries(
+      ['create', 'add', 'remove', 'destroy'].map((operation) => [operation, enabled])
+    ) as never
+  });
 }
 
 function capabilityMap(management: boolean): Record<VoiceCapability, boolean> {

@@ -190,6 +190,8 @@ const STANDALONE_MIGRATIONS = [
   '054_ivekit_contact_center_worker.sql',
   '055_ivekit_contact_center_callbacks.sql',
   '056_ivekit_contact_center_overflow.sql',
+  '057_ivekit_voice_action_capabilities.sql',
+  '058_ivekit_voice_parking.sql',
   'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
 ];
 
@@ -253,6 +255,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   ].map((name) => ({ source: `infra/ivekit/rustpbx/${name}`, destination: `deploy/rustpbx/${name}` })),
   ...[
     'rsipstack-tcp-reconnect.patch',
+    'rustpbx-ivekit-ami-dialogs.patch',
+    'rustpbx-ivekit-rwi-originate-hangup.patch',
     'rustpbx-local-rsipstack.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
@@ -315,9 +319,12 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
 const DELIVERY_ROOT_MARKER = '.ivekit-delivery-root';
 const RUSTPBX_ACCEPTANCE_GENERATED_FILES = [
   'acceptance/rustpbx/package.json',
+  'acceptance/rustpbx/package-lock.json',
   'acceptance/rustpbx/scripts/ivekit-rustpbx-management-acceptance.js',
+  'acceptance/rustpbx/scripts/ivekit-rustpbx-rwi-acceptance.js',
   'acceptance/rustpbx/scripts/ivekit-rustpbx-sipp-acceptance.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-management.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/adapters/rustpbx-rwi.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/canonical.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/capabilities.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
@@ -581,20 +588,51 @@ export function buildIveKitDeliveryBundle(
       '--types', 'node',
       '--skipLibCheck',
       'scripts/ivekit-rustpbx-management-acceptance.ts',
+      'scripts/ivekit-rustpbx-rwi-acceptance.ts',
       'scripts/ivekit-rustpbx-sipp-acceptance.ts'
     ], repoRoot);
     cpSync(rustPbxAcceptanceStaging, join(outputDir, 'acceptance', 'rustpbx'), {
       recursive: true,
       dereference: false
     });
+    const acceptancePackage = {
+      name: 'ivekit-rustpbx-acceptance',
+      version: '1.0.0',
+      private: true,
+      type: 'module',
+      dependencies: { ws: '8.21.0' },
+      scripts: {
+        management: 'node scripts/ivekit-rustpbx-management-acceptance.js',
+        rwi: 'node scripts/ivekit-rustpbx-rwi-acceptance.js',
+        sipp: 'node scripts/ivekit-rustpbx-sipp-acceptance.js'
+      }
+    };
     writeFileSync(
       join(outputDir, 'acceptance', 'rustpbx', 'package.json'),
+      `${JSON.stringify(acceptancePackage, null, 2)}\n`,
+      'utf8'
+    );
+    const repositoryLock = JSON.parse(readFileSync(join(repoRoot, 'package-lock.json'), 'utf8')) as {
+      packages?: Record<string, Record<string, unknown>>;
+    };
+    const lockedWs = repositoryLock.packages?.['node_modules/ws'];
+    if (lockedWs?.version !== '8.21.0' || typeof lockedWs.integrity !== 'string') {
+      throw new Error('repository package lock does not pin ws@8.21.0');
+    }
+    writeFileSync(
+      join(outputDir, 'acceptance', 'rustpbx', 'package-lock.json'),
       `${JSON.stringify({
-        private: true,
-        type: 'module',
-        scripts: {
-          management: 'node scripts/ivekit-rustpbx-management-acceptance.js',
-          sipp: 'node scripts/ivekit-rustpbx-sipp-acceptance.js'
+        name: acceptancePackage.name,
+        version: acceptancePackage.version,
+        lockfileVersion: 3,
+        requires: true,
+        packages: {
+          '': {
+            name: acceptancePackage.name,
+            version: acceptancePackage.version,
+            dependencies: acceptancePackage.dependencies
+          },
+          'node_modules/ws': lockedWs
         }
       }, null, 2)}\n`,
       'utf8'
@@ -935,7 +973,7 @@ function renderBundleReadme(): string {
     '- `acceptance/tools/`: deterministic controlled Provider source for isolated acceptance.',
     '- `acceptance/voice-real-template.json`: source-bound, intentionally incomplete real Voice evidence template.',
     '- `acceptance/voice-real-runbook.md`: RustPBX/SIP/PSTN/RTP/IVR/bridge real-environment procedure.',
-    '- `acceptance/rustpbx/`: compiled management and SIPp acceptance runners, Router fixture, and SIP scenarios.',
+    '- `acceptance/rustpbx/`: compiled management, RWI/AMI, and SIPp acceptance runners, locked Node dependency, Router fixture, and SIP scenarios. Run `npm ci --omit=dev --ignore-scripts` in this directory before RWI acceptance.',
     '- `service/build-context/`: independently buildable iveKit service source context with its own package lock.',
     '- `service/migration-manifest.json`: ordered standalone migration checksums.',
     '- `service/image-metadata.json`: source-bound image reference/digest state.',

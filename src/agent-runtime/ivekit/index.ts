@@ -31,6 +31,13 @@ export type {
   ContactCenterSupervisorSession
 } from './contact-center/types.js';
 export { UnsupportedContactCenterSupervisorControl } from './contact-center/supervisor-control.js';
+export { RustPbxRwiSupervisorControl } from './contact-center/rustpbx-supervisor-control.js';
+export type {
+  RustPbxRwiSupervisorControlOptions,
+  RustPbxSupervisorCallBinding,
+  RustPbxSupervisorCallBindingResolver,
+  RustPbxSupervisorRwiPort
+} from './contact-center/rustpbx-supervisor-control.js';
 export {
   contactCenterMaintenanceWorkerConfig,
   listContactCenterWorkerTenants,

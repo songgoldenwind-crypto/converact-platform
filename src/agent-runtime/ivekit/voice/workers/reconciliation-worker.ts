@@ -215,7 +215,10 @@ export class VoiceReconciliationWorker {
         return;
       }
       if (this.#now().getTime() - new Date(command.created_at).getTime() >= this.#maxReconcileAgeMs) {
-        await this.#settleTerminal(command, { ...outcome, provider_state: 'failed' }, 'failed', 'provider_result_unknown');
+        await this.#settleTerminal(command, {
+          ...outcome,
+          provider_state: command.kind === 'originate' ? 'failed' : call.state
+        }, 'failed', 'provider_result_unknown');
         result.failed += 1;
         return;
       }

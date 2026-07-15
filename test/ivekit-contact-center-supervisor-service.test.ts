@@ -40,7 +40,9 @@ test('Contact Center supervisor starts and ends an authorized provider session i
   assert.equal(ended.reason, 'review_complete');
   assert.equal(ended.ended_at, '2026-07-13T00:00:00.000Z');
   assert.deepEqual(fixture.providerEnds, [{
-    tenant_id: 'tenant-a', provider_session_id: 'provider-supervisor-a',
+    tenant_id: 'tenant-a', session_id: 'supervisor-a', call_id: 'call-a',
+    target_agent_id: 'agent-a', supervisor_identity: 'admin-a', mode: 'whisper',
+    provider_session_id: 'provider-supervisor-a',
     idempotency_key: 'supervisor-a:end'
   }]);
 });
@@ -90,10 +92,25 @@ test('Contact Center supervisor persists a failed provider start without leaking
   assert.equal(JSON.stringify(fixture.persisted).includes('token=secret'), false);
 });
 
+test('Contact Center supervisor leaves retryable uncertain starts requested for idempotent retry', async () => {
+  const providerError = Object.assign(new Error('provider result uncertain'), {
+    code: 'provider_timeout', retryable: true
+  });
+  const fixture = setup({ supported: true, providerError });
+  await assert.rejects(() => fixture.service.start({
+    tenant_id: 'tenant-a', call_id: 'call-a', target_agent_id: 'agent-a',
+    supervisor_identity: 'admin-a', mode: 'monitor', authorization_ref: 'policy:42',
+    idempotency_key: 'supervisor-key-a'
+  }), (error: unknown) => error instanceof ContactCenterError
+    && error.code === 'conflict' && error.retryable === true);
+  assert.equal(fixture.persisted?.state, 'requested');
+  assert.equal(fixture.persisted?.reason, '');
+});
+
 function setup(input: {
   supported: boolean;
   assigned?: boolean;
-  providerError?: Error & { code?: string };
+  providerError?: Error & { code?: string; retryable?: boolean };
   providerEndError?: Error;
 }) {
   let persisted: ContactCenterSupervisorSession | null = null;

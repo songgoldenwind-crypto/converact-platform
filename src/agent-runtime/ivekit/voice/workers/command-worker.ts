@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { safeVoiceProviderPayload } from '../canonical.js';
+import { normalizeVoiceActionCapabilities, VOICE_CAPABILITY_SCHEMA_VERSION } from '../capabilities.js';
 import { voiceProfileConfigHash } from '../deployment-profile-service.js';
 import { VoiceError } from '../errors.js';
 import type {
@@ -187,6 +188,8 @@ export class VoiceCommandWorker {
           id: boundedIdentifier(this.#id()), tenant_id: command.tenant_id, profile_id: profile.id,
           provider: capabilities.provider, provider_version: capabilities.provider_version,
           status: 'ready', capabilities: capabilities.capabilities,
+          capability_schema_version: VOICE_CAPABILITY_SCHEMA_VERSION,
+          action_capabilities: normalizeVoiceActionCapabilities(capabilities.action_capabilities),
           config_hash: capabilities.config_hash, error_code: '', error_message: '',
           checked_at: capabilities.checked_at, created_at: this.#now().toISOString()
         });

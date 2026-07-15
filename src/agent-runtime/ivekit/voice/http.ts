@@ -126,7 +126,7 @@ export async function routeIveKitVoiceApi(
           deployment_profiles: true, sip_trunks: true, dids: true, extensions: true,
           extension_sessions: Boolean(options.extension_sessions || options.module?.extension_sessions),
           routes: true, calls: true, call_control: true, provider_events: true,
-          recordings: true, livekit_sip_bridge: true, provider_webhooks: true
+          recordings: true, parking_slots: true, livekit_sip_bridge: true, provider_webhooks: true
         }
       }
     };
@@ -158,7 +158,7 @@ export async function routeIveKitVoiceApi(
     }
   }
 
-  const profileMatch = routePath.match(/^\/api\/ivekit\/voice\/profiles\/([^/]+)(?:\/(preflight))?$/);
+  const profileMatch = routePath.match(/^\/api\/ivekit\/voice\/profiles\/([^/]+)(?:\/(preflight|capabilities))?$/);
   if (profileMatch) {
     const profileId = decodeSegment(profileMatch[1]);
     const action = profileMatch[2] || '';
@@ -179,6 +179,9 @@ export async function routeIveKitVoiceApi(
     if (action === 'preflight' && method === 'POST') {
       requireAdmin(ctx);
       return { data: await module.profiles.preflight(ctx.tenantId, profileId) };
+    }
+    if (action === 'capabilities' && method === 'GET') {
+      return { data: await module.profiles.getCapabilities(ctx.tenantId, profileId) };
     }
   }
 
@@ -384,6 +387,16 @@ export async function routeIveKitVoiceApi(
         command: publicConfigurationCommand(published.command)
       } };
     }
+  }
+
+  if (routePath === '/api/ivekit/voice/parking-slots' && method === 'GET') {
+    const profileId = optionalQuery(url, 'profile_id');
+    const state = optionalQuery(url, 'state');
+    return { data: await module.calls.listParkingSlots({
+      ...listInput(ctx.tenantId, url),
+      ...(profileId ? { profile_id: profileId } : {}),
+      ...(state ? { state: state as never } : {})
+    }) };
   }
 
   if (routePath === '/api/ivekit/voice/calls') {

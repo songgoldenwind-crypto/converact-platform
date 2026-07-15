@@ -22,13 +22,14 @@ test('iveKit SDK exposes the complete Voice control plane', () => {
   for (const method of [
     'getCapabilities',
     'listProfiles', 'createProfile', 'getProfile', 'updateProfile', 'preflightProfile',
+    'getProfileCapabilities',
     'listTrunks', 'createTrunk', 'getTrunk', 'updateTrunk', 'applyTrunk', 'testTrunk',
     'listDids', 'createDid', 'getDid', 'updateDid', 'applyDid',
     'listExtensions', 'createExtension', 'getExtension', 'updateExtension', 'applyExtension',
     'createExtensionSession',
     'listRoutes', 'createRoute', 'getRoute', 'updateRoute', 'validateRoute',
     'listRouteVersions', 'publishRoute',
-    'listCalls', 'createOutboundCall', 'getCall', 'enqueueCallAction',
+    'listCalls', 'listParkingSlots', 'createOutboundCall', 'getCall', 'enqueueCallAction',
     'createLiveKitBridge', 'listCallEvents', 'listCallRecordings', 'listCallBridges',
     'listCallParticipants',
     'getPolicy', 'updatePolicy', 'listConsents', 'createConsent', 'listRecordings'
@@ -60,7 +61,8 @@ test('iveKit Voice client preserves paths, filters, request bodies, and idempote
         }
       : path.endsWith('/versions') || path.endsWith('/events') ||
         path.endsWith('/recordings') || path.endsWith('/bridges') ||
-        path.endsWith('/participants') || path === '/api/ivekit/voice/calls'
+        path.endsWith('/participants') || path === '/api/ivekit/voice/calls' ||
+        path === '/api/ivekit/voice/parking-slots'
         ? { items: [], next_cursor: null }
         : {};
     return new Response(JSON.stringify(data), {
@@ -97,6 +99,8 @@ test('iveKit Voice client preserves paths, filters, request bodies, and idempote
   await sdk.voice.publishRoute('route/a', { revision: 3 }, { idempotencyKey: 'publish-key-a' });
   await sdk.voice.createExtensionSession('extension/a', { idempotencyKey: 'session-key-a' });
   await sdk.voice.listRecordings({ call_id: 'call-a', status: 'available', limit: 10 });
+  await sdk.voice.getProfileCapabilities('profile/a');
+  await sdk.voice.listParkingSlots({ profile_id: 'profile-a', state: 'parked', limit: 20 });
 
   assert.match(calls[0]!.url, /profiles\/profile%2Fa$/);
   assert.match(calls[1]!.url, /cursor=cursor-a/);
@@ -116,6 +120,10 @@ test('iveKit Voice client preserves paths, filters, request bodies, and idempote
   assert.equal(calls[5]!.headers['idempotency-key'], 'session-key-a');
   assert.match(calls[6]!.url, /call_id=call-a/);
   assert.match(calls[6]!.url, /status=available/);
+  assert.match(calls[7]!.url, /profiles\/profile%2Fa\/capabilities$/);
+  assert.match(calls[8]!.url, /voice\/parking-slots/);
+  assert.match(calls[8]!.url, /profile_id=profile-a/);
+  assert.match(calls[8]!.url, /state=parked/);
 });
 
 test('unified iveKit client includes Voice without coupling RustDesk lifecycle', () => {

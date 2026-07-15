@@ -1,10 +1,15 @@
 import { safeVoiceProviderPayload } from '../canonical.js';
+import {
+  normalizeVoiceActionCapabilities,
+  VOICE_CAPABILITY_SCHEMA_VERSION
+} from '../capabilities.js';
 import { voiceProfileConfigHash } from '../deployment-profile-service.js';
 import { VoiceError } from '../errors.js';
 import type {
   VoiceManagementPort,
   VoiceProviderAdapter,
   VoiceProviderFactory,
+  VoiceProviderParkingContext,
   VoiceSecretResolver
 } from '../ports.js';
 import type {
@@ -22,6 +27,7 @@ import {
 } from './rustpbx-management.js';
 import {
   RustPbxRwiClient,
+  type RustPbxRwiBridgeInput,
   type RustPbxRwiCommandInput,
   type RustPbxRwiCommandResult,
   type RustPbxRwiPreflightResult
@@ -31,6 +37,7 @@ export interface RustPbxRwiPort {
   connect(): Promise<void>;
   preflight(): Promise<RustPbxRwiPreflightResult>;
   execute(input: RustPbxRwiCommandInput): Promise<RustPbxRwiCommandResult>;
+  executeBridge(input: RustPbxRwiBridgeInput): Promise<RustPbxRwiCommandResult>;
   close(): Promise<void>;
 }
 
@@ -60,11 +67,19 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
   async preflight(): Promise<VoiceProviderCapabilities> {
     const management = await this.#management.preflight();
     const capabilities = { ...management.capabilities, rwi: false };
+    let actionCapabilities = normalizeVoiceActionCapabilities({
+      commands: { livekit_bridge_create: management.capabilities.sipflow }
+    });
     if (this.#rwi) {
       try {
         await this.#rwi.connect();
         const rwi = await this.#rwi.preflight();
         capabilities.rwi = rwi.ready === true;
+        if (rwi.ready) {
+          actionCapabilities = rustPbxActionCapabilities(
+            rwi, management.capabilities.sipflow
+          );
+        }
       } catch {
         capabilities.rwi = false;
       }
@@ -74,6 +89,8 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
       profile_id: this.#profile.id,
       provider: 'rustpbx',
       capabilities,
+      capability_schema_version: VOICE_CAPABILITY_SCHEMA_VERSION,
+      action_capabilities: actionCapabilities,
       config_hash: voiceProfileConfigHash(this.#profile)
     };
   }
@@ -82,24 +99,19 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
     call: VoiceCall;
     command: VoiceCallCommand;
     clear_address?: string;
+    parking?: VoiceProviderParkingContext;
   }): Promise<{ provider_command_id: string; provider_call_id?: string; accepted: boolean }> {
     if (!this.#rwi) throw capabilityUnavailable();
     await this.#rwi.connect();
+    if (input.command.kind === 'park') return this.#park(input);
+    if (input.command.kind === 'pickup') return this.#pickup(input);
     const result = await this.#rwi.execute({
       command_id: input.command.id,
       kind: input.command.kind,
       call_id: input.call.provider_call_id || input.call.id,
       payload: providerCommandPayload(input.command, input.clear_address)
     });
-    if (result.state === 'uncertain') {
-      throw new VoiceError({
-        code: 'provider_timeout', retryable: true, status: 504,
-        details: { provider_command_id: result.action_id }
-      });
-    }
-    if (result.state === 'failed') {
-      throw rwiFailure(result.error_code, result.action_id);
-    }
+    assertRwiSucceeded(result);
     const safe = safeVoiceProviderPayload(result.result);
     const providerCallId = optionalIdentifier(safe.call_id || safe.provider_call_id);
     return {
@@ -109,17 +121,85 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
     };
   }
 
+  async #park(input: {
+    call: VoiceCall;
+    command: VoiceCallCommand;
+    parking?: { parked_call: VoiceCall };
+  }): Promise<{ provider_command_id: string; accepted: boolean }> {
+    const actionId = `${input.command.id}:hold`;
+    const result = await this.#rwi!.execute({
+      command_id: actionId,
+      kind: 'hold',
+      call_id: providerCallId(input.parking?.parked_call ?? input.call),
+      payload: {}
+    });
+    assertRwiSucceeded(result);
+    return { provider_command_id: result.action_id, accepted: true };
+  }
+
+  async #pickup(input: {
+    call: VoiceCall;
+    command: VoiceCallCommand;
+    parking?: { parked_call: VoiceCall; pickup_call: VoiceCall | null };
+  }): Promise<{ provider_command_id: string; accepted: boolean }> {
+    const parkedCall = input.parking?.parked_call;
+    const pickupCall = input.parking?.pickup_call ?? input.call;
+    if (!parkedCall || !pickupCall) throw validationError();
+    const parkedProviderCallId = providerCallId(parkedCall);
+    const pickupProviderCallId = providerCallId(pickupCall);
+    const unholdId = `${input.command.id}:unhold`;
+    const unhold = await this.#rwi!.execute({
+      command_id: unholdId,
+      kind: 'resume',
+      call_id: parkedProviderCallId,
+      payload: {}
+    });
+    assertRwiSucceeded(unhold);
+    const bridgeId = `${input.command.id}:bridge`;
+    let bridge: RustPbxRwiCommandResult;
+    try {
+      bridge = await this.#rwi!.executeBridge({
+        command_id: bridgeId,
+        leg_a: parkedProviderCallId,
+        leg_b: pickupProviderCallId
+      });
+    } catch {
+      throw rwiUncertain(bridgeId);
+    }
+    if (bridge.state === 'succeeded') {
+      return { provider_command_id: bridge.action_id, accepted: true };
+    }
+    if (bridge.state === 'uncertain') assertRwiSucceeded(bridge);
+    const rollbackId = `${input.command.id}:rollback-hold`;
+    let rollback: RustPbxRwiCommandResult;
+    try {
+      rollback = await this.#rwi!.execute({
+        command_id: rollbackId,
+        kind: 'hold',
+        call_id: parkedProviderCallId,
+        payload: {}
+      });
+    } catch {
+      throw rwiUncertain(rollbackId);
+    }
+    if (rollback.state !== 'succeeded') throw rwiUncertain(rollback.action_id);
+    throw rwiFailure(bridge.error_code, bridge.action_id);
+  }
+
   async reconcile(input: { call: VoiceCall; command: VoiceCallCommand }): Promise<{
     state: 'pending' | 'succeeded' | 'failed' | 'unknown';
     provider_state?: string;
     provider_call_id?: string;
     provider_dialog_id?: string;
   }> {
-    const lookupId = input.call.provider_call_id || input.command.provider_command_id;
+    // An active dialog proves originate took effect, but cannot prove a timed-out
+    // hold, transfer, recording, or hangup command reached its intended state.
+    if (input.command.kind !== 'originate') return { state: 'unknown' };
+    const lookupId = input.call.provider_call_id || input.call.id;
     if (!lookupId) return { state: 'unknown' };
     const found = await this.#management.lookupDialog({ provider_call_id: lookupId });
     return {
-      state: found.state,
+      state: found.state === 'pending' ? 'succeeded' : found.state,
       provider_state: found.provider_state,
       ...(input.call.provider_call_id || found.provider_call_id
         ? { provider_call_id: input.call.provider_call_id || found.provider_call_id }
@@ -134,6 +214,62 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
   async close(): Promise<void> {
     await this.#rwi?.close();
   }
+}
+
+function rustPbxActionCapabilities(
+  rwi: RustPbxRwiPreflightResult,
+  liveKitBridgeAvailable: boolean
+) {
+  const commands = new Set(rwi.commands);
+  const effective = rwi.effective_capabilities;
+  const has = (action: string) => commands.has(action);
+  const conference_operations = {
+    create: effective.conference.create && has('conference.create'),
+    add: effective.conference.add && has('conference.add'),
+    remove: effective.conference.remove && has('conference.remove'),
+    destroy: effective.conference.destroy && has('conference.destroy')
+  };
+  return normalizeVoiceActionCapabilities({
+    commands: {
+      originate: has('call.originate'),
+      answer: has('call.answer'),
+      hangup: has('call.hangup'),
+      dtmf: effective.dtmf_send && has('call.send_dtmf'),
+      hold: has('call.hold'),
+      resume: has('call.unhold'),
+      blind_transfer: has('call.transfer'),
+      warm_transfer: has('call.transfer.attended'),
+      conference: Object.values(conference_operations).some(Boolean),
+      park: has('call.hold'),
+      pickup: has('call.unhold') && has('call.bridge'),
+      recording_start: has('record.start'),
+      recording_pause: has('record.pause'),
+      recording_resume: has('record.resume'),
+      recording_stop: has('record.stop'),
+      livekit_bridge_create: liveKitBridgeAvailable
+    },
+    conference_operations
+  });
+}
+
+function assertRwiSucceeded(result: RustPbxRwiCommandResult): asserts result is Extract<
+  RustPbxRwiCommandResult, { state: 'succeeded' }
+> {
+  if (result.state === 'uncertain') throw rwiUncertain(result.action_id);
+  if (result.state === 'failed') throw rwiFailure(result.error_code, result.action_id);
+}
+
+function rwiUncertain(providerCommandId: string): VoiceError {
+  return new VoiceError({
+    code: 'provider_timeout', retryable: true, status: 504,
+    details: { provider_command_id: providerCommandId }
+  });
+}
+
+function providerCallId(call: VoiceCall): string {
+  return optionalIdentifier(call.provider_call_id) || optionalIdentifier(call.id) || (() => {
+    throw validationError();
+  })();
 }
 
 export class RustPbxVoiceProviderFactory implements VoiceProviderFactory {

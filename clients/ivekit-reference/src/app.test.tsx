@@ -92,6 +92,9 @@ test('voice_call_id opens the Voice workspace and loads the durable voice snapsh
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/ivekit-config.json') return Response.json({ baseUrl: 'http://ivekit.test', tenantId: 'tenant-1' });
+    if (url.includes('/api/ivekit/voice/profiles/profile-1/capabilities')) {
+      return Response.json(voiceProfileCapabilities());
+    }
     if (url.includes('/api/ivekit/voice/calls/voice-call-1')) return Response.json({
       id: 'voice-call-1', tenant_id: 'tenant-1', business_ref: { type: 'service_order', id: 'SO-VOICE' },
       provider_profile_id: 'profile-1', provider_call_id: 'provider-call-1', provider_dialog_id: '', media_call_id: null,
@@ -110,11 +113,34 @@ test('voice_call_id opens the Voice workspace and loads the durable voice snapsh
   const view = render(<App />);
   await waitFor(() => assert.ok(view.getByText('+8613*******00')));
   assert.equal(view.getByTitle('Show voice workspace').getAttribute('aria-pressed'), 'true');
-  assert.equal((view.getByTitle('Answer call') as HTMLButtonElement).disabled, false);
+  await waitFor(() => assert.equal((view.getByTitle('Answer call') as HTMLButtonElement).disabled, false));
   assert.equal(new URL(window.location.href).searchParams.get('voice_call_id'), 'voice-call-1');
   await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(chatRequests, 0);
 });
+
+function voiceProfileCapabilities() {
+  return {
+    id: 'voice-capabilities-1', tenant_id: 'tenant-1', profile_id: 'profile-1',
+    provider: 'controlled', provider_version: 'controlled-v1', status: 'ready',
+    capabilities: {
+      management_http: true, json_rpc_routing: true, step_ivr: true, rwi: true,
+      webrtc_extension: true, recording: true, sipflow: true, queue: true,
+      postgres_backend: true
+    },
+    capability_schema_version: 1,
+    action_capabilities: {
+      commands: Object.fromEntries([
+        'originate', 'answer', 'hangup', 'dtmf', 'hold', 'resume', 'blind_transfer',
+        'warm_transfer', 'conference', 'park', 'pickup', 'recording_start',
+        'recording_pause', 'recording_resume', 'recording_stop', 'livekit_bridge_create'
+      ].map((kind) => [kind, true])),
+      conference_operations: { create: true, add: true, remove: true, destroy: true }
+    },
+    config_hash: 'a'.repeat(64), error_code: '', error_message: '',
+    checked_at: '2026-07-13T00:00:00.000Z', created_at: '2026-07-13T00:00:00.000Z'
+  };
+}
 
 test('remote tab opens the RustDesk workspace without starting a session', async () => {
   window.__IVEKIT_DEV_ACCESS_TOKEN__ = 'test-token';

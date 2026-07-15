@@ -1,5 +1,11 @@
 import { safeVoiceProviderPayload } from '../canonical.js';
-import { VOICE_CAPABILITIES } from '../capabilities.js';
+import {
+  normalizeVoiceActionCapabilities,
+  VOICE_CAPABILITIES,
+  VOICE_CAPABILITY_SCHEMA_VERSION,
+  VOICE_COMMAND_KINDS,
+  VOICE_CONFERENCE_OPERATIONS
+} from '../capabilities.js';
 import { voiceProfileConfigHash } from '../deployment-profile-service.js';
 import { VoiceError } from '../errors.js';
 import type {
@@ -54,11 +60,31 @@ class ControlledVoiceProviderAdapter implements VoiceProviderAdapter {
         (configured as Record<string, unknown>)[capability] === true
       ])) as Record<VoiceCapability, boolean>
       : Object.fromEntries(VOICE_CAPABILITIES.map((capability) => [capability, true])) as Record<VoiceCapability, boolean>;
+    const configuredActions = this.profile.config.controlled_action_capabilities;
+    const actionRecord = configuredActions && typeof configuredActions === 'object' && !Array.isArray(configuredActions)
+      ? configuredActions as Record<string, unknown>
+      : null;
+    const commandRecord = actionRecord?.commands && typeof actionRecord.commands === 'object'
+      && !Array.isArray(actionRecord.commands) ? actionRecord.commands as Record<string, boolean> : undefined;
+    const conferenceRecord = actionRecord?.conference_operations && typeof actionRecord.conference_operations === 'object'
+      && !Array.isArray(actionRecord.conference_operations)
+      ? actionRecord.conference_operations as Record<string, boolean> : undefined;
+    const actionCapabilities = normalizeVoiceActionCapabilities(actionRecord ? {
+      commands: Object.fromEntries(VOICE_COMMAND_KINDS.map((kind) => [kind, commandRecord?.[kind] === true])),
+      conference_operations: Object.fromEntries(VOICE_CONFERENCE_OPERATIONS.map((operation) => [
+        operation, conferenceRecord?.[operation] === true
+      ]))
+    } : {
+      commands: Object.fromEntries(VOICE_COMMAND_KINDS.map((kind) => [kind, true])),
+      conference_operations: Object.fromEntries(VOICE_CONFERENCE_OPERATIONS.map((operation) => [operation, true]))
+    });
     return {
       profile_id: this.profile.id,
       provider: 'controlled',
       provider_version: 'controlled-v1',
       capabilities,
+      capability_schema_version: VOICE_CAPABILITY_SCHEMA_VERSION,
+      action_capabilities: actionCapabilities,
       checked_at: this.now().toISOString(),
       config_hash: voiceProfileConfigHash(this.profile)
     };

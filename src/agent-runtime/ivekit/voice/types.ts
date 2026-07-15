@@ -59,7 +59,40 @@ export type VoiceCommandKind =
   | 'recording_stop'
   | 'livekit_bridge_create';
 
+export type VoiceParkingSlotState =
+  | 'parking'
+  | 'parked'
+  | 'retrieving'
+  | 'released'
+  | 'failed'
+  | 'expired';
+
+export interface VoiceParkingSlot {
+  id: string;
+  tenant_id: string;
+  profile_id: string;
+  slot: string;
+  state: VoiceParkingSlotState;
+  parked_call_id: string;
+  park_command_id: string;
+  pickup_call_id: string | null;
+  pickup_command_id: string | null;
+  expires_at: string;
+  release_reason: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  released_at: string | null;
+}
+
 export type VoiceConferenceOperation = 'create' | 'add' | 'remove' | 'destroy';
+
+export type VoiceCapabilitySchemaVersion = 1;
+
+export interface VoiceActionCapabilities {
+  commands: Readonly<Record<VoiceCommandKind, boolean>>;
+  conference_operations: Readonly<Record<VoiceConferenceOperation, boolean>>;
+}
 
 export type VoiceConfigurationResourceType =
   | 'deployment_profile'
@@ -144,6 +177,8 @@ export interface VoiceCapabilitySnapshot {
   provider_version: string;
   status: 'ready' | 'degraded' | 'not_available' | 'failed';
   capabilities: Readonly<Record<VoiceCapability, boolean>>;
+  capability_schema_version: VoiceCapabilitySchemaVersion;
+  action_capabilities: VoiceActionCapabilities;
   config_hash: string;
   error_code: string;
   error_message: string;
@@ -156,6 +191,8 @@ export interface VoiceProviderCapabilities {
   provider: string;
   provider_version: string;
   capabilities: Readonly<Record<VoiceCapability, boolean>>;
+  capability_schema_version: VoiceCapabilitySchemaVersion;
+  action_capabilities: VoiceActionCapabilities;
   checked_at: string;
   config_hash: string;
 }

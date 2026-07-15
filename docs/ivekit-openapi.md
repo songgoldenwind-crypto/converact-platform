@@ -662,6 +662,7 @@ Voice API 的租户只能来自认证上下文。`owner/admin/system` 管理 pro
 | GET/POST | `/api/ivekit/voice/profiles` | 查询；admin 创建 Provider profile |
 | GET/PATCH | `/api/ivekit/voice/profiles/:profile_id` | 查询；admin + revision 更新 |
 | POST | `/api/ivekit/voice/profiles/:profile_id/preflight` | admin；获取 protocol/effective capability snapshot |
+| GET | `/api/ivekit/voice/profiles/:profile_id/capabilities` | 任意已认证调用；返回与当前 profile config hash 匹配的最近动作快照，无有效快照时为 `null` |
 | GET/POST | `/api/ivekit/voice/trunks` | 查询；admin 创建 SIP trunk |
 | GET/PATCH | `/api/ivekit/voice/trunks/:trunk_id` | 查询；admin + revision 更新 |
 | POST | `/api/ivekit/voice/trunks/:trunk_id/apply` | admin + idempotency；返回配置 command |
@@ -679,6 +680,7 @@ Voice API 的租户只能来自认证上下文。`owner/admin/system` 管理 pro
 | POST | `/api/ivekit/voice/routes/:route_id/publish` | admin + revision + idempotency；创建 immutable version 和 apply command |
 | GET | `/api/ivekit/voice/routes/:route_id/versions` | 查询不可变发布版本 |
 | GET/POST | `/api/ivekit/voice/calls` | 查询；operator + idempotency 创建外呼 |
+| GET | `/api/ivekit/voice/parking-slots` | 按 `profile_id` / `state` / cursor 查询 tenant-scoped 停车位 |
 | GET | `/api/ivekit/voice/calls/:call_id` | tenant-scoped call snapshot |
 | POST | `/api/ivekit/voice/calls/:call_id/actions` | operator + idempotency；返回 call command |
 | POST | `/api/ivekit/voice/calls/:call_id/livekit-bridge` | operator + idempotency；创建 PSTN/LiveKit SIP bridge command |
@@ -705,7 +707,7 @@ Voice API 的租户只能来自认证上下文。`owner/admin/system` 管理 pro
 }
 ```
 
-`actions` 支持 `answer`、`hangup`、`hold`、`resume`、`dtmf`、`blind_transfer`、`warm_transfer`、`conference`、`park`、`pickup`、`recording_start`、`recording_pause`、`recording_resume` 和 `recording_stop`。`conference` payload 使用 `operation=create|add|remove|destroy` 和 `conference_id`；`dtmf` payload 只接受经校验的数字、`*`、`#` 及受限时长。能力是否可执行以 profile preflight 的 `effective_capabilities` 为准；RustPBX `0.4.11` 基线通过 `call.send_dtmf` 发送 DTMF，但只有 `dtmf_send=true` 时才能开放。Park/Pickup 以及未接通媒体的 supervisor action 必须返回 `501 capability_unavailable`，不得伪造 command succeeded。浏览器内 DTMF 也可由 `@opc/ivekit-sdk/sip-webphone` 通过已建立的 SIP media handler 发送，两条路径都必须以当前 session/profile capability 裁决。
+`actions` 支持 `answer`、`hangup`、`hold`、`resume`、`dtmf`、`blind_transfer`、`warm_transfer`、`conference`、`park`、`pickup`、`recording_start`、`recording_pause`、`recording_resume` 和 `recording_stop`。`conference` payload 使用 `operation=create|add|remove|destroy` 和 `conference_id`；`dtmf` payload 只接受经校验的数字、`*`、`#` 及受限时长；`park/pickup` payload 只接受 `{ "slot": "701" }`，slot 必须匹配 `^[A-Za-z0-9][A-Za-z0-9_*#-]{0,31}$`。profile snapshot 使用 `capability_schema_version=1`，`action_capabilities.commands` 完整列出 16 种 command，`action_capabilities.conference_operations` 完整列出 4 种会议操作。缺少字段、旧快照、未知版本、config hash 已变化或值不为 `true` 时均 fail closed。RustPBX `0.4.11` 原生 Park/Pickup capability 仍为 false；iveKit 仅在 RWI 分别具备 `call.hold` 以及 `call.unhold + call.bridge` 时开放组合式 Park/Pickup，并以 PostgreSQL/RLS 槽位状态机负责并发、重启恢复和对账。缺少原语时返回 `501 capability_unavailable`，不得伪造 command succeeded。`livekit_bridge_create` 由 `sipflow` 和独立 LiveKit SIP adapter 裁决，不冒充 RustPBX RWI action。浏览器内 DTMF 也可由 `@opc/ivekit-sdk/sip-webphone` 通过已建立的 SIP media handler 发送，两条路径都必须以当前 session/profile capability 裁决。
 
 WebPhone session plan 只返回 `wss://`、短期 SIP credential、AoR、ICE server 和布尔 capability。服务端拒绝过期计划、非 WSS、带 URL credential、越权分机、空 ICE URL 和未知 capability；客户端不得持久化 credential 或把它写入 DOM/日志。
 
@@ -761,7 +763,7 @@ Flow graph 支持播放、菜单、收号、语音匹配、条件、变量、子
 | POST | `/api/ivekit/contact-center/assignments/:assignment_id/:action` | `accept|reject|connect|complete`，坐席本人或 admin |
 | POST | `/api/ivekit/contact-center/supervisor/actions` | admin；`start` 需要 idempotency/authorization ref，或 `end` |
 
-队列支持 `longest_idle|round_robin|fewest_active|highest_skill`，容量、Presence、membership 和 skill requirement 在同一 tenant transaction 内裁决。callback 保存加密目标并通过 Voice durable command 外呼；queue timeout、offer 回收、callback retry 和 overflow 由 PostgreSQL lease worker 处理。supervisor 只有部署注入经过验收的 control port 时 capability 才为 true；默认端口返回 `501`。
+队列支持 `longest_idle|round_robin|fewest_active|highest_skill`，容量、Presence、membership 和 skill requirement 在同一 tenant transaction 内裁决。callback 保存加密目标并通过 Voice durable command 外呼；queue timeout、offer 回收、callback retry 和 overflow 由 PostgreSQL lease worker 处理。supervisor 只有部署注入经过验收的 control port 时 capability 才为 true；RustPBX typed adapter 还要求 preflight 同时报告目标 action、`supervisor.stop` 和对应 effective mode，当前锁定基线全部 fail closed，默认端口返回 `501`。provider 启动超时保留 `requested` 供同一幂等 key 重试，不会把未知结果伪记为失败。
 
 ### 5.5 SDK 与事件映射
 

@@ -15,52 +15,58 @@ import {
 
 test('controlled Voice provider implements safe Management and AMI contracts', async () => {
   const state = createControlledVoiceProviderState({ token: 'voice-control-secret' });
-  const denied = await request(state, 'GET', '/health', undefined, false);
+  const denied = await request(state, 'GET', '/api/pending-reloads', undefined, false);
   assert.equal(denied.status, 401);
   assert.doesNotMatch(denied.body, /voice-control-secret/);
 
-  const health = await request(state, 'GET', '/health');
+  const health = await request(state, 'GET', '/api/pending-reloads');
   assert.deepEqual(JSON.parse(health.body), {
-    ready: true,
-    database: 'postgres',
+    pending_reloads: 0,
     capabilities: {
       management_http: true, json_rpc_routing: true, step_ivr: true, rwi: true,
       webrtc_extension: true, recording: true, sipflow: true, queue: true,
       postgres_backend: true
     }
   });
-  assert.deepEqual(JSON.parse((await request(state, 'GET', '/version')).body), {
-    version: 'controlled-rustpbx-v1'
+  assert.deepEqual(JSON.parse((await request(state, 'GET', '/ami/v1/health')).body), {
+    ready: true,
+    version: 'controlled-rustpbx-0.4.11',
+    capabilities: {
+      management_http: true, json_rpc_routing: true, step_ivr: true, rwi: true,
+      webrtc_extension: true, recording: true, sipflow: true, queue: true,
+      postgres_backend: true
+    }
   });
 
-  const trunk = await request(state, 'PUT', '/management/trunks/trunk-a', {
-    resource_id: 'trunk-a', desired_state: { direction: 'both' }
+  const trunk = await request(state, 'PUT', '/api/sip-trunk', {
+    name: 'trunk-a', display_name: 'Trunk A', direction: 'bidirectional',
+    sip_transport: 'udp', max_concurrent: 4, auth_password: 'trunk-password'
   });
-  assert.deepEqual(JSON.parse(trunk.body), {
-    provider_ref: 'controlled:trunk:trunk-a', revision: '1', applied: true
+  assert.equal(JSON.parse(trunk.body).id, 1);
+  const trunks = JSON.parse((await request(state, 'POST', '/api/sip-trunk', {
+    page: 1, per_page: 100, filters: { q: 'trunk-a' }
+  })).body);
+  assert.equal(trunks.items[0].name, 'trunk-a');
+  assert.equal(JSON.parse((await request(state, 'POST', '/api/diagnostics/trunks/options', {
+    trunk: 'trunk-a', transport: 'udp'
+  })).body).success, true);
+  assert.equal((await request(state, 'POST', '/ami/v1/reload/trunks')).status, 200);
+
+  const extension = await request(state, 'PUT', '/api/extensions', {
+    extension: '1001', display_name: 'Agent 1001', sip_password: 'extension-password'
   });
-  assert.equal((await request(state, 'POST', '/management/trunks/trunk-a/test', {
-    resource_id: 'trunk-a'
-  })).status, 200);
-  assert.equal((await request(state, 'PUT', '/management/dids/did-a', {
-    resource_id: 'did-a', desired_state: { e164: '+8613800138000', trunk_id: 'trunk-a' }
-  })).status, 200);
-  assert.equal((await request(state, 'PUT', '/management/extensions/extension-a', {
-    resource_id: 'extension-a', desired_state: { extension: '1001' }
-  })).status, 200);
-  assert.equal((await request(state, 'PUT', '/management/routes/route-a', {
-    resource_id: 'route-a', desired_state: { action: 'reject' }
-  })).status, 200);
-  assert.equal(state.resources.size, 4);
-  assert.equal(state.resources.get('did:did-a')?.desired_state.e164, '+8613800138000');
+  assert.equal(JSON.parse(extension.body).id, 2);
+  assert.equal(state.resources.size, 2);
+  assert.equal(state.resources.get('trunk:1')?.desired_state.name, 'trunk-a');
 
   state.calls.set('provider-call-a', { state: 'active', action_id: 'action-a' });
-  assert.deepEqual(JSON.parse((await request(
-    state, 'GET', '/ami/v1/dialogs/provider-call-a'
-  )).body), { state: 'active', provider_call_id: 'provider-call-a' });
+  assert.deepEqual(JSON.parse((await request(state, 'GET', '/ami/v1/dialogs')).body), [{
+    id: 'provider-call-a', call_id: 'provider-call-a', provider_call_id: 'provider-call-a',
+    state: 'active', source: 'active_call_registry'
+  }]);
   state.recordings.set('recording-a', { state: 'available', object_ref: 'controlled://recording-a' });
   assert.equal(JSON.parse((await request(
-    state, 'GET', '/management/recordings/recording-a'
+    state, 'GET', '/api/call-records/recording-a/metadata'
   )).body).object_ref, 'controlled://recording-a');
 });
 
@@ -81,7 +87,7 @@ test('controlled Voice RWI uses official completion envelopes and executes each 
     });
     assert.deepEqual(result, {
       state: 'succeeded', action_id: 'command-originate-a', result: {
-        accepted: true, call_id: 'controlled-call:command-originate-a'
+        accepted: true, call_id: 'call-a'
       }
     });
     assert.equal(running.state.action_counts.get('command-originate-a'), 1);
@@ -109,17 +115,33 @@ test('controlled Voice timeout converges by dialog lookup without a second origi
     assert.deepEqual(result, {
       state: 'uncertain', action_id: 'command-uncertain-a', error_code: 'provider_timeout'
     });
-    await waitFor(() => running.state.calls.has('controlled-call:command-uncertain-a'), 250);
-    const dialog = await fetch(`${running.base_url}/ami/v1/dialogs/controlled-call%3Acommand-uncertain-a`, {
+    await waitFor(() => running.state.calls.has('call-a'), 250);
+    const dialog = await fetch(`${running.base_url}/ami/v1/dialogs`, {
       headers: { authorization: 'Bearer voice-control-secret' }
     });
     assert.equal(dialog.status, 200);
-    assert.equal((await dialog.json() as { state: string }).state, 'active');
+    assert.equal((await dialog.json() as Array<{ state: string }>)[0]?.state, 'active');
     assert.equal(running.state.action_counts.get('command-uncertain-a'), 1);
   } finally {
     await client.close();
     await running.close();
   }
+});
+
+test('controlled Voice management can commit a mutation before its response times out', async () => {
+  const state = createControlledVoiceProviderState({
+    token: 'voice-control-secret', mode: 'async_success_after_timeout', response_delay_ms: 50
+  });
+  const lookup = await request(state, 'POST', '/api/sip-trunk', {
+    page: 1, per_page: 100, filters: { q: 'trunk-uncertain' }
+  });
+  assert.equal(lookup.delay_ms, 0);
+
+  const mutation = await request(state, 'PUT', '/api/sip-trunk', {
+    name: 'trunk-uncertain', auth_password: 'trunk-password'
+  });
+  assert.equal(mutation.delay_ms, 50);
+  assert.equal(state.resources.get('trunk:1')?.desired_state.name, 'trunk-uncertain');
 });
 
 test('controlled Voice modes cover capability absence, failures, malformed data, and package entrypoint', async () => {
@@ -136,7 +158,7 @@ test('controlled Voice modes cover capability absence, failures, malformed data,
     body: { mode: 'capability_absence' }
   }, state);
   assert.equal(changed.status, 200);
-  const health = JSON.parse((await request(state, 'GET', '/health')).body);
+  const health = JSON.parse((await request(state, 'GET', '/api/pending-reloads')).body);
   assert.equal(health.capabilities.queue, false);
 
   for (const mode of [
@@ -144,7 +166,7 @@ test('controlled Voice modes cover capability absence, failures, malformed data,
     'malformed_response', 'auth_failure'
   ] as const) {
     state.mode = mode;
-    const response = await request(state, 'GET', '/version');
+    const response = await request(state, 'GET', '/ami/v1/health');
     if (mode === 'retryable_503') assert.equal(response.status, 503);
     if (mode === 'delayed_timeout') assert.ok(response.delay_ms > 0);
     if (mode === 'malformed_response') assert.throws(() => JSON.parse(response.body));

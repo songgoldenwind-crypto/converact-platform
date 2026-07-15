@@ -112,7 +112,7 @@ async function openVoice(
       api_version: 'v1', tenant_id: 'tenant-e2e', capabilities: {
         deployment_profiles: true, sip_trunks: true, dids: true, extensions: true,
         extension_sessions: true, routes: true, calls: true, call_control: true,
-        provider_events: true, recordings: true, livekit_sip_bridge: true,
+        provider_events: true, recordings: true, parking_slots: true, livekit_sip_bridge: true,
         provider_webhooks: true
       }
     })

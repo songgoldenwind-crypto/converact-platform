@@ -112,7 +112,19 @@ test('Voice preflight persists all nine capabilities with an authoritative confi
   assert.equal(snapshot.capabilities.management_http, true);
   assert.equal(snapshot.capabilities.rwi, true);
   assert.equal(snapshot.capabilities.queue, false);
+  assert.equal(snapshot.capability_schema_version, 1);
+  assert.equal(snapshot.action_capabilities.commands.originate, true);
+  assert.equal(snapshot.action_capabilities.commands.park, true);
+  assert.equal(snapshot.action_capabilities.conference_operations.destroy, true);
   assert.equal(repository.snapshots.length, 1);
+  assert.deepEqual(await service.getCapabilities('tenant-a', configured.id), snapshot);
+
+  repository.profiles.set(configured.id, profile({
+    ...configured,
+    config: { ...configured.config, changed_after_preflight: true }
+  }));
+  assert.equal(await service.getCapabilities('tenant-a', configured.id), null);
+  repository.profiles.set(configured.id, configured);
 
   const sameConfigDifferentResolvedSecret = profile({
     ...configured,
@@ -153,6 +165,7 @@ test('Voice preflight persists controlled failure classifications instead of los
     assert.equal(snapshot.error_code, failure);
     assert.equal(snapshot.status, failure === 'capability_unavailable' ? 'not_available' : 'failed');
     assert.equal(ALL_CAPABILITIES.every((capability) => snapshot.capabilities[capability] === false), true);
+    assert.equal(Object.values(snapshot.action_capabilities.commands).every((enabled) => enabled === false), true);
     assert.equal(repository.snapshots.length, 1);
   }
 });
@@ -221,6 +234,13 @@ class ConfigurationRepositoryFake {
   async insertCapabilitySnapshot(input: VoiceCapabilitySnapshot): Promise<VoiceCapabilitySnapshot> {
     this.snapshots.push(structuredClone(input));
     return structuredClone(input);
+  }
+
+  async getLatestCapabilitySnapshot(tenantId: string, profileId: string): Promise<VoiceCapabilitySnapshot | null> {
+    const found = this.snapshots.findLast((snapshot) =>
+      snapshot.tenant_id === tenantId && snapshot.profile_id === profileId
+    );
+    return found ? structuredClone(found) : null;
   }
 }
 

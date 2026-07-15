@@ -140,6 +140,8 @@ import type {
   IveKitVoiceLiveKitBridge,
   IveKitVoicePage,
   IveKitVoicePageInput,
+  IveKitVoiceParkingSlot,
+  IveKitVoiceParkingSlotState,
   IveKitVoiceParticipant,
   IveKitVoicePolicy,
   IveKitVoicePolicyWrite,
@@ -506,6 +508,7 @@ export interface IveKitVoiceHttpClient {
     input: { revision: number; patch: IveKitVoiceProfilePatch }
   ): Promise<IveKitVoiceDeploymentProfile>;
   preflightProfile(profileId: string): Promise<IveKitVoiceCapabilitySnapshot>;
+  getProfileCapabilities(profileId: string): Promise<IveKitVoiceCapabilitySnapshot | null>;
   listTrunks(
     input?: IveKitVoicePageInput & { profile_id?: string }
   ): Promise<IveKitVoicePage<IveKitVoiceSipTrunk>>;
@@ -569,6 +572,12 @@ export interface IveKitVoiceHttpClient {
       business_ref?: Pick<IveKitSdkBusinessRef, 'type' | 'id'>;
     }
   ): Promise<IveKitVoicePage<IveKitVoiceCall>>;
+  listParkingSlots(
+    input?: IveKitVoicePageInput & {
+      profile_id?: string;
+      state?: IveKitVoiceParkingSlotState;
+    }
+  ): Promise<IveKitVoicePage<IveKitVoiceParkingSlot>>;
   createOutboundCall(
     input: IveKitVoiceCreateOutboundCallInput,
     options: IveKitVoiceIdempotencyOptions
@@ -914,6 +923,7 @@ function createVoiceClient(transport: IveKitTransport): IveKitVoiceHttpClient {
     getProfile: (id) => transport.json('GET', profilePath(id)),
     updateProfile: (id, body) => transport.json('PATCH', profilePath(id), { body }),
     preflightProfile: (id) => transport.json('POST', `${profilePath(id)}/preflight`),
+    getProfileCapabilities: (id) => transport.json('GET', `${profilePath(id)}/capabilities`),
     listTrunks: (input = {}) => transport.json('GET', '/api/ivekit/voice/trunks', {
       query: { ...voicePageQuery(input), profile_id: input.profile_id || '' }
     }),
@@ -965,6 +975,13 @@ function createVoiceClient(transport: IveKitTransport): IveKitVoiceHttpClient {
         state: input.state || '',
         business_ref_type: input.business_ref?.type || '',
         business_ref_id: input.business_ref?.id || ''
+      }
+    }),
+    listParkingSlots: (input = {}) => transport.json('GET', '/api/ivekit/voice/parking-slots', {
+      query: {
+        ...voicePageQuery(input),
+        profile_id: input.profile_id || '',
+        state: input.state || ''
       }
     }),
     createOutboundCall: (body, options) => transport.json('POST', '/api/ivekit/voice/calls', {

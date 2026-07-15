@@ -40,9 +40,15 @@ test('RustPBX management client maps bounded authenticated endpoints', async () 
     if (url === '/ami/v1/health') return json(response, 200, {
       status: 'running', version: 'rustpbx-test-1'
     });
-    if (url === '/ami/v1/dialogs') return json(response, 200, [{
-      id: 'call/a', state: 'active', provider_call_id: 'provider-call-from-dialog'
-    }]);
+    if (url === '/ami/v1/dialogs') return json(response, 200, [
+      { id: 'call/a', state: 'active', provider_call_id: 'provider-call-from-dialog' },
+      { call_id: 'talking-call', state: 'talking', source: 'active_call_registry' },
+      {
+        call_id: 'terminated-call',
+        state: 'terminated-call-local-remote(Terminated UacBye)',
+        source: 'sip_dialog_layer'
+      }
+    ]);
     if (url.includes('/sipflow/flow/')) return json(response, 200, { flow: [{ event: 'invite' }] });
     if (url.includes('/call-records/')) return json(response, 200, { state: 'available', object_ref: 's3://recording-a' });
     if (url === '/api/diagnostics/trunks/options') return json(response, 200, { success: true });
@@ -97,6 +103,19 @@ test('RustPBX management client maps bounded authenticated endpoints', async () 
       state: 'succeeded', provider_state: 'active',
       provider_call_id: 'provider-call-from-dialog',
       safe_diagnostics: { state: 'active', provider_call_id: 'provider-call-from-dialog' }
+    });
+    assert.deepEqual(await client.lookupDialog({ provider_call_id: 'talking-call' }), {
+      state: 'succeeded', provider_state: 'talking', provider_call_id: 'talking-call',
+      safe_diagnostics: { state: 'talking', provider_call_id: 'talking-call' }
+    });
+    assert.deepEqual(await client.lookupDialog({ provider_call_id: 'terminated-call' }), {
+      state: 'succeeded',
+      provider_state: 'terminated-call-local-remote(Terminated UacBye)',
+      provider_call_id: 'terminated-call',
+      safe_diagnostics: {
+        state: 'terminated-call-local-remote(Terminated UacBye)',
+        provider_call_id: 'terminated-call'
+      }
     });
     assert.equal((await client.lookupRecording({ provider_recording_id: 'recording/a' })).state, 'available');
     assert.deepEqual((await client.getSipFlow('call/a')).items, [{ event: 'invite' }]);

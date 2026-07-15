@@ -3,6 +3,8 @@ import {
   type IveKitClient,
   type IveKitVoiceAddressKind,
   type IveKitVoiceCallState,
+  type IveKitVoiceCapabilitySnapshot,
+  type IveKitVoiceCommandKind,
   type IveKitVoiceController,
   type IveKitVoiceControllerState
 } from '@opc/ivekit-sdk';
@@ -31,8 +33,7 @@ const SipPhonePanel = lazy(async () => {
 });
 
 type VoicePanel = 'keypad' | 'transfer' | 'more' | null;
-type VoiceAction = 'answer' | 'hangup' | 'dtmf' | 'hold' | 'resume' | 'transfer' |
-  'conference' | 'park' | 'pickup' | 'recording' | 'bridge';
+type VoiceAction = Exclude<IveKitVoiceCommandKind, 'originate'>;
 
 const EMPTY_STATE: IveKitVoiceControllerState = {
   phase: 'idle',
@@ -69,6 +70,7 @@ export function VoiceWorkspace(props: {
   const [conferenceId, setConferenceId] = useState('');
   const [parkSlot, setParkSlot] = useState('');
   const [sipTrunkId, setSipTrunkId] = useState('');
+  const [profileCapabilities, setProfileCapabilities] = useState<IveKitVoiceCapabilitySnapshot | null>(null);
   const [localError, setLocalError] = useState('');
   const selectedRequest = useRef<{ controller: IveKitVoiceController | null; key: string }>({ controller: null, key: '' });
 
@@ -111,6 +113,16 @@ export function VoiceWorkspace(props: {
     selectedRequest.current.key = requestKey;
     void controller.selectCall(props.callId).catch((cause) => setLocalError(errorMessage(cause)));
   }, [controller, props.callId, props.refreshVersion, state.phase]);
+  useEffect(() => {
+    let cancelled = false;
+    setProfileCapabilities(null);
+    const providerProfileId = state.call?.provider_profile_id;
+    if (!props.client || !providerProfileId) return () => { cancelled = true; };
+    void props.client.voice.getProfileCapabilities(providerProfileId)
+      .then((snapshot) => { if (!cancelled) setProfileCapabilities(snapshot); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [props.client, state.call?.provider_profile_id]);
 
   const run = async (command: (controller: IveKitVoiceController) => Promise<unknown>) => {
     if (!controller) return;
@@ -128,6 +140,10 @@ export function VoiceWorkspace(props: {
     : null;
   const allowed = (action: VoiceAction) => Boolean(
     call && !busy && ACTION_STATES[action].includes(call.state)
+      && profileCapabilities?.status === 'ready'
+      && profileCapabilities?.capability_schema_version === 1
+      && profileCapabilities.action_capabilities.commands[action] === true
+      && (action !== 'conference' || profileCapabilities.action_capabilities.conference_operations.add === true)
   );
 
   const openCall = (event: FormEvent) => {
@@ -223,22 +239,22 @@ export function VoiceWorkspace(props: {
             <div className="voice-mode" role="group" aria-label="Transfer mode"><button aria-pressed={transferKind === 'blind'} onClick={() => setTransferKind('blind')}>Blind</button><button aria-pressed={transferKind === 'warm'} onClick={() => setTransferKind('warm')}>Warm</button></div>
             <select aria-label="Transfer address type" value={transferAddressKind} onChange={(event) => setTransferAddressKind(event.target.value as IveKitVoiceAddressKind)}>{addressOptions()}</select>
             <input aria-label="Transfer target" value={transferTarget} onChange={(event) => setTransferTarget(event.target.value)} />
-            <button title="Transfer call" disabled={!allowed('transfer') || !transferTarget.trim()} onClick={() => void run((voice) => transferKind === 'blind' ? voice.blindTransfer({ kind: transferAddressKind, value: transferTarget }) : voice.warmTransfer({ kind: transferAddressKind, value: transferTarget }))}><PhoneForwarded size={16} /></button>
+            <button title="Transfer call" disabled={!allowed(transferKind === 'blind' ? 'blind_transfer' : 'warm_transfer') || !transferTarget.trim()} onClick={() => void run((voice) => transferKind === 'blind' ? voice.blindTransfer({ kind: transferAddressKind, value: transferTarget }) : voice.warmTransfer({ kind: transferAddressKind, value: transferTarget }))}><PhoneForwarded size={16} /></button>
           </div>}
           {panel === 'more' && <div className="voice-action-panel voice-more-panel">
             <label><span>Conference</span><input aria-label="Conference ID" value={conferenceId} onChange={(event) => setConferenceId(event.target.value)} /><button title="Add to conference" disabled={!allowed('conference') || !conferenceId.trim()} onClick={() => void run((voice) => voice.conference(conferenceId))}><Users size={15} /></button></label>
             <label><span>Park slot</span><input aria-label="Park slot" value={parkSlot} onChange={(event) => setParkSlot(event.target.value)} /><button title="Park call" disabled={!allowed('park') || !parkSlot.trim()} onClick={() => void run((voice) => voice.park(parkSlot))}><CircleParking size={15} /></button><button title="Pickup call" disabled={!allowed('pickup') || !parkSlot.trim()} onClick={() => void run((voice) => voice.pickup(parkSlot))}><PhoneIncoming size={15} /></button></label>
-            <label><span>SIP trunk</span><input aria-label="SIP trunk ID" value={sipTrunkId} onChange={(event) => setSipTrunkId(event.target.value)} /><button title="Create LiveKit bridge" disabled={!allowed('bridge') || !sipTrunkId.trim()} onClick={() => void run((voice) => voice.createLiveKitBridge(sipTrunkId))}><RadioTower size={15} /></button></label>
-            <div className="voice-recording-actions"><button title="Start recording" disabled={!allowed('recording')} onClick={() => void run((voice) => voice.startRecording())}>Start</button><button title="Pause recording" disabled={!allowed('recording')} onClick={() => void run((voice) => voice.pauseRecording())}>Pause</button><button title="Resume recording" disabled={!allowed('recording')} onClick={() => void run((voice) => voice.resumeRecording())}>Resume</button><button title="Stop recording" disabled={!allowed('recording')} onClick={() => void run((voice) => voice.stopRecording())}>Stop</button></div>
+            <label><span>SIP trunk</span><input aria-label="SIP trunk ID" value={sipTrunkId} onChange={(event) => setSipTrunkId(event.target.value)} /><button title="Create LiveKit bridge" disabled={!allowed('livekit_bridge_create') || !sipTrunkId.trim()} onClick={() => void run((voice) => voice.createLiveKitBridge(sipTrunkId))}><RadioTower size={15} /></button></label>
+            <div className="voice-recording-actions"><button title="Start recording" disabled={!allowed('recording_start')} onClick={() => void run((voice) => voice.startRecording())}>Start</button><button title="Pause recording" disabled={!allowed('recording_pause')} onClick={() => void run((voice) => voice.pauseRecording())}>Pause</button><button title="Resume recording" disabled={!allowed('recording_resume')} onClick={() => void run((voice) => voice.resumeRecording())}>Resume</button><button title="Stop recording" disabled={!allowed('recording_stop')} onClick={() => void run((voice) => voice.stopRecording())}>Stop</button></div>
           </div>}
 
           <div className="voice-toolbar">
             <button title="Answer call" disabled={!allowed('answer')} onClick={() => void run((voice) => voice.answer())}><PhoneIncoming size={18} /></button>
             <button title="Hold call" disabled={!allowed('hold')} onClick={() => void run((voice) => voice.hold())}><Pause size={18} /></button>
             <button title="Resume call" disabled={!allowed('resume')} onClick={() => void run((voice) => voice.resume())}><Play size={18} /></button>
-            <button title="Open DTMF keypad" aria-pressed={panel === 'keypad'} disabled={!call || busy} onClick={() => togglePanel('keypad')}><Grid3X3 size={18} /></button>
-            <button title="Open transfer controls" aria-pressed={panel === 'transfer'} disabled={!call || busy} onClick={() => togglePanel('transfer')}><PhoneForwarded size={18} /></button>
-            <button title="Open more voice controls" aria-pressed={panel === 'more'} disabled={!call || busy} onClick={() => togglePanel('more')}><Ellipsis size={18} /></button>
+            <button title="Open DTMF keypad" aria-pressed={panel === 'keypad'} disabled={!allowed('dtmf')} onClick={() => togglePanel('keypad')}><Grid3X3 size={18} /></button>
+            <button title="Open transfer controls" aria-pressed={panel === 'transfer'} disabled={!allowed('blind_transfer') && !allowed('warm_transfer')} onClick={() => togglePanel('transfer')}><PhoneForwarded size={18} /></button>
+            <button title="Open more voice controls" aria-pressed={panel === 'more'} disabled={!call || busy || !MORE_ACTIONS.some(allowed)} onClick={() => togglePanel('more')}><Ellipsis size={18} /></button>
             <button className="hangup" title="Hang up call" disabled={!allowed('hangup')} onClick={() => void run((voice) => voice.hangup())}><PhoneOff size={18} /></button>
           </div>
         </>}
@@ -254,13 +270,22 @@ const ACTION_STATES: Record<VoiceAction, readonly IveKitVoiceCallState[]> = {
   dtmf: ['active'],
   hold: ['active'],
   resume: ['held'],
-  transfer: ['active', 'held'],
+  blind_transfer: ['active', 'held'],
+  warm_transfer: ['active', 'held'],
   conference: ['active', 'held'],
   park: ['active', 'held'],
   pickup: ['active', 'held'],
-  recording: ['active', 'held'],
-  bridge: ['active', 'held']
+  recording_start: ['active', 'held'],
+  recording_pause: ['active', 'held'],
+  recording_resume: ['active', 'held'],
+  recording_stop: ['active', 'held'],
+  livekit_bridge_create: ['active', 'held']
 };
+
+const MORE_ACTIONS: readonly VoiceAction[] = [
+  'conference', 'park', 'pickup', 'recording_start', 'recording_pause',
+  'recording_resume', 'recording_stop', 'livekit_bridge_create'
+];
 
 function addressOptions() {
   return <><option value="extension">Extension</option><option value="e164">E.164</option><option value="sip_uri">SIP URI</option></>;

@@ -44,6 +44,7 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
     'src/agent-runtime/ivekit/contact-center/overflow-runtime.ts',
     'src/agent-runtime/ivekit/contact-center/voice-overflow-adapter.ts',
     'src/agent-runtime/ivekit/contact-center/supervisor-control.ts',
+    'src/agent-runtime/ivekit/contact-center/rustpbx-supervisor-control.ts',
     'src/agent-runtime/ivekit/contact-center/supervisor-service.ts',
     'src/agent-runtime/ivekit/contact-center/postgres/store.ts',
     'src/agent-runtime/ivekit/contact-center/postgres/configuration-store.ts',

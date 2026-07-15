@@ -10,6 +10,7 @@ import {
   type VoiceDeploymentProfile,
   type VoiceDid,
   type VoiceLiveKitBridge,
+  type VoiceParkingSlot,
   type VoiceProviderEvent,
   type VoiceRecording
 } from '../src/agent-runtime/ivekit/voice/index.js';
@@ -17,6 +18,7 @@ import { PostgresVoiceCallStore } from '../src/agent-runtime/ivekit/voice/postgr
 import { PostgresVoiceCommandStore } from '../src/agent-runtime/ivekit/voice/postgres/command-store.js';
 import { PostgresVoiceConfigurationStore } from '../src/agent-runtime/ivekit/voice/postgres/configuration-store.js';
 import { PostgresVoiceProviderEventStore } from '../src/agent-runtime/ivekit/voice/postgres/provider-event-store.js';
+import { PostgresVoiceParkingStore } from '../src/agent-runtime/ivekit/voice/postgres/parking-store.js';
 import { PostgresVoiceRecordingStore } from '../src/agent-runtime/ivekit/voice/postgres/recording-store.js';
 
 interface RecordedQuery {
@@ -263,6 +265,55 @@ test('Voice recording store decodes recordings and idempotently reloads LiveKit 
   assert.match(list.text, /\(recording\.created_at, recording\.id\) < \(\$2::timestamptz, \$3\)/i);
 });
 
+test('Voice parking store locks active slots and uses optimistic revisions', async () => {
+  const pg = new RecordingPg((sql) => {
+    if (/INSERT INTO ivekit_voice_parking_slots/i.test(sql)) return [parkingRow()];
+    if (/FROM ivekit_voice_parking_slots parking/i.test(sql)) return [parkingRow()];
+    if (/UPDATE ivekit_voice_parking_slots parking/i.test(sql)) {
+      return [parkingRow({ state: 'parked', revision: 2 })];
+    }
+    return [];
+  });
+  const store = new PostgresVoiceParkingStore(pg);
+
+  const page = await store.list({ tenant_id: 'tenant-a', profile_id: 'profile-a', state: 'parked', limit: 20 });
+  assert.equal(page.items[0]?.slot, '701');
+  const list = pg.calls.find((call) => /ORDER BY parking\.created_at DESC/i.test(call.text))!;
+  assert.deepEqual(list.params.slice(3, 5), ['profile-a', 'parked']);
+  assert.match(list.text, /\(parking\.created_at, parking\.id\) < \(\$2::timestamptz, \$3\)/i);
+
+  const inserted = await store.insert(parkingRecord());
+  assert.equal(inserted.slot, '701');
+  const insert = pg.calls.find((call) => /INSERT INTO ivekit_voice_parking_slots/i.test(call.text))!;
+  assert.equal(insert.text.includes('tenant-a'), false);
+  assert.equal(insert.params.includes('tenant-a'), true);
+  assert.match(insert.text, /ON CONFLICT DO NOTHING/i);
+
+  const active = await store.getBySlot('tenant-a', 'profile-a', '701', { for_update: true });
+  assert.equal(active?.parked_call_id, 'call-a');
+  const select = pg.calls.find((call) => /parking\.slot = \$3/i.test(call.text))!;
+  assert.deepEqual(select.params, ['tenant-a', 'profile-a', '701']);
+  assert.match(select.text, /state IN \('parking', 'parked', 'retrieving'\)/i);
+  assert.match(select.text, /FOR UPDATE/i);
+
+  const updated = await store.update({
+    ...parkingRecord(), state: 'parked', revision: 2,
+    updated_at: '2026-07-13T00:00:01.000Z'
+  }, 1);
+  assert.equal(updated.revision, 2);
+  const update = pg.calls.find((call) => /UPDATE ivekit_voice_parking_slots parking/i.test(call.text))!;
+  assert.match(update.text, /parking\.revision = \$10/i);
+  assert.equal(update.params.at(-1), 1);
+});
+
+test('Voice parking store reports stable conflicts for occupied slots', async () => {
+  const pg = new RecordingPg();
+  await assert.rejects(
+    () => new PostgresVoiceParkingStore(pg).insert(parkingRecord()),
+    (error: unknown) => error instanceof VoiceError && error.code === 'revision_conflict'
+  );
+});
+
 function profileRecord(): VoiceDeploymentProfile {
   return {
     id: 'profile-a', tenant_id: 'tenant-a', name: 'PBX A', adapter: 'rustpbx', status: 'enabled',
@@ -386,4 +437,25 @@ function bridgeRecord(): VoiceLiveKitBridge {
 
 function bridgeRow(): Record<string, unknown> {
   return { ...bridgeRecord() };
+}
+
+function parkingRecord(): VoiceParkingSlot {
+  return {
+    id: 'parking-a', tenant_id: 'tenant-a', profile_id: 'profile-a', slot: '701',
+    state: 'parking', parked_call_id: 'call-a', park_command_id: 'command-a',
+    pickup_call_id: null, pickup_command_id: null,
+    expires_at: '2026-07-13T01:00:00.000Z', release_reason: '', revision: 1,
+    created_at: '2026-07-13T00:00:00.000Z', updated_at: '2026-07-13T00:00:00.000Z',
+    released_at: null
+  };
+}
+
+function parkingRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...parkingRecord(),
+    created_at: new Date('2026-07-13T00:00:00.000Z'),
+    updated_at: new Date('2026-07-13T00:00:00.000Z'),
+    expires_at: new Date('2026-07-13T01:00:00.000Z'),
+    ...overrides
+  };
 }

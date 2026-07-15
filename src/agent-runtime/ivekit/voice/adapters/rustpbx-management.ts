@@ -11,6 +11,7 @@ import type {
   VoiceCapability,
   VoiceProviderCapabilities
 } from '../types.js';
+import { normalizeVoiceActionCapabilities, VOICE_CAPABILITY_SCHEMA_VERSION } from '../capabilities.js';
 
 export interface RustPbxManagementPaths {
   management_health: string;
@@ -326,6 +327,8 @@ export class RustPbxManagementClient implements VoiceManagementPort {
       provider: 'rustpbx',
       provider_version: providerVersion,
       capabilities,
+      capability_schema_version: VOICE_CAPABILITY_SCHEMA_VERSION,
+      action_capabilities: normalizeVoiceActionCapabilities(),
       checked_at: this.#now().toISOString(),
       config_hash: this.#configHash
     };
@@ -671,9 +674,13 @@ function applyAdvertisedCapabilities(output: Record<VoiceCapability, boolean>, v
 }
 
 function normalizedDialogState(value: string): 'pending' | 'succeeded' | 'failed' | 'unknown' {
-  if (['active', 'answered', 'completed', 'connected', 'confirmed', 'ended', 'terminated'].includes(value.toLowerCase())) return 'succeeded';
-  if (['created', 'dialing', 'ringing', 'trying', 'pending', 'early'].includes(value.toLowerCase())) return 'pending';
-  if (['failed', 'rejected', 'cancelled', 'timeout', 'timed_out'].includes(value.toLowerCase())) return 'failed';
+  const normalized = value.trim().toLowerCase();
+  if (['active', 'answered', 'completed', 'connected', 'confirmed', 'ended', 'talking', 'terminated'].includes(normalized)) return 'succeeded';
+  if (['created', 'dialing', 'ringing', 'trying', 'pending', 'early'].includes(normalized)) return 'pending';
+  if (['failed', 'rejected', 'cancelled', 'timeout', 'timed_out'].includes(normalized)) return 'failed';
+  const rustPbxDialogState = normalized.match(/\((calling|early|confirmed|terminated)(?:\s[^()]*)?\)$/)?.[1];
+  if (rustPbxDialogState === 'confirmed' || rustPbxDialogState === 'terminated') return 'succeeded';
+  if (rustPbxDialogState === 'calling' || rustPbxDialogState === 'early') return 'pending';
   return 'unknown';
 }
 

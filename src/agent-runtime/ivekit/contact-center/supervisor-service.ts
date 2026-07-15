@@ -100,6 +100,14 @@ export class ContactCenterSupervisorService {
       });
       providerSessionId = identifier(result.provider_session_id, 'provider_session_id');
     } catch (error) {
+      if (isRetryableProviderError(error)) {
+        throw new ContactCenterError({
+          code: 'conflict',
+          status: 502,
+          retryable: true,
+          details: { reason: failureCode(error) }
+        });
+      }
       const current = await this.#recordStartFailure(prepared, failureCode(error));
       if (current.state === 'active') return current;
       throw new ContactCenterError({
@@ -161,6 +169,11 @@ export class ContactCenterSupervisorService {
 
     await this.#control.end({
       tenant_id: tenantId,
+      session_id: prepared.id,
+      call_id: prepared.call_id,
+      target_agent_id: prepared.target_agent_id,
+      supervisor_identity: prepared.supervisor_identity,
+      mode: prepared.mode,
       provider_session_id: prepared.provider_session_id,
       idempotency_key: `${prepared.id}:end`
     });
@@ -302,4 +315,9 @@ function failureCode(error: unknown): string {
     ? String((error as { code?: unknown }).code || '')
     : '';
   return /^[a-z][a-z0-9_]{0,127}$/.test(code) ? code : 'supervisor_start_failed';
+}
+
+function isRetryableProviderError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object'
+    && (error as { retryable?: unknown }).retryable === true);
 }

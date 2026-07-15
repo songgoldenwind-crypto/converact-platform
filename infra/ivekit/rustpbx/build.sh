@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-tcp-reconnect-6c49ee76}"
+IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-ivekit.3-6c49ee76}"
 
 case "$(uname -m)" in
   x86_64) NATIVE_ARCH="amd64" ;;
@@ -33,6 +33,10 @@ git -C "$BUILD_ROOT/rsipstack" checkout --detach "$RSIPSTACK_COMMIT"
 
 git -C "$BUILD_ROOT/rsipstack" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch"
 git -C "$BUILD_ROOT/rsipstack" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-local-rsipstack.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-local-rsipstack.patch"
 

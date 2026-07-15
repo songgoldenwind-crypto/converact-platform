@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { canonicalVoicePayloadHash, safeVoiceProviderPayload } from './canonical.js';
+import { supportsVoiceCommand, VOICE_CAPABILITY_SCHEMA_VERSION } from './capabilities.js';
 import { assertVoiceConfigContainsNoSecrets, voiceProfileConfigHash } from './deployment-profile-service.js';
 import { VoiceError } from './errors.js';
 import { observeVoiceCall, observeVoiceCommand } from './metrics.js';
@@ -11,7 +12,9 @@ import type {
   VoiceCallRepository,
   VoiceCompliancePort,
   VoiceConfigurationRepository,
-  VoiceEventPort
+  VoiceEventPort,
+  VoiceParkingRepository,
+  VoiceProviderParkingContext
 } from './ports.js';
 import { VoiceProviderRegistry } from './provider-registry.js';
 import { isVoiceTerminalState, mergeProviderCallState } from './state-machine.js';
@@ -25,6 +28,7 @@ import type {
   VoiceCommandKind,
   VoiceListInput,
   VoicePage,
+  VoiceParkingSlot,
   VoicePolicy,
   VoiceProtectedAddress
 } from './types.js';
@@ -36,6 +40,7 @@ export interface VoiceCallServiceOptions {
   event_port: VoiceEventPort;
   id?: (kind: string) => string;
   now?: () => Date;
+  parking_ttl_ms?: number;
 }
 
 export interface VoiceProviderCallCommandExecutorOptions {
@@ -43,6 +48,7 @@ export interface VoiceProviderCallCommandExecutorOptions {
   configuration: VoiceConfigurationRepository;
   address_protector: VoiceAddressProtector;
   provider_registry: VoiceProviderRegistry;
+  parking?: VoiceParkingRepository;
   now?: () => Date;
 }
 
@@ -109,6 +115,7 @@ export class VoiceCallService {
   readonly #eventPort: VoiceEventPort;
   readonly #id: (kind: string) => string;
   readonly #now: () => Date;
+  readonly #parkingTtlMs: number;
 
   constructor(options: VoiceCallServiceOptions) {
     this.#unitOfWork = options.unit_of_work;
@@ -117,6 +124,7 @@ export class VoiceCallService {
     this.#eventPort = options.event_port;
     this.#id = options.id ?? (() => randomUUID());
     this.#now = options.now ?? (() => new Date());
+    this.#parkingTtlMs = boundedParkingTtl(options.parking_ttl_ms);
   }
 
   async createOutbound(input: CreateOutboundVoiceCallInput): Promise<{ call: VoiceCall; command: VoiceCallCommand }> {
@@ -144,7 +152,7 @@ export class VoiceCallService {
         if (!command || command.payload_hash !== requestHash) throw idempotencyConflict();
         return { call: replay, command, created: false };
       }
-      const policy = await this.#authorizeRuntime(context, tenantId, input.profile_id, 'originate');
+      const policy = await this.#authorizeRuntime(context, tenantId, input.profile_id, 'originate', {});
       if (policy.require_outbound_consent && !compliance.evidence_ref) throw complianceDenied();
       const call: VoiceCall = {
         id: callId,
@@ -244,6 +252,8 @@ export class VoiceCallService {
       payload = dtmfActionPayload(input.payload);
     } else if (kind === 'conference') {
       payload = conferenceActionPayload(input.payload);
+    } else if (kind === 'park' || kind === 'pickup') {
+      payload = parkingActionPayload(input.payload);
     } else if (kind === 'livekit_bridge_create') {
       payload = { sip_trunk_id: boundedIdentifier(input.payload.sip_trunk_id) };
     } else {
@@ -267,12 +277,30 @@ export class VoiceCallService {
       }
       const call = required(await context.calls.get(tenantId, callId, { for_update: true }));
       validateActionState(call.state, kind);
-      const policy = await this.#authorizeRuntime(context, tenantId, call.provider_profile_id, kind);
+      const policy = await this.#authorizeRuntime(context, tenantId, call.provider_profile_id, kind, payload);
       if (recordingAction && policy.recording_mode === 'disabled') throw complianceDenied();
+      const parkingSlot = kind === 'park'
+        ? await this.#prepareParkingReservation(context, call, String(payload.slot))
+        : kind === 'pickup'
+          ? await this.#requireRetrievableParkingSlot(context, call, String(payload.slot))
+          : null;
       const command = await context.commands.insertCall(this.#newCommand({
         tenant_id: tenantId, call_id: call.id, kind, idempotency_key: key,
         payload_hash: payloadHash, payload
       }));
+      if (kind === 'park') {
+        await context.parking.insert(this.#newParkingSlot(call, command, String(payload.slot)));
+      } else if (kind === 'pickup' && parkingSlot) {
+        const now = this.#timestamp();
+        await context.parking.update({
+          ...parkingSlot,
+          state: 'retrieving',
+          pickup_call_id: call.id,
+          pickup_command_id: command.id,
+          revision: parkingSlot.revision + 1,
+          updated_at: now
+        }, parkingSlot.revision);
+      }
       return { command, created: true };
     });
     if (result.created) {
@@ -298,11 +326,27 @@ export class VoiceCallService {
     return { ...page, items: page.items.map(publicCall) };
   }
 
+  async listParkingSlots(input: VoiceListInput & {
+    profile_id?: string;
+    state?: VoiceParkingSlot['state'];
+  }): Promise<VoicePage<VoiceParkingSlot>> {
+    const tenantId = boundedIdentifier(input.tenant_id);
+    const profileId = input.profile_id === undefined ? undefined : boundedIdentifier(input.profile_id);
+    const state = input.state === undefined ? undefined : parkingState(input.state);
+    return this.#unitOfWork.run(tenantId, ({ parking }) => parking.list({
+      ...input,
+      tenant_id: tenantId,
+      ...(profileId ? { profile_id: profileId } : {}),
+      ...(state ? { state } : {})
+    }));
+  }
+
   async #authorizeRuntime(
     context: VoiceCallUnitOfWorkContext,
     tenantId: string,
     profileIdInput: string,
-    command: VoiceCommandKind | null
+    command: VoiceCommandKind | null,
+    payload: Record<string, unknown> = {}
   ): Promise<VoicePolicy> {
     const profileId = boundedIdentifier(profileIdInput);
     const profile = required(await context.configuration.getProfile(tenantId, profileId));
@@ -312,8 +356,13 @@ export class VoiceCallService {
       const snapshot = await context.configuration.getLatestCapabilitySnapshot(tenantId, profileId);
       if (!capability || !snapshot || snapshot.status !== 'ready'
         || snapshot.config_hash !== voiceProfileConfigHash(profile)
-        || snapshot.capabilities[capability] !== true) {
-        throw new VoiceError({ code: 'capability_unavailable', status: 501, details: { capability } });
+        || snapshot.capabilities[capability] !== true
+        || snapshot.capability_schema_version !== VOICE_CAPABILITY_SCHEMA_VERSION
+        || !supportsVoiceCommand(snapshot.action_capabilities, command, payload)) {
+        throw new VoiceError({
+          code: 'capability_unavailable', status: 501,
+          details: { capability, command }
+        });
       }
     }
     const policy = required(await context.configuration.getPolicy(tenantId));
@@ -326,6 +375,77 @@ export class VoiceCallService {
     const value = normalizedAddress(kind, input.value);
     const protectedAddress = await this.#addressProtector.protect(tenantId, value, kind);
     return { kind, ...protectedAddress };
+  }
+
+  async #prepareParkingReservation(
+    context: VoiceCallUnitOfWorkContext,
+    call: VoiceCall,
+    slot: string
+  ): Promise<null> {
+    const existing = await context.parking.getBySlot(
+      call.tenant_id, call.provider_profile_id, slot, { for_update: true }
+    );
+    if (!existing) return null;
+    const now = this.#now();
+    if (new Date(existing.expires_at).getTime() > now.getTime()) throw parkingConflict(slot, existing.state);
+    await context.parking.update({
+      ...existing,
+      state: 'expired',
+      release_reason: 'parking_ttl_expired',
+      revision: existing.revision + 1,
+      updated_at: now.toISOString(),
+      released_at: now.toISOString()
+    }, existing.revision);
+    return null;
+  }
+
+  async #requireRetrievableParkingSlot(
+    context: VoiceCallUnitOfWorkContext,
+    pickupCall: VoiceCall,
+    slot: string
+  ): Promise<VoiceParkingSlot> {
+    const parking = await context.parking.getBySlot(
+      pickupCall.tenant_id, pickupCall.provider_profile_id, slot, { for_update: true }
+    );
+    if (!parking) throw new VoiceError({
+      code: 'not_found', status: 404, details: { resource: 'voice_parking_slot', slot }
+    });
+    if (parking.state !== 'parked' || new Date(parking.expires_at).getTime() <= this.#now().getTime()) {
+      throw parkingConflict(slot, parking.state);
+    }
+    if (parking.parked_call_id === pickupCall.id) {
+      throw new VoiceError({ code: 'invalid_call_transition', status: 409, details: { slot } });
+    }
+    const parkedCall = required(await context.calls.get(
+      pickupCall.tenant_id, parking.parked_call_id, { for_update: true }
+    ));
+    if (parkedCall.provider_profile_id !== pickupCall.provider_profile_id) {
+      throw new VoiceError({ code: 'protocol_mismatch', status: 409, details: { slot } });
+    }
+    validateActionState(parkedCall.state, 'park');
+    return parking;
+  }
+
+  #newParkingSlot(call: VoiceCall, command: VoiceCallCommand, slot: string): VoiceParkingSlot {
+    const now = this.#now();
+    const timestamp = now.toISOString();
+    return {
+      id: this.#newId('parking-slot'),
+      tenant_id: call.tenant_id,
+      profile_id: call.provider_profile_id,
+      slot,
+      state: 'parking',
+      parked_call_id: call.id,
+      park_command_id: command.id,
+      pickup_call_id: null,
+      pickup_command_id: null,
+      expires_at: new Date(now.getTime() + this.#parkingTtlMs).toISOString(),
+      release_reason: '',
+      revision: 1,
+      created_at: timestamp,
+      updated_at: timestamp,
+      released_at: null
+    };
   }
 
   #newCommand(input: Pick<VoiceCallCommand,
@@ -352,6 +472,7 @@ export class VoiceProviderCallCommandExecutor {
   readonly #configuration: VoiceConfigurationRepository;
   readonly #addressProtector: VoiceAddressProtector;
   readonly #registry: VoiceProviderRegistry;
+  readonly #parking?: VoiceParkingRepository;
   readonly #now: () => Date;
 
   constructor(options: VoiceProviderCallCommandExecutorOptions) {
@@ -359,6 +480,7 @@ export class VoiceProviderCallCommandExecutor {
     this.#configuration = options.configuration;
     this.#addressProtector = options.address_protector;
     this.#registry = options.provider_registry;
+    this.#parking = options.parking;
     this.#now = options.now ?? (() => new Date());
   }
 
@@ -377,12 +499,19 @@ export class VoiceProviderCallCommandExecutor {
         })
       };
     }
+    const parkingExecution = await this.#parkingExecution(command, call);
+    if (parkingExecution.replayed) return parkingExecution.replayed;
     const profile = required(await this.#configuration.getProfile(command.tenant_id, call.provider_profile_id));
     const capability = requiredCapabilityForVoiceCommand(command.kind);
     const snapshot = await this.#configuration.getLatestCapabilitySnapshot(command.tenant_id, profile.id);
     if (!snapshot || snapshot.status !== 'ready' || snapshot.config_hash !== voiceProfileConfigHash(profile)
-      || snapshot.capabilities[capability] !== true) {
-      throw new VoiceError({ code: 'capability_unavailable', status: 501, details: { capability } });
+      || snapshot.capabilities[capability] !== true
+      || snapshot.capability_schema_version !== VOICE_CAPABILITY_SCHEMA_VERSION
+      || !supportsVoiceCommand(snapshot.action_capabilities, command.kind, command.payload)) {
+      throw new VoiceError({
+        code: 'capability_unavailable', status: 501,
+        details: { capability, command: command.kind }
+      });
     }
     let clearAddress: string | undefined;
     if (command.kind === 'originate') {
@@ -393,10 +522,18 @@ export class VoiceProviderCallCommandExecutor {
       clearAddress = await this.#addressProtector.reveal(command.tenant_id, address.ciphertext, address.kind);
     }
     let adapter: Awaited<ReturnType<VoiceProviderRegistry['create']>> | null = null;
+    let providerInvocationStarted = false;
     const startedAt = performance.now();
     try {
       adapter = await this.#registry.create(profile, { purpose: 'execute' });
-      const executed = await adapter.execute({ call, command, clear_address: clearAddress });
+      providerInvocationStarted = true;
+      const executed = await adapter.execute({
+        call, command, clear_address: clearAddress,
+        ...(parkingExecution.context ? { parking: parkingExecution.context } : {})
+      });
+      if (parkingExecution.context && executed.accepted === false) {
+        throw new VoiceError({ code: 'provider_unavailable', status: 502 });
+      }
       if (command.kind === 'originate') {
         if (!executed.provider_call_id) {
           throw providerExecutionUnknown(executed.provider_command_id);
@@ -405,6 +542,13 @@ export class VoiceProviderCallCommandExecutor {
           await this.#convergeOriginate(call, executed.provider_call_id);
         } catch (error) {
           if (error instanceof VoiceError && error.code === 'protocol_mismatch') throw error;
+          throw providerExecutionUnknown(executed.provider_command_id);
+        }
+      }
+      if (parkingExecution.context) {
+        try {
+          await this.#convergeParking(command);
+        } catch {
           throw providerExecutionUnknown(executed.provider_command_id);
         }
       }
@@ -420,21 +564,32 @@ export class VoiceProviderCallCommandExecutor {
       return {
         provider_command_id: executed.provider_command_id,
         result: safeVoiceProviderPayload({
-          provider_call_id: executed.provider_call_id,
-          accepted: executed.accepted
+          ...(executed.provider_call_id ? { provider_call_id: executed.provider_call_id } : {}),
+          accepted: executed.accepted,
+          ...(parkingExecution.context ? { parking_slot: parkingExecution.context.slot.slot } : {})
         })
       };
     } catch (error) {
+      const executionError = providerInvocationStarted && !(error instanceof VoiceError)
+        ? providerExecutionUnknown('')
+        : error;
+      if (parkingExecution.context && isDefiniteProviderFailure(executionError)) {
+        try {
+          await this.#settleParkingFailure(command, executionError);
+        } catch {
+          throw providerExecutionUnknown(providerCommandIdFromExecutionError(executionError));
+        }
+      }
       observeVoiceCommand({
         adapter: profile.adapter,
         kind: command.kind,
-        result: error instanceof VoiceError && error.code === 'provider_timeout'
+        result: executionError instanceof VoiceError && executionError.code === 'provider_timeout'
           ? 'uncertain'
           : 'failed',
-        error_code: error instanceof VoiceError ? error.code : 'provider_unavailable',
+        error_code: executionError instanceof VoiceError ? executionError.code : 'provider_unavailable',
         duration_seconds: (performance.now() - startedAt) / 1_000
       });
-      throw error;
+      throw executionError;
     } finally {
       clearAddress = undefined;
       await adapter?.close().catch(() => undefined);
@@ -473,6 +628,103 @@ export class VoiceProviderCallCommandExecutor {
     }
     throw new VoiceError({ code: 'revision_conflict', retryable: true, status: 409 });
   }
+
+  async #parkingExecution(
+    command: VoiceCallCommand,
+    call: VoiceCall
+  ): Promise<{
+    context: VoiceProviderParkingContext | null;
+    replayed: { provider_command_id: string; result: Record<string, unknown> } | null;
+  }> {
+    if (command.kind !== 'park' && command.kind !== 'pickup') {
+      return { context: null, replayed: null };
+    }
+    if (!this.#parking) throw new VoiceError({ code: 'capability_unavailable', status: 501 });
+    const slot = command.kind === 'park'
+      ? await this.#parking.getByParkCommand(command.tenant_id, command.id)
+      : await this.#parking.getByPickupCommand(command.tenant_id, command.id);
+    if (!slot) throw new VoiceError({ code: 'protocol_mismatch', status: 500 });
+    const terminalState = command.kind === 'park' ? 'parked' : 'released';
+    if (slot.state === terminalState) {
+      return {
+        context: null,
+        replayed: {
+          provider_command_id: command.provider_command_id
+            || `${command.id}:${command.kind === 'park' ? 'hold' : 'bridge'}`,
+          result: safeVoiceProviderPayload({
+            accepted: true, replayed: true, parking_slot: slot.slot
+          })
+        }
+      };
+    }
+    const expectedState = command.kind === 'park' ? 'parking' : 'retrieving';
+    if (slot.state !== expectedState) throw new VoiceError({
+      code: 'protocol_mismatch', status: 409,
+      details: { parking_slot: slot.slot, state: slot.state }
+    });
+    const parkedCall = command.kind === 'park'
+      ? call
+      : required(await this.#calls.get(command.tenant_id, slot.parked_call_id));
+    if (parkedCall.provider_profile_id !== call.provider_profile_id) {
+      throw new VoiceError({ code: 'protocol_mismatch', status: 409 });
+    }
+    return {
+      context: {
+        slot,
+        parked_call: parkedCall,
+        pickup_call: command.kind === 'pickup' ? call : null
+      },
+      replayed: null
+    };
+  }
+
+  async #convergeParking(command: VoiceCallCommand): Promise<void> {
+    if (!this.#parking || (command.kind !== 'park' && command.kind !== 'pickup')) return;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = command.kind === 'park'
+        ? await this.#parking.getByParkCommand(command.tenant_id, command.id)
+        : await this.#parking.getByPickupCommand(command.tenant_id, command.id);
+      if (!current) throw new VoiceError({ code: 'protocol_mismatch', status: 500 });
+      const target = command.kind === 'park' ? 'parked' : 'released';
+      if (current.state === target) return;
+      const expected = command.kind === 'park' ? 'parking' : 'retrieving';
+      if (current.state !== expected) throw new VoiceError({ code: 'protocol_mismatch', status: 409 });
+      const now = this.#now().toISOString();
+      try {
+        await this.#parking.update({
+          ...current,
+          state: target,
+          release_reason: command.kind === 'pickup' ? 'picked_up' : '',
+          revision: current.revision + 1,
+          updated_at: now,
+          released_at: command.kind === 'pickup' ? now : null
+        }, current.revision);
+        return;
+      } catch (error) {
+        if (!(error instanceof VoiceError) || error.code !== 'revision_conflict' || attempt === 1) throw error;
+      }
+    }
+  }
+
+  async #settleParkingFailure(command: VoiceCallCommand, error: unknown): Promise<void> {
+    if (!this.#parking || (command.kind !== 'park' && command.kind !== 'pickup')) return;
+    const current = command.kind === 'park'
+      ? await this.#parking.getByParkCommand(command.tenant_id, command.id)
+      : await this.#parking.getByPickupCommand(command.tenant_id, command.id);
+    if (!current) throw new VoiceError({ code: 'protocol_mismatch', status: 500 });
+    const expected = command.kind === 'park' ? 'parking' : 'retrieving';
+    if (current.state !== expected) return;
+    const now = this.#now().toISOString();
+    const reason = error instanceof VoiceError ? error.code : 'provider_unavailable';
+    await this.#parking.update({
+      ...current,
+      state: command.kind === 'park' ? 'failed' : 'parked',
+      release_reason: command.kind === 'park' ? reason : `pickup_failed:${reason}`,
+      revision: current.revision + 1,
+      updated_at: now,
+      released_at: command.kind === 'park' ? now : null
+    }, current.revision);
+  }
 }
 
 function providerExecutionUnknown(providerCommandId: string): VoiceError {
@@ -482,6 +734,16 @@ function providerExecutionUnknown(providerCommandId: string): VoiceError {
     status: 504,
     details: providerCommandId ? { provider_command_id: providerCommandId } : {}
   });
+}
+
+function isDefiniteProviderFailure(error: unknown): error is VoiceError {
+  return error instanceof VoiceError && error.code !== 'provider_timeout' && !error.retryable;
+}
+
+function providerCommandIdFromExecutionError(error: unknown): string {
+  if (!(error instanceof VoiceError)) return '';
+  const value = error.details.provider_command_id;
+  return typeof value === 'string' ? value : '';
 }
 
 function callRequestHash(
@@ -647,6 +909,22 @@ function conferenceActionPayload(value: unknown): Record<string, unknown> {
   return payload;
 }
 
+function parkingActionPayload(value: unknown): Record<string, unknown> {
+  const input = plainRecord(value);
+  if (Object.keys(input).some((key) => key !== 'slot')) throw validationError();
+  const slot = boundedText(input.slot, 32);
+  if (!/^[A-Za-z0-9][A-Za-z0-9_*#-]{0,31}$/.test(slot)) throw validationError();
+  return { slot };
+}
+
+function parkingState(value: unknown): VoiceParkingSlot['state'] {
+  const allowed: VoiceParkingSlot['state'][] = [
+    'parking', 'parked', 'retrieving', 'released', 'failed', 'expired'
+  ];
+  if (!allowed.includes(value as VoiceParkingSlot['state'])) throw validationError();
+  return value as VoiceParkingSlot['state'];
+}
+
 function businessRef(value: unknown): VoiceBusinessRef {
   if (!isRecord(value)) throw validationError();
   return { type: boundedIdentifier(value.type), id: boundedIdentifier(value.id) };
@@ -676,6 +954,14 @@ function boundedText(value: unknown, max: number): string {
   return result;
 }
 
+function boundedParkingTtl(value: number | undefined): number {
+  const resolved = value ?? 30 * 60_000;
+  if (!Number.isInteger(resolved) || resolved < 60_000 || resolved > 24 * 60 * 60_000) {
+    throw validationError();
+  }
+  return resolved;
+}
+
 function plainRecord(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw validationError();
   return value;
@@ -693,6 +979,13 @@ function idempotencyConflict(): VoiceError {
 
 function complianceDenied(): VoiceError {
   return new VoiceError({ code: 'compliance_denied', status: 403 });
+}
+
+function parkingConflict(slot: string, state: VoiceParkingSlot['state']): VoiceError {
+  return new VoiceError({
+    code: 'revision_conflict', status: 409,
+    details: { resource: 'voice_parking_slot', slot, state }
+  });
 }
 
 function validationError(): VoiceError {

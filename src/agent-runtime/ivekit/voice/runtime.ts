@@ -20,9 +20,11 @@ import type {
   VoiceMediaBridgePort,
   VoiceSecretResolver
 } from './ports.js';
+import { VoiceParkingCommandReconciler } from './parking-reconciler.js';
 import { PostgresVoiceCallStore } from './postgres/call-store.js';
 import { PostgresVoiceCommandStore } from './postgres/command-store.js';
 import { PostgresVoiceConfigurationStore } from './postgres/configuration-store.js';
+import { PostgresVoiceParkingStore } from './postgres/parking-store.js';
 import { PostgresVoiceRecordingStore } from './postgres/recording-store.js';
 import {
   PostgresVoiceCallUnitOfWork,
@@ -176,6 +178,7 @@ export function startIveKitVoiceCommandWorker(
       const executor = new VoiceProviderCallCommandExecutor({
         calls,
         configuration,
+        parking: new PostgresVoiceParkingStore(input.pg),
         address_protector: protector,
         provider_registry: registry
       });
@@ -261,6 +264,9 @@ export function startIveKitVoiceReconciliationWorker(
       async (pg) => {
         const configuration = new PostgresVoiceConfigurationStore(pg);
         const recordings = new PostgresVoiceRecordingStore(pg);
+        const parking = new PostgresVoiceParkingStore(pg);
+        const parkingOutcome = await new VoiceParkingCommandReconciler(parking).reconcile(command);
+        if (parkingOutcome) return parkingOutcome;
         const reconciler = new VoiceLiveKitBridgeCommandReconciler({
           bridges: recordings,
           bridge: async (profileId) => {

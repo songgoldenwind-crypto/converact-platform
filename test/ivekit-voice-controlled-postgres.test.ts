@@ -19,6 +19,7 @@ import {
   PostgresVoiceProviderEventStore,
   PostgresVoiceProviderEventUnitOfWork,
   PostgresVoiceCallUnitOfWork,
+  PostgresVoiceParkingStore,
   PostgresVoiceRecordingStore,
   LiveKitSipBridgeAdapter,
   RustPbxEventsAdapter,
@@ -76,10 +77,18 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
     hmac_key: Buffer.alloc(32, 12).toString('base64')
   });
   const secretResolver = new EnvVoiceSecretResolver({
-    env: { CONTROLLED_VOICE_TOKEN: PROVIDER_TOKEN },
+    env: {
+      CONTROLLED_VOICE_TOKEN: PROVIDER_TOKEN,
+      CONTROLLED_TRUNK_CREDENTIAL: 'controlled-trunk-credential',
+      CONTROLLED_EXTENSION_CREDENTIAL: 'controlled-extension-credential'
+    },
     allowlist: {
       rustpbx_management: ['CONTROLLED_VOICE_TOKEN'],
-      rwi: ['CONTROLLED_VOICE_TOKEN']
+      rwi: ['CONTROLLED_VOICE_TOKEN'],
+      rustpbx_resource_credential: [
+        'CONTROLLED_TRUNK_CREDENTIAL',
+        'CONTROLLED_EXTENSION_CREDENTIAL'
+      ]
     }
   });
   const registry = new VoiceProviderRegistry();
@@ -133,6 +142,14 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   assert.equal(preflight.data.status, 'ready');
   assert.equal(preflight.data.capabilities.management_http, true);
   assert.equal(preflight.data.capabilities.rwi, true);
+  assert.equal(preflight.data.capability_schema_version, 1);
+  assert.equal(preflight.data.action_capabilities.commands.dtmf, true);
+  assert.equal(preflight.data.action_capabilities.commands.park, true);
+  assert.equal(preflight.data.action_capabilities.commands.pickup, true);
+  const persistedCapabilities = await invoke(
+    'GET', `/api/ivekit/voice/profiles/${profile.id}/capabilities`
+  );
+  assert.deepEqual(persistedCapabilities.data.action_capabilities, preflight.data.action_capabilities);
 
   const trunk = (await invoke('POST', '/api/ivekit/voice/trunks', {
     profile_id: profile.id,
@@ -186,6 +203,7 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   const callExecutor = new VoiceProviderCallCommandExecutor({
     calls,
     configuration,
+    parking: new PostgresVoiceParkingStore(runtime),
     address_protector: protector,
     provider_registry: registry
   });
@@ -209,16 +227,16 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   const storedDid = await configuration.getDid(TENANT_A, did.id);
   const storedExtension = await configuration.getExtension(TENANT_A, extension.id);
   const storedVersions = await configuration.listRouteVersions(TENANT_A, route.id);
+  const providerTrunk = [...running.state.resources.values()].find((resource) =>
+    resource.kind === 'trunk' && resource.desired_state.name === trunk.id
+  );
   assert.equal(storedTrunk?.status, 'active');
-  assert.equal(storedTrunk?.provider_ref, `controlled:trunk:${trunk.id}`);
-  assert.equal(storedDid?.provider_ref, `controlled:did:${did.id}`);
+  assert.equal(storedTrunk?.provider_ref, String(providerTrunk?.provider_id));
+  assert.equal(storedDid?.provider_ref, `ivekit-http-router:did:${did.id}`);
   assert.equal(storedExtension?.revision, 2);
   assert.equal(storedVersions[0]?.deployment_state, 'applied');
   assert.equal(storedVersions[0]?.provider_revision, '1');
-  assert.equal(
-    running.state.resources.get(`did:${did.id}`)?.desired_state.e164,
-    clearDid
-  );
+  assert.equal([...running.state.resources.values()].some((resource) => resource.kind === 'did'), false);
   const protectedDid = await admin.query<{
     e164_ciphertext: string;
     e164_redacted: string;
@@ -269,11 +287,15 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
     'POST', `/api/ivekit/voice/trunks/${uncertainTrunk.id}/apply`, {},
     'apply-uncertain-trunk-a'
   );
-  running.state.mode = 'delayed_timeout';
+  running.state.mode = 'async_success_after_timeout';
   running.state.response_delay_ms = 50;
   const uncertainConfigurationRun = await commandWorker.runOnce(TENANT_A);
   assert.equal(uncertainConfigurationRun.uncertain, 1);
-  assert.equal(running.state.resources.get(`trunk:${uncertainTrunk.id}`)?.revision, 1);
+  const uncertainProviderTrunk = [...running.state.resources.values()].find((resource) =>
+    resource.kind === 'trunk' && resource.desired_state.name === uncertainTrunk.id
+  );
+  assert.equal(uncertainProviderTrunk?.revision, 1);
+  const providerResourceCountAfterTimeout = running.state.resources.size;
   running.state.mode = 'success';
   const configurationReconciliationWorker = new VoiceReconciliationWorker({
     unit_of_work: new PostgresVoiceCallUnitOfWork(runtime),
@@ -287,7 +309,10 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   });
   const uncertainConfigurationReconciled = await configurationReconciliationWorker.runOnce(TENANT_A);
   assert.equal(uncertainConfigurationReconciled.failed, 1);
-  assert.equal(running.state.resources.get(`trunk:${uncertainTrunk.id}`)?.revision, 1);
+  assert.equal(running.state.resources.size, providerResourceCountAfterTimeout);
+  assert.equal([...running.state.resources.values()].find((resource) =>
+    resource.kind === 'trunk' && resource.desired_state.name === uncertainTrunk.id
+  )?.revision, 1);
   const uncertainConfigurationRow = await withPgTenant(runtime, TENANT_A, (pg) => pg.query<{
     state: string;
     error_code: string;
@@ -358,7 +383,7 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   assert.equal(running.state.action_counts.get(originateCommandId), 1);
   let storedCall = await calls.get(TENANT_A, callId);
   assert.equal(storedCall?.state, 'dialing');
-  assert.equal(storedCall?.provider_call_id, `controlled-call:${originateCommandId}`);
+  assert.equal(storedCall?.provider_call_id, callId);
 
   const eventRepository = new PostgresVoiceProviderEventStore(runtime);
   let eventSequence = 0;
@@ -418,6 +443,57 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   assert.equal((await eventWorker.runOnce(TENANT_A)).processed, 3);
   storedCall = await calls.get(TENANT_A, callId);
   assert.equal(storedCall?.state, 'active');
+
+  const park = await invoke(
+    'POST', `/api/ivekit/voice/calls/${callId}/actions`,
+    { action: 'park', payload: { slot: '701' } },
+    'park-call-a'
+  );
+  const parkRun = await commandWorker.runOnce(TENANT_A);
+  assert.equal(parkRun.succeeded, 1);
+  assert.equal(running.state.action_counts.get(`${park.data.id}:hold`), 1);
+  let parkingPage = await invoke(
+    'GET', `/api/ivekit/voice/parking-slots?profile_id=${profile.id}&state=parked`
+  );
+  assert.equal(parkingPage.data.items.length, 1);
+  assert.equal(parkingPage.data.items[0].slot, '701');
+  assert.equal(parkingPage.data.items[0].parked_call_id, callId);
+
+  const eventsBeforePickupCall = running.state.events.length;
+  const pickupOutbound = await invoke('POST', '/api/ivekit/voice/calls', {
+    profile_id: profile.id,
+    from: { kind: 'extension', value: '1001' },
+    to: { kind: 'extension', value: '1002' },
+    business_ref: { type: 'order', id: 'VOICE-ACCEPTANCE-A' },
+    metadata: { source: 'controlled_parking_pickup' }
+  }, 'outbound-pickup-call-a');
+  const pickupCallId = pickupOutbound.data.call.id as string;
+  assert.equal((await commandWorker.runOnce(TENANT_A)).succeeded, 1);
+  for (const event of running.state.events.slice(eventsBeforePickupCall)) {
+    await eventService.ingest({
+      tenant_id: TENANT_A,
+      profile_id: profile.id,
+      event: providerEvents.normalize('rwi', event)
+    });
+  }
+  assert.equal((await eventWorker.runOnce(TENANT_A)).processed, 2);
+  assert.equal((await calls.get(TENANT_A, pickupCallId))?.state, 'active');
+
+  const pickup = await invoke(
+    'POST', `/api/ivekit/voice/calls/${pickupCallId}/actions`,
+    { action: 'pickup', payload: { slot: '701' } },
+    'pickup-call-a'
+  );
+  const pickupRun = await commandWorker.runOnce(TENANT_A);
+  assert.equal(pickupRun.succeeded, 1);
+  assert.equal(running.state.action_counts.get(`${pickup.data.id}:unhold`), 1);
+  assert.equal(running.state.action_counts.get(`${pickup.data.id}:bridge`), 1);
+  parkingPage = await invoke(
+    'GET', `/api/ivekit/voice/parking-slots?profile_id=${profile.id}&state=released`
+  );
+  assert.equal(parkingPage.data.items.length, 1);
+  assert.equal(parkingPage.data.items[0].pickup_call_id, pickupCallId);
+  assert.equal(parkingPage.data.items[0].release_reason, 'picked_up');
 
   const liveKitProfile = (await invoke('POST', '/api/ivekit/voice/profiles', {
     name: 'Controlled LiveKit SIP',
@@ -660,7 +736,7 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   const timeoutRun = await commandWorker.runOnce(TENANT_A);
   assert.equal(timeoutRun.uncertain, 1);
   assert.equal(running.state.action_counts.get(timeoutCommandId), 1);
-  await waitFor(() => running.state.calls.has(`controlled-call:${timeoutCommandId}`));
+  await waitFor(() => running.state.calls.has(timeoutOutbound.data.call.id));
   const reconciliationWorker = new VoiceReconciliationWorker({
     unit_of_work: new PostgresVoiceCallUnitOfWork(runtime),
     provider_registry: registry,
@@ -674,7 +750,7 @@ postgresTest('controlled RustPBX converges the PostgreSQL Voice foundation end t
   assert.equal(reconciled.succeeded, 1);
   const timeoutCall = await calls.get(TENANT_A, timeoutOutbound.data.call.id);
   assert.equal(timeoutCall?.state, 'active');
-  assert.equal(timeoutCall?.provider_call_id, `controlled-call:${timeoutCommandId}`);
+  assert.equal(timeoutCall?.provider_call_id, timeoutOutbound.data.call.id);
   assert.equal(running.state.action_counts.get(timeoutCommandId), 1);
   running.state.mode = 'success';
 

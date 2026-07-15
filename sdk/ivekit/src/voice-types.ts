@@ -49,6 +49,19 @@ export type IveKitVoiceCommandKind =
 
 export type IveKitVoiceConferenceOperation = 'create' | 'add' | 'remove' | 'destroy';
 
+export type IveKitVoiceParkingSlotState =
+  | 'parking'
+  | 'parked'
+  | 'retrieving'
+  | 'released'
+  | 'failed'
+  | 'expired';
+
+export interface IveKitVoiceActionCapabilities {
+  commands: Readonly<Record<IveKitVoiceCommandKind, boolean>>;
+  conference_operations: Readonly<Record<IveKitVoiceConferenceOperation, boolean>>;
+}
+
 export interface IveKitVoiceConferenceCreateOptions {
   backend?: 'internal' | 'external';
   max_members?: number;
@@ -231,6 +244,7 @@ export interface IveKitVoiceCapabilities {
     call_control: boolean;
     provider_events: boolean;
     recordings: boolean;
+    parking_slots: boolean;
     livekit_sip_bridge: boolean;
     provider_webhooks: boolean;
   };
@@ -261,6 +275,8 @@ export interface IveKitVoiceCapabilitySnapshot {
   provider_version: string;
   status: 'ready' | 'degraded' | 'not_available' | 'failed';
   capabilities: Readonly<Record<IveKitVoiceCapability, boolean>>;
+  capability_schema_version: 1;
+  action_capabilities: IveKitVoiceActionCapabilities;
   config_hash: string;
   error_code: string;
   error_message: string;
@@ -369,6 +385,24 @@ export interface IveKitVoiceCall {
   revision: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface IveKitVoiceParkingSlot {
+  id: string;
+  tenant_id: string;
+  profile_id: string;
+  slot: string;
+  state: IveKitVoiceParkingSlotState;
+  parked_call_id: string;
+  park_command_id: string;
+  pickup_call_id: string | null;
+  pickup_command_id: string | null;
+  expires_at: string;
+  release_reason: string;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+  released_at: string | null;
 }
 
 export interface IveKitVoiceParticipant {

@@ -274,6 +274,7 @@ test('Voice HTTP exposes the complete configuration call evidence and bridge rou
   })).status, 201);
   await invoke('PATCH', '/api/ivekit/voice/profiles/profile-a', { revision: 1, patch: { name: 'PBX 2' } });
   await invoke('POST', '/api/ivekit/voice/profiles/profile-a/preflight');
+  await invoke('GET', '/api/ivekit/voice/profiles/profile-a/capabilities');
 
   assert.equal((await invoke('POST', '/api/ivekit/voice/trunks', {
     profile_id: 'profile-a', name: 'Primary', direction: 'both', transport: 'tls',
@@ -331,6 +332,7 @@ test('Voice HTTP exposes the complete configuration call evidence and bridge rou
   })).status, 201);
 
   await invoke('GET', '/api/ivekit/voice/calls/call-a/events');
+  await invoke('GET', '/api/ivekit/voice/parking-slots?profile_id=profile-a&state=parked');
   await invoke('GET', '/api/ivekit/voice/calls/call-a/recordings');
   await invoke('GET', '/api/ivekit/voice/calls/call-a/bridges');
   await invoke('GET', '/api/ivekit/voice/calls/call-a/participants');
@@ -341,13 +343,13 @@ test('Voice HTTP exposes the complete configuration call evidence and bridge rou
   await invoke('GET', '/api/ivekit/voice/recordings');
 
   assert.deepEqual(operations, [
-    'profile:create', 'profile:update', 'profile:preflight',
+    'profile:create', 'profile:update', 'profile:preflight', 'profile:capabilities',
     'trunk:create', 'trunk:update', 'trunk:get', 'operation:apply', 'trunk:get', 'operation:test',
     'did:create', 'did:update', 'did:get', 'trunk:get', 'operation:apply',
     'extension:create', 'extension:update', 'extension:get', 'operation:apply',
     'extension:get', 'extension:session',
     'route:create', 'route:update', 'route:get', 'route:publish', 'route:versions',
-    'policy:upsert', 'consent:create', 'event:list', 'recording:list', 'bridge:list',
+    'policy:upsert', 'consent:create', 'event:list', 'parking:list', 'recording:list', 'bridge:list',
     'participant:list', 'call:livekit_bridge_create', 'recording:list'
   ]);
 
@@ -565,11 +567,13 @@ function completeVoiceModule(operations: string[]): VoiceHttpModule {
       async createConsent(input: unknown) { operations.push('consent:create'); return input; }
     } as never,
     profiles: {
-      async preflight() { operations.push('profile:preflight'); return { status: 'ready' }; }
+      async preflight() { operations.push('profile:preflight'); return { status: 'ready' }; },
+      async getCapabilities() { operations.push('profile:capabilities'); return null; }
     } as never,
     calls: {
       async getCall() { return voiceCall('tenant-auth'); },
       async listCalls() { return { items: [], next_cursor: null }; },
+      async listParkingSlots() { operations.push('parking:list'); return { items: [], next_cursor: null }; },
       async enqueueAction(input: { kind: string }) {
         operations.push(`call:${input.kind}`);
         return voiceCommand(input.kind);

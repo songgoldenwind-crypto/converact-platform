@@ -98,6 +98,7 @@ const PROVIDER_STATE_TARGETS: Readonly<Record<string, VoiceCallState>> = {
   connected: 'active',
   established: 'active',
   active: 'active',
+  talking: 'active',
   hold: 'held',
   held: 'held',
   transfer: 'transferring',

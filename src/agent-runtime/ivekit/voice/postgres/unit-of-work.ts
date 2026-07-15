@@ -12,6 +12,7 @@ import { PostgresVoiceCallStore } from './call-store.js';
 import { PostgresVoiceCommandStore } from './command-store.js';
 import { PostgresVoiceConfigurationStore } from './configuration-store.js';
 import { PostgresVoiceProviderEventStore } from './provider-event-store.js';
+import { PostgresVoiceParkingStore } from './parking-store.js';
 import { PostgresVoiceRecordingStore } from './recording-store.js';
 
 export class PostgresVoiceConfigurationUnitOfWork implements VoiceConfigurationUnitOfWork {
@@ -38,7 +39,8 @@ export class PostgresVoiceCallUnitOfWork implements VoiceCallUnitOfWork {
     return withPgTenant(this.pg, tenantId, (client) => operation({
       calls: new PostgresVoiceCallStore(client),
       configuration: new PostgresVoiceConfigurationStore(client),
-      commands: new PostgresVoiceCommandStore(client)
+      commands: new PostgresVoiceCommandStore(client),
+      parking: new PostgresVoiceParkingStore(client)
     }));
   }
 }

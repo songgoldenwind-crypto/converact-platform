@@ -20,6 +20,7 @@ export * from './queue-service.js';
 export * from './routing.js';
 export * from './state-machine.js';
 export * from './supervisor-control.js';
+export * from './rustpbx-supervisor-control.js';
 export * from './supervisor-service.js';
 export * from './types.js';
 export * from './voice-callback-adapter.js';

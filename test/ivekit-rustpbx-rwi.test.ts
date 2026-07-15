@@ -8,6 +8,7 @@ import {
   RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
   RustPbxRwiClient,
   VoiceError,
+  mapRustPbxRwiBridgeCommand,
   mapRustPbxRwiCommand,
   type RustPbxRwiSafeEvent
 } from '../src/agent-runtime/ivekit/voice/index.js';
@@ -35,6 +36,9 @@ test('RustPBX RWI authenticates by header and correlates durable action ids once
     assert.equal(preflight.effective_capabilities.park, false);
     assert.equal(preflight.commands.includes('conference.create'), true);
     assert.equal(preflight.commands.includes('call.send_dtmf'), true);
+    assert.equal(preflight.commands.includes('call.bridge'), true);
+    assert.equal(preflight.commands.includes('supervisor.listen'), true);
+    assert.equal(preflight.commands.includes('supervisor.stop'), true);
     assert.equal(preflight.commands.includes('conference.mute'), false);
     assert.equal(fixture.messages.some((message) => message.action === 'session.list_calls'), true);
     const result = await client.execute({
@@ -159,6 +163,15 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     action: 'call.transfer', action_id: 'b',
     params: { call_id: 'call-b', target: 'sip:1003@pbx.internal' }
   });
+  assert.deepEqual(mapRustPbxRwiBridgeCommand({
+    command_id: 'bridge-a', leg_a: 'provider-call-a', leg_b: 'provider-call-b'
+  }), {
+    action: 'call.bridge', action_id: 'bridge-a',
+    params: { leg_a: 'provider-call-a', leg_b: 'provider-call-b' }
+  });
+  assert.throws(() => mapRustPbxRwiBridgeCommand({
+    command_id: 'bridge-same', leg_a: 'provider-call-a', leg_b: 'provider-call-a'
+  }), hasVoiceCode('validation_failed'));
   assert.deepEqual(mapRustPbxRwiCommand({
     command_id: 'c', kind: 'recording_start', call_id: 'call-c', payload: {}
   }), { action: 'record.start', action_id: 'c', params: { call_id: 'call-c' } });

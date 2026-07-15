@@ -6,6 +6,7 @@ import {
   RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
   RustPbxVoiceProviderAdapter,
   VoiceError,
+  normalizeVoiceActionCapabilities,
   voiceProfileConfigHash,
   type VoiceCall,
   type VoiceCallCommand,
@@ -31,9 +32,90 @@ test('RustPBX provider composes management and RWI capabilities without overstat
   assert.equal(result.capabilities.postgres_backend, true);
   assert.equal(result.capabilities.rwi, true);
   assert.equal(result.capabilities.step_ivr, false);
+  assert.equal(result.capability_schema_version, 1);
+  assert.equal(result.action_capabilities.commands.dtmf, true);
+  assert.equal(result.action_capabilities.commands.conference, true);
+  assert.equal(result.action_capabilities.commands.park, true);
+  assert.equal(result.action_capabilities.commands.pickup, true);
+  assert.equal(result.action_capabilities.commands.livekit_bridge_create, true);
+  assert.equal(result.action_capabilities.conference_operations.destroy, true);
   assert.deepEqual(rwi.events.slice(0, 2), ['connect', 'preflight']);
   await adapter.close();
   assert.equal(rwi.events.at(-1), 'close');
+});
+
+test('RustPBX provider composes deterministic hold, unhold, and bridge parking actions', async () => {
+  const profile = rustPbxProfile();
+  const rwi = fakeRwi();
+  const adapter = new RustPbxVoiceProviderAdapter({
+    profile,
+    management: fakeManagement(profile),
+    rwi
+  });
+  const parkedCall = voiceCall({ id: 'parked-call', provider_call_id: 'provider-parked' });
+  const pickupCall = voiceCall({ id: 'pickup-call', provider_call_id: 'provider-pickup' });
+  const slot = {
+    id: 'slot-a', tenant_id: 'tenant-a', profile_id: profile.id, slot: '701',
+    state: 'parked' as const, parked_call_id: parkedCall.id, park_command_id: 'park-command',
+    pickup_call_id: pickupCall.id, pickup_command_id: 'pickup-command',
+    expires_at: '2026-07-13T13:00:00.000Z', release_reason: '', revision: 2,
+    created_at: '2026-07-13T12:00:00.000Z', updated_at: '2026-07-13T12:00:00.000Z',
+    released_at: null
+  };
+
+  const parked = await adapter.execute({
+    call: parkedCall,
+    command: voiceCommand({ id: 'park-command', call_id: parkedCall.id, kind: 'park' }),
+    parking: { slot: { ...slot, state: 'parking' }, parked_call: parkedCall, pickup_call: null }
+  });
+  assert.equal(parked.provider_command_id, 'park-command:hold');
+  assert.deepEqual(rwi.commands.at(-1), {
+    command_id: 'park-command:hold', kind: 'hold', call_id: 'provider-parked', payload: {}
+  });
+
+  const pickedUp = await adapter.execute({
+    call: pickupCall,
+    command: voiceCommand({ id: 'pickup-command', call_id: pickupCall.id, kind: 'pickup' }),
+    parking: { slot, parked_call: parkedCall, pickup_call: pickupCall }
+  });
+  assert.equal(pickedUp.provider_command_id, 'pickup-command:bridge');
+  assert.deepEqual(rwi.commands.at(-1), {
+    command_id: 'pickup-command:unhold', kind: 'resume',
+    call_id: 'provider-parked', payload: {}
+  });
+  assert.deepEqual(rwi.bridges.at(-1), {
+    command_id: 'pickup-command:bridge', leg_a: 'provider-parked', leg_b: 'provider-pickup'
+  });
+});
+
+test('RustPBX provider treats pickup transport loss after unhold as uncertain', async () => {
+  const profile = rustPbxProfile();
+  const parkedCall = voiceCall({ id: 'parked-call', provider_call_id: 'provider-parked' });
+  const pickupCall = voiceCall({ id: 'pickup-call', provider_call_id: 'provider-pickup' });
+  const slot = parkingSlot(profile, parkedCall, pickupCall);
+
+  for (const scenario of ['bridge', 'rollback'] as const) {
+    const rwi = fakeRwi();
+    rwi.throwBridge = scenario === 'bridge';
+    rwi.failBridge = scenario === 'rollback';
+    rwi.throwRollback = scenario === 'rollback';
+    const adapter = new RustPbxVoiceProviderAdapter({
+      profile,
+      management: fakeManagement(profile),
+      rwi
+    });
+
+    await assert.rejects(
+      () => adapter.execute({
+        call: pickupCall,
+        command: voiceCommand({ id: `pickup-${scenario}`, call_id: pickupCall.id, kind: 'pickup' }),
+        parking: { slot, parked_call: parkedCall, pickup_call: pickupCall }
+      }),
+      (error: unknown) => error instanceof VoiceError
+        && error.code === 'provider_timeout'
+        && error.details.provider_command_id === `pickup-${scenario}:${scenario === 'bridge' ? 'bridge' : 'rollback-hold'}`
+    );
+  }
 });
 
 test('RustPBX provider reveals call targets only in the RWI command and preserves uncertain action ids', async () => {
@@ -51,6 +133,7 @@ test('RustPBX provider reveals call targets only in the RWI command and preserve
 
   assert.equal(executed.provider_command_id, command.id);
   assert.equal(executed.provider_call_id, 'provider-call-a');
+  assert.equal(rwi.commands[0]?.call_id, call.id);
   assert.deepEqual(rwi.commands[0]?.payload, {
     destination: '+8613800138000'
   });
@@ -98,7 +181,7 @@ test('RustPBX provider preserves safe RWI failure semantics', async () => {
   }
 });
 
-test('RustPBX provider reconciles by provider call id then durable RWI action id', async () => {
+test('RustPBX provider reconciles only originate by its deterministic call id', async () => {
   const profile = rustPbxProfile();
   const lookedUp: string[] = [];
   const management = fakeManagement(profile, lookedUp);
@@ -112,26 +195,46 @@ test('RustPBX provider reconciles by provider call id then durable RWI action id
     call: voiceCall({ provider_call_id: '' }),
     command: voiceCommand({ provider_command_id: 'rwi-action-b' })
   });
+  const controlFallback = await adapter.reconcile({
+    call: voiceCall({ provider_call_id: '' }),
+    command: voiceCommand({ kind: 'hold', provider_command_id: 'rwi-action-c' })
+  });
 
   assert.equal(active.state, 'succeeded');
   assert.equal(fallback.state, 'succeeded');
-  assert.equal(fallback.provider_call_id, 'provider-call-from-action');
-  assert.deepEqual(lookedUp, ['provider-call-a', 'rwi-action-b']);
+  assert.equal(fallback.provider_call_id, 'call-a');
+  assert.deepEqual(controlFallback, { state: 'unknown' });
+  assert.deepEqual(lookedUp, ['provider-call-a', 'call-a']);
 });
 
 function fakeRwi() {
   const state = {
     mode: 'success' as 'success' | 'uncertain' | 'failed',
     errorCode: 'provider_command_failed',
+    throwBridge: false,
+    failBridge: false,
+    throwRollback: false,
     events: [] as string[],
-    commands: [] as Array<{ command_id: string; payload: Record<string, unknown> }>,
+    commands: [] as Array<{
+      command_id: string;
+      kind: VoiceCallCommand['kind'];
+      call_id: string;
+      payload: Record<string, unknown>;
+    }>,
+    bridges: [] as Array<{ command_id: string; leg_a: string; leg_b: string }>,
     async connect() { state.events.push('connect'); },
     async preflight() {
       state.events.push('preflight');
       return {
         ready: true as const,
         protocol: 'rwi-v1' as const,
-        commands: ['call.originate'],
+        commands: [
+          'call.originate', 'call.answer', 'call.hangup', 'call.hold', 'call.unhold',
+          'call.bridge',
+          'call.send_dtmf', 'call.transfer', 'call.transfer.attended',
+          'conference.create', 'conference.add', 'conference.remove', 'conference.destroy',
+          'record.start', 'record.pause', 'record.resume', 'record.stop'
+        ],
         capability_source: 'pinned_baseline' as const,
         runtime_version_verified: false as const,
         protocol_capabilities: RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
@@ -139,8 +242,16 @@ function fakeRwi() {
         limitations: []
       };
     },
-    async execute(input: { command_id: string; payload: Record<string, unknown> }) {
+    async execute(input: {
+      command_id: string;
+      kind: VoiceCallCommand['kind'];
+      call_id: string;
+      payload: Record<string, unknown>;
+    }) {
       state.commands.push(input);
+      if (state.throwRollback && input.command_id.endsWith(':rollback-hold')) {
+        throw new VoiceError({ code: 'provider_unavailable', retryable: true, status: 503 });
+      }
       if (state.mode === 'uncertain') {
         return { state: 'uncertain' as const, action_id: input.command_id, error_code: 'timeout' };
       }
@@ -153,9 +264,40 @@ function fakeRwi() {
         result: { call_id: 'provider-call-a', accepted: true }
       };
     },
+    async executeBridge(input: { command_id: string; leg_a: string; leg_b: string }) {
+      state.bridges.push(input);
+      if (state.throwBridge) {
+        throw new VoiceError({ code: 'provider_unavailable', retryable: true, status: 503 });
+      }
+      if (state.failBridge) {
+        return { state: 'failed' as const, action_id: input.command_id, error_code: state.errorCode };
+      }
+      if (state.mode === 'uncertain') {
+        return { state: 'uncertain' as const, action_id: input.command_id, error_code: 'timeout' };
+      }
+      if (state.mode === 'failed') {
+        return { state: 'failed' as const, action_id: input.command_id, error_code: state.errorCode };
+      }
+      return { state: 'succeeded' as const, action_id: input.command_id, result: { accepted: true } };
+    },
     async close() { state.events.push('close'); }
   };
   return state;
+}
+
+function parkingSlot(
+  profile: VoiceDeploymentProfile,
+  parkedCall: VoiceCall,
+  pickupCall: VoiceCall
+) {
+  return {
+    id: 'slot-a', tenant_id: 'tenant-a', profile_id: profile.id, slot: '701',
+    state: 'parked' as const, parked_call_id: parkedCall.id, park_command_id: 'park-command',
+    pickup_call_id: pickupCall.id, pickup_command_id: 'pickup-command',
+    expires_at: '2026-07-13T13:00:00.000Z', release_reason: '', revision: 2,
+    created_at: '2026-07-13T12:00:00.000Z', updated_at: '2026-07-13T12:00:00.000Z',
+    released_at: null
+  };
 }
 
 function fakeManagement(
@@ -169,6 +311,8 @@ function fakeManagement(
         provider: 'rustpbx',
         provider_version: '0.9.0',
         capabilities: capabilities(),
+        capability_schema_version: 1,
+        action_capabilities: normalizeVoiceActionCapabilities(),
         checked_at: '2026-07-13T12:00:00.000Z',
         config_hash: voiceProfileConfigHash(profile)
       };
@@ -181,10 +325,13 @@ function fakeManagement(
     async lookupDialog(input) {
       lookedUp.push(input.provider_call_id);
       return {
-        state: 'succeeded', provider_state: 'active',
-        ...(input.provider_call_id === 'rwi-action-b'
-          ? { provider_call_id: 'provider-call-from-action' }
-          : {}),
+        state: input.provider_call_id === 'call-a' ? 'pending' : 'succeeded',
+        provider_state: input.provider_call_id === 'call-a' ? 'ringing' : 'active',
+        ...(input.provider_call_id === 'call-a'
+          ? { provider_call_id: 'call-a' }
+          : input.provider_call_id === 'rwi-action-c'
+            ? { provider_call_id: 'provider-call-from-action' }
+            : {}),
         safe_diagnostics: {}
       };
     },

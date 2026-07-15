@@ -133,6 +133,7 @@ test('Provider state merge advances over missing events and ignores duplicates o
   });
   assert.equal(answered.state, 'active');
   assert.equal(answered.answered_at, '2026-07-13T02:00:02.000Z');
+  assert.equal(mergeProviderCallState(ringing.state, 'talking', ringing).state, 'active');
 
   const lateRinging = mergeProviderCallState(answered.state, 'ringing', answered);
   assert.deepEqual(lateRinging, { ...answered, changed: false });

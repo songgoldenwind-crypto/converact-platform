@@ -14,6 +14,7 @@ import type {
   VoicePage,
   VoiceParticipant,
   VoicePolicy,
+  VoiceParkingSlot,
   VoiceProtectedAddress,
   VoiceProviderCapabilities,
   VoiceProviderEvent,
@@ -124,6 +125,31 @@ export interface VoiceCommandRepository {
   releaseConfiguration(input: VoiceCommandReleaseInput): Promise<VoiceConfigurationCommand>;
 }
 
+export interface VoiceParkingRepository {
+  list(input: VoiceListInput & {
+    profile_id?: string;
+    state?: VoiceParkingSlot['state'];
+  }): Promise<VoicePage<VoiceParkingSlot>>;
+  getBySlot(
+    tenantId: string,
+    profileId: string,
+    slot: string,
+    options?: { for_update?: boolean; include_terminal?: boolean }
+  ): Promise<VoiceParkingSlot | null>;
+  getByParkCommand(
+    tenantId: string,
+    commandId: string,
+    options?: { for_update?: boolean }
+  ): Promise<VoiceParkingSlot | null>;
+  getByPickupCommand(
+    tenantId: string,
+    commandId: string,
+    options?: { for_update?: boolean }
+  ): Promise<VoiceParkingSlot | null>;
+  insert(slot: VoiceParkingSlot): Promise<VoiceParkingSlot>;
+  update(slot: VoiceParkingSlot, expectedRevision: number): Promise<VoiceParkingSlot>;
+}
+
 export interface VoiceCommandCompletionInput {
   tenant_id: string;
   command_id: string;
@@ -173,12 +199,19 @@ export interface VoiceRecordingRepository {
   listBridgesForCall(tenantId: string, callId: string): Promise<VoiceLiveKitBridge[]>;
 }
 
+export interface VoiceProviderParkingContext {
+  slot: VoiceParkingSlot;
+  parked_call: VoiceCall;
+  pickup_call: VoiceCall | null;
+}
+
 export interface VoiceProviderPort {
   preflight(): Promise<VoiceProviderCapabilities>;
   execute(input: {
     call: VoiceCall;
     command: VoiceCallCommand;
     clear_address?: string;
+    parking?: VoiceProviderParkingContext;
   }): Promise<{
     provider_command_id: string;
     provider_call_id?: string;
@@ -333,6 +366,7 @@ export interface VoiceCallUnitOfWorkContext {
   calls: VoiceCallRepository;
   commands: VoiceCommandRepository;
   configuration: VoiceConfigurationRepository;
+  parking: VoiceParkingRepository;
 }
 
 export interface VoiceCallUnitOfWork {

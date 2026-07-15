@@ -19,6 +19,7 @@ import {
   WifiOff,
   X
 } from 'lucide-react';
+import React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 declare global {

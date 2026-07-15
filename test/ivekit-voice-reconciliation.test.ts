@@ -117,7 +117,8 @@ test('Voice reconciliation ages configuration unknowns without replaying provide
   const context = {
     calls: {} as VoiceCallRepository,
     commands: commandRepository,
-    configuration: {} as VoiceConfigurationRepository
+    configuration: {} as VoiceConfigurationRepository,
+    parking: {} as VoiceCallUnitOfWorkContext['parking']
   } satisfies VoiceCallUnitOfWorkContext;
   const unitOfWork: VoiceCallUnitOfWork = {
     async run<T>(_tenantId: string, operation: (value: VoiceCallUnitOfWorkContext) => Promise<T>) {
@@ -202,7 +203,10 @@ function reconciliationFixture() {
   const configuration = {
     async getProfile() { return profile; }
   } as unknown as VoiceConfigurationRepository;
-  const context: VoiceCallUnitOfWorkContext = { calls: callRepository, commands: commandRepository, configuration };
+  const context: VoiceCallUnitOfWorkContext = {
+    calls: callRepository, commands: commandRepository, configuration,
+    parking: {} as VoiceCallUnitOfWorkContext['parking']
+  };
   const unitOfWork: VoiceCallUnitOfWork = {
     async run<T>(_tenantId: string, operation: (context: VoiceCallUnitOfWorkContext) => Promise<T>): Promise<T> {
       return operation(context);

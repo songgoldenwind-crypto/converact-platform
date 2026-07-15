@@ -29,6 +29,22 @@ export interface RustPbxRwiCommandInput {
   payload: Record<string, unknown>;
 }
 
+export interface RustPbxRwiBridgeInput {
+  command_id: string;
+  leg_a: string;
+  leg_b: string;
+}
+
+export type RustPbxRwiSupervisorMode = 'listen' | 'whisper' | 'barge' | 'stop';
+
+export interface RustPbxRwiSupervisorActionInput {
+  action_id: string;
+  mode: RustPbxRwiSupervisorMode;
+  supervisor_call_id: string;
+  target_call_id: string;
+  agent_leg?: string;
+}
+
 export interface RustPbxRwiEnvelope {
   action: string;
   action_id: string;
@@ -65,14 +81,36 @@ const RUSTPBX_RWI_EFFECTIVE_CAPABILITIES_VALUE = {
 export const RUSTPBX_RWI_PROTOCOL_CAPABILITIES = deepFreeze(RUSTPBX_RWI_PROTOCOL_CAPABILITIES_VALUE);
 export const RUSTPBX_RWI_EFFECTIVE_CAPABILITIES = deepFreeze(RUSTPBX_RWI_EFFECTIVE_CAPABILITIES_VALUE);
 
+export interface RustPbxRwiCapabilities {
+  readonly baseline_image_tag: string;
+  readonly dtmf_receive: boolean;
+  readonly dtmf_send: boolean;
+  readonly park: boolean;
+  readonly pickup: boolean;
+  readonly conference: Readonly<{
+    create: boolean;
+    add: boolean;
+    remove: boolean;
+    destroy: boolean;
+    mute: boolean;
+    unmute: boolean;
+  }>;
+  readonly supervisor: Readonly<{
+    listen: boolean;
+    whisper: boolean;
+    barge: boolean;
+    takeover: boolean;
+  }>;
+}
+
 export interface RustPbxRwiPreflightResult {
   ready: boolean;
   protocol: 'rwi-v1';
   commands: string[];
   capability_source: 'pinned_baseline';
   runtime_version_verified: false;
-  protocol_capabilities: typeof RUSTPBX_RWI_PROTOCOL_CAPABILITIES;
-  effective_capabilities: typeof RUSTPBX_RWI_EFFECTIVE_CAPABILITIES;
+  protocol_capabilities: RustPbxRwiCapabilities;
+  effective_capabilities: RustPbxRwiCapabilities;
   limitations: string[];
 }
 
@@ -173,8 +211,8 @@ export class RustPbxRwiClient {
       protocol_capabilities: RUSTPBX_RWI_PROTOCOL_CAPABILITIES,
       effective_capabilities: RUSTPBX_RWI_EFFECTIVE_CAPABILITIES,
       limitations: [
-        'park_action_unavailable',
-        'pickup_action_unavailable',
+        'native_park_action_unavailable',
+        'native_pickup_action_unavailable',
         'conference_mute_audio_unavailable',
         'supervisor_audio_mixing_unavailable',
         'runtime_version_not_negotiated_by_rwi_v1'
@@ -184,6 +222,14 @@ export class RustPbxRwiClient {
 
   execute(input: RustPbxRwiCommandInput): Promise<RustPbxRwiCommandResult> {
     return this.#sendEnvelope(mapRustPbxRwiCommand(input));
+  }
+
+  executeBridge(input: RustPbxRwiBridgeInput): Promise<RustPbxRwiCommandResult> {
+    return this.#sendEnvelope(mapRustPbxRwiBridgeCommand(input));
+  }
+
+  executeSupervisor(input: RustPbxRwiSupervisorActionInput): Promise<RustPbxRwiCommandResult> {
+    return this.#sendEnvelope(mapRustPbxRwiSupervisorAction(input));
   }
 
   async close(): Promise<void> {
@@ -420,6 +466,7 @@ const SUPPORTED_ACTIONS = [
   'call.hangup',
   'call.hold',
   'call.unhold',
+  'call.bridge',
   'call.send_dtmf',
   'call.transfer',
   'call.transfer.attended',
@@ -430,7 +477,12 @@ const SUPPORTED_ACTIONS = [
   'record.start',
   'record.pause',
   'record.resume',
-  'record.stop'
+  'record.stop',
+  'supervisor.listen',
+  'supervisor.whisper',
+  'supervisor.barge',
+  'supervisor.takeover',
+  'supervisor.stop'
 ] as const;
 
 export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiEnvelope {
@@ -462,6 +514,47 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
       throw new VoiceError({ code: 'capability_unavailable', status: 501 });
   }
   return { action, action_id: actionId, params };
+}
+
+export function mapRustPbxRwiBridgeCommand(input: RustPbxRwiBridgeInput): RustPbxRwiEnvelope {
+  if (!isRecord(input)) throw validationError();
+  const allowed = new Set(['command_id', 'leg_a', 'leg_b']);
+  if (Object.keys(input).some((key) => !allowed.has(key))) throw validationError();
+  const legA = boundedString(input.leg_a, 256);
+  const legB = boundedString(input.leg_b, 256);
+  if (legA === legB) throw validationError();
+  return {
+    action: 'call.bridge',
+    action_id: boundedString(input.command_id, 256),
+    params: { leg_a: legA, leg_b: legB }
+  };
+}
+
+export function mapRustPbxRwiSupervisorAction(
+  input: RustPbxRwiSupervisorActionInput
+): RustPbxRwiEnvelope {
+  if (!isRecord(input)) throw validationError();
+  const allowed = new Set([
+    'action_id', 'mode', 'supervisor_call_id', 'target_call_id', 'agent_leg'
+  ]);
+  if (Object.keys(input).some((key) => !allowed.has(key))) throw validationError();
+  const mode = input.mode;
+  if (mode !== 'listen' && mode !== 'whisper' && mode !== 'barge' && mode !== 'stop') {
+    throw validationError();
+  }
+  if ((mode === 'listen' || mode === 'stop') && input.agent_leg !== undefined) {
+    throw validationError();
+  }
+  const params: Record<string, unknown> = {
+    supervisor_call_id: boundedString(input.supervisor_call_id, 256),
+    target_call_id: boundedString(input.target_call_id, 256)
+  };
+  if (input.agent_leg !== undefined) params.agent_leg = boundedString(input.agent_leg, 256);
+  return {
+    action: `supervisor.${mode}`,
+    action_id: boundedString(input.action_id, 256),
+    params
+  };
 }
 
 function mapDtmfCommand(
