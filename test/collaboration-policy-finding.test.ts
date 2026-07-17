@@ -23,6 +23,7 @@ import {
   type IntelligencePolicyUpdate
 } from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
 import { createPolicyQualityReviewProviderResolver } from '../src/agent-runtime/collaboration/intelligence-provider-routing.js';
+import { IntelligenceProviderRouteError } from '../src/agent-runtime/collaboration/intelligence-provider-route.js';
 
 const API_KEY = 'policy-finding-api-key';
 
@@ -88,6 +89,32 @@ test('OCR and ASR findings preserve source and attachment evidence references', 
   assert.equal(ocr?.source_ref_id, 'attachment-image-1');
   assert.deepEqual(ocr?.evidence_refs, [{ type: 'attachment', id: 'attachment-image-1', processor: 'ocr' }]);
   assert.equal(asr?.source_ref_id, 'attachment-audio-1');
+});
+
+test('policy findings preserve UUID-shaped evidence identifiers while redacting free text', async () => {
+  const pg = new MemoryPg();
+  const store = new PolicyFindingStore(pg);
+  const evidenceId = 'cmsg_abcd-1234-5678-90ef';
+
+  const finding = await store.recordFinding({
+    tenant_id: 'tenant-evidence-id',
+    session_id: 'session-evidence-id',
+    message_id: evidenceId,
+    source: 'ai',
+    policy_type: 'evidence_integrity',
+    severity: 'medium',
+    matched_text_hash: 'a'.repeat(64),
+    evidence_refs: [{
+      type: 'message',
+      id: evidenceId,
+      message_id: evidenceId,
+      note: 'call 13800138000'
+    }]
+  });
+
+  assert.equal(finding.evidence_refs[0]?.id, evidenceId);
+  assert.equal(finding.evidence_refs[0]?.message_id, evidenceId);
+  assert.equal(finding.evidence_refs[0]?.note, 'call [phone]');
 });
 
 test('human review enforces transitions, redacts notes, and appends immutable audit history', async () => {
@@ -298,7 +325,8 @@ test('AI quality review jobs aggregate content and create advisory redacted find
 
   const summary = await service.runDue({ tenant_id: tenantId });
   assert.deepEqual(summary, { candidates: 1, claimed: 1, succeeded: 1, retry_wait: 0, failed: 0 });
-  assert.equal(providerInputs[0], '我们可以换个平台继续聊');
+  assert.match(providerInputs[0] || '', /\[message source=text/);
+  assert.match(providerInputs[0] || '', /我们可以换个平台继续聊/);
   const aiFindings = await new PolicyFindingStore(pg).listFindings({
     tenant_id: tenantId,
     session_id: sessionId,
@@ -424,6 +452,31 @@ test('unconfigured AI quality provider keeps hashed durable work pending', async
   const summary = await service.runDue({ tenant_id: tenantId });
   assert.equal(summary.candidates, 1);
   assert.equal(summary.claimed, 0);
+});
+
+test('route reservation denial reschedules quality review without consuming an attempt', async () => {
+  const pg = new MemoryPg();
+  const { tenantId, messageId } = await createMessage(pg, 'quality quota input');
+  const retryAt = '2026-07-10T00:01:00.000Z';
+  const service = new QualityReviewService({
+    pg,
+    now: () => new Date('2026-07-10T00:00:00.000Z'),
+    provider: {
+      name: 'quota-quality', mode: 'self_hosted',
+      review: async () => {
+        throw new IntelligenceProviderRouteError([{
+          profile_id: 'quota-quality', status: 'skipped',
+          code: 'concurrency_exhausted', retry_at: retryAt
+        }]);
+      }
+    }
+  });
+  await service.enqueueMessage({ tenant_id: tenantId, message_id: messageId });
+  assert.equal((await service.runDue({ tenant_id: tenantId })).retry_wait, 1);
+  const job = await service.getJob({ tenant_id: tenantId, message_id: messageId });
+  assert.equal(job?.attempt_count, 0);
+  assert.equal(job?.next_attempt_at, retryAt);
+  assert.equal(job?.output_metadata.ivekit_route_provider_invoked, false);
 });
 
 test('tenant intelligence policy selects and retains the quality provider profile', async () => {
@@ -709,6 +762,18 @@ test('quality review worker validates config and coalesces concurrent batches', 
   await first;
   assert.equal(calls, 1);
   await worker.stop();
+});
+
+test('quality worker claim lease covers the longest configured provider reservation', () => {
+  const config = qualityReviewWorkerConfig({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'slow-quality', capability: 'quality_review', mode: 'self_hosted',
+      base_url: 'http://slow-quality:8080', timeout_ms: 300_000,
+      reservation_ttl_ms: 305_000
+    }]),
+    OPC_QUALITY_REVIEW_CLAIM_LEASE_MS: '120000'
+  });
+  assert.equal(config.claimLeaseMs >= 310_000, true);
 });
 
 test('production server starts quality worker and refreshes review after attachment extraction', () => {

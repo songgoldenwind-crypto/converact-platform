@@ -1,6 +1,6 @@
 # iveKit V3 完成审计与验收记录
 
-更新日期：2026-07-13。本文对应 `codex/ivekit-v3-multimodal-translation`，用于记录 V3 多模态智能与翻译从代码审计、交付包到隔离服务器验收的可复验证据。
+更新日期：2026-07-15。本文前八节对应 `codex/ivekit-v3-multimodal-translation` 的历史证据；第九节追加当前 V5 Stage 2 的独立审计，不以旧 V3/V4 环境结果替代当前 release 证据。
 
 ## 1. 审计范围
 
@@ -94,3 +94,212 @@ LiveKit/Tinode/RustDesk 的历史 V2 证据不会自动升级成当前 V3 releas
 V4 当前 release 又在本机独立 PostgreSQL 14 harness 重跑 `scripts/verify-ivekit-postgres.sh`：standalone fresh/OPC upgrade `2/2`、IVR durable store `1/1`、受控 RustPBX Voice 收敛 `1/1`，共 `4/4`、0 失败。fresh 与 upgrade 都读取当前 source policy 的 46 个 migration；升级断言显式核对 17 张 Voice、10 张 IVR 和 14 张 Contact Center 表，不再用旧的 Voice+IVR 表数代替完整 shared foundation。`opc_runtime` 对 Contact Center skill 的本租户读取成功，读取不到另一租户记录，跨租户写入由 FORCE RLS 拒绝。该结果证明当前 PostgreSQL schema、升级保留和基础隔离，不证明真实 RustPBX/PSTN/RTP 数据面。
 
 同一 runtime source revision `e67f5b356dbd64c2ca172715fb1c82d53ac55e73` 又在本机 Chromium 重跑 V4 受控浏览器门禁：WebPhone `2/2`、IVR Designer `2/2`、Queue Monitor `2/2`，合计 `6/6`、0 失败。三组均覆盖 1440x900 桌面和 390x844 移动视口；WebPhone 覆盖懒加载、短期 session plan、注册、呼入/呼出、接听/拒接、挂断、静音、Hold、DTMF、输入/输出设备切换和 credential 不进入页面文本；IVR 覆盖 draft-to-simulation 工作流与 26 节点设计器；Queue Monitor 覆盖刷新、筛选、告警、队列表和局部横向滚动。该门禁使用真实 Chromium，但 SIP 状态机和 HTTP 数据为受控驱动，只证明客户端集成与布局，不证明真实 WSS 注册、SDP/ICE、RTP、物理音频设备或真实 PostgreSQL 运营数据。
+
+## 9. V5 Stage 2 追加审计（2026-07-15）
+
+本节审计 Tinode 生产运维、文件安全状态机、LiveKit QoS/重入和 deployment evidence。它不改变
+前文 V3/V4 历史证据，也不把受控浏览器或 PostgreSQL 测试升级为真实厂商/公网证据。
+
+| 能力 | 实现状态 | 当前证据 | 仍为 not_run |
+| --- | --- | --- | --- |
+| Tinode IM | implemented | 双向 durable sync、附件安全导入/发布门禁、operation snapshot、dead-letter replay、指标；focused 与 PostgreSQL harness 通过 | 当前 release 的真实 Tinode 多客户端、长稳和公网故障切换 |
+| 文件安全 | implemented | migration 061、magic MIME、clamd/HTTP scanner、quarantine、FFmpeg/HTTP 派生、multipart/resume、retention cleanup；受控故障矩阵通过 | 生产对象存储、真实病毒样本库升级、目标容量和长稳 |
+| LiveKit | implemented | migration 063、QoS degraded/recovered、防抖、connection revision、terminal rejoin、preflight、参考客户端 Node `158/158` 和 Chromium Media `3/3` | 真实摄像头/麦克风、目标 TURN/Egress、弱网和公网媒体质量 |
+| Compose | implemented_and_rendered | standalone quiet config 通过；ClamAV 私网、探针、持久卷、资源和 worker 默认值已校验 | 目标服务器实际启动与长稳 |
+| Helm | implemented_and_rendered | Chart、digest 门禁、ClamAV Deployment/Service/PVC、API wait init、CI gate 已实现；2026-07-17 使用 Helm `v3.18.4` 完成 lint/template 和 `20/20` 发布合同 | 目标集群 install/upgrade/rollback 尚无执行证据 |
+| Release evidence | implemented | delivery `25/25`；source/image/migration/config fingerprint、SBOM、secret scan 和 tamper rejection | 实际应用镜像 digest 与目标 runtime deployment fingerprint |
+
+代码门禁还包括 Stage 2 focused backend/deployment `110/110`、PostgreSQL harness 6 项、根
+typecheck、SDK build/dry-run pack 和 238 文件 standalone context。SDK 首次 dry-run pack 因用户级
+root-owned npm cache 无法写入而失败，改用工作树内临时 cache 后通过；没有修改全局 npm 权限。
+
+当前 release 明确保留：真实 OCR/ASR/AI/翻译厂商、真实 Tinode 多客户端、真实 LiveKit
+双客户端与 Egress、目标 TURN/弱网、两台 Windows RustDesk 物理机、生产对象存储和目标
+Kubernetes 升级均为 `not_run`。Stage 2 代码可进入下一阶段，但最终发布裁决必须补齐对应环境
+证据，并由 release contract 绑定完整 source commit、不可变镜像 digest 和 runtime fingerprint。
+
+## 10. V5 Stage 4 追加审计（2026-07-15）
+
+本节审计 Voice 生产化复核、通知底座、安全运维、监控和备份恢复。它只声明代码、配置和
+本地自动化门禁状态；真实运营商、商业通知 Provider 和目标 Kubernetes 结果独立记录。
+
+| 能力 | 实现状态 | 当前证据 | 仍为 not_run |
+| --- | --- | --- | --- |
+| Voice/IVR/WebPhone | implemented | RustPBX/SIP/IVR/WebPhone/Contact Center regression `341` 项，`339` pass、0 fail、2 个独立 PostgreSQL 条件 skip；现有 45 项真实环境 runbook 保持有效 | PSTN、WSS/SDP/ICE/RTP、物理音频、LiveKit SIP bridge 和真实 supervisor mixer |
+| 通知底座 | implemented | migration 065/070/071/072；站内、Webhook、SMTP/HTTP Email、HTTP SMS；模板、偏好、回执、durable worker、配额、熔断、降级和 SDK/OpenAPI | 商业 SMTP 退信、真实短信发送/回执/账单、互联网 Webhook DNS/TLS |
+| 通知事件 | implemented | Notification/Delivery/Inbox 与 tenant event 同 PostgreSQL 事务提交；稳定 SHA-256 producer key、用户定向 WebSocket/Redis fan-out 和 HTTP replay；敏感 Provider 数据不进入事件 | 真实多节点 Redis/WebSocket 长稳与跨区域重放 |
+| 权限与审计 | implemented | capability policy、append-only audit、游标查询/导出、敏感字段脱敏、覆盖门禁 | 目标 SIEM/合规平台接入和长期归档 |
+| 限流与保留 | implemented | PostgreSQL 多实例共享限流；typed retention、legal hold、对象先删、durable worker、指标和审计 | 生产数据量容量测试、真实对象存储批量删除和法律策略签署 |
+| 监控 | implemented_not_run | ServiceMonitor、PrometheusRule、Grafana dashboard、完整指标字典和事故 runbook；静态 YAML/JSON 合同通过 | 当前机器无 Helm/promtool；Operator discovery、rule evaluation、Alertmanager/Grafana 和真实告警演练 |
+| 备份恢复 | implemented | `pg_dump` custom format、对象 inventory/checksum、manifest、dry-run、恢复校验、RLS/引用 smoke、Helm CronJob 和 runbook | 目标数据库与对象存储全量恢复、实际 RPO/RTO 演练 |
+| 多实例部署 | implemented_not_run | rolling Deployment、PDB、HPA、topology spread、graceful shutdown、migration hook、worker heartbeat/lease 合同 | 目标 Kubernetes rollout/rollback、节点故障和长稳压测 |
+
+Stage 4 本地证据：通知/安全/运维核心 `128/128`，delivery/OpenAPI/release/tamper 合同
+`28/28`；Voice 组 `339/341`，0 fail、2 skip；foundation 的 HTTP `16/16` 与 core `96/96`
+分量通过；SDK build/dry-run pack 通过；
+standalone context 离线 `npm ci` 和 build 通过，包含 302 个 source file、8 个 runtime package、
+7 个生产入口。聚合 foundation wrapper 在 managed sandbox 内由 npm 子进程监听 loopback 时被
+`EPERM` 拒绝，但完全相同的 HTTP 文件直接执行为 `16/16`，其余清单直接执行为 `96/96`；
+本审计保留该执行边界，不把 wrapper 记为 passed。
+
+真实 PSTN、真实浏览器 WSS/RTP、物理音频设备、真实 SMTP/短信/公网 Webhook、目标 Kubernetes
+监控与多副本故障演练均为 `not_run`。这些环境项不阻塞 Stage 4 代码完成，也不得被受控 Provider、
+静态配置或单机测试冒充。Stage 5 将把各阶段能力串成 LED 可消费的 API、SDK、事件、Webhook、
+部署包和全链路验收文档，不实现 LED 业务逻辑。
+
+## 11. V5 Stage 5 追加审计（2026-07-15）
+
+本节审计产品中立的 API/SDK/事件/Webhook、V5 交付包和 LED 对接材料。它不声明 LED 业务逻辑、
+公网接收端或目标 Kubernetes 已完成真实部署。
+
+| 能力 | 实现状态 | 当前证据 | 仍为 not_run |
+| --- | --- | --- | --- |
+| 事件合同 | implemented | 同一 `ivekit_tenant_events` 支撑 HTTP replay、WebSocket 与 Webhook；8-family catalog、schema-v1 envelope、exact/trailing-wildcard 兼容规则 | 真实跨区域事件延迟和长稳 |
+| Durable Webhook Bridge | implemented | migration 073、强制 RLS、subscription/cursor/lease、tenant discovery、`SKIP LOCKED`、fencing、过滤推进、`subscription + event` Notification 幂等 | 公网 Endpoint DNS/TLS 与目标多节点故障恢复 |
+| 管理与治理 | implemented | owner/admin/system capability；create/list/get/update/archive；Idempotency-Key、revision、tenant/actor/source-IP 限流和不可变审计 | 目标 SIEM 与生产管理员流程 |
+| 投递与接收 | implemented | Notification 加密投递、HMAC、SSRF、配额/熔断/重试/死信；OpenAPI 3.1 outbound webhook；Web Crypto verifier；1 MiB/32-byte/time-window/identity 校验；默认 7 天 durable inbox claim | 真实 LED receiver、外部 Redis/PostgreSQL inbox 和业务 Worker |
+| 监控部署 | implemented_not_run | runtime heartbeat、低基数 operation/lag 指标、PrometheusRule、Grafana、四套 env、三套 Compose 和 Helm 参数；migration 073 进入 readiness/backup/source graph/delivery manifest | Prometheus 实际规则计算、Alertmanager、目标 Helm rollout |
+| V5 交付 | implemented | manifest 增加 11 项 capability matrix、automated/controlled/real_environment 三层 acceptance matrix、13 项 known-not-run；OpenAPI YAML、Stage 1–5 计划、Webhook receiver/runbook 和 controlled full-chain 工具进入 hash/tamper 保护包 | 不可变目标镜像构建、真实环境证据补录和正式发布签署 |
+| Controlled full-chain | passed_controlled | 同一 `service_order` business_ref 贯穿 IM、文件、质检、媒体、远控、Voice、通知 7 类事件；真实 bridge batch、cursor、HMAC、SDK verify 和 durable duplicate claim 生成 source-bound SHA-256 evidence | 该结果不包含真实 Tinode/LiveKit/RustDesk/RustPBX/Provider 或 LED 业务处理 |
+
+真实 OCR/ASR/AI/翻译、真实 Tinode/LiveKit、两台 Windows RustDesk、PSTN/RTP、商业通知、
+生产文件安全、公网 Webhook、目标 Kubernetes 和完整 backup/restore 演练继续保持 `not_run`。
+V5 manifest 的 `delivery_status=included` 只证明文件进入 source-bound 交付包；controlled evidence 只证明
+协议与状态机，不会自动改变任何 real_environment 状态。
+
+Stage 5 最终本地门禁：delivery/event/Webhook 聚合测试 `52/52`、0 fail、0 skip；仓库
+`test/*.test.ts` 全量回归 exit code 0；根 TypeScript typecheck、SDK build 和 dry-run pack 通过。
+SDK 发布清单共 83 个文件，包含编译 Webhook verifier 与 LED receiver 示例。standalone context
+离线验证包含 309 个允许源码文件、8 个 runtime package 和 7 个编译入口，且 source graph 未引入
+OPC 产品域。三套 Compose quiet render 与 `git diff --check` 均通过。
+
+首轮全量回归暴露的三个问题已关闭并复跑：录屏同时生成 ASR 与帧 OCR 后，intelligence source
+快照稳定选择 ASR 主任务而不丢失 OCR 独立任务；SDK 发布合同显式纳入 examples；外呼并发测试改用
+有界条件等待，消除全量并行时的固定 50ms 调度竞争。相关定向回归 53 项和随后全仓回归均通过。
+
+最终架构复审又关闭七项：migration 068 语法错误；Helm 多副本误用本地对象存储；Notification/
+Retention 批量预占导致的租约过期窗口；HTTP Endpoint 校验后再次 DNS 解析；Provider 事件默认路径
+重复写 durable journal；`secure_files`、`media_recordings`、`tenant_events` 三类保留策略缺少真实 handler；
+以及通用文本脱敏误改 UUID 证据 ID。修复后共享存储缺失会启动失败，HTTP socket 固定到已校验 IP，
+worker 逐条 claim，六类 retention 均执行 legal hold 和有界删除，结构化证据 ID/hash 原样保留而自由文本
+继续脱敏。相关 changed-surface 测试、Stage 5 `52/52`、根 typecheck 和全仓回归均重新通过；本机隔离
+PostgreSQL harness `6/6` 重新执行 fresh migration、OPC upgrade、RLS、Tinode、IVR 和受控 RustPBX。
+
+第二轮独立复审继续关闭六项 Important：Provider durable append 异常不再被 realtime 容错吞掉；Media
+QoS/connection 使用包含采样时间的固定长度 SHA-256 producer key，把显式 journal 与 WebSocket append
+收敛为单行，同时保留同一连接中的多次降级/恢复周期；
+IPv6 SSRF 分类拒绝完整特殊用途网段；绝对 retention deadline 不再被策略天数二次延长；held tenant/
+record 不再占满 bounded candidate window；Notification backoff 从 Provider 完成时刻起算。随后新增的
+定向回归 `27/27`、真实 PostgreSQL `6/6`、Stage 5 `52/52`、standalone 309 文件、根 typecheck 和
+全仓回归均通过。PostgreSQL 行为断言覆盖 `tenant_limit=1` 时跳过只有 held 过期事件的租户。
+
+因此 V5 五阶段可统一判定为“代码、迁移、部署配置、自动化验收入口和交付文档完成，真实环境待
+验收”。最终 release 仍须从干净提交生成 source-bound bundle，并补录对应 capability 的真实环境
+证据；当前工作区或受控结果不得直接解释为生产发布完成。
+
+## 12. V6 生产闭环尾项审计（2026-07-16）
+
+本节关闭 V5 审计明确留下的 Tinode Kubernetes、Tinode 原生 mutation、RustDesk 精准断开和原生证据安全链路代码缺口。它不改变真实 Provider、物理设备和目标集群仍为 `not_run` 的结论。
+
+| 能力 | 实现状态 | 当前代码与自动化证据 | 仍为 not_run |
+| --- | --- | --- | --- |
+| Tinode Kubernetes | implemented_not_run | standalone Chart 保留兼容型 bundled 单副本 ConfigMap/Secret refs、Deployment、Service、PVC、PDB、HTTP `/health` 探针、资源、安全上下文和 NetworkPolicy；Cell-10K 另提供三节点 fork StatefulSet、headless cluster Service、client Service、稳定 `cluster_self`、本地 sidecar 和 `minAvailable: 2` PDB；每个 API Pod 仍用 init container fail-closed 创建或验证 Tinode service account；Helm `v3.18.4` lint/template 已通过 | 目标集群 Helm install/upgrade/rollback、三节点 cluster/failover、真实 PVC 和长稳 |
+| Tinode 原生 mutation | implemented | migration 074；本地 edit/delete 与 provider mutation outbox 同事务；版本串行、lease fencing、retry/dead-letter/replay、replacement/delete wire frame、inbound echo suppression、外部客户端投影、SDK sync status 和事件；edit pub ACK 丢失或过期 processing lease 被接管时立即以 `provider_outcome_uncertain` 死信，阻止重复 replacement，并提供 OpenAPI/SDK 人工对账重放；迟到 echo 在同一事务纠正 delivered 并以稳定幂等键写 durable correction event，提交后广播失败可由 replay/Webhook 恢复；bootstrap 兼容已有账号的 304/409；真实 PostgreSQL 已覆盖过期 edit claim 和 inbound 结果透传 | 真实 Tinode 1.4.7/0.25.1 多原生客户端一致性、ACK 丢失对账与故障恢复 |
+| RustDesk 精准断开 | implemented_not_run | migration 075 emergency authorization；ACL session registry/resolver；package v6 与 fixed native-control v2；命令、operation observation 和 evidence 全链携带 interaction/reservation/owner epoch；companion 每会话分片持久化最大 epoch，拒绝 stale owner 后才由 1.4.7 overlay 调用指定 `ui_cm_interface::close(native_id)`；普通失败不重启，owner/admin 显式确认后才允许 emergency restart | 两台 Windows、同机并发会话、owner handoff、UAC/login-screen 和物理断开观察 |
+| RustDesk 原生证据 | implemented_not_run | 定制 RustDesk allowlist scanner 基线并自动产出稳定新文件候选；device-token context 按 controller/operation/文件名/时间窗唯一关联；15 分钟会后 finalization window；watcher、稳定性/变更/hash gate、durable spool、单文件/分片 uploader、设备/session/operation 二次授权、secure-file、扫描/隔离/衍生物、PDF OCR、录屏 ASR+帧 OCR、AI 质检和 `remote.rustdesk.evidence.*` 状态事件；migration 076 对 unsupported/ignored 持久标记并补偿 missed callback；设备侧死信 payload 默认 7 天/数量上限成对清理；远端成功后的本地删除失败保留 `uploaded + manifest` 并跨重启只重试删除，所有 manifest-backed 状态禁止普通终态压缩；手工 PowerShell 仅为恢复工具 | 定制 RustDesk 1.4.7 Windows 编译、真实文件/录屏、ClamAV/对象存储和物理 Windows |
+| 八组真实验收与交付 | implemented_not_run | `ivekit-v6-real-acceptance.ts` 固定八组、source/digest/environment/run/operator/QA/observation 绑定，拒绝 mock/controlled、符号链接、路径逃逸、hash 漂移和 `not_run` 伪证据；模板、校验器、V6 文档、Tinode Helm 与 RustDesk Windows/overlay 进入 hash/tamper 保护交付包 | Provider、Tinode、LiveKit、RustDesk、PSTN、商业通知、生产对象存储、Kubernetes 均缺真实资源 |
+
+RustDesk 未经自动 scanner/correlator/watcher/uploader 的内容仍保持 `native_unscanned` 或 `local_only`，不能由审计事件或静态配置推导为已扫描。placement-enabled Windows package builder 只接受同时声明 `ivekit-rustdesk-native-control-v2` 与 `rustdesk-native-evidence-v1` 的自定义 1.4.7 制品；v1 只允许在 placement 关闭时用于滚动兼容。交付白名单同时包含 control/evidence 两个 Rust 模块、owner epoch fence 与 correlator，SDK client-profile 投影保留 v2。Windows CI 已配置拉取固定上游、应用 overlay、安装 vcpkg manifest 并执行 `cargo check`；本工作区不具备 Windows runner，因此该远程 CI 与实际签名制品、候选扫描、授权关联和上传行为仍须在 GitHub/双机验收。
+
+V6 统一真实验收规范位于 `docs/ivekit-v6-real-environment-acceptance.md`。截至本节日期，八组均为 `not_run`；这表示外部环境尚未验收，不表示已完成的代码/部署合同失败，也绝不等价于生产可放行。
+
+V6 原始本地门禁为全仓 `2939` 项、`2928` pass、`0` fail、`11` 个环境检查 skip；真实 PostgreSQL harness `6/6`；delivery/OpenAPI/event/release 聚合 `54/54`；根 TypeScript、SDK build 与 83-file dry-run pack、313-source/391-payload standalone context build、三套 Compose quiet render、`git diff --check` 和 changed-line secret scan 全部通过。2026-07-17 又使用 Helm `v3.18.4` 实际完成 standalone Chart lint/template、external LiveKit + shared Redis + digest-bound Egress 双池和 RustPBX recording-spool Chart 渲染；目标集群 rollout/rollback 继续为 `not_run`。
+
+三轮独立复审先后发现并关闭 Windows installer placeholder、交付包漏 Rust module、会后录屏窗口、dead-letter payload 生命周期、reconciliation 饥饿、迟到 echo 纠正、Tinode 304、Windows CI、纠正事件提交后丢失和上传成功后本地孤儿文件等问题。最终复审对 transaction-scoped durable correction、稳定幂等键、默认/自定义 publisher、`uploaded + manifest` checkpoint、跨重启 cleanup 和 compaction 重新检查后，报告 `0 Critical / 0 Important`。持续 OS 文件锁可能积累受跟踪的 cleanup 记录，需要监控和人工处置；远端成功但本地 checkpoint 前崩溃可能重复 HTTP 调用，但 secure-file ID/checksum/idempotency 会收敛到同一文件。
+
+因此 V6 可判定为“代码、迁移、部署模板、自动化验收入口和交付文档完成；外部真实环境待验收”。Windows GitHub overlay job、签名 RustDesk 制品、双 Windows、真实 Tinode/LiveKit/TURN/Egress/PSTN/Provider/商业通知/对象存储和目标 Kubernetes 均不得因本地门禁通过而改写为 passed。十万并发属于下一独立容量与性能目标，本轮只保留横向扩展前提，不声明容量达标。
+
+## 13. MIX-100K / Cell-10K 架构追加审计（2026-07-16）
+
+本节不是重新实现 IM、视频、远控、语音或通知。既有 Tinode、LiveKit、RustDesk、RustPBX、通知 API、SDK 和业务行为保持不变；新增内容位于其下方的 placement、admission、owner routing、lease fencing、backpressure、容量探针和分布式验收层，用于提高单节点密度并让多 Cell 横向扩展时边际效率可测、可控。
+
+| 能力 | 实现状态 | 当前代码与自动化证据 | 仍为 not_run |
+| --- | --- | --- | --- |
+| Cell placement 与 owner fencing | implemented | 签名 placement snapshot/token、Region/Zone/Cell top-two admission、精确 interaction owner、32+32 位 owner epoch、LiveKit/Tinode/RustDesk/RustPBX 边界接线 | 目标双 Zone 故障演练、真实多 Cell 流量迁移 |
+| Cell admission 持久化 | implemented | migration 078/083/084、PostgreSQL Cell lease、逐 reservation 权威账本、reserve/activate/close 先持久化后应答、重启恢复容量与 owner sequence；lease 绑定规范化 topology SHA-256 | 真实 PostgreSQL 双副本杀主、延迟/断网和长稳 |
+| Cell admission 高可用 | implemented_not_run | 双副本主动/待命；待命 `/livez=200`、`/readyz=503` 且拒绝准入；只重试 retryable lease；活动 lease 同时要求 owner 与 topology hash 一致；变更拓扑只能在释放/过期后递增 epoch 接管；Service 只路由 ready 主实例；RollingUpdate、PDB、拓扑分散；待命 projector 不重复探测组件 | 目标 Kubernetes 实际 rollout、PDB/节点驱逐、主实例失联接管时延和错配拓扑演练 |
+| 组件节点准入 | implemented_not_run | LiveKit/Tinode/RustDesk/RustPBX 通用 sidecar；稳定 ordinal 节点池、Cell 容量精确聚合、node lease、checkpoint、recovery-complete、drain、单条及最多 64 条批量授权、节点级故障隔离；Cell 重启自动重放未终态 owner，已删除 owner node 的恢复 fail closed；RustPBX Helm/Compose、LiveKit StatefulSet、三节点 Tinode StatefulSet 和配对 hbbs/hbbr RustDesk StatefulSet 均支持本地 sidecar 与相同稳定节点身份 | 多节点进程重启、真实 lease takeover、节点动态扩缩和真实热路径 |
+| 上游源码 hook | implemented_not_run | Go hook 面向 LiveKit/Tinode，Rust hook 面向 RustDesk/RustPBX；RustPBX 精确 commit 的完整补丁队列已应用；LiveKit 固定 `v1.13.3@8f6a9cb...`，participant metadata、房间 registry、批量续租、mutation fencing、内部 Redis router 稳定节点身份、lock-free downtrack 快照和小房间 RTP/RED 串行快路径已完成，并已在真实源码通过 Go 1.26 编译与 race 测试；Tinode 固定 `v0.25.3@22a7c18...`，selected-node topic create、ROOT-only Trusted placement、topic registry、64 topic 批量续租、稳定 `cluster_self`、publish/meta fencing、新建失败回滚、前台会话 lazy timer 和普通本地 group 只读消息扇出已完成，并已在真实源码通过 Go 1.26 编译与 race 测试；RustDesk Server 固定 root `1.1.15@9bae9f2...` 与 `hbb_common@83419b6...`，gateway selected-owner 预登记、target/relay UUID broker、hbbs claim、hbbr pairing 前 owner open/assert、三秒本地 lease fencing、每会话原子 usage 和同协议 owned relay frame 已完成，并在干净源码幂等应用后通过 `cargo test --locked`；RustDesk owner 配置完全未启用时为上游兼容旁路，半配置则启动失败；媒体包、帧和 fanout 热路径禁止远程调用 | RustPBX 完整二进制编译及 SIP/RTP；LiveKit/Tinode/RustDesk 自定义镜像、真实多节点/双 Windows、真实媒体/relay/profile 和容量 |
+| 分布式容量验收 | implemented_not_run | PostgreSQL/JetStream run-phase-shard worker、租约与重复投递 fencing、S3 evidence、controller/run finalizer；曲线点按完整 MIX 比例确定性编译，component run 绑定必需角色；migration 091/scaling finalizer 从数据库与 S3 重读证据并重放 ramp/bracket/binary/final-repeat；migration 092/platform finalizer 强制九个组件角色、Cell、共享数据面和 100K endpoint 齐全，按 contract 从 frontier repetitions 二次复算每条曲线，并核对 endpoint 的 Cell 硬件/配置/故障预留与三方计数；只有全生产证据通过才产生 `platform_pass`，受控结果固定为 `none`；独立镜像、三个 finalizer Job、迁移和操作手册均进入交付包 | 不可变 capacity-tools 镜像构建与签名、真实生成器主机、三节点 JetStream、真实 S3、单机 frontier、九组件与 Cell/shared-data 物理曲线、Cell-10K 和 MIX-100K endpoint/平台物理运行 |
+
+本轮容量门禁的最新计数以 `docs/capacity/phase2-code-status.json` 为准；容量专项回归 `300/300`、scaling campaign 定向门禁 `9/9`、platform campaign 定向门禁 `12/12`、交付门禁 `55/55`，根 TypeScript 与独立 capacity-runtime typecheck 均通过。固定门禁覆盖 LiveKit CAS room-owner rebuild、Tinode/RustDesk Server 精确源码补丁真值、RustDesk client fork 状态、全部 patch SHA-256 真值、scaling 来源身份/顺序以及 platform 角色齐全、来源复算与 endpoint 不可覆盖规则。4 个专用 Event WS/Tinode generator 用例已使用真实 loopback socket 通过；RustDesk 回归、RustDesk SDK/LED 对接、参考客户端、SDK build、参考客户端 production build、容量 Compose 渲染和 Go/Rust component hooks 的最新结果同样以机器可读状态文件为准。参考客户端没有上调 334 KiB 首屏预算：默认 application chunk 为 `311101` 字节，RustDesk SDK 与 UI 仅在进入远控 workspace 时加载为 `49775` 字节独立 chunk。该结果只证明代码和部署合同，不产生任何 `C_hard`、`C_safe`、Cell-10K 或 MIX-100K 容量结论。
+
+因此当前准确结论是：“既有通信功能没有重做；Cell-10K / MIX-100K 的 placement、admission、组件 owner、分布式压测、曲线终结和平台放行代码已闭环。LiveKit、Tinode 与 RustDesk Server 的精确源码 overlay、原生编译/测试及首批热路径优化已通过；平台门禁已具备拒绝缺角色、曲线弯折、身份漂移、伪 endpoint 和受控证据冒充的完整入口。各组件不可变镜像、目标 Kubernetes 接管、真实多节点/双 Windows、九组件与 Cell 曲线及 100K endpoint 物理容量仍保持 `not_run`。”
+
+## 14. OPC/LED 共用通信底座八项目标终审（2026-07-17）
+
+### 14.1 终审口径
+
+本节以当前工作树、源码、migration、OpenAPI、SDK、部署模板、验收程序和机器可读状态文件为
+权威证据，对最初八项总目标重新逐项审计。完成口径是“无需真实外部资源的代码、架构、配置、
+自动化门禁和交接材料全部闭环”；不是“生产环境已经上线”。目标明确允许后置的服务器、真实
+PostgreSQL/NATS 多节点、LiveKit/TURN/Egress、双 Windows、PSTN、商业通知、真实智能 Provider、
+生产对象存储和物理容量继续保持 `not_run`，任何受控结果均不得替代它们。
+
+LED 业务逻辑、OPC 业务领域、移动端和数字人不属于 iveKit 底座。本节也不以历史阶段已有内容
+反向缩小目标；以下八行分别覆盖原始目标中的全部命名能力。
+
+### 14.2 八项要求与直接证据
+
+| # | 原始目标 | 权威实现与交付证据 | 代码裁决 | 真实环境状态 |
+| --- | --- | --- | --- | --- |
+| 1 | Tinode IM 完整集成 | `src/agent-runtime/collaboration/tinode-*` 实现双向同步、会话、附件、已读/状态、离线恢复、原生 edit/delete outbox、迟到 echo 纠正、重放和指标；migration 062/074 持久化文件投递与 mutation；`services/ivekit-service/helm/ivekit/templates/tinode-*` 提供 bundled Kubernetes；`infra/ivekit/tinode/` 提供固定 `v0.25.3` 三节点 owner-aware fork；OpenAPI、SDK 和参考客户端均含消息、附件与 mutation 状态 | `implemented` | 真实 Tinode 多客户端收敛、三节点故障、目标 PVC/长稳为 `not_run` |
+| 2 | LiveKit 全部基础音视频 | `src/agent-runtime/livekit/` 覆盖房间、Token、参与人、音视频、屏幕共享、Webhook、moderation、录制、QoS、超时和重入；migration 063/087/088/089 覆盖质量与 Egress job/reconciliation/capacity；`infra/ivekit/livekit/` 固定 `v1.13.3` owner overlay；Egress 双池仅接受批准仓库 `ivekit/livekit-egress` 的 digest-bound 镜像，并与 external LiveKit 显式共享 Redis address/认证/TLS，缺 digest/shared Redis、使用上游全限定别名或任意其他仓库均 Helm fail-closed；参考客户端实现断线恢复与 320/390 移动布局 | `implemented` | 定制 Egress 镜像尚未真实构建；双客户端、摄像头/麦克风、TURN、Egress 对象链路、弱网和多实例为 `not_run` |
+| 3 | RustDesk Windows 远控闭环 | `src/agent-runtime/collaboration/rustdesk-*`、`scripts/rustdesk-*` 与 `scripts/rustdesk-windows/` 覆盖授权码、device command、session hook、精准断开、owner epoch、剪贴板/文件/多屏/录屏观察、durable spool、evidence 上传、审计和 emergency fallback；`integrations/rustdesk-1.4.7/` 含 native control/evidence overlay；Windows workflow、安装包、SDK/LED facade 和参考工作区已交付 | `implemented_not_run` | 定制签名 Windows 制品、双物理机、UAC/login screen、同机多会话和真实文件/录屏为 `not_run` |
+| 4 | RustPBX、SIP、WebPhone、IVR 与呼叫 | `src/agent-runtime/ivekit/voice/`、`ivr/` 和参考客户端 Voice/IVR 工作区覆盖注册、呼入/呼出、接听/拒绝、Hold、DTMF、设备、呼叫控制、路由、录音和 provider event；`infra/ivekit/rustpbx/patches/` 提供 admission、owner、SIP 容量、route snapshot、录音 spool 与非阻塞热路径补丁；`scripts/ivekit-rustpbx-sipp-acceptance.ts` 和交付场景固定 SIPp 3.7.7 身份并输出可验证报告 | `implemented_not_run` | 无 PSTN 的真实 SIPp/RTP、完整 Rust 二进制、浏览器 WSS/物理音频、PSTN 和 supervisor mixer 为 `not_run` |
+| 5 | OCR、ASR、翻译、AI 质检、防绕单与 Provider 治理 | collaboration intelligence、attachment text、translation、quality review、policy scan 与 provider registry/governance/route 覆盖第三方 HTTP 和自建 Provider 双模式、健康检查、配额、熔断、降级、故障切换、OCR/ASR/帧 OCR、AI finding、人工复核和文本/图片防绕单；migration 059/060/076、OpenAPI、SDK 和参考质量工作区提供持久状态与操作面 | `implemented` | 真实厂商/自建模型、凭据、准确率语料、配额与故障切换为 `not_run` |
+| 6 | 通知、文件安全、安全与运维 | `src/agent-runtime/ivekit/notifications/` 覆盖站内、Webhook、SMTP/HTTP Email、HTTP SMS、模板、偏好、回执、重试、死信和 Provider 治理；secure-file 模块覆盖 magic MIME、ClamAV/HTTP 扫描、隔离、转码、缩略图、分片续传、清理与 legal hold；authorization/audit/rate-limit/retention/heartbeat、监控、备份恢复、多副本 worker 和 Helm HPA/PDB/ServiceMonitor/PrometheusRule/Grafana/CronJob 已接线 | `implemented_not_run` | 商业邮件/短信、公网 Webhook、生产对象存储/ClamAV、目标监控栈、真实恢复和 Kubernetes 故障演练为 `not_run` |
+| 7 | MIX-100K 双 Zone/Cell 生产代码 | migration 077–092、placement/admission/component-node runtime、稳定 owner/epoch、双 Zone/Cell lease、分布式 dispatcher/controller/worker/finalizer、JetStream/PostgreSQL/S3 evidence、容量探针、九组件 platform campaign 和 fork manifest 真值链已实现；LiveKit/Tinode/RustDesk 精确源码 overlay 已编译/测试，RustPBX 补丁队列和所有热路径优化接口已纳入交付 | `implemented_not_run` | 单机 frontier、1/2/4/8 曲线、Cell-10K、MIX-100K、真实多主机/JetStream/S3 和容量结论全部为 `not_run`，`capacity_claim=none` |
+| 8 | LED/OPC 稳定 API、SDK、事件、Webhook 与交付 | `docs/openapi.yaml`、`sdk/ivekit/`、tenant event replay/WebSocket、durable integration webhook、Compose/Helm、migration/source policy、release contract、SBOM/checksum/tamper gate、升级回滚/监控/备份/验收 runbook 和 LED 对接示例均进入 source-bound delivery bundle；Egress overlay、Go policy、build script 与双池 Chart 以可构建相对目录进入 `components/livekit-egress/`；standalone source graph 禁止 OPC 产品域渗入 | `implemented` | 不可变生产镜像、目标 digest、正式 release commit、LED 真实 receiver 和目标部署签署为 `not_run` |
+
+### 14.3 最终自动化证据
+
+机器可读总表为 `docs/capacity/phase2-code-status.json`。本次终审的最新结果如下：
+
+| 门禁 | 结果 | 能证明什么 |
+| --- | --- | --- |
+| 全仓 Node | `3360` total，`3348` pass，`12` environment skip，`0` fail | 当前源码、迁移、合同和部署静态行为无回归；skip 保持外部环境语义 |
+| TypeScript | 根 typecheck 与独立 capacity-runtime typecheck 均通过 | 主运行图和容量交付运行图类型闭合 |
+| 参考客户端 | unit `158/158`；production build 与 15 个 JS chunk budget 通过 | IM/Media/RustDesk/Voice/IVR/Ops 前端合同和懒加载可构建 |
+| 受控 Chromium | `15/15` | 桌面/移动 IM、Media、RustDesk、Voice、IVR、Ops 流程；不代表真实 Provider |
+| Helm/Stage 2 | Helm `v3.18.4`，lint/template 与发布合同 `20/20` | standalone、external LiveKit + shared Redis + digest-bound Egress 双池、RustPBX recording-spool 可渲染；缺 shared Redis/digest 会拒绝；不代表目标集群已应用 |
+| Capacity | `300/300`；scaling `9/9`；platform `12/12` | placement、admission、evidence、曲线与平台拒绝规则；不产生物理容量结论 |
+| Delivery | `55/55`；SDK build/pack `83` files | OpenAPI/SDK/交付清单、hash、tamper 和升级材料完整 |
+| Standalone | `352` source、`8` runtime package；source graph/build 通过 | 可拆服务运行图不依赖 OPC 产品业务模块 |
+| Component hooks | Go 与 Rust hooks 通过 | owner/admission hook 合同可编译测试；不是所有定制镜像已构建 |
+| 差异完整性 | `git diff --check` 与 JSON 解析通过 | 当前差异无 whitespace error，机器状态可读取 |
+| 独立终审 | `0 Critical / 0 Important` | Registry allowlist、路径/contract/digest、共享 Redis、Stage 2、build label、交付包与文档边界一致 |
+
+最终审计期间，门禁和独立代码审查实际发现并关闭六类问题，而不是用文档掩盖：
+
+1. Prometheus rules 存在重复 YAML key，已拆正 RustPBX recording 与 SIP overload 告警归属。
+2. migration 091/092 和 recording-spool 入口加入后，standalone migration/source graph 断言漂移，已更新权威顺序与入口清单。
+3. Egress Helm 模板错误依赖 `livekit.enabled=true`，导致生产常用 external LiveKit 模式不渲染 Egress；已解除耦合并实际渲染 Track/Composite、ServiceMonitor 和 PrometheusRule。
+4. 参考客户端移动端 grid 使用裸 `1fr`，IM 390px 与 RustDesk 320px 发生页面级横向溢出；已改为 `minmax(0, 1fr)` 并限制 topbar，完整 Chromium `15/15` 复跑通过。
+5. external LiveKit 的 Egress 仍硬编码 release-local Redis，语法可渲染但永远收不到外部 Server 的任务；现要求显式共享 Redis address/认证/TLS，缺失即 Helm fail-closed。
+6. 双池默认使用不识别 iveKit pool 环境变量的上游 Egress 镜像，且交付包缺 overlay/build/Chart；现只接受路径以 `ivekit/livekit-egress` 结尾、Registry 主机显式列入 `media.egress.image.allowedRegistries` 且使用定制 `@sha256:...` 的镜像，默认仅批准 `docker.io`；`livekit/egress`、Docker Hub 全限定上游别名、任意其他路径、未批准私库和缺 digest 配置均拒绝渲染，build label 与 Chart 统一为 `ivekit-egress-pool-v1`，完整可构建组件目录进入 hash/tamper 交付门禁。Registry/digest Helm 门禁不替代生产镜像签名与 admission provenance 验证。
+
+### 14.4 最终裁决与发布边界
+
+八项总目标的代码、架构、migration、API/SDK、部署模板、自动化入口和交接材料已经闭环；没有发现
+仍需编写而被真实环境验收掩盖的功能代码缺口。唯一未勾选的当前计划项是目标 Kubernetes 的
+Operator/Alertmanager/Grafana、rollout/rollback 与真实多副本故障演练，性质明确为环境验收。
+
+本机 Docker daemon 在终审时不可用，因此没有伪造一次新的 PostgreSQL 容器复跑；历史独立
+PostgreSQL harness 证据保留，但本轮容量 PostgreSQL integration 明确为 `not_run`。服务器
+`64.225.122.227` 当前在 SSH key exchange 前主动断开，新 RSA key 尚未进入认证；服务器验证也
+继续保持 `not_run`。上述外部项目完成后，必须通过 V6 八组真实验收模板、不可变 digest、证据
+SHA-256、operator 与独立 QA 双签，才允许把对应状态从 `not_run` 改为 `passed`。
+
+因此本轮可以关闭“共用底座剩余代码与交付收口”，但不能宣称“生产上线完成”或“十万并发已经
+达标”。后续服务器可用时执行的是既有真实验收和容量程序，不是重新补功能。

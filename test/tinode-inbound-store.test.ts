@@ -39,7 +39,7 @@ maybe('Tinode inbound claim, inbox replay, drift detection, dead letter, and cur
     buildIveKitStandaloneContext({
       repoRoot: resolve('.'),
       outputDir: context,
-      sourceCommit: 'tinode-inbound-test',
+      sourceCommit: '1'.repeat(40),
       generatedAt: now.toISOString()
     });
     await initializeIveKitRuntimeRole(admin, runtimePassword);
@@ -62,7 +62,7 @@ maybe('Tinode inbound claim, inbox replay, drift detection, dead letter, and cur
     );
 
     const store = new TinodeInboundStore({ pg: runtime, now: () => now });
-    assert.deepEqual(await store.discoverTenantIds({ limit: 10 }), [tenantId]);
+    assert.ok((await store.discoverTenantIds({ limit: 10 })).includes(tenantId));
     const concurrentStore = new TinodeInboundStore({ pg: runtime, now: () => now });
     const claims = await Promise.all([
       store.claimNext({ tenant_id: tenantId, lease_ms: 60_000 }),
@@ -77,13 +77,25 @@ maybe('Tinode inbound claim, inbox replay, drift detection, dead letter, and cur
     const first = normalizeTinodeInboundPacket({
       data: { topic, seq: 1, from: 'usrInbound', content: 'hello' }
     }, { expectedTopic: topic, allowedAttachmentHosts: [] });
-    const projected = await store.processEvent(claim, first, async () => ({ status: 'ignored' }));
+    const projected = await store.processEvent(claim, first, async () => ({
+      status: 'ignored',
+      provider_mutation: {
+        mutation_id: 'mutation-corrected-1',
+        mutation_version: 2,
+        action: 'edit',
+        message_id: 'message-corrected-1',
+        status: 'delivered',
+        previous_status: 'dead_letter'
+      }
+    }));
     assert.equal(projected.status, 'ignored');
     assert.equal(projected.replayed, false);
+    assert.equal(projected.provider_mutation?.previous_status, 'dead_letter');
     const replay = await store.processEvent(claim, first, async () => {
       throw new Error('replay must not invoke projector');
     });
     assert.equal(replay.replayed, true);
+    assert.equal(replay.provider_mutation, undefined);
 
     const drift = normalizeTinodeInboundPacket({
       data: { topic, seq: 1, from: 'usrInbound', content: 'changed' }

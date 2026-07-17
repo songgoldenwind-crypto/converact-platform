@@ -6,6 +6,7 @@ import {
 } from './attachment-processing.js';
 import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 import { createPolicyAttachmentProviderResolver } from './intelligence-provider-routing.js';
+import type { IntelligenceProviderRouteEventHandler } from './intelligence-provider-route.js';
 
 export interface AttachmentProcessingWorkerConfig {
   enabled: boolean;
@@ -74,7 +75,8 @@ export class AttachmentProcessingWorker {
 export function attachmentProcessingWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): AttachmentProcessingWorkerConfig {
-  const configured = createIntelligenceProviderRegistry(env).list().some(
+  const profiles = createIntelligenceProviderRegistry(env).list();
+  const configured = profiles.some(
     (profile) => profile.capability === 'ocr' || profile.capability === 'asr'
   );
   const enabledFlag = String(env.OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED || '').trim();
@@ -104,28 +106,43 @@ export function attachmentProcessingWorkerConfig(
       10,
       'OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS'
     ),
-    claimLeaseMs: boundedInteger(
-      env.OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS,
-      60_000,
-      5_000,
-      600_000,
-      'OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS'
+    claimLeaseMs: Math.max(
+      boundedInteger(
+        env.OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS,
+        60_000,
+        5_000,
+        600_000,
+        'OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS'
+      ),
+      requiredClaimLeaseMs(profiles.filter(
+        (profile) => profile.capability === 'ocr' || profile.capability === 'asr'
+      ))
     ),
     retryDelaysMs: retryDelays(env.OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS)
   };
+}
+
+function requiredClaimLeaseMs(profiles: Array<{ reservation_ttl_ms: number }>): number {
+  return profiles.reduce(
+    (maximum, profile) => Math.max(maximum, profile.reservation_ttl_ms + 5_000),
+    5_000
+  );
 }
 
 export function startAttachmentProcessingWorker(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   onProcessed?: AttachmentProcessingServiceInput['onProcessed'];
+  onProviderEvent?: IntelligenceProviderRouteEventHandler;
 }): AttachmentProcessingWorker {
   const env = input.env || process.env;
   const config = attachmentProcessingWorkerConfig(env);
   const registry = createIntelligenceProviderRegistry(env);
   const service = new AttachmentProcessingService({
     pg: input.pg,
-    resolveProvider: createPolicyAttachmentProviderResolver({ pg: input.pg, registry }),
+    resolveProvider: createPolicyAttachmentProviderResolver({
+      pg: input.pg, registry, onEvent: input.onProviderEvent
+    }),
     maxAttempts: config.maxAttempts,
     claimLeaseMs: config.claimLeaseMs,
     retryDelaysMs: config.retryDelaysMs,

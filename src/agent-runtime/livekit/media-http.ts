@@ -2,6 +2,8 @@ import { createLiveKitMediaModule } from './index.js';
 import { isMediaInviteConfigured, verifyMediaInvite } from './invite-token.js';
 import type {
   EgressRecord,
+  LiveKitRecordingMode,
+  LiveKitRecordingTrackSelector,
   MediaBusinessRef,
   MediaRoomPurpose,
   RecordingObjectContentResult,
@@ -184,6 +186,27 @@ function optionalBodyRecord(body: Record<string, unknown>, key: string): Record<
   return value as Record<string, unknown>;
 }
 
+function optionalRecordingMode(body: Record<string, unknown>): LiveKitRecordingMode | undefined {
+  return optionalBodyString(body, 'recording_mode') as LiveKitRecordingMode | undefined;
+}
+
+function optionalRecordingTracks(body: Record<string, unknown>): LiveKitRecordingTrackSelector[] | undefined {
+  const value = body.tracks;
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) throw badRequest('tracks must be an array');
+  return value.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw badRequest('track selector must be an object');
+    }
+    const track = entry as Record<string, unknown>;
+    return {
+      trackId: requiredBodyString(track, 'track_id'),
+      kind: String(track.kind || '') as LiveKitRecordingTrackSelector['kind'],
+      source: String(track.source || 'unknown') as LiveKitRecordingTrackSelector['source']
+    };
+  });
+}
+
 function optionalBusinessRef(tenantId: string, body: Record<string, unknown>): MediaBusinessRef | null {
   const raw = optionalBodyRecord(body, 'business_ref');
   const type = String(raw?.type || body.business_ref_type || '').trim();
@@ -361,6 +384,10 @@ export async function routeMediaApi(
       {
         format: optionalBodyString(input, 'format') as 'mp4' | 'webm' | 'wav' | 'ogg' | undefined,
         hasVideo: Boolean(input.has_video),
+        recordingMode: optionalRecordingMode(input),
+        tracks: optionalRecordingTracks(input),
+        audioTrackId: optionalBodyString(input, 'audio_track_id'),
+        videoTrackId: optionalBodyString(input, 'video_track_id'),
         businessRef,
         retentionUntil: optionalBodyString(input, 'retention_until'),
         retentionDays: optionalBodyNumber(input, 'retention_days')
@@ -422,6 +449,49 @@ export async function routeMediaApi(
     return result;
   }
 
+  const recordingJobObjectMatch = path.match(
+    /^\/api\/media\/livekit\/recordings\/([^/]+)\/jobs\/([^/]+)\/(object|export)$/
+  );
+  if (recordingJobObjectMatch && method === 'GET') {
+    requireMediaServiceAuth(headers);
+    const recording = requireTenantScopedRecording(
+      media.recordings.getRecording(decodeURIComponent(recordingJobObjectMatch[1])),
+      requiredTenantQuery(url)
+    );
+    const jobId = decodeURIComponent(recordingJobObjectMatch[2]);
+    const actorId = headerValue(headers, 'x-actor-id') || 'media-service';
+    if (recordingJobObjectMatch[3] === 'object') {
+      const inspection = await media.recordings.inspectJobObject(recording.id, jobId);
+      if (!inspection) throw notFound('media recording job not found');
+      await options.onRecordingAudit?.(recordingAuditEvent(
+        recording,
+        actorId,
+        'media.recording.object_checked',
+        inspection
+      ));
+      return inspection;
+    }
+    const exported = await media.recordings.exportJobObject(recording.id, jobId);
+    if (!exported) throw notFound('media recording job not found');
+    if (!exported.readable || !exported.content) {
+      throw conflict(`recording object is not readable: ${exported.status}`);
+    }
+    await options.onRecordingAudit?.(recordingAuditEvent(
+      recording,
+      actorId,
+      'media.recording.exported',
+      exported
+    ));
+    return {
+      data: exported.content,
+      contentType: exported.content_type,
+      filename: exported.filename,
+      headers: {
+        'content-disposition': `attachment; filename="${exported.filename}"`
+      }
+    };
+  }
+
   const recordingObjectMatch = path.match(/^\/api\/media\/livekit\/recordings\/([^/]+)\/(object|export)$/);
   if (recordingObjectMatch && method === 'GET') {
     requireMediaServiceAuth(headers);
@@ -472,6 +542,16 @@ export async function routeMediaApi(
       media.recordings.getRecording(decodeURIComponent(recordingMatch[1])),
       requiredTenantQuery(url)
     );
+  }
+
+  const recordingJobsMatch = path.match(/^\/api\/media\/livekit\/recordings\/([^/]+)\/jobs$/);
+  if (recordingJobsMatch && method === 'GET') {
+    requireMediaServiceAuth(headers);
+    const recording = requireTenantScopedRecording(
+      media.recordings.getRecording(decodeURIComponent(recordingJobsMatch[1])),
+      requiredTenantQuery(url)
+    );
+    return media.recordings.listEgressJobs(recording.id).map(({ storage_url: _storageUrl, ...job }) => job);
   }
 
   const stopRecordingMatch = path.match(/^\/api\/media\/livekit\/recordings\/([^/]+)\/stop$/);

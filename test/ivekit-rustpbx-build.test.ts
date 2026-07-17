@@ -19,6 +19,18 @@ const rsipstackPatch = readFileSync(
   'infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch',
   'utf8'
 );
+const rsipstackCapacityPatch = readFileSync(
+  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch',
+  'utf8'
+);
+const rustPbxSipCapacityPatch = readFileSync(
+  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch',
+  'utf8'
+);
+const rustPbxMediaHotPathPatch = readFileSync(
+  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch',
+  'utf8'
+);
 const imageWorkflow = readFileSync('.github/workflows/ivekit-rustpbx-image.yml', 'utf8');
 
 test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', () => {
@@ -44,6 +56,59 @@ test('iveKit RustPBX patch reconnects only failed TCP sends and removes matching
   assert.match(rsipstackPatch, /same_instance/);
   assert.match(rsipstackPatch, /closed_tcp_connection_is_removed_before_reconnect/);
   assert.doesNotMatch(rsipstackPatch, /for .*0\.\.2|targets.*target.*target/);
+});
+
+test('iveKit rsipstack fork enforces bounded transaction and transport state', () => {
+  assert.match(
+    buildScript,
+    /apply --check "\$PATCH_DIR\/rsipstack-tcp-reconnect\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rsipstack-ivekit-capacity\.patch"/
+  );
+  assert.match(rsipstackCapacityPatch, /pub struct EndpointCapacityLimits/);
+  assert.match(rsipstackCapacityPatch, /incoming_transaction_queue_capacity/);
+  assert.match(rsipstackCapacityPatch, /try_acquire_active_transaction/);
+  assert.match(rsipstackCapacityPatch, /try_acquire_finished_transaction/);
+  assert.match(rsipstackCapacityPatch, /StatusCode::ServiceUnavailable/);
+  assert.match(rsipstackCapacityPatch, /Retry-After/);
+  assert.match(rsipstackCapacityPatch, /set_max_connections/);
+  assert.match(rsipstackCapacityPatch, /struct TransportConnectionCapacityGuard/);
+  assert.match(rsipstackCapacityPatch, /self\.inner\.capacity\.release_connection\(\)/);
+  assert.match(rsipstackCapacityPatch, /connection_limit_rejections_total/);
+  assert.match(rsipstackCapacityPatch, /tcp connection rejected by capacity limit/);
+  assert.match(rsipstackCapacityPatch, /tls connection rejected by capacity limit/);
+  assert.match(rsipstackCapacityPatch, /websocket connection rejected by capacity limit/);
+  assert.doesNotMatch(rsipstackCapacityPatch, /tenant_id|interaction_id|call_id/);
+});
+
+test('iveKit RustPBX wires rsipstack capacity limits and low-cardinality metrics', () => {
+  assert.match(
+    buildScript,
+    /apply --check "\$PATCH_DIR\/rustpbx-local-rsipstack\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rustpbx-ivekit-sip-capacity\.patch"/
+  );
+  assert.match(rustPbxSipCapacityPatch, /EndpointCapacityLimits::try_new/);
+  assert.match(rustPbxSipCapacityPatch, /with_capacity_limits/);
+  assert.match(rustPbxSipCapacityPatch, /sip_max_active_transactions/);
+  assert.match(rustPbxSipCapacityPatch, /sip_incoming_transaction_queue_capacity/);
+  assert.match(rustPbxSipCapacityPatch, /rustpbx_sip_endpoint_incoming_queue_depth/);
+  assert.match(rustPbxSipCapacityPatch, /rustpbx_sip_transport_connection_limit_rejections_total/);
+  assert.doesNotMatch(rustPbxSipCapacityPatch, /tenant_id|interaction_id|call_id/);
+});
+
+test('iveKit RustPBX keeps recording codec and disk work off RTP forwarding loops', () => {
+  assert.match(
+    buildScript,
+    /apply --check "\$PATCH_DIR\/rustpbx-ivekit-sip-capacity\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rustpbx-ivekit-media-hot-path\.patch"/
+  );
+  assert.match(rustPbxMediaHotPathPatch, /struct RecorderCapture/);
+  assert.match(rustPbxMediaHotPathPatch, /struct RecordingExecutor/);
+  assert.match(rustPbxMediaHotPathPatch, /crossbeam_channel::bounded/);
+  assert.match(rustPbxMediaHotPathPatch, /rustpbx-recording-/);
+  assert.match(rustPbxMediaHotPathPatch, /media_recording_channel_capacity/);
+  assert.match(rustPbxMediaHotPathPatch, /media_recording_worker_threads/);
+  assert.match(rustPbxMediaHotPathPatch, /try_send/);
+  assert.match(rustPbxMediaHotPathPatch, /recording_queue_dropped/);
+  assert.match(rustPbxMediaHotPathPatch, /rustpbx_media_recording_queue_drops_total/);
+  assert.match(rustPbxMediaHotPathPatch, /Arc::ptr_eq/);
+  assert.doesNotMatch(rustPbxMediaHotPathPatch, /tenant_id|interaction_id|call_id/);
 });
 
 test('iveKit RustPBX AMI patch exposes deterministic call ids for reconciliation', () => {

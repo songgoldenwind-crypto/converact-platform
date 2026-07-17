@@ -23,6 +23,16 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.1',
     LIVEKIT_EGRESS_IMAGE_TAG: 'v1.12.0',
     LIVEKIT_SIP_IMAGE_TAG: 'v1.1.0',
+    OPC_MEDIA_CONFIG_REDIS_ADDRESS: 'redis://livekit-redis.internal:6379',
+    OPC_LIVEKIT_EDGE_TURN_TLS_PORT: '5349',
+    OPC_LIVEKIT_EDGE_TURN_UDP_PORT: '3478',
+    OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START: '50000',
+    OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END: '60000',
+    OPC_MEDIA_EGRESS_ENABLED: '1',
+    OPC_MEDIA_CONFIG_WEBHOOK_URL: 'https://opc.example.com/api/media/webhooks/livekit',
+    OPC_LIVEKIT_TIME_SYNC_STATUS: 'synchronized',
+    OPC_LIVEKIT_TIME_SYNC_OFFSET_MS: '12',
+    OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS: '5000',
     OPC_BASE_URL: 'https://opc.example.com',
     OPC_MEDIA_API_TOKEN: 'media-secret',
     OPC_MEDIA_INVITE_SECRET: 'invite-secret',
@@ -33,6 +43,8 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS: '2000',
     MINIO_ACCESS_KEY: 'minio-access-secret',
     MINIO_SECRET_KEY: 'minio-secret-secret',
+    MINIO_ENDPOINT: 'https://storage.example.com',
+    MINIO_BUCKET: 'recordings',
     OPC_VIDEO_READINESS_TARGETS: 'media,sip-volte',
     LIVEKIT_SIP_BRIDGE_TARGET: 'sip:livekit-bridge@livekit-sip:5061',
     RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
@@ -95,6 +107,10 @@ test('LiveKit deployment preflight passes a configured media and SIP deployment'
   assert.equal(report.summary.inviteSecretConfigured, true);
   assert.equal(report.summary.tenantConfigured, true);
   assert.equal(report.summary.egressConfigured, true);
+  assert.equal(report.summary.redisConfigured, true);
+  assert.equal(report.summary.turnConfigured, true);
+  assert.equal(report.summary.webhookConfigured, true);
+  assert.equal(report.summary.timeSynchronized, true);
   assert.equal(report.checks.find((check) => check.id === 'media_recording_retention_days')?.status, 'pass');
   assert.equal(report.checks.find((check) => check.id === 'media_recording_http_timeout')?.status, 'pass');
   assert.equal(report.checks.find((check) => check.id === 'media_recording_object_timeout')?.status, 'pass');
@@ -135,7 +151,10 @@ test('LiveKit deployment env checklist groups required variables and masks secre
   assert.match(checklist, /\| OPC_LIVEKIT_DEPLOYMENT_MODE \| required \| `external` \|/);
   assert.match(checklist, /\| OPC_MEDIA_API_TOKEN \| required \| `configured` \|/);
   assert.match(checklist, /\| MINIO_SECRET_KEY \| required \| `configured` \|/);
-  assert.match(checklist, /\| MINIO_BUCKET \| optional \| `recordings` \|/);
+  assert.match(checklist, /\| MINIO_BUCKET \| required \| `recordings` \|/);
+  assert.match(checklist, /\| OPC_MEDIA_CONFIG_REDIS_ADDRESS \| required \| `configured` \|/);
+  assert.match(checklist, /\| OPC_MEDIA_CONFIG_WEBHOOK_URL \| required \| `https:\/\/opc\.example\.com\/api\/media\/webhooks\/livekit` \|/);
+  assert.match(checklist, /\| OPC_LIVEKIT_TIME_SYNC_OFFSET_MS \| required \| `12` \|/);
   assert.match(checklist, /\| OPC_MEDIA_RECORDING_RETENTION_DAYS \| optional \| `90` \|/);
   assert.match(checklist, /\| OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT \| optional \| `1` \|/);
   assert.equal(checklist.includes('agent-a-secret'), false);
@@ -239,6 +258,47 @@ test('LiveKit deployment preflight rejects invalid recording retention and objec
   assert.equal(report.checks.find((check) => check.id === 'media_recording_object_timeout')?.status, 'fail');
 });
 
+test('LiveKit production preflight rejects incomplete TURN, Redis, Egress, webhook, and clock evidence', () => {
+  const report = createLiveKitDeploymentPreflightReport(configuredEnv({
+    OPC_MEDIA_CONFIG_REDIS_ADDRESS: 'redis-without-port',
+    OPC_LIVEKIT_EDGE_TURN_TLS_PORT: '70000',
+    OPC_LIVEKIT_EDGE_TURN_UDP_PORT: '0',
+    OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START: '60000',
+    OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END: '50000',
+    OPC_MEDIA_EGRESS_ENABLED: '0',
+    MINIO_ENDPOINT: 'file:///recordings',
+    MINIO_BUCKET: '../recordings',
+    OPC_MEDIA_CONFIG_WEBHOOK_URL: 'http://opc.example.com/api/media/webhooks/livekit',
+    OPC_LIVEKIT_TIME_SYNC_STATUS: 'unsynchronized',
+    OPC_LIVEKIT_TIME_SYNC_OFFSET_MS: '6000'
+  }));
+
+  assert.equal(report.ok, false);
+  for (const id of [
+    'livekit_redis_address',
+    'livekit_turn_tls_port',
+    'livekit_turn_udp_port',
+    'livekit_rtc_udp_port_range',
+    'livekit_egress_enabled',
+    'minio_endpoint',
+    'minio_bucket',
+    'livekit_webhook_url',
+    'livekit_time_sync_status',
+    'livekit_time_sync_offset'
+  ]) {
+    assert.equal(report.checks.find((check) => check.id === id)?.status, 'fail', id);
+  }
+});
+
+test('LiveKit production preflight never serializes Redis credentials', () => {
+  const report = createLiveKitDeploymentPreflightReport(configuredEnv({
+    OPC_MEDIA_CONFIG_REDIS_ADDRESS: 'redis://livekit:redis-password@redis.internal:6379'
+  }));
+
+  assert.equal(report.ok, true);
+  assert.equal(JSON.stringify(report).includes('redis-password'), false);
+});
+
 test('LiveKit deployment preflight writes checklist and report artifacts', () => {
   const dir = mkdtempSync(join(tmpdir(), 'opc-livekit-preflight-'));
   const checklistPath = join(dir, 'livekit-env-checklist.md');
@@ -300,6 +360,16 @@ test('LiveKit deployment preflight is exposed through scripts and env examples',
     'LIVEKIT_SERVER_IMAGE_TAG=',
     'LIVEKIT_EGRESS_IMAGE_TAG=',
     'LIVEKIT_SIP_IMAGE_TAG=',
+    'OPC_MEDIA_CONFIG_REDIS_ADDRESS=',
+    'OPC_LIVEKIT_EDGE_TURN_TLS_PORT=',
+    'OPC_LIVEKIT_EDGE_TURN_UDP_PORT=',
+    'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START=',
+    'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END=',
+    'OPC_MEDIA_EGRESS_ENABLED=',
+    'OPC_MEDIA_CONFIG_WEBHOOK_URL=',
+    'OPC_LIVEKIT_TIME_SYNC_STATUS=',
+    'OPC_LIVEKIT_TIME_SYNC_OFFSET_MS=',
+    'OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS=',
     'OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE=',
     'OPC_LIVEKIT_PREFLIGHT_REPORT_FILE='
   ]) {

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { MemoryPg } from '../../db-pg.js';
+import { MemoryPg, pgId, type PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { MediaCallStore } from './media-call-store.js';
 import type {
@@ -10,6 +10,7 @@ import type {
   IveKitMediaCallSnapshot,
   MediaBusinessRef
 } from './types.js';
+import type { LiveKitPlacementContext } from './token-service.js';
 
 export const ALLOWED_MEDIA_CALL_ACTIONS = {
   created: ['ring', 'cancel', 'fail'],
@@ -28,6 +29,63 @@ const memoryCallLockTails = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
 export interface MediaCallTransitionResult {
   snapshot: IveKitMediaCallSnapshot;
   replayed: boolean;
+  placement_reconcile?: {
+    tenant_id: string;
+    interaction_id: string;
+    desired_state: 'active' | 'closed';
+  };
+}
+
+export interface MediaCallPlacementReservation {
+  interaction_id: string;
+  value: unknown;
+}
+
+export interface MediaCallPlacementPort {
+  reserve(input: {
+    tenant_id: string;
+    interaction_id: string;
+    media: 'voice' | 'video';
+    participant_count: number;
+    business_ref: MediaBusinessRef;
+    idempotency_key: string;
+  }): Promise<MediaCallPlacementReservation>;
+  persistReserved(
+    pg: PgQueryable,
+    reservation: MediaCallPlacementReservation
+  ): Promise<void>;
+  releaseUncommitted(reservation: MediaCallPlacementReservation): Promise<void>;
+  requestState(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+      desired_state: 'active' | 'closed';
+      reason: string;
+    }
+  ): Promise<void>;
+  reconcileOne(input: {
+    tenant_id: string;
+    interaction_id: string;
+    worker_id: string;
+  }): Promise<{ outcome: 'idle' | 'succeeded' | 'retry_wait' | 'failed' }>;
+  resolveOwner(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+    }
+  ): Promise<LiveKitPlacementContext>;
+  recoverOwner?(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+      expected_owner_epoch: string;
+      expected_reservation_id: string;
+      worker_id: string;
+    }
+  ): Promise<LiveKitPlacementContext>;
 }
 
 export interface MediaCallServiceOptions {
@@ -37,6 +95,8 @@ export interface MediaCallServiceOptions {
     snapshot: IveKitMediaCallSnapshot,
     context: { action: IveKitMediaCallAction; actor_identity: string; reason: string }
   ) => Promise<void>;
+  placement?: MediaCallPlacementPort;
+  placementWorkerId?: string;
 }
 
 const TERMINAL_MEDIA_CALL_ACTIONS = new Set<IveKitMediaCallAction>([
@@ -53,7 +113,7 @@ export class MediaCallService {
     private readonly options: MediaCallServiceOptions = {}
   ) {}
 
-  createCall(input: {
+  async createCall(input: {
     tenant_id: string;
     initiated_by: string;
     media: 'voice' | 'video';
@@ -62,6 +122,9 @@ export class MediaCallService {
     title?: string;
     metadata?: Record<string, unknown>;
     ring_timeout_seconds?: number;
+    idempotency_key?: string;
+    call_id?: string;
+    placement_reservation?: MediaCallPlacementReservation;
   }): Promise<IveKitMediaCallSnapshot> {
     const actor = requiredIdentity(input.initiated_by, 'initiated_by');
     const businessRef = validatedBusinessRef(input.tenant_id, input.business_ref);
@@ -72,34 +135,73 @@ export class MediaCallService {
     }
     const invitees = [...new Set(input.participant_identities.map((identity) => identity.trim()))]
       .filter((identity) => identity && identity !== actor);
-    return this.store.transaction(async (store) => {
-      const call = await store.insertCall({
+    const callId = input.call_id
+      ? requiredIdentity(input.call_id, 'call_id')
+      : pgId('mcall');
+    let reservation = input.placement_reservation;
+    if (reservation && reservation.interaction_id !== callId) {
+      throw badRequest('placement reservation interaction mismatch');
+    }
+    if (this.options.placement && !reservation) {
+      reservation = await this.options.placement.reserve({
         tenant_id: input.tenant_id,
+        interaction_id: callId,
         media: input.media,
-        initiated_by: actor,
+        participant_count: invitees.length + 1,
         business_ref: businessRef,
-        title: String(input.title || '').trim(),
-        metadata: input.metadata || {},
-        ring_timeout_seconds: ringTimeoutSeconds
+        idempotency_key: String(input.idempotency_key || `media-call:${callId}`)
       });
-      await store.insertParticipant({
-        tenant_id: input.tenant_id,
-        call_id: call.id,
-        identity: actor,
-        role: 'host',
-        status: 'joined'
-      });
-      for (const identity of invitees) {
+    }
+    try {
+      return await this.store.transaction(async (store) => {
+        const call = await store.insertCall({
+          id: callId,
+          tenant_id: input.tenant_id,
+          media: input.media,
+          initiated_by: actor,
+          business_ref: businessRef,
+          title: String(input.title || '').trim(),
+          metadata: input.metadata || {},
+          ring_timeout_seconds: ringTimeoutSeconds
+        });
         await store.insertParticipant({
           tenant_id: input.tenant_id,
           call_id: call.id,
-          identity,
-          role: 'participant',
-          status: 'invited'
+          identity: actor,
+          role: 'host',
+          status: 'joined'
+        });
+        for (const identity of invitees) {
+          await store.insertParticipant({
+            tenant_id: input.tenant_id,
+            call_id: call.id,
+            identity,
+            role: 'participant',
+            status: 'invited'
+          });
+        }
+        if (this.options.placement && reservation) {
+          await this.options.placement.persistReserved(store.pg, reservation);
+          await this.options.placement.requestState(store.pg, {
+            tenant_id: input.tenant_id,
+            interaction_id: call.id,
+            desired_state: 'active',
+            reason: 'media_call_durable'
+          });
+        }
+        return (await store.snapshot(input.tenant_id, call.id))!;
+      });
+    } catch (error) {
+      if (this.options.placement && reservation) {
+        await this.options.placement.releaseUncommitted(reservation).catch((releaseError) => {
+          console.error(
+            '[media-call-placement] failed to release uncommitted reservation:',
+            releaseError instanceof Error ? releaseError.message : String(releaseError)
+          );
         });
       }
-      return (await store.snapshot(input.tenant_id, call.id))!;
-    });
+      throw error;
+    }
   }
 
   ensureVoiceBridge(input: {
@@ -120,51 +222,171 @@ export class MediaCallService {
       .update(`${tenantId}\u0000${idempotencyKey}`)
       .digest('hex')
       .slice(0, 32)}`;
+    const callId = `mcall_${createHash('sha256')
+      .update(`${tenantId}\u0000${idempotencyKey}\u0000voice-bridge`)
+      .digest('hex')
+      .slice(0, 32)}`;
     return this.withMemoryLock(`voice-bridge\u0000${tenantId}\u0000${idempotencyKey}`, () =>
-      withPgTenant(this.store.pg, tenantId, (tenantPg) =>
+      this.ensureVoiceBridgeWithPlacement({
+        tenantId,
+        voiceCallId,
+        actor,
+        participantIdentity,
+        idempotencyKey,
+        businessRef,
+        roomName,
+        callId
+      })
+    );
+  }
+
+  private async ensureVoiceBridgeWithPlacement(input: {
+    tenantId: string;
+    voiceCallId: string;
+    actor: string;
+    participantIdentity: string;
+    idempotencyKey: string;
+    businessRef: MediaBusinessRef;
+    roomName: string;
+    callId: string;
+  }): Promise<{ media_call_id: string; room_name: string }> {
+    const existing = await withPgTenant(this.store.pg, input.tenantId, (tenantPg) =>
+      new MediaCallStore(tenantPg).getCallByRoom(input.tenantId, input.roomName)
+    );
+    if (existing) {
+      assertVoiceBridgeReplay(existing, input.voiceCallId, input.businessRef);
+      await this.ensureExistingBridgePlacement(input.tenantId, existing.id);
+      return { media_call_id: existing.id, room_name: existing.room_name };
+    }
+    const reservation = this.options.placement
+      ? await this.options.placement.reserve({
+          tenant_id: input.tenantId,
+          interaction_id: input.callId,
+          media: 'voice',
+          participant_count: input.participantIdentity === input.actor ? 1 : 2,
+          business_ref: input.businessRef,
+          idempotency_key: `voice-bridge:${input.idempotencyKey}`
+        })
+      : undefined;
+    let durablePlacement = false;
+    try {
+      const result = await withPgTenant(this.store.pg, input.tenantId, (tenantPg) =>
         new MediaCallStore(tenantPg).transaction(async (store) => {
-          if (!await store.tryLockIdempotencyKey(tenantId, `voice-bridge:${idempotencyKey}`)) {
+          if (!await store.tryLockIdempotencyKey(
+            input.tenantId,
+            `voice-bridge:${input.idempotencyKey}`
+          )) {
             throw Object.assign(conflict('voice bridge idempotency key is currently in progress'), {
               code: 'media_call_idempotency_busy',
               retryable: true
             });
           }
-          const existing = await store.getCallByRoom(tenantId, roomName, { forUpdate: true });
-          if (existing) {
-            assertVoiceBridgeReplay(existing, voiceCallId, businessRef);
-            return { media_call_id: existing.id, room_name: existing.room_name };
+          const replay = await store.getCallByRoom(
+            input.tenantId,
+            input.roomName,
+            { forUpdate: true }
+          );
+          if (replay) {
+            assertVoiceBridgeReplay(replay, input.voiceCallId, input.businessRef);
+            return {
+              media_call_id: replay.id,
+              room_name: replay.room_name,
+              created: false
+            };
           }
           const call = await store.insertCall({
-            tenant_id: tenantId,
-            room_name: roomName,
+            id: input.callId,
+            tenant_id: input.tenantId,
+            room_name: input.roomName,
             media: 'voice',
-            initiated_by: actor,
-            business_ref: businessRef,
+            initiated_by: input.actor,
+            business_ref: input.businessRef,
             title: '',
-            metadata: { bridge_kind: 'pstn', voice_call_id: voiceCallId },
+            metadata: {
+              bridge_kind: 'pstn',
+              voice_call_id: input.voiceCallId
+            },
             ring_timeout_seconds: 30
           });
           await store.insertParticipant({
-            tenant_id: tenantId,
+            tenant_id: input.tenantId,
             call_id: call.id,
-            identity: actor,
+            identity: input.actor,
             role: 'host',
             status: 'joined'
           });
-          if (participantIdentity !== actor) {
+          if (input.participantIdentity !== input.actor) {
             await store.insertParticipant({
-              tenant_id: tenantId,
+              tenant_id: input.tenantId,
               call_id: call.id,
-              identity: participantIdentity,
+              identity: input.participantIdentity,
               role: 'participant',
               status: 'invited',
               metadata: { participant_kind: 'sip' }
             });
           }
-          return { media_call_id: call.id, room_name: call.room_name };
+          if (this.options.placement && reservation) {
+            await this.options.placement.persistReserved(store.pg, reservation);
+            await this.options.placement.requestState(store.pg, {
+              tenant_id: input.tenantId,
+              interaction_id: call.id,
+              desired_state: 'active',
+              reason: 'voice_bridge_durable'
+            });
+          }
+          return {
+            media_call_id: call.id,
+            room_name: call.room_name,
+            created: true
+          };
         })
-      )
-    );
+      );
+      if (this.options.placement && result.created) {
+        durablePlacement = true;
+        await this.options.placement.reconcileOne({
+          tenant_id: input.tenantId,
+          interaction_id: result.media_call_id,
+          worker_id: this.options.placementWorkerId || 'voice-bridge-worker'
+        });
+      }
+      return {
+        media_call_id: result.media_call_id,
+        room_name: result.room_name
+      };
+    } catch (error) {
+      if (this.options.placement && reservation && !durablePlacement) {
+        await this.options.placement.releaseUncommitted(reservation).catch(
+          (releaseError) => {
+            console.error(
+              '[media-call-placement] failed to release voice bridge reservation:',
+              releaseError instanceof Error
+                ? releaseError.message
+                : String(releaseError)
+            );
+          }
+        );
+      }
+      throw error;
+    }
+  }
+
+  private async ensureExistingBridgePlacement(
+    tenantId: string,
+    callId: string
+  ): Promise<void> {
+    if (!this.options.placement) return;
+    try {
+      await this.options.placement.resolveOwner(this.store.pg, {
+        tenant_id: tenantId,
+        interaction_id: callId
+      });
+    } catch {
+      await this.options.placement.reconcileOne({
+        tenant_id: tenantId,
+        interaction_id: callId,
+        worker_id: this.options.placementWorkerId || 'voice-bridge-worker'
+      });
+    }
   }
 
   getCall(tenantId: string, callId: string): Promise<IveKitMediaCallSnapshot | null> {
@@ -195,6 +417,13 @@ export class MediaCallService {
           idempotency_key: `media-timeout:${call.id}:${call.ring_expires_at}`,
           reason: 'ring_timeout'
         });
+        if (transition.placement_reconcile && this.options.placement) {
+          await this.options.placement.reconcileOne({
+            tenant_id: transition.placement_reconcile.tenant_id,
+            interaction_id: transition.placement_reconcile.interaction_id,
+            worker_id: this.options.placementWorkerId || 'media-timeout-worker'
+          });
+        }
         await this.options.onTimedOut?.(transition.snapshot);
         timedOut += 1;
       } catch (cause) {
@@ -263,7 +492,7 @@ export class MediaCallService {
     );
   }
 
-  transition(input: {
+  async transition(input: {
     tenant_id: string;
     call_id: string;
     action: IveKitMediaCallAction;
@@ -285,7 +514,7 @@ export class MediaCallService {
       metadata
     })).digest('hex');
 
-    return this.withMemoryLock(`idempotency\u0000${input.tenant_id}\u0000${idempotencyKey}`, () =>
+    const result = await this.withMemoryLock(`idempotency\u0000${input.tenant_id}\u0000${idempotencyKey}`, () =>
       this.withCallLock(input.tenant_id, input.call_id, () =>
         this.store.transaction(async (store) => {
         if (!await store.tryLockIdempotencyKey(input.tenant_id, idempotencyKey)) {
@@ -349,10 +578,32 @@ export class MediaCallService {
           to_status: snapshot.call.status,
           result_snapshot: snapshot
         });
+        const desiredState = placementDesiredState(input.action);
+        if (this.options.placement && desiredState) {
+          await this.options.placement.requestState(store.pg, {
+            tenant_id: input.tenant_id,
+            interaction_id: input.call_id,
+            desired_state: desiredState,
+            reason: desiredState === 'active'
+              ? 'media_call_activated'
+              : `media_call_${snapshot.call.status}`
+          });
+        }
         return { snapshot, replayed: false };
         })
       )
     );
+    const desiredState = result.replayed ? null : placementDesiredState(input.action);
+    return desiredState
+      ? {
+          ...result,
+          placement_reconcile: {
+            tenant_id: input.tenant_id,
+            interaction_id: input.call_id,
+            desired_state: desiredState
+          }
+        }
+      : result;
   }
 
   private withCallLock<T>(tenantId: string, callId: string, fn: () => Promise<T>): Promise<T> {
@@ -386,6 +637,13 @@ export class MediaCallService {
       }
     });
   }
+}
+
+function placementDesiredState(
+  action: IveKitMediaCallAction
+): 'active' | 'closed' | null {
+  if (action === 'activate') return 'active';
+  return TERMINAL_MEDIA_CALL_ACTIONS.has(action) ? 'closed' : null;
 }
 
 function transitionCall(

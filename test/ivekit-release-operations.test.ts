@@ -17,7 +17,9 @@ test('release operations bind immutable images, migrations, Compose, and Helm', 
     imageReference: 'registry.example.com/ivekit/service:2026.07.14',
     imageDigest: digest,
     imageMetadataSha256: 'c'.repeat(64),
-    migrationManifestSha256: 'd'.repeat(64)
+    migrationManifestSha256: 'd'.repeat(64),
+    stage2EvidenceSha256: 'e'.repeat(64),
+    stage2ReleaseFingerprint: 'f'.repeat(64)
   });
 
   assert.equal(operations.contract.execution_status, 'ready');
@@ -29,6 +31,13 @@ test('release operations bind immutable images, migrations, Compose, and Helm', 
   assert.equal(operations.contract.compose.image_variable, 'IVEKIT_SERVICE_IMAGE');
   assert.equal(operations.contract.helm.chart, 'deploy/kubernetes/ivekit');
   assert.equal(operations.contract.database.rollback, 'restore_verified_pre_upgrade_backup_only');
+  assert.deepEqual(operations.contract.migrations.required, [
+    '061_ivekit_file_security.sql',
+    '062_tinode_file_delivery_operations.sql',
+    '063_livekit_media_quality.sql'
+  ]);
+  assert.equal(operations.contract.configuration.stage2_evidence_sha256, 'e'.repeat(64));
+  assert.equal(operations.contract.configuration.release_fingerprint_sha256, 'f'.repeat(64));
   assert.match(operations.runbook, /sha256sum --check SHA256SUMS/);
   assert.match(operations.runbook, /docker compose[\s\S]*run --rm migrate/);
   assert.match(operations.runbook, /helm upgrade --install/);
@@ -45,7 +54,9 @@ test('release operations remain blocked until an image digest is recorded', () =
     imageReference: `ivekit-service:${sourceCommit.slice(0, 12)}`,
     imageDigest: '',
     imageMetadataSha256: 'c'.repeat(64),
-    migrationManifestSha256: 'd'.repeat(64)
+    migrationManifestSha256: 'd'.repeat(64),
+    stage2EvidenceSha256: 'e'.repeat(64),
+    stage2ReleaseFingerprint: 'f'.repeat(64)
   });
 
   assert.equal(operations.contract.execution_status, 'blocked_build_required');
@@ -61,7 +72,9 @@ test('release operation validation rejects mutable or destructive instructions',
     imageReference: 'registry.example.com/ivekit/service:2026.07.14',
     imageDigest: digest,
     imageMetadataSha256: 'c'.repeat(64),
-    migrationManifestSha256: 'd'.repeat(64)
+    migrationManifestSha256: 'd'.repeat(64),
+    stage2EvidenceSha256: 'e'.repeat(64),
+    stage2ReleaseFingerprint: 'f'.repeat(64)
   });
 
   assert.throws(
@@ -86,6 +99,7 @@ test('standalone Helm chart gates migration before an immutable application roll
   const helpers = readFileSync('services/ivekit-service/helm/ivekit/templates/_helpers.tpl', 'utf8');
   const migration = readFileSync('services/ivekit-service/helm/ivekit/templates/migrate-job.yaml', 'utf8');
   const deployment = readFileSync('services/ivekit-service/helm/ivekit/templates/deployment.yaml', 'utf8');
+  const clamav = readFileSync('services/ivekit-service/helm/ivekit/templates/clamav.yaml', 'utf8');
   const rustpbx = readFileSync('services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml', 'utf8');
 
   assert.match(chart, /name: ivekit-service/);
@@ -99,8 +113,27 @@ test('standalone Helm chart gates migration before an immutable application roll
   assert.match(deployment, /readinessProbe:/);
   assert.match(deployment, /OPC_SCHEMA_MANAGED_BY_MIGRATIONS/);
   assert.match(deployment, /runtimeEnvironmentSecret/);
+  assert.match(deployment, /OPC_FILE_SECURITY_SCAN_WORKER_ENABLED/);
+  assert.match(deployment, /name: OPC_OBJECT_STORAGE_REQUIRED[\s\S]{0,80}value: "1"/);
+  assert.match(deployment, /OPC_FILE_SECURITY_CLAMD_HOST/);
+  assert.match(deployment, /OPC_FILE_DERIVATIVE_WORKER_ENABLED/);
+  assert.match(deployment, /OPC_FILE_CLEANUP_WORKER_ENABLED/);
   assert.doesNotMatch(deployment, /envFrom:[\s\S]{0,160}include "ivekit\.secretName"/);
   assert.match(rustpbx, /if \.Values\.voice\.enabled/);
   assert.match(rustpbx, /dist\/ivekit-render-rustpbx-config\.js/);
+  assert.match(rustpbx, /dist\/ivekit-rustpbx-route-snapshot\.js/);
+  assert.match(values, /^fileSecurity:$/m);
+  assert.match(values, /scannerMode: clamd/);
+  assert.match(values, /^clamav:$/m);
+  assert.match(values, /repository: clamav\/clamav/);
+  assert.match(helpers, /define "ivekit\.clamavImage"/);
+  assert.match(clamav, /kind: Deployment/);
+  assert.match(clamav, /kind: Service/);
+  assert.match(clamav, /kind: PersistentVolumeClaim/);
+  assert.match(clamav, /readinessProbe:/);
+  assert.match(clamav, /livenessProbe:/);
+  assert.match(clamav, /resources:/);
+  assert.match(clamav, /\/var\/lib\/clamav/);
+  assert.doesNotMatch(clamav, /type: (?:NodePort|LoadBalancer)|hostPort:/);
   assert.doesNotMatch(`${values}\n${deployment}`, /opc\/platform|:latest/);
 });

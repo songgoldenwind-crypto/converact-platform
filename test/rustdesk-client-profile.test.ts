@@ -200,6 +200,28 @@ test('RustDesk client profiles use only validated explicit artifact metadata', (
   );
 });
 
+test('RustDesk Windows profile carries the pinned iveKit native control capability', () => {
+  const filename = 'rustdesk-1.4.7-ivekit1-x86_64.exe';
+  const custom = {
+    ...artifact('windows', 'x86_64', filename),
+    native_control_protocol: 'ivekit-rustdesk-native-control-v2',
+    native_evidence_protocol: 'rustdesk-native-evidence-v1'
+  };
+  const profile = createRustDeskClientDistributionProfile(
+    pinnedInput({ platform: 'windows', architecture: 'x86_64' }),
+    { env: profileEnv(artifactManifest([custom])), now: () => NOW }
+  );
+
+  assert.deepEqual(profile.install_source, {
+    state: 'configured',
+    url: `https://downloads.example.com/releases/1.4.7/${filename}`,
+    filename,
+    sha256: SHA256,
+    native_control_protocol: 'ivekit-rustdesk-native-control-v2',
+    native_evidence_protocol: 'rustdesk-native-evidence-v1'
+  });
+});
+
 test('RustDesk client profiles accept the five official 1.4.7 desktop asset names', () => {
   const officialAssets = [
     ['windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe'],

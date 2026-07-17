@@ -1,4 +1,15 @@
+import { createHash } from 'node:crypto';
+
 import type { PgQueryable } from '../../db-pg.js';
+import { createObjectStorage } from '../../storage/object-storage.js';
+import { SecureFileDerivativeStore } from './secure-file-derivative-store.js';
+import { SecureFileService } from './secure-file-service.js';
+import { SecureFileStore } from './secure-file-store.js';
+import {
+  SecureTinodeInboundAttachmentImporter,
+  TinodeInboundAttachmentImportError,
+  type TinodeInboundAttachmentImporter
+} from './tinode-inbound-attachment-import.js';
 import { TinodeInboundProjector } from './tinode-inbound-projector.js';
 import {
   describeRejectedTinodePacket,
@@ -68,6 +79,7 @@ export interface TinodeInboundServiceInput {
   config: TinodeInboundServiceConfig;
   onProjected?: (input: TinodeInboundProjectedEvent) => void | Promise<void>;
   onProcessed?: (input: TinodeInboundProcessedEvent) => void | Promise<void>;
+  prepareEvent?: TinodeInboundAttachmentImporter['prepare'];
 }
 
 export class TinodeInboundService {
@@ -122,15 +134,26 @@ export class TinodeInboundService {
           }
         }).sort(compareQueueItems);
         for (const item of events) {
-          const result = 'rejected' in item
-            ? await this.input.store.rejectEvent(claim, item.rejected)
+          let event = 'event' in item ? item.event : null;
+          let rejected = 'rejected' in item ? item.rejected : null;
+          if (event && this.input.prepareEvent) {
+            try {
+              event = await this.input.prepareEvent(claim, event);
+            } catch (error) {
+              if (!(error instanceof TinodeInboundAttachmentImportError) || error.retryable) throw error;
+              rejected = attachmentImportRejection(event, error);
+              event = null;
+            }
+          }
+          const result = rejected
+            ? await this.input.store.rejectEvent(claim, rejected)
             : await this.input.store.processEvent(
               claim,
-              item.event,
-              (pg) => this.project(pg, claim, item.event)
+              event!,
+              (pg) => this.project(pg, claim, event!)
             );
           summary[result.status] += 1;
-          if ('event' in item) await this.input.onProcessed?.({ claim, event: item.event, result });
+          if (event) await this.input.onProcessed?.({ claim, event, result });
         }
         await this.input.store.releaseClaim(claim);
       } catch (error) {
@@ -269,18 +292,47 @@ export function startTinodeInboundWorker(input: {
   env?: NodeJS.ProcessEnv;
   onProjected?: TinodeInboundServiceInput['onProjected'];
   onProcessed?: TinodeInboundServiceInput['onProcessed'];
+  secureFiles?: SecureFileService;
+  attachmentImporter?: TinodeInboundAttachmentImporter;
+  projector?: TinodeInboundProjector;
 }): TinodeInboundWorker {
   const env = input.env || process.env;
   const config = tinodeInboundWorkerConfig(env);
   const source = config.enabled ? configuredTinodeInboundSource(env) : null;
-  const service = source ? new TinodeInboundService({
-    store: new TinodeInboundStore({ pg: input.pg, deadLetterRetryDelayMs: config.retryDelayMs }),
-    source,
-    projector: new TinodeInboundProjector(),
-    config,
-    onProjected: input.onProjected,
-    onProcessed: input.onProcessed
-  }) : null;
+  const service = source ? (() => {
+    const secureFiles = input.secureFiles || new SecureFileService({
+      files: new SecureFileStore(input.pg),
+      derivatives: new SecureFileDerivativeStore(input.pg),
+      storage: createObjectStorage()
+    });
+    const attachmentImporter = input.attachmentImporter || new SecureTinodeInboundAttachmentImporter({
+      secureFiles,
+      allowedHosts: config.allowedAttachmentHosts,
+      maxBytes: boundedInteger(
+        env.OPC_TINODE_INBOUND_ATTACHMENT_MAX_BYTES,
+        25 * 1024 * 1024,
+        1,
+        512 * 1024 * 1024,
+        'OPC_TINODE_INBOUND_ATTACHMENT_MAX_BYTES'
+      ),
+      timeoutMs: boundedInteger(
+        env.OPC_TINODE_INBOUND_ATTACHMENT_TIMEOUT_MS,
+        30_000,
+        250,
+        120_000,
+        'OPC_TINODE_INBOUND_ATTACHMENT_TIMEOUT_MS'
+      )
+    });
+    return new TinodeInboundService({
+      store: new TinodeInboundStore({ pg: input.pg, deadLetterRetryDelayMs: config.retryDelayMs }),
+      source,
+      projector: input.projector || new TinodeInboundProjector({ secureAttachmentsRequired: true }),
+      config,
+      onProjected: input.onProjected,
+      onProcessed: input.onProcessed,
+      prepareEvent: (claim, event) => attachmentImporter.prepare(claim, event)
+    });
+  })() : null;
   const worker = new TinodeInboundWorker({
     config,
     runBatch: () => service ? service.runDue() : Promise.resolve(emptySummary()),
@@ -309,6 +361,30 @@ function compareQueueItems(left: TinodeInboundQueueItem, right: TinodeInboundQue
   return leftEvent.kind === 'data'
     ? leftEvent.provider_sequence - rightEvent.provider_sequence
     : leftEvent.provider_delete_id - rightEvent.provider_delete_id;
+}
+
+function attachmentImportRejection(
+  event: TinodeInboundNormalizedEvent,
+  error: TinodeInboundAttachmentImportError
+): TinodeInboundRejectedEvent {
+  const payload: TinodeInboundRejectedEvent['payload'] = {
+    rejected: true,
+    topic: event.payload.topic,
+    provider_sequence: event.provider_sequence,
+    provider_delete_id: event.provider_delete_id,
+    error_code: error.code
+  };
+  return {
+    kind: event.kind,
+    provider_sequence: event.provider_sequence,
+    provider_delete_id: event.provider_delete_id,
+    dedupe_key: event.dedupe_key,
+    payload_hash: createHash('sha256').update(JSON.stringify(payload)).digest('hex'),
+    payload,
+    error_code: error.code,
+    error_message: 'Tinode inbound attachment was rejected by the secure import policy',
+    retryable: false
+  };
 }
 
 function emptySummary(): TinodeInboundRunSummary {

@@ -1,0 +1,368 @@
+diff --git a/server/calls.go b/server/calls.go
+index 9c7b110..792d8fe 100644
+--- a/server/calls.go
++++ b/server/calls.go
+@@ -105,9 +105,9 @@ func callPartySession(sess *Session) *Session {
+ 			lang:        sess.lang,
+ 			countryCode: sess.countryCode,
+ 			proxyReq:    ProxyReqCall,
+-			background:  sess.background,
+ 			uid:         sess.uid,
+ 		}
++		callSess.background.Store(sess.background.Load())
+ 		return callSess
+ 	}
+ 	return sess
+diff --git a/server/cluster.go b/server/cluster.go
+index 5552978..e285053 100644
+--- a/server/cluster.go
++++ b/server/cluster.go
+@@ -539,9 +539,9 @@ func (c *Cluster) TopicMaster(msg *ClusterReq, rejected *bool) error {
+ 			lang:        msg.Sess.Lang,
+ 			countryCode: msg.Sess.CountryCode,
+ 			proxyReq:    msg.ReqType,
+-			background:  msg.Sess.Background,
+ 			uid:         msg.Sess.Uid,
+ 		}
++		sess.background.Store(msg.Sess.Background)
+ 	}
+ 
+ 	if msg.CliMsg != nil {
+@@ -866,7 +866,7 @@ func (c *Cluster) makeClusterReq(reqType ProxyReqType, msg *ClientComMessage, to
+ 			DeviceID:    sess.deviceID,
+ 			Platform:    sess.platf,
+ 			Sid:         sess.sid,
+-			Background:  sess.background,
++			Background:  sess.background.Load(),
+ 		}
+ 	}
+ 	return req
+diff --git a/server/hdl_grpc.go b/server/hdl_grpc.go
+index c126ac4..a75d48e 100644
+--- a/server/hdl_grpc.go
++++ b/server/hdl_grpc.go
+@@ -117,9 +117,8 @@ func (sess *Session) writeGrpcLoop() {
+ 				}
+ 			}
+ 
+-		case <-sess.bkgTimer.C:
+-			if sess.background {
+-				sess.background = false
++		case <-sess.backgroundTimerChannel():
++			if sess.background.CompareAndSwap(true, false) {
+ 				sess.onBackgroundTimer()
+ 			}
+ 
+diff --git a/server/hdl_longpoll.go b/server/hdl_longpoll.go
+index c4b522f..d31506b 100644
+--- a/server/hdl_longpoll.go
++++ b/server/hdl_longpoll.go
+@@ -54,9 +54,8 @@ func (sess *Session) writeOnce(wrt http.ResponseWriter, req *http.Request) {
+ 			}
+ 			return
+ 
+-		case <-sess.bkgTimer.C:
+-			if sess.background {
+-				sess.background = false
++		case <-sess.backgroundTimerChannel():
++			if sess.background.CompareAndSwap(true, false) {
+ 				sess.onBackgroundTimer()
+ 			}
+ 
+diff --git a/server/hdl_websock.go b/server/hdl_websock.go
+index f8bf405..0b9004e 100644
+--- a/server/hdl_websock.go
++++ b/server/hdl_websock.go
+@@ -116,9 +116,8 @@ func (sess *Session) writeLoop() {
+ 				}
+ 			}
+ 
+-		case <-sess.bkgTimer.C:
+-			if sess.background {
+-				sess.background = false
++		case <-sess.backgroundTimerChannel():
++			if sess.background.CompareAndSwap(true, false) {
+ 				sess.onBackgroundTimer()
+ 			}
+ 
+diff --git a/server/session.go b/server/session.go
+index bd4bdf7..86f7a8f 100644
+--- a/server/session.go
++++ b/server/session.go
+@@ -114,7 +114,8 @@ type Session struct {
+ 	lastAction int64
+ 
+ 	// Timer which triggers after some seconds to mark background session as foreground.
+-	bkgTimer *time.Timer
++	// Foreground sessions keep this nil to avoid one timer allocation per connection.
++	bkgTimer atomic.Pointer[time.Timer]
+ 
+ 	// Number of subscribe/unsubscribe requests in flight.
+ 	inflightReqs *boundedWaitGroup
+@@ -130,7 +131,7 @@ type Session struct {
+ 	terminating int32
+ 
+ 	// Background session: subscription presence notifications and online status are delayed.
+-	background bool
++	background atomic.Bool
+ 
+ 	// Outbound mesages, buffered.
+ 	// The content must be serialized in format suitable for the session.
+@@ -267,6 +268,28 @@ func (s *Session) supportsMessageBatching() bool {
+ 	}
+ }
+ 
++func (s *Session) backgroundTimerChannel() <-chan time.Time {
++	if timer := s.bkgTimer.Load(); timer != nil {
++		return timer.C
++	}
++	return nil
++}
++
++func (s *Session) startBackgroundTimer() {
++	timer := time.NewTimer(deferredNotificationsTimeout)
++	if s.bkgTimer.CompareAndSwap(nil, timer) {
++		return
++	}
++	timer.Stop()
++	s.bkgTimer.Load().Reset(deferredNotificationsTimeout)
++}
++
++func (s *Session) stopBackgroundTimer() {
++	if timer := s.bkgTimer.Load(); timer != nil {
++		timer.Stop()
++	}
++}
++
+ // queueOut attempts to send a list of ServerComMessages to a session write loop;
+ // it fails if the send buffer is full.
+ func (s *Session) queueOutBatch(msgs []*ServerComMessage) bool {
+@@ -420,8 +443,8 @@ func (s *Session) cleanUp(expired bool) {
+ 		s.sessionStoreLock.Unlock()
+ 	}
+ 
+-	s.background = false
+-	s.bkgTimer.Stop()
++	s.background.Store(false)
++	s.stopBackgroundTimer()
+ 	s.unsubAll()
+ 	// Stop the write loop.
+ 	s.stopSession(nil)
+@@ -794,8 +817,9 @@ func (s *Session) hello(msg *ClientComMessage) {
+ 			s.platf = platformFromUA(msg.Hi.UserAgent)
+ 		}
+ 		// This is a background session. Start a timer.
++		s.background.Store(msg.Hi.Background)
+ 		if msg.Hi.Background {
+-			s.bkgTimer.Reset(deferredNotificationsTimeout)
++			s.startBackgroundTimer()
+ 		}
+ 	} else if msg.Hi.Version == "" || parseVersion(msg.Hi.Version) == s.ver {
+ 		// Save changed device ID+Lang or delete earlier specified device ID.
+diff --git a/server/sessionstore.go b/server/sessionstore.go
+index b1114aa..c58a4ec 100644
+--- a/server/sessionstore.go
++++ b/server/sessionstore.go
+@@ -110,9 +110,6 @@ func (ss *SessionStore) NewSession(conn any, sid string) (*Session, int) {
+ 	s.stop = make(chan any, 1)                 // Buffered by 1 just to make it non-blocking
+ 	s.detach = make(chan string, 64)           // buffered
+ 
+-	s.bkgTimer = time.NewTimer(time.Hour)
+-	s.bkgTimer.Stop()
+-
+ 	// Make sure at most 1 request is modifying session/topic state at any time.
+ 	// TODO: use Mutex & CondVar?
+ 	s.inflightReqs = newBoundedWaitGroup(1)
+diff --git a/server/topic.go b/server/topic.go
+index a9718d3..2e2a3da 100644
+--- a/server/topic.go
++++ b/server/topic.go
+@@ -281,6 +281,21 @@ func (t *Topic) prepareBroadcastableMessage(msg *ServerComMessage, uid types.Uid
+ 	}
+ }
+ 
++func (t *Topic) messageForSession(
++	msg *ServerComMessage,
++	sess *Session,
++	pssd perSessionData,
++) *ServerComMessage {
++	if !sess.isCluster() && t.cat != types.TopicCatP2P &&
++		!(t.cat == types.TopicCatGrp && t.isChan) {
++		return msg
++	}
++
++	msgCopy := msg.copy()
++	t.prepareBroadcastableMessage(msgCopy, pssd.uid, pssd.isChanSub)
++	return msgCopy
++}
++
+ // computePerUserAcsUnion computes want and given permissions unions over all topic's subscribers.
+ func (t *Topic) computePerUserAcsUnion() {
+ 	wantUnion := types.ModeNone
+@@ -788,7 +803,7 @@ func (t *Topic) handleLeaveRequest(msg *ClientComMessage, sess *Session) {
+ 		if !uid.IsZero() {
+ 			// UID not zero: one user removed.
+ 			pud = t.perUser[uid]
+-			if !sess.background {
++			if !sess.background.Load() {
+ 				pud.online--
+ 				t.perUser[uid] = pud
+ 			}
+@@ -1362,10 +1377,7 @@ func (t *Topic) broadcastToSessions(msg *ServerComMessage) {
+ 			}
+ 		}
+ 
+-		// Make a copy of msg since messages sent to sessions differ.
+-		msgCopy := msg.copy()
+-		// Topic name may be different depending on the user to which the `sess` belongs.
+-		t.prepareBroadcastableMessage(msgCopy, pssd.uid, pssd.isChanSub)
++		msgCopy := t.messageForSession(msg, sess, pssd)
+ 		// Send message to session.
+ 		if !sess.queueOut(msgCopy) {
+ 			logs.Warn.Printf("topic[%s]: connection stuck, detaching - %s", t.name, sess.sid)
+@@ -1444,7 +1456,7 @@ func (t *Topic) subscriptionReply(asChan bool, msg *ClientComMessage) error {
+ 		t.addSession(msg.sess, asUid, asChan)
+ 
+ 		// The user is online in the topic. Increment the counter if notifications are not deferred.
+-		if !msg.sess.background {
++		if !msg.sess.background.Load() {
+ 			userData := t.perUser[asUid]
+ 			userData.online++
+ 			t.perUser[asUid] = userData
+@@ -1483,7 +1495,7 @@ func (t *Topic) subscriptionReply(asChan bool, msg *ClientComMessage) error {
+ 		t.sendImmediateSubNotifications(asUid, modeChanged, msg, now)
+ 	}
+ 
+-	if !msg.sess.background && hasJoined {
++	if !msg.sess.background.Load() && hasJoined {
+ 		// Other notifications are also sent immediately for foreground sessions.
+ 		t.sendSubNotifications(asUid, msg.sess.sid, msg.sess.userAgent)
+ 	}
+@@ -3897,7 +3909,7 @@ func (t *Topic) addSession(sess *Session, asUid types.Uid, isChanSub bool) {
+ 
+ 	if pssd, ok := t.sessions[s]; ok {
+ 		// Subscription already exists.
+-		if s.isMultiplex() && !sess.background {
++		if s.isMultiplex() && !sess.background.Load() {
+ 			// This slice is expected to be relatively short.
+ 			// Not doing anything fancy here like maps or sorting.
+ 			pssd.muids = append(pssd.muids, asUid)
+@@ -3908,7 +3920,7 @@ func (t *Topic) addSession(sess *Session, asUid types.Uid, isChanSub bool) {
+ 	}
+ 
+ 	if s.isMultiplex() {
+-		if sess.background {
++		if sess.background.Load() {
+ 			t.sessions[s] = perSessionData{}
+ 		} else {
+ 			t.sessions[s] = perSessionData{muids: []types.Uid{asUid}, isChanSub: isChanSub}
+@@ -3964,7 +3976,7 @@ func (t *Topic) isOnline() bool {
+ 		if s.isMultiplex() && len(pssd.muids) > 0 {
+ 			return true
+ 		}
+-		if !s.background {
++		if !s.background.Load() {
+ 			return true
+ 		}
+ 	}
+diff --git a/server/ivekit_hot_path_test.go b/server/ivekit_hot_path_test.go
+new file mode 100644
+index 0000000..8b03bd5
+--- /dev/null
++++ b/server/ivekit_hot_path_test.go
+@@ -0,0 +1,95 @@
++package main
++
++import (
++	"testing"
++
++	"github.com/tinode/chat/server/store/types"
++)
++
++var ivekitBroadcastBenchmarkSink *ServerComMessage
++
++func TestIvekitForegroundSessionDoesNotAllocateBackgroundTimer(t *testing.T) {
++	var sess Session
++	if sess.background.Load() {
++		t.Fatal("new session must start in the foreground")
++	}
++	if got := sess.backgroundTimerChannel(); got != nil {
++		t.Fatal("foreground session background timer channel must be nil")
++	}
++
++	sess.background.Store(true)
++	sess.startBackgroundTimer()
++	if !sess.background.CompareAndSwap(true, false) {
++		t.Fatal("background transition must be atomic")
++	}
++	if got := sess.backgroundTimerChannel(); got == nil {
++		t.Fatal("background session timer channel must be active")
++	}
++	sess.stopBackgroundTimer()
++}
++
++func TestIvekitGroupBroadcastSharesReadOnlyMessage(t *testing.T) {
++	topic := &Topic{cat: types.TopicCatGrp, xoriginal: "grp-test"}
++	sess := &Session{proto: WEBSOCK}
++	msg := &ServerComMessage{Data: &MsgServerData{Topic: "grp-test"}}
++
++	if got := topic.messageForSession(msg, sess, perSessionData{}); got != msg {
++		t.Fatal("ordinary local group broadcast must reuse the immutable message")
++	}
++}
++
++func TestIvekitPersonalizedAndClusterBroadcastsRemainIsolated(t *testing.T) {
++	msg := &ServerComMessage{
++		Data: &MsgServerData{Topic: "grp-test", From: "usr-sender"},
++	}
++	local := &Session{proto: WEBSOCK}
++
++	p2p := &Topic{cat: types.TopicCatP2P, xoriginal: "p2p-test"}
++	if got := p2p.messageForSession(msg, local, perSessionData{}); got == msg {
++		t.Fatal("P2P broadcast must retain a per-recipient copy")
++	}
++
++	channel := &Topic{cat: types.TopicCatGrp, isChan: true, xoriginal: "grp-test"}
++	if got := channel.messageForSession(
++		msg,
++		local,
++		perSessionData{isChanSub: true},
++	); got == msg || got.Data.From != "" {
++		t.Fatal("channel reader broadcast must retain its anonymous copy")
++	}
++
++	cluster := &Session{proto: MULTIPLEX}
++	group := &Topic{cat: types.TopicCatGrp, xoriginal: "grp-test"}
++	if got := group.messageForSession(msg, cluster, perSessionData{}); got == msg {
++		t.Fatal("cluster broadcast must retain a copy because routing mutates it")
++	}
++}
++
++func BenchmarkIvekitGroupBroadcastMessage(b *testing.B) {
++	topic := &Topic{cat: types.TopicCatGrp, xoriginal: "grp-test"}
++	sess := &Session{proto: WEBSOCK}
++	pssd := perSessionData{}
++	msg := &ServerComMessage{
++		Data: &MsgServerData{
++			Topic:   "grp-test",
++			From:    "usr-sender",
++			Content: map[string]any{"text": "hello"},
++		},
++	}
++
++	b.Run("deep-copy", func(b *testing.B) {
++		b.ReportAllocs()
++		for index := 0; index < b.N; index++ {
++			copied := msg.copy()
++			topic.prepareBroadcastableMessage(copied, pssd.uid, pssd.isChanSub)
++			ivekitBroadcastBenchmarkSink = copied
++		}
++	})
++
++	b.Run("shared-group", func(b *testing.B) {
++		b.ReportAllocs()
++		for index := 0; index < b.N; index++ {
++			ivekitBroadcastBenchmarkSink = topic.messageForSession(msg, sess, pssd)
++		}
++	})
++}

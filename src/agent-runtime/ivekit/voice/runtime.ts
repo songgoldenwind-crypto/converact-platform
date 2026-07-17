@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { PgQueryable } from '../../../db-pg.js';
 import { withPgTenant } from '../../../db-pg-tenant.js';
 import { MediaCallService } from '../../livekit/media-call-service.js';
+import type { MediaCallPlacementPort } from '../../livekit/media-call-service.js';
 import { MediaCallStore } from '../../livekit/media-call-store.js';
 import { EncryptedVoiceAddressProtector } from './address-protector.js';
 import {
@@ -12,7 +13,10 @@ import {
   createLiveKitSipBridgeAdapter
 } from './adapters/livekit-sip.js';
 import { RustPbxVoiceProviderFactory } from './adapters/rustpbx-provider.js';
-import { VoiceProviderCallCommandExecutor } from './call-service.js';
+import {
+  VoiceProviderCallCommandExecutor,
+  type VoiceCallPlacementPort
+} from './call-service.js';
 import { voiceProfileConfigHash } from './deployment-profile-service.js';
 import { VoiceError } from './errors.js';
 import type {
@@ -62,6 +66,9 @@ export interface IveKitVoiceRuntimeInput {
   env?: NodeJS.ProcessEnv;
   provider_registry?: VoiceProviderRegistry;
   address_protector?: VoiceAddressProtector;
+  placement?: VoiceCallPlacementPort;
+  media_placement?: MediaCallPlacementPort;
+  placement_worker_id?: string;
 }
 
 export interface IveKitVoiceWorkerHandle {
@@ -180,14 +187,19 @@ export function startIveKitVoiceCommandWorker(
         configuration,
         parking: new PostgresVoiceParkingStore(input.pg),
         address_protector: protector,
-        provider_registry: registry
+        provider_registry: registry,
+        placement: input.placement,
+        placement_pg: input.pg
       });
       const bridgeExecutor = new VoiceLiveKitBridgeCommandExecutor({
         calls,
         configuration,
         address_protector: protector,
         bridge: async (profile) => new VoiceLiveKitBridgeService({
-          media_calls: new MediaCallService(new MediaCallStore(input.pg)),
+          media_calls: new MediaCallService(new MediaCallStore(input.pg), {
+            placement: input.media_placement,
+            placementWorkerId: input.placement_worker_id
+          }),
           bridge: await createIveKitLiveKitBridgePort({
             profile,
             bridges: recordings,
@@ -231,7 +243,15 @@ export function startIveKitVoiceProviderEventWorker(
     lease_ms: config.event_lease_ms,
     max_attempts: config.command_max_attempts,
     retry_base_ms: config.command_retry_delays_ms[0],
-    retry_max_ms: config.command_retry_delays_ms.at(-1)
+    retry_max_ms: config.command_retry_delays_ms.at(-1),
+    placement: input.placement?.hasPlacement
+      ? {
+          hasPlacement: input.placement.hasPlacement.bind(input.placement),
+          requestState: input.placement.requestState.bind(input.placement),
+          reconcileOne: input.placement.reconcileOne.bind(input.placement)
+        }
+      : undefined,
+    placement_worker_id: input.placement_worker_id
   });
   return startTenantLoop({
     enabled: config.enabled,

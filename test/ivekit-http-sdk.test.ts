@@ -89,7 +89,8 @@ test('iveKit HTTP SDK is extractable and exposes the complete Media and Chat fac
   for (const method of [
     'getCapabilities', 'createRoom', 'getRoom', 'closeRoom', 'createJoinPlan',
     'listParticipants', 'recoverModerationCommands', 'startRecording', 'stopRecording', 'listRecordings', 'listRecordingsPage',
-    'getRecording', 'inspectRecordingObject', 'exportRecordingObject', 'cleanupRecordings'
+    'getRecording', 'listRecordingJobs', 'inspectRecordingObject', 'exportRecordingObject',
+    'inspectRecordingJobObject', 'exportRecordingJobObject', 'cleanupRecordings'
   ]) assert.equal(typeof sdk.media[method], 'function', `missing media.${method}`);
   for (const method of [
     'getCapabilities', 'openSession', 'closeSession', 'listSessions', 'listSessionsByBusinessRef', 'bindSession',
@@ -188,6 +189,37 @@ test('iveKit HTTP SDK maps reaction and pin commands', async () => {
     'PUT /api/ivekit/chat/sessions/session%2F1/pins/message%2F1',
     'DELETE /api/ivekit/chat/sessions/session%2F1/pins/message%2F1',
     'GET /api/ivekit/chat/sessions/session%2F1/pins'
+  ]);
+});
+
+test('iveKit media SDK maps child Egress job inspection and export paths', async () => {
+  const calls: Array<{ method: string; path: string }> = [];
+  const responses = [
+    Response.json({ status: 'readable', readable: true, size_bytes: 7, checksum: 'sha256:test' }),
+    new Response(new Uint8Array([7, 8, 9]), {
+      headers: {
+        'content-type': 'audio/ogg',
+        'content-disposition': 'attachment; filename="job-a.ogg"'
+      }
+    })
+  ];
+  const sdk = (await import('../sdk/ivekit/src/http-sdk.js')).createIveKitHttpSdk({
+    baseUrl: 'https://ivekit.example.com',
+    tenantId: 'tenant-media-job',
+    accessToken: 'media-job-token',
+    fetch: async (input: string | URL, init: RequestInit = {}) => {
+      calls.push({ method: init.method || 'GET', path: new URL(String(input)).pathname });
+      return responses.shift()!;
+    }
+  });
+
+  await sdk.media.inspectRecordingJobObject('recording/a', 'job/a');
+  const exported = await sdk.media.exportRecordingJobObject('recording/a', 'job/a');
+  assert.deepEqual([...exported.bytes], [7, 8, 9]);
+  assert.equal(exported.filename, 'job-a.ogg');
+  assert.deepEqual(calls, [
+    { method: 'GET', path: '/api/ivekit/media/recordings/recording%2Fa/jobs/job%2Fa/object' },
+    { method: 'GET', path: '/api/ivekit/media/recordings/recording%2Fa/jobs/job%2Fa/export' }
   ]);
 });
 

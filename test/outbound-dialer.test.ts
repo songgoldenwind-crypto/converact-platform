@@ -164,7 +164,7 @@ test('dialer respects max concurrent limit', async () => {
 
   process.env.MAX_CONCURRENT_OUTBOUND_PER_TENANT = '5';
   await dialer.pickAndExecute();
-  await new Promise((r) => setTimeout(r, 50));
+  await waitFor(() => rwi.originateCalls.length === 5);
   assert.equal(rwi.originateCalls.length, 5);
 });
 
@@ -323,3 +323,11 @@ test('dialing window blocks outside JST business hours when enabled', () => {
   assert.equal(isInDialingWindow('t1', lateNight), false);
   process.env.OPC_DIALER_IGNORE_WINDOW = '1';
 });
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(predicate(), true, 'condition did not become true before timeout');
+}

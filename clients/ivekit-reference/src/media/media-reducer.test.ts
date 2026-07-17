@@ -85,6 +85,24 @@ test('terminal snapshot and revoke synchronously clear media and are idempotent'
   assert.equal(revoked.connection, 'ended');
 });
 
+test('terminal provider disconnect preserves desired devices but requires explicit screen-share recovery', () => {
+  let state = mediaCallReducer(initialMediaCallState(), { type: 'call_selected', requestId: 1, callId: 'call-1' });
+  state = mediaCallReducer(state, { type: 'snapshot_loaded', requestId: 1, snapshot: snapshot('active') });
+  state = mediaCallReducer(state, { type: 'local_changed', local: { microphone: true, camera: true, screen: true, screenAudio: true } });
+  state = mediaCallReducer(state, {
+    type: 'adapter_event',
+    generation: 1,
+    event: { type: 'terminal_disconnect', generation: 1, reason_code: 'signal_close' }
+  });
+  assert.equal(state.connection, 'reconnecting');
+  assert.deepEqual(state.local, { microphone: true, camera: true, screen: false, screenAudio: false });
+  assert.equal(state.screenShareRecoveryRequired, true);
+  assert.equal(state.screenShareRecoveryAudio, true);
+  state = mediaCallReducer(state, { type: 'screen_share_recovery_cleared' });
+  assert.equal(state.screenShareRecoveryRequired, false);
+  assert.equal(state.screenShareRecoveryAudio, false);
+});
+
 test('command pending, failure, retry, and success states stay isolated by command', () => {
   let state = initialMediaCallState();
   state = mediaCallReducer(state, { type: 'command_started', command: 'accept' });

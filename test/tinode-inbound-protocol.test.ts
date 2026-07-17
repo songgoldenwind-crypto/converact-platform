@@ -22,6 +22,7 @@ test('normalizes Tinode plain data with a bounded head allowlist', () => {
       head: {
         'x-opc-message-id': 'cmsg_local',
         'x-opc-idempotency-key': 'client-17',
+        'x-opc-mutation-id': 'cmut-17',
         secret: 'must-not-persist'
       },
       content: 'hello from Tinode'
@@ -39,6 +40,7 @@ test('normalizes Tinode plain data with a bounded head allowlist', () => {
     head: {
       opc_message_id: 'cmsg_local',
       opc_idempotency_key: 'client-17',
+      opc_mutation_id: 'cmut-17',
       replace: ''
     },
     body: 'hello from Tinode',

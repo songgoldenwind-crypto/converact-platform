@@ -29,3 +29,21 @@ test('network banner handles reconnect, offline, fatal, and autoplay unblock', (
   view.rerender(<NetworkStatus connection="online" autoplayBlocked={false} onStartAudio={async () => undefined} />);
   assert.equal(view.queryByRole('status'), null);
 });
+
+test('network banner requires an explicit user action to resume screen sharing', () => {
+  let resumes = 0;
+  let dismisses = 0;
+  const view = render(<NetworkStatus
+    connection="online"
+    autoplayBlocked={false}
+    screenShareRecoveryRequired
+    onStartAudio={async () => undefined}
+    onResumeScreenShare={async () => { resumes += 1; }}
+    onDismissScreenShareRecovery={() => { dismisses += 1; }}
+  />);
+  assert.ok(view.getByRole('status').textContent?.includes('Screen sharing stopped'));
+  fireEvent.click(view.getByRole('button', { name: 'Resume sharing' }));
+  fireEvent.click(view.getByRole('button', { name: 'Dismiss screen sharing recovery' }));
+  assert.equal(resumes, 1);
+  assert.equal(dismisses, 1);
+});

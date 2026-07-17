@@ -91,6 +91,23 @@ test('two identities complete the controlled iveKit media workflow', async ({ br
     await host.page.evaluate(() => (window as unknown as { __IVEKIT_CONTROLLED_MEDIA__: { reconnect(): void } }).__IVEKIT_CONTROLLED_MEDIA__.reconnect());
     await expect(host.page.getByText('Reconnecting media')).toBeHidden();
 
+    await host.page.evaluate(() => (window as unknown as { __IVEKIT_CONTROLLED_MEDIA__: { terminalDisconnect(): void } }).__IVEKIT_CONTROLLED_MEDIA__.terminalDisconnect());
+    await expect(host.page.getByText('Reconnecting media')).toBeVisible();
+    await expect(host.page.getByText('Screen sharing stopped during reconnect')).toBeVisible();
+    await expect(host.page.getByTitle('Turn off microphone')).toBeVisible();
+    await expect(host.page.getByTitle('Turn off camera')).toBeVisible();
+    await expect.poll(() => controlled.state.joins.filter((value) => value === 'call-main:host-1').length).toBe(2);
+    await expect.poll(() => controlled.state.connectionEvents.filter((value) => value.startsWith('call-main:host-1:'))).toEqual([
+      'call-main:host-1:connected:1',
+      'call-main:host-1:reconnecting:1',
+      'call-main:host-1:reconnected:1',
+      'call-main:host-1:disconnected:1',
+      'call-main:host-1:rejoining:2',
+      'call-main:host-1:rejoined:2'
+    ]);
+    await host.page.getByRole('button', { name: 'Resume sharing' }).click();
+    await expect(host.page.locator('.screen-share-stage')).toBeVisible();
+
     await captureMediaDesktop(host.page, testInfo);
     await assertNoTokenPersistence(host.page);
     await host.page.getByTitle('Hang up').click();
@@ -195,6 +212,9 @@ function controlledBrowserInit() {
         room.emit('reconnecting');
         window.setTimeout(() => room.emit('reconnected'), 20);
       }
+    },
+    terminalDisconnect() {
+      this.rooms.at(-1)?.emit('disconnected', 9);
     }
   };
   (window as unknown as { __IVEKIT_CONTROLLED_MEDIA__: typeof control }).__IVEKIT_CONTROLLED_MEDIA__ = control;

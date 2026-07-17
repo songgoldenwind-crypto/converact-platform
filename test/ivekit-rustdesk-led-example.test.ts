@@ -294,6 +294,9 @@ function fakeClient(calls: string[]): IveKitRustDeskHttpClient {
     async endGatewaySession(externalId) {
       calls.push(`endGatewaySession:${externalId}`);
     },
+    async authorizeEmergencyFallback() {
+      throw new Error('not used by LED example');
+    },
     async getGatewayDisconnectState(externalId) {
       calls.push(`getGatewayDisconnectState:${externalId}`);
       return {

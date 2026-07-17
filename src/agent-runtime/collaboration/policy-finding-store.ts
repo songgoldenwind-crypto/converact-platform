@@ -24,6 +24,9 @@ export interface RecordPolicyFindingInput {
   rationale?: string;
   evidence_refs?: PolicyEvidenceRef[];
   metadata?: Record<string, unknown>;
+  detector_version?: string;
+  policy_version?: string;
+  content_version?: number;
 }
 
 export interface TenantFindingQueueInput {
@@ -47,15 +50,28 @@ export class PolicyFindingStore {
   constructor(private readonly pg: PgQueryable) {}
 
   async recordFinding(input: RecordPolicyFindingInput): Promise<CollaborationPolicyFinding> {
-    const fingerprint = findingFingerprint(input);
+    const evidenceRefs = sanitizeEvidenceRefs(input.evidence_refs || []);
+    const detectorVersion = safeVersion(input.detector_version, 'legacy-v1');
+    const policyVersion = safeVersion(input.policy_version, 'legacy-v1');
+    const contentVersion = positiveVersion(input.content_version);
+    const evidenceSnapshotHash = sha256(canonicalJson(evidenceRefs));
+    const fingerprint = findingFingerprint({
+      ...input,
+      detector_version: detectorVersion,
+      policy_version: policyVersion,
+      content_version: contentVersion,
+      evidence_snapshot_hash: evidenceSnapshotHash
+    });
     const findingId = pgId('cfind');
     const now = new Date().toISOString();
     const result = await this.pg.query(
       `INSERT INTO collaboration_policy_findings
         (id, tenant_id, session_id, message_id, source, source_ref_id, policy_type, severity,
          matched_text_hash, fingerprint, action, confidence, rationale, evidence_refs, metadata,
+         detector_version, policy_version, evidence_snapshot_hash, content_version,
          created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+               $16, $17, $18, $19, $20, $20)
        ON CONFLICT (fingerprint) DO UPDATE SET
          severity = EXCLUDED.severity,
          action = EXCLUDED.action,
@@ -79,8 +95,12 @@ export class PolicyFindingStore {
         input.action || 'review',
         finiteConfidence(input.confidence),
         redactSensitiveText(input.rationale || ''),
-        JSON.stringify(input.evidence_refs || []),
+        JSON.stringify(evidenceRefs),
         JSON.stringify(sanitizePolicyMetadata(input.metadata || {})),
+        detectorVersion,
+        policyVersion,
+        evidenceSnapshotHash,
+        contentVersion,
         now
       ]
     );
@@ -129,7 +149,7 @@ export class PolicyFindingStore {
   async listTenantReviewQueue(input: TenantFindingQueueInput): Promise<TenantFindingQueuePage> {
     const tenantId = requiredText(input.tenant_id, 'tenant_id');
     const sessionId = optionalBoundedText(input.session_id, 200, 'session_id');
-    const source = optionalEnum(input.source, ['text', 'ocr', 'asr', 'ai'], 'source');
+    const source = optionalEnum(input.source, ['text', 'ocr', 'asr', 'ai', 'aggregate'], 'source');
     const severity = optionalEnum(input.severity, ['low', 'medium', 'high'], 'severity');
     const reviewStatus = optionalEnum(
       input.review_status,
@@ -253,7 +273,12 @@ export class PolicyFindingStore {
   }
 }
 
-function findingFingerprint(input: RecordPolicyFindingInput): string {
+function findingFingerprint(input: RecordPolicyFindingInput & {
+  detector_version: string;
+  policy_version: string;
+  evidence_snapshot_hash: string;
+  content_version: number;
+}): string {
   return sha256([
     input.tenant_id,
     input.session_id,
@@ -261,7 +286,11 @@ function findingFingerprint(input: RecordPolicyFindingInput): string {
     input.source,
     input.source_ref_id || input.message_id || '',
     input.policy_type,
-    input.matched_text_hash
+    input.matched_text_hash,
+    input.detector_version,
+    input.policy_version,
+    input.evidence_snapshot_hash,
+    input.content_version
   ].join('\u0000'));
 }
 
@@ -379,6 +408,65 @@ function finiteConfidence(value: number | null | undefined): number | null {
   return Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : null;
 }
 
+function sanitizeEvidenceRefs(values: PolicyEvidenceRef[]): PolicyEvidenceRef[] {
+  return values
+    .slice(0, 100)
+    .map((value) => sanitizeEvidenceRef(value))
+    .sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right)));
+}
+
+function sanitizeEvidenceRef(value: PolicyEvidenceRef): PolicyEvidenceRef {
+  const sanitized = sanitizePolicyMetadata(value) as PolicyEvidenceRef;
+  for (const [key, item] of Object.entries(value)) {
+    if (!isEvidenceStructuralKey(key)) continue;
+    if (typeof item === 'string') sanitized[key] = item.slice(0, 2_000);
+    else if (typeof item === 'number') sanitized[key] = Number.isFinite(item) ? item : null;
+    else if (typeof item === 'boolean' || item == null) sanitized[key] = item;
+  }
+  return sanitized;
+}
+
+function isEvidenceStructuralKey(key: string): boolean {
+  return key === 'id' || key.endsWith('_id') || [
+    'type',
+    'source',
+    'kind',
+    'processor',
+    'checksum',
+    'content_hash',
+    'value_hash',
+    'sha256',
+    'version',
+    'ref'
+  ].includes(key);
+}
+
+function safeVersion(value: unknown, fallback: string): string {
+  const version = String(value || fallback).trim();
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(version)) throw badRequest('finding version is invalid');
+  return version;
+}
+
+function positiveVersion(value: unknown): number {
+  if (value == null || value === '') return 1;
+  const version = Number(value);
+  if (!Number.isInteger(version) || version < 1 || version > 2_147_483_647) {
+    throw badRequest('content_version must be a positive integer');
+  }
+  return version;
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${canonicalJson(nested)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
 function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -399,6 +487,10 @@ function decodeFinding(row: Record<string, unknown>): CollaborationPolicyFinding
     confidence: row.confidence == null ? null : Number(row.confidence),
     rationale: String(row.rationale || ''),
     evidence_refs: parseArray(row.evidence_refs),
+    detector_version: String(row.detector_version || 'legacy-v1'),
+    policy_version: String(row.policy_version || 'legacy-v1'),
+    evidence_snapshot_hash: String(row.evidence_snapshot_hash || '0'.repeat(64)),
+    content_version: Number(row.content_version || 1),
     review_status: String(row.review_status || 'pending') as CollaborationPolicyFinding['review_status'],
     reviewed_by: String(row.reviewed_by || ''),
     reviewed_at: row.reviewed_at ? String(row.reviewed_at) : null,

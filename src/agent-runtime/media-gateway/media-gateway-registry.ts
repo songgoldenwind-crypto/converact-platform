@@ -11,7 +11,10 @@
  * Adding a new channel (e.g. a video gateway between RustPBX and LiveKit for
  * 4G VoLTE) means registering a new adapter — orchestration code is unchanged.
  */
-import type { LiveKitTokenResult } from '../livekit/token-service.js';
+import type {
+  LiveKitPlacementContext,
+  LiveKitTokenResult
+} from '../livekit/token-service.js';
 
 export type MediaChannel = 'webrtc' | 'sip_volte' | 'pstn_audio' | string;
 export type MediaKind = 'voice' | 'video';
@@ -36,6 +39,7 @@ export interface MediaJoinContext {
   /** Optional join base URL (for building H5 links) / phone (for SIP dial). */
   contact?: { phone?: string; joinBaseUrl?: string };
   metadata?: Record<string, unknown>;
+  placement?: LiveKitPlacementContext;
 }
 
 /**

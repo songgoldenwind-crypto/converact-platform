@@ -354,7 +354,7 @@ test('retention cleanup remains retryable when evidence synchronization fails af
   assert.equal(replay.deleted, 1);
   assert.equal(replay.failed, 0);
   assert.equal(service.getRecording(recording.id)?.status, 'deleted');
-  assert.equal(deleteCalls, 2);
+  assert.equal(deleteCalls, 1);
   assert.equal(lifecycleCalls, 2);
   db.close();
 });

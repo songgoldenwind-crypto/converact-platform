@@ -14,10 +14,18 @@ export { routeIveKitChatApi } from './chat-http.js';
 export { routeIveKitIntelligenceApi } from './intelligence-http.js';
 export type * from './intelligence-http.js';
 export { routeIveKitEventApi } from './event-http.js';
-export { IveKitTenantEventStore } from './tenant-event-store.js';
+export { IveKitTenantEventJournal, IveKitTenantEventStore } from './tenant-event-store.js';
 export { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
 export { routeIveKitMediaApi } from './media-http.js';
 export { createIveKitHttpServer } from './http-server.js';
+export * from './notifications/index.js';
+export * from './operations/audit/index.js';
+export * from './operations/rate-limit/index.js';
+export * from './operations/retention/index.js';
+export * from './operations/readiness.js';
+export * from './operations/runtime-heartbeat.js';
+export * from './placement/index.js';
+export * from './recordings/index.js';
 export { routeIveKitIvrApi } from './ivr/http.js';
 export type * from './ivr/http.js';
 export {
@@ -78,6 +86,8 @@ export {
   projectRustDeskAccessPolicyEvent,
   projectRustDeskAccessPolicyHistory,
   projectRustDeskAccessPolicyMutationResult,
+  projectRustDeskAuthorizationCode,
+  projectRustDeskAuthorizationCodeCreateResult,
   projectRustDeskControlOwnership,
   projectRustDeskOperationAuthorization,
   projectRustDeskSecondaryConfirmation,
@@ -97,6 +107,8 @@ export type {
   HeartbeatIveKitRustDeskControlInput,
   IveKitRustDeskAccessPolicyHttpClient,
   IveKitRustDeskAccessPolicyMutationOptions,
+  IveKitRustDeskAuthorizationCodeOptions,
+  IveKitRustDeskAuthorizationHttpClient,
   IveKitRustDeskControlHttpClient,
   IveKitRustDeskBusinessRefInput,
   IveKitRustDeskFetch,
@@ -107,11 +119,13 @@ export type {
   ListIveKitRustDeskGatewayAuditEventsInput,
   IssueIveKitRustDeskConfirmationInput,
   RecordIveKitRustDeskGatewayEventInput,
+  RequestIveKitRustDeskAuthorizationCodeInput,
   RegisterIveKitRustDeskDeviceInput,
   RevokeIveKitRustDeskAccessPolicyInput,
   ReleaseIveKitRustDeskControlInput,
+  StartIveKitRustDeskGatewaySessionInput,
   TransferIveKitRustDeskControlInput,
-  StartIveKitRustDeskGatewaySessionInput
+  VerifyIveKitRustDeskAuthorizationCodeInput
 } from './rustdesk-http-client.js';
 export type {
   EnsureIveKitRustDeskLedDeviceInput,

@@ -9,6 +9,16 @@ import {
   type TinodeDeliveryRunSummary
 } from './tinode-message-delivery.js';
 import type { CollaborationMessage } from './types.js';
+import type {
+  TinodeFileDeliveryGate,
+  TinodeFileDeliveryTransition
+} from './tinode-file-delivery-gate.js';
+import {
+  TinodeMessageMutationService,
+  TinodeMessageMutationStore,
+  type TinodeMessageMutationClaim,
+  type TinodeMessageMutationStatus
+} from './tinode-message-mutation.js';
 
 export type TinodeSyncWorkerRunResult = TinodeDeliveryRunSummary;
 
@@ -103,6 +113,17 @@ export function startTinodeSyncWorker(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   onDeliveryUpdated?: (message: CollaborationMessage) => void | Promise<void>;
+  onMutationUpdated?: (
+    claim: TinodeMessageMutationClaim,
+    status: TinodeMessageMutationStatus['status']
+  ) => void | Promise<void>;
+  fileSecurityGate?: Pick<
+    TinodeFileDeliveryGate,
+    'reconcileMessage' | 'reconcileDue' | 'reconcileFile'
+  > | null;
+  onFileSecurityTransition?: (
+    transition: TinodeFileDeliveryTransition
+  ) => void | Promise<void>;
 }): TinodeSyncWorker {
   const env = input.env || process.env;
   const config = tinodeSyncWorkerConfig(env);
@@ -113,11 +134,27 @@ export function startTinodeSyncWorker(input: {
     maxAttempts: config.maxAttempts,
     claimLeaseMs: config.claimLeaseMs,
     retryDelaysMs: config.retryDelaysMs,
-    onDeliveryUpdated: input.onDeliveryUpdated
+    onDeliveryUpdated: input.onDeliveryUpdated,
+    fileSecurityGate: input.fileSecurityGate,
+    onFileSecurityTransition: input.onFileSecurityTransition
+  });
+  const mutationService = new TinodeMessageMutationService({
+    store: new TinodeMessageMutationStore(input.pg),
+    gateway,
+    retryDelaysMs: config.retryDelaysMs,
+    leaseMs: config.claimLeaseMs,
+    onMutationUpdated: input.onMutationUpdated
   });
   const worker = new TinodeSyncWorker({
     config,
-    runDeliveryBatch: () => service.runDue({ limit: config.batchSize }),
+    runDeliveryBatch: async () => {
+      const delivery = await service.runDue({ limit: config.batchSize });
+      const mutations = await mutationService.runDue({ limit: config.batchSize });
+      if (mutations.examined > 0) {
+        console.log('[tinode-mutation] batch', JSON.stringify(mutations));
+      }
+      return delivery;
+    },
     onResult: (result) => {
       if (result.claimed > 0) console.log('[tinode-delivery] batch', JSON.stringify(result));
     },

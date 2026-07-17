@@ -27,6 +27,16 @@ export interface TinodeInboundClaim {
 export interface TinodeInboundProjectionResult {
   status: 'projected' | 'ignored';
   message_id?: string;
+  provider_mutation?: TinodeInboundProviderMutationProjection;
+}
+
+export interface TinodeInboundProviderMutationProjection {
+  mutation_id: string;
+  mutation_version: number;
+  action: 'edit' | 'delete';
+  message_id: string;
+  status: 'delivered';
+  previous_status: 'pending' | 'processing' | 'retry_wait' | 'delivered' | 'dead_letter';
 }
 
 export interface TinodeInboundProcessResult {
@@ -34,6 +44,7 @@ export interface TinodeInboundProcessResult {
   status: 'projected' | 'ignored' | 'dead_letter';
   message_id: string;
   replayed: boolean;
+  provider_mutation?: TinodeInboundProviderMutationProjection;
 }
 
 export interface TinodeInboundRetryResult {
@@ -207,7 +218,10 @@ export class TinodeInboundStore {
           event_id: String(row.id),
           status: projection.status,
           message_id: projection.message_id || '',
-          replayed: false
+          replayed: false,
+          ...(projection.provider_mutation
+            ? { provider_mutation: projection.provider_mutation }
+            : {})
         };
       } catch (error) {
         if (!(error instanceof TinodeInboundProjectionError)) throw error;
@@ -397,7 +411,10 @@ export class TinodeInboundStore {
               event_id: eventId,
               status: projection.status,
               message_id: projection.message_id || '',
-              replayed: true
+              replayed: true,
+              ...(projection.provider_mutation
+                ? { provider_mutation: projection.provider_mutation }
+                : {})
             }
           });
         } catch (error) {

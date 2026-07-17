@@ -7,9 +7,11 @@ import type {
   IveKitMediaCallAction,
   IveKitMediaCallSnapshot,
   IveKitMediaCallStatus,
+  IveKitMediaConnectionEventInput,
   IveKitMediaJoinPlan
 } from '@opc/ivekit-sdk';
 import { installTestDom } from '../test-dom.js';
+import type { MediaRejoinScheduler } from './media-rejoin-controller.js';
 import type { LiveKitRoomAdapter, MediaAdapterEvent } from './types.js';
 import { useMediaCall, type MediaAdapterFactory } from './use-media-call.js';
 
@@ -217,6 +219,181 @@ test('browser offline and online transitions wait for provider reconnect', async
   assert.equal(view.result.current.state.connection, 'online');
 });
 
+test('terminal disconnect obtains a fresh token and adapter, restores camera and microphone, and reports revisions', async () => {
+  const sequence: string[] = [];
+  const scheduler = new FakeRejoinScheduler();
+  const adapters: FakeAdapter[] = [];
+  const connectionEvents: IveKitMediaConnectionEventInput[] = [];
+  const joinInputs: import('@opc/ivekit-sdk').IveKitMediaJoinInput[] = [];
+  let joinPlans = 0;
+  const client = fakeClient({
+    getCall: async () => snapshot('active'),
+    createCallJoinPlan: async (_callId, joinInput) => {
+      joinInputs.push(joinInput);
+      joinPlans += 1;
+      return joinPlan(
+        `short-token-${joinPlans}`,
+        `reservation-${joinPlans}`,
+        String(12884901888n + BigInt(joinPlans))
+      );
+    },
+    reportCallConnectionEvent: async (_callId, event) => {
+      connectionEvents.push(event);
+      return {} as never;
+    }
+  });
+  const view = renderHook(() => useMediaCall(input(client, (onEvent) => {
+    const room = new FakeAdapter(sequence, true, onEvent);
+    adapters.push(room);
+    return room;
+  }, { rejoinDelaysMs: [0], rejoinScheduler: scheduler })));
+
+  await waitFor(() => assert.equal(view.result.current.state.connection, 'online'));
+  await act(async () => {
+    await view.result.current.setMicrophone(true);
+    await view.result.current.setCamera(true);
+    await view.result.current.setScreenShare(true, { audio: true });
+  });
+  act(() => adapters[0].emit({
+    type: 'terminal_disconnect',
+    generation: 1,
+    reason_code: 'signal_close'
+  }));
+  assert.equal(view.result.current.state.connection, 'reconnecting');
+  assert.equal(view.result.current.state.screenShareRecoveryRequired, true);
+
+  await act(async () => { await scheduler.runNext(); });
+  await waitFor(() => assert.equal(adapters.length, 2));
+  await waitFor(() => assert.equal(view.result.current.state.connection, 'online'));
+  assert.equal(adapters[0].disposeCalls, 1);
+  assert.equal(joinPlans, 2);
+  assert.equal(joinInputs[0]?.recovery, undefined);
+  assert.deepEqual(joinInputs[1]?.recovery, {
+    previous_owner_epoch: '12884901889',
+    previous_reservation_id: 'reservation-1'
+  });
+  assert.equal(view.result.current.state.adapterGeneration, 2);
+  assert.equal(view.result.current.state.local.microphone, true);
+  assert.equal(view.result.current.state.local.camera, true);
+  assert.equal(view.result.current.state.local.screen, false);
+  assert.equal(sequence.filter((item) => item === 'adapter:microphone:true').length, 2);
+  assert.equal(sequence.filter((item) => item === 'adapter:camera:true').length, 2);
+  assert.equal(sequence.filter((item) => item === 'adapter:screen:true').length, 1);
+  await waitFor(() => assert.equal(connectionEvents.length, 4));
+  assert.deepEqual(connectionEvents.map((event) => [event.event_type, event.connection_revision]), [
+    ['connected', 1],
+    ['disconnected', 1],
+    ['rejoining', 2],
+    ['rejoined', 2]
+  ]);
+
+  act(() => adapters[0].emit({ type: 'fatal', generation: 99, reason: 'stale room' }));
+  assert.equal(view.result.current.state.connection, 'online');
+});
+
+test('terminal rejoin waits for browser online and stops when the call becomes terminal', async () => {
+  const scheduler = new FakeRejoinScheduler();
+  const adapters: FakeAdapter[] = [];
+  let terminal = false;
+  const client = fakeClient({
+    getCall: async () => snapshot(terminal ? 'ended' : 'active'),
+    createCallJoinPlan: async () => joinPlan()
+  });
+  const view = renderHook(() => useMediaCall(input(client, (onEvent) => {
+    const room = new FakeAdapter([], true, onEvent);
+    adapters.push(room);
+    return room;
+  }, { rejoinDelaysMs: [0], rejoinScheduler: scheduler })));
+  await waitFor(() => assert.equal(view.result.current.state.connection, 'online'));
+
+  act(() => window.dispatchEvent(new Event('offline')));
+  act(() => adapters[0].emit({ type: 'terminal_disconnect', generation: 1, reason_code: 'signal_close' }));
+  assert.deepEqual(scheduler.activeDelays(), []);
+  terminal = true;
+  act(() => window.dispatchEvent(new Event('online')));
+  assert.deepEqual(scheduler.activeDelays(), [0]);
+  await act(async () => { await scheduler.runNext(); });
+  await waitFor(() => assert.equal(view.result.current.state.connection, 'ended'));
+  assert.equal(adapters.length, 1);
+});
+
+test('native LiveKit reconnect reports the same revision without replacing the room or token', async () => {
+  const adapters: FakeAdapter[] = [];
+  const connectionEvents: IveKitMediaConnectionEventInput[] = [];
+  let joinPlans = 0;
+  const client = fakeClient({
+    getCall: async () => snapshot('active'),
+    createCallJoinPlan: async () => { joinPlans += 1; return joinPlan(); },
+    reportCallConnectionEvent: async (_callId, event) => {
+      connectionEvents.push(event);
+      return {} as never;
+    }
+  });
+  const view = renderHook(() => useMediaCall(input(client, (onEvent) => {
+    const room = new FakeAdapter([], true, onEvent);
+    adapters.push(room);
+    return room;
+  })));
+  await waitFor(() => assert.equal(connectionEvents.length, 1));
+
+  act(() => {
+    adapters[0].emit({ type: 'native_reconnect', generation: 1, phase: 'started' });
+    adapters[0].emit({ type: 'native_reconnect', generation: 1, phase: 'succeeded' });
+  });
+  await waitFor(() => assert.equal(connectionEvents.length, 3));
+  assert.deepEqual(connectionEvents.map((event) => [event.event_type, event.connection_revision]), [
+    ['connected', 1],
+    ['reconnecting', 1],
+    ['reconnected', 1]
+  ]);
+  assert.equal(adapters.length, 1);
+  assert.equal(joinPlans, 1);
+  assert.equal(view.result.current.state.connection, 'online');
+});
+
+test('terminal rejoin increments revision per failed fresh join and becomes fatal after bounded exhaustion', async () => {
+  const scheduler = new FakeRejoinScheduler();
+  const adapters: FakeAdapter[] = [];
+  const connectionEvents: IveKitMediaConnectionEventInput[] = [];
+  let joinPlans = 0;
+  const client = fakeClient({
+    getCall: async () => snapshot('active'),
+    createCallJoinPlan: async () => {
+      joinPlans += 1;
+      if (joinPlans > 1) throw new Error('temporary join-plan failure');
+      return joinPlan();
+    },
+    reportCallConnectionEvent: async (_callId, event) => {
+      connectionEvents.push(event);
+      return {} as never;
+    }
+  });
+  const view = renderHook(() => useMediaCall(input(client, (onEvent) => {
+    const room = new FakeAdapter([], true, onEvent);
+    adapters.push(room);
+    return room;
+  }, { rejoinDelaysMs: [0, 0], rejoinScheduler: scheduler })));
+  await waitFor(() => assert.equal(view.result.current.state.connection, 'online'));
+  act(() => adapters[0].emit({ type: 'terminal_disconnect', generation: 1, reason_code: 'signal_close' }));
+
+  await act(async () => { await scheduler.runNext(); });
+  assert.deepEqual(scheduler.activeDelays(), [0]);
+  await act(async () => { await scheduler.runNext(); });
+  await waitFor(() => assert.equal(view.result.current.state.connection, 'fatal'));
+  assert.equal(view.result.current.state.fatalReason, 'Media connection could not be restored');
+  assert.equal(adapters.length, 3);
+  assert.equal(joinPlans, 3);
+  await waitFor(() => assert.equal(connectionEvents.length, 6));
+  assert.deepEqual(connectionEvents.map((event) => [event.event_type, event.connection_revision]), [
+    ['connected', 1],
+    ['disconnected', 1],
+    ['rejoining', 2],
+    ['failed', 2],
+    ['rejoining', 3],
+    ['failed', 3]
+  ]);
+});
+
 test('stale moderation 403 cannot revoke or poison a newly selected call', async () => {
   const removal = deferred<never>();
   const client = fakeClient({
@@ -371,10 +548,36 @@ function snapshot(status: IveKitMediaCallStatus, id = 'call-1'): IveKitMediaCall
   };
 }
 
-function joinPlan(): IveKitMediaJoinPlan {
+function joinPlan(
+  token = 'short-token',
+  reservationId?: string,
+  ownerEpoch = '12884901889'
+): IveKitMediaJoinPlan {
   return {
     mode: 'webrtc', channel: 'webrtc', roomName: 'room-call-1', role: 'participant',
-    token: { token: 'short-token', livekit_url: 'wss://livekit.test', room_name: 'room-call-1', configured: true }
+    token: {
+      token,
+      livekit_url: 'wss://livekit.test',
+      room_name: 'room-call-1',
+      configured: true,
+      ...(reservationId
+        ? {
+          placement: {
+            interaction_id: 'call-1',
+            reservation_id: reservationId,
+            region_id: 'region-a',
+            zone_id: 'zone-a',
+            cell_id: 'cell-a',
+            owner_node_id: 'livekit-a',
+            owner_epoch: ownerEpoch,
+            profile_id: 'cell-10k-v1',
+            snapshot_version: 1,
+            placement_generation: 1,
+            livekit_url: 'wss://livekit.test'
+          }
+        }
+        : {})
+    }
   };
 }
 
@@ -387,4 +590,35 @@ function deferred<T>() {
   let reject!: (cause: unknown) => void;
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
   return { promise, resolve, reject };
+}
+
+interface RejoinTimer {
+  readonly callback: () => void | Promise<void>;
+  readonly delay: number;
+  cancelled: boolean;
+}
+
+class FakeRejoinScheduler implements MediaRejoinScheduler {
+  private readonly timers: RejoinTimer[] = [];
+
+  setTimeout(callback: () => void | Promise<void>, delay: number): unknown {
+    const timer = { callback, delay, cancelled: false };
+    this.timers.push(timer);
+    return timer;
+  }
+
+  clearTimeout(handle: unknown): void {
+    (handle as RejoinTimer).cancelled = true;
+  }
+
+  activeDelays(): number[] {
+    return this.timers.filter((timer) => !timer.cancelled).map((timer) => timer.delay);
+  }
+
+  async runNext(): Promise<void> {
+    const timer = this.timers.find((item) => !item.cancelled);
+    if (!timer) return;
+    timer.cancelled = true;
+    await timer.callback();
+  }
 }

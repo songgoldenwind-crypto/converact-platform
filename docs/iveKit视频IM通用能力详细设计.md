@@ -2684,10 +2684,16 @@ policy scan 会读取：
 | `collaboration.quality_review.completed` | AI 质检 job 完成并写入辅助 finding |
 | `collaboration.policy.finding_reviewed` | 人工复核状态发生有效迁移 |
 | `remote.web_assist.event` | Web Assist 事件 |
+| `notification.created` | 目标用户的逻辑通知已耐久创建 |
+| `notification.delivery.updated` | 目标用户的 channel 投递状态发生变化 |
+| `notification.inbox.created` | 站内通知投影已创建 |
+| `notification.inbox.updated` | read/unread/archive/unarchive 状态变化 |
 
 M6.4 起每个持久事件 envelope 增加 `event_id/cursor/type/data/timestamp`。首次连接从 `connected.data.head_cursor` 建立水位；重连传 `cursor` 后服务端先 replay，再释放连接期间积压事件。`GET /api/ivekit/events?cursor=&limit=` 提供同一可见性语义的 HTTP 增量页。cursor 签名错误、跨 tenant、过期或超过 replay 上限会明确返回 `snapshot_required`，客户端此时回退 snapshot，而不是静默跳过。
 
 Replay 使用当前权限，不复用历史授权：定向事件只对 audience 用户可见，chat/media/remote 资源按当前 participant 检查，退出后不能重放旧私有事件。默认 retention 24 小时、payload 上限 64 KiB、单次 WS replay 上限 500，均可通过 iveKit 环境变量调整。
+
+通知事件使用 migration 072 的 `(tenant_id,idempotency_key)` 部分唯一索引。Notification、Delivery 或 Inbox 状态变更与对应事件在同一 tenant transaction 写入；事务提交后的 WebSocket/Redis 发布复用同一 key，只返回并广播原事件。外部联系人通知不产生租户范围广播；用户通知严格写入 `audience_user_ids`，载荷不包含 recipient、密文、Provider request/message id 或原始响应。
 
 ### 6.5.5 防绕单规则
 
@@ -2761,7 +2767,8 @@ npm run quality:deployment-preflight
 5. 前端 `TinodeRealtimeAdapter` 使用官方 `tinode-sdk@0.25.1`，只暴露 connect/disconnect、data/info/presence 回调和 recv/read/typing note。类上没有 publish/sendMessage；慢登录期间卸载会取消连接，旧客户端回调不能覆盖新连接。
 6. 前端本地/Tinode 两种 binding 都上报 presence heartbeat；打开会话后在参与人/client-plan 准备完成再推进历史已读；相同 client-plan 不替换 state，Tinode data 刷新快照不会触发无意义重连。
 7. Tinode 客户端权限固定 `JRP`：`J` join、`R` read、`P` presence，不含 `W`。后端 root/管理身份继续负责 `{pub}`。如果未来把 `direct_client_publish` 改为 `true`，必须保持 Phase 7B inbound worker 启用并先完成真实多副本、断网恢复和 policy/AI 不漏扫验收，不能只把 ACL 改回写权限。
-8. edit/delete 当前不调用 Tinode 原生消息 mutation；OPC WebSocket 的 `collaboration.message.edited/deleted` 和后续 snapshot 是业务 UI 权威。真实 Tinode 客户端若绕过 OPC 自行展示 provider 历史，可能看不到本地 mutation，因此 LED 前端必须以 iveKit snapshot 合并展示。
+8. edit/delete 在本地权威事务中同步创建 Tinode mutation outbox：edit 使用 replacement publish，delete 使用目标 sequence delete；OPC WebSocket 的 `collaboration.message.edited/deleted` 和后续 snapshot 仍是业务 UI 权威，前端同时展示 `provider_mutation.status`。
+9. edit publish ACK 丢失无法证明 Tinode 是否已提交 replacement，因此立即以 `provider_outcome_uncertain` 死信且不自动重发。owner/admin 必须先核对 Tinode，再通过 mutation dead-letter 列表和幂等 replay API 人工对账。
 
 新增租户 WebSocket 事件：
 
@@ -3727,3 +3734,49 @@ RWI `originate` 使用 iveKit call id 作为上游 `call_id`；`0.4.11-ivekit.3`
 没有 `OPC_IVEKIT_VOICE_ACCEPTANCE_REPORT_FILE` 时结果固定为 `not_run` 且命令返回非零；报告或任何 evidence 不完整时为 `incomplete`；全部 45 项通过时只到 `ready_for_review`。validator 明确输出 `automatically_updates_delivery_acceptance=false`，不会把 `acceptance/status.json` 中的 `real_environment.rustpbx=not_run` 自动改为 passed。
 
 当前已完成验收代码、模板、runbook、交付清单、篡改门禁、本地专项测试，以及隔离服务器真实 RustPBX Management/SIPp 工程验收。服务器结果覆盖 Management preflight、trunk/extension 幂等 apply、SIP OPTIONS probe、DID/route authority、RWI preflight/originate/hangup、AMI 终态对账、下游 SIPp BYE、12 场景 SIP 信令、Router/CDR、recovery 和 TCP stale-connection 修复，不包含运营商/测试 SIP trunk、PSTN/RTP、物理音频设备、录音对象、RWI WebSocket 媒体、LiveKit SIP bridge 或独立 QA。后续项目仍必须由部署操作员按 45 项合同采证、独立 QA 复核并由发布流程显式归档，才能改变交付 manifest 的 `not_run`。
+
+## 24. 2026-07-16 V6 生产闭环补充设计
+
+### 24.1 Tinode Kubernetes 与原生消息一致性
+
+standalone Helm Chart 已包含 bundled Tinode 的 ConfigMap、Secret refs、单副本 Deployment、Service、PVC、PDB、NetworkPolicy、HTTP health probe、资源限制和安全上下文。iveKit API Pod 在启动前通过 init container 幂等创建或验证 Tinode service account；账号冲突响应兼容 304/409，但随后必须真实登录成功。bundled 模式只允许单副本；需要横向扩展时切换 external Tinode/共享数据库和独立容量设计，不能把单 PVC 模板直接扩成多副本。
+
+消息 edit/delete 采用 `iveKit 权威 mutation + PostgreSQL outbox + Tinode 原生 replacement/delete`。同一消息按 `mutation_version` 串行，worker 使用 lease/fencing、稳定 mutation ID、有界重试和管理员 dead-letter replay。edit 发出后 ACK 丢失或 worker 接管可能已发送的过期 edit lease 时，状态固定为 `provider_outcome_uncertain`，禁止自动重发；delete 仍可安全重试。
+
+可验证的迟到 mutation echo 会在一个 PostgreSQL 事务中同时完成三件事：校验 topic/message/mutation/body 绑定、把 outbox 纠正为 `delivered`、以稳定幂等键写入 `collaboration.message.provider_mutation_updated` durable tenant event。提交后实时广播只负责低延迟通知；广播失败时 LED 仍可通过 event replay 或 durable Webhook 收到纠正，同一 inbox/event 重放不会制造第二条逻辑事件。
+
+### 24.2 RustDesk Windows 精准控制
+
+Windows companion 维护 ACL 保护的 native session registry，通过固定 named pipe 调用定制 RustDesk 1.4.7 overlay。精准断开必须解析到唯一 `native_session_id`，overlay 调用原生 `ui_cm_interface::close()` 并观察目标连接消失；映射缺失、漂移或 bridge 不可用都返回明确失败，不得把 wrapper 退出码当作物理断开。
+
+service restart 只作为 owner/admin 显式授权的 emergency fallback。授权必须包含原因、目标会话、一次性约束和 `collateral_sessions_may_disconnect=true`，且单独写审计。普通断开失败不会自动重启服务，避免误断同机其他会话。
+
+### 24.3 RustDesk 原生证据状态机
+
+正常链路为：
+
+`RustDesk allowlist scanner -> companion correlator -> stable-file watcher -> durable local spool -> single/multipart uploader -> secure_file -> MIME/virus/quarantine -> derivative -> OCR/ASR/frame OCR/AI -> event/audit`
+
+scanner 首次只建基线，后续只输出白名单目录中的稳定新文件；correlator 必须把候选唯一绑定到 active controller、gateway session、operation grant、预期文件名和时间窗。会话结束后的录屏只允许在 15 分钟 finalization window 内完成。无法唯一关联、越目录、符号链接、文件变化、hash 冲突或未授权内容均 fail closed。
+
+远端 secure-file 和 observation 成功后，uploader 先持久化 `state=uploaded` 且保留 manifest，再删除受管 payload。删除成功或确认文件不存在后才移除 manifest 并允许终态压缩；Windows 文件锁、杀毒扫描或 ACL 导致删除失败时，记录保留 `payload_filename + retry_at`，跨进程重启只重试本地删除，不再次调用远端上传。不可重试上传失败进入 payload-backed dead letter，默认保留七天或到数量上限后先删 payload 再删状态；任何 manifest-backed 记录都不会被普通终态压缩丢弃。
+
+服务端 ready-file reconciliation 对遗漏的 OCR/ASR/帧 OCR/AI callback 进行幂等补偿。确定性的 `unsupported|ignored` 写入持久终态 marker 并退出候选队列，`not_ready` 和临时异常保持可重试。未经该链路处理的内容继续标为 `native_unscanned` 或 `local_only`。
+
+### 24.4 LED 接口与事件边界
+
+LED 仍只依赖 `@opc/ivekit-sdk`、`/api/ivekit/*`、tenant event replay 和签名 Webhook，不持有 Tinode service account、RustDesk device token、LiveKit secret、数据库 runtime 密码或对象存储管理凭据。稳定接口包括：
+
+- Tinode mutation 状态、operation snapshot、mutation dead-letter list/replay。
+- `collaboration.message.provider_mutation_updated`，迟到纠正时带 `reconciled_from_status`。
+- RustDesk targeted disconnect、emergency authorization、device evidence context/upload。
+- `remote.rustdesk.evidence.*`、文件安全、OCR/ASR/AI 状态事件和统一审计。
+- V6 八组真实环境报告模板、validator、部署和 Windows runbook。
+
+### 24.5 当前完成与验收边界
+
+代码、迁移、OpenAPI、SDK、Compose、Helm 静态合同、Windows package/overlay CI 配置、交付清单和自动化验收入口已完成。最新本地门禁为全仓 `2939` 项中 `2928` 通过、`11` 个环境检查跳过、`0` 失败；真实 PostgreSQL harness `6/6`，delivery `54/54`，根 TypeScript、SDK build/dry-run pack、standalone 313-source context build、三套 Compose render、差异格式和敏感模式扫描均通过。最终独立复审对 Tinode correction 的事务/重放语义和 RustDesk cleanup 的崩溃窗口复核后为 `0 Critical / 0 Important`。
+
+当前机器没有 Helm CLI/目标 Kubernetes、GitHub Windows runner、两台 Windows 物理机、真实 Tinode 多客户端、真实 LiveKit/TURN/Egress、PSTN、真实 OCR/ASR/AI/翻译 Provider、商业短信邮件和生产对象存储，因此这些数据面仍是 `not_run`。Windows CI 的固定上游 overlay `cargo check` 已配置但未在本机执行。上述状态不影响代码闭环结论，也不能被解释为生产环境已经放行。
+
+十万并发通信属于后续独立容量与性能目标：需要定义并发构成、SLO、流量模型、单机基线、压测工具、自动扩缩容、故障注入和容量成本模型。本轮只保留 PostgreSQL/Redis/对象存储外置、无本地状态依赖、lease/fencing 和多实例部署前提，不声明十万并发已经验证。

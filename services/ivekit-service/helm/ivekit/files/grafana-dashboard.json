@@ -1,0 +1,234 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (status) (rate(opc_http_requests_total{job=~\"$job\"}[5m]))", "legendFormat": "HTTP {{status}}", "refId": "A" }
+      ],
+      "title": "API Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum(rate(opc_http_requests_total{job=~\"$job\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(opc_http_requests_total{job=~\"$job\"}[5m])), 1)", "legendFormat": "5xx ratio", "refId": "A" }
+      ],
+      "title": "API Error Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (state) (opc_ivekit_notification_queue_depth{job=~\"$job\"})", "legendFormat": "{{state}}", "refId": "A" }
+      ],
+      "title": "Notification Queue Depth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "max by (state) (opc_ivekit_notification_queue_oldest_age_seconds{job=~\"$job\"})", "legendFormat": "{{state}}", "refId": "A" }
+      ],
+      "title": "Notification Oldest Age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (channel, result) (rate(opc_ivekit_notification_delivery_attempts_total{job=~\"$job\"}[5m]))", "legendFormat": "{{channel}} {{result}}", "refId": "A" }
+      ],
+      "title": "Notification Delivery Outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (channel, provider, outcome) (rate(opc_ivekit_notification_health_probes_total{job=~\"$job\"}[5m]))", "legendFormat": "{{channel}} {{provider}} {{outcome}}", "refId": "A" }
+      ],
+      "title": "Notification Provider Health",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "max(opc_ivekit_tinode_delivery_queue_lag_seconds{job=~\"$job\"})", "legendFormat": "outbound lag", "refId": "A" },
+        { "expr": "max(opc_ivekit_tinode_inbound_cursor_lag_sequences{job=~\"$job\"})", "legendFormat": "inbound sequence lag", "refId": "B" }
+      ],
+      "title": "Tinode Synchronization Lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (state) (opc_ivekit_tinode_inbound_dead_letters{job=~\"$job\"})", "legendFormat": "dead letter {{state}}", "refId": "A" },
+        { "expr": "sum by (state) (opc_ivekit_tinode_file_blocked_messages{job=~\"$job\"})", "legendFormat": "file blocked {{state}}", "refId": "B" }
+      ],
+      "title": "Tinode Intervention Queues",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (capability) (rate(opc_ivekit_intelligence_provider_routes_exhausted_total{job=~\"$job\"}[5m]))", "legendFormat": "exhausted {{capability}}", "refId": "A" },
+        { "expr": "sum by (capability) (rate(opc_ivekit_intelligence_provider_failovers_total{job=~\"$job\"}[5m]))", "legendFormat": "failover {{capability}}", "refId": "B" }
+      ],
+      "title": "Intelligence Provider Routing",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, track_source) (rate(opc_ivekit_media_qos_packet_loss_ratio_bucket{job=~\"$job\"}[10m])))", "legendFormat": "P95 {{track_source}}", "refId": "A" }
+      ],
+      "title": "Media Packet Loss P95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (adapter, kind) (rate(opc_ivekit_voice_uncertain_commands_total{job=~\"$job\"}[5m]))", "legendFormat": "{{adapter}} {{kind}}", "refId": "A" }
+      ],
+      "title": "Voice Uncertain Commands",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, adapter) (rate(opc_ivekit_voice_provider_event_lag_seconds_bucket{job=~\"$job\"}[10m])))", "legendFormat": "P95 {{adapter}}", "refId": "A" }
+      ],
+      "title": "Voice Provider Event Lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 13,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (category, result) (rate(opc_ivekit_retention_runs_total{job=~\"$job\"}[15m]))", "legendFormat": "{{category}} {{result}}", "refId": "A" }
+      ],
+      "title": "Retention Runs",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "id": 14,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (route, scope) (rate(opc_ivekit_rate_limit_rejections_total{job=~\"$job\"}[5m]))", "legendFormat": "{{route}} {{scope}}", "refId": "A" }
+      ],
+      "title": "Rate Limit Rejections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "max(opc_ivekit_event_webhook_oldest_event_age_seconds{job=~\"$job\"})", "legendFormat": "oldest event age", "refId": "A" }
+      ],
+      "title": "Integration Webhook Lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (result) (rate(opc_ivekit_event_webhook_operations_total{job=~\"$job\"}[5m]))", "legendFormat": "{{result}}", "refId": "A" }
+      ],
+      "title": "Integration Webhook Operations",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ivekit", "shared-foundation"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": ".*ivekit.*", "value": ".*ivekit.*" },
+        "hide": 0,
+        "label": "Prometheus job",
+        "name": "job",
+        "options": [],
+        "query": "label_values(up, job)",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "iveKit Shared Foundation Operations",
+  "uid": "ivekit-shared-foundation",
+  "version": 1
+}

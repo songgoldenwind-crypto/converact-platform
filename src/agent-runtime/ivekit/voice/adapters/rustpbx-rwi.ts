@@ -27,12 +27,14 @@ export interface RustPbxRwiCommandInput {
   kind: VoiceCommandKind;
   call_id: string;
   payload: Record<string, unknown>;
+  ivekit_owners?: RustPbxRwiOwnerContracts;
 }
 
 export interface RustPbxRwiBridgeInput {
   command_id: string;
   leg_a: string;
   leg_b: string;
+  ivekit_owners?: RustPbxRwiOwnerContracts;
 }
 
 export type RustPbxRwiSupervisorMode = 'listen' | 'whisper' | 'barge' | 'stop';
@@ -43,12 +45,23 @@ export interface RustPbxRwiSupervisorActionInput {
   supervisor_call_id: string;
   target_call_id: string;
   agent_leg?: string;
+  ivekit_owners?: RustPbxRwiOwnerContracts;
 }
+
+export interface RustPbxRwiOwnerContract {
+  reservation_id: string;
+  interaction_id: string;
+  owner_epoch: string;
+}
+
+export type RustPbxRwiOwnerContracts =
+  Record<string, RustPbxRwiOwnerContract>;
 
 export interface RustPbxRwiEnvelope {
   action: string;
   action_id: string;
   params: Record<string, unknown>;
+  ivekit_owners?: RustPbxRwiOwnerContracts;
 }
 
 export type RustPbxRwiCommandResult =
@@ -491,6 +504,7 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
   const callId = boundedString(input.call_id, 256);
   const payload = validatedCommandPayload(input.payload);
   const params: Record<string, unknown> = { ...payload, call_id: callId };
+  const owners = validatedOwnerContracts(input.ivekit_owners);
   let action: string;
   switch (input.kind) {
     case 'originate': action = 'call.originate'; break;
@@ -498,10 +512,15 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
     case 'hangup': action = 'call.hangup'; break;
     case 'hold': action = 'call.hold'; break;
     case 'resume': action = 'call.unhold'; break;
-    case 'dtmf': return mapDtmfCommand(actionId, callId, payload);
+    case 'dtmf':
+      return withOwnerContracts(mapDtmfCommand(actionId, callId, payload), owners);
     case 'blind_transfer': action = 'call.transfer'; break;
     case 'warm_transfer': action = 'call.transfer.attended'; break;
-    case 'conference': return mapConferenceCommand(actionId, callId, payload);
+    case 'conference':
+      return withOwnerContracts(
+        mapConferenceCommand(actionId, callId, payload),
+        owners
+      );
     case 'recording_start': action = 'record.start'; break;
     case 'recording_pause': action = 'record.pause'; break;
     case 'recording_resume': action = 'record.resume'; break;
@@ -513,21 +532,21 @@ export function mapRustPbxRwiCommand(input: RustPbxRwiCommandInput): RustPbxRwiE
     default:
       throw new VoiceError({ code: 'capability_unavailable', status: 501 });
   }
-  return { action, action_id: actionId, params };
+  return withOwnerContracts({ action, action_id: actionId, params }, owners);
 }
 
 export function mapRustPbxRwiBridgeCommand(input: RustPbxRwiBridgeInput): RustPbxRwiEnvelope {
   if (!isRecord(input)) throw validationError();
-  const allowed = new Set(['command_id', 'leg_a', 'leg_b']);
+  const allowed = new Set(['command_id', 'leg_a', 'leg_b', 'ivekit_owners']);
   if (Object.keys(input).some((key) => !allowed.has(key))) throw validationError();
   const legA = boundedString(input.leg_a, 256);
   const legB = boundedString(input.leg_b, 256);
   if (legA === legB) throw validationError();
-  return {
+  return withOwnerContracts({
     action: 'call.bridge',
     action_id: boundedString(input.command_id, 256),
     params: { leg_a: legA, leg_b: legB }
-  };
+  }, validatedOwnerContracts(input.ivekit_owners));
 }
 
 export function mapRustPbxRwiSupervisorAction(
@@ -535,7 +554,8 @@ export function mapRustPbxRwiSupervisorAction(
 ): RustPbxRwiEnvelope {
   if (!isRecord(input)) throw validationError();
   const allowed = new Set([
-    'action_id', 'mode', 'supervisor_call_id', 'target_call_id', 'agent_leg'
+    'action_id', 'mode', 'supervisor_call_id', 'target_call_id', 'agent_leg',
+    'ivekit_owners'
   ]);
   if (Object.keys(input).some((key) => !allowed.has(key))) throw validationError();
   const mode = input.mode;
@@ -550,11 +570,48 @@ export function mapRustPbxRwiSupervisorAction(
     target_call_id: boundedString(input.target_call_id, 256)
   };
   if (input.agent_leg !== undefined) params.agent_leg = boundedString(input.agent_leg, 256);
-  return {
+  return withOwnerContracts({
     action: `supervisor.${mode}`,
     action_id: boundedString(input.action_id, 256),
     params
-  };
+  }, validatedOwnerContracts(input.ivekit_owners));
+}
+
+function validatedOwnerContracts(
+  input: unknown
+): RustPbxRwiOwnerContracts | undefined {
+  if (input === undefined) return undefined;
+  if (!isRecord(input)) throw validationError();
+  const entries = Object.entries(input);
+  if (entries.length === 0 || entries.length > 8) throw validationError();
+  const owners: RustPbxRwiOwnerContracts = {};
+  for (const [providerCallId, raw] of entries) {
+    const callId = boundedString(providerCallId, 256);
+    if (!isRecord(raw) ||
+        Object.keys(raw).some((key) => ![
+          'reservation_id', 'interaction_id', 'owner_epoch'
+        ].includes(key))) {
+      throw validationError();
+    }
+    const ownerEpoch = boundedString(raw.owner_epoch, 20);
+    if (!/^(?:0|[1-9][0-9]{0,19})$/.test(ownerEpoch) ||
+        BigInt(ownerEpoch) > 0xffff_ffff_ffff_ffffn) {
+      throw validationError();
+    }
+    owners[callId] = {
+      reservation_id: boundedString(raw.reservation_id, 256),
+      interaction_id: boundedString(raw.interaction_id, 256),
+      owner_epoch: ownerEpoch
+    };
+  }
+  return owners;
+}
+
+function withOwnerContracts(
+  envelope: RustPbxRwiEnvelope,
+  owners: RustPbxRwiOwnerContracts | undefined
+): RustPbxRwiEnvelope {
+  return owners ? { ...envelope, ivekit_owners: owners } : envelope;
 }
 
 function mapDtmfCommand(

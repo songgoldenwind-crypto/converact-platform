@@ -253,6 +253,54 @@ test('sender edits rescan policy and soft deletes preserve original body with mu
   assert.equal(JSON.stringify(mutations).includes('13800138000'), false);
 });
 
+test('Tinode-backed message mutations create a same-transaction provider outbox', async () => {
+  const fixture = await messageFixture();
+  const collaboration = new CollaborationStore(fixture.pg);
+  const created = await collaboration.postOutgoingMessage({
+    tenant_id: fixture.tenantId,
+    session_id: fixture.sessionId,
+    sender_identity: 'customer-state',
+    message_type: 'text',
+    body: 'original Tinode body',
+    provider: 'tinode',
+    provider_topic_id: 'grp_state_native',
+    provider_payload: 'original Tinode body',
+    provider_delivery_status: 'delivered'
+  });
+  const states = new CollaborationMessageStateStore(fixture.pg);
+
+  await states.editMessage({
+    tenant_id: fixture.tenantId,
+    session_id: fixture.sessionId,
+    message_id: created.message.id,
+    actor_identity: 'customer-state',
+    body: 'edited Tinode body'
+  });
+
+  const outbox = await fixture.pg.query(
+    'SELECT * FROM tinode_message_mutation_outbox WHERE tenant_id = $1 AND message_id = $2 ORDER BY mutation_version ASC',
+    [fixture.tenantId, created.message.id]
+  );
+  assert.equal(outbox.rows.length, 1);
+  assert.equal(outbox.rows[0]?.action, 'edit');
+  assert.equal(outbox.rows[0]?.body, 'edited Tinode body');
+  assert.equal(outbox.rows[0]?.provider_topic_id, 'grp_state_native');
+  assert.equal(outbox.rows[0]?.status, 'pending');
+
+  await states.deleteMessage({
+    tenant_id: fixture.tenantId,
+    session_id: fixture.sessionId,
+    message_id: created.message.id,
+    actor_identity: 'customer-state',
+    enqueue_provider_mutation: false
+  });
+  const afterInboundProjection = await fixture.pg.query(
+    'SELECT * FROM tinode_message_mutation_outbox WHERE tenant_id = $1 AND message_id = $2 ORDER BY mutation_version ASC',
+    [fixture.tenantId, created.message.id]
+  );
+  assert.equal(afterInboundProjection.rows.length, 1);
+});
+
 test('message mutation window is enforced from the original creation time', async () => {
   const fixture = await messageFixture();
   const createdAt = new Date(fixture.messages[0]!.created_at).getTime();

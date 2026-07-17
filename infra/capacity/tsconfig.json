@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": false,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "../../scripts/capacity/**/*.ts",
+    "../../scripts/ivekit-capacity-controller.ts",
+    "../../scripts/ivekit-capacity-dispatcher.ts",
+    "../../scripts/ivekit-capacity-finalizer.ts",
+    "../../scripts/ivekit-capacity-scaling-finalizer.ts",
+    "../../scripts/ivekit-capacity-platform-finalizer.ts",
+    "../../scripts/ivekit-capacity-worker.ts",
+    "../../scripts/ivekit-cell-admission.ts",
+    "../../scripts/ivekit-cell-capacity-projector.ts",
+    "../../scripts/ivekit-component-node-admission.ts",
+    "../../scripts/ivekit-rustdesk-owner-binding.ts",
+    "../../src/ivekit-component-node-admission.ts",
+    "../../src/ivekit-placement-snapshot-projector.ts"
+  ]
+}

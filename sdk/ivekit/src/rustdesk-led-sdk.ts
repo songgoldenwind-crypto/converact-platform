@@ -5,6 +5,7 @@ import type {
   RustDeskClientConfig,
   RustDeskDevice,
   RustDeskDisconnectState,
+  RustDeskEvidenceSecurity,
   RustDeskGatewayLaunchPlan,
   RustDeskObservedOperation,
   RustDeskOperationDirection,
@@ -47,6 +48,7 @@ export interface EnsureIveKitRustDeskLedDeviceInput {
 export interface StartIveKitRustDeskLedSessionInput extends EnsureIveKitRustDeskLedDeviceInput {
   remoteSessionId: string;
   permissions: RemoteConsentScope[];
+  authorizationId?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -106,6 +108,7 @@ export interface RecordIveKitRustDeskOperationObservationInput extends IveKitRus
   observer: RustDeskOperationObserver | 'none';
   observedAt?: string | null;
   evidenceRefs?: RustDeskOperationEvidenceReference[];
+  evidenceSecurity?: RustDeskEvidenceSecurity;
   providerOperationId?: string;
   providerSessionId?: string;
   direction?: RustDeskOperationDirection;
@@ -177,6 +180,7 @@ export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): Iv
         device_id: requiredString(device.id, 'RustDesk device id is required'),
         actor_identity: requiredString(sessionInput.actorIdentity, 'actorIdentity is required'),
         permissions: sessionInput.permissions,
+        authorization_id: optionalString(sessionInput.authorizationId),
         metadata: {
           source,
           rustdesk_id: rustdeskId,
@@ -284,6 +288,7 @@ export function createIveKitRustDeskLedSdk(input: IveKitRustDeskLedSdkInput): Iv
           observer: eventInput.observer,
           observed_at: eventInput.observedAt,
           evidence_refs: eventInput.evidenceRefs || [],
+          evidence_security: eventInput.evidenceSecurity,
           provider_operation_id: optionalString(eventInput.providerOperationId),
           provider_session_id: optionalString(eventInput.providerSessionId),
           direction: eventInput.direction,

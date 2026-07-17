@@ -6,7 +6,7 @@ services:
 
   rustpbx-config-render:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice"]
+    profiles: ["voice", "voice-capacity"]
     command: ["node", "--import", "tsx", "scripts/render-rustpbx-config.ts"]
     restart: "no"
     environment:
@@ -24,20 +24,74 @@ services:
       RUSTPBX_SIP_PORT: "5060"
       RUSTPBX_RTP_START_PORT: "20000"
       RUSTPBX_RTP_END_PORT: "20100"
+      RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS: ${RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS:-65536}
+      RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS: ${RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS:-65536}
+      RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY: ${RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY:-8192}
+      RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS: ${RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS:-32768}
+      RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY:-256}
+      RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: ${RUSTPBX_MEDIA_RECORDING_WORKER_THREADS:-4}
+      RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY:-4096}
     volumes:
       - rustpbx-runtime-config:/app/config
     depends_on:
       postgres-runtime-role:
         condition: service_completed_successfully
 
+  rustpbx-route-snapshot:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    profiles: ["voice", "voice-capacity"]
+    command: ["node", "--import", "tsx", "src/ivekit-rustpbx-route-snapshot.ts"]
+    init: true
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://opc_runtime:${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}@postgres:5432/opc
+      IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY: ${RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY:?RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY is required}
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS: ${RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS:-1000}
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_TTL_MS: ${RUSTPBX_ROUTE_SNAPSHOT_TTL_MS:-10000}
+      IVEKIT_RUSTPBX_ROUTE_DEPENDENCIES: ${RUSTPBX_ROUTE_DEPENDENCIES:-}
+    volumes:
+      - rustpbx-route-snapshot:/app/route-snapshot
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+
   rustpbx:
     image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
-    profiles: ["voice"]
+    profiles: ["voice", "voice-capacity"]
     command: ["--conf", "/app/config/rustpbx.toml"]
     init: true
     restart: unless-stopped
+    environment:
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY: ${RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY:?RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY is required}
+      IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY: ${OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY:?OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY is required}
+      IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS: ${RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS:-500}
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://ivekit-api:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS: ${RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS:-250}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED: ${RUSTPBX_COMPONENT_NODE_ENABLED:-false}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_URL: http://127.0.0.1:3210
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:-}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS: ${RUSTPBX_COMPONENT_NODE_TIMEOUT_MS:-500}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS: ${RUSTPBX_COMPONENT_NODE_REFRESH_MS:-3000}
+      IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED: ${RUSTPBX_RECORDING_SPOOL_ENABLED:-true}
+      IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR: /app/recording-spool
+      IVEKIT_RUSTPBX_RECORDING_SEGMENT_SECONDS: ${RUSTPBX_RECORDING_SEGMENT_SECONDS:-60}
+      IVEKIT_RUSTPBX_RECORDING_SEGMENT_MAX_BYTES: ${RUSTPBX_RECORDING_SEGMENT_MAX_BYTES:-67108864}
+      IVEKIT_REGION_ID: ${RUSTPBX_REGION_ID:?RUSTPBX_REGION_ID is required}
+      IVEKIT_ZONE_ID: ${RUSTPBX_ZONE_ID:?RUSTPBX_ZONE_ID is required}
     expose:
       - "8080"
+      - "3210"
     ports:
       - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/udp"
       - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/tcp"
@@ -45,7 +99,9 @@ services:
     volumes:
       - rustpbx-runtime-config:/app/config:ro
       - rustpbx-generated-config:/app/generated
+      - rustpbx-route-snapshot:/app/route-snapshot:ro
       - rustpbx-storage:/app/storage
+      - rustpbx-recording-spool:/app/recording-spool
     networks:
       default: {}
     depends_on:
@@ -53,6 +109,8 @@ services:
         condition: service_completed_successfully
       rustpbx-config-render:
         condition: service_completed_successfully
+      rustpbx-route-snapshot:
+        condition: service_started
     healthcheck:
       test: ["CMD", "/app/rustpbx", "--version"]
       interval: 10s
@@ -62,9 +120,82 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  rustpbx-recording-spool:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    profiles: ["voice", "voice-capacity"]
+    command: ["node", "--import", "tsx", "src/ivekit-rustpbx-recording-spool.ts"]
+    init: true
+    restart: unless-stopped
+    environment:
+      OPC_IVEKIT_RECORDING_BASE_URL: http://ivekit-api:3000
+      OPC_IVEKIT_RECORDING_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      OPC_IVEKIT_RECORDING_WORKER_ID: ${RUSTPBX_RECORDING_WORKER_ID:-rustpbx-recording-sidecar}
+      OPC_IVEKIT_RECORDING_SPOOL_DIR: /app/recording-spool
+      OPC_IVEKIT_RECORDING_STATE_DIR: /app/recording-state
+      OPC_IVEKIT_RECORDING_SERVICE_KEY_FILE: /run/secrets/rustpbx-recording-service-key
+      OPC_IVEKIT_RECORDING_LEASE_SECRET_FILE: /run/secrets/rustpbx-recording-lease-secret
+      OPC_IVEKIT_RECORDING_PART_SIZE_BYTES: ${RUSTPBX_RECORDING_PART_SIZE_BYTES:-8388608}
+      OPC_IVEKIT_RECORDING_LEASE_MS: ${RUSTPBX_RECORDING_LEASE_MS:-300000}
+      OPC_IVEKIT_RECORDING_UPLOAD_CONCURRENCY: ${RUSTPBX_RECORDING_UPLOAD_CONCURRENCY:-4}
+      OPC_IVEKIT_RECORDING_POLL_INTERVAL_MS: ${RUSTPBX_RECORDING_POLL_INTERVAL_MS:-1000}
+    volumes:
+      - rustpbx-recording-spool:/app/recording-spool
+      - rustpbx-recording-state:/app/recording-state
+    secrets:
+      - rustpbx-recording-service-key
+      - rustpbx-recording-lease-secret
+    depends_on:
+      rustpbx:
+        condition: service_started
+      opc:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+
+  rustpbx-component-node:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    profiles: ["voice-capacity"]
+    command: ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+    init: true
+    restart: unless-stopped
+    network_mode: service:rustpbx
+    environment:
+      OPC_IVEKIT_COMPONENT_NODE_HOST: 0.0.0.0
+      OPC_IVEKIT_COMPONENT_NODE_PORT: 3210
+      OPC_IVEKIT_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required}
+      OPC_IVEKIT_COMPONENT_NODE_COMPONENT: rustpbx
+      OPC_IVEKIT_COMPONENT_NODE_REGION_ID: ${RUSTPBX_COMPONENT_NODE_REGION_ID:?RUSTPBX_COMPONENT_NODE_REGION_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_ZONE_ID: ${RUSTPBX_COMPONENT_NODE_ZONE_ID:?RUSTPBX_COMPONENT_NODE_ZONE_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS: ${RUSTPBX_COMPONENT_NODE_PROFILE_IDS:?RUSTPBX_COMPONENT_NODE_PROFILE_IDS is required}
+      OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: sip_voice
+      OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON: ${RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON:?RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON is required}
+      OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS: ${RUSTPBX_COMPONENT_NODE_TERMINAL_RETENTION_MS:-300000}
+      OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS: ${RUSTPBX_COMPONENT_NODE_SWEEP_INTERVAL_MS:-1000}
+      OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: /app/recording-state/metrics.json
+      OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS: ${RUSTPBX_RECORDING_METRICS_REFRESH_MS:-1000}
+      OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS: ${RUSTPBX_RECORDING_METRICS_STALE_MS:-5000}
+    volumes:
+      - rustpbx-recording-state:/app/recording-state:ro
+    depends_on:
+      rustpbx:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3210/readyz').then(r=>{if(!r.ok)process.exit(1)})
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+
   rustpbx-runtime-recovery:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice"]
+    profiles: ["voice", "voice-capacity"]
     command: ["node", "--import", "tsx", "scripts/ivekit-rustpbx-recovery.ts"]
     restart: "no"
     network_mode: service:rustpbx
@@ -96,4 +227,13 @@ services:
 volumes:
   rustpbx-runtime-config:
   rustpbx-generated-config:
+  rustpbx-route-snapshot:
   rustpbx-storage:
+  rustpbx-recording-spool:
+  rustpbx-recording-state:
+
+secrets:
+  rustpbx-recording-service-key:
+    file: ${RUSTPBX_RECORDING_SERVICE_KEY_FILE:?RUSTPBX_RECORDING_SERVICE_KEY_FILE is required}
+  rustpbx-recording-lease-secret:
+    file: ${RUSTPBX_RECORDING_LEASE_SECRET_FILE:?RUSTPBX_RECORDING_LEASE_SECRET_FILE is required}

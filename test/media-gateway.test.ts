@@ -49,6 +49,35 @@ test('webrtc gateway gives customers an H5 join path', async () => {
   }
 });
 
+test('webrtc gateway forwards the durable Cell owner into the LiveKit token', async () => {
+  const registry = createDefaultMediaGatewayRegistry();
+  const placement = {
+    interaction_id: 'mcall-cell-a',
+    reservation_id: 'reservation-cell-a',
+    region_id: 'region-a',
+    zone_id: 'zone-a',
+    cell_id: 'cell-a',
+    owner_node_id: 'livekit-a',
+    owner_epoch: '12884901889',
+    profile_id: 'cell-10k-v1',
+    snapshot_version: 7,
+    livekit_url: 'wss://livekit-cell-a.example.com'
+  };
+  const plan = await registry.prepareJoin('webrtc', {
+    tenantId: 'tenant-x',
+    roomName: 'room-cell-a',
+    identity: 'agent-cell-a',
+    role: 'agent',
+    media: 'video',
+    placement
+  });
+  assert.equal(plan.mode, 'webrtc');
+  if (plan.mode === 'webrtc') {
+    assert.equal(plan.token.livekit_url, placement.livekit_url);
+    assert.deepEqual(plan.token.placement, placement);
+  }
+});
+
 test('sip_volte gateway is planned — prepareJoin is refused (501)', async () => {
   const registry = createDefaultMediaGatewayRegistry();
   await assert.rejects(

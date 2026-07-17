@@ -26,7 +26,8 @@ export function createWebRtcGateway(): MediaGatewayAdapter {
         room_name: ctx.roomName,
         identity: ctx.identity,
         role: ctx.role,
-        tenant_id: ctx.tenantId
+        tenant_id: ctx.tenantId,
+        placement: ctx.placement
       });
 
       // Customers get an H5 join path they can open in a browser; agents are

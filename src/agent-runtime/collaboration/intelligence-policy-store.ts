@@ -10,10 +10,14 @@ export interface IntelligencePolicyUpdate {
   asr_enabled: boolean;
   quality_review_enabled: boolean;
   translation_enabled: boolean;
-  ocr_profile_id: string;
-  asr_profile_id: string;
-  quality_profile_id: string;
-  translation_profile_id: string;
+  ocr_profile_id?: string;
+  asr_profile_id?: string;
+  quality_profile_id?: string;
+  translation_profile_id?: string;
+  ocr_profile_ids?: string[];
+  asr_profile_ids?: string[];
+  quality_profile_ids?: string[];
+  translation_profile_ids?: string[];
   allow_third_party: boolean;
   auto_ocr: boolean;
   auto_asr: boolean;
@@ -25,6 +29,14 @@ export interface IntelligencePolicyUpdate {
 }
 
 export interface IntelligencePolicy extends IntelligencePolicyUpdate {
+  ocr_profile_id: string;
+  asr_profile_id: string;
+  quality_profile_id: string;
+  translation_profile_id: string;
+  ocr_profile_ids: string[];
+  asr_profile_ids: string[];
+  quality_profile_ids: string[];
+  translation_profile_ids: string[];
   tenant_id: string;
   configured: boolean;
   version: number;
@@ -32,6 +44,17 @@ export interface IntelligencePolicy extends IntelligencePolicyUpdate {
   created_at: string | null;
   updated_at: string | null;
 }
+
+type NormalizedIntelligencePolicyUpdate = IntelligencePolicyUpdate & {
+  ocr_profile_id: string;
+  asr_profile_id: string;
+  quality_profile_id: string;
+  translation_profile_id: string;
+  ocr_profile_ids: string[];
+  asr_profile_ids: string[];
+  quality_profile_ids: string[];
+  translation_profile_ids: string[];
+};
 
 export class IntelligencePolicyStore {
   constructor(
@@ -65,12 +88,14 @@ export class IntelligencePolicyStore {
       `INSERT INTO collaboration_intelligence_policies
         (tenant_id, ocr_enabled, asr_enabled, quality_review_enabled, translation_enabled,
          ocr_profile_id, asr_profile_id, quality_profile_id, translation_profile_id,
+         ocr_profile_ids, asr_profile_ids, quality_profile_ids, translation_profile_ids,
          allow_third_party, auto_ocr, auto_asr, auto_quality_review, auto_translation,
          translation_target_languages, min_ocr_confidence, min_asr_confidence,
          version, updated_by)
        VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-         $15::TEXT[], $16, $17, 1, $18)
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+         $10::TEXT[], $11::TEXT[], $12::TEXT[], $13::TEXT[],
+         $14, $15, $16, $17, $18, $19::TEXT[], $20, $21, 1, $22)
        ON CONFLICT (tenant_id) DO UPDATE SET
          ocr_enabled = EXCLUDED.ocr_enabled,
          asr_enabled = EXCLUDED.asr_enabled,
@@ -80,6 +105,10 @@ export class IntelligencePolicyStore {
          asr_profile_id = EXCLUDED.asr_profile_id,
          quality_profile_id = EXCLUDED.quality_profile_id,
          translation_profile_id = EXCLUDED.translation_profile_id,
+         ocr_profile_ids = EXCLUDED.ocr_profile_ids,
+         asr_profile_ids = EXCLUDED.asr_profile_ids,
+         quality_profile_ids = EXCLUDED.quality_profile_ids,
+         translation_profile_ids = EXCLUDED.translation_profile_ids,
          allow_third_party = EXCLUDED.allow_third_party,
          auto_ocr = EXCLUDED.auto_ocr,
          auto_asr = EXCLUDED.auto_asr,
@@ -91,7 +120,7 @@ export class IntelligencePolicyStore {
          version = collaboration_intelligence_policies.version + 1,
          updated_by = EXCLUDED.updated_by,
          updated_at = CURRENT_TIMESTAMP
-       WHERE collaboration_intelligence_policies.version = $19
+       WHERE collaboration_intelligence_policies.version = $23
        RETURNING *`,
       [
         tenantId,
@@ -103,6 +132,10 @@ export class IntelligencePolicyStore {
         policy.asr_profile_id,
         policy.quality_profile_id,
         policy.translation_profile_id,
+        policy.ocr_profile_ids,
+        policy.asr_profile_ids,
+        policy.quality_profile_ids,
+        policy.translation_profile_ids,
         policy.allow_third_party,
         policy.auto_ocr,
         policy.auto_asr,
@@ -135,6 +168,10 @@ export class IntelligencePolicyStore {
       asr_profile_id: asr?.id || '',
       quality_profile_id: quality?.id || '',
       translation_profile_id: '',
+      ocr_profile_ids: ocr ? [ocr.id] : [],
+      asr_profile_ids: asr ? [asr.id] : [],
+      quality_profile_ids: quality ? [quality.id] : [],
+      translation_profile_ids: [],
       allow_third_party: defaults.some((profile) => profile.mode === 'third_party'),
       auto_ocr: true,
       auto_asr: true,
@@ -150,18 +187,37 @@ export class IntelligencePolicyStore {
     };
   }
 
-  private normalizeUpdate(input: IntelligencePolicyUpdate): IntelligencePolicyUpdate {
+  private normalizeUpdate(input: IntelligencePolicyUpdate): NormalizedIntelligencePolicyUpdate {
     if (!input || typeof input !== 'object') throw policyError('policy is required', 400);
-    const normalized: IntelligencePolicyUpdate = {
+    const allowThirdParty = requiredBoolean(input.allow_third_party, 'allow_third_party');
+    const ocrRoute = this.normalizeProfileRoute(
+      input.ocr_profile_ids, input.ocr_profile_id, 'ocr', allowThirdParty, 'ocr_profile_ids'
+    );
+    const asrRoute = this.normalizeProfileRoute(
+      input.asr_profile_ids, input.asr_profile_id, 'asr', allowThirdParty, 'asr_profile_ids'
+    );
+    const qualityRoute = this.normalizeProfileRoute(
+      input.quality_profile_ids, input.quality_profile_id, 'quality_review', allowThirdParty,
+      'quality_profile_ids'
+    );
+    const translationRoute = this.normalizeProfileRoute(
+      input.translation_profile_ids, input.translation_profile_id, 'translation', allowThirdParty,
+      'translation_profile_ids'
+    );
+    const normalized = {
       ocr_enabled: requiredBoolean(input.ocr_enabled, 'ocr_enabled'),
       asr_enabled: requiredBoolean(input.asr_enabled, 'asr_enabled'),
       quality_review_enabled: requiredBoolean(input.quality_review_enabled, 'quality_review_enabled'),
       translation_enabled: requiredBoolean(input.translation_enabled, 'translation_enabled'),
-      ocr_profile_id: profileId(input.ocr_profile_id),
-      asr_profile_id: profileId(input.asr_profile_id),
-      quality_profile_id: profileId(input.quality_profile_id),
-      translation_profile_id: profileId(input.translation_profile_id),
-      allow_third_party: requiredBoolean(input.allow_third_party, 'allow_third_party'),
+      ocr_profile_id: ocrRoute[0] || '',
+      asr_profile_id: asrRoute[0] || '',
+      quality_profile_id: qualityRoute[0] || '',
+      translation_profile_id: translationRoute[0] || '',
+      ocr_profile_ids: ocrRoute,
+      asr_profile_ids: asrRoute,
+      quality_profile_ids: qualityRoute,
+      translation_profile_ids: translationRoute,
+      allow_third_party: allowThirdParty,
       auto_ocr: requiredBoolean(input.auto_ocr, 'auto_ocr'),
       auto_asr: requiredBoolean(input.auto_asr, 'auto_asr'),
       auto_quality_review: requiredBoolean(input.auto_quality_review, 'auto_quality_review'),
@@ -169,11 +225,7 @@ export class IntelligencePolicyStore {
       translation_target_languages: normalizeLanguages(input.translation_target_languages),
       min_ocr_confidence: confidence(input.min_ocr_confidence, 'min_ocr_confidence'),
       min_asr_confidence: confidence(input.min_asr_confidence, 'min_asr_confidence')
-    };
-    this.validateProfile(normalized.ocr_profile_id, 'ocr', normalized.allow_third_party);
-    this.validateProfile(normalized.asr_profile_id, 'asr', normalized.allow_third_party);
-    this.validateProfile(normalized.quality_profile_id, 'quality_review', normalized.allow_third_party);
-    this.validateProfile(normalized.translation_profile_id, 'translation', normalized.allow_third_party);
+    } satisfies NormalizedIntelligencePolicyUpdate;
     if (normalized.auto_ocr && !normalized.ocr_enabled) {
       throw policyError('auto_ocr requires ocr_enabled', 400);
     }
@@ -192,16 +244,37 @@ export class IntelligencePolicyStore {
     return normalized;
   }
 
-  private validateProfile(
-    id: string,
+  private normalizeProfileRoute(
+    value: unknown,
+    legacyPrimary: unknown,
     capability: IntelligenceProviderCapability,
-    allowThirdParty: boolean
-  ): void {
-    if (!id) return;
-    const profile = this.registry.requireProfile(id, capability);
-    if (profile.mode === 'third_party' && !allowThirdParty) {
-      throw policyError(`third-party provider profile ${id} is not allowed`, 400);
+    allowThirdParty: boolean,
+    field: string
+  ): string[] {
+    const explicitPrimary = profileId(legacyPrimary);
+    if (value !== undefined && explicitPrimary) {
+      this.registry.requireProfile(explicitPrimary, capability);
     }
+    const source = value === undefined
+      ? (explicitPrimary ? [explicitPrimary] : [])
+      : value;
+    if (!Array.isArray(source)) throw policyError(`${field} must be an array`, 400);
+    if (source.length > 10) throw policyError(`${field} cannot exceed 10 entries`, 400);
+    const route: string[] = [];
+    for (const raw of source) {
+      const id = profileId(raw);
+      if (!id) throw policyError(`${field} cannot contain an empty profile id`, 400);
+      if (route.includes(id)) throw policyError(`${field} contains duplicate profile: ${id}`, 400);
+      const profile = this.registry.requireProfile(id, capability);
+      if (profile.mode === 'third_party' && !allowThirdParty) {
+        throw policyError(`third-party provider profile ${id} is not allowed`, 400);
+      }
+      route.push(id);
+    }
+    if (value !== undefined && explicitPrimary && route[0] !== explicitPrimary) {
+      throw policyError(`${field} first profile must match the legacy primary profile`, 400);
+    }
+    return route;
   }
 }
 
@@ -217,6 +290,10 @@ function decodePolicy(row: Record<string, unknown>): IntelligencePolicy {
     asr_profile_id: String(row.asr_profile_id || ''),
     quality_profile_id: String(row.quality_profile_id || ''),
     translation_profile_id: String(row.translation_profile_id || ''),
+    ocr_profile_ids: routeArray(row.ocr_profile_ids, row.ocr_profile_id),
+    asr_profile_ids: routeArray(row.asr_profile_ids, row.asr_profile_id),
+    quality_profile_ids: routeArray(row.quality_profile_ids, row.quality_profile_id),
+    translation_profile_ids: routeArray(row.translation_profile_ids, row.translation_profile_id),
     allow_third_party: booleanValue(row.allow_third_party),
     auto_ocr: booleanValue(row.auto_ocr),
     auto_asr: booleanValue(row.auto_asr),
@@ -281,6 +358,13 @@ function textArray(value: unknown): string[] {
   } catch {
     return [];
   }
+}
+
+function routeArray(value: unknown, legacyPrimary: unknown): string[] {
+  const route = textArray(value).filter(Boolean);
+  if (route.length) return route;
+  const primary = String(legacyPrimary || '').trim();
+  return primary ? [primary] : [];
 }
 
 function requiredText(value: unknown, field: string): string {

@@ -1,3 +1,4 @@
+import type { PgQueryable } from '../../../db-pg.js';
 import type {
   VoiceCall,
   VoiceCallCommand,
@@ -205,6 +206,15 @@ export interface VoiceProviderParkingContext {
   pickup_call: VoiceCall | null;
 }
 
+export interface VoiceProviderOwnerContract {
+  reservation_id: string;
+  interaction_id: string;
+  owner_epoch: string;
+}
+
+export type VoiceProviderOwnerContracts =
+  Record<string, VoiceProviderOwnerContract>;
+
 export interface VoiceProviderPort {
   preflight(): Promise<VoiceProviderCapabilities>;
   execute(input: {
@@ -212,6 +222,7 @@ export interface VoiceProviderPort {
     command: VoiceCallCommand;
     clear_address?: string;
     parking?: VoiceProviderParkingContext;
+    owner_contracts?: VoiceProviderOwnerContracts;
   }): Promise<{
     provider_command_id: string;
     provider_call_id?: string;
@@ -363,6 +374,7 @@ export interface VoiceConfigurationUnitOfWork {
 }
 
 export interface VoiceCallUnitOfWorkContext {
+  pg?: PgQueryable;
   calls: VoiceCallRepository;
   commands: VoiceCommandRepository;
   configuration: VoiceConfigurationRepository;
@@ -377,6 +389,7 @@ export interface VoiceCallUnitOfWork {
 }
 
 export interface VoiceProviderEventUnitOfWorkContext {
+  pg?: PgQueryable;
   calls: VoiceCallRepository;
   events: VoiceProviderEventRepository;
   configuration: VoiceConfigurationRepository;

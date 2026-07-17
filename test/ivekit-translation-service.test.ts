@@ -24,6 +24,8 @@ import {
   type IntelligencePolicyUpdate
 } from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
 import { createPolicyTranslationProviderResolver } from '../src/agent-runtime/collaboration/intelligence-provider-routing.js';
+import { IntelligenceProviderGovernanceStore } from '../src/agent-runtime/collaboration/intelligence-provider-governance-store.js';
+import { IntelligenceProviderRouteError } from '../src/agent-runtime/collaboration/intelligence-provider-route.js';
 
 test('translation jobs derive message source and enforce idempotency payload identity', async () => {
   const pg = new MemoryPg();
@@ -225,6 +227,117 @@ test('translation jobs retry transient provider errors and converge to one resul
   assert.equal(results.items[0]?.provider_request_id, 'retry-request');
 });
 
+test('route reservation denial reschedules translation without consuming an attempt', async () => {
+  const pg = new MemoryPg();
+  const source = await createSourceMessage(pg, 'tenant-translation-quota', 'quota source');
+  const retryAt = '2026-07-10T00:01:00.000Z';
+  const provider: TranslationProvider = {
+    name: 'quota-translation', mode: 'self_hosted',
+    translate: async () => {
+      throw new IntelligenceProviderRouteError([{
+        profile_id: 'quota-translation', status: 'skipped',
+        code: 'day_quota_exhausted', retry_at: retryAt
+      }]);
+    }
+  };
+  const service = new TranslationService({
+    pg,
+    now: () => new Date('2026-07-10T00:00:00.000Z'),
+    resolveProvider: resolver(provider)
+  });
+  const requested = await service.requestTranslation({
+    tenant_id: source.tenantId, session_id: source.sessionId,
+    source_type: 'message', source_ref_id: source.messageId,
+    target_language: 'en-US', idempotency_key: 'quota-route-translation'
+  });
+  assert.equal((await service.runDue({ tenant_id: source.tenantId })).retry_wait, 1);
+  const job = await service.getJob({ tenant_id: source.tenantId, job_id: requested.job.id });
+  assert.equal(job?.attempt_count, 0);
+  assert.equal(job?.next_attempt_at, retryAt);
+  assert.equal(job?.output_metadata.ivekit_route_provider_invoked, false);
+});
+
+test('expired worker and provider leases recover after restart without leaving or overwriting a job', async () => {
+  let now = new Date('2026-07-15T03:00:00.000Z');
+  const pg = new MemoryPg();
+  const source = await createSourceMessage(pg, 'tenant-translation-restart', 'restart source');
+  const registry = createIntelligenceProviderRegistry({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'translation-restart', capability: 'translation', mode: 'self_hosted',
+      base_url: 'http://translation-restart:8080', timeout_ms: 1_000,
+      reservation_ttl_ms: 6_000, max_concurrency: 1
+    }])
+  });
+  await new IntelligencePolicyStore(pg, registry).updatePolicy({
+    tenant_id: source.tenantId,
+    actor_identity: 'restart-admin',
+    expected_version: 0,
+    policy: translationPolicy('translation-restart', true)
+  });
+  const governance = new IntelligenceProviderGovernanceStore(pg, { now: () => now });
+  let fetchCalls = 0;
+  let releaseFirst!: () => void;
+  let markFirstStarted!: () => void;
+  const firstStarted = new Promise<void>((resolve) => {
+    markFirstStarted = resolve;
+  });
+  const firstRelease = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  const fetchImpl: typeof fetch = async () => {
+    fetchCalls += 1;
+    if (fetchCalls === 1) {
+      markFirstStarted();
+      await firstRelease;
+      return translationResponse('stale worker result');
+    }
+    return translationResponse('recovered worker result');
+  };
+  const resolveProvider = createPolicyTranslationProviderResolver({
+    pg, registry, governance, fetch: fetchImpl
+  });
+  const abandonedWorker = new TranslationService({
+    pg, resolveProvider, now: () => now, claimLeaseMs: 5_000, retryDelaysMs: [0]
+  });
+  const requested = await abandonedWorker.requestTranslation({
+    tenant_id: source.tenantId,
+    session_id: source.sessionId,
+    source_type: 'message',
+    source_ref_id: source.messageId,
+    target_language: 'en-US',
+    idempotency_key: 'restart-recovery-key'
+  });
+
+  const abandonedRun = abandonedWorker.runDue({ tenant_id: source.tenantId });
+  await firstStarted;
+  now = new Date('2026-07-15T03:00:06.001Z');
+  const restartedWorker = new TranslationService({
+    pg, resolveProvider, now: () => now, claimLeaseMs: 5_000, retryDelaysMs: [0]
+  });
+  const recovered = await restartedWorker.runDue({ tenant_id: source.tenantId });
+  assert.equal(recovered.succeeded, 1);
+  assert.equal(fetchCalls, 2);
+
+  releaseFirst();
+  await abandonedRun;
+  const job = await restartedWorker.getJob({
+    tenant_id: source.tenantId,
+    job_id: requested.job.id
+  });
+  assert.equal(job?.status, 'succeeded');
+  assert.equal(job?.attempt_count, 2);
+  assert.equal(job?.lease_until, null);
+  const results = await restartedWorker.listTranslations({
+    tenant_id: source.tenantId,
+    session_id: source.sessionId,
+    source_type: 'message',
+    source_ref_id: source.messageId
+  });
+  assert.equal(results.items.length, 1);
+  assert.equal(results.items[0]?.translated_text, 'recovered worker result');
+  assert.equal((await governance.listRuntime(source.tenantId))[0]?.circuit_state, 'closed');
+});
+
 test('terminal transient failures can be retried but terminal validation failures cannot', async () => {
   const pg = new MemoryPg();
   const source = await createSourceMessage(pg, 'tenant-translation-manual-retry', 'manual retry source');
@@ -237,7 +350,9 @@ test('terminal transient failures can be retried but terminal validation failure
       mode: 'self_hosted',
       translate: async () => {
         calls += 1;
-        if (calls === 1) throw new TranslationProviderError('temporary', 'provider_http_503', true, 503);
+        if (calls === 1) {
+          throw new TranslationProviderError('temporary', 'provider_route_unavailable', true, 503);
+        }
         return { translated_text: 'manual retry succeeded' };
       }
     }
@@ -421,6 +536,18 @@ test('translation workers coalesce batches and concurrent scans claim a job once
   await worker.stop();
 });
 
+test('translation worker claim lease covers the longest configured provider reservation', () => {
+  const config = translationWorkerConfig({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'slow-translation', capability: 'translation', mode: 'self_hosted',
+      base_url: 'http://slow-translation:8080', timeout_ms: 300_000,
+      reservation_ttl_ms: 305_000
+    }]),
+    OPC_TRANSLATION_CLAIM_LEASE_MS: '120000'
+  });
+  assert.equal(config.claimLeaseMs >= 310_000, true);
+});
+
 function provider(inputs: TranslationProviderInput[]): TranslationProvider {
   return {
     name: 'translation-test',
@@ -446,6 +573,13 @@ function resolver(providerValue: TranslationProvider) {
     profile_id: providerValue.profile_id || '',
     provider: providerValue,
     error_code: ''
+  });
+}
+
+function translationResponse(translatedText: string): Response {
+  return new Response(JSON.stringify({ translated_text: translatedText }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' }
   });
 }
 

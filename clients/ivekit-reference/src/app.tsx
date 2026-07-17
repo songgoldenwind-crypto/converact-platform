@@ -1,4 +1,8 @@
-import { createIveKitClient, type IveKitChatMessage, type IveKitChatSession } from '@opc/ivekit-sdk';
+import {
+  createIveKitHttpSdk,
+  type IveKitChatMessage,
+  type IveKitChatSession
+} from '@opc/ivekit-sdk';
 import { BriefcaseBusiness, CircleStop, Headset, List, MessageSquare, MonitorCog, Phone, RefreshCw, ScanSearch, ShieldCheck, Workflow } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -32,9 +36,9 @@ const MediaWorkspace = lazy(async () => {
   return { default: module.MediaWorkspace };
 });
 
-const RustDeskLaunchPanel = lazy(async () => {
-  const module = await import('./remote/rustdesk-launch-panel.js');
-  return { default: module.RustDeskLaunchPanel };
+const RustDeskWorkspace = lazy(async () => {
+  const module = await import('./remote/rustdesk-workspace.js');
+  return { default: module.RustDeskWorkspace };
 });
 
 const QualityWorkspace = lazy(async () => {
@@ -93,7 +97,7 @@ export function App() {
   const sessionCursor = useRef<string | null>(null);
   const seededContext = useRef('');
 
-  const client = useMemo(() => config && token ? createIveKitClient({
+  const client = useMemo(() => config && token ? createIveKitHttpSdk({
     baseUrl: config.baseUrl,
     tenantId: config.tenantId,
     accessToken: token
@@ -445,7 +449,7 @@ export function App() {
         : workspaceMode === 'voice'
           ? <Suspense fallback={<div className="media-workspace-loading">Loading voice workspace</div>}><VoiceWorkspace client={client} callId={voiceCallId} onCallIdChange={selectVoiceCall} refreshVersion={voiceReplayVersion} businessRef={businessRef || undefined} /></Suspense>
           : workspaceMode === 'remote'
-            ? <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskLaunchPanel key={`remote-replay-${remoteReplayVersion}`} client={client?.rustdesk || null} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>
+            ? <Suspense fallback={<div className="media-workspace-loading">Loading remote workspace</div>}><RustDeskWorkspace key={`remote-replay-${remoteReplayVersion}`} baseUrl={config?.baseUrl || ''} tenantId={config?.tenantId || ''} accessToken={token} identity={identity} onError={reportCommandError} openProtocol={openExternal} initialBusinessRef={businessRef || undefined} initialRemoteSessionId={remoteSessionId} onRemoteSessionIdChange={(value) => { setRemoteSessionId(value); navigateIveKitLocation({ remoteSessionId: value }); }} /></Suspense>
             : workspaceMode === 'quality'
               ? client && <Suspense fallback={<div className="media-workspace-loading">Loading quality workspace</div>}><QualityWorkspace client={client} selectedSessionId={selectedId} refreshVersion={chatReplayVersion} /></Suspense>
               : workspaceMode === 'operations'

@@ -61,7 +61,7 @@ export interface IveKitChatParticipant {
 
 export type IveKitChatAttachmentKind = 'image' | 'video' | 'audio' | 'file' | 'screen_recording';
 export type IveKitChatAttachmentStatus = 'pending' | 'ready' | 'failed';
-export type IveKitChatAttachmentProcessor = 'ocr' | 'asr';
+export type IveKitChatAttachmentProcessor = 'ocr' | 'asr' | 'video_frame_ocr';
 export type IveKitChatAttachmentJobStatus =
   | 'pending'
   | 'processing'
@@ -86,6 +86,7 @@ export interface IveKitChatAttachment {
   tenant_id: string;
   session_id: string;
   message_id: string;
+  secure_file_id?: string;
   kind: IveKitChatAttachmentKind;
   storage_url: string;
   filename: string;
@@ -106,6 +107,8 @@ export interface IveKitChatAttachment {
 export type IveKitChatDeliveryStatus =
   | 'not_required'
   | 'pending'
+  | 'blocked_by_file_security'
+  | 'blocked'
   | 'publishing'
   | 'retry_wait'
   | 'delivered'
@@ -124,6 +127,98 @@ export interface IveKitChatDelivery {
   delivered_at: string | null;
   updated_at: string;
   metadata: Record<string, unknown>;
+}
+
+export interface IveKitTinodeOperationsSnapshot {
+  tenant_id: string;
+  generated_at: string;
+  delivery: {
+    pending: number;
+    publishing: number;
+    retry_wait: number;
+    failed: number;
+    blocked_by_file_security: number;
+    blocked: number;
+    oldest_due_at: string | null;
+    queue_lag_ms: number;
+  };
+  inbound: {
+    cursors: number;
+    active: number;
+    error: number;
+    paused: number;
+    leased: number;
+    max_cursor_lag_sequences: number;
+    oldest_cursor_updated_at: string | null;
+  };
+  dead_letters: {
+    open: number;
+    retryable: number;
+    terminal: number;
+    oldest_open_at: string | null;
+  };
+}
+
+export interface IveKitTinodeDeadLetter {
+  id: string;
+  binding_id: string;
+  event_id: string;
+  event_kind: string;
+  provider_sequence: number;
+  provider_delete_id: number;
+  error_code: string;
+  error_message: string;
+  payload_hash: string;
+  retryable: boolean;
+  retry_count: number;
+  next_retry_at: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IveKitTinodeDeadLetterReplayResult {
+  dead_letter: IveKitTinodeDeadLetter;
+  replay_id: string;
+  replayed: boolean;
+}
+
+export interface IveKitTinodeMutationDeadLetter {
+  id: string;
+  session_id: string;
+  message_id: string;
+  mutation_id: string;
+  mutation_version: number;
+  action: 'edit' | 'delete';
+  attempt_count: number;
+  max_attempts: number;
+  error_code: string;
+  error_message: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IveKitTinodeMutationDeadLetterReplayResult {
+  dead_letter: IveKitTinodeMutationDeadLetter;
+  replay_id: string;
+  replayed: boolean;
+}
+
+export interface IveKitChatProviderMutation {
+  provider?: string;
+  id?: string;
+  mutation_id?: string;
+  mutation_version?: number;
+  action?: 'edit' | 'delete';
+  status: 'not_required' | 'pending' | 'processing' | 'retry_wait' | 'delivered' | 'dead_letter';
+  attempt_count?: number;
+  max_attempts?: number;
+  next_attempt_at?: string | null;
+  provider_operation_id?: string;
+  last_error_code?: string;
+  last_error_message?: string;
+  completed_at?: string | null;
+  updated_at?: string;
 }
 
 export interface IveKitChatMessage {
@@ -203,10 +298,14 @@ export interface IveKitPolicyEvent {
   severity: 'low' | 'medium' | 'high';
   matched_text_hash: string;
   action: string;
-  source: 'text' | 'ocr' | 'asr' | 'ai';
+  source: 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate';
   source_ref_id: string;
   attachment_id: string;
   finding_id: string;
+  detector_version: string;
+  policy_version: string;
+  evidence_snapshot_hash: string;
+  content_version: number;
   created_at: string;
 }
 
@@ -215,7 +314,7 @@ export interface IveKitPolicyFinding {
   tenant_id: string;
   session_id: string;
   message_id: string;
-  source: 'text' | 'ocr' | 'asr' | 'ai';
+  source: 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate';
   source_ref_id: string;
   policy_type: string;
   severity: 'low' | 'medium' | 'high';
@@ -226,6 +325,10 @@ export interface IveKitPolicyFinding {
   rationale: string;
   review_status: 'pending' | 'confirmed' | 'false_positive' | 'resolved' | 'escalated';
   evidence_refs: Array<Record<string, unknown>>;
+  detector_version: string;
+  policy_version: string;
+  evidence_snapshot_hash: string;
+  content_version: number;
   reviewed_by: string;
   reviewed_at: string | null;
   review_note: string;
@@ -392,6 +495,7 @@ export interface IveKitChatMutationResult {
   session_id: string;
   message: IveKitChatMessage;
   mutation: IveKitChatMutation | null;
+  provider_mutation: IveKitChatProviderMutation;
   quality_review_job: IveKitQualityReviewJob | null;
 }
 
@@ -402,6 +506,7 @@ export interface IveKitChatMutationListResult {
 }
 
 export interface IveKitChatAttachmentUploadDescriptor {
+  secure_file_id?: string;
   kind: IveKitChatAttachmentKind;
   storage_url: string;
   filename: string;
@@ -410,6 +515,80 @@ export interface IveKitChatAttachmentUploadDescriptor {
   checksum: string;
   processing_status: IveKitChatAttachmentStatus;
   metadata: Record<string, unknown>;
+}
+
+export type IveKitSecureFileKind = IveKitChatAttachmentKind;
+export type IveKitSecureFileUploadMode = 'single' | 'multipart';
+export type IveKitSecureFileStatus =
+  | 'initiated'
+  | 'uploading'
+  | 'scanning'
+  | 'processing'
+  | 'ready'
+  | 'quarantined'
+  | 'failed'
+  | 'expired';
+export type IveKitSecureFileThreatStatus = 'pending' | 'scanning' | 'clean' | 'infected' | 'error';
+
+export interface IveKitSecureFileDerivative {
+  kind: 'image_thumbnail' | 'video_thumbnail' | 'video_transcode' | 'audio_transcode';
+  status: 'pending' | 'processing' | 'retry_wait' | 'ready' | 'failed' | 'expired';
+  mime: string;
+  size_bytes: number;
+  sha256: string;
+  error_code: string;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface IveKitSecureFile {
+  file_id: string;
+  session_id: string;
+  created_by: string;
+  kind: IveKitSecureFileKind;
+  filename: string;
+  extension: string;
+  declared_mime: string;
+  detected_mime: string;
+  mime_conflict: boolean;
+  status: IveKitSecureFileStatus;
+  threat_status: IveKitSecureFileThreatStatus;
+  failure_code: string;
+  upload_mode: IveKitSecureFileUploadMode;
+  expected_size_bytes: number;
+  received_size_bytes: number;
+  part_size_bytes: number;
+  size_bytes: number;
+  sha256: string;
+  scan_attempt_count: number;
+  retention_until: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  derivatives: IveKitSecureFileDerivative[];
+}
+
+export interface IveKitCreateSecureFileInput {
+  kind: IveKitSecureFileKind;
+  filename: string;
+  declared_mime?: string;
+  upload_mode: IveKitSecureFileUploadMode;
+  expected_size_bytes: number;
+  part_size_bytes?: number;
+  retention_until?: string | null;
+  expires_at?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface IveKitSecureFilePart {
+  part_number: number;
+  size_bytes: number;
+  sha256: string;
+  status: 'staged' | 'uploaded' | 'committed' | 'aborted';
+  created_at: string;
+  updated_at: string;
 }
 
 export interface IveKitChatAttachmentJob {
@@ -425,6 +604,7 @@ export interface IveKitChatAttachmentJob {
   next_attempt_at: string | null;
   lease_until: string | null;
   worker_id: string;
+  provider_profile_id: string;
   provider_mode: 'unconfigured' | 'self_hosted' | 'third_party';
   provider_name: string;
   error_code: string;
@@ -439,6 +619,26 @@ export interface IveKitChatAttachmentResult {
   attachment?: IveKitChatAttachment;
   attachment_id?: string;
   job: IveKitChatAttachmentJob | null;
+  jobs?: IveKitChatAttachmentJob[];
+  observations?: IveKitVisualObservation[];
+}
+
+export interface IveKitVisualObservation {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  message_id: string;
+  attachment_id: string;
+  processor_job_id: string;
+  observation_type: 'qr_code' | 'barcode' | 'text_region';
+  value_hash: string;
+  symbology: string;
+  confidence: number | null;
+  frame_timestamp_ms: number | null;
+  page_number: number | null;
+  metadata: Record<string, unknown>;
+  detector_version: string;
+  created_at: string;
 }
 
 export interface IveKitPolicyFindingResult {

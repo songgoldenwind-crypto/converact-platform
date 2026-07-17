@@ -69,7 +69,7 @@ export class VoiceWebhookAuthenticator {
   constructor(options: VoiceWebhookAuthenticatorOptions) {
     this.#contextResolver = options.context_resolver;
     this.#secretResolver = options.secret_resolver;
-    this.#maxBodyBytes = boundedInteger(options.max_body_bytes, 256 * 1024, 1, 4 * 1024 * 1024);
+    this.#maxBodyBytes = boundedInteger(options.max_body_bytes, 256 * 1024, 1, 16 * 1024 * 1024);
     this.#maxSkewSeconds = boundedInteger(options.max_skew_seconds, 300, 1, 3_600);
     this.#now = options.now ?? (() => new Date());
   }

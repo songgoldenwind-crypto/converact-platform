@@ -263,10 +263,11 @@ export class IntelligenceSourceService {
       attachment_id: source.attachment_id
     });
     if (!attachment) throw new Error('intelligence source attachment is missing');
-    const job = await processing.getJobForAttachment({
+    const jobs = await processing.listJobsForAttachment({
       tenant_id: source.tenant_id,
       attachment_id: source.attachment_id
     });
+    const job = jobs.find((candidate) => candidate.processor === 'asr') || jobs[0] || null;
     return {
       source: { ...source, status: sourceStatus(job), error_code: job?.error_code || source.error_code },
       message,

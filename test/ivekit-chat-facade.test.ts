@@ -12,6 +12,7 @@ import { createServer as createOpcServer } from '../src/http.js';
 import type { AttachmentTextProvider } from '../src/agent-runtime/collaboration/attachment-processing.js';
 import type { RouteCollaborationApiOptions } from '../src/agent-runtime/collaboration/collaboration-http.js';
 import type { QualityReviewProvider } from '../src/agent-runtime/collaboration/quality-review.js';
+import { SecureFileStore } from '../src/agent-runtime/collaboration/secure-file-store.js';
 
 const API_KEY = 'test-ivekit-chat-key';
 const TINODE_ENV_KEYS = [
@@ -272,9 +273,25 @@ test('iveKit chat facade exposes attachment upload, processing, status, and retr
       { ...authHeaders(tenantId), 'content-type': 'image/png' },
       Buffer.from('image'),
       options
-    ) as { status: number; data: Record<string, unknown> };
+    ) as { status: number; data: Record<string, unknown> & { secure_file_id: string } };
     assert.equal(uploaded.status, 201);
     assert.equal(uploaded.data.processing_status, 'pending');
+    assert.ok(uploaded.data.secure_file_id);
+    const secureFiles = new SecureFileStore(pg);
+    await secureFiles.transitionStatus({
+      tenant_id: tenantId,
+      secure_file_id: uploaded.data.secure_file_id,
+      from_status: 'scanning',
+      to_status: 'processing',
+      threat_status: 'clean',
+      detected_mime: 'image/png'
+    });
+    await secureFiles.transitionStatus({
+      tenant_id: tenantId,
+      secure_file_id: uploaded.data.secure_file_id,
+      from_status: 'processing',
+      to_status: 'ready'
+    });
 
     const posted = await route(
       pg,

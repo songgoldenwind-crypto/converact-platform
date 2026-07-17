@@ -2337,6 +2337,7 @@ CREATE TABLE IF NOT EXISTS call_recordings (
   duration_ms INTEGER,
   file_size_bytes INTEGER,
   has_video INTEGER NOT NULL DEFAULT 0,
+  recording_mode TEXT NOT NULL DEFAULT 'room_composite' CHECK (recording_mode IN ('track', 'track_composite', 'room_composite')),
   egress_id TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('starting', 'pending', 'recording', 'stopping', 'stopped', 'completed', 'failed', 'deleted')),
   retention_until TEXT,
@@ -2352,6 +2353,54 @@ CREATE INDEX IF NOT EXISTS idx_call_recordings_session ON call_recordings(call_s
 CREATE INDEX IF NOT EXISTS idx_call_recordings_business ON call_recordings(tenant_id, business_ref_type, business_ref_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_call_recordings_retention ON call_recordings(tenant_id, retention_until, status);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_egress_id ON call_recordings(egress_id) WHERE egress_id != '';
+
+CREATE TABLE IF NOT EXISTS livekit_egress_jobs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  recording_id TEXT NOT NULL REFERENCES call_recordings(id) ON DELETE CASCADE,
+  job_sequence INTEGER NOT NULL CHECK (job_sequence >= 1),
+  room_name TEXT NOT NULL,
+  recording_mode TEXT NOT NULL CHECK (recording_mode IN ('track', 'track_composite', 'room_composite')),
+  track_id TEXT NOT NULL DEFAULT '',
+  track_kind TEXT NOT NULL DEFAULT '',
+  track_source TEXT NOT NULL DEFAULT '',
+  audio_track_id TEXT NOT NULL DEFAULT '',
+  video_track_id TEXT NOT NULL DEFAULT '',
+  storage_url TEXT NOT NULL,
+  egress_id TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'starting' CHECK (status IN ('starting', 'pending', 'recording', 'stopping', 'stopped', 'completed', 'failed')),
+  failure_code TEXT NOT NULL DEFAULT '',
+  reservation_id TEXT NOT NULL DEFAULT '',
+  owner_epoch TEXT,
+  duration_ms INTEGER,
+  file_size_bytes INTEGER,
+  object_status TEXT NOT NULL DEFAULT 'unchecked' CHECK (object_status IN ('unchecked', 'readable', 'missing_storage_url', 'not_found', 'forbidden', 'unsupported', 'fetch_failed', 'deleted', 'delete_failed')),
+  object_checked_at TEXT,
+  provider_observed_at TEXT,
+  provider_missing_count INTEGER NOT NULL DEFAULT 0 CHECK (provider_missing_count >= 0),
+  reconcile_attempts INTEGER NOT NULL DEFAULT 0 CHECK (reconcile_attempts >= 0),
+  reconcile_after TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reconcile_lease_until TEXT,
+  reconcile_worker_id TEXT NOT NULL DEFAULT '',
+  completed_at TEXT,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(recording_id, id),
+  UNIQUE(recording_id, job_sequence)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_livekit_egress_jobs_provider_id
+  ON livekit_egress_jobs(egress_id) WHERE egress_id != '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_livekit_egress_jobs_track
+  ON livekit_egress_jobs(recording_id, track_id)
+  WHERE recording_mode = 'track';
+CREATE INDEX IF NOT EXISTS idx_livekit_egress_jobs_recording
+  ON livekit_egress_jobs(tenant_id, recording_id, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_livekit_egress_jobs_active
+  ON livekit_egress_jobs(tenant_id, status, updated_at, id);
+CREATE INDEX IF NOT EXISTS idx_livekit_egress_jobs_reconcile
+  ON livekit_egress_jobs(tenant_id, reconcile_after, reconcile_lease_until, updated_at, id)
+  WHERE status IN ('starting', 'recording', 'stopping');
 
 CREATE TABLE IF NOT EXISTS ai_conversation_turns (
   id TEXT PRIMARY KEY,
@@ -2490,6 +2539,10 @@ CREATE TABLE IF NOT EXISTS rustdesk_device_commands (
   requested_by TEXT NOT NULL,
   requested_reason TEXT NOT NULL
     CHECK (requested_reason IN ('consent_revoked', 'remote_session_ended', 'tool_ended', 'gateway_ended')),
+  emergency_fallback_authorized BOOLEAN NOT NULL DEFAULT FALSE,
+  emergency_fallback_reason TEXT NOT NULL DEFAULT '',
+  emergency_fallback_authorized_by TEXT NOT NULL DEFAULT '',
+  emergency_fallback_authorized_at TIMESTAMPTZ,
   attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   max_attempts INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts > 0),
   claimed_by TEXT,

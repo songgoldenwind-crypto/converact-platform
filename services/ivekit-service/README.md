@@ -18,6 +18,8 @@ npm run migrate
 
 The standalone Helm Chart source is under `helm/ivekit/`. It requires an immutable application image digest and an externally managed Secret, runs runtime-role initialization plus advisory-locked forward migrations as a `pre-install,pre-upgrade` hook, and deploys the API only after that hook succeeds. PostgreSQL and communication providers remain external dependencies; optional RustPBX is enabled separately with its own digest and database.
 
+Helm also requires shared S3-compatible object storage through the runtime environment Secret. Its multi-replica workload sets `OPC_OBJECT_STORAGE_REQUIRED=1`, so a missing `S3_BUCKET`, `OPC_S3_BUCKET`, or `MINIO_BUCKET` fails startup instead of writing to a pod-local directory.
+
 The included Compose file runs the compiled `init:runtime-role` entrypoint before `migrate`. It creates or rotates `opc_runtime`, applies default and existing-object grants, and revokes schema creation and migration-ledger access. The long-running service uses `opc_runtime` with `NOSUPERUSER NOBYPASSRLS`; only the one-shot role and migration jobs receive `opc_admin` credentials.
 
 For an isolated foundation deployment, generate the context, replace both passwords in `env.example`, and run Compose from the generated directory:
@@ -26,7 +28,13 @@ For an isolated foundation deployment, generate the context, replace both passwo
 docker compose --env-file env.example up --build
 ```
 
-The default provider workers are disabled. Enable each worker only after its corresponding LiveKit, Tinode, storage, Redis, or quality provider configuration has been supplied.
+The default intelligence, Tinode, and Voice workers are disabled. The production Compose and Helm surfaces enable the secure-file scan and local FFmpeg derivative workers, run ClamAV only on the private workload network, and keep destructive cleanup disabled until both cleanup flags are explicitly set. Compose uses an exact ClamAV base tag for local builds; a delivery bundle requires `CLAMAV_IMAGE` to be an immutable digest reference.
+
+Notification delivery and active health workers are disabled by default. Configure distinct notification encryption/HMAC keys, Provider credentials and their environment-name allowlists before enabling them. Endpoint health checks are lease-safe across replicas, reject unsafe HTTP destinations, and use SMTP `verify()` without sending mail. The API/SDK provide template, endpoint, delivery, test, archive and guarded retry operations; see `docs/ivekit-notification-operations-runbook.md`.
+
+The integration-event Webhook bridge is also disabled by default. Migration `073_ivekit_integration_webhooks.sql` owns product-neutral subscriptions, cursors and leases in PostgreSQL. Enable `OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED=1` only after notification delivery is running and the receiving service has a durable inbox. The bridge reuses notification Webhook signing, destination protection, retries and dead letters; it never delivers directly from request handlers. See `docs/ivekit-integration-event-webhook-runbook.md`.
+
+ClamAV persists signatures under `/var/lib/clamav`, runs through the official unprivileged entrypoint, and needs substantial memory while signatures reload. The supplied limits reserve 2 GiB and allow 4 GiB. The API replicas use PostgreSQL claim leases and `FOR UPDATE SKIP LOCKED`, so scan, derivative, and cleanup jobs remain single-owner when more than one API replica runs. `clamd` port 3310 must never be published outside the Compose network or Kubernetes ClusterIP because it has no transport authentication.
 
 Run the compiled V3 configuration gate before enabling OCR, ASR, quality, or translation workers:
 
@@ -39,7 +47,32 @@ For the optional Voice profile, render the RustPBX configuration and run the Voi
 ```bash
 npm run render:rustpbx
 npm run preflight:voice
+npm run project:rustpbx-routes
 ```
+
+The Voice deployment also runs the compiled `upload:rustpbx-recordings`
+sidecar. It uploads bounded local segments outside the media path, resumes
+multipart state after restart, publishes local spool watermarks, and submits
+the final owner-bound completion marker only after every local segment has been
+confirmed. PostgreSQL advances the parent recording only when the expected
+sequence is contiguous and fully uploaded.
+
+The route projector is a long-running RustPBX sidecar, not a one-shot operator
+command. Compose and Helm provide a shared route-snapshot volume. It reads only
+active DID HMACs and applied published route versions from the iveKit PostgreSQL
+database, signs a short-lived canonical snapshot, and replaces the file
+atomically. The patched RustPBX image consumes that file without a per-INVITE
+HTTP/database lookup. Configure a tenant ID, profile ID, a distinct 32-byte
+base64 snapshot signing key, and the same voice-address HMAC root used by the
+iveKit API.
+
+The normal Compose Voice mode uses `--profile voice` and leaves owner-epoch
+enforcement disabled. Cell deployments use `--profile voice-capacity`, set
+`RUSTPBX_COMPONENT_NODE_ENABLED=true`, and configure the Region, Zone, Cell
+capacity profile, qualified dimensions and shared component-node token from
+`env.example`. That profile starts the complete Voice stack plus the compiled
+component-node sidecar in RustPBX's network namespace. Its `/readyz` remains
+unhealthy until the Cell synchronizer finishes lease and checkpoint recovery.
 
 Voice trunk and extension objects store only `env://NAME` references. For Compose, put any additional credential values in `voice-runtime.env`, set `OPC_IVEKIT_VOICE_SECRET_ENV_NAMES` to the complete comma-separated allowlist, and keep the file mode at `0600`. The optional file is injected only into the iveKit API service; it is not mounted into RustPBX, PostgreSQL, migration, or recovery containers. `RUSTPBX_MANAGEMENT_TOKEN` and `RUSTPBX_RWI_TOKEN` remain separate required variables and must stay in the allowlist.
 

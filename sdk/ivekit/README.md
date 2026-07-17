@@ -101,7 +101,24 @@ const contactCenter = await ivekit.contactCenter.getMonitorSnapshot();
 for (const queue of contactCenter.queues) {
   renderQueue(queue);
 }
+
+const endpoints = await ivekit.notifications.listEndpoints({ status: 'active' });
+const deliveries = await ivekit.notifications.listDeliveries({
+  state: 'failed', limit: 50
+});
+if (deliveries.items[0]) {
+  await ivekit.notifications.retryDelivery(deliveries.items[0].id, {
+    expected_state: 'failed'
+  });
+}
 ```
+
+The notification client covers in-app inbox state, preferences, versioned templates,
+Webhook/email/SMS endpoints, safe endpoint testing, delivery inspection and guarded
+manual retries. Endpoint responses expose only `secret_configured` flags. List cursors
+are opaque and bound to tenant plus filters. Retrying `uncertain` requires an explicit
+`allow_uncertain` request and server-side administrative capability after Provider-side
+deduplication; normal recovery should only retry `failed` or `dead_letter` deliveries.
 
 The Voice client covers deployment profiles and capability preflight, SIP trunks,
 DIDs, extensions and browser-session plans, versioned routes, outbound calls,
@@ -174,6 +191,21 @@ attachments and processing jobs, provider delivery, receipts, realtime state,
 mutations, policy findings and reviews, reactions, pins, and cursor pages. These
 types are structural and do not import OPC server modules.
 
+For Tinode-backed messages, edit and soft delete responses include
+`provider_mutation.status`; iveKit remains the UI authority while the durable native
+replacement/delete operation converges. Administrators use
+`listTinodeMutationDeadLetters()` and `replayTinodeMutationDeadLetter()` for explicit
+reconciliation. A `provider_outcome_uncertain` edit means either its publish
+acknowledgement was lost or an expired processing lease was recovered after a possible
+publish. Clients and workers must not retry it automatically; recovered deletes remain
+safe to retry.
+If a verifiable Tinode echo arrives later, iveKit corrects the durable status to
+`delivered` and writes `collaboration.message.provider_mutation_updated` to the durable
+tenant event journal in the same transaction, with `reconciled_from_status`. Realtime
+publication uses the same idempotency key, so replay/Webhook recovery survives a broadcast
+failure without creating a second logical correction. Consumers should replace their older
+dead-letter projection.
+
 The context client returns a metadata-safe business projection for unified navigation.
 Bearer callers see only chat/media resources they participate in; remote sessions and
 device summaries additionally require visible chat membership. The projection never
@@ -191,7 +223,7 @@ The event client provides durable reconnect convergence without provider credent
 const cursor = await ivekit.events.getHeadCursor();
 const replay = await ivekit.events.replay({ cursor, limit: 100, max_pages: 20 });
 if (replay.snapshot_required) {
-  // Refresh Chat, Media, and Remote snapshots, then request a new head cursor.
+  // Refresh Chat, Media, Remote, and Notification inbox snapshots, then request a new head cursor.
 } else {
   // Apply events once by event_id and retain replay.next_cursor in runtime memory.
 }
@@ -200,6 +232,41 @@ if (replay.snapshot_required) {
 Event cursors are opaque, tenant-bound, signed, and retention-limited. A 409 snapshot
 fallback is returned as a typed page instead of an exception. The SDK never exposes
 the cursor signing secret, provider credentials, or unrestricted tenant events.
+Notification clients can consume `notification.created`, `notification.delivery.updated`,
+`notification.inbox.created`, and `notification.inbox.updated`; all four are durable,
+producer-idempotent, and restricted to the target user audience.
+
+Backend integrations can ask iveKit to push selected journal events through the same
+durable notification Webhook delivery path:
+
+```typescript
+const catalog = await ivekit.events.getCatalog();
+const created = await ivekit.events.createWebhookSubscription({
+  endpoint_id: endpoint.id,
+  name: 'LED communication events',
+  event_patterns: ['collaboration.message.*', 'ivekit.media.*', 'ivekit.voice.*']
+}, { idempotencyKey: crypto.randomUUID() });
+
+await ivekit.events.updateWebhookSubscription(created.subscription.id, {
+  expected_revision: created.subscription.revision,
+  status: 'paused'
+}, { idempotencyKey: crypto.randomUUID() });
+```
+
+Only exact event names and trailing family wildcards are accepted. The selected
+notification endpoint must be an active Webhook endpoint and its event allowlist is
+still enforced. Subscription cursors, leases and retries are PostgreSQL-owned; do not
+advance them from LED code.
+
+Use `verifyIveKitWebhook()` against the exact raw body before JSON processing. It uses
+Web Crypto HMAC-SHA256, validates the outer and inner tenant/event identities, enforces
+a 1 MiB body limit, a 32-byte minimum secret and a bounded timestamp window. Its
+`IveKitWebhookReplayStore.claim()` receives the verified envelope, body SHA-256,
+delivery/event IDs and a replay expiry. The claim implementation must atomically write
+a durable PostgreSQL/Redis inbox and return false for an existing delivery. The default
+replay retention is seven days and is independent from the five-minute signature window.
+Never use an in-process Set in production. See
+`examples/webhook-receiver.ts` for the framework-neutral LED backend flow.
 
 The media client exports typed capabilities, durable call snapshots and actions,
 rooms, join plans, provider participants, host moderation, recordings, object
@@ -229,9 +296,15 @@ are never returned to the client.
 
 `ivekit.rustdesk.startSession()` adds consent-scoped launch planning, while the same client retains lower-level methods such as `startGatewaySession()` for advanced integrations. Control-enabled clients use `issueControlConfirmation()`, `acquireControl()`, `heartbeatControl()`, `transferControl()`, and `releaseControl()`. Before a keyboard/mouse, file, or clipboard action, call `confirmOperation()` and place its returned `id` in audit metadata as `operation_grant_id` together with the current `control_version`. The grant is short-lived and can be linked to only one audit event.
 
-Native integrations use `recordOperationObservation()` for view, control, multi-display, file, clipboard, recording, and disconnect evidence. Missing telemetry is sent as `not_observed`; observed success/failure requires a timestamp and SHA-256-bound evidence reference. The SDK sends metadata and hashes only, never screen pixels, keystrokes, clipboard/file contents, recording bytes, passwords, or tokens. Sensitive control/file/clipboard observations must carry the current `controlVersion` and actor identity.
+Native integrations use `recordOperationObservation()` for view, control, multi-display, file, clipboard, recording, and disconnect evidence. Missing telemetry is sent as `not_observed`; observed success/failure requires a timestamp and SHA-256-bound evidence reference. File and recording observations use the bounded `evidenceSecurity` label: `ivekit_secure_file`, `native_unscanned`, or `local_only`. The SDK sends metadata and hashes only, never screen pixels, keystrokes, clipboard/file contents, recording bytes, passwords, or tokens. Sensitive control/file/clipboard observations must carry the current `controlVersion` and actor identity.
+
+`authorizeEmergencyFallback(externalId, input)` is an owner/admin-only recovery command for the Windows companion. It requires a substantive reason and literal `collateral_sessions_may_disconnect: true`; normal disconnect never authorizes service restart. After authorization, continue polling `getGatewayDisconnectState()` and surface the execution method and physical observation instead of treating HTTP acceptance as a completed disconnect.
+
+RustDesk native file and recording bytes are not uploaded by this browser SDK. The pinned Windows companion uses the fixed `rustdesk-native-evidence-v1` producer/watcher/uploader chain and publishes durable `remote.rustdesk.evidence.security_updated`, `.derivative_updated`, `.intelligence_enqueued`, `.intelligence_updated`, and `.quality_updated` events. The service idempotently reconciles ready evidence that missed its convergence callback, so clients may receive the enqueue event after process recovery. Product clients may render those metadata-only events, but must keep `native_unscanned` and `local_only` distinct from `ivekit_secure_file`.
 
 `getClientProfile()` returns a separately typed, pinned desktop distribution profile. Both expected server pins are mandatory. The SDK validates the requested platform/architecture, exact client and server versions, canonical 32-byte RustDesk public key, a Web Crypto-derived server-key fingerprint, canonical timestamps, expiry, a 60-second to one-hour lifetime, and exact release/platform/architecture installer identity. Official filenames use `rustdesk-1.4.7-<architecture>.<platform-extension>` without a platform token. Installer filenames are bounded canonical ASCII and URL basenames may not use whitespace, controls, Unicode, or percent escapes. A missing deployment artifact is returned as `install_source.state = 'not_configured'`; the SDK never downloads or executes it. Unattended access additionally requires an active access policy, active consent, and a fresh `unattended_launch` confirmation before `getGatewayLaunchPlan()` returns a usable plan.
+
+The controlled placement-enabled Windows package accepts only an iveKit 1.4.7 artifact that declares both `ivekit-rustdesk-native-control-v2` and `rustdesk-native-evidence-v1`. The SDK preserves v1 and v2 in the typed client profile, but v1 is valid only for a rolling package with Cell placement disabled. Official unmodified binaries remain valid general client-profile artifacts, but they cannot be used to claim owner-fenced precise disconnect or automatic native-evidence capabilities.
 
 Browser and desktop webview clients must use a short-lived `accessToken`. Backend integrations may use `apiKey` instead. Exactly one authentication mode is required, and an API key must never be embedded in a browser or desktop webview bundle.
 

@@ -51,6 +51,8 @@ export interface MediaCallState {
   readonly autoplayBlocked: boolean;
   readonly fatalReason: string;
   readonly revokedReason: string;
+  readonly screenShareRecoveryRequired: boolean;
+  readonly screenShareRecoveryAudio: boolean;
   readonly recordingRevision: number;
 }
 
@@ -68,6 +70,10 @@ export type MediaAction =
   | { type: 'audio_started' }
   | { type: 'recording_invalidated' }
   | { type: 'network_changed'; online: boolean }
+  | { type: 'rejoin_started' }
+  | { type: 'rejoin_retry' }
+  | { type: 'rejoin_exhausted'; reason: string }
+  | { type: 'screen_share_recovery_cleared' }
   | { type: 'revoked'; reason: string };
 
 const localOff: MediaLocalState = Object.freeze({
@@ -95,6 +101,8 @@ export function initialMediaCallState(): MediaCallState {
     autoplayBlocked: false,
     fatalReason: '',
     revokedReason: '',
+    screenShareRecoveryRequired: false,
+    screenShareRecoveryAudio: false,
     recordingRevision: 0
   };
 }
@@ -128,7 +136,16 @@ export function mediaCallReducer(state: MediaCallState, action: MediaAction): Me
     case 'command_succeeded':
       return updateCommand(state, action.command, { pending: false, error: '' });
     case 'local_changed':
-      return { ...state, local: Object.freeze({ ...state.local, ...action.local }) };
+      return {
+        ...state,
+        local: Object.freeze({ ...state.local, ...action.local }),
+        screenShareRecoveryRequired: action.local.screen === undefined
+          ? state.screenShareRecoveryRequired
+          : false,
+        screenShareRecoveryAudio: action.local.screen === undefined
+          ? state.screenShareRecoveryAudio
+          : false
+      };
     case 'layout_changed':
       return { ...state, layout: action.layout };
     case 'track_mute_confirmed':
@@ -140,12 +157,34 @@ export function mediaCallReducer(state: MediaCallState, action: MediaAction): Me
     case 'network_changed':
       if (state.connection === 'ended' || state.connection === 'fatal') return state;
       return { ...state, connection: action.online ? (state.connection === 'offline' ? 'reconnecting' : state.connection) : 'offline' };
+    case 'rejoin_started':
+      return {
+        ...clearProviderProjection(state),
+        connection: 'reconnecting',
+        fatalReason: '',
+        local: Object.freeze({ ...state.local, screen: false, screenAudio: false })
+      };
+    case 'rejoin_retry':
+      return { ...clearProviderProjection(state), connection: 'reconnecting', fatalReason: '' };
+    case 'rejoin_exhausted':
+      return {
+        ...clearProviderProjection(state),
+        connection: 'fatal',
+        fatalReason: action.reason,
+        local: localOff,
+        screenShareRecoveryRequired: false,
+        screenShareRecoveryAudio: false
+      };
+    case 'screen_share_recovery_cleared':
+      return { ...state, screenShareRecoveryRequired: false, screenShareRecoveryAudio: false };
     case 'revoked':
       return {
         ...clearProviderProjection(state),
         connection: 'ended',
         local: localOff,
-        revokedReason: action.reason
+        revokedReason: action.reason,
+        screenShareRecoveryRequired: false,
+        screenShareRecoveryAudio: false
       };
   }
 }
@@ -160,7 +199,9 @@ function applyCall(state: MediaCallState, call: IveKitMediaCall): MediaCallState
       ...clearProviderProjection(state),
       call,
       connection: 'ended',
-      local: localOff
+      local: localOff,
+      screenShareRecoveryRequired: false,
+      screenShareRecoveryAudio: false
     };
   }
   const connection = call.status === 'active' && ['idle', 'preparing'].includes(state.connection)
@@ -173,6 +214,16 @@ function applyAdapterEvent(state: MediaCallState, event: MediaAdapterEvent): Med
   switch (event.type) {
     case 'state':
       return { ...state, connection: connectionFromAdapter(event.state, state.call?.status) };
+    case 'native_reconnect':
+      return state;
+    case 'terminal_disconnect':
+      return {
+        ...clearProviderProjection(state),
+        connection: 'reconnecting',
+        local: Object.freeze({ ...state.local, screen: false, screenAudio: false }),
+        screenShareRecoveryRequired: state.screenShareRecoveryRequired || state.local.screen || state.local.screenAudio,
+        screenShareRecoveryAudio: state.screenShareRecoveryAudio || state.local.screenAudio
+      };
     case 'participant_joined':
       return { ...state, presentIdentities: addIdentity(state.presentIdentities, event.identity) };
     case 'participant_left':
@@ -205,7 +256,9 @@ function applyAdapterEvent(state: MediaCallState, event: MediaAdapterEvent): Med
         ...clearProviderProjection(state),
         connection: 'fatal',
         fatalReason: event.reason,
-        local: localOff
+        local: localOff,
+        screenShareRecoveryRequired: false,
+        screenShareRecoveryAudio: false
       };
   }
 }

@@ -101,6 +101,26 @@ test('RustDesk deployment preflight accepts edge-agent derived targets only when
   assert.equal(failedCheckIds(broken).includes('edge_agent_inputs'), true);
 });
 
+test('RustDesk deployment preflight requires a strong authorization-code secret in strict mode', () => {
+  const missingSecret = createRustDeskDeploymentPreflightReport({
+    ...validPreflightEnv(),
+    OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE: '1'
+  });
+  assert.equal(missingSecret.ok, false);
+  assert.equal(failedCheckIds(missingSecret).includes('authorization_code_secret'), true);
+  assert.equal(missingSecret.summary.authorizationCodeRequired, true);
+  assert.equal(missingSecret.summary.authorizationCodeSecretConfigured, false);
+
+  const ready = createRustDeskDeploymentPreflightReport({
+    ...validPreflightEnv(),
+    OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE: '1',
+    OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET: 'rustdesk-authorization-preflight-secret-32-bytes'
+  });
+  assert.equal(ready.ok, true);
+  assert.equal(ready.summary.authorizationCodeSecretConfigured, true);
+  assert.equal(JSON.stringify(ready).includes('rustdesk-authorization-preflight-secret'), false);
+});
+
 test('RustDesk deployment preflight gates strict physical disconnect and sanitizes edge command inputs', () => {
   const integrationDisabled = createRustDeskDeploymentPreflightReport({
     ...validPreflightEnv(),

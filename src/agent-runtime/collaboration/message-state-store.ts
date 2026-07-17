@@ -224,6 +224,7 @@ export class CollaborationMessageStateStore {
     actor_identity: string;
     body: string;
     reason?: string;
+    enqueue_provider_mutation?: boolean;
   }): Promise<CollaborationMessage> {
     const body = normalizedEditedBody(input.body);
     return this.mutateMessage({ ...input, action: 'edit', body });
@@ -235,6 +236,7 @@ export class CollaborationMessageStateStore {
     message_id: string;
     actor_identity: string;
     reason?: string;
+    enqueue_provider_mutation?: boolean;
   }): Promise<CollaborationMessage> {
     return this.mutateMessage({ ...input, action: 'delete' });
   }
@@ -308,6 +310,7 @@ export class CollaborationMessageStateStore {
     action: CollaborationMessageMutationAction;
     body?: string;
     reason?: string;
+    enqueue_provider_mutation?: boolean;
   }): Promise<CollaborationMessage> {
     const actorIdentity = requiredIdentity(input.actor_identity);
     return withPgTenant(this.pg, input.tenant_id, (scopedPg) =>
@@ -373,13 +376,14 @@ export class CollaborationMessageStateStore {
           );
         if (!updated.rows[0]) throw Object.assign(new Error('message mutation conflict'), { status: 409 });
         const afterBody = input.action === 'edit' ? input.body || '' : '';
+        const mutationId = pgId('cmut');
         await pg.query(
           `INSERT INTO collaboration_message_mutations
             (id, tenant_id, session_id, message_id, version, action, actor_identity,
              before_body_hash, after_body_hash, reason, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           [
-            pgId('cmut'),
+            mutationId,
             input.tenant_id,
             input.session_id,
             input.message_id,
@@ -392,6 +396,30 @@ export class CollaborationMessageStateStore {
             timestamp
           ]
         );
+        if (String(row.provider) === 'tinode' && input.enqueue_provider_mutation !== false) {
+          await pg.query(
+            `INSERT INTO tinode_message_mutation_outbox
+              (id, tenant_id, session_id, message_id, mutation_id, mutation_version,
+               action, provider_topic_id, target_provider_message_id, body,
+               status, attempt_count, max_attempts, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+                     'pending', 0, 5, $11, $11)
+             ON CONFLICT (tenant_id, mutation_id) DO NOTHING`,
+            [
+              pgId('tmut'),
+              input.tenant_id,
+              input.session_id,
+              input.message_id,
+              mutationId,
+              nextVersion,
+              input.action,
+              String(row.provider_topic_id || ''),
+              String(row.provider_message_id || ''),
+              afterBody,
+              timestamp
+            ]
+          );
+        }
         if (input.action === 'edit') {
           await new CollaborationStore(pg).scanPolicy({
             tenant_id: input.tenant_id,

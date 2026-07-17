@@ -7,20 +7,37 @@ import {
   runWithPgTenantContextAsync,
   withPgRequestContext
 } from '../../db-pg-tenant.js';
-import { routeCollaborationApi } from '../collaboration/collaboration-http.js';
-import { routeIveKitChatApi } from './chat-http.js';
+import {
+  prepareIveKitRustDeskPlacement,
+  routeCollaborationApi,
+  type PreparedRustDeskSessionPlacement,
+  type PreparedTinodeSessionPlacement,
+  type RouteCollaborationApiOptions
+} from '../collaboration/collaboration-http.js';
+import {
+  prepareIveKitChatPlacement,
+  routeIveKitChatApi,
+  type RouteIveKitChatApiOptions
+} from './chat-http.js';
 import {
   routeIveKitIntelligenceApi,
   type RouteIveKitIntelligenceApiOptions
 } from './intelligence-http.js';
-import { routeIveKitEventApi } from './event-http.js';
+import {
+  routeIveKitEventApi,
+  type RouteIveKitEventApiOptions
+} from './event-http.js';
 import { createIveKitMediaHooks } from './media-hooks.js';
 import {
+  prepareIveKitMediaCallPlacement,
   routeIveKitMediaApi,
+  type PreparedMediaCallPlacement,
   type RouteIveKitMediaApiOptions
 } from './media-http.js';
 import {
+  prepareIveKitVoiceCallPlacement,
   routeIveKitVoiceApi,
+  type PreparedVoiceCallPlacement,
   type RouteIveKitVoiceApiOptions
 } from './voice/http.js';
 import {
@@ -34,6 +51,31 @@ import {
 import { ContactCenterError } from './contact-center/errors.js';
 import { VoiceError } from './voice/errors.js';
 import { IvrError } from './ivr/errors.js';
+import {
+  routeIveKitNotificationApi,
+  type RouteIveKitNotificationApiOptions
+} from './notifications/http.js';
+import { NotificationError } from './notifications/errors.js';
+import {
+  routeIveKitAuditApi,
+  type RouteIveKitAuditApiOptions
+} from './operations/audit/http.js';
+import { IveKitOperationsError } from './operations/audit/errors.js';
+import { IveKitRateLimitError } from './operations/rate-limit/errors.js';
+import {
+  routeIveKitRetentionApi,
+  type RouteIveKitRetentionApiOptions
+} from './operations/retention/http.js';
+import { IveKitRetentionError } from './operations/retention/errors.js';
+import {
+  RecordingSpoolIntakeError,
+  recordingSpoolHttpPartMaxBytes
+} from './recordings/index.js';
+import {
+  createIveKitReadinessProbe,
+  type IveKitPlacementReadinessProbe,
+  type IveKitReadinessProbe
+} from './operations/readiness.js';
 import { runWithWsBroadcastBuffer } from '../../ws.js';
 
 type MediaRoute = typeof routeIveKitMediaApi;
@@ -44,6 +86,9 @@ type CollaborationRoute = typeof routeCollaborationApi;
 type VoiceRoute = typeof routeIveKitVoiceApi;
 type IvrRoute = typeof routeIveKitIvrApi;
 type ContactCenterRoute = typeof routeIveKitContactCenterApi;
+type NotificationRoute = typeof routeIveKitNotificationApi;
+type AuditRoute = typeof routeIveKitAuditApi;
+type RetentionRoute = typeof routeIveKitRetentionApi;
 
 export interface IveKitRouteAdapters {
   media: MediaRoute;
@@ -53,6 +98,9 @@ export interface IveKitRouteAdapters {
   voice: VoiceRoute;
   ivr: IvrRoute;
   contactCenter: ContactCenterRoute;
+  notifications: NotificationRoute;
+  audit: AuditRoute;
+  retention: RetentionRoute;
   collaboration: CollaborationRoute;
 }
 
@@ -61,19 +109,31 @@ export interface IveKitHttpServerInput {
   pg: PgQueryable | null;
   routes?: Partial<IveKitRouteAdapters>;
   mediaOptions?: RouteIveKitMediaApiOptions;
+  chatOptions?: RouteIveKitChatApiOptions;
+  collaborationOptions?: RouteCollaborationApiOptions;
   intelligenceOptions?: RouteIveKitIntelligenceApiOptions;
+  eventOptions?: RouteIveKitEventApiOptions;
   voiceOptions?: RouteIveKitVoiceApiOptions;
   ivrOptions?: RouteIveKitIvrApiOptions;
   contactCenterOptions?: RouteIveKitContactCenterApiOptions;
+  notificationOptions?: RouteIveKitNotificationApiOptions;
+  auditOptions?: RouteIveKitAuditApiOptions;
+  retentionOptions?: RouteIveKitRetentionApiOptions;
+  readinessProbe?: IveKitReadinessProbe;
+  placementReadinessProbe?: IveKitPlacementReadinessProbe;
 }
 
 const allowedPrefixes = [
   '/api/ivekit/media/',
   '/api/ivekit/chat/',
   '/api/ivekit/intelligence/',
+  '/api/ivekit/events/',
   '/api/ivekit/voice/',
   '/api/ivekit/ivr/',
   '/api/ivekit/contact-center/',
+  '/api/ivekit/notifications/',
+  '/api/ivekit/audit/',
+  '/api/ivekit/retention/',
   '/api/ivekit/context/',
   '/api/ivekit/rustdesk/',
   '/api/opc/rustdesk/'
@@ -81,8 +141,11 @@ const allowedPrefixes = [
 
 const allowedExactPaths = new Set([
   '/health',
+  '/livez',
+  '/readyz',
   '/metrics',
   '/api/ivekit/events',
+  '/api/ivekit/notifications',
   '/api/media/webhooks/livekit',
   '/remote/rustdesk/launch'
 ]);
@@ -96,16 +159,32 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
     voice: input.routes?.voice || routeIveKitVoiceApi,
     ivr: input.routes?.ivr || routeIveKitIvrApi,
     contactCenter: input.routes?.contactCenter || routeIveKitContactCenterApi,
+    notifications: input.routes?.notifications || routeIveKitNotificationApi,
+    audit: input.routes?.audit || routeIveKitAuditApi,
+    retention: input.routes?.retention || routeIveKitRetentionApi,
     collaboration: input.routes?.collaboration || routeCollaborationApi
   };
   const mediaOptions = input.mediaOptions || (input.pg
     ? createIveKitMediaHooks({ db: input.db, pg: input.pg })
     : {});
+  const readiness = input.readinessProbe || createIveKitReadinessProbe({
+    pg: input.pg,
+    instanceId: process.env.OPC_IVEKIT_INSTANCE_ID,
+    placementProbe: input.placementReadinessProbe
+  });
 
   return createHttpServer(async (request, response) => {
     const requestId = requestIdentifier(request.headers);
     response.setHeader('x-request-id', requestId);
     let requestPath = '/';
+    let preparedMediaCallPlacement: PreparedMediaCallPlacement | null = null;
+    let preparedMediaCallPlacementCommitted = false;
+    let preparedVoiceCallPlacement: PreparedVoiceCallPlacement | null = null;
+    let preparedVoiceCallPlacementCommitted = false;
+    let preparedTinodePlacement: PreparedTinodeSessionPlacement | null = null;
+    let preparedTinodePlacementCommitted = false;
+    let preparedRustDeskPlacement: PreparedRustDeskSessionPlacement | null = null;
+    let preparedRustDeskPlacementCommitted = false;
     try {
       const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
       const path = url.pathname;
@@ -131,8 +210,13 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         response.end();
         return;
       }
-      if (path === '/health' && request.method === 'GET') {
-        sendJson(response, 200, { ok: true, postgres: Boolean(input.pg) });
+      if (path === '/livez' && request.method === 'GET') {
+        sendJson(response, 200, { status: 'alive' });
+        return;
+      }
+      if ((path === '/health' || path === '/readyz') && request.method === 'GET') {
+        const state = await readiness.probe();
+        sendJson(response, state.status === 'ready' ? 200 : 503, state);
         return;
       }
       if (path === '/metrics' && request.method === 'GET') {
@@ -144,17 +228,40 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       const method = request.method || 'GET';
       const isAttachmentUpload = method === 'POST' &&
         /^\/api\/ivekit\/chat\/sessions\/[^/]+\/attachments\/upload$/.test(path);
+      const isSecureFileUpload = method === 'PUT' && (
+        /^\/api\/ivekit\/chat\/sessions\/[^/]+\/files\/[^/]+\/content$/.test(path) ||
+        /^\/api\/ivekit\/chat\/sessions\/[^/]+\/files\/[^/]+\/parts\/\d+$/.test(path)
+      );
+      const isRustDeskEvidenceUpload = method === 'PUT' && (
+        /^\/api\/ivekit\/rustdesk\/devices\/[^/]+\/evidence\/[^/]+\/content$/.test(path) ||
+        /^\/api\/ivekit\/rustdesk\/devices\/[^/]+\/evidence\/[^/]+\/parts\/\d+$/.test(path)
+      );
+      const isRecordingSpoolPartUpload = method === 'PUT' &&
+        /^\/api\/ivekit\/voice\/providers\/[^/]+\/recording-spool\/segments\/[^/]+\/parts\/\d+$/.test(path);
       const isLiveKitWebhook = method === 'POST' &&
         (path === '/api/ivekit/media/webhooks/livekit' || path === '/api/media/webhooks/livekit');
-      const rawBody = isAttachmentUpload
-        ? await readBuffer(request, collaborationAttachmentMaxBytes())
+      const rawBody = isAttachmentUpload || isSecureFileUpload || isRustDeskEvidenceUpload ||
+        isRecordingSpoolPartUpload
+        ? await readBuffer(
+            request,
+            isRecordingSpoolPartUpload
+              ? recordingSpoolHttpPartMaxBytes()
+              : isSecureFileUpload || isRustDeskEvidenceUpload
+                ? secureFileUploadMaxBytes()
+                : collaborationAttachmentMaxBytes()
+          )
         : await readText(request, iveKitHttpBodyMaxBytes());
-      const body = isAttachmentUpload
+      const body = isAttachmentUpload || isSecureFileUpload || isRustDeskEvidenceUpload ||
+        isRecordingSpoolPartUpload
         ? null
         : isLiveKitWebhook
           ? rawBody
           : parseJsonBody(rawBody);
-      const headers = request.headers;
+      const headers = {
+        ...request.headers,
+        'x-opc-request-id': requestId,
+        'x-opc-source-ip': request.socket.remoteAddress || ''
+      };
       const tenantContext = isVoiceProviderWebhook(method, path)
         ? {}
         : resolvePgTenantContextForRequest(path, headers, { url, body });
@@ -162,9 +269,45 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         ? '/api/ivekit/media/webhooks/livekit'
         : path;
       const mediaUrl = mediaPath === path ? url : new URL(mediaPath, url);
+      preparedMediaCallPlacement = await prepareIveKitMediaCallPlacement(
+        method,
+        mediaPath,
+        body,
+        headers,
+        mediaOptions
+      );
+      preparedTinodePlacement = await prepareIveKitChatPlacement(
+        method,
+        path,
+        headers,
+        input.chatOptions || {},
+        input.pg
+      );
+      preparedRustDeskPlacement = await prepareIveKitRustDeskPlacement(
+        method,
+        path,
+        body,
+        headers,
+        input.collaborationOptions || {},
+        input.pg
+      );
+      preparedVoiceCallPlacement = await prepareIveKitVoiceCallPlacement(
+        method,
+        path,
+        body,
+        headers,
+        input.voiceOptions || {},
+        input.pg,
+        rawBody
+      );
       const dispatch = async (pg: PgQueryable | null) => {
         const voiceResult = path.startsWith('/api/ivekit/voice/')
-          ? await routes.voice(pg, method, path, url, body, rawBody, headers, input.voiceOptions)
+          ? await routes.voice(pg, method, path, url, body, rawBody, headers, {
+              ...input.voiceOptions,
+              ...(preparedVoiceCallPlacement
+                ? { prepared_call_placement: preparedVoiceCallPlacement }
+                : {})
+            })
           : undefined;
         const ivrResult = path.startsWith('/api/ivekit/ivr/')
           ? await routes.ivr(pg, method, path, url, body, rawBody, headers, input.ivrOptions)
@@ -174,20 +317,50 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
             pg, method, path, url, body, rawBody, headers, input.contactCenterOptions
           )
           : undefined;
+        const notificationResult = path === '/api/ivekit/notifications'
+          || path.startsWith('/api/ivekit/notifications/')
+          ? await routes.notifications(
+            pg, method, path, url, body, headers, input.notificationOptions
+          )
+          : undefined;
+        const auditResult = path.startsWith('/api/ivekit/audit/')
+          ? await routes.audit(pg, method, path, url, headers, input.auditOptions)
+          : undefined;
+        const retentionResult = path.startsWith('/api/ivekit/retention/')
+          ? await routes.retention(pg, method, path, url, body, headers, input.retentionOptions)
+          : undefined;
         return await routes.media(input.db, method, mediaPath, mediaUrl, body, rawBody, headers, {
           ...mediaOptions,
+          ...(preparedMediaCallPlacement
+            ? { preparedMediaCallPlacement }
+            : {}),
           ...(pg ? { pg } : {})
         })
-        ?? await routes.events(pg, method, path, url, headers)
+        ?? await routes.events(pg, method, path, url, headers, body, input.eventOptions)
         ?? await routes.intelligence(pg, method, path, url, body, headers, {
           db: input.db,
           ...input.intelligenceOptions
         })
-        ?? await routes.chat(pg, method, path, url, body, rawBody, headers, { db: input.db })
+        ?? await routes.chat(pg, method, path, url, body, rawBody, headers, {
+          db: input.db,
+          ...input.chatOptions,
+          ...(preparedTinodePlacement
+            ? { preparedTinodePlacement }
+            : {})
+        })
+        ?? auditResult
+        ?? retentionResult
+        ?? notificationResult
         ?? contactCenterResult
         ?? ivrResult
         ?? voiceResult
-        ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, { db: input.db });
+        ?? await routes.collaboration(pg, method, path, url, body, rawBody, headers, {
+          db: input.db,
+          ...input.collaborationOptions,
+          ...(preparedRustDeskPlacement
+            ? { preparedRustDeskPlacement }
+            : {})
+        });
       };
       const buffered = await runWithWsBroadcastBuffer(() =>
         runWithPgTenantContextAsync(tenantContext, () =>
@@ -199,6 +372,26 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
       const result = buffered.result;
 
       if (result === undefined) {
+        await releasePreparedMediaCallPlacement(
+          mediaOptions,
+          preparedMediaCallPlacement
+        );
+        await releasePreparedVoiceCallPlacement(
+          input.voiceOptions,
+          preparedVoiceCallPlacement
+        );
+        await releasePreparedTinodePlacement(
+          input.chatOptions,
+          preparedTinodePlacement
+        );
+        await releasePreparedRustDeskPlacement(
+          input.collaborationOptions,
+          preparedRustDeskPlacement
+        );
+        preparedMediaCallPlacement = null;
+        preparedVoiceCallPlacement = null;
+        preparedTinodePlacement = null;
+        preparedRustDeskPlacement = null;
         if (isStructuredControlPath(path)) {
           sendJson(response, 404, voiceErrorEnvelope('not_found', false, requestId));
         } else {
@@ -206,6 +399,26 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         }
         return;
       }
+      if (preparedTinodePlacement?.reservation &&
+          !preparedTinodePlacement.persisted) {
+        await releasePreparedTinodePlacement(
+          input.chatOptions,
+          preparedTinodePlacement
+        );
+        preparedTinodePlacement = null;
+      }
+      if (preparedRustDeskPlacement?.reservation &&
+          !preparedRustDeskPlacement.persisted) {
+        await releasePreparedRustDeskPlacement(
+          input.collaborationOptions,
+          preparedRustDeskPlacement
+        );
+        preparedRustDeskPlacement = null;
+      }
+      preparedMediaCallPlacementCommitted = true;
+      preparedVoiceCallPlacementCommitted = true;
+      preparedTinodePlacementCommitted = true;
+      preparedRustDeskPlacementCommitted = true;
       await buffered.flush();
       await runAfterCommit(result);
       const output = result as Record<string, unknown>;
@@ -230,15 +443,65 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         isHeaderRecord(output.headers) ? output.headers : {}
       );
     } catch (error) {
+      if (preparedMediaCallPlacement && !preparedMediaCallPlacementCommitted) {
+        await releasePreparedMediaCallPlacement(
+          mediaOptions,
+          preparedMediaCallPlacement
+        ).catch((releaseError) => {
+          console.error(
+            '[ivekit] failed to release media placement after request failure:',
+            releaseError instanceof Error ? releaseError.message : String(releaseError)
+          );
+        });
+      }
+      if (preparedVoiceCallPlacement && !preparedVoiceCallPlacementCommitted) {
+        await releasePreparedVoiceCallPlacement(
+          input.voiceOptions,
+          preparedVoiceCallPlacement
+        ).catch((releaseError) => {
+          console.error(
+            '[ivekit] failed to release voice placement after request failure:',
+            releaseError instanceof Error ? releaseError.message : String(releaseError)
+          );
+        });
+      }
+      if (preparedTinodePlacement && !preparedTinodePlacementCommitted) {
+        await releasePreparedTinodePlacement(
+          input.chatOptions,
+          preparedTinodePlacement
+        ).catch((releaseError) => {
+          console.error(
+            '[ivekit] failed to release Tinode placement after request failure:',
+            releaseError instanceof Error ? releaseError.message : String(releaseError)
+          );
+        });
+      }
+      if (preparedRustDeskPlacement && !preparedRustDeskPlacementCommitted) {
+        await releasePreparedRustDeskPlacement(
+          input.collaborationOptions,
+          preparedRustDeskPlacement
+        ).catch((releaseError) => {
+          console.error(
+            '[ivekit] failed to release RustDesk placement after request failure:',
+            releaseError instanceof Error ? releaseError.message : String(releaseError)
+          );
+        });
+      }
       const status = Number((error as { status?: number }).status || 500);
       if (isStructuredControlPath(requestPath)) {
         const domainError = error instanceof VoiceError || error instanceof IvrError ||
-          error instanceof ContactCenterError ? error : null;
+          error instanceof ContactCenterError || error instanceof NotificationError ||
+          error instanceof IveKitOperationsError || error instanceof IveKitRateLimitError
+          || error instanceof IveKitRetentionError || error instanceof RecordingSpoolIntakeError
+            ? error : null;
         const code = domainError?.code ?? (status >= 500 ? 'internal_error' : httpVoiceErrorCode(status));
         sendJson(
           response,
           status,
-          voiceErrorEnvelope(code, domainError?.retryable === true, requestId)
+          voiceErrorEnvelope(code, domainError?.retryable === true, requestId),
+          error instanceof IveKitRateLimitError
+            ? { 'retry-after': error.retry_after_seconds }
+            : {}
         );
         return;
       }
@@ -252,15 +515,53 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
   });
 }
 
+async function releasePreparedMediaCallPlacement(
+  options: RouteIveKitMediaApiOptions,
+  prepared: PreparedMediaCallPlacement | null
+): Promise<void> {
+  if (!prepared || !options.placement) return;
+  await options.placement.releaseUncommitted(prepared.reservation);
+}
+
+async function releasePreparedVoiceCallPlacement(
+  options: RouteIveKitVoiceApiOptions | undefined,
+  prepared: PreparedVoiceCallPlacement | null
+): Promise<void> {
+  if (!options?.placement || !prepared?.reservation) return;
+  await options.placement.releaseUncommitted(prepared.reservation);
+}
+
+async function releasePreparedTinodePlacement(
+  options: RouteIveKitChatApiOptions | undefined,
+  prepared: PreparedTinodeSessionPlacement | null
+): Promise<void> {
+  if (!options?.tinodePlacement || !prepared?.reservation || prepared.persisted) return;
+  await options.tinodePlacement.releaseUncommitted(prepared.reservation);
+}
+
+async function releasePreparedRustDeskPlacement(
+  options: RouteCollaborationApiOptions | undefined,
+  prepared: PreparedRustDeskSessionPlacement | null
+): Promise<void> {
+  if (!options?.rustdeskPlacement || !prepared?.reservation || prepared.persisted) return;
+  await options.rustdeskPlacement.releaseUncommitted(prepared.reservation);
+}
+
 function isVoiceProviderWebhook(method: string, path: string): boolean {
-  return method === 'POST'
-    && (/^\/api\/ivekit\/voice\/providers\/[^/]+\/(router|events|cdrs)$/.test(path)
-      || /^\/api\/ivekit\/ivr\/provider-webhooks\/rustpbx\/[^/]+\/step$/.test(path));
+  return (method === 'POST'
+      && (/^\/api\/ivekit\/voice\/providers\/[^/]+\/(router|inbound-admission|events|cdrs)$/.test(path)
+        || /^\/api\/ivekit\/ivr\/provider-webhooks\/rustpbx\/[^/]+\/step$/.test(path)))
+    || (['GET', 'POST', 'PUT'].includes(method)
+      && (/^\/api\/ivekit\/voice\/providers\/[^/]+\/recording-spool\/segments(?:\/.*)?$/.test(path)
+        || /^\/api\/ivekit\/voice\/providers\/[^/]+\/recording-spool\/recordings\/[^/]+\/complete$/.test(path)));
 }
 
 function isStructuredControlPath(path: string): boolean {
   return path.startsWith('/api/ivekit/voice/') || path.startsWith('/api/ivekit/ivr/') ||
-    path.startsWith('/api/ivekit/contact-center/');
+    path.startsWith('/api/ivekit/contact-center/') || path === '/api/ivekit/notifications' ||
+    path.startsWith('/api/ivekit/notifications/') || path.startsWith('/api/ivekit/audit/') ||
+    path.startsWith('/api/ivekit/retention/') ||
+    path.startsWith('/api/ivekit/events/webhook-subscriptions');
 }
 
 function requestIdentifier(headers: Record<string, string | string[] | undefined>): string {
@@ -300,6 +601,18 @@ function voiceErrorMessage(code: string): string {
     webhook_auth_failed: 'voice provider webhook authentication failed',
     secret_ref_invalid: 'voice secret reference is invalid',
     secret_unavailable: 'voice secret is unavailable',
+    invalid_delivery_transition: 'notification delivery transition is not allowed',
+    terminal_delivery_state: 'notification delivery is already terminal',
+    lease_lost: 'notification delivery lease was lost',
+    provider_rejected: 'notification provider rejected the request',
+    provider_result_unknown: 'notification provider result is uncertain',
+    quota_exhausted: 'notification provider quota is exhausted',
+    rate_limited: 'notification request is rate limited',
+    audit_append_failed: 'audit service is unavailable',
+    invalid_stored_event: 'audit history contains an invalid event',
+    retention_lease_lost: 'retention worker lease was lost',
+    retention_handler_unavailable: 'retention handler is unavailable',
+    invalid_retention_result: 'retention worker returned an invalid result',
     invalid_queue_entry_transition: 'contact center queue entry transition is not allowed',
     invalid_assignment_transition: 'contact center assignment transition is not allowed',
     invalid_presence_transition: 'contact center presence transition is not allowed',
@@ -394,6 +707,14 @@ function collaborationAttachmentMaxBytes(): number {
   return value;
 }
 
+function secureFileUploadMaxBytes(): number {
+  const value = Number(process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES || 64 * 1024 * 1024);
+  if (!Number.isInteger(value) || value < 1 || value > 512 * 1024 * 1024) {
+    throw new Error('OPC_SECURE_FILE_UPLOAD_MAX_BYTES is invalid');
+  }
+  return value;
+}
+
 function allowedCorsOrigins(): Set<string> {
   return new Set(
     String(process.env.OPC_IVEKIT_ALLOWED_ORIGINS || '')
@@ -416,9 +737,12 @@ function setCorsHeaders(response: import('node:http').ServerResponse, origin: st
   response.setHeader('access-control-allow-methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   response.setHeader(
     'access-control-allow-headers',
-    'authorization,content-type,idempotency-key,x-api-key,x-tenant-id,x-upload-id,x-user-id'
+    'authorization,content-type,idempotency-key,x-api-key,x-content-sha256,x-tenant-id,x-upload-id,x-user-id'
   );
-  response.setHeader('access-control-expose-headers', 'content-disposition,content-type');
+  response.setHeader(
+    'access-control-expose-headers',
+    'content-disposition,content-type,retry-after,x-content-sha256'
+  );
   response.setHeader('access-control-max-age', '600');
   response.setHeader('vary', 'Origin');
 }

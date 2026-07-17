@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { EgressClient, EncodedFileOutput, EncodedFileType } from 'livekit-server-sdk';
+import { DirectFileOutput, EgressClient, EncodedFileOutput, EncodedFileType } from 'livekit-server-sdk';
 import { all, id, json, one, parseJson, run } from '../../db-compat.js';
 import {
   assertRecordingObjectExportSize,
@@ -10,7 +10,11 @@ import {
 import { isLiveKitConfigured, readLiveKitConfig } from './config.js';
 import type {
   EgressRecord,
+  LiveKitEgressJob,
   LiveKitEgressClientLike,
+  LiveKitEgressPlacementReservation,
+  LiveKitRecordingMode,
+  LiveKitRecordingTrackSelector,
   LiveKitRecordingDependencies,
   LiveKitRecordingServiceApi,
   MediaBusinessRef,
@@ -139,6 +143,7 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     opts: StartRecordingOptions = {}
   ): Promise<EgressRecord> {
     const format = normalizeFormat(opts.format);
+    const recordingPlan = normalizeRecordingPlan(opts);
     const businessRef = normalizeBusinessRef(tenantId, callSessionId, opts.businessRef);
     const now = this.now();
     const timestamp = now.getTime();
@@ -146,13 +151,24 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     const storageRefType = safeStorageSegment(businessRef?.type || 'unbound');
     const storageRefId = safeStorageSegment(businessRef?.id || callSessionId || 'unbound');
     const recordId = id('crec');
-    const objectKey = `${safeStorageSegment(tenantId)}/${storageRefType}/${storageRefId}/${timestamp}-${safeStorageSegment(recordId)}.${format}`;
-    const storageUrl = `s3://${bucket}/${objectKey}`;
-    const lkConfig = configFromEgressConfig(this.config);
+    const jobs = buildEgressJobPlans({
+      tenantId,
+      storageRefType,
+      storageRefId,
+      timestamp,
+      recordId,
+      format,
+      bucket,
+      recordingPlan
+    });
+    const storageUrl = jobs[0]!.storageUrl;
+    const lkConfig = await this.resolveLiveKitConfig({
+      tenant_id: tenantId,
+      media_call_id: String(opts.mediaCallId || ''),
+      room_name: roomName
+    });
     const providerConfigured = isLiveKitConfigured(lkConfig);
-    const pendingEgressId = providerConfigured
-      ? ''
-      : `egress_pending_${recordId}`;
+    const pendingEgressId = providerConfigured ? '' : `egress_pending_${jobs[0]!.jobId}`;
     const tenantRetentionDays = opts.retentionUntil || opts.retentionDays != null
       ? undefined
       : await this.resolveTenantRetentionDays(tenantId);
@@ -165,14 +181,37 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     const activeRecording = this.getActiveRecordingByRoom(tenantId, roomName);
     if (activeRecording) throw activeRecordingConflict(activeRecording.id);
 
+    const reservations = new Map<string, LiveKitEgressPlacementReservation>();
+    if (providerConfigured && this.deps.reserveEgressJob) {
+      try {
+        for (const job of jobs) {
+          const reservation = await this.deps.reserveEgressJob({
+            tenant_id: tenantId,
+            recording_id: recordId,
+            job_id: job.jobId,
+            room_name: roomName,
+            recording_mode: recordingPlan.mode,
+            business_ref: businessRef
+          });
+          if (reservation.job_id !== job.jobId || !reservation.reservation_id || !reservation.owner_epoch) {
+            throw new Error('invalid LiveKit Egress placement reservation');
+          }
+          reservations.set(job.jobId, reservation);
+        }
+      } catch (cause) {
+        await this.closeEgressReservations(reservations, 'egress_reservation_failed');
+        throw cause;
+      }
+    }
+
     try {
       run(
         this.db,
         `INSERT INTO call_recordings
           (id, tenant_id, call_session_id, media_call_id, room_name, business_ref_type, business_ref_id, business_ref_metadata,
-           source, format, storage_url, has_video, egress_id, status, retention_until,
+           source, format, storage_url, has_video, recording_mode, egress_id, status, retention_until,
            object_status, failure_code, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'livekit_egress', ?, ?, ?, ?, ?, ?, 'unchecked', '', CURRENT_TIMESTAMP)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'livekit_egress', ?, ?, ?, ?, ?, ?, ?, 'unchecked', '', CURRENT_TIMESTAMP)`,
         [
           recordId,
           tenantId,
@@ -187,13 +226,45 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
           }),
           format,
           storageUrl,
-          opts.hasVideo ? 1 : 0,
+          recordingPlan.hasVideo ? 1 : 0,
+          recordingPlan.mode,
           pendingEgressId,
           providerConfigured ? 'starting' : 'pending',
           retentionUntil
         ]
       );
+      for (const [jobIndex, job] of jobs.entries()) {
+        run(
+          this.db,
+          `INSERT INTO livekit_egress_jobs
+            (id, tenant_id, recording_id, job_sequence, room_name, recording_mode, track_id, track_kind,
+             track_source, audio_track_id, video_track_id, storage_url, egress_id, status,
+             failure_code, reservation_id, owner_epoch, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, CURRENT_TIMESTAMP)`,
+          [
+            job.jobId,
+            tenantId,
+            recordId,
+            jobIndex + 1,
+            roomName,
+            recordingPlan.mode,
+            job.trackId,
+            job.trackKind,
+            job.trackSource,
+            job.audioTrackId,
+            job.videoTrackId,
+            job.storageUrl,
+            providerConfigured ? '' : `egress_pending_${job.jobId}`,
+            providerConfigured ? 'starting' : 'pending',
+            reservations.get(job.jobId)?.reservation_id || '',
+            reservations.get(job.jobId)?.owner_epoch || null
+          ]
+        );
+      }
     } catch (cause) {
+      await this.closeEgressReservations(reservations, 'egress_persistence_failed');
+      run(this.db, 'DELETE FROM livekit_egress_jobs WHERE recording_id = ?', [recordId]);
+      run(this.db, 'DELETE FROM call_recordings WHERE id = ?', [recordId]);
       const concurrent = this.getActiveRecordingByRoom(tenantId, roomName);
       if (concurrent) throw activeRecordingConflict(concurrent.id);
       throw cause;
@@ -201,36 +272,69 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
 
     if (providerConfigured) {
       let client: LiveKitEgressClientLike | undefined;
-      let startedEgressId = '';
+      const startedEgressIds: string[] = [];
+      let failureCode = 'livekit_egress_start_failed';
       try {
-        client = this.createEgressClient(lkConfig.url!, lkConfig.apiKey!, lkConfig.apiSecret!);
-        const output = new EncodedFileOutput({
-          fileType: mapFileType(format),
-          filepath: objectKey
-        });
-        const info = await client.startRoomCompositeEgress(roomName, output, {
-          audioOnly: !opts.hasVideo
-        });
-        startedEgressId = String(info.egressId || '').trim();
-        if (!startedEgressId) throw new Error('missing egress id');
-        run(
-          this.db,
-          `UPDATE call_recordings
-           SET egress_id = ?, status = 'recording', failure_code = '', updated_at = CURRENT_TIMESTAMP
-           WHERE id = ?`,
-          [startedEgressId, recordId]
-        );
-      } catch {
-        let failureCode = startedEgressId
-          ? 'livekit_egress_persistence_failed'
-          : 'livekit_egress_start_failed';
-        if (startedEgressId && client) {
+        client = this.createEgressClient(lkConfig);
+        for (const job of jobs) {
+          const info = await startProviderEgressJob(client, roomName, format, job, recordingPlan);
+          const startedEgressId = String(info.egressId || '').trim();
+          if (!startedEgressId) throw new Error('missing egress id');
+          startedEgressIds.push(startedEgressId);
           try {
-            await client.stopEgress(startedEgressId);
-          } catch {
-            failureCode = 'livekit_egress_compensation_failed';
+            run(
+              this.db,
+              `UPDATE livekit_egress_jobs
+               SET egress_id = ?, status = 'recording', failure_code = '', updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+              [startedEgressId, job.jobId]
+            );
+            const reservation = reservations.get(job.jobId);
+            if (reservation && this.deps.activateEgressJob) {
+              try {
+                await this.deps.activateEgressJob(reservation);
+              } catch (cause) {
+                failureCode = 'livekit_egress_admission_activation_failed';
+                throw cause;
+              }
+            }
+          } catch (cause) {
+            if (failureCode !== 'livekit_egress_admission_activation_failed') {
+              failureCode = 'livekit_egress_persistence_failed';
+            }
+            throw cause;
           }
         }
+        try {
+          run(
+            this.db,
+            `UPDATE call_recordings
+             SET egress_id = ?, status = 'recording', failure_code = '', updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [startedEgressIds[0], recordId]
+          );
+        } catch (cause) {
+          failureCode = 'livekit_egress_persistence_failed';
+          throw cause;
+        }
+      } catch {
+        if (client) {
+          for (const egressId of startedEgressIds) {
+            try {
+              await client.stopEgress(egressId);
+            } catch {
+              failureCode = 'livekit_egress_compensation_failed';
+            }
+          }
+        }
+        await this.closeEgressReservations(reservations, failureCode);
+        run(
+          this.db,
+          `UPDATE livekit_egress_jobs
+           SET status = 'failed', failure_code = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE recording_id = ? AND status IN ('starting', 'recording')`,
+          [failureCode, recordId]
+        );
         run(
           this.db,
           `UPDATE call_recordings
@@ -261,11 +365,48 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
       return record;
     }
 
-    const lkConfig = configFromEgressConfig(this.config);
+    const lkConfig = await this.resolveLiveKitConfig({
+      tenant_id: record.tenant_id,
+      media_call_id: String(record.media_call_id || ''),
+      room_name: String(record.room_name || '')
+    });
+    const jobs = this.listEgressJobs(record.id);
     if (isLiveKitConfigured(lkConfig) && record.status !== 'pending') {
-      try {
-        const client = this.createEgressClient(lkConfig.url!, lkConfig.apiKey!, lkConfig.apiSecret!);
-        await client.stopEgress(egressId);
+      const client = this.createEgressClient(lkConfig);
+      const activeJobs = jobs.filter((job) =>
+        ['starting', 'recording', 'stopping'].includes(job.status) &&
+        job.egress_id && !job.egress_id.startsWith('egress_pending_')
+      );
+      const providerIds = activeJobs.length > 0
+        ? activeJobs.map((job) => ({ jobId: job.id, egressId: job.egress_id }))
+        : [{ jobId: '', egressId }];
+      let stopFailed = false;
+      for (const provider of providerIds) {
+        try {
+          await client.stopEgress(provider.egressId);
+          if (provider.jobId) {
+            run(
+              this.db,
+              `UPDATE livekit_egress_jobs
+               SET status = 'stopping', failure_code = '', updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+              [provider.jobId]
+            );
+          }
+        } catch {
+          stopFailed = true;
+          if (provider.jobId) {
+            run(
+              this.db,
+              `UPDATE livekit_egress_jobs
+               SET failure_code = 'livekit_egress_stop_failed', updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+              [provider.jobId]
+            );
+          }
+        }
+      }
+      if (!stopFailed) {
         run(
           this.db,
           `UPDATE call_recordings
@@ -273,7 +414,7 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
            WHERE id = ?`,
           [record.id]
         );
-      } catch {
+      } else {
         run(
           this.db,
           `UPDATE call_recordings
@@ -284,6 +425,13 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
         throw providerFailure('livekit_egress_stop_failed', record.id);
       }
     } else {
+      run(
+        this.db,
+        `UPDATE livekit_egress_jobs
+         SET status = 'stopped', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+         WHERE recording_id = ? AND status IN ('starting', 'pending', 'recording', 'stopping')`,
+        [record.id]
+      );
       run(
         this.db,
         `UPDATE call_recordings
@@ -303,8 +451,34 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
 
   getRecordingByEgressId(egressId: string): EgressRecord | null {
     if (!egressId) return null;
-    const row = one(this.db, 'SELECT * FROM call_recordings WHERE egress_id = ?', [egressId]);
+    const row = one(
+      this.db,
+      `SELECT recording.*
+       FROM call_recordings recording
+       LEFT JOIN livekit_egress_jobs job ON job.recording_id = recording.id
+       WHERE recording.egress_id = ? OR job.egress_id = ?
+       ORDER BY recording.created_at DESC LIMIT 1`,
+      [egressId, egressId]
+    );
     return row ? decodeEgressRecord(row) : null;
+  }
+
+  listEgressJobs(recordingId: string): LiveKitEgressJob[] {
+    return all(
+      this.db,
+      `SELECT * FROM livekit_egress_jobs
+       WHERE recording_id = ? ORDER BY job_sequence ASC, id ASC`,
+      [recordingId]
+    ).map(decodeLiveKitEgressJob);
+  }
+
+  getEgressJob(recordingId: string, jobId: string): LiveKitEgressJob | null {
+    const row = one(
+      this.db,
+      'SELECT * FROM livekit_egress_jobs WHERE recording_id = ? AND id = ?',
+      [recordingId, jobId]
+    );
+    return row ? decodeLiveKitEgressJob(row) : null;
   }
 
   private getActiveRecordingByRoom(tenantId: string, roomName: string): EgressRecord | null {
@@ -408,6 +582,48 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     };
   }
 
+  async inspectJobObject(recordingId: string, jobId: string): Promise<RecordingObjectInspection | null> {
+    const recording = this.getRecording(recordingId);
+    const job = this.getEgressJob(recordingId, jobId);
+    if (!recording || !job) return null;
+    const resolved = await this.resolveObject(recordingObjectForJob(recording, job));
+    const inspection = inspectionFromContent(resolved);
+    this.markJobObjectChecked(job.id, inspection.status);
+    return inspection;
+  }
+
+  async exportJobObject(recordingId: string, jobId: string): Promise<RecordingObjectExport | null> {
+    const recording = this.getRecording(recordingId);
+    const job = this.getEgressJob(recordingId, jobId);
+    if (!recording || !job) return null;
+    const object = recordingObjectForJob(recording, job);
+    const filename = `${safeStorageSegment(job.id)}.${recording.format}`;
+    if (this.deps.resolveRecordingObjectStream || !this.deps.resolveRecordingObject) {
+      const resolved = await (this.deps.resolveRecordingObjectStream?.(object) || resolveRecordingObjectStream(object));
+      const readable = resolved.status === 'readable' && Boolean(resolved.stream);
+      this.markJobObjectChecked(job.id, resolved.status);
+      return {
+        status: resolved.status,
+        readable,
+        ...(resolved.source ? { source: resolved.source } : {}),
+        size_bytes: resolved.size_bytes || 0,
+        checksum: '',
+        stream: resolved.stream,
+        content_type: contentTypeForFormat(recording.format),
+        filename
+      };
+    }
+    const resolved = await this.resolveObject(object);
+    const inspection = inspectionFromContent(resolved);
+    this.markJobObjectChecked(job.id, inspection.status);
+    return {
+      ...inspection,
+      content: resolved.content,
+      content_type: contentTypeForFormat(recording.format),
+      filename
+    };
+  }
+
   listRetentionCandidates(
     tenantId: string,
     opts: { before?: string; limit?: number } = {}
@@ -451,13 +667,26 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     if (dryRun) return summary;
 
     for (const recording of candidates) {
-      let result: RecordingObjectDeleteResult;
-      try {
-        result = await this.deleteObject(recording);
-      } catch {
-        result = { status: 'delete_failed', error: 'recording_object_delete_failed' };
+      const jobs = this.listEgressJobs(recording.id);
+      const objects = jobs.length > 0
+        ? jobs.filter((job) => job.object_status !== 'deleted')
+        : [null];
+      const results: RecordingObjectDeleteResult[] = [];
+      for (const job of objects) {
+        let result: RecordingObjectDeleteResult;
+        try {
+          result = await this.deleteObject(
+            job && jobs.length > 1 ? recordingObjectForJob(recording, job) : recording
+          );
+        } catch {
+          result = { status: 'delete_failed', error: 'recording_object_delete_failed' };
+        }
+        results.push(result);
+        if (job) this.markJobObjectDeleted(job.id, result);
       }
-      if (result.status === 'deleted' || result.status === 'not_found') {
+      const failure = results.find((result) => result.status !== 'deleted' && result.status !== 'not_found');
+      const result = failure || results.at(-1) || { status: 'deleted' as const };
+      if (!failure) {
         const deletedAt = this.now().toISOString();
         const deletedRecording: EgressRecord = {
           ...recording,
@@ -526,6 +755,18 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     return this.deps.now?.() || new Date();
   }
 
+  private async closeEgressReservations(
+    reservations: Map<string, LiveKitEgressPlacementReservation>,
+    reason: string
+  ): Promise<void> {
+    if (!this.deps.closeEgressJob) return;
+    await Promise.allSettled(
+      [...reservations.values()].map((reservation) =>
+        this.deps.closeEgressJob!(reservation, reason)
+      )
+    );
+  }
+
   private async resolveTenantRetentionDays(tenantId: string): Promise<number | undefined> {
     if (!this.deps.resolveRetentionDays) return undefined;
     try {
@@ -535,8 +776,20 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
     }
   }
 
-  private createEgressClient(url: string, apiKey: string, apiSecret: string): LiveKitEgressClientLike {
-    return this.deps.createEgressClient?.() || new EgressClient(toHttpUrl(url), apiKey, apiSecret);
+  private async resolveLiveKitConfig(input: {
+    tenant_id: string;
+    media_call_id: string;
+    room_name: string;
+  }) {
+    const base = configFromEgressConfig(this.config);
+    return this.deps.resolveLiveKitConfig
+      ? this.deps.resolveLiveKitConfig(input, base)
+      : base;
+  }
+
+  private createEgressClient(config: ReturnType<typeof configFromEgressConfig>): LiveKitEgressClientLike {
+    return this.deps.createEgressClient?.(config) ||
+      new EgressClient(toHttpUrl(config.url!), config.apiKey!, config.apiSecret!);
   }
 
   private async resolveObject(recording: EgressRecord): Promise<RecordingObjectContentResult> {
@@ -558,6 +811,33 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
       [status, recordingId]
     );
   }
+
+  private markJobObjectChecked(jobId: string, status: RecordingObjectContentResult['status']): void {
+    run(
+      this.db,
+      `UPDATE livekit_egress_jobs
+       SET object_status = ?, object_checked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [status, jobId]
+    );
+  }
+
+  private markJobObjectDeleted(jobId: string, result: RecordingObjectDeleteResult): void {
+    const deleted = result.status === 'deleted' || result.status === 'not_found';
+    run(
+      this.db,
+      `UPDATE livekit_egress_jobs
+       SET object_status = ?, object_checked_at = CURRENT_TIMESTAMP,
+           deleted_at = CASE WHEN ? = 1 THEN COALESCE(deleted_at, CURRENT_TIMESTAMP) ELSE deleted_at END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [deleted ? 'deleted' : result.status === 'unsupported' ? 'unsupported' : 'delete_failed', deleted ? 1 : 0, jobId]
+    );
+  }
+}
+
+function recordingObjectForJob(recording: EgressRecord, job: LiveKitEgressJob): EgressRecord {
+  return { ...recording, storage_url: job.storage_url };
 }
 
 function inspectionFromContent(result: RecordingObjectContentResult): RecordingObjectInspection {
@@ -577,6 +857,172 @@ function normalizeFormat(value: RecordingFormat | undefined): RecordingFormat {
   const format = value || 'ogg';
   if (format === 'mp4' || format === 'webm' || format === 'wav' || format === 'ogg') return format;
   throw Object.assign(new Error('unsupported recording format'), { status: 400 });
+}
+
+interface NormalizedRecordingPlan {
+  mode: LiveKitRecordingMode;
+  tracks: LiveKitRecordingTrackSelector[];
+  audioTrackId: string;
+  videoTrackId: string;
+  hasVideo: boolean;
+}
+
+interface EgressJobPlan {
+  jobId: string;
+  objectKey: string;
+  storageUrl: string;
+  trackId: string;
+  trackKind: string;
+  trackSource: string;
+  audioTrackId: string;
+  videoTrackId: string;
+}
+
+function normalizeRecordingPlan(opts: StartRecordingOptions): NormalizedRecordingPlan {
+  const mode = opts.recordingMode || 'room_composite';
+  if (!['track', 'track_composite', 'room_composite'].includes(mode)) {
+    throw recordingInputError('unsupported recording mode');
+  }
+  const tracks = Array.isArray(opts.tracks)
+    ? opts.tracks.map((track) => normalizeTrackSelector(track))
+    : [];
+  const audioTrackId = normalizeTrackId(opts.audioTrackId, 'audio_track_id', false);
+  const videoTrackId = normalizeTrackId(opts.videoTrackId, 'video_track_id', false);
+  if (tracks.length > 64) throw recordingInputError('tracks must contain at most 64 entries');
+
+  if (mode === 'track') {
+    if (tracks.length === 0) throw recordingInputError('tracks are required for track recording');
+    if (audioTrackId || videoTrackId) {
+      throw recordingInputError('track recording does not accept composite selectors');
+    }
+    if (new Set(tracks.map((track) => track.trackId)).size !== tracks.length) {
+      throw recordingInputError('tracks must be unique');
+    }
+  } else if (mode === 'track_composite') {
+    if (tracks.length > 0) throw recordingInputError('track composite does not accept tracks');
+    if (!audioTrackId && !videoTrackId) {
+      throw recordingInputError('audio_track_id or video_track_id is required');
+    }
+    if (audioTrackId && audioTrackId === videoTrackId) {
+      throw recordingInputError('audio and video track ids must differ');
+    }
+  } else if (tracks.length > 0 || audioTrackId || videoTrackId) {
+    throw recordingInputError('room composite does not accept track selectors');
+  }
+
+  return {
+    mode,
+    tracks,
+    audioTrackId,
+    videoTrackId,
+    hasVideo: mode === 'track'
+      ? tracks.some((track) => track.kind === 'video')
+      : mode === 'track_composite'
+        ? Boolean(videoTrackId)
+        : Boolean(opts.hasVideo)
+  };
+}
+
+function normalizeTrackSelector(value: LiveKitRecordingTrackSelector): LiveKitRecordingTrackSelector {
+  if (!value || typeof value !== 'object') throw recordingInputError('invalid track selector');
+  const trackId = normalizeTrackId(value.trackId, 'track_id', true);
+  const kind = String(value.kind || '');
+  const source = String(value.source || 'unknown');
+  if (!['audio', 'video'].includes(kind)) throw recordingInputError('invalid track kind');
+  if (!['microphone', 'camera', 'screen_share', 'screen_share_audio', 'unknown'].includes(source)) {
+    throw recordingInputError('invalid track source');
+  }
+  return {
+    trackId,
+    kind: kind as LiveKitRecordingTrackSelector['kind'],
+    source: source as LiveKitRecordingTrackSelector['source']
+  };
+}
+
+function normalizeTrackId(value: string | undefined, field: string, required: boolean): string {
+  const normalized = String(value || '').trim();
+  if (!normalized && required) throw recordingInputError(`${field} is required`);
+  if (normalized.length > 256 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw recordingInputError(`${field} is invalid`);
+  }
+  return normalized;
+}
+
+function recordingInputError(message: string): Error & { status: number } {
+  return Object.assign(new Error(message), { status: 400 });
+}
+
+function buildEgressJobPlans(input: {
+  tenantId: string;
+  storageRefType: string;
+  storageRefId: string;
+  timestamp: number;
+  recordId: string;
+  format: RecordingFormat;
+  bucket: string;
+  recordingPlan: NormalizedRecordingPlan;
+}): EgressJobPlan[] {
+  const prefix = `${safeStorageSegment(input.tenantId)}/${input.storageRefType}/${input.storageRefId}`;
+  const stem = `${input.timestamp}-${safeStorageSegment(input.recordId)}`;
+  if (input.recordingPlan.mode !== 'track') {
+    const objectKey = `${prefix}/${stem}.${input.format}`;
+    return [{
+      jobId: id('lkeg'),
+      objectKey,
+      storageUrl: `s3://${input.bucket}/${objectKey}`,
+      trackId: '',
+      trackKind: '',
+      trackSource: '',
+      audioTrackId: input.recordingPlan.audioTrackId,
+      videoTrackId: input.recordingPlan.videoTrackId
+    }];
+  }
+  return input.recordingPlan.tracks.map((track, index) => {
+    const objectKey = `${prefix}/${stem}/${String(index + 1).padStart(2, '0')}-${safeStorageSegment(track.kind)}-${safeStorageSegment(track.source)}-${safeStorageSegment(track.trackId)}.${input.format}`;
+    return {
+      jobId: id('lkeg'),
+      objectKey,
+      storageUrl: `s3://${input.bucket}/${objectKey}`,
+      trackId: track.trackId,
+      trackKind: track.kind,
+      trackSource: track.source,
+      audioTrackId: '',
+      videoTrackId: ''
+    };
+  });
+}
+
+async function startProviderEgressJob(
+  client: LiveKitEgressClientLike,
+  roomName: string,
+  format: RecordingFormat,
+  job: EgressJobPlan,
+  recordingPlan: NormalizedRecordingPlan
+): Promise<{ egressId?: string | null }> {
+  if (recordingPlan.mode === 'track') {
+    if (!client.startTrackEgress) throw new Error('LiveKit TrackEgress is unavailable');
+    return client.startTrackEgress(
+      roomName,
+      new DirectFileOutput({ filepath: job.objectKey }),
+      job.trackId
+    );
+  }
+  const output = new EncodedFileOutput({
+    fileType: mapFileType(format),
+    filepath: job.objectKey
+  });
+  if (recordingPlan.mode === 'track_composite') {
+    if (!client.startTrackCompositeEgress) {
+      throw new Error('LiveKit TrackCompositeEgress is unavailable');
+    }
+    return client.startTrackCompositeEgress(roomName, output, {
+      audioTrackId: job.audioTrackId || undefined,
+      videoTrackId: job.videoTrackId || undefined
+    });
+  }
+  return client.startRoomCompositeEgress(roomName, output, {
+    audioOnly: !recordingPlan.hasVideo
+  });
 }
 
 function normalizeTimestamp(value: string, field: string): string {
@@ -689,12 +1135,50 @@ export function decodeEgressRecord(row: Record<string, unknown>): EgressRecord {
     duration_ms: row.duration_ms != null ? Number(row.duration_ms) : null,
     file_size_bytes: row.file_size_bytes != null ? Number(row.file_size_bytes) : null,
     has_video: Number(row.has_video || 0),
+    recording_mode: String(row.recording_mode || 'room_composite') as EgressRecord['recording_mode'],
     egress_id: String(row.egress_id || ''),
     status: String(row.status || 'completed') as EgressRecord['status'],
     retention_until: String(row.retention_until || ''),
     object_status: String(row.object_status || 'unchecked') as EgressRecord['object_status'],
     object_checked_at: row.object_checked_at ? String(row.object_checked_at) : null,
     failure_code: String(row.failure_code || ''),
+    completed_at: row.completed_at ? String(row.completed_at) : null,
+    deleted_at: row.deleted_at ? String(row.deleted_at) : null,
+    updated_at: String(row.updated_at || createdAt),
+    created_at: createdAt
+  };
+}
+
+export function decodeLiveKitEgressJob(row: Record<string, unknown>): LiveKitEgressJob {
+  const createdAt = String(row.created_at || '');
+  return {
+    id: String(row.id),
+    tenant_id: String(row.tenant_id),
+    recording_id: String(row.recording_id),
+    job_sequence: Number(row.job_sequence || 0),
+    room_name: String(row.room_name || ''),
+    recording_mode: String(row.recording_mode || 'room_composite') as LiveKitEgressJob['recording_mode'],
+    track_id: String(row.track_id || ''),
+    track_kind: String(row.track_kind || ''),
+    track_source: String(row.track_source || ''),
+    audio_track_id: String(row.audio_track_id || ''),
+    video_track_id: String(row.video_track_id || ''),
+    storage_url: String(row.storage_url || ''),
+    egress_id: String(row.egress_id || ''),
+    status: String(row.status || 'pending') as LiveKitEgressJob['status'],
+    failure_code: String(row.failure_code || ''),
+    reservation_id: String(row.reservation_id || ''),
+    owner_epoch: String(row.owner_epoch || ''),
+    duration_ms: row.duration_ms == null ? null : Number(row.duration_ms),
+    file_size_bytes: row.file_size_bytes == null ? null : Number(row.file_size_bytes),
+    object_status: String(row.object_status || 'unchecked') as LiveKitEgressJob['object_status'],
+    object_checked_at: row.object_checked_at ? String(row.object_checked_at) : null,
+    provider_observed_at: row.provider_observed_at ? String(row.provider_observed_at) : null,
+    provider_missing_count: Number(row.provider_missing_count || 0),
+    reconcile_attempts: Number(row.reconcile_attempts || 0),
+    reconcile_after: String(row.reconcile_after || row.updated_at || createdAt),
+    reconcile_lease_until: row.reconcile_lease_until ? String(row.reconcile_lease_until) : null,
+    reconcile_worker_id: String(row.reconcile_worker_id || ''),
     completed_at: row.completed_at ? String(row.completed_at) : null,
     deleted_at: row.deleted_at ? String(row.deleted_at) : null,
     updated_at: String(row.updated_at || createdAt),

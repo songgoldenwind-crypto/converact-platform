@@ -2,6 +2,7 @@ import type { PgQueryable } from '../../db-pg.js';
 import { pgId, withPgTransaction } from '../../db-pg.js';
 import { scanTextPolicy } from './policy-scan.js';
 import { PolicyFindingStore } from './policy-finding-store.js';
+import { SessionPolicyAggregation } from './session-policy-aggregation.js';
 import type {
   BusinessRef,
   CollaborationChatBinding,
@@ -25,6 +26,7 @@ import type {
 import type { PolicyEvidenceRef, PolicyFindingSource } from './types.js';
 
 export interface CollaborationMessageAttachmentInput {
+  secure_file_id?: string;
   kind: CollaborationMessageAttachmentKind;
   storage_url: string;
   filename?: string;
@@ -721,6 +723,7 @@ export class CollaborationStore {
     source?: PolicyFindingSource;
     source_ref_id?: string;
     evidence_refs?: PolicyEvidenceRef[];
+    content_version?: number;
     text: string;
   }): Promise<PolicyScanResult> {
     const matches = scanTextPolicy(input.text);
@@ -728,6 +731,7 @@ export class CollaborationStore {
     const findings: CollaborationPolicyFinding[] = [];
     const source = input.source || 'text';
     const sourceRefId = input.source_ref_id || input.message_id || '';
+    const contentVersion = input.content_version || evidenceContentVersion(input.evidence_refs);
     const findingStore = new PolicyFindingStore(this.pg);
     for (const match of matches) {
       const finding = await findingStore.recordFinding({
@@ -740,15 +744,21 @@ export class CollaborationStore {
         severity: match.severity,
         matched_text_hash: match.matched_text_hash,
         action: match.action,
-        evidence_refs: input.evidence_refs || []
+        confidence: match.confidence,
+        evidence_refs: input.evidence_refs || [],
+        detector_version: match.detector_version,
+        policy_version: match.policy_version,
+        content_version: contentVersion,
+        metadata: { match_kind: match.match_kind }
       });
       findings.push(finding);
       const eventId = pgId('cpol');
       await this.pg.query(
         `INSERT INTO collaboration_policy_events
           (id, tenant_id, session_id, message_id, policy_type, severity, matched_text_hash, action,
-           source, source_ref_id, attachment_id, finding_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+           source, source_ref_id, attachment_id, finding_id,
+           detector_version, policy_version, evidence_snapshot_hash, content_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
         [
           eventId,
           input.tenant_id,
@@ -761,13 +771,27 @@ export class CollaborationStore {
           source,
           sourceRefId,
           source === 'ocr' || source === 'asr' ? sourceRefId : '',
-          finding.id
+          finding.id,
+          finding.detector_version,
+          finding.policy_version,
+          finding.evidence_snapshot_hash,
+          finding.content_version
         ]
       );
       const result = await this.pg.query('SELECT * FROM collaboration_policy_events WHERE id = $1', [eventId]);
       events.push(decodePolicyEvent(result.rows[0]));
     }
-    return { matched: findings.length > 0, events, findings };
+    const aggregate = source === 'aggregate'
+      ? { matched: false, events: [], findings: [] }
+      : await new SessionPolicyAggregation(this.pg).scan({
+        tenant_id: input.tenant_id,
+        session_id: input.session_id
+      });
+    return {
+      matched: findings.length > 0 || aggregate.matched,
+      events: [...events, ...aggregate.events],
+      findings: [...findings, ...aggregate.findings]
+    };
   }
 
   async listPolicyEvents(input: {
@@ -844,13 +868,15 @@ export class CollaborationStore {
     const attachmentId = pgId('catt');
     await pg.query(
       `INSERT INTO collaboration_message_attachments
-        (id, tenant_id, session_id, message_id, kind, storage_url, filename, content_type, size_bytes, checksum, processing_status, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        (id, tenant_id, session_id, message_id, secure_file_id, kind, storage_url,
+         filename, content_type, size_bytes, checksum, processing_status, metadata)
+       VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         attachmentId,
         input.tenant_id,
         input.session_id,
         input.message_id,
+        input.secure_file_id || '',
         input.kind,
         input.storage_url,
         input.filename || '',
@@ -1224,6 +1250,7 @@ function decodeAttachment(row: Record<string, unknown>): CollaborationMessageAtt
     tenant_id: String(row.tenant_id),
     session_id: String(row.session_id),
     message_id: String(row.message_id),
+    secure_file_id: String(row.secure_file_id || ''),
     kind: String(row.kind) as CollaborationMessageAttachment['kind'],
     storage_url: String(row.storage_url || ''),
     filename: String(row.filename || ''),
@@ -1283,6 +1310,18 @@ function decodePolicyEvent(row: Record<string, unknown>): CollaborationPolicyEve
     source_ref_id: String(row.source_ref_id || ''),
     attachment_id: String(row.attachment_id || ''),
     finding_id: String(row.finding_id || ''),
+    detector_version: String(row.detector_version || 'legacy-v1'),
+    policy_version: String(row.policy_version || 'legacy-v1'),
+    evidence_snapshot_hash: String(row.evidence_snapshot_hash || '0'.repeat(64)),
+    content_version: Number(row.content_version || 1),
     created_at: String(row.created_at)
   };
+}
+
+function evidenceContentVersion(refs: PolicyEvidenceRef[] | undefined): number {
+  for (const ref of refs || []) {
+    const version = Number(ref.version);
+    if (Number.isInteger(version) && version > 0) return version;
+  }
+  return 1;
 }

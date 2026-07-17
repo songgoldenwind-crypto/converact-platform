@@ -10,6 +10,10 @@ export function rustDeskPolicyAuthorizationLock(tenantId: string, deviceId: stri
   return `policy:${tenantId}:${deviceId}`;
 }
 
+export function rustDeskAuthorizationCodeLock(tenantId: string, authorizationId: string): string {
+  return `authorization-code:${tenantId}:${authorizationId}`;
+}
+
 export async function withRustDeskAuthorizationLocks<T>(
   pg: PgQueryable,
   lockKeys: readonly string[],

@@ -268,8 +268,14 @@ export class LiveKitClientAdapter implements LiveKitRoomAdapter {
         quality: String(quality)
       });
     });
-    bind(events.reconnecting, () => this.setState('reconnecting', generation));
-    bind(events.reconnected, () => this.setState('connected', generation));
+    bind(events.reconnecting, () => {
+      this.setState('reconnecting', generation);
+      this.emit({ type: 'native_reconnect', generation, phase: 'started' });
+    });
+    bind(events.reconnected, () => {
+      this.setState('connected', generation);
+      this.emit({ type: 'native_reconnect', generation, phase: 'succeeded' });
+    });
     bind(events.audioPlaybackChanged, () => {
       if (!room.canPlaybackAudio) this.emitAutoplayBlocked(generation);
     });
@@ -285,9 +291,12 @@ export class LiveKitClientAdapter implements LiveKitRoomAdapter {
     this.connectKey = null;
     this.invalidateTracks();
     this.unbindRoom(room);
-    const message = reason == null ? 'LiveKit room disconnected' : String(reason);
-    this.setState('fatal', generation);
-    this.emit({ type: 'fatal', generation, reason: message });
+    this.setState('disconnected', generation);
+    this.emit({
+      type: 'terminal_disconnect',
+      generation,
+      reason_code: boundedReasonCode(reason)
+    });
   }
 
   private emitLocalTrack(rawPublication: unknown, generation: number, enabled: boolean): void {
@@ -456,4 +465,33 @@ function normalizeSource(value: string | undefined): MediaTrackSource {
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value));
+}
+
+function boundedReasonCode(value: unknown): string {
+  const reasonCodes = [
+    'unknown_reason',
+    'client_initiated',
+    'duplicate_identity',
+    'server_shutdown',
+    'participant_removed',
+    'room_deleted',
+    'state_mismatch',
+    'join_failure',
+    'migration',
+    'signal_close',
+    'room_closed',
+    'user_unavailable',
+    'user_rejected',
+    'sip_trunk_failure',
+    'connection_timeout',
+    'media_failure',
+    'agent_error'
+  ] as const;
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return reasonCodes[value] || 'provider_disconnect';
+  }
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return reasonCodes.includes(normalized as (typeof reasonCodes)[number])
+    ? normalized
+    : 'provider_disconnect';
 }

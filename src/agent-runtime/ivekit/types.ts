@@ -5,6 +5,10 @@ import type { RustDeskClientConfig } from '../collaboration/rustdesk-client-conf
 import type { RustDeskDevice } from '../collaboration/rustdesk-device-store.js';
 import type { RustDeskGatewayLaunchPlan } from '../collaboration/rustdesk-launch-plan.js';
 import type {
+  RustDeskAuthorizationCode,
+  RustDeskAuthorizationCodeCreateResult
+} from '../collaboration/rustdesk-authorization-code-store.js';
+import type {
   CollaborationMessage,
   CollaborationMessageAttachmentKind,
   CollaborationMessageAttachmentStatus,
@@ -371,6 +375,26 @@ export interface IveKitModule {
       seen_at?: string;
       metadata?: Record<string, unknown>;
     }): Promise<RustDeskDevice | null>;
+    requestAuthorizationCode(input: {
+      tenant_id: string;
+      remote_session_id: string;
+      device_id: string;
+      scopes: readonly RemoteConsentScope[];
+      requested_by: string;
+      idempotency_key: string;
+      ttl_seconds?: number;
+      max_attempts?: number;
+    }): Promise<RustDeskAuthorizationCodeCreateResult>;
+    getAuthorizationCode(input: {
+      tenant_id: string;
+      authorization_id: string;
+    }): Promise<RustDeskAuthorizationCode | null>;
+    verifyAuthorizationCode(input: {
+      tenant_id: string;
+      authorization_id: string;
+      code: string;
+      verified_by: string;
+    }): Promise<RustDeskAuthorizationCode>;
     getClientConfig(): Promise<RustDeskClientConfig>;
     getGatewayLaunchPlan(input: {
       tenant_id: string;
@@ -408,6 +432,7 @@ export interface IveKitModule {
       device_id: string;
       permissions: readonly RemoteConsentScope[];
       access_mode?: 'attended' | 'unattended';
+      authorization_id?: string;
       metadata?: Record<string, unknown>;
     }): Promise<RemoteToolSession>;
   };

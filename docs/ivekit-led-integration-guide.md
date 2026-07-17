@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-14。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端、真实 Voice/PSTN/RTP 和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
+> 版本：2026-07-15。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端、真实 Voice/PSTN/RTP 和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
 
 ## 1. 交付目标
 
@@ -145,12 +145,23 @@ const device = await ivekit.rustdesk.ensureDevice({
   deviceDisplayName: 'LED service terminal',
   actorIdentity: 'agent_1001'
 });
+// 客户端身份创建，raw code 只在该响应出现一次，不写日志或业务库。
+const requested = await customerIvekit.rustdesk.requestAuthorizationCode({
+  remote_session_id: remoteSessionId,
+  device_id: device.id,
+  scopes: ['view_screen', 'control_mouse_keyboard']
+}, { idempotencyKey: `remote-auth:${remoteSessionId}:1` });
+// 通过受保护的用户交互把 requested.code 交给当前工程师。
+await ivekit.rustdesk.verifyAuthorizationCode(requested.authorization.id, {
+  code: requested.code!
+});
 const remote = await ivekit.rustdesk.startSession({
   businessRef: orderRef,
   deviceId: device.id,
   deviceDisplayName: device.display_name,
   actorIdentity: 'agent_1001',
   remoteSessionId,
+  authorizationId: requested.authorization.id,
   permissions: ['view_screen', 'control_mouse_keyboard']
 });
 await ivekit.rustdesk.recordControlAction(remote.gatewaySession.external_id, {
@@ -173,12 +184,17 @@ await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
 1. signed `launch_url` 和 token 不渲染到 DOM，也不持久化；界面只展示客户端手工配置字段。
 2. 点击 **Open RustDesk** 时即时重新读取 launch plan，并校验 active 状态、目标 RustDesk ID、protocol scheme 和 server key fingerprint 后才调用浏览器 protocol handler。
 3. unattended 模式只在建会话和用户主动拉起时签发并消费 `unattended_launch` 二次确认；普通状态刷新不会消耗一次性确认。
-4. 当前身份取得控制权后每 10 秒调用 `heartbeatControl()` 续租；释放、转移、过期、会话结束或组件卸载后停止。续租失败会重新读取服务端 ownership，不在前端伪造所有权。
-5. 浏览器 protocol handler 必须由用户点击触发。LED 若封装桌面壳，应通过 `openProtocol(url)` 注入受控原生拉起实现，仍保留上述即时校验。
+4. attended 严格模式下，active customer/admin 创建 8 位一次性 code，active engineer 验证后把 `authorization_id` 交给启动请求；code 不是 RustDesk password，不能存储、重放或替代 consent/control。
+5. 当前身份取得控制权后每 10 秒调用 `heartbeatControl()` 续租；释放、转移、过期、会话结束或组件卸载后停止。续租失败会重新读取服务端 ownership，不在前端伪造所有权。
+6. 浏览器 protocol handler 必须由用户点击触发。LED 若封装桌面壳，应通过 `openProtocol(url)` 注入受控原生拉起实现，仍保留上述即时校验。
 
-设备侧物理断开使用 `scripts/rustdesk-edge-adapters/` 中 Windows、macOS、Linux 六个 wrapper。精准断开 wrapper 只调用设备本机预配置的绝对路径 session hook；RustDesk OSS 1.4.7 没有稳定的跨平台 incoming-session disconnect CLI，因此没有 hook 时会明确转入 service restart fallback，并保留 `collateral_sessions_may_disconnect=true`。所有标识均作为独立 argv 传入，未知占位符启动即失败；`validate` 模式不会断开或重启，可用于 LED 设备安装预检，但不能当作物理断开成功证据。
+Windows 设备侧精准断开由 ACL 保护的 session registry、固定 resolver 和 `ivekit-rustdesk-native-control-v2` named pipe 完成。placement-enabled package v6 把 `interaction_id + reservation_id + owner_epoch + command_id` 一并传入 companion 与原生 overlay；companion 先校验服务端 owner binding，再以每个 external session 一个原子状态分片持久化已接受的最大 epoch，旧 epoch 在原生执行前直接拒绝。自定义 RustDesk 1.4.7 overlay 只对指定 native connection ID 调用原生 close，回显 owner identity 并确认该连接消失；映射缺失或漂移时返回 `precise_disconnect_unavailable`。v1 只用于关闭 Cell placement 的滚动兼容。普通链路不会自动重启 RustDesk service。只有 owner/admin 显式调用 `authorizeEmergencyFallback()`、提交原因并确认 `collateral_sessions_may_disconnect=true` 后，companion 才能在同一授权约束下执行一次 emergency restart；该路径会独立审计，可能影响同机其他会话。macOS/Linux wrapper 仍保持显式 capability/不可用语义，不能伪装成 Windows 精准断开。
 
 原生 RustDesk/边车操作观测通过 `ivekit.rustdesk.recordOperationObservation()` 或 `npm run rustdesk:operation-observer` 上报。统一覆盖画面、键鼠、多显示器、文件、剪贴板、录屏和断开；同一 `operation_id + status` 使用稳定幂等键，并复用 event forwarder 的 retry/dead-letter/replay。LED 只能上报计数、方向、display ID、SHA-256、duration、状态和 evidence ref，不能发送文件内容、剪贴板正文、按键、屏幕像素、录像字节或凭证。没有 native observer 时必须展示 `not_observed`，不能从 HTTP 2xx 或 wrapper 成功推导真实操作成功。
+
+Windows companion 的 observation/evidence/heartbeat 路由使用设备绑定 token，LED 业务服务和浏览器不调用、不持有该 token。定制 RustDesk 从 ACL 保护的 `native-evidence-roots-v1.txt` 读取文件/录屏白名单，首次扫描只建基线；新文件连续稳定后自动生成仅含路径、大小、时间和 active controller ID 的候选。companion 从 `/evidence-context` 取得短时设备授权快照，以 controller、operation、预期文件名和时间窗做唯一关联，再生成固定 `rustdesk-native-evidence-v1` event。watcher 复核白名单、符号链接、稳定时间、复制前后大小/mtime/SHA-256 和重复冲突，再交给 evidence uploader 单文件或断点分片上传。gateway 结束后只允许在 `ended_at + 15min` 内完成录屏 flush 与上传建档。上传死信 payload 与状态同步保留，默认 7 天或到数量上限时成对删除，不会留下无状态孤儿文件；远端上传成功后的本地删除若被文件锁或 ACL 阻止，则保留 `uploaded + manifest` 关联并跨重启重试本地删除，绝不重复远端上传。`Publish-IveKitRustDeskEvidence.ps1` 仅用于故障恢复，不是正常生产器。服务端重新核对设备、gateway session、start event、operation grant 和 control version，成功后进入 magic MIME、病毒扫描、隔离、衍生物、OCR/ASR 与 AI 质检，并发布 `remote.rustdesk.evidence.*` 状态事件。若进程在 secure-file 已 ready 后、智能任务回调完成前退出，derivative worker 的幂等重扫会在后续批次补建 processing attachment 和 OCR/ASR/帧 OCR 任务；确定不支持的 MIME 只标记一次并退出候选队列。
+
+只有完成上述链路的内容才生成 `evidence_security=ivekit_secure_file`。未被生产器捕获、未上传或上传失败的原生直传继续显示 `native_unscanned`，只留本地的录屏继续显示 `local_only`；LED 不得把这两种状态写成“已扫描”或触发已完成的 OCR/ASR/AI 标识。
 
 ### 4.6 可运行示例
 
@@ -256,17 +272,20 @@ sequenceDiagram
 2. 对最新可见他人消息调用 receipt `status=read`，后端执行 read-through。
 3. 页面每 60 秒刷新 presence，TTL 默认 90 秒；typing TTL 默认 8 秒。
 4. 发送者在 `OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS` 内可编辑或软删除文本消息。
-5. LED UI 以 iveKit snapshot 和 `collaboration.message.edited/deleted` 为权威；当前不把 edit/delete 回写成 Tinode 原生 mutation。
+5. iveKit 在本地 edit/delete 权威事务中同时创建 Tinode mutation outbox；edit 使用 replacement publish，delete 使用目标 sequence delete，SDK 响应暴露 `provider_mutation.status`。
+6. LED UI 仍以 iveKit snapshot 和 `collaboration.message.edited/deleted` 为权威；`pending|processing|retry_wait` 仅表示执行面尚未收敛。
+7. edit 已发出但 ACK 丢失，或 worker 接管一个过期 `processing` edit lease 时，都直接成为 `provider_outcome_uncertain` dead letter，不自动重发；过期 delete 仍可自动重试。owner/admin 先核对 Tinode，再调用 `listTinodeMutationDeadLetters()` / `replayTinodeMutationDeadLetter()` 人工对账与重放。若之后到达可验证的原生 echo，iveKit 会在纠正 outbox 的同一事务持久化 `provider_mutation_updated(status=delivered,reconciled_from_status=dead_letter)`；LED 应通过实时事件、Webhook 或 replay 覆盖本地旧死信投影，实时广播失败不会丢失该纠正。
 
 ### 5.3 RustDesk
 
 RustDesk 前置条件是 collaboration remote session 已创建且授权 scope 已 grant。LED 使用 `createIveKitRustDeskLedSdk`：
 
 1. 按 business_ref 查找/注册设备并 heartbeat。
-2. `startSession` 创建 gateway session 和 launch plan。
-3. 记录 control/file/clipboard/recording 操作事件。
-4. 结束会话后查询 physical disconnect command 状态。
-5. 真实客户端必须人工确认屏幕和键鼠能力已经停止。
+2. attended 严格模式由客户调用 `requestAuthorizationCode`，工程师调用 `verifyAuthorizationCode`；只传 `authorization_id` 给启动流程。
+3. `startSession` 原子消费 authorization 并创建 gateway session 和 launch plan。
+4. 记录 control/file/clipboard/recording 操作事件。
+5. 结束会话后查询 physical disconnect command 状态。
+6. 真实客户端必须人工确认屏幕和键鼠能力已经停止。
 
 ## 6. 数据库与迁移
 
@@ -289,6 +308,10 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 | `033_collaboration_im_features.sql` | reaction、pin、mention、reply/forward 等 IM 扩展 |
 | `034_ivekit_media_calls.sql` 到 `038_media_recording_evidence.sql` | 呼叫、主持控制、录制绑定、超时和 evidence |
 | `039_rustdesk_access_policy.sql`、`040_rustdesk_control_ownership.sql` | 无人值守策略、控制锁和移交 |
+| `064_rustdesk_authorization_codes.sql` | attended 一次性授权码、HMAC、TTL、尝试锁定、消费和 FORCE RLS |
+| `074_tinode_message_mutation_outbox.sql` | Tinode 原生 edit/delete durable outbox、重试、dead-letter 和 replay |
+| `075_rustdesk_emergency_fallback.sql` | 精准断开失败后的 owner/admin 显式 emergency fallback 授权 |
+| `076_rustdesk_evidence_intelligence_reconciliation.sql` | RustDesk ready evidence 的最小权限候选发现与 missed-callback 幂等补偿 |
 
 迁移后必须验证 `ENABLE ROW LEVEL SECURITY`、`FORCE ROW LEVEL SECURITY`、tenant policy 和非 bypass 账号的跨租户拒绝。MemoryPg 测试不能替代真实 PostgreSQL。
 
@@ -377,9 +400,9 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 7. receipt、presence、typing 和 mutation 只能以当前认证身份执行。
 8. RustDesk end/physical disconnect 是最终一致链路，LED 要展示 pending/succeeded/failed/unavailable。
 
-## 10. 事件订阅
+## 10. 事件订阅与 Webhook
 
-LED 可订阅 OPC 租户 WebSocket。关键事件：
+LED 有三种共享事件消费方式：HTTP cursor replay 用于恢复，WebSocket 用于在线加速，签名 Webhook 用于后端自动集成。三者都来自同一张 `ivekit_tenant_events`，禁止另建一套业务事件权威。关键事件：
 
 - `collaboration.message.created`
 - `collaboration.message.receipt_updated`
@@ -392,11 +415,34 @@ LED 可订阅 OPC 租户 WebSocket。关键事件：
 - `collaboration.policy.finding_reviewed`
 - `ivekit.media.call.created/updated/ended`
 - `ivekit.media.participant.updated/moderated`
+- `notification.created`
+- `notification.delivery.updated`
+- `notification.inbox.created`
+- `notification.inbox.updated`
 - Web Assist consent/event/recording 与 RustDesk gateway/audit 事件
 
 WebSocket 是持久事件的加速通道。首次连接保存 `connected.data.head_cursor`；重连把该 opaque cursor 作为 `cursor` 参数，服务端先 replay 再恢复 live delivery。每个 durable envelope 都有 `event_id/cursor/type/data/timestamp`，客户端按 event ID 去重并仅把 cursor 保存在内存或宿主短期 bridge。也可调用 `GET /api/ivekit/events?cursor=&limit=` 增量拉取。
 
 当 connected 或 HTTP 返回 `snapshot_required=true`（cursor 篡改、跨租户、过期或 replay 超限）时，重新读取 snapshot/message-state/realtime-state，再使用新的 head cursor。服务端 replay 会按当前 chat/media/remote participant 和定向 audience 重新鉴权，已退出会话的用户不能读取旧私有事件。
+
+通知事件只发给 Notification 的目标用户。Notification、Delivery、Inbox 状态和租户事件在同一 PostgreSQL 事务提交，随后用稳定事件幂等键进行 WebSocket/Redis fan-out；进程退出或重复发布不会产生第二条 journal 记录。事件不包含 recipient 明文、content/recipient ciphertext、Provider request/message id 或原始响应。`notification.inbox.created|updated` 可以包含仅对目标用户可见的站内安全投影；页面仍以 inbox HTTP snapshot 为恢复权威。
+
+### 10.1 后端自动 Webhook
+
+| Method | Path | 作用 |
+| --- | --- | --- |
+| GET | `/api/ivekit/events/catalog` | 读取 8 个稳定 event family、schema/signature version 和 pattern 规则 |
+| GET/POST | `/api/ivekit/events/webhook-subscriptions` | admin 查询或幂等创建订阅 |
+| GET/PUT | `/api/ivekit/events/webhook-subscriptions/:subscription_id` | 查询或按 revision 更新/暂停 |
+| POST | `/api/ivekit/events/webhook-subscriptions/:subscription_id/archive` | 按 revision 逻辑归档 |
+
+订阅绑定 Notification 模块中已启用的 Webhook Endpoint。事件模式只允许精确名称或尾部 `.*`，最多 64 个；Endpoint 自己的 event allowlist 仍是最终上限，订阅通配符不能绕过。migration 073 保存每个订阅的单调 `last_event_id`、重试时间和 lease；Bridge Worker 通过 `FOR UPDATE SKIP LOCKED` 多实例协作，成功创建幂等 Notification 后才推进 cursor，过滤掉的事件也安全推进。
+
+Webhook 使用 `x-ivekit-timestamp`、`x-ivekit-signature: v1=<hex>`、`x-ivekit-delivery`、`x-ivekit-event` 和 `x-ivekit-event-id`。签名输入是 `${timestamp}.${rawBody}`。LED Node 后端调用 SDK `verifyIveKitWebhook()`，并把 `IveKitWebhookReplayStore.claim()` 实现为 PostgreSQL/Redis 的原子 durable inbox：claim 同时持久化已验证 envelope 和 body SHA-256，重复 delivery 返回 false。签名时间窗默认 5 分钟，防重放记录默认保留 7 天；两者不能混为一谈，也不能使用进程内 Set。
+
+参考接收器位于 `sdk/ivekit/examples/webhook-receiver.ts`。它对重复投递返回 200，对签名密钥服务或 inbox 存储故障返回 503 触发安全重试，对已经取得密钥但验签失败的请求统一返回 401；实际 LED 业务 Worker 从自己的 durable inbox 异步消费并用 `tenant_id + business_ref` 绑定订单/工单，不读取 iveKit 内部表。
+
+生产启用 `OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED=1` 时必须同时启用 Notification Worker 并配置独立的 Notification encryption/HMAC key。最老事件延迟和固定结果计数由 `opc_ivekit_event_webhook_oldest_event_age_seconds`、`opc_ivekit_event_webhook_operations_total` 暴露，告警和处置见 `docs/ivekit-monitoring-runbook.md`。
 
 ## 11. 真实环境验收
 
@@ -417,12 +463,13 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 - `sdk/*.tgz`：LED 可直接安装的 TypeScript SDK。
 - `client/`：已通过 chunk 预算的静态参考客户端。
 - `deploy/application/` 和 `deploy/livekit/`：应用面与媒体面分离 Compose；应用面必须设置 digest 固定的 `IVEKIT_SERVICE_IMAGE`，不依赖 OPC 源码目录。
-- `deploy/kubernetes/ivekit/`：只部署 standalone iveKit 和可选 RustPBX；PostgreSQL/Redis/Tinode/LiveKit 等通过外部服务配置接入，凭据来自接收方已有 Secret。
+- `deploy/kubernetes/ivekit/`：部署 standalone iveKit、可选 RustPBX 和可选单副本 bundled Tinode；PostgreSQL/Redis/LiveKit 以及高可用 Tinode 通过外部服务接入，所有凭据来自接收方已有 Secret。
 - `operations/`：升级前完整性/备份门禁、Compose/Helm rollout 与应用回退手册；数据库只允许从已验证升级前备份恢复。
 - `database/migrations/`：显式白名单内的通信域 overlay migration。
 - `docs/`、`examples/`：OpenAPI、详细设计、升级/回滚说明和最小接入示例。
 - `acceptance/status.json`：受控 PostgreSQL/Provider/browser/restart 与真实 Provider/客户端分层状态；未执行项保持 `not_run`。
 - `acceptance/voice-real-template.json`、`voice-real-runbook.md` 和 `tools/ivekit-voice-acceptance.ts`：绑定本次 source commit 的 45 项真实 Voice 验收合同；模板初始必须是 `incomplete`。
+- `acceptance/v6-real-template.json` 和 `tools/ivekit-v6-real-acceptance.ts`：固定八组真实环境合同；交付生成时八组必须全部为 `not_run`，后续结果逐项绑定环境、制品 digest、operator/QA、observation bytes 和 SHA-256。
 - `acceptance/evidence/`：可选的受控环境日志/截图；只有 source commit、大小和 SHA-256 全部匹配时才能把对应受控项标为 `passed`。
 - `manifest.json`、`SHA256SUMS`：payload 大小/hash 与 manifest 的离线完整性校验。
 
@@ -503,7 +550,20 @@ OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
 
 真实 LiveKit/Tinode/RustDesk 客户端、真实对象存储、真实 OCR/ASR/AI、RustPBX/电话线路/RTP/物理音频、多副本和生产网络尚未在当前本地环境验证。Voice validator 已经可执行，但模板、runbook 或 `ready_for_review` 本身不能证明观察真实发生；preflight 和 fake provider 只证明配置/协议形状。
 
-TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 模板仍未补齐。MinIO bucket 与 PostgreSQL 多数据库初始化的代码和 Compose 门禁已经补齐，但真实 fresh/existing volume、bucket 私有性/持久化、Egress 写入和重启恢复仍必须在服务器验证，不能由 fake command 测试或 Compose 静态解析替代。
+TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 已补齐可选 bundled 单副本 Deployment、Secret/ConfigMap、Service、PVC、PDB、探针、资源、安全上下文、拓扑和 NetworkPolicy；真实 Helm rollout、存储和升级仍未运行。MinIO bucket 与 PostgreSQL 多数据库初始化的代码和 Compose 门禁已经补齐，但真实 fresh/existing volume、bucket 私有性/持久化、Egress 写入和重启恢复仍必须在服务器验证，不能由 fake command 测试或 Compose 静态解析替代。
+
+### 11.5 V6 统一八组验收
+
+交付后先生成 source-bound 模板：
+
+```bash
+node --import tsx scripts/ivekit-v6-real-acceptance.ts \
+  --mode template \
+  --source-commit <40-hex-commit> \
+  --manifest /secure/evidence/ivekit-v6-real/report.json
+```
+
+八组固定为 Provider、Tinode、LiveKit/TURN/Egress、RustDesk 双 Windows、Voice/PSTN、商业通知、生产对象存储和 Kubernetes。`passed/failed` 必须绑定不可变 artifact digest、环境、run ID、不同 operator/QA 和逐项 JSON observation；`not_run` 必须无 evidence。交付包已包含模板、校验器及其 SHA-256 绑定，完整合同、字段、命令和当前原因见 `docs/ivekit-v6-real-environment-acceptance.md`。
 
 LiveKit evidence pack 的自动 server probe 只覆盖 DNS、证书、健康、TCP 和 UDP 发包。ICE UDP/TCP candidate pair、forced TURN UDP/TLS、双浏览器音视频/屏幕共享、LED SDK business_ref 追踪、跨租户拒绝、RLS、重启恢复、性能和 SIP 呼入/呼出必须填写真实客户端报告；模板文本不能直接作为通过证据。
 

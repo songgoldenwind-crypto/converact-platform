@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { RustPbxNormalizedRouterRequest, RustPbxRouterAdapter, RustPbxRouterResponse } from './adapters/rustpbx-routing.js';
 import { canonicalVoicePayloadHash, safeVoiceProviderPayload } from './canonical.js';
 import { VoiceError } from './errors.js';
+import {
+  compileRustPbxRouteRules,
+  type VoiceRouteDependency
+} from './route-compiler.js';
 import type {
   VoiceAddressProtector,
   VoiceCallRepository,
@@ -10,6 +14,8 @@ import type {
   VoiceProviderEventRepository
 } from './ports.js';
 import type { VoiceNormalizedProviderEvent, VoiceProviderEvent } from './types.js';
+
+export type { VoiceRouteDependency } from './route-compiler.js';
 
 export interface VoiceProviderEventServiceOptions {
   events: VoiceProviderEventRepository;
@@ -77,8 +83,6 @@ export class VoiceProviderEventService {
   }
 }
 
-export type VoiceRouteDependency = 'start_ivr' | 'enqueue' | 'bridge_livekit' | 'voicemail';
-
 export interface VoiceRouterDecisionServiceOptions {
   configuration: VoiceConfigurationRepository;
   address_protector: VoiceAddressProtector;
@@ -125,55 +129,12 @@ export class VoiceRouterDecisionService {
     if (!version) return routeNotFound();
     const snapshot = await this.#configuration.getLatestCapabilitySnapshot(tenantId, profileId);
     const capabilities = snapshot?.capabilities ?? emptyCapabilities();
-    return this.#mapRules(version.rules, capabilities, false);
-  }
-
-  #mapRules(
-    rules: Record<string, unknown>,
-    capabilities: Parameters<RustPbxRouterAdapter['mapDecision']>[1],
-    isFallback: boolean
-  ): RustPbxRouterResponse {
-    const action = typeof rules.action === 'string' ? rules.action : '';
-    if (isRouteDependency(action) && !this.#availableDependencies.has(action)) {
-      if (!isFallback && isRecord(rules.fallback)) return this.#mapRules(rules.fallback, capabilities, true);
-      return dependencyUnavailable();
-    }
-    try {
-      if (action === 'forward_sip') {
-        const targets = Array.isArray(rules.targets) ? rules.targets : [rules.target];
-        return this.#routerAdapter.mapDecision({
-          action,
-          targets: targets as string[],
-          strategy: rules.strategy as 'parallel' | 'sequential' | undefined,
-          record: rules.record as boolean | undefined,
-          timeout: rules.timeout as number | undefined,
-          max_ring_time: rules.max_ring_time as number | undefined,
-          headers: rules.headers as Record<string, string> | undefined
-        }, capabilities);
-      }
-      if (action === 'reject') {
-        return this.#routerAdapter.mapDecision({
-          action,
-          code: rules.code as number | undefined,
-          reason: rules.reason as string | undefined
-        }, capabilities);
-      }
-      if (isRouteDependency(action)) {
-        return this.#routerAdapter.mapDecision({
-          action,
-          target: boundedIdentifier(rules.target),
-          timeout: rules.timeout as number | undefined
-        }, capabilities);
-      }
-    } catch (error) {
-      if (error instanceof VoiceError
-        && (error.code === 'capability_unavailable' || error.code === 'validation_failed')) {
-        if (!isFallback && isRecord(rules.fallback)) return this.#mapRules(rules.fallback, capabilities, true);
-        return dependencyUnavailable();
-      }
-      throw error;
-    }
-    return dependencyUnavailable();
+    return compileRustPbxRouteRules({
+      rules: version.rules,
+      capabilities,
+      router_adapter: this.#routerAdapter,
+      available_dependencies: this.#availableDependencies
+    });
   }
 }
 
@@ -206,14 +167,6 @@ function destinationE164(input: string): string | null {
 
 function routeNotFound(): RustPbxRouterResponse {
   return { action: 'reject', status: 404, reason: 'route_not_found' };
-}
-
-function dependencyUnavailable(): RustPbxRouterResponse {
-  return { action: 'reject', status: 503, reason: 'route_dependency_unavailable' };
-}
-
-function isRouteDependency(value: string): value is VoiceRouteDependency {
-  return value === 'start_ivr' || value === 'enqueue' || value === 'bridge_livekit' || value === 'voicemail';
 }
 
 function emptyCapabilities(): Parameters<RustPbxRouterAdapter['mapDecision']>[1] {

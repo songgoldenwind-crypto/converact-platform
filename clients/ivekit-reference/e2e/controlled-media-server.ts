@@ -22,6 +22,7 @@ export interface ControlledMediaServer {
     recordingStarts: number;
     recordingStops: number;
     eventConnections: number;
+    connectionEvents: string[];
   };
   expire(callId: string): void;
   close(): Promise<void>;
@@ -49,7 +50,8 @@ export async function startControlledMediaServer(): Promise<ControlledMediaServe
     moderation: [] as string[],
     recordingStarts: 0,
     recordingStops: 0,
-    eventConnections: 0
+    eventConnections: 0,
+    connectionEvents: [] as string[]
   };
 
   const server = createServer((request, response) => {
@@ -132,6 +134,24 @@ async function route(
     const value = requiredCall(calls, callId);
     requireMember(value, identity);
     if (!action && method === 'GET') return json(response, 200, snapshot(value));
+    if (action === 'connection-events' && method === 'POST') {
+      const eventType = String(input.event_type || '');
+      const revision = Number(input.connection_revision || 0);
+      state.connectionEvents.push(`${callId}:${identity}:${eventType}:${revision}`);
+      return json(response, 201, {
+        event: {
+          id: String(input.event_id || ''),
+          tenant_id: TENANT_ID,
+          call_id: callId,
+          ...input,
+          reason_code: String(input.reason_code || ''),
+          connection_state: eventType === 'rejoined' ? 'connected' : eventType,
+          received_at: new Date().toISOString()
+        },
+        participant_state: {},
+        replayed: false
+      });
+    }
     if (action === 'join' && method === 'POST') {
       state.joins.push(`${callId}:${identity}`);
       return json(response, 201, {

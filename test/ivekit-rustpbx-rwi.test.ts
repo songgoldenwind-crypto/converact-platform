@@ -169,6 +169,58 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     action: 'call.bridge', action_id: 'bridge-a',
     params: { leg_a: 'provider-call-a', leg_b: 'provider-call-b' }
   });
+  const owners = {
+    'provider-call-a': {
+      reservation_id: 'reservation-a',
+      interaction_id: 'call-a',
+      owner_epoch: '12884901889'
+    },
+    'provider-call-b': {
+      reservation_id: 'reservation-b',
+      interaction_id: 'call-b',
+      owner_epoch: '12884901890'
+    }
+  };
+  assert.deepEqual(mapRustPbxRwiBridgeCommand({
+    command_id: 'bridge-owned',
+    leg_a: 'provider-call-a',
+    leg_b: 'provider-call-b',
+    ivekit_owners: owners
+  }), {
+    action: 'call.bridge',
+    action_id: 'bridge-owned',
+    params: { leg_a: 'provider-call-a', leg_b: 'provider-call-b' },
+    ivekit_owners: owners
+  });
+  assert.deepEqual(mapRustPbxRwiCommand({
+    command_id: 'answer-owned',
+    kind: 'answer',
+    call_id: 'provider-call-a',
+    payload: {},
+    ivekit_owners: {
+      'provider-call-a': owners['provider-call-a']
+    }
+  }), {
+    action: 'call.answer',
+    action_id: 'answer-owned',
+    params: { call_id: 'provider-call-a' },
+    ivekit_owners: {
+      'provider-call-a': owners['provider-call-a']
+    }
+  });
+  assert.throws(() => mapRustPbxRwiCommand({
+    command_id: 'answer-stale-shape',
+    kind: 'answer',
+    call_id: 'provider-call-a',
+    payload: {},
+    ivekit_owners: {
+      'provider-call-a': {
+        reservation_id: 'reservation-a',
+        interaction_id: 'call-a',
+        owner_epoch: 'not-an-epoch'
+      }
+    }
+  }), hasVoiceCode('validation_failed'));
   assert.throws(() => mapRustPbxRwiBridgeCommand({
     command_id: 'bridge-same', leg_a: 'provider-call-a', leg_b: 'provider-call-a'
   }), hasVoiceCode('validation_failed'));

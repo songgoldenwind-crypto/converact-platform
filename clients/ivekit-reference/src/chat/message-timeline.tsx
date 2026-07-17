@@ -1,4 +1,9 @@
-import type { IveKitChatMessage, IveKitChatReceipt, IveKitClient, IveKitPolicyFinding } from '@opc/ivekit-sdk';
+import type {
+  IveKitChatMessage,
+  IveKitChatReceipt,
+  IveKitHttpSdk,
+  IveKitPolicyFinding
+} from '@opc/ivekit-sdk';
 import { Download, Forward, Pencil, Pin, Reply, RotateCcw, ShieldAlert, SmilePlus, Trash2 } from 'lucide-react';
 import React from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -11,7 +16,7 @@ export function MessageTimeline(props: {
   identity: string;
   receipts?: IveKitChatReceipt[];
   findings?: IveKitPolicyFinding[];
-  client?: IveKitClient | null;
+  client?: IveKitHttpSdk | null;
   sessionId?: string;
   refreshVersion?: number;
   canLoadOlder: boolean;

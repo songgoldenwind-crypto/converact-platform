@@ -303,6 +303,1496 @@ paths:
         '200':
           description: Updated config
 
+  /api/ivekit/intelligence/capabilities:
+    get:
+      summary: Get tenant intelligence capabilities and ordered provider routes
+      tags: [iveKit Intelligence]
+      responses:
+        '200':
+          description: Tenant capability projection with no provider credentials or endpoints
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitIntelligenceCapabilities' }
+
+  /api/ivekit/intelligence/policy:
+    get:
+      summary: Get versioned tenant intelligence policy
+      description: Requires owner, admin, or system role.
+      tags: [iveKit Intelligence]
+      responses:
+        '200':
+          description: Effective tenant policy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitIntelligencePolicy' }
+    put:
+      summary: Replace versioned tenant intelligence policy
+      description: Requires owner, admin, or system role. Routes contain at most 10 ordered profile ids.
+      tags: [iveKit Intelligence]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitIntelligencePolicyWrite' }
+      responses:
+        '200':
+          description: Existing policy updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitIntelligencePolicy' }
+        '201':
+          description: Initial policy created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitIntelligencePolicy' }
+        '409': { description: Policy version conflict }
+
+  /api/ivekit/intelligence/providers:
+    get:
+      summary: List safe provider profiles and governance budgets
+      description: Requires owner, admin, or system role. URLs, token values, and token environment names are omitted.
+      tags: [iveKit Intelligence]
+      responses:
+        '200':
+          description: Safe provider profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/IveKitProviderProfileSummary' }
+
+  /api/ivekit/intelligence/providers/runtime:
+    get:
+      summary: List tenant provider quota and circuit runtime
+      description: Requires owner, admin, or system role. Runtime rows are tenant scoped by PostgreSQL RLS.
+      tags: [iveKit Intelligence]
+      responses:
+        '200':
+          description: Safe provider runtime snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/IveKitProviderRuntimeSnapshot' }
+
+  /api/ivekit/intelligence/providers/health:
+    post:
+      summary: Probe selected or all configured provider health endpoints
+      description: Requires owner, admin, or system role. Probe output never contains endpoint or credential material.
+      tags: [iveKit Intelligence]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile_ids:
+                  type: array
+                  maxItems: 20
+                  uniqueItems: true
+                  items: { type: string, pattern: '^[a-z][a-z0-9_-]{0,63}$' }
+      responses:
+        '200':
+          description: Provider health results
+
+  /api/ivekit/intelligence/findings:
+    get:
+      summary: List the tenant policy review queue
+      description: Includes text, OCR, ASR, aggregate, and AI findings. Evidence is hash-only.
+      tags: [iveKit Intelligence]
+      parameters:
+        - name: source
+          in: query
+          schema: { type: string, enum: [text, ocr, asr, aggregate, ai] }
+        - name: session_id
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        '200':
+          description: Tenant-scoped findings and cursor
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/IveKitPolicyFinding' }
+                  next_cursor: { type: string }
+
+  /api/ivekit/chat/operations/tinode:
+    get:
+      summary: Get the tenant Tinode delivery and inbound operations snapshot
+      description: Requires owner, admin, or system role. Refreshes bounded Prometheus queue gauges.
+      tags: [iveKit Chat Operations]
+      responses:
+        '200':
+          description: Tenant-scoped queue, cursor, dead-letter, and file-gate state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitTinodeOperationsSnapshot' }
+        '403': { description: Admin role required }
+
+  /api/ivekit/chat/operations/tinode/dead-letters:
+    get:
+      summary: List safe Tinode inbound dead letters
+      description: Requires owner, admin, or system role. Provider payloads and attachment URLs are omitted.
+      tags: [iveKit Chat Operations]
+      parameters:
+        - name: state
+          in: query
+          schema: { type: string, enum: [open, resolved, all], default: open }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        '200':
+          description: Safe dead-letter descriptors
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/IveKitTinodeDeadLetter' }
+        '403': { description: Admin role required }
+
+  /api/ivekit/chat/operations/tinode/dead-letters/{dead_letter_id}/replay:
+    post:
+      summary: Request an idempotent manual Tinode dead-letter replay
+      description: Schedules replay inside the normal binding lease; it never publishes or projects inline.
+      tags: [iveKit Chat Operations]
+      parameters:
+        - name: dead_letter_id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '202':
+          description: Replay requested
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitTinodeDeadLetterReplay' }
+        '200':
+          description: Idempotent replay of the same request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitTinodeDeadLetterReplay' }
+        '403': { description: Admin role required }
+        '404': { description: Dead letter not found in the tenant }
+        '409': { description: Idempotency key payload conflict }
+
+  /api/ivekit/chat/operations/tinode/mutation-dead-letters:
+    get:
+      summary: List safe Tinode message mutation dead letters
+      description: Requires owner, admin, or system role. Message bodies and Provider credentials are omitted.
+      tags: [iveKit Chat Operations]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        '200':
+          description: Tenant-scoped edit and delete dead letters
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/IveKitTinodeMutationDeadLetter' }
+        '403': { description: Admin role required }
+        '503': { description: Tinode mutation operations are unavailable }
+
+  /api/ivekit/chat/operations/tinode/mutation-dead-letters/{outbox_id}/replay:
+    post:
+      summary: Request an idempotent manual Tinode mutation replay
+      description: Requires owner, admin, or system role. An edit with an unknown publish outcome is never retried automatically; inspect Tinode state first, then use this endpoint only when replay is safe.
+      tags: [iveKit Chat Operations]
+      parameters:
+        - name: outbox_id
+          in: path
+          required: true
+          schema: { type: string }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '202':
+          description: Replay requested
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitTinodeMutationDeadLetterReplay' }
+        '200':
+          description: Idempotent replay of the same request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitTinodeMutationDeadLetterReplay' }
+        '403': { description: Admin role required }
+        '404': { description: Mutation dead letter not found in the tenant }
+        '409': { description: Mutation state or idempotency key conflict }
+        '503': { description: Tinode mutation operations are unavailable }
+
+  /api/ivekit/chat/sessions/{session_id}/attachments/{attachment_id}:
+    get:
+      summary: Get attachment processing, dual video jobs, and safe visual observations
+      tags: [iveKit Intelligence]
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: attachment_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Attachment status. Decoded observation values are never returned.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitAttachmentInspection' }
+        '404': { description: Session or attachment not found }
+
+  /api/ivekit/chat/sessions/{session_id}/files:
+    post:
+      summary: Create an idempotent secure file upload
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitCreateSecureFile' }
+      responses:
+        '201':
+          description: Upload created or idempotently replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitSecureFileResponse' }
+        '409': { description: Idempotency key or upload plan conflict }
+
+  /api/ivekit/chat/sessions/{session_id}/files/{file_id}:
+    get:
+      summary: Get the safe secure file status and derivative projection
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      responses:
+        '200':
+          description: Safe file status with no object-store or worker internals
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitSecureFileResponse' }
+        '404': { description: Session or file not found }
+    delete:
+      summary: Abort an initiated or uploading secure file
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      responses:
+        '200':
+          description: Upload expired; repeated aborts return the same terminal state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitSecureFileResponse' }
+        '409': { description: Completed files cannot be aborted }
+
+  /api/ivekit/chat/sessions/{session_id}/files/{file_id}/content:
+    put:
+      summary: Upload a complete single-mode secure file
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+        - { $ref: '#/components/parameters/ContentSha256' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Object accepted and moved to the scanning gate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitSecureFileResponse' }
+        '409': { description: Size, checksum, mode, or lifecycle conflict }
+
+  /api/ivekit/chat/sessions/{session_id}/files/{file_id}/parts:
+    get:
+      summary: List multipart upload progress for resume
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      responses:
+        '200':
+          description: Ordered safe part projections
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [parts]
+                properties:
+                  parts:
+                    type: array
+                    items: { $ref: '#/components/schemas/IveKitSecureFilePart' }
+
+  /api/ivekit/chat/sessions/{session_id}/files/{file_id}/parts/{part_number}:
+    put:
+      summary: Idempotently reserve and upload one multipart part
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+        - name: part_number
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 10000 }
+        - { $ref: '#/components/parameters/ContentSha256' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Uploaded part or identical replay
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [part]
+                properties:
+                  part: { $ref: '#/components/schemas/IveKitSecureFilePart' }
+        '409': { description: Part number was reserved with different content }
+
+  /api/ivekit/chat/sessions/{session_id}/files/{file_id}/complete:
+    post:
+      summary: Complete a multipart upload and enter the scanning gate
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [size_bytes, sha256]
+              properties:
+                size_bytes: { type: integer, minimum: 1, maximum: 10737418240 }
+                sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Multipart object completed or idempotently replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitSecureFileResponse' }
+        '409': { description: Missing parts, total, checksum, or lifecycle conflict }
+
+  /api/ivekit/chat/sessions/{session_id}/files/{file_id}/download:
+    get:
+      summary: Download a ready and threat-clean secure file
+      tags: [iveKit Files]
+      parameters:
+        - { $ref: '#/components/parameters/IveKitSessionId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      responses:
+        '200':
+          description: Integrity-verified file bytes
+          headers:
+            X-Content-SHA256:
+              schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '409': { description: File is not both ready and threat-clean }
+        '503': { description: Stored object is missing or failed integrity verification }
+
+  /api/ivekit/rustdesk/gateway-sessions/{external_id}/disconnect:
+    get:
+      summary: Get the durable targeted-disconnect state for a RustDesk gateway session
+      tags: [iveKit RustDesk]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskGatewayExternalId' }
+      responses:
+        '200':
+          description: Current command state, or unavailable when no command exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskDisconnectState' }
+        '404': { description: Gateway session not found in the authenticated tenant }
+
+  /api/ivekit/rustdesk/gateway-sessions/{external_id}/disconnect/emergency-fallback:
+    post:
+      summary: Explicitly authorize service-restart fallback after targeted disconnect fails
+      description: Requires an owner or admin Bearer JWT. The caller must acknowledge that other sessions on the same host may disconnect.
+      tags: [iveKit RustDesk]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskGatewayExternalId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskEmergencyFallbackInput' }
+      responses:
+        '201':
+          description: Emergency fallback authorization persisted on the existing disconnect command
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskCommandResponse' }
+        '403': { description: Owner or admin Bearer authorization is required }
+        '404': { description: Disconnect command not found }
+        '409': { description: Command state does not permit fallback authorization }
+
+  /api/ivekit/rustdesk/edge/heartbeat:
+    post:
+      summary: Heartbeat an existing RustDesk device with a device-bound edge token
+      description: Edge-internal endpoint. It cannot register a device and the token identity must match tenant, RustDesk ID, and edge instance.
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeHeartbeatInput' }
+      responses:
+        '201':
+          description: Existing device heartbeat accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeDevice' }
+        '404': { description: No active device matches the token-bound identity and business reference }
+
+  /api/ivekit/rustdesk/devices/{device_id}/commands/claim:
+    post:
+      summary: Claim the next targeted RustDesk device command
+      description: Edge-internal lease endpoint. controller_rustdesk_id identifies the exact active peer that the native named-pipe bridge must disconnect.
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeCommandClaimInput' }
+      responses:
+        '201':
+          description: Command lease claimed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeCommandClaimResponse' }
+        '204': { description: No due command }
+        '404': { description: Active token-bound device not found }
+
+  /api/ivekit/rustdesk/devices/{device_id}/commands/{command_id}/progress:
+    post:
+      summary: Report an intermediate targeted-disconnect state
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/RustDeskCommandId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeCommandProgressInput' }
+      responses:
+        '201':
+          description: Progress persisted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskCommandResponse' }
+        '409': { description: Command lease or state conflict }
+
+  /api/ivekit/rustdesk/devices/{device_id}/commands/{command_id}/result:
+    post:
+      summary: Complete a targeted RustDesk device command
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/RustDeskCommandId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeCommandResultInput' }
+      responses:
+        '201':
+          description: Result persisted or idempotently replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskCommandResponse' }
+        '409': { description: Command lease, result, or state conflict }
+
+  /api/ivekit/rustdesk/devices/{device_id}/commands/{command_id}/recover:
+    post:
+      summary: Recover a durable edge command after companion restart
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/RustDeskCommandId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeCommandRecoverInput' }
+      responses:
+        '201':
+          description: Recovery decision and, only when required, a renewed claim token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeCommandRecoverResponse' }
+        '409': { description: Durable local result conflicts with server state }
+
+  /api/ivekit/rustdesk/devices/{device_id}/observations:
+    post:
+      summary: Ingest device-bound native RustDesk operation observations
+      description: Edge-internal endpoint. Content payloads, clipboard text, keystrokes, screen pixels, tokens, passwords, and local paths are forbidden.
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeObservationBatch' }
+      responses:
+        '201':
+          description: Observation batch accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeObservationBatchResponse' }
+        '404': { description: Active token-bound device or gateway session not found }
+        '409': { description: Control ownership, secure evidence, or session state conflict }
+
+  /api/ivekit/rustdesk/devices/{device_id}/evidence-context:
+    get:
+      summary: Get short-lived device-bound native evidence authorization context
+      description: Edge-internal endpoint. Returns only active or finalization-grace operation bindings and never returns tokens, launch URLs, content, or local paths.
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+      responses:
+        '200':
+          description: Short-lived native evidence correlation context
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskNativeEvidenceContextResponse' }
+        '404': { description: Active token-bound device not found }
+
+  /api/ivekit/rustdesk/devices/{device_id}/evidence:
+    post:
+      summary: Create an authorized secure upload for native RustDesk evidence
+      description: Edge-internal endpoint. The server revalidates the active device, gateway session, permission, native event, and started operation before accepting content.
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitRustDeskNativeEvidenceCreate' }
+      responses:
+        '201':
+          description: Secure evidence upload created or idempotently replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeEvidenceFileResponse' }
+        '403': { description: Native evidence is not authorized by the active session or operation }
+        '404': { description: Active edge device or gateway session not found }
+        '409': { description: Session, upload, or idempotency state conflict }
+
+  /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}:
+    get:
+      summary: Get an edge-owned native evidence upload
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      responses:
+        '200':
+          description: Edge-internal secure evidence file state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeEvidenceFileResponse' }
+        '404': { description: Evidence is absent or not owned by this edge identity }
+    delete:
+      summary: Abort an initiated or uploading edge evidence upload
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      responses:
+        '200':
+          description: Upload aborted or terminal state replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeEvidenceFileResponse' }
+        '404': { description: Evidence is absent or not owned by this edge identity }
+        '409': { description: Completed evidence cannot be aborted }
+
+  /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/content:
+    put:
+      summary: Upload complete native evidence in single mode
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+        - { $ref: '#/components/parameters/ContentSha256' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Content accepted and moved into the secure scanning pipeline
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeEvidenceFileResponse' }
+        '404': { description: Evidence is absent or not owned by this edge identity }
+        '409': { description: Size, checksum, mode, or lifecycle conflict }
+
+  /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/parts:
+    get:
+      summary: List uploaded native evidence parts for resume
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      responses:
+        '200':
+          description: Ordered secure multipart progress
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [parts]
+                properties:
+                  parts: { type: array, items: { $ref: '#/components/schemas/IveKitSecureFilePart' } }
+        '404': { description: Evidence is absent or not owned by this edge identity }
+
+  /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/parts/{part_number}:
+    put:
+      summary: Idempotently upload one native evidence part
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+        - name: part_number
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 10000 }
+        - { $ref: '#/components/parameters/ContentSha256' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200':
+          description: Uploaded part or identical replay
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [part]
+                properties:
+                  part: { $ref: '#/components/schemas/IveKitSecureFilePart' }
+        '404': { description: Evidence is absent or not owned by this edge identity }
+        '409': { description: Part or lifecycle conflict }
+
+  /api/ivekit/rustdesk/devices/{device_id}/evidence/{file_id}/complete:
+    post:
+      summary: Complete native multipart evidence and enter the scanning gate
+      tags: [iveKit RustDesk Edge]
+      security: [{ RustDeskEdgeToken: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/RustDeskDeviceId' }
+        - { $ref: '#/components/parameters/IveKitFileId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitSecureFileCompleteInput' }
+      responses:
+        '200':
+          description: Multipart evidence completed or idempotently replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitRustDeskEdgeEvidenceFileResponse' }
+        '404': { description: Evidence is absent or not owned by this edge identity }
+        '409': { description: Missing parts, total, checksum, or lifecycle conflict }
+
+  /api/ivekit/media/calls/{call_id}/qos:
+    get:
+      summary: Get the bounded QoS and connection summary for a media call
+      tags: [iveKit Media]
+      parameters:
+        - name: call_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        '200':
+          description: Safe call quality projection without SDP, ICE, IP, device labels, or tokens
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitMediaQualitySummary' }
+        '404': { description: Call is missing or not visible to the caller }
+    post:
+      summary: Submit bounded participant and track QoS samples
+      tags: [iveKit Media]
+      parameters:
+        - name: call_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [snapshots]
+              properties:
+                snapshots:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items: { $ref: '#/components/schemas/IveKitMediaQualitySnapshotInput' }
+      responses:
+        '202':
+          description: Samples persisted and debounced quality state evaluated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitMediaQualityReportResult' }
+        '400': { description: Unknown, sensitive, stale, future, or out-of-range field }
+        '403': { description: Participant identity does not match the authenticated user }
+        '409': { description: Connection revision or sample payload conflict }
+
+  /api/ivekit/media/calls/{call_id}/connection-events:
+    post:
+      summary: Submit an idempotent monotonic media connection event
+      tags: [iveKit Media]
+      parameters:
+        - name: call_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitMediaConnectionEventInput' }
+      responses:
+        '200':
+          description: Event idempotently replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitMediaConnectionEventResult' }
+        '202':
+          description: New event persisted and participant connection state advanced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitMediaConnectionEventResult' }
+        '400': { description: Unknown, sensitive, stale-time, or invalid field }
+        '403': { description: Participant identity does not match the authenticated user }
+        '409': { description: Revision, occurrence order, or event payload conflict }
+
+  /api/ivekit/events:
+    get:
+      summary: Replay durable tenant events from an opaque cursor
+      description: Without a cursor returns the current head. A 409 response requires the consumer to rebuild its snapshot before continuing.
+      tags: [iveKit Events]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageLimit' }
+      responses:
+        '200':
+          description: Tenant and audience-filtered event page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitEventPage' }
+        '409':
+          description: Cursor is invalid, belongs to another tenant, or is older than retention
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitEventPage' }
+        '503': { description: Durable event replay is disabled or PostgreSQL is unavailable }
+
+  /api/ivekit/events/catalog:
+    get:
+      summary: Get the versioned integration event catalog and pattern contract
+      tags: [iveKit Events]
+      responses:
+        '200':
+          description: Additive event family catalog
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitIntegrationEventCatalog' }
+
+  /api/ivekit/events/webhook-subscriptions:
+    get:
+      summary: List durable integration event webhook subscriptions
+      description: Requires owner, admin, or system role. Lease and idempotency internals are omitted.
+      tags: [iveKit Events]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageLimit' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, paused, archived] }
+      responses:
+        '200':
+          description: Subscription cursor page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitEventWebhookSubscriptionPage' }
+        '403': { description: Event subscription administration is forbidden }
+    post:
+      summary: Idempotently subscribe an active webhook endpoint to event patterns
+      description: Patterns are exact event names or trailing family wildcards. Endpoint allowlists remain authoritative.
+      tags: [iveKit Events]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitCreateEventWebhookSubscriptionInput' }
+      responses:
+        '200': { description: Identical idempotent replay }
+        '201': { description: Subscription created }
+        '409': { description: Idempotency key payload conflict }
+        '422': { description: Endpoint or event patterns are invalid }
+        '429': { description: Tenant, actor, or source IP mutation limit exceeded }
+
+  /api/ivekit/events/webhook-subscriptions/{subscription_id}:
+    get:
+      summary: Get a safe event webhook subscription projection
+      tags: [iveKit Events]
+      parameters:
+        - { $ref: '#/components/parameters/EventWebhookSubscriptionId' }
+      responses:
+        '200':
+          description: Subscription found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitEventWebhookSubscription' }
+        '404': { description: Subscription not found }
+    put:
+      summary: Optimistically update or pause an event webhook subscription
+      tags: [iveKit Events]
+      parameters:
+        - { $ref: '#/components/parameters/EventWebhookSubscriptionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitUpdateEventWebhookSubscriptionInput' }
+      responses:
+        '200': { description: Subscription updated }
+        '409': { description: Revision conflict }
+        '422': { description: Patch or event patterns are invalid }
+        '429': { description: Tenant, actor, or source IP mutation limit exceeded }
+
+  /api/ivekit/events/webhook-subscriptions/{subscription_id}/archive:
+    post:
+      summary: Optimistically archive an event webhook subscription
+      tags: [iveKit Events]
+      parameters:
+        - { $ref: '#/components/parameters/EventWebhookSubscriptionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_revision]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Subscription archived }
+        '409': { description: Revision conflict }
+        '429': { description: Tenant, actor, or source IP mutation limit exceeded }
+
+  /api/ivekit/notifications/capabilities:
+    get:
+      summary: Get notification channel and operations capabilities
+      tags: [iveKit Notifications]
+      responses:
+        '200':
+          description: Deployment capability projection; mobile push is explicitly unsupported
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationCapabilities' }
+
+  /api/ivekit/notifications:
+    post:
+      summary: Create one logical notification and durable channel deliveries
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitCreateNotificationInput' }
+      responses:
+        '200':
+          description: Identical idempotent replay
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationCreateResult' }
+        '201':
+          description: Notification and deliveries persisted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationCreateResult' }
+        '409': { description: Idempotency key payload conflict }
+        '429': { description: Tenant, actor, source IP, or recipient rate limit exceeded }
+
+  /api/ivekit/notifications/{notification_id}:
+    get:
+      summary: Get a safe logical notification projection
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/NotificationId' }
+      responses:
+        '200':
+          description: No plaintext content or ciphertext is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notification]
+                properties:
+                  notification: { $ref: '#/components/schemas/IveKitNotification' }
+        '404': { description: Notification is missing in the authenticated tenant }
+
+  /api/ivekit/notifications/inbox:
+    get:
+      summary: List the authenticated user's in-app notification projection
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageLimit' }
+        - name: include_archived
+          in: query
+          schema: { type: boolean, default: false }
+        - name: user_id
+          in: query
+          description: Administrative tenant-scoped override only
+          schema: { type: string }
+      responses:
+        '200':
+          description: Cursor page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationInboxPage' }
+
+  /api/ivekit/notifications/inbox/unread-count:
+    get:
+      summary: Count unread in-app notifications
+      tags: [iveKit Notifications]
+      responses:
+        '200':
+          description: Current user unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [unread_count]
+                properties:
+                  unread_count: { type: integer, minimum: 0 }
+
+  /api/ivekit/notifications/inbox/{item_id}/{action}:
+    post:
+      summary: Mutate one user-owned inbox item
+      tags: [iveKit Notifications]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: action
+          in: path
+          required: true
+          schema: { type: string, enum: [read, unread, archive, unarchive] }
+      responses:
+        '200':
+          description: Updated inbox item
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationInboxItem' }
+        '404': { description: Item is missing or owned by another user }
+
+  /api/ivekit/notifications/endpoints:
+    get:
+      summary: List safe Provider endpoint projections
+      description: Requires owner, admin, or system role. Cursors are bound to tenant and filters.
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageLimit' }
+        - name: channel
+          in: query
+          schema: { type: string, enum: [webhook, email, sms] }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, degraded, disabled, archived] }
+      responses:
+        '200':
+          description: Endpoint page without secret refs or values
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationEndpointPage' }
+    post:
+      summary: Idempotently create a Provider endpoint
+      description: Requires owner, admin, or system role. Credentials are env:// references.
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitCreateNotificationEndpointInput' }
+      responses:
+        '200': { description: Identical idempotent replay }
+        '201': { description: Endpoint created }
+        '409': { description: Idempotency key payload conflict }
+        '422': { description: Channel, Provider, URL, config, or secret reference is invalid }
+
+  /api/ivekit/notifications/endpoints/{endpoint_id}:
+    get:
+      summary: Get one safe Provider endpoint projection
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/EndpointId' }
+      responses:
+        '200':
+          description: Endpoint without secret refs or values
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [endpoint]
+                properties:
+                  endpoint: { $ref: '#/components/schemas/IveKitNotificationEndpoint' }
+        '404': { description: Endpoint not found }
+    put:
+      summary: Optimistically update a Provider endpoint
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/EndpointId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision, patch]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+                patch: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Endpoint updated and health reset when config changed }
+        '409': { description: Endpoint revision conflict }
+
+  /api/ivekit/notifications/endpoints/{endpoint_id}/test:
+    post:
+      summary: Create a one-attempt durable endpoint test delivery
+      description: Uses the normal encrypted queue, quota, circuit, worker, audit, and Provider path.
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/EndpointId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitNotificationEndpointTestInput' }
+      responses:
+        '200': { description: Identical test replay }
+        '201': { description: Test delivery persisted }
+        '409': { description: Endpoint is not active or idempotency payload conflicts }
+
+  /api/ivekit/notifications/endpoints/{endpoint_id}/archive:
+    post:
+      summary: Optimistically archive a Provider endpoint
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/EndpointId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Endpoint archived }
+        '409': { description: Endpoint revision conflict }
+
+  /api/ivekit/notifications/templates:
+    get:
+      summary: List notification templates
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageLimit' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [draft, published, archived] }
+      responses:
+        '200':
+          description: Template page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationTemplatePage' }
+    post:
+      summary: Create a template and immutable revision one
+      tags: [iveKit Notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitCreateNotificationTemplateInput' }
+      responses:
+        '201':
+          description: Template snapshot created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationTemplateSnapshot' }
+
+  /api/ivekit/notifications/templates/{template_id}:
+    get:
+      summary: Get template metadata
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/TemplateId' }
+      responses:
+        '200':
+          description: Template metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [template]
+                properties:
+                  template: { $ref: '#/components/schemas/IveKitNotificationTemplate' }
+        '404': { description: Template not found }
+    put:
+      summary: Append an immutable template draft revision
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/TemplateId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitUpdateNotificationTemplateInput' }
+      responses:
+        '200': { description: New draft snapshot }
+        '409': { description: Template revision conflict }
+
+  /api/ivekit/notifications/templates/{template_id}/versions:
+    get:
+      summary: List immutable template versions
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/TemplateId' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageLimit' }
+        - name: locale
+          in: query
+          schema: { type: string, maxLength: 35 }
+      responses:
+        '200':
+          description: Version page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationTemplateVersionPage' }
+
+  /api/ivekit/notifications/templates/{template_id}/publish:
+    post:
+      summary: Publish the expected draft revision for one locale
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/TemplateId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision, locale]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+                locale: { type: string, maxLength: 35 }
+      responses:
+        '200': { description: Published template snapshot }
+        '409': { description: Template revision conflict }
+
+  /api/ivekit/notifications/templates/{template_id}/archive:
+    post:
+      summary: Optimistically archive a template
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/TemplateId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_revision]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Archived template metadata }
+        '409': { description: Template revision conflict }
+
+  /api/ivekit/notifications/preferences:
+    get:
+      summary: List notification preferences for the authenticated user
+      tags: [iveKit Notifications]
+      responses:
+        '200':
+          description: User preference list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [preferences]
+                properties:
+                  preferences:
+                    type: array
+                    items: { $ref: '#/components/schemas/IveKitNotificationPreference' }
+
+  /api/ivekit/notifications/preferences/{event_type}/{channel}:
+    put:
+      summary: Revisioned upsert of one user notification preference
+      tags: [iveKit Notifications]
+      parameters:
+        - name: event_type
+          in: path
+          required: true
+          schema: { type: string, maxLength: 255 }
+        - name: channel
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled, expected_revision]
+              properties:
+                enabled: { type: boolean }
+                expected_revision: { type: integer, minimum: 0 }
+                locale: { type: string, maxLength: 35 }
+                quiet_hours: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Preference updated }
+        '409': { description: Preference revision conflict }
+
+  /api/ivekit/notifications/deliveries:
+    get:
+      summary: List tenant notification deliveries
+      description: Requires owner, admin, or system role. Safe projection excludes recipient and payload ciphertext.
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/PageLimit' }
+        - name: notification_id
+          in: query
+          schema: { type: string }
+        - name: endpoint_id
+          in: query
+          schema: { type: string }
+        - name: channel
+          in: query
+          schema: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+        - name: state
+          in: query
+          schema: { $ref: '#/components/schemas/IveKitNotificationDeliveryState' }
+      responses:
+        '200':
+          description: Delivery page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitNotificationDeliveryPage' }
+
+  /api/ivekit/notifications/deliveries/{delivery_id}:
+    get:
+      summary: Get one safe notification delivery
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/DeliveryId' }
+      responses:
+        '200':
+          description: Safe delivery projection
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [delivery]
+                properties:
+                  delivery: { $ref: '#/components/schemas/IveKitNotificationDelivery' }
+        '404': { description: Delivery not found }
+
+  /api/ivekit/notifications/deliveries/{delivery_id}/retry:
+    post:
+      summary: Guarded manual retry of a terminal or uncertain delivery
+      description: Uncertain retry additionally requires notifications.force_delivery capability and explicit allow_uncertain=true.
+      tags: [iveKit Notifications]
+      parameters:
+        - { $ref: '#/components/parameters/DeliveryId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expected_state]
+              properties:
+                expected_state: { type: string, enum: [failed, dead_letter, uncertain] }
+                allow_uncertain: { type: boolean, default: false }
+      responses:
+        '200': { description: Delivery moved to retry_wait and immutable operation appended }
+        '403': { description: Uncertain retry capability denied }
+        '409': { description: Expected state no longer matches }
+
+  /api/ivekit/notifications/provider-receipts/{endpoint_id}:
+    post:
+      summary: Receive an authenticated Provider delivery receipt
+      description: Uses X-Tenant-Id, X-OPC-Timestamp, and X-OPC-Signature instead of user authentication.
+      tags: [iveKit Notifications]
+      security: []
+      parameters:
+        - { $ref: '#/components/parameters/EndpointId' }
+        - name: X-Tenant-Id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-OPC-Timestamp
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-OPC-Signature
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Identical receipt replay }
+        '201': { description: Receipt persisted and delivery reconciled }
+        '401': { description: Timestamp or signature invalid }
+        '429': { description: Provider, tenant, or source IP receipt limit exceeded }
+
+webhooks:
+  iveKitIntegrationEvent:
+    post:
+      summary: Receive a durable signed iveKit integration event
+      description: Verify the timestamp and HMAC against the exact raw body, then atomically claim the delivery in a shared durable inbox.
+      tags: [iveKit Events]
+      parameters:
+        - name: x-ivekit-timestamp
+          in: header
+          required: true
+          schema: { type: string, pattern: '^\d{10,11}$' }
+        - name: x-ivekit-signature
+          in: header
+          required: true
+          schema: { type: string, pattern: '^v1=[a-f0-9]{64}$' }
+        - name: x-ivekit-delivery
+          in: header
+          required: true
+          schema: { type: string }
+        - name: x-ivekit-event
+          in: header
+          required: true
+          schema: { type: string }
+        - name: x-ivekit-event-id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: x-ivekit-idempotency-key
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IveKitIntegrationWebhookDelivery' }
+      responses:
+        '200': { description: Accepted or already present in the durable inbox }
+        '401': { description: Timestamp, signature, or envelope verification failed }
+        '429': { description: Receiver is rate limited and iveKit may retry }
+        '503': { description: Receiver signing-secret service or durable inbox is unavailable and iveKit should retry }
+
 components:
   securitySchemes:
     BearerAuth:
@@ -313,8 +1803,1184 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+    RustDeskEdgeToken:
+      type: apiKey
+      in: header
+      name: X-RustDesk-Edge-Token
+
+  parameters:
+    IveKitSessionId:
+      name: session_id
+      in: path
+      required: true
+      schema: { type: string }
+    IveKitFileId:
+      name: file_id
+      in: path
+      required: true
+      schema: { type: string }
+    RustDeskDeviceId:
+      name: device_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 512 }
+    RustDeskCommandId:
+      name: command_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 512 }
+    RustDeskGatewayExternalId:
+      name: external_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 512 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    ContentSha256:
+      name: X-Content-SHA256
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    NotificationId:
+      name: notification_id
+      in: path
+      required: true
+      schema: { type: string }
+    EndpointId:
+      name: endpoint_id
+      in: path
+      required: true
+      schema: { type: string }
+    EventWebhookSubscriptionId:
+      name: subscription_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 255 }
+    TemplateId:
+      name: template_id
+      in: path
+      required: true
+      schema: { type: string }
+    DeliveryId:
+      name: delivery_id
+      in: path
+      required: true
+      schema: { type: string }
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor bound to tenant and active filters
+      schema: { type: string, maxLength: 2048 }
+    PageLimit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
 
   schemas:
+    IveKitEventVisibility:
+      type: object
+      additionalProperties: false
+      required: [scope, ref_id, audience_user_ids]
+      properties:
+        scope: { type: string, enum: [tenant, chat_session, media_call, remote_session] }
+        ref_id: { type: string }
+        audience_user_ids: { type: array, items: { type: string } }
+
+    IveKitTenantEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, cursor, tenant_id, type, data, timestamp, expires_at, visibility_scope, visibility_ref_id, audience_user_ids]
+      properties:
+        event_id: { type: string }
+        cursor: { type: string, description: Opaque cursor for the next replay request }
+        tenant_id: { type: string }
+        type: { type: string }
+        data: {}
+        timestamp: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        visibility_scope: { type: string, enum: [tenant, chat_session, media_call, remote_session] }
+        visibility_ref_id: { type: string }
+        audience_user_ids: { type: array, items: { type: string } }
+
+    IveKitEventPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor, has_more, snapshot_required]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IveKitTenantEvent' } }
+        next_cursor: { type: string }
+        has_more: { type: boolean }
+        snapshot_required: { type: boolean }
+        reason: { type: string, enum: [invalid_cursor, cursor_tenant_mismatch, cursor_expired] }
+
+    IveKitIntegrationEventCatalog:
+      type: object
+      additionalProperties: false
+      required: [schema_version, envelope_schema_version, webhook_signature_version, pattern_syntax, compatibility, max_payload_bytes, families]
+      properties:
+        schema_version: { type: integer, const: 1 }
+        envelope_schema_version: { type: integer, const: 1 }
+        webhook_signature_version: { type: string, const: v1 }
+        pattern_syntax: { type: string, const: exact_or_trailing_wildcard }
+        compatibility: { type: string, const: additive }
+        max_payload_bytes: { type: integer, const: 65536 }
+        families:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, patterns]
+            properties:
+              id: { type: string, enum: [chat, file, intelligence, media, notification, provider, remote, voice] }
+              patterns: { type: array, items: { type: string } }
+
+    IveKitEventWebhookSubscription:
+      type: object
+      additionalProperties: false
+      description: Safe subscription projection without lease hashes or idempotency internals.
+      required: [id, endpoint_id, name, event_patterns, status, last_event_id, next_attempt_at, attempt_count, error_code, revision, created_by, updated_by, created_at, updated_at]
+      properties:
+        id: { type: string }
+        endpoint_id: { type: string }
+        name: { type: string }
+        event_patterns: { type: array, minItems: 1, maxItems: 64, uniqueItems: true, items: { type: string, maxLength: 255 } }
+        status: { type: string, enum: [active, paused, archived] }
+        last_event_id: { type: string }
+        next_attempt_at: { type: string, format: date-time }
+        attempt_count: { type: integer, minimum: 0 }
+        error_code: { type: string }
+        revision: { type: integer, minimum: 1 }
+        created_by: { type: string }
+        updated_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitEventWebhookSubscriptionPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IveKitEventWebhookSubscription' } }
+        next_cursor: { type: [string, 'null'] }
+
+    IveKitCreateEventWebhookSubscriptionInput:
+      type: object
+      additionalProperties: false
+      required: [endpoint_id, name, event_patterns]
+      properties:
+        endpoint_id: { type: string, minLength: 1, maxLength: 255 }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        event_patterns: { type: array, minItems: 1, maxItems: 64, uniqueItems: true, items: { type: string, maxLength: 255 } }
+
+    IveKitUpdateEventWebhookSubscriptionInput:
+      type: object
+      additionalProperties: false
+      required: [expected_revision]
+      properties:
+        expected_revision: { type: integer, minimum: 1 }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        event_patterns: { type: array, minItems: 1, maxItems: 64, uniqueItems: true, items: { type: string, maxLength: 255 } }
+        status: { type: string, enum: [active, paused] }
+
+    IveKitIntegrationEventEnvelope:
+      type: object
+      additionalProperties: false
+      required: [schema_version, event_id, event_type, tenant_id, occurred_at, business_ref, visibility, data]
+      properties:
+        schema_version: { type: integer, const: 1 }
+        event_id: { type: string }
+        event_type: { type: string }
+        tenant_id: { type: string }
+        occurred_at: { type: string, format: date-time }
+        business_ref:
+          oneOf:
+            - { $ref: '#/components/schemas/IveKitBusinessRef' }
+            - { type: 'null' }
+        visibility: { $ref: '#/components/schemas/IveKitEventVisibility' }
+        data: {}
+
+    IveKitIntegrationWebhookDelivery:
+      type: object
+      additionalProperties: false
+      description: Verify X-ivekit-signature over X-ivekit-timestamp + '.' + raw body before parsing. Outer and inner tenant/event identities must match.
+      required: [id, event, tenant_id, timestamp, business_ref, data]
+      properties:
+        id: { type: string, description: Stable notification delivery ID used for replay protection }
+        event: { type: string }
+        tenant_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        business_ref: { $ref: '#/components/schemas/IveKitBusinessRef' }
+        data: { $ref: '#/components/schemas/IveKitIntegrationEventEnvelope' }
+
+    IveKitNotificationChannel:
+      type: string
+      enum: [in_app, webhook, email, sms]
+
+    IveKitNotificationDeliveryState:
+      type: string
+      enum: [pending, processing, accepted, retry_wait, uncertain, delivered, failed, cancelled, dead_letter]
+
+    IveKitNotificationCapabilities:
+      type: object
+      additionalProperties: false
+      required: [schema_version, channels, inbox, templates, preferences, provider_receipts, durable_delivery, administration, delivery_operations, active_health_checks]
+      properties:
+        schema_version: { type: integer, minimum: 1 }
+        channels:
+          type: object
+          additionalProperties: false
+          required: [in_app, webhook, email, sms, mobile_push]
+          properties:
+            in_app: { type: boolean }
+            webhook: { type: boolean }
+            email: { type: boolean }
+            sms: { type: boolean }
+            mobile_push: { type: boolean, const: false }
+        inbox: { type: boolean }
+        templates: { type: boolean }
+        preferences: { type: boolean }
+        provider_receipts: { type: boolean }
+        durable_delivery: { type: boolean }
+        administration: { type: boolean }
+        delivery_operations: { type: boolean }
+        active_health_checks: { type: boolean }
+
+    IveKitBusinessRef:
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type: { type: string, minLength: 1, maxLength: 100 }
+        id: { type: string, minLength: 1, maxLength: 255 }
+
+    IveKitCreateNotificationInput:
+      type: object
+      additionalProperties: false
+      required: [event_type, recipient, targets, content, business_ref]
+      properties:
+        event_type: { type: string, minLength: 1, maxLength: 255 }
+        recipient:
+          type: object
+          additionalProperties: false
+          required: [kind, ref]
+          properties:
+            kind: { type: string, enum: [user, external, endpoint] }
+            ref: { type: string, minLength: 1, maxLength: 2048 }
+        targets:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            type: object
+            additionalProperties: false
+            required: [channel, recipient]
+            properties:
+              channel: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+              recipient: { type: string, minLength: 1, maxLength: 2048 }
+              endpoint_id: { type: string }
+        content: {}
+        content_projection: { type: object, additionalProperties: true }
+        priority: { type: string, enum: [low, normal, high, urgent], default: normal }
+        force_delivery: { type: boolean, default: false }
+        locale: { type: string, maxLength: 35 }
+        template:
+          type: object
+          additionalProperties: false
+          required: [id, revision]
+          properties:
+            id: { type: string }
+            revision: { type: integer, minimum: 1 }
+        business_ref: { $ref: '#/components/schemas/IveKitBusinessRef' }
+        correlation_id: { type: string, maxLength: 255 }
+        policy: { type: object, additionalProperties: true }
+        scheduled_at: { type: string, format: date-time }
+        retention_until: { type: [string, 'null'], format: date-time }
+        max_attempts: { type: integer, minimum: 1, maximum: 20 }
+
+    IveKitNotification:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, event_type, recipient_kind, recipient_ref, channels, locale, content_projection, priority, force_delivery, business_ref, requested_by, correlation_id, state, scheduled_at, created_at, updated_at]
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        event_type: { type: string }
+        recipient_kind: { type: string, enum: [user, external, endpoint] }
+        recipient_ref: { type: string }
+        channels:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+        locale: { type: string }
+        template_id: { type: [string, 'null'] }
+        template_revision: { type: [integer, 'null'], minimum: 1 }
+        content_projection: { type: object, additionalProperties: true }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        force_delivery: { type: boolean }
+        business_ref: { $ref: '#/components/schemas/IveKitBusinessRef' }
+        requested_by: { type: string }
+        correlation_id: { type: string }
+        state: { type: string, enum: [pending, processing, completed, partial_failed, failed, cancelled] }
+        scheduled_at: { type: string, format: date-time }
+        retention_until: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+
+    IveKitNotificationDelivery:
+      type: object
+      additionalProperties: false
+      description: Safe projection; recipient and payload ciphertext, HMACs, lease tokens, and worker ids are omitted.
+      required: [id, notification_id, channel, provider_kind, provider_profile_id, recipient_redacted, state, attempt_count, max_attempts, provider_request_id, provider_message_id, provider_receipt_projection, error_code, error_projection, created_at, updated_at]
+      properties:
+        id: { type: string }
+        notification_id: { type: string }
+        channel: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+        endpoint_id: { type: [string, 'null'] }
+        provider_kind: { type: string }
+        provider_profile_id: { type: string }
+        recipient_redacted: { type: string }
+        state: { $ref: '#/components/schemas/IveKitNotificationDeliveryState' }
+        attempt_count: { type: integer, minimum: 0 }
+        max_attempts: { type: integer, minimum: 1 }
+        next_attempt_at: { type: [string, 'null'], format: date-time }
+        provider_request_id: { type: string }
+        provider_message_id: { type: string }
+        provider_receipt_projection: { type: object, additionalProperties: true }
+        error_code: { type: string }
+        error_projection: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        accepted_at: { type: [string, 'null'], format: date-time }
+        delivered_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+
+    IveKitNotificationCreateResult:
+      type: object
+      additionalProperties: false
+      required: [created, notification, deliveries]
+      properties:
+        created: { type: boolean }
+        notification: { $ref: '#/components/schemas/IveKitNotification' }
+        deliveries:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitNotificationDelivery' }
+
+    IveKitNotificationEndpoint:
+      type: object
+      additionalProperties: false
+      description: Safe endpoint projection. Secret references and values are omitted.
+      required: [id, tenant_id, name, channel, provider_kind, status, endpoint_url, secret_configured, signing_secret_configured, event_allowlist, config, failover_group, priority, health_status, revision, created_by, updated_by, created_at, updated_at]
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        name: { type: string }
+        channel: { type: string, enum: [webhook, email, sms] }
+        provider_kind: { type: string, enum: [webhook, smtp, email_http, sms_http, controlled] }
+        status: { type: string, enum: [active, paused, degraded, disabled, archived] }
+        endpoint_url: { type: string }
+        secret_configured: { type: boolean }
+        signing_secret_configured: { type: boolean }
+        event_allowlist: { type: array, items: { type: string } }
+        config: { type: object, additionalProperties: true }
+        failover_group: { type: string }
+        priority: { type: integer }
+        quota_per_minute: { type: [integer, 'null'], minimum: 0 }
+        quota_per_day: { type: [integer, 'null'], minimum: 0 }
+        health_status: { type: string, enum: [unknown, healthy, degraded, unhealthy] }
+        last_health_at: { type: [string, 'null'], format: date-time }
+        revision: { type: integer, minimum: 1 }
+        created_by: { type: string }
+        updated_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitCreateNotificationEndpointInput:
+      type: object
+      additionalProperties: false
+      required: [name, channel, provider_kind]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        channel: { type: string, enum: [webhook, email, sms] }
+        provider_kind: { type: string, enum: [webhook, smtp, email_http, sms_http, controlled] }
+        status: { type: string, enum: [active, paused, degraded, disabled] }
+        endpoint_url: { type: string, format: uri }
+        secret_ref: { type: string, pattern: '^env://[A-Z][A-Z0-9_]*$' }
+        signing_secret_ref: { type: string, pattern: '^env://[A-Z][A-Z0-9_]*$' }
+        event_allowlist: { type: array, uniqueItems: true, items: { type: string } }
+        config: { type: object, additionalProperties: true }
+        failover_group: { type: string }
+        priority: { type: integer }
+        quota_per_minute: { type: [integer, 'null'], minimum: 0 }
+        quota_per_day: { type: [integer, 'null'], minimum: 0 }
+
+    IveKitNotificationEndpointTestInput:
+      type: object
+      additionalProperties: false
+      required: [event_type, recipient, content]
+      properties:
+        event_type: { type: string, minLength: 1, maxLength: 255 }
+        recipient: { type: string, minLength: 1, maxLength: 2048 }
+        content: {}
+        content_projection: { type: object, additionalProperties: true }
+        business_ref: { $ref: '#/components/schemas/IveKitBusinessRef' }
+        correlation_id: { type: string, maxLength: 255 }
+
+    IveKitNotificationTemplate:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, template_key, description, status, draft_revision, created_by, updated_by, created_at, updated_at]
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        template_key: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [draft, published, archived] }
+        draft_revision: { type: integer, minimum: 1 }
+        published_revision: { type: [integer, 'null'], minimum: 1 }
+        created_by: { type: string }
+        updated_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitNotificationTemplateVersion:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, template_id, revision, locale, channels, content, content_hash, published, created_by, created_at]
+      properties:
+        tenant_id: { type: string }
+        template_id: { type: string }
+        revision: { type: integer, minimum: 1 }
+        locale: { type: string }
+        channels:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+        content: { type: object, additionalProperties: true }
+        content_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        published: { type: boolean }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        published_at: { type: [string, 'null'], format: date-time }
+
+    IveKitCreateNotificationTemplateInput:
+      type: object
+      additionalProperties: false
+      required: [template_key, locale, channels, content]
+      properties:
+        template_key: { type: string, minLength: 1, maxLength: 128 }
+        description: { type: string }
+        locale: { type: string, minLength: 1, maxLength: 35 }
+        channels:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+        content: { type: object, additionalProperties: true }
+
+    IveKitUpdateNotificationTemplateInput:
+      allOf:
+        - { $ref: '#/components/schemas/IveKitCreateNotificationTemplateInput' }
+        - type: object
+          required: [expected_revision]
+          properties:
+            expected_revision: { type: integer, minimum: 1 }
+
+    IveKitNotificationTemplateSnapshot:
+      type: object
+      additionalProperties: false
+      required: [template, version]
+      properties:
+        template: { $ref: '#/components/schemas/IveKitNotificationTemplate' }
+        version: { $ref: '#/components/schemas/IveKitNotificationTemplateVersion' }
+
+    IveKitNotificationPreference:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, user_id, event_type, channel, enabled, locale, quiet_hours, revision, created_at, updated_at]
+      properties:
+        tenant_id: { type: string }
+        user_id: { type: string }
+        event_type: { type: string }
+        channel: { $ref: '#/components/schemas/IveKitNotificationChannel' }
+        enabled: { type: boolean }
+        locale: { type: string }
+        quiet_hours: { type: object, additionalProperties: true }
+        revision: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitNotificationInboxItem:
+      type: object
+      additionalProperties: false
+      required: [id, tenant_id, notification_id, user_id, projection, priority, created_at, updated_at]
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        notification_id: { type: string }
+        user_id: { type: string }
+        projection: { type: object, additionalProperties: true }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        read_at: { type: [string, 'null'], format: date-time }
+        archived_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitNotificationEndpointPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IveKitNotificationEndpoint' } }
+        next_cursor: { type: [string, 'null'] }
+
+    IveKitNotificationTemplatePage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IveKitNotificationTemplate' } }
+        next_cursor: { type: [string, 'null'] }
+
+    IveKitNotificationTemplateVersionPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IveKitNotificationTemplateVersion' } }
+        next_cursor: { type: [string, 'null'] }
+
+    IveKitNotificationDeliveryPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IveKitNotificationDelivery' } }
+        next_cursor: { type: [string, 'null'] }
+
+    IveKitNotificationInboxPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/IveKitNotificationInboxItem' } }
+        next_cursor: { type: [string, 'null'] }
+
+    IveKitMediaQualitySnapshotInput:
+      type: object
+      additionalProperties: false
+      required: [participant_identity, connection_revision, sample_id, track_source, quality_level, sampled_at]
+      properties:
+        participant_identity: { type: string, minLength: 1, maxLength: 255 }
+        connection_revision: { type: integer, minimum: 1 }
+        sample_id: { type: string, minLength: 1, maxLength: 128 }
+        track_source:
+          type: string
+          enum: [camera, microphone, screen_share, screen_share_audio]
+        quality_level: { type: string, enum: [excellent, good, poor, lost, unknown] }
+        rtt_ms: { type: [number, 'null'], minimum: 0, maximum: 60000 }
+        jitter_ms: { type: [number, 'null'], minimum: 0, maximum: 10000 }
+        packet_loss_ratio: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        bitrate_bps: { type: [integer, 'null'], minimum: 0, maximum: 1000000000 }
+        quality_score: { type: [number, 'null'], minimum: 0, maximum: 5 }
+        sampled_at: { type: string, format: date-time }
+
+    IveKitMediaQualityParticipantState:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, call_id, identity, participant_status, connection_revision, connection_state, connection_updated_at, last_disconnected_at, last_rejoined_at, quality_state, quality_degraded_streak, quality_recovered_streak, last_quality_level, last_quality_sample_id, last_qos_at]
+      properties:
+        tenant_id: { type: string }
+        call_id: { type: string }
+        identity: { type: string }
+        participant_status: { type: string, enum: [invited, ringing, accepted, joined, declined, left, missed, removed] }
+        connection_revision: { type: integer, minimum: 0 }
+        connection_state: { type: string, enum: [connected, reconnecting, disconnected, rejoining, failed] }
+        connection_updated_at: { type: [string, 'null'], format: date-time }
+        last_disconnected_at: { type: [string, 'null'], format: date-time }
+        last_rejoined_at: { type: [string, 'null'], format: date-time }
+        quality_state: { type: string, enum: [unknown, good, degraded] }
+        quality_degraded_streak: { type: integer, minimum: 0 }
+        quality_recovered_streak: { type: integer, minimum: 0 }
+        last_quality_level: { type: string, enum: [excellent, good, poor, lost, unknown] }
+        last_quality_sample_id: { type: string }
+        last_qos_at: { type: [string, 'null'], format: date-time }
+
+    IveKitMediaQualityTransition:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, call_id, participant_identity, connection_revision, from, to, event_type, quality_level, sampled_at]
+      properties:
+        tenant_id: { type: string }
+        call_id: { type: string }
+        participant_identity: { type: string }
+        connection_revision: { type: integer, minimum: 1 }
+        from: { type: string, enum: [unknown, good, degraded] }
+        to: { type: string, enum: [good, degraded] }
+        event_type: { type: string, enum: [degraded, recovered] }
+        quality_level: { type: string, enum: [excellent, good, poor, lost, unknown] }
+        sampled_at: { type: string, format: date-time }
+
+    IveKitMediaQualityReportResult:
+      type: object
+      additionalProperties: false
+      required: [accepted, replayed, participant_states, transitions]
+      properties:
+        accepted: { type: integer, minimum: 0 }
+        replayed: { type: integer, minimum: 0 }
+        participant_states:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitMediaQualityParticipantState' }
+        transitions:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitMediaQualityTransition' }
+
+    IveKitMediaQualitySnapshot:
+      unevaluatedProperties: false
+      allOf:
+        - { $ref: '#/components/schemas/IveKitMediaQualitySnapshotInput' }
+        - type: object
+          required: [id, tenant_id, call_id, received_at]
+          properties:
+            id: { type: string }
+            tenant_id: { type: string }
+            call_id: { type: string }
+            received_at: { type: string, format: date-time }
+
+    IveKitMediaQualitySummary:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, call_id, generated_at, participants, recent_snapshots]
+      properties:
+        tenant_id: { type: string }
+        call_id: { type: string }
+        generated_at: { type: string, format: date-time }
+        participants:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitMediaQualityParticipantState' }
+        recent_snapshots:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitMediaQualitySnapshot' }
+
+    IveKitMediaConnectionEventInput:
+      type: object
+      additionalProperties: false
+      required: [participant_identity, event_id, connection_revision, event_type, occurred_at]
+      properties:
+        participant_identity: { type: string, minLength: 1, maxLength: 255 }
+        event_id: { type: string, minLength: 1, maxLength: 128 }
+        connection_revision: { type: integer, minimum: 1 }
+        event_type:
+          type: string
+          enum: [connected, reconnecting, reconnected, disconnected, rejoining, rejoined, failed]
+        reason_code: { type: string, maxLength: 128, pattern: '^[a-zA-Z0-9_.:-]*$' }
+        occurred_at: { type: string, format: date-time }
+
+    IveKitMediaConnectionEventResult:
+      type: object
+      additionalProperties: false
+      required: [event, participant_state, replayed]
+      properties:
+        event:
+          unevaluatedProperties: false
+          allOf:
+            - { $ref: '#/components/schemas/IveKitMediaConnectionEventInput' }
+            - type: object
+              required: [id, tenant_id, call_id, reason_code, connection_state, received_at]
+              properties:
+                id: { type: string }
+                tenant_id: { type: string }
+                call_id: { type: string }
+                reason_code: { type: string }
+                connection_state: { type: string, enum: [connected, reconnecting, disconnected, rejoining, failed] }
+                received_at: { type: string, format: date-time }
+        participant_state: { $ref: '#/components/schemas/IveKitMediaQualityParticipantState' }
+        replayed: { type: boolean }
+
+    IveKitTinodeOperationsSnapshot:
+      type: object
+      additionalProperties: false
+      required: [tenant_id, generated_at, delivery, inbound, dead_letters]
+      properties:
+        tenant_id: { type: string }
+        generated_at: { type: string, format: date-time }
+        delivery:
+          type: object
+          additionalProperties: false
+          required: [pending, publishing, retry_wait, failed, blocked_by_file_security, blocked, oldest_due_at, queue_lag_ms]
+          properties:
+            pending: { type: integer, minimum: 0 }
+            publishing: { type: integer, minimum: 0 }
+            retry_wait: { type: integer, minimum: 0 }
+            failed: { type: integer, minimum: 0 }
+            blocked_by_file_security: { type: integer, minimum: 0 }
+            blocked: { type: integer, minimum: 0 }
+            oldest_due_at: { type: [string, 'null'], format: date-time }
+            queue_lag_ms: { type: integer, minimum: 0 }
+        inbound:
+          type: object
+          additionalProperties: false
+          required: [cursors, active, error, paused, leased, max_cursor_lag_sequences, oldest_cursor_updated_at]
+          properties:
+            cursors: { type: integer, minimum: 0 }
+            active: { type: integer, minimum: 0 }
+            error: { type: integer, minimum: 0 }
+            paused: { type: integer, minimum: 0 }
+            leased: { type: integer, minimum: 0 }
+            max_cursor_lag_sequences: { type: integer, minimum: 0 }
+            oldest_cursor_updated_at: { type: [string, 'null'], format: date-time }
+        dead_letters:
+          type: object
+          additionalProperties: false
+          required: [open, retryable, terminal, oldest_open_at]
+          properties:
+            open: { type: integer, minimum: 0 }
+            retryable: { type: integer, minimum: 0 }
+            terminal: { type: integer, minimum: 0 }
+            oldest_open_at: { type: [string, 'null'], format: date-time }
+
+    IveKitTinodeDeadLetter:
+      type: object
+      additionalProperties: false
+      description: Safe projection. The normalized provider payload and attachment source URLs are never returned.
+      required: [id, binding_id, event_id, event_kind, provider_sequence, provider_delete_id, error_code, error_message, payload_hash, retryable, retry_count, next_retry_at, resolved_at, created_at, updated_at]
+      properties:
+        id: { type: string }
+        binding_id: { type: string }
+        event_id: { type: string }
+        event_kind: { type: string, enum: [data, delete] }
+        provider_sequence: { type: integer, minimum: 0 }
+        provider_delete_id: { type: integer, minimum: 0 }
+        error_code: { type: string }
+        error_message: { type: string, maxLength: 500 }
+        payload_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        retryable: { type: boolean }
+        retry_count: { type: integer, minimum: 0 }
+        next_retry_at: { type: [string, 'null'], format: date-time }
+        resolved_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitTinodeDeadLetterReplay:
+      type: object
+      additionalProperties: false
+      required: [dead_letter, replay_id, replayed]
+      properties:
+        dead_letter: { $ref: '#/components/schemas/IveKitTinodeDeadLetter' }
+        replay_id: { type: string }
+        replayed: { type: boolean }
+
+    IveKitTinodeMutationDeadLetter:
+      type: object
+      additionalProperties: false
+      description: Safe projection of a failed native edit or delete. Message bodies and Provider payloads are never returned.
+      required: [id, session_id, message_id, mutation_id, mutation_version, action, attempt_count, max_attempts, error_code, error_message, created_at, updated_at]
+      properties:
+        id: { type: string }
+        session_id: { type: string }
+        message_id: { type: string }
+        mutation_id: { type: string }
+        mutation_version: { type: integer, minimum: 1 }
+        action: { type: string, enum: [edit, delete] }
+        attempt_count: { type: integer, minimum: 0 }
+        max_attempts: { type: integer, minimum: 1 }
+        error_code: { type: string }
+        error_message: { type: string, maxLength: 500 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitTinodeMutationDeadLetterReplay:
+      type: object
+      additionalProperties: false
+      required: [dead_letter, replay_id, replayed]
+      properties:
+        dead_letter: { $ref: '#/components/schemas/IveKitTinodeMutationDeadLetter' }
+        replay_id: { type: string }
+        replayed: { type: boolean }
+
+    IveKitCreateSecureFile:
+      type: object
+      additionalProperties: false
+      required: [kind, filename, upload_mode, expected_size_bytes]
+      properties:
+        kind: { type: string, enum: [image, video, audio, file, screen_recording] }
+        filename: { type: string, minLength: 1, maxLength: 512 }
+        declared_mime: { type: string, maxLength: 255 }
+        upload_mode: { type: string, enum: [single, multipart] }
+        expected_size_bytes: { type: integer, minimum: 1, maximum: 10737418240 }
+        part_size_bytes: { type: integer, minimum: 1, maximum: 536870912 }
+        retention_until: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+
+    IveKitRustDeskEmergencyFallbackInput:
+      type: object
+      additionalProperties: false
+      required: [reason, collateral_sessions_may_disconnect]
+      properties:
+        reason: { type: string, minLength: 8, maxLength: 500, pattern: '^[^\r\n]+$' }
+        collateral_sessions_may_disconnect: { type: boolean, const: true }
+
+    IveKitRustDeskCommandResponse:
+      type: object
+      additionalProperties: false
+      required: [command]
+      properties:
+        command:
+          type: object
+          additionalProperties: true
+          required: [id, external_id, command_type, status, emergency_fallback_authorized]
+          properties:
+            id: { type: string }
+            external_id: { type: string }
+            command_type: { type: string, const: disconnect_session }
+            status: { type: string, enum: [pending, claimed, succeeded, failed] }
+            emergency_fallback_authorized: { type: boolean }
+            emergency_fallback_reason: { type: string }
+
+    IveKitRustDeskEdgeHeartbeatInput:
+      type: object
+      additionalProperties: false
+      required: [business_ref, runtime_status, seen_at, metadata]
+      properties:
+        business_ref:
+          type: object
+          additionalProperties: false
+          required: [type, id]
+          properties:
+            type: { type: string, minLength: 1, maxLength: 128 }
+            id: { type: string, minLength: 1, maxLength: 128 }
+        runtime_status: { type: string, enum: [online, offline] }
+        seen_at: { type: string, format: date-time }
+        metadata:
+          type: object
+          additionalProperties: false
+          properties:
+            disconnect_command_capable: { type: boolean }
+            observation_capable: { type: boolean }
+            evidence_upload_capable: { type: boolean }
+            native_evidence_capable: { type: boolean }
+            command_poll_interval_ms: { type: integer, minimum: 1 }
+            observation_poll_interval_ms: { type: integer, minimum: 1 }
+            evidence_poll_interval_ms: { type: integer, minimum: 1 }
+            client_version: { type: string }
+            os: { type: string }
+
+    IveKitRustDeskEdgeDevice:
+      type: object
+      additionalProperties: true
+      required: [id, rustdesk_id, runtime_status, last_seen_at]
+      properties:
+        id: { type: string }
+        rustdesk_id: { type: string }
+        runtime_status: { type: string, enum: [online, offline, unknown] }
+        last_seen_at: { type: [string, 'null'], format: date-time }
+
+    IveKitRustDeskEdgeCommandClaimInput:
+      type: object
+      additionalProperties: false
+      required: [lease_ms]
+      properties:
+        lease_ms: { type: integer, minimum: 1000, maximum: 300000 }
+        edge_instance_id:
+          type: string
+          deprecated: true
+          description: Ignored. The edge instance identity is taken from the signed device token.
+
+    IveKitRustDeskEdgeClaimCommand:
+      type: object
+      additionalProperties: false
+      required: [id, command_type, external_id, target_id, rustdesk_id, controller_rustdesk_id, requested_reason, emergency_fallback_authorized, emergency_fallback_reason, attempt, lease_expires_at]
+      properties:
+        id: { type: string }
+        command_type: { type: string, const: disconnect_session }
+        external_id: { type: string }
+        target_id: { type: string }
+        rustdesk_id: { type: string, pattern: '^\d{6,20}$' }
+        controller_rustdesk_id: { type: string, maxLength: 20 }
+        requested_reason: { type: string, enum: [consent_revoked, remote_session_ended, tool_ended, gateway_ended] }
+        emergency_fallback_authorized: { type: boolean }
+        emergency_fallback_reason: { type: string }
+        attempt: { type: integer, minimum: 1 }
+        lease_expires_at: { type: string, format: date-time }
+
+    IveKitRustDeskEdgeCommandClaimResponse:
+      type: object
+      additionalProperties: false
+      required: [command, claim_token]
+      properties:
+        command: { $ref: '#/components/schemas/IveKitRustDeskEdgeClaimCommand' }
+        claim_token: { type: string, minLength: 32 }
+
+    IveKitRustDeskEdgeCommandProgressInput:
+      type: object
+      additionalProperties: false
+      required: [claim_token, progress]
+      properties:
+        claim_token: { type: string, minLength: 32 }
+        progress: { type: string, enum: [session_adapter_failed, fallback_started] }
+        exit_code: { type: integer }
+        duration_ms: { type: integer, minimum: 0 }
+        metadata: { type: object, additionalProperties: true }
+
+    IveKitRustDeskEdgeCommandResultInput:
+      type: object
+      additionalProperties: false
+      required: [claim_token, status, execution_method, duration_ms, stdout_bytes, stderr_bytes, stdout_sha256, stderr_sha256, metadata]
+      properties:
+        claim_token: { type: string, minLength: 32 }
+        status: { type: string, enum: [succeeded, failed] }
+        execution_method: { type: string, enum: [session_adapter, service_restart] }
+        exit_code: { type: integer }
+        duration_ms: { type: integer, minimum: 0 }
+        stdout_bytes: { type: integer, minimum: 0 }
+        stderr_bytes: { type: integer, minimum: 0 }
+        stdout_sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        stderr_sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        metadata: { type: object, additionalProperties: true }
+
+    IveKitRustDeskEdgeCommandRecoverInput:
+      type: object
+      additionalProperties: false
+      required: [state, attempt, lease_ms]
+      properties:
+        state: { type: string, enum: [executing, executed] }
+        attempt: { type: integer, minimum: 1 }
+        lease_ms: { type: integer, minimum: 1000, maximum: 300000 }
+        result:
+          type: object
+          additionalProperties: true
+          description: Durable result without claim_token; fields match IveKitRustDeskEdgeCommandResultInput.
+
+    IveKitRustDeskEdgeCommandRecoverResponse:
+      type: object
+      additionalProperties: true
+      required: [action, command]
+      properties:
+        action: { type: string, enum: [resume_report, terminal, quarantine] }
+        command: { type: object, additionalProperties: true }
+        claim_token: { type: string, minLength: 32 }
+        result_matches: { type: boolean }
+        reason: { type: string }
+
+    IveKitRustDeskDisconnectState:
+      type: object
+      additionalProperties: true
+      required: [required, status, command]
+      properties:
+        required: { type: boolean, const: true }
+        status: { type: string, enum: [unavailable, pending, claimed, succeeded, failed] }
+        command:
+          oneOf:
+            - { type: object, additionalProperties: true }
+            - { type: 'null' }
+
+    IveKitRustDeskEvidenceReference:
+      type: object
+      additionalProperties: false
+      required: [type, ref, sha256]
+      properties:
+        type: { type: string }
+        ref: { type: string }
+        sha256: { type: string, pattern: '^sha256:[a-f0-9]{64}$' }
+
+    IveKitRustDeskEdgeObservation:
+      type: object
+      additionalProperties: false
+      required: [external_id, operation_id, operation, status, observer, source_adapter, evidence_refs]
+      properties:
+        external_id: { type: string }
+        operation_id: { type: string }
+        operation: { type: string, enum: [view_screen, control_mouse_keyboard, clipboard, transfer_file, record_screen, multi_display, session_disconnect] }
+        status: { type: string, enum: [not_observed, observed_succeeded, observed_failed] }
+        observer: { type: string, enum: [none, native_client, edge_adapter] }
+        source_adapter: { type: string, enum: [native_client, rustdesk_log, companion_hook] }
+        observed_at: { type: [string, 'null'], format: date-time }
+        evidence_refs:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitRustDeskEvidenceReference' }
+        evidence_security: { type: string, enum: [ivekit_secure_file, native_unscanned, local_only] }
+        provider_operation_id: { type: string }
+        provider_session_id: { type: string }
+        direction: { type: string, enum: [upload, download, agent_to_device, device_to_agent] }
+        display_id: { type: string }
+        byte_count: { type: integer, minimum: 0 }
+        checksum_sha256: { type: string, pattern: '^sha256:[a-f0-9]{64}$' }
+        duration_ms: { type: integer, minimum: 0 }
+        reason: { type: string }
+        status_detail: { type: string }
+        control_version: { type: integer, minimum: 1 }
+
+    IveKitRustDeskEdgeObservationBatch:
+      type: object
+      additionalProperties: false
+      required: [observations]
+      properties:
+        observations:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/IveKitRustDeskEdgeObservation' }
+
+    IveKitRustDeskEdgeObservationBatchResponse:
+      type: object
+      additionalProperties: false
+      required: [events, accepted]
+      properties:
+        events: { type: array, items: { type: object, additionalProperties: true } }
+        accepted: { type: integer, minimum: 1, maximum: 100 }
+
+    IveKitRustDeskNativeEvidenceBinding:
+      type: object
+      additionalProperties: false
+      required: [kind, external_id, controller_rustdesk_id, operation_id, authorization_scope, authorization_id, started_at, valid_until]
+      properties:
+        kind: { type: string, enum: [file, screen_recording] }
+        external_id: { type: string }
+        controller_rustdesk_id: { type: string, pattern: '^\d{6,20}$' }
+        operation_id: { type: string }
+        authorization_scope: { type: string, enum: [operation, session] }
+        authorization_id: { type: string }
+        started_at: { type: string, format: date-time }
+        valid_until: { type: string, format: date-time }
+        direction: { type: string, enum: [upload, download] }
+        control_version: { type: integer, minimum: 1 }
+        file_name: { type: string, maxLength: 512 }
+        declared_mime: { type: string, maxLength: 255 }
+        retention_until: { type: string, format: date-time }
+
+    IveKitRustDeskNativeEvidenceContextResponse:
+      type: object
+      additionalProperties: false
+      required: [schema_version, device_id, rustdesk_id, generated_at, expires_at, bindings]
+      properties:
+        schema_version: { type: integer, const: 1 }
+        device_id: { type: string }
+        rustdesk_id: { type: string, pattern: '^\d{6,20}$' }
+        generated_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        bindings:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitRustDeskNativeEvidenceBinding' }
+
+    IveKitRustDeskNativeEvidenceCreate:
+      type: object
+      additionalProperties: false
+      required: [native_event_id, source_origin, external_id, operation_id, authorization_scope, authorization_id, kind, filename, upload_mode, expected_size_bytes, observed_at]
+      properties:
+        native_event_id: { type: string, minLength: 1, maxLength: 512 }
+        source_origin: { type: string, const: rustdesk_native_event }
+        external_id: { type: string, minLength: 1, maxLength: 512 }
+        operation_id: { type: string, minLength: 1, maxLength: 512 }
+        authorization_scope: { type: string, enum: [operation, session] }
+        authorization_id: { type: string, minLength: 1, maxLength: 512 }
+        kind: { type: string, enum: [file, screen_recording] }
+        filename: { type: string, minLength: 1, maxLength: 512 }
+        declared_mime: { type: string, maxLength: 255 }
+        upload_mode: { type: string, enum: [single, multipart] }
+        expected_size_bytes: { type: integer, minimum: 1, maximum: 10737418240 }
+        part_size_bytes: { type: integer, minimum: 1, maximum: 536870912 }
+        observed_at: { type: string, format: date-time }
+        direction: { type: string, enum: [upload, download] }
+        control_version: { type: integer, minimum: 1 }
+        retention_until: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+      oneOf:
+        - required: [direction, control_version]
+          properties:
+            kind: { const: file }
+            authorization_scope: { const: operation }
+        - properties:
+            kind: { const: screen_recording }
+            authorization_scope: { const: session }
+            direction: false
+            control_version: false
+
+    IveKitSecureFileCompleteInput:
+      type: object
+      additionalProperties: false
+      required: [size_bytes, sha256]
+      properties:
+        size_bytes: { type: integer, minimum: 1, maximum: 10737418240 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+
+    IveKitRustDeskEdgeEvidenceFileResponse:
+      type: object
+      additionalProperties: false
+      required: [file]
+      properties:
+        file:
+          type: object
+          additionalProperties: true
+          description: Edge-internal secure-file record. It must not be exposed directly to LED browser clients.
+
+    IveKitSecureFileDerivative:
+      type: object
+      additionalProperties: false
+      required: [kind, status, mime, size_bytes, sha256, error_code, created_at, updated_at, completed_at]
+      properties:
+        kind: { type: string, enum: [image_thumbnail, video_thumbnail, video_transcode, audio_transcode] }
+        status: { type: string, enum: [pending, processing, retry_wait, ready, failed, expired] }
+        mime: { type: string }
+        size_bytes: { type: integer, minimum: 0 }
+        sha256: { type: string }
+        error_code: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+
+    IveKitSecureFile:
+      type: object
+      additionalProperties: false
+      description: Safe public projection. Object-store keys, multipart ids, provider raw output, leases, and worker fields are never returned.
+      required: [file_id, session_id, created_by, kind, filename, extension, declared_mime, detected_mime, mime_conflict, status, threat_status, failure_code, upload_mode, expected_size_bytes, received_size_bytes, part_size_bytes, size_bytes, sha256, scan_attempt_count, retention_until, expires_at, created_at, updated_at, completed_at, derivatives]
+      properties:
+        file_id: { type: string }
+        session_id: { type: string }
+        created_by: { type: string }
+        kind: { type: string, enum: [image, video, audio, file, screen_recording] }
+        filename: { type: string }
+        extension: { type: string }
+        declared_mime: { type: string }
+        detected_mime: { type: string }
+        mime_conflict: { type: boolean }
+        status: { type: string, enum: [initiated, uploading, scanning, processing, ready, quarantined, failed, expired] }
+        threat_status: { type: string, enum: [pending, scanning, clean, infected, error] }
+        failure_code: { type: string }
+        upload_mode: { type: string, enum: [single, multipart] }
+        expected_size_bytes: { type: integer, minimum: 1 }
+        received_size_bytes: { type: integer, minimum: 0 }
+        part_size_bytes: { type: integer, minimum: 1 }
+        size_bytes: { type: integer, minimum: 0 }
+        sha256: { type: string }
+        scan_attempt_count: { type: integer, minimum: 0 }
+        retention_until: { type: [string, 'null'], format: date-time }
+        expires_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        derivatives:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitSecureFileDerivative' }
+
+    IveKitSecureFileResponse:
+      type: object
+      additionalProperties: false
+      required: [file]
+      properties:
+        file: { $ref: '#/components/schemas/IveKitSecureFile' }
+
+    IveKitSecureFilePart:
+      type: object
+      additionalProperties: false
+      required: [part_number, size_bytes, sha256, status, created_at, updated_at]
+      properties:
+        part_number: { type: integer, minimum: 1, maximum: 10000 }
+        size_bytes: { type: integer, minimum: 1, maximum: 536870912 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        status: { type: string, enum: [staged, uploaded, committed, aborted] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     DashboardResponse:
       type: object
       properties:
@@ -356,6 +3022,232 @@ components:
         email_from_name: { type: string }
         email_from_address: { type: string }
 
+    IveKitProviderCapability:
+      type: string
+      enum: [ocr, asr, quality_review, translation]
+
+    IveKitProviderRouteCandidate:
+      type: object
+      required: [profile_id, mode, available, reason]
+      properties:
+        profile_id: { type: string }
+        mode: { type: string, enum: [self_hosted, third_party, unconfigured] }
+        available: { type: boolean }
+        reason: { type: string, enum: ['', profile_unavailable, credential_unavailable] }
+
+    IveKitIntelligenceCapability:
+      type: object
+      required: [enabled, automatic, available, provider_mode, provider_profile_ids, providers, reason]
+      properties:
+        enabled: { type: boolean }
+        automatic: { type: boolean }
+        available: { type: boolean }
+        provider_mode: { type: string, enum: [self_hosted, third_party, unconfigured] }
+        provider_profile_ids:
+          type: array
+          maxItems: 10
+          items: { type: string }
+        providers:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/IveKitProviderRouteCandidate' }
+        reason: { type: string }
+
+    IveKitIntelligenceCapabilities:
+      type: object
+      required: [tenant_id, policy_configured, policy_version, capabilities, translation_target_languages, confidence_thresholds]
+      properties:
+        tenant_id: { type: string }
+        policy_configured: { type: boolean }
+        policy_version: { type: integer, minimum: 0 }
+        capabilities:
+          type: object
+          required: [ocr, asr, quality_review, translation]
+          properties:
+            ocr: { $ref: '#/components/schemas/IveKitIntelligenceCapability' }
+            asr: { $ref: '#/components/schemas/IveKitIntelligenceCapability' }
+            quality_review: { $ref: '#/components/schemas/IveKitIntelligenceCapability' }
+            translation: { $ref: '#/components/schemas/IveKitIntelligenceCapability' }
+        translation_target_languages:
+          type: array
+          items: { type: string }
+        confidence_thresholds:
+          type: object
+          required: [ocr, asr]
+          properties:
+            ocr: { type: number, minimum: 0, maximum: 1 }
+            asr: { type: number, minimum: 0, maximum: 1 }
+
+    IveKitIntelligencePolicyWrite:
+      type: object
+      required: [version, ocr_enabled, asr_enabled, quality_review_enabled, translation_enabled, ocr_profile_ids, asr_profile_ids, quality_profile_ids, translation_profile_ids, allow_third_party, auto_ocr, auto_asr, auto_quality_review, auto_translation, translation_target_languages, min_ocr_confidence, min_asr_confidence]
+      properties:
+        version: { type: integer, minimum: 0 }
+        ocr_enabled: { type: boolean }
+        asr_enabled: { type: boolean }
+        quality_review_enabled: { type: boolean }
+        translation_enabled: { type: boolean }
+        ocr_profile_id: { type: string }
+        asr_profile_id: { type: string }
+        quality_profile_id: { type: string }
+        translation_profile_id: { type: string }
+        ocr_profile_ids: { type: array, maxItems: 10, uniqueItems: true, items: { type: string } }
+        asr_profile_ids: { type: array, maxItems: 10, uniqueItems: true, items: { type: string } }
+        quality_profile_ids: { type: array, maxItems: 10, uniqueItems: true, items: { type: string } }
+        translation_profile_ids: { type: array, maxItems: 10, uniqueItems: true, items: { type: string } }
+        allow_third_party: { type: boolean }
+        auto_ocr: { type: boolean }
+        auto_asr: { type: boolean }
+        auto_quality_review: { type: boolean }
+        auto_translation: { type: boolean }
+        translation_target_languages: { type: array, items: { type: string } }
+        min_ocr_confidence: { type: number, minimum: 0, maximum: 1 }
+        min_asr_confidence: { type: number, minimum: 0, maximum: 1 }
+
+    IveKitIntelligencePolicy:
+      allOf:
+        - { $ref: '#/components/schemas/IveKitIntelligencePolicyWrite' }
+        - type: object
+          required: [tenant_id, configured, updated_by, created_at, updated_at]
+          properties:
+            tenant_id: { type: string }
+            configured: { type: boolean }
+            updated_by: { type: string }
+            created_at: { type: [string, 'null'], format: date-time }
+            updated_at: { type: [string, 'null'], format: date-time }
+
+    IveKitProviderProfileSummary:
+      type: object
+      required: [id, capability, mode, name, configured, token_configured, requests_per_minute, requests_per_day, max_concurrency, failure_threshold, open_cooldown_ms, reservation_ttl_ms]
+      properties:
+        id: { type: string }
+        capability: { $ref: '#/components/schemas/IveKitProviderCapability' }
+        mode: { type: string, enum: [self_hosted, third_party] }
+        name: { type: string }
+        configured: { type: boolean }
+        token_configured: { type: boolean }
+        requests_per_minute: { type: integer, minimum: 0 }
+        requests_per_day: { type: integer, minimum: 0 }
+        max_concurrency: { type: integer, minimum: 1, maximum: 100 }
+        failure_threshold: { type: integer, minimum: 1 }
+        open_cooldown_ms: { type: integer, minimum: 1000 }
+        reservation_ttl_ms: { type: integer, minimum: 5000 }
+
+    IveKitProviderRuntimeSnapshot:
+      type: object
+      required: [tenant_id, capability, profile_id, minute_request_count, day_request_count, circuit_state, consecutive_retryable_failures, opened_until, last_success_at, last_failure_at, last_error_code, updated_at]
+      properties:
+        tenant_id: { type: string }
+        capability: { $ref: '#/components/schemas/IveKitProviderCapability' }
+        profile_id: { type: string }
+        minute_request_count: { type: integer, minimum: 0 }
+        day_request_count: { type: integer, minimum: 0 }
+        circuit_state: { type: string, enum: [closed, open, half_open] }
+        consecutive_retryable_failures: { type: integer, minimum: 0 }
+        opened_until: { type: [string, 'null'], format: date-time }
+        last_success_at: { type: [string, 'null'], format: date-time }
+        last_failure_at: { type: [string, 'null'], format: date-time }
+        last_error_code: { type: string }
+        updated_at: { type: string, format: date-time }
+
+    IveKitProviderRouteError:
+      type: object
+      description: Safe Provider routing failure. No raw provider body, URL, token, or source content is returned.
+      required: [code, retryable, attempt_codes]
+      properties:
+        code:
+          type: string
+          enum: [provider_route_unavailable]
+        retryable: { type: boolean }
+        attempt_codes:
+          type: array
+          description: Safe per-candidate failure or skip reasons.
+          items:
+            type: string
+            enum: [minute_quota_exhausted, day_quota_exhausted, concurrency_exhausted, circuit_open, circuit_half_open_busy, provider_credential_unavailable, third_party_not_allowed, provider_unavailable, provider_timeout, provider_http_408, provider_http_425, provider_http_429, provider_http_500, provider_http_502, provider_http_503, provider_http_504]
+
+    IveKitPolicyFinding:
+      type: object
+      required: [id, tenant_id, session_id, message_id, source, source_ref_id, policy_type, severity, matched_text_hash, fingerprint, action, evidence_refs, detector_version, policy_version, evidence_snapshot_hash, content_version, review_status, metadata, created_at, updated_at]
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        session_id: { type: string }
+        message_id: { type: string }
+        source: { type: string, enum: [text, ocr, asr, aggregate, ai] }
+        source_ref_id: { type: string }
+        policy_type: { type: string }
+        severity: { type: string, enum: [low, medium, high] }
+        matched_text_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        fingerprint: { type: string, pattern: '^[a-f0-9]{64}$' }
+        action: { type: string }
+        confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        evidence_refs:
+          type: array
+          maxItems: 100
+          items: { type: object, additionalProperties: true }
+        detector_version: { type: string }
+        policy_version: { type: string }
+        evidence_snapshot_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        content_version: { type: integer, minimum: 1 }
+        review_status: { type: string, enum: [pending, confirmed, false_positive, resolved, escalated] }
+        metadata: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    IveKitAttachmentProcessingJob:
+      type: object
+      required: [id, attachment_id, processor, status, attempt_count, max_attempts, provider_mode, provider_profile_id, error_code, output_metadata]
+      properties:
+        id: { type: string }
+        attachment_id: { type: string }
+        processor: { type: string, enum: [ocr, asr, video_frame_ocr] }
+        status: { type: string, enum: [pending, processing, retry_wait, succeeded, failed, cancelled] }
+        attempt_count: { type: integer, minimum: 0 }
+        max_attempts: { type: integer, minimum: 1, maximum: 10 }
+        provider_mode: { type: string, enum: [unconfigured, self_hosted, third_party] }
+        provider_profile_id: { type: string }
+        error_code: { type: string }
+        output_metadata: { type: object, additionalProperties: true }
+
+    IveKitVisualObservation:
+      type: object
+      additionalProperties: false
+      description: Hash-only visual evidence. The decoded QR, barcode, or text value is never persisted or returned.
+      required: [id, tenant_id, session_id, message_id, attachment_id, processor_job_id, observation_type, value_hash, symbology, confidence, frame_timestamp_ms, page_number, metadata, detector_version, created_at]
+      properties:
+        id: { type: string }
+        tenant_id: { type: string }
+        session_id: { type: string }
+        message_id: { type: string }
+        attachment_id: { type: string }
+        processor_job_id: { type: string }
+        observation_type: { type: string, enum: [qr_code, barcode, text_region] }
+        value_hash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        symbology: { type: string }
+        confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        frame_timestamp_ms: { type: [integer, 'null'], minimum: 0, maximum: 86400000 }
+        page_number: { type: [integer, 'null'], minimum: 1, maximum: 10000 }
+        metadata: { type: object, additionalProperties: true }
+        detector_version: { type: string }
+        created_at: { type: string, format: date-time }
+
+    IveKitAttachmentInspection:
+      type: object
+      required: [attachment, job, jobs, observations]
+      properties:
+        attachment: { type: object, additionalProperties: true }
+        job:
+          oneOf:
+            - { $ref: '#/components/schemas/IveKitAttachmentProcessingJob' }
+            - { type: 'null' }
+        jobs:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitAttachmentProcessingJob' }
+        observations:
+          type: array
+          items: { $ref: '#/components/schemas/IveKitVisualObservation' }
+
 security:
   - BearerAuth: []
   - ApiKey: []
@@ -370,3 +3262,9 @@ tags:
   - name: Webhooks
   - name: WFM
   - name: White Label
+  - name: iveKit Intelligence
+  - name: iveKit Files
+  - name: iveKit Events
+  - name: iveKit Notifications
+  - name: iveKit RustDesk
+  - name: iveKit RustDesk Edge

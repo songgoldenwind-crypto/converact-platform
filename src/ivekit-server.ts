@@ -1,5 +1,10 @@
 import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
 import { createIveKitHttpServer } from './agent-runtime/ivekit/http-server.js';
+import { createIveKitMediaHooks } from './agent-runtime/ivekit/media-hooks.js';
+import { createConfiguredPlacementFoundation } from './agent-runtime/ivekit/placement/index.js';
+import {
+  rustDeskOwnerBindingPrepareClientFromEnv
+} from './agent-runtime/ivekit/placement/rustdesk-owner-binding.js';
 import {
   IveKitTenantEventStore,
   iveKitEventReplayEnabled
@@ -7,6 +12,7 @@ import {
 import { closePostgres, initPostgres } from './db-pg.js';
 import { PgSyncDatabase } from './db-pg-sync.js';
 import { validateEnvOrExit } from './env-config.js';
+import { createObjectStorage } from './storage/object-storage.js';
 import { initWebSocket } from './ws.js';
 
 validateEnvOrExit();
@@ -21,15 +27,45 @@ async function main(): Promise<void> {
   if (!process.env.DATABASE_URL && !process.env.PGHOST) {
     throw new Error('DATABASE_URL or PGHOST/PGDATABASE/PGUSER is required');
   }
+  createObjectStorage();
   const pg = await initPostgres();
   if (!pg) throw new Error('cannot connect to Postgres');
 
+  const instanceId = process.env.OPC_IVEKIT_INSTANCE_ID || process.env.HOSTNAME || `ivekit-${process.pid}`;
+  process.env.OPC_IVEKIT_INSTANCE_ID = instanceId;
   const db = new PgSyncDatabase();
-  const server = createIveKitHttpServer({ db, pg });
+  const placement = createConfiguredPlacementFoundation({
+    pg,
+    instance_id: instanceId
+  });
+  const rustdeskOwnerBindings = rustDeskOwnerBindingPrepareClientFromEnv();
+  const server = createIveKitHttpServer({
+    db,
+    pg,
+    mediaOptions: {
+      ...createIveKitMediaHooks({ db, pg }),
+      placement: placement?.media,
+      egressPlacement: placement?.egress,
+      placementWorkerId: placement?.worker_id
+    },
+    chatOptions: {
+      tinodePlacement: placement?.tinode,
+      placementWorkerId: placement?.worker_id
+    },
+    collaborationOptions: {
+      rustdeskPlacement: placement?.rustdesk,
+      ...(rustdeskOwnerBindings ? { rustdeskOwnerBindings } : {}),
+      placementWorkerId: placement?.worker_id
+    },
+    voiceOptions: {
+      placement: placement?.voice
+    },
+    placementReadinessProbe: placement?.runtime
+  });
   initWebSocket(server, iveKitEventReplayEnabled()
     ? { eventStore: new IveKitTenantEventStore(pg) }
     : {});
-  const application = startIveKitApplication({ pg });
+  const application = startIveKitApplication({ pg, instanceId, placement: placement || undefined });
   const port = Number(process.env.PORT || 3000);
   let shutdownPromise: Promise<void> | null = null;
 

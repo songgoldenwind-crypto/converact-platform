@@ -1,7 +1,7 @@
 import { Circle, Download, Play, Search, Square } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
-  IveKitClient,
+  IveKitHttpSdk,
   IveKitMediaCall,
   IveKitMediaCallRole,
   IveKitMediaRecording,
@@ -12,7 +12,7 @@ import { isTerminalStatus } from './media-reducer.js';
 const activeStatuses = new Set<IveKitMediaRecording['status']>(['starting', 'pending', 'recording', 'stopping']);
 
 export function RecordingPanel(props: {
-  client: IveKitClient;
+  client: IveKitHttpSdk;
   call: IveKitMediaCall;
   role: IveKitMediaCallRole;
   pollMs?: number;

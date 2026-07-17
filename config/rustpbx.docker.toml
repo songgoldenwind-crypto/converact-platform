@@ -29,6 +29,13 @@ modules = ["acl", "auth", "registrar", "call"]
 media_proxy = "auto"
 ensure_user = true
 acl_rules = ["allow all", "deny all"]
+sip_max_active_transactions = 65536
+sip_max_finished_transactions = 65536
+sip_incoming_transaction_queue_capacity = 8192
+sip_max_transport_connections = 32768
+media_recording_channel_capacity = 256
+media_recording_worker_threads = 4
+media_recording_worker_queue_capacity = 4096
 
 [[proxy.user_backends]]
 type = "extension"

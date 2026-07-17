@@ -83,12 +83,132 @@ export interface IveKitMediaCallParticipant {
   accepted_at: string | null;
   joined_at: string | null;
   left_at: string | null;
+  connection_revision?: number;
+  connection_state?: IveKitMediaConnectionState;
+  connection_updated_at?: string | null;
+  last_disconnected_at?: string | null;
+  last_rejoined_at?: string | null;
+  quality_state?: IveKitMediaQualityState;
+  quality_degraded_streak?: number;
+  quality_recovered_streak?: number;
+  last_quality_level?: IveKitMediaQualityLevel;
+  last_quality_sample_id?: string;
+  last_qos_at?: string | null;
   updated_at: string;
 }
 
 export interface IveKitMediaCallSnapshot {
   call: IveKitMediaCall;
   participants: IveKitMediaCallParticipant[];
+}
+
+export type IveKitMediaConnectionState =
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
+  | 'rejoining'
+  | 'failed';
+
+export type IveKitMediaConnectionEventType =
+  | 'connected'
+  | 'reconnecting'
+  | 'reconnected'
+  | 'disconnected'
+  | 'rejoining'
+  | 'rejoined'
+  | 'failed';
+
+export type IveKitMediaQualityState = 'unknown' | 'good' | 'degraded';
+export type IveKitMediaQualityLevel = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
+
+export interface IveKitMediaQualitySnapshotInput {
+  participant_identity: string;
+  connection_revision: number;
+  sample_id: string;
+  track_source: IveKitMediaTrackSource;
+  quality_level: IveKitMediaQualityLevel;
+  rtt_ms?: number | null;
+  jitter_ms?: number | null;
+  packet_loss_ratio?: number | null;
+  bitrate_bps?: number | null;
+  quality_score?: number | null;
+  sampled_at: string;
+}
+
+export interface IveKitMediaQualitySnapshot extends IveKitMediaQualitySnapshotInput {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  received_at: string;
+}
+
+export interface IveKitMediaQualityParticipantState {
+  tenant_id: string;
+  call_id: string;
+  identity: string;
+  participant_status: IveKitMediaCallParticipantStatus;
+  connection_revision: number;
+  connection_state: IveKitMediaConnectionState;
+  connection_updated_at: string | null;
+  last_disconnected_at: string | null;
+  last_rejoined_at: string | null;
+  quality_state: IveKitMediaQualityState;
+  quality_degraded_streak: number;
+  quality_recovered_streak: number;
+  last_quality_level: IveKitMediaQualityLevel;
+  last_quality_sample_id: string;
+  last_qos_at: string | null;
+}
+
+export interface IveKitMediaQualityTransition {
+  tenant_id: string;
+  call_id: string;
+  participant_identity: string;
+  connection_revision: number;
+  from: IveKitMediaQualityState;
+  to: 'good' | 'degraded';
+  event_type: 'degraded' | 'recovered';
+  quality_level: IveKitMediaQualityLevel;
+  sampled_at: string;
+}
+
+export interface IveKitMediaQualityReportResult {
+  accepted: number;
+  replayed: number;
+  participant_states: IveKitMediaQualityParticipantState[];
+  transitions: IveKitMediaQualityTransition[];
+}
+
+export interface IveKitMediaConnectionEventInput {
+  participant_identity: string;
+  event_id: string;
+  connection_revision: number;
+  event_type: IveKitMediaConnectionEventType;
+  reason_code?: string;
+  occurred_at: string;
+}
+
+export interface IveKitMediaConnectionEvent extends IveKitMediaConnectionEventInput {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  reason_code: string;
+  connection_state: IveKitMediaConnectionState;
+  received_at: string;
+}
+
+export interface IveKitMediaConnectionEventResult {
+  event: IveKitMediaConnectionEvent;
+  participant_state: IveKitMediaQualityParticipantState;
+  replayed: boolean;
+}
+
+export interface IveKitMediaQualitySummary {
+  tenant_id: string;
+  call_id: string;
+  generated_at: string;
+  participants: IveKitMediaQualityParticipantState[];
+  recent_snapshots: IveKitMediaQualitySnapshot[];
 }
 
 export type IveKitMediaTrackSource =
@@ -218,6 +338,14 @@ export interface MediaJoinService {
 
 export type RecordingFormat = 'mp4' | 'webm' | 'wav' | 'ogg';
 
+export type LiveKitRecordingMode = 'track' | 'track_composite' | 'room_composite';
+
+export interface LiveKitRecordingTrackSelector {
+  trackId: string;
+  kind: 'audio' | 'video';
+  source: 'microphone' | 'camera' | 'screen_share' | 'screen_share_audio' | 'unknown';
+}
+
 export type MediaRecordingStatus =
   | 'starting'
   | 'pending'
@@ -306,6 +434,10 @@ export interface MediaBusinessRef {
 export interface StartRecordingOptions {
   format?: RecordingFormat;
   hasVideo?: boolean;
+  recordingMode?: LiveKitRecordingMode;
+  tracks?: LiveKitRecordingTrackSelector[];
+  audioTrackId?: string;
+  videoTrackId?: string;
   businessRef?: MediaBusinessRef | null;
   retentionUntil?: string | null;
   retentionDays?: number;
@@ -328,6 +460,7 @@ export interface EgressRecord {
   duration_ms: number | null;
   file_size_bytes: number | null;
   has_video: number;
+  recording_mode?: LiveKitRecordingMode;
   egress_id: string;
   status: MediaRecordingStatus;
   retention_until: string;
@@ -340,22 +473,109 @@ export interface EgressRecord {
   created_at: string;
 }
 
+export type LiveKitEgressJobStatus =
+  | 'starting'
+  | 'pending'
+  | 'recording'
+  | 'stopping'
+  | 'stopped'
+  | 'completed'
+  | 'failed';
+
+export interface LiveKitEgressJob {
+  id: string;
+  tenant_id: string;
+  recording_id: string;
+  job_sequence: number;
+  room_name: string;
+  recording_mode: LiveKitRecordingMode;
+  track_id: string;
+  track_kind: string;
+  track_source: string;
+  audio_track_id: string;
+  video_track_id: string;
+  storage_url: string;
+  egress_id: string;
+  status: LiveKitEgressJobStatus;
+  failure_code: string;
+  reservation_id: string;
+  owner_epoch: string;
+  duration_ms: number | null;
+  file_size_bytes: number | null;
+  object_status: MediaRecordingObjectStatus;
+  object_checked_at: string | null;
+  provider_observed_at: string | null;
+  provider_missing_count: number;
+  reconcile_attempts: number;
+  reconcile_after: string;
+  reconcile_lease_until: string | null;
+  reconcile_worker_id: string;
+  completed_at: string | null;
+  deleted_at: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
 export interface LiveKitEgressClientLike {
   startRoomCompositeEgress(
     roomName: string,
     output: unknown,
     options?: { audioOnly?: boolean }
   ): Promise<{ egressId?: string | null }>;
+  startTrackCompositeEgress?(
+    roomName: string,
+    output: unknown,
+    options?: { audioTrackId?: string; videoTrackId?: string }
+  ): Promise<{ egressId?: string | null }>;
+  startTrackEgress?(
+    roomName: string,
+    output: unknown,
+    trackId: string
+  ): Promise<{ egressId?: string | null }>;
   stopEgress(egressId: string): Promise<unknown>;
+}
+
+export interface LiveKitEgressPlacementReservation {
+  job_id: string;
+  reservation_id: string;
+  owner_epoch: string;
+  value?: unknown;
+}
+
+export interface LiveKitEgressPlacementInput {
+  tenant_id: string;
+  recording_id: string;
+  job_id: string;
+  room_name: string;
+  recording_mode: LiveKitRecordingMode;
+  business_ref: MediaBusinessRef | null;
 }
 
 export interface LiveKitRecordingDependencies {
   now?: () => Date;
-  createEgressClient?: () => LiveKitEgressClientLike;
+  createEgressClient?: (config: LiveKitConfig) => LiveKitEgressClientLike;
+  resolveLiveKitConfig?: (
+    input: {
+      tenant_id: string;
+      media_call_id: string;
+      room_name: string;
+    },
+    base: LiveKitConfig
+  ) => LiveKitConfig | Promise<LiveKitConfig>;
   resolveRetentionDays?: (tenantId: string) => number | Promise<number>;
   resolveRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectContentResult>;
   resolveRecordingObjectStream?: (recording: EgressRecord) => Promise<RecordingObjectStreamResult>;
   deleteRecordingObject?: (recording: EgressRecord) => Promise<RecordingObjectDeleteResult>;
+  reserveEgressJob?: (
+    input: LiveKitEgressPlacementInput
+  ) => Promise<LiveKitEgressPlacementReservation>;
+  activateEgressJob?: (
+    reservation: LiveKitEgressPlacementReservation
+  ) => Promise<void>;
+  closeEgressJob?: (
+    reservation: LiveKitEgressPlacementReservation,
+    reason: string
+  ) => Promise<void>;
 }
 
 export interface LiveKitRecordingServiceApi {
@@ -374,12 +594,16 @@ export interface LiveKitRecordingServiceApi {
   stopRecording(egressId: string): Promise<EgressRecord | null>;
   getRecording(recordingId: string): EgressRecord | null;
   getRecordingByEgressId(egressId: string): EgressRecord | null;
+  listEgressJobs(recordingId: string): LiveKitEgressJob[];
+  getEgressJob(recordingId: string, jobId: string): LiveKitEgressJob | null;
   getRecordingBySession(callSessionId: string): EgressRecord | null;
   setEvidenceRecordId(recordingId: string, evidenceRecordId: string): EgressRecord | null;
   listRecordings(tenantId: string, opts?: RecordingListOptions): EgressRecord[];
   listRecordingsPage(tenantId: string, opts?: RecordingListOptions): RecordingCursorPage;
   inspectObject(recordingId: string): Promise<RecordingObjectInspection | null>;
   exportObject(recordingId: string): Promise<RecordingObjectExport | null>;
+  inspectJobObject(recordingId: string, jobId: string): Promise<RecordingObjectInspection | null>;
+  exportJobObject(recordingId: string, jobId: string): Promise<RecordingObjectExport | null>;
   listRetentionCandidates(
     tenantId: string,
     opts?: { before?: string; limit?: number }
@@ -429,6 +653,7 @@ export interface LiveKitWebhookResult {
   event?: string;
   room_name?: string;
   recording?: EgressRecord;
+  egress_job_id?: string;
 }
 
 export interface LiveKitWebhookService {

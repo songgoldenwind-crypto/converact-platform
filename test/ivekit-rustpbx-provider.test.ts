@@ -66,25 +66,72 @@ test('RustPBX provider composes deterministic hold, unhold, and bridge parking a
   const parked = await adapter.execute({
     call: parkedCall,
     command: voiceCommand({ id: 'park-command', call_id: parkedCall.id, kind: 'park' }),
-    parking: { slot: { ...slot, state: 'parking' }, parked_call: parkedCall, pickup_call: null }
+    parking: { slot: { ...slot, state: 'parking' }, parked_call: parkedCall, pickup_call: null },
+    owner_contracts: {
+      'provider-parked': ownerContract('parked-call', 'reservation-parked', '12884901889')
+    }
   });
   assert.equal(parked.provider_command_id, 'park-command:hold');
   assert.deepEqual(rwi.commands.at(-1), {
-    command_id: 'park-command:hold', kind: 'hold', call_id: 'provider-parked', payload: {}
+    command_id: 'park-command:hold', kind: 'hold', call_id: 'provider-parked', payload: {},
+    ivekit_owners: {
+      'provider-parked': ownerContract('parked-call', 'reservation-parked', '12884901889')
+    }
   });
 
   const pickedUp = await adapter.execute({
     call: pickupCall,
     command: voiceCommand({ id: 'pickup-command', call_id: pickupCall.id, kind: 'pickup' }),
-    parking: { slot, parked_call: parkedCall, pickup_call: pickupCall }
+    parking: { slot, parked_call: parkedCall, pickup_call: pickupCall },
+    owner_contracts: {
+      'provider-parked': ownerContract('parked-call', 'reservation-parked', '12884901889'),
+      'provider-pickup': ownerContract('pickup-call', 'reservation-pickup', '12884901890')
+    }
   });
   assert.equal(pickedUp.provider_command_id, 'pickup-command:bridge');
   assert.deepEqual(rwi.commands.at(-1), {
     command_id: 'pickup-command:unhold', kind: 'resume',
-    call_id: 'provider-parked', payload: {}
+    call_id: 'provider-parked', payload: {},
+    ivekit_owners: {
+      'provider-parked': ownerContract('parked-call', 'reservation-parked', '12884901889'),
+      'provider-pickup': ownerContract('pickup-call', 'reservation-pickup', '12884901890')
+    }
   });
   assert.deepEqual(rwi.bridges.at(-1), {
-    command_id: 'pickup-command:bridge', leg_a: 'provider-parked', leg_b: 'provider-pickup'
+    command_id: 'pickup-command:bridge', leg_a: 'provider-parked', leg_b: 'provider-pickup',
+    ivekit_owners: {
+      'provider-parked': ownerContract('parked-call', 'reservation-parked', '12884901889'),
+      'provider-pickup': ownerContract('pickup-call', 'reservation-pickup', '12884901890')
+    }
+  });
+});
+
+test('RustPBX provider attaches the current owner contract to ordinary RWI commands', async () => {
+  const profile = rustPbxProfile();
+  const rwi = fakeRwi();
+  const adapter = new RustPbxVoiceProviderAdapter({
+    profile,
+    management: fakeManagement(profile),
+    rwi
+  });
+  const call = voiceCall({ provider_call_id: 'provider-call-owned' });
+
+  await adapter.execute({
+    call,
+    command: voiceCommand({ id: 'answer-owned', kind: 'answer' }),
+    owner_contracts: {
+      'provider-call-owned': ownerContract(call.id, 'reservation-owned', '12884901889')
+    }
+  });
+
+  assert.deepEqual(rwi.commands.at(-1), {
+    command_id: 'answer-owned',
+    kind: 'answer',
+    call_id: 'provider-call-owned',
+    payload: {},
+    ivekit_owners: {
+      'provider-call-owned': ownerContract(call.id, 'reservation-owned', '12884901889')
+    }
   });
 });
 
@@ -220,8 +267,14 @@ function fakeRwi() {
       kind: VoiceCallCommand['kind'];
       call_id: string;
       payload: Record<string, unknown>;
+      ivekit_owners?: Record<string, ReturnType<typeof ownerContract>>;
     }>,
-    bridges: [] as Array<{ command_id: string; leg_a: string; leg_b: string }>,
+    bridges: [] as Array<{
+      command_id: string;
+      leg_a: string;
+      leg_b: string;
+      ivekit_owners?: Record<string, ReturnType<typeof ownerContract>>;
+    }>,
     async connect() { state.events.push('connect'); },
     async preflight() {
       state.events.push('preflight');
@@ -247,6 +300,7 @@ function fakeRwi() {
       kind: VoiceCallCommand['kind'];
       call_id: string;
       payload: Record<string, unknown>;
+      ivekit_owners?: Record<string, ReturnType<typeof ownerContract>>;
     }) {
       state.commands.push(input);
       if (state.throwRollback && input.command_id.endsWith(':rollback-hold')) {
@@ -264,7 +318,12 @@ function fakeRwi() {
         result: { call_id: 'provider-call-a', accepted: true }
       };
     },
-    async executeBridge(input: { command_id: string; leg_a: string; leg_b: string }) {
+    async executeBridge(input: {
+      command_id: string;
+      leg_a: string;
+      leg_b: string;
+      ivekit_owners?: Record<string, ReturnType<typeof ownerContract>>;
+    }) {
       state.bridges.push(input);
       if (state.throwBridge) {
         throw new VoiceError({ code: 'provider_unavailable', retryable: true, status: 503 });
@@ -372,6 +431,18 @@ function voiceCall(patch: Partial<VoiceCall> = {}): VoiceCall {
     answered_at: null, ended_at: null, termination_reason: '', revision: 1,
     created_at: '2026-07-13T12:00:00.000Z', updated_at: '2026-07-13T12:00:00.000Z',
     ...patch
+  };
+}
+
+function ownerContract(
+  interactionId: string,
+  reservationId: string,
+  ownerEpoch: string
+) {
+  return {
+    interaction_id: interactionId,
+    reservation_id: reservationId,
+    owner_epoch: ownerEpoch
   };
 }
 

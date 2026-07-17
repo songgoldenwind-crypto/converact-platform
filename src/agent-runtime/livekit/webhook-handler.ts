@@ -6,6 +6,7 @@ import type { LiveKitRoomStore } from './room-store.js';
 import { readLiveKitConfig } from './config.js';
 import type { LiveKitConfig } from './config.js';
 import { decodeEgressRecord, resolveRecordingRetentionUntil } from './recording-service.js';
+import { normalizeProviderStatus } from './egress-reconciliation-worker.js';
 import type {
   EgressRecord,
   LiveKitMediaParticipantRole,
@@ -104,9 +105,26 @@ export async function handleLiveKitWebhook(rawBody: string, authHeader: string |
       if (roomRow && businessRef) {
         const egressId = String(egress.egressId || egress.egress_id || '');
         if (!egressId) return { ok: true, ignored: true, event: eventName, room_name: roomName };
-        const existing = egressId
-          ? one(deps.roomStore.db, 'SELECT * FROM call_recordings WHERE egress_id = ?', [egressId])
-          : null;
+        const providerProjection = normalizeProviderStatus(egress.status, 'completed');
+        const terminalStatus = providerProjection.status === 'completed' || providerProjection.status === 'failed'
+          ? providerProjection.status
+          : 'failed';
+        const terminalFailureCode = terminalStatus === 'failed'
+          ? providerProjection.failureCode || 'livekit_egress_invalid_terminal_status'
+          : '';
+        const existingJob = one(
+          deps.roomStore.db,
+          'SELECT * FROM livekit_egress_jobs WHERE egress_id = ?',
+          [egressId]
+        );
+        const existing = one(
+          deps.roomStore.db,
+          `SELECT recording.* FROM call_recordings recording
+           LEFT JOIN livekit_egress_jobs job ON job.recording_id = recording.id
+           WHERE recording.egress_id = ? OR job.egress_id = ?
+           ORDER BY recording.created_at DESC LIMIT 1`,
+          [egressId, egressId]
+        );
         const recordingId = existing ? String(existing.id) : id('crec');
         const format = normalizeRecordingFormat(file.fileType || file.file_type || 'mp4');
         const storageUrl = String(file.location || file.downloadUrl || file.download_url || '');
@@ -117,14 +135,109 @@ export async function handleLiveKitWebhook(rawBody: string, authHeader: string |
           display_name: businessRef.display_name || '',
           metadata: businessRef.metadata || {}
         });
-        const idempotentReplay = Boolean(
-          existing &&
-          String(existing.status || '') === 'completed' &&
-          String(existing.storage_url || '') === storageUrl &&
-          Number(existing.duration_ms || 0) === durationMs &&
-          Number(existing.file_size_bytes || 0) === fileSizeBytes
-        );
-        if (existing) {
+        const idempotentReplay = Boolean(existingJob
+          ? String(existingJob.status || '') === terminalStatus &&
+            (!storageUrl || String(existingJob.storage_url || '') === storageUrl) &&
+            Number(existingJob.duration_ms || 0) === durationMs &&
+            Number(existingJob.file_size_bytes || 0) === fileSizeBytes &&
+            String(existingJob.failure_code || '') === terminalFailureCode
+          : existing &&
+            String(existing.status || '') === terminalStatus &&
+            (!storageUrl || String(existing.storage_url || '') === storageUrl) &&
+            Number(existing.duration_ms || 0) === durationMs &&
+            Number(existing.file_size_bytes || 0) === fileSizeBytes &&
+            String(existing.failure_code || '') === terminalFailureCode);
+        let parentJustCompleted = false;
+        if (existingJob && existing) {
+          if (!idempotentReplay) {
+            run(
+              deps.roomStore.db,
+              `UPDATE livekit_egress_jobs
+               SET storage_url = CASE WHEN ? != '' THEN ? ELSE storage_url END,
+                   duration_ms = ?, file_size_bytes = ?, status = ?,
+                   failure_code = ?, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+                   provider_observed_at = CURRENT_TIMESTAMP, provider_missing_count = 0,
+                   reconcile_lease_until = NULL, reconcile_worker_id = '',
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+              [
+                storageUrl,
+                storageUrl,
+                durationMs,
+                fileSizeBytes,
+                terminalStatus,
+                terminalFailureCode,
+                String(existingJob.id)
+              ]
+            );
+          }
+          const aggregate = one(
+            deps.roomStore.db,
+            `SELECT COUNT(*) AS total_jobs,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_jobs,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_jobs,
+                    SUM(CASE WHEN status IN ('completed', 'failed', 'stopped') THEN 1 ELSE 0 END) AS terminal_jobs,
+                    COALESCE(MAX(duration_ms), 0) AS duration_ms,
+                    COALESCE(SUM(file_size_bytes), 0) AS file_size_bytes
+             FROM livekit_egress_jobs WHERE recording_id = ?`,
+            [recordingId]
+          );
+          const totalJobs = Number(aggregate?.total_jobs || 0);
+          const allTerminal = totalJobs > 0 && Number(aggregate?.terminal_jobs || 0) === totalJobs;
+          const failedJobs = Number(aggregate?.failed_jobs || 0);
+          const allCompleted = totalJobs > 0 && Number(aggregate?.completed_jobs || 0) === totalJobs;
+          const parentStatus = allTerminal
+            ? failedJobs > 0 ? 'failed' : allCompleted ? 'completed' : 'stopped'
+            : String(existing.status || 'recording');
+          const failedJob = failedJobs > 0
+            ? one(
+              deps.roomStore.db,
+              `SELECT failure_code FROM livekit_egress_jobs
+               WHERE recording_id = ? AND status = 'failed'
+               ORDER BY job_sequence ASC LIMIT 1`,
+              [recordingId]
+            )
+            : null;
+          const parentFailureCode = failedJobs > 0
+            ? String(failedJob?.failure_code || 'livekit_egress_child_failed')
+            : allCompleted ? '' : String(existing.failure_code || '');
+          parentJustCompleted = allCompleted && String(existing.status || '') !== 'completed';
+          const primaryJob = one(
+            deps.roomStore.db,
+            `SELECT storage_url FROM livekit_egress_jobs
+             WHERE recording_id = ? ORDER BY job_sequence ASC LIMIT 1`,
+            [recordingId]
+          );
+          run(
+            deps.roomStore.db,
+            `UPDATE call_recordings
+             SET call_session_id = COALESCE(call_session_id, ?),
+                 business_ref_type = CASE WHEN business_ref_type != '' THEN business_ref_type ELSE ? END,
+                 business_ref_id = CASE WHEN business_ref_id != '' THEN business_ref_id ELSE ? END,
+                 business_ref_metadata = CASE WHEN business_ref_metadata != '' THEN business_ref_metadata ELSE ? END,
+                 storage_url = ?,
+                 duration_ms = ?,
+                 file_size_bytes = ?,
+                 status = ?,
+                 failure_code = ?,
+                 completed_at = CASE WHEN ? = 1 THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [
+              roomRow.call_session_id || null,
+              businessRef.type,
+              businessRef.id,
+              businessRefMetadata,
+              String(primaryJob?.storage_url || existing.storage_url || ''),
+              Number(aggregate?.duration_ms || 0),
+              Number(aggregate?.file_size_bytes || 0),
+              parentStatus,
+              parentFailureCode,
+              allTerminal ? 1 : 0,
+              recordingId
+            ]
+          );
+        } else if (existing) {
           run(
             deps.roomStore.db,
             `UPDATE call_recordings
@@ -137,8 +250,8 @@ export async function handleLiveKitWebhook(rawBody: string, authHeader: string |
                  duration_ms = ?,
                  file_size_bytes = ?,
                  has_video = ?,
-                 status = 'completed',
-                 failure_code = '',
+                 status = ?,
+                 failure_code = ?,
                  completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
@@ -152,6 +265,8 @@ export async function handleLiveKitWebhook(rawBody: string, authHeader: string |
               durationMs,
               fileSizeBytes,
               hasVideo,
+              terminalStatus,
+              terminalFailureCode,
               recordingId
             ]
           );
@@ -162,15 +277,15 @@ export async function handleLiveKitWebhook(rawBody: string, authHeader: string |
               (id, tenant_id, call_session_id, business_ref_type, business_ref_id, business_ref_metadata,
                source, format, storage_url, duration_ms, file_size_bytes, has_video, egress_id,
                status, retention_until, object_status, failure_code, completed_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, 'livekit_egress', ?, ?, ?, ?, ?, ?,
-                     'completed', ?, 'unchecked', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+             VALUES (?, ?, ?, ?, ?, ?, 'livekit_egress', ?, ?, ?, ?, ?, ?, ?,
+                     ?, 'unchecked', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
              ON CONFLICT(egress_id) WHERE egress_id != '' DO UPDATE SET
                storage_url = excluded.storage_url,
                duration_ms = excluded.duration_ms,
                file_size_bytes = excluded.file_size_bytes,
                has_video = excluded.has_video,
-               status = 'completed',
-               failure_code = '',
+               status = excluded.status,
+               failure_code = excluded.failure_code,
                completed_at = COALESCE(call_recordings.completed_at, CURRENT_TIMESTAMP),
                updated_at = CURRENT_TIMESTAMP`,
             [
@@ -186,14 +301,16 @@ export async function handleLiveKitWebhook(rawBody: string, authHeader: string |
               fileSizeBytes,
               hasVideo,
               egressId,
-              resolveRecordingRetentionUntil()
+              terminalStatus,
+              resolveRecordingRetentionUntil(),
+              terminalFailureCode
             ]
           );
         }
-        const row = one(deps.roomStore.db, 'SELECT * FROM call_recordings WHERE egress_id = ?', [egressId]);
+        const row = one(deps.roomStore.db, 'SELECT * FROM call_recordings WHERE id = ?', [recordingId]);
         const recording = row ? decodeEgressRecord(row) : undefined;
         if (recording) {
-          if (!idempotentReplay) {
+          if (existingJob ? parentJustCompleted : !idempotentReplay) {
             await deps.recordingEvents?.notifyRecordingCompleted(recording, { roomName });
           }
           return {
@@ -201,6 +318,7 @@ export async function handleLiveKitWebhook(rawBody: string, authHeader: string |
             event: eventName,
             room_name: roomName,
             recording,
+            ...(existingJob ? { egress_job_id: String(existingJob.id) } : {}),
             ...(idempotentReplay ? { idempotent_replay: true } : {})
           };
         }

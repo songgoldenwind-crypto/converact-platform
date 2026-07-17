@@ -1,0 +1,1331 @@
+{
+  "$schema": "../schemas/fork-manifest.schema.json",
+  "schema_version": "1.0.0",
+  "manifest_id": "ivekit-forks-v1",
+  "revision": 19,
+  "status": "proposed",
+  "generated_at": "2026-07-17T15:05:14+08:00",
+  "profile_ids": [
+    "mix-100k-v1"
+  ],
+  "notes": [
+    "This manifest records design and repository state; it does not assert that MIX-100K has passed.",
+    "A release tag without a resolved 40-character commit or an image tag without a digest is not a complete production identity.",
+    "The default RustPBX deployment examples still reference an upstream digest; the local patch-queue image remains a custom candidate until build, integration, and benchmark evidence pass.",
+    "Business licensing decisions are outside this architecture record; engineering traceability and source identity remain release requirements."
+  ],
+  "components": [
+    {
+      "component_id": "rustpbx",
+      "name": "RustPBX",
+      "role": "SIP B2BUA, IVR, RTP proxy, recording fork, and voice interaction owner",
+      "lifecycle": "active_engineering",
+      "integration_mode": "patch_queue",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/restsend/rustpbx",
+        "version": "0.4.11",
+        "pin_kind": "exact_commit",
+        "commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+        "source_identity_complete": true
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/rustpbx/build.sh",
+        "builder_image": "rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55",
+        "features": [
+          "cross"
+        ],
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.8-6c49ee76"
+      },
+      "runtime_artifact": {
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.8-6c49ee76",
+        "kind": "custom_candidate",
+        "contains_declared_modifications": true
+      },
+      "patches": [
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch",
+          "sha256": "ef6f60678eb5d126196b92c3e434597ce6286dd219f83951d387074024f0cf56",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+          "purpose": "Expose bounded dialog observation needed by iveKit voice control and audit."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch",
+          "sha256": "901ac9c66747098d06381c9aac5086f13f8f4ec3cdee6127cfcde742069c8f25",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+          "purpose": "Add controlled originate and hangup commands used by the iveKit voice gateway."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-local-rsipstack.patch",
+          "sha256": "feda9f849a740dc7ac9e690a81e8b21f3939b8f363483590b4c2869420bdd170",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+          "purpose": "Build against the separately pinned and patched rsipstack source tree."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch",
+          "sha256": "ec8c87c87558ccd7a2aa85ac3156894032999382810c09de1ce2e06f5c170ecb",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
+          "purpose": "Replace per-INVITE control-plane routing calls with signed, short-lived, tenant-fenced HMAC route snapshots and an in-memory lookup."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission.patch",
+          "sha256": "629c9488981c8c2f47764c9874b2794ca7109ce74f99852657675c03959b7b1d",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-route-snapshot.patch",
+          "purpose": "Require exact Cell and RustPBX node admission before an inbound INVITE may use the local signed route snapshot."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch",
+          "sha256": "b5f79e29f24f993194490f74e6e747cf210e12854ccb73b1382eac534f51444d",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-inbound-admission.patch",
+          "purpose": "Embed the Rust component guard, authorize inbound ownership through the local component-node agent, and fence every tracked RWI mutation by the exact owner epoch."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-spool.patch",
+          "sha256": "e294e812b007e76b62fad53cb21d6537329105a170a1280a973c52eb2b4dbc19",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-owner-epoch.patch",
+          "purpose": "Rotate bounded local encoded recording segments, publish durable owner-fenced manifests, and keep legacy HTTP/S3 upload outside iveKit spool mode."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
+          "sha256": "6d6319d806668e130b7b063f8306cb1a33a6e21089342c83e4971713102e6c6d",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-local-rsipstack.patch",
+          "purpose": "Bind profile-tunable rsipstack transaction, queue, cache and transport limits into RustPBX and export bounded-cardinality overload telemetry."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
+          "sha256": "64def70bf5dbc706771bc6bb14c75397f2de1bd0bc0b9daef9147fc00517dad9",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-sip-capacity.patch",
+          "purpose": "Move recording codec and disk work out of RTP forwarding loops through profile-tunable bounded capture queues and explicit low-cardinality drop telemetry."
+        }
+      ],
+      "protocols": [
+        {
+          "protocol_id": "ivekit-rustpbx-rwi",
+          "version": "1",
+          "visibility": "ivekit_internal"
+        },
+        {
+          "protocol_id": "ivekit-rustpbx-ami-dialogs",
+          "version": "1",
+          "visibility": "ivekit_internal"
+        },
+        {
+          "protocol_id": "ivekit-component-node-admission",
+          "version": "1",
+          "visibility": "component_internal"
+        }
+      ],
+      "implemented_changes": [
+        {
+          "change_id": "rustpbx-rwi-call-control-v1",
+          "summary": "Controlled originate and hangup commands with iveKit correlation.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "voice.concurrent_calls"
+          ],
+          "acceptance_evidence": [
+            "Patch applies to the pinned commit.",
+            "Contract tests prove idempotent originate and targeted hangup behavior."
+          ]
+        },
+        {
+          "change_id": "rustpbx-dialog-observation-v1",
+          "summary": "Bounded dialog inspection for reconciliation and audit.",
+          "capacity_dimensions": [
+            "sip.active_dialogs"
+          ],
+          "acceptance_evidence": [
+            "Dialog output remains bounded under the voice component profile.",
+            "Interaction IDs correlate to the iveKit owner journal."
+          ]
+        },
+        {
+          "change_id": "rustpbx-route-snapshot-v1",
+          "summary": "Compile revision-tracked published DID routes into signed atomic snapshots consumed from the RustPBX INVITE hot path.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "sip.transactions_per_second",
+            "data.postgres_queries_per_second"
+          ],
+          "acceptance_evidence": [
+            "The patch applies to the exact pinned RustPBX commit.",
+            "Node contract tests prove canonical signing, identity fencing, HMAC-only keys, atomic replacement, revision-gated batch projection, expiry renewal, and monotonic sequence.",
+            "Rust unit tests embedded in the patch pin the Node HKDF plus HMAC cross-language vector and reject tampered snapshots."
+          ]
+        },
+        {
+          "change_id": "rustpbx-cell-owner-v1",
+          "summary": "Fence snapshot-routed inbound calls through an exact Cell and RustPBX owner-node reservation before local route lookup.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "sip.active_dialogs",
+            "voice.concurrent_calls",
+            "voice.rtp_legs"
+          ],
+          "acceptance_evidence": [
+            "The RustPBX patch fails closed when the admission endpoint, response, Cell or node is unavailable or invalid.",
+            "HTTP boundary tests prove the exact declared Cell and node are reserved before the tenant transaction.",
+            "Compose and Helm templates inject the authenticated profile endpoint and per-workload node identity."
+          ]
+        },
+        {
+          "change_id": "rustpbx-owner-epoch-runtime-v2",
+          "summary": "Carry owner contracts into RustPBX call state, authorize them through the local component-node sidecar, and enforce exact epochs on every tracked mutating RWI command.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "sip.active_dialogs",
+            "voice.concurrent_calls",
+            "voice.rtp_legs"
+          ],
+          "acceptance_evidence": [
+            "The complete patch queue applies cleanly to the exact pinned RustPBX commit and locked Cargo metadata resolves with the local Rust hook.",
+            "iveKit maps reservation, interaction and owner epoch metadata outside public command payloads for ordinary, park, pickup and bridge RWI commands.",
+            "Cross-node parking pickup is rejected before provider mutation, and Helm/Compose can co-locate a readiness-gated component-node sidecar without enabling it for legacy deployments.",
+            "RTP/media source files are not modified by the owner patch; per-command mutation checks use the in-process guard."
+          ]
+        },
+        {
+          "change_id": "rustpbx-encoded-recording-fork-v1",
+          "summary": "Rotate bounded encoded recording segments, count recorder-channel drops, persist owner-fenced manifests/control/completion evidence, and upload through a restart-safe sidecar outside the RTP path.",
+          "capacity_dimensions": [
+            "workers.recording_slots",
+            "workers.evidence_upload_bytes_per_second",
+            "data.local_spool_bytes"
+          ],
+          "acceptance_evidence": [
+            "The exact RustPBX patch queue applies and the recording patch contains no object-storage, PostgreSQL or HTTP call in the media path.",
+            "Controlled tests prove stable-file and symlink checks, whole-file SHA-256, multipart resume, deterministic leases, pause/resume/drop event replay, owner-bound final marker retry, contiguous 1..N finalization, cleanup-pending recovery and owner-epoch fencing.",
+            "Compose and Helm co-locate a bounded uploader with read-only file secrets and per-node durable spool/state; the local component-node gate rejects new required recording capacity at the 90 percent watermark or when evidence is stale.",
+            "Real Rust compile, RTP continuity, object-storage outage and physical Cell throughput remain not_run."
+          ]
+        },
+        {
+          "change_id": "rustpbx-sip-capacity-runtime-v1",
+          "summary": "Configure strict rsipstack transaction, finished-cache, incoming-queue and transport limits and expose their utilization and rejection counters through RustPBX metrics.",
+          "capacity_dimensions": [
+            "sip.active_connections",
+            "sip.active_dialogs",
+            "sip.transactions_per_second",
+            "sip.invite_cps"
+          ],
+          "acceptance_evidence": [
+            "The complete RustPBX patch queue applies cleanly to the exact pinned commit after the local rsipstack dependency patch.",
+            "Renderer, Compose and both Helm surfaces validate and carry the same four bounded capacity values.",
+            "Prometheus discovery and alert contracts cover transaction, queue and transport saturation plus explicit overload rejection.",
+            "Native Rust compile, SIPp overload behavior and physical capacity remain not_run."
+          ]
+        },
+        {
+          "change_id": "rustpbx-recording-hot-path-v1",
+          "summary": "Move BridgePeer and ForwardingTrack recording codec plus disk work behind profile-tunable bounded non-blocking capture queues.",
+          "capacity_dimensions": [
+            "voice.rtp_legs",
+            "voice.packet_operations_per_second",
+            "workers.recording_slots"
+          ],
+          "acceptance_evidence": [
+            "The complete patch queue applies to the exact pinned RustPBX commit and both RTP forwarding implementations use try_send instead of synchronous recorder writes.",
+            "Per-capture and dedicated worker-pool capacities are validated and propagated through the renderer, Compose and both Helm charts; overflow increments recorder evidence and a low-cardinality Prometheus counter.",
+            "Controlled build, deployment and delivery contracts pass 34 of 34 tests.",
+            "Native Rust compile, real RTP continuity, recording overload and physical capacity remain not_run."
+          ]
+        }
+      ],
+      "planned_changes": [
+        {
+          "change_id": "rustpbx-media-lock-timer-hot-path-v1",
+          "summary": "Profile and optimize remaining RTP packet allocation, timer, lock, transcoder, and socket hot paths without changing public iveKit contracts.",
+          "trigger": "Apply each optimization only when a repeatable profile identifies it as a Cell-10K bottleneck.",
+          "capacity_dimensions": [
+            "voice.rtp_legs",
+            "voice.packet_operations_per_second",
+            "workers.recording_slots"
+          ],
+          "acceptance_evidence": [
+            "Before and after flamegraphs use the same voice profile and hardware.",
+            "Packet loss, jitter, audio continuity, DTMF, recording, and call-control gates pass.",
+            "Safe capacity improves without consuming the Zone failure reserve."
+          ]
+        }
+      ],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "passed",
+        "compile": "not_run",
+        "unit": "partial",
+        "integration": "partial",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          "infra/ivekit/rustpbx/build.sh",
+          "infra/ivekit/rustpbx/patches",
+          "integrations/component-hook-rs",
+          "test/ivekit-rustpbx-route-snapshot.test.ts",
+          "test/ivekit-rustpbx-inbound-admission-patch.test.ts",
+          "test/ivekit-rustpbx-owner-epoch-patch.test.ts",
+          "test/ivekit-rustpbx-recording-spool-patch.test.ts",
+          "test/ivekit-rustpbx-recording-spool-worker.test.ts",
+          "test/ivekit-rustpbx-recording-spool-capacity.test.ts",
+          "test/ivekit-recording-spool-intake.test.ts",
+          "test/ivekit-recording-segment-upload.test.ts",
+          "src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-worker.ts",
+          "src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts",
+          "docs/capacity/rustpbx-recording-spool-implementation-plan.md",
+          "test/ivekit-rustpbx-rwi.test.ts",
+          "test/ivekit-rustpbx-provider.test.ts",
+          "test/ivekit-voice-call-service.test.ts",
+          "test/ivekit-voice-placement-http-boundary.test.ts",
+          "test/ivekit-voice-deployment.test.ts",
+          "test/ivekit-rustpbx-build.test.ts",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
+          "src/agent-runtime/ivekit/voice/rustpbx-config.ts",
+          "services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml"
+        ],
+        "checked_at": "2026-07-17T12:14:49+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "Custom image digest has not been recorded.",
+          "The full RustPBX binary compile, SIP/RTP integration, Cell-10K benchmark, and failover evidence are not attached.",
+          "Helm production values still require an operator-supplied immutable digest for the custom ivekit.8 candidate."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "rebase_patch_queue",
+        "compatibility_policy": "iveKit internal RWI and observation protocols require explicit version negotiation across rolling upgrades.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "verification_pending",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "rsipstack",
+      "name": "rsipstack",
+      "role": "Pinned SIP transport and transaction library linked into RustPBX",
+      "lifecycle": "active_engineering",
+      "integration_mode": "patch_queue",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/restsend/rsipstack",
+        "version": "commit-8318e97",
+        "pin_kind": "exact_commit",
+        "commit": "8318e97b1170de4e5245b120afec1cdf53e3d716",
+        "source_identity_complete": true
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/rustpbx/build.sh",
+        "builder_image": "rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
+      },
+      "patches": [
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch",
+          "sha256": "8fb7640644cce7e03540d2879783639737a554b3199c9ffe3a28f8d96b497844",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716",
+          "purpose": "Correct bounded TCP reconnect behavior required by the RustPBX transport path."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
+          "sha256": "e3e4491e3d68cb1a49de0c61364bfbd3e40e9251a05575727a8f85491cb5ee8c",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-tcp-reconnect.patch",
+          "purpose": "Bound SIP transactions, retransmission cache, inbound transaction queue and reliable transport connections with deterministic overload rejection and low-cardinality statistics."
+        }
+      ],
+      "implemented_changes": [
+        {
+          "change_id": "rsipstack-tcp-reconnect-v1",
+          "summary": "Controlled reconnect behavior for failed SIP TCP transports.",
+          "capacity_dimensions": [
+            "sip.active_connections",
+            "sip.transactions_per_second"
+          ],
+          "acceptance_evidence": [
+            "Patch applies to the pinned commit.",
+            "Reconnect tests cover timeout, duplicate retry, shutdown, and recovery."
+          ]
+        },
+        {
+          "change_id": "rsipstack-transport-capacity-v1",
+          "summary": "Strictly bound transaction slots, finished retransmission state, incoming transaction queue and TCP/TLS/WebSocket connections; reject overload with SIP 503 and Retry-After.",
+          "capacity_dimensions": [
+            "sip.active_connections",
+            "sip.transactions_per_second",
+            "sip.invite_cps"
+          ],
+          "acceptance_evidence": [
+            "The reconnect and capacity patches apply in order to a clean exact-commit worktree.",
+            "Rustfmt and whitespace checks pass for the fully patched rsipstack tree.",
+            "Patch contract tests verify strict atomic slot bounds, queue/connection rejection, explicit 503 overload response, duplicate-key safety and bounded-cardinality statistics.",
+            "Native Cargo compile, SIPp overload integration and Cell-10K benchmark remain not_run."
+          ]
+        }
+      ],
+      "planned_changes": [],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "passed",
+        "compile": "not_run",
+        "unit": "partial",
+        "integration": "partial",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          "infra/ivekit/rustpbx/build.sh",
+          "infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch",
+          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
+          "test/ivekit-rustpbx-build.test.ts",
+          "test/ivekit-voice-deployment.test.ts"
+        ],
+        "checked_at": "2026-07-17T11:45:35+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The patched library has not been natively compiled into a digest-bound RustPBX image for this manifest revision.",
+          "Transport integration and overload benchmarks are not attached."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "rebase_patch_queue",
+        "compatibility_policy": "RustPBX and rsipstack source pins move in one atomic manifest revision and one Cargo.lock update.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "verification_pending",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "rustdesk-client",
+      "name": "RustDesk Windows Client",
+      "role": "Windows remote-control endpoint, exact-session control, local recording, and native evidence observation",
+      "lifecycle": "active_engineering",
+      "integration_mode": "overlay",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/rustdesk/rustdesk",
+        "version": "1.4.7",
+        "pin_kind": "exact_tag",
+        "release_ref": "1.4.7",
+        "source_identity_complete": false
+      },
+      "build": {
+        "reproducible": false,
+        "lockfile_enforced": true,
+        "script": ".github/workflows/ivekit-rustdesk-windows-ci.yml",
+        "features": [
+          "inline"
+        ],
+        "output_image": "rustdesk-windows-client:1.4.7-ivekit-candidate"
+      },
+      "runtime_artifact": {
+        "reference": "rustdesk-windows-client:1.4.7-ivekit-candidate",
+        "kind": "custom_candidate",
+        "contains_declared_modifications": true
+      },
+      "patches": [
+        {
+          "path": "integrations/rustdesk-1.4.7/ivekit_native_control.rs",
+          "sha256": "cced1c54d5bc380a640c5ba030532298396b0344b5bbccdc66705b503dd62ba7",
+          "applies_to": "rustdesk@tag:1.4.7",
+          "purpose": "Add ACL-protected exact native session disconnect with owner-epoch v2 fencing through a Windows named pipe."
+        },
+        {
+          "path": "integrations/rustdesk-1.4.7/ivekit_native_evidence.rs",
+          "sha256": "cae4657912dab9fe3f3fc7583ad8762aa7c5ad0b64a55ac5876b9e41cafa937a",
+          "applies_to": "rustdesk@tag:1.4.7",
+          "purpose": "Emit metadata-only candidates for stable local recording and transferred-file evidence."
+        },
+        {
+          "path": "integrations/rustdesk-1.4.7/apply-overlay.mjs",
+          "sha256": "5a5bd2963ef56a1132d6970a85ba981ad94a3c3481f988ddffa15401408caac8",
+          "applies_to": "rustdesk@tag:1.4.7",
+          "purpose": "Apply the overlay fail-closed when expected upstream source anchors drift."
+        }
+      ],
+      "protocols": [
+        {
+          "protocol_id": "ivekit-rustdesk-native-control-v1",
+          "version": "1",
+          "visibility": "component_internal"
+        },
+        {
+          "protocol_id": "ivekit-rustdesk-native-control-v2",
+          "version": "2",
+          "visibility": "component_internal"
+        },
+        {
+          "protocol_id": "rustdesk-native-evidence-v1",
+          "version": "1",
+          "visibility": "component_internal"
+        }
+      ],
+      "implemented_changes": [
+        {
+          "change_id": "rustdesk-exact-disconnect-v1",
+          "summary": "Disconnect one resolved RustDesk Connection Manager entry instead of restarting the entire service.",
+          "capacity_dimensions": [
+            "remote.active_sessions"
+          ],
+          "acceptance_evidence": [
+            "Named-pipe request can close only the resolved integer connection ID.",
+            "Unrelated sessions on the same Windows endpoint remain active."
+          ]
+        },
+        {
+          "change_id": "rustdesk-native-evidence-v1",
+          "summary": "Observe stable allowlisted local evidence files while an authorized controller is active.",
+          "capacity_dimensions": [
+            "workers.evidence_upload_bytes_per_second",
+            "data.local_spool_bytes"
+          ],
+          "acceptance_evidence": [
+            "Candidate metadata is not treated as upload authorization.",
+            "Companion correlation binds each candidate to one authorized device-token context."
+          ]
+        },
+        {
+          "change_id": "rustdesk-client-owner-epoch-v1",
+          "summary": "Carry and enforce interaction owner epoch across command claim, exact disconnect, operation observation, file/recording evidence correlation, upload and server lifecycle acknowledgement.",
+          "capacity_dimensions": [
+            "remote.active_sessions",
+            "remote.concurrent_file_transfers"
+          ],
+          "acceptance_evidence": [
+            "Placement-enabled packages require native-control v2 and reject commands or evidence from a stale, incomplete or mismatched owner before native execution or upload.",
+            "The companion persists one atomic state shard per exact external session, recovers dead-process locks and preserves equal-epoch command replay without a global O(N) state rewrite.",
+            "A rolling companion package may retain v1 only while placement is disabled; exact-session isolation and emergency fallback authorization remain unchanged."
+          ]
+        }
+      ],
+      "planned_changes": [],
+      "verification": {
+        "source_identity": "partial",
+        "patch_apply": "not_run",
+        "compile": "not_run",
+        "unit": "passed",
+        "integration": "partial",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          "integrations/rustdesk-1.4.7/README.md",
+          "integrations/rustdesk-1.4.7/ivekit_native_control.rs",
+          "scripts/rustdesk-owner-epoch-fence.ts",
+          "scripts/rustdesk-edge-command.ts",
+          "scripts/rustdesk-observation-bridge.ts",
+          "scripts/rustdesk-evidence-uploader.ts",
+          "scripts/rustdesk-windows-package.ts",
+          ".github/workflows/ivekit-rustdesk-windows-ci.yml",
+          "test/rustdesk-owner-epoch-fence.test.ts",
+          "test/rustdesk-edge-command.test.ts",
+          "test/rustdesk-edge-evidence-http.test.ts",
+          "test/rustdesk-edge-observation-http.test.ts",
+          "test/rustdesk-native-control-overlay.test.ts",
+          "test/rustdesk-windows-package.test.ts"
+        ],
+        "checked_at": "2026-07-17T01:43:54+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The 1.4.7 tag has not been resolved to and recorded as a 40-character source commit.",
+          "A signed Windows artifact digest, SBOM, and build provenance are absent.",
+          "Two-Windows-machine exact disconnect, multi-screen, clipboard, file transfer, recording, and reconnect acceptance is not run."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "replace_overlay_base",
+        "compatibility_policy": "The companion negotiates native control and evidence protocol versions; unknown major versions fail closed.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "verification_pending",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "livekit-server",
+      "name": "LiveKit Server",
+      "role": "WebRTC SFU, room owner, media routing, data channels, and built-in TURN",
+      "lifecycle": "active_engineering",
+      "integration_mode": "maintained_fork",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/livekit/livekit",
+        "version": "v1.13.3",
+        "pin_kind": "exact_tag",
+        "commit": "8f6a9cb8b735549f0c5770df8ea70ac51f860ecb",
+        "release_ref": "v1.13.3",
+        "image_repository": "livekit/livekit-server",
+        "source_identity_complete": true
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/livekit/build.sh",
+        "features": [
+          "component-node-owner-guard",
+          "small-room-lock-free-fanout"
+        ],
+        "output_image": "ivekit/livekit-server:v1.13.3-ivekit.2-8f6a9cb8"
+      },
+      "runtime_artifact": {
+        "reference": "livekit/livekit-server:v1.13.3",
+        "kind": "upstream_baseline",
+        "contains_declared_modifications": false
+      },
+      "patches": [
+        {
+          "path": "infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch",
+          "sha256": "6db88e62c5999b2200b18cab0b70068ebcff1dcc0fe7ae590b68f14ab64c5a27",
+          "applies_to": "livekit-server@8f6a9cb8b735549f0c5770df8ea70ac51f860ecb after the iveKit owner overlay",
+          "purpose": "Publish immutable downtrack snapshots through an atomic pointer and keep one-to-few-subscriber RTP and Opus RED fanout off the parallel closure and atomic aggregation path."
+        }
+      ],
+      "protocols": [
+        {
+          "protocol_id": "ivekit-component-node-admission",
+          "version": "1",
+          "visibility": "component_internal"
+        },
+        {
+          "protocol_id": "ivekit-livekit-placement-metadata",
+          "version": "1",
+          "visibility": "ivekit_internal"
+        }
+      ],
+      "implemented_changes": [
+        {
+          "change_id": "livekit-control-plane-owner-routing-v1",
+          "summary": "Resolve durable media-call Placement for join tokens, moderation, Egress start and stop, and PSTN-to-LiveKit bridge creation.",
+          "capacity_dimensions": [
+            "livekit.rooms",
+            "livekit.participants",
+            "livekit.egress_mbps"
+          ],
+          "acceptance_evidence": [
+            "Join contracts return the selected owner URL and sign interaction ID, reservation ID, owner node ID and owner epoch into participant metadata.",
+            "Moderation and Egress tests prove control calls select the durable media-call owner endpoint.",
+            "PSTN bridge creation reserves, persists, activates, and reconciles a LiveKit media Placement before dialing."
+          ]
+        },
+        {
+          "change_id": "livekit-component-node-admission-agent-v1",
+          "summary": "Persist Cell reservations in PostgreSQL and synchronize exact LiveKit node checkpoints, monotonic Cell leases, recovery-complete fencing, drain state and aggregate capacity through the iveKit component-node agent.",
+          "capacity_dimensions": [
+            "livekit.rooms",
+            "livekit.participants",
+            "livekit.published_tracks",
+            "livekit.subscribed_tracks"
+          ],
+          "acceptance_evidence": [
+            "Controlled tests prove lease takeover fencing, exact node identity, restart replay, drain, bounded metrics and reservation state recovery.",
+            "The protocol forbids network or database calls in WebRTC packet forwarding loops.",
+            "Batched authorization accepts at most 64 room owners per local sidecar request and isolates per-room failures."
+          ]
+        },
+        {
+          "change_id": "livekit-cell-admission-v1",
+          "summary": "Bind each LiveKit room to the signed iveKit interaction, reservation, node and owner epoch, refresh owners in bounded batches, and fence signal or administrative mutations from the in-process guard.",
+          "capacity_dimensions": [
+            "livekit.rooms",
+            "livekit.participants",
+            "livekit.published_tracks",
+            "livekit.subscribed_tracks",
+            "livekit.egress_mbps",
+            "livekit.turn_relay_mbps"
+          ],
+          "acceptance_evidence": [
+            "The local Go registry opens a room owner once, rejects conflicting participant metadata and batches refresh in groups of 64.",
+            "The exact-tag overlay patches room creation, participant signal, room deletion, participant administration, data send and metadata mutation boundaries without adding RTP or RTCP network calls.",
+            "The stable-identity Kubernetes StatefulSet gives the LiveKit process and component-node sidecar the same ordinal pod owner ID.",
+            "The overlay sets LiveKit currentNode.NodeID from that ordinal before Prometheus, SignalClient and Router initialization, aligning Redis room routing with iveKit placement and sidecar checkpoints.",
+            "Real application to the pinned upstream tree, Go 1.26 compilation and multi-node media execution remain release gates."
+          ]
+        },
+        {
+          "change_id": "livekit-room-rebuild-v1",
+          "summary": "Replace an ineligible room owner through a PostgreSQL compare-and-swap handoff and return deterministic recovery metadata so clients reconnect to the new owner without duplicating Egress.",
+          "capacity_dimensions": [
+            "livekit.reconnects_per_second",
+            "events.owner_journal_per_second"
+          ],
+          "acceptance_evidence": [
+            "Controlled coordinator and HTTP tests prove stale preconditions fail closed, concurrent terminal reconnects converge on one higher placement generation, and the previous reservation closes through a durable retryable handoff.",
+            "The reference client submits the previous reservation and epoch only after terminal disconnect, while token metadata exposes the selected generation and recovery result.",
+            "Recording tests prove room recovery does not create a second active Egress job; real SFU node-loss recovery remains a release gate."
+          ]
+        },
+        {
+          "change_id": "livekit-small-room-hot-path-v1",
+          "summary": "Use lock-free immutable downtrack snapshots and a serial non-atomic RTP fanout path below the existing load-balancing threshold, including Opus RED encode/decode forwarding.",
+          "capacity_dimensions": [
+            "livekit.rooms",
+            "livekit.subscribed_tracks",
+            "livekit.packet_operations_per_second"
+          ],
+          "acceptance_evidence": [
+            "The exact v1.13.3 source accepts the owner overlay and hot-path patch, reports already_applied on a second execution, and passes git diff --check.",
+            "Go 1.26 tests pass for cmd/server, pkg/sfu, pkg/sfu/utils, ivekit.local/componenthook and ivekit.local/livekitowner; SFU and spreader tests also pass under the race detector.",
+            "Compiler escape analysis moves the baseline per-packet writeCount and broadcast closure to the heap; the serial path removes both and allocates the parallel counter only after the configured threshold is reached.",
+            "On the local Apple M5 controlled microbenchmark, one-subscriber snapshot reads changed from 3.62-3.66 ns/op to 0.49-0.52 ns/op at 0 allocations; this is operation-level evidence, not a node or Cell capacity claim.",
+            "Custom image, packet continuity, impairment, TURN, multi-node and Cell-10K evidence remain not_run."
+          ]
+        }
+      ],
+      "planned_changes": [
+        {
+          "change_id": "livekit-pacer-buffer-hot-path-v1",
+          "summary": "Profile remaining RTP buffer, pacer, header-extension, simulcast and TWCC costs after the lock-free small-room fanout change.",
+          "trigger": "Apply only when a repeatable component profile identifies the next bottleneck; do not infer it from the downtrack microbenchmark.",
+          "capacity_dimensions": [
+            "livekit.rooms",
+            "livekit.subscribed_tracks",
+            "livekit.packet_operations_per_second",
+            "livekit.egress_mbps"
+          ],
+          "acceptance_evidence": [
+            "Before and after profiles use identical codec, simulcast, impairment, and room-duration inputs.",
+            "Optimization improves safe capacity while preserving P95 join, reconnect, loss, and quality gates."
+          ]
+        }
+      ],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "passed",
+        "compile": "passed",
+        "unit": "passed",
+        "integration": "partial",
+        "benchmark": "partial",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          ".env.example",
+          "infra/env.example",
+          "src/agent-runtime/ivekit/placement/media-call-placement.ts",
+          "src/agent-runtime/ivekit/placement/component-node-admission.ts",
+          "src/agent-runtime/ivekit/placement/component-node-sync.ts",
+          "src/agent-runtime/ivekit/placement/interaction-placement.ts",
+          "src/agent-runtime/ivekit/placement/media-call-placement.ts",
+          "src/migrations/085_ivekit_interaction_placement_handoffs.sql",
+          "clients/ivekit-reference/src/media/media-rejoin-controller.ts",
+          "integrations/component-hook-go/hook.go",
+          "integrations/component-hook-go/http_authorizer.go",
+          "integrations/livekit-v1.13.3/registry.go",
+          "integrations/livekit-v1.13.3/registry_test.go",
+          "infra/ivekit/livekit/apply-overlay.mjs",
+          "infra/ivekit/livekit/build.sh",
+          "infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch",
+          "infra/capacity/kubernetes/livekit-statefulset.yaml",
+          "docs/capacity/component-node-admission-protocol-v1.md",
+          "test/ivekit-livekit-owner-routing.test.ts",
+          "test/ivekit-interaction-placement.test.ts",
+          "test/ivekit-interaction-placement-worker.test.ts",
+          "test/ivekit-media-call-placement-join.test.ts",
+          "test/ivekit-media-call-placement.test.ts",
+          "test/ivekit-component-node-admission.test.ts",
+          "test/ivekit-component-node-sync.test.ts",
+          "test/ivekit-livekit-owner-patch.test.ts",
+          "clients/ivekit-reference/src/media/media-rejoin-controller.test.ts"
+        ],
+        "checked_at": "2026-07-17T13:39:51+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The exact upstream overlay and hot-path patch compile with Go 1.26, but the custom image has not been built and has no immutable digest, SBOM or provenance.",
+          "Real LiveKit, TURN, impairment, reconnect, drain, and Cell-10K evidence is not run."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "merge_upstream_release",
+        "compatibility_policy": "Public LiveKit client protocol compatibility is retained; iveKit placement and capacity extensions remain internal and versioned.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "Apache-2.0",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "livekit-egress",
+      "name": "LiveKit Egress",
+      "role": "Track recording, composite recording, streaming, and recording artifact production",
+      "lifecycle": "active_engineering",
+      "integration_mode": "overlay",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/livekit/egress",
+        "version": "v1.13.0",
+        "pin_kind": "exact_tag",
+        "release_ref": "v1.13.0",
+        "commit": "7d3572a0bf1959cbbc452f5ba390b6a90b7dc249",
+        "image_repository": "livekit/egress",
+        "source_identity_complete": true
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/livekit-egress/build.sh",
+        "output_image": "ivekit/livekit-egress:1.13.0-ivekit.1-7d3572a0"
+      },
+      "runtime_artifact": {
+        "reference": "ivekit/livekit-egress:1.13.0-ivekit.1-7d3572a0",
+        "kind": "custom_candidate",
+        "contains_declared_modifications": true
+      },
+      "patches": [
+        {
+          "path": "infra/ivekit/livekit-egress/apply-overlay.mjs",
+          "sha256": "f44ca063f18844801f3012c98394f1314b30679523ad8436cfa73c917f0361da",
+          "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249",
+          "purpose": "Patch the Egress monitor before upstream CPU and memory admission, initialize iveKit metrics, and copy the local request-type, slot-limit, drain, and process-observability modules."
+        },
+        {
+          "path": "integrations/livekit-egress-v1.13.0/policy.go",
+          "sha256": "944ed7d63e27886caceb1dec1cd6f8bad2d2c75970da384de54343a9c978234c",
+          "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249 after apply-overlay.mjs",
+          "purpose": "Fail startup on invalid pool policy, hard-fence accepted request types, concurrent slots, and drain state, and expose exact rejection reasons inside each worker process."
+        },
+        {
+          "path": "infra/ivekit/livekit-egress/ivekit_metrics.go",
+          "sha256": "f8bfc0f8a17ac5b758c36535e96f7bce8abe8a38a14e56aa4ea87bc705a17c39",
+          "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249 after apply-overlay.mjs",
+          "purpose": "Export bounded process slot, drain, rejection, spool, and network-transmit metrics without adding control-plane calls to the media path."
+        }
+      ],
+      "implemented_changes": [
+        {
+          "change_id": "livekit-egress-capacity-v1",
+          "summary": "Hard-fence Track and Composite request types, concurrent slots, drain state and exact Cell ownership before provider execution; reconcile orphan jobs and scale independently from durable queue, process, spool and network evidence.",
+          "capacity_dimensions": [
+            "workers.track_egress_slots",
+            "workers.composite_egress_slots",
+            "workers.evidence_upload_bytes_per_second",
+            "data.local_spool_bytes"
+          ],
+          "acceptance_evidence": [
+            "The exact-release overlay transformer is idempotent and inserts request-type, slot-limit, and drain fences before upstream resource admission.",
+            "The independently compiled Go policy fails startup for invalid policy, rejects cross-pool requests, enforces an explicit process slot limit, fails closed on drain-file errors, and counts exact rejection reasons.",
+            "Kubernetes Track and Composite StatefulSets carry disjoint allow-lists, independent slot limits, deterministic preStop drain markers, persistent backup spool, independent disruption budgets, KEDA/HPA policies and Prometheus alerts.",
+            "iveKit persists one durable child job and object lifecycle per accepted provider Egress request, binds it to an exact reservation and owner epoch, and closes that capacity from terminal webhook or leased reconciliation.",
+            "Control-plane metrics aggregate durable pending/active/stopping jobs by pool while fork metrics expose active slots, process limit, drain state, rejections, spool pressure and network transmission."
+          ]
+        }
+      ],
+      "planned_changes": [],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "partial",
+        "compile": "partial",
+        "unit": "passed",
+        "integration": "partial",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          "infra/ivekit/livekit-egress/apply-overlay.mjs",
+          "infra/ivekit/livekit-egress/build.sh",
+          "infra/ivekit/livekit-egress/ivekit_metrics.go",
+          "integrations/livekit-egress-v1.13.0/policy.go",
+          "integrations/livekit-egress-v1.13.0/policy_test.go",
+          "infra/k8s/templates/livekit-egress-deployment.yaml",
+          "src/agent-runtime/livekit/egress-capacity-metrics.ts",
+          "src/agent-runtime/livekit/egress-reconciliation-worker.ts",
+          "src/migrations/089_livekit_egress_capacity_metrics.sql",
+          "test/ivekit-livekit-egress-pool-patch.test.ts",
+          "test/livekit-egress-capacity-recording.test.ts",
+          "test/livekit-egress-capacity-metrics.test.ts",
+          "test/livekit-egress-reconciliation.test.ts",
+          "test/ivekit-livekit-egress-placement.test.ts",
+          "docs/capacity/livekit-egress-cell-10k-implementation-plan.md"
+        ],
+        "checked_at": "2026-07-17T11:07:00+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The overlay has not yet been applied to a real upstream checkout and the custom image digest is not recorded.",
+          "Real Egress, object-storage outage, pool-isolation and Cell-10K benchmark evidence remain not_run."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "rebase_overlay",
+        "compatibility_policy": "Keep the upstream Egress API at the boundary; any iveKit worker extension uses a separately versioned internal contract.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "Apache-2.0",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "livekit-sip",
+      "name": "LiveKit SIP",
+      "role": "Optional SIP-to-LiveKit bridge; not the MIX-100K-v1 primary SIP registrar or voice owner",
+      "lifecycle": "planned",
+      "integration_mode": "upstream_image",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/livekit/sip",
+        "version": "v1.6.0",
+        "pin_kind": "exact_tag",
+        "release_ref": "v1.6.0",
+        "image_repository": "livekit/sip",
+        "source_identity_complete": false
+      },
+      "runtime_artifact": {
+        "reference": "livekit/sip:v1.6.0",
+        "kind": "upstream_baseline",
+        "contains_declared_modifications": false
+      },
+      "planned_changes": [
+        {
+          "change_id": "livekit-sip-role-boundary-v1",
+          "summary": "Prove whether LiveKit SIP remains an optional bridge or needs owner epoch, reservation, and drain extensions for a declared production profile.",
+          "trigger": "Required before adding LiveKit SIP traffic to any 100k interaction profile.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "voice.concurrent_calls",
+            "livekit.participants"
+          ],
+          "acceptance_evidence": [
+            "The profile identifies which component owns SIP dialogs, RTP, recording, and failover.",
+            "No call is counted or admitted independently by both RustPBX and LiveKit SIP."
+          ]
+        }
+      ],
+      "verification": {
+        "source_identity": "partial",
+        "patch_apply": "not_applicable",
+        "compile": "not_run",
+        "unit": "not_run",
+        "integration": "not_run",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          ".env.example"
+        ],
+        "checked_at": "2026-07-16T13:45:00+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The component is outside the current primary voice ownership path.",
+          "Source commit, image digest, capacity role, and benchmark evidence are not recorded."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "track_upstream_image",
+        "compatibility_policy": "Do not add LiveKit SIP to a capacity profile until the RustPBX and LiveKit SIP ownership boundary is explicit and machine validated.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "verification_pending",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "tinode-server",
+      "name": "Tinode Server",
+      "role": "IM WebSocket gateway, topic owner, message fanout, presence, attachment references, and native client compatibility",
+      "lifecycle": "active_engineering",
+      "integration_mode": "maintained_fork",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/tinode/chat",
+        "version": "0.25.3",
+        "pin_kind": "exact_tag",
+        "commit": "22a7c18e9cd695e9a061bf1b8c84175196ef5a15",
+        "release_ref": "v0.25.3",
+        "image_repository": "tinode/tinode",
+        "source_identity_complete": true
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/tinode/build.sh",
+        "features": [
+          "component-node-owner-guard",
+          "stable-cluster-self",
+          "lazy-background-session-timer",
+          "immutable-local-group-fanout"
+        ],
+        "output_image": "ivekit/tinode:v0.25.3-ivekit.2-22a7c18e"
+      },
+      "runtime_artifact": {
+        "reference": "ivekit/tinode:v0.25.3-ivekit.2-22a7c18e",
+        "kind": "custom_candidate",
+        "contains_declared_modifications": true
+      },
+      "patches": [
+        {
+          "path": "infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch",
+          "sha256": "01f39f3ad8386844486c512110d4f0daaee8da99f6ddbd616885a575d120e977",
+          "applies_to": "tinode@22a7c18e9cd695e9a061bf1b8c84175196ef5a15 after the owner overlay",
+          "purpose": "Allocate background timers only for background sessions and reuse immutable ordinary local-group messages while retaining copies for P2P, channel and cluster delivery."
+        }
+      ],
+      "protocols": [
+        {
+          "protocol_id": "ivekit-component-node-admission",
+          "version": "1",
+          "visibility": "component_internal"
+        },
+        {
+          "protocol_id": "ivekit-tinode-trusted-placement",
+          "version": "1",
+          "visibility": "ivekit_internal"
+        },
+        {
+          "protocol_id": "ivekit-tinode-owner-prepare",
+          "version": "1",
+          "visibility": "component_internal"
+        }
+      ],
+      "implemented_changes": [
+        {
+          "change_id": "tinode-native-mutation-v1",
+          "summary": "Project iveKit message edit and delete through a durable outbox into Tinode-native mutations, then reconcile native inbound echoes so iveKit SDK and third-party Tinode clients converge.",
+          "capacity_dimensions": [
+            "im.messages_per_second",
+            "events.outbox_per_second"
+          ],
+          "acceptance_evidence": [
+            "Edit and delete operations are ordered per message, idempotently projected, retried with bounded leases, and dead-lettered when the provider outcome cannot be resolved safely.",
+            "Inbound Tinode mutation echoes reconcile the iveKit message projection without publishing a duplicate mutation.",
+            "Unit, migration, inbound projector, reconnect, and worker recovery tests cover the iveKit integration path; native multi-node Tinode client convergence remains a real-environment gate."
+          ]
+        },
+        {
+          "change_id": "tinode-component-node-admission-agent-v1",
+          "summary": "Persist Cell reservations and synchronize exact Tinode node owner epochs, restart recovery, drain state and bounded capacity through the shared component-node agent.",
+          "capacity_dimensions": [
+            "im.websocket_connections",
+            "im.active_topics",
+            "im.messages_per_second"
+          ],
+          "acceptance_evidence": [
+            "Controlled tests prove node lease fencing, restart checkpoint replay, drain and exact interaction ownership.",
+            "Tinode fanout remains prohibited from performing agent HTTP calls; the source hook caches owner epoch and lease state in process.",
+            "The exact upstream overlay build and real multi-node convergence remain release gates."
+          ]
+        },
+        {
+          "change_id": "tinode-cell-topic-owner-v1",
+          "summary": "Bind ROOT-created Tinode group topics to iveKit interaction, reservation, stable node and owner epoch metadata; open the owner before actor startup and fence client mutation paths from the in-process guard.",
+          "capacity_dimensions": [
+            "im.websocket_connections",
+            "im.active_topics",
+            "im.messages_per_second",
+            "im.fanout_deliveries_per_second"
+          ],
+          "acceptance_evidence": [
+            "iveKit persists the reservation before topic creation, connects to the selected owner endpoint, and stores the owner contract under ROOT-only desc.trusted.ivekit_placement.",
+            "The exact-release overlay aligns Tinode cluster_self with IVEKIT_COMPONENT_NODE_ID, opens a group-topic owner before actor startup, locally fences publish and metadata mutations, and rolls back a newly persisted topic if owner open fails.",
+            "Owner refresh uses batches of at most 64 topics; Tinode fanout, serialization and persistence loops never call the sidecar.",
+            "A secured prepare endpoint can preload a higher owner epoch before a failed topic is rebuilt, while stale persisted Trusted metadata cannot replace that owner.",
+            "The three-node StatefulSet gives Tinode cluster routing and each local component-node sidecar the same stable ordinal identity."
+          ]
+        },
+        {
+          "change_id": "tinode-session-fanout-hot-path-v1",
+          "summary": "Keep foreground sessions timer-free and reuse immutable messages for ordinary local-group recipients without changing P2P, channel or cluster personalization semantics.",
+          "capacity_dimensions": [
+            "im.websocket_connections",
+            "im.messages_per_second",
+            "im.fanout_deliveries_per_second"
+          ],
+          "acceptance_evidence": [
+            "The exact v0.25.3 source accepts the maintained patch idempotently and passes Go 1.26 server tests and race detection.",
+            "Foreground sessions allocate no background timer until requested; background state transitions are atomic; P2P, channel and cluster recipients retain isolated message copies.",
+            "On Apple M5, the message-preparation microbenchmark changed from 41.19-42.81 ns/op, 240 B/op and 2 allocs/op to 1.580-1.586 ns/op, 0 B/op and 0 allocs/op. This is an operation-level result, not node or Cell capacity evidence."
+          ]
+        }
+      ],
+      "planned_changes": [
+        {
+          "change_id": "tinode-persistence-presence-backpressure-v1",
+          "summary": "Profile and optimize presence bursts, serialization, persistence batching and queue backpressure after real multi-node workloads expose the next limiting path.",
+          "trigger": "Apply against repeatable connection, reconnect, presence and persistence profiles without weakening bounded queues or delivery ordering.",
+          "capacity_dimensions": [
+            "im.websocket_connections",
+            "im.messages_per_second",
+            "im.fanout_deliveries_per_second",
+            "data.database_writes_per_second"
+          ],
+          "acceptance_evidence": [
+            "Before and after tests use the same connection, topic, message-size, fanout, reconnect, and presence mix.",
+            "No accepted message is lost, reordered outside contract, or duplicated at the iveKit projection."
+          ]
+        }
+      ],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "passed",
+        "compile": "passed",
+        "unit": "passed",
+        "integration": "partial",
+        "benchmark": "partial",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          ".env.example",
+          "services/ivekit-service/helm/ivekit/templates/tinode-deployment.yaml",
+          "src/agent-runtime/collaboration/tinode-message-mutation.ts",
+          "src/agent-runtime/collaboration/tinode-inbound-projector.ts",
+          "src/agent-runtime/ivekit/placement/component-node-admission.ts",
+          "src/agent-runtime/ivekit/placement/component-node-sync.ts",
+          "integrations/component-hook-go/hook.go",
+          "integrations/component-hook-go/http_authorizer.go",
+          "integrations/tinode-v0.25.3/registry.go",
+          "integrations/tinode-v0.25.3/registry_test.go",
+          "infra/ivekit/tinode/apply-overlay.mjs",
+          "infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch",
+          "infra/ivekit/tinode/server-hook.go",
+          "infra/ivekit/tinode/build.sh",
+          "infra/capacity/kubernetes/tinode-statefulset.yaml",
+          "docs/capacity/component-node-admission-protocol-v1.md",
+          "src/migrations/074_ivekit_tinode_message_mutations.sql",
+          "test/tinode-message-mutation.test.ts",
+          "test/tinode-message-mutation-migration.test.ts",
+          "test/tinode-inbound-projector.test.ts",
+          "test/ivekit-tinode-owner-patch.test.ts",
+          "test/ivekit-chat-placement-http-boundary.test.ts",
+          "test/ivekit-component-node-admission.test.ts",
+          "test/ivekit-component-node-sync.test.ts"
+        ],
+        "checked_at": "2026-07-17T14:09:47+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The exact upstream overlay compiles and passes race tests, but the custom image has not been built and has no immutable digest, SBOM or provenance.",
+          "Multi-node reconnect, shard failure, and native-client convergence evidence is not run in a real Tinode cluster."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "merge_upstream_release",
+        "compatibility_policy": "Tinode wire compatibility remains available to native clients; iveKit ownership metadata is internal and version negotiated.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "GPL-3.0",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "rustdesk-server",
+      "name": "RustDesk Server",
+      "role": "RustDesk ID rendezvous and relay data plane for remote-assistance interactions",
+      "lifecycle": "active_engineering",
+      "integration_mode": "maintained_fork",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/rustdesk/rustdesk-server",
+        "version": "1.1.15",
+        "pin_kind": "exact_tag",
+        "commit": "9bae9f2f39d92c4b4ba2e28e089da5071897b22e",
+        "release_ref": "1.1.15",
+        "image_repository": "rustdesk/rustdesk-server",
+        "source_identity_complete": true
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/rustdesk-server/build.sh",
+        "features": [
+          "component-node-owner-guard",
+          "stable-paired-relay-owner",
+          "per-session-lock-free-usage-counters",
+          "owned-relay-frames"
+        ],
+        "output_image": "ivekit/rustdesk-server:1.1.15-ivekit.2-9bae9f2f"
+      },
+      "runtime_artifact": {
+        "reference": "ivekit/rustdesk-server:1.1.15-ivekit.2-9bae9f2f",
+        "kind": "custom_candidate",
+        "contains_declared_modifications": true
+      },
+      "patches": [
+        {
+          "path": "infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
+          "sha256": "36a48feb70aece0a8d79bf47cd5440287b5b10463428a9cb89db7cd2d1e7009c",
+          "applies_to": "rustdesk-server@9bae9f2f39d92c4b4ba2e28e089da5071897b22e after the iveKit owner overlay",
+          "purpose": "Move relay usage updates out of the global session-map write lock and preserve owned TCP or WebSocket frame allocations across same-protocol forwarding."
+        }
+      ],
+      "implemented_changes": [
+        {
+          "change_id": "rustdesk-component-node-admission-agent-v1",
+          "summary": "Persist Cell reservations and synchronize exact RustDesk relay owner epochs, restart recovery, drain state and bounded capacity through the shared component-node agent.",
+          "capacity_dimensions": [
+            "remote.active_sessions",
+            "remote.relay_sessions",
+            "remote.relay_mbps",
+            "remote.concurrent_file_transfers"
+          ],
+          "acceptance_evidence": [
+            "Controlled tests prove exact relay node identity, stale owner rejection, restart replay, drain and node-isolated failure.",
+            "RustDesk frame relay remains prohibited from performing agent HTTP calls; the source hook caches accepted owner epoch and lease state.",
+            "The RustDesk Server source overlay uses the guard at rendezvous and relay setup; the real upstream compile and two-Windows acceptance remain release gates."
+          ]
+        },
+        {
+          "change_id": "rustdesk-relay-cell-admission-v1",
+          "summary": "Claim a prepared target-to-relay UUID binding in hbbs, authorize the exact owner before hbbr pairing, cache the owner lease in process, and terminate stale relays from the existing three-second timer without remote calls in byte forwarding.",
+          "capacity_dimensions": [
+            "remote.active_sessions",
+            "remote.relay_sessions",
+            "remote.relay_mbps",
+            "remote.concurrent_file_transfers"
+          ],
+          "acceptance_evidence": [
+            "The exact 1.1.15 overlay is bound to commit 9bae9f2f39d92c4b4ba2e28e089da5071897b22e.",
+            "Controlled overlay tests prove hbbs claims before forwarding, hbbr opens before pairing, and the frame-copy body contains no HTTP or broker call.",
+            "The durable binding broker rejects ambiguous pending sessions for one target, persists claimed UUID mappings, and restores them after restart.",
+            "With owner variables fully absent the overlay is a no-op and preserves upstream behavior; a partial owner configuration fails startup."
+          ]
+        },
+        {
+          "change_id": "rustdesk-stable-owner-statefulset-v1",
+          "summary": "Deploy each stable ordinal as one colocated hbbs/hbbr pair with local owner-binding and component-node sidecars, durable keys/binding checkpoints, topology spread and disruption fencing.",
+          "capacity_dimensions": [
+            "remote.active_sessions",
+            "remote.relay_sessions",
+            "remote.relay_mbps"
+          ],
+          "acceptance_evidence": [
+            "hbbs, hbbr, owner binding and component admission use the same metadata.name node identity.",
+            "No random LoadBalancer is declared as a RustDesk owner boundary; placement maps an ordinal to its exact public ID and relay endpoints.",
+            "The StatefulSet uses per-ordinal ReadWriteOnce storage and a PodDisruptionBudget."
+          ]
+        },
+        {
+          "change_id": "rustdesk-relay-hot-path-v1",
+          "summary": "Register immutable per-session usage counters once at pairing, update them without the global session-map write lock, and preserve the incoming allocation for same-protocol TCP or WebSocket forwarding.",
+          "capacity_dimensions": [
+            "remote.relay_mbps",
+            "remote.packet_operations_per_second",
+            "remote.concurrent_file_transfers"
+          ],
+          "acceptance_evidence": [
+            "The exact 1.1.15 root and hbb_common submodule commits accept the owner overlay and hot-path patch idempotently, then pass cargo test --locked.",
+            "Unit tests preserve same-protocol frame backing pointers and return consistent four-field usage snapshots from sequence-fenced atomics.",
+            "Three Apple M5 operation-only microbenchmark runs reduce the usage update lower bound from 34.14-35.41 ns/op to 3.53-3.59 ns/op and a 64 KiB WebSocket receive-and-forward allocation path from 4003.95-4084.75 ns/op to 1029.67-1168.72 ns/op; these are not node or Cell throughput results."
+          ]
+        }
+      ],
+      "planned_changes": [
+        {
+          "change_id": "rustdesk-relay-crypto-socket-backpressure-profile-v1",
+          "summary": "Profile the remaining encryption, socket scheduling, file-transfer and backpressure paths for the declared desktop and file mix.",
+          "trigger": "Apply when repeatable remote-assistance profiles identify a bottleneck or excessive relay node count.",
+          "capacity_dimensions": [
+            "remote.relay_mbps",
+            "remote.packet_operations_per_second",
+            "remote.concurrent_file_transfers"
+          ],
+          "acceptance_evidence": [
+            "Before and after profiles use identical desktop motion, codec, resolution, file-transfer, and impairment traces.",
+            "Optimization preserves frame latency, input latency, file integrity, and authorization gates."
+          ]
+        }
+      ],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "passed",
+        "compile": "passed",
+        "unit": "passed",
+        "integration": "partial",
+        "benchmark": "partial",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          ".env.example",
+          "infra/ivekit/docker-compose.yml",
+          "src/agent-runtime/ivekit/placement/component-node-admission.ts",
+          "src/agent-runtime/ivekit/placement/component-node-sync.ts",
+          "src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts",
+          "scripts/ivekit-rustdesk-owner-binding.ts",
+          "integrations/component-hook-rs/src/lib.rs",
+          "infra/ivekit/rustdesk-server/server-hook.rs",
+          "infra/ivekit/rustdesk-server/apply-overlay.mjs",
+          "infra/ivekit/rustdesk-server/build.sh",
+          "infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
+          "infra/ivekit/rustdesk-server/bench/relay-hot-path.rs",
+          "infra/ivekit/rustdesk-server/bench/run.sh",
+          "infra/ivekit/rustdesk-server/README.md",
+          "infra/capacity/kubernetes/rustdesk-statefulset.yaml",
+          "docs/capacity/component-node-admission-protocol-v1.md",
+          "test/ivekit-component-node-admission.test.ts",
+          "test/ivekit-component-node-sync.test.ts",
+          "test/ivekit-rustdesk-owner-binding.test.ts",
+          "test/ivekit-rustdesk-server-owner-patch.test.ts",
+          "test/ivekit-rustdesk-placement-http-boundary.test.ts"
+        ],
+        "checked_at": "2026-07-17T15:05:14+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The exact 1.1.15 source and hbb_common submodule pass locked Cargo tests, but the custom image has not been built and has no immutable digest, SBOM or provenance.",
+          "Two-Windows-machine relay, direct-to-relay fallback, file transfer, recording, reconnect, and Cell benchmark evidence is not run."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "merge_upstream_release",
+        "compatibility_policy": "Retain upstream RustDesk client compatibility where it does not bypass iveKit authorization; internal capacity and epoch extensions are versioned separately.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "AGPL-3.0",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    }
+  ],
+  "x-ivekit-invariants": [
+    "Every component_id is unique within the manifest.",
+    "Every declared patch path exists and its SHA-256 equals the manifest value.",
+    "A production component uses an exact source commit and immutable artifact digest.",
+    "production_eligible is false when source identity, compile, integration, benchmark, or required real-environment evidence is incomplete.",
+    "A component-internal fork protocol cannot become an LED or OPC public contract without a separate public API decision.",
+    "Changing an upstream identity, patch hash, build feature, artifact digest, or protocol version creates a new manifest revision."
+  ]
+}

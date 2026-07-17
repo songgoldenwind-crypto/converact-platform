@@ -10,12 +10,17 @@ import { Pool } from 'pg';
 import { buildIveKitStandaloneContext } from '../scripts/ivekit-standalone-build-context.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { TinodeInboundProjector } from '../src/agent-runtime/collaboration/tinode-inbound-projector.js';
-import { normalizeTinodeInboundPacket } from '../src/agent-runtime/collaboration/tinode-inbound-protocol.js';
+import {
+  normalizeTinodeInboundPacket,
+  replaceTinodeInboundAttachments
+} from '../src/agent-runtime/collaboration/tinode-inbound-protocol.js';
 import { TinodeInboundStore } from '../src/agent-runtime/collaboration/tinode-inbound-store.js';
+import { SecureFileStore } from '../src/agent-runtime/collaboration/secure-file-store.js';
 import { TinodeInboundService } from '../src/agent-runtime/collaboration/tinode-inbound-worker.js';
 import { QualityReviewService } from '../src/agent-runtime/collaboration/quality-review.js';
 import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
 import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
+import type { PgQueryable } from '../src/db-pg.js';
 import { withPgTenant } from '../src/db-pg-tenant.js';
 
 const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
@@ -40,7 +45,7 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
     buildIveKitStandaloneContext({
       repoRoot: resolve('.'),
       outputDir: context,
-      sourceCommit: 'tinode-projector-test',
+      sourceCommit: '2'.repeat(40),
       generatedAt: now.toISOString()
     });
     await initializeIveKitRuntimeRole(admin, runtimePassword);
@@ -75,7 +80,11 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
     );
 
     const store = new TinodeInboundStore({ pg: runtime, now: () => now });
-    const projector = new TinodeInboundProjector({ now: () => now, mutationWindowMs: 86_400_000 });
+    const projector = new TinodeInboundProjector({
+      now: () => now,
+      mutationWindowMs: 86_400_000,
+      secureAttachmentsRequired: true
+    });
     const claim = await store.claimNext({ tenant_id: tenantId, lease_ms: 60_000 });
     assert.ok(claim);
     const project = (event: ReturnType<typeof normalizeTinodeInboundPacket>) =>
@@ -98,7 +107,42 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
     }, { expectedTopic: topic, allowedAttachmentHosts: ['files.example.com'] }));
     assert.equal(edited.message_id, created.message_id);
 
-    const attachment = await project(normalizeTinodeInboundPacket({
+    const secureFiles = new SecureFileStore(runtime);
+    const secureFile = await secureFiles.createUpload({
+      tenant_id: tenantId,
+      session_id: sessionId,
+      created_by: 'tinode-inbound-test',
+      kind: 'image',
+      filename: 'photo.jpg',
+      declared_mime: 'image/jpeg',
+      upload_mode: 'single',
+      expected_size_bytes: 4321,
+      idempotency_key: `tinode-projector-${suffix}`,
+      payload_hash: 'c'.repeat(64)
+    });
+    await secureFiles.beginUpload({ tenant_id: tenantId, secure_file_id: secureFile.id });
+    await secureFiles.completeUpload({
+      tenant_id: tenantId,
+      secure_file_id: secureFile.id,
+      size_bytes: 4321,
+      sha256: 'd'.repeat(64),
+      object_key: `${tenantId}/secure-files/${secureFile.id}`
+    });
+    await secureFiles.transitionStatus({
+      tenant_id: tenantId,
+      secure_file_id: secureFile.id,
+      from_status: 'scanning',
+      to_status: 'processing',
+      threat_status: 'clean',
+      detected_mime: 'image/jpeg'
+    });
+    await secureFiles.transitionStatus({
+      tenant_id: tenantId,
+      secure_file_id: secureFile.id,
+      from_status: 'processing',
+      to_status: 'ready'
+    });
+    const normalizedAttachment = normalizeTinodeInboundPacket({
       data: {
         topic,
         seq: 3,
@@ -118,7 +162,19 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
           }]
         }
       }
-    }, { expectedTopic: topic, allowedAttachmentHosts: ['files.example.com'] }));
+    }, { expectedTopic: topic, allowedAttachmentHosts: ['files.example.com'] });
+    assert.equal(normalizedAttachment.kind, 'data');
+    if (normalizedAttachment.kind !== 'data') throw new Error('expected Tinode data event');
+    const secureAttachmentEvent = replaceTinodeInboundAttachments(normalizedAttachment, [{
+      secure_file_id: secureFile.id,
+      kind: 'image',
+      filename: 'photo.jpg',
+      content_type: 'image/jpeg',
+      size_bytes: 4321,
+      checksum: 'd'.repeat(64),
+      metadata: { source: 'tinode_inbound_secure_file' }
+    }]);
+    const attachment = await project(secureAttachmentEvent);
     assert.ok(attachment.message_id);
 
     const deleted = await project(normalizeTinodeInboundPacket({
@@ -192,12 +248,13 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
     ]);
 
     const attachments = await admin.query(
-      `SELECT storage_url, filename, content_type, size_bytes, metadata
+      `SELECT secure_file_id, storage_url, filename, content_type, size_bytes, metadata
        FROM collaboration_message_attachments WHERE tenant_id = $1`,
       [tenantId]
     );
     assert.equal(attachments.rowCount, 1);
-    assert.equal(attachments.rows[0].storage_url, 'https://files.example.com/photo.jpg');
+    assert.equal(attachments.rows[0].secure_file_id, secureFile.id);
+    assert.equal(attachments.rows[0].storage_url, '');
     assert.equal(JSON.stringify(attachments.rows[0]).includes('embedded-bytes-must-not-persist'), false);
     assert.equal(Number((await admin.query(
       `SELECT count(*) FROM collaboration_message_mutations WHERE tenant_id = $1`,
@@ -224,5 +281,73 @@ maybe('Tinode inbound projector mirrors text, Drafty attachments, replacements, 
     rmSync(root, { recursive: true, force: true });
     await runtime.end();
     await admin.end();
+  }
+});
+
+test('Tinode mutation echo reports a one-time correction only from a non-delivered state', async () => {
+  const topic = 'grpMutationCorrection';
+  const event = normalizeTinodeInboundPacket({
+    data: {
+      topic,
+      seq: 42,
+      from: 'usrService',
+      head: {
+        'x-opc-message-id': 'message-corrected-1',
+        'x-opc-mutation-id': 'mutation-corrected-1',
+        replace: 'msg:17'
+      },
+      content: 'corrected body'
+    }
+  }, { expectedTopic: topic, allowedAttachmentHosts: [] });
+  const claim = {
+    tenant_id: 'tenant-correction',
+    session_id: 'session-correction',
+    binding_id: 'binding-correction',
+    provider_topic_id: topic,
+    claim_token: 'claim-correction',
+    lease_until: '2026-07-16T09:00:00.000Z',
+    cursor: { id: 'cursor-correction', last_data_seq: 0, last_del_id: 0 }
+  };
+
+  for (const status of ['dead_letter', 'delivered'] as const) {
+    const statements: string[] = [];
+    const pg = {
+      async query(sql: string) {
+        statements.push(sql);
+        if (sql.includes('SELECT outbox.*')) {
+          return { rows: [{
+            tenant_id: claim.tenant_id,
+            session_id: claim.session_id,
+            message_id: 'message-corrected-1',
+            mutation_id: 'mutation-corrected-1',
+            mutation_version: 2,
+            action: 'edit',
+            provider_topic_id: topic,
+            message_provider_topic_id: topic,
+            target_provider_message_id: '17',
+            body: 'corrected body',
+            status
+          }] };
+        }
+        return { rows: [] };
+      }
+    } as unknown as PgQueryable;
+
+    const result = await new TinodeInboundProjector().project(pg, claim, event);
+    assert.equal(result.status, 'ignored');
+    assert.equal(result.message_id, 'message-corrected-1');
+    assert.equal(statements.length, 3);
+    if (status === 'dead_letter') {
+      assert.deepEqual(result.provider_mutation, {
+        mutation_id: 'mutation-corrected-1',
+        mutation_version: 2,
+        action: 'edit',
+        message_id: 'message-corrected-1',
+        status: 'delivered',
+        previous_status: 'dead_letter'
+      });
+    } else {
+      assert.equal(result.provider_mutation, undefined);
+    }
   }
 });

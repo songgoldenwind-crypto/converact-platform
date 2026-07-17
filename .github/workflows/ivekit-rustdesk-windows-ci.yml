@@ -1,0 +1,137 @@
+name: iveKit RustDesk Windows CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - '.github/workflows/ivekit-rustdesk-windows-ci.yml'
+      - 'scripts/rustdesk-edge-agent.ts'
+      - 'scripts/rustdesk-edge-command.ts'
+      - 'scripts/rustdesk-edge-pending-store.ts'
+      - 'scripts/rustdesk-edge-adapters/windows-*.ps1'
+      - 'scripts/rustdesk-windows/**'
+      - 'scripts/rustdesk-windows-capability-policy.ts'
+      - 'scripts/rustdesk-windows-package.ts'
+      - 'integrations/rustdesk-1.4.7/**'
+      - 'test/fixtures/rustdesk-windows/**'
+      - 'test/rustdesk-edge-agent.test.ts'
+      - 'test/rustdesk-windows-package.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+  pull_request:
+    paths:
+      - '.github/workflows/ivekit-rustdesk-windows-ci.yml'
+      - 'scripts/rustdesk-edge-agent.ts'
+      - 'scripts/rustdesk-edge-command.ts'
+      - 'scripts/rustdesk-edge-pending-store.ts'
+      - 'scripts/rustdesk-edge-adapters/windows-*.ps1'
+      - 'scripts/rustdesk-windows/**'
+      - 'scripts/rustdesk-windows-capability-policy.ts'
+      - 'scripts/rustdesk-windows-package.ts'
+      - 'integrations/rustdesk-1.4.7/**'
+      - 'test/fixtures/rustdesk-windows/**'
+      - 'test/rustdesk-edge-agent.test.ts'
+      - 'test/rustdesk-windows-package.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+jobs:
+  native-overlay-check:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout pinned RustDesk source
+        uses: actions/checkout@v4
+        with:
+          repository: rustdesk/rustdesk
+          ref: 1.4.7
+          path: .tmp/rustdesk-1.4.7
+          submodules: recursive
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '23'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Apply iveKit native overlay
+        run: node integrations/rustdesk-1.4.7/apply-overlay.mjs .tmp/rustdesk-1.4.7
+
+      - name: Prepare upstream vcpkg dependencies
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          runVcpkgInstall: true
+          vcpkgJsonGlob: .tmp/rustdesk-1.4.7/vcpkg.json
+
+      - name: Compile-check patched RustDesk library
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+          VCPKG_DEFAULT_TRIPLET: x64-windows-static
+        run: cargo check --manifest-path .tmp/rustdesk-1.4.7/Cargo.toml --lib --no-default-features --features inline
+
+  windows-package-contract:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '23'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Verify Node package contracts
+        run: node --import tsx --test test/rustdesk-windows-package.test.ts test/rustdesk-edge-agent.test.ts
+
+      - name: Parse packaged PowerShell ASTs
+        shell: powershell
+        run: |
+          Get-ChildItem 'scripts/rustdesk-windows/*.ps1' | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-String | Write-Error
+              exit 1
+            }
+          }
+
+      - name: Generate controlled fixed-version package
+        run: npm run rustdesk:windows-package
+        env:
+          OPC_RUSTDESK_WINDOWS_PACKAGE_DIR: artifacts/rustdesk-windows-controlled
+          OPC_RUSTDESK_WINDOWS_PROFILE_FILE: test/fixtures/rustdesk-windows/client-profile.json
+          OPC_RUSTDESK_WINDOWS_NETWORK_CONFIG_FILE: test/fixtures/rustdesk-windows/network-config.txt
+          OPC_RUSTDESK_WINDOWS_SOURCE_COMMIT: ${{ github.sha }}
+          OPC_RUSTDESK_WINDOWS_EXPECTED_FINGERPRINT: sha256:1234567890abcdef
+          OPC_RUSTDESK_WINDOWS_WINSW_VERSION: 2.12.0
+          OPC_RUSTDESK_WINDOWS_WINSW_URL: https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe
+          OPC_RUSTDESK_WINDOWS_WINSW_SHA256: cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+      - name: Run read-only controlled validation
+        shell: powershell
+        run: |
+          $installRoot = Join-Path $env:RUNNER_TEMP 'ivekit-rustdesk-must-not-be-created'
+          if (Test-Path -LiteralPath $installRoot) { throw 'controlled install root already exists' }
+          & 'artifacts/rustdesk-windows-controlled/Deploy-IveKitRustDesk.ps1' `
+            -Mode validate `
+            -InstallRoot $installRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Test-Path -LiteralPath $installRoot) {
+            throw 'validate mode wrote to the install root'
+          }

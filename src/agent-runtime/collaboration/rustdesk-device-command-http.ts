@@ -5,6 +5,11 @@ import {
 } from './rustdesk-device-command-store.js';
 import { RustDeskDeviceStore } from './rustdesk-device-store.js';
 import { RustDeskGatewaySessionStore } from './rustdesk-gateway-session-store.js';
+import {
+  assertRustDeskCurrentOwnerBinding,
+  rustDeskDeviceNativeControlProtocol,
+  rustDeskSessionOwnerBinding
+} from './rustdesk-owner-epoch.js';
 
 export interface RouteRustDeskDeviceCommandApiInput {
   pg: PgQueryable;
@@ -14,6 +19,7 @@ export interface RouteRustDeskDeviceCommandApiInput {
   tenantId: string;
   actorIdentity: string;
   expectedRustDeskId?: string;
+  allowEmergencyFallback?: boolean;
   onCommandChanged?: (command: RustDeskDeviceCommand) => Promise<void>;
 }
 
@@ -39,6 +45,9 @@ export async function routeRustDeskDeviceCommandApi(
   const stateMatch = input.routePath.match(
     /^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)\/disconnect$/
   );
+  const emergencyFallbackMatch = input.routePath.match(
+    /^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)\/disconnect\/emergency-fallback$/
+  );
 
   if (claimMatch && input.method === 'POST') {
     const deviceId = decodeURIComponent(claimMatch[1]);
@@ -57,6 +66,24 @@ export async function routeRustDeskDeviceCommandApi(
       lease_ms: Number(body.lease_ms)
     });
     if (!claimed) return { status: 204, data: null };
+    const gatewaySession = await sessions.getSession(claimed.command.external_id);
+    if (!gatewaySession || gatewaySession.tenant_id !== input.tenantId) {
+      return { status: 409, data: { error: 'rustdesk gateway session is unavailable' } };
+    }
+    const controllerRustDeskId = String(
+      gatewaySession.metadata.controller_rustdesk_id || ''
+    ).trim();
+    const ownerBinding = rustDeskSessionOwnerBinding(gatewaySession);
+    const deviceProtocol = rustDeskDeviceNativeControlProtocol(device);
+    if (ownerBinding && deviceProtocol !== 'ivekit-rustdesk-native-control-v2') {
+      return {
+        status: 409,
+        data: { error: 'rustdesk_owner_epoch_protocol_required' }
+      };
+    }
+    const nativeControlProtocol = ownerBinding
+      ? 'ivekit-rustdesk-native-control-v2'
+      : 'ivekit-rustdesk-native-control-v1';
     await input.onCommandChanged?.(claimed.command);
     return {
       status: 201,
@@ -67,13 +94,44 @@ export async function routeRustDeskDeviceCommandApi(
           external_id: claimed.command.external_id,
           target_id: claimed.command.device_id,
           rustdesk_id: device.rustdesk_id,
+          controller_rustdesk_id: controllerRustDeskId,
           requested_reason: claimed.command.requested_reason,
+          emergency_fallback_authorized: claimed.command.emergency_fallback_authorized,
+          emergency_fallback_reason: claimed.command.emergency_fallback_reason,
           attempt: claimed.command.attempt_count,
-          lease_expires_at: claimed.command.lease_expires_at
+          lease_expires_at: claimed.command.lease_expires_at,
+          native_control_protocol: nativeControlProtocol,
+          ...(ownerBinding || {})
         },
+        ...(ownerBinding ? { owner_binding: ownerBinding } : {}),
         claim_token: claimed.claim_token
       }
     };
+  }
+
+  if (emergencyFallbackMatch && input.method === 'POST') {
+    if (!input.allowEmergencyFallback) {
+      return {
+        status: 403,
+        data: { error: 'RustDesk emergency fallback requires an owner or admin JWT' }
+      };
+    }
+    const externalId = decodeURIComponent(emergencyFallbackMatch[1]);
+    const body = bodyRecord(input.body);
+    try {
+      const command = await commands.authorizeEmergencyFallback({
+        tenant_id: input.tenantId,
+        external_id: externalId,
+        authorized_by: input.actorIdentity,
+        reason: String(body.reason || ''),
+        collateral_sessions_may_disconnect: body.collateral_sessions_may_disconnect === true
+      });
+      await input.onCommandChanged?.(command);
+      return { status: 201, data: { command } };
+    } catch (error) {
+      const status = Number((error as { status?: unknown }).status || 500);
+      return { status, data: { error: (error as Error).message } };
+    }
   }
 
   if (lifecycleMatch && input.method === 'POST') {
@@ -88,6 +146,19 @@ export async function routeRustDeskDeviceCommandApi(
       return { status: 404, data: { error: 'rustdesk device not found' } };
     }
     const body = bodyRecord(input.body);
+    const persisted = await commands.getById({
+      tenant_id: input.tenantId,
+      device_id: deviceId,
+      command_id: commandId
+    });
+    if (!persisted) {
+      return { status: 404, data: { error: 'rustdesk disconnect command not found' } };
+    }
+    const gatewaySession = await sessions.getSession(persisted.external_id);
+    if (!gatewaySession || gatewaySession.tenant_id !== input.tenantId) {
+      return { status: 409, data: { error: 'rustdesk gateway session is unavailable' } };
+    }
+    assertRustDeskCurrentOwnerBinding(gatewaySession, body);
     const metadata = edgeCommandMetadata(body.metadata, input.actorIdentity);
     if (action === 'recover') {
       const recovered = await commands.recover({

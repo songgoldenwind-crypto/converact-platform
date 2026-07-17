@@ -10,6 +10,7 @@ import {
   type RustDeskEdgeClaimCommand,
   type RustDeskEdgeCommandProgressReport
 } from '../scripts/rustdesk-edge-command.js';
+import { RustDeskOwnerEpochFence } from '../scripts/rustdesk-owner-epoch-fence.js';
 
 const command: RustDeskEdgeClaimCommand = {
   id: 'rdcmd_edge_execution_1',
@@ -17,9 +18,22 @@ const command: RustDeskEdgeClaimCommand = {
   external_id: 'rdgw_edge_execution_1',
   target_id: 'rdesk_edge_execution_1',
   rustdesk_id: '123456789',
+  controller_rustdesk_id: '987654321',
   requested_reason: 'consent_revoked',
   attempt: 1,
-  lease_expires_at: '2099-01-01T00:00:00.000Z'
+  lease_expires_at: '2099-01-01T00:00:00.000Z',
+  emergency_fallback_authorized: false,
+  emergency_fallback_reason: ''
+};
+
+const epochCommand: RustDeskEdgeClaimCommand = {
+  ...command,
+  id: 'rdcmd_edge_epoch_1',
+  external_id: 'rdgw_edge_epoch_1',
+  native_control_protocol: 'ivekit-rustdesk-native-control-v2',
+  interaction_id: 'remote-session-edge-epoch-1',
+  reservation_id: 'reservation-edge-epoch-1',
+  owner_epoch: '17'
 };
 
 test('edge command executes the primary adapter with fixed args and server identifiers in env', async () => {
@@ -40,6 +54,7 @@ test('edge command executes the primary adapter with fixed args and server ident
             process.env.OPC_RUSTDESK_EXTERNAL_ID === 'rdgw_edge_execution_1' &&
             process.env.OPC_RUSTDESK_TARGET_ID === 'rdesk_edge_execution_1' &&
             process.env.OPC_RUSTDESK_RUSTDESK_ID === '123456789' &&
+            process.env.OPC_RUSTDESK_CONTROLLER_RUSTDESK_ID === '987654321' &&
             process.env.OPC_RUSTDESK_DISCONNECT_REASON === 'consent_revoked';
            process.stdout.write('primary-adapter-output');
            process.exit(ok ? 0 : 9);`
@@ -78,13 +93,51 @@ test('edge command expands only fixed command placeholders into argv without a s
       executable: process.execPath,
       args: [
         '-e',
-        `const expected = ['--external-id','rdgw_edge_execution_1','--target-id','rdesk_edge_execution_1','--rustdesk-id','123456789','--reason','consent_revoked'];
+        `const expected = ['--external-id','rdgw_edge_execution_1','--target-id','rdesk_edge_execution_1','--rustdesk-id','123456789','--controller-rustdesk-id','987654321','--reason','consent_revoked'];
          process.exit(JSON.stringify(process.argv.slice(1)) === JSON.stringify(expected) ? 0 : 8);`,
         '--',
         '--external-id', '{external_id}',
         '--target-id', '{target_id}',
         '--rustdesk-id', '{rustdesk_id}',
+        '--controller-rustdesk-id', '{controller_rustdesk_id}',
         '--reason', '{requested_reason}'
+      ]
+    },
+    restartAdapter: null
+  });
+
+  assert.equal(result.status, 'succeeded');
+  assert.equal(result.execution_method, 'session_adapter');
+});
+
+test('edge command carries the complete owner identity into the native adapter', async () => {
+  const result = await executeRustDeskDisconnectCommand(epochCommand, {
+    timeoutMs: 2_000,
+    edgeInstanceId: 'edge-execution-owner-epoch',
+    edgeAgentVersion: '1.0.0',
+    os: process.platform,
+    disconnectAdapter: {
+      executable: process.execPath,
+      args: [
+        '-e',
+        `const expected = [
+          'ivekit-rustdesk-native-control-v2',
+          'remote-session-edge-epoch-1',
+          'reservation-edge-epoch-1',
+          '17'
+        ];
+        const envOk =
+          process.env.OPC_RUSTDESK_INTERACTION_ID === expected[1] &&
+          process.env.OPC_RUSTDESK_RESERVATION_ID === expected[2] &&
+          process.env.OPC_RUSTDESK_OWNER_EPOCH === expected[3];
+        process.exit(
+          envOk && JSON.stringify(process.argv.slice(1)) === JSON.stringify(expected) ? 0 : 8
+        );`,
+        '--',
+        '{native_control_protocol}',
+        '{interaction_id}',
+        '{reservation_id}',
+        '{owner_epoch}'
       ]
     },
     restartAdapter: null
@@ -128,7 +181,7 @@ test('edge command rejects unbounded or unsafe server identifiers before spawnin
   );
 });
 
-test('edge command falls back to service restart after primary failure', async () => {
+test('edge command never restarts the service after an unapproved primary failure', async () => {
   const progress: RustDeskEdgeCommandProgressReport[] = [];
   const result = await executeRustDeskDisconnectCommand(
     command,
@@ -151,16 +204,53 @@ test('edge command falls back to service restart after primary failure', async (
     }
   );
 
+  assert.equal(result.status, 'failed');
+  assert.equal(result.execution_method, 'session_adapter');
+  assert.equal(result.exit_code, 2);
+  assert.equal(result.metadata.precise_disconnect_unavailable, true);
+  assert.equal(result.metadata.emergency_fallback_authorized, false);
+  assert.equal(result.metadata.fallback_reason, 'adapter_exit_nonzero');
+  assert.deepEqual(progress.map((item) => item.progress), ['session_adapter_failed']);
+  assert.equal(progress[0]?.exit_code, 2);
+});
+
+test('edge command runs the service restart only after explicit emergency authorization', async () => {
+  const progress: RustDeskEdgeCommandProgressReport[] = [];
+  const result = await executeRustDeskDisconnectCommand(
+    {
+      ...command,
+      emergency_fallback_authorized: true,
+      emergency_fallback_reason: 'incident commander approved collateral disconnect'
+    },
+    {
+      timeoutMs: 2_000,
+      edgeInstanceId: 'edge-execution-authorized-fallback',
+      edgeAgentVersion: '1.0.0',
+      os: process.platform,
+      disconnectAdapter: {
+        executable: process.execPath,
+        args: ['-e', 'process.exit(20)']
+      },
+      restartAdapter: {
+        executable: process.execPath,
+        args: ['-e', "process.stdout.write('restart ok'); process.exit(0)"]
+      }
+    },
+    async (report) => {
+      progress.push(report);
+    }
+  );
+
   assert.equal(result.status, 'succeeded');
   assert.equal(result.execution_method, 'service_restart');
-  assert.equal(result.exit_code, 0);
   assert.equal(result.metadata.collateral_sessions_may_disconnect, true);
-  assert.equal(result.metadata.fallback_reason, 'adapter_exit_nonzero');
+  assert.equal(result.metadata.emergency_fallback_authorized, true);
+  assert.equal(result.metadata.emergency_fallback_reason, 'incident commander approved collateral disconnect');
+  assert.equal(result.metadata.fallback_reason, 'targeted_disconnect_unavailable');
   assert.deepEqual(progress.map((item) => item.progress), [
     'session_adapter_failed',
     'fallback_started'
   ]);
-  assert.equal(progress[0]?.exit_code, 2);
 });
 
 test('edge command preserves targeted-unavailable and missing-service reasons', async () => {
@@ -180,12 +270,12 @@ test('edge command preserves targeted-unavailable and missing-service reasons', 
   });
 
   assert.equal(result.status, 'failed');
-  assert.equal(result.execution_method, 'service_restart');
+  assert.equal(result.execution_method, 'session_adapter');
   assert.equal(result.metadata.fallback_reason, 'targeted_disconnect_unavailable');
-  assert.equal(result.metadata.fallback_result_reason, 'service_unavailable');
+  assert.equal(result.metadata.emergency_fallback_authorized, false);
 });
 
-test('edge command times out the primary adapter before running fallback', async () => {
+test('edge command times out the primary adapter without running an unapproved fallback', async () => {
   const progress: RustDeskEdgeCommandProgressReport[] = [];
   const startedAt = Date.now();
   const result = await executeRustDeskDisconnectCommand(
@@ -209,10 +299,11 @@ test('edge command times out the primary adapter before running fallback', async
     }
   );
 
-  assert.equal(result.status, 'succeeded');
-  assert.equal(result.execution_method, 'service_restart');
+  assert.equal(result.status, 'failed');
+  assert.equal(result.execution_method, 'session_adapter');
   assert.equal(progress[0]?.metadata.timed_out, true);
   assert.equal(result.metadata.fallback_reason, 'adapter_timeout');
+  assert.deepEqual(progress.map((item) => item.progress), ['session_adapter_failed']);
   assert.ok(Date.now() - startedAt < 3_000);
 });
 
@@ -236,7 +327,8 @@ test('edge command force-terminates an adapter that ignores the timeout signal',
     }
   });
 
-  assert.equal(result.status, 'succeeded');
+  assert.equal(result.status, 'failed');
+  assert.equal(result.execution_method, 'session_adapter');
   assert.equal(result.metadata.fallback_reason, 'adapter_timeout');
   assert.ok(Date.now() - startedAt < 1_000);
 });
@@ -244,7 +336,11 @@ test('edge command force-terminates an adapter that ignores the timeout signal',
 test('edge command reports failed when the service restart fallback fails', async () => {
   const progress: RustDeskEdgeCommandProgressReport[] = [];
   const result = await executeRustDeskDisconnectCommand(
-    command,
+    {
+      ...command,
+      emergency_fallback_authorized: true,
+      emergency_fallback_reason: 'approved emergency restart after precise disconnect failed'
+    },
     {
       timeoutMs: 2_000,
       edgeInstanceId: 'edge-execution-failed',
@@ -310,6 +406,131 @@ test('edge command processor returns idle when the authenticated claim API has n
       authorization: ''
     }
   ]);
+});
+
+test('edge command processor rejects a command above its server-bound owner before native execution', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-owner-mismatch-'));
+  const executionFile = join(dataDir, 'executions.txt');
+  const processor = new RustDeskEdgeCommandProcessor(
+    {
+      baseUrl: 'https://opc.example.com',
+      commandToken: 'edge-command-token-owner-mismatch',
+      edgeInstanceId: 'edge-processor-owner-mismatch',
+      commandLeaseMs: 30_000,
+      placementEnabled: true,
+      spool: { directory: join(dataDir, 'spool') },
+      execution: {
+        timeoutMs: 2_000,
+        edgeInstanceId: 'edge-processor-owner-mismatch',
+        edgeAgentVersion: '1.0.0',
+        os: process.platform,
+        disconnectAdapter: {
+          executable: process.execPath,
+          args: [
+            '-e',
+            `require('node:fs').appendFileSync(${JSON.stringify(executionFile)}, 'x')`
+          ]
+        },
+        restartAdapter: null
+      }
+    },
+    async (input) => {
+      const url = new URL(String(input));
+      if (!url.pathname.endsWith('/commands/claim')) {
+        return jsonResponse(500, { error: 'unexpected request' });
+      }
+      return jsonResponse(201, {
+        command: { ...epochCommand, owner_epoch: '18' },
+        owner_binding: {
+          interaction_id: epochCommand.interaction_id,
+          reservation_id: epochCommand.reservation_id,
+          owner_epoch: epochCommand.owner_epoch
+        },
+        claim_token: 'claim-token-owner-mismatch'
+      });
+    }
+  );
+
+  try {
+    await assert.rejects(
+      () => processor.pollOnce(epochCommand.target_id),
+      /rustdesk_owner_binding_mismatch/
+    );
+    assert.throws(() => readFileSync(executionFile, 'utf8'), /ENOENT/);
+  } finally {
+    await processor.close();
+  }
+});
+
+test('edge command processor reports a persisted stale epoch without executing native control', async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-owner-stale-'));
+  const spoolDir = join(dataDir, 'spool');
+  const executionFile = join(dataDir, 'executions.txt');
+  const fence = await RustDeskOwnerEpochFence.open({ directory: spoolDir });
+  await fence.accept({
+    external_id: epochCommand.external_id,
+    command_id: 'rdcmd-edge-owner-newer',
+    interaction_id: epochCommand.interaction_id!,
+    reservation_id: 'reservation-edge-epoch-newer',
+    owner_epoch: '18'
+  });
+  await fence.close();
+  const results: Array<Record<string, unknown>> = [];
+  const processor = new RustDeskEdgeCommandProcessor(
+    {
+      baseUrl: 'https://opc.example.com',
+      commandToken: 'edge-command-token-owner-stale',
+      edgeInstanceId: 'edge-processor-owner-stale',
+      commandLeaseMs: 30_000,
+      placementEnabled: true,
+      spool: { directory: spoolDir },
+      execution: {
+        timeoutMs: 2_000,
+        edgeInstanceId: 'edge-processor-owner-stale',
+        edgeAgentVersion: '1.0.0',
+        os: process.platform,
+        disconnectAdapter: {
+          executable: process.execPath,
+          args: [
+            '-e',
+            `require('node:fs').appendFileSync(${JSON.stringify(executionFile)}, 'x')`
+          ]
+        },
+        restartAdapter: null
+      }
+    },
+    async (input, init = {}) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/commands/claim')) {
+        return jsonResponse(201, {
+          command: epochCommand,
+          owner_binding: {
+            interaction_id: epochCommand.interaction_id,
+            reservation_id: epochCommand.reservation_id,
+            owner_epoch: epochCommand.owner_epoch
+          },
+          claim_token: 'claim-token-owner-stale'
+        });
+      }
+      if (url.pathname.endsWith('/result')) {
+        results.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return jsonResponse(201, { command: { status: 'failed' } });
+      }
+      return jsonResponse(500, { error: 'unexpected request' });
+    }
+  );
+
+  try {
+    assert.equal(await processor.pollOnce(epochCommand.target_id), 'executed');
+    assert.throws(() => readFileSync(executionFile, 'utf8'), /ENOENT/);
+    assert.equal(results[0].status, 'failed');
+    assert.equal(
+      (results[0].metadata as Record<string, unknown>).error_code,
+      'stale_rustdesk_owner_epoch'
+    );
+  } finally {
+    await processor.close();
+  }
 });
 
 test('edge command processor retains and retries a failed result report without re-executing', async () => {
@@ -508,7 +729,14 @@ test('edge command processor reports fallback progress and completion', async ()
       const body = init.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
       bodies.push({ path: url.pathname, body });
       if (url.pathname.endsWith('/commands/claim')) {
-        return jsonResponse(201, { command, claim_token: 'claim-token-fallback' });
+        return jsonResponse(201, {
+          command: {
+            ...command,
+            emergency_fallback_authorized: true,
+            emergency_fallback_reason: 'approved emergency restart for processor test'
+          },
+          claim_token: 'claim-token-fallback'
+        });
       }
       return jsonResponse(201, { command: { ...command, status: 'succeeded' } });
     }

@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type {
   IveKitEvent,
-  IveKitEventHttpClient,
   IveKitEventPage,
   IveKitEventReplayResult
 } from '@opc/ivekit-sdk';
@@ -36,7 +35,7 @@ test('event replay starts at head, resumes gaps once, and deduplicates event IDs
       getHeadCursor: async () => 'head-0',
       listPage: async () => page(),
       replay: async () => replays.shift()!
-    } as IveKitEventHttpClient,
+    },
     onEvent: (item) => { delivered.push(item.event_id); },
     snapshots: { chat: async () => {}, media: async () => {}, remote: async () => {} },
     onStatus: (status) => { statuses.push(status); }
@@ -62,7 +61,7 @@ test('event replay refreshes all workspaces on snapshot fallback before moving t
         items: [], next_cursor: '', has_more: false, snapshot_required: true,
         reason: 'cursor_expired', pages: 1
       })
-    } as IveKitEventHttpClient,
+    },
     onEvent: async () => {},
     snapshots: {
       chat: async () => { snapshots.push('chat'); },
@@ -92,7 +91,7 @@ test('event replay does not deduplicate an event whose projection failed', async
       getHeadCursor: async () => 'head-retry',
       listPage: async () => page(),
       replay: async () => replay
-    } as IveKitEventHttpClient,
+    },
     onEvent: async () => {
       attempts += 1;
       if (attempts === 1) throw new Error('projection failed');

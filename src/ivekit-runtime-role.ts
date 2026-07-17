@@ -83,8 +83,23 @@ export async function initializeIveKitRuntimeRole(
         IF to_regprocedure('public.opc_ivekit_cc_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
           GRANT EXECUTE ON FUNCTION public.opc_ivekit_cc_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
         END IF;
+        IF to_regprocedure('public.opc_secure_file_status_transition_allowed(text,text)') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_secure_file_status_transition_allowed(TEXT, TEXT) TO opc_runtime;
+        END IF;
+        IF to_regprocedure('public.opc_secure_file_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_secure_file_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
+        END IF;
+        IF to_regprocedure('public.opc_secure_file_derivative_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_secure_file_derivative_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
+        END IF;
+        IF to_regprocedure('public.opc_secure_file_cleanup_worker_tenant_ids(timestamp with time zone,timestamp with time zone,integer)') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_secure_file_cleanup_worker_tenant_ids(TIMESTAMPTZ, TIMESTAMPTZ, INTEGER) TO opc_runtime;
+        END IF;
         IF to_regprocedure('public.opc_ivekit_voice_profile_context(text)') IS NOT NULL THEN
           GRANT EXECUTE ON FUNCTION public.opc_ivekit_voice_profile_context(TEXT) TO opc_runtime;
+        END IF;
+        IF to_regprocedure('public.opc_ivekit_recording_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_ivekit_recording_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
         END IF;
       END
       $$

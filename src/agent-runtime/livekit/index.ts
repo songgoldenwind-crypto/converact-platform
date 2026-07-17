@@ -68,12 +68,16 @@ export function createLiveKitMediaModule(input: LiveKitMediaModuleInput): LiveKi
       stopRecording: (egressId) => recordings.stopRecording(egressId),
       getRecording: (recordingId) => recordings.getRecording(recordingId),
       getRecordingByEgressId: (egressId) => recordings.getRecordingByEgressId(egressId),
+      listEgressJobs: (recordingId) => recordings.listEgressJobs(recordingId),
+      getEgressJob: (recordingId, jobId) => recordings.getEgressJob(recordingId, jobId),
       getRecordingBySession: (callSessionId) => recordings.getRecordingBySession(callSessionId),
       setEvidenceRecordId: (recordingId, evidenceRecordId) => recordings.setEvidenceRecordId(recordingId, evidenceRecordId),
       listRecordings: (tenantId, opts) => recordings.listRecordings(tenantId, opts),
       listRecordingsPage: (tenantId, opts) => recordings.listRecordingsPage(tenantId, opts),
       inspectObject: (recordingId) => recordings.inspectObject(recordingId),
       exportObject: (recordingId) => recordings.exportObject(recordingId),
+      inspectJobObject: (recordingId, jobId) => recordings.inspectJobObject(recordingId, jobId),
+      exportJobObject: (recordingId, jobId) => recordings.exportJobObject(recordingId, jobId),
       listRetentionCandidates: (tenantId, opts) => recordings.listRetentionCandidates(tenantId, opts),
       cleanupExpiredRecordings: (tenantId, opts) => recordings.cleanupExpiredRecordings(tenantId, opts)
     },
@@ -104,6 +108,21 @@ export { LiveKitParticipantStore } from './participant-store.js';
 export { MediaCallService } from './media-call-service.js';
 export { MediaCallStore } from './media-call-store.js';
 export {
+  MediaQualityService,
+  mediaQualityServiceOptionsFromEnv
+} from './media-quality-service.js';
+export type {
+  MediaQualityServiceOptions,
+  MediaQualityStorePort
+} from './media-quality-service.js';
+export { MediaQualityStore } from './media-quality-store.js';
+export {
+  mediaQualityMetricDefinitions,
+  observeMediaConnectionEvent,
+  observeMediaQualityReport,
+  observeMediaQualityTransition
+} from './media-quality-metrics.js';
+export {
   createConfiguredLiveKitModerationProvider,
   LiveKitModerationService
 } from './livekit-moderation-service.js';
@@ -113,11 +132,22 @@ export type {
 } from './livekit-moderation-service.js';
 export { LiveKitRecordingService } from './recording-service.js';
 export type { EgressConfig } from './recording-service.js';
+export {
+  liveKitEgressReconciliationConfig,
+  runLiveKitEgressReconciliationBatch,
+  startLiveKitEgressReconciliationWorker
+} from './egress-reconciliation-runtime.js';
+export {
+  liveKitEgressCapacityMetricsConfig,
+  refreshLiveKitEgressCapacityMetrics,
+  startLiveKitEgressCapacityMetricsWorker
+} from './egress-capacity-metrics.js';
 export { LiveKitRoomStore } from './room-store.js';
 export {
   createLiveKitRoomClient,
   issueLiveKitToken,
-  issueSupervisorToken
+  issueSupervisorToken,
+  liveKitConfigForPlacement
 } from './token-service.js';
 export { createLiveKitWebhookReceiver, handleLiveKitWebhook } from './webhook-handler.js';
 export type * from './types.js';

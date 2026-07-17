@@ -4,10 +4,12 @@ import { fileURLToPath } from 'node:url';
 export type ControlledProviderMode =
   | 'success'
   | 'timeout'
+  | 'rate_limited'
   | 'transient_failure'
   | 'terminal_failure'
   | 'invalid_json'
-  | 'oversized_response';
+  | 'oversized_response'
+  | 'oversized_observations';
 
 export interface ControlledProviderState {
   mode: ControlledProviderMode;
@@ -33,10 +35,12 @@ export interface ControlledProviderResponse {
 const MODES = new Set<ControlledProviderMode>([
   'success',
   'timeout',
+  'rate_limited',
   'transient_failure',
   'terminal_failure',
   'invalid_json',
-  'oversized_response'
+  'oversized_response',
+  'oversized_observations'
 ]);
 
 export function createControlledProviderState(input: {
@@ -79,12 +83,20 @@ export async function handleControlledProviderRequest(
   const requestId = `controlled-${state.requestCount}`;
   if (path === '/v1/ocr' || path === '/v1/asr') {
     const capability = path.endsWith('/ocr') ? 'ocr' : 'asr';
+    const body = record(request.body);
+    const mediaMode = String(body.media_mode || 'text');
+    const observations = capability === 'ocr'
+      ? state.mode === 'oversized_observations'
+        ? Array.from({ length: 501 }, () => ({ type: 'qr_code', value: 'controlled' }))
+        : controlledVisualObservations(mediaMode)
+      : undefined;
     return json(200, {
       text: `controlled ${capability} extracted text`,
       confidence: 0.99,
       language: 'en-US',
       provider_request_id: requestId,
-      metadata: { fixture: capability }
+      metadata: { fixture: capability, media_mode: mediaMode },
+      ...(observations ? { observations } : {})
     });
   }
   if (path === '/v1/quality-review') {
@@ -140,7 +152,11 @@ async function routeHttp(
 ): Promise<void> {
   const raw = await readBody(request, 2_097_152);
   const contentType = String(request.headers['content-type'] || '');
-  const body = contentType.includes('application/json') ? parseJson(raw) : {};
+  const body = contentType.includes('application/json')
+    ? parseJson(raw)
+    : contentType.includes('multipart/form-data')
+      ? await parseMultipartFields(raw, contentType)
+      : {};
   const result = await handleControlledProviderRequest({
     method: request.method || 'GET',
     path: new URL(request.url || '/', 'http://controlled.local').pathname,
@@ -155,8 +171,9 @@ async function routeHttp(
 }
 
 function failureResponse(mode: ControlledProviderMode): ControlledProviderResponse | null {
-  if (mode === 'success') return null;
+  if (mode === 'success' || mode === 'oversized_observations') return null;
   if (mode === 'timeout') return { ...json(200, { status: 'delayed' }), delay_ms: 65_000 };
+  if (mode === 'rate_limited') return json(429, { error: 'controlled rate limit' });
   if (mode === 'transient_failure') return json(503, { error: 'controlled transient failure' });
   if (mode === 'terminal_failure') return json(422, { error: 'controlled terminal failure' });
   if (mode === 'invalid_json') {
@@ -168,6 +185,20 @@ function failureResponse(mode: ControlledProviderMode): ControlledProviderRespon
     body: JSON.stringify({ translated_text: 'x'.repeat(1_048_577) }),
     delay_ms: 0
   };
+}
+
+function controlledVisualObservations(mediaMode: string): Array<Record<string, unknown>> {
+  const video = mediaMode === 'video_frame_sampling';
+  return [
+    {
+      type: 'qr_code', value: 'wx:controlled_account', symbology: 'QR_CODE', confidence: 0.99,
+      ...(video ? { frame_timestamp_ms: 2_000 } : { page: 1 })
+    },
+    {
+      type: 'barcode', value: '手机号 13800138000', symbology: 'CODE_128', confidence: 0.98,
+      ...(video ? { frame_timestamp_ms: 4_000 } : { page: 1 })
+    }
+  ];
 }
 
 function json(status: number, value: unknown): ControlledProviderResponse {
@@ -196,6 +227,25 @@ function record(value: unknown): Record<string, unknown> {
 function parseJson(value: Buffer): unknown {
   if (!value.length) return {};
   try { return JSON.parse(value.toString('utf8')) as unknown; } catch { return {}; }
+}
+
+async function parseMultipartFields(
+  value: Buffer,
+  contentType: string
+): Promise<Record<string, unknown>> {
+  try {
+    const request = new Request('http://controlled.local/upload', {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body: new Uint8Array(value)
+    });
+    const form = await request.formData();
+    return Object.fromEntries([...form.entries()]
+      .filter(([, field]) => typeof field === 'string')
+      .map(([key, field]) => [key, String(field)]));
+  } catch {
+    return {};
+  }
 }
 
 async function readBody(request: IncomingMessage, maxBytes: number): Promise<Buffer> {

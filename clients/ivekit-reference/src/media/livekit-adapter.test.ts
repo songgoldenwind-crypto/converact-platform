@@ -110,6 +110,13 @@ test('LiveKit adapter normalizes tracks speakers quality reconnect and autoplay 
   );
   assert.equal(events.some((event) => event.type === 'network_quality' && event.quality === 'poor'), true);
   assert.equal(events.some((event) => event.type === 'state' && event.state === 'reconnecting'), true);
+  assert.deepEqual(
+    events.filter((event) => event.type === 'native_reconnect'),
+    [
+      { type: 'native_reconnect', generation: 1, phase: 'started' },
+      { type: 'native_reconnect', generation: 1, phase: 'succeeded' }
+    ]
+  );
   assert.equal(events.some((event) => event.type === 'autoplay_blocked'), true);
   assert.equal(events.some((event) => event.type === 'local_track_changed' && event.source === 'screen_share' && event.enabled), true);
   assert.equal(events.some((event) => event.type === 'local_track_changed' && event.source === 'screen_share' && !event.enabled), true);
@@ -152,7 +159,7 @@ test('a late old connection cannot orphan the new room listeners', async () => {
   assert.equal(secondRoom.listenerCount(), 0);
 });
 
-test('LiveKit adapter reports fatal disconnect and autoplay failure and disposes once', async () => {
+test('LiveKit adapter reports terminal disconnect and autoplay failure and disposes once', async () => {
   const room = new FakeRoom(true);
   const events: MediaAdapterEvent[] = [];
   room.startAudioError = new Error('gesture required');
@@ -160,8 +167,13 @@ test('LiveKit adapter reports fatal disconnect and autoplay failure and disposes
   await adapter.connect(plan('room-fatal'));
   await assert.rejects(adapter.startAudio(), /gesture required/);
   assert.equal(events.some((event) => event.type === 'autoplay_blocked'), true);
-  room.emit('disconnected', 'server_shutdown');
-  assert.equal(events.some((event) => event.type === 'fatal'), true);
+  room.emit('disconnected', 'SERVER SHUTDOWN: credential=secret');
+  assert.equal(events.some((event) => event.type === 'fatal'), false);
+  assert.deepEqual(events.at(-1), {
+    type: 'terminal_disconnect',
+    generation: 1,
+    reason_code: 'provider_disconnect'
+  });
   await adapter.dispose();
   await adapter.dispose();
   await assert.rejects(adapter.connect(plan('room-after-dispose')), /disposed/);

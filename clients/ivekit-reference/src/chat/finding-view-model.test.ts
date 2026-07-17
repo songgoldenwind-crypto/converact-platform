@@ -10,10 +10,11 @@ test('finding projection labels every source, deduplicates events, and orders ri
     finding('ocr-old', 'ocr', 'medium', 'fingerprint-ocr', '2026-07-11T10:00:00.000Z'),
     finding('ocr-new', 'ocr', 'high', 'fingerprint-ocr', '2026-07-11T11:00:00.000Z'),
     finding('asr-1', 'asr', 'medium', 'fingerprint-asr'),
-    finding('ai-1', 'ai', 'high', 'fingerprint-ai')
+    finding('ai-1', 'ai', 'high', 'fingerprint-ai'),
+    finding('aggregate-1', 'aggregate', 'medium', 'fingerprint-aggregate')
   ]);
 
-  assert.deepEqual(projected.map((item) => item.sourceLabel), ['AI quality', 'Image OCR', 'Audio ASR', 'Chat text']);
+  assert.deepEqual(projected.map((item) => item.sourceLabel), ['AI quality', 'Image OCR', 'Combined evidence', 'Audio ASR', 'Chat text']);
   assert.equal(projected[1].id, 'ocr-new');
 });
 
@@ -73,6 +74,10 @@ function finding(
     rationale: 'Redacted rationale',
     review_status: 'pending',
     evidence_refs: [],
+    detector_version: 'rules-v1',
+    policy_version: 'policy-v1',
+    evidence_snapshot_hash: `snapshot-${id}`,
+    content_version: 1,
     reviewed_by: '',
     reviewed_at: null,
     review_note: '',

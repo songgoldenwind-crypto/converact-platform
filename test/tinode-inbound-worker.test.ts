@@ -7,6 +7,9 @@ import {
   tinodeInboundWorkerConfig,
   type TinodeInboundRunSummary
 } from '../src/agent-runtime/collaboration/tinode-inbound-worker.js';
+import {
+  TinodeInboundAttachmentImportError
+} from '../src/agent-runtime/collaboration/tinode-inbound-attachment-import.js';
 
 const CLAIM = {
   tenant_id: 'tenant-inbound',
@@ -257,6 +260,55 @@ test('Tinode inbound service dead-letters a poison packet and continues with the
     'project:data:2',
     'release'
   ]);
+});
+
+test('Tinode inbound service stores terminal attachment imports as safe dead letters', async () => {
+  const rejected: unknown[] = [];
+  const service = new TinodeInboundService({
+    store: {
+      async discoverTenantIds() { return ['tenant-inbound']; },
+      async claimNext() { return CLAIM; },
+      async retryDueDeadLetters() { return []; },
+      async processEvent() { throw new Error('must not project'); },
+      async rejectEvent(_claim: unknown, event: unknown) {
+        rejected.push(event);
+        return { event_id: 'event-import-rejected', status: 'dead_letter', message_id: '', replayed: false };
+      },
+      async releaseClaim() {},
+      async recordFailure() { throw new Error('must not delay cursor'); }
+    } as any,
+    source: {
+      async pull() {
+        return [{
+          data: {
+            topic: 'grpInbound', seq: 5, from: 'usrCustomer',
+            content: {
+              txt: 'file',
+              ent: [{
+                tp: 'EX',
+                data: { ref: 'https://files.example.com/private.bin', name: 'private.bin' }
+              }]
+            }
+          }
+        }];
+      }
+    },
+    projector: {} as any,
+    prepareEvent: async () => {
+      throw new TinodeInboundAttachmentImportError('attachment_too_large', false);
+    },
+    config: {
+      tenantLimit: 10, pullLimit: 25, claimLeaseMs: 60_000,
+      retryDelayMs: 8_000, deadLetterMaxAttempts: 3,
+      allowedAttachmentHosts: ['files.example.com']
+    }
+  });
+
+  const summary = await service.runDue();
+  assert.equal(summary.dead_letter, 1);
+  assert.equal(summary.failed, 0);
+  assert.equal(JSON.stringify(rejected).includes('files.example.com'), false);
+  assert.match(JSON.stringify(rejected), /attachment_too_large/);
 });
 
 test('Tinode inbound service retries due projection dead letters inside the binding claim', async () => {

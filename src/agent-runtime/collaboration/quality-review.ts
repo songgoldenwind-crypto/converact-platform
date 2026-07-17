@@ -12,6 +12,7 @@ import type {
 import { listCollaborationWorkerTenants } from './worker-tenant-scope.js';
 import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 import { sanitizeProviderMetadata } from './provider-safety.js';
+import { intelligenceProviderRouteFailure } from './intelligence-provider-route.js';
 
 export type QualityReviewProviderMode = 'self_hosted' | 'third_party';
 export type QualityReviewJobStatus =
@@ -132,9 +133,9 @@ export class QualityReviewService {
     return withPgTenant(this.input.pg, input.tenant_id, async (pg) => {
       const message = await new CollaborationStore(pg).getMessage(input);
       if (!message) throw Object.assign(new Error('collaboration message not found'), { status: 404 });
-      const content = qualityContent(message);
-      if (!content) return null;
-      const inputHash = sha256(content);
+      const prepared = await prepareQualityInput(pg, message);
+      if (!prepared.content) return null;
+      const inputHash = prepared.inputHash;
       const provider = resolution.provider;
       const cancelled = !resolution.enabled || (automatic && !resolution.automatic);
       const status = cancelled ? 'cancelled' : 'pending';
@@ -152,7 +153,8 @@ export class QualityReviewService {
            provider_profile_id, provider_mode, provider_name, automatic, error_code,
            created_at, updated_at, completed_at)
          VALUES ($1, $2, $3, $4, $5, $7, $6, $8, $9, $10, $11, $12,
-                 $13, $13, CASE WHEN $7 = 'cancelled' THEN $13 ELSE NULL END)
+                 $13::TIMESTAMPTZ, $13::TIMESTAMPTZ,
+                 CASE WHEN $7 = 'cancelled' THEN $13::TIMESTAMPTZ ELSE NULL END)
          ON CONFLICT (tenant_id, message_id) DO UPDATE SET
            session_id = EXCLUDED.session_id,
            input_hash = EXCLUDED.input_hash,
@@ -358,27 +360,11 @@ export class QualityReviewService {
           message_id: job.message_id
         });
         if (!message) throw qualityError('message_not_found', false);
-        const content = qualityContent(message);
-        const contentHash = sha256(content);
-        if (contentHash !== job.input_hash) return { inputChanged: true as const };
-        const ruleFindings = (await new PolicyFindingStore(pg).listFindings({
-          tenant_id: job.tenant_id,
-          session_id: job.session_id,
-          message_id: job.message_id,
-          limit: 100
-        })).filter((finding) => finding.source !== 'ai');
-        const evidenceRefs: PolicyEvidenceRef[] = [
-          { type: 'message', id: message.id },
-          ...message.attachments.slice(0, 100).map((attachment) => ({
-            type: 'attachment',
-            id: attachment.id,
-            checksum: attachment.checksum,
-            kind: attachment.kind
-          }))
-        ];
-        return { inputChanged: false as const, content, contentHash, ruleFindings, evidenceRefs };
+        const input = await prepareQualityInput(pg, message);
+        if (input.inputHash !== job.input_hash) return { inputChanged: true as const };
+        return { inputChanged: false as const, ...input };
       });
-      if (prepared.inputChanged) {
+      if (!('content' in prepared)) {
         const refreshed = await this.enqueueMessage({
           tenant_id: job.tenant_id,
           message_id: job.message_id
@@ -391,7 +377,7 @@ export class QualityReviewService {
         session_id: job.session_id,
         message_id: job.message_id,
         content: prepared.content,
-        content_hash: prepared.contentHash,
+        content_hash: prepared.inputHash,
         rule_findings: prepared.ruleFindings,
         evidence_refs: prepared.evidenceRefs
       });
@@ -463,6 +449,8 @@ export class QualityReviewService {
             confidence: candidate.confidence,
             rationale: candidate.rationale,
             evidence_refs: evidenceRefs,
+            detector_version: 'ai-quality-v2',
+            policy_version: 'anti-circumvention-v2',
             metadata: {
               ...(candidate.metadata || {}),
               provider: provider.name,
@@ -515,20 +503,28 @@ export class QualityReviewService {
     error: unknown
   ): Promise<'retry_wait' | 'failed'> {
     const classified = classifyError(error);
-    const terminal = !classified.retryable || job.attempt_count >= job.max_attempts;
+    const terminal = !classified.retryable || (
+      classified.attempt_consumed && job.attempt_count >= job.max_attempts
+    );
     const status = terminal ? 'failed' : 'retry_wait';
     const now = this.now();
     const next = terminal
       ? null
-      : new Date(now.getTime() + retryDelay(this.retryDelaysMs, job.attempt_count)).toISOString();
+      : nextRetryAt(now, retryDelay(this.retryDelaysMs, job.attempt_count), classified.retry_at);
     await withPgTenant(this.input.pg, job.tenant_id, (pg) => pg.query(
       `UPDATE collaboration_quality_review_jobs
        SET status = $4, next_attempt_at = $5, lease_until = NULL, worker_id = '',
            error_code = $6, error_message = $7,
-           completed_at = CASE WHEN $4 = 'failed' THEN $8 ELSE NULL END,
-           updated_at = $8
+           attempt_count = GREATEST(attempt_count - $9, 0),
+           output_metadata = output_metadata || $10::JSONB,
+           completed_at = CASE WHEN $4 = 'failed' THEN $8::TIMESTAMPTZ ELSE NULL END,
+           updated_at = $8::TIMESTAMPTZ
        WHERE id = $1 AND tenant_id = $2 AND status = 'processing' AND worker_id = $3`,
-      [job.id, job.tenant_id, job.worker_id, status, next, classified.code, classified.message, now.toISOString()]
+      [
+        job.id, job.tenant_id, job.worker_id, status, next, classified.code,
+        classified.message, now.toISOString(), classified.attempt_consumed ? 0 : 1,
+        JSON.stringify(classified.metadata)
+      ]
     ));
     return status;
   }
@@ -679,7 +675,12 @@ export function createHttpQualityReviewProvider(
               policy_type: finding.policy_type,
               severity: finding.severity,
               matched_text_hash: finding.matched_text_hash,
-              source: finding.source
+              source: finding.source,
+              fingerprint: finding.fingerprint,
+              detector_version: finding.detector_version,
+              policy_version: finding.policy_version,
+              evidence_snapshot_hash: finding.evidence_snapshot_hash,
+              content_version: finding.content_version
             })),
             evidence_refs: input.evidence_refs.slice(0, 101)
           }),
@@ -742,22 +743,174 @@ export function configuredQualityReviewProvider(
   });
 }
 
-function qualityContent(message: Awaited<ReturnType<CollaborationStore['getMessage']>>): string {
-  if (!message) return '';
-  const chunks = [message.body];
-  for (const attachment of message.attachments) {
-    const extracted = attachment.extracted_text || attachment.ocr_text || attachment.asr_text ||
-      legacyExtractedText(attachment.metadata);
-    if (extracted) chunks.push(extracted);
-  }
-  return chunks.map((chunk) => String(chunk || '').trim()).filter(Boolean).join('\n').slice(0, 200_000);
+interface PreparedQualityInput {
+  content: string;
+  inputHash: string;
+  ruleFindings: CollaborationPolicyFinding[];
+  evidenceRefs: PolicyEvidenceRef[];
 }
 
-function legacyExtractedText(metadata: Record<string, unknown>): string {
-  for (const key of ['extracted_text', 'ocr_text', 'asr_text', 'transcript', 'quality_text']) {
-    if (typeof metadata[key] === 'string' && metadata[key].trim()) return metadata[key].trim();
+interface QualityContentEntry {
+  content: string;
+  message_id: string;
+  evidence: PolicyEvidenceRef;
+  order: number;
+  target: boolean;
+}
+
+async function prepareQualityInput(
+  pg: PgQueryable,
+  target: NonNullable<Awaited<ReturnType<CollaborationStore['getMessage']>>>
+): Promise<PreparedQualityInput> {
+  if (target.deleted_at) return { content: '', inputHash: sha256(''), ruleFindings: [], evidenceRefs: [] };
+  const messageResult = await pg.query(
+    `SELECT id, sender_identity, body, current_body, edit_version, created_at
+     FROM collaboration_messages
+     WHERE tenant_id = $1 AND session_id = $2 AND deleted_at IS NULL
+     ORDER BY created_at DESC, id DESC
+     LIMIT $3`,
+    [target.tenant_id, target.session_id, 20]
+  );
+  const messageRows = [...messageResult.rows];
+  if (!messageRows.some((row) => String(row.id) === target.id)) {
+    messageRows.push({
+      id: target.id,
+      sender_identity: target.sender_identity,
+      body: target.body,
+      current_body: target.body,
+      edit_version: target.edit_version,
+      created_at: target.created_at
+    });
   }
-  return '';
+  messageRows.sort((left, right) =>
+    String(left.created_at).localeCompare(String(right.created_at)) ||
+    String(left.id).localeCompare(String(right.id))
+  );
+  const messageIds = messageRows.map((row) => String(row.id));
+  const attachmentResult = await pg.query(
+    `SELECT id, message_id, kind, checksum, ocr_text, asr_text,
+            processed_at, updated_at, created_at
+     FROM collaboration_message_attachments
+     WHERE tenant_id = $1 AND session_id = $2 AND message_id = ANY($3::text[])
+     ORDER BY created_at ASC, id ASC`,
+    [target.tenant_id, target.session_id, messageIds]
+  );
+  const attachments = new Map<string, Record<string, unknown>[]>();
+  for (const row of attachmentResult.rows) {
+    const messageId = String(row.message_id);
+    const rows = attachments.get(messageId) || [];
+    rows.push(row);
+    attachments.set(messageId, rows);
+  }
+
+  const entries: QualityContentEntry[] = [];
+  const messageEvidence = new Map<string, PolicyEvidenceRef>();
+  for (const [messageIndex, row] of messageRows.entries()) {
+    const messageId = String(row.id);
+    const sender = String(row.sender_identity || '');
+    const version = Number(row.edit_version || 0) + 1;
+    const body = String(row.current_body || row.body || '').trim().slice(0, 4_000);
+    const evidence: PolicyEvidenceRef = {
+      type: 'message', id: messageId, message_id: messageId, sender_identity: sender,
+      source: 'text', version, content_hash: sha256(body)
+    };
+    messageEvidence.set(messageId, evidence);
+    if (body) entries.push({
+      content: `[message source=text id=${messageId} sender=${sender} version=${version}]\n${body}`,
+      message_id: messageId,
+      evidence,
+      order: messageIndex * 1_000,
+      target: messageId === target.id
+    });
+    for (const [attachmentIndex, attachment] of (attachments.get(messageId) || []).entries()) {
+      for (const [sourceIndex, source] of (['ocr', 'asr'] as const).entries()) {
+        const extracted = String(attachment[`${source}_text`] || '').trim().slice(0, 4_000);
+        if (!extracted) continue;
+        const attachmentId = String(attachment.id);
+        const attachmentVersion = String(
+          attachment.processed_at || attachment.updated_at || attachment.created_at || ''
+        );
+        const attachmentEvidence: PolicyEvidenceRef = {
+          type: 'attachment', id: attachmentId, message_id: messageId, sender_identity: sender,
+          source, kind: String(attachment.kind || ''), checksum: String(attachment.checksum || ''),
+          version: attachmentVersion, content_hash: sha256(extracted)
+        };
+        entries.push({
+          content: `[attachment source=${source} id=${attachmentId} message_id=${messageId} ` +
+            `checksum=${String(attachment.checksum || '')}]\n${extracted}`,
+          message_id: messageId,
+          evidence: attachmentEvidence,
+          order: messageIndex * 1_000 + attachmentIndex * 10 + sourceIndex + 1,
+          target: messageId === target.id
+        });
+      }
+    }
+  }
+
+  const selected = selectQualityEntries(entries, 40_000);
+  const content = selected.sort((left, right) => left.order - right.order)
+    .map((entry) => entry.content)
+    .join('\n\n');
+  const selectedMessageIds = new Set(selected.map((entry) => entry.message_id));
+  const evidenceRefs = dedupeEvidenceRefs([
+    ...[...selectedMessageIds].map((messageId) => messageEvidence.get(messageId)!),
+    ...selected.filter((entry) => entry.evidence.type === 'attachment').map((entry) => entry.evidence)
+  ]);
+  const evidenceIds = new Set(evidenceRefs.flatMap((ref) => [String(ref.id), String(ref.message_id || '')]));
+  const ruleFindings = (await new PolicyFindingStore(pg).listFindings({
+    tenant_id: target.tenant_id,
+    session_id: target.session_id,
+    limit: 100
+  })).filter((finding) =>
+    finding.source !== 'ai' && (
+      evidenceIds.has(finding.message_id) ||
+      finding.evidence_refs.some((ref) => evidenceIds.has(String(ref.id)) || evidenceIds.has(String(ref.message_id || '')))
+    )
+  );
+  const inputHash = sha256(JSON.stringify({
+    content_hash: sha256(content),
+    evidence_refs: evidenceRefs,
+    rule_findings: ruleFindings
+      .map((finding) => ({
+        fingerprint: finding.fingerprint,
+        detector_version: finding.detector_version,
+        policy_version: finding.policy_version,
+        evidence_snapshot_hash: finding.evidence_snapshot_hash,
+        content_version: finding.content_version
+      }))
+      .sort((left, right) => left.fingerprint.localeCompare(right.fingerprint))
+  }));
+  return { content, inputHash, ruleFindings, evidenceRefs };
+}
+
+function selectQualityEntries(entries: QualityContentEntry[], limit: number): QualityContentEntry[] {
+  let remaining = limit;
+  const selected: QualityContentEntry[] = [];
+  const prioritized = [
+    ...entries.filter((entry) => entry.target),
+    ...entries.filter((entry) => !entry.target).sort((left, right) => right.order - left.order)
+  ];
+  for (const entry of prioritized) {
+    if (remaining <= 0) break;
+    const content = entry.content.slice(0, remaining);
+    if (!content) continue;
+    selected.push({ ...entry, content });
+    remaining -= content.length;
+  }
+  return selected;
+}
+
+function dedupeEvidenceRefs(refs: PolicyEvidenceRef[]): PolicyEvidenceRef[] {
+  const deduped = new Map<string, PolicyEvidenceRef>();
+  for (const ref of refs) {
+    if (!ref) continue;
+    deduped.set(`${String(ref.type)}:${String(ref.id)}:${String(ref.source || '')}`, ref);
+  }
+  return [...deduped.values()].sort((left, right) =>
+    `${String(left.type)}:${String(left.id)}:${String(left.source || '')}`.localeCompare(
+      `${String(right.type)}:${String(right.id)}:${String(right.source || '')}`
+    )
+  );
 }
 
 function decodeJob(row: Record<string, unknown>): CollaborationQualityReviewJob {
@@ -852,18 +1005,47 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
   }
 }
 
-function classifyError(error: unknown): { code: string; message: string; retryable: boolean } {
+function classifyError(error: unknown): {
+  code: string;
+  message: string;
+  retryable: boolean;
+  retry_at: string;
+  attempt_consumed: boolean;
+  metadata: Record<string, unknown>;
+} {
   const details = error as { code?: unknown; retryable?: unknown; message?: unknown };
   const code = String(details?.code || 'quality_review_failed').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+  const route = intelligenceProviderRouteFailure(error);
   return {
     code,
     message: String(details?.message || code).slice(0, 300),
-    retryable: details?.retryable === true
+    retryable: details?.retryable === true,
+    retry_at: route?.retry_at || '',
+    attempt_consumed: route?.provider_invoked !== false,
+    metadata: routeMetadata(route)
   };
 }
 
 function retryDelay(delays: number[], attempt: number): number {
   return delays[Math.min(Math.max(0, attempt - 1), delays.length - 1)] || 0;
+}
+
+function nextRetryAt(now: Date, delayMs: number, providerRetryAt: string): string {
+  const delayed = now.getTime() + delayMs;
+  const requested = Date.parse(providerRetryAt);
+  return new Date(Number.isNaN(requested) ? delayed : Math.max(delayed, requested)).toISOString();
+}
+
+function routeMetadata(
+  route: ReturnType<typeof intelligenceProviderRouteFailure>
+): Record<string, unknown> {
+  if (!route) return {};
+  return {
+    ivekit_route_attempts: route.attempts,
+    ivekit_route_provider_invoked: route.provider_invoked,
+    ivekit_route_failover_attempted: route.failover_attempted,
+    ...(route.retry_at ? { ivekit_route_retry_at: route.retry_at } : {})
+  };
 }
 
 function normalizeRetryDelays(values: number[]): number[] {

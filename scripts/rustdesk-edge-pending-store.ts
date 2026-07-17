@@ -328,14 +328,46 @@ function spoolCommand(value: unknown): RustDeskEdgeSpoolCommand {
     throw new Error('spool command requested_reason is invalid');
   }
   if (command.command_type !== 'disconnect_session') throw new Error('spool command type is invalid');
+  const protocol = String(
+    command.native_control_protocol ||
+    (command.owner_epoch ? 'ivekit-rustdesk-native-control-v2' : 'ivekit-rustdesk-native-control-v1')
+  );
+  if (
+    protocol !== 'ivekit-rustdesk-native-control-v1' &&
+    protocol !== 'ivekit-rustdesk-native-control-v2'
+  ) {
+    throw new Error('spool command native control protocol is invalid');
+  }
+  const owner = protocol === 'ivekit-rustdesk-native-control-v2'
+    ? {
+        interaction_id: required(command.interaction_id, 'command.interaction_id'),
+        reservation_id: required(command.reservation_id, 'command.reservation_id'),
+        owner_epoch: positiveDecimal(command.owner_epoch, 'command.owner_epoch')
+      }
+    : {};
+  if (
+    protocol === 'ivekit-rustdesk-native-control-v1' &&
+    (command.interaction_id !== undefined ||
+     command.reservation_id !== undefined ||
+     command.owner_epoch !== undefined)
+  ) {
+    throw new Error('spool v1 command must not carry owner placement fields');
+  }
   return {
     id: required(command.id, 'command.id'),
     command_type: 'disconnect_session',
     external_id: required(command.external_id, 'command.external_id'),
     target_id: required(command.target_id, 'command.target_id'),
     rustdesk_id: required(command.rustdesk_id, 'command.rustdesk_id'),
+    controller_rustdesk_id: String(command.controller_rustdesk_id || '').trim(),
     requested_reason: reason,
-    attempt
+    attempt,
+    emergency_fallback_authorized: command.emergency_fallback_authorized === true,
+    emergency_fallback_reason: command.emergency_fallback_authorized === true
+      ? required(command.emergency_fallback_reason, 'command.emergency_fallback_reason')
+      : '',
+    native_control_protocol: protocol,
+    ...owner
   };
 }
 
@@ -374,6 +406,14 @@ function executionResult(value: unknown): RustDeskEdgeCommandExecutionResult {
     stderr_sha256: sha256(result.stderr_sha256, 'result.stderr_sha256'),
     metadata: scalarMetadata(result.metadata)
   };
+}
+
+function positiveDecimal(value: unknown, name: string): string {
+  const normalized = required(value, name);
+  if (!/^[1-9][0-9]{0,19}$/.test(normalized)) {
+    throw new Error(`${name} is invalid`);
+  }
+  return BigInt(normalized).toString();
 }
 
 function scalarMetadata(value: unknown): Record<string, string | number | boolean | null> {

@@ -1,7 +1,8 @@
 import { VoiceError } from '../errors.js';
 import { observeVoiceProviderEvent } from '../metrics.js';
+import type { PgQueryable } from '../../../../db-pg.js';
 import type { VoiceProviderEventUnitOfWork } from '../ports.js';
-import { mergeProviderCallState } from '../state-machine.js';
+import { isVoiceTerminalState, mergeProviderCallState } from '../state-machine.js';
 import type { VoiceCall, VoiceProviderEvent } from '../types.js';
 import type { VoiceRecordingService } from '../recording-service.js';
 
@@ -15,8 +16,34 @@ export interface VoiceProviderEventWorkerOptions {
   retry_base_ms?: number;
   retry_max_ms?: number;
   retry_jitter_ratio?: number;
+  placement?: VoiceProviderEventPlacementPort;
+  placement_worker_id?: string;
   now?: () => Date;
   random?: () => number;
+}
+
+export interface VoiceProviderEventPlacementPort {
+  hasPlacement(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+    }
+  ): Promise<boolean>;
+  requestState(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+      desired_state: 'closed';
+      reason: string;
+    }
+  ): Promise<void>;
+  reconcileOne(input: {
+    tenant_id: string;
+    interaction_id: string;
+    worker_id: string;
+  }): Promise<'idle' | 'succeeded' | 'retry_wait' | 'failed'>;
 }
 
 export interface VoiceProviderEventWorkerResult {
@@ -37,6 +64,8 @@ export class VoiceProviderEventWorker {
   readonly #retryBaseMs: number;
   readonly #retryMaxMs: number;
   readonly #retryJitterRatio: number;
+  readonly #placement?: VoiceProviderEventPlacementPort;
+  readonly #placementWorkerId: string;
   readonly #now: () => Date;
   readonly #random: () => number;
   #active: Promise<VoiceProviderEventWorkerResult> | null = null;
@@ -52,6 +81,10 @@ export class VoiceProviderEventWorker {
     this.#retryBaseMs = boundedInteger(options.retry_base_ms, 1_000, 100, 60_000);
     this.#retryMaxMs = boundedInteger(options.retry_max_ms, 60_000, this.#retryBaseMs, 24 * 60 * 60_000);
     this.#retryJitterRatio = boundedNumber(options.retry_jitter_ratio, 0.2, 0, 1);
+    this.#placement = options.placement;
+    this.#placementWorkerId = boundedIdentifier(
+      options.placement_worker_id || `${this.#workerId}:placement`
+    );
     this.#now = options.now ?? (() => new Date());
     this.#random = options.random ?? Math.random;
   }
@@ -87,7 +120,7 @@ export class VoiceProviderEventWorker {
   async #process(event: VoiceProviderEvent, result: VoiceProviderEventWorkerResult): Promise<void> {
     let adapter = 'other';
     try {
-      await this.#unitOfWork.run(event.tenant_id, async (context) => {
+      const placementCallId = await this.#unitOfWork.run(event.tenant_id, async (context) => {
         try {
           adapter = (await context.configuration.getProfile(event.tenant_id, event.profile_id))?.adapter
             ?? 'other';
@@ -111,12 +144,39 @@ export class VoiceProviderEventWorker {
           await this.#recordingService.project(context, updated, event);
         }
         if (!sameProjection(call, updated)) await context.calls.update(updated, call.revision);
+        let closePlacement = false;
+        if (this.#placement && context.pg && isVoiceTerminalState(updated.state) &&
+            await this.#placement.hasPlacement(context.pg, {
+              tenant_id: event.tenant_id,
+              interaction_id: updated.id
+            })) {
+          await this.#placement.requestState(context.pg, {
+            tenant_id: event.tenant_id,
+            interaction_id: updated.id,
+            desired_state: 'closed',
+            reason: 'voice_provider_terminal'
+          });
+          closePlacement = true;
+        }
         await context.events.complete({
           tenant_id: event.tenant_id,
           event_id: event.id,
           worker_id: this.#workerId
         });
+        return closePlacement ? updated.id : null;
       });
+      if (placementCallId && this.#placement) {
+        await this.#placement.reconcileOne({
+          tenant_id: event.tenant_id,
+          interaction_id: placementCallId,
+          worker_id: this.#placementWorkerId
+        }).catch((error) => {
+          console.error(
+            '[voice-provider-event] placement reconciliation failed:',
+            error instanceof Error ? error.message : String(error)
+          );
+        });
+      }
       result.processed += 1;
       observeVoiceProviderEvent({
         adapter,

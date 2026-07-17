@@ -8,6 +8,8 @@ export interface ChatTopicInput {
   session_id: string;
   title?: string;
   metadata?: Record<string, unknown>;
+  provider_endpoint?: string;
+  trusted?: Record<string, unknown>;
 }
 
 export interface ChatTopicBinding {
@@ -53,6 +55,32 @@ export interface ChatPublishResult {
   metadata: Record<string, unknown>;
 }
 
+export interface ChatMutationInput {
+  tenant_id: string;
+  session_id: string;
+  provider_topic_id: string;
+  target_provider_message_id: string;
+  message_id: string;
+  mutation_id: string;
+  action: 'edit' | 'delete';
+  body: string;
+}
+
+export interface ChatMutationResult {
+  provider: 'local' | 'tinode';
+  provider_topic_id: string;
+  provider_operation_id: string;
+  provider_sync_status: 'published' | 'skipped' | 'failed';
+  metadata: Record<string, unknown>;
+}
+
+export class ChatMutationOutcomeUnknownError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ChatMutationOutcomeUnknownError';
+  }
+}
+
 export interface ChatGateway {
   provider: 'local' | 'tinode';
   ensureTopic(input: ChatTopicInput): Promise<ChatTopicBinding>;
@@ -60,6 +88,7 @@ export interface ChatGateway {
   addParticipant(input: ChatParticipantInput): Promise<void>;
   removeParticipant(input: ChatParticipantInput): Promise<void>;
   publishMessage(input: ChatPublishInput): Promise<ChatPublishResult>;
+  mutateMessage?(input: ChatMutationInput): Promise<ChatMutationResult>;
 }
 
 export class LocalChatGateway implements ChatGateway {
@@ -102,6 +131,16 @@ export class LocalChatGateway implements ChatGateway {
       metadata: { mode: 'local_mirror' }
     };
   }
+
+  async mutateMessage(input: ChatMutationInput): Promise<ChatMutationResult> {
+    return {
+      provider: this.provider,
+      provider_topic_id: input.provider_topic_id,
+      provider_operation_id: '',
+      provider_sync_status: 'skipped',
+      metadata: { mode: 'local_mirror' }
+    };
+  }
 }
 
 export class TinodeChatGateway implements ChatGateway {
@@ -111,7 +150,8 @@ export class TinodeChatGateway implements ChatGateway {
 
   async ensureTopic(input: ChatTopicInput): Promise<ChatTopicBinding> {
     if (this.hasWireConfig()) {
-      const client = new TinodeWireClient(this.config);
+      const config = tinodeConfigForTopic(this.config, input.provider_endpoint);
+      const client = new TinodeWireClient(config);
       try {
         const topic = await client.createGroupTopic(input);
         return {
@@ -119,7 +159,7 @@ export class TinodeChatGateway implements ChatGateway {
           provider_topic_id: topic,
           provider_status: 'bound',
           metadata: {
-            base_url: tinodeMetadataUrl(this.config.base_url),
+            base_url: tinodeMetadataUrl(config.base_url),
             title: input.title || '',
             protocol: 'tinode_websocket',
             ...(input.metadata || {})
@@ -233,6 +273,49 @@ export class TinodeChatGateway implements ChatGateway {
     };
   }
 
+  async mutateMessage(input: ChatMutationInput): Promise<ChatMutationResult> {
+    if (this.hasWireConfig()) {
+      const client = new TinodeWireClient(this.config);
+      try {
+        const operationId = input.action === 'edit'
+          ? await client.publishReplacement(
+            input.provider_topic_id,
+            input.target_provider_message_id,
+            input.body,
+            input.message_id,
+            input.mutation_id
+          )
+          : await client.deleteMessage(
+            input.provider_topic_id,
+            input.target_provider_message_id
+          );
+        return {
+          provider: this.provider,
+          provider_topic_id: input.provider_topic_id,
+          provider_operation_id: operationId,
+          provider_sync_status: 'published',
+          metadata: {
+            base_url: tinodeMetadataUrl(this.config.base_url),
+            protocol: 'tinode_websocket',
+            mutation_id: input.mutation_id
+          }
+        };
+      } finally {
+        client.close();
+      }
+    }
+    return {
+      provider: this.provider,
+      provider_topic_id: input.provider_topic_id,
+      provider_operation_id: '',
+      provider_sync_status: 'failed',
+      metadata: {
+        base_url: tinodeMetadataUrl(this.config.base_url),
+        reason: 'tinode_protocol_not_connected'
+      }
+    };
+  }
+
   private hasWireConfig(): boolean {
     return Boolean(resolveTinodeWsUrl(this.config) && (this.config.auth_token || this.config.basic_user));
   }
@@ -246,9 +329,32 @@ export function configuredChatGateway(env: NodeJS.ProcessEnv = process.env): Cha
   const baseUrl = String(env.TINODE_BASE_URL || '').trim();
   const wsUrl = String(env.TINODE_WS_URL || '').trim();
   if (!baseUrl && !wsUrl) return new LocalChatGateway();
-  return new TinodeChatGateway({
+  return configuredTinodeChatGateway({
     base_url: baseUrl || wsUrl,
-    ws_url: wsUrl || undefined,
+    ws_url: wsUrl || undefined
+  }, env);
+}
+
+export function configuredChatGatewayForEndpoint(
+  endpoint: string,
+  env: NodeJS.ProcessEnv = process.env
+): ChatGateway {
+  const raw = String(endpoint || '').trim();
+  if (!raw) return configuredChatGateway(env);
+  const url = new URL(raw);
+  const websocket = url.protocol === 'ws:' || url.protocol === 'wss:';
+  return configuredTinodeChatGateway({
+    base_url: raw,
+    ws_url: websocket ? raw : undefined
+  }, env);
+}
+
+function configuredTinodeChatGateway(
+  endpoint: Pick<TinodeGatewayConfig, 'base_url' | 'ws_url'>,
+  env: NodeJS.ProcessEnv
+): ChatGateway {
+  return new TinodeChatGateway({
+    ...endpoint,
     api_key: env.TINODE_API_KEY ? String(env.TINODE_API_KEY) : undefined,
     auth_token: env.TINODE_AUTH_TOKEN ? String(env.TINODE_AUTH_TOKEN) : undefined,
     basic_user: env.TINODE_BASIC_USER ? String(env.TINODE_BASIC_USER) : undefined,
@@ -310,12 +416,21 @@ class TinodeRequestError extends Error {
   }
 }
 
+class TinodeWireOutcomeUnknownError extends Error {
+  constructor(kind: string, reason: string) {
+    super(`Tinode ${kind} request outcome is unknown: ${reason}`);
+    this.name = 'TinodeWireOutcomeUnknownError';
+  }
+}
+
 class TinodeWireClient {
   private socket: WebSocket | null = null;
   private nextId = 1;
   private helloSent = false;
   private loggedIn = false;
   private readonly pending = new Map<string, {
+    kind: string;
+    sent: boolean;
     resolve: (ctrl: TinodeCtrl) => void;
     reject: (error: Error) => void;
     timer: NodeJS.Timeout;
@@ -389,7 +504,8 @@ class TinodeWireClient {
             fn: input.title || input.session_id,
             'x-opc-tenant': input.tenant_id,
             'x-opc-session': input.session_id
-          }
+          },
+          ...(input.trusted ? { trusted: input.trusted } : {})
         }
       }
     });
@@ -409,6 +525,49 @@ class TinodeWireClient {
       content: body
     });
     return String(ctrl.params?.seq || ctrl.params?.seq_id || ctrl.id || '');
+  }
+
+  async publishReplacement(
+    topic: string,
+    targetProviderMessageId: string,
+    body: string,
+    messageId: string,
+    mutationId: string
+  ): Promise<string> {
+    const targetSequence = tinodeSequence(targetProviderMessageId);
+    await this.connectAndLogin();
+    await this.request('sub', { topic });
+    let ctrl: TinodeCtrl;
+    try {
+      ctrl = await this.request('pub', {
+        topic,
+        noecho: false,
+        head: {
+          replace: `msg:${targetSequence}`,
+          'x-opc-message-id': safeTinodeHeadValue(messageId),
+          'x-opc-mutation-id': safeTinodeHeadValue(mutationId)
+        },
+        content: body
+      });
+    } catch (error) {
+      if (error instanceof TinodeWireOutcomeUnknownError) {
+        throw new ChatMutationOutcomeUnknownError('Tinode edit publish outcome is unknown');
+      }
+      throw error;
+    }
+    return String(ctrl.params?.seq || ctrl.params?.seq_id || ctrl.id || '');
+  }
+
+  async deleteMessage(topic: string, targetProviderMessageId: string): Promise<string> {
+    const targetSequence = tinodeSequence(targetProviderMessageId);
+    await this.connectAndLogin();
+    await this.request('sub', { topic });
+    const ctrl = await this.request('del', {
+      topic,
+      what: 'msg',
+      delseq: [{ low: targetSequence, hi: targetSequence + 1 }]
+    });
+    return String(ctrl.params?.del || ctrl.params?.del_id || ctrl.id || '');
   }
 
   async grantTopicAccess(topic: string, user: string, mode: string): Promise<void> {
@@ -498,7 +657,7 @@ class TinodeWireClient {
     throw new Error('Tinode auth token or basic credentials are required');
   }
 
-  private request(kind: 'hi' | 'acc' | 'login' | 'sub' | 'set' | 'pub', payload: Record<string, unknown>): Promise<TinodeCtrl> {
+  private request(kind: 'hi' | 'acc' | 'login' | 'sub' | 'set' | 'pub' | 'del', payload: Record<string, unknown>): Promise<TinodeCtrl> {
     const socket = this.socket;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
       return Promise.reject(new Error('Tinode websocket is not open'));
@@ -508,11 +667,20 @@ class TinodeWireClient {
     const promise = new Promise<TinodeCtrl>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`Tinode ${kind} request timed out`));
+        reject(new TinodeWireOutcomeUnknownError(kind, 'acknowledgement timed out'));
       }, this.timeoutMs());
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { kind, sent: false, resolve, reject, timer });
     });
-    socket.send(JSON.stringify(message));
+    try {
+      socket.send(JSON.stringify(message));
+      const pending = this.pending.get(id);
+      if (pending) pending.sent = true;
+    } catch (error) {
+      const pending = this.pending.get(id);
+      if (pending) clearTimeout(pending.timer);
+      this.pending.delete(id);
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
     return promise;
   }
 
@@ -539,7 +707,9 @@ class TinodeWireClient {
   private rejectAll(error: Error): void {
     for (const [id, pending] of this.pending.entries()) {
       clearTimeout(pending.timer);
-      pending.reject(error);
+      pending.reject(pending.sent
+        ? new TinodeWireOutcomeUnknownError(pending.kind, error.message)
+        : error);
       this.pending.delete(id);
     }
   }
@@ -569,6 +739,16 @@ function safeTinodeHeadValue(value: unknown): string {
   const normalized = String(value || '').trim();
   if (!normalized || /[\r\n]/.test(normalized)) return '';
   return normalized.slice(0, 128);
+}
+
+function tinodeSequence(value: string): number {
+  const normalized = String(value || '').trim();
+  if (!/^\d+$/.test(normalized)) throw new Error('Tinode target provider message id must be a positive sequence');
+  const sequence = Number(normalized);
+  if (!Number.isSafeInteger(sequence) || sequence <= 0) {
+    throw new Error('Tinode target provider message id must be a positive sequence');
+  }
+  return sequence;
 }
 
 function tinodeMetadataUrl(value: string): string {
@@ -601,6 +781,32 @@ function defaultTinodeWsUrl(baseUrl: string): string {
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   url.pathname = `${url.pathname.replace(/\/$/, '')}/v0/channels`;
   return url.toString();
+}
+
+function tinodeConfigForTopic(
+  config: TinodeGatewayConfig,
+  providerEndpoint: string | undefined
+): TinodeGatewayConfig {
+  const raw = String(providerEndpoint || '').trim();
+  if (!raw) return config;
+  let endpoint: URL;
+  try {
+    endpoint = new URL(raw);
+  } catch {
+    throw new Error('Tinode placement endpoint is invalid');
+  }
+  if (!['http:', 'https:'].includes(endpoint.protocol) ||
+      endpoint.username || endpoint.password ||
+      endpoint.search || endpoint.hash) {
+    throw new Error('Tinode placement endpoint is invalid');
+  }
+  endpoint.pathname = endpoint.pathname.replace(/\/+$/, '');
+  const baseUrl = endpoint.toString().replace(/\/$/, '');
+  return {
+    ...config,
+    base_url: baseUrl,
+    ws_url: defaultTinodeWsUrl(baseUrl)
+  };
 }
 
 export function tinodeBasicUsernameForIdentity(tenantId: string, identity: string): string {

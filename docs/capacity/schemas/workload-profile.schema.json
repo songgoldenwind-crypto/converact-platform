@@ -1,0 +1,494 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ivekit.local/schemas/capacity/workload-profile-v1.schema.json",
+  "title": "iveKit Capacity Workload Profile v1",
+  "description": "Versioned benchmark contract for concurrent interactions, derived connections, media, recording, providers, failures, and SLOs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_id",
+    "revision",
+    "status",
+    "evidence_level",
+    "interactions",
+    "connections",
+    "signaling",
+    "messaging",
+    "media",
+    "recording",
+    "intelligence",
+    "durations",
+    "failure_model",
+    "slos",
+    "external_dependencies"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "1.1.0"
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}-v[1-9][0-9]*$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "$ref": "#/$defs/resultStatus"
+    },
+    "evidence_level": {
+      "enum": ["target", "official_baseline", "controlled_benchmark", "production_benchmark"]
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "interactions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "id_uniqueness", "categories"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id_uniqueness": {
+          "const": "globally_unique_and_cross_category_disjoint"
+        },
+        "categories": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/interactionCategory"
+          }
+        }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/connectionLoad"
+      }
+    },
+    "signaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sip"],
+      "properties": {
+        "sip": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "active_calls",
+            "base_rtp_legs",
+            "average_call_duration_seconds",
+            "steady_invite_cps",
+            "burst_invite_cps",
+            "burst_duration_seconds",
+            "registered_contacts",
+            "sip_over_wss_contacts"
+          ],
+          "properties": {
+            "active_calls": { "$ref": "#/$defs/nonNegativeInteger" },
+            "base_rtp_legs": { "$ref": "#/$defs/nonNegativeInteger" },
+            "average_call_duration_seconds": { "$ref": "#/$defs/positiveNumber" },
+            "steady_invite_cps": { "$ref": "#/$defs/nonNegativeNumber" },
+            "burst_invite_cps": { "$ref": "#/$defs/nonNegativeNumber" },
+            "burst_duration_seconds": { "$ref": "#/$defs/positiveNumber" },
+            "registered_contacts": { "$ref": "#/$defs/nonNegativeInteger" },
+            "sip_over_wss_contacts": { "$ref": "#/$defs/nonNegativeInteger" },
+            "tls_ratio": { "$ref": "#/$defs/ratio" },
+            "srtp_ratio": { "$ref": "#/$defs/ratio" }
+          }
+        }
+      }
+    },
+    "messaging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["business_messages_per_second", "burst_messages_per_second", "burst_duration_seconds", "activity_mix", "hot_topic"],
+      "properties": {
+        "business_messages_per_second": { "$ref": "#/$defs/nonNegativeNumber" },
+        "burst_messages_per_second": { "$ref": "#/$defs/nonNegativeNumber" },
+        "burst_duration_seconds": { "$ref": "#/$defs/positiveNumber" },
+        "activity_mix": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["one_to_one_ratio", "group_ratio"],
+          "properties": {
+            "one_to_one_ratio": { "$ref": "#/$defs/ratio" },
+            "group_ratio": { "$ref": "#/$defs/ratio" }
+          }
+        },
+        "receipts_enabled": { "type": "boolean" },
+        "presence_enabled": { "type": "boolean" },
+        "typing_enabled": { "type": "boolean" },
+        "attachment_message_ratio": { "$ref": "#/$defs/ratio" },
+        "attachment_payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["average_bytes", "p95_bytes", "maximum_bytes"],
+          "properties": {
+            "average_bytes": { "$ref": "#/$defs/nonNegativeInteger" },
+            "p95_bytes": { "$ref": "#/$defs/nonNegativeInteger" },
+            "maximum_bytes": { "$ref": "#/$defs/nonNegativeInteger" }
+          }
+        },
+        "hot_topic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["subscriber_count", "messages_per_second"],
+          "properties": {
+            "subscriber_count": { "$ref": "#/$defs/nonNegativeInteger" },
+            "messages_per_second": { "$ref": "#/$defs/nonNegativeNumber" }
+          }
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["voice", "livekit", "rustdesk"],
+      "properties": {
+        "voice": { "$ref": "#/$defs/voiceMedia" },
+        "livekit": { "$ref": "#/$defs/liveKitMedia" },
+        "rustdesk": { "$ref": "#/$defs/rustDeskMedia" }
+      }
+    },
+    "recording": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["voice", "livekit_track", "livekit_room_composite", "screen_track", "rustdesk"],
+      "properties": {
+        "voice": { "$ref": "#/$defs/recordingPolicy" },
+        "livekit_track": { "$ref": "#/$defs/recordingPolicy" },
+        "livekit_room_composite": { "$ref": "#/$defs/recordingPolicy" },
+        "screen_track": { "$ref": "#/$defs/recordingPolicy" },
+        "rustdesk": { "$ref": "#/$defs/recordingPolicy" }
+      }
+    },
+    "intelligence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["realtime_voice_asr_ratio", "post_call_asr_ratio", "ocr_attachment_ratio", "translation_message_ratio", "ai_quality_interaction_ratio", "backpressure_policy"],
+      "properties": {
+        "realtime_voice_asr_ratio": { "$ref": "#/$defs/ratio" },
+        "post_call_asr_ratio": { "$ref": "#/$defs/ratio" },
+        "ocr_attachment_ratio": { "$ref": "#/$defs/ratio" },
+        "translation_message_ratio": { "$ref": "#/$defs/ratio" },
+        "ai_quality_interaction_ratio": { "$ref": "#/$defs/ratio" },
+        "backpressure_policy": {
+          "enum": ["durable_queue_and_never_block_realtime_ack"]
+        }
+      }
+    },
+    "durations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ramp_minutes", "steady_minutes", "burst_seconds", "endurance_hours", "endurance_load_ratio"],
+      "properties": {
+        "ramp_minutes": { "$ref": "#/$defs/positiveNumber" },
+        "steady_minutes": { "$ref": "#/$defs/positiveNumber" },
+        "burst_seconds": { "$ref": "#/$defs/positiveNumber" },
+        "endurance_hours": { "$ref": "#/$defs/positiveNumber" },
+        "endurance_load_ratio": { "$ref": "#/$defs/ratio" }
+      }
+    },
+    "failure_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_failure_repetitions", "zone_failure_repetitions", "reconnect_client_ratio", "reconnect_window_seconds", "quorum_failures"],
+      "properties": {
+        "node_failure_repetitions": { "type": "integer", "minimum": 1 },
+        "zone_failure_repetitions": { "type": "integer", "minimum": 1 },
+        "reconnect_client_ratio": { "$ref": "#/$defs/ratio" },
+        "reconnect_window_seconds": { "$ref": "#/$defs/positiveNumber" },
+        "quorum_failures": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["postgresql_leader", "redis_primary", "nats_leader", "network_partition"]
+          }
+        }
+      }
+    },
+    "slos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sip_setup_success_ratio", "sip_route_p99_ms", "rtp_server_packet_loss_ratio", "im_ack_p99_ms", "durable_loss_count", "livekit_join_p99_ms", "new_admission_recovery_seconds", "four_node_linearity_ratio", "eight_node_linearity_ratio"],
+      "properties": {
+        "sip_setup_success_ratio": { "$ref": "#/$defs/ratio" },
+        "sip_route_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+        "rtp_server_packet_loss_ratio": { "$ref": "#/$defs/ratio" },
+        "im_ack_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+        "durable_loss_count": { "$ref": "#/$defs/nonNegativeInteger" },
+        "livekit_join_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+        "new_admission_recovery_seconds": { "$ref": "#/$defs/nonNegativeNumber" },
+        "four_node_linearity_ratio": { "$ref": "#/$defs/ratio" },
+        "eight_node_linearity_ratio": { "$ref": "#/$defs/ratio" }
+      }
+    },
+    "external_dependencies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "required_for_production_pass"],
+        "properties": {
+          "id": {
+            "enum": ["pstn_sip_trunk", "public_network", "real_turn", "livekit_egress", "object_storage", "ocr_provider", "asr_provider", "translation_provider", "ai_provider", "windows_endpoints", "email_provider", "sms_provider"]
+          },
+          "status": {
+            "enum": ["controlled", "not_run", "passed", "failed"]
+          },
+          "required_for_production_pass": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "resultStatus": {
+      "enum": ["target", "not_run", "running", "failed", "component_pass", "cell_pass", "platform_pass", "external_not_run", "production_pass"]
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0
+    },
+    "positiveNumber": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "interactionCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "count", "active_definition", "disjoint_from"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$"
+        },
+        "kind": {
+          "enum": ["tinode_im", "sip_voice", "livekit_av", "livekit_screen", "rustdesk_remote"]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "active_definition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "disjoint_from": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "participants": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "logical_identities": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "connectionLoad": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "count", "idle_only_forbidden"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$"
+        },
+        "kind": {
+          "enum": ["tinode_websocket", "ivekit_event_websocket", "sip_registration", "sip_websocket", "livekit_participant", "rustdesk_endpoint"]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "idle_only_forbidden": {
+          "type": "boolean"
+        },
+        "activity_contract": {
+          "type": "string"
+        }
+      }
+    },
+    "voiceMedia": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["codec", "packetization_ms", "payload_kbps", "rtp_header_bytes", "base_calls", "base_rtp_legs"],
+      "properties": {
+        "codec": { "enum": ["PCMU", "PCMA", "OPUS"] },
+        "packetization_ms": { "$ref": "#/$defs/positiveNumber" },
+        "payload_kbps": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "One-direction encoded RTP payload rate for each base RTP leg; IP/UDP/RTP headers are excluded."
+        },
+        "rtp_header_bytes": { "$ref": "#/$defs/nonNegativeInteger" },
+        "base_calls": { "$ref": "#/$defs/nonNegativeInteger" },
+        "base_rtp_legs": { "$ref": "#/$defs/nonNegativeInteger" },
+        "supervisor_or_consult_ratio": {
+          "$ref": "#/$defs/ratio",
+          "description": "Ratio of base calls that add one temporary third media participant during the scenario overlap window."
+        }
+      }
+    },
+    "liveKitMedia": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["av", "screen", "turn_participant_ratio", "forced_turn_profile_required", "overlay_test"],
+      "properties": {
+        "av": { "$ref": "#/$defs/liveKitAv" },
+        "screen": { "$ref": "#/$defs/liveKitScreen" },
+        "turn_participant_ratio": { "$ref": "#/$defs/ratio" },
+        "forced_turn_profile_required": { "type": "boolean" },
+        "overlay_test": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "av_rooms_with_added_screen_ratio", "counts_toward_interaction_total"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "av_rooms_with_added_screen_ratio": { "$ref": "#/$defs/ratio" },
+            "counts_toward_interaction_total": { "const": false }
+          }
+        }
+      }
+    },
+    "liveKitAv": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rooms", "participants", "audio_codec", "audio_kbps_per_publisher", "video_resolution", "video_fps", "video_average_kbps_per_publisher", "simulcast"],
+      "properties": {
+        "rooms": { "$ref": "#/$defs/nonNegativeInteger" },
+        "participants": { "$ref": "#/$defs/nonNegativeInteger" },
+        "audio_codec": { "const": "OPUS" },
+        "audio_kbps_per_publisher": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "Aggregate one-direction encoded audio payload emitted by one publisher."
+        },
+        "video_resolution": { "type": "string", "pattern": "^[0-9]{3,4}p$" },
+        "video_fps": { "$ref": "#/$defs/positiveNumber" },
+        "video_average_kbps_per_publisher": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "Aggregate one-direction encoded camera payload across all simulcast layers emitted by one publisher."
+        },
+        "simulcast": { "type": "boolean" }
+      }
+    },
+    "liveKitScreen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rooms", "participants", "publishers_per_room", "subscribers_per_room", "resolution", "fps", "average_kbps_per_publisher", "peak_kbps_per_publisher", "camera_video_enabled"],
+      "properties": {
+        "rooms": { "$ref": "#/$defs/nonNegativeInteger" },
+        "participants": { "$ref": "#/$defs/nonNegativeInteger" },
+        "publishers_per_room": { "$ref": "#/$defs/nonNegativeInteger" },
+        "subscribers_per_room": { "$ref": "#/$defs/nonNegativeInteger" },
+        "resolution": { "type": "string", "pattern": "^[0-9]{3,4}p$" },
+        "fps": { "$ref": "#/$defs/positiveNumber" },
+        "average_kbps_per_publisher": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "Aggregate one-direction encoded screen payload emitted by one publisher."
+        },
+        "peak_kbps_per_publisher": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "Short-window aggregate one-direction encoded screen payload emitted by one publisher."
+        },
+        "camera_video_enabled": { "type": "boolean" }
+      }
+    },
+    "rustDeskMedia": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessions", "endpoints", "relay_ratio", "office_average_kbps_per_relay", "high_motion_peak_kbps_per_relay", "forced_relay_profile_required"],
+      "properties": {
+        "sessions": { "$ref": "#/$defs/nonNegativeInteger" },
+        "endpoints": { "$ref": "#/$defs/nonNegativeInteger" },
+        "relay_ratio": { "$ref": "#/$defs/ratio" },
+        "office_average_kbps_per_relay": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "One-direction application payload for one relayed session; hbbr host aggregate ingress plus egress is approximately twice this value before protocol overhead."
+        },
+        "high_motion_peak_kbps_per_relay": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "Short-window one-direction application payload for one relayed session; hbbr host aggregate ingress plus egress is approximately twice this value before protocol overhead."
+        },
+        "forced_relay_profile_required": { "type": "boolean" }
+      }
+    },
+    "recordingPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interaction_ratio", "mode", "hot_path", "counts_as_core_admission"],
+      "properties": {
+        "interaction_ratio": { "$ref": "#/$defs/ratio" },
+        "mode": {
+          "enum": ["encoded_fork", "track_egress", "room_composite", "local_edge_upload", "disabled"]
+        },
+        "hot_path": {
+          "enum": ["stream_to_object_storage", "local_spool_then_upload", "separate_egress_pool", "disabled"]
+        },
+        "counts_as_core_admission": {
+          "type": "boolean"
+        },
+        "selection_scope": {
+          "enum": [
+            "sip_voice_interactions",
+            "livekit_av_interactions",
+            "all_livekit_interactions",
+            "livekit_screen_interactions",
+            "rustdesk_remote_interactions"
+          ]
+        },
+        "selected_artifact": {
+          "enum": [
+            "dual_leg_encoded_voice_recording",
+            "all_published_audio_camera_tracks",
+            "room_composite_output",
+            "published_screen_track",
+            "rustdesk_local_recording"
+          ]
+        },
+        "output_average_kbps": {
+          "$ref": "#/$defs/positiveNumber",
+          "description": "Average encoded output payload for one recording artifact stream; required by the current RoomComposite profile policy."
+        }
+      }
+    }
+  },
+  "x-ivekit-invariants": [
+    "sum(interactions.categories[*].count) == interactions.total",
+    "interaction category ID sets are pairwise disjoint",
+    "signaling.sip.base_rtp_legs == signaling.sip.active_calls * 2 for the v1 two-party baseline",
+    "messaging.activity_mix.one_to_one_ratio + messaging.activity_mix.group_ratio == 1",
+    "media.livekit.av.participants == media.livekit.av.rooms * 2 for the v1 one-to-one baseline",
+    "media.livekit.screen.participants == media.livekit.screen.rooms * 2",
+    "connections are derived load and never added to interactions.total"
+  ]
+}

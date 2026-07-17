@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PATCH_DIR="$SCRIPT_DIR/patches"
+SOURCE_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+BUNDLE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+HOOK_DIR="$SOURCE_ROOT/integrations/component-hook-rs"
+if [[ ! -d "$HOOK_DIR" && -d "$BUNDLE_ROOT/fork-hooks/rust" ]]; then
+  HOOK_DIR="$BUNDLE_ROOT/fork-hooks/rust"
+fi
 RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-ivekit.3-6c49ee76}"
+IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-ivekit.8-6c49ee76}"
 
 case "$(uname -m)" in
   x86_64) NATIVE_ARCH="amd64" ;;
@@ -21,6 +28,10 @@ fi
 for command in docker git; do
   command -v "$command" >/dev/null || { echo "$command is required" >&2; exit 1; }
 done
+[[ -f "$HOOK_DIR/Cargo.toml" && -f "$HOOK_DIR/src/lib.rs" ]] || {
+  echo "iveKit Rust component hook is required" >&2
+  exit 1
+}
 
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ivekit-rustpbx-build.XXXXXX")"
 cleanup() { rm -rf "$BUILD_ROOT"; }
@@ -31,17 +42,34 @@ git -C "$BUILD_ROOT/rustpbx" checkout --detach "$RUSTPBX_COMMIT"
 git clone --filter=blob:none --no-checkout https://github.com/restsend/rsipstack.git "$BUILD_ROOT/rsipstack"
 git -C "$BUILD_ROOT/rsipstack" checkout --detach "$RSIPSTACK_COMMIT"
 
-git -C "$BUILD_ROOT/rsipstack" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch"
-git -C "$BUILD_ROOT/rsipstack" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch"
-git -C "$BUILD_ROOT/rustpbx" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch"
-git -C "$BUILD_ROOT/rustpbx" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch"
-git -C "$BUILD_ROOT/rustpbx" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch"
-git -C "$BUILD_ROOT/rustpbx" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch"
-git -C "$BUILD_ROOT/rustpbx" apply --check "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-local-rsipstack.patch"
-git -C "$BUILD_ROOT/rustpbx" apply "$ROOT_DIR/infra/ivekit/rustpbx/patches/rustpbx-local-rsipstack.patch"
+git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-tcp-reconnect.patch"
+git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-tcp-reconnect.patch"
+git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-capacity.patch"
+git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-capacity.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-ami-dialogs.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-ami-dialogs.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-rwi-originate-hangup.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-rwi-originate-hangup.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-route-snapshot.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-route-snapshot.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-inbound-admission.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-inbound-admission.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-owner-epoch.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-owner-epoch.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-recording-spool.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-recording-spool.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-local-rsipstack.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-local-rsipstack.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-sip-capacity.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-sip-capacity.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-media-hot-path.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-media-hot-path.patch"
 
-cp "$ROOT_DIR/infra/ivekit/rustpbx/Cargo.lock" "$BUILD_ROOT/rustpbx/Cargo.lock"
-cp "$ROOT_DIR/infra/ivekit/rustpbx/Dockerfile.runtime" "$BUILD_ROOT/rustpbx/Dockerfile.ivekit"
+mkdir -p "$BUILD_ROOT/rustpbx/vendor/ivekit-component-hook"
+cp -R "$HOOK_DIR/." \
+  "$BUILD_ROOT/rustpbx/vendor/ivekit-component-hook/"
+cp "$SCRIPT_DIR/Cargo.lock" "$BUILD_ROOT/rustpbx/Cargo.lock"
+cp "$SCRIPT_DIR/Dockerfile.runtime" "$BUILD_ROOT/rustpbx/Dockerfile.ivekit"
 
 docker run --rm \
   -v "$BUILD_ROOT:/build" \

@@ -12,8 +12,11 @@ const budgets = [
   [/^wifi-off-.*\.js$/, 4 * 1024, 'shared WebPhone status icon'],
   [/^sip-phone-panel-.*\.js$/, 250 * 1024, 'SIP WebPhone'],
   [/^tinode\..*\.js$/, 120 * 1024, 'Tinode provider'],
-  [/^rustdesk-launch-panel-.*\.js$/, 25 * 1024, 'RustDesk workspace'],
+  [/^rustdesk-workspace-.*\.js$/, 64 * 1024, 'RustDesk workspace'],
   [/^quality-workspace-.*\.js$/, 25 * 1024, 'quality workspace'],
+  [/^finding-panel-.*\.js$/, 8 * 1024, 'on-demand finding panel'],
+  [/^circle-check-.*\.js$/, 1024, 'shared finding success icon'],
+  [/^triangle-alert-.*\.js$/, 1024, 'shared finding warning icon'],
   [/^queue-monitor-workspace-.*\.js$/, 15 * 1024, 'Queue Monitor workspace'],
   [/^ivr-designer-browser-.*\.js$/, 220 * 1024, 'IVR Designer workspace']
 ];
@@ -31,7 +34,7 @@ const unknown = files.filter((file) => !known.has(file));
 if (unknown.length) throw new Error(`unbudgeted JavaScript chunks: ${unknown.join(', ')}`);
 
 const html = readFileSync(join(dist.pathname, 'index.html'), 'utf8');
-if (/livekit-vendor|tinode\.|media-workspace|voice-workspace|sip-phone-panel|wifi-off-|play-|rustdesk-launch-panel|quality-workspace|queue-monitor-workspace|ivr-designer-browser/.test(html)) {
+if (/livekit-vendor|tinode\.|media-workspace|voice-workspace|sip-phone-panel|wifi-off-|play-|rustdesk-workspace|quality-workspace|finding-panel|circle-check-|triangle-alert-|queue-monitor-workspace|ivr-designer-browser/.test(html)) {
   throw new Error('initial HTML must not preload provider or non-default workspace chunks');
 }
 

@@ -23,7 +23,13 @@ test('provider registry parses safe profiles and resolves secrets only on explic
         base_url: 'http://ocr-worker:8080',
         endpoint: '/v1/ocr',
         health_endpoint: '/health',
-        token_env: 'OCR_INTERNAL_TOKEN'
+        token_env: 'OCR_INTERNAL_TOKEN',
+        requests_per_minute: 120,
+        requests_per_day: 5_000,
+        max_concurrency: 4,
+        failure_threshold: 5,
+        open_cooldown_ms: 45_000,
+        reservation_ttl_ms: 40_000
       },
       {
         id: 'translate-cloud',
@@ -47,7 +53,13 @@ test('provider registry parses safe profiles and resolves secrets only on explic
       mode: 'self_hosted',
       name: 'ocr-internal',
       configured: true,
-      token_configured: true
+      token_configured: true,
+      requests_per_minute: 120,
+      requests_per_day: 5_000,
+      max_concurrency: 4,
+      failure_threshold: 5,
+      open_cooldown_ms: 45_000,
+      reservation_ttl_ms: 40_000
     },
     {
       id: 'translate-cloud',
@@ -55,7 +67,13 @@ test('provider registry parses safe profiles and resolves secrets only on explic
       mode: 'third_party',
       name: 'translate-cloud',
       configured: true,
-      token_configured: true
+      token_configured: true,
+      requests_per_minute: 0,
+      requests_per_day: 0,
+      max_concurrency: 10,
+      failure_threshold: 3,
+      open_cooldown_ms: 30_000,
+      reservation_ttl_ms: 35_000
     }
   ]);
   const ocr = registry.requireProfile('ocr-internal', 'ocr');
@@ -81,7 +99,15 @@ test('provider registry rejects unsafe or ambiguous deployment profiles', () => 
     ['fragment', [{ ...baseProfile(), base_url: 'http://ocr-worker:8080/#secret' }], /fragment/i],
     ['endpoint traversal', [{ ...baseProfile(), endpoint: '/../admin' }], /endpoint/i],
     ['invalid token env', [{ ...baseProfile(), token_env: 'token-value' }], /token_env/i],
-    ['inline token', [{ ...baseProfile(), token: 'forbidden' }], /unsupported field/i]
+    ['inline token', [{ ...baseProfile(), token: 'forbidden' }], /unsupported field/i],
+    ['negative minute quota', [{ ...baseProfile(), requests_per_minute: -1 }], /requests_per_minute/i],
+    ['day quota too large', [{ ...baseProfile(), requests_per_day: 1_000_000_001 }], /requests_per_day/i],
+    ['zero concurrency', [{ ...baseProfile(), max_concurrency: 0 }], /max_concurrency/i],
+    ['zero failure threshold', [{ ...baseProfile(), failure_threshold: 0 }], /failure_threshold/i],
+    ['short cooldown', [{ ...baseProfile(), open_cooldown_ms: 999 }], /open_cooldown_ms/i],
+    ['lease shorter than timeout', [{
+      ...baseProfile(), timeout_ms: 20_000, reservation_ttl_ms: 20_000
+    }], /reservation_ttl_ms/i]
   ];
 
   for (const [label, profiles, pattern] of invalidProfiles) {

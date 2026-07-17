@@ -8,6 +8,13 @@ export interface RustPbxConfigSummary {
   sip_port: number;
   rtp_start_port: number;
   rtp_end_port: number;
+  sip_max_active_transactions: number;
+  sip_max_finished_transactions: number;
+  sip_incoming_transaction_queue_capacity: number;
+  sip_max_transport_connections: number;
+  media_recording_channel_capacity: number;
+  media_recording_worker_threads: number;
+  media_recording_worker_queue_capacity: number;
   management_exposure: 'internal';
   rwi_exposure: 'internal';
 }
@@ -30,10 +37,18 @@ interface RustPbxRenderInput {
   sip_port: number;
   rtp_start_port: number;
   rtp_end_port: number;
+  sip_max_active_transactions: number;
+  sip_max_finished_transactions: number;
+  sip_incoming_transaction_queue_capacity: number;
+  sip_max_transport_connections: number;
+  media_recording_channel_capacity: number;
+  media_recording_worker_threads: number;
+  media_recording_worker_queue_capacity: number;
 }
 
 const HTTP_PORT = 8080;
 const MIN_RTP_PORTS = 100;
+const MAX_SIP_CAPACITY_VALUE = 10_000_000;
 
 export function renderRustPbxConfig(env: NodeJS.ProcessEnv): RustPbxRenderedConfig {
   const input = inputFromEnv(env);
@@ -45,6 +60,13 @@ export function renderRustPbxConfig(env: NodeJS.ProcessEnv): RustPbxRenderedConf
       sip_port: input.sip_port,
       rtp_start_port: input.rtp_start_port,
       rtp_end_port: input.rtp_end_port,
+      sip_max_active_transactions: input.sip_max_active_transactions,
+      sip_max_finished_transactions: input.sip_max_finished_transactions,
+      sip_incoming_transaction_queue_capacity: input.sip_incoming_transaction_queue_capacity,
+      sip_max_transport_connections: input.sip_max_transport_connections,
+      media_recording_channel_capacity: input.media_recording_channel_capacity,
+      media_recording_worker_threads: input.media_recording_worker_threads,
+      media_recording_worker_queue_capacity: input.media_recording_worker_queue_capacity,
       management_exposure: 'internal',
       rwi_exposure: 'internal'
     }
@@ -97,7 +119,45 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
     external_ip: optionalIp(env.RUSTPBX_EXTERNAL_IP),
     sip_port: sipPort,
     rtp_start_port: rtpStartPort,
-    rtp_end_port: rtpEndPort
+    rtp_end_port: rtpEndPort,
+    sip_max_active_transactions: positiveCapacity(
+      env.RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS,
+      'RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS',
+      65_536
+    ),
+    sip_max_finished_transactions: positiveCapacity(
+      env.RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS,
+      'RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS',
+      65_536
+    ),
+    sip_incoming_transaction_queue_capacity: positiveCapacity(
+      env.RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY,
+      'RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY',
+      8_192
+    ),
+    sip_max_transport_connections: positiveCapacity(
+      env.RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS,
+      'RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS',
+      32_768
+    ),
+    media_recording_channel_capacity: positiveCapacity(
+      env.RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY,
+      'RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY',
+      256,
+      65_536
+    ),
+    media_recording_worker_threads: positiveCapacity(
+      env.RUSTPBX_MEDIA_RECORDING_WORKER_THREADS,
+      'RUSTPBX_MEDIA_RECORDING_WORKER_THREADS',
+      4,
+      64
+    ),
+    media_recording_worker_queue_capacity: positiveCapacity(
+      env.RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY,
+      'RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY',
+      4_096,
+      65_536
+    )
   };
 }
 
@@ -135,6 +195,13 @@ function renderConfig(input: RustPbxRenderInput): string {
     'media_proxy = "auto"',
     'ensure_user = true',
     'acl_rules = ["allow all", "deny all"]',
+    `sip_max_active_transactions = ${input.sip_max_active_transactions}`,
+    `sip_max_finished_transactions = ${input.sip_max_finished_transactions}`,
+    `sip_incoming_transaction_queue_capacity = ${input.sip_incoming_transaction_queue_capacity}`,
+    `sip_max_transport_connections = ${input.sip_max_transport_connections}`,
+    `media_recording_channel_capacity = ${input.media_recording_channel_capacity}`,
+    `media_recording_worker_threads = ${input.media_recording_worker_threads}`,
+    `media_recording_worker_queue_capacity = ${input.media_recording_worker_queue_capacity}`,
     '',
     '[[proxy.user_backends]]',
     'type = "extension"',
@@ -268,6 +335,19 @@ function port(value: string | undefined, field: string, fallback: number): numbe
   const parsed = String(value || '').trim() ? Number(value) : fallback;
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
     throw new Error(`${field} must be an integer between 1 and 65535`);
+  }
+  return parsed;
+}
+
+function positiveCapacity(
+  value: string | undefined,
+  field: string,
+  fallback: number,
+  maximum = MAX_SIP_CAPACITY_VALUE
+): number {
+  const parsed = String(value || '').trim() ? Number(value) : fallback;
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > maximum) {
+    throw new Error(`${field} must be an integer between 1 and ${maximum}`);
   }
   return parsed;
 }

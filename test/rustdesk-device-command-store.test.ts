@@ -38,6 +38,38 @@ class DateReturningPg implements PgQueryable {
   }
 }
 
+class AuditFailingPool implements PgQueryable {
+  readonly transactionQueries: string[] = [];
+
+  constructor(private readonly delegate: PgQueryable) {}
+
+  query<R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params?: unknown[]
+  ): Promise<QueryResult<R>> {
+    return this.delegate.query<R>(text, params);
+  }
+
+  async connect() {
+    return {
+      query: async <R extends QueryResultRow = QueryResultRow>(
+        text: string,
+        params?: unknown[]
+      ): Promise<QueryResult<R>> => {
+        if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') {
+          this.transactionQueries.push(text);
+          return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] };
+        }
+        if (text.includes('INSERT INTO rustdesk_gateway_events')) {
+          throw new Error('forced emergency authorization audit failure');
+        }
+        return this.delegate.query<R>(text, params);
+      },
+      release() {}
+    };
+  }
+}
+
 async function commandFixture(tenantId = 'tenant_rustdesk_commands') {
   const pg = new MemoryPg();
   const devices = new RustDeskDeviceStore(pg);
@@ -105,6 +137,147 @@ test('RustDeskDeviceCommandStore enqueues one tenant-scoped disconnect command',
   assert.equal(duplicate.requested_reason, 'consent_revoked');
   assert.equal(fetched?.id, first.id);
   assert.equal(crossTenant, null);
+});
+
+test('RustDeskDeviceCommandStore requires precise failure evidence before authorizing emergency restart', async () => {
+  const fixture = await commandFixture('tenant_rustdesk_command_emergency');
+  const command = await fixture.commands.enqueueDisconnect({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    external_id: fixture.session.external_id,
+    requested_by: 'customer-command-emergency',
+    requested_reason: 'consent_revoked'
+  });
+
+  await assert.rejects(
+    () => fixture.commands.authorizeEmergencyFallback({
+      tenant_id: fixture.tenantId,
+      external_id: fixture.session.external_id,
+      authorized_by: 'owner-command-emergency',
+      reason: 'precise disconnect is unavailable on this endpoint',
+      collateral_sessions_may_disconnect: true,
+      now: '2026-07-10T11:59:59.000Z'
+    }),
+    /requires a failed precise disconnect attempt/
+  );
+
+  const claim = (await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-emergency',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:00:00.000Z'
+  }))!;
+  const failed = await fixture.commands.complete({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    command_id: command.id,
+    claim_token: claim.claim_token,
+    status: 'failed',
+    execution_method: 'session_adapter',
+    exit_code: 20,
+    duration_ms: 10,
+    metadata: {
+      fallback_reason: 'targeted_disconnect_unavailable',
+      precise_disconnect_unavailable: true,
+      emergency_fallback_authorized: false,
+      edge_instance_id: 'edge-command-emergency',
+      os: 'windows'
+    },
+    now: '2026-07-10T12:00:00.100Z'
+  });
+  assert.equal(failed.status, 'pending');
+
+  await assert.rejects(
+    () => fixture.commands.authorizeEmergencyFallback({
+      tenant_id: fixture.tenantId,
+      external_id: fixture.session.external_id,
+      authorized_by: 'owner-command-emergency',
+      reason: 'precise disconnect is unavailable on this endpoint',
+      collateral_sessions_may_disconnect: false,
+      now: '2026-07-10T12:00:00.200Z'
+    }),
+    /collateral_sessions_may_disconnect must be acknowledged/
+  );
+
+  const authorized = await fixture.commands.authorizeEmergencyFallback({
+    tenant_id: fixture.tenantId,
+    external_id: fixture.session.external_id,
+    authorized_by: 'owner-command-emergency',
+    reason: 'precise disconnect is unavailable on this endpoint',
+    collateral_sessions_may_disconnect: true,
+    now: '2026-07-10T12:00:00.200Z'
+  });
+  assert.equal(authorized.status, 'pending');
+  assert.equal(authorized.attempt_count, 0);
+  assert.equal(authorized.next_attempt_at, '2026-07-10T12:00:00.200Z');
+  assert.equal(authorized.emergency_fallback_authorized, true);
+  assert.equal(authorized.emergency_fallback_reason, 'precise disconnect is unavailable on this endpoint');
+  assert.equal(authorized.emergency_fallback_authorized_by, 'owner-command-emergency');
+  assert.equal(authorized.emergency_fallback_authorized_at, '2026-07-10T12:00:00.200Z');
+
+  const emergencyClaim = await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-emergency',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:00:00.200Z'
+  });
+  assert.equal(emergencyClaim?.command.emergency_fallback_authorized, true);
+  const events = await fixture.sessions.listAuditEvents({ external_id: fixture.session.external_id });
+  assert.equal(
+    events?.filter((event) => event.event_type === 'remote.rustdesk.disconnect.emergency_fallback_authorized').length,
+    1
+  );
+});
+
+test('RustDeskDeviceCommandStore rolls back emergency authorization when audit persistence fails', async () => {
+  const fixture = await commandFixture('tenant_rustdesk_command_emergency_atomic');
+  const command = await fixture.commands.enqueueDisconnect({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    external_id: fixture.session.external_id,
+    requested_by: 'customer-command-emergency-atomic',
+    requested_reason: 'consent_revoked'
+  });
+  const claim = (await fixture.commands.claimNext({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    edge_instance_id: 'edge-command-emergency-atomic',
+    lease_ms: 30_000,
+    now: '2026-07-10T12:30:00.000Z'
+  }))!;
+  await fixture.commands.complete({
+    tenant_id: fixture.tenantId,
+    device_id: fixture.device.id,
+    command_id: command.id,
+    claim_token: claim.claim_token,
+    status: 'failed',
+    execution_method: 'session_adapter',
+    metadata: {
+      fallback_reason: 'targeted_disconnect_unavailable',
+      precise_disconnect_unavailable: true,
+      emergency_fallback_authorized: false,
+      edge_instance_id: 'edge-command-emergency-atomic',
+      os: 'windows'
+    },
+    now: '2026-07-10T12:30:00.100Z'
+  });
+
+  const pool = new AuditFailingPool(fixture.pg);
+  const commands = new RustDeskDeviceCommandStore(pool);
+  await assert.rejects(
+    () => commands.authorizeEmergencyFallback({
+      tenant_id: fixture.tenantId,
+      external_id: fixture.session.external_id,
+      authorized_by: 'owner-command-emergency-atomic',
+      reason: 'precise disconnect is unavailable on this endpoint',
+      collateral_sessions_may_disconnect: true,
+      now: '2026-07-10T12:30:00.200Z'
+    }),
+    /forced emergency authorization audit failure/
+  );
+  assert.deepEqual(pool.transactionQueries, ['BEGIN', 'ROLLBACK']);
 });
 
 test('RustDeskDeviceCommandStore leases one command and reclaims it after expiry', async () => {
@@ -462,22 +635,13 @@ test('RustDeskDeviceCommandStore retries failed attempts and makes the third fai
     metadata: { fallback_reason: 'adapter_exit_nonzero' },
     now: '2026-07-10T12:00:00.100Z'
   });
-  await fixture.commands.recordProgress({
-    tenant_id: fixture.tenantId,
-    device_id: fixture.device.id,
-    command_id: command.id,
-    claim_token: firstClaim.claim_token,
-    progress: 'fallback_started',
-    metadata: { collateral_sessions_may_disconnect: true },
-    now: '2026-07-10T12:00:00.200Z'
-  });
   const firstFailure = await fixture.commands.complete({
     tenant_id: fixture.tenantId,
     device_id: fixture.device.id,
     command_id: command.id,
     claim_token: firstClaim.claim_token,
     status: 'failed',
-    execution_method: 'service_restart',
+    execution_method: 'session_adapter',
     exit_code: 1,
     duration_ms: 80,
     stdout_bytes: 0,
@@ -509,7 +673,7 @@ test('RustDeskDeviceCommandStore retries failed attempts and makes the third fai
     command_id: command.id,
     claim_token: secondClaim.claim_token,
     status: 'failed',
-    execution_method: 'service_restart',
+    execution_method: 'session_adapter',
     exit_code: 1,
     duration_ms: 90,
     now: '2026-07-10T12:00:02.400Z'
@@ -530,10 +694,10 @@ test('RustDeskDeviceCommandStore retries failed attempts and makes the third fai
     command_id: command.id,
     claim_token: thirdClaim.claim_token,
     status: 'failed' as const,
-    execution_method: 'service_restart' as const,
+    execution_method: 'session_adapter' as const,
     exit_code: 1,
     duration_ms: 100,
-    metadata: { collateral_sessions_may_disconnect: true },
+    metadata: {},
     now: '2026-07-10T12:00:12.500Z'
   };
   const finalFailure = await fixture.commands.complete(finalFailureInput);
@@ -563,7 +727,6 @@ test('RustDeskDeviceCommandStore retries failed attempts and makes the third fai
     'remote.rustdesk.disconnect.requested',
     'remote.rustdesk.disconnect.claimed',
     'remote.rustdesk.disconnect.session_adapter_failed',
-    'remote.rustdesk.disconnect.fallback_started',
     'remote.rustdesk.disconnect.claimed',
     'remote.rustdesk.disconnect.claimed',
     'remote.rustdesk.disconnect.failed'

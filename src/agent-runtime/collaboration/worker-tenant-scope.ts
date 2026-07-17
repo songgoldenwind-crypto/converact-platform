@@ -8,6 +8,13 @@ export async function listCollaborationWorkerTenants(
   now: Date,
   limit: number
 ): Promise<string[]> {
+  if (queue === 'tinode') {
+    const result = await pg.query<{ tenant_id: string }>(
+      'SELECT tenant_id FROM opc_tinode_delivery_worker_tenant_ids($1, $2)',
+      [now.toISOString(), limit]
+    );
+    return result.rows.map((row) => String(row.tenant_id)).filter(Boolean);
+  }
   const result = await pg.query<{ tenant_id: string }>(
     'SELECT tenant_id FROM opc_worker_tenant_ids($1, $2, $3)',
     [queue, now.toISOString(), limit]

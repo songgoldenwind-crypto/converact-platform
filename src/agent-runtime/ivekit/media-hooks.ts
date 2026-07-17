@@ -12,6 +12,7 @@ import {
 } from '../media-recording-object.js';
 import type { RecordingAuditEvent } from '../livekit/media-http.js';
 import type { RouteIveKitMediaApiOptions } from './media-http.js';
+import { IveKitTenantEventJournal } from './tenant-event-store.js';
 
 export interface IveKitMediaHooksInput {
   db: unknown;
@@ -22,6 +23,7 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
   const retentionDays = configuredRetentionDays();
   return {
     pg: input.pg,
+    eventStore: new IveKitTenantEventJournal(input.pg),
     onRecordingStarted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
       recordMediaRecordingEvidence(pg, recording, {
         roomName: context.roomName,

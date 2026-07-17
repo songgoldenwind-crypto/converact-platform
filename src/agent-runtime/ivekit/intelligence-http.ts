@@ -15,6 +15,10 @@ import {
   type IntelligenceProviderHealthResult
 } from '../collaboration/intelligence-provider-health.js';
 import {
+  IntelligenceProviderGovernanceStore,
+  type IntelligenceProviderRuntimeSnapshot
+} from '../collaboration/intelligence-provider-governance-store.js';
+import {
   IntelligenceSourceService,
   type IntelligenceSourceSnapshot
 } from '../collaboration/intelligence-source-service.js';
@@ -26,6 +30,7 @@ import type { CollaborationPolicyFinding, PolicyEvidenceRef } from '../collabora
 export interface RouteIveKitIntelligenceApiOptions {
   registry?: IntelligenceProviderRegistry;
   health?: { probe(input: { profile_ids?: string[] }): Promise<IntelligenceProviderHealthResult[]> };
+  governance?: { listRuntime(tenantId: string): Promise<IntelligenceProviderRuntimeSnapshot[]> };
   db?: unknown;
   source?: Pick<IntelligenceSourceService, 'importSource' | 'getSource' | 'retrySource'>;
   publish?: (tenantId: string, type: string, data: unknown) => void | Promise<void>;
@@ -40,6 +45,10 @@ const POLICY_FIELDS = new Set([
   'asr_profile_id',
   'quality_profile_id',
   'translation_profile_id',
+  'ocr_profile_ids',
+  'asr_profile_ids',
+  'quality_profile_ids',
+  'translation_profile_ids',
   'allow_third_party',
   'auto_ocr',
   'auto_asr',
@@ -77,7 +86,7 @@ export async function routeIveKitIntelligenceApi(
       tenant_id: ctx.tenantId,
       session_id: url.searchParams.get('session_id') || undefined,
       source: (url.searchParams.get('source') || undefined) as
-        | 'text' | 'ocr' | 'asr' | 'ai' | undefined,
+        | 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate' | undefined,
       severity: (url.searchParams.get('severity') || undefined) as
         | 'low' | 'medium' | 'high' | undefined,
       review_status: (url.searchParams.get('review_status') || undefined) as
@@ -185,6 +194,12 @@ export async function routeIveKitIntelligenceApi(
     return { data: { items: registry.listSafe() } };
   }
 
+  if (routePath === '/api/ivekit/intelligence/providers/runtime' && method === 'GET') {
+    requireAdministrator(ctx.role);
+    const governance = options.governance || new IntelligenceProviderGovernanceStore(pg);
+    return { data: { items: await governance.listRuntime(ctx.tenantId) } };
+  }
+
   if (routePath === '/api/ivekit/intelligence/providers/health' && method === 'POST') {
     requireAdministrator(ctx.role);
     const input = bodyRecord(body);
@@ -262,19 +277,36 @@ function publicCapabilities(
   const capability = (
     enabled: boolean,
     automatic: boolean,
-    profileId: string
+    profileIds: string[]
   ) => {
-    const profile = profileId ? safeProfiles.get(profileId) : undefined;
+    const providers = profileIds.map((profileId) => {
+      const profile = safeProfiles.get(profileId);
+      const available = Boolean(profile?.configured && profile.token_configured);
+      return {
+        profile_id: profileId,
+        mode: profile?.mode || 'unconfigured',
+        available,
+        reason: !profile
+          ? 'profile_unavailable'
+          : !profile.token_configured
+            ? 'credential_unavailable'
+            : ''
+      };
+    });
+    const primary = providers[0];
+    const available = Boolean(enabled && providers.some((provider) => provider.available));
     return {
       enabled,
       automatic,
-      available: Boolean(enabled && profile?.configured && profile.token_configured),
-      provider_mode: profile?.mode || 'unconfigured',
+      available,
+      provider_mode: primary?.mode || 'unconfigured',
+      provider_profile_ids: [...profileIds],
+      providers,
       reason: !enabled
         ? 'policy_disabled'
-        : !profile
+        : !providers.length || providers.every((provider) => provider.reason === 'profile_unavailable')
           ? 'profile_unavailable'
-          : !profile.token_configured
+          : !available
             ? 'credential_unavailable'
             : ''
     };
@@ -284,17 +316,17 @@ function publicCapabilities(
     policy_configured: policy.configured,
     policy_version: policy.version,
     capabilities: {
-      ocr: capability(policy.ocr_enabled, policy.auto_ocr, policy.ocr_profile_id),
-      asr: capability(policy.asr_enabled, policy.auto_asr, policy.asr_profile_id),
+      ocr: capability(policy.ocr_enabled, policy.auto_ocr, policy.ocr_profile_ids),
+      asr: capability(policy.asr_enabled, policy.auto_asr, policy.asr_profile_ids),
       quality_review: capability(
         policy.quality_review_enabled,
         policy.auto_quality_review,
-        policy.quality_profile_id
+        policy.quality_profile_ids
       ),
       translation: capability(
         policy.translation_enabled,
         policy.auto_translation,
-        policy.translation_profile_id
+        policy.translation_profile_ids
       )
     },
     translation_target_languages: policy.translation_target_languages,

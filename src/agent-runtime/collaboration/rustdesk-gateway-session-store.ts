@@ -110,6 +110,46 @@ export class RustDeskGatewaySessionStore {
     return result.rows[0] ? decodeSession(result.rows[0]) : null;
   }
 
+  async updatePlacementOwner(input: {
+    tenant_id: string;
+    external_id: string;
+    interaction_id: string;
+    reservation_id: string;
+    owner_epoch: string;
+  }): Promise<RustDeskGatewaySession | null> {
+    const tenantId = rustDeskGatewayRequiredString(input.tenant_id, 'tenant_id is required');
+    const externalId = rustDeskGatewayRequiredString(input.external_id, 'external_id is required');
+    const interactionId = rustDeskGatewayRequiredString(
+      input.interaction_id,
+      'interaction_id is required'
+    );
+    const reservationId = rustDeskGatewayRequiredString(
+      input.reservation_id,
+      'reservation_id is required'
+    );
+    const ownerEpoch = String(input.owner_epoch || '').trim();
+    if (!/^[1-9][0-9]{0,19}$/.test(ownerEpoch)) {
+      throw Object.assign(new Error('owner_epoch must be a positive decimal integer'), {
+        status: 400
+      });
+    }
+    const session = await this.getSession(externalId);
+    if (!session || session.tenant_id !== tenantId) return null;
+    const metadata = {
+      ...session.metadata,
+      remote_session_id: interactionId,
+      ivekit_reservation_id: reservationId,
+      ivekit_owner_epoch: BigInt(ownerEpoch).toString()
+    };
+    await this.pg.query(
+      `UPDATE rustdesk_gateway_sessions
+       SET metadata = $3
+       WHERE external_id = $1 AND tenant_id = $2`,
+      [externalId, tenantId, toJson(metadata)]
+    );
+    return this.getSession(externalId);
+  }
+
   async listSessions(input: ListRustDeskGatewaySessionsInput): Promise<RustDeskGatewaySession[]> {
     const tenantId = rustDeskGatewayRequiredString(input.tenant_id, 'tenant_id is required');
     const limit = rustDeskGatewaySessionLimit(input.limit);

@@ -33,6 +33,16 @@ export type MediaAdapterEvent =
       state: MediaAdapterConnectionState;
     }>
   | Readonly<{
+      type: 'native_reconnect';
+      generation: number;
+      phase: 'started' | 'succeeded';
+    }>
+  | Readonly<{
+      type: 'terminal_disconnect';
+      generation: number;
+      reason_code: string;
+    }>
+  | Readonly<{
       type: 'participant_joined';
       generation: number;
       identity: string;

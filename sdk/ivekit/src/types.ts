@@ -147,12 +147,18 @@ export type RustDeskOperationDirection =
   | 'agent_to_device'
   | 'device_to_agent';
 
+export type RustDeskEvidenceSecurity =
+  | 'ivekit_secure_file'
+  | 'native_unscanned'
+  | 'local_only';
+
 export interface RustDeskOperationEvidenceMetadata {
   external_id?: string;
   provider_operation_id?: string;
   provider_session_id?: string;
   target_id?: string;
   direction?: RustDeskOperationDirection;
+  evidence_security?: RustDeskEvidenceSecurity;
   display_id?: string;
   byte_count?: number;
   checksum_sha256?: string;
@@ -213,6 +219,38 @@ export interface RemoteGatewayAuditEvent {
   occurred_at: string;
 }
 
+export type RustDeskAuthorizationCodeStatus =
+  | 'pending'
+  | 'verified'
+  | 'consumed'
+  | 'expired'
+  | 'locked';
+
+export interface RustDeskAuthorizationCode {
+  id: string;
+  tenant_id: string;
+  remote_session_id: string;
+  device_id: string;
+  scopes: RemoteConsentScope[];
+  requested_by: string;
+  requested_at: string;
+  expires_at: string;
+  max_attempts: number;
+  attempt_count: number;
+  status: RustDeskAuthorizationCodeStatus;
+  verified_by: string | null;
+  verified_at: string | null;
+  consumed_external_id: string | null;
+  consumed_at: string | null;
+  updated_at: string;
+}
+
+export interface RustDeskAuthorizationCodeCreateResult {
+  authorization: RustDeskAuthorizationCode;
+  code: string | null;
+  replayed: boolean;
+}
+
 export type RustDeskPublicKeySource = 'env' | 'file' | 'none';
 
 export interface RustDeskClientConfig {
@@ -238,6 +276,9 @@ export interface RustDeskClientConfig {
 
 export type RustDeskClientDistributionPlatform = 'windows' | 'macos' | 'linux';
 export type RustDeskClientDistributionArchitecture = 'x86_64' | 'aarch64';
+export type RustDeskNativeControlProtocol =
+  | 'ivekit-rustdesk-native-control-v1'
+  | 'ivekit-rustdesk-native-control-v2';
 
 export type RustDeskClientInstallSource =
   | { state: 'not_configured' }
@@ -246,6 +287,7 @@ export type RustDeskClientInstallSource =
       url: string;
       filename: string;
       sha256: string;
+      native_control_protocol?: RustDeskNativeControlProtocol;
     };
 
 export interface RustDeskClientDistributionProfile {
@@ -310,6 +352,10 @@ export interface RustDeskDeviceCommand {
   status: RustDeskDeviceCommandStatus;
   requested_by: string;
   requested_reason: RustDeskDisconnectReason;
+  emergency_fallback_authorized: boolean;
+  emergency_fallback_reason: string;
+  emergency_fallback_authorized_by: string;
+  emergency_fallback_authorized_at: string | null;
   attempt_count: number;
   max_attempts: number;
   claimed_by: string;

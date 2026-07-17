@@ -3,15 +3,11 @@ import type { IveKitPolicyFindingReview, IveKitPolicyFindingReviewInput } from '
 export type IveKitProviderCapability = 'ocr' | 'asr' | 'quality_review' | 'translation';
 export type IveKitProviderMode = 'self_hosted' | 'third_party';
 
-export interface IveKitIntelligencePolicyUpdate {
+interface IveKitIntelligencePolicySettings {
   ocr_enabled: boolean;
   asr_enabled: boolean;
   quality_review_enabled: boolean;
   translation_enabled: boolean;
-  ocr_profile_id: string;
-  asr_profile_id: string;
-  quality_profile_id: string;
-  translation_profile_id: string;
   allow_third_party: boolean;
   auto_ocr: boolean;
   auto_asr: boolean;
@@ -22,14 +18,49 @@ export interface IveKitIntelligencePolicyUpdate {
   min_asr_confidence: number;
 }
 
-export interface IveKitIntelligencePolicy extends IveKitIntelligencePolicyUpdate {
+type IveKitRouteNativePolicyProfiles = {
+  ocr_profile_id?: string;
+  asr_profile_id?: string;
+  quality_profile_id?: string;
+  translation_profile_id?: string;
+  ocr_profile_ids: string[];
+  asr_profile_ids: string[];
+  quality_profile_ids: string[];
+  translation_profile_ids: string[];
+};
+
+type IveKitLegacyPolicyProfiles = {
+  ocr_profile_id: string;
+  asr_profile_id: string;
+  quality_profile_id: string;
+  translation_profile_id: string;
+  ocr_profile_ids?: string[];
+  asr_profile_ids?: string[];
+  quality_profile_ids?: string[];
+  translation_profile_ids?: string[];
+};
+
+export type IveKitIntelligencePolicyUpdate = IveKitIntelligencePolicySettings & (
+  | IveKitRouteNativePolicyProfiles
+  | IveKitLegacyPolicyProfiles
+);
+
+export type IveKitIntelligencePolicy = IveKitIntelligencePolicySettings & {
+  ocr_profile_id: string;
+  asr_profile_id: string;
+  quality_profile_id: string;
+  translation_profile_id: string;
+  ocr_profile_ids: string[];
+  asr_profile_ids: string[];
+  quality_profile_ids: string[];
+  translation_profile_ids: string[];
   tenant_id: string;
   configured: boolean;
   version: number;
   updated_by: string;
   created_at: string | null;
   updated_at: string | null;
-}
+};
 
 export type IveKitIntelligencePolicyWrite = IveKitIntelligencePolicyUpdate & { version: number };
 
@@ -42,6 +73,13 @@ export interface IveKitIntelligenceCapabilities {
     automatic: boolean;
     available: boolean;
     provider_mode: IveKitProviderMode | 'unconfigured';
+    provider_profile_ids: string[];
+    providers: Array<{
+      profile_id: string;
+      mode: IveKitProviderMode | 'unconfigured';
+      available: boolean;
+      reason: string;
+    }>;
     reason: string;
   }>;
   translation_target_languages: string[];
@@ -55,6 +93,27 @@ export interface IveKitProviderProfileSummary {
   name: string;
   configured: boolean;
   token_configured: boolean;
+  requests_per_minute: number;
+  requests_per_day: number;
+  max_concurrency: number;
+  failure_threshold: number;
+  open_cooldown_ms: number;
+  reservation_ttl_ms: number;
+}
+
+export interface IveKitProviderRuntimeSnapshot {
+  tenant_id: string;
+  capability: IveKitProviderCapability;
+  profile_id: string;
+  minute_request_count: number;
+  day_request_count: number;
+  circuit_state: 'closed' | 'open' | 'half_open';
+  consecutive_retryable_failures: number;
+  opened_until: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  last_error_code: string;
+  updated_at: string;
 }
 
 export interface IveKitProviderHealthResult {
@@ -78,7 +137,7 @@ export interface IveKitIntelligenceSourceSnapshot {
 
 export interface IveKitFindingQueueInput {
   session_id?: string;
-  source?: 'text' | 'ocr' | 'asr' | 'ai';
+  source?: 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate';
   severity?: 'low' | 'medium' | 'high';
   review_status?: 'pending' | 'confirmed' | 'false_positive' | 'resolved' | 'escalated';
   created_from?: string;
@@ -97,18 +156,25 @@ export interface IveKitFindingQueueItem {
   tenant_id: string;
   session_id: string;
   message_id: string;
-  source: 'text' | 'ocr' | 'asr' | 'ai';
+  source: 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate';
   source_ref_id: string;
   policy_type: string;
   severity: 'low' | 'medium' | 'high';
+  matched_text_hash: string;
+  fingerprint: string;
   action: string;
   confidence: number | null;
   rationale: string;
   evidence_refs: Array<Record<string, unknown>>;
+  detector_version: string;
+  policy_version: string;
+  evidence_snapshot_hash: string;
+  content_version: number;
   review_status: 'pending' | 'confirmed' | 'false_positive' | 'resolved' | 'escalated';
   reviewed_by: string;
   reviewed_at: string | null;
   review_note: string;
+  metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;

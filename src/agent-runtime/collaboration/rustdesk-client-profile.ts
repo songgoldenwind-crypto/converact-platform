@@ -22,6 +22,10 @@ export interface RustDeskClientArtifactSource {
   url: string;
   filename: string;
   sha256: string;
+  native_control_protocol?:
+    | 'ivekit-rustdesk-native-control-v1'
+    | 'ivekit-rustdesk-native-control-v2';
+  native_evidence_protocol?: 'rustdesk-native-evidence-v1';
 }
 
 export interface RustDeskClientDistributionProfile {
@@ -150,7 +154,18 @@ export function createRustDeskClientDistributionProfile(
     server_key_fingerprint: config.server_key_fingerprint,
     protocol_handler: { supported: true, user_initiated_only: true },
     install_source: artifact
-      ? { state: 'configured', url: artifact.url, filename: artifact.filename, sha256: artifact.sha256 }
+      ? {
+        state: 'configured',
+        url: artifact.url,
+        filename: artifact.filename,
+        sha256: artifact.sha256,
+        ...(artifact.native_control_protocol
+          ? { native_control_protocol: artifact.native_control_protocol }
+          : {}),
+        ...(artifact.native_evidence_protocol
+          ? { native_evidence_protocol: artifact.native_evidence_protocol }
+          : {})
+      }
       : { state: 'not_configured' },
     unattended_policy: { mode: 'attended_only', state: 'not_configured' }
   };
@@ -200,7 +215,45 @@ function parseArtifactManifest(raw: string | undefined): ArtifactManifest | null
     if (!/^[a-f0-9]{64}$/.test(sha256)) {
       throw profileError('RustDesk client artifact sha256 must be 64 hexadecimal characters', 500);
     }
-    return { platform, architecture, state: 'configured' as const, url: url.toString(), filename, sha256 };
+    const nativeControlProtocol = artifact.native_control_protocol === undefined
+      ? undefined
+      : String(artifact.native_control_protocol || '').trim();
+    if (
+      nativeControlProtocol !== undefined &&
+      (platform !== 'windows' || architecture !== 'x86_64' ||
+       nativeControlProtocol !== 'ivekit-rustdesk-native-control-v1' &&
+       nativeControlProtocol !== 'ivekit-rustdesk-native-control-v2')
+    ) {
+      throw profileError('RustDesk client artifact native_control_protocol is invalid', 500);
+    }
+    const nativeEvidenceProtocol = artifact.native_evidence_protocol === undefined
+      ? undefined
+      : String(artifact.native_evidence_protocol || '').trim();
+    if (
+      nativeEvidenceProtocol !== undefined &&
+      (platform !== 'windows' || architecture !== 'x86_64' ||
+       nativeEvidenceProtocol !== 'rustdesk-native-evidence-v1')
+    ) {
+      throw profileError('RustDesk client artifact native_evidence_protocol is invalid', 500);
+    }
+    return {
+      platform,
+      architecture,
+      state: 'configured' as const,
+      url: url.toString(),
+      filename,
+      sha256,
+      ...(nativeControlProtocol
+        ? {
+            native_control_protocol: nativeControlProtocol as
+              | 'ivekit-rustdesk-native-control-v1'
+              | 'ivekit-rustdesk-native-control-v2'
+          }
+        : {}),
+      ...(nativeEvidenceProtocol
+        ? { native_evidence_protocol: nativeEvidenceProtocol as 'rustdesk-native-evidence-v1' }
+        : {})
+    };
   });
   return { client_version: RUSTDESK_CLIENT_VERSION, server_version: RUSTDESK_SERVER_VERSION, artifacts };
 }
@@ -343,8 +396,10 @@ function assertArtifactIdentity(
     throw profileError(`RustDesk client artifact filename extension is invalid for ${platform}`, 500);
   }
   const expectedFilename = `rustdesk-${RUSTDESK_CLIENT_VERSION}-${architecture}${extension}`;
-  if (filename !== expectedFilename) {
-    throw profileError(`RustDesk client artifact filename must equal ${expectedFilename}`, 500);
+  const customWindowsFilename = platform === 'windows' && architecture === 'x86_64' &&
+    /^rustdesk-1\.4\.7-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
+  if (filename !== expectedFilename && !customWindowsFilename) {
+    throw profileError(`RustDesk client artifact filename must equal ${expectedFilename} or a pinned iveKit Windows variant`, 500);
   }
 }
 

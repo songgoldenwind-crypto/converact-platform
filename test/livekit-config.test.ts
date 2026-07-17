@@ -115,6 +115,59 @@ test('participant and supervisor tokens return the public URL while configured',
   }
 });
 
+test('LiveKit tokens bind the selected Cell and owner epoch instead of the global URL', async () => {
+  const config = readLiveKitConfig({
+    NODE_ENV: 'production',
+    LIVEKIT_URL: 'ws://livekit-control:7880',
+    LIVEKIT_PUBLIC_URL: 'wss://global-livekit.example.com',
+    LIVEKIT_API_KEY: 'key',
+    LIVEKIT_API_SECRET: 'secret'
+  });
+  const placement = {
+    interaction_id: 'mcall-cell-a',
+    reservation_id: 'reservation-cell-a',
+    region_id: 'region-a',
+    zone_id: 'zone-a',
+    cell_id: 'cell-a',
+    owner_node_id: 'livekit-a',
+    owner_epoch: '12884901889',
+    profile_id: 'cell-10k-v1',
+    snapshot_version: 42,
+    livekit_url: 'wss://livekit-cell-a.example.com'
+  };
+
+  const participant = await issueLiveKitToken({
+    room_name: 'room-cell-a',
+    identity: 'customer-cell-a',
+    role: 'customer',
+    tenant_id: 'tenant-cell-a',
+    placement
+  }, config);
+  const supervisor = await issueSupervisorToken({
+    room_name: 'room-cell-a',
+    identity: 'supervisor-cell-a',
+    mode: 'listen',
+    tenant_id: 'tenant-cell-a',
+    placement
+  }, config);
+
+  assert.equal(participant.livekit_url, placement.livekit_url);
+  assert.deepEqual(participant.placement, placement);
+  assert.equal(supervisor.livekit_url, placement.livekit_url);
+  assert.deepEqual(supervisor.placement, placement);
+  assert.deepEqual(tokenMetadata(participant.token).placement, {
+    interaction_id: placement.interaction_id,
+    reservation_id: placement.reservation_id,
+    region_id: placement.region_id,
+    zone_id: placement.zone_id,
+    cell_id: placement.cell_id,
+    owner_node_id: placement.owner_node_id,
+    owner_epoch: placement.owner_epoch,
+    profile_id: placement.profile_id,
+    snapshot_version: placement.snapshot_version
+  });
+});
+
 test('configured production token issuance fails closed without a public URL', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
@@ -164,3 +217,8 @@ test('production token issuance fails closed when LiveKit server configuration i
     /LiveKit server configuration is required in production/
   );
 });
+
+function tokenMetadata(token: string): Record<string, any> {
+  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
+  return JSON.parse(String(payload.metadata || '{}'));
+}

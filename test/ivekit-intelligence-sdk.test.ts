@@ -2,6 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createIveKitClient } from '../sdk/ivekit/src/index.js';
+import type { IveKitIntelligencePolicyWrite } from '../sdk/ivekit/src/intelligence-types.js';
+
+test('SDK policy write supports route-native requests without legacy primary fields', () => {
+  const routeNative: IveKitIntelligencePolicyWrite = {
+    version: 0,
+    ocr_enabled: true,
+    asr_enabled: true,
+    quality_review_enabled: true,
+    translation_enabled: true,
+    ocr_profile_ids: ['ocr-a'],
+    asr_profile_ids: ['asr-a'],
+    quality_profile_ids: ['quality-a'],
+    translation_profile_ids: ['translation-a'],
+    allow_third_party: false,
+    auto_ocr: true,
+    auto_asr: true,
+    auto_quality_review: true,
+    auto_translation: true,
+    translation_target_languages: ['en-US'],
+    min_ocr_confidence: 0,
+    min_asr_confidence: 0
+  };
+  assert.deepEqual(routeNative.ocr_profile_ids, ['ocr-a']);
+});
 
 test('iveKit SDK maps intelligence, review queue, source, and translation workflows', async () => {
   const calls: Array<{ method: string; url: URL; headers: Headers; body: unknown }> = [];
@@ -27,6 +51,7 @@ test('iveKit SDK maps intelligence, review queue, source, and translation workfl
   await client.intelligence.getPolicy();
   await client.intelligence.updatePolicy({ version: 2, translation_enabled: true } as never);
   await client.intelligence.listProviders();
+  await client.intelligence.listProviderRuntime();
   await client.intelligence.probeProviderHealth({ profile_ids: ['translate-self'] });
   await client.intelligence.importSource('session/1', {
     source_type: 'media_recording', source_ref_id: 'recording/1'
@@ -56,6 +81,7 @@ test('iveKit SDK maps intelligence, review queue, source, and translation workfl
     'GET /api/ivekit/intelligence/policy',
     'PUT /api/ivekit/intelligence/policy',
     'GET /api/ivekit/intelligence/providers',
+    'GET /api/ivekit/intelligence/providers/runtime',
     'POST /api/ivekit/intelligence/providers/health',
     'POST /api/ivekit/intelligence/sessions/session%2F1/sources',
     'GET /api/ivekit/intelligence/sessions/session%2F1/sources/source%2F1',
@@ -70,9 +96,9 @@ test('iveKit SDK maps intelligence, review queue, source, and translation workfl
     'POST /api/ivekit/chat/sessions/session%2F1/translations/job%2F1/retry',
     'POST /api/ivekit/chat/translation/run'
   ]);
-  assert.equal(calls[5]?.headers.get('idempotency-key'), 'source-import-1');
-  assert.equal(calls[11]?.headers.get('idempotency-key'), 'translate-message-1');
-  assert.equal(calls[13]?.headers.get('idempotency-key'), 'translate-attachment-1');
-  assert.equal(calls[8]?.url.searchParams.get('severity'), 'high');
-  assert.equal(calls[14]?.url.searchParams.get('history'), '1');
+  assert.equal(calls[6]?.headers.get('idempotency-key'), 'source-import-1');
+  assert.equal(calls[12]?.headers.get('idempotency-key'), 'translate-message-1');
+  assert.equal(calls[14]?.headers.get('idempotency-key'), 'translate-attachment-1');
+  assert.equal(calls[9]?.url.searchParams.get('severity'), 'high');
+  assert.equal(calls[15]?.url.searchParams.get('history'), '1');
 });

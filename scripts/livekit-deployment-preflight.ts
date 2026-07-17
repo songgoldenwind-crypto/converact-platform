@@ -16,7 +16,7 @@ export interface LiveKitDeploymentPreflightCheck {
 }
 
 export interface LiveKitDeploymentPreflightReport {
-  schema_version: 1;
+  schema_version: 2;
   ok: boolean;
   checked_at: string;
   acceptance?: LiveKitAcceptanceMetadata;
@@ -31,6 +31,10 @@ export interface LiveKitDeploymentPreflightReport {
     inviteSecretConfigured: boolean;
     tenantConfigured: boolean;
     egressConfigured: boolean;
+    redisConfigured: boolean;
+    turnConfigured: boolean;
+    webhookConfigured: boolean;
+    timeSynchronized: boolean;
     targets: string[];
   };
   checks: LiveKitDeploymentPreflightCheck[];
@@ -106,6 +110,20 @@ export function createLiveKitDeploymentPreflightReport(
   const mediaTenant = String(env.OPC_MEDIA_SMOKE_TENANT_ID || env.OPC_TENANT_ID || '').trim();
   const minioAccessKey = String(env.MINIO_ACCESS_KEY || '').trim();
   const minioSecretKey = String(env.MINIO_SECRET_KEY || '').trim();
+  const redisAddress = String(env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || '').trim();
+  const minioEndpoint = String(env.MINIO_ENDPOINT || '').trim();
+  const minioBucket = String(env.MINIO_BUCKET || '').trim();
+  const webhookUrl = String(env.OPC_MEDIA_CONFIG_WEBHOOK_URL || '').trim();
+  const production = env.NODE_ENV === 'production';
+  const turnTlsPort = parseInteger(env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT);
+  const turnUdpPort = parseInteger(env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT);
+  const rtcPortStart = parseInteger(env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START);
+  const rtcPortEnd = parseInteger(env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END);
+  const maxClockSkewMs = parseInteger(env.OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS);
+  const clockOffsetMs = Number(String(env.OPC_LIVEKIT_TIME_SYNC_OFFSET_MS || '').trim());
+  const timeSynchronized = String(env.OPC_LIVEKIT_TIME_SYNC_STATUS || '').trim().toLowerCase() === 'synchronized' &&
+    Number.isFinite(clockOffsetMs) && Number.isInteger(maxClockSkewMs) && maxClockSkewMs > 0 &&
+    Math.abs(clockOffsetMs) <= maxClockSkewMs;
 
   addCheck(
     checks,
@@ -163,6 +181,80 @@ export function createLiveKitDeploymentPreflightReport(
   addRequiredValue(checks, 'media_smoke_tenant', mediaTenant, 'OPC_MEDIA_SMOKE_TENANT_ID or OPC_TENANT_ID is required');
   addRequiredSecret(checks, 'minio_access_key', minioAccessKey, 'MINIO_ACCESS_KEY is required for LiveKit Egress config');
   addRequiredSecret(checks, 'minio_secret_key', minioSecretKey, 'MINIO_SECRET_KEY is required for LiveKit Egress config');
+  if (production) {
+    addCheck(
+      checks,
+      'livekit_redis_address',
+      isRedisAddress(redisAddress) ? 'pass' : 'fail',
+      isRedisAddress(redisAddress)
+        ? 'LiveKit Redis address is configured'
+        : 'OPC_MEDIA_CONFIG_REDIS_ADDRESS must be a Redis URL or host:port'
+    );
+    addIntegerRangeCheck(checks, 'livekit_turn_tls_port', env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT || '', 1, 65_535);
+    addIntegerRangeCheck(checks, 'livekit_turn_udp_port', env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT || '', 1, 65_535);
+    addIntegerRangeCheck(checks, 'livekit_rtc_udp_port_start', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START || '', 1, 65_535);
+    addIntegerRangeCheck(checks, 'livekit_rtc_udp_port_end', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END || '', 1, 65_535);
+    const validRtcRange = validPort(rtcPortStart) && validPort(rtcPortEnd) && rtcPortStart <= rtcPortEnd;
+    addCheck(
+      checks,
+      'livekit_rtc_udp_port_range',
+      validRtcRange ? 'pass' : 'fail',
+      validRtcRange
+        ? 'LiveKit RTC UDP port range is ordered and valid'
+        : 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START must be less than or equal to the end port'
+    );
+    addCheck(
+      checks,
+      'livekit_egress_enabled',
+      env.OPC_MEDIA_EGRESS_ENABLED === '1' ? 'pass' : 'fail',
+      env.OPC_MEDIA_EGRESS_ENABLED === '1'
+        ? 'LiveKit Egress is explicitly enabled'
+        : 'OPC_MEDIA_EGRESS_ENABLED must be 1 in production'
+    );
+    addCheck(
+      checks,
+      'minio_endpoint',
+      isHttpUrl(minioEndpoint) ? 'pass' : 'fail',
+      isHttpUrl(minioEndpoint) ? 'S3-compatible endpoint is configured' : 'MINIO_ENDPOINT must use http(s)'
+    );
+    addCheck(
+      checks,
+      'minio_bucket',
+      isS3Bucket(minioBucket) ? 'pass' : 'fail',
+      isS3Bucket(minioBucket) ? 'S3 bucket is configured' : 'MINIO_BUCKET must be a valid S3 bucket name'
+    );
+    addCheck(
+      checks,
+      'livekit_webhook_url',
+      isHttpsUrl(webhookUrl) ? 'pass' : 'fail',
+      isHttpsUrl(webhookUrl)
+        ? 'LiveKit webhook uses https://'
+        : 'OPC_MEDIA_CONFIG_WEBHOOK_URL must use https:// in production'
+    );
+    addCheck(
+      checks,
+      'livekit_time_sync_status',
+      String(env.OPC_LIVEKIT_TIME_SYNC_STATUS || '').trim().toLowerCase() === 'synchronized' ? 'pass' : 'fail',
+      String(env.OPC_LIVEKIT_TIME_SYNC_STATUS || '').trim().toLowerCase() === 'synchronized'
+        ? 'Host time synchronization is reported active'
+        : 'OPC_LIVEKIT_TIME_SYNC_STATUS must be synchronized'
+    );
+    addIntegerRangeCheck(
+      checks,
+      'livekit_time_sync_max_skew',
+      env.OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS || '',
+      1,
+      60_000
+    );
+    addCheck(
+      checks,
+      'livekit_time_sync_offset',
+      timeSynchronized ? 'pass' : 'fail',
+      timeSynchronized
+        ? 'Observed clock offset is within the configured maximum skew'
+        : 'OPC_LIVEKIT_TIME_SYNC_OFFSET_MS must be within the configured maximum skew'
+    );
+  }
   addIntegerRangeCheck(
     checks,
     'media_recording_retention_days',
@@ -245,7 +337,7 @@ export function createLiveKitDeploymentPreflightReport(
 
   const acceptance = optionalLiveKitAcceptanceMetadata(env);
   return {
-    schema_version: 1,
+    schema_version: 2,
     ok: checks.every((check) => check.status !== 'fail'),
     checked_at: new Date().toISOString(),
     ...(acceptance ? { acceptance } : {}),
@@ -259,7 +351,15 @@ export function createLiveKitDeploymentPreflightReport(
       mediaTokenConfigured: Boolean(mediaToken),
       inviteSecretConfigured: Boolean(inviteSecret),
       tenantConfigured: Boolean(mediaTenant),
-      egressConfigured: Boolean(minioAccessKey && minioSecretKey),
+      egressConfigured: Boolean(
+        minioAccessKey && minioSecretKey && isHttpUrl(minioEndpoint) && isS3Bucket(minioBucket) &&
+        (!production || env.OPC_MEDIA_EGRESS_ENABLED === '1')
+      ),
+      redisConfigured: isRedisAddress(redisAddress),
+      turnConfigured: validPort(turnTlsPort) && validPort(turnUdpPort) &&
+        validPort(rtcPortStart) && validPort(rtcPortEnd) && rtcPortStart <= rtcPortEnd,
+      webhookConfigured: production ? isHttpsUrl(webhookUrl) : isHttpUrl(webhookUrl),
+      timeSynchronized,
       targets
     },
     checks
@@ -322,6 +422,7 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
   );
   const webAssistRequired = targets.includes('web-assist-browser');
   const sipRequired = targets.includes('sip-volte');
+  const production = env.NODE_ENV === 'production';
 
   return [
     item('LiveKit Server', 'LIVEKIT_URL', true, 'Internal LiveKit WebSocket URL used by OPC and service workloads. Can fall back to OPC_LIVEKIT_URL.', env.LIVEKIT_URL || env.OPC_LIVEKIT_URL),
@@ -337,6 +438,11 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
     item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE_TAG', false, 'Pinned Redis image tag for standalone Media Core.', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis),
     item('LiveKit Server', 'LIVEKIT_API_KEY', true, 'LiveKit API key. Can fall back to OPC_LIVEKIT_API_KEY.', env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY, true),
     item('LiveKit Server', 'LIVEKIT_API_SECRET', true, 'LiveKit API secret. Can fall back to OPC_LIVEKIT_API_SECRET.', env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET, true),
+    item('LiveKit Server', 'OPC_MEDIA_CONFIG_REDIS_ADDRESS', production, 'Redis URL or host:port shared by LiveKit Server and Egress.', env.OPC_MEDIA_CONFIG_REDIS_ADDRESS, true),
+    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_TURN_TLS_PORT', production, 'TURN/TLS listener port.', env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT),
+    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_TURN_UDP_PORT', production, 'TURN/UDP listener port.', env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT),
+    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START', production, 'First UDP port in the LiveKit RTC range.', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_START),
+    item('LiveKit Server', 'OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END', production, 'Last UDP port in the LiveKit RTC range.', env.OPC_LIVEKIT_EDGE_RTC_PORT_RANGE_END),
     item('LiveKit Server', 'OPC_BASE_URL', true, 'Public or internal OPC backend base URL used by smoke scripts.', env.OPC_BASE_URL),
     item('LiveKit Server', 'OPC_FRONTEND_URL', browserRequired, 'Frontend URL required by browser readiness targets.', env.OPC_FRONTEND_URL),
     item('Media API', 'OPC_MEDIA_API_TOKEN', true, 'Bearer token for /api/media/livekit management APIs. Can fall back to LIVEKIT_MEDIA_API_TOKEN.', env.OPC_MEDIA_API_TOKEN || env.LIVEKIT_MEDIA_API_TOKEN, true),
@@ -349,17 +455,22 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
     item('Media API', 'OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS', false, 'Maximum wait for an Egress object to become readable.', env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS || '60000'),
     item('Media API', 'OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS', false, 'Polling interval while waiting for an Egress object.', env.OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS || '2000'),
     item('Egress / Storage', 'OPC_MEDIA_CONFIG_DIR', false, 'Directory where render:media-configs writes livekit.yaml and egress.yaml.', env.OPC_MEDIA_CONFIG_DIR || '.runtime/media'),
+    item('Egress / Storage', 'OPC_MEDIA_EGRESS_ENABLED', production, 'Must be 1 for a production deployment with recording support.', env.OPC_MEDIA_EGRESS_ENABLED),
+    item('Egress / Storage', 'OPC_MEDIA_CONFIG_WEBHOOK_URL', production, 'HTTPS LiveKit webhook endpoint.', env.OPC_MEDIA_CONFIG_WEBHOOK_URL),
     item('Egress / Storage', 'OPC_MEDIA_RECORDING_RETENTION_DAYS', false, 'Default retention period for Media Core recordings (1-3650 days).', env.OPC_MEDIA_RECORDING_RETENTION_DAYS || '90'),
     item('Egress / Storage', 'OPC_RECORDING_HTTP_ALLOWED_ORIGINS', false, 'Comma-separated HTTP origins allowed for production recording reads.', env.OPC_RECORDING_HTTP_ALLOWED_ORIGINS),
     item('Egress / Storage', 'OPC_RECORDING_HTTP_TIMEOUT_MS', false, 'Timeout for controlled HTTP recording reads.', env.OPC_RECORDING_HTTP_TIMEOUT_MS || '15000'),
-    item('Egress / Storage', 'MINIO_ENDPOINT', false, 'S3-compatible endpoint used by LiveKit Egress.', env.MINIO_ENDPOINT || 'http://minio:9000'),
-    item('Egress / Storage', 'MINIO_BUCKET', false, 'S3 bucket used by LiveKit Egress.', env.MINIO_BUCKET || 'recordings'),
+    item('Egress / Storage', 'MINIO_ENDPOINT', production, 'S3-compatible endpoint used by LiveKit Egress.', env.MINIO_ENDPOINT || 'http://minio:9000'),
+    item('Egress / Storage', 'MINIO_BUCKET', production, 'S3 bucket used by LiveKit Egress.', env.MINIO_BUCKET || 'recordings'),
     item('Egress / Storage', 'MINIO_ACCESS_KEY', true, 'S3 access key used by LiveKit Egress.', env.MINIO_ACCESS_KEY, true),
     item('Egress / Storage', 'MINIO_SECRET_KEY', true, 'S3 secret key used by LiveKit Egress.', env.MINIO_SECRET_KEY, true),
     item('Readiness Suite', 'OPC_VIDEO_READINESS_TARGETS', false, 'Comma-separated readiness targets. Empty means the suite default target set.', env.OPC_VIDEO_READINESS_TARGETS || DEFAULT_TARGETS.join(',')),
     item('Readiness Suite', 'OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE', false, 'Set to 1 to collect all target failures before exiting.', env.OPC_VIDEO_READINESS_CONTINUE_ON_FAILURE || '0'),
     item('Readiness Suite', 'OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE', false, 'Optional Markdown output path for this generated checklist.', env.OPC_LIVEKIT_PREFLIGHT_ENV_CHECKLIST_FILE),
     item('Readiness Suite', 'OPC_LIVEKIT_PREFLIGHT_REPORT_FILE', false, 'Optional JSON output path for this preflight report.', env.OPC_LIVEKIT_PREFLIGHT_REPORT_FILE),
+    item('Readiness Suite', 'OPC_LIVEKIT_TIME_SYNC_STATUS', production, 'Set to synchronized from the host time service check.', env.OPC_LIVEKIT_TIME_SYNC_STATUS),
+    item('Readiness Suite', 'OPC_LIVEKIT_TIME_SYNC_OFFSET_MS', production, 'Observed absolute clock offset in milliseconds.', env.OPC_LIVEKIT_TIME_SYNC_OFFSET_MS),
+    item('Readiness Suite', 'OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS', production, 'Maximum accepted clock skew in milliseconds.', env.OPC_LIVEKIT_TIME_SYNC_MAX_SKEW_MS || '5000'),
     item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_A_TOKEN', targets.includes('agent-browser'), 'Signed agent A browser token.', env.OPC_BROWSER_SMOKE_AGENT_A_TOKEN, true),
     item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_A_USER_ID', targets.includes('agent-browser'), 'Agent A user id.', env.OPC_BROWSER_SMOKE_AGENT_A_USER_ID),
     item('Browser Smoke', 'OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID', targets.includes('agent-browser'), 'Agent A seat id.', env.OPC_BROWSER_SMOKE_AGENT_A_SEAT_ID),
@@ -582,6 +693,41 @@ function isHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isRedisAddress(value: string): boolean {
+  if (!value || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    return (parsed.protocol === 'redis:' || parsed.protocol === 'rediss:') &&
+      Boolean(parsed.hostname) && Boolean(parsed.port);
+  } catch {
+    return /^(?:\[[0-9a-fA-F:]+\]|[A-Za-z0-9._-]+):(?:[1-9]\d{0,4})$/.test(value) &&
+      validPort(Number(value.slice(value.lastIndexOf(':') + 1)));
+  }
+}
+
+function isS3Bucket(value: string): boolean {
+  return value.length >= 3 && value.length <= 63 &&
+    /^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(value) &&
+    !value.includes('..') && !/^\d+\.\d+\.\d+\.\d+$/.test(value);
+}
+
+function parseInteger(value: string | undefined): number {
+  const parsed = Number(String(value || '').trim());
+  return Number.isInteger(parsed) ? parsed : Number.NaN;
+}
+
+function validPort(value: number): boolean {
+  return Number.isInteger(value) && value >= 1 && value <= 65_535;
 }
 
 function stripTrailingSlash(value: string | undefined): string {

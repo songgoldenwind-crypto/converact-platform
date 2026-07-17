@@ -2,7 +2,7 @@ import type { FormEvent } from 'react';
 import { PhoneCall, PhoneOff, Search, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import type { IveKitClient, IveKitMediaCallAction } from '@opc/ivekit-sdk';
+import type { IveKitHttpSdk, IveKitMediaCallAction } from '@opc/ivekit-sdk';
 import { CallHeader } from './call-header.js';
 import { BrowserDeviceController, type DeviceControllerSnapshot } from './device-controller.js';
 import { HostControls } from './host-controls.js';
@@ -15,7 +15,7 @@ import { RecordingPanel } from './recording-panel.js';
 import { useMediaCall } from './use-media-call.js';
 
 export function MediaWorkspace(props: {
-  client: IveKitClient | null;
+  client: IveKitHttpSdk | null;
   identity: string;
   callId: string;
   onCallIdChange(callId: string): void;
@@ -95,7 +95,15 @@ export function MediaWorkspace(props: {
       ) : (
         <>
           <CallHeader state={media.state} />
-          <NetworkStatus connection={media.state.connection} autoplayBlocked={media.state.autoplayBlocked} fatalReason={media.state.fatalReason} onStartAudio={() => run(() => media.startAudio())} />
+          <NetworkStatus
+            connection={media.state.connection}
+            autoplayBlocked={media.state.autoplayBlocked}
+            fatalReason={media.state.fatalReason}
+            screenShareRecoveryRequired={media.state.screenShareRecoveryRequired}
+            onStartAudio={() => run(() => media.startAudio())}
+            onResumeScreenShare={() => run(() => media.setScreenShare(true, { audio: media.state.screenShareRecoveryAudio }))}
+            onDismissScreenShareRecovery={media.dismissScreenShareRecovery}
+          />
           {setup && <div className="media-setup-overlay">
             <button className="close-media-setup" title="Close call setup" onClick={() => void closeSetup()}><X size={16} /></button>
             <PrejoinPanel

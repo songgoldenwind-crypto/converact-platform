@@ -1,0 +1,759 @@
+diff --git a/src/config.rs b/src/config.rs
+index f1acf8b..c2e175e 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -863,6 +863,12 @@ pub struct ProxyConfig {
+     pub media_cmd_channel_capacity: usize,
+     #[serde(default = "default_media_event_channel_capacity")]
+     pub media_event_channel_capacity: usize,
++    #[serde(default = "default_media_recording_channel_capacity")]
++    pub media_recording_channel_capacity: usize,
++    #[serde(default = "default_media_recording_worker_threads")]
++    pub media_recording_worker_threads: usize,
++    #[serde(default = "default_media_recording_worker_queue_capacity")]
++    pub media_recording_worker_queue_capacity: usize,
+     #[serde(default)]
+     pub queues: HashMap<String, RouteQueueConfig>,
+     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+@@ -972,6 +978,15 @@ fn default_media_cmd_channel_capacity() -> usize {
+ fn default_media_event_channel_capacity() -> usize {
+     1024
+ }
++fn default_media_recording_channel_capacity() -> usize {
++    256
++}
++fn default_media_recording_worker_threads() -> usize {
++    4
++}
++fn default_media_recording_worker_queue_capacity() -> usize {
++    4096
++}
+ 
+ fn available_parallelism() -> usize {
+     std::thread::available_parallelism()
+@@ -1326,6 +1341,9 @@ impl Default for ProxyConfig {
+             session_state_channel_capacity: default_session_state_channel_capacity(),
+             media_cmd_channel_capacity: default_media_cmd_channel_capacity(),
+             media_event_channel_capacity: default_media_event_channel_capacity(),
++            media_recording_channel_capacity: default_media_recording_channel_capacity(),
++            media_recording_worker_threads: default_media_recording_worker_threads(),
++            media_recording_worker_queue_capacity: default_media_recording_worker_queue_capacity(),
+             queues: HashMap::new(),
+             queues_files: Vec::new(),
+             trunks: HashMap::new(),
+diff --git a/src/console/handlers/setting.rs b/src/console/handlers/setting.rs
+index 7a4d27f..3d0dcb9 100644
+--- a/src/console/handlers/setting.rs
++++ b/src/console/handlers/setting.rs
+@@ -527,6 +527,9 @@ async fn build_settings_payload(state: &ConsoleState) -> JsonValue {
+             "session_state_channel_capacity": config.proxy.session_state_channel_capacity,
+             "media_cmd_channel_capacity": config.proxy.media_cmd_channel_capacity,
+             "media_event_channel_capacity": config.proxy.media_event_channel_capacity,
++            "media_recording_channel_capacity": config.proxy.media_recording_channel_capacity,
++            "media_recording_worker_threads": config.proxy.media_recording_worker_threads,
++            "media_recording_worker_queue_capacity": config.proxy.media_recording_worker_queue_capacity,
+             "stats": proxy_stats_value.clone(),
+         });
+ 
+@@ -1627,6 +1630,9 @@ pub(crate) struct SecuritySettingsPayload {
+     session_state_channel_capacity: Option<usize>,
+     media_cmd_channel_capacity: Option<usize>,
+     media_event_channel_capacity: Option<usize>,
++    media_recording_channel_capacity: Option<usize>,
++    media_recording_worker_threads: Option<usize>,
++    media_recording_worker_queue_capacity: Option<usize>,
+ }
+ 
+ #[derive(Debug, Clone, Deserialize, Serialize)]
+@@ -2099,6 +2105,9 @@ pub(crate) async fn update_security_settings(
+         set_opt!(session_state_channel_capacity, i64);
+         set_opt!(media_cmd_channel_capacity, i64);
+         set_opt!(media_event_channel_capacity, i64);
++        set_opt!(media_recording_channel_capacity, i64);
++        set_opt!(media_recording_worker_threads, i64);
++        set_opt!(media_recording_worker_queue_capacity, i64);
+ 
+         // URI normalization
+         set_opt!(uri_max_length, i64);
+diff --git a/src/media/bridge.rs b/src/media/bridge.rs
+index 0bcd97f..ad6127f 100644
+--- a/src/media/bridge.rs
++++ b/src/media/bridge.rs
+@@ -58,8 +58,8 @@ use rustrtc::{
+ use std::{
+     collections::HashMap,
+     sync::{
+-        Arc,
+-        atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering},
++        Arc, OnceLock,
++        atomic::{AtomicBool, AtomicU8, AtomicU64, AtomicUsize, Ordering},
+     },
+ };
+ use tokio::sync::mpsc;
+@@ -75,6 +75,229 @@ pub type PeerId = String;
+ const BRIDGE_OUTPUT_PEER: u8 = 0;
+ const BRIDGE_OUTPUT_FILE: u8 = 1;
+ const BRIDGE_OUTPUT_MUTED: u8 = 2;
++const DEFAULT_RECORDING_WORKER_THREADS: usize = 4;
++const DEFAULT_RECORDING_WORKER_QUEUE_CAPACITY: usize = 4096;
++static RECORDING_EXECUTOR: OnceLock<RecordingExecutor> = OnceLock::new();
++static NEXT_RECORDING_WORKER: AtomicUsize = AtomicUsize::new(0);
++
++struct RecordingWorkItem {
++    state: Arc<RecorderCaptureState>,
++    leg: RecLeg,
++    sample: SharedMediaSample,
++    dtmf_payload_type: Option<u8>,
++    dtmf_clock_rate: Option<u32>,
++    codec_hint: Option<AudioCodecType>,
++}
++
++impl RecordingWorkItem {
++    fn write(&self) {
++        let mut guard = self.state.recorder.write();
++        if let Some(recorder) = guard.as_mut() {
++            recorder.add_drop_counter(Arc::clone(&self.state.dropped));
++            if let Err(error) = recorder.write_sample(
++                self.leg,
++                &self.sample,
++                self.dtmf_payload_type,
++                self.dtmf_clock_rate,
++                self.codec_hint,
++            ) {
++                warn!(error = %error, "recorder capture write failed");
++            }
++        }
++    }
++}
++
++impl Drop for RecordingWorkItem {
++    fn drop(&mut self) {
++        self.state.pending.fetch_sub(1, Ordering::Release);
++    }
++}
++
++struct RecorderCaptureState {
++    recorder: Arc<parking_lot::RwLock<Option<Recorder>>>,
++    dropped: Arc<AtomicU64>,
++    pending: AtomicUsize,
++    capacity: usize,
++}
++
++impl RecorderCaptureState {
++    fn try_reserve(&self) -> bool {
++        self.pending
++            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |pending| {
++                (pending < self.capacity).then_some(pending + 1)
++            })
++            .is_ok()
++    }
++
++    fn record_drop(&self, reason: &'static str) {
++        self.dropped.fetch_add(1, Ordering::Relaxed);
++        crate::metrics::media::recording_queue_dropped(reason, 1);
++    }
++}
++
++struct RecordingExecutor {
++    senders: Vec<crossbeam_channel::Sender<RecordingWorkItem>>,
++    worker_queue_capacity: usize,
++    _workers: Vec<std::thread::JoinHandle<()>>,
++}
++
++impl RecordingExecutor {
++    fn new(worker_threads: usize, worker_queue_capacity: usize) -> Result<Self> {
++        let mut senders = Vec::with_capacity(worker_threads);
++        let mut workers = Vec::with_capacity(worker_threads);
++        for worker_index in 0..worker_threads {
++            let (tx, rx) = crossbeam_channel::bounded::<RecordingWorkItem>(worker_queue_capacity);
++            let worker = std::thread::Builder::new()
++                .name(format!("rustpbx-recording-{worker_index}"))
++                .spawn(move || {
++                    while let Ok(item) = rx.recv() {
++                        item.write();
++                    }
++                })
++                .map_err(|error| anyhow::anyhow!("failed to start recording worker: {error}"))?;
++            senders.push(tx);
++            workers.push(worker);
++        }
++        crate::metrics::media::set_recording_worker_capacity(worker_threads, worker_queue_capacity);
++        Ok(Self {
++            senders,
++            worker_queue_capacity,
++            _workers: workers,
++        })
++    }
++
++    fn matches(&self, worker_threads: usize, worker_queue_capacity: usize) -> bool {
++        self.senders.len() == worker_threads && self.worker_queue_capacity == worker_queue_capacity
++    }
++
++    fn sender(&self, worker_index: usize) -> &crossbeam_channel::Sender<RecordingWorkItem> {
++        &self.senders[worker_index % self.senders.len()]
++    }
++}
++
++pub(crate) fn configure_recording_executor(
++    worker_threads: usize,
++    worker_queue_capacity: usize,
++) -> Result<()> {
++    if worker_threads == 0 || worker_queue_capacity == 0 {
++        return Err(anyhow::anyhow!(
++            "recording executor workers and queue capacity must be positive"
++        ));
++    }
++    if let Some(executor) = RECORDING_EXECUTOR.get() {
++        if executor.matches(worker_threads, worker_queue_capacity) {
++            return Ok(());
++        }
++        return Err(anyhow::anyhow!(
++            "recording executor already initialized with {} workers and queue capacity {}",
++            executor.senders.len(),
++            executor.worker_queue_capacity
++        ));
++    }
++    let executor = RecordingExecutor::new(worker_threads, worker_queue_capacity)?;
++    if let Err(executor) = RECORDING_EXECUTOR.set(executor) {
++        if !RECORDING_EXECUTOR
++            .get()
++            .is_some_and(|active| active.matches(worker_threads, worker_queue_capacity))
++        {
++            return Err(anyhow::anyhow!(
++                "recording executor initialization raced with incompatible configuration"
++            ));
++        }
++        drop(executor);
++    }
++    Ok(())
++}
++
++fn recording_executor() -> &'static RecordingExecutor {
++    RECORDING_EXECUTOR.get_or_init(|| {
++        RecordingExecutor::new(
++            DEFAULT_RECORDING_WORKER_THREADS,
++            DEFAULT_RECORDING_WORKER_QUEUE_CAPACITY,
++        )
++        .expect("default recording executor must start")
++    })
++}
++
++#[derive(Clone)]
++pub(crate) struct RecorderCapture {
++    state: Arc<RecorderCaptureState>,
++    worker_index: usize,
++    recording_paused: Arc<AtomicBool>,
++}
++
++impl RecorderCapture {
++    pub(crate) fn new(
++        recorder: Arc<parking_lot::RwLock<Option<Recorder>>>,
++        recording_paused: Arc<AtomicBool>,
++        capacity: usize,
++    ) -> Self {
++        Self::new_with_drop_counter(
++            recorder,
++            recording_paused,
++            capacity,
++            Arc::new(AtomicU64::new(0)),
++        )
++    }
++
++    pub(crate) fn new_with_drop_counter(
++        recorder: Arc<parking_lot::RwLock<Option<Recorder>>>,
++        recording_paused: Arc<AtomicBool>,
++        capacity: usize,
++        dropped: Arc<AtomicU64>,
++    ) -> Self {
++        crate::metrics::media::set_recording_queue_capacity(capacity);
++        let worker_index = NEXT_RECORDING_WORKER.fetch_add(1, Ordering::Relaxed)
++            % recording_executor().senders.len();
++        Self {
++            state: Arc::new(RecorderCaptureState {
++                recorder,
++                dropped,
++                pending: AtomicUsize::new(0),
++                capacity,
++            }),
++            worker_index,
++            recording_paused,
++        }
++    }
++
++    pub(crate) fn try_capture(
++        &self,
++        leg: RecLeg,
++        sample: &MediaSample,
++        dtmf_payload_type: Option<u8>,
++        dtmf_clock_rate: Option<u32>,
++        codec_hint: Option<AudioCodecType>,
++    ) {
++        if self.recording_paused.load(Ordering::Relaxed) {
++            return;
++        }
++        if !self.state.try_reserve() {
++            self.state.record_drop("capture_full");
++            return;
++        }
++        let item = RecordingWorkItem {
++            state: Arc::clone(&self.state),
++            leg,
++            sample: Arc::new(sample.clone()),
++            dtmf_payload_type,
++            dtmf_clock_rate,
++            codec_hint,
++        };
++        match recording_executor()
++            .sender(self.worker_index)
++            .try_send(item)
++        {
++            Ok(()) => {}
++            Err(crossbeam_channel::TrySendError::Full(item)) => {
++                item.state.record_drop("worker_full");
++            }
++            Err(crossbeam_channel::TrySendError::Disconnected(item)) => {
++                item.state.record_drop("worker_closed");
++            }
++        }
++    }
++}
+ 
+ /// Atomic state for one endpoint's output mode + file source.
+ /// Wrapped in a single Mutex to prevent TOCTOU between
+@@ -257,11 +480,10 @@ struct ForwardLoopContext {
+     cancel_token: CancellationToken,
+     path: ForwardPath,
+     leg_stats: Arc<LegStats>,
+-    recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
++    recorder_capture: Option<RecorderCapture>,
+     recorder_leg: Option<RecLeg>,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
+     receive_clock: ReceiveTimestampClock,
+-    recording_paused: Arc<AtomicBool>,
+     dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
+     transcoder: Option<Arc<parking_lot::Mutex<Option<Transcoder>>>>,
+     transcoder_timing: Option<Arc<parking_lot::Mutex<Option<RtpTiming>>>>,
+@@ -292,11 +514,10 @@ impl ForwardLoopContextBuilder {
+                 cancel_token,
+                 path,
+                 leg_stats,
+-                recorder: None,
++                recorder_capture: None,
+                 recorder_leg: None,
+                 sipflow_tx: None,
+                 receive_clock: ReceiveTimestampClock::new(),
+-                recording_paused: Arc::new(AtomicBool::new(false)),
+                 dtmf_sink: Arc::new(parking_lot::RwLock::new(None)),
+                 transcoder: None,
+                 transcoder_timing: None,
+@@ -306,12 +527,12 @@ impl ForwardLoopContextBuilder {
+         }
+     }
+ 
+-    pub fn with_recorder(
++    pub fn with_recorder_capture(
+         mut self,
+-        recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
++        recorder_capture: Option<RecorderCapture>,
+         leg: Option<RecLeg>,
+     ) -> Self {
+-        self.inner.recorder = recorder;
++        self.inner.recorder_capture = recorder_capture;
+         self.inner.recorder_leg = leg;
+         self
+     }
+@@ -326,11 +547,6 @@ impl ForwardLoopContextBuilder {
+         self
+     }
+ 
+-    pub fn with_recording_paused(mut self, paused: Arc<AtomicBool>) -> Self {
+-        self.inner.recording_paused = paused;
+-        self
+-    }
+-
+     pub fn with_dtmf_sink(mut self, sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>) -> Self {
+         self.inner.dtmf_sink = sink;
+         self
+@@ -375,8 +591,7 @@ struct FileOutputContext {
+     output_state: Arc<parking_lot::Mutex<OutputState>>,
+     output_mode_atomic: Arc<AtomicU8>,
+     cancel_token: CancellationToken,
+-    recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
+-    recording_paused: Arc<AtomicBool>,
++    recorder_capture: Option<RecorderCapture>,
+ }
+ 
+ struct FileOutputContextBuilder {
+@@ -400,19 +615,13 @@ impl FileOutputContextBuilder {
+                 output_state,
+                 output_mode_atomic,
+                 cancel_token,
+-                recorder: None,
+-                recording_paused: Arc::new(AtomicBool::new(false)),
++                recorder_capture: None,
+             },
+         }
+     }
+ 
+-    pub fn with_recorder(
+-        mut self,
+-        recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
+-        paused: Arc<AtomicBool>,
+-    ) -> Self {
+-        self.inner.recorder = recorder;
+-        self.inner.recording_paused = paused;
++    pub fn with_recorder_capture(mut self, recorder_capture: Option<RecorderCapture>) -> Self {
++        self.inner.recorder_capture = recorder_capture;
+         self
+     }
+ 
+@@ -550,8 +759,7 @@ pub struct BridgePeer {
+     cancel_token: CancellationToken,
+     forwarding_started: AtomicBool,
+     caller_gate: Arc<AtomicBool>,
+-    recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
+-    recording_paused: Arc<AtomicBool>,
++    recorder_capture: Option<RecorderCapture>,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
+     receive_clock: ReceiveTimestampClock,
+     dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
+@@ -569,8 +777,7 @@ pub struct BridgePeer {
+ /// Common args shared by both bridge directions.
+ struct ForwardTrackArgs {
+     cancel_token: CancellationToken,
+-    recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
+-    recording_paused: Arc<AtomicBool>,
++    recorder_capture: Option<RecorderCapture>,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
+     receive_clock: ReceiveTimestampClock,
+     dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
+@@ -613,8 +820,7 @@ impl BridgePeer {
+             cancel_token: CancellationToken::new(),
+             forwarding_started: AtomicBool::new(false),
+             caller_gate: Arc::new(AtomicBool::new(false)),
+-            recorder: None,
+-            recording_paused: Arc::new(AtomicBool::new(false)),
++            recorder_capture: None,
+             sipflow_tx: None,
+             receive_clock: ReceiveTimestampClock::new(),
+             dtmf_sink: Arc::new(parking_lot::RwLock::new(None)),
+@@ -699,7 +905,7 @@ impl BridgePeer {
+                 Arc::clone(&self.caller.output_mode),
+                 self.cancel_token.clone(),
+             )
+-            .with_recorder(self.recorder.clone(), self.recording_paused.clone())
++            .with_recorder_capture(self.recorder_capture.clone())
+             .build(),
+         ));
+         tasks.push(Self::spawn_file_output_clock(
+@@ -711,7 +917,7 @@ impl BridgePeer {
+                 Arc::clone(&self.callee.output_mode),
+                 self.cancel_token.clone(),
+             )
+-            .with_recorder(self.recorder.clone(), self.recording_paused.clone())
++            .with_recorder_capture(self.recorder_capture.clone())
+             .build(),
+         ));
+         drop(tasks);
+@@ -1450,18 +1656,10 @@ impl BridgePeer {
+                                 Some(mapped_ts.wrapping_add(frame_ticks_20ms(frame.clock_rate)));
+                         }
+ 
+-                        if let (Some(rec), Some(leg)) = (&ctx.recorder, recorder_leg)
+-                            && !ctx.recording_paused.load(Ordering::Relaxed)
+-                            && let Some(mut guard) = rec.try_write()
+-                            && let Some(r) = guard.as_mut()
++                        if let (Some(capture), Some(leg)) =
++                            (&ctx.recorder_capture, recorder_leg)
+                         {
+-                            let _ = r.write_sample(
+-                                leg,
+-                                &sample,
+-                                None,
+-                                None::<u32>,
+-                                None::<AudioCodecType>,
+-                            );
++                            capture.try_capture(leg, &sample, None, None, None);
+                         }
+ 
+                         let Some(sender) = ctx.sender.as_ref() else {
+@@ -1745,9 +1943,8 @@ impl BridgePeer {
+                 dir.path,
+                 Arc::clone(&dir.leg_stats),
+             )
+-            .with_recorder(common.recorder.clone(), dir.recorder_leg)
++            .with_recorder_capture(common.recorder_capture.clone(), dir.recorder_leg)
+             .with_sipflow(common.sipflow_tx.clone(), common.receive_clock.clone())
+-            .with_recording_paused(common.recording_paused.clone())
+             .with_dtmf_sink(Arc::clone(&common.dtmf_sink))
+             .with_transcoder(dir.transcoder.clone(), dir.transcoder_timing.clone())
+             .with_dtmf_mapping(dir.dtmf_mapping.clone())
+@@ -1763,8 +1960,7 @@ impl BridgePeer {
+ 
+         let common = ForwardTrackArgs {
+             cancel_token: self.cancel_token.clone(),
+-            recorder: self.recorder.clone(),
+-            recording_paused: self.recording_paused.clone(),
++            recorder_capture: self.recorder_capture.clone(),
+             sipflow_tx: self.sipflow_tx.clone(),
+             receive_clock: self.receive_clock.clone(),
+             dtmf_sink: Arc::clone(&self.dtmf_sink),
+@@ -1907,17 +2103,15 @@ impl BridgePeer {
+                                 };
+                                 let record_peer_mic = ctx.output_mode.load(Ordering::Acquire) == BRIDGE_OUTPUT_PEER;
+                                 if record_peer_mic {
+-                                    if let (Some(rec), Some(leg)) = (&ctx.recorder, ctx.recorder_leg)
+-                                        && !ctx.recording_paused.load(std::sync::atomic::Ordering::Relaxed)
+-                                        && let Some(mut guard) = rec.try_write()
+-                                        && let Some(r) = guard.as_mut()
++                                    if let (Some(capture), Some(leg)) =
++                                        (&ctx.recorder_capture, ctx.recorder_leg)
+                                     {
+-                                        let _ = r.write_sample(
++                                        capture.try_capture(
+                                             leg,
+                                             &sample,
+                                             dtmf_pt,
+                                             Some(dtmf_clock_rate),
+-                                            None::<AudioCodecType>,
++                                            None,
+                                         );
+                                     }
+ 
+@@ -2345,6 +2539,7 @@ pub struct BridgePeerBuilder {
+     ice_servers: Vec<IceServer>,
+     recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
+     recording_paused: Arc<AtomicBool>,
++    recording_channel_capacity: usize,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
+     cname: Option<String>,
+     rtp_timeout: Option<std::time::Duration>,
+@@ -2373,6 +2568,7 @@ impl BridgePeerBuilder {
+             ice_servers: Vec::new(),
+             recorder: None,
+             recording_paused: Arc::new(AtomicBool::new(false)),
++            recording_channel_capacity: 256,
+             sipflow_tx: None,
+             cname: None,
+             rtp_timeout: None,
+@@ -2497,6 +2693,11 @@ impl BridgePeerBuilder {
+         self
+     }
+ 
++    pub fn with_recording_channel_capacity(mut self, capacity: usize) -> Self {
++        self.recording_channel_capacity = capacity;
++        self
++    }
++
+     pub fn with_sipflow_capture(
+         mut self,
+         sipflow_tx: mpsc::Sender<(RecLeg, SharedMediaSample, u64)>,
+@@ -2620,12 +2821,18 @@ impl BridgePeerBuilder {
+             (PeerConnection::new(caller_config), PeerConnection::new(callee_config))
+         };
+ 
++        let recorder_capture = self.recorder.map(|recorder| {
++            RecorderCapture::new(
++                recorder,
++                Arc::clone(&self.recording_paused),
++                self.recording_channel_capacity,
++            )
++        });
+         let mut bridge = BridgePeer::new(self.bridge_id, caller_pc, callee_pc);
+         bridge.session_id = self.session_id;
+         bridge.caller.sender_codec = self.caller_sender_codec;
+         bridge.callee.sender_codec = self.callee_sender_codec;
+-        bridge.recorder = self.recorder;
+-        bridge.recording_paused = self.recording_paused;
++        bridge.recorder_capture = recorder_capture;
+         bridge.sipflow_tx = self.sipflow_tx;
+         bridge.rtp_timeout = RtpTimeoutConfig {
+             duration: self.rtp_timeout,
+diff --git a/src/media/forwarding_track.rs b/src/media/forwarding_track.rs
+index 62d32f9..efc9f41 100644
+--- a/src/media/forwarding_track.rs
++++ b/src/media/forwarding_track.rs
+@@ -212,6 +212,7 @@ impl ForwardingTrack {
+                     && let Some(counter) = &self.recorder_drop_counter
+                 {
+                     counter.fetch_add(1, Ordering::Relaxed);
++                    crate::metrics::media::recording_queue_dropped("capture_full", 1);
+                 }
+                 trace!(track_id = %self.track_id, "ForwardingTrack recorder channel unavailable: {e}");
+             }
+diff --git a/src/media/recorder.rs b/src/media/recorder.rs
+index 326fe3d..77003cd 100644
+--- a/src/media/recorder.rs
++++ b/src/media/recorder.rs
+@@ -201,7 +201,13 @@ impl Recorder {
+     }
+ 
+     pub fn add_drop_counter(&mut self, counter: Arc<AtomicU64>) {
+-        self.drop_counters.push(counter);
++        if !self
++            .drop_counters
++            .iter()
++            .any(|existing| Arc::ptr_eq(existing, &counter))
++        {
++            self.drop_counters.push(counter);
++        }
+     }
+ 
+     fn profile_for_leg(&self, leg: Leg) -> &NegotiatedLegProfile {
+diff --git a/src/metrics.rs b/src/metrics.rs
+index 7535690..9e3fc21 100644
+--- a/src/metrics.rs
++++ b/src/metrics.rs
+@@ -240,6 +240,23 @@ pub mod media {
+         )
+         .increment(1);
+     }
++
++    pub fn recording_queue_dropped(reason: &'static str, count: u64) {
++        metrics::counter!(
++            "rustpbx_media_recording_queue_drops_total",
++            "reason" => reason
++        )
++        .increment(count);
++    }
++
++    pub fn set_recording_queue_capacity(capacity: usize) {
++        metrics::gauge!("rustpbx_media_recording_queue_capacity").set(capacity as f64);
++    }
++
++    pub fn set_recording_worker_capacity(worker_threads: usize, queue_capacity: usize) {
++        metrics::gauge!("rustpbx_media_recording_worker_threads").set(worker_threads as f64);
++        metrics::gauge!("rustpbx_media_recording_worker_queue_capacity").set(queue_capacity as f64);
++    }
+ }
+ 
+ pub mod system {
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 04f0457..307d49e 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -4011,6 +4011,9 @@ impl SipSession {
+             .with_session_id(self.id.clone())
+             .with_enable_latching(self.context.dialplan.media.enable_latching)
+             .with_probation_max_packets(self.context.dialplan.media.probation_max_packets)
++            .with_recording_channel_capacity(
++                self.server.proxy_config.media_recording_channel_capacity,
++            )
+             .with_cname(self.server.rtc_cname.clone());
+ 
+         if let (Some(start), Some(end)) = (
+@@ -5622,10 +5625,12 @@ impl SipSession {
+             caller_profile.clone(),
+             callee_profile.clone(),
+             shared_recorder.clone(),
++            self.recording_paused.clone(),
+             Leg::A,
+             caller_sipflow_tx,
+             &session_id,
+             "caller→callee",
++            self.server.proxy_config.media_recording_channel_capacity,
+         ) {
+             Ok(forwarding) => {
+                 if let Some(peer) = self.caller_peer() {
+@@ -5651,10 +5656,12 @@ impl SipSession {
+             callee_profile,
+             caller_profile,
+             shared_recorder,
++            self.recording_paused.clone(),
+             Leg::B,
+             callee_sipflow_tx,
+             &session_id,
+             "callee→caller",
++            self.server.proxy_config.media_recording_channel_capacity,
+         ) {
+             Ok(forwarding) => {
+                 if let Some(peer) = self.callee_peer() {
+@@ -6104,10 +6111,12 @@ impl SipSession {
+         ingress_profile: crate::media::negotiate::NegotiatedLegProfile,
+         egress_profile: crate::media::negotiate::NegotiatedLegProfile,
+         recorder: Arc<RwLock<Option<crate::media::recorder::Recorder>>>,
++        recording_paused: Arc<std::sync::atomic::AtomicBool>,
+         leg: crate::media::recorder::Leg,
+         sipflow_tx: Option<crate::media::engine::command::SipFlowCaptureTx>,
+         session_id: &str,
+         direction: &str,
++        recording_channel_capacity: usize,
+     ) -> Result<Arc<crate::media::forwarding_track::ForwardingTrack>> {
+         use crate::media::forwarding_track::ForwardingTrack;
+ 
+@@ -6154,22 +6163,21 @@ impl SipSession {
+         }
+         let recorder_tx = {
+             use tokio::sync::mpsc;
+-            // 256 slots ≈ 5 seconds of 20 ms packets at 8 kHz — enough to
+-            // absorb transient disk stalls without unbounded heap growth.
+-            const RECORDER_CHANNEL_CAPACITY: usize = 256;
+             let (tx, mut rx) = mpsc::channel::<(
+                 crate::media::recorder::Leg,
+                 crate::media::engine::command::SharedMediaSample,
+-            )>(RECORDER_CHANNEL_CAPACITY);
+-            let recorder_arc = recorder.clone();
++            )>(recording_channel_capacity);
++            let recorder_drop_counter = Arc::clone(&recorder_drop_counter);
++            let recorder_capture = crate::media::bridge::RecorderCapture::new_with_drop_counter(
++                recorder.clone(),
++                recording_paused,
++                recording_channel_capacity,
++                Arc::clone(&recorder_drop_counter),
++            );
++            crate::metrics::media::set_recording_queue_capacity(recording_channel_capacity);
+             crate::utils::spawn(async move {
+                 while let Some((sample_leg, sample)) = rx.recv().await {
+-                    let mut guard = recorder_arc.write();
+-                    if let Some(rec) = guard.as_mut()
+-                        && let Err(err) = rec.write_sample(sample_leg, &sample, None, None, None)
+-                    {
+-                        tracing::warn!("recorder write_sample failed: {err}");
+-                    }
++                    recorder_capture.try_capture(sample_leg, &sample, None, None, None);
+                 }
+             });
+             tx
+@@ -6353,6 +6361,9 @@ impl SipSession {
+                 .with_session_id(self.id.clone())
+                 .with_enable_latching(self.context.dialplan.media.enable_latching)
+                 .with_probation_max_packets(self.context.dialplan.media.probation_max_packets)
++                .with_recording_channel_capacity(
++                    self.server.proxy_config.media_recording_channel_capacity,
++                )
+                 .with_cname(self.server.rtc_cname.clone());
+ 
+             // Configure the non-WebRTC bridge side's transport mode to match the leg using it.
+diff --git a/src/proxy/server.rs b/src/proxy/server.rs
+index fbf7285..a26e885 100644
+--- a/src/proxy/server.rs
++++ b/src/proxy/server.rs
+@@ -700,6 +700,28 @@ impl SipServerBuilder {
+         }
+ 
+         let endpoint_local_addrs = transport_layer.get_addrs();
++        if !(1..=65_536).contains(&config.media_recording_channel_capacity) {
++            return Err(anyhow!(
++                "invalid media_recording_channel_capacity {}; expected 1..=65536",
++                config.media_recording_channel_capacity
++            ));
++        }
++        if !(1..=64).contains(&config.media_recording_worker_threads) {
++            return Err(anyhow!(
++                "invalid media_recording_worker_threads {}; expected 1..=64",
++                config.media_recording_worker_threads
++            ));
++        }
++        if !(1..=65_536).contains(&config.media_recording_worker_queue_capacity) {
++            return Err(anyhow!(
++                "invalid media_recording_worker_queue_capacity {}; expected 1..=65536",
++                config.media_recording_worker_queue_capacity
++            ));
++        }
++        crate::media::bridge::configure_recording_executor(
++            config.media_recording_worker_threads,
++            config.media_recording_worker_queue_capacity,
++        )?;
+         let endpoint_capacity = rsipstack::transaction::EndpointCapacityLimits::try_new(
+             config.sip_max_active_transactions,
+             config.sip_max_finished_transactions,

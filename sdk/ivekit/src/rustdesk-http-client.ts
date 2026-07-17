@@ -7,6 +7,8 @@ import type {
   RustDeskAccessPolicyHistory,
   RustDeskAccessPolicyMode,
   RustDeskAccessPolicyMutationResult,
+  RustDeskAuthorizationCode,
+  RustDeskAuthorizationCodeCreateResult,
   RustDeskClientConfig,
   RustDeskClientDistributionArchitecture,
   RustDeskClientDistributionPlatform,
@@ -19,6 +21,7 @@ import type {
   RustDeskDeviceCommand,
   RustDeskDeviceCommandStatus,
   RustDeskDisconnectState,
+  RustDeskEvidenceSecurity,
   RustDeskGatewayLaunchPlan,
   RustDeskObservedOperation,
   RustDeskOperationDirection,
@@ -88,8 +91,21 @@ export interface StartIveKitRustDeskGatewaySessionInput {
   actor_identity: string;
   permissions: readonly RemoteConsentScope[];
   access_mode?: 'attended' | 'unattended';
+  authorization_id?: string;
   metadata?: Record<string, unknown>;
 }
+
+export interface RequestIveKitRustDeskAuthorizationCodeInput {
+  remote_session_id: string;
+  device_id: string;
+  scopes: readonly RemoteConsentScope[];
+  ttl_seconds?: number;
+  max_attempts?: number;
+}
+
+export interface VerifyIveKitRustDeskAuthorizationCodeInput { code: string; }
+
+export interface IveKitRustDeskAuthorizationCodeOptions { idempotencyKey: string; }
 
 export interface GetIveKitRustDeskGatewayLaunchPlanInput {
   confirmation_id?: string;
@@ -156,6 +172,11 @@ export interface EndIveKitRustDeskGatewaySessionInput {
   actor_identity: string;
 }
 
+export interface AuthorizeIveKitRustDeskEmergencyFallbackInput {
+  reason: string;
+  collateral_sessions_may_disconnect: true;
+}
+
 export interface IveKitRustDeskGatewayDisconnectState {
   required: true;
   status: RustDeskDeviceCommandStatus | 'unavailable';
@@ -181,10 +202,26 @@ export interface IveKitRustDeskHttpClient {
     input?: ListIveKitRustDeskGatewayAuditEventsInput
   ): Promise<RemoteGatewayAuditEvent[]>;
   endGatewaySession(externalId: string, input: EndIveKitRustDeskGatewaySessionInput): Promise<void>;
+  authorizeEmergencyFallback(
+    externalId: string,
+    input: AuthorizeIveKitRustDeskEmergencyFallbackInput
+  ): Promise<RustDeskDeviceCommand>;
   getGatewayDisconnectState(externalId: string): Promise<RustDeskDisconnectState>;
 }
 
-export interface IveKitRustDeskAccessPolicyHttpClient extends IveKitRustDeskHttpClient {
+export interface IveKitRustDeskAuthorizationHttpClient extends IveKitRustDeskHttpClient {
+  requestAuthorizationCode(
+    input: RequestIveKitRustDeskAuthorizationCodeInput,
+    options: IveKitRustDeskAuthorizationCodeOptions
+  ): Promise<RustDeskAuthorizationCodeCreateResult>;
+  getAuthorizationCode(authorizationId: string): Promise<RustDeskAuthorizationCode>;
+  verifyAuthorizationCode(
+    authorizationId: string,
+    input: VerifyIveKitRustDeskAuthorizationCodeInput
+  ): Promise<RustDeskAuthorizationCode>;
+}
+
+export interface IveKitRustDeskAccessPolicyHttpClient extends IveKitRustDeskAuthorizationHttpClient {
   getAccessPolicy(deviceId: string): Promise<RustDeskAccessPolicyCurrent>;
   listAccessPolicyHistory(deviceId: string): Promise<RustDeskAccessPolicyHistory>;
   configureAccessPolicy(
@@ -352,6 +389,29 @@ export function createIveKitRustDeskHttpClient(
         )
       );
     },
+    async requestAuthorizationCode(authorizationInput, options) {
+      const idempotencyKey = requiredString(options?.idempotencyKey, 'idempotencyKey is required');
+      return projectRustDeskAuthorizationCodeCreateResult(await request<unknown>(
+        'POST',
+        '/api/ivekit/rustdesk/authorization-codes',
+        projectAuthorizationCodeRequest(authorizationInput),
+        undefined,
+        { 'idempotency-key': idempotencyKey }
+      ));
+    },
+    async getAuthorizationCode(authorizationId) {
+      return projectRustDeskAuthorizationCode(await request<unknown>(
+        'GET',
+        rustDeskAuthorizationCodePath(authorizationId)
+      ));
+    },
+    async verifyAuthorizationCode(authorizationId, verificationInput) {
+      return projectRustDeskAuthorizationCode(await request<unknown>(
+        'POST',
+        `${rustDeskAuthorizationCodePath(authorizationId)}/verify`,
+        { code: requiredString(verificationInput?.code, 'code is required') }
+      ));
+    },
     async getAccessPolicy(deviceId) {
       const path = rustDeskAccessPolicyPath(deviceId);
       return projectRustDeskAccessPolicyCurrent(
@@ -421,6 +481,9 @@ export function createIveKitRustDeskHttpClient(
       ) {
         throw new Error('access_mode must be attended or unattended');
       }
+      if (input.authorization_id !== undefined) {
+        requiredString(input.authorization_id, 'authorization_id is required');
+      }
       const session = await request<RemoteToolSession>('POST', '/api/ivekit/rustdesk/gateway-sessions', input);
       return projectEvidenceContainer(session, 'remote tool session');
     },
@@ -456,6 +519,22 @@ export function createIveKitRustDeskHttpClient(
         `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}`,
         input
       );
+    },
+    async authorizeEmergencyFallback(externalId, fallbackInput) {
+      const reason = requiredString(fallbackInput.reason, 'reason is required');
+      if (reason.length < 8 || reason.length > 500 || /[\r\n]/.test(reason)) {
+        throw new Error('reason must be 8 to 500 single-line characters');
+      }
+      if (fallbackInput.collateral_sessions_may_disconnect !== true) {
+        throw new Error('collateral_sessions_may_disconnect must be true');
+      }
+      const result = await request<{ command: RustDeskDeviceCommand }>(
+        'POST',
+        `/api/ivekit/rustdesk/gateway-sessions/${encodeURIComponent(requiredString(externalId, 'externalId is required'))}` +
+          '/disconnect/emergency-fallback',
+        { reason, collateral_sessions_may_disconnect: true }
+      );
+      return result.command;
     },
     async getGatewayDisconnectState(externalId) {
       const state = await request<RustDeskDisconnectState>(
@@ -588,6 +667,102 @@ function policyIdempotencyKey(options: IveKitRustDeskAccessPolicyMutationOptions
 
 function rustDeskAccessPolicyPath(deviceId: string): string {
   return `/api/ivekit/rustdesk/devices/${encodeURIComponent(requiredString(deviceId, 'deviceId is required'))}/access-policy`;
+}
+
+function rustDeskAuthorizationCodePath(authorizationId: string): string {
+  return `/api/ivekit/rustdesk/authorization-codes/${encodeURIComponent(
+    requiredString(authorizationId, 'authorizationId is required')
+  )}`;
+}
+
+function projectAuthorizationCodeRequest(input: RequestIveKitRustDeskAuthorizationCodeInput) {
+  const row = policyMutationInput(input, [
+    'remote_session_id',
+    'device_id',
+    'scopes',
+    'ttl_seconds',
+    'max_attempts'
+  ]);
+  const scopes = policyScopes(row.scopes, 'scopes');
+  if (!scopes.length) throw new Error('scopes are required');
+  const ttlSeconds = optionalBoundedInteger(row.ttl_seconds, 60, 900, 'ttl_seconds');
+  const maxAttempts = optionalBoundedInteger(row.max_attempts, 1, 10, 'max_attempts');
+  return {
+    remote_session_id: policyString(row.remote_session_id, 'remote_session_id'),
+    device_id: policyString(row.device_id, 'device_id'),
+    scopes,
+    ...(ttlSeconds === undefined ? {} : { ttl_seconds: ttlSeconds }),
+    ...(maxAttempts === undefined ? {} : { max_attempts: maxAttempts })
+  };
+}
+
+function optionalBoundedInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  field: string
+): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${field} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}
+
+export function projectRustDeskAuthorizationCode(value: unknown): RustDeskAuthorizationCode {
+  const row = policyRecord(value, 'authorization code');
+  for (const field of ['code', 'code_hmac', 'code_salt', 'request_hash', 'idempotency_key']) {
+    if (field in row) throw new Error(`invalid RustDesk authorization code response: ${field}`);
+  }
+  const maxAttempts = Number(row.max_attempts);
+  const attemptCount = Number(row.attempt_count);
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10) {
+    throw new Error('invalid RustDesk authorization code response: max_attempts');
+  }
+  if (!Number.isInteger(attemptCount) || attemptCount < 0 || attemptCount > maxAttempts) {
+    throw new Error('invalid RustDesk authorization code response: attempt_count');
+  }
+  return {
+    id: policyString(row.id, 'id'),
+    tenant_id: policyString(row.tenant_id, 'tenant_id'),
+    remote_session_id: policyString(row.remote_session_id, 'remote_session_id'),
+    device_id: policyString(row.device_id, 'device_id'),
+    scopes: policyScopes(row.scopes, 'scopes'),
+    requested_by: policyString(row.requested_by, 'requested_by'),
+    requested_at: policyTimestamp(row.requested_at, 'requested_at'),
+    expires_at: policyTimestamp(row.expires_at, 'expires_at'),
+    max_attempts: maxAttempts,
+    attempt_count: attemptCount,
+    status: policyEnum(row.status, ['pending', 'verified', 'consumed', 'expired', 'locked'] as const, 'status'),
+    verified_by: nullableAuthorizationString(row.verified_by, 'verified_by'),
+    verified_at: policyNullableTimestamp(row.verified_at, 'verified_at'),
+    consumed_external_id: nullableAuthorizationString(row.consumed_external_id, 'consumed_external_id'),
+    consumed_at: policyNullableTimestamp(row.consumed_at, 'consumed_at'),
+    updated_at: policyTimestamp(row.updated_at, 'updated_at')
+  };
+}
+
+export function projectRustDeskAuthorizationCodeCreateResult(
+  value: unknown
+): RustDeskAuthorizationCodeCreateResult {
+  const row = policyRecord(value, 'authorization code result');
+  if (typeof row.replayed !== 'boolean') {
+    throw new Error('invalid RustDesk authorization code response: replayed');
+  }
+  const code = row.code === null ? null : String(row.code || '');
+  if ((row.replayed && code !== null) || (!row.replayed && !/^\d{8}$/.test(code || ''))) {
+    throw new Error('invalid RustDesk authorization code response: code');
+  }
+  return {
+    authorization: projectRustDeskAuthorizationCode(row.authorization),
+    code,
+    replayed: row.replayed
+  };
+}
+
+function nullableAuthorizationString(value: unknown, field: string): string | null {
+  return value === null ? null : policyString(value, field);
 }
 
 function rustDeskControlPath(externalId: string): string {
@@ -851,7 +1026,29 @@ function projectDistributionInstallSource(
   validateDistributionArtifactIdentity(pathSegments.join('/'), filename, platform, architecture);
   const sha256 = distributionRequiredString(source.sha256, 'install_source.sha256').toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw invalidDistribution('install_source.sha256');
-  return { state: 'configured', url: url.toString(), filename, sha256 };
+  const nativeControlProtocol = source.native_control_protocol === undefined
+    ? undefined
+    : distributionRequiredString(source.native_control_protocol, 'install_source.native_control_protocol');
+  if (
+    nativeControlProtocol !== undefined &&
+    (platform !== 'windows' || architecture !== 'x86_64' ||
+     (nativeControlProtocol !== 'ivekit-rustdesk-native-control-v1' &&
+      nativeControlProtocol !== 'ivekit-rustdesk-native-control-v2'))
+  ) {
+    throw invalidDistribution('install_source.native_control_protocol');
+  }
+  return {
+    state: 'configured',
+    url: url.toString(),
+    filename,
+    sha256,
+    ...(nativeControlProtocol
+      ? {
+          native_control_protocol: nativeControlProtocol as
+            'ivekit-rustdesk-native-control-v1' | 'ivekit-rustdesk-native-control-v2'
+        }
+      : {})
+  };
 }
 
 const distributionArtifactExtensions: Record<string, readonly string[]> = {
@@ -944,7 +1141,9 @@ function validateDistributionArtifactIdentity(
   if (!extension) {
     throw invalidDistribution('install_source.extension');
   }
-  if (filename !== `rustdesk-1.4.7-${architecture}${extension}`) {
+  const customWindowsFilename = platform === 'windows' && architecture === 'x86_64' &&
+    /^rustdesk-1\.4\.7-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
+  if (filename !== `rustdesk-1.4.7-${architecture}${extension}` && !customWindowsFilename) {
     throw invalidDistribution('install_source.filename');
   }
 }
@@ -1039,6 +1238,11 @@ const evidenceDirections: readonly RustDeskOperationDirection[] = [
   'download',
   'agent_to_device',
   'device_to_agent'
+];
+const evidenceSecurityLabels: readonly RustDeskEvidenceSecurity[] = [
+  'ivekit_secure_file',
+  'native_unscanned',
+  'local_only'
 ];
 const terminalPlatforms: readonly RustDeskTerminalPlatform[] = ['windows', 'macos', 'linux'];
 const terminalArchitectures: readonly RustDeskTerminalArchitecture[] = ['x86_64', 'aarch64', 'x86', 'armv7'];
@@ -1362,6 +1566,13 @@ function projectEvidenceMetadata(value: unknown): RustDeskOperationEvidenceMetad
   }
   if (source.direction !== undefined) {
     result.direction = evidenceEnum(source.direction, evidenceDirections, 'metadata.direction');
+  }
+  if (source.evidence_security !== undefined) {
+    result.evidence_security = evidenceEnum(
+      source.evidence_security,
+      evidenceSecurityLabels,
+      'metadata.evidence_security'
+    );
   }
   for (const key of ['byte_count', 'duration_ms'] as const) {
     if (source[key] !== undefined) result[key] = evidenceNumber(source[key], `metadata.${key}`);

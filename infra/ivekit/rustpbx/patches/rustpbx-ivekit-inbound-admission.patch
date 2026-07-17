@@ -1,0 +1,197 @@
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 285d611..e87389c 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -33,6 +33,7 @@ pub struct HttpCallRouter {
+     pub client: reqwest::Client,
+     snapshot: Arc<ArcSwapOption<HttpRouteSnapshotBody>>,
+     snapshot_enabled: bool,
++    snapshot_admission: Option<HttpSnapshotAdmissionConfig>,
+ }
+ 
+ impl HttpCallRouter {
+@@ -71,6 +72,8 @@ impl HttpCallRouter {
+         } else {
+             builder = builder.timeout(Duration::from_secs(5));
+         }
++        let snapshot_admission =
++            snapshot_config.as_ref().and_then(|_| snapshot_admission_config_from_env());
+         let snapshot = Arc::new(ArcSwapOption::empty());
+         let mut snapshot_observation = None;
+         if let Some(snapshot_config) = snapshot_config.as_ref() {
+@@ -96,6 +99,7 @@ impl HttpCallRouter {
+             client: builder.build().unwrap_or_default(),
+             snapshot,
+             snapshot_enabled: snapshot_config.is_some(),
++            snapshot_admission,
+         }
+     }
+ 
+@@ -257,6 +261,81 @@ impl HttpCallRouter {
+             }
+         }
+     }
++
++    async fn admit_snapshot_call(
++        &self,
++        call_id: &str,
++        destination: &str,
++        caller: &SipUser,
++    ) -> Result<(), RouteError> {
++        let config = self.snapshot_admission.as_ref().ok_or_else(|| RouteError {
++            error: anyhow!("snapshot inbound admission is not configured"),
++            status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++            extensions: None,
++        })?;
++        let from = caller
++            .from
++            .as_ref()
++            .map(ToString::to_string)
++            .unwrap_or_else(|| "sip:anonymous@invalid.local".to_string());
++        let payload = HttpSnapshotAdmissionPayload {
++            call_id,
++            from: &from,
++            to: destination,
++            source_addr: "rustpbx-snapshot",
++            direction: "inbound",
++            method: "INVITE",
++            uri: destination,
++            ivekit_cell_id: &config.cell_id,
++            ivekit_owner_node_id: &config.owner_node_id,
++        };
++        let request = self
++            .client
++            .post(&config.url)
++            .header("x-pbx-key", &config.service_key)
++            .json(&payload)
++            .send();
++        let response = tokio::time::timeout(
++            Duration::from_millis(config.timeout_ms),
++            request,
++        )
++        .await
++        .map_err(|_| RouteError {
++            error: anyhow!("snapshot inbound admission timed out"),
++            status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++            extensions: None,
++        })?
++        .map_err(|error| RouteError {
++            error: anyhow!("snapshot inbound admission failed: {error}"),
++            status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++            extensions: None,
++        })?;
++        let status = response.status();
++        if !status.is_success() {
++            warn!(%call_id, %status, "snapshot inbound admission rejected");
++            return Err(RouteError {
++                error: anyhow!("snapshot inbound admission rejected"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            });
++        }
++        let admitted = response
++            .json::<HttpSnapshotAdmissionEnvelope>()
++            .await
++            .map_err(|_| RouteError {
++                error: anyhow!("snapshot inbound admission response is invalid"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            })?;
++        if !admitted.data.accepted {
++            return Err(RouteError {
++                error: anyhow!("snapshot inbound admission rejected"),
++                status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++                extensions: None,
++            });
++        }
++        Ok(())
++    }
+ }
+ 
+ #[derive(Serialize)]
+@@ -324,6 +403,77 @@ struct HttpRouteSnapshotConfig {
+     refresh_ms: u64,
+ }
+ 
++#[derive(Clone)]
++struct HttpSnapshotAdmissionConfig {
++    url: String,
++    service_key: String,
++    cell_id: String,
++    owner_node_id: String,
++    timeout_ms: u64,
++}
++
++#[derive(Serialize)]
++struct HttpSnapshotAdmissionPayload<'a> {
++    call_id: &'a str,
++    from: &'a str,
++    to: &'a str,
++    source_addr: &'a str,
++    direction: &'a str,
++    method: &'a str,
++    uri: &'a str,
++    ivekit_cell_id: &'a str,
++    ivekit_owner_node_id: &'a str,
++}
++
++#[derive(Deserialize)]
++struct HttpSnapshotAdmissionEnvelope {
++    data: HttpSnapshotAdmissionResponse,
++}
++
++#[derive(Deserialize)]
++struct HttpSnapshotAdmissionResponse {
++    accepted: bool,
++}
++
++fn snapshot_admission_config_from_env() -> Option<HttpSnapshotAdmissionConfig> {
++    let url = std::env::var("IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL")
++        .ok()
++        .filter(|value| !value.trim().is_empty())?;
++    let parsed = reqwest::Url::parse(&url).ok()?;
++    if !matches!(parsed.scheme(), "http" | "https")
++        || !parsed.username().is_empty()
++        || parsed.password().is_some()
++        || !parsed.path().ends_with("/inbound-admission")
++    {
++        return None;
++    }
++    let service_key =
++        std::env::var("IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY").ok()?;
++    if service_key.len() < 16
++        || service_key.len() > 512
++        || service_key.bytes().any(|byte| byte.is_ascii_control())
++    {
++        return None;
++    }
++    let cell_id = std::env::var("IVEKIT_RUSTPBX_CELL_ID").ok()?;
++    let owner_node_id = std::env::var("IVEKIT_RUSTPBX_OWNER_NODE_ID").ok()?;
++    if !valid_snapshot_identifier(&cell_id) || !valid_snapshot_identifier(&owner_node_id) {
++        return None;
++    }
++    let timeout_ms = std::env::var("IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS")
++        .ok()
++        .and_then(|value| value.parse::<u64>().ok())
++        .unwrap_or(250)
++        .clamp(20, 2_000);
++    Some(HttpSnapshotAdmissionConfig {
++        url,
++        service_key,
++        cell_id,
++        owner_node_id,
++        timeout_ms,
++    })
++}
++
+ fn route_snapshot_config_from_env() -> Option<HttpRouteSnapshotConfig> {
+     let path = std::env::var("IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE")
+         .ok()
+@@ -606,6 +756,7 @@ impl CallRouter for HttpCallRouter {
+             .unwrap_or_default();
+ 
+         if self.snapshot_enabled {
++            self.admit_snapshot_call(&call_id, &to, caller).await?;
+             let result = self.snapshot_result(&to)?;
+             trace!(%call_id, %to, action = ?result.action, "snapshot router resolved route");
+             return self.apply_result(result, call_id, original, direction, caller, cookie);

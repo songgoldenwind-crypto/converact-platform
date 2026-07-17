@@ -186,6 +186,47 @@ test('iveKit RustDesk HTTP client rejects bad configuration before calling fetch
   );
 });
 
+test('iveKit RustDesk HTTP client exposes explicit emergency fallback authorization', async () => {
+  const calls: FetchCall[] = [];
+  const client = createIveKitRustDeskHttpClient({
+    baseUrl: 'https://opc.example.com',
+    accessToken: 'owner-access-token',
+    tenantId: 'tenant-led',
+    fetch: async (input, init = {}) => {
+      calls.push({
+        url: String(input),
+        method: init.method || 'GET',
+        headers: headersToRecord(init.headers),
+        body: init.body ? JSON.parse(String(init.body)) : null
+      });
+      return jsonResponse(201, {
+        command: {
+          id: 'rdcmd-emergency',
+          emergency_fallback_authorized: true,
+          emergency_fallback_reason: 'approved after targeted disconnect failed'
+        }
+      });
+    }
+  });
+
+  const command = await client.authorizeEmergencyFallback('rdgw-emergency', {
+    reason: 'approved after targeted disconnect failed',
+    collateral_sessions_may_disconnect: true
+  });
+
+  assert.equal(command.emergency_fallback_authorized, true);
+  assert.equal(calls[0]?.method, 'POST');
+  assert.equal(
+    new URL(calls[0]!.url).pathname,
+    '/api/ivekit/rustdesk/gateway-sessions/rdgw-emergency/disconnect/emergency-fallback'
+  );
+  assert.deepEqual(calls[0]?.body, {
+    reason: 'approved after targeted disconnect failed',
+    collateral_sessions_may_disconnect: true
+  });
+  assert.equal(calls[0]?.headers.authorization, 'Bearer owner-access-token');
+});
+
 test('iveKit RustDesk HTTP client keeps Bearer identity authoritative', async () => {
   let headers: Record<string, string> = {};
   const client = createIveKitRustDeskHttpClient({
@@ -295,6 +336,31 @@ test('iveKit RustDesk HTTP client requests and projects a pinned client distribu
     JSON.stringify(profile),
     /api_key|bearer|private_key|edge_secret|unattended_password|launch_token|installer_credential|drop-me/
   );
+});
+
+test('iveKit RustDesk client profile preserves the placement-enabled native control v2 protocol', async () => {
+  const base = expectedClientDistributionProfile();
+  const projected = await projectRustDeskClientDistributionProfile({
+    ...base,
+    install_source: {
+      ...base.install_source,
+      native_control_protocol: 'ivekit-rustdesk-native-control-v2'
+    }
+  }, {
+    platform: 'windows',
+    architecture: 'x86_64',
+    client_version: '1.4.7',
+    expected_server_version: '1.1.15',
+    expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
+  }, new Date('2026-07-12T12:05:00.000Z'));
+
+  assert.equal(projected.install_source.state, 'configured');
+  if (projected.install_source.state === 'configured') {
+    assert.equal(
+      projected.install_source.native_control_protocol,
+      'ivekit-rustdesk-native-control-v2'
+    );
+  }
 });
 
 test('iveKit RustDesk profile projection accepts the five official 1.4.7 desktop asset names', async () => {
@@ -856,6 +922,7 @@ test('iveKit RustDesk HTTP client projects operation evidence onto browser-safe 
       operation_id: 'operation-1',
       external_id: 'rdgw_1',
       direction: 'agent_to_device',
+      evidence_security: 'ivekit_secure_file',
       byte_count: 24,
       checksum_sha256: 'b'.repeat(64),
       status_detail: 'operator_verified',
@@ -919,6 +986,7 @@ test('iveKit RustDesk HTTP client projects operation evidence onto browser-safe 
   assert.deepEqual(session.operation_evidence?.[0].metadata, {
     external_id: 'rdgw_1',
     direction: 'agent_to_device',
+    evidence_security: 'ivekit_secure_file',
     byte_count: 24,
     checksum_sha256: 'b'.repeat(64),
     status_detail: 'operator_verified'

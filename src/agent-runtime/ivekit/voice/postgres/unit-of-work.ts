@@ -37,6 +37,7 @@ export class PostgresVoiceCallUnitOfWork implements VoiceCallUnitOfWork {
     operation: (context: VoiceCallUnitOfWorkContext) => Promise<T>
   ): Promise<T> {
     return withPgTenant(this.pg, tenantId, (client) => operation({
+      pg: client,
       calls: new PostgresVoiceCallStore(client),
       configuration: new PostgresVoiceConfigurationStore(client),
       commands: new PostgresVoiceCommandStore(client),
@@ -53,6 +54,7 @@ export class PostgresVoiceProviderEventUnitOfWork implements VoiceProviderEventU
     operation: (context: VoiceProviderEventUnitOfWorkContext) => Promise<T>
   ): Promise<T> {
     return withPgTenant(this.pg, tenantId, (client) => operation({
+      pg: client,
       calls: new PostgresVoiceCallStore(client),
       configuration: new PostgresVoiceConfigurationStore(client),
       events: new PostgresVoiceProviderEventStore(client),

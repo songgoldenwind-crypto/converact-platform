@@ -1,10 +1,25 @@
+import { createHash } from 'node:crypto';
+
 import type { PgQueryable } from '../../../db-pg.js';
 import { withPgTenant } from '../../../db-pg-tenant.js';
 import { resolveAuthContext, type AuthContext } from '../../../middleware/auth.js';
+import { createObjectStorage, type ObjectStorage } from '../../../storage/object-storage.js';
+import {
+  PostgresRecordingManifestStore,
+  PostgresRecordingSpoolPlacementStore,
+  RecordingSegmentUploadService,
+  RecordingSpoolIntakeService,
+  RustPbxRecordingSpoolAuthorizer,
+  recordingSpoolHttpPartMaxBytes,
+  type RecordingSpoolInitializeInput
+} from '../recordings/index.js';
 import { configuredVoiceAddressProtector } from './address-protector.js';
 import { RustPbxEventsAdapter } from './adapters/rustpbx-events.js';
 import { RustPbxRouterAdapter } from './adapters/rustpbx-routing.js';
-import { VoiceCallService } from './call-service.js';
+import {
+  VoiceCallService,
+  type VoiceCallPlacementPort
+} from './call-service.js';
 import { VoicePolicyComplianceService } from './compliance-service.js';
 import { canonicalVoicePayloadHash } from './canonical.js';
 import { VoiceConfigurationService } from './configuration-service.js';
@@ -50,7 +65,8 @@ import type {
 } from './types.js';
 import {
   PostgresVoiceProfileContextResolver,
-  VoiceWebhookAuthenticator
+  VoiceWebhookAuthenticator,
+  type VoiceWebhookAuthentication
 } from './webhook-auth.js';
 
 export interface VoiceExtensionSessionPort {
@@ -87,9 +103,129 @@ export interface RouteIveKitVoiceApiOptions {
   secret_resolver?: VoiceSecretResolver;
   extension_sessions?: VoiceExtensionSessionPort;
   available_route_dependencies?: readonly ('start_ivr' | 'enqueue' | 'bridge_livekit' | 'voicemail')[];
+  placement?: VoiceCallPlacementPort;
+  prepared_call_placement?: PreparedVoiceCallPlacement;
+  recording_spool_intake?: Pick<
+    RecordingSpoolIntakeService,
+    'initialize' | 'uploadPart' | 'listParts' | 'complete' | 'finalize'
+  >;
+  recording_object_storage?: ObjectStorage;
+}
+
+export interface PreparedVoiceCallPlacement {
+  source: 'outbound_api' | 'rustpbx_inbound';
+  tenant_id: string;
+  call_id: string;
+  reservation: Awaited<ReturnType<VoiceCallPlacementPort['reserve']>> | null;
+  provider_authentication?: VoiceWebhookAuthentication;
 }
 
 type Headers = Record<string, string | string[] | undefined>;
+
+export async function prepareIveKitVoiceCallPlacement(
+  method: string,
+  routePath: string,
+  body: unknown,
+  headers: Headers,
+  options: RouteIveKitVoiceApiOptions,
+  pg: PgQueryable | null = null,
+  rawBody: string | Buffer = ''
+): Promise<PreparedVoiceCallPlacement | null> {
+  if (!options.placement || method !== 'POST') return null;
+  const normalizedPath = routePath.split('?')[0];
+  const providerRouter = normalizedPath.match(
+    /^\/api\/ivekit\/voice\/providers\/([^/]+)\/(router|inbound-admission)$/
+  );
+  if (providerRouter) {
+    const profileId = decodeSegment(providerRouter[1]);
+    const request = new RustPbxRouterAdapter().normalizeRequest(body as never);
+    if (request.direction !== 'inbound' || request.method !== 'INVITE') {
+      return null;
+    }
+    const rootPg = requiredPg(pg);
+    const authenticator = options.webhook_authenticator ??
+      createWebhookAuthenticator(rootPg, options);
+    const authenticated = await authenticator.authenticate({
+      profile_id: profileId,
+      raw_body: rawBody,
+      headers
+    });
+    if (authenticated.adapter !== 'rustpbx' ||
+        authenticated.profile_id !== profileId) {
+      throw webhookAuthFailed();
+    }
+    const callId = stableInboundVoiceCallId(
+      authenticated.tenant_id,
+      authenticated.profile_id,
+      request.call_id
+    );
+    if (options.placement.hasPlacement &&
+        await options.placement.hasPlacement(rootPg, {
+          tenant_id: authenticated.tenant_id,
+          interaction_id: callId
+        })) {
+      return {
+        source: 'rustpbx_inbound',
+        tenant_id: authenticated.tenant_id,
+        call_id: callId,
+        reservation: null,
+        provider_authentication: authenticated
+      };
+    }
+    const input = bodyRecord(body);
+    return {
+      source: 'rustpbx_inbound',
+      tenant_id: authenticated.tenant_id,
+      call_id: callId,
+      reservation: await options.placement.reserve({
+        tenant_id: authenticated.tenant_id,
+        interaction_id: callId,
+        routing_partition_key: `inbound_sip:${request.call_id}`,
+        idempotency_key:
+          `inbound:${authenticated.profile_id}:${request.call_id}`,
+        preferred_cell_id: requiredString(input.ivekit_cell_id),
+        preferred_owner_node_id: requiredString(
+          input.ivekit_owner_node_id
+        )
+      }),
+      provider_authentication: authenticated
+    };
+  }
+  if (normalizedPath !== '/api/ivekit/voice/calls') return null;
+  const ctx = requireVoiceAuth(headers);
+  requireOperator(ctx);
+  const input = bodyRecord(body);
+  const bodyTenant = typeof input.tenant_id === 'string'
+    ? input.tenant_id.trim()
+    : '';
+  if (bodyTenant && bodyTenant !== ctx.tenantId) throw validationError();
+  const businessRef = businessReference(input.business_ref);
+  const idempotencyKey = requireIdempotencyKey(headers);
+  const callId = stableVoiceCallId(ctx.tenantId, idempotencyKey);
+  if (pg && options.placement.hasPlacement &&
+      await options.placement.hasPlacement(pg, {
+        tenant_id: ctx.tenantId,
+        interaction_id: callId
+      })) {
+    return {
+      source: 'outbound_api',
+      tenant_id: ctx.tenantId,
+      call_id: callId,
+      reservation: null
+    };
+  }
+  return {
+    source: 'outbound_api',
+    tenant_id: ctx.tenantId,
+    call_id: callId,
+    reservation: await options.placement.reserve({
+      tenant_id: ctx.tenantId,
+      interaction_id: callId,
+      routing_partition_key: `${businessRef.type}:${businessRef.id}`,
+      idempotency_key: idempotencyKey
+    })
+  };
+}
 
 export async function routeIveKitVoiceApi(
   pg: PgQueryable | null,
@@ -104,8 +240,48 @@ export async function routeIveKitVoiceApi(
   const routePath = path.split('?')[0];
   if (!routePath.startsWith('/api/ivekit/voice/')) return undefined;
 
+  const recordingCompletionMatch = routePath.match(
+    /^\/api\/ivekit\/voice\/providers\/([^/]+)\/recording-spool\/recordings\/([^/]+)\/complete$/
+  );
+  if (recordingCompletionMatch) {
+    return routeProviderRecordingSpool({
+      pg,
+      method,
+      profile_id: decodeSegment(recordingCompletionMatch[1]),
+      recording_id: decodeSegment(recordingCompletionMatch[2]),
+      segment_id: '',
+      collection: '',
+      part_number: null,
+      complete: false,
+      body,
+      raw_body: rawBody,
+      headers,
+      options
+    });
+  }
+
+  const recordingSpoolMatch = routePath.match(
+    /^\/api\/ivekit\/voice\/providers\/([^/]+)\/recording-spool\/segments(?:\/([^/]+)(?:\/(parts)(?:\/(\d+))?|\/(complete))?)?$/
+  );
+  if (recordingSpoolMatch) {
+    return routeProviderRecordingSpool({
+      pg,
+      method,
+      profile_id: decodeSegment(recordingSpoolMatch[1]),
+      recording_id: '',
+      segment_id: recordingSpoolMatch[2] ? decodeSegment(recordingSpoolMatch[2]) : '',
+      collection: recordingSpoolMatch[3] || '',
+      part_number: recordingSpoolMatch[4] ? Number(recordingSpoolMatch[4]) : null,
+      complete: Boolean(recordingSpoolMatch[5]),
+      body,
+      raw_body: rawBody,
+      headers,
+      options
+    });
+  }
+
   const providerMatch = routePath.match(
-    /^\/api\/ivekit\/voice\/providers\/([^/]+)\/(router|events|cdrs)$/
+    /^\/api\/ivekit\/voice\/providers\/([^/]+)\/(router|inbound-admission|events|cdrs)$/
   );
   if (providerMatch && method === 'POST') {
     return routeProviderWebhook({
@@ -414,14 +590,30 @@ export async function routeIveKitVoiceApi(
     if (method === 'POST') {
       requireOperator(ctx);
       const input = bodyRecord(body);
+      const prepared = options.prepared_call_placement;
+      if (prepared && prepared.tenant_id !== ctx.tenantId) throw validationError();
       const created = await module.calls.createOutbound({
         tenant_id: ctx.tenantId, actor: ctx.userId,
         profile_id: requiredString(input.profile_id),
         from: clearAddress(input.from), to: clearAddress(input.to),
         business_ref: businessReference(input.business_ref),
-        idempotency_key: requireIdempotencyKey(headers), metadata: optionalRecord(input.metadata)
+        idempotency_key: requireIdempotencyKey(headers), metadata: optionalRecord(input.metadata),
+        call_id: prepared?.call_id,
+        placement_reservation: prepared?.reservation || undefined,
+        placement_prepared: Boolean(prepared)
       });
-      return { status: 202, data: { call: created.call, command: publicCallCommand(created.command) } };
+      if (prepared && created.call.id !== prepared.call_id) {
+        throw new VoiceError({ code: 'protocol_mismatch', status: 502 });
+      }
+      return {
+        status: 202,
+        data: { call: created.call, command: publicCallCommand(created.command) },
+        afterCommit: () => reconcileVoiceCallPlacement(
+          options.placement,
+          ctx.tenantId,
+          created.call.id
+        )
+      };
     }
   }
 
@@ -547,7 +739,8 @@ export function createPostgresVoiceHttpModule(
       compliance: options.compliance ?? new VoicePolicyComplianceService({
         unit_of_work: new PostgresVoiceCallUnitOfWork(pg)
       }),
-      event_port: eventPort
+      event_port: eventPort,
+      placement: options.placement
     }),
     configuration_repository: configurationRepository,
     call_repository: callRepository,
@@ -565,7 +758,87 @@ export function createPostgresVoiceHttpModule(
   };
 }
 
-type ProviderWebhookAction = 'router' | 'events' | 'cdrs';
+type ProviderWebhookAction = 'router' | 'inbound-admission' | 'events' | 'cdrs';
+
+async function routeProviderRecordingSpool(input: {
+  pg: PgQueryable | null;
+  method: string;
+  profile_id: string;
+  recording_id: string;
+  segment_id: string;
+  collection: string;
+  part_number: number | null;
+  complete: boolean;
+  body: unknown;
+  raw_body: string | Buffer;
+  headers: Headers;
+  options: RouteIveKitVoiceApiOptions;
+}): Promise<unknown> {
+  const pg = requiredPg(input.pg);
+  const authenticator = input.options.webhook_authenticator ??
+    createWebhookAuthenticator(pg, input.options, recordingSpoolHttpPartMaxBytes());
+  const authenticated = await authenticator.authenticate({
+    profile_id: input.profile_id,
+    raw_body: input.raw_body,
+    headers: input.headers
+  });
+  if (authenticated.adapter !== 'rustpbx') throw webhookAuthFailed();
+  return withPgTenant(pg, authenticated.tenant_id, async (tenantPg) => {
+    const module = await resolveModule(tenantPg, authenticated.tenant_id, input.options);
+    await assertAuthenticatedProviderProfile(module, authenticated);
+    const spool = input.options.recording_spool_intake ??
+      createRecordingSpoolIntake(tenantPg, module, input.options);
+
+    if (input.recording_id) {
+      if (input.method !== 'POST') {
+        throw new VoiceError({ code: 'validation_failed', status: 405 });
+      }
+      const body = bodyRecord(input.body);
+      if (String(body.recording_id || '') !== input.recording_id) throw validationError();
+      return {
+        data: await spool.finalize({
+          tenant_id: authenticated.tenant_id,
+          profile_id: authenticated.profile_id,
+          completion: body as never
+        })
+      };
+    }
+
+    if (!input.segment_id && input.method === 'POST') {
+      const body = bodyRecord(input.body);
+      const result = await spool.initialize({
+        ...body,
+        tenant_id: authenticated.tenant_id,
+        profile_id: authenticated.profile_id
+      } as unknown as RecordingSpoolInitializeInput);
+      return { status: 201, data: result };
+    }
+    if (!input.segment_id) throw validationError();
+    const identity = recordingSpoolLeaseIdentity(
+      authenticated.tenant_id,
+      input.segment_id,
+      input.headers
+    );
+    if (input.collection === 'parts' && input.part_number === null && input.method === 'GET') {
+      return { data: { items: await spool.listParts(identity) } };
+    }
+    if (input.collection === 'parts' && input.part_number !== null && input.method === 'PUT') {
+      if (!Buffer.isBuffer(input.raw_body)) throw validationError();
+      return {
+        data: await spool.uploadPart({
+          ...identity,
+          part_number: input.part_number,
+          content: input.raw_body,
+          sha256: headerValue(input.headers, 'x-ivekit-content-sha256')
+        })
+      };
+    }
+    if (input.complete && input.method === 'POST') {
+      return { data: await spool.complete(identity) };
+    }
+    throw new VoiceError({ code: 'validation_failed', status: 405 });
+  });
+}
 
 async function routeProviderWebhook(input: {
   pg: PgQueryable | null;
@@ -577,30 +850,95 @@ async function routeProviderWebhook(input: {
   options: RouteIveKitVoiceApiOptions;
 }): Promise<unknown> {
   const pg = requiredPg(input.pg);
-  const authenticator = input.options.webhook_authenticator ?? createWebhookAuthenticator(pg, input.options);
-  const authenticated = await authenticator.authenticate({
-    profile_id: input.profile_id,
-    raw_body: input.raw_body,
-    headers: input.headers
-  });
+  const prepared = input.options.prepared_call_placement;
+  const preparedAuthentication = prepared?.source === 'rustpbx_inbound' &&
+    prepared.provider_authentication?.profile_id === input.profile_id
+    ? prepared.provider_authentication
+    : null;
+  const authenticator = input.options.webhook_authenticator ??
+    createWebhookAuthenticator(pg, input.options);
+  const authenticated = preparedAuthentication ?? await authenticator.authenticate({
+      profile_id: input.profile_id,
+      raw_body: input.raw_body,
+      headers: input.headers
+    });
   if (authenticated.adapter !== 'rustpbx') throw webhookAuthFailed();
   return withPgTenant(pg, authenticated.tenant_id, async (tenantPg) => {
     const module = await resolveModule(tenantPg, authenticated.tenant_id, input.options);
-    const profile = await module.configuration_repository.getProfile(
-      authenticated.tenant_id,
-      authenticated.profile_id
-    );
-    if (!profile || profile.tenant_id !== authenticated.tenant_id
-      || profile.id !== authenticated.profile_id || profile.adapter !== authenticated.adapter
-      || profile.status === 'archived') throw webhookAuthFailed();
+    await assertAuthenticatedProviderProfile(module, authenticated);
 
-    if (input.action === 'router') {
+    if (input.action === 'router' || input.action === 'inbound-admission') {
       const request = new RustPbxRouterAdapter().normalizeRequest(input.body as never);
-      return { data: await module.router.decide({
+      const inboundPlacement = prepared?.source === 'rustpbx_inbound'
+        ? prepared
+        : null;
+      if (input.action === 'inbound-admission') {
+        if (request.direction !== 'inbound' || request.method !== 'INVITE') {
+          throw validationError();
+        }
+        if (!input.options.placement || !inboundPlacement) {
+          throw new VoiceError({
+            code: 'capability_unavailable',
+            status: 503,
+            retryable: true
+          });
+        }
+        await createAuthoritativeInboundCall({
+          module,
+          authenticated,
+          request,
+          placement: inboundPlacement,
+          source: 'rustpbx_snapshot_admission'
+        });
+        const owner = await input.options.placement.resolveOwner(tenantPg, {
+          tenant_id: authenticated.tenant_id,
+          interaction_id: inboundPlacement.call_id,
+          require_active: false
+        });
+        return {
+          status: 201,
+          data: {
+            accepted: true,
+            call_id: inboundPlacement.call_id,
+            provider_call_id: request.call_id,
+            reservation_id: owner.reservation_id,
+            owner_epoch: owner.owner_epoch,
+            cell_id: owner.cell_id,
+            owner_node_id: owner.owner_node_id
+          },
+          afterCommit: () => reconcileVoiceCallPlacement(
+            input.options.placement,
+            authenticated.tenant_id,
+            inboundPlacement.call_id
+          )
+        };
+      }
+      if (request.direction === 'inbound' && request.method === 'INVITE') {
+        await createAuthoritativeInboundCall({
+          module,
+          authenticated,
+          request,
+          placement: inboundPlacement,
+          source: 'rustpbx_router'
+        });
+      }
+      const decision = await module.router.decide({
         tenant_id: authenticated.tenant_id,
         profile_id: authenticated.profile_id,
         request
-      }) };
+      });
+      return {
+        data: decision,
+        ...(prepared?.source === 'rustpbx_inbound'
+          ? {
+              afterCommit: () => reconcileVoiceCallPlacement(
+                input.options.placement,
+                authenticated.tenant_id,
+                prepared.call_id
+              )
+            }
+          : {})
+      };
     }
     const normalized = module.rustpbx_events.normalize(
       input.action === 'cdrs' ? 'cdr' : 'http',
@@ -622,6 +960,114 @@ async function routeProviderWebhook(input: {
   });
 }
 
+async function assertAuthenticatedProviderProfile(
+  module: VoiceHttpModule,
+  authenticated: VoiceWebhookAuthentication
+): Promise<void> {
+  const profile = await module.configuration_repository.getProfile(
+    authenticated.tenant_id,
+    authenticated.profile_id
+  );
+  if (!profile || profile.tenant_id !== authenticated.tenant_id
+    || profile.id !== authenticated.profile_id || profile.adapter !== authenticated.adapter
+    || profile.status === 'archived') throw webhookAuthFailed();
+}
+
+function createRecordingSpoolIntake(
+  pg: PgQueryable,
+  module: VoiceHttpModule,
+  options: RouteIveKitVoiceApiOptions
+): RecordingSpoolIntakeService {
+  const store = new PostgresRecordingManifestStore(pg);
+  return new RecordingSpoolIntakeService({
+    authorizer: new RustPbxRecordingSpoolAuthorizer({
+      calls: module.call_repository,
+      configuration: module.configuration_repository,
+      placements: new PostgresRecordingSpoolPlacementStore(pg)
+    }),
+    store,
+    uploads: new RecordingSegmentUploadService({
+      store,
+      storage: options.recording_object_storage ?? createObjectStorage()
+    })
+  });
+}
+
+function recordingSpoolLeaseIdentity(
+  tenantId: string,
+  segmentId: string,
+  headers: Headers
+): {
+  tenant_id: string;
+  segment_id: string;
+  owner_epoch: string;
+  worker_id: string;
+  lease_token_hash: string;
+} {
+  const ownerEpoch = headerValue(headers, 'x-ivekit-recording-owner-epoch');
+  const workerId = headerValue(headers, 'x-ivekit-recording-worker-id');
+  const leaseToken = headerValue(headers, 'x-ivekit-recording-lease-token');
+  if (!/^(0|[1-9][0-9]{0,19})$/.test(ownerEpoch)
+    || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(workerId)
+    || !/^[A-Za-z0-9_-]{32,256}$/.test(leaseToken)) {
+    throw validationError();
+  }
+  return {
+    tenant_id: tenantId,
+    segment_id: segmentId,
+    owner_epoch: ownerEpoch,
+    worker_id: workerId,
+    lease_token_hash: createHash('sha256').update(leaseToken).digest('hex')
+  };
+}
+
+async function createAuthoritativeInboundCall(input: {
+  module: VoiceHttpModule;
+  authenticated: VoiceWebhookAuthentication;
+  request: ReturnType<RustPbxRouterAdapter['normalizeRequest']>;
+  placement: PreparedVoiceCallPlacement | null;
+  source: 'rustpbx_router' | 'rustpbx_snapshot_admission';
+}): Promise<void> {
+  await input.module.calls.createInbound({
+    tenant_id: input.authenticated.tenant_id,
+    profile_id: input.authenticated.profile_id,
+    provider_call_id: input.request.call_id,
+    external_event_id: `router:${input.request.call_id}`,
+    from: providerInboundAddress(input.request.from),
+    to: providerInboundAddress(input.request.to),
+    business_ref: {
+      type: 'inbound_sip',
+      id: input.request.call_id
+    },
+    metadata: {
+      source: input.source
+    },
+    ...(input.placement
+      ? {
+          call_id: input.placement.call_id,
+          placement_reservation: input.placement.reservation || undefined,
+          placement_prepared: true
+        }
+      : {})
+  });
+}
+
+function providerInboundAddress(
+  value: string
+): { kind: VoiceAddressKind; value: string } {
+  const input = String(value || '').trim();
+  const sip = input.match(/<?(sips?:[^\s<>]+@[^\s<>]+)>?/i)?.[1];
+  if (sip) return { kind: 'sip_uri', value: sip };
+  const telephone = input.replace(/^tel:/i, '').replace(/[\s().-]/g, '');
+  if (/^\+[1-9]\d{7,14}$/.test(telephone)) {
+    return { kind: 'e164', value: telephone };
+  }
+  if (/^\d{1,20}$/.test(input)) {
+    return { kind: 'extension', value: input };
+  }
+  throw validationError();
+}
+
 async function resolveModule(
   pg: PgQueryable | null,
   tenantId: string,
@@ -635,11 +1081,13 @@ async function resolveModule(
 
 function createWebhookAuthenticator(
   pg: PgQueryable,
-  options: RouteIveKitVoiceApiOptions
+  options: RouteIveKitVoiceApiOptions,
+  maxBodyBytes?: number
 ): VoiceWebhookAuthenticator {
   return new VoiceWebhookAuthenticator({
     context_resolver: new PostgresVoiceProfileContextResolver(pg),
-    secret_resolver: options.secret_resolver ?? configuredWebhookSecretResolver()
+    secret_resolver: options.secret_resolver ?? configuredWebhookSecretResolver(),
+    ...(maxBodyBytes === undefined ? {} : { max_body_bytes: maxBodyBytes })
   });
 }
 
@@ -668,6 +1116,44 @@ function requireVoiceAuth(headers: Headers): AuthContext {
     throw new VoiceError({ code: 'validation_failed', status: 401 });
   }
   return ctx;
+}
+
+async function reconcileVoiceCallPlacement(
+  placement: VoiceCallPlacementPort | undefined,
+  tenantId: string,
+  callId: string
+): Promise<void> {
+  if (!placement) return;
+  await placement.reconcileOne({
+    tenant_id: tenantId,
+    interaction_id: callId,
+    worker_id: voicePlacementWorkerId()
+  });
+}
+
+function voicePlacementWorkerId(): string {
+  const instance = String(
+    process.env.OPC_IVEKIT_INSTANCE_ID || process.env.HOSTNAME || process.pid
+  );
+  return `voice:${createHash('sha256').update(instance).digest('hex').slice(0, 32)}`;
+}
+
+function stableVoiceCallId(tenantId: string, idempotencyKey: string): string {
+  return `vcall_${createHash('sha256')
+    .update(`${tenantId}\u0000${idempotencyKey}`)
+    .digest('hex')
+    .slice(0, 32)}`;
+}
+
+function stableInboundVoiceCallId(
+  tenantId: string,
+  profileId: string,
+  providerCallId: string
+): string {
+  return `vcall_${createHash('sha256')
+    .update(`${tenantId}\u0000${profileId}\u0000${providerCallId}`)
+    .digest('hex')
+    .slice(0, 32)}`;
 }
 
 function rejectTenantOverride(tenantId: string, url: URL, body: unknown): void {

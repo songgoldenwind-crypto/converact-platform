@@ -7,7 +7,7 @@ import {
   IveKitTenantEventStore,
   iveKitEventReplayEnabled
 } from '../src/agent-runtime/ivekit/tenant-event-store.js';
-import { MemoryPg } from '../src/db-pg.js';
+import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 
 test('tenant event migration defines monotonic durable events with forced RLS', () => {
   const migration = readFileSync('src/migrations/042_ivekit_tenant_events.sql', 'utf8');
@@ -16,6 +16,17 @@ test('tenant event migration defines monotonic durable events with forced RLS', 
   assert.match(migration, /visibility_scope TEXT/);
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
   assert.match(migration, /FORCE ROW LEVEL SECURITY/);
+});
+
+test('tenant event idempotency migration deduplicates stable producer keys per tenant', () => {
+  const migration = readFileSync('src/migrations/072_ivekit_notification_events.sql', 'utf8');
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS idempotency_key TEXT NOT NULL DEFAULT ''/i);
+  assert.match(migration, /CHECK \(char_length\(idempotency_key\) <= 255\)/i);
+  assert.match(
+    migration,
+    /CREATE UNIQUE INDEX[\s\S]*ON ivekit_tenant_events\(tenant_id, idempotency_key\)/i
+  );
+  assert.match(migration, /WHERE idempotency_key <> ''/i);
 });
 
 test('tenant event replay requires an explicit signing secret when enabled', () => {
@@ -147,6 +158,9 @@ test('tenant event replay uses signed cursors, current membership and strict tar
 });
 
 test('tenant event retention prunes expired rows per tenant without touching live events', async () => {
+  const source = readFileSync('src/agent-runtime/ivekit/tenant-event-store.ts', 'utf8');
+  assert.match(source, /hold\.category = 'tenant_events'/);
+  assert.match(source, /hold\.resource_type = 'tenant_event'/);
   const pg = new MemoryPg();
   let now = new Date('2026-07-12T10:00:00.000Z');
   const events = new IveKitTenantEventStore(pg, {
@@ -194,4 +208,89 @@ test('tenant event payload accepts shared references but rejects actual cycles',
     }),
     /must be acyclic/
   );
+});
+
+test('tenant event append returns the original event for a repeated producer idempotency key', async () => {
+  const events = new IveKitTenantEventStore(new MemoryPg(), {
+    cursor_secret: 'tenant-event-idempotency-secret'
+  });
+  const input = {
+    tenant_id: 'tenant_event_idempotency',
+    type: 'notification.delivery.updated',
+    data: { notification_id: 'notification-a', delivery_id: 'delivery-a', state: 'delivered' },
+    audience_user_ids: ['user-a'],
+    idempotency_key: 'notification:delivery:stable-key'
+  };
+  const first = await events.append(input);
+  const repeated = await events.append(input);
+
+  assert.equal(repeated.event_id, first.event_id);
+  const before = await events.headCursor(input.tenant_id);
+  const after = await events.append({
+    ...input,
+    idempotency_key: 'notification:delivery:second-key',
+    data: { ...input.data, state: 'failed' }
+  });
+  const page = await events.list({
+    tenant_id: input.tenant_id,
+    user_id: 'user-a',
+    role: 'operator',
+    cursor: before,
+    limit: 10
+  });
+  assert.deepEqual(page.items.map((event) => event.event_id), [after.event_id]);
+});
+
+test('tenant event live visibility batches scoped membership into one database probe', async () => {
+  class VisibilityPg implements PgQueryable {
+    readonly queries: string[] = [];
+
+    async query<R>(text: string): Promise<any> {
+      this.queries.push(text);
+      if (/set_config\('app\.current_tenant'/i.test(text)) return { rows: [] as R[] };
+      if (/FROM collaboration_participants participant/i.test(text)) {
+        return {
+          rows: [
+            { user_id: 'member-1' },
+            { user_id: 'member-3' }
+          ] as R[]
+        };
+      }
+      throw new Error(`unexpected query: ${text}`);
+    }
+  }
+
+  const pg = new VisibilityPg();
+  const events = new IveKitTenantEventStore(pg, {
+    cursor_secret: 'tenant-event-batch-visibility-secret'
+  });
+  const viewers: Array<{ user_id: string; role: 'operator' | 'admin' }> =
+    Array.from({ length: 1_000 }, (_, index) => ({
+    user_id: `member-${index}`,
+    role: 'operator' as const
+    }));
+  viewers.push({ user_id: 'tenant-admin', role: 'admin' as const });
+  const visible = await events.canViewMany({
+    event_id: '1',
+    cursor: 'unused',
+    tenant_id: 'tenant-batch-visibility',
+    type: 'collaboration.message.created',
+    data: { session_id: 'session-batch-visibility' },
+    timestamp: '2026-07-16T00:00:00.000Z',
+    expires_at: '2026-07-17T00:00:00.000Z',
+    visibility_scope: 'chat_session',
+    visibility_ref_id: 'session-batch-visibility',
+    audience_user_ids: []
+  }, viewers);
+
+  assert.equal(visible.length, viewers.length);
+  assert.equal(visible[1], true);
+  assert.equal(visible[2], false);
+  assert.equal(visible[3], true);
+  assert.equal(visible.at(-1), true);
+  assert.equal(
+    pg.queries.filter((query) => /FROM collaboration_participants participant/i.test(query)).length,
+    1
+  );
+  assert.equal(pg.queries.some((query) => /ANY\(\$3/i.test(query)), false);
 });

@@ -5,10 +5,12 @@ export interface IveKitReleaseOperationsInput {
   imageDigest: string;
   imageMetadataSha256: string;
   migrationManifestSha256: string;
+  stage2EvidenceSha256: string;
+  stage2ReleaseFingerprint: string;
 }
 
 export interface IveKitReleaseContract {
-  schema_version: 1;
+  schema_version: 2;
   product: 'iveKit standalone service';
   source_commit: string;
   generated_at: string;
@@ -26,6 +28,18 @@ export interface IveKitReleaseContract {
     manifest_sha256: string;
     runner: 'node dist/ivekit-migrate.js';
     advisory_lock: 'ivekit_schema_migrations';
+    required: [
+      '061_ivekit_file_security.sql',
+      '062_tinode_file_delivery_operations.sql',
+      '063_livekit_media_quality.sql'
+    ];
+  };
+  configuration: {
+    stage2_evidence_path: 'operations/stage2-deployment-evidence.json';
+    stage2_evidence_sha256: string;
+    release_fingerprint_sha256: string;
+    runtime_deployment_fingerprint_required: true;
+    secret_values_embedded: false;
   };
   compose: {
     file: 'deploy/application/docker-compose.yml';
@@ -70,7 +84,7 @@ export function createIveKitReleaseOperations(
     ? `${input.imageReference}@${input.imageDigest}`
     : '';
   const contract: IveKitReleaseContract = {
-    schema_version: 1,
+    schema_version: 2,
     product: 'iveKit standalone service',
     source_commit: input.sourceCommit,
     generated_at: input.generatedAt,
@@ -87,7 +101,19 @@ export function createIveKitReleaseOperations(
       manifest_path: 'service/migration-manifest.json',
       manifest_sha256: input.migrationManifestSha256,
       runner: 'node dist/ivekit-migrate.js',
-      advisory_lock: 'ivekit_schema_migrations'
+      advisory_lock: 'ivekit_schema_migrations',
+      required: [
+        '061_ivekit_file_security.sql',
+        '062_tinode_file_delivery_operations.sql',
+        '063_livekit_media_quality.sql'
+      ]
+    },
+    configuration: {
+      stage2_evidence_path: 'operations/stage2-deployment-evidence.json',
+      stage2_evidence_sha256: input.stage2EvidenceSha256,
+      release_fingerprint_sha256: input.stage2ReleaseFingerprint,
+      runtime_deployment_fingerprint_required: true,
+      secret_values_embedded: false
     },
     compose: {
       file: 'deploy/application/docker-compose.yml',
@@ -119,7 +145,7 @@ export function createIveKitReleaseOperations(
 
 export function validateIveKitReleaseOperations(operations: IveKitReleaseOperations): void {
   const { contract, runbook } = operations;
-  if (contract.schema_version !== 1 || contract.product !== 'iveKit standalone service') {
+  if (contract.schema_version !== 2 || contract.product !== 'iveKit standalone service') {
     throw new Error('invalid iveKit release contract');
   }
   if (!SOURCE_COMMIT.test(contract.source_commit)) throw new Error('invalid release source commit');
@@ -129,7 +155,9 @@ export function validateIveKitReleaseOperations(operations: IveKitReleaseOperati
     throw new Error('release contract contains an unsafe image reference');
   }
   if (!SHA256.test(contract.image.metadata_sha256) ||
-      !SHA256.test(contract.migrations.manifest_sha256)) {
+      !SHA256.test(contract.migrations.manifest_sha256) ||
+      !SHA256.test(contract.configuration.stage2_evidence_sha256) ||
+      !SHA256.test(contract.configuration.release_fingerprint_sha256)) {
     throw new Error('invalid release artifact checksum');
   }
   if (contract.image.digest) {
@@ -151,6 +179,14 @@ export function validateIveKitReleaseOperations(operations: IveKitReleaseOperati
   }
   if (contract.image.metadata_path !== 'service/image-metadata.json' ||
       contract.migrations.manifest_path !== 'service/migration-manifest.json' ||
+      JSON.stringify(contract.migrations.required) !== JSON.stringify([
+        '061_ivekit_file_security.sql',
+        '062_tinode_file_delivery_operations.sql',
+        '063_livekit_media_quality.sql'
+      ]) ||
+      contract.configuration.stage2_evidence_path !== 'operations/stage2-deployment-evidence.json' ||
+      contract.configuration.runtime_deployment_fingerprint_required !== true ||
+      contract.configuration.secret_values_embedded !== false ||
       contract.compose.file !== 'deploy/application/docker-compose.yml' ||
       contract.compose.voice_file !== 'deploy/application/docker-compose.voice.yml' ||
       contract.compose.service !== 'ivekit' ||
@@ -176,6 +212,8 @@ export function validateIveKitReleaseOperations(operations: IveKitReleaseOperati
     contract.execution_status,
     contract.image.metadata_sha256,
     contract.migrations.manifest_sha256,
+    contract.configuration.stage2_evidence_sha256,
+    contract.configuration.release_fingerprint_sha256,
     'sha256sum --check SHA256SUMS',
     'restore-only'
   ]) {
@@ -194,7 +232,8 @@ function assertInput(input: IveKitReleaseOperationsInput): void {
   if (input.imageDigest && !IMAGE_DIGEST.test(input.imageDigest)) {
     throw new Error('imageDigest must be a sha256 digest');
   }
-  if (!SHA256.test(input.imageMetadataSha256) || !SHA256.test(input.migrationManifestSha256)) {
+  if (!SHA256.test(input.imageMetadataSha256) || !SHA256.test(input.migrationManifestSha256) ||
+      !SHA256.test(input.stage2EvidenceSha256) || !SHA256.test(input.stage2ReleaseFingerprint)) {
     throw new Error('release artifact checksums must be SHA-256 values');
   }
 }
@@ -219,6 +258,8 @@ function renderRunbook(contract: IveKitReleaseContract): string {
     `Source commit: \`${contract.source_commit}\``,
     `Image metadata SHA-256: \`${contract.image.metadata_sha256}\``,
     `Migration manifest SHA-256: \`${contract.migrations.manifest_sha256}\``,
+    `Stage 2 deployment evidence SHA-256: \`${contract.configuration.stage2_evidence_sha256}\``,
+    `Stage 2 release fingerprint: \`${contract.configuration.release_fingerprint_sha256}\``,
     '',
     'Do not execute an upgrade while the status is `blocked_build_required`. Build and publish the image,',
     'record its registry digest in `service/image-metadata.json`, then regenerate and verify this bundle.',
@@ -228,6 +269,8 @@ function renderRunbook(contract: IveKitReleaseContract): string {
     '- Verify `SHA256SUMS` before using any artifact.',
     '- Capture and restore-test a PostgreSQL backup before migration.',
     '- Migrations are forward-only and must follow expand/contract compatibility.',
+    '- Migrations 061, 062, and 063 and the TURN, Egress, and file-security template fingerprints are release-bound.',
+    '- Production acceptance must record the runtime deployment fingerprint; template fingerprints do not prove a live environment.',
     '- Application rollback never runs a schema downgrade.',
     '- Database rollback is restore-only from the verified pre-upgrade backup during an approved maintenance window.',
     '- Existing provider data, RustDesk identity keys, recordings, and object storage are not deleted by this procedure.',
@@ -238,6 +281,7 @@ function renderRunbook(contract: IveKitReleaseContract): string {
     'sha256sum --check SHA256SUMS',
     `printf '%s  %s\\n' '${contract.image.metadata_sha256}' '${contract.image.metadata_path}' | sha256sum --check -`,
     `printf '%s  %s\\n' '${contract.migrations.manifest_sha256}' '${contract.migrations.manifest_path}' | sha256sum --check -`,
+    `printf '%s  %s\\n' '${contract.configuration.stage2_evidence_sha256}' '${contract.configuration.stage2_evidence_path}' | sha256sum --check -`,
     '```',
     '',
     'Record the backup identifier, restore-test evidence, current immutable image, and health baseline in the change ticket.',

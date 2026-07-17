@@ -1,0 +1,142 @@
+#!/bin/sh
+set -eu
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+CHART_DIR="$ROOT_DIR/services/ivekit-service/helm/ivekit"
+PLATFORM_CHART_DIR="$ROOT_DIR/infra/k8s"
+COMPOSE_FILE="$ROOT_DIR/services/ivekit-service/docker-compose.yml"
+COMPOSE_ENV="$ROOT_DIR/services/ivekit-service/env.example"
+RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-helm.XXXXXX.yaml")
+EGRESS_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-egress.XXXXXX.yaml")
+
+cleanup() {
+  rm -f "$RENDERED_FILE" "$EGRESS_RENDERED_FILE"
+}
+trap cleanup EXIT HUP INT TERM
+
+for command_name in docker helm node; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    printf '%s\n' "required command is unavailable: $command_name" >&2
+    exit 1
+  fi
+done
+
+cd "$ROOT_DIR"
+
+docker compose --env-file "$COMPOSE_ENV" -f "$COMPOSE_FILE" config --quiet
+
+helm lint "$CHART_DIR" \
+  --set-string image.repository=registry.example.invalid/ivekit/service \
+  --set-string image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --set-string clamav.image.repository=clamav/clamav \
+  --set-string clamav.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --set-string secrets.existingSecret=ivekit-runtime
+
+helm template ivekit "$CHART_DIR" \
+  --set-string image.repository=registry.example.invalid/ivekit/service \
+  --set-string image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --set-string clamav.image.repository=clamav/clamav \
+  --set-string clamav.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --set-string secrets.existingSecret=ivekit-runtime \
+  >"$RENDERED_FILE"
+
+test -s "$RENDERED_FILE"
+grep -q 'registry.example.invalid/ivekit/service@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$RENDERED_FILE"
+grep -q 'clamav/clamav@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$RENDERED_FILE"
+grep -q 'app.kubernetes.io/component: api' "$RENDERED_FILE"
+grep -q 'app.kubernetes.io/component: clamav' "$RENDERED_FILE"
+grep -q 'kind: PersistentVolumeClaim' "$RENDERED_FILE"
+grep -q 'type: ClusterIP' "$RENDERED_FILE"
+
+EGRESS_DIGEST=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+if helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --set livekit.enabled=false \
+  --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+  --set-string livekit.publicUrl=wss://media.example.invalid \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
+  --set-string livekit.redis.address=redis.shared.example.invalid:6379 \
+  --set media.egress.enabled=true \
+  --set-string media.egress.image.repository=ivekit/livekit-egress \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'external Egress unexpectedly rendered without a custom image digest' >&2
+  exit 1
+fi
+
+if helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --set livekit.enabled=false \
+  --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+  --set-string livekit.publicUrl=wss://media.example.invalid \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
+  --set media.egress.enabled=true \
+  --set-string media.egress.image.repository=ivekit/livekit-egress \
+  --set-string media.egress.image.digest="$EGRESS_DIGEST" \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'external Egress unexpectedly rendered without shared Redis' >&2
+  exit 1
+fi
+
+for unapproved_egress_repository in \
+  livekit/egress \
+  docker.io/livekit/egress \
+  registry-1.docker.io/livekit/egress \
+  registry.example.invalid/arbitrary/livekit-egress \
+  untrusted.example.invalid/ivekit/livekit-egress; do
+  if helm template opc-platform "$PLATFORM_CHART_DIR" \
+    --set livekit.enabled=false \
+    --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+    --set-string livekit.publicUrl=wss://media.example.invalid \
+    --set-string livekit.apiKey=render-only-key \
+    --set-string livekit.apiSecret=render-only-secret-value \
+    --set-string livekit.redis.address=redis.shared.example.invalid:6379 \
+    --set media.egress.enabled=true \
+    --set-string media.egress.image.repository="$unapproved_egress_repository" \
+    --set-string media.egress.image.digest="$EGRESS_DIGEST" \
+    >/dev/null 2>&1; then
+    printf '%s\n' "unapproved Egress image repository unexpectedly rendered: $unapproved_egress_repository" >&2
+    exit 1
+  fi
+done
+
+helm lint "$PLATFORM_CHART_DIR" \
+  --set livekit.enabled=false \
+  --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+  --set-string livekit.publicUrl=wss://media.example.invalid \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
+  --set-string livekit.redis.address=redis.shared.example.invalid:6379 \
+  --set media.egress.enabled=true \
+  --set-string media.egress.image.repository=registry.example.invalid/ivekit/livekit-egress \
+  --set-string 'media.egress.image.allowedRegistries[0]=registry.example.invalid' \
+  --set-string media.egress.image.digest="$EGRESS_DIGEST"
+
+helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --set livekit.enabled=false \
+  --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+  --set-string livekit.publicUrl=wss://media.example.invalid \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
+  --set-string livekit.redis.address=redis.shared.example.invalid:6379 \
+  --set media.egress.enabled=true \
+  --set-string media.egress.image.repository=registry.example.invalid/ivekit/livekit-egress \
+  --set-string 'media.egress.image.allowedRegistries[0]=registry.example.invalid' \
+  --set-string media.egress.image.digest=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc \
+  >"$EGRESS_RENDERED_FILE"
+
+test -s "$EGRESS_RENDERED_FILE"
+grep -q 'redis.shared.example.invalid:6379' "$EGRESS_RENDERED_FILE"
+grep -q "registry.example.invalid/ivekit/livekit-egress@$EGRESS_DIGEST" "$EGRESS_RENDERED_FILE"
+grep -q 'IVEKIT_EGRESS_POOL_NAME' "$EGRESS_RENDERED_FILE"
+grep -q 'ivekit.io/egress-image-contract: "ivekit-egress-pool-v1"' "$EGRESS_RENDERED_FILE"
+grep -q 'opc-platform-livekit-egress-track' "$EGRESS_RENDERED_FILE"
+grep -q 'opc-platform-livekit-egress-composite' "$EGRESS_RENDERED_FILE"
+
+node --import tsx --test \
+  test/livekit-deployment-preflight.test.ts \
+  test/ivekit-stage2-release-evidence.test.ts \
+  test/ivekit-release-operations.test.ts \
+  test/ivekit-stage2-deployment-gate.test.ts
+
+printf '%s\n' 'iveKit Stage 2 deployment gate passed'

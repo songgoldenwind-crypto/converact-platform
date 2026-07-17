@@ -26,6 +26,8 @@ export interface RustDeskDeploymentPreflightReport {
     protocolUrlRequired: boolean;
     httpsLaunchRequired: boolean;
     physicalDisconnectRequired: boolean;
+    authorizationCodeRequired: boolean;
+    authorizationCodeSecretConfigured: boolean;
     physicalDisconnectReadinessCheck: boolean;
     edgeCommandExecutionEnabled: boolean;
     edgeCommandTokenConfigured: boolean;
@@ -70,6 +72,11 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
   const protocolUrlRequired = readinessFlag(env.OPC_RUSTDESK_READINESS_REQUIRE_PROTOCOL_URL);
   const httpsLaunchRequired = envFlag(env.OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL);
   const physicalDisconnectRequired = envFlag(env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT);
+  const authorizationCodeRequired = envFlag(env.OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE);
+  const authorizationCodeSecretConfigured = Buffer.byteLength(
+    String(env.OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET || ''),
+    'utf8'
+  ) >= 32;
   const physicalDisconnectReadinessCheck = envFlag(
     env.OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT
   );
@@ -197,6 +204,16 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
   );
   addCheck(
     checks,
+    'authorization_code_secret',
+    !authorizationCodeRequired || authorizationCodeSecretConfigured ? 'pass' : 'fail',
+    !authorizationCodeRequired
+      ? 'RustDesk attended authorization-code requirement is disabled'
+      : authorizationCodeSecretConfigured
+        ? 'RustDesk authorization-code HMAC secret is configured'
+        : 'OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET must contain at least 32 bytes when authorization codes are required'
+  );
+  addCheck(
+    checks,
     'physical_disconnect_readiness',
     !physicalDisconnectRequired || physicalDisconnectReadinessCheck ? 'pass' : 'fail',
     !physicalDisconnectRequired
@@ -290,6 +307,8 @@ export function createRustDeskDeploymentPreflightReport(env: NodeJS.ProcessEnv):
       protocolUrlRequired,
       httpsLaunchRequired,
       physicalDisconnectRequired,
+      authorizationCodeRequired,
+      authorizationCodeSecretConfigured,
       physicalDisconnectReadinessCheck,
       edgeCommandExecutionEnabled: edgeCommandChecksEnabled && adapterConfigured,
       edgeCommandTokenConfigured,
@@ -398,6 +417,8 @@ function rustDeskDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): RustDeskDe
     item(env, 'Server Readiness', 'OPC_RUSTDESK_CHECK_HOST', serverPortsCheck, 'Host used by hbbs/hbbr TCP/UDP port checks. Required when server port checks are enabled; can fall back to OPC_RUSTDESK_ID_SERVER.', env.OPC_RUSTDESK_CHECK_HOST || env.OPC_RUSTDESK_ID_SERVER),
     item(env, 'Server Readiness', 'OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', protocolUrlRequired, 'rustdesk:// template containing {rustdesk_id}. Required when protocol URL checks are enabled.', env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE),
     item(env, 'Server Readiness', 'OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT', false, 'Set to 1 to reject new RustDesk sessions unless the device heartbeat declares physical-disconnect command capability.', env.OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT),
+    item(env, 'Server Readiness', 'OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE', false, 'Set to 1 to require a verified one-time authorization code before attended gateway activation.', env.OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE),
+    item(env, 'Server Readiness', 'OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET', false, 'Server-only HMAC secret for one-time attended authorization codes. Use at least 32 bytes.', env.OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET, true),
     item(env, 'Server Readiness', 'OPC_RUSTDESK_EDGE_TOKEN_SECRET', false, 'Server-only HMAC secret used to verify device-bound edge command tokens. Use at least 32 characters.', env.OPC_RUSTDESK_EDGE_TOKEN_SECRET, true),
     item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT', false, 'Set to 1 to register/heartbeat device before readiness.', env.OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT),
     item(env, 'Readiness Switches', 'OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE', false, 'Dedicated strict device-online switch. Defaults to enabled.', env.OPC_RUSTDESK_READINESS_CHECK_DEVICE_ONLINE),

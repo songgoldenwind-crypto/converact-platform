@@ -11,6 +11,7 @@ import {
   type TranslationSourceType
 } from './translation-provider.js';
 import { sanitizeProviderMetadata, sanitizeProviderRequestId } from './provider-safety.js';
+import { intelligenceProviderRouteFailure } from './intelligence-provider-route.js';
 
 export type TranslationJobStatus =
   | 'pending' | 'processing' | 'retry_wait' | 'succeeded' | 'failed' | 'cancelled';
@@ -465,19 +466,29 @@ export class TranslationService {
 
   private async fail(job: CollaborationTranslationJob, error: unknown): Promise<'retry_wait' | 'failed'> {
     const classified = classify(error);
-    const terminal = !classified.retryable || job.attempt_count >= job.max_attempts;
+    const terminal = !classified.retryable || (
+      classified.attempt_consumed && job.attempt_count >= job.max_attempts
+    );
     const status = terminal ? 'failed' : 'retry_wait';
     const now = this.now();
-    const next = terminal ? null : new Date(
-      now.getTime() + (this.retryDelaysMs[Math.min(job.attempt_count - 1, this.retryDelaysMs.length - 1)] || 0)
-    ).toISOString();
+    const next = terminal ? null : nextRetryAt(
+      now,
+      this.retryDelaysMs[Math.min(job.attempt_count - 1, this.retryDelaysMs.length - 1)] || 0,
+      classified.retry_at
+    );
     const result = await withPgTenant(this.input.pg, job.tenant_id, (pg) => pg.query(
       `UPDATE collaboration_translation_jobs
        SET status = $4, next_attempt_at = $5, lease_until = NULL, worker_id = '',
            error_code = $6, error_message = $7,
+           attempt_count = GREATEST(attempt_count - $9, 0),
+           output_metadata = output_metadata || $10::JSONB,
            completed_at = CASE WHEN $4 = 'failed' THEN $8 ELSE NULL END, updated_at = $8
        WHERE id = $1 AND tenant_id = $2 AND status = 'processing' AND worker_id = $3 RETURNING *`,
-      [job.id, job.tenant_id, job.worker_id, status, next, classified.code, classified.message, now.toISOString()]
+      [
+        job.id, job.tenant_id, job.worker_id, status, next, classified.code,
+        classified.message, now.toISOString(), classified.attempt_consumed ? 0 : 1,
+        JSON.stringify(classified.metadata)
+      ]
     ));
     if (terminal && result.rows[0]) {
       await Promise.resolve(this.input.onFailed?.(decodeJob(result.rows[0]))).catch(() => undefined);
@@ -654,13 +665,29 @@ function decodeResult(row: Record<string, unknown>): CollaborationTranslationRes
   };
 }
 
-function classify(error: unknown): { code: string; message: string; retryable: boolean } {
+function classify(error: unknown): {
+  code: string;
+  message: string;
+  retryable: boolean;
+  retry_at: string;
+  attempt_consumed: boolean;
+  metadata: Record<string, unknown>;
+} {
+  const route = intelligenceProviderRouteFailure(error);
   if (error instanceof TranslationProviderError) {
-    return { code: error.code.slice(0, 100), message: error.message.slice(0, 300), retryable: error.retryable };
+    return {
+      code: error.code.slice(0, 100), message: error.message.slice(0, 300), retryable: error.retryable,
+      retry_at: route?.retry_at || '', attempt_consumed: route?.provider_invoked !== false,
+      metadata: routeMetadata(route)
+    };
   }
   const details = error as { code?: unknown; retryable?: unknown; message?: unknown };
   const code = String(details?.code || 'translation_failed').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
-  return { code, message: String(details?.message || code).slice(0, 300), retryable: details?.retryable === true };
+  return {
+    code, message: String(details?.message || code).slice(0, 300),
+    retryable: details?.retryable === true, retry_at: route?.retry_at || '',
+    attempt_consumed: route?.provider_invoked !== false, metadata: routeMetadata(route)
+  };
 }
 
 function serviceError(code: string, retryable: boolean): Error {
@@ -694,10 +721,28 @@ function addSummary(target: TranslationRunSummary, value: TranslationRunSummary)
 }
 
 function retryableTranslationCode(code: string): boolean {
-  if (['provider_timeout', 'provider_unavailable', 'claim_lease_expired',
+  if (['provider_timeout', 'provider_unavailable', 'provider_route_unavailable', 'claim_lease_expired',
     'translation_result_missing', 'translation_job_claim_lost'].includes(code)) return true;
   const match = code.match(/^provider_http_(\d{3})$/);
   if (!match) return false;
   const status = Number(match[1]);
   return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function nextRetryAt(now: Date, delayMs: number, providerRetryAt: string): string {
+  const delayed = now.getTime() + delayMs;
+  const requested = Date.parse(providerRetryAt);
+  return new Date(Number.isNaN(requested) ? delayed : Math.max(delayed, requested)).toISOString();
+}
+
+function routeMetadata(
+  route: ReturnType<typeof intelligenceProviderRouteFailure>
+): Record<string, unknown> {
+  if (!route) return {};
+  return {
+    ivekit_route_attempts: route.attempts,
+    ivekit_route_provider_invoked: route.provider_invoked,
+    ivekit_route_failover_attempted: route.failover_attempted,
+    ...(route.retry_at ? { ivekit_route_retry_at: route.retry_at } : {})
+  };
 }

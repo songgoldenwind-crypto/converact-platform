@@ -1,14 +1,27 @@
+import { createHash } from 'node:crypto';
+
 import { resolveAuthContext } from '../../middleware/auth.js';
-import { getPostgresOrNull, type PgQueryable } from '../../db-pg.js';
+import { getPostgresOrNull, pgId, type PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { wsBroadcastToUsers } from '../../ws.js';
 import { createLiveKitMediaModule, issueSupervisorToken } from '../livekit/index.js';
 import { MediaCallService } from '../livekit/media-call-service.js';
 import { MediaCallStore } from '../livekit/media-call-store.js';
 import {
+  MediaQualityService,
+  mediaQualityServiceOptionsFromEnv
+} from '../livekit/media-quality-service.js';
+import { MediaQualityStore } from '../livekit/media-quality-store.js';
+import {
+  observeMediaConnectionEvent,
+  observeMediaQualityReport,
+  observeMediaQualityTransition
+} from '../livekit/media-quality-metrics.js';
+import {
   createConfiguredLiveKitModerationProvider,
   LiveKitModerationService,
   type LiveKitModerationProvider,
+  type LiveKitModerationProviderResolver,
   type LiveKitModerationResult
 } from '../livekit/livekit-moderation-service.js';
 import {
@@ -16,9 +29,13 @@ import {
   isLiveKitConfigured,
   readLiveKitConfig
 } from '../livekit/config.js';
+import { liveKitConfigForPlacement } from '../livekit/token-service.js';
 import type { RecordingAuditEvent } from '../livekit/media-http.js';
 import type {
   EgressRecord,
+  LiveKitEgressJob,
+  LiveKitRecordingMode,
+  LiveKitRecordingTrackSelector,
   MediaBusinessRef,
   MediaRoomPurpose,
   RecordingFormat,
@@ -26,16 +43,32 @@ import type {
   RecordingObjectStreamResult,
   RecordingObjectDeleteResult
 } from '../livekit/types.js';
+import type { LiveKitEgressPlacementPort } from './placement/livekit-egress-placement.js';
 import type {
+  IveKitMediaConnectionEventInput,
+  IveKitMediaConnectionEventResult,
   IveKitMediaCallAction,
+  IveKitMediaQualitySnapshotInput,
+  IveKitMediaQualityTransition,
   IveKitMediaCallSnapshot,
   IveKitMediaTrackSource
 } from '../livekit/types.js';
 import type { MediaChannel } from '../media-gateway/index.js';
+import { IveKitTenantEventJournal } from './tenant-event-store.js';
+import type {
+  MediaCallPlacementPort,
+  MediaCallPlacementReservation
+} from '../livekit/media-call-service.js';
+import type { LiveKitWebhookResult } from '../livekit/types.js';
 
 export interface RouteIveKitMediaApiOptions {
   pg?: PgQueryable;
   commandPg?: PgQueryable;
+  mediaQualityService?: Pick<
+    MediaQualityService,
+    'reportQuality' | 'reportConnectionEvent' | 'getSummary' | 'prune'
+  >;
+  eventStore?: Pick<IveKitTenantEventJournal, 'append'>;
   moderationProvider?: LiveKitModerationProvider;
   onRecordingStarted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
   onRecordingCompleted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
@@ -48,6 +81,54 @@ export interface RouteIveKitMediaApiOptions {
     context: { actorId: string; source?: string }
   ) => void | Promise<unknown>;
   onRecordingAudit?: (event: RecordingAuditEvent) => void | Promise<void>;
+  placement?: MediaCallPlacementPort;
+  egressPlacement?: LiveKitEgressPlacementPort;
+  placementWorkerId?: string;
+  preparedMediaCallPlacement?: PreparedMediaCallPlacement;
+}
+
+export interface PreparedMediaCallPlacement {
+  tenant_id: string;
+  call_id: string;
+  reservation: MediaCallPlacementReservation;
+}
+
+export async function prepareIveKitMediaCallPlacement(
+  method: string,
+  routePath: string,
+  body: unknown,
+  headers: Record<string, string | string[] | undefined>,
+  options: RouteIveKitMediaApiOptions
+): Promise<PreparedMediaCallPlacement | null> {
+  if (!options.placement ||
+      method !== 'POST' ||
+      routePath !== '/api/ivekit/media/calls') {
+    return null;
+  }
+  const ctx = requireAuth(headers);
+  const input = bodyRecord(body);
+  const businessRef = optionalBusinessRef(ctx.tenantId, input);
+  if (!businessRef) throw badRequest('business_ref is required');
+  const actorIdentity = mediaActorIdentity(ctx, headers);
+  if (!actorIdentity) throw badRequest('authenticated media call identity is required');
+  const participantIdentities = Array.isArray(input.participant_identities)
+    ? input.participant_identities.map((identity) => String(identity || '').trim()).filter(Boolean)
+    : [];
+  const invitees = [...new Set(participantIdentities)]
+    .filter((identity) => identity !== actorIdentity);
+  const callId = pgId('mcall');
+  return {
+    tenant_id: ctx.tenantId,
+    call_id: callId,
+    reservation: await options.placement.reserve({
+      tenant_id: ctx.tenantId,
+      interaction_id: callId,
+      media: String(input.media || 'video') === 'voice' ? 'voice' : 'video',
+      participant_count: invitees.length + 1,
+      business_ref: businessRef,
+      idempotency_key: headerValue(headers, 'idempotency-key') || `media-call:${callId}`
+    })
+  };
 }
 
 function requireMediaCallPg(pg: PgQueryable | undefined): PgQueryable {
@@ -100,10 +181,38 @@ function optionalBodyNumber(body: Record<string, unknown>, key: string): number 
   return parsed;
 }
 
+function optionalQueryNumber(value: string | null): number | undefined {
+  if (value == null || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw badRequest('query value must be a number');
+  return parsed;
+}
+
 function optionalBodyRecord(body: Record<string, unknown>, key: string): Record<string, unknown> | undefined {
   const value = body[key];
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
+}
+
+function optionalRecordingMode(body: Record<string, unknown>): LiveKitRecordingMode | undefined {
+  return optionalBodyString(body, 'recording_mode') as LiveKitRecordingMode | undefined;
+}
+
+function optionalRecordingTracks(body: Record<string, unknown>): LiveKitRecordingTrackSelector[] | undefined {
+  const value = body.tracks;
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) throw badRequest('tracks must be an array');
+  return value.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw badRequest('track selector must be an object');
+    }
+    const track = entry as Record<string, unknown>;
+    return {
+      trackId: requiredBodyString(track, 'track_id'),
+      kind: String(track.kind || '') as LiveKitRecordingTrackSelector['kind'],
+      source: String(track.source || 'unknown') as LiveKitRecordingTrackSelector['source']
+    };
+  });
 }
 
 function optionalBusinessRef(tenantId: string, input: Record<string, unknown>): MediaBusinessRef | null {
@@ -169,6 +278,49 @@ function publicRecordingPage(page: {
   return { ...page, items: page.items.map(publicRecording) };
 }
 
+function publicEgressJob(job: LiveKitEgressJob): Record<string, unknown> {
+  const {
+    storage_url: _storageUrl,
+    reservation_id: _reservationId,
+    owner_epoch: _ownerEpoch,
+    provider_observed_at: _providerObservedAt,
+    provider_missing_count: _providerMissingCount,
+    reconcile_attempts: _reconcileAttempts,
+    reconcile_after: _reconcileAfter,
+    reconcile_lease_until: _reconcileLeaseUntil,
+    reconcile_worker_id: _reconcileWorkerId,
+    ...safe
+  } = job;
+  return safe;
+}
+
+async function closeTerminalEgressPlacement(
+  media: ReturnType<typeof createLiveKitMediaModule>,
+  result: LiveKitWebhookResult,
+  options: RouteIveKitMediaApiOptions
+): Promise<void> {
+  if (!result.recording || !result.egress_job_id || !options.egressPlacement || !options.pg) return;
+  const job = media.recordings.getEgressJob(result.recording.id, result.egress_job_id);
+  if (!job || !['completed', 'failed', 'stopped'].includes(job.status) ||
+      !job.reservation_id || !job.owner_epoch) return;
+  try {
+    await options.egressPlacement.closeJobById(options.pg, {
+      tenant_id: job.tenant_id,
+      job_id: job.id,
+      reservation_id: job.reservation_id,
+      owner_epoch: job.owner_epoch,
+      reason: `livekit_egress_${job.status}`
+    });
+  } catch (cause) {
+    const error = Object.assign(new Error('LiveKit Egress placement release failed'), {
+      status: 503,
+      retryable: true,
+      cause
+    });
+    throw error;
+  }
+}
+
 function capabilities(tenantId: string) {
   const livekitConfig = readLiveKitConfig();
   const livekitUrl = livekitConfig.url || '';
@@ -202,6 +354,8 @@ function capabilities(tenantId: string) {
       recording_object_check: true,
       recording_export: true,
       recording_retention_cleanup: true,
+      quality_observability: true,
+      connection_rejoin_events: true,
       webhooks: true,
       web_assist: true,
       sip_volte: sipReady ? 'ready' : 'planned'
@@ -238,7 +392,41 @@ export async function routeIveKitMediaApi(
       resolveRecordingObject: options.resolveRecordingObject,
       resolveRecordingObjectStream: options.resolveRecordingObjectStream,
       deleteRecordingObject: options.deleteRecordingObject,
-      resolveRetentionDays: options.resolveRecordingRetentionDays
+      resolveRetentionDays: options.resolveRecordingRetentionDays,
+      ...(options.placement && options.pg
+        ? {
+            resolveLiveKitConfig: async (
+              input: {
+                tenant_id: string;
+                media_call_id: string;
+                room_name: string;
+              },
+              base: ReturnType<typeof readLiveKitConfig>
+            ) => {
+              if (!input.media_call_id) return base;
+              const placement = await options.placement!.resolveOwner(
+                options.pg!,
+                {
+                  tenant_id: input.tenant_id,
+                  interaction_id: input.media_call_id
+                }
+              );
+              return liveKitConfigForPlacement(base, placement);
+            }
+          }
+        : {}),
+      ...(options.egressPlacement && options.pg
+        ? {
+            reserveEgressJob: (input: import('../livekit/types.js').LiveKitEgressPlacementInput) =>
+              options.egressPlacement!.reserveJob(options.pg!, input),
+            activateEgressJob: (reservation: import('../livekit/types.js').LiveKitEgressPlacementReservation) =>
+              options.egressPlacement!.activateJob(options.pg!, reservation),
+            closeEgressJob: (
+              reservation: import('../livekit/types.js').LiveKitEgressPlacementReservation,
+              reason: string
+            ) => options.egressPlacement!.closeJob(options.pg!, reservation, reason)
+          }
+        : {})
     }
   });
 
@@ -251,8 +439,9 @@ export async function routeIveKitMediaApi(
         : JSON.stringify(body || {});
     const result = await media.webhooks.handleWebhook(rawBodyText, authHeader || undefined);
     await revokeTerminalCallRevival(rawBodyText, result, options);
+    await closeTerminalEgressPlacement(media, result, options);
     if (result.recording) await broadcastMediaRecording(options.pg, 'ivekit.media.recording.updated', result.recording);
-    if (!result.recording || !options.onRecordingCompleted) {
+    if (!result.recording || result.recording.status !== 'completed' || !options.onRecordingCompleted) {
       return result.recording ? { ...result, recording: publicRecording(result.recording) } : result;
     }
     const evidence = await options.onRecordingCompleted(result.recording, {
@@ -275,7 +464,7 @@ export async function routeIveKitMediaApi(
 
   const ctx = requireAuth(headers);
 
-  const moderationProvider = options.moderationProvider || createConfiguredLiveKitModerationProvider();
+  const moderationProvider = liveKitModerationProviderSource(options);
   const moderationCommandPg = options.commandPg || getPostgresOrNull() || options.pg;
   const mediaCallStore = () => new MediaCallStore(requireMediaCallPg(options.pg));
   const mediaModerationService = () => new LiveKitModerationService(
@@ -286,9 +475,18 @@ export async function routeIveKitMediaApi(
   const mediaCallService = () => {
     const moderation = mediaModerationService();
     return new MediaCallService(mediaCallStore(), {
-      beforeTerminalTransition: (snapshot) => moderation.revokeForTerminal(snapshot)
+      beforeTerminalTransition: (snapshot) => moderation.revokeForTerminal(snapshot),
+      placement: options.placement
     });
   };
+  const qualityService = () => options.mediaQualityService || new MediaQualityService(
+    new MediaQualityStore(requireMediaCallPg(options.pg)),
+    mediaQualityServiceOptionsFromEnv()
+  );
+  const durableEventStore = options.eventStore || (() => {
+    const eventPg = getPostgresOrNull();
+    return eventPg ? new IveKitTenantEventJournal(eventPg) : undefined;
+  })();
   const requireRecordingCallAccess = async (
     callId: string | undefined,
     hostOnly = false,
@@ -319,20 +517,34 @@ export async function routeIveKitMediaApi(
     const participantIdentities = Array.isArray(input.participant_identities)
       ? input.participant_identities.map((identity) => String(identity || '').trim()).filter(Boolean)
       : [];
+    const prepared = options.preparedMediaCallPlacement;
+    if (prepared && prepared.tenant_id !== ctx.tenantId) {
+      throw badRequest('prepared media placement tenant mismatch');
+    }
     const snapshot = await mediaCallService().createCall({
       tenant_id: ctx.tenantId,
+      call_id: prepared?.call_id,
       initiated_by: actorIdentity,
       media: String(input.media || 'video') === 'voice' ? 'voice' : 'video',
       participant_identities: participantIdentities,
       business_ref: businessRef,
       title: optionalBodyString(input, 'title'),
       metadata: bodyRecord(input.metadata),
-      ring_timeout_seconds: optionalBodyNumber(input, 'ring_timeout_seconds')
+      ring_timeout_seconds: optionalBodyNumber(input, 'ring_timeout_seconds'),
+      idempotency_key: headerValue(headers, 'idempotency-key'),
+      placement_reservation: prepared?.reservation
     });
     return {
       status: 201,
       data: snapshot,
-      afterCommit: () => broadcastMediaCall(ctx.tenantId, 'ivekit.media.call.created', snapshot)
+      afterCommit: () => Promise.all([
+        broadcastMediaCall(ctx.tenantId, 'ivekit.media.call.created', snapshot),
+        reconcileDurableMediaCallPlacement(
+          options.placement,
+          ctx.tenantId,
+          snapshot.call.id
+        )
+      ])
     };
   }
 
@@ -362,6 +574,92 @@ export async function routeIveKitMediaApi(
       };
     }
 
+    if (action === 'qos' && method === 'GET') {
+      const snapshot = await calls.getCall(ctx.tenantId, callId);
+      if (!snapshot) throw notFound('media call not found');
+      requireMediaCallReadAccess(ctx, headers, snapshot);
+      const summary = await qualityService().getSummary({
+        tenant_id: ctx.tenantId,
+        call_id: callId,
+        limit: optionalQueryNumber(url.searchParams.get('limit'))
+      });
+      if (!summary) throw notFound('media call not found');
+      return { data: summary };
+    }
+
+    if (action === 'qos' && method === 'POST') {
+      const input = bodyRecord(body);
+      const snapshot = await calls.getCall(ctx.tenantId, callId);
+      if (!snapshot) throw notFound('media call not found');
+      requireMediaCallReadAccess(ctx, headers, snapshot);
+      const snapshots = Array.isArray(input.snapshots)
+        ? input.snapshots as IveKitMediaQualitySnapshotInput[]
+        : [];
+      if (ctx.role !== 'system') {
+        const actorIdentity = mediaActorIdentity(ctx, headers);
+        if (snapshots.some((item) => String(item?.participant_identity || '').trim() !== actorIdentity)) {
+          throw Object.assign(new Error('QoS participant identity must match authenticated user'), { status: 403 });
+        }
+      }
+      const result = await qualityService().reportQuality({
+        tenant_id: ctx.tenantId,
+        call_id: callId,
+        snapshots
+      });
+      observeMediaQualityReport(snapshots, result);
+      result.transitions.forEach(observeMediaQualityTransition);
+      return {
+        status: 202,
+        data: result,
+        ...(result.transitions.length === 0
+          ? {}
+          : {
+            afterCommit: () => publishMediaQualityTransitions(
+              ctx.tenantId,
+              snapshot,
+              result.transitions,
+              durableEventStore
+            )
+          })
+      };
+    }
+
+    if (action === 'connection-events' && method === 'POST') {
+      const input = bodyRecord(body) as unknown as IveKitMediaConnectionEventInput;
+      const snapshot = await calls.getCall(ctx.tenantId, callId);
+      if (!snapshot) throw notFound('media call not found');
+      requireMediaCallReadAccess(ctx, headers, snapshot);
+      if (
+        ctx.role !== 'system'
+        && String(input.participant_identity || '').trim() !== mediaActorIdentity(ctx, headers)
+      ) {
+        throw Object.assign(
+          new Error('connection participant identity must match authenticated user'),
+          { status: 403 }
+        );
+      }
+      const result = await qualityService().reportConnectionEvent({
+        tenant_id: ctx.tenantId,
+        call_id: callId,
+        event: input
+      });
+      observeMediaConnectionEvent(result);
+      return {
+        status: result.replayed ? 200 : 202,
+        data: result,
+        ...(result.replayed
+          ? {}
+          : {
+            afterCommit: () => publishMediaConnectionEvent(
+              ctx.tenantId,
+              snapshot,
+              result,
+              durableEventStore
+            )
+          })
+      };
+    }
+
     if (action === 'actions' && method === 'POST') {
       const input = bodyRecord(body);
       const actorIdentity = mediaActorIdentity(ctx, headers);
@@ -381,7 +679,12 @@ export async function routeIveKitMediaApi(
         data: transition.snapshot,
         ...(transition.replayed
           ? {}
-          : { afterCommit: () => broadcastMediaCallTransition(ctx.tenantId, transition.snapshot) })
+          : {
+              afterCommit: () => Promise.all([
+                broadcastMediaCallTransition(ctx.tenantId, transition.snapshot),
+                reconcileMediaCallPlacement(options.placement, transition)
+              ])
+            })
       };
     }
 
@@ -394,12 +697,35 @@ export async function routeIveKitMediaApi(
         throw Object.assign(new Error('media identity must match authenticated user'), { status: 403 });
       }
       return calls.withJoinAuthorization(ctx.tenantId, callId, identity, async (snapshot, participant) => {
+        const recovery = mediaPlacementRecovery(input.recovery);
+        const placement = options.placement
+          ? recovery && options.placement.recoverOwner
+            ? await options.placement.recoverOwner(
+                requireMediaCallPg(options.pg),
+                {
+                  tenant_id: ctx.tenantId,
+                  interaction_id: callId,
+                  expected_owner_epoch: recovery.previous_owner_epoch,
+                  expected_reservation_id: recovery.previous_reservation_id,
+                  worker_id: options.placementWorkerId ||
+                    'media-join-recovery'
+                }
+              )
+            : await options.placement.resolveOwner(
+                requireMediaCallPg(options.pg),
+                {
+                  tenant_id: ctx.tenantId,
+                  interaction_id: callId
+                }
+              )
+          : undefined;
         if (participant.role === 'observer') {
           const token = await issueSupervisorToken({
             room_name: snapshot.call.room_name,
             identity,
             mode: 'listen',
-            tenant_id: ctx.tenantId
+            tenant_id: ctx.tenantId,
+            placement
           });
           return {
             status: 201,
@@ -418,7 +744,8 @@ export async function routeIveKitMediaApi(
           identity,
           role: participant.role === 'host' ? 'agent' : 'customer',
           media: snapshot.call.media,
-          metadata: bodyRecord(input.metadata)
+          metadata: bodyRecord(input.metadata),
+          placement
         });
         const { joinPath: _legacyJoinPath, ...callBoundPlan } = plan.mode === 'webrtc' ? plan : {
           ...plan,
@@ -576,6 +903,10 @@ export async function routeIveKitMediaApi(
         const recordingInput = {
           format: optionalBodyString(input, 'format') as RecordingFormat | undefined,
           hasVideo: Boolean(input.has_video),
+          recordingMode: optionalRecordingMode(input),
+          tracks: optionalRecordingTracks(input),
+          audioTrackId: optionalBodyString(input, 'audio_track_id'),
+          videoTrackId: optionalBodyString(input, 'video_track_id'),
           businessRef,
           retentionUntil: optionalBodyString(input, 'retention_until'),
           retentionDays: optionalBodyNumber(input, 'retention_days'),
@@ -679,6 +1010,46 @@ export async function routeIveKitMediaApi(
     return { data: result };
   }
 
+  const recordingJobObjectMatch = routePath.match(
+    /^\/api\/ivekit\/media\/recordings\/([^/]+)\/jobs\/([^/]+)\/(object|export)$/
+  );
+  if (recordingJobObjectMatch && method === 'GET') {
+    const recordingId = decodeURIComponent(recordingJobObjectMatch[1]);
+    const jobId = decodeURIComponent(recordingJobObjectMatch[2]);
+    const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
+    await requireRecordingCallAccess(recording.media_call_id, false);
+    if (recordingJobObjectMatch[3] === 'object') {
+      const inspection = await media.recordings.inspectJobObject(recordingId, jobId);
+      if (!inspection) throw notFound('media recording job not found');
+      await options.onRecordingAudit?.(recordingAuditEvent(
+        recording,
+        ctx.userId,
+        'media.recording.object_checked',
+        inspection
+      ));
+      return { data: inspection };
+    }
+    const exported = await media.recordings.exportJobObject(recordingId, jobId);
+    if (!exported) throw notFound('media recording job not found');
+    if (!exported.readable || (!exported.content && !exported.stream)) {
+      throw Object.assign(new Error(`recording object is not readable: ${exported.status}`), { status: 409 });
+    }
+    await options.onRecordingAudit?.(recordingAuditEvent(
+      recording,
+      ctx.userId,
+      'media.recording.exported',
+      exported
+    ));
+    return {
+      data: exported.stream || exported.content,
+      contentType: exported.content_type,
+      filename: exported.filename,
+      headers: {
+        'content-disposition': `attachment; filename="${exported.filename}"`
+      }
+    };
+  }
+
   const recordingMatch = routePath.match(/^\/api\/ivekit\/media\/recordings\/([^/]+)(?:\/([^/]+))?$/);
   if (recordingMatch) {
     const recordingId = decodeURIComponent(recordingMatch[1]);
@@ -687,6 +1058,13 @@ export async function routeIveKitMediaApi(
       const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
       await requireRecordingCallAccess(recording.media_call_id, false);
       return { data: publicRecording(recording) };
+    }
+    if (action === 'jobs' && method === 'GET') {
+      const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
+      await requireRecordingCallAccess(recording.media_call_id, false);
+      return {
+        data: media.recordings.listEgressJobs(recording.id).map(publicEgressJob)
+      };
     }
     if (action === 'object' && method === 'GET') {
       const recording = requireTenantRecording(media.recordings.getRecording(recordingId), ctx.tenantId);
@@ -741,6 +1119,56 @@ export async function routeIveKitMediaApi(
   return undefined;
 }
 
+function mediaPlacementRecovery(value: unknown): {
+  previous_owner_epoch: string;
+  previous_reservation_id: string;
+} | null {
+  if (value === undefined || value === null) return null;
+  const input = bodyRecord(value);
+  const previousOwnerEpoch = String(input.previous_owner_epoch || '').trim();
+  const previousReservationId = String(input.previous_reservation_id || '').trim();
+  if (!/^(?:0|[1-9][0-9]{0,19})$/.test(previousOwnerEpoch) ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/.test(previousReservationId)) {
+    throw badRequest('invalid media placement recovery identity');
+  }
+  return {
+    previous_owner_epoch: previousOwnerEpoch,
+    previous_reservation_id: previousReservationId
+  };
+}
+
+async function reconcileMediaCallPlacement(
+  placement: MediaCallPlacementPort | undefined,
+  transition: import('../livekit/media-call-service.js').MediaCallTransitionResult
+): Promise<void> {
+  if (!placement || !transition.placement_reconcile) return;
+  await placement.reconcileOne({
+    tenant_id: transition.placement_reconcile.tenant_id,
+    interaction_id: transition.placement_reconcile.interaction_id,
+    worker_id: mediaPlacementWorkerId()
+  });
+}
+
+async function reconcileDurableMediaCallPlacement(
+  placement: MediaCallPlacementPort | undefined,
+  tenantId: string,
+  interactionId: string
+): Promise<void> {
+  if (!placement) return;
+  await placement.reconcileOne({
+    tenant_id: tenantId,
+    interaction_id: interactionId,
+    worker_id: mediaPlacementWorkerId()
+  });
+}
+
+function mediaPlacementWorkerId(): string {
+  const instance = String(
+    process.env.OPC_IVEKIT_INSTANCE_ID || process.env.HOSTNAME || process.pid
+  );
+  return `media:${createHash('sha256').update(instance).digest('hex').slice(0, 32)}`;
+}
+
 async function revokeTerminalCallRevival(
   rawBody: string,
   verifiedResult: { event?: unknown; room_name?: unknown },
@@ -763,10 +1191,28 @@ async function revokeTerminalCallRevival(
     const participants = await store.listParticipants(tenantId, call.id);
     const moderation = new LiveKitModerationService(
       store,
-      options.moderationProvider || createConfiguredLiveKitModerationProvider()
+      liveKitModerationProviderSource(options)
     );
     await moderation.revokeForTerminal({ call, participants });
   });
+}
+
+function liveKitModerationProviderSource(
+  options: RouteIveKitMediaApiOptions
+): LiveKitModerationProvider | LiveKitModerationProviderResolver | null {
+  if (options.moderationProvider) return options.moderationProvider;
+  if (!options.placement || !options.pg) {
+    return createConfiguredLiveKitModerationProvider();
+  }
+  return async (context) => {
+    const placement = await options.placement!.resolveOwner(options.pg!, {
+      tenant_id: context.tenant_id,
+      interaction_id: context.call_id
+    });
+    return createConfiguredLiveKitModerationProvider(
+      liveKitConfigForPlacement(readLiveKitConfig(), placement)
+    );
+  };
 }
 
 function parseLiveKitWebhookBody(rawBody: string): {
@@ -867,6 +1313,86 @@ function broadcastMediaCall(
     room_name: snapshot.call.room_name,
     status: snapshot.call.status
   });
+}
+
+async function publishMediaQualityTransitions(
+  tenantId: string,
+  snapshot: IveKitMediaCallSnapshot,
+  transitions: IveKitMediaQualityTransition[],
+  eventStore?: Pick<IveKitTenantEventJournal, 'append'>
+): Promise<void> {
+  const recipients = snapshot.participants
+    .filter((participant) => participant.status !== 'removed')
+    .map((participant) => participant.identity);
+  for (const transition of transitions) {
+    const data = {
+      call_id: transition.call_id,
+      participant_identity: transition.participant_identity,
+      connection_revision: transition.connection_revision,
+      quality_state: transition.to,
+      quality_level: transition.quality_level,
+      sampled_at: transition.sampled_at
+    };
+    const type = `ivekit.media.qos.${transition.event_type}`;
+    const idempotencyKey = mediaEventIdempotencyKey('media-qos', [
+      transition.call_id,
+      transition.participant_identity,
+      transition.connection_revision,
+      transition.event_type,
+      transition.sampled_at
+    ]);
+    await eventStore?.append({
+      tenant_id: tenantId,
+      type,
+      data,
+      audience_user_ids: recipients,
+      idempotency_key: idempotencyKey
+    });
+    await wsBroadcastToUsers(tenantId, recipients, type, data, {
+      idempotency_key: idempotencyKey
+    });
+  }
+}
+
+async function publishMediaConnectionEvent(
+  tenantId: string,
+  snapshot: IveKitMediaCallSnapshot,
+  result: IveKitMediaConnectionEventResult,
+  eventStore?: Pick<IveKitTenantEventJournal, 'append'>
+): Promise<void> {
+  const recipients = snapshot.participants
+    .filter((participant) => participant.status !== 'removed')
+    .map((participant) => participant.identity);
+  const data = {
+    call_id: result.event.call_id,
+    participant_identity: result.event.participant_identity,
+    event_id: result.event.event_id,
+    event_type: result.event.event_type,
+    connection_revision: result.event.connection_revision,
+    connection_state: result.event.connection_state,
+    reason_code: result.event.reason_code,
+    occurred_at: result.event.occurred_at
+  };
+  const type = `ivekit.media.connection.${result.event.event_type}`;
+  const idempotencyKey = mediaEventIdempotencyKey('media-connection', [
+    result.event.call_id,
+    result.event.event_id
+  ]);
+  await eventStore?.append({
+    tenant_id: tenantId,
+    type,
+    data,
+    audience_user_ids: recipients,
+    idempotency_key: idempotencyKey
+  });
+  await wsBroadcastToUsers(tenantId, recipients, type, data, {
+    idempotency_key: idempotencyKey
+  });
+}
+
+function mediaEventIdempotencyKey(namespace: string, parts: readonly unknown[]): string {
+  const digest = createHash('sha256').update(parts.map(String).join('\u0000')).digest('hex');
+  return `${namespace}:${digest}`;
 }
 
 function broadcastMediaModeration(

@@ -28,17 +28,27 @@ import type {
   IveKitChatSnapshot,
   IveKitChatPinResult,
   IveKitChatTypingInput,
+  IveKitCreateSecureFileInput,
   IveKitOpenChatSessionInput,
   IveKitCursorPage,
   IveKitPolicyFindingListResult,
   IveKitPolicyFindingResult,
   IveKitPolicyFindingReviewInput,
   IveKitQualityReviewResult,
+  IveKitSecureFile,
+  IveKitSecureFilePart,
+  IveKitTinodeDeadLetter,
+  IveKitTinodeDeadLetterReplayResult,
+  IveKitTinodeMutationDeadLetter,
+  IveKitTinodeMutationDeadLetterReplayResult,
+  IveKitTinodeOperationsSnapshot,
   IveKitWorkerRunResult
 } from './chat-types.js';
 import type {
   IveKitCreateMediaCallInput,
   IveKitCreateMediaRoomInput,
+  IveKitMediaConnectionEventInput,
+  IveKitMediaConnectionEventResult,
   IveKitMediaCallActionInput,
   IveKitMediaCallParticipantListResult,
   IveKitMediaCallSnapshot,
@@ -49,7 +59,11 @@ import type {
   IveKitMediaModerationRecoveryResult,
   IveKitMediaMuteInput,
   IveKitMediaProviderParticipant,
+  IveKitMediaQualityReportResult,
+  IveKitMediaQualitySnapshotInput,
+  IveKitMediaQualitySummary,
   IveKitMediaRecording,
+  IveKitMediaEgressJob,
   IveKitMediaRecordingListInput,
   IveKitMediaRecordingPage,
   IveKitMediaRecordingObjectInspection,
@@ -87,7 +101,12 @@ import type {
   IveKitEventPage,
   IveKitEventPageInput,
   IveKitEventReplayInput,
-  IveKitEventReplayResult
+  IveKitEventReplayResult,
+  IveKitIntegrationEventCatalog,
+  IveKitEventWebhookSubscription,
+  IveKitEventWebhookSubscriptionPage,
+  IveKitCreateEventWebhookSubscriptionInput,
+  IveKitUpdateEventWebhookSubscriptionInput
 } from './event-types.js';
 import type {
   IveKitFindingQueueInput,
@@ -100,6 +119,7 @@ import type {
   IveKitIntelligenceSourceSnapshot,
   IveKitProviderHealthResult,
   IveKitProviderProfileSummary,
+  IveKitProviderRuntimeSnapshot,
   IveKitTranslationListResult,
   IveKitTranslationRequestInput,
   IveKitTranslationRequestResult,
@@ -155,6 +175,40 @@ import type {
   IveKitVoiceSipTrunk,
   IveKitVoiceTrunkPatch
 } from './voice-types.js';
+import type {
+  IveKitCreateNotificationEndpointInput,
+  IveKitCreateNotificationInput,
+  IveKitNotification,
+  IveKitNotificationCapabilities,
+  IveKitNotificationCreateResult,
+  IveKitNotificationDelivery,
+  IveKitNotificationDeliveryListInput,
+  IveKitNotificationEndpoint,
+  IveKitNotificationEndpointListInput,
+  IveKitNotificationEndpointTestInput,
+  IveKitNotificationInboxAction,
+  IveKitNotificationInboxItem,
+  IveKitNotificationInboxPage,
+  IveKitNotificationPage,
+  IveKitNotificationPreference,
+  IveKitNotificationTemplate,
+  IveKitNotificationTemplateListInput,
+  IveKitNotificationTemplateSnapshot,
+  IveKitNotificationTemplateVersion,
+  IveKitNotificationTemplateVersionListInput,
+  IveKitRetryNotificationDeliveryInput
+} from './notification-types.js';
+import type {
+  IveKitAuditCapabilities,
+  IveKitAuditListInput,
+  IveKitAuditPage
+} from './audit-types.js';
+import type {
+  IveKitLegalHold,
+  IveKitRetentionCapabilities,
+  IveKitRetentionCategory,
+  IveKitRetentionPolicy
+} from './retention-types.js';
 import {
   createIveKitUploadTransport,
   type IveKitUploadOperation,
@@ -195,6 +249,15 @@ export interface IveKitMediaHttpClient {
   ): Promise<IveKitMediaCallSnapshot>;
   createCallJoinPlan(callId: string, input: IveKitMediaJoinInput): Promise<IveKitMediaJoinPlan>;
   listCallParticipants(callId: string): Promise<IveKitMediaCallParticipantListResult>;
+  reportCallQuality(
+    callId: string,
+    snapshots: IveKitMediaQualitySnapshotInput[]
+  ): Promise<IveKitMediaQualityReportResult>;
+  getCallQuality(callId: string, input?: { limit?: number }): Promise<IveKitMediaQualitySummary>;
+  reportCallConnectionEvent(
+    callId: string,
+    input: IveKitMediaConnectionEventInput
+  ): Promise<IveKitMediaConnectionEventResult>;
   createRoom(input: IveKitCreateMediaRoomInput): Promise<IveKitMediaRoom>;
   getRoom(roomName: string): Promise<IveKitMediaRoom>;
   closeRoom(roomName: string): Promise<IveKitMediaRoom>;
@@ -221,8 +284,11 @@ export interface IveKitMediaHttpClient {
   listRecordings(input?: Omit<IveKitMediaRecordingListInput, 'cursor'>): Promise<IveKitMediaRecording[]>;
   listRecordingsPage(input?: IveKitMediaRecordingListInput): Promise<IveKitMediaRecordingPage>;
   getRecording(recordingId: string): Promise<IveKitMediaRecording>;
+  listRecordingJobs(recordingId: string): Promise<IveKitMediaEgressJob[]>;
   inspectRecordingObject(recordingId: string): Promise<IveKitMediaRecordingObjectInspection>;
   exportRecordingObject(recordingId: string): Promise<IveKitSdkBinary>;
+  inspectRecordingJobObject(recordingId: string, jobId: string): Promise<IveKitMediaRecordingObjectInspection>;
+  exportRecordingJobObject(recordingId: string, jobId: string): Promise<IveKitSdkBinary>;
   cleanupRecordings(input?: IveKitMediaRecordingRetentionInput): Promise<IveKitMediaRecordingRetentionResult>;
 }
 
@@ -263,6 +329,20 @@ export interface IveKitChatHttpClient {
   getSnapshot(sessionId: string, input?: { limit?: number }): Promise<IveKitChatSnapshot>;
   getDelivery(sessionId: string, messageId: string): Promise<IveKitChatDeliveryResult>;
   retryDelivery(sessionId: string, messageId: string): Promise<IveKitChatDeliveryResult>;
+  getTinodeOperations(): Promise<IveKitTinodeOperationsSnapshot>;
+  listTinodeDeadLetters(input?: {
+    state?: 'open' | 'resolved' | 'all';
+    limit?: number;
+  }): Promise<IveKitTinodeDeadLetter[]>;
+  replayTinodeDeadLetter(
+    deadLetterId: string,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitTinodeDeadLetterReplayResult>;
+  listTinodeMutationDeadLetters(input?: { limit?: number }): Promise<IveKitTinodeMutationDeadLetter[]>;
+  replayTinodeMutationDeadLetter(
+    outboxId: string,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitTinodeMutationDeadLetterReplayResult>;
   listReceipts(sessionId: string, messageId: string): Promise<IveKitChatReceiptListResult>;
   markReceipt(
     sessionId: string,
@@ -297,6 +377,33 @@ export interface IveKitChatHttpClient {
     options?: IveKitAttachmentUploadOptions
   ): IveKitUploadOperation<IveKitChatAttachmentUploadDescriptor>;
   downloadAttachment(sessionId: string, attachmentId: string): Promise<IveKitSdkBinary>;
+  createSecureFile(
+    sessionId: string,
+    input: IveKitCreateSecureFileInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitSecureFile>;
+  uploadSecureFileContent(
+    sessionId: string,
+    fileId: string,
+    body: IveKitSdkRequestBody,
+    sha256: string
+  ): Promise<IveKitSecureFile>;
+  uploadSecureFilePart(
+    sessionId: string,
+    fileId: string,
+    partNumber: number,
+    body: IveKitSdkRequestBody,
+    sha256: string
+  ): Promise<IveKitSecureFilePart>;
+  listSecureFileParts(sessionId: string, fileId: string): Promise<IveKitSecureFilePart[]>;
+  completeSecureFile(
+    sessionId: string,
+    fileId: string,
+    input: { size_bytes: number; sha256: string }
+  ): Promise<IveKitSecureFile>;
+  getSecureFile(sessionId: string, fileId: string): Promise<IveKitSecureFile>;
+  abortSecureFile(sessionId: string, fileId: string): Promise<IveKitSecureFile>;
+  downloadSecureFile(sessionId: string, fileId: string): Promise<IveKitSdkBinary>;
   getAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
   retryAttachment(sessionId: string, attachmentId: string): Promise<IveKitChatAttachmentResult>;
   listFindings(
@@ -344,6 +451,7 @@ export interface IveKitIntelligenceHttpClient {
   getPolicy(): Promise<IveKitIntelligencePolicy>;
   updatePolicy(input: IveKitIntelligencePolicyWrite): Promise<IveKitIntelligencePolicy>;
   listProviders(): Promise<{ items: IveKitProviderProfileSummary[] }>;
+  listProviderRuntime(): Promise<{ items: IveKitProviderRuntimeSnapshot[] }>;
   probeProviderHealth(input?: { profile_ids?: string[] }): Promise<{ items: IveKitProviderHealthResult[] }>;
   importSource(
     sessionId: string,
@@ -458,6 +566,27 @@ export interface IveKitEventHttpClient {
   getHeadCursor(): Promise<string>;
   listPage<T = unknown>(input: IveKitEventPageInput): Promise<IveKitEventPage<T>>;
   replay<T = unknown>(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult<T>>;
+  getCatalog(): Promise<IveKitIntegrationEventCatalog>;
+  createWebhookSubscription(
+    input: IveKitCreateEventWebhookSubscriptionInput,
+    options: { idempotencyKey: string }
+  ): Promise<{ created: boolean; subscription: IveKitEventWebhookSubscription }>;
+  listWebhookSubscriptions(input?: {
+    status?: IveKitEventWebhookSubscription['status'];
+    cursor?: string;
+    limit?: number;
+  }): Promise<IveKitEventWebhookSubscriptionPage>;
+  getWebhookSubscription(subscriptionId: string): Promise<IveKitEventWebhookSubscription>;
+  updateWebhookSubscription(
+    subscriptionId: string,
+    input: IveKitUpdateEventWebhookSubscriptionInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitEventWebhookSubscription>;
+  archiveWebhookSubscription(
+    subscriptionId: string,
+    input: { expected_revision: number },
+    options: { idempotencyKey: string }
+  ): Promise<IveKitEventWebhookSubscription>;
 }
 
 export interface IveKitIvrHttpClient {
@@ -626,6 +755,107 @@ export interface IveKitHttpSdk {
   intelligence: IveKitIntelligenceHttpClient;
   ivr: IveKitIvrHttpClient;
   voice: IveKitVoiceHttpClient;
+  notifications: IveKitNotificationHttpClient;
+  audit: IveKitAuditHttpClient;
+  retention: IveKitRetentionHttpClient;
+}
+
+export interface IveKitAuditHttpClient {
+  getCapabilities(): Promise<IveKitAuditCapabilities>;
+  listEvents(input?: IveKitAuditListInput): Promise<IveKitAuditPage>;
+  exportJsonl(input?: IveKitAuditListInput & { max_events?: number }): Promise<IveKitSdkBinary>;
+}
+
+export interface IveKitRetentionHttpClient {
+  getCapabilities(): Promise<IveKitRetentionCapabilities>;
+  listPolicies(): Promise<IveKitRetentionPolicy[]>;
+  putPolicy(category: IveKitRetentionCategory, input: {
+    enabled: boolean; retention_days: number; batch_size: number;
+    interval_seconds: number; expected_revision: number;
+  }): Promise<IveKitRetentionPolicy>;
+  listLegalHolds(input?: {
+    category?: IveKitRetentionCategory; status?: 'active' | 'released';
+  }): Promise<IveKitLegalHold[]>;
+  placeLegalHold(input: {
+    category: IveKitRetentionCategory; resource_type: string;
+    resource_id: string; reason_code: string;
+  }, options: { idempotencyKey: string }): Promise<{ legal_hold: IveKitLegalHold; created: boolean }>;
+  releaseLegalHold(holdId: string): Promise<IveKitLegalHold>;
+}
+
+export interface IveKitNotificationHttpClient {
+  getCapabilities(): Promise<IveKitNotificationCapabilities>;
+  create(
+    input: IveKitCreateNotificationInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitNotificationCreateResult>;
+  get(notificationId: string): Promise<IveKitNotification>;
+  listInbox(input?: {
+    user_id?: string; limit?: number; cursor?: string; include_archived?: boolean;
+  }): Promise<IveKitNotificationInboxPage>;
+  countUnread(input?: { user_id?: string }): Promise<number>;
+  mutateInbox(
+    itemId: string,
+    action: IveKitNotificationInboxAction,
+    input?: { user_id?: string }
+  ): Promise<IveKitNotificationInboxItem>;
+  createEndpoint(
+    input: IveKitCreateNotificationEndpointInput,
+    options: { idempotencyKey: string }
+  ): Promise<{ endpoint: IveKitNotificationEndpoint; created: boolean }>;
+  getEndpoint(endpointId: string): Promise<IveKitNotificationEndpoint>;
+  listEndpoints(
+    input?: IveKitNotificationEndpointListInput
+  ): Promise<IveKitNotificationPage<IveKitNotificationEndpoint>>;
+  updateEndpoint(
+    endpointId: string,
+    expectedRevision: number,
+    patch: Record<string, unknown>
+  ): Promise<IveKitNotificationEndpoint>;
+  testEndpoint(
+    endpointId: string,
+    input: IveKitNotificationEndpointTestInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitNotificationCreateResult>;
+  archiveEndpoint(endpointId: string, expectedRevision: number): Promise<IveKitNotificationEndpoint>;
+  createTemplate(input: {
+    template_key: string; description?: string; locale: string;
+    channels: import('./notification-types.js').IveKitNotificationChannel[];
+    content: Record<string, unknown>;
+  }): Promise<IveKitNotificationTemplateSnapshot>;
+  getTemplate(templateId: string): Promise<IveKitNotificationTemplate>;
+  listTemplates(
+    input?: IveKitNotificationTemplateListInput
+  ): Promise<IveKitNotificationPage<IveKitNotificationTemplate>>;
+  listTemplateVersions(
+    templateId: string,
+    input?: IveKitNotificationTemplateVersionListInput
+  ): Promise<IveKitNotificationPage<IveKitNotificationTemplateVersion>>;
+  updateTemplate(templateId: string, input: {
+    expected_revision: number; description?: string; locale: string;
+    channels: import('./notification-types.js').IveKitNotificationChannel[];
+    content: Record<string, unknown>;
+  }): Promise<IveKitNotificationTemplateSnapshot>;
+  publishTemplate(
+    templateId: string,
+    input: { expected_revision: number; locale: string }
+  ): Promise<IveKitNotificationTemplateSnapshot>;
+  archiveTemplate(templateId: string, expectedRevision: number): Promise<IveKitNotificationTemplate>;
+  getDelivery(deliveryId: string): Promise<IveKitNotificationDelivery>;
+  listDeliveries(
+    input?: IveKitNotificationDeliveryListInput
+  ): Promise<IveKitNotificationPage<IveKitNotificationDelivery>>;
+  retryDelivery(
+    deliveryId: string,
+    input: IveKitRetryNotificationDeliveryInput
+  ): Promise<IveKitNotificationDelivery>;
+  listPreferences(input?: { user_id?: string }): Promise<IveKitNotificationPreference[]>;
+  putPreference(
+    eventType: string,
+    channel: import('./notification-types.js').IveKitNotificationChannel,
+    input: { enabled: boolean; locale?: string; quiet_hours?: Record<string, unknown>; expected_revision: number },
+    options?: { user_id?: string }
+  ): Promise<IveKitNotificationPreference>;
 }
 
 export class IveKitHttpSdkError extends Error {
@@ -651,7 +881,184 @@ export function createIveKitHttpSdk(input: IveKitHttpSdkInput): IveKitHttpSdk {
     events: createEventClient(transport),
     intelligence: createIntelligenceClient(transport),
     ivr: createIvrClient(transport),
-    voice: createVoiceClient(transport)
+    voice: createVoiceClient(transport),
+    notifications: createNotificationClient(transport),
+    audit: createAuditClient(transport),
+    retention: createRetentionClient(transport)
+  };
+}
+
+function createRetentionClient(transport: IveKitTransport): IveKitRetentionHttpClient {
+  const root = '/api/ivekit/retention';
+  return {
+    getCapabilities: () => transport.json('GET', `${root}/capabilities`),
+    async listPolicies() {
+      return (await transport.json<{ policies: IveKitRetentionPolicy[] }>(
+        'GET', `${root}/policies`
+      )).policies;
+    },
+    async putPolicy(category, body) {
+      return (await transport.json<{ policy: IveKitRetentionPolicy }>(
+        'PUT', `${root}/policies/${pathSegment(category, 'category')}`, { body }
+      )).policy;
+    },
+    async listLegalHolds(input = {}) {
+      return (await transport.json<{ legal_holds: IveKitLegalHold[] }>(
+        'GET', `${root}/legal-holds`, {
+          query: { category: input.category || '', status: input.status || '' }
+        }
+      )).legal_holds;
+    },
+    placeLegalHold: (body, options) => transport.json('POST', `${root}/legal-holds`, {
+      body,
+      headers: {
+        'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
+      }
+    }),
+    async releaseLegalHold(holdId) {
+      return (await transport.json<{ legal_hold: IveKitLegalHold }>(
+        'POST', `${root}/legal-holds/${pathSegment(holdId, 'holdId')}/release`, { body: {} }
+      )).legal_hold;
+    }
+  };
+}
+
+function createAuditClient(transport: IveKitTransport): IveKitAuditHttpClient {
+  const root = '/api/ivekit/audit';
+  const query = (input: IveKitAuditListInput & { max_events?: number } = {}) => ({
+    limit: optionalNumber(input.limit),
+    cursor: input.cursor || '',
+    action: input.action || '',
+    resource_type: input.resource_type || '',
+    resource_id: input.resource_id || '',
+    max_events: optionalNumber(input.max_events)
+  });
+  return {
+    getCapabilities: () => transport.json('GET', `${root}/capabilities`),
+    listEvents: (input = {}) => transport.json('GET', `${root}/events`, { query: query(input) }),
+    exportJsonl: (input = {}) => transport.binary('GET', `${root}/export`, { query: query(input) })
+  };
+}
+
+function createNotificationClient(transport: IveKitTransport): IveKitNotificationHttpClient {
+  const root = '/api/ivekit/notifications';
+  const path = (collection: string, id: string) =>
+    `${root}/${collection}/${pathSegment(id, `${collection}Id`)}`;
+  const query = (userId?: string) => ({ user_id: userId || '' });
+  return {
+    getCapabilities: () => transport.json('GET', `${root}/capabilities`),
+    create: (body, options) => transport.json('POST', root, {
+      body, headers: { 'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required') }
+    }),
+    async get(id) {
+      return (await transport.json<{ notification: IveKitNotification }>('GET', `${root}/${pathSegment(id, 'notificationId')}`)).notification;
+    },
+    listInbox: (input = {}) => transport.json('GET', `${root}/inbox`, {
+      query: {
+        ...query(input.user_id), limit: optionalNumber(input.limit), cursor: input.cursor || '',
+        include_archived: input.include_archived ? 'true' : ''
+      }
+    }),
+    async countUnread(input = {}) {
+      return (await transport.json<{ unread_count: number }>(
+        'GET', `${root}/inbox/unread-count`, { query: query(input.user_id) }
+      )).unread_count;
+    },
+    mutateInbox: (itemId, action, input = {}) => transport.json(
+      'POST', `${path('inbox', itemId)}/${action}`, { body: {}, query: query(input.user_id) }
+    ),
+    createEndpoint: (body, options) => transport.json('POST', `${root}/endpoints`, {
+      body, headers: { 'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required') }
+    }),
+    async getEndpoint(id) {
+      return (await transport.json<{ endpoint: IveKitNotificationEndpoint }>(
+        'GET', path('endpoints', id)
+      )).endpoint;
+    },
+    listEndpoints: (input = {}) => transport.json('GET', `${root}/endpoints`, {
+      query: {
+        channel: input.channel || '', status: input.status || '',
+        limit: optionalNumber(input.limit), cursor: input.cursor || ''
+      }
+    }),
+    async updateEndpoint(id, expectedRevision, patch) {
+      return (await transport.json<{ endpoint: IveKitNotificationEndpoint }>(
+        'PUT', path('endpoints', id), { body: { expected_revision: expectedRevision, patch } }
+      )).endpoint;
+    },
+    testEndpoint: (id, body, options) => transport.json('POST', `${path('endpoints', id)}/test`, {
+      body,
+      headers: {
+        'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
+      }
+    }),
+    async archiveEndpoint(id, expectedRevision) {
+      return (await transport.json<{ endpoint: IveKitNotificationEndpoint }>(
+        'POST', `${path('endpoints', id)}/archive`, {
+          body: { expected_revision: expectedRevision }
+        }
+      )).endpoint;
+    },
+    createTemplate: (body) => transport.json('POST', `${root}/templates`, { body }),
+    async getTemplate(id) {
+      return (await transport.json<{ template: IveKitNotificationTemplate }>(
+        'GET', path('templates', id)
+      )).template;
+    },
+    listTemplates: (input = {}) => transport.json('GET', `${root}/templates`, {
+      query: {
+        status: input.status || '', limit: optionalNumber(input.limit), cursor: input.cursor || ''
+      }
+    }),
+    listTemplateVersions: (id, input = {}) => transport.json(
+      'GET', `${path('templates', id)}/versions`, {
+        query: {
+          locale: input.locale || '', limit: optionalNumber(input.limit), cursor: input.cursor || ''
+        }
+      }
+    ),
+    updateTemplate: (id, body) => transport.json('PUT', path('templates', id), { body }),
+    publishTemplate: (id, body) => transport.json('POST', `${path('templates', id)}/publish`, { body }),
+    async archiveTemplate(id, expectedRevision) {
+      return (await transport.json<{ template: IveKitNotificationTemplate }>(
+        'POST', `${path('templates', id)}/archive`, {
+          body: { expected_revision: expectedRevision }
+        }
+      )).template;
+    },
+    async getDelivery(id) {
+      return (await transport.json<{ delivery: IveKitNotificationDelivery }>(
+        'GET', path('deliveries', id)
+      )).delivery;
+    },
+    listDeliveries: (input = {}) => transport.json('GET', `${root}/deliveries`, {
+      query: {
+        notification_id: input.notification_id || '', endpoint_id: input.endpoint_id || '',
+        channel: input.channel || '', state: input.state || '',
+        limit: optionalNumber(input.limit), cursor: input.cursor || ''
+      }
+    }),
+    async retryDelivery(id, input) {
+      return (await transport.json<{ delivery: IveKitNotificationDelivery }>(
+        'POST', `${path('deliveries', id)}/retry`, {
+          body: {
+            expected_state: input.expected_state,
+            allow_uncertain: input.allow_uncertain === true
+          }
+        }
+      )).delivery;
+    },
+    async listPreferences(input = {}) {
+      return (await transport.json<{ preferences: IveKitNotificationPreference[] }>(
+        'GET', `${root}/preferences`, { query: query(input.user_id) }
+      )).preferences;
+    },
+    async putPreference(eventType, channel, body, options = {}) {
+      return (await transport.json<{ preference: IveKitNotificationPreference }>(
+        'PUT', `${root}/preferences/${pathSegment(eventType, 'eventType')}/${pathSegment(channel, 'channel')}`,
+        { body, query: query(options.user_id) }
+      )).preference;
+    }
   };
 }
 
@@ -763,7 +1170,11 @@ interface IveKitTransport {
       query?: Record<string, string>;
     }
   ): Promise<T>;
-  binary(method: string, path: string): Promise<IveKitSdkBinary>;
+  binary(
+    method: string,
+    path: string,
+    options?: { query?: Record<string, string> }
+  ): Promise<IveKitSdkBinary>;
 }
 
 function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
@@ -841,8 +1252,8 @@ function createTransport(input: IveKitHttpSdkInput): IveKitTransport {
       await requireOk(response, method, path);
       return await readPayload(response) as T;
     },
-    async binary(method, path) {
-      const response = await send(method, path);
+    async binary(method, path, options = {}) {
+      const response = await send(method, path, options);
       await requireOk(response, method, path);
       return {
         bytes: new Uint8Array(await response.arrayBuffer()),
@@ -1050,6 +1461,21 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
       { body: input }
     ),
     listCallParticipants: (callId) => transport.json('GET', `${callPath(callId)}/participants`),
+    reportCallQuality: (callId, snapshots) => transport.json(
+      'POST',
+      `${callPath(callId)}/qos`,
+      { body: { snapshots } }
+    ),
+    getCallQuality: (callId, input = {}) => transport.json(
+      'GET',
+      `${callPath(callId)}/qos`,
+      { query: { limit: optionalNumber(input.limit) } }
+    ),
+    reportCallConnectionEvent: (callId, input) => transport.json(
+      'POST',
+      `${callPath(callId)}/connection-events`,
+      { body: input }
+    ),
     createRoom: (input) => transport.json('POST', '/api/ivekit/media/rooms', { body: input }),
     getRoom: (roomName) => transport.json('GET', roomPath(roomName)),
     closeRoom: (roomName) => transport.json('POST', `${roomPath(roomName)}/close`, { body: {} }),
@@ -1102,8 +1528,17 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
       query: { ...recordingListQuery(input), cursor: input.cursor || '', page: '1' }
     }),
     getRecording: (recordingId) => transport.json('GET', recordingPath(recordingId)),
+    listRecordingJobs: (recordingId) => transport.json('GET', `${recordingPath(recordingId)}/jobs`),
     inspectRecordingObject: (recordingId) => transport.json('GET', `${recordingPath(recordingId)}/object`),
     exportRecordingObject: (recordingId) => transport.binary('GET', `${recordingPath(recordingId)}/export`),
+    inspectRecordingJobObject: (recordingId, jobId) => transport.json(
+      'GET',
+      `${recordingPath(recordingId)}/jobs/${pathSegment(jobId, 'jobId')}/object`
+    ),
+    exportRecordingJobObject: (recordingId, jobId) => transport.binary(
+      'GET',
+      `${recordingPath(recordingId)}/jobs/${pathSegment(jobId, 'jobId')}/export`
+    ),
     cleanupRecordings: (input = {}) => transport.json(
       'POST',
       '/api/ivekit/media/recordings/retention/cleanup',
@@ -1122,6 +1557,9 @@ function createChatClient(
     `${sessionPath(sessionId)}/messages/${pathSegment(messageId, 'messageId')}`;
   const attachmentPath = (sessionId: string, attachmentId: string) =>
     `${sessionPath(sessionId)}/attachments/${pathSegment(attachmentId, 'attachmentId')}`;
+  const secureFilePath = (sessionId: string, fileId?: string) =>
+    `${sessionPath(sessionId)}/files` +
+    (fileId ? `/${pathSegment(fileId, 'fileId')}` : '');
   const findingPath = (sessionId: string, findingId: string) =>
     `${sessionPath(sessionId)}/findings/${pathSegment(findingId, 'findingId')}`;
 
@@ -1204,6 +1642,52 @@ function createChatClient(
       `${messagePath(sessionId, messageId)}/delivery/retry`,
       { body: {} }
     ),
+    getTinodeOperations: () => transport.json(
+      'GET',
+      '/api/ivekit/chat/operations/tinode'
+    ),
+    async listTinodeDeadLetters(input = {}) {
+      return (await transport.json<{ items: IveKitTinodeDeadLetter[] }>(
+        'GET',
+        '/api/ivekit/chat/operations/tinode/dead-letters',
+        {
+          query: {
+            state: input.state || 'open',
+            limit: optionalNumber(input.limit)
+          }
+        }
+      )).items;
+    },
+    replayTinodeDeadLetter: (deadLetterId, options) => transport.json(
+      'POST',
+      `/api/ivekit/chat/operations/tinode/dead-letters/${pathSegment(deadLetterId, 'deadLetterId')}/replay`,
+      {
+        body: {},
+        headers: {
+          'idempotency-key': requiredString(
+            options?.idempotencyKey,
+            'idempotencyKey is required'
+          )
+        }
+      }
+    ),
+    async listTinodeMutationDeadLetters(input = {}) {
+      return (await transport.json<{ items: IveKitTinodeMutationDeadLetter[] }>(
+        'GET',
+        '/api/ivekit/chat/operations/tinode/mutation-dead-letters',
+        { query: { limit: optionalNumber(input.limit) } }
+      )).items;
+    },
+    replayTinodeMutationDeadLetter: (outboxId, options) => transport.json(
+      'POST',
+      `/api/ivekit/chat/operations/tinode/mutation-dead-letters/${pathSegment(outboxId, 'outboxId')}/replay`,
+      {
+        body: {},
+        headers: {
+          'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
+        }
+      }
+    ),
     listReceipts: (sessionId, messageId) => transport.json('GET', `${messagePath(sessionId, messageId)}/receipts`),
     markReceipt: (sessionId, messageId, input) => transport.json(
       'POST',
@@ -1266,6 +1750,62 @@ function createChatClient(
     downloadAttachment: (sessionId, attachmentId) => transport.binary(
       'GET',
       `${attachmentPath(sessionId, attachmentId)}/download`
+    ),
+    async createSecureFile(sessionId, input, options) {
+      return (await transport.json<{ file: IveKitSecureFile }>(
+        'POST', secureFilePath(sessionId), {
+          body: input,
+          headers: {
+            'idempotency-key': requiredString(
+              options?.idempotencyKey,
+              'idempotencyKey is required'
+            )
+          }
+        }
+      )).file;
+    },
+    async uploadSecureFileContent(sessionId, fileId, body, sha256) {
+      return (await transport.json<{ file: IveKitSecureFile }>(
+        'PUT', `${secureFilePath(sessionId, fileId)}/content`, {
+          rawBody: body,
+          contentType: 'application/octet-stream',
+          headers: { 'x-content-sha256': requiredString(sha256, 'sha256 is required') }
+        }
+      )).file;
+    },
+    async uploadSecureFilePart(sessionId, fileId, partNumber, body, sha256) {
+      return (await transport.json<{ part: IveKitSecureFilePart }>(
+        'PUT',
+        `${secureFilePath(sessionId, fileId)}/parts/${positivePathInteger(partNumber, 'partNumber')}`,
+        {
+          rawBody: body,
+          contentType: 'application/octet-stream',
+          headers: { 'x-content-sha256': requiredString(sha256, 'sha256 is required') }
+        }
+      )).part;
+    },
+    async listSecureFileParts(sessionId, fileId) {
+      return (await transport.json<{ parts: IveKitSecureFilePart[] }>(
+        'GET', `${secureFilePath(sessionId, fileId)}/parts`
+      )).parts;
+    },
+    async completeSecureFile(sessionId, fileId, input) {
+      return (await transport.json<{ file: IveKitSecureFile }>(
+        'POST', `${secureFilePath(sessionId, fileId)}/complete`, { body: input }
+      )).file;
+    },
+    async getSecureFile(sessionId, fileId) {
+      return (await transport.json<{ file: IveKitSecureFile }>(
+        'GET', secureFilePath(sessionId, fileId)
+      )).file;
+    },
+    async abortSecureFile(sessionId, fileId) {
+      return (await transport.json<{ file: IveKitSecureFile }>(
+        'DELETE', secureFilePath(sessionId, fileId)
+      )).file;
+    },
+    downloadSecureFile: (sessionId, fileId) => transport.binary(
+      'GET', `${secureFilePath(sessionId, fileId)}/download`
     ),
     getAttachment: (sessionId, attachmentId) => transport.json('GET', attachmentPath(sessionId, attachmentId)),
     retryAttachment: (sessionId, attachmentId) => transport.json(
@@ -1340,6 +1880,7 @@ function createIntelligenceClient(transport: IveKitTransport): IveKitIntelligenc
     getPolicy: () => transport.json('GET', '/api/ivekit/intelligence/policy'),
     updatePolicy: (input) => transport.json('PUT', '/api/ivekit/intelligence/policy', { body: input }),
     listProviders: () => transport.json('GET', '/api/ivekit/intelligence/providers'),
+    listProviderRuntime: () => transport.json('GET', '/api/ivekit/intelligence/providers/runtime'),
     probeProviderHealth: (input = {}) => transport.json(
       'POST', '/api/ivekit/intelligence/providers/health', { body: input }
     ),
@@ -1387,6 +1928,11 @@ function createContextClient(transport: IveKitTransport): IveKitContextHttpClien
 }
 
 function createEventClient(transport: IveKitTransport): IveKitEventHttpClient {
+  const subscriptionRoot = '/api/ivekit/events/webhook-subscriptions';
+  const idempotencyHeaders = (options: { idempotencyKey: string }) => ({
+    'idempotency-key': requiredString(options?.idempotencyKey, 'idempotencyKey is required')
+  });
+  const subscriptionPath = (id: string) => `${subscriptionRoot}/${pathSegment(id, 'subscriptionId')}`;
   const listPage = async <T = unknown>(input: IveKitEventPageInput): Promise<IveKitEventPage<T>> => {
     const cursor = requiredString(input.cursor, 'cursor is required');
     try {
@@ -1403,6 +1949,30 @@ function createEventClient(transport: IveKitTransport): IveKitEventHttpClient {
     }
   };
   return {
+    getCatalog: () => transport.json('GET', '/api/ivekit/events/catalog'),
+    createWebhookSubscription: (body, options) => transport.json('POST', subscriptionRoot, {
+      body,
+      headers: idempotencyHeaders(options)
+    }),
+    listWebhookSubscriptions: (input = {}) => transport.json('GET', subscriptionRoot, {
+      query: {
+        status: input.status || '',
+        cursor: input.cursor || '',
+        limit: optionalNumber(input.limit)
+      }
+    }),
+    getWebhookSubscription: async (id) => (await transport.json<{
+      subscription: IveKitEventWebhookSubscription;
+    }>('GET', subscriptionPath(id))).subscription,
+    updateWebhookSubscription: async (id, body, options) => (await transport.json<{
+      subscription: IveKitEventWebhookSubscription;
+    }>('PUT', subscriptionPath(id), { body, headers: idempotencyHeaders(options) })).subscription,
+    archiveWebhookSubscription: async (id, body, options) => (await transport.json<{
+      subscription: IveKitEventWebhookSubscription;
+    }>('POST', `${subscriptionPath(id)}/archive`, {
+      body,
+      headers: idempotencyHeaders(options)
+    })).subscription,
     async getHeadCursor() {
       const page = await transport.json<IveKitEventPage>('GET', '/api/ivekit/events');
       return requiredString(page.next_cursor, 'event head cursor is missing');
@@ -1504,6 +2074,12 @@ function requiredString(value: unknown, message: string): string {
 
 function pathSegment(value: unknown, field: string): string {
   return encodeURIComponent(requiredString(value, `${field} is required`));
+}
+
+function positivePathInteger(value: unknown, field: string): string {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new Error(`${field} must be a positive integer`);
+  return String(parsed);
 }
 
 function optionalNumber(value: number | undefined): string {

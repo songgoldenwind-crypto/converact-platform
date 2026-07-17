@@ -27,7 +27,8 @@ const SOURCE_LABELS: Record<IveKitPolicyFinding['source'], string> = {
   text: 'Chat text',
   ocr: 'Image OCR',
   asr: 'Audio ASR',
-  ai: 'AI quality'
+  ai: 'AI quality',
+  aggregate: 'Combined evidence'
 };
 
 const STATUS_LABELS: Record<FindingReviewStatus, string> = {

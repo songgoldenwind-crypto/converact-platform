@@ -72,11 +72,13 @@ test('RustDesk HTTP client preserves the lifecycle and adds policy and control o
 
   assert.deepEqual(Object.keys(client).sort(), [
     'acquireControl',
+    'authorizeEmergencyFallback',
     'configureAccessPolicy',
     'confirmOperation',
     'deactivateDevice',
     'endGatewaySession',
     'getAccessPolicy',
+    'getAuthorizationCode',
     'getClientConfig',
     'getClientProfile',
     'getControlOwnership',
@@ -92,9 +94,11 @@ test('RustDesk HTTP client preserves the lifecycle and adds policy and control o
     'recordGatewayEvent',
     'registerDevice',
     'releaseControl',
+    'requestAuthorizationCode',
     'revokeAccessPolicy',
     'startGatewaySession',
-    'transferControl'
+    'transferControl',
+    'verifyAuthorizationCode'
   ]);
   const legacyDisconnect = interfaceBody(clientSource, 'IveKitRustDeskGatewayDisconnectState');
   assert.match(legacyDisconnect, /required:\s*true/);

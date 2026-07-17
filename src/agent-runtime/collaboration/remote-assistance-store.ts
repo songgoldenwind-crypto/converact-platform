@@ -8,6 +8,10 @@ import { normalizeRemoteGatewaySession } from './remote-gateway-adapter.js';
 import type { RemoteGatewaySessionInput } from './remote-gateway-adapter.js';
 import { rustDeskGatewayEventPermissionError } from './rustdesk-gateway-event.js';
 import { RustDeskAccessPolicyStore } from './rustdesk-access-policy-store.js';
+import {
+  RustDeskAuthorizationCodeStore,
+  rustDeskRequireAuthorizationCode
+} from './rustdesk-authorization-code-store.js';
 import { RustDeskDeviceStore } from './rustdesk-device-store.js';
 import {
   hasRustDeskGatewayUnattendedAlias,
@@ -37,6 +41,8 @@ interface PendingGatewayAuthorization {
   consent_event_id: string;
   device_id?: string;
   policy_version?: number;
+  authorization_id?: string;
+  authorization_verified_by?: string;
 }
 
 export class RemoteAssistanceStore {
@@ -427,6 +433,7 @@ export class RemoteAssistanceStore {
     permissions: RemoteGatewaySessionInput['permissions'];
     access_mode?: RustDeskGatewayAccessMode;
     device_id?: string;
+    authorization_id?: string;
     metadata?: Record<string, unknown>;
   }): Promise<RemoteToolSession> {
     const accessMode = rustDeskGatewayAccessMode(input.access_mode);
@@ -442,6 +449,8 @@ export class RemoteAssistanceStore {
         permissions: input.permissions,
         access_mode: accessMode,
         device_id: input.device_id,
+        actor_identity: input.actor_identity,
+        authorization_id: input.authorization_id,
         metadata
       });
     } else {
@@ -459,6 +468,7 @@ export class RemoteAssistanceStore {
         tenant_id: input.tenant_id,
         remote_session_id: input.remote_session_id,
         device_id: input.device_id,
+        authorization_id: input.authorization_id,
         access_mode: accessMode
       })
       : await input.client.createSession(createInput);
@@ -486,6 +496,8 @@ export class RemoteAssistanceStore {
     permissions: readonly RemoteConsentScope[];
     access_mode?: RustDeskGatewayAccessMode;
     device_id?: string;
+    actor_identity?: string;
+    authorization_id?: string;
     metadata?: Record<string, unknown>;
   }): Promise<PendingGatewayAuthorization> {
     const accessMode = rustDeskGatewayAccessMode(input.access_mode);
@@ -496,7 +508,53 @@ export class RemoteAssistanceStore {
     }
     if (accessMode === 'attended') {
       const consent = await this.assertActiveConsent(input.remote_session_id, input.permissions);
-      return { access_mode: accessMode, consent_event_id: consent.id };
+      const authorizationId = String(input.authorization_id || '').trim();
+      if (!authorizationId && !rustDeskRequireAuthorizationCode()) {
+        return { access_mode: accessMode, consent_event_id: consent.id };
+      }
+      if (!authorizationId) {
+        throw Object.assign(new Error('RustDesk authorization code required for attended access'), {
+          status: 403
+        });
+      }
+      const deviceId = String(input.device_id || '').trim();
+      const actorIdentity = String(input.actor_identity || '').trim();
+      if (!deviceId || !actorIdentity) {
+        throw Object.assign(new Error('RustDesk authorization code is required or unavailable'), {
+          status: 403
+        });
+      }
+      const device = await new RustDeskDeviceStore(this.pg).getDevice({
+        tenant_id: input.tenant_id,
+        device_id: deviceId
+      });
+      if (
+        !device ||
+        device.status !== 'active' ||
+        input.target.type !== 'device' ||
+        input.target.id !== device.rustdesk_id ||
+        device.business_ref_type !== remote.business_ref.type ||
+        device.business_ref_id !== remote.business_ref.id
+      ) {
+        throw Object.assign(new Error('RustDesk authorization code is required or unavailable'), {
+          status: 403
+        });
+      }
+      const authorization = await new RustDeskAuthorizationCodeStore(this.pg).assertVerified({
+        tenant_id: input.tenant_id,
+        authorization_id: authorizationId,
+        remote_session_id: input.remote_session_id,
+        device_id: deviceId,
+        permissions: input.permissions,
+        verified_by: actorIdentity
+      });
+      return {
+        access_mode: accessMode,
+        consent_event_id: consent.id,
+        device_id: deviceId,
+        authorization_id: authorization.id,
+        authorization_verified_by: authorization.verified_by || undefined
+      };
     }
 
     const deviceId = String(input.device_id || '').trim();
@@ -561,6 +619,7 @@ export class RemoteAssistanceStore {
       permissions: RemoteGatewaySessionInput['permissions'];
       access_mode?: RustDeskGatewayAccessMode;
       device_id?: string;
+      authorization_id?: string;
       metadata?: Record<string, unknown>;
     },
     pending: PendingGatewayAuthorization,
@@ -582,6 +641,8 @@ export class RemoteAssistanceStore {
             permissions: input.permissions,
             access_mode: input.access_mode,
             device_id: input.device_id,
+            actor_identity: input.actor_identity,
+            authorization_id: input.authorization_id,
             metadata: input.metadata
           })
           : {
@@ -597,12 +658,33 @@ export class RemoteAssistanceStore {
       if (!sameGatewayAuthorization(pending, current)) {
         throw gatewayAuthorizationChanged();
       }
-      return store.persistToolSession({
+      const tool = await store.persistToolSession({
         tenant_id: input.tenant_id,
         remote_session_id: input.remote_session_id,
         actor_identity: input.actor_identity,
         normalized
       });
+      if (current.authorization_id) {
+        await new RustDeskAuthorizationCodeStore(pg).consume({
+          tenant_id: input.tenant_id,
+          authorization_id: current.authorization_id,
+          verified_by: current.authorization_verified_by || input.actor_identity,
+          external_id: normalized.external_id
+        });
+        await store.recordAudit({
+          tenant_id: input.tenant_id,
+          remote_session_id: input.remote_session_id,
+          actor_identity: input.actor_identity,
+          event_type: 'remote.rustdesk.authorization_code.consumed',
+          target: current.authorization_id,
+          metadata: {
+            authorization_id: current.authorization_id,
+            device_id: current.device_id || '',
+            gateway_external_id: normalized.external_id
+          }
+        });
+      }
+      return tool;
     });
   }
 
@@ -1041,7 +1123,9 @@ function sameGatewayAuthorization(
   return pending.access_mode === current.access_mode &&
     pending.consent_event_id === current.consent_event_id &&
     pending.device_id === current.device_id &&
-    pending.policy_version === current.policy_version;
+    pending.policy_version === current.policy_version &&
+    pending.authorization_id === current.authorization_id &&
+    pending.authorization_verified_by === current.authorization_verified_by;
 }
 
 function gatewayAuthorizationChanged(cause?: unknown): Error & { status: number; cause?: unknown } {

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
 import { createLiveKitMediaModule } from '../src/agent-runtime/livekit/index.js';
-import { createDatabase } from '../src/db.js';
+import { createDatabase, run } from '../src/db.js';
 import { createServer as createOpcServer } from '../src/http.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 import { createTenant } from '../src/platform/tenant-core.js';
@@ -380,6 +380,80 @@ test('iveKit media webhook completes recording evidence through the facade hook'
 
     assert.equal(completedStatus, 'completed');
     assert.equal(result.evidence_record_id, 'evidence-completed-1');
+  } finally {
+    db.close();
+  }
+});
+
+test('iveKit media webhook releases each terminal Egress job and hides placement internals', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  clearLiveKitEnv();
+  const db = createDatabase(':memory:');
+  const tenantId = createTenant(db, { name: 'iveKit Egress Placement Tenant' }).id;
+  const closed: Array<{ tenant_id: string; job_id: string; reservation_id: string; owner_epoch: string }> = [];
+  const pg = { async query() { return { rows: [], rowCount: 0 }; } };
+  const egressPlacement = {
+    async closeJobById(_pg: unknown, input: typeof closed[number] & { reason: string }) {
+      closed.push(input);
+    }
+  };
+  try {
+    await route(db, 'POST', '/api/ivekit/media/rooms', {
+      purpose: 'video_service', room_name: 'ivekit-egress-placement-room',
+      business_ref: { type: 'service_order', id: 'order-egress-placement' }
+    }, authHeaders(tenantId));
+    const started = await route(db, 'POST',
+      '/api/ivekit/media/rooms/ivekit-egress-placement-room/recordings/start', {
+        business_ref: { type: 'service_order', id: 'order-egress-placement' },
+        format: 'mp4', has_video: true, recording_mode: 'track',
+        tracks: [
+          { track_id: 'TR_audio', kind: 'audio', source: 'microphone' },
+          { track_id: 'TR_video', kind: 'video', source: 'camera' }
+        ]
+      }, authHeaders(tenantId)) as { data: { id: string } };
+    const recordingModule = createLiveKitMediaModule({ db });
+    const jobs = recordingModule.recordings.listEgressJobs(started.data.id);
+    assert.equal(jobs.length, 2);
+    for (const job of jobs) {
+      run(db, `UPDATE livekit_egress_jobs
+        SET reservation_id = ?, owner_epoch = ? WHERE id = ?`, [
+        `reservation-${job.id}`, '12884901889', job.id
+      ]);
+    }
+
+    const jobsResult = await routeIveKitMediaApi(
+      db, 'GET', `/api/ivekit/media/recordings/${started.data.id}/jobs`,
+      new URL(`http://localhost/api/ivekit/media/recordings/${started.data.id}/jobs`),
+      null, '', authHeaders(tenantId)
+    ) as { data: Array<Record<string, unknown>> };
+    for (const job of jobsResult.data) {
+      assert.equal('storage_url' in job, false);
+      assert.equal('reservation_id' in job, false);
+      assert.equal('owner_epoch' in job, false);
+      assert.equal('reconcile_worker_id' in job, false);
+      assert.equal('reconcile_lease_until' in job, false);
+    }
+
+    for (const job of jobs) {
+      const rawBody = JSON.stringify({
+        event: 'egress_ended', room: { name: 'ivekit-egress-placement-room' },
+        egressInfo: { egressId: job.egress_id, status: 3, fileResults: [] }
+      });
+      await routeIveKitMediaApi(
+        db, 'POST', '/api/ivekit/media/webhooks/livekit',
+        new URL('http://localhost/api/ivekit/media/webhooks/livekit'),
+        rawBody, rawBody, {}, { pg: pg as never, egressPlacement: egressPlacement as never }
+      );
+    }
+
+    assert.deepEqual(closed.map(({ tenant_id, job_id, reservation_id, owner_epoch }) => ({
+      tenant_id, job_id, reservation_id, owner_epoch
+    })), jobs.map((job) => ({
+      tenant_id: tenantId,
+      job_id: job.id,
+      reservation_id: `reservation-${job.id}`,
+      owner_epoch: '12884901889'
+    })));
   } finally {
     db.close();
   }

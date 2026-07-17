@@ -1,5 +1,5 @@
 import type {
-  IveKitClient,
+  IveKitHttpSdk,
   IveKitContactCenterMonitorSnapshot
 } from '@opc/ivekit-sdk';
 import {
@@ -19,7 +19,7 @@ type MonitorQueue = IveKitContactCenterMonitorSnapshot['queues'][number];
 type MonitorAlert = IveKitContactCenterMonitorSnapshot['alerts'][number];
 
 export function QueueMonitorWorkspace(props: {
-  client: IveKitClient | null;
+  client: IveKitHttpSdk | null;
   pollIntervalMs?: number;
 }) {
   const [snapshot, setSnapshot] = useState<IveKitContactCenterMonitorSnapshot | null>(null);
@@ -30,7 +30,7 @@ export function QueueMonitorWorkspace(props: {
   const [alertsOnly, setAlertsOnly] = useState(false);
   const request = useRef(0);
   const inFlight = useRef<{
-    client: IveKitClient;
+    client: IveKitHttpSdk;
     promise: Promise<IveKitContactCenterMonitorSnapshot>;
   } | null>(null);
   const pollIntervalMs = Math.max(1_000, props.pollIntervalMs ?? 10_000);

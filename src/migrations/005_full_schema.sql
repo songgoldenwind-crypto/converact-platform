@@ -2313,6 +2313,7 @@ CREATE TABLE IF NOT EXISTS call_recordings (
   duration_ms INTEGER,
   file_size_bytes INTEGER,
   has_video INTEGER NOT NULL DEFAULT 0,
+  recording_mode TEXT NOT NULL DEFAULT 'room_composite' CHECK (recording_mode IN ('track', 'track_composite', 'room_composite')),
   egress_id TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('starting', 'pending', 'recording', 'stopping', 'stopped', 'completed', 'failed', 'deleted')),
   retention_until TIMESTAMPTZ,
@@ -2333,6 +2334,55 @@ CREATE INDEX IF NOT EXISTS idx_call_recordings_evidence ON call_recordings(tenan
 CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_egress_id ON call_recordings(egress_id) WHERE egress_id != '';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_call_recordings_active_room ON call_recordings(tenant_id, room_name)
   WHERE room_name != '' AND status IN ('starting', 'pending', 'recording', 'stopping');
+
+CREATE TABLE IF NOT EXISTS livekit_egress_jobs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  recording_id TEXT NOT NULL,
+  job_sequence INTEGER NOT NULL CHECK (job_sequence >= 1),
+  room_name TEXT NOT NULL,
+  recording_mode TEXT NOT NULL CHECK (recording_mode IN ('track', 'track_composite', 'room_composite')),
+  track_id TEXT NOT NULL DEFAULT '',
+  track_kind TEXT NOT NULL DEFAULT '',
+  track_source TEXT NOT NULL DEFAULT '',
+  audio_track_id TEXT NOT NULL DEFAULT '',
+  video_track_id TEXT NOT NULL DEFAULT '',
+  storage_url TEXT NOT NULL,
+  egress_id TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'starting' CHECK (status IN ('starting', 'pending', 'recording', 'stopping', 'stopped', 'completed', 'failed')),
+  failure_code TEXT NOT NULL DEFAULT '',
+  reservation_id TEXT NOT NULL DEFAULT '',
+  owner_epoch NUMERIC(20,0),
+  duration_ms BIGINT,
+  file_size_bytes BIGINT,
+  object_status TEXT NOT NULL DEFAULT 'unchecked' CHECK (object_status IN ('unchecked', 'readable', 'missing_storage_url', 'not_found', 'forbidden', 'unsupported', 'fetch_failed', 'deleted', 'delete_failed')),
+  object_checked_at TIMESTAMPTZ,
+  provider_observed_at TIMESTAMPTZ,
+  provider_missing_count INTEGER NOT NULL DEFAULT 0 CHECK (provider_missing_count >= 0),
+  reconcile_attempts INTEGER NOT NULL DEFAULT 0 CHECK (reconcile_attempts >= 0),
+  reconcile_after TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reconcile_lease_until TIMESTAMPTZ,
+  reconcile_worker_id TEXT NOT NULL DEFAULT '',
+  completed_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (tenant_id, id),
+  UNIQUE (tenant_id, recording_id, id),
+  UNIQUE (recording_id, job_sequence)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_livekit_egress_jobs_provider_id
+  ON livekit_egress_jobs(egress_id) WHERE egress_id != '';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_livekit_egress_jobs_track
+  ON livekit_egress_jobs(recording_id, track_id)
+  WHERE recording_mode = 'track';
+CREATE INDEX IF NOT EXISTS idx_livekit_egress_jobs_recording
+  ON livekit_egress_jobs(tenant_id, recording_id, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_livekit_egress_jobs_active
+  ON livekit_egress_jobs(tenant_id, status, updated_at, id);
+CREATE INDEX IF NOT EXISTS idx_livekit_egress_jobs_reconcile
+  ON livekit_egress_jobs(tenant_id, reconcile_after, reconcile_lease_until, updated_at, id)
+  WHERE status IN ('starting', 'recording', 'stopping');
 
 CREATE TABLE IF NOT EXISTS ai_conversation_turns (
   id TEXT PRIMARY KEY,
@@ -2618,6 +2668,47 @@ DROP TRIGGER IF EXISTS rustdesk_control_events_immutable ON rustdesk_control_eve
 CREATE TRIGGER rustdesk_control_events_immutable
 BEFORE UPDATE OR DELETE ON rustdesk_control_events
 FOR EACH ROW EXECUTE FUNCTION reject_rustdesk_control_event_mutation();
+
+CREATE TABLE IF NOT EXISTS rustdesk_authorization_codes (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  -- Migration 011 creates remote_assistance_sessions after this legacy baseline.
+  -- Migration 064 adds the foreign key once both tables exist.
+  remote_session_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  scopes JSONB NOT NULL
+    CHECK (jsonb_typeof(scopes) = 'array')
+    CHECK (scopes <@ '["view_screen","control_mouse_keyboard","record_screen","transfer_file","clipboard"]'::jsonb),
+  requested_by TEXT NOT NULL,
+  requested_at TIMESTAMPTZ NOT NULL,
+  code_salt TEXT NOT NULL CHECK (code_salt ~ '^[a-f0-9]{32}$'),
+  code_hmac TEXT NOT NULL CHECK (code_hmac ~ '^[a-f0-9]{64}$'),
+  expires_at TIMESTAMPTZ NOT NULL,
+  max_attempts INTEGER NOT NULL CHECK (max_attempts BETWEEN 1 AND 10),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count BETWEEN 0 AND max_attempts),
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'verified', 'consumed', 'expired', 'locked')),
+  verified_by TEXT,
+  verified_at TIMESTAMPTZ,
+  consumed_external_id TEXT REFERENCES rustdesk_gateway_sessions(external_id) ON DELETE RESTRICT,
+  consumed_at TIMESTAMPTZ,
+  idempotency_key TEXT NOT NULL CHECK (char_length(idempotency_key) BETWEEN 1 AND 200),
+  request_hash TEXT NOT NULL CHECK (request_hash ~ '^[a-f0-9]{64}$'),
+  updated_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (tenant_id, idempotency_key),
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, device_id) REFERENCES rustdesk_devices(tenant_id, id) ON DELETE RESTRICT,
+  CHECK ((verified_by IS NULL) = (verified_at IS NULL)),
+  CHECK (status NOT IN ('verified', 'consumed') OR verified_by IS NOT NULL),
+  CHECK (status NOT IN ('pending', 'locked') OR verified_by IS NULL),
+  CHECK ((status = 'consumed') = (consumed_external_id IS NOT NULL AND consumed_at IS NOT NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rustdesk_authorization_codes_session
+  ON rustdesk_authorization_codes(tenant_id, remote_session_id, device_id, requested_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rustdesk_authorization_codes_expiry
+  ON rustdesk_authorization_codes(tenant_id, status, expires_at);
 
 
 -- ── Tables from db.ts embedded migrations (40 tables) ──────────────────────

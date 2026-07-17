@@ -12,6 +12,12 @@ export interface IntelligenceProviderProfile {
   health_endpoint: string;
   token_env: string;
   timeout_ms: number;
+  requests_per_minute: number;
+  requests_per_day: number;
+  max_concurrency: number;
+  failure_threshold: number;
+  open_cooldown_ms: number;
+  reservation_ttl_ms: number;
   name: string;
   legacy: boolean;
 }
@@ -23,6 +29,12 @@ export interface SafeIntelligenceProviderProfile {
   name: string;
   configured: boolean;
   token_configured: boolean;
+  requests_per_minute: number;
+  requests_per_day: number;
+  max_concurrency: number;
+  failure_threshold: number;
+  open_cooldown_ms: number;
+  reservation_ttl_ms: number;
 }
 
 export interface IntelligenceProviderRegistry {
@@ -50,6 +62,12 @@ const PROFILE_FIELDS = new Set([
   'health_endpoint',
   'token_env',
   'timeout_ms',
+  'requests_per_minute',
+  'requests_per_day',
+  'max_concurrency',
+  'failure_threshold',
+  'open_cooldown_ms',
+  'reservation_ttl_ms',
   'name'
 ]);
 
@@ -79,7 +97,13 @@ export function createIntelligenceProviderRegistry(
       mode: profile.mode,
       name: profile.name,
       configured: true,
-      token_configured: !profile.token_env || Boolean(String(env[profile.token_env] || '').trim())
+      token_configured: !profile.token_env || Boolean(String(env[profile.token_env] || '').trim()),
+      requests_per_minute: profile.requests_per_minute,
+      requests_per_day: profile.requests_per_day,
+      max_concurrency: profile.max_concurrency,
+      failure_threshold: profile.failure_threshold,
+      open_cooldown_ms: profile.open_cooldown_ms,
+      reservation_ttl_ms: profile.reservation_ttl_ms
     })),
     profile: (id) => {
       const profile = byId.get(String(id || '').trim());
@@ -144,6 +168,28 @@ function normalizeProfile(value: unknown, label: string, legacy: boolean): Intel
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 300_000) {
     throw new Error(`${label} timeout_ms must be between 1000 and 300000`);
   }
+  const requestsPerMinute = boundedInteger(
+    value.requests_per_minute, 0, 0, 1_000_000, `${label} requests_per_minute`
+  );
+  const requestsPerDay = boundedInteger(
+    value.requests_per_day, 0, 0, 1_000_000_000, `${label} requests_per_day`
+  );
+  const maxConcurrency = boundedInteger(
+    value.max_concurrency, 10, 1, 100, `${label} max_concurrency`
+  );
+  const failureThreshold = boundedInteger(
+    value.failure_threshold, 3, 1, 100, `${label} failure_threshold`
+  );
+  const openCooldownMs = boundedInteger(
+    value.open_cooldown_ms, 30_000, 1_000, 3_600_000, `${label} open_cooldown_ms`
+  );
+  const reservationTtlMs = boundedInteger(
+    value.reservation_ttl_ms, timeoutMs + 5_000, 5_000, 600_000,
+    `${label} reservation_ttl_ms`
+  );
+  if (reservationTtlMs <= timeoutMs) {
+    throw new Error(`${label} reservation_ttl_ms must be greater than timeout_ms`);
+  }
   const name = String(value.name || id).trim();
   if (!name || name.length > 100) throw new Error(`${label} name must be between 1 and 100 characters`);
   return {
@@ -155,6 +201,12 @@ function normalizeProfile(value: unknown, label: string, legacy: boolean): Intel
     health_endpoint: healthEndpoint,
     token_env: tokenEnv,
     timeout_ms: timeoutMs,
+    requests_per_minute: requestsPerMinute,
+    requests_per_day: requestsPerDay,
+    max_concurrency: maxConcurrency,
+    failure_threshold: failureThreshold,
+    open_cooldown_ms: openCooldownMs,
+    reservation_ttl_ms: reservationTtlMs,
     name,
     legacy
   };
@@ -272,6 +324,21 @@ function isPrivateOrContainerHost(rawHostname: string): boolean {
 
 function copyProfile(profile: IntelligenceProviderProfile): IntelligenceProviderProfile {
   return { ...profile };
+}
+
+function boundedInteger(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+  field: string
+): number {
+  if (value == null || String(value).trim() === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${field} must be an integer between ${min} and ${max}`);
+  }
+  return parsed;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

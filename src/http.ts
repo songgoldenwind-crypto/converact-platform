@@ -23,10 +23,25 @@ import { routeGeoApi } from './http-api/geo-http.js';
 import { routeMemoryApi } from './http-api/memory-http.js';
 import { routeVoiceApi } from './http-api/voice-http.js';
 import { routeMediaApi } from './agent-runtime/livekit/media-http.js';
-import { routeCollaborationApi } from './agent-runtime/collaboration/collaboration-http.js';
-import { routeIveKitChatApi } from './agent-runtime/ivekit/chat-http.js';
+import {
+  prepareIveKitRustDeskPlacement,
+  routeCollaborationApi,
+  type PreparedRustDeskSessionPlacement,
+  type PreparedTinodeSessionPlacement,
+  type RouteCollaborationApiOptions
+} from './agent-runtime/collaboration/collaboration-http.js';
+import {
+  prepareIveKitChatPlacement,
+  routeIveKitChatApi,
+  type RouteIveKitChatApiOptions
+} from './agent-runtime/ivekit/chat-http.js';
 import { routeIveKitEventApi } from './agent-runtime/ivekit/event-http.js';
-import { routeIveKitMediaApi } from './agent-runtime/ivekit/media-http.js';
+import {
+  prepareIveKitMediaCallPlacement,
+  routeIveKitMediaApi,
+  type PreparedMediaCallPlacement,
+  type RouteIveKitMediaApiOptions
+} from './agent-runtime/ivekit/media-http.js';
 import { runWithWsBroadcastBuffer } from './ws.js';
 import {
   markMediaRecordingEvidenceDeleted,
@@ -70,10 +85,26 @@ const contentTypes = {
   '.svg': 'image/svg+xml'
 };
 
-export function createServer(db, pg: PgQueryable | null = null) {
+export interface OpcHttpServerOptions {
+  ivekitMedia?: RouteIveKitMediaApiOptions;
+  ivekitChat?: RouteIveKitChatApiOptions;
+  collaboration?: RouteCollaborationApiOptions;
+}
+
+export function createServer(
+  db,
+  pg: PgQueryable | null = null,
+  options: OpcHttpServerOptions = {}
+) {
   const harness = createHarness(db);
   return createHttpServer(async (req, res) => {
     const _reqStart = Date.now();
+    let preparedMediaCallPlacement: PreparedMediaCallPlacement | null = null;
+    let preparedMediaCallPlacementCommitted = false;
+    let preparedTinodePlacement: PreparedTinodeSessionPlacement | null = null;
+    let preparedTinodePlacementCommitted = false;
+    let preparedRustDeskPlacement: PreparedRustDeskSessionPlacement | null = null;
+    let preparedRustDeskPlacementCommitted = false;
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const path = url.pathname;
@@ -86,15 +117,22 @@ export function createServer(db, pg: PgQueryable | null = null) {
         return;
       }
 
-      const isBinaryUpload =
+      const isSecureFileUpload = req.method === 'PUT' &&
+        /^\/api\/ivekit\/chat\/sessions\/[^/]+\/files\/[^/]+\/(?:content|parts\/\d+)$/.test(path);
+      const isRustDeskEvidenceUpload = req.method === 'PUT' &&
+        /^\/api\/ivekit\/rustdesk\/devices\/[^/]+\/evidence\/[^/]+\/(?:content|parts\/\d+)$/.test(path);
+      const isBinaryUpload = isSecureFileUpload || isRustDeskEvidenceUpload || (
         req.method === 'POST' &&
         (path === '/api/call-center/screen-recordings/upload' ||
           /^\/api\/collaboration\/remote-assistance\/[^/]+\/evidence\/upload$/.test(path) ||
           /^\/api\/collaboration\/sessions\/[^/]+\/attachments\/upload$/.test(path) ||
-          /^\/api\/ivekit\/chat\/sessions\/[^/]+\/attachments\/upload$/.test(path));
-      const binaryUploadMaxBytes = /\/sessions\/[^/]+\/attachments\/upload$/.test(path)
-        ? collaborationAttachmentMaxBytes()
-        : undefined;
+          /^\/api\/ivekit\/chat\/sessions\/[^/]+\/attachments\/upload$/.test(path))
+      );
+      const binaryUploadMaxBytes = isSecureFileUpload || isRustDeskEvidenceUpload
+        ? secureFileUploadMaxBytes()
+        : /\/sessions\/[^/]+\/attachments\/upload$/.test(path)
+          ? collaborationAttachmentMaxBytes()
+          : undefined;
       const rawBody = isBinaryUpload
         ? await readBuffer(req, binaryUploadMaxBytes)
         : path.startsWith('/api/webhooks/') || path === '/api/call-router' || path === '/api/media/webhooks/livekit'
@@ -107,17 +145,64 @@ export function createServer(db, pg: PgQueryable | null = null) {
             ? rawBody
             : safeJsonParse(rawBody))
           : await readJsonRequest(req);
-      const pgTenantCtx = resolvePgTenantContextForRequest(path, req.headers, { url, body });
+      const headers = {
+        ...req.headers,
+        'x-opc-source-ip': req.socket.remoteAddress || ''
+      };
+      preparedMediaCallPlacement = await prepareIveKitMediaCallPlacement(
+        req.method || 'GET',
+        path,
+        body,
+        headers,
+        options.ivekitMedia || {}
+      );
+      preparedTinodePlacement = await prepareIveKitChatPlacement(
+        req.method || 'GET',
+        path,
+        headers,
+        options.ivekitChat || {},
+        pg
+      );
+      preparedRustDeskPlacement = await prepareIveKitRustDeskPlacement(
+        req.method || 'GET',
+        path,
+        body,
+        headers,
+        options.collaboration || {},
+        pg
+      );
+      const pgTenantCtx = resolvePgTenantContextForRequest(path, headers, { url, body });
       const buffered = await runWithWsBroadcastBuffer(() =>
         runWithPgTenantContextAsync(pgTenantCtx, () => {
-          if (!pg) return route(db, harness, null, req.method, url, body, rawBody, req.headers);
+          if (!pg) {
+            return route(
+              db, harness, null, req.method, url, body, rawBody, headers,
+              options, preparedMediaCallPlacement, preparedTinodePlacement,
+              preparedRustDeskPlacement
+            );
+          }
           return withPgRequestContext(pg, pgTenantCtx, (scopedPg) =>
-            route(db, harness, scopedPg, req.method, url, body, rawBody, req.headers)
+            route(
+              db, harness, scopedPg, req.method, url, body, rawBody, headers,
+              options, preparedMediaCallPlacement, preparedTinodePlacement,
+              preparedRustDeskPlacement
+            )
           );
         })
       );
       const result = buffered.result;
 
+      if (preparedTinodePlacement?.reservation && !preparedTinodePlacement.persisted) {
+        await releaseMainTinodePlacement(options.ivekitChat, preparedTinodePlacement);
+        preparedTinodePlacement = null;
+      }
+      if (preparedRustDeskPlacement?.reservation && !preparedRustDeskPlacement.persisted) {
+        await releaseMainRustDeskPlacement(options.collaboration, preparedRustDeskPlacement);
+        preparedRustDeskPlacement = null;
+      }
+      preparedMediaCallPlacementCommitted = true;
+      preparedTinodePlacementCommitted = true;
+      preparedRustDeskPlacementCommitted = true;
       await buffered.flush();
       await runAfterCommit(result);
 
@@ -155,7 +240,29 @@ export function createServer(db, pg: PgQueryable | null = null) {
         isHeaderRecord(result?.headers) ? result.headers : {}
       );
     } catch (error) {
+      if (preparedMediaCallPlacement && !preparedMediaCallPlacementCommitted) {
+        await releaseMainMediaPlacement(options.ivekitMedia, preparedMediaCallPlacement)
+          .catch((releaseError) => {
+            console.error('[http] failed to release media placement:', releaseError);
+          });
+      }
+      if (preparedTinodePlacement && !preparedTinodePlacementCommitted) {
+        await releaseMainTinodePlacement(options.ivekitChat, preparedTinodePlacement)
+          .catch((releaseError) => {
+            console.error('[http] failed to release Tinode placement:', releaseError);
+          });
+      }
+      if (preparedRustDeskPlacement && !preparedRustDeskPlacementCommitted) {
+        await releaseMainRustDeskPlacement(options.collaboration, preparedRustDeskPlacement)
+          .catch((releaseError) => {
+            console.error('[http] failed to release RustDesk placement:', releaseError);
+          });
+      }
       const status = error.status || 500;
+      const retryAfterSeconds = Number(error.retry_after_seconds);
+      const errorHeaders = status === 429 && Number.isInteger(retryAfterSeconds) && retryAfterSeconds > 0
+        ? { 'retry-after': retryAfterSeconds }
+        : {};
       if (status === 500) {
         const errorId = `err_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
         console.error(`[500] ${errorId}`, error);
@@ -172,13 +279,37 @@ export function createServer(db, pg: PgQueryable | null = null) {
             message: error.message,
             status
           }
-        });
+        }, errorHeaders);
       }
     }
     // Record HTTP metrics (outside try/catch so both success and error are captured).
     const { recordHttpRequest } = await import('./metrics.js');
     recordHttpRequest(req.method || 'GET', req.url || '/', res.statusCode || 200, (Date.now() - _reqStart) / 1000);
   });
+}
+
+async function releaseMainMediaPlacement(
+  options: RouteIveKitMediaApiOptions | undefined,
+  prepared: PreparedMediaCallPlacement
+): Promise<void> {
+  if (!options?.placement) return;
+  await options.placement.releaseUncommitted(prepared.reservation);
+}
+
+async function releaseMainTinodePlacement(
+  options: RouteIveKitChatApiOptions | undefined,
+  prepared: PreparedTinodeSessionPlacement
+): Promise<void> {
+  if (!options?.tinodePlacement || !prepared.reservation || prepared.persisted) return;
+  await options.tinodePlacement.releaseUncommitted(prepared.reservation);
+}
+
+async function releaseMainRustDeskPlacement(
+  options: RouteCollaborationApiOptions | undefined,
+  prepared: PreparedRustDeskSessionPlacement
+): Promise<void> {
+  if (!options?.rustdeskPlacement || !prepared.reservation || prepared.persisted) return;
+  await options.rustdeskPlacement.releaseUncommitted(prepared.reservation);
 }
 
 async function runAfterCommit(result: unknown): Promise<void> {
@@ -192,7 +323,20 @@ async function runAfterCommit(result: unknown): Promise<void> {
   }
 }
 
-async function route(db, harness, pg: PgQueryable | null, method, url, body, rawBody: string | Buffer = '', headers = {}) {
+async function route(
+  db,
+  harness,
+  pg: PgQueryable | null,
+  method,
+  url,
+  body,
+  rawBody: string | Buffer = '',
+  headers = {},
+  options: OpcHttpServerOptions = {},
+  preparedMediaCallPlacement: PreparedMediaCallPlacement | null = null,
+  preparedTinodePlacement: PreparedTinodeSessionPlacement | null = null,
+  preparedRustDeskPlacement: PreparedRustDeskSessionPlacement | null = null
+) {
   const path = url.pathname;
 
   if (method === 'GET' && consolePagePaths.has(path)) return { staticPath: join(publicDir, 'index.html') };
@@ -225,7 +369,9 @@ async function route(db, harness, pg: PgQueryable | null, method, url, body, raw
   if (callCenterResult !== undefined) return callCenterResult;
 
   const iveKitMediaResult = await routeIveKitMediaApi(db, method, path, url, body, rawBody, headers, {
+    ...options.ivekitMedia,
     pg: pg || undefined,
+    ...(preparedMediaCallPlacement ? { preparedMediaCallPlacement } : {}),
     onRecordingStarted: pg
       ? (recording, context) => recordMediaRecordingEvidence(pg, recording, context)
       : undefined,
@@ -240,10 +386,23 @@ async function route(db, harness, pg: PgQueryable | null, method, url, body, raw
   });
   if (iveKitMediaResult !== undefined) return iveKitMediaResult;
 
-  const iveKitChatResult = await routeIveKitChatApi(pg, method, path, url, body, rawBody, headers, { db });
+  const iveKitChatResult = await routeIveKitChatApi(
+    pg,
+    method,
+    path,
+    url,
+    body,
+    rawBody,
+    headers,
+    {
+      db,
+      ...options.ivekitChat,
+      ...(preparedTinodePlacement ? { preparedTinodePlacement } : {})
+    }
+  );
   if (iveKitChatResult !== undefined) return iveKitChatResult;
 
-  const iveKitEventResult = await routeIveKitEventApi(pg, method, path, url, headers);
+  const iveKitEventResult = await routeIveKitEventApi(pg, method, path, url, headers, body);
   if (iveKitEventResult !== undefined) return iveKitEventResult;
 
   const mediaResult = await routeMediaApi(db, method, path, url, body, rawBody, headers, {
@@ -268,7 +427,20 @@ async function route(db, harness, pg: PgQueryable | null, method, url, body, raw
   });
   if (mediaResult !== undefined) return mediaResult;
 
-  const collaborationResult = await routeCollaborationApi(pg, method, path, url, body, rawBody, headers, { db });
+  const collaborationResult = await routeCollaborationApi(
+    pg,
+    method,
+    path,
+    url,
+    body,
+    rawBody,
+    headers,
+    {
+      db,
+      ...options.collaboration,
+      ...(preparedRustDeskPlacement ? { preparedRustDeskPlacement } : {})
+    }
+  );
   if (collaborationResult !== undefined) return collaborationResult;
 
   const ivrResult = await routeIvrApi(db, method, path, url, body, headers);
@@ -501,6 +673,14 @@ function collaborationAttachmentMaxBytes() {
   const value = Number(process.env.OPC_COLLABORATION_ATTACHMENT_MAX_BYTES || 26_214_400);
   if (!Number.isInteger(value) || value < 1 || value > 1_073_741_824) {
     throw new Error('OPC_COLLABORATION_ATTACHMENT_MAX_BYTES is invalid');
+  }
+  return value;
+}
+
+function secureFileUploadMaxBytes() {
+  const value = Number(process.env.OPC_SECURE_FILE_UPLOAD_MAX_BYTES || 64 * 1024 * 1024);
+  if (!Number.isInteger(value) || value < 1 || value > 512 * 1024 * 1024) {
+    throw new Error('OPC_SECURE_FILE_UPLOAD_MAX_BYTES is invalid');
   }
   return value;
 }

@@ -1,0 +1,136 @@
+{{- if .Values.notificationWorker.enabled }}
+{{- include "ivekit.notificationWorkerValidate" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.notificationWorkerFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: notification-worker
+spec:
+  clusterIP: None
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: notification-worker
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ivekit.notificationWorkerFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: notification-worker
+spec:
+  serviceName: {{ include "ivekit.notificationWorkerFullname" . }}
+  podManagementPolicy: Parallel
+  replicas: {{ .Values.notificationWorker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: notification-worker
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: notification-worker
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.notificationWorker.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: notification-worker
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              partition_index="${HOSTNAME##*-}"
+              case "${partition_index}" in
+                ''|*[!0-9]*) echo "invalid StatefulSet ordinal" >&2; exit 1 ;;
+              esac
+              export OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX="${partition_index}"
+              exec node dist/ivekit-worker.js
+          {{- with .Values.secrets.runtimeEnvironmentSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ . }}
+          {{- end }}
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
+            - name: OPC_SCHEMA_MANAGED_BY_MIGRATIONS
+              value: "1"
+            - name: OPC_IVEKIT_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT
+              value: {{ .Values.notificationWorker.replicaCount | quote }}
+            - name: OPC_IVEKIT_NOTIFICATION_INTERVAL_MS
+              value: {{ .Values.notificationWorker.intervalMs | quote }}
+            - name: OPC_IVEKIT_NOTIFICATION_BATCH_SIZE
+              value: {{ .Values.notificationWorker.batchSize | quote }}
+            - name: OPC_IVEKIT_NOTIFICATION_TENANT_LIMIT
+              value: {{ .Values.notificationWorker.tenantLimit | quote }}
+            - name: OPC_IVEKIT_NOTIFICATION_LEASE_MS
+              value: {{ .Values.notificationWorker.leaseMs | quote }}
+            - name: OPC_IVEKIT_NOTIFICATION_RETRY_DELAYS_MS
+              value: {{ .Values.notificationWorker.retryDelaysMs | quote }}
+            - name: OPC_IVEKIT_RUNTIME_HEARTBEAT_ENABLED
+              value: "1"
+            - name: OPC_TINODE_DELIVERY_WORKER_ENABLED
+              value: "0"
+            - name: OPC_TINODE_INBOUND_WORKER_ENABLED
+              value: "0"
+            - name: OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED
+              value: "0"
+            - name: OPC_QUALITY_REVIEW_WORKER_ENABLED
+              value: "0"
+            - name: OPC_TRANSLATION_WORKER_ENABLED
+              value: "0"
+            - name: OPC_MEDIA_CALL_TIMEOUT_WORKER_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_EVENT_RETENTION_WORKER_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_NOTIFICATION_HEALTH_WORKER_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_RETENTION_WORKER_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_IVR_WORKERS_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_CONTACT_CENTER_WORKER_ENABLED
+              value: "0"
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.notificationWorker.resources | nindent 12 }}
+{{- if .Values.notificationWorker.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ivekit.notificationWorkerFullname" . }}
+spec:
+  minAvailable: {{ .Values.notificationWorker.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: notification-worker
+{{- end }}
+{{- end }}

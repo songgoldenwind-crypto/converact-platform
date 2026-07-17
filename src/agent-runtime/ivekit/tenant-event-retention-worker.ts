@@ -82,7 +82,7 @@ export function startIveKitTenantEventRetentionWorker(input: {
 }): IveKitTenantEventRetentionWorker {
   const env = input.env || process.env;
   const config = iveKitTenantEventRetentionWorkerConfig(env);
-  const store = config.enabled ? new IveKitTenantEventStore(input.pg) : null;
+  const store = config.enabled ? new IveKitTenantEventStore(input.pg, { env }) : null;
   const worker = new IveKitTenantEventRetentionWorker({
     config,
     runBatch: () => store

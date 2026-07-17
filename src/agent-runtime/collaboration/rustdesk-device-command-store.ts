@@ -24,6 +24,10 @@ export interface RustDeskDeviceCommand {
   status: RustDeskDeviceCommandStatus;
   requested_by: string;
   requested_reason: RustDeskDisconnectReason;
+  emergency_fallback_authorized: boolean;
+  emergency_fallback_reason: string;
+  emergency_fallback_authorized_by: string;
+  emergency_fallback_authorized_at: string | null;
   attempt_count: number;
   max_attempts: number;
   claimed_by: string;
@@ -49,6 +53,15 @@ export interface EnqueueRustDeskDisconnectInput {
   external_id: string;
   requested_by: string;
   requested_reason: RustDeskDisconnectReason;
+}
+
+export interface AuthorizeRustDeskEmergencyFallbackInput {
+  tenant_id: string;
+  external_id: string;
+  authorized_by: string;
+  reason: string;
+  collateral_sessions_may_disconnect: boolean;
+  now?: string;
 }
 
 export interface ClaimRustDeskDeviceCommandInput {
@@ -126,6 +139,10 @@ const resultMetadataFields = new Set([
   'edge_instance_id',
   'os',
   'collateral_sessions_may_disconnect',
+  'precise_disconnect_unavailable',
+  'emergency_fallback_authorized',
+  'emergency_fallback_reason',
+  'fallback_result_reason',
   'timed_out',
   'signal',
   'error_code'
@@ -135,7 +152,9 @@ const fallbackReasons = new Set([
   'adapter_timeout',
   'adapter_spawn_error',
   'adapter_signal',
-  'adapter_exit_nonzero'
+  'adapter_exit_nonzero',
+  'targeted_disconnect_unavailable',
+  'service_unavailable'
 ]);
 const supportedOperatingSystems = new Set([
   'aix',
@@ -225,6 +244,111 @@ export class RustDeskDeviceCommandStore {
       );
     }
     return result.rows[0] ? decodeCommand(result.rows[0]) : null;
+  }
+
+  async getById(input: {
+    tenant_id: string;
+    device_id: string;
+    command_id: string;
+  }): Promise<RustDeskDeviceCommand | null> {
+    const tenantId = requiredString(input.tenant_id, 'tenant_id is required');
+    const deviceId = requiredString(input.device_id, 'device_id is required');
+    const commandId = requiredString(input.command_id, 'command_id is required');
+    const result = await this.pg.query(
+      `SELECT * FROM rustdesk_device_commands
+       WHERE tenant_id = $1 AND device_id = $2 AND id = $3
+       LIMIT 1`,
+      [tenantId, deviceId, commandId]
+    );
+    return result.rows[0] ? decodeCommand(result.rows[0]) : null;
+  }
+
+  async authorizeEmergencyFallback(
+    input: AuthorizeRustDeskEmergencyFallbackInput
+  ): Promise<RustDeskDeviceCommand> {
+    const tenantId = requiredString(input.tenant_id, 'tenant_id is required');
+    const externalId = requiredString(input.external_id, 'external_id is required');
+    const authorizedBy = requiredString(input.authorized_by, 'authorized_by is required');
+    const reason = boundedSingleLine(input.reason, 8, 500, 'reason must be 8 to 500 single-line characters');
+    if (input.collateral_sessions_may_disconnect !== true) {
+      throw Object.assign(
+        new Error('collateral_sessions_may_disconnect must be acknowledged'),
+        { status: 400 }
+      );
+    }
+    const now = isoTimestamp(input.now, 'now must be an ISO timestamp');
+    const current = await this.getByExternalId({ tenant_id: tenantId, external_id: externalId, now });
+    if (!current) throw Object.assign(new Error('rustdesk disconnect command not found'), { status: 404 });
+    if (current.emergency_fallback_authorized) {
+      if (
+        current.emergency_fallback_authorized_by === authorizedBy &&
+        current.emergency_fallback_reason === reason
+      ) {
+        return current;
+      }
+      throw Object.assign(new Error('rustdesk emergency fallback is already authorized'), { status: 409 });
+    }
+    if (
+      current.status === 'claimed' ||
+      current.status === 'succeeded' ||
+      current.execution_method !== 'session_adapter' ||
+      current.result_metadata.precise_disconnect_unavailable !== true
+    ) {
+      throw Object.assign(
+        new Error('emergency fallback requires a failed precise disconnect attempt'),
+        { status: 409 }
+      );
+    }
+    return withPgTransaction(this.pg, async (pg) => {
+      const result = await pg.query(
+        `UPDATE rustdesk_device_commands
+         SET emergency_fallback_authorized = TRUE,
+             emergency_fallback_reason = $3,
+             emergency_fallback_authorized_by = $4,
+             emergency_fallback_authorized_at = $5,
+             status = 'pending',
+             attempt_count = 0,
+             claimed_by = NULL,
+             claim_token_hash = NULL,
+             lease_expires_at = NULL,
+             next_attempt_at = $5,
+             execution_method = NULL,
+             exit_code = NULL,
+             duration_ms = NULL,
+             stdout_bytes = NULL,
+             stderr_bytes = NULL,
+             stdout_sha256 = NULL,
+             stderr_sha256 = NULL,
+             result_metadata = '{}'::jsonb,
+             started_at = NULL,
+             completed_at = NULL,
+             updated_at = $5
+         WHERE tenant_id = $1 AND external_id = $2 AND command_type = 'disconnect_session'
+           AND emergency_fallback_authorized = FALSE
+           AND status IN ('pending', 'failed')
+           AND execution_method = 'session_adapter'
+           AND result_metadata->>'precise_disconnect_unavailable' = 'true'
+         RETURNING *`,
+        [tenantId, externalId, reason, authorizedBy, now]
+      );
+      if (!result.rows[0]) {
+        throw Object.assign(new Error('rustdesk emergency fallback authorization conflict'), { status: 409 });
+      }
+      const command = decodeCommand(result.rows[0]);
+      await this.appendAuditEvent(
+        command,
+        'remote.rustdesk.disconnect.emergency_fallback_authorized',
+        authorizedBy,
+        'emergency_fallback_authorized',
+        {
+          reason,
+          collateral_sessions_may_disconnect: true,
+          authorized_at: now
+        },
+        pg
+      );
+      return command;
+    });
   }
 
   async claimNext(input: ClaimRustDeskDeviceCommandInput): Promise<ClaimedRustDeskDeviceCommand | null> {
@@ -322,6 +446,9 @@ export class RustDeskDeviceCommandStore {
     const metadata = commandResultMetadata(input.metadata);
     const row = await this.requireValidClaim(identity);
     const command = decodeCommand(row);
+    if (progress === 'fallback_started' && !command.emergency_fallback_authorized) {
+      throw Object.assign(new Error('rustdesk emergency fallback is not authorized'), { status: 409 });
+    }
     const eventType = progress === 'session_adapter_failed'
       ? 'remote.rustdesk.disconnect.session_adapter_failed'
       : 'remote.rustdesk.disconnect.fallback_started';
@@ -482,6 +609,19 @@ export class RustDeskDeviceCommandStore {
     if (!row) throw Object.assign(new Error('rustdesk command not found'), { status: 404 });
     if (!claimTokenMatches(row, identity.claim_token)) {
       throw invalidClaimError();
+    }
+    const claimedCommand = decodeCommand(row);
+    if (executionMethod === 'service_restart') {
+      if (!claimedCommand.emergency_fallback_authorized) {
+        throw Object.assign(new Error('rustdesk emergency fallback is not authorized'), { status: 409 });
+      }
+      if (
+        metadata.emergency_fallback_authorized !== true ||
+        metadata.emergency_fallback_reason !== claimedCommand.emergency_fallback_reason ||
+        metadata.collateral_sessions_may_disconnect !== true
+      ) {
+        throw Object.assign(new Error('rustdesk emergency fallback result does not match authorization'), { status: 409 });
+      }
     }
     if (row.status === 'succeeded' || row.status === 'failed') {
       if (!completedResultMatches(row, {
@@ -794,12 +934,17 @@ function commandResultMetadata(value: Record<string, unknown> | undefined): Reco
 }
 
 function validateCommandMetadataField(key: string, value: unknown): void {
-  if (key === 'collateral_sessions_may_disconnect' || key === 'timed_out') {
+  if (
+    key === 'collateral_sessions_may_disconnect' ||
+    key === 'precise_disconnect_unavailable' ||
+    key === 'emergency_fallback_authorized' ||
+    key === 'timed_out'
+  ) {
     if (typeof value !== 'boolean') metadataError(key, 'must be a boolean');
     return;
   }
   const text = typeof value === 'string' ? value.trim() : '';
-  if (key === 'fallback_reason') {
+  if (key === 'fallback_reason' || key === 'fallback_result_reason') {
     if (!fallbackReasons.has(text)) metadataError(key, 'must be a supported fallback reason');
     return;
   }
@@ -816,6 +961,12 @@ function validateCommandMetadataField(key: string, value: unknown): void {
   if (key === 'edge_instance_id') {
     if (!text || text.length > 200 || /[\r\n]/.test(text)) {
       metadataError(key, 'must contain 1 to 200 single-line characters');
+    }
+    return;
+  }
+  if (key === 'emergency_fallback_reason') {
+    if (text.length < 8 || text.length > 500 || /[\r\n]/.test(String(value))) {
+      metadataError(key, 'must contain 8 to 500 single-line characters');
     }
     return;
   }
@@ -929,6 +1080,10 @@ function decodeCommand(row: Record<string, unknown>): RustDeskDeviceCommand {
     status: String(row.status || 'pending') as RustDeskDeviceCommandStatus,
     requested_by: String(row.requested_by || ''),
     requested_reason: String(row.requested_reason || '') as RustDeskDisconnectReason,
+    emergency_fallback_authorized: row.emergency_fallback_authorized === true || row.emergency_fallback_authorized === 'true',
+    emergency_fallback_reason: String(row.emergency_fallback_reason || ''),
+    emergency_fallback_authorized_by: String(row.emergency_fallback_authorized_by || ''),
+    emergency_fallback_authorized_at: nullableTimestamp(row.emergency_fallback_authorized_at),
     attempt_count: Number(row.attempt_count || 0),
     max_attempts: Number(row.max_attempts || 3),
     claimed_by: String(row.claimed_by || ''),
@@ -953,6 +1108,14 @@ function decodeCommand(row: Record<string, unknown>): RustDeskDeviceCommand {
 
 function nullableTimestamp(value: unknown): string | null {
   return value === null || value === undefined || value === '' ? null : timestampString(value);
+}
+
+function boundedSingleLine(value: unknown, minimum: number, maximum: number, message: string): string {
+  const normalized = String(value || '').trim();
+  if (normalized.length < minimum || normalized.length > maximum || /[\r\n]/.test(normalized)) {
+    throw Object.assign(new Error(message), { status: 400 });
+  }
+  return normalized;
 }
 
 function timestampString(value: unknown): string {

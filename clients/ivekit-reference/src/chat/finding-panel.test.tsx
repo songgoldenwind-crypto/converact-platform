@@ -150,6 +150,7 @@ function finding(): IveKitPolicyFinding {
     source: 'text', source_ref_id: 'message-1', policy_type: 'contact_exchange', severity: 'high',
     matched_text_hash: 'hidden', fingerprint: 'fingerprint-1', action: 'review', confidence: null,
     rationale: 'Detected by a redacted policy rule', review_status: 'pending', evidence_refs: [],
+    detector_version: 'rules-v1', policy_version: 'policy-v1', evidence_snapshot_hash: 'snapshot-hash', content_version: 1,
     reviewed_by: '', reviewed_at: null, review_note: '', metadata: {},
     created_at: '2026-07-11T12:00:00.000Z', updated_at: '2026-07-11T12:00:00.000Z', resolved_at: null
   };

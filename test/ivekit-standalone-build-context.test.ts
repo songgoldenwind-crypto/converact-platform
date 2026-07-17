@@ -53,13 +53,15 @@ test('standalone service lock is reproducibly derived and excludes unrelated roo
   const rootDependencies = Object.keys((generated.packages[''].dependencies || {})).sort();
   assert.deepEqual(rootDependencies, [
     '@aws-sdk/client-s3',
+    'file-type',
     'ioredis',
     'livekit-server-sdk',
+    'nodemailer',
     'pg',
     'prom-client',
     'ws'
   ]);
-  for (const unrelated of ['nats', 'node-cron', 'nodemailer', 'stripe']) {
+  for (const unrelated of ['nats', 'node-cron', 'stripe']) {
     assert.equal(generated.packages[`node_modules/${unrelated}`], undefined, unrelated);
   }
 });
@@ -119,11 +121,28 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
   for (const value of ['OPC_IVEKIT_PROVIDER_PROFILES_JSON', 'OPC_TRANSLATION_WORKER_ENABLED', 'MINIO_BUCKET']) {
     assert.match(compose, new RegExp(`${value}:`), value);
   }
+  for (const value of [
+    'OPC_FILE_SECURITY_SCANNER_MODE',
+    'OPC_FILE_SECURITY_SCAN_WORKER_ENABLED',
+    'OPC_FILE_SECURITY_CLAMD_HOST',
+    'OPC_FILE_DERIVATIVE_WORKER_ENABLED',
+    'OPC_FILE_CLEANUP_WORKER_ENABLED'
+  ]) assert.match(compose, new RegExp(`${value}:`), value);
+  const clamav = compose.match(/^  clamav:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)/m)?.[0] || '';
+  assert.match(clamav, /image: \$\{CLAMAV_IMAGE/);
+  assert.match(clamav, /healthcheck:/);
+  assert.match(clamav, /clamdscan --ping/);
+  assert.match(clamav, /clamav_signatures:\/var\/lib\/clamav/);
+  assert.doesNotMatch(clamav, /ports:/);
+  assert.match(compose, /ivekit:[\s\S]*clamav:[\s\S]*condition: service_healthy/);
+  const dockerfile = readFileSync('services/ivekit-service/Dockerfile', 'utf8');
+  assert.match(dockerfile, /apt-get install[^\n]*ffmpeg/);
   const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
     scripts: Record<string, string>;
   };
   assert.equal(servicePackage.scripts['preflight:intelligence'], 'node dist/ivekit-intelligence-preflight.js');
   assert.equal(servicePackage.scripts['render:rustpbx'], 'node dist/ivekit-render-rustpbx-config.js');
+  assert.equal(servicePackage.scripts['project:rustpbx-routes'], 'node dist/ivekit-rustpbx-route-snapshot.js');
   assert.equal(servicePackage.scripts['preflight:voice'], 'node dist/ivekit-voice-preflight.js');
 });
 
@@ -132,7 +151,9 @@ test('standalone verifier requires every compiled operational entrypoint', () =>
 
   for (const entrypoint of [
     'ivekit-server.js',
+    'ivekit-worker.js',
     'ivekit-render-rustpbx-config.js',
+    'ivekit-rustpbx-route-snapshot.js',
     'ivekit-voice-preflight.js'
   ]) assert.match(verifier, new RegExp(entrypoint.replaceAll('.', '\\.')));
 });

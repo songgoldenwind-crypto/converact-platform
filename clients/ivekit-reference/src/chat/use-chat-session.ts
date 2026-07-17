@@ -8,7 +8,7 @@ import type {
   IveKitChatMessageInput,
   IveKitChatParticipant,
   IveKitChatSession,
-  IveKitClient,
+  IveKitHttpSdk,
   IveKitPolicyFinding,
   IveKitPolicyFindingResult,
   IveKitPolicyFindingReviewInput
@@ -23,7 +23,7 @@ import { dedupeFindingReviews } from './finding-view-model.js';
 import type { ChatConvergenceTrigger } from './types.js';
 
 export interface UseChatSessionInput {
-  client: IveKitClient | null;
+  client: IveKitHttpSdk | null;
   session: IveKitChatSession | null;
   identity: string;
   role?: string;

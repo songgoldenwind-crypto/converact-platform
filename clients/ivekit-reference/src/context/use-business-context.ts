@@ -1,4 +1,4 @@
-import type { IveKitBusinessContext, IveKitClient } from '@opc/ivekit-sdk';
+import type { IveKitBusinessContext, IveKitHttpSdk } from '@opc/ivekit-sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface BusinessRefSelection {
@@ -7,7 +7,7 @@ export interface BusinessRefSelection {
 }
 
 export function useBusinessContext(
-  client: IveKitClient | null,
+  client: IveKitHttpSdk | null,
   businessRef: BusinessRefSelection | null
 ) {
   const [context, setContext] = useState<IveKitBusinessContext | null>(null);

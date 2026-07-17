@@ -1,6 +1,7 @@
 import type { PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { MediaCallService } from './media-call-service.js';
+import type { MediaCallPlacementPort } from './media-call-service.js';
 import { MediaCallStore } from './media-call-store.js';
 import type { IveKitMediaCallSnapshot } from './types.js';
 
@@ -70,6 +71,8 @@ export async function runMediaCallTimeoutBatch(input: {
   tenantLimit: number;
   batchSize: number;
   onTimedOut?: (snapshot: IveKitMediaCallSnapshot) => void | Promise<void>;
+  placement?: MediaCallPlacementPort;
+  placementWorkerId?: string;
 }): Promise<MediaCallTimeoutRunSummary> {
   const now = input.now || new Date();
   const tenants = await input.pg.query<{ tenant_id: string }>(
@@ -88,7 +91,9 @@ export async function runMediaCallTimeoutBatch(input: {
     const result = await withPgTenant(input.pg, tenantId, (tenantPg) =>
       new MediaCallService(new MediaCallStore(tenantPg), {
         now: () => now,
-        onTimedOut: input.onTimedOut
+        onTimedOut: input.onTimedOut,
+        placement: input.placement,
+        placementWorkerId: input.placementWorkerId
       }).timeoutExpired(tenantId, input.batchSize)
     );
     summary.scanned += result.scanned;
@@ -117,6 +122,8 @@ export function startMediaCallTimeoutWorker(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   onTimedOut?: (snapshot: IveKitMediaCallSnapshot) => void | Promise<void>;
+  placement?: MediaCallPlacementPort;
+  placementWorkerId?: string;
 }): MediaCallTimeoutWorker {
   const config = mediaCallTimeoutWorkerConfig(input.env || process.env);
   const worker = new MediaCallTimeoutWorker({
@@ -125,7 +132,9 @@ export function startMediaCallTimeoutWorker(input: {
       pg: input.pg,
       tenantLimit: config.tenantLimit,
       batchSize: config.batchSize,
-      onTimedOut: input.onTimedOut
+      onTimedOut: input.onTimedOut,
+      placement: input.placement,
+      placementWorkerId: input.placementWorkerId
     }),
     onError: (error) => {
       const message = error instanceof Error ? error.message : String(error);

@@ -1,4 +1,4 @@
-import type { IveKitClient, IveKitTranslationListResult } from '@opc/ivekit-sdk';
+import type { IveKitHttpSdk, IveKitTranslationListResult } from '@opc/ivekit-sdk';
 import { Languages, RotateCcw } from 'lucide-react';
 import React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -15,7 +15,7 @@ const TARGET_LANGUAGES = [
 ] as const;
 
 export function TranslationPanel(props: {
-  client: IveKitClient;
+  client: IveKitHttpSdk;
   sessionId: string;
   sourceType: 'message' | 'attachment';
   sourceRefId: string;

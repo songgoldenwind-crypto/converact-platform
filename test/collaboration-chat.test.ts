@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { WebSocketServer } from 'ws';
 
 import {
+  ChatMutationOutcomeUnknownError,
   LocalChatGateway,
   TinodeChatGateway,
   configuredChatGateway,
@@ -171,7 +172,16 @@ test('Tinode chat gateway creates topic and publishes text over websocket protoc
     const binding = await gateway.ensureTopic({
       tenant_id: 'tenant_tinode',
       session_id: 'collab_tinode',
-      title: 'Tinode chat'
+      title: 'Tinode chat',
+      provider_endpoint: url.replace(/^ws:/, 'http:').replace('/v0/channels', ''),
+      trusted: {
+        ivekit_placement: {
+          interaction_id: 'collab_tinode',
+          reservation_id: 'reservation_tinode',
+          owner_node_id: 'tinode-a',
+          owner_epoch: '12884901889'
+        }
+      }
     });
     assert.equal(binding.provider_topic_id, 'grpTinodeTopic');
 
@@ -192,6 +202,13 @@ test('Tinode chat gateway creates topic and publishes text over websocket protoc
     assert.equal(packets.some((packet) => packet.hi), true);
     assert.equal(packets.some((packet) => packet.login?.scheme === 'token'), true);
     assert.equal(packets.some((packet) => packet.sub?.topic === 'new'), true);
+    assert.equal(
+      packets.some((packet) =>
+        packet.sub?.set?.desc?.trusted?.ivekit_placement?.reservation_id ===
+          'reservation_tinode'
+      ),
+      true
+    );
     assert.equal(packets.some((packet) => packet.sub?.topic === 'grpTinodeTopic'), true);
     assert.equal(packets.some((packet) => packet.pub?.topic === 'grpTinodeTopic' && packet.pub?.content === 'hello tinode'), true);
     assert.equal(
@@ -201,6 +218,132 @@ test('Tinode chat gateway creates topic and publishes text over websocket protoc
       ),
       true
     );
+  } finally {
+    await close();
+  }
+});
+
+test('Tinode chat gateway edits a message with native replacement semantics', async () => {
+  const { url, packets, close } = await startFakeTinodeServer();
+  try {
+    const gateway = new TinodeChatGateway({
+      base_url: url,
+      ws_url: url,
+      api_key: 'tinode-api-key',
+      auth_token: 'tinode-auth-token',
+      timeout_ms: 1_000
+    });
+    const result = await gateway.mutateMessage({
+      tenant_id: 'tenant_tinode',
+      session_id: 'session_tinode',
+      provider_topic_id: 'grpTinodeTopic',
+      target_provider_message_id: '12',
+      message_id: 'cmsg_edit_1',
+      mutation_id: 'cmut_edit_1',
+      action: 'edit',
+      body: 'edited body'
+    });
+
+    assert.equal(result.provider_sync_status, 'published');
+    assert.equal(result.provider_operation_id, '42');
+    const pub = packets.find((packet) => packet.pub?.head?.replace === 'msg:12');
+    assert.equal(pub?.pub.content, 'edited body');
+    assert.equal(pub?.pub.noecho, false);
+    assert.equal(pub?.pub.head['x-opc-mutation-id'], 'cmut_edit_1');
+    assert.equal(pub?.pub.head['x-opc-message-id'], 'cmsg_edit_1');
+  } finally {
+    await close();
+  }
+});
+
+test('Tinode chat gateway reports an unknown edit outcome when the publish acknowledgement is lost', async () => {
+  const { url, close } = await startFakeTinodeServer({ dropPublishAck: true });
+  try {
+    const gateway = new TinodeChatGateway({
+      base_url: url,
+      ws_url: url,
+      api_key: 'tinode-api-key',
+      auth_token: 'tinode-auth-token',
+      timeout_ms: 250
+    });
+
+    await assert.rejects(
+      gateway.mutateMessage({
+        tenant_id: 'tenant_tinode',
+        session_id: 'session_tinode',
+        provider_topic_id: 'grpTinodeTopic',
+        target_provider_message_id: '12',
+        message_id: 'cmsg_edit_unknown',
+        mutation_id: 'cmut_edit_unknown',
+        action: 'edit',
+        body: 'edited body'
+      }),
+      ChatMutationOutcomeUnknownError
+    );
+  } finally {
+    await close();
+  }
+});
+
+test('Tinode chat gateway keeps a pre-publish rejection distinguishable from an unknown edit outcome', async () => {
+  const { url, close } = await startFakeTinodeServer({ rejectSubscription: true });
+  try {
+    const gateway = new TinodeChatGateway({
+      base_url: url,
+      ws_url: url,
+      api_key: 'tinode-api-key',
+      auth_token: 'tinode-auth-token',
+      timeout_ms: 1_000
+    });
+
+    await assert.rejects(
+      gateway.mutateMessage({
+        tenant_id: 'tenant_tinode',
+        session_id: 'session_tinode',
+        provider_topic_id: 'grpTinodeTopic',
+        target_provider_message_id: '12',
+        message_id: 'cmsg_edit_rejected',
+        mutation_id: 'cmut_edit_rejected',
+        action: 'edit',
+        body: 'edited body'
+      }),
+      (error: unknown) => {
+        assert.equal(error instanceof ChatMutationOutcomeUnknownError, false);
+        assert.match(String(error), /403 subscription rejected/);
+        return true;
+      }
+    );
+  } finally {
+    await close();
+  }
+});
+
+test('Tinode chat gateway deletes exactly the target native sequence', async () => {
+  const { url, packets, close } = await startFakeTinodeServer();
+  try {
+    const gateway = new TinodeChatGateway({
+      base_url: url,
+      ws_url: url,
+      api_key: 'tinode-api-key',
+      auth_token: 'tinode-auth-token',
+      timeout_ms: 1_000
+    });
+    const result = await gateway.mutateMessage({
+      tenant_id: 'tenant_tinode',
+      session_id: 'session_tinode',
+      provider_topic_id: 'grpTinodeTopic',
+      target_provider_message_id: '12',
+      message_id: 'cmsg_delete_1',
+      mutation_id: 'cmut_delete_1',
+      action: 'delete',
+      body: ''
+    });
+
+    assert.equal(result.provider_sync_status, 'published');
+    assert.equal(result.provider_operation_id, '77');
+    const packet = packets.find((candidate) => candidate.del);
+    assert.equal(packet?.del.what, 'msg');
+    assert.deepEqual(packet?.del.delseq, [{ low: 12, hi: 13 }]);
   } finally {
     await close();
   }
@@ -413,7 +556,9 @@ async function startFakeTinodeServer(options: {
   accountAlreadyExists?: boolean;
   accountExistingCode?: number;
   accessAlreadySet?: boolean;
+  dropPublishAck?: boolean;
   legacyAccountExists?: boolean;
+  rejectSubscription?: boolean;
 } = {}): Promise<{
   url: string;
   packets: Array<Record<string, any>>;
@@ -466,7 +611,14 @@ async function startFakeTinodeServer(options: {
       } else if (packet.sub?.topic === 'new') {
         ws.send(JSON.stringify({ ctrl: { id: packet.sub.id, topic: 'grpTinodeTopic', code: 200, text: 'ok' } }));
       } else if (packet.sub) {
-        ws.send(JSON.stringify({ ctrl: { id: packet.sub.id, topic: packet.sub.topic, code: 200, text: 'ok' } }));
+        ws.send(JSON.stringify({
+          ctrl: {
+            id: packet.sub.id,
+            topic: packet.sub.topic,
+            code: options.rejectSubscription ? 403 : 200,
+            text: options.rejectSubscription ? 'subscription rejected' : 'ok'
+          }
+        }));
       } else if (packet.set) {
         ws.send(JSON.stringify({
           ctrl: {
@@ -477,6 +629,7 @@ async function startFakeTinodeServer(options: {
           }
         }));
       } else if (packet.pub) {
+        if (options.dropPublishAck) return;
         ws.send(JSON.stringify({
           ctrl: {
             id: packet.pub.id,
@@ -484,6 +637,16 @@ async function startFakeTinodeServer(options: {
             code: 200,
             text: 'ok',
             params: { seq: 42 }
+          }
+        }));
+      } else if (packet.del) {
+        ws.send(JSON.stringify({
+          ctrl: {
+            id: packet.del.id,
+            topic: packet.del.topic,
+            code: 200,
+            text: 'ok',
+            params: { del: 77 }
           }
         }));
       }

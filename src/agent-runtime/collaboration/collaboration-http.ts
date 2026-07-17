@@ -5,15 +5,23 @@ import { withPgTenant } from '../../db-pg-tenant.js';
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { createObjectStorage, isLocalObjectStorage, readLocalUpload } from '../../storage/object-storage.js';
 import { wsBroadcast, wsBroadcastToUsers } from '../../ws.js';
+import type {
+  ComponentPlacementAdapter,
+  ComponentPlacementOwner,
+  ComponentPlacementReservation
+} from '../ivekit/placement/component-placement.js';
 import { verifyWebAssistJoinToken } from '../ivekit/remote-assist-token.js';
+import { IveKitTenantEventJournal } from '../ivekit/tenant-event-store.js';
 import { IveKitUnifiedTimelineStore } from '../ivekit/unified-timeline-store.js';
 import { createLiveKitMediaModule } from '../livekit/index.js';
 import { MediaCallStore } from '../livekit/media-call-store.js';
 import { recordMediaRecordingEvidence } from '../media-recording-evidence.js';
 import {
   configuredChatGateway,
+  configuredChatGatewayForEndpoint,
   TINODE_RECEIVE_ONLY_ACCESS_MODE,
-  type ChatGateway
+  type ChatGateway,
+  type ChatTopicInput
 } from './chat-gateway.js';
 import {
   AttachmentProcessingService,
@@ -28,6 +36,9 @@ import {
 } from './intelligence-provider-routing.js';
 import { PolicyFindingStore } from './policy-finding-store.js';
 import { CollaborationMessageStateStore } from './message-state-store.js';
+import { SecureFileService } from './secure-file-service.js';
+import { SecureFileDerivativeStore } from './secure-file-derivative-store.js';
+import { SecureFileStore } from './secure-file-store.js';
 import {
   QualityReviewService,
   type QualityReviewProvider,
@@ -64,13 +75,23 @@ import {
   isRustDeskEdgeDeviceCommandRoute,
   routeRustDeskDeviceCommandApi
 } from './rustdesk-device-command-http.js';
+import {
+  isRustDeskEdgeObservationRoute,
+  routeRustDeskEdgeObservationApi
+} from './rustdesk-edge-observation-http.js';
+import {
+  isRustDeskEdgeEvidenceRoute,
+  routeRustDeskEdgeEvidenceApi
+} from './rustdesk-edge-evidence-http.js';
 import { RustDeskDeviceStore } from './rustdesk-device-store.js';
+import { rustDeskRequireAuthorizationCode } from './rustdesk-authorization-code-store.js';
 import { verifyRustDeskEdgeCommandToken } from './rustdesk-edge-auth.js';
 import { RustDeskPhysicalDisconnectService } from './rustdesk-physical-disconnect.js';
 import {
   TinodeMessageDeliveryService,
   type TinodeMessageDeliveryServiceInput
 } from './tinode-message-delivery.js';
+import { TinodeMessageMutationStore } from './tinode-message-mutation.js';
 import { TinodeProviderUserStore } from './tinode-provider-user-store.js';
 import {
   assertRustDeskDeviceOnlineIfRequired,
@@ -81,6 +102,9 @@ import {
   rustDeskGatewayEventPermissionError,
   rustDeskGatewayEventValidationError
 } from './rustdesk-gateway-event.js';
+import type {
+  RustDeskOwnerBindingPreparePort
+} from '../ivekit/placement/rustdesk-owner-binding.js';
 import {
   hasRustDeskGatewayAccessModeAlias,
   hasRustDeskGatewayUnattendedAlias,
@@ -98,12 +122,107 @@ import {
 export interface RouteCollaborationApiOptions {
   db?: unknown;
   chatGateway?: ChatGateway;
+  tinodePlacement?: TinodeSessionPlacementPort;
+  preparedTinodePlacement?: PreparedTinodeSessionPlacement;
+  rustdeskPlacement?: RustDeskSessionPlacementPort;
+  rustdeskOwnerBindings?: RustDeskOwnerBindingPreparePort;
+  preparedRustDeskPlacement?: PreparedRustDeskSessionPlacement;
+  placementWorkerId?: string;
   tinodeDelivery?: Pick<
     TinodeMessageDeliveryServiceInput,
-    'now' | 'retryDelaysMs' | 'maxAttempts' | 'claimLeaseMs' | 'onDeliveryUpdated'
+    | 'now'
+    | 'retryDelaysMs'
+    | 'maxAttempts'
+    | 'claimLeaseMs'
+    | 'onDeliveryUpdated'
+    | 'fileSecurityGate'
+    | 'onFileSecurityTransition'
   >;
   attachmentProcessing?: Omit<AttachmentProcessingServiceInput, 'pg'>;
   qualityReview?: Omit<QualityReviewServiceInput, 'pg'>;
+  secureFiles?: SecureFileService;
+  secureAttachmentsRequired?: boolean;
+}
+
+export type TinodeSessionPlacementPort = Pick<
+  ComponentPlacementAdapter,
+  | 'reserve'
+  | 'hasPlacement'
+  | 'persistReserved'
+  | 'releaseUncommitted'
+  | 'requestState'
+  | 'reconcileOne'
+  | 'resolveOwner'
+>;
+
+export interface PreparedTinodeSessionPlacement {
+  tenant_id: string;
+  session_id: string;
+  reservation: ComponentPlacementReservation | null;
+  persisted: boolean;
+}
+
+export type RustDeskSessionPlacementPort = Pick<
+  ComponentPlacementAdapter,
+  | 'reserve'
+  | 'hasPlacement'
+  | 'persistReserved'
+  | 'releaseUncommitted'
+  | 'requestState'
+  | 'reconcileOne'
+  | 'resolveOwner'
+>;
+
+export interface PreparedRustDeskSessionPlacement {
+  tenant_id: string;
+  remote_session_id: string;
+  reservation: ComponentPlacementReservation | null;
+  persisted: boolean;
+}
+
+export async function prepareIveKitRustDeskPlacement(
+  method: string,
+  path: string,
+  body: unknown,
+  headers: Record<string, string | string[] | undefined>,
+  options: RouteCollaborationApiOptions,
+  pg: PgQueryable | null
+): Promise<PreparedRustDeskSessionPlacement | null> {
+  if (!options.rustdeskPlacement ||
+      method !== 'POST' ||
+      path.split('?')[0] !== '/api/ivekit/rustdesk/gateway-sessions') {
+    return null;
+  }
+  const ctx = resolveAuthContext(headers);
+  if (!ctx.authenticated || !ctx.tenantId) {
+    throw Object.assign(new Error('authentication required'), { status: 401 });
+  }
+  if (!pg) {
+    throw Object.assign(new Error('PostgreSQL is required for RustDesk placement'), {
+      status: 503
+    });
+  }
+  const remoteSessionId = String(bodyObject(body).remote_session_id || '').trim();
+  if (!remoteSessionId) {
+    throw Object.assign(new Error('remote_session_id is required'), { status: 400 });
+  }
+  const existing = await options.rustdeskPlacement.hasPlacement(pg, {
+    tenant_id: ctx.tenantId,
+    interaction_id: remoteSessionId
+  });
+  return {
+    tenant_id: ctx.tenantId,
+    remote_session_id: remoteSessionId,
+    reservation: existing
+      ? null
+      : await options.rustdeskPlacement.reserve({
+          tenant_id: ctx.tenantId,
+          interaction_id: remoteSessionId,
+          routing_partition_key: remoteSessionId,
+          idempotency_key: `rustdesk-session:${remoteSessionId}`
+        }),
+    persisted: false
+  };
 }
 
 function requirePg(pg: PgQueryable | null): PgQueryable {
@@ -411,12 +530,13 @@ function parseChatAttachments(value: unknown): CollaborationMessageAttachmentInp
   if (!Array.isArray(value)) return [];
   return value.map((item) => {
     const raw = bodyObject(item);
+    const secureFileId = String(raw.secure_file_id || '').trim();
     const kind = String(raw.kind || raw.type || 'file').trim() || 'file';
     if (!CHAT_ATTACHMENT_KINDS.has(kind)) {
       throw Object.assign(new Error('unsupported attachment kind'), { status: 400 });
     }
     const storageUrl = String(raw.storage_url || raw.url || '').trim();
-    if (!storageUrl) {
+    if (!storageUrl && !secureFileId) {
       throw Object.assign(new Error('attachment storage_url required'), { status: 400 });
     }
     const processingStatus = String(raw.processing_status || 'ready').trim() || 'ready';
@@ -424,6 +544,7 @@ function parseChatAttachments(value: unknown): CollaborationMessageAttachmentInp
       throw Object.assign(new Error('unsupported attachment processing_status'), { status: 400 });
     }
     return {
+      secure_file_id: secureFileId || undefined,
       kind: kind as CollaborationMessageAttachmentInput['kind'],
       storage_url: storageUrl,
       filename: raw.filename ? String(raw.filename) : undefined,
@@ -434,6 +555,54 @@ function parseChatAttachments(value: unknown): CollaborationMessageAttachmentInp
       metadata: bodyObject(raw.metadata)
     };
   });
+}
+
+async function resolveSecureChatAttachments(input: {
+  tenant_id: string;
+  session_id: string;
+  attachments: CollaborationMessageAttachmentInput[];
+  options: RouteCollaborationApiOptions;
+}): Promise<CollaborationMessageAttachmentInput[]> {
+  const hasSecureReference = input.attachments.some((attachment) => attachment.secure_file_id);
+  if (!input.options.secureAttachmentsRequired && !hasSecureReference) return input.attachments;
+  if (!input.options.secureFiles) {
+    throw Object.assign(new Error('secure file service is required'), { status: 503 });
+  }
+  return Promise.all(input.attachments.map(async (attachment) => {
+    const secureFileId = String(attachment.secure_file_id || '').trim();
+    if (!secureFileId) {
+      throw Object.assign(new Error('secure_file_id is required for message attachments'), {
+        status: 400,
+        code: 'secure_file_id_required'
+      });
+    }
+    const file = await input.options.secureFiles!.getFile({
+      tenant_id: input.tenant_id,
+      session_id: input.session_id,
+      secure_file_id: secureFileId
+    });
+    if (file.status !== 'ready' || file.threat_status !== 'clean') {
+      throw Object.assign(new Error('secure file is not ready for message attachment'), {
+        status: 409,
+        code: 'secure_file_not_ready'
+      });
+    }
+    return {
+      secure_file_id: file.file_id,
+      kind: file.kind,
+      storage_url: secureFileDownloadPath(file.session_id, file.file_id),
+      filename: file.filename,
+      content_type: file.detected_mime,
+      size_bytes: file.size_bytes,
+      checksum: `sha256:${file.sha256}`,
+      processing_status: attachmentNeedsProcessing(file.kind) ? 'pending' : 'ready',
+      metadata: { secure_file_id: file.file_id }
+    };
+  }));
+}
+
+function secureFileDownloadPath(sessionId: string, fileId: string): string {
+  return `/api/ivekit/chat/sessions/${encodeURIComponent(sessionId)}/files/${encodeURIComponent(fileId)}/download`;
 }
 
 function providerMessageBody(messageType: CollaborationMessage['message_type'], body: string, attachments: CollaborationMessageAttachmentInput[]): string {
@@ -466,10 +635,33 @@ function attachmentProcessingService(
       pg,
       registry: createIntelligenceProviderRegistry()
     });
+  const secureObjectResolver = options.secureAttachmentsRequired && options.secureFiles &&
+    !configured.resolveObject
+    ? async (attachment: CollaborationMessage['attachments'][number]) => {
+        if (!attachment.secure_file_id) {
+          return { status: 'missing_storage_url' as const, source: 'secure_file' };
+        }
+        try {
+          const downloaded = await options.secureFiles!.download({
+            tenant_id: attachment.tenant_id,
+            session_id: attachment.session_id,
+            secure_file_id: attachment.secure_file_id
+          });
+          return { status: 'readable' as const, source: 'secure_file', content: downloaded.content };
+        } catch (error) {
+          return {
+            status: 'fetch_failed' as const,
+            source: 'secure_file',
+            error: error instanceof Error ? error.message : String(error)
+          };
+        }
+      }
+    : undefined;
   return new AttachmentProcessingService({
     pg,
     ...configured,
-    ...(configured.providers ? {} : { resolveProvider: policyResolver })
+    ...(configured.providers ? {} : { resolveProvider: policyResolver }),
+    ...(secureObjectResolver ? { resolveObject: secureObjectResolver } : {})
   });
 }
 
@@ -577,6 +769,139 @@ function remoteGatewayTargetFromInput(input: Record<string, unknown>): RemoteGat
 function tenantIdForRustDeskControlPlane(input: Record<string, unknown>): string {
   const metadata = bodyObject(input.metadata);
   return String(metadata.tenant_id || input.tenant_id || '').trim();
+}
+
+function validateRustDeskGatewayRequest(input: Record<string, unknown>): void {
+  const { authorization_id: authorizationId, ...metadataSafeInput } = input;
+  if (
+    authorizationId !== undefined &&
+    (typeof authorizationId !== 'string' || !authorizationId.trim())
+  ) {
+    throw Object.assign(new Error('authorization_id must be a non-empty string'), { status: 400 });
+  }
+
+  rustDeskGatewayMetadata(metadataSafeInput, 'RustDesk gateway request');
+}
+
+async function resolveRustDeskPlacementOwner(input: {
+  pg: PgQueryable;
+  options: RouteCollaborationApiOptions;
+  tenantId: string;
+  remoteSessionId: string;
+}): Promise<ComponentPlacementOwner | null> {
+  const prepared = input.options.preparedRustDeskPlacement;
+  if (prepared &&
+      prepared.tenant_id === input.tenantId &&
+      prepared.remote_session_id === input.remoteSessionId &&
+      prepared.reservation) {
+    return prepared.reservation.value.record as ComponentPlacementOwner;
+  }
+  if (!input.options.rustdeskPlacement) return null;
+  return input.options.rustdeskPlacement.resolveOwner(input.pg, {
+    tenant_id: input.tenantId,
+    interaction_id: input.remoteSessionId
+  });
+}
+
+function rustDeskOwnerRuntimeMetadata(
+  owner: ComponentPlacementOwner | null,
+  env: NodeJS.ProcessEnv = process.env
+): Record<string, unknown> {
+  if (!owner) return {};
+  const raw = String(env.OPC_IVEKIT_RUSTDESK_OWNER_RUNTIME_JSON || '').trim();
+  const configured = raw ? bodyObject(JSON.parse(raw)) : {};
+  const selected = bodyObject(configured[owner.owner_node_id]);
+  const endpoint = new URL(owner.provider_endpoint);
+  const idServer = String(selected.id_server || endpoint.hostname).trim();
+  const relayServer = String(selected.relay_server || idServer).trim();
+  const apiServer = String(selected.api_server || '').trim();
+  const fingerprint = String(selected.server_key_fingerprint || '').trim();
+  return {
+    ivekit_region_id: owner.region_id,
+    ivekit_zone_id: owner.zone_id,
+    ivekit_cell_id: owner.cell_id,
+    ivekit_owner_node_id: owner.owner_node_id,
+    ivekit_owner_epoch: owner.owner_epoch,
+    id_server: idServer,
+    relay_server: relayServer,
+    ...(apiServer ? { api_server: apiServer } : {}),
+    ...(fingerprint ? { server_key_fingerprint: fingerprint } : {})
+  };
+}
+
+async function stagePreparedRustDeskPlacement(input: {
+  pg: PgQueryable;
+  options: RouteCollaborationApiOptions;
+  tenantId: string;
+  remoteSessionId: string;
+}): Promise<void> {
+  const placement = input.options.rustdeskPlacement;
+  const prepared = input.options.preparedRustDeskPlacement;
+  if (!placement || !prepared || prepared.persisted || !prepared.reservation) return;
+  if (prepared.tenant_id !== input.tenantId ||
+      prepared.remote_session_id !== input.remoteSessionId ||
+      prepared.reservation.interaction_id !== input.remoteSessionId) {
+    throw Object.assign(new Error('prepared RustDesk placement does not match the remote session'), {
+      status: 409
+    });
+  }
+  await placement.persistReserved(input.pg, prepared.reservation);
+  await placement.requestState(input.pg, {
+    tenant_id: input.tenantId,
+    interaction_id: input.remoteSessionId,
+    desired_state: 'active',
+    reason: 'rustdesk_gateway_started'
+  });
+}
+
+async function prepareRustDeskOwnerBinding(input: {
+  options: RouteCollaborationApiOptions;
+  owner: ComponentPlacementOwner | null;
+  remoteSessionId: string;
+  targetId: string;
+}): Promise<void> {
+  if (!input.owner || !input.options.rustdeskOwnerBindings) return;
+  await input.options.rustdeskOwnerBindings.prepare({
+    owner: input.owner,
+    interaction_id: input.remoteSessionId,
+    target_id: input.targetId
+  });
+}
+
+async function requestRustDeskPlacementClosed(input: {
+  pg: PgQueryable;
+  options: RouteCollaborationApiOptions;
+  tenantId: string;
+  remoteSessionId: string;
+  reason: string;
+}): Promise<boolean> {
+  if (!input.options.rustdeskPlacement || !input.remoteSessionId) return false;
+  if (!await input.options.rustdeskPlacement.hasPlacement(input.pg, {
+    tenant_id: input.tenantId,
+    interaction_id: input.remoteSessionId
+  })) {
+    return false;
+  }
+  await input.options.rustdeskPlacement.requestState(input.pg, {
+    tenant_id: input.tenantId,
+    interaction_id: input.remoteSessionId,
+    desired_state: 'closed',
+    reason: input.reason
+  });
+  return true;
+}
+
+function reconcileRustDeskPlacement(
+  options: RouteCollaborationApiOptions,
+  tenantId: string,
+  remoteSessionId: string
+): Promise<unknown> {
+  if (!options.rustdeskPlacement) return Promise.resolve();
+  return options.rustdeskPlacement.reconcileOne({
+    tenant_id: tenantId,
+    interaction_id: remoteSessionId,
+    worker_id: options.placementWorkerId || 'rustdesk-http'
+  });
 }
 
 function createLocalRustDeskGatewayClient(pg: PgQueryable): RemoteGatewayClient {
@@ -738,8 +1063,45 @@ async function remoteGatewayClientForToolSession(
 
 type CollaborationModule = ReturnType<typeof createCollaborationModule>;
 
-function tinodeClientWsUrl(env: NodeJS.ProcessEnv = process.env): string {
+type TinodeOwnerRoute = Pick<
+  ComponentPlacementOwner,
+  'owner_node_id' | 'provider_endpoint'
+>;
+
+async function resolveTinodeSessionGateway(input: {
+  pg: PgQueryable;
+  options: RouteCollaborationApiOptions;
+  tenantId: string;
+  sessionId: string;
+}): Promise<{ gateway: ChatGateway; owner: TinodeOwnerRoute | null }> {
+  let owner: TinodeOwnerRoute | null = null;
+  const prepared = input.options.preparedTinodePlacement;
+  if (prepared &&
+      prepared.tenant_id === input.tenantId &&
+      prepared.session_id === input.sessionId &&
+      prepared.reservation) {
+    owner = prepared.reservation.value.record;
+  } else if (input.options.tinodePlacement) {
+    owner = await input.options.tinodePlacement.resolveOwner(input.pg, {
+      tenant_id: input.tenantId,
+      interaction_id: input.sessionId
+    });
+  }
+  return {
+    gateway: input.options.chatGateway ||
+      (owner
+        ? configuredChatGatewayForEndpoint(owner.provider_endpoint)
+        : configuredChatGateway()),
+    owner
+  };
+}
+
+function tinodeClientWsUrl(
+  owner: TinodeOwnerRoute | null = null,
+  env: NodeJS.ProcessEnv = process.env
+): string {
   const raw =
+    (owner ? tinodeOwnerPublicWsUrl(owner, env) : '') ||
     String(env.TINODE_PUBLIC_WS_URL || '').trim() ||
     defaultTinodeClientWsUrl(String(env.TINODE_PUBLIC_BASE_URL || '').trim()) ||
     String(env.TINODE_WS_URL || '').trim() ||
@@ -751,6 +1113,19 @@ function tinodeClientWsUrl(env: NodeJS.ProcessEnv = process.env): string {
     clientUrl.searchParams.set('apikey', apiKey);
   }
   return clientUrl.toString();
+}
+
+function tinodeOwnerPublicWsUrl(
+  owner: TinodeOwnerRoute,
+  env: NodeJS.ProcessEnv
+): string {
+  const configured = String(env.OPC_IVEKIT_TINODE_PUBLIC_WS_ENDPOINTS_JSON || '').trim();
+  if (configured) {
+    const endpoints = JSON.parse(configured) as Record<string, unknown>;
+    const selected = String(endpoints[owner.owner_node_id] || '').trim();
+    if (selected) return selected;
+  }
+  return defaultTinodeClientWsUrl(owner.provider_endpoint);
 }
 
 function defaultTinodeClientWsUrl(baseUrl: string): string {
@@ -857,34 +1232,109 @@ function iveKitChatStorageUrl(key: string): string {
 }
 
 async function ensureSessionChatBinding(input: {
+  pg: PgQueryable;
   module: CollaborationModule;
   gateway: ReturnType<typeof configuredChatGateway>;
+  options: RouteCollaborationApiOptions;
   tenantId: string;
   sessionId: string;
   title?: string;
   metadata?: Record<string, unknown>;
 }) {
+  await persistPreparedTinodeReservation(input);
   let binding = await input.module.sessions.getChatBinding({
     tenant_id: input.tenantId,
     session_id: input.sessionId,
     provider: input.gateway.provider
   });
-  if (binding) return binding;
-  const topic = await input.gateway.ensureTopic({
-    tenant_id: input.tenantId,
-    session_id: input.sessionId,
-    title: input.title,
-    metadata: input.metadata
-  });
-  binding = await input.module.sessions.ensureChatBinding({
-    tenant_id: input.tenantId,
-    session_id: input.sessionId,
-    provider: topic.provider,
-    provider_topic_id: topic.provider_topic_id,
-    provider_status: topic.provider_status,
-    metadata: topic.metadata
-  });
+  if (!binding) {
+    const owner = preparedTinodeTopicOwner(input.options.preparedTinodePlacement);
+    const topic = await input.gateway.ensureTopic({
+      tenant_id: input.tenantId,
+      session_id: input.sessionId,
+      title: input.title,
+      metadata: input.metadata,
+      ...(owner || {})
+    });
+    binding = await input.module.sessions.ensureChatBinding({
+      tenant_id: input.tenantId,
+      session_id: input.sessionId,
+      provider: topic.provider,
+      provider_topic_id: topic.provider_topic_id,
+      provider_status: topic.provider_status,
+      metadata: topic.metadata
+    });
+  }
+  await activatePreparedTinodePlacement(input);
   return binding;
+}
+
+async function persistPreparedTinodeReservation(input: {
+  pg: PgQueryable;
+  options: RouteCollaborationApiOptions;
+  tenantId: string;
+  sessionId: string;
+}): Promise<void> {
+  const placement = input.options.tinodePlacement;
+  const prepared = input.options.preparedTinodePlacement;
+  if (!placement || !prepared || prepared.persisted || !prepared.reservation) return;
+  if (prepared.tenant_id !== input.tenantId ||
+      prepared.session_id !== input.sessionId ||
+      prepared.reservation.interaction_id !== input.sessionId) {
+    throw Object.assign(new Error('prepared Tinode placement does not match the collaboration session'), {
+      status: 409
+    });
+  }
+  await placement.persistReserved(input.pg, prepared.reservation);
+}
+
+async function activatePreparedTinodePlacement(input: {
+  pg: PgQueryable;
+  options: RouteCollaborationApiOptions;
+  tenantId: string;
+  sessionId: string;
+}): Promise<void> {
+  const placement = input.options.tinodePlacement;
+  const prepared = input.options.preparedTinodePlacement;
+  if (!placement || !prepared || prepared.persisted || !prepared.reservation) return;
+  await placement.requestState(input.pg, {
+    tenant_id: input.tenantId,
+    interaction_id: input.sessionId,
+    desired_state: 'active',
+    reason: 'tinode_session_bound'
+  });
+  prepared.persisted = true;
+}
+
+function preparedTinodeTopicOwner(
+  prepared: PreparedTinodeSessionPlacement | undefined
+): Pick<ChatTopicInput, 'provider_endpoint' | 'trusted'> | null {
+  const record = prepared?.reservation?.value.record;
+  if (!record) return null;
+  return {
+    provider_endpoint: record.provider_endpoint,
+    trusted: {
+      ivekit_placement: {
+        interaction_id: record.interaction_id,
+        reservation_id: record.reservation_id,
+        owner_node_id: record.owner_node_id,
+        owner_epoch: record.owner_epoch
+      }
+    }
+  };
+}
+
+async function reconcileTinodePlacement(
+  options: RouteCollaborationApiOptions,
+  tenantId: string,
+  sessionId: string
+): Promise<void> {
+  if (!options.tinodePlacement) return;
+  await options.tinodePlacement.reconcileOne({
+    tenant_id: tenantId,
+    interaction_id: sessionId,
+    worker_id: options.placementWorkerId || 'tinode-http'
+  });
 }
 
 function decodeLocalMediaKey(routePath: string): string | null {
@@ -908,6 +1358,43 @@ async function requireRemoteSession(
   const session = await remote.getSession(remoteSessionId);
   if (!session || session.tenant_id !== tenantId) return null;
   return session;
+}
+
+async function recordRustDeskAuthorizationEvent(input: {
+  pg: PgQueryable;
+  module: CollaborationModule;
+  tenantId: string;
+  remoteSessionId: string;
+  actorIdentity: string;
+  eventType: string;
+  authorizationId: string;
+  audienceUserIds: string[];
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  await input.module.remote.recordAudit({
+    tenant_id: input.tenantId,
+    remote_session_id: input.remoteSessionId,
+    actor_identity: input.actorIdentity,
+    event_type: input.eventType,
+    target: input.authorizationId,
+    metadata: {
+      authorization_id: input.authorizationId,
+      ...input.metadata
+    }
+  });
+  const data = {
+    remote_session_id: input.remoteSessionId,
+    authorization_id: input.authorizationId,
+    actor_identity: input.actorIdentity,
+    ...input.metadata
+  };
+  await new IveKitTenantEventJournal(input.pg).append({
+    tenant_id: input.tenantId,
+    type: input.eventType,
+    data,
+    audience_user_ids: input.audienceUserIds
+  });
+  wsBroadcastToUsers(input.tenantId, input.audienceUserIds, input.eventType, data);
 }
 
 async function routeRustDeskControlPlane(
@@ -934,7 +1421,7 @@ async function routeRustDeskControlPlane(
     let tenantId = '';
     if (routePath === '/api/opc/rustdesk/sessions' && method === 'POST') {
       const input = bodyObject(body);
-      rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+      validateRustDeskGatewayRequest(input);
       const metadata = rustDeskGatewayMetadata(input.metadata);
       if (
         hasRustDeskGatewayAccessModeAlias(metadata) ||
@@ -983,7 +1470,7 @@ async function routeRustDeskControlPlane(
 
   if (routePath === '/api/opc/rustdesk/sessions' && method === 'POST') {
     const input = bodyObject(body);
-    rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+    validateRustDeskGatewayRequest(input);
     const inputMetadata = rustDeskGatewayMetadata(input.metadata);
     if (
       hasRustDeskGatewayAccessModeAlias(inputMetadata) ||
@@ -1018,6 +1505,8 @@ async function routeRustDeskControlPlane(
         permissions,
         access_mode: 'attended',
         device_id: deviceId || undefined,
+        actor_identity: actorIdentity,
+        authorization_id: String(input.authorization_id || '').trim() || undefined,
         metadata: inputMetadata
       });
     }
@@ -1500,10 +1989,20 @@ export async function routeCollaborationApi(
     });
   }
 
-  if (isRustDeskEdgeDeviceCommandRoute(method, routePath)) {
+  const isRustDeskEdgeCommandRoute = isRustDeskEdgeDeviceCommandRoute(method, routePath);
+  const isRustDeskObservationRoute = isRustDeskEdgeObservationRoute(method, routePath);
+  const isRustDeskEvidenceRoute = isRustDeskEdgeEvidenceRoute(method, routePath);
+  if (isRustDeskEdgeCommandRoute || isRustDeskObservationRoute || isRustDeskEvidenceRoute) {
     const edgeToken = headerValue(headers, 'x-rustdesk-edge-token').trim();
     if (!edgeToken) {
-      return { status: 401, data: { error: 'RustDesk edge command token is required' } };
+      return {
+        status: 401,
+        data: {
+          error: isRustDeskEdgeCommandRoute
+            ? 'RustDesk edge command token is required'
+            : 'RustDesk edge token is required'
+        }
+      };
     }
     const edgeSecret = String(process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET || '');
     let edgeIdentity;
@@ -1518,6 +2017,42 @@ export async function routeCollaborationApi(
     }
     return withPgTenant(requirePg(pg), edgeIdentity.tenant_id, async (scopedPg) => {
       const scopedModule = createCollaborationModule({ pg: scopedPg });
+      if (isRustDeskObservationRoute) {
+        return routeRustDeskEdgeObservationApi({
+          pg: scopedPg,
+          method,
+          routePath,
+          body,
+          identity: edgeIdentity,
+          onSessionChanged: async (session, actorIdentity) => {
+            await syncLocalRustDeskGatewayTimeline({
+              module: scopedModule,
+              pg: scopedPg,
+              tenantId: edgeIdentity.tenant_id,
+              session,
+              actorIdentity
+            });
+          }
+        });
+      }
+      if (isRustDeskEvidenceRoute) {
+        const fileStore = new SecureFileStore(scopedPg);
+        return routeRustDeskEdgeEvidenceApi({
+          pg: scopedPg,
+          method,
+          routePath,
+          body,
+          rawBody,
+          headers,
+          identity: edgeIdentity,
+          secureFiles: options.secureFiles || new SecureFileService({
+            files: fileStore,
+            derivatives: new SecureFileDerivativeStore(scopedPg),
+            storage: createObjectStorage()
+          }),
+          fileStore
+        });
+      }
       return routeRustDeskDeviceCommandApi({
         pg: scopedPg,
         method,
@@ -1893,6 +2428,24 @@ export async function routeCollaborationApi(
     if (!attachment || attachment.session_id !== sessionId) {
       return { status: 404, data: { error: 'collaboration attachment not found' } };
     }
+    if (attachment.secure_file_id) {
+      if (!options.secureFiles) {
+        throw Object.assign(new Error('secure file service is required'), { status: 503 });
+      }
+      const downloaded = await options.secureFiles.download({
+        tenant_id: ctx.tenantId,
+        session_id: sessionId,
+        secure_file_id: attachment.secure_file_id
+      });
+      return {
+        contentType: downloaded.content_type,
+        headers: {
+          'content-disposition': `attachment; filename="${safeFilename(downloaded.filename)}"`,
+          'x-content-sha256': downloaded.sha256
+        },
+        data: downloaded.content
+      };
+    }
     const key = String(attachment.metadata.storage_key || '').trim();
     if (!key.startsWith(`${ctx.tenantId}/`) || !decodeStorageKey(key)) {
       return { status: 404, data: { error: 'attachment object not found' } };
@@ -1968,7 +2521,190 @@ export async function routeCollaborationApi(
     );
   }
 
+  if (
+    method === 'POST' &&
+    /^\/api\/ivekit\/rustdesk\/gateway-sessions\/[^/]+\/disconnect\/emergency-fallback$/.test(routePath)
+  ) {
+    const ownerOrAdmin = headerValue(headers, 'authorization').startsWith('Bearer ') &&
+      (ctx.role === 'owner' || ctx.role === 'admin');
+    return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) =>
+      routeRustDeskDeviceCommandApi({
+        pg: scopedPg,
+        method,
+        routePath,
+        body,
+        tenantId: ctx.tenantId,
+        actorIdentity: ctx.userId,
+        allowEmergencyFallback: ownerOrAdmin
+      })
+    );
+  }
+
   if (isIveKitRustDeskRoute) {
+    if (routePath === '/api/ivekit/rustdesk/authorization-codes' && method === 'POST') {
+      return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
+        const scopedModule = createCollaborationModule({ pg: scopedPg });
+        const input = bodyObject(body);
+        const actorIdentity = collaborationRequestActorIdentity(ctx, headers, input);
+        const remoteSessionId = String(input.remote_session_id || '').trim();
+        const deviceId = String(input.device_id || '').trim();
+        const idempotencyKey = headerValue(headers, 'idempotency-key').trim();
+        if (!remoteSessionId) return { status: 400, data: { error: 'remote_session_id is required' } };
+        if (!deviceId) return { status: 400, data: { error: 'device_id is required' } };
+        if (!idempotencyKey) return { status: 400, data: { error: 'Idempotency-Key is required' } };
+        const requestedScopes = stringArray(input.scopes || input.permissions);
+        const unsupportedScope = unsupportedRemoteConsentScope(requestedScopes);
+        if (unsupportedScope) {
+          return { status: 400, data: { error: `unsupported RustDesk permission scope: ${unsupportedScope}` } };
+        }
+        const scopes = remoteConsentScopes(requestedScopes);
+        if (!scopes.length) return { status: 400, data: { error: 'scopes required' } };
+        const remote = await requireRemoteSession(scopedModule.remote, ctx.tenantId, remoteSessionId);
+        if (!remote) return { status: 404, data: { error: 'remote session not found' } };
+        const participants = await scopedModule.sessions.listParticipants({
+          tenant_id: ctx.tenantId,
+          session_id: remote.collaboration_session_id
+        });
+        const actor = participants.find((participant) =>
+          participant.identity === actorIdentity && !participant.left_at
+        );
+        if (!actor || !['customer', 'admin'].includes(actor.role)) {
+          return { status: 403, data: { error: 'authorization code request requires an active customer or admin' } };
+        }
+        const device = await scopedModule.rustdeskDevices.getDevice({
+          tenant_id: ctx.tenantId,
+          device_id: deviceId
+        });
+        if (
+          !device ||
+          device.status !== 'active' ||
+          device.business_ref_type !== remote.business_ref.type ||
+          device.business_ref_id !== remote.business_ref.id
+        ) {
+          return { status: 404, data: { error: 'rustdesk device not found' } };
+        }
+        const consent = await scopedModule.remote.getActiveConsent(remote.id);
+        const consentScopes = new Set(consent?.scopes || []);
+        if (!consent || scopes.some((scope) => !consentScopes.has(scope))) {
+          return { status: 403, data: { error: 'active consent does not cover requested authorization scopes' } };
+        }
+        const result = await scopedModule.rustdeskAuthorizationCodes.create({
+          tenant_id: ctx.tenantId,
+          remote_session_id: remote.id,
+          device_id: device.id,
+          scopes,
+          requested_by: actorIdentity,
+          idempotency_key: idempotencyKey,
+          ttl_seconds: input.ttl_seconds === undefined ? undefined : Number(input.ttl_seconds),
+          max_attempts: input.max_attempts === undefined ? undefined : Number(input.max_attempts)
+        });
+        if (!result.replayed) {
+          await recordRustDeskAuthorizationEvent({
+            pg: scopedPg,
+            module: scopedModule,
+            tenantId: ctx.tenantId,
+            remoteSessionId: remote.id,
+            actorIdentity,
+            eventType: 'remote.rustdesk.authorization_code.requested',
+            authorizationId: result.authorization.id,
+            audienceUserIds: participants.filter((participant) => !participant.left_at)
+              .map((participant) => participant.identity),
+            metadata: {
+              device_id: device.id,
+              scopes: result.authorization.scopes,
+              expires_at: result.authorization.expires_at
+            }
+          });
+        }
+        return { status: result.replayed ? undefined : 201, data: result };
+      });
+    }
+
+    const authorizationCodeMatch = routePath.match(
+      /^\/api\/ivekit\/rustdesk\/authorization-codes\/([^/]+)(?:\/(verify))?$/
+    );
+    if (authorizationCodeMatch) {
+      const authorizationId = decodeURIComponent(authorizationCodeMatch[1]);
+      const action = authorizationCodeMatch[2] || '';
+      return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
+        const scopedModule = createCollaborationModule({ pg: scopedPg });
+        const authorization = await scopedModule.rustdeskAuthorizationCodes.get({
+          tenant_id: ctx.tenantId,
+          authorization_id: authorizationId
+        });
+        if (!authorization) return { status: 404, data: { error: 'RustDesk authorization code not found' } };
+        const remote = await requireRemoteSession(
+          scopedModule.remote,
+          ctx.tenantId,
+          authorization.remote_session_id
+        );
+        if (!remote) return { status: 404, data: { error: 'RustDesk authorization code not found' } };
+        const participants = await scopedModule.sessions.listParticipants({
+          tenant_id: ctx.tenantId,
+          session_id: remote.collaboration_session_id
+        });
+        const actorIdentity = collaborationActorIdentity(ctx, headers);
+        const actor = participants.find((participant) =>
+          participant.identity === actorIdentity && !participant.left_at
+        );
+        if (!actor) {
+          return { status: 403, data: { error: 'active participant identity is required' } };
+        }
+        if (!action && method === 'GET') return { data: authorization };
+        if (action === 'verify' && method === 'POST') {
+          if (!['agent', 'engineer', 'supervisor', 'admin'].includes(actor.role)) {
+            return { status: 403, data: { error: 'authorization code verification requires an active engineer' } };
+          }
+          try {
+            const verified = await scopedModule.rustdeskAuthorizationCodes.verify({
+              tenant_id: ctx.tenantId,
+              authorization_id: authorization.id,
+              code: String(bodyObject(body).code || ''),
+              verified_by: actorIdentity
+            });
+            if (authorization.status === 'pending') await recordRustDeskAuthorizationEvent({
+              pg: scopedPg,
+              module: scopedModule,
+              tenantId: ctx.tenantId,
+              remoteSessionId: remote.id,
+              actorIdentity,
+              eventType: 'remote.rustdesk.authorization_code.verified',
+              authorizationId: authorization.id,
+              audienceUserIds: participants.filter((participant) => !participant.left_at)
+                .map((participant) => participant.identity),
+              metadata: { device_id: authorization.device_id, scopes: authorization.scopes }
+            });
+            return { data: verified };
+          } catch (error) {
+            const current = await scopedModule.rustdeskAuthorizationCodes.get({
+              tenant_id: ctx.tenantId,
+              authorization_id: authorization.id
+            });
+            await recordRustDeskAuthorizationEvent({
+              pg: scopedPg,
+              module: scopedModule,
+              tenantId: ctx.tenantId,
+              remoteSessionId: remote.id,
+              actorIdentity,
+              eventType: current?.status === 'locked'
+                ? 'remote.rustdesk.authorization_code.locked'
+                : 'remote.rustdesk.authorization_code.failed',
+              authorizationId: authorization.id,
+              audienceUserIds: participants.filter((participant) => !participant.left_at)
+                .map((participant) => participant.identity),
+              metadata: {
+                device_id: authorization.device_id,
+                status: current?.status || 'unavailable',
+                attempt_count: current?.attempt_count ?? authorization.attempt_count
+              }
+            });
+            throw error;
+          }
+        }
+        return { status: 405, data: { error: 'method not allowed' } };
+      });
+    }
+
     if (routePath === '/api/ivekit/rustdesk/client-config' && method === 'GET') {
       const config = rustDeskClientConfig();
       if (config.public_key_error) return { status: 500, data: { error: config.public_key_error } };
@@ -2193,8 +2929,10 @@ export async function routeCollaborationApi(
     }
 
     if (routePath === '/api/ivekit/rustdesk/gateway-sessions' && method === 'POST') {
+      return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
+      const scopedModule = createCollaborationModule({ pg: scopedPg });
       const input = bodyObject(body);
-      rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+      validateRustDeskGatewayRequest(input);
       const remoteSessionId = String(input.remote_session_id || '').trim();
       const deviceId = String(input.device_id || '').trim();
       const actorIdentity = collaborationRequestActorIdentity(ctx, headers, input);
@@ -2206,6 +2944,10 @@ export async function routeCollaborationApi(
         return { status: 400, data: { error: 'access_mode must be attended or unattended' } };
       }
       const accessMode = rustDeskGatewayAccessMode(input.access_mode);
+      const authorizationId = String(input.authorization_id || '').trim();
+      if (accessMode === 'attended' && rustDeskRequireAuthorizationCode() && !authorizationId) {
+        return { status: 403, data: { error: 'RustDesk authorization code required for attended access' } };
+      }
       const requestedPermissions = stringArray(input.permissions || input.scopes);
       const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
       if (unsupportedPermission) {
@@ -2213,9 +2955,9 @@ export async function routeCollaborationApi(
       }
       const permissions = remoteConsentScopes(requestedPermissions);
       if (!permissions.length) return { status: 400, data: { error: 'permissions required' } };
-      const remote = await requireRemoteSession(module.remote, ctx.tenantId, remoteSessionId);
+      const remote = await requireRemoteSession(scopedModule.remote, ctx.tenantId, remoteSessionId);
       if (!remote) return { status: 404, data: { error: 'remote session not found' } };
-      const device = await module.rustdeskDevices.getDevice({
+      const device = await scopedModule.rustdeskDevices.getDevice({
         tenant_id: ctx.tenantId,
         device_id: deviceId
       });
@@ -2226,11 +2968,33 @@ export async function routeCollaborationApi(
       if (requestMetadata.access_mode !== undefined) {
         return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
       }
-      const tool = await module.remote.startGatewayClientSession({
+      const placementOwner = await resolveRustDeskPlacementOwner({
+        pg: scopedPg,
+        options,
+        tenantId: ctx.tenantId,
+        remoteSessionId: remote.id
+      });
+      const placementStaged = Boolean(
+        options.preparedRustDeskPlacement?.reservation &&
+        !options.preparedRustDeskPlacement.persisted
+      );
+      await stagePreparedRustDeskPlacement({
+        pg: scopedPg,
+        options,
+        tenantId: ctx.tenantId,
+        remoteSessionId: remote.id
+      });
+      await prepareRustDeskOwnerBinding({
+        options,
+        owner: placementOwner,
+        remoteSessionId: remote.id,
+        targetId: device.rustdesk_id
+      });
+      const tool = await scopedModule.remote.startGatewayClientSession({
         tenant_id: ctx.tenantId,
         remote_session_id: remote.id,
         actor_identity: actorIdentity,
-        client: createLocalRustDeskGatewayClient(requirePg(pg)),
+        client: createLocalRustDeskGatewayClient(scopedPg),
         target: {
           type: 'device',
           id: device.rustdesk_id,
@@ -2239,8 +3003,13 @@ export async function routeCollaborationApi(
         permissions,
         access_mode: accessMode,
         device_id: device.id,
+        authorization_id: authorizationId || undefined,
         metadata: {
           ...requestMetadata,
+          ...rustDeskOwnerRuntimeMetadata(placementOwner),
+          ...(placementOwner
+            ? { ivekit_reservation_id: placementOwner.reservation_id }
+            : {}),
           ...(accessModeExplicit ? { access_mode: accessMode } : {}),
           tenant_id: ctx.tenantId,
           remote_session_id: remote.id,
@@ -2258,10 +3027,35 @@ export async function routeCollaborationApi(
           business_ref_id: device.business_ref_id
         }
       });
+      if (authorizationId) {
+        await new IveKitTenantEventJournal(scopedPg).append({
+          tenant_id: ctx.tenantId,
+          type: 'remote.rustdesk.authorization_code.consumed',
+          data: {
+            remote_session_id: remote.id,
+            authorization_id: authorizationId,
+            device_id: device.id,
+            gateway_external_id: tool.external_id
+          }
+        });
+      }
+      if (placementStaged && options.preparedRustDeskPlacement) {
+        options.preparedRustDeskPlacement.persisted = true;
+      }
       return {
         status: 201,
-        data: accessMode === 'unattended' ? { ...tool, launch_url: '' } : tool
+        data: accessMode === 'unattended' ? { ...tool, launch_url: '' } : tool,
+        ...(placementStaged
+          ? {
+              afterCommit: () => reconcileRustDeskPlacement(
+                options,
+                ctx.tenantId,
+                remote.id
+              )
+            }
+          : {})
       };
+      });
     }
 
     const iveKitGatewayMatch = routePath.match(/^\/api\/ivekit\/rustdesk\/gateway-sessions\/([^/]+)(?:\/([^/]+))?$/);
@@ -2342,6 +3136,7 @@ export async function routeCollaborationApi(
       if (!action && method === 'DELETE') {
         const input = bodyObject(body);
         const actorIdentity = collaborationRequestActorIdentity(ctx, headers, input);
+        const remoteSessionId = String(session.metadata.remote_session_id || '').trim();
         const ended = await module.rustdeskPhysicalDisconnect.endGatewaySession({
           tenant_id: ctx.tenantId,
           external_id: externalId,
@@ -2356,7 +3151,26 @@ export async function routeCollaborationApi(
           actorIdentity,
           endMatchingTool: true
         });
-        return { status: 204, data: null };
+        const placementClosed = await requestRustDeskPlacementClosed({
+          pg: requirePg(pg),
+          options,
+          tenantId: ctx.tenantId,
+          remoteSessionId,
+          reason: 'rustdesk_gateway_ended'
+        });
+        return {
+          status: 204,
+          data: null,
+          ...(placementClosed
+            ? {
+                afterCommit: () => reconcileRustDeskPlacement(
+                  options,
+                  ctx.tenantId,
+                  remoteSessionId
+                )
+              }
+            : {})
+        };
       }
     }
 
@@ -2566,7 +3380,12 @@ export async function routeCollaborationApi(
     if ((action === 'retry' && method !== 'POST') || (!action && method !== 'GET')) {
       return { status: 405, data: { error: 'method not allowed' } };
     }
-    const gateway = options.chatGateway || configuredChatGateway();
+    const { gateway } = await resolveTinodeSessionGateway({
+      pg: requirePg(pg),
+      options,
+      tenantId: ctx.tenantId,
+      sessionId
+    });
     const delivery = new TinodeMessageDeliveryService({
       pg: requirePg(pg),
       gateway,
@@ -2752,10 +3571,22 @@ export async function routeCollaborationApi(
       session_id: sessionId,
       message_id: messageId
     });
+    const latestMutation = mutations.at(-1) || null;
+    const messageProvider = message.provider_delivery.provider;
+    const providerMutation = messageProvider === 'tinode' && latestMutation
+      ? await new TinodeMessageMutationStore(requirePg(pg)).getByMutation({
+        tenant_id: ctx.tenantId,
+        mutation_id: latestMutation.id
+      })
+      : null;
     const payload = {
       session_id: sessionId,
       message,
-      mutation: mutations.at(-1) || null,
+      mutation: latestMutation,
+      provider_mutation: providerMutation || {
+        provider: messageProvider,
+        status: messageProvider === 'tinode' ? 'pending' : 'not_required'
+      },
       quality_review_job: qualityReviewJob
     };
     wsBroadcast(
@@ -2786,7 +3617,12 @@ export async function routeCollaborationApi(
       if (!participants.some((participant) => participant.identity === actorIdentity && !participant.left_at)) {
         return { status: 403, data: { error: 'active participant identity is required' } };
       }
-      const gateway = options.chatGateway || configuredChatGateway();
+      const { gateway } = await resolveTinodeSessionGateway({
+        pg: requirePg(pg),
+        options,
+        tenantId: ctx.tenantId,
+        sessionId: collaboration.id
+      });
       const binding = await module.sessions.getChatBinding({
         tenant_id: ctx.tenantId,
         session_id: collaboration.id
@@ -2807,12 +3643,40 @@ export async function routeCollaborationApi(
         ));
       }
       const closed = await module.sessions.closeSession(collaboration.id);
+      const placementClosed = Boolean(
+        binding?.provider === 'tinode' &&
+        options.tinodePlacement &&
+        await options.tinodePlacement.hasPlacement(requirePg(pg), {
+          tenant_id: ctx.tenantId,
+          interaction_id: collaboration.id
+        })
+      );
+      if (placementClosed) {
+        await options.tinodePlacement!.requestState(requirePg(pg), {
+          tenant_id: ctx.tenantId,
+          interaction_id: collaboration.id,
+          desired_state: 'closed',
+          reason: 'tinode_session_closed'
+        });
+      }
       wsBroadcast(ctx.tenantId, 'collaboration.session.closed', {
         session_id: collaboration.id,
         session: closed,
         closed_by: actorIdentity
       });
-      return { status: 200, data: closed };
+      return {
+        status: 200,
+        data: closed,
+        ...(placementClosed
+          ? {
+              afterCommit: () => reconcileTinodePlacement(
+                options,
+                ctx.tenantId,
+                collaboration.id
+              )
+            }
+          : {})
+      };
     }
 
     if (section === 'realtime-state' && !action && method === 'GET') {
@@ -2885,7 +3749,8 @@ export async function routeCollaborationApi(
         tenant_id: ctx.tenantId,
         session_id: collaboration.id,
         message_id: url.searchParams.get('message_id') || undefined,
-        source: (url.searchParams.get('source') || undefined) as 'text' | 'ocr' | 'asr' | 'ai' | undefined,
+        source: (url.searchParams.get('source') || undefined) as
+          | 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate' | undefined,
         review_status: (url.searchParams.get('review_status') || undefined) as
           | 'pending'
           | 'confirmed'
@@ -2929,6 +3794,54 @@ export async function routeCollaborationApi(
         return { status: 415, data: { error: 'attachment content type does not match kind' } };
       }
       const filename = String(url.searchParams.get('filename') || input.filename || `${pgId('attachment')}.bin`).trim();
+      if (options.secureAttachmentsRequired) {
+        if (!options.secureFiles) {
+          throw Object.assign(new Error('secure file service is required'), { status: 503 });
+        }
+        const checksum = createHash('sha256').update(content).digest('hex');
+        const idempotencyKey = headerValue(headers, 'idempotency-key').trim() ||
+          headerValue(headers, 'x-upload-id').trim() ||
+          `legacy:${createHash('sha256').update(JSON.stringify([
+            collaboration.id, kind, filename, contentType, content.length, checksum
+          ])).digest('hex')}`;
+        const payloadHash = createHash('sha256').update(JSON.stringify({
+          kind, filename, content_type: contentType, size_bytes: content.length, checksum
+        })).digest('hex');
+        const created = await options.secureFiles.createUpload({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          created_by: collaborationActorIdentity(ctx, headers),
+          kind: kind as Parameters<SecureFileService['createUpload']>[0]['kind'],
+          filename,
+          declared_mime: contentType,
+          upload_mode: 'single',
+          expected_size_bytes: content.length,
+          idempotency_key: idempotencyKey,
+          payload_hash: payloadHash
+        });
+        const uploaded = await options.secureFiles.uploadContent({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          secure_file_id: created.file_id,
+          content,
+          sha256: checksum
+        });
+        return {
+          status: 201,
+          data: {
+            secure_file_id: uploaded.file_id,
+            kind: uploaded.kind,
+            storage_url: secureFileDownloadPath(uploaded.session_id, uploaded.file_id),
+            filename: uploaded.filename,
+            content_type: uploaded.declared_mime,
+            size_bytes: uploaded.size_bytes,
+            checksum: `sha256:${uploaded.sha256}`,
+            processing_status: attachmentNeedsProcessing(uploaded.kind) ? 'pending' : 'ready',
+            secure_status: uploaded.status,
+            metadata: { secure_file_id: uploaded.file_id }
+          }
+        };
+      }
       const uploaded = await createObjectStorage().upload({
         tenantId: ctx.tenantId,
         filename,
@@ -2960,11 +3873,15 @@ export async function routeCollaborationApi(
       if (!attachment || attachment.session_id !== collaboration.id) {
         return { status: 404, data: { error: 'collaboration attachment not found' } };
       }
-      const job = await service.getJobForAttachment({
+      const jobs = await service.listJobsForAttachment({
         tenant_id: ctx.tenantId,
         attachment_id: attachment.id
       });
-      return { data: { attachment, job } };
+      const observations = await service.listVisualObservations({
+        tenant_id: ctx.tenantId,
+        attachment_id: attachment.id
+      });
+      return { data: { attachment, job: jobs.at(-1) || null, jobs, observations } };
     }
 
     if (section === 'participants' && action === 'leave' && method === 'POST') {
@@ -2990,7 +3907,12 @@ export async function routeCollaborationApi(
           identity
         });
         if (!current) return null;
-        const gateway = options.chatGateway || configuredChatGateway();
+        const { gateway } = await resolveTinodeSessionGateway({
+          pg: lockedPg,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id
+        });
         const binding = await lockedModule.sessions.getChatBinding({
           tenant_id: ctx.tenantId,
           session_id: collaboration.id,
@@ -3050,10 +3972,17 @@ export async function routeCollaborationApi(
         identity
       }, async (lockedPg) => {
         const lockedModule = createCollaborationModule({ pg: lockedPg });
-        const gateway = options.chatGateway || configuredChatGateway();
+        const { gateway } = await resolveTinodeSessionGateway({
+          pg: lockedPg,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id
+        });
         const binding = await ensureSessionChatBinding({
+          pg: lockedPg,
           module: lockedModule,
           gateway,
+          options,
           tenantId: ctx.tenantId,
           sessionId: collaboration.id,
           title: collaboration.title
@@ -3100,10 +4029,17 @@ export async function routeCollaborationApi(
     }
 
     if (section === 'chat' && action === 'bind' && method === 'POST') {
-      const gateway = options.chatGateway || configuredChatGateway();
+      const { gateway } = await resolveTinodeSessionGateway({
+        pg: requirePg(pg),
+        options,
+        tenantId: ctx.tenantId,
+        sessionId: collaboration.id
+      });
       const binding = await ensureSessionChatBinding({
+        pg: requirePg(pg),
         module,
         gateway,
+        options,
         tenantId: ctx.tenantId,
         sessionId: collaboration.id,
         title: collaboration.title,
@@ -3140,13 +4076,21 @@ export async function routeCollaborationApi(
         if (!participant) {
           return { status: 404, data: { error: 'active collaboration participant not found' } };
         }
-        const gateway = options.chatGateway || configuredChatGateway();
+        const resolvedGateway = await resolveTinodeSessionGateway({
+          pg: lockedPg,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id
+        });
+        const gateway = resolvedGateway.gateway;
         if (gateway.provider !== 'tinode') {
           return { status: 503, data: { error: 'Tinode chat gateway is not configured' } };
         }
         const binding = await ensureSessionChatBinding({
+          pg: lockedPg,
           module: lockedModule,
           gateway,
+          options,
           tenantId: ctx.tenantId,
           sessionId: collaboration.id,
           title: currentSession.title
@@ -3180,7 +4124,7 @@ export async function routeCollaborationApi(
           provider_user_id: user.provider_user_id,
           access_mode: TINODE_RECEIVE_ONLY_ACCESS_MODE
         });
-        const clientWsUrl = tinodeClientWsUrl();
+        const clientWsUrl = tinodeClientWsUrl(resolvedGateway.owner);
         if (!clientWsUrl) return { status: 503, data: { error: 'Tinode client websocket URL is not configured' } };
         return {
           status: 201,
@@ -3232,7 +4176,13 @@ export async function routeCollaborationApi(
 
     if (section === 'messages' && !action && method === 'POST') {
       const bodyText = String(input.body || '').trim();
-      const attachments = parseChatAttachments(input.attachments);
+      const parsedAttachments = parseChatAttachments(input.attachments);
+      const attachments = await resolveSecureChatAttachments({
+        tenant_id: ctx.tenantId,
+        session_id: collaboration.id,
+        attachments: parsedAttachments,
+        options
+      });
       if (!bodyText && attachments.length === 0) return { status: 400, data: { error: 'body or attachments required' } };
       const messageType = chatMessageType(input.message_type || (attachments[0]?.kind === 'image' ? 'image' : 'text'));
       const actorIdentity = collaborationActorIdentity(ctx, headers);
@@ -3242,10 +4192,17 @@ export async function routeCollaborationApi(
         return { status: 403, data: { error: 'chat identity must match authenticated user' } };
       }
 
-      const gateway = options.chatGateway || configuredChatGateway();
+      const { gateway } = await resolveTinodeSessionGateway({
+        pg: requirePg(pg),
+        options,
+        tenantId: ctx.tenantId,
+        sessionId: collaboration.id
+      });
       const binding = await ensureSessionChatBinding({
+        pg: requirePg(pg),
         module,
         gateway,
+        options,
         tenantId: ctx.tenantId,
         sessionId: collaboration.id,
         title: collaboration.title
@@ -3306,9 +4263,14 @@ export async function routeCollaborationApi(
       const deliveryStatus = result.message.provider_delivery.status;
       const status = result.replayed
         ? 200
-        : deliveryStatus === 'pending' || deliveryStatus === 'publishing' || deliveryStatus === 'retry_wait'
+        : deliveryStatus === 'pending'
+            || deliveryStatus === 'publishing'
+            || deliveryStatus === 'retry_wait'
+            || deliveryStatus === 'blocked_by_file_security'
           ? 202
-          : deliveryStatus === 'failed'
+          : deliveryStatus === 'blocked'
+            ? 422
+            : deliveryStatus === 'failed'
             ? 502
             : 201;
       return { status, data: payload };
@@ -3369,11 +4331,27 @@ export async function routeCollaborationApi(
       remote_session_id: remote.id,
       actor_identity: actorIdentity
     });
+    const placementClosed = await requestRustDeskPlacementClosed({
+      pg: requirePg(pg),
+      options,
+      tenantId: ctx.tenantId,
+      remoteSessionId: remote.id,
+      reason: 'rustdesk_remote_session_ended'
+    });
     return {
       status: 201,
       data: endedRemote && physicalDisconnect
         ? { ...endedRemote, physical_disconnect: physicalDisconnect }
-        : endedRemote
+        : endedRemote,
+      ...(placementClosed
+        ? {
+            afterCommit: () => reconcileRustDeskPlacement(
+              options,
+              ctx.tenantId,
+              remote.id
+            )
+          }
+        : {})
     };
   }
 
@@ -3478,6 +4456,10 @@ export async function routeCollaborationApi(
   }
 
   if (section === 'tools' && action === 'gateway' && method === 'POST') {
+    return withPgTenant(requirePg(pg), ctx.tenantId, async (scopedPg) => {
+    const scopedModule = createCollaborationModule({ pg: scopedPg });
+    const scopedRemote = await requireRemoteSession(scopedModule.remote, ctx.tenantId, remote.id);
+    if (!scopedRemote) return { status: 404, data: { error: 'remote session not found' } };
     const requestedPermissions = stringArray(input.permissions || input.scopes);
     const unsupportedPermission = unsupportedRemoteConsentScope(requestedPermissions);
     if (unsupportedPermission) {
@@ -3490,35 +4472,50 @@ export async function routeCollaborationApi(
       ? rustDeskGatewayAccessMode(input.access_mode)
       : undefined;
     if (gatewayClient.provider === 'rustdesk') {
-      rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+      validateRustDeskGatewayRequest(input);
       const requestMetadata = rustDeskGatewayMetadata(input.metadata);
       if (requestMetadata.access_mode !== undefined) {
         return { status: 400, data: { error: 'RustDesk access_mode must be a top-level field' } };
       }
     }
     const gatewayRequest = await resolveRemoteGatewayRequest({
-      module,
+      module: scopedModule,
       tenantId: ctx.tenantId,
       provider: gatewayClient.provider,
       body: input
     });
-    const tool = await module.remote.startGatewayClientSession({
+    const authorizationId = String(input.authorization_id || '').trim();
+    const tool = await scopedModule.remote.startGatewayClientSession({
       tenant_id: ctx.tenantId,
-      remote_session_id: remote.id,
+      remote_session_id: scopedRemote.id,
       actor_identity: actorIdentity,
       client: gatewayClient,
       target: gatewayRequest.target,
       permissions,
       access_mode: accessMode,
       device_id: gatewayRequest.deviceId,
+      authorization_id: authorizationId || undefined,
       metadata: gatewayRequest.metadata
     });
+    if (authorizationId) {
+      await new IveKitTenantEventJournal(scopedPg).append({
+        tenant_id: ctx.tenantId,
+        type: 'remote.rustdesk.authorization_code.consumed',
+        data: {
+          remote_session_id: scopedRemote.id,
+          authorization_id: authorizationId,
+          device_id: gatewayRequest.deviceId || '',
+          gateway_external_id: tool.external_id
+        }
+      });
+    }
     return { status: 201, data: tool };
+    });
   }
 
   if (section === 'tools' && !action && method === 'POST') {
     const provider = String(input.provider || 'external_link') as RemoteToolProvider;
-    if (provider === 'rustdesk') rustDeskGatewayMetadata(input, 'RustDesk gateway request');
+    if (provider === 'rustdesk') validateRustDeskGatewayRequest(input);
     const tool = await module.remote.startToolSession({
       tenant_id: ctx.tenantId,
       remote_session_id: remote.id,

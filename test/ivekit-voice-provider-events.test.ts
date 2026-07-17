@@ -13,6 +13,7 @@ import {
   type VoiceProviderEvent,
   type VoiceRecording
 } from '../src/agent-runtime/ivekit/voice/index.js';
+import { MemoryPg } from '../src/db-pg.js';
 
 const NOW = '2026-07-13T06:00:00.000Z';
 
@@ -60,6 +61,30 @@ test('provider event worker converges call state before completing the durable e
   assert.equal(fixture.call.state, 'active');
   assert.equal(fixture.call.answered_at, NOW);
   assert.deepEqual(fixture.operations, ['claim', 'get-call-lock', 'update-call', 'complete']);
+});
+
+test('provider event worker closes SIP placement transactionally and reconciles after commit', async () => {
+  const fixture = workerFixture(providerEvent({
+    event_type: 'call.hangup',
+    provider_state: 'completed',
+    occurred_at: NOW
+  }), call({ state: 'active' }), { placement: true });
+
+  const result = await fixture.worker.runOnce('tenant-a');
+
+  assert.equal(result.processed, 1);
+  assert.equal(fixture.call.state, 'completed');
+  assert.deepEqual(fixture.operations, [
+    'claim',
+    'commit',
+    'get-call-lock',
+    'update-call',
+    'placement-exists:call-a',
+    'placement-state:closed:call-a:voice_provider_terminal',
+    'complete',
+    'commit',
+    'placement-reconcile:call-a:placement-worker-a'
+  ]);
 });
 
 test('provider event worker associates events that arrived before the call row', async () => {
@@ -253,7 +278,10 @@ function eventFixture() {
 function workerFixture(
   event: VoiceProviderEvent,
   initialCall = call(),
-  options: { recording_lookup?: ConstructorParameters<typeof VoiceRecordingService>[0]['lookup'] } = {}
+  options: {
+    recording_lookup?: ConstructorParameters<typeof VoiceRecordingService>[0]['lookup'];
+    placement?: boolean;
+  } = {}
 ) {
   const operations: string[] = [];
   const recordings: VoiceRecording[] = [];
@@ -306,14 +334,50 @@ function workerFixture(
   };
   const unitOfWork = {
     async run<T>(_tenantId: string, operation: (context: never) => Promise<T>): Promise<T> {
-      return operation({ calls, events, configuration, recordings: recordingStore } as never);
+      const result = await operation({
+        pg: new MemoryPg(),
+        calls,
+        events,
+        configuration,
+        recordings: recordingStore
+      } as never);
+      if (options.placement) operations.push('commit');
+      return result;
     }
   };
+  const placement = options.placement
+    ? {
+        async hasPlacement(_pg: unknown, input: { interaction_id: string }) {
+          operations.push(`placement-exists:${input.interaction_id}`);
+          return true;
+        },
+        async requestState(
+          _pg: unknown,
+          input: {
+            desired_state: string;
+            interaction_id: string;
+            reason: string;
+          }
+        ) {
+          operations.push(
+            `placement-state:${input.desired_state}:${input.interaction_id}:${input.reason}`
+          );
+        },
+        async reconcileOne(input: { interaction_id: string; worker_id: string }) {
+          operations.push(
+            `placement-reconcile:${input.interaction_id}:${input.worker_id}`
+          );
+          return 'succeeded' as const;
+        }
+      }
+    : undefined;
   fixture.worker = new VoiceProviderEventWorker({
     unit_of_work: unitOfWork, recording_service: new VoiceRecordingService({
       id: () => 'recording-a', now: () => new Date(NOW), lookup: options.recording_lookup
     }), worker_id: 'worker-a', retry_base_ms: 1_000, retry_jitter_ratio: 0,
-    now: () => new Date(NOW)
+    now: () => new Date(NOW),
+    placement,
+    placement_worker_id: 'placement-worker-a'
   });
   return fixture;
 }

@@ -11,7 +11,8 @@ import {
   type RustDeskEdgeAgentConfig,
   runRustDeskEdgeAgentCommandOnce,
   runRustDeskEdgeAgentOffline,
-  runRustDeskEdgeAgentOnce
+  runRustDeskEdgeAgentOnce,
+  runRustDeskNativeEvidenceCorrelationOnce
 } from '../scripts/rustdesk-edge-agent.js';
 
 test('rustdesk edge agent config validates required deployment inputs', () => {
@@ -34,7 +35,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
     OPC_RUSTDESK_EDGE_COMMAND_LEASE_MS: '40000',
     OPC_RUSTDESK_EDGE_COMMAND_TIMEOUT_MS: '15000',
     OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: '/opt/opc/bin/disconnect-rustdesk-session',
-    OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["--mode","session"]',
+    OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '["--mode","session","--controller","{controller_rustdesk_id}"]',
     OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE: '/opt/opc/bin/restart-rustdesk-service',
     OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON: '["--service","rustdesk"]',
     OPC_RUSTDESK_EDGE_SPOOL_DIR: '/var/lib/opc/rustdesk-edge-spool'
@@ -56,7 +57,7 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   assert.equal(config.commandTimeoutMs, 15_000);
   assert.deepEqual(config.disconnectAdapter, {
     executable: '/opt/opc/bin/disconnect-rustdesk-session',
-    args: ['--mode', 'session']
+    args: ['--mode', 'session', '--controller', '{controller_rustdesk_id}']
   });
   assert.deepEqual(config.restartAdapter, {
     executable: '/opt/opc/bin/restart-rustdesk-service',
@@ -252,6 +253,181 @@ test('rustdesk edge agent config validates required deployment inputs', () => {
   );
 });
 
+test('rustdesk edge agent can use one device-bound token file for every edge route', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rustdesk-device-token-'));
+  const tokenFile = join(dir, 'edge-token');
+  const token = 'device-bound-edge-token-material-1234567890';
+  writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
+
+  const config = createRustDeskEdgeAgentConfigFromEnv({
+    OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+    OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
+    OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
+    OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
+    OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+    OPC_RUSTDESK_EDGE_DISCONNECT_EXECUTABLE: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+    OPC_RUSTDESK_EDGE_DISCONNECT_ARGS_JSON: '[]',
+    OPC_RUSTDESK_EDGE_SPOOL_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\spool',
+    OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\inbox',
+    OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\spool',
+    OPC_RUSTDESK_EDGE_OBSERVATION_POLL_INTERVAL_MS: '1500'
+  });
+
+  assert.equal(config.apiKey, token);
+  assert.equal(config.commandToken, token);
+  assert.equal(config.deviceTokenFile, tokenFile);
+  assert.equal(config.observationInputDir, 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\inbox');
+  assert.equal(config.observationSpoolDir, 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\spool');
+  assert.equal(config.observationPollIntervalMs, 1_500);
+  assert.throws(
+    () => createRustDeskEdgeAgentConfigFromEnv({
+      OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+      OPC_RUSTDESK_EDGE_API_KEY: 'platform-key-must-not-be-combined',
+      OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
+      OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
+      OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
+      OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789'
+    }),
+    /must not be combined with legacy API or command credentials/
+  );
+  assert.throws(
+    () => createRustDeskEdgeAgentConfigFromEnv({
+      OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+      OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+      OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
+      OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'service_order',
+      OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'SO-10001',
+      OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+      OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: 'C:\\ProgramData\\iveKit\\RustDesk\\observations\\inbox'
+    }),
+    /observation input and spool directories must be configured together/
+  );
+});
+
+test('rustdesk edge agent device token mode uses the dedicated heartbeat without generic discovery', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rustdesk-device-heartbeat-'));
+  const tokenFile = join(dir, 'edge-token');
+  writeFileSync(tokenFile, 'device-bound-edge-token-material-abcdefghijklmno\n', { mode: 0o600 });
+  const config = createRustDeskEdgeAgentConfigFromEnv({
+    OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+    OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
+    OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'led_device',
+    OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'LED-10001',
+    OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+    OPC_RUSTDESK_EDGE_INSTANCE_ID: 'windows-edge-01',
+    OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(dir, 'inbox'),
+    OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(dir, 'spool'),
+    OPC_RUSTDESK_EDGE_OBSERVATION_POLL_INTERVAL_MS: '2000',
+    OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR: join(dir, 'evidence-inbox'),
+    OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR: join(dir, 'evidence-spool'),
+    OPC_RUSTDESK_EDGE_EVIDENCE_POLL_INTERVAL_MS: '2500',
+    OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR: join(dir, 'native-candidates'),
+    OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR: join(dir, 'native-events'),
+    OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR: join(dir, 'native-spool'),
+    OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON: JSON.stringify([join(dir, 'native-files')]),
+    OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON: JSON.stringify([join(dir, 'native-recordings')]),
+    OPC_RUSTDESK_EDGE_CLIENT_VERSION: '1.4.7',
+    OPC_RUSTDESK_EDGE_OS: 'windows'
+  });
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await runRustDeskEdgeAgentOnce(config, async (input, init) => {
+    requests.push({ url: String(input), init });
+    return new Response(JSON.stringify({
+      id: 'rdesk-device-1',
+      rustdesk_id: '123456789',
+      runtime_status: 'online',
+      last_seen_at: '2026-07-15T06:00:00.000Z'
+    }), { status: 201, headers: { 'content-type': 'application/json' } });
+  });
+
+  assert.equal(result.deviceId, 'rdesk-device-1');
+  assert.equal(result.registered, false);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, 'https://ivekit.example.com/api/ivekit/rustdesk/edge/heartbeat');
+  assert.equal((requests[0].init?.headers as Record<string, string>)['x-rustdesk-edge-token'], config.commandToken);
+  const body = JSON.parse(String(requests[0].init?.body));
+  assert.equal(body.metadata.observation_capable, true);
+  assert.equal(body.metadata.evidence_upload_capable, true);
+  assert.equal(body.metadata.native_evidence_capable, true);
+  assert.equal(body.metadata.evidence_poll_interval_ms, 2500);
+  assert.equal(body.metadata.client_version, '1.4.7');
+  assert.equal(body.metadata.os, 'windows');
+});
+
+test('rustdesk edge agent fetches device-bound context before correlating a native candidate', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rustdesk-native-correlation-agent-'));
+  const tokenFile = join(dir, 'edge-token');
+  const source = join(dir, 'native-files', 'transfer.bin');
+  const candidateDir = join(dir, 'native-candidates');
+  const eventDir = join(dir, 'native-events');
+  writeFileSync(tokenFile, 'device-bound-edge-token-material-abcdefghijklmno\n', { mode: 0o600 });
+  const { mkdirSync, readdirSync } = await import('node:fs');
+  for (const path of [join(dir, 'native-files'), join(dir, 'native-recordings'), candidateDir, eventDir]) {
+    mkdirSync(path, { recursive: true });
+  }
+  writeFileSync(source, 'candidate bytes');
+  writeFileSync(join(candidateDir, 'candidate.json'), `${JSON.stringify({
+    schema_version: 1,
+    native_candidate_id: 'candidate-edge-1',
+    root_class: 'file',
+    source_path: source,
+    filename: 'transfer.bin',
+    size_bytes: 15,
+    observed_unix_ms: Date.parse('2026-07-16T00:01:00.000Z'),
+    controller_rustdesk_ids: ['135792468']
+  })}\n`);
+  const config = createRustDeskEdgeAgentConfigFromEnv({
+    OPC_RUSTDESK_EDGE_BASE_URL: 'https://ivekit.example.com',
+    OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: tokenFile,
+    OPC_RUSTDESK_EDGE_TENANT_ID: 'tenant_led',
+    OPC_RUSTDESK_EDGE_BUSINESS_REF_TYPE: 'led_device',
+    OPC_RUSTDESK_EDGE_BUSINESS_REF_ID: 'LED-10001',
+    OPC_RUSTDESK_EDGE_RUSTDESK_ID: '123456789',
+    OPC_RUSTDESK_EDGE_INSTANCE_ID: 'windows-edge-01',
+    OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: join(dir, 'observations-inbox'),
+    OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR: join(dir, 'observations-spool'),
+    OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR: join(dir, 'evidence-inbox'),
+    OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR: join(dir, 'evidence-spool'),
+    OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR: candidateDir,
+    OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR: eventDir,
+    OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR: join(dir, 'native-spool'),
+    OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON: JSON.stringify([join(dir, 'native-files')]),
+    OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON: JSON.stringify([join(dir, 'native-recordings')])
+  });
+  let request: { url: string; headers: Record<string, string> } | null = null;
+  const result = await runRustDeskNativeEvidenceCorrelationOnce(config, 'rddev-edge-1', async (input, init) => {
+    request = { url: String(input), headers: init?.headers as Record<string, string> };
+    return new Response(JSON.stringify({
+      schema_version: 1,
+      device_id: 'rddev-edge-1',
+      rustdesk_id: '123456789',
+      generated_at: '2026-07-16T00:01:00.000Z',
+      expires_at: '2099-07-16T00:02:00.000Z',
+      bindings: [{
+        kind: 'file',
+        external_id: 'rdgw-edge-1',
+        controller_rustdesk_id: '135792468',
+        operation_id: 'transfer-edge-1',
+        authorization_scope: 'operation',
+        authorization_id: 'rdop-edge-1',
+        direction: 'upload',
+        control_version: 7,
+        started_at: '2026-07-16T00:00:00.000Z',
+        valid_until: '2099-07-16T00:15:00.000Z',
+        file_name: 'transfer.bin'
+      }]
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  assert.deepEqual(result, { correlated: 1, waiting: 0, quarantined: 0 });
+  assert.equal(request?.url, 'https://ivekit.example.com/api/ivekit/rustdesk/devices/rddev-edge-1/evidence-context');
+  assert.equal(request?.headers['x-rustdesk-edge-token'], config.commandToken);
+  assert.equal(readdirSync(eventDir).filter((name) => name.endsWith('.json')).length, 1);
+});
+
 test('rustdesk edge agent rejects blank RustDesk ID files', () => {
   const dataDir = mkdtempSync(join(tmpdir(), 'opc-rustdesk-edge-id-'));
   const rustdeskIdFile = join(dataDir, 'rustdesk-id.txt');
@@ -336,9 +512,10 @@ test('rustdesk edge agent posts an offline heartbeat for an existing device', as
     metadata: {
       client_version: '1.3.0',
       os: 'windows',
-      offline_reason: 'agent_exit',
-      disconnect_command_capable: false,
-      edge_instance_id: 'rustdesk-edge-agent',
+        offline_reason: 'agent_exit',
+        disconnect_command_capable: false,
+        native_control_protocol: 'ivekit-rustdesk-native-control-v1',
+        edge_instance_id: 'rustdesk-edge-agent',
       command_poll_interval_ms: 2_000
     }
   });
@@ -427,9 +604,10 @@ test('rustdesk edge agent reuses an existing registered device and posts heartbe
     seen_at: '2026-07-04T10:00:00.000Z',
     metadata: {
       client_version: '1.3.0',
-      os: 'windows',
-      disconnect_command_capable: true,
-      edge_instance_id: 'edge-heartbeat-capable',
+        os: 'windows',
+        disconnect_command_capable: true,
+        native_control_protocol: 'ivekit-rustdesk-native-control-v1',
+        edge_instance_id: 'edge-heartbeat-capable',
       command_poll_interval_ms: 2_500
     }
   });
@@ -669,6 +847,11 @@ test('rustdesk edge agent is wired into scripts and env examples', () => {
     'OPC_RUSTDESK_EDGE_METADATA_JSON=',
     'OPC_RUSTDESK_EDGE_DEVICE_DISPLAY_NAME=',
     'OPC_RUSTDESK_EDGE_HEARTBEAT_INTERVAL_MS=',
+    'OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR=',
+    'OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR=',
+    'OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR=',
+    'OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON=',
+    'OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON=',
     'OPC_RUSTDESK_EDGE_ONCE=',
     'OPC_RUSTDESK_EDGE_OFFLINE_ON_EXIT='
   ]) {
@@ -703,7 +886,7 @@ function routeFetch(pg: MemoryPg): typeof fetch {
       headersRecord(init.headers)
     ) as { status?: number; data?: unknown } | undefined;
     if (!result) return jsonResponse(404, { error: 'not found' });
-    return jsonResponse(result.status || 200, { data: result.data });
+    return jsonResponse(result.status || 200, result.data);
   }) as typeof fetch;
 }
 

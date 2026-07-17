@@ -9,6 +9,7 @@ import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/
 import { RustDeskPhysicalDisconnectService } from '../src/agent-runtime/collaboration/rustdesk-physical-disconnect.js';
 import { MemoryPg } from '../src/db-pg.js';
 import type { PgQueryable } from '../src/db-pg.js';
+import { signAccessToken, type AuthRole } from '../src/middleware/auth.js';
 
 const API_KEY = 'rustdesk-device-command-http-key';
 const EDGE_TOKEN_SECRET = 'rustdesk-device-command-http-edge-secret-32-bytes';
@@ -23,6 +24,10 @@ function authHeaders(tenantId: string, userId = 'rustdesk-edge-http'): Record<st
 
 function edgeHeaders(token: string): Record<string, string> {
   return { 'x-rustdesk-edge-token': token };
+}
+
+function jwtHeaders(tenantId: string, userId: string, role: AuthRole): Record<string, string> {
+  return { authorization: `Bearer ${signAccessToken({ sub: userId, tid: tenantId, role })}` };
 }
 
 async function route(
@@ -58,7 +63,11 @@ function commandToken(input: {
   }, EDGE_TOKEN_SECRET);
 }
 
-async function commandHttpFixture() {
+async function commandHttpFixture(owner?: {
+  interaction_id: string;
+  reservation_id: string;
+  owner_epoch: string;
+}) {
   const pg = new MemoryPg();
   const tenantId = 'tenant_rustdesk_command_http';
   const devices = new RustDeskDeviceStore(pg);
@@ -83,9 +92,27 @@ async function commandHttpFixture() {
     metadata: {
       rustdesk_target_mode: 'registered_device',
       rustdesk_device_id: device.id,
-      rustdesk_id: device.rustdesk_id
+      rustdesk_id: device.rustdesk_id,
+      controller_rustdesk_id: '975318642',
+      ...(owner
+        ? {
+            remote_session_id: owner.interaction_id,
+            ivekit_reservation_id: owner.reservation_id,
+            ivekit_owner_epoch: owner.owner_epoch
+          }
+        : {})
     }
   });
+  if (owner) {
+    await devices.heartbeatDevice({
+      tenant_id: tenantId,
+      device_id: device.id,
+      actor_identity: 'windows-owner-epoch-companion',
+      metadata: {
+        native_control_protocol: 'ivekit-rustdesk-native-control-v2'
+      }
+    });
+  }
   const ended = await service.endGatewaySession({
     tenant_id: tenantId,
     external_id: session.external_id,
@@ -95,11 +122,110 @@ async function commandHttpFixture() {
   return { pg, tenantId, device, session, command: ended.command! };
 }
 
-test('iveKit RustDesk command HTTP claims, reports progress, completes, and reads status', async () => {
+test('iveKit RustDesk command claim and lifecycle are fenced by the current placement owner', async () => {
   const previousApiKey = process.env.OPC_API_KEY;
   const previousEdgeSecret = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
   process.env.OPC_API_KEY = API_KEY;
   process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
+  const owner = {
+    interaction_id: 'remote-session-command-owner-1',
+    reservation_id: 'reservation-command-owner-1',
+    owner_epoch: '51'
+  };
+  const fixture = await commandHttpFixture(owner);
+  const token = commandToken({
+    tenantId: fixture.tenantId,
+    rustdeskId: fixture.device.rustdesk_id,
+    edgeInstanceId: 'edge-command-owner-1'
+  });
+  const path = `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands`;
+
+  try {
+    const claim = (await route(
+      fixture.pg,
+      'POST',
+      `${path}/claim`,
+      { lease_ms: 30_000 },
+      fixture.tenantId,
+      edgeHeaders(token)
+    )) as {
+      status: number;
+      data: {
+        command: Record<string, unknown>;
+        owner_binding: Record<string, unknown>;
+        claim_token: string;
+      };
+    };
+    assert.equal(claim.status, 201);
+    assert.equal(
+      claim.data.command.native_control_protocol,
+      'ivekit-rustdesk-native-control-v2'
+    );
+    assert.deepEqual(claim.data.owner_binding, owner);
+    assert.deepEqual({
+      interaction_id: claim.data.command.interaction_id,
+      reservation_id: claim.data.command.reservation_id,
+      owner_epoch: claim.data.command.owner_epoch
+    }, owner);
+
+    await assert.rejects(
+      () => route(
+        fixture.pg,
+        'POST',
+        `${path}/${fixture.command.id}/result`,
+        {
+          claim_token: claim.data.claim_token,
+          ...owner,
+          owner_epoch: '52',
+          status: 'succeeded',
+          execution_method: 'session_adapter',
+          exit_code: 0,
+          duration_ms: 10,
+          stdout_bytes: 0,
+          stderr_bytes: 0,
+          stdout_sha256: `sha256:${'a'.repeat(64)}`,
+          stderr_sha256: `sha256:${'b'.repeat(64)}`
+        },
+        fixture.tenantId,
+        edgeHeaders(token)
+      ),
+      /rustdesk_owner_binding_mismatch/
+    );
+
+    const completed = await route(
+      fixture.pg,
+      'POST',
+      `${path}/${fixture.command.id}/result`,
+      {
+        claim_token: claim.data.claim_token,
+        ...owner,
+        status: 'succeeded',
+        execution_method: 'session_adapter',
+        exit_code: 0,
+        duration_ms: 10,
+        stdout_bytes: 0,
+        stderr_bytes: 0,
+        stdout_sha256: `sha256:${'a'.repeat(64)}`,
+        stderr_sha256: `sha256:${'b'.repeat(64)}`
+      },
+      fixture.tenantId,
+      edgeHeaders(token)
+    ) as { status: number; data: { command: { status: string } } };
+    assert.equal(completed.status, 201);
+    assert.equal(completed.data.command.status, 'succeeded');
+  } finally {
+    restoreEnv('OPC_API_KEY', previousApiKey);
+    restoreEnv('OPC_RUSTDESK_EDGE_TOKEN_SECRET', previousEdgeSecret);
+  }
+});
+
+test('iveKit RustDesk command HTTP claims, reports progress, completes, and reads status', async () => {
+  const previousApiKey = process.env.OPC_API_KEY;
+  const previousEdgeSecret = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
+  const previousJwtSecret = process.env.OPC_JWT_SECRET;
+  process.env.OPC_API_KEY = API_KEY;
+  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
+  process.env.OPC_JWT_SECRET = 'rustdesk-command-http-jwt-secret-32-bytes';
   const fixture = await commandHttpFixture();
   const token = commandToken({
     tenantId: fixture.tenantId,
@@ -136,6 +262,7 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
           external_id: string;
           target_id: string;
           rustdesk_id: string;
+          controller_rustdesk_id: string;
           requested_reason: string;
           attempt: number;
         };
@@ -148,6 +275,7 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
     assert.equal(claim.data.command.external_id, fixture.session.external_id);
     assert.equal(claim.data.command.target_id, fixture.device.id);
     assert.equal(claim.data.command.rustdesk_id, fixture.device.rustdesk_id);
+    assert.equal(claim.data.command.controller_rustdesk_id, '975318642');
     assert.equal(claim.data.command.requested_reason, 'consent_revoked');
     assert.equal(claim.data.command.attempt, 1);
     assert.equal(typeof claim.data.claim_token, 'string');
@@ -168,22 +296,6 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
     assert.equal(recovery.data.command.attempt_count, 1);
     assert.notEqual(recovery.data.claim_token, claim.data.claim_token);
 
-    const progress = (await route(
-      fixture.pg,
-      'POST',
-      `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands/${fixture.command.id}/progress`,
-      {
-        claim_token: recovery.data.claim_token,
-        progress: 'fallback_started',
-        metadata: { collateral_sessions_may_disconnect: true }
-      },
-      fixture.tenantId,
-      edgeHeaders(token)
-    )) as { status: number; data: { command: { status: string } } };
-    assert.equal(progress.status, 201);
-    assert.equal(progress.data.command.status, 'claimed');
-    assert.equal((progress.data.command as { claimed_by?: string }).claimed_by, 'edge-command-http-1');
-
     const completed = (await route(
       fixture.pg,
       'POST',
@@ -191,13 +303,12 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
       {
         claim_token: recovery.data.claim_token,
         status: 'succeeded',
-        execution_method: 'service_restart',
+        execution_method: 'session_adapter',
         exit_code: 0,
         duration_ms: 842,
         stdout_bytes: 0,
         stderr_bytes: 0,
         metadata: {
-          collateral_sessions_may_disconnect: true,
           edge_agent_version: '1.0.0',
           edge_instance_id: 'edge-command-http-1'
         }
@@ -235,6 +346,8 @@ test('iveKit RustDesk command HTTP claims, reports progress, completes, and read
     else process.env.OPC_API_KEY = previousApiKey;
     if (previousEdgeSecret === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
     else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
+    if (previousJwtSecret === undefined) delete process.env.OPC_JWT_SECRET;
+    else process.env.OPC_JWT_SECRET = previousJwtSecret;
   }
 });
 
@@ -290,6 +403,130 @@ test('iveKit RustDesk command HTTP hides commands across tenant and device scope
     else process.env.OPC_API_KEY = previousApiKey;
     if (previousEdgeSecret === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
     else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
+  }
+});
+
+test('iveKit RustDesk emergency restart requires owner approval and prior precise failure', async () => {
+  const previousApiKey = process.env.OPC_API_KEY;
+  const previousEdgeSecret = process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
+  const previousJwtSecret = process.env.OPC_JWT_SECRET;
+  process.env.OPC_API_KEY = API_KEY;
+  process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = EDGE_TOKEN_SECRET;
+  process.env.OPC_JWT_SECRET = 'rustdesk-command-http-jwt-secret-32-bytes';
+  const fixture = await commandHttpFixture();
+  const token = commandToken({
+    tenantId: fixture.tenantId,
+    rustdeskId: fixture.device.rustdesk_id,
+    edgeInstanceId: 'edge-command-http-emergency'
+  });
+  const emergencyPath =
+    `/api/ivekit/rustdesk/gateway-sessions/${fixture.session.external_id}/disconnect/emergency-fallback`;
+
+  try {
+    const premature = await route(
+      fixture.pg,
+      'POST',
+      emergencyPath,
+      {
+        reason: 'precise disconnect is unavailable on this endpoint',
+        collateral_sessions_may_disconnect: true
+      },
+      fixture.tenantId,
+      jwtHeaders(fixture.tenantId, 'owner-command-http', 'owner')
+    );
+    assert.deepEqual(premature, {
+      status: 409,
+      data: { error: 'emergency fallback requires a failed precise disconnect attempt' }
+    });
+
+    const claim = (await route(
+      fixture.pg,
+      'POST',
+      `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands/claim`,
+      { lease_ms: 30_000 },
+      fixture.tenantId,
+      edgeHeaders(token)
+    )) as { data: { command: { id: string }; claim_token: string } };
+    await route(
+      fixture.pg,
+      'POST',
+      `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands/${claim.data.command.id}/result`,
+      {
+        claim_token: claim.data.claim_token,
+        status: 'failed',
+        execution_method: 'session_adapter',
+        exit_code: 20,
+        duration_ms: 10,
+        stdout_bytes: 0,
+        stderr_bytes: 0,
+        metadata: {
+          fallback_reason: 'targeted_disconnect_unavailable',
+          precise_disconnect_unavailable: true,
+          emergency_fallback_authorized: false,
+          os: 'windows'
+        }
+      },
+      fixture.tenantId,
+      edgeHeaders(token)
+    );
+
+    const operatorDenied = await route(
+      fixture.pg,
+      'POST',
+      emergencyPath,
+      {
+        reason: 'precise disconnect is unavailable on this endpoint',
+        collateral_sessions_may_disconnect: true
+      },
+      fixture.tenantId,
+      jwtHeaders(fixture.tenantId, 'operator-command-http', 'operator')
+    );
+    assert.deepEqual(operatorDenied, {
+      status: 403,
+      data: { error: 'RustDesk emergency fallback requires an owner or admin JWT' }
+    });
+
+    const authorized = (await route(
+      fixture.pg,
+      'POST',
+      emergencyPath,
+      {
+        reason: 'precise disconnect is unavailable on this endpoint',
+        collateral_sessions_may_disconnect: true
+      },
+      fixture.tenantId,
+      jwtHeaders(fixture.tenantId, 'owner-command-http', 'owner')
+    )) as { status: number; data: { command: { emergency_fallback_authorized: boolean } } };
+    assert.equal(authorized.status, 201);
+    assert.equal(authorized.data.command.emergency_fallback_authorized, true);
+
+    const emergencyClaim = (await route(
+      fixture.pg,
+      'POST',
+      `/api/ivekit/rustdesk/devices/${fixture.device.id}/commands/claim`,
+      { lease_ms: 30_000 },
+      fixture.tenantId,
+      edgeHeaders(token)
+    )) as {
+      data: {
+        command: {
+          emergency_fallback_authorized: boolean;
+          emergency_fallback_reason: string;
+        };
+      };
+    };
+    assert.equal(emergencyClaim.data.command.emergency_fallback_authorized, true);
+    assert.equal(
+      emergencyClaim.data.command.emergency_fallback_reason,
+      'precise disconnect is unavailable on this endpoint'
+    );
+  } finally {
+    if (previousApiKey === undefined) delete process.env.OPC_API_KEY;
+    else process.env.OPC_API_KEY = previousApiKey;
+    if (previousEdgeSecret === undefined) delete process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET;
+    else process.env.OPC_RUSTDESK_EDGE_TOKEN_SECRET = previousEdgeSecret;
+    if (previousJwtSecret === undefined) delete process.env.OPC_JWT_SECRET;
+    else process.env.OPC_JWT_SECRET = previousJwtSecret;
   }
 });
 

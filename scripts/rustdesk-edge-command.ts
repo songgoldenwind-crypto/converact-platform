@@ -7,6 +7,11 @@ import {
   type RustDeskEdgePendingRecord,
   type RustDeskEdgeSpoolCommand
 } from './rustdesk-edge-pending-store.js';
+import {
+  RustDeskOwnerEpochFence,
+  assertRustDeskOwnerBinding,
+  type RustDeskOwnerIdentity
+} from './rustdesk-owner-epoch-fence.js';
 
 export interface RustDeskEdgeClaimCommand {
   id: string;
@@ -14,9 +19,16 @@ export interface RustDeskEdgeClaimCommand {
   external_id: string;
   target_id: string;
   rustdesk_id: string;
+  controller_rustdesk_id: string;
   requested_reason: 'consent_revoked' | 'remote_session_ended' | 'tool_ended' | 'gateway_ended';
   attempt: number;
   lease_expires_at: string;
+  emergency_fallback_authorized: boolean;
+  emergency_fallback_reason: string;
+  native_control_protocol?: 'ivekit-rustdesk-native-control-v1' | 'ivekit-rustdesk-native-control-v2';
+  interaction_id?: string;
+  reservation_id?: string;
+  owner_epoch?: string;
 }
 
 export interface RustDeskEdgeCommandAdapter {
@@ -59,6 +71,7 @@ export interface RustDeskEdgeCommandProcessorConfig {
   commandLeaseMs: number;
   execution: RustDeskEdgeCommandExecutionConfig;
   spool?: RustDeskEdgePendingFileStoreOptions;
+  placementEnabled?: boolean;
 }
 
 export type RustDeskEdgeCommandPollResult =
@@ -104,6 +117,8 @@ export class RustDeskEdgeCommandProcessor {
   private pending: PendingCommandReport | null = null;
   private store: RustDeskEdgePendingFileStore | null = null;
   private storePromise: Promise<RustDeskEdgePendingFileStore> | null = null;
+  private ownerFence: RustDeskOwnerEpochFence | null = null;
+  private ownerFencePromise: Promise<RustDeskOwnerEpochFence> | null = null;
 
   constructor(
     private readonly config: RustDeskEdgeCommandProcessorConfig,
@@ -121,6 +136,7 @@ export class RustDeskEdgeCommandProcessor {
 
     const claim = await this.requestJson<{
       command?: unknown;
+      owner_binding?: unknown;
       claim_token?: unknown;
     }>(
       `/api/ivekit/rustdesk/devices/${encodeURIComponent(deviceId)}/commands/claim`,
@@ -131,8 +147,27 @@ export class RustDeskEdgeCommandProcessor {
       true
     );
     if (!claim) return 'idle';
-    const command = decodeClaimCommand(claim.command);
+    const command = decodeClaimCommand(
+      claim.command,
+      claim.owner_binding,
+      this.config.placementEnabled === true
+    );
     const claimToken = requiredString(claim.claim_token, 'RustDesk command claim_token is required');
+    const ownerIdentity = commandOwnerIdentity(command);
+    let fencedResult: RustDeskEdgeCommandExecutionResult | null = null;
+    if (ownerIdentity) {
+      const fence = await this.epochFence();
+      if (!fence) throw new Error('rustdesk_owner_epoch_fence_required');
+      try {
+        await fence.accept({
+          external_id: command.external_id,
+          command_id: command.id,
+          ...ownerIdentity
+        });
+      } catch (error) {
+        fencedResult = rejectedBeforeNativeExecution(this.config.execution, error);
+      }
+    }
     await store?.writeExecuting({
       edge_instance_id: this.config.edgeInstanceId,
       device_id: deviceId,
@@ -140,17 +175,17 @@ export class RustDeskEdgeCommandProcessor {
       progress: []
     });
     const failedProgress: RustDeskEdgeCommandProgressReport[] = [];
-    const result = await executeRustDeskDisconnectCommand(
-      command,
-      this.config.execution,
-      async (report) => {
-        try {
-          await this.postProgress(deviceId, command.id, claimToken, report);
-        } catch {
-          failedProgress.push(report);
+    const result = fencedResult || await executeRustDeskDisconnectCommand(
+        command,
+        this.config.execution,
+        async (report) => {
+          try {
+            await this.postProgress(deviceId, command, claimToken, report);
+          } catch {
+            failedProgress.push(report);
+          }
         }
-      }
-    );
+      );
     this.pending = {
       deviceId,
       command,
@@ -170,6 +205,9 @@ export class RustDeskEdgeCommandProcessor {
 
   async close(): Promise<void> {
     const store = this.store || (this.storePromise ? await this.storePromise : null);
+    const ownerFence = this.ownerFence ||
+      (this.ownerFencePromise ? await this.ownerFencePromise : null);
+    await ownerFence?.close();
     await store?.close();
   }
 
@@ -190,6 +228,7 @@ export class RustDeskEdgeCommandProcessor {
           state: record.state,
           attempt: record.command.attempt,
           lease_ms: this.config.commandLeaseMs,
+          ...ownerReport(record.command),
           ...(record.state === 'executed' ? { result: record.result } : {})
         }
       ))!;
@@ -229,7 +268,7 @@ export class RustDeskEdgeCommandProcessor {
       while (pending.progress.length) {
         await this.postProgress(
           pending.deviceId,
-          pending.command.id,
+          pending.command,
           pending.claimToken,
           pending.progress[0]
         );
@@ -240,6 +279,7 @@ export class RustDeskEdgeCommandProcessor {
           `/commands/${encodeURIComponent(pending.command.id)}/result`,
         {
           claim_token: pending.claimToken,
+          ...ownerReport(pending.command),
           ...pending.result
         }
       );
@@ -267,17 +307,28 @@ export class RustDeskEdgeCommandProcessor {
     return this.store;
   }
 
+  private async epochFence(): Promise<RustDeskOwnerEpochFence | null> {
+    if (!this.config.spool) return null;
+    if (this.ownerFence) return this.ownerFence;
+    this.ownerFencePromise ||= RustDeskOwnerEpochFence.open({
+      directory: this.config.spool.directory
+    });
+    this.ownerFence = await this.ownerFencePromise;
+    return this.ownerFence;
+  }
+
   private async postProgress(
     deviceId: string,
-    commandId: string,
+    command: RustDeskEdgeSpoolCommand,
     claimToken: string,
     report: RustDeskEdgeCommandProgressReport
   ): Promise<void> {
     await this.requestJson(
       `/api/ivekit/rustdesk/devices/${encodeURIComponent(deviceId)}` +
-        `/commands/${encodeURIComponent(commandId)}/progress`,
+        `/commands/${encodeURIComponent(command.id)}/progress`,
       {
         claim_token: claimToken,
+        ...ownerReport(command),
         ...report
       }
     );
@@ -341,13 +392,27 @@ export async function executeRustDeskDisconnectCommand(
     progress: 'session_adapter_failed',
     ...(primary.exitCode === null ? {} : { exit_code: primary.exitCode }),
     duration_ms: primary.durationMs,
-    metadata: adapterFailureMetadata(primary, fallbackReason)
+    metadata: {
+      ...adapterFailureMetadata(primary, fallbackReason),
+      precise_disconnect_unavailable: true,
+      emergency_fallback_authorized: command.emergency_fallback_authorized
+    }
   });
+  if (!command.emergency_fallback_authorized) {
+    return executionResult('failed', 'session_adapter', primary, {
+      ...baseMetadata(config),
+      ...adapterFailureMetadata(primary, fallbackReason),
+      precise_disconnect_unavailable: true,
+      emergency_fallback_authorized: false
+    });
+  }
   await reportProgress({
     progress: 'fallback_started',
     metadata: {
       fallback_reason: fallbackReason,
-      collateral_sessions_may_disconnect: true
+      collateral_sessions_may_disconnect: true,
+      emergency_fallback_authorized: true,
+      emergency_fallback_reason: command.emergency_fallback_reason
     }
   });
 
@@ -362,6 +427,8 @@ export async function executeRustDeskDisconnectCommand(
       ...baseMetadata(config),
       fallback_reason: fallbackReason,
       collateral_sessions_may_disconnect: true,
+      emergency_fallback_authorized: true,
+      emergency_fallback_reason: command.emergency_fallback_reason,
       ...(!fallback.ok ? { fallback_result_reason: adapterFailureReason(fallback) } : {}),
       ...(fallback.timedOut ? { timed_out: true } : {}),
       ...(fallback.signal ? { signal: fallback.signal } : {}),
@@ -415,7 +482,15 @@ async function runAdapter(
           OPC_RUSTDESK_EXTERNAL_ID: command.external_id,
           OPC_RUSTDESK_TARGET_ID: command.target_id,
           OPC_RUSTDESK_RUSTDESK_ID: command.rustdesk_id,
-          OPC_RUSTDESK_DISCONNECT_REASON: command.requested_reason
+          OPC_RUSTDESK_CONTROLLER_RUSTDESK_ID: command.controller_rustdesk_id,
+          OPC_RUSTDESK_DISCONNECT_REASON: command.requested_reason,
+          OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL:
+            command.native_control_protocol || 'ivekit-rustdesk-native-control-v1',
+          OPC_RUSTDESK_INTERACTION_ID: command.interaction_id || '',
+          OPC_RUSTDESK_RESERVATION_ID: command.reservation_id || '',
+          OPC_RUSTDESK_OWNER_EPOCH: command.owner_epoch || '',
+          OPC_RUSTDESK_EMERGENCY_FALLBACK_AUTHORIZED: command.emergency_fallback_authorized ? '1' : '0',
+          OPC_RUSTDESK_EMERGENCY_FALLBACK_REASON: command.emergency_fallback_reason
         },
         detached: process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe']
@@ -462,7 +537,13 @@ function materializeAdapterArgs(
     '{external_id}': command.external_id,
     '{target_id}': command.target_id,
     '{rustdesk_id}': command.rustdesk_id,
-    '{requested_reason}': command.requested_reason
+    '{controller_rustdesk_id}': command.controller_rustdesk_id,
+    '{requested_reason}': command.requested_reason,
+    '{native_control_protocol}':
+      command.native_control_protocol || 'ivekit-rustdesk-native-control-v1',
+    '{interaction_id}': command.interaction_id || '',
+    '{reservation_id}': command.reservation_id || '',
+    '{owner_epoch}': command.owner_epoch || ''
   };
   return args.map((arg) => {
     const placeholders = arg.match(/\{[a-z_]+\}/g) || [];
@@ -479,7 +560,10 @@ function validateExecutionCommand(command: RustDeskEdgeClaimCommand): void {
     ['id', command.id],
     ['external_id', command.external_id],
     ['target_id', command.target_id],
-    ['rustdesk_id', command.rustdesk_id]
+    ['rustdesk_id', command.rustdesk_id],
+    ...(command.controller_rustdesk_id
+      ? [['controller_rustdesk_id', command.controller_rustdesk_id] as const]
+      : [])
   ] as const) {
     if (!/^[A-Za-z0-9._:@/-]{1,256}$/.test(String(value || ''))) {
       throw new Error(`RustDesk command ${name} contains unsupported characters or length`);
@@ -488,6 +572,18 @@ function validateExecutionCommand(command: RustDeskEdgeClaimCommand): void {
   if (!['consent_revoked', 'remote_session_ended', 'tool_ended', 'gateway_ended'].includes(command.requested_reason)) {
     throw new Error('RustDesk command requested_reason is unsupported');
   }
+  const protocol = command.native_control_protocol || 'ivekit-rustdesk-native-control-v1';
+  if (
+    protocol !== 'ivekit-rustdesk-native-control-v1' &&
+    protocol !== 'ivekit-rustdesk-native-control-v2'
+  ) {
+    throw new Error('RustDesk command native_control_protocol is unsupported');
+  }
+  assertRustDeskOwnerBinding(
+    commandOwnerIdentity(command),
+    commandOwnerIdentity(command),
+    protocol === 'ivekit-rustdesk-native-control-v2'
+  );
 }
 
 function terminateAdapterProcess(
@@ -588,7 +684,27 @@ function executionResult(
   };
 }
 
-function decodeClaimCommand(value: unknown): RustDeskEdgeClaimCommand {
+function rejectedBeforeNativeExecution(
+  config: RustDeskEdgeCommandExecutionConfig,
+  error: unknown
+): RustDeskEdgeCommandExecutionResult {
+  const result = missingAdapterResult('owner_epoch_rejected');
+  return executionResult('failed', 'session_adapter', result, {
+    ...baseMetadata(config),
+    error_code: boundedErrorCode(error)
+  });
+}
+
+function boundedErrorCode(error: unknown): string {
+  const value = String((error as Error)?.message || 'owner_epoch_rejected');
+  return /^[a-z][a-z0-9_]{0,63}$/.test(value) ? value : 'owner_epoch_rejected';
+}
+
+function decodeClaimCommand(
+  value: unknown,
+  boundValue: unknown,
+  placementEnabled: boolean
+): RustDeskEdgeClaimCommand {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('RustDesk command claim is missing command');
   }
@@ -604,16 +720,91 @@ function decodeClaimCommand(value: unknown): RustDeskEdgeClaimCommand {
   if (!Number.isInteger(attempt) || attempt < 1) {
     throw new Error('RustDesk command attempt must be a positive integer');
   }
+  if (
+    command.emergency_fallback_authorized !== undefined &&
+    typeof command.emergency_fallback_authorized !== 'boolean'
+  ) {
+    throw new Error('RustDesk command emergency_fallback_authorized must be a boolean');
+  }
+  const emergencyFallbackAuthorized = command.emergency_fallback_authorized === true;
+  const emergencyFallbackReason = String(command.emergency_fallback_reason || '').trim();
+  if (emergencyFallbackAuthorized && (emergencyFallbackReason.length < 8 || emergencyFallbackReason.length > 500)) {
+    throw new Error('RustDesk command emergency_fallback_reason must be 8 to 500 characters');
+  }
+  if (!emergencyFallbackAuthorized && emergencyFallbackReason) {
+    throw new Error('RustDesk command emergency fallback reason requires authorization');
+  }
+  const owner = optionalOwnerIdentity(command);
+  const bound = optionalOwnerIdentity(boundValue);
+  const protocol = String(
+    command.native_control_protocol ||
+    (owner ? 'ivekit-rustdesk-native-control-v2' : 'ivekit-rustdesk-native-control-v1')
+  );
+  if (
+    protocol !== 'ivekit-rustdesk-native-control-v1' &&
+    protocol !== 'ivekit-rustdesk-native-control-v2'
+  ) {
+    throw new Error('RustDesk command native_control_protocol is unsupported');
+  }
+  if (protocol === 'ivekit-rustdesk-native-control-v1' && owner) {
+    throw new Error('RustDesk v1 command must not carry an owner binding');
+  }
+  assertRustDeskOwnerBinding(
+    owner,
+    bound,
+    placementEnabled || protocol === 'ivekit-rustdesk-native-control-v2'
+  );
   return {
     id: requiredString(command.id, 'RustDesk command id is required'),
     command_type: 'disconnect_session',
     external_id: requiredString(command.external_id, 'RustDesk command external_id is required'),
     target_id: requiredString(command.target_id, 'RustDesk command target_id is required'),
     rustdesk_id: requiredString(command.rustdesk_id, 'RustDesk command rustdesk_id is required'),
+    controller_rustdesk_id: String(command.controller_rustdesk_id || '').trim(),
     requested_reason: requestedReason,
     attempt,
-    lease_expires_at: requiredString(command.lease_expires_at, 'RustDesk command lease_expires_at is required')
+    lease_expires_at: requiredString(command.lease_expires_at, 'RustDesk command lease_expires_at is required'),
+    emergency_fallback_authorized: emergencyFallbackAuthorized,
+    emergency_fallback_reason: emergencyFallbackReason,
+    native_control_protocol: protocol,
+    ...(owner || {})
   };
+}
+
+function optionalOwnerIdentity(value: unknown): RustDeskOwnerIdentity | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('RustDesk owner binding must be an object');
+  }
+  const record = value as Record<string, unknown>;
+  const present = ['interaction_id', 'reservation_id', 'owner_epoch']
+    .filter((field) => record[field] !== undefined);
+  if (!present.length) return undefined;
+  if (present.length !== 3) throw new Error('RustDesk owner binding is incomplete');
+  return {
+    interaction_id: requiredString(record.interaction_id, 'RustDesk interaction_id is required'),
+    reservation_id: requiredString(record.reservation_id, 'RustDesk reservation_id is required'),
+    owner_epoch: ownerEpoch(record.owner_epoch)
+  };
+}
+
+function commandOwnerIdentity(
+  command: RustDeskEdgeClaimCommand | RustDeskEdgeSpoolCommand
+): RustDeskOwnerIdentity | undefined {
+  return optionalOwnerIdentity(command);
+}
+
+function ownerReport(command: RustDeskEdgeSpoolCommand): Record<string, string> {
+  const owner = commandOwnerIdentity(command);
+  return owner ? { ...owner } : {};
+}
+
+function ownerEpoch(value: unknown): string {
+  const normalized = String(value || '').trim();
+  if (!/^[1-9][0-9]{0,19}$/.test(normalized)) {
+    throw new Error('RustDesk command owner_epoch must be a positive decimal integer');
+  }
+  return BigInt(normalized).toString();
 }
 
 function requiredString(value: unknown, message: string): string {

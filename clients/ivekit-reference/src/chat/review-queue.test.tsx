@@ -78,6 +78,7 @@ function finding(overrides: Partial<IveKitPolicyFinding> = {}): IveKitPolicyFind
     source: 'text', source_ref_id: 'message-1', policy_type: 'Contact exchange', severity: 'medium',
     matched_text_hash: '', fingerprint: 'fingerprint-1', action: 'review', confidence: 0.8,
     rationale: 'Potential contact exchange', review_status: 'pending', evidence_refs: [], reviewed_by: '',
+    detector_version: 'rules-v1', policy_version: 'policy-v1', evidence_snapshot_hash: 'snapshot-hash', content_version: 1,
     reviewed_at: null, review_note: '', metadata: {}, created_at: '2026-07-13T00:00:00.000Z',
     updated_at: '2026-07-13T00:00:00.000Z', resolved_at: null,
     ...overrides

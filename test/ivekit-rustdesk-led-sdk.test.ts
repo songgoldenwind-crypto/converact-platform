@@ -194,6 +194,34 @@ test('iveKit RustDesk LED SDK standardizes typed operation audit helpers', async
   ]);
 });
 
+test('iveKit RustDesk LED SDK preserves the bounded evidence security label', async () => {
+  const calls: string[] = [];
+  const events: RecordIveKitRustDeskGatewayEventInput[] = [];
+  const sdk = createIveKitRustDeskLedSdk({
+    tenantId: 'tenant_led',
+    client: fakeLedClient(calls, { events })
+  });
+
+  await sdk.recordOperationObservation('rdgw_1', {
+    actorIdentity: 'agent_led',
+    operationId: 'native-transfer-1',
+    operation: 'transfer_file',
+    status: 'observed_succeeded',
+    observer: 'native_client',
+    observedAt: '2026-07-15T08:00:00.000Z',
+    evidenceSecurity: 'native_unscanned',
+    direction: 'upload',
+    evidenceRefs: [{
+      type: 'native_log',
+      ref: 'evidence://rustdesk/native-transfer-1',
+      sha256: `sha256:${'a'.repeat(64)}`
+    }]
+  });
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].metadata?.evidence_security, 'native_unscanned');
+});
+
 function fakeLedClient(
   calls: string[],
   options: {
@@ -338,6 +366,9 @@ function fakeLedClient(
     async endGatewaySession(externalId) {
       calls.push(`endGatewaySession:${externalId}`);
     },
+    async authorizeEmergencyFallback() {
+      throw new Error('not used by LED SDK fixture');
+    },
     async getGatewayDisconnectState(externalId) {
       calls.push(`getGatewayDisconnectState:${externalId}`);
       return {
@@ -352,6 +383,10 @@ function fakeLedClient(
           status: 'pending',
           requested_by: 'agent_led',
           requested_reason: 'gateway_ended',
+          emergency_fallback_authorized: false,
+          emergency_fallback_reason: '',
+          emergency_fallback_authorized_by: '',
+          emergency_fallback_authorized_at: null,
           attempt_count: 0,
           max_attempts: 3,
           claimed_by: '',

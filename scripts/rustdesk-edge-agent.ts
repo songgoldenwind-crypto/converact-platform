@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -7,6 +7,25 @@ import {
   rustDeskMinimumCommandLeaseMs,
   type RustDeskEdgeCommandPollResult
 } from './rustdesk-edge-command.js';
+import {
+  RustDeskObservationBridge,
+  type RustDeskObservationBridgePollResult
+} from './rustdesk-observation-bridge.js';
+import {
+  RustDeskEvidenceUploader,
+  createRustDeskEvidenceUploaderConfigFromEnv,
+  type RustDeskEvidenceUploaderPollResult
+} from './rustdesk-evidence-uploader.js';
+import {
+  RustDeskNativeEvidenceWatcher,
+  createRustDeskNativeEvidenceWatcherConfigFromEnv,
+  type RustDeskNativeEvidenceWatcherPollResult
+} from './rustdesk-native-evidence-watcher.js';
+import {
+  RustDeskNativeEvidenceCorrelator,
+  type RustDeskNativeEvidenceContext,
+  type RustDeskNativeEvidenceCorrelatorPollResult
+} from './rustdesk-native-evidence-correlator.js';
 
 export interface RustDeskEdgeAgentConfig {
   baseUrl: string;
@@ -26,6 +45,8 @@ export interface RustDeskEdgeAgentConfig {
   seenAt?: string;
   edgeInstanceId?: string;
   commandToken?: string;
+  deviceTokenMode?: boolean;
+  deviceTokenFile?: string;
   commandPollIntervalMs?: number;
   commandLeaseMs?: number;
   commandTimeoutMs?: number;
@@ -36,6 +57,38 @@ export interface RustDeskEdgeAgentConfig {
   spoolMaxBytes?: number;
   spoolMaxAgeMs?: number;
   spoolMaxQuarantineRecords?: number;
+  observationInputDir?: string;
+  observationSpoolDir?: string;
+  observationPollIntervalMs?: number;
+  observationBatchSize?: number;
+  observationRetryDelayMs?: number;
+  observationMaxAttempts?: number;
+  observationMaxInputBytes?: number;
+  observationMaxQuarantineRecords?: number;
+  evidenceInputDir?: string;
+  evidenceSpoolDir?: string;
+  evidencePollIntervalMs?: number;
+  evidenceSingleUploadMaxBytes?: number;
+  evidencePartSizeBytes?: number;
+  evidenceRetryDelayMs?: number;
+  evidenceMaxAttempts?: number;
+  evidenceMaxFileBytes?: number;
+  evidenceMaxQuarantineRecords?: number;
+  evidenceMaxTerminalRecords?: number;
+  evidenceDeadLetterRetentionMs?: number;
+  nativeEvidenceEventDir?: string;
+  nativeEvidenceCandidateDir?: string;
+  nativeEvidenceSpoolDir?: string;
+  nativeEvidenceFileRoots?: string[];
+  nativeEvidenceRecordingRoots?: string[];
+  nativeEvidenceStableMs?: number;
+  nativeEvidenceMaxEventBytes?: number;
+  nativeEvidenceMaxCandidateBytes?: number;
+  nativeEvidenceMaxPendingMs?: number;
+  placementEnabled?: boolean;
+  nativeControlProtocol?:
+    | 'ivekit-rustdesk-native-control-v1'
+    | 'ivekit-rustdesk-native-control-v2';
 }
 
 export interface RustDeskEdgeAdapter {
@@ -69,7 +122,10 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
     : env.OPC_BASE_URL
       ? 'OPC_BASE_URL'
       : 'OPC_COLLABORATION_BASE_URL';
+  const deviceToken = resolveDeviceToken(env);
+  const deviceTokenFile = String(env.OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE || '').trim();
   const apiKey = String(
+    deviceToken ||
     env.OPC_RUSTDESK_EDGE_API_KEY ||
     env.OPC_COLLABORATION_API_KEY ||
     env.OPC_API_KEY ||
@@ -84,6 +140,22 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
     env.OPC_RUSTDESK_EDGE_CLIENT_VERSION || metadata.client_version
   );
   const edgeOs = edgeOperatingSystem(env.OPC_RUSTDESK_EDGE_OS || metadata.os);
+  const placementEnabled = envFlag(env.OPC_IVEKIT_PLACEMENT_ENABLED);
+  const nativeControlProtocol = String(
+    env.OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL ||
+    (placementEnabled
+      ? 'ivekit-rustdesk-native-control-v2'
+      : 'ivekit-rustdesk-native-control-v1')
+  ).trim() as RustDeskEdgeAgentConfig['nativeControlProtocol'];
+  if (
+    nativeControlProtocol !== 'ivekit-rustdesk-native-control-v1' &&
+    nativeControlProtocol !== 'ivekit-rustdesk-native-control-v2'
+  ) {
+    throw new Error('OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL is invalid');
+  }
+  if (placementEnabled && nativeControlProtocol !== 'ivekit-rustdesk-native-control-v2') {
+    throw new Error('RustDesk placement requires ivekit-rustdesk-native-control-v2');
+  }
 
   if (!stripTrailingSlash(rawBaseUrl)) throw new Error('OPC_RUSTDESK_EDGE_BASE_URL or OPC_BASE_URL is required');
   const baseUrl = normalizeHttpBaseUrl(rawBaseUrl, baseUrlEnvName);
@@ -132,7 +204,7 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
     'OPC_RUSTDESK_EDGE_RESTART_EXECUTABLE',
     'OPC_RUSTDESK_EDGE_RESTART_ARGS_JSON'
   );
-  const commandToken = resolveCommandToken(env);
+  const commandToken = deviceToken || resolveCommandToken(env);
   if ((disconnectAdapter || restartAdapter) && !commandToken) {
     throw new Error('OPC_RUSTDESK_EDGE_COMMAND_TOKEN is required when a command adapter is configured');
   }
@@ -140,9 +212,66 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
   if ((disconnectAdapter || restartAdapter) && !spoolDir) {
     throw new Error('OPC_RUSTDESK_EDGE_SPOOL_DIR is required when a command adapter is configured');
   }
-  if (spoolDir && !isAbsolute(spoolDir)) {
+  if (spoolDir && !isAbsolutePath(spoolDir)) {
     throw new Error('OPC_RUSTDESK_EDGE_SPOOL_DIR must be an absolute path');
   }
+  const observationInputDir = String(env.OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR || '').trim();
+  const observationSpoolDir = String(env.OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR || '').trim();
+  if (Boolean(observationInputDir) !== Boolean(observationSpoolDir)) {
+    throw new Error('RustDesk observation input and spool directories must be configured together');
+  }
+  if ((observationInputDir || observationSpoolDir) && !deviceTokenFile) {
+    throw new Error('OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE is required for RustDesk observations');
+  }
+  for (const [path, name] of [
+    [observationInputDir, 'OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR'],
+    [observationSpoolDir, 'OPC_RUSTDESK_EDGE_OBSERVATION_SPOOL_DIR']
+  ] as const) {
+    if (path && !isAbsolutePath(path)) throw new Error(`${name} must be an absolute path`);
+  }
+  const evidenceInputDir = String(env.OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR || '').trim();
+  const evidenceSpoolDir = String(env.OPC_RUSTDESK_EDGE_EVIDENCE_SPOOL_DIR || '').trim();
+  if (Boolean(evidenceInputDir) !== Boolean(evidenceSpoolDir)) {
+    throw new Error('RustDesk evidence input and spool directories must be configured together');
+  }
+  if (evidenceInputDir && !observationInputDir) {
+    throw new Error('RustDesk evidence upload requires RustDesk observation input and spool directories');
+  }
+  const evidenceConfig = evidenceInputDir
+    ? createRustDeskEvidenceUploaderConfigFromEnv({
+      ...env,
+      OPC_RUSTDESK_EDGE_BASE_URL: baseUrl,
+      OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE: deviceTokenFile,
+      OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR: observationInputDir
+    })
+    : null;
+  const nativeEvidenceEventDir = String(env.OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR || '').trim();
+  const nativeEvidenceCandidateDir = String(
+    env.OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR || ''
+  ).trim();
+  const nativeEvidenceSpoolDir = String(env.OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR || '').trim();
+  if (
+    new Set([
+      Boolean(nativeEvidenceCandidateDir),
+      Boolean(nativeEvidenceEventDir),
+      Boolean(nativeEvidenceSpoolDir)
+    ]).size !== 1
+  ) {
+    throw new Error(
+      'RustDesk native evidence candidate, event, and spool directories must be configured together'
+    );
+  }
+  if (nativeEvidenceEventDir && !evidenceConfig) {
+    throw new Error('RustDesk native evidence watcher requires RustDesk evidence upload');
+  }
+  const nativeEvidenceConfig = nativeEvidenceEventDir
+    ? createRustDeskNativeEvidenceWatcherConfigFromEnv({
+      ...env,
+      OPC_RUSTDESK_EDGE_EVIDENCE_INPUT_DIR: evidenceInputDir,
+      OPC_RUSTDESK_NATIVE_EVIDENCE_EVENT_DIR: nativeEvidenceEventDir,
+      OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR: nativeEvidenceSpoolDir
+    })
+    : null;
   return {
     baseUrl,
     apiKey,
@@ -163,12 +292,16 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
       `rustdesk-edge-${rustdeskId}`
     ).trim(),
     commandToken,
+    deviceTokenMode: Boolean(deviceToken),
+    ...(deviceTokenFile ? { deviceTokenFile } : {}),
     commandPollIntervalMs,
     commandLeaseMs,
     commandTimeoutMs,
     disconnectAdapter,
     restartAdapter,
     disconnectCommandCapable: Boolean(disconnectAdapter || restartAdapter),
+    placementEnabled,
+    nativeControlProtocol,
     ...(spoolDir
       ? {
         spoolDir,
@@ -192,6 +325,100 @@ export function createRustDeskEdgeAgentConfigFromEnv(env: NodeJS.ProcessEnv): Ru
           100,
           1,
           10_000
+        )
+      }
+      : {}),
+    ...(observationInputDir
+      ? {
+        observationInputDir,
+        observationSpoolDir,
+        observationPollIntervalMs: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_OBSERVATION_POLL_INTERVAL_MS,
+          'OPC_RUSTDESK_EDGE_OBSERVATION_POLL_INTERVAL_MS',
+          2_000,
+          250,
+          300_000
+        ),
+        observationBatchSize: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE,
+          'OPC_RUSTDESK_EDGE_OBSERVATION_BATCH_SIZE',
+          20,
+          1,
+          100
+        ),
+        observationRetryDelayMs: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS,
+          'OPC_RUSTDESK_EDGE_OBSERVATION_RETRY_DELAY_MS',
+          5_000,
+          0,
+          3_600_000
+        ),
+        observationMaxAttempts: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_OBSERVATION_MAX_ATTEMPTS,
+          'OPC_RUSTDESK_EDGE_OBSERVATION_MAX_ATTEMPTS',
+          10,
+          1,
+          100
+        ),
+        observationMaxInputBytes: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_OBSERVATION_MAX_INPUT_BYTES,
+          'OPC_RUSTDESK_EDGE_OBSERVATION_MAX_INPUT_BYTES',
+          64 * 1_024,
+          1_024,
+          1_048_576
+        ),
+        observationMaxQuarantineRecords: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_OBSERVATION_MAX_QUARANTINE_RECORDS,
+          'OPC_RUSTDESK_EDGE_OBSERVATION_MAX_QUARANTINE_RECORDS',
+          100,
+          1,
+          10_000
+        )
+      }
+      : {}),
+    ...(evidenceConfig
+      ? {
+        evidenceInputDir: evidenceConfig.inputDirectory,
+        evidenceSpoolDir: evidenceConfig.spoolDirectory,
+        evidencePollIntervalMs: parseBoundedInteger(
+          env.OPC_RUSTDESK_EDGE_EVIDENCE_POLL_INTERVAL_MS,
+          'OPC_RUSTDESK_EDGE_EVIDENCE_POLL_INTERVAL_MS',
+          2_000,
+          250,
+          300_000
+        ),
+        evidenceSingleUploadMaxBytes: evidenceConfig.singleUploadMaxBytes,
+        evidencePartSizeBytes: evidenceConfig.partSizeBytes,
+        evidenceRetryDelayMs: evidenceConfig.retryDelayMs,
+        evidenceMaxAttempts: evidenceConfig.maxAttempts,
+        evidenceMaxFileBytes: evidenceConfig.maxFileBytes,
+        evidenceMaxQuarantineRecords: evidenceConfig.maxQuarantineRecords,
+        evidenceMaxTerminalRecords: evidenceConfig.maxTerminalRecords,
+        evidenceDeadLetterRetentionMs: evidenceConfig.deadLetterRetentionMs
+      }
+      : {}),
+    ...(nativeEvidenceConfig
+      ? {
+        nativeEvidenceEventDir: nativeEvidenceConfig.eventDirectory,
+        nativeEvidenceCandidateDir,
+        nativeEvidenceSpoolDir: nativeEvidenceConfig.spoolDirectory,
+        nativeEvidenceFileRoots: nativeEvidenceConfig.fileRoots,
+        nativeEvidenceRecordingRoots: nativeEvidenceConfig.recordingRoots,
+        nativeEvidenceStableMs: nativeEvidenceConfig.stableMs,
+        nativeEvidenceMaxEventBytes: nativeEvidenceConfig.maxEventBytes,
+        nativeEvidenceMaxCandidateBytes: parseBoundedInteger(
+          env.OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_CANDIDATE_BYTES,
+          'OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_CANDIDATE_BYTES',
+          64 * 1_024,
+          1_024,
+          1_048_576
+        ),
+        nativeEvidenceMaxPendingMs: parseBoundedInteger(
+          env.OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_PENDING_MS,
+          'OPC_RUSTDESK_NATIVE_EVIDENCE_MAX_PENDING_MS',
+          15 * 60_000,
+          30_000,
+          86_400_000
         )
       }
       : {}),
@@ -253,6 +480,7 @@ function validateAdapterArgs(args: string[], envName: string): string[] {
     '{external_id}',
     '{target_id}',
     '{rustdesk_id}',
+    '{controller_rustdesk_id}',
     '{requested_reason}'
   ]);
   for (const arg of args) {
@@ -267,6 +495,10 @@ function validateAdapterArgs(args: string[], envName: string): string[] {
 }
 
 function isAbsoluteExecutable(value: string): boolean {
+  return isAbsolutePath(value);
+}
+
+function isAbsolutePath(value: string): boolean {
   return isAbsolute(value) || /^[a-zA-Z]:[\\/]/.test(value) || /^\\\\/.test(value);
 }
 
@@ -300,6 +532,16 @@ export async function runRustDeskEdgeAgentOnce(
   config: RustDeskEdgeAgentConfig,
   fetchImpl: FetchLike = fetch
 ): Promise<RustDeskEdgeAgentResult> {
+  if (config.deviceTokenMode) {
+    const heartbeat = await postDeviceTokenHeartbeat(config, fetchImpl);
+    return {
+      deviceId: heartbeat.id,
+      rustdeskId: heartbeat.rustdesk_id || config.rustdeskId,
+      registered: false,
+      runtimeStatus: heartbeat.runtime_status || config.runtimeStatus,
+      lastSeenAt: String(heartbeat.last_seen_at || config.seenAt || '')
+    };
+  }
   const existing = await findRegisteredDevice(config, fetchImpl);
   const device = existing || await registerDevice(config, fetchImpl);
   const heartbeat = await postHeartbeat(config, device.id, fetchImpl);
@@ -312,6 +554,28 @@ export async function runRustDeskEdgeAgentOnce(
   };
 }
 
+async function postDeviceTokenHeartbeat(
+  config: RustDeskEdgeAgentConfig,
+  fetchImpl: FetchLike
+): Promise<RustDeskDevicePayload> {
+  const payload = apiResponseData<RustDeskDevicePayload>(await requestJson<unknown>(
+    config,
+    fetchImpl,
+    '/api/ivekit/rustdesk/edge/heartbeat',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        business_ref: config.businessRef,
+        runtime_status: config.runtimeStatus,
+        seen_at: config.seenAt || new Date().toISOString(),
+        metadata: deviceTokenHeartbeatMetadata(config)
+      })
+    }
+  ));
+  if (!payload?.id) throw new Error('RustDesk device-token heartbeat did not return a device id');
+  return payload;
+}
+
 async function findRegisteredDevice(
   config: RustDeskEdgeAgentConfig,
   fetchImpl: FetchLike
@@ -321,13 +585,13 @@ async function findRegisteredDevice(
     business_ref_id: config.businessRef.id,
     limit: '50'
   });
-  const payload = await requestJson<{ data?: RustDeskDevicePayload[] }>(
+  const payload = apiResponseData<RustDeskDevicePayload[]>(await requestJson<unknown>(
     config,
     fetchImpl,
     `/api/collaboration/rustdesk/devices/by-ref?${params.toString()}`,
     { method: 'GET' }
-  );
-  const devices = Array.isArray(payload.data) ? payload.data : [];
+  ));
+  const devices = Array.isArray(payload) ? payload : [];
   return devices.find((device) =>
     device.status !== 'inactive' &&
     String(device.rustdesk_id || '').trim() === config.rustdeskId
@@ -338,7 +602,7 @@ async function registerDevice(
   config: RustDeskEdgeAgentConfig,
   fetchImpl: FetchLike
 ): Promise<RustDeskDevicePayload> {
-  const payload = await requestJson<{ data?: RustDeskDevicePayload }>(
+  const payload = apiResponseData<RustDeskDevicePayload>(await requestJson<unknown>(
     config,
     fetchImpl,
     '/api/collaboration/rustdesk/devices',
@@ -357,9 +621,9 @@ async function registerDevice(
         }
       })
     }
-  );
-  if (!payload.data?.id) throw new Error('RustDesk device registration did not return a device id');
-  return payload.data;
+  ));
+  if (!payload?.id) throw new Error('RustDesk device registration did not return a device id');
+  return payload;
 }
 
 async function postHeartbeat(
@@ -367,7 +631,7 @@ async function postHeartbeat(
   deviceId: string,
   fetchImpl: FetchLike
 ): Promise<RustDeskDevicePayload> {
-  const payload = await requestJson<{ data?: RustDeskDevicePayload }>(
+  const payload = apiResponseData<RustDeskDevicePayload>(await requestJson<unknown>(
     config,
     fetchImpl,
     `/api/collaboration/rustdesk/devices/${encodeURIComponent(deviceId)}/heartbeat`,
@@ -380,9 +644,9 @@ async function postHeartbeat(
         metadata: heartbeatMetadata(config)
       })
     }
-  );
-  if (!payload.data?.id) throw new Error('RustDesk heartbeat did not return a device id');
-  return payload.data;
+  ));
+  if (!payload?.id) throw new Error('RustDesk heartbeat did not return a device id');
+  return payload;
 }
 
 export function createRustDeskEdgeCommandProcessor(
@@ -396,6 +660,7 @@ export function createRustDeskEdgeCommandProcessor(
       commandToken: requiredCommandToken(config.commandToken),
       edgeInstanceId,
       commandLeaseMs: config.commandLeaseMs || 40_000,
+      placementEnabled: config.placementEnabled === true,
       execution: {
         timeoutMs: config.commandTimeoutMs || 15_000,
         edgeInstanceId,
@@ -431,6 +696,151 @@ export async function runRustDeskEdgeAgentCommandOnce(
   } finally {
     await processor.close();
   }
+}
+
+export async function createRustDeskEdgeObservationBridge(
+  config: RustDeskEdgeAgentConfig,
+  fetchImpl: FetchLike = fetch
+): Promise<RustDeskObservationBridge | null> {
+  if (!observationCapable(config)) return null;
+  return RustDeskObservationBridge.open({
+    baseUrl: config.baseUrl,
+    deviceTokenFile: config.deviceTokenFile!,
+    inputDirectory: config.observationInputDir!,
+    spoolDirectory: config.observationSpoolDir!,
+    batchSize: config.observationBatchSize || 20,
+    retryDelayMs: config.observationRetryDelayMs ?? 5_000,
+    maxAttempts: config.observationMaxAttempts || 10,
+    maxInputBytes: config.observationMaxInputBytes || 64 * 1_024,
+    maxQuarantineRecords: config.observationMaxQuarantineRecords || 100,
+    placementEnabled: config.placementEnabled === true
+  }, fetchImpl);
+}
+
+export async function runRustDeskEdgeObservationOnce(
+  config: RustDeskEdgeAgentConfig,
+  deviceId: string,
+  fetchImpl: FetchLike = fetch
+): Promise<RustDeskObservationBridgePollResult> {
+  const bridge = await createRustDeskEdgeObservationBridge(config, fetchImpl);
+  if (!bridge) return { ingested: 0, forwarded: 0, deadLettered: 0 };
+  try {
+    return await bridge.pollOnce(deviceId);
+  } finally {
+    await bridge.close();
+  }
+}
+
+export async function createRustDeskEdgeEvidenceUploader(
+  config: RustDeskEdgeAgentConfig,
+  fetchImpl: FetchLike = fetch
+): Promise<RustDeskEvidenceUploader | null> {
+  if (!evidenceUploadCapable(config)) return null;
+  return RustDeskEvidenceUploader.open({
+    baseUrl: config.baseUrl,
+    deviceTokenFile: config.deviceTokenFile!,
+    inputDirectory: config.evidenceInputDir!,
+    spoolDirectory: config.evidenceSpoolDir!,
+    observationDirectory: config.observationInputDir!,
+    singleUploadMaxBytes: config.evidenceSingleUploadMaxBytes || 64 * 1_024 * 1_024,
+    partSizeBytes: config.evidencePartSizeBytes || 8 * 1_024 * 1_024,
+    retryDelayMs: config.evidenceRetryDelayMs ?? 5_000,
+    maxAttempts: config.evidenceMaxAttempts || 10,
+    maxFileBytes: config.evidenceMaxFileBytes || 10 * 1_024 * 1_024 * 1_024,
+    maxQuarantineRecords: config.evidenceMaxQuarantineRecords || 100,
+    maxTerminalRecords: config.evidenceMaxTerminalRecords || 2_000,
+    deadLetterRetentionMs: config.evidenceDeadLetterRetentionMs || 7 * 24 * 60 * 60_000
+  }, fetchImpl);
+}
+
+export async function runRustDeskEdgeEvidenceOnce(
+  config: RustDeskEdgeAgentConfig,
+  deviceId: string,
+  fetchImpl: FetchLike = fetch
+): Promise<RustDeskEvidenceUploaderPollResult> {
+  const uploader = await createRustDeskEdgeEvidenceUploader(config, fetchImpl);
+  if (!uploader) return { ingested: 0, uploaded: 0, deadLettered: 0 };
+  try {
+    return await uploader.pollOnce(deviceId);
+  } finally {
+    await uploader.close();
+  }
+}
+
+export async function createRustDeskEdgeNativeEvidenceWatcher(
+  config: RustDeskEdgeAgentConfig
+): Promise<RustDeskNativeEvidenceWatcher | null> {
+  if (!nativeEvidenceCapable(config)) return null;
+  return RustDeskNativeEvidenceWatcher.open({
+    eventDirectory: config.nativeEvidenceEventDir!,
+    evidenceDirectory: config.evidenceInputDir!,
+    spoolDirectory: config.nativeEvidenceSpoolDir!,
+    fileRoots: config.nativeEvidenceFileRoots!,
+    recordingRoots: config.nativeEvidenceRecordingRoots!,
+    stableMs: config.nativeEvidenceStableMs ?? 2_000,
+    maxFileBytes: config.evidenceMaxFileBytes || 10 * 1_024 * 1_024 * 1_024,
+    maxEventBytes: config.nativeEvidenceMaxEventBytes || 64 * 1_024,
+    maxQuarantineRecords: config.evidenceMaxQuarantineRecords || 100
+  });
+}
+
+export async function runRustDeskNativeEvidenceOnce(
+  config: RustDeskEdgeAgentConfig
+): Promise<RustDeskNativeEvidenceWatcherPollResult> {
+  const watcher = await createRustDeskEdgeNativeEvidenceWatcher(config);
+  if (!watcher) return { ingested: 0, staged: 0, waiting: 0, quarantined: 0 };
+  try {
+    return await watcher.pollOnce();
+  } finally {
+    await watcher.close();
+  }
+}
+
+export async function createRustDeskNativeEvidenceCorrelator(
+  config: RustDeskEdgeAgentConfig
+): Promise<RustDeskNativeEvidenceCorrelator | null> {
+  if (!nativeEvidenceCapable(config)) return null;
+  return RustDeskNativeEvidenceCorrelator.open({
+    candidateDirectory: config.nativeEvidenceCandidateDir!,
+    eventDirectory: config.nativeEvidenceEventDir!,
+    maxCandidateBytes: config.nativeEvidenceMaxCandidateBytes || 64 * 1_024,
+    maxPendingMs: config.nativeEvidenceMaxPendingMs || 15 * 60_000,
+    maxQuarantineRecords: config.evidenceMaxQuarantineRecords || 100
+  });
+}
+
+export async function runRustDeskNativeEvidenceCorrelationOnce(
+  config: RustDeskEdgeAgentConfig,
+  deviceId: string,
+  fetchImpl: FetchLike = fetch
+): Promise<RustDeskNativeEvidenceCorrelatorPollResult> {
+  const correlator = await createRustDeskNativeEvidenceCorrelator(config);
+  if (!correlator) return { correlated: 0, waiting: 0, quarantined: 0 };
+  const context = await fetchRustDeskNativeEvidenceContext(config, deviceId, fetchImpl);
+  return correlator.pollOnce(context);
+}
+
+async function fetchRustDeskNativeEvidenceContext(
+  config: RustDeskEdgeAgentConfig,
+  deviceId: string,
+  fetchImpl: FetchLike = fetch
+): Promise<RustDeskNativeEvidenceContext> {
+  const payload = apiResponseData<RustDeskNativeEvidenceContext>(await requestJson<unknown>(
+    config,
+    fetchImpl,
+    `/api/ivekit/rustdesk/devices/${encodeURIComponent(deviceId)}/evidence-context`,
+    { method: 'GET' }
+  ));
+  if (!payload) throw new Error('RustDesk native evidence context response is missing data');
+  return payload;
+}
+
+function apiResponseData<T>(value: unknown): T {
+  if (value && typeof value === 'object' && !Array.isArray(value) &&
+      Object.prototype.hasOwnProperty.call(value, 'data')) {
+    return (value as { data: T }).data;
+  }
+  return value as T;
 }
 
 async function requestJson<T>(
@@ -504,6 +914,41 @@ function resolveCommandToken(env: NodeJS.ProcessEnv): string {
   return fileValue;
 }
 
+function resolveDeviceToken(env: NodeJS.ProcessEnv): string {
+  const filePath = String(env.OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE || '').trim();
+  if (!filePath) return '';
+  if (
+    String(
+      env.OPC_RUSTDESK_EDGE_API_KEY ||
+      env.OPC_COLLABORATION_API_KEY ||
+      env.OPC_API_KEY ||
+      env.OPC_RUSTDESK_EDGE_COMMAND_TOKEN ||
+      env.OPC_RUSTDESK_EDGE_COMMAND_TOKEN_FILE ||
+      ''
+    ).trim()
+  ) {
+    throw new Error(
+      'OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE must not be combined with legacy API or command credentials'
+    );
+  }
+  let fileValue = '';
+  try {
+    if (lstatSync(filePath).isSymbolicLink()) {
+      throw new Error('symbolic-link');
+    }
+    fileValue = readFileSync(filePath, 'utf8').trim();
+  } catch (error) {
+    if ((error as Error).message === 'symbolic-link') {
+      throw new Error(`OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE must not be a symbolic link: ${filePath}`);
+    }
+    throw new Error(`OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE cannot be read: ${filePath}`);
+  }
+  if (fileValue.length < 32 || fileValue.length > 4_096 || /\s/.test(fileValue)) {
+    throw new Error(`OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE content is invalid: ${filePath}`);
+  }
+  return fileValue;
+}
+
 function parseMetadataJson(value: string | undefined): Record<string, unknown> {
   const raw = String(value || '').trim();
   if (!raw) return {};
@@ -567,14 +1012,27 @@ async function main(): Promise<void> {
   if (envFlag(process.env.OPC_RUSTDESK_EDGE_ONCE)) {
     const result = await runRustDeskEdgeAgentOnce(config);
     const command = await runRustDeskEdgeAgentCommandOnce(config, result.deviceId);
-    console.log(JSON.stringify({ ...result, command }, null, 2));
+    const nativeCorrelation = await runRustDeskNativeEvidenceCorrelationOnce(config, result.deviceId);
+    const nativeEvidence = await runRustDeskNativeEvidenceOnce(config);
+    const evidence = await runRustDeskEdgeEvidenceOnce(config, result.deviceId);
+    const observations = await runRustDeskEdgeObservationOnce(config, result.deviceId);
+    console.log(JSON.stringify({
+      ...result, command, nativeCorrelation, nativeEvidence, evidence, observations
+    }, null, 2));
     return;
   }
 
   const commandProcessor = createRustDeskEdgeCommandProcessor(config);
+  const nativeEvidenceCorrelator = await createRustDeskNativeEvidenceCorrelator(config);
+  const nativeEvidenceWatcher = await createRustDeskEdgeNativeEvidenceWatcher(config);
+  const evidenceUploader = await createRustDeskEdgeEvidenceUploader(config);
+  const observationBridge = await createRustDeskEdgeObservationBridge(config);
   let deviceId = '';
   let heartbeatRunning = false;
   let commandRunning = false;
+  let evidenceRunning = false;
+  let nativeEvidenceRunning = false;
+  let observationRunning = false;
   const beat = async () => {
     if (heartbeatRunning) return;
     heartbeatRunning = true;
@@ -596,12 +1054,65 @@ async function main(): Promise<void> {
       commandRunning = false;
     }
   };
+  const pollObservations = async () => {
+    if (!observationBridge || !deviceId || observationRunning) return;
+    observationRunning = true;
+    try {
+      const observations = await observationBridge.pollOnce(deviceId);
+      if (observations.ingested || observations.forwarded || observations.deadLettered) {
+        console.log(JSON.stringify({ at: new Date().toISOString(), observations }));
+      }
+    } finally {
+      observationRunning = false;
+    }
+  };
+  const pollEvidence = async () => {
+    if (!evidenceUploader || !deviceId || evidenceRunning) return;
+    evidenceRunning = true;
+    try {
+      const evidence = await evidenceUploader.pollOnce(deviceId);
+      if (evidence.ingested || evidence.uploaded || evidence.deadLettered) {
+        console.log(JSON.stringify({ at: new Date().toISOString(), evidence }));
+      }
+    } finally {
+      evidenceRunning = false;
+    }
+  };
+  const pollNativeEvidence = async () => {
+    if ((!nativeEvidenceCorrelator && !nativeEvidenceWatcher) || !deviceId || nativeEvidenceRunning) return;
+    nativeEvidenceRunning = true;
+    try {
+      const nativeCorrelation = nativeEvidenceCorrelator
+        ? await nativeEvidenceCorrelator.pollOnce(
+          await fetchRustDeskNativeEvidenceContext(config, deviceId)
+        )
+        : { correlated: 0, waiting: 0, quarantined: 0 };
+      const nativeEvidence = nativeEvidenceWatcher
+        ? await nativeEvidenceWatcher.pollOnce()
+        : { ingested: 0, staged: 0, waiting: 0, quarantined: 0 };
+      if (
+        nativeCorrelation.correlated || nativeCorrelation.waiting || nativeCorrelation.quarantined ||
+        nativeEvidence.ingested || nativeEvidence.staged ||
+        nativeEvidence.waiting || nativeEvidence.quarantined
+      ) {
+        console.log(JSON.stringify({ at: new Date().toISOString(), nativeCorrelation, nativeEvidence }));
+      }
+    } finally {
+      nativeEvidenceRunning = false;
+    }
+  };
   await beat();
+  await pollNativeEvidence();
+  await pollEvidence();
+  await pollObservations();
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
     await commandProcessor.close();
+    await nativeEvidenceWatcher?.close();
+    await evidenceUploader?.close();
+    await observationBridge?.close();
     if (config.offlineOnExit) {
       try {
         const result = await runRustDeskEdgeAgentOffline(config);
@@ -628,6 +1139,21 @@ async function main(): Promise<void> {
       console.error((error as Error).message);
     });
   }, config.commandPollIntervalMs || 2_000);
+  setInterval(() => {
+    void pollNativeEvidence().catch((error) => {
+      console.error((error as Error).message);
+    });
+  }, config.evidencePollIntervalMs || 2_000);
+  setInterval(() => {
+    void pollEvidence().catch((error) => {
+      console.error((error as Error).message);
+    });
+  }, config.evidencePollIntervalMs || 2_000);
+  setInterval(() => {
+    void pollObservations().catch((error) => {
+      console.error((error as Error).message);
+    });
+  }, config.observationPollIntervalMs || 2_000);
 }
 
 function envFlag(value: string | undefined): boolean {
@@ -639,9 +1165,61 @@ function heartbeatMetadata(config: RustDeskEdgeAgentConfig): Record<string, unkn
   return {
     ...config.metadata,
     disconnect_command_capable: disconnectCommandCapable(config),
+    native_control_protocol:
+      config.nativeControlProtocol || 'ivekit-rustdesk-native-control-v1',
     edge_instance_id: edgeInstanceIdForConfig(config),
     command_poll_interval_ms: config.commandPollIntervalMs || 2_000
   };
+}
+
+function deviceTokenHeartbeatMetadata(config: RustDeskEdgeAgentConfig): Record<string, unknown> {
+  return {
+    disconnect_command_capable: disconnectCommandCapable(config),
+    observation_capable: observationCapable(config),
+    evidence_upload_capable: evidenceUploadCapable(config),
+    native_evidence_capable: nativeEvidenceCapable(config),
+    native_control_protocol:
+      config.nativeControlProtocol || 'ivekit-rustdesk-native-control-v1',
+    command_poll_interval_ms: config.commandPollIntervalMs || 2_000,
+    ...(config.observationPollIntervalMs === undefined
+      ? {}
+      : { observation_poll_interval_ms: config.observationPollIntervalMs }),
+    ...(config.evidencePollIntervalMs === undefined
+      ? {}
+      : { evidence_poll_interval_ms: config.evidencePollIntervalMs }),
+    ...(config.metadata.client_version
+      ? { client_version: config.metadata.client_version }
+      : {}),
+    ...(config.metadata.os ? { os: config.metadata.os } : {})
+  };
+}
+
+function observationCapable(config: RustDeskEdgeAgentConfig): boolean {
+  return Boolean(
+    config.deviceTokenMode &&
+    config.deviceTokenFile &&
+    config.observationInputDir &&
+    config.observationSpoolDir
+  );
+}
+
+function evidenceUploadCapable(config: RustDeskEdgeAgentConfig): boolean {
+  return Boolean(
+    observationCapable(config) &&
+    config.evidenceInputDir &&
+    config.evidenceSpoolDir
+  );
+}
+
+function nativeEvidenceCapable(config: RustDeskEdgeAgentConfig): boolean {
+  return Boolean(
+    evidenceUploadCapable(config) &&
+    config.nativeEvidenceEventDir &&
+    config.nativeEvidenceCandidateDir &&
+    config.nativeEvidenceSpoolDir &&
+    config.nativeEvidenceFileRoots?.length &&
+    config.nativeEvidenceRecordingRoots?.length
+  );
 }
 
 function disconnectCommandCapable(config: RustDeskEdgeAgentConfig): boolean {

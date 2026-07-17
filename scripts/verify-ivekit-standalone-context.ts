@@ -20,10 +20,14 @@ run('npm', npmCiArgs, outputDir);
 run('npm', ['run', 'build'], outputDir);
 const entrypoints = [
   'ivekit-server.js',
+  'ivekit-worker.js',
   'ivekit-migrate.js',
   'ivekit-init-runtime-role.js',
   'ivekit-intelligence-preflight.js',
   'ivekit-render-rustpbx-config.js',
+  'ivekit-rustpbx-route-snapshot.js',
+  'ivekit-rustpbx-recording-spool.js',
+  'ivekit-component-node-admission.js',
   'ivekit-rustpbx-recovery.js',
   'ivekit-voice-preflight.js'
 ].map((name) => join(outputDir, 'dist', name));

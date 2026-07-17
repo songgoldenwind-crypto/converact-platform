@@ -5,6 +5,19 @@ import {
 
 export type AttachmentProcessor = 'ocr' | 'asr';
 export type AttachmentProviderMode = 'self_hosted' | 'third_party';
+export type AttachmentMediaMode = 'text' | 'video_frame_sampling';
+export type AttachmentVisualObservationType = 'qr_code' | 'barcode' | 'text_region';
+
+export interface AttachmentVisualObservation {
+  type: AttachmentVisualObservationType;
+  value: string;
+  symbology?: string;
+  confidence?: number;
+  frame_timestamp_ms?: number;
+  page?: number;
+  metadata?: Record<string, unknown>;
+}
+
 export interface AttachmentTextExtractionInput {
   attachment_id: string;
   tenant_id: string;
@@ -15,6 +28,9 @@ export interface AttachmentTextExtractionInput {
   source_ref: string;
   storage_url?: string;
   content: Buffer;
+  media_mode?: AttachmentMediaMode;
+  frame_interval_ms?: number;
+  max_frames?: number;
 }
 
 export interface AttachmentTextExtractionResult {
@@ -23,6 +39,7 @@ export interface AttachmentTextExtractionResult {
   language?: string;
   provider_request_id?: string;
   metadata?: Record<string, unknown>;
+  observations?: AttachmentVisualObservation[];
 }
 
 export interface AttachmentTextProvider {
@@ -92,6 +109,18 @@ export function createHttpAttachmentTextProvider(
       form.set('session_id', input.session_id);
       form.set('message_id', input.message_id);
       form.set('source_ref', input.source_ref);
+      const mediaMode = input.media_mode || (
+        input.content_type.toLowerCase().startsWith('video/') ? 'video_frame_sampling' : 'text'
+      );
+      form.set('media_mode', mediaMode);
+      if (mediaMode === 'video_frame_sampling') {
+        form.set('frame_interval_ms', String(boundedInteger(
+          input.frame_interval_ms, 2_000, 500, 60_000, 'frame_interval_ms'
+        )));
+        form.set('max_frames', String(boundedInteger(
+          input.max_frames, 120, 1, 600, 'max_frames'
+        )));
+      }
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -157,6 +186,9 @@ export function createHttpAttachmentTextProvider(
             : {}),
         ...(isRecord(payload.metadata)
           ? { metadata: sanitizeProviderMetadata(payload.metadata, { secretValues: [config.token || ''] }) }
+          : {}),
+        ...('observations' in payload
+          ? { observations: normalizeObservations(payload.observations, config.token || '') }
           : {})
       };
     }
@@ -172,6 +204,78 @@ function boundedTimeout(value: number): number {
     throw new Error('attachment provider timeout must be between 1000 and 300000 ms');
   }
   return Math.floor(value);
+}
+
+function boundedInteger(
+  value: number | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+  field: string
+): number {
+  const resolved = value == null ? fallback : Number(value);
+  if (!Number.isInteger(resolved) || resolved < min || resolved > max) {
+    throw new AttachmentProviderError(
+      `${field} is invalid`,
+      'provider_input_invalid',
+      false
+    );
+  }
+  return resolved;
+}
+
+function normalizeObservations(value: unknown, token: string): AttachmentVisualObservation[] {
+  if (!Array.isArray(value) || value.length > 500) throw invalidObservationResponse();
+  return value.map((item) => normalizeObservation(item, token));
+}
+
+function normalizeObservation(value: unknown, token: string): AttachmentVisualObservation {
+  if (!isRecord(value)) throw invalidObservationResponse();
+  const type = String(value.type || '') as AttachmentVisualObservationType;
+  if (type !== 'qr_code' && type !== 'barcode' && type !== 'text_region') {
+    throw invalidObservationResponse();
+  }
+  if (typeof value.value !== 'string' || !value.value.trim() || Buffer.byteLength(value.value, 'utf8') > 4_096) {
+    throw invalidObservationResponse();
+  }
+  const symbology = String(value.symbology || '').trim().toUpperCase();
+  if (symbology && !/^[A-Z0-9_.-]{1,32}$/.test(symbology)) throw invalidObservationResponse();
+  const confidence = optionalBoundedNumber(value.confidence, 0, 1);
+  const frameTimestamp = optionalBoundedInteger(value.frame_timestamp_ms, 0, 86_400_000);
+  const page = optionalBoundedInteger(value.page, 1, 10_000);
+  return {
+    type,
+    value: value.value,
+    ...(symbology ? { symbology } : {}),
+    ...(confidence != null ? { confidence } : {}),
+    ...(frameTimestamp != null ? { frame_timestamp_ms: frameTimestamp } : {}),
+    ...(page != null ? { page } : {}),
+    ...(isRecord(value.metadata)
+      ? { metadata: sanitizeProviderMetadata(value.metadata, { secretValues: [token] }) }
+      : {})
+  };
+}
+
+function optionalBoundedNumber(value: unknown, min: number, max: number): number | null {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) throw invalidObservationResponse();
+  return parsed;
+}
+
+function optionalBoundedInteger(value: unknown, min: number, max: number): number | null {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) throw invalidObservationResponse();
+  return parsed;
+}
+
+function invalidObservationResponse(): AttachmentProviderError {
+  return new AttachmentProviderError(
+    'attachment provider returned invalid observations',
+    'provider_invalid_response',
+    false
+  );
 }
 
 async function readBoundedJson(

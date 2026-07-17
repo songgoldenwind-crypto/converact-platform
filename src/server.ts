@@ -5,6 +5,10 @@ import { initWebSocket, wsBroadcast } from './ws.js';
 import { connectNats } from './infra/nats-client.js';
 import { startCallCenterRuntime } from './agent-runtime/call-center/call-center-runtime.js';
 import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
+import { createConfiguredPlacementFoundation } from './agent-runtime/ivekit/placement/index.js';
+import {
+  rustDeskOwnerBindingPrepareClientFromEnv
+} from './agent-runtime/ivekit/placement/rustdesk-owner-binding.js';
 import {
   IveKitTenantEventStore,
   iveKitEventReplayEnabled
@@ -61,11 +65,38 @@ async function main() {
   const db = new PgSyncDatabase();
   migrateIvrRuntimeTables(db);
 
-  const server = createServer(db, pg);
+  const instanceId = process.env.OPC_IVEKIT_INSTANCE_ID ||
+    process.env.HOSTNAME ||
+    `opc-${process.pid}`;
+  process.env.OPC_IVEKIT_INSTANCE_ID = instanceId;
+  const placement = createConfiguredPlacementFoundation({
+    pg,
+    instance_id: instanceId
+  });
+  const rustdeskOwnerBindings = rustDeskOwnerBindingPrepareClientFromEnv();
+  const server = createServer(db, pg, {
+    ivekitMedia: {
+      placement: placement?.media,
+      egressPlacement: placement?.egress
+    },
+    ivekitChat: {
+      tinodePlacement: placement?.tinode,
+      placementWorkerId: placement?.worker_id
+    },
+    collaboration: {
+      rustdeskPlacement: placement?.rustdesk,
+      ...(rustdeskOwnerBindings ? { rustdeskOwnerBindings } : {}),
+      placementWorkerId: placement?.worker_id
+    }
+  });
   initWebSocket(server, iveKitEventReplayEnabled()
     ? { eventStore: new IveKitTenantEventStore(pg) }
     : {});
-  const iveKitApplication = startIveKitApplication({ pg });
+  const iveKitApplication = startIveKitApplication({
+    pg,
+    instanceId,
+    placement: placement || undefined
+  });
 
   void connectNats().catch((error) => {
     console.warn('[nats] optional connect skipped:', error instanceof Error ? error.message : error);

@@ -77,6 +77,42 @@ test('Tinode bootstrap verifies existing service account credentials', async () 
   }
 });
 
+test('Tinode bootstrap treats an unchanged-account 304 as existing and verifies login', async () => {
+  const server = new WebSocketServer({ port: 0 });
+  const address = server.address() as { port: number };
+  const kinds: string[] = [];
+  server.on('connection', (socket) => {
+    socket.on('message', (raw) => {
+      const packet = JSON.parse(String(raw));
+      const kind = packet.hi ? 'hi' : packet.acc ? 'acc' : 'login';
+      kinds.push(kind);
+      const body = packet[kind];
+      socket.send(JSON.stringify({
+        ctrl: {
+          id: body.id,
+          code: kind === 'acc' ? 304 : 200,
+          text: kind === 'acc' ? 'not modified' : 'ok'
+        }
+      }));
+    });
+  });
+
+  try {
+    const result = await bootstrapTinodeServiceAccount({
+      wsUrl: `ws://127.0.0.1:${address.port}/v0/channels`,
+      apiKey: 'root-api-key',
+      username: 'opc_service',
+      password: 'strong-service-password',
+      timeoutMs: 2_000
+    }, WebSocket);
+
+    assert.equal(result.status, 'existing');
+    assert.deepEqual(kinds, ['hi', 'acc', 'login']);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test('Tinode bootstrap env parser rejects missing or weak service credentials', () => {
   assert.throws(() => tinodeServiceAccountBootstrapConfigFromEnv({}), /TINODE_WS_URL is required/);
   assert.throws(() => tinodeServiceAccountBootstrapConfigFromEnv({

@@ -36,6 +36,11 @@ interface BufferedBroadcast {
   event: string;
   data: unknown;
   recipients: string[];
+  idempotencyKey?: string;
+}
+
+export interface WsBroadcastOptions {
+  idempotency_key?: string;
 }
 
 const clientsByTenant = new Map<string, Set<WsClient>>();
@@ -127,20 +132,36 @@ export async function wsBroadcast(tenantId: string, event: string, data: unknown
   await publishBroadcast(tenantId, event, data);
 }
 
+export async function wsBroadcastPersisted(event: IveKitTenantEvent): Promise<void> {
+  if (tenantEventStore) {
+    await broadcastDurableLocal(event);
+    await publishRedis({ origin: WS_INSTANCE_ID, durableEvent: event });
+    return;
+  }
+  broadcastLegacyLocal(event.tenant_id, event.type, event.data);
+  await publishRedis({
+    origin: WS_INSTANCE_ID,
+    tenantId: event.tenant_id,
+    event: event.type,
+    data: event.data
+  });
+}
+
 export async function wsBroadcastToUsers(
   tenantId: string,
   userIds: string[],
   event: string,
-  data: unknown
+  data: unknown,
+  options: WsBroadcastOptions = {}
 ): Promise<void> {
   const recipients = [...new Set(userIds.map((userId) => String(userId || '').trim()).filter(Boolean))];
   if (recipients.length === 0) return;
   const buffered = broadcastBuffer.getStore();
   if (buffered && isDurableIveKitEvent(event)) {
-    buffered.push({ tenantId, event, data, recipients });
+    buffered.push({ tenantId, event, data, recipients, idempotencyKey: options.idempotency_key });
     return;
   }
-  await publishBroadcast(tenantId, event, data, recipients);
+  await publishBroadcast(tenantId, event, data, recipients, options.idempotency_key);
 }
 
 export async function runWithWsBroadcastBuffer<T>(fn: () => Promise<T>): Promise<{
@@ -153,7 +174,9 @@ export async function runWithWsBroadcastBuffer<T>(fn: () => Promise<T>): Promise
     result,
     async flush() {
       for (const item of pending) {
-        await publishBroadcast(item.tenantId, item.event, item.data, item.recipients);
+        await publishBroadcast(
+          item.tenantId, item.event, item.data, item.recipients, item.idempotencyKey
+        );
       }
     }
   };
@@ -230,15 +253,22 @@ function broadcastLegacyLocal(
 async function broadcastDurableLocal(event: IveKitTenantEvent): Promise<void> {
   const set = clientsByTenant.get(event.tenant_id);
   if (!set || !tenantEventStore) return;
-  await Promise.all([...set].map(async (client) => {
+  const ready: WsClient[] = [];
+  for (const client of set) {
     if (client.replaying) {
       client.pendingEvents?.push(event);
-      return;
+      continue;
     }
-    if (client.ws.readyState !== WebSocket.OPEN) return;
-    if (!await tenantEventStore!.canView(event, { user_id: client.userId, role: client.role })) return;
-    sendDurableEvent(client, event);
-  }));
+    if (client.ws.readyState === WebSocket.OPEN) ready.push(client);
+  }
+  if (ready.length === 0) return;
+  const visible = await tenantEventStore.canViewMany(
+    event,
+    ready.map((client) => ({ user_id: client.userId, role: client.role }))
+  );
+  for (let index = 0; index < ready.length; index += 1) {
+    if (visible[index]) sendDurableEvent(ready[index], event);
+  }
 }
 
 function sendDurableEvent(client: WsClient, event: IveKitTenantEvent): void {
@@ -314,7 +344,8 @@ async function publishBroadcast(
   tenantId: string,
   event: string,
   data: unknown,
-  recipients: string[] = []
+  recipients: string[] = [],
+  idempotencyKey?: string
 ): Promise<void> {
   if (tenantEventStore && isDurableIveKitEvent(event)) {
     try {
@@ -322,7 +353,8 @@ async function publishBroadcast(
         tenant_id: tenantId,
         type: event,
         data,
-        audience_user_ids: recipients
+        audience_user_ids: recipients,
+        idempotency_key: idempotencyKey
       });
       await broadcastDurableLocal(durableEvent);
       await publishRedis({ origin: WS_INSTANCE_ID, durableEvent });
@@ -454,5 +486,5 @@ function wsReplayLimit(): number {
 }
 
 function isDurableIveKitEvent(event: string): boolean {
-  return /^(?:collaboration|ivekit|remote)\./.test(event);
+  return /^(?:collaboration|ivekit|notification|remote)\./.test(event);
 }

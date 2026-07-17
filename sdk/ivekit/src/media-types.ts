@@ -16,6 +16,8 @@ export interface IveKitMediaCapabilities {
     recording_object_check: boolean;
     recording_export: boolean;
     recording_retention_cleanup: boolean;
+    quality_observability: boolean;
+    connection_rejoin_events: boolean;
     webhooks: boolean;
     web_assist: boolean;
     sip_volte: 'ready' | 'planned';
@@ -88,12 +90,132 @@ export interface IveKitMediaCallParticipant {
   accepted_at: string | null;
   joined_at: string | null;
   left_at: string | null;
+  connection_revision?: number;
+  connection_state?: IveKitMediaConnectionState;
+  connection_updated_at?: string | null;
+  last_disconnected_at?: string | null;
+  last_rejoined_at?: string | null;
+  quality_state?: IveKitMediaQualityState;
+  quality_degraded_streak?: number;
+  quality_recovered_streak?: number;
+  last_quality_level?: IveKitMediaQualityLevel;
+  last_quality_sample_id?: string;
+  last_qos_at?: string | null;
   updated_at: string;
 }
 
 export interface IveKitMediaCallSnapshot {
   call: IveKitMediaCall;
   participants: IveKitMediaCallParticipant[];
+}
+
+export type IveKitMediaConnectionState =
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnected'
+  | 'rejoining'
+  | 'failed';
+
+export type IveKitMediaConnectionEventType =
+  | 'connected'
+  | 'reconnecting'
+  | 'reconnected'
+  | 'disconnected'
+  | 'rejoining'
+  | 'rejoined'
+  | 'failed';
+
+export type IveKitMediaQualityState = 'unknown' | 'good' | 'degraded';
+export type IveKitMediaQualityLevel = 'excellent' | 'good' | 'poor' | 'lost' | 'unknown';
+
+export interface IveKitMediaQualitySnapshotInput {
+  participant_identity: string;
+  connection_revision: number;
+  sample_id: string;
+  track_source: IveKitMediaTrackSource;
+  quality_level: IveKitMediaQualityLevel;
+  rtt_ms?: number | null;
+  jitter_ms?: number | null;
+  packet_loss_ratio?: number | null;
+  bitrate_bps?: number | null;
+  quality_score?: number | null;
+  sampled_at: string;
+}
+
+export interface IveKitMediaQualitySnapshot extends IveKitMediaQualitySnapshotInput {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  received_at: string;
+}
+
+export interface IveKitMediaQualityParticipantState {
+  tenant_id: string;
+  call_id: string;
+  identity: string;
+  participant_status: IveKitMediaParticipantStatus;
+  connection_revision: number;
+  connection_state: IveKitMediaConnectionState;
+  connection_updated_at: string | null;
+  last_disconnected_at: string | null;
+  last_rejoined_at: string | null;
+  quality_state: IveKitMediaQualityState;
+  quality_degraded_streak: number;
+  quality_recovered_streak: number;
+  last_quality_level: IveKitMediaQualityLevel;
+  last_quality_sample_id: string;
+  last_qos_at: string | null;
+}
+
+export interface IveKitMediaQualityTransition {
+  tenant_id: string;
+  call_id: string;
+  participant_identity: string;
+  connection_revision: number;
+  from: IveKitMediaQualityState;
+  to: 'good' | 'degraded';
+  event_type: 'degraded' | 'recovered';
+  quality_level: IveKitMediaQualityLevel;
+  sampled_at: string;
+}
+
+export interface IveKitMediaQualityReportResult {
+  accepted: number;
+  replayed: number;
+  participant_states: IveKitMediaQualityParticipantState[];
+  transitions: IveKitMediaQualityTransition[];
+}
+
+export interface IveKitMediaConnectionEventInput {
+  participant_identity: string;
+  event_id: string;
+  connection_revision: number;
+  event_type: IveKitMediaConnectionEventType;
+  reason_code?: string;
+  occurred_at: string;
+}
+
+export interface IveKitMediaConnectionEvent extends IveKitMediaConnectionEventInput {
+  id: string;
+  tenant_id: string;
+  call_id: string;
+  reason_code: string;
+  connection_state: IveKitMediaConnectionState;
+  received_at: string;
+}
+
+export interface IveKitMediaConnectionEventResult {
+  event: IveKitMediaConnectionEvent;
+  participant_state: IveKitMediaQualityParticipantState;
+  replayed: boolean;
+}
+
+export interface IveKitMediaQualitySummary {
+  tenant_id: string;
+  call_id: string;
+  generated_at: string;
+  participants: IveKitMediaQualityParticipantState[];
+  recent_snapshots: IveKitMediaQualitySnapshot[];
 }
 
 export interface IveKitCreateMediaCallInput {
@@ -125,6 +247,10 @@ export interface IveKitMediaJoinInput {
   identity: string;
   display_name?: string;
   metadata?: Record<string, unknown>;
+  recovery?: {
+    previous_owner_epoch: string;
+    previous_reservation_id: string;
+  };
 }
 
 export interface IveKitMediaCallParticipantListResult {
@@ -176,11 +302,26 @@ export interface IveKitMediaRoomJoinInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface IveKitMediaPlacement {
+  interaction_id: string;
+  reservation_id: string;
+  region_id: string;
+  zone_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  owner_epoch: string;
+  profile_id: string;
+  snapshot_version: number;
+  placement_generation?: number;
+  livekit_url: string;
+}
+
 export interface IveKitMediaToken {
   token: string;
   livekit_url: string;
   room_name: string;
   configured: boolean;
+  placement?: IveKitMediaPlacement;
 }
 
 export type IveKitMediaJoinPlan =
@@ -256,6 +397,7 @@ export interface IveKitMediaModerationRecoveryResult {
 }
 
 export type IveKitMediaRecordingFormat = 'mp4' | 'webm' | 'wav' | 'ogg';
+export type IveKitMediaRecordingMode = 'track' | 'track_composite' | 'room_composite';
 export type IveKitMediaRecordingStatus =
   | 'starting'
   | 'pending'
@@ -291,6 +433,7 @@ export interface IveKitMediaRecording {
   duration_ms: number | null;
   file_size_bytes: number | null;
   has_video: number;
+  recording_mode?: IveKitMediaRecordingMode;
   egress_id: string;
   status: IveKitMediaRecordingStatus;
   retention_until: string;
@@ -305,6 +448,39 @@ export interface IveKitMediaRecording {
   evidence_record?: Record<string, unknown>;
 }
 
+export interface IveKitMediaRecordingTrackSelector {
+  track_id: string;
+  kind: 'audio' | 'video';
+  source: 'microphone' | 'camera' | 'screen_share' | 'screen_share_audio' | 'unknown';
+}
+
+export interface IveKitMediaEgressJob {
+  id: string;
+  tenant_id: string;
+  recording_id: string;
+  job_sequence: number;
+  room_name: string;
+  recording_mode: IveKitMediaRecordingMode;
+  track_id: string;
+  track_kind: string;
+  track_source: string;
+  audio_track_id: string;
+  video_track_id: string;
+  egress_id: string;
+  status: Exclude<IveKitMediaRecordingStatus, 'deleted'>;
+  failure_code: string;
+  reservation_id: string;
+  owner_epoch: string;
+  duration_ms: number | null;
+  file_size_bytes: number | null;
+  object_status: IveKitMediaRecordingObjectStatus;
+  object_checked_at: string | null;
+  completed_at: string | null;
+  deleted_at: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
 export interface IveKitStartMediaRecordingInput {
   call_session_id?: string;
   media_call_id?: string;
@@ -314,6 +490,10 @@ export interface IveKitStartMediaRecordingInput {
   business_ref_metadata?: Record<string, unknown>;
   format?: IveKitMediaRecordingFormat;
   has_video?: boolean;
+  recording_mode?: IveKitMediaRecordingMode;
+  tracks?: IveKitMediaRecordingTrackSelector[];
+  audio_track_id?: string;
+  video_track_id?: string;
   retention_until?: string;
   retention_days?: number;
 }

@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import type { PgQueryable } from '../../../db-pg.js';
+import type {
+  ComponentPlacementOwner,
+  ComponentPlacementReservation
+} from '../placement/component-placement.js';
 import { canonicalVoicePayloadHash, safeVoiceProviderPayload } from './canonical.js';
 import { supportsVoiceCommand, VOICE_CAPABILITY_SCHEMA_VERSION } from './capabilities.js';
 import { assertVoiceConfigContainsNoSecrets, voiceProfileConfigHash } from './deployment-profile-service.js';
@@ -14,6 +19,7 @@ import type {
   VoiceConfigurationRepository,
   VoiceEventPort,
   VoiceParkingRepository,
+  VoiceProviderOwnerContracts,
   VoiceProviderParkingContext
 } from './ports.js';
 import { VoiceProviderRegistry } from './provider-registry.js';
@@ -26,6 +32,7 @@ import type {
   VoiceCallState,
   VoiceCapability,
   VoiceCommandKind,
+  VoiceDeploymentProfile,
   VoiceListInput,
   VoicePage,
   VoiceParkingSlot,
@@ -41,6 +48,52 @@ export interface VoiceCallServiceOptions {
   id?: (kind: string) => string;
   now?: () => Date;
   parking_ttl_ms?: number;
+  placement?: VoiceCallPlacementPort;
+}
+
+export interface VoiceCallPlacementPort {
+  reserve(input: {
+    tenant_id: string;
+    interaction_id: string;
+    routing_partition_key: string;
+    idempotency_key: string;
+    preferred_cell_id?: string;
+    preferred_owner_node_id?: string;
+  }): Promise<ComponentPlacementReservation>;
+  persistReserved(
+    pg: PgQueryable,
+    reservation: ComponentPlacementReservation
+  ): Promise<void>;
+  hasPlacement?(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+    }
+  ): Promise<boolean>;
+  releaseUncommitted(reservation: ComponentPlacementReservation): Promise<void>;
+  requestState(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+      desired_state: 'active' | 'closed';
+      reason: string;
+    }
+  ): Promise<void>;
+  reconcileOne(input: {
+    tenant_id: string;
+    interaction_id: string;
+    worker_id: string;
+  }): Promise<'idle' | 'succeeded' | 'retry_wait' | 'failed'>;
+  resolveOwner(
+    pg: PgQueryable,
+    input: {
+      tenant_id: string;
+      interaction_id: string;
+      require_active?: boolean;
+    }
+  ): Promise<ComponentPlacementOwner>;
 }
 
 export interface VoiceProviderCallCommandExecutorOptions {
@@ -49,6 +102,8 @@ export interface VoiceProviderCallCommandExecutorOptions {
   address_protector: VoiceAddressProtector;
   provider_registry: VoiceProviderRegistry;
   parking?: VoiceParkingRepository;
+  placement?: Pick<VoiceCallPlacementPort, 'resolveOwner'>;
+  placement_pg?: PgQueryable;
   now?: () => Date;
 }
 
@@ -66,6 +121,9 @@ export interface CreateOutboundVoiceCallInput {
   actor: string;
   idempotency_key: string;
   metadata: Record<string, unknown>;
+  call_id?: string;
+  placement_reservation?: ComponentPlacementReservation;
+  placement_prepared?: boolean;
 }
 
 export interface CreateInboundVoiceCallInput {
@@ -77,6 +135,9 @@ export interface CreateInboundVoiceCallInput {
   to: VoiceClearAddressInput;
   business_ref: VoiceBusinessRef;
   metadata: Record<string, unknown>;
+  call_id?: string;
+  placement_reservation?: ComponentPlacementReservation;
+  placement_prepared?: boolean;
 }
 
 export interface EnqueueVoiceCallActionInput {
@@ -116,6 +177,7 @@ export class VoiceCallService {
   readonly #id: (kind: string) => string;
   readonly #now: () => Date;
   readonly #parkingTtlMs: number;
+  readonly #placement?: VoiceCallPlacementPort;
 
   constructor(options: VoiceCallServiceOptions) {
     this.#unitOfWork = options.unit_of_work;
@@ -125,78 +187,134 @@ export class VoiceCallService {
     this.#id = options.id ?? (() => randomUUID());
     this.#now = options.now ?? (() => new Date());
     this.#parkingTtlMs = boundedParkingTtl(options.parking_ttl_ms);
+    this.#placement = options.placement;
   }
 
   async createOutbound(input: CreateOutboundVoiceCallInput): Promise<{ call: VoiceCall; command: VoiceCallCommand }> {
     const tenantId = boundedIdentifier(input.tenant_id);
     const actor = boundedIdentifier(input.actor);
-    const callId = this.#newId('call');
-    const from = await this.#protectAddress(tenantId, input.from);
-    const to = await this.#protectAddress(tenantId, input.to);
-    const requestHash = callRequestHash(input, from, to);
-    const compliance = await this.#compliance.authorize({
-      tenant_id: tenantId,
-      call_id: callId,
-      command: 'originate',
-      actor_identity: actor,
-      business_ref: businessRef(input.business_ref)
-    });
-    if (!compliance.allowed || !compliance.evidence_ref) throw complianceDenied();
-    const now = this.#timestamp();
     const idempotencyKey = boundedIdempotencyKey(input.idempotency_key);
-    const result = await this.#unitOfWork.run(tenantId, async (context) => {
-      const replay = await context.calls.findByIdempotencyKey(tenantId, idempotencyKey);
-      if (replay) {
-        assertReplayHash(replay, requestHash);
-        const command = await context.commands.findCallByIdempotencyKey(tenantId, originateCommandKey(idempotencyKey));
-        if (!command || command.payload_hash !== requestHash) throw idempotencyConflict();
-        return { call: replay, command, created: false };
-      }
-      const policy = await this.#authorizeRuntime(context, tenantId, input.profile_id, 'originate', {});
-      if (policy.require_outbound_consent && !compliance.evidence_ref) throw complianceDenied();
-      const call: VoiceCall = {
-        id: callId,
+    const callId = input.call_id
+      ? boundedIdentifier(input.call_id)
+      : this.#newId('call');
+    let reservation = input.placement_reservation;
+    if (reservation && reservation.interaction_id !== callId) {
+      throw validationError();
+    }
+    if (this.#placement && !reservation && input.placement_prepared !== true) {
+      reservation = await this.#placement.reserve({
         tenant_id: tenantId,
-        business_ref: businessRef(input.business_ref),
-        provider_profile_id: boundedIdentifier(input.profile_id),
-        provider_call_id: '',
-        provider_dialog_id: '',
-        media_call_id: null,
-        direction: 'outbound',
-        state: 'planned',
-        from: projection(from),
-        to: projection(to),
-        idempotency_key: idempotencyKey,
-        initiated_by: actor,
-        metadata: { ...safeMetadata(input.metadata), [REQUEST_HASH_KEY]: requestHash },
-        ringing_at: null,
-        answered_at: null,
-        ended_at: null,
-        termination_reason: '',
-        revision: 1,
-        created_at: now,
-        updated_at: now
-      };
-      const insertedCall = await context.calls.insert(call, from, to);
-      const command = await context.commands.insertCall(this.#newCommand({
-        tenant_id: tenantId,
-        call_id: insertedCall.id,
-        kind: 'originate',
-        idempotency_key: originateCommandKey(idempotencyKey),
-        payload_hash: requestHash,
-        payload: { compliance_evidence_ref: boundedText(compliance.evidence_ref, 2_048) }
-      }));
-      return { call: insertedCall, command, created: true };
-    });
-    if (result.created) {
-      await this.#eventPort.publish(tenantId, 'voice.call.created', {
-        call_id: result.call.id,
-        direction: result.call.direction,
-        business_ref: result.call.business_ref,
-        actor
+        interaction_id: callId,
+        routing_partition_key: `${input.business_ref.type}:${input.business_ref.id}`,
+        idempotency_key: idempotencyKey
       });
     }
-    return { call: publicCall(result.call), command: result.command };
+    let durable = false;
+    try {
+      const from = await this.#protectAddress(tenantId, input.from);
+      const to = await this.#protectAddress(tenantId, input.to);
+      const requestHash = callRequestHash(input, from, to);
+      const compliance = await this.#compliance.authorize({
+        tenant_id: tenantId,
+        call_id: callId,
+        command: 'originate',
+        actor_identity: actor,
+        business_ref: businessRef(input.business_ref)
+      });
+      if (!compliance.allowed || !compliance.evidence_ref) throw complianceDenied();
+      const now = this.#timestamp();
+      const result = await this.#unitOfWork.run(tenantId, async (context) => {
+        const replay = await context.calls.findByIdempotencyKey(tenantId, idempotencyKey);
+        if (replay) {
+          assertReplayHash(replay, requestHash);
+          const command = await context.commands.findCallByIdempotencyKey(
+            tenantId,
+            originateCommandKey(idempotencyKey)
+          );
+          if (!command || command.payload_hash !== requestHash) throw idempotencyConflict();
+          if (this.#placement && reservation) {
+            if (!context.pg) throw providerUnavailable();
+            await this.#placement.persistReserved(context.pg, reservation);
+            await this.#placement.requestState(context.pg, {
+              tenant_id: tenantId,
+              interaction_id: replay.id,
+              desired_state: 'active',
+              reason: 'voice_call_replay_backfill'
+            });
+          }
+          return { call: replay, command, created: false };
+        }
+        const policy = await this.#authorizeRuntime(
+          context,
+          tenantId,
+          input.profile_id,
+          'originate',
+          {}
+        );
+        if (policy.require_outbound_consent && !compliance.evidence_ref) {
+          throw complianceDenied();
+        }
+        const call: VoiceCall = {
+          id: callId,
+          tenant_id: tenantId,
+          business_ref: businessRef(input.business_ref),
+          provider_profile_id: boundedIdentifier(input.profile_id),
+          provider_call_id: '',
+          provider_dialog_id: '',
+          media_call_id: null,
+          direction: 'outbound',
+          state: 'planned',
+          from: projection(from),
+          to: projection(to),
+          idempotency_key: idempotencyKey,
+          initiated_by: actor,
+          metadata: { ...safeMetadata(input.metadata), [REQUEST_HASH_KEY]: requestHash },
+          ringing_at: null,
+          answered_at: null,
+          ended_at: null,
+          termination_reason: '',
+          revision: 1,
+          created_at: now,
+          updated_at: now
+        };
+        const insertedCall = await context.calls.insert(call, from, to);
+        const command = await context.commands.insertCall(this.#newCommand({
+          tenant_id: tenantId,
+          call_id: insertedCall.id,
+          kind: 'originate',
+          idempotency_key: originateCommandKey(idempotencyKey),
+          payload_hash: requestHash,
+          payload: { compliance_evidence_ref: boundedText(compliance.evidence_ref, 2_048) }
+        }));
+        if (this.#placement) {
+          if (!reservation) throw providerUnavailable();
+          if (!context.pg) throw providerUnavailable();
+          await this.#placement.persistReserved(context.pg, reservation);
+          await this.#placement.requestState(context.pg, {
+            tenant_id: tenantId,
+            interaction_id: insertedCall.id,
+            desired_state: 'active',
+            reason: 'voice_call_durable'
+          });
+        }
+        return { call: insertedCall, command, created: true };
+      });
+      durable = true;
+      if (result.created) {
+        await this.#eventPort.publish(tenantId, 'voice.call.created', {
+          call_id: result.call.id,
+          direction: result.call.direction,
+          business_ref: result.call.business_ref,
+          actor
+        });
+      }
+      return { call: publicCall(result.call), command: result.command };
+    } catch (error) {
+      if (!durable && this.#placement && reservation) {
+        await this.#placement.releaseUncommitted(reservation).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 
   async createInbound(input: CreateInboundVoiceCallInput): Promise<VoiceCall> {
@@ -204,6 +322,18 @@ export class VoiceCallService {
     const profileId = boundedIdentifier(input.profile_id);
     const providerCallId = boundedIdentifier(input.provider_call_id);
     const externalEventId = boundedIdentifier(input.external_event_id);
+    const callId = input.call_id
+      ? boundedIdentifier(input.call_id)
+      : this.#newId('call');
+    let reservation = input.placement_reservation;
+    if (reservation && reservation.interaction_id !== callId) {
+      throw validationError();
+    }
+    if (this.#placement && !reservation && input.placement_prepared !== true) {
+      throw providerUnavailable();
+    }
+    let durable = false;
+    try {
     const from = await this.#protectAddress(tenantId, input.from);
     const to = await this.#protectAddress(tenantId, input.to);
     const requestHash = canonicalVoicePayloadHash({ profile_id: profileId, provider_call_id: providerCallId,
@@ -214,11 +344,21 @@ export class VoiceCallService {
       const replay = await context.calls.findByIdempotencyKey(tenantId, idempotencyKey);
       if (replay) {
         assertReplayHash(replay, requestHash);
+        if (this.#placement && reservation) {
+          if (!context.pg) throw providerUnavailable();
+          await this.#placement.persistReserved(context.pg, reservation);
+          await this.#placement.requestState(context.pg, {
+            tenant_id: tenantId,
+            interaction_id: replay.id,
+            desired_state: 'active',
+            reason: 'voice_inbound_replay_backfill'
+          });
+        }
         return { call: replay, created: false };
       }
       await this.#authorizeRuntime(context, tenantId, profileId, null);
       const inserted = await context.calls.insert({
-        id: this.#newId('call'), tenant_id: tenantId, business_ref: businessRef(input.business_ref),
+        id: callId, tenant_id: tenantId, business_ref: businessRef(input.business_ref),
         provider_profile_id: profileId, provider_call_id: providerCallId, provider_dialog_id: '',
         media_call_id: null, direction: 'inbound', state: 'ringing', from: projection(from), to: projection(to),
         idempotency_key: idempotencyKey, initiated_by: `provider:${profileId}`,
@@ -226,14 +366,31 @@ export class VoiceCallService {
         ringing_at: now, answered_at: null, ended_at: null, termination_reason: '',
         revision: 1, created_at: now, updated_at: now
       }, from, to);
+      if (this.#placement) {
+        if (!reservation || !context.pg) throw providerUnavailable();
+        await this.#placement.persistReserved(context.pg, reservation);
+        await this.#placement.requestState(context.pg, {
+          tenant_id: tenantId,
+          interaction_id: inserted.id,
+          desired_state: 'active',
+          reason: 'voice_inbound_durable'
+        });
+      }
       return { call: inserted, created: true };
     });
+    durable = true;
     if (call.created) {
       await this.#eventPort.publish(tenantId, 'voice.call.created', {
         call_id: call.call.id, direction: 'inbound', business_ref: call.call.business_ref
       });
     }
     return publicCall(call.call);
+    } catch (error) {
+      if (!durable && this.#placement && reservation) {
+        await this.#placement.releaseUncommitted(reservation).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 
   async enqueueAction(input: EnqueueVoiceCallActionInput): Promise<VoiceCallCommand> {
@@ -473,6 +630,8 @@ export class VoiceProviderCallCommandExecutor {
   readonly #addressProtector: VoiceAddressProtector;
   readonly #registry: VoiceProviderRegistry;
   readonly #parking?: VoiceParkingRepository;
+  readonly #placement?: Pick<VoiceCallPlacementPort, 'resolveOwner'>;
+  readonly #placementPg?: PgQueryable;
   readonly #now: () => Date;
 
   constructor(options: VoiceProviderCallCommandExecutorOptions) {
@@ -481,6 +640,8 @@ export class VoiceProviderCallCommandExecutor {
     this.#addressProtector = options.address_protector;
     this.#registry = options.provider_registry;
     this.#parking = options.parking;
+    this.#placement = options.placement;
+    this.#placementPg = options.placement_pg;
     this.#now = options.now ?? (() => new Date());
   }
 
@@ -525,11 +686,19 @@ export class VoiceProviderCallCommandExecutor {
     let providerInvocationStarted = false;
     const startedAt = performance.now();
     try {
-      adapter = await this.#registry.create(profile, { purpose: 'execute' });
+      const routed = await this.#routedExecution(
+        call,
+        profile,
+        parkingExecution.context
+      );
+      adapter = await this.#registry.create(routed.profile, { purpose: 'execute' });
       providerInvocationStarted = true;
       const executed = await adapter.execute({
         call, command, clear_address: clearAddress,
-        ...(parkingExecution.context ? { parking: parkingExecution.context } : {})
+        ...(parkingExecution.context ? { parking: parkingExecution.context } : {}),
+        ...(routed.owner_contracts
+          ? { owner_contracts: routed.owner_contracts }
+          : {})
       });
       if (parkingExecution.context && executed.accepted === false) {
         throw new VoiceError({ code: 'provider_unavailable', status: 502 });
@@ -593,6 +762,82 @@ export class VoiceProviderCallCommandExecutor {
     } finally {
       clearAddress = undefined;
       await adapter?.close().catch(() => undefined);
+    }
+  }
+
+  async #routedExecution(
+    call: VoiceCall,
+    profile: VoiceDeploymentProfile,
+    parking: VoiceProviderParkingContext | null
+  ): Promise<{
+    profile: VoiceDeploymentProfile;
+    owner_contracts?: VoiceProviderOwnerContracts;
+  }> {
+    if (!this.#placement) return { profile };
+    if (!this.#placementPg) throw providerUnavailable();
+    const relatedCalls = uniqueCalls([
+      call,
+      parking?.parked_call,
+      parking?.pickup_call
+    ]);
+    const resolved = await Promise.all(relatedCalls.map(async (relatedCall) => ({
+      call: relatedCall,
+      owner: await this.#resolveOwner(relatedCall)
+    })));
+    const primary = required(
+      resolved.find((item) => item.call.id === call.id)
+    ).owner;
+    const routedProfile = routeVoiceProfileToOwner(profile, primary);
+    const primaryEndpoint = routedRustPbxHttpUrl(primary.provider_endpoint);
+    const ownerContracts: VoiceProviderOwnerContracts = {};
+    for (const item of resolved) {
+      if (item.owner.region_id !== primary.region_id ||
+          item.owner.zone_id !== primary.zone_id ||
+          item.owner.cell_id !== primary.cell_id ||
+          item.owner.owner_node_id !== primary.owner_node_id ||
+          routedRustPbxHttpUrl(item.owner.provider_endpoint) !== primaryEndpoint) {
+        throw providerUnavailable();
+      }
+      const providerCallId = item.call.provider_call_id || item.call.id;
+      const contract = {
+        reservation_id: item.owner.reservation_id,
+        interaction_id: item.call.id,
+        owner_epoch: item.owner.owner_epoch
+      };
+      const existing = ownerContracts[providerCallId];
+      if (existing && (
+        existing.reservation_id !== contract.reservation_id ||
+        existing.interaction_id !== contract.interaction_id ||
+        existing.owner_epoch !== contract.owner_epoch
+      )) {
+        throw providerUnavailable();
+      }
+      ownerContracts[providerCallId] = contract;
+    }
+    return {
+      profile: routedProfile,
+      owner_contracts: ownerContracts
+    };
+  }
+
+  async #resolveOwner(call: VoiceCall): Promise<ComponentPlacementOwner> {
+    try {
+      return await this.#placement!.resolveOwner(this.#placementPg!, {
+        tenant_id: call.tenant_id,
+        interaction_id: call.id
+      });
+    } catch (error) {
+      throw new VoiceError({
+        code: 'provider_unavailable',
+        retryable: true,
+        status: 503,
+        details: {
+          placement_error_code: boundedText(
+            String((error as { code?: unknown })?.code || 'placement_owner_unavailable'),
+            128
+          )
+        }
+      });
     }
   }
 
@@ -727,12 +972,98 @@ export class VoiceProviderCallCommandExecutor {
   }
 }
 
+function routeVoiceProfileToOwner(
+  profile: VoiceDeploymentProfile,
+  owner: ComponentPlacementOwner
+): VoiceDeploymentProfile {
+  if (profile.adapter !== 'rustpbx' ||
+      owner.interaction_kind !== 'sip_voice' ||
+      owner.owner_component !== 'rustpbx') {
+    throw providerUnavailable();
+  }
+  const config = { ...profile.config };
+  if (typeof config.rwi_url === 'string' && config.rwi_url.trim()) {
+    config.rwi_url = routedRustPbxRwiUrl(
+      owner.provider_endpoint,
+      config.rwi_url
+    );
+  }
+  return {
+    ...profile,
+    base_url: routedRustPbxHttpUrl(owner.provider_endpoint),
+    config
+  };
+}
+
+function uniqueCalls(
+  calls: Array<VoiceCall | null | undefined>
+): VoiceCall[] {
+  const unique = new Map<string, VoiceCall>();
+  for (const call of calls) {
+    if (call) unique.set(call.id, call);
+  }
+  return [...unique.values()];
+}
+
+function routedRustPbxHttpUrl(providerEndpoint: string): string {
+  let endpoint: URL;
+  try {
+    endpoint = new URL(providerEndpoint);
+  } catch {
+    throw providerUnavailable();
+  }
+  if (endpoint.username || endpoint.password || endpoint.hash) {
+    throw providerUnavailable();
+  }
+  if (endpoint.protocol === 'ws:') endpoint.protocol = 'http:';
+  if (endpoint.protocol === 'wss:') endpoint.protocol = 'https:';
+  if (endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') {
+    throw providerUnavailable();
+  }
+  return endpoint.toString().replace(/\/$/, '');
+}
+
+function routedRustPbxRwiUrl(
+  providerEndpoint: string,
+  configuredRwiUrl: string
+): string {
+  let owner: URL;
+  let configured: URL;
+  try {
+    owner = new URL(providerEndpoint);
+    configured = new URL(configuredRwiUrl);
+  } catch {
+    throw providerUnavailable();
+  }
+  if (owner.username || owner.password || owner.hash ||
+      configured.username || configured.password || configured.hash ||
+      !['ws:', 'wss:'].includes(configured.protocol)) {
+    throw providerUnavailable();
+  }
+  if (owner.protocol === 'http:') owner.protocol = 'ws:';
+  if (owner.protocol === 'https:') owner.protocol = 'wss:';
+  if (owner.protocol !== 'ws:' && owner.protocol !== 'wss:') {
+    throw providerUnavailable();
+  }
+  owner.pathname = configured.pathname;
+  owner.search = configured.search;
+  return owner.toString();
+}
+
 function providerExecutionUnknown(providerCommandId: string): VoiceError {
   return new VoiceError({
     code: 'provider_timeout',
     retryable: true,
     status: 504,
     details: providerCommandId ? { provider_command_id: providerCommandId } : {}
+  });
+}
+
+function providerUnavailable(): VoiceError {
+  return new VoiceError({
+    code: 'provider_unavailable',
+    retryable: true,
+    status: 503
   });
 }
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/index.js';
@@ -80,6 +81,40 @@ test('standalone server routes Voice before collaboration and never trusts webho
     'voice:/api/ivekit/voice/providers/profile-a/events:',
     'ivr:/api/ivekit/ivr/provider-webhooks/rustpbx/profile-a/step:'
   ]);
+});
+
+test('standalone server preserves RustPBX recording spool parts as bounded binary input', async (t) => {
+  const db = createDatabase(':memory:');
+  const observed: Array<{ body: unknown; raw: string | Buffer }> = [];
+  const server = createIveKitHttpServer({
+    db,
+    pg: null,
+    routes: {
+      voice: async (_pg, _method, _path, _url, body, raw) => {
+        observed.push({ body, raw });
+        return { data: { accepted: true } };
+      },
+      media: async () => undefined,
+      chat: async () => undefined,
+      intelligence: async () => undefined,
+      events: async () => undefined,
+      collaboration: async () => undefined
+    }
+  });
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    db.close();
+  });
+  const port = await listenOnRandomPort(server);
+  const response = await fetch(
+    `http://127.0.0.1:${port}/api/ivekit/voice/providers/profile-a/recording-spool/segments/vseg-a/parts/1`,
+    { method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: Buffer.from('part') }
+  );
+  assert.equal(response.status, 200);
+  assert.equal(observed.length, 1);
+  assert.equal(observed[0]?.body, null);
+  assert.equal(Buffer.isBuffer(observed[0]?.raw), true);
+  assert.equal((observed[0]?.raw as Buffer).toString(), 'part');
 });
 
 test('Voice HTTP uses the signed tenant and returns stable async command contracts', async (t) => {
@@ -251,6 +286,348 @@ test('Voice provider webhook authenticates before tenant transaction and recheck
     }
   ), hasVoiceCode('webhook_auth_failed'));
   assert.deepEqual(order, ['authenticate']);
+});
+
+test('RustPBX recording spool provider routes derive tenant from auth and keep binary parts fenced', async () => {
+  const order: string[] = [];
+  const pool = recordingPool(order);
+  const calls: Array<Record<string, unknown>> = [];
+  const module = {
+    configuration_repository: {
+      async getProfile(tenantId: string, profileId: string) {
+        order.push(`profile:${tenantId}:${profileId}`);
+        return {
+          id: profileId, tenant_id: tenantId, adapter: 'rustpbx', status: 'enabled'
+        };
+      }
+    }
+  } as unknown as VoiceHttpModule;
+  const recordingSpool = {
+    async initialize(input: Record<string, unknown>) {
+      calls.push({ operation: 'initialize', ...input });
+      return { state: 'uploading', segment: { id: 'vseg-a' }, parts: [] };
+    },
+    async uploadPart(input: Record<string, unknown>) {
+      calls.push({ operation: 'uploadPart', ...input, content: Buffer.from(input.content as Buffer).toString() });
+      return { part_number: input.part_number, size_bytes: 4, sha256: input.sha256 };
+    },
+    async listParts(input: Record<string, unknown>) {
+      calls.push({ operation: 'listParts', ...input });
+      return [];
+    },
+    async complete(input: Record<string, unknown>) {
+      calls.push({ operation: 'complete', ...input });
+      return { segment: { id: 'vseg-a', state: 'uploaded' }, upload: { state: 'completed' } };
+    },
+    async finalize(input: Record<string, unknown>) {
+      calls.push({ operation: 'finalize', ...input });
+      return { id: 'vrec-a', state: 'uploaded_unverified' };
+    }
+  };
+  const options = {
+    create_module: () => module,
+    recording_spool_intake: recordingSpool,
+    webhook_authenticator: {
+      async authenticate() {
+        order.push('authenticate');
+        return {
+          tenant_id: 'tenant-secure', profile_id: 'profile-a', adapter: 'rustpbx',
+          secret_refs: {}, method: 'service_key'
+        };
+      }
+    } as never
+  };
+
+  const initialized = await routeIveKitVoiceApi(
+    pool, 'POST', '/api/ivekit/voice/providers/profile-a/recording-spool/segments',
+    new URL('http://localhost/api/ivekit/voice/providers/profile-a/recording-spool/segments'),
+    {
+      tenant_id: 'tenant-attacker', segment: { segment_id: 'vseg-a' },
+      whole_file: { size_bytes: 4, sha256: 'b'.repeat(64) },
+      worker_id: 'sidecar-a', lease_token: 'a'.repeat(64),
+      lease_ms: 60_000, part_size_bytes: 8 * 1024 * 1024
+    },
+    '{"tenant_id":"tenant-attacker"}',
+    { 'x-pbx-key': 'service-key' },
+    options as never
+  ) as { status: number };
+  assert.equal(initialized.status, 201);
+
+  const binary = Buffer.from('part');
+  const uploaded = await routeIveKitVoiceApi(
+    pool, 'PUT', '/api/ivekit/voice/providers/profile-a/recording-spool/segments/vseg-a/parts/1',
+    new URL('http://localhost/api/ivekit/voice/providers/profile-a/recording-spool/segments/vseg-a/parts/1'),
+    null,
+    binary,
+    {
+      'x-pbx-key': 'service-key',
+      'x-ivekit-recording-worker-id': 'sidecar-a',
+      'x-ivekit-recording-owner-epoch': '7',
+      'x-ivekit-recording-lease-token': 'a'.repeat(64),
+      'x-ivekit-content-sha256': createHash('sha256').update(binary).digest('hex')
+    },
+    options as never
+  ) as { data: { part_number: number } };
+  assert.equal(uploaded.data.part_number, 1);
+
+  const completion = {
+    schema_version: 1, recording_id: 'vrec-a', interaction_id: 'call-a',
+    reservation_id: 'reservation-a', owner_epoch: '7', region_id: 'region-a',
+    zone_id: 'zone-a', cell_id: 'cell-a', recorder_node_id: 'rustpbx-a',
+    segment_count: 1, last_segment_sequence: 1, ended_at: Date.now()
+  };
+  const finalized = await routeIveKitVoiceApi(
+    pool, 'POST',
+    '/api/ivekit/voice/providers/profile-a/recording-spool/recordings/vrec-a/complete',
+    new URL('http://localhost/api/ivekit/voice/providers/profile-a/recording-spool/recordings/vrec-a/complete'),
+    completion,
+    JSON.stringify(completion),
+    { 'x-pbx-key': 'service-key' },
+    options as never
+  ) as { data: { state: string } };
+  assert.equal(finalized.data.state, 'uploaded_unverified');
+
+  assert.equal(calls[0]?.tenant_id, 'tenant-secure');
+  assert.equal(calls[0]?.profile_id, 'profile-a');
+  assert.deepEqual(calls[1], {
+    operation: 'uploadPart', tenant_id: 'tenant-secure', segment_id: 'vseg-a',
+    owner_epoch: '7', worker_id: 'sidecar-a',
+    lease_token_hash: createHash('sha256').update('a'.repeat(64)).digest('hex'),
+    part_number: 1,
+    content: 'part',
+    sha256: createHash('sha256').update(binary).digest('hex')
+  });
+  assert.equal(calls[2]?.operation, 'finalize');
+  assert.equal(calls[2]?.tenant_id, 'tenant-secure');
+  assert.equal(calls[2]?.profile_id, 'profile-a');
+  assert.equal(order.indexOf('authenticate') < order.indexOf('BEGIN'), true);
+});
+
+test('RustPBX router webhook creates the authoritative inbound call before routing', async () => {
+  const order: string[] = [];
+  const inbound: Array<Record<string, unknown>> = [];
+  const module = {
+    configuration_repository: {
+      async getProfile(tenantId: string, profileId: string) {
+        return {
+          id: profileId,
+          tenant_id: tenantId,
+          adapter: 'rustpbx',
+          status: 'enabled'
+        };
+      }
+    },
+    calls: {
+      async createInbound(input: Record<string, unknown>) {
+        order.push('create-inbound');
+        inbound.push(input);
+        return { id: 'call-inbound-a' };
+      }
+    },
+    router: {
+      async decide() {
+        order.push('route');
+        return {
+          action: 'forward',
+          targets: ['sip:1001@pbx.internal'],
+          strategy: 'sequential',
+          record: false,
+          timeout: 30,
+          max_ring_time: 30,
+          headers: {}
+        };
+      }
+    }
+  } as unknown as VoiceHttpModule;
+  const body = {
+    call_id: 'provider-inbound-a',
+    from: 'sip:+8613900139000@carrier.internal',
+    to: 'sip:1001@pbx.internal',
+    source_addr: '10.0.0.8:5060',
+    direction: 'inbound',
+    method: 'INVITE',
+    uri: 'sip:1001@pbx.internal'
+  };
+
+  const result = await routeIveKitVoiceApi(
+    recordingPool([]),
+    'POST',
+    '/api/ivekit/voice/providers/profile-a/router',
+    new URL('http://localhost/api/ivekit/voice/providers/profile-a/router'),
+    body,
+    JSON.stringify(body),
+    { 'x-pbx-key': 'service-key' },
+    {
+      create_module: () => module,
+      webhook_authenticator: {
+        async authenticate() {
+          return {
+            tenant_id: 'tenant-secure',
+            profile_id: 'profile-a',
+            adapter: 'rustpbx',
+            secret_refs: {},
+            method: 'service_key'
+          };
+        }
+      } as never
+    }
+  ) as { data: { action: string } };
+
+  assert.equal(result.data.action, 'forward');
+  assert.deepEqual(order, ['create-inbound', 'route']);
+  assert.deepEqual(inbound, [{
+    tenant_id: 'tenant-secure',
+    profile_id: 'profile-a',
+    provider_call_id: 'provider-inbound-a',
+    external_event_id: 'router:provider-inbound-a',
+    from: {
+      kind: 'sip_uri',
+      value: 'sip:+8613900139000@carrier.internal'
+    },
+    to: {
+      kind: 'sip_uri',
+      value: 'sip:1001@pbx.internal'
+    },
+    business_ref: {
+      type: 'inbound_sip',
+      id: 'provider-inbound-a'
+    },
+    metadata: {
+      source: 'rustpbx_router'
+    }
+  }]);
+});
+
+test('RustPBX snapshot inbound admission creates the call without invoking dynamic routing', async () => {
+  const order: string[] = [];
+  const inbound: Array<Record<string, unknown>> = [];
+  const reconciled: Array<Record<string, unknown>> = [];
+  const module = {
+    configuration_repository: {
+      async getProfile(tenantId: string, profileId: string) {
+        return {
+          id: profileId,
+          tenant_id: tenantId,
+          adapter: 'rustpbx',
+          status: 'enabled'
+        };
+      }
+    },
+    calls: {
+      async createInbound(input: Record<string, unknown>) {
+        order.push('create-inbound');
+        inbound.push(input);
+        return { id: String(input.call_id), state: 'ringing' };
+      }
+    },
+    router: {
+      async decide() {
+        order.push('route');
+        throw new Error('snapshot admission must not invoke dynamic routing');
+      }
+    }
+  } as unknown as VoiceHttpModule;
+  const body = {
+    call_id: 'provider-snapshot-a',
+    from: 'sip:+8613900139000@carrier.internal',
+    to: 'sip:1001@pbx.internal',
+    source_addr: '10.0.0.8:5060',
+    direction: 'inbound',
+    method: 'INVITE',
+    uri: 'sip:1001@pbx.internal',
+    ivekit_cell_id: 'cell-a',
+    ivekit_owner_node_id: 'rustpbx-a'
+  };
+  const result = await routeIveKitVoiceApi(
+    recordingPool([]),
+    'POST',
+    '/api/ivekit/voice/providers/profile-a/inbound-admission',
+    new URL('http://localhost/api/ivekit/voice/providers/profile-a/inbound-admission'),
+    body,
+    JSON.stringify(body),
+    { 'x-pbx-key': 'service-key' },
+    {
+      create_module: () => module,
+      webhook_authenticator: {
+        async authenticate() {
+          return {
+            tenant_id: 'tenant-secure',
+            profile_id: 'profile-a',
+            adapter: 'rustpbx',
+            secret_refs: {},
+            method: 'service_key'
+          };
+        }
+      } as never,
+      placement: {
+        async reconcileOne(input) {
+          reconciled.push(input);
+          return 'succeeded';
+        },
+        async resolveOwner() {
+          return {
+            interaction_kind: 'sip_voice',
+            owner_component: 'rustpbx',
+            region_id: 'region-a',
+            zone_id: 'zone-a',
+            cell_id: 'cell-a',
+            owner_node_id: 'rustpbx-a',
+            owner_epoch: '12884901889',
+            reservation_id: 'reservation-voice-a',
+            profile_id: 'cell-10k-v1',
+            snapshot_version: 7,
+            provider_endpoint: 'http://rustpbx-a.internal'
+          };
+        }
+      } as never,
+      prepared_call_placement: {
+        source: 'rustpbx_inbound',
+        tenant_id: 'tenant-secure',
+        call_id: 'vcall-snapshot-a',
+        reservation: { interaction_id: 'vcall-snapshot-a', value: {} } as never,
+        provider_authentication: {
+          tenant_id: 'tenant-secure',
+          profile_id: 'profile-a',
+          adapter: 'rustpbx',
+          secret_refs: {},
+          method: 'service_key'
+        }
+      }
+    }
+  ) as {
+    status: number;
+    data: {
+      accepted: boolean;
+      call_id: string;
+      provider_call_id: string;
+      reservation_id: string;
+      owner_epoch: string;
+      cell_id: string;
+      owner_node_id: string;
+    };
+    afterCommit?: () => Promise<void>;
+  };
+
+  assert.equal(result.status, 201);
+  assert.deepEqual(result.data, {
+    accepted: true,
+    call_id: 'vcall-snapshot-a',
+    provider_call_id: 'provider-snapshot-a',
+    reservation_id: 'reservation-voice-a',
+    owner_epoch: '12884901889',
+    cell_id: 'cell-a',
+    owner_node_id: 'rustpbx-a'
+  });
+  assert.deepEqual(order, ['create-inbound']);
+  assert.equal(inbound[0]?.metadata &&
+    (inbound[0].metadata as Record<string, unknown>).source,
+  'rustpbx_snapshot_admission');
+  assert.equal(inbound[0]?.placement_prepared, true);
+  await result.afterCommit?.();
+  assert.equal(reconciled.length, 1);
+  assert.equal(reconciled[0]?.tenant_id, 'tenant-secure');
+  assert.equal(reconciled[0]?.interaction_id, 'vcall-snapshot-a');
+  assert.match(String(reconciled[0]?.worker_id), /^voice:[a-f0-9]{32}$/);
 });
 
 test('Voice HTTP exposes the complete configuration call evidence and bridge route matrix', async (t) => {

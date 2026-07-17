@@ -1,0 +1,22 @@
+{
+  "name": "@opc/ivekit-capacity-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=23.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1073.0",
+    "nats": "2.29.3",
+    "pg": "8.22.0",
+    "tsx": "4.22.4",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.2",
+    "@types/pg": "8.20.0",
+    "@types/ws": "8.18.1",
+    "typescript": "5.9.3"
+  }
+}

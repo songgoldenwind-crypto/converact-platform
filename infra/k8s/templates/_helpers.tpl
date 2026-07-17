@@ -8,6 +8,16 @@
 {{- end -}}
 {{- end }}
 
+{{- define "opc.livekitRedisAddress" -}}
+{{- if .Values.livekit.redis.address -}}
+{{- .Values.livekit.redis.address -}}
+{{- else if and .Values.livekit.enabled .Values.redis.enabled -}}
+{{- printf "%s-redis:6379" .Release.Name -}}
+{{- else -}}
+{{- required "livekit.redis.address is required when external LiveKit uses in-chart Egress or bundled Redis is disabled" .Values.livekit.redis.address -}}
+{{- end -}}
+{{- end }}
+
 {{- define "opc.livekitPublicUrl" -}}
 {{- $url := required "livekit.publicUrl is required for browser joins" .Values.livekit.publicUrl -}}
 {{- $mode := .Values.livekit.deploymentMode | default "external" -}}

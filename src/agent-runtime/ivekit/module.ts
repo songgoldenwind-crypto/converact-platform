@@ -27,6 +27,7 @@ import type {
 } from '../collaboration/types.js';
 import type { MediaJoinPlan, ParticipantRole } from '../media-gateway/index.js';
 import { createWebAssistJoinPath, verifyWebAssistJoinToken, webAssistExpiresAt } from './remote-assist-token.js';
+import { IveKitTenantEventJournal } from './tenant-event-store.js';
 import type {
   IveBusinessRef,
   IveEvidenceRecord,
@@ -207,6 +208,7 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
     config: input.media?.livekit
   });
   const collaboration = createCollaborationModule({ pg: input.pg });
+  const tenantEvents = new IveKitTenantEventJournal(input.pg);
   const rustdeskGatewaySessions = new RustDeskGatewaySessionStore(input.pg);
   const localRustDeskGatewayClient: RemoteGatewayClient = {
     provider: 'rustdesk',
@@ -577,6 +579,140 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
       },
       deactivateDevice: collaboration.rustdeskDevices.deactivateDevice.bind(collaboration.rustdeskDevices),
       heartbeatDevice: collaboration.rustdeskDevices.heartbeatDevice.bind(collaboration.rustdeskDevices),
+      requestAuthorizationCode: async (authorizationInput) => {
+        const remote = await collaboration.remote.getSession(authorizationInput.remote_session_id);
+        if (!remote || remote.tenant_id !== authorizationInput.tenant_id) {
+          throw badRequest('remote session not found');
+        }
+        const participants = await collaboration.sessions.listParticipants({
+          tenant_id: authorizationInput.tenant_id,
+          session_id: remote.collaboration_session_id
+        });
+        const requester = participants.find((participant) =>
+          participant.identity === authorizationInput.requested_by && !participant.left_at
+        );
+        if (!requester || !['customer', 'admin'].includes(requester.role)) {
+          throw forbidden('authorization code request requires an active customer or admin');
+        }
+        const device = await collaboration.rustdeskDevices.getDevice({
+          tenant_id: authorizationInput.tenant_id,
+          device_id: authorizationInput.device_id
+        });
+        if (
+          !device ||
+          device.status !== 'active' ||
+          device.business_ref_type !== remote.business_ref.type ||
+          device.business_ref_id !== remote.business_ref.id
+        ) {
+          throw badRequest('rustdesk device not found');
+        }
+        const consent = await collaboration.remote.getActiveConsent(remote.id);
+        const consentScopes = new Set(consent?.scopes || []);
+        if (!consent || authorizationInput.scopes.some((scope) => !consentScopes.has(scope))) {
+          throw forbidden('active consent does not cover requested authorization scopes');
+        }
+        const result = await collaboration.rustdeskAuthorizationCodes.create(authorizationInput);
+        if (!result.replayed) {
+          const eventType = 'remote.rustdesk.authorization_code.requested';
+          const eventData = {
+            remote_session_id: remote.id,
+            authorization_id: result.authorization.id,
+            device_id: device.id,
+            scopes: result.authorization.scopes,
+            expires_at: result.authorization.expires_at
+          };
+          await collaboration.remote.recordAudit({
+            tenant_id: authorizationInput.tenant_id,
+            remote_session_id: remote.id,
+            actor_identity: authorizationInput.requested_by,
+            event_type: eventType,
+            target: result.authorization.id,
+            metadata: eventData
+          });
+          await tenantEvents.append({
+            tenant_id: authorizationInput.tenant_id,
+            type: eventType,
+            data: eventData,
+            audience_user_ids: participants.filter((participant) => !participant.left_at)
+              .map((participant) => participant.identity)
+          });
+        }
+        return result;
+      },
+      getAuthorizationCode: collaboration.rustdeskAuthorizationCodes.get.bind(
+        collaboration.rustdeskAuthorizationCodes
+      ),
+      verifyAuthorizationCode: async (verificationInput) => {
+        const authorization = await collaboration.rustdeskAuthorizationCodes.get({
+          tenant_id: verificationInput.tenant_id,
+          authorization_id: verificationInput.authorization_id
+        });
+        if (!authorization) throw badRequest('RustDesk authorization code not found');
+        const remote = await collaboration.remote.getSession(authorization.remote_session_id);
+        if (!remote || remote.tenant_id !== verificationInput.tenant_id) {
+          throw badRequest('RustDesk authorization code not found');
+        }
+        const participants = await collaboration.sessions.listParticipants({
+          tenant_id: verificationInput.tenant_id,
+          session_id: remote.collaboration_session_id
+        });
+        const verifier = participants.find((participant) =>
+          participant.identity === verificationInput.verified_by && !participant.left_at
+        );
+        if (!verifier || !['agent', 'engineer', 'supervisor', 'admin'].includes(verifier.role)) {
+          throw forbidden('authorization code verification requires an active engineer');
+        }
+        const audienceUserIds = participants.filter((participant) => !participant.left_at)
+          .map((participant) => participant.identity);
+        const recordVerificationEvent = async (
+          eventType: string,
+          eventData: Record<string, unknown>
+        ) => {
+          await collaboration.remote.recordAudit({
+            tenant_id: verificationInput.tenant_id,
+            remote_session_id: remote.id,
+            actor_identity: verificationInput.verified_by,
+            event_type: eventType,
+            target: authorization.id,
+            metadata: eventData
+          });
+          await tenantEvents.append({
+            tenant_id: verificationInput.tenant_id,
+            type: eventType,
+            data: eventData,
+            audience_user_ids: audienceUserIds
+          });
+        };
+        try {
+          const verified = await collaboration.rustdeskAuthorizationCodes.verify(verificationInput);
+          if (authorization.status === 'pending') await recordVerificationEvent('remote.rustdesk.authorization_code.verified', {
+            remote_session_id: remote.id,
+            authorization_id: authorization.id,
+            device_id: authorization.device_id,
+            scopes: authorization.scopes,
+            verified_by: verificationInput.verified_by
+          });
+          return verified;
+        } catch (error) {
+          const current = await collaboration.rustdeskAuthorizationCodes.get({
+            tenant_id: verificationInput.tenant_id,
+            authorization_id: authorization.id
+          });
+          await recordVerificationEvent(
+            current?.status === 'locked'
+              ? 'remote.rustdesk.authorization_code.locked'
+              : 'remote.rustdesk.authorization_code.failed',
+            {
+              remote_session_id: remote.id,
+              authorization_id: authorization.id,
+              device_id: authorization.device_id,
+              status: current?.status || 'unavailable',
+              attempt_count: current?.attempt_count ?? authorization.attempt_count
+            }
+          );
+          throw error;
+        }
+      },
       getClientConfig: async () => rustDeskClientConfig(),
       getGatewayLaunchPlan: async (planInput) => {
         const session = await rustdeskGatewaySessions.getSession(planInput.external_id);
@@ -662,7 +798,8 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         if (input.remoteGateway.provider !== 'rustdesk') {
           throw badRequest('rustdesk facade requires a rustdesk remote gateway client');
         }
-        rustDeskGatewayMetadata(gatewayInput, 'RustDesk gateway request');
+        const { authorization_id: authorizationId, ...metadataSafeGatewayInput } = gatewayInput;
+        rustDeskGatewayMetadata(metadataSafeGatewayInput, 'RustDesk gateway request');
         const accessMode = rustDeskGatewayAccessMode(gatewayInput.access_mode);
         const remote = await collaboration.remote.getSession(gatewayInput.remote_session_id);
         if (!remote || remote.tenant_id !== gatewayInput.tenant_id) {
@@ -681,7 +818,7 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         if (requestMetadata.access_mode !== undefined) {
           throw badRequest('RustDesk access_mode must be a top-level field');
         }
-        return collaboration.remote.startGatewayClientSession({
+        const tool = await collaboration.remote.startGatewayClientSession({
           tenant_id: gatewayInput.tenant_id,
           remote_session_id: gatewayInput.remote_session_id,
           actor_identity: gatewayInput.actor_identity,
@@ -694,6 +831,7 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
           permissions: gatewayInput.permissions,
           access_mode: accessMode,
           device_id: device.id,
+          authorization_id: authorizationId,
           metadata: {
             ...requestMetadata,
             ...(gatewayInput.access_mode ? { access_mode: accessMode } : {}),
@@ -706,6 +844,19 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
             target_display_name: device.display_name
           }
         });
+        if (authorizationId) {
+          await tenantEvents.append({
+            tenant_id: gatewayInput.tenant_id,
+            type: 'remote.rustdesk.authorization_code.consumed',
+            data: {
+              remote_session_id: remote.id,
+              authorization_id: authorizationId,
+              device_id: device.id,
+              gateway_external_id: tool.external_id
+            }
+          });
+        }
+        return tool;
       }
     },
     evidence: {

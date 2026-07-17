@@ -16,7 +16,11 @@ stringData:
       port_range_end: {{ .Values.livekit.portRangeEnd | default 50100 }}
       use_external_ip: {{ .Values.livekit.useExternalIp | default false }}
     redis:
-      address: {{ .Release.Name }}-redis:6379
+      address: {{ include "opc.livekitRedisAddress" . | quote }}
+      username: {{ .Values.livekit.redis.username | quote }}
+      password: {{ .Values.livekit.redis.password | quote }}
+      db: {{ .Values.livekit.redis.db }}
+      use_tls: {{ .Values.livekit.redis.useTLS }}
     keys:
       {{ include "opc.livekitApiKey" . | quote }}: {{ include "opc.livekitApiSecret" . | quote }}
     webhook:

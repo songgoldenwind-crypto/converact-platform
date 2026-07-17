@@ -1,0 +1,315 @@
+groups:
+  - name: ivekit.availability
+    rules:
+      - alert: IveKitApiUnavailable
+        expr: up{job=~".*ivekit.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: ivekit
+          component: api
+        annotations:
+          summary: iveKit API metrics target is unavailable
+          description: Prometheus has failed to scrape an iveKit API target for two minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitapiunavailable
+      - alert: IveKitApiHighErrorRate
+        expr: sum(rate(opc_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(opc_http_requests_total[5m])), 1) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          service: ivekit
+          component: api
+        annotations:
+          summary: iveKit API 5xx ratio is above five percent
+          description: The aggregate HTTP 5xx ratio has remained above five percent for ten minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitapihigherrorrate
+      - alert: IveKitEventLoopLagHigh
+        expr: max(opc_node_nodejs_eventloop_lag_p99_seconds) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: ivekit
+          component: api
+        annotations:
+          summary: iveKit Node.js event loop lag is high
+          description: P99 event loop lag has exceeded 500 ms for ten minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekiteventlooplaghigh
+
+  - name: ivekit.notifications
+    rules:
+      - alert: IveKitEventWebhookLag
+        expr: max(opc_ivekit_event_webhook_oldest_event_age_seconds) > 300
+        for: 10m
+        labels:
+          severity: warning
+          service: ivekit
+          component: event_webhook
+        annotations:
+          summary: iveKit integration event webhook bridge is delayed
+          description: The oldest tenant event observed by the webhook bridge is more than five minutes old.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekiteventwebhooklag
+      - alert: IveKitEventWebhookFailures
+        expr: increase(opc_ivekit_event_webhook_operations_total{result=~"failed|lease_lost|worker_error"}[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: event_webhook
+        annotations:
+          summary: iveKit integration event webhook bridge is failing
+          description: A subscription delivery, worker batch, or lease-fenced cursor update failed in the last ten minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekiteventwebhookfailures
+      - alert: IveKitNotificationQueueStalled
+        expr: max(opc_ivekit_notification_queue_oldest_age_seconds{state=~"pending|processing|retry_wait"}) > 300
+        for: 10m
+        labels:
+          severity: critical
+          service: ivekit
+          component: notification
+        annotations:
+          summary: iveKit notification queue is stalled
+          description: The oldest actionable notification delivery has been waiting for more than five minutes.
+          runbook: docs/ivekit-notification-operations-runbook.md#incident-playbooks
+      - alert: IveKitNotificationQueueBacklog
+        expr: sum(opc_ivekit_notification_queue_depth{state=~"pending|processing|retry_wait"}) > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: ivekit
+          component: notification
+        annotations:
+          summary: iveKit notification queue backlog is growing
+          description: More than 100 actionable notification deliveries have remained queued for ten minutes.
+          runbook: docs/ivekit-notification-operations-runbook.md#incident-playbooks
+      - alert: IveKitNotificationDeadLetters
+        expr: increase(opc_ivekit_notification_delivery_attempts_total{result=~"dead_letter|failed"}[15m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: ivekit
+          component: notification
+        annotations:
+          summary: iveKit notification deliveries reached a terminal failure
+          description: At least one notification delivery entered failed or dead-letter state in the last 15 minutes.
+          runbook: docs/ivekit-notification-operations-runbook.md#incident-playbooks
+      - alert: IveKitNotificationUncertainDelivery
+        expr: increase(opc_ivekit_notification_delivery_attempts_total{result="uncertain"}[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: ivekit
+          component: notification
+        annotations:
+          summary: iveKit has an uncertain notification delivery
+          description: A provider request may have succeeded but did not return a conclusive result. Do not retry blindly.
+          runbook: docs/ivekit-notification-operations-runbook.md#uncertain-delivery
+      - alert: IveKitNotificationProviderUnhealthy
+        expr: sum by (channel, provider) (increase(opc_ivekit_notification_health_probes_total{outcome="unhealthy"}[10m])) >= 3
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: notification_provider
+        annotations:
+          summary: iveKit notification provider health checks are failing
+          description: A channel/provider pair produced at least three unhealthy probes in ten minutes.
+          runbook: docs/ivekit-notification-operations-runbook.md#incident-playbooks
+      - alert: IveKitNotificationLeaseContention
+        expr: increase(opc_ivekit_notification_lease_lost_total[10m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: notification_worker
+        annotations:
+          summary: iveKit notification worker is losing leases
+          description: Repeated fencing losses indicate a slow provider, undersized lease, or unhealthy worker instance.
+          runbook: docs/ivekit-notification-operations-runbook.md#incident-playbooks
+
+  - name: ivekit.collaboration
+    rules:
+      - alert: IveKitTinodeDeliveryLag
+        expr: opc_ivekit_tinode_delivery_queue_lag_seconds > 120
+        for: 10m
+        labels:
+          severity: warning
+          service: ivekit
+          component: tinode
+        annotations:
+          summary: iveKit Tinode outbound delivery is delayed
+          description: The oldest due Tinode delivery has exceeded two minutes for ten minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekittinodedeliverylag
+      - alert: IveKitTinodeInboundDeadLetters
+        expr: sum(opc_ivekit_tinode_inbound_dead_letters) > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: ivekit
+          component: tinode
+        annotations:
+          summary: iveKit Tinode inbound synchronization has dead letters
+          description: At least one inbound Tinode event is awaiting intervention or terminal review.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekittinodeinbounddeadletters
+      - alert: IveKitFileSecurityBlockedTerminal
+        expr: opc_ivekit_tinode_file_blocked_messages{state="terminal"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: file_security
+        annotations:
+          summary: iveKit messages are terminally blocked by file security
+          description: One or more messages cannot be delivered because an attachment failed or was quarantined.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitfilesecurityblockedterminal
+      - alert: IveKitIntelligenceRouteExhausted
+        expr: increase(opc_ivekit_intelligence_provider_routes_exhausted_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: ivekit
+          component: intelligence_provider
+        annotations:
+          summary: iveKit intelligence provider route was exhausted
+          description: OCR, ASR, translation, or quality review could not find an allowed healthy provider route.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitintelligencerouteexhausted
+
+  - name: ivekit.media_voice
+    rules:
+      - alert: IveKitMediaPacketLossHigh
+        expr: histogram_quantile(0.95, sum by (le, track_source) (rate(opc_ivekit_media_qos_packet_loss_ratio_bucket[10m]))) > 0.10
+        for: 10m
+        labels:
+          severity: warning
+          service: ivekit
+          component: livekit
+        annotations:
+          summary: iveKit media packet loss is high
+          description: P95 reported packet loss has exceeded ten percent for ten minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitmediapacketlosshigh
+      - alert: IveKitMediaQualityDegraded
+        expr: increase(opc_ivekit_media_qos_transitions_total{event_type=~"quality.degraded|quality.poor"}[10m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: livekit
+        annotations:
+          summary: iveKit media quality degradation is frequent
+          description: More than five debounced degraded or poor media transitions occurred in ten minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitmediaqualitydegraded
+      - alert: IveKitVoiceCommandUncertain
+        expr: increase(opc_ivekit_voice_uncertain_commands_total[10m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          service: ivekit
+          component: voice
+        annotations:
+          summary: iveKit Voice command entered uncertain state
+          description: A RustPBX or SIP command may have executed without a conclusive response and requires reconciliation.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitvoicecommanduncertain
+      - alert: IveKitVoiceProviderEventLag
+        expr: histogram_quantile(0.95, sum by (le, adapter) (rate(opc_ivekit_voice_provider_event_lag_seconds_bucket[10m]))) > 30
+        for: 10m
+        labels:
+          severity: warning
+          service: ivekit
+          component: voice
+        annotations:
+          summary: iveKit Voice provider events are delayed
+          description: P95 Voice provider event lag has exceeded 30 seconds for ten minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitvoiceprovidereventlag
+      - alert: IveKitIvrActionFailures
+        expr: increase(opc_ivekit_ivr_pending_actions_total{result="failed"}[15m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: ivr
+        annotations:
+          summary: iveKit IVR pending actions are failing
+          description: More than five IVR actions failed in the last 15 minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitivractionfailures
+
+  - name: ivekit.governance
+    rules:
+      - alert: IveKitRetentionFailure
+        expr: increase(opc_ivekit_retention_runs_total{result="failed"}[30m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: ivekit
+          component: retention
+        annotations:
+          summary: iveKit retention worker failed
+          description: At least one retention category failed in the last 30 minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitretentionfailure
+      - alert: IveKitBackupJobFailed
+        expr: kube_job_status_failed{job_name=~".*ivekit-backup-.*"} > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: ivekit
+          component: backup
+        annotations:
+          summary: iveKit backup CronJob failed
+          description: Kubernetes reports a failed iveKit backup job. Verify the backup manifest before retrying.
+          runbook: docs/ivekit-backup-restore-runbook.md
+
+  - name: ivekit.rustpbx.capacity
+    rules:
+      - alert: IveKitRustPbxSipTransactionSaturation
+        expr: 100 * rustpbx_sip_endpoint_running_transactions / clamp_min(rustpbx_sip_endpoint_active_transaction_limit, 1) > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: RustPBX SIP active transaction capacity is above 90 percent
+          description: Scale or rebalance the Cell before the hard active transaction limit is reached.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxsipcapacity
+      - alert: IveKitRustPbxSipQueueSaturation
+        expr: 100 * rustpbx_sip_endpoint_incoming_queue_depth / clamp_min(rustpbx_sip_endpoint_incoming_queue_capacity, 1) > 80
+        for: 2m
+        labels:
+          severity: warning
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: RustPBX SIP transaction queue is above 80 percent
+          description: The bounded incoming transaction queue is approaching overload rejection.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxsipcapacity
+      - alert: IveKitRustPbxSipTransportSaturation
+        expr: 100 * rustpbx_sip_transport_connections_active / clamp_min(rustpbx_sip_transport_connection_limit, 1) > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: RustPBX SIP transport connection capacity is above 90 percent
+          description: TCP, TLS, and WebSocket transport capacity is nearly exhausted.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxsipcapacity
+      - alert: IveKitRustPbxSipOverloadRejections
+        expr: sum(increase({__name__=~"rustpbx_sip_(endpoint_(active_limit|incoming_queue)_rejections|transport_connection_limit_rejections)_total"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: RustPBX rejected SIP work because a bounded capacity limit was reached
+          description: Inspect per-node saturation, rebalance the Cell, and preserve the rejection evidence.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxsipcapacity
+      - alert: IveKitRustPbxRecordingQueueDrops
+        expr: sum(increase(rustpbx_media_recording_queue_drops_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: RustPBX dropped recording samples to protect live RTP forwarding
+          description: Recording codec or disk work could not keep up with the bounded capture queue.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxrecordingqueue

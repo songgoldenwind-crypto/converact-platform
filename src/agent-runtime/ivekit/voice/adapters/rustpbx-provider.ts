@@ -9,6 +9,7 @@ import type {
   VoiceManagementPort,
   VoiceProviderAdapter,
   VoiceProviderFactory,
+  VoiceProviderOwnerContracts,
   VoiceProviderParkingContext,
   VoiceSecretResolver
 } from '../ports.js';
@@ -100,6 +101,7 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
     command: VoiceCallCommand;
     clear_address?: string;
     parking?: VoiceProviderParkingContext;
+    owner_contracts?: VoiceProviderOwnerContracts;
   }): Promise<{ provider_command_id: string; provider_call_id?: string; accepted: boolean }> {
     if (!this.#rwi) throw capabilityUnavailable();
     await this.#rwi.connect();
@@ -109,7 +111,10 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
       command_id: input.command.id,
       kind: input.command.kind,
       call_id: input.call.provider_call_id || input.call.id,
-      payload: providerCommandPayload(input.command, input.clear_address)
+      payload: providerCommandPayload(input.command, input.clear_address),
+      ...(input.owner_contracts
+        ? { ivekit_owners: input.owner_contracts }
+        : {})
     });
     assertRwiSucceeded(result);
     const safe = safeVoiceProviderPayload(result.result);
@@ -125,13 +130,17 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
     call: VoiceCall;
     command: VoiceCallCommand;
     parking?: { parked_call: VoiceCall };
+    owner_contracts?: VoiceProviderOwnerContracts;
   }): Promise<{ provider_command_id: string; accepted: boolean }> {
     const actionId = `${input.command.id}:hold`;
     const result = await this.#rwi!.execute({
       command_id: actionId,
       kind: 'hold',
       call_id: providerCallId(input.parking?.parked_call ?? input.call),
-      payload: {}
+      payload: {},
+      ...(input.owner_contracts
+        ? { ivekit_owners: input.owner_contracts }
+        : {})
     });
     assertRwiSucceeded(result);
     return { provider_command_id: result.action_id, accepted: true };
@@ -141,6 +150,7 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
     call: VoiceCall;
     command: VoiceCallCommand;
     parking?: { parked_call: VoiceCall; pickup_call: VoiceCall | null };
+    owner_contracts?: VoiceProviderOwnerContracts;
   }): Promise<{ provider_command_id: string; accepted: boolean }> {
     const parkedCall = input.parking?.parked_call;
     const pickupCall = input.parking?.pickup_call ?? input.call;
@@ -152,7 +162,10 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
       command_id: unholdId,
       kind: 'resume',
       call_id: parkedProviderCallId,
-      payload: {}
+      payload: {},
+      ...(input.owner_contracts
+        ? { ivekit_owners: input.owner_contracts }
+        : {})
     });
     assertRwiSucceeded(unhold);
     const bridgeId = `${input.command.id}:bridge`;
@@ -161,7 +174,10 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
       bridge = await this.#rwi!.executeBridge({
         command_id: bridgeId,
         leg_a: parkedProviderCallId,
-        leg_b: pickupProviderCallId
+        leg_b: pickupProviderCallId,
+        ...(input.owner_contracts
+          ? { ivekit_owners: input.owner_contracts }
+          : {})
       });
     } catch {
       throw rwiUncertain(bridgeId);
@@ -177,7 +193,10 @@ export class RustPbxVoiceProviderAdapter implements VoiceProviderAdapter {
         command_id: rollbackId,
         kind: 'hold',
         call_id: parkedProviderCallId,
-        payload: {}
+        payload: {},
+        ...(input.owner_contracts
+          ? { ivekit_owners: input.owner_contracts }
+          : {})
       });
     } catch {
       throw rwiUncertain(rollbackId);

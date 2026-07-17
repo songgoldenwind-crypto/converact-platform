@@ -1,10 +1,10 @@
-import type { IveKitClient, IveKitIntelligenceSourceSnapshot } from '@opc/ivekit-sdk';
+import type { IveKitHttpSdk, IveKitIntelligenceSourceSnapshot } from '@opc/ivekit-sdk';
 import { Import, RefreshCw, RotateCcw } from 'lucide-react';
 import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function IntelligenceSourcePanel(props: {
-  client: IveKitClient;
+  client: IveKitHttpSdk;
   initialSessionId?: string;
   refreshVersion?: number;
 }) {

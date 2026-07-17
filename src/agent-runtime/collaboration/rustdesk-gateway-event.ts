@@ -246,6 +246,10 @@ function operationObservationError(metadata: Record<string, unknown>): string {
   if (metadata.checksum_sha256 !== undefined && !/^sha256:[a-f0-9]{64}$/.test(String(metadata.checksum_sha256))) {
     return 'RustDesk operation observation metadata.checksum_sha256 must be sha256';
   }
+  const evidenceSecurity = String(metadata.evidence_security || '');
+  if (evidenceSecurity && !['ivekit_secure_file', 'native_unscanned', 'local_only'].includes(evidenceSecurity)) {
+    return 'RustDesk operation observation metadata.evidence_security is invalid';
+  }
   return '';
 }
 

@@ -1,30 +1,40 @@
+import { createHash } from 'node:crypto';
+
 import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import { withPgBypass, withPgTenant } from '../../db-pg-tenant.js';
 import { createObjectStorage } from '../../storage/object-storage.js';
 import { resolveRecordingObjectContent } from '../media-recording-object.js';
 import { CollaborationStore } from './collaboration-store.js';
+import { SecureFileStore } from './secure-file-store.js';
 import type {
   CollaborationAttachmentProcessingJob,
   CollaborationAttachmentProcessor,
   CollaborationMessage,
   CollaborationMessageAttachment,
+  CollaborationVisualObservation,
   PolicyScanResult
 } from './types.js';
 import type {
+  AttachmentProcessor,
   AttachmentTextProvider,
-  AttachmentTextExtractionResult
+  AttachmentTextExtractionResult,
+  AttachmentVisualObservation
 } from './attachment-text-provider.js';
 import { listCollaborationWorkerTenants } from './worker-tenant-scope.js';
 import {
   sanitizeProviderMetadata,
   sanitizeProviderRequestId
 } from './provider-safety.js';
+import { intelligenceProviderRouteFailure } from './intelligence-provider-route.js';
 
 export type {
   AttachmentProviderMode,
+  AttachmentMediaMode,
   AttachmentTextExtractionInput,
   AttachmentTextExtractionResult,
-  AttachmentTextProvider
+  AttachmentTextProvider,
+  AttachmentVisualObservation,
+  AttachmentVisualObservationType
 } from './attachment-text-provider.js';
 
 export interface AttachmentObjectResult {
@@ -36,7 +46,7 @@ export interface AttachmentObjectResult {
 
 export interface AttachmentProcessingServiceInput {
   pg: PgQueryable;
-  providers?: Partial<Record<CollaborationAttachmentProcessor, AttachmentTextProvider | null>>;
+  providers?: Partial<Record<AttachmentProcessor, AttachmentTextProvider | null>>;
   resolveProvider?: AttachmentProviderResolver;
   resolveObject?: (attachment: CollaborationMessageAttachment) => Promise<AttachmentObjectResult>;
   now?: () => Date;
@@ -72,7 +82,7 @@ export interface AttachmentProcessingRunSummary {
 }
 
 export class AttachmentProcessingService {
-  private readonly providers: Partial<Record<CollaborationAttachmentProcessor, AttachmentTextProvider | null>>;
+  private readonly providers: Partial<Record<AttachmentProcessor, AttachmentTextProvider | null>>;
   private readonly maxAttempts: number;
   private readonly retryDelaysMs: number[];
   private readonly claimLeaseMs: number;
@@ -91,62 +101,42 @@ export class AttachmentProcessingService {
     return withPgTenant(this.input.pg, message.tenant_id, async (pg) => {
       const jobs: CollaborationAttachmentProcessingJob[] = [];
       for (const attachment of message.attachments) {
-        const processor = processorForAttachment(attachment);
-        if (!processor || attachment.extracted_text) continue;
-        const resolution = await this.resolveProvider(message.tenant_id, processor);
-        const provider = resolution.provider;
-        const cancelled = !resolution.enabled || (options.automatic !== false && !resolution.automatic);
-        const status = cancelled ? 'cancelled' : 'pending';
-        const errorCode = !resolution.enabled
-          ? resolution.error_code || 'policy_disabled'
-          : options.automatic !== false && !resolution.automatic
-            ? 'automatic_processing_disabled'
-            : provider
-              ? ''
-              : resolution.error_code || 'provider_unavailable';
-        const jobId = pgId('capj');
-        const inserted = await pg.query(
-          `INSERT INTO collaboration_attachment_processing_jobs
-            (id, tenant_id, session_id, message_id, attachment_id, processor, status,
-             max_attempts, provider_profile_id, provider_mode, provider_name, error_code)
-           VALUES ($1, $2, $3, $4, $5, $6, $8, $7, $9, $10, $11, $12)
-           ON CONFLICT (tenant_id, attachment_id, processor) DO NOTHING
-           RETURNING *`,
-          [
-            jobId,
-            message.tenant_id,
-            message.session_id,
-            message.id,
-            attachment.id,
-            processor,
-            this.maxAttempts,
-            status,
-            resolution.profile_id,
-            provider?.mode || 'unconfigured',
-            provider?.name || '',
-            errorCode
-          ]
-        );
-        const row = inserted.rows[0] || (await pg.query(
-          `SELECT * FROM collaboration_attachment_processing_jobs
-           WHERE tenant_id = $1 AND attachment_id = $2 AND processor = $3`,
-          [message.tenant_id, attachment.id, processor]
-        )).rows[0];
-        if (!row) continue;
-        const storedJob = decodeJob(row);
-        jobs.push(storedJob);
-        const storedFailed = storedJob.status === 'failed' || storedJob.status === 'cancelled';
-        await pg.query(
-          `UPDATE collaboration_message_attachments
-           SET processing_status = $3, processing_error_code = $4, updated_at = $5
-           WHERE id = $1 AND tenant_id = $2 AND processing_status != 'ready'`,
-          [
-            attachment.id,
-            message.tenant_id,
-            storedFailed ? 'failed' : 'pending',
-            storedJob.error_code,
-            this.now().toISOString()
-          ]
+        const processors = processorsForAttachment(attachment);
+        if (!processors.length || attachment.extracted_text) continue;
+        for (const processor of processors) {
+          const resolution = await this.resolveProvider(message.tenant_id, processor);
+          const provider = resolution.provider;
+          const cancelled = !resolution.enabled || (options.automatic !== false && !resolution.automatic);
+          const status = cancelled ? 'cancelled' : 'pending';
+          const errorCode = !resolution.enabled
+            ? resolution.error_code || 'policy_disabled'
+            : options.automatic !== false && !resolution.automatic
+              ? 'automatic_processing_disabled'
+              : provider
+                ? ''
+                : resolution.error_code || 'provider_unavailable';
+          const inserted = await pg.query(
+            `INSERT INTO collaboration_attachment_processing_jobs
+              (id, tenant_id, session_id, message_id, attachment_id, processor, status,
+               max_attempts, provider_profile_id, provider_mode, provider_name, error_code)
+             VALUES ($1, $2, $3, $4, $5, $6, $8, $7, $9, $10, $11, $12)
+             ON CONFLICT (tenant_id, attachment_id, processor) DO NOTHING
+             RETURNING *`,
+            [
+              pgId('capj'), message.tenant_id, message.session_id, message.id, attachment.id,
+              processor, this.maxAttempts, status, resolution.profile_id,
+              provider?.mode || 'unconfigured', provider?.name || '', errorCode
+            ]
+          );
+          const row = inserted.rows[0] || (await pg.query(
+            `SELECT * FROM collaboration_attachment_processing_jobs
+             WHERE tenant_id = $1 AND attachment_id = $2 AND processor = $3`,
+            [message.tenant_id, attachment.id, processor]
+          )).rows[0];
+          if (row) jobs.push(decodeJob(row));
+        }
+        await this.refreshAttachmentProcessingStatus(
+          pg, message.tenant_id, attachment.id, this.now().toISOString()
         );
       }
       return jobs;
@@ -178,6 +168,36 @@ export class AttachmentProcessingService {
         [input.tenant_id, input.attachment_id]
       );
       return result.rows[0] ? decodeJob(result.rows[0]) : null;
+    });
+  }
+
+  async listJobsForAttachment(input: {
+    tenant_id: string;
+    attachment_id: string;
+  }): Promise<CollaborationAttachmentProcessingJob[]> {
+    return withPgTenant(this.input.pg, input.tenant_id, async (pg) => {
+      const result = await pg.query(
+        `SELECT * FROM collaboration_attachment_processing_jobs
+         WHERE tenant_id = $1 AND attachment_id = $2
+         ORDER BY created_at ASC, id ASC`,
+        [input.tenant_id, input.attachment_id]
+      );
+      return result.rows.map(decodeJob);
+    });
+  }
+
+  async listVisualObservations(input: {
+    tenant_id: string;
+    attachment_id: string;
+  }): Promise<CollaborationVisualObservation[]> {
+    return withPgTenant(this.input.pg, input.tenant_id, async (pg) => {
+      const result = await pg.query(
+        `SELECT * FROM collaboration_visual_observations
+         WHERE tenant_id = $1 AND attachment_id = $2
+         ORDER BY created_at ASC, id ASC`,
+        [input.tenant_id, input.attachment_id]
+      );
+      return result.rows.map(decodeVisualObservation);
     });
   }
 
@@ -236,7 +256,7 @@ export class AttachmentProcessingService {
     await this.reconcileExpired(input.tenant_id, now);
     const configuredProcessors = this.input.resolveProvider
       ? undefined
-      : (['ocr', 'asr'] as const).filter((processor) => Boolean(this.providers[processor]));
+      : configuredJobProcessors(this.providers);
     const candidates = await this.listDue(
       input.tenant_id,
       now,
@@ -296,7 +316,10 @@ export class AttachmentProcessingService {
         filename: attachment.filename,
         content_type: attachment.content_type,
         source_ref: `ivekit://attachment/${attachment.id}`,
-        content: object.content
+        content: object.content,
+        ...(job.processor === 'video_frame_ocr'
+          ? { media_mode: 'video_frame_sampling' as const, frame_interval_ms: 2_000, max_frames: 120 }
+          : { media_mode: 'text' as const })
       });
       const completed = await this.complete(job, attachment, provider, output);
       try {
@@ -324,7 +347,9 @@ export class AttachmentProcessingService {
     const text = String(output.text || '').trim().slice(0, 200_000);
     return withPgTenant(this.input.pg, job.tenant_id, (scopedPg) =>
       withPgTransaction(scopedPg, async (pg) => {
-        const ocrText = job.processor === 'ocr' ? text : attachment.ocr_text;
+        const ocrText = job.processor === 'ocr' || job.processor === 'video_frame_ocr'
+          ? text
+          : attachment.ocr_text;
         const asrText = job.processor === 'asr' ? text : attachment.asr_text;
         const extractedText = [ocrText, asrText].filter(Boolean).join('\n');
         const safeOutputMetadata = sanitizeProviderMetadata(output.metadata || {});
@@ -355,6 +380,7 @@ export class AttachmentProcessingService {
           language: output.language || '',
           provider_request_id: providerRequestId,
           text_length: text.length,
+          observation_count: output.observations?.length || 0,
           object_source: ''
         };
         const jobResult = await pg.query(
@@ -376,12 +402,14 @@ export class AttachmentProcessingService {
           ]
         );
         if (!jobResult.rows[0]) throw processingError('attachment_job_claim_lost', true);
-        const policy = text
-          ? await new CollaborationStore(pg).scanPolicy({
+        const policySource = job.processor === 'video_frame_ocr' ? 'ocr' : job.processor;
+        const policyResults: PolicyScanResult[] = [];
+        if (text) {
+          policyResults.push(await new CollaborationStore(pg).scanPolicy({
             tenant_id: job.tenant_id,
             session_id: job.session_id,
             message_id: job.message_id,
-            source: job.processor,
+            source: policySource,
             source_ref_id: attachment.id,
             evidence_refs: [{
               type: 'attachment',
@@ -390,15 +418,95 @@ export class AttachmentProcessingService {
               checksum: attachment.checksum
             }],
             text
-          })
-          : { matched: false, events: [], findings: [] };
+          }));
+        }
+        for (const observation of output.observations || []) {
+          await this.persistVisualObservation(pg, job, observation, now);
+          policyResults.push(await new CollaborationStore(pg).scanPolicy({
+            tenant_id: job.tenant_id,
+            session_id: job.session_id,
+            message_id: job.message_id,
+            source: 'ocr',
+            source_ref_id: attachment.id,
+            evidence_refs: [{
+              type: 'attachment',
+              id: attachment.id,
+              processor: job.processor,
+              checksum: attachment.checksum,
+              observation_type: observation.type,
+              symbology: observation.symbology || '',
+              frame_timestamp_ms: observation.frame_timestamp_ms ?? null,
+              page_number: observation.page ?? null
+            }],
+            text: observation.value
+          }));
+        }
+        const refreshedAttachment = await this.refreshAttachmentProcessingStatus(
+          pg, job.tenant_id, attachment.id, now
+        );
         return {
-          attachment: decodeAttachment(attachmentResult.rows[0]),
+          attachment: refreshedAttachment || decodeAttachment(attachmentResult.rows[0]),
           job: decodeJob(jobResult.rows[0]),
-          policy
+          policy: mergePolicyResults(policyResults)
         };
       })
     );
+  }
+
+  private async persistVisualObservation(
+    pg: PgQueryable,
+    job: CollaborationAttachmentProcessingJob,
+    observation: AttachmentVisualObservation,
+    now: string
+  ): Promise<void> {
+    const valueHash = createHash('sha256').update(observation.value).digest('hex');
+    await pg.query(
+      `INSERT INTO collaboration_visual_observations
+        (id, tenant_id, session_id, message_id, attachment_id, processor_job_id,
+         observation_type, value_hash, symbology, confidence, frame_timestamp_ms,
+         page_number, metadata, detector_version, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       ON CONFLICT DO NOTHING`,
+      [
+        pgId('cvo'), job.tenant_id, job.session_id, job.message_id, job.attachment_id, job.id,
+        observation.type, valueHash, observation.symbology || '', observation.confidence ?? null,
+        observation.frame_timestamp_ms ?? null, observation.page ?? null,
+        JSON.stringify(sanitizeProviderMetadata(observation.metadata || {})),
+        'visual-observation-v1', now
+      ]
+    );
+  }
+
+  private async refreshAttachmentProcessingStatus(
+    pg: PgQueryable,
+    tenantId: string,
+    attachmentId: string,
+    now: string
+  ): Promise<CollaborationMessageAttachment | null> {
+    const result = await pg.query(
+      `SELECT status, error_code FROM collaboration_attachment_processing_jobs
+       WHERE tenant_id = $1 AND attachment_id = $2`,
+      [tenantId, attachmentId]
+    );
+    if (!result.rows.length) return null;
+    const statuses = result.rows.map((row) => String(row.status));
+    const active = statuses.some((status) => ['pending', 'processing', 'retry_wait'].includes(status));
+    const succeeded = statuses.some((status) => status === 'succeeded');
+    const unsuccessful = statuses.some((status) => status === 'failed' || status === 'cancelled');
+    const status = active ? 'pending' : succeeded ? 'ready' : 'failed';
+    const errorCode = active || (succeeded && !unsuccessful)
+      ? ''
+      : succeeded
+        ? 'partial_processing_failure'
+        : String(result.rows.find((row) => row.error_code)?.error_code || 'attachment_processing_failed');
+    const updated = await pg.query(
+      `UPDATE collaboration_message_attachments
+       SET processing_status = $3, processing_error_code = $4, updated_at = $5
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [attachmentId, tenantId, status, errorCode, now]
+    );
+    return updated.rows[0] ? decodeAttachment(updated.rows[0]) : null;
   }
 
   private async fail(
@@ -406,17 +514,25 @@ export class AttachmentProcessingService {
     error: unknown
   ): Promise<'retry_wait' | 'failed'> {
     const classified = classifyError(error);
-    const terminal = !classified.retryable || job.attempt_count >= job.max_attempts;
+    const terminal = !classified.retryable || (
+      classified.attempt_consumed && job.attempt_count >= job.max_attempts
+    );
     const status = terminal ? 'failed' : 'retry_wait';
     const now = this.now();
     const nextAttemptAt = terminal
       ? null
-      : new Date(now.getTime() + retryDelay(this.retryDelaysMs, job.attempt_count)).toISOString();
+      : nextRetryAt(
+        now,
+        retryDelay(this.retryDelaysMs, job.attempt_count),
+        classified.retry_at
+      );
     await withPgTenant(this.input.pg, job.tenant_id, async (pg) => {
       await pg.query(
         `UPDATE collaboration_attachment_processing_jobs
          SET status = $4, next_attempt_at = $5, lease_until = NULL, worker_id = '',
              error_code = $6, error_message = $7,
+             attempt_count = GREATEST(attempt_count - $9, 0),
+             output_metadata = output_metadata || $10::JSONB,
              completed_at = CASE WHEN $4 = 'failed' THEN $8 ELSE NULL END,
              updated_at = $8
          WHERE id = $1 AND tenant_id = $2 AND status = 'processing' AND worker_id = $3`,
@@ -428,14 +544,13 @@ export class AttachmentProcessingService {
           nextAttemptAt,
           classified.code,
           classified.message,
-          now.toISOString()
+          now.toISOString(),
+          classified.attempt_consumed ? 0 : 1,
+          JSON.stringify(classified.metadata)
         ]
       );
-      await pg.query(
-        `UPDATE collaboration_message_attachments
-         SET processing_status = $3, processing_error_code = $4, updated_at = $5
-         WHERE id = $1 AND tenant_id = $2`,
-        [job.attachment_id, job.tenant_id, terminal ? 'failed' : 'pending', classified.code, now.toISOString()]
+      await this.refreshAttachmentProcessingStatus(
+        pg, job.tenant_id, job.attachment_id, now.toISOString()
       );
     });
     return status;
@@ -487,11 +602,8 @@ export class AttachmentProcessingService {
          WHERE id = $1 AND tenant_id = $2 AND status IN ('pending', 'retry_wait')`,
         [job.id, job.tenant_id, errorCode, now.toISOString()]
       );
-      await pg.query(
-        `UPDATE collaboration_message_attachments
-         SET processing_status = $3, processing_error_code = $4, updated_at = $5
-         WHERE id = $1 AND tenant_id = $2`,
-        [job.attachment_id, job.tenant_id, 'failed', errorCode, now.toISOString()]
+      await this.refreshAttachmentProcessingStatus(
+        pg, job.tenant_id, job.attachment_id, now.toISOString()
       );
     });
   }
@@ -516,7 +628,7 @@ export class AttachmentProcessingService {
     processor: CollaborationAttachmentProcessor
   ): Promise<AttachmentProviderResolution> {
     if (this.input.resolveProvider) return this.input.resolveProvider({ tenant_id: tenantId, processor });
-    const provider = this.providers[processor] || null;
+    const provider = this.providers[providerCapability(processor)] || null;
     return {
       enabled: true,
       automatic: true,
@@ -575,27 +687,37 @@ export class AttachmentProcessingService {
 
   private async reconcileExpired(tenantId: string | undefined, now: Date): Promise<void> {
     const reconcile = async (pg: PgQueryable) => {
-      if (tenantId) {
-        await pg.query(
+      const result = tenantId
+        ? await pg.query(
           `UPDATE collaboration_attachment_processing_jobs
            SET status = CASE WHEN attempt_count >= max_attempts THEN 'failed' ELSE 'retry_wait' END,
                next_attempt_at = CASE WHEN attempt_count >= max_attempts THEN NULL ELSE $2 END,
                lease_until = NULL, worker_id = '', error_code = 'claim_lease_expired',
                error_message = 'attachment processing claim lease expired', updated_at = $2,
                completed_at = CASE WHEN attempt_count >= max_attempts THEN $2 ELSE NULL END
-           WHERE tenant_id = $1 AND status = 'processing' AND lease_until <= $2`,
+           WHERE tenant_id = $1 AND status = 'processing' AND lease_until <= $2
+           RETURNING tenant_id, attachment_id`,
           [tenantId, now.toISOString()]
-        );
-      } else {
-        await pg.query(
+        )
+        : await pg.query(
           `UPDATE collaboration_attachment_processing_jobs
            SET status = CASE WHEN attempt_count >= max_attempts THEN 'failed' ELSE 'retry_wait' END,
                next_attempt_at = CASE WHEN attempt_count >= max_attempts THEN NULL ELSE $1 END,
                lease_until = NULL, worker_id = '', error_code = 'claim_lease_expired',
                error_message = 'attachment processing claim lease expired', updated_at = $1,
                completed_at = CASE WHEN attempt_count >= max_attempts THEN $1 ELSE NULL END
-           WHERE status = 'processing' AND lease_until <= $1`,
+           WHERE status = 'processing' AND lease_until <= $1
+           RETURNING tenant_id, attachment_id`,
           [now.toISOString()]
+        );
+      const affected = new Map<string, { tenant_id: string; attachment_id: string }>();
+      for (const row of result.rows) {
+        const item = { tenant_id: String(row.tenant_id), attachment_id: String(row.attachment_id) };
+        affected.set(`${item.tenant_id}:${item.attachment_id}`, item);
+      }
+      for (const item of affected.values()) {
+        await this.refreshAttachmentProcessingStatus(
+          pg, item.tenant_id, item.attachment_id, now.toISOString()
         );
       }
     };
@@ -605,6 +727,39 @@ export class AttachmentProcessingService {
   }
 
   private async resolveObject(attachment: CollaborationMessageAttachment): Promise<AttachmentObjectResult> {
+    if (attachment.secure_file_id) {
+      try {
+        const file = await new SecureFileStore(this.input.pg).getFile(
+          attachment.tenant_id,
+          attachment.secure_file_id
+        );
+        if (
+          file.session_id !== attachment.session_id || file.status !== 'ready' ||
+          file.threat_status !== 'clean'
+        ) {
+          return { status: 'forbidden', source: 'secure_file' };
+        }
+        const content = await createObjectStorage().download(file.object_key, file.size_bytes);
+        if (!content) return { status: 'not_found', source: 'secure_file' };
+        if (
+          content.length !== file.size_bytes ||
+          createHash('sha256').update(content).digest('hex') !== file.sha256
+        ) {
+          return {
+            status: 'fetch_failed',
+            source: 'secure_file',
+            error: 'secure file integrity check failed'
+          };
+        }
+        return { status: 'readable', source: 'secure_file', content };
+      } catch (error) {
+        return {
+          status: 'fetch_failed',
+          source: 'secure_file',
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }
     if (this.input.resolveObject) return this.input.resolveObject(attachment);
     const key = String(attachment.metadata.storage_key || '').trim();
     if (key && key.startsWith(`${attachment.tenant_id}/`)) {
@@ -629,17 +784,32 @@ export class AttachmentProcessingService {
   }
 }
 
-function processorForAttachment(
+function processorsForAttachment(
   attachment: CollaborationMessageAttachment
-): CollaborationAttachmentProcessor | null {
-  if (attachment.processing_status !== 'pending') return null;
-  if (attachment.kind === 'image') return 'ocr';
-  if (
-    attachment.kind === 'audio' ||
-    attachment.kind === 'video' ||
-    attachment.kind === 'screen_recording'
-  ) return 'asr';
-  return null;
+): CollaborationAttachmentProcessor[] {
+  if (attachment.processing_status !== 'pending') return [];
+  if (attachment.kind === 'image') return ['ocr'];
+  if (attachment.kind === 'audio') return ['asr'];
+  if (attachment.kind === 'video' || attachment.kind === 'screen_recording') {
+    return ['asr', 'video_frame_ocr'];
+  }
+  if (attachment.kind === 'file' && attachment.content_type === 'application/pdf') {
+    return ['ocr'];
+  }
+  return [];
+}
+
+function providerCapability(processor: CollaborationAttachmentProcessor): AttachmentProcessor {
+  return processor === 'video_frame_ocr' ? 'ocr' : processor;
+}
+
+function configuredJobProcessors(
+  providers: Partial<Record<AttachmentProcessor, AttachmentTextProvider | null>>
+): CollaborationAttachmentProcessor[] {
+  const processors: CollaborationAttachmentProcessor[] = [];
+  if (providers.ocr) processors.push('ocr', 'video_frame_ocr');
+  if (providers.asr) processors.push('asr');
+  return processors;
 }
 
 function decodeAttachment(row: Record<string, unknown>): CollaborationMessageAttachment {
@@ -648,6 +818,7 @@ function decodeAttachment(row: Record<string, unknown>): CollaborationMessageAtt
     tenant_id: String(row.tenant_id),
     session_id: String(row.session_id),
     message_id: String(row.message_id),
+    secure_file_id: String(row.secure_file_id || ''),
     kind: String(row.kind) as CollaborationMessageAttachment['kind'],
     storage_url: String(row.storage_url || ''),
     filename: String(row.filename || ''),
@@ -692,6 +863,32 @@ function decodeJob(row: Record<string, unknown>): CollaborationAttachmentProcess
   };
 }
 
+function decodeVisualObservation(row: Record<string, unknown>): CollaborationVisualObservation {
+  return {
+    id: String(row.id),
+    tenant_id: String(row.tenant_id),
+    session_id: String(row.session_id),
+    message_id: String(row.message_id),
+    attachment_id: String(row.attachment_id),
+    processor_job_id: String(row.processor_job_id),
+    observation_type: String(row.observation_type) as CollaborationVisualObservation['observation_type'],
+    value_hash: String(row.value_hash),
+    symbology: String(row.symbology || ''),
+    confidence: row.confidence == null ? null : Number(row.confidence),
+    frame_timestamp_ms: row.frame_timestamp_ms == null ? null : Number(row.frame_timestamp_ms),
+    page_number: row.page_number == null ? null : Number(row.page_number),
+    metadata: parseRecord(row.metadata),
+    detector_version: String(row.detector_version || 'visual-observation-v1'),
+    created_at: String(row.created_at || '')
+  };
+}
+
+function mergePolicyResults(results: PolicyScanResult[]): PolicyScanResult {
+  const events = results.flatMap((result) => result.events);
+  const findings = results.flatMap((result) => result.findings);
+  return { matched: findings.length > 0, events, findings };
+}
+
 function parseRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -710,17 +907,50 @@ function processingError(code: string, retryable: boolean): Error {
   return Object.assign(new Error(code), { code, retryable });
 }
 
-function classifyError(error: unknown): { code: string; message: string; retryable: boolean } {
+function classifyError(error: unknown): {
+  code: string;
+  message: string;
+  retryable: boolean;
+  retry_at: string;
+  attempt_consumed: boolean;
+  metadata: Record<string, unknown>;
+} {
   const details = error as { code?: unknown; retryable?: unknown; message?: unknown };
   const code = String(details?.code || 'attachment_processing_failed').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100);
+  const route = intelligenceProviderRouteFailure(error);
   const message = String(details?.message || code)
     .replace(/([?&](?:token|key|secret|password)=)[^&\s]+/gi, '$1[redacted]')
     .slice(0, 300);
-  return { code, message, retryable: details?.retryable === true };
+  return {
+    code,
+    message,
+    retryable: details?.retryable === true,
+    retry_at: route?.retry_at || '',
+    attempt_consumed: route?.provider_invoked !== false,
+    metadata: routeMetadata(route)
+  };
 }
 
 function retryDelay(delays: number[], attemptCount: number): number {
   return delays[Math.min(Math.max(0, attemptCount - 1), delays.length - 1)] || 0;
+}
+
+function nextRetryAt(now: Date, delayMs: number, providerRetryAt: string): string {
+  const delayed = now.getTime() + delayMs;
+  const requested = Date.parse(providerRetryAt);
+  return new Date(Number.isNaN(requested) ? delayed : Math.max(delayed, requested)).toISOString();
+}
+
+function routeMetadata(
+  route: ReturnType<typeof intelligenceProviderRouteFailure>
+): Record<string, unknown> {
+  if (!route) return {};
+  return {
+    ivekit_route_attempts: route.attempts,
+    ivekit_route_provider_invoked: route.provider_invoked,
+    ivekit_route_failover_attempted: route.failover_attempted,
+    ...(route.retry_at ? { ivekit_route_retry_at: route.retry_at } : {})
+  };
 }
 
 function normalizeRetryDelays(values: number[]): number[] {

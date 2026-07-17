@@ -23,6 +23,16 @@ export interface LiveKitModerationProvider {
   closeRoom(roomName: string): Promise<void>;
 }
 
+export interface LiveKitModerationProviderContext {
+  tenant_id: string;
+  call_id: string;
+  room_name: string;
+}
+
+export type LiveKitModerationProviderResolver = (
+  context: LiveKitModerationProviderContext
+) => LiveKitModerationProvider | null | Promise<LiveKitModerationProvider | null>;
+
 export interface LiveKitModerationResult {
   room_name: string;
   participant_identity: string;
@@ -46,7 +56,7 @@ const TRACK_SOURCES = new Set<IveKitMediaTrackSource>([
 export class LiveKitModerationService {
   constructor(
     private readonly store: MediaCallStore,
-    private readonly provider: LiveKitModerationProvider | null,
+    private readonly provider: LiveKitModerationProvider | LiveKitModerationProviderResolver | null,
     private readonly options: { commandPg?: PgQueryable } = {}
   ) {}
 
@@ -84,7 +94,11 @@ export class LiveKitModerationService {
         const replay = await lockOrReplay(store, input.tenant_id, idempotencyKey, payloadHash);
         if (replay) return replay;
         const preflight = await authorizeModeration(store, input, false);
-        const provider = requireProvider(this.provider);
+        const provider = requireProvider(await this.resolveProvider({
+          tenant_id: input.tenant_id,
+          call_id: preflight.snapshot.call.id,
+          room_name: input.room_name
+        }));
         await this.ensurePendingCommand({
           tenant_id: input.tenant_id,
           call_id: preflight.snapshot.call.id,
@@ -167,7 +181,11 @@ export class LiveKitModerationService {
           return moderationResult({ ...input, actor_identity: actorIdentity }, 'remove', 'already_applied', reason);
         }
         if (!isProviderActive(preflight.target)) throw conflict('media call participant is not active');
-        const provider = requireProvider(this.provider);
+        const provider = requireProvider(await this.resolveProvider({
+          tenant_id: input.tenant_id,
+          call_id: preflight.call.id,
+          room_name: input.room_name
+        }));
         await this.ensurePendingCommand({
           tenant_id: input.tenant_id,
           call_id: preflight.call.id,
@@ -378,19 +396,34 @@ export class LiveKitModerationService {
   }
 
   async revokeForTerminal(snapshot: IveKitMediaCallSnapshot): Promise<void> {
-    if (!this.provider) {
+    const provider = await this.resolveProvider({
+      tenant_id: snapshot.call.tenant_id,
+      call_id: snapshot.call.id,
+      room_name: snapshot.call.room_name
+    });
+    if (!provider) {
       if (process.env.NODE_ENV === 'production') throw providerNotConfigured();
       return;
     }
     const revokeTokenTs = revocationTimestamp();
     try {
       for (const participant of snapshot.participants) {
-        await this.provider.removeParticipant(snapshot.call.room_name, participant.identity, { revokeTokenTs });
+        await provider.removeParticipant(snapshot.call.room_name, participant.identity, { revokeTokenTs });
       }
-      await this.provider.closeRoom(snapshot.call.room_name);
+      await provider.closeRoom(snapshot.call.room_name);
     } catch (error) {
       throw providerFailure('close', error);
     }
+  }
+
+  private resolveProvider(
+    context: LiveKitModerationProviderContext
+  ): Promise<LiveKitModerationProvider | null> {
+    return Promise.resolve(
+      typeof this.provider === 'function'
+        ? this.provider(context)
+        : this.provider
+    );
   }
 
   private withMemoryLock<T>(key: string, fn: () => Promise<T>): Promise<T> {

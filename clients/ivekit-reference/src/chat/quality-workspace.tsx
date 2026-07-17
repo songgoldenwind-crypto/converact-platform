@@ -1,10 +1,10 @@
-import type { IveKitClient } from '@opc/ivekit-sdk';
+import type { IveKitHttpSdk } from '@opc/ivekit-sdk';
 import React from 'react';
 import { IntelligenceSourcePanel } from './intelligence-source-panel.js';
 import { ReviewQueue } from './review-queue.js';
 
 export function QualityWorkspace(props: {
-  client: IveKitClient;
+  client: IveKitHttpSdk;
   selectedSessionId: string;
   refreshVersion: number;
 }) {

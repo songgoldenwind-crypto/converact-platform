@@ -11,6 +11,20 @@
 {{- if ne .Values.voice.database.name "rustpbx" -}}
 {{- fail "voice.database.name must be rustpbx" -}}
 {{- end -}}
+{{- range $name, $value := dict "maxActiveTransactions" .Values.voice.sipCapacity.maxActiveTransactions "maxFinishedTransactions" .Values.voice.sipCapacity.maxFinishedTransactions "incomingTransactionQueueCapacity" .Values.voice.sipCapacity.incomingTransactionQueueCapacity "maxTransportConnections" .Values.voice.sipCapacity.maxTransportConnections -}}
+{{- if or (lt (int $value) 1) (gt (int $value) 10000000) -}}
+{{- fail (printf "voice.sipCapacity.%s must be between 1 and 10000000" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 65536) -}}
+{{- fail "voice.mediaCapacity.recordingChannelCapacity must be between 1 and 65536" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.recordingWorkerThreads) 1) (gt (int .Values.voice.mediaCapacity.recordingWorkerThreads) 64) -}}
+{{- fail "voice.mediaCapacity.recordingWorkerThreads must be between 1 and 64" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 65536) -}}
+{{- fail "voice.mediaCapacity.recordingWorkerQueueCapacity must be between 1 and 65536" -}}
+{{- end -}}
 {{- $sipPort := int .Values.voice.service.sip.port -}}
 {{- $managementPort := int .Values.voice.service.managementPort -}}
 {{- $rtpStart := int .Values.voice.service.rtp.startPort -}}
@@ -22,6 +36,39 @@
 {{- fail "voice RTP range must not overlap SIP or Management ports" -}}
 {{- end -}}
 {{- $profileId := required "voice.profileId is required" .Values.voice.profileId -}}
+{{- $tenantId := required "voice.tenantId is required" .Values.voice.tenantId -}}
+{{- $cellId := required "voice.cellId is required" .Values.voice.cellId -}}
+{{- if .Values.voice.recordingSpool.enabled -}}
+{{- $_ := required "voice.regionId is required when recording spool is enabled" .Values.voice.regionId -}}
+{{- $_ := required "voice.zoneId is required when recording spool is enabled" .Values.voice.zoneId -}}
+{{- if ne .Values.voice.recordingSpool.leaseSecretKey "rustpbx-recording-lease-secret" -}}
+{{- fail "voice.recordingSpool.leaseSecretKey must be rustpbx-recording-lease-secret" -}}
+{{- end -}}
+{{- $partSizeBytes := int .Values.voice.recordingSpool.partSizeBytes -}}
+{{- if or (lt $partSizeBytes 5242880) (gt $partSizeBytes 16777216) -}}
+{{- fail "voice.recordingSpool.partSizeBytes must be between 5 MiB and 16 MiB" -}}
+{{- end -}}
+{{- $uploadConcurrency := int .Values.voice.recordingSpool.uploadConcurrency -}}
+{{- if or (lt $uploadConcurrency 1) (gt $uploadConcurrency 64) -}}
+{{- fail "voice.recordingSpool.uploadConcurrency must be between 1 and 64" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.voice.componentNode.enabled -}}
+{{- if ne (int .Values.voice.componentNode.port) 3210 -}}
+{{- fail "voice.componentNode.port must be 3210" -}}
+{{- end -}}
+{{- if ne .Values.voice.componentNode.tokenKey "ivekit-component-node-token" -}}
+{{- fail "voice.componentNode.tokenKey must be ivekit-component-node-token" -}}
+{{- end -}}
+{{- $_ := required "voice.componentNode.regionId is required when component-node is enabled" .Values.voice.componentNode.regionId -}}
+{{- $_ := required "voice.componentNode.zoneId is required when component-node is enabled" .Values.voice.componentNode.zoneId -}}
+{{- $_ := required "voice.componentNode.dimensionsJson is required when component-node is enabled" .Values.voice.componentNode.dimensionsJson -}}
+{{- $_ := required "voice.componentNode.token is required when component-node is enabled" .Values.voice.componentNode.token -}}
+{{- if empty .Values.voice.componentNode.profileIds -}}
+{{- fail "voice.componentNode.profileIds is required when component-node is enabled" -}}
+{{- end -}}
+{{- end -}}
+{{- $opcImage := printf "%s:%s" .Values.opc.image.repository .Values.opc.image.tag -}}
 {{- $databasePassword := required "voice.database.password is required" .Values.voice.database.password -}}
 {{- $databaseHost := .Values.voice.database.host | default (printf "%s-postgres" .Release.Name) -}}
 {{- $databaseUrl := printf "postgresql://rustpbx_app:%s@%s:%v/rustpbx" ($databasePassword | urlquery) $databaseHost .Values.voice.database.port -}}
@@ -78,6 +125,13 @@ stringData:
     media_proxy = "auto"
     ensure_user = true
     acl_rules = ["allow all", "deny all"]
+    sip_max_active_transactions = {{ int .Values.voice.sipCapacity.maxActiveTransactions }}
+    sip_max_finished_transactions = {{ int .Values.voice.sipCapacity.maxFinishedTransactions }}
+    sip_incoming_transaction_queue_capacity = {{ int .Values.voice.sipCapacity.incomingTransactionQueueCapacity }}
+    sip_max_transport_connections = {{ int .Values.voice.sipCapacity.maxTransportConnections }}
+    media_recording_channel_capacity = {{ int .Values.voice.mediaCapacity.recordingChannelCapacity }}
+    media_recording_worker_threads = {{ int .Values.voice.mediaCapacity.recordingWorkerThreads }}
+    media_recording_worker_queue_capacity = {{ int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity }}
 
     [[proxy.user_backends]]
     type = "extension"
@@ -109,23 +163,26 @@ stringData:
     headers = { "X-PBX-Key" = {{ $webhookToken | quote }} }
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-rustpbx
   labels:
     app: rustpbx
 spec:
+  serviceName: {{ .Release.Name }}-rustpbx-internal
+  podManagementPolicy: Parallel
   replicas: {{ .Values.voice.replicaCount }}
-  strategy:
+  updateStrategy:
     type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
   selector:
     matchLabels:
       app: rustpbx
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $managementPort | quote }}
+        prometheus.io/path: /metrics
       labels:
         app: rustpbx
     spec:
@@ -137,10 +194,225 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
+        - name: route-snapshot-projector
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "src/ivekit-rustpbx-route-snapshot.ts"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: database-url
+            - name: IVEKIT_RUSTPBX_ROUTE_TENANT_ID
+              value: {{ $tenantId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE
+              value: /app/route-snapshot/routes.json
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-route-snapshot-hmac-key
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_INTERVAL_MS
+              value: {{ .Values.voice.routeSnapshot.intervalMs | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_TTL_MS
+              value: {{ .Values.voice.routeSnapshot.ttlMs | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_DEPENDENCIES
+              value: {{ .Values.voice.routeSnapshot.dependencies | quote }}
+          volumeMounts:
+            - name: route-snapshot
+              mountPath: /app/route-snapshot
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.routeSnapshot.resources | nindent 12 }}
+        {{- if .Values.voice.recordingSpool.enabled }}
+        - name: recording-spool-uploader
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "src/ivekit-rustpbx-recording-spool.ts"]
+          env:
+            - name: OPC_IVEKIT_RECORDING_BASE_URL
+              value: {{ printf "http://%s-opc:3000" .Release.Name | quote }}
+            - name: OPC_IVEKIT_RECORDING_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: OPC_IVEKIT_RECORDING_WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_RECORDING_SPOOL_DIR
+              value: /app/recording-spool
+            - name: OPC_IVEKIT_RECORDING_STATE_DIR
+              value: /app/recording-state
+            - name: OPC_IVEKIT_RECORDING_SERVICE_KEY_FILE
+              value: /run/ivekit-recording-secrets/rustpbx-recording-service-key
+            - name: OPC_IVEKIT_RECORDING_LEASE_SECRET_FILE
+              value: /run/ivekit-recording-secrets/rustpbx-recording-lease-secret
+            - name: OPC_IVEKIT_RECORDING_PART_SIZE_BYTES
+              value: {{ .Values.voice.recordingSpool.partSizeBytes | quote }}
+            - name: OPC_IVEKIT_RECORDING_LEASE_MS
+              value: {{ .Values.voice.recordingSpool.leaseMs | quote }}
+            - name: OPC_IVEKIT_RECORDING_UPLOAD_CONCURRENCY
+              value: {{ .Values.voice.recordingSpool.uploadConcurrency | quote }}
+            - name: OPC_IVEKIT_RECORDING_POLL_INTERVAL_MS
+              value: {{ .Values.voice.recordingSpool.pollIntervalMs | quote }}
+          volumeMounts:
+            - name: recording-spool
+              mountPath: /app/recording-spool
+            - name: recording-state
+              mountPath: /app/recording-state
+            - name: recording-secrets
+              mountPath: /run/ivekit-recording-secrets
+              readOnly: true
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.recordingSpool.resources | nindent 12 }}
+        {{- end }}
+        {{- if .Values.voice.componentNode.enabled }}
+        - name: component-node-admission
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
+          ports:
+            - name: component-node
+              containerPort: {{ .Values.voice.componentNode.port }}
+              protocol: TCP
+          env:
+            - name: OPC_IVEKIT_COMPONENT_NODE_HOST
+              value: "0.0.0.0"
+            - name: OPC_IVEKIT_COMPONENT_NODE_PORT
+              value: {{ .Values.voice.componentNode.port | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: {{ .Values.voice.componentNode.tokenKey }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_COMPONENT
+              value: rustpbx
+            - name: OPC_IVEKIT_COMPONENT_NODE_REGION_ID
+              value: {{ .Values.voice.componentNode.regionId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ZONE_ID
+              value: {{ .Values.voice.componentNode.zoneId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_CELL_ID
+              value: {{ $cellId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
+              value: {{ join "," .Values.voice.componentNode.profileIds | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
+              value: sip_voice
+            - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
+              value: {{ .Values.voice.componentNode.dimensionsJson | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS
+              value: {{ .Values.voice.componentNode.terminalRetentionMs | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS
+              value: {{ .Values.voice.componentNode.sweepIntervalMs | quote }}
+            {{- if .Values.voice.recordingSpool.enabled }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE
+              value: /app/recording-state/metrics.json
+            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS
+              value: {{ .Values.voice.recordingSpool.metricsRefreshMs | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS
+              value: {{ .Values.voice.recordingSpool.metricsStaleMs | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: component-node
+            periodSeconds: 3
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: component-node
+            periodSeconds: 10
+            timeoutSeconds: 2
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.componentNode.resources | nindent 12 }}
+          {{- if .Values.voice.recordingSpool.enabled }}
+          volumeMounts:
+            - name: recording-state
+              mountPath: /app/recording-state
+              readOnly: true
+          {{- end }}
+        {{- end }}
         - name: rustpbx
           image: {{ $rustpbxImage | quote }}
           imagePullPolicy: {{ .Values.voice.image.pullPolicy | default "IfNotPresent" }}
           args: ["--conf", "/app/config/rustpbx.toml"]
+          env:
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE
+              value: /app/route-snapshot/routes.json
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-route-snapshot-hmac-key
+            - name: IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-voice-address-hmac-key
+            - name: IVEKIT_RUSTPBX_ROUTE_TENANT_ID
+              value: {{ $tenantId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS
+              value: {{ .Values.voice.routeSnapshot.refreshMs | quote }}
+            - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL
+              value: {{ printf "http://%s-opc:3000/api/ivekit/voice/providers/%s/inbound-admission" .Release.Name $profileId | quote }}
+            - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-webhook-token
+            - name: IVEKIT_RUSTPBX_CELL_ID
+              value: {{ $cellId | quote }}
+            - name: IVEKIT_RUSTPBX_OWNER_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS
+              value: "250"
+            - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED
+              value: {{ ternary "true" "false" .Values.voice.recordingSpool.enabled | quote }}
+            {{- if .Values.voice.recordingSpool.enabled }}
+            - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR
+              value: /app/recording-spool
+            - name: IVEKIT_RUSTPBX_RECORDING_SEGMENT_SECONDS
+              value: {{ .Values.voice.recordingSpool.segmentSeconds | quote }}
+            - name: IVEKIT_RUSTPBX_RECORDING_SEGMENT_MAX_BYTES
+              value: {{ .Values.voice.recordingSpool.segmentMaxBytes | quote }}
+            - name: IVEKIT_REGION_ID
+              value: {{ .Values.voice.regionId | quote }}
+            - name: IVEKIT_ZONE_ID
+              value: {{ .Values.voice.zoneId | quote }}
+            {{- end }}
+            {{- if .Values.voice.componentNode.enabled }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED
+              value: "true"
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_URL
+              value: "http://127.0.0.1:3210"
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: {{ .Values.voice.componentNode.tokenKey }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS
+              value: {{ .Values.voice.componentNode.timeoutMs | quote }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS
+              value: {{ .Values.voice.componentNode.refreshMs | quote }}
+            {{- else }}
+            - name: IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED
+              value: "false"
+            {{- end }}
           lifecycle:
             postStart:
               exec:
@@ -178,8 +450,15 @@ spec:
               readOnly: true
             - name: generated
               mountPath: /app/generated
+            - name: route-snapshot
+              mountPath: /app/route-snapshot
+              readOnly: true
             - name: storage
               mountPath: /app/storage
+            {{- if .Values.voice.recordingSpool.enabled }}
+            - name: recording-spool
+              mountPath: /app/recording-spool
+            {{- end }}
             - name: tmp
               mountPath: /tmp
           securityContext:
@@ -207,15 +486,75 @@ spec:
             defaultMode: 0400
         - name: generated
           emptyDir: {}
+        - name: route-snapshot
+          emptyDir: {}
+        {{- if not .Values.voice.persistence.enabled }}
         - name: storage
           emptyDir: {}
+        {{- if .Values.voice.recordingSpool.enabled }}
+        - name: recording-spool
+          emptyDir: {}
+        - name: recording-state
+          emptyDir: {}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.voice.recordingSpool.enabled }}
+        - name: recording-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: rustpbx-webhook-token
+                      path: rustpbx-recording-service-key
+                    - key: {{ .Values.voice.recordingSpool.leaseSecretKey }}
+                      path: rustpbx-recording-lease-secret
+        {{- end }}
         - name: tmp
           emptyDir: {}
+  {{- if .Values.voice.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes: [{{ .Values.voice.persistence.accessMode | quote }}]
+        {{- with .Values.voice.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.voice.persistence.storageSize }}
+    {{- if .Values.voice.recordingSpool.enabled }}
+    - metadata:
+        name: recording-spool
+      spec:
+        accessModes: [{{ .Values.voice.persistence.accessMode | quote }}]
+        {{- with .Values.voice.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.voice.persistence.recordingSpoolSize }}
+    - metadata:
+        name: recording-state
+      spec:
+        accessModes: [{{ .Values.voice.persistence.accessMode | quote }}]
+        {{- with .Values.voice.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.voice.persistence.recordingStateSize }}
+    {{- end }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-rustpbx-internal
+  labels:
+    app: rustpbx
 spec:
   clusterIP: None
   selector:
@@ -225,6 +564,12 @@ spec:
       port: {{ $managementPort }}
       targetPort: management
       protocol: TCP
+    {{- if .Values.voice.componentNode.enabled }}
+    - name: component-node
+      port: 3210
+      targetPort: component-node
+      protocol: TCP
+    {{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -269,4 +614,76 @@ spec:
   selector:
     matchLabels:
       app: rustpbx
+{{- if .Values.voice.monitoring.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-rustpbx
+  labels:
+    app: rustpbx
+    {{- with .Values.voice.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: rustpbx
+  endpoints:
+    - port: management
+      path: /metrics
+      interval: {{ .Values.voice.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.voice.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- if .Values.voice.monitoring.prometheusRule.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-rustpbx-capacity
+  labels:
+    app: rustpbx
+    {{- with .Values.voice.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: ivekit.rustpbx.capacity
+      rules:
+        - alert: IveKitRustPbxSipTransactionSaturation
+          expr: 100 * rustpbx_sip_endpoint_running_transactions / clamp_min(rustpbx_sip_endpoint_active_transaction_limit, 1) > 90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: RustPBX SIP active transaction capacity is above 90 percent
+        - alert: IveKitRustPbxSipQueueSaturation
+          expr: 100 * rustpbx_sip_endpoint_incoming_queue_depth / clamp_min(rustpbx_sip_endpoint_incoming_queue_capacity, 1) > 80
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: RustPBX SIP transaction queue is above 80 percent
+        - alert: IveKitRustPbxSipTransportSaturation
+          expr: 100 * rustpbx_sip_transport_connections_active / clamp_min(rustpbx_sip_transport_connection_limit, 1) > 90
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: RustPBX SIP transport connection capacity is above 90 percent
+        - alert: IveKitRustPbxSipOverloadRejections
+          expr: sum(increase({__name__=~"rustpbx_sip_(endpoint_(active_limit|incoming_queue)_rejections|transport_connection_limit_rejections)_total"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: RustPBX rejected SIP work because a bounded capacity limit was reached
+        - alert: IveKitRustPbxRecordingQueueDrops
+          expr: sum(increase(rustpbx_media_recording_queue_drops_total[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: RustPBX dropped recording samples to protect live RTP forwarding
+{{- end }}
 {{- end }}

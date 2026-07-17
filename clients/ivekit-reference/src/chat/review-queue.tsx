@@ -1,5 +1,5 @@
 import type {
-  IveKitClient,
+  IveKitHttpSdk,
   IveKitFindingQueueInput,
   IveKitFindingQueueItem,
   IveKitPolicyFinding,
@@ -21,7 +21,7 @@ interface QueueFilters {
 }
 
 export function ReviewQueue(props: {
-  client: IveKitClient;
+  client: IveKitHttpSdk;
   initialSessionId?: string;
   refreshVersion?: number;
 }) {
@@ -128,7 +128,7 @@ function queueFinding(value: IveKitFindingQueueItem): IveKitPolicyFinding {
     tenant_id: text(value.tenant_id),
     session_id: value.session_id,
     message_id: text(value.message_id),
-    source: enumValue(value.source, ['text', 'ocr', 'asr', 'ai'], 'text'),
+    source: enumValue(value.source, ['text', 'ocr', 'asr', 'ai', 'aggregate'], 'text'),
     source_ref_id: text(value.source_ref_id),
     policy_type: text(value.policy_type),
     severity: enumValue(value.severity, ['low', 'medium', 'high'], 'medium'),
@@ -139,6 +139,10 @@ function queueFinding(value: IveKitFindingQueueItem): IveKitPolicyFinding {
     rationale: text(value.rationale),
     review_status: enumValue(value.review_status, ['pending', 'confirmed', 'false_positive', 'resolved', 'escalated'], 'pending'),
     evidence_refs: Array.isArray(value.evidence_refs) ? value.evidence_refs.filter(record) : [],
+    detector_version: text(value.detector_version),
+    policy_version: text(value.policy_version),
+    evidence_snapshot_hash: text(value.evidence_snapshot_hash),
+    content_version: Number.isSafeInteger(value.content_version) && value.content_version >= 0 ? value.content_version : 0,
     reviewed_by: text(value.reviewed_by),
     reviewed_at: nullableText(value.reviewed_at),
     review_note: text(value.review_note),

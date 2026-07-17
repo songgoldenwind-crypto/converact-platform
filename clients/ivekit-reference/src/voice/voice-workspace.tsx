@@ -1,6 +1,6 @@
 import {
   createIveKitVoiceController,
-  type IveKitClient,
+  type IveKitHttpSdk,
   type IveKitVoiceAddressKind,
   type IveKitVoiceCallState,
   type IveKitVoiceCapabilitySnapshot,
@@ -46,7 +46,7 @@ const EMPTY_STATE: IveKitVoiceControllerState = {
 };
 
 export function VoiceWorkspace(props: {
-  client: IveKitClient | null;
+  client: IveKitHttpSdk | null;
   callId: string;
   onCallIdChange(callId: string): void;
   refreshVersion: number;

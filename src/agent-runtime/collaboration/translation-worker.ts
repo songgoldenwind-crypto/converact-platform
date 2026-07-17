@@ -1,6 +1,7 @@
 import type { PgQueryable } from '../../db-pg.js';
 import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 import { createPolicyTranslationProviderResolver } from './intelligence-provider-routing.js';
+import type { IntelligenceProviderRouteEventHandler } from './intelligence-provider-route.js';
 import {
   TranslationService,
   type TranslationRunSummary,
@@ -65,8 +66,9 @@ export class TranslationWorker {
 }
 
 export function translationWorkerConfig(env: NodeJS.ProcessEnv = process.env): TranslationWorkerConfig {
-  const configured = createIntelligenceProviderRegistry(env).list()
-    .some((profile) => profile.capability === 'translation');
+  const profiles = createIntelligenceProviderRegistry(env).list()
+    .filter((profile) => profile.capability === 'translation');
+  const configured = profiles.length > 0;
   const flag = String(env.OPC_TRANSLATION_WORKER_ENABLED || '').trim();
   if (flag && flag !== '0' && flag !== '1') throw new Error('OPC_TRANSLATION_WORKER_ENABLED must be 0 or 1');
   return {
@@ -74,9 +76,19 @@ export function translationWorkerConfig(env: NodeJS.ProcessEnv = process.env): T
     intervalMs: integer(env.OPC_TRANSLATION_INTERVAL_MS, 5_000, 1_000, 300_000, 'OPC_TRANSLATION_INTERVAL_MS'),
     batchSize: integer(env.OPC_TRANSLATION_BATCH_SIZE, 25, 1, 100, 'OPC_TRANSLATION_BATCH_SIZE'),
     maxAttempts: integer(env.OPC_TRANSLATION_MAX_ATTEMPTS, 3, 1, 10, 'OPC_TRANSLATION_MAX_ATTEMPTS'),
-    claimLeaseMs: integer(env.OPC_TRANSLATION_CLAIM_LEASE_MS, 120_000, 5_000, 600_000, 'OPC_TRANSLATION_CLAIM_LEASE_MS'),
+    claimLeaseMs: Math.max(
+      integer(env.OPC_TRANSLATION_CLAIM_LEASE_MS, 120_000, 5_000, 600_000, 'OPC_TRANSLATION_CLAIM_LEASE_MS'),
+      requiredClaimLeaseMs(profiles)
+    ),
     retryDelaysMs: delays(env.OPC_TRANSLATION_RETRY_DELAYS_MS)
   };
+}
+
+function requiredClaimLeaseMs(profiles: Array<{ reservation_ttl_ms: number }>): number {
+  return profiles.reduce(
+    (maximum, profile) => Math.max(maximum, profile.reservation_ttl_ms + 5_000),
+    5_000
+  );
 }
 
 export function startTranslationWorker(input: {
@@ -84,13 +96,16 @@ export function startTranslationWorker(input: {
   env?: NodeJS.ProcessEnv;
   onCompleted?: TranslationServiceInput['onCompleted'];
   onFailed?: TranslationServiceInput['onFailed'];
+  onProviderEvent?: IntelligenceProviderRouteEventHandler;
 }): TranslationWorker {
   const env = input.env || process.env;
   const config = translationWorkerConfig(env);
   const registry = createIntelligenceProviderRegistry(env);
   const service = new TranslationService({
     pg: input.pg,
-    resolveProvider: createPolicyTranslationProviderResolver({ pg: input.pg, registry }),
+    resolveProvider: createPolicyTranslationProviderResolver({
+      pg: input.pg, registry, onEvent: input.onProviderEvent
+    }),
     maxAttempts: config.maxAttempts,
     retryDelaysMs: config.retryDelaysMs,
     claimLeaseMs: config.claimLeaseMs,

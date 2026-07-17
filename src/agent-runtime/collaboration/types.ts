@@ -82,6 +82,7 @@ export interface CollaborationMessageAttachment {
   tenant_id: string;
   session_id: string;
   message_id: string;
+  secure_file_id: string;
   kind: CollaborationMessageAttachmentKind;
   storage_url: string;
   filename: string;
@@ -99,7 +100,7 @@ export interface CollaborationMessageAttachment {
   created_at: string;
 }
 
-export type CollaborationAttachmentProcessor = 'ocr' | 'asr';
+export type CollaborationAttachmentProcessor = 'ocr' | 'asr' | 'video_frame_ocr';
 export type CollaborationAttachmentProcessingStatus =
   | 'pending'
   | 'processing'
@@ -132,9 +133,29 @@ export interface CollaborationAttachmentProcessingJob {
   completed_at: string | null;
 }
 
+export interface CollaborationVisualObservation {
+  id: string;
+  tenant_id: string;
+  session_id: string;
+  message_id: string;
+  attachment_id: string;
+  processor_job_id: string;
+  observation_type: 'qr_code' | 'barcode' | 'text_region';
+  value_hash: string;
+  symbology: string;
+  confidence: number | null;
+  frame_timestamp_ms: number | null;
+  page_number: number | null;
+  metadata: Record<string, unknown>;
+  detector_version: string;
+  created_at: string;
+}
+
 export type CollaborationMessageProviderDeliveryStatus =
   | 'not_required'
   | 'pending'
+  | 'blocked_by_file_security'
+  | 'blocked'
   | 'publishing'
   | 'retry_wait'
   | 'delivered'
@@ -312,10 +333,14 @@ export interface CollaborationPolicyEvent {
   source_ref_id: string;
   attachment_id: string;
   finding_id: string;
+  detector_version: string;
+  policy_version: string;
+  evidence_snapshot_hash: string;
+  content_version: number;
   created_at: string;
 }
 
-export type PolicyFindingSource = 'text' | 'ocr' | 'asr' | 'ai';
+export type PolicyFindingSource = 'text' | 'ocr' | 'asr' | 'ai' | 'aggregate';
 export type PolicyFindingReviewStatus =
   | 'pending'
   | 'confirmed'
@@ -344,6 +369,10 @@ export interface CollaborationPolicyFinding {
   confidence: number | null;
   rationale: string;
   evidence_refs: PolicyEvidenceRef[];
+  detector_version: string;
+  policy_version: string;
+  evidence_snapshot_hash: string;
+  content_version: number;
   review_status: PolicyFindingReviewStatus;
   reviewed_by: string;
   reviewed_at: string | null;

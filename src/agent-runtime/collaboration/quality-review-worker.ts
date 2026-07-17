@@ -1,6 +1,7 @@
 import type { PgQueryable } from '../../db-pg.js';
 import { createIntelligenceProviderRegistry } from './intelligence-provider-registry.js';
 import { createPolicyQualityReviewProviderResolver } from './intelligence-provider-routing.js';
+import type { IntelligenceProviderRouteEventHandler } from './intelligence-provider-route.js';
 import {
   QualityReviewService,
   type QualityReviewRunSummary,
@@ -74,8 +75,9 @@ export class QualityReviewWorker {
 export function qualityReviewWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): QualityReviewWorkerConfig {
-  const configured = createIntelligenceProviderRegistry(env).list()
-    .some((profile) => profile.capability === 'quality_review');
+  const profiles = createIntelligenceProviderRegistry(env).list()
+    .filter((profile) => profile.capability === 'quality_review');
+  const configured = profiles.length > 0;
   const enabledFlag = String(env.OPC_QUALITY_REVIEW_WORKER_ENABLED || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
     throw new Error('OPC_QUALITY_REVIEW_WORKER_ENABLED must be 0 or 1');
@@ -103,28 +105,41 @@ export function qualityReviewWorkerConfig(
       10,
       'OPC_QUALITY_REVIEW_MAX_ATTEMPTS'
     ),
-    claimLeaseMs: boundedInteger(
-      env.OPC_QUALITY_REVIEW_CLAIM_LEASE_MS,
-      120_000,
-      5_000,
-      600_000,
-      'OPC_QUALITY_REVIEW_CLAIM_LEASE_MS'
+    claimLeaseMs: Math.max(
+      boundedInteger(
+        env.OPC_QUALITY_REVIEW_CLAIM_LEASE_MS,
+        120_000,
+        5_000,
+        600_000,
+        'OPC_QUALITY_REVIEW_CLAIM_LEASE_MS'
+      ),
+      requiredClaimLeaseMs(profiles)
     ),
     retryDelaysMs: retryDelays(env.OPC_QUALITY_REVIEW_RETRY_DELAYS_MS)
   };
+}
+
+function requiredClaimLeaseMs(profiles: Array<{ reservation_ttl_ms: number }>): number {
+  return profiles.reduce(
+    (maximum, profile) => Math.max(maximum, profile.reservation_ttl_ms + 5_000),
+    5_000
+  );
 }
 
 export function startQualityReviewWorker(input: {
   pg: PgQueryable;
   env?: NodeJS.ProcessEnv;
   onCompleted?: QualityReviewServiceInput['onCompleted'];
+  onProviderEvent?: IntelligenceProviderRouteEventHandler;
 }): QualityReviewWorker {
   const env = input.env || process.env;
   const config = qualityReviewWorkerConfig(env);
   const registry = createIntelligenceProviderRegistry(env);
   const service = new QualityReviewService({
     pg: input.pg,
-    resolveProvider: createPolicyQualityReviewProviderResolver({ pg: input.pg, registry }),
+    resolveProvider: createPolicyQualityReviewProviderResolver({
+      pg: input.pg, registry, onEvent: input.onProviderEvent
+    }),
     maxAttempts: config.maxAttempts,
     claimLeaseMs: config.claimLeaseMs,
     retryDelaysMs: config.retryDelaysMs,

@@ -1,0 +1,559 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index ea78bd7..d5b2aad 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -166,6 +166,7 @@ sha2 = "0.11.0"
+ dotenvy = "0.15.7"
+ md-5 = "0.11.0"
+ once_cell = "1.21.4"
++ivekit-component-hook = { path = "vendor/ivekit-component-hook" }
+ regex = "1.12.4"
+ http = "1.4.2"
+ urlencoding = "2.1.3"
+diff --git a/src/app.rs b/src/app.rs
+index 0b4ac71..e91f911 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -432,6 +432,9 @@ impl AppStateBuilder {
+                 if let Some(ref gw) = core.rwi_gateway {
+                     builder = builder.with_rwi_gateway(gw.clone());
+                 }
++                if let Some(hook) = crate::ivekit_owner::session_hook()? {
++                    builder = builder.with_session_hook(hook);
++                }
+ 
+                 // Apply addon proxy server hooks (including CC addon's AgentRegistry registration)
+                 builder = addon_registry.apply_proxy_server_hooks(builder, core.clone());
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+new file mode 100644
+index 0000000..9babc06
+--- /dev/null
++++ b/src/ivekit_owner.rs
+@@ -0,0 +1,370 @@
++use anyhow::{Result, anyhow};
++use async_trait::async_trait;
++use dashmap::DashMap;
++use ivekit_component_hook::{
++    Authorization, AuthorizationRequest, Authorizer, Guard, Operation, Request,
++};
++use serde::{Deserialize, Serialize};
++use std::error::Error as StdError;
++use std::sync::{Arc, OnceLock};
++use std::time::{Duration, SystemTime, UNIX_EPOCH};
++
++use crate::proxy::proxy_call::session_hooks::{CallSessionContext, CallSessionHook};
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++pub struct OwnerContract {
++    pub reservation_id: String,
++    pub interaction_id: String,
++    pub owner_epoch: String,
++}
++
++struct DisabledAuthorizer;
++
++impl Authorizer for DisabledAuthorizer {
++    fn authorize(
++        &self,
++        _request: AuthorizationRequest,
++    ) -> std::result::Result<Authorization, Box<dyn StdError + Send + Sync>> {
++        Err("ivekit owner uses the host async HTTP client".into())
++    }
++}
++
++struct OwnerEntry {
++    contract: OwnerContract,
++    guard: Guard<DisabledAuthorizer>,
++}
++
++#[derive(Clone)]
++struct OwnerConfig {
++    endpoint: reqwest::Url,
++    token: String,
++    node_id: String,
++    timeout: Duration,
++    refresh_interval: Duration,
++    client: reqwest::Client,
++}
++
++#[derive(Serialize)]
++struct WireAuthorizationRequest<'a> {
++    reservation_id: &'a str,
++    interaction_id: &'a str,
++    owner_epoch: &'a str,
++    operation: &'a str,
++}
++
++#[derive(Deserialize)]
++struct WireAuthorizationEnvelope {
++    data: WireAuthorization,
++}
++
++#[derive(Deserialize)]
++struct WireAuthorization {
++    allowed: bool,
++    component: String,
++    node_id: String,
++    cell_lease_epoch: u64,
++    owner_epoch: String,
++    state_sequence: u64,
++    lease_expires_at: String,
++}
++
++static CONFIG: OnceLock<std::result::Result<Option<OwnerConfig>, String>> = OnceLock::new();
++static OWNERS: OnceLock<DashMap<String, Arc<OwnerEntry>>> = OnceLock::new();
++
++pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Result<()> {
++    valid_identifier(provider_call_id)?;
++    let Some(config) = config()? else {
++        return Ok(());
++    };
++    let owners = owners();
++    if let Some(existing) = owners.get(provider_call_id) {
++        if existing.contract.reservation_id != contract.reservation_id
++            || existing.contract.interaction_id != contract.interaction_id
++            || existing.contract.owner_epoch != contract.owner_epoch
++        {
++            return Err(anyhow!("owner contract conflict"));
++        }
++        existing
++            .guard
++            .assert_mutation(&contract.owner_epoch, now_unix_ms())
++            .map_err(|error| anyhow!("owner guard rejected: {error}"))?;
++        return Ok(());
++    }
++
++    let request = hook_request(&contract);
++    let authorization = authorize(config, &contract, Operation::Open).await?;
++    let guard = Guard::new(DisabledAuthorizer);
++    guard
++        .open_authorized(request, authorization, now_unix_ms())
++        .map_err(|error| anyhow!("owner open rejected: {error}"))?;
++    let entry = Arc::new(OwnerEntry {
++        contract: contract.clone(),
++        guard,
++    });
++    match owners.entry(provider_call_id.to_string()) {
++        dashmap::mapref::entry::Entry::Occupied(existing) => {
++            let current = existing.get();
++            if current.contract.reservation_id != contract.reservation_id
++                || current.contract.interaction_id != contract.interaction_id
++                || current.contract.owner_epoch != contract.owner_epoch
++            {
++                return Err(anyhow!("owner contract conflict"));
++            }
++        }
++        dashmap::mapref::entry::Entry::Vacant(vacant) => {
++            vacant.insert(entry);
++            start_refresh(provider_call_id.to_string());
++        }
++    }
++    Ok(())
++}
++
++pub fn assert_mutation(provider_call_id: &str, supplied_epoch: Option<&str>) -> Result<()> {
++    let Some(entry) = owners().get(provider_call_id) else {
++        return Ok(());
++    };
++    let supplied_epoch = supplied_epoch.ok_or_else(|| anyhow!("owner epoch is required"))?;
++    entry
++        .guard
++        .assert_mutation(supplied_epoch, now_unix_ms())
++        .map_err(|error| anyhow!("owner mutation rejected: {error}"))
++}
++
++pub fn session_hook() -> Result<Option<Arc<dyn CallSessionHook>>> {
++    Ok(config()?.map(|_| Arc::new(IveKitOwnerSessionHook) as Arc<dyn CallSessionHook>))
++}
++
++pub struct IveKitOwnerSessionHook;
++
++#[async_trait]
++impl CallSessionHook for IveKitOwnerSessionHook {
++    async fn on_call_ended(
++        &self,
++        context: &CallSessionContext,
++        _reason: Option<&crate::callrecord::CallRecordHangupReason>,
++        _duration_secs: u64,
++    ) {
++        close_owner(&context.session_id).await;
++    }
++}
++
++async fn close_owner(provider_call_id: &str) {
++    let Some((_, entry)) = owners().remove(provider_call_id) else {
++        return;
++    };
++    let Ok(config) = required_config() else {
++        return;
++    };
++    match authorize(config, &entry.contract, Operation::Close).await {
++        Ok(authorization) => {
++            if let Err(error) = entry.guard.close_authorized(authorization) {
++                tracing::warn!(
++                    %provider_call_id,
++                    error = %error,
++                    "iveKit owner close rejected"
++                );
++            }
++        }
++        Err(error) => {
++            tracing::warn!(
++                %provider_call_id,
++                error = %error,
++                "iveKit owner close authorization failed"
++            );
++        }
++    }
++}
++
++fn start_refresh(provider_call_id: String) {
++    crate::utils::spawn(async move {
++        loop {
++            let Ok(config) = required_config() else {
++                return;
++            };
++            tokio::time::sleep(config.refresh_interval).await;
++            let Some(entry) = owners().get(&provider_call_id).map(|value| value.clone()) else {
++                return;
++            };
++            match authorize(config, &entry.contract, Operation::Mutate).await {
++                Ok(authorization) => {
++                    if let Err(error) = entry.guard.refresh_authorized(authorization, now_unix_ms())
++                    {
++                        tracing::warn!(
++                            %provider_call_id,
++                            error = %error,
++                            "iveKit owner refresh rejected"
++                        );
++                    }
++                }
++                Err(error) => {
++                    tracing::warn!(
++                        %provider_call_id,
++                        error = %error,
++                        "iveKit owner refresh authorization failed"
++                    );
++                }
++            }
++        }
++    });
++}
++
++async fn authorize(
++    config: &OwnerConfig,
++    contract: &OwnerContract,
++    operation: Operation,
++) -> Result<Authorization> {
++    let operation = match operation {
++        Operation::Open => "open",
++        Operation::Mutate => "mutate",
++        Operation::Close => "close",
++    };
++    let request = config
++        .client
++        .post(config.endpoint.join("/v1/authorize")?)
++        .bearer_auth(&config.token)
++        .json(&WireAuthorizationRequest {
++            reservation_id: &contract.reservation_id,
++            interaction_id: &contract.interaction_id,
++            owner_epoch: &contract.owner_epoch,
++            operation,
++        })
++        .send();
++    let response = tokio::time::timeout(config.timeout, request)
++        .await
++        .map_err(|_| anyhow!("component authorization timed out"))??;
++    if !response.status().is_success() {
++        return Err(anyhow!("component authorization rejected"));
++    }
++    let wire = response.json::<WireAuthorizationEnvelope>().await?.data;
++    if !wire.allowed || wire.component != "rustpbx" || wire.node_id != config.node_id {
++        return Err(anyhow!("component authorization identity mismatch"));
++    }
++    let expires_at = chrono::DateTime::parse_from_rfc3339(&wire.lease_expires_at)
++        .map_err(|_| anyhow!("component authorization lease is invalid"))?;
++    let lease_expires_unix_ms = u64::try_from(expires_at.timestamp_millis())
++        .map_err(|_| anyhow!("component authorization lease is invalid"))?;
++    Ok(Authorization {
++        allowed: wire.allowed,
++        component: wire.component,
++        node_id: wire.node_id,
++        cell_lease_epoch: wire.cell_lease_epoch,
++        owner_epoch: wire.owner_epoch,
++        state_sequence: wire.state_sequence,
++        lease_expires_unix_ms,
++    })
++}
++
++fn hook_request(contract: &OwnerContract) -> Request {
++    Request {
++        reservation_id: contract.reservation_id.clone(),
++        interaction_id: contract.interaction_id.clone(),
++        owner_epoch: contract.owner_epoch.clone(),
++    }
++}
++
++fn required_config() -> Result<&'static OwnerConfig> {
++    config()?.ok_or_else(|| anyhow!("iveKit component owner is not configured"))
++}
++
++fn config() -> Result<Option<&'static OwnerConfig>> {
++    match CONFIG.get_or_init(load_config) {
++        Ok(Some(config)) => Ok(Some(config)),
++        Ok(None) => Ok(None),
++        Err(error) => Err(anyhow!(error.clone())),
++    }
++}
++
++fn load_config() -> std::result::Result<Option<OwnerConfig>, String> {
++    let enabled = match std::env::var("IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED") {
++        Ok(value) if matches!(value.as_str(), "true" | "1") => true,
++        Ok(value) if matches!(value.as_str(), "false" | "0") => false,
++        Ok(_) => return Err("component node enabled flag is invalid".to_string()),
++        Err(_) => false,
++    };
++    if !enabled {
++        return Ok(None);
++    }
++    let endpoint = std::env::var("IVEKIT_RUSTPBX_COMPONENT_NODE_URL").ok();
++    let token = std::env::var("IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN").ok();
++    let node_id = std::env::var("IVEKIT_RUSTPBX_OWNER_NODE_ID").ok();
++    let endpoint = reqwest::Url::parse(
++        endpoint
++            .as_deref()
++            .ok_or("component node URL is required")?,
++    )
++    .map_err(|_| "component node URL is invalid")?;
++    let loopback = matches!(endpoint.host_str(), Some("127.0.0.1" | "::1" | "localhost"));
++    if endpoint.scheme() != "http"
++        || !loopback
++        || !endpoint.username().is_empty()
++        || endpoint.password().is_some()
++    {
++        return Err("component node URL must use local HTTP".to_string());
++    }
++    let token = token.ok_or("component node token is required")?;
++    if token.len() < 24 || token.len() > 512 || token.bytes().any(|byte| byte.is_ascii_control()) {
++        return Err("component node token is invalid".to_string());
++    }
++    let node_id = node_id.ok_or("component owner node ID is required")?;
++    valid_identifier(&node_id).map_err(|_| "component owner node ID is invalid")?;
++    let timeout_ms = env_u64("IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS", 500, 100, 30_000)?;
++    let refresh_ms = env_u64(
++        "IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS",
++        3_000,
++        100,
++        60_000,
++    )?;
++    let client = reqwest::Client::builder()
++        .connect_timeout(Duration::from_millis(timeout_ms))
++        .timeout(Duration::from_millis(timeout_ms))
++        .pool_max_idle_per_host(4)
++        .build()
++        .map_err(|_| "component node HTTP client is invalid")?;
++    Ok(Some(OwnerConfig {
++        endpoint,
++        token,
++        node_id,
++        timeout: Duration::from_millis(timeout_ms),
++        refresh_interval: Duration::from_millis(refresh_ms),
++        client,
++    }))
++}
++
++fn env_u64(name: &str, fallback: u64, minimum: u64, maximum: u64) -> Result<u64, String> {
++    let parsed = match std::env::var(name) {
++        Ok(value) => value
++            .parse::<u64>()
++            .map_err(|_| format!("{name} is invalid"))?,
++        Err(_) => fallback,
++    };
++    if !(minimum..=maximum).contains(&parsed) {
++        return Err(format!("{name} is invalid"));
++    }
++    Ok(parsed)
++}
++
++fn valid_identifier(value: &str) -> Result<()> {
++    if value.is_empty()
++        || value.len() > 255
++        || !value.chars().enumerate().all(|(index, character)| {
++            character.is_ascii_alphanumeric()
++                || (index > 0 && matches!(character, '.' | '_' | ':' | '-'))
++        })
++    {
++        return Err(anyhow!("invalid owner identifier"));
++    }
++    Ok(())
++}
++
++fn owners() -> &'static DashMap<String, Arc<OwnerEntry>> {
++    OWNERS.get_or_init(DashMap::new)
++}
++
++fn now_unix_ms() -> u64 {
++    SystemTime::now()
++        .duration_since(UNIX_EPOCH)
++        .unwrap_or_default()
++        .as_millis()
++        .try_into()
++        .unwrap_or(u64::MAX)
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 35fe0a2..6dfa59d 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -13,6 +13,7 @@ pub mod handler;
+ pub mod license;
+ 
+ pub mod http_util;
++pub mod ivekit_owner;
+ pub mod media;
+ pub mod metrics;
+ pub mod models;
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index e87389c..960d12b 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -334,6 +334,20 @@ impl HttpCallRouter {
+                 extensions: None,
+             });
+         }
++        crate::ivekit_owner::ensure_owner(
++            call_id,
++            crate::ivekit_owner::OwnerContract {
++                reservation_id: admitted.data.reservation_id,
++                interaction_id: admitted.data.call_id,
++                owner_epoch: admitted.data.owner_epoch,
++            },
++        )
++        .await
++        .map_err(|error| RouteError {
++            error: anyhow!("snapshot owner authorization failed: {error}"),
++            status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
++            extensions: None,
++        })?;
+         Ok(())
+     }
+ }
+@@ -433,6 +447,9 @@ struct HttpSnapshotAdmissionEnvelope {
+ #[derive(Deserialize)]
+ struct HttpSnapshotAdmissionResponse {
+     accepted: bool,
++    call_id: String,
++    reservation_id: String,
++    owner_epoch: String,
+ }
+ 
+ fn snapshot_admission_config_from_env() -> Option<HttpSnapshotAdmissionConfig> {
+diff --git a/src/rwi/handler.rs b/src/rwi/handler.rs
+index fc53e6c..bf05e66 100644
+--- a/src/rwi/handler.rs
++++ b/src/rwi/handler.rs
+@@ -274,6 +274,62 @@ async fn handle_text_message(
+         }
+     };
+ 
++    let owners = match value.get("ivekit_owners") {
++        None => std::collections::HashMap::new(),
++        Some(raw) => match serde_json::from_value::<
++            std::collections::HashMap<String, crate::ivekit_owner::OwnerContract>,
++        >(raw.clone())
++        {
++            Ok(owners) => owners,
++            Err(_) => {
++                let err_resp = serde_json::to_string(&serde_json::json!({
++                    "type": "command_failed",
++                    "status": "error",
++                    "action_id": action_id,
++                    "action": action,
++                    "error": "invalid_ivekit_owners",
++                }))
++                .unwrap_or_default();
++                let _ = ws_tx.send(err_resp);
++                return;
++            }
++        },
++    };
++    for owner_call_id in extract_owner_call_ids(&command) {
++        if let Some(owner) = owners.get(owner_call_id)
++            && let Err(error) =
++                crate::ivekit_owner::ensure_owner(owner_call_id, owner.clone()).await
++        {
++            let err_resp = serde_json::to_string(&serde_json::json!({
++                "type": "command_failed",
++                "status": "error",
++                "action_id": action_id,
++                "action": action,
++                "call_id": owner_call_id,
++                "error": format!("ivekit_owner_open_failed:{error}"),
++            }))
++            .unwrap_or_default();
++            let _ = ws_tx.send(err_resp);
++            return;
++        }
++        let owner_epoch = owners
++            .get(owner_call_id)
++            .map(|owner| owner.owner_epoch.as_str());
++        if let Err(error) = crate::ivekit_owner::assert_mutation(owner_call_id, owner_epoch) {
++            let err_resp = serde_json::to_string(&serde_json::json!({
++                "type": "command_failed",
++                "status": "error",
++                "action_id": action_id,
++                "action": action,
++                "call_id": owner_call_id,
++                "error": format!("ivekit_owner_rejected:{error}"),
++            }))
++            .unwrap_or_default();
++            let _ = ws_tx.send(err_resp);
++            return;
++        }
++    }
++
+     match &command {
+         RwiCommandPayload::Subscribe { contexts, events } => {
+             let mut gw = gateway.write();
+@@ -665,3 +721,42 @@ fn extract_call_id<'a>(cmd: &'a RwiCommandPayload) -> Option<&'a str> {
+         } => Some(consultation_call_id.as_str()),
+     }
+ }
++
++fn extract_owner_call_ids(cmd: &RwiCommandPayload) -> Vec<&str> {
++    match cmd {
++        RwiCommandPayload::Bridge { leg_a, leg_b } => {
++            vec![leg_a.as_str(), leg_b.as_str()]
++        }
++        RwiCommandPayload::SetRingbackSource {
++            target_call_id,
++            source_call_id,
++        } => vec![target_call_id.as_str(), source_call_id.as_str()],
++        RwiCommandPayload::TransferComplete {
++            call_id,
++            consultation_call_id,
++        } => vec![call_id.as_str(), consultation_call_id.as_str()],
++        RwiCommandPayload::SupervisorListen {
++            supervisor_call_id,
++            target_call_id,
++        }
++        | RwiCommandPayload::SupervisorWhisper {
++            supervisor_call_id,
++            target_call_id,
++            ..
++        }
++        | RwiCommandPayload::SupervisorBarge {
++            supervisor_call_id,
++            target_call_id,
++            ..
++        }
++        | RwiCommandPayload::SupervisorTakeover {
++            supervisor_call_id,
++            target_call_id,
++        }
++        | RwiCommandPayload::SupervisorStop {
++            supervisor_call_id,
++            target_call_id,
++        } => vec![supervisor_call_id.as_str(), target_call_id.as_str()],
++        _ => extract_call_id(cmd).into_iter().collect(),
++    }
++}

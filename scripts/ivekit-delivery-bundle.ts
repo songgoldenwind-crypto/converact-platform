@@ -27,10 +27,20 @@ import {
   type IveKitReleaseContract
 } from './ivekit-release-operations.js';
 import {
+  createIveKitStage2ReleaseEvidence,
+  validateIveKitStage2ReleaseEvidence,
+  type IveKitStage2ReleaseEvidence
+} from './ivekit-stage2-release-evidence.js';
+import {
   VOICE_REQUIRED_ACCEPTANCE_CHECKS,
   createIveKitVoiceAcceptanceTemplate,
   renderIveKitVoiceAcceptanceRunbook
 } from './ivekit-voice-acceptance.js';
+import {
+  createIveKitV6RealAcceptanceTemplate,
+  validateIveKitV6RealAcceptanceManifest,
+  type IveKitV6RealAcceptanceManifest
+} from './ivekit-v6-real-acceptance.js';
 
 export interface DeliverySourceFile {
   source: string;
@@ -46,6 +56,7 @@ export interface IveKitDeliveryManifestFile {
 export interface IveKitDeliveryManifest {
   schema_version: 1;
   product: 'iveKit';
+  foundation_version: 'V5';
   status: 'ready_for_handoff';
   source_commit: string;
   generated_at: string;
@@ -66,8 +77,10 @@ export interface IveKitDeliveryManifest {
     voice_helm: string;
     voice_acceptance_template: string;
     voice_acceptance_runbook: string;
+    v6_real_acceptance_template: string;
     rustpbx_image_build: string;
     rustpbx_acceptance: string;
+    capacity_runtime: string;
     service_source: string;
   };
   artifacts: {
@@ -78,8 +91,10 @@ export interface IveKitDeliveryManifest {
     image_metadata: { path: string; sha256: string };
     sbom: { path: string; sha256: string };
     acceptance_status: { path: string; sha256: string };
+    v6_real_acceptance_template: { path: string; sha256: string };
     provider_profiles_example: { path: string; sha256: string };
     release_contract: { path: string; sha256: string };
+    stage2_deployment_evidence: { path: string; sha256: string };
     upgrade_runbook: { path: string; sha256: string };
   };
   provider_ownership: {
@@ -97,15 +112,38 @@ export interface IveKitDeliveryManifest {
     asr: 'not_run';
     quality_review: 'not_run';
     translation: 'not_run';
+    notification_providers: 'not_run';
+    file_security: 'not_run';
+    public_webhook: 'not_run';
+    kubernetes: 'not_run';
+    backup_restore: 'not_run';
   };
   controlled_environment_acceptance: {
     postgres: IveKitControlledAcceptanceStatus;
     provider_protocol: IveKitControlledAcceptanceStatus;
     browser: IveKitControlledAcceptanceStatus;
     restart_recovery: IveKitControlledAcceptanceStatus;
+    full_chain: IveKitControlledAcceptanceStatus;
+  };
+  capability_matrix: IveKitDeliveryCapability[];
+  acceptance_matrix: {
+    automated: {
+      status: 'required_before_release';
+      command: 'npm run verify:ivekit:foundation';
+    };
+    controlled: IveKitDeliveryManifest['controlled_environment_acceptance'];
+    real_environment: IveKitDeliveryManifest['real_environment_acceptance'];
   };
   known_not_run: IveKitKnownNotRun[];
   files: IveKitDeliveryManifestFile[];
+}
+
+export interface IveKitDeliveryCapability {
+  id: string;
+  stage: 1 | 2 | 3 | 4 | 5;
+  delivery_status: 'included';
+  contract: string;
+  real_environment_gates: string[];
 }
 
 export interface IveKitKnownNotRun {
@@ -192,10 +230,116 @@ const STANDALONE_MIGRATIONS = [
   '056_ivekit_contact_center_overflow.sql',
   '057_ivekit_voice_action_capabilities.sql',
   '058_ivekit_voice_parking.sql',
-  'services/ivekit-service/migrations/090_ivekit_runtime_security.sql'
+  '059_ivekit_provider_governance.sql',
+  '060_ivekit_content_intelligence.sql',
+  '061_ivekit_file_security.sql',
+  '062_tinode_file_delivery_operations.sql',
+  '063_livekit_media_quality.sql',
+  '064_rustdesk_authorization_codes.sql',
+  '065_ivekit_notifications.sql',
+  '066_ivekit_audit.sql',
+  '067_ivekit_rate_limits.sql',
+  '068_ivekit_retention.sql',
+  '069_ivekit_runtime_heartbeats.sql',
+  '070_ivekit_notification_operations.sql',
+  '071_ivekit_notification_health.sql',
+  '072_ivekit_notification_events.sql',
+  '073_ivekit_integration_webhooks.sql',
+  '074_tinode_message_mutation_outbox.sql',
+  '075_rustdesk_emergency_fallback.sql',
+  '076_rustdesk_evidence_intelligence_reconciliation.sql',
+  '077_ivekit_capacity_orchestrator.sql',
+  '078_ivekit_cell_leases.sql',
+  '079_ivekit_voice_route_snapshot_revision.sql',
+  '080_ivekit_interaction_placements.sql',
+  '081_ivekit_notification_worker_partition.sql',
+  '082_ivekit_capacity_worker_checkpoints.sql',
+  '083_ivekit_cell_admission_reservations.sql',
+  '084_ivekit_cell_lease_topology.sql',
+  '085_ivekit_interaction_placement_handoffs.sql',
+  '086_ivekit_recording_manifests.sql',
+  '087_livekit_egress_jobs.sql',
+  '088_livekit_egress_reconciliation.sql',
+  '089_livekit_egress_capacity_metrics.sql',
+  'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
+  '091_ivekit_capacity_scaling_campaigns.sql',
+  '092_ivekit_capacity_platform_campaigns.sql'
 ];
 
+const CAPACITY_RUNTIME_SOURCE_PATHS = [
+  '.github/workflows/ivekit-capacity-ci.yml',
+  'infra/capacity/Dockerfile',
+  'infra/capacity/README.md',
+  'infra/capacity/package.json',
+  'infra/capacity/package-lock.json',
+  'infra/capacity/tsconfig.json',
+  'scripts/ivekit-capacity-controller.ts',
+  'scripts/ivekit-capacity-dispatcher.ts',
+  'scripts/ivekit-capacity-finalizer.ts',
+  'scripts/ivekit-capacity-scaling-finalizer.ts',
+  'scripts/ivekit-capacity-platform-finalizer.ts',
+  'scripts/ivekit-capacity-worker.ts',
+  'scripts/ivekit-cell-admission.ts',
+  'scripts/ivekit-cell-capacity-projector.ts',
+  'scripts/ivekit-component-node-admission.ts',
+  'scripts/ivekit-rustdesk-owner-binding.ts',
+  'scripts/capacity/canonical-json.ts',
+  'scripts/capacity/evidence-validator.ts',
+  'scripts/capacity/frontier-runner.ts',
+  'scripts/capacity/generator-qualification.ts',
+  'scripts/capacity/generators/external-json.ts',
+  'scripts/capacity/generators/external-worker.ts',
+  'scripts/capacity/generators/ivekit-event-ws.ts',
+  'scripts/capacity/generators/livekit.ts',
+  'scripts/capacity/generators/rtp-media-twin.ts',
+  'scripts/capacity/generators/rustdesk.ts',
+  'scripts/capacity/generators/sipp.ts',
+  'scripts/capacity/generators/tinode.ts',
+  'scripts/capacity/orchestrator/controller.ts',
+  'scripts/capacity/orchestrator/index.ts',
+  'scripts/capacity/orchestrator/jetstream-bus.ts',
+  'scripts/capacity/orchestrator/postgres-store.ts',
+  'scripts/capacity/orchestrator/run-finalizer.ts',
+  'scripts/capacity/orchestrator/s3-evidence.ts',
+  'scripts/capacity/orchestrator/service.ts',
+  'scripts/capacity/orchestrator/types.ts',
+  'scripts/capacity/orchestrator/worker-runtime.ts',
+  'scripts/capacity/orchestrator/worker.ts',
+  'scripts/capacity/probes/component-probe.ts',
+  'scripts/capacity/probes/index.ts',
+  'scripts/capacity/probes/prometheus.ts',
+  'scripts/capacity/probes/types.ts',
+  'scripts/capacity/profile-compiler.ts',
+  'scripts/capacity/platform-campaign-runtime.ts',
+  'scripts/capacity/platform-campaign.ts',
+  'scripts/capacity/scaling-campaign-runtime.ts',
+  'scripts/capacity/scaling-campaign.ts',
+  'scripts/capacity/scaling-curve.ts',
+  'scripts/capacity/shard-lease.ts',
+  'src/ivekit-component-node-admission.ts',
+  'src/ivekit-placement-snapshot-projector.ts',
+  'src/agent-runtime/ivekit/placement/admission-http.ts',
+  'src/agent-runtime/ivekit/placement/admission-ledger.ts',
+  'src/agent-runtime/ivekit/placement/admission.ts',
+  'src/agent-runtime/ivekit/placement/cell-lease.ts',
+  'src/agent-runtime/ivekit/placement/component-node-admission-http.ts',
+  'src/agent-runtime/ivekit/placement/component-node-admission.ts',
+  'src/agent-runtime/ivekit/placement/component-node-sync.ts',
+  'src/agent-runtime/ivekit/placement/component-node-topology.ts',
+  'src/agent-runtime/ivekit/placement/owner-epoch.ts',
+  'src/agent-runtime/ivekit/placement/pg-queryable.ts',
+  'src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts',
+  'src/agent-runtime/ivekit/placement/snapshot.ts',
+  'src/agent-runtime/ivekit/placement/types.ts',
+  'src/agent-runtime/ivekit/recordings/recording-manifest.ts',
+  'src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts'
+] as const;
+
 export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
+  ...CAPACITY_RUNTIME_SOURCE_PATHS.map((source) => ({
+    source,
+    destination: `capacity-runtime/${source}`
+  })),
   ...[
     'README.md',
     'docker-compose.yml',
@@ -211,11 +355,25 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'README.md',
     'values.yaml',
     'templates/_helpers.tpl',
+    'templates/backup-cronjob.yaml',
     'templates/deployment.yaml',
+    'templates/hpa.yaml',
+    'templates/clamav.yaml',
     'templates/migrate-job.yaml',
     'templates/pdb.yaml',
+    'templates/prometheus-rule.yaml',
     'templates/rustpbx-deployment.yaml',
-    'templates/service.yaml'
+    'templates/service.yaml',
+    'templates/service-monitor.yaml',
+    'templates/grafana-dashboard.yaml',
+    'templates/tinode-config.yaml',
+    'templates/tinode-deployment.yaml',
+    'templates/tinode-network-policy.yaml',
+    'templates/tinode-pdb.yaml',
+    'templates/tinode-pvc.yaml',
+    'templates/tinode-service.yaml',
+    'files/prometheus-rules.yaml',
+    'files/grafana-dashboard.json'
   ].map((name) => ({
     source: `services/ivekit-service/helm/ivekit/${name}`,
     destination: `deploy/kubernetes/ivekit/${name}`
@@ -233,6 +391,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   })),
   ...[
     'iveKit\u89c6\u9891IM\u901a\u7528\u80fd\u529b\u8be6\u7ec6\u8bbe\u8ba1.md',
+    'openapi.yaml',
     'ivekit-openapi.md',
     'ivekit-led-integration-guide.md',
     'ivekit-m5-unified-collaboration-plan.md',
@@ -240,13 +399,121 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-voice-foundation-v1-design.md',
     'ivekit-v3-intelligence-operations.md',
     'ivekit-v3-completion-audit.md',
+    'ivekit-v5-shared-foundation-design.md',
+    'ivekit-v5-stage1-content-intelligence-plan.md',
+    'ivekit-v5-stage1-provider-resilience-plan.md',
+    'ivekit-v5-stage2-im-livekit-file-plan.md',
+    'ivekit-v5-stage3-rustdesk-windows-plan.md',
+    'ivekit-v5-stage4-voice-notification-operations-plan.md',
+    'ivekit-v5-stage5-integration-delivery-plan.md',
+    'ivekit-backup-restore-runbook.md',
+    'ivekit-notification-operations-runbook.md',
+    'ivekit-monitoring-runbook.md',
+    'ivekit-integration-event-webhook-runbook.md',
+    'ivekit-rustdesk-windows-deployment.md',
+    'ivekit-v6-production-closure-design.md',
+    'ivekit-v6-production-closure-plan.md',
+    'ivekit-v6-real-environment-acceptance.md',
     'livekit-im-full-capability-plan.md',
     'rustdesk-client-version-matrix.md'
   ].map((name) => ({ source: `docs/${name}`, destination: `docs/${name}` })),
   ...[
+    'README.md',
+    'campaign-finalization-runbook.md',
+    'cell-10k-pilot-budget.md',
+    'component-node-admission-protocol-v1.md',
+    'forks/ivekit-forks-v1.json',
+    'implementation-plan-phase1.md',
+    'implementation-plan-phase2.md',
+    'phase1-controlled-status.json',
+    'phase2-code-status.json',
+    'profiles/cell-10k-v1.json',
+    'profiles/mix-100k-v1.json',
+    'run-config.example.json',
+    'schemas/capacity-vector.schema.json',
+    'schemas/fork-manifest.schema.json',
+    'schemas/scaling-efficiency.schema.json',
+    'schemas/workload-profile.schema.json',
+    'targets/mix-100k-efficiency-v1.json'
+  ].map((name) => ({
+    source: `docs/capacity/${name}`,
+    destination: `docs/capacity/${name}`
+  })),
+  ...[
+    'ccaas-1-cell-placement.md',
+    'ccaas-2-dual-zone-quorum.md',
+    'ccaas-3-recording-evidence.md',
+    'ccaas-4-open-source-fork-governance.md',
+    'ccaas-5-distributed-load-generation.md',
+    'ccaas-6-single-node-density-and-scaling-efficiency.md'
+  ].map((name) => ({
+    source: `docs/adr/${name}`,
+    destination: `docs/adr/${name}`
+  })),
+  ...[
+    'docker-compose.yml',
+    'env.example',
+    'kubernetes/cell-admission-deployment.yaml',
+    'kubernetes/component-node-admission-sidecar.yaml',
+    'kubernetes/controller-deployment.yaml',
+    'kubernetes/dispatcher-deployment.yaml',
+    'kubernetes/finalizer-job.yaml',
+    'kubernetes/livekit-statefulset.yaml',
+    'kubernetes/platform-finalizer-job.yaml',
+    'kubernetes/rustdesk-statefulset.yaml',
+    'kubernetes/scaling-finalizer-job.yaml',
+    'kubernetes/tinode-statefulset.yaml',
+    'kubernetes/worker-statefulset.yaml'
+  ].map((name) => ({
+    source: `infra/capacity/${name}`,
+    destination: `infra/capacity/${name}`
+  })),
+  ...[
+    'go.mod',
+    'README.md',
+    'hook.go',
+    'http_authorizer.go',
+    'hook_test.go',
+    'http_authorizer_test.go'
+  ].map((name) => ({
+    source: `integrations/component-hook-go/${name}`,
+    destination: `fork-hooks/go/${name}`
+  })),
+  ...[
+    'go.mod',
+    'README.md',
+    'registry.go',
+    'registry_test.go'
+  ].map((name) => ({
+    source: `integrations/livekit-v1.13.3/${name}`,
+    destination: `fork-hooks/livekit-v1.13.3/${name}`
+  })),
+  ...[
+    'go.mod',
+    'README.md',
+    'registry.go',
+    'registry_test.go'
+  ].map((name) => ({
+    source: `integrations/tinode-v0.25.3/${name}`,
+    destination: `fork-hooks/tinode-v0.25.3/${name}`
+  })),
+  ...[
+    'Cargo.toml',
+    'Cargo.lock',
+    'README.md',
+    'src/lib.rs'
+  ].map((name) => ({
+    source: `integrations/component-hook-rs/${name}`,
+    destination: `fork-hooks/rust/${name}`
+  })),
+  ...[
     'ivekit-led-integration-example.ts',
     'ivekit-rustdesk-led-example.ts'
   ].map((name) => ({ source: `scripts/${name}`, destination: `examples/${name}` })),
+  {
+    source: 'sdk/ivekit/examples/webhook-receiver.ts',
+    destination: 'examples/ivekit-webhook-receiver.ts'
+  },
   ...[
     'README.md',
     'Dockerfile.runtime',
@@ -255,13 +522,96 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   ].map((name) => ({ source: `infra/ivekit/rustpbx/${name}`, destination: `deploy/rustpbx/${name}` })),
   ...[
     'rsipstack-tcp-reconnect.patch',
+    'rsipstack-ivekit-capacity.patch',
     'rustpbx-ivekit-ami-dialogs.patch',
     'rustpbx-ivekit-rwi-originate-hangup.patch',
-    'rustpbx-local-rsipstack.patch'
+    'rustpbx-ivekit-route-snapshot.patch',
+    'rustpbx-ivekit-inbound-admission.patch',
+    'rustpbx-ivekit-owner-epoch.patch',
+    'rustpbx-ivekit-recording-spool.patch',
+    'rustpbx-local-rsipstack.patch',
+    'rustpbx-ivekit-sip-capacity.patch',
+    'rustpbx-ivekit-media-hot-path.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`
   })),
+  ...[
+    'README.md',
+    'apply-overlay.mjs',
+    'build.sh'
+  ].map((name) => ({
+    source: `infra/ivekit/livekit/${name}`,
+    destination: `deploy/livekit-fork/${name}`
+  })),
+  {
+    source: 'infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch',
+    destination: 'deploy/livekit-fork/patches/livekit-ivekit-small-room-hot-path.patch'
+  },
+  ...[
+    'README.md',
+    'apply-overlay.mjs',
+    'build.sh',
+    'ivekit_metrics.go'
+  ].map((name) => ({
+    source: `infra/ivekit/livekit-egress/${name}`,
+    destination: `components/livekit-egress/infra/ivekit/livekit-egress/${name}`
+  })),
+  ...[
+    'go.mod',
+    'policy.go',
+    'policy_test.go'
+  ].map((name) => ({
+    source: `integrations/livekit-egress-v1.13.0/${name}`,
+    destination: `components/livekit-egress/integrations/livekit-egress-v1.13.0/${name}`
+  })),
+  ...[
+    ['Chart.yaml', 'Chart.yaml'],
+    ['values.yaml', 'values.yaml'],
+    ['templates/_helpers.tpl', 'templates/_helpers.tpl'],
+    ['templates/livekit-egress-deployment.yaml', 'templates/livekit-egress-deployment.yaml']
+  ].map(([source, destination]) => ({
+    source: `infra/k8s/${source}`,
+    destination: `components/livekit-egress/infra/k8s/${destination}`
+  })),
+  ...[
+    'README.md',
+    'apply-overlay.mjs',
+    'build.sh',
+    'server-hook.go'
+  ].map((name) => ({
+    source: `infra/ivekit/tinode/${name}`,
+    destination: `deploy/tinode-fork/${name}`
+  })),
+  {
+    source: 'infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch',
+    destination: 'deploy/tinode-fork/patches/tinode-ivekit-session-fanout-hot-path.patch'
+  },
+  ...[
+    'README.md',
+    'apply-overlay.mjs',
+    'build.sh',
+    'server-hook.rs'
+  ].map((name) => ({
+    source: `infra/ivekit/rustdesk-server/${name}`,
+    destination: `deploy/rustdesk-server-fork/${name}`
+  })),
+  {
+    source: 'infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch',
+    destination: 'deploy/rustdesk-server-fork/patches/rustdesk-server-ivekit-relay-hot-path.patch'
+  },
+  ...['relay-hot-path.rs', 'run.sh'].map((name) => ({
+    source: `infra/ivekit/rustdesk-server/bench/${name}`,
+    destination: `deploy/rustdesk-server-fork/bench/${name}`
+  })),
+  {
+    source: 'scripts/ivekit-rustdesk-owner-binding.ts',
+    destination: 'deploy/rustdesk-server-fork/ivekit-rustdesk-owner-binding.ts'
+  },
+  {
+    source: 'src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts',
+    destination: 'fork-hooks/rustdesk-server/rustdesk-owner-binding.ts'
+  },
   {
     source: 'services/ivekit-service/acceptance/rustpbx-router.py',
     destination: 'acceptance/rustpbx/router.py'
@@ -298,11 +648,45 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     source: 'scripts/ivekit-voice-acceptance.ts',
     destination: 'acceptance/tools/ivekit-voice-acceptance.ts'
   },
+  {
+    source: 'scripts/ivekit-v5-controlled-acceptance.ts',
+    destination: 'acceptance/tools/ivekit-v5-controlled-acceptance.ts'
+  },
+  {
+    source: 'scripts/ivekit-v6-real-acceptance.ts',
+    destination: 'acceptance/tools/ivekit-v6-real-acceptance.ts'
+  },
   ...[
     'rustdesk-edge-agent.ts',
     'rustdesk-edge-command.ts',
-    'rustdesk-edge-pending-store.ts'
+    'rustdesk-edge-pending-store.ts',
+    'rustdesk-owner-epoch-fence.ts',
+    'rustdesk-edge-observation-contract.ts',
+    'rustdesk-observation-spool.ts',
+    'rustdesk-observation-bridge.ts',
+    'rustdesk-evidence-uploader.ts',
+    'rustdesk-native-evidence-correlator.ts',
+    'rustdesk-native-evidence-policy.ts',
+    'rustdesk-native-evidence-watcher.ts'
   ].map((name) => ({ source: `scripts/${name}`, destination: `edge/src/${name}` })),
+  ...[
+    'rustdesk-windows-package.ts',
+    'rustdesk-windows-capability-policy.ts'
+  ].map((name) => ({ source: `scripts/${name}`, destination: `edge/build/${name}` })),
+  ...[
+    'Deploy-IveKitRustDesk.ps1',
+    'Invoke-IveKitRustDeskSessionDisconnect.ps1',
+    'IveKitRustDeskEdge.xml.template',
+    'Publish-IveKitRustDeskEvidence.ps1',
+    'Resolve-IveKitRustDeskSession.ps1'
+  ].map((name) => ({ source: `scripts/rustdesk-windows/${name}`, destination: `edge/windows/${name}` })),
+  ...[
+    'README.md',
+    'apply-overlay.d.ts',
+    'apply-overlay.mjs',
+    'ivekit_native_control.rs',
+    'ivekit_native_evidence.rs'
+  ].map((name) => ({ source: `integrations/rustdesk-1.4.7/${name}`, destination: `edge/rustdesk-1.4.7/${name}` })),
   ...[
     'linux-disconnect.sh',
     'linux-restart.sh',
@@ -330,17 +714,21 @@ const RUSTPBX_ACCEPTANCE_GENERATED_FILES = [
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/ports.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/secret-resolver.js',
-  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js'
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js',
+  'acceptance/rustpbx/src/db-pg.js',
+  'acceptance/rustpbx/src/postgres-migrations.js'
 ] as const;
 const GENERATED_FILES = new Set([
   DELIVERY_ROOT_MARKER,
   'README.md',
   'acceptance/provider-profiles.example.json',
   'acceptance/status.json',
+  'acceptance/v6-real-template.json',
   'acceptance/voice-real-template.json',
   'acceptance/voice-real-runbook.md',
   ...RUSTPBX_ACCEPTANCE_GENERATED_FILES,
   'operations/release-contract.json',
+  'operations/stage2-deployment-evidence.json',
   'operations/upgrade-runbook.md',
   'manifest.json',
   'SHA256SUMS'
@@ -364,21 +752,28 @@ const REAL_ENVIRONMENT_ACCEPTANCE = {
   ocr: 'not_run',
   asr: 'not_run',
   quality_review: 'not_run',
-  translation: 'not_run'
+  translation: 'not_run',
+  notification_providers: 'not_run',
+  file_security: 'not_run',
+  public_webhook: 'not_run',
+  kubernetes: 'not_run',
+  backup_restore: 'not_run'
 } as const;
 
 const CONTROLLED_ENVIRONMENT_ACCEPTANCE = {
   postgres: 'not_run',
   provider_protocol: 'not_run',
   browser: 'not_run',
-  restart_recovery: 'not_run'
+  restart_recovery: 'not_run',
+  full_chain: 'not_run'
 } as const;
 
 const CONTROLLED_ACCEPTANCE_KEYS = [
   'postgres',
   'provider_protocol',
   'browser',
-  'restart_recovery'
+  'restart_recovery',
+  'full_chain'
 ] as const;
 
 const KNOWN_NOT_RUN: readonly IveKitKnownNotRun[] = [
@@ -389,7 +784,26 @@ const KNOWN_NOT_RUN: readonly IveKitKnownNotRun[] = [
   { id: 'real_ocr_vendor', status: 'not_run', reason: 'No production OCR vendor, credentials, quota, or accuracy corpus is selected.' },
   { id: 'real_asr_vendor', status: 'not_run', reason: 'No production ASR vendor, credentials, quota, or accuracy corpus is selected.' },
   { id: 'real_quality_vendor', status: 'not_run', reason: 'No production AI quality vendor, credentials, or evaluation corpus is selected.' },
-  { id: 'real_translation_vendor', status: 'not_run', reason: 'No production translation vendor, credentials, quota, or evaluation corpus is selected.' }
+  { id: 'real_translation_vendor', status: 'not_run', reason: 'No production translation vendor, credentials, quota, or evaluation corpus is selected.' },
+  { id: 'real_notification_providers', status: 'not_run', reason: 'Commercial SMTP, email, SMS providers and delivery receipts require target credentials and network validation.' },
+  { id: 'real_file_security', status: 'not_run', reason: 'Production object storage, ClamAV signatures, media tools, quarantine and large resumable uploads require target infrastructure.' },
+  { id: 'real_public_webhook', status: 'not_run', reason: 'Public DNS, TLS, receiver availability and retry behavior require a deployed external Webhook endpoint.' },
+  { id: 'real_kubernetes', status: 'not_run', reason: 'Target Kubernetes rollout, autoscaling, multi-instance failover and monitoring discovery have not been executed.' },
+  { id: 'real_backup_restore', status: 'not_run', reason: 'A source-bound backup and destructive isolated restore drill must run against target PostgreSQL and object storage.' }
+] as const;
+
+const CAPABILITY_MATRIX: readonly IveKitDeliveryCapability[] = [
+  { id: 'intelligence_and_translation', stage: 1, delivery_status: 'included', contract: 'OCR, ASR, quality review, anti-circumvention and translation with governed Provider routing', real_environment_gates: ['ocr', 'asr', 'quality_review', 'translation'] },
+  { id: 'im_and_sessions', stage: 2, delivery_status: 'included', contract: 'Tinode-backed IM, sync, receipts, presence, attachments and durable session state', real_environment_gates: ['tinode'] },
+  { id: 'livekit_media', stage: 2, delivery_status: 'included', contract: 'LiveKit audio, video, screen sharing, recording, TURN, QoS and reconnect recovery', real_environment_gates: ['livekit'] },
+  { id: 'file_security', stage: 2, delivery_status: 'included', contract: 'MIME detection, malware quarantine, derivatives, multipart upload and cleanup', real_environment_gates: ['file_security'] },
+  { id: 'rustdesk_remote_assistance', stage: 3, delivery_status: 'included', contract: 'Windows authorization, control, clipboard, files, multi-display, recording, disconnect and audit', real_environment_gates: ['rustdesk'] },
+  { id: 'voice_ivr_contact_center', stage: 4, delivery_status: 'included', contract: 'RustPBX, SIP, IVR, WebPhone, call control and reusable contact-center primitives', real_environment_gates: ['rustpbx'] },
+  { id: 'notifications', stage: 4, delivery_status: 'included', contract: 'In-app, signed Webhook, email and SMS durable notification delivery without mobile push', real_environment_gates: ['notification_providers'] },
+  { id: 'provider_governance', stage: 4, delivery_status: 'included', contract: 'Health, quota, circuit breaking, fallback and failover across external Providers', real_environment_gates: ['ocr', 'asr', 'quality_review', 'translation', 'notification_providers'] },
+  { id: 'security_and_operations', stage: 4, delivery_status: 'included', contract: 'Authorization, immutable audit, rate limit, retention, monitoring, backup and multi-instance deployment', real_environment_gates: ['kubernetes', 'backup_restore'] },
+  { id: 'integration_events', stage: 5, delivery_status: 'included', contract: 'HTTP replay, WebSocket, signed event Webhooks, SDK verifier and durable receiver inbox contract', real_environment_gates: ['public_webhook'] },
+  { id: 'standalone_delivery', stage: 5, delivery_status: 'included', contract: 'Product-neutral API, SDK, OpenAPI, deployment, migration, acceptance and LED handoff documentation', real_environment_gates: ['kubernetes'] }
 ] as const;
 
 const CONTROLLED_PROVIDER_PROFILES = [
@@ -422,6 +836,7 @@ export function loadControlledAcceptancePackage(
   const report = JSON.parse(readFileSync(reportPath, 'utf8')) as {
     schema_version?: unknown;
     product?: unknown;
+    foundation_version?: unknown;
     source_commit?: unknown;
     controlled_tests_are_real_vendor_evidence?: unknown;
     controlled_environment?: unknown;
@@ -515,7 +930,8 @@ function emptyControlledAcceptancePackage(): LoadedControlledAcceptancePackage {
       postgres: { status: statuses.postgres, evidence: [] },
       provider_protocol: { status: statuses.provider_protocol, evidence: [] },
       browser: { status: statuses.browser, evidence: [] },
-      restart_recovery: { status: statuses.restart_recovery, evidence: [] }
+      restart_recovery: { status: statuses.restart_recovery, evidence: [] },
+      full_chain: { status: statuses.full_chain, evidence: [] }
     },
     evidence: []
   };
@@ -566,12 +982,28 @@ export function buildIveKitDeliveryBundle(
       '--skipLibCheck',
       'scripts/rustdesk-edge-agent.ts',
       'scripts/rustdesk-edge-command.ts',
-      'scripts/rustdesk-edge-pending-store.ts'
+      'scripts/rustdesk-edge-pending-store.ts',
+      'scripts/rustdesk-owner-epoch-fence.ts',
+      'scripts/rustdesk-edge-observation-contract.ts',
+      'scripts/rustdesk-observation-spool.ts',
+      'scripts/rustdesk-observation-bridge.ts',
+      'scripts/rustdesk-evidence-uploader.ts',
+      'scripts/rustdesk-native-evidence-correlator.ts',
+      'scripts/rustdesk-native-evidence-policy.ts',
+      'scripts/rustdesk-native-evidence-watcher.ts'
     ], repoRoot);
     for (const name of [
       'rustdesk-edge-agent.js',
       'rustdesk-edge-command.js',
-      'rustdesk-edge-pending-store.js'
+      'rustdesk-edge-pending-store.js',
+      'rustdesk-owner-epoch-fence.js',
+      'rustdesk-edge-observation-contract.js',
+      'rustdesk-observation-spool.js',
+      'rustdesk-observation-bridge.js',
+      'rustdesk-evidence-uploader.js',
+      'rustdesk-native-evidence-correlator.js',
+      'rustdesk-native-evidence-policy.js',
+      'rustdesk-native-evidence-watcher.js'
     ]) copyFile(outputDir, join(edgeStaging, name), `edge/dist/${name}`);
   } finally {
     rmSync(edgeStaging, { recursive: true, force: true });
@@ -681,15 +1113,70 @@ export function buildIveKitDeliveryBundle(
     status: imageDigest ? 'digest_pinned' : 'build_required',
     build_context: 'service/build-context/'
   }, null, 2)}\n`, 'utf8');
+  mkdirSync(join(outputDir, 'operations'), { recursive: true });
+  const stage2Evidence = createIveKitStage2ReleaseEvidence({
+    sourceCommit,
+    generatedAt,
+    imageDigest,
+    migrations: [
+      '061_ivekit_file_security.sql',
+      '062_tinode_file_delivery_operations.sql',
+      '063_livekit_media_quality.sql'
+    ].map((file) => ({ file, sha256: sha256(join(outputDir, 'database', 'migrations', file)) })),
+    configurationArtifacts: [
+      ...['deploy/livekit/env.example', 'deploy/livekit/docker-compose.yml'].map((path) => ({
+        profile: 'livekit_turn' as const,
+        path,
+        sha256: sha256(join(outputDir, path))
+      })),
+      ...[
+        'deploy/livekit/docker-compose.yml',
+        'deploy/livekit/docker-compose.storage.yml',
+        'deploy/livekit/env.example',
+        'components/livekit-egress/infra/ivekit/livekit-egress/README.md',
+        'components/livekit-egress/infra/ivekit/livekit-egress/apply-overlay.mjs',
+        'components/livekit-egress/infra/ivekit/livekit-egress/build.sh',
+        'components/livekit-egress/infra/ivekit/livekit-egress/ivekit_metrics.go',
+        'components/livekit-egress/integrations/livekit-egress-v1.13.0/go.mod',
+        'components/livekit-egress/integrations/livekit-egress-v1.13.0/policy.go',
+        'components/livekit-egress/integrations/livekit-egress-v1.13.0/policy_test.go',
+        'components/livekit-egress/infra/k8s/Chart.yaml',
+        'components/livekit-egress/infra/k8s/values.yaml',
+        'components/livekit-egress/infra/k8s/templates/_helpers.tpl',
+        'components/livekit-egress/infra/k8s/templates/livekit-egress-deployment.yaml'
+      ].map((path) => ({
+        profile: 'livekit_egress' as const,
+        path,
+        sha256: sha256(join(outputDir, path))
+      })),
+      ...[
+        'deploy/application/docker-compose.yml',
+        'deploy/application/env.example',
+        'deploy/kubernetes/ivekit/values.yaml',
+        'deploy/kubernetes/ivekit/templates/deployment.yaml',
+        'deploy/kubernetes/ivekit/templates/clamav.yaml'
+      ].map((path) => ({
+        profile: 'file_security' as const,
+        path,
+        sha256: sha256(join(outputDir, path))
+      }))
+    ]
+  });
+  writeFileSync(
+    join(outputDir, 'operations', 'stage2-deployment-evidence.json'),
+    `${JSON.stringify(stage2Evidence, null, 2)}\n`,
+    'utf8'
+  );
   const releaseOperations = createIveKitReleaseOperations({
     sourceCommit,
     generatedAt,
     imageReference: String(options.imageReference || `ivekit-service:${sourceCommit.slice(0, 12)}`).trim(),
     imageDigest,
     imageMetadataSha256: sha256(join(outputDir, 'service', 'image-metadata.json')),
-    migrationManifestSha256: sha256(join(outputDir, 'service', 'migration-manifest.json'))
+    migrationManifestSha256: sha256(join(outputDir, 'service', 'migration-manifest.json')),
+    stage2EvidenceSha256: sha256(join(outputDir, 'operations', 'stage2-deployment-evidence.json')),
+    stage2ReleaseFingerprint: stage2Evidence.release_fingerprint_sha256
   });
-  mkdirSync(join(outputDir, 'operations'), { recursive: true });
   writeFileSync(
     join(outputDir, 'operations', 'release-contract.json'),
     `${JSON.stringify(releaseOperations.contract, null, 2)}\n`,
@@ -743,9 +1230,18 @@ export function buildIveKitDeliveryBundle(
     renderIveKitVoiceAcceptanceRunbook(),
     'utf8'
   );
+  writeFileSync(
+    join(outputDir, 'acceptance', 'v6-real-template.json'),
+    `${JSON.stringify(createIveKitV6RealAcceptanceTemplate({
+      source_commit: sourceCommit,
+      generated_at: generatedAt
+    }), null, 2)}\n`,
+    'utf8'
+  );
   writeFileSync(join(outputDir, 'acceptance', 'status.json'), `${JSON.stringify({
     schema_version: 2,
     product: 'iveKit',
+    foundation_version: 'V5',
     source_commit: sourceCommit,
     generated_at: generatedAt,
     status: controlledAcceptanceStatus(controlledAcceptance.statuses),
@@ -753,6 +1249,7 @@ export function buildIveKitDeliveryBundle(
     controlled_checks: controlledAcceptance.checks,
     evidence: controlledAcceptance.evidence,
     real_environment: REAL_ENVIRONMENT_ACCEPTANCE,
+    capability_matrix: CAPABILITY_MATRIX,
     known_not_run: KNOWN_NOT_RUN,
     reason: controlledAcceptance.evidence.length
       ? 'Controlled acceptance passed only for checks bound to packaged evidence; real providers and clients remain not_run.'
@@ -767,6 +1264,7 @@ export function buildIveKitDeliveryBundle(
   const manifest: IveKitDeliveryManifest = {
     schema_version: 1,
     product: 'iveKit',
+    foundation_version: 'V5',
     status: 'ready_for_handoff',
     source_commit: sourceCommit,
     generated_at: generatedAt,
@@ -787,8 +1285,10 @@ export function buildIveKitDeliveryBundle(
       voice_helm: 'deploy/kubernetes/ivekit/',
       voice_acceptance_template: 'acceptance/voice-real-template.json',
       voice_acceptance_runbook: 'acceptance/voice-real-runbook.md',
+      v6_real_acceptance_template: 'acceptance/v6-real-template.json',
       rustpbx_image_build: 'deploy/rustpbx/',
       rustpbx_acceptance: 'acceptance/rustpbx/',
+      capacity_runtime: 'capacity-runtime/',
       service_source: 'service/build-context/'
     },
     artifacts: {
@@ -820,6 +1320,10 @@ export function buildIveKitDeliveryBundle(
         path: 'acceptance/status.json',
         sha256: sha256(join(outputDir, 'acceptance', 'status.json'))
       },
+      v6_real_acceptance_template: {
+        path: 'acceptance/v6-real-template.json',
+        sha256: sha256(join(outputDir, 'acceptance', 'v6-real-template.json'))
+      },
       provider_profiles_example: {
         path: 'acceptance/provider-profiles.example.json',
         sha256: sha256(join(outputDir, 'acceptance', 'provider-profiles.example.json'))
@@ -827,6 +1331,10 @@ export function buildIveKitDeliveryBundle(
       release_contract: {
         path: 'operations/release-contract.json',
         sha256: sha256(join(outputDir, 'operations', 'release-contract.json'))
+      },
+      stage2_deployment_evidence: {
+        path: 'operations/stage2-deployment-evidence.json',
+        sha256: sha256(join(outputDir, 'operations', 'stage2-deployment-evidence.json'))
       },
       upgrade_runbook: {
         path: 'operations/upgrade-runbook.md',
@@ -841,6 +1349,18 @@ export function buildIveKitDeliveryBundle(
     },
     real_environment_acceptance: { ...REAL_ENVIRONMENT_ACCEPTANCE },
     controlled_environment_acceptance: { ...controlledAcceptance.statuses },
+    capability_matrix: CAPABILITY_MATRIX.map((entry) => ({
+      ...entry,
+      real_environment_gates: [...entry.real_environment_gates]
+    })),
+    acceptance_matrix: {
+      automated: {
+        status: 'required_before_release',
+        command: 'npm run verify:ivekit:foundation'
+      },
+      controlled: { ...controlledAcceptance.statuses },
+      real_environment: { ...REAL_ENVIRONMENT_ACCEPTANCE }
+    },
     known_not_run: KNOWN_NOT_RUN.map((entry) => ({ ...entry })),
     files: payloadFiles.map((path) => fileEntry(outputDir, path))
   };
@@ -866,14 +1386,27 @@ export function validateIveKitDeliveryBundle(outputDirInput: string): IveKitDeli
   }
 
   const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8')) as IveKitDeliveryManifest;
-  if (manifest.schema_version !== 1 || manifest.product !== 'iveKit') {
+  if (manifest.schema_version !== 1 || manifest.product !== 'iveKit' ||
+      manifest.foundation_version !== 'V5') {
     throw new Error('invalid iveKit delivery manifest');
+  }
+  if (JSON.stringify(manifest.capability_matrix) !== JSON.stringify(CAPABILITY_MATRIX)) {
+    throw new Error('iveKit V5 capability matrix is incomplete');
   }
   if (Object.values(manifest.real_environment_acceptance).some((status) => status !== 'not_run')) {
     throw new Error('delivery generation cannot claim real-environment acceptance');
   }
   validateAcceptanceMetadata(outputDir, manifest);
+  if (manifest.acceptance_matrix.automated.status !== 'required_before_release' ||
+      manifest.acceptance_matrix.automated.command !== 'npm run verify:ivekit:foundation' ||
+      JSON.stringify(manifest.acceptance_matrix.controlled) !==
+        JSON.stringify(manifest.controlled_environment_acceptance) ||
+      JSON.stringify(manifest.acceptance_matrix.real_environment) !==
+        JSON.stringify(manifest.real_environment_acceptance)) {
+    throw new Error('iveKit V5 acceptance matrix is incomplete');
+  }
   validateVoiceAcceptanceAssets(outputDir, manifest);
+  validateV6RealAcceptanceAsset(outputDir, manifest);
   const contextManifest = validateIveKitStandaloneContext(join(outputDir, 'service', 'build-context'));
   if (contextManifest.source_commit !== manifest.source_commit) {
     throw new Error('service build context source commit does not match delivery manifest');
@@ -954,7 +1487,7 @@ function renderBundleReadme(): string {
     '# iveKit LED Delivery Bundle',
     '',
     'This directory is a curated integration handoff for the reusable iveKit communication foundation.',
-    'It does not contain OPC call-center or IVR source code and it does not contain credentials.',
+    'It contains the iveKit V5 shared communication foundation, not OPC or LED business logic, and it contains no credentials.',
     '',
     '## Contents',
     '',
@@ -963,22 +1496,25 @@ function renderBundleReadme(): string {
     '- `deploy/application/`: standalone iveKit service Compose with PostgreSQL and optional RustPBX overlay.',
     '- `deploy/kubernetes/ivekit/`: standalone digest-pinned Helm Chart with a migration gate.',
     '- `deploy/livekit/`: separately deployable LiveKit media plane.',
+    '- `components/livekit-egress/`: exact-source Egress overlay, local pool policy, image build script, and digest-only dual-pool Helm subset in repository-relative layout.',
     '- `deploy/rustpbx/`: pinned RustPBX/rsipstack source patches and reproducible native image build.',
     '- `database/migrations/`: ordered communication-domain overlay migrations used by the application image.',
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',
-    '- `examples/`: minimal LED SDK and RustDesk integration examples.',
+    '- `examples/`: LED SDK, RustDesk, and signed event Webhook receiver examples.',
     '- `acceptance/status.json`: honest target-environment acceptance state.',
     '- `acceptance/evidence/`: optional source-bound controlled-environment evidence with verified hashes.',
     '- `acceptance/provider-profiles.example.json`: secret-free controlled Provider profiles.',
-    '- `acceptance/tools/`: deterministic controlled Provider source for isolated acceptance.',
+    '- `acceptance/tools/`: deterministic controlled Provider, Voice, and V5 full-chain acceptance sources.',
     '- `acceptance/voice-real-template.json`: source-bound, intentionally incomplete real Voice evidence template.',
     '- `acceptance/voice-real-runbook.md`: RustPBX/SIP/PSTN/RTP/IVR/bridge real-environment procedure.',
+    '- `acceptance/v6-real-template.json`: source-bound eight-group real-environment matrix; every unexecuted group remains `not_run`.',
     '- `acceptance/rustpbx/`: compiled management, RWI/AMI, and SIPp acceptance runners, locked Node dependency, Router fixture, and SIP scenarios. Run `npm ci --omit=dev --ignore-scripts` in this directory before RWI acceptance.',
     '- `service/build-context/`: independently buildable iveKit service source context with its own package lock.',
     '- `service/migration-manifest.json`: ordered standalone migration checksums.',
     '- `service/image-metadata.json`: source-bound image reference/digest state.',
     '- `service/sbom.spdx.json`: npm dependency SBOM in SPDX 2.3 format.',
     '- `operations/release-contract.json`: source, image, migration, deployment and rollback contract.',
+    '- `operations/stage2-deployment-evidence.json`: source/image/migration and TURN, Egress, file-security template fingerprints.',
     '- `operations/upgrade-runbook.md`: integrity-gated Compose and Helm upgrade/application rollback procedure.',
     '- `edge/`: RustDesk device agent source, crash-safe spool, package manifest, and OS adapter examples.',
     '',
@@ -995,12 +1531,16 @@ function renderBundleReadme(): string {
     'Do not apply them to an unrelated schema without the foundation tables and RLS helpers documented in the integration guide.',
     'Migrations are forward-only. Application rollback may select a compatible prior immutable image; database rollback',
     'requires restoring a verified pre-upgrade backup and is never synthesized as a down migration.',
+    'Track/Composite Egress requires the custom image built from `components/livekit-egress/`, an immutable image digest,',
+    'and the exact Redis address/authentication/TLS settings used by the external LiveKit Server. The Helm subset fails',
+    'closed when the custom digest or shared Redis address is missing; the upstream image does not implement pool fencing.',
     '',
     '## Acceptance',
     '',
     'A generated bundle is ready for engineering handoff, not production acceptance. Controlled PostgreSQL, Provider,',
-    'browser and restart checks may be marked passed only when source-bound evidence is packaged and hash verified.',
-    'They remain separate from real LiveKit, Tinode, RustDesk, OCR, ASR, quality and translation vendor evidence.',
+    'browser, restart, and full-chain checks may be marked passed only when source-bound evidence is packaged and hash verified.',
+    '`manifest.json` contains the complete V5 capability matrix; `included` never means real-environment passed.',
+    'Controlled results remain separate from real LiveKit, Tinode, RustDesk, RustPBX, Provider, storage, Webhook, Kubernetes, and restore evidence.',
     'Every unexecuted surface remains `not_run`; controlled evidence never upgrades a real vendor result.',
     'RustPBX SIP acceptance requires an external SIPp 3.7.7 binary whose pinned SHA-256 is verified before execution.',
     ''
@@ -1017,7 +1557,7 @@ function assertAllowedDeliveryPath(path: string): void {
   if (path.startsWith('client/') && path.length > 'client/'.length) return;
   if (/^sdk\/[^/]+\.tgz$/.test(path)) return;
   if (path.startsWith('service/build-context/') && path.length > 'service/build-context/'.length) return;
-  if (/^edge\/dist\/rustdesk-edge-(?:agent|command|pending-store)\.js$/.test(path)) return;
+  if (/^edge\/dist\/(?:rustdesk-edge-(?:agent|command|pending-store|observation-contract)|rustdesk-owner-epoch-fence|rustdesk-observation-(?:spool|bridge)|rustdesk-evidence-uploader|rustdesk-native-evidence-(?:correlator|policy|watcher))\.js$/.test(path)) return;
   if (path === 'service/migration-manifest.json' || path === 'service/image-metadata.json' || path === 'service/sbom.spdx.json') return;
   throw new Error(`unexpected delivery file: ${path}`);
 }
@@ -1111,8 +1651,10 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
     [artifacts.image_metadata.path, artifacts.image_metadata.sha256],
     [artifacts.sbom.path, artifacts.sbom.sha256],
     [artifacts.acceptance_status.path, artifacts.acceptance_status.sha256],
+    [artifacts.v6_real_acceptance_template.path, artifacts.v6_real_acceptance_template.sha256],
     [artifacts.provider_profiles_example.path, artifacts.provider_profiles_example.sha256],
     [artifacts.release_contract.path, artifacts.release_contract.sha256],
+    [artifacts.stage2_deployment_evidence.path, artifacts.stage2_deployment_evidence.sha256],
     [artifacts.upgrade_runbook.path, artifacts.upgrade_runbook.sha256],
     ['service/build-context/context-manifest.json', artifacts.service_build_context.manifest_sha256]
   ];
@@ -1127,7 +1669,7 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
   )) as { source_commit?: unknown };
   const imageMetadata = JSON.parse(readFileSync(
     join(outputDir, artifacts.image_metadata.path), 'utf8'
-  )) as { source_commit?: unknown };
+  )) as { source_commit?: unknown; digest?: unknown };
   if (migrationManifest.source_commit !== manifest.source_commit) {
     throw new Error('migration manifest source commit does not match delivery manifest');
   }
@@ -1137,16 +1679,26 @@ function validateArtifactBindings(outputDir: string, manifest: IveKitDeliveryMan
   const releaseContract = JSON.parse(readFileSync(
     join(outputDir, artifacts.release_contract.path), 'utf8'
   )) as IveKitReleaseContract;
+  const stage2Evidence = JSON.parse(readFileSync(
+    join(outputDir, artifacts.stage2_deployment_evidence.path), 'utf8'
+  )) as IveKitStage2ReleaseEvidence;
+  validateIveKitStage2ReleaseEvidence(stage2Evidence);
   validateIveKitReleaseOperations({
     contract: releaseContract,
     runbook: readFileSync(join(outputDir, artifacts.upgrade_runbook.path), 'utf8')
   });
   if (artifacts.release_contract.path !== 'operations/release-contract.json' ||
       artifacts.upgrade_runbook.path !== 'operations/upgrade-runbook.md' ||
+      artifacts.stage2_deployment_evidence.path !== 'operations/stage2-deployment-evidence.json' ||
       releaseContract.source_commit !== manifest.source_commit ||
       releaseContract.generated_at !== manifest.generated_at ||
       releaseContract.image.metadata_sha256 !== artifacts.image_metadata.sha256 ||
-      releaseContract.migrations.manifest_sha256 !== artifacts.migration_manifest.sha256) {
+      releaseContract.migrations.manifest_sha256 !== artifacts.migration_manifest.sha256 ||
+      releaseContract.configuration.stage2_evidence_sha256 !== artifacts.stage2_deployment_evidence.sha256 ||
+      releaseContract.configuration.release_fingerprint_sha256 !== stage2Evidence.release_fingerprint_sha256 ||
+      stage2Evidence.source_commit !== manifest.source_commit ||
+      stage2Evidence.generated_at !== manifest.generated_at ||
+      stage2Evidence.application_image_digest !== imageMetadata.digest) {
     throw new Error('release operations do not match delivery artifacts');
   }
 }
@@ -1166,6 +1718,7 @@ function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryM
   const status = JSON.parse(readFileSync(join(outputDir, 'acceptance', 'status.json'), 'utf8')) as {
     schema_version?: unknown;
     product?: unknown;
+    foundation_version?: unknown;
     source_commit?: unknown;
     generated_at?: unknown;
     status?: unknown;
@@ -1174,11 +1727,14 @@ function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryM
     evidence?: unknown;
     real_environment?: unknown;
     known_not_run?: unknown;
+    capability_matrix?: unknown;
     controlled_tests_are_real_vendor_evidence?: unknown;
   };
   if (status.schema_version !== 2 || status.product !== 'iveKit' ||
+      status.foundation_version !== 'V5' ||
+      JSON.stringify(status.capability_matrix) !== JSON.stringify(CAPABILITY_MATRIX) ||
       status.status !== controlledAcceptanceStatus(manifest.controlled_environment_acceptance)) {
-    throw new Error('invalid V3 acceptance status');
+    throw new Error('invalid V5 acceptance status');
   }
   if (status.source_commit !== manifest.source_commit) {
     throw new Error('acceptance source commit does not match delivery manifest');
@@ -1238,7 +1794,7 @@ function validateAcceptanceMetadata(outputDir: string, manifest: IveKitDeliveryM
   const ids = entries.map((entry) => String(entry.id || ''));
   if (new Set(ids).size !== ids.length) throw new Error('duplicate known_not_run id');
   if (JSON.stringify(ids) !== JSON.stringify(KNOWN_NOT_RUN.map((entry) => entry.id))) {
-    throw new Error('known_not_run items do not match the V3 acceptance contract');
+    throw new Error('known_not_run items do not match the V5 acceptance contract');
   }
   for (const entry of entries) {
     const reason = String(entry.reason || '').trim();
@@ -1293,6 +1849,25 @@ function validateVoiceAcceptanceAssets(outputDir: string, manifest: IveKitDelive
   }
 }
 
+function validateV6RealAcceptanceAsset(outputDir: string, manifest: IveKitDeliveryManifest): void {
+  if (
+    manifest.contents.v6_real_acceptance_template !== 'acceptance/v6-real-template.json' ||
+    manifest.artifacts.v6_real_acceptance_template.path !== manifest.contents.v6_real_acceptance_template
+  ) throw new Error('invalid V6 real acceptance artifact path');
+  const template = JSON.parse(readFileSync(
+    join(outputDir, manifest.contents.v6_real_acceptance_template),
+    'utf8'
+  )) as IveKitV6RealAcceptanceManifest;
+  validateIveKitV6RealAcceptanceManifest(template, {
+    base_dir: outputDir,
+    expected_source_commit: manifest.source_commit
+  });
+  if (
+    template.generated_at !== manifest.generated_at ||
+    template.groups.some((group) => group.status !== 'not_run')
+  ) throw new Error('V6 real acceptance template must remain source-bound and not_run');
+}
+
 function copyFile(outputDir: string, source: string, destination: string): void {
   const target = join(outputDir, destination);
   mkdirSync(dirname(target), { recursive: true });
@@ -1312,6 +1887,10 @@ function copyDeliverySource(outputDir: string, source: string, destination: stri
     .replaceAll(
       '${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}',
       '${IVEKIT_SERVICE_IMAGE:?IVEKIT_SERVICE_IMAGE is required}'
+    )
+    .replaceAll(
+      '${CLAMAV_IMAGE:-clamav/clamav:1.4.3_base}',
+      '${CLAMAV_IMAGE:?CLAMAV_IMAGE immutable digest reference is required}'
     );
   if (/^\s+build:/m.test(portableCompose) || portableCompose.includes('ivekit-service:local')) {
     throw new Error('failed to remove repository-only build settings from delivery Compose');

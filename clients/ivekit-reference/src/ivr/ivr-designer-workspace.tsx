@@ -1,5 +1,5 @@
 import type {
-  IveKitClient,
+  IveKitHttpSdk,
   IveKitIvrCompilationReport,
   IveKitIvrFlow,
   IveKitIvrFlowGraph,
@@ -65,7 +65,7 @@ import {
 } from './ivr-designer-model.js';
 import { IvrNodeCard, type IvrFlowCanvasNode } from './ivr-node-card.js';
 
-type IvrClient = Pick<IveKitClient, 'ivr'>;
+type IvrClient = Pick<IveKitHttpSdk, 'ivr'>;
 type DesignerEdge = Edge;
 type ValidationIssue = Record<string, unknown>;
 

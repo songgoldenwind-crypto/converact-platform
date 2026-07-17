@@ -57,6 +57,36 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('056_ivekit_contact_center_overflow.sql'), true);
   assert.equal(migrations.includes('057_ivekit_voice_action_capabilities.sql'), true);
   assert.equal(migrations.includes('058_ivekit_voice_parking.sql'), true);
+  assert.equal(migrations.includes('059_ivekit_provider_governance.sql'), true);
+  assert.equal(migrations.includes('060_ivekit_content_intelligence.sql'), true);
+  assert.equal(migrations.includes('061_ivekit_file_security.sql'), true);
+  assert.equal(migrations.includes('062_tinode_file_delivery_operations.sql'), true);
+  assert.equal(migrations.includes('063_livekit_media_quality.sql'), true);
+  assert.equal(migrations.includes('064_rustdesk_authorization_codes.sql'), true);
+  assert.equal(migrations.includes('065_ivekit_notifications.sql'), true);
+  assert.equal(migrations.includes('066_ivekit_audit.sql'), true);
+  assert.equal(migrations.includes('067_ivekit_rate_limits.sql'), true);
+  assert.equal(migrations.includes('068_ivekit_retention.sql'), true);
+  assert.equal(migrations.includes('069_ivekit_runtime_heartbeats.sql'), true);
+  assert.equal(migrations.includes('070_ivekit_notification_operations.sql'), true);
+  assert.equal(migrations.includes('071_ivekit_notification_health.sql'), true);
+  assert.equal(migrations.includes('072_ivekit_notification_events.sql'), true);
+  assert.equal(migrations.includes('073_ivekit_integration_webhooks.sql'), true);
+  assert.equal(migrations.includes('074_tinode_message_mutation_outbox.sql'), true);
+  assert.equal(migrations.includes('075_rustdesk_emergency_fallback.sql'), true);
+  assert.equal(migrations.includes('077_ivekit_capacity_orchestrator.sql'), true);
+  assert.equal(migrations.includes('078_ivekit_cell_leases.sql'), true);
+  assert.equal(migrations.includes('079_ivekit_voice_route_snapshot_revision.sql'), true);
+  assert.equal(migrations.includes('080_ivekit_interaction_placements.sql'), true);
+  assert.equal(migrations.includes('081_ivekit_notification_worker_partition.sql'), true);
+  assert.equal(migrations.includes('082_ivekit_capacity_worker_checkpoints.sql'), true);
+  assert.equal(migrations.includes('083_ivekit_cell_admission_reservations.sql'), true);
+  assert.equal(migrations.includes('084_ivekit_cell_lease_topology.sql'), true);
+  assert.equal(migrations.includes('085_ivekit_interaction_placement_handoffs.sql'), true);
+  assert.equal(migrations.includes('086_ivekit_recording_manifests.sql'), true);
+  assert.equal(migrations.includes('087_livekit_egress_jobs.sql'), true);
+  assert.equal(migrations.includes('088_livekit_egress_reconciliation.sql'), true);
+  assert.equal(migrations.includes('089_livekit_egress_capacity_metrics.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -89,10 +119,76 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('057_ivekit_voice_action_capabilities.sql') <
       migrations.indexOf('058_ivekit_voice_parking.sql') &&
       migrations.indexOf('058_ivekit_voice_parking.sql') <
-      migrations.indexOf('090_ivekit_runtime_security.sql'),
+      migrations.indexOf('059_ivekit_provider_governance.sql') &&
+      migrations.indexOf('059_ivekit_provider_governance.sql') <
+      migrations.indexOf('060_ivekit_content_intelligence.sql') &&
+      migrations.indexOf('060_ivekit_content_intelligence.sql') <
+      migrations.indexOf('061_ivekit_file_security.sql') &&
+      migrations.indexOf('061_ivekit_file_security.sql') <
+      migrations.indexOf('062_tinode_file_delivery_operations.sql') &&
+      migrations.indexOf('062_tinode_file_delivery_operations.sql') <
+      migrations.indexOf('063_livekit_media_quality.sql') &&
+      migrations.indexOf('063_livekit_media_quality.sql') <
+      migrations.indexOf('064_rustdesk_authorization_codes.sql') &&
+      migrations.indexOf('064_rustdesk_authorization_codes.sql') <
+      migrations.indexOf('065_ivekit_notifications.sql') &&
+      migrations.indexOf('065_ivekit_notifications.sql') <
+      migrations.indexOf('066_ivekit_audit.sql') &&
+      migrations.indexOf('066_ivekit_audit.sql') <
+      migrations.indexOf('067_ivekit_rate_limits.sql') &&
+      migrations.indexOf('067_ivekit_rate_limits.sql') <
+      migrations.indexOf('068_ivekit_retention.sql') &&
+      migrations.indexOf('068_ivekit_retention.sql') <
+      migrations.indexOf('069_ivekit_runtime_heartbeats.sql') &&
+      migrations.indexOf('069_ivekit_runtime_heartbeats.sql') <
+      migrations.indexOf('070_ivekit_notification_operations.sql') &&
+      migrations.indexOf('070_ivekit_notification_operations.sql') <
+      migrations.indexOf('071_ivekit_notification_health.sql') &&
+      migrations.indexOf('071_ivekit_notification_health.sql') <
+      migrations.indexOf('072_ivekit_notification_events.sql') &&
+      migrations.indexOf('072_ivekit_notification_events.sql') <
+      migrations.indexOf('073_ivekit_integration_webhooks.sql') &&
+      migrations.indexOf('073_ivekit_integration_webhooks.sql') <
+      migrations.indexOf('074_tinode_message_mutation_outbox.sql') &&
+      migrations.indexOf('074_tinode_message_mutation_outbox.sql') <
+      migrations.indexOf('075_rustdesk_emergency_fallback.sql') &&
+      migrations.indexOf('075_rustdesk_emergency_fallback.sql') <
+      migrations.indexOf('076_rustdesk_evidence_intelligence_reconciliation.sql') &&
+      migrations.indexOf('076_rustdesk_evidence_intelligence_reconciliation.sql') <
+      migrations.indexOf('077_ivekit_capacity_orchestrator.sql') &&
+      migrations.indexOf('077_ivekit_capacity_orchestrator.sql') <
+      migrations.indexOf('078_ivekit_cell_leases.sql') &&
+      migrations.indexOf('078_ivekit_cell_leases.sql') <
+      migrations.indexOf('079_ivekit_voice_route_snapshot_revision.sql') &&
+      migrations.indexOf('079_ivekit_voice_route_snapshot_revision.sql') <
+      migrations.indexOf('080_ivekit_interaction_placements.sql') &&
+      migrations.indexOf('080_ivekit_interaction_placements.sql') <
+      migrations.indexOf('081_ivekit_notification_worker_partition.sql') &&
+      migrations.indexOf('081_ivekit_notification_worker_partition.sql') <
+      migrations.indexOf('082_ivekit_capacity_worker_checkpoints.sql') &&
+      migrations.indexOf('082_ivekit_capacity_worker_checkpoints.sql') <
+      migrations.indexOf('083_ivekit_cell_admission_reservations.sql') &&
+      migrations.indexOf('083_ivekit_cell_admission_reservations.sql') <
+      migrations.indexOf('084_ivekit_cell_lease_topology.sql') &&
+      migrations.indexOf('084_ivekit_cell_lease_topology.sql') <
+      migrations.indexOf('085_ivekit_interaction_placement_handoffs.sql') &&
+      migrations.indexOf('085_ivekit_interaction_placement_handoffs.sql') <
+      migrations.indexOf('086_ivekit_recording_manifests.sql') &&
+      migrations.indexOf('086_ivekit_recording_manifests.sql') <
+      migrations.indexOf('087_livekit_egress_jobs.sql') &&
+      migrations.indexOf('087_livekit_egress_jobs.sql') <
+      migrations.indexOf('088_livekit_egress_reconciliation.sql') &&
+      migrations.indexOf('088_livekit_egress_reconciliation.sql') <
+      migrations.indexOf('089_livekit_egress_capacity_metrics.sql') &&
+      migrations.indexOf('089_livekit_egress_capacity_metrics.sql') <
+      migrations.indexOf('090_ivekit_runtime_security.sql') &&
+      migrations.indexOf('090_ivekit_runtime_security.sql') <
+      migrations.indexOf('091_ivekit_capacity_scaling_campaigns.sql') &&
+      migrations.indexOf('091_ivekit_capacity_scaling_campaigns.sql') <
+      migrations.indexOf('092_ivekit_capacity_platform_campaigns.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '090_ivekit_runtime_security.sql');
+  assert.equal(migrations.at(-1), '092_ivekit_capacity_platform_campaigns.sql');
   const runtimeSecurity = readFileSync(
     'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'
@@ -100,6 +196,13 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.match(runtimeSecurity, /current_user = 'opc_admin'/);
   assert.match(runtimeSecurity, /opc_rustdesk_session_by_external_id/);
   assert.match(runtimeSecurity, /opc_ivekit_cc_worker_tenant_ids/);
+  assert.match(runtimeSecurity, /opc_notification_worker_tenant_ids/);
+  assert.match(runtimeSecurity, /opc_ivekit_claim_interaction_placements/);
+  assert.match(runtimeSecurity, /opc_ivekit_placement_tenant_ids/);
+  assert.match(runtimeSecurity, /opc_notification_health_tenant_ids/);
+  assert.match(runtimeSecurity, /opc_ivekit_delete_expired_audit_events/);
+  assert.match(runtimeSecurity, /opc_tinode_mutation_tenant_ids/);
+  assert.match(runtimeSecurity, /opc_rustdesk_evidence_intelligence_candidates/);
   assert.doesNotMatch(runtimeSecurity, /\busers\b|voice_call_sessions|call-center|ivr_/i);
 });
 

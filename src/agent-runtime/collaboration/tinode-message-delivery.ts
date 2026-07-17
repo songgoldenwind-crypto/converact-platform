@@ -15,6 +15,10 @@ import type {
   CollaborationMessageType,
   PolicyScanResult
 } from './types.js';
+import {
+  TinodeFileDeliveryGate,
+  type TinodeFileDeliveryTransition
+} from './tinode-file-delivery-gate.js';
 import { listCollaborationWorkerTenants } from './worker-tenant-scope.js';
 
 const DEFAULT_RETRY_DELAYS_MS = [2_000, 10_000] as const;
@@ -60,6 +64,13 @@ export interface TinodeMessageDeliveryServiceInput {
   maxAttempts?: number;
   claimLeaseMs?: number;
   onDeliveryUpdated?: (message: CollaborationMessage) => void | Promise<void>;
+  fileSecurityGate?: Pick<
+    TinodeFileDeliveryGate,
+    'reconcileMessage' | 'reconcileDue' | 'reconcileFile'
+  > | null;
+  onFileSecurityTransition?: (
+    transition: TinodeFileDeliveryTransition
+  ) => void | Promise<void>;
 }
 
 interface DeliveryClaim {
@@ -97,6 +108,10 @@ export class TinodeMessageDeliveryService {
   private readonly maxAttempts: number;
   private readonly claimLeaseMs: number;
   private readonly onDeliveryUpdated?: (message: CollaborationMessage) => void | Promise<void>;
+  private readonly fileSecurityGate: Pick<
+    TinodeFileDeliveryGate,
+    'reconcileMessage' | 'reconcileDue' | 'reconcileFile'
+  > | null;
 
   constructor(input: TinodeMessageDeliveryServiceInput) {
     this.pg = input.pg;
@@ -106,6 +121,15 @@ export class TinodeMessageDeliveryService {
     this.maxAttempts = positiveInteger(input.maxAttempts ?? 3, 'maxAttempts');
     this.claimLeaseMs = positiveInteger(input.claimLeaseMs ?? 30_000, 'claimLeaseMs');
     this.onDeliveryUpdated = input.onDeliveryUpdated;
+    this.fileSecurityGate = input.fileSecurityGate === undefined
+      ? input.pg instanceof MemoryPg
+        ? null
+        : new TinodeFileDeliveryGate({
+          pg: input.pg,
+          now: this.now,
+          onTransition: input.onFileSecurityTransition
+        })
+      : input.fileSecurityGate;
   }
 
   async createAndDeliver(input: TinodeMessageDeliveryInput): Promise<TinodeMessageDeliveryResult> {
@@ -146,20 +170,10 @@ export class TinodeMessageDeliveryService {
           session_id: input.session_id,
           message_id: created.message.id
         }));
-      if (!created.created || this.gateway.provider !== 'tinode') {
-        return { ...created, policy, claim: null };
-      }
-      const claim = await new TinodeMessageDeliveryStore(pg).claimById({
-        tenant_id: input.tenant_id,
-        message_id: created.message.id,
-        now: this.now(),
-        lease_ms: this.claimLeaseMs,
-        max_attempts: this.maxAttempts
-      });
-      return { ...created, policy, claim };
+      return { ...created, policy };
     });
 
-    if (!prepared.claim) {
+    if (!prepared.created || this.gateway.provider !== 'tinode') {
       return {
         message: prepared.message,
         policy: prepared.policy,
@@ -167,8 +181,33 @@ export class TinodeMessageDeliveryService {
         replayed: !prepared.created
       };
     }
+    await this.fileSecurityGate?.reconcileMessage({
+      tenant_id: input.tenant_id,
+      message_id: prepared.message.id
+    });
+    const claim = await withPgTenant(this.pg, input.tenant_id, (pg) =>
+      new TinodeMessageDeliveryStore(pg).claimById({
+        tenant_id: input.tenant_id,
+        message_id: prepared.message.id,
+        now: this.now(),
+        lease_ms: this.claimLeaseMs,
+        max_attempts: this.maxAttempts
+      })
+    );
+    if (!claim) {
+      const message = await this.getMessage({
+        tenant_id: input.tenant_id,
+        message_id: prepared.message.id
+      });
+      return {
+        message: message || prepared.message,
+        policy: prepared.policy,
+        created: true,
+        replayed: false
+      };
+    }
 
-    const message = await this.publishAndComplete(prepared.claim);
+    const message = await this.publishAndComplete(claim);
     return {
       message,
       policy: prepared.policy,
@@ -198,6 +237,9 @@ export class TinodeMessageDeliveryService {
         if (total.examined >= limit) break;
       }
       return total;
+    }
+    if (input.tenant_id) {
+      await this.fileSecurityGate?.reconcileDue({ tenant_id: input.tenant_id, limit });
     }
     await this.reconcileExpired(input.tenant_id);
     const due = await this.inScope(input.tenant_id, (pg) =>
@@ -235,6 +277,7 @@ export class TinodeMessageDeliveryService {
   }
 
   async getMessage(input: { tenant_id: string; message_id: string }): Promise<CollaborationMessage | null> {
+    await this.fileSecurityGate?.reconcileMessage(input);
     await this.reconcileExpired(input.tenant_id);
     return withPgTenant(this.pg, input.tenant_id, (pg) =>
       new CollaborationStore(pg).getMessage(input)
@@ -242,6 +285,7 @@ export class TinodeMessageDeliveryService {
   }
 
   async retryMessage(input: { tenant_id: string; message_id: string }): Promise<CollaborationMessage | null> {
+    await this.fileSecurityGate?.reconcileMessage(input);
     await this.reconcileExpired(input.tenant_id);
     const claim = await withPgTenant(this.pg, input.tenant_id, (pg) =>
       new TinodeMessageDeliveryStore(pg).claimById({
@@ -263,6 +307,14 @@ export class TinodeMessageDeliveryService {
     return withPgTenant(this.pg, input.tenant_id, (pg) =>
       new TinodeMessageDeliveryStore(pg).listAttempts(input)
     );
+  }
+
+  async reconcileSecureFile(input: {
+    tenant_id: string;
+    secure_file_id: string;
+    limit?: number;
+  }): Promise<TinodeFileDeliveryTransition[]> {
+    return this.fileSecurityGate?.reconcileFile(input) || [];
   }
 
   private async publishAndComplete(claim: DeliveryClaim): Promise<CollaborationMessage> {
@@ -373,6 +425,19 @@ class TinodeMessageDeliveryStore {
              provider_delivery_updated_at = $5
          WHERE id = $1 AND tenant_id = $2 AND provider = 'tinode'
            AND provider_delivery_attempts < $6
+           AND NOT EXISTS (
+             SELECT 1
+             FROM collaboration_message_attachments AS attachment
+             JOIN collaboration_secure_files AS file
+               ON file.tenant_id = attachment.tenant_id
+              AND file.session_id = attachment.session_id
+              AND file.id = attachment.secure_file_id
+             WHERE attachment.tenant_id = collaboration_messages.tenant_id
+               AND attachment.session_id = collaboration_messages.session_id
+               AND attachment.message_id = collaboration_messages.id
+               AND attachment.secure_file_id IS NOT NULL
+               AND NOT (file.status = 'ready' AND file.threat_status = 'clean')
+           )
            AND (
              provider_delivery_status = 'pending'
              OR (provider_delivery_status = 'retry_wait' AND (provider_next_attempt_at IS NULL OR provider_next_attempt_at <= $5))

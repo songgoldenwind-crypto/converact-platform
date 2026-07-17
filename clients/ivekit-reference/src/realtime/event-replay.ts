@@ -1,13 +1,20 @@
 import type {
   IveKitEvent,
-  IveKitEventHttpClient,
+  IveKitEventPage,
+  IveKitEventPageInput,
+  IveKitEventReplayInput,
+  IveKitEventReplayResult,
   IveKitEventSnapshotReason
 } from '@opc/ivekit-sdk';
 
 export type EventReplayStatus = 'idle' | 'syncing' | 'live' | 'snapshot' | 'error' | 'stopped';
 
 export interface EventReplayControllerOptions {
-  events: IveKitEventHttpClient;
+  events: {
+    getHeadCursor(): Promise<string>;
+    listPage(input: IveKitEventPageInput): Promise<IveKitEventPage>;
+    replay(input: IveKitEventReplayInput): Promise<IveKitEventReplayResult>;
+  };
   initialCursor?: string;
   pageSize?: number;
   maxPages?: number;

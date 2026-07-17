@@ -77,6 +77,12 @@ livekit:
   publicUrl: ""
   apiKey: ""
   apiSecret: ""
+  redis:
+    address: ""
+    username: ""
+    password: ""
+    db: 0
+    useTLS: false
   image:
     repository: livekit/livekit-server
     tag: v1.13.3
@@ -102,11 +108,33 @@ livekit:
 voice:
   enabled: false
   replicaCount: 2
+  tenantId: ""
   profileId: ""
+  cellId: ""
+  regionId: ""
+  zoneId: ""
   image:
-    repository: ghcr.io/restsend/rustpbx
-    digest: "sha256:2dc00f409f49bf48a23de6101d9d7371692eb7f067e70f4d449f16e158302526"
+    repository: ivekit/rustpbx
+    digest: ""
     pullPolicy: IfNotPresent
+  sipCapacity:
+    maxActiveTransactions: 65536
+    maxFinishedTransactions: 65536
+    incomingTransactionQueueCapacity: 8192
+    maxTransportConnections: 32768
+  mediaCapacity:
+    recordingChannelCapacity: 256
+    recordingWorkerThreads: 4
+    recordingWorkerQueueCapacity: 4096
+  monitoring:
+    serviceMonitor:
+      enabled: false
+      interval: 15s
+      scrapeTimeout: 10s
+      labels: {}
+    prometheusRule:
+      enabled: false
+      labels: {}
   database:
     username: rustpbx_app
     name: rustpbx
@@ -120,6 +148,65 @@ voice:
     - 127.0.0.1
   addressKey: ""
   addressHmacKey: ""
+  routeSnapshot:
+    hmacKey: ""
+    intervalMs: "1000"
+    ttlMs: "10000"
+    refreshMs: "500"
+    dependencies: ""
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+  recordingSpool:
+    enabled: true
+    leaseSecretKey: rustpbx-recording-lease-secret
+    leaseSecret: ""
+    segmentSeconds: "60"
+    segmentMaxBytes: "67108864"
+    partSizeBytes: "8388608"
+    leaseMs: "300000"
+    uploadConcurrency: "4"
+    pollIntervalMs: "1000"
+    metricsRefreshMs: "1000"
+    metricsStaleMs: "5000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+  persistence:
+    enabled: true
+    accessMode: ReadWriteOnce
+    storageClass: ""
+    storageSize: 10Gi
+    recordingSpoolSize: 50Gi
+    recordingStateSize: 1Gi
+  componentNode:
+    enabled: false
+    tokenKey: ivekit-component-node-token
+    token: ""
+    regionId: ""
+    zoneId: ""
+    profileIds: []
+    dimensionsJson: ""
+    port: 3210
+    timeoutMs: "500"
+    refreshMs: "3000"
+    terminalRetentionMs: "300000"
+    sweepIntervalMs: "1000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
   externalIp: ""
   service:
     managementPort: 8080
@@ -223,10 +310,38 @@ media:
   egress:
     enabled: false
     image:
-      repository: livekit/egress
-      tag: v1.13.0
+      repository: ivekit/livekit-egress
+      allowedRegistries:
+        - docker.io
+      upstreamTag: v1.13.0
+      digest: ""
+      contract: ivekit-egress-pool-v1
       pullPolicy: IfNotPresent
     healthPort: 8091
+    prometheusPort: 9090
+    terminationGracePeriodSeconds: 300
+    capacityMetrics:
+      enabled: true
+      intervalMs: "5000"
+    monitoring:
+      prometheusAddress: http://prometheus-operated.monitoring.svc:9090
+      serviceMonitor:
+        enabled: false
+        interval: 15s
+      prometheusRule:
+        enabled: false
+        pendingAgeWarningSeconds: 60
+        spoolWarningPercent: 80
+        spoolCriticalPercent: 90
+        saturationPercent: 90
+    sessionLimits:
+      fileOutputMaxDuration: 3h
+      streamOutputMaxDuration: 3h
+      segmentOutputMaxDuration: 6h
+    storage:
+      maxRetries: 10
+      minRetryDelay: 500ms
+      maxRetryDelay: 30s
     resources:
       requests:
         memory: "512Mi"
@@ -234,6 +349,91 @@ media:
       limits:
         memory: "1Gi"
         cpu: "1000m"
+    pools:
+      track:
+        enabled: true
+        replicaCount: 2
+        allowedRequestTypes: ["track"]
+        maxConcurrentRequests: 64
+        cpuCost:
+          roomComposite: 100000
+          audioRoomComposite: 100000
+          web: 100000
+          audioWeb: 100000
+          participant: 100000
+          trackComposite: 100000
+          track: 1
+          maxUtilization: 0.85
+        persistence:
+          enabled: true
+          storageClass: ""
+          storageSize: 200Gi
+        nodeSelector: {}
+        tolerations: []
+        disruptionBudget:
+          minAvailable: 1
+        autoscaling:
+          enabled: false
+          provider: keda
+          minReplicas: 2
+          maxReplicas: 32
+          pollingInterval: 10
+          cooldownPeriod: 300
+          pendingJobsPerReplica: "16"
+          activeUtilizationPercent: "75"
+          spoolUtilizationPercent: "75"
+          networkTransmitBytesPerSecondPerReplica: "104857600"
+          targetCPUUtilizationPercentage: 70
+          targetMemoryUtilizationPercentage: 75
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "4"
+          limits:
+            memory: "8Gi"
+            cpu: "8"
+      composite:
+        enabled: true
+        replicaCount: 2
+        allowedRequestTypes: ["room_composite", "track_composite"]
+        maxConcurrentRequests: 4
+        cpuCost:
+          roomComposite: 3
+          audioRoomComposite: 2
+          web: 3
+          audioWeb: 2
+          participant: 2
+          trackComposite: 2
+          track: 100000
+          maxUtilization: 0.8
+        persistence:
+          enabled: true
+          storageClass: ""
+          storageSize: 100Gi
+        nodeSelector: {}
+        tolerations: []
+        disruptionBudget:
+          minAvailable: 1
+        autoscaling:
+          enabled: false
+          provider: keda
+          minReplicas: 2
+          maxReplicas: 16
+          pollingInterval: 10
+          cooldownPeriod: 600
+          pendingJobsPerReplica: "1"
+          activeUtilizationPercent: "70"
+          spoolUtilizationPercent: "70"
+          networkTransmitBytesPerSecondPerReplica: "52428800"
+          targetCPUUtilizationPercentage: 65
+          targetMemoryUtilizationPercentage: 70
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "8"
+          limits:
+            memory: "16Gi"
+            cpu: "16"
   sip:
     enabled: false
     image:
@@ -346,6 +546,8 @@ rustdesk:
   publicKeyFile: /rustdesk/id_ed25519.pub
   launchBaseUrl: https://opc.example.com
   launchSecret: ""
+  authorizationCodeSecret: ""
+  requireAuthorizationCode: "0"
   edgeTokenSecret: ""
   launchTokenTtlMs: "900000"
   protocolUrlTemplate: ""

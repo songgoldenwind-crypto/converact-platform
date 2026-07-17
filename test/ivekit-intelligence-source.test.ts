@@ -60,6 +60,7 @@ test('media recording import creates one system message, attachment, ASR job, an
   assert.equal(replayed.replayed, true);
   assert.equal(replayed.source.id, created.source.id);
   assert.equal(replayed.message.id, created.message.id);
+  assert.equal(replayed.job?.processor, 'asr');
   assert.equal((await store.listMessages({
     tenant_id: tenantId,
     session_id: session.id

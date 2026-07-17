@@ -47,7 +47,7 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
     sideEffects: boolean;
   };
   assert.equal(pkg.name, '@opc/ivekit-sdk');
-  assert.deepEqual(pkg.files, ['dist', 'README.md']);
+  assert.deepEqual(pkg.files, ['dist', 'examples', 'README.md']);
   assert.equal(pkg.sideEffects, false);
   assert.ok(pkg.exports['.']);
 
@@ -59,6 +59,7 @@ test('iveKit SDK package publishes only compiled output and documentation', () =
   assert.match(entrypoint, /export type \* from '\.\/voice-types\.js'/);
   assert.match(entrypoint, /export type \* from '\.\/contact-center-types\.js'/);
   assert.match(entrypoint, /export \* from '\.\/voice-controller\.js'/);
+  assert.match(entrypoint, /export \* from '\.\/webhook\.js'/);
   assert.match(readme, /IveKitChatSnapshot/);
   assert.match(readme, /IveKitMediaCallSnapshot/);
   assert.match(readme, /createOutboundCall/);

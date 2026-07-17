@@ -1,0 +1,105 @@
+{{- if .Values.tinode.enabled }}
+{{- include "ivekit.tinodeValidate" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ivekit.tinodeFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+spec:
+  replicas: {{ .Values.tinode.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tinode
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tinode
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        {{- toYaml .Values.tinode.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: tinode
+          image: {{ include "ivekit.tinodeImage" . | quote }}
+          imagePullPolicy: {{ .Values.tinode.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "ivekit.tinodeFullname" . }}
+          env:
+            - name: POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.postgresDsnKey }}
+            - name: API_KEY_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.apiKeySaltKey }}
+            - name: AUTH_TOKEN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.authTokenKeyKey }}
+            - name: UID_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.uidEncryptionKeyKey }}
+          ports:
+            - name: http
+              containerPort: 6060
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 2
+            failureThreshold: 4
+          securityContext:
+            {{- toYaml .Values.tinode.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.tinode.resources | nindent 12 }}
+          volumeMounts:
+            - name: botdata
+              mountPath: /botdata
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: botdata
+          {{- if .Values.tinode.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (include "ivekit.tinodeFullname" .) .Values.tinode.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

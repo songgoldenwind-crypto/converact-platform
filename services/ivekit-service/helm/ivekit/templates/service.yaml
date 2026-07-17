@@ -4,6 +4,7 @@ metadata:
   name: {{ include "ivekit.fullname" . }}
   labels:
     {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
 spec:
   type: {{ .Values.service.type }}
   selector:

@@ -6,8 +6,12 @@ import type {
   IveKitPolicyFindingReviewInput
 } from '@opc/ivekit-sdk';
 import { ShieldAlert, Users, X } from 'lucide-react';
-import React from 'react';
-import { FindingPanel } from './finding-panel.js';
+import React, { lazy, Suspense } from 'react';
+
+const FindingPanel = lazy(async () => {
+  const module = await import('./finding-panel.js');
+  return { default: module.FindingPanel };
+});
 
 export function ParticipantRail(props: {
   participants: IveKitChatParticipant[];
@@ -33,14 +37,16 @@ export function ParticipantRail(props: {
       return <div className="participant" key={participant.id}><i className={`presence ${realtime?.presence_status || 'offline'}`} /><span><strong>{participant.display_name || participant.identity}</strong><small>{participant.role}{realtime?.typing ? ' · typing' : ''}</small></span></div>;
     })}</div>
     <div className="pane-heading compact"><h2>Quality</h2><span className="quality-heading-actions"><ShieldAlert size={16} /><button className="icon-button light mobile-finding-close" title="Close quality review" onClick={props.onCloseFinding}><X size={16} /></button></span></div>
-    <FindingPanel
-      findings={props.findings}
-      selectedId={props.selectedFindingId}
-      detail={props.findingDetail}
-      canReview={reviewer}
-      onSelect={props.onSelectFinding}
-      onLoadDetail={props.onLoadFinding}
-      onReview={props.onReviewFinding}
-    />
+    <Suspense fallback={<div className="finding-panel-loading" aria-busy="true" />}>
+      <FindingPanel
+        findings={props.findings}
+        selectedId={props.selectedFindingId}
+        detail={props.findingDetail}
+        canReview={reviewer}
+        onSelect={props.onSelectFinding}
+        onLoadDetail={props.onLoadFinding}
+        onReview={props.onReviewFinding}
+      />
+    </Suspense>
   </aside>;
 }

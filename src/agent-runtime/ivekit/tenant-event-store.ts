@@ -32,11 +32,20 @@ export interface IveKitTenantEventStoreOptions {
   retention_ms?: number;
   max_payload_bytes?: number;
   now?: () => Date;
+  env?: NodeJS.ProcessEnv;
 }
 
 export interface IveKitTenantEventRetentionSummary {
   tenants: number;
   deleted: number;
+}
+
+export interface IveKitTenantEventAppendInput {
+  tenant_id: string;
+  type: string;
+  data: unknown;
+  audience_user_ids?: string[];
+  idempotency_key?: string;
 }
 
 interface EventCursorPayload {
@@ -64,6 +73,42 @@ const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1_024;
 const MAX_AUDIENCE_USERS = 200;
 const MAX_SCAN_EVENTS = 2_000;
 
+export class IveKitTenantEventJournal {
+  private readonly retentionMs: number;
+  private readonly maxPayloadBytes: number;
+  private readonly now: () => Date;
+
+  constructor(
+    private readonly pg: PgQueryable,
+    options: Omit<IveKitTenantEventStoreOptions, 'cursor_secret'> = {}
+  ) {
+    const env = options.env || process.env;
+    this.retentionMs = positiveInteger(
+      options.retention_ms ?? envNumber(env, 'OPC_IVEKIT_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
+      DEFAULT_RETENTION_MS,
+      'retention_ms'
+    );
+    this.maxPayloadBytes = positiveInteger(
+      options.max_payload_bytes ?? envNumber(
+        env,
+        'OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES',
+        DEFAULT_MAX_PAYLOAD_BYTES
+      ),
+      DEFAULT_MAX_PAYLOAD_BYTES,
+      'max_payload_bytes'
+    );
+    this.now = options.now || (() => new Date());
+  }
+
+  async append(input: IveKitTenantEventAppendInput): Promise<void> {
+    await insertTenantEvent(this.pg, input, {
+      retentionMs: this.retentionMs,
+      maxPayloadBytes: this.maxPayloadBytes,
+      now: this.now
+    });
+  }
+}
+
 export class IveKitTenantEventStore {
   private readonly cursorSecret: string;
   private readonly retentionMs: number;
@@ -74,59 +119,34 @@ export class IveKitTenantEventStore {
     private readonly pg: PgQueryable,
     options: IveKitTenantEventStoreOptions = {}
   ) {
+    const env = options.env || process.env;
     this.cursorSecret = String(
-      options.cursor_secret || process.env.OPC_IVEKIT_EVENT_CURSOR_SECRET || process.env.OPC_JWT_SECRET || ''
+      options.cursor_secret || env.OPC_IVEKIT_EVENT_CURSOR_SECRET || env.OPC_JWT_SECRET || ''
     );
     if (!this.cursorSecret) throw new Error('iveKit event cursor secret is required');
     this.retentionMs = positiveInteger(
-      options.retention_ms ?? envNumber('OPC_IVEKIT_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
+      options.retention_ms ?? envNumber(env, 'OPC_IVEKIT_EVENT_RETENTION_MS', DEFAULT_RETENTION_MS),
       DEFAULT_RETENTION_MS,
       'retention_ms'
     );
     this.maxPayloadBytes = positiveInteger(
-      options.max_payload_bytes ?? envNumber('OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES', DEFAULT_MAX_PAYLOAD_BYTES),
+      options.max_payload_bytes ?? envNumber(
+        env,
+        'OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES',
+        DEFAULT_MAX_PAYLOAD_BYTES
+      ),
       DEFAULT_MAX_PAYLOAD_BYTES,
       'max_payload_bytes'
     );
     this.now = options.now || (() => new Date());
   }
 
-  async append(input: {
-    tenant_id: string;
-    type: string;
-    data: unknown;
-    audience_user_ids?: string[];
-  }): Promise<IveKitTenantEvent> {
-    const tenantId = requiredText(input.tenant_id, 'tenant_id');
-    const type = requiredText(input.type, 'type');
-    const data = safeReplayPayload(input.data);
-    const serialized = JSON.stringify(data);
-    if (Buffer.byteLength(serialized, 'utf8') > this.maxPayloadBytes) {
-      throw Object.assign(new Error('tenant event payload exceeds configured size limit'), { status: 413 });
-    }
-    const audience = uniqueTexts(input.audience_user_ids || [], MAX_AUDIENCE_USERS);
-    const visibility = inferIveKitEventVisibility(data);
-    const occurredAt = this.now();
-    const expiresAt = new Date(occurredAt.getTime() + this.retentionMs);
-    const result = await withPgTenant(this.pg, tenantId, (pg) => pg.query<EventRow>(
-        `INSERT INTO ivekit_tenant_events
-          (tenant_id, event_type, visibility_scope, visibility_ref_id,
-           audience_user_ids, payload, occurred_at, expires_at)
-         VALUES ($1, $2, $3, $4, $5::text[], $6::jsonb, $7, $8)
-         RETURNING *`,
-        [
-          tenantId,
-          type,
-          visibility.scope,
-          visibility.ref_id,
-          audience,
-          serialized,
-          occurredAt.toISOString(),
-          expiresAt.toISOString()
-        ]
-      ));
-    if (!result.rows[0]) throw new Error('tenant event was not persisted');
-    return this.decodeEvent(result.rows[0]);
+  async append(input: IveKitTenantEventAppendInput): Promise<IveKitTenantEvent> {
+    return this.decodeEvent(await insertTenantEvent(this.pg, input, {
+      retentionMs: this.retentionMs,
+      maxPayloadBytes: this.maxPayloadBytes,
+      now: this.now
+    }));
   }
 
   async headCursor(tenantIdInput: string): Promise<string> {
@@ -212,15 +232,32 @@ export class IveKitTenantEventStore {
     event: IveKitTenantEvent,
     viewer: { user_id: string; role: AuthRole }
   ): Promise<boolean> {
-    if (event.audience_user_ids.length > 0) return event.audience_user_ids.includes(viewer.user_id);
-    if (viewer.role === 'owner' || viewer.role === 'admin' || viewer.role === 'system') return true;
+    return (await this.canViewMany(event, [viewer]))[0] ?? false;
+  }
+
+  async canViewMany(
+    event: IveKitTenantEvent,
+    viewers: ReadonlyArray<{ user_id: string; role: AuthRole }>
+  ): Promise<boolean[]> {
+    if (viewers.length === 0) return [];
+    if (event.audience_user_ids.length > 0) {
+      const audience = new Set(event.audience_user_ids);
+      return viewers.map((viewer) => audience.has(viewer.user_id));
+    }
+    const privileged = viewers.map((viewer) =>
+      viewer.role === 'owner' || viewer.role === 'admin' || viewer.role === 'system'
+    );
     const scope = event.visibility_scope;
-    if (scope === 'tenant') return true;
-    const result = await withPgTenant(this.pg, event.tenant_id, (pg) => pg.query<{ visible: boolean }>(
-      visibilityProbeQuery(scope),
-      [event.tenant_id, event.visibility_ref_id, viewer.user_id]
+    if (scope === 'tenant') return viewers.map(() => true);
+    if (privileged.every(Boolean)) return privileged;
+    const result = await withPgTenant(this.pg, event.tenant_id, (pg) => pg.query<{ user_id: string }>(
+      visibilityMembersQuery(scope),
+      [event.tenant_id, event.visibility_ref_id]
     ));
-    return result.rows[0]?.visible === true || String(result.rows[0]?.visible) === 'true';
+    const members = new Set(result.rows.map((row) => String(row.user_id)));
+    return viewers.map((viewer, index) =>
+      privileged[index] || members.has(viewer.user_id)
+    );
   }
 
   async pruneExpired(input: {
@@ -243,6 +280,14 @@ export class IveKitTenantEventStore {
         `WITH doomed AS (
            SELECT id FROM ivekit_tenant_events
            WHERE tenant_id = $1 AND expires_at <= $2
+             AND NOT EXISTS (
+               SELECT 1 FROM ivekit_legal_holds hold
+               WHERE hold.tenant_id = ivekit_tenant_events.tenant_id
+                 AND hold.category = 'tenant_events'
+                 AND hold.resource_type = 'tenant_event'
+                 AND hold.resource_id = ivekit_tenant_events.id::text
+                 AND hold.status = 'active'
+             )
            ORDER BY id ASC
            LIMIT $3
          )
@@ -396,31 +441,67 @@ function visibleEventQuery(): string {
   LIMIT $6`;
 }
 
-function visibilityProbeQuery(scope: Exclude<IveKitEventVisibilityScope, 'tenant'>): string {
+function visibilityMembersQuery(scope: Exclude<IveKitEventVisibilityScope, 'tenant'>): string {
   if (scope === 'chat_session') {
-    return `SELECT EXISTS (
-      SELECT 1 FROM collaboration_participants participant
+    return `SELECT DISTINCT participant.identity AS user_id
+      FROM collaboration_participants participant
       WHERE participant.tenant_id = $1 AND participant.session_id = $2
-        AND participant.identity = $3 AND participant.left_at IS NULL
-    ) AS visible`;
+        AND participant.left_at IS NULL`;
   }
   if (scope === 'media_call') {
-    return `SELECT EXISTS (
-      SELECT 1 FROM ivekit_media_call_participants participant
+    return `SELECT DISTINCT participant.identity AS user_id
+      FROM ivekit_media_call_participants participant
       WHERE participant.tenant_id = $1 AND participant.call_id = $2
-        AND participant.identity = $3
-        AND participant.status IN ('invited', 'ringing', 'accepted', 'joined')
-    ) AS visible`;
+        AND participant.status IN ('invited', 'ringing', 'accepted', 'joined')`;
   }
-  return `SELECT EXISTS (
-    SELECT 1
+  return `SELECT DISTINCT participant.identity AS user_id
     FROM remote_assistance_sessions remote
     JOIN collaboration_participants participant
       ON participant.tenant_id = remote.tenant_id
      AND participant.session_id = remote.collaboration_session_id
     WHERE remote.tenant_id = $1 AND remote.id = $2
-      AND participant.identity = $3 AND participant.left_at IS NULL
-  ) AS visible`;
+      AND participant.left_at IS NULL`;
+}
+
+async function insertTenantEvent(
+  pg: PgQueryable,
+  input: IveKitTenantEventAppendInput,
+  config: { retentionMs: number; maxPayloadBytes: number; now: () => Date }
+): Promise<EventRow> {
+  const tenantId = requiredText(input.tenant_id, 'tenant_id');
+  const type = requiredText(input.type, 'type');
+  const idempotencyKey = optionalText(input.idempotency_key, 'idempotency_key', 255);
+  const data = safeReplayPayload(input.data);
+  const serialized = JSON.stringify(data);
+  if (Buffer.byteLength(serialized, 'utf8') > config.maxPayloadBytes) {
+    throw Object.assign(new Error('tenant event payload exceeds configured size limit'), { status: 413 });
+  }
+  const audience = uniqueTexts(input.audience_user_ids || [], MAX_AUDIENCE_USERS);
+  const visibility = inferIveKitEventVisibility(data);
+  const occurredAt = config.now();
+  const expiresAt = new Date(occurredAt.getTime() + config.retentionMs);
+  const result = await withPgTenant(pg, tenantId, (tenantPg) => tenantPg.query<EventRow>(
+    `INSERT INTO ivekit_tenant_events
+      (tenant_id, event_type, visibility_scope, visibility_ref_id,
+       audience_user_ids, payload, occurred_at, expires_at, idempotency_key)
+     VALUES ($1, $2, $3, $4, $5::text[], $6::jsonb, $7, $8, $9)
+     ON CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key <> ''
+     DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
+     RETURNING *`,
+    [
+      tenantId,
+      type,
+      visibility.scope,
+      visibility.ref_id,
+      audience,
+      serialized,
+      occurredAt.toISOString(),
+      expiresAt.toISOString(),
+      idempotencyKey
+    ]
+  ));
+  if (!result.rows[0]) throw new Error('tenant event was not persisted');
+  return result.rows[0];
 }
 
 function safeReplayPayload(value: unknown): unknown {
@@ -478,6 +559,14 @@ function requiredText(value: unknown, field: string): string {
   return normalized;
 }
 
+function optionalText(value: unknown, field: string, maxLength: number): string {
+  const normalized = String(value || '').trim();
+  if (normalized.length > maxLength) {
+    throw Object.assign(new Error(`${field} exceeds ${maxLength} characters`), { status: 400 });
+  }
+  return normalized;
+}
+
 function uniqueTexts(values: unknown[], max: number): string[] {
   const result = [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
   if (result.length > max) throw Object.assign(new Error(`audience exceeds ${max} users`), { status: 400 });
@@ -498,7 +587,7 @@ function boundedInteger(value: number | undefined, fallback: number, min: number
   return resolved;
 }
 
-function envNumber(key: string, fallback: number): number {
-  const value = String(process.env[key] || '').trim();
+function envNumber(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
+  const value = String(env[key] || '').trim();
   return value ? Number(value) : fallback;
 }

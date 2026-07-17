@@ -841,7 +841,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 ### 17.3 镜像与版本
 
 - iveKit standalone Helm 和可选 RustPBX 必须使用 registry digest；Compose 交付只有记录 digest 后才从 `blocked_build_required` 变为 `ready`。
-- iveKit RustPBX 已验证工程基线为 `0.4.11-ivekit.3`，源码 commit、rsipstack commit、Cargo lock、builder/runtime digest、TCP reconnect patch、AMI call-id patch 与 RWI originate CANCEL/BYE patch 均在 `infra/ivekit/rustpbx/` 固定；隔离服务器已完成 SIPp BYE 和 12/12 场景复验，发布仍必须使用 registry digest，禁止用同名可变 tag 替代。
+- iveKit RustPBX 已验证工程基线为 `0.4.11-ivekit.3`，源码 commit、rsipstack commit、Cargo lock、builder/runtime digest、TCP reconnect patch、AMI call-id patch 与 RWI originate CANCEL/BYE patch 均在 `infra/ivekit/rustpbx/` 固定；隔离服务器已完成 SIPp BYE 和 12/12 场景复验。当前源码候选为 `0.4.11-ivekit.8`：在同一固定 commit 上继续叠加 route snapshot、Cell admission、owner epoch、recording spool、rsipstack/RustPBX 有界事务与显式 SIP 503 过载补丁，并将 BridgePeer/ForwardingTrack 的录音编解码和磁盘工作移出 RTP 转发循环。完整补丁队列已在干净精确源码上重放，TypeScript、Compose/Helm、ServiceMonitor/告警合同通过；`.8` 的 Rust 原生编译、SIPp CPS/overload、真实 RTP 连续性、录音队列溢出和故障验收保持 `not_run`。发布仍必须使用 registry digest，禁止用同名可变 tag 替代。
 - release manifest 记录 RustPBX capability matrix。
 - 上游版本升级先通过 adapter contract、受控呼叫和回滚演练。
 - standalone source policy 显式收录 Voice preflight 和 RustPBX config renderer；隔离构建门禁要求三个 operational entrypoint 都实际生成。
@@ -874,6 +874,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 | `RUSTPBX_IMAGE` / `PROFILE_ID` / `DB_PASSWORD` / `DATABASE_URL` | RustPBX 镜像、profile 映射和独立 PostgreSQL 数据库配置 |
 | `RUSTPBX_ROUTER_URL` / `CDR_WEBHOOK_URL` | 指向 `/api/ivekit/voice/providers/:profileId/router` 和 `/cdrs` |
 | `RUSTPBX_SIP_PORT` / `RTP_START_PORT` / `RTP_END_PORT` / `EXTERNAL_IP` | SIP/RTP 暴露和 NAT 输入 |
+| `RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS` / `MAX_FINISHED_TRANSACTIONS` / `INCOMING_TRANSACTION_QUEUE_CAPACITY` / `MAX_TRANSPORT_CONNECTIONS` | rsipstack 事务、重传缓存、入站队列和可靠连接硬上限；是过载保护参数，不是容量成绩 |
 
 完整默认值见 `services/ivekit-service/env.example` 和 `infra/ivekit/env.example`。生产配置禁止把 token、数据库密码、号码明文或带 credentials/query/fragment 的 Provider URL 写入 profile `config`。
 
@@ -882,7 +883,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 - `service/build-context/`：standalone runtime source、Dockerfile、migrations、compiled-entrypoint source、standalone Compose/Voice overlay 和数据库 bootstrap；不含 controlled provider。
 - `deploy/application/`：由 `services/ivekit-service` 生成的 standalone Compose 与 Voice overlay；交付版去掉源码 `build`，强制设置 `IVEKIT_SERVICE_IMAGE`。
 - `deploy/kubernetes/ivekit/`：独立 Helm Chart，包含迁移 hook、iveKit Deployment/Service/PDB 和可选 RustPBX；只引用接收方已有 Secret，不包含 OPC frontend/AI agent/call-center 或旧 `opc-platform` workload。
-- `deploy/rustpbx/`：可复现的 RustPBX/rsipstack 固定源码构建合同，包括 `Cargo.lock`、native build、runtime Dockerfile、TCP reconnect 补丁、AMI call-id 补丁和 RWI originate CANCEL/BYE 补丁。
+- `deploy/rustpbx/`：可复现的 RustPBX/rsipstack 固定源码构建合同，包括 `Cargo.lock`、native build、runtime Dockerfile、TCP reconnect、AMI/RWI、route/owner/recording，以及 SIP transaction/queue/transport capacity 补丁。
 - `operations/release-contract.json`：绑定 source commit、image metadata、migration manifest、Compose/Helm 路径和 forward-only/restore-only 策略。
 - `operations/upgrade-runbook.md`：先验 checksum/备份，再执行迁移和 rollout；应用可回退到兼容旧 digest，数据库不得自动 down migration，只能恢复已验证的升级前备份。
 - `acceptance/tools/ivekit-controlled-voice-provider.ts`：仅用于受控协议验收，不进入 runtime image。

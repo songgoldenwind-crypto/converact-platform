@@ -13,6 +13,10 @@ spec:
     metadata:
       labels:
         app: opc
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: /metrics
     spec:
       containers:
         - name: opc
@@ -59,6 +63,10 @@ spec:
               value: {{ .Values.media.inviteTtlMs | default "86400000" | quote }}
             - name: OPC_MEDIA_RECORDING_RETENTION_DAYS
               value: {{ .Values.media.recordingRetentionDays | default "90" | quote }}
+            - name: OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED
+              value: {{ ternary "1" "0" (and .Values.media.egress.enabled .Values.media.egress.capacityMetrics.enabled) | quote }}
+            - name: OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS
+              value: {{ .Values.media.egress.capacityMetrics.intervalMs | quote }}
             - name: OPC_RECORDING_HTTP_ALLOWED_ORIGINS
               value: {{ .Values.media.recordingHttpAllowedOrigins | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
             - name: OPC_RECORDING_HTTP_TIMEOUT_MS
@@ -408,6 +416,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-launch-secret
+            - name: OPC_RUSTDESK_AUTHORIZATION_CODE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustdesk-authorization-code-secret
+            - name: OPC_RUSTDESK_REQUIRE_AUTHORIZATION_CODE
+              value: {{ .Values.rustdesk.requireAuthorizationCode | default "0" | quote }}
             - name: OPC_RUSTDESK_LAUNCH_TOKEN_TTL_MS
               value: {{ .Values.rustdesk.launchTokenTtlMs | default "900000" | quote }}
             - name: OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE

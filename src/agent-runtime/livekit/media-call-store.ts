@@ -18,6 +18,7 @@ export class MediaCallStore {
   }
 
   async insertCall(input: {
+    id?: string;
     tenant_id: string;
     room_name?: string;
     media: 'voice' | 'video';
@@ -27,7 +28,7 @@ export class MediaCallStore {
     metadata: Record<string, unknown>;
     ring_timeout_seconds: number;
   }): Promise<IveKitMediaCall> {
-    const callId = pgId('mcall');
+    const callId = input.id || pgId('mcall');
     const result = await this.pg.query(
       `INSERT INTO ivekit_media_calls
         (id, tenant_id, room_name, media, status, initiated_by,
@@ -483,6 +484,17 @@ function decodeParticipant(row: Record<string, unknown>): IveKitMediaCallPartici
     accepted_at: nullableString(row.accepted_at),
     joined_at: nullableString(row.joined_at),
     left_at: nullableString(row.left_at),
+    connection_revision: Number(row.connection_revision || 0),
+    connection_state: String(row.connection_state || 'disconnected') as IveKitMediaCallParticipant['connection_state'],
+    connection_updated_at: nullableString(row.connection_updated_at),
+    last_disconnected_at: nullableString(row.last_disconnected_at),
+    last_rejoined_at: nullableString(row.last_rejoined_at),
+    quality_state: String(row.quality_state || 'unknown') as IveKitMediaCallParticipant['quality_state'],
+    quality_degraded_streak: Number(row.quality_degraded_streak || 0),
+    quality_recovered_streak: Number(row.quality_recovered_streak || 0),
+    last_quality_level: String(row.last_quality_level || 'unknown') as IveKitMediaCallParticipant['last_quality_level'],
+    last_quality_sample_id: String(row.last_quality_sample_id || ''),
+    last_qos_at: nullableString(row.last_qos_at),
     updated_at: String(row.updated_at)
   };
 }

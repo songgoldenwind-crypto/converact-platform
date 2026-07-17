@@ -21,6 +21,7 @@ import { inspectAttachmentProcessingEnv } from '../scripts/attachment-processing
 import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
 import { IntelligencePolicyStore } from '../src/agent-runtime/collaboration/intelligence-policy-store.js';
 import { createPolicyAttachmentProviderResolver } from '../src/agent-runtime/collaboration/intelligence-provider-routing.js';
+import { IntelligenceProviderRouteError } from '../src/agent-runtime/collaboration/intelligence-provider-route.js';
 
 const API_KEY = 'attachment-processing-api-key';
 
@@ -144,6 +145,41 @@ test('unconfigured processor leaves durable jobs pending for later provider conf
     tenant_id: message.tenant_id,
     attachment_id: attachment.id
   }))?.status, 'pending');
+});
+
+test('route reservation denial reschedules attachment work without consuming an attempt', async () => {
+  const pg = new MemoryPg();
+  const { message, attachment } = await createAttachmentMessage(pg, {
+    kind: 'image', contentType: 'image/png', storageUrl: 's3://opc-chat/quota.png'
+  });
+  const retryAt = '2026-07-10T00:01:00.000Z';
+  const service = new AttachmentProcessingService({
+    pg,
+    now: () => new Date('2026-07-10T00:00:00.000Z'),
+    providers: {
+      ocr: {
+        processor: 'ocr', name: 'quota-ocr', mode: 'self_hosted',
+        extract: async () => {
+          throw new IntelligenceProviderRouteError([{
+            profile_id: 'quota-ocr', status: 'skipped',
+            code: 'minute_quota_exhausted', retry_at: retryAt
+          }]);
+        }
+      }
+    },
+    resolveObject: async () => ({ status: 'readable', content: Buffer.from('image') })
+  });
+  await service.enqueueMessage(message);
+  assert.equal((await service.runDue({ tenant_id: message.tenant_id })).retry_wait, 1);
+  const job = await service.getJobForAttachment({
+    tenant_id: message.tenant_id, attachment_id: attachment.id
+  });
+  assert.equal(job?.attempt_count, 0);
+  assert.equal(job?.next_attempt_at, retryAt);
+  assert.deepEqual(job?.output_metadata.ivekit_route_attempts, [{
+    profile_id: 'quota-ocr', status: 'skipped',
+    code: 'minute_quota_exhausted', retry_at: retryAt
+  }]);
 });
 
 test('post-processing notification failures do not corrupt a committed extraction', async () => {
@@ -720,6 +756,18 @@ test('attachment worker enables only with a configured provider and validates ru
     }),
     /BATCH_SIZE/
   );
+});
+
+test('attachment worker claim lease covers the longest configured provider reservation', () => {
+  const config = attachmentProcessingWorkerConfig({
+    OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+      id: 'slow-ocr', capability: 'ocr', mode: 'self_hosted',
+      base_url: 'http://slow-ocr:8080', timeout_ms: 300_000,
+      reservation_ttl_ms: 305_000
+    }]),
+    OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: '60000'
+  });
+  assert.equal(config.claimLeaseMs >= 310_000, true);
 });
 
 test('attachment worker coalesces concurrent runs and stops cleanly', async () => {

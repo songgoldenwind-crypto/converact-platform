@@ -21,11 +21,21 @@ import {
   type QualityReviewProvider
 } from '../src/agent-runtime/collaboration/quality-review.js';
 import { RustDeskDeviceCommandStore } from '../src/agent-runtime/collaboration/rustdesk-device-command-store.js';
+import { RustDeskAuthorizationCodeStore } from '../src/agent-runtime/collaboration/rustdesk-authorization-code-store.js';
 import { TranslationService } from '../src/agent-runtime/collaboration/translation-service.js';
 import type { TranslationProvider } from '../src/agent-runtime/collaboration/translation-provider.js';
+import { IntelligenceProviderGovernanceStore } from '../src/agent-runtime/collaboration/intelligence-provider-governance-store.js';
+import { createIntelligenceProviderRegistry } from '../src/agent-runtime/collaboration/intelligence-provider-registry.js';
+import { SecureFileStore } from '../src/agent-runtime/collaboration/secure-file-store.js';
+import { SecureFileDerivativeStore } from '../src/agent-runtime/collaboration/secure-file-derivative-store.js';
+import { TinodeFileDeliveryGate } from '../src/agent-runtime/collaboration/tinode-file-delivery-gate.js';
+import { TinodeMessageMutationStore } from '../src/agent-runtime/collaboration/tinode-message-mutation.js';
+import { TinodeOperationsService } from '../src/agent-runtime/collaboration/tinode-operations.js';
 import { withPgTenant } from '../src/db-pg-tenant.js';
 import { MediaCallService } from '../src/agent-runtime/livekit/media-call-service.js';
 import { MediaCallStore } from '../src/agent-runtime/livekit/media-call-store.js';
+import { MediaQualityService } from '../src/agent-runtime/livekit/media-quality-service.js';
+import { MediaQualityStore } from '../src/agent-runtime/livekit/media-quality-store.js';
 import {
   ControlledVoiceProviderFactory,
   EncryptedVoiceAddressProtector,
@@ -101,6 +111,25 @@ const contactCenterTables = [
   'ivekit_cc_overflow_actions'
 ];
 
+const providerGovernanceTables = [
+  'collaboration_intelligence_provider_runtime',
+  'collaboration_intelligence_provider_leases'
+];
+
+const contentIntelligenceTables = ['collaboration_visual_observations'];
+
+const notificationTables = [
+  'ivekit_notification_templates',
+  'ivekit_notification_template_versions',
+  'ivekit_notification_preferences',
+  'ivekit_notification_endpoints',
+  'ivekit_notification_endpoint_runtime',
+  'ivekit_notifications',
+  'ivekit_notification_deliveries',
+  'ivekit_notification_inbox_items',
+  'ivekit_notification_receipts'
+];
+
 function standaloneMigrations(): { directory: string; cleanup(): void } {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-standalone-postgres-'));
   const outputDir = join(root, 'context');
@@ -134,7 +163,9 @@ function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): 
       '055_ivekit_contact_center_callbacks.sql',
       '056_ivekit_contact_center_overflow.sql',
       '057_ivekit_voice_action_capabilities.sql',
-      '058_ivekit_voice_parking.sql'
+      '058_ivekit_voice_parking.sql',
+      '059_ivekit_provider_governance.sql',
+      '060_ivekit_content_intelligence.sql'
     ].includes(name)) continue;
     copyFileSync(resolve('src/migrations', name), join(directory, name));
   }
@@ -251,12 +282,25 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       'collaboration_intelligence_policies',
       'collaboration_intelligence_source_links',
       'collaboration_translation_jobs',
+      'collaboration_intelligence_provider_runtime',
+      'collaboration_intelligence_provider_leases',
       'ivekit_media_calls',
+      'ivekit_media_quality_snapshots',
+      'ivekit_media_connection_events',
       'ivekit_tenant_events',
       'rustdesk_gateway_sessions',
+      'rustdesk_authorization_codes',
       ...voiceFoundationTables,
       ...ivrFoundationTables,
-      ...contactCenterTables
+      ...contactCenterTables,
+      ...notificationTables,
+      'ivekit_audit_events',
+      'ivekit_rate_limit_buckets',
+      'ivekit_retention_policies',
+      'ivekit_legal_holds',
+      'ivekit_retention_runs',
+      'ivekit_audit_retention_checkpoints',
+      'ivekit_runtime_heartbeats'
     ]) assert.equal(tables.rows.some((row) => row.tablename === required), true, required);
 
     const checksums = await admin.query<{ version: string; checksum: string }>(
@@ -307,7 +351,523 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       can_create_role: false
     });
 
-    await admin.query(`INSERT INTO tenants (id, name) VALUES ('ivekit_rls_a', 'A'), ('ivekit_rls_b', 'B')`);
+    await admin.query(`
+      INSERT INTO tenants (id, name) VALUES
+        ('ivekit_rls_a', 'A'),
+        ('ivekit_rls_b', 'B'),
+        ('ivekit_retention_held', 'Retention held'),
+        ('ivekit_retention_ready', 'Retention ready')
+    `);
+    await admin.query(`
+      INSERT INTO collaboration_sessions
+        (id, tenant_id, business_ref_type, business_ref_id)
+      VALUES ('ivekit_mutation_recovery_session', 'ivekit_rls_a', 'test', 'mutation-recovery');
+      INSERT INTO collaboration_messages
+        (id, tenant_id, session_id, sender_identity, message_type, body,
+         provider, provider_topic_id, provider_message_id)
+      VALUES
+        ('ivekit_mutation_recovery_message', 'ivekit_rls_a',
+         'ivekit_mutation_recovery_session', 'sender', 'text', 'before',
+         'tinode', 'grpMutationRecovery', '12');
+      INSERT INTO collaboration_message_mutations
+        (id, tenant_id, session_id, message_id, version, action, actor_identity,
+         before_body_hash, after_body_hash)
+      VALUES
+        ('ivekit_mutation_recovery', 'ivekit_rls_a',
+         'ivekit_mutation_recovery_session', 'ivekit_mutation_recovery_message',
+         1, 'edit', 'sender', repeat('a', 64), repeat('b', 64));
+      INSERT INTO tinode_message_mutation_outbox
+        (id, tenant_id, session_id, message_id, mutation_id, mutation_version,
+         action, provider_topic_id, body, status, attempt_count, max_attempts,
+         claim_token, claimed_until)
+      VALUES
+        ('ivekit_mutation_recovery_outbox', 'ivekit_rls_a',
+         'ivekit_mutation_recovery_session', 'ivekit_mutation_recovery_message',
+         'ivekit_mutation_recovery', 1, 'edit', 'grpMutationRecovery', 'after',
+         'processing', 1, 3, 'expired-claim', '2026-07-15T00:00:00.000Z')
+    `);
+    const recoveredMutationClaim = await new TinodeMessageMutationStore(runtime).claimNext({
+      tenant_id: 'ivekit_rls_a',
+      now: new Date('2026-07-16T00:00:00.000Z'),
+      lease_ms: 30_000
+    });
+    assert.equal(recoveredMutationClaim?.id, 'ivekit_mutation_recovery_outbox');
+    assert.equal(recoveredMutationClaim?.recovered_from_processing, true);
+    const heldEvent = await admin.query<{ id: string }>(`
+      INSERT INTO ivekit_tenant_events (tenant_id, event_type, expires_at)
+      VALUES ('ivekit_retention_held', 'retention.held', '2026-07-01T00:00:00.000Z')
+      RETURNING id::text
+    `);
+    await admin.query(`
+      INSERT INTO ivekit_tenant_events (tenant_id, event_type, expires_at)
+      VALUES ('ivekit_retention_ready', 'retention.ready', '2026-07-02T00:00:00.000Z')
+    `);
+    await admin.query(`
+      INSERT INTO ivekit_legal_holds
+        (id, tenant_id, category, resource_type, resource_id, reason_code,
+         idempotency_key, placed_by)
+      VALUES
+        ('ivekit_event_hold', 'ivekit_retention_held', 'tenant_events', 'tenant_event',
+         $1, 'legal_case', 'ivekit-event-hold', 'retention-test')
+    `, [heldEvent.rows[0]!.id]);
+    const retentionTenants = await admin.query<{ tenant_id: string }>(`
+      SELECT tenant_id FROM opc_ivekit_event_retention_tenant_ids(
+        '2026-07-15T00:00:00.000Z'::timestamptz,
+        1
+      )
+    `);
+    assert.deepEqual(retentionTenants.rows, [{ tenant_id: 'ivekit_retention_ready' }]);
+    await admin.query(`DELETE FROM ivekit_legal_holds WHERE id = 'ivekit_event_hold'`);
+    await admin.query(`
+      DELETE FROM ivekit_tenant_events
+      WHERE tenant_id IN ('ivekit_retention_held', 'ivekit_retention_ready')
+    `);
+    await admin.query(`
+      DELETE FROM tenants WHERE id IN ('ivekit_retention_held', 'ivekit_retention_ready')
+    `);
+    await admin.query(`
+      INSERT INTO collaboration_sessions
+        (id, tenant_id, business_ref_type, business_ref_id, title)
+      VALUES
+        ('ivekit_authorization_session_a', 'ivekit_rls_a', 'order', 'AUTH-A', 'Authorization A'),
+        ('ivekit_authorization_session_b', 'ivekit_rls_b', 'order', 'AUTH-B', 'Authorization B');
+      INSERT INTO remote_assistance_sessions
+        (id, tenant_id, collaboration_session_id, business_ref_type, business_ref_id,
+         status, mode, adapter_provider, started_by)
+      VALUES
+        ('ivekit_authorization_remote_a', 'ivekit_rls_a', 'ivekit_authorization_session_a',
+         'order', 'AUTH-A', 'active', 'remote_desktop_gateway', 'rustdesk', 'engineer-a'),
+        ('ivekit_authorization_remote_b', 'ivekit_rls_b', 'ivekit_authorization_session_b',
+         'order', 'AUTH-B', 'active', 'remote_desktop_gateway', 'rustdesk', 'engineer-b');
+      INSERT INTO rustdesk_devices
+        (id, tenant_id, business_ref_type, business_ref_id, rustdesk_id, display_name)
+      VALUES
+        ('ivekit_authorization_device_a', 'ivekit_rls_a', 'order', 'AUTH-A', 'rustdesk-auth-a', 'Auth A'),
+        ('ivekit_authorization_device_b', 'ivekit_rls_b', 'order', 'AUTH-B', 'rustdesk-auth-b', 'Auth B');
+      INSERT INTO rustdesk_gateway_sessions
+        (external_id, tenant_id, target_id, permissions, actor_identity, launch_url)
+      VALUES
+        ('ivekit_authorization_gateway_a', 'ivekit_rls_a', 'rustdesk-auth-a',
+         '["view_screen"]', 'engineer-a', 'https://opc.example.test/remote/rustdesk/launch')
+    `);
+    const authorizationCodes = new RustDeskAuthorizationCodeStore(runtime, {
+      secret: 'ivekit-postgres-authorization-code-secret-at-least-32-bytes'
+    });
+    const authorizationCode = await authorizationCodes.create({
+      tenant_id: 'ivekit_rls_a',
+      remote_session_id: 'ivekit_authorization_remote_a',
+      device_id: 'ivekit_authorization_device_a',
+      scopes: ['view_screen'],
+      requested_by: 'customer-a',
+      idempotency_key: 'ivekit-authorization-postgres-a',
+      now: '2099-01-01T00:00:00.000Z'
+    });
+    assert.match(authorizationCode.code || '', /^\d{8}$/);
+    assert.equal(await authorizationCodes.get({
+      tenant_id: 'ivekit_rls_b',
+      authorization_id: authorizationCode.authorization.id,
+      now: '2099-01-01T00:01:00.000Z'
+    }), null);
+    await authorizationCodes.verify({
+      tenant_id: 'ivekit_rls_a',
+      authorization_id: authorizationCode.authorization.id,
+      code: authorizationCode.code!,
+      verified_by: 'engineer-a',
+      now: '2099-01-01T00:01:00.000Z'
+    });
+    const consumedAuthorization = await authorizationCodes.consume({
+      tenant_id: 'ivekit_rls_a',
+      authorization_id: authorizationCode.authorization.id,
+      verified_by: 'engineer-a',
+      external_id: 'ivekit_authorization_gateway_a',
+      now: '2099-01-01T00:02:00.000Z'
+    });
+    assert.equal(consumedAuthorization.status, 'consumed');
+    const authorizationStorage = await admin.query<{
+      code_salt: string;
+      code_hmac: string;
+      status: string;
+    }>(
+      `SELECT code_salt, code_hmac, status
+       FROM rustdesk_authorization_codes
+       WHERE id = $1`,
+      [authorizationCode.authorization.id]
+    );
+    assert.match(authorizationStorage.rows[0]?.code_salt || '', /^[a-f0-9]{32}$/);
+    assert.match(authorizationStorage.rows[0]?.code_hmac || '', /^[a-f0-9]{64}$/);
+    assert.equal(authorizationStorage.rows[0]?.status, 'consumed');
+    assert.equal(JSON.stringify(authorizationStorage.rows).includes(authorizationCode.code!), false);
+    await admin.query(`
+      INSERT INTO ivekit_media_calls
+        (id, tenant_id, room_name, media, status, initiated_by,
+         business_ref_type, business_ref_id, title)
+      VALUES
+        ('ivekit_quality_call_a', 'ivekit_rls_a', 'ivekit-quality-room-a', 'video', 'active',
+         'quality-host-a', 'acceptance', 'QUALITY-A', 'Quality A'),
+        ('ivekit_quality_call_b', 'ivekit_rls_b', 'ivekit-quality-room-b', 'video', 'active',
+         'quality-host-b', 'acceptance', 'QUALITY-B', 'Quality B');
+      INSERT INTO ivekit_media_call_participants
+        (id, tenant_id, call_id, identity, role, status, display_name, joined_at)
+      VALUES
+        ('ivekit_quality_participant_a', 'ivekit_rls_a', 'ivekit_quality_call_a',
+         'quality-host-a', 'host', 'joined', 'Quality A', CURRENT_TIMESTAMP),
+        ('ivekit_quality_participant_b', 'ivekit_rls_b', 'ivekit_quality_call_b',
+         'quality-host-b', 'host', 'joined', 'Quality B', CURRENT_TIMESTAMP)
+    `);
+    await admin.query(`
+      INSERT INTO collaboration_sessions
+        (id, tenant_id, business_ref_type, business_ref_id, title)
+      VALUES
+        ('ivekit_visual_session_a', 'ivekit_rls_a', 'order', 'VISUAL-A', 'Visual A'),
+        ('ivekit_visual_session_b', 'ivekit_rls_b', 'order', 'VISUAL-B', 'Visual B');
+      INSERT INTO collaboration_messages
+        (id, tenant_id, session_id, sender_identity, message_type, body)
+      VALUES
+        ('ivekit_visual_message_a', 'ivekit_rls_a', 'ivekit_visual_session_a', 'agent-a', 'video', ''),
+        ('ivekit_visual_message_b', 'ivekit_rls_b', 'ivekit_visual_session_b', 'agent-b', 'video', '');
+      INSERT INTO collaboration_message_attachments
+        (id, tenant_id, session_id, message_id, kind, storage_url, filename,
+         content_type, size_bytes, checksum, processing_status)
+      VALUES
+        ('ivekit_visual_attachment_a', 'ivekit_rls_a', 'ivekit_visual_session_a',
+         'ivekit_visual_message_a', 'video', 'ivekit://controlled/visual-a',
+         'visual-a.mp4', 'video/mp4', 128, '${'a'.repeat(64)}', 'ready'),
+        ('ivekit_visual_attachment_b', 'ivekit_rls_b', 'ivekit_visual_session_b',
+         'ivekit_visual_message_b', 'video', 'ivekit://controlled/visual-b',
+         'visual-b.mp4', 'video/mp4', 128, '${'b'.repeat(64)}', 'ready');
+      INSERT INTO collaboration_attachment_processing_jobs
+        (id, tenant_id, session_id, message_id, attachment_id, processor, status)
+      VALUES
+        ('ivekit_visual_job_a', 'ivekit_rls_a', 'ivekit_visual_session_a',
+         'ivekit_visual_message_a', 'ivekit_visual_attachment_a', 'video_frame_ocr', 'succeeded'),
+        ('ivekit_visual_job_b', 'ivekit_rls_b', 'ivekit_visual_session_b',
+         'ivekit_visual_message_b', 'ivekit_visual_attachment_b', 'video_frame_ocr', 'succeeded');
+      INSERT INTO collaboration_visual_observations
+        (id, tenant_id, session_id, message_id, attachment_id, processor_job_id,
+         observation_type, value_hash, symbology, confidence, frame_timestamp_ms)
+      VALUES
+        ('ivekit_visual_observation_a', 'ivekit_rls_a', 'ivekit_visual_session_a',
+         'ivekit_visual_message_a', 'ivekit_visual_attachment_a', 'ivekit_visual_job_a',
+         'qr_code', '${'c'.repeat(64)}', 'QR_CODE', 0.99, 2000),
+        ('ivekit_visual_observation_b', 'ivekit_rls_b', 'ivekit_visual_session_b',
+         'ivekit_visual_message_b', 'ivekit_visual_attachment_b', 'ivekit_visual_job_b',
+         'barcode', '${'d'.repeat(64)}', 'CODE_128', 0.98, 4000)
+    `);
+    const governanceProfile = createIntelligenceProviderRegistry({
+      OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+        id: 'translation-postgres', capability: 'translation', mode: 'self_hosted',
+        base_url: 'http://translation-worker:8080', timeout_ms: 1_000,
+        reservation_ttl_ms: 6_000, max_concurrency: 1
+      }])
+    }).requireProfile('translation-postgres', 'translation');
+    const reservations = await Promise.all([
+      new IntelligenceProviderGovernanceStore(runtime).reserve({
+        tenant_id: 'ivekit_rls_a', capability: 'translation',
+        profile: governanceProfile, route_attempt: 1
+      }),
+      new IntelligenceProviderGovernanceStore(runtime).reserve({
+        tenant_id: 'ivekit_rls_a', capability: 'translation',
+        profile: governanceProfile, route_attempt: 1
+      })
+    ]);
+    assert.equal(reservations.filter((reservation) => reservation.granted).length, 1);
+    const deniedReservation = reservations.find((reservation) => reservation.granted === false);
+    assert.equal(deniedReservation?.granted, false);
+    if (deniedReservation?.granted === false) {
+      assert.equal(deniedReservation.reason, 'concurrency_exhausted');
+    }
+    const grantedReservation = reservations.find((reservation) => reservation.granted);
+    if (!grantedReservation?.granted) throw new Error('one PostgreSQL reservation must be granted');
+    await new IntelligenceProviderGovernanceStore(runtime).complete({
+      tenant_id: 'ivekit_rls_a', lease_id: grantedReservation.lease_id, outcome: 'success'
+    });
+    const governanceRuntime = await new IntelligenceProviderGovernanceStore(runtime)
+      .listRuntime('ivekit_rls_a');
+    assert.equal(governanceRuntime[0]?.profile_id, 'translation-postgres');
+
+    const quotaProfile = createIntelligenceProviderRegistry({
+      OPC_IVEKIT_PROVIDER_PROFILES_JSON: JSON.stringify([{
+        id: 'translation-postgres-quota', capability: 'translation', mode: 'self_hosted',
+        base_url: 'http://translation-worker:8080', timeout_ms: 1_000,
+        reservation_ttl_ms: 6_000, max_concurrency: 2, requests_per_minute: 1
+      }])
+    }).requireProfile('translation-postgres-quota', 'translation');
+    const quotaReservations = await Promise.all([
+      new IntelligenceProviderGovernanceStore(runtime).reserve({
+        tenant_id: 'ivekit_rls_a', capability: 'translation',
+        profile: quotaProfile, route_attempt: 1
+      }),
+      new IntelligenceProviderGovernanceStore(runtime).reserve({
+        tenant_id: 'ivekit_rls_a', capability: 'translation',
+        profile: quotaProfile, route_attempt: 1
+      })
+    ]);
+    assert.equal(quotaReservations.filter((reservation) => reservation.granted).length, 1);
+    const quotaDenied = quotaReservations.find((reservation) => reservation.granted === false);
+    assert.equal(quotaDenied?.granted, false);
+    if (quotaDenied?.granted === false) {
+      assert.equal(quotaDenied.reason, 'minute_quota_exhausted');
+    }
+    const quotaGranted = quotaReservations.find((reservation) => reservation.granted);
+    if (!quotaGranted?.granted) throw new Error('one PostgreSQL quota reservation must be granted');
+    await new IntelligenceProviderGovernanceStore(runtime).complete({
+      tenant_id: 'ivekit_rls_a', lease_id: quotaGranted.lease_id, outcome: 'success'
+    });
+
+    const tenantBReservation = await new IntelligenceProviderGovernanceStore(runtime).reserve({
+      tenant_id: 'ivekit_rls_b', capability: 'translation',
+      profile: governanceProfile, route_attempt: 1
+    });
+    if (!tenantBReservation.granted) throw new Error('tenant B provider reservation must be granted');
+    await new IntelligenceProviderGovernanceStore(runtime).complete({
+      tenant_id: 'ivekit_rls_b', lease_id: tenantBReservation.lease_id, outcome: 'success'
+    });
+
+    const secureFiles = new SecureFileStore(runtime);
+    const secureFile = await secureFiles.createUpload({
+      tenant_id: 'ivekit_rls_a',
+      session_id: 'ivekit_visual_session_a',
+      created_by: 'postgres-test',
+      kind: 'image',
+      filename: 'postgres-contract.png',
+      declared_mime: 'image/png',
+      upload_mode: 'multipart',
+      expected_size_bytes: 6,
+      part_size_bytes: 6,
+      idempotency_key: 'postgres-secure-file-a',
+      payload_hash: 'f'.repeat(64),
+      retention_until: '2000-01-01T00:00:00.000Z'
+    });
+    const securePart = {
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id, part_number: 1,
+      size_bytes: 6, sha256: 'a'.repeat(64),
+      object_key: `ivekit_rls_a/${secureFile.id}/parts/1`, etag: 'postgres-etag-1'
+    };
+    const firstPart = await secureFiles.recordPart(securePart);
+    assert.deepEqual(await secureFiles.recordPart(securePart), firstPart);
+    await assert.rejects(
+      () => secureFiles.recordPart({ ...securePart, sha256: 'b'.repeat(64) }),
+      (error: unknown) => Number((error as { status?: unknown })?.status || 0) === 409
+    );
+    const completedSecureFile = await secureFiles.completeUpload({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id, size_bytes: 6,
+      sha256: 'c'.repeat(64), object_key: `ivekit_rls_a/${secureFile.id}/original`
+    });
+    assert.equal(completedSecureFile.status, 'scanning');
+    await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      await tenantPg.query(
+        `INSERT INTO collaboration_messages
+          (id, tenant_id, session_id, sender_identity, message_type, body,
+           provider, provider_topic_id, provider_payload, provider_delivery_status)
+         VALUES ($1, $2, $3, 'agent-a', 'image', '', 'tinode', 'grp-postgres',
+                 'secure attachment', 'pending')`,
+        ['ivekit_secure_message_a', 'ivekit_rls_a', 'ivekit_visual_session_a']
+      );
+      await tenantPg.query(
+        `INSERT INTO collaboration_message_attachments
+          (id, tenant_id, session_id, message_id, kind, filename, content_type,
+           size_bytes, checksum, processing_status, secure_file_id)
+         VALUES ($1, $2, $3, $4, 'image', 'postgres-contract.png', 'image/png',
+                 6, $5, 'pending', $6)`,
+        [
+          'ivekit_secure_attachment_a',
+          'ivekit_rls_a',
+          'ivekit_visual_session_a',
+          'ivekit_secure_message_a',
+          'c'.repeat(64),
+          secureFile.id
+        ]
+      );
+    });
+    const deliveryGate = new TinodeFileDeliveryGate({ pg: runtime });
+    const waitingTransition = await deliveryGate.reconcileMessage({
+      tenant_id: 'ivekit_rls_a', message_id: 'ivekit_secure_message_a'
+    });
+    assert.equal(waitingTransition?.status, 'blocked_by_file_security');
+    assert.equal(waitingTransition?.pending_file_count, 1);
+    const waitingMessage = await withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(
+      `SELECT provider_delivery_status, provider_delivery_attempts
+       FROM collaboration_messages WHERE id = $1`,
+      ['ivekit_secure_message_a']
+    ));
+    assert.equal(waitingMessage.rows[0]?.provider_delivery_status, 'blocked_by_file_security');
+    assert.equal(Number(waitingMessage.rows[0]?.provider_delivery_attempts), 0);
+    await admin.query(
+      `INSERT INTO collaboration_chat_bindings
+        (id, tenant_id, session_id, provider, provider_topic_id, provider_status)
+       VALUES ('ivekit_tinode_binding_a', 'ivekit_rls_a', 'ivekit_visual_session_a',
+               'tinode', 'grp-postgres', 'bound')`
+    );
+    await admin.query(
+      `INSERT INTO tinode_inbound_events
+        (id, tenant_id, binding_id, provider_topic_id, event_kind,
+         provider_sequence, dedupe_key, payload_hash, payload, status,
+         attempt_count, error_code, error_message, processed_at)
+       VALUES ('ivekit_tinode_event_a', 'ivekit_rls_a', 'ivekit_tinode_binding_a',
+               'grp-postgres', 'data', 10, 'data:10', $1,
+               '{"topic":"grp-postgres","seq":10}'::JSONB, 'dead_letter', 1,
+               'provider_user_unmapped', 'provider user is not mapped', CURRENT_TIMESTAMP)`,
+      ['e'.repeat(64)]
+    );
+    await admin.query(
+      `INSERT INTO tinode_inbound_dead_letters
+        (id, tenant_id, binding_id, event_id, error_code, error_message,
+         payload_hash, retryable)
+       VALUES ('ivekit_tinode_dead_a', 'ivekit_rls_a', 'ivekit_tinode_binding_a',
+               'ivekit_tinode_event_a', 'provider_user_unmapped',
+               'provider user is not mapped', $1, 0)`,
+      ['e'.repeat(64)]
+    );
+    const tinodeOperations = new TinodeOperationsService({ pg: runtime });
+    const tinodeSnapshot = await tinodeOperations.snapshot('ivekit_rls_a');
+    assert.equal(tinodeSnapshot.delivery.blocked_by_file_security, 1);
+    assert.equal(tinodeSnapshot.dead_letters.open, 1);
+    assert.equal(tinodeSnapshot.dead_letters.terminal, 1);
+    assert.equal((await tinodeOperations.listDeadLetters({
+      tenant_id: 'ivekit_rls_a'
+    }))[0]?.id, 'ivekit_tinode_dead_a');
+    assert.equal((await tinodeOperations.listDeadLetters({
+      tenant_id: 'ivekit_rls_b'
+    })).length, 0);
+    const manualReplay = await tinodeOperations.replayDeadLetter({
+      tenant_id: 'ivekit_rls_a', dead_letter_id: 'ivekit_tinode_dead_a',
+      requested_by: 'postgres-admin', idempotency_key: 'postgres-replay-1'
+    });
+    assert.equal(manualReplay.replayed, false);
+    assert.equal(manualReplay.dead_letter.retryable, true);
+    assert.equal((await tinodeOperations.replayDeadLetter({
+      tenant_id: 'ivekit_rls_a', dead_letter_id: 'ivekit_tinode_dead_a',
+      requested_by: 'postgres-admin', idempotency_key: 'postgres-replay-1'
+    })).replayed, true);
+    await assert.rejects(
+      () => withPgTenant(runtime, 'ivekit_rls_a', (tenantPg) => tenantPg.query(
+        `UPDATE collaboration_secure_files SET status = 'ready' WHERE id = $1`,
+        [secureFile.id]
+      )),
+      /invalid secure file status transition|check constraint|check_violation/i
+    );
+    assert.ok((await secureFiles.discoverScanTenantIds()).includes('ivekit_rls_a'));
+    const scanClaims = await secureFiles.claimScanJobs({
+      tenant_id: 'ivekit_rls_a', worker_id: 'postgres-scan-worker-a',
+      limit: 1, lease_ms: 30_000, max_attempts: 3
+    });
+    assert.equal(scanClaims.length, 1);
+    assert.equal(scanClaims[0]?.file.id, secureFile.id);
+    assert.equal((await secureFiles.claimScanJobs({
+      tenant_id: 'ivekit_rls_a', worker_id: 'postgres-scan-worker-b',
+      limit: 1, lease_ms: 30_000, max_attempts: 3
+    })).length, 0);
+    const processingSecureFile = await secureFiles.finishScanJob({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id,
+      worker_id: 'postgres-scan-worker-a', claim_token: scanClaims[0]!.claim_token,
+      outcome: 'clean', detected_mime: 'image/png', mime_conflict: false,
+      scanner_name: 'postgres-controlled', scanner_mode: 'controlled',
+      scanner_request_id: 'postgres-request-1', scan_metadata: { engine: 'controlled' }
+    });
+    assert.equal(processingSecureFile.status, 'processing');
+    assert.equal(processingSecureFile.threat_status, 'clean');
+    assert.equal(processingSecureFile.scan_attempt_count, 1);
+    assert.equal(processingSecureFile.scanner_name, 'postgres-controlled');
+    const derivatives = new SecureFileDerivativeStore(runtime);
+    assert.ok((await derivatives.discoverTenantIds()).includes('ivekit_rls_a'));
+    const derivativeJobs = await derivatives.ensureJobs({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id,
+      provider_profile_id: 'postgres-ffmpeg'
+    });
+    assert.deepEqual(derivativeJobs.map((job) => job.derivative_kind), ['image_thumbnail']);
+    const derivativeClaims = await derivatives.claimJobs({
+      tenant_id: 'ivekit_rls_a', worker_id: 'postgres-derivative-worker-a',
+      limit: 1, lease_ms: 30_000, max_attempts: 3
+    });
+    assert.equal(derivativeClaims.length, 1);
+    assert.equal((await derivatives.claimJobs({
+      tenant_id: 'ivekit_rls_a', worker_id: 'postgres-derivative-worker-b',
+      limit: 1, lease_ms: 30_000, max_attempts: 3
+    })).length, 0);
+    const readyDerivative = await derivatives.finishJob({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id,
+      derivative_kind: 'image_thumbnail', worker_id: 'postgres-derivative-worker-a',
+      claim_token: derivativeClaims[0]!.claim_token, outcome: 'ready',
+      object_key: `ivekit_rls_a/${secureFile.id}/derivatives/image-thumbnail`,
+      mime: 'image/jpeg', size_bytes: 5, sha256: 'd'.repeat(64),
+      provider_request_id: 'postgres-derivative-request-1',
+      provider_metadata: { engine: 'controlled' }
+    });
+    assert.equal(readyDerivative.status, 'ready');
+    const readySecureFile = await derivatives.convergeFile({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id
+    });
+    assert.equal(readySecureFile.status, 'ready');
+    const rustDeskEvidence = await secureFiles.createUpload({
+      tenant_id: 'ivekit_rls_a',
+      session_id: 'ivekit_visual_session_a',
+      created_by: 'rustdesk-edge-postgres',
+      kind: 'file',
+      filename: 'rustdesk-evidence.pdf',
+      declared_mime: 'application/pdf',
+      upload_mode: 'single',
+      expected_size_bytes: 4,
+      idempotency_key: 'postgres-rustdesk-evidence-a',
+      payload_hash: '9'.repeat(64),
+      metadata: { source: 'rustdesk_companion_evidence' }
+    });
+    await secureFiles.beginUpload({
+      tenant_id: 'ivekit_rls_a', secure_file_id: rustDeskEvidence.id
+    });
+    await secureFiles.completeUpload({
+      tenant_id: 'ivekit_rls_a', secure_file_id: rustDeskEvidence.id,
+      size_bytes: 4, sha256: '8'.repeat(64),
+      object_key: `ivekit_rls_a/${rustDeskEvidence.id}/original`
+    });
+    await secureFiles.transitionStatus({
+      tenant_id: 'ivekit_rls_a', secure_file_id: rustDeskEvidence.id,
+      from_status: 'scanning', to_status: 'processing', threat_status: 'clean',
+      detected_mime: 'application/pdf', mime_conflict: false
+    });
+    await secureFiles.transitionStatus({
+      tenant_id: 'ivekit_rls_a', secure_file_id: rustDeskEvidence.id,
+      from_status: 'processing', to_status: 'ready'
+    });
+    assert.deepEqual(
+      (await secureFiles.listRustDeskEvidenceIntelligenceCandidates()).map((file) => file.id),
+      [rustDeskEvidence.id]
+    );
+    const readyTransition = await deliveryGate.reconcileFile({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id
+    });
+    assert.equal(readyTransition[0]?.status, 'pending');
+    assert.equal(readyTransition[0]?.reason, 'all_files_ready');
+    assert.ok((await secureFiles.discoverCleanupTenantIds()).includes('ivekit_rls_a'));
+    const cleanupClaims = await secureFiles.claimCleanupJobs({
+      tenant_id: 'ivekit_rls_a', worker_id: 'postgres-cleanup-worker-a',
+      limit: 1, lease_ms: 30_000
+    });
+    assert.equal(cleanupClaims.length, 1);
+    assert.equal((await secureFiles.claimCleanupJobs({
+      tenant_id: 'ivekit_rls_a', worker_id: 'postgres-cleanup-worker-b',
+      limit: 1, lease_ms: 30_000
+    })).length, 0);
+    await derivatives.expireJobs({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id
+    });
+    const expiredSecureFile = await secureFiles.finishCleanupJob({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id,
+      worker_id: 'postgres-cleanup-worker-a', claim_token: cleanupClaims[0]!.claim_token,
+      outcome: 'expired'
+    });
+    assert.equal(expiredSecureFile.status, 'expired');
+    const terminalTransition = await deliveryGate.reconcileFile({
+      tenant_id: 'ivekit_rls_a', secure_file_id: secureFile.id
+    });
+    assert.equal(terminalTransition[0]?.status, 'blocked');
+    assert.equal(terminalTransition[0]?.terminal_file_count, 1);
+    assert.equal((await secureFiles.listParts('ivekit_rls_a', secureFile.id))[0]?.status, 'aborted');
+    assert.equal((await derivatives.listJobs('ivekit_rls_a', secureFile.id))[0]?.status, 'expired');
+    await assert.rejects(
+      () => secureFiles.getFile('ivekit_rls_b', secureFile.id),
+      (error: unknown) => Number((error as { status?: unknown })?.status || 0) === 404
+    );
+
     await seedVoiceIvrTenant(admin, 'a');
     await seedVoiceIvrTenant(admin, 'b');
     await admin.query(`
@@ -330,10 +890,58 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         `SELECT tenant_id, id FROM ivekit_cc_skills ORDER BY id`
       );
       assert.deepEqual(skills.rows, [{ tenant_id: 'ivekit_rls_a', id: 'ivekit_cc_skill_a' }]);
+      const providerRuntime = await tenantPg.query<{ tenant_id: string }>(
+        `SELECT DISTINCT tenant_id FROM collaboration_intelligence_provider_runtime ORDER BY tenant_id`
+      );
+      assert.deepEqual(providerRuntime.rows, [{ tenant_id: 'ivekit_rls_a' }]);
+      const providerLeases = await tenantPg.query<{ tenant_id: string }>(
+        `SELECT DISTINCT tenant_id FROM collaboration_intelligence_provider_leases ORDER BY tenant_id`
+      );
+      assert.deepEqual(providerLeases.rows, [{ tenant_id: 'ivekit_rls_a' }]);
+      const observations = await tenantPg.query<{
+        id: string;
+        tenant_id: string;
+        value_hash: string;
+        frame_timestamp_ms: number;
+      }>(`
+        SELECT id, tenant_id, value_hash, frame_timestamp_ms
+        FROM collaboration_visual_observations
+        ORDER BY id
+      `);
+      assert.deepEqual(observations.rows, [{
+        id: 'ivekit_visual_observation_a',
+        tenant_id: 'ivekit_rls_a',
+        value_hash: 'c'.repeat(64),
+        frame_timestamp_ms: 2000
+      }]);
       await assert.rejects(
         () => tenantPg.query(`
           INSERT INTO ivekit_cc_skills (id, tenant_id, name, created_by, updated_by)
           VALUES ('ivekit_cc_cross_tenant', 'ivekit_rls_b', 'Cross tenant', 'postgres-test', 'postgres-test')
+        `),
+        /row-level security policy/i
+      );
+    });
+    await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      await assert.rejects(
+        () => tenantPg.query(`
+          INSERT INTO collaboration_intelligence_provider_runtime
+            (tenant_id, capability, profile_id)
+          VALUES ('ivekit_rls_b', 'translation', 'cross-tenant-provider')
+        `),
+        /row-level security policy/i
+      );
+    });
+    await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      await assert.rejects(
+        () => tenantPg.query(`
+          INSERT INTO collaboration_visual_observations
+            (id, tenant_id, session_id, message_id, attachment_id, processor_job_id,
+             observation_type, value_hash)
+          VALUES
+            ('ivekit_visual_cross_tenant', 'ivekit_rls_b', 'ivekit_visual_session_b',
+             'ivekit_visual_message_b', 'ivekit_visual_attachment_b', 'ivekit_visual_job_b',
+             'qr_code', '${'e'.repeat(64)}')
         `),
         /row-level security policy/i
       );
@@ -805,7 +1413,6 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     const recoveryNow = new Date('2026-07-12T12:00:00.000Z');
     const qualityBody = 'controlled quality recovery source';
     const translationBody = 'controlled translation recovery source';
-    const qualityHash = createHash('sha256').update(qualityBody).digest('hex');
     const translationHash = createHash('sha256').update(translationBody).digest('hex');
     await admin.query(`
       INSERT INTO collaboration_sessions
@@ -831,13 +1438,6 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
         ('ivekit_worker_attachment_job', 'ivekit_rls_a', 'ivekit_worker_recovery_session',
          'ivekit_worker_attachment_message', 'ivekit_worker_attachment', 'ocr', 'processing',
          1, 3, '2026-07-12T11:59:00.000Z', 'crashed-attachment-worker');
-      INSERT INTO collaboration_quality_review_jobs
-        (id, tenant_id, session_id, message_id, input_hash, status, attempt_count,
-         max_attempts, lease_until, worker_id, automatic)
-      VALUES
-        ('ivekit_worker_quality_job', 'ivekit_rls_a', 'ivekit_worker_recovery_session',
-         'ivekit_worker_quality_message', '${qualityHash}', 'processing', 1, 3,
-         '2026-07-12T11:59:00.000Z', 'crashed-quality-worker', FALSE);
       INSERT INTO collaboration_translation_jobs
         (id, tenant_id, session_id, message_id, source_type, source_ref_id,
          source_language, target_language, source_hash, status, attempt_count, max_attempts,
@@ -894,6 +1494,17 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
     assert.deepEqual(await attachmentRecovery.runDue({ tenant_id: 'ivekit_rls_a', limit: 10 }), {
       candidates: 1, claimed: 1, succeeded: 1, retry_wait: 0, failed: 0
     });
+    const queuedQuality = await qualityRecovery.enqueueMessage({
+      tenant_id: 'ivekit_rls_a',
+      message_id: 'ivekit_worker_quality_message'
+    }, { automatic: false });
+    assert.ok(queuedQuality);
+    await admin.query(`
+      UPDATE collaboration_quality_review_jobs
+      SET id = 'ivekit_worker_quality_job', status = 'processing', attempt_count = 1,
+          lease_until = '2026-07-12T11:59:00.000Z', worker_id = 'crashed-quality-worker'
+      WHERE tenant_id = 'ivekit_rls_a' AND message_id = 'ivekit_worker_quality_message'
+    `);
     assert.deepEqual(await qualityRecovery.runDue({ tenant_id: 'ivekit_rls_a', limit: 10 }), {
       candidates: 1, claimed: 1, succeeded: 1, retry_wait: 0, failed: 0
     });
@@ -1028,6 +1639,118 @@ freshTest('standalone PostgreSQL fresh migration is minimal, checksummed, idempo
       VALUES ('ivekit_rls_session_b', 'ivekit_rls_b', 'order', 'B-1', 'private B')
     `);
 
+    const qosNow = new Date('2026-07-12T09:00:00.000Z');
+    const quality = new MediaQualityService(new MediaQualityStore(runtime), {
+      now: () => qosNow,
+      degraded_samples: 2,
+      recovery_samples: 2,
+      retention_ms: 60_000,
+      max_future_skew_ms: 120_000
+    });
+    const qosSample = (
+      sampleId: string,
+      override: Record<string, unknown> = {}
+    ) => ({
+      participant_identity: 'quality-host-a',
+      connection_revision: 1,
+      sample_id: sampleId,
+      track_source: 'camera' as const,
+      quality_level: 'good' as const,
+      rtt_ms: 80,
+      jitter_ms: 10,
+      packet_loss_ratio: 0.01,
+      bitrate_bps: 1_500_000,
+      quality_score: 4.5,
+      sampled_at: '2026-07-12T08:59:50.000Z',
+      ...override
+    });
+    await quality.reportQuality({
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_quality_call_a',
+      snapshots: [qosSample('qos-bad-1', { packet_loss_ratio: 0.2 })]
+    });
+    const degraded = await quality.reportQuality({
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_quality_call_a',
+      snapshots: [qosSample('qos-bad-2', { rtt_ms: 600 })]
+    });
+    assert.deepEqual(degraded.transitions.map((item) => item.event_type), ['degraded']);
+    const qosReplay = await quality.reportQuality({
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_quality_call_a',
+      snapshots: [qosSample('qos-bad-2', { rtt_ms: 600 })]
+    });
+    assert.deepEqual({ accepted: qosReplay.accepted, replayed: qosReplay.replayed }, {
+      accepted: 0,
+      replayed: 1
+    });
+    await assert.rejects(
+      () => quality.reportQuality({
+        tenant_id: 'ivekit_rls_a',
+        call_id: 'ivekit_quality_call_a',
+        snapshots: [qosSample('qos-bad-2', { rtt_ms: 700 })]
+      }),
+      (error: Error & { status?: number }) => error.status === 409
+    );
+    await quality.reportQuality({
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_quality_call_a',
+      snapshots: [qosSample('qos-good-1')]
+    });
+    const recoveredQuality = await quality.reportQuality({
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_quality_call_a',
+      snapshots: [qosSample('qos-good-2')]
+    });
+    assert.deepEqual(recoveredQuality.transitions.map((item) => item.event_type), ['recovered']);
+
+    const rejoining = await quality.reportConnectionEvent({
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_quality_call_a',
+      event: {
+        participant_identity: 'quality-host-a',
+        event_id: 'qos-connection-rejoining',
+        connection_revision: 2,
+        event_type: 'rejoining',
+        reason_code: 'network_change',
+        occurred_at: '2026-07-12T08:59:55.000Z'
+      }
+    });
+    assert.equal(rejoining.participant_state.connection_state, 'rejoining');
+    await assert.rejects(
+      () => quality.reportConnectionEvent({
+        tenant_id: 'ivekit_rls_a',
+        call_id: 'ivekit_quality_call_a',
+        event: {
+          participant_identity: 'quality-host-a',
+          event_id: 'qos-connection-stale',
+          connection_revision: 1,
+          event_type: 'disconnected',
+          reason_code: 'late_adapter',
+          occurred_at: '2026-07-12T08:59:56.000Z'
+        }
+      }),
+      (error: Error & { status?: number }) => error.status === 409
+    );
+    const qualitySummary = await quality.getSummary({
+      tenant_id: 'ivekit_rls_a',
+      call_id: 'ivekit_quality_call_a'
+    });
+    assert.equal(qualitySummary?.participants[0]?.connection_revision, 2);
+    assert.equal(qualitySummary?.participants[0]?.quality_state, 'unknown');
+    assert.equal(qualitySummary?.recent_snapshots.length, 4);
+    assert.equal(await withPgTenant(runtime, 'ivekit_rls_a', async (tenantPg) => {
+      const foreignQuality = await tenantPg.query(
+        `SELECT id FROM ivekit_media_quality_snapshots WHERE tenant_id = 'ivekit_rls_b'`
+      );
+      return foreignQuality.rowCount;
+    }), 0);
+    assert.equal(await quality.prune({
+      tenant_id: 'ivekit_rls_a',
+      before: '2026-07-12T09:01:01.000Z',
+      limit: 100
+    }), 4);
+
     const eventStore = new IveKitTenantEventStore(runtime, {
       cursor_secret: 'standalone-postgres-event-secret'
     });
@@ -1155,8 +1878,9 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         'session', (SELECT to_jsonb(s) FROM collaboration_sessions s WHERE id = 'ivekit_upgrade_session'),
         'media', (SELECT to_jsonb(m) FROM ivekit_media_calls m WHERE id = 'ivekit_upgrade_media'),
         'remote', (SELECT to_jsonb(r) FROM remote_assistance_sessions r WHERE id = 'ivekit_upgrade_remote'),
-        'intelligence', (SELECT to_jsonb(i) FROM collaboration_intelligence_policies i
-          WHERE tenant_id = 'ivekit_upgrade_tenant')
+        'intelligence', (SELECT to_jsonb(i)
+          - 'ocr_profile_ids' - 'asr_profile_ids' - 'quality_profile_ids' - 'translation_profile_ids'
+          FROM collaboration_intelligence_policies i WHERE tenant_id = 'ivekit_upgrade_tenant')
       ) AS snapshot
     `);
     const productTablesBefore = await admin.query<{ count: string }>(`
@@ -1178,17 +1902,30 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
     `);
     assert.equal(
       Number(productTablesAfter.rows[0].count) - Number(productTablesBefore.rows[0].count),
-      voiceFoundationTables.length + ivrFoundationTables.length + contactCenterTables.length
+      voiceFoundationTables.length + ivrFoundationTables.length + contactCenterTables.length +
+        providerGovernanceTables.length + contentIntelligenceTables.length
     );
     const sharedTablesAfter = await admin.query<{ tablename: string }>(`
       SELECT tablename
       FROM pg_tables
       WHERE schemaname = 'public' AND tablename = ANY($1::TEXT[])
       ORDER BY tablename
-    `, [[...voiceFoundationTables, ...ivrFoundationTables, ...contactCenterTables]]);
+    `, [[
+      ...voiceFoundationTables,
+      ...ivrFoundationTables,
+      ...contactCenterTables,
+      ...providerGovernanceTables,
+      ...contentIntelligenceTables
+    ]]);
     assert.deepEqual(
       sharedTablesAfter.rows.map((row) => row.tablename),
-      [...voiceFoundationTables, ...ivrFoundationTables, ...contactCenterTables].sort()
+      [
+        ...voiceFoundationTables,
+        ...ivrFoundationTables,
+        ...contactCenterTables,
+        ...providerGovernanceTables,
+        ...contentIntelligenceTables
+      ].sort()
     );
     assert.equal((await admin.query(
       `SELECT id FROM campaigns WHERE id = 'ivekit_upgrade_campaign'`
@@ -1202,11 +1939,18 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         'session', (SELECT to_jsonb(s) FROM collaboration_sessions s WHERE id = 'ivekit_upgrade_session'),
         'media', (SELECT to_jsonb(m) FROM ivekit_media_calls m WHERE id = 'ivekit_upgrade_media'),
         'remote', (SELECT to_jsonb(r) FROM remote_assistance_sessions r WHERE id = 'ivekit_upgrade_remote'),
-        'intelligence', (SELECT to_jsonb(i) FROM collaboration_intelligence_policies i
-          WHERE tenant_id = 'ivekit_upgrade_tenant')
+        'intelligence', (SELECT to_jsonb(i)
+          - 'ocr_profile_ids' - 'asr_profile_ids' - 'quality_profile_ids' - 'translation_profile_ids'
+          FROM collaboration_intelligence_policies i WHERE tenant_id = 'ivekit_upgrade_tenant')
       ) AS snapshot
     `);
     assert.deepEqual(preservedAfter.rows[0].snapshot, preservedBefore.rows[0].snapshot);
+    const upgradedPolicy = await admin.query<{ translation_profile_ids: string[] }>(`
+      SELECT translation_profile_ids
+      FROM collaboration_intelligence_policies
+      WHERE tenant_id = 'ivekit_upgrade_tenant'
+    `);
+    assert.deepEqual(upgradedPolicy.rows[0]?.translation_profile_ids, ['upgrade-translation']);
 
     const standaloneVersions = await admin.query<{ version: string; count: string }>(`
       SELECT version, count(*)::text AS count
@@ -1229,6 +1973,8 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         '056_ivekit_contact_center_overflow',
         '057_ivekit_voice_action_capabilities',
         '058_ivekit_voice_parking',
+        '059_ivekit_provider_governance',
+        '060_ivekit_content_intelligence',
         '090_ivekit_runtime_security'
       )
       GROUP BY version
@@ -1252,6 +1998,8 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       { version: '056_ivekit_contact_center_overflow', count: '1' },
       { version: '057_ivekit_voice_action_capabilities', count: '1' },
       { version: '058_ivekit_voice_parking', count: '1' },
+      { version: '059_ivekit_provider_governance', count: '1' },
+      { version: '060_ivekit_content_intelligence', count: '1' },
       { version: '090_ivekit_runtime_security', count: '1' }
     ]);
 

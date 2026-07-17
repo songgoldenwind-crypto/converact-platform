@@ -23,8 +23,11 @@ const command: RustDeskEdgeExecutingRecord['command'] = {
   external_id: 'rdgw_spool_1',
   target_id: 'rdesk_spool_1',
   rustdesk_id: '123456789',
+  controller_rustdesk_id: '987654321',
   requested_reason: 'consent_revoked',
-  attempt: 1
+  attempt: 1,
+  emergency_fallback_authorized: false,
+  emergency_fallback_reason: ''
 };
 
 test('RustDesk edge spool persists executing/executed state without credentials or output', async () => {

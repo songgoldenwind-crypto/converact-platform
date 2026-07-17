@@ -90,15 +90,21 @@ export function isValidRustDeskLaunchToken(externalId: string, token: string, ex
 export function rustDeskRuntimeMetadata(input: Record<string, unknown>, target: RemoteGatewayTarget): Record<string, unknown> {
   const metadata = rustDeskGatewayMetadata(bodyObject(input.metadata));
   const fingerprint = rustDeskServerKeyFingerprint();
-  const apiServer = rustDeskApiServer();
+  const apiServer = rustDeskApiServerForMetadata(metadata);
   if (apiServer.error) throw new Error(apiServer.error);
   return {
     ...metadata,
     rustdesk_id: target.id,
-    id_server: String(process.env.OPC_RUSTDESK_ID_SERVER || ''),
-    relay_server: String(process.env.OPC_RUSTDESK_RELAY_SERVER || ''),
-    api_server: apiServer.value,
-    ...(fingerprint ? { server_key_fingerprint: fingerprint } : {})
+    id_server: String(metadata.id_server || process.env.OPC_RUSTDESK_ID_SERVER || ''),
+    relay_server: String(metadata.relay_server || process.env.OPC_RUSTDESK_RELAY_SERVER || ''),
+    api_server: String(metadata.api_server || apiServer.value),
+    ...((metadata.server_key_fingerprint || fingerprint)
+      ? {
+          server_key_fingerprint: String(
+            metadata.server_key_fingerprint || fingerprint
+          )
+        }
+      : {})
   };
 }
 
@@ -200,7 +206,7 @@ function rustDeskLaunchToken(externalId: string, expiresAt: string): string {
 function rustDeskRuntimeFromSession(session: RustDeskGatewaySession): RustDeskGatewayLaunchPlan['runtime'] {
   const metadata = session.metadata || {};
   const publicKey = rustDeskPublicKey();
-  const apiServer = rustDeskApiServer();
+  const apiServer = rustDeskApiServerForMetadata(metadata);
   if (apiServer.error) throw new Error(apiServer.error);
   return {
     rustdesk_id: String(metadata.rustdesk_id || session.target.id),
@@ -211,6 +217,18 @@ function rustDeskRuntimeFromSession(session: RustDeskGatewaySession): RustDeskGa
     public_key_configured: publicKey.value ? 'true' : 'false',
     public_key_source: publicKey.source
   };
+}
+
+function rustDeskApiServerForMetadata(
+  metadata: Record<string, unknown>
+): ReturnType<typeof rustDeskApiServer> {
+  const configured = String(metadata.api_server || '').trim();
+  return configured
+    ? rustDeskApiServer({
+        ...process.env,
+        OPC_RUSTDESK_API_SERVER: configured
+      })
+    : rustDeskApiServer();
 }
 
 function rustDeskClientConfigForLaunch(

@@ -12,7 +12,8 @@ import {
   initWebSocket,
   runWithWsBroadcastBuffer,
   shutdownWebSocket,
-  wsBroadcast
+  wsBroadcast,
+  wsBroadcastToUsers
 } from '../src/ws.js';
 
 const tenantId = 'tenant_event_ws';
@@ -108,6 +109,34 @@ test('durable iveKit replay does not absorb unrelated call-center broadcasts', a
     limit: 10
   });
   assert.deepEqual(replay.items, []);
+});
+
+test('targeted notification broadcasts are durable and idempotent', async () => {
+  const before = await events.headCursor(tenantId);
+  const data = {
+    notification_id: 'notification-ws-a',
+    delivery_id: 'delivery-ws-a',
+    state: 'delivered'
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await wsBroadcastToUsers(
+      tenantId,
+      [userId],
+      'notification.delivery.updated',
+      data,
+      { idempotency_key: 'notification:delivery:ws-stable-key' }
+    );
+  }
+  const replay = await events.list({
+    tenant_id: tenantId,
+    user_id: userId,
+    role: 'operator',
+    cursor: before,
+    limit: 10
+  });
+  assert.equal(replay.items.length, 1);
+  assert.equal(replay.items[0]?.type, 'notification.delivery.updated');
+  assert.deepEqual(replay.items[0]?.audience_user_ids, [userId]);
 });
 
 async function connectAndCollect(cursor = '', waitForType = ''): Promise<any[]> {

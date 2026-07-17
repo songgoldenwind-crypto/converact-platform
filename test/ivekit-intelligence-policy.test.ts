@@ -26,6 +26,12 @@ const providerEnv: NodeJS.ProcessEnv = {
       token_env: 'ASR_CLOUD_TOKEN'
     },
     {
+      id: 'ocr-cloud',
+      capability: 'ocr',
+      mode: 'third_party',
+      base_url: 'https://ocr.example.test'
+    },
+    {
       id: 'quality-private',
       capability: 'quality_review',
       mode: 'self_hosted',
@@ -37,6 +43,12 @@ const providerEnv: NodeJS.ProcessEnv = {
       mode: 'third_party',
       base_url: 'https://translation.example.test',
       token_env: 'TRANSLATION_CLOUD_TOKEN'
+    },
+    {
+      id: 'translation-private',
+      capability: 'translation',
+      mode: 'self_hosted',
+      base_url: 'http://translation-worker:8080'
     }
   ]),
   ASR_CLOUD_TOKEN: 'asr-secret',
@@ -58,7 +70,11 @@ test('missing tenant policy uses conservative legacy-compatible defaults', async
   assert.equal(policy.version, 0);
   assert.equal(policy.ocr_enabled, true);
   assert.equal(policy.ocr_profile_id, 'legacy-ocr');
+  assert.deepEqual(policy.ocr_profile_ids, ['legacy-ocr']);
   assert.equal(policy.asr_profile_id, 'legacy-asr');
+  assert.deepEqual(policy.asr_profile_ids, ['legacy-asr']);
+  assert.deepEqual(policy.quality_profile_ids, ['legacy-quality']);
+  assert.deepEqual(policy.translation_profile_ids, []);
   assert.equal(policy.allow_third_party, true);
   assert.equal(policy.translation_enabled, false);
   assert.equal(policy.auto_translation, false);
@@ -80,6 +96,10 @@ test('policy updates are versioned, canonicalized, and reject unsafe profile sel
   });
   assert.equal(created.version, 1);
   assert.equal(created.updated_by, 'owner-1');
+  assert.deepEqual(created.ocr_profile_ids, ['ocr-private', 'ocr-cloud']);
+  assert.deepEqual(created.translation_profile_ids, ['translation-cloud', 'translation-private']);
+  assert.equal(created.ocr_profile_id, 'ocr-private');
+  assert.equal(created.translation_profile_id, 'translation-cloud');
   assert.deepEqual(created.translation_target_languages, ['en-US', 'ja-JP']);
 
   await assert.rejects(
@@ -117,6 +137,24 @@ test('policy updates are versioned, canonicalized, and reject unsafe profile sel
       policy: { ...update, ocr_profile_id: 'translation-cloud' }
     }),
     /capability/i
+  );
+  await assert.rejects(
+    () => new IntelligencePolicyStore(new MemoryPg(), registry).updatePolicy({
+      tenant_id: 'tenant-policy-route-capability-mismatch',
+      actor_identity: 'owner-1',
+      expected_version: 0,
+      policy: { ...update, ocr_profile_ids: ['ocr-private', 'translation-private'] }
+    }),
+    /capability/i
+  );
+  await assert.rejects(
+    () => new IntelligencePolicyStore(new MemoryPg(), registry).updatePolicy({
+      tenant_id: 'tenant-policy-route-duplicate',
+      actor_identity: 'owner-1',
+      expected_version: 0,
+      policy: { ...update, ocr_profile_ids: ['ocr-private', 'ocr-private'] }
+    }),
+    /duplicate/i
   );
   await assert.rejects(
     () => new IntelligencePolicyStore(new MemoryPg(), registry).updatePolicy({
@@ -177,6 +215,26 @@ test('intelligence HTTP exposes public capabilities but protects policy and prof
     assert.equal(JSON.stringify(capabilities).includes('translation-secret'), false);
     assert.equal(JSON.stringify(capabilities).includes('base_url'), false);
     assert.equal(JSON.stringify(capabilities).includes('token_env'), false);
+    const capabilityData = capabilities.data as {
+      capabilities: Record<string, {
+        provider_profile_ids: string[];
+        providers: Array<Record<string, unknown>>;
+      }>;
+    };
+    assert.deepEqual(capabilityData.capabilities.ocr.provider_profile_ids, [
+      'ocr-private', 'ocr-cloud'
+    ]);
+    assert.deepEqual(capabilityData.capabilities.ocr.providers, [
+      {
+        profile_id: 'ocr-private', mode: 'self_hosted', available: true, reason: ''
+      },
+      {
+        profile_id: 'ocr-cloud', mode: 'third_party', available: true, reason: ''
+      }
+    ]);
+    assert.deepEqual(capabilityData.capabilities.translation.provider_profile_ids, [
+      'translation-cloud', 'translation-private'
+    ]);
 
     const providers = await routeIveKitIntelligenceApi(
       pg,
@@ -187,10 +245,32 @@ test('intelligence HTTP exposes public capabilities but protects policy and prof
       systemHeaders,
       { registry }
     ) as { data: { items: unknown[] } };
-    assert.equal(providers.data.items.length, 4);
+    assert.equal(providers.data.items.length, 6);
     assert.equal(JSON.stringify(providers).includes('translation-secret'), false);
     assert.equal(JSON.stringify(providers).includes('token_env'), false);
     assert.equal(JSON.stringify(providers).includes('base_url'), false);
+
+    const runtime = await routeIveKitIntelligenceApi(
+      pg,
+      'GET',
+      '/api/ivekit/intelligence/providers/runtime',
+      new URL('http://localhost/api/ivekit/intelligence/providers/runtime'),
+      {},
+      systemHeaders,
+      {
+        registry,
+        governance: {
+          listRuntime: async () => [{
+            tenant_id: 'tenant-http', capability: 'translation', profile_id: 'translation-cloud',
+            minute_request_count: 2, day_request_count: 20, circuit_state: 'closed',
+            consecutive_retryable_failures: 0, opened_until: null, last_success_at: null,
+            last_failure_at: null, last_error_code: '', updated_at: '2026-07-15T00:00:00.000Z'
+          }]
+        }
+      }
+    ) as { data: { items: Array<{ profile_id: string }> } };
+    assert.equal(runtime.data.items[0]?.profile_id, 'translation-cloud');
+    assert.doesNotMatch(JSON.stringify(runtime), /base_url|token_env|translation-secret/i);
 
     const ownerToken = signAccessToken({ sub: 'owner-http', tid: 'tenant-http', role: 'owner' });
     const policy = await routeIveKitIntelligenceApi(
@@ -217,6 +297,18 @@ test('intelligence HTTP exposes public capabilities but protects policy and prof
       ),
       (error: unknown) => errorStatus(error) === 403
     );
+    await assert.rejects(
+      () => routeIveKitIntelligenceApi(
+        pg,
+        'GET',
+        '/api/ivekit/intelligence/providers/runtime',
+        new URL('http://localhost/api/ivekit/intelligence/providers/runtime'),
+        {},
+        { authorization: `Bearer ${viewerToken}` },
+        { registry }
+      ),
+      (error: unknown) => errorStatus(error) === 403
+    );
   } finally {
     restoreEnv(previous);
   }
@@ -232,6 +324,10 @@ function validPolicyUpdate(): IntelligencePolicyUpdate {
     asr_profile_id: 'asr-cloud',
     quality_profile_id: 'quality-private',
     translation_profile_id: 'translation-cloud',
+    ocr_profile_ids: ['ocr-private', 'ocr-cloud'],
+    asr_profile_ids: ['asr-cloud'],
+    quality_profile_ids: ['quality-private'],
+    translation_profile_ids: ['translation-cloud', 'translation-private'],
     allow_third_party: true,
     auto_ocr: true,
     auto_asr: true,

@@ -1,0 +1,18 @@
+{{- if and .Values.tinode.enabled .Values.tinode.persistence.enabled (not .Values.tinode.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ivekit.tinodeFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+spec:
+  accessModes:
+    - {{ .Values.tinode.persistence.accessMode }}
+  {{- with .Values.tinode.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.tinode.persistence.size }}
+{{- end }}

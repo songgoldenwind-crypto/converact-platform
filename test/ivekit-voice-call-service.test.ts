@@ -25,9 +25,11 @@ import {
   type VoicePolicy,
   type VoiceParkingRepository,
   type VoiceParkingSlot,
+  type VoiceCallPlacementPort,
   type VoiceProtectedAddress,
   type VoiceProviderAdapter
 } from '../src/agent-runtime/ivekit/voice/index.js';
+import { MemoryPg } from '../src/db-pg.js';
 
 test('Voice call service atomically creates compliant outbound calls without plaintext persistence', async () => {
   const fixture = callFixture();
@@ -73,6 +75,80 @@ test('Voice call service denies outbound calls before persistence when complianc
   assert.equal(fixture.commands.size, 0);
 });
 
+test('Voice call service persists and activates SIP placement with the durable call', async () => {
+  const calls: string[] = [];
+  const placement = voicePlacementFixture(calls);
+  const fixture = callFixture({ placement });
+  const created = await fixture.service.createOutbound({
+    tenant_id: 'tenant-a',
+    profile_id: 'profile-a',
+    from: { kind: 'extension', value: '1001' },
+    to: { kind: 'e164', value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-placement' },
+    actor: 'agent-a',
+    idempotency_key: 'voice-placement',
+    metadata: {},
+    call_id: 'voice-placement-a'
+  });
+
+  assert.equal(created.call.id, 'voice-placement-a');
+  assert.deepEqual(calls, [
+    'reserve:voice-placement-a:ticket:ticket-placement',
+    'persist:voice-placement-a',
+    'state:active:voice-placement-a:voice_call_durable'
+  ]);
+});
+
+test('Voice call service replay with prepared placement does not reserve capacity again', async () => {
+  const calls: string[] = [];
+  const fixture = callFixture({ placement: voicePlacementFixture(calls) });
+  const input = {
+    tenant_id: 'tenant-a',
+    profile_id: 'profile-a',
+    from: { kind: 'extension' as const, value: '1001' },
+    to: { kind: 'e164' as const, value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-placement-replay' },
+    actor: 'agent-a',
+    idempotency_key: 'voice-placement-replay',
+    metadata: {},
+    call_id: 'voice-placement-replay-a'
+  };
+  await fixture.service.createOutbound(input);
+  await fixture.service.createOutbound({
+    ...input,
+    placement_prepared: true
+  });
+
+  assert.deepEqual(calls, [
+    'reserve:voice-placement-replay-a:ticket:ticket-placement-replay',
+    'persist:voice-placement-replay-a',
+    'state:active:voice-placement-replay-a:voice_call_durable'
+  ]);
+});
+
+test('Voice call service releases SIP placement when compliance rejects creation', async () => {
+  const calls: string[] = [];
+  const fixture = callFixture({
+    complianceAllowed: false,
+    placement: voicePlacementFixture(calls)
+  });
+  await assert.rejects(() => fixture.service.createOutbound({
+    tenant_id: 'tenant-a',
+    profile_id: 'profile-a',
+    from: { kind: 'extension', value: '1001' },
+    to: { kind: 'e164', value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-placement-denied' },
+    actor: 'agent-a',
+    idempotency_key: 'voice-placement-denied',
+    metadata: {},
+    call_id: 'voice-placement-denied'
+  }), hasVoiceCode('compliance_denied'));
+  assert.deepEqual(calls, [
+    'reserve:voice-placement-denied:ticket:ticket-placement-denied',
+    'release:voice-placement-denied'
+  ]);
+});
+
 test('Voice provider command executor reveals addresses only for the provider call', async () => {
   const fixture = callFixture();
   const created = await fixture.service.createOutbound({
@@ -110,6 +186,66 @@ test('Voice provider command executor reveals addresses only for the provider ca
   assert.equal(JSON.stringify(result).includes('+8613900139000'), false);
   assert.equal(fixture.calls.get(created.call.id)?.provider_call_id, 'provider-call-a');
   assert.equal(fixture.calls.get(created.call.id)?.state, 'dialing');
+});
+
+test('Voice provider command executor routes RustPBX commands to the active Cell owner', async () => {
+  const placement = voicePlacementFixture([]);
+  const fixture = callFixture({ placement });
+  fixture.profile.config = {
+    rwi_url: 'wss://pbx.internal/rwi/control?protocol=v1'
+  };
+  const created = await fixture.service.createOutbound({
+    tenant_id: 'tenant-a',
+    profile_id: 'profile-a',
+    from: { kind: 'extension', value: '1001' },
+    to: { kind: 'e164', value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-owner-routing' },
+    actor: 'agent-a',
+    idempotency_key: 'executor-owner-routing',
+    metadata: {}
+  });
+  let routedProfile: VoiceDeploymentProfile | null = null;
+  const registry = new VoiceProviderRegistry();
+  registry.register('rustpbx', {
+    async create(profile) {
+      routedProfile = structuredClone(profile);
+      return {
+        management: {} as VoiceProviderAdapter['management'],
+        async preflight() { throw new Error('not used'); },
+        async execute() {
+          return {
+            provider_command_id: 'provider-command-owner',
+            provider_call_id: 'provider-call-owner',
+            accepted: true
+          };
+        },
+        async reconcile() { return { state: 'unknown' as const }; },
+        normalizeEvent() { throw new Error('not used'); },
+        async close() {}
+      } as VoiceProviderAdapter;
+    }
+  });
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    address_protector: fixture.addressProtector,
+    provider_registry: registry,
+    placement,
+    placement_pg: new MemoryPg()
+  });
+
+  await executor.execute(created.command);
+
+  assert.equal(routedProfile?.base_url, 'http://rustpbx-a.internal');
+  assert.equal(
+    routedProfile?.config.rwi_url,
+    'ws://rustpbx-a.internal/rwi/control?protocol=v1'
+  );
+  assert.equal(fixture.profile.base_url, 'https://pbx.internal');
+  assert.equal(
+    fixture.profile.config.rwi_url,
+    'wss://pbx.internal/rwi/control?protocol=v1'
+  );
 });
 
 test('Voice originate treats a post-provider persistence failure as uncertain', async () => {
@@ -224,6 +360,48 @@ test('Voice call service creates trusted inbound calls without accepting payload
   assert.equal(created.state, 'ringing');
   assert.equal(created.metadata.tenant_id, undefined);
   assert.equal(fixture.commands.size, 0);
+});
+
+test('Voice call service persists prepared inbound SIP placement with the call', async () => {
+  const placementCalls: string[] = [];
+  const placement = voicePlacementFixture(placementCalls);
+  const fixture = callFixture({ placement });
+  const reservation = await placement.reserve({
+    tenant_id: 'tenant-a',
+    interaction_id: 'voice-inbound-placement-a',
+    routing_partition_key: 'inbound_sip:provider-inbound-placement-a',
+    idempotency_key: 'inbound:profile-a:router-inbound-placement-a'
+  });
+
+  const created = await fixture.service.createInbound({
+    tenant_id: 'tenant-a',
+    profile_id: 'profile-a',
+    provider_call_id: 'provider-inbound-placement-a',
+    external_event_id: 'router-inbound-placement-a',
+    from: {
+      kind: 'sip_uri',
+      value: 'sip:+8613900139000@carrier.internal'
+    },
+    to: {
+      kind: 'sip_uri',
+      value: 'sip:1001@pbx.internal'
+    },
+    business_ref: {
+      type: 'inbound_sip',
+      id: 'provider-inbound-placement-a'
+    },
+    metadata: {},
+    call_id: 'voice-inbound-placement-a',
+    placement_reservation: reservation,
+    placement_prepared: true
+  });
+
+  assert.equal(created.id, 'voice-inbound-placement-a');
+  assert.deepEqual(placementCalls, [
+    'reserve:voice-inbound-placement-a:inbound_sip:provider-inbound-placement-a',
+    'persist:voice-inbound-placement-a',
+    'state:active:voice-inbound-placement-a:voice_inbound_durable'
+  ]);
 });
 
 test('Voice call actions cover call control, recording, and LiveKit bridge without inline side effects', async () => {
@@ -402,6 +580,108 @@ test('Voice provider executor converges successful Park and Pickup slot states',
   assert.equal(seen[1]?.pickup_call?.id, pickupCall.id);
 });
 
+test('Voice provider executor resolves and fences every RustPBX call used by pickup', async () => {
+  const fixture = callFixture();
+  const parkedCall = fixture.seedCall('active');
+  const pickupCall = fixture.seedCall('active');
+  parkedCall.provider_call_id = 'provider-parked';
+  pickupCall.provider_call_id = 'provider-pickup';
+  const placementCalls: string[] = [];
+  const seen: Array<Parameters<VoiceProviderAdapter['execute']>[0]> = [];
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    parking: fixture.parking,
+    address_protector: fixture.addressProtector,
+    provider_registry: providerRegistry(async (input) => {
+      seen.push(input);
+      return { provider_command_id: 'provider:pickup', accepted: true };
+    }),
+    placement: voicePlacementFixture(placementCalls),
+    placement_pg: new MemoryPg()
+  });
+  await fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: parkedCall.id, kind: 'park', payload: { slot: '701' },
+    actor: 'agent-a', idempotency_key: 'park-before-fenced-pickup'
+  });
+  const slot = [...fixture.parkingSlots.values()][0]!;
+  fixture.parkingSlots.set(slot.id, { ...slot, state: 'parked' });
+  const pickup = await fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: pickupCall.id, kind: 'pickup', payload: { slot: '701' },
+    actor: 'agent-b', idempotency_key: 'fenced-pickup'
+  });
+
+  await executor.execute(pickup);
+
+  assert.deepEqual(seen[0]?.owner_contracts, {
+    'provider-pickup': {
+      interaction_id: pickupCall.id,
+      reservation_id: `reservation-${pickupCall.id}`,
+      owner_epoch: '12884901889'
+    },
+    'provider-parked': {
+      interaction_id: parkedCall.id,
+      reservation_id: `reservation-${parkedCall.id}`,
+      owner_epoch: '12884901889'
+    }
+  });
+  assert.equal(
+    placementCalls.filter((value) => value.startsWith('resolve:')).length,
+    2
+  );
+});
+
+test('Voice provider executor rejects a cross-node RustPBX pickup before RWI mutation', async () => {
+  const fixture = callFixture();
+  const parkedCall = fixture.seedCall('active');
+  const pickupCall = fixture.seedCall('active');
+  let providerCalls = 0;
+  const placement = voicePlacementFixture([]);
+  placement.resolveOwner = async (_pg, input) => ({
+    interaction_kind: 'sip_voice',
+    owner_component: 'rustpbx',
+    region_id: 'region-a',
+    zone_id: 'zone-a',
+    cell_id: 'cell-a',
+    owner_node_id: input.interaction_id === parkedCall.id ? 'rustpbx-b' : 'rustpbx-a',
+    owner_epoch: '12884901889',
+    reservation_id: `reservation-${input.interaction_id}`,
+    profile_id: 'cell-10k-v1',
+    snapshot_version: 1,
+    provider_endpoint: input.interaction_id === parkedCall.id
+      ? 'http://rustpbx-b.internal'
+      : 'http://rustpbx-a.internal'
+  });
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    parking: fixture.parking,
+    address_protector: fixture.addressProtector,
+    provider_registry: providerRegistry(async () => {
+      providerCalls += 1;
+      return { provider_command_id: 'must-not-run', accepted: true };
+    }),
+    placement,
+    placement_pg: new MemoryPg()
+  });
+  await fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: parkedCall.id, kind: 'park', payload: { slot: '701' },
+    actor: 'agent-a', idempotency_key: 'park-before-cross-node-pickup'
+  });
+  const slot = [...fixture.parkingSlots.values()][0]!;
+  fixture.parkingSlots.set(slot.id, { ...slot, state: 'parked' });
+  const pickup = await fixture.service.enqueueAction({
+    tenant_id: 'tenant-a', call_id: pickupCall.id, kind: 'pickup', payload: { slot: '701' },
+    actor: 'agent-b', idempotency_key: 'cross-node-pickup'
+  });
+
+  await assert.rejects(
+    () => executor.execute(pickup),
+    hasVoiceCode('provider_unavailable')
+  );
+  assert.equal(providerCalls, 0);
+});
+
 test('Voice provider executor keeps ambiguous parking persistence failures uncertain', async () => {
   const fixture = callFixture();
   const parkedCall = fixture.seedCall('active');
@@ -548,6 +828,7 @@ test('Voice call service rejects unsupported provider actions before queueing th
 function callFixture(options: {
   complianceAllowed?: boolean;
   actionCapabilities?: Partial<Record<VoiceCommandKind, boolean>>;
+  placement?: VoiceCallPlacementPort;
 } = {}) {
   const profile = deploymentProfile();
   const policy = voicePolicy();
@@ -651,6 +932,7 @@ function callFixture(options: {
     }
   };
   const context: VoiceCallUnitOfWorkContext = {
+    pg: new MemoryPg(),
     calls: callRepository, commands: commandRepository, configuration, parking
   };
   const unitOfWork: VoiceCallUnitOfWork = {
@@ -684,7 +966,8 @@ function callFixture(options: {
   const service = new VoiceCallService({
     unit_of_work: unitOfWork, address_protector: addressProtector,
     compliance, event_port: eventPort, id: (kind) => `${kind}-${++id}`,
-    now: () => new Date('2026-07-13T00:00:00.000Z')
+    now: () => new Date('2026-07-13T00:00:00.000Z'),
+    placement: options.placement
   });
   const seedCall = (state: VoiceCall['state']): VoiceCall => {
     const call: VoiceCall = {
@@ -703,9 +986,54 @@ function callFixture(options: {
   };
   return {
     service, calls, commands, events, protectedValues, seedCall, providerCalls: 0,
-    callRepository, configuration, addressProtector, parking, parkingSlots,
+    callRepository, configuration, addressProtector, parking, parkingSlots, profile,
     get complianceCalls() { return complianceCalls; },
     get transactionCommits() { return transactionCommits; }
+  };
+}
+
+function voicePlacementFixture(calls: string[]): VoiceCallPlacementPort {
+  return {
+    async reserve(input) {
+      calls.push(
+        `reserve:${input.interaction_id}:${input.routing_partition_key}`
+      );
+      return {
+        interaction_id: input.interaction_id,
+        value: {} as never
+      };
+    },
+    async persistReserved(_pg, reservation) {
+      calls.push(`persist:${reservation.interaction_id}`);
+    },
+    async releaseUncommitted(reservation) {
+      calls.push(`release:${reservation.interaction_id}`);
+    },
+    async requestState(_pg, input) {
+      calls.push(
+        `state:${input.desired_state}:${input.interaction_id}:${input.reason}`
+      );
+    },
+    async reconcileOne() {
+      return 'succeeded';
+    },
+    async resolveOwner(_pg, input) {
+      const interactionId = input.interaction_id;
+      calls.push(`resolve:${interactionId}`);
+      return {
+        interaction_kind: 'sip_voice',
+        owner_component: 'rustpbx',
+        region_id: 'region-a',
+        zone_id: 'zone-a',
+        cell_id: 'cell-a',
+        owner_node_id: 'rustpbx-a',
+        owner_epoch: '12884901889',
+        reservation_id: `reservation-${interactionId}`,
+        profile_id: 'cell-10k-v1',
+        snapshot_version: 1,
+        provider_endpoint: 'http://rustpbx-a.internal'
+      };
+    }
   };
 }
 

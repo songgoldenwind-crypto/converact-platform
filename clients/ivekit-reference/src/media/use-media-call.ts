@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 
 import type {
-  IveKitClient,
+  IveKitHttpSdk,
   IveKitMediaCallAction,
   IveKitMediaCallSnapshot,
+  IveKitMediaConnectionEventType,
+  IveKitMediaJoinInput,
+  IveKitMediaJoinPlan,
   IveKitMediaModerationResult
 } from '@opc/ivekit-sdk';
 import { LiveKitClientAdapter } from './livekit-adapter.js';
+import { MediaRejoinController, type MediaRejoinScheduler } from './media-rejoin-controller.js';
 import {
   initialMediaCallState,
   isTerminalStatus,
@@ -21,7 +25,7 @@ import { openAuthenticatedWebSocket } from '../websocket-auth.js';
 export type MediaAdapterFactory = (onEvent: (event: MediaAdapterEvent) => void) => LiveKitRoomAdapter;
 
 export interface UseMediaCallInput {
-  client: IveKitClient | null;
+  client: IveKitHttpSdk | null;
   callId: string;
   identity: string;
   displayName?: string;
@@ -29,6 +33,8 @@ export interface UseMediaCallInput {
   randomId?: () => string;
   websocketUrl?: string;
   accessToken?: string;
+  rejoinDelaysMs?: readonly number[];
+  rejoinScheduler?: MediaRejoinScheduler;
 }
 
 export interface MediaCallCommands {
@@ -44,6 +50,7 @@ export interface MediaCallCommands {
   muteParticipant(identity: string, track: import('./types.js').MediaTrackHandle): Promise<IveKitMediaModerationResult>;
   removeParticipant(identity: string, reason?: string): Promise<IveKitMediaModerationResult>;
   setLayout(layout: MediaLayout): void;
+  dismissScreenShareRecovery(): void;
 }
 
 interface PendingLifecycleCommand {
@@ -69,13 +76,21 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
   const moderationInFlight = useRef(new Map<string, Promise<IveKitMediaModerationResult>>());
   const joinOperation = useRef<JoinOperation | null>(null);
   const joinedRequest = useRef(0);
+  const lastPlacement = useRef<IveKitMediaJoinInput['recovery'] | null>(null);
+  const rejoinController = useRef<MediaRejoinController | null>(null);
+  const desiredLocal = useRef<MediaLocalState>({ microphone: false, camera: false, screen: false, screenAudio: false });
   const disposedAdapters = useRef(new WeakSet<object>());
   const adapterFactory = useRef<MediaAdapterFactory>(input.adapterFactory || defaultAdapterFactory);
   const randomId = useRef(input.randomId || defaultRandomId);
+  const rejoinDelaysMs = useRef(input.rejoinDelaysMs);
+  const rejoinScheduler = useRef(input.rejoinScheduler);
   const connectSnapshot = useRef<(value: IveKitMediaCallSnapshot, operationId: number, room: LiveKitRoomAdapter) => Promise<void>>(async () => undefined);
+  const connectionEstablished = useRef<(operationId: number, room: LiveKitRoomAdapter) => void>(() => undefined);
   const transitionCurrent = useRef<(action: IveKitMediaCallAction, reason?: string) => Promise<IveKitMediaCallSnapshot>>(async () => { throw new Error('Media call is not ready'); });
   adapterFactory.current = input.adapterFactory || defaultAdapterFactory;
   randomId.current = input.randomId || defaultRandomId;
+  rejoinDelaysMs.current = input.rejoinDelaysMs;
+  rejoinScheduler.current = input.rejoinScheduler;
 
   const disposeAdapter = useCallback(async (room: LiveKitRoomAdapter | null): Promise<void> => {
     if (!room || disposedAdapters.current.has(room as object)) return;
@@ -88,6 +103,8 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     operationId: number,
     room: LiveKitRoomAdapter | null
   ): Promise<void> => {
+    rejoinController.current?.reset();
+    if (adapter.current === room) adapter.current = null;
     await disposeAdapter(room);
     if (requestId.current !== operationId) return;
     snapshot.current = null;
@@ -110,11 +127,13 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
           identity: input.identity,
           ...(input.displayName ? { display_name: input.displayName } : {})
         });
+        lastPlacement.current = placementRecoveryIdentity(plan);
         if (!isCurrent(operationId, room, requestId, adapter)) return;
         await room.connect(plan);
         if (isCurrent(operationId, room, requestId, adapter)) {
           joinedRequest.current = operationId;
           dispatch({ type: 'command_succeeded', command: 'join' });
+          connectionEstablished.current(operationId, room);
         }
       } catch (cause) {
         if (!isCurrent(operationId, room, requestId, adapter)) return;
@@ -159,7 +178,10 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
           { idempotencyKey: command!.idempotencyKey }
         );
         if (requestId.current !== operationId || input.callId !== command!.callId) return result;
-        if (isTerminalStatus(result.call.status)) await disposeAdapter(adapter.current);
+        if (isTerminalStatus(result.call.status)) {
+          rejoinController.current?.reset();
+          await disposeAdapter(adapter.current);
+        }
         if (requestId.current !== operationId) return result;
         snapshot.current = result;
         dispatch({ type: 'snapshot_loaded', requestId: operationId, snapshot: result });
@@ -191,7 +213,10 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     try {
       const value = await input.client.media.getCall(input.callId);
       if (requestId.current !== operationId) return;
-      if (isTerminalStatus(value.call.status)) await disposeAdapter(adapter.current);
+      if (isTerminalStatus(value.call.status)) {
+        rejoinController.current?.reset();
+        await disposeAdapter(adapter.current);
+      }
       if (requestId.current !== operationId) return;
       snapshot.current = value;
       dispatch({ type: 'snapshot_loaded', requestId: operationId, snapshot: value });
@@ -206,35 +231,188 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
 
   useEffect(() => {
     const operationId = ++requestId.current;
+    rejoinController.current?.dispose();
+    rejoinController.current = null;
     snapshot.current = null;
+    desiredLocal.current = Object.freeze({ microphone: false, camera: false, screen: false, screenAudio: false });
     pending.current.clear();
     inFlight.current.clear();
     moderationKeys.current.clear();
     moderationInFlight.current.clear();
     joinOperation.current = null;
     joinedRequest.current = 0;
+    lastPlacement.current = null;
     dispatch({ type: 'call_selected', requestId: operationId, callId: input.callId });
     if (!input.client || !input.callId || !input.identity) return;
     let active = true;
-    let room!: LiveKitRoomAdapter;
-    room = adapterFactory.current((event) => {
-      if (!active || !isCurrent(operationId, room, requestId, adapter)) return;
-      dispatch({ type: 'adapter_event', generation: event.generation, event });
-      if (event.type === 'state' && event.state === 'connected' &&
-          snapshot.current?.call.status === 'accepted' &&
-          snapshot.current.participants.some((participant) =>
-            participant.identity === input.identity && participant.role === 'host' && participant.status !== 'removed'
-          )) {
-        void transitionCurrent.current('activate').catch(() => undefined);
+    let adapterEpoch = 0;
+    let connectionRevision = 1;
+    let connectionEventSequence = 0;
+    let reportQueue: Promise<void> = Promise.resolve();
+    let controller!: MediaRejoinController;
+
+    const reportConnection = (
+      eventType: IveKitMediaConnectionEventType,
+      revision: number,
+      reasonCode = ''
+    ): void => {
+      const reporter = input.client!.media.reportCallConnectionEvent;
+      if (typeof reporter !== 'function') return;
+      let seed: string;
+      try { seed = randomId.current(); } catch { seed = `event-${Date.now()}`; }
+      const eventId = `${seed.slice(0, 112)}.${++connectionEventSequence}`.slice(0, 128);
+      const event = {
+        participant_identity: input.identity,
+        event_id: eventId,
+        connection_revision: revision,
+        event_type: eventType,
+        ...(reasonCode ? { reason_code: reasonCode } : {}),
+        occurred_at: new Date().toISOString()
+      };
+      reportQueue = reportQueue
+        .then(async () => {
+          if (!active || requestId.current !== operationId) return;
+          await reporter(input.callId, event);
+        })
+        .catch(() => undefined);
+    };
+
+    const syncConnectionRevision = (value: IveKitMediaCallSnapshot): void => {
+      const participant = value.participants.find((item) => item.identity === input.identity);
+      const stored = Number(participant?.connection_revision || 1);
+      if (Number.isSafeInteger(stored) && stored > connectionRevision) connectionRevision = stored;
+    };
+
+    const createRoom = (): LiveKitRoomAdapter => {
+      const epoch = ++adapterEpoch;
+      let terminalHandled = false;
+      let room!: LiveKitRoomAdapter;
+      room = adapterFactory.current((rawEvent) => {
+        if (!active || !isCurrent(operationId, room, requestId, adapter)) return;
+        const event = withAdapterGeneration(rawEvent, epoch);
+        dispatch({ type: 'adapter_event', generation: epoch, event });
+        if (event.type === 'native_reconnect') {
+          reportConnection(
+            event.phase === 'started' ? 'reconnecting' : 'reconnected',
+            connectionRevision,
+            'native_transport'
+          );
+        } else if (event.type === 'terminal_disconnect' && !terminalHandled) {
+          terminalHandled = true;
+          desiredLocal.current = Object.freeze({
+            ...desiredLocal.current,
+            screen: false,
+            screenAudio: false
+          });
+          reportConnection('disconnected', connectionRevision, event.reason_code);
+          controller.request();
+        }
+        if (event.type === 'state' && event.state === 'connected' &&
+            snapshot.current?.call.status === 'accepted' &&
+            snapshot.current.participants.some((participant) =>
+              participant.identity === input.identity && participant.role === 'host' && participant.status !== 'removed'
+            )) {
+          void transitionCurrent.current('activate').catch(() => undefined);
+        }
+      });
+      adapter.current = room;
+      return room;
+    };
+
+    const rejoin = async (): Promise<'succeeded' | 'retry' | 'stopped'> => {
+      if (!active || requestId.current !== operationId) return 'stopped';
+      const previousRoom = adapter.current;
+      let attemptRevision: number | null = null;
+      try {
+        const value = await input.client!.media.getCall(input.callId);
+        if (!active || requestId.current !== operationId || adapter.current !== previousRoom) return 'stopped';
+        syncConnectionRevision(value);
+        if (isTerminalStatus(value.call.status)) {
+          snapshot.current = value;
+          dispatch({ type: 'snapshot_loaded', requestId: operationId, snapshot: value });
+          if (adapter.current === previousRoom) adapter.current = null;
+          await disposeAdapter(previousRoom);
+          return 'stopped';
+        }
+        snapshot.current = value;
+        dispatch({ type: 'snapshot_loaded', requestId: operationId, snapshot: value });
+        attemptRevision = ++connectionRevision;
+        dispatch({ type: 'rejoin_started' });
+        reportConnection('rejoining', attemptRevision, 'terminal_rejoin');
+
+        if (adapter.current !== previousRoom) return 'stopped';
+        adapter.current = null;
+        await disposeAdapter(previousRoom);
+        if (!active || requestId.current !== operationId || adapter.current !== null) return 'stopped';
+        const nextRoom = createRoom();
+        const plan = await input.client!.media.createCallJoinPlan(input.callId, {
+          identity: input.identity,
+          ...(input.displayName ? { display_name: input.displayName } : {}),
+          ...(lastPlacement.current
+            ? { recovery: lastPlacement.current }
+            : {})
+        });
+        lastPlacement.current = placementRecoveryIdentity(plan);
+        if (!active || !isCurrent(operationId, nextRoom, requestId, adapter)) {
+          await disposeAdapter(nextRoom);
+          return 'stopped';
+        }
+        await nextRoom.connect(plan);
+        if (!active || !isCurrent(operationId, nextRoom, requestId, adapter)) {
+          await disposeAdapter(nextRoom);
+          return 'stopped';
+        }
+        joinedRequest.current = operationId;
+        await restoreDesiredLocalMedia(nextRoom, desiredLocal, dispatch);
+        reportConnection('rejoined', attemptRevision, 'fresh_join_plan');
+        dispatch({ type: 'command_succeeded', command: 'join' });
+        return 'succeeded';
+      } catch (cause) {
+        if (!active || requestId.current !== operationId) return 'stopped';
+        const error = asError(cause);
+        if (attemptRevision !== null) reportConnection('failed', attemptRevision, 'rejoin_failed');
+        if (isAuthorizationLoss(cause)) {
+          await revoke(error.message, operationId, adapter.current);
+          return 'stopped';
+        }
+        const failedRoom = adapter.current;
+        if (adapter.current === failedRoom) adapter.current = null;
+        await disposeAdapter(failedRoom);
+        dispatch({ type: 'rejoin_retry' });
+        return 'retry';
       }
+    };
+
+    controller = new MediaRejoinController({
+      run: rejoin,
+      onExhausted: () => {
+        if (active && requestId.current === operationId) {
+          dispatch({ type: 'rejoin_exhausted', reason: 'Media connection could not be restored' });
+        }
+      },
+      ...(rejoinDelaysMs.current ? { delaysMs: rejoinDelaysMs.current } : {}),
+      ...(rejoinScheduler.current ? { scheduler: rejoinScheduler.current } : {})
     });
-    adapter.current = room;
+    controller.setOnline(typeof navigator === 'undefined' || navigator.onLine !== false);
+    controller.setVisible(typeof document === 'undefined' || document.visibilityState !== 'hidden');
+    rejoinController.current = controller;
+    connectionEstablished.current = (connectedOperationId, connectedRoom) => {
+      if (active && isCurrent(connectedOperationId, connectedRoom, requestId, adapter)) {
+        reportConnection('connected', connectionRevision, 'initial_join');
+      }
+    };
+    const room = createRoom();
 
     void (async () => {
       try {
         const value = await input.client!.media.getCall(input.callId);
         if (!active || !isCurrent(operationId, room, requestId, adapter)) return;
-        if (isTerminalStatus(value.call.status)) await disposeAdapter(room);
+        syncConnectionRevision(value);
+        if (isTerminalStatus(value.call.status)) {
+          controller.reset();
+          if (adapter.current === room) adapter.current = null;
+          await disposeAdapter(room);
+        }
         if (!active || requestId.current !== operationId) return;
         snapshot.current = value;
         dispatch({ type: 'snapshot_loaded', requestId: operationId, snapshot: value });
@@ -249,6 +427,9 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
 
     return () => {
       active = false;
+      controller.dispose();
+      if (rejoinController.current === controller) rejoinController.current = null;
+      connectionEstablished.current = () => undefined;
       if (requestId.current === operationId) requestId.current += 1;
       if (adapter.current === room) adapter.current = null;
       void disposeAdapter(room);
@@ -257,16 +438,25 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
 
   useEffect(() => {
     if (!input.callId) return;
-    const offline = () => dispatch({ type: 'network_changed', online: false });
+    const offline = () => {
+      rejoinController.current?.setOnline(false);
+      dispatch({ type: 'network_changed', online: false });
+    };
     const online = () => {
+      rejoinController.current?.setOnline(true);
       dispatch({ type: 'network_changed', online: true });
       void refresh();
     };
+    const visibility = () => {
+      rejoinController.current?.setVisible(document.visibilityState !== 'hidden');
+    };
     window.addEventListener('offline', offline);
     window.addEventListener('online', online);
+    document.addEventListener('visibilitychange', visibility);
     return () => {
       window.removeEventListener('offline', offline);
       window.removeEventListener('online', online);
+      document.removeEventListener('visibilitychange', visibility);
     };
   }, [input.callId, refresh]);
 
@@ -304,7 +494,10 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     try {
       await execute(room);
       if (requestId.current !== operationId || adapter.current !== room) return;
-      if (local) dispatch({ type: 'local_changed', local });
+      if (local) {
+        desiredLocal.current = Object.freeze({ ...desiredLocal.current, ...local });
+        dispatch({ type: 'local_changed', local });
+      }
       dispatch({ type: 'command_succeeded', command });
     } catch (cause) {
       if (requestId.current === operationId && adapter.current === room) {
@@ -383,8 +576,25 @@ export function useMediaCall(input: UseMediaCallInput): MediaCallCommands {
     },
     muteParticipant: (identity, track) => moderate('mute', identity, track),
     removeParticipant: (identity, reason) => moderate('remove', identity, undefined, reason),
-    setLayout: (layout) => dispatch({ type: 'layout_changed', layout })
+    setLayout: (layout) => dispatch({ type: 'layout_changed', layout }),
+    dismissScreenShareRecovery: () => dispatch({ type: 'screen_share_recovery_cleared' })
   };
+}
+
+function placementRecoveryIdentity(
+  plan: IveKitMediaJoinPlan
+): IveKitMediaJoinInput['recovery'] | null {
+  if (plan.mode !== 'webrtc') return null;
+  const placement = plan.token.placement;
+  if (!placement ||
+      !/^(?:0|[1-9][0-9]{0,19})$/.test(placement.owner_epoch) ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/.test(placement.reservation_id)) {
+    return null;
+  }
+  return Object.freeze({
+    previous_owner_epoch: placement.owner_epoch,
+    previous_reservation_id: placement.reservation_id
+  });
 }
 
 function defaultAdapterFactory(onEvent: (event: MediaAdapterEvent) => void): LiveKitRoomAdapter {
@@ -407,6 +617,36 @@ function isCurrent(
   adapter: { current: LiveKitRoomAdapter | null }
 ): boolean {
   return requestId.current === operationId && adapter.current === room;
+}
+
+function withAdapterGeneration(event: MediaAdapterEvent, generation: number): MediaAdapterEvent {
+  return Object.freeze({ ...event, generation }) as MediaAdapterEvent;
+}
+
+async function restoreDesiredLocalMedia(
+  room: LiveKitRoomAdapter,
+  desired: { current: MediaLocalState },
+  dispatch: (action: import('./media-reducer.js').MediaAction) => void
+): Promise<void> {
+  const restore = desired.current;
+  if (restore.microphone) {
+    try {
+      await room.setMicrophone(true);
+    } catch (cause) {
+      desired.current = Object.freeze({ ...desired.current, microphone: false });
+      dispatch({ type: 'local_changed', local: { microphone: false } });
+      dispatch({ type: 'command_failed', command: 'microphone', error: asError(cause).message });
+    }
+  }
+  if (restore.camera) {
+    try {
+      await room.setCamera(true);
+    } catch (cause) {
+      desired.current = Object.freeze({ ...desired.current, camera: false });
+      dispatch({ type: 'local_changed', local: { camera: false } });
+      dispatch({ type: 'command_failed', command: 'camera', error: asError(cause).message });
+    }
+  }
 }
 
 function isAuthorizationLoss(cause: unknown): boolean {

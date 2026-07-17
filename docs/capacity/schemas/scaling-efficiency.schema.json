@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ivekit.local/schemas/capacity/scaling-efficiency-v1.schema.json",
+  "title": "iveKit Scaling Efficiency Contract v1",
+  "description": "Defines single-node density, safe-capacity headroom, and marginal horizontal scaling gates independently from an endpoint concurrency target.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "revision",
+    "status",
+    "workload_profile_id",
+    "priority_order",
+    "endpoint_target_interactions",
+    "capacity_definition",
+    "single_node",
+    "scaling_curves",
+    "deployment_policy",
+    "evidence_requirements"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "contract_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["target", "not_run", "running", "failed", "passed"]
+    },
+    "workload_profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}-v[1-9][0-9]*$"
+    },
+    "priority_order": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "single_node_safe_density" },
+        { "const": "marginal_capacity_retention" },
+        { "const": "endpoint_concurrency" }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "endpoint_target_interactions": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "capacity_definition": {
+      "$ref": "#/$defs/capacityDefinition"
+    },
+    "single_node": {
+      "$ref": "#/$defs/singleNode"
+    },
+    "scaling_curves": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/scalingCurve"
+      }
+    },
+    "deployment_policy": {
+      "$ref": "#/$defs/deploymentPolicy"
+    },
+    "evidence_requirements": {
+      "$ref": "#/$defs/evidenceRequirements"
+    },
+    "x-ivekit-invariants": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "capacityDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit",
+        "safe_capacity_formula",
+        "hard_capacity_formula",
+        "aggregate_linearity_formula",
+        "segment_marginal_efficiency_formula",
+        "result_statistic"
+      ],
+      "properties": {
+        "unit": {
+          "const": "profile_equivalent_active_interactions"
+        },
+        "safe_capacity_formula": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hard_capacity_formula": {
+          "type": "string",
+          "minLength": 1
+        },
+        "aggregate_linearity_formula": {
+          "const": "L(n) = C_safe(n) / (n * C_safe(1))"
+        },
+        "segment_marginal_efficiency_formula": {
+          "const": "M(a,b) = (C_safe(b) - C_safe(a)) / ((b - a) * C_safe(1))"
+        },
+        "result_statistic": {
+          "enum": ["minimum_of_successful_repetitions", "lower_confidence_bound_95"]
+        }
+      }
+    },
+    "singleNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "search_method",
+        "minimum_repetitions",
+        "production_headroom_ratio",
+        "maximum_release_regression_ratio",
+        "required_component_roles",
+        "required_efficiency_metrics",
+        "optimization_exit_rules"
+      ],
+      "properties": {
+        "required": {
+          "const": true
+        },
+        "search_method": {
+          "const": "step_ramp_then_binary_search_at_full_slo"
+        },
+        "minimum_repetitions": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "production_headroom_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "maximum_release_regression_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "required_component_roles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "sip_edge",
+              "rustpbx_voice",
+              "livekit_sfu_turn",
+              "livekit_egress",
+              "tinode_im",
+              "ivekit_realtime_edge",
+              "rustdesk_rendezvous_relay",
+              "recording_evidence_worker",
+              "shared_data_service"
+            ]
+          }
+        },
+        "required_efficiency_metrics": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "profile_interactions_per_physical_core",
+              "safe_capacity_per_gib",
+              "safe_capacity_per_host",
+              "rtp_legs_per_physical_core",
+              "packet_operations_per_physical_core",
+              "subscribed_tracks_per_physical_core",
+              "websocket_connections_per_physical_core",
+              "messages_per_second_per_physical_core",
+              "relay_mbps_per_physical_core",
+              "recording_slots_per_physical_core",
+              "safe_capacity_per_1000_cost_unit"
+            ]
+          }
+        },
+        "optimization_exit_rules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "scalingCurve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "curve_id",
+        "scope",
+        "homogeneous_unit",
+        "node_or_unit_points",
+        "minimum_repetitions_per_point",
+        "aggregate_linearity_floors",
+        "segment_marginal_efficiency_floor",
+        "maximum_adjacent_segment_drop_ratio",
+        "trend_policy",
+        "failure_reserve_included"
+      ],
+      "properties": {
+        "curve_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]*$"
+        },
+        "scope": {
+          "enum": ["component_node_pool", "cell", "shared_data_plane"]
+        },
+        "homogeneous_unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "node_or_unit_points": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "minimum_repetitions_per_point": {
+          "type": "integer",
+          "minimum": 3
+        },
+        "aggregate_linearity_floors": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["point", "minimum_ratio"],
+            "properties": {
+              "point": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "minimum_ratio": {
+                "$ref": "#/$defs/ratio"
+              }
+            }
+          }
+        },
+        "segment_marginal_efficiency_floor": {
+          "$ref": "#/$defs/ratio"
+        },
+        "maximum_adjacent_segment_drop_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "trend_policy": {
+          "const": "non_decreasing_with_configured_tolerance"
+        },
+        "failure_reserve_included": {
+          "const": true
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "deploymentPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preallocate_endpoint_capacity",
+        "scale_from_measured_safe_capacity",
+        "scale_out_trigger_dominant_utilization_ratio",
+        "scale_in_requires_drain",
+        "small_deployment_preserves_public_contract",
+        "core_zone_failure_reserve_ratio"
+      ],
+      "properties": {
+        "preallocate_endpoint_capacity": {
+          "const": false
+        },
+        "scale_from_measured_safe_capacity": {
+          "const": true
+        },
+        "scale_out_trigger_dominant_utilization_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "scale_in_requires_drain": {
+          "const": true
+        },
+        "small_deployment_preserves_public_contract": {
+          "const": true
+        },
+        "core_zone_failure_reserve_ratio": {
+          "$ref": "#/$defs/ratio"
+        }
+      }
+    },
+    "evidenceRequirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "same_profile",
+        "same_hardware_class",
+        "same_failure_reserve",
+        "generator_qualified",
+        "all_capacity_vector_dimensions_reported",
+        "per_point_raw_evidence_required",
+        "endpoint_pass_cannot_override_efficiency_failure"
+      ],
+      "properties": {
+        "same_profile": {
+          "const": true
+        },
+        "same_hardware_class": {
+          "const": true
+        },
+        "same_failure_reserve": {
+          "const": true
+        },
+        "generator_qualified": {
+          "const": true
+        },
+        "all_capacity_vector_dimensions_reported": {
+          "const": true
+        },
+        "per_point_raw_evidence_required": {
+          "const": true
+        },
+        "endpoint_pass_cannot_override_efficiency_failure": {
+          "const": true
+        }
+      }
+    }
+  }
+}

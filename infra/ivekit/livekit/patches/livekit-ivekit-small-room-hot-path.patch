@@ -1,0 +1,449 @@
+diff --git a/pkg/sfu/receiver_base.go b/pkg/sfu/receiver_base.go
+index d056d252..6948a0ca 100644
+--- a/pkg/sfu/receiver_base.go
++++ b/pkg/sfu/receiver_base.go
+@@ -940,6 +940,27 @@ func (r *ReceiverBase) startForwarderForBufferLocked(layer int32, buff buffer.Bu
+ 	go r.forwardRTP(layer, buff, forwarderGeneration, r.forwardersWaitGroup)
+ }
+ 
++func writeRTPToDownTracks(
++	spreader *sfuutils.DownTrackSpreader[TrackSender],
++	extPkt *buffer.ExtPacket,
++	spatialLayer int32,
++) int32 {
++	downTracks := spreader.GetDownTracks()
++	if !spreader.ShouldParallel(len(downTracks)) {
++		var writeCount int32
++		for _, dt := range downTracks {
++			writeCount += dt.WriteRTP(extPkt, spatialLayer)
++		}
++		return writeCount
++	}
++
++	var writeCount atomic.Int32
++	spreader.Broadcast(func(dt TrackSender) {
++		writeCount.Add(dt.WriteRTP(extPkt, spatialLayer))
++	})
++	return writeCount.Load()
++}
++
+ func (r *ReceiverBase) forwardRTP(
+ 	layer int32,
+ 	buff buffer.BufferProvider,
+@@ -1027,22 +1048,19 @@ func (r *ReceiverBase) forwardRTP(
+ 			continue
+ 		}
+ 
+-		var writeCount atomic.Int32
+-		r.downTrackSpreader.Broadcast(func(dt TrackSender) {
+-			writeCount.Add(dt.WriteRTP(extPkt, spatialLayer))
+-		})
++		writeCount := writeRTPToDownTracks(r.downTrackSpreader, extPkt, spatialLayer)
+ 		if rt := r.loadREDTransformer(); rt != nil {
+-			writeCount.Add(rt.ForwardRTP(extPkt, spatialLayer))
++			writeCount += rt.ForwardRTP(extPkt, spatialLayer)
+ 		}
+ 
+ 		// track delay/jitter
+-		if writeCount.Load() > 0 && r.forwardStats != nil && !extPkt.IsBuffered {
++		if writeCount > 0 && r.forwardStats != nil && !extPkt.IsBuffered {
+ 			if latency, isHigh := r.forwardStats.Update(extPkt.Arrival, mono.UnixNano()); isHigh {
+ 				r.params.Logger.Debugw(
+ 					"high forwarding latency",
+ 					"latency", time.Duration(latency),
+ 					"queuingLatency", time.Duration(dequeuedAt-extPkt.Arrival),
+-					"writeCount", writeCount.Load(),
++					"writeCount", writeCount,
+ 					"isOutOfOrder", extPkt.IsOutOfOrder,
+ 					"layer", layer,
+ 				)
+diff --git a/pkg/sfu/redprimaryreceiver.go b/pkg/sfu/redprimaryreceiver.go
+index 4963a14b..1b0f763a 100644
+--- a/pkg/sfu/redprimaryreceiver.go
++++ b/pkg/sfu/redprimaryreceiver.go
+@@ -69,11 +69,7 @@ func (r *RedPrimaryReceiver) ForwardRTP(pkt *buffer.ExtPacket, spatialLayer int3
+ 
+ 	if pkt.Packet.PayloadType != r.redPT {
+ 		// forward non-red packet directly
+-		var writeCount atomic.Int32
+-		r.downTrackSpreader.Broadcast(func(dt TrackSender) {
+-			writeCount.Add(dt.WriteRTP(pkt, spatialLayer))
+-		})
+-		return writeCount.Load()
++		return writeRTPToDownTracks(r.downTrackSpreader, pkt, spatialLayer)
+ 	}
+ 
+ 	pkts, err := r.getSendPktsFromRed(pkt.Packet)
+@@ -82,7 +78,7 @@ func (r *RedPrimaryReceiver) ForwardRTP(pkt *buffer.ExtPacket, spatialLayer int3
+ 		return 0
+ 	}
+ 
+-	var writeCount atomic.Int32
++	var writeCount int32
+ 	for i, sendPkt := range pkts {
+ 		pPkt := *pkt
+ 		if i != len(pkts)-1 {
+@@ -125,11 +121,9 @@ func (r *RedPrimaryReceiver) ForwardRTP(pkt *buffer.ExtPacket, spatialLayer int3
+ 
+ 		// not modify the ExtPacket.RawPacket here for performance since it is not used by the DownTrack,
+ 		// otherwise it should be set to the correct value (marshal the primary rtp packet)
+-		r.downTrackSpreader.Broadcast(func(dt TrackSender) {
+-			writeCount.Add(dt.WriteRTP(&pPkt, spatialLayer))
+-		})
++		writeCount += writeRTPToDownTracks(r.downTrackSpreader, &pPkt, spatialLayer)
+ 	}
+-	return writeCount.Load()
++	return writeCount
+ }
+ 
+ func (r *RedPrimaryReceiver) ForwardRTCPSenderReport(
+diff --git a/pkg/sfu/redreceiver.go b/pkg/sfu/redreceiver.go
+index b93f3431..169740ac 100644
+--- a/pkg/sfu/redreceiver.go
++++ b/pkg/sfu/redreceiver.go
+@@ -69,11 +69,7 @@ func (r *RedReceiver) ForwardRTP(pkt *buffer.ExtPacket, spatialLayer int32) int3
+ 
+ 	// fallback to primary codec if payload size exceeds redundant block length
+ 	if len(pkt.Packet.Payload) >= maxRedPayload {
+-		var writeCount atomic.Int32
+-		r.downTrackSpreader.Broadcast(func(dt TrackSender) {
+-			writeCount.Add(dt.WriteRTP(pkt, spatialLayer))
+-		})
+-		return writeCount.Load()
++		return writeRTPToDownTracks(r.downTrackSpreader, pkt, spatialLayer)
+ 	}
+ 
+ 	redLen, err := r.encodeRedForPrimary(pkt.Packet, r.redPayloadBuf[:])
+@@ -90,11 +86,7 @@ func (r *RedReceiver) ForwardRTP(pkt *buffer.ExtPacket, spatialLayer int32) int3
+ 
+ 	// not modify the ExtPacket.RawPacket here for performance since it is not used by the DownTrack,
+ 	// otherwise it should be set to the correct value (marshal the primary rtp packet)
+-	var writeCount atomic.Int32
+-	r.downTrackSpreader.Broadcast(func(dt TrackSender) {
+-		writeCount.Add(dt.WriteRTP(&pPkt, spatialLayer))
+-	})
+-	return writeCount.Load()
++	return writeRTPToDownTracks(r.downTrackSpreader, &pPkt, spatialLayer)
+ }
+ 
+ func (r *RedReceiver) ForwardRTCPSenderReport(
+diff --git a/pkg/sfu/utils/downtrackspreader.go b/pkg/sfu/utils/downtrackspreader.go
+index 996889c5..ce414ebf 100644
+--- a/pkg/sfu/utils/downtrackspreader.go
++++ b/pkg/sfu/utils/downtrackspreader.go
+@@ -16,6 +16,7 @@ package utils
+ 
+ import (
+ 	"sync"
++	"sync/atomic"
+ 
+ 	"github.com/livekit/protocol/livekit"
+ 	"github.com/livekit/protocol/logger"
+@@ -34,9 +35,9 @@ type DownTrackSpreaderParams struct {
+ type DownTrackSpreader[T sender] struct {
+ 	params DownTrackSpreaderParams
+ 
+-	downTrackMu      sync.RWMutex
++	downTrackMu      sync.Mutex
+ 	downTracks       map[livekit.ParticipantID]T
+-	downTracksShadow []T
++	downTracksShadow atomic.Pointer[[]T]
+ }
+ 
+ func NewDownTrackSpreader[T sender](params DownTrackSpreaderParams) *DownTrackSpreader[T] {
+@@ -44,24 +45,25 @@ func NewDownTrackSpreader[T sender](params DownTrackSpreaderParams) *DownTrackSp
+ 		params:     params,
+ 		downTracks: make(map[livekit.ParticipantID]T),
+ 	}
++	downTracksShadow := []T{}
++	d.downTracksShadow.Store(&downTracksShadow)
+ 
+ 	return d
+ }
+ 
+ func (d *DownTrackSpreader[T]) GetDownTracks() []T {
+-	d.downTrackMu.RLock()
+-	defer d.downTrackMu.RUnlock()
+-	return d.downTracksShadow
++	return *d.downTracksShadow.Load()
+ }
+ 
+ func (d *DownTrackSpreader[T]) ResetAndGetDownTracks() []T {
+ 	d.downTrackMu.Lock()
+ 	defer d.downTrackMu.Unlock()
+ 
+-	downTracks := d.downTracksShadow
++	downTracks := d.GetDownTracks()
+ 
+ 	d.downTracks = make(map[livekit.ParticipantID]T)
+-	d.downTracksShadow = nil
++	downTracksShadow := []T{}
++	d.downTracksShadow.Store(&downTracksShadow)
+ 
+ 	return downTracks
+ }
+@@ -83,8 +85,8 @@ func (d *DownTrackSpreader[T]) Free(subscriberID livekit.ParticipantID) {
+ }
+ 
+ func (d *DownTrackSpreader[T]) HasDownTrack(subscriberID livekit.ParticipantID) bool {
+-	d.downTrackMu.RLock()
+-	defer d.downTrackMu.RUnlock()
++	d.downTrackMu.Lock()
++	defer d.downTrackMu.Unlock()
+ 
+ 	_, ok := d.downTracks[subscriberID]
+ 	return ok
+@@ -96,26 +98,31 @@ func (d *DownTrackSpreader[T]) Broadcast(writer func(T)) {
+ 		return
+ 	}
+ 
+-	threshold := uint64(d.params.Threshold)
+-	if threshold == 0 {
+-		threshold = 1000000
+-	}
+-
+ 	// 100µs is enough to amortize the overhead and provide sufficient load balancing.
+ 	// WriteRTP takes about 50µs on average, so we write to 2 down tracks per loop.
+ 	step := uint64(2)
+-	utils.ParallelExec(downTracks, threshold, step, writer)
++	utils.ParallelExec(downTracks, d.parallelThreshold(), step, writer)
++}
++
++func (d *DownTrackSpreader[T]) ShouldParallel(count int) bool {
++	return uint64(count) >= d.parallelThreshold()
+ }
+ 
+ func (d *DownTrackSpreader[T]) DownTrackCount() int {
+-	d.downTrackMu.RLock()
+-	defer d.downTrackMu.RUnlock()
+-	return len(d.downTracksShadow)
++	return len(d.GetDownTracks())
+ }
+ 
+ func (d *DownTrackSpreader[T]) shadowDownTracks() {
+-	d.downTracksShadow = make([]T, 0, len(d.downTracks))
++	downTracksShadow := make([]T, 0, len(d.downTracks))
+ 	for _, dt := range d.downTracks {
+-		d.downTracksShadow = append(d.downTracksShadow, dt)
++		downTracksShadow = append(downTracksShadow, dt)
++	}
++	d.downTracksShadow.Store(&downTracksShadow)
++}
++
++func (d *DownTrackSpreader[T]) parallelThreshold() uint64 {
++	if d.params.Threshold == 0 {
++		return 1000000
+ 	}
++	return uint64(d.params.Threshold)
+ }
+diff --git a/pkg/sfu/receiver_base_ivekit_test.go b/pkg/sfu/receiver_base_ivekit_test.go
+new file mode 100644
+index 00000000..492df29a
+--- /dev/null
++++ b/pkg/sfu/receiver_base_ivekit_test.go
+@@ -0,0 +1,88 @@
++package sfu
++
++import (
++	"sync/atomic"
++	"testing"
++
++	"github.com/pion/webrtc/v4"
++
++	"github.com/livekit/protocol/livekit"
++
++	"github.com/livekit/livekit-server/pkg/sfu/buffer"
++	sfuutils "github.com/livekit/livekit-server/pkg/sfu/utils"
++)
++
++type ivekitCountingTrackSender struct {
++	id     livekit.ParticipantID
++	writes *atomic.Int32
++}
++
++func (s *ivekitCountingTrackSender) UpTrackLayersChange() {}
++
++func (s *ivekitCountingTrackSender) UpTrackBitrateAvailabilityChange() {}
++
++func (s *ivekitCountingTrackSender) UpTrackMaxPublishedLayerChange(int32) {}
++
++func (s *ivekitCountingTrackSender) UpTrackMaxTemporalLayerSeenChange(int32) {}
++
++func (s *ivekitCountingTrackSender) UpTrackBitrateReport([]int32, Bitrates) {}
++
++func (s *ivekitCountingTrackSender) WriteRTP(*buffer.ExtPacket, int32) int32 {
++	s.writes.Add(1)
++	return 1
++}
++
++func (s *ivekitCountingTrackSender) Close() {}
++
++func (s *ivekitCountingTrackSender) IsClosed() bool { return false }
++
++func (s *ivekitCountingTrackSender) ID() string { return string(s.id) }
++
++func (s *ivekitCountingTrackSender) SubscriberID() livekit.ParticipantID { return s.id }
++
++func (s *ivekitCountingTrackSender) HandleRTCPSenderReportData(
++	webrtc.PayloadType,
++	int32,
++	*livekit.RTCPSenderReportState,
++) error {
++	return nil
++}
++
++func (s *ivekitCountingTrackSender) Resync() {}
++
++func (s *ivekitCountingTrackSender) SetReceiver(TrackReceiver) {}
++
++func (s *ivekitCountingTrackSender) ReceiverRestart(TrackReceiver) {}
++
++func TestWriteRTPToDownTracksUsesSerialSmallRoomPath(t *testing.T) {
++	spreader := sfuutils.NewDownTrackSpreader[TrackSender](sfuutils.DownTrackSpreaderParams{
++		Threshold: 20,
++	})
++	var writes atomic.Int32
++	spreader.Store(&ivekitCountingTrackSender{id: "subscriber", writes: &writes})
++
++	if got := writeRTPToDownTracks(spreader, nil, 0); got != 1 {
++		t.Fatalf("write count = %d, want 1", got)
++	}
++	if got := writes.Load(); got != 1 {
++		t.Fatalf("downtrack writes = %d, want 1", got)
++	}
++}
++
++func TestWriteRTPToDownTracksPreservesParallelLargeRoomPath(t *testing.T) {
++	spreader := sfuutils.NewDownTrackSpreader[TrackSender](sfuutils.DownTrackSpreaderParams{
++		Threshold: 2,
++	})
++	var writes atomic.Int32
++	for index := 0; index < 3; index++ {
++		id := livekit.ParticipantID(rune('a' + index))
++		spreader.Store(&ivekitCountingTrackSender{id: id, writes: &writes})
++	}
++
++	if got := writeRTPToDownTracks(spreader, nil, 0); got != 3 {
++		t.Fatalf("write count = %d, want 3", got)
++	}
++	if got := writes.Load(); got != 3 {
++		t.Fatalf("downtrack writes = %d, want 3", got)
++	}
++}
+diff --git a/pkg/sfu/utils/downtrackspreader_ivekit_test.go b/pkg/sfu/utils/downtrackspreader_ivekit_test.go
+new file mode 100644
+index 00000000..58e04f48
+--- /dev/null
++++ b/pkg/sfu/utils/downtrackspreader_ivekit_test.go
+@@ -0,0 +1,111 @@
++package utils
++
++import (
++	"fmt"
++	"sync"
++	"testing"
++
++	"github.com/livekit/protocol/livekit"
++)
++
++type ivekitTestSender struct {
++	id livekit.ParticipantID
++}
++
++var ivekitBenchmarkSnapshot []ivekitTestSender
++
++func (s ivekitTestSender) SubscriberID() livekit.ParticipantID {
++	return s.id
++}
++
++func TestDownTrackSpreaderPublishesImmutableSnapshots(t *testing.T) {
++	spreader := NewDownTrackSpreader[ivekitTestSender](DownTrackSpreaderParams{
++		Threshold: 3,
++	})
++	first := ivekitTestSender{id: "first"}
++	second := ivekitTestSender{id: "second"}
++
++	spreader.Store(first)
++	firstSnapshot := spreader.GetDownTracks()
++	spreader.Store(second)
++
++	if len(firstSnapshot) != 1 || firstSnapshot[0].SubscriberID() != first.id {
++		t.Fatalf("published snapshot mutated after Store: %#v", firstSnapshot)
++	}
++	if got := len(spreader.GetDownTracks()); got != 2 {
++		t.Fatalf("current snapshot length = %d, want 2", got)
++	}
++
++	spreader.Free(first.id)
++	if got := spreader.GetDownTracks(); len(got) != 1 || got[0].SubscriberID() != second.id {
++		t.Fatalf("snapshot after Free = %#v, want only second sender", got)
++	}
++}
++
++func TestDownTrackSpreaderParallelThreshold(t *testing.T) {
++	spreader := NewDownTrackSpreader[ivekitTestSender](DownTrackSpreaderParams{
++		Threshold: 3,
++	})
++
++	if spreader.ShouldParallel(1) {
++		t.Fatal("one subscriber must use the serial fast path")
++	}
++	if spreader.ShouldParallel(2) {
++		t.Fatal("subscriber count below threshold must use the serial fast path")
++	}
++	if !spreader.ShouldParallel(3) {
++		t.Fatal("subscriber count at threshold must use parallel broadcast")
++	}
++}
++
++func TestDownTrackSpreaderZeroThresholdDisablesParallelBroadcast(t *testing.T) {
++	spreader := NewDownTrackSpreader[ivekitTestSender](DownTrackSpreaderParams{})
++	if spreader.ShouldParallel(999999) {
++		t.Fatal("zero threshold must preserve the upstream effectively-disabled behavior")
++	}
++}
++
++func TestDownTrackSpreaderConcurrentSnapshotReads(t *testing.T) {
++	spreader := NewDownTrackSpreader[ivekitTestSender](DownTrackSpreaderParams{
++		Threshold: 20,
++	})
++	spreader.Store(ivekitTestSender{id: "seed"})
++
++	var readers sync.WaitGroup
++	for reader := 0; reader < 8; reader++ {
++		readers.Add(1)
++		go func() {
++			defer readers.Done()
++			for iteration := 0; iteration < 5000; iteration++ {
++				for _, sender := range spreader.GetDownTracks() {
++					if sender.SubscriberID() == "" {
++						t.Error("published snapshot contains an empty subscriber ID")
++						return
++					}
++				}
++			}
++		}()
++	}
++
++	for iteration := 0; iteration < 1000; iteration++ {
++		id := livekit.ParticipantID(fmt.Sprintf("participant-%d", iteration%16))
++		spreader.Store(ivekitTestSender{id: id})
++		if iteration%2 == 0 {
++			spreader.Free(id)
++		}
++	}
++	readers.Wait()
++}
++
++func BenchmarkDownTrackSpreaderSnapshotRead(b *testing.B) {
++	spreader := NewDownTrackSpreader[ivekitTestSender](DownTrackSpreaderParams{
++		Threshold: 20,
++	})
++	spreader.Store(ivekitTestSender{id: "subscriber"})
++	b.ReportAllocs()
++	b.ResetTimer()
++
++	for iteration := 0; iteration < b.N; iteration++ {
++		ivekitBenchmarkSnapshot = spreader.GetDownTracks()
++	}
++}

@@ -21,13 +21,20 @@ export interface TinodeInboundDataPayload {
   head: {
     opc_message_id: string;
     opc_idempotency_key: string;
+    opc_mutation_id: string;
     replace: string;
   };
   body: string;
-  attachments: Array<Pick<
-    CollaborationMessageAttachmentInput,
-    'kind' | 'storage_url' | 'filename' | 'content_type' | 'size_bytes' | 'metadata'
-  >>;
+  attachments: TinodeInboundAttachment[];
+}
+
+export interface TinodeInboundAttachment extends Pick<
+  CollaborationMessageAttachmentInput,
+  'kind' | 'filename' | 'content_type' | 'size_bytes' | 'metadata'
+> {
+  storage_url?: string;
+  secure_file_id?: string;
+  checksum?: string;
 }
 
 export interface TinodeInboundDeletePayload {
@@ -154,6 +161,20 @@ export function describeRejectedTinodePacket(
   };
 }
 
+export function replaceTinodeInboundAttachments(
+  event: TinodeInboundNormalizedEvent & { kind: 'data' },
+  attachments: TinodeInboundAttachment[]
+): TinodeInboundNormalizedEvent & { kind: 'data' } {
+  const payload: TinodeInboundDataPayload = { ...event.payload, attachments };
+  return eventEnvelope(
+    'data',
+    event.provider_sequence,
+    0,
+    event.dedupe_key,
+    payload
+  );
+}
+
 function normalizeData(
   data: Record<string, unknown>,
   options: TinodeInboundProtocolOptions
@@ -221,6 +242,7 @@ function normalizeHead(value: unknown, sequence: number): TinodeInboundDataPaylo
   return {
     opc_message_id: safeHeader(head['x-opc-message-id']),
     opc_idempotency_key: safeHeader(head['x-opc-idempotency-key']),
+    opc_mutation_id: safeHeader(head['x-opc-mutation-id']),
     replace
   };
 }

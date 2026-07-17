@@ -1,0 +1,49 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+test('stage 2 deployment gate renders Compose and Helm with immutable images', () => {
+  const script = readFileSync('scripts/verify-ivekit-stage2-deployment.sh', 'utf8');
+  const workflow = readFileSync('.github/workflows/ivekit-stage2-ci.yml', 'utf8');
+  const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+
+  assert.equal(
+    packageJson.scripts['verify:ivekit:stage2-deployment'],
+    'sh scripts/verify-ivekit-stage2-deployment.sh'
+  );
+  assert.match(script, /docker compose[\s\S]*config --quiet/);
+  assert.match(script, /helm lint/);
+  assert.match(script, /helm template/);
+  assert.match(script, /image\.digest=sha256:/);
+  assert.match(script, /clamav\.image\.digest=sha256:/);
+  assert.match(script, /livekit\.redis\.address=redis\.shared\.example\.invalid:6379/);
+  assert.match(script, /media\.egress\.image\.repository=ivekit\/livekit-egress/);
+  assert.match(
+    script,
+    /media\.egress\.image\.repository=registry\.example\.invalid\/ivekit\/livekit-egress/
+  );
+  assert.match(
+    script,
+    /media\.egress\.image\.allowedRegistries\[0\]=registry\.example\.invalid/
+  );
+  assert.match(script, /docker\.io\/livekit\/egress/);
+  assert.match(
+    script,
+    /media\.egress\.image\.repository="\$unapproved_egress_repository"/
+  );
+  assert.match(script, /media\.egress\.image\.digest=sha256:/);
+  assert.match(script, /docker\.io\/livekit\/egress/);
+  assert.match(script, /registry-1\.docker\.io\/livekit\/egress/);
+  assert.match(script, /untrusted\.example\.invalid\/ivekit\/livekit-egress/);
+  assert.match(script, /unapproved Egress image repository unexpectedly rendered/);
+  assert.match(script, /external Egress unexpectedly rendered without shared Redis/);
+  assert.match(script, /external Egress unexpectedly rendered without a custom image digest/);
+  assert.match(script, /IVEKIT_EGRESS_POOL_NAME/);
+  assert.match(script, /test\/livekit-deployment-preflight\.test\.ts/);
+  assert.match(script, /test\/ivekit-stage2-release-evidence\.test\.ts/);
+  assert.match(workflow, /azure\/setup-helm@v5\.0\.0/);
+  assert.match(workflow, /version: v3\.18\.4/);
+  assert.match(workflow, /npm run verify:ivekit:stage2-deployment/);
+});
