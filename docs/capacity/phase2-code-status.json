@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0.0",
   "status_id": "ivekit-capacity-phase2-code-20260718",
-  "generated_at": "2026-07-18T14:14:37Z",
+  "generated_at": "2026-07-18T14:32:21Z",
   "status": "controlled_implementation_pass",
   "evidence_level": "controlled",
   "capacity_claim": "none",
   "source": {
-    "base_commit": "8edd8952b2db86b7b5d27822aa36891db894158d",
+    "base_commit": "99db59c1a4d70e968d47befaf3c605693826f6bb",
     "working_tree_dirty": false,
     "attestation_scope": "This status attests the clean source commit above; this status-file update is not part of the attested commit.",
     "generator_release_id": "not_available_until_immutable_capacity_tools_image_is_built_and_signed"
@@ -120,6 +120,14 @@
     "storage_isolation_controlled_local_livekit_restart_count": 0,
     "storage_isolation_controlled_local_storage_recovery_status": "passed_private_bucket_and_healthy_services",
     "storage_isolation_controlled_local_report_secret_safety_status": "passed_mode_0600_without_raw_endpoint_token_or_secret",
+    "storage_isolation_standalone_package_test_command": "node --import tsx --test --test-reporter=spec test/ivekit-delivery-bundle.test.ts test/livekit-storage-isolation-acceptance.test.ts",
+    "storage_isolation_standalone_package_test_status": "passed",
+    "storage_isolation_standalone_package_test_count": 19,
+    "storage_isolation_standalone_package_status": "passed_off_repository",
+    "storage_isolation_standalone_package_install_status": "passed_npm_ci_28_packages",
+    "storage_isolation_standalone_package_audit_status": "passed_zero_vulnerabilities",
+    "storage_isolation_standalone_package_dependency_resolution_status": "passed_local_playwright_livekit_client_and_livekit_server_sdk",
+    "storage_isolation_standalone_package_compose_status": "passed_single_file_and_ordered_base_overlay_with_optional_env_file",
     "storage_isolation_diff_review_status": "completed_clean",
     "storage_isolation_real_s3_outage_disk_full_media_continuity_status": "not_run",
     "livekit_server_exact_source_overlay_command": "node infra/ivekit/livekit/apply-overlay.mjs <clean-v1.13.3-source> (executed twice)",
@@ -344,6 +352,7 @@
     "rustpbx_controlled_sipp_signaling_acceptance",
     "livekit_async_recording_policy_and_egress_start",
     "livekit_two_peer_object_storage_failure_isolation_acceptance",
+    "livekit_storage_isolation_standalone_acceptance_package",
     "livekit_lock_free_downtrack_snapshot_and_small_room_serial_rtp_fanout",
     "tinode_lazy_background_timer_and_immutable_local_group_fanout",
     "rustdesk_per_session_atomic_usage_and_owned_relay_frames"
