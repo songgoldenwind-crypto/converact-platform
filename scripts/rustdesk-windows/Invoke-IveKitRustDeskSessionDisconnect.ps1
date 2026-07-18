@@ -8,6 +8,7 @@ param(
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$TargetId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$RustDeskId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$ControllerRustDeskId,
+  [ValidatePattern('^$|^[1-9][0-9]{0,18}$')][string]$NativeSessionId = $env:OPC_RUSTDESK_NATIVE_SESSION_ID,
   [Parameter(Mandatory = $true)][ValidateSet('consent_revoked', 'remote_session_ended', 'tool_ended', 'gateway_ended')][string]$Reason,
   [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$InteractionId = '',
   [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$ReservationId = '',
@@ -40,8 +41,8 @@ if ($Mode -eq 'validate') {
 
 $schemaVersion = if ($Protocol -eq 'ivekit-rustdesk-native-control-v2') { 2 } else { 1 }
 if (-not $CommandId) { $CommandId = [Guid]::NewGuid().ToString('D') }
-if ($schemaVersion -eq 2 -and (-not $InteractionId -or -not $ReservationId -or -not $OwnerEpoch)) {
-  throw 'RustDesk v2 native control requires interaction, reservation, and owner epoch.'
+if ($schemaVersion -eq 2 -and (-not $InteractionId -or -not $ReservationId -or -not $OwnerEpoch -or -not $NativeSessionId)) {
+  throw 'RustDesk v2 native control requires interaction, reservation, owner epoch, and native session ID.'
 }
 $request = [ordered]@{
   schema_version = $schemaVersion
@@ -57,6 +58,7 @@ if ($schemaVersion -eq 2) {
   $request.interaction_id = $InteractionId
   $request.reservation_id = $ReservationId
   $request.owner_epoch = $OwnerEpoch
+  $request.native_session_id = $NativeSessionId
 }
 
 $pipe = [IO.Pipes.NamedPipeClientStream]::new(
@@ -102,6 +104,10 @@ if ($schemaVersion -eq 2 -and (
     [string]$response.owner_epoch -ne $OwnerEpoch
   )) {
   [Console]::Error.WriteLine('RustDesk native control owner binding is invalid.')
+  exit 23
+}
+if ($schemaVersion -eq 2 -and [string]$response.native_session_id -ne $NativeSessionId) {
+  [Console]::Error.WriteLine('native_session_id_mismatch')
   exit 23
 }
 if ([string]$response.native_session_id -notmatch '^[1-9][0-9]{0,18}$') {

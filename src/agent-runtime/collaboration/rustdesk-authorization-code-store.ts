@@ -17,6 +17,7 @@ import type { RemoteConsentScope } from './types.js';
 export type RustDeskAuthorizationCodeStatus =
   | 'pending'
   | 'verified'
+  | 'claimed'
   | 'consumed'
   | 'expired'
   | 'locked';
@@ -67,6 +68,16 @@ interface StoredAuthorizationCode extends RustDeskAuthorizationCode {
   code_hmac: string;
   idempotency_key: string;
   request_hash: string;
+  claim_id: string | null;
+  claimed_by: string | null;
+  claimed_at: string | null;
+  claim_expires_at: string | null;
+}
+
+export interface RustDeskAuthorizationCodeClaim {
+  authorization: RustDeskAuthorizationCode;
+  claim_id: string;
+  claim_expires_at: string;
 }
 
 const SCOPES = new Set<RemoteConsentScope>([
@@ -151,7 +162,11 @@ export class RustDeskAuthorizationCodeStore {
           code_salt: codeSalt,
           code_hmac: this.codeHmac(normalized.tenant_id, id, codeSalt, code),
           idempotency_key: normalized.idempotency_key,
-          request_hash: requestHash
+          request_hash: requestHash,
+          claim_id: null,
+          claimed_by: null,
+          claimed_at: null,
+          claim_expires_at: null
         });
         return { authorization: toPublic(stored), code, replayed: false };
       }
@@ -255,6 +270,150 @@ export class RustDeskAuthorizationCodeStore {
     return authorization;
   }
 
+  async claim(input: {
+    tenant_id: string;
+    authorization_id: string;
+    verified_by: string;
+    lease_seconds?: number;
+    now?: string | Date;
+  }): Promise<RustDeskAuthorizationCodeClaim> {
+    const tenantId = required(input.tenant_id, 'tenant_id is required');
+    const authorizationId = required(input.authorization_id, 'authorization_id is required');
+    const verifiedBy = required(input.verified_by, 'verified_by is required');
+    const leaseSeconds = input.lease_seconds ?? 120;
+    if (!Number.isInteger(leaseSeconds) || leaseSeconds < 30 || leaseSeconds > 300) {
+      throw authorizationError('lease_seconds must be an integer between 30 and 300');
+    }
+    const now = validNow(input.now);
+    return withPgTenant(this.pg, tenantId, (tenantPg) => withRustDeskAuthorizationLocks(
+      tenantPg,
+      [rustDeskAuthorizationCodeLock(tenantId, authorizationId)],
+      async (pg) => {
+        const stored = await expireAndFind(pg, tenantId, authorizationId, now);
+        if (!stored) throw authorizationError('authorization code not found', 404);
+        if (stored.status === 'claimed') {
+          throw authorizationError('authorization code is already claimed by an upstream launch', 409);
+        }
+        if (stored.status !== 'verified' || stored.verified_by !== verifiedBy) {
+          throw authorizationError('RustDesk authorization code is required or unavailable', 403);
+        }
+        const claimId = pgId('rdclaim');
+        const claimExpiresAt = new Date(Math.min(
+          now.getTime() + leaseSeconds * 1000,
+          new Date(stored.expires_at).getTime()
+        )).toISOString();
+        const claimed = await markClaimed(
+          pg,
+          tenantId,
+          authorizationId,
+          verifiedBy,
+          claimId,
+          now.toISOString(),
+          claimExpiresAt
+        );
+        return {
+          authorization: toPublic(claimed),
+          claim_id: claimId,
+          claim_expires_at: claimExpiresAt
+        };
+      }
+    ));
+  }
+
+  async assertClaimed(input: {
+    tenant_id: string;
+    authorization_id: string;
+    verified_by: string;
+    claim_id: string;
+    now?: string | Date;
+  }): Promise<RustDeskAuthorizationCode> {
+    const authorization = await this.get({
+      tenant_id: input.tenant_id,
+      authorization_id: input.authorization_id,
+      now: input.now
+    });
+    const stored = authorization
+      ? await withPgTenant(this.pg, input.tenant_id, (pg) => findById(pg, input.tenant_id, input.authorization_id))
+      : null;
+    if (
+      !authorization || !stored || authorization.status !== 'claimed' ||
+      authorization.verified_by !== input.verified_by || stored.claimed_by !== input.verified_by ||
+      stored.claim_id !== input.claim_id
+    ) {
+      throw authorizationError('RustDesk authorization claim is stale or unavailable', 409);
+    }
+    return authorization;
+  }
+
+  async releaseClaim(input: {
+    tenant_id: string;
+    authorization_id: string;
+    verified_by: string;
+    claim_id: string;
+    now?: string | Date;
+  }): Promise<RustDeskAuthorizationCode> {
+    const tenantId = required(input.tenant_id, 'tenant_id is required');
+    const authorizationId = required(input.authorization_id, 'authorization_id is required');
+    const verifiedBy = required(input.verified_by, 'verified_by is required');
+    const claimId = required(input.claim_id, 'claim_id is required');
+    const now = validNow(input.now);
+    return withPgTenant(this.pg, tenantId, (tenantPg) => withRustDeskAuthorizationLocks(
+      tenantPg,
+      [rustDeskAuthorizationCodeLock(tenantId, authorizationId)],
+      async (pg) => {
+        const stored = await expireAndFind(pg, tenantId, authorizationId, now);
+        if (!stored) throw authorizationError('authorization code not found', 404);
+        if (stored.status === 'verified' && !stored.claim_id) return toPublic(stored);
+        if (
+          stored.status !== 'claimed' || stored.claim_id !== claimId ||
+          stored.claimed_by !== verifiedBy || stored.verified_by !== verifiedBy
+        ) {
+          throw authorizationError('RustDesk authorization claim is stale or has another claim owner', 409);
+        }
+        return toPublic(await markClaimReleased(
+          pg, tenantId, authorizationId, verifiedBy, claimId, now.toISOString()
+        ));
+      }
+    ));
+  }
+
+  async consumeClaim(input: {
+    tenant_id: string;
+    authorization_id: string;
+    verified_by: string;
+    claim_id: string;
+    external_id: string;
+    now?: string | Date;
+  }): Promise<RustDeskAuthorizationCode> {
+    const tenantId = required(input.tenant_id, 'tenant_id is required');
+    const authorizationId = required(input.authorization_id, 'authorization_id is required');
+    const verifiedBy = required(input.verified_by, 'verified_by is required');
+    const claimId = required(input.claim_id, 'claim_id is required');
+    const externalId = required(input.external_id, 'external_id is required');
+    const now = validNow(input.now);
+    return withPgTenant(this.pg, tenantId, (tenantPg) => withRustDeskAuthorizationLocks(
+      tenantPg,
+      [rustDeskAuthorizationCodeLock(tenantId, authorizationId)],
+      async (pg) => {
+        const stored = await expireAndFind(pg, tenantId, authorizationId, now);
+        if (!stored) throw authorizationError('authorization code not found', 404);
+        if (
+          stored.status === 'consumed' && stored.verified_by === verifiedBy &&
+          stored.consumed_external_id === externalId
+        ) return toPublic(stored);
+        if (
+          stored.status !== 'claimed' || stored.claim_id !== claimId ||
+          stored.claimed_by !== verifiedBy || stored.verified_by !== verifiedBy
+        ) {
+          throw authorizationError('RustDesk authorization claim is stale or has another claim owner', 409);
+        }
+        return toPublic(await markClaimConsumed(
+          pg, tenantId, authorizationId, verifiedBy, claimId, externalId, now.toISOString()
+        ));
+      }
+    ));
+  }
+
   async consume(input: {
     tenant_id: string;
     authorization_id: string;
@@ -338,11 +497,28 @@ async function expireAndFind(
 ): Promise<StoredAuthorizationCode | null> {
   await pg.query(
     `UPDATE rustdesk_authorization_codes
-     SET status = 'expired', updated_at = $3
+     SET status = 'expired', claim_id = NULL, claimed_by = NULL,
+         claimed_at = NULL, claim_expires_at = NULL, updated_at = $3
      WHERE tenant_id = $1 AND id = $2
-       AND status IN ('pending', 'verified') AND expires_at <= $3`,
+       AND status IN ('pending', 'verified', 'claimed') AND expires_at <= $3`,
     [tenantId, authorizationId, now.toISOString()]
   );
+  await pg.query(
+    `UPDATE rustdesk_authorization_codes
+     SET status = 'verified', claim_id = NULL, claimed_by = NULL,
+         claimed_at = NULL, claim_expires_at = NULL, updated_at = $3
+     WHERE tenant_id = $1 AND id = $2 AND status = 'claimed'
+       AND claim_expires_at <= $3 AND expires_at > $3`,
+    [tenantId, authorizationId, now.toISOString()]
+  );
+  return findById(pg, tenantId, authorizationId);
+}
+
+async function findById(
+  pg: PgQueryable,
+  tenantId: string,
+  authorizationId: string
+): Promise<StoredAuthorizationCode | null> {
   const result = await pg.query(
     `SELECT * FROM rustdesk_authorization_codes
      WHERE tenant_id = $1 AND id = $2
@@ -446,6 +622,71 @@ async function markConsumed(
   return decodeStored(result.rows[0]);
 }
 
+async function markClaimed(
+  pg: PgQueryable,
+  tenantId: string,
+  authorizationId: string,
+  verifiedBy: string,
+  claimId: string,
+  now: string,
+  claimExpiresAt: string
+): Promise<StoredAuthorizationCode> {
+  const result = await pg.query(
+    `UPDATE rustdesk_authorization_codes
+     SET status = 'claimed', claim_id = $4, claimed_by = $3,
+         claimed_at = $5, claim_expires_at = $6, updated_at = $5
+     WHERE tenant_id = $1 AND id = $2 AND status = 'verified' AND verified_by = $3
+     RETURNING *`,
+    [tenantId, authorizationId, verifiedBy, claimId, now, claimExpiresAt]
+  );
+  if (!result.rows[0]) throw authorizationError('authorization code could not be claimed', 409);
+  return decodeStored(result.rows[0]);
+}
+
+async function markClaimReleased(
+  pg: PgQueryable,
+  tenantId: string,
+  authorizationId: string,
+  verifiedBy: string,
+  claimId: string,
+  now: string
+): Promise<StoredAuthorizationCode> {
+  const result = await pg.query(
+    `UPDATE rustdesk_authorization_codes
+     SET status = 'verified', claim_id = NULL, claimed_by = NULL,
+         claimed_at = NULL, claim_expires_at = NULL, updated_at = $5
+     WHERE tenant_id = $1 AND id = $2 AND status = 'claimed'
+       AND verified_by = $3 AND claimed_by = $3 AND claim_id = $4
+     RETURNING *`,
+    [tenantId, authorizationId, verifiedBy, claimId, now]
+  );
+  if (!result.rows[0]) throw authorizationError('RustDesk authorization claim is stale', 409);
+  return decodeStored(result.rows[0]);
+}
+
+async function markClaimConsumed(
+  pg: PgQueryable,
+  tenantId: string,
+  authorizationId: string,
+  verifiedBy: string,
+  claimId: string,
+  externalId: string,
+  now: string
+): Promise<StoredAuthorizationCode> {
+  const result = await pg.query(
+    `UPDATE rustdesk_authorization_codes
+     SET status = 'consumed', consumed_external_id = $5, consumed_at = $6,
+         claim_id = NULL, claimed_by = NULL, claimed_at = NULL,
+         claim_expires_at = NULL, updated_at = $6
+     WHERE tenant_id = $1 AND id = $2 AND status = 'claimed'
+       AND verified_by = $3 AND claimed_by = $3 AND claim_id = $4
+     RETURNING *`,
+    [tenantId, authorizationId, verifiedBy, claimId, externalId, now]
+  );
+  if (!result.rows[0]) throw authorizationError('RustDesk authorization claim could not be consumed', 409);
+  return decodeStored(result.rows[0]);
+}
+
 function normalizeCreateInput(input: CreateRustDeskAuthorizationCodeInput) {
   const scopes = normalizeScopes(input.scopes);
   const ttlSeconds = input.ttl_seconds ?? 300;
@@ -506,7 +747,11 @@ function decodeStored(row: Record<string, unknown>): StoredAuthorizationCode {
     code_salt: String(row.code_salt),
     code_hmac: String(row.code_hmac),
     idempotency_key: String(row.idempotency_key),
-    request_hash: String(row.request_hash)
+    request_hash: String(row.request_hash),
+    claim_id: row.claim_id ? String(row.claim_id) : null,
+    claimed_by: row.claimed_by ? String(row.claimed_by) : null,
+    claimed_at: row.claimed_at ? timestamp(row.claimed_at) : null,
+    claim_expires_at: row.claim_expires_at ? timestamp(row.claim_expires_at) : null
   };
 }
 

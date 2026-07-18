@@ -2,7 +2,7 @@
 # Render runtime configs with `npm run render:livekit-edge` before starting.
 services:
   caddy:
-    image: livekit/caddyl4:${LIVEKIT_CADDYL4_IMAGE_TAG:?LIVEKIT_CADDYL4_IMAGE_TAG is required}
+    image: ${LIVEKIT_CADDYL4_IMAGE:?LIVEKIT_CADDYL4_IMAGE immutable digest reference is required}
     command: run --config /etc/caddy.yaml --adapter yaml
     restart: unless-stopped
     network_mode: "host"
@@ -11,7 +11,7 @@ services:
       - livekit_caddy_data:/data
 
   livekit:
-    image: livekit/livekit-server:${LIVEKIT_SERVER_IMAGE_TAG:?LIVEKIT_SERVER_IMAGE_TAG is required}
+    image: ${LIVEKIT_SERVER_IMAGE:?LIVEKIT_SERVER_IMAGE immutable digest reference is required}
     command: --config /etc/livekit.yaml
     restart: unless-stopped
     network_mode: "host"
@@ -22,7 +22,7 @@ services:
         condition: service_healthy
 
   redis:
-    image: redis:${LIVEKIT_REDIS_IMAGE_TAG:?LIVEKIT_REDIS_IMAGE_TAG is required}
+    image: ${LIVEKIT_REDIS_IMAGE:?LIVEKIT_REDIS_IMAGE immutable digest reference is required}
     command: redis-server /etc/redis.conf
     restart: unless-stopped
     network_mode: "host"
@@ -36,7 +36,7 @@ services:
       retries: 20
 
   egress:
-    image: livekit/egress:${LIVEKIT_EGRESS_IMAGE_TAG:?LIVEKIT_EGRESS_IMAGE_TAG is required}
+    image: ${LIVEKIT_EGRESS_IMAGE:?LIVEKIT_EGRESS_IMAGE immutable digest reference is required}
     restart: unless-stopped
     network_mode: "host"
     environment:

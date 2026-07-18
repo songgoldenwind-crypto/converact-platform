@@ -350,3 +350,138 @@ test('OpenAPI publishes RustDesk targeted disconnect and native evidence edge co
   for (const path of commandLifecyclePaths) assert.ok(openapi.paths[path], path);
   assert.ok(openapi.paths['/api/ivekit/rustdesk/devices/{device_id}/observations'].post);
 });
+
+test('OpenAPI covers every public Voice, IVR, and Contact Center SDK route', () => {
+  const openapi = parse(readFileSync('docs/openapi.yaml', 'utf8')) as any;
+  const routes: Record<string, string[]> = {
+    '/api/ivekit/voice/capabilities': ['get'],
+    '/api/ivekit/voice/profiles': ['get', 'post'],
+    '/api/ivekit/voice/profiles/{profile_id}': ['get', 'patch'],
+    '/api/ivekit/voice/profiles/{profile_id}/preflight': ['post'],
+    '/api/ivekit/voice/profiles/{profile_id}/capabilities': ['get'],
+    '/api/ivekit/voice/trunks': ['get', 'post'],
+    '/api/ivekit/voice/trunks/{trunk_id}': ['get', 'patch'],
+    '/api/ivekit/voice/trunks/{trunk_id}/apply': ['post'],
+    '/api/ivekit/voice/trunks/{trunk_id}/test': ['post'],
+    '/api/ivekit/voice/dids': ['get', 'post'],
+    '/api/ivekit/voice/dids/{did_id}': ['get', 'patch'],
+    '/api/ivekit/voice/dids/{did_id}/apply': ['post'],
+    '/api/ivekit/voice/extensions': ['get', 'post'],
+    '/api/ivekit/voice/extensions/{extension_id}': ['get', 'patch'],
+    '/api/ivekit/voice/extensions/{extension_id}/apply': ['post'],
+    '/api/ivekit/voice/extensions/{extension_id}/session': ['post'],
+    '/api/ivekit/voice/routes': ['get', 'post'],
+    '/api/ivekit/voice/routes/{route_id}': ['get', 'patch'],
+    '/api/ivekit/voice/routes/{route_id}/validate': ['post'],
+    '/api/ivekit/voice/routes/{route_id}/versions': ['get'],
+    '/api/ivekit/voice/routes/{route_id}/publish': ['post'],
+    '/api/ivekit/voice/parking-slots': ['get'],
+    '/api/ivekit/voice/calls': ['get', 'post'],
+    '/api/ivekit/voice/calls/{call_id}': ['get'],
+    '/api/ivekit/voice/calls/{call_id}/actions': ['post'],
+    '/api/ivekit/voice/calls/{call_id}/livekit-bridge': ['post'],
+    '/api/ivekit/voice/calls/{call_id}/events': ['get'],
+    '/api/ivekit/voice/calls/{call_id}/recordings': ['get'],
+    '/api/ivekit/voice/calls/{call_id}/bridges': ['get'],
+    '/api/ivekit/voice/calls/{call_id}/participants': ['get'],
+    '/api/ivekit/voice/policy': ['get', 'patch'],
+    '/api/ivekit/voice/consents': ['get', 'post'],
+    '/api/ivekit/voice/recordings': ['get'],
+    '/api/ivekit/ivr/flows': ['get', 'post'],
+    '/api/ivekit/ivr/flows/{flow_id}': ['get', 'patch'],
+    '/api/ivekit/ivr/flows/{flow_id}/versions': ['get'],
+    '/api/ivekit/ivr/flows/{flow_id}/validate': ['post'],
+    '/api/ivekit/ivr/flows/{flow_id}/publish': ['post'],
+    '/api/ivekit/ivr/flows/{flow_id}/rollback': ['post'],
+    '/api/ivekit/ivr/simulations': ['post'],
+    '/api/ivekit/ivr/sessions': ['get', 'post'],
+    '/api/ivekit/ivr/sessions/{session_id}': ['get'],
+    '/api/ivekit/ivr/sessions/{session_id}/advance': ['post'],
+    '/api/ivekit/ivr/audio-assets': ['get', 'post'],
+    '/api/ivekit/ivr/audio-assets/{resource_id}': ['get', 'patch'],
+    '/api/ivekit/ivr/time-groups': ['get', 'post'],
+    '/api/ivekit/ivr/time-groups/{resource_id}': ['get', 'patch'],
+    '/api/ivekit/ivr/region-groups': ['get', 'post'],
+    '/api/ivekit/ivr/region-groups/{resource_id}': ['get', 'patch'],
+    '/api/ivekit/ivr/ring-groups': ['get', 'post'],
+    '/api/ivekit/ivr/ring-groups/{resource_id}': ['get', 'patch'],
+    '/api/ivekit/ivr/settings': ['get', 'patch'],
+    '/api/ivekit/contact-center/capabilities': ['get'],
+    '/api/ivekit/contact-center/monitor': ['get'],
+    '/api/ivekit/contact-center/supervisor/actions': ['post'],
+    '/api/ivekit/contact-center/callbacks': ['get', 'post'],
+    '/api/ivekit/contact-center/callbacks/{callback_id}': ['get'],
+    '/api/ivekit/contact-center/callbacks/{callback_id}/cancel': ['post'],
+    '/api/ivekit/contact-center/skills': ['get', 'post'],
+    '/api/ivekit/contact-center/skills/{skill_id}': ['get', 'patch'],
+    '/api/ivekit/contact-center/agents': ['get', 'post'],
+    '/api/ivekit/contact-center/agents/{agent_id}': ['get', 'patch'],
+    '/api/ivekit/contact-center/agents/{agent_id}/presence': ['post'],
+    '/api/ivekit/contact-center/agents/{agent_id}/skills': ['get', 'put'],
+    '/api/ivekit/contact-center/queues': ['get', 'post'],
+    '/api/ivekit/contact-center/queues/{queue_id}': ['get', 'patch'],
+    '/api/ivekit/contact-center/queues/{queue_id}/memberships': ['get', 'post'],
+    '/api/ivekit/contact-center/queues/{queue_id}/memberships/{agent_id}': ['delete'],
+    '/api/ivekit/contact-center/queues/{queue_id}/skill-requirements': ['get', 'put'],
+    '/api/ivekit/contact-center/queues/{queue_id}/entries': ['get'],
+    '/api/ivekit/contact-center/routing/assignments': ['post'],
+    '/api/ivekit/contact-center/assignments/{assignment_id}/{action}': ['post']
+  };
+
+  for (const [path, methods] of Object.entries(routes)) {
+    assert.ok(openapi.paths[path], `missing OpenAPI path: ${path}`);
+    for (const method of methods) {
+      const operation = openapi.paths[path][method];
+      assert.ok(operation, `missing OpenAPI operation: ${method.toUpperCase()} ${path}`);
+      assert.equal(typeof operation.operationId, 'string', `missing operationId: ${method.toUpperCase()} ${path}`);
+      assert.ok(operation.responses, `missing responses: ${method.toUpperCase()} ${path}`);
+    }
+  }
+
+  const session = openapi.paths['/api/ivekit/voice/extensions/{extension_id}/session'].post;
+  assert.deepEqual(session.parameters, [
+    { $ref: '#/components/parameters/VoiceExtensionId' },
+    { $ref: '#/components/parameters/IdempotencyKey' }
+  ]);
+  assert.equal(
+    session.responses['201'].content['application/json'].schema.$ref,
+    '#/components/schemas/IveKitVoiceExtensionSessionPlan'
+  );
+  const plan = openapi.components.schemas.IveKitVoiceExtensionSessionPlan;
+  assert.equal(plan.properties.transport.const, 'wss');
+  assert.equal(plan.properties.websocket_url.format, 'uri');
+  assert.ok(plan.required.includes('authorization_password'));
+  assert.match(plan.description, /must not be logged|不得记录/i);
+});
+
+test('OpenAPI publishes RustPBX provider webhooks and recording spool ingestion', () => {
+  const openapi = parse(readFileSync('docs/openapi.yaml', 'utf8')) as any;
+  const routes: Record<string, string> = {
+    '/api/ivekit/voice/providers/{profile_id}/router': 'post',
+    '/api/ivekit/voice/providers/{profile_id}/inbound-admission': 'post',
+    '/api/ivekit/voice/providers/{profile_id}/events': 'post',
+    '/api/ivekit/voice/providers/{profile_id}/cdrs': 'post',
+    '/api/ivekit/voice/providers/{profile_id}/recording-spool/segments': 'post',
+    '/api/ivekit/voice/providers/{profile_id}/recording-spool/segments/{segment_id}/parts': 'get',
+    '/api/ivekit/voice/providers/{profile_id}/recording-spool/segments/{segment_id}/parts/{part_number}': 'put',
+    '/api/ivekit/voice/providers/{profile_id}/recording-spool/segments/{segment_id}/complete': 'post',
+    '/api/ivekit/voice/providers/{profile_id}/recording-spool/recordings/{recording_id}/complete': 'post',
+    '/api/ivekit/ivr/provider-webhooks/rustpbx/{profile_id}/step': 'post'
+  };
+  for (const [path, method] of Object.entries(routes)) {
+    const operation = openapi.paths[path]?.[method];
+    assert.ok(operation, `${method.toUpperCase()} ${path}`);
+    assert.deepEqual(operation.security, [{ RustPbxServiceKey: [] }]);
+    assert.match(operation.description, /HMAC|X-PBX-Key/i);
+    assert.equal(typeof operation.operationId, 'string');
+    assert.ok(operation.responses);
+  }
+  const upload = openapi.paths[
+    '/api/ivekit/voice/providers/{profile_id}/recording-spool/segments/{segment_id}/parts/{part_number}'
+  ].put;
+  assert.ok(upload.parameters.some((entry: any) =>
+    entry.$ref === '#/components/parameters/ContentSha256'
+  ));
+  assert.equal(upload.requestBody.content['application/octet-stream'].schema.type, 'string');
+  assert.equal(openapi.components.securitySchemes.RustPbxServiceKey.name, 'X-PBX-Key');
+});

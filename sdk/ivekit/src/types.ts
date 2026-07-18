@@ -222,6 +222,7 @@ export interface RemoteGatewayAuditEvent {
 export type RustDeskAuthorizationCodeStatus =
   | 'pending'
   | 'verified'
+  | 'claimed'
   | 'consumed'
   | 'expired'
   | 'locked';

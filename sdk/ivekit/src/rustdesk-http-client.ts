@@ -734,7 +734,7 @@ export function projectRustDeskAuthorizationCode(value: unknown): RustDeskAuthor
     expires_at: policyTimestamp(row.expires_at, 'expires_at'),
     max_attempts: maxAttempts,
     attempt_count: attemptCount,
-    status: policyEnum(row.status, ['pending', 'verified', 'consumed', 'expired', 'locked'] as const, 'status'),
+    status: policyEnum(row.status, ['pending', 'verified', 'claimed', 'consumed', 'expired', 'locked'] as const, 'status'),
     verified_by: nullableAuthorizationString(row.verified_by, 'verified_by'),
     verified_at: policyNullableTimestamp(row.verified_at, 'verified_at'),
     consumed_external_id: nullableAuthorizationString(row.consumed_external_id, 'consumed_external_id'),

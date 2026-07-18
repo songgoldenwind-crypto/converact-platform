@@ -161,6 +161,11 @@ test('iveKit RustDesk command claim and lifecycle are fenced by the current plac
       claim.data.command.native_control_protocol,
       'ivekit-rustdesk-native-control-v2'
     );
+    assert.match(String(claim.data.command.native_session_id), /^[1-9][0-9]{0,18}$/);
+    assert.equal(
+      claim.data.command.native_session_id,
+      fixture.session.metadata.ivekit_native_session_id
+    );
     assert.deepEqual(claim.data.owner_binding, owner);
     assert.deepEqual({
       interaction_id: claim.data.command.interaction_id,

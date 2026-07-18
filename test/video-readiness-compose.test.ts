@@ -17,6 +17,9 @@ const K8S_HELPERS_PATH = new URL('../infra/k8s/templates/_helpers.tpl', import.m
 const K8S_AI_AGENT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/ai-agent-deployment.yaml', import.meta.url);
 const K8S_FRONTEND_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/frontend-deployment.yaml', import.meta.url);
 const K8S_RUSTPBX_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/rustpbx-deployment.yaml', import.meta.url);
+const K8S_POSTGRES_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/postgres-statefulset.yaml', import.meta.url);
+const K8S_REDIS_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/redis-deployment.yaml', import.meta.url);
+const K8S_NATS_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/nats-statefulset.yaml', import.meta.url);
 const K8S_SECRETS_PATH = new URL('../infra/k8s/templates/secrets.yaml', import.meta.url);
 const K8S_VALUES_PATH = new URL('../infra/k8s/values.yaml', import.meta.url);
 const K8S_LIVEKIT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/livekit-deployment.yaml', import.meta.url);
@@ -286,9 +289,10 @@ test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on
 
 test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and RustDesk', () => {
   const compose = readFileSync(IVEKIT_APPLICATION_COMPOSE_PATH, 'utf8');
+  const envExample = readFileSync(new URL('../infra/ivekit/env.example', import.meta.url), 'utf8');
 
   const postgres = readServiceBlock(compose, 'postgres');
-  assert.match(postgres, /image: postgres:\$\{IVEKIT_POSTGRES_IMAGE_TAG:\?IVEKIT_POSTGRES_IMAGE_TAG is required\}/);
+  assert.match(postgres, /image: \$\{IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required\}/);
   assert.doesNotMatch(postgres, /\n\s+ports:/);
   assert.match(postgres, /postgres_data:\/var\/lib\/postgresql\/data/);
   assert.equal(readServiceEnvironment(compose, 'postgres').POSTGRES_USER, 'opc_admin');
@@ -303,11 +307,11 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   assert.match(migrate, /postgres-runtime-role:\n\s+condition: service_completed_successfully/);
 
   const redis = readServiceBlock(compose, 'redis');
-  assert.match(redis, /image: redis:\$\{IVEKIT_REDIS_IMAGE_TAG:\?IVEKIT_REDIS_IMAGE_TAG is required\}/);
+  assert.match(redis, /image: \$\{IVEKIT_REDIS_IMAGE:\?IVEKIT_REDIS_IMAGE immutable digest reference is required\}/);
   assert.doesNotMatch(redis, /\n\s+ports:/);
 
   const tinode = readServiceBlock(compose, 'tinode');
-  assert.match(tinode, /image: tinode\/tinode:\$\{TINODE_IMAGE_TAG:\?TINODE_IMAGE_TAG is required\}/);
+  assert.match(tinode, /image: \$\{TINODE_IMAGE:\?TINODE_IMAGE immutable digest reference is required\}/);
   assert.match(tinode, /"127\.0\.0\.1:\$\{TINODE_HTTP_PORT:-6060\}:6060"/);
   assert.equal(readServiceEnvironment(compose, 'tinode').STORE_USE_ADAPTER, 'postgres');
   assert.equal(readServiceEnvironment(compose, 'tinode').PGPASSWORD, '${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}');
@@ -350,10 +354,20 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
 
   for (const service of ['rustdesk-hbbs', 'rustdesk-hbbr']) {
     const block = readServiceBlock(compose, service);
-    assert.match(block, /rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:\?RUSTDESK_SERVER_IMAGE_TAG is required\}/);
+    assert.match(block, /image: \$\{RUSTDESK_SERVER_IMAGE:\?RUSTDESK_SERVER_IMAGE immutable digest reference is required\}/);
     assert.match(block, /network_mode: "host"/);
     assert.doesNotMatch(block, /:latest/);
   }
+
+  for (const variable of [
+    'IVEKIT_POSTGRES_IMAGE=postgres:16.10-alpine3.22',
+    'IVEKIT_REDIS_IMAGE=redis:7.4.9',
+    'TINODE_IMAGE=tinode/tinode:0.25.3',
+    'RUSTDESK_SERVER_IMAGE=rustdesk/rustdesk-server:1.1.15'
+  ]) {
+    assert.match(envExample, new RegExp(`^${variable.replaceAll('.', '\\.')}@sha256:[a-f0-9]{64}$`, 'm'));
+  }
+  assert.doesNotMatch(envExample, /^IVEKIT_(?:POSTGRES|REDIS)_IMAGE_TAG=/m);
 
   assert.match(compose, /name: \$\{OPC_MEDIA_DOCKER_NETWORK:-ivekit-media_default\}/);
   assert.doesNotMatch(compose, /OPC_DB_PATH|sqlite/i);
@@ -895,7 +909,7 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(livekit, /name: {{ \.Release\.Name }}-livekit-config/);
   assert.match(livekit, /kind: Deployment/);
   assert.match(livekit, /name: {{ \.Release\.Name }}-livekit/);
-  assert.match(livekit, /\.Values\.livekit\.image\.repository/);
+  assert.match(livekit, /include "opc\.livekitImage"/);
   assert.match(livekit, /containerPort: 7880/);
   assert.match(livekit, /kind: Service/);
   assert.match(livekit, /port: 7880/);
@@ -956,7 +970,7 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
 
   assert.match(sip, /kind: Deployment/);
   assert.match(sip, /name: {{ \.Release\.Name }}-livekit-sip/);
-  assert.match(sip, /\.Values\.media\.sip\.image\.repository/);
+  assert.match(sip, /include "opc\.livekitSipImage"/);
   assert.match(sip, /include "opc\.livekitInternalUrl"/);
   assert.match(sip, /SIP_PORT/);
   assert.match(sip, /containerPort: 5061/);
@@ -975,7 +989,7 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(values, /^  deploymentMode: external$/m);
   assert.match(values, /^  redis:\n    address: ""\n    username: ""\n    password: ""\n    db: 0\n    useTLS: false$/m);
   assert.match(values, /^  publicUrl: ""$/m);
-  assert.match(values, /tag: v1\.13\.3/);
+  assert.doesNotMatch(values.slice(values.indexOf('livekit:'), values.indexOf('\n\nvoice:')), /tag:/);
   assert.match(values, /upstreamTag: v1\.13\.0/);
   assert.match(values, /^      digest: ""$/m);
   assert.match(values, /^    prometheusPort: 9090$/m);
@@ -984,7 +998,7 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(values, /^      composite:$/m);
   assert.match(values, /^        autoscaling:$/m);
   assert.match(values, /^          storageSize: 200Gi$/m);
-  assert.match(values, /tag: v1\.6\.0/);
+  assert.doesNotMatch(values.slice(values.indexOf('  sip:\n', values.indexOf('media:\n')), values.indexOf('\n\ntinode:')), /tag:/);
   assert.match(helpers, /define "opc\.livekitInternalUrl"/);
   assert.match(helpers, /livekit\.url is required when livekit\.enabled=false/);
   assert.match(helpers, /define "opc\.livekitPublicUrl"/);
@@ -1055,6 +1069,33 @@ test('Kubernetes chart fails closed unless OPC application images use immutable 
   );
 });
 
+test('Kubernetes chart renders every bundled infrastructure image by immutable digest', () => {
+  const helpers = readFileSync(K8S_HELPERS_PATH, 'utf8');
+  const values = readFileSync(K8S_VALUES_PATH, 'utf8');
+  const templates = {
+    postgres: readFileSync(K8S_POSTGRES_DEPLOYMENT_PATH, 'utf8'),
+    redis: readFileSync(K8S_REDIS_DEPLOYMENT_PATH, 'utf8'),
+    nats: readFileSync(K8S_NATS_DEPLOYMENT_PATH, 'utf8'),
+    livekit: readFileSync(K8S_LIVEKIT_DEPLOYMENT_PATH, 'utf8'),
+    livekitSip: readFileSync(K8S_SIP_DEPLOYMENT_PATH, 'utf8'),
+    rustdesk: readFileSync(K8S_RUSTDESK_DEPLOYMENT_PATH, 'utf8'),
+  };
+
+  for (const component of Object.keys(templates)) {
+    assert.match(helpers, new RegExp(`define "opc\\.${component}Image"`));
+    assert.match(helpers, new RegExp(`immutable sha256 digest`));
+    assert.match(templates[component as keyof typeof templates], new RegExp(`include "opc\\.${component}Image"`));
+    assert.doesNotMatch(templates[component as keyof typeof templates], /image:\s*[^\n]*:[^@\s"}]+\s*$/m);
+  }
+
+  for (const section of ['postgres', 'redis', 'nats', 'livekit', 'rustdesk']) {
+    const start = values.indexOf(`${section}:\n`);
+    const end = values.indexOf('\n\n', start);
+    assert.match(values.slice(start, end), /image:\n\s+repository: [^\n]+\n\s+digest: ""/);
+  }
+  assert.match(values, /sip:\n[\s\S]*?image:\n\s+repository: livekit\/sip\n\s+digest: ""/);
+});
+
 test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   const rustdesk = readFileSync(K8S_RUSTDESK_DEPLOYMENT_PATH, 'utf8');
   const opc = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
@@ -1069,7 +1110,7 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   assert.match(rustdesk, /command: \["hbbs"\]/);
   assert.match(rustdesk, /name: hbbr/);
   assert.match(rustdesk, /command: \["hbbr"\]/);
-  assert.match(rustdesk, /\.Values\.rustdesk\.image\.repository/);
+  assert.match(rustdesk, /include "opc\.rustdeskImage"/);
   assert.match(rustdesk, /containerPort: 21115/);
   assert.match(rustdesk, /containerPort: 21116/);
   assert.match(rustdesk, /protocol: UDP/);
@@ -1083,11 +1124,11 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
 
   assert.match(values, /^rustdesk:/m);
   assert.match(values, /repository: rustdesk\/rustdesk-server/);
-  assert.match(values, /^    tag: 1\.1\.15$/m);
-  assert.doesNotMatch(values.slice(values.indexOf('rustdesk:')), /^    tag: latest$/m);
+  assert.match(values, /^  serverVersion: "1\.1\.15"$/m);
+  assert.match(values.slice(values.indexOf('rustdesk:')), /^    digest: ""$/m);
   assert.match(values, /alwaysUseRelay: "N"/);
   for (const [envName, valuePath] of [
-    ['RUSTDESK_SERVER_IMAGE_TAG', 'rustdesk.image.tag'],
+    ['RUSTDESK_SERVER_IMAGE_TAG', 'rustdesk.serverVersion'],
     ['OPC_RUSTDESK_CLIENT_VERSION', 'rustdesk.clientVersion'],
     ['OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS', 'rustdesk.clientProfileTtlSeconds'],
     ['OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON', 'rustdesk.clientArtifactsJson']
@@ -1095,7 +1136,7 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
     assert.match(opc, new RegExp(`name: ${envName}\\n\\s+value: \\{\\{ \\.Values\\.${valuePath.replaceAll('.', '\\.')}`));
   }
   assert.doesNotMatch(opc, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
-  assert.match(rustdesk, /image: "{{ \.Values\.rustdesk\.image\.repository }}:{{ \.Values\.rustdesk\.image\.tag }}"/);
+  assert.match(rustdesk, /image: {{ include "opc\.rustdeskImage" \. \| quote }}/);
   assert.match(values, /^  clientVersion: "1\.4\.7"$/m);
   assert.match(values, /^  clientProfileTtlSeconds: "900"$/m);
   assert.match(values, /^  clientArtifactsJson: ""$/m);

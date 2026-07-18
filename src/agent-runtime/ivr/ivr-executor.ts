@@ -218,6 +218,8 @@ export interface IvrStepInput {
   bargeInDigits?: string;
   queueEvent?: QueueAdvanceEvent;
   transferEvent?: TransferAdvanceEvent;
+  /** Live media runtimes dispatch transfer to the provider and resume from transferEvent. */
+  deferTransferToProvider?: boolean;
   aiDialogueResult?: AiDialogueResult;
   /** Phase C — voice sessions cannot enter video nodes */
   mediaType?: IvrMediaType;

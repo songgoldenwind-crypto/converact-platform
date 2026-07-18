@@ -31,7 +31,7 @@ spec:
       hostNetwork: {{ .Values.rustdesk.hostNetwork | default false }}
       containers:
         - name: hbbs
-          image: "{{ .Values.rustdesk.image.repository }}:{{ .Values.rustdesk.image.tag }}"
+          image: {{ include "opc.rustdeskImage" . | quote }}
           imagePullPolicy: {{ .Values.rustdesk.image.pullPolicy | default "IfNotPresent" }}
           command: ["hbbs"]
           env:
@@ -56,7 +56,7 @@ spec:
           resources:
             {{- toYaml .Values.rustdesk.resources | nindent 12 }}
         - name: hbbr
-          image: "{{ .Values.rustdesk.image.repository }}:{{ .Values.rustdesk.image.tag }}"
+          image: {{ include "opc.rustdeskImage" . | quote }}
           imagePullPolicy: {{ .Values.rustdesk.image.pullPolicy | default "IfNotPresent" }}
           command: ["hbbr"]
           ports:

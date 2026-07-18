@@ -213,6 +213,17 @@ curl -fsS http://127.0.0.1:3000/metrics
 当前源码补丁、静态发现和告警合同已验证；真实 RTP 连续性、队列溢出、录音缺口标记和恢复仍为
 `not_run`，必须在服务器媒体基准中补齐。
 
+### IveKitRustPbxSessionCleanup
+
+`IveKitRustPbxSessionCleanupDegraded` 表示会话已经从实时媒体状态中移除，但播放轨道、MCU 或桥接
+资源的后台清理超过截止时间，或者有界清理并发已耗尽。实时命令循环不会等待这些对象，现有通话
+和新呼叫应继续；该告警不等于通话中断，但可能留下需要操作系统最终回收的资源。
+
+保存 `rustpbx_media_session_cleanup_total` 的 `outcome`、Pod CPU/内存/FD、媒体任务数、磁盘挂载延迟
+和同时间窗会话销毁速率。先停止向异常 Pod 接纳新会话并 drain，再排查卡住的播放源、MCU 任务、
+文件系统或驱动。不要单纯调大清理并发；只有确认是正常突发且单任务延迟健康时，才调整
+`media_session_cleanup_concurrency`。真实超时注入和 RTP 连续性验收仍为 `not_run`。
+
 ### IveKitIvrActionFailures
 
 按 action kind 和错误码检查音频资源、输入收集、queue/transfer/webhook 依赖。发布中的 IVR revision 不可原地修改，修复应产生新 revision。

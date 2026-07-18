@@ -1,7 +1,7 @@
 # Reusable iveKit application plane. Pair with the standalone Media Core in infra/livekit.
 services:
   postgres:
-    image: postgres:${IVEKIT_POSTGRES_IMAGE_TAG:?IVEKIT_POSTGRES_IMAGE_TAG is required}
+    image: ${IVEKIT_POSTGRES_IMAGE:?IVEKIT_POSTGRES_IMAGE immutable digest reference is required}
     restart: unless-stopped
     environment:
       POSTGRES_USER: opc_admin
@@ -16,7 +16,7 @@ services:
       retries: 30
 
   postgres-runtime-role:
-    image: postgres:${IVEKIT_POSTGRES_IMAGE_TAG:?IVEKIT_POSTGRES_IMAGE_TAG is required}
+    image: ${IVEKIT_POSTGRES_IMAGE:?IVEKIT_POSTGRES_IMAGE immutable digest reference is required}
     entrypoint: ["sh", "/bootstrap/init-postgres-runtime-role.sh"]
     restart: "no"
     environment:
@@ -33,7 +33,7 @@ services:
         condition: service_healthy
 
   redis:
-    image: redis:${IVEKIT_REDIS_IMAGE_TAG:?IVEKIT_REDIS_IMAGE_TAG is required}
+    image: ${IVEKIT_REDIS_IMAGE:?IVEKIT_REDIS_IMAGE immutable digest reference is required}
     command: redis-server --appendonly yes --protected-mode yes
     restart: unless-stopped
     volumes:
@@ -59,7 +59,7 @@ services:
         condition: service_completed_successfully
 
   tinode:
-    image: tinode/tinode:${TINODE_IMAGE_TAG:?TINODE_IMAGE_TAG is required}
+    image: ${TINODE_IMAGE:?TINODE_IMAGE immutable digest reference is required}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${TINODE_HTTP_PORT:-6060}:6060"
@@ -335,7 +335,7 @@ services:
       retries: 30
 
   rustdesk-hbbs:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:?RUSTDESK_SERVER_IMAGE_TAG is required}
+    image: ${RUSTDESK_SERVER_IMAGE:?RUSTDESK_SERVER_IMAGE immutable digest reference is required}
     command: hbbs
     network_mode: "host"
     restart: unless-stopped
@@ -347,7 +347,7 @@ services:
       - rustdesk-hbbr
 
   rustdesk-hbbr:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:?RUSTDESK_SERVER_IMAGE_TAG is required}
+    image: ${RUSTDESK_SERVER_IMAGE:?RUSTDESK_SERVER_IMAGE immutable digest reference is required}
     command: hbbr
     network_mode: "host"
     restart: unless-stopped

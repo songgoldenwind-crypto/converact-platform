@@ -27,6 +27,10 @@ const validEnv = {
   OPC_IVEKIT_RATE_LIMIT_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
 };
 
+test('readiness requires the RustDesk authorization claim upgrade', () => {
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '095_rustdesk_authorization_claims');
+});
+
 test('readiness executes SQL, verifies migrations, and reports nonblocking provider degradation', async () => {
   const result = await createIveKitReadinessProbe({ pg: new ReadyPg(), env: validEnv }).probe();
   assert.equal(result.status, 'ready');

@@ -75,6 +75,24 @@ test('startIvrSession returns null when no flow configured', () => {
   assert.equal(session, null);
 });
 
+test('startIvrSession fails closed for draft or publish-blocked flows', () => {
+  const db = createDatabase(':memory:');
+  const tenant = createTenant(db, { name: 'IVR publish gate' });
+  const store = new IvrFlowStore(db);
+  const draft = store.saveFlow(tenant.id, 'ivr_draft', 'Draft', sampleGraph);
+  assert.equal(startIvrSession(db, tenant.id, 'call-draft', draft.id), null);
+
+  const blockedGraph: IvrFlowGraph = {
+    ...sampleGraph,
+    edges: sampleGraph.edges.filter((edge) => edge.sourceHandle !== 'timeout'),
+  };
+  const blocked = store.saveFlow(tenant.id, 'ivr_blocked', 'Blocked', blockedGraph);
+  store.publishFlow(tenant.id, blocked.id);
+
+  assert.equal(startIvrSession(db, tenant.id, 'call-explicit-blocked', blocked.id), null);
+  assert.equal(startIvrSession(db, tenant.id, 'call-default-blocked'), null);
+});
+
 test('advanceIvrStep executes start then play walks to menu', async () => {
   const { db, tenantId, flowId } = setupWithFlow();
   const session = startIvrSession(db, tenantId, 'call-1', flowId);

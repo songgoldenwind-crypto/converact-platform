@@ -624,9 +624,12 @@ test('collaboration HTTP exposes an iveKit RustDesk facade for LED integration',
     assert.equal(launchPlan.data.status, 'active');
     assert.equal(launchPlan.data.runtime.rustdesk_id, '123456789');
     assert.equal(launchPlan.data.actions.can_launch, true);
+    const protocolUrl = new URL(launchPlan.data.actions.protocol_url);
+    assert.equal(protocolUrl.pathname, '/123456789');
+    assert.equal(protocolUrl.searchParams.get('session'), tool.data.external_id);
     assert.equal(
-      launchPlan.data.actions.protocol_url,
-      `rustdesk://connect/123456789?session=${encodeURIComponent(tool.data.external_id)}`
+      protocolUrl.searchParams.get('ivekit_session_id'),
+      tool.data.metadata.ivekit_native_session_id
     );
 
     const initialAudit = (await route(
@@ -3030,9 +3033,12 @@ test('collaboration HTTP exposes RustDesk control-plane session routes', async (
     assert.equal(launchPlan.data.client_config.public_key_source, 'env');
     assert.equal(launchPlan.data.actions.can_launch, true);
     assert.equal(launchPlan.data.actions.open_url, created.data.launch_url);
+    const protocolUrl = new URL(launchPlan.data.actions.protocol_url);
+    assert.equal(protocolUrl.pathname, '/123456789');
+    assert.equal(protocolUrl.searchParams.get('session'), created.data.external_id);
     assert.equal(
-      launchPlan.data.actions.protocol_url,
-      `rustdesk://connect/123456789?session=${encodeURIComponent(created.data.external_id)}`
+      protocolUrl.searchParams.get('ivekit_session_id'),
+      created.data.metadata.ivekit_native_session_id
     );
     assert.match(launchPage.html, /RustDesk Remote Launch/);
     assert.match(launchPage.html, new RegExp(created.data.external_id));

@@ -1,5 +1,5 @@
 /**
- * Remaining IVR hardening: optimistic session revision, barge-in gate,
+ * Remaining IVR hardening: optimistic session revision, deterministic barge-in,
  * production side-effects reuse, busy/no_answer contract.
  */
 import assert from 'node:assert/strict';
@@ -8,7 +8,6 @@ import { createDatabase } from '../src/db.js';
 import { createTenant } from '../src/platform/tenant-core.js';
 import { IvrSessionStore } from '../src/agent-runtime/ivr/ivr-session-store.js';
 import { createProductionSideEffects, clearProductionSideEffectsCache } from '../src/agent-runtime/ivr/ivr-production-effects.js';
-import { isBargeInProductionEnabled } from '../src/agent-runtime/ivr/ivr-production-gates.js';
 import { advanceIvrStep } from '../src/agent-runtime/ivr/ivr-inbound-routing.js';
 import { createRuntimeContext, advanceSingleStep } from '../src/agent-runtime/ivr/ivr-executor.js';
 import { IvrFlowStore } from '../src/agent-runtime/ivr/ivr-flow-store.js';
@@ -80,13 +79,7 @@ test('session upsert optimistic revision: stale write throws 409', () => {
   assert.equal(store.get('call-rev', tenant.id)?.step_count, 2);
 });
 
-test('isBargeInProductionEnabled reads IVR_BARGE_IN_PRODUCTION', () => {
-  assert.equal(isBargeInProductionEnabled(), false);
-  process.env.IVR_BARGE_IN_PRODUCTION = '1';
-  assert.equal(isBargeInProductionEnabled(), true);
-});
-
-test('production advance: plain dtmf during queued gather ignored when barge-in gate off', async () => {
+test('production advance: plain dtmf follows graph barge-in without a process-local gate', async () => {
   delete process.env.IVR_BARGE_IN_PRODUCTION;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Barge gate off' });
@@ -151,12 +144,11 @@ test('production advance: plain dtmf during queued gather ignored when barge-in 
   };
 
   const step = await advanceIvrStep(state, db, { dtmf: '1' });
-  // Gate off: dtmf is NOT rewritten to bargeInDigits; queued audio remains.
-  assert.equal(step.state.context.pendingDigits, undefined);
-  assert.ok((step.state.context.audioQueue?.length ?? 0) > 0);
+  assert.equal(step.state.context.pendingDigits, '1');
+  assert.equal(step.state.context.audioQueue?.length ?? 0, 0);
 });
 
-test('production advance: plain dtmf during queued gather becomes barge-in when gate on', async () => {
+test('production advance: deprecated barge-in env cannot change graph semantics', async () => {
   process.env.IVR_BARGE_IN_PRODUCTION = '1';
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Barge gate on' });

@@ -1762,6 +1762,463 @@ paths:
         '401': { description: Timestamp or signature invalid }
         '429': { description: Provider, tenant, or source IP receipt limit exceeded }
 
+  /api/ivekit/voice/capabilities:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetCapabilities, summary: Get runtime Voice capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/profiles:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListProfiles, summary: List Voice deployment profiles, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateProfile, summary: Create a Voice deployment profile, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/voice/profiles/{profile_id}:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetProfile, summary: Get a Voice deployment profile, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateProfile, summary: Update a Voice deployment profile with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/profiles/{profile_id}/preflight:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoicePreflightProfile, summary: Probe and persist effective provider capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/profiles/{profile_id}/capabilities:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetProfileCapabilities, summary: Get the effective provider capability snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/trunks:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListTrunks, summary: List SIP trunks, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateTrunk, summary: Create a SIP trunk, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/voice/trunks/{trunk_id}:
+    parameters: [{ $ref: '#/components/parameters/VoiceTrunkId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetTrunk, summary: Get a SIP trunk, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateTrunk, summary: Update a SIP trunk with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/trunks/{trunk_id}/apply:
+    parameters: [{ $ref: '#/components/parameters/VoiceTrunkId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceApplyTrunk, summary: Enqueue a durable trunk apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+  /api/ivekit/voice/trunks/{trunk_id}/test:
+    parameters: [{ $ref: '#/components/parameters/VoiceTrunkId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceTestTrunk, summary: Enqueue a durable trunk test command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+  /api/ivekit/voice/dids:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListDids, summary: List DIDs, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateDid, summary: Create a DID, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/voice/dids/{did_id}:
+    parameters: [{ $ref: '#/components/parameters/VoiceDidId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetDid, summary: Get a DID, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateDid, summary: Update a DID with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/dids/{did_id}/apply:
+    parameters: [{ $ref: '#/components/parameters/VoiceDidId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceApplyDid, summary: Enqueue a durable DID apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+  /api/ivekit/voice/extensions:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListExtensions, summary: List Voice extensions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateExtension, summary: Create a Voice extension, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/voice/extensions/{extension_id}:
+    parameters: [{ $ref: '#/components/parameters/VoiceExtensionId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetExtension, summary: Get a Voice extension, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateExtension, summary: Update a Voice extension with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/extensions/{extension_id}/apply:
+    parameters: [{ $ref: '#/components/parameters/VoiceExtensionId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceApplyExtension, summary: Enqueue a durable extension apply command, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+  /api/ivekit/voice/extensions/{extension_id}/session:
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceCreateExtensionSession
+      summary: Issue a short-lived browser WebPhone session plan
+      description: |
+        Returns a PostgreSQL-idempotent WSS and SIP registration plan. The JWT is bound to the
+        active extension and expires in at most five minutes. The websocket URL query token and
+        authorization password are ephemeral secrets and must not be logged, persisted, placed in
+        analytics, or rendered into the DOM. Reverse proxies must redact the query string.
+      parameters:
+        - { $ref: '#/components/parameters/VoiceExtensionId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      responses:
+        '201':
+          description: Short-lived WebPhone session plan
+          headers:
+            Cache-Control: { schema: { type: string }, description: Clients and proxies should treat this response as no-store }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitVoiceExtensionSessionPlan' }
+        '409': { description: The idempotency key was reused with different or expired input }
+        '503': { description: WebPhone capability is disabled or unavailable }
+  /api/ivekit/voice/routes:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListRoutes, summary: List Voice routes, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateRoute, summary: Create a Voice route draft, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/voice/routes/{route_id}:
+    parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetRoute, summary: Get a Voice route, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdateRoute, summary: Update a Voice route draft with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/routes/{route_id}/validate:
+    parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceValidateRoute, summary: Validate and hash Voice route rules, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/routes/{route_id}/versions:
+    parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListRouteVersions, summary: List immutable Voice route versions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/routes/{route_id}/publish:
+    parameters: [{ $ref: '#/components/parameters/VoiceRouteId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoicePublishRoute, summary: Publish and apply a Voice route version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+  /api/ivekit/voice/parking-slots:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListParkingSlots, summary: List durable call parking slots, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/calls:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCalls, summary: List Voice calls, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceCreateOutboundCall
+      summary: Create and place an outbound Voice call
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } }
+  /api/ivekit/voice/calls/{call_id}:
+    parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetCall, summary: Get a Voice call snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/calls/{call_id}/actions:
+    parameters: [{ $ref: '#/components/parameters/VoiceCallId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceEnqueueCallAction, summary: Enqueue a fenced durable call-control action, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+  /api/ivekit/voice/calls/{call_id}/livekit-bridge:
+    parameters: [{ $ref: '#/components/parameters/VoiceCallId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateLiveKitBridge, summary: Enqueue a LiveKit SIP bridge command, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '202': { $ref: '#/components/responses/IveKitAccepted' } } }
+  /api/ivekit/voice/calls/{call_id}/events:
+    parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallEvents, summary: List normalized provider events for a call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/calls/{call_id}/recordings:
+    parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallRecordings, summary: List recordings for a Voice call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/calls/{call_id}/bridges:
+    parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallBridges, summary: List LiveKit bridges for a Voice call, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/calls/{call_id}/participants:
+    parameters: [{ $ref: '#/components/parameters/VoiceCallId' }]
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListCallParticipants, summary: List Voice call participants, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/policy:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceGetPolicy, summary: Get tenant Voice compliance policy, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Voice], operationId: iveKitVoiceUpdatePolicy, summary: Update tenant Voice compliance policy, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/voice/consents:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListConsents, summary: List Voice consent records, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit Voice], operationId: iveKitVoiceCreateConsent, summary: Create a Voice consent evidence record, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/voice/recordings:
+    get: { tags: [iveKit Voice], operationId: iveKitVoiceListRecordings, summary: List tenant Voice recordings, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+
+  /api/ivekit/ivr/flows:
+    get: { tags: [iveKit IVR], operationId: iveKitIvrListFlows, summary: List IVR flows, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateFlow, summary: Create an IVR flow draft, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/ivr/flows/{flow_id}:
+    parameters: [{ $ref: '#/components/parameters/IvrFlowId' }]
+    get: { tags: [iveKit IVR], operationId: iveKitIvrGetFlow, summary: Get an IVR flow, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateFlow, summary: Update an IVR flow draft with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/flows/{flow_id}/versions:
+    parameters: [{ $ref: '#/components/parameters/IvrFlowId' }]
+    get: { tags: [iveKit IVR], operationId: iveKitIvrListVersions, summary: List immutable IVR flow versions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/flows/{flow_id}/validate:
+    parameters: [{ $ref: '#/components/parameters/IvrFlowId' }]
+    post: { tags: [iveKit IVR], operationId: iveKitIvrValidateFlow, summary: Validate and compile an IVR flow, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/flows/{flow_id}/publish:
+    parameters: [{ $ref: '#/components/parameters/IvrFlowId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit IVR], operationId: iveKitIvrPublishFlow, summary: Publish an IVR flow version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/flows/{flow_id}/rollback:
+    parameters: [{ $ref: '#/components/parameters/IvrFlowId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+    post: { tags: [iveKit IVR], operationId: iveKitIvrRollbackFlow, summary: Publish a rollback IVR flow version, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/simulations:
+    post: { tags: [iveKit IVR], operationId: iveKitIvrSimulate, summary: Simulate an IVR flow without provider side effects, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/sessions:
+    get: { tags: [iveKit IVR], operationId: iveKitIvrListSessions, summary: List IVR runtime sessions, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit IVR], operationId: iveKitIvrStartSession, summary: Start a durable IVR runtime session, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/ivr/sessions/{session_id}:
+    parameters: [{ $ref: '#/components/parameters/IveKitSessionId' }]
+    get: { tags: [iveKit IVR], operationId: iveKitIvrGetSession, summary: Get an IVR session and step history, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/sessions/{session_id}/advance:
+    parameters: [{ $ref: '#/components/parameters/IveKitSessionId' }]
+    post: { tags: [iveKit IVR], operationId: iveKitIvrAdvanceSession, summary: Advance an IVR session with sequence and action fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/audio-assets:
+    get: { tags: [iveKit IVR], operationId: iveKitIvrListAudioAssets, summary: List IVR audio assets, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateAudioAsset, summary: Create an IVR audio asset, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/ivr/audio-assets/{resource_id}:
+    parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
+    get: { tags: [iveKit IVR], operationId: iveKitIvrGetAudioAsset, summary: Get an IVR audio asset, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateAudioAsset, summary: Update an IVR audio asset, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/time-groups:
+    get: { tags: [iveKit IVR], operationId: iveKitIvrListTimeGroups, summary: List IVR time groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateTimeGroup, summary: Create an IVR time group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/ivr/time-groups/{resource_id}:
+    parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
+    get: { tags: [iveKit IVR], operationId: iveKitIvrGetTimeGroup, summary: Get an IVR time group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateTimeGroup, summary: Update an IVR time group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/region-groups:
+    get: { tags: [iveKit IVR], operationId: iveKitIvrListRegionGroups, summary: List IVR region groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateRegionGroup, summary: Create an IVR region group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/ivr/region-groups/{resource_id}:
+    parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
+    get: { tags: [iveKit IVR], operationId: iveKitIvrGetRegionGroup, summary: Get an IVR region group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateRegionGroup, summary: Update an IVR region group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/ring-groups:
+    get: { tags: [iveKit IVR], operationId: iveKitIvrListRingGroups, summary: List IVR ring groups, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit IVR], operationId: iveKitIvrCreateRingGroup, summary: Create an IVR ring group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '201': { $ref: '#/components/responses/IveKitCreated' } } }
+  /api/ivekit/ivr/ring-groups/{resource_id}:
+    parameters: [{ $ref: '#/components/parameters/IvrResourceId' }]
+    get: { tags: [iveKit IVR], operationId: iveKitIvrGetRingGroup, summary: Get an IVR ring group, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateRingGroup, summary: Update an IVR ring group, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/ivr/settings:
+    get: { tags: [iveKit IVR], operationId: iveKitIvrGetSettings, summary: Get tenant IVR settings, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit IVR], operationId: iveKitIvrUpdateSettings, summary: Update tenant IVR settings, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+
+  /api/ivekit/contact-center/capabilities:
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetCapabilities, summary: Get runtime Contact Center capabilities, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/monitor:
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetMonitorSnapshot, summary: Get the queue and agent monitor snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/supervisor/actions:
+    post:
+      tags: [iveKit Contact Center]
+      operationId: iveKitContactCenterSupervisorAction
+      summary: Start or end a capability-gated supervisor session
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses: { '200': { $ref: '#/components/responses/IveKitOk' }, '201': { $ref: '#/components/responses/IveKitCreated' } }
+  /api/ivekit/contact-center/callbacks:
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListCallbacks, summary: List callback requests, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post:
+      tags: [iveKit Contact Center]
+      operationId: iveKitContactCenterRequestCallback
+      summary: Create an encrypted durable callback request
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
+  /api/ivekit/contact-center/callbacks/{callback_id}:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterCallbackId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetCallback, summary: Get a callback request, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/callbacks/{callback_id}/cancel:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterCallbackId' }]
+    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterCancelCallback, summary: Cancel a callback request, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/skills:
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListSkills, summary: List routing skills, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post:
+      tags: [iveKit Contact Center]
+      operationId: iveKitContactCenterCreateSkill
+      summary: Create a routing skill
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
+  /api/ivekit/contact-center/skills/{skill_id}:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterSkillId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetSkill, summary: Get a routing skill, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdateSkill, summary: Update a routing skill with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/agents:
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListAgents, summary: List Contact Center agents, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post:
+      tags: [iveKit Contact Center]
+      operationId: iveKitContactCenterCreateAgent
+      summary: Create a Contact Center agent
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
+  /api/ivekit/contact-center/agents/{agent_id}:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterAgentId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetAgent, summary: Get a Contact Center agent snapshot, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdateAgent, summary: Update an agent with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/agents/{agent_id}/presence:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterAgentId' }]
+    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdatePresence, summary: Update self or administratively managed agent presence, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/agents/{agent_id}/skills:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterAgentId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListAgentSkills, summary: List skills assigned to an agent, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    put: { tags: [iveKit Contact Center], operationId: iveKitContactCenterReplaceAgentSkills, summary: Replace skills assigned to an agent, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/queues:
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListQueues, summary: List ACD queues, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post:
+      tags: [iveKit Contact Center]
+      operationId: iveKitContactCenterCreateQueue
+      summary: Create an ACD queue
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses: { '201': { $ref: '#/components/responses/IveKitCreated' } }
+  /api/ivekit/contact-center/queues/{queue_id}:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterGetQueue, summary: Get an ACD queue configuration, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    patch: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpdateQueue, summary: Update an ACD queue with revision fencing, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/queues/{queue_id}/memberships:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListMemberships, summary: List queue memberships, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterUpsertMembership, summary: Add or update a queue membership, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/queues/{queue_id}/memberships/{agent_id}:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }, { $ref: '#/components/parameters/ContactCenterAgentId' }]
+    delete: { tags: [iveKit Contact Center], operationId: iveKitContactCenterRemoveMembership, summary: Remove a queue membership, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/queues/{queue_id}/skill-requirements:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListQueueSkillRequirements, summary: List queue skill requirements, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+    put: { tags: [iveKit Contact Center], operationId: iveKitContactCenterReplaceQueueSkillRequirements, summary: Replace queue skill requirements, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/queues/{queue_id}/entries:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterQueueId' }]
+    get: { tags: [iveKit Contact Center], operationId: iveKitContactCenterListQueueEntries, summary: List queue entries and assignment history, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+  /api/ivekit/contact-center/routing/assignments:
+    post:
+      tags: [iveKit Contact Center]
+      operationId: iveKitContactCenterOfferNext
+      summary: Atomically offer the next eligible queue entry
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses: { '201': { $ref: '#/components/responses/IveKitCreated' }, '204': { description: No eligible queue entry } }
+  /api/ivekit/contact-center/assignments/{assignment_id}/{action}:
+    parameters: [{ $ref: '#/components/parameters/ContactCenterAssignmentId' }, { $ref: '#/components/parameters/ContactCenterAssignmentAction' }]
+    post: { tags: [iveKit Contact Center], operationId: iveKitContactCenterActOnAssignment, summary: Accept reject connect or complete an assignment, requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }, responses: { '200': { $ref: '#/components/responses/IveKitOk' } } }
+
+  /api/ivekit/voice/providers/{profile_id}/router:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderResolveRoute
+      summary: Resolve an authenticated RustPBX inbound route
+      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Tenant identity is derived from the deployment profile and cannot be supplied by the caller.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/IveKitOk' }
+        '401': { description: Provider authentication failed }
+        '404': { description: No active route matched the provider request }
+
+  /api/ivekit/voice/providers/{profile_id}/inbound-admission:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderAdmitInboundCall
+      summary: Reserve capacity for an authenticated RustPBX inbound call
+      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Admission is idempotent for the provider call identity and fails closed when durable placement is unavailable.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/IveKitOk' }
+        '401': { description: Provider authentication failed }
+        '429': { description: Cell or tenant capacity is exhausted }
+        '503': { description: Durable placement or admission control is unavailable }
+
+  /api/ivekit/voice/providers/{profile_id}/events:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderIngestEvent
+      summary: Ingest an authenticated RustPBX call event
+      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Provider event identity and canonical payload hashing make replay idempotent.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '202': { $ref: '#/components/responses/IveKitAccepted' }
+        '401': { description: Provider authentication failed }
+
+  /api/ivekit/voice/providers/{profile_id}/cdrs:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderIngestCdr
+      summary: Ingest an authenticated RustPBX call detail record
+      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Provider record identity and canonical payload hashing make replay idempotent.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '202': { $ref: '#/components/responses/IveKitAccepted' }
+        '401': { description: Provider authentication failed }
+
+  /api/ivekit/voice/providers/{profile_id}/recording-spool/segments:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderRegisterRecordingSegment
+      summary: Register an owner-fenced RustPBX recording segment
+      description: Authenticated with X-PBX-Key or timestamped HMAC headers. This asynchronous evidence path is isolated from RTP and call control, so upload or storage failure never blocks an active call.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '200': { description: Identical segment manifest replay }
+        '201': { $ref: '#/components/responses/IveKitCreated' }
+        '401': { description: Provider authentication failed }
+        '409': { description: Segment owner, topology, or manifest fence conflict }
+        '503': { description: Recording intake is unavailable; real-time media continues independently }
+
+  /api/ivekit/voice/providers/{profile_id}/recording-spool/segments/{segment_id}/parts:
+    parameters:
+      - { $ref: '#/components/parameters/VoiceProfileId' }
+      - { $ref: '#/components/parameters/VoiceRecordingSegmentId' }
+    get:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderListRecordingSegmentParts
+      summary: List accepted parts for a RustPBX recording segment
+      description: Authenticated with X-PBX-Key or timestamped HMAC headers. The uploader uses this endpoint to resume after interruption without involving the active media session.
+      security: [{ RustPbxServiceKey: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/IveKitOk' }
+        '401': { description: Provider authentication failed }
+        '404': { description: Segment not found }
+
+  /api/ivekit/voice/providers/{profile_id}/recording-spool/segments/{segment_id}/parts/{part_number}:
+    parameters:
+      - { $ref: '#/components/parameters/VoiceProfileId' }
+      - { $ref: '#/components/parameters/VoiceRecordingSegmentId' }
+      - { $ref: '#/components/parameters/VoiceRecordingPartNumber' }
+    put:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderUploadRecordingSegmentPart
+      summary: Upload one resumable RustPBX recording segment part
+      description: Authenticated with X-PBX-Key or timestamped HMAC headers. The service streams and verifies the declared SHA-256; storage failure is confined to recording evidence and never backpressures RTP.
+      security: [{ RustPbxServiceKey: [] }]
+      parameters: [{ $ref: '#/components/parameters/ContentSha256' }]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '200': { description: Identical part replay }
+        '201': { description: Part accepted and durably persisted }
+        '401': { description: Provider authentication failed }
+        '409': { description: Lease, part hash, or owner fence conflict }
+        '413': { description: Part exceeds the configured maximum size }
+        '503': { description: Recording intake is unavailable; real-time media continues independently }
+
+  /api/ivekit/voice/providers/{profile_id}/recording-spool/segments/{segment_id}/complete:
+    parameters:
+      - { $ref: '#/components/parameters/VoiceProfileId' }
+      - { $ref: '#/components/parameters/VoiceRecordingSegmentId' }
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderCompleteRecordingSegment
+      summary: Verify and seal a RustPBX recording segment
+      description: Authenticated with X-PBX-Key or timestamped HMAC headers. Completion verifies byte count and SHA-256 independently from call control.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/IveKitOk' }
+        '401': { description: Provider authentication failed }
+        '409': { description: Segment is incomplete or its digest does not match }
+
+  /api/ivekit/voice/providers/{profile_id}/recording-spool/recordings/{recording_id}/complete:
+    parameters:
+      - { $ref: '#/components/parameters/VoiceProfileId' }
+      - { $ref: '#/components/parameters/VoiceRecordingId' }
+    post:
+      tags: [iveKit Voice]
+      operationId: iveKitVoiceProviderCompleteRecording
+      summary: Seal a complete RustPBX recording manifest
+      description: Authenticated with X-PBX-Key or timestamped HMAC headers. Completion requires a contiguous owner-fenced segment sequence but remains outside the real-time call path.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/IveKitOk' }
+        '401': { description: Provider authentication failed }
+        '409': { description: Recording topology or segment continuity validation failed }
+
+  /api/ivekit/ivr/provider-webhooks/rustpbx/{profile_id}/step:
+    parameters: [{ $ref: '#/components/parameters/VoiceProfileId' }]
+    post:
+      tags: [iveKit IVR]
+      operationId: iveKitIvrProviderAdvanceStep
+      summary: Advance a RustPBX Step IVR session
+      description: Authenticated with X-PBX-Key or the timestamped iveKit HMAC headers. Sequence and action revision fencing make provider retries deterministic.
+      security: [{ RustPbxServiceKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/IveKitJsonInput' }
+      responses:
+        '200':
+          description: Next executable RustPBX action node
+          headers:
+            x-ivekit-ivr-session-id: { schema: { type: string }, description: Durable IVR session identity }
+            x-ivekit-ivr-session-state: { schema: { type: string }, description: Current IVR session state }
+            x-ivekit-ivr-replayed: { schema: { type: boolean }, description: Whether this event sequence was replayed }
+            x-ivekit-ivr-event-sequence: { schema: { type: integer, minimum: 0 }, description: Accepted provider event sequence }
+            x-ivekit-ivr-action-revision: { schema: { type: integer, minimum: 1 }, description: Returned action fence revision }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitJsonValue' }
+        '401': { description: Provider authentication failed }
+        '409': { description: Event sequence or action revision conflict }
+
+
 webhooks:
   iveKitIntegrationEvent:
     post:
@@ -1818,6 +2275,11 @@ components:
       type: apiKey
       in: header
       name: X-RustDesk-Edge-Token
+    RustPbxServiceKey:
+      type: apiKey
+      in: header
+      name: X-PBX-Key
+      description: Static RustPBX service-key mode. Deployments may instead use X-ivekit-timestamp and X-ivekit-signature HMAC authentication over the exact raw request body.
 
   parameters:
     IveKitSessionId:
@@ -1890,7 +2352,98 @@ components:
       in: query
       schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
 
+    VoiceProfileId: { name: profile_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceTrunkId: { name: trunk_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceDidId: { name: did_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceExtensionId: { name: extension_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceRouteId: { name: route_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceCallId: { name: call_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceRecordingSegmentId: { name: segment_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceRecordingId: { name: recording_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    VoiceRecordingPartNumber: { name: part_number, in: path, required: true, schema: { type: integer, minimum: 1, maximum: 10000 } }
+    IvrFlowId: { name: flow_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    IvrResourceId: { name: resource_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    ContactCenterCallbackId: { name: callback_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    ContactCenterSkillId: { name: skill_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    ContactCenterAgentId: { name: agent_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    ContactCenterQueueId: { name: queue_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    ContactCenterAssignmentId: { name: assignment_id, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+    ContactCenterAssignmentAction: { name: action, in: path, required: true, schema: { type: string, enum: [accept, reject, connect, complete] } }
+
+  requestBodies:
+    IveKitJsonInput:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+          description: Use the strongly typed @opc/ivekit-sdk input for this operation. Tenant and actor identity come from authentication and cannot be overridden in the body.
+
+  responses:
+    IveKitOk:
+      description: Successful iveKit response body.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/IveKitJsonValue' }
+    IveKitCreated:
+      description: Resource created.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/IveKitJsonValue' }
+    IveKitAccepted:
+      description: Durable command accepted. Poll the resource or consume iveKit events for the terminal outcome.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/IveKitJsonValue' }
+
   schemas:
+    IveKitJsonValue:
+      description: Direct JSON response value. The TypeScript SDK owns the detailed additive domain type; the HTTP server does not add a data envelope.
+
+    IveKitVoiceExtensionSessionPlan:
+      type: object
+      additionalProperties: false
+      description: Ephemeral browser registration plan. The websocket query token and authorization password must not be logged or persisted.
+      required: [session_id, extension_id, transport, websocket_url, address_of_record, authorization_username, authorization_password, expires_at, register_expires_seconds, ice_servers, capabilities]
+      properties:
+        session_id: { type: string, minLength: 1, maxLength: 200 }
+        extension_id: { type: string, minLength: 1, maxLength: 200 }
+        transport: { type: string, const: wss }
+        websocket_url: { type: string, format: uri, pattern: '^wss://' }
+        address_of_record: { type: string, pattern: '^sip:[0-9]{1,20}@' }
+        authorization_username: { type: string, pattern: '^[0-9]{1,20}$' }
+        authorization_password: { type: string, minLength: 32, writeOnly: true }
+        display_name: { type: string }
+        expires_at: { type: string, format: date-time }
+        register_expires_seconds: { type: integer, minimum: 30, maximum: 295 }
+        ice_servers:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            additionalProperties: false
+            required: [urls]
+            properties:
+              urls:
+                oneOf:
+                  - { type: string, pattern: '^(stun|stuns|turn|turns):' }
+                  - { type: array, minItems: 1, maxItems: 8, items: { type: string, pattern: '^(stun|stuns|turn|turns):' } }
+              username: { type: string, maxLength: 256 }
+              credential: { type: string, maxLength: 512, writeOnly: true }
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [incoming, outgoing, dtmf, hold, transfer, audio_input, audio_output]
+          properties:
+            incoming: { type: boolean }
+            outgoing: { type: boolean }
+            dtmf: { type: boolean }
+            hold: { type: boolean }
+            transfer: { type: boolean }
+            audio_input: { type: boolean }
+            audio_output: { type: boolean }
+
     IveKitEventVisibility:
       type: object
       additionalProperties: false
@@ -3327,3 +3880,6 @@ tags:
   - name: iveKit Notifications
   - name: iveKit RustDesk
   - name: iveKit RustDesk Edge
+  - name: iveKit Voice
+  - name: iveKit IVR
+  - name: iveKit Contact Center

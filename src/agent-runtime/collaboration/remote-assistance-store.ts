@@ -43,6 +43,7 @@ interface PendingGatewayAuthorization {
   policy_version?: number;
   authorization_id?: string;
   authorization_verified_by?: string;
+  authorization_claim_id?: string;
 }
 
 export class RemoteAssistanceStore {
@@ -453,6 +454,17 @@ export class RemoteAssistanceStore {
         authorization_id: input.authorization_id,
         metadata
       });
+      if (authorization.authorization_id) {
+        const claimed = await new RustDeskAuthorizationCodeStore(this.pg).claim({
+          tenant_id: input.tenant_id,
+          authorization_id: authorization.authorization_id,
+          verified_by: authorization.authorization_verified_by || input.actor_identity
+        });
+        authorization = {
+          ...authorization,
+          authorization_claim_id: claimed.claim_id
+        };
+      }
     } else {
       const consent = await this.assertActiveConsent(input.remote_session_id, input.permissions);
       authorization = { consent_event_id: consent.id, access_mode: 'attended' };
@@ -463,28 +475,50 @@ export class RemoteAssistanceStore {
       actor_identity: input.actor_identity,
       metadata
     };
-    const gateway = input.client.createAuthorizedSession
-      ? await input.client.createAuthorizedSession(createInput, {
-        tenant_id: input.tenant_id,
-        remote_session_id: input.remote_session_id,
-        device_id: input.device_id,
-        authorization_id: input.authorization_id,
-        access_mode: accessMode
-      })
-      : await input.client.createSession(createInput);
+    let gateway: RemoteGatewaySessionInput;
+    try {
+      gateway = input.client.createAuthorizedSession
+        ? await input.client.createAuthorizedSession(createInput, {
+          tenant_id: input.tenant_id,
+          remote_session_id: input.remote_session_id,
+          device_id: input.device_id,
+          authorization_id: input.authorization_id,
+          authorization_claim_id: authorization.authorization_claim_id,
+          access_mode: accessMode
+        })
+        : await input.client.createSession(createInput);
+    } catch (error) {
+      await this.releaseAuthorizationClaim(input, authorization);
+      throw error;
+    }
     const normalized = normalizeRemoteGatewaySession(gateway);
     try {
       return await this.activateAuthorizedGatewaySession(input, authorization, normalized);
     } catch (error) {
+      let cleaned = false;
       try {
         await input.client.endSession({
           external_id: normalized.external_id,
           actor_identity: input.actor_identity,
           reason: 'gateway_ended'
         });
-      } catch {
-        // The authorization failure remains authoritative; callers can retry cleanup separately.
+        cleaned = true;
+      } catch (cleanupError) {
+        await this.recordAudit({
+          tenant_id: input.tenant_id,
+          remote_session_id: input.remote_session_id,
+          actor_identity: input.actor_identity,
+          event_type: 'remote.rustdesk.gateway_cleanup.pending',
+          target: normalized.external_id,
+          metadata: {
+            gateway_external_id: normalized.external_id,
+            authorization_id: authorization.authorization_id || '',
+            authorization_claim_id: authorization.authorization_claim_id || '',
+            error_code: gatewayCleanupErrorCode(cleanupError)
+          }
+        });
       }
+      if (cleaned) await this.releaseAuthorizationClaim(input, authorization);
       throw error;
     }
   }
@@ -498,6 +532,7 @@ export class RemoteAssistanceStore {
     device_id?: string;
     actor_identity?: string;
     authorization_id?: string;
+    authorization_claim_id?: string;
     metadata?: Record<string, unknown>;
   }): Promise<PendingGatewayAuthorization> {
     const accessMode = rustDeskGatewayAccessMode(input.access_mode);
@@ -540,20 +575,39 @@ export class RemoteAssistanceStore {
           status: 403
         });
       }
-      const authorization = await new RustDeskAuthorizationCodeStore(this.pg).assertVerified({
-        tenant_id: input.tenant_id,
-        authorization_id: authorizationId,
-        remote_session_id: input.remote_session_id,
-        device_id: deviceId,
-        permissions: input.permissions,
-        verified_by: actorIdentity
-      });
+      const authorizationStore = new RustDeskAuthorizationCodeStore(this.pg);
+      const authorization = input.authorization_claim_id
+        ? await authorizationStore.assertClaimed({
+          tenant_id: input.tenant_id,
+          authorization_id: authorizationId,
+          verified_by: actorIdentity,
+          claim_id: input.authorization_claim_id
+        })
+        : await authorizationStore.assertVerified({
+          tenant_id: input.tenant_id,
+          authorization_id: authorizationId,
+          remote_session_id: input.remote_session_id,
+          device_id: deviceId,
+          permissions: input.permissions,
+          verified_by: actorIdentity
+        });
+      const grantedScopes = new Set(authorization.scopes);
+      if (
+        authorization.remote_session_id !== input.remote_session_id ||
+        authorization.device_id !== deviceId ||
+        input.permissions.some((permission) => !grantedScopes.has(permission))
+      ) {
+        throw Object.assign(new Error('RustDesk authorization code is required or unavailable'), {
+          status: 403
+        });
+      }
       return {
         access_mode: accessMode,
         consent_event_id: consent.id,
         device_id: deviceId,
         authorization_id: authorization.id,
-        authorization_verified_by: authorization.verified_by || undefined
+        authorization_verified_by: authorization.verified_by || undefined,
+        authorization_claim_id: input.authorization_claim_id
       };
     }
 
@@ -620,6 +674,7 @@ export class RemoteAssistanceStore {
       access_mode?: RustDeskGatewayAccessMode;
       device_id?: string;
       authorization_id?: string;
+      authorization_claim_id?: string;
       metadata?: Record<string, unknown>;
     },
     pending: PendingGatewayAuthorization,
@@ -643,6 +698,7 @@ export class RemoteAssistanceStore {
             device_id: input.device_id,
             actor_identity: input.actor_identity,
             authorization_id: input.authorization_id,
+            authorization_claim_id: pending.authorization_claim_id,
             metadata: input.metadata
           })
           : {
@@ -665,10 +721,12 @@ export class RemoteAssistanceStore {
         normalized
       });
       if (current.authorization_id) {
-        await new RustDeskAuthorizationCodeStore(pg).consume({
+        if (!current.authorization_claim_id) throw gatewayAuthorizationChanged();
+        await new RustDeskAuthorizationCodeStore(pg).consumeClaim({
           tenant_id: input.tenant_id,
           authorization_id: current.authorization_id,
           verified_by: current.authorization_verified_by || input.actor_identity,
+          claim_id: current.authorization_claim_id,
           external_id: normalized.external_id
         });
         await store.recordAudit({
@@ -686,6 +744,23 @@ export class RemoteAssistanceStore {
       }
       return tool;
     });
+  }
+
+  private async releaseAuthorizationClaim(
+    input: { tenant_id: string; actor_identity: string },
+    authorization: PendingGatewayAuthorization
+  ): Promise<void> {
+    if (!authorization.authorization_id || !authorization.authorization_claim_id) return;
+    try {
+      await new RustDeskAuthorizationCodeStore(this.pg).releaseClaim({
+        tenant_id: input.tenant_id,
+        authorization_id: authorization.authorization_id,
+        verified_by: authorization.authorization_verified_by || input.actor_identity,
+        claim_id: authorization.authorization_claim_id
+      });
+    } catch (error) {
+      console.warn('[rustdesk] authorization claim release failed:', gatewayCleanupErrorCode(error));
+    }
   }
 
   async syncGatewayAuditEvents(input: {
@@ -1125,7 +1200,14 @@ function sameGatewayAuthorization(
     pending.device_id === current.device_id &&
     pending.policy_version === current.policy_version &&
     pending.authorization_id === current.authorization_id &&
-    pending.authorization_verified_by === current.authorization_verified_by;
+    pending.authorization_verified_by === current.authorization_verified_by &&
+    pending.authorization_claim_id === current.authorization_claim_id;
+}
+
+function gatewayCleanupErrorCode(error: unknown): string {
+  const status = Number((error as { status?: unknown })?.status || 0);
+  if (Number.isInteger(status) && status >= 400 && status <= 599) return `gateway_cleanup_http_${status}`;
+  return 'gateway_cleanup_failed';
 }
 
 function gatewayAuthorizationChanged(cause?: unknown): Error & { status: number; cause?: unknown } {

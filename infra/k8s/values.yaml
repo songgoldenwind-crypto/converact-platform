@@ -59,6 +59,10 @@ frontend:
 
 postgres:
   enabled: true
+  image:
+    repository: postgres
+    digest: ""
+    pullPolicy: IfNotPresent
   connectionString: ""
   auth:
     username: opc
@@ -71,6 +75,10 @@ postgres:
 redis:
   enabled: true
   architecture: standalone
+  image:
+    repository: redis
+    digest: ""
+    pullPolicy: IfNotPresent
 
 livekit:
   enabled: false
@@ -87,7 +95,7 @@ livekit:
     useTLS: false
   image:
     repository: livekit/livekit-server
-    tag: v1.13.3
+    digest: ""
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -125,6 +133,8 @@ voice:
     incomingTransactionQueueCapacity: 8192
     maxTransportConnections: 32768
   mediaCapacity:
+    sessionCleanupConcurrency: 64
+    sessionCleanupTimeoutMs: 2000
     recordingChannelCapacity: 256
     recordingWorkerThreads: 4
     recordingWorkerQueueCapacity: 4096
@@ -146,6 +156,27 @@ voice:
   managementToken: ""
   rwiToken: ""
   webhookToken: ""
+  webphone:
+    enabled: true
+    publicWssUrl: ""
+    sipRealm: ""
+    jwtSecret: ""
+    jwtIssuer: ivekit
+    jwtAudience: rustpbx-webphone
+    ttlSeconds: "300"
+    registerExpiresSeconds: "240"
+    iceServersJson: "[]"
+    cleanup:
+      intervalMs: "60000"
+      tenantLimit: "100"
+      batchSize: "500"
+    ingress:
+      enabled: false
+      className: ""
+      annotations: {}
+      host: ""
+      path: /ws
+      tls: []
   amiAllows:
     - 127.0.0.1
   addressKey: ""
@@ -445,7 +476,7 @@ media:
     rustpbxRwiUrl: ""
     image:
       repository: livekit/sip
-      tag: v1.6.0
+      digest: ""
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
@@ -542,6 +573,7 @@ qualityReview:
 rustdesk:
   enabled: true
   provider: rustdesk
+  serverVersion: "1.1.15"
   clientVersion: "1.4.7"
   clientProfileTtlSeconds: "900"
   clientArtifactsJson: ""
@@ -589,7 +621,7 @@ rustdesk:
   hostNetwork: false
   image:
     repository: rustdesk/rustdesk-server
-    tag: 1.1.15
+    digest: ""
     pullPolicy: IfNotPresent
   service:
     type: LoadBalancer
@@ -613,6 +645,10 @@ rustdesk:
 nats:
   enabled: true
   storage: 1Gi
+  image:
+    repository: nats
+    digest: ""
+    pullPolicy: IfNotPresent
   jetstream:
     enabled: true
 

@@ -513,3 +513,40 @@ PostgreSQL harness、Helm Stage 2 `22/22` 和 PgBouncer 真实认证查询均通
 仍为 `not_run`：目标 PostgreSQL/NATS 多节点、目标 Kubernetes、生产 Registry 制品与签名、生产
 对象存储、真实 Provider、双 Windows、PSTN、真实 TURN/Egress 公网媒体以及单机/Cell/MIX-100K
 物理容量。机器可读权威状态继续使用 `docs/capacity/phase2-code-status.json`，`capacity_claim=none`。
+
+## 22. RustPBX `.10`、WebPhone 与 RustDesk 精准会话收口（2026-07-19）
+
+本节是基于提交 `a2644c09975340459feee979a773d09340207e7b` 的后续工作树复验，覆盖第 21 节之后的
+Voice、IVR、RustDesk 和交付合同变化。本节的测试计数为当前最新权威结果；旧章节中的计数只表示
+当时提交的历史证据。工作树尚未生成生产制品，因此任何源码、受控门禁或本机结果都不能提升外部
+真实环境状态。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| RustPBX 会话清理隔离 | `implemented_compiled` | 新增 `.10` session-cleanup patch。Destroy/stale reap 先把 session 从实时状态移除、暂停录音并提交去重 finalizer；播放、MCU 和 bridge 清理进入限并发、硬超时后台任务。`SessionDestroyed` 只确认实时状态移除，不确认录音持久化。`rustpbx_media_session_cleanup_total{outcome}`、Helm/Compose 参数和 `IveKitRustPbxSessionCleanupDegraded` 已接线。精确源码重放、Rust 1.94.1 macOS arm64 `cargo check --locked --features cross --bin rustpbx --bin sipflow` 和 recorder/cleanup 相关 Rust 单测通过；Linux 镜像、阻塞文件系统注入和真实 RTP 连续性仍为 `not_run` |
+| RustPBX WebPhone registry | `implemented_compiled` | `.10` 将上游全局 `Mutex<Vec>` pre-auth registry 改为 O(1) keyed `RwLock<HashMap>`，连接生命周期 guard 只删除自身 generation，地址复用时旧连接不能删掉新连接；10,000 entry keyed lookup Rust 测试通过。Linux WSS 运行时负载仍为 `not_run` |
+| WebPhone session 签发 | `implemented` | migration 094 新增 tenant RLS、幂等唯一键、过期索引和按 tenant 有界 `SKIP LOCKED` 清理；`SECURITY DEFINER` 清理函数即使收到 NULL limit 也只取有界默认值。standalone server 按显式开关注入 PostgreSQL session service，短期 WSS/SIP credential 由 HMAC 生成且不持久化。配置、权限、幂等冲突、过期清理、SDK/controller 和 OpenAPI 合同通过；真实浏览器向 RustPBX 注册、ICE/RTP 和物理音频仍为 `not_run` |
+| IVR RWI 执行 | `implemented` | inbound call 只有在已持久化且可执行的 IVR action 存在时才 answer，否则 fail-closed hangup；DTMF/timeout/barge-in 按 call 串行并设置总量与单 call 有界队列。只有 provider 显式提供 `event_id`、`action_id` 或 sequence 时才去重，无 ID 的相同连续按键不会被误丢；任务失败被收敛并允许 provider 重试，revision CAS 防止并发覆盖；transfer provider exchange 不再重复执行外部副作用。真实 RustPBX RWI 长稳、语音播放/采集和 provider transfer 媒体仍为 `not_run` |
+| RustDesk 一次性授权并发 | `implemented_not_run` | verified code 在创建 gateway 前原子进入 `claimed`，成功持久化后才 consume；claim 受 actor、TTL 和唯一 claim ID 约束，失败释放，过期 claim 可恢复，数据库约束强制 claimed actor 与 verified actor 一致。migration 095 为已经执行旧 064 的数据库提供 forward-only 升级；新库 schema 与 MemoryPg 同步。真实 PostgreSQL 多实例竞争和进程崩溃恢复仍需目标环境复验 |
+| RustDesk 原生精准断开 | `implemented_not_run` | gateway 创建时生成服务端原生 session ID，launch plan 只在 `rustdesk://` 的 `ivekit_session_id` 参数中传递并从公开 metadata 删除；定制 1.4.7 overlay 将它贯穿深链、Flutter/CLI、多窗口、IPC 和 connection manager。named-pipe resolver 同时匹配 `native_session_id + controller_rustdesk_id`，响应也回显并复核该 ID，避免同控制方并发会话互相误断。overlay/SDK/HTTP/Windows companion 静态与单元门禁通过；Windows 编译、签名和双物理机精准断开仍为 `not_run` |
+| 录制存储故障域 | `implemented_contract_and_controlled` | LiveKit Server 继续不依赖 Egress/MinIO；RustPBX RTP capture、录音 lifecycle、session cleanup 和对象上传均不向实时媒体命令循环反向等待。存储、writer、uploader 或 cleanup 故障允许录制不完整、丢弃、失败或资源强制回收，但不得终止或回压已建立电话/视频。第 19-20 节 LiveKit 受控本机进程证据仍有效；RustPBX 阻塞磁盘、真实 RTP 和跨节点故障注入保持 `not_run` |
+
+### 22.1 当前门禁
+
+| 门禁 | 2026-07-19 结果 |
+| --- | --- |
+| 全仓 Node | `OPC_USE_MEMORY_REDIS=1 npm test`：`3435` total、`3423` pass、`12` environment skip、`0` fail |
+| 根/Capacity TypeScript | `npm run typecheck` 与 `npm run typecheck:ivekit:capacity-runtime` 均通过 |
+| Foundation/SDK | foundation `118/118`；SDK build 通过；dry-run pack `83` files |
+| Delivery/OpenAPI | `npm run test:ivekit:delivery`：`58/58`；新增 RustPBX patches、migration 094/095 和 Voice/RustDesk API 均进入 hash/tamper 合同 |
+| Capacity | `npm run test:ivekit:capacity`：`312/312`；真实 socket loopback `4/4`；只证明 admission/placement/evidence/曲线拒绝规则，不产生容量结论 |
+| Standalone source | source graph/build context `10/10`，不引入 OPC 产品域或 SQLite runtime |
+| RustDesk focused | HTTP、module facade、launch plan、native overlay `62/62`；内部原生 session ID 不出现在公开 metadata |
+| Compose/Helm | Docker Compose quiet render、standalone/root Helm v4.2.3 lint/template 和 Stage 2 `22/22` 通过；没有 apply 到目标 Kubernetes |
+| 工作树卫生 | `git diff --check` 通过；fork manifest JSON 可解析且声明的 patch SHA-256 由容量门禁复核 |
+
+本机 Docker Desktop 可查询引擎，但当前新容器启动会停在 `Created`；本轮没有重启 Docker、终止既有
+容器或用旧容器冒充 `.10` 验收。`.10` Linux image、amd64 Registry digest、SBOM/签名/provenance、
+真实 PostgreSQL/NATS 多节点、Tinode/LiveKit/TURN/Egress 公网链路、双 Windows、RustPBX WSS/RTP、
+PSTN、真实 Provider、商业通知、生产对象存储、目标 Kubernetes、单机 frontier、Cell-10K 和
+MIX-100K 均保持 `not_run`。`capacity_claim` 继续为 `none`。

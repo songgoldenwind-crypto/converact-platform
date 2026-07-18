@@ -16,7 +16,6 @@ import {
 import type { IvrStepInput } from './ivr-executor.js';
 import { buildLiveIvrStepInput } from './ivr-live-input.js';
 import { parseIvrAdvanceBody } from './ivr-advance-input.js';
-import { isBargeInProductionEnabled } from './ivr-production-gates.js';
 
 export type { IvrSessionState };
 
@@ -26,9 +25,6 @@ function normalizeProductionAdvanceInput(
 ): IvrStepInput {
   if (input.playCompleted || input.bargeInDigits || input.flushCompleted) return input;
   if (!input.dtmf) return input;
-  // Production barge-in (dtmf while audio still queued) requires explicit gate.
-  if (!isBargeInProductionEnabled()) return input;
-
   const onInterruptiblePlay =
     state.lastAction?.kind === 'play' &&
     state.lastAction.interruptible === true &&
@@ -96,12 +92,11 @@ export function startIvrSession(
     const flows = store.listFlows(tenantId);
     flow =
       flows.find((f) => f.status === 'published' && publishBlockingIssues(validateFlowGraphDetailed(f.graph)).length === 0) ||
-      flows.find((f) => f.status === 'published') ||
-      flows[0] ||
       null;
   }
-  if (!flow || validateFlowGraph(flow.graph).length > 0) return null;
-  if (flow.status === 'needs_repair') return null;
+  if (!flow || flow.status !== 'published') return null;
+  if (validateFlowGraph(flow.graph).length > 0) return null;
+  if (publishBlockingIssues(validateFlowGraphDetailed(flow.graph)).length > 0) return null;
 
   return {
     callSessionId,

@@ -264,7 +264,9 @@ const STANDALONE_MIGRATIONS = [
   'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
   '091_ivekit_capacity_scaling_campaigns.sql',
   '092_ivekit_capacity_platform_campaigns.sql',
-  '093_ivekit_cell_admission_rls.sql'
+  '093_ivekit_cell_admission_rls.sql',
+  '094_ivekit_voice_extension_sessions.sql',
+  '095_rustdesk_authorization_claims.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [
@@ -540,7 +542,9 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-recording-spool.patch',
     'rustpbx-local-rsipstack.patch',
     'rustpbx-ivekit-sip-capacity.patch',
-    'rustpbx-ivekit-media-hot-path.patch'
+    'rustpbx-ivekit-media-hot-path.patch',
+    'rustpbx-ivekit-session-cleanup-isolation.patch',
+    'rustpbx-ivekit-webphone-registry.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`
@@ -1904,10 +1908,6 @@ function copyDeliverySource(outputDir: string, source: string, destination: stri
     .replaceAll(
       '${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}',
       '${IVEKIT_SERVICE_IMAGE:?IVEKIT_SERVICE_IMAGE is required}'
-    )
-    .replaceAll(
-      '${CLAMAV_IMAGE:-clamav/clamav:1.4.3_base}',
-      '${CLAMAV_IMAGE:?CLAMAV_IMAGE immutable digest reference is required}'
     );
   if (/^\s+build:/m.test(portableCompose) || portableCompose.includes('ivekit-service:local')) {
     throw new Error('failed to remove repository-only build settings from delivery Compose');

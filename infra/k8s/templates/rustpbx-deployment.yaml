@@ -1,5 +1,8 @@
 {{- if .Values.voice.enabled }}
 {{- $repository := required "voice.image.repository is required" .Values.voice.image.repository -}}
+{{- if regexMatch "(^|/)restsend/rustpbx$" $repository -}}
+{{- fail "voice.image.repository must reference the iveKit-patched RustPBX image, not the unpatched upstream image" -}}
+{{- end -}}
 {{- $digest := required "voice.image.digest is required" .Values.voice.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
 {{- fail "voice.image.digest must be an immutable sha256 digest" -}}
@@ -15,6 +18,12 @@
 {{- if or (lt (int $value) 1) (gt (int $value) 10000000) -}}
 {{- fail (printf "voice.sipCapacity.%s must be between 1 and 10000000" $name) -}}
 {{- end -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.sessionCleanupConcurrency) 1) (gt (int .Values.voice.mediaCapacity.sessionCleanupConcurrency) 4096) -}}
+{{- fail "voice.mediaCapacity.sessionCleanupConcurrency must be between 1 and 4096" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs) 1) (gt (int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs) 60000) -}}
+{{- fail "voice.mediaCapacity.sessionCleanupTimeoutMs must be between 1 and 60000" -}}
 {{- end -}}
 {{- if or (lt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 65536) -}}
 {{- fail "voice.mediaCapacity.recordingChannelCapacity must be between 1 and 65536" -}}
@@ -84,6 +93,20 @@
 {{- if has "*" .Values.voice.amiAllows -}}
 {{- fail "voice.amiAllows must not contain a wildcard" -}}
 {{- end -}}
+{{- if .Values.voice.webphone.enabled -}}
+{{- $webphoneSecret := required "voice.webphone.jwtSecret is required when WebPhone is enabled" .Values.voice.webphone.jwtSecret -}}
+{{- $_ := required "voice.webphone.publicWssUrl is required when WebPhone is enabled" .Values.voice.webphone.publicWssUrl -}}
+{{- $_ := required "voice.webphone.sipRealm is required when WebPhone is enabled" .Values.voice.webphone.sipRealm -}}
+{{- if lt (len $webphoneSecret) 32 -}}
+{{- fail "voice.webphone.jwtSecret must contain at least 32 characters" -}}
+{{- end -}}
+{{- if or (eq $webphoneSecret $managementToken) (eq $webphoneSecret $rwiToken) (eq $webphoneSecret $webhookToken) -}}
+{{- fail "voice.webphone.jwtSecret must be distinct from RustPBX runtime secrets" -}}
+{{- end -}}
+{{- if .Values.voice.webphone.ingress.enabled -}}
+{{- $_ := required "voice.webphone.ingress.host is required when WebPhone ingress is enabled" .Values.voice.webphone.ingress.host -}}
+{{- end -}}
+{{- end -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -124,14 +147,31 @@ stringData:
     modules = ["acl", "auth", "presence", "registrar", "call"]
     media_proxy = "auto"
     ensure_user = true
+    {{- if .Values.voice.webphone.enabled }}
+    ws_handler = "/ws"
+    {{- end }}
     acl_rules = ["allow all", "deny all"]
     sip_max_active_transactions = {{ int .Values.voice.sipCapacity.maxActiveTransactions }}
     sip_max_finished_transactions = {{ int .Values.voice.sipCapacity.maxFinishedTransactions }}
     sip_incoming_transaction_queue_capacity = {{ int .Values.voice.sipCapacity.incomingTransactionQueueCapacity }}
     sip_max_transport_connections = {{ int .Values.voice.sipCapacity.maxTransportConnections }}
+    media_session_cleanup_concurrency = {{ int .Values.voice.mediaCapacity.sessionCleanupConcurrency }}
+    media_session_cleanup_timeout_ms = {{ int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs }}
     media_recording_channel_capacity = {{ int .Values.voice.mediaCapacity.recordingChannelCapacity }}
     media_recording_worker_threads = {{ int .Values.voice.mediaCapacity.recordingWorkerThreads }}
     media_recording_worker_queue_capacity = {{ int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity }}
+
+    {{- if .Values.voice.webphone.enabled }}
+    [proxy.jwt_auth]
+    enabled = true
+    secret = {{ .Values.voice.webphone.jwtSecret | quote }}
+    user_id_claim = "sub"
+    issuer = {{ .Values.voice.webphone.jwtIssuer | quote }}
+    audience = {{ .Values.voice.webphone.jwtAudience | quote }}
+    check_local_user = true
+    ws_token_param = "token"
+    dev_mint_enabled = false
+    {{- end }}
 
     [[proxy.user_backends]]
     type = "extension"
@@ -570,6 +610,36 @@ spec:
       targetPort: component-node
       protocol: TCP
     {{- end }}
+{{- if and .Values.voice.webphone.enabled .Values.voice.webphone.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-rustpbx-webphone
+  {{- with .Values.voice.webphone.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.voice.webphone.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.voice.webphone.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.voice.webphone.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.voice.webphone.ingress.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ .Release.Name }}-rustpbx-internal
+                port:
+                  name: management
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -685,5 +755,12 @@ spec:
             severity: critical
           annotations:
             summary: RustPBX dropped recording samples to protect live RTP forwarding
+        - alert: IveKitRustPbxSessionCleanupDegraded
+          expr: sum(increase(rustpbx_media_session_cleanup_total{outcome=~"timed_out|capacity_exhausted"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: RustPBX force-dropped session resources to keep the media loop responsive
 {{- end }}
 {{- end }}

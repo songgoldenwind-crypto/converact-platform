@@ -186,7 +186,9 @@ export const REQUIRED_MIGRATIONS = [
   '084_ivekit_cell_lease_topology',
   '085_ivekit_interaction_placement_handoffs',
   '090_ivekit_runtime_security',
-  '093_ivekit_cell_admission_rls'
+  '093_ivekit_cell_admission_rls',
+  '094_ivekit_voice_extension_sessions',
+  '095_rustdesk_authorization_claims'
 ] as const;
 
 function configurationCheck(env: NodeJS.ProcessEnv): IveKitReadinessResult['checks']['configuration'] {

@@ -26,6 +26,9 @@ import { VoiceStore } from '../src/agent-runtime/voice/voice-store.js';
 import { AgentSeatStore } from '../src/agent-runtime/call-center/seat-store.js';
 import { createProductionSideEffects } from '../src/agent-runtime/ivr/ivr-production-effects.js';
 import { advanceSingleStep, createRuntimeContext } from '../src/agent-runtime/ivr/ivr-executor.js';
+import { buildLiveIvrStepInput } from '../src/agent-runtime/ivr/ivr-live-input.js';
+import { walkToPromptableAction } from '../src/agent-runtime/ivr/ivr-runtime.js';
+import { ivrActionToRwi } from '../src/agent-runtime/ivr/ivr-rwi-bridge.js';
 import type { IvrFlowGraph } from '../src/agent-runtime/ivr/ivr-types.js';
 
 const TENANT_NAME = 'IVR Xfer Prod Bridge';
@@ -90,6 +93,39 @@ test('production executeTransfer seat_id success → connected → OUT edge; rea
   // The real CallTransferService.transfer(blind) sets target busy + source wrap_up.
   assert.equal(seatStore.getSeat(targetSeatId)?.status, 'busy', 'target seat must become busy via real bridge');
   assert.equal(seatStore.getSeat(fromSeatId)?.status, 'wrap_up', 'source seat must enter wrap_up via real bridge');
+});
+
+test('live IVR defers transfer to RustPBX and waits for the provider result', async () => {
+  const db = createDatabase(':memory:');
+  const { tenantId, callSessionId, fromSeatId, targetSeatId } = seedSessionAndSeats(db);
+  const seatStore = new AgentSeatStore(db);
+
+  const walked = await walkToPromptableAction(
+    createRuntimeContext(transferGraph('seat_id', targetSeatId, { fromSeatId })),
+    buildLiveIvrStepInput(db, tenantId, { callSessionId })
+  );
+
+  assert.equal(walked.action?.kind, 'transfer');
+  assert.equal(walked.context.waiting?.kind, 'transfer');
+  assert.equal(walked.context.currentNodeId, 't1');
+  assert.notEqual(seatStore.getSeat(targetSeatId)?.status, 'busy');
+  assert.notEqual(seatStore.getSeat(fromSeatId)?.status, 'wrap_up');
+
+  const envelope = ivrActionToRwi(walked.action!, 'rustpbx-call-1');
+  assert.equal(envelope?.command, 'transfer');
+  assert.equal(envelope?.params.call_id, 'rustpbx-call-1');
+  assert.equal(envelope?.params.target, targetSeatId);
+
+  const resumed = await advanceSingleStep(
+    walked.context,
+    buildLiveIvrStepInput(db, tenantId, {
+      callSessionId,
+      transferEvent: { kind: 'connected' },
+    })
+  );
+  assert.equal(resumed.nextNodeId, 'ok');
+  assert.equal(resumed.context.variables.transfer_result, 'connected');
+  assert.equal(resumed.context.waiting, undefined);
 });
 
 // ─── fromSeatId resolved from variable when not in nodeData ─────────────────

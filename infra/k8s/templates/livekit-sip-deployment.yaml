@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: livekit-sip
-          image: "{{ .Values.media.sip.image.repository }}:{{ .Values.media.sip.image.tag }}"
+          image: {{ include "opc.livekitSipImage" . | quote }}
           imagePullPolicy: {{ .Values.media.sip.image.pullPolicy | default "IfNotPresent" }}
           env:
             - name: LIVEKIT_URL

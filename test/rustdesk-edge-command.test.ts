@@ -31,6 +31,7 @@ const epochCommand: RustDeskEdgeClaimCommand = {
   id: 'rdcmd_edge_epoch_1',
   external_id: 'rdgw_edge_epoch_1',
   native_control_protocol: 'ivekit-rustdesk-native-control-v2',
+  native_session_id: '7712345678901234567',
   interaction_id: 'remote-session-edge-epoch-1',
   reservation_id: 'reservation-edge-epoch-1',
   owner_epoch: '17'

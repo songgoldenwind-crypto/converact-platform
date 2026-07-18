@@ -45,6 +45,7 @@ export function buildLiveIvrStepInput(
     bargeInDigits: opts.bargeInDigits,
     queueEvent: opts.queueEvent,
     transferEvent: opts.transferEvent,
+    deferTransferToProvider: true,
     aiDialogueResult: opts.aiDialogueResult,
     mediaType: opts.mediaType,
     videoEvent: opts.videoEvent,

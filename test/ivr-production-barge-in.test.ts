@@ -73,7 +73,7 @@ function menuGatherState(graph: IvrFlowGraph, callSessionId: string, tenantId: s
   };
 }
 
-test('E1: dtmf during queued menu gather does not barge-in when gate off', async () => {
+test('E1: graph-configured queued menu barge-in works without an environment gate', async () => {
   delete process.env.IVR_BARGE_IN_PRODUCTION;
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Barge E1' });
@@ -84,11 +84,11 @@ test('E1: dtmf during queued menu gather does not barge-in when gate off', async
 
   const state = menuGatherState(graph, 'call-1', tenant.id, 'ivr_barge_1');
   const step = await advanceIvrStep(state, db, { dtmf: '1' });
-  assert.equal(step.state.context.pendingDigits, undefined);
-  assert.ok((step.state.context.audioQueue?.length ?? 0) > 0);
+  assert.equal(step.state.context.pendingDigits, '1');
+  assert.equal(step.state.context.audioQueue?.length ?? 0, 0);
 });
 
-test('E1: IVR_BARGE_IN_PRODUCTION=1 enables queued gather barge-in', async () => {
+test('E1: deprecated IVR_BARGE_IN_PRODUCTION does not change queued gather semantics', async () => {
   process.env.IVR_BARGE_IN_PRODUCTION = '1';
   const db = createDatabase(':memory:');
   const tenant = createTenant(db, { name: 'Barge E1 Gate' });

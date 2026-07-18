@@ -2,16 +2,16 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 23,
+  "revision": 26,
   "status": "proposed",
-  "generated_at": "2026-07-18T19:37:19+08:00",
+  "generated_at": "2026-07-19T02:45:56+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
   "notes": [
     "This manifest records design and repository state; it does not assert that MIX-100K has passed.",
     "A release tag without a resolved 40-character commit or an image tag without a digest is not a complete production identity.",
-    "The local RustPBX patch-queue image compiled and passed controlled SIPp signaling, but remains a custom candidate until a registry digest, RTP integration, failover and benchmark evidence pass.",
+    "An earlier RustPBX patch-queue image compiled and passed controlled SIPp signaling. The ivekit.10 source candidate passes a Rust 1.94.1 macOS check, but its Linux image remains unbuilt and no candidate is production eligible until registry digest, RTP integration, failover and benchmark evidence pass.",
     "Business licensing decisions are outside this architecture record; engineering traceability and source identity remain release requirements."
   ],
   "components": [
@@ -37,10 +37,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.8-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.10-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.8-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.10-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -98,6 +98,18 @@
           "sha256": "9a7508bcf1a5b4af0904e47cd78e108e4e23c0e66d66606462ee096f9fc33e5e",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-sip-capacity.patch",
           "purpose": "Move recording codec and disk work out of RTP forwarding loops through profile-tunable bounded capture queues, bounded pre-finalization draining, one-shot disk-failure circuit breaking, and explicit low-cardinality drop telemetry."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch",
+          "sha256": "371e4e14e69b919ad5374d7fad68e7e4dc3fb5635c7d1639f0ee872d72026d27",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-hot-path.patch",
+          "purpose": "Remove session teardown awaits from the media command loop, submit recording finalization first, and bound playback, MCU, and bridge cleanup with explicit concurrency, timeout, and low-cardinality outcome telemetry."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch",
+          "sha256": "dbc856affd3052832c189c2f70f036accc0bf2ea8cd9b73a3ed97afd1f0b7e68",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-session-cleanup-isolation.patch",
+          "purpose": "Replace the serialized linear WebPhone pre-authentication registry with O(1) keyed lookup and generation-fenced connection-lifetime cleanup."
         }
       ],
       "protocols": [
@@ -231,6 +243,35 @@
             "Controlled build, deployment and delivery contracts pass 34 of 34 tests.",
             "Native Rust compile passes; real RTP continuity, recording overload and physical capacity remain not_run."
           ]
+        },
+        {
+          "change_id": "rustpbx-session-cleanup-isolation-v1",
+          "summary": "Remove session teardown waits from the media command loop and bound asynchronous playback, MCU, bridge, and recording-finalization cleanup.",
+          "capacity_dimensions": [
+            "voice.concurrent_calls",
+            "voice.rtp_legs",
+            "workers.recording_slots"
+          ],
+          "acceptance_evidence": [
+            "The exact patch queue applies to the pinned RustPBX source and the Rust 1.94.1 macOS check passes for both rustpbx and sipflow.",
+            "Renderer, Compose and both Helm charts validate and carry cleanup concurrency and timeout limits; Prometheus rules alert on timeout or capacity exhaustion.",
+            "Static tests prove destroy and stale-reap paths schedule bounded cleanup instead of awaiting resource finalization in the media command loop.",
+            "Linux image build, blocked-filesystem injection, real RTP continuity and process-level recovery remain not_run."
+          ]
+        },
+        {
+          "change_id": "rustpbx-webphone-registry-v1",
+          "summary": "Use an O(1) keyed WebSocket pre-authentication registry with generation-fenced connection-lifetime cleanup.",
+          "capacity_dimensions": [
+            "sip.active_connections",
+            "sip.transactions_per_second",
+            "voice.concurrent_calls"
+          ],
+          "acceptance_evidence": [
+            "The patch applies cleanly to the exact pinned RustPBX commit and passes rustfmt check.",
+            "Embedded tests cover connection guard cleanup, address reuse fencing, explicit removal and 10,000 simultaneous keyed entries.",
+            "The exact ivekit.10 source candidate passes a Rust 1.94.1 macOS check for rustpbx and sipflow; Linux image build and runtime WSS load remain not_run because the local Docker runtime can create but not start new containers."
+          ]
         }
       ],
       "planned_changes": [
@@ -253,7 +294,7 @@
       "verification": {
         "source_identity": "passed",
         "patch_apply": "passed",
-        "compile": "passed",
+        "compile": "partial",
         "unit": "partial",
         "integration": "partial",
         "benchmark": "not_run",
@@ -281,19 +322,23 @@
           "test/ivekit-rustpbx-build.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch",
+          "test/ivekit-rustpbx-webphone-patch.test.ts",
+          "test/ivekit-webphone-session-service.test.ts",
           "src/agent-runtime/ivekit/voice/rustpbx-config.ts",
           "services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml",
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-18T18:30:00+08:00"
+        "checked_at": "2026-07-19T02:45:56+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
           "Custom image digest has not been recorded.",
           "The local image has no immutable registry digest; real RTP integration, overload curves, Cell-10K benchmark and failover evidence are not attached.",
-          "Helm production values still require an operator-supplied immutable digest for the custom ivekit.8 candidate."
+          "Helm production values still require an operator-supplied immutable digest for the custom ivekit.10 candidate; only its macOS Rust 1.94.1 source check has passed, while the Linux image build remains not_run."
         ]
       },
       "upgrade_policy": {
@@ -445,9 +490,9 @@
       "patches": [
         {
           "path": "integrations/rustdesk-1.4.7/ivekit_native_control.rs",
-          "sha256": "ace27c8fb364f6ea96749497e1f264da9658931883d16d228f3297a86f3d4fc0",
+          "sha256": "a7eddb2bdb5966581eb8401caa919484037854ce933419a44008bd28659fe1f4",
           "applies_to": "rustdesk@0c86d4616298f09435f6236599b300964aa61460",
-          "purpose": "Add ACL-protected exact native session disconnect with owner-epoch v2 fencing through a Windows named pipe."
+          "purpose": "Add ACL-protected exact native session disconnect bound to the explicit RustDesk native session ID and owner-epoch v2 fencing through a Windows named pipe."
         },
         {
           "path": "integrations/rustdesk-1.4.7/ivekit_native_evidence.rs",
@@ -457,9 +502,9 @@
         },
         {
           "path": "integrations/rustdesk-1.4.7/apply-overlay.mjs",
-          "sha256": "72dca31a163e2abe2b2d2c173e232f5c43b6ff20b1afb532327494cb29552143",
+          "sha256": "fb6819f7440660a29fc9bb6fd0d712897eec8285a6951a713254a9adfefd4b98",
           "applies_to": "rustdesk@0c86d4616298f09435f6236599b300964aa61460",
-          "purpose": "Apply the overlay fail-closed when expected upstream source anchors drift."
+          "purpose": "Apply the overlay fail-closed when expected upstream anchors drift and carry the selected native session ID through URL, Flutter, CLI, IPC and connection-manager paths."
         }
       ],
       "protocols": [

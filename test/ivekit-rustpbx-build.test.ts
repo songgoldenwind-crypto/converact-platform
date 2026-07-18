@@ -31,6 +31,10 @@ const rustPbxMediaHotPathPatch = readFileSync(
   'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch',
   'utf8'
 );
+const rustPbxSessionCleanupPatch = readFileSync(
+  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch',
+  'utf8'
+);
 const imageWorkflow = readFileSync('.github/workflows/ivekit-rustpbx-image.yml', 'utf8');
 
 test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', () => {
@@ -149,6 +153,35 @@ test('iveKit RustPBX keeps recording codec and disk work off RTP forwarding loop
   assert.doesNotMatch(rustPbxMediaHotPathPatch, /tenant_id|interaction_id|call_id/);
 });
 
+test('iveKit RustPBX isolates session teardown from the media command loop', () => {
+  const effectivePatch = rustPbxSessionCleanupPatch
+    .split('\n')
+    .filter((line) => !line.startsWith('-') || line.startsWith('---'))
+    .join('\n');
+  assert.match(
+    buildScript,
+    /rustpbx-ivekit-media-hot-path\.patch"[\s\S]*rustpbx-ivekit-session-cleanup-isolation\.patch"[\s\S]*rustpbx-ivekit-webphone-registry\.patch"/
+  );
+  assert.match(effectivePatch, /fn schedule_session_cleanup/);
+  assert.match(effectivePatch, /Semaphore::new\(self\.session_cleanup_concurrency\)/);
+  assert.match(effectivePatch, /try_acquire_owned\(\)/);
+  assert.match(effectivePatch, /tokio::time::timeout\(cleanup_timeout, cleanup\)/);
+  assert.match(effectivePatch, /session_cleanup_outcome\("capacity_exhausted"\)/);
+  assert.match(effectivePatch, /session_cleanup_outcome\("timed_out"\)/);
+  assert.match(effectivePatch, /media_session_cleanup_concurrency/);
+  assert.match(effectivePatch, /media_session_cleanup_timeout_ms/);
+  assert.match(
+    effectivePatch,
+    /sessions\.remove\(&session_id\)[\s\S]{0,250}schedule_session_cleanup\(sess\)/
+  );
+  assert.match(
+    effectivePatch,
+    /fn reap_stale_sessions[\s\S]{0,2500}schedule_session_cleanup\(sess\)/
+  );
+  assert.doesNotMatch(effectivePatch, /finalize_session_resources/);
+  assert.match(runtimeDockerfile, /io\.ivekit\.rustpbx\.patchset/);
+});
+
 test('iveKit RustPBX AMI patch exposes deterministic call ids for reconciliation', () => {
   assert.match(buildScript, /rustpbx-ivekit-ami-dialogs\.patch/);
   assert.match(rustPbxAmiPatch, /let id = state\.id\(\)/);
@@ -195,7 +228,7 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
 test('iveKit publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.3/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.10-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);

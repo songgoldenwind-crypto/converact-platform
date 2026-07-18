@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
         - name: redis
-          image: redis:7-alpine
+          image: {{ include "opc.redisImage" . | quote }}
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy | default "IfNotPresent" }}
           ports:
             - containerPort: 6379
 ---

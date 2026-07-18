@@ -481,6 +481,7 @@ function validateAdapterArgs(args: string[], envName: string): string[] {
     '{target_id}',
     '{rustdesk_id}',
     '{controller_rustdesk_id}',
+    '{native_session_id}',
     '{requested_reason}'
   ]);
   for (const arg of args) {

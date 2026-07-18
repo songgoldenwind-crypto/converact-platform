@@ -313,3 +313,14 @@ groups:
           summary: RustPBX dropped recording samples to protect live RTP forwarding
           description: Recording codec or disk work could not keep up with the bounded capture queue.
           runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxrecordingqueue
+      - alert: IveKitRustPbxSessionCleanupDegraded
+        expr: sum(increase(rustpbx_media_session_cleanup_total{outcome=~"timed_out|capacity_exhausted"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: RustPBX force-dropped session resources to keep the media loop responsive
+          description: A playback, MCU, or bridge cleanup timed out or the bounded cleanup executor was full; live calls remained isolated but cleanup evidence requires investigation.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxsessioncleanup

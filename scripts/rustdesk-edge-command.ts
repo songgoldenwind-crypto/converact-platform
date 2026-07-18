@@ -20,6 +20,7 @@ export interface RustDeskEdgeClaimCommand {
   target_id: string;
   rustdesk_id: string;
   controller_rustdesk_id: string;
+  native_session_id?: string;
   requested_reason: 'consent_revoked' | 'remote_session_ended' | 'tool_ended' | 'gateway_ended';
   attempt: number;
   lease_expires_at: string;
@@ -483,6 +484,7 @@ async function runAdapter(
           OPC_RUSTDESK_TARGET_ID: command.target_id,
           OPC_RUSTDESK_RUSTDESK_ID: command.rustdesk_id,
           OPC_RUSTDESK_CONTROLLER_RUSTDESK_ID: command.controller_rustdesk_id,
+          OPC_RUSTDESK_NATIVE_SESSION_ID: command.native_session_id || '',
           OPC_RUSTDESK_DISCONNECT_REASON: command.requested_reason,
           OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL:
             command.native_control_protocol || 'ivekit-rustdesk-native-control-v1',
@@ -538,6 +540,7 @@ function materializeAdapterArgs(
     '{target_id}': command.target_id,
     '{rustdesk_id}': command.rustdesk_id,
     '{controller_rustdesk_id}': command.controller_rustdesk_id,
+    '{native_session_id}': command.native_session_id || '',
     '{requested_reason}': command.requested_reason,
     '{native_control_protocol}':
       command.native_control_protocol || 'ivekit-rustdesk-native-control-v1',
@@ -761,6 +764,9 @@ function decodeClaimCommand(
     target_id: requiredString(command.target_id, 'RustDesk command target_id is required'),
     rustdesk_id: requiredString(command.rustdesk_id, 'RustDesk command rustdesk_id is required'),
     controller_rustdesk_id: String(command.controller_rustdesk_id || '').trim(),
+    ...(protocol === 'ivekit-rustdesk-native-control-v2'
+      ? { native_session_id: nativeSessionId(command.native_session_id) }
+      : {}),
     requested_reason: requestedReason,
     attempt,
     lease_expires_at: requiredString(command.lease_expires_at, 'RustDesk command lease_expires_at is required'),
@@ -769,6 +775,14 @@ function decodeClaimCommand(
     native_control_protocol: protocol,
     ...(owner || {})
   };
+}
+
+function nativeSessionId(value: unknown): string {
+  const normalized = requiredString(value, 'RustDesk command native_session_id is required');
+  if (!/^[1-9][0-9]{0,18}$/.test(normalized) || BigInt(normalized) > 0x7fffffffffffffffn) {
+    throw new Error('RustDesk command native_session_id is invalid');
+  }
+  return BigInt(normalized).toString();
 }
 
 function optionalOwnerIdentity(value: unknown): RustDeskOwnerIdentity | undefined {

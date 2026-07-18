@@ -44,6 +44,7 @@ test('RustDesk 1.4.7 overlay installs one fail-closed native control path idempo
   assert.equal((cm.match(/pub fn ivekit_connection_matches/g) || []).length, 1);
   assert.equal((cm.match(/pub fn ivekit_active_controller_ids/g) || []).length, 1);
   assert.match(cm, /client\.peer_id == controller_rustdesk_id/);
+  assert.match(cm, /client\.ivekit_native_session_id == native_session_id/);
   assert.match(cm, /client\.authorized/);
   assert.match(cm, /!client\.disconnected/);
   assert.match(cm, /!client\.is_file_transfer/);
@@ -52,6 +53,8 @@ test('RustDesk 1.4.7 overlay installs one fail-closed native control path idempo
   assert.match(native, /ui_cm_interface::ivekit_resolve_connection/);
   assert.match(native, /ui_cm_interface::ivekit_connection_matches/);
   assert.match(native, /controller_rustdesk_id/);
+  assert.match(native, /native_session_id/);
+  assert.match(native, /ivekit_resolve_connection\(native_session_id, &request\.controller_rustdesk_id\)/);
   assert.match(native, /schema_version != 2/);
   assert.match(native, /interaction_id/);
   assert.match(native, /reservation_id/);

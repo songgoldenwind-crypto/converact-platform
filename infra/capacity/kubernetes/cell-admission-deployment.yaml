@@ -38,7 +38,7 @@ spec:
                     app.kubernetes.io/name: ivekit-cell-admission
       containers:
         - name: admission
-          image: replace.example.com/ivekit/capacity-tools:replace-with-digest
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           command: ["node", "--import", "tsx", "scripts/ivekit-cell-admission.ts"]
           ports:
@@ -154,7 +154,7 @@ spec:
             capabilities:
               drop: ["ALL"]
         - name: capacity-projector
-          image: replace.example.com/ivekit/capacity-tools:replace-with-digest
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           command:
             ["node", "--import", "tsx", "scripts/ivekit-cell-capacity-projector.ts"]

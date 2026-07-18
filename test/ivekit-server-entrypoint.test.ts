@@ -11,6 +11,8 @@ test('iveKit entrypoint starts only the reusable communication runtime', () => {
   assert.match(source, /initPostgres/);
   assert.match(source, /closePostgres/);
   assert.match(source, /validateEnvOrExit/);
+  assert.match(source, /createConfiguredWebPhoneExtensionSessionService/);
+  assert.match(source, /extension_sessions: webphoneSessions/);
   assert.doesNotMatch(source, /from ['"]\.\/http\.js/);
   assert.doesNotMatch(source, /call-center|connectNats|migrateIvrRuntimeTables|outbound-dialer/);
   assert.doesNotMatch(source, /createDatabase|node:sqlite/);

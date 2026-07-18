@@ -212,9 +212,11 @@ PrometheusRule resources alert before a hard limit and on any overload
 rejection. Metrics contain no tenant, call, interaction, or phone-number labels.
 
 The exact rsipstack and RustPBX patch queues apply cleanly to their pinned
-commits and the rsipstack tree passes Rustfmt. A native RustPBX image build,
-SIPp overload curve, sustained timer/cache recovery, and Cell-10K result remain
-`not_run` until executed on the target build and benchmark environment.
+commits and the rsipstack tree passes Rustfmt. The ivekit.10 source candidate
+passes `cargo check --locked --features cross --bin rustpbx --bin sipflow` with
+Rust 1.94.1 on macOS arm64. A Linux RustPBX image build, SIPp overload curve,
+sustained timer/cache recovery, and Cell-10K result remain `not_run` until
+executed on the target build and benchmark environment.
 
 ## Recording media hot path
 
@@ -257,6 +259,51 @@ The Rust unit gate `test_recording_stop_does_not_block_engine_on_busy_recorder`
 holds the recorder write lock while StopRecording and PauseRecording are sent;
 the pause event must still arrive within 250 ms. This proves command-loop lock
 isolation, not physical RTP continuity or stalled-filesystem behavior.
+
+## Session teardown isolation
+
+The iveKit cleanup patch removes the last session-destruction waits from the
+single MediaEngine command loop. Destroy and stale-session reap first remove the
+session from active state, atomically pause recording, and submit the deduplicated
+recording finalizer. Playback-track stop, MCU switch-back, and bridge release then
+run in a bounded background task. `SessionDestroyed` acknowledges control-plane
+removal; it no longer claims that recording persistence has completed.
+
+`RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY` maps to
+`media_session_cleanup_concurrency`, defaults to 64, and accepts 1 through 4096.
+`RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS` maps to
+`media_session_cleanup_timeout_ms`, defaults to 2000, and accepts 1 through
+60,000. A full executor or elapsed deadline force-drops the remaining resources
+instead of waiting in the media command loop. Outcomes are counted by
+`rustpbx_media_session_cleanup_total{outcome="completed|timed_out|capacity_exhausted"}`;
+timeout or exhaustion raises `IveKitRustPbxSessionCleanupDegraded`.
+
+Object storage and the uploader are not dependencies of RustPBX. A local writer
+or filesystem stall can consume recording workers and cause incomplete evidence,
+but recording capture uses non-blocking bounded queues and session teardown has
+its own deadline. The intended failure preference is explicit: preserve live RTP
+and call control, then surface recording or cleanup loss for audit and recovery.
+Exact patch replay, static contracts, and the Rust 1.94.1 macOS source check
+pass; Linux image build, real blocked-filesystem injection, RTP continuity, and
+process-level fault recovery remain `not_run`.
+
+## WebPhone pre-authentication registry
+
+The upstream WebSocket pre-authentication registry serializes all registrations,
+lookups and removals through one `Mutex<Vec<_>>`. Once 256 entries exist, every
+new registration also scans the full vector and removes entries older than five
+minutes, including live long-running WebPhone connections. That makes lookup
+O(n), creates one global lock hot spot and can revoke an active connection.
+
+The iveKit WebPhone registry patch replaces that vector with an O(1) keyed
+`RwLock<HashMap<SipAddr, _>>`. Registration returns a connection-lifetime guard;
+normal completion, cancellation and panic drop the guard and remove only its
+generation. A stale guard cannot delete a newer connection that reused the same
+address. The embedded Rust tests cover replacement fencing, explicit removal,
+guard cleanup and 10,000 simultaneous keyed entries. Patch application,
+formatting, and the Rust 1.94.1 macOS source check pass on the exact upstream
+commit; Linux image build and runtime WSS load remain `not_run` while the local
+Docker runtime cannot start new containers.
 
 ## Reproducibility
 

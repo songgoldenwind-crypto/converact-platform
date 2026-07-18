@@ -25,6 +25,60 @@
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
+{{- define "opc.postgresImage" -}}
+{{- $repository := required "postgres.image.repository is required" .Values.postgres.image.repository -}}
+{{- $digest := required "postgres.image.digest is required" .Values.postgres.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "postgres.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "opc.redisImage" -}}
+{{- $repository := required "redis.image.repository is required" .Values.redis.image.repository -}}
+{{- $digest := required "redis.image.digest is required" .Values.redis.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "redis.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "opc.natsImage" -}}
+{{- $repository := required "nats.image.repository is required" .Values.nats.image.repository -}}
+{{- $digest := required "nats.image.digest is required" .Values.nats.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "nats.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "opc.livekitImage" -}}
+{{- $repository := required "livekit.image.repository is required when bundled LiveKit is enabled" .Values.livekit.image.repository -}}
+{{- $digest := required "livekit.image.digest is required when bundled LiveKit is enabled" .Values.livekit.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "livekit.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "opc.livekitSipImage" -}}
+{{- $repository := required "media.sip.image.repository is required when LiveKit SIP is enabled" .Values.media.sip.image.repository -}}
+{{- $digest := required "media.sip.image.digest is required when LiveKit SIP is enabled" .Values.media.sip.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "media.sip.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "opc.rustdeskImage" -}}
+{{- $repository := required "rustdesk.image.repository is required when RustDesk is enabled" .Values.rustdesk.image.repository -}}
+{{- $digest := required "rustdesk.image.digest is required when RustDesk is enabled" .Values.rustdesk.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "rustdesk.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
 {{- define "opc.livekitInternalUrl" -}}
 {{- if .Values.livekit.url -}}
 {{- .Values.livekit.url -}}

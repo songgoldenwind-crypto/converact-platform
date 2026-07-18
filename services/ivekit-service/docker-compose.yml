@@ -5,7 +5,7 @@ x-ivekit-image: &ivekit-image
 
 services:
   postgres:
-    image: postgres:${IVEKIT_POSTGRES_IMAGE_TAG:-16-alpine}
+    image: ${IVEKIT_POSTGRES_IMAGE:?IVEKIT_POSTGRES_IMAGE immutable digest reference is required}
     restart: unless-stopped
     environment:
       POSTGRES_USER: opc_admin
@@ -49,7 +49,7 @@ services:
         condition: service_completed_successfully
 
   clamav:
-    image: ${CLAMAV_IMAGE:-clamav/clamav:1.4.3_base}
+    image: ${CLAMAV_IMAGE:?CLAMAV_IMAGE immutable digest reference is required}
     user: clamav
     entrypoint: ["/init-unprivileged"]
     restart: unless-stopped

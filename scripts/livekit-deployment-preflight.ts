@@ -82,6 +82,8 @@ const DEFAULT_MEDIA_IMAGE_TAGS = {
   redis: '7.4.9'
 } as const;
 
+const IMMUTABLE_IMAGE_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{1,254}@sha256:[a-f0-9]{64}$/;
+
 const DEFAULT_TARGETS: LiveKitReadinessTarget[] = [
   'media',
   'avatar',
@@ -178,6 +180,10 @@ export function createLiveKitDeploymentPreflightReport(
     addPinnedImageTagCheck(checks, 'livekit_sip_image_tag', env.LIVEKIT_SIP_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.sip);
     addPinnedImageTagCheck(checks, 'livekit_caddyl4_image_tag', env.LIVEKIT_CADDYL4_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.caddyl4);
     addPinnedImageTagCheck(checks, 'livekit_redis_image_tag', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis);
+    addImmutableImageCheck(checks, 'livekit_server_image', env.LIVEKIT_SERVER_IMAGE);
+    addImmutableImageCheck(checks, 'livekit_egress_image', env.LIVEKIT_EGRESS_IMAGE);
+    addImmutableImageCheck(checks, 'livekit_caddyl4_image', env.LIVEKIT_CADDYL4_IMAGE);
+    addImmutableImageCheck(checks, 'livekit_redis_image', env.LIVEKIT_REDIS_IMAGE);
   }
   addRequiredSecret(
     checks,
@@ -461,6 +467,10 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
     item('LiveKit Server', 'LIVEKIT_SIP_IMAGE_TAG', false, 'Pinned LiveKit SIP image tag.', env.LIVEKIT_SIP_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.sip),
     item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE_TAG', false, 'Pinned LiveKit Caddy L4 image tag.', env.LIVEKIT_CADDYL4_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.caddyl4),
     item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE_TAG', false, 'Pinned Redis image tag for standalone Media Core.', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis),
+    item('LiveKit Server', 'LIVEKIT_SERVER_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable LiveKit Server tag@sha256 reference.', env.LIVEKIT_SERVER_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_EGRESS_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable LiveKit Egress tag@sha256 reference.', env.LIVEKIT_EGRESS_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable Caddy L4 tag@sha256 reference.', env.LIVEKIT_CADDYL4_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable Redis tag@sha256 reference.', env.LIVEKIT_REDIS_IMAGE),
     item('LiveKit Server', 'LIVEKIT_API_KEY', true, 'LiveKit API key. Can fall back to OPC_LIVEKIT_API_KEY.', env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY, true),
     item('LiveKit Server', 'LIVEKIT_API_SECRET', true, 'LiveKit API secret. Can fall back to OPC_LIVEKIT_API_SECRET.', env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET, true),
     item('LiveKit Server', 'OPC_MEDIA_CONFIG_REDIS_ADDRESS', production, 'Redis URL or host:port shared by LiveKit Server and Egress.', env.OPC_MEDIA_CONFIG_REDIS_ADDRESS, true),
@@ -681,6 +691,20 @@ function addPinnedImageTagCheck(
     id,
     valid ? 'pass' : 'fail',
     valid ? `${id} is pinned to ${value}` : `${id} must be an exact semantic version tag and cannot use latest`
+  );
+}
+
+function addImmutableImageCheck(
+  checks: LiveKitDeploymentPreflightCheck[],
+  id: string,
+  value: string | undefined
+): void {
+  const valid = IMMUTABLE_IMAGE_REFERENCE.test(String(value || '').trim());
+  addCheck(
+    checks,
+    id,
+    valid ? 'pass' : 'fail',
+    valid ? `${id} uses an immutable sha256 digest` : `${id} must be a tag@sha256 image reference`
   );
 }
 

@@ -8,10 +8,11 @@ COMPOSE_FILE="$ROOT_DIR/services/ivekit-service/docker-compose.yml"
 COMPOSE_ENV="$ROOT_DIR/services/ivekit-service/env.example"
 RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-helm.XXXXXX.yaml")
 EGRESS_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-egress.XXXXXX.yaml")
+FOUNDATION_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-foundation.XXXXXX.yaml")
 PLATFORM_IMAGE_VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-platform-images.XXXXXX.yaml")
 
 cleanup() {
-  rm -f "$RENDERED_FILE" "$EGRESS_RENDERED_FILE" "$PLATFORM_IMAGE_VALUES_FILE"
+  rm -f "$RENDERED_FILE" "$EGRESS_RENDERED_FILE" "$FOUNDATION_RENDERED_FILE" "$PLATFORM_IMAGE_VALUES_FILE"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -39,6 +40,31 @@ frontend:
   image:
     repository: registry.example.invalid/opc/frontend
     digest: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+postgres:
+  image:
+    repository: postgres
+    digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+redis:
+  image:
+    repository: redis
+    digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+nats:
+  image:
+    repository: nats
+    digest: sha256:3333333333333333333333333333333333333333333333333333333333333333
+livekit:
+  image:
+    repository: livekit/livekit-server
+    digest: sha256:4444444444444444444444444444444444444444444444444444444444444444
+media:
+  sip:
+    image:
+      repository: livekit/sip
+      digest: sha256:5555555555555555555555555555555555555555555555555555555555555555
+rustdesk:
+  image:
+    repository: rustdesk/rustdesk-server
+    digest: sha256:6666666666666666666666666666666666666666666666666666666666666666
 EOF
 
 helm lint "$CHART_DIR" \
@@ -76,6 +102,66 @@ if helm template opc-platform "$PLATFORM_CHART_DIR" \
   printf '%s\n' 'platform unexpectedly rendered without immutable application image digests' >&2
   exit 1
 fi
+
+for component_path in postgres redis nats rustdesk; do
+  if helm template opc-platform "$PLATFORM_CHART_DIR" \
+    --values "$PLATFORM_IMAGE_VALUES_FILE" \
+    --set-string "$component_path.image.digest=" \
+    --set livekit.enabled=false \
+    --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+    --set-string livekit.publicUrl=wss://media.example.invalid \
+    --set-string livekit.apiKey=render-only-key \
+    --set-string livekit.apiSecret=render-only-secret-value \
+    >/dev/null 2>&1; then
+    printf '%s\n' "bundled infrastructure unexpectedly rendered without immutable digest: $component_path" >&2
+    exit 1
+  fi
+done
+
+if helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --values "$PLATFORM_IMAGE_VALUES_FILE" \
+  --set livekit.enabled=true \
+  --set-string livekit.deploymentMode=bundled-dev \
+  --set-string livekit.image.digest= \
+  --set-string livekit.publicUrl=ws://livekit.example.invalid:7880 \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'bundled infrastructure unexpectedly rendered without immutable digest: livekit' >&2
+  exit 1
+fi
+
+if helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --values "$PLATFORM_IMAGE_VALUES_FILE" \
+  --set livekit.enabled=false \
+  --set media.sip.enabled=true \
+  --set-string media.sip.image.digest= \
+  --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+  --set-string livekit.publicUrl=wss://media.example.invalid \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'bundled infrastructure unexpectedly rendered without immutable digest: livekit-sip' >&2
+  exit 1
+fi
+
+helm template opc-foundation "$PLATFORM_CHART_DIR" \
+  --values "$PLATFORM_IMAGE_VALUES_FILE" \
+  --set livekit.enabled=true \
+  --set-string livekit.deploymentMode=bundled-dev \
+  --set-string livekit.publicUrl=ws://livekit.example.invalid:7880 \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
+  --set media.sip.enabled=true \
+  >"$FOUNDATION_RENDERED_FILE"
+
+test -s "$FOUNDATION_RENDERED_FILE"
+grep -q 'postgres@sha256:1111111111111111111111111111111111111111111111111111111111111111' "$FOUNDATION_RENDERED_FILE"
+grep -q 'redis@sha256:2222222222222222222222222222222222222222222222222222222222222222' "$FOUNDATION_RENDERED_FILE"
+grep -q 'nats@sha256:3333333333333333333333333333333333333333333333333333333333333333' "$FOUNDATION_RENDERED_FILE"
+grep -q 'livekit/livekit-server@sha256:4444444444444444444444444444444444444444444444444444444444444444' "$FOUNDATION_RENDERED_FILE"
+grep -q 'livekit/sip@sha256:5555555555555555555555555555555555555555555555555555555555555555' "$FOUNDATION_RENDERED_FILE"
+grep -q 'rustdesk/rustdesk-server@sha256:6666666666666666666666666666666666666666666666666666666666666666' "$FOUNDATION_RENDERED_FILE"
 
 if helm template opc-platform "$PLATFORM_CHART_DIR" \
   --values "$PLATFORM_IMAGE_VALUES_FILE" \

@@ -21,6 +21,7 @@ export interface RemoteGatewayAuthorizationContext {
   remote_session_id: string;
   device_id?: string;
   authorization_id?: string;
+  authorization_claim_id?: string;
   access_mode: RustDeskGatewayAccessMode;
 }
 
@@ -260,6 +261,7 @@ class HttpRemoteGatewayClient implements RemoteGatewayClient {
           remote_session_id: context.remote_session_id,
           device_id: context.device_id,
           authorization_id: context.authorization_id,
+          authorization_claim_id: context.authorization_claim_id,
           access_mode: rustDeskGatewayAccessMode(context.access_mode)
         } : {}),
         metadata

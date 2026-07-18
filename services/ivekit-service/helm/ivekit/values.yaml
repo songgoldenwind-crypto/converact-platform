@@ -296,7 +296,7 @@ voice:
   regionId: ""
   zoneId: ""
   image:
-    repository: ghcr.io/restsend/rustpbx
+    repository: ghcr.io/songgoldenwind-crypto/opc-rustpbx
     digest: ""
     pullPolicy: IfNotPresent
   sipCapacity:
@@ -305,6 +305,8 @@ voice:
     incomingTransactionQueueCapacity: 8192
     maxTransportConnections: 32768
   mediaCapacity:
+    sessionCleanupConcurrency: 64
+    sessionCleanupTimeoutMs: 2000
     recordingChannelCapacity: 256
     recordingWorkerThreads: 4
     recordingWorkerQueueCapacity: 4096
@@ -313,6 +315,27 @@ voice:
   managementTokenKey: rustpbx-management-token
   rwiTokenKey: rustpbx-rwi-token
   webhookTokenKey: rustpbx-webhook-token
+  webphone:
+    enabled: true
+    publicWssUrl: ""
+    sipRealm: ""
+    jwtSecretKey: rustpbx-webphone-jwt-secret
+    jwtIssuer: ivekit
+    jwtAudience: rustpbx-webphone
+    ttlSeconds: "300"
+    registerExpiresSeconds: "240"
+    iceServersJson: "[]"
+    cleanup:
+      intervalMs: "60000"
+      tenantLimit: "100"
+      batchSize: "500"
+    ingress:
+      enabled: false
+      className: ""
+      annotations: {}
+      host: ""
+      path: /ws
+      tls: []
   addressHmacKeyKey: ivekit-voice-address-hmac-key
   routeSnapshot:
     hmacKeyKey: rustpbx-route-snapshot-hmac-key

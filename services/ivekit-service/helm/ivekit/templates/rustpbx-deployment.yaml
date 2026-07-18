@@ -8,6 +8,12 @@
 {{- fail (printf "voice.sipCapacity.%s must be between 1 and 10000000" $name) -}}
 {{- end -}}
 {{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.sessionCleanupConcurrency) 1) (gt (int .Values.voice.mediaCapacity.sessionCleanupConcurrency) 4096) -}}
+{{- fail "voice.mediaCapacity.sessionCleanupConcurrency must be between 1 and 4096" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs) 1) (gt (int .Values.voice.mediaCapacity.sessionCleanupTimeoutMs) 60000) -}}
+{{- fail "voice.mediaCapacity.sessionCleanupTimeoutMs must be between 1 and 60000" -}}
+{{- end -}}
 {{- if or (lt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingChannelCapacity) 65536) -}}
 {{- fail "voice.mediaCapacity.recordingChannelCapacity must be between 1 and 65536" -}}
 {{- end -}}
@@ -46,6 +52,14 @@
 {{- end -}}
 {{- if has "*" .Values.voice.amiAllows -}}
 {{- fail "voice.amiAllows must not contain a wildcard" -}}
+{{- end -}}
+{{- if .Values.voice.webphone.enabled -}}
+{{- $_ := required "voice.webphone.publicWssUrl is required when WebPhone is enabled" .Values.voice.webphone.publicWssUrl -}}
+{{- $_ := required "voice.webphone.sipRealm is required when WebPhone is enabled" .Values.voice.webphone.sipRealm -}}
+{{- $_ := required "voice.webphone.jwtSecretKey is required when WebPhone is enabled" .Values.voice.webphone.jwtSecretKey -}}
+{{- if .Values.voice.webphone.ingress.enabled -}}
+{{- $_ := required "voice.webphone.ingress.host is required when WebPhone ingress is enabled" .Values.voice.webphone.ingress.host -}}
+{{- end -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -121,6 +135,22 @@ spec:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" . }}
                   key: {{ .Values.voice.webhookTokenKey }}
+            {{- if .Values.voice.webphone.enabled }}
+            - name: OPC_IVEKIT_WEBPHONE_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_WEBPHONE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.webphone.jwtSecretKey }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_ISSUER
+              value: {{ .Values.voice.webphone.jwtIssuer | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE
+              value: {{ .Values.voice.webphone.jwtAudience | quote }}
+            {{- else }}
+            - name: OPC_IVEKIT_WEBPHONE_ENABLED
+              value: "0"
+            {{- end }}
             - name: RUSTPBX_ROUTER_URL
               value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/router" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
             - name: RUSTPBX_CDR_WEBHOOK_URL
@@ -141,6 +171,10 @@ spec:
               value: {{ .Values.voice.sipCapacity.incomingTransactionQueueCapacity | quote }}
             - name: RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS
               value: {{ .Values.voice.sipCapacity.maxTransportConnections | quote }}
+            - name: RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY
+              value: {{ .Values.voice.mediaCapacity.sessionCleanupConcurrency | quote }}
+            - name: RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS
+              value: {{ .Values.voice.mediaCapacity.sessionCleanupTimeoutMs | quote }}
             - name: RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY
               value: {{ .Values.voice.mediaCapacity.recordingChannelCapacity | quote }}
             - name: RUSTPBX_MEDIA_RECORDING_WORKER_THREADS
@@ -491,6 +525,38 @@ spec:
       targetPort: component-node
       protocol: TCP
     {{- end }}
+{{- if and .Values.voice.webphone.enabled .Values.voice.webphone.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ivekit.fullname" . }}-rustpbx-webphone
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+  {{- with .Values.voice.webphone.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.voice.webphone.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.voice.webphone.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.voice.webphone.ingress.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.voice.webphone.ingress.path | quote }}
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "ivekit.fullname" . }}-rustpbx-internal
+                port:
+                  name: management
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -525,7 +591,7 @@ spec:
     {{- include "ivekit.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: rustpbx
   ports:
-    {{- range $port := untilStep (int .Values.voice.rtpStartPort) (add1 (int .Values.voice.rtpEndPort)) 1 }}
+    {{- range $port := untilStep (int .Values.voice.rtpStartPort) (add1 (int .Values.voice.rtpEndPort) | int) 1 }}
     - name: rtp-{{ $port }}
       port: {{ $port }}
       targetPort: {{ $port }}

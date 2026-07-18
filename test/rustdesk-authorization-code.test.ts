@@ -21,12 +21,27 @@ test('RustDesk authorization code migration stores only HMAC material with force
     assert.match(source, /idempotency_key TEXT NOT NULL/);
     assert.match(source, /request_hash TEXT NOT NULL/);
     assert.match(source, /status NOT IN \('pending', 'locked'\) OR verified_by IS NULL/);
+    assert.match(source, /CONSTRAINT rustdesk_authorization_codes_claim_actor_check/);
+    assert.match(source, /status <> 'claimed' OR claimed_by = verified_by/);
+    assert.match(source, /rustdesk_authorization_codes_claim_state_check CHECK \(\s*\(\s*status = 'claimed'\s+AND claim_id IS NOT NULL\s+AND claimed_by IS NOT NULL\s+AND claimed_at IS NOT NULL\s+AND claim_expires_at IS NOT NULL\s*\)\s+OR\s+\(\s*status <> 'claimed'\s+AND claim_id IS NULL\s+AND claimed_by IS NULL\s+AND claimed_at IS NULL\s+AND claim_expires_at IS NULL/);
     assert.doesNotMatch(source, /raw_code|plain(?:text)?_code|rustdesk_password/i);
   }
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
   assert.match(migration, /FORCE ROW LEVEL SECURITY/);
   assert.match(migration, /ADD CONSTRAINT rustdesk_authorization_codes_remote_session_fk/);
   assert.match(migration, /opc_rls_bypass\(\) OR tenant_id = opc_current_tenant\(\)/);
+});
+
+test('RustDesk authorization claim upgrade preserves the verified actor invariant', () => {
+  const migration = readFileSync(
+    new URL('../src/migrations/095_rustdesk_authorization_claims.sql', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(migration, /DROP CONSTRAINT IF EXISTS rustdesk_authorization_codes_claim_actor_check/);
+  assert.match(migration, /ADD CONSTRAINT rustdesk_authorization_codes_claim_actor_check/);
+  assert.match(migration, /status <> 'claimed' OR claimed_by = verified_by/);
+  assert.match(migration, /rustdesk_authorization_codes_claim_state_check CHECK \(\s*\(\s*status = 'claimed'\s+AND claim_id IS NOT NULL\s+AND claimed_by IS NOT NULL\s+AND claimed_at IS NOT NULL\s+AND claim_expires_at IS NOT NULL\s*\)\s+OR\s+\(\s*status <> 'claimed'\s+AND claim_id IS NULL\s+AND claimed_by IS NULL\s+AND claimed_at IS NULL\s+AND claim_expires_at IS NULL/);
 });
 
 test('RustDesk authorization code is returned once and idempotency never replays plaintext', async () => {
@@ -87,6 +102,49 @@ test('RustDesk authorization code verifies, binds the engineer, and is consumed 
     external_id: 'rdgw-other',
     now: '2026-07-15T01:02:02.000Z'
   }), /not verified for this actor|already consumed/i);
+});
+
+test('RustDesk authorization code claim fences upstream creation and is owner-releasable', async () => {
+  const store = new RustDeskAuthorizationCodeStore(new MemoryPg(), { secret });
+  const created = await store.create(createInput('claim'));
+  await store.verify({
+    tenant_id: created.authorization.tenant_id,
+    authorization_id: created.authorization.id,
+    code: created.code!,
+    verified_by: 'engineer-claim',
+    now: '2026-07-15T01:01:00.000Z'
+  });
+
+  const claimed = await store.claim({
+    tenant_id: created.authorization.tenant_id,
+    authorization_id: created.authorization.id,
+    verified_by: 'engineer-claim',
+    now: '2026-07-15T01:01:10.000Z'
+  });
+  assert.equal(claimed.authorization.status, 'claimed');
+  assert.match(claimed.claim_id, /^rdclaim_/);
+  await assert.rejects(() => store.claim({
+    tenant_id: created.authorization.tenant_id,
+    authorization_id: created.authorization.id,
+    verified_by: 'engineer-claim',
+    now: '2026-07-15T01:01:11.000Z'
+  }), /already claimed|unavailable/i);
+  await assert.rejects(() => store.releaseClaim({
+    tenant_id: created.authorization.tenant_id,
+    authorization_id: created.authorization.id,
+    verified_by: 'engineer-claim',
+    claim_id: 'rdclaim_wrong',
+    now: '2026-07-15T01:01:12.000Z'
+  }), /claim is stale|claim owner/i);
+
+  const released = await store.releaseClaim({
+    tenant_id: created.authorization.tenant_id,
+    authorization_id: created.authorization.id,
+    verified_by: 'engineer-claim',
+    claim_id: claimed.claim_id,
+    now: '2026-07-15T01:01:13.000Z'
+  });
+  assert.equal(released.status, 'verified');
 });
 
 test('RustDesk authorization code locks after bounded failures and expires fail closed', async () => {

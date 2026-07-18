@@ -841,7 +841,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 ### 17.3 镜像与版本
 
 - iveKit standalone Helm 和可选 RustPBX 必须使用 registry digest；Compose 交付只有记录 digest 后才从 `blocked_build_required` 变为 `ready`。
-- iveKit RustPBX 已验证工程基线为 `0.4.11-ivekit.3`，源码 commit、rsipstack commit、Cargo lock、builder/runtime digest、TCP reconnect patch、AMI call-id patch 与 RWI originate CANCEL/BYE patch 均在 `infra/ivekit/rustpbx/` 固定；隔离服务器已完成 SIPp BYE 和 12/12 场景复验。当前源码候选为 `0.4.11-ivekit.8`：在同一固定 commit 上继续叠加 route snapshot、Cell admission、owner epoch、recording spool、rsipstack/RustPBX 有界事务与显式 SIP 503 过载补丁，并将 BridgePeer/ForwardingTrack 的录音编解码和磁盘工作移出 RTP 转发循环。完整补丁队列已在干净精确源码上重放，TypeScript、Compose/Helm、ServiceMonitor/告警合同通过；`.8` 的 Rust 原生编译、SIPp CPS/overload、真实 RTP 连续性、录音队列溢出和故障验收保持 `not_run`。发布仍必须使用 registry digest，禁止用同名可变 tag 替代。
+- iveKit RustPBX 已验证工程基线为 `0.4.11-ivekit.3`，源码 commit、rsipstack commit、Cargo lock、builder/runtime digest、TCP reconnect patch、AMI call-id patch 与 RWI originate CANCEL/BYE patch 均在 `infra/ivekit/rustpbx/` 固定；隔离服务器已完成 SIPp BYE 和 12/12 场景复验。当前源码候选为 `0.4.11-ivekit.10`：在同一固定 commit 上继续叠加 route snapshot、Cell admission、owner epoch、recording spool、rsipstack/RustPBX 有界事务、显式 SIP 503 过载、WebPhone 注册表和会话清理隔离补丁。录音编解码、磁盘写入、录音终结、播放轨道停止、MCU 清理和 bridge 释放均不再由单一 RTP/媒体命令循环同步等待；清理任务受并发上限与超时约束，失败只降低录音证据或资源回收质量，不应阻塞仍在进行的呼叫。完整补丁队列已在干净精确源码上重放，TypeScript、Compose/Helm、ServiceMonitor/告警合同通过；`.10` 的 Linux 镜像编译、SIPp CPS/overload、真实 RTP 连续性、阻塞文件系统、录音队列溢出和故障验收保持 `not_run`，不能由源码检查替代。发布仍必须使用 registry digest，禁止用同名可变 tag 替代。
 - release manifest 记录 RustPBX capability matrix。
 - 上游版本升级先通过 adapter contract、受控呼叫和回滚演练。
 - standalone source policy 显式收录 Voice preflight 和 RustPBX config renderer；隔离构建门禁要求三个 operational entrypoint 都实际生成。

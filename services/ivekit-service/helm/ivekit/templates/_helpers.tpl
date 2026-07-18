@@ -33,6 +33,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "ivekit.rustpbxImage" -}}
 {{- $repository := required "voice.image.repository is required when voice is enabled" .Values.voice.image.repository -}}
+{{- if regexMatch "(^|/)restsend/rustpbx$" $repository -}}
+{{- fail "voice.image.repository must reference the iveKit-patched RustPBX image, not the unpatched upstream image" -}}
+{{- end -}}
 {{- $digest := required "voice.image.digest is required when voice is enabled" .Values.voice.image.digest -}}
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
 {{- fail "voice.image.digest must be an immutable sha256 digest" -}}

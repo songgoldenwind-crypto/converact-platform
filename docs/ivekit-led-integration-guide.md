@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-15。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端、真实 Voice/PSTN/RTP 和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
+> 版本：2026-07-19。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端、真实 Voice/PSTN/RTP 和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
 
 ## 1. 交付目标
 
@@ -184,11 +184,11 @@ await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
 1. signed `launch_url` 和 token 不渲染到 DOM，也不持久化；界面只展示客户端手工配置字段。
 2. 点击 **Open RustDesk** 时即时重新读取 launch plan，并校验 active 状态、目标 RustDesk ID、protocol scheme 和 server key fingerprint 后才调用浏览器 protocol handler。
 3. unattended 模式只在建会话和用户主动拉起时签发并消费 `unattended_launch` 二次确认；普通状态刷新不会消耗一次性确认。
-4. attended 严格模式下，active customer/admin 创建 8 位一次性 code，active engineer 验证后把 `authorization_id` 交给启动请求；code 不是 RustDesk password，不能存储、重放或替代 consent/control。
+4. attended 严格模式下，active customer/admin 创建 8 位一次性 code，active engineer 验证后把 `authorization_id` 交给启动请求；服务端在调用 RustDesk 前原子 claim，只有 gateway session 持久化成功后才 consume，并发启动不能重复消费。明确失败会释放 claim，超时 claim 到期后回到 verified；code 不是 RustDesk password，不能存储、重放或替代 consent/control。
 5. 当前身份取得控制权后每 10 秒调用 `heartbeatControl()` 续租；释放、转移、过期、会话结束或组件卸载后停止。续租失败会重新读取服务端 ownership，不在前端伪造所有权。
 6. 浏览器 protocol handler 必须由用户点击触发。LED 若封装桌面壳，应通过 `openProtocol(url)` 注入受控原生拉起实现，仍保留上述即时校验。
 
-Windows 设备侧精准断开由 ACL 保护的 session registry、固定 resolver 和 `ivekit-rustdesk-native-control-v2` named pipe 完成。placement-enabled package v6 把 `interaction_id + reservation_id + owner_epoch + command_id` 一并传入 companion 与原生 overlay；companion 先校验服务端 owner binding，再以每个 external session 一个原子状态分片持久化已接受的最大 epoch，旧 epoch 在原生执行前直接拒绝。自定义 RustDesk 1.4.7 overlay 只对指定 native connection ID 调用原生 close，回显 owner identity 并确认该连接消失；映射缺失或漂移时返回 `precise_disconnect_unavailable`。v1 只用于关闭 Cell placement 的滚动兼容。普通链路不会自动重启 RustDesk service。只有 owner/admin 显式调用 `authorizeEmergencyFallback()`、提交原因并确认 `collateral_sessions_may_disconnect=true` 后，companion 才能在同一授权约束下执行一次 emergency restart；该路径会独立审计，可能影响同机其他会话。macOS/Linux wrapper 仍保持显式 capability/不可用语义，不能伪装成 Windows 精准断开。
+Windows 设备侧精准断开由 ACL 保护的 session registry、固定 resolver 和 `ivekit-rustdesk-native-control-v2` named pipe 完成。gateway session 创建时由服务端生成不重复的 `ivekit_native_session_id`；launch plan 只把它放进 `rustdesk://` 的 `ivekit_session_id` 查询参数，不放进公开 metadata。定制 RustDesk 1.4.7 会把该值从深链、Flutter/CLI、多窗口、IPC 一直传到 connection manager。placement-enabled package v6 再把 `interaction_id + reservation_id + owner_epoch + command_id + native_session_id` 传入 companion 与原生 overlay；companion 先校验服务端 owner binding，再以每个 external session 一个原子状态分片持久化已接受的最大 epoch，旧 epoch 在原生执行前直接拒绝。原生 resolver 必须同时匹配 `native_session_id + controller_rustdesk_id`，只对该 native connection ID 调用 close，并在回显 owner identity、native session ID 且确认该连接消失后才报告成功；任一字段缺失、漂移或会话已替换均返回 `precise_disconnect_unavailable`。v1 只用于关闭 Cell placement 的滚动兼容。普通链路不会自动重启 RustDesk service。只有 owner/admin 显式调用 `authorizeEmergencyFallback()`、提交原因并确认 `collateral_sessions_may_disconnect=true` 后，companion 才能在同一授权约束下执行一次 emergency restart；该路径会独立审计，可能影响同机其他会话。macOS/Linux wrapper 仍保持显式 capability/不可用语义，不能伪装成 Windows 精准断开。
 
 原生 RustDesk/边车操作观测通过 `ivekit.rustdesk.recordOperationObservation()` 或 `npm run rustdesk:operation-observer` 上报。统一覆盖画面、键鼠、多显示器、文件、剪贴板、录屏和断开；同一 `operation_id + status` 使用稳定幂等键，并复用 event forwarder 的 retry/dead-letter/replay。LED 只能上报计数、方向、display ID、SHA-256、duration、状态和 evidence ref，不能发送文件内容、剪贴板正文、按键、屏幕像素、录像字节或凭证。没有 native observer 时必须展示 `not_observed`，不能从 HTTP 2xx 或 wrapper 成功推导真实操作成功。
 
@@ -287,6 +287,23 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 5. 结束会话后查询 physical disconnect command 状态。
 6. 真实客户端必须人工确认屏幕和键鼠能力已经停止。
 
+### 5.4 Voice 与 WebPhone
+
+LED 通过统一 SDK 的 `voice` client 使用分机、呼叫、IVR 和 Contact Center API。浏览器注册前先读取
+capabilities，只有 `capabilities.extension_sessions=true` 才调用
+`createExtensionSession(extensionId, { idempotencyKey })`。服务端要求 operator 身份，并校验当前用户
+只能领取自己的分机或由管理员领取；相同幂等键只能重放相同分机、actor、revision 和运行时配置。
+
+session plan 只存储签发元数据，WSS/SIP 短期 credential 由服务端 HMAC 生成并仅在响应中返回；默认
+TTL 300 秒，允许范围 30 至 300 秒。迁移 094 提供 tenant RLS、幂等唯一键、过期索引和按 tenant
+有界 `SKIP LOCKED` 清理。RustPBX `.10` 的 WebPhone pre-auth registry 使用 keyed `HashMap` 和连接
+生命周期 guard，替代全局 `Mutex<Vec>` 扫描；地址复用时旧 guard 不能删除新连接。浏览器应在 plan
+过期前完成注册，过期或 capability 关闭时重新向 iveKit 申请，不得在 LED 数据库或日志保存 credential。
+
+实时媒体与录制继续是两个故障域。RustPBX 录音 capture 使用有界非阻塞队列，录音编解码、磁盘、
+终结和会话资源清理不在 RTP/媒体命令循环中同步等待；LiveKit Server 不依赖 Egress/对象存储。
+存储故障允许录制失败或不完整，但不得回压、重建或终止已建立的 SIP/RTP/WebRTC 会话。
+
 ## 6. 数据库与迁移
 
 生产数据层只使用 **PostgreSQL + RLS**，不要引入 SQLite。独立部署至少按顺序迁移：
@@ -312,6 +329,8 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 | `074_tinode_message_mutation_outbox.sql` | Tinode 原生 edit/delete durable outbox、重试、dead-letter 和 replay |
 | `075_rustdesk_emergency_fallback.sql` | 精准断开失败后的 owner/admin 显式 emergency fallback 授权 |
 | `076_rustdesk_evidence_intelligence_reconciliation.sql` | RustDesk ready evidence 的最小权限候选发现与 missed-callback 幂等补偿 |
+| `094_ivekit_voice_extension_sessions.sql` | WebPhone 短期 session 的幂等签发、RLS、过期索引和有界清理 |
+| `095_rustdesk_authorization_claims.sql` | 已运行旧 migration 064 的数据库升级到 claim/consume 两阶段授权状态机 |
 
 迁移后必须验证 `ENABLE ROW LEVEL SECURITY`、`FORCE ROW LEVEL SECURITY`、tenant policy 和非 bypass 账号的跨租户拒绝。MemoryPg 测试不能替代真实 PostgreSQL。
 
@@ -497,6 +516,7 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 15. production 缺内部 URL、API key、API secret 或公网 WSS 时直接失败，不会签发 `dev-token`。preflight 和渲染器还会拒绝 `your_key`、`change_me`、`devkey`、`secret`、`minioadmin` 等占位/弱默认值。
 16. 实时媒体与录制存储是两个故障域：LiveKit Server 不依赖 Egress/MinIO，RustPBX RTP 不依赖 uploader。Compose 的 MinIO 通过 `/minio/health/live` 后才运行 bucket bootstrap；Kubernetes 使用不可变 digest，并配置 startup/readiness/liveness 探针。2026-07-18 已在固定 manifest digest 后复跑双 Chromium、LiveKit、Egress 和 MinIO：停止 MinIO 后两端连接和四条发布/订阅轨保持不变，只有 Egress 以脱敏 `storage_upload_failed` 终止；LiveKit 未重启，恢复后 bucket 仍禁止匿名访问。该结果是受控本机证据，不是生产对象存储或公网 TURN 验收。
 17. root Kubernetes Chart 的 OPC、AI Agent、Frontend 镜像全部要求完整 SHA-256 digest，缺 digest 或继续使用 tag 时 Helm fail-closed。RustDesk 部署命令必须通过 `OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE` 指向生产 values 文件；文件内需给出实际应用镜像 digest、Secret 引用和环境参数，不能直接使用仓库默认空值。
+18. RustPBX `.10` 把 WebPhone pre-auth 查找改为 O(1) keyed registry，并把会话销毁后的播放、MCU、bridge 清理放入限并发、硬超时后台任务。`SessionDestroyed` 只表示会话已脱离实时状态，不表示录音已经持久化完成；cleanup timeout/exhaustion 需要告警和 drain，但不能阻塞媒体命令循环。
 
 以上代码尚未在目标服务器执行 Docker 镜像拉取、容器启动、真实数据库/bucket 初始化或真实 provider 请求。2026-07-11 已通过 SSH 完成目标服务器只读资源与端口盘点，但没有上传、部署或修改现有 LED 服务。
 

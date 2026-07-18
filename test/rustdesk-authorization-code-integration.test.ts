@@ -170,6 +170,66 @@ test('strict attended activation does not consume a verified code when authoriza
   }
 });
 
+test('strict attended launch claims once before concurrent upstream creation', async () => {
+  const previous = configureEnvironment();
+  try {
+    const pg = new MemoryPg();
+    const fixture = await createFixture(pg, 'concurrent-claim');
+    const module = createCollaborationModule({ pg });
+    const created = await module.rustdeskAuthorizationCodes.create({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      device_id: fixture.deviceId,
+      scopes: ['view_screen'],
+      requested_by: 'customer-concurrent-claim',
+      idempotency_key: 'authorization-concurrent-claim-1'
+    });
+    await module.rustdeskAuthorizationCodes.verify({
+      tenant_id: fixture.tenantId,
+      authorization_id: created.authorization.id,
+      code: created.code!,
+      verified_by: 'engineer-concurrent-claim'
+    });
+
+    let createCalls = 0;
+    const client: RemoteGatewayClient = {
+      provider: 'rustdesk',
+      async createSession(input) {
+        createCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return {
+          provider: 'rustdesk',
+          external_id: `rdgw-concurrent-${createCalls}`,
+          launch_url: 'https://opc.example.test/remote/rustdesk/launch',
+          target: input.target,
+          permissions: [...input.permissions],
+          metadata: input.metadata
+        };
+      },
+      async endSession() {},
+      async listAuditEvents() { return []; }
+    };
+    const launch = () => module.remote.startGatewayClientSession({
+      tenant_id: fixture.tenantId,
+      remote_session_id: fixture.remoteId,
+      actor_identity: 'engineer-concurrent-claim',
+      client,
+      target: { type: 'device' as const, id: fixture.rustdeskId },
+      permissions: ['view_screen'] as const,
+      access_mode: 'attended' as const,
+      device_id: fixture.deviceId,
+      authorization_id: created.authorization.id
+    });
+
+    const results = await Promise.allSettled([launch(), launch()]);
+    assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
+    assert.equal(results.filter((result) => result.status === 'rejected').length, 1);
+    assert.equal(createCalls, 1, 'the losing request must fail before contacting RustDesk');
+  } finally {
+    restoreEnvironment(previous);
+  }
+});
+
 test('iveKit RustDesk SDK exposes sanitized authorization-code create, get, and verify contracts', async () => {
   const calls: Array<{ method: string; path: string; headers: Headers; body: unknown }> = [];
   const authorization = authorizationDto('sdk');

@@ -17,14 +17,14 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: component
-          image: replace.example.com/upstream/component:replace-with-digest
+          image: replace.example.com/upstream/component@sha256:replace-with-component-digest
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
         - name: node-admission
-          image: replace.example.com/ivekit/capacity-tools:replace-with-digest
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           command:
             ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]

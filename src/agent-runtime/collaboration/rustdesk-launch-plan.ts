@@ -270,7 +270,20 @@ function rustDeskProtocolUrl(
   if (!isRustDeskProtocolUrl(protocolUrl)) {
     throw new Error('RustDesk protocol URL template must produce a rustdesk:// URL');
   }
-  return protocolUrl;
+  const nativeSessionId = rustDeskNativeSessionId(session.metadata.ivekit_native_session_id);
+  if (!nativeSessionId) return protocolUrl;
+  const parsed = new URL(protocolUrl);
+  parsed.searchParams.set('ivekit_session_id', nativeSessionId);
+  return parsed.toString();
+}
+
+function rustDeskNativeSessionId(value: unknown): string {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (!/^[1-9][0-9]{0,18}$/.test(normalized) || BigInt(normalized) > 0x7fffffffffffffffn) {
+    throw new Error('RustDesk native session ID is invalid');
+  }
+  return BigInt(normalized).toString();
 }
 
 export function isRustDeskProtocolUrl(protocolUrl: string): boolean {

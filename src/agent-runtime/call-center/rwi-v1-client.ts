@@ -16,8 +16,8 @@ type EventHandler = (message: Record<string, unknown>) => void;
 
 function buildRwiV1Url(url: string, authToken?: string): string {
   const parsed = new URL(url);
-  if (authToken && !parsed.searchParams.has('token')) {
-    parsed.searchParams.set('token', authToken);
+  if (parsed.searchParams.has('token') || parsed.searchParams.has('access_token')) {
+    throw new Error('RWI credentials must not be placed in the websocket URL');
   }
   return parsed.toString();
 }
@@ -27,6 +27,7 @@ export class RwiV1Client {
   private connected = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay: number;
+  private stopped = true;
   private readonly handlers = new Set<EventHandler>();
 
   constructor(private readonly config: RwiV1ClientConfig) {
@@ -35,6 +36,7 @@ export class RwiV1Client {
 
   async connect(): Promise<void> {
     if (this.connected && this.ws?.readyState === WebSocket.OPEN) return;
+    this.stopped = false;
 
     const headers: Record<string, string> = {};
     if (this.config.authToken) {
@@ -69,12 +71,13 @@ export class RwiV1Client {
       });
       ws.on('close', () => {
         this.connected = false;
-        this.scheduleReconnect();
+        if (!this.stopped) this.scheduleReconnect();
       });
     });
   }
 
   disconnect(): void {
+    this.stopped = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -123,11 +126,12 @@ export class RwiV1Client {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimer) return;
+    if (this.stopped || this.reconnectTimer) return;
     const delay = this.reconnectDelay;
     this.reconnectDelay = Math.min(delay * 2, 30_000);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
+      if (this.stopped) return;
       void this.connect().catch(() => this.scheduleReconnect());
     }, delay);
   }

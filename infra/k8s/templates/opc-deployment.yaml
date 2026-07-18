@@ -374,6 +374,37 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustpbx-webhook-token
+            {{- if .Values.voice.webphone.enabled }}
+            - name: OPC_IVEKIT_WEBPHONE_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_WEBPHONE_WSS_URL
+              value: {{ .Values.voice.webphone.publicWssUrl | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SIP_REALM
+              value: {{ .Values.voice.webphone.sipRealm | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: rustpbx-webphone-jwt-secret
+            - name: OPC_IVEKIT_WEBPHONE_JWT_ISSUER
+              value: {{ .Values.voice.webphone.jwtIssuer | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE
+              value: {{ .Values.voice.webphone.jwtAudience | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_TTL_SECONDS
+              value: {{ .Values.voice.webphone.ttlSeconds | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS
+              value: {{ .Values.voice.webphone.registerExpiresSeconds | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON
+              value: {{ .Values.voice.webphone.iceServersJson | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS
+              value: {{ .Values.voice.webphone.cleanup.intervalMs | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT
+              value: {{ .Values.voice.webphone.cleanup.tenantLimit | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE
+              value: {{ .Values.voice.webphone.cleanup.batchSize | quote }}
+            {{- end }}
             {{- end }}
             - name: OPC_REMOTE_GATEWAY_PROVIDER
               value: {{ .Values.rustdesk.provider | default "rustdesk" | quote }}
@@ -401,7 +432,7 @@ spec:
             - name: OPC_RUSTDESK_CONTROL_PLANE_BASE_URL
               value: {{ .Values.rustdesk.controlPlaneBaseUrl | default (printf "http://%s-opc:3000" .Release.Name) | quote }}
             - name: RUSTDESK_SERVER_IMAGE_TAG
-              value: {{ .Values.rustdesk.image.tag | quote }}
+              value: {{ .Values.rustdesk.serverVersion | quote }}
             - name: OPC_RUSTDESK_CLIENT_VERSION
               value: {{ .Values.rustdesk.clientVersion | quote }}
             - name: OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS

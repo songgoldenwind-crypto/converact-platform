@@ -20,6 +20,7 @@ test('Windows disconnect adapter uses the packaged precise-session bridge only',
   assert.match(adapter, /-TargetId'\s+\$TargetId/);
   assert.match(adapter, /-RustDeskId'\s+\$RustDeskId/);
   assert.match(adapter, /-ControllerRustDeskId'\s+\$ControllerRustDeskId/);
+  assert.match(adapter, /-NativeSessionId'\s+\$NativeSessionId/);
   assert.doesNotMatch(adapter, /Invoke-Expression|Start-Process|cmd\.exe/i);
 });
 
@@ -44,6 +45,7 @@ test('Windows precise disconnect sends an epoch-fenced v2 named-pipe request for
   assert.match(bridge, /NamedPipeClientStream/);
   assert.doesNotMatch(bridge, /Resolve-IveKitRustDeskSession\.ps1/);
   assert.match(bridge, /ControllerRustDeskId/);
+  assert.match(bridge, /NativeSessionId/);
   assert.match(bridge, /controller_rustdesk_id/);
   assert.match(bridge, /native_session_id/);
   assert.match(bridge, /command_id/);
@@ -68,6 +70,7 @@ test('Windows installer packages the companion and supplies complete adapter arg
   assert.match(deployment, /'-Mode', 'execute'/);
   assert.match(deployment, /'-TargetId', '\{target_id\}'/);
   assert.match(deployment, /'-ControllerRustDeskId', '\{controller_rustdesk_id\}'/);
+  assert.match(deployment, /'-NativeSessionId', '\{native_session_id\}'/);
   assert.match(deployment, /'-InteractionId', '\{interaction_id\}'/);
   assert.match(deployment, /'-ReservationId', '\{reservation_id\}'/);
   assert.match(deployment, /'-OwnerEpoch', '\{owner_epoch\}'/);

@@ -237,6 +237,37 @@ spec:
             - name: OPC_IVEKIT_PLACEMENT_WORKER_BATCH_SIZE
               value: {{ .Values.placement.workerBatchSize | quote }}
             {{- end }}
+            {{- if and .Values.voice.enabled .Values.voice.webphone.enabled }}
+            - name: OPC_IVEKIT_WEBPHONE_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_WEBPHONE_WSS_URL
+              value: {{ .Values.voice.webphone.publicWssUrl | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SIP_REALM
+              value: {{ .Values.voice.webphone.sipRealm | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.voice.webphone.jwtSecretKey }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_ISSUER
+              value: {{ .Values.voice.webphone.jwtIssuer | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE
+              value: {{ .Values.voice.webphone.jwtAudience | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_TTL_SECONDS
+              value: {{ .Values.voice.webphone.ttlSeconds | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_REGISTER_EXPIRES_SECONDS
+              value: {{ .Values.voice.webphone.registerExpiresSeconds | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON
+              value: {{ .Values.voice.webphone.iceServersJson | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS
+              value: {{ .Values.voice.webphone.cleanup.intervalMs | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT
+              value: {{ .Values.voice.webphone.cleanup.tenantLimit | quote }}
+            - name: OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE
+              value: {{ .Values.voice.webphone.cleanup.batchSize | quote }}
+            {{- end }}
             - name: OPC_FILE_SECURITY_SCANNER_MODE
               value: {{ .Values.fileSecurity.scannerMode | quote }}
             - name: OPC_FILE_SECURITY_SCAN_WORKER_ENABLED

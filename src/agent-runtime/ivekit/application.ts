@@ -61,6 +61,7 @@ import {
   startIveKitVoiceProviderEventWorker,
   startIveKitVoiceReconciliationWorker
 } from './voice/runtime.js';
+import { startWebPhoneSessionCleanupWorker } from './voice/webphone-session-service.js';
 import { startContactCenterMaintenanceWorker } from './contact-center/maintenance-worker.js';
 import {
   notificationDeliveryWorkerConfig,
@@ -617,6 +618,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     ] : []),
     adapters.startEventRetention({ pg: input.pg, env }),
     adapters.startRetention({ pg: input.pg, env }),
+    startWebPhoneSessionCleanupWorker({ pg: input.pg, env }),
     adapters.startContactCenter({ pg: input.pg, env }),
     ...(notificationConfig.enabled ? [
       adapters.startNotification({ pg: input.pg, env })

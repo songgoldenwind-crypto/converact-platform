@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import test from 'node:test';
 
 test('capacity tools image and package expose the restart-safe worker process', () => {
@@ -195,4 +195,33 @@ test('controlled Compose worker is opt-in and mounts an immutable driver bundle 
     /OPC_IVEKIT_CAPACITY_WORKER_BUNDLE_HOST_PATH[\s\S]*\/opt\/ivekit-capacity-worker:ro/i
   );
   assert.match(compose, /scripts\/ivekit-capacity-worker\.ts/i);
+});
+
+test('capacity Compose requires an immutable NATS image reference', () => {
+  const compose = readFileSync('infra/capacity/docker-compose.yml', 'utf8');
+  const env = readFileSync('infra/capacity/env.example', 'utf8');
+
+  assert.match(
+    compose,
+    /image: \$\{OPC_IVEKIT_CAPACITY_NATS_IMAGE:\?OPC_IVEKIT_CAPACITY_NATS_IMAGE immutable digest reference is required\}/
+  );
+  assert.match(
+    env,
+    /^OPC_IVEKIT_CAPACITY_NATS_IMAGE=nats:[^\s]+@sha256:[a-f0-9]{64}$/m
+  );
+  assert.doesNotMatch(compose, /^\s*image:\s*nats:[^@\s]+\s*$/m);
+});
+
+test('capacity Kubernetes examples use digest-shaped image placeholders', () => {
+  const manifests = readdirSync('infra/capacity/kubernetes')
+    .filter((name) => name.endsWith('.yaml'));
+
+  for (const manifest of manifests) {
+    const yaml = readFileSync(`infra/capacity/kubernetes/${manifest}`, 'utf8');
+    const imageLines = yaml.split('\n').filter((line) => /^\s*image:\s*/.test(line));
+    for (const line of imageLines) {
+      assert.match(line, /@sha256:replace-with-[a-z0-9-]+-digest\s*$/i, `${manifest}: ${line.trim()}`);
+      assert.doesNotMatch(line, /:replace-with-digest\s*$/i, `${manifest}: ${line.trim()}`);
+    }
+  }
 });

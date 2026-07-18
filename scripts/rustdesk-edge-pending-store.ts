@@ -342,7 +342,8 @@ function spoolCommand(value: unknown): RustDeskEdgeSpoolCommand {
     ? {
         interaction_id: required(command.interaction_id, 'command.interaction_id'),
         reservation_id: required(command.reservation_id, 'command.reservation_id'),
-        owner_epoch: positiveDecimal(command.owner_epoch, 'command.owner_epoch')
+        owner_epoch: positiveDecimal(command.owner_epoch, 'command.owner_epoch'),
+        native_session_id: nativeSessionId(command.native_session_id)
       }
     : {};
   if (
@@ -369,6 +370,14 @@ function spoolCommand(value: unknown): RustDeskEdgeSpoolCommand {
     native_control_protocol: protocol,
     ...owner
   };
+}
+
+function nativeSessionId(value: unknown): string {
+  const normalized = positiveDecimal(value, 'command.native_session_id');
+  if (BigInt(normalized) > 0x7fffffffffffffffn) {
+    throw new Error('command.native_session_id is invalid');
+  }
+  return normalized;
 }
 
 function progressReports(value: unknown): RustDeskEdgeCommandProgressReport[] {

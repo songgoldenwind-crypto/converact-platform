@@ -118,6 +118,21 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
     assert.equal(content.split('\n').some((line) => line.startsWith('MINIO_BUCKET=')), true, `${file}: MINIO_BUCKET`);
   }
   const compose = readFileSync('services/ivekit-service/docker-compose.yml', 'utf8');
+  const voiceCompose = readFileSync('services/ivekit-service/docker-compose.voice.yml', 'utf8');
+  const serviceEnv = readFileSync('services/ivekit-service/env.example', 'utf8');
+  const immutablePostgresImage = /^IVEKIT_POSTGRES_IMAGE=postgres:[^\s@]+@sha256:[a-f0-9]{64}$/m;
+  const immutableClamavImage = /^CLAMAV_IMAGE=clamav\/clamav:[^\s@]+@sha256:[a-f0-9]{64}$/m;
+  assert.match(serviceEnv, immutablePostgresImage);
+  assert.match(serviceEnv, immutableClamavImage);
+  assert.doesNotMatch(serviceEnv, /^IVEKIT_POSTGRES_IMAGE_TAG=/m);
+  assert.match(
+    compose,
+    /image: \$\{IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required\}/
+  );
+  assert.match(
+    voiceCompose,
+    /image: \$\{IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required\}/
+  );
   for (const value of ['OPC_IVEKIT_PROVIDER_PROFILES_JSON', 'OPC_TRANSLATION_WORKER_ENABLED', 'MINIO_BUCKET']) {
     assert.match(compose, new RegExp(`${value}:`), value);
   }
@@ -129,7 +144,7 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
     'OPC_FILE_CLEANUP_WORKER_ENABLED'
   ]) assert.match(compose, new RegExp(`${value}:`), value);
   const clamav = compose.match(/^  clamav:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)/m)?.[0] || '';
-  assert.match(clamav, /image: \$\{CLAMAV_IMAGE/);
+  assert.match(clamav, /image: \$\{CLAMAV_IMAGE:\?CLAMAV_IMAGE immutable digest reference is required\}/);
   assert.match(clamav, /healthcheck:/);
   assert.match(clamav, /clamdscan --ping/);
   assert.match(clamav, /clamav_signatures:\/var\/lib\/clamav/);

@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import type { PgQueryable } from '../../db-pg.js';
 import { MemoryPg, pgId } from '../../db-pg.js';
 import type { RemoteConsentScope } from './types.js';
@@ -70,7 +72,10 @@ export class RustDeskGatewaySessionStore {
     const permissions = rustDeskGatewaySessionPermissions(input.permissions);
     const actorIdentity = rustDeskGatewayRequiredString(input.actor_identity, 'actor_identity is required');
     const launchUrl = rustDeskGatewayLaunchUrl(input.launch_url);
-    const metadata = rustDeskGatewayMetadata(input.metadata);
+    const metadata = {
+      ...rustDeskGatewayMetadata(input.metadata),
+      ivekit_native_session_id: rustDeskNativeSessionId()
+    };
     await this.pg.query(
       `INSERT INTO rustdesk_gateway_sessions
         (external_id, tenant_id, status, target_type, target_id, target_display_name,
@@ -322,6 +327,13 @@ export class RustDeskGatewaySessionStore {
     }
     return insert(this.pg);
   }
+}
+
+function rustDeskNativeSessionId(): string {
+  const bytes = randomBytes(8);
+  bytes[0] &= 0x7f;
+  const value = bytes.readBigUInt64BE();
+  return (value === 0n ? 1n : value).toString();
 }
 
 function decodeAuditEvent(row: Record<string, unknown>): RemoteGatewayAuditEvent {

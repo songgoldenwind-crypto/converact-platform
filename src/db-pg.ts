@@ -3119,7 +3119,11 @@ export class MemoryPg implements PgQueryable {
         consumed_at: params[16] || null,
         idempotency_key: params[17],
         request_hash: params[18],
-        updated_at: params[19]
+        updated_at: params[19],
+        claim_id: null,
+        claimed_by: null,
+        claimed_at: null,
+        claim_expires_at: null
       };
       table.set(String(row.id), row);
       return [row];
@@ -3130,14 +3134,36 @@ export class MemoryPg implements PgQueryable {
       const canExpire = Boolean(
         row &&
         String(row.tenant_id) === String(params[0]) &&
-        ['pending', 'verified'].includes(String(row.status)) &&
+        ['pending', 'verified', 'claimed'].includes(String(row.status)) &&
         String(row.expires_at) <= String(params[2])
       );
       if (canExpire && row) {
         row.status = 'expired';
+        row.claim_id = null;
+        row.claimed_by = null;
+        row.claimed_at = null;
+        row.claim_expires_at = null;
         row.updated_at = params[2];
       }
       return { rows: [], rowCount: canExpire ? 1 : 0 };
+    }
+
+    if (sql.startsWith("UPDATE rustdesk_authorization_codes SET status = 'verified', claim_id = NULL") &&
+        sql.includes('claim_expires_at <= $3')) {
+      const row = this.table('rustdesk_authorization_codes').get(String(params[1]));
+      const canRelease = Boolean(
+        row && String(row.tenant_id) === String(params[0]) && row.status === 'claimed' &&
+        String(row.claim_expires_at) <= String(params[2]) && String(row.expires_at) > String(params[2])
+      );
+      if (canRelease && row) {
+        row.status = 'verified';
+        row.claim_id = null;
+        row.claimed_by = null;
+        row.claimed_at = null;
+        row.claim_expires_at = null;
+        row.updated_at = params[2];
+      }
+      return { rows: [], rowCount: canRelease ? 1 : 0 };
     }
 
     if (sql.startsWith('SELECT * FROM rustdesk_authorization_codes') && sql.includes('id = $2')) {
@@ -3156,7 +3182,8 @@ export class MemoryPg implements PgQueryable {
       return { rows: [], rowCount: canUpdate ? 1 : 0 };
     }
 
-    if (sql.startsWith("UPDATE rustdesk_authorization_codes SET status = 'verified'")) {
+    if (sql.startsWith("UPDATE rustdesk_authorization_codes SET status = 'verified'") &&
+        !sql.includes('claim_id = NULL')) {
       const row = this.table('rustdesk_authorization_codes').get(String(params[1]));
       const canVerify = Boolean(
         row && String(row.tenant_id) === String(params[0]) && row.status === 'pending'
@@ -3168,6 +3195,63 @@ export class MemoryPg implements PgQueryable {
         row.updated_at = params[3];
       }
       return { rows: canVerify && row ? [row] : [], rowCount: canVerify ? 1 : 0 };
+    }
+
+    if (sql.startsWith("UPDATE rustdesk_authorization_codes SET status = 'claimed'")) {
+      const row = this.table('rustdesk_authorization_codes').get(String(params[1]));
+      const canClaim = Boolean(
+        row && String(row.tenant_id) === String(params[0]) && row.status === 'verified' &&
+        String(row.verified_by) === String(params[2])
+      );
+      if (canClaim && row) {
+        row.status = 'claimed';
+        row.claim_id = params[3];
+        row.claimed_by = params[2];
+        row.claimed_at = params[4];
+        row.claim_expires_at = params[5];
+        row.updated_at = params[4];
+      }
+      return { rows: canClaim && row ? [row] : [], rowCount: canClaim ? 1 : 0 };
+    }
+
+    if (sql.startsWith("UPDATE rustdesk_authorization_codes SET status = 'verified', claim_id = NULL") &&
+        sql.includes('claim_id = $4')) {
+      const row = this.table('rustdesk_authorization_codes').get(String(params[1]));
+      const canRelease = Boolean(
+        row && String(row.tenant_id) === String(params[0]) && row.status === 'claimed' &&
+        String(row.verified_by) === String(params[2]) && String(row.claimed_by) === String(params[2]) &&
+        String(row.claim_id) === String(params[3])
+      );
+      if (canRelease && row) {
+        row.status = 'verified';
+        row.claim_id = null;
+        row.claimed_by = null;
+        row.claimed_at = null;
+        row.claim_expires_at = null;
+        row.updated_at = params[4];
+      }
+      return { rows: canRelease && row ? [row] : [], rowCount: canRelease ? 1 : 0 };
+    }
+
+    if (sql.startsWith("UPDATE rustdesk_authorization_codes SET status = 'consumed'") &&
+        sql.includes('claim_id = NULL')) {
+      const row = this.table('rustdesk_authorization_codes').get(String(params[1]));
+      const canConsume = Boolean(
+        row && String(row.tenant_id) === String(params[0]) && row.status === 'claimed' &&
+        String(row.verified_by) === String(params[2]) && String(row.claimed_by) === String(params[2]) &&
+        String(row.claim_id) === String(params[3])
+      );
+      if (canConsume && row) {
+        row.status = 'consumed';
+        row.consumed_external_id = params[4];
+        row.consumed_at = params[5];
+        row.claim_id = null;
+        row.claimed_by = null;
+        row.claimed_at = null;
+        row.claim_expires_at = null;
+        row.updated_at = params[5];
+      }
+      return { rows: canConsume && row ? [row] : [], rowCount: canConsume ? 1 : 0 };
     }
 
     if (sql.startsWith("UPDATE rustdesk_authorization_codes SET status = 'consumed'")) {

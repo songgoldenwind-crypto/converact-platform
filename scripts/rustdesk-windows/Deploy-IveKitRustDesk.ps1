@@ -427,6 +427,7 @@ function Install-Companion([string]$NodePath, [string]$RustDeskId, [string]$Rust
     '-Protocol', '{native_control_protocol}', '-CommandId', '{command_id}',
     '-Mode', 'execute', '-ExternalId', '{external_id}', '-TargetId', '{target_id}',
     '-RustDeskId', '{rustdesk_id}', '-ControllerRustDeskId', '{controller_rustdesk_id}',
+    '-NativeSessionId', '{native_session_id}',
     '-Reason', '{requested_reason}', '-InteractionId', '{interaction_id}',
     '-ReservationId', '{reservation_id}', '-OwnerEpoch', '{owner_epoch}'
   ) | ConvertTo-Json -Compress

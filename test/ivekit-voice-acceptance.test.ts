@@ -254,7 +254,7 @@ function completeReport(dir: string) {
     checked_at: checkedAt,
     versions: {
       ivekit_image: `registry.voice.internal/ivekit/service@sha256:${'c'.repeat(64)}`,
-      rustpbx_image: `ghcr.io/restsend/rustpbx@sha256:${'d'.repeat(64)}`,
+      rustpbx_image: `ghcr.io/songgoldenwind-crypto/opc-rustpbx@sha256:${'d'.repeat(64)}`,
       rustpbx: '0.4.11',
       postgres: '16.14',
       livekit_sip: '1.6.0',

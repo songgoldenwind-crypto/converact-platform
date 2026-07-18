@@ -20,6 +20,10 @@ const SERVICE_HELM_RUSTPBX = new URL(
   '../services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
   import.meta.url
 );
+const SERVICE_HELM_HELPERS = new URL(
+  '../services/ivekit-service/helm/ivekit/templates/_helpers.tpl',
+  import.meta.url
+);
 const PRODUCTION_COMPOSE = new URL('../infra/docker-compose.production.yml', import.meta.url);
 const PRODUCTION_ENV_EXAMPLE = new URL('../infra/env.example', import.meta.url);
 const STANDALONE_BOOTSTRAP = new URL('../infra/ivekit/init-postgres-runtime-role.sh', import.meta.url);
@@ -35,11 +39,15 @@ const STANDALONE_CONTEXT_VERIFIER = new URL('../scripts/verify-ivekit-standalone
 
 const SECRET_VALUES = {
   RUSTPBX_DATABASE_URL: 'postgresql://rustpbx_app:database-secret@postgres:5432/rustpbx',
-  RUSTPBX_IMAGE: 'ghcr.io/restsend/rustpbx@sha256:2dc00f409f49bf48a23de6101d9d7371692eb7f067e70f4d449f16e158302526',
+  RUSTPBX_IMAGE: 'ghcr.io/songgoldenwind-crypto/opc-rustpbx@sha256:2dc00f409f49bf48a23de6101d9d7371692eb7f067e70f4d449f16e158302526',
   RUSTPBX_AMI_ALLOWS: '127.0.0.1,172.31.240.0/24',
   RUSTPBX_MANAGEMENT_TOKEN: 'management-secret-value',
   RUSTPBX_RWI_TOKEN: 'rwi-secret-value',
   RUSTPBX_WEBHOOK_TOKEN: 'webhook-secret-value',
+  OPC_IVEKIT_WEBPHONE_ENABLED: '1',
+  OPC_IVEKIT_WEBPHONE_JWT_SECRET: 'webphone-jwt-secret-value-that-is-at-least-32-bytes',
+  OPC_IVEKIT_WEBPHONE_JWT_ISSUER: 'ivekit',
+  OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE: 'rustpbx-webphone',
   RUSTPBX_ROUTER_URL: 'http://ivekit-api:3000/api/ivekit/voice/providers/profile/router',
   RUSTPBX_CDR_WEBHOOK_URL: 'http://ivekit-api:3000/api/ivekit/voice/providers/profile/cdrs',
   RUSTPBX_SIP_PORT: '5060',
@@ -50,11 +58,15 @@ const SECRET_VALUES = {
 test('standalone Helm exposes SIP/VoLTE activation without enabling it by default', () => {
   const values = readFileSync(SERVICE_HELM_VALUES, 'utf8');
   const deployment = readFileSync(SERVICE_HELM_DEPLOYMENT, 'utf8');
+  const helpers = readFileSync(SERVICE_HELM_HELPERS, 'utf8');
 
   assert.match(values, /^    OPC_SIP_VOLTE_ENABLED: "0"$/m);
   assert.match(values, /^    LIVEKIT_SIP_BRIDGE_TARGET: ""$/m);
   assert.match(values, /^    RUSTPBX_LIVEKIT_TRUNK: ""$/m);
   assert.match(values, /^    RUSTPBX_RWI_URL: ""$/m);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-rustpbx/);
+  assert.match(helpers, /iveKit-patched RustPBX image/);
+  assert.match(helpers, /restsend\/rustpbx/);
   assert.match(deployment, /range \$name, \$value := \.Values\.config\.env/);
 });
 
@@ -74,12 +86,22 @@ test('RustPBX renderer accepts only immutable PostgreSQL production inputs', () 
     /PostgreSQL/i
   );
   assert.throws(
-    () => renderRustPbxConfig({ ...SECRET_VALUES, RUSTPBX_IMAGE: 'ghcr.io/restsend/rustpbx:latest' }),
+    () => renderRustPbxConfig({
+      ...SECRET_VALUES,
+      RUSTPBX_IMAGE: 'ghcr.io/songgoldenwind-crypto/opc-rustpbx:latest'
+    }),
     /immutable/i
   );
   assert.throws(
     () => renderRustPbxConfig({ ...SECRET_VALUES, RUSTPBX_IMAGE: 'ghcr.io/restsend/rustpbx' }),
-    /immutable/i
+    /iveKit-patched/i
+  );
+  assert.throws(
+    () => renderRustPbxConfig({
+      ...SECRET_VALUES,
+      RUSTPBX_IMAGE: `ghcr.io/restsend/rustpbx@sha256:${'a'.repeat(64)}`
+    }),
+    /iveKit-patched/i
   );
   assert.throws(
     () => renderRustPbxConfig({ ...SECRET_VALUES, RUSTPBX_RTP_START_PORT: '5050' }),
@@ -101,11 +123,24 @@ test('RustPBX renderer accepts only immutable PostgreSQL production inputs', () 
     () => renderRustPbxConfig({ ...SECRET_VALUES, RUSTPBX_AMI_ALLOWS: '*' }),
     /RUSTPBX_AMI_ALLOWS/
   );
+  assert.throws(
+    () => renderRustPbxConfig({ ...SECRET_VALUES, OPC_IVEKIT_WEBPHONE_JWT_SECRET: 'short' }),
+    /WEBPHONE_JWT_SECRET/
+  );
+  assert.throws(
+    () => renderRustPbxConfig({
+      ...SECRET_VALUES,
+      RUSTPBX_MANAGEMENT_TOKEN: SECRET_VALUES.OPC_IVEKIT_WEBPHONE_JWT_SECRET
+    }),
+    /distinct/i
+  );
   for (const [field, value] of [
     ['RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS', '0'],
     ['RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS', '-1'],
     ['RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY', '1.5'],
     ['RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS', '10000001'],
+    ['RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY', '4097'],
+    ['RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS', '0'],
     ['RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY', '0'],
     ['RUSTPBX_MEDIA_RECORDING_WORKER_THREADS', '65'],
     ['RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY', '0']
@@ -129,10 +164,22 @@ test('RustPBX renderer emits a usable config and a secret-free summary', () => {
   assert.match(rendered.config, /sip_max_finished_transactions = 65536/);
   assert.match(rendered.config, /sip_incoming_transaction_queue_capacity = 8192/);
   assert.match(rendered.config, /sip_max_transport_connections = 32768/);
+  assert.match(rendered.config, /media_session_cleanup_concurrency = 64/);
+  assert.match(rendered.config, /media_session_cleanup_timeout_ms = 2000/);
   assert.match(rendered.config, /media_recording_channel_capacity = 256/);
   assert.match(rendered.config, /media_recording_worker_threads = 4/);
   assert.match(rendered.config, /media_recording_worker_queue_capacity = 4096/);
   assert.match(rendered.config, /\[\[proxy\.user_backends\]\]\s*\ntype = "extension"\s*\nttl = 30/);
+  assert.match(rendered.config, /ws_handler = "\/ws"/);
+  assert.match(rendered.config, /\[proxy\.jwt_auth\]/);
+  assert.match(rendered.config, /enabled = true/);
+  assert.match(rendered.config, /secret = "webphone-jwt-secret-value-that-is-at-least-32-bytes"/);
+  assert.match(rendered.config, /user_id_claim = "sub"/);
+  assert.match(rendered.config, /issuer = "ivekit"/);
+  assert.match(rendered.config, /audience = "rustpbx-webphone"/);
+  assert.match(rendered.config, /check_local_user = true/);
+  assert.match(rendered.config, /ws_token_param = "token"/);
+  assert.match(rendered.config, /dev_mint_enabled = false/);
   assert.match(rendered.config, /\[\[console\.api_tokens\]\]/);
   assert.match(rendered.config, /token = "management-secret-value"/);
   assert.match(rendered.config, /\[ami\]\s*\nallows = \["127\.0\.0\.1", "172\.31\.240\.0\/24"\]/);
@@ -156,6 +203,8 @@ test('RustPBX renderer emits a usable config and a secret-free summary', () => {
     sip_max_finished_transactions: 65536,
     sip_incoming_transaction_queue_capacity: 8192,
     sip_max_transport_connections: 32768,
+    media_session_cleanup_concurrency: 64,
+    media_session_cleanup_timeout_ms: 2000,
     media_recording_channel_capacity: 256,
     media_recording_worker_threads: 4,
     media_recording_worker_queue_capacity: 4096,
@@ -171,6 +220,8 @@ test('RustPBX renderer accepts profile-tuned bounded SIP capacity', () => {
     RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS: '98304',
     RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY: '16384',
     RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS: '65536',
+    RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY: '128',
+    RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS: '3500',
     RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: '1024',
     RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: '8',
     RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: '8192'
@@ -180,6 +231,8 @@ test('RustPBX renderer accepts profile-tuned bounded SIP capacity', () => {
   assert.match(rendered.config, /sip_max_finished_transactions = 98304/);
   assert.match(rendered.config, /sip_incoming_transaction_queue_capacity = 16384/);
   assert.match(rendered.config, /sip_max_transport_connections = 65536/);
+  assert.match(rendered.config, /media_session_cleanup_concurrency = 128/);
+  assert.match(rendered.config, /media_session_cleanup_timeout_ms = 3500/);
   assert.match(rendered.config, /media_recording_channel_capacity = 1024/);
   assert.match(rendered.config, /media_recording_worker_threads = 8/);
   assert.match(rendered.config, /media_recording_worker_queue_capacity = 8192/);
@@ -231,6 +284,46 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.doesNotMatch(serviceBlock(voice, 'opc'), /RUSTPBX_DB_PASSWORD/);
   assert.doesNotMatch(serviceBlock(core, 'opc'), /RUSTPBX_DB_PASSWORD/);
   assert.doesNotMatch(voice, /sqlite/i);
+  assert.match(voice, /OPC_IVEKIT_WEBPHONE_WSS_URL/);
+  assert.match(voice, /OPC_IVEKIT_WEBPHONE_SIP_REALM/);
+  assert.match(voice, /OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
+  assert.match(voice, /OPC_IVEKIT_WEBPHONE_ICE_SERVERS_JSON/);
+});
+
+test('WebPhone production deployment shares one JWT authority and exposes only the WSS path', () => {
+  const serviceVoice = readFileSync(SERVICE_VOICE_COMPOSE, 'utf8');
+  const serviceValues = readFileSync(SERVICE_HELM_VALUES, 'utf8');
+  const serviceDeployment = readFileSync(SERVICE_HELM_DEPLOYMENT, 'utf8');
+  const serviceRustPbx = readFileSync(SERVICE_HELM_RUSTPBX, 'utf8');
+  const platformValues = readFileSync(HELM_VALUES, 'utf8');
+  const platformSecrets = readFileSync(HELM_SECRETS, 'utf8');
+  const platformApi = readFileSync(HELM_OPC, 'utf8');
+  const platformRustPbx = readFileSync(HELM_RUSTPBX, 'utf8');
+
+  for (const compose of [readFileSync(VOICE_COMPOSE, 'utf8'), serviceVoice]) {
+    assert.match(serviceBlock(compose, 'rustpbx-config-render'), /OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
+    const api = compose.includes('\n  ivekit:')
+      ? serviceBlock(compose, 'ivekit')
+      : serviceBlock(compose, 'opc');
+    assert.match(api, /OPC_IVEKIT_WEBPHONE_WSS_URL/);
+    assert.match(api, /OPC_IVEKIT_WEBPHONE_SIP_REALM/);
+    assert.match(api, /OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
+    assert.match(api, /OPC_IVEKIT_WEBPHONE_TTL_SECONDS/);
+  }
+  for (const values of [serviceValues, platformValues]) {
+    assert.match(values, /webphone:\s*\n\s+enabled: true/);
+    assert.match(values, /publicWssUrl:/);
+    assert.match(values, /jwtAudience: rustpbx-webphone/);
+    assert.match(values, /path: \/ws/);
+  }
+  assert.match(serviceDeployment, /name: OPC_IVEKIT_WEBPHONE_WSS_URL/);
+  assert.match(serviceRustPbx, /name: OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
+  assert.match(serviceRustPbx, /kind: Ingress[\s\S]*pathType: Exact/);
+  assert.match(platformSecrets, /rustpbx-webphone-jwt-secret:/);
+  assert.match(platformApi, /name: OPC_IVEKIT_WEBPHONE_WSS_URL/);
+  assert.match(platformRustPbx, /ws_handler = "\/ws"/);
+  assert.match(platformRustPbx, /\[proxy\.jwt_auth\]/);
+  assert.match(platformRustPbx, /kind: Ingress[\s\S]*pathType: Exact/);
 });
 
 test('RustPBX media plane never depends on recording upload or object storage availability', () => {
@@ -474,6 +567,8 @@ test('RustPBX capacity limits and overload telemetry are consistent across deplo
     assert.match(compose, /RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS[^\n]*65536/);
     assert.match(compose, /RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY[^\n]*8192/);
     assert.match(compose, /RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS[^\n]*32768/);
+    assert.match(compose, /RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY[^\n]*64/);
+    assert.match(compose, /RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS[^\n]*2000/);
     assert.match(compose, /RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY[^\n]*256/);
     assert.match(compose, /RUSTPBX_MEDIA_RECORDING_WORKER_THREADS[^\n]*4/);
     assert.match(compose, /RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY[^\n]*4096/);
@@ -482,14 +577,20 @@ test('RustPBX capacity limits and overload telemetry are consistent across deplo
     assert.match(values, /sipCapacity:[\s\S]*maxActiveTransactions: 65536/);
     assert.match(values, /incomingTransactionQueueCapacity: 8192/);
     assert.match(values, /maxTransportConnections: 32768/);
+    assert.match(values, /sessionCleanupConcurrency: 64/);
+    assert.match(values, /sessionCleanupTimeoutMs: 2000/);
     assert.match(values, /recordingChannelCapacity: 256/);
     assert.match(values, /recordingWorkerThreads: 4/);
     assert.match(values, /recordingWorkerQueueCapacity: 4096/);
   }
   assert.match(platformTemplate, /sip_max_active_transactions = \{\{ int \.Values\.voice\.sipCapacity\.maxActiveTransactions \}\}/);
+  assert.match(platformTemplate, /media_session_cleanup_concurrency = \{\{ int \.Values\.voice\.mediaCapacity\.sessionCleanupConcurrency \}\}/);
+  assert.match(platformTemplate, /media_session_cleanup_timeout_ms = \{\{ int \.Values\.voice\.mediaCapacity\.sessionCleanupTimeoutMs \}\}/);
   assert.match(platformTemplate, /kind: ServiceMonitor[\s\S]*port: management/);
   assert.match(platformTemplate, /IveKitRustPbxSipOverloadRejections/);
   assert.match(serviceTemplate, /name: RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS/);
+  assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY/);
+  assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS/);
   assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY/);
   assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_RECORDING_WORKER_THREADS/);
   assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY/);
@@ -500,6 +601,9 @@ test('RustPBX capacity limits and overload telemetry are consistent across deplo
   assert.match(platformTemplate, /IveKitRustPbxRecordingQueueDrops/);
   assert.match(prometheusRules, /IveKitRustPbxRecordingQueueDrops/);
   assert.match(prometheusRules, /rustpbx_media_recording_queue_drops_total/);
+  assert.match(platformTemplate, /IveKitRustPbxSessionCleanupDegraded/);
+  assert.match(prometheusRules, /IveKitRustPbxSessionCleanupDegraded/);
+  assert.match(prometheusRules, /rustpbx_media_session_cleanup_total/);
 });
 
 test('checked-in RustPBX config is secret-free and cannot start production', () => {
@@ -514,6 +618,8 @@ test('checked-in RustPBX config is secret-free and cannot start production', () 
   assert.match(config, /generated_dir = "\/app\/generated"/);
   assert.match(config, /sip_max_active_transactions = 65536/);
   assert.match(config, /sip_incoming_transaction_queue_capacity = 8192/);
+  assert.match(config, /media_session_cleanup_concurrency = 64/);
+  assert.match(config, /media_session_cleanup_timeout_ms = 2000/);
   assert.match(config, /media_recording_channel_capacity = 256/);
   assert.match(config, /media_recording_worker_threads = 4/);
   assert.match(config, /media_recording_worker_queue_capacity = 4096/);

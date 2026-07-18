@@ -222,7 +222,7 @@ async function handleTransferQueueFlush(
     };
   }
 
-  const exec = input.sideEffects?.executeTransfer;
+  const exec = input.deferTransferToProvider ? undefined : input.sideEffects?.executeTransfer;
   if (exec) {
     const rawData = {
       ...(ctx.graph.nodes.find((n) => n.id === nodeId)?.data ?? {}),

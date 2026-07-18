@@ -57,6 +57,7 @@ struct Request {
     target_id: String,
     rustdesk_id: String,
     controller_rustdesk_id: String,
+    native_session_id: String,
     reason: String,
     interaction_id: String,
     reservation_id: String,
@@ -159,7 +160,7 @@ async fn handle(pipe: NamedPipeServer) -> io::Result<()> {
         return write_error(
             &mut writer,
             &request.command_id,
-            "",
+            &request.native_session_id,
             &request.interaction_id,
             &request.reservation_id,
             &request.owner_epoch,
@@ -167,14 +168,17 @@ async fn handle(pipe: NamedPipeServer) -> io::Result<()> {
         )
         .await;
     }
+    let native_session_id = request.native_session_id.parse::<u64>().map_err(|_| {
+        io::Error::new(io::ErrorKind::InvalidInput, "invalid_native_session_id")
+    })?;
     let native_id =
-        match crate::ui_cm_interface::ivekit_resolve_connection(&request.controller_rustdesk_id) {
+        match crate::ui_cm_interface::ivekit_resolve_connection(native_session_id, &request.controller_rustdesk_id) {
             Ok(value) => value,
             Err(code) => {
                 return write_error(
                     &mut writer,
                     &request.command_id,
-                    "",
+                    &request.native_session_id,
                     &request.interaction_id,
                     &request.reservation_id,
                     &request.owner_epoch,
@@ -183,15 +187,15 @@ async fn handle(pipe: NamedPipeServer) -> io::Result<()> {
                 .await
             }
         };
-    let native_session_id = native_id.to_string();
     if !crate::ui_cm_interface::ivekit_connection_matches(
         native_id,
+        native_session_id,
         &request.controller_rustdesk_id,
     ) {
         return write_error(
             &mut writer,
             &request.command_id,
-            &native_session_id,
+            &request.native_session_id,
             &request.interaction_id,
             &request.reservation_id,
             &request.owner_epoch,
@@ -204,6 +208,7 @@ async fn handle(pipe: NamedPipeServer) -> io::Result<()> {
     for _ in 0..50 {
         if !crate::ui_cm_interface::ivekit_connection_matches(
             native_id,
+            native_session_id,
             &request.controller_rustdesk_id,
         ) {
             return write_response(
@@ -211,7 +216,7 @@ async fn handle(pipe: NamedPipeServer) -> io::Result<()> {
                 Response {
                     schema_version: 2,
                     command_id: &request.command_id,
-                    native_session_id: &native_session_id,
+                    native_session_id: &request.native_session_id,
                     interaction_id: &request.interaction_id,
                     reservation_id: &request.reservation_id,
                     owner_epoch: &request.owner_epoch,
@@ -226,7 +231,7 @@ async fn handle(pipe: NamedPipeServer) -> io::Result<()> {
     write_error(
         &mut writer,
         &request.command_id,
-        &native_session_id,
+        &request.native_session_id,
         &request.interaction_id,
         &request.reservation_id,
         &request.owner_epoch,
@@ -245,6 +250,7 @@ fn validate(request: &Request) -> Result<(), &'static str> {
         &request.target_id,
         &request.rustdesk_id,
         &request.controller_rustdesk_id,
+        &request.native_session_id,
         &request.reason,
         &request.interaction_id,
         &request.reservation_id,
@@ -262,6 +268,15 @@ fn validate(request: &Request) -> Result<(), &'static str> {
         .is_none()
     {
         return Err("invalid_owner_epoch");
+    }
+    if request
+        .native_session_id
+        .parse::<u64>()
+        .ok()
+        .filter(|value| *value > 0 && *value <= i64::MAX as u64)
+        .is_none()
+    {
+        return Err("invalid_native_session_id");
     }
     Ok(())
 }

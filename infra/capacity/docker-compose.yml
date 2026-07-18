@@ -1,6 +1,6 @@
 services:
   capacity-nats:
-    image: nats:2.11-alpine
+    image: ${OPC_IVEKIT_CAPACITY_NATS_IMAGE:?OPC_IVEKIT_CAPACITY_NATS_IMAGE immutable digest reference is required}
     command: ["-js", "-sd", "/data", "-m", "8222"]
     ports:
       - "127.0.0.1:${OPC_CAPACITY_NATS_CLIENT_PORT:-4223}:4222"

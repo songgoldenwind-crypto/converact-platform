@@ -39,3 +39,4 @@ export * from './workers/command-worker.js';
 export * from './workers/reconciliation-worker.js';
 export * from './workers/provider-event-worker.js';
 export * from './webhook-auth.js';
+export * from './webphone-session-service.js';

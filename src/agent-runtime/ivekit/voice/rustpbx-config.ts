@@ -12,6 +12,8 @@ export interface RustPbxConfigSummary {
   sip_max_finished_transactions: number;
   sip_incoming_transaction_queue_capacity: number;
   sip_max_transport_connections: number;
+  media_session_cleanup_concurrency: number;
+  media_session_cleanup_timeout_ms: number;
   media_recording_channel_capacity: number;
   media_recording_worker_threads: number;
   media_recording_worker_queue_capacity: number;
@@ -41,9 +43,16 @@ interface RustPbxRenderInput {
   sip_max_finished_transactions: number;
   sip_incoming_transaction_queue_capacity: number;
   sip_max_transport_connections: number;
+  media_session_cleanup_concurrency: number;
+  media_session_cleanup_timeout_ms: number;
   media_recording_channel_capacity: number;
   media_recording_worker_threads: number;
   media_recording_worker_queue_capacity: number;
+  webphone: {
+    jwt_secret: string;
+    jwt_issuer: string;
+    jwt_audience: string;
+  } | null;
 }
 
 const HTTP_PORT = 8080;
@@ -64,6 +73,8 @@ export function renderRustPbxConfig(env: NodeJS.ProcessEnv): RustPbxRenderedConf
       sip_max_finished_transactions: input.sip_max_finished_transactions,
       sip_incoming_transaction_queue_capacity: input.sip_incoming_transaction_queue_capacity,
       sip_max_transport_connections: input.sip_max_transport_connections,
+      media_session_cleanup_concurrency: input.media_session_cleanup_concurrency,
+      media_session_cleanup_timeout_ms: input.media_session_cleanup_timeout_ms,
       media_recording_channel_capacity: input.media_recording_channel_capacity,
       media_recording_worker_threads: input.media_recording_worker_threads,
       media_recording_worker_queue_capacity: input.media_recording_worker_queue_capacity,
@@ -104,13 +115,15 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
   if (managementToken === rwiToken) {
     throw new Error('RUSTPBX_MANAGEMENT_TOKEN and RUSTPBX_RWI_TOKEN must be distinct');
   }
+  const webhookToken = runtimeSecret(env, 'RUSTPBX_WEBHOOK_TOKEN');
+  const webphone = webphoneAuth(env, [managementToken, rwiToken, webhookToken]);
   return {
     database_url: databaseUrl,
     image,
     ami_allows: amiAllows(required(env, 'RUSTPBX_AMI_ALLOWS')),
     management_token: managementToken,
     rwi_token: rwiToken,
-    webhook_token: runtimeSecret(env, 'RUSTPBX_WEBHOOK_TOKEN'),
+    webhook_token: webhookToken,
     router_url: internalHttpUrl(required(env, 'RUSTPBX_ROUTER_URL'), 'RUSTPBX_ROUTER_URL'),
     cdr_webhook_url: internalHttpUrl(
       required(env, 'RUSTPBX_CDR_WEBHOOK_URL'),
@@ -140,6 +153,18 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
       'RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS',
       32_768
     ),
+    media_session_cleanup_concurrency: positiveCapacity(
+      env.RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY,
+      'RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY',
+      64,
+      4_096
+    ),
+    media_session_cleanup_timeout_ms: positiveCapacity(
+      env.RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS,
+      'RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS',
+      2_000,
+      60_000
+    ),
     media_recording_channel_capacity: positiveCapacity(
       env.RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY,
       'RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY',
@@ -157,7 +182,8 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
       'RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY',
       4_096,
       65_536
-    )
+    ),
+    webphone
   };
 }
 
@@ -194,15 +220,30 @@ function renderConfig(input: RustPbxRenderInput): string {
     'modules = ["acl", "auth", "presence", "registrar", "call"]',
     'media_proxy = "auto"',
     'ensure_user = true',
+    ...(input.webphone ? ['ws_handler = "/ws"'] : []),
     'acl_rules = ["allow all", "deny all"]',
     `sip_max_active_transactions = ${input.sip_max_active_transactions}`,
     `sip_max_finished_transactions = ${input.sip_max_finished_transactions}`,
     `sip_incoming_transaction_queue_capacity = ${input.sip_incoming_transaction_queue_capacity}`,
     `sip_max_transport_connections = ${input.sip_max_transport_connections}`,
+    `media_session_cleanup_concurrency = ${input.media_session_cleanup_concurrency}`,
+    `media_session_cleanup_timeout_ms = ${input.media_session_cleanup_timeout_ms}`,
     `media_recording_channel_capacity = ${input.media_recording_channel_capacity}`,
     `media_recording_worker_threads = ${input.media_recording_worker_threads}`,
     `media_recording_worker_queue_capacity = ${input.media_recording_worker_queue_capacity}`,
     '',
+    ...(input.webphone ? [
+      '[proxy.jwt_auth]',
+      'enabled = true',
+      `secret = ${tomlString(input.webphone.jwt_secret)}`,
+      'user_id_claim = "sub"',
+      `issuer = ${tomlString(input.webphone.jwt_issuer)}`,
+      `audience = ${tomlString(input.webphone.jwt_audience)}`,
+      'check_local_user = true',
+      'ws_token_param = "token"',
+      'dev_mint_enabled = false',
+      ''
+    ] : []),
     '[[proxy.user_backends]]',
     'type = "extension"',
     'ttl = 30',
@@ -256,6 +297,9 @@ function postgresDatabaseUrl(value: string, password: string): string {
 
 function immutableImage(value: string): string {
   const image = value.trim();
+  if (/(?:^|\/)restsend\/rustpbx(?::|@|$)/i.test(image)) {
+    throw new Error('RUSTPBX_IMAGE must reference the iveKit-patched RustPBX image, not upstream');
+  }
   const digest = /@sha256:[a-f0-9]{64}$/i.test(image);
   const slash = image.lastIndexOf('/');
   const tag = image.slice(slash + 1).match(/:([^:]+)$/)?.[1] || '';
@@ -321,6 +365,42 @@ function runtimeSecret(env: NodeJS.ProcessEnv, field: string): string {
   const value = required(env, field).trim();
   if (value.length < 12 || /^(?:change|replace|example|dev)[-_]/i.test(value)) {
     throw new Error(`${field} must replace the example placeholder`);
+  }
+  return value;
+}
+
+function webphoneAuth(
+  env: NodeJS.ProcessEnv,
+  distinctSecrets: string[]
+): RustPbxRenderInput['webphone'] {
+  const flag = String(env.OPC_IVEKIT_WEBPHONE_ENABLED || '').trim().toLowerCase();
+  if (!flag || flag === '0' || flag === 'false') return null;
+  if (flag !== '1' && flag !== 'true') {
+    throw new Error('OPC_IVEKIT_WEBPHONE_ENABLED must be 0 or 1');
+  }
+  const secret = required(env, 'OPC_IVEKIT_WEBPHONE_JWT_SECRET');
+  if (Buffer.byteLength(secret, 'utf8') < 32 || secret.length > 4_096 || /[\r\n]/.test(secret)) {
+    throw new Error('OPC_IVEKIT_WEBPHONE_JWT_SECRET must be 32-4096 bytes');
+  }
+  if (distinctSecrets.includes(secret)) {
+    throw new Error('OPC_IVEKIT_WEBPHONE_JWT_SECRET must be distinct from RustPBX runtime secrets');
+  }
+  return {
+    jwt_secret: secret,
+    jwt_issuer: boundedWebphoneClaim(
+      required(env, 'OPC_IVEKIT_WEBPHONE_JWT_ISSUER'),
+      'OPC_IVEKIT_WEBPHONE_JWT_ISSUER'
+    ),
+    jwt_audience: boundedWebphoneClaim(
+      required(env, 'OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE'),
+      'OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE'
+    )
+  };
+}
+
+function boundedWebphoneClaim(value: string, field: string): string {
+  if (value.length > 200 || /[\u0000\r\n]/.test(value)) {
+    throw new Error(`${field} must contain 1-200 safe characters`);
   }
   return value;
 }

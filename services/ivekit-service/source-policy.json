@@ -122,6 +122,8 @@
     "services/ivekit-service/migrations/090_ivekit_runtime_security.sql",
     "091_ivekit_capacity_scaling_campaigns.sql",
     "092_ivekit_capacity_platform_campaigns.sql",
-    "093_ivekit_cell_admission_rls.sql"
+    "093_ivekit_cell_admission_rls.sql",
+    "094_ivekit_voice_extension_sessions.sql",
+    "095_rustdesk_authorization_claims.sql"
   ]
 }

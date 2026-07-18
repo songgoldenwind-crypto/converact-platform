@@ -17,7 +17,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: controller
-          image: replace.example.com/ivekit/capacity-tools:replace-with-digest
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
           imagePullPolicy: IfNotPresent
           command: ["node", "--import", "tsx", "scripts/ivekit-capacity-controller.ts"]
           env:

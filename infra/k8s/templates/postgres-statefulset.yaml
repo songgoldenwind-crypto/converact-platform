@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16-alpine
+          image: {{ include "opc.postgresImage" . | quote }}
+          imagePullPolicy: {{ .Values.postgres.image.pullPolicy | default "IfNotPresent" }}
           env:
             - name: POSTGRES_USER
               value: {{ .Values.postgres.auth.username | quote }}

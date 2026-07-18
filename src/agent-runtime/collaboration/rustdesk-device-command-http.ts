@@ -73,6 +73,9 @@ export async function routeRustDeskDeviceCommandApi(
     const controllerRustDeskId = String(
       gatewaySession.metadata.controller_rustdesk_id || ''
     ).trim();
+    const nativeSessionId = rustDeskNativeSessionId(
+      gatewaySession.metadata.ivekit_native_session_id
+    );
     const ownerBinding = rustDeskSessionOwnerBinding(gatewaySession);
     const deviceProtocol = rustDeskDeviceNativeControlProtocol(device);
     if (ownerBinding && deviceProtocol !== 'ivekit-rustdesk-native-control-v2') {
@@ -95,6 +98,7 @@ export async function routeRustDeskDeviceCommandApi(
           target_id: claimed.command.device_id,
           rustdesk_id: device.rustdesk_id,
           controller_rustdesk_id: controllerRustDeskId,
+          native_session_id: nativeSessionId,
           requested_reason: claimed.command.requested_reason,
           emergency_fallback_authorized: claimed.command.emergency_fallback_authorized,
           emergency_fallback_reason: claimed.command.emergency_fallback_reason,
@@ -226,6 +230,14 @@ export async function routeRustDeskDeviceCommandApi(
   }
 
   return undefined;
+}
+
+function rustDeskNativeSessionId(value: unknown): string {
+  const normalized = String(value || '').trim();
+  if (!/^[1-9][0-9]{0,18}$/.test(normalized) || BigInt(normalized) > 0x7fffffffffffffffn) {
+    throw Object.assign(new Error('rustdesk_native_session_binding_unavailable'), { status: 409 });
+  }
+  return BigInt(normalized).toString();
 }
 
 function recoveryResult(

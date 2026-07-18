@@ -714,13 +714,15 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       '089_livekit_egress_capacity_metrics.sql',
       '091_ivekit_capacity_scaling_campaigns.sql',
       '092_ivekit_capacity_platform_campaigns.sql',
-      '093_ivekit_cell_admission_rls.sql'
+      '093_ivekit_cell_admission_rls.sql',
+      '094_ivekit_voice_extension_sessions.sql',
+      '095_rustdesk_authorization_claims.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 82);
+    assert.equal(migrationManifest.migrations.length, 84);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -773,6 +775,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '091_ivekit_capacity_scaling_campaigns.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '092_ivekit_capacity_platform_campaigns.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '093_ivekit_cell_admission_rls.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '094_ivekit_voice_extension_sessions.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '095_rustdesk_authorization_claims.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),
@@ -796,10 +800,18 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.doesNotMatch(applicationCompose, /^\s+build:/m);
     assert.doesNotMatch(applicationCompose, /ivekit-(?:opc|service):local/);
     assert.match(applicationCompose, /IVEKIT_SERVICE_IMAGE:\?IVEKIT_SERVICE_IMAGE is required/);
+    assert.match(
+      applicationCompose,
+      /IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required/
+    );
     assert.match(applicationCompose, /CLAMAV_IMAGE:\?CLAMAV_IMAGE immutable digest reference is required/);
     assert.match(applicationCompose, /^  ivekit:/m);
     assert.doesNotMatch(applicationCompose, /^  opc:/m);
     const voiceCompose = readFileSync(join(outputDir, 'service/build-context/docker-compose.voice.yml'), 'utf8');
+    assert.match(
+      voiceCompose,
+      /IVEKIT_POSTGRES_IMAGE:\?IVEKIT_POSTGRES_IMAGE immutable digest reference is required/
+    );
     assert.match(voiceCompose, /command: \["node", "dist\/ivekit-render-rustpbx-config\.js"\]/);
     assert.doesNotMatch(voiceCompose, /--import|\btsx\b|scripts\/render-rustpbx-config\.ts/);
     const releaseContract = JSON.parse(readFileSync(

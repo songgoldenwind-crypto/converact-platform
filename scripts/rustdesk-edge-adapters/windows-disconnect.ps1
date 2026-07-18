@@ -9,6 +9,7 @@ param(
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$TargetId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$RustDeskId,
   [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._:@/-]+$')][string]$ControllerRustDeskId,
+  [ValidatePattern('^$|^[1-9][0-9]{0,18}$')][string]$NativeSessionId = '',
   [Parameter(Mandatory = $true)][ValidateSet('consent_revoked', 'remote_session_ended', 'tool_ended', 'gateway_ended')][string]$Reason,
   [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$InteractionId = '',
   [ValidatePattern('^$|^[A-Za-z0-9._:@/-]+$')][string]$ReservationId = '',
@@ -34,6 +35,7 @@ if (-not $available) {
 & $bridge '-Mode' $Mode '-Protocol' $Protocol '-CommandId' $CommandId `
   '-ExternalId' $ExternalId '-TargetId' $TargetId '-RustDeskId' $RustDeskId `
   '-ControllerRustDeskId' $ControllerRustDeskId '-Reason' $Reason `
+  '-NativeSessionId' $NativeSessionId `
   '-InteractionId' $InteractionId '-ReservationId' $ReservationId '-OwnerEpoch' $OwnerEpoch
 if (-not $?) { exit 1 }
 if ($null -ne $LASTEXITCODE) { exit $LASTEXITCODE }

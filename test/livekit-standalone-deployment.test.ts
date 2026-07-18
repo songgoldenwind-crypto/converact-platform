@@ -165,9 +165,10 @@ test('standalone LiveKit Compose is Linux host-networked and reproducibly pinned
     const block = compose.match(new RegExp(`^  ${service}:\\n([\\s\\S]*?)(?=^  [a-zA-Z0-9_-]+:|\\Z)`, 'm'))?.[0] || '';
     assert.match(block, /network_mode: "host"/, `${service} must use host networking`);
   }
-  assert.match(compose, /livekit\/caddyl4:\$\{LIVEKIT_CADDYL4_IMAGE_TAG:\?[^}]+\}/);
-  assert.match(compose, /livekit\/livekit-server:\$\{LIVEKIT_SERVER_IMAGE_TAG:\?[^}]+\}/);
-  assert.match(compose, /livekit\/egress:\$\{LIVEKIT_EGRESS_IMAGE_TAG:\?[^}]+\}/);
+  assert.match(compose, /image: \$\{LIVEKIT_CADDYL4_IMAGE:\?LIVEKIT_CADDYL4_IMAGE immutable digest reference is required\}/);
+  assert.match(compose, /image: \$\{LIVEKIT_SERVER_IMAGE:\?LIVEKIT_SERVER_IMAGE immutable digest reference is required\}/);
+  assert.match(compose, /image: \$\{LIVEKIT_REDIS_IMAGE:\?LIVEKIT_REDIS_IMAGE immutable digest reference is required\}/);
+  assert.match(compose, /image: \$\{LIVEKIT_EGRESS_IMAGE:\?LIVEKIT_EGRESS_IMAGE immutable digest reference is required\}/);
   assert.doesNotMatch(compose, /:latest/);
   assert.match(compose, /SYS_ADMIN/);
   assert.match(compose, /http:\/\/127\.0\.0\.1:8091/);
@@ -176,6 +177,10 @@ test('standalone LiveKit Compose is Linux host-networked and reproducibly pinned
   assert.match(envExample, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.3$/m);
   assert.match(envExample, /^LIVEKIT_EGRESS_IMAGE_TAG=v1\.13\.0$/m);
   assert.match(envExample, /^LIVEKIT_CADDYL4_IMAGE_TAG=v2\.11\.3$/m);
+  assert.match(envExample, /^LIVEKIT_SERVER_IMAGE=livekit\/livekit-server:v1\.13\.3@sha256:[a-f0-9]{64}$/m);
+  assert.match(envExample, /^LIVEKIT_EGRESS_IMAGE=livekit\/egress:v1\.13\.0@sha256:[a-f0-9]{64}$/m);
+  assert.match(envExample, /^LIVEKIT_CADDYL4_IMAGE=livekit\/caddyl4:v2\.11\.3@sha256:[a-f0-9]{64}$/m);
+  assert.match(envExample, /^LIVEKIT_REDIS_IMAGE=redis:7\.4\.9@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^OPC_LIVEKIT_DEPLOYMENT_MODE=standalone-vm$/m);
   assert.match(envExample, /^LIVEKIT_URL=ws:\/\/127\.0\.0\.1:7880$/m);
   assert.match(envExample, /^LIVEKIT_PUBLIC_URL=wss:\/\/livekit\.example\.com$/m);

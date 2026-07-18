@@ -24,7 +24,8 @@ spec:
     spec:
       containers:
         - name: nats
-          image: nats:2-alpine
+          image: {{ include "opc.natsImage" . | quote }}
+          imagePullPolicy: {{ .Values.nats.image.pullPolicy | default "IfNotPresent" }}
           args: ["-c", "/etc/nats/nats.conf"]
           ports:
             - containerPort: 4222

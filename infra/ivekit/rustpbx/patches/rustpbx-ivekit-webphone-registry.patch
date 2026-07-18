@@ -1,0 +1,267 @@
+diff --git a/src/proxy/pre_auth_registry.rs b/src/proxy/pre_auth_registry.rs
+index ec273bde..3fc4ef06 100644
+--- a/src/proxy/pre_auth_registry.rs
++++ b/src/proxy/pre_auth_registry.rs
+@@ -1,65 +1,91 @@
+-use std::sync::Arc;
+-use std::time::{Duration, Instant};
++use std::collections::HashMap;
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::sync::{Arc, RwLock, Weak};
+
+ use rsipstack::transport::SipAddr;
+-use tokio::sync::Mutex;
+-
+-/// Soft TTL after which an entry is eligible for opportunistic eviction.
+-///
+-/// Entries are normally removed by the explicit `remove` call on the WS
+-/// close path. If a client disconnects ungracefully (network drop, crash)
+-/// the close frame is never sent, so without this TTL the entry would stay
+-/// forever. Eviction is lazy (triggered on `register` once the soft cap is
+-/// hit) so there is no background task and the registry stays cheap.
+-const ENTRY_TTL: Duration = Duration::from_secs(300);
+-
+-/// Soft cap that triggers eviction of TTL-expired entries inside `register`.
+-/// Generously above realistic concurrent authenticating-client counts so the
+-/// eviction path is essentially never exercised in normal operation.
+-const SOFT_CAP: usize = 256;
++struct PreAuthEntry {
++    agent_id: String,
++    generation: u64,
++}
+
+ pub struct PreAuthRegistry {
+-    map: Mutex<Vec<(SipAddr, String, Instant)>>,
++    map: RwLock<HashMap<SipAddr, PreAuthEntry>>,
++    next_generation: AtomicU64,
++}
++
++pub struct PreAuthRegistration {
++    registry: Weak<PreAuthRegistry>,
++    addr: SipAddr,
++    generation: u64,
++}
++
++impl Drop for PreAuthRegistration {
++    fn drop(&mut self) {
++        if let Some(registry) = self.registry.upgrade() {
++            registry.remove_generation(&self.addr, self.generation);
++        }
++    }
+ }
+
+ impl PreAuthRegistry {
+     pub fn new() -> Arc<Self> {
+         Arc::new(Self {
+-            map: Mutex::new(Vec::new()),
++            map: RwLock::new(HashMap::new()),
++            next_generation: AtomicU64::new(1),
+         })
+     }
+
+-    pub async fn register(&self, addr: SipAddr, agent_id: String) {
+-        let mut map = self.map.lock().await;
+-        // Opportunistic GC: when the table grows past the soft cap, evict
+-        // expired entries before inserting. Keeps memory bounded for the
+-        // pathological case of many ungraceful WS disconnects.
+-        if map.len() >= SOFT_CAP {
+-            let now = Instant::now();
+-            map.retain(|(_, _, ts)| now.duration_since(*ts) < ENTRY_TTL);
++    pub async fn register(
++        self: &Arc<Self>,
++        addr: SipAddr,
++        agent_id: String,
++    ) -> PreAuthRegistration {
++        let generation = self.next_generation.fetch_add(1, Ordering::Relaxed);
++        self.write_map().insert(
++            addr.clone(),
++            PreAuthEntry {
++                agent_id,
++                generation,
++            },
++        );
++        PreAuthRegistration {
++            registry: Arc::downgrade(self),
++            addr,
++            generation,
+         }
+-        map.retain(|(a, _, _)| !addrs_equal(a, &addr));
+-        map.push((addr, agent_id, Instant::now()));
+     }
+
+     pub async fn lookup(&self, addr: &SipAddr) -> Option<String> {
+-        let map = self.map.lock().await;
+-        for (a, agent, _) in map.iter() {
+-            if addrs_equal(a, addr) {
+-                return Some(agent.clone());
+-            }
+-        }
+-        None
++        self.read_map()
++            .get(addr)
++            .map(|entry| entry.agent_id.clone())
+     }
+
+     pub async fn remove(&self, addr: &SipAddr) {
+-        let mut map = self.map.lock().await;
+-        map.retain(|(a, _, _)| !addrs_equal(a, addr));
++        self.write_map().remove(addr);
++    }
++
++    fn remove_generation(&self, addr: &SipAddr, generation: u64) {
++        let mut map = self.write_map();
++        if map
++            .get(addr)
++            .is_some_and(|entry| entry.generation == generation)
++        {
++            map.remove(addr);
++        }
++    }
++
++    fn read_map(&self) -> std::sync::RwLockReadGuard<'_, HashMap<SipAddr, PreAuthEntry>> {
++        self.map
++            .read()
++            .unwrap_or_else(|poisoned| poisoned.into_inner())
+     }
+-}
+
+-fn addrs_equal(a: &SipAddr, b: &SipAddr) -> bool {
+-    a.r#type == b.r#type && a.addr.host == b.addr.host && a.addr.port == b.addr.port
++    fn write_map(&self) -> std::sync::RwLockWriteGuard<'_, HashMap<SipAddr, PreAuthEntry>> {
++        self.map
++            .write()
++            .unwrap_or_else(|poisoned| poisoned.into_inner())
++    }
+ }
+
+ #[cfg(test)]
+@@ -78,59 +104,37 @@ mod tests {
+     }
+
+     #[tokio::test]
+-    async fn register_evicts_expired_entries_when_above_soft_cap() {
+-        // Regression: a client that disconnects ungracefully never calls
+-        // `remove`, so its entry used to stay forever. Verify that pushing
+-        // past the soft cap evicts TTL-expired entries.
++    async fn register_guard_cleans_up_on_drop() {
+         let registry = PreAuthRegistry::new();
+-
+-        // Pre-populate with back-dated entries that look expired.
+-        {
+-            let mut map = registry.map.lock().await;
+-            for i in 0..SOFT_CAP {
+-                map.push((
+-                    addr_for(40_000 + i as u16),
+-                    format!("stale-agent-{i}"),
+-                    Instant::now() - ENTRY_TTL - Duration::from_secs(1),
+-                ));
+-            }
+-            assert!(map.len() >= SOFT_CAP);
+-        }
+-
+-        // Inserting one more fresh entry must sweep the stale ones.
+-        registry
+-            .register(addr_for(50_000), "fresh-agent".to_string())
+-            .await;
+-
+-        let map = registry.map.lock().await;
+-        assert_eq!(
+-            map.len(),
+-            1,
+-            "stale entries should have been evicted, remaining: {}",
+-            map.len()
+-        );
+-        assert_eq!(map[0].1, "fresh-agent");
++        let addr = addr_for(40_000);
++        let guard = registry.register(addr.clone(), "agent-a".to_string()).await;
++        assert_eq!(registry.lookup(&addr).await.as_deref(), Some("agent-a"));
++        drop(guard);
++        assert!(registry.lookup(&addr).await.is_none());
+     }
+
+     #[tokio::test]
+     async fn register_replaces_existing_entry_for_same_addr() {
+         let registry = PreAuthRegistry::new();
+-        registry
++        let first = registry
+             .register(addr_for(40_000), "agent-a".to_string())
+             .await;
+-        registry
++        let second = registry
+             .register(addr_for(40_000), "agent-b".to_string())
+             .await;
+-        let map = registry.map.lock().await;
++        drop(first);
++        let map = registry.read_map();
+         assert_eq!(map.len(), 1);
+-        assert_eq!(map[0].1, "agent-b");
++        assert_eq!(map.get(&addr_for(40_000)).unwrap().agent_id, "agent-b");
++        drop(map);
++        drop(second);
+     }
+
+     #[tokio::test]
+     async fn lookup_and_remove_round_trip() {
+         let registry = PreAuthRegistry::new();
+         let a = addr_for(40_001);
+-        registry.register(a.clone(), "agent-x".to_string()).await;
++        let guard = registry.register(a.clone(), "agent-x".to_string()).await;
+         assert_eq!(
+             registry.lookup(&a).await.as_deref(),
+             Some("agent-x"),
+@@ -141,5 +145,26 @@ mod tests {
+             registry.lookup(&a).await.is_none(),
+             "entry must be gone after remove"
+         );
++        drop(guard);
++    }
++
++    #[tokio::test]
++    async fn ten_thousand_entries_have_constant_keyed_lookup() {
++        let registry = PreAuthRegistry::new();
++        let mut guards = Vec::with_capacity(10_000);
++        for index in 0..10_000u16 {
++            guards.push(
++                registry
++                    .register(addr_for(30_000 + index), format!("agent-{index}"))
++                    .await,
++            );
++        }
++        assert_eq!(registry.read_map().len(), 10_000);
++        assert_eq!(
++            registry.lookup(&addr_for(39_999)).await.as_deref(),
++            Some("agent-9999")
++        );
++        drop(guards);
++        assert!(registry.read_map().is_empty());
+     }
+ }
+diff --git a/src/proxy/ws.rs b/src/proxy/ws.rs
+index b96b45d7..fcd67b28 100644
+--- a/src/proxy/ws.rs
++++ b/src/proxy/ws.rs
+@@ -58,10 +58,14 @@ pub async fn sip_ws_handler(
+     );
+
+     // Register pre-authenticated agent if provided (path B: JWT WS pre-auth)
+-    if let (Some(agent), Some(registry)) = (&pre_authed_agent, &pre_auth_registry) {
+-        registry.register(local_addr.clone(), agent.clone()).await;
+-        info!(addr = %local_addr, agent = %agent, "WebSocket pre-authenticated");
+-    }
++    let _pre_auth_registration =
++        if let (Some(agent), Some(registry)) = (&pre_authed_agent, &pre_auth_registry) {
++            let registration = registry.register(local_addr.clone(), agent.clone()).await;
++            info!(addr = %local_addr, agent = %agent, "WebSocket pre-authenticated");
++            Some(registration)
++        } else {
++            None
++        };
+
+     endpoint_ref
+         .transport_layer
+@@ -256,5 +260,3 @@ pub async fn sip_ws_handler(
+     }
+     debug!(addr = %local_addr, "WebSocket connection handler exiting");
+ }
+-
+-

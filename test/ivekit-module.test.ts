@@ -946,10 +946,14 @@ test('rustdesk facade registers devices and starts gateway sessions by registere
     assert.equal(launchPlan.client_config.public_key_configured, true);
     assert.equal(launchPlan.actions.can_launch, true);
     assert.equal(launchPlan.actions.open_url, tool.launch_url);
+    const protocolUrl = new URL(launchPlan.actions.protocol_url);
+    assert.equal(protocolUrl.pathname, '/123456789');
+    assert.equal(protocolUrl.searchParams.get('session'), tool.external_id);
     assert.equal(
-      launchPlan.actions.protocol_url,
-      `rustdesk://connect/123456789?session=${encodeURIComponent(tool.external_id)}`
+      protocolUrl.searchParams.get('ivekit_session_id'),
+      gatewaySessions[0]?.metadata.ivekit_native_session_id
     );
+    assert.equal(launchPlan.metadata.ivekit_native_session_id, undefined);
     await assert.rejects(
       () => iveKit.rustdesk.getGatewayLaunchPlan({
         tenant_id: 'tenant_other_rustdesk_facade',

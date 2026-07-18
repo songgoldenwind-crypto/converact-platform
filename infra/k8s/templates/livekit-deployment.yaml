@@ -51,7 +51,7 @@ spec:
     spec:
       containers:
         - name: livekit
-          image: "{{ .Values.livekit.image.repository }}:{{ .Values.livekit.image.tag }}"
+          image: {{ include "opc.livekitImage" . | quote }}
           imagePullPolicy: {{ .Values.livekit.image.pullPolicy | default "IfNotPresent" }}
           args: ["--config", "/etc/livekit.yaml"]
           ports:

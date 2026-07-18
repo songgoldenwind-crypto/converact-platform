@@ -131,6 +131,28 @@ test('RustDesk launch plan accepts rustdesk protocol URL templates', () => {
   }
 });
 
+test('RustDesk launch plan binds the protocol URL to the exact native session', () => {
+  const previousTemplate = process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE;
+  process.env.OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE = 'rustdesk://connect/{rustdesk_id}?session={external_id}';
+
+  try {
+    const plan = rustDeskLaunchPlan({
+      ...rustDeskSession(),
+      metadata: {
+        rustdesk_id: '123456789',
+        ivekit_native_session_id: '9223372036854775807'
+      }
+    });
+    const protocolUrl = new URL(plan.actions.protocol_url);
+
+    assert.equal(protocolUrl.searchParams.get('session'), 'rustdesk-session-protocol-contract-1');
+    assert.equal(protocolUrl.searchParams.get('ivekit_session_id'), '9223372036854775807');
+    assert.equal(plan.metadata.ivekit_native_session_id, undefined);
+  } finally {
+    restoreOptionalEnv('OPC_RUSTDESK_PROTOCOL_URL_TEMPLATE', previousTemplate);
+  }
+});
+
 test('RustDesk launch plan clears the launch URL after the session ends', () => {
   const plan = rustDeskLaunchPlan({
     ...rustDeskSession(),

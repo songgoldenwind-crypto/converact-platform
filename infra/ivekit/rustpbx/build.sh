@@ -12,7 +12,8 @@ fi
 RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-ivekit.8-6c49ee76}"
+PATCHSET="ivekit.10"
+IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 case "$(uname -m)" in
   x86_64) NATIVE_ARCH="amd64" ;;
@@ -64,6 +65,10 @@ git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-sip-capaci
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-sip-capacity.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-media-hot-path.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-media-hot-path.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-session-cleanup-isolation.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-session-cleanup-isolation.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-webphone-registry.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-webphone-registry.patch"
 
 mkdir -p "$BUILD_ROOT/rustpbx/vendor/ivekit-component-hook"
 cp -R "$HOOK_DIR/." \
@@ -86,6 +91,7 @@ docker build \
   --build-arg "TARGETARCH=$TARGETARCH" \
   --build-arg "RUSTPBX_COMMIT=$RUSTPBX_COMMIT" \
   --build-arg "RSIPSTACK_COMMIT=$RSIPSTACK_COMMIT" \
+  --build-arg "IVEKIT_PATCHSET=$PATCHSET" \
   -t "$IMAGE" \
   "$BUILD_ROOT/rustpbx"
 

@@ -6,6 +6,9 @@ import {
   rustDeskOwnerBindingPrepareClientFromEnv
 } from './agent-runtime/ivekit/placement/rustdesk-owner-binding.js';
 import {
+  createConfiguredWebPhoneExtensionSessionService
+} from './agent-runtime/ivekit/voice/webphone-session-service.js';
+import {
   IveKitTenantEventStore,
   iveKitEventReplayEnabled
 } from './agent-runtime/ivekit/tenant-event-store.js';
@@ -39,6 +42,7 @@ async function main(): Promise<void> {
     instance_id: instanceId
   });
   const rustdeskOwnerBindings = rustDeskOwnerBindingPrepareClientFromEnv();
+  const webphoneSessions = createConfiguredWebPhoneExtensionSessionService(pg);
   const server = createIveKitHttpServer({
     db,
     pg,
@@ -58,7 +62,8 @@ async function main(): Promise<void> {
       placementWorkerId: placement?.worker_id
     },
     voiceOptions: {
-      placement: placement?.voice
+      placement: placement?.voice,
+      extension_sessions: webphoneSessions
     },
     placementReadinessProbe: placement?.runtime
   });

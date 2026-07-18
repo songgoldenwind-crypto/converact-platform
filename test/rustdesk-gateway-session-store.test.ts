@@ -117,7 +117,9 @@ test('RustDeskGatewaySessionStore recursively rejects secret-bearing metadata be
     /RustDesk gateway metadata contains sensitive material/
   );
 
-  assert.deepEqual(session.metadata, { source: 'ivekit', site: 'showroom-7' });
+  assert.equal(session.metadata.source, 'ivekit');
+  assert.equal(session.metadata.site, 'showroom-7');
+  assert.match(String(session.metadata.ivekit_native_session_id), /^[1-9][0-9]{0,18}$/);
   assert.equal((await store.listSessions({ tenant_id: validInput.tenant_id })).length, 1);
   assert.equal((await store.listAuditEvents({ external_id: session.external_id }))?.length, 1);
 });

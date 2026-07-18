@@ -23,6 +23,10 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.1',
     LIVEKIT_EGRESS_IMAGE_TAG: 'v1.12.0',
     LIVEKIT_SIP_IMAGE_TAG: 'v1.1.0',
+    LIVEKIT_SERVER_IMAGE: `livekit/livekit-server:v1.13.1@sha256:${'1'.repeat(64)}`,
+    LIVEKIT_EGRESS_IMAGE: `livekit/egress:v1.12.0@sha256:${'2'.repeat(64)}`,
+    LIVEKIT_CADDYL4_IMAGE: `livekit/caddyl4:v2.11.3@sha256:${'3'.repeat(64)}`,
+    LIVEKIT_REDIS_IMAGE: `redis:7.4.9@sha256:${'4'.repeat(64)}`,
     OPC_MEDIA_CONFIG_REDIS_ADDRESS: 'redis://livekit-redis.internal:6379',
     OPC_LIVEKIT_EDGE_TURN_TLS_PORT: '5349',
     OPC_LIVEKIT_EDGE_TURN_UDP_PORT: '3478',
@@ -239,13 +243,17 @@ test('LiveKit deployment preflight keeps public URL optional for server-only tar
   assert.equal(report.checks.find((check) => check.id === 'livekit_public_wss')?.status, 'warn');
 });
 
-test('LiveKit standalone VM preflight requires edge domains and pinned image tags', () => {
+test('LiveKit standalone VM preflight requires edge domains and immutable images', () => {
   const missing = createLiveKitDeploymentPreflightReport(configuredEnv({
     OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
     LIVEKIT_SIGNAL_DOMAIN: '',
     LIVEKIT_TURN_DOMAIN: '',
     LIVEKIT_ACME_EMAIL: '',
-    LIVEKIT_SERVER_IMAGE_TAG: 'latest'
+    LIVEKIT_SERVER_IMAGE_TAG: 'latest',
+    LIVEKIT_SERVER_IMAGE: '',
+    LIVEKIT_EGRESS_IMAGE: 'livekit/egress:latest',
+    LIVEKIT_CADDYL4_IMAGE: `livekit/caddyl4:v2.11.3@sha256:${'3'.repeat(63)}`,
+    LIVEKIT_REDIS_IMAGE: 'redis@sha512:forbidden'
   }));
 
   assert.equal(missing.ok, false);
@@ -253,7 +261,11 @@ test('LiveKit standalone VM preflight requires edge domains and pinned image tag
     'livekit_signal_domain',
     'livekit_turn_domain',
     'livekit_acme_email',
-    'livekit_server_image_tag'
+    'livekit_server_image_tag',
+    'livekit_server_image',
+    'livekit_egress_image',
+    'livekit_caddyl4_image',
+    'livekit_redis_image'
   ]) {
     assert.equal(missing.checks.find((check) => check.id === id)?.status, 'fail');
   }

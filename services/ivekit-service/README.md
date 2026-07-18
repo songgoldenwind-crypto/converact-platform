@@ -28,7 +28,7 @@ For an isolated foundation deployment, generate the context, replace both passwo
 docker compose --env-file env.example up --build
 ```
 
-The default intelligence, Tinode, and Voice workers are disabled. The production Compose and Helm surfaces enable the secure-file scan and local FFmpeg derivative workers, run ClamAV only on the private workload network, and keep destructive cleanup disabled until both cleanup flags are explicitly set. Compose uses an exact ClamAV base tag for local builds; a delivery bundle requires `CLAMAV_IMAGE` to be an immutable digest reference.
+The default intelligence, Tinode, and Voice workers are disabled. The production Compose and Helm surfaces enable the secure-file scan and local FFmpeg derivative workers, run ClamAV only on the private workload network, and keep destructive cleanup disabled until both cleanup flags are explicitly set. Source and delivery Compose both require immutable `IVEKIT_POSTGRES_IMAGE` and `CLAMAV_IMAGE` references; `env.example` supplies reviewed `tag@sha256` values.
 
 Notification delivery and active health workers are disabled by default. Configure distinct notification encryption/HMAC keys, Provider credentials and their environment-name allowlists before enabling them. Endpoint health checks are lease-safe across replicas, reject unsafe HTTP destinations, and use SMTP `verify()` without sending mail. The API/SDK provide template, endpoint, delivery, test, archive and guarded retry operations; see `docs/ivekit-notification-operations-runbook.md`.
 
