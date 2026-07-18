@@ -30,11 +30,15 @@ IVEKIT_LIVEKIT_IMAGE=registry.example.com/ivekit/livekit-server:v1.13.3-ivekit.2
 bash infra/ivekit/livekit/build.sh
 ```
 
-The build requires the upstream Go 1.26 toolchain and Docker. On 2026-07-17 the
+The build requires the upstream Go 1.26 toolchain and Docker. On 2026-07-18 the
 overlay and hot-path patch were applied twice to a clean
 `v1.13.3@8f6a9cb...` worktree. `cmd/server`, `pkg/sfu`, `pkg/sfu/utils` and both
 nested iveKit modules passed their Go tests; SFU packages also passed under the
-race detector. The custom image build, real RTP/TURN traffic, multi-node
+race detector. A local source-built arm64 image
+`ivekit/livekit-server:v1.13.3-ivekit.2-8f6a9cb8` was produced as
+`sha256:12c435e1badcca364b31cab2ff7aeb084b3718961e6837e81d4b0a3ac58accd2`;
+its labels, executable and iveKit component-node marker were inspected. An
+immutable registry digest, SBOM/provenance, real RTP/TURN traffic, multi-node
 recovery and physical capacity remain `not_run`.
 
 The controlled Apple M5 microbenchmark reduced one-subscriber snapshot reads

@@ -22,47 +22,87 @@ replace ivekit.local/egresspool => ./ivekit/egress-pool
 `;
 }
 
+export function patchLiveKitEgressDockerfile(source) {
+  const builderImages = source.match(/^FROM livekit\/gstreamer:1\.24\.12-dev$/gm) || [];
+  if (builderImages.length !== 1) {
+    throw new Error('LiveKit Egress Dockerfile base image identity mismatch');
+  }
+
+  let next = source;
+  if (!/^COPY ivekit\/ ivekit\/$/m.test(next)) {
+    next = replaceOnce(
+      next,
+      'COPY go.sum .\nRUN go mod download',
+      'COPY go.sum .\nCOPY ivekit/ ivekit/\nRUN go mod download',
+      'Dockerfile local policy module'
+    );
+  }
+  if (!/^RUN go test \.\/pkg\/stats$/m.test(next)) {
+    const buildPattern = /^RUN .*go build -a -o egress \.\/cmd\/server$/m;
+    const matches = [...next.matchAll(new RegExp(buildPattern.source, 'gm'))];
+    if (matches.length !== 1 || matches[0].index == null) {
+      throw new Error('LiveKit Egress Dockerfile build anchor mismatch');
+    }
+    const build = matches[0][0];
+    next = next.slice(0, matches[0].index) +
+      `RUN go test ./pkg/stats\n${build}` +
+      next.slice(matches[0].index + build.length);
+  }
+  return next;
+}
+
 export function patchLiveKitEgressMonitor(source) {
   let next = source;
-  next = replaceOnce(
-    next,
-    '\t"fmt"\n',
-    '\t"fmt"\n\n\tivekitegresspool "ivekit.local/egresspool"\n',
-    'pool policy import'
-  );
-  next = replaceOnce(
-    next,
-    '\tcpuCostConfig *config.CPUCostConfig\n',
-    '\tcpuCostConfig *config.CPUCostConfig\n\tivekitPool *ivekitegresspool.Policy\n',
-    'pool policy field'
-  );
-  next = replaceOnce(
-    next,
-    'func NewMonitor(conf *config.ServiceConfig, svc Service) (*Monitor, error) {\n\tm := &Monitor{',
-    'func NewMonitor(conf *config.ServiceConfig, svc Service) (*Monitor, error) {\n' +
-      '\tivekitPool, err := ivekitegresspool.PolicyFromEnv()\n' +
-      '\tif err != nil {\n' +
-      '\t\treturn nil, err\n' +
-      '\t}\n' +
-      '\tm := &Monitor{',
-    'pool policy construction'
-  );
-  next = replaceOnce(
-    next,
-    '\t\tcpuCostConfig: conf.CPUCostConfig,\n',
-    '\t\tcpuCostConfig: conf.CPUCostConfig,\n\t\tivekitPool: ivekitPool,\n',
-    'pool policy assignment'
-  );
-  next = replaceOnce(
-    next,
-    '\tm.initPrometheus()\n',
-    '\tm.initPrometheus()\n\tm.initIveKitPrometheus()\n',
-    'iveKit prometheus initialization'
-  );
-  next = replaceOnce(
-    next,
-    '\t// Memory admission check based on configured source\n',
-    '\trequestType := requestTypeFromReq(req)\n' +
+  if (!next.includes('ivekitegresspool "ivekit.local/egresspool"')) {
+    next = replaceOnce(
+      next,
+      '\t"fmt"\n',
+      '\t"fmt"\n\n\tivekitegresspool "ivekit.local/egresspool"\n',
+      'pool policy import'
+    );
+  }
+  if (!/^\tivekitPool\s+\*ivekitegresspool\.Policy$/m.test(next)) {
+    next = replaceMatchOnce(
+      next,
+      /^\tcpuCostConfig\s+\*config\.CPUCostConfig$/m,
+      '\tcpuCostConfig *config.CPUCostConfig\n\tivekitPool *ivekitegresspool.Policy',
+      'pool policy field'
+    );
+  }
+  if (!next.includes('ivekitPool, err := ivekitegresspool.PolicyFromEnv()')) {
+    next = replaceOnce(
+      next,
+      'func NewMonitor(conf *config.ServiceConfig, svc Service) (*Monitor, error) {\n\tm := &Monitor{',
+      'func NewMonitor(conf *config.ServiceConfig, svc Service) (*Monitor, error) {\n' +
+        '\tivekitPool, err := ivekitegresspool.PolicyFromEnv()\n' +
+        '\tif err != nil {\n' +
+        '\t\treturn nil, err\n' +
+        '\t}\n' +
+        '\tm := &Monitor{',
+      'pool policy construction'
+    );
+  }
+  if (!/^\t\tivekitPool:\s+ivekitPool,$/m.test(next)) {
+    next = replaceMatchOnce(
+      next,
+      /^\t\tcpuCostConfig:\s+conf\.CPUCostConfig,$/m,
+      '\t\tcpuCostConfig: conf.CPUCostConfig,\n\t\tivekitPool: ivekitPool,',
+      'pool policy assignment'
+    );
+  }
+  if (!next.includes('m.initIveKitPrometheus()')) {
+    next = replaceOnce(
+      next,
+      '\tm.initPrometheus()\n',
+      '\tm.initPrometheus()\n\tm.initIveKitPrometheus()\n',
+      'iveKit prometheus initialization'
+    );
+  }
+  if (!next.includes('m.ivekitPool.Draining()')) {
+    next = replaceOnce(
+      next,
+      '\t// Memory admission check based on configured source\n',
+      '\trequestType := requestTypeFromReq(req)\n' +
       '\tif m.ivekitPool.Draining() {\n' +
       '\t\tm.ivekitPool.ObserveRejection("draining")\n' +
       '\t\tfields = append(fields, "canAccept", false, "reason", "ivekit_pool_draining", "ivekitPool", m.ivekitPool.PoolName())\n' +
@@ -83,9 +123,10 @@ export function patchLiveKitEgressMonitor(source) {
       '\t\tfields = append(fields, "canAccept", false, "reason", "ivekit_pool_slots", "ivekitPool", m.ivekitPool.PoolName(), "requestType", requestType)\n' +
       '\t\treturn fields, false\n' +
       '\t}\n' +
-      '\t// Memory admission check based on configured source\n',
-    'hard pool admission'
-  );
+        '\t// Memory admission check based on configured source\n',
+      'hard pool admission'
+    );
+  }
   return next;
 }
 
@@ -115,8 +156,14 @@ export async function applyLiveKitEgressOverlay(input) {
   const goModPath = join(sourceDir, 'go.mod');
   const monitorPath = join(sourceDir, 'pkg/stats/monitor.go');
   const metricsPath = join(sourceDir, 'pkg/stats/ivekit_metrics.go');
+  const dockerfilePath = join(sourceDir, 'build/egress/Dockerfile');
   await writeFile(goModPath, patchLiveKitEgressGoMod(await readFile(goModPath, 'utf8')), 'utf8');
   await writeFile(monitorPath, patchLiveKitEgressMonitor(await readFile(monitorPath, 'utf8')), 'utf8');
+  await writeFile(
+    dockerfilePath,
+    patchLiveKitEgressDockerfile(await readFile(dockerfilePath, 'utf8')),
+    'utf8'
+  );
   await cp(join(repoRoot, 'infra/ivekit/livekit-egress/ivekit_metrics.go'), metricsPath, { force: true });
   execFileSync('gofmt', ['-w', monitorPath, metricsPath], { stdio: 'inherit' });
   return {
@@ -134,6 +181,16 @@ function replaceOnce(source, anchor, replacement, label) {
     throw new Error(`LiveKit Egress ${label} anchor mismatch`);
   }
   return source.slice(0, first) + replacement + source.slice(first + anchor.length);
+}
+
+function replaceMatchOnce(source, pattern, replacement, label) {
+  const flags = `${pattern.flags.replaceAll('g', '')}g`;
+  const matches = [...source.matchAll(new RegExp(pattern.source, flags))];
+  if (matches.length !== 1 || matches[0].index == null) {
+    throw new Error(`LiveKit Egress ${label} anchor mismatch`);
+  }
+  const match = matches[0];
+  return source.slice(0, match.index) + replacement + source.slice(match.index + match[0].length);
 }
 
 function defaultRepoRoot() {

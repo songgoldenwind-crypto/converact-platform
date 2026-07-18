@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import * as liveKitEgressOverlay from '../infra/ivekit/livekit-egress/apply-overlay.mjs';
+
 import {
   LIVEKIT_EGRESS_UPSTREAM_COMMIT,
   LIVEKIT_EGRESS_UPSTREAM_TAG,
@@ -38,6 +40,18 @@ test('LiveKit Egress pool overlay is exact-release bound and rejects cross-pool 
   assert.equal(patchLiveKitEgressMonitor(patched), patched);
 });
 
+test('LiveKit Egress monitor patch accepts the exact gofmt-aligned v1.13.0 constructor', () => {
+  const source = monitorFixture().replace(
+    '\t\tcpuCostConfig: conf.CPUCostConfig,',
+    '\t\tcpuCostConfig:  conf.CPUCostConfig,'
+  );
+
+  const patched = patchLiveKitEgressMonitor(source);
+
+  assert.match(patched, /cpuCostConfig:\s+conf\.CPUCostConfig,/);
+  assert.match(patched, /ivekitPool:\s+ivekitPool,/);
+});
+
 test('LiveKit Egress overlay adds only the local pool policy module', () => {
   const patched = patchLiveKitEgressGoMod(
     'module github.com/livekit/egress\n\ngo 1.24.0\n'
@@ -45,6 +59,19 @@ test('LiveKit Egress overlay adds only the local pool policy module', () => {
   assert.match(patched, /require ivekit\.local\/egresspool v0\.0\.0/);
   assert.match(patched, /replace ivekit\.local\/egresspool => \.\/ivekit\/egress-pool/);
   assert.equal(patchLiveKitEgressGoMod(patched), patched);
+});
+
+test('LiveKit Egress overlay makes the upstream production Dockerfile build the local policy', () => {
+  const patchDockerfile = (liveKitEgressOverlay as Record<string, unknown>)
+    .patchLiveKitEgressDockerfile;
+  assert.equal(typeof patchDockerfile, 'function');
+  const patched = (patchDockerfile as (source: string) => string)(egressDockerfileFixture());
+
+  assert.match(patched, /COPY ivekit\/ ivekit\//);
+  assert.ok(patched.indexOf('COPY ivekit/ ivekit/') < patched.indexOf('RUN go mod download'));
+  assert.match(patched, /go test \.\/pkg\/stats/);
+  assert.ok(patched.indexOf('go test ./pkg/stats') < patched.indexOf('go build -a'));
+  assert.equal((patchDockerfile as (source: string) => string)(patched), patched);
 });
 
 test('LiveKit Egress build and Kubernetes pools enforce the source-level policy boundary', () => {
@@ -55,7 +82,9 @@ test('LiveKit Egress build and Kubernetes pools enforce the source-level policy 
 
   assert.match(build, /LIVEKIT_EGRESS_UPSTREAM_COMMIT/);
   assert.match(build, /git -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}" rev-parse HEAD/);
-  assert.match(build, /go test -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}" \.\/pkg\/stats \.\/ivekit\/\.\.\./);
+  assert.match(build, /go test -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}\/ivekit\/egress-pool" \.\/\.\.\./);
+  assert.doesNotMatch(build, /go test -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}" \.\/pkg\/stats/);
+  assert.match(build, /--file "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}\/build\/egress\/Dockerfile"/);
   assert.match(build, /io\.ivekit\.egress-pool-contract=ivekit-egress-pool-v1/);
   assert.match(deployment, /IVEKIT_EGRESS_POOL_NAME/);
   assert.match(deployment, /IVEKIT_EGRESS_ALLOWED_REQUEST_TYPES/);
@@ -139,6 +168,25 @@ function monitorFixture(): string {
     '\t}',
     '\treturn fields, true',
     '}',
+    ''
+  ].join('\n');
+}
+
+function egressDockerfileFixture(): string {
+  return [
+    'ARG TEMPLATE_TAG=latest',
+    '',
+    'FROM livekit/egress-templates:$TEMPLATE_TAG AS template',
+    '',
+    'FROM livekit/gstreamer:1.24.12-dev',
+    'WORKDIR /workspace',
+    'COPY go.mod .',
+    'COPY go.sum .',
+    'RUN go mod download',
+    'COPY cmd/ cmd/',
+    'COPY pkg/ pkg/',
+    'COPY version/ version/',
+    'RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on GODEBUG=disablethp=1 go build -a -o egress ./cmd/server',
     ''
   ].join('\n');
 }

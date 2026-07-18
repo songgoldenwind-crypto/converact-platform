@@ -52,6 +52,10 @@ baseline uses a standard-library lock and therefore understates the cost of
 the old asynchronous global write. These are operation-level measurements,
 not relay throughput, node density, Cell capacity, or Windows correctness.
 
-The custom image build and digest, SBOM/provenance, two-Windows relay
-acceptance, real desktop/file traces, reconnect, and physical capacity remain
-`not_run` until the target environments are available.
+The repository Dockerfile produced local source-built arm64 image
+`ivekit/rustdesk-server:1.1.15-ivekit.2-9bae9f2f` as
+`sha256:ef06f2ce8ad100c0b75618844e7e8b3b738412dc4831c95d0145c0f031c9d774`.
+Its exact-source labels, non-root `rustdesk` user, hbbs/hbbr executables and
+owner-guard marker were inspected. An immutable registry digest,
+SBOM/provenance, two-Windows relay acceptance, real desktop/file traces,
+reconnect and physical capacity remain `not_run`.

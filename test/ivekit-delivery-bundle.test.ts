@@ -590,6 +590,11 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     );
     assert.equal(files.includes('deploy/rustdesk-server-fork/apply-overlay.mjs'), true);
     assert.equal(files.includes('deploy/rustdesk-server-fork/build.sh'), true);
+    assert.equal(files.includes('deploy/rustdesk-server-fork/Dockerfile'), true);
+    assert.equal(
+      files.includes('deploy/rustdesk-server-fork/Dockerfile.dockerignore'),
+      true
+    );
     assert.equal(files.includes('deploy/rustdesk-server-fork/server-hook.rs'), true);
     assert.equal(
       files.includes(

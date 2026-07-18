@@ -11,6 +11,10 @@ interface ForkComponent {
     commit?: string;
     source_identity_complete?: boolean;
   };
+  runtime_artifact: {
+    kind: string;
+    contains_declared_modifications: boolean;
+  };
   patches?: Array<{ path: string; sha256: string }>;
   implemented_changes?: Array<{ change_id: string }>;
   planned_changes?: Array<{ change_id: string }>;
@@ -88,10 +92,28 @@ test('Tinode fork status records native mutation and exact-release owner overlay
       'infra/ivekit/tinode/apply-overlay.mjs'
     )
   );
+  assert.ok(
+    tinode.patches?.some(
+      (patch) => patch.path === 'infra/ivekit/tinode/apply-overlay.mjs'
+    )
+  );
+  for (const componentId of ['rustpbx', 'rsipstack']) {
+    const component = manifest.components.find(
+      (candidate) => candidate.component_id === componentId
+    );
+    assert.equal(
+      component?.patches?.some(
+        (patch) => patch.path === 'infra/ivekit/tinode/apply-overlay.mjs'
+      ),
+      false
+    );
+  }
   assert.equal(tinode.release_gate.production_eligible, false);
   assert.ok(
     tinode.release_gate.blocking_reasons.some(
-      (reason) => reason.includes('custom image') && reason.includes('immutable digest')
+      (reason) =>
+        reason.includes('custom image') &&
+        reason.includes('immutable registry digest')
     )
   );
   assert.ok(
@@ -150,10 +172,17 @@ test('LiveKit fork status records the owner overlay without claiming a built pro
       'infra/ivekit/livekit/apply-overlay.mjs'
     )
   );
+  assert.ok(
+    livekit.patches?.some(
+      (patch) => patch.path === 'infra/ivekit/livekit/apply-overlay.mjs'
+    )
+  );
+  assert.equal(livekit.runtime_artifact.kind, 'custom_candidate');
+  assert.equal(livekit.runtime_artifact.contains_declared_modifications, true);
   assert.equal(livekit.release_gate.production_eligible, false);
   assert.ok(
     livekit.release_gate.blocking_reasons.some(
-      (reason) => reason.includes('immutable digest')
+      (reason) => reason.includes('immutable registry digest')
     )
   );
 });
@@ -267,10 +296,28 @@ test('RustDesk Server fork status records the compiled relay hot path without cl
       'infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch'
     )
   );
+  assert.ok(
+    rustdeskServer.patches?.some(
+      (patch) => patch.path === 'infra/ivekit/rustdesk-server/Dockerfile'
+    )
+  );
+  for (const componentId of ['rustpbx', 'rsipstack', 'tinode-server']) {
+    const component = manifest.components.find(
+      (candidate) => candidate.component_id === componentId
+    );
+    assert.equal(
+      component?.patches?.some(
+        (patch) => patch.path === 'infra/ivekit/rustdesk-server/Dockerfile'
+      ),
+      false
+    );
+  }
   assert.equal(rustdeskServer.release_gate.production_eligible, false);
   assert.ok(
     rustdeskServer.release_gate.blocking_reasons.some(
-      (reason) => reason.includes('custom image') && reason.includes('immutable digest')
+      (reason) =>
+        reason.includes('custom image') &&
+        reason.includes('immutable registry digest')
     )
   );
   assert.ok(

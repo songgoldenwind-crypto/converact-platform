@@ -10,6 +10,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import * as tinodeOverlay from '../infra/ivekit/tinode/apply-overlay.mjs';
+
 import {
   TINODE_UPSTREAM_COMMIT,
   TINODE_UPSTREAM_TAG,
@@ -133,6 +135,29 @@ test('Tinode hot-path patch keeps personalized and cluster messages isolated', (
   assert.doesNotMatch(source, /http\.(?:Get|Post|Do)/);
 });
 
+test('Tinode overlay makes the upstream runtime image compile the iveKit source', () => {
+  const patchDockerfile = (tinodeOverlay as Record<string, unknown>)
+    .patchTinodeDockerfile;
+  assert.equal(typeof patchDockerfile, 'function');
+
+  const patched = (patchDockerfile as (source: string) => string)(
+    tinodeDockerfileFixture()
+  );
+  assert.match(patched, /FROM golang:1\.26-alpine AS ivekit-builder/);
+  assert.match(patched, /COPY ivekit\/ ivekit\//);
+  assert.ok(patched.indexOf('COPY ivekit/ ivekit/') < patched.indexOf('RUN go mod download'));
+  assert.match(patched, /go build[\s\S]*-o \/out\/tinode \.\/server/);
+  assert.match(patched, /go build[\s\S]*-o \/out\/init-db \.\/tinode-db/);
+  assert.match(patched, /COPY --from=ivekit-builder \/out\/tinode \./);
+  assert.match(patched, /COPY docker\/tinode\/config\.template \./);
+  assert.match(patched, /COPY tinode-db\/credentials\.sh \./);
+  assert.doesNotMatch(patched, /github\.com\/tinode\/chat\/releases\/download/);
+  assert.equal(
+    (patchDockerfile as (source: string) => string)(patched),
+    patched
+  );
+});
+
 test('Tinode build files retain the real upstream compile boundary', () => {
   const build = readFileSync('infra/ivekit/tinode/build.sh', 'utf8');
   const readme = readFileSync('infra/ivekit/tinode/README.md', 'utf8');
@@ -143,12 +168,31 @@ test('Tinode build files retain the real upstream compile boundary', () => {
   assert.match(build, /ivekit\/tinode-owner" \.\/\.\.\./);
   assert.doesNotMatch(build, /\.\/ivekit\/\.\.\./);
   assert.match(build, /docker build/);
+  assert.match(build, /--file "\$\{TINODE_SOURCE_DIR\}\/docker\/tinode\/Dockerfile"/);
+  assert.match(build, /--build-arg "TARGET_DB=\$\{TINODE_TARGET_DB:-postgres\}"/);
   assert.match(readme, /Go 1\.26/);
   assert.match(readme, /remain `not_run`/);
   assert.match(hook, /IVEKIT_COMPONENT_NODE_ID/);
   assert.match(hook, /ivekitTopicOwners\.Assert/);
   assert.doesNotMatch(hook, /fanout/);
 });
+
+function tinodeDockerfileFixture(): string {
+  return [
+    'FROM alpine:3.22',
+    'ARG TARGET_DB=mysql',
+    'ENV TARGET_DB=$TARGET_DB',
+    'WORKDIR /opt/tinode',
+    'COPY config.template .',
+    'COPY entrypoint.sh .',
+    'ADD https://github.com/tinode/chat/releases/download/v$BINVERS/tinode-$TARGET_DB.linux-amd64.tar.gz .',
+    'RUN tar -xzf tinode-$TARGET_DB.linux-amd64.tar.gz && rm tinode-$TARGET_DB.linux-amd64.tar.gz',
+    'RUN mkdir /botdata',
+    'RUN chmod +x entrypoint.sh',
+    'RUN chmod +x credentials.sh',
+    ''
+  ].join('\n');
+}
 
 function mainFixture(): string {
   return [

@@ -2,16 +2,16 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 19,
+  "revision": 20,
   "status": "proposed",
-  "generated_at": "2026-07-17T15:05:14+08:00",
+  "generated_at": "2026-07-18T18:30:00+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
   "notes": [
     "This manifest records design and repository state; it does not assert that MIX-100K has passed.",
     "A release tag without a resolved 40-character commit or an image tag without a digest is not a complete production identity.",
-    "The default RustPBX deployment examples still reference an upstream digest; the local patch-queue image remains a custom candidate until build, integration, and benchmark evidence pass.",
+    "The local RustPBX patch-queue image compiled and passed controlled SIPp signaling, but remains a custom candidate until a registry digest, RTP integration, failover and benchmark evidence pass.",
     "Business licensing decisions are outside this architecture record; engineering traceability and source identity remain release requirements."
   ],
   "components": [
@@ -198,7 +198,7 @@
             "The exact RustPBX patch queue applies and the recording patch contains no object-storage, PostgreSQL or HTTP call in the media path.",
             "Controlled tests prove stable-file and symlink checks, whole-file SHA-256, multipart resume, deterministic leases, pause/resume/drop event replay, owner-bound final marker retry, contiguous 1..N finalization, cleanup-pending recovery and owner-epoch fencing.",
             "Compose and Helm co-locate a bounded uploader with read-only file secrets and per-node durable spool/state; the local component-node gate rejects new required recording capacity at the 90 percent watermark or when evidence is stale.",
-            "Real Rust compile, RTP continuity, object-storage outage and physical Cell throughput remain not_run."
+            "The fixed-source release binary compiles; real RTP continuity, object-storage outage and physical Cell throughput remain not_run."
           ]
         },
         {
@@ -214,7 +214,7 @@
             "The complete RustPBX patch queue applies cleanly to the exact pinned commit after the local rsipstack dependency patch.",
             "Renderer, Compose and both Helm surfaces validate and carry the same four bounded capacity values.",
             "Prometheus discovery and alert contracts cover transaction, queue and transport saturation plus explicit overload rejection.",
-            "Native Rust compile, SIPp overload behavior and physical capacity remain not_run."
+            "Native Rust compile and controlled SIPp signaling pass; SIPp overload curves and physical capacity remain not_run."
           ]
         },
         {
@@ -229,7 +229,7 @@
             "The complete patch queue applies to the exact pinned RustPBX commit and both RTP forwarding implementations use try_send instead of synchronous recorder writes.",
             "Per-capture and dedicated worker-pool capacities are validated and propagated through the renderer, Compose and both Helm charts; overflow increments recorder evidence and a low-cardinality Prometheus counter.",
             "Controlled build, deployment and delivery contracts pass 34 of 34 tests.",
-            "Native Rust compile, real RTP continuity, recording overload and physical capacity remain not_run."
+            "Native Rust compile passes; real RTP continuity, recording overload and physical capacity remain not_run."
           ]
         }
       ],
@@ -253,7 +253,7 @@
       "verification": {
         "source_identity": "passed",
         "patch_apply": "passed",
-        "compile": "not_run",
+        "compile": "passed",
         "unit": "partial",
         "integration": "partial",
         "benchmark": "not_run",
@@ -282,15 +282,17 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
           "src/agent-runtime/ivekit/voice/rustpbx-config.ts",
-          "services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml"
+          "services/ivekit-service/helm/ivekit/files/prometheus-rules.yaml",
+          "scripts/ivekit-rustpbx-sipp-acceptance.ts",
+          "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-17T12:14:49+08:00"
+        "checked_at": "2026-07-18T18:30:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
           "Custom image digest has not been recorded.",
-          "The full RustPBX binary compile, SIP/RTP integration, Cell-10K benchmark, and failover evidence are not attached.",
+          "The local image has no immutable registry digest; real RTP integration, overload curves, Cell-10K benchmark and failover evidence are not attached.",
           "Helm production values still require an operator-supplied immutable digest for the custom ivekit.8 candidate."
         ]
       },
@@ -367,7 +369,7 @@
             "The reconnect and capacity patches apply in order to a clean exact-commit worktree.",
             "Rustfmt and whitespace checks pass for the fully patched rsipstack tree.",
             "Patch contract tests verify strict atomic slot bounds, queue/connection rejection, explicit 503 overload response, duplicate-key safety and bounded-cardinality statistics.",
-            "Native Cargo compile, SIPp overload integration and Cell-10K benchmark remain not_run."
+            "The patched library compiles inside the fixed-source RustPBX release image; SIPp overload integration and Cell-10K benchmark remain not_run."
           ]
         }
       ],
@@ -375,7 +377,7 @@
       "verification": {
         "source_identity": "passed",
         "patch_apply": "passed",
-        "compile": "not_run",
+        "compile": "passed",
         "unit": "partial",
         "integration": "partial",
         "benchmark": "not_run",
@@ -388,12 +390,12 @@
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-17T11:45:35+08:00"
+        "checked_at": "2026-07-18T18:30:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The patched library has not been natively compiled into a digest-bound RustPBX image for this manifest revision.",
+          "The patched library compiled into the local RustPBX image, but that image has no immutable registry digest for this manifest revision.",
           "Transport integration and overload benchmarks are not attached."
         ]
       },
@@ -590,11 +592,17 @@
         "output_image": "ivekit/livekit-server:v1.13.3-ivekit.2-8f6a9cb8"
       },
       "runtime_artifact": {
-        "reference": "livekit/livekit-server:v1.13.3",
-        "kind": "upstream_baseline",
-        "contains_declared_modifications": false
+        "reference": "ivekit/livekit-server:v1.13.3-ivekit.2-8f6a9cb8",
+        "kind": "custom_candidate",
+        "contains_declared_modifications": true
       },
       "patches": [
+        {
+          "path": "infra/ivekit/livekit/apply-overlay.mjs",
+          "sha256": "bde1979a8b0299d782bbd310894926c12cecb5327448935c9b7b38d12f829847",
+          "applies_to": "livekit-server@8f6a9cb8b735549f0c5770df8ea70ac51f860ecb",
+          "purpose": "Apply the exact-release owner and SFU overlays and make the upstream image consume a host-generated locked vendor tree so local owner modules compile without build-time network access."
+        },
         {
           "path": "infra/ivekit/livekit/patches/livekit-ivekit-small-room-hot-path.patch",
           "sha256": "6db88e62c5999b2200b18cab0b70068ebcff1dcc0fe7ae590b68f14ab64c5a27",
@@ -660,7 +668,7 @@
             "The exact-tag overlay patches room creation, participant signal, room deletion, participant administration, data send and metadata mutation boundaries without adding RTP or RTCP network calls.",
             "The stable-identity Kubernetes StatefulSet gives the LiveKit process and component-node sidecar the same ordinal pod owner ID.",
             "The overlay sets LiveKit currentNode.NodeID from that ordinal before Prometheus, SignalClient and Router initialization, aligning Redis room routing with iveKit placement and sidecar checkpoints.",
-            "Real application to the pinned upstream tree, Go 1.26 compilation and multi-node media execution remain release gates."
+            "Application to the pinned upstream tree, Go 1.26 compilation and local custom-image smoke checks pass; multi-node media execution remains a release gate."
           ]
         },
         {
@@ -689,7 +697,7 @@
             "Go 1.26 tests pass for cmd/server, pkg/sfu, pkg/sfu/utils, ivekit.local/componenthook and ivekit.local/livekitowner; SFU and spreader tests also pass under the race detector.",
             "Compiler escape analysis moves the baseline per-packet writeCount and broadcast closure to the heap; the serial path removes both and allocates the parallel counter only after the configured threshold is reached.",
             "On the local Apple M5 controlled microbenchmark, one-subscriber snapshot reads changed from 3.62-3.66 ns/op to 0.49-0.52 ns/op at 0 allocations; this is operation-level evidence, not a node or Cell capacity claim.",
-            "Custom image, packet continuity, impairment, TURN, multi-node and Cell-10K evidence remain not_run."
+            "The local custom image is built; immutable registry publication, packet continuity, impairment, TURN, multi-node and Cell-10K evidence remain not_run."
           ]
         }
       ],
@@ -747,12 +755,12 @@
           "test/ivekit-livekit-owner-patch.test.ts",
           "clients/ivekit-reference/src/media/media-rejoin-controller.test.ts"
         ],
-        "checked_at": "2026-07-17T13:39:51+08:00"
+        "checked_at": "2026-07-18T19:35:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The exact upstream overlay and hot-path patch compile with Go 1.26, but the custom image has not been built and has no immutable digest, SBOM or provenance.",
+          "The exact upstream overlay, hot-path patch, offline vendor build and source-built custom image pass locally, but the image has no immutable registry digest, SBOM or provenance.",
           "Real LiveKit, TURN, impairment, reconnect, drain, and Cell-10K evidence is not run."
         ]
       },
@@ -800,7 +808,7 @@
       "patches": [
         {
           "path": "infra/ivekit/livekit-egress/apply-overlay.mjs",
-          "sha256": "f44ca063f18844801f3012c98394f1314b30679523ad8436cfa73c917f0361da",
+          "sha256": "dc7bc6d33821a6fe340b0aeaf51060c0ca0a25de46606788fa806ee24ef91c6a",
           "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249",
           "purpose": "Patch the Egress monitor before upstream CPU and memory admission, initialize iveKit metrics, and copy the local request-type, slot-limit, drain, and process-observability modules."
         },
@@ -839,7 +847,7 @@
       "planned_changes": [],
       "verification": {
         "source_identity": "passed",
-        "patch_apply": "partial",
+        "patch_apply": "passed",
         "compile": "partial",
         "unit": "passed",
         "integration": "partial",
@@ -862,12 +870,12 @@
           "test/ivekit-livekit-egress-placement.test.ts",
           "docs/capacity/livekit-egress-cell-10k-implementation-plan.md"
         ],
-        "checked_at": "2026-07-17T11:07:00+08:00"
+        "checked_at": "2026-07-18T18:25:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The overlay has not yet been applied to a real upstream checkout and the custom image digest is not recorded.",
+          "The exact-release overlay and local policy tests pass on a real upstream checkout, but the custom image build is blocked on downloading the upstream GStreamer base layers and no image digest is recorded.",
           "Real Egress, object-storage outage, pool-isolation and Cell-10K benchmark evidence remain not_run."
         ]
       },
@@ -989,6 +997,12 @@
         "contains_declared_modifications": true
       },
       "patches": [
+        {
+          "path": "infra/ivekit/tinode/apply-overlay.mjs",
+          "sha256": "6662fc12db30872036fd563163abc9ad905ee945370296b9d6103f235573d1ff",
+          "applies_to": "tinode@22a7c18e9cd695e9a061bf1b8c84175196ef5a15",
+          "purpose": "Apply the exact-release owner and hot-path overlays and convert the upstream runtime Dockerfile from release-tarball download to a source-built iveKit server and database initializer."
+        },
         {
           "path": "infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch",
           "sha256": "01f39f3ad8386844486c512110d4f0daaee8da99f6ddbd616885a575d120e977",
@@ -1124,12 +1138,12 @@
           "test/ivekit-component-node-admission.test.ts",
           "test/ivekit-component-node-sync.test.ts"
         ],
-        "checked_at": "2026-07-17T14:09:47+08:00"
+        "checked_at": "2026-07-18T18:45:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The exact upstream overlay compiles and passes race tests, but the custom image has not been built and has no immutable digest, SBOM or provenance.",
+          "The exact upstream overlay, source-built custom image and fork-binary smoke check pass locally, but the image has no immutable registry digest, SBOM or provenance.",
           "Multi-node reconnect, shard failure, and native-client convergence evidence is not run in a real Tinode cluster."
         ]
       },
@@ -1182,6 +1196,12 @@
       },
       "patches": [
         {
+          "path": "infra/ivekit/rustdesk-server/Dockerfile",
+          "sha256": "5b85ccc6938ae15f3b8eb597e4c0cedddf3a07859d133895c5689937a393421e",
+          "applies_to": "rustdesk-server@9bae9f2f39d92c4b4ba2e28e089da5071897b22e after the iveKit owner overlay",
+          "purpose": "Build the maintained fork from locked source in a digest-pinned Rust builder and run hbbs, hbbr and rustdesk-utils as an unprivileged user in a digest-pinned runtime image."
+        },
+        {
           "path": "infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
           "sha256": "36a48feb70aece0a8d79bf47cd5440287b5b10463428a9cb89db7cd2d1e7009c",
           "applies_to": "rustdesk-server@9bae9f2f39d92c4b4ba2e28e089da5071897b22e after the iveKit owner overlay",
@@ -1201,7 +1221,7 @@
           "acceptance_evidence": [
             "Controlled tests prove exact relay node identity, stale owner rejection, restart replay, drain and node-isolated failure.",
             "RustDesk frame relay remains prohibited from performing agent HTTP calls; the source hook caches accepted owner epoch and lease state.",
-            "The RustDesk Server source overlay uses the guard at rendezvous and relay setup; the real upstream compile and two-Windows acceptance remain release gates."
+            "The RustDesk Server source overlay uses the guard at rendezvous and relay setup; locked source build and local binary smoke checks pass, while two-Windows acceptance remains a release gate."
           ]
         },
         {
@@ -1284,6 +1304,8 @@
           "infra/ivekit/rustdesk-server/server-hook.rs",
           "infra/ivekit/rustdesk-server/apply-overlay.mjs",
           "infra/ivekit/rustdesk-server/build.sh",
+          "infra/ivekit/rustdesk-server/Dockerfile",
+          "infra/ivekit/rustdesk-server/Dockerfile.dockerignore",
           "infra/ivekit/rustdesk-server/patches/rustdesk-server-ivekit-relay-hot-path.patch",
           "infra/ivekit/rustdesk-server/bench/relay-hot-path.rs",
           "infra/ivekit/rustdesk-server/bench/run.sh",
@@ -1296,12 +1318,12 @@
           "test/ivekit-rustdesk-server-owner-patch.test.ts",
           "test/ivekit-rustdesk-placement-http-boundary.test.ts"
         ],
-        "checked_at": "2026-07-17T15:05:14+08:00"
+        "checked_at": "2026-07-18T19:05:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The exact 1.1.15 source and hbb_common submodule pass locked Cargo tests, but the custom image has not been built and has no immutable digest, SBOM or provenance.",
+          "The exact 1.1.15 source, hbb_common submodule, locked Cargo tests, source-built custom image and fork-binary smoke checks pass locally, but the image has no immutable registry digest, SBOM or provenance.",
           "Two-Windows-machine relay, direct-to-relay fallback, file transfer, recording, reconnect, and Cell benchmark evidence is not run."
         ]
       },

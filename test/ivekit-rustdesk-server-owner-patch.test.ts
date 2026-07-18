@@ -136,6 +136,11 @@ test('RustDesk Server hook declares bounded setup-only owner behavior', () => {
   const hook = readFileSync('infra/ivekit/rustdesk-server/server-hook.rs', 'utf8');
   const readme = readFileSync('infra/ivekit/rustdesk-server/README.md', 'utf8');
   const build = readFileSync('infra/ivekit/rustdesk-server/build.sh', 'utf8');
+  const dockerfile = readFileSync('infra/ivekit/rustdesk-server/Dockerfile', 'utf8');
+  const dockerignore = readFileSync(
+    'infra/ivekit/rustdesk-server/Dockerfile.dockerignore',
+    'utf8'
+  );
   assert.match(hook, /\/v1\/bindings\/claim/);
   assert.match(hook, /\/v1\/relays\/resolve/);
   assert.match(hook, /Guard::new/);
@@ -144,6 +149,16 @@ test('RustDesk Server hook declares bounded setup-only owner behavior', () => {
   assert.match(readme, /remain\s+`not_run`/);
   assert.match(build, /submodule update --init --recursive/);
   assert.match(build, /cargo test --locked/);
+  assert.match(build, /--file "\$SCRIPT_DIR\/Dockerfile"/);
+  assert.match(build, /org\.opencontainers\.image\.revision=9bae9f2f/);
+  assert.match(build, /io\.ivekit\.owner-contract=component-node-v1/);
+  assert.match(dockerfile, /FROM rust:1\.94-bookworm@sha256:[0-9a-f]{64} AS builder/);
+  assert.match(dockerfile, /cargo build --locked --release --all-features/);
+  assert.match(dockerfile, /COPY --from=builder \/source\/target\/release\/hbbs \/usr\/local\/bin\/hbbs/);
+  assert.match(dockerfile, /COPY --from=builder \/source\/target\/release\/hbbr \/usr\/local\/bin\/hbbr/);
+  assert.match(dockerfile, /USER rustdesk/);
+  assert.match(dockerignore, /^target$/m);
+  assert.match(dockerignore, /^\.git$/m);
 });
 
 test('RustDesk Server hook is a no-op when iveKit ownership is not configured', () => {

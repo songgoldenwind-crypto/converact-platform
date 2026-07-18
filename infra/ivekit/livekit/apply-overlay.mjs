@@ -74,6 +74,46 @@ replace ivekit.local/livekitowner => ./ivekit/livekit-owner
 `;
 }
 
+export function patchLiveKitDockerfile(source) {
+  if (!source.includes('FROM golang:1.26-alpine AS builder')) {
+    throw new Error('LiveKit Dockerfile builder identity mismatch');
+  }
+  let next = source;
+  if (!/^COPY ivekit\/ ivekit\/$/m.test(next)) {
+    next = replaceOnce(
+      next,
+      'COPY go.sum go.sum\n',
+      'COPY go.sum go.sum\nCOPY ivekit/ ivekit/\n',
+      'Dockerfile local owner modules'
+    );
+  }
+  if (!/^COPY vendor\/ vendor\/$/m.test(next)) {
+    next = replaceOnce(
+      next,
+      'COPY ivekit/ ivekit/\n',
+      'COPY ivekit/ ivekit/\nCOPY vendor/ vendor/\n',
+      'Dockerfile vendored dependencies'
+    );
+  }
+  if (next.includes('RUN go mod download')) {
+    next = replaceOnce(
+      next,
+      'RUN go mod download\n',
+      '# Dependencies are vendored by the iveKit build entrypoint.\n',
+      'Dockerfile online dependency download'
+    );
+  }
+  if (!next.includes('go build -mod=vendor')) {
+    next = replaceOnce(
+      next,
+      'go build -a -o livekit-server ./cmd/server',
+      'go build -mod=vendor -a -o livekit-server ./cmd/server',
+      'Dockerfile offline build'
+    );
+  }
+  return next;
+}
+
 export function patchLiveKitServerMain(source) {
   if (source.includes('ownerNodeID := strings.TrimSpace(os.Getenv("IVEKIT_COMPONENT_NODE_ID"))')) {
     return source;
@@ -388,11 +428,17 @@ export async function applyLiveKitOverlay(input) {
   );
 
   const goModPath = join(sourceDir, 'go.mod');
+  const dockerfilePath = join(sourceDir, 'Dockerfile');
   const serverMainPath = join(sourceDir, 'cmd/server/main.go');
   const roomManagerPath = join(sourceDir, 'pkg/service/roommanager.go');
   await writeFile(
     goModPath,
     patchLiveKitGoMod(await readFile(goModPath, 'utf8')),
+    'utf8'
+  );
+  await writeFile(
+    dockerfilePath,
+    patchLiveKitDockerfile(await readFile(dockerfilePath, 'utf8')),
     'utf8'
   );
   await writeFile(

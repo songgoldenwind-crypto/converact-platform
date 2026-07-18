@@ -591,6 +591,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'README.md',
     'apply-overlay.mjs',
     'build.sh',
+    'Dockerfile',
+    'Dockerfile.dockerignore',
     'server-hook.rs'
   ].map((name) => ({
     source: `infra/ivekit/rustdesk-server/${name}`,

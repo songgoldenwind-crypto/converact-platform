@@ -74,6 +74,68 @@ replace ivekit.local/tinodeowner => ./ivekit/tinode-owner
 `;
 }
 
+export function patchTinodeDockerfile(source) {
+  let next = source;
+  if (!next.includes('FROM golang:1.26-alpine AS ivekit-builder')) {
+    next = replaceOnce(
+      next,
+      'FROM alpine:3.22',
+      'FROM golang:1.26-alpine AS ivekit-builder\n' +
+        'ARG TARGETARCH\n' +
+        'ARG TARGET_DB=postgres\n' +
+        'WORKDIR /src\n' +
+        'COPY go.mod go.sum ./\n' +
+        'COPY ivekit/ ivekit/\n' +
+        'RUN go mod download\n' +
+        'COPY . .\n' +
+        'RUN mkdir -p /out && \\\n' +
+        '\tCGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go test -tags "${TARGET_DB}" ./server && \\\n' +
+        '\tCGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w -X main.buildstamp=v0.25.3-ivekit.2" -tags "${TARGET_DB}" -o /out/tinode ./server && \\\n' +
+        '\tCGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w" -tags "${TARGET_DB}" -o /out/init-db ./tinode-db\n\n' +
+        'FROM alpine:3.22',
+      'Dockerfile source builder'
+    );
+  }
+  next = replaceOnce(
+    next,
+    'COPY config.template .',
+    'COPY docker/tinode/config.template .',
+    'Dockerfile config path'
+  );
+  next = replaceOnce(
+    next,
+    'COPY entrypoint.sh .',
+    'COPY docker/tinode/entrypoint.sh .',
+    'Dockerfile entrypoint path'
+  );
+  if (!next.includes('COPY --from=ivekit-builder /out/tinode .')) {
+    next = replaceOnce(
+      next,
+      'ADD https://github.com/tinode/chat/releases/download/v$BINVERS/tinode-$TARGET_DB.linux-amd64.tar.gz .',
+      'COPY --from=ivekit-builder /out/tinode .\n' +
+        'COPY --from=ivekit-builder /out/init-db .\n' +
+        'COPY tinode-db/data.json .\n' +
+        'COPY tinode-db/*.jpg .\n' +
+        'COPY tinode-db/credentials.sh .',
+      'Dockerfile release artifact'
+    );
+    const unpackPattern = /^RUN tar -xzf tinode-\$TARGET_DB\.linux-amd64\.tar\.gz(?: \\\n\t&&| &&) rm tinode-\$TARGET_DB\.linux-amd64\.tar\.gz\n?/m;
+    const matches = [...next.matchAll(new RegExp(unpackPattern.source, 'gm'))];
+    if (matches.length !== 1 || matches[0].index == null) {
+      throw new Error('Tinode Dockerfile release unpack anchor mismatch');
+    }
+    next = next.slice(0, matches[0].index) +
+      next.slice(matches[0].index + matches[0][0].length);
+  }
+  next = replaceOnce(
+    next,
+    'RUN mkdir /botdata',
+    'RUN mkdir -p /botdata static',
+    'Dockerfile runtime directories'
+  );
+  return next;
+}
+
 export function patchTinodeMain(source) {
   let next = replaceOnce(
     source,
@@ -208,6 +270,7 @@ export async function applyTinodeOverlay(input) {
   const topicInitPath = join(sourceDir, 'server/init_topic.go');
   const topicPath = join(sourceDir, 'server/topic.go');
   const hookPath = join(sourceDir, 'server/ivekit_owner.go');
+  const dockerfilePath = join(sourceDir, 'docker/tinode/Dockerfile');
   await writeFile(
     goModPath,
     patchTinodeGoMod(await readFile(goModPath, 'utf8')),
@@ -226,6 +289,11 @@ export async function applyTinodeOverlay(input) {
   await writeFile(
     topicPath,
     patchTinodeTopic(await readFile(topicPath, 'utf8')),
+    'utf8'
+  );
+  await writeFile(
+    dockerfilePath,
+    patchTinodeDockerfile(await readFile(dockerfilePath, 'utf8')),
     'utf8'
   );
   await cp(join(repoRoot, 'infra/ivekit/tinode/server-hook.go'), hookPath, {

@@ -17,6 +17,8 @@ GOCACHE="${TINODE_GO_CACHE}" \
   go test -C "${TINODE_SOURCE_DIR}/ivekit/tinode-owner" ./...
 
 docker build \
+  --file "${TINODE_SOURCE_DIR}/docker/tinode/Dockerfile" \
+  --build-arg "TARGET_DB=${TINODE_TARGET_DB:-postgres}" \
   --label "org.opencontainers.image.revision=22a7c18e9cd695e9a061bf1b8c84175196ef5a15" \
   --label "io.ivekit.component=tinode-server" \
   --label "io.ivekit.owner-contract=component-node-v1" \

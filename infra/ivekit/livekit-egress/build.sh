@@ -17,9 +17,10 @@ fi
 node "${SCRIPT_DIR}/apply-overlay.mjs" "${LIVEKIT_EGRESS_SOURCE_DIR}"
 
 GOCACHE="${GOCACHE:-/tmp/ivekit-livekit-egress-go-cache}" \
-  go test -C "${LIVEKIT_EGRESS_SOURCE_DIR}" ./pkg/stats ./ivekit/...
+  go test -C "${LIVEKIT_EGRESS_SOURCE_DIR}/ivekit/egress-pool" ./...
 
 docker build \
+  --file "${LIVEKIT_EGRESS_SOURCE_DIR}/build/egress/Dockerfile" \
   --label "org.opencontainers.image.revision=${LIVEKIT_EGRESS_UPSTREAM_COMMIT}" \
   --label "io.ivekit.component=livekit-egress" \
   --label "io.ivekit.egress-pool-contract=ivekit-egress-pool-v1" \

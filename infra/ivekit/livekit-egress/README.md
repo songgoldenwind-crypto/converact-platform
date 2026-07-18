@@ -45,5 +45,9 @@ repository/digest, external LiveKit URL/API credentials, shared Redis credential
 credentials at render time. The chart fails closed when either the custom digest or shared Redis
 address is absent.
 
-Real upstream overlay application, Go compilation, image build and deployed pool-isolation tests
-remain `not_run` until a source checkout and build environment are supplied.
+On 2026-07-18 the overlay applied repeatedly to the exact `v1.13.0` source and
+the local pool-policy Go module passed its tests. The custom image build remains
+`not_run`: the first attempt was stopped while Docker Hub was downloading the
+upstream 840.69 MB and 522.39 MB GStreamer layers at about 0.2 MB/s. No image or
+digest is claimed. Deployed pool isolation, object-storage outage injection and
+real media continuity also remain `not_run`.

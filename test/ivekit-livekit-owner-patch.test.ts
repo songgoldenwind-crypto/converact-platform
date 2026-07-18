@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import * as liveKitOverlay from '../infra/ivekit/livekit/apply-overlay.mjs';
+
 import {
   LIVEKIT_UPSTREAM_COMMIT,
   LIVEKIT_UPSTREAM_TAG,
@@ -83,6 +85,24 @@ test('LiveKit owner overlay adds only local replace modules to pinned go.mod', (
   assert.equal(patchLiveKitGoMod(patched), patched);
 });
 
+test('LiveKit overlay exposes local owner modules to the upstream image build', () => {
+  const patchDockerfile = (liveKitOverlay as Record<string, unknown>)
+    .patchLiveKitDockerfile;
+  assert.equal(typeof patchDockerfile, 'function');
+  const patched = (patchDockerfile as (source: string) => string)(
+    liveKitDockerfileFixture()
+  );
+
+  assert.match(patched, /COPY ivekit\/ ivekit\//);
+  assert.match(patched, /COPY vendor\/ vendor\//);
+  assert.doesNotMatch(patched, /RUN go mod download/);
+  assert.match(patched, /go build -mod=vendor/);
+  assert.equal(
+    (patchDockerfile as (source: string) => string)(patched),
+    patched
+  );
+});
+
 test('LiveKit owner build files state the real compile boundary', () => {
   const build = readFileSync('infra/ivekit/livekit/build.sh', 'utf8');
   const readme = readFileSync('infra/ivekit/livekit/README.md', 'utf8');
@@ -92,9 +112,16 @@ test('LiveKit owner build files state the real compile boundary', () => {
   assert.match(build, /ivekit\/livekit-owner" \.\/\.\.\./);
   assert.doesNotMatch(build, /\.\/pkg\/service/);
   assert.doesNotMatch(build, /\.\/ivekit\/\.\.\./);
+  assert.match(build, /go -C "\$\{LIVEKIT_SOURCE_DIR\}" mod vendor/);
   assert.match(build, /docker build/);
   assert.match(readme, /Go 1\.26/);
-  assert.match(readme, /custom image build[\s\S]*remain `not_run`/);
+  assert.match(readme, /ivekit\/livekit-server:v1\.13\.3-ivekit\.2-8f6a9cb8/);
+  assert.match(
+    readme,
+    /sha256:12c435e1badcca364b31cab2ff7aeb084b3718961e6837e81d4b0a3ac58accd2/
+  );
+  assert.match(readme, /immutable registry digest[\s\S]*remain `not_run`/);
+  assert.match(readme, /real RTP\/TURN traffic/);
 });
 
 test('LiveKit pinned patches apply once and are idempotent', () => {
@@ -120,6 +147,23 @@ test('LiveKit pinned patches apply once and are idempotent', () => {
   assert.equal(readFileSync(sourcePath, 'utf8'), 'after\n');
   assert.equal(applyPinnedPatch(sourceDir, patchPath), 'already_applied');
 });
+
+function liveKitDockerfileFixture(): string {
+  return [
+    'FROM golang:1.26-alpine AS builder',
+    'WORKDIR /workspace',
+    'COPY go.mod go.mod',
+    'COPY go.sum go.sum',
+    '# cache deps before building and copying source so that we do not need to re-download as much',
+    '# and so that source changes do not invalidate our downloaded layer',
+    'RUN go mod download',
+    'COPY cmd/ cmd/',
+    'COPY pkg/ pkg/',
+    'COPY version/ version/',
+    'RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GO111MODULE=on go build -a -o livekit-server ./cmd/server',
+    ''
+  ].join('\n');
+}
 
 test('LiveKit small-room patch removes locks and heap aggregation from 1:1 RTP fanout', () => {
   const hotPathPatch = readFileSync(

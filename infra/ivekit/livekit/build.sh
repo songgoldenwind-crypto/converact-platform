@@ -16,6 +16,7 @@ GOCACHE="${LIVEKIT_GO_CACHE}" \
   go test -C "${LIVEKIT_SOURCE_DIR}/ivekit/component-hook-go" ./...
 GOCACHE="${LIVEKIT_GO_CACHE}" \
   go test -C "${LIVEKIT_SOURCE_DIR}/ivekit/livekit-owner" ./...
+go -C "${LIVEKIT_SOURCE_DIR}" mod vendor
 
 docker build \
   --label "org.opencontainers.image.revision=8f6a9cb8b735549f0c5770df8ea70ac51f860ecb" \
