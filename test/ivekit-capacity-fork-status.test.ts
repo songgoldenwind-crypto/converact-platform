@@ -12,6 +12,7 @@ interface ForkComponent {
     source_identity_complete?: boolean;
   };
   runtime_artifact: {
+    reference?: string;
     kind: string;
     contains_declared_modifications: boolean;
   };
@@ -24,6 +25,7 @@ interface ForkComponent {
     unit: string;
     integration: string;
     benchmark?: string;
+    real_environment?: string;
     evidence_paths?: string[];
   };
   release_gate: {
@@ -35,6 +37,40 @@ interface ForkComponent {
 const manifest = JSON.parse(
   readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')
 ) as { components: ForkComponent[] };
+
+test('fork runtime artifact records stay inside the declared JSON schema', () => {
+  const schema = JSON.parse(
+    readFileSync('docs/capacity/schemas/fork-manifest.schema.json', 'utf8')
+  ) as {
+    $defs: {
+      runtime_artifact: {
+        properties: Record<string, unknown>;
+        required: string[];
+      };
+    };
+  };
+  const definition = schema.$defs.runtime_artifact;
+  const allowed = new Set(Object.keys(definition.properties));
+  const kinds = new Set(
+    ((definition.properties.kind as { enum?: string[] }).enum || [])
+  );
+
+  for (const component of manifest.components) {
+    const artifact = component.runtime_artifact;
+    if (!artifact) continue;
+    for (const field of Object.keys(artifact)) {
+      assert.equal(allowed.has(field), true, `${component.component_id}: ${field}`);
+    }
+    for (const field of definition.required) {
+      assert.equal(field in artifact, true, `${component.component_id}: ${field}`);
+    }
+    assert.equal(
+      kinds.has(artifact.kind),
+      true,
+      `${component.component_id}: ${artifact.kind}`
+    );
+  }
+});
 
 test('fork manifest patch paths exist and match their declared SHA-256', () => {
   for (const component of manifest.components) {
@@ -211,7 +247,14 @@ test('LiveKit Egress fork status records hard pool fencing without claiming a de
     false
   );
   assert.equal(egress.verification.unit, 'passed');
+  assert.equal(egress.verification.compile, 'passed');
   assert.equal(egress.verification.integration, 'partial');
+  assert.equal(egress.verification.benchmark, 'not_run');
+  assert.equal(egress.verification.real_environment, 'not_run');
+  assert.equal(
+    egress.runtime_artifact?.reference,
+    'ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0'
+  );
   assert.ok(
     egress.verification.evidence_paths?.includes(
       'infra/ivekit/livekit-egress/apply-overlay.mjs'
@@ -220,9 +263,68 @@ test('LiveKit Egress fork status records hard pool fencing without claiming a de
   assert.equal(egress.release_gate.production_eligible, false);
   assert.ok(
     egress.release_gate.blocking_reasons.some(
-      (reason) => reason.includes('real upstream checkout')
+      (reason) => reason.includes('not an immutable registry artifact')
     )
   );
+});
+
+test('LiveKit SIP is reproducibly built from the exact upstream commit without claiming production traffic', () => {
+  const sip = manifest.components.find(
+    (component) => component.component_id === 'livekit-sip'
+  );
+  assert.ok(sip);
+
+  assert.equal(
+    sip.upstream?.commit,
+    '02179d2eebe1493ad8c6a7961ceee84c34f8aca3'
+  );
+  assert.equal(sip.upstream?.source_identity_complete, true);
+  assert.equal(sip.verification.patch_apply, 'not_applicable');
+  assert.equal(sip.verification.compile, 'passed');
+  assert.equal(sip.verification.unit, 'partial');
+  assert.equal(sip.verification.integration, 'not_run');
+  assert.ok(
+    sip.implemented_changes?.some(
+      (change) => change.change_id === 'livekit-sip-role-boundary-v1'
+    )
+  );
+  assert.equal(
+    sip.planned_changes?.some(
+      (change) => change.change_id === 'livekit-sip-role-boundary-v1'
+    ),
+    false
+  );
+  assert.ok(
+    sip.verification.evidence_paths?.includes(
+      'infra/ivekit/livekit-sip/build.sh'
+    )
+  );
+  assert.equal(existsSync('infra/ivekit/livekit-sip/build.sh'), true);
+  assert.equal(existsSync('infra/ivekit/livekit-sip/README.md'), true);
+  assert.equal(sip.runtime_artifact.kind, 'custom_candidate');
+  assert.equal(sip.runtime_artifact.contains_declared_modifications, false);
+  assert.equal(sip.release_gate.production_eligible, false);
+  assert.ok(
+    sip.release_gate.blocking_reasons.some(
+      (reason) => reason.includes('immutable registry digest')
+    )
+  );
+  assert.ok(
+    sip.release_gate.blocking_reasons.some(
+      (reason) => /real SIP media/i.test(reason)
+    )
+  );
+});
+
+test('LiveKit SIP build script rejects source drift and verifies its runtime identity', () => {
+  const build = readFileSync('infra/ivekit/livekit-sip/build.sh', 'utf8');
+
+  assert.match(build, /git -C "\$\{LIVEKIT_SIP_SOURCE_DIR\}" rev-parse HEAD/);
+  assert.match(build, /02179d2eebe1493ad8c6a7961ceee84c34f8aca3/);
+  assert.match(build, /build\/sip\/Dockerfile/);
+  assert.match(build, /org\.opencontainers\.image\.revision/);
+  assert.match(build, /io\.ivekit\.component=livekit-sip/);
+  assert.match(build, /--version/);
 });
 
 test('RustDesk client fork status records durable owner epoch fencing without claiming Windows acceptance', () => {
@@ -249,6 +351,12 @@ test('RustDesk client fork status records durable owner epoch fencing without cl
         protocol.version === '2'
     )
   );
+  assert.equal(
+    rustdesk.upstream?.commit,
+    '0c86d4616298f09435f6236599b300964aa61460'
+  );
+  assert.equal(rustdesk.upstream?.source_identity_complete, true);
+  assert.equal(rustdesk.verification.patch_apply, 'passed');
   assert.equal(rustdesk.verification.unit, 'passed');
   assert.equal(rustdesk.verification.integration, 'partial');
   assert.ok(

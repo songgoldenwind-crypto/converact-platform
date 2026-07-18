@@ -152,7 +152,10 @@ fn read_roots(path: &Path) -> std::io::Result<Vec<Root>> {
         }
         let canonical = fs::canonicalize(path)?;
         if seen.insert((class, canonical.clone())) {
-            roots.push(Root { class, path: canonical });
+            roots.push(Root {
+                class,
+                path: canonical,
+            });
         }
     }
     Ok(roots)
@@ -220,7 +223,10 @@ fn publish_candidate(
     if destination.exists() {
         return Ok(());
     }
-    let filename = path.file_name().and_then(|value| value.to_str()).unwrap_or("");
+    let filename = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
     if filename.is_empty() {
         return Ok(());
     }
@@ -239,11 +245,11 @@ fn publish_candidate(
         observed_unix_ms,
         controller_rustdesk_ids,
     );
-    let temporary = directory.join(format!(
-        ".{native_candidate_id}.{}.tmp",
-        std::process::id()
-    ));
-    let mut file = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
+    let temporary = directory.join(format!(".{native_candidate_id}.{}.tmp", std::process::id()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)?;
     file.write_all(payload.as_bytes())?;
     file.sync_all()?;
     drop(file);

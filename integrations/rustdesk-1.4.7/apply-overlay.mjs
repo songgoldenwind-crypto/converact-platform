@@ -1,22 +1,38 @@
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const integrationRoot = dirname(fileURLToPath(import.meta.url));
+export const RUSTDESK_UPSTREAM_TAG = '1.4.7';
+export const RUSTDESK_UPSTREAM_COMMIT = '0c86d4616298f09435f6236599b300964aa61460';
 
 export function applyIveKitRustDeskOverlay(sourceRoot) {
+  verifyPinnedSource(sourceRoot);
   const libPath = join(sourceRoot, 'src', 'lib.rs');
   const cmPath = join(sourceRoot, 'src', 'ui_cm_interface.rs');
   const modulePath = join(sourceRoot, 'src', 'ivekit_native_control.rs');
   const evidenceModulePath = join(sourceRoot, 'src', 'ivekit_native_evidence.rs');
-  let lib = readFileSync(libPath, 'utf8');
-  let cm = readFileSync(cmPath, 'utf8');
+  const patched = patchIveKitRustDeskSources({
+    lib: readFileSync(libPath, 'utf8'),
+    connectionManager: readFileSync(cmPath, 'utf8')
+  });
 
+  writeFileSync(libPath, patched.lib, 'utf8');
+  writeFileSync(cmPath, patched.connectionManager, 'utf8');
+  copyFileSync(join(integrationRoot, 'ivekit_native_control.rs'), modulePath);
+  copyFileSync(join(integrationRoot, 'ivekit_native_evidence.rs'), evidenceModulePath);
+  return { libPath, cmPath, modulePath, evidenceModulePath };
+}
+
+export function patchIveKitRustDeskSources(input) {
+  let lib = input.lib;
+  let cm = input.connectionManager;
   if (!lib.includes('pub mod ivekit_native_control;')) {
     lib = replaceOnce(
       lib,
-      'pub mod ui_cm_interface;',
-      'pub mod ui_cm_interface;\n#[cfg(windows)]\npub mod ivekit_native_control;',
+      'mod ui_cm_interface;',
+      'mod ui_cm_interface;\n#[cfg(windows)]\npub mod ivekit_native_control;',
       'RustDesk src/lib.rs ui_cm_interface module anchor'
     );
   }
@@ -65,12 +81,24 @@ export function applyIveKitRustDeskOverlay(sourceRoot) {
       'RustDesk ui_cm_interface ivekit native control start anchor'
     );
   }
+  return { lib, connectionManager: cm };
+}
 
-  writeFileSync(libPath, lib, 'utf8');
-  writeFileSync(cmPath, cm, 'utf8');
-  copyFileSync(join(integrationRoot, 'ivekit_native_control.rs'), modulePath);
-  copyFileSync(join(integrationRoot, 'ivekit_native_evidence.rs'), evidenceModulePath);
-  return { libPath, cmPath, modulePath, evidenceModulePath };
+function verifyPinnedSource(sourceRoot) {
+  let head = '';
+  try {
+    head = execFileSync('git', ['-C', sourceRoot, 'rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+  } catch {
+    throw new Error('RustDesk overlay requires a pinned Git checkout');
+  }
+  if (head !== RUSTDESK_UPSTREAM_COMMIT) {
+    throw new Error(
+      `RustDesk source identity mismatch: expected ${RUSTDESK_UPSTREAM_COMMIT}, received ${head || 'unknown'}`
+    );
+  }
 }
 
 function replaceOnce(source, anchor, replacement, label) {

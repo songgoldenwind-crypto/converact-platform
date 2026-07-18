@@ -1,12 +1,12 @@
 #![cfg(windows)]
 
+use hbb_common::log;
 use hbb_common::tokio::{
     io::{AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     net::windows::named_pipe::{NamedPipeServer, ServerOptions},
     runtime::Builder,
     time::{sleep, Duration},
 };
-use hbb_common::log;
 use serde_derive::{Deserialize, Serialize};
 use std::{ffi::c_void, io, ptr::null_mut, sync::Once};
 
@@ -26,7 +26,9 @@ struct LocalSecurityDescriptor(*mut c_void);
 
 impl Drop for LocalSecurityDescriptor {
     fn drop(&mut self) {
-        unsafe { LocalFree(self.0); }
+        unsafe {
+            LocalFree(self.0);
+        }
     }
 }
 
@@ -165,23 +167,22 @@ async fn handle(pipe: NamedPipeServer) -> io::Result<()> {
         )
         .await;
     }
-    let native_id = match crate::ui_cm_interface::ivekit_resolve_connection(
-        &request.controller_rustdesk_id,
-    ) {
-        Ok(value) => value,
-        Err(code) => {
-            return write_error(
-                &mut writer,
-                &request.command_id,
-                "",
-                &request.interaction_id,
-                &request.reservation_id,
-                &request.owner_epoch,
-                code,
-            )
-            .await
-        }
-    };
+    let native_id =
+        match crate::ui_cm_interface::ivekit_resolve_connection(&request.controller_rustdesk_id) {
+            Ok(value) => value,
+            Err(code) => {
+                return write_error(
+                    &mut writer,
+                    &request.command_id,
+                    "",
+                    &request.interaction_id,
+                    &request.reservation_id,
+                    &request.owner_epoch,
+                    code,
+                )
+                .await
+            }
+        };
     let native_session_id = native_id.to_string();
     if !crate::ui_cm_interface::ivekit_connection_matches(
         native_id,
@@ -253,7 +254,13 @@ fn validate(request: &Request) -> Result<(), &'static str> {
             return Err("invalid_request");
         }
     }
-    if request.owner_epoch.parse::<u64>().ok().filter(|value| *value > 0).is_none() {
+    if request
+        .owner_epoch
+        .parse::<u64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .is_none()
+    {
         return Err("invalid_owner_epoch");
     }
     Ok(())
@@ -284,7 +291,10 @@ async fn write_error<W: AsyncWrite + Unpin>(
     .await
 }
 
-async fn write_response<W: AsyncWrite + Unpin>(writer: &mut W, response: Response<'_>) -> io::Result<()> {
+async fn write_response<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    response: Response<'_>,
+) -> io::Result<()> {
     let mut bytes = serde_json::to_vec(&response).map_err(io::Error::other)?;
     bytes.push(b'\n');
     writer.write_all(&bytes).await?;

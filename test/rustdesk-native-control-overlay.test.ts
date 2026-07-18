@@ -4,13 +4,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { applyIveKitRustDeskOverlay } from '../integrations/rustdesk-1.4.7/apply-overlay.mjs';
+import {
+  applyIveKitRustDeskOverlay,
+  patchIveKitRustDeskSources,
+  RUSTDESK_UPSTREAM_COMMIT,
+  RUSTDESK_UPSTREAM_TAG
+} from '../integrations/rustdesk-1.4.7/apply-overlay.mjs';
 
 test('RustDesk 1.4.7 overlay installs one fail-closed native control path idempotently', () => {
-  const root = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-overlay-'));
-  mkdirSync(join(root, 'src'));
-  writeFileSync(join(root, 'src', 'lib.rs'), 'pub mod ui_cm_interface;\n', 'utf8');
-  writeFileSync(join(root, 'src', 'ui_cm_interface.rs'), [
+  assert.equal(RUSTDESK_UPSTREAM_TAG, '1.4.7');
+  assert.equal(RUSTDESK_UPSTREAM_COMMIT, '0c86d4616298f09435f6236599b300964aa61460');
+  const source = {
+    lib: 'mod ui_cm_interface;\n',
+    connectionManager: [
     'pub async fn start_ipc<T: InvokeUiCM>(cm: ConnectionManager<T>) {',
     '    use_cm(cm);',
     '}',
@@ -21,15 +27,15 @@ test('RustDesk 1.4.7 overlay installs one fail-closed native control path idempo
     '    send_close(id);',
     '}',
     ''
-  ].join('\n'), 'utf8');
+    ].join('\n')
+  };
+  const patched = patchIveKitRustDeskSources(source);
+  assert.deepEqual(patchIveKitRustDeskSources(patched), patched);
 
-  applyIveKitRustDeskOverlay(root);
-  applyIveKitRustDeskOverlay(root);
-
-  const lib = readFileSync(join(root, 'src', 'lib.rs'), 'utf8');
-  const cm = readFileSync(join(root, 'src', 'ui_cm_interface.rs'), 'utf8');
-  const native = readFileSync(join(root, 'src', 'ivekit_native_control.rs'), 'utf8');
-  const evidence = readFileSync(join(root, 'src', 'ivekit_native_evidence.rs'), 'utf8');
+  const lib = patched.lib;
+  const cm = patched.connectionManager;
+  const native = readFileSync('integrations/rustdesk-1.4.7/ivekit_native_control.rs', 'utf8');
+  const evidence = readFileSync('integrations/rustdesk-1.4.7/ivekit_native_evidence.rs', 'utf8');
   assert.equal((lib.match(/pub mod ivekit_native_control/g) || []).length, 1);
   assert.equal((lib.match(/pub mod ivekit_native_evidence/g) || []).length, 1);
   assert.equal((cm.match(/ivekit_native_control::start_once/g) || []).length, 1);
@@ -67,10 +73,23 @@ test('RustDesk 1.4.7 overlay installs one fail-closed native control path idempo
   assert.doesNotMatch(evidence, /clipboard|keystroke|screen_pixels|read_to_end/i);
 });
 
-test('RustDesk overlay rejects an upstream source layout drift', () => {
+test('RustDesk overlay rejects an unpinned checkout and source layout drift', () => {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-rustdesk-overlay-drift-'));
   mkdirSync(join(root, 'src'));
   writeFileSync(join(root, 'src', 'lib.rs'), 'pub mod something_else;\n', 'utf8');
   writeFileSync(join(root, 'src', 'ui_cm_interface.rs'), 'pub fn close(id: i32) {}\n', 'utf8');
-  assert.throws(() => applyIveKitRustDeskOverlay(root), /anchor/);
+  assert.throws(() => applyIveKitRustDeskOverlay(root), /pinned Git checkout/);
+  assert.throws(
+    () => patchIveKitRustDeskSources({
+      lib: 'pub mod something_else;\n',
+      connectionManager: 'pub fn close(id: i32) {}\n'
+    }),
+    /anchor/
+  );
+});
+
+test('RustDesk Windows CI checks out the immutable upstream commit', () => {
+  const workflow = readFileSync('.github/workflows/ivekit-rustdesk-windows-ci.yml', 'utf8');
+  assert.match(workflow, /ref: 0c86d4616298f09435f6236599b300964aa61460/);
+  assert.doesNotMatch(workflow, /ref: 1\.4\.7/);
 });

@@ -579,6 +579,12 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     ]) {
       assert.equal(files.includes(livekitEgressFile), true, livekitEgressFile);
     }
+    for (const livekitSipFile of [
+      'components/livekit-sip/infra/ivekit/livekit-sip/README.md',
+      'components/livekit-sip/infra/ivekit/livekit-sip/build.sh'
+    ]) {
+      assert.equal(files.includes(livekitSipFile), true, livekitSipFile);
+    }
     assert.equal(files.includes('deploy/tinode-fork/apply-overlay.mjs'), true);
     assert.equal(files.includes('deploy/tinode-fork/build.sh'), true);
     assert.equal(files.includes('deploy/tinode-fork/server-hook.go'), true);

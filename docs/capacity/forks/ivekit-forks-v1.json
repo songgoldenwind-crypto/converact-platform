@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 20,
+  "revision": 23,
   "status": "proposed",
-  "generated_at": "2026-07-18T18:30:00+08:00",
+  "generated_at": "2026-07-18T19:37:19+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -424,8 +424,9 @@
         "repository": "https://github.com/rustdesk/rustdesk",
         "version": "1.4.7",
         "pin_kind": "exact_tag",
+        "commit": "0c86d4616298f09435f6236599b300964aa61460",
         "release_ref": "1.4.7",
-        "source_identity_complete": false
+        "source_identity_complete": true
       },
       "build": {
         "reproducible": false,
@@ -444,20 +445,20 @@
       "patches": [
         {
           "path": "integrations/rustdesk-1.4.7/ivekit_native_control.rs",
-          "sha256": "cced1c54d5bc380a640c5ba030532298396b0344b5bbccdc66705b503dd62ba7",
-          "applies_to": "rustdesk@tag:1.4.7",
+          "sha256": "ace27c8fb364f6ea96749497e1f264da9658931883d16d228f3297a86f3d4fc0",
+          "applies_to": "rustdesk@0c86d4616298f09435f6236599b300964aa61460",
           "purpose": "Add ACL-protected exact native session disconnect with owner-epoch v2 fencing through a Windows named pipe."
         },
         {
           "path": "integrations/rustdesk-1.4.7/ivekit_native_evidence.rs",
-          "sha256": "cae4657912dab9fe3f3fc7583ad8762aa7c5ad0b64a55ac5876b9e41cafa937a",
-          "applies_to": "rustdesk@tag:1.4.7",
+          "sha256": "aa6135e3eb0fd532726a53ab188c7102da53d63f3dea4caf380b8b4818464654",
+          "applies_to": "rustdesk@0c86d4616298f09435f6236599b300964aa61460",
           "purpose": "Emit metadata-only candidates for stable local recording and transferred-file evidence."
         },
         {
           "path": "integrations/rustdesk-1.4.7/apply-overlay.mjs",
-          "sha256": "5a5bd2963ef56a1132d6970a85ba981ad94a3c3481f988ddffa15401408caac8",
-          "applies_to": "rustdesk@tag:1.4.7",
+          "sha256": "72dca31a163e2abe2b2d2c173e232f5c43b6ff20b1afb532327494cb29552143",
+          "applies_to": "rustdesk@0c86d4616298f09435f6236599b300964aa61460",
           "purpose": "Apply the overlay fail-closed when expected upstream source anchors drift."
         }
       ],
@@ -518,8 +519,8 @@
       ],
       "planned_changes": [],
       "verification": {
-        "source_identity": "partial",
-        "patch_apply": "not_run",
+        "source_identity": "passed",
+        "patch_apply": "passed",
         "compile": "not_run",
         "unit": "passed",
         "integration": "partial",
@@ -527,7 +528,9 @@
         "real_environment": "not_run",
         "evidence_paths": [
           "integrations/rustdesk-1.4.7/README.md",
+          "integrations/rustdesk-1.4.7/apply-overlay.mjs",
           "integrations/rustdesk-1.4.7/ivekit_native_control.rs",
+          "integrations/rustdesk-1.4.7/ivekit_native_evidence.rs",
           "scripts/rustdesk-owner-epoch-fence.ts",
           "scripts/rustdesk-edge-command.ts",
           "scripts/rustdesk-observation-bridge.ts",
@@ -541,12 +544,12 @@
           "test/rustdesk-native-control-overlay.test.ts",
           "test/rustdesk-windows-package.test.ts"
         ],
-        "checked_at": "2026-07-17T01:43:54+08:00"
+        "checked_at": "2026-07-18T20:30:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The 1.4.7 tag has not been resolved to and recorded as a 40-character source commit.",
+          "The exact 1.4.7@0c86d461 source overlay applies idempotently, but Windows compilation and a signed artifact are not available from this local environment.",
           "A signed Windows artifact digest, SBOM, and build provenance are absent.",
           "Two-Windows-machine exact disconnect, multi-screen, clipboard, file transfer, recording, and reconnect acceptance is not run."
         ]
@@ -795,22 +798,28 @@
         "source_identity_complete": true
       },
       "build": {
-        "reproducible": true,
+        "reproducible": false,
         "lockfile_enforced": true,
         "script": "infra/ivekit/livekit-egress/build.sh",
-        "output_image": "ivekit/livekit-egress:1.13.0-ivekit.1-7d3572a0"
+        "output_image": "ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0"
       },
       "runtime_artifact": {
-        "reference": "ivekit/livekit-egress:1.13.0-ivekit.1-7d3572a0",
+        "reference": "ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
       "patches": [
         {
           "path": "infra/ivekit/livekit-egress/apply-overlay.mjs",
-          "sha256": "dc7bc6d33821a6fe340b0aeaf51060c0ca0a25de46606788fa806ee24ef91c6a",
+          "sha256": "41e3b4ad15545543b68660c23ddc22c258a3fe546fb75a8dc225c80400572c3d",
           "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249",
           "purpose": "Patch the Egress monitor before upstream CPU and memory admission, initialize iveKit metrics, and copy the local request-type, slot-limit, drain, and process-observability modules."
+        },
+        {
+          "path": "infra/ivekit/livekit-egress/build.sh",
+          "sha256": "622c4627911b66f51e7cad6ad0171553c6b28258dd66fc1feda4768bb12f01be",
+          "applies_to": "livekit/egress@7d3572a0bf1959cbbc452f5ba390b6a90b7dc249 after apply-overlay.mjs",
+          "purpose": "Materialize a SumDB-verified Go 1.26.2 toolchain per target architecture, build the exact-source image, and fail closed on runtime identity, label, user, version, or binary-marker drift."
         },
         {
           "path": "integrations/livekit-egress-v1.13.0/policy.go",
@@ -840,7 +849,8 @@
             "The independently compiled Go policy fails startup for invalid policy, rejects cross-pool requests, enforces an explicit process slot limit, fails closed on drain-file errors, and counts exact rejection reasons.",
             "Kubernetes Track and Composite StatefulSets carry disjoint allow-lists, independent slot limits, deterministic preStop drain markers, persistent backup spool, independent disruption budgets, KEDA/HPA policies and Prometheus alerts.",
             "iveKit persists one durable child job and object lifecycle per accepted provider Egress request, binds it to an exact reservation and owner epoch, and closes that capacity from terminal webhook or leased reconciliation.",
-            "Control-plane metrics aggregate durable pending/active/stopping jobs by pool while fork metrics expose active slots, process limit, drain state, rejections, spool pressure and network transmission."
+          "Control-plane metrics aggregate durable pending/active/stopping jobs by pool while fork metrics expose active slots, process limit, drain state, rejections, spool pressure and network transmission.",
+          "The exact v1.13.0 source builds into a locally verified Linux arm64 image whose non-root user, source revision, pool-contract labels, version and iveKit binary markers are checked by the build script."
           ]
         }
       ],
@@ -848,7 +858,7 @@
       "verification": {
         "source_identity": "passed",
         "patch_apply": "passed",
-        "compile": "partial",
+        "compile": "passed",
         "unit": "passed",
         "integration": "partial",
         "benchmark": "not_run",
@@ -870,12 +880,14 @@
           "test/ivekit-livekit-egress-placement.test.ts",
           "docs/capacity/livekit-egress-cell-10k-implementation-plan.md"
         ],
-        "checked_at": "2026-07-18T18:25:00+08:00"
+        "checked_at": "2026-07-18T19:37:19+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The exact-release overlay and local policy tests pass on a real upstream checkout, but the custom image build is blocked on downloading the upstream GStreamer base layers and no image digest is recorded.",
+          "The local arm64 image passed exact-source build and runtime identity checks, but it is not an immutable registry artifact and has no SBOM, signature or provenance.",
+          "The build recipe still consumes upstream template and Ubuntu package sources that are not snapshot/digest locked, so bit-for-bit reproducibility is not claimed.",
+          "The amd64 toolchain is SumDB pinned, but an amd64 Egress image has not been built or verified.",
           "Real Egress, object-storage outage, pool-isolation and Cell-10K benchmark evidence remain not_run."
         ]
       },
@@ -897,26 +909,36 @@
       "component_id": "livekit-sip",
       "name": "LiveKit SIP",
       "role": "Optional SIP-to-LiveKit bridge; not the MIX-100K-v1 primary SIP registrar or voice owner",
-      "lifecycle": "planned",
-      "integration_mode": "upstream_image",
+      "lifecycle": "active_engineering",
+      "integration_mode": "exact_source_image",
       "source_modification_allowed": true,
       "upstream": {
         "repository": "https://github.com/livekit/sip",
         "version": "v1.6.0",
-        "pin_kind": "exact_tag",
+        "pin_kind": "exact_commit",
         "release_ref": "v1.6.0",
+        "commit": "02179d2eebe1493ad8c6a7961ceee84c34f8aca3",
         "image_repository": "livekit/sip",
-        "source_identity_complete": false
+        "source_identity_complete": true
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/livekit-sip/build.sh",
+        "features": [
+          "exact-source-runtime-identity"
+        ],
+        "output_image": "ivekit/livekit-sip:v1.6.0-02179d2e"
       },
       "runtime_artifact": {
-        "reference": "livekit/sip:v1.6.0",
-        "kind": "upstream_baseline",
+        "reference": "ivekit/livekit-sip:v1.6.0-02179d2e",
+        "kind": "custom_candidate",
         "contains_declared_modifications": false
       },
-      "planned_changes": [
+      "implemented_changes": [
         {
           "change_id": "livekit-sip-role-boundary-v1",
-          "summary": "Prove whether LiveKit SIP remains an optional bridge or needs owner epoch, reservation, and drain extensions for a declared production profile.",
+          "summary": "Bind RustPBX as the sole dialog, RTP, recording and admission owner while excluding LiveKit SIP from Cell-10K and MIX-100K accounting.",
           "trigger": "Required before adding LiveKit SIP traffic to any 100k interaction profile.",
           "capacity_dimensions": [
             "sip.invite_cps",
@@ -929,35 +951,44 @@
           ]
         }
       ],
+      "planned_changes": [],
       "verification": {
-        "source_identity": "partial",
+        "source_identity": "passed",
         "patch_apply": "not_applicable",
-        "compile": "not_run",
-        "unit": "not_run",
+        "compile": "passed",
+        "unit": "partial",
         "integration": "not_run",
         "benchmark": "not_run",
         "real_environment": "not_run",
         "evidence_paths": [
-          ".env.example"
+          ".env.example",
+          "infra/ivekit/livekit-sip/build.sh",
+          "infra/ivekit/livekit-sip/README.md",
+          "docs/capacity/schemas/workload-profile.schema.json",
+          "docs/capacity/profiles/cell-10k-v1.json",
+          "docs/capacity/profiles/mix-100k-v1.json",
+          "scripts/capacity/profile-compiler.ts",
+          "test/ivekit-capacity-profile-compiler.test.ts"
         ],
-        "checked_at": "2026-07-16T13:45:00+08:00"
+        "checked_at": "2026-07-18T18:32:00+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
           "The component is outside the current primary voice ownership path.",
-          "Source commit, image digest, capacity role, and benchmark evidence are not recorded."
+          "The source-built candidate has no immutable registry digest, SBOM, provenance or Linux amd64 verification.",
+          "Real SIP media, RustPBX bridge failover, drain behavior, PSTN and capacity evidence remain not_run."
         ]
       },
       "upgrade_policy": {
         "review_cadence_days": 30,
         "critical_security_fix_sla_days": 7,
-        "merge_strategy": "track_upstream_image",
+        "merge_strategy": "rebuild_exact_upstream_commit",
         "compatibility_policy": "Do not add LiveKit SIP to a capacity profile until the RustPBX and LiveKit SIP ownership boundary is explicit and machine validated.",
         "rollback_identity_required": true
       },
       "traceability": {
-        "upstream_license": "verification_pending",
+        "upstream_license": "Apache-2.0",
         "notice_recorded": false,
         "sbom_status": "not_run",
         "provenance_status": "not_run"

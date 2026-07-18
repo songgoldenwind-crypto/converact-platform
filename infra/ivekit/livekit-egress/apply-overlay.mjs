@@ -29,11 +29,36 @@ export function patchLiveKitEgressDockerfile(source) {
   }
 
   let next = source;
-  if (!/^COPY ivekit\/ ivekit\/$/m.test(next)) {
+  const toolchainInstall = [
+    '# install checksum-verified Go toolchain materialized by build.sh',
+    'COPY ivekit/toolchain/go/ /usr/local/go/',
+    'RUN test "$(head -n 1 /usr/local/go/VERSION)" = "go1.26.2"',
+  ].join('\n');
+  if (!next.includes(toolchainInstall)) {
+    next = replaceOnce(
+      next,
+      [
+        '# install go',
+        'RUN wget https://go.dev/dl/go1.26.2.linux-${TARGETARCH}.tar.gz && \\',
+        '    rm -rf /usr/local/go && \\',
+        '    tar -C /usr/local -xzf go1.26.2.linux-${TARGETARCH}.tar.gz',
+      ].join('\n'),
+      toolchainInstall,
+      'Dockerfile Go toolchain installation'
+    );
+  }
+  if (/^COPY ivekit\/ ivekit\/$/m.test(next)) {
+    next = replaceOnce(
+      next,
+      'COPY ivekit/ ivekit/',
+      'COPY ivekit/egress-pool/ ivekit/egress-pool/',
+      'Dockerfile legacy local policy module'
+    );
+  } else if (!/^COPY ivekit\/egress-pool\/ ivekit\/egress-pool\/$/m.test(next)) {
     next = replaceOnce(
       next,
       'COPY go.sum .\nRUN go mod download',
-      'COPY go.sum .\nCOPY ivekit/ ivekit/\nRUN go mod download',
+      'COPY go.sum .\nCOPY ivekit/egress-pool/ ivekit/egress-pool/\nRUN go mod download',
       'Dockerfile local policy module'
     );
   }
@@ -47,6 +72,20 @@ export function patchLiveKitEgressDockerfile(source) {
     next = next.slice(0, matches[0].index) +
       `RUN go test ./pkg/stats\n${build}` +
       next.slice(matches[0].index + build.length);
+  }
+  if (!/^ARG IVEKIT_APT_MIRROR=/m.test(next)) {
+    next = replaceOnce(
+      next,
+      '# install deps\nRUN apt-get update && \\\n    apt-get install -y',
+      [
+        '# install deps',
+        'ARG IVEKIT_APT_MIRROR=https://ports.ubuntu.com/ubuntu-ports',
+        'RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports|${IVEKIT_APT_MIRROR}|g" /etc/apt/sources.list.d/ubuntu.sources && \\',
+        '    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && \\',
+        '    apt-get install -y',
+      ].join('\n'),
+      'Dockerfile apt mirror and retry policy'
+    );
   }
   return next;
 }

@@ -188,7 +188,7 @@ implements CapacityLoadRunRepository, CapacityShardExecutionCheckpointRepository
          )
        RETURNING run_id, controller_id,
          controller_lease_epoch::text AS lease_epoch,
-         controller_lease_expires_at`,
+         controller_lease_expires_at AS lease_expires_at`,
       [input.run_id, input.controller_id, input.now, leaseExpiresAt]
     );
     if (!result.rows[0]) throw new LoadRunControlError('controller_lease_unavailable', 409, true);
@@ -393,12 +393,12 @@ implements CapacityLoadRunRepository, CapacityShardExecutionCheckpointRepository
          INSERT INTO ivekit_capacity_command_outbox
            (command_id, run_id, command_key, subject, payload, state,
             available_at, created_at, updated_at)
-         SELECT $7, assigned.run_id,
+         SELECT $7::text, assigned.run_id,
            assigned.phase_id || ':' || assigned.shard_id || ':' || assigned.lease_epoch::text,
-           $8,
+           $8::text,
            jsonb_build_object(
              'schema_version', '1.0.0',
-             'command_id', $7,
+             'command_id', $7::text,
              'command_type', 'start_shard',
              'run_id', assigned.run_id,
              'phase_id', assigned.phase_id,

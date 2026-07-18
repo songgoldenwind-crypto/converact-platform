@@ -343,7 +343,8 @@ test('Windows package command, environment samples, and Windows AST validation C
   assert.match(workflow, /validate mode wrote to the install root/);
   assert.match(workflow, /integrations\/rustdesk-1\.4\.7\/\*\*/);
   assert.match(workflow, /repository: rustdesk\/rustdesk/);
-  assert.match(workflow, /ref: 1\.4\.7/);
+  assert.match(workflow, /ref: 0c86d4616298f09435f6236599b300964aa61460/);
+  assert.doesNotMatch(workflow, /^\s*ref: 1\.4\.7\s*$/m);
   assert.match(workflow, /apply-overlay\.mjs/);
   assert.match(workflow, /cargo check/);
 });

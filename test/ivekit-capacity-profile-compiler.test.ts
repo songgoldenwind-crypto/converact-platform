@@ -169,6 +169,68 @@ test('profile compiler rejects fleets that omit a shard-required protocol', () =
   );
 });
 
+test('capacity profiles bind all primary voice ownership to RustPBX and exclude LiveKit SIP', () => {
+  assert.equal(profile.schema_version, '1.2.0');
+  assert.equal(profile.revision, 2);
+  assert.deepEqual(profile.signaling.sip.ownership, {
+    dialog_owner: 'rustpbx',
+    rtp_owner: 'rustpbx',
+    recording_owner: 'rustpbx',
+    admission_owner: 'rustpbx',
+    livekit_sip: {
+      mode: 'optional_bridge_excluded',
+      enabled_in_profile: false,
+      counts_toward_profile: false,
+      owns_dialogs: false,
+      owns_rtp: false,
+      owns_recording: false,
+      owns_admission: false
+    }
+  });
+});
+
+test('capacity profile forbids recording storage from backpressuring established media', () => {
+  assert.deepEqual(profile.recording.failure_isolation, {
+    established_media: 'continue_fail_open',
+    storage_dependency: 'downstream_only',
+    media_hot_path_backpressure: 'forbidden',
+    queue_policy: 'bounded_non_blocking',
+    overload_action: 'drop_or_fail_recording_only'
+  });
+});
+
+test('profile compiler rejects a recording policy that can terminate or backpressure media', () => {
+  const blockingStorage = structuredClone(profile);
+  blockingStorage.recording.failure_isolation.media_hot_path_backpressure = 'allowed';
+  assert.throws(
+    () => compileLoadRunManifest({ ...input, profile: blockingStorage }),
+    /recording storage.*media/i
+  );
+
+  const failClosedMedia = structuredClone(profile);
+  failClosedMedia.recording.failure_isolation.established_media = 'terminate_fail_closed';
+  assert.throws(
+    () => compileLoadRunManifest({ ...input, profile: failClosedMedia }),
+    /recording storage.*media/i
+  );
+});
+
+test('profile compiler rejects duplicate RustPBX and LiveKit SIP voice ownership', () => {
+  const duplicateDialogOwner = structuredClone(profile);
+  duplicateDialogOwner.signaling.sip.ownership.dialog_owner = 'livekit-sip';
+  assert.throws(
+    () => compileLoadRunManifest({ ...input, profile: duplicateDialogOwner }),
+    /voice ownership.*RustPBX/i
+  );
+
+  const enabledBridge = structuredClone(profile);
+  enabledBridge.signaling.sip.ownership.livekit_sip.enabled_in_profile = true;
+  assert.throws(
+    () => compileLoadRunManifest({ ...input, profile: enabledBridge }),
+    /LiveKit SIP.*excluded/i
+  );
+});
+
 test('manifest validation rejects overlap and tampering', () => {
   const compiled = compileLoadRunManifest(input);
   const tampered = structuredClone(compiled.manifest);

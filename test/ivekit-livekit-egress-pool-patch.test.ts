@@ -2,11 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import * as liveKitEgressOverlay from '../infra/ivekit/livekit-egress/apply-overlay.mjs';
-
 import {
   LIVEKIT_EGRESS_UPSTREAM_COMMIT,
   LIVEKIT_EGRESS_UPSTREAM_TAG,
+  patchLiveKitEgressDockerfile,
   patchLiveKitEgressGoMod,
   patchLiveKitEgressMonitor
 } from '../infra/ivekit/livekit-egress/apply-overlay.mjs';
@@ -62,16 +61,23 @@ test('LiveKit Egress overlay adds only the local pool policy module', () => {
 });
 
 test('LiveKit Egress overlay makes the upstream production Dockerfile build the local policy', () => {
-  const patchDockerfile = (liveKitEgressOverlay as Record<string, unknown>)
-    .patchLiveKitEgressDockerfile;
-  assert.equal(typeof patchDockerfile, 'function');
-  const patched = (patchDockerfile as (source: string) => string)(egressDockerfileFixture());
+  const patched = patchLiveKitEgressDockerfile(egressDockerfileFixture());
 
-  assert.match(patched, /COPY ivekit\/ ivekit\//);
-  assert.ok(patched.indexOf('COPY ivekit/ ivekit/') < patched.indexOf('RUN go mod download'));
+  assert.match(patched, /COPY ivekit\/egress-pool\/ ivekit\/egress-pool\//);
+  assert.ok(
+    patched.indexOf('COPY ivekit/egress-pool/ ivekit/egress-pool/') <
+      patched.indexOf('RUN go mod download')
+  );
+  assert.match(patched, /COPY ivekit\/toolchain\/go\/ \/usr\/local\/go\//);
+  assert.match(patched, /test "\$\(head -n 1 \/usr\/local\/go\/VERSION\)" = "go1\.26\.2"/);
+  assert.doesNotMatch(patched, /wget https:\/\/go\.dev\/dl\/go1\.26\.2/);
+  assert.match(patched, /ARG IVEKIT_APT_MIRROR=https:\/\/ports\.ubuntu\.com\/ubuntu-ports/);
+  assert.match(patched, /Acquire::Retries=5/);
+  assert.match(patched, /Acquire::https::Timeout=30/);
+  assert.doesNotMatch(patched, /^RUN apt-get update/m);
   assert.match(patched, /go test \.\/pkg\/stats/);
   assert.ok(patched.indexOf('go test ./pkg/stats') < patched.indexOf('go build -a'));
-  assert.equal((patchDockerfile as (source: string) => string)(patched), patched);
+  assert.equal(patchLiveKitEgressDockerfile(patched), patched);
 });
 
 test('LiveKit Egress build and Kubernetes pools enforce the source-level policy boundary', () => {
@@ -81,11 +87,27 @@ test('LiveKit Egress build and Kubernetes pools enforce the source-level policy 
   const metrics = readFileSync('infra/ivekit/livekit-egress/ivekit_metrics.go', 'utf8');
 
   assert.match(build, /LIVEKIT_EGRESS_UPSTREAM_COMMIT/);
+  assert.match(build, /golang\.org\/toolchain@v0\.0\.1-go1\.26\.2\.linux-\$\{target_arch\}/);
+  assert.match(build, /h1:825B2ojAZW7usy4LtVvkxKs89EwlM1mqV0OvDbIA5Ak=/);
+  assert.match(build, /h1:mCBp0gCL9gQVqXpC60jQ7R46JDxL73qeF8hv6SnV2ss=/);
+  assert.match(build, /aarch64\|arm64/);
+  assert.match(build, /x86_64\|amd64/);
+  assert.match(build, /GOSUMDB="\$\{GOSUMDB:-sum\.golang\.org\}"/);
+  assert.match(build, /IVEKIT_LIVEKIT_EGRESS_APT_MIRROR/);
+  assert.match(build, /--build-arg "IVEKIT_APT_MIRROR=\$\{IVEKIT_LIVEKIT_EGRESS_APT_MIRROR\}"/);
+  assert.match(build, /chmod -R u\+w "\$\{toolchain_target\}"/);
+  assert.match(build, /chmod 0555 "\$\{toolchain_target\}\/bin\/go"/);
+  assert.match(build, /pkg\/tool\/linux_\$\{target_arch\}.*chmod 0555/);
   assert.match(build, /git -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}" rev-parse HEAD/);
   assert.match(build, /go test -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}\/ivekit\/egress-pool" \.\/\.\.\./);
   assert.doesNotMatch(build, /go test -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}" \.\/pkg\/stats/);
   assert.match(build, /--file "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}\/build\/egress\/Dockerfile"/);
+  assert.match(build, /--platform "linux\/\$\{target_arch\}"/);
   assert.match(build, /io\.ivekit\.egress-pool-contract=ivekit-egress-pool-v1/);
+  assert.match(build, /docker image inspect.*org\.opencontainers\.image\.revision/);
+  assert.match(build, /docker run --rm --entrypoint \/bin\/egress.*--version/);
+  assert.match(build, /IVEKIT_EGRESS_POOL_NAME/);
+  assert.match(build, /ivekit_livekit_egress_policy_rejections_total/);
   assert.match(deployment, /IVEKIT_EGRESS_POOL_NAME/);
   assert.match(deployment, /IVEKIT_EGRESS_ALLOWED_REQUEST_TYPES/);
   assert.match(deployment, /IVEKIT_EGRESS_MAX_CONCURRENT_REQUESTS/);
@@ -179,7 +201,13 @@ function egressDockerfileFixture(): string {
     'FROM livekit/egress-templates:$TEMPLATE_TAG AS template',
     '',
     'FROM livekit/gstreamer:1.24.12-dev',
+    'ARG TARGETARCH',
     'WORKDIR /workspace',
+    '# install go',
+    'RUN wget https://go.dev/dl/go1.26.2.linux-${TARGETARCH}.tar.gz && \\',
+    '    rm -rf /usr/local/go && \\',
+    '    tar -C /usr/local -xzf go1.26.2.linux-${TARGETARCH}.tar.gz',
+    'ENV PATH="/usr/local/go/bin:${PATH}"',
     'COPY go.mod .',
     'COPY go.sum .',
     'RUN go mod download',
@@ -187,6 +215,11 @@ function egressDockerfileFixture(): string {
     'COPY pkg/ pkg/',
     'COPY version/ version/',
     'RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on GODEBUG=disablethp=1 go build -a -o egress ./cmd/server',
+    '',
+    'FROM livekit/gstreamer:1.24.12-prod',
+    '# install deps',
+    'RUN apt-get update && \\',
+    '    apt-get install -y curl',
     ''
   ].join('\n');
 }

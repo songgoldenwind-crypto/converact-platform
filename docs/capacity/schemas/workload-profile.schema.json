@@ -29,7 +29,7 @@
       "minLength": 1
     },
     "schema_version": {
-      "const": "1.1.0"
+      "const": "1.2.0"
     },
     "profile_id": {
       "type": "string",
@@ -93,7 +93,8 @@
             "burst_invite_cps",
             "burst_duration_seconds",
             "registered_contacts",
-            "sip_over_wss_contacts"
+            "sip_over_wss_contacts",
+            "ownership"
           ],
           "properties": {
             "active_calls": { "$ref": "#/$defs/nonNegativeInteger" },
@@ -105,7 +106,46 @@
             "registered_contacts": { "$ref": "#/$defs/nonNegativeInteger" },
             "sip_over_wss_contacts": { "$ref": "#/$defs/nonNegativeInteger" },
             "tls_ratio": { "$ref": "#/$defs/ratio" },
-            "srtp_ratio": { "$ref": "#/$defs/ratio" }
+            "srtp_ratio": { "$ref": "#/$defs/ratio" },
+            "ownership": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "dialog_owner",
+                "rtp_owner",
+                "recording_owner",
+                "admission_owner",
+                "livekit_sip"
+              ],
+              "properties": {
+                "dialog_owner": { "const": "rustpbx" },
+                "rtp_owner": { "const": "rustpbx" },
+                "recording_owner": { "const": "rustpbx" },
+                "admission_owner": { "const": "rustpbx" },
+                "livekit_sip": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "mode",
+                    "enabled_in_profile",
+                    "counts_toward_profile",
+                    "owns_dialogs",
+                    "owns_rtp",
+                    "owns_recording",
+                    "owns_admission"
+                  ],
+                  "properties": {
+                    "mode": { "const": "optional_bridge_excluded" },
+                    "enabled_in_profile": { "const": false },
+                    "counts_toward_profile": { "const": false },
+                    "owns_dialogs": { "const": false },
+                    "owns_rtp": { "const": false },
+                    "owns_recording": { "const": false },
+                    "owns_admission": { "const": false }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -165,8 +205,20 @@
     "recording": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["voice", "livekit_track", "livekit_room_composite", "screen_track", "rustdesk"],
+      "required": ["failure_isolation", "voice", "livekit_track", "livekit_room_composite", "screen_track", "rustdesk"],
       "properties": {
+        "failure_isolation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["established_media", "storage_dependency", "media_hot_path_backpressure", "queue_policy", "overload_action"],
+          "properties": {
+            "established_media": { "const": "continue_fail_open" },
+            "storage_dependency": { "const": "downstream_only" },
+            "media_hot_path_backpressure": { "const": "forbidden" },
+            "queue_policy": { "const": "bounded_non_blocking" },
+            "overload_action": { "const": "drop_or_fail_recording_only" }
+          }
+        },
         "voice": { "$ref": "#/$defs/recordingPolicy" },
         "livekit_track": { "$ref": "#/$defs/recordingPolicy" },
         "livekit_room_composite": { "$ref": "#/$defs/recordingPolicy" },
@@ -489,6 +541,7 @@
     "messaging.activity_mix.one_to_one_ratio + messaging.activity_mix.group_ratio == 1",
     "media.livekit.av.participants == media.livekit.av.rooms * 2 for the v1 one-to-one baseline",
     "media.livekit.screen.participants == media.livekit.screen.rooms * 2",
+    "recording storage is downstream-only and cannot terminate or backpressure established media",
     "connections are derived load and never added to interactions.total"
   ]
 }

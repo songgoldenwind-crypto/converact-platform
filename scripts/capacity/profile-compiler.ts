@@ -25,6 +25,36 @@ export interface CapacityWorkloadProfile {
     categories: InteractionCategory[];
   };
   connections: ConnectionCategory[];
+  signaling: {
+    sip: {
+      ownership: {
+        dialog_owner: string;
+        rtp_owner: string;
+        recording_owner: string;
+        admission_owner: string;
+        livekit_sip: {
+          mode: string;
+          enabled_in_profile: boolean;
+          counts_toward_profile: boolean;
+          owns_dialogs: boolean;
+          owns_rtp: boolean;
+          owns_recording: boolean;
+          owns_admission: boolean;
+        };
+      };
+      [key: string]: unknown;
+    };
+  };
+  recording: {
+    failure_isolation: {
+      established_media: string;
+      storage_dependency: string;
+      media_hot_path_backpressure: string;
+      queue_policy: string;
+      overload_action: string;
+    };
+    [key: string]: unknown;
+  };
   durations: {
     ramp_minutes: number;
     steady_minutes: number;
@@ -429,7 +459,7 @@ function shardId(domain: WorkloadDomain, workloadId: string, start: number, end:
 }
 
 function validateProfile(profile: CapacityWorkloadProfile): void {
-  if (profile.schema_version !== '1.1.0') throw new Error('unsupported workload profile schema');
+  if (profile.schema_version !== '1.2.0') throw new Error('unsupported workload profile schema');
   if (!/^[a-z][a-z0-9-]{2,63}-v[1-9][0-9]*$/.test(profile.profile_id)) {
     throw new Error('invalid profile ID');
   }
@@ -454,7 +484,44 @@ function validateProfile(profile: CapacityWorkloadProfile): void {
   for (const connection of profile.connections) {
     if (!CONNECTION_BINDINGS[connection.kind]) throw new Error(`unsupported connection kind ${connection.kind}`);
   }
+  validateVoiceOwnership(profile);
+  validateRecordingStorageIsolation(profile);
   if (!Array.isArray(profile.external_dependencies)) throw new Error('profile external dependencies are required');
+}
+
+function validateVoiceOwnership(profile: CapacityWorkloadProfile): void {
+  const ownership = profile.signaling?.sip?.ownership;
+  if (!ownership || [
+    ownership.dialog_owner,
+    ownership.rtp_owner,
+    ownership.recording_owner,
+    ownership.admission_owner
+  ].some((owner) => owner !== 'rustpbx')) {
+    throw new Error('profile voice ownership must bind dialogs, RTP, recording and admission to RustPBX');
+  }
+  const bridge = ownership.livekit_sip;
+  if (!bridge || bridge.mode !== 'optional_bridge_excluded' || [
+    bridge.enabled_in_profile,
+    bridge.counts_toward_profile,
+    bridge.owns_dialogs,
+    bridge.owns_rtp,
+    bridge.owns_recording,
+    bridge.owns_admission
+  ].some((value) => value !== false)) {
+    throw new Error('LiveKit SIP must remain an optional bridge excluded from this capacity profile');
+  }
+}
+
+function validateRecordingStorageIsolation(profile: CapacityWorkloadProfile): void {
+  const isolation = profile.recording?.failure_isolation;
+  if (!isolation ||
+      isolation.established_media !== 'continue_fail_open' ||
+      isolation.storage_dependency !== 'downstream_only' ||
+      isolation.media_hot_path_backpressure !== 'forbidden' ||
+      isolation.queue_policy !== 'bounded_non_blocking' ||
+      isolation.overload_action !== 'drop_or_fail_recording_only') {
+    throw new Error('recording storage must remain downstream and must not terminate or backpressure established media');
+  }
 }
 
 function validateUniqueWorkloads(

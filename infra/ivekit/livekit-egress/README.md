@@ -45,9 +45,45 @@ repository/digest, external LiveKit URL/API credentials, shared Redis credential
 credentials at render time. The chart fails closed when either the custom digest or shared Redis
 address is absent.
 
-On 2026-07-18 the overlay applied repeatedly to the exact `v1.13.0` source and
-the local pool-policy Go module passed its tests. The custom image build remains
-`not_run`: the first attempt was stopped while Docker Hub was downloading the
-upstream 840.69 MB and 522.39 MB GStreamer layers at about 0.2 MB/s. No image or
-digest is claimed. Deployed pool isolation, object-storage outage injection and
-real media continuity also remain `not_run`.
+## Build
+
+`build.sh` accepts only the exact upstream commit and materializes Go 1.26.2
+through the `golang.org/toolchain` module. Both supported target architectures
+are SumDB bound:
+
+- `linux/arm64`: `h1:825B2ojAZW7usy4LtVvkxKs89EwlM1mqV0OvDbIA5Ak=`
+- `linux/amd64`: `h1:mCBp0gCL9gQVqXpC60jQ7R46JDxL73qeF8hv6SnV2ss=`
+
+The build replaces upstream's container-internal `go.dev` download with that
+verified toolchain and uses HTTPS for Ubuntu package indexes. A reviewed mirror
+can be selected with `IVEKIT_LIVEKIT_EGRESS_APT_MIRROR`; changing the mirror
+does not change the requested package set. The script validates the resulting
+architecture, non-root user, source revision, component and pool-contract
+labels, Egress version and iveKit binary markers.
+
+```bash
+LIVEKIT_EGRESS_SOURCE_DIR=/path/to/livekit-egress-v1.13.0 \
+IVEKIT_LIVEKIT_EGRESS_IMAGE=ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0 \
+bash infra/ivekit/livekit-egress/build.sh
+```
+
+On 2026-07-18 the overlay applied repeatedly to the exact `v1.13.0` source,
+the policy module and patched upstream `pkg/stats` tests passed, and the full
+CGO image built locally as Linux arm64. The verified local image is
+`ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0`, image ID
+`sha256:fde135c9f13c95e106ec5b075c9b039a95ac0c134f8f12e72018cc710f7810b2`,
+size `3115388408` bytes. This is a local source-built candidate, not an
+immutable registry digest or production artifact. The amd64 toolchain is
+pinned but the amd64 image build remains `not_run`.
+
+## Storage failure isolation
+
+LiveKit Server does not depend on Egress or object storage. Egress runs in
+separate bounded Track and Composite pools and may fail, drain or accumulate
+bounded local spool without terminating a room, publisher, subscriber or
+screen-share track. The Cell-10K and MIX-100K profiles require
+`recording.failure_isolation`: storage is downstream-only, established media
+continues fail-open, media hot-path backpressure is forbidden, queues are
+bounded and non-blocking, and overload may only drop or fail the recording
+copy. A real object-storage outage/resume drill, deployed pool isolation, real
+media continuity, target Kubernetes and capacity evidence remain `not_run`.

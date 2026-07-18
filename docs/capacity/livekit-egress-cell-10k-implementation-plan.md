@@ -151,6 +151,13 @@ StatefulSet、PDB、反亲和和扩缩容边界；各 pool 在上游 CPU/内存�
   provenance 策略。
 - 公开 Egress job DTO 删除 reservation、owner epoch、lease 和 provider 对账内部字段；
   failed webhook 不触发 recording completed hook。
+- Cell-10K 与 MIX-100K Profile 强制声明录制存储为单向下游依赖；已建立媒体 fail-open，禁止存储
+  或 Egress 队列反压 SFU，所有队列有界，过载只允许丢弃或失败录制副本。Profile 编译器会拒绝
+  任何放宽该约束的清单。
+- 精确 `v1.13.0` 源码已通过 overlay 重复应用、Go policy/`pkg/stats` 测试和完整 CGO arm64
+  镜像构建；构建脚本按架构使用 SumDB 固定的 Go 1.26.2 工具链，并复验镜像用户、revision、
+  pool contract、版本和二进制标记。本机候选镜像 ID 为
+  `sha256:fde135c9f13c95e106ec5b075c9b039a95ac0c134f8f12e72018cc710f7810b2`。
 
 受控代码层当前无已知 Egress Cell-10K 功能缺口。2026-07-17 使用 Helm `v3.18.4` 先后发现并
 修复 Egress 错误依赖 bundled LiveKit 开关、external 模式仍指向本地错误 Redis、双池默认使用
@@ -163,5 +170,5 @@ StatefulSet、Service、PDB、Secret、ServiceMonitor 和 PrometheusRule，且 S
 共享同一 Redis、Pod 使用 digest-bound iveKit 镜像。目标 Kubernetes apply、双池运行与扩缩容
 仍属于真实环境验收。
 
-真实上游 overlay 应用/完整编译、自定义镜像、真实对象存储、双池隔离和 Cell-10K
-录制负载仍为 `not_run`。
+本机精确源码 overlay、完整 arm64 编译和自定义候选镜像已通过。不可变 Registry digest、SBOM、
+签名/provenance、amd64 实建、真实对象存储、双池隔离和 Cell-10K 录制负载仍为 `not_run`。

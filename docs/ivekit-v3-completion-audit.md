@@ -356,3 +356,23 @@ answer-udp 和完整 12 场景依次通过。另一个环境问题是 Docker Des
 当前仍为 `not_run`：真实 RTP 音频包连续性、物理音频、PSTN、LiveKit 双浏览器/TURN/Egress、真实
 对象存储中断与恢复、录音 spool 水位/磁盘故障实机演练、目标 Kubernetes、多节点故障及任何单机或
 MIX-100K 容量结论。`capacity_claim` 继续为 `none`。
+
+## 17. 精确源码、语音边界与录制隔离收口（2026-07-18）
+
+本节记录第 16 节后的本机代码与构建证据。它不覆盖历史章节，也不把本机 Docker、临时
+PostgreSQL 或静态 Profile 解释成目标服务器、真实媒体、Windows、对象存储或容量验收。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| Capacity PostgreSQL | `passed_controlled_local` | PostgreSQL `16.10` 临时容器应用 migration 077 后，lease、accounting、outbox、evidence 与 pass barrier 集成 `1/1` 通过；真实执行发现并修复 `controller_lease_expires_at` 未别名为 decoder 所需的 `lease_expires_at`，以及 `$7/$8` 同时进入 TEXT/JSONB 时缺显式 `::text` 导致参数类型不确定。目标库 migration/restart 仍为 `not_run` |
+| RustDesk Client 1.4.7 | `implemented_not_run` | tag `1.4.7` 固定为 `0c86d4616298f09435f6236599b300964aa61460`；overlay 改为识别真实 `mod ui_cm_interface;` 源码锚点、校验 Git HEAD 并重复应用通过；Windows 编译、签名和双物理机仍为 `not_run` |
+| LiveKit SIP v1.6.0 | `passed_controlled_local` | tag 固定为 `02179d2eebe1493ad8c6a7961ceee84c34f8aca3`；完整 Linux arm64 镜像 `sha256:54e9acaa0313728305c995bc6d5384f65b6e7366b278e20517b0ffe8fd03ade3` 构建并报告 `SIP version v1.6.0`；真实 SIP/RTP、PSTN、bridge failover 和 amd64 制品仍为 `not_run` |
+| 语音 owner 边界 | `implemented_contract` | Cell-10K 与 MIX-100K Profile schema `1.2.0` 明确 RustPBX 独占 dialog、RTP、recording 与 admission；LiveKit SIP 为 `optional_bridge_excluded`，不计入当前容量；Profile 编译器会拒绝第二 owner 或启用未计量 bridge |
+| LiveKit Egress v1.13.0 | `passed_controlled_local` | 精确 commit `7d3572a0bf1959cbbc452f5ba390b6a90b7dc249` 的 overlay 重复应用、pool policy 与 patched `pkg/stats` 测试、完整 CGO 编译和运行镜像构建通过；镜像 `ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0`，ID `sha256:fde135c9f13c95e106ec5b075c9b039a95ac0c134f8f12e72018cc710f7810b2`，Linux arm64，非 root `egress`，版本 `1.13.0`，revision/pool-contract/二进制标记复验通过 |
+| Egress 构建供应链 | `implemented_controlled` | 容器内不再直接下载 `go.dev` 裸 tar；build script 按 arm64/amd64 选择 SumDB 固定的 Go 1.26.2 toolchain，Ubuntu 索引使用 HTTPS 并支持审核后镜像，构建后自动检查架构、用户、标签、版本和 iveKit 标记；上游 template、Ubuntu package snapshot、Registry digest、SBOM、签名和 provenance 尚未全部不可变化，因此不宣称 bit-for-bit reproducible 或 production eligible |
+| 录音/录像存储隔离 | `implemented_contract_and_controlled` | 两套容量 Profile 新增 `recording.failure_isolation`：存储只允许下游依赖，已建立媒体必须 fail-open，禁止媒体热路径反压，队列必须有界非阻塞，过载只可丢弃或失败录制副本；编译器负向测试会拒绝放宽。该合同与第 16 节 RustPBX/LiveKit 受控实现共同保证代码方向，不替代真实磁盘满、S3 中断、RTP/WebRTC 连续性证据 |
+
+当前仍为 `not_run`：不可变 amd64 生产镜像及 Registry digest/SBOM/签名/provenance、目标 Kubernetes
+部署与回滚、真实 LiveKit/TURN/Egress/对象存储、Track/Composite 双池隔离、真实 RTP/WebRTC 连续性、
+PSTN、双 Windows、商业 Provider、单机 frontier、Cell-10K 和 MIX-100K。`capacity_claim` 继续为
+`none`，存储中断时录制可以失败或不完整，但已建立电话、视频、屏幕共享和远控媒体不得因此终止。

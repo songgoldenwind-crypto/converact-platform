@@ -574,6 +574,10 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     source: `infra/k8s/${source}`,
     destination: `components/livekit-egress/infra/k8s/${destination}`
   })),
+  ...['README.md', 'build.sh'].map((name) => ({
+    source: `infra/ivekit/livekit-sip/${name}`,
+    destination: `components/livekit-sip/infra/ivekit/livekit-sip/${name}`
+  })),
   ...[
     'README.md',
     'apply-overlay.mjs',
@@ -1499,6 +1503,7 @@ function renderBundleReadme(): string {
     '- `deploy/kubernetes/ivekit/`: standalone digest-pinned Helm Chart with a migration gate.',
     '- `deploy/livekit/`: separately deployable LiveKit media plane.',
     '- `components/livekit-egress/`: exact-source Egress overlay, local pool policy, image build script, and digest-only dual-pool Helm subset in repository-relative layout.',
+    '- `components/livekit-sip/`: exact-source optional SIP bridge image build and source-identity runbook.',
     '- `deploy/rustpbx/`: pinned RustPBX/rsipstack source patches and reproducible native image build.',
     '- `database/migrations/`: ordered communication-domain overlay migrations used by the application image.',
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',

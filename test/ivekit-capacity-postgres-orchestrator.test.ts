@@ -44,6 +44,9 @@ test('postgres shard assignment is atomic, skip-locked and writes its command ou
   assert.match(pg.calls[0]?.text || '', /lease_epoch\s*=\s*selected\.lease_epoch\s*\+\s*1/i);
   assert.match(pg.calls[0]?.text || '', /INSERT INTO ivekit_capacity_command_outbox/i);
   assert.match(pg.calls[0]?.text || '', /assigned_load\s*=\s*worker\.assigned_load\s*\+/i);
+  assert.match(pg.calls[0]?.text || '', /SELECT\s+\$7::text,\s*assigned\.run_id/i);
+  assert.match(pg.calls[0]?.text || '', /'command_id',\s*\$7::text/i);
+  assert.match(pg.calls[0]?.text || '', /\$8::text,\s*jsonb_build_object/i);
 });
 
 test('postgres completion rejects a stale worker or lease epoch', async () => {
@@ -162,6 +165,10 @@ test('postgres controller claims increment epochs only after expiry or owner cha
   assert.equal(lease.lease_epoch, '12');
   assert.match(pg.calls[0]?.text || '', /controller_lease_epoch\s*\+\s*1/i);
   assert.match(pg.calls[0]?.text || '', /controller_lease_expires_at\s*<=\s*\$3::timestamptz/i);
+  assert.match(
+    pg.calls[0]?.text || '',
+    /controller_lease_expires_at\s+AS\s+lease_expires_at/i
+  );
 });
 
 test('postgres exposes restart-safe run and phase controller state', async () => {
