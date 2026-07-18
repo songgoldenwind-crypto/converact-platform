@@ -357,6 +357,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     )) as {
       name: string;
       private: boolean;
+      type: string;
       engines: Record<string, string>;
       dependencies: Record<string, string>;
       overrides: Record<string, string>;
@@ -365,6 +366,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.deepEqual(storageIsolationPackage, {
       name: 'ivekit-livekit-storage-isolation-acceptance',
       private: true,
+      type: 'module',
       engines: { node: '>=23.0.0' },
       dependencies: {
         'livekit-client': '2.20.1',
