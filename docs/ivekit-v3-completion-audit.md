@@ -226,7 +226,7 @@ V6 原始本地门禁为全仓 `2939` 项、`2928` pass、`0` fail、`11` 个环
 | 能力 | 实现状态 | 当前代码与自动化证据 | 仍为 not_run |
 | --- | --- | --- | --- |
 | Cell placement 与 owner fencing | implemented | 签名 placement snapshot/token、Region/Zone/Cell top-two admission、精确 interaction owner、32+32 位 owner epoch、LiveKit/Tinode/RustDesk/RustPBX 边界接线 | 目标双 Zone 故障演练、真实多 Cell 流量迁移 |
-| Cell admission 持久化 | implemented | migration 078/083/084、PostgreSQL Cell lease、逐 reservation 权威账本、reserve/activate/close 先持久化后应答、重启恢复容量与 owner sequence；lease 绑定规范化 topology SHA-256 | 真实 PostgreSQL 双副本杀主、延迟/断网和长稳 |
+| Cell admission 持久化 | implemented | migration 078/083/084/093、PostgreSQL Cell lease、逐 reservation 权威账本、reserve/activate/close 先持久化后应答、重启恢复容量与 owner sequence；migration 093 对 reservation 权威表补齐 FORCE RLS 与 runtime grants；lease 绑定规范化 topology SHA-256 | 真实 PostgreSQL 双副本杀主、延迟/断网和长稳 |
 | Cell admission 高可用 | implemented_not_run | 双副本主动/待命；待命 `/livez=200`、`/readyz=503` 且拒绝准入；只重试 retryable lease；活动 lease 同时要求 owner 与 topology hash 一致；变更拓扑只能在释放/过期后递增 epoch 接管；Service 只路由 ready 主实例；RollingUpdate、PDB、拓扑分散；待命 projector 不重复探测组件 | 目标 Kubernetes 实际 rollout、PDB/节点驱逐、主实例失联接管时延和错配拓扑演练 |
 | 组件节点准入 | implemented_not_run | LiveKit/Tinode/RustDesk/RustPBX 通用 sidecar；稳定 ordinal 节点池、Cell 容量精确聚合、node lease、checkpoint、recovery-complete、drain、单条及最多 64 条批量授权、节点级故障隔离；Cell 重启自动重放未终态 owner，已删除 owner node 的恢复 fail closed；RustPBX Helm/Compose、LiveKit StatefulSet、三节点 Tinode StatefulSet 和配对 hbbs/hbbr RustDesk StatefulSet 均支持本地 sidecar 与相同稳定节点身份 | 多节点进程重启、真实 lease takeover、节点动态扩缩和真实热路径 |
 | 上游源码 hook | implemented_not_run | Go hook 面向 LiveKit/Tinode，Rust hook 面向 RustDesk/RustPBX；RustPBX 固定源码 release 编译、本地 custom image 和 12 个受控 SIPp 信令场景通过；LiveKit 固定 `v1.13.3@8f6a9cb...` 的 owner/router/SFU overlay、Go 1.26/race 测试与离线 arm64 custom image/fork marker smoke 通过；Tinode 固定 `v0.25.3@22a7c18...` 的 topic owner、稳定 `cluster_self`、mutation fencing、lazy timer/fanout 优化及 arm64 source-built custom image/fork marker smoke 通过；RustDesk Server 固定 root `1.1.15@9bae9f2...` 与 `hbb_common@83419b6...` 的 owner/relay 优化、`cargo test --locked`、digest-pinned arm64 custom image、非 root 运行和 fork marker smoke 通过；媒体包、帧和 fanout 热路径禁止远程调用 | 不可变 Registry digest/SBOM/provenance；RustPBX 真实 RTP/PSTN/overload；LiveKit/Tinode/RustDesk 真实多节点/双 Windows、真实媒体/relay/profile 和容量 |
@@ -259,7 +259,7 @@ LED 业务逻辑、OPC 业务领域、移动端和数字人不属于 iveKit 底�
 | 4 | RustPBX、SIP、WebPhone、IVR 与呼叫 | `src/agent-runtime/ivekit/voice/`、`ivr/` 和参考客户端 Voice/IVR 工作区覆盖注册、呼入/呼出、接听/拒绝、Hold、DTMF、设备、呼叫控制、路由、录音和 provider event；固定 RustPBX/rsipstack 源码 release 编译与本地 custom image 通过；`scripts/ivekit-rustpbx-sipp-acceptance.ts` 使用 SIPp 3.7.7 完成 12 个受控信令场景、19 个请求且 Router/CDR 增量均为 19 | `implemented_not_run` | 真实 RTP 音频连续性、浏览器 WSS/物理音频、PSTN、overload 曲线和 supervisor mixer 为 `not_run` |
 | 5 | OCR、ASR、翻译、AI 质检、防绕单与 Provider 治理 | collaboration intelligence、attachment text、translation、quality review、policy scan 与 provider registry/governance/route 覆盖第三方 HTTP 和自建 Provider 双模式、健康检查、配额、熔断、降级、故障切换、OCR/ASR/帧 OCR、AI finding、人工复核和文本/图片防绕单；migration 059/060/076、OpenAPI、SDK 和参考质量工作区提供持久状态与操作面 | `implemented` | 真实厂商/自建模型、凭据、准确率语料、配额与故障切换为 `not_run` |
 | 6 | 通知、文件安全、安全与运维 | `src/agent-runtime/ivekit/notifications/` 覆盖站内、Webhook、SMTP/HTTP Email、HTTP SMS、模板、偏好、回执、重试、死信和 Provider 治理；secure-file 模块覆盖 magic MIME、ClamAV/HTTP 扫描、隔离、转码、缩略图、分片续传、清理与 legal hold；authorization/audit/rate-limit/retention/heartbeat、监控、备份恢复、多副本 worker 和 Helm HPA/PDB/ServiceMonitor/PrometheusRule/Grafana/CronJob 已接线 | `implemented_not_run` | 商业邮件/短信、公网 Webhook、生产对象存储/ClamAV、目标监控栈、真实恢复和 Kubernetes 故障演练为 `not_run` |
-| 7 | MIX-100K 双 Zone/Cell 生产代码 | migration 077–092、placement/admission/component-node runtime、稳定 owner/epoch、双 Zone/Cell lease、分布式 dispatcher/controller/worker/finalizer、JetStream/PostgreSQL/S3 evidence、容量探针、九组件 platform campaign 和 fork manifest 真值链已实现；LiveKit/Tinode/RustDesk 精确源码 overlay 已编译/测试，RustPBX 补丁队列和所有热路径优化接口已纳入交付 | `implemented_not_run` | 单机 frontier、1/2/4/8 曲线、Cell-10K、MIX-100K、真实多主机/JetStream/S3 和容量结论全部为 `not_run`，`capacity_claim=none` |
+| 7 | MIX-100K 双 Zone/Cell 生产代码 | migration 077–093、placement/admission/component-node runtime、稳定 owner/epoch、双 Zone/Cell lease、分布式 dispatcher/controller/worker/finalizer、JetStream/PostgreSQL/S3 evidence、容量探针、九组件 platform campaign 和 fork manifest 真值链已实现；LiveKit/Tinode/RustDesk 精确源码 overlay 已编译/测试，RustPBX 补丁队列和所有热路径优化接口已纳入交付 | `implemented_not_run` | 单机 frontier、1/2/4/8 曲线、Cell-10K、MIX-100K、真实多主机/JetStream/S3 和容量结论全部为 `not_run`，`capacity_claim=none` |
 | 8 | LED/OPC 稳定 API、SDK、事件、Webhook 与交付 | `docs/openapi.yaml`、`sdk/ivekit/`、tenant event replay/WebSocket、durable integration webhook、Compose/Helm、migration/source policy、release contract、SBOM/checksum/tamper gate、升级回滚/监控/备份/验收 runbook 和 LED 对接示例均进入 source-bound delivery bundle；Egress overlay、Go policy、build script 与双池 Chart 以可构建相对目录进入 `components/livekit-egress/`；standalone source graph 禁止 OPC 产品域渗入 | `implemented` | 不可变生产镜像、目标 digest、正式 release commit、LED 真实 receiver 和目标部署签署为 `not_run` |
 
 ### 14.3 最终自动化证据
@@ -291,12 +291,13 @@ LED 业务逻辑、OPC 业务领域、移动端和数字人不属于 iveKit 底�
 
 ### 14.4 最终裁决与发布边界
 
-八项总目标的代码、架构、migration、API/SDK、部署模板、自动化入口和交接材料已经闭环；没有发现
-仍需编写而被真实环境验收掩盖的功能代码缺口。唯一未勾选的当前计划项是目标 Kubernetes 的
-Operator/Alertmanager/Grafana、rollout/rollback 与真实多副本故障演练，性质明确为环境验收。
+第 14 节首次终审依据当时静态门禁，曾判断八项总目标的代码、架构、migration、API/SDK、部署模板、
+自动化入口和交接材料已经闭环。后续 Docker 恢复后的真实运行在第 21 节发现 reservation RLS、
+root Chart 应用镜像和 PgBouncer 三个发布缺口，并已用 forward migration、fail-closed 模板和真实
+认证查询关闭。因此本段只保留审计演进记录，不再作为最新裁决；最新边界以第 21 节为准。
 
-本机 Docker daemon 在终审时不可用，因此没有伪造一次新的 PostgreSQL 容器复跑；历史独立
-PostgreSQL harness 证据保留，但本轮容量 PostgreSQL integration 明确为 `not_run`。服务器
+第 14 节首次终审时本机 Docker daemon 不可用，因此当时没有伪造 PostgreSQL 容器复跑；后续
+Docker 恢复后的真实本机复验和修复记录见第 18 至 21 节。服务器
 `64.225.122.227` 当前在 SSH key exchange 前主动断开，新 RSA key 尚未进入认证；服务器验证也
 继续保持 `not_run`。上述外部项目完成后，必须通过 V6 八组真实验收模板、不可变 digest、证据
 SHA-256、operator 与独立 QA 双签，才允许把对应状态从 `not_run` 改为 `passed`。
@@ -459,3 +460,56 @@ digest 实际 fail-closed，Stage 2 为 `22/22`。Docker Desktop 默认代理 so
 `storage_upload_failed`，LiveKit `RestartCount=0`；恢复后 MinIO healthy、认证 bucket `stat` 成功、
 匿名访问为 `403`，证据文件 `0600` 且秘密扫描通过。受控容器、网络和卷随后全部清理，三台既有
 SIPp 容器未被操作。生产 S3/跨 Zone/磁盘满、RustPBX 真实 RTP 和目标 Kubernetes 继续为 `not_run`。
+
+## 21. PostgreSQL、应用镜像与连接池发布门禁复审（2026-07-18）
+
+本节绑定代码提交 `18a7c833dc4e82aa88fc5f9733b3bd81930feec5`，关闭三个会在真实发布时
+直接阻断上线或削弱租户隔离的缺口。它不改变生产环境 `not_run` 边界。
+
+### 21.1 PostgreSQL migration 与 RLS
+
+真实临时 PostgreSQL 复跑首先发现 `ivekit_cell_admission_reservations` 没有启用、强制 RLS。没有修改
+已经进入 checksum ledger 的 migration 083，而是新增 forward-only migration 093：启用并强制 RLS，
+按 `app.current_tenant` 创建 tenant policy，并在 `opc_runtime` 存在时授予最小表权限。升级 fixture 还
+发现自己跳过 Voice foundation migration，却保留依赖它们的 079/086；现同时移除依赖 migration，
+并把 route snapshot 与 recording manifest/segment/upload 表纳入升级后保留断言。
+
+`scripts/verify-ivekit-postgres.sh` 已在本机临时 PostgreSQL 中通过 standalone fresh migration/RLS、
+既有 OPC 升级且数据不丢失、Tinode inbound durable、Tinode projector/mutation echo、IVR PostgreSQL
+和受控 RustPBX PostgreSQL 全部场景。该证据证明当前 migration 顺序、checksum、最小权限、RLS 与
+升级保留；不证明目标生产库、多副本竞争、跨 Zone 延迟、备份恢复或长稳。
+
+### 21.2 Kubernetes 不可变应用镜像
+
+root Helm Chart 原来仍使用 `opc/platform:latest`、`opc/ai-agent:latest` 和 `opc/frontend:latest`。
+现三个应用镜像均必须提供完整 `sha256:<64 hex>` digest，并只渲染 `repository@digest`；缺失、格式
+错误或继续依赖 tag 都会 fail-closed。RustDesk 生成的 Kubernetes install/rollback 命令新增
+`OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE`，必须携带含实际 digest 和生产配置的 values 文件，
+避免生成一条注定无法部署或偷偷使用默认镜像的命令。
+
+固定 Helm v3.18.4 已实际完成 standalone/root Chart lint/template，应用 digest 缺失负例和 Egress
+共享 Redis、仓库 allowlist、digest 负例全部按预期拒绝，Stage 2 为 `22/22`。这证明模板 fail-closed，
+不代表生产 Registry 中已经存在 amd64 镜像、SBOM、签名、provenance 或目标集群 rollout。
+
+### 21.3 PgBouncer 可运行性
+
+production Compose 原来的 `bitnami/pgbouncer:latest` 当前无法解析，且可变 tag 不符合发布要求。
+现固定为多架构
+`edoburu/pgbouncer:v1.25.2-p0@sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340`，
+配置 `scram-sha-256`、transaction pooling、`max_client_conn=200`、`default_pool_size=20`，健康检查仍
+通过 6432 端口执行带凭据的 `SELECT 1`，不会把仅 TCP 可连接误报为数据库健康。
+
+本机隔离 Docker 网络中，固定 digest 的 PgBouncer 1.25.2 已连接临时 PostgreSQL，认证查询返回
+`opc|opc`，生成配置与预期完全一致；测试容器和网络随后清理。该结果证明镜像、环境变量、SCRAM、
+连接池端口和认证健康检查可运行，不代表生产连接数、故障切换、TLS、密码轮换或目标数据库通过。
+
+### 21.4 最新门禁与故障域边界
+
+根 TypeScript 通过；全仓 Node 为 `3406` total、`3394` pass、`12` environment skip、`0` fail；
+PostgreSQL harness、Helm Stage 2 `22/22` 和 PgBouncer 真实认证查询均通过。录音/录像存储隔离结论
+保持不变：LiveKit Server 和 RustPBX 媒体热路径不依赖 Egress、对象存储或上传 worker，存储故障最多
+让录制失败、排队、丢弃或进入补偿，不得终止、回压或重建正在进行的 SIP/RTP/WebRTC 会话。
+
+仍为 `not_run`：目标 PostgreSQL/NATS 多节点、目标 Kubernetes、生产 Registry 制品与签名、生产
+对象存储、真实 Provider、双 Windows、PSTN、真实 TURN/Egress 公网媒体以及单机/Cell/MIX-100K
+物理容量。机器可读权威状态继续使用 `docs/capacity/phase2-code-status.json`，`capacity_claim=none`。

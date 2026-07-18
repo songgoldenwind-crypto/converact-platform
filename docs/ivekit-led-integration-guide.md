@@ -487,15 +487,16 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 5. 本地 Compose、production external base、配置完整的 production self-hosted overlay 均已通过 `docker compose config --quiet`；缺自建密钥的 overlay 已验证会拒绝解析。
 6. production base 的 `postgres-bootstrap` 会在健康 PostgreSQL 上幂等确认 `keycloak` 数据库；自建 Tinode overlay 把集合扩展为 `keycloak,tinode`。脚本拒绝任意数据库标识和非 `opc` owner，不会删除或重建已有数据库。
 7. `minio-init` 会有限重试 MinIO endpoint，幂等创建录制 bucket，关闭匿名访问，回读确认 private 后再执行 `stat`。Egress 和 OPC 存储入口只有在该 one-shot 成功后才允许启动；RustPBX 与 LiveKit Server 不依赖 `minio-init`，确保存储不可用时既有 RTP/WebRTC 媒体仍可继续。
-8. PgBouncer 必须通过 6432 端口的认证 `psql SELECT 1` 后，OPC 才启动；只接受连接但凭证/数据库不可用不会标记健康。Keycloak 和 Tinode 同样等待数据库 bootstrap 成功，而不是只等待 PostgreSQL container 进程存在。
+8. PgBouncer 固定为 `edoburu/pgbouncer:v1.25.2-p0@sha256:7d7a27d...`，使用 `scram-sha-256` 与 transaction pooling；必须通过 6432 端口的认证 `psql SELECT 1` 后，OPC 才启动。只接受连接但凭证/数据库不可用不会标记健康。固定 digest 已在隔离 Docker 网络中连接临时 PostgreSQL 并返回认证查询结果；这不是生产容量或故障切换证据。Keycloak 和 Tinode 同样等待数据库 bootstrap 成功，而不是只等待 PostgreSQL container 进程存在。
 9. Chatwoot 由 `omnichannel` profile 显式启用，不属于默认 iveKit 生产链路，也不计入当前 readiness。启用前仍需单独完成固定版本、pgvector、`db:chatwoot_prepare`、Rails/Sidekiq、升级与回滚设计。
 10. LiveKit 地址已拆成服务端 `LIVEKIT_URL` 和浏览器 `LIVEKIT_PUBLIC_URL`。生产 Join Plan 只返回显式 `wss://` 公网地址；缺失或误配明文 `ws://` 时直接拒绝浏览器 join。
 11. `infra/livekit/` 提供可从 OPC 独立运行的 Linux VM Media Core 包：LiveKit、Redis、Egress 和 Caddy L4 使用 host networking；Caddy 按两个 SNI 域名分流 WSS 与 TURN/TLS；LiveKit 使用内置 TURN，不增加 coturn。
 12. 独立部署渲染命令为 `npm run render:livekit-edge`。产物包括 `livekit.yaml`、`egress.yaml`、`caddy.yaml`、`firewall.md` 和不含秘密原文的 `deployment-summary.json`；LiveKit/Egress 凭据文件权限为 `0600`。
 13. 生产 Compose 默认按 `OPC_LIVEKIT_DEPLOYMENT_MODE=external` 消费外置 Media Core，内置 LiveKit/SIP/Egress 只在显式 `media-bundled` profile 下启用，且只用于联调。Kubernetes 同样默认 `livekit.enabled=false`，生产媒体节点应使用 LiveKit 官方 Helm chart 独立部署。
-14. 媒体镜像已固定为 LiveKit Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`；MinIO Server 固定为 `RELEASE.2025-09-07T16-13-09Z@sha256:14cea493...`，MinIO Client 固定为 `RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349e...`。独立存储覆盖层要求同时提供 tag 与完整 manifest digest；升级必须成组回归，不使用 `latest`。
+14. 媒体镜像已固定为 LiveKit Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`；MinIO Server 固定为 `RELEASE.2025-09-07T16-13-09Z@sha256:14cea493...`，MinIO Client 固定为 `RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349e...`，PgBouncer 固定为 `v1.25.2-p0@sha256:7d7a27d...`。独立存储覆盖层要求同时提供 tag 与完整 manifest digest；升级必须成组回归，不使用 `latest`。
 15. production 缺内部 URL、API key、API secret 或公网 WSS 时直接失败，不会签发 `dev-token`。preflight 和渲染器还会拒绝 `your_key`、`change_me`、`devkey`、`secret`、`minioadmin` 等占位/弱默认值。
 16. 实时媒体与录制存储是两个故障域：LiveKit Server 不依赖 Egress/MinIO，RustPBX RTP 不依赖 uploader。Compose 的 MinIO 通过 `/minio/health/live` 后才运行 bucket bootstrap；Kubernetes 使用不可变 digest，并配置 startup/readiness/liveness 探针。2026-07-18 已在固定 manifest digest 后复跑双 Chromium、LiveKit、Egress 和 MinIO：停止 MinIO 后两端连接和四条发布/订阅轨保持不变，只有 Egress 以脱敏 `storage_upload_failed` 终止；LiveKit 未重启，恢复后 bucket 仍禁止匿名访问。该结果是受控本机证据，不是生产对象存储或公网 TURN 验收。
+17. root Kubernetes Chart 的 OPC、AI Agent、Frontend 镜像全部要求完整 SHA-256 digest，缺 digest 或继续使用 tag 时 Helm fail-closed。RustDesk 部署命令必须通过 `OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE` 指向生产 values 文件；文件内需给出实际应用镜像 digest、Secret 引用和环境参数，不能直接使用仓库默认空值。
 
 以上代码尚未在目标服务器执行 Docker 镜像拉取、容器启动、真实数据库/bucket 初始化或真实 provider 请求。2026-07-11 已通过 SSH 完成目标服务器只读资源与端口盘点，但没有上传、部署或修改现有 LED 服务。
 
