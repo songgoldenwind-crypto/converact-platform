@@ -19,7 +19,8 @@ export interface LiveKitStorageIsolationConfig {
   apiKey: string;
   apiSecret: string;
   composeProject: string;
-  composeFile: string;
+  composeFiles: string[];
+  composeEnvFile: string;
   storageService: string;
   storageInitService: string;
   outputFile: string;
@@ -340,6 +341,12 @@ async function loadLocalPlaywright(): Promise<PlaywrightLike> {
 }
 
 function resolveClientDependency(packageName: 'playwright' | 'livekit-client'): string {
+  const resolver = createRequire(import.meta.url);
+  try {
+    return resolver.resolve(packageName);
+  } catch {
+    // The source checkout keeps browser dependencies in the reference client package.
+  }
   const scriptDirectory = dirname(fileURLToPath(import.meta.url));
   const roots = [
     join(scriptDirectory, '..', 'clients', 'ivekit-reference'),
@@ -347,22 +354,30 @@ function resolveClientDependency(packageName: 'playwright' | 'livekit-client'): 
   ];
   const clientRoot = roots.find((candidate) => existsSync(candidate));
   if (!clientRoot) throw new Error('iveKit reference client dependencies are unavailable');
-  return createRequire(import.meta.url).resolve(packageName, { paths: [clientRoot] });
+  return resolver.resolve(packageName, { paths: [clientRoot] });
 }
 
 async function runCompose(
   config: LiveKitStorageIsolationConfig,
   action: readonly string[]
 ): Promise<void> {
-  await execFileAsync('docker', [
-    'compose',
-    '-p', config.composeProject,
-    '-f', config.composeFile,
-    ...action
-  ], {
+  await execFileAsync('docker', createLiveKitStorageIsolationComposeArgs(config, action), {
     cwd: process.cwd(),
     maxBuffer: 4 * 1024 * 1024
   });
+}
+
+export function createLiveKitStorageIsolationComposeArgs(
+  config: LiveKitStorageIsolationConfig,
+  action: readonly string[]
+): string[] {
+  return [
+    'compose',
+    ...(config.composeEnvFile ? ['--env-file', config.composeEnvFile] : []),
+    '-p', config.composeProject,
+    ...config.composeFiles.flatMap((composeFile) => ['-f', composeFile]),
+    ...action
+  ];
 }
 
 function mapEgressStatus(status: EgressStatus): 'starting' | 'active' | 'complete' | 'failed' | 'aborted' {
@@ -443,15 +458,17 @@ export function createLiveKitStorageIsolationConfigFromEnv(
   const storageInitService = env.OPC_LIVEKIT_STORAGE_ISOLATION_STORAGE_INIT_SERVICE || 'minio-init';
   validateIdentifier(storageService, 'OPC_LIVEKIT_STORAGE_ISOLATION_STORAGE_SERVICE');
   validateIdentifier(storageInitService, 'OPC_LIVEKIT_STORAGE_ISOLATION_STORAGE_INIT_SERVICE');
+  const composeFiles = readComposeFiles(env);
 
   return {
     livekitUrl,
     apiKey,
     apiSecret,
     composeProject,
-    composeFile: safeText(
-      env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE || 'docker-compose.callcenter.yml',
-      'OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE'
+    composeFiles,
+    composeEnvFile: safeText(
+      env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE || '',
+      'OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE'
     ),
     storageService,
     storageInitService,
@@ -464,6 +481,33 @@ export function createLiveKitStorageIsolationConfigFromEnv(
       'OPC_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS'
     )
   };
+}
+
+function readComposeFiles(env: NodeJS.ProcessEnv): string[] {
+  const encoded = env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES;
+  const legacy = env.OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE;
+  if (encoded && legacy) {
+    throw new Error('only one storage isolation Compose file setting may be used');
+  }
+  if (!encoded) {
+    return [safeText(legacy || 'docker-compose.callcenter.yml', 'Compose file').trim()]
+      .filter(Boolean);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(safeText(encoded, 'OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES'));
+  } catch {
+    throw new Error('OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
+  }
+  if (!Array.isArray(parsed) || parsed.length < 1 || parsed.length > 4 ||
+      parsed.some((value) => typeof value !== 'string' || !safeText(value, 'Compose file').trim())) {
+    throw new Error('OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
+  }
+  const result = parsed.map((value) => String(value).trim());
+  if (new Set(result).size !== result.length) {
+    throw new Error('OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES is invalid');
+  }
+  return result;
 }
 
 export function assertLiveKitMediaContinuity(

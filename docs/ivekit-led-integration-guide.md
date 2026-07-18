@@ -565,6 +565,12 @@ OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolation.jso
    `storage_upload_failed` 且 `storage_recovered=true` 才通过。报告不得包含 URL 凭据、token、secret 或
    原始对象存储错误。生产环境仍按 V6 Object Storage/LiveKit 两组独立采证，不得上传本机报告冒充。
 
+   LED 交付包不依赖 OPC 源码树：进入 `acceptance/livekit-storage-isolation/`，先运行
+   `npm ci --ignore-scripts` 和 `npm run install:chromium`，再按目录内 README 设置 LiveKit 凭据、专用
+   Compose project、`OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES` 有序 JSON 数组、可选 env file 和
+   `npm run accept`。独立 package/lock 已通过离仓安装与 `npm audit` 0 vulnerability；不要把 project
+   指向共享或生产实例，因为命令会故意停止配置的对象存储服务。
+
 ### 11.4 当前不得声称通过
 
 本机已完成双 Chromium + LiveKit + Egress + MinIO 的真实进程存储中断演练，但它仍是受控本机网络和对象存储。公网 LiveKit/TURN、真实 Tinode/RustDesk 客户端、生产对象存储、真实 OCR/ASR/AI、RustPBX/电话线路/RTP/物理音频、多副本和生产网络尚未完成。Voice validator 已经可执行，但模板、runbook 或 `ready_for_review` 本身不能证明观察真实发生；preflight 和受控 Provider 只证明配置/协议形状。

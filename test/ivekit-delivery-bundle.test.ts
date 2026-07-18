@@ -351,6 +351,49 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       true
     );
     assert.equal(files.includes('acceptance/rustpbx/router.py'), true);
+    const storageIsolationPackage = JSON.parse(readFileSync(
+      join(outputDir, 'acceptance', 'livekit-storage-isolation', 'package.json'),
+      'utf8'
+    )) as {
+      name: string;
+      private: boolean;
+      engines: Record<string, string>;
+      dependencies: Record<string, string>;
+      overrides: Record<string, string>;
+      scripts: Record<string, string>;
+    };
+    assert.deepEqual(storageIsolationPackage, {
+      name: 'ivekit-livekit-storage-isolation-acceptance',
+      private: true,
+      engines: { node: '>=23.0.0' },
+      dependencies: {
+        'livekit-client': '2.20.1',
+        'livekit-server-sdk': '2.15.4',
+        'playwright': '1.61.1',
+        'tsx': '4.22.4'
+      },
+      overrides: { esbuild: '0.28.1' },
+      scripts: {
+        accept: 'tsx runner.ts',
+        'install:chromium': 'playwright install chromium'
+      }
+    });
+    const storageIsolationLock = JSON.parse(readFileSync(
+      join(outputDir, 'acceptance', 'livekit-storage-isolation', 'package-lock.json'),
+      'utf8'
+    )) as { packages?: Record<string, { dependencies?: Record<string, string> }> };
+    assert.deepEqual(
+      storageIsolationLock.packages?.['']?.dependencies,
+      storageIsolationPackage.dependencies
+    );
+    const storageIsolationReadme = readFileSync(
+      join(outputDir, 'acceptance', 'livekit-storage-isolation', 'README.md'),
+      'utf8'
+    );
+    assert.match(storageIsolationReadme, /npm ci --ignore-scripts/);
+    assert.match(storageIsolationReadme, /OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES/);
+    assert.match(storageIsolationReadme, /docker-compose\.storage\.yml/);
+    assert.match(storageIsolationReadme, /never promotes the V6/i);
     assert.equal(files.includes('acceptance/rustpbx/sipp/answer-bye-uac.xml'), true);
     const rustPbxAcceptancePackage = JSON.parse(readFileSync(
       join(outputDir, 'acceptance', 'rustpbx', 'package.json'),

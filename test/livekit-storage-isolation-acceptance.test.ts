@@ -30,10 +30,14 @@ test('storage isolation acceptance exports config continuity and failure classif
   assert.equal(typeof module.runLiveKitStorageIsolationAcceptance, 'function');
   assert.equal(typeof module.createDefaultLiveKitStorageIsolationRuntime, 'function');
   assert.equal(typeof module.writeLiveKitStorageIsolationResult, 'function');
+  assert.equal(typeof module.createLiveKitStorageIsolationComposeArgs, 'function');
 });
 
 test('storage isolation config is explicit and rejects unsafe control input', async () => {
-  const { createLiveKitStorageIsolationConfigFromEnv } = await import(
+  const {
+    createLiveKitStorageIsolationComposeArgs,
+    createLiveKitStorageIsolationConfigFromEnv
+  } = await import(
     '../scripts/livekit-storage-isolation-acceptance.js'
   );
   const config = createLiveKitStorageIsolationConfigFromEnv({
@@ -41,6 +45,8 @@ test('storage isolation config is explicit and rejects unsafe control input', as
     LIVEKIT_API_KEY: 'devkey',
     LIVEKIT_API_SECRET: 'secret',
     OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+    OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["deploy/livekit/docker-compose.yml","deploy/livekit/docker-compose.storage.yml"]',
+    OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_ENV_FILE: 'deploy/livekit/.env',
     OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE: '/tmp/ivekit-storage-isolation.json',
     OPC_LIVEKIT_STORAGE_ISOLATION_TIMEOUT_MS: '45000'
   });
@@ -50,12 +56,24 @@ test('storage isolation config is explicit and rejects unsafe control input', as
     apiKey: 'devkey',
     apiSecret: 'secret',
     composeProject: 'ivekit-fresh-audit',
-    composeFile: 'docker-compose.callcenter.yml',
+    composeFiles: [
+      'deploy/livekit/docker-compose.yml',
+      'deploy/livekit/docker-compose.storage.yml'
+    ],
+    composeEnvFile: 'deploy/livekit/.env',
     storageService: 'minio',
     storageInitService: 'minio-init',
     outputFile: '/tmp/ivekit-storage-isolation.json',
     timeoutMs: 45000
   });
+  assert.deepEqual(createLiveKitStorageIsolationComposeArgs(config, ['stop', 'minio']), [
+    'compose',
+    '--env-file', 'deploy/livekit/.env',
+    '-p', 'ivekit-fresh-audit',
+    '-f', 'deploy/livekit/docker-compose.yml',
+    '-f', 'deploy/livekit/docker-compose.storage.yml',
+    'stop', 'minio'
+  ]);
 
   for (const env of [
     {},
@@ -70,6 +88,20 @@ test('storage isolation config is explicit and rejects unsafe control input', as
       LIVEKIT_API_KEY: 'devkey\ninjected',
       LIVEKIT_API_SECRET: 'secret',
       OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit'
+    },
+    {
+      LIVEKIT_URL: 'ws://127.0.0.1:7880',
+      LIVEKIT_API_KEY: 'devkey',
+      LIVEKIT_API_SECRET: 'secret',
+      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '[]'
+    },
+    {
+      LIVEKIT_URL: 'ws://127.0.0.1:7880',
+      LIVEKIT_API_KEY: 'devkey',
+      LIVEKIT_API_SECRET: 'secret',
+      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT: 'ivekit-fresh-audit',
+      OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES: '["one.yml",42]'
     }
   ]) {
     assert.throws(() => createLiveKitStorageIsolationConfigFromEnv(env), /required|invalid/i);
@@ -245,7 +277,8 @@ function storageIsolationConfig() {
     apiKey: 'devkey',
     apiSecret: 'secret',
     composeProject: 'ivekit-fresh-audit',
-    composeFile: 'docker-compose.callcenter.yml',
+    composeFiles: ['docker-compose.callcenter.yml'],
+    composeEnvFile: '',
     storageService: 'minio',
     storageInitService: 'minio-init',
     outputFile: '',

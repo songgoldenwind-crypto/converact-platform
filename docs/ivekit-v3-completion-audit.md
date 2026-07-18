@@ -427,3 +427,12 @@ Docker Desktop 6379 端口代理仍 accept 后 reset，使旧 call-center 测试
 RustPBX 真实 RTP/物理音频、PSTN，以及存储长时间中断后的 spool 水位和容量退化。电话侧已有编译通过
 的 RustPBX 有界非阻塞 capture、独立 lifecycle worker、本地 durable spool 和上传 sidecar；仍需在
 真实 RTP 会话中做同类故障演练后才能将 Voice V6 项提升。
+
+后续交付复审发现首版只把 runner 源码复制到 `acceptance/tools/`，离开 OPC 源码树后仍会借用
+`clients/ivekit-reference/node_modules`，不满足独立交接。现已改为
+`acceptance/livekit-storage-isolation/` 独立包，包含 runner、README、精确 package/lock；依赖固定为
+LiveKit Client `2.20.1`、Server SDK `2.15.4`、Playwright `1.61.1`、tsx `4.22.4`，并 override
+esbuild `0.28.1`。runner 优先解析包内依赖，源码 checkout 才 fallback 到 reference client；配置支持
+一个 Compose file 或有序 JSON base/overlay 列表及可选 env file。`/tmp` 离仓执行 `npm ci` 安装 28 个
+package、`npm audit` 0 vulnerability，并成功加载 runner/runtime 与解析三个本地依赖；交付生成、hash、
+秘密扫描和 README 命令也进入自动门禁。该改善只使受控验收工具可独立运行，不改变生产项 `not_run`。

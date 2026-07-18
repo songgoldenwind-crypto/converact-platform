@@ -387,8 +387,12 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   ].map((name) => ({ source: `infra/livekit/${name}`, destination: `deploy/livekit/${name}` })),
   {
     source: 'scripts/livekit-storage-isolation-acceptance.ts',
-    destination: 'acceptance/tools/livekit-storage-isolation-acceptance.ts'
+    destination: 'acceptance/livekit-storage-isolation/runner.ts'
   },
+  ...['README.md', 'package.json', 'package-lock.json'].map((name) => ({
+    source: `services/ivekit-service/acceptance/livekit-storage-isolation/${name}`,
+    destination: `acceptance/livekit-storage-isolation/${name}`
+  })),
   ...STANDALONE_MIGRATIONS.map((source) => ({
     source: source.includes('/') ? source : `src/migrations/${source}`,
     destination: `database/migrations/${basename(source)}`
@@ -1516,7 +1520,7 @@ function renderBundleReadme(): string {
     '- `acceptance/evidence/`: optional source-bound controlled-environment evidence with verified hashes.',
     '- `acceptance/provider-profiles.example.json`: secret-free controlled Provider profiles.',
     '- `acceptance/tools/`: deterministic controlled Provider, Voice, and V5 full-chain acceptance sources.',
-    '- `acceptance/tools/livekit-storage-isolation-acceptance.ts`: controlled two-peer LiveKit/Egress object-storage fault-isolation runner; never promotes V6 production evidence.',
+    '- `acceptance/livekit-storage-isolation/`: locked standalone two-peer LiveKit/Egress object-storage fault-isolation runner; run `npm ci --ignore-scripts`, `npm run install:chromium`, then `npm run accept`. It never promotes V6 production evidence.',
     '- `acceptance/voice-real-template.json`: source-bound, intentionally incomplete real Voice evidence template.',
     '- `acceptance/voice-real-runbook.md`: RustPBX/SIP/PSTN/RTP/IVR/bridge real-environment procedure.',
     '- `acceptance/v6-real-template.json`: source-bound eight-group real-environment matrix; every unexecuted group remains `not_run`.',
