@@ -161,6 +161,13 @@ npm run quality:deployment-preflight
 
 在生产 S3 等价环境验证 multipart/resume、checksum、magic MIME、ClamAV/HTTP scanner、quarantine、thumbnail/transcode、生命周期、legal hold、对象先删、备份 inventory 和恢复校验。
 
+必须额外执行实时通信隔离演练：先建立一通 SIP 语音和一个 LiveKit 视频/屏幕共享会话，再阻断
+Egress/录音上传侧到对象存储的网络或停止对象存储服务。观察期间既有 SIP dialog、RTP/SRTP、
+LiveKit publisher/subscriber track 不得断开，媒体时延和丢包不得因同步重试出现突增；录音状态必须
+转为失败、延迟或不完整并产生告警，不能伪装成功。恢复对象存储后验证 durable spool/multipart
+按策略续传或进入人工处置，且不得通过重建实时房间来“恢复”录音。保存开始故障、媒体连续性、
+录音失败事件、恢复和最终对象校验五段时间戳。当前本机结果不替代这项生产等价演练。
+
 ### 6.8 Kubernetes
 
 先对 release values 执行 `helm lint/template`，再在目标集群执行 `helm upgrade --install`。检查 migration hook、API/Tinode/RustPBX、Secret ref、PVC、PDB、HPA、NetworkPolicy、ServiceMonitor、滚动升级、节点故障、扩缩容、备份与回滚。不得使用模板渲染代替实际 rollout observation。

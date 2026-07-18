@@ -13,7 +13,7 @@ index 30ead67..285d611 100644
 +    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 +};
 +use chrono::{DateTime, Utc};
-+use hmac::{Hmac, Mac};
++use hmac::{Hmac, KeyInit, Mac};
  use rsipstack::sip::prelude::*;
  use rsipstack::transport::SipConnection;
  use serde::{Deserialize, Serialize};

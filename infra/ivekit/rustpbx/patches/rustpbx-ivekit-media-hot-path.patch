@@ -1,5 +1,5 @@
 diff --git a/src/config.rs b/src/config.rs
-index f1acf8b..c2e175e 100644
+index f1acf8b688ad045c38655a673bb8538381ade69c..c2e175e0c7c5383592676b6a772fb6097bc22c7b 100644
 --- a/src/config.rs
 +++ b/src/config.rs
 @@ -863,6 +863,12 @@ pub struct ProxyConfig {
@@ -28,7 +28,7 @@ index f1acf8b..c2e175e 100644
 +fn default_media_recording_worker_queue_capacity() -> usize {
 +    4096
 +}
- 
+
  fn available_parallelism() -> usize {
      std::thread::available_parallelism()
 @@ -1326,6 +1341,9 @@ impl Default for ProxyConfig {
@@ -42,7 +42,7 @@ index f1acf8b..c2e175e 100644
              queues_files: Vec::new(),
              trunks: HashMap::new(),
 diff --git a/src/console/handlers/setting.rs b/src/console/handlers/setting.rs
-index 7a4d27f..3d0dcb9 100644
+index 7a4d27f0d520e0e177c9a391c7da00f9542f5946..3d0dcb9dc56debbb242eebd6522f0461eda1d4d5 100644
 --- a/src/console/handlers/setting.rs
 +++ b/src/console/handlers/setting.rs
 @@ -527,6 +527,9 @@ async fn build_settings_payload(state: &ConsoleState) -> JsonValue {
@@ -54,7 +54,7 @@ index 7a4d27f..3d0dcb9 100644
 +            "media_recording_worker_queue_capacity": config.proxy.media_recording_worker_queue_capacity,
              "stats": proxy_stats_value.clone(),
          });
- 
+
 @@ -1627,6 +1630,9 @@ pub(crate) struct SecuritySettingsPayload {
      session_state_channel_capacity: Option<usize>,
      media_cmd_channel_capacity: Option<usize>,
@@ -63,7 +63,7 @@ index 7a4d27f..3d0dcb9 100644
 +    media_recording_worker_threads: Option<usize>,
 +    media_recording_worker_queue_capacity: Option<usize>,
  }
- 
+
  #[derive(Debug, Clone, Deserialize, Serialize)]
 @@ -2099,6 +2105,9 @@ pub(crate) async fn update_security_settings(
          set_opt!(session_state_channel_capacity, i64);
@@ -72,11 +72,11 @@ index 7a4d27f..3d0dcb9 100644
 +        set_opt!(media_recording_channel_capacity, i64);
 +        set_opt!(media_recording_worker_threads, i64);
 +        set_opt!(media_recording_worker_queue_capacity, i64);
- 
+
          // URI normalization
          set_opt!(uri_max_length, i64);
 diff --git a/src/media/bridge.rs b/src/media/bridge.rs
-index 0bcd97f..ad6127f 100644
+index 0bcd97fe2753afc807a1706a5cf70c94b0134f15..1c9ea20b7c8dd74ae07ade65abb384167eb24f20 100644
 --- a/src/media/bridge.rs
 +++ b/src/media/bridge.rs
 @@ -58,8 +58,8 @@ use rustrtc::{
@@ -90,7 +90,7 @@ index 0bcd97f..ad6127f 100644
      },
  };
  use tokio::sync::mpsc;
-@@ -75,6 +75,229 @@ pub type PeerId = String;
+@@ -75,6 +75,290 @@ pub type PeerId = String;
  const BRIDGE_OUTPUT_PEER: u8 = 0;
  const BRIDGE_OUTPUT_FILE: u8 = 1;
  const BRIDGE_OUTPUT_MUTED: u8 = 2;
@@ -110,9 +110,13 @@ index 0bcd97f..ad6127f 100644
 +
 +impl RecordingWorkItem {
 +    fn write(&self) {
++        if self.state.disabled.load(Ordering::Acquire) {
++            self.state.record_disabled_drop();
++            return;
++        }
 +        let mut guard = self.state.recorder.write();
 +        if let Some(recorder) = guard.as_mut() {
-+            recorder.add_drop_counter(Arc::clone(&self.state.dropped));
++            self.state.register_drop_counter(recorder);
 +            if let Err(error) = recorder.write_sample(
 +                self.leg,
 +                &self.sample,
@@ -120,8 +124,13 @@ index 0bcd97f..ad6127f 100644
 +                self.dtmf_clock_rate,
 +                self.codec_hint,
 +            ) {
-+                warn!(error = %error, "recorder capture write failed");
++                if self.state.disable_after_write_failure() {
++                    self.state.record_drop("write_failed");
++                    warn!(error = %error, "recorder capture disabled after write failure");
++                }
 +            }
++        } else {
++            self.state.record_drop("recorder_unavailable");
 +        }
 +    }
 +}
@@ -135,17 +144,37 @@ index 0bcd97f..ad6127f 100644
 +struct RecorderCaptureState {
 +    recorder: Arc<parking_lot::RwLock<Option<Recorder>>>,
 +    dropped: Arc<AtomicU64>,
++    drop_counter_registered: AtomicBool,
 +    pending: AtomicUsize,
++    disabled: AtomicBool,
 +    capacity: usize,
 +}
 +
 +impl RecorderCaptureState {
++    fn register_drop_counter(&self, recorder: &mut Recorder) {
++        if self
++            .drop_counter_registered
++            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
++            .is_ok()
++        {
++            recorder.add_drop_counter(Arc::clone(&self.dropped));
++        }
++    }
++
 +    fn try_reserve(&self) -> bool {
 +        self.pending
 +            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |pending| {
 +                (pending < self.capacity).then_some(pending + 1)
 +            })
 +            .is_ok()
++    }
++
++    fn disable_after_write_failure(&self) -> bool {
++        !self.disabled.swap(true, Ordering::AcqRel)
++    }
++
++    fn record_disabled_drop(&self) {
++        self.dropped.fetch_add(1, Ordering::Relaxed);
 +    }
 +
 +    fn record_drop(&self, reason: &'static str) {
@@ -265,19 +294,47 @@ index 0bcd97f..ad6127f 100644
 +        capacity: usize,
 +        dropped: Arc<AtomicU64>,
 +    ) -> Self {
++        let state = Arc::new(RecorderCaptureState {
++            recorder,
++            dropped,
++            drop_counter_registered: AtomicBool::new(false),
++            pending: AtomicUsize::new(0),
++            disabled: AtomicBool::new(false),
++            capacity,
++        });
++        {
++            let mut guard = state.recorder.write();
++            if let Some(recorder) = guard.as_mut() {
++                state.register_drop_counter(recorder);
++            }
++        }
 +        crate::metrics::media::set_recording_queue_capacity(capacity);
 +        let worker_index = NEXT_RECORDING_WORKER.fetch_add(1, Ordering::Relaxed)
 +            % recording_executor().senders.len();
 +        Self {
-+            state: Arc::new(RecorderCaptureState {
-+                recorder,
-+                dropped,
-+                pending: AtomicUsize::new(0),
-+                capacity,
-+            }),
++            state,
 +            worker_index,
 +            recording_paused,
 +        }
++    }
++
++    pub(crate) fn wait_until_drained(&self, timeout: std::time::Duration) -> bool {
++        let deadline = std::time::Instant::now() + timeout;
++        while self.state.pending.load(Ordering::Acquire) > 0 {
++            if std::time::Instant::now() >= deadline {
++                return false;
++            }
++            std::thread::sleep(std::time::Duration::from_millis(1));
++        }
++        true
++    }
++
++    pub(crate) fn disable(&self) {
++        self.state.disabled.store(true, Ordering::Release);
++    }
++
++    pub(crate) fn register_drop_counter(&self, recorder: &mut Recorder) {
++        self.state.register_drop_counter(recorder);
 +    }
 +
 +    pub(crate) fn try_capture(
@@ -289,6 +346,10 @@ index 0bcd97f..ad6127f 100644
 +        codec_hint: Option<AudioCodecType>,
 +    ) {
 +        if self.recording_paused.load(Ordering::Relaxed) {
++            return;
++        }
++        if self.state.disabled.load(Ordering::Acquire) {
++            self.state.record_disabled_drop();
 +            return;
 +        }
 +        if !self.state.try_reserve() {
@@ -317,10 +378,19 @@ index 0bcd97f..ad6127f 100644
 +        }
 +    }
 +}
- 
+
  /// Atomic state for one endpoint's output mode + file source.
  /// Wrapped in a single Mutex to prevent TOCTOU between
-@@ -257,11 +480,10 @@ struct ForwardLoopContext {
+@@ -243,7 +527,7 @@ impl std::fmt::Display for ForwardPath {
+     }
+ }
+
+-use crate::media::dtmf::{DtmfSink, PayloadMapping, DtmfDetector};
++use crate::media::dtmf::{DtmfDetector, DtmfSink, PayloadMapping};
+
+ // ---------------------------------------------------------------------------
+ // ForwardLoopContext — builder for run_forward_loop / forward_track_to_sender
+@@ -257,11 +541,10 @@ struct ForwardLoopContext {
      cancel_token: CancellationToken,
      path: ForwardPath,
      leg_stats: Arc<LegStats>,
@@ -333,7 +403,7 @@ index 0bcd97f..ad6127f 100644
      dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
      transcoder: Option<Arc<parking_lot::Mutex<Option<Transcoder>>>>,
      transcoder_timing: Option<Arc<parking_lot::Mutex<Option<RtpTiming>>>>,
-@@ -292,11 +514,10 @@ impl ForwardLoopContextBuilder {
+@@ -292,11 +575,10 @@ impl ForwardLoopContextBuilder {
                  cancel_token,
                  path,
                  leg_stats,
@@ -346,10 +416,10 @@ index 0bcd97f..ad6127f 100644
                  dtmf_sink: Arc::new(parking_lot::RwLock::new(None)),
                  transcoder: None,
                  transcoder_timing: None,
-@@ -306,12 +527,12 @@ impl ForwardLoopContextBuilder {
+@@ -306,12 +588,12 @@ impl ForwardLoopContextBuilder {
          }
      }
- 
+
 -    pub fn with_recorder(
 +    pub fn with_recorder_capture(
          mut self,
@@ -362,10 +432,10 @@ index 0bcd97f..ad6127f 100644
          self.inner.recorder_leg = leg;
          self
      }
-@@ -326,11 +547,6 @@ impl ForwardLoopContextBuilder {
+@@ -326,11 +608,6 @@ impl ForwardLoopContextBuilder {
          self
      }
- 
+
 -    pub fn with_recording_paused(mut self, paused: Arc<AtomicBool>) -> Self {
 -        self.inner.recording_paused = paused;
 -        self
@@ -374,7 +444,7 @@ index 0bcd97f..ad6127f 100644
      pub fn with_dtmf_sink(mut self, sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>) -> Self {
          self.inner.dtmf_sink = sink;
          self
-@@ -375,8 +591,7 @@ struct FileOutputContext {
+@@ -375,8 +652,7 @@ struct FileOutputContext {
      output_state: Arc<parking_lot::Mutex<OutputState>>,
      output_mode_atomic: Arc<AtomicU8>,
      cancel_token: CancellationToken,
@@ -382,9 +452,9 @@ index 0bcd97f..ad6127f 100644
 -    recording_paused: Arc<AtomicBool>,
 +    recorder_capture: Option<RecorderCapture>,
  }
- 
+
  struct FileOutputContextBuilder {
-@@ -400,19 +615,13 @@ impl FileOutputContextBuilder {
+@@ -400,19 +676,13 @@ impl FileOutputContextBuilder {
                  output_state,
                  output_mode_atomic,
                  cancel_token,
@@ -394,7 +464,7 @@ index 0bcd97f..ad6127f 100644
              },
          }
      }
- 
+
 -    pub fn with_recorder(
 -        mut self,
 -        recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
@@ -406,8 +476,31 @@ index 0bcd97f..ad6127f 100644
 +        self.inner.recorder_capture = recorder_capture;
          self
      }
- 
-@@ -550,8 +759,7 @@ pub struct BridgePeer {
+
+@@ -516,7 +786,9 @@ struct BridgeStats {
+ /// N-peer routing state.
+ struct PeerRouteState {
+     peers: Arc<parking_lot::Mutex<std::collections::HashMap<PeerId, PeerEntry>>>,
+-    routes: Arc<parking_lot::Mutex<std::collections::HashMap<PeerId, std::collections::HashSet<PeerId>>>>,
++    routes: Arc<
++        parking_lot::Mutex<std::collections::HashMap<PeerId, std::collections::HashSet<PeerId>>>,
++    >,
+ }
+
+ impl PeerRouteState {
+@@ -536,7 +808,10 @@ struct RtpTimeoutConfig {
+
+ impl RtpTimeoutConfig {
+     const fn none() -> Self {
+-        Self { duration: None, notify_tx: None }
++        Self {
++            duration: None,
++            notify_tx: None,
++        }
+     }
+ }
+
+@@ -550,8 +825,7 @@ pub struct BridgePeer {
      cancel_token: CancellationToken,
      forwarding_started: AtomicBool,
      caller_gate: Arc<AtomicBool>,
@@ -417,7 +510,7 @@ index 0bcd97f..ad6127f 100644
      sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
      receive_clock: ReceiveTimestampClock,
      dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
-@@ -569,8 +777,7 @@ pub struct BridgePeer {
+@@ -569,8 +843,7 @@ pub struct BridgePeer {
  /// Common args shared by both bridge directions.
  struct ForwardTrackArgs {
      cancel_token: CancellationToken,
@@ -427,7 +520,7 @@ index 0bcd97f..ad6127f 100644
      sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
      receive_clock: ReceiveTimestampClock,
      dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
-@@ -613,8 +820,7 @@ impl BridgePeer {
+@@ -613,12 +886,14 @@ impl BridgePeer {
              cancel_token: CancellationToken::new(),
              forwarding_started: AtomicBool::new(false),
              caller_gate: Arc::new(AtomicBool::new(false)),
@@ -437,7 +530,36 @@ index 0bcd97f..ad6127f 100644
              sipflow_tx: None,
              receive_clock: ReceiveTimestampClock::new(),
              dtmf_sink: Arc::new(parking_lot::RwLock::new(None)),
-@@ -699,7 +905,7 @@ impl BridgePeer {
+-            stats: BridgeStats { caller_to_callee: LegStats::new(), callee_to_caller: LegStats::new() },
++            stats: BridgeStats {
++                caller_to_callee: LegStats::new(),
++                callee_to_caller: LegStats::new(),
++            },
+             callee_to_caller_codec: DirectionCodecState::new(),
+             caller_to_callee_codec: DirectionCodecState::new(),
+             peer_routes: PeerRouteState::new(),
+@@ -626,6 +901,10 @@ impl BridgePeer {
+         }
+     }
+
++    pub(crate) fn recorder_capture(&self) -> Option<RecorderCapture> {
++        self.recorder_capture.clone()
++    }
++
+     /// Allow WebRTC→RTP forwarding. Call this when the callee answers (200 OK) or on
+     /// re-INVITE, NOT on 183 early media. This prevents sending WebRTC audio to a SIP
+     /// endpoint that may not be ready to receive it yet.
+@@ -669,7 +948,8 @@ impl BridgePeer {
+         if st.video_send.lock().is_some() {
+             return Ok(());
+         }
+-        st.video_payload_type.store(params.payload_type, Ordering::Relaxed);
++        st.video_payload_type
++            .store(params.payload_type, Ordering::Relaxed);
+         let (tx, track, _) = rustrtc::media::track::sample_track(MediaKind::Video, 100);
+         let pc = st.pc.clone();
+         let sender = {
+@@ -699,7 +979,7 @@ impl BridgePeer {
                  Arc::clone(&self.caller.output_mode),
                  self.cancel_token.clone(),
              )
@@ -446,7 +568,7 @@ index 0bcd97f..ad6127f 100644
              .build(),
          ));
          tasks.push(Self::spawn_file_output_clock(
-@@ -711,7 +917,7 @@ impl BridgePeer {
+@@ -711,7 +991,7 @@ impl BridgePeer {
                  Arc::clone(&self.callee.output_mode),
                  self.cancel_token.clone(),
              )
@@ -455,10 +577,68 @@ index 0bcd97f..ad6127f 100644
              .build(),
          ));
          drop(tasks);
-@@ -1450,18 +1656,10 @@ impl BridgePeer {
+@@ -730,7 +1010,11 @@ impl BridgePeer {
+     /// Caller side determines the codec PT/clock-rate from its offer;
+     /// the same params are used on the opposite side for symmetric video.
+     pub async fn add_video_track(&self, pt: u8, clock_rate: u32) -> Result<()> {
+-        let params = RtpCodecParameters { payload_type: pt, clock_rate, channels: 0 };
++        let params = RtpCodecParameters {
++            payload_type: pt,
++            clock_rate,
++            channels: 0,
++        };
+         for side in [BridgeSide::Caller, BridgeSide::Callee] {
+             self.setup_video_side(side, &params)?;
+         }
+@@ -739,8 +1023,7 @@ impl BridgePeer {
+     }
+
+     pub async fn has_video(&self) -> bool {
+-        self.caller.video_send.lock().is_some()
+-            && self.callee.video_send.lock().is_some()
++        self.caller.video_send.lock().is_some() && self.callee.video_send.lock().is_some()
+     }
+
+     /// Update target payload types stamped onto pass-through video frames.
+@@ -750,7 +1033,8 @@ impl BridgePeer {
+         callee_params: Option<RtpCodecParameters>,
+     ) {
+         if let Some(params) = caller_params.as_ref() {
+-            self.caller.video_payload_type
++            self.caller
++                .video_payload_type
+                 .store(params.payload_type, Ordering::Relaxed);
+             debug!(
+                 bridge_id = %self.id,
+@@ -761,7 +1045,8 @@ impl BridgePeer {
+             );
+         }
+         if let Some(params) = callee_params.as_ref() {
+-            self.callee.video_payload_type
++            self.callee
++                .video_payload_type
+                 .store(params.payload_type, Ordering::Relaxed);
+             debug!(
+                 bridge_id = %self.id,
+@@ -1064,8 +1349,12 @@ impl BridgePeer {
+             .with_loop(true)
+             .with_codec_info(codec_info);
+         let source = track.create_playback_source().await?;
+-        self.set_output_to_file_source(endpoint, source, "Bridge output replaced with silence source")
+-            .await
++        self.set_output_to_file_source(
++            endpoint,
++            source,
++            "Bridge output replaced with silence source",
++        )
++        .await
+     }
+
+     pub async fn replace_output_with_peer(&self, endpoint: BridgeEndpoint) {
+@@ -1450,18 +1739,10 @@ impl BridgePeer {
                                  Some(mapped_ts.wrapping_add(frame_ticks_20ms(frame.clock_rate)));
                          }
- 
+
 -                        if let (Some(rec), Some(leg)) = (&ctx.recorder, recorder_leg)
 -                            && !ctx.recording_paused.load(Ordering::Relaxed)
 -                            && let Some(mut guard) = rec.try_write()
@@ -475,9 +655,56 @@ index 0bcd97f..ad6127f 100644
 -                            );
 +                            capture.try_capture(leg, &sample, None, None, None);
                          }
- 
+
                          let Some(sender) = ctx.sender.as_ref() else {
-@@ -1745,9 +1943,8 @@ impl BridgePeer {
+@@ -1559,7 +1840,11 @@ impl BridgePeer {
+     fn spawn_peer_track_forwarder(
+         bridge_id: &str,
+         peer_id: &str,
+-        routes: &Arc<parking_lot::Mutex<std::collections::HashMap<PeerId, std::collections::HashSet<PeerId>>>>,
++        routes: &Arc<
++            parking_lot::Mutex<
++                std::collections::HashMap<PeerId, std::collections::HashSet<PeerId>>,
++            >,
++        >,
+         peers_ref: &Arc<parking_lot::Mutex<std::collections::HashMap<PeerId, PeerEntry>>>,
+         cancel: &CancellationToken,
+         track: Arc<dyn MediaStreamTrack>,
+@@ -1627,7 +1912,15 @@ impl BridgePeer {
+     ) -> DirectionEventResult {
+         match event {
+             Some(rustrtc::PeerConnectionEvent::Track(transceiver)) => {
+-                Self::process_track_event(bridge_id, source_pc, dir, common, sub_tasks, transceiver).await;
++                Self::process_track_event(
++                    bridge_id,
++                    source_pc,
++                    dir,
++                    common,
++                    sub_tasks,
++                    transceiver,
++                )
++                .await;
+                 DirectionEventResult::RePin
+             }
+             Some(_) => DirectionEventResult::RePin,
+@@ -1694,12 +1987,10 @@ impl BridgePeer {
+                 payload_map: Arc::clone(&dir.video_payload_map),
+             });
+
+-            let mut sender_builder = rustrtc::RtpSender::builder(
+-                forwarding_track,
+-                existing_sender.ssrc(),
+-            )
+-            .stream_id(existing_sender.stream_id().to_string())
+-            .params(existing_sender.params());
++            let mut sender_builder =
++                rustrtc::RtpSender::builder(forwarding_track, existing_sender.ssrc())
++                    .stream_id(existing_sender.stream_id().to_string())
++                    .params(existing_sender.params());
+             let cname_val = existing_sender.cname();
+             if !cname_val.starts_with("rustrtc-cname-") {
+                 sender_builder = sender_builder.cname(cname_val.to_string());
+@@ -1745,9 +2036,8 @@ impl BridgePeer {
                  dir.path,
                  Arc::clone(&dir.leg_stats),
              )
@@ -488,8 +715,8 @@ index 0bcd97f..ad6127f 100644
              .with_dtmf_sink(Arc::clone(&common.dtmf_sink))
              .with_transcoder(dir.transcoder.clone(), dir.transcoder_timing.clone())
              .with_dtmf_mapping(dir.dtmf_mapping.clone())
-@@ -1763,8 +1960,7 @@ impl BridgePeer {
- 
+@@ -1763,8 +2053,7 @@ impl BridgePeer {
+
          let common = ForwardTrackArgs {
              cancel_token: self.cancel_token.clone(),
 -            recorder: self.recorder.clone(),
@@ -498,7 +725,7 @@ index 0bcd97f..ad6127f 100644
              sipflow_tx: self.sipflow_tx.clone(),
              receive_clock: self.receive_clock.clone(),
              dtmf_sink: Arc::clone(&self.dtmf_sink),
-@@ -1907,17 +2103,15 @@ impl BridgePeer {
+@@ -1907,17 +2196,15 @@ impl BridgePeer {
                                  };
                                  let record_peer_mic = ctx.output_mode.load(Ordering::Acquire) == BRIDGE_OUTPUT_PEER;
                                  if record_peer_mic {
@@ -519,8 +746,19 @@ index 0bcd97f..ad6127f 100644
 +                                            None,
                                          );
                                      }
- 
-@@ -2345,6 +2539,7 @@ pub struct BridgePeerBuilder {
+
+@@ -2195,7 +2482,9 @@ impl BridgePeer {
+     /// Remove finished sub-tasks and cap the total so that repeated
+     /// renegotiations (each spawning fresh forwarder / PLI tasks) do not grow
+     /// `sub_tasks` without bound. Stale tasks for superseded tracks are aborted.
+-    async fn prune_sub_tasks(sub_tasks: &Arc<parking_lot::Mutex<Vec<tokio::task::JoinHandle<()>>>>) {
++    async fn prune_sub_tasks(
++        sub_tasks: &Arc<parking_lot::Mutex<Vec<tokio::task::JoinHandle<()>>>>,
++    ) {
+         let mut st = sub_tasks.lock();
+         // Drop handles for tasks that have already finished.
+         st.retain(|h| !h.is_finished());
+@@ -2345,6 +2634,7 @@ pub struct BridgePeerBuilder {
      ice_servers: Vec<IceServer>,
      recorder: Option<Arc<parking_lot::RwLock<Option<Recorder>>>>,
      recording_paused: Arc<AtomicBool>,
@@ -528,7 +766,7 @@ index 0bcd97f..ad6127f 100644
      sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
      cname: Option<String>,
      rtp_timeout: Option<std::time::Duration>,
-@@ -2373,6 +2568,7 @@ impl BridgePeerBuilder {
+@@ -2373,6 +2663,7 @@ impl BridgePeerBuilder {
              ice_servers: Vec::new(),
              recorder: None,
              recording_paused: Arc::new(AtomicBool::new(false)),
@@ -536,10 +774,10 @@ index 0bcd97f..ad6127f 100644
              sipflow_tx: None,
              cname: None,
              rtp_timeout: None,
-@@ -2497,6 +2693,11 @@ impl BridgePeerBuilder {
+@@ -2497,6 +2788,11 @@ impl BridgePeerBuilder {
          self
      }
- 
+
 +    pub fn with_recording_channel_capacity(mut self, capacity: usize) -> Self {
 +        self.recording_channel_capacity = capacity;
 +        self
@@ -548,10 +786,17 @@ index 0bcd97f..ad6127f 100644
      pub fn with_sipflow_capture(
          mut self,
          sipflow_tx: mpsc::Sender<(RecLeg, SharedMediaSample, u64)>,
-@@ -2620,12 +2821,18 @@ impl BridgePeerBuilder {
-             (PeerConnection::new(caller_config), PeerConnection::new(callee_config))
+@@ -2617,15 +2913,24 @@ impl BridgePeerBuilder {
+
+         let (caller_pc, callee_pc) = {
+             let _guard = crate::utils::media_enter();
+-            (PeerConnection::new(caller_config), PeerConnection::new(callee_config))
++            (
++                PeerConnection::new(caller_config),
++                PeerConnection::new(callee_config),
++            )
          };
- 
+
 +        let recorder_capture = self.recorder.map(|recorder| {
 +            RecorderCapture::new(
 +                recorder,
@@ -569,8 +814,810 @@ index 0bcd97f..ad6127f 100644
          bridge.sipflow_tx = self.sipflow_tx;
          bridge.rtp_timeout = RtpTimeoutConfig {
              duration: self.rtp_timeout,
+@@ -2634,9 +2939,13 @@ impl BridgePeerBuilder {
+
+         // Store video codec params for setup_bridge to create video senders
+         let vid_codec = |caps: &Option<Vec<rustrtc::VideoCapability>>| {
+-            caps.as_ref().and_then(|c| c.first()).map(|cap| RtpCodecParameters {
+-                payload_type: cap.payload_type, clock_rate: cap.clock_rate, channels: 0,
+-            })
++            caps.as_ref()
++                .and_then(|c| c.first())
++                .map(|cap| RtpCodecParameters {
++                    payload_type: cap.payload_type,
++                    clock_rate: cap.clock_rate,
++                    channels: 0,
++                })
+         };
+         bridge.caller.video_codec = vid_codec(&self.caller_video_capabilities);
+         bridge.callee.video_codec = vid_codec(&self.callee_video_capabilities);
+@@ -2653,6 +2962,7 @@ mod tests {
+         TransportMode,
+         sdp::{SdpType, SessionDescription},
+     };
++    use std::time::Duration;
+
+     fn create_test_wav_file(path: &str, num_samples: usize) -> Result<()> {
+         let spec = crate::media::wav_reader::WavSpec {
+@@ -2675,6 +2985,53 @@ mod tests {
+         Ok(())
+     }
+
++    #[test]
++    fn recorder_capture_counts_samples_seen_before_recorder_start() {
++        let recorder = Arc::new(parking_lot::RwLock::new(None));
++        let dropped = Arc::new(AtomicU64::new(0));
++        let capture = RecorderCapture::new_with_drop_counter(
++            recorder,
++            Arc::new(AtomicBool::new(false)),
++            8,
++            Arc::clone(&dropped),
++        );
++        let sample = MediaSample::Audio(AudioFrame {
++            payload_type: Some(0),
++            clock_rate: 8000,
++            data: bytes::Bytes::from(vec![0xff; 160]),
++            ..Default::default()
++        });
++
++        capture.try_capture(RecLeg::A, &sample, None, None, None);
++
++        assert!(capture.wait_until_drained(Duration::from_secs(1)));
++        assert_eq!(dropped.load(Ordering::Acquire), 1);
++    }
++
++    #[test]
++    fn recorder_capture_drain_waits_for_accepted_samples() {
++        let root = tempfile::tempdir().unwrap();
++        let path = root.path().join("queued-before-stop.wav");
++        let recorder = Arc::new(parking_lot::RwLock::new(Some(
++            Recorder::new(path.to_str().unwrap(), AudioCodecType::PCMU).unwrap(),
++        )));
++        let capture =
++            RecorderCapture::new(Arc::clone(&recorder), Arc::new(AtomicBool::new(false)), 8);
++        let sample = MediaSample::Audio(AudioFrame {
++            payload_type: Some(0),
++            clock_rate: 8000,
++            data: bytes::Bytes::from(vec![0xff; 160]),
++            ..Default::default()
++        });
++
++        capture.try_capture(RecLeg::A, &sample, None, None, None);
++
++        assert!(capture.wait_until_drained(Duration::from_secs(1)));
++        let mut recorder = recorder.write().take().unwrap();
++        recorder.finalize().unwrap();
++        assert!(std::fs::metadata(path).unwrap().len() > 44);
++    }
++
+     #[test]
+     fn test_video_payload_map_matches_codec_identity_not_payload_number() {
+         let rtp_caps = vec![
+@@ -2810,8 +3167,16 @@ mod tests {
+         let _ = bridge.caller_pc().set_local_description(caller_offer);
+         let _ = bridge.callee_pc().set_local_description(callee_offer);
+
+-        let caller_sdp = bridge.caller_pc().local_description().unwrap().to_sdp_string();
+-        let callee_sdp = bridge.callee_pc().local_description().unwrap().to_sdp_string();
++        let caller_sdp = bridge
++            .caller_pc()
++            .local_description()
++            .unwrap()
++            .to_sdp_string();
++        let callee_sdp = bridge
++            .callee_pc()
++            .local_description()
++            .unwrap()
++            .to_sdp_string();
+
+         for (label, sdp) in [("caller", &caller_sdp), ("callee", &callee_sdp)] {
+             assert!(
+@@ -3133,11 +3498,8 @@ mod tests {
+         let mut markers = Vec::new();
+         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_millis(500);
+         while tokio::time::Instant::now() < deadline && markers.len() < 2 {
+-            match tokio::time::timeout(
+-                tokio::time::Duration::from_millis(100),
+-                rtp_track.recv(),
+-            )
+-            .await
++            match tokio::time::timeout(tokio::time::Duration::from_millis(100), rtp_track.recv())
++                .await
+             {
+                 Ok(Ok(MediaSample::Audio(f))) => markers.push(f.marker),
+                 Ok(Ok(_)) => {}
+diff --git a/src/media/engine/event.rs b/src/media/engine/event.rs
+index 35f0589f32c16541ff686b1130321876cb07ea6d..f567ca3f7e649739024d67f75891c76df6502e47 100644
+--- a/src/media/engine/event.rs
++++ b/src/media/engine/event.rs
+@@ -67,6 +67,10 @@ pub enum MediaEvent {
+         session_id: String,
+         result: RecordResult,
+     },
++    RecordingFailed {
++        session_id: String,
++        failure_code: String,
++    },
+     RecordingPaused {
+         session_id: String,
+     },
+@@ -133,6 +137,7 @@ impl MediaEvent {
+             }
+             Self::RecordingStarted { session_id }
+             | Self::RecordingStopped { session_id, .. }
++            | Self::RecordingFailed { session_id, .. }
+             | Self::RecordingPaused { session_id }
+             | Self::RecordingResumed { session_id }
+             | Self::SipFlowStarted { session_id }
+diff --git a/src/media/engine/mod.rs b/src/media/engine/mod.rs
+index 1a8a4acd2837ec12d966ab6215a956a545f4d0df..98449d729d94da4f6f9131eccc8a65e513002f66 100644
+--- a/src/media/engine/mod.rs
++++ b/src/media/engine/mod.rs
+@@ -27,13 +27,14 @@ pub mod transport;
+
+ pub use command::{
+     CodecProfile, InjectTarget, LegTransport, MediaCommand, PcmFrame, PlayOptions, PlaySource,
+-    RecordConfig, SipFlowCaptureTx, SharedMediaSample,
++    RecordConfig, SharedMediaSample, SipFlowCaptureTx,
+ };
+ pub use event::{MediaEvent, RecordResult};
+ pub use transport::resolve_audio_path;
+
+ use std::collections::HashMap;
+-use std::sync::Arc;
++use std::sync::atomic::Ordering;
++use std::sync::{Arc, OnceLock};
+ use std::time::Duration;
+
+ use anyhow::{Result, anyhow};
+@@ -42,6 +43,243 @@ use tokio::sync::{broadcast, mpsc};
+ use tracing::{debug, error, info, warn};
+
+ use crate::media::Track as _;
++use crate::media::bridge::RecorderCapture;
++
++const DEFAULT_RECORDING_LIFECYCLE_WORKERS: usize = 4;
++const DEFAULT_RECORDING_LIFECYCLE_QUEUE_CAPACITY: usize = 512;
++static RECORDING_LIFECYCLE_EXECUTOR: OnceLock<RecordingLifecycleExecutor> = OnceLock::new();
++
++enum RecordingLifecycleTask {
++    Start {
++        session_id: String,
++        config: RecordConfig,
++        caller_profile: Option<crate::media::negotiate::NegotiatedLegProfile>,
++        callee_profile: Option<crate::media::negotiate::NegotiatedLegProfile>,
++        recorder: Arc<RwLock<Option<crate::media::recorder::Recorder>>>,
++        recording_paused: Arc<std::sync::atomic::AtomicBool>,
++        recording_finalization_started: Arc<std::sync::atomic::AtomicBool>,
++        reply: Option<tokio::sync::oneshot::Sender<()>>,
++        event_tx: broadcast::Sender<MediaEvent>,
++    },
++    Finalize {
++        session_id: String,
++        recorder: Arc<RwLock<Option<crate::media::recorder::Recorder>>>,
++        capture: Option<RecorderCapture>,
++        recording_finalization_started: Arc<std::sync::atomic::AtomicBool>,
++        duration_secs: f64,
++        reply: Option<tokio::sync::oneshot::Sender<RecordResult>>,
++        event_tx: broadcast::Sender<MediaEvent>,
++    },
++}
++
++impl RecordingLifecycleTask {
++    fn session_id(&self) -> &str {
++        match self {
++            Self::Start { session_id, .. } | Self::Finalize { session_id, .. } => session_id,
++        }
++    }
++
++    fn event_tx(&self) -> &broadcast::Sender<MediaEvent> {
++        match self {
++            Self::Start { event_tx, .. } | Self::Finalize { event_tx, .. } => event_tx,
++        }
++    }
++
++    fn reset_finalization(&self) {
++        if let Self::Finalize {
++            recording_finalization_started,
++            ..
++        } = self
++        {
++            recording_finalization_started.store(false, Ordering::Release);
++        }
++    }
++
++    fn run(self) {
++        match self {
++            Self::Start {
++                session_id,
++                config,
++                caller_profile,
++                callee_profile,
++                recorder,
++                recording_paused,
++                recording_finalization_started,
++                reply,
++                event_tx,
++            } => {
++                if recording_finalization_started.load(Ordering::Acquire) {
++                    recording_failed(&event_tx, session_id, "recording_start_cancelled");
++                    return;
++                }
++                let recorder_codec = caller_profile
++                    .as_ref()
++                    .or(callee_profile.as_ref())
++                    .and_then(|profile| profile.audio.as_ref())
++                    .map(|codec| codec.codec)
++                    .unwrap_or(audio_codec::CodecType::PCMU);
++                let path = config.path;
++                let mut created = match crate::media::recorder::Recorder::new_with_spool(
++                    &path,
++                    recorder_codec,
++                    config.ivekit_spool,
++                ) {
++                    Ok(created) => created,
++                    Err(error) => {
++                        warn!(session_id = %session_id, error = %error, "Recording start failed");
++                        recording_failed(&event_tx, session_id, "recording_storage_unavailable");
++                        return;
++                    }
++                };
++                if let Some(profile) = caller_profile {
++                    created.set_leg_profile(crate::media::recorder::Leg::A, profile);
++                }
++                if let Some(profile) = callee_profile {
++                    created.set_leg_profile(crate::media::recorder::Leg::B, profile);
++                }
++                if recording_finalization_started.load(Ordering::Acquire) {
++                    let _ = created.finalize();
++                    recording_failed(&event_tx, session_id, "recording_start_cancelled");
++                    return;
++                }
++                let mut guard = recorder.write();
++                if guard.is_some() || recording_finalization_started.load(Ordering::Acquire) {
++                    drop(guard);
++                    let _ = created.finalize();
++                    recording_failed(&event_tx, session_id, "recording_start_cancelled");
++                    return;
++                }
++                *guard = Some(created);
++                recording_paused.store(false, Ordering::Release);
++                drop(guard);
++                info!(session_id = %session_id, path = %path, "Recording started");
++                if let Some(reply_tx) = reply {
++                    let _ = reply_tx.send(());
++                }
++                let _ = event_tx.send(MediaEvent::RecordingStarted { session_id });
++            }
++            Self::Finalize {
++                session_id,
++                recorder,
++                capture,
++                recording_finalization_started,
++                duration_secs,
++                reply,
++                event_tx,
++            } => {
++                if let Some(capture) = capture.as_ref()
++                    && !capture.wait_until_drained(Duration::from_millis(100))
++                {
++                    capture.disable();
++                    if !capture.wait_until_drained(Duration::from_millis(100)) {
++                        recording_finalization_started.store(false, Ordering::Release);
++                        recording_failed(&event_tx, session_id, "recording_capture_drain_timeout");
++                        return;
++                    }
++                }
++                let Some(mut guard) = recorder.try_write() else {
++                    recording_finalization_started.store(false, Ordering::Release);
++                    recording_failed(&event_tx, session_id, "recording_finalize_lock_unavailable");
++                    return;
++                };
++                let recorder = guard.take();
++                drop(guard);
++                let Some(mut recorder) = recorder else {
++                    return;
++                };
++                if let Some(capture) = capture.as_ref() {
++                    capture.register_drop_counter(&mut recorder);
++                }
++                let path = recorder.path.clone();
++                if let Err(error) = recorder.finalize() {
++                    warn!(session_id = %session_id, error = %error, "Recording finalization failed");
++                    recording_failed(&event_tx, session_id, "recording_finalize_failed");
++                    return;
++                }
++                let file_size = std::fs::metadata(&path)
++                    .map(|metadata| metadata.len())
++                    .unwrap_or(0);
++                let result = RecordResult {
++                    path,
++                    duration_secs,
++                    file_size,
++                };
++                info!(session_id = %session_id, path = %result.path, "Recording stopped");
++                if let Some(reply_tx) = reply {
++                    let _ = reply_tx.send(result.clone());
++                }
++                let _ = event_tx.send(MediaEvent::RecordingStopped { session_id, result });
++            }
++        }
++    }
++}
++
++struct RecordingLifecycleExecutor {
++    sender: crossbeam_channel::Sender<RecordingLifecycleTask>,
++    _workers: Vec<std::thread::JoinHandle<()>>,
++}
++
++impl RecordingLifecycleExecutor {
++    fn new() -> Self {
++        let (sender, receiver) = crossbeam_channel::bounded::<RecordingLifecycleTask>(
++            DEFAULT_RECORDING_LIFECYCLE_QUEUE_CAPACITY,
++        );
++        let mut workers = Vec::with_capacity(DEFAULT_RECORDING_LIFECYCLE_WORKERS);
++        for worker_index in 0..DEFAULT_RECORDING_LIFECYCLE_WORKERS {
++            let receiver = receiver.clone();
++            let worker = std::thread::Builder::new()
++                .name(format!("rustpbx-recording-lifecycle-{worker_index}"))
++                .spawn(move || {
++                    while let Ok(task) = receiver.recv() {
++                        task.run();
++                    }
++                })
++                .expect("recording lifecycle worker must start");
++            workers.push(worker);
++        }
++        Self {
++            sender,
++            _workers: workers,
++        }
++    }
++
++    fn submit(&self, task: RecordingLifecycleTask) -> bool {
++        match self.sender.try_send(task) {
++            Ok(()) => true,
++            Err(error) => {
++                let task = error.into_inner();
++                let session_id = task.session_id().to_string();
++                task.reset_finalization();
++                warn!(session_id = %session_id, "Recording lifecycle queue unavailable");
++                recording_failed(
++                    task.event_tx(),
++                    session_id,
++                    "recording_lifecycle_queue_unavailable",
++                );
++                false
++            }
++        }
++    }
++}
++
++fn recording_lifecycle_executor() -> &'static RecordingLifecycleExecutor {
++    RECORDING_LIFECYCLE_EXECUTOR.get_or_init(RecordingLifecycleExecutor::new)
++}
++
++fn recording_failed(
++    event_tx: &broadcast::Sender<MediaEvent>,
++    session_id: String,
++    failure_code: &'static str,
++) {
++    let _ = event_tx.send(MediaEvent::RecordingFailed {
++        session_id,
++        failure_code: failure_code.to_string(),
++    });
++}
++
++fn spawn_recording_finalizer(task: RecordingLifecycleTask) -> bool {
++    recording_lifecycle_executor().submit(task)
++}
+
+ // ---------------------------------------------------------------------------
+ // MediaEngineConfig
+@@ -265,7 +503,7 @@ impl EngineCore {
+                     sessions.remove(&session_id)
+                 };
+                 if let Some(sess) = sess {
+-                    Self::finalize_session_resources(sess).await;
++                    self.finalize_session_resources(sess).await;
+                 }
+                 info!(session_id = %session_id, "MediaEngine session destroyed");
+                 let _ = self
+@@ -476,105 +714,87 @@ impl EngineCore {
+                 callee_profile,
+                 reply,
+             } => {
+-                let mut sessions = self.sessions.write();
+-                let sess = sessions.get_mut(&session_id).ok_or_else(|| {
+-                    anyhow!("Session {} not found for StartRecording", session_id)
+-                })?;
+-
+-                let mut guard = sess.recorder.write();
+-                if guard.is_some() {
+-                    return Err(anyhow!(
+-                        "Recording already active for session {}",
+-                        session_id
+-                    ));
+-                }
+-                // Pick the recorder codec from the first available leg profile,
+-                // falling back to PCMU.  Only PCMU/PCMA/G729 are supported as
+-                // WAV recording formats — Opus/G722 would be forced to PCMU
+-                // inside Recorder::new() anyway, so we resolve that here.
+-                let recorder_codec = caller_profile
+-                    .as_ref()
+-                    .or(callee_profile.as_ref())
+-                    .and_then(|p| p.audio.as_ref())
+-                    .map(|c| c.codec)
+-                    .unwrap_or(audio_codec::CodecType::PCMU);
+-                let mut recorder = crate::media::recorder::Recorder::new_with_spool(
+-                    &config.path,
+-                    recorder_codec,
+-                    config.ivekit_spool,
+-                )?;
+-                if let Some(profile) = caller_profile {
+-                    recorder.set_leg_profile(crate::media::recorder::Leg::A, profile);
+-                }
+-                if let Some(profile) = callee_profile {
+-                    recorder.set_leg_profile(crate::media::recorder::Leg::B, profile);
+-                }
+-                *guard = Some(recorder);
+-                use std::sync::atomic::Ordering;
+-                sess.recording_paused.store(false, Ordering::Relaxed);
+-                sess.recording_started_at = Some(std::time::Instant::now());
+-                info!(session_id = %session_id, path = %config.path, "Recording started");
+-                drop(guard);
+-                drop(sessions);
+-
+-                // Signal the caller that the recorder is now visible to the
+-                // bridge's forwarding loop, so no audio gap exists.
+-                if let Some(reply_tx) = reply {
+-                    let _ = reply_tx.send(());
++                let (recorder, recording_paused, recording_finalization_started) = {
++                    let mut sessions = self.sessions.write();
++                    let sess = sessions.get_mut(&session_id).ok_or_else(|| {
++                        anyhow!("Session {} not found for StartRecording", session_id)
++                    })?;
++                    sess.recording_finalization_started
++                        .store(false, Ordering::Release);
++                    sess.recording_started_at = Some(std::time::Instant::now());
++                    (
++                        Arc::clone(&sess.recorder),
++                        Arc::clone(&sess.recording_paused),
++                        Arc::clone(&sess.recording_finalization_started),
++                    )
++                };
++                let submitted =
++                    recording_lifecycle_executor().submit(RecordingLifecycleTask::Start {
++                        session_id: session_id.clone(),
++                        config,
++                        caller_profile,
++                        callee_profile,
++                        recorder,
++                        recording_paused,
++                        recording_finalization_started,
++                        reply,
++                        event_tx: self.event_tx.clone(),
++                    });
++                if !submitted {
++                    if let Some(sess) = self.sessions.write().get_mut(&session_id) {
++                        sess.recording_started_at = None;
++                    }
+                 }
+-
+-                let _ = self
+-                    .event_tx
+-                    .send(MediaEvent::RecordingStarted { session_id });
+             }
+
+             MediaCommand::StopRecording { session_id, reply } => {
+-                let result = {
++                let task = {
+                     let mut sessions = self.sessions.write();
+                     if let Some(sess) = sessions.get_mut(&session_id) {
+-                        let mut guard = sess.recorder.write();
+-                        if let Some(ref mut rec) = *guard {
+-                            let path = rec.path.clone();
+-                            let _ = rec.finalize();
+-                            let file_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+-                            let duration_secs = sess
+-                                .recording_started_at
+-                                .take()
+-                                .map(|t| t.elapsed().as_secs_f64())
+-                                .unwrap_or(0.0);
+-                            *guard = None;
+-                            Some(RecordResult {
+-                                path,
+-                                duration_secs,
+-                                file_size,
+-                            })
+-                        } else {
+-                            sess.recording_started_at = None;
++                        sess.recording_paused.store(true, Ordering::Release);
++                        if sess
++                            .recording_finalization_started
++                            .swap(true, Ordering::AcqRel)
++                        {
+                             None
++                        } else {
++                            Some(RecordingLifecycleTask::Finalize {
++                                session_id: session_id.clone(),
++                                recorder: Arc::clone(&sess.recorder),
++                                capture: sess
++                                    .bridge
++                                    .as_ref()
++                                    .and_then(|bridge| bridge.recorder_capture()),
++                                recording_finalization_started: Arc::clone(
++                                    &sess.recording_finalization_started,
++                                ),
++                                duration_secs: sess
++                                    .recording_started_at
++                                    .take()
++                                    .map(|started| started.elapsed().as_secs_f64())
++                                    .unwrap_or(0.0),
++                                reply,
++                                event_tx: self.event_tx.clone(),
++                            })
+                         }
+                     } else {
+                         None
+                     }
+                 };
+-                if let Some(result) = result {
+-                    info!(session_id = %session_id, path = %result.path, "Recording stopped");
+-                    if let Some(reply_tx) = reply {
+-                        let _ = reply_tx.send(result.clone());
+-                    }
+-                    let _ = self
+-                        .event_tx
+-                        .send(MediaEvent::RecordingStopped { session_id, result });
++                if let Some(task) = task {
++                    spawn_recording_finalizer(task);
+                 }
+             }
+
+             MediaCommand::PauseRecording { session_id } => {
+                 let sessions = self.sessions.read();
+                 if let Some(sess) = sessions.get(&session_id) {
+-                    use std::sync::atomic::Ordering;
+                     // Release ensures the bridge forwarding thread sees the flag
+                     // before the RecordingPaused event reaches subscribers.
+                     sess.recording_paused.store(true, Ordering::Release);
+-                    if let Some(recorder) = sess.recorder.write().as_mut() {
++                    if let Some(mut guard) = sess.recorder.try_write()
++                        && let Some(recorder) = guard.as_mut()
++                    {
+                         let _ = recorder.record_control_event("paused");
+                     }
+                 }
+@@ -586,9 +806,10 @@ impl EngineCore {
+             MediaCommand::ResumeRecording { session_id } => {
+                 let sessions = self.sessions.read();
+                 if let Some(sess) = sessions.get(&session_id) {
+-                    use std::sync::atomic::Ordering;
+                     sess.recording_paused.store(false, Ordering::Release);
+-                    if let Some(recorder) = sess.recorder.write().as_mut() {
++                    if let Some(mut guard) = sess.recorder.try_write()
++                        && let Some(recorder) = guard.as_mut()
++                    {
+                         let _ = recorder.record_control_event("resumed");
+                     }
+                 }
+@@ -602,9 +823,12 @@ impl EngineCore {
+                 leg_id,
+                 digits,
+             } => {
+-                let Some((bridge, endpoint)) = self.sessions.read().get(&session_id).and_then(|s| {
+-                    s.bridge.clone().map(|b| (b, s.endpoint_for_leg(&leg_id)))
+-                }) else {
++                let Some((bridge, endpoint)) = self
++                    .sessions
++                    .read()
++                    .get(&session_id)
++                    .and_then(|s| s.bridge.clone().map(|b| (b, s.endpoint_for_leg(&leg_id))))
++                else {
+                     debug!(session_id = %session_id, leg = %leg_id, digits = %digits, "SendDtmf: no bridge, skipped");
+                     return Ok(());
+                 };
+@@ -718,12 +942,16 @@ impl EngineCore {
+                         clock_rate: 8000,
+                         channels: 1,
+                     };
+-                    let cc = sess.caller_codec_info.first().cloned().unwrap_or_else(|| {
+-                        fallback.clone()
+-                    });
+-                    let ce = sess.callee_codec_info.first().cloned().unwrap_or_else(|| {
+-                        fallback
+-                    });
++                    let cc = sess
++                        .caller_codec_info
++                        .first()
++                        .cloned()
++                        .unwrap_or_else(|| fallback.clone());
++                    let ce = sess
++                        .callee_codec_info
++                        .first()
++                        .cloned()
++                        .unwrap_or_else(|| fallback);
+                     (bridge, cc, ce)
+                 };
+
+@@ -799,9 +1027,12 @@ impl EngineCore {
+                     .send(MediaEvent::LegUnheld { session_id, leg_id });
+             }
+             MediaCommand::MuteLeg { session_id, leg_id } => {
+-                let Some((bridge, endpoint)) = self.sessions.read().get(&session_id).and_then(|s| {
+-                    s.bridge.clone().map(|b| (b, s.endpoint_for_leg(&leg_id)))
+-                }) else {
++                let Some((bridge, endpoint)) = self
++                    .sessions
++                    .read()
++                    .get(&session_id)
++                    .and_then(|s| s.bridge.clone().map(|b| (b, s.endpoint_for_leg(&leg_id))))
++                else {
+                     debug!(session_id = %session_id, leg = %leg_id, "MuteLeg: no bridge (signaling-layer hold)");
+                     return Ok(());
+                 };
+@@ -809,9 +1040,12 @@ impl EngineCore {
+                 debug!(session_id = %session_id, leg = %leg_id, "MuteLeg: bridge output muted");
+             }
+             MediaCommand::UnmuteLeg { session_id, leg_id } => {
+-                let Some((bridge, endpoint)) = self.sessions.read().get(&session_id).and_then(|s| {
+-                    s.bridge.clone().map(|b| (b, s.endpoint_for_leg(&leg_id)))
+-                }) else {
++                let Some((bridge, endpoint)) = self
++                    .sessions
++                    .read()
++                    .get(&session_id)
++                    .and_then(|s| s.bridge.clone().map(|b| (b, s.endpoint_for_leg(&leg_id))))
++                else {
+                     debug!(session_id = %session_id, leg = %leg_id, "UnmuteLeg: no bridge (signaling-layer hold)");
+                     return Ok(());
+                 };
+@@ -828,7 +1062,7 @@ impl EngineCore {
+     ///
+     /// Shared by `DestroySession` dispatch and the periodic reaper so both
+     /// paths produce identical cleanup.
+-    async fn finalize_session_resources(mut sess: session::MediaSession) {
++    async fn finalize_session_resources(&self, mut sess: session::MediaSession) {
+         // Stop playback tracks (drain avoids cloning each FileTrack).
+         for (_, track) in sess.playback_tracks.drain() {
+             track.stop().await;
+@@ -839,13 +1073,27 @@ impl EngineCore {
+             sess.mcu.switch_to_bridge().await.ok();
+         }
+
+-        // Finalize recorder.
++        sess.recording_paused.store(true, Ordering::Release);
++        if !sess
++            .recording_finalization_started
++            .swap(true, Ordering::AcqRel)
+         {
+-            let mut guard = sess.recorder.write();
+-            if let Some(ref mut rec) = *guard {
+-                let _ = rec.finalize();
+-            }
+-            *guard = None;
++            spawn_recording_finalizer(RecordingLifecycleTask::Finalize {
++                session_id: sess.session_id.clone(),
++                recorder: Arc::clone(&sess.recorder),
++                capture: sess
++                    .bridge
++                    .as_ref()
++                    .and_then(|bridge| bridge.recorder_capture()),
++                recording_finalization_started: Arc::clone(&sess.recording_finalization_started),
++                duration_secs: sess
++                    .recording_started_at
++                    .take()
++                    .map(|started| started.elapsed().as_secs_f64())
++                    .unwrap_or(0.0),
++                reply: None,
++                event_tx: self.event_tx.clone(),
++            });
+         }
+
+         // Drop the bridge reference. BridgePeer::Drop calls close_sync() which
+@@ -904,7 +1152,7 @@ impl EngineCore {
+         // Step 3: async cleanup outside the lock.
+         let count = stale.len();
+         for (sid, sess) in stale_ids.into_iter().zip(stale) {
+-            Self::finalize_session_resources(sess).await;
++            self.finalize_session_resources(sess).await;
+             let _ = self
+                 .event_tx
+                 .send(MediaEvent::SessionDestroyed { session_id: sid });
+@@ -913,8 +1161,7 @@ impl EngineCore {
+         let remaining = self.sessions.read().len();
+         warn!(
+             reaped = count,
+-            remaining,
+-            "MediaEngine reaper swept stale sessions"
++            remaining, "MediaEngine reaper swept stale sessions"
+         );
+     }
+ }
+@@ -1156,6 +1403,57 @@ mod tests {
+         let _ = std::fs::remove_file(&tmp);
+     }
+
++    #[tokio::test]
++    async fn test_recording_stop_does_not_block_engine_on_busy_recorder() {
++        let (engine, mut event_rx) = setup_engine();
++        create_session(&engine, "rec-stop-nonblocking").await;
++        let _ = event_rx.recv().await;
++
++        let recorder: Arc<PRwLock<Option<crate::media::recorder::Recorder>>> =
++            Arc::new(PRwLock::new(None));
++        engine
++            .send(MediaCommand::AttachRecorder {
++                session_id: "rec-stop-nonblocking".into(),
++                recorder: Arc::clone(&recorder),
++                paused: Arc::new(AtomicBool::new(false)),
++            })
++            .unwrap();
++        engine
++            .send(MediaCommand::ResumeRecording {
++                session_id: "rec-stop-nonblocking".into(),
++            })
++            .unwrap();
++        let _ = event_rx.recv().await;
++
++        let recorder_guard = recorder.write();
++        engine
++            .send(MediaCommand::StopRecording {
++                session_id: "rec-stop-nonblocking".into(),
++                reply: None,
++            })
++            .unwrap();
++        engine
++            .send(MediaCommand::PauseRecording {
++                session_id: "rec-stop-nonblocking".into(),
++            })
++            .unwrap();
++
++        let pause_observed = tokio::time::timeout(Duration::from_millis(250), async {
++            loop {
++                let event = event_rx.recv().await.expect("event channel closed");
++                if matches!(event, MediaEvent::RecordingPaused { .. }) {
++                    break;
++                }
++            }
++        })
++        .await;
++        assert!(
++            pause_observed.is_ok(),
++            "engine command loop blocked on recorder lock"
++        );
++        drop(recorder_guard);
++    }
++
+     #[tokio::test]
+     async fn test_recording_pause_resume() {
+         let (engine, mut event_rx) = setup_engine();
+diff --git a/src/media/engine/session.rs b/src/media/engine/session.rs
+index 63948b0042554c84a6fc143090eb2c5ff06707df..0c1fdb55854d3df839e41c4f3dfaf5a45544e971 100644
+--- a/src/media/engine/session.rs
++++ b/src/media/engine/session.rs
+@@ -56,6 +56,10 @@ pub struct MediaSession {
+     /// compute duration in `StopRecording` (fixes the previous duration=0 bug).
+     pub recording_started_at: Option<std::time::Instant>,
+
++    /// Set before recording finalization is scheduled so StopRecording,
++    /// DestroySession, and the reaper cannot enqueue duplicate disk work.
++    pub recording_finalization_started: Arc<AtomicBool>,
++
+     // ── Playback ────────────────────────────────────────────────────────
+     /// Active playback tracks keyed by caller-supplied `track_id`.
+     pub playback_tracks: HashMap<String, FileTrack>,
+@@ -89,6 +93,7 @@ impl MediaSession {
+             recorder: Arc::new(RwLock::new(None)),
+             recording_paused: Arc::new(AtomicBool::new(false)),
+             recording_started_at: None,
++            recording_finalization_started: Arc::new(AtomicBool::new(false)),
+             playback_tracks: HashMap::new(),
+             bridge_playback_track_ids: Vec::new(),
+             mcu,
 diff --git a/src/media/forwarding_track.rs b/src/media/forwarding_track.rs
-index 62d32f9..efc9f41 100644
+index 62d32f940c981532d693d6c68bc867fbaf157dd9..efc9f41b6e9865ca98e11ac8c2e9b8899a437195 100644
 --- a/src/media/forwarding_track.rs
 +++ b/src/media/forwarding_track.rs
 @@ -212,6 +212,7 @@ impl ForwardingTrack {
@@ -582,12 +1629,12 @@ index 62d32f9..efc9f41 100644
                  trace!(track_id = %self.track_id, "ForwardingTrack recorder channel unavailable: {e}");
              }
 diff --git a/src/media/recorder.rs b/src/media/recorder.rs
-index 326fe3d..77003cd 100644
+index 326fe3df2e015d0baca0e9acabf86b4e5efd11dd..bf95cba3978b3ccab922014c7ddab052a0213405 100644
 --- a/src/media/recorder.rs
 +++ b/src/media/recorder.rs
 @@ -201,7 +201,13 @@ impl Recorder {
      }
- 
+
      pub fn add_drop_counter(&mut self, counter: Arc<AtomicU64>) {
 -        self.drop_counters.push(counter);
 +        if !self
@@ -598,10 +1645,31 @@ index 326fe3d..77003cd 100644
 +            self.drop_counters.push(counter);
 +        }
      }
- 
+
      fn profile_for_leg(&self, leg: Leg) -> &NegotiatedLegProfile {
+@@ -1021,7 +1027,10 @@ impl Recorder {
+
+ impl Drop for Recorder {
+     fn drop(&mut self) {
+-        let _ = self.finalize();
++        // Finalization can perform codec, filesystem, and spool I/O. It is
++        // always scheduled explicitly by MediaEngine's bounded lifecycle
++        // executor so dropping a session can never block signaling or RTP.
++        trace!(path = %self.path, "Recorder dropped without synchronous finalization");
+     }
+ }
+
+@@ -1340,6 +1349,8 @@ mod tests {
+             written_samples: 0,
+             writer: Box::new(TestWriter::new()),
+             ptime: Duration::from_millis(20),
++            spool: None,
++            drop_counters: Vec::new(),
+         }
+     }
+
 diff --git a/src/metrics.rs b/src/metrics.rs
-index 7535690..9e3fc21 100644
+index 75356901aedfefbf0ab0efe06d79027cd3d3675e..9e3fc21b7e966b88b072b91b00b9b28d70cee2e3 100644
 --- a/src/metrics.rs
 +++ b/src/metrics.rs
 @@ -240,6 +240,23 @@ pub mod media {
@@ -626,10 +1694,10 @@ index 7535690..9e3fc21 100644
 +        metrics::gauge!("rustpbx_media_recording_worker_queue_capacity").set(queue_capacity as f64);
 +    }
  }
- 
+
  pub mod system {
 diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
-index 04f0457..307d49e 100644
+index 04f0457d603c42fcd0f0f2b147a90a06a55cdf90..77bd96c468eab8c7223736c4f23281f0bda7a323 100644
 --- a/src/proxy/proxy_call/sip_session.rs
 +++ b/src/proxy/proxy_call/sip_session.rs
 @@ -4011,6 +4011,9 @@ impl SipSession {
@@ -640,7 +1708,7 @@ index 04f0457..307d49e 100644
 +                self.server.proxy_config.media_recording_channel_capacity,
 +            )
              .with_cname(self.server.rtc_cname.clone());
- 
+
          if let (Some(start), Some(end)) = (
 @@ -5622,10 +5625,12 @@ impl SipSession {
              caller_profile.clone(),
@@ -680,7 +1748,7 @@ index 04f0457..307d49e 100644
 +        recording_channel_capacity: usize,
      ) -> Result<Arc<crate::media::forwarding_track::ForwardingTrack>> {
          use crate::media::forwarding_track::ForwardingTrack;
- 
+
 @@ -6154,22 +6163,21 @@ impl SipSession {
          }
          let recorder_tx = {
@@ -722,15 +1790,85 @@ index 04f0457..307d49e 100644
 +                    self.server.proxy_config.media_recording_channel_capacity,
 +                )
                  .with_cname(self.server.rtc_cname.clone());
- 
+
              // Configure the non-WebRTC bridge side's transport mode to match the leg using it.
+@@ -7528,10 +7539,8 @@ impl SipSession {
+         };
+
+         // Delegate recorder creation (with leg profiles) to the engine.
+-        // Use a oneshot to wait until the Recorder is visible inside the
+-        // shared Arc so the bridge's forwarding loop won't skip the first
+-        // few packets.
+-        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
++        // Recording starts on the bounded lifecycle executor. Call setup does
++        // not wait for filesystem or spool availability.
+         if let Err(e) =
+             self.server
+                 .media_engine
+@@ -7553,12 +7562,11 @@ impl SipSession {
+                     },
+                     caller_profile,
+                     callee_profile,
+-                    reply: Some(reply_tx),
++                    reply: None,
+                 })
+         {
+             warn!(session_id = %self.context.session_id, error = %e, "Failed to send StartRecording to engine");
+         }
+-        let _ = reply_rx.await;
+
+         self.media.recording_state = RecordingPhase::Recording {
+             path: path.to_string(),
+@@ -7645,38 +7653,20 @@ impl SipSession {
+             }
+             RecordingPhase::Idle => return Ok(()),
+         };
+-        // Duration is tracked locally (RecordingPhase.started_at).
+         let duration = prev.elapsed().unwrap_or_default();
+-
+-        // Delegate recorder finalization to the engine (it owns the Recorder).
+-        // Use a oneshot channel to get the actual file_size after finalize.
+-        let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
++        // Finalization is deliberately fire-and-forget. A stalled recorder or
++        // filesystem must never delay SIP BYE, cleanup, or RTP forwarding.
+         if let Err(e) =
+             self.server
+                 .media_engine
+                 .send(crate::media::engine::MediaCommand::StopRecording {
+                     session_id: self.context.session_id.clone(),
+-                    reply: Some(reply_tx),
++                    reply: None,
+                 })
+         {
+             warn!(session_id = %self.context.session_id, error = %e, "Failed to send StopRecording to engine");
+         }
+-        let file_size = match reply_rx.await {
+-            Ok(result) => result.file_size,
+-            Err(_) => std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+-        };
+-        info!(path = %path, duration = ?duration, file_size, "Recording stopped");
+-
+-        let bridge = self.app_event_bridge.read();
+-        if let Some(ref handle) = *bridge {
+-            let _ = handle.send_app_event(crate::call::app::ControllerEvent::RecordingComplete(
+-                crate::call::app::RecordingInfo {
+-                    path: path.clone(),
+-                    duration,
+-                    size_bytes: file_size,
+-                },
+-            ));
+-        }
++        info!(path = %path, duration = ?duration, "Recording finalization scheduled");
+         Ok(())
+     }
+
 diff --git a/src/proxy/server.rs b/src/proxy/server.rs
-index fbf7285..a26e885 100644
+index fbf7285664953b99817236d8fda36d76e43b6f50..a26e885b0045f41fe4bd55043c90170001391813 100644
 --- a/src/proxy/server.rs
 +++ b/src/proxy/server.rs
 @@ -700,6 +700,28 @@ impl SipServerBuilder {
          }
- 
+
          let endpoint_local_addrs = transport_layer.get_addrs();
 +        if !(1..=65_536).contains(&config.media_recording_channel_capacity) {
 +            return Err(anyhow!(
@@ -757,3 +1895,43 @@ index fbf7285..a26e885 100644
          let endpoint_capacity = rsipstack::transaction::EndpointCapacityLimits::try_new(
              config.sip_max_active_transactions,
              config.sip_max_finished_transactions,
+diff --git a/src/proxy/tests/common.rs b/src/proxy/tests/common.rs
+index bda0f09d254ace1db8626efd5e7ed47d79865a4f..1f924eadc8840c2ea5a67ac44a0abc7cc46563bf 100644
+--- a/src/proxy/tests/common.rs
++++ b/src/proxy/tests/common.rs
+@@ -191,6 +191,7 @@ pub async fn create_transaction(
+         None,
+         None,
+         None,
++        rsipstack::transaction::endpoint::EndpointCapacityLimits::default(),
+     );
+
+     let key = TransactionKey::from_request(&request, TransactionRole::Server).unwrap();
+diff --git a/src/proxy/tests/test_auth.rs b/src/proxy/tests/test_auth.rs
+index 24bba4b509bd98eba0b8e9061a6262eb4d6e1c0b..36c325cb6250d6ae70f20adeb90f86433b34d9f2 100644
+--- a/src/proxy/tests/test_auth.rs
++++ b/src/proxy/tests/test_auth.rs
+@@ -828,6 +828,7 @@ async fn test_auth_no_credentials() {
+         None,
+         None,
+         None,
++        rsipstack::transaction::endpoint::EndpointCapacityLimits::default(),
+     );
+
+     let key = TransactionKey::from_request(&request, TransactionRole::Server).unwrap();
+@@ -859,6 +860,7 @@ async fn test_auth_bypass_for_non_invite_register() {
+         None,
+         None,
+         None,
++        rsipstack::transaction::endpoint::EndpointCapacityLimits::default(),
+     );
+
+     let key = TransactionKey::from_request(&request, TransactionRole::Server).unwrap();
+@@ -911,6 +913,7 @@ async fn test_auth_disabled_user() {
+         None,
+         None,
+         None,
++        rsipstack::transaction::endpoint::EndpointCapacityLimits::default(),
+     );
+
+     let key = TransactionKey::from_request(&request, TransactionRole::Server).unwrap();

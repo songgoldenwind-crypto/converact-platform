@@ -333,3 +333,26 @@ SHA-256、operator 与独立 QA 双签，才允许把对应状态从 `not_run` �
 不能因源码已有提交而视作生产制品。真实 PostgreSQL/NATS 多节点、定制镜像、Tinode/LiveKit/TURN/
 Egress、双 Windows、RustPBX/SIP/RTP/PSTN、商业通知、真实 Provider、生产对象存储、目标 Kubernetes、
 单机 frontier、Cell-10K 和 MIX-100K 继续为 `not_run`。
+
+## 16. RustPBX 本机构建、SIPp 与存储故障隔离复验（2026-07-18）
+
+本节覆盖后续工作树中的固定 RustPBX 原生构建、无 PSTN SIP 信令验收，以及“录音/录像存储故障
+不得中断正在进行的电话或视频”这一硬约束。它补充第 15 节，不把 SIP 信令通过扩大解释为 RTP、
+PSTN、TURN、真实 Egress 或容量结论。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 固定 RustPBX 原生构建 | `passed` | RustPBX `6c49ee76baa54fdbf8f98020cc9bee158c7c15de`、rsipstack `8318e97b1170de4e5245b120afec1cdf53e3d716`、锁定 Cargo 图和完整补丁队列在 arm64 完成 release build；运行镜像 ID `sha256:89ca9e40712e8447314b77c310fede96517b77d64af79fbdea25fa83ba31c9dc` |
+| 无 PSTN SIPp 3.7.7 | `passed_controlled_local` | 12/12 场景、19 个呼叫、Router delta 19、CDR delta 19；覆盖 UDP/TCP、接听/挂断、早取消、486、503、无应答、TCP 重连、UDP 重传、10 路并发和 REGISTER Digest 正反例；SIPp SHA-256 为 `8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef` |
+| LiveKit 存储隔离 | `implemented_controlled` | LiveKit Server 部署图只依赖 Redis，不依赖 Egress/MinIO/S3；transfer accept 先将 call 置为 active、广播 `call.answered` 并立即返回 `call_status=active`、房间/token 与 `recording_status=scheduled`，录音授权查询和 Egress 启动均在响应路径外执行；模拟 Egress 延迟 800 ms 后返回 503 时 accept 仍在 300 ms 内完成，后台发送脱敏 `call.recording_failed` |
+| RustPBX 存储隔离 | `implemented_compiled` | RTP capture 使用有界 `try_send`，编解码/磁盘写入位于独立 worker；录制创建、停止和最终落盘位于固定大小的有界 lifecycle executor，SIP start/stop 不等待磁盘，Pause/Resume 只使用 `try_write`；收尾有界等待已接收样本并只尝试非阻塞取锁，超时仅使录音失败；异步启动前的样本丢失也会补绑计数器并进入 manifest；对象上传是反向依赖 RustPBX 的独立 sidecar；首次本地写失败会熔断 capture，后续只计丢弃；存在 dropped sample 的 manifest 强制失败为 `recording_samples_dropped`，不能进入可交付状态 |
+
+首次 SIPp 运行中 10 个 INVITE 场景未收到响应。证据显示 RustPBX `ensure_user` 在 Router 前拒绝未知
+`sipp` 用户；为 `172.30.44.20` 创建真实 inbound trunk 并从 loopback 热加载后，最小 route-reject、
+answer-udp 和完整 12 场景依次通过。另一个环境问题是 Docker Desktop 普通 CLI socket 可查询但会
+把新容器卡在 `Created`；验收显式使用 `docker.raw.sock` 后消失。这两项均未通过关闭认证或改弱生产
+策略规避。
+
+当前仍为 `not_run`：真实 RTP 音频包连续性、物理音频、PSTN、LiveKit 双浏览器/TURN/Egress、真实
+对象存储中断与恢复、录音 spool 水位/磁盘故障实机演练、目标 Kubernetes、多节点故障及任何单机或
+MIX-100K 容量结论。`capacity_claim` 继续为 `none`。

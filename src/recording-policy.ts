@@ -16,7 +16,7 @@ export async function shouldRecordCall(
   if (!tenantId) return true;
   try {
     const tracker = new ConsentTracker(pg);
-    return tracker.shouldRecord(callSessionId, tenantId);
+    return await tracker.shouldRecord(callSessionId, tenantId);
   } catch (error) {
     console.warn('[recording-policy] consent lookup failed, defaulting to record:', error);
     return true;
@@ -24,11 +24,15 @@ export async function shouldRecordCall(
 }
 
 export function readEgressConfigFromEnv() {
+  const requestTimeoutSeconds = Number(process.env.LIVEKIT_EGRESS_REQUEST_TIMEOUT_SECONDS || 3);
   return {
     livekitUrl: process.env.LIVEKIT_URL || 'ws://localhost:7880',
     livekitApiKey: process.env.LIVEKIT_API_KEY || '',
     livekitApiSecret: process.env.LIVEKIT_API_SECRET || '',
     minioEndpoint: process.env.MINIO_ENDPOINT,
-    minioBucket: process.env.MINIO_BUCKET || 'recordings'
+    minioBucket: process.env.MINIO_BUCKET || 'recordings',
+    requestTimeoutSeconds: Number.isFinite(requestTimeoutSeconds)
+      ? Math.min(30, Math.max(1, Math.floor(requestTimeoutSeconds)))
+      : 3
   };
 }

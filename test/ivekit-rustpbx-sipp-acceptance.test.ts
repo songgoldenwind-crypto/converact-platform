@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
 import {
@@ -10,8 +11,19 @@ import {
   parseSippStatistics,
   renderSippCallIdTemplate,
   renderRustPbxSippJUnit,
+  selectDefaultSippScenarioDirectory,
   selectRustPbxSippScenarios
 } from '../scripts/ivekit-rustpbx-sipp-acceptance.js';
+
+test('RustPBX SIPp acceptance ignores an incomplete delivery scenario directory', () => {
+  const delivery = fileURLToPath(new URL('../sipp/', import.meta.url));
+  const repository = fileURLToPath(new URL(
+    '../services/ivekit-service/acceptance/sipp/',
+    import.meta.url
+  ));
+
+  assert.equal(selectDefaultSippScenarioDirectory(delivery, repository), repository);
+});
 
 test('RustPBX SIPp acceptance pins tools and covers the complete signaling matrix', () => {
   assert.match(ALPINE_ACCEPTANCE_IMAGE, /^alpine@sha256:[a-f0-9]{64}$/);

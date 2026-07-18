@@ -1,6 +1,7 @@
 import { one, parseJson } from '../../db.js';
 import {
   broadcastCallAnswered,
+  broadcastCallRecordingFailed,
   broadcastCallEnded,
   broadcastCallIncoming,
   broadcastOutboundTaskUpdated,
@@ -684,14 +685,7 @@ export async function acceptTransferCommand(
     session.metadata && typeof session.metadata === 'object' && !Array.isArray(session.metadata)
       ? (session.metadata as Record<string, unknown>)
       : {};
-  let recording = null;
-  if (await shouldRecordCall(pg, callSessionId, metadata)) {
-    const egress = new EgressManager(db, readEgressConfigFromEnv());
-    recording = await egress.startRecording(tenantId, callSessionId, room.room_name, {
-      format: 'ogg',
-      hasVideo: false
-    });
-  }
+  const recordingExplicitlyDenied = metadata.recording_consent === 'denied';
 
   broadcastCallAnswered(tenantId, {
     call_session_id: callSessionId,
@@ -699,14 +693,74 @@ export async function acceptTransferCommand(
     room_name: room.room_name
   });
 
+  if (!recordingExplicitlyDenied) {
+    scheduleCallRecording(db, pg, tenantId, callSessionId, room.room_name, metadata);
+  }
+
   return {
     data: {
       livekit: token,
       room_name: room.room_name,
       call_session_id: callSessionId,
       seat_id: seatId,
-      recording
+      call_status: 'active',
+      recording: null,
+      recording_failure: null,
+      recording_status: recordingExplicitlyDenied ? 'not_requested' : 'scheduled'
     }
+  };
+}
+
+function scheduleCallRecording(
+  db: unknown,
+  pg: ReturnType<typeof getPostgresOrNull>,
+  tenantId: string,
+  callSessionId: string,
+  roomName: string,
+  metadata: Record<string, unknown>
+): void {
+  void (async () => {
+    if (!await shouldRecordCall(pg, callSessionId, metadata)) return;
+    const egress = new EgressManager(db, readEgressConfigFromEnv());
+    await egress.startRecording(tenantId, callSessionId, roomName, {
+      format: 'ogg',
+      hasVideo: false
+    });
+  })().catch((error) => {
+    const failure = safeRecordingStartFailure(error);
+    console.warn(
+      `[call-center] recording start failed without interrupting call ${callSessionId}: ${failure.code}`
+    );
+    broadcastCallRecordingFailed(tenantId, {
+      call_session_id: callSessionId,
+      room_name: roomName,
+      failure_code: failure.code,
+      ...(failure.recording_id ? { recording_id: failure.recording_id } : {})
+    });
+  });
+}
+
+const SAFE_RECORDING_START_FAILURE_CODES = new Set([
+  'livekit_egress_admission_activation_failed',
+  'livekit_egress_compensation_failed',
+  'livekit_egress_persistence_failed',
+  'livekit_egress_reservation_failed',
+  'livekit_egress_start_failed',
+  'recording_start_failed'
+]);
+
+function safeRecordingStartFailure(error: unknown): { code: string; recording_id?: string } {
+  const candidate = error && typeof error === 'object'
+    ? error as { code?: unknown; recording_id?: unknown }
+    : {};
+  const rawCode = String(candidate.code || 'recording_start_failed');
+  const code = SAFE_RECORDING_START_FAILURE_CODES.has(rawCode)
+    ? rawCode
+    : 'recording_start_failed';
+  const recordingId = String(candidate.recording_id || '');
+  return {
+    code,
+    ...(/^[A-Za-z0-9_-]{1,128}$/.test(recordingId) ? { recording_id: recordingId } : {})
   };
 }
 

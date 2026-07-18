@@ -484,7 +484,7 @@ index 0000000..8f0cb82
 +    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
 +    file.write_all(bytes)?;
 +    file.write_all(b"\n")?;
-+    file.sync_all()
++    Ok(file.sync_all()?)
 +}
 +
 +fn sync_directory(path: &Path) -> Result<()> {

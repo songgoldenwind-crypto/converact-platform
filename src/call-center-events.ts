@@ -51,6 +51,19 @@ export function broadcastCallAnswered(
   wsBroadcast(tenantId, 'call.answered', payload);
 }
 
+export function broadcastCallRecordingFailed(
+  tenantId: string,
+  payload: {
+    call_session_id: string;
+    room_name: string;
+    failure_code: string;
+    recording_id?: string;
+  }
+): void {
+  if (!tenantId) return;
+  wsBroadcast(tenantId, 'call.recording_failed', payload);
+}
+
 export function broadcastCallEnded(
   tenantId: string,
   payload: {

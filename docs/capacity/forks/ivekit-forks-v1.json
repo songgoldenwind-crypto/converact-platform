@@ -65,7 +65,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch",
-          "sha256": "ec8c87c87558ccd7a2aa85ac3156894032999382810c09de1ce2e06f5c170ecb",
+          "sha256": "ca2528e57c6c6cb730a68a4abef859806b6772465cbc019f0802404e0bce4704",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
           "purpose": "Replace per-INVITE control-plane routing calls with signed, short-lived, tenant-fenced HMAC route snapshots and an in-memory lookup."
         },
@@ -83,7 +83,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-spool.patch",
-          "sha256": "e294e812b007e76b62fad53cb21d6537329105a170a1280a973c52eb2b4dbc19",
+          "sha256": "4ee41d5762b4295f67c4cfb985b233485e3f34ce4f0468fe5532d3039ea2fd76",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-owner-epoch.patch",
           "purpose": "Rotate bounded local encoded recording segments, publish durable owner-fenced manifests, and keep legacy HTTP/S3 upload outside iveKit spool mode."
         },
@@ -95,9 +95,9 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch",
-          "sha256": "64def70bf5dbc706771bc6bb14c75397f2de1bd0bc0b9daef9147fc00517dad9",
+          "sha256": "9a7508bcf1a5b4af0904e47cd78e108e4e23c0e66d66606462ee096f9fc33e5e",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-sip-capacity.patch",
-          "purpose": "Move recording codec and disk work out of RTP forwarding loops through profile-tunable bounded capture queues and explicit low-cardinality drop telemetry."
+          "purpose": "Move recording codec and disk work out of RTP forwarding loops through profile-tunable bounded capture queues, bounded pre-finalization draining, one-shot disk-failure circuit breaking, and explicit low-cardinality drop telemetry."
         }
       ],
       "protocols": [

@@ -238,7 +238,21 @@ export class PostgresRecordingManifestStore {
                 COUNT(*) FILTER (WHERE segment.state = 'uploaded')::integer AS uploaded_count,
                 COUNT(DISTINCT segment.sequence)::integer AS distinct_sequences,
                 MIN(segment.sequence)::integer AS first_sequence,
-                MAX(segment.sequence)::integer AS last_sequence
+                MAX(segment.sequence)::integer AS last_sequence,
+                COALESCE((
+                  SELECT SUM(
+                    CASE
+                      WHEN event.metadata->>'dropped_samples' ~ '^[0-9]+$'
+                        THEN (event.metadata->>'dropped_samples')::numeric
+                      ELSE 0
+                    END
+                  )
+                  FROM ivekit_recording_segment_events event
+                  WHERE event.tenant_id = $1
+                    AND event.manifest_id = $2
+                    AND event.owner_epoch = $3::numeric
+                    AND event.event_type = 'sample_dropped'
+                ), 0)::text AS dropped_samples
          FROM ivekit_recording_segments segment
          WHERE segment.tenant_id = $1
            AND segment.manifest_id = $2
@@ -247,6 +261,7 @@ export class PostgresRecordingManifestStore {
         [input.tenant_id, input.manifest_id, input.owner_epoch]
       );
       const summary = summaryResult.rows[0] || {};
+      const droppedSamples = Number(summary.dropped_samples || 0);
       const exact = Number(summary.segment_count) === input.segment_count &&
         Number(summary.uploaded_count) === input.segment_count &&
         Number(summary.distinct_sequences) === input.segment_count &&
@@ -261,6 +276,45 @@ export class PostgresRecordingManifestStore {
         );
       }
       const endedAt = input.ended_at.toISOString();
+      const processing = {
+        ...manifest.processing,
+        segment_count: input.segment_count,
+        last_segment_sequence: input.last_segment_sequence,
+        ...(droppedSamples > 0 ? { dropped_samples: droppedSamples } : {})
+      };
+      if (manifest.state === 'failed' && manifest.failure_code === 'recording_samples_dropped') {
+        if (manifest.ended_at === endedAt &&
+          manifest.processing.segment_count === input.segment_count &&
+          manifest.processing.last_segment_sequence === input.last_segment_sequence &&
+          manifest.processing.dropped_samples === droppedSamples) {
+          return manifest;
+        }
+        throw new RecordingManifestStoreError('recording_manifest_completion_conflict');
+      }
+      if (droppedSamples > 0) {
+        const failed = await pg.query<Record<string, unknown>>(
+          `UPDATE ivekit_recording_manifests
+           SET state = 'failed', ended_at = $4,
+               object_ref = $5, processing = $6::jsonb,
+               failure_code = 'recording_samples_dropped', updated_at = $7
+           WHERE tenant_id = $1 AND id = $2 AND owner_epoch = $3::numeric
+             AND state IN ('uploading', 'uploaded_unverified')
+           RETURNING *`,
+          [
+            input.tenant_id,
+            input.manifest_id,
+            input.owner_epoch,
+            endedAt,
+            `recording-intake://${input.manifest_id}`,
+            JSON.stringify(processing),
+            input.now.toISOString()
+          ]
+        );
+        if (!failed.rows[0]) {
+          throw new RecordingManifestStoreError('recording_manifest_completion_conflict');
+        }
+        return decodeManifest(failed.rows[0]);
+      }
       if (manifest.state === 'uploaded_unverified') {
         if (manifest.ended_at === endedAt &&
           manifest.processing.segment_count === input.segment_count &&
@@ -272,11 +326,6 @@ export class PostgresRecordingManifestStore {
       if (manifest.state !== 'uploading') {
         throw new RecordingManifestStoreError('recording_manifest_completion_conflict');
       }
-      const processing = {
-        ...manifest.processing,
-        segment_count: input.segment_count,
-        last_segment_sequence: input.last_segment_sequence
-      };
       const updated = await pg.query<Record<string, unknown>>(
         `UPDATE ivekit_recording_manifests
          SET state = 'uploaded_unverified', ended_at = $4,
@@ -361,6 +410,19 @@ export class PostgresRecordingManifestStore {
     created: boolean;
   }> {
     return withPgTenant(this.pg, input.tenant_id, async (pg) => {
+      const manifestResult = await pg.query<Record<string, unknown>>(
+        `SELECT manifest.*
+         FROM ivekit_recording_manifests manifest
+         WHERE manifest.tenant_id = $1 AND manifest.id = $2
+         FOR UPDATE`,
+        [input.tenant_id, input.manifest_id]
+      );
+      const manifest = manifestResult.rows[0]
+        ? decodeManifest(manifestResult.rows[0])
+        : null;
+      if (!manifest || manifest.state !== 'uploading' || manifest.owner_epoch !== input.owner_epoch) {
+        throw new RecordingManifestStoreError('recording_segment_event_manifest_closed');
+      }
       const inserted = await pg.query<Record<string, unknown>>(
         `INSERT INTO ivekit_recording_segment_events
           (id, tenant_id, manifest_id, segment_id, owner_epoch, event_sequence,

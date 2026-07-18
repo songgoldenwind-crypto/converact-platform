@@ -562,7 +562,10 @@ export class RustPbxRecordingSpoolWorker {
         { 'content-type': 'application/json' },
         Buffer.from(JSON.stringify(completion))
       );
-      if (response.id !== record.recording_id || response.state !== 'uploaded_unverified') {
+      const uploaded = response.state === 'uploaded_unverified';
+      const droppedSamplesFailed = response.state === 'failed'
+        && response.failure_code === 'recording_samples_dropped';
+      if (response.id !== record.recording_id || (!uploaded && !droppedSamplesFailed)) {
         throw remoteError('recording_spool_completion_response_invalid', true);
       }
       const now = this.#now().toISOString();

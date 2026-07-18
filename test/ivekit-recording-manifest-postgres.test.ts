@@ -99,6 +99,38 @@ test('Postgres recording store registers exact segment identity and append-only 
   assert.match(eventInsert.text, /ON CONFLICT \(tenant_id, segment_id, event_sequence\) DO NOTHING/i);
 });
 
+test('Postgres recording store rejects segment events after manifest finalization', async () => {
+  const pg = new RecordingPg((sql) => {
+    if (/FROM ivekit_recording_manifests manifest/i.test(sql) && /FOR UPDATE/i.test(sql)) {
+      return [manifestRow({ state: 'uploaded_unverified' })];
+    }
+    if (/INSERT INTO ivekit_recording_segment_events/i.test(sql)) return [eventRow()];
+    return [];
+  });
+
+  await assert.rejects(
+    new PostgresRecordingManifestStore(pg).appendSegmentEvent({
+      id: 'segment-event-late',
+      tenant_id: 'tenant-a',
+      manifest_id: 'recording-a',
+      segment_id: 'segment-a-000001',
+      owner_epoch: '7',
+      event_sequence: 2,
+      event_type: 'sample_dropped',
+      policy_source: 'always',
+      actor_identity: 'rustpbx-a',
+      metadata: { dropped_samples: 1 },
+      occurred_at: '2026-07-17T03:02:01.000Z'
+    }),
+    (error: unknown) => error instanceof RecordingManifestStoreError
+      && error.code === 'recording_segment_event_manifest_closed'
+  );
+  assert.equal(
+    pg.calls.some((call) => /INSERT INTO ivekit_recording_segment_events/i.test(call.text)),
+    false
+  );
+});
+
 test('Postgres recording store finalizes only a contiguous fully uploaded segment set', async () => {
   const pg = new RecordingPg((sql) => {
     if (/FROM ivekit_recording_manifests manifest/i.test(sql) && /FOR UPDATE/i.test(sql)) {
@@ -134,6 +166,109 @@ test('Postgres recording store finalizes only a contiguous fully uploaded segmen
   const summary = pg.calls.find((call) => /uploaded_count/i.test(call.text))!;
   assert.match(summary.text, /COUNT\(\*\) FILTER \(WHERE segment\.state = 'uploaded'\)/i);
   assert.match(summary.text, /COUNT\(DISTINCT segment\.sequence\)/i);
+});
+
+test('Postgres recording store never promotes a recording with dropped samples', async () => {
+  const pg = new RecordingPg((sql) => {
+    if (/FROM ivekit_recording_manifests manifest/i.test(sql) && /FOR UPDATE/i.test(sql)) {
+      return [manifestRow({ state: 'uploading', processing: JSON.stringify({
+        reservation_id: 'reservation-a'
+      }) })];
+    }
+    if (/FROM ivekit_recording_segments segment/i.test(sql) && /uploaded_count/i.test(sql)) {
+      return [{
+        segment_count: 2,
+        uploaded_count: 2,
+        distinct_sequences: 2,
+        first_sequence: 1,
+        last_sequence: 2,
+        dropped_samples: 7
+      }];
+    }
+    if (/UPDATE ivekit_recording_manifests/i.test(sql) && /state = 'failed'/i.test(sql)) {
+      return [manifestRow({
+        state: 'failed',
+        ended_at: '2026-07-17T03:02:00.000Z',
+        processing: JSON.stringify({
+          segment_count: 2,
+          last_segment_sequence: 2,
+          dropped_samples: 7
+        }),
+        failure_code: 'recording_samples_dropped'
+      })];
+    }
+    return [];
+  });
+
+  const finalized = await new PostgresRecordingManifestStore(pg).finalizeManifest({
+    tenant_id: 'tenant-a', manifest_id: 'recording-a', owner_epoch: '7',
+    interaction_id: 'call-a', reservation_id: 'reservation-a', region_id: 'region-a',
+    zone_id: 'zone-a', cell_id: 'cell-a', recorder_node_id: 'rustpbx-a',
+    segment_count: 2, last_segment_sequence: 2,
+    ended_at: new Date('2026-07-17T03:02:00.000Z'), now
+  });
+
+  assert.equal(finalized.state, 'failed');
+  assert.equal(finalized.failure_code, 'recording_samples_dropped');
+  assert.equal(finalized.processing.dropped_samples, 7);
+  const summary = pg.calls.find((call) => /uploaded_count/i.test(call.text))!;
+  assert.match(summary.text, /ivekit_recording_segment_events/i);
+  assert.match(summary.text, /dropped_samples/i);
+  assert.equal(
+    pg.calls.some((call) => /state = 'uploaded_unverified'/i.test(call.text)),
+    false
+  );
+});
+
+test('Postgres recording store demotes an uploaded replay when drop evidence already exists', async () => {
+  const pg = new RecordingPg((sql) => {
+    if (/FROM ivekit_recording_manifests manifest/i.test(sql) && /FOR UPDATE/i.test(sql)) {
+      return [manifestRow({
+        state: 'uploaded_unverified',
+        ended_at: '2026-07-17T03:02:00.000Z',
+        processing: JSON.stringify({
+          reservation_id: 'reservation-a',
+          segment_count: 2,
+          last_segment_sequence: 2
+        })
+      })];
+    }
+    if (/FROM ivekit_recording_segments segment/i.test(sql) && /uploaded_count/i.test(sql)) {
+      return [{
+        segment_count: 2,
+        uploaded_count: 2,
+        distinct_sequences: 2,
+        first_sequence: 1,
+        last_sequence: 2,
+        dropped_samples: 4
+      }];
+    }
+    if (/UPDATE ivekit_recording_manifests/i.test(sql) && /state = 'failed'/i.test(sql)) {
+      return [manifestRow({
+        state: 'failed',
+        ended_at: '2026-07-17T03:02:00.000Z',
+        processing: JSON.stringify({
+          segment_count: 2,
+          last_segment_sequence: 2,
+          dropped_samples: 4
+        }),
+        failure_code: 'recording_samples_dropped'
+      })];
+    }
+    return [];
+  });
+
+  const finalized = await new PostgresRecordingManifestStore(pg).finalizeManifest({
+    tenant_id: 'tenant-a', manifest_id: 'recording-a', owner_epoch: '7',
+    interaction_id: 'call-a', reservation_id: 'reservation-a', region_id: 'region-a',
+    zone_id: 'zone-a', cell_id: 'cell-a', recorder_node_id: 'rustpbx-a',
+    segment_count: 2, last_segment_sequence: 2,
+    ended_at: new Date('2026-07-17T03:02:00.000Z'), now
+  });
+
+  assert.equal(finalized.state, 'failed');
+  assert.equal(finalized.failure_code, 'recording_samples_dropped');
+  assert.equal(finalized.processing.dropped_samples, 4);
 });
 
 test('Postgres recording store leaves a manifest uploading while any expected segment is missing', async () => {

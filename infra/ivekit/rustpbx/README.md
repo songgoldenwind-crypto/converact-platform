@@ -123,11 +123,41 @@ filesystem per INVITE. New reservations carrying `data.local_spool_bytes` fail
 closed when the observation is stale or projected usage crosses 90 percent.
 Existing reservations and cleanup remain available.
 
+Object storage and the upload sidecar are downstream-only dependencies. An
+outage can delay or lose recording evidence, but cannot stop an established SIP
+dialog or its RTP forwarding. RustPBX does not depend on the uploader service;
+the uploader depends on RustPBX and shares only the durable spool volume. If the
+local recording writer itself fails, the first failed write opens a per-recording
+circuit breaker. Later samples are counted as dropped without another disk write
+or per-packet warning, while RTP forwarding continues through the independent
+non-blocking path. Affected recordings must be marked incomplete and alerted;
+they must never be reported as successfully recorded.
+
+Recorder creation and finalization also run on a separate fixed four-thread,
+512-entry lifecycle executor. SIP recording start is fire-and-forget;
+StopRecording schedules finalization without awaiting its reply; pause/resume
+update the atomic gate and use only `try_write` for optional spool events.
+Session destruction and the reaper use the same deduplicated finalizer. The
+Recorder destructor performs no synchronous flush or spool I/O. If lifecycle
+workers or their queue are unavailable, RustPBX emits `RecordingFailed` and
+preserves call/RTP progress instead of applying backpressure to signaling.
+Before finalization, the lifecycle worker waits for already accepted capture
+items with a bounded deadline, disables new capture if the first deadline
+expires, and never falls back from `try_write` to a blocking recorder lock.
+Drain or lock timeout fails only the recording and resets finalization for a
+later cleanup attempt; it never waits on the signaling or RTP thread.
+
 Channel saturation remains non-blocking: the forwarding path increments a
 shared `AtomicU64` only when recorder `try_send` returns `Full`. The recorder
 drains that counter at segment close and publishes an owner-fenced
 `sample_dropped` event with the exact count. After the last segment is durable,
 RustPBX atomically writes `recording-completed.json`. The uploader retains and
+uploads the evidence, but manifest finalization sums all owner-fenced
+`sample_dropped` events. Any non-zero total produces terminal
+`recording_samples_dropped` failure rather than `uploaded_unverified`, even if
+every segment reached object storage. The shared drop counter is registered
+idempotently when the asynchronous recorder becomes available, so samples seen
+before recorder creation cannot disappear from the final integrity decision.
 retries that marker until iveKit confirms that sequences `1..N` all exist and
 are uploaded, then removes the local indexes and marker. A missing segment can
 therefore delay finalization but cannot be silently skipped.
@@ -214,13 +244,19 @@ incompatible reinitialization because this executor is process-global.
 `rustpbx_media_recording_queue_capacity` exposes the configured size and
 `rustpbx_media_recording_queue_drops_total` reports overflow without tenant,
 call or interaction labels. Its bounded `reason` label distinguishes capture,
-worker saturation and worker shutdown. Worker count and per-worker queue limit
-are exported by `rustpbx_media_recording_worker_threads` and
+worker saturation, worker shutdown and the first writer failure. Worker count
+and per-worker queue limit are exported by `rustpbx_media_recording_worker_threads` and
 `rustpbx_media_recording_worker_queue_capacity`. Any drop triggers
 `IveKitRustPbxRecordingQueueDrops`. Preserve the affected recording manifest
 and pod metrics, drain new recording work, then investigate codec CPU, storage
-latency and spool uploader backpressure. Native compilation, RTP continuity
-and real overflow recovery remain `not_run` on this host.
+latency and spool uploader backpressure. Native arm64 compilation and the
+no-PSTN SIPp signaling suite passed on this host; RTP packet continuity, a real
+object-store outage/resume drill and overflow recovery remain `not_run`.
+
+The Rust unit gate `test_recording_stop_does_not_block_engine_on_busy_recorder`
+holds the recorder write lock while StopRecording and PauseRecording are sent;
+the pause event must still arrive within 250 ms. This proves command-loop lock
+isolation, not physical RTP continuity or stalled-filesystem behavior.
 
 ## Reproducibility
 

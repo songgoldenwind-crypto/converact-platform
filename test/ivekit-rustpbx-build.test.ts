@@ -94,6 +94,10 @@ test('iveKit RustPBX wires rsipstack capacity limits and low-cardinality metrics
 });
 
 test('iveKit RustPBX keeps recording codec and disk work off RTP forwarding loops', () => {
+  const effectivePatch = rustPbxMediaHotPathPatch
+    .split('\n')
+    .filter((line) => !line.startsWith('-') || line.startsWith('---'))
+    .join('\n');
   assert.match(
     buildScript,
     /apply --check "\$PATCH_DIR\/rustpbx-ivekit-sip-capacity\.patch"[\s\S]*apply --check "\$PATCH_DIR\/rustpbx-ivekit-media-hot-path\.patch"/
@@ -107,6 +111,40 @@ test('iveKit RustPBX keeps recording codec and disk work off RTP forwarding loop
   assert.match(rustPbxMediaHotPathPatch, /try_send/);
   assert.match(rustPbxMediaHotPathPatch, /recording_queue_dropped/);
   assert.match(rustPbxMediaHotPathPatch, /rustpbx_media_recording_queue_drops_total/);
+  assert.match(effectivePatch, /spawn_recording_finalizer/);
+  assert.match(effectivePatch, /crossbeam_channel::bounded::<RecordingLifecycleTask>/);
+  assert.match(effectivePatch, /recording_lifecycle_queue_unavailable/);
+  assert.match(effectivePatch, /try_write\(\)/);
+  assert.match(effectivePatch, /Recorder dropped without synchronous finalization/);
+  const stopRecordingPatch = effectivePatch.match(
+    /MediaCommand::StopRecording[\s\S]*?MediaCommand::PauseRecording/
+  )?.[0] || '';
+  assert.doesNotMatch(stopRecordingPatch, /sess\.recorder\.write\(\)/);
+  assert.doesNotMatch(effectivePatch, /reply_rx\.await/);
+  assert.match(effectivePatch, /Recording starts on the bounded lifecycle executor/);
+  assert.match(effectivePatch, /Finalization is deliberately fire-and-forget/);
+  assert.ok((effectivePatch.match(/reply: None/g) || []).length >= 2);
+  assert.match(effectivePatch, /test_recording_stop_does_not_block_engine_on_busy_recorder/);
+  assert.match(rustPbxMediaHotPathPatch, /disabled: AtomicBool/);
+  assert.match(rustPbxMediaHotPathPatch, /disable_after_write_failure/);
+  assert.match(rustPbxMediaHotPathPatch, /record_disabled_drop/);
+  assert.match(rustPbxMediaHotPathPatch, /record_drop\("write_failed"\)/);
+  assert.match(rustPbxMediaHotPathPatch, /recorder capture disabled after write failure/);
+  assert.match(rustPbxMediaHotPathPatch, /drop_counter_registered: AtomicBool/);
+  assert.match(rustPbxMediaHotPathPatch, /compare_exchange\(false, true/);
+  assert.match(
+    rustPbxMediaHotPathPatch,
+    /impl RecordingWorkItem[\s\S]{0,1000}register_drop_counter\(recorder\)/
+  );
+  assert.match(rustPbxMediaHotPathPatch, /fn wait_until_drained/);
+  assert.match(effectivePatch, /recording_capture_drain_timeout/);
+  assert.match(effectivePatch, /recording_finalize_lock_unavailable/);
+  assert.doesNotMatch(effectivePatch, /try_write\(\)[\s\S]{0,300}\.write\(\)/);
+  assert.match(
+    rustPbxMediaHotPathPatch,
+    /recorder_capture_counts_samples_seen_before_recorder_start/
+  );
+  assert.match(rustPbxMediaHotPathPatch, /recorder_capture_drain_waits_for_accepted_samples/);
   assert.match(rustPbxMediaHotPathPatch, /Arc::ptr_eq/);
   assert.doesNotMatch(rustPbxMediaHotPathPatch, /tenant_id|interaction_id|call_id/);
 });

@@ -36,6 +36,7 @@ export interface EgressConfig {
   minioEndpoint?: string;
   minioBucket?: string;
   recordingRetentionDays?: number;
+  requestTimeoutSeconds?: number;
 }
 
 function configFromEgressConfig(config: EgressConfig) {
@@ -788,8 +789,11 @@ export class LiveKitRecordingService implements LiveKitRecordingServiceApi {
   }
 
   private createEgressClient(config: ReturnType<typeof configFromEgressConfig>): LiveKitEgressClientLike {
+    const requestTimeout = Math.min(30, Math.max(1, Math.floor(
+      this.config.requestTimeoutSeconds ?? 3
+    )));
     return this.deps.createEgressClient?.(config) ||
-      new EgressClient(toHttpUrl(config.url!), config.apiKey!, config.apiSecret!);
+      new EgressClient(toHttpUrl(config.url!), config.apiKey!, config.apiSecret!, { requestTimeout });
   }
 
   private async resolveObject(recording: EgressRecord): Promise<RecordingObjectContentResult> {

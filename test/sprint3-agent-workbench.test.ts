@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer as createHttpServer } from 'node:http';
 import { after, before, test } from 'node:test';
 import WebSocket from 'ws';
-import { createDatabase } from '../src/db.js';
+import { createDatabase, one } from '../src/db.js';
 import { MemoryPg, initPostgres, resetPostgresForTests } from '../src/db-pg.js';
 import { createServer } from '../src/http.js';
 import { AgentSeatStore } from '../src/agent-runtime/call-center/seat-store.js';
@@ -52,6 +52,15 @@ async function httpJson(
       r.end();
     });
   });
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 2500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.fail(`condition was not met within ${timeoutMs}ms`);
 }
 
 let server: ReturnType<typeof createServer>;
@@ -177,7 +186,92 @@ test('accept transfer issues livekit token and starts recording record', async (
   assert.equal(accept.status, 200);
   assert.ok(accept.body.livekit?.token);
   assert.equal(accept.body.room_name, room.room_name);
-  assert.ok(accept.body.recording?.egress_id);
+  assert.equal(accept.body.recording, null);
+  assert.equal(accept.body.recording_failure, null);
+  assert.equal(accept.body.recording_status, 'scheduled');
+  assert.equal(accept.body.call_status, 'active');
+  await waitFor(() => Boolean(one(
+    db,
+    'SELECT id FROM call_recordings WHERE tenant_id = ? AND call_session_id = ?',
+    [tenantId, session.id]
+  )));
+});
+
+test('accept transfer keeps media available when recording storage path fails', async () => {
+  const failedEgress = createHttpServer((_req, res) => {
+    setTimeout(() => {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'object storage unavailable' }));
+    }, 800);
+  });
+  await new Promise<void>((resolve) => failedEgress.listen(0, '127.0.0.1', resolve));
+  const address = failedEgress.address();
+  assert.ok(address && typeof address !== 'string');
+
+  const previous = {
+    url: process.env.LIVEKIT_URL,
+    key: process.env.LIVEKIT_API_KEY,
+    secret: process.env.LIVEKIT_API_SECRET
+  };
+
+  try {
+    const voiceStore = new VoiceStore(db);
+    const session = voiceStore.createCallSession({
+      tenant_id: tenantId,
+      direction: 'outbound',
+      status: 'active',
+      phone: '+8613900139003'
+    });
+    const roomStore = new LiveKitRoomStore(db);
+    const room = await roomStore.createRoom({
+      tenant_id: tenantId,
+      purpose: 'pstn_bridge',
+      call_session_id: session.id,
+      room_name: `room-recording-failure-${session.id.slice(-6)}`
+    });
+    new AgentSeatStore(db).updateStatus(tenantId, seatId, 'idle');
+    process.env.LIVEKIT_URL = `ws://127.0.0.1:${address.port}`;
+    process.env.LIVEKIT_API_KEY = 'recording-failure-test-key';
+    process.env.LIVEKIT_API_SECRET = 'recording-failure-test-secret';
+
+    const startedAt = Date.now();
+    const accept = await httpJson(
+      server,
+      'POST',
+      `/api/call-center/transfers/${session.id}/accept`,
+      { seat_id: seatId },
+      { Authorization: `Bearer ${token}` }
+    );
+    const acceptElapsedMs = Date.now() - startedAt;
+
+    assert.equal(accept.status, 200);
+    assert.ok(acceptElapsedMs < 300, `accept took ${acceptElapsedMs}ms`);
+    assert.ok(accept.body.livekit?.token);
+    assert.equal(accept.body.room_name, room.room_name);
+    assert.equal(accept.body.recording, null);
+    assert.equal(accept.body.recording_failure, null);
+    assert.equal(accept.body.recording_status, 'scheduled');
+    assert.equal(accept.body.call_status, 'active');
+    assert.equal(voiceStore.getCallSession(tenantId, session.id)?.status, 'active');
+    await waitFor(() => {
+      const recording = one(
+        db,
+        'SELECT status, failure_code FROM call_recordings WHERE tenant_id = ? AND call_session_id = ?',
+        [tenantId, session.id]
+      );
+      return recording?.status === 'failed'
+        && recording?.failure_code === 'livekit_egress_start_failed';
+    });
+  } finally {
+    if (previous.url == null) delete process.env.LIVEKIT_URL;
+    else process.env.LIVEKIT_URL = previous.url;
+    if (previous.key == null) delete process.env.LIVEKIT_API_KEY;
+    else process.env.LIVEKIT_API_KEY = previous.key;
+    if (previous.secret == null) delete process.env.LIVEKIT_API_SECRET;
+    else process.env.LIVEKIT_API_SECRET = previous.secret;
+    failedEgress.closeAllConnections();
+    await new Promise<void>((resolve) => failedEgress.close(() => resolve()));
+  }
 });
 
 test('seat status change broadcasts seat.status_changed', async () => {

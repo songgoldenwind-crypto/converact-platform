@@ -37,7 +37,7 @@
 | [`implementation-plan-phase2.md`](implementation-plan-phase2.md) | Cell placement、持久编排器、组件探针和媒体 generator 第二阶段实现与服务器待验收清单 |
 | [`campaign-finalization-runbook.md`](campaign-finalization-runbook.md) | run、组件/Cell 曲线、平台 100K 聚合的不可变提交、终结和证据归档手册 |
 | [`rustpbx-recording-spool-implementation-plan.md`](rustpbx-recording-spool-implementation-plan.md) | RustPBX 编码分片、owner-fenced intake、断点续传 sidecar、时间线事件和本地水位 admission |
-| [`../../infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch`](../../infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch) | 将录音编解码和磁盘写入移出 RTP 转发循环，使用可调有界队列和显式丢弃指标 |
+| [`../../infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch`](../../infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch) | 将录音编解码、文件创建和收尾移出 RTP/信令循环，使用有界执行器、非阻塞控制和显式失败/丢弃证据 |
 | [`../../infra/capacity/kubernetes/worker-statefulset.yaml`](../../infra/capacity/kubernetes/worker-statefulset.yaml) | 每个 generator fleet 的稳定 Worker 身份、单分片背压和 S3 evidence 部署模板 |
 | [`../../infra/capacity/kubernetes/controller-deployment.yaml`](../../infra/capacity/kubernetes/controller-deployment.yaml) | 双副本 fenced run/phase Controller |
 | [`../../infra/capacity/kubernetes/cell-admission-deployment.yaml`](../../infra/capacity/kubernetes/cell-admission-deployment.yaml) | 双副本主动/待命 Cell admission、PostgreSQL lease 接管、PDB 和就绪端点隔离 |

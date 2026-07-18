@@ -16,6 +16,15 @@ const FORWARD_HMAC = 'a'.repeat(64);
 const REJECT_HMAC = 'b'.repeat(64);
 const SIGNING_KEY = Buffer.alloc(32, 7).toString('base64');
 
+test('RustPBX route snapshot patch imports the HMAC constructor trait', () => {
+  const patch = readFileSync(
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch',
+    'utf8'
+  );
+
+  assert.match(patch, /use hmac::\{Hmac, KeyInit, Mac\};/);
+});
+
 test('route snapshot projector signs a canonical HMAC-only snapshot and advances sequence', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'ivekit-route-snapshot-'));
   const output = join(directory, 'routes.json');

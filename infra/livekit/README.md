@@ -12,6 +12,22 @@ It does not contain OPC source code and can be deployed as an independent servic
 
 When external S3 is unavailable, apply `docker-compose.storage.yml` as an optional overlay. It runs a pinned MinIO release, exposes its API and console on loopback only, initializes a private bucket and bucket-scoped service account, and prevents Egress from starting until that initialization succeeds. `MINIO_ROOT_*` is bootstrap-only; OPC and Egress receive only `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`.
 
+## Storage failure isolation
+
+LiveKit Server is the real-time media plane and depends only on its shared Redis
+state, never on Egress, MinIO or S3. Egress is a downstream consumer of LiveKit;
+the optional storage overlay adds a dependency only to Egress. If Egress or
+object storage is unavailable, rooms, published tracks, subscriptions and screen
+sharing must continue. Automatic recording start is fail-open for an already
+accepted call: iveKit broadcasts `call.answered`, returns `call_status=active`
+and the room/token with `recording_status=scheduled`, then resolves recording
+consent and starts Egress in the background. A later failure is reduced to an
+allowlisted code and emitted as `call.recording_failed`; provider text is never
+copied into the response or event. SDK requests use the
+bounded `LIVEKIT_EGRESS_REQUEST_TIMEOUT_SECONDS` value (default 3 seconds), but
+that timeout runs outside the accept path. The recording may be absent or
+incomplete, but the live media session must not be terminated.
+
 The same Caddy L4 edge can optionally terminate TLS for the application plane. Set `IVEKIT_API_DOMAIN` and/or `TINODE_PUBLIC_DOMAIN`; their upstreams default to loopback ports `8300` and `6060`. Leave both blank for a Media-Core-only deployment.
 
 ## Requirements

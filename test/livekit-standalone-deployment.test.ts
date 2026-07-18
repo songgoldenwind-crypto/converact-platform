@@ -190,6 +190,19 @@ test('standalone LiveKit Compose is Linux host-networked and reproducibly pinned
   );
 });
 
+test('LiveKit media plane never depends on Egress or object storage availability', () => {
+  const compose = readFileSync(new URL('../infra/livekit/docker-compose.yml', import.meta.url), 'utf8');
+  const storage = readFileSync(new URL('../infra/livekit/docker-compose.storage.yml', import.meta.url), 'utf8');
+  const livekit = compose.match(/^  livekit:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:|\Z)/m)?.[0] || '';
+  const egress = compose.match(/^  egress:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:|\Z)/m)?.[0] || '';
+
+  assert.doesNotMatch(livekit, /egress|minio|object.?stor|s3/i);
+  assert.match(livekit, /depends_on:\s*\n\s+redis:/);
+  assert.match(egress, /depends_on:[\s\S]*livekit:/);
+  assert.match(storage, /^  egress:\n\s+depends_on:\n\s+minio-init:/m);
+  assert.doesNotMatch(storage, /^  livekit:/m);
+});
+
 test('standalone iveKit application stack runs the iveKit-only process', () => {
   const compose = readFileSync(new URL('../infra/ivekit/docker-compose.yml', import.meta.url), 'utf8');
   const readme = readFileSync(new URL('../infra/ivekit/README.md', import.meta.url), 'utf8');

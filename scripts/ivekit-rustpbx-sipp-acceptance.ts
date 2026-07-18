@@ -18,9 +18,10 @@ const REPOSITORY_SCENARIO_DIR = fileURLToPath(new URL(
   '../services/ivekit-service/acceptance/sipp/',
   import.meta.url
 ));
-const DEFAULT_SCENARIO_DIR = existsSync(DELIVERY_SCENARIO_DIR)
-  ? DELIVERY_SCENARIO_DIR
-  : REPOSITORY_SCENARIO_DIR;
+const DEFAULT_SCENARIO_DIR = selectDefaultSippScenarioDirectory(
+  DELIVERY_SCENARIO_DIR,
+  REPOSITORY_SCENARIO_DIR
+);
 const MAX_COMMAND_OUTPUT = 2 * 1024 * 1024;
 
 export interface SippStatistics {
@@ -101,6 +102,20 @@ interface CommandResult {
 interface RouterEvidence {
   router_requests: number;
   cdr_requests: number;
+}
+
+export function selectDefaultSippScenarioDirectory(
+  deliveryDirectory: string,
+  repositoryDirectory: string
+): string {
+  const files = new Set(createRustPbxSippScenarios('scenario-directory-check')
+    .flatMap((scenario) => [scenario.uac_scenario, scenario.uas_scenario].filter(Boolean)));
+  const complete = (directory: string): boolean =>
+    [...files].every((file) => existsSync(join(directory, file!)));
+
+  if (complete(deliveryDirectory)) return deliveryDirectory;
+  if (complete(repositoryDirectory)) return repositoryDirectory;
+  throw new Error('RustPBX SIPp scenario assets are incomplete');
 }
 
 export function createRustPbxSippScenarios(

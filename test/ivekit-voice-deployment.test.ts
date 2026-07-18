@@ -206,6 +206,19 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.doesNotMatch(voice, /sqlite/i);
 });
 
+test('RustPBX media plane never depends on recording upload or object storage availability', () => {
+  const voice = readFileSync(VOICE_COMPOSE, 'utf8');
+  const rustpbx = serviceBlock(voice, 'rustpbx');
+  const uploader = serviceBlock(voice, 'rustpbx-recording-spool');
+
+  assert.doesNotMatch(rustpbx, /minio|object.?stor|\bs3\b/i);
+  assert.doesNotMatch(rustpbx, /depends_on:[\s\S]*rustpbx-recording-spool:/);
+  assert.match(rustpbx, /rustpbx-recording-spool:\/app\/recording-spool/);
+  assert.match(uploader, /depends_on:[\s\S]*rustpbx:/);
+  assert.match(uploader, /rustpbx-recording-spool:\/app\/recording-spool/);
+  assert.doesNotMatch(uploader, /network_mode:\s*service:rustpbx/);
+});
+
 test('standalone service Voice overlay uses only compiled image entrypoints', () => {
   const voice = readFileSync(SERVICE_VOICE_COMPOSE, 'utf8');
   const bootstrap = readFileSync(SERVICE_RUSTPBX_INIT, 'utf8');

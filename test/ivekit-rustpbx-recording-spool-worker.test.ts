@@ -171,6 +171,40 @@ test('RustPBX recording spool worker retries and cleans an owner-bound recording
   assert.equal(completedMetrics.finalization_backlog, 0);
 });
 
+test('RustPBX recording spool worker treats dropped-sample manifest failure as audited terminal completion', async (t) => {
+  const fixture = await spoolFixture(t, undefined, { completionMarker: true });
+  const worker = await RustPbxRecordingSpoolWorker.open(fixture.config, async (input, init) => {
+    const method = init?.method || 'GET';
+    const url = String(input);
+    if (method === 'POST' && url.endsWith('/recording-spool/segments')) {
+      return jsonResponse({ state: 'uploading', segment: { id: 'vseg-a' }, lease: {},
+        upload: { part_size_bytes: PART_SIZE }, parts: [] }, 201);
+    }
+    if (method === 'PUT') {
+      return jsonResponse({ part_number: 1, size_bytes: fixture.payload.length,
+        sha256: new Headers(init?.headers).get('x-ivekit-content-sha256') });
+    }
+    if (method === 'POST' && url.endsWith('/segments/vseg-a/complete')) {
+      return jsonResponse({ segment: { id: 'vseg-a', state: 'uploaded' },
+        upload: { state: 'completed' } });
+    }
+    if (method === 'POST' && url.endsWith('/recording-spool/recordings/vrec-a/complete')) {
+      return jsonResponse({
+        id: 'vrec-a',
+        state: 'failed',
+        failure_code: 'recording_samples_dropped'
+      });
+    }
+    return jsonResponse({ error: { code: 'not_found' } }, 404);
+  });
+  t.after(() => worker.close());
+
+  await worker.pollOnce();
+
+  assert.deepEqual(await worker.listFinalizations(), []);
+  await assert.rejects(stat(fixture.completionPath!), hasCode('ENOENT'));
+});
+
 test('RustPBX recording spool worker fail-closes symlink payloads without issuing network calls', async (t) => {
   const fixture = await spoolFixture(t, undefined, { symlinkPayload: true });
   let requested = false;

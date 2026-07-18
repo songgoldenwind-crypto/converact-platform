@@ -17,6 +17,7 @@ test('RustPBX recording spool patch segments locally without object storage in t
   assert.match(patch, /IVEKIT_RUSTPBX_RECORDING_SEGMENT_MAX_BYTES/);
   assert.match(patch, /\.wav\.partial/);
   assert.match(patch, /sync_all/);
+  assert.match(patch, /Ok\(file\.sync_all\(\)\?\)/);
   assert.match(patch, /std::fs::rename/);
   assert.match(patch, /segments\.ndjson/);
   assert.match(patch, /encoded_payload_sha256/);
