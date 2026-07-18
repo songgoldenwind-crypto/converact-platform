@@ -8,14 +8,20 @@ import type { PgQueryable } from '../src/db-pg.js';
 
 const STANDALONE_COMPOSE = new URL('../infra/ivekit/docker-compose.yml', import.meta.url);
 const VOICE_COMPOSE = new URL('../infra/ivekit/docker-compose.voice.yml', import.meta.url);
+const SERVICE_COMPOSE = new URL('../services/ivekit-service/docker-compose.yml', import.meta.url);
 const SERVICE_VOICE_COMPOSE = new URL('../services/ivekit-service/docker-compose.voice.yml', import.meta.url);
 const SERVICE_RUSTPBX_INIT = new URL('../services/ivekit-service/init-rustpbx-database.sh', import.meta.url);
 const SERVICE_HELM_VALUES = new URL('../services/ivekit-service/helm/ivekit/values.yaml', import.meta.url);
+const SERVICE_HELM_DEPLOYMENT = new URL(
+  '../services/ivekit-service/helm/ivekit/templates/deployment.yaml',
+  import.meta.url
+);
 const SERVICE_HELM_RUSTPBX = new URL(
   '../services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
   import.meta.url
 );
 const PRODUCTION_COMPOSE = new URL('../infra/docker-compose.production.yml', import.meta.url);
+const PRODUCTION_ENV_EXAMPLE = new URL('../infra/env.example', import.meta.url);
 const STANDALONE_BOOTSTRAP = new URL('../infra/ivekit/init-postgres-runtime-role.sh', import.meta.url);
 const CHECKED_IN_CONFIG = new URL('../config/rustpbx.docker.toml', import.meta.url);
 const HELM_VALUES = new URL('../infra/k8s/values.yaml', import.meta.url);
@@ -40,6 +46,27 @@ const SECRET_VALUES = {
   RUSTPBX_RTP_START_PORT: '20000',
   RUSTPBX_RTP_END_PORT: '20100'
 } satisfies NodeJS.ProcessEnv;
+
+test('standalone Helm exposes SIP/VoLTE activation without enabling it by default', () => {
+  const values = readFileSync(SERVICE_HELM_VALUES, 'utf8');
+  const deployment = readFileSync(SERVICE_HELM_DEPLOYMENT, 'utf8');
+
+  assert.match(values, /^    OPC_SIP_VOLTE_ENABLED: "0"$/m);
+  assert.match(values, /^    LIVEKIT_SIP_BRIDGE_TARGET: ""$/m);
+  assert.match(values, /^    RUSTPBX_LIVEKIT_TRUNK: ""$/m);
+  assert.match(values, /^    RUSTPBX_RWI_URL: ""$/m);
+  assert.match(deployment, /range \$name, \$value := \.Values\.config\.env/);
+});
+
+test('standalone service forwards SIP control secrets through the optional runtime env file', () => {
+  const compose = readFileSync(SERVICE_COMPOSE, 'utf8');
+  const ivekit = serviceBlock(compose, 'ivekit');
+
+  assert.match(ivekit, /env_file:/);
+  assert.match(ivekit, /OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE:-\.\/voice-runtime\.env/);
+  assert.match(ivekit, /required: false/);
+  assert.match(ivekit, /RUSTPBX_RWI_URL: \$\{RUSTPBX_RWI_URL:-\}/);
+});
 
 test('RustPBX renderer accepts only immutable PostgreSQL production inputs', () => {
   assert.throws(
@@ -333,6 +360,18 @@ test('production compose has no floating or SQLite RustPBX deployment', () => {
   assert.doesNotMatch(compose, /RUSTPBX_MANAGEMENT_TOKEN: \$\{RUSTPBX_RWI_TOKEN/);
   assert.match(opc, /OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: \$\{OPC_IVEKIT_VOICE_SECRET_ENV_NAMES:-RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN\}/);
   assert.match(opc, /OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE/);
+});
+
+test('production env example satisfies mandatory RustPBX route-key interpolation', () => {
+  const envExample = readFileSync(PRODUCTION_ENV_EXAMPLE, 'utf8');
+  assert.match(
+    envExample,
+    /^OPC_IVEKIT_VOICE_ADDRESS_KEY=replace_with_32_byte_base64_address_key$/m
+  );
+  assert.match(
+    envExample,
+    /^OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY=replace_with_distinct_32_byte_base64_hmac_key$/m
+  );
 });
 
 test('RustPBX Helm templates optionally co-locate the fenced component-node agent', () => {

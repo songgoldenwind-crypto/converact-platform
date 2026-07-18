@@ -1,7 +1,5 @@
 /**
- * SIP/VoLTE media gateway — STUB (status: planned).
- *
- * Future path for 4G VoLTE video customers:
+ * SIP/VoLTE media gateway for 4G video customers:
  *
  *   客户手机 (VoLTE视频) → SIP → RustPBX → livekit-sip 网关 → LiveKit 房间
  *
@@ -11,15 +9,8 @@
  * publishes the VoLTE media as tracks into the LiveKit room. From every other
  * participant's perspective the customer is just another participant.
  *
- * Currently a stub: registered with status='planned' so the registry refuses
- * to use it until the SIP bridge is provisioned. The interface and dial-plan
- * shape are fixed here so wiring it up later requires no orchestration changes.
- *
- * To activate later:
- *   1. Provision the livekit-sip container with video support (see
- *      docker-compose.callcenter.yml + config/rustpbx.toml trunk livekit-bridge).
- *   2. Set RUSTPBX_LIVEKIT_TRUNK + LIVEKIT_SIP_BRIDGE_TARGET env vars.
- *   3. Flip status to 'active' and implement the real dial target resolution.
+ * Activation is fail-closed. The process must explicitly enable the gateway
+ * and provide every LiveKit, bridge, and RustPBX execution dependency.
  */
 import type {
   MediaGatewayAdapter,
@@ -28,35 +19,103 @@ import type {
   MediaJoinPlan
 } from '../media-gateway-registry.js';
 
-export const SIP_VOLTE_GATEWAY_DEFINITION: MediaGatewayDefinition = {
-  channel: 'sip_volte',
-  description: '4G VoLTE video via SIP → RustPBX → livekit-sip bridge (planned).',
-  status: 'planned',
-  supports_video: true,
-  roles: ['customer']
-};
+export interface SipVolteGatewayConfiguration {
+  enabled: boolean;
+  active: boolean;
+  bridgeTarget: string;
+  trunk: string;
+  missingOrInvalid: readonly string[];
+}
 
-export function createSipVolteGateway(): MediaGatewayAdapter {
+export function resolveSipVolteGatewayConfiguration(
+  env: NodeJS.ProcessEnv = process.env
+): SipVolteGatewayConfiguration {
+  const bridgeTarget = String(env.LIVEKIT_SIP_BRIDGE_TARGET || '').trim();
+  const trunk = String(env.RUSTPBX_LIVEKIT_TRUNK || '').trim();
+  const missingOrInvalid: string[] = [];
+  if (!validServiceUrl(env.LIVEKIT_URL, new Set(['http:', 'https:', 'ws:', 'wss:']))) {
+    missingOrInvalid.push('LIVEKIT_URL');
+  }
+  if (!safeConfiguredValue(env.LIVEKIT_API_KEY)) missingOrInvalid.push('LIVEKIT_API_KEY');
+  if (!safeConfiguredValue(env.LIVEKIT_API_SECRET)) missingOrInvalid.push('LIVEKIT_API_SECRET');
+  if (!validSipTarget(bridgeTarget)) missingOrInvalid.push('LIVEKIT_SIP_BRIDGE_TARGET');
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(trunk)) {
+    missingOrInvalid.push('RUSTPBX_LIVEKIT_TRUNK');
+  }
+  if (!validServiceUrl(env.RUSTPBX_RWI_URL, new Set(['http:', 'https:', 'ws:', 'wss:']))) {
+    missingOrInvalid.push('RUSTPBX_RWI_URL');
+  }
+  if (!safeConfiguredValue(env.RUSTPBX_RWI_TOKEN)) missingOrInvalid.push('RUSTPBX_RWI_TOKEN');
+  const enabled = env.OPC_SIP_VOLTE_ENABLED === '1';
+  return Object.freeze({
+    enabled,
+    active: enabled && missingOrInvalid.length === 0,
+    bridgeTarget,
+    trunk,
+    missingOrInvalid: Object.freeze(missingOrInvalid)
+  });
+}
+
+export function createSipVolteGatewayDefinition(
+  config: SipVolteGatewayConfiguration
+): MediaGatewayDefinition {
+  return {
+    channel: 'sip_volte',
+    description: config.active
+      ? '4G VoLTE video via SIP, RustPBX, and the LiveKit SIP bridge.'
+      : '4G VoLTE video gateway is disabled or incompletely configured.',
+    status: config.active ? 'active' : 'planned',
+    supports_video: true,
+    roles: ['customer']
+  };
+}
+
+export function createSipVolteGateway(
+  config: SipVolteGatewayConfiguration = resolveSipVolteGatewayConfiguration()
+): MediaGatewayAdapter {
   return {
     prepareJoin(ctx: MediaJoinContext): MediaJoinPlan {
-      // The bridge target is the SIP URI the livekit-sip container answers on.
-      // RustPBX routes the VoLTE leg through its trunk to this target, which
-      // joins the named LiveKit room.
-      const bridgeTarget =
-        process.env.LIVEKIT_SIP_BRIDGE_TARGET || 'sip:livekit-bridge@127.0.0.1:5061';
-      const trunk = process.env.RUSTPBX_LIVEKIT_TRUNK || 'livekit-bridge';
+      if (!validSipTarget(config.bridgeTarget) ||
+          !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(config.trunk)) {
+        throw Object.assign(new Error('sip_volte gateway configuration is incomplete'), { status: 503 });
+      }
 
       return {
         mode: 'sip_bridge',
         channel: 'sip_volte',
-        // Room is encoded so the bridge knows which LiveKit room to join.
-        sipDialTarget: `${bridgeTarget};room=${encodeURIComponent(ctx.roomName)}`,
-        trunk,
+        sipDialTarget: `${config.bridgeTarget};room=${encodeURIComponent(ctx.roomName)}`,
+        trunk: config.trunk,
         video: ctx.media === 'video',
-        note:
-          'VoLTE SIP bridge dial plan (stub). RustPBX dials this target; ' +
-          'livekit-sip bridges the VoLTE media into the room.'
+        note: 'RustPBX dials this target and LiveKit SIP publishes the negotiated media into the room.'
       };
     }
   };
+}
+
+function validSipTarget(value: string): boolean {
+  if (!value || value.length > 512 || /[\u0000-\u0020\u007f;?#]/.test(value)) return false;
+  const match = value.match(
+    /^sips?:[A-Za-z0-9_.!~*'()+-]+@(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9](?:[A-Za-z0-9.-]{0,252}[A-Za-z0-9])?)(?::([0-9]{1,5}))?$/
+  );
+  if (!match) return false;
+  const port = match[2] ? Number(match[2]) : 5060;
+  return port > 0 && port <= 65_535;
+}
+
+function validServiceUrl(value: unknown, protocols: ReadonlySet<string>): boolean {
+  if (typeof value !== 'string' || !value || value.length > 2_048 || /[\u0000-\u0020\u007f]/.test(value)) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return protocols.has(url.protocol) && Boolean(url.hostname) &&
+      !url.username && !url.password && !url.search && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
+function safeConfiguredValue(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= 4_096 &&
+    !/[\u0000-\u001f\u007f]/.test(value);
 }

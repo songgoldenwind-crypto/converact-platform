@@ -214,9 +214,17 @@ test('standalone iveKit application stack runs the iveKit-only process', () => {
   assert.doesNotMatch(opcService, /OPC_DISABLE_DIALER/);
   assert.match(opcService, /OPC_IVEKIT_ALLOWED_ORIGINS: \$\{OPC_IVEKIT_ALLOWED_ORIGINS:\?[^}]+\}/);
   assert.match(opcService, /OPC_IVEKIT_HTTP_BODY_MAX_BYTES: \$\{OPC_IVEKIT_HTTP_BODY_MAX_BYTES:-1048576\}/);
+  assert.match(opcService, /OPC_SIP_VOLTE_ENABLED: \$\{OPC_SIP_VOLTE_ENABLED:-0\}/);
+  assert.match(opcService, /LIVEKIT_SIP_BRIDGE_TARGET: \$\{LIVEKIT_SIP_BRIDGE_TARGET:-\}/);
+  assert.match(opcService, /RUSTPBX_LIVEKIT_TRUNK: \$\{RUSTPBX_LIVEKIT_TRUNK:-\}/);
+  assert.match(opcService, /RUSTPBX_RWI_URL: \$\{RUSTPBX_RWI_URL:-\}/);
   assert.match(compose, /^  opc:$/m, 'legacy service key must remain stable');
   assert.match(envExample, /standalone iveKit application image/i);
   assert.match(envExample, /^OPC_IVEKIT_ALLOWED_ORIGINS=https:\/\/led\.example\.com$/m);
+  assert.match(envExample, /^OPC_SIP_VOLTE_ENABLED=0$/m);
+  assert.match(envExample, /^LIVEKIT_SIP_BRIDGE_TARGET=$/m);
+  assert.match(envExample, /^RUSTPBX_LIVEKIT_TRUNK=$/m);
+  assert.match(envExample, /^RUSTPBX_RWI_URL=$/m);
   assert.match(readme, /@opc\/ivekit-sdk/);
   assert.match(readme, /public base URL/i);
   assert.match(readme, /No PostgreSQL downgrade or data copy is required/i);

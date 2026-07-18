@@ -321,7 +321,10 @@ async function closeTerminalEgressPlacement(
   }
 }
 
-function capabilities(tenantId: string) {
+function capabilities(
+  tenantId: string,
+  media: ReturnType<typeof createLiveKitMediaModule>
+) {
   const livekitConfig = readLiveKitConfig();
   const livekitUrl = livekitConfig.url || '';
   const livekitPublicUrl = livekitConfig.publicUrl || '';
@@ -330,15 +333,7 @@ function capabilities(tenantId: string) {
   const inviteSecret = String(process.env.OPC_MEDIA_INVITE_SECRET || process.env.LIVEKIT_MEDIA_INVITE_SECRET || '').trim();
   const minioAccessKey = String(process.env.MINIO_ACCESS_KEY || '').trim();
   const minioSecretKey = String(process.env.MINIO_SECRET_KEY || '').trim();
-  const sipReady = Boolean(
-    livekitUrl &&
-    livekitApiKey &&
-    livekitApiSecret &&
-    String(process.env.LIVEKIT_SIP_BRIDGE_TARGET || '').trim() &&
-    String(process.env.RUSTPBX_LIVEKIT_TRUNK || '').trim() &&
-    String(process.env.RUSTPBX_RWI_URL || '').trim() &&
-    String(process.env.RUSTPBX_RWI_TOKEN || '').trim()
-  );
+  const sipReady = media.gateways.get('sip_volte').definition.status === 'active';
 
   return {
     provider: 'livekit',
@@ -760,7 +755,7 @@ export async function routeIveKitMediaApi(
   }
 
   if (routePath === '/api/ivekit/media/capabilities' && method === 'GET') {
-    return { data: capabilities(ctx.tenantId) };
+    return { data: capabilities(ctx.tenantId, media) };
   }
 
   if (routePath === '/api/ivekit/media/moderation/recover' && method === 'POST') {

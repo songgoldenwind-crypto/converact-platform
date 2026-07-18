@@ -105,7 +105,7 @@ interface TargetDefinition {
   target: VideoReadinessTarget;
   command: string;
   args: string[];
-  requirements: Array<EnvRequirement | EnvAlternativeRequirement>;
+  requirements: Array<EnvRequirement | EnvAlternativeRequirement | EnvValueRequirement>;
   customRequirements?: (env: NodeJS.ProcessEnv) => string[];
 }
 
@@ -118,6 +118,12 @@ interface EnvAlternativeRequirement {
   type: 'any';
   label: string;
   keys: string[];
+}
+
+interface EnvValueRequirement {
+  type: 'equals';
+  key: string;
+  value: string;
 }
 
 const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
@@ -260,6 +266,7 @@ const targetDefinitions: Record<VideoReadinessTarget, TargetDefinition> = {
     command: 'npm',
     args: ['run', 'smoke:media:sip-volte'],
     requirements: [
+      { type: 'equals', key: 'OPC_SIP_VOLTE_ENABLED', value: '1' },
       { type: 'single', key: 'LIVEKIT_URL' },
       { type: 'single', key: 'LIVEKIT_API_KEY' },
       { type: 'single', key: 'LIVEKIT_API_SECRET' },
@@ -344,6 +351,9 @@ export async function runVideoReadinessSuite(
   const skippedTargets = new Set<VideoReadinessTarget>();
   if (config.targets.includes('media')) {
     runtimeEnv.OPC_MEDIA_SMOKE_REQUIRE_CONFIGURED_LIVEKIT = '1';
+  }
+  if (config.targets.includes('sip-volte')) {
+    runtimeEnv.OPC_SIP_VOLTE_REQUIRE_ACTIVE = '1';
   }
   if (shouldUseMediaJoinPathForCustomerBrowser(config)) {
     runtimeEnv.OPC_MEDIA_SMOKE_KEEP_ROOM_OPEN = '1';
@@ -538,11 +548,16 @@ function remoteGatewayRequirements(env: NodeJS.ProcessEnv): string[] {
 }
 
 function missingRequirement(
-  requirement: EnvRequirement | EnvAlternativeRequirement,
+  requirement: EnvRequirement | EnvAlternativeRequirement | EnvValueRequirement,
   env: NodeJS.ProcessEnv
 ): string | null {
   if (requirement.type === 'single') {
     return hasEnv(env, requirement.key) ? null : `${requirement.key} is required`;
+  }
+  if (requirement.type === 'equals') {
+    return env[requirement.key]?.trim() === requirement.value
+      ? null
+      : `${requirement.key} must equal ${requirement.value}`;
   }
   return requirement.keys.some((key) => hasEnv(env, key)) ? null : `${requirement.label} is required`;
 }

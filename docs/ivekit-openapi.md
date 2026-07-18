@@ -145,26 +145,43 @@ Media Core 不返回 URL、API key 或 secret。与 LiveKit 浏览器接入有�
 
 ```json
 {
-  "provider": "livekit",
-  "tenant_id": "tenant_led",
-  "capabilities": {
-    "calls": true,
-    "host_moderation": true
-  },
-  "config": {
-    "livekit_url_configured": true,
-    "livekit_public_url_configured": true,
-    "livekit_server_configured": true,
-    "livekit_browser_join_ready": true,
-    "livekit_api_key_configured": true,
-    "livekit_api_secret_configured": true,
-    "invite_secret_configured": true,
-    "egress_configured": true
+  "data": {
+    "provider": "livekit",
+    "tenant_id": "tenant_led",
+    "capabilities": {
+      "calls": true,
+      "rooms": true,
+      "tokens": true,
+      "join": true,
+      "participants": true,
+      "host_moderation": true,
+      "recording": true,
+      "recording_object_check": true,
+      "recording_export": true,
+      "recording_retention_cleanup": true,
+      "quality_observability": true,
+      "connection_rejoin_events": true,
+      "webhooks": true,
+      "web_assist": true,
+      "sip_volte": "planned"
+    },
+    "config": {
+      "livekit_url_configured": true,
+      "livekit_public_url_configured": true,
+      "livekit_server_configured": true,
+      "livekit_browser_join_ready": true,
+      "livekit_api_key_configured": true,
+      "livekit_api_secret_configured": true,
+      "invite_secret_configured": true,
+      "egress_configured": true
+    }
   }
 }
 ```
 
 `livekit_server_configured` 表示服务端地址、API key 和 API secret 齐全；`livekit_browser_join_ready` 表示服务端配置完整且浏览器入口有效。生产环境缺任一服务端配置都会拒绝签 token，只有显式配置 `LIVEKIT_PUBLIC_URL=wss://...` 时，浏览器 join 才可能就绪；production 不会签发 `dev-token`。
+
+`data.capabilities.sip_volte` 读取当前 Media Core 实际使用的 gateway registry。registry 启动时按 fail-closed 规则构建：只有 `OPC_SIP_VOLTE_ENABLED=1`，且 `LIVEKIT_URL/API_KEY/API_SECRET`、`LIVEKIT_SIP_BRIDGE_TARGET`、`RUSTPBX_LIVEKIT_TRUNK`、`RUSTPBX_RWI_URL/TOKEN` 全部有效时才返回 `ready`；否则返回 `planned`。修改环境变量后必须重启应用，接口不会绕过当前 registry 动态提升状态。该字段不泄露地址或凭据，也不等价于真实运营商 VoLTE/PSTN 已完成端到端验收。
 
 ### 2.3 房间和 Join
 

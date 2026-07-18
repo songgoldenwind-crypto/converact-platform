@@ -1,6 +1,6 @@
 # iveKit V3 完成审计与验收记录
 
-更新日期：2026-07-15。本文前八节对应 `codex/ivekit-v3-multimodal-translation` 的历史证据；第九节追加当前 V5 Stage 2 的独立审计，不以旧 V3/V4 环境结果替代当前 release 证据。
+更新日期：2026-07-18。本文前八节对应 `codex/ivekit-v3-multimodal-translation` 的历史证据；后续章节持续追加当前共用通信底座审计，不以旧 V3/V4 环境结果替代当前 release 证据。
 
 ## 1. 审计范围
 
@@ -254,7 +254,7 @@ LED 业务逻辑、OPC 业务领域、移动端和数字人不属于 iveKit 底�
 | # | 原始目标 | 权威实现与交付证据 | 代码裁决 | 真实环境状态 |
 | --- | --- | --- | --- | --- |
 | 1 | Tinode IM 完整集成 | `src/agent-runtime/collaboration/tinode-*` 实现双向同步、会话、附件、已读/状态、离线恢复、原生 edit/delete outbox、迟到 echo 纠正、重放和指标；migration 062/074 持久化文件投递与 mutation；`services/ivekit-service/helm/ivekit/templates/tinode-*` 提供 bundled Kubernetes；`infra/ivekit/tinode/` 提供固定 `v0.25.3` 三节点 owner-aware fork；OpenAPI、SDK 和参考客户端均含消息、附件与 mutation 状态 | `implemented` | 真实 Tinode 多客户端收敛、三节点故障、目标 PVC/长稳为 `not_run` |
-| 2 | LiveKit 全部基础音视频 | `src/agent-runtime/livekit/` 覆盖房间、Token、参与人、音视频、屏幕共享、Webhook、moderation、录制、QoS、超时和重入；migration 063/087/088/089 覆盖质量与 Egress job/reconciliation/capacity；`infra/ivekit/livekit/` 固定 `v1.13.3` owner overlay；Egress 双池仅接受批准仓库 `ivekit/livekit-egress` 的 digest-bound 镜像，并与 external LiveKit 显式共享 Redis address/认证/TLS，缺 digest/shared Redis、使用上游全限定别名或任意其他仓库均 Helm fail-closed；参考客户端实现断线恢复与 320/390 移动布局 | `implemented` | 定制 Egress 镜像尚未真实构建；双客户端、摄像头/麦克风、TURN、Egress 对象链路、弱网和多实例为 `not_run` |
+| 2 | LiveKit 全部基础音视频 | `src/agent-runtime/livekit/` 覆盖房间、Token、参与人、音视频、屏幕共享、Webhook、moderation、录制、QoS、超时和重入；migration 063/087/088/089 覆盖质量与 Egress job/reconciliation/capacity；`infra/ivekit/livekit/` 固定 `v1.13.3` owner overlay；Egress 双池仅接受批准仓库 `ivekit/livekit-egress` 的 digest-bound 镜像，并与 external LiveKit 显式共享 Redis address/认证/TLS，缺 digest/shared Redis、使用上游全限定别名或任意其他仓库均 Helm fail-closed；参考客户端实现断线恢复与 320/390 移动布局；第 17 节已记录精确源码 Egress 本机镜像构建证据 | `implemented` | 不可变 amd64 生产 Egress 镜像、Registry digest/SBOM/签名/provenance、双客户端、摄像头/麦克风、TURN、对象链路、弱网和多实例为 `not_run` |
 | 3 | RustDesk Windows 远控闭环 | `src/agent-runtime/collaboration/rustdesk-*`、`scripts/rustdesk-*` 与 `scripts/rustdesk-windows/` 覆盖授权码、device command、session hook、精准断开、owner epoch、剪贴板/文件/多屏/录屏观察、durable spool、evidence 上传、审计和 emergency fallback；`integrations/rustdesk-1.4.7/` 含 native control/evidence overlay；Windows workflow、安装包、SDK/LED facade 和参考工作区已交付 | `implemented_not_run` | 定制签名 Windows 制品、双物理机、UAC/login screen、同机多会话和真实文件/录屏为 `not_run` |
 | 4 | RustPBX、SIP、WebPhone、IVR 与呼叫 | `src/agent-runtime/ivekit/voice/`、`ivr/` 和参考客户端 Voice/IVR 工作区覆盖注册、呼入/呼出、接听/拒绝、Hold、DTMF、设备、呼叫控制、路由、录音和 provider event；固定 RustPBX/rsipstack 源码 release 编译与本地 custom image 通过；`scripts/ivekit-rustpbx-sipp-acceptance.ts` 使用 SIPp 3.7.7 完成 12 个受控信令场景、19 个请求且 Router/CDR 增量均为 19 | `implemented_not_run` | 真实 RTP 音频连续性、浏览器 WSS/物理音频、PSTN、overload 曲线和 supervisor mixer 为 `not_run` |
 | 5 | OCR、ASR、翻译、AI 质检、防绕单与 Provider 治理 | collaboration intelligence、attachment text、translation、quality review、policy scan 与 provider registry/governance/route 覆盖第三方 HTTP 和自建 Provider 双模式、健康检查、配额、熔断、降级、故障切换、OCR/ASR/帧 OCR、AI finding、人工复核和文本/图片防绕单；migration 059/060/076、OpenAPI、SDK 和参考质量工作区提供持久状态与操作面 | `implemented` | 真实厂商/自建模型、凭据、准确率语料、配额与故障切换为 `not_run` |
@@ -344,7 +344,7 @@ PSTN、TURN、真实 Egress 或容量结论。
 | --- | --- | --- |
 | 固定 RustPBX 原生构建 | `passed` | RustPBX `6c49ee76baa54fdbf8f98020cc9bee158c7c15de`、rsipstack `8318e97b1170de4e5245b120afec1cdf53e3d716`、锁定 Cargo 图和完整补丁队列在 arm64 完成 release build；运行镜像 ID `sha256:89ca9e40712e8447314b77c310fede96517b77d64af79fbdea25fa83ba31c9dc` |
 | 无 PSTN SIPp 3.7.7 | `passed_controlled_local` | 12/12 场景、19 个呼叫、Router delta 19、CDR delta 19；覆盖 UDP/TCP、接听/挂断、早取消、486、503、无应答、TCP 重连、UDP 重传、10 路并发和 REGISTER Digest 正反例；SIPp SHA-256 为 `8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef` |
-| LiveKit 存储隔离 | `implemented_controlled` | LiveKit Server 部署图只依赖 Redis，不依赖 Egress/MinIO/S3；transfer accept 先将 call 置为 active、广播 `call.answered` 并立即返回 `call_status=active`、房间/token 与 `recording_status=scheduled`，录音授权查询和 Egress 启动均在响应路径外执行；模拟 Egress 延迟 800 ms 后返回 503 时 accept 仍在 300 ms 内完成，后台发送脱敏 `call.recording_failed` |
+| LiveKit 存储隔离 | `implemented_controlled` | LiveKit Server 部署图只依赖 Redis，不依赖 Egress/MinIO/S3；transfer accept 先将 call 置为 active、广播 `call.answered` 并立即返回 `call_status=active`、房间/token 与 `recording_status=scheduled`，录音授权查询和 Egress 启动均在响应路径外执行；模拟 Egress 延迟 800 ms 后返回 503 时 accept 仍在 300 ms 内完成，后台发送脱敏 `call.recording_failed`，并在录制记录已经进入 `failed` 后再次断言 call session 仍为 `active` |
 | RustPBX 存储隔离 | `implemented_compiled` | RTP capture 使用有界 `try_send`，编解码/磁盘写入位于独立 worker；录制创建、停止和最终落盘位于固定大小的有界 lifecycle executor，SIP start/stop 不等待磁盘，Pause/Resume 只使用 `try_write`；收尾有界等待已接收样本并只尝试非阻塞取锁，超时仅使录音失败；异步启动前的样本丢失也会补绑计数器并进入 manifest；对象上传是反向依赖 RustPBX 的独立 sidecar；首次本地写失败会熔断 capture，后续只计丢弃；存在 dropped sample 的 manifest 强制失败为 `recording_samples_dropped`，不能进入可交付状态 |
 
 首次 SIPp 运行中 10 个 INVITE 场景未收到响应。证据显示 RustPBX `ensure_user` 在 Router 前拒绝未知
@@ -376,3 +376,21 @@ PostgreSQL 或静态 Profile 解释成目标服务器、真实媒体、Windows�
 部署与回滚、真实 LiveKit/TURN/Egress/对象存储、Track/Composite 双池隔离、真实 RTP/WebRTC 连续性、
 PSTN、双 Windows、商业 Provider、单机 frontier、Cell-10K 和 MIX-100K。`capacity_claim` 继续为
 `none`，存储中断时录制可以失败或不完整，但已建立电话、视频、屏幕共享和远控媒体不得因此终止。
+
+## 18. SIP/VoLTE 显式激活与本机部署复验（2026-07-18）
+
+本节收口历史 `sip_volte` 固定 planned stub。它证明运行时配置、API 真值、部署模板和自动门禁已经
+一致，不把静态激活或健康探针解释成真实运营商线路已经接通。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| Gateway 激活合同 | `implemented` | `OPC_SIP_VOLTE_ENABLED=1` 且 LiveKit URL/key/secret、SIP bridge target、RustPBX trunk、RWI URL/token 全部有效时注册表才将 `sip_volte` 标记 active；缺项、控制字符、非法 SIP target、带 URL 凭据/查询串或未启用均 fail-closed 为 planned，不再需要修改源码常量 |
+| Capabilities/OpenAPI | `implemented` | `GET /api/ivekit/media/capabilities` 读取当前 Media Core 实际使用的 gateway registry，`data.capabilities.sip_volte=ready|planned`；修改 env 不会绕过未重启的 planned registry 动态提升状态。OpenAPI 3.1 明确声明与实现一致的 `{data: IveKitMediaCapabilities}` envelope，响应只给布尔/枚举状态，不泄露 URL、API key、RWI token 或 secret |
+| Readiness/探针 | `implemented` | `smoke:media:sip-volte`、总 readiness 与 deployment preflight 都要求显式启用和完整配置；总 readiness 要求开关精确等于 `1` 并强制子命令使用 active-gateway 模式，preflight 复用运行时 resolver 拒绝危险 SIP target、trunk 和带凭据/查询串的控制 URL；报告只输出布尔配置摘要，可选 runtime probe 只允许把静态 active 降级；任何 planned 结果都会使总门禁失败 |
+| Compose/Helm | `passed_controlled_local` | 本机 Docker 28.3.2 已恢复；root、production、infra/ivekit、service 四套 Compose quiet render 通过。独立 service 基础 Compose 已把可选 `voice-runtime.env` 注入 iveKit 进程，使 RWI token 可通过既有秘密文件进入 SIP 激活合同；Docker 实跑发现 production env 的 Voice address/HMAC key 为空会在 profile 选择前触发 `${VAR:?}` 失败，已改成必须替换的显式占位值，真实 Voice preflight 仍拒绝占位密钥。固定且校验 SHA-256 的 Helm v3.18.4 完成两套 Chart lint/template，Stage 2 `22/22` 通过 |
+| 自动化回归 | `passed` | SIP/媒体/部署/OpenAPI/存储隔离 focused `138/138`；Delivery `56/56`；standalone context `352` source、`8` runtime packages、`11` entrypoints；根/Capacity typecheck 通过；全仓 `3395` total、`3383` pass、`12` environment skip、`0` fail |
+
+当前仍为 `not_run`：RustPBX ↔ livekit-sip ↔ LiveKit 真实 SIP/RTP 媒体、运营商 VoLTE/PSTN、真实
+双客户端与 TURN、桥接故障切换、amd64 生产制品、目标 Kubernetes rollout 和容量。静态
+`data.capabilities.sip_volte=ready` 只代表本进程具备执行配置；运行时探针只代表桥控制面按本次配置健康；
+两者都不能替代真实呼叫、双向音视频和断线恢复证据。

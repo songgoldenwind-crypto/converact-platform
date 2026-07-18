@@ -6,6 +6,7 @@ import {
   optionalLiveKitAcceptanceMetadata,
   type LiveKitAcceptanceMetadata
 } from './livekit-acceptance-metadata.js';
+import { resolveSipVolteGatewayConfiguration } from '../src/agent-runtime/media-gateway/adapters/sip-volte-gateway.js';
 
 export type LiveKitDeploymentPreflightStatus = 'pass' | 'warn' | 'fail';
 
@@ -21,12 +22,11 @@ export interface LiveKitDeploymentPreflightReport {
   checked_at: string;
   acceptance?: LiveKitAcceptanceMetadata;
   summary: {
-    livekitUrl: string;
-    livekitInternalUrl: string;
-    livekitPublicUrl: string;
+    livekitInternalUrlConfigured: boolean;
+    livekitPublicUrlConfigured: boolean;
     deploymentMode: LiveKitDeploymentMode;
-    opcBaseUrl: string;
-    frontendUrl: string;
+    opcBaseUrlConfigured: boolean;
+    frontendUrlConfigured: boolean;
     mediaTokenConfigured: boolean;
     inviteSecretConfigured: boolean;
     tenantConfigured: boolean;
@@ -124,14 +124,20 @@ export function createLiveKitDeploymentPreflightReport(
   const timeSynchronized = String(env.OPC_LIVEKIT_TIME_SYNC_STATUS || '').trim().toLowerCase() === 'synchronized' &&
     Number.isFinite(clockOffsetMs) && Number.isInteger(maxClockSkewMs) && maxClockSkewMs > 0 &&
     Math.abs(clockOffsetMs) <= maxClockSkewMs;
+  const sipVolte = resolveSipVolteGatewayConfiguration(env);
+  const sipSelected = targets.includes('sip-volte');
+  const livekitInternalUrlValid = isLiveKitUrl(livekitInternalUrl) &&
+    (!sipSelected || !sipVolte.missingOrInvalid.includes('LIVEKIT_URL'));
 
   addCheck(
     checks,
     'livekit_internal_url',
-    isLiveKitUrl(livekitInternalUrl) ? 'pass' : 'fail',
-    livekitInternalUrl
+    livekitInternalUrlValid ? 'pass' : 'fail',
+    livekitInternalUrlValid
       ? 'LIVEKIT_URL is configured for server-side LiveKit connections'
-      : 'LIVEKIT_URL or OPC_LIVEKIT_URL is required'
+      : livekitInternalUrl
+        ? 'LIVEKIT_URL is invalid for the selected readiness targets'
+        : 'LIVEKIT_URL or OPC_LIVEKIT_URL is required'
   );
   addCheck(
     checks,
@@ -173,8 +179,20 @@ export function createLiveKitDeploymentPreflightReport(
     addPinnedImageTagCheck(checks, 'livekit_caddyl4_image_tag', env.LIVEKIT_CADDYL4_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.caddyl4);
     addPinnedImageTagCheck(checks, 'livekit_redis_image_tag', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis);
   }
-  addRequiredSecret(checks, 'livekit_api_key', env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY, 'LIVEKIT_API_KEY or OPC_LIVEKIT_API_KEY is required');
-  addRequiredSecret(checks, 'livekit_api_secret', env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET, 'LIVEKIT_API_SECRET or OPC_LIVEKIT_API_SECRET is required');
+  addRequiredSecret(
+    checks,
+    'livekit_api_key',
+    env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY,
+    'LIVEKIT_API_KEY or OPC_LIVEKIT_API_KEY is required',
+    !sipSelected || !sipVolte.missingOrInvalid.includes('LIVEKIT_API_KEY')
+  );
+  addRequiredSecret(
+    checks,
+    'livekit_api_secret',
+    env.LIVEKIT_API_SECRET || env.OPC_LIVEKIT_API_SECRET,
+    'LIVEKIT_API_SECRET or OPC_LIVEKIT_API_SECRET is required',
+    !sipSelected || !sipVolte.missingOrInvalid.includes('LIVEKIT_API_SECRET')
+  );
   addHttpUrlCheck(checks, 'opc_base_url', opcBaseUrl, 'OPC_BASE_URL is configured');
   addRequiredSecret(checks, 'media_api_token', mediaToken, 'OPC_MEDIA_API_TOKEN or LIVEKIT_MEDIA_API_TOKEN is required');
   addRequiredSecret(checks, 'media_invite_secret', inviteSecret, 'OPC_MEDIA_INVITE_SECRET or LIVEKIT_MEDIA_INVITE_SECRET is required');
@@ -329,10 +347,18 @@ export function createLiveKitDeploymentPreflightReport(
   }
 
   if (targets.includes('sip-volte')) {
-    addRequiredValue(checks, 'sip_bridge_target', env.LIVEKIT_SIP_BRIDGE_TARGET, 'LIVEKIT_SIP_BRIDGE_TARGET is required');
-    addRequiredValue(checks, 'rustpbx_livekit_trunk', env.RUSTPBX_LIVEKIT_TRUNK, 'RUSTPBX_LIVEKIT_TRUNK is required');
-    addRequiredValue(checks, 'rustpbx_rwi_url', env.RUSTPBX_RWI_URL, 'RUSTPBX_RWI_URL is required');
-    addRequiredSecret(checks, 'rustpbx_rwi_token', env.RUSTPBX_RWI_TOKEN, 'RUSTPBX_RWI_TOKEN is required');
+    addCheck(
+      checks,
+      'sip_volte_gateway_enabled',
+      env.OPC_SIP_VOLTE_ENABLED === '1' ? 'pass' : 'fail',
+      env.OPC_SIP_VOLTE_ENABLED === '1'
+        ? 'SIP / VoLTE gateway is explicitly enabled'
+        : 'OPC_SIP_VOLTE_ENABLED must be 1 when sip-volte readiness is selected'
+    );
+    addSipConfigurationCheck(checks, sipVolte.missingOrInvalid, 'sip_bridge_target', 'LIVEKIT_SIP_BRIDGE_TARGET');
+    addSipConfigurationCheck(checks, sipVolte.missingOrInvalid, 'rustpbx_livekit_trunk', 'RUSTPBX_LIVEKIT_TRUNK');
+    addSipConfigurationCheck(checks, sipVolte.missingOrInvalid, 'rustpbx_rwi_url', 'RUSTPBX_RWI_URL');
+    addSipConfigurationCheck(checks, sipVolte.missingOrInvalid, 'rustpbx_rwi_token', 'RUSTPBX_RWI_TOKEN');
   }
 
   const acceptance = optionalLiveKitAcceptanceMetadata(env);
@@ -342,12 +368,11 @@ export function createLiveKitDeploymentPreflightReport(
     checked_at: new Date().toISOString(),
     ...(acceptance ? { acceptance } : {}),
     summary: {
-      livekitUrl: livekitInternalUrl,
-      livekitInternalUrl,
-      livekitPublicUrl,
+      livekitInternalUrlConfigured: Boolean(livekitInternalUrl),
+      livekitPublicUrlConfigured: Boolean(livekitPublicUrl),
       deploymentMode: deploymentMode || 'bundled-dev',
-      opcBaseUrl,
-      frontendUrl,
+      opcBaseUrlConfigured: Boolean(opcBaseUrl),
+      frontendUrlConfigured: Boolean(frontendUrl),
       mediaTokenConfigured: Boolean(mediaToken),
       inviteSecretConfigured: Boolean(inviteSecret),
       tenantConfigured: Boolean(mediaTenant),
@@ -483,6 +508,7 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
     item('Web Assist', 'OPC_WEB_ASSIST_ENGINEER_TOKEN', webAssistRequired, 'Signed engineer token used by Web Assist browser smoke.', env.OPC_WEB_ASSIST_ENGINEER_TOKEN, true),
     item('Web Assist', 'OPC_WEB_ASSIST_ENGINEER_USER_ID', webAssistRequired, 'Engineer user id used by Web Assist browser smoke.', env.OPC_WEB_ASSIST_ENGINEER_USER_ID),
     item('Web Assist', 'OPC_WEB_ASSIST_TENANT_ID', webAssistRequired, 'Web Assist tenant. Can fall back to OPC_TENANT_ID.', env.OPC_WEB_ASSIST_TENANT_ID || env.OPC_TENANT_ID),
+    item('SIP / VoLTE', 'OPC_SIP_VOLTE_ENABLED', sipRequired, 'Set to 1 to activate the SIP / VoLTE gateway.', env.OPC_SIP_VOLTE_ENABLED || '0'),
     item('SIP / VoLTE', 'LIVEKIT_SIP_BRIDGE_TARGET', sipRequired, 'SIP URI for livekit-sip bridge.', env.LIVEKIT_SIP_BRIDGE_TARGET),
     item('SIP / VoLTE', 'RUSTPBX_LIVEKIT_TRUNK', sipRequired, 'RustPBX trunk name that routes to LiveKit SIP.', env.RUSTPBX_LIVEKIT_TRUNK),
     item('SIP / VoLTE', 'RUSTPBX_RWI_URL', sipRequired, 'RustPBX RWI WebSocket URL.', env.RUSTPBX_RWI_URL),
@@ -527,15 +553,37 @@ function addRequiredSecret(
   checks: LiveKitDeploymentPreflightCheck[],
   id: string,
   value: string | undefined,
-  failMessage: string
+  failMessage: string,
+  runtimeValid = true
 ): void {
   const normalized = String(value || '').trim();
-  const configured = Boolean(normalized) && !isPlaceholderSecret(normalized);
+  const configured = Boolean(normalized) && !isPlaceholderSecret(normalized) && runtimeValid;
   addCheck(
     checks,
     id,
     configured ? 'pass' : 'fail',
-    configured ? `${id} is configured` : normalized ? `${id} must replace the example placeholder` : failMessage
+    configured
+      ? `${id} is configured`
+      : !normalized
+        ? failMessage
+        : !runtimeValid
+          ? `${id} is invalid for SIP / VoLTE gateway activation`
+          : `${id} must replace the example placeholder`
+  );
+}
+
+function addSipConfigurationCheck(
+  checks: LiveKitDeploymentPreflightCheck[],
+  missingOrInvalid: readonly string[],
+  id: string,
+  envName: string
+): void {
+  const valid = !missingOrInvalid.includes(envName);
+  addCheck(
+    checks,
+    id,
+    valid ? 'pass' : 'fail',
+    valid ? `${id} is configured` : `${envName} is missing or invalid`
   );
 }
 

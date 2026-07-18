@@ -1,3 +1,11 @@
+{{- if .Values.media.sip.gatewayEnabled }}
+{{- if not .Values.voice.enabled }}
+{{- fail "media.sip.gatewayEnabled requires voice.enabled so the RustPBX RWI token is available" }}
+{{- end }}
+{{- required "media.sip.bridgeTarget is required when the SIP/VoLTE gateway is enabled" .Values.media.sip.bridgeTarget }}
+{{- required "media.sip.rustpbxTrunk is required when the SIP/VoLTE gateway is enabled" .Values.media.sip.rustpbxTrunk }}
+{{- required "media.sip.rustpbxRwiUrl is required when the SIP/VoLTE gateway is enabled" .Values.media.sip.rustpbxRwiUrl }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -77,6 +85,14 @@ spec:
               value: {{ .Values.media.smokeRecordingObjectTimeoutMs | default "60000" | quote }}
             - name: OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS
               value: {{ .Values.media.smokeRecordingObjectPollIntervalMs | default "2000" | quote }}
+            - name: OPC_SIP_VOLTE_ENABLED
+              value: {{ ternary "1" "0" .Values.media.sip.gatewayEnabled | quote }}
+            - name: LIVEKIT_SIP_BRIDGE_TARGET
+              value: {{ .Values.media.sip.bridgeTarget | default "" | quote }}
+            - name: RUSTPBX_LIVEKIT_TRUNK
+              value: {{ .Values.media.sip.rustpbxTrunk | default "" | quote }}
+            - name: RUSTPBX_RWI_URL
+              value: {{ .Values.media.sip.rustpbxRwiUrl | default "" | quote }}
             - name: OPC_API_KEY
               valueFrom:
                 secretKeyRef:

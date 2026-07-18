@@ -1067,6 +1067,17 @@ paths:
         '404': { description: Evidence is absent or not owned by this edge identity }
         '409': { description: Missing parts, total, checksum, or lifecycle conflict }
 
+  /api/ivekit/media/capabilities:
+    get:
+      summary: Get reusable Media Core capabilities and secret-safe deployment readiness
+      tags: [iveKit Media]
+      responses:
+        '200':
+          description: Tenant-scoped capability truth without URLs, credentials, or provider payloads
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IveKitMediaCapabilitiesResponse' }
+
   /api/ivekit/media/calls/{call_id}/qos:
     get:
       summary: Get the bounded QoS and connection summary for a media call
@@ -2365,6 +2376,54 @@ components:
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/IveKitNotificationInboxItem' } }
         next_cursor: { type: [string, 'null'] }
+
+    IveKitMediaCapabilitiesResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/IveKitMediaCapabilities' }
+
+    IveKitMediaCapabilities:
+      type: object
+      additionalProperties: false
+      required: [provider, tenant_id, capabilities, config]
+      properties:
+        provider: { type: string, const: livekit }
+        tenant_id: { type: string, minLength: 1 }
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [calls, rooms, tokens, join, participants, host_moderation, recording, recording_object_check, recording_export, recording_retention_cleanup, quality_observability, connection_rejoin_events, webhooks, web_assist, sip_volte]
+          properties:
+            calls: { type: boolean }
+            rooms: { type: boolean }
+            tokens: { type: boolean }
+            join: { type: boolean }
+            participants: { type: boolean }
+            host_moderation: { type: boolean }
+            recording: { type: boolean }
+            recording_object_check: { type: boolean }
+            recording_export: { type: boolean }
+            recording_retention_cleanup: { type: boolean }
+            quality_observability: { type: boolean }
+            connection_rejoin_events: { type: boolean }
+            webhooks: { type: boolean }
+            web_assist: { type: boolean }
+            sip_volte: { type: string, enum: [ready, planned] }
+        config:
+          type: object
+          additionalProperties: false
+          required: [livekit_url_configured, livekit_public_url_configured, livekit_server_configured, livekit_browser_join_ready, livekit_api_key_configured, livekit_api_secret_configured, invite_secret_configured, egress_configured]
+          properties:
+            livekit_url_configured: { type: boolean }
+            livekit_public_url_configured: { type: boolean }
+            livekit_server_configured: { type: boolean }
+            livekit_browser_join_ready: { type: boolean }
+            livekit_api_key_configured: { type: boolean }
+            livekit_api_secret_configured: { type: boolean }
+            invite_secret_configured: { type: boolean }
+            egress_configured: { type: boolean }
 
     IveKitMediaQualitySnapshotInput:
       type: object

@@ -436,6 +436,10 @@ media:
             cpu: "16"
   sip:
     enabled: false
+    gatewayEnabled: false
+    bridgeTarget: ""
+    rustpbxTrunk: ""
+    rustpbxRwiUrl: ""
     image:
       repository: livekit/sip
       tag: v1.6.0

@@ -68,6 +68,53 @@ test('video readiness suite preflight reports missing env by target', async () =
   );
 });
 
+test('video readiness suite requires the SIP gateway switch to equal 1', async () => {
+  const calls: string[] = [];
+
+  await assert.rejects(
+    () =>
+      runVideoReadinessSuite(
+        createVideoReadinessSuiteConfigFromEnv({
+          OPC_VIDEO_READINESS_TARGETS: 'sip-volte',
+          OPC_SIP_VOLTE_ENABLED: '0',
+          LIVEKIT_URL: 'ws://livekit:7880',
+          LIVEKIT_API_KEY: 'devkey',
+          LIVEKIT_API_SECRET: 'secret',
+          LIVEKIT_SIP_BRIDGE_TARGET: 'sip:livekit-bridge@livekit-sip:5061',
+          RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
+          RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
+          RUSTPBX_RWI_TOKEN: 'rwi-token'
+        }),
+        createCommandRunner({ calls })
+      ),
+    /sip-volte: OPC_SIP_VOLTE_ENABLED must equal 1/
+  );
+
+  assert.deepEqual(calls, []);
+});
+
+test('video readiness suite forces the SIP child check into active-gateway mode', async () => {
+  const result = await runVideoReadinessSuite(
+    createVideoReadinessSuiteConfigFromEnv({
+      OPC_VIDEO_READINESS_TARGETS: 'sip-volte',
+      OPC_SIP_VOLTE_ENABLED: '1',
+      LIVEKIT_URL: 'ws://livekit:7880',
+      LIVEKIT_API_KEY: 'devkey',
+      LIVEKIT_API_SECRET: 'secret',
+      LIVEKIT_SIP_BRIDGE_TARGET: 'sip:livekit-bridge@livekit-sip:5061',
+      RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
+      RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
+      RUSTPBX_RWI_TOKEN: 'rwi-token'
+    }),
+    async (_command, _args, meta) => {
+      assert.equal(meta.env.OPC_SIP_VOLTE_REQUIRE_ACTIVE, '1');
+      return { exitCode: 0, stdout: 'sip active', stderr: '' };
+    }
+  );
+
+  assert.equal(result.ok, true);
+});
+
 test('video readiness suite preflight reports missing web assist browser env', async () => {
   await assert.rejects(
     () =>
@@ -122,6 +169,7 @@ test('video readiness suite runs selected smoke commands in order', async () => 
       LIVEKIT_URL: 'ws://livekit:7880',
       LIVEKIT_API_KEY: 'devkey',
       LIVEKIT_API_SECRET: 'secret',
+      OPC_SIP_VOLTE_ENABLED: '1',
       LIVEKIT_SIP_BRIDGE_TARGET: 'sip:livekit-bridge@livekit-sip:5061',
       RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
       RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',

@@ -1,6 +1,6 @@
 # 坐席视频通话 + 坐席间互通 使用指南
 
-两条实时音视频流程，共用 LiveKit 房间作为媒体中枢，并通过可插拔媒体网关支持未来的 VoLTE-SIP 接入。
+两条实时音视频流程，共用 LiveKit 房间作为媒体中枢，并通过可插拔媒体网关支持显式启用的 VoLTE-SIP 接入。
 
 ## 功能概览
 
@@ -22,7 +22,7 @@
             └──┬────────────┬──────────────────────┘
         ┌──────▼───┐  ┌─────▼──────┐
         │ webrtc   │  │ sip_volte  │
-        │ (active) │  │ (planned)  │
+        │ (active) │  │ (按配置激活) │
         └────┬─────┘  └─────┬──────┘
           签发token      SIP拨号指令
           浏览器直连   RustPBX→livekit-sip→房间
@@ -135,7 +135,7 @@ npm run smoke:media:readiness
 
 当 `media` 目标排在 `customer-browser` 前面时，总门禁会自动让 `smoke:media` 保留房间，读取它返回的 `customerJoinPath`，并作为 `OPC_CUSTOMER_VIDEO_URL` 传给客户 H5 浏览器 smoke；客户浏览器验完后，总门禁再调用媒体 close API 清理该房间。如果 `media` 成功但没有输出 `customerJoinPath`，总门禁会立刻记录失败并清理已知 room，不会继续跑缺输入的客户浏览器 smoke。如果 avatar、坐席浏览器等中间目标先失败，总门禁也会先清理这个保留房间再退出。这样真实验收不需要手工复制客户 `/video?...` 链接，也不会把客户浏览器指向已关闭房间。若 `OPC_MEDIA_INVITE_SECRET` 或 `LIVEKIT_MEDIA_INVITE_SECRET` 已配置，`smoke:media` 还会在服务端阶段校验 `customerJoinPath` 必须带 `invite` 和 `expires_at`，避免未签名链接拖到浏览器阶段才失败。若你显式设置了 `OPC_CUSTOMER_VIDEO_URL`，则优先使用你提供的链接，media 自己仍按默认行为收尾关闭。
 
-`sip-volte` 目标默认输出配置检查、SIP dial plan 和 `gatewayStatus`。由于代码内置 `sip_volte` gateway 仍是 planned，未配置运行时探针时会提示需要人工激活，但不会默认让整套 readiness 失败；如果本次验收要求 SIP/VoLTE 已经真正激活，设置 `OPC_SIP_VOLTE_REQUIRE_ACTIVE=1`。生产环境可再配置 `OPC_SIP_VOLTE_GATEWAY_STATUS_URL` 和可选 `OPC_SIP_VOLTE_GATEWAY_STATUS_TOKEN`，让脚本读取 livekit-sip/RustPBX 桥的运行时状态；探针返回 active、bridge target/trunk 对齐且 `video=true` 时，`gatewayStatus` 才会提升为 active，否则硬门禁仍会失败。
+`sip-volte` 目标在内存中校验配置和 SIP dial plan，持久化报告只写布尔配置摘要与 `gatewayStatus`。只有 `OPC_SIP_VOLTE_ENABLED=1`，且 LiveKit 凭据、SIP bridge target、RustPBX trunk、RWI URL/token 全部有效时，进程内 gateway 和 `/api/ivekit/media/capabilities` 才会报告 active/ready；缺少任一项都会 fail-closed 为 planned。配置在进程启动时固化到 gateway registry，修改环境变量后必须滚动重启，capabilities 不会把未重启的 planned registry 误报成 ready。生产环境可再配置 `OPC_SIP_VOLTE_GATEWAY_STATUS_URL` 和可选 `OPC_SIP_VOLTE_GATEWAY_STATUS_TOKEN`，让 readiness 校验 livekit-sip/RustPBX 桥的运行时状态；探针只能把静态 active 降级为 planned，不能把未启用或配置不完整的 gateway 提升为 active。最终上线门禁还应设置 `OPC_SIP_VOLTE_REQUIRE_ACTIVE=1`。
 
 `ai-callback` 目标会运行 `npm run smoke:media:ai-callback`，专门验证 Python AI agent 未来要调用的旧 OPC 业务回调入口 `/api/livekit/agent-dispatch`：脚本先创建一个旧 LiveKit room，再带 `OPC_API_KEY` 与显式 `tenant_id` 触发 `transfer_to_human`，最后通过 Media Core close API 清理房间；如果 dispatch 失败，也会尽力清理已创建的测试 room。注意它和 Media Core 的 `/api/media/livekit/agent-dispatch` 不同，后者是“派 AI 入房”，前者是“AI 已在房间内，回调 OPC 执行业务动作”。
 
@@ -291,11 +291,11 @@ registry.register(YOUR_GATEWAY_DEFINITION, createYourGateway());
 ### 未来接 4G VoLTE 视频 SIP 线路
 路径：`客户手机(VoLTE视频) → SIP → RustPBX → livekit-sip → LiveKit 房间`
 
-激活步骤（`sip_volte` 适配器当前为 stub，status='planned'）：
+激活步骤（适配器已实现，默认 fail-closed 为 `planned`）：
 1. 给 livekit-sip 容器配置视频支持（docker-compose.callcenter.yml + config/rustpbx.toml trunk livekit-bridge）
-2. 设 `LIVEKIT_SIP_BRIDGE_TARGET` + `RUSTPBX_LIVEKIT_TRUNK`
-3. 把 `SIP_VOLTE_GATEWAY_DEFINITION.status` 改为 `active` 并实现真实拨号目标解析
-4. 调 `/video/start` 时传 `customer_channel: 'sip_volte'`
+2. 设置 `OPC_SIP_VOLTE_ENABLED=1`、LiveKit 凭据、`LIVEKIT_SIP_BRIDGE_TARGET`、`RUSTPBX_LIVEKIT_TRUNK` 和 RWI URL/token
+3. 通过 `/api/ivekit/media/capabilities` 确认 `data.capabilities.sip_volte=ready`
+4. 调 `/video/start` 或 Media Core join 时传 `customer_channel: 'sip_volte'`
 
 激活前先跑 readiness：
 
@@ -303,20 +303,21 @@ registry.register(YOUR_GATEWAY_DEFINITION, createYourGateway());
 export LIVEKIT_URL=ws://localhost:7880
 export LIVEKIT_API_KEY=devkey
 export LIVEKIT_API_SECRET=secret
+export OPC_SIP_VOLTE_ENABLED=1
 export LIVEKIT_SIP_BRIDGE_TARGET=sip:livekit-bridge@livekit-sip:5061
 export RUSTPBX_LIVEKIT_TRUNK=livekit-bridge
 export RUSTPBX_RWI_URL=ws://localhost:8080/rwi/v1
 export RUSTPBX_RWI_TOKEN=dev-rwi-token
 export OPC_SIP_VOLTE_SMOKE_ROOM_NAME=tenant-demo-volte-room
-# 可选：真实桥接运行时状态探针，返回 status=active、target/trunk 匹配且 video=true 才能提升为 active。
+# 可选：真实桥接状态探针；不健康、字段不匹配或 video=false 会把本次结果降级为 planned。
 export OPC_SIP_VOLTE_GATEWAY_STATUS_URL=http://livekit-sip-bridge.local/status
 export OPC_SIP_VOLTE_GATEWAY_STATUS_TOKEN=bridge-status-token
-# 生产验收要求 SIP/VoLTE 已激活时打开；默认 0 只报告 planned 状态。
+# 生产验收要求 SIP/VoLTE 已激活时打开。
 export OPC_SIP_VOLTE_REQUIRE_ACTIVE=1
 npm run smoke:media:sip-volte
 ```
 
-这条 readiness 会输出 SIP dial plan，并明确当前 `sip_volte` gateway 是否仍是 `planned`。它不拨真实运营商电话，不替代 RustPBX ↔ livekit-sip ↔ LiveKit 的端到端联调。打开 `OPC_SIP_VOLTE_REQUIRE_ACTIVE=1` 后，若未配置运行时状态探针或探针未返回 active，它会把 planned 状态当成失败；配置探针后，脚本还会校验探针返回的 `sip_bridge_target` / `rustpbx_livekit_trunk` 与本次配置一致，并要求 `video=true`，适合最终上线闸门。
+这条 readiness 会在内存中构造并校验 SIP dial plan，但报告只输出 `sipDialTargetConfigured`、`trunkConfigured` 等布尔摘要和当前 gateway 的 `active|planned`，不回显 LiveKit/RWI URL、SIP target、trunk 或任何凭据。它不拨真实运营商电话，不替代 RustPBX ↔ livekit-sip ↔ LiveKit 的端到端联调。总 readiness 选择 `sip-volte` 时要求 `OPC_SIP_VOLTE_ENABLED` 精确等于 `1`，并自动给子命令设置 `OPC_SIP_VOLTE_REQUIRE_ACTIVE=1`，因此配置不完整或探针降级都会让总门禁失败。单独运行子命令时也应在生产验收显式打开该开关。未配置探针时只证明静态激活合同满足，配置探针后还会在内部校验 target、trunk 与 `video=true`，但真实 RTP/VoLTE/PSTN 仍需单独 E2E 证据。
 
 编排层、双画面 UI、intercom 逻辑均无需改动——客户腿从哪条链路接入对其他参与者透明。
 

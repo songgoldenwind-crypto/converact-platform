@@ -6,8 +6,8 @@ import {
 } from '../src/agent-runtime/media-gateway/index.js';
 import type { MediaGatewayAdapter } from '../src/agent-runtime/media-gateway/media-gateway-registry.js';
 
-test('default registry has webrtc (active) and sip_volte (planned)', () => {
-  const registry = createDefaultMediaGatewayRegistry();
+test('default registry has webrtc active and keeps sip_volte fail-closed', () => {
+  const registry = createDefaultMediaGatewayRegistry({});
   const channels = registry.list();
   const webrtc = channels.find((c) => c.channel === 'webrtc');
   const sip = channels.find((c) => c.channel === 'sip_volte');
@@ -78,8 +78,10 @@ test('webrtc gateway forwards the durable Cell owner into the LiveKit token', as
   }
 });
 
-test('sip_volte gateway is planned — prepareJoin is refused (501)', async () => {
-  const registry = createDefaultMediaGatewayRegistry();
+test('sip_volte gateway is planned when it is not explicitly enabled', async () => {
+  const registry = createDefaultMediaGatewayRegistry(completeSipVolteEnv({
+    OPC_SIP_VOLTE_ENABLED: '0'
+  }));
   await assert.rejects(
     () =>
       registry.prepareJoin('sip_volte', {
@@ -142,28 +144,82 @@ test('registry validates video support', async () => {
   );
 });
 
-test('sip_volte adapter (when activated) produces a SIP dial plan', () => {
-  // Register sip_volte as active to exercise its prepareJoin output shape.
-  const registry = new MediaGatewayRegistry();
-  // Re-use the real adapter factory but force active status.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return import('../src/agent-runtime/media-gateway/adapters/sip-volte-gateway.js').then(async (mod) => {
-    registry.register(
-      { ...mod.SIP_VOLTE_GATEWAY_DEFINITION, status: 'active' },
-      mod.createSipVolteGateway()
-    );
-    const plan = await registry.prepareJoin('sip_volte', {
-      tenantId: 't1',
-      roomName: 'room-volte',
-      identity: 'customer-1',
-      role: 'customer',
-      media: 'video'
-    });
-    assert.equal(plan.mode, 'sip_bridge');
-    if (plan.mode === 'sip_bridge') {
-      assert.match(plan.sipDialTarget, /room=room-volte/);
-      assert.equal(plan.video, true);
-      assert.ok(plan.trunk);
-    }
+test('sip_volte activates only with explicit complete production configuration', async () => {
+  const registry = createDefaultMediaGatewayRegistry(completeSipVolteEnv());
+  assert.equal(registry.get('sip_volte').definition.status, 'active');
+
+  const plan = await registry.prepareJoin('sip_volte', {
+    tenantId: 't1',
+    roomName: 'room-volte',
+    identity: 'customer-1',
+    role: 'customer',
+    media: 'video'
   });
+
+  assert.equal(plan.mode, 'sip_bridge');
+  if (plan.mode === 'sip_bridge') {
+    assert.equal(
+      plan.sipDialTarget,
+      'sip:livekit-bridge@livekit-sip:5061;room=room-volte'
+    );
+    assert.equal(plan.video, true);
+    assert.equal(plan.trunk, 'livekit-bridge');
+    assert.doesNotMatch(plan.note, /stub|planned/i);
+  }
 });
+
+test('sip_volte remains planned when one execution dependency is missing', async () => {
+  const env = completeSipVolteEnv();
+  delete env.RUSTPBX_RWI_TOKEN;
+  const registry = createDefaultMediaGatewayRegistry(env);
+
+  assert.equal(registry.get('sip_volte').definition.status, 'planned');
+  await assert.rejects(
+    () => registry.prepareJoin('sip_volte', {
+      tenantId: 't1', roomName: 'room-volte', identity: 'customer-1', role: 'customer', media: 'video'
+    }),
+    (error: Error & { status?: number }) => error.status === 501
+  );
+});
+
+test('sip_volte treats whitespace-only credentials as missing', () => {
+  const registry = createDefaultMediaGatewayRegistry(completeSipVolteEnv({
+    RUSTPBX_RWI_TOKEN: '   '
+  }));
+  assert.equal(registry.get('sip_volte').definition.status, 'planned');
+});
+
+test('sip_volte rejects an unsafe bridge target instead of activating', () => {
+  const registry = createDefaultMediaGatewayRegistry(completeSipVolteEnv({
+    LIVEKIT_SIP_BRIDGE_TARGET: 'sip:bridge@livekit-sip:5061\r\nX-Injected: yes'
+  }));
+  assert.equal(registry.get('sip_volte').definition.status, 'planned');
+});
+
+test('sip_volte rejects control URLs with embedded credentials or query data', () => {
+  for (const rwiUrl of [
+    'ws://operator:secret@rustpbx:8080/rwi/v1',
+    'ws://rustpbx:8080/rwi/v1?token=secret'
+  ]) {
+    const registry = createDefaultMediaGatewayRegistry(completeSipVolteEnv({
+      RUSTPBX_RWI_URL: rwiUrl
+    }));
+    assert.equal(registry.get('sip_volte').definition.status, 'planned');
+  }
+});
+
+function completeSipVolteEnv(
+  overrides: Record<string, string> = {}
+): NodeJS.ProcessEnv {
+  return {
+    OPC_SIP_VOLTE_ENABLED: '1',
+    LIVEKIT_URL: 'ws://livekit:7880',
+    LIVEKIT_API_KEY: 'devkey',
+    LIVEKIT_API_SECRET: 'secret',
+    LIVEKIT_SIP_BRIDGE_TARGET: 'sip:livekit-bridge@livekit-sip:5061',
+    RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
+    RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
+    RUSTPBX_RWI_TOKEN: 'rwi-token',
+    ...overrides
+  };
+}

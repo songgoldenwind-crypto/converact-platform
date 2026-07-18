@@ -262,6 +262,7 @@ test('accept transfer keeps media available when recording storage path fails', 
       return recording?.status === 'failed'
         && recording?.failure_code === 'livekit_egress_start_failed';
     });
+    assert.equal(voiceStore.getCallSession(tenantId, session.id)?.status, 'active');
   } finally {
     if (previous.url == null) delete process.env.LIVEKIT_URL;
     else process.env.LIVEKIT_URL = previous.url;

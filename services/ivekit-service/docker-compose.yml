@@ -100,6 +100,9 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${IVEKIT_HTTP_PORT:-8300}:3000"
+    env_file:
+      - path: ${OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE:-./voice-runtime.env}
+        required: false
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -114,6 +117,10 @@ services:
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      OPC_SIP_VOLTE_ENABLED: ${OPC_SIP_VOLTE_ENABLED:-0}
+      LIVEKIT_SIP_BRIDGE_TARGET: ${LIVEKIT_SIP_BRIDGE_TARGET:-}
+      RUSTPBX_LIVEKIT_TRUNK: ${RUSTPBX_LIVEKIT_TRUNK:-}
+      RUSTPBX_RWI_URL: ${RUSTPBX_RWI_URL:-}
       OPC_API_KEY: ${OPC_API_KEY:-}
       OPC_JWT_SECRET: ${OPC_JWT_SECRET:-}
       OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT: ${OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT:-0}

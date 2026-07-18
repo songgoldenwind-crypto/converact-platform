@@ -38,6 +38,7 @@ test('call center compose passes media security and recording env into opc servi
   assert.equal(opcEnvironment.OPC_MEDIA_INVITE_TTL_MS, '${OPC_MEDIA_INVITE_TTL_MS:-86400000}');
   assert.equal(opcEnvironment.OPC_MEDIA_RECORDING_RETENTION_DAYS, '${OPC_MEDIA_RECORDING_RETENTION_DAYS:-90}');
   assert.equal(opcEnvironment.OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT, '${OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT:-0}');
+  assert.equal(opcEnvironment.OPC_SIP_VOLTE_ENABLED, '${OPC_SIP_VOLTE_ENABLED:-0}');
   assert.equal('OPC_DB_PATH' in opcEnvironment, false);
   assert.equal(opcEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
   assert.equal(opcEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
@@ -111,6 +112,10 @@ test('production compose mounts shared media configs and passes Media Core env i
   assert.equal(opcEnvironment.OPC_MEDIA_INVITE_TTL_MS, '${OPC_MEDIA_INVITE_TTL_MS:-86400000}');
   assert.equal(opcEnvironment.OPC_MEDIA_RECORDING_RETENTION_DAYS, '${OPC_MEDIA_RECORDING_RETENTION_DAYS:-90}');
   assert.equal(opcEnvironment.OPC_RECORDING_HTTP_ALLOWED_ORIGINS, '${OPC_RECORDING_HTTP_ALLOWED_ORIGINS:-http://minio:9000}');
+  assert.equal(opcEnvironment.OPC_SIP_VOLTE_ENABLED, '${OPC_SIP_VOLTE_ENABLED:-0}');
+  assert.equal(opcEnvironment.LIVEKIT_SIP_BRIDGE_TARGET, '${LIVEKIT_SIP_BRIDGE_TARGET:-}');
+  assert.equal(opcEnvironment.RUSTPBX_LIVEKIT_TRUNK, '${RUSTPBX_LIVEKIT_TRUNK:-}');
+  assert.equal(opcEnvironment.RUSTPBX_RWI_URL, '${RUSTPBX_RWI_URL:-}');
   assert.equal(opcEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
   assert.equal(opcEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
   assert.equal(opcEnvironment.MINIO_ACCESS_KEY, '${MINIO_ACCESS_KEY:-minioadmin}');
@@ -701,6 +706,7 @@ test('root env example documents every video readiness input', () => {
     'RUSTPBX_LIVEKIT_TRUNK',
     'RUSTPBX_RWI_URL',
     'RUSTPBX_RWI_TOKEN',
+    'OPC_SIP_VOLTE_ENABLED',
     'OPC_SIP_VOLTE_REQUIRE_ACTIVE',
     'OPC_SIP_VOLTE_GATEWAY_STATUS_URL',
     'OPC_SIP_VOLTE_GATEWAY_STATUS_TOKEN',
@@ -726,6 +732,10 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
     'OPC_MEDIA_INVITE_SECRET',
     'OPC_MEDIA_INVITE_TTL_MS',
     'OPC_MEDIA_RECORDING_RETENTION_DAYS',
+    'OPC_SIP_VOLTE_ENABLED',
+    'LIVEKIT_SIP_BRIDGE_TARGET',
+    'RUSTPBX_LIVEKIT_TRUNK',
+    'RUSTPBX_RWI_URL',
     'OPC_RECORDING_HTTP_ALLOWED_ORIGINS',
     'OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT',
     'OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS',
@@ -809,6 +819,10 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   assert.match(secrets, /\.Release\.Name/);
 
   assert.match(values, /^media:/m);
+  assert.match(values, /^    gatewayEnabled: false$/m);
+  assert.match(values, /^    bridgeTarget: ""$/m);
+  assert.match(values, /^    rustpbxTrunk: ""$/m);
+  assert.match(values, /^    rustpbxRwiUrl: ""$/m);
   for (const valueKey of [
     'apiToken:',
     'inviteSecret:',

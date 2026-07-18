@@ -4,6 +4,7 @@ import { test } from 'node:test';
 
 import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
 import { createLiveKitMediaModule } from '../src/agent-runtime/livekit/index.js';
+import { resetMediaGatewayRegistryForTests } from '../src/agent-runtime/media-gateway/index.js';
 import { createDatabase, run } from '../src/db.js';
 import { createServer as createOpcServer } from '../src/http.js';
 import { signAccessToken } from '../src/middleware/auth.js';
@@ -22,7 +23,12 @@ const LIVEKIT_ENV_KEYS = [
   'OPC_MEDIA_INVITE_SECRET',
   'LIVEKIT_MEDIA_INVITE_SECRET',
   'MINIO_ACCESS_KEY',
-  'MINIO_SECRET_KEY'
+  'MINIO_SECRET_KEY',
+  'OPC_SIP_VOLTE_ENABLED',
+  'LIVEKIT_SIP_BRIDGE_TARGET',
+  'RUSTPBX_LIVEKIT_TRUNK',
+  'RUSTPBX_RWI_URL',
+  'RUSTPBX_RWI_TOKEN'
 ];
 
 function authHeaders(tenantId: string, userId = 'led-backend'): Record<string, string> {
@@ -76,6 +82,11 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
   process.env.OPC_MEDIA_INVITE_SECRET = 'invite-secret';
   process.env.MINIO_ACCESS_KEY = 'minio-key';
   process.env.MINIO_SECRET_KEY = 'minio-secret';
+  process.env.OPC_SIP_VOLTE_ENABLED = '0';
+  process.env.LIVEKIT_SIP_BRIDGE_TARGET = 'sip:livekit-bridge@livekit-sip:5061';
+  process.env.RUSTPBX_LIVEKIT_TRUNK = 'livekit-bridge';
+  process.env.RUSTPBX_RWI_URL = 'wss://rustpbx.example.com/rwi/v1';
+  process.env.RUSTPBX_RWI_TOKEN = 'rwi-secret';
   const db = createDatabase(':memory:');
   try {
     const result = await route(
@@ -101,6 +112,7 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
     assert.equal(result.data.capabilities.host_moderation, true);
     assert.equal(result.data.capabilities.recording, true);
     assert.equal(result.data.capabilities.web_assist, true);
+    assert.equal(result.data.capabilities.sip_volte, 'planned');
     assert.equal(result.data.config.livekit_url_configured, true);
     assert.equal(result.data.config.livekit_public_url_configured, true);
     assert.equal(result.data.config.livekit_server_configured, true);
@@ -111,7 +123,29 @@ test('iveKit media facade exposes deployment capabilities through platform auth'
     assert.equal(result.data.config.egress_configured, true);
     assert.equal(JSON.stringify(result).includes('livekit-secret'), false);
     assert.equal(JSON.stringify(result).includes('minio-secret'), false);
+    assert.equal(JSON.stringify(result).includes('rwi-secret'), false);
+
+    process.env.OPC_SIP_VOLTE_ENABLED = '1';
+    const activated = await route(
+      db,
+      'GET',
+      '/api/ivekit/media/capabilities',
+      null,
+      authHeaders('tenant_capabilities')
+    ) as { data: { capabilities: Record<string, unknown> } };
+    assert.equal(activated.data.capabilities.sip_volte, 'planned');
+
+    resetMediaGatewayRegistryForTests(null);
+    const afterRestart = await route(
+      db,
+      'GET',
+      '/api/ivekit/media/capabilities',
+      null,
+      authHeaders('tenant_capabilities')
+    ) as { data: { capabilities: Record<string, unknown> } };
+    assert.equal(afterRestart.data.capabilities.sip_volte, 'ready');
   } finally {
+    resetMediaGatewayRegistryForTests(null);
     db.close();
     restoreEnv(envSnapshot);
   }

@@ -334,6 +334,9 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 - `OPC_MEDIA_CONFIG_USE_EXTERNAL_IP=true` 用于生产公网 ICE 候选；本地固定配置保持 `false`
 - MinIO/S3 endpoint、bucket、key、secret
 - 客户邀请和 Web Assist join 签名 secret
+- SIP/VoLTE 默认关闭；LED 需要该入口时设置 `OPC_SIP_VOLTE_ENABLED=1`，并完整配置 `LIVEKIT_SIP_BRIDGE_TARGET`、`RUSTPBX_LIVEKIT_TRUNK`、`RUSTPBX_RWI_URL`、`RUSTPBX_RWI_TOKEN`
+- LED 先调用 `GET /api/ivekit/media/capabilities`，仅在 `data.capabilities.sip_volte=ready` 时展示 SIP/VoLTE 入口；不得根据单个环境变量自行推断
+- 可选状态探针只验证并降级静态 active 状态，不能提升未启用或配置不完整的 gateway；真实 VoLTE/PSTN/RTP 仍按 Voice runbook 保持 `not_run`，直到目标线路 E2E 采证
 
 ### Collaboration Session
 

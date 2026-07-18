@@ -239,6 +239,26 @@ test('OpenAPI 3.1 publishes the outbound signed integration webhook contract', (
   assert.ok(openapi.paths['/api/ivekit/events/webhook-subscriptions']);
 });
 
+test('OpenAPI publishes the reusable Media capabilities and SIP activation truth', () => {
+  const openapi = parse(readFileSync('docs/openapi.yaml', 'utf8')) as any;
+  const operation = openapi.paths['/api/ivekit/media/capabilities']?.get;
+  const responseSchema = openapi.components.schemas.IveKitMediaCapabilitiesResponse;
+  const schema = openapi.components.schemas.IveKitMediaCapabilities;
+
+  assert.equal(
+    operation.responses['200'].content['application/json'].schema.$ref,
+    '#/components/schemas/IveKitMediaCapabilitiesResponse'
+  );
+  assert.equal(responseSchema.additionalProperties, false);
+  assert.deepEqual(responseSchema.required, ['data']);
+  assert.equal(responseSchema.properties.data.$ref, '#/components/schemas/IveKitMediaCapabilities');
+  assert.equal(schema.additionalProperties, false);
+  assert.equal(schema.properties.provider.const, 'livekit');
+  assert.deepEqual(schema.properties.capabilities.properties.sip_volte.enum, ['ready', 'planned']);
+  assert.ok(schema.properties.capabilities.required.includes('sip_volte'));
+  assert.equal(schema.properties.config.additionalProperties, false);
+});
+
 test('OpenAPI publishes Tinode mutation dead-letter reconciliation contracts', () => {
   const openapi = parse(readFileSync('docs/openapi.yaml', 'utf8')) as any;
   const list = openapi.paths[

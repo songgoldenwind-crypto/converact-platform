@@ -46,6 +46,7 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     MINIO_ENDPOINT: 'https://storage.example.com',
     MINIO_BUCKET: 'recordings',
     OPC_VIDEO_READINESS_TARGETS: 'media,sip-volte',
+    OPC_SIP_VOLTE_ENABLED: '1',
     LIVEKIT_SIP_BRIDGE_TARGET: 'sip:livekit-bridge@livekit-sip:5061',
     RUSTPBX_LIVEKIT_TRUNK: 'livekit-bridge',
     RUSTPBX_RWI_URL: 'ws://rustpbx:8080/rwi/v1',
@@ -58,7 +59,8 @@ test('LiveKit deployment preflight reports missing required media deployment env
   const report = createLiveKitDeploymentPreflightReport({});
 
   assert.equal(report.ok, false);
-  assert.equal(report.summary.livekitUrl, '');
+  assert.equal(report.summary.livekitInternalUrlConfigured, false);
+  assert.equal(report.summary.livekitPublicUrlConfigured, false);
   assert.equal(report.summary.mediaTokenConfigured, false);
   assert.equal(report.summary.inviteSecretConfigured, false);
   assert.equal(report.summary.egressConfigured, false);
@@ -85,6 +87,7 @@ test('LiveKit deployment preflight reports missing required media deployment env
       'customer_browser_frontend_url',
       'customer_browser_url_or_room',
       'customer_browser_tenant',
+      'sip_volte_gateway_enabled',
       'sip_bridge_target',
       'rustpbx_livekit_trunk',
       'rustpbx_rwi_url',
@@ -93,16 +96,25 @@ test('LiveKit deployment preflight reports missing required media deployment env
   );
 });
 
+test('LiveKit deployment preflight rejects a configured but disabled SIP gateway', () => {
+  const report = createLiveKitDeploymentPreflightReport(configuredEnv({
+    OPC_SIP_VOLTE_ENABLED: '0'
+  }));
+
+  assert.equal(report.ok, false);
+  assert.equal(report.checks.find((check) => check.id === 'sip_volte_gateway_enabled')?.status, 'fail');
+});
+
 test('LiveKit deployment preflight passes a configured media and SIP deployment', () => {
   const report = createLiveKitDeploymentPreflightReport(configuredEnv());
 
   assert.equal(report.ok, true);
   assert.deepEqual(report.summary.targets, ['media', 'sip-volte']);
-  assert.equal(report.summary.livekitUrl, 'wss://livekit.example.com');
-  assert.equal(report.summary.livekitInternalUrl, 'wss://livekit.example.com');
-  assert.equal(report.summary.livekitPublicUrl, 'wss://livekit.example.com');
+  assert.equal(report.summary.livekitInternalUrlConfigured, true);
+  assert.equal(report.summary.livekitPublicUrlConfigured, true);
   assert.equal(report.summary.deploymentMode, 'external');
-  assert.equal(report.summary.opcBaseUrl, 'https://opc.example.com');
+  assert.equal(report.summary.opcBaseUrlConfigured, true);
+  assert.equal(report.summary.frontendUrlConfigured, false);
   assert.equal(report.summary.mediaTokenConfigured, true);
   assert.equal(report.summary.inviteSecretConfigured, true);
   assert.equal(report.summary.tenantConfigured, true);
@@ -123,9 +135,40 @@ test('LiveKit deployment preflight passes a configured media and SIP deployment'
     'invite-secret',
     'minio-access-secret',
     'minio-secret-secret',
-    'rwi-secret-token'
+    'rwi-secret-token',
+    'wss://livekit.example.com',
+    'https://opc.example.com',
+    'https://storage.example.com',
+    'sip:livekit-bridge@livekit-sip:5061',
+    'livekit-bridge',
+    'ws://rustpbx:8080/rwi/v1'
   ]) {
     assert.equal(serialized.includes(secret), false);
+  }
+});
+
+test('LiveKit deployment preflight reuses runtime SIP configuration validation', () => {
+  const report = createLiveKitDeploymentPreflightReport(configuredEnv({
+    LIVEKIT_URL: 'wss://operator:password@livekit.example.com?credential=forbidden',
+    LIVEKIT_API_KEY: 'livekit-key\ninjected',
+    LIVEKIT_API_SECRET: 'livekit-secret\tinjected',
+    LIVEKIT_SIP_BRIDGE_TARGET: 'sip:bridge@livekit-sip:5061?credential=forbidden',
+    RUSTPBX_LIVEKIT_TRUNK: 'invalid trunk',
+    RUSTPBX_RWI_URL: 'ws://operator:password@rustpbx:8080/rwi/v1',
+    RUSTPBX_RWI_TOKEN: '  '
+  }));
+
+  assert.equal(report.ok, false);
+  for (const id of [
+    'livekit_internal_url',
+    'livekit_api_key',
+    'livekit_api_secret',
+    'sip_bridge_target',
+    'rustpbx_livekit_trunk',
+    'rustpbx_rwi_url',
+    'rustpbx_rwi_token'
+  ]) {
+    assert.equal(report.checks.find((check) => check.id === id)?.status, 'fail', id);
   }
 });
 
@@ -157,6 +200,7 @@ test('LiveKit deployment env checklist groups required variables and masks secre
   assert.match(checklist, /\| OPC_LIVEKIT_TIME_SYNC_OFFSET_MS \| required \| `12` \|/);
   assert.match(checklist, /\| OPC_MEDIA_RECORDING_RETENTION_DAYS \| optional \| `90` \|/);
   assert.match(checklist, /\| OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT \| optional \| `1` \|/);
+  assert.match(checklist, /\| OPC_SIP_VOLTE_ENABLED \| required \| `1` \|/);
   assert.equal(checklist.includes('agent-a-secret'), false);
 });
 
