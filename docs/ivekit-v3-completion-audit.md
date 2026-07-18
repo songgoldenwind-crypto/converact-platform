@@ -232,7 +232,7 @@ V6 原始本地门禁为全仓 `2939` 项、`2928` pass、`0` fail、`11` 个环
 | 上游源码 hook | implemented_not_run | Go hook 面向 LiveKit/Tinode，Rust hook 面向 RustDesk/RustPBX；RustPBX 固定源码 release 编译、本地 custom image 和 12 个受控 SIPp 信令场景通过；LiveKit 固定 `v1.13.3@8f6a9cb...` 的 owner/router/SFU overlay、Go 1.26/race 测试与离线 arm64 custom image/fork marker smoke 通过；Tinode 固定 `v0.25.3@22a7c18...` 的 topic owner、稳定 `cluster_self`、mutation fencing、lazy timer/fanout 优化及 arm64 source-built custom image/fork marker smoke 通过；RustDesk Server 固定 root `1.1.15@9bae9f2...` 与 `hbb_common@83419b6...` 的 owner/relay 优化、`cargo test --locked`、digest-pinned arm64 custom image、非 root 运行和 fork marker smoke 通过；媒体包、帧和 fanout 热路径禁止远程调用 | 不可变 Registry digest/SBOM/provenance；RustPBX 真实 RTP/PSTN/overload；LiveKit/Tinode/RustDesk 真实多节点/双 Windows、真实媒体/relay/profile 和容量 |
 | 分布式容量验收 | implemented_not_run | PostgreSQL/JetStream run-phase-shard worker、租约与重复投递 fencing、S3 evidence、controller/run finalizer；曲线点按完整 MIX 比例确定性编译，component run 绑定必需角色；migration 091/scaling finalizer 从数据库与 S3 重读证据并重放 ramp/bracket/binary/final-repeat；migration 092/platform finalizer 强制九个组件角色、Cell、共享数据面和 100K endpoint 齐全，按 contract 从 frontier repetitions 二次复算每条曲线，并核对 endpoint 的 Cell 硬件/配置/故障预留与三方计数；只有全生产证据通过才产生 `platform_pass`，受控结果固定为 `none`；独立镜像、三个 finalizer Job、迁移和操作手册均进入交付包 | 不可变 capacity-tools 镜像构建与签名、真实生成器主机、三节点 JetStream、真实 S3、单机 frontier、九组件与 Cell/shared-data 物理曲线、Cell-10K 和 MIX-100K endpoint/平台物理运行 |
 
-本轮容量门禁的最新计数以 `docs/capacity/phase2-code-status.json` 为准；容量专项回归 `300/300`、scaling campaign 定向门禁 `9/9`、platform campaign 定向门禁 `12/12`、交付门禁 `55/55`，根 TypeScript 与独立 capacity-runtime typecheck 均通过。固定门禁覆盖 LiveKit CAS room-owner rebuild、Tinode/RustDesk Server 精确源码补丁真值、RustDesk client fork 状态、全部 patch SHA-256 真值、scaling 来源身份/顺序以及 platform 角色齐全、来源复算与 endpoint 不可覆盖规则。4 个专用 Event WS/Tinode generator 用例已使用真实 loopback socket 通过；RustDesk 回归、RustDesk SDK/LED 对接、参考客户端、SDK build、参考客户端 production build、容量 Compose 渲染和 Go/Rust component hooks 的最新结果同样以机器可读状态文件为准。参考客户端没有上调 334 KiB 首屏预算：默认 application chunk 为 `311101` 字节，RustDesk SDK 与 UI 仅在进入远控 workspace 时加载为 `49775` 字节独立 chunk。该结果只证明代码和部署合同，不产生任何 `C_hard`、`C_safe`、Cell-10K 或 MIX-100K 容量结论。
+本轮容量门禁的最新计数以 `docs/capacity/phase2-code-status.json` 为准；容量专项回归 `303/303`、scaling campaign 定向门禁 `9/9`、platform campaign 定向门禁 `12/12`、交付门禁 `55/55`，根 TypeScript 与独立 capacity-runtime typecheck 均通过。固定门禁覆盖 LiveKit CAS room-owner rebuild、Tinode/RustDesk Server 精确源码补丁真值、RustDesk client fork 状态、全部 patch SHA-256 真值、scaling 来源身份/顺序以及 platform 角色齐全、来源复算与 endpoint 不可覆盖规则。4 个专用 Event WS/Tinode generator 用例已使用真实 loopback socket 通过；RustDesk 回归、RustDesk SDK/LED 对接、参考客户端、SDK build、参考客户端 production build、容量 Compose 渲染和 Go/Rust component hooks 的最新结果同样以机器可读状态文件为准。参考客户端没有上调 334 KiB 首屏预算：默认 application chunk 为 `311101` 字节，RustDesk SDK 与 UI 仅在进入远控 workspace 时加载为 `49775` 字节独立 chunk。该结果只证明代码和部署合同，不产生任何 `C_hard`、`C_safe`、Cell-10K 或 MIX-100K 容量结论。
 
 因此当前准确结论是：“既有通信功能没有重做；Cell-10K / MIX-100K 的 placement、admission、组件 owner、分布式压测、曲线终结和平台放行代码已闭环。RustPBX、LiveKit、Tinode 与 RustDesk Server 的精确源码 overlay、原生编译/测试、本地 custom image 及首批热路径优化已通过；平台门禁已具备拒绝缺角色、曲线弯折、身份漂移、伪 endpoint 和受控证据冒充的完整入口。各组件不可变 Registry 制品、目标 Kubernetes 接管、真实多节点/双 Windows、九组件与 Cell 曲线及 100K endpoint 物理容量仍保持 `not_run`。”
 
@@ -273,7 +273,7 @@ LED 业务逻辑、OPC 业务领域、移动端和数字人不属于 iveKit 底�
 | 参考客户端 | unit `158/158`；production build 与 15 个 JS chunk budget 通过 | IM/Media/RustDesk/Voice/IVR/Ops 前端合同和懒加载可构建 |
 | 受控 Chromium | `15/15` | 桌面/移动 IM、Media、RustDesk、Voice、IVR、Ops 流程；不代表真实 Provider |
 | Helm/Stage 2 | Helm `v3.18.4`，lint/template 与发布合同 `20/20` | standalone、external LiveKit + shared Redis + digest-bound Egress 双池、RustPBX recording-spool 可渲染；缺 shared Redis/digest 会拒绝；不代表目标集群已应用 |
-| Capacity | `300/300`；scaling `9/9`；platform `12/12` | placement、admission、evidence、曲线与平台拒绝规则；不产生物理容量结论 |
+| Capacity | `303/303`；scaling `9/9`；platform `12/12` | placement、admission、evidence、曲线与平台拒绝规则；不产生物理容量结论 |
 | Delivery | `55/55`；SDK build/pack `83` files | OpenAPI/SDK/交付清单、hash、tamper 和升级材料完整 |
 | Standalone | `352` source、`8` runtime package；source graph/build 通过 | 可拆服务运行图不依赖 OPC 产品业务模块 |
 | Component hooks | Go 与 Rust hooks 通过 | owner/admission hook 合同可编译测试；不是所有定制镜像已构建 |
@@ -318,7 +318,7 @@ SHA-256、operator 与独立 QA 双签，才允许把对应状态从 `not_run` �
 | Capacity runtime TypeScript | `npm run typecheck:ivekit:capacity-runtime`，通过 |
 | 全仓 Node | `npm test`，`3360` total、`3348` pass、`12` environment skip、`0` fail，exit code `0` |
 | 顺序全仓交叉验证 | `node --import tsx --test --test-concurrency=1 test/*.test.ts`，同为 `3348/3360` pass、`12` skip、`0` fail |
-| Capacity | `npm run test:ivekit:capacity`，`300/300`；loopback `4/4` |
+| Capacity | `npm run test:ivekit:capacity`，`303/303`；loopback `4/4` |
 | Foundation/SDK | foundation `117/117`；SDK build 和 dry-run pack `83` files |
 | Delivery | `npm run test:ivekit:delivery`，`55/55` |
 | Standalone | `352` source files、`8` runtime packages、`11` 编译入口，通过 |

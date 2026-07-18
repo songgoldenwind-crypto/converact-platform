@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0.0",
   "status_id": "ivekit-capacity-phase2-code-20260718",
-  "generated_at": "2026-07-18T08:36:06Z",
+  "generated_at": "2026-07-18T10:00:31Z",
   "status": "controlled_implementation_pass",
   "evidence_level": "controlled",
   "capacity_claim": "none",
   "source": {
-    "base_commit": "131ecacec7194689d14aa7638d940010437ad1b0",
+    "base_commit": "08086b14bb4724e263cef6d87f2a15dded34c170",
     "working_tree_dirty": false,
     "attestation_scope": "This status attests the clean source commit above; this status-file update is not part of the attested commit.",
     "generator_release_id": "not_available_until_immutable_capacity_tools_image_is_built_and_signed"
@@ -14,8 +14,8 @@
   "verification": {
     "root_repository_test_command": "npm test",
     "root_repository_test_status": "passed",
-    "root_repository_test_count": 3370,
-    "root_repository_test_passed": 3358,
+    "root_repository_test_count": 3374,
+    "root_repository_test_passed": 3362,
     "root_repository_test_skipped": 12,
     "root_repository_test_failed": 0,
     "controlled_browser_e2e_command": "npm run test:e2e:ivekit",
@@ -38,8 +38,8 @@
     "sdk_pack_file_count": 83,
     "focused_test_command": "npm run test:ivekit:capacity",
     "focused_test_status": "passed",
-    "focused_test_count": 301,
-    "focused_test_passed": 301,
+    "focused_test_count": 303,
+    "focused_test_passed": 303,
     "focused_test_skipped": 0,
     "scaling_campaign_focused_test_command": "node --import tsx --test test/ivekit-capacity-s3-evidence.test.ts test/ivekit-capacity-scaling-campaign.test.ts test/ivekit-capacity-scaling-campaign-migration.test.ts test/ivekit-capacity-scaling-finalizer.test.ts test/ivekit-capacity-scaling-runtime.test.ts",
     "scaling_campaign_focused_test_status": "passed",
