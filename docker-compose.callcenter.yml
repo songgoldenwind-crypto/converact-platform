@@ -20,6 +20,28 @@ services:
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-minio-bucket.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_BUCKET: ${MINIO_BUCKET:-recordings}
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_INIT_MAX_ATTEMPTS: ${MINIO_INIT_MAX_ATTEMPTS:-30}
+      MINIO_INIT_RETRY_SECONDS: ${MINIO_INIT_RETRY_SECONDS:-2}
+    volumes:
+      - ./infra/scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
 
   livekit:
     image: livekit/livekit-server:${LIVEKIT_SERVER_IMAGE_TAG:-v1.13.3}
@@ -62,9 +84,12 @@ services:
       retries: 20
       start_period: 30s
     depends_on:
-      - livekit
-      - redis
-      - minio
+      livekit:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
 
   rustpbx:
     image: ghcr.io/restsend/rustpbx:latest

@@ -80,6 +80,7 @@
     "livekit:deployment-preflight": "tsx scripts/livekit-deployment-preflight.ts",
     "livekit:server-evidence": "tsx scripts/livekit-server-evidence.ts",
     "livekit:client-acceptance": "tsx scripts/livekit-client-acceptance.ts",
+    "livekit:storage-isolation-acceptance": "tsx scripts/livekit-storage-isolation-acceptance.ts",
     "livekit:evidence-pack": "tsx scripts/livekit-evidence-pack.ts",
     "livekit:acceptance-bundle": "tsx scripts/livekit-acceptance-bundle.ts",
     "smoke:collaboration": "node --import tsx scripts/collaboration-smoke.ts",

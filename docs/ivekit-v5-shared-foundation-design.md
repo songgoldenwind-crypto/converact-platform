@@ -1,6 +1,6 @@
 # iveKit V5 共用通信协作底座设计与完成审计
 
-更新日期：2026-07-15
+更新日期：2026-07-18
 
 ## 1. 目标与边界
 
@@ -58,6 +58,36 @@ OPC backend          LED backend          future products
 - 事件经 tenant event/outbox 发布；通知和 Webhook 不在业务事务内直接发送。
 - API、SDK、事件和数据库均保留 `tenant_id`、`business_ref`、actor、correlation id 和审计引用。
 
+### 2.3 实时媒体与录制存储故障域
+
+录音、录像和对象存储属于实时媒体的下游副本链路，不得成为 SIP/RTP、LiveKit SFU 或远控画面的
+同步依赖。该规则同时适用于 OPC、LED 和未来接入产品：
+
+```text
+SIP/RTP call --------> RustPBX media plane --------> peer
+                            |
+                            +-- bounded capture queue --> local durable spool --> uploader --> object storage
+
+WebRTC publishers ---> LiveKit SFU ---------------> subscribers
+                            |
+                            +-- Egress worker ---------------------------> object storage
+```
+
+1. LiveKit Server 只依赖实时会话所需的 Redis，不依赖 Egress、MinIO 或 S3；对象存储故障不得重启、
+   drain 或断开已有房间和 track。
+2. RustPBX RTP capture 使用有界非阻塞队列；编码、磁盘、manifest 和上传位于独立 worker/sidecar。
+   队列满、磁盘慢或上传失败时允许丢弃或失败录音副本，不允许反压 RTP 热路径。
+3. 录制启动、停止、对象 finalize 和重试不得位于接听、转接、挂断或媒体转发的同步响应路径。
+4. 录制失败必须进入明确终态并产生脱敏事件、指标和审计，禁止把缺失或不完整对象标记为成功。
+5. 所有缓冲区必须有容量、水位和 admission policy；不得用无限内存/磁盘队列掩盖持续故障。
+6. 故障演练清理顺序固定为先恢复存储与 bucket，再关闭测试媒体会话；失败路径也必须执行恢复。
+
+2026-07-18 本机受控真实进程演练已使用两个 Chromium WebRTC peer、LiveKit Server、RoomComposite
+Egress 和 MinIO 验证：停止 MinIO 前、故障期间及 Egress 因 S3 上传失败后，两端均保持
+`connected`，每端仍有 1 个对端、2 条远端轨和 2 条本地轨；LiveKit `RestartCount=0` 且启动时间
+未变化，MinIO 恢复后 bucket 仍为私有。该结果为 `passed_controlled_local`，不替代公网 TURN、
+生产 S3、目标 Kubernetes、真实 SIP/RTP/PSTN、磁盘满或多节点故障验收。
+
 ## 3. 需求证据矩阵
 
 状态定义：`implemented` 表示当前代码和自动化证据已经覆盖；`partial` 表示存在可用实现但未达到本目标；`missing` 表示当前没有通用实现；`environment` 表示代码入口存在但需要目标环境验收。
@@ -67,7 +97,7 @@ OPC backend          LED backend          future products
 | 1 | Tinode IM、同步、附件和会话 | implemented + environment | 双向 durable worker、cursor/重放/死信、消息 mutation/receipt/presence、附件状态、文件安全门禁、SDK/参考客户端、指标和独立部署合同 | 真实 Tinode 多客户端、多副本长稳和目标网络恢复 |
 | 2 | 自动翻译和 Provider 切换 | implemented + environment | 自动/手动任务、source hash、四能力有序路由、原子配额/并发、熔断/半开、故障切换、runtime API/SDK、事件、指标、worker 恢复、受控矩阵 | 真实翻译供应商效果、额度和生产并发保持环境待验收 |
 | 3 | OCR/ASR/AI 质检和防绕单 | implemented + environment | V2 混淆联系方式 detector、图片 OCR、视频/屏幕录制 ASR + 帧 OCR 双任务、QR/条码 hash-only observation、跨消息/附件聚合、20 消息会话级 AI 质检、版本化 finding/evidence、人工审核、四能力 Provider 治理、API/SDK/OpenAPI 和真实 PostgreSQL RLS/恢复证据 | 真实 OCR/ASR/AI 厂商效果、真实视频抽帧准确率、额度和生产并发保持环境待验收 |
-| 4 | LiveKit 音视频和屏幕共享 | implemented + environment | room/token/join、参与人、moderation、screen share、Egress/recording、QoS、重连/重入收敛、TURN/storage preflight、超时恢复和 release-bound 验收包 | 真实双客户端、TURN/Egress、物理媒体、弱网和生产对象存储 |
+| 4 | LiveKit 音视频和屏幕共享 | implemented + environment | room/token/join、参与人、moderation、screen share、Egress/recording、QoS、重连/重入收敛、TURN/storage preflight、超时恢复、release-bound 验收包，以及双 Chromium + Egress + MinIO 本机真实进程存储故障隔离演练 | 公网 TURN、物理媒体、弱网、生产对象存储和目标多节点 |
 | 5 | RustDesk Windows 远控闭环 | implemented + environment | consent/一次性授权码、控制租约、二次确认、设备/edge agent、键鼠/多屏/文件/剪贴板/录屏 observation、物理断开、升级/回滚、模拟终端和审计证据 | 两台 Windows 物理机端到端效果和签名安装包发布链 |
 | 6 | RustPBX/SIP/IVR/WebPhone | implemented + environment | Voice/IVR/Contact Center 独立模块、SIPp 12/12、受控 RustPBX、WebPhone/Designer/Queue Monitor、SDK、运行指标、录音 spool、备份恢复、多副本模板和交付合同 | 真实 trunk/PSTN、WSS/SDP/ICE/RTP、物理音频、录音对象和目标集群故障演练 |
 | 7 | 站内/Webhook/邮件/短信通知 | implemented + environment | PostgreSQL Notification/Delivery、in-app、签名 Webhook、SMTP/HTTP email、HTTP SMS、模板/偏好、回执、配额/熔断/健康、重试/死信/人工重放、SDK/OpenAPI；明确不含移动推送 | 商业 SMTP/短信、真实退信/回执、账单和公网 Webhook |

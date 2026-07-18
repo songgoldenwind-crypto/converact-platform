@@ -394,3 +394,36 @@ PSTN、双 Windows、商业 Provider、单机 frontier、Cell-10K 和 MIX-100K�
 双客户端与 TURN、桥接故障切换、amd64 生产制品、目标 Kubernetes rollout 和容量。静态
 `data.capabilities.sip_volte=ready` 只代表本进程具备执行配置；运行时探针只代表桥控制面按本次配置健康；
 两者都不能替代真实呼叫、双向音视频和断线恢复证据。
+
+## 19. LiveKit 录制存储故障真实进程演练（2026-07-18）
+
+本节落实“录音、录像存储服务崩溃不得影响正在进行的电话或视频传输”硬约束。演练使用本机
+Docker 隔离项目 `ivekit-fresh-audit`，属于真实 LiveKit/Egress/MinIO/Chromium 进程证据，但网络、
+凭据和对象存储仍是受控本机环境，因此状态为 `passed_controlled_local`，不提升 V6 生产环境结果。
+
+| 检查 | 结果 | 直接证据 |
+| --- | --- | --- |
+| Fresh storage bootstrap | `passed_controlled_local` | PostgreSQL/Tinode fresh volume 自动建库；新增固定版本 `minio-init` 幂等创建 `recordings` bucket、关闭匿名访问并阻塞 Egress 启动；认证 `stat` 成功，匿名 HTTP 为 `403` |
+| 故障前媒体 | `passed_controlled_local` | 两个独立 Chromium context 以真实 LiveKit token 加入同一房间并发布 fake-device 麦克风和摄像头；每端 `connected`、1 个 remote participant、2 条 remote publication、2 条 local publication |
+| 真实录制任务 | `passed_controlled_local` | RoomComposite Egress `EG_qVcutYYLXcAr` 进入 active 后才停止 MinIO；不是 mock/fake Egress 返回值 |
+| 存储中断媒体连续性 | `passed_controlled_local` | MinIO 停止 5 秒后两端 participant/publication 快照完全不变；请求结束录制后 Egress 因 S3 PutObject 失败进入 `failed`，随后再次采样，两端仍全部 `connected` 且轨道数不变 |
+| 故障域隔离 | `passed_controlled_local` | LiveKit `RestartCount=0`，`StartedAt=2026-07-18T13:24:02.061116594Z` 在存储故障前后不变；Egress 失败没有触发房间重建、peer 重连或 track 重发 |
+| 恢复与秘密安全 | `passed_controlled_local` | 自动恢复 MinIO 并重跑 bucket bootstrap；MinIO/Egress 均恢复 healthy；结构化报告只保留 `storage_upload_failed`，不保存 S3 endpoint、API secret、token 或原始 Egress 错误，输出文件权限为 `0600` |
+
+可重复命令为 `npm run livekit:storage-isolation-acceptance`。它要求显式给出 LiveKit URL/key/secret、
+隔离 Compose project 和 compose file；服务名只接受安全标识符，Docker 使用参数数组执行。运行时依次
+创建房间、打开双 peer、启动录制、停止存储、校验媒体、确认录制失败、再次校验媒体、恢复存储，
+且任何中途错误都按“恢复存储 -> 关闭 peer -> 删除房间”顺序清理。自动化覆盖正常路径、媒体中断、
+部分 peer 建链失败和原始端点不进入报告。
+
+本轮最终门禁：存储/视频/Voice/RustPBX focused `61/61`，Delivery `56/56`，校验 SHA-256 的 Helm
+v3.18.4 Stage 2 `22/22`，根 TypeScript 通过；全仓在 `OPC_USE_MEMORY_REDIS=1` 下为 `3405` total、
+`3393` pass、`12` environment skip、`0` fail。第一次全仓并行运行时，本轮 Docker Redis 已停止但
+Docker Desktop 6379 端口代理仍 accept 后 reset，使旧 call-center 测试的 ioredis 重连句柄不退出；
+关闭受控项目并使用仓库正式内存 Redis 测试模式后完整通过。该环境问题没有通过删除测试掩盖。
+
+该演练关闭了第 16-18 节中的“本机双客户端 + Egress + MinIO 中断”缺口，但以下仍为 `not_run`：
+公网 TURN/TLS/UDP、生产 S3 或等价对象存储、跨主机/跨 Zone、多 Egress 池、目标 Kubernetes、磁盘满、
+RustPBX 真实 RTP/物理音频、PSTN，以及存储长时间中断后的 spool 水位和容量退化。电话侧已有编译通过
+的 RustPBX 有界非阻塞 capture、独立 lifecycle worker、本地 durable spool 和上传 sidecar；仍需在
+真实 RTP 会话中做同类故障演练后才能将 Voice V6 项提升。

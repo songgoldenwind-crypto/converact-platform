@@ -495,6 +495,7 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 13. 生产 Compose 默认按 `OPC_LIVEKIT_DEPLOYMENT_MODE=external` 消费外置 Media Core，内置 LiveKit/SIP/Egress 只在显式 `media-bundled` profile 下启用，且只用于联调。Kubernetes 同样默认 `livekit.enabled=false`，生产媒体节点应使用 LiveKit 官方 Helm chart 独立部署。
 14. 媒体镜像已固定为 LiveKit Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`；升级必须成组回归，不使用 `latest`。
 15. production 缺内部 URL、API key、API secret 或公网 WSS 时直接失败，不会签发 `dev-token`。preflight 和渲染器还会拒绝 `your_key`、`change_me`、`devkey`、`secret`、`minioadmin` 等占位/弱默认值。
+16. 实时媒体与录制存储是两个故障域：LiveKit Server 不依赖 Egress/MinIO，RustPBX RTP 不依赖 uploader。2026-07-18 已在本机真实启动双 Chromium、LiveKit、Egress 和 MinIO，停止 MinIO 后两端连接和四条发布/订阅轨保持不变，只有 Egress 以脱敏 `storage_upload_failed` 终止；LiveKit 未重启。该结果是受控本机证据，不是生产对象存储或公网 TURN 验收。
 
 以上代码尚未在目标服务器执行 Docker 镜像拉取、容器启动、真实数据库/bucket 初始化或真实 provider 请求。2026-07-11 已通过 SSH 完成目标服务器只读资源与端口盘点，但没有上传、部署或修改现有 LED 服务。
 
@@ -548,12 +549,27 @@ OPC_IVEKIT_VOICE_ACCEPTANCE_OUTPUT_FILE=/secure/evidence/voice-result.json \
 
    没有真实报告时命令返回 `not_run`；完整报告通过时只返回 `ready_for_review`，不会自动把交付状态改为已验收。受控 Provider、Playwright、mock 或 synthetic artifact 会被拒绝，QA approver 必须不同于采证 operator。
 8. 多实例 Redis/WebSocket 广播、断网重连、旧 SDK 连接不复活。
+9. 部署联调环境先执行以下存储隔离门禁；必须使用专用 Compose project，禁止指向共享生产项目：
+
+```bash
+LIVEKIT_URL=ws://127.0.0.1:7880 \
+LIVEKIT_API_KEY=<local-api-key> \
+LIVEKIT_API_SECRET=<local-api-secret> \
+OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_PROJECT=<isolated-compose-project> \
+OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILE=docker-compose.callcenter.yml \
+OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolation.json \
+  npm run livekit:storage-isolation-acceptance
+```
+
+   只有 `status=passed_controlled_local`、三次双 peer 快照都满足连续性、录制终态为 `failed`、故障码为
+   `storage_upload_failed` 且 `storage_recovered=true` 才通过。报告不得包含 URL 凭据、token、secret 或
+   原始对象存储错误。生产环境仍按 V6 Object Storage/LiveKit 两组独立采证，不得上传本机报告冒充。
 
 ### 11.4 当前不得声称通过
 
-真实 LiveKit/Tinode/RustDesk 客户端、真实对象存储、真实 OCR/ASR/AI、RustPBX/电话线路/RTP/物理音频、多副本和生产网络尚未在当前本地环境验证。Voice validator 已经可执行，但模板、runbook 或 `ready_for_review` 本身不能证明观察真实发生；preflight 和 fake provider 只证明配置/协议形状。
+本机已完成双 Chromium + LiveKit + Egress + MinIO 的真实进程存储中断演练，但它仍是受控本机网络和对象存储。公网 LiveKit/TURN、真实 Tinode/RustDesk 客户端、生产对象存储、真实 OCR/ASR/AI、RustPBX/电话线路/RTP/物理音频、多副本和生产网络尚未完成。Voice validator 已经可执行，但模板、runbook 或 `ready_for_review` 本身不能证明观察真实发生；preflight 和受控 Provider 只证明配置/协议形状。
 
-TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 已补齐可选 bundled 单副本 Deployment、Secret/ConfigMap、Service、PVC、PDB、探针、资源、安全上下文、拓扑和 NetworkPolicy；真实 Helm rollout、存储和升级仍未运行。MinIO bucket 与 PostgreSQL 多数据库初始化的代码和 Compose 门禁已经补齐，但真实 fresh/existing volume、bucket 私有性/持久化、Egress 写入和重启恢复仍必须在服务器验证，不能由 fake command 测试或 Compose 静态解析替代。
+TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 已补齐可选 bundled 单副本 Deployment、Secret/ConfigMap、Service、PVC、PDB、探针、资源、安全上下文、拓扑和 NetworkPolicy；真实 Helm rollout、存储和升级仍未运行。本机 fresh PostgreSQL/Tinode、MinIO 私有 bucket、真实 Egress 写入失败、存储中断媒体连续性和恢复已经验证；生产对象存储、existing volume 升级、跨主机和服务器重启恢复仍必须按 V6 采证，不能由本机结果替代。
 
 ### 11.5 V6 统一八组验收
 

@@ -92,6 +92,29 @@ test('call center compose keeps local LiveKit and egress credentials aligned wit
   assert.equal(opcEnvironment.MINIO_SECRET_KEY, 'minioadmin');
 });
 
+test('call center compose bootstraps recording storage without coupling LiveKit to storage', () => {
+  const compose = readFileSync(COMPOSE_PATH, 'utf8');
+  const minioInit = readServiceBlock(compose, 'minio-init');
+
+  assert.match(minioInit, /image: minio\/mc:RELEASE\.2025-08-13T08-35-41Z/);
+  assert.match(minioInit, /bootstrap-minio-bucket\.sh/);
+  assert.equal(readServiceEnvironment(compose, 'minio-init').MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
+  assert.ok(
+    readServiceVolumes(compose, 'minio-init').includes(
+      './infra/scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro'
+    )
+  );
+  assert.match(minioInit, /minio:\n\s+condition: service_healthy/);
+  assert.match(
+    readServiceBlock(compose, 'livekit-egress'),
+    /minio-init:\n\s+condition: service_completed_successfully/
+  );
+
+  const livekit = readServiceBlock(compose, 'livekit');
+  assert.doesNotMatch(livekit, /minio(?:-init)?:/);
+  assert.doesNotMatch(livekit, /livekit-egress:/);
+});
+
 test('production compose mounts shared media configs and passes Media Core env into opc', () => {
   const compose = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
 
