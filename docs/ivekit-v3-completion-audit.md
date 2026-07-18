@@ -303,3 +303,33 @@ SHA-256、operator 与独立 QA 双签，才允许把对应状态从 `not_run` �
 
 因此本轮可以关闭“共用底座剩余代码与交付收口”，但不能宣称“生产上线完成”或“十万并发已经
 达标”。后续服务器可用时执行的是既有真实验收和容量程序，不是重新补功能。
+
+## 15. 当前干净提交复验（2026-07-18）
+
+本节不沿用前一工作树的通过标签，而是以干净提交
+`eeede1609d1efbfff6ad08568b6e9efcfa8cdb54` 重新执行无需外部资源的门禁。复验前发现本机残留
+多批已经失去父进程的历史 Node 测试 runner；它们均为旧测试命令、CPU 为零，清理后单文件和默认
+并发全仓测试都能正常退出。该现象属于历史中断进程残留，不改变产品状态，也没有用进程清理替代
+任何断言。
+
+| 门禁 | 当前提交复验结果 |
+| --- | --- |
+| 根 TypeScript | `npm run typecheck`，通过 |
+| Capacity runtime TypeScript | `npm run typecheck:ivekit:capacity-runtime`，通过 |
+| 全仓 Node | `npm test`，`3360` total、`3348` pass、`12` environment skip、`0` fail，exit code `0` |
+| 顺序全仓交叉验证 | `node --import tsx --test --test-concurrency=1 test/*.test.ts`，同为 `3348/3360` pass、`12` skip、`0` fail |
+| Capacity | `npm run test:ivekit:capacity`，`300/300`；loopback `4/4` |
+| Foundation/SDK | foundation `117/117`；SDK build 和 dry-run pack `83` files |
+| Delivery | `npm run test:ivekit:delivery`，`55/55` |
+| Standalone | `352` source files、`8` runtime packages、`11` 编译入口，通过 |
+| Helm/Compose | 临时固定 Helm `v3.18.4`，Stage 2 `20/20`；capacity Compose quiet render 通过 |
+| Go/Rust component hooks | Go 三包与 Rust `5/5` 通过 |
+| 参考客户端 | unit `158/158`、production build 与 15-chunk budget 通过 |
+| 受控浏览器 | Chromium 单 worker `15/15`，通过；仍不属于真实 Provider/媒体证据 |
+| V6 真实环境清单 | 当前提交模板通过校验，八组全部保持 `not_run` |
+
+`docs/capacity/phase2-code-status.json` 已同步绑定该干净提交并保持
+`capacity_claim=none`。`generator_release_id` 仍明确为“等待不可变 capacity-tools 镜像构建和签名”，
+不能因源码已有提交而视作生产制品。真实 PostgreSQL/NATS 多节点、定制镜像、Tinode/LiveKit/TURN/
+Egress、双 Windows、RustPBX/SIP/RTP/PSTN、商业通知、真实 Provider、生产对象存储、目标 Kubernetes、
+单机 frontier、Cell-10K 和 MIX-100K 继续为 `not_run`。

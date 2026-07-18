@@ -1,14 +1,15 @@
 {
   "schema_version": "1.0.0",
-  "status_id": "ivekit-capacity-phase2-code-20260716",
-  "generated_at": "2026-07-17T09:35:58Z",
+  "status_id": "ivekit-capacity-phase2-code-20260718",
+  "generated_at": "2026-07-18T03:48:43Z",
   "status": "controlled_implementation_pass",
   "evidence_level": "controlled",
   "capacity_claim": "none",
   "source": {
-    "base_commit": "738c29b839fe18e08e6c6da293169940a3ec8674",
-    "working_tree_dirty": true,
-    "generator_release_id": "not_available_until_committed_and_built"
+    "base_commit": "eeede1609d1efbfff6ad08568b6e9efcfa8cdb54",
+    "working_tree_dirty": false,
+    "attestation_scope": "This status attests the clean source commit above; this status-file update is not part of the attested commit.",
+    "generator_release_id": "not_available_until_immutable_capacity_tools_image_is_built_and_signed"
   },
   "verification": {
     "root_repository_test_command": "npm test",
