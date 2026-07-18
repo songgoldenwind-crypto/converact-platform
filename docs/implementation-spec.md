@@ -993,12 +993,12 @@ pydantic>=2.10.0
 
 | 服务 | 镜像 | Tag 策略 |
 |------|------|----------|
-| RustPBX | `ghcr.io/restsend/rustpbx` | `:latest` (开发), 上线前 pin 版本 |
-| LiveKit Server | `livekit/livekit-server` | `:v1.8` (major.minor pin) |
-| LiveKit SIP | `livekit/sip` | `:latest` |
-| LiveKit Egress | `livekit/egress` | `:latest` |
-| Redis | `redis` | `:7-alpine` |
-| MinIO | `minio/minio` | `:latest` |
+| RustPBX | iveKit fixed-source image | 生产使用审核后的 immutable digest |
+| LiveKit Server | `livekit/livekit-server` | `v1.13.3`，生产制品绑定 digest |
+| LiveKit SIP | `livekit/sip` | `v1.6.0`，生产制品绑定 digest |
+| LiveKit Egress | `ivekit/livekit-egress` | `v1.13.0` 源码基线，Chart 强制 custom image digest |
+| Redis | `redis` | standalone Media Core 固定 `7.4.9` |
+| MinIO | `minio/minio` | `RELEASE.2025-09-07T16-13-09Z` + manifest digest |
 
 ---
 

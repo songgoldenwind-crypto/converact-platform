@@ -1,4 +1,8 @@
 {{- if .Values.media.minio.enabled }}
+{{- $minioImageDigest := required "media.minio.image.digest is required" .Values.media.minio.image.digest }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $minioImageDigest) }}
+{{- fail "media.minio.image.digest must be an immutable sha256 digest" }}
+{{- end }}
 {{- if .Values.media.minio.persistence.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -29,7 +33,7 @@ spec:
     spec:
       containers:
         - name: minio
-          image: "{{ .Values.media.minio.image.repository }}:{{ .Values.media.minio.image.tag }}"
+          image: "{{ .Values.media.minio.image.repository }}:{{ .Values.media.minio.image.tag }}@{{ $minioImageDigest }}"
           imagePullPolicy: {{ .Values.media.minio.image.pullPolicy | default "IfNotPresent" }}
           args: ["server", "/data", "--console-address", ":9001"]
           env:
@@ -48,6 +52,27 @@ spec:
               containerPort: 9000
             - name: console
               containerPort: 9001
+          startupProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: api
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: api
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
           volumeMounts:
             - name: data
               mountPath: /data

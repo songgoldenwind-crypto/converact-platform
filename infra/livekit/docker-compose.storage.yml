@@ -2,7 +2,7 @@
 # Apply together with docker-compose.yml when external S3 is not available.
 services:
   minio:
-    image: minio/minio:${LIVEKIT_MINIO_IMAGE_TAG:?LIVEKIT_MINIO_IMAGE_TAG is required}
+    image: minio/minio:${LIVEKIT_MINIO_IMAGE_TAG:?LIVEKIT_MINIO_IMAGE_TAG is required}@${LIVEKIT_MINIO_IMAGE_DIGEST:?LIVEKIT_MINIO_IMAGE_DIGEST is required}
     command: server /data --console-address ":9001"
     restart: unless-stopped
     ports:
@@ -20,7 +20,7 @@ services:
       retries: 30
 
   minio-init:
-    image: minio/mc:${LIVEKIT_MINIO_MC_IMAGE_TAG:?LIVEKIT_MINIO_MC_IMAGE_TAG is required}
+    image: minio/mc:${LIVEKIT_MINIO_MC_IMAGE_TAG:?LIVEKIT_MINIO_MC_IMAGE_TAG is required}@${LIVEKIT_MINIO_MC_IMAGE_DIGEST:?LIVEKIT_MINIO_MC_IMAGE_DIGEST is required}
     entrypoint: ["/bin/sh", "/bootstrap/bootstrap-minio-bucket.sh"]
     environment:
       MINIO_ENDPOINT: http://minio:9000

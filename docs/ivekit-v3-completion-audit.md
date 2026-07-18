@@ -436,3 +436,26 @@ esbuild `0.28.1`。runner 优先解析包内依赖，源码 checkout 才 fallbac
 一个 Compose file 或有序 JSON base/overlay 列表及可选 env file。`/tmp` 离仓执行 `npm ci` 安装 28 个
 package、`npm audit` 0 vulnerability，并成功加载 runner/runtime 与解析三个本地依赖；交付生成、hash、
 秘密扫描和 README 命令也进入自动门禁。该改善只使受控验收工具可独立运行，不改变生产项 `not_run`。
+
+## 20. 对象存储不可变部署与健康门禁复审（2026-07-18）
+
+本节收口录制存储故障隔离的部署可复现性，不新增“存储高可用已通过”的结论。root 与 production
+Compose 的 MinIO Server 固定为 `RELEASE.2025-09-07T16-13-09Z` 及 manifest digest
+`sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e`，MinIO Client 固定为
+`RELEASE.2025-08-13T08-35-41Z` 及 digest
+`sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727`。两个引用均已由 Docker pull
+返回同一 digest；独立 LiveKit storage overlay 同时要求 tag 与 digest，不再允许仅靠可变 tag。
+
+production Compose 新增 `/minio/health/live` 探针，`minio-init` 必须等待 `service_healthy`；Egress 和
+OPC 的存储入口继续等待 bucket bootstrap 完成。LiveKit Server 与 RustPBX 没有新增 MinIO/Egress
+依赖，故障方向仍严格为“实时媒体 -> 可选录制 -> 存储”，禁止存储状态反向决定 RTP/WebRTC 存活。
+Kubernetes MinIO 使用同一固定 release+digest，模板拒绝非 `sha256:<64 hex>`，并配置 startup、
+readiness 与 liveness 探针；这只改善 rollout/readiness，不把单副本 MinIO 解释成生产 HA。
+
+TDD 契约从 4 个预期失败恢复到 `22/22`；Helm v3.18.4 对两套 Chart lint/template 通过，非法 MinIO
+digest 实际 fail-closed，Stage 2 为 `22/22`。Docker Desktop 默认代理 socket 会让任何新容器停在
+`Created`，最小 Alpine 同样复现；改用 daemon raw socket 后无需重启 Docker，固定 digest 的真实
+进程演练重新通过。双 Chromium 在故障前、中和 Egress 失败后三次快照完全一致，录制终态为
+`storage_upload_failed`，LiveKit `RestartCount=0`；恢复后 MinIO healthy、认证 bucket `stat` 成功、
+匿名访问为 `403`，证据文件 `0600` 且秘密扫描通过。受控容器、网络和卷随后全部清理，三台既有
+SIPp 容器未被操作。生产 S3/跨 Zone/磁盘满、RustPBX 真实 RTP 和目标 Kubernetes 继续为 `not_run`。

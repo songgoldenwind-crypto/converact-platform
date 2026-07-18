@@ -26,6 +26,8 @@ const LIVEKIT_CONFIG_PATH = new URL('../config/livekit.yaml', import.meta.url);
 const EGRESS_CONFIG_PATH = new URL('../config/egress.yaml', import.meta.url);
 const GITIGNORE_PATH = new URL('../.gitignore', import.meta.url);
 const DOCKERFILE_PATH = new URL('../Dockerfile', import.meta.url);
+const MINIO_SERVER_IMAGE = 'minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e';
+const MINIO_CLIENT_IMAGE = 'minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727';
 
 test('call center compose passes media security and recording env into opc service', () => {
   const compose = readFileSync(COMPOSE_PATH, 'utf8');
@@ -94,9 +96,11 @@ test('call center compose keeps local LiveKit and egress credentials aligned wit
 
 test('call center compose bootstraps recording storage without coupling LiveKit to storage', () => {
   const compose = readFileSync(COMPOSE_PATH, 'utf8');
+  const minio = readServiceBlock(compose, 'minio');
   const minioInit = readServiceBlock(compose, 'minio-init');
 
-  assert.match(minioInit, /image: minio\/mc:RELEASE\.2025-08-13T08-35-41Z/);
+  assert.ok(minio.includes(`image: ${MINIO_SERVER_IMAGE}`));
+  assert.ok(minioInit.includes(`image: ${MINIO_CLIENT_IMAGE}`));
   assert.match(minioInit, /bootstrap-minio-bucket\.sh/);
   assert.equal(readServiceEnvironment(compose, 'minio-init').MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
   assert.ok(
@@ -198,9 +202,12 @@ test('production compose gates databases PgBouncer and object storage', () => {
     /postgres-bootstrap:\n\s+condition: service_completed_successfully/
   );
 
+  const minio = readServiceBlock(compose, 'minio');
   const minioInit = readServiceBlock(compose, 'minio-init');
   const minioInitEnvironment = readServiceEnvironment(compose, 'minio-init');
-  assert.match(minioInit, /image: minio\/mc:RELEASE\.2025-08-13T08-35-41Z/);
+  assert.ok(minio.includes(`image: ${MINIO_SERVER_IMAGE}`));
+  assert.match(minio, /healthcheck:[\s\S]*http:\/\/127\.0\.0\.1:9000\/minio\/health\/live/);
+  assert.ok(minioInit.includes(`image: ${MINIO_CLIENT_IMAGE}`));
   assert.equal(minioInitEnvironment.MINIO_ENDPOINT, 'http://minio:9000');
   assert.equal(minioInitEnvironment.MINIO_BUCKET, '${MINIO_BUCKET:-recordings}');
   assert.equal(minioInitEnvironment.MINIO_INIT_MAX_ATTEMPTS, '${MINIO_INIT_MAX_ATTEMPTS:-30}');
@@ -210,7 +217,7 @@ test('production compose gates databases PgBouncer and object storage', () => {
       './scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro'
     )
   );
-  assert.match(minioInit, /minio:\n\s+condition: service_started/);
+  assert.match(minioInit, /minio:\n\s+condition: service_healthy/);
   assert.match(minioInit, /restart: "no"/);
 
   for (const serviceName of ['livekit-egress', 'opc']) {
@@ -232,7 +239,7 @@ test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on
   const envExample = readFileSync(LIVEKIT_ENV_PATH, 'utf8');
 
   const minio = readServiceBlock(storageCompose, 'minio');
-  assert.match(minio, /image: minio\/minio:\$\{LIVEKIT_MINIO_IMAGE_TAG:\?LIVEKIT_MINIO_IMAGE_TAG is required\}/);
+  assert.match(minio, /image: minio\/minio:\$\{LIVEKIT_MINIO_IMAGE_TAG:\?LIVEKIT_MINIO_IMAGE_TAG is required\}@\$\{LIVEKIT_MINIO_IMAGE_DIGEST:\?LIVEKIT_MINIO_IMAGE_DIGEST is required\}/);
   assert.match(minio, /"127\.0\.0\.1:9000:9000"/);
   assert.match(minio, /"127\.0\.0\.1:9001:9001"/);
   assert.equal(readServiceEnvironment(storageCompose, 'minio').MINIO_ROOT_USER, '${MINIO_ROOT_ACCESS_KEY:?MINIO_ROOT_ACCESS_KEY is required}');
@@ -244,7 +251,7 @@ test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on
   assert.equal(minioInitEnvironment.MINIO_ACCESS_KEY, '${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}');
   assert.notEqual(minioInitEnvironment.MINIO_ROOT_ACCESS_KEY, minioInitEnvironment.MINIO_ACCESS_KEY);
   assert.match(minioInit, /bootstrap-minio-bucket\.sh/);
-  assert.match(minioInit, /image: minio\/mc:\$\{LIVEKIT_MINIO_MC_IMAGE_TAG:\?LIVEKIT_MINIO_MC_IMAGE_TAG is required\}/);
+  assert.match(minioInit, /image: minio\/mc:\$\{LIVEKIT_MINIO_MC_IMAGE_TAG:\?LIVEKIT_MINIO_MC_IMAGE_TAG is required\}@\$\{LIVEKIT_MINIO_MC_IMAGE_DIGEST:\?LIVEKIT_MINIO_MC_IMAGE_DIGEST is required\}/);
   assert.ok(
     readServiceVolumes(storageCompose, 'minio-init').includes(
       '../scripts/bootstrap-minio-bucket.sh:/bootstrap/bootstrap-minio-bucket.sh:ro'
@@ -258,7 +265,9 @@ test('standalone LiveKit storage overlay keeps MinIO private and gates Egress on
   );
   assert.match(edgeCompose, /^  egress:/m);
   assert.match(envExample, /^LIVEKIT_MINIO_IMAGE_TAG=RELEASE\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/m);
+  assert.match(envExample, /^LIVEKIT_MINIO_IMAGE_DIGEST=sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_MINIO_MC_IMAGE_TAG=RELEASE\.\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/m);
+  assert.match(envExample, /^LIVEKIT_MINIO_MC_IMAGE_DIGEST=sha256:[a-f0-9]{64}$/m);
   assert.doesNotMatch(envExample, /^MINIO_(?:ACCESS_KEY|SECRET_KEY)=minioadmin$/m);
 });
 
@@ -881,8 +890,15 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(minio, /kind: Deployment/);
   assert.match(minio, /name: {{ \.Release\.Name }}-minio/);
   assert.match(minio, /\.Values\.media\.minio\.image\.repository/);
+  assert.match(minio, /\.Values\.media\.minio\.image\.tag/);
+  assert.match(minio, /required "media\.minio\.image\.digest is required" \.Values\.media\.minio\.image\.digest/);
+  assert.match(minio, /regexMatch "\^sha256:\[a-f0-9\]\{64\}\$" \$minioImageDigest/);
+  assert.match(minio, /fail "media\.minio\.image\.digest must be an immutable sha256 digest"/);
   assert.match(minio, /MINIO_ROOT_USER/);
   assert.match(minio, /MINIO_ROOT_PASSWORD/);
+  assert.match(minio, /startupProbe:[\s\S]*\/minio\/health\/live/);
+  assert.match(minio, /readinessProbe:[\s\S]*\/minio\/health\/ready/);
+  assert.match(minio, /livenessProbe:[\s\S]*\/minio\/health\/live/);
   assert.match(minio, /kind: Service/);
   assert.match(minio, /\.Values\.media\.minio\.service\.port/);
   assert.match(minio, /targetPort: 9000/);
@@ -935,6 +951,11 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
 
   assert.match(values, /repository: livekit\/livekit-server/);
   assert.match(values, /repository: minio\/minio/);
+  const minioValuesStart = values.indexOf('  minio:\n', values.indexOf('media:\n'));
+  const minioValues = values.slice(minioValuesStart, values.indexOf('  egress:\n', minioValuesStart));
+  assert.match(minioValues, /tag: RELEASE\.2025-09-07T16-13-09Z/);
+  assert.match(minioValues, /digest: sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e/);
+  assert.doesNotMatch(minioValues, /tag: latest/);
   assert.match(values, /repository: ivekit\/livekit-egress/);
   assert.match(values, /repository: livekit\/sip/);
   assert.match(values, /^  enabled: false$/m);
