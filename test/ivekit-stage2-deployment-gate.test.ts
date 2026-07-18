@@ -17,6 +17,12 @@ test('stage 2 deployment gate renders Compose and Helm with immutable images', (
   assert.match(script, /helm lint/);
   assert.match(script, /helm template/);
   assert.match(script, /image\.digest=sha256:/);
+  assert.match(script, /opc:\n[\s\S]*?digest: sha256:d{64}/);
+  assert.match(script, /aiAgent:\n[\s\S]*?digest: sha256:e{64}/);
+  assert.match(script, /frontend:\n[\s\S]*?digest: sha256:f{64}/);
+  assert.match(script, /registry\.example\.invalid\/opc\/platform@sha256:/);
+  assert.match(script, /registry\.example\.invalid\/opc\/ai-agent@sha256:/);
+  assert.match(script, /registry\.example\.invalid\/opc\/frontend@sha256:/);
   assert.match(script, /clamav\.image\.digest=sha256:/);
   assert.match(script, /livekit\.redis\.address=redis\.shared\.example\.invalid:6379/);
   assert.match(script, /media\.egress\.image\.repository=ivekit\/livekit-egress/);

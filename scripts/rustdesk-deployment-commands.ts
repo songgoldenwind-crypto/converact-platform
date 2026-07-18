@@ -193,6 +193,7 @@ function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
   const namespace = optionalString(env.OPC_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE) || 'opc';
   const helmRelease = optionalString(env.OPC_RUSTDESK_DEPLOYMENT_HELM_RELEASE) || 'opc';
   const helmChart = optionalString(env.OPC_RUSTDESK_DEPLOYMENT_HELM_CHART) || 'infra/k8s';
+  const helmValuesFile = optionalString(env.OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE) || '<production-values.yaml>';
   const opcDeployment = optionalString(env.OPC_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT) || `${helmRelease}-opc`;
   const rustdeskDeployment = optionalString(env.OPC_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT) || `${helmRelease}-rustdesk`;
   const deploymentCommandsArtifact = optionalString(env.OPC_RUSTDESK_DEPLOYMENT_COMMANDS_FILE) || DEFAULT_DEPLOYMENT_COMMANDS_ARTIFACT;
@@ -203,6 +204,7 @@ function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
       namespace,
       helm_release: helmRelease,
       helm_chart: helmChart,
+      helm_values_file: helmValuesFile,
       opc_deployment: opcDeployment,
       rustdesk_deployment: rustdeskDeployment,
       opc_public_key_path: '/rustdesk/id_ed25519.pub'
@@ -213,7 +215,7 @@ function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
         'Install Or Upgrade Helm Release',
         'Enable the RustDesk chart resources and wait for hbbs/hbbr to roll out before running OPC checks.',
         [
-          `helm upgrade --install ${helmRelease} ${helmChart} --namespace ${namespace} --create-namespace --set rustdesk.enabled=true`,
+          `helm upgrade --install ${helmRelease} ${helmChart} --namespace ${namespace} --create-namespace --values ${helmValuesFile} --set rustdesk.enabled=true`,
           `kubectl -n ${namespace} rollout status deployment/${rustdeskDeployment}`,
           `kubectl -n ${namespace} get service ${rustdeskDeployment} -o wide`,
           `kubectl -n ${namespace} logs deployment/${rustdeskDeployment} --all-containers --tail=200`
@@ -290,7 +292,7 @@ function createK8sPlan(env: NodeJS.ProcessEnv): RustDeskDeploymentCommandPlan {
         'Rollback / Cleanup',
         'Disable only the RustDesk chart resources if rollback is required; keep PVC data until key/session evidence is reviewed.',
         [
-          `helm upgrade --install ${helmRelease} ${helmChart} --namespace ${namespace} --set rustdesk.enabled=false`
+          `helm upgrade --install ${helmRelease} ${helmChart} --namespace ${namespace} --values ${helmValuesFile} --set rustdesk.enabled=false`
         ]
       )
     ]

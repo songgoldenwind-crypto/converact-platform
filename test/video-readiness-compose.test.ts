@@ -15,6 +15,8 @@ const IVEKIT_POSTGRES_ROLE_INIT_PATH = new URL('../infra/ivekit/init-postgres-ru
 const K8S_OPC_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/opc-deployment.yaml', import.meta.url);
 const K8S_HELPERS_PATH = new URL('../infra/k8s/templates/_helpers.tpl', import.meta.url);
 const K8S_AI_AGENT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/ai-agent-deployment.yaml', import.meta.url);
+const K8S_FRONTEND_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/frontend-deployment.yaml', import.meta.url);
+const K8S_RUSTPBX_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/rustpbx-deployment.yaml', import.meta.url);
 const K8S_SECRETS_PATH = new URL('../infra/k8s/templates/secrets.yaml', import.meta.url);
 const K8S_VALUES_PATH = new URL('../infra/k8s/values.yaml', import.meta.url);
 const K8S_LIVEKIT_DEPLOYMENT_PATH = new URL('../infra/k8s/templates/livekit-deployment.yaml', import.meta.url);
@@ -192,11 +194,22 @@ test('production compose gates databases PgBouncer and object storage', () => {
   assert.match(postgresBootstrap, /restart: "no"/);
 
   const pgbouncer = readServiceBlock(compose, 'pgbouncer');
+  assert.match(
+    pgbouncer,
+    /image: edoburu\/pgbouncer:v1\.25\.2-p0@sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340/
+  );
+  assert.doesNotMatch(pgbouncer, /bitnami|:latest/);
+  assert.match(pgbouncer, /DB_HOST: postgres/);
+  assert.match(pgbouncer, /DB_USER: opc/);
+  assert.match(pgbouncer, /DB_PASSWORD: \$\{POSTGRES_PASSWORD\}/);
+  assert.match(pgbouncer, /AUTH_TYPE: scram-sha-256/);
+  assert.match(pgbouncer, /POOL_MODE: transaction/);
+  assert.match(pgbouncer, /LISTEN_PORT: "6432"/);
   assert.match(pgbouncer, /postgres-bootstrap:\n\s+condition: service_completed_successfully/);
   assert.match(pgbouncer, /healthcheck:[\s\S]*psql -X[\s\S]*-p 6432/);
   assert.match(pgbouncer, /-Atqc 'SELECT 1' >\/dev\/null 2>&1/);
   assert.doesNotMatch(pgbouncer, /pg_isready/);
-  assert.match(pgbouncer, /PGPASSWORD=\$\$POSTGRESQL_PASSWORD/);
+  assert.match(pgbouncer, /PGPASSWORD=\$\$DB_PASSWORD/);
   assert.match(
     readServiceBlock(compose, 'keycloak'),
     /postgres-bootstrap:\n\s+condition: service_completed_successfully/
@@ -1006,6 +1019,40 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   ]) {
     assert.match(values, new RegExp(`^  ${valueKey}`, 'm'));
   }
+});
+
+test('Kubernetes chart fails closed unless OPC application images use immutable digests', () => {
+  const helpers = readFileSync(K8S_HELPERS_PATH, 'utf8');
+  const values = readFileSync(K8S_VALUES_PATH, 'utf8');
+  const opc = readFileSync(K8S_OPC_DEPLOYMENT_PATH, 'utf8');
+  const aiAgent = readFileSync(K8S_AI_AGENT_DEPLOYMENT_PATH, 'utf8');
+  const frontend = readFileSync(K8S_FRONTEND_DEPLOYMENT_PATH, 'utf8');
+  const rustpbx = readFileSync(K8S_RUSTPBX_DEPLOYMENT_PATH, 'utf8');
+
+  for (const component of ['opc', 'aiAgent', 'frontend']) {
+    assert.match(helpers, new RegExp(`define "opc\\.${component}Image"`));
+    assert.match(helpers, new RegExp(`${component}\\.image\\.digest is required`));
+    assert.match(helpers, new RegExp(`${component}\\.image\\.digest must be an immutable sha256 digest`));
+  }
+  assert.match(helpers, /regexMatch "\^sha256:\[a-f0-9\]\{64\}\$"/);
+
+  for (const sectionName of ['opc', 'aiAgent', 'frontend']) {
+    const start = values.indexOf(`${sectionName}:\n`);
+    const end = values.indexOf('\n\n', start);
+    const section = values.slice(start, end);
+    assert.match(section, /repository: /);
+    assert.match(section, /digest: ""/);
+    assert.doesNotMatch(section, /tag:/);
+  }
+
+  assert.match(opc, /image: {{ include "opc\.opcImage" \. | quote }}/);
+  assert.match(aiAgent, /image: {{ include "opc\.aiAgentImage" \. | quote }}/);
+  assert.match(frontend, /image: {{ include "opc\.frontendImage" \. | quote }}/);
+  assert.match(rustpbx, /\$opcImage := include "opc\.opcImage" \./);
+  assert.doesNotMatch(
+    `${opc}\n${aiAgent}\n${frontend}\n${rustpbx}`,
+    /(?:opc|aiAgent|frontend)\.image\.tag|:latest/
+  );
 });
 
 test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {

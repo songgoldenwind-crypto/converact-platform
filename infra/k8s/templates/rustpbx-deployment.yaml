@@ -68,7 +68,7 @@
 {{- fail "voice.componentNode.profileIds is required when component-node is enabled" -}}
 {{- end -}}
 {{- end -}}
-{{- $opcImage := printf "%s:%s" .Values.opc.image.repository .Values.opc.image.tag -}}
+{{- $opcImage := include "opc.opcImage" . -}}
 {{- $databasePassword := required "voice.database.password is required" .Values.voice.database.password -}}
 {{- $databaseHost := .Values.voice.database.host | default (printf "%s-postgres" .Release.Name) -}}
 {{- $databaseUrl := printf "postgresql://rustpbx_app:%s@%s:%v/rustpbx" ($databasePassword | urlquery) $databaseHost .Values.voice.database.port -}}

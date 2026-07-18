@@ -56,23 +56,25 @@ services:
     restart: "no"
 
   pgbouncer:
-    image: bitnami/pgbouncer:latest
+    image: edoburu/pgbouncer:v1.25.2-p0@sha256:7d7a27d9e90985cab5cf42256f5c13a3120baa4b055b69df37beb272b89b2340
     environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: "5432"
-      POSTGRESQL_USERNAME: opc
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRESQL_DATABASE: opc
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_MAX_CLIENT_CONN: "200"
-      PGBOUNCER_DEFAULT_POOL_SIZE: "20"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: opc
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: opc
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "200"
+      DEFAULT_POOL_SIZE: "20"
+      LISTEN_PORT: "6432"
     ports:
       - "6432:6432"
     depends_on:
       postgres-bootstrap:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRESQL_PASSWORD psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 6432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE -Atqc 'SELECT 1' >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "PGPASSWORD=$$DB_PASSWORD psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 6432 -U $$DB_USER -d $$DB_NAME -Atqc 'SELECT 1' >/dev/null 2>&1"]
       interval: 5s
       timeout: 3s
       retries: 10

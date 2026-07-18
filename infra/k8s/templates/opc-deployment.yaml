@@ -28,7 +28,8 @@ spec:
     spec:
       containers:
         - name: opc
-          image: "{{ .Values.opc.image.repository }}:{{ .Values.opc.image.tag }}"
+          image: {{ include "opc.opcImage" . | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
           ports:
             - containerPort: 3000
           env:

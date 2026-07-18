@@ -47,13 +47,15 @@ test('RustDesk deployment command plan renders the Kubernetes Helm server bring-
     OPC_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE: 'opc',
     OPC_RUSTDESK_DEPLOYMENT_HELM_RELEASE: 'opc',
     OPC_RUSTDESK_DEPLOYMENT_HELM_CHART: 'infra/k8s',
+    OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE: 'infra/k8s/values.production.yaml',
     OPC_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT: 'opc',
     OPC_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT: 'opc-rustdesk'
   });
 
   assert.equal(plan.mode, 'k8s');
   const commands = commandLines(plan);
-  assert.equal(commands.includes('helm upgrade --install opc infra/k8s --namespace opc --create-namespace --set rustdesk.enabled=true'), true);
+  assert.equal(commands.includes('helm upgrade --install opc infra/k8s --namespace opc --create-namespace --values infra/k8s/values.production.yaml --set rustdesk.enabled=true'), true);
+  assert.equal(commands.includes('helm upgrade --install opc infra/k8s --namespace opc --values infra/k8s/values.production.yaml --set rustdesk.enabled=false'), true);
   assert.equal(commands.includes('kubectl -n opc rollout status deployment/opc-rustdesk'), true);
   assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_PREFLIGHT_REPORT_FILE=/tmp/rustdesk-preflight.json') && command.includes('npm run rustdesk:deployment-preflight')), true);
   assert.equal(commands.some((command) => command.includes('OPC_RUSTDESK_SERVER_EVIDENCE_FILE=/tmp/rustdesk-server-evidence.json') && command.includes('npm run rustdesk:server-evidence')), true);
@@ -126,6 +128,7 @@ test('RustDesk deployment commands write an artifact and expose package/env wiri
     'OPC_RUSTDESK_DEPLOYMENT_K8S_NAMESPACE=',
     'OPC_RUSTDESK_DEPLOYMENT_HELM_RELEASE=',
     'OPC_RUSTDESK_DEPLOYMENT_HELM_CHART=',
+    'OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE=',
     'OPC_RUSTDESK_DEPLOYMENT_OPC_DEPLOYMENT=',
     'OPC_RUSTDESK_DEPLOYMENT_RUSTDESK_DEPLOYMENT='
   ]) {

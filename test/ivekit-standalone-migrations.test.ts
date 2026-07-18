@@ -87,6 +87,7 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('087_livekit_egress_jobs.sql'), true);
   assert.equal(migrations.includes('088_livekit_egress_reconciliation.sql'), true);
   assert.equal(migrations.includes('089_livekit_egress_capacity_metrics.sql'), true);
+  assert.equal(migrations.includes('093_ivekit_cell_admission_rls.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -185,10 +186,12 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('090_ivekit_runtime_security.sql') <
       migrations.indexOf('091_ivekit_capacity_scaling_campaigns.sql') &&
       migrations.indexOf('091_ivekit_capacity_scaling_campaigns.sql') <
-      migrations.indexOf('092_ivekit_capacity_platform_campaigns.sql'),
+      migrations.indexOf('092_ivekit_capacity_platform_campaigns.sql') &&
+      migrations.indexOf('092_ivekit_capacity_platform_campaigns.sql') <
+      migrations.indexOf('093_ivekit_cell_admission_rls.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '092_ivekit_capacity_platform_campaigns.sql');
+  assert.equal(migrations.at(-1), '093_ivekit_cell_admission_rls.sql');
   const runtimeSecurity = readFileSync(
     'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'

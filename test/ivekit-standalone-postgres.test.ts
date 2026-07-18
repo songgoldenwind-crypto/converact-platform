@@ -81,6 +81,16 @@ const voiceFoundationTables = [
   'ivekit_voice_parking_slots'
 ];
 
+const voiceExtensionTables = [
+  'ivekit_voice_route_snapshot_revisions',
+  'ivekit_recording_manifests',
+  'ivekit_recording_segments',
+  'ivekit_recording_segment_events',
+  'ivekit_recording_upload_leases',
+  'ivekit_recording_segment_uploads',
+  'ivekit_recording_upload_parts'
+];
+
 const ivrFoundationTables = [
   'ivekit_ivr_flows',
   'ivekit_ivr_flow_versions',
@@ -165,7 +175,9 @@ function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): 
       '057_ivekit_voice_action_capabilities.sql',
       '058_ivekit_voice_parking.sql',
       '059_ivekit_provider_governance.sql',
-      '060_ivekit_content_intelligence.sql'
+      '060_ivekit_content_intelligence.sql',
+      '079_ivekit_voice_route_snapshot_revision.sql',
+      '086_ivekit_recording_manifests.sql'
     ].includes(name)) continue;
     copyFileSync(resolve('src/migrations', name), join(directory, name));
   }
@@ -1903,7 +1915,8 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
     assert.equal(
       Number(productTablesAfter.rows[0].count) - Number(productTablesBefore.rows[0].count),
       voiceFoundationTables.length + ivrFoundationTables.length + contactCenterTables.length +
-        providerGovernanceTables.length + contentIntelligenceTables.length
+        providerGovernanceTables.length + contentIntelligenceTables.length +
+        voiceExtensionTables.length
     );
     const sharedTablesAfter = await admin.query<{ tablename: string }>(`
       SELECT tablename
@@ -1915,7 +1928,8 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
       ...ivrFoundationTables,
       ...contactCenterTables,
       ...providerGovernanceTables,
-      ...contentIntelligenceTables
+      ...contentIntelligenceTables,
+      ...voiceExtensionTables
     ]]);
     assert.deepEqual(
       sharedTablesAfter.rows.map((row) => row.tablename),
@@ -1924,7 +1938,8 @@ upgradeTest('existing OPC schema upgrades through standalone runner without prod
         ...ivrFoundationTables,
         ...contactCenterTables,
         ...providerGovernanceTables,
-        ...contentIntelligenceTables
+        ...contentIntelligenceTables,
+        ...voiceExtensionTables
       ].sort()
     );
     assert.equal((await admin.query(

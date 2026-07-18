@@ -8,9 +8,10 @@ COMPOSE_FILE="$ROOT_DIR/services/ivekit-service/docker-compose.yml"
 COMPOSE_ENV="$ROOT_DIR/services/ivekit-service/env.example"
 RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-helm.XXXXXX.yaml")
 EGRESS_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-egress.XXXXXX.yaml")
+PLATFORM_IMAGE_VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-platform-images.XXXXXX.yaml")
 
 cleanup() {
-  rm -f "$RENDERED_FILE" "$EGRESS_RENDERED_FILE"
+  rm -f "$RENDERED_FILE" "$EGRESS_RENDERED_FILE" "$PLATFORM_IMAGE_VALUES_FILE"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -24,6 +25,21 @@ done
 cd "$ROOT_DIR"
 
 docker compose --env-file "$COMPOSE_ENV" -f "$COMPOSE_FILE" config --quiet
+
+cat >"$PLATFORM_IMAGE_VALUES_FILE" <<'EOF'
+opc:
+  image:
+    repository: registry.example.invalid/opc/platform
+    digest: sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+aiAgent:
+  image:
+    repository: registry.example.invalid/opc/ai-agent
+    digest: sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+frontend:
+  image:
+    repository: registry.example.invalid/opc/frontend
+    digest: sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+EOF
 
 helm lint "$CHART_DIR" \
   --set-string image.repository=registry.example.invalid/ivekit/service \
@@ -56,6 +72,18 @@ if helm template opc-platform "$PLATFORM_CHART_DIR" \
   --set-string livekit.publicUrl=wss://media.example.invalid \
   --set-string livekit.apiKey=render-only-key \
   --set-string livekit.apiSecret=render-only-secret-value \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'platform unexpectedly rendered without immutable application image digests' >&2
+  exit 1
+fi
+
+if helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --values "$PLATFORM_IMAGE_VALUES_FILE" \
+  --set livekit.enabled=false \
+  --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
+  --set-string livekit.publicUrl=wss://media.example.invalid \
+  --set-string livekit.apiKey=render-only-key \
+  --set-string livekit.apiSecret=render-only-secret-value \
   --set-string livekit.redis.address=redis.shared.example.invalid:6379 \
   --set media.egress.enabled=true \
   --set-string media.egress.image.repository=ivekit/livekit-egress \
@@ -65,6 +93,7 @@ if helm template opc-platform "$PLATFORM_CHART_DIR" \
 fi
 
 if helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --values "$PLATFORM_IMAGE_VALUES_FILE" \
   --set livekit.enabled=false \
   --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
   --set-string livekit.publicUrl=wss://media.example.invalid \
@@ -85,6 +114,7 @@ for unapproved_egress_repository in \
   registry.example.invalid/arbitrary/livekit-egress \
   untrusted.example.invalid/ivekit/livekit-egress; do
   if helm template opc-platform "$PLATFORM_CHART_DIR" \
+    --values "$PLATFORM_IMAGE_VALUES_FILE" \
     --set livekit.enabled=false \
     --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
     --set-string livekit.publicUrl=wss://media.example.invalid \
@@ -101,6 +131,7 @@ for unapproved_egress_repository in \
 done
 
 helm lint "$PLATFORM_CHART_DIR" \
+  --values "$PLATFORM_IMAGE_VALUES_FILE" \
   --set livekit.enabled=false \
   --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
   --set-string livekit.publicUrl=wss://media.example.invalid \
@@ -113,6 +144,7 @@ helm lint "$PLATFORM_CHART_DIR" \
   --set-string media.egress.image.digest="$EGRESS_DIGEST"
 
 helm template opc-platform "$PLATFORM_CHART_DIR" \
+  --values "$PLATFORM_IMAGE_VALUES_FILE" \
   --set livekit.enabled=false \
   --set-string livekit.url=ws://livekit.external.example.invalid:7880 \
   --set-string livekit.publicUrl=wss://media.example.invalid \
@@ -126,6 +158,9 @@ helm template opc-platform "$PLATFORM_CHART_DIR" \
   >"$EGRESS_RENDERED_FILE"
 
 test -s "$EGRESS_RENDERED_FILE"
+grep -q 'registry.example.invalid/opc/platform@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' "$EGRESS_RENDERED_FILE"
+grep -q 'registry.example.invalid/opc/ai-agent@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' "$EGRESS_RENDERED_FILE"
+grep -q 'registry.example.invalid/opc/frontend@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' "$EGRESS_RENDERED_FILE"
 grep -q 'redis.shared.example.invalid:6379' "$EGRESS_RENDERED_FILE"
 grep -q "registry.example.invalid/ivekit/livekit-egress@$EGRESS_DIGEST" "$EGRESS_RENDERED_FILE"
 grep -q 'IVEKIT_EGRESS_POOL_NAME' "$EGRESS_RENDERED_FILE"

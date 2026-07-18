@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
         - name: ai-agent
-          image: "{{ .Values.aiAgent.image.repository }}:{{ .Values.aiAgent.image.tag }}"
+          image: {{ include "opc.aiAgentImage" . | quote }}
+          imagePullPolicy: {{ .Values.aiAgent.image.pullPolicy }}
           env:
             - name: LIVEKIT_URL
               value: {{ include "opc.livekitInternalUrl" . | quote }}

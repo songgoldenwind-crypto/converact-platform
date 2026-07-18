@@ -8,7 +8,7 @@ opc:
   replicaCount: 2
   image:
     repository: opc/platform
-    tag: latest
+    digest: ""
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -37,7 +37,8 @@ aiAgent:
   replicaCount: 2
   image:
     repository: opc/ai-agent
-    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
   resources:
     requests:
       memory: "512Mi"
@@ -50,7 +51,8 @@ frontend:
   replicaCount: 1
   image:
     repository: opc/frontend
-    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 80

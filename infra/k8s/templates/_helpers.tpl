@@ -1,3 +1,30 @@
+{{- define "opc.opcImage" -}}
+{{- $repository := required "opc.image.repository is required" .Values.opc.image.repository -}}
+{{- $digest := required "opc.image.digest is required" .Values.opc.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "opc.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "opc.aiAgentImage" -}}
+{{- $repository := required "aiAgent.image.repository is required" .Values.aiAgent.image.repository -}}
+{{- $digest := required "aiAgent.image.digest is required" .Values.aiAgent.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "aiAgent.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "opc.frontendImage" -}}
+{{- $repository := required "frontend.image.repository is required" .Values.frontend.image.repository -}}
+{{- $digest := required "frontend.image.digest is required" .Values.frontend.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "frontend.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
 {{- define "opc.livekitInternalUrl" -}}
 {{- if .Values.livekit.url -}}
 {{- .Values.livekit.url -}}

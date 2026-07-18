@@ -263,7 +263,8 @@ const STANDALONE_MIGRATIONS = [
   '089_livekit_egress_capacity_metrics.sql',
   'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
   '091_ivekit_capacity_scaling_campaigns.sql',
-  '092_ivekit_capacity_platform_campaigns.sql'
+  '092_ivekit_capacity_platform_campaigns.sql',
+  '093_ivekit_cell_admission_rls.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [
