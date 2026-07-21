@@ -19,18 +19,18 @@ services:
       - no-new-privileges:true
 
   router:
-    image: ${PYTHON_IMAGE:?PYTHON_IMAGE is required}
-    command: ["python", "/fixture/rustpbx-router.py"]
+    image: ${CAPACITY_TOOLS_IMAGE:?CAPACITY_TOOLS_IMAGE is required}
+    command: ["node", "--import", "tsx", "scripts/capacity/fixtures/rustpbx-router.ts"]
     environment:
       RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
-    volumes:
-      - ../../../services/ivekit-service/acceptance/rustpbx-router.py:/fixture/rustpbx-router.py:ro
+      IVEKIT_CAPACITY_ROUTER_HOST: 0.0.0.0
+      IVEKIT_CAPACITY_ROUTER_PORT: "8081"
     healthcheck:
       test:
         - CMD
-        - python
+        - node
         - -c
-        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health', timeout=1).read()
+        - fetch('http://127.0.0.1:8081/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 2s
       timeout: 2s
       retries: 30

@@ -10,6 +10,7 @@ Prepare private runtime files:
 RUSTPBX_IMAGE=ivekit/rustpbx:0.4.11-ivekit.10-6c49ee76 \
 POSTGRES_IMAGE=postgres@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297 \
 PYTHON_IMAGE=python@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0 \
+CAPACITY_TOOLS_IMAGE=ivekit/capacity-tools:0.1.0-rustpbx-router-v1 \
 python3 infra/capacity/rustpbx-baseline/prepare.py \
   /opt/ivekit-capacity-benchmark/runtime/rustpbx-baseline
 ```

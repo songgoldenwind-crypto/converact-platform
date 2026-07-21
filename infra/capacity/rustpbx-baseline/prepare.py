@@ -39,6 +39,7 @@ def main() -> None:
         "RUSTPBX_IMAGE": required_image("RUSTPBX_IMAGE", False),
         "POSTGRES_IMAGE": required_image("POSTGRES_IMAGE", True),
         "PYTHON_IMAGE": required_image("PYTHON_IMAGE", True),
+        "CAPACITY_TOOLS_IMAGE": required_image("CAPACITY_TOOLS_IMAGE", False),
     }
     runtime = {
         "RUSTPBX_DB_PASSWORD": secrets.token_hex(32),
@@ -66,4 +67,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

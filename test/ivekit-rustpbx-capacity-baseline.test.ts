@@ -15,10 +15,11 @@ test('RustPBX baseline keeps production authentication and an isolated topology'
   assert.match(compose, /RUSTPBX_IMAGE:\?RUSTPBX_IMAGE/);
   assert.match(compose, /POSTGRES_IMAGE:\?POSTGRES_IMAGE/);
   assert.match(compose, /PYTHON_IMAGE:\?PYTHON_IMAGE/);
+  assert.match(compose, /CAPACITY_TOOLS_IMAGE:\?CAPACITY_TOOLS_IMAGE/);
+  assert.match(compose, /scripts\/capacity\/fixtures\/rustpbx-router\.ts/);
   assert.match(compose, /172\.30\.44\.10/);
   assert.match(compose, /172\.30\.44\.20/);
   assert.doesNotMatch(compose, /^\s*ports:/m);
-  assert.match(compose, /import urllib\.request; urllib\.request\.urlopen/);
   assert.match(template, /ensure_user = true/);
   assert.match(template, /fallback_to_static = false/);
   assert.match(template, /database_url = "postgresql:\/\/rustpbx_app:/);
@@ -37,7 +38,8 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
       ...process.env,
       RUSTPBX_IMAGE: 'ivekit/rustpbx:0.4.11-ivekit.10-6c49ee76',
       POSTGRES_IMAGE: 'postgres@sha256:' + 'a'.repeat(64),
-      PYTHON_IMAGE: 'python@sha256:' + 'b'.repeat(64)
+      PYTHON_IMAGE: 'python@sha256:' + 'b'.repeat(64),
+      CAPACITY_TOOLS_IMAGE: 'ivekit/capacity-tools:test'
     }
   });
 
@@ -51,4 +53,5 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
   assert.doesNotMatch(result.stdout, /RUSTPBX_(?:DB_PASSWORD|MANAGEMENT_TOKEN|RWI_TOKEN|WEBHOOK_TOKEN)=/);
   assert.match(env, /^COMPOSE_PROJECT_NAME=ivekit-rustpbx-baseline$/m);
   assert.match(env, /^RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.10-6c49ee76$/m);
+  assert.match(env, /^CAPACITY_TOOLS_IMAGE=ivekit\/capacity-tools:test$/m);
 });
