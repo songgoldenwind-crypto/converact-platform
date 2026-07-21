@@ -211,12 +211,54 @@ the same defaults. Both charts expose `/metrics`; optional ServiceMonitor and
 PrometheusRule resources alert before a hard limit and on any overload
 rejection. Metrics contain no tenant, call, interaction, or phone-number labels.
 
+## Call-record persistence isolation
+
+iveKit sends CDRs to its authenticated HTTP endpoint and disables RustPBX's
+second direct database write with `persist_to_database = false`. The upstream
+default remains `true`, so deployments that do not use iveKit keep their
+original persistence behavior. HTTP saver execution remains asynchronous and
+does not block SIP or RTP processing.
+
+`RUSTPBX_CALL_RECORD_MAX_CONCURRENT` maps to `callrecord.max_concurrent`,
+defaults to 64, and accepts 1 through 4096. It bounds concurrent CDR saver
+tasks. A 256-task setting exhausted the shared Router on the controlled
+four-vCPU baseline, while 64 preserved exact INVITE and CDR parity at 1,400
+CPS. `RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY` maps to
+`callrecord.channel_capacity`, defaults to 65,536, and accepts 1 through
+262,144. It bounds the queued CDR backlog; increasing it consumes more memory
+and cannot repair a persistently unavailable downstream endpoint.
+
+`RUSTPBX_CALL_RECORD_WORKER_THREADS` maps to `callrecord.worker_threads`,
+defaults to 1, and accepts 1 through 16. The patched runtime executes the
+CallRecordManager on these dedicated threads, so CDR HTTP, database, object
+storage and hook latency cannot consume SIP transaction workers. The queue
+remains bounded and its producer remains non-blocking; sink failure may delay
+or eventually drop CDR delivery, but it must not stall an active call.
+
+Sink failures increment
+`rustpbx_call_record_sink_failures_total{stage="save|hook"}`. The stage set is
+fixed and contains no tenant, call or endpoint labels. Warning output is shared
+across sinks and limited to one line every five seconds, preventing a failed
+endpoint from producing one log line per CDR.
+
+Compose and both Helm surfaces carry the same defaults. Capacity profiles may
+override them only after measuring CDR endpoint latency, queue saturation,
+memory growth and recovery while active media remains unaffected.
+
 The exact rsipstack and RustPBX patch queues apply cleanly to their pinned
-commits and the rsipstack tree passes Rustfmt. The ivekit.10 source candidate
-passes `cargo check --locked --features cross --bin rustpbx --bin sipflow` with
-Rust 1.94.1 on macOS arm64. A Linux RustPBX image build, SIPp overload curve,
-sustained timer/cache recovery, and Cell-10K result remain `not_run` until
-executed on the target build and benchmark environment.
+commits and the rsipstack tree passes Rustfmt. The exact ivekit.16 amd64 Linux
+image was built on the controlled four-vCPU server. Its strict 1,400-CPS
+signaling run completed 42,000 of 42,000 calls with zero failures, zero
+remaining calls, zero retransmissions and exact Router/CDR parity. A CDR-sink
+outage run completed the same 42,000 calls with exact Router parity, zero CDR
+delivery, no queue drops and seven rate-limited warning lines over 30 seconds.
+The outage runner reports failure by design because its CDR parity and drain
+checks cannot pass.
+
+The same shared-host topology did not pass the strict 1,500-CPS boundary: 20
+calls remained active and Router/CDR counts exceeded the target by four. Treat
+1,400 CPS as the controlled signaling baseline for this hardware. It does not
+prove RTP, PSTN, WSS, sustained recovery, Cell-10K or MIX-100K capacity.
 
 ## Recording media hot path
 
@@ -251,9 +293,10 @@ and per-worker queue limit are exported by `rustpbx_media_recording_worker_threa
 `rustpbx_media_recording_worker_queue_capacity`. Any drop triggers
 `IveKitRustPbxRecordingQueueDrops`. Preserve the affected recording manifest
 and pod metrics, drain new recording work, then investigate codec CPU, storage
-latency and spool uploader backpressure. Native arm64 compilation and the
-no-PSTN SIPp signaling suite passed on this host; RTP packet continuity, a real
-object-store outage/resume drill and overflow recovery remain `not_run`.
+latency and spool uploader backpressure. The complete patch queue compiles in
+the exact ivekit.16 amd64 Linux image and the no-PSTN SIPp signaling suite
+passes; RTP packet continuity, a real object-store outage/resume drill and
+overflow recovery remain `not_run`.
 
 The Rust unit gate `test_recording_stop_does_not_block_engine_on_busy_recorder`
 holds the recorder write lock while StopRecording and PauseRecording are sent;
@@ -283,9 +326,9 @@ or filesystem stall can consume recording workers and cause incomplete evidence,
 but recording capture uses non-blocking bounded queues and session teardown has
 its own deadline. The intended failure preference is explicit: preserve live RTP
 and call control, then surface recording or cleanup loss for audit and recovery.
-Exact patch replay, static contracts, and the Rust 1.94.1 macOS source check
-pass; Linux image build, real blocked-filesystem injection, RTP continuity, and
-process-level fault recovery remain `not_run`.
+Exact patch replay, static contracts, and the ivekit.16 amd64 Linux image build
+pass; real blocked-filesystem injection, RTP continuity, and process-level fault
+recovery remain `not_run`.
 
 ## WebPhone pre-authentication registry
 
@@ -301,9 +344,8 @@ normal completion, cancellation and panic drop the guard and remove only its
 generation. A stale guard cannot delete a newer connection that reused the same
 address. The embedded Rust tests cover replacement fencing, explicit removal,
 guard cleanup and 10,000 simultaneous keyed entries. Patch application,
-formatting, and the Rust 1.94.1 macOS source check pass on the exact upstream
-commit; Linux image build and runtime WSS load remain `not_run` while the local
-Docker runtime cannot start new containers.
+formatting, and the ivekit.16 amd64 Linux image build pass on the exact upstream
+commit; runtime WSS load remains `not_run`.
 
 ## Reproducibility
 
@@ -321,6 +363,12 @@ npm run ivekit:rustpbx-build
 
 Override the output image with `IVEKIT_RUSTPBX_IMAGE`. Cross compilation is
 rejected so an image cannot be mislabeled with binaries from another architecture.
+
+Constrained builders may set `IVEKIT_RUSTPBX_BUILD_CPUS`,
+`IVEKIT_RUSTPBX_BUILD_MEMORY`, and `IVEKIT_RUSTPBX_BUILD_JOBS`. Set
+`IVEKIT_RUSTPBX_CARGO_HOME` to a host directory to retain the Cargo registry
+between clean source builds. These controls only bound the build container;
+they do not change the release profile or runtime image.
 
 ## Acceptance
 

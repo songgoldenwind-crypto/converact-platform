@@ -141,8 +141,10 @@
     "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.20.0",
     "@types/ws": "^8.18.1",
+    "sip.js": "^0.21.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "yaml": "^2.4.2"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1073.0",

@@ -110,7 +110,7 @@ index f275873b..c642b43c 100644
 +++ b/src/config.rs
 @@ -463,2 +463,4 @@ pub use crate::storage::S3Vendor;
  pub const DEFAULT_CALL_RECORD_MAX_CONCURRENT: usize = 64;
-+pub const DEFAULT_CALL_RECORD_CHANNEL_CAPACITY: usize = 16_384;
++pub const DEFAULT_CALL_RECORD_CHANNEL_CAPACITY: usize = 65_536;
 +pub const MAX_CALL_RECORD_CHANNEL_CAPACITY: usize = 262_144;
 
 @@ -468,2 +470,6 @@ fn default_call_record_max_concurrent() -> usize {
@@ -144,6 +144,14 @@ index 7e15ab33..094d6126 100644
 -        info!(
 +        debug!(
              %dialog_id,
+diff --git a/src/proxy/tests/cdr_capture.rs b/src/proxy/tests/cdr_capture.rs
+--- a/src/proxy/tests/cdr_capture.rs
++++ b/src/proxy/tests/cdr_capture.rs
+@@ -18,3 +18,3 @@ impl CdrCapture {
+         let (sender, mut receiver) = tokio::sync::mpsc::channel::<CallRecord>(
+-            crate::callrecord::CALL_RECORD_CHANNEL_CAPACITY,
++            crate::config::DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
+         );
 diff --git a/src/proxy/proxy_call/reporter.rs b/src/proxy/proxy_call/reporter.rs
 index 0f3701a6..4bbb60b1 100644
 --- a/src/proxy/proxy_call/reporter.rs
@@ -207,3 +215,11 @@ index 0f3701a6..4bbb60b1 100644
 +}
 +
  fn build_sip_leg_roles(snapshot: &CallSessionRecordSnapshot) -> HashMap<String, String> {
+diff --git a/tests/helpers/cdr_verifier.rs b/tests/helpers/cdr_verifier.rs
+--- a/tests/helpers/cdr_verifier.rs
++++ b/tests/helpers/cdr_verifier.rs
+@@ -168,3 +168,3 @@ impl CdrVerifier {
+         let (sender, mut receiver) = tokio::sync::mpsc::channel::<CallRecord>(
+-            rustpbx::callrecord::CALL_RECORD_CHANNEL_CAPACITY,
++            rustpbx::config::DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
+         );

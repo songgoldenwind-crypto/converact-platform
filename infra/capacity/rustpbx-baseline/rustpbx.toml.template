@@ -64,7 +64,9 @@ scopes = ["call.control", "queue.control", "record.control", "supervisor.control
 
 [callrecord]
 type = "http"
-max_concurrent = 256
+max_concurrent = 64
 channel_capacity = 65536
+worker_threads = 1
+persist_to_database = false
 url = "http://router:8081/cdr"
 headers = { "X-PBX-Key" = "{{RUSTPBX_WEBHOOK_TOKEN}}" }

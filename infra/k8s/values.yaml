@@ -138,6 +138,10 @@ voice:
     recordingChannelCapacity: 256
     recordingWorkerThreads: 4
     recordingWorkerQueueCapacity: 4096
+  callRecordCapacity:
+    maxConcurrent: 64
+    channelCapacity: 65536
+    workerThreads: 1
   monitoring:
     serviceMonitor:
       enabled: false

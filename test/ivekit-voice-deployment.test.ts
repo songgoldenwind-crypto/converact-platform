@@ -20,6 +20,10 @@ const SERVICE_HELM_RUSTPBX = new URL(
   '../services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
   import.meta.url
 );
+const SERVICE_HELM_KAMAILIO = new URL(
+  '../services/ivekit-service/helm/ivekit/templates/kamailio-deployment.yaml',
+  import.meta.url
+);
 const SERVICE_HELM_HELPERS = new URL(
   '../services/ivekit-service/helm/ivekit/templates/_helpers.tpl',
   import.meta.url
@@ -143,7 +147,10 @@ test('RustPBX renderer accepts only immutable PostgreSQL production inputs', () 
     ['RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS', '0'],
     ['RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY', '0'],
     ['RUSTPBX_MEDIA_RECORDING_WORKER_THREADS', '65'],
-    ['RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY', '0']
+    ['RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY', '0'],
+    ['RUSTPBX_CALL_RECORD_MAX_CONCURRENT', '4097'],
+    ['RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY', '262145'],
+    ['RUSTPBX_CALL_RECORD_WORKER_THREADS', '17']
   ]) {
     assert.throws(
       () => renderRustPbxConfig({ ...SECRET_VALUES, [field]: value }),
@@ -169,6 +176,10 @@ test('RustPBX renderer emits a usable config and a secret-free summary', () => {
   assert.match(rendered.config, /media_recording_channel_capacity = 256/);
   assert.match(rendered.config, /media_recording_worker_threads = 4/);
   assert.match(rendered.config, /media_recording_worker_queue_capacity = 4096/);
+  assert.match(rendered.config, /max_concurrent = 64/);
+  assert.match(rendered.config, /channel_capacity = 65536/);
+  assert.match(rendered.config, /worker_threads = 1/);
+  assert.match(rendered.config, /persist_to_database = false/);
   assert.match(rendered.config, /\[\[proxy\.user_backends\]\]\s*\ntype = "extension"\s*\nttl = 30/);
   assert.match(rendered.config, /ws_handler = "\/ws"/);
   assert.match(rendered.config, /\[proxy\.jwt_auth\]/);
@@ -208,6 +219,9 @@ test('RustPBX renderer emits a usable config and a secret-free summary', () => {
     media_recording_channel_capacity: 256,
     media_recording_worker_threads: 4,
     media_recording_worker_queue_capacity: 4096,
+    call_record_max_concurrent: 64,
+    call_record_channel_capacity: 65536,
+    call_record_worker_threads: 1,
     management_exposure: 'internal',
     rwi_exposure: 'internal'
   });
@@ -224,7 +238,10 @@ test('RustPBX renderer accepts profile-tuned bounded SIP capacity', () => {
     RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS: '3500',
     RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: '1024',
     RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: '8',
-    RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: '8192'
+    RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: '8192',
+    RUSTPBX_CALL_RECORD_MAX_CONCURRENT: '512',
+    RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY: '131072',
+    RUSTPBX_CALL_RECORD_WORKER_THREADS: '3'
   });
 
   assert.match(rendered.config, /sip_max_active_transactions = 131072/);
@@ -236,6 +253,12 @@ test('RustPBX renderer accepts profile-tuned bounded SIP capacity', () => {
   assert.match(rendered.config, /media_recording_channel_capacity = 1024/);
   assert.match(rendered.config, /media_recording_worker_threads = 8/);
   assert.match(rendered.config, /media_recording_worker_queue_capacity = 8192/);
+  assert.match(rendered.config, /max_concurrent = 512/);
+  assert.match(rendered.config, /channel_capacity = 131072/);
+  assert.match(rendered.config, /worker_threads = 3/);
+  assert.equal(rendered.summary.call_record_max_concurrent, 512);
+  assert.equal(rendered.summary.call_record_channel_capacity, 131072);
+  assert.equal(rendered.summary.call_record_worker_threads, 3);
 });
 
 test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RTP', () => {
@@ -295,6 +318,11 @@ test('WebPhone production deployment shares one JWT authority and exposes only t
   const serviceValues = readFileSync(SERVICE_HELM_VALUES, 'utf8');
   const serviceDeployment = readFileSync(SERVICE_HELM_DEPLOYMENT, 'utf8');
   const serviceRustPbx = readFileSync(SERVICE_HELM_RUSTPBX, 'utf8');
+  const serviceKamailio = readFileSync(SERVICE_HELM_KAMAILIO, 'utf8');
+  const kamailioConfig = readFileSync(
+    'src/agent-runtime/ivekit/voice/kamailio-config.ts',
+    'utf8'
+  );
   const platformValues = readFileSync(HELM_VALUES, 'utf8');
   const platformSecrets = readFileSync(HELM_SECRETS, 'utf8');
   const platformApi = readFileSync(HELM_OPC, 'utf8');
@@ -314,11 +342,13 @@ test('WebPhone production deployment shares one JWT authority and exposes only t
     assert.match(values, /webphone:\s*\n\s+enabled: true/);
     assert.match(values, /publicWssUrl:/);
     assert.match(values, /jwtAudience: rustpbx-webphone/);
-    assert.match(values, /path: \/ws/);
   }
+  assert.match(platformValues, /path: \/ws/);
   assert.match(serviceDeployment, /name: OPC_IVEKIT_WEBPHONE_WSS_URL/);
   assert.match(serviceRustPbx, /name: OPC_IVEKIT_WEBPHONE_JWT_SECRET/);
-  assert.match(serviceRustPbx, /kind: Ingress[\s\S]*pathType: Exact/);
+  assert.doesNotMatch(serviceRustPbx, /kind: Ingress|voice\.webphone\.ingress/);
+  assert.match(serviceKamailio, /name: sip-wss[\s\S]*port: \{\{ \$kamailio\.advertise\.wssPort \}\}/);
+  assert.match(kamailioConfig, /\$hu =~ "\^\/ws\(\$\|\[\?\]\)"/);
   assert.match(platformSecrets, /rustpbx-webphone-jwt-secret:/);
   assert.match(platformApi, /name: OPC_IVEKIT_WEBPHONE_WSS_URL/);
   assert.match(platformRustPbx, /ws_handler = "\/ws"/);
@@ -348,10 +378,7 @@ test('standalone service Voice overlay uses only compiled image entrypoints', ()
   assert.match(voice, /command: \["node", "dist\/ivekit-rustpbx-route-snapshot\.js"\]/);
   assert.match(voice, /rustpbx-route-snapshot:\/app\/route-snapshot/);
   assert.match(voice, /command: \["node", "dist\/ivekit-rustpbx-recovery\.js"\]/);
-  assert.match(
-    voice,
-    /command: \["node", "dist\/ivekit-component-node-admission\.js"\]/
-  );
+  assert.match(voice, /exec node dist\/ivekit-component-node-admission\.js/);
   assert.match(voice, /rustpbx-generated-config:\/app\/generated/);
   assert.match(voice, /network_mode: service:rustpbx/);
   assert.match(voice, /rustpbx-db-init:/);
@@ -487,8 +514,9 @@ test('RustPBX Helm templates optionally co-locate the fenced component-node agen
     assert.match(template, /path: \/livez[\s\S]*port: component-node/);
     assert.match(template, /name: component-node[\s\S]*port: 3210/);
   }
+  assert.match(serviceValues, /componentNode:\s*\n\s+enabled: true/);
+  assert.match(platformValues, /componentNode:\s*\n\s+enabled: false/);
   for (const values of [serviceValues, platformValues]) {
-    assert.match(values, /componentNode:\s*\n\s+enabled: false/);
     assert.match(values, /tokenKey:/);
     assert.match(values, /regionId:/);
     assert.match(values, /zoneId:/);
@@ -572,6 +600,9 @@ test('RustPBX capacity limits and overload telemetry are consistent across deplo
     assert.match(compose, /RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY[^\n]*256/);
     assert.match(compose, /RUSTPBX_MEDIA_RECORDING_WORKER_THREADS[^\n]*4/);
     assert.match(compose, /RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY[^\n]*4096/);
+    assert.match(compose, /RUSTPBX_CALL_RECORD_MAX_CONCURRENT[^\n]*64/);
+    assert.match(compose, /RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY[^\n]*65536/);
+    assert.match(compose, /RUSTPBX_CALL_RECORD_WORKER_THREADS[^\n]*1/);
   }
   for (const values of [platformValues, serviceValues]) {
     assert.match(values, /sipCapacity:[\s\S]*maxActiveTransactions: 65536/);
@@ -582,10 +613,16 @@ test('RustPBX capacity limits and overload telemetry are consistent across deplo
     assert.match(values, /recordingChannelCapacity: 256/);
     assert.match(values, /recordingWorkerThreads: 4/);
     assert.match(values, /recordingWorkerQueueCapacity: 4096/);
+    assert.match(values, /callRecordCapacity:[\s\S]*maxConcurrent: 64/);
+    assert.match(values, /callRecordCapacity:[\s\S]*channelCapacity: 65536/);
+    assert.match(values, /callRecordCapacity:[\s\S]*workerThreads: 1/);
   }
   assert.match(platformTemplate, /sip_max_active_transactions = \{\{ int \.Values\.voice\.sipCapacity\.maxActiveTransactions \}\}/);
   assert.match(platformTemplate, /media_session_cleanup_concurrency = \{\{ int \.Values\.voice\.mediaCapacity\.sessionCleanupConcurrency \}\}/);
   assert.match(platformTemplate, /media_session_cleanup_timeout_ms = \{\{ int \.Values\.voice\.mediaCapacity\.sessionCleanupTimeoutMs \}\}/);
+  assert.match(platformTemplate, /max_concurrent = \{\{ int \.Values\.voice\.callRecordCapacity\.maxConcurrent \}\}/);
+  assert.match(platformTemplate, /channel_capacity = \{\{ int \.Values\.voice\.callRecordCapacity\.channelCapacity \}\}/);
+  assert.match(platformTemplate, /worker_threads = \{\{ int \.Values\.voice\.callRecordCapacity\.workerThreads \}\}/);
   assert.match(platformTemplate, /kind: ServiceMonitor[\s\S]*port: management/);
   assert.match(platformTemplate, /IveKitRustPbxSipOverloadRejections/);
   assert.match(serviceTemplate, /name: RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS/);
@@ -594,6 +631,9 @@ test('RustPBX capacity limits and overload telemetry are consistent across deplo
   assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY/);
   assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_RECORDING_WORKER_THREADS/);
   assert.match(serviceTemplate, /name: RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY/);
+  assert.match(serviceTemplate, /name: RUSTPBX_CALL_RECORD_MAX_CONCURRENT/);
+  assert.match(serviceTemplate, /name: RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY/);
+  assert.match(serviceTemplate, /name: RUSTPBX_CALL_RECORD_WORKER_THREADS/);
   assert.match(serviceTemplate, /prometheus\.io\/path: \/metrics/);
   assert.match(serviceMonitor, /app\.kubernetes\.io\/component: rustpbx[\s\S]*port: management/);
   assert.match(prometheusRules, /IveKitRustPbxSipTransactionSaturation/);
@@ -623,6 +663,7 @@ test('checked-in RustPBX config is secret-free and cannot start production', () 
   assert.match(config, /media_recording_channel_capacity = 256/);
   assert.match(config, /media_recording_worker_threads = 4/);
   assert.match(config, /media_recording_worker_queue_capacity = 4096/);
+  assert.match(config, /persist_to_database = false/);
   assert.match(config, /\[\[proxy\.user_backends\]\]\s*\ntype = "extension"/);
   assert.match(config, /__RUSTPBX_RWI_TOKEN_REQUIRED__/);
   assert.match(config, /generated by scripts\/render-rustpbx-config\.ts/i);
@@ -662,6 +703,7 @@ test('Helm Voice workload is opt-in, immutable, isolated, and operationally boun
   assert.match(rustpbx, /\/bin\/bash[\s\S]*\/dev\/tcp\/127\.0\.0\.1/);
   assert.doesNotMatch(rustpbx, /\bcurl\b|\bwget\b/);
   assert.match(rustpbx, /\[\[proxy\.user_backends\]\]\s*\n\s*type = "extension"/);
+  assert.match(rustpbx, /persist_to_database = false/);
   assert.match(rustpbx, /kind: PodDisruptionBudget/);
   assert.match(rustpbx, /readinessProbe:/);
   assert.match(rustpbx, /livenessProbe:/);

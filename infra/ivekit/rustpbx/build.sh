@@ -12,7 +12,7 @@ fi
 RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-PATCHSET="ivekit.13"
+PATCHSET="ivekit.16"
 IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 case "$(uname -m)" in
@@ -73,6 +73,12 @@ git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-webphone-r
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-webphone-registry.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-callrecord-capacity.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-callrecord-capacity.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-callrecord-database-policy.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-callrecord-database-policy.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-callrecord-runtime-isolation.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-callrecord-runtime-isolation.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-callrecord-failure-telemetry.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-callrecord-failure-telemetry.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-webphone-edge-auth.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-webphone-edge-auth.patch"
 
@@ -83,7 +89,27 @@ cp "$SCRIPT_DIR/Cargo.lock" "$BUILD_ROOT/rustpbx/Cargo.lock"
 cp "$SCRIPT_DIR/Dockerfile.runtime" "$BUILD_ROOT/rustpbx/Dockerfile.ivekit"
 cp "$SCRIPT_DIR/entrypoint.sh" "$BUILD_ROOT/rustpbx/entrypoint.ivekit.sh"
 
-docker run --rm \
+DOCKER_RUN_ARGS=(--rm)
+if [[ -n "${IVEKIT_RUSTPBX_BUILD_CPUS:-}" ]]; then
+  DOCKER_RUN_ARGS+=(--cpus "$IVEKIT_RUSTPBX_BUILD_CPUS")
+fi
+if [[ -n "${IVEKIT_RUSTPBX_BUILD_MEMORY:-}" ]]; then
+  DOCKER_RUN_ARGS+=(--memory "$IVEKIT_RUSTPBX_BUILD_MEMORY")
+fi
+if [[ -n "${IVEKIT_RUSTPBX_BUILD_JOBS:-}" ]]; then
+  [[ "$IVEKIT_RUSTPBX_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]] || {
+    echo "IVEKIT_RUSTPBX_BUILD_JOBS must be a positive integer" >&2
+    exit 1
+  }
+  DOCKER_RUN_ARGS+=(-e "CARGO_BUILD_JOBS=$IVEKIT_RUSTPBX_BUILD_JOBS")
+fi
+if [[ -n "${IVEKIT_RUSTPBX_CARGO_HOME:-}" ]]; then
+  mkdir -p "$IVEKIT_RUSTPBX_CARGO_HOME"
+  CARGO_HOME_DIR="$(cd "$IVEKIT_RUSTPBX_CARGO_HOME" && pwd)"
+  DOCKER_RUN_ARGS+=(-v "$CARGO_HOME_DIR:/cargo-home" -e CARGO_HOME=/cargo-home)
+fi
+
+docker run "${DOCKER_RUN_ARGS[@]}" \
   -v "$BUILD_ROOT:/build" \
   -w /build/rustpbx \
   "$RUST_BUILDER_IMAGE" \

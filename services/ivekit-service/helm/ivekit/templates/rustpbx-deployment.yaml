@@ -67,9 +67,6 @@
 {{- $_ := required "voice.webphone.publicWssUrl is required when WebPhone is enabled" .Values.voice.webphone.publicWssUrl -}}
 {{- $_ := required "voice.webphone.sipRealm is required when WebPhone is enabled" .Values.voice.webphone.sipRealm -}}
 {{- $_ := required "voice.webphone.jwtSecretKey is required when WebPhone is enabled" .Values.voice.webphone.jwtSecretKey -}}
-{{- if .Values.voice.webphone.ingress.enabled -}}
-{{- $_ := required "voice.webphone.ingress.host is required when WebPhone ingress is enabled" .Values.voice.webphone.ingress.host -}}
-{{- end -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -226,6 +223,12 @@ spec:
               value: {{ .Values.voice.mediaCapacity.recordingWorkerThreads | quote }}
             - name: RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY
               value: {{ .Values.voice.mediaCapacity.recordingWorkerQueueCapacity | quote }}
+            - name: RUSTPBX_CALL_RECORD_MAX_CONCURRENT
+              value: {{ .Values.voice.callRecordCapacity.maxConcurrent | quote }}
+            - name: RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY
+              value: {{ .Values.voice.callRecordCapacity.channelCapacity | quote }}
+            - name: RUSTPBX_CALL_RECORD_WORKER_THREADS
+              value: {{ .Values.voice.callRecordCapacity.workerThreads | quote }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:

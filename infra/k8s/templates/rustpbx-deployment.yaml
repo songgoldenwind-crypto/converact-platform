@@ -199,6 +199,10 @@ stringData:
 
     [callrecord]
     type = "http"
+    max_concurrent = {{ int .Values.voice.callRecordCapacity.maxConcurrent }}
+    channel_capacity = {{ int .Values.voice.callRecordCapacity.channelCapacity }}
+    worker_threads = {{ int .Values.voice.callRecordCapacity.workerThreads }}
+    persist_to_database = false
     url = {{ printf "http://%s-opc:3000/api/ivekit/voice/providers/%s/cdrs" .Release.Name $profileId | quote }}
     headers = { "X-PBX-Key" = {{ $webhookToken | quote }} }
 ---

@@ -1,0 +1,87 @@
+diff --git a/src/callrecord/mod.rs b/src/callrecord/mod.rs
+index 7b0ae97..b0016ca 100644
+--- a/src/callrecord/mod.rs
++++ b/src/callrecord/mod.rs
+@@ -20,8 +20,11 @@ use std::{
+     future::{Future, pending},
+     path::Path,
+     pin::Pin,
+-    sync::Arc,
+-    time::{Duration, Instant},
++    sync::{
++        Arc,
++        atomic::{AtomicU64, Ordering},
++    },
++    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+ };
+ use tokio::{
+     fs::{self, File},
+@@ -40,6 +43,32 @@ mod tests;
+ 
+ const CALL_RECORD_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+ const CALL_RECORD_HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
++const CALL_RECORD_SINK_WARNING_INTERVAL_SECS: u64 = 5;
++static LAST_CALL_RECORD_SINK_WARNING_EPOCH_SECS: AtomicU64 = AtomicU64::new(0);
++
++fn try_claim_sink_warning(last_warning: &AtomicU64, now_secs: u64) -> bool {
++    let previous = last_warning.load(Ordering::Relaxed);
++    now_secs.saturating_sub(previous) >= CALL_RECORD_SINK_WARNING_INTERVAL_SECS
++        && last_warning
++            .compare_exchange(previous, now_secs, Ordering::Relaxed, Ordering::Relaxed)
++            .is_ok()
++}
++
++fn report_sink_failure(stage: &'static str, error: &dyn std::fmt::Display) {
++    metrics::counter!(
++        "rustpbx_call_record_sink_failures_total",
++        "stage" => stage
++    )
++    .increment(1);
++
++    let now_secs = SystemTime::now()
++        .duration_since(UNIX_EPOCH)
++        .unwrap_or_default()
++        .as_secs();
++    if try_claim_sink_warning(&LAST_CALL_RECORD_SINK_WARNING_EPOCH_SECS, now_secs) {
++        warn!(stage, error = %error, "call record sink failure; further warnings are rate limited");
++    }
++}
+ 
+ #[derive(Debug, Clone, Serialize, Deserialize)]
+ #[serde(rename_all = "camelCase")]
+@@ -843,13 +872,13 @@ impl CallRecordManager {
+                                 );
+                             }
+                             Err(err) => {
+-                                warn!("Failed to save call record: {}", err);
++                                report_sink_failure("save", &err);
+                             }
+                         }
+ 
+                         for hook in hooks.iter() {
+                             if let Err(e) = hook.on_record_completed(&mut record).await {
+-                                warn!("CallRecordHook failed: {}", e);
++                                report_sink_failure("hook", &e);
+                             }
+                         }
+                     });
+diff --git a/src/callrecord/tests.rs b/src/callrecord/tests.rs
+index 43124f6..aa49f7a 100644
+--- a/src/callrecord/tests.rs
++++ b/src/callrecord/tests.rs
+@@ -6,6 +6,15 @@ use std::collections::HashMap;
+ use std::io::Write;
+ use tempfile::NamedTempFile;
+ 
++#[test]
++fn sink_warning_claim_is_rate_limited() {
++    let last_warning = std::sync::atomic::AtomicU64::new(0);
++
++    assert!(try_claim_sink_warning(&last_warning, 100));
++    assert!(!try_claim_sink_warning(&last_warning, 104));
++    assert!(try_claim_sink_warning(&last_warning, 105));
++}
++
+ #[tokio::test]
+ async fn test_builder_without_callrecord_config_uses_noop_saver() {
+     let manager = CallRecordManagerBuilder::new().build().await.unwrap();

@@ -43,6 +43,7 @@ test('RustPBX patch binds JWT subject to SIP and registrar identities', async ()
   assert.match(patch, /from_header/);
   assert.match(patch, /user_id/);
   assert.match(patch, /JWT subject does not match SIP From identity/);
+  assert.doesNotMatch(patch, /user\.username != tx_user\.username/);
   assert.match(patch, /registrar\.rs/);
   assert.match(patch, /cookie\.get_user\(\)/);
   assert.match(patch, /registered_aor\.user\(\)/);
@@ -52,5 +53,5 @@ test('RustPBX patch binds JWT subject to SIP and registrar identities', async ()
     /token_subject\s*=|sip_from\s*=|authenticated_user\s*=|register_to\s*=/
   );
   assert.match(build, /rustpbx-ivekit-webphone-edge-auth\.patch/);
-  assert.match(build, /PATCHSET="ivekit\.13"/);
+  assert.match(build, /PATCHSET="ivekit\.16"/);
 });

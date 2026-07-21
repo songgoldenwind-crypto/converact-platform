@@ -2,16 +2,17 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 28,
+  "revision": 29,
   "status": "proposed",
-  "generated_at": "2026-07-21T13:42:06+08:00",
+  "generated_at": "2026-07-22T04:46:10+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
   "notes": [
     "This manifest records design and repository state; it does not assert that MIX-100K has passed.",
     "A release tag without a resolved 40-character commit or an image tag without a digest is not a complete production identity.",
-    "The exact ivekit.11 Linux image passed 42,000 of 42,000 calls at 1,400 CPS on the controlled four-vCPU single-host SIPp baseline with exact Router/CDR parity and no queue loss. At 1,500 CPS eight calls remained incomplete after the 90-second wall limit; at 1,600 CPS 122 calls remained incomplete and 16 retransmissions crossed a transaction detach race as duplicate Router/CDR work. The ivekit.12 source candidate adds atomic finished-transaction publication, a high-nofile entrypoint and a reproducible strict runner; it is not production eligible until its Linux rebuild, repeat benchmark, registry digest, RTP integration and failover evidence pass.",
+    "The exact ivekit.16 amd64 Linux image was built on the controlled four-vCPU server as local image sha256:9a9e94764b710d0520a570db4ca444418239592e8e1181bd783c4589f14045ad. At 1,400 CPS it completed 42,000 of 42,000 calls with zero failures, zero remaining calls, zero retransmissions and exact Router/CDR parity. The same image completed 42,000 of 42,000 calls while the CDR sink was unreachable; Router parity remained exact, CDR delivery correctly remained zero, and five-second warning throttling reduced RustPBX output from the previous 42,008-line failure amplification to seven lines.",
+    "A controlled ivekit.15 boundary run at 1,500 CPS did not pass the strict gate: 20 calls remained active and Router/CDR counts exceeded the expected total by four. The evidence therefore establishes a 1,400-CPS signaling baseline on this shared four-vCPU host, not production capacity, RTP capacity, Cell-10K or MIX-100K completion.",
     "Business licensing decisions are outside this architecture record; engineering traceability and source identity remain release requirements."
   ],
   "components": [
@@ -37,10 +38,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.12-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.16-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.12-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.16-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -113,9 +114,33 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch",
-          "sha256": "022fe8d108486b2e930bc490c5a135218f839bd4b8b32f8b1527c53e820def11",
+          "sha256": "2152184c6def8c3b56125a428faa23e6a68b1a7511bf363a79e49cfcf267e8b9",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-webphone-registry.patch",
           "purpose": "Make the asynchronous call-record handoff bounded and profile-tunable, expose low-cardinality loss and queue telemetry, and remove per-call log amplification from the signaling path."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch",
+          "sha256": "b21d0bbf45c584c1f5b1d60c6bba53044aca7d243c381c61a7624a09833365b4",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-capacity.patch",
+          "purpose": "Keep upstream local CDR persistence enabled by default while allowing iveKit to disable the duplicate RustPBX database write when its authenticated HTTP CDR sink is authoritative."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch",
+          "sha256": "aa13074e40778b182aeaaa8dd10848ad1d5dab215d1a614e1a5c895eae90ed84",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-database-policy.patch",
+          "purpose": "Run call-record sinks and hooks on a bounded dedicated Tokio runtime so downstream latency cannot consume SIP transaction workers."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch",
+          "sha256": "d6a1920d52a7002a5e9b496e874f3d92d57bff7517942761ea97ab43ec9c9e55",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-runtime-isolation.patch",
+          "purpose": "Count sink failures by a fixed low-cardinality stage and globally rate-limit failure warnings to one every five seconds."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch",
+          "sha256": "b191af5ad8d8eedcf56fe6b28cd583fd7fa5f5666d2692526a123330605fdacb",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-callrecord-failure-telemetry.patch",
+          "purpose": "Fence JWT, WebPhone pre-authentication and REGISTER identities at their protocol boundaries without applying WebPhone identity rules to authenticated SIP trunks."
         }
       ],
       "protocols": [
@@ -276,7 +301,7 @@
           "acceptance_evidence": [
             "The patch applies cleanly to the exact pinned RustPBX commit and passes rustfmt check.",
             "Embedded tests cover connection guard cleanup, address reuse fencing, explicit removal and 10,000 simultaneous keyed entries.",
-            "The exact ivekit.11 source compiled into the controlled Linux benchmark image; runtime WSS load remains not_run."
+            "The exact ivekit.16 source compiled into the controlled amd64 Linux benchmark image and its SIP trunk path sustained the strict 1,400-CPS baseline; runtime WSS load remains not_run."
           ]
         },
         {
@@ -289,8 +314,61 @@
           ],
           "acceptance_evidence": [
             "The ivekit.10 physical baseline completed 42,000 of 42,000 SIP calls at 1,400 CPS but emitted exactly 3,000 call-record channel-full drops, proving the previous 1,024-entry hard limit was unsafe.",
-            "The ivekit.11 patch makes the queue capacity configurable with an explicit maximum, covers invalid bounds in Rust tests, distinguishes full and closed drops with low-cardinality counters, and rate-limits warning output.",
-            "The ivekit.11 Linux image with 256 asynchronous save tasks and a 65,536-entry queue repeated 42,000 of 42,000 calls at 1,400 CPS with exactly 42,000 Router requests, 42,000 CDR requests, zero queue-drop logs and no per-call info-log amplification."
+            "The patch makes queue capacity configurable with an explicit maximum, covers invalid bounds in Rust tests, distinguishes full and closed drops with low-cardinality counters, and removes per-call success logging.",
+            "The ivekit.16 Linux image with 64 asynchronous save tasks and a 65,536-entry queue completed 42,000 of 42,000 calls at 1,400 CPS with exact Router/CDR parity and zero queue-drop logs; the previous 256-task deployment override saturated the shared Router and is no longer the default."
+          ]
+        },
+        {
+          "change_id": "rustpbx-callrecord-database-policy-v1",
+          "summary": "Make duplicate local CDR persistence optional while preserving the upstream enabled-by-default behavior.",
+          "capacity_dimensions": [
+            "data.postgres_queries_per_second",
+            "events.outbox_per_second"
+          ],
+          "acceptance_evidence": [
+            "Rust configuration tests preserve database persistence by default and accept an explicit false value.",
+            "iveKit deployment surfaces set persist_to_database=false because its authenticated HTTP CDR sink is authoritative.",
+            "During the strict ivekit.16 1,400-CPS run PostgreSQL peak CPU remained below the earlier duplicate-write and authentication-fallthrough failure profile while CDR parity stayed exact."
+          ]
+        },
+        {
+          "change_id": "rustpbx-callrecord-runtime-isolation-v1",
+          "summary": "Run all CDR saver and hook work on a dedicated bounded Tokio runtime instead of SIP transaction workers.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "events.outbox_per_second",
+            "data.postgres_queries_per_second"
+          ],
+          "acceptance_evidence": [
+            "Configuration, renderer, Compose and both Helm charts carry a validated 1-through-16 worker-thread setting with a default of one.",
+            "The exact ivekit.16 Linux build includes the isolated callrecord-worker runtime.",
+            "With the CDR sink unreachable, 42,000 of 42,000 calls still completed at 1,400 CPS with zero failed or remaining calls and exact Router parity."
+          ]
+        },
+        {
+          "change_id": "rustpbx-callrecord-failure-telemetry-v1",
+          "summary": "Count CDR sink failures by fixed stage and rate-limit warning output under a sustained sink outage.",
+          "capacity_dimensions": [
+            "events.outbox_per_second",
+            "data.local_spool_bytes"
+          ],
+          "acceptance_evidence": [
+            "The exact Rust unit callrecord::tests::sink_warning_claim_is_rate_limited passed on the amd64 Linux build host.",
+            "The sink-failure counter uses only the fixed save and hook stage values.",
+            "A 30-second 1,400-CPS CDR outage completed 42,000 calls and emitted seven rate-limited RustPBX lines instead of the previous approximately 42,008 per-record lines."
+          ]
+        },
+        {
+          "change_id": "rustpbx-webphone-edge-auth-v1",
+          "summary": "Enforce WebPhone and JWT identity binding at their own authentication boundaries without rejecting valid SIP trunk identities.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "sip.active_connections"
+          ],
+          "acceptance_evidence": [
+            "JWT subject must match SIP From, pre-authenticated WebPhone identity must match the transaction user, and REGISTER To must match the authenticated user.",
+            "Static contracts prevent reintroducing a generic post-backend username comparison that previously caused authenticated trunks to fall through into database authentication.",
+            "The exact ivekit.16 image completed the strict 1,400-CPS authenticated inbound trunk baseline with 42,000 successful calls and exact Router/CDR parity."
           ]
         }
       ],
@@ -314,7 +392,7 @@
       "verification": {
         "source_identity": "passed",
         "patch_apply": "passed",
-        "compile": "partial",
+        "compile": "passed",
         "unit": "partial",
         "integration": "partial",
         "benchmark": "partial",
@@ -345,7 +423,13 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-cleanup-isolation.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-registry.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
+          "test/ivekit-rustpbx-webphone-edge-auth.test.ts",
+          "test/ivekit-rustpbx-capacity-baseline.test.ts",
           "test/ivekit-rustpbx-webphone-patch.test.ts",
           "test/ivekit-webphone-session-service.test.ts",
           "src/agent-runtime/ivekit/voice/rustpbx-config.ts",
@@ -353,14 +437,14 @@
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-21T12:13:24+08:00"
+        "checked_at": "2026-07-22T04:46:10+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "Custom image digest has not been recorded.",
-          "The local image has no immutable registry digest; real RTP integration, overload curves, Cell-10K benchmark and failover evidence are not attached.",
-          "Helm production values still require an operator-supplied immutable digest for the custom ivekit.12 candidate; its Linux rebuild and strict retransmission repeat benchmark remain not_run."
+          "The local ivekit.16 image ID is recorded, but no immutable registry digest, SBOM or provenance is attached.",
+          "Real RTP continuity, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
+          "The controlled shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS; it is not a production or media capacity claim."
         ]
       },
       "upgrade_policy": {
@@ -456,7 +540,7 @@
           "acceptance_evidence": [
             "The patch applies after the exact reconnect and capacity patch queue and the resulting source passes rustfmt and whitespace checks.",
             "A two-worker Rust regression sends a duplicate request concurrently with final response publication and rejects a second server transaction.",
-            "The ivekit.12 Linux compile and strict 1,400/1,500/1,600-CPS physical repeat remain required."
+            "The ivekit.16 Linux image compiled and passed the strict 1,400-CPS signaling repeat with zero retransmissions; the controlled ivekit.15 1,500-CPS boundary did not pass and no higher capacity is claimed."
           ]
         }
       ],
@@ -467,7 +551,7 @@
         "compile": "passed",
         "unit": "partial",
         "integration": "partial",
-        "benchmark": "not_run",
+        "benchmark": "partial",
         "real_environment": "not_run",
         "evidence_paths": [
           "infra/ivekit/rustpbx/build.sh",
@@ -478,13 +562,13 @@
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-21T13:42:06+08:00"
+        "checked_at": "2026-07-22T04:46:10+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The patched library compiled into the local RustPBX image, but that image has no immutable registry digest for this manifest revision.",
-          "Transport integration and overload benchmarks are not attached."
+          "The patched library compiled into the local ivekit.16 RustPBX image, but that image has no immutable registry digest for this manifest revision.",
+          "The shared-host 1,400-CPS signaling baseline passed, but TCP/TLS/WSS transport load, controlled overload recovery, RTP integration and Cell-10K benchmarks are not attached."
         ]
       },
       "upgrade_policy": {

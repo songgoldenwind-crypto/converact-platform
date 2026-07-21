@@ -311,6 +311,10 @@ voice:
     recordingChannelCapacity: 256
     recordingWorkerThreads: 4
     recordingWorkerQueueCapacity: 4096
+  callRecordCapacity:
+    maxConcurrent: 64
+    channelCapacity: 65536
+    workerThreads: 1
   databaseUrlKey: rustpbx-database-url
   databasePasswordKey: rustpbx-database-password
   managementTokenKey: rustpbx-management-token
@@ -332,13 +336,6 @@ voice:
       intervalMs: "60000"
       tenantLimit: "100"
       batchSize: "500"
-    ingress:
-      enabled: false
-      className: ""
-      annotations: {}
-      host: ""
-      path: /ws
-      tls: []
   addressHmacKeyKey: ivekit-voice-address-hmac-key
   routeSnapshot:
     hmacKeyKey: rustpbx-route-snapshot-hmac-key

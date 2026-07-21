@@ -85,6 +85,33 @@ test('fork manifest patch paths exist and match their declared SHA-256', () => {
   }
 });
 
+test('RustPBX fork manifest tracks the complete ivekit.16 patch queue', () => {
+  const rustpbx = manifest.components.find((component) => component.component_id === 'rustpbx');
+  assert.ok(rustpbx);
+
+  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.16-6c49ee76';
+  assert.equal(rustpbx.runtime_artifact.reference, expectedReference);
+  for (const path of [
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch'
+  ]) {
+    assert.ok(rustpbx.patches?.some((patch) => patch.path === path), path);
+  }
+  for (const changeId of [
+    'rustpbx-callrecord-database-policy-v1',
+    'rustpbx-callrecord-runtime-isolation-v1',
+    'rustpbx-callrecord-failure-telemetry-v1',
+    'rustpbx-webphone-edge-auth-v1'
+  ]) {
+    assert.ok(
+      rustpbx.implemented_changes?.some((change) => change.change_id === changeId),
+      changeId
+    );
+  }
+});
+
 test('Tinode fork status records native mutation and exact-release owner overlay truthfully', () => {
   const tinode = manifest.components.find((component) => component.component_id === 'tinode-server');
   assert.ok(tinode);

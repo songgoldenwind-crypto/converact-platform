@@ -17,6 +17,9 @@ export interface RustPbxConfigSummary {
   media_recording_channel_capacity: number;
   media_recording_worker_threads: number;
   media_recording_worker_queue_capacity: number;
+  call_record_max_concurrent: number;
+  call_record_channel_capacity: number;
+  call_record_worker_threads: number;
   management_exposure: 'internal';
   rwi_exposure: 'internal';
 }
@@ -48,6 +51,9 @@ interface RustPbxRenderInput {
   media_recording_channel_capacity: number;
   media_recording_worker_threads: number;
   media_recording_worker_queue_capacity: number;
+  call_record_max_concurrent: number;
+  call_record_channel_capacity: number;
+  call_record_worker_threads: number;
   webphone: {
     jwt_secret: string;
     jwt_issuer: string;
@@ -78,6 +84,9 @@ export function renderRustPbxConfig(env: NodeJS.ProcessEnv): RustPbxRenderedConf
       media_recording_channel_capacity: input.media_recording_channel_capacity,
       media_recording_worker_threads: input.media_recording_worker_threads,
       media_recording_worker_queue_capacity: input.media_recording_worker_queue_capacity,
+      call_record_max_concurrent: input.call_record_max_concurrent,
+      call_record_channel_capacity: input.call_record_channel_capacity,
+      call_record_worker_threads: input.call_record_worker_threads,
       management_exposure: 'internal',
       rwi_exposure: 'internal'
     }
@@ -183,6 +192,24 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
       4_096,
       65_536
     ),
+    call_record_max_concurrent: positiveCapacity(
+      env.RUSTPBX_CALL_RECORD_MAX_CONCURRENT,
+      'RUSTPBX_CALL_RECORD_MAX_CONCURRENT',
+      64,
+      4_096
+    ),
+    call_record_channel_capacity: positiveCapacity(
+      env.RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY,
+      'RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY',
+      65_536,
+      262_144
+    ),
+    call_record_worker_threads: positiveCapacity(
+      env.RUSTPBX_CALL_RECORD_WORKER_THREADS,
+      'RUSTPBX_CALL_RECORD_WORKER_THREADS',
+      1,
+      16
+    ),
     webphone
   };
 }
@@ -275,6 +302,10 @@ function renderConfig(input: RustPbxRenderInput): string {
     '',
     '[callrecord]',
     'type = "http"',
+    `max_concurrent = ${input.call_record_max_concurrent}`,
+    `channel_capacity = ${input.call_record_channel_capacity}`,
+    `worker_threads = ${input.call_record_worker_threads}`,
+    'persist_to_database = false',
     `url = ${tomlString(input.cdr_webhook_url)}`,
     `headers = { "X-PBX-Key" = ${tomlString(input.webhook_token)} }`,
     ''

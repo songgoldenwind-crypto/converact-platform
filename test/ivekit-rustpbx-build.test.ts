@@ -47,9 +47,13 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(buildScript, /RSIPSTACK_COMMIT="[a-f0-9]{40}"/);
   assert.match(buildScript, /rust:1\.94-bookworm@sha256:[a-f0-9]{64}/);
   assert.match(buildScript, /cargo build --locked --release/);
+  assert.match(buildScript, /IVEKIT_RUSTPBX_BUILD_CPUS/);
+  assert.match(buildScript, /IVEKIT_RUSTPBX_BUILD_MEMORY/);
+  assert.match(buildScript, /IVEKIT_RUSTPBX_BUILD_JOBS/);
+  assert.match(buildScript, /IVEKIT_RUSTPBX_CARGO_HOME/);
   assert.match(buildScript, /cross compilation is not supported/);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.12"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.16"/);
   assert.match(buildScript, /cp "\$SCRIPT_DIR\/entrypoint\.sh"/);
   assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
@@ -57,6 +61,20 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   const lock = readFileSync('infra/ivekit/rustpbx/Cargo.lock', 'utf8');
   assert.match(lock, /name = "rustrtc"\nversion = "0\.3\.90"/);
   assert.match(lock, /name = "rsipstack"\nversion = "0\.5\.18"\ndependencies =/);
+});
+
+test('RustPBX deployment examples reference the current patchset', () => {
+  for (const path of [
+    'infra/env.example',
+    'infra/ivekit/env.example',
+    'services/ivekit-service/env.example'
+  ]) {
+    assert.match(
+      readFileSync(path, 'utf8'),
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.16-6c49ee76/,
+      path
+    );
+  }
 });
 
 test('iveKit RustPBX patch reconnects only failed TCP sends and removes matching stale entries', () => {
@@ -246,7 +264,7 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
 test('iveKit publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.12-6c49ee76/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.16-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);

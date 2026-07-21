@@ -31,18 +31,7 @@ diff --git a/src/proxy/auth.rs b/src/proxy/auth.rs
 index 2e36044..eb649e8 100644
 --- a/src/proxy/auth.rs
 +++ b/src/proxy/auth.rs
-@@ -337,6 +337,10 @@ impl ProxyModule for AuthModule {
-         for backend in self.server.auth_backend.iter() {
-             match backend.authenticate(&tx.original, &cookie).await {
-                 Ok(Some(mut user)) => {
-+                    if user.username != tx_user.username {
-+                        info!("Authenticated user does not match SIP From identity");
-+                        continue;
-+                    }
-                     user.merge_with(&tx_user);
-                     cookie.set_user(user);
- 
-@@ -389,7 +397,9 @@ impl ProxyModule for AuthModule {
+@@ -389,7 +389,9 @@ impl ProxyModule for AuthModule {
          // requests are handled earlier by the dialog_auth_cache branch.
          if let Some(ref registry) = self.server.pre_auth_registry {
              if let Some(source_addr) = self.get_source_addr(tx) {

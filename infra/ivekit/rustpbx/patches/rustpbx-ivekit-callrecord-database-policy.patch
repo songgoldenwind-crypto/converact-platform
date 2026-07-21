@@ -1,0 +1,129 @@
+diff --git a/src/app.rs b/src/app.rs
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -307,14 +307,15 @@ impl AppStateBuilder {
+ 
+         let mut callrecord_stats = None;
+         let mut callrecord_manager = None;
++        let persist_call_records_to_database = config
++            .callrecord
++            .as_ref()
++            .map_or(true, |callrecord| callrecord.persist_to_database);
+         let callrecord_sender = if let Some(sender) = self.callrecord_sender {
+             Some(sender)
+         } else {
+-            // Always build a CallRecordManager — DatabaseHook persists every
+-            // call to the rustpbx_call_records table unconditionally.
+-            // [callrecord], [sipflow.upload], and [recording] only add
+-            // optional extra sinks (JSON files, S3, HTTP, WAV upload, etc.)
+-            // on top of the always-on database persistence.
++            // Always build a CallRecordManager so external sinks and hooks
++            // remain asynchronous even when local CDR persistence is disabled.
+             let mut builder =
+                 CallRecordManagerBuilder::new().with_cancel_token(token.child_token());
+ 
+@@ -332,19 +333,21 @@ impl AppStateBuilder {
+                 builder = builder.with_hook(Box::new(hook));
+             }
+ 
+-            builder = builder.with_hook(Box::new(DatabaseHook {
+-                db: db_conn.clone(),
+-            }));
++            if persist_call_records_to_database {
++                builder = builder.with_hook(Box::new(DatabaseHook {
++                    db: db_conn.clone(),
++                }));
++            }
+ 
+-            // Attach SipFlow upload after DatabaseHook so recording URL updates
+-            // target a row that has already been inserted.
++            // Attach SipFlow upload after DatabaseHook. Without local CDR
++            // persistence, skip its optional database update as well.
+             if let (Some(backend), Some(upload_cfg)) =
+                 (sipflow_backend_arc.as_ref(), sipflow_upload_config.as_ref())
+             {
+                 builder = builder.with_hook(Box::new(SipFlowUploadHook::new(
+                     backend.clone(),
+                     upload_cfg.clone(),
+-                    Some(db_conn.clone()),
++                    persist_call_records_to_database.then(|| db_conn.clone()),
+                     rwi_gateway.clone(),
+                 )?));
+             }
+diff --git a/src/callrecord/tests.rs b/src/callrecord/tests.rs
+--- a/src/callrecord/tests.rs
++++ b/src/callrecord/tests.rs
+@@ -59,6 +59,7 @@ async fn test_database_saver_requires_database_url() {
+         .with_config(CallRecordConfig {
+             max_concurrent: 64,
+             channel_capacity: DEFAULT_CALL_RECORD_CHANNEL_CAPACITY,
++            persist_to_database: true,
+             storage: CallRecordStorageConfig::Database {
+                 database_url: None,
+                 table_name: "call_records".to_string(),
+diff --git a/src/config.rs b/src/config.rs
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -470,6 +470,10 @@ fn default_call_record_max_concurrent() -> usize {
+ 
+ fn default_call_record_channel_capacity() -> usize {
+     DEFAULT_CALL_RECORD_CHANNEL_CAPACITY
++}
++
++fn default_call_record_persist_to_database() -> bool {
++    true
+ }
+ 
+ #[derive(Debug, Deserialize, Clone, Serialize)]
+@@ -480,6 +484,9 @@ pub struct CallRecordConfig {
+     /// Bounded handoff capacity between call teardown and asynchronous sinks.
+     #[serde(default = "default_call_record_channel_capacity")]
+     pub channel_capacity: usize,
++    /// Persist the canonical CDR in RustPBX in addition to configured sinks.
++    #[serde(default = "default_call_record_persist_to_database")]
++    pub persist_to_database: bool,
+     #[serde(flatten)]
+     pub storage: CallRecordStorageConfig,
+ }
+@@ -1414,6 +1421,7 @@ impl Default for CallRecordConfig {
+         Self {
+             max_concurrent: default_call_record_max_concurrent(),
+             channel_capacity: default_call_record_channel_capacity(),
++            persist_to_database: default_call_record_persist_to_database(),
+             storage: CallRecordStorageConfig::Local {
+                 #[cfg(target_os = "windows")]
+                 root: "./config/cdr".to_string(),
+@@ -1567,6 +1575,33 @@ mod tests {
+     }
+ 
+     #[test]
++    fn callrecord_database_persistence_defaults_to_enabled() {
++        let callrecord: CallRecordConfig = toml::from_str(
++            r#"
++            type = "http"
++            url = "https://example.com/cdr"
++            "#,
++        )
++        .unwrap();
++
++        assert!(callrecord.persist_to_database);
++    }
++
++    #[test]
++    fn callrecord_database_persistence_can_be_disabled() {
++        let callrecord: CallRecordConfig = toml::from_str(
++            r#"
++            type = "http"
++            url = "https://example.com/cdr"
++            persist_to_database = false
++            "#,
++        )
++        .unwrap();
++
++        assert!(!callrecord.persist_to_database);
++    }
++
++    #[test]
+     fn test_select_realm() {
+         let mut config = ProxyConfig::default();
+         config.realms = Some(vec!["example.com".to_string(), "test.com".to_string()]);
