@@ -11,7 +11,11 @@ test('iveKit Kamailio image is source-pinned, multi-arch buildable and non-root'
   ]);
 
   assert.match(dockerfile, /ARG KAMAILIO_VERSION=6\.0\.7/);
-  assert.match(dockerfile, /c4b5c17abba18d5378108df7138177caae33de7d54ead8c9ee1e28650b20d6b5/);
+  assert.match(
+    dockerfile,
+    /https:\/\/www\.kamailio\.org\/pub\/kamailio\/6\.0\.7\/src\/kamailio-6\.0\.7_src\.tar\.gz/
+  );
+  assert.match(dockerfile, /f147c3237bb43749eac7bbc1bc97761f6636e7b9cacda120b0911c2be9447865/);
   for (const module of [
     'dispatcher', 'dialog', 'dmq', 'dmq_usrloc', 'htable', 'jansson', 'jwt', 'path',
     'registrar', 'tls', 'usrloc', 'websocket', 'xhttp_prom'

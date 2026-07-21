@@ -1,7 +1,9 @@
 # iveKit Kamailio SIP Edge image
 
 The image is built from the exact upstream source `kamailio/kamailio@6.0.7`.
-The source archive SHA-256 is fixed in the Dockerfile. The build includes the
+It downloads Kamailio's static official `6.0.7_src.tar.gz` release archive,
+whose SHA-256 is fixed in the Dockerfile; GitHub's dynamically generated tag
+archive is deliberately not used as a reproducible build input. The build includes the
 standard module group plus `dispatcher`, `dialog`, `htable`, `tls`, `websocket`
 and `xhttp_prom`, plus `jwt`, `jansson`, `registrar`, `usrloc`, `path`, `dmq`
 and `dmq_usrloc`, which are required by the generated iveKit edge config.

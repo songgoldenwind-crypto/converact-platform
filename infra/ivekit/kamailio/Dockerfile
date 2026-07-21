@@ -3,7 +3,8 @@
 FROM debian:bookworm-slim AS builder
 
 ARG KAMAILIO_VERSION=6.0.7
-ARG KAMAILIO_SOURCE_SHA256=c4b5c17abba18d5378108df7138177caae33de7d54ead8c9ee1e28650b20d6b5
+ARG KAMAILIO_SOURCE_URL=https://www.kamailio.org/pub/kamailio/6.0.7/src/kamailio-6.0.7_src.tar.gz
+ARG KAMAILIO_SOURCE_SHA256=f147c3237bb43749eac7bbc1bc97761f6636e7b9cacda120b0911c2be9447865
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -27,7 +28,7 @@ RUN apt-get update \
 WORKDIR /usr/src
 COPY patches/0001-dispatcher-retain-probe-state.patch /tmp/0001-dispatcher-retain-probe-state.patch
 RUN curl -fsSLo kamailio.tar.gz \
-      "https://github.com/kamailio/kamailio/archive/refs/tags/${KAMAILIO_VERSION}.tar.gz" \
+      "${KAMAILIO_SOURCE_URL}" \
     && echo "${KAMAILIO_SOURCE_SHA256}  kamailio.tar.gz" | sha256sum -c - \
     && tar -xzf kamailio.tar.gz \
     && rm kamailio.tar.gz
