@@ -529,11 +529,13 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'README.md',
     'Dockerfile.runtime',
     'Cargo.lock',
+    'entrypoint.sh',
     'build.sh'
   ].map((name) => ({ source: `infra/ivekit/rustpbx/${name}`, destination: `deploy/rustpbx/${name}` })),
   ...[
     'rsipstack-tcp-reconnect.patch',
     'rsipstack-ivekit-capacity.patch',
+    'rsipstack-ivekit-retransmission-atomicity.patch',
     'rustpbx-ivekit-ami-dialogs.patch',
     'rustpbx-ivekit-rwi-originate-hangup.patch',
     'rustpbx-ivekit-route-snapshot.patch',

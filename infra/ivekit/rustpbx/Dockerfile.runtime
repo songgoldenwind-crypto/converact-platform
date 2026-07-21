@@ -23,7 +23,8 @@ RUN mkdir -p /app/config /app/sounds /app/templates
 
 COPY bin/${TARGETARCH}/rustpbx /app/rustpbx
 COPY bin/${TARGETARCH}/sipflow /app/sipflow
-RUN chmod 0755 /app/rustpbx /app/sipflow
+COPY entrypoint.ivekit.sh /app/entrypoint.sh
+RUN chmod 0755 /app/rustpbx /app/sipflow /app/entrypoint.sh
 
 COPY static /app/static
 COPY templates /app/templates
@@ -43,4 +44,4 @@ COPY src/addons/archive/locales /app/locales/archive
 COPY src/addons/queue/locales /app/locales/queue
 COPY src/addons/transcript/locales /app/locales/transcript
 
-ENTRYPOINT ["/app/rustpbx"]
+ENTRYPOINT ["/app/entrypoint.sh"]

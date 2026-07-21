@@ -1,0 +1,145 @@
+diff --git a/src/transaction/endpoint.rs b/src/transaction/endpoint.rs
+index c02a4ae..08328ac 100644
+--- a/src/transaction/endpoint.rs
++++ b/src/transaction/endpoint.rs
+@@ -732,24 +732,31 @@ impl EndpointInner {
+
+     pub fn detach_transaction(&self, key: &TransactionKey, last_message: Option<SipMessage>) {
+         trace!(%key, "detach transaction");
++        if let Some(msg) = last_message {
++            self.publish_finished_transaction(key, msg);
++        }
++
++        // The finished transaction is visible before active transaction release.
++        // A retransmission can therefore never observe an untracked key and be
++        // admitted as a second server transaction during this transition.
+         if self.transactions.remove(key).is_some() {
+             self.capacity.release_active_transaction();
+         }
++    }
+
+-        if let Some(msg) = last_message {
+-            match self.finished_transactions.entry(key.clone()) {
+-                Entry::Occupied(mut entry) => {
++    fn publish_finished_transaction(&self, key: &TransactionKey, msg: SipMessage) {
++        match self.finished_transactions.entry(key.clone()) {
++            Entry::Occupied(mut entry) => {
++                entry.insert(Some(msg));
++            }
++            Entry::Vacant(entry) => {
++                if self.capacity.try_acquire_finished_transaction() {
++                    self.timers.timeout(
++                        self.option.t1x64,
++                        TransactionTimer::TimerCleanup(key.clone()), // maybe use TimerK ???
++                    );
+                     entry.insert(Some(msg));
+                 }
+-                Entry::Vacant(entry) => {
+-                    if self.capacity.try_acquire_finished_transaction() {
+-                        self.timers.timeout(
+-                            self.option.t1x64,
+-                            TransactionTimer::TimerCleanup(key.clone()), // maybe use TimerK ???
+-                        );
+-                        entry.insert(Some(msg));
+-                    }
+-                }
+             }
+         }
+     }
+diff --git a/src/transaction/tests/test_server.rs b/src/transaction/tests/test_server.rs
+index e20f7af..752a394 100644
+--- a/src/transaction/tests/test_server.rs
++++ b/src/transaction/tests/test_server.rs
+@@ -107,3 +107,92 @@ async fn test_server_transaction() {
+         }
+     }
+ }
++
++#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++async fn duplicate_request_during_detach_is_not_readmitted() {
++    use tokio::time::timeout;
++
++    let token = CancellationToken::new();
++    let server = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("server address"),
++        None,
++        None,
++    )
++    .await
++    .expect("server connection");
++    let server: SipConnection = server.into();
++    let server_addr = server.get_addr().clone();
++    let transport = TransportLayer::new(token.child_token());
++    transport.add_transport(server);
++    let endpoint = EndpointBuilder::new()
++        .with_user_agent("rsipstack-test")
++        .with_transport_layer(transport)
++        .build();
++    let mut incoming = endpoint
++        .incoming_transactions()
++        .expect("incoming transactions");
++    let serving = tokio::spawn({
++        let endpoint = endpoint.clone();
++        async move { endpoint.serve().await }
++    });
++
++    let client = UdpConnection::create_connection(
++        "127.0.0.1:0".parse().expect("client address"),
++        None,
++        None,
++    )
++    .await
++    .expect("client connection");
++    let client: SipConnection = client.into();
++    let request = crate::sip::message::Request {
++        method: crate::sip::method::Method::Register,
++        uri: crate::sip::Uri {
++            scheme: Some(crate::sip::Scheme::Sip),
++            host_with_port: crate::sip::HostWithPort::try_from(server_addr.addr.to_string())
++                .expect("host and port")
++                .into(),
++            ..Default::default()
++        },
++        headers: vec![
++            Via::new(&format!(
++                "SIP/2.0/UDP {};branch=z9hG4bK-ivekit-detach",
++                client.get_addr().addr
++            ))
++            .into(),
++            CSeq::new("1 REGISTER").into(),
++            From::new("iveKit <sip:ivekit@example.test>;tag=detach-race").into(),
++            CallId::new("ivekit-detach-race@example.test").into(),
++        ]
++        .into(),
++        version: crate::sip::Version::V2,
++        body: Default::default(),
++    };
++
++    client
++        .send(request.clone().into(), Some(&server_addr))
++        .await
++        .expect("send initial request");
++    let mut transaction = timeout(Duration::from_secs(1), incoming.recv())
++        .await
++        .expect("initial transaction timeout")
++        .expect("initial transaction");
++    let response = crate::sip::Response {
++        status_code: crate::sip::StatusCode::OK,
++        version: crate::sip::Version::V2,
++        headers: transaction.original.headers.clone(),
++        ..Default::default()
++    };
++    let send_duplicate = client.send(request.into(), Some(&server_addr));
++    let (responded, duplicated) = tokio::join!(transaction.respond(response), send_duplicate);
++    responded.expect("respond");
++    duplicated.expect("send duplicate");
++
++    assert!(
++        timeout(Duration::from_millis(100), incoming.recv())
++            .await
++            .is_err(),
++        "duplicate request must reuse the active or finished transaction"
++    );
++    endpoint.shutdown();
++    serving.await.expect("serve task");
++}

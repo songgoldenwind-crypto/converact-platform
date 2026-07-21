@@ -319,8 +319,13 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('acceptance/tools/ivekit-voice-acceptance.ts'), true);
     assert.equal(files.includes('deploy/rustpbx/build.sh'), true);
     assert.equal(files.includes('deploy/rustpbx/Cargo.lock'), true);
+    assert.equal(files.includes('deploy/rustpbx/entrypoint.sh'), true);
     assert.equal(files.includes('deploy/rustpbx/patches/rsipstack-tcp-reconnect.patch'), true);
     assert.equal(files.includes('deploy/rustpbx/patches/rsipstack-ivekit-capacity.patch'), true);
+    assert.equal(
+      files.includes('deploy/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch'),
+      true
+    );
     assert.equal(files.includes('deploy/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch'), true);
     assert.equal(
       files.includes('deploy/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch'),
@@ -452,6 +457,17 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'utf8'
     );
     assert.match(capacityPatch, /StatusCode::ServiceUnavailable/);
+    const retransmissionPatch = readFileSync(
+      join(
+        outputDir,
+        'deploy',
+        'rustpbx',
+        'patches',
+        'rsipstack-ivekit-retransmission-atomicity.patch'
+      ),
+      'utf8'
+    );
+    assert.match(retransmissionPatch, /publish_finished_transaction/);
     assert.match(capacityPatch, /connection_limit_rejections_total/);
     const rustPbxSipCapacityPatch = readFileSync(
       join(outputDir, 'deploy', 'rustpbx', 'patches', 'rustpbx-ivekit-sip-capacity.patch'),

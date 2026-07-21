@@ -2,16 +2,16 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 27,
+  "revision": 28,
   "status": "proposed",
-  "generated_at": "2026-07-21T12:13:24+08:00",
+  "generated_at": "2026-07-21T13:42:06+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
   "notes": [
     "This manifest records design and repository state; it does not assert that MIX-100K has passed.",
     "A release tag without a resolved 40-character commit or an image tag without a digest is not a complete production identity.",
-    "The exact ivekit.10 Linux image compiled and passed a controlled single-host SIPp frontier through 1,400 CPS, where physical evidence exposed hard-coded call-record queue loss and per-call log amplification. The ivekit.11 source candidate contains the bounded configurable queue, drop telemetry and log hot-path correction; it is not production eligible until its Linux rebuild, repeat benchmark, registry digest, RTP integration and failover evidence pass.",
+    "The exact ivekit.11 Linux image passed 42,000 of 42,000 calls at 1,400 CPS on the controlled four-vCPU single-host SIPp baseline with exact Router/CDR parity and no queue loss. At 1,500 CPS eight calls remained incomplete after the 90-second wall limit; at 1,600 CPS 122 calls remained incomplete and 16 retransmissions crossed a transaction detach race as duplicate Router/CDR work. The ivekit.12 source candidate adds atomic finished-transaction publication, a high-nofile entrypoint and a reproducible strict runner; it is not production eligible until its Linux rebuild, repeat benchmark, registry digest, RTP integration and failover evidence pass.",
     "Business licensing decisions are outside this architecture record; engineering traceability and source identity remain release requirements."
   ],
   "components": [
@@ -37,10 +37,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.11-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.12-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.11-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.12-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -276,7 +276,7 @@
           "acceptance_evidence": [
             "The patch applies cleanly to the exact pinned RustPBX commit and passes rustfmt check.",
             "Embedded tests cover connection guard cleanup, address reuse fencing, explicit removal and 10,000 simultaneous keyed entries.",
-            "The exact ivekit.10 source compiled into the controlled Linux benchmark image; runtime WSS load and the superseding ivekit.11 Linux rebuild remain not_run."
+            "The exact ivekit.11 source compiled into the controlled Linux benchmark image; runtime WSS load remains not_run."
           ]
         },
         {
@@ -290,7 +290,7 @@
           "acceptance_evidence": [
             "The ivekit.10 physical baseline completed 42,000 of 42,000 SIP calls at 1,400 CPS but emitted exactly 3,000 call-record channel-full drops, proving the previous 1,024-entry hard limit was unsafe.",
             "The ivekit.11 patch makes the queue capacity configurable with an explicit maximum, covers invalid bounds in Rust tests, distinguishes full and closed drops with low-cardinality counters, and rate-limits warning output.",
-            "The baseline profile uses 256 asynchronous save tasks and a 65,536-entry queue; Linux rebuild and the zero-CDR-loss repeat benchmark remain required."
+            "The ivekit.11 Linux image with 256 asynchronous save tasks and a 65,536-entry queue repeated 42,000 of 42,000 calls at 1,400 CPS with exactly 42,000 Router requests, 42,000 CDR requests, zero queue-drop logs and no per-call info-log amplification."
           ]
         }
       ],
@@ -360,7 +360,7 @@
         "blocking_reasons": [
           "Custom image digest has not been recorded.",
           "The local image has no immutable registry digest; real RTP integration, overload curves, Cell-10K benchmark and failover evidence are not attached.",
-          "Helm production values still require an operator-supplied immutable digest for the custom ivekit.11 candidate; its Linux rebuild and zero-CDR-loss repeat benchmark remain not_run."
+          "Helm production values still require an operator-supplied immutable digest for the custom ivekit.12 candidate; its Linux rebuild and strict retransmission repeat benchmark remain not_run."
         ]
       },
       "upgrade_policy": {
@@ -409,6 +409,12 @@
           "sha256": "e3e4491e3d68cb1a49de0c61364bfbd3e40e9251a05575727a8f85491cb5ee8c",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-tcp-reconnect.patch",
           "purpose": "Bound SIP transactions, retransmission cache, inbound transaction queue and reliable transport connections with deterministic overload rejection and low-cardinality statistics."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
+          "sha256": "129c1a633618319cb4533713082448d7e5400754f62f6106441205ad5a6f3d8f",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-capacity.patch",
+          "purpose": "Publish the bounded finished transaction response before releasing the active transaction key so an in-flight retransmission cannot be admitted as duplicate Router and CDR work."
         }
       ],
       "implemented_changes": [
@@ -438,6 +444,20 @@
             "Patch contract tests verify strict atomic slot bounds, queue/connection rejection, explicit 503 overload response, duplicate-key safety and bounded-cardinality statistics.",
             "The patched library compiles inside the fixed-source RustPBX release image; SIPp overload integration and Cell-10K benchmark remain not_run."
           ]
+        },
+        {
+          "change_id": "rsipstack-retransmission-atomicity-v1",
+          "summary": "Close the active-to-finished transaction visibility gap exposed by the physical 1,600-CPS retransmission run.",
+          "capacity_dimensions": [
+            "sip.transactions_per_second",
+            "sip.invite_cps",
+            "data.postgres_queries_per_second"
+          ],
+          "acceptance_evidence": [
+            "The patch applies after the exact reconnect and capacity patch queue and the resulting source passes rustfmt and whitespace checks.",
+            "A two-worker Rust regression sends a duplicate request concurrently with final response publication and rejects a second server transaction.",
+            "The ivekit.12 Linux compile and strict 1,400/1,500/1,600-CPS physical repeat remain required."
+          ]
         }
       ],
       "planned_changes": [],
@@ -453,11 +473,12 @@
           "infra/ivekit/rustpbx/build.sh",
           "infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
+          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-18T18:30:00+08:00"
+        "checked_at": "2026-07-21T13:42:06+08:00"
       },
       "release_gate": {
         "production_eligible": false,

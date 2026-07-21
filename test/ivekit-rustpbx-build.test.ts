@@ -23,6 +23,10 @@ const rsipstackCapacityPatch = readFileSync(
   'infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch',
   'utf8'
 );
+const rsipstackRetransmissionPatch = readFileSync(
+  'infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch',
+  'utf8'
+);
 const rustPbxSipCapacityPatch = readFileSync(
   'infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch',
   'utf8'
@@ -45,6 +49,10 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(buildScript, /cargo build --locked --release/);
   assert.match(buildScript, /cross compilation is not supported/);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
+  assert.match(buildScript, /PATCHSET="ivekit\.12"/);
+  assert.match(buildScript, /cp "\$SCRIPT_DIR\/entrypoint\.sh"/);
+  assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
+  assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
 
   const lock = readFileSync('infra/ivekit/rustpbx/Cargo.lock', 'utf8');
   assert.match(lock, /name = "rustrtc"\nversion = "0\.3\.90"/);
@@ -81,6 +89,16 @@ test('iveKit rsipstack fork enforces bounded transaction and transport state', (
   assert.match(rsipstackCapacityPatch, /tls connection rejected by capacity limit/);
   assert.match(rsipstackCapacityPatch, /websocket connection rejected by capacity limit/);
   assert.doesNotMatch(rsipstackCapacityPatch, /tenant_id|interaction_id|call_id/);
+});
+
+test('iveKit rsipstack atomically publishes completed transactions before releasing active keys', () => {
+  assert.match(
+    buildScript,
+    /rsipstack-ivekit-capacity\.patch"[\s\S]*rsipstack-ivekit-retransmission-atomicity\.patch"/
+  );
+  assert.match(rsipstackRetransmissionPatch, /publish_finished_transaction/);
+  assert.match(rsipstackRetransmissionPatch, /finished transaction is visible before active transaction release/);
+  assert.match(rsipstackRetransmissionPatch, /duplicate_request_during_detach_is_not_readmitted/);
 });
 
 test('iveKit RustPBX wires rsipstack capacity limits and low-cardinality metrics', () => {
@@ -228,7 +246,7 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
 test('iveKit publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.11-6c49ee76/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.12-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);

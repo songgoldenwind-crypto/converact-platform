@@ -12,7 +12,7 @@ fi
 RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-PATCHSET="ivekit.11"
+PATCHSET="ivekit.12"
 IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 case "$(uname -m)" in
@@ -47,6 +47,8 @@ git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-tcp-reconnect
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-tcp-reconnect.patch"
 git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-capacity.patch"
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-capacity.patch"
+git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-retransmission-atomicity.patch"
+git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-retransmission-atomicity.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-ami-dialogs.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-ami-dialogs.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-rwi-originate-hangup.patch"
@@ -77,6 +79,7 @@ cp -R "$HOOK_DIR/." \
   "$BUILD_ROOT/rustpbx/vendor/ivekit-component-hook/"
 cp "$SCRIPT_DIR/Cargo.lock" "$BUILD_ROOT/rustpbx/Cargo.lock"
 cp "$SCRIPT_DIR/Dockerfile.runtime" "$BUILD_ROOT/rustpbx/Dockerfile.ivekit"
+cp "$SCRIPT_DIR/entrypoint.sh" "$BUILD_ROOT/rustpbx/entrypoint.ivekit.sh"
 
 docker run --rm \
   -v "$BUILD_ROOT:/build" \
