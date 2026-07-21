@@ -79,6 +79,13 @@ export interface KamailioRouteSnapshotVerificationInput {
   last_accepted_sequence: number;
 }
 
+export interface KamailioRouteSnapshotInspectionInput {
+  expected_region_id: string;
+  expected_zone_id: string;
+  expected_cell_id: string;
+  expected_cell_lease_epoch: number;
+}
+
 export interface VerifiedKamailioRouteSnapshot {
   key_id: string;
   body: Readonly<KamailioRouteSnapshotBody>;
@@ -135,6 +142,28 @@ export class KamailioRouteSnapshotCodec {
     raw: string,
     input: KamailioRouteSnapshotVerificationInput
   ): VerifiedKamailioRouteSnapshot {
+    const verified = this.inspect(raw, input);
+    const body = verified.body;
+    validateVerificationInput(input);
+    if (body.sequence <= input.last_accepted_sequence) {
+      fail('route_snapshot_sequence_regression', 'Kamailio route snapshot sequence did not advance');
+    }
+    const nowMs = input.now.getTime();
+    const generatedMs = Date.parse(body.generated_at);
+    const expiresMs = Date.parse(body.expires_at);
+    if (nowMs < generatedMs) {
+      fail('route_snapshot_not_yet_valid', 'Kamailio route snapshot is not yet valid');
+    }
+    if (nowMs >= expiresMs) {
+      fail('route_snapshot_expired', 'Kamailio route snapshot expired');
+    }
+    return verified;
+  }
+
+  inspect(
+    raw: string,
+    input: KamailioRouteSnapshotInspectionInput
+  ): VerifiedKamailioRouteSnapshot {
     if (typeof raw !== 'string') fail('invalid_route_snapshot', 'Kamailio route snapshot must be text');
     if (Buffer.byteLength(raw) > MAX_SNAPSHOT_BYTES) {
       fail('route_snapshot_too_large', 'Kamailio route snapshot exceeds 4 MiB');
@@ -166,7 +195,7 @@ export class KamailioRouteSnapshotCodec {
       fail('invalid_route_snapshot', 'Kamailio route snapshot body is not canonical JSON');
     }
     validateKamailioRouteSnapshotBody(body);
-    validateVerificationInput(input);
+    validateInspectionInput(input);
     if (
       body.region_id !== input.expected_region_id ||
       body.zone_id !== input.expected_zone_id ||
@@ -176,18 +205,6 @@ export class KamailioRouteSnapshotCodec {
     }
     if (body.cell_lease_epoch !== input.expected_cell_lease_epoch) {
       fail('route_snapshot_epoch_mismatch', 'Kamailio route snapshot Cell lease epoch does not match');
-    }
-    if (body.sequence <= input.last_accepted_sequence) {
-      fail('route_snapshot_sequence_regression', 'Kamailio route snapshot sequence did not advance');
-    }
-    const nowMs = input.now.getTime();
-    const generatedMs = Date.parse(body.generated_at);
-    const expiresMs = Date.parse(body.expires_at);
-    if (nowMs < generatedMs) {
-      fail('route_snapshot_not_yet_valid', 'Kamailio route snapshot is not yet valid');
-    }
-    if (nowMs >= expiresMs) {
-      fail('route_snapshot_expired', 'Kamailio route snapshot expired');
     }
     return deepFreeze({
       key_id: keyId,
@@ -265,11 +282,15 @@ function validateVerificationInput(input: KamailioRouteSnapshotVerificationInput
   if (!(input.now instanceof Date) || !Number.isFinite(input.now.getTime())) {
     throw new Error('Kamailio route snapshot verification time is invalid');
   }
+  validateInspectionInput(input);
+  boundedInteger(input.last_accepted_sequence, 0, Number.MAX_SAFE_INTEGER, 'last accepted sequence');
+}
+
+function validateInspectionInput(input: KamailioRouteSnapshotInspectionInput): void {
   safeId(input.expected_region_id, 'expected region');
   safeId(input.expected_zone_id, 'expected zone');
   safeId(input.expected_cell_id, 'expected cell');
   boundedInteger(input.expected_cell_lease_epoch, 1, 0xffff_ffff, 'expected Cell lease epoch');
-  boundedInteger(input.last_accepted_sequence, 0, Number.MAX_SAFE_INTEGER, 'last accepted sequence');
 }
 
 function checkedKey(input: KamailioRouteSnapshotKey): { key_id: string; key: Buffer } {

@@ -82,7 +82,10 @@ export function compileKamailioRouteSnapshotBody(
   return body;
 }
 
-export function renderKamailioDispatcherList(body: KamailioRouteSnapshotBody): string {
+export function renderKamailioDispatcherList(
+  body: KamailioRouteSnapshotBody,
+  options: { accept_new_calls?: boolean } = {}
+): string {
   validateKamailioRouteSnapshotBody(body);
   const newCallLines: string[] = [];
   const pinLines: string[] = [];
@@ -90,7 +93,7 @@ export function renderKamailioDispatcherList(body: KamailioRouteSnapshotBody): s
   for (const pool of pools) {
     const nodes = [...pool.nodes].sort((left, right) => left.node_id.localeCompare(right.node_id));
     for (const node of nodes) {
-      if (isEligibleForNewCalls(node)) {
+      if (options.accept_new_calls !== false && isEligibleForNewCalls(node)) {
         newCallLines.push(dispatcherLine({
           set_id: pool.pool_id,
           node,
