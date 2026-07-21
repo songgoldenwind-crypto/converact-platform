@@ -79,8 +79,8 @@ index e20f7af..752a394 100644
 +        .incoming_transactions()
 +        .expect("incoming transactions");
 +    let serving = tokio::spawn({
-+        let endpoint = endpoint.clone();
-+        async move { endpoint.serve().await }
++        let inner = endpoint.inner.clone();
++        async move { inner.serve().await.expect("serve endpoint") }
 +    });
 +
 +    let client = UdpConnection::create_connection(

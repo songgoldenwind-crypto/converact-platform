@@ -406,13 +406,13 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
-          "sha256": "e3e4491e3d68cb1a49de0c61364bfbd3e40e9251a05575727a8f85491cb5ee8c",
+          "sha256": "48557ba74abba6caf57e1cbbc4805f7ab4edcf05b619295bb93c81e0cf69fe33",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-tcp-reconnect.patch",
           "purpose": "Bound SIP transactions, retransmission cache, inbound transaction queue and reliable transport connections with deterministic overload rejection and low-cardinality statistics."
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
-          "sha256": "129c1a633618319cb4533713082448d7e5400754f62f6106441205ad5a6f3d8f",
+          "sha256": "17c770a3948128d1afb1fcf99af871aa543bf93178e31008b6bb053052a732a9",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-capacity.patch",
           "purpose": "Publish the bounded finished transaction response before releasing the active transaction key so an in-flight retransmission cannot be admitted as duplicate Router and CDR work."
         }

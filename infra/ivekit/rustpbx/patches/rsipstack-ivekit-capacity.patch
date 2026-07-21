@@ -447,12 +447,12 @@ index d204586..c02a4ae 100644
 +        assert!(state.try_acquire_active_transaction());
 +        assert!(state.try_acquire_active_transaction());
 +        assert!(!state.try_acquire_active_transaction());
-+        assert_eq!(state.snapshot(0, 0).active_transactions, 2);
++        assert_eq!(state.snapshot(0, 0).running_transactions, 2);
 +        assert_eq!(state.snapshot(0, 0).active_limit_rejections_total, 1);
 +
 +        state.release_active_transaction();
 +        assert!(state.try_acquire_active_transaction());
-+        assert_eq!(state.snapshot(0, 0).active_transactions, 2);
++        assert_eq!(state.snapshot(0, 0).running_transactions, 2);
 +    }
 +
 +    #[test]
@@ -903,4 +903,3 @@ index ab13c5f..f23083d 100644
                      debug!(?connection_addr, "new websocket connection");
                  });
              }
-
