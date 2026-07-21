@@ -1,0 +1,69 @@
+http_addr = "0.0.0.0:8080"
+log_level = "info"
+database_url = "postgresql://rustpbx_app:{{RUSTPBX_DB_PASSWORD}}@postgres:5432/rustpbx"
+rtp_start_port = 20000
+rtp_end_port = 20100
+storage_dir = "/app/storage"
+
+[console]
+base_path = "/console"
+api_prefix = "/api"
+allow_registration = false
+secure_cookie = false
+
+[[console.api_tokens]]
+token = "{{RUSTPBX_MANAGEMENT_TOKEN}}"
+scopes = ["extensions.write", "trunks.write", "routing.write"]
+description = "iveKit capacity baseline"
+
+[ami]
+allows = ["172.30.44.0/24"]
+
+[proxy]
+addr = "0.0.0.0"
+generated_dir = "/app/generated"
+udp_port = 5060
+tcp_port = 5060
+modules = ["acl", "auth", "presence", "registrar", "call"]
+media_proxy = "auto"
+ensure_user = true
+acl_rules = ["allow all", "deny all"]
+sip_max_active_transactions = 65536
+sip_max_finished_transactions = 65536
+sip_incoming_transaction_queue_capacity = 8192
+sip_max_transport_connections = 32768
+media_session_cleanup_concurrency = 64
+media_session_cleanup_timeout_ms = 2000
+media_recording_channel_capacity = 256
+media_recording_worker_threads = 4
+media_recording_worker_queue_capacity = 4096
+
+[[proxy.user_backends]]
+type = "extension"
+ttl = 30
+
+[proxy.http_router]
+url = "http://router:8081/router"
+timeout_ms = 3000
+fallback_to_static = false
+fallback_action = "reject"
+
+[proxy.http_router.headers]
+X-PBX-Key = "{{RUSTPBX_WEBHOOK_TOKEN}}"
+
+[rwi]
+enabled = true
+max_connections = 2000
+max_calls_per_connection = 200
+orphan_hold_secs = 30
+originate_rate_limit = 10
+
+[[rwi.tokens]]
+token = "{{RUSTPBX_RWI_TOKEN}}"
+scopes = ["call.control", "queue.control", "record.control", "supervisor.control", "media.stream"]
+
+[callrecord]
+type = "http"
+url = "http://router:8081/cdr"
+headers = { "X-PBX-Key" = "{{RUSTPBX_WEBHOOK_TOKEN}}" }
+
