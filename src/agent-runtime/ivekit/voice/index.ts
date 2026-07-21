@@ -15,6 +15,7 @@ export * from './configuration-service.js';
 export * from './deployment-profile-service.js';
 export * from './errors.js';
 export * from './http.js';
+export * from './kamailio-route-snapshot.js';
 export * from './metrics.js';
 export * from './ports.js';
 export * from './parking-reconciler.js';
