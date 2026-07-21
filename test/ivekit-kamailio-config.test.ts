@@ -52,6 +52,14 @@ test('Kamailio renderer limits failover to transport, 408 and selected 5xx respo
   assert.match(cfg, /t_check_status\("408\|500\|502\|503\|504"\)/);
   assert.match(cfg, /t_is_canceled\(\)/);
   assert.match(cfg, /remove_record_route\(\)/);
+  assert.match(
+    cfg,
+    /failure_route\[RUSTPBX_FAILOVER\][\s\S]*?if \(!t_relay\(\)\) t_reply\("500", "Relay Failed"\)/
+  );
+  assert.match(
+    cfg,
+    /failure_route\[RUSTPBX_REGISTER_FAILOVER\][\s\S]*?if \(!t_relay\(\)\) t_reply\("500", "Relay Failed"\)/
+  );
   assert.match(cfg, /Retry-After: 2/);
   assert.doesNotMatch(cfg, /t_check_status\("[^"\n]*(401|403|404|480|486|487|488)/);
   assert.match(cfg, /sl_send_reply\("503", "No Capacity"\)/);
@@ -70,6 +78,7 @@ test('Kamailio renderer protects trust boundaries, RPC and topology data', () =>
   assert.match(cfg, /remove_hf\("X-IveKit-Pin-Set"\)/);
   assert.match(cfg, /is_in_subnet\("\$si", "10\.20\.0\.0\/16"\)/);
   assert.match(cfg, /pike_check_req\(\)/);
+  assert.doesNotMatch(cfg, /!~/);
   assert.match(cfg, /\$sht\(ivekit_source_cps=>/);
   assert.match(cfg, /\$sht\(ivekit_global_cps=>/);
   assert.match(cfg, /\$ml > 65535/);
@@ -84,14 +93,15 @@ test('Kamailio renderer emits TLS and WSS configuration with strict transport bo
   const rendered = render();
 
   assert.match(rendered.kamailio_cfg, /enable_tls=yes/);
-  assert.match(rendered.kamailio_cfg, /listen=tls:0\.0\.0\.0:5061 advertise sip\.cell-a\.example\.com:5061/);
-  assert.match(rendered.kamailio_cfg, /listen=tls:0\.0\.0\.0:7443 advertise wss\.cell-a\.example\.com:443/);
+  assert.match(rendered.kamailio_cfg, /listen=tls:0\.0\.0\.0:5061 advertise "sip\.cell-a\.example\.com":5061/);
+  assert.match(rendered.kamailio_cfg, /listen=tls:0\.0\.0\.0:7443 advertise "wss\.cell-a\.example\.com":443/);
   assert.match(rendered.kamailio_cfg, /ws_handle_handshake\(\)/);
   assert.match(rendered.kamailio_cfg, /\$Rp == 7443/);
   assert.match(rendered.tls_cfg, /method = TLSv1\.2\+/);
   assert.match(rendered.tls_cfg, /private_key = \/run\/secrets\/kamailio-tls-key\.pem/);
   assert.match(rendered.tls_cfg, /certificate = \/run\/secrets\/kamailio-tls-cert\.pem/);
   assert.match(rendered.tls_cfg, /ca_list = \/run\/secrets\/kamailio-ca\.pem/);
+  assert.doesNotMatch(rendered.kamailio_cfg, /ds_ping_fr_timer/);
 });
 
 test('Kamailio renderer closes WebPhone WSS authentication and registration routing', () => {

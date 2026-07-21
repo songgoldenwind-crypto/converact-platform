@@ -202,7 +202,6 @@ modparam("dispatcher", "xavp_dst", "_dsdst_")
 modparam("dispatcher", "xavp_ctx", "_dsctx_")
 modparam("dispatcher", "ds_ping_method", "OPTIONS")
 modparam("dispatcher", "ds_ping_interval", 2)
-modparam("dispatcher", "ds_ping_fr_timer", 500)
 modparam("dispatcher", "ds_probing_threshold", 3)
 modparam("dispatcher", "ds_inactive_threshold", 2)
 modparam("dispatcher", "ds_probing_mode", 1)
@@ -398,7 +397,7 @@ route[WITHINDLG] {
 
     $var(pinset) = $(route_uri{uri.param,ivkpin});
     $var(pin_epoch) = $(route_uri{uri.param,ivkep});
-    if ($var(pinset) == $null || $var(pinset) !~ "^[1-9][0-9]{0,8}$" ||
+    if ($var(pinset) == $null || !($var(pinset) =~ "^[1-9][0-9]{0,8}$") ||
             $var(pin_epoch) != "${config.cell_lease_epoch}") {
         update_stat("ivekit_pin_failures", "+1");
         sl_send_reply("481", "Invalid Dialog Owner");
@@ -519,8 +518,8 @@ route[DISPATCH] {
 route[READ_DISPATCHER_OWNER] {
     $var(pinset) = $(xavp(_dsdst_=>attrs){param.value,pinset});
     $var(node_id) = $(xavp(_dsdst_=>attrs){param.value,node});
-    if ($var(pinset) == $null || $var(pinset) !~ "^[1-9][0-9]{0,8}$" ||
-            $var(node_id) == $null || $var(node_id) !~ "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$") {
+    if ($var(pinset) == $null || !($var(pinset) =~ "^[1-9][0-9]{0,8}$") ||
+            $var(node_id) == $null || !($var(node_id) =~ "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")) {
         update_stat("ivekit_dispatch_failures", "+1");
         sl_send_reply("503", "Invalid Route Snapshot");
         exit;
@@ -559,7 +558,7 @@ failure_route[RUSTPBX_FAILOVER] {
         $dlg_var(ivekit_node_id) = $var(node_id);
         route(INTERNAL_HEADERS);
         t_on_failure("RUSTPBX_FAILOVER");
-        if (!t_relay()) sl_reply_error();
+        if (!t_relay()) t_reply("500", "Relay Failed");
         exit;
     }
 
@@ -580,7 +579,7 @@ failure_route[RUSTPBX_REGISTER_FAILOVER] {
         route(INTERNAL_HEADERS);
         t_on_reply("REGISTER_REPLY");
         t_on_failure("RUSTPBX_REGISTER_FAILOVER");
-        if (!t_relay()) sl_reply_error();
+        if (!t_relay()) t_reply("500", "Relay Failed");
         exit;
     }
 
@@ -628,7 +627,7 @@ event_route[xhttp:request] {
         $var(webphone_token) = $(hu{url.querystring}{param.value,token,&});
         if ($var(webphone_token) == $null ||
                 $(var(webphone_token){s.len}) > ${config.webphone_auth.max_token_bytes} ||
-                $var(webphone_token) !~ "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$") {
+                !($var(webphone_token) =~ "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$")) {
             update_stat("ivekit_webphone_auth_failures", "+1");
             xhttp_reply("401", "Unauthorized", "text/plain", "invalid token\\n");
             exit;
@@ -642,7 +641,7 @@ event_route[xhttp:request] {
         }
         $var(webphone_claims) = $(var(webphone_token){s.select,1,.}{s.decode.base64urlt});
         if (!jansson_get("sub", "$var(webphone_claims)", "$var(webphone_sub)") ||
-                $var(webphone_sub) !~ "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$") {
+                !($var(webphone_sub) =~ "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$")) {
             update_stat("ivekit_webphone_auth_failures", "+1");
             xhttp_reply("401", "Unauthorized", "text/plain", "invalid identity\\n");
             exit;
@@ -979,9 +978,9 @@ function assertExactKeys(value: Record<string, unknown>, keys: string[], name: s
 function listener(value: KamailioListener) {
   const bind = value.host.includes(':') ? `[${value.host}]:${value.port}` : `${value.host}:${value.port}`;
   if (!value.advertise) return bind;
-  const advertisedHost = value.advertise.host.includes(':')
-    ? `[${value.advertise.host}]`
-    : value.advertise.host;
+  const advertisedHost = isIP(value.advertise.host)
+    ? (value.advertise.host.includes(':') ? `[${value.advertise.host}]` : value.advertise.host)
+    : `"${kamailioString(value.advertise.host)}"`;
   return `${bind} advertise ${advertisedHost}:${value.advertise.port}`;
 }
 
