@@ -23,6 +23,7 @@
     "ivekit:capacity:admission": "node --import tsx scripts/ivekit-cell-admission.ts",
     "ivekit:capacity:projector": "node --import tsx scripts/ivekit-cell-capacity-projector.ts",
     "ivekit:capacity:component-node": "node --import tsx scripts/ivekit-component-node-admission.ts",
+    "ivekit:kamailio:render": "node --import tsx scripts/render-kamailio-config.ts",
     "ivekit:kamailio:route-agent": "node --import tsx scripts/ivekit-kamailio-route-agent.ts",
     "ivekit:capacity:rustdesk-owner": "node --import tsx scripts/ivekit-rustdesk-owner-binding.ts",
     "typecheck:ivekit:capacity-runtime": "tsc --noEmit -p infra/capacity/tsconfig.json",

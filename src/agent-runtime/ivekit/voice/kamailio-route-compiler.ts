@@ -112,6 +112,7 @@ export function renderKamailioDispatcherList(
         flags: node.state === 'offline' ? 9 : 8,
         attrs: [
           `duid=${node.node_id}-pin`,
+          `pinset=${node.pin_set_id}`,
           `node=${node.node_id}`
         ]
       }));

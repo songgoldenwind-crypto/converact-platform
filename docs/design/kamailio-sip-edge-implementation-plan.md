@@ -8,7 +8,7 @@ signed bounded snapshot, compiles a local dispatcher file, and reloads Kamailio 
 JSON-RPC. Kamailio uses relative-capacity dispatch for new INVITEs and stable per-node pin sets for
 in-dialog traffic; RustPBX admission remains authoritative.
 
-**Tech Stack:** TypeScript/Node.js, Kamailio 5.8 dispatcher/dialog/topoh/pike/htable/jsonrpcs,
+**Tech Stack:** TypeScript/Node.js, source-pinned Kamailio 6.0.7 dispatcher/dialog/topoh/pike/htable/jsonrpcs,
 Docker Compose, Kubernetes Helm, Prometheus, SIPp.
 
 ---

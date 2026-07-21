@@ -83,6 +83,38 @@ Cell A/Zone B 部署相同角色。一个 Zone 故障时，控制面只在获得
 容量目录中的 StatefulSet 是设计和受控测试材料，不能替代正式交付 Chart。正式 Chart、默认
 values、交付包和监控规则必须使用同一拓扑和同一镜像身份。
 
+### 4.1 七项完成门禁
+
+任何通信组件都必须逐项通过下列门禁；只提供 `replicas > 1`、Service 或 HPA 不构成高可用：
+
+1. **入口分配**：新连接或新会话如何选择节点，是否有明确的过载拒绝和重试边界。
+2. **会话归属**：已建立 dialog、room、topic、TURN allocation 和 Egress job 的 owner 在哪里，
+   归属信息如何 fencing，后续请求如何回到 owner。
+3. **热路径隔离**：控制面、数据库、对象存储和异步处理故障时，已建立通信是否继续。
+4. **发布与 drain**：节点如何先停新流量、等待 owner 清零、超时强停并防止旧副作用复活。
+5. **故障与恢复**：进程、节点、Zone 和共享依赖失效分别发生什么；不允许用“自动切换”掩盖
+   实际会断开的状态型会话。
+6. **可观测性**：容量、错误、延迟、重连、owner/fence、依赖和资源水位是否都有低基数指标、
+   SLO、告警和 runbook。
+7. **交付证据**：正式 Compose/Helm、不可变镜像、配置校验、受控故障测试和验收状态是否一致。
+
+### 4.2 组件级闭环矩阵
+
+| 组件 | 入口与负载 | owner / affinity | 故障语义 | 正式交付缺口 |
+| --- | --- | --- | --- | --- |
+| Kamailio | L4 到至少两个 Edge；本地签名 dispatcher 快照按 RustPBX safe headroom 加权 | topology-hidden Record-Route 中的稳定 pin set | 初始 INVITE 仅对传输失败、408 和允许的 5xx 重试；已接通 dialog 不迁移 | 正在实现配置、安全、Chart、指标和双节点故障测试 |
+| RustPBX | Kamailio 软选择 + RustPBX 本地 admission 硬门 | B2BUA dialog 固定在原节点，owner epoch fencing | 节点丢失时通话终止；录音、CDR、Router 故障不得中断 RTP | 多节点正式 values、Edge 联调、跨 Zone drain/失效测试 |
+| Tinode | L4/Service 分配 WebSocket；节点本地容量门拒绝新 session/topic | WebSocket 自然粘连；group topic 使用稳定 node ID 和 owner epoch | 节点丢失后客户端重连并按 durable sequence 恢复，不承诺无感迁移 | 原生 cluster 配置、正式三副本 Chart、连接 drain、数据面指标和故障测试 |
+| LiveKit Signal/SFU | HTTPS/WSS API 可进任意节点；Redis router 把 room 操作送到 owner，媒体直接到 owner SFU | room 和 track 固定在一个 SFU node | SFU 丢失后客户端重连并重新发布；不宣称透明 room migration | 正式多节点 Chart、真实外部 IP/host network、drain、Redis 故障和媒体指标 |
+| TURN | 独立 L4/DNS pool；按带宽、allocation 和端口水位 admission | allocation 固定在创建它的 TURN 节点 | 节点丢失触发 ICE restart，新 allocation 可换节点，旧 allocation 不迁移 | dedicated coturn 模式、短期凭据、端口预算、指标、告警和受控 ICE 恢复 |
+| LiveKit SIP | 独立 SIP worker pool和信令入口，不与 SFU 容量混算 | call dispatch/participant 由 LiveKit/Redis 协调 | worker 丢失只按上游真实呼叫恢复语义处理，不伪造连续性 | 正式多副本部署、PDB、SIP/RTP 指标、故障和 drain 测试 |
+| Egress | 独立 worker pool按任务类型和资源需求调度 | job 固定在 worker，幂等状态由 Egress/Redis 维护 | worker/storage 失败只影响录制副本，不反压 room | 统一到正式 Chart、任务型伸缩、spool/storage 告警和恢复测试 |
+| 共享依赖 | PostgreSQL/Redis/NATS/对象存储分别使用外部生产合同 | authority、cache/router、event log 和 blob 职责不混用 | 依赖失效按组件降级矩阵处理，禁止全局笼统标注 HA | endpoint、TLS、认证、超时、容量、备份与恢复证据合同 |
+
+LiveKit 官方说明信令/API 节点是同质的，任意客户端可连接任意后端；Redis router 负责节点间
+路由。每个 SFU 仍需向客户端公布可直达的 ICE 地址和端口，不能把普通 ClusterIP Service
+等同于完整媒体负载均衡。生产部署要求显式验证 external IP、UDP/TCP、TURN 和 host network。
+
 ## 5. 语音与 SIP
 
 ### 5.1 负载均衡
@@ -181,7 +213,7 @@ values、交付包和监控规则必须使用同一拓扑和同一镜像身份�
 | --- | --- |
 | Kamailio | 无可用 RustPBX、快照过期、OPTIONS 大面积失败、CPS/transaction/5xx/重传异常、dialog pin 失败 |
 | RustPBX | admission/事务/连接/录音队列饱和、Router/CDR lag、owner fence、FD/CPU/RTP 端口水位 |
-| Tinode | 节点少于 quorum、cluster RPC 失败、连接/重连风暴、topic owner mismatch、fanout/store 延迟 |
+| Tinode | 可调度副本少于 `minReady`、cluster RPC 失败、连接/重连风暴、topic owner mismatch、fanout/store 延迟 |
 | LiveKit | 可用 SFU 节点不足、Redis router 失败、room/track 饱和、重连异常、媒体质量下降 |
 | TURN | allocation/端口/带宽饱和、认证失败、节点不足 |
 | SIP/Egress | worker 不足、任务积压、失败率、spool 水位和存储不可用 |
@@ -237,3 +269,16 @@ Redis HA 外部合同、drain/reconnect、指标、告警和受控故障测试�
 - typecheck、相关 Node/Go/Rust 测试、Helm lint/template 和配置语法测试通过。
 - 真实负载、真实 PSTN、真实 TURN 公网链路和目标双 Zone 集群仍明确标记 `not_run`，留给后续
   物理压测与环境验收 Goal。
+
+## 13. 上游事实边界
+
+- LiveKit 生产部署和端口模型：`https://docs.livekit.io/transport/self-hosting/deployment/`、
+  `https://docs.livekit.io/transport/self-hosting/ports-firewall/`。
+- LiveKit 官方能力用于 signal/API 同质路由、Redis 协调、ICE/TCP/UDP 和 embedded TURN；
+  iveKit fork 只增强稳定 node identity、owner fencing、容量门和小房间热路径，不改写 WebRTC
+  的故障本质。
+- Tinode cluster、topic actor 和 store 语义以固定源码
+  `v0.25.3@22a7c18e9cd695e9a061bf1b8c84175196ef5a15` 为准；iveKit owner registry 是附加
+  fencing，不是用 PostgreSQL mirror 代替原生 cluster。
+- Prometheus 告警必须提供持续时间、严重级别和 runbook；告警投递、静默和抑制由
+  Alertmanager 承担，不能把 PrometheusRule 本身当作通知闭环。

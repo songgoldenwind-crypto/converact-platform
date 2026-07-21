@@ -38,6 +38,11 @@ L4 VIP
 JSON-RPC 只监听 Pod loopback，NetworkPolicy 和配置同时拒绝非 `127.0.0.1` 来源。Kamailio
 自身没有 PostgreSQL、Redis 或 iveKit API 凭据。
 
+生产镜像固定为上游 `kamailio/kamailio@6.0.7` 源码构建，源码归档 SHA-256、模块集合、
+amd64/arm64 buildx、SBOM 和 provenance 由 `infra/ivekit/kamailio/` 固化。历史
+`kamailio/kamailio:5.8` 镜像引用无对应制品，不得继续使用；部署只接受 iveKit registry
+中的 `@sha256:` 引用。
+
 ## 3. 路由快照
 
 ### 3.1 Envelope

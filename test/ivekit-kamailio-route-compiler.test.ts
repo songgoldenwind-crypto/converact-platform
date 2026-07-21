@@ -44,8 +44,8 @@ test('Kamailio route compiler normalizes headroom and lowers degraded node weigh
   assert.match(rendered, /^100 sip:rustpbx-a-1\.internal:5060;transport=udp 8 10 .*rweight=25/m);
   assert.doesNotMatch(rendered, /^100 sip:rustpbx-a-2\./m);
   assert.doesNotMatch(rendered, /^100 sip:rustpbx-a-3\./m);
-  assert.match(rendered, /^10002 sip:rustpbx-a-2\.internal:5060;transport=udp 8 10 /m);
-  assert.match(rendered, /^10003 sip:rustpbx-a-3\.internal:5060;transport=udp 9 10 /m);
+  assert.match(rendered, /^10002 sip:rustpbx-a-2\.internal:5060;transport=udp 8 10 .*pinset=10002/m);
+  assert.match(rendered, /^10003 sip:rustpbx-a-3\.internal:5060;transport=udp 9 10 .*pinset=10003/m);
 });
 
 test('exhausted accepting nodes leave the new-call pool but retain their pin set', () => {

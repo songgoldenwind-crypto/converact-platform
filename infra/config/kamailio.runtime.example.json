@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0.0",
+  "region_id": "region-a",
+  "zone_id": "zone-a",
+  "cell_id": "cell-a",
+  "cell_lease_epoch": 1,
+  "default_pool_id": 100,
+  "dispatcher_file": "/var/lib/kamailio/dispatcher.list",
+  "tls_config_file": "/etc/kamailio/tls.cfg",
+  "udp_listener": {
+    "host": "0.0.0.0", "port": 5060,
+    "advertise": { "host": "sip.cell-a.example.com", "port": 5060 }
+  },
+  "tcp_listener": {
+    "host": "0.0.0.0", "port": 5060,
+    "advertise": { "host": "sip.cell-a.example.com", "port": 5060 }
+  },
+  "tls_listener": {
+    "host": "0.0.0.0", "port": 5061,
+    "advertise": { "host": "sip.cell-a.example.com", "port": 5061 }
+  },
+  "wss_listener": {
+    "host": "0.0.0.0", "port": 7443,
+    "advertise": { "host": "wss.cell-a.example.com", "port": 443 }
+  },
+  "rpc_listener": { "host": "127.0.0.1", "port": 5065 },
+  "trusted_source_cidrs": ["10.20.0.0/16"],
+  "allow_public_wss": true,
+  "max_message_bytes": 65535,
+  "per_source_invite_cps": 100,
+  "global_invite_cps": 5000,
+  "pike_sampling_seconds": 2,
+  "pike_request_density": 30,
+  "max_failovers": 3,
+  "retry_after_seconds": 2,
+  "tls": {
+    "private_key_file": "/run/secrets/kamailio-tls-key.pem",
+    "certificate_file": "/run/secrets/kamailio-tls-cert.pem",
+    "ca_file": "/run/secrets/kamailio-ca.pem",
+    "require_client_certificate": false
+  }
+}
