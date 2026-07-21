@@ -100,6 +100,14 @@ test('capacity image and deployment templates ship the component node agent', ()
     dockerfile,
     /COPY src\/ivekit-component-node-admission\.ts \.\/src\/ivekit-component-node-admission\.ts/
   );
+  assert.match(
+    dockerfile,
+    /COPY src\/agent-runtime\/ivekit\/recordings\/recording-manifest\.ts \.\/src\/agent-runtime\/ivekit\/recordings\/recording-manifest\.ts/
+  );
+  assert.match(
+    dockerfile,
+    /COPY src\/agent-runtime\/ivekit\/recordings\/rustpbx-recording-spool-capacity\.ts \.\/src\/agent-runtime\/ivekit\/recordings\/rustpbx-recording-spool-capacity\.ts/
+  );
   assert.match(compose, /component-node-admission:/);
   assert.match(compose, /profiles: \["component-node"\]/);
   assert.match(compose, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT/);

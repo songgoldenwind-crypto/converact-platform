@@ -32,6 +32,8 @@ COPY src/agent-runtime/ivekit/placement/pg-queryable.ts ./src/agent-runtime/ivek
 COPY src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts ./src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts
 COPY src/agent-runtime/ivekit/placement/snapshot.ts ./src/agent-runtime/ivekit/placement/snapshot.ts
 COPY src/agent-runtime/ivekit/placement/types.ts ./src/agent-runtime/ivekit/placement/types.ts
+COPY src/agent-runtime/ivekit/recordings/recording-manifest.ts ./src/agent-runtime/ivekit/recordings/recording-manifest.ts
+COPY src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts ./src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts
 
 RUN ./node_modules/.bin/tsc --noEmit -p infra/capacity/tsconfig.json
 RUN npm prune --omit=dev --ignore-scripts
