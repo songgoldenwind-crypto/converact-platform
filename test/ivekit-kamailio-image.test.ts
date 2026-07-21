@@ -32,6 +32,25 @@ test('Kamailio syntax verifier requires an immutable image and disables networki
   assert.match(verifier, /kamailio -c -f/);
 });
 
+test('standalone iveKit image compiles the Kamailio renderer and route agent', async () => {
+  const [policySource, packageSource, verifier, renderer, agent] = await Promise.all([
+    source('services/ivekit-service/source-policy.json'),
+    source('services/ivekit-service/package.json'),
+    source('scripts/verify-ivekit-standalone-context.ts'),
+    source('src/ivekit-render-kamailio-config.ts'),
+    source('src/ivekit-kamailio-route-agent.ts')
+  ]);
+  const policy = JSON.parse(policySource) as { entrypoints: string[] };
+  assert.ok(policy.entrypoints.includes('src/ivekit-render-kamailio-config.ts'));
+  assert.ok(policy.entrypoints.includes('src/ivekit-kamailio-route-agent.ts'));
+  assert.match(packageSource, /"render:kamailio"/);
+  assert.match(packageSource, /"route:kamailio"/);
+  assert.match(verifier, /ivekit-render-kamailio-config\.js/);
+  assert.match(verifier, /ivekit-kamailio-route-agent\.js/);
+  assert.match(renderer, /loadKamailioConfigRuntime/);
+  assert.match(agent, /loadKamailioRouteAgentRuntimeConfig/);
+});
+
 async function source(path: string) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 }

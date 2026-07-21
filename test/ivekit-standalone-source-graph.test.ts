@@ -88,6 +88,8 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/ivekit-init-runtime-role.ts',
     'src/ivekit-tinode-bootstrap.ts',
     'src/ivekit-intelligence-preflight.ts',
+    'src/ivekit-render-kamailio-config.ts',
+    'src/ivekit-kamailio-route-agent.ts',
     'src/ivekit-render-rustpbx-config.ts',
     'src/ivekit-rustpbx-route-snapshot.ts',
     'src/ivekit-rustpbx-recording-spool.ts',

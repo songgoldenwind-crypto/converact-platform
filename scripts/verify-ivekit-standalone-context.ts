@@ -24,6 +24,8 @@ const entrypoints = [
   'ivekit-migrate.js',
   'ivekit-init-runtime-role.js',
   'ivekit-intelligence-preflight.js',
+  'ivekit-render-kamailio-config.js',
+  'ivekit-kamailio-route-agent.js',
   'ivekit-render-rustpbx-config.js',
   'ivekit-rustpbx-route-snapshot.js',
   'ivekit-rustpbx-recording-spool.js',
