@@ -12,17 +12,20 @@ import {
 
 const TOPOH_KEY = 'ivekit-topology-mask-key-1234567890abcdef';
 const RPC_TOKEN = 'ivekit-kamailio-rpc-token-1234567890abcdef';
+const WEBPHONE_JWT_SECRET = 'ivekit-webphone-jwt-secret-1234567890abcdef';
 
 test('Kamailio renderer emits the complete stateful SIP edge route machine', () => {
   const rendered = renderKamailioConfig(baseConfig(), {
     topoh_mask_key: TOPOH_KEY,
-    rpc_bearer_token: RPC_TOKEN
+    rpc_bearer_token: RPC_TOKEN,
+    webphone_jwt_secret: WEBPHONE_JWT_SECRET
   });
 
   for (const module of [
     'dispatcher.so', 'dialog.so', 'rr.so', 'topoh.so', 'tm.so', 'tmx.so',
     'pike.so', 'htable.so', 'ipops.so', 'jsonrpcs.so', 'xhttp.so',
-    'websocket.so', 'tls.so', 'xhttp_prom.so'
+    'websocket.so', 'tls.so', 'xhttp_prom.so', 'jwt.so', 'jansson.so',
+    'registrar.so', 'usrloc.so', 'path.so', 'dmq.so', 'dmq_usrloc.so'
   ]) {
     assert.match(rendered.kamailio_cfg, new RegExp(`loadmodule "${escapeRegExp(module)}"`));
   }
@@ -70,6 +73,10 @@ test('Kamailio renderer protects trust boundaries, RPC and topology data', () =>
   assert.match(cfg, /\$sht\(ivekit_source_cps=>/);
   assert.match(cfg, /\$sht\(ivekit_global_cps=>/);
   assert.match(cfg, /\$ml > 65535/);
+  assert.match(
+    cfg,
+    /if \(is_method\("CANCEL"\)\) \{\s*route\(AUTH\);\s*if \(t_check_trans\(\)\) route\(RELAY\);/
+  );
   assert.doesNotMatch(cfg, /xlog\([^\n]*(Authorization|rpc-token|topology-mask)/i);
 });
 
@@ -85,6 +92,96 @@ test('Kamailio renderer emits TLS and WSS configuration with strict transport bo
   assert.match(rendered.tls_cfg, /private_key = \/run\/secrets\/kamailio-tls-key\.pem/);
   assert.match(rendered.tls_cfg, /certificate = \/run\/secrets\/kamailio-tls-cert\.pem/);
   assert.match(rendered.tls_cfg, /ca_list = \/run\/secrets\/kamailio-ca\.pem/);
+});
+
+test('Kamailio renderer closes WebPhone WSS authentication and registration routing', () => {
+  const cfg = render().kamailio_cfg;
+
+  assert.match(cfg, /\$\(hu\{url\.querystring\}\{param\.value,token,&\}\)/);
+  assert.match(cfg, /modparam\("jwt", "key_mode", 1\)/);
+  assert.match(cfg, /jwt_verify\("\/run\/secrets\/webphone-jwt-secret", "HS256",\s*"iss='ivekit';aud='rustpbx-webphone'"/);
+  assert.match(cfg, /\$hdr\(Origin\) == "https:\/\/led\.example\.com"/);
+  assert.match(cfg, /\$\(var\(webphone_token\)\{s\.select,1,\.\}\{s\.decode\.base64urlt\}\)/);
+  assert.match(cfg, /jansson_get\("sub", "\$var\(webphone_claims\)", "\$var\(webphone_sub\)"\)/);
+  assert.match(cfg, /\$sht\(ivekit_ws_sub=>\$conid\)/);
+  assert.match(cfg, /event_route\[websocket:closed\]/);
+  assert.doesNotMatch(cfg, /ivekit_ws_token/);
+  assert.doesNotMatch(cfg, new RegExp(escapeRegExp(WEBPHONE_JWT_SECRET)));
+  for (const metric of [
+    'ivekit_webphone_auth_failures',
+    'ivekit_webphone_assertion_failures',
+    'ivekit_webphone_registrations',
+    'ivekit_webphone_location_save_failures',
+    'ivekit_webphone_delivery_misses',
+    'ivekit_dmq_rejects'
+  ]) assert.match(cfg, new RegExp(escapeRegExp(metric)));
+
+  assert.match(cfg, /route\[WEBPHONE_REGISTER\]/);
+  assert.match(cfg, /\$fU != \$var\(webphone_sub\)/);
+  assert.match(cfg, /add_path_received\(\)/);
+  assert.match(cfg, /t_on_reply\("REGISTER_REPLY"\)/);
+  assert.match(cfg, /onreply_route\[REGISTER_REPLY\]/);
+  assert.match(cfg, /t_check_status\("2\[0-9\]\[0-9\]"\)/);
+  assert.match(cfg, /save\("location"/);
+  assert.match(cfg, /update_stat\("ivekit_webphone_registrations", "\+1"\)/);
+  assert.match(cfg, /update_stat\("ivekit_webphone_location_save_failures", "\+1"\)/);
+  assert.match(cfg, /\$var\(webphone_assertion_exp\) = \$Ts \+ 30/);
+  assert.match(cfg, /jwt_generate\("\/run\/secrets\/webphone-jwt-secret", "HS256"/);
+  assert.match(cfg, /append_hf\("X-Auth-Token: \$jwt\(val\)/);
+  assert.match(cfg, /update_stat\("ivekit_webphone_assertion_failures", "\+1"\)/);
+  assert.match(cfg, /remove_hf\("X-Auth-Token"\)/);
+
+  assert.match(cfg, /route\[WEBPHONE_DELIVERY\]/);
+  assert.match(cfg, /\$var\(from_rustpbx\) == 1/);
+  assert.match(cfg, /lookup\("location"\)/);
+  assert.match(cfg, /record_route\(";ivkwp=1"\)/);
+  assert.match(cfg, /check_route_param\("ivkwp=1"\)/);
+  assert.match(cfg, /route\[WEBPHONE_DIALOG\]/);
+  assert.match(
+    cfg,
+    /route\[PRELOADED_ROUTE\][\s\S]*?\$var\(from_rustpbx\) != 1/
+  );
+  assert.match(
+    cfg,
+    /route\[WEBPHONE_DIALOG\][\s\S]*?if \(\$var\(from_rustpbx\) == 1\) route\(WEBPHONE_RELAY\)/
+  );
+  assert.match(cfg, /route\[WEBPHONE_DIALOG\][\s\S]*?if \(\$proto == "WSS"\) route\(RELAY\)/);
+  assert.match(cfg, /update_stat\("ivekit_webphone_delivery_misses", "\+1"\)/);
+  assert.match(cfg, /is_in_subnet\("\$si", "10\.30\.0\.0\/16"\)/);
+});
+
+test('Kamailio renderer replicates only authenticated WebPhone locations across Edge nodes', () => {
+  const cfg = render().kamailio_cfg;
+
+  assert.match(cfg, /listen=udp:0\.0\.0\.0:5066/);
+  assert.match(cfg, /modparam\("dmq", "server_address", "sip:10\.20\.0\.10:5066"\)/);
+  assert.match(cfg, /modparam\("dmq", "server_socket", "udp:0\.0\.0\.0:5066"\)/);
+  assert.match(cfg, /modparam\("dmq", "notification_address", "sip:ivekit-kamailio-0\.ivekit-kamailio-headless:5066"\)/);
+  assert.match(cfg, /modparam\("dmq", "notification_address", "sip:ivekit-kamailio-1\.ivekit-kamailio-headless:5066"\)/);
+  assert.match(cfg, /modparam\("dmq_usrloc", "enable", 1\)/);
+  assert.match(cfg, /modparam\("dmq_usrloc", "sync", 1\)/);
+  assert.match(cfg, /modparam\("dmq_usrloc", "replicate_socket_info", 1\)/);
+  assert.match(cfg, /modparam\("usrloc", "db_mode", 0\)/);
+  assert.match(cfg, /is_method\("KDMQ"\)/);
+  assert.match(cfg, /\$Rp != 5066/);
+  assert.match(cfg, /is_in_subnet\("\$si", "10\.20\.0\.0\/16"\)/);
+  assert.match(cfg, /dmq_handle_message\(\)/);
+  assert.match(cfg, /update_stat\("ivekit_dmq_rejects", "\+1"\)/);
+  assert.doesNotMatch(cfg, /ivekit_ws_sub[^\n]*(dmq|replicat)/i);
+});
+
+test('Kamailio renderer keeps disabled public WSS with no origins syntactically fail-closed', () => {
+  const rendered = renderKamailioConfig({
+    ...baseConfig(),
+    allow_public_wss: false,
+    webphone_auth: {
+      ...baseConfig().webphone_auth,
+      allowed_origins: []
+    }
+  }, secrets()).kamailio_cfg;
+
+  assert.match(rendered, /if \(!\(0\)\)/);
+  assert.doesNotMatch(rendered, /if \(!\(\)\)/);
 });
 
 test('Kamailio renderer rejects unsafe listeners, ACLs, secrets and capacity values', () => {
@@ -105,7 +202,8 @@ test('Kamailio renderer rejects unsafe listeners, ACLs, secrets and capacity val
   assert.throws(
     () => renderKamailioConfig(baseConfig(), {
       topoh_mask_key: RPC_TOKEN,
-      rpc_bearer_token: RPC_TOKEN
+      rpc_bearer_token: RPC_TOKEN,
+      webphone_jwt_secret: WEBPHONE_JWT_SECRET
     }),
     /distinct/i
   );
@@ -116,6 +214,29 @@ test('Kamailio renderer rejects unsafe listeners, ACLs, secrets and capacity val
     }, secrets()),
     /per_source_invite_cps/i
   );
+  assert.throws(
+    () => renderKamailioConfig({
+      ...baseConfig(),
+      dmq: {
+        ...baseConfig().dmq,
+        notification_addresses: ['sip:ivekit-kamailio-0.ivekit-kamailio-headless:5066']
+      }
+    }, secrets()),
+    /at least two/i
+  );
+  assert.throws(
+    () => renderKamailioConfig({
+      ...baseConfig(),
+      dmq: {
+        ...baseConfig().dmq,
+        notification_addresses: [
+          'sip:ivekit-kamailio-0.ivekit-kamailio-headless:5067',
+          'sip:ivekit-kamailio-1.ivekit-kamailio-headless:5067'
+        ]
+      }
+    }, secrets()),
+    /server_port/i
+  );
 });
 
 test('Kamailio runtime reads bounded secret files and writes generated configs atomically', async () => {
@@ -125,17 +246,24 @@ test('Kamailio runtime reads bounded secret files and writes generated configs a
   const rpcFile = join(directory, 'rpc-token');
   const outputFile = join(directory, 'kamailio.cfg');
   const tlsOutputFile = join(directory, 'tls.cfg');
+  const webphoneJwtFile = join(directory, 'webphone-jwt-secret');
   await writeFile(configFile, JSON.stringify({
     ...baseConfig(),
+    webphone_auth: {
+      ...baseConfig().webphone_auth,
+      jwt_secret_file: webphoneJwtFile
+    },
     tls_config_file: tlsOutputFile
   }), { mode: 0o600 });
   await writeFile(topohFile, `${TOPOH_KEY}\n`, { mode: 0o600 });
   await writeFile(rpcFile, `${RPC_TOKEN}\n`, { mode: 0o600 });
+  await writeFile(webphoneJwtFile, `${WEBPHONE_JWT_SECRET}\n`, { mode: 0o600 });
 
   const runtime = await loadKamailioConfigRuntime({
     OPC_IVEKIT_KAMAILIO_CONFIG_FILE: configFile,
     OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE: topohFile,
     OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
+    OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
     OPC_IVEKIT_KAMAILIO_OUTPUT_FILE: outputFile,
     OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile
   });
@@ -143,6 +271,7 @@ test('Kamailio runtime reads bounded secret files and writes generated configs a
   await writeKamailioConfigRuntime(runtime);
 
   assert.match(await readFile(outputFile, 'utf8'), /route\[NEW_INVITE\]/);
+  assert.doesNotMatch(await readFile(outputFile, 'utf8'), new RegExp(escapeRegExp(WEBPHONE_JWT_SECRET)));
   assert.match(await readFile(tlsOutputFile, 'utf8'), /TLSv1\.2\+/);
   assert.equal((await stat(outputFile)).mode & 0o777, 0o600);
   assert.equal((await stat(tlsOutputFile)).mode & 0o777, 0o600);
@@ -152,9 +281,11 @@ test('Kamailio runtime reads bounded secret files and writes generated configs a
       OPC_IVEKIT_KAMAILIO_CONFIG_FILE: configFile,
       OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE: topohFile,
       OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
+      OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
       OPC_IVEKIT_KAMAILIO_OUTPUT_FILE: outputFile,
       OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile,
-      OPC_IVEKIT_KAMAILIO_RPC_TOKEN: RPC_TOKEN
+      OPC_IVEKIT_KAMAILIO_RPC_TOKEN: RPC_TOKEN,
+      OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET: WEBPHONE_JWT_SECRET
     }),
     /inline.*secret/i
   );
@@ -175,6 +306,7 @@ test('Kamailio renderer has a file-only CLI and documented deployment contract',
     'OPC_IVEKIT_KAMAILIO_CONFIG_FILE',
     'OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE',
     'OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE',
+    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE',
     'OPC_IVEKIT_KAMAILIO_OUTPUT_FILE',
     'OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE'
   ]) assert.match(envExample, new RegExp(`^${name}=`, 'm'));
@@ -190,7 +322,8 @@ function render() {
 function secrets() {
   return {
     topoh_mask_key: TOPOH_KEY,
-    rpc_bearer_token: RPC_TOKEN
+    rpc_bearer_token: RPC_TOKEN,
+    webphone_jwt_secret: WEBPHONE_JWT_SECRET
   };
 }
 
@@ -222,7 +355,31 @@ function baseConfig() {
     },
     rpc_listener: { host: '127.0.0.1', port: 5065 },
     trusted_source_cidrs: ['10.20.0.0/16', '192.0.2.10/32'],
+    rustpbx_source_cidrs: ['10.30.0.0/16'],
+    dmq_source_cidrs: ['10.20.0.0/16'],
     allow_public_wss: true,
+    webphone_auth: {
+      jwt_issuer: 'ivekit',
+      jwt_audience: 'rustpbx-webphone',
+      jwt_secret_file: '/run/secrets/webphone-jwt-secret',
+      allowed_origins: ['https://led.example.com'],
+      max_token_bytes: 4096,
+      max_registration_expires_seconds: 300
+    },
+    dmq: {
+      enabled: true,
+      server_host: '10.20.0.10',
+      server_port: 5066,
+      notification_addresses: [
+        'sip:ivekit-kamailio-0.ivekit-kamailio-headless:5066',
+        'sip:ivekit-kamailio-1.ivekit-kamailio-headless:5066'
+      ],
+      num_workers: 4,
+      ping_interval_seconds: 30,
+      sync_batch_size: 4000,
+      sync_batch_usleep: 1000,
+      sync_message_contacts: 50
+    },
     max_message_bytes: 65_535,
     per_source_invite_cps: 100,
     global_invite_cps: 5_000,

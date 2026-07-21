@@ -355,6 +355,10 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       files.includes('deploy/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch'),
       true
     );
+    assert.equal(
+      files.includes('deploy/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch'),
+      true
+    );
     assert.equal(files.includes('acceptance/rustpbx/router.py'), true);
     const storageIsolationPackage = JSON.parse(readFileSync(
       join(outputDir, 'acceptance', 'livekit-storage-isolation', 'package.json'),
@@ -499,6 +503,9 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('deploy/kubernetes/ivekit/Chart.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/values.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/templates/rustpbx-deployment.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/templates/kamailio-config.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/templates/kamailio-deployment.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/ivekit/templates/kamailio-network-policy.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/templates/migrate-job.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/templates/deployment.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/templates/service-monitor.yaml'), true);
@@ -506,6 +513,39 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('deploy/kubernetes/ivekit/templates/grafana-dashboard.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/files/prometheus-rules.yaml'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/files/grafana-dashboard.json'), true);
+    assert.equal(files.includes('deploy/kamailio/Dockerfile'), true);
+    assert.equal(files.includes('deploy/kamailio/build.sh'), true);
+    assert.equal(files.includes('deploy/kamailio/README.md'), true);
+    assert.equal(
+      files.includes('deploy/kamailio/patches/0001-dispatcher-retain-probe-state.patch'),
+      true
+    );
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/runner.ts'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/webphone-runner.ts'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/README.md'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/package.json'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/package-lock.json'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/scenarios/invite-bye-affinity-uac.xml'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/scenarios/expect-503-uac.xml'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/scenarios/expect-486-uac.xml'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/scenarios/forged-headers-uac.xml'), true);
+    assert.equal(files.includes('acceptance/kamailio-sip-edge/scenarios/kdmq-expect-403-uac.xml'), true);
+    const kamailioAcceptancePackage = JSON.parse(readFileSync(
+      join(outputDir, 'acceptance', 'kamailio-sip-edge', 'package.json'),
+      'utf8'
+    )) as {
+      dependencies: Record<string, string>;
+      scripts: Record<string, string>;
+    };
+    assert.deepEqual(kamailioAcceptancePackage.dependencies, {
+      tsx: '4.22.4',
+      ws: '8.21.0'
+    });
+    assert.equal(kamailioAcceptancePackage.scripts.accept, 'tsx runner.ts');
+    assert.equal(kamailioAcceptancePackage.scripts.webphone, 'tsx webphone-runner.ts');
+    assert.equal(files.includes('docs/design/kamailio-sip-edge-design.md'), true);
+    assert.equal(files.includes('docs/design/communication-foundation-production-completion.md'), true);
+    assert.equal(files.includes('docs/design/quic-video-transport-assessment.md'), true);
     assert.equal(files.includes('docs/ivekit-monitoring-runbook.md'), true);
     assert.equal(
       files.includes('docs/capacity/component-node-admission-protocol-v1.md'),

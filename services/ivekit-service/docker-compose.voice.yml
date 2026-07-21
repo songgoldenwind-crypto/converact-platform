@@ -38,8 +38,8 @@ services:
       RUSTPBX_CDR_WEBHOOK_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/cdrs
       RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
       RUSTPBX_SIP_PORT: "5060"
-      RUSTPBX_RTP_START_PORT: "20000"
-      RUSTPBX_RTP_END_PORT: "20100"
+      RUSTPBX_RTP_START_PORT: ${RUSTPBX_RTP_START_PORT:-20000}
+      RUSTPBX_RTP_END_PORT: ${RUSTPBX_RTP_END_PORT:-20099}
       RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS: ${RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS:-65536}
       RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS: ${RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS:-65536}
       RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY: ${RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY:-8192}
@@ -96,9 +96,9 @@ services:
       IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS: ${RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS:-250}
-      IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED: ${RUSTPBX_COMPONENT_NODE_ENABLED:-false}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED: "true"
       IVEKIT_RUSTPBX_COMPONENT_NODE_URL: http://127.0.0.1:3210
-      IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:-}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required and must match KAMAILIO_COMPONENT_NODE_TOKEN_FILE}
       IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS: ${RUSTPBX_COMPONENT_NODE_TIMEOUT_MS:-500}
       IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS: ${RUSTPBX_COMPONENT_NODE_REFRESH_MS:-3000}
       IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED: ${RUSTPBX_RECORDING_SPOOL_ENABLED:-true}
@@ -111,9 +111,7 @@ services:
       - "8080"
       - "3210"
     ports:
-      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/udp"
-      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/tcp"
-      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_RTP_START_PORT:-20000}-${RUSTPBX_RTP_END_PORT:-20100}:20000-20100/udp"
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_RTP_START_PORT:-20000}-${RUSTPBX_RTP_END_PORT:-20099}:${RUSTPBX_RTP_START_PORT:-20000}-${RUSTPBX_RTP_END_PORT:-20099}/udp"
     volumes:
       - rustpbx-runtime-config:/app/config:ro
       - rustpbx-generated-config:/app/generated
@@ -161,6 +159,9 @@ services:
       - rustpbx-recording-service-key
       - rustpbx-recording-lease-secret
     depends_on:
+      kamailio-route-agent:
+        condition: service_started
+        required: false
       rustpbx:
         condition: service_started
       ivekit:
@@ -170,15 +171,17 @@ services:
 
   rustpbx-component-node:
     image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
-    profiles: ["voice-capacity"]
-    command: ["node", "dist/ivekit-component-node-admission.js"]
+    profiles: ["voice", "voice-capacity"]
+    command:
+      - sh
+      - -ec
+      - export OPC_IVEKIT_COMPONENT_NODE_TOKEN="$$(cat /run/secrets/component-node-token)"; exec node dist/ivekit-component-node-admission.js
     init: true
     restart: unless-stopped
     network_mode: service:rustpbx
     environment:
       OPC_IVEKIT_COMPONENT_NODE_HOST: 0.0.0.0
       OPC_IVEKIT_COMPONENT_NODE_PORT: 3210
-      OPC_IVEKIT_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required}
       OPC_IVEKIT_COMPONENT_NODE_COMPONENT: rustpbx
       OPC_IVEKIT_COMPONENT_NODE_REGION_ID: ${RUSTPBX_COMPONENT_NODE_REGION_ID:?RUSTPBX_COMPONENT_NODE_REGION_ID is required}
       OPC_IVEKIT_COMPONENT_NODE_ZONE_ID: ${RUSTPBX_COMPONENT_NODE_ZONE_ID:?RUSTPBX_COMPONENT_NODE_ZONE_ID is required}
@@ -194,6 +197,8 @@ services:
       OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS: ${RUSTPBX_RECORDING_METRICS_STALE_MS:-5000}
     volumes:
       - rustpbx-recording-state:/app/recording-state:ro
+    secrets:
+      - component-node-token
     depends_on:
       rustpbx:
         condition: service_started
@@ -202,12 +207,194 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:3210/readyz').then(r=>{if(!r.ok)process.exit(1)})
+        - fetch('http://127.0.0.1:3210/livez').then(r=>{if(!r.ok)process.exit(1)})
       interval: 5s
       timeout: 2s
       retries: 20
     security_opt:
       - no-new-privileges:true
+
+  rustpbx-b-config-render:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice-capacity"]
+    command: ["node", "dist/ivekit-render-rustpbx-config.js"]
+    restart: "no"
+    environment:
+      RUSTPBX_CONFIG_OUTPUT: /app/config/rustpbx.toml
+      RUSTPBX_IMAGE: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+      RUSTPBX_DATABASE_URL: postgresql://rustpbx_app@postgres:5432/rustpbx
+      RUSTPBX_DB_PASSWORD: ${RUSTPBX_DB_PASSWORD:?RUSTPBX_DB_PASSWORD is required}
+      RUSTPBX_AMI_ALLOWS: ${RUSTPBX_AMI_ALLOWS:?RUSTPBX_AMI_ALLOWS is required}
+      RUSTPBX_MANAGEMENT_TOKEN: ${RUSTPBX_MANAGEMENT_TOKEN:?RUSTPBX_MANAGEMENT_TOKEN is required}
+      RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:?RUSTPBX_RWI_TOKEN is required}
+      RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      OPC_IVEKIT_WEBPHONE_ENABLED: "1"
+      OPC_IVEKIT_WEBPHONE_JWT_SECRET: ${OPC_IVEKIT_WEBPHONE_JWT_SECRET:?OPC_IVEKIT_WEBPHONE_JWT_SECRET is required}
+      OPC_IVEKIT_WEBPHONE_JWT_ISSUER: ${OPC_IVEKIT_WEBPHONE_JWT_ISSUER:-ivekit}
+      OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE: ${OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE:-rustpbx-webphone}
+      RUSTPBX_ROUTER_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
+      RUSTPBX_CDR_WEBHOOK_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/cdrs
+      RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
+      RUSTPBX_SIP_PORT: "5060"
+      RUSTPBX_RTP_START_PORT: ${RUSTPBX_RTP_START_PORT_B:-20100}
+      RUSTPBX_RTP_END_PORT: ${RUSTPBX_RTP_END_PORT_B:-20199}
+      RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS: ${RUSTPBX_SIP_MAX_ACTIVE_TRANSACTIONS:-65536}
+      RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS: ${RUSTPBX_SIP_MAX_FINISHED_TRANSACTIONS:-65536}
+      RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY: ${RUSTPBX_SIP_INCOMING_TRANSACTION_QUEUE_CAPACITY:-8192}
+      RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS: ${RUSTPBX_SIP_MAX_TRANSPORT_CONNECTIONS:-32768}
+      RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY: ${RUSTPBX_MEDIA_SESSION_CLEANUP_CONCURRENCY:-64}
+      RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS: ${RUSTPBX_MEDIA_SESSION_CLEANUP_TIMEOUT_MS:-2000}
+      RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY:-256}
+      RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: ${RUSTPBX_MEDIA_RECORDING_WORKER_THREADS:-4}
+      RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY:-4096}
+    volumes:
+      - rustpbx-b-runtime-config:/app/config
+    depends_on:
+      rustpbx-db-init:
+        condition: service_completed_successfully
+
+  rustpbx-b:
+    image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+    profiles: ["voice-capacity"]
+    command: ["--conf", "/app/config/rustpbx.toml"]
+    init: true
+    restart: unless-stopped
+    environment:
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY: ${RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY:?RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY is required}
+      IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY: ${OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY:?OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY is required}
+      IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS: ${RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS:-500}
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://ivekit:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/inbound-admission
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID_B:?RUSTPBX_OWNER_NODE_ID_B is required}
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS: ${RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS:-250}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED: "true"
+      IVEKIT_RUSTPBX_COMPONENT_NODE_URL: http://127.0.0.1:3210
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required and must match KAMAILIO_COMPONENT_NODE_TOKEN_FILE}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS: ${RUSTPBX_COMPONENT_NODE_TIMEOUT_MS:-500}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS: ${RUSTPBX_COMPONENT_NODE_REFRESH_MS:-3000}
+      IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED: ${RUSTPBX_RECORDING_SPOOL_ENABLED:-true}
+      IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR: /app/recording-spool
+      IVEKIT_RUSTPBX_RECORDING_SEGMENT_SECONDS: ${RUSTPBX_RECORDING_SEGMENT_SECONDS:-60}
+      IVEKIT_RUSTPBX_RECORDING_SEGMENT_MAX_BYTES: ${RUSTPBX_RECORDING_SEGMENT_MAX_BYTES:-67108864}
+      IVEKIT_REGION_ID: ${RUSTPBX_REGION_ID:?RUSTPBX_REGION_ID is required}
+      IVEKIT_ZONE_ID: ${RUSTPBX_ZONE_ID:?RUSTPBX_ZONE_ID is required}
+    expose:
+      - "8080"
+      - "3210"
+    ports:
+      - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_RTP_START_PORT_B:-20100}-${RUSTPBX_RTP_END_PORT_B:-20199}:${RUSTPBX_RTP_START_PORT_B:-20100}-${RUSTPBX_RTP_END_PORT_B:-20199}/udp"
+    volumes:
+      - rustpbx-b-runtime-config:/app/config:ro
+      - rustpbx-b-generated-config:/app/generated
+      - rustpbx-route-snapshot:/app/route-snapshot:ro
+      - rustpbx-b-storage:/app/storage
+      - rustpbx-b-recording-spool:/app/recording-spool
+    depends_on:
+      rustpbx-db-init:
+        condition: service_completed_successfully
+      rustpbx-b-config-render:
+        condition: service_completed_successfully
+      rustpbx-route-snapshot:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "/app/rustpbx", "--version"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+
+  rustpbx-b-recording-spool:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice-capacity"]
+    command: ["node", "dist/ivekit-rustpbx-recording-spool.js"]
+    init: true
+    restart: unless-stopped
+    environment:
+      OPC_IVEKIT_RECORDING_BASE_URL: http://ivekit:3000
+      OPC_IVEKIT_RECORDING_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      OPC_IVEKIT_RECORDING_WORKER_ID: ${RUSTPBX_RECORDING_WORKER_ID_B:-rustpbx-b-recording-sidecar}
+      OPC_IVEKIT_RECORDING_SPOOL_DIR: /app/recording-spool
+      OPC_IVEKIT_RECORDING_STATE_DIR: /app/recording-state
+      OPC_IVEKIT_RECORDING_SERVICE_KEY_FILE: /run/secrets/rustpbx-recording-service-key
+      OPC_IVEKIT_RECORDING_LEASE_SECRET_FILE: /run/secrets/rustpbx-recording-lease-secret
+      OPC_IVEKIT_RECORDING_PART_SIZE_BYTES: ${RUSTPBX_RECORDING_PART_SIZE_BYTES:-8388608}
+      OPC_IVEKIT_RECORDING_LEASE_MS: ${RUSTPBX_RECORDING_LEASE_MS:-300000}
+      OPC_IVEKIT_RECORDING_UPLOAD_CONCURRENCY: ${RUSTPBX_RECORDING_UPLOAD_CONCURRENCY:-4}
+      OPC_IVEKIT_RECORDING_POLL_INTERVAL_MS: ${RUSTPBX_RECORDING_POLL_INTERVAL_MS:-1000}
+    volumes:
+      - rustpbx-b-recording-spool:/app/recording-spool
+      - rustpbx-b-recording-state:/app/recording-state
+    secrets:
+      - rustpbx-recording-service-key
+      - rustpbx-recording-lease-secret
+    depends_on:
+      rustpbx-b:
+        condition: service_started
+      ivekit:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+
+  rustpbx-b-component-node:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice-capacity"]
+    command:
+      - sh
+      - -ec
+      - export OPC_IVEKIT_COMPONENT_NODE_TOKEN="$$(cat /run/secrets/component-node-token)"; exec node dist/ivekit-component-node-admission.js
+    init: true
+    restart: unless-stopped
+    network_mode: service:rustpbx-b
+    environment:
+      OPC_IVEKIT_COMPONENT_NODE_HOST: 0.0.0.0
+      OPC_IVEKIT_COMPONENT_NODE_PORT: 3210
+      OPC_IVEKIT_COMPONENT_NODE_COMPONENT: rustpbx
+      OPC_IVEKIT_COMPONENT_NODE_REGION_ID: ${RUSTPBX_COMPONENT_NODE_REGION_ID:?RUSTPBX_COMPONENT_NODE_REGION_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_ZONE_ID: ${RUSTPBX_COMPONENT_NODE_ZONE_ID:?RUSTPBX_COMPONENT_NODE_ZONE_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_ID: ${RUSTPBX_OWNER_NODE_ID_B:?RUSTPBX_OWNER_NODE_ID_B is required}
+      OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS: ${RUSTPBX_COMPONENT_NODE_PROFILE_IDS:?RUSTPBX_COMPONENT_NODE_PROFILE_IDS is required}
+      OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: sip_voice
+      OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON: ${RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON:?RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON is required}
+      OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS: ${RUSTPBX_COMPONENT_NODE_TERMINAL_RETENTION_MS:-300000}
+      OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS: ${RUSTPBX_COMPONENT_NODE_SWEEP_INTERVAL_MS:-1000}
+      OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: /app/recording-state/metrics.json
+      OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_REFRESH_MS: ${RUSTPBX_RECORDING_METRICS_REFRESH_MS:-1000}
+      OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS: ${RUSTPBX_RECORDING_METRICS_STALE_MS:-5000}
+    volumes:
+      - rustpbx-b-recording-state:/app/recording-state:ro
+    secrets:
+      - component-node-token
+    depends_on:
+      rustpbx-b:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3210/livez').then(r=>{if(!r.ok)process.exit(1)})
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+
+  rustpbx-b-runtime-recovery:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice-capacity"]
+    command: ["node", "dist/ivekit-rustpbx-recovery.js"]
+    restart: "no"
+    network_mode: service:rustpbx-b
+    depends_on:
+      rustpbx-b:
+        condition: service_healthy
 
   rustpbx-runtime-recovery:
     image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
@@ -218,6 +405,184 @@ services:
     depends_on:
       rustpbx:
         condition: service_healthy
+
+  kamailio-compose-config-render:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice", "voice-capacity"]
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - node dist/ivekit-kamailio-compose-config.js; chown 1000:1000 /etc/ivekit-kamailio/*.json; chmod 0440 /etc/ivekit-kamailio/*.json
+    restart: "no"
+    environment:
+      OPC_IVEKIT_KAMAILIO_REGION_ID: ${RUSTPBX_REGION_ID:?RUSTPBX_REGION_ID is required}
+      OPC_IVEKIT_KAMAILIO_ZONE_ID: ${RUSTPBX_ZONE_ID:?RUSTPBX_ZONE_ID is required}
+      OPC_IVEKIT_KAMAILIO_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH: ${OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH:?OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH is required}
+      OPC_IVEKIT_KAMAILIO_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      OPC_IVEKIT_KAMAILIO_ADVERTISE_SIP_HOST: ${OPC_IVEKIT_KAMAILIO_ADVERTISE_SIP_HOST:?OPC_IVEKIT_KAMAILIO_ADVERTISE_SIP_HOST is required}
+      OPC_IVEKIT_KAMAILIO_ADVERTISE_WSS_HOST: ${OPC_IVEKIT_KAMAILIO_ADVERTISE_WSS_HOST:?OPC_IVEKIT_KAMAILIO_ADVERTISE_WSS_HOST is required}
+      OPC_IVEKIT_KAMAILIO_TRUSTED_SOURCE_CIDRS: ${OPC_IVEKIT_KAMAILIO_TRUSTED_SOURCE_CIDRS:?OPC_IVEKIT_KAMAILIO_TRUSTED_SOURCE_CIDRS is required}
+      OPC_IVEKIT_KAMAILIO_RUSTPBX_SOURCE_CIDRS: ${OPC_IVEKIT_KAMAILIO_RUSTPBX_SOURCE_CIDRS:?OPC_IVEKIT_KAMAILIO_RUSTPBX_SOURCE_CIDRS is required}
+      OPC_IVEKIT_KAMAILIO_DMQ_SOURCE_CIDRS: ${OPC_IVEKIT_KAMAILIO_DMQ_SOURCE_CIDRS:-127.0.0.1/32}
+      OPC_IVEKIT_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS: ${OPC_IVEKIT_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS:?OPC_IVEKIT_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS is required}
+      OPC_IVEKIT_WEBPHONE_JWT_ISSUER: ${OPC_IVEKIT_WEBPHONE_JWT_ISSUER:-ivekit}
+      OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE: ${OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE:-rustpbx-webphone}
+      OPC_IVEKIT_KAMAILIO_ALLOW_PUBLIC_WSS: ${OPC_IVEKIT_KAMAILIO_ALLOW_PUBLIC_WSS:-true}
+      OPC_IVEKIT_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE: ${OPC_IVEKIT_KAMAILIO_REQUIRE_CLIENT_CERTIFICATE:-false}
+      OPC_IVEKIT_KAMAILIO_SIP_PORT: ${OPC_IVEKIT_KAMAILIO_SIP_PORT:-5060}
+      OPC_IVEKIT_KAMAILIO_TLS_PORT: ${OPC_IVEKIT_KAMAILIO_TLS_PORT:-5061}
+      OPC_IVEKIT_KAMAILIO_WSS_PORT: ${OPC_IVEKIT_KAMAILIO_WSS_PORT:-7443}
+      OPC_IVEKIT_KAMAILIO_RPC_PORT: ${OPC_IVEKIT_KAMAILIO_RPC_PORT:-5065}
+      OPC_IVEKIT_KAMAILIO_PER_SOURCE_INVITE_CPS: ${OPC_IVEKIT_KAMAILIO_PER_SOURCE_INVITE_CPS:-20}
+      OPC_IVEKIT_KAMAILIO_CELL_INVITE_CPS: ${OPC_IVEKIT_KAMAILIO_CELL_INVITE_CPS:-500}
+      OPC_IVEKIT_KAMAILIO_MAX_FAILOVERS: ${OPC_IVEKIT_KAMAILIO_MAX_FAILOVERS:-2}
+      RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
+      RUSTPBX_OWNER_NODE_ID_B: ${RUSTPBX_OWNER_NODE_ID_B:?RUSTPBX_OWNER_NODE_ID_B is required}
+    volumes:
+      - kamailio-runtime-config:/etc/ivekit-kamailio
+    security_opt:
+      - no-new-privileges:true
+
+  kamailio-config-render:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice", "voice-capacity"]
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - node dist/ivekit-render-kamailio-config.js; chown 10001:10001 /etc/kamailio/*.cfg; chmod 0440 /etc/kamailio/*.cfg
+    restart: "no"
+    environment:
+      OPC_IVEKIT_KAMAILIO_CONFIG_FILE: /etc/ivekit-kamailio/kamailio-runtime.json
+      OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE: /run/secrets/kamailio-topoh-key
+      OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: /run/secrets/kamailio-jsonrpc-token
+      OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: /run/secrets/kamailio-webphone-jwt-secret
+      OPC_IVEKIT_KAMAILIO_OUTPUT_FILE: /etc/kamailio/kamailio.cfg
+      OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE: /etc/kamailio/tls.cfg
+    volumes:
+      - kamailio-runtime-config:/etc/ivekit-kamailio:ro
+      - kamailio-generated-config:/etc/kamailio
+    secrets:
+      - kamailio-topoh-key
+      - kamailio-jsonrpc-token
+      - kamailio-webphone-jwt-secret
+    depends_on:
+      kamailio-compose-config-render:
+        condition: service_completed_successfully
+    security_opt:
+      - no-new-privileges:true
+
+  kamailio-state-init:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice", "voice-capacity"]
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - install -d -o 1000 -g 10001 -m 0770 /var/lib/kamailio /var/run/kamailio; printf '# waiting for a signed route snapshot\n' > /var/lib/kamailio/dispatcher.list; chown -R 1000:10001 /var/lib/kamailio /var/run/kamailio; chmod 0640 /var/lib/kamailio/dispatcher.list
+    restart: "no"
+    volumes:
+      - kamailio-route-state:/var/lib/kamailio
+      - kamailio-run:/var/run/kamailio
+    security_opt:
+      - no-new-privileges:true
+
+  kamailio:
+    image: ${IVEKIT_KAMAILIO_IMAGE:?IVEKIT_KAMAILIO_IMAGE immutable digest reference is required}
+    profiles: ["voice", "voice-capacity"]
+    command: ["-DD", "-E", "-f", "/etc/kamailio/kamailio.cfg"]
+    init: true
+    restart: unless-stopped
+    ports:
+      - "${KAMAILIO_BIND_ADDRESS:-0.0.0.0}:${OPC_IVEKIT_KAMAILIO_SIP_PORT:-5060}:${OPC_IVEKIT_KAMAILIO_SIP_PORT:-5060}/udp"
+      - "${KAMAILIO_BIND_ADDRESS:-0.0.0.0}:${OPC_IVEKIT_KAMAILIO_SIP_PORT:-5060}:${OPC_IVEKIT_KAMAILIO_SIP_PORT:-5060}/tcp"
+      - "${KAMAILIO_BIND_ADDRESS:-0.0.0.0}:${OPC_IVEKIT_KAMAILIO_TLS_PORT:-5061}:${OPC_IVEKIT_KAMAILIO_TLS_PORT:-5061}/tcp"
+      - "${KAMAILIO_BIND_ADDRESS:-0.0.0.0}:${OPC_IVEKIT_KAMAILIO_WSS_PORT:-7443}:${OPC_IVEKIT_KAMAILIO_WSS_PORT:-7443}/tcp"
+      - "127.0.0.1:${OPC_IVEKIT_KAMAILIO_METRICS_PORT:-3220}:3220/tcp"
+    volumes:
+      - kamailio-generated-config:/etc/kamailio:ro
+      - kamailio-route-state:/var/lib/kamailio:ro
+      - kamailio-run:/var/run/kamailio
+    secrets:
+      - kamailio-tls-key
+      - kamailio-tls-cert
+      - kamailio-tls-ca
+      - kamailio-webphone-jwt-secret
+    depends_on:
+      kamailio-config-render:
+        condition: service_completed_successfully
+      kamailio-state-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/opt/kamailio/sbin/kamailio", "-c", "-f", "/etc/kamailio/kamailio.cfg"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+
+  kamailio-route-agent:
+    image: ${IVEKIT_SERVICE_IMAGE:-ivekit-service:local}
+    profiles: ["voice", "voice-capacity"]
+    command: ["node", "dist/ivekit-kamailio-route-agent.js"]
+    init: true
+    user: "1000:10001"
+    restart: unless-stopped
+    network_mode: service:kamailio
+    environment:
+      OPC_IVEKIT_KAMAILIO_HOST: 0.0.0.0
+      OPC_IVEKIT_KAMAILIO_PORT: 3220
+      OPC_IVEKIT_KAMAILIO_REGION_ID: ${RUSTPBX_REGION_ID:?RUSTPBX_REGION_ID is required}
+      OPC_IVEKIT_KAMAILIO_ZONE_ID: ${RUSTPBX_ZONE_ID:?RUSTPBX_ZONE_ID is required}
+      OPC_IVEKIT_KAMAILIO_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH: ${OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH:?OPC_IVEKIT_KAMAILIO_CELL_LEASE_EPOCH is required}
+      OPC_IVEKIT_KAMAILIO_EDGE_REPLICA_COUNT: "1"
+      OPC_IVEKIT_KAMAILIO_TOPOLOGY_FILE: /etc/ivekit-kamailio/kamailio-topology.json
+      OPC_IVEKIT_KAMAILIO_CURRENT_KEY_ID: ${OPC_IVEKIT_KAMAILIO_CURRENT_KEY_ID:-kamailio-route-key-1}
+      OPC_IVEKIT_KAMAILIO_CURRENT_KEY_FILE: /run/secrets/kamailio-route-key-current
+      OPC_IVEKIT_KAMAILIO_SNAPSHOT_PATH: /var/lib/kamailio/routes.snapshot
+      OPC_IVEKIT_KAMAILIO_DISPATCHER_PATH: /var/lib/kamailio/dispatcher.list
+      OPC_IVEKIT_KAMAILIO_SNAPSHOT_TTL_MS: ${OPC_IVEKIT_KAMAILIO_SNAPSHOT_TTL_MS:-10000}
+      OPC_IVEKIT_KAMAILIO_POLL_INTERVAL_MS: ${OPC_IVEKIT_KAMAILIO_POLL_INTERVAL_MS:-1000}
+      OPC_IVEKIT_KAMAILIO_MAX_PARALLEL_POLLS: ${OPC_IVEKIT_KAMAILIO_MAX_PARALLEL_POLLS:-16}
+      OPC_IVEKIT_KAMAILIO_DEGRADED_WEIGHT_FACTOR: ${OPC_IVEKIT_KAMAILIO_DEGRADED_WEIGHT_FACTOR:-0.5}
+      OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT: http://127.0.0.1:${OPC_IVEKIT_KAMAILIO_RPC_PORT:-5065}/RPC
+      OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: /run/secrets/kamailio-jsonrpc-token
+      OPC_IVEKIT_KAMAILIO_RPC_MAX_ATTEMPTS: ${OPC_IVEKIT_KAMAILIO_RPC_MAX_ATTEMPTS:-3}
+      OPC_IVEKIT_KAMAILIO_RPC_RETRY_DELAY_MS: ${OPC_IVEKIT_KAMAILIO_RPC_RETRY_DELAY_MS:-100}
+      OPC_IVEKIT_KAMAILIO_RPC_TIMEOUT_MS: ${OPC_IVEKIT_KAMAILIO_RPC_TIMEOUT_MS:-1000}
+    volumes:
+      - kamailio-runtime-config:/etc/ivekit-kamailio:ro
+      - kamailio-route-state:/var/lib/kamailio
+    secrets:
+      - kamailio-route-key-current
+      - kamailio-jsonrpc-token
+      - component-node-token
+    depends_on:
+      kamailio:
+        condition: service_healthy
+      rustpbx-component-node:
+        condition: service_started
+      rustpbx-b-component-node:
+        condition: service_started
+        required: false
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3220/readyz').then(r=>{if(!r.ok)process.exit(1)})
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
 
   ivekit:
     env_file:
@@ -256,13 +621,38 @@ services:
 volumes:
   rustpbx-runtime-config:
   rustpbx-generated-config:
+  rustpbx-b-runtime-config:
+  rustpbx-b-generated-config:
   rustpbx-route-snapshot:
   rustpbx-storage:
+  rustpbx-b-storage:
   rustpbx-recording-spool:
   rustpbx-recording-state:
+  rustpbx-b-recording-spool:
+  rustpbx-b-recording-state:
+  kamailio-runtime-config:
+  kamailio-generated-config:
+  kamailio-route-state:
+  kamailio-run:
 
 secrets:
   rustpbx-recording-service-key:
     file: ${RUSTPBX_RECORDING_SERVICE_KEY_FILE:?RUSTPBX_RECORDING_SERVICE_KEY_FILE is required}
   rustpbx-recording-lease-secret:
     file: ${RUSTPBX_RECORDING_LEASE_SECRET_FILE:?RUSTPBX_RECORDING_LEASE_SECRET_FILE is required}
+  component-node-token:
+    file: ${KAMAILIO_COMPONENT_NODE_TOKEN_FILE:?KAMAILIO_COMPONENT_NODE_TOKEN_FILE is required}
+  kamailio-topoh-key:
+    file: ${KAMAILIO_TOPOH_KEY_FILE:?KAMAILIO_TOPOH_KEY_FILE is required}
+  kamailio-jsonrpc-token:
+    file: ${KAMAILIO_JSONRPC_TOKEN_FILE:?KAMAILIO_JSONRPC_TOKEN_FILE is required}
+  kamailio-route-key-current:
+    file: ${KAMAILIO_ROUTE_KEY_CURRENT_FILE:?KAMAILIO_ROUTE_KEY_CURRENT_FILE is required}
+  kamailio-webphone-jwt-secret:
+    file: ${KAMAILIO_WEBPHONE_JWT_SECRET_FILE:?KAMAILIO_WEBPHONE_JWT_SECRET_FILE is required}
+  kamailio-tls-key:
+    file: ${KAMAILIO_TLS_KEY_FILE:?KAMAILIO_TLS_KEY_FILE is required}
+  kamailio-tls-cert:
+    file: ${KAMAILIO_TLS_CERT_FILE:?KAMAILIO_TLS_CERT_FILE is required}
+  kamailio-tls-ca:
+    file: ${KAMAILIO_TLS_CA_FILE:?KAMAILIO_TLS_CA_FILE is required}

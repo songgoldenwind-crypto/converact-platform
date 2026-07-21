@@ -232,6 +232,10 @@ function renderConfig(input: RustPbxRenderInput): string {
     `media_recording_worker_threads = ${input.media_recording_worker_threads}`,
     `media_recording_worker_queue_capacity = ${input.media_recording_worker_queue_capacity}`,
     '',
+    '[proxy.locator]',
+    'type = "database"',
+    `url = ${tomlString(input.database_url)}`,
+    '',
     ...(input.webphone ? [
       '[proxy.jwt_auth]',
       'enabled = true',
@@ -239,6 +243,7 @@ function renderConfig(input: RustPbxRenderInput): string {
       'user_id_claim = "sub"',
       `issuer = ${tomlString(input.webphone.jwt_issuer)}`,
       `audience = ${tomlString(input.webphone.jwt_audience)}`,
+      'sip_header_name = "X-Auth-Token"',
       'check_local_user = true',
       'ws_token_param = "token"',
       'dev_mint_enabled = false',

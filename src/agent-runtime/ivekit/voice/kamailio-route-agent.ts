@@ -17,6 +17,7 @@ import {
 } from './kamailio-route-snapshot.js';
 
 const POLL_FAILURE_THRESHOLD = 3;
+const MAXIMUM_CORE_METRICS_BYTES = 1_048_576;
 const METRIC_STATES = ['accepting', 'degraded', 'draining', 'offline'] as const;
 const REJECTION_REASONS = [
   'poll_unavailable',
@@ -190,6 +191,8 @@ export class KamailioRouteAgent {
       `ivekit_kamailio_snapshot_age_seconds ${status.snapshot_age_seconds}`,
       '# TYPE ivekit_kamailio_snapshot_sequence gauge',
       `ivekit_kamailio_snapshot_sequence ${status.sequence}`,
+      '# TYPE ivekit_kamailio_new_call_nodes gauge',
+      `ivekit_kamailio_new_call_nodes ${status.new_call_nodes}`,
       '# TYPE ivekit_kamailio_route_nodes gauge'
     ];
     for (const state of METRIC_STATES) {
@@ -523,9 +526,47 @@ export class HttpKamailioJsonRpcClient implements KamailioDispatcherReloadPort {
   }
 }
 
+export class HttpKamailioCoreMetricsClient {
+  readonly #endpoint: URL;
+  readonly #timeoutMs: number;
+  readonly #fetch: typeof fetch;
+
+  constructor(input: {
+    endpoint: string;
+    timeout_ms?: number;
+    fetch?: typeof fetch;
+  }) {
+    this.#endpoint = checkedLoopbackMetricsEndpoint(input.endpoint);
+    this.#timeoutMs = boundedInteger(
+      input.timeout_ms ?? 1_000,
+      100,
+      5_000,
+      'Kamailio core metrics timeout'
+    );
+    this.#fetch = input.fetch || globalThis.fetch;
+  }
+
+  async read(): Promise<string> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
+    try {
+      const response = await this.#fetch(this.#endpoint, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: { accept: 'text/plain' }
+      });
+      if (!response.ok) throw new Error(`Kamailio core metrics returned HTTP ${response.status}`);
+      return boundedCoreMetricsResponse(response);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
 export function createKamailioRouteAgentHttpServer(input: {
   agent: KamailioRouteAgent;
   now?: () => Date;
+  read_core_metrics?: () => Promise<string>;
 }): Server {
   const now = input.now || (() => new Date());
   return createServer((request, response) => {
@@ -545,13 +586,11 @@ export function createKamailioRouteAgentHttpServer(input: {
       });
     }
     if (request.method === 'GET' && url.pathname === '/metrics') {
-      const body = input.agent.prometheusMetrics(now());
-      response.writeHead(200, {
-        'content-type': 'text/plain; version=0.0.4; charset=utf-8',
-        'content-length': Buffer.byteLength(body),
-        'cache-control': 'no-store'
+      void sendRouteAgentMetrics({
+        response,
+        own_metrics: input.agent.prometheusMetrics(now()),
+        read_core_metrics: input.read_core_metrics
       });
-      response.end(body);
       return;
     }
     return sendJson(response, 404, { error: { code: 'not_found' } });
@@ -772,6 +811,11 @@ export async function startKamailioRouteAgent(
   const now = dependencies.now || (() => new Date());
   const log = dependencies.log || ((message: string) => console.log(message));
   const agent = createKamailioRouteAgentFromConfig(config, dependencies);
+  const coreMetrics = new HttpKamailioCoreMetricsClient({
+    endpoint: metricsEndpointFromRpc(config.rpc.endpoint),
+    timeout_ms: config.rpc.timeout_ms,
+    fetch: dependencies.fetch
+  });
   try {
     const existing = await readFile(config.snapshot_path, 'utf8');
     const restored = agent.restore(existing, now());
@@ -781,7 +825,11 @@ export async function startKamailioRouteAgent(
       log('[ivekit-kamailio-route-agent] existing snapshot rejected; rebuilding from component state');
     }
   }
-  const server = createKamailioRouteAgentHttpServer({ agent, now });
+  const server = createKamailioRouteAgentHttpServer({
+    agent,
+    now,
+    read_core_metrics: () => coreMetrics.read()
+  });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
     server.listen(config.port, config.host, resolve);
@@ -971,6 +1019,23 @@ function checkedLoopbackRpcEndpoint(value: string): URL {
   return url;
 }
 
+function checkedLoopbackMetricsEndpoint(value: string): URL {
+  const url = checkedHttpEndpoint(value, 'core metrics endpoint');
+  if (!['127.0.0.1', '[::1]', '::1', 'localhost'].includes(url.hostname) ||
+      url.username || url.password || url.search || url.hash || url.pathname !== '/metrics') {
+    throw new Error('Kamailio core metrics endpoint must use loopback /metrics without credentials');
+  }
+  return url;
+}
+
+function metricsEndpointFromRpc(value: string): string {
+  const url = checkedLoopbackRpcEndpoint(value);
+  url.pathname = '/metrics';
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
 function checkedHttpEndpoint(value: string, label: string): URL {
   const url = new URL(value);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
@@ -1055,6 +1120,71 @@ function boundedInteger(value: number, minimum: number, maximum: number, label: 
 function validDate(value: Date): Date {
   if (!(value instanceof Date) || !Number.isFinite(value.getTime())) throw new Error('Kamailio route time is invalid');
   return value;
+}
+
+async function boundedCoreMetricsResponse(response: Response): Promise<string> {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > MAXIMUM_CORE_METRICS_BYTES) {
+    throw new Error('Kamailio core metrics response is too large');
+  }
+  if (!response.body) throw new Error('Kamailio core metrics response is empty');
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > MAXIMUM_CORE_METRICS_BYTES) {
+        await reader.cancel();
+        throw new Error('Kamailio core metrics response is too large');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (length === 0) throw new Error('Kamailio core metrics response is empty');
+  const body = Buffer.concat(chunks, length).toString('utf8');
+  if (body.includes('\0')) throw new Error('Kamailio core metrics response is invalid');
+  return body.endsWith('\n') ? body : `${body}\n`;
+}
+
+async function sendRouteAgentMetrics(input: {
+  response: import('node:http').ServerResponse;
+  own_metrics: string;
+  read_core_metrics?: () => Promise<string>;
+}): Promise<void> {
+  let coreMetrics = '';
+  let coreMetricsUp = 0;
+  if (input.read_core_metrics) {
+    try {
+      coreMetrics = checkedCoreMetricsText(await input.read_core_metrics());
+      coreMetricsUp = 1;
+    } catch {
+      coreMetrics = '';
+    }
+  }
+  const body = `${input.own_metrics}` +
+    '# HELP ivekit_kamailio_core_metrics_up Whether Kamailio core metrics were read.\n' +
+    '# TYPE ivekit_kamailio_core_metrics_up gauge\n' +
+    `ivekit_kamailio_core_metrics_up ${coreMetricsUp}\n` +
+    coreMetrics;
+  input.response.writeHead(200, {
+    'content-type': 'text/plain; version=0.0.4; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    'cache-control': 'no-store'
+  });
+  input.response.end(body);
+}
+
+function checkedCoreMetricsText(value: string): string {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0') ||
+      Buffer.byteLength(value) > MAXIMUM_CORE_METRICS_BYTES) {
+    throw new Error('Kamailio core metrics response is empty, invalid or too large');
+  }
+  return value.endsWith('\n') ? value : `${value}\n`;
 }
 
 function sendJson(

@@ -362,6 +362,9 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'templates/deployment.yaml',
     'templates/hpa.yaml',
     'templates/clamav.yaml',
+    'templates/kamailio-config.yaml',
+    'templates/kamailio-deployment.yaml',
+    'templates/kamailio-network-policy.yaml',
     'templates/migrate-job.yaml',
     'templates/pdb.yaml',
     'templates/prometheus-rule.yaml',
@@ -392,6 +395,27 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     source: 'scripts/livekit-storage-isolation-acceptance.ts',
     destination: 'acceptance/livekit-storage-isolation/runner.ts'
   },
+  {
+    source: 'scripts/ivekit-kamailio-acceptance.ts',
+    destination: 'acceptance/kamailio-sip-edge/runner.ts'
+  },
+  {
+    source: 'src/agent-runtime/ivekit/voice/kamailio-webphone-acceptance.ts',
+    destination: 'acceptance/kamailio-sip-edge/webphone-runner.ts'
+  },
+  ...[
+    'README.md',
+    'package.json',
+    'package-lock.json',
+    'scenarios/invite-bye-affinity-uac.xml',
+    'scenarios/expect-503-uac.xml',
+    'scenarios/expect-486-uac.xml',
+    'scenarios/forged-headers-uac.xml',
+    'scenarios/kdmq-expect-403-uac.xml'
+  ].map((name) => ({
+    source: `services/ivekit-service/acceptance/kamailio-sip-edge/${name}`,
+    destination: `acceptance/kamailio-sip-edge/${name}`
+  })),
   ...['README.md', 'package.json', 'package-lock.json'].map((name) => ({
     source: `services/ivekit-service/acceptance/livekit-storage-isolation/${name}`,
     destination: `acceptance/livekit-storage-isolation/${name}`
@@ -428,6 +452,15 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'livekit-im-full-capability-plan.md',
     'rustdesk-client-version-matrix.md'
   ].map((name) => ({ source: `docs/${name}`, destination: `docs/${name}` })),
+  ...[
+    'kamailio-sip-edge-design.md',
+    'kamailio-sip-edge-implementation-plan.md',
+    'communication-foundation-production-completion.md',
+    'quic-video-transport-assessment.md'
+  ].map((name) => ({
+    source: `docs/design/${name}`,
+    destination: `docs/design/${name}`
+  })),
   ...[
     'README.md',
     'campaign-finalization-runbook.md',
@@ -533,6 +566,15 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'build.sh'
   ].map((name) => ({ source: `infra/ivekit/rustpbx/${name}`, destination: `deploy/rustpbx/${name}` })),
   ...[
+    'README.md',
+    'Dockerfile',
+    'build.sh'
+  ].map((name) => ({ source: `infra/ivekit/kamailio/${name}`, destination: `deploy/kamailio/${name}` })),
+  {
+    source: 'infra/ivekit/kamailio/patches/0001-dispatcher-retain-probe-state.patch',
+    destination: 'deploy/kamailio/patches/0001-dispatcher-retain-probe-state.patch'
+  },
+  ...[
     'rsipstack-tcp-reconnect.patch',
     'rsipstack-ivekit-capacity.patch',
     'rsipstack-ivekit-retransmission-atomicity.patch',
@@ -546,7 +588,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-sip-capacity.patch',
     'rustpbx-ivekit-media-hot-path.patch',
     'rustpbx-ivekit-session-cleanup-isolation.patch',
-    'rustpbx-ivekit-webphone-registry.patch'
+    'rustpbx-ivekit-webphone-registry.patch',
+    'rustpbx-ivekit-webphone-edge-auth.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE scenario SYSTEM "sipp.dtd">
+<scenario name="iveKit Kamailio business 486 UAC">
+  <send retrans="500">
+    <![CDATA[
+      INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+      From: ivekit-acceptance <sip:acceptance@[local_ip]>;tag=[call_number]
+      To: sut <sip:[service]@[remote_ip]>
+      Call-ID: [call_id]
+      CSeq: 1 INVITE
+      Contact: <sip:acceptance@[local_ip]:[local_port]>
+      Max-Forwards: 16
+      Content-Length: 0
+    ]]>
+  </send>
+  <recv response="100" optional="true" />
+  <recv response="486" />
+  <ResponseTimeRepartition value="10,20,50,100,150,200,500,1000" />
+</scenario>

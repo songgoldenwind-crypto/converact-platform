@@ -16,6 +16,12 @@ test('stage 2 deployment gate renders Compose and Helm with immutable images', (
   assert.match(script, /docker compose[\s\S]*config --quiet/);
   assert.match(script, /helm lint/);
   assert.match(script, /helm template/);
+  assert.match(script, /test\/fixtures\/ivekit-kamailio-values\.yaml/);
+  assert.match(script, /app\.kubernetes\.io\/component: kamailio/);
+  assert.match(script, /kind: StatefulSet/);
+  assert.match(script, /rustpbx-headless/);
+  assert.match(script, /kamailio-topology\.json/);
+  assert.match(script, /registry\.example\.com\/ivekit\/kamailio@sha256:c{64}/);
   assert.match(script, /image\.digest=sha256:/);
   assert.match(script, /opc:\n[\s\S]*?digest: sha256:d{64}/);
   assert.match(script, /aiAgent:\n[\s\S]*?digest: sha256:e{64}/);

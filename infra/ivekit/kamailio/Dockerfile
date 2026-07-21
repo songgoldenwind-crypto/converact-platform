@@ -14,14 +14,18 @@ RUN apt-get update \
       flex \
       libcurl4-openssl-dev \
       libevent-dev \
+      libjansson-dev \
+      libjwt-dev \
       libpcre2-dev \
       libssl-dev \
       libunistring-dev \
       libxml2-dev \
+      patch \
       pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src
+COPY patches/0001-dispatcher-retain-probe-state.patch /tmp/0001-dispatcher-retain-probe-state.patch
 RUN curl -fsSLo kamailio.tar.gz \
       "https://github.com/kamailio/kamailio/archive/refs/tags/${KAMAILIO_VERSION}.tar.gz" \
     && echo "${KAMAILIO_SOURCE_SHA256}  kamailio.tar.gz" | sha256sum -c - \
@@ -29,7 +33,8 @@ RUN curl -fsSLo kamailio.tar.gz \
     && rm kamailio.tar.gz
 
 WORKDIR /usr/src/kamailio-${KAMAILIO_VERSION}
-RUN make cfg prefix=/opt/kamailio group_include="standard" include_modules="dispatcher dialog htable tls websocket xhttp_prom" \
+RUN patch -p1 < /tmp/0001-dispatcher-retain-probe-state.patch \
+    && make cfg prefix=/opt/kamailio group_include="standard" include_modules="dispatcher dialog dmq dmq_usrloc htable jansson jwt path registrar tls usrloc websocket xhttp_prom" \
     && make -j"$(nproc)" all \
     && make install
 
@@ -46,6 +51,8 @@ RUN apt-get update \
       ca-certificates \
       libcurl4 \
       libevent-2.1-7 \
+      libjansson4 \
+      libjwt0 \
       libpcre2-8-0 \
       libssl3 \
       libunistring2 \

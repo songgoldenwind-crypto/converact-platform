@@ -1,0 +1,144 @@
+{{- if and .Values.voice.enabled .Values.voice.kamailio.enabled }}
+{{- $kamailio := .Values.voice.kamailio -}}
+{{- $replicas := int $kamailio.replicaCount -}}
+{{- $rustpbxReplicas := int .Values.voice.replicaCount -}}
+{{- $regionId := required "voice.regionId is required when Kamailio is enabled" .Values.voice.regionId -}}
+{{- $zoneId := required "voice.zoneId is required when Kamailio is enabled" .Values.voice.zoneId -}}
+{{- $cellId := required "voice.cellId is required when Kamailio is enabled" .Values.voice.cellId -}}
+{{- $profileId := required "voice.profileId is required when Kamailio is enabled" .Values.voice.profileId -}}
+{{- $_ := required "voice.kamailio.advertise.sipHost is required" $kamailio.advertise.sipHost -}}
+{{- $_ := required "voice.kamailio.advertise.wssHost is required" $kamailio.advertise.wssHost -}}
+{{- if not .Values.voice.webphone.enabled -}}
+{{- fail "voice.webphone.enabled must be true when Kamailio WSS edge is enabled" -}}
+{{- end -}}
+{{- if empty .Values.voice.webphone.allowedOrigins -}}
+{{- fail "voice.webphone.allowedOrigins must contain at least one exact HTTPS origin" -}}
+{{- end -}}
+{{- if empty $kamailio.rustpbxSourceCidrs -}}
+{{- fail "voice.kamailio.rustpbxSourceCidrs must contain the Cell RustPBX source CIDRs" -}}
+{{- end -}}
+{{- if and $kamailio.dmq.enabled (empty $kamailio.dmqSourceCidrs) -}}
+{{- fail "voice.kamailio.dmqSourceCidrs must contain the Cell Pod CIDRs when DMQ is enabled" -}}
+{{- end -}}
+{{- if or (lt $replicas 2) (gt $replicas 128) -}}
+{{- fail "voice.kamailio.replicaCount must be between 2 and 128" -}}
+{{- end -}}
+{{- if ne (int $kamailio.routeAgent.edgeReplicaCount) $replicas -}}
+{{- fail "voice.kamailio.routeAgent.edgeReplicaCount must equal voice.kamailio.replicaCount" -}}
+{{- end -}}
+{{- if or (lt (int $kamailio.cellLeaseEpoch) 1) (gt (int64 $kamailio.cellLeaseEpoch) 4294967295) -}}
+{{- fail "voice.kamailio.cellLeaseEpoch must be between 1 and 4294967295" -}}
+{{- end -}}
+{{- if ne .Values.voice.componentNode.regionId $regionId -}}
+{{- fail "voice.componentNode.regionId must equal voice.regionId" -}}
+{{- end -}}
+{{- if ne .Values.voice.componentNode.zoneId $zoneId -}}
+{{- fail "voice.componentNode.zoneId must equal voice.zoneId" -}}
+{{- end -}}
+{{- if not (has $profileId .Values.voice.componentNode.profileIds) -}}
+{{- fail "voice.componentNode.profileIds must contain voice.profileId" -}}
+{{- end -}}
+{{- if and $kamailio.networkPolicy.enabled .Values.voice.network.hostNetwork (empty $kamailio.networkPolicy.rustpbxNodeCidrs) -}}
+{{- fail "voice.kamailio.networkPolicy.rustpbxNodeCidrs is required for hostNetwork RustPBX nodes" -}}
+{{- end -}}
+{{- if gt (add (int $kamailio.pool.pinSetBase) $rustpbxReplicas) 999999999 -}}
+{{- fail "voice.kamailio.pool.pinSetBase plus voice.replicaCount exceeds the pin-set range" -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ivekit.kamailioFullname" . }}-config
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kamailio
+data:
+  kamailio-runtime.json: |
+    {
+      "schema_version": "1.0.0",
+      "region_id": {{ $regionId | quote }},
+      "zone_id": {{ $zoneId | quote }},
+      "cell_id": {{ $cellId | quote }},
+      "cell_lease_epoch": {{ $kamailio.cellLeaseEpoch }},
+      "default_pool_id": {{ $kamailio.pool.id }},
+      "dispatcher_file": "/var/lib/kamailio/dispatcher.list",
+      "tls_config_file": "/etc/kamailio/tls.cfg",
+      "udp_listener": {
+        "host": "0.0.0.0", "port": {{ $kamailio.listeners.sipPort }},
+        "advertise": { "host": {{ $kamailio.advertise.sipHost | quote }}, "port": {{ $kamailio.advertise.sipPort }} }
+      },
+      "tcp_listener": {
+        "host": "0.0.0.0", "port": {{ $kamailio.listeners.sipPort }},
+        "advertise": { "host": {{ $kamailio.advertise.sipHost | quote }}, "port": {{ $kamailio.advertise.sipPort }} }
+      },
+      "tls_listener": {
+        "host": "0.0.0.0", "port": {{ $kamailio.listeners.tlsPort }},
+        "advertise": { "host": {{ $kamailio.advertise.sipHost | quote }}, "port": {{ $kamailio.advertise.tlsPort }} }
+      },
+      "wss_listener": {
+        "host": "0.0.0.0", "port": {{ $kamailio.listeners.wssPort }},
+        "advertise": { "host": {{ $kamailio.advertise.wssHost | quote }}, "port": {{ $kamailio.advertise.wssPort }} }
+      },
+      "rpc_listener": { "host": "127.0.0.1", "port": {{ $kamailio.listeners.rpcPort }} },
+      "trusted_source_cidrs": {{ toJson $kamailio.trustedSourceCidrs }},
+      "rustpbx_source_cidrs": {{ toJson $kamailio.rustpbxSourceCidrs }},
+      "dmq_source_cidrs": {{ toJson $kamailio.dmqSourceCidrs }},
+      "allow_public_wss": {{ $kamailio.allowPublicWss }},
+      "webphone_auth": {
+        "jwt_issuer": {{ .Values.voice.webphone.jwtIssuer | quote }},
+        "jwt_audience": {{ .Values.voice.webphone.jwtAudience | quote }},
+        "jwt_secret_file": "/run/ivekit-kamailio-secrets/webphone-jwt-secret",
+        "allowed_origins": {{ toJson .Values.voice.webphone.allowedOrigins }},
+        "max_token_bytes": 4096,
+        "max_registration_expires_seconds": {{ .Values.voice.webphone.registerExpiresSeconds }}
+      },
+      "dmq": {
+        "enabled": {{ $kamailio.dmq.enabled }},
+        "server_host": "127.0.0.1",
+        "server_port": {{ $kamailio.listeners.dmqPort }},
+        "notification_addresses": [
+          {{ printf "sip:%s-0.%s-dmq:%v" (include "ivekit.kamailioFullname" .) (include "ivekit.kamailioFullname" .) $kamailio.listeners.dmqPort | quote }},
+          {{ printf "sip:%s-1.%s-dmq:%v" (include "ivekit.kamailioFullname" .) (include "ivekit.kamailioFullname" .) $kamailio.listeners.dmqPort | quote }}
+        ],
+        "num_workers": {{ $kamailio.dmq.numWorkers }},
+        "ping_interval_seconds": {{ $kamailio.dmq.pingIntervalSeconds }},
+        "sync_batch_size": {{ $kamailio.dmq.syncBatchSize }},
+        "sync_batch_usleep": {{ $kamailio.dmq.syncBatchUsleep }},
+        "sync_message_contacts": {{ $kamailio.dmq.syncMessageContacts }}
+      },
+      "max_message_bytes": {{ $kamailio.limits.maxMessageBytes }},
+      "per_source_invite_cps": {{ $kamailio.limits.perSourceInviteCps }},
+      "global_invite_cps": {{ div (add (int $kamailio.limits.cellInviteCps) (sub $replicas 1)) $replicas }},
+      "pike_sampling_seconds": {{ $kamailio.limits.pikeSamplingSeconds }},
+      "pike_request_density": {{ $kamailio.limits.pikeRequestDensity }},
+      "max_failovers": {{ $kamailio.limits.maxFailovers }},
+      "retry_after_seconds": {{ $kamailio.limits.retryAfterSeconds }},
+      "tls": {
+        "private_key_file": "/run/ivekit-kamailio-secrets/tls-key.pem",
+        "certificate_file": "/run/ivekit-kamailio-secrets/tls-cert.pem",
+        "ca_file": "/run/ivekit-kamailio-secrets/tls-ca.pem",
+        "require_client_certificate": {{ $kamailio.requireClientCertificate }}
+      }
+    }
+  kamailio-topology.json: |
+    {
+      "pools": [{
+        "pool_id": {{ $kamailio.pool.id }},
+        "profile_id": {{ $profileId | quote }},
+        "capacity_dimension": {{ $kamailio.pool.capacityDimension | quote }},
+        "nodes": [
+          {{- range $ordinal := until $rustpbxReplicas }}
+          {{- if $ordinal }},{{ end }}
+          {
+            "node_id": {{ printf "%s-rustpbx-%d" (include "ivekit.fullname" $) $ordinal | quote }},
+            "component_endpoint": {{ printf "http://%s-rustpbx-%d.%s:3210" (include "ivekit.fullname" $) $ordinal (include "ivekit.rustpbxHeadlessFullname" $) | quote }},
+            "service_token_file": "/run/ivekit-kamailio-secrets/component-node-token",
+            "sip_uri": {{ printf "sip:%s-rustpbx-%d.%s:%v;transport=udp" (include "ivekit.fullname" $) $ordinal (include "ivekit.rustpbxHeadlessFullname" $) $.Values.voice.sipPort | quote }},
+            "pin_set_id": {{ add (int $kamailio.pool.pinSetBase) $ordinal }},
+            "priority": {{ $kamailio.pool.priority }},
+            "safe_capacity_fallback": {{ $kamailio.pool.safeCapacityFallback }}
+          }
+          {{- end }}
+        ]
+      }]
+    }
+{{- end }}

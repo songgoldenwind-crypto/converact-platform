@@ -324,3 +324,116 @@ groups:
           summary: RustPBX force-dropped session resources to keep the media loop responsive
           description: A playback, MCU, or bridge cleanup timed out or the bounded cleanup executor was full; live calls remained isolated but cleanup evidence requires investigation.
           runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxsessioncleanup
+
+  - name: ivekit.kamailio.edge
+    rules:
+      - alert: IveKitKamailioSnapshotExpired
+        expr: min by (namespace, pod) (ivekit_kamailio_snapshot_valid) < 1
+        for: 15s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio route snapshot is absent or expired
+          description: This Edge replica is fail-closed for new calls; inspect component-node polling, snapshot signing, and dispatcher reload.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailioroutesnapshot
+      - alert: IveKitKamailioCoreMetricsUnavailable
+        expr: min by (namespace, pod) (ivekit_kamailio_core_metrics_up) < 1
+        for: 30s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio core metrics are unavailable through the route-agent proxy
+          description: Route-agent remains observable, but dispatcher exhaustion and dialog pin failure telemetry from the loopback-only Kamailio endpoint is unavailable.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiocoremetrics
+      - alert: IveKitKamailioNoAvailableRustPbx
+        expr: min by (namespace, pod) (ivekit_kamailio_new_call_nodes) < 1
+        for: 15s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio has no RustPBX destination eligible for new calls
+          description: Every RustPBX node is offline, draining, lease-stale, recovery-pending, or out of safe capacity.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailioroutecapacity
+      - alert: IveKitKamailioMajorityDestinationsDown
+        expr: sum by (namespace, pod) (ivekit_kamailio_route_nodes{state="offline"}) / clamp_min(sum by (namespace, pod) (ivekit_kamailio_route_nodes), 1) > 0.5
+        for: 30s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: A majority of RustPBX destinations are offline
+          description: More than half of this Cell/Zone RustPBX pool is unavailable to the local SIP Edge.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailioroutecapacity
+      - alert: IveKitKamailioRouteReloadFailure
+        expr: increase(ivekit_kamailio_route_reload_total{result="failure"}[5m]) > 0
+        for: 15s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio dispatcher reload failed
+          description: A signed route snapshot was published but could not be activated through the loopback-only RPC endpoint.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailioroutereload
+      - alert: IveKitKamailioFailoverExhausted
+        expr: increase(kamailio_core_ivekit_dispatch_failures[5m]) > 0
+        for: 15s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio exhausted an initial-call RustPBX candidate set
+          description: Initial INVITE routing returned no capacity or exhausted all finite transport and retryable 5xx candidates.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiofailover
+      - alert: IveKitKamailioDialogPinFailure
+        expr: increase(kamailio_core_ivekit_pin_failures[5m]) > 0
+        for: 15s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio could not honor a dialog owner pin
+          description: An in-dialog request had an invalid owner token, stale Cell epoch, missing pin set, or unavailable owner node.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiodialogpin
+      - alert: IveKitKamailioWebPhoneAuthFailures
+        expr: increase(kamailio_core_ivekit_webphone_auth_failures[5m]) > 20
+        for: 1m
+        labels:
+          severity: warning
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio is rejecting an unusual number of WebPhone identities
+          description: WSS Origin, JWT, connection identity, or SIP From validation failed more than twenty times in five minutes.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiowebphone
+      - alert: IveKitKamailioWebPhoneLocationSaveFailure
+        expr: increase(kamailio_core_ivekit_webphone_location_save_failures[5m]) > 0
+        for: 15s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio could not save an authenticated WebPhone registration
+          description: RustPBX accepted REGISTER, but the Edge failed to persist the location into its replicated usrloc state.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiowebphone
+      - alert: IveKitKamailioDmqRejected
+        expr: increase(kamailio_core_ivekit_dmq_rejects[5m]) > 0
+        for: 15s
+        labels:
+          severity: warning
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio rejected traffic presented as DMQ replication
+          description: A KDMQ request arrived outside the dedicated Cell-internal port or the configured peer CIDRs.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiodmq

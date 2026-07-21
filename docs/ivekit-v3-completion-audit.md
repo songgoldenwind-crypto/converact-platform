@@ -550,3 +550,26 @@ Voice、IVR、RustDesk 和交付合同变化。本节的测试计数为当前最
 真实 PostgreSQL/NATS 多节点、Tinode/LiveKit/TURN/Egress 公网链路、双 Windows、RustPBX WSS/RTP、
 PSTN、真实 Provider、商业通知、生产对象存储、目标 Kubernetes、单机 frontier、Cell-10K 和
 MIX-100K 均保持 `not_run`。`capacity_claim` 继续为 `none`。
+
+## 23. Kamailio SIP Edge、WebPhone 集群与 QUIC 评审收口（2026-07-21）
+
+本节补齐第 22 节尚未覆盖的正式 SIP Edge。它把 RustPBX 从“可直接接入的单节点能力”提升为 Cell
+内由 Kamailio 接入、容量选择和 dialog 固定的节点池，但不把静态配置、受控驱动或模板渲染解释为
+真实双 Zone、PSTN、物理媒体或 10K/100K 容量证据。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 本地路由与容量 | `implemented_controlled` | route-agent 并行读取 component-node state，生成有大小、节点数、TTL、Cell identity、lease epoch 和 sequence 边界的签名快照；原子编译 dispatcher relative-weight 新呼叫池和稳定 pin set，通过 loopback-only JSON-RPC reload。快照过期停止新 INVITE，已有 pin set 保留；RustPBX admission 继续做最终硬门 |
+| SIP 故障语义 | `implemented_controlled` | OPTIONS 与 component lease 双门，draining 退出新呼叫池但保留 owner；未接通请求只对 transport、408、500/502/503/504 有界重试，业务 4xx 不重试，2xx 后禁止换 owner。TLS/WSS、topoh、来源 ACL、CPS、header 重建和 RPC/metrics 私网边界已进入 renderer 与测试 |
+| WebPhone 双重鉴权 | `implemented_controlled` | Edge 对 WSS 执行精确 HTTPS Origin、HS256、issuer/audience、时效和 subject 校验，只保存 connection-subject；每个 WSS SIP 请求要求 From 等于 subject，并新签 30 秒内部 JWT 供 RustPBX 再验证。浏览器 token 不进入 htable 复制、配置输出或证据。RustPBX fork 同时约束所有鉴权结果与 From 一致 |
+| REGISTER 与跨 Edge location | `implemented_not_run` | RustPBX 是分机权限和 PostgreSQL locator authority；Edge 只在 RustPBX 2xx 后保存 usrloc。正式 Helm 使用 Kamailio StatefulSet、稳定 ordinal、headless Service 和专用 UDP 5066 `dmq_usrloc`；启用时要求至少两个同端口 bootstrap，公网 Service 不暴露 DMQ。Compose 单 Edge关闭 DMQ，因此真实跨 Edge 注册/投递仍为 `not_run` |
+| WebPhone dialog | `implemented_controlled` | RustPBX 初始 INVITE 沿 REGISTER Path 或复制 location 到达浏览器，两条路径都写入 `ivkwp=1` Record-Route。后续 RustPBX→浏览器剥离内部断言，WSS→RustPBX保留本请求新签断言，其他来源拒绝；该 dialog 不再误入普通 RustPBX pin-set 并返回 481 |
+| 部署与交付 | `implemented_controlled` | Compose 提供单 Edge/一或两 RustPBX 受控拓扑；Helm 提供两 Edge StatefulSet、PDB、spread、NetworkPolicy、私有 route-agent metrics、RustPBX StatefulSet/headless Service和直达 RTP。交付白名单包含 Kamailio 源码镜像、dispatcher patch、renderer、route-agent、Chart、12 场景矩阵、WSS driver 和 RustPBX WebPhone Edge-auth patch，并受 SHA-256/tamper 合同约束 |
+| 监控与故障处置 | `implemented_controlled` | 新增快照、节点、reload、core proxy、failover、pin、WebPhone auth/assertion/registration/location/delivery 和 DMQ rejection 指标；PrometheusRule、Grafana 和 runbook 维持低基数，禁止 tenant、号码、call/session ID 标签 |
+| QUIC 视频传输 | `assessed_deferred` | ANRW 2026 RoQ 论文支持 QUIC 作为 RTP/RTCP 多路复用层的研究价值，但其原型是 Pion/Rust/quiche 受控评估，不是 LiveKit 生产 SFU 的可直接替换实现。当前生产主链保持 LiveKit/WebRTC；先完成 RTCStats→QoS 与媒体感知上传 governor，再在独立 Pion/quic-go 实验通道验证 RoQ，必须保留 WebRTC fallback，详见 `docs/design/quic-video-transport-assessment.md` |
+
+代码完成门禁包括 TypeScript、Kamailio/RustPBX focused、delivery hash/tamper、standalone source、
+Compose render、Helm lint/template、Prometheus YAML、Grafana JSON 和 SIPp XML。当前机器无法完成固定镜像
+内 `kamailio -c` 与真实 Docker SIPp/WSS/DMQ 运行时验证时，这两项必须保持 `not_run`，不能由 renderer
+测试代替。真实 PSTN/RTP、双 Edge WSS/DMQ、目标 Kubernetes、双 Zone、长稳、单机 frontier、
+Cell-10K 和 MIX-100K 也继续为 `not_run`；`capacity_claim=none`。

@@ -7,7 +7,8 @@
 >
 > **重扫校准（2026-06-29，核查日期=2026-06-29）**：
 > - **`src/ws.ts` 已存在**（不再"缺失/新建"）——L25/L50/L240 中"WS 层不存在/需新建 `src/ws.ts`"的断言已陈旧；现状 WebSocket 服务已落地，WS 替代 SSE 与 Redis PubSub 中继以 `architecture-v3.md` §4 内嵌校准为准
-> - **`Kamailio` infra config**（L210）按已废/延后表统一为【延后·v2.0+】，不再"Sprint 11"（与 `revised-master-plan.md` §移除表一致）
+> - **`Kamailio` infra config**：2026-06-29 的 MVP 校准曾标为延后；2026-07-21 已被
+>   MIX-100K/Cell 生产裁决覆盖，当前实现和缺口以通信底座完成设计为准
 > - **§3.1 废弃数=4** 与明细不符：明细仅 3 项废弃（Chatwoot client L160、Chatwoot handler L161、Kong config L209）。统一为 3 项废弃（总数 138-1=137？以明细为准，统计见下）
 > - 其余"❌ 不存在"等行未本次机全量重扫，下个 Sprint 启动重跑 `ls`/`grep` 校准
 
@@ -215,7 +216,7 @@
 | Docker Compose (prod) | ✅ `infra/docker-compose.production.yml` | 对齐新架构 | **重构** |
 | Helm Chart | ⚠️ 骨架 | Sprint 11 完善 | **保留** |
 | Kong config | ✅ `infra/config/kong.yml` | 延后（不用 Kong） | **废弃** |
-| Kamailio config | ✅ `infra/config/kamailio.cfg` | 【延后·v2.0+】（与 `revised-master-plan.md` §移除表一致，不再 Sprint 11） | **废弃**（config 文件保留作回滚参考，但不再启用） |
+| Kamailio Edge | ✅ typed renderer、route-agent、签名 snapshot、dispatcher/pin set、Compose/Helm、指标和告警 | 当前 Goal 已实现；真实双 Zone、PSTN/RTP、Docker SIPp 和物理 CPS 仍 `not_run` | **生产组件**（不承载 RTP；RustPBX admission 仍是硬门） |
 | NATS config | ✅ `infra/config/nats.conf` | Sprint 11 启用 | **保留** |
 
 ### 2.15 Legacy（获客域）

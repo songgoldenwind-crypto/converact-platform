@@ -156,6 +156,8 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
     scripts: Record<string, string>;
   };
   assert.equal(servicePackage.scripts['preflight:intelligence'], 'node dist/ivekit-intelligence-preflight.js');
+  assert.equal(servicePackage.scripts['render:kamailio-compose'], 'node dist/ivekit-kamailio-compose-config.js');
+  assert.equal(servicePackage.scripts['accept:kamailio-webphone'], 'node dist/ivekit-kamailio-webphone-acceptance.js');
   assert.equal(servicePackage.scripts['render:rustpbx'], 'node dist/ivekit-render-rustpbx-config.js');
   assert.equal(servicePackage.scripts['project:rustpbx-routes'], 'node dist/ivekit-rustpbx-route-snapshot.js');
   assert.equal(servicePackage.scripts['preflight:voice'], 'node dist/ivekit-voice-preflight.js');
@@ -167,6 +169,8 @@ test('standalone verifier requires every compiled operational entrypoint', () =>
   for (const entrypoint of [
     'ivekit-server.js',
     'ivekit-worker.js',
+    'ivekit-kamailio-compose-config.js',
+    'ivekit-kamailio-webphone-acceptance.js',
     'ivekit-render-rustpbx-config.js',
     'ivekit-rustpbx-route-snapshot.js',
     'ivekit-voice-preflight.js'

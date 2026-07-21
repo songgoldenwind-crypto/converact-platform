@@ -24,6 +24,27 @@ export interface KamailioTlsConfig {
   require_client_certificate: boolean;
 }
 
+export interface KamailioWebPhoneAuthConfig {
+  jwt_issuer: string;
+  jwt_audience: string;
+  jwt_secret_file: string;
+  allowed_origins: string[];
+  max_token_bytes: number;
+  max_registration_expires_seconds: number;
+}
+
+export interface KamailioDmqConfig {
+  enabled: boolean;
+  server_host: string;
+  server_port: number;
+  notification_addresses: string[];
+  num_workers: number;
+  ping_interval_seconds: number;
+  sync_batch_size: number;
+  sync_batch_usleep: number;
+  sync_message_contacts: number;
+}
+
 export interface KamailioConfig {
   schema_version: '1.0.0';
   region_id: string;
@@ -39,7 +60,11 @@ export interface KamailioConfig {
   wss_listener: KamailioListener;
   rpc_listener: KamailioListener;
   trusted_source_cidrs: string[];
+  rustpbx_source_cidrs: string[];
+  dmq_source_cidrs: string[];
   allow_public_wss: boolean;
+  webphone_auth: KamailioWebPhoneAuthConfig;
+  dmq: KamailioDmqConfig;
   max_message_bytes: number;
   per_source_invite_cps: number;
   global_invite_cps: number;
@@ -53,6 +78,7 @@ export interface KamailioConfig {
 export interface KamailioConfigSecrets {
   topoh_mask_key: string;
   rpc_bearer_token: string;
+  webphone_jwt_secret: string;
 }
 
 export interface RenderedKamailioConfig {
@@ -76,8 +102,37 @@ export function renderKamailioConfig(
   const trustedExpression = config.trusted_source_cidrs
     .map((cidr) => `is_in_subnet("$si", "${kamailioString(cidr)}")`)
     .join(' || ');
+  const rustPbxExpression = config.rustpbx_source_cidrs
+    .map((cidr) => `is_in_subnet("$si", "${kamailioString(cidr)}")`)
+    .join(' || ');
+  const dmqSourceExpression = config.dmq_source_cidrs
+    .map((cidr) => `is_in_subnet("$si", "${kamailioString(cidr)}")`)
+    .join(' || ');
+  const webPhoneOriginExpression = config.webphone_auth.allowed_origins
+    .map((origin) => `$hdr(Origin) == "${kamailioString(origin)}"`)
+    .join(' || ') || '0';
   const publicWssExpression = config.allow_public_wss
     ? ' || $proto == "WSS"'
+    : '';
+  const dmqNotificationParameters = config.dmq.notification_addresses
+    .map((address) => `modparam("dmq", "notification_address", "${kamailioString(address)}")`)
+    .join('\n');
+  const dmqParameters = config.dmq.enabled ? `
+modparam("dmq", "server_address", "sip:${kamailioString(config.dmq.server_host)}:${config.dmq.server_port}")
+modparam("dmq", "server_socket", "udp:${kamailioString(config.udp_listener.host)}:${config.dmq.server_port}")
+${dmqNotificationParameters}
+modparam("dmq", "num_workers", ${config.dmq.num_workers})
+modparam("dmq", "ping_interval", ${config.dmq.ping_interval_seconds})
+modparam("dmq_usrloc", "enable", 1)
+modparam("dmq_usrloc", "sync", 1)
+modparam("dmq_usrloc", "batch_size", ${config.dmq.sync_batch_size})
+modparam("dmq_usrloc", "batch_usleep", ${config.dmq.sync_batch_usleep})
+modparam("dmq_usrloc", "batch_msg_contacts", ${config.dmq.sync_message_contacts})
+modparam("dmq_usrloc", "replicate_socket_info", 1)
+modparam("dmq_usrloc", "usrloc_delete", 1)
+` : '';
+  const dmqListener = config.dmq.enabled
+    ? `listen=udp:${config.udp_listener.host}:${config.dmq.server_port}\n`
     : '';
 
   const kamailioCfg = `#!KAMAILIO
@@ -99,6 +154,7 @@ listen=tcp:${listener(config.tcp_listener)}
 listen=tls:${listener(config.tls_listener)}
 listen=tls:${listener(config.wss_listener)}
 listen=tcp:${listener(config.rpc_listener)}
+${dmqListener}
 
 loadmodule "kex.so"
 loadmodule "corex.so"
@@ -125,6 +181,13 @@ loadmodule "websocket.so"
 loadmodule "tls.so"
 loadmodule "statistics.so"
 loadmodule "xhttp_prom.so"
+loadmodule "jwt.so"
+loadmodule "jansson.so"
+loadmodule "usrloc.so"
+loadmodule "registrar.so"
+loadmodule "path.so"
+loadmodule "dmq.so"
+loadmodule "dmq_usrloc.so"
 
 modparam("tm", "failure_reply_mode", 3)
 modparam("tm", "fr_timer", 30000)
@@ -154,6 +217,22 @@ modparam("pike", "sampling_time_unit", ${config.pike_sampling_seconds})
 modparam("pike", "reqs_density_per_unit", ${config.pike_request_density})
 modparam("htable", "htable", "ivekit_source_cps=>size=14;autoexpire=5;")
 modparam("htable", "htable", "ivekit_global_cps=>size=2;autoexpire=5;")
+modparam("htable", "htable", "ivekit_ws_sub=>size=18;")
+modparam("jwt", "key_mode", 1)
+
+modparam("usrloc", "db_mode", 0)
+modparam("usrloc", "use_domain", 1)
+modparam("usrloc", "handle_lost_tcp", 1)
+modparam("usrloc", "close_expired_tcp", 1)
+modparam("usrloc", "hash_size", 14)
+modparam("registrar", "max_expires", ${config.webphone_auth.max_registration_expires_seconds})
+modparam("registrar", "default_expires", ${config.webphone_auth.max_registration_expires_seconds})
+modparam("registrar", "use_path", 1)
+modparam("registrar", "path_mode", 0)
+modparam("registrar", "path_use_received", 1)
+modparam("registrar", "path_check_local", 1)
+modparam("registrar", "outbound_mode", 1)
+${dmqParameters}
 
 modparam("tls", "config", "${kamailioString(config.tls_config_file)}")
 modparam("jsonrpcs", "transport", 1)
@@ -163,11 +242,23 @@ modparam("statistics", "variable", "ivekit_new_invites")
 modparam("statistics", "variable", "ivekit_dispatch_failures")
 modparam("statistics", "variable", "ivekit_failovers")
 modparam("statistics", "variable", "ivekit_pin_failures")
+modparam("statistics", "variable", "ivekit_webphone_auth_failures")
+modparam("statistics", "variable", "ivekit_webphone_assertion_failures")
+modparam("statistics", "variable", "ivekit_webphone_registrations")
+modparam("statistics", "variable", "ivekit_webphone_location_save_failures")
+modparam("statistics", "variable", "ivekit_webphone_delivery_misses")
+modparam("statistics", "variable", "ivekit_dmq_rejects")
 
 request_route {
     route(REQINIT);
 
+    if (is_method("KDMQ")) {
+        route(DMQ);
+        exit;
+    }
+
     if (is_method("CANCEL")) {
+        route(AUTH);
         if (t_check_trans()) route(RELAY);
         exit;
     }
@@ -183,11 +274,9 @@ request_route {
     route(AUTH);
 
     if (has_totag()) route(WITHINDLG);
+    if ($hdr(Route) != $null) route(PRELOADED_ROUTE);
     if (is_method("INVITE")) route(NEW_INVITE);
-    if (is_method("REGISTER")) {
-        $var(pool) = ${config.default_pool_id};
-        route(DISPATCH);
-    }
+    if (is_method("REGISTER")) route(WEBPHONE_REGISTER);
 
     sl_send_reply("405", "Method Not Allowed");
     exit;
@@ -210,7 +299,7 @@ route[REQINIT] {
         sl_send_reply("200", "OK");
         exit;
     }
-    if (!is_method("INVITE|ACK|CANCEL|BYE|UPDATE|INFO|PRACK|REFER|OPTIONS|REGISTER")) {
+    if (!is_method("INVITE|ACK|CANCEL|BYE|UPDATE|INFO|PRACK|REFER|OPTIONS|REGISTER|KDMQ")) {
         sl_send_reply("405", "Method Not Allowed");
         exit;
     }
@@ -223,15 +312,38 @@ route[AUTH] {
     remove_hf("X-IveKit-Cell-ID");
     remove_hf("X-IveKit-Cell-Lease-Epoch");
     remove_hf("X-IveKit-Edge-Schema");
+    remove_hf("X-Auth-Token");
 
     $var(trusted_source) = 0;
-    if (${trustedExpression}${publicWssExpression}) $var(trusted_source) = 1;
+    $var(from_rustpbx) = 0;
+    if (${rustPbxExpression}) $var(from_rustpbx) = 1;
+    if (${trustedExpression} || $var(from_rustpbx) == 1${publicWssExpression}) {
+        $var(trusted_source) = 1;
+    }
     if ($var(trusted_source) != 1) {
         sl_send_reply("403", "Forbidden");
         exit;
     }
 
-    # Public WSS credentials and trusted-trunk digest/mTLS are verified by RustPBX.
+    # The Edge verifies the connection token and RustPBX verifies it again per SIP request.
+    if ($proto == "WSS") {
+        $var(webphone_sub) = $sht(ivekit_ws_sub=>$conid);
+        if ($var(webphone_sub) == $null || $fU != $var(webphone_sub)) {
+            update_stat("ivekit_webphone_auth_failures", "+1");
+            sl_send_reply("403", "Invalid WebPhone Identity");
+            exit;
+        }
+        $var(webphone_assertion_exp) = $Ts + 30;
+        if (!jwt_generate("${kamailioString(config.webphone_auth.jwt_secret_file)}", "HS256",
+                "sub='$var(webphone_sub)';iss='${kamailioString(config.webphone_auth.jwt_issuer)}';aud='${kamailioString(config.webphone_auth.jwt_audience)}';exp=$var(webphone_assertion_exp)")) {
+            update_stat("ivekit_webphone_assertion_failures", "+1");
+            sl_send_reply("503", "WebPhone Assertion Unavailable");
+            exit;
+        }
+        append_hf("X-Auth-Token: $jwt(val)\\r\\n");
+    }
+
+    # Trusted-trunk digest or mTLS is verified by RustPBX.
     if (is_method("REGISTER") && $proto != "WSS" && $proto != "TLS" &&
             !(${trustedExpression})) {
         sl_send_reply("403", "Secure Registration Required");
@@ -282,6 +394,7 @@ route[WITHINDLG] {
         sl_send_reply("481", "Dialog Route Missing");
         exit;
     }
+    if (check_route_param("ivkwp=1")) route(WEBPHONE_DIALOG);
 
     $var(pinset) = $(route_uri{uri.param,ivkpin});
     $var(pin_epoch) = $(route_uri{uri.param,ivkep});
@@ -302,10 +415,81 @@ route[WITHINDLG] {
     route(RELAY);
 }
 
+route[PRELOADED_ROUTE] {
+    if ($var(from_rustpbx) != 1 || !loose_route()) {
+        remove_hf("Route");
+        return;
+    }
+    if ($du == "" && !handle_ruri_alias()) {
+        sl_send_reply("400", "Invalid WebPhone Route");
+        exit;
+    }
+    record_route(";ivkwp=1");
+    route(WEBPHONE_RELAY);
+}
+
 route[NEW_INVITE] {
     update_stat("ivekit_new_invites", "+1");
+    if ($var(from_rustpbx) == 1) route(WEBPHONE_DELIVERY);
     $var(pool) = ${config.default_pool_id};
     route(DISPATCH);
+}
+
+route[WEBPHONE_REGISTER] {
+    if ($proto != "WSS") {
+        sl_send_reply("403", "WebPhone Registration Requires WSS");
+        exit;
+    }
+    if (!add_path_received()) {
+        sl_send_reply("503", "Registration Path Unavailable");
+        exit;
+    }
+    $var(pool) = ${config.default_pool_id};
+    t_on_reply("REGISTER_REPLY");
+    route(DISPATCH);
+}
+
+route[WEBPHONE_DELIVERY] {
+    if ($var(from_rustpbx) != 1) {
+        sl_send_reply("403", "RustPBX Source Required");
+        exit;
+    }
+    if (!lookup("location")) {
+        update_stat("ivekit_webphone_delivery_misses", "+1");
+        sl_send_reply("480", "WebPhone Unavailable");
+        exit;
+    }
+    record_route(";ivkwp=1");
+    route(WEBPHONE_RELAY);
+}
+
+route[WEBPHONE_DIALOG] {
+    # RustPBX -> browser must shed internal assertions; browser -> RustPBX keeps
+    # the fresh per-request assertion generated by AUTH.
+    if ($var(from_rustpbx) == 1) route(WEBPHONE_RELAY);
+    if ($proto == "WSS") route(RELAY);
+    sl_send_reply("403", "Invalid WebPhone Dialog Source");
+    exit;
+}
+
+route[WEBPHONE_RELAY] {
+    remove_hf("X-Auth-Token");
+    remove_hf("X-IveKit-Node-ID");
+    remove_hf("X-IveKit-Pin-Set");
+    remove_hf("X-IveKit-Cell-ID");
+    remove_hf("X-IveKit-Cell-Lease-Epoch");
+    remove_hf("X-IveKit-Edge-Schema");
+    route(RELAY);
+}
+
+route[DMQ] {
+    if (${config.dmq.enabled ? `$Rp != ${config.dmq.server_port} || !(${dmqSourceExpression})` : '1'}) {
+        update_stat("ivekit_dmq_rejects", "+1");
+        sl_send_reply("403", "DMQ Source Rejected");
+        exit;
+    }
+    ${config.dmq.enabled ? 'dmq_handle_message();' : 'sl_send_reply("503", "DMQ Disabled");'}
+    exit;
 }
 
 route[DISPATCH] {
@@ -324,6 +508,9 @@ route[DISPATCH] {
         $dlg_var(ivekit_cell_epoch) = ${config.cell_lease_epoch};
         record_route(";ivkpin=$var(pinset);ivkep=${config.cell_lease_epoch};ivks=1");
         t_on_failure("RUSTPBX_FAILOVER");
+    }
+    if (is_method("REGISTER")) {
+        t_on_failure("RUSTPBX_REGISTER_FAILOVER");
     }
     route(INTERNAL_HEADERS);
     route(RELAY);
@@ -382,6 +569,38 @@ failure_route[RUSTPBX_FAILOVER] {
     exit;
 }
 
+failure_route[RUSTPBX_REGISTER_FAILOVER] {
+    if (t_is_canceled()) exit;
+    if (!t_branch_timeout() && !t_check_status("408|500|502|503|504")) exit;
+
+    ds_mark_dst("tp");
+    if (ds_next_dst()) {
+        update_stat("ivekit_failovers", "+1");
+        route(READ_DISPATCHER_OWNER);
+        route(INTERNAL_HEADERS);
+        t_on_reply("REGISTER_REPLY");
+        t_on_failure("RUSTPBX_REGISTER_FAILOVER");
+        if (!t_relay()) sl_reply_error();
+        exit;
+    }
+
+    update_stat("ivekit_dispatch_failures", "+1");
+    append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
+    t_reply("503", "Registration Backend Unavailable");
+    exit;
+}
+
+onreply_route[REGISTER_REPLY] {
+    if (t_check_status("2[0-9][0-9]")) {
+        if (!save("location")) {
+            update_stat("ivekit_webphone_location_save_failures", "+1");
+            xlog("L_ERR", "authenticated WebPhone location save failed\\n");
+        } else {
+            update_stat("ivekit_webphone_registrations", "+1");
+        }
+    }
+}
+
 event_route[xhttp:request] {
     if ($Rp == ${config.rpc_listener.port} && $si == "127.0.0.1") {
         if ($hu == "/metrics") {
@@ -401,7 +620,37 @@ event_route[xhttp:request] {
     }
 
     if ($Rp == ${config.wss_listener.port} && $hu =~ "^/ws($|[?])") {
+        if (!(${webPhoneOriginExpression})) {
+            update_stat("ivekit_webphone_auth_failures", "+1");
+            xhttp_reply("403", "Forbidden", "text/plain", "origin rejected\\n");
+            exit;
+        }
+        $var(webphone_token) = $(hu{url.querystring}{param.value,token,&});
+        if ($var(webphone_token) == $null ||
+                $(var(webphone_token){s.len}) > ${config.webphone_auth.max_token_bytes} ||
+                $var(webphone_token) !~ "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$") {
+            update_stat("ivekit_webphone_auth_failures", "+1");
+            xhttp_reply("401", "Unauthorized", "text/plain", "invalid token\\n");
+            exit;
+        }
+        if (!jwt_verify("${kamailioString(config.webphone_auth.jwt_secret_file)}", "HS256",
+                "iss='${kamailioString(config.webphone_auth.jwt_issuer)}';aud='${kamailioString(config.webphone_auth.jwt_audience)}'",
+                "$var(webphone_token)")) {
+            update_stat("ivekit_webphone_auth_failures", "+1");
+            xhttp_reply("401", "Unauthorized", "text/plain", "invalid token\\n");
+            exit;
+        }
+        $var(webphone_claims) = $(var(webphone_token){s.select,1,.}{s.decode.base64urlt});
+        if (!jansson_get("sub", "$var(webphone_claims)", "$var(webphone_sub)") ||
+                $var(webphone_sub) !~ "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$") {
+            update_stat("ivekit_webphone_auth_failures", "+1");
+            xhttp_reply("401", "Unauthorized", "text/plain", "invalid identity\\n");
+            exit;
+        }
+        $sht(ivekit_ws_sub=>$conid) = $var(webphone_sub);
         if (ws_handle_handshake()) exit;
+        $sht(ivekit_ws_sub=>$conid) = $null;
+        update_stat("ivekit_webphone_auth_failures", "+1");
         xhttp_reply("400", "Bad Request", "text/plain", "websocket required\\n");
         exit;
     }
@@ -416,6 +665,10 @@ event_route[dispatcher:dst-down] {
 
 event_route[dispatcher:dst-up] {
     xlog("L_INFO", "ivekit dispatcher destination recovered\\n");
+}
+
+event_route[websocket:closed] {
+    $sht(ivekit_ws_sub=>$ws_conid) = $null;
 }
 `;
 
@@ -438,16 +691,33 @@ export async function loadKamailioConfigRuntime(
   const configFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_CONFIG_FILE');
   const topohFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE');
   const rpcFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE');
+  const webphoneJwtFile = requiredAbsoluteEnv(
+    env,
+    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE'
+  );
   const outputFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_OUTPUT_FILE');
   const tlsOutputFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE');
   const rawConfig = JSON.parse(await readBoundedFile(configFile, MAX_CONFIG_BYTES)) as KamailioConfig;
+  if (env.OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST) {
+    rawConfig.dmq.server_host = env.OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST;
+  }
   const config = validateConfig(rawConfig);
   if (config.tls_config_file !== tlsOutputFile) {
     throw new Error('tls_config_file must match OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE');
   }
+  if (config.webphone_auth.jwt_secret_file !== webphoneJwtFile) {
+    throw new Error(
+      'webphone_auth.jwt_secret_file must match OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE'
+    );
+  }
   const secrets = validateSecrets({
     topoh_mask_key: (await readBoundedFile(topohFile, MAX_SECRET_BYTES, true)).trim(),
-    rpc_bearer_token: (await readBoundedFile(rpcFile, MAX_SECRET_BYTES, true)).trim()
+    rpc_bearer_token: (await readBoundedFile(rpcFile, MAX_SECRET_BYTES, true)).trim(),
+    webphone_jwt_secret: (await readBoundedFile(
+      webphoneJwtFile,
+      MAX_SECRET_BYTES,
+      true
+    )).trim()
   });
   return {
     config,
@@ -467,11 +737,11 @@ function validateConfig(value: KamailioConfig): KamailioConfig {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid Kamailio config');
   assertExactKeys(value as unknown as Record<string, unknown>, [
     'allow_public_wss', 'cell_id', 'cell_lease_epoch', 'default_pool_id',
-    'dispatcher_file', 'global_invite_cps', 'max_failovers', 'max_message_bytes',
+    'dispatcher_file', 'dmq', 'dmq_source_cidrs', 'global_invite_cps', 'max_failovers', 'max_message_bytes',
     'per_source_invite_cps', 'pike_request_density', 'pike_sampling_seconds',
-    'region_id', 'retry_after_seconds', 'rpc_listener', 'schema_version',
+    'region_id', 'retry_after_seconds', 'rpc_listener', 'rustpbx_source_cidrs', 'schema_version',
     'tcp_listener', 'tls', 'tls_config_file', 'tls_listener', 'trusted_source_cidrs', 'udp_listener',
-    'wss_listener', 'zone_id'
+    'webphone_auth', 'wss_listener', 'zone_id'
   ], 'Kamailio config');
   if (value.schema_version !== '1.0.0') throw new Error('unsupported Kamailio config schema_version');
   for (const [name, id] of [
@@ -495,10 +765,21 @@ function validateConfig(value: KamailioConfig): KamailioConfig {
     `tcp:${value.rpc_listener.host}:${value.rpc_listener.port}`
   ];
   if (new Set(listenerKeys).size !== listenerKeys.length) throw new Error('Kamailio listeners must be distinct');
-  if (!Array.isArray(value.trusted_source_cidrs) || value.trusted_source_cidrs.length < 1 ||
-      value.trusted_source_cidrs.length > 256) throw new Error('trusted_source_cidrs is invalid');
-  for (const cidr of value.trusted_source_cidrs) validateCidr(cidr);
+  validateCidrs(value.trusted_source_cidrs, 'trusted_source_cidrs');
+  validateCidrs(value.rustpbx_source_cidrs, 'rustpbx_source_cidrs');
+  validateCidrs(value.dmq_source_cidrs, 'dmq_source_cidrs');
   if (typeof value.allow_public_wss !== 'boolean') throw new Error('allow_public_wss is invalid');
+  validateWebPhoneAuth(value.webphone_auth, value.allow_public_wss);
+  validateDmq(value.dmq);
+  if (value.dmq.enabled && [
+    value.udp_listener.port,
+    value.tcp_listener.port,
+    value.tls_listener.port,
+    value.wss_listener.port,
+    value.rpc_listener.port
+  ].includes(value.dmq.server_port)) {
+    throw new Error('dmq.server_port must use a dedicated internal listener');
+  }
   assertInteger(value.max_message_bytes, 4_096, 1_048_576, 'max_message_bytes');
   assertInteger(value.per_source_invite_cps, 1, 100_000, 'per_source_invite_cps');
   assertInteger(value.global_invite_cps, value.per_source_invite_cps, 1_000_000, 'global_invite_cps');
@@ -508,6 +789,70 @@ function validateConfig(value: KamailioConfig): KamailioConfig {
   assertInteger(value.retry_after_seconds, 1, 300, 'retry_after_seconds');
   validateTls(value.tls);
   return value;
+}
+
+function validateWebPhoneAuth(value: KamailioWebPhoneAuthConfig, publicWss: boolean) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('webphone_auth is invalid');
+  }
+  assertExactKeys(value as unknown as Record<string, unknown>, [
+    'allowed_origins', 'jwt_audience', 'jwt_issuer', 'jwt_secret_file',
+    'max_registration_expires_seconds', 'max_token_bytes'
+  ], 'webphone_auth');
+  for (const [name, claim] of [
+    ['jwt_issuer', value.jwt_issuer], ['jwt_audience', value.jwt_audience]
+  ] as const) {
+    if (typeof claim !== 'string' ||
+        !/^[A-Za-z0-9][A-Za-z0-9._:@\/-]{0,199}$/.test(claim)) {
+      throw new Error(`webphone_auth.${name} is invalid`);
+    }
+  }
+  assertAbsolutePath(value.jwt_secret_file, 'webphone_auth.jwt_secret_file');
+  if (!Array.isArray(value.allowed_origins) || value.allowed_origins.length > 64 ||
+      (publicWss && value.allowed_origins.length < 1)) {
+    throw new Error('webphone_auth.allowed_origins is invalid');
+  }
+  for (const origin of value.allowed_origins) validateWebOrigin(origin);
+  assertInteger(value.max_token_bytes, 512, 4_096, 'webphone_auth.max_token_bytes');
+  assertInteger(
+    value.max_registration_expires_seconds,
+    30,
+    300,
+    'webphone_auth.max_registration_expires_seconds'
+  );
+}
+
+function validateDmq(value: KamailioDmqConfig) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('dmq is invalid');
+  assertExactKeys(value as unknown as Record<string, unknown>, [
+    'enabled', 'notification_addresses', 'num_workers', 'ping_interval_seconds', 'server_host',
+    'server_port', 'sync_batch_size', 'sync_batch_usleep', 'sync_message_contacts'
+  ], 'dmq');
+  if (typeof value.enabled !== 'boolean' || !validNetworkHost(value.server_host) ||
+      value.server_host === '0.0.0.0' || value.server_host === '::') {
+    throw new Error('dmq server configuration is invalid');
+  }
+  if (!Array.isArray(value.notification_addresses) ||
+      value.notification_addresses.length < 1 || value.notification_addresses.length > 8 ||
+      new Set(value.notification_addresses).size !== value.notification_addresses.length ||
+      value.notification_addresses.some((address) =>
+        typeof address !== 'string' ||
+        !/^sip:[A-Za-z0-9][A-Za-z0-9.-]{0,252}:[1-9][0-9]{0,4}$/.test(address))) {
+    throw new Error('dmq.notification_addresses is invalid');
+  }
+  assertInteger(value.server_port, 1, 65_535, 'dmq.server_port');
+  if (value.enabled && value.notification_addresses.length < 2) {
+    throw new Error('dmq.notification_addresses requires at least two bootstrap peers');
+  }
+  if (value.notification_addresses.some((address) =>
+    Number(address.slice(address.lastIndexOf(':') + 1)) !== value.server_port)) {
+    throw new Error('dmq.notification_addresses must use dmq.server_port');
+  }
+  assertInteger(value.num_workers, 1, 64, 'dmq.num_workers');
+  assertInteger(value.ping_interval_seconds, 5, 300, 'dmq.ping_interval_seconds');
+  assertInteger(value.sync_batch_size, 1, 100_000, 'dmq.sync_batch_size');
+  assertInteger(value.sync_batch_usleep, 0, 1_000_000, 'dmq.sync_batch_usleep');
+  assertInteger(value.sync_message_contacts, 1, 150, 'dmq.sync_message_contacts');
 }
 
 function validateTls(value: KamailioTlsConfig) {
@@ -526,15 +871,21 @@ function validateTls(value: KamailioTlsConfig) {
 function validateSecrets(value: KamailioConfigSecrets): KamailioConfigSecrets {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid Kamailio secrets');
   assertExactKeys(value as unknown as Record<string, unknown>, [
-    'rpc_bearer_token', 'topoh_mask_key'
+    'rpc_bearer_token', 'topoh_mask_key', 'webphone_jwt_secret'
   ], 'Kamailio secrets');
   for (const [name, secret] of [
-    ['topoh_mask_key', value.topoh_mask_key], ['rpc_bearer_token', value.rpc_bearer_token]
+    ['topoh_mask_key', value.topoh_mask_key],
+    ['rpc_bearer_token', value.rpc_bearer_token],
+    ['webphone_jwt_secret', value.webphone_jwt_secret]
   ] as const) {
-    if (typeof secret !== 'string' || secret.length < 32 || secret.length > 256 ||
+    if (typeof secret !== 'string' || secret.length < 32 || secret.length > 4_096 ||
         !/^[A-Za-z0-9._~+\/-]+$/.test(secret)) throw new Error(`${name} is invalid`);
   }
-  if (value.topoh_mask_key === value.rpc_bearer_token) {
+  if (new Set([
+    value.topoh_mask_key,
+    value.rpc_bearer_token,
+    value.webphone_jwt_secret
+  ]).size !== 3) {
     throw new Error('Kamailio secrets must be distinct');
   }
   return value;
@@ -566,17 +917,37 @@ function validateListener(value: KamailioListener, name: string, publicListener:
   }
 }
 
-function validateCidr(value: string) {
-  if (typeof value !== 'string' || value.length > 64) throw new Error('trusted_source_cidrs is invalid');
+function validateCidrs(value: string[], name: string) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 256) {
+    throw new Error(`${name} is invalid`);
+  }
+  for (const cidr of value) validateCidr(cidr, name);
+}
+
+function validateCidr(value: string, name: string) {
+  if (typeof value !== 'string' || value.length > 64) throw new Error(`${name} is invalid`);
   const parts = value.split('/');
-  if (parts.length !== 2 || !isIP(parts[0]!)) throw new Error(`invalid trusted CIDR: ${value}`);
+  if (parts.length !== 2 || !isIP(parts[0]!)) throw new Error(`invalid ${name} CIDR: ${value}`);
   const version = isIP(parts[0]!);
   const prefix = Number(parts[1]);
   const maximum = version === 4 ? 32 : 128;
   if (!Number.isInteger(prefix) || prefix < 0 || prefix > maximum) {
-    throw new Error(`invalid trusted CIDR: ${value}`);
+    throw new Error(`invalid ${name} CIDR: ${value}`);
   }
-  if (prefix === 0) throw new Error(`wildcard trusted CIDR is forbidden: ${value}`);
+  if (prefix === 0) throw new Error(`wildcard ${name} CIDR is forbidden: ${value}`);
+}
+
+function validateWebOrigin(value: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('webphone_auth.allowed_origins contains an invalid origin');
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.search ||
+      parsed.hash || parsed.pathname !== '/' || parsed.origin !== value) {
+    throw new Error('webphone_auth.allowed_origins must contain exact HTTPS origins');
+  }
 }
 
 function assertIdentifier(value: unknown, name: string) {
@@ -634,7 +1005,8 @@ function kamailioString(value: string) {
 function rejectInlineSecrets(env: NodeJS.ProcessEnv) {
   const forbidden = [
     'OPC_IVEKIT_KAMAILIO_TOPOH_KEY',
-    'OPC_IVEKIT_KAMAILIO_RPC_TOKEN'
+    'OPC_IVEKIT_KAMAILIO_RPC_TOKEN',
+    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET'
   ];
   if (forbidden.some((name) => env[name] !== undefined)) {
     throw new Error('inline Kamailio secret variables are forbidden');

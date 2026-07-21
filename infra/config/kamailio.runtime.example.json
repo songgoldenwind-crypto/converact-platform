@@ -25,7 +25,31 @@
   },
   "rpc_listener": { "host": "127.0.0.1", "port": 5065 },
   "trusted_source_cidrs": ["10.20.0.0/16"],
+  "rustpbx_source_cidrs": ["10.30.0.0/16"],
+  "dmq_source_cidrs": ["10.20.0.0/16"],
   "allow_public_wss": true,
+  "webphone_auth": {
+    "jwt_issuer": "ivekit",
+    "jwt_audience": "rustpbx-webphone",
+    "jwt_secret_file": "/run/secrets/kamailio-webphone-jwt-secret",
+    "allowed_origins": ["https://led.example.com"],
+    "max_token_bytes": 4096,
+    "max_registration_expires_seconds": 240
+  },
+  "dmq": {
+    "enabled": true,
+    "server_host": "10.20.0.10",
+    "server_port": 5066,
+    "notification_addresses": [
+      "sip:ivekit-kamailio-0.ivekit-kamailio-headless:5066",
+      "sip:ivekit-kamailio-1.ivekit-kamailio-headless:5066"
+    ],
+    "num_workers": 4,
+    "ping_interval_seconds": 30,
+    "sync_batch_size": 4000,
+    "sync_batch_usleep": 1000,
+    "sync_message_contacts": 50
+  },
   "max_message_bytes": 65535,
   "per_source_invite_cps": 100,
   "global_invite_cps": 5000,

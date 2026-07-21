@@ -38,6 +38,19 @@ L4 VIP
 JSON-RPC 只监听 Pod loopback，NetworkPolicy 和配置同时拒绝非 `127.0.0.1` 来源。Kamailio
 自身没有 PostgreSQL、Redis 或 iveKit API 凭据。
 
+### 2.1 Cell/Zone 发布单元
+
+- 一个 Helm release 只代表一个 `(region_id, zone_id, cell_id)`，不得用一个 release 跨 Zone
+  调度 RustPBX；Zone B 使用独立 release、独立 Cell lease/epoch 和独立本地快照。
+- 每个生产 release 默认 2 个 Kamailio Edge 和至少 2 个 RustPBX ordinal。两个 Edge 各自运行
+  route-agent、各自验证并加载同一 Cell 节点集合，不共享可写 dispatcher 文件。
+- L4 Service 使用 `externalTrafficPolicy: Local` 保留来源地址，并以 `ClientIP` 做连接级 affinity。
+  这只减少同一来源的漂移，不替代 SIP Record-Route/dialog pin。
+- Helm 将 `cellInviteCps` 向上取整后平均到 Edge 副本；它是每 Edge 保护上限，不是严格的全 Cell
+  分布式计数。L4 倾斜由 per-source 限流、capacity snapshot 和 RustPBX admission 最终兜底。
+- RustPBX 使用 hostNetwork 让 RTP 直接到节点。部分 CNI 不对 hostNetwork Pod执行 NetworkPolicy，
+  因此节点防火墙、安全组和独占 RTP 端口预算是生产必选项，不能只依赖 Chart policy。
+
 生产镜像固定为上游 `kamailio/kamailio@6.0.7` 源码构建，源码归档 SHA-256、模块集合、
 amd64/arm64 buildx、SBOM 和 provenance 由 `infra/ivekit/kamailio/` 固化。历史
 `kamailio/kamailio:5.8` 镜像引用无对应制品，不得继续使用；部署只接受 iveKit registry
@@ -161,6 +174,39 @@ pin set ID 由控制面稳定分配并随节点身份持久，不能按列表顺
 所有候选失败返回 503，并带有有界 `Retry-After`。不得把失败请求同步转到另一 Cell，跨 Zone
 接管必须由更高 Cell lease epoch 的新快照授权。
 
+### 5.4 WebPhone、REGISTER 与 Edge 间位置同步
+
+WebPhone 不再直连任意 RustPBX。iveKit 先签发 30-300 秒的 extension session，浏览器再携带短期
+JWT 建立 WSS。Edge 必须逐项完成以下验证：精确 HTTPS Origin、HS256 签名、`iss`、`aud`、`exp/nbf`
+和合法 `sub`。通过后本地 htable 只保存 `connection id -> sub`，不保存完整浏览器 token，也不通过
+DMQ 复制连接级身份。
+
+浏览器 WebSocket 握手把短期 token 放在 `/ws?token=...` 查询参数中，因此生产 LoadBalancer、Ingress、
+WAF 和 CDN 的访问日志必须删除整个 query string 或对 `token` 值做不可逆脱敏；禁止把完整 WSS URL
+写入 Referer、错误页、指标标签、工单或抓包附件。Kamailio 自身不记录请求 URI/token，但这不能替代
+上游代理日志策略。extension session 必须保持短期且只用于建立一条连接。
+
+每个来自 WSS 的 SIP 请求都必须满足 `From user == sub`。Edge 使用同一文件密钥生成新的 30 秒内部
+JWT，写入 `X-Auth-Token` 后交给 RustPBX 复验；RustPBX 同时要求所有鉴权后端得到的 user 与 From
+一致。这样浏览器连接 token 过期不会让已建立的长通话在 BYE/re-INVITE 时失去鉴权，外部也不能伪造
+内部 header。内部断言离开 RustPBX 信任边界前必须删除。
+
+REGISTER 的权威顺序固定为：
+
+1. Edge 完成 WSS 身份绑定并执行 `add_path_received()`；
+2. 按容量快照选择 RustPBX，RustPBX 再验证内部 JWT、分机归属并写共享 PostgreSQL locator；
+3. 只有 RustPBX 返回 2xx 后，Edge 才把 Contact 保存到内存 usrloc；
+4. `dmq_usrloc` 只复制已通过上述流程的 location，失败或未鉴权 REGISTER 不得进入集群状态。
+
+RustPBX 发往浏览器的初始 INVITE 优先沿 REGISTER Path 回到 Edge；没有可用 Path 时才查询复制后的
+usrloc。两条路径都会写入 `ivkwp=1` Record-Route。后续 dialog 在 Edge 内分流：RustPBX 到浏览器
+剥离内部断言，WSS 到 RustPBX 保留本请求新签断言，其他来源直接拒绝；WebPhone dialog 不进入普通
+RustPBX pin-set 解析，因此不会误报 481。
+
+生产 Edge 使用 StatefulSet 和 headless DMQ Service。DMQ 只监听内部 UDP 5066，启用时必须提供
+至少两个同端口 bootstrap 地址，并由来源 CIDR、NetworkPolicy 和独立 listener 三重限制。DMQ 复制
+的是短期 location，不复制 JWT htable；Compose 单 Edge 明确关闭 DMQ。
+
 ## 6. 健康、drain 与恢复
 
 ### 6.1 双门健康
@@ -208,6 +254,11 @@ route-agent 暴露：
 - `ivekit_kamailio_route_nodes{state}`、`route_reload_total{result}`；
 - `ivekit_kamailio_route_poll_duration_seconds{result}`；
 - `ivekit_kamailio_route_rejections_total{reason}`。
+- `ivekit_kamailio_new_call_nodes` 和 `ivekit_kamailio_core_metrics_up`。
+
+Kamailio 的 xhttp_prom 只监听 Pod loopback `:5065/metrics`。route-agent 以 1 MiB、1 秒默认超时的
+有界 client读取并合并到自己的 cluster-internal `:3220/metrics`；读取失败不遮蔽 route-agent 指标，
+而是输出 `ivekit_kamailio_core_metrics_up 0`。RPC 与原始 core metrics 都不创建 Service。
 
 Kamailio 暴露：
 
@@ -216,18 +267,27 @@ Kamailio 暴露：
 - dispatcher active/inactive/trying destination；
 - OPTIONS latency/failure；
 - failover attempt/exhaustion；
+- WebPhone WSS 鉴权、内部断言、REGISTER、location save 和 delivery miss；
+- DMQ 非法来源拒绝；
 - rate-limit、sanity、ACL 和 stale-snapshot rejection。
 
 必须提供：快照过期、无可用 RustPBX、超过一半 destination down、failover exhaustion、重传异常、
-5xx 异常、dialog pin 失败和 CPS/transaction 饱和告警。
+5xx 异常、dialog pin 失败、WebPhone 鉴权/location save、DMQ 拒绝和 CPS/transaction 饱和告警。
 
 ## 9. 部署
 
-- 正式 Helm 使用 Kamailio Deployment，默认两副本、zone/hostname spread、PDB minAvailable=1。
+- 正式 Helm 使用 Kamailio StatefulSet，默认两副本、Parallel 启动、稳定 ordinal、headless DMQ
+  Service、zone/hostname spread 和 PDB minAvailable=1。
 - RustPBX 使用 StatefulSet 和 headless Service，稳定 Pod 名即 component node ID。
 - SIP/TLS/WSS Service 与 loopback RPC/metrics Service 分离；RPC 不创建 Kubernetes Service。
 - RTP 仍直达 RustPBX，不经过 Kamailio。
 - Compose 提供两个 RustPBX 和一个 Kamailio 的受控拓扑，不宣称 HA。
+- Compose `voice` 启动一个 RustPBX，预声明的第二节点保持不可用；`voice-capacity` 启动 A/B 两个
+  独立 owner、独立 RTP 段、spool 和 component-node。两种 profile 都只公开 Kamailio SIP/TLS/WSS，
+  RustPBX 只公开各自 UDP RTP 端口段。
+- Compose/Helm 启动时 component-node 默认 draining。只有现有 Cell admission synchronizer 取得
+  authority lease、完成 reservation replay 并持续发送 node lease 后，route-agent 才发布新呼叫节点；
+  禁止用静态 Compose 配置绕过这一门禁。
 - 镜像必须绑定 digest；Kamailio 配置、route-agent 和 snapshot schema 进入交付 manifest。
 
 ## 10. 自动化验收
@@ -242,9 +302,11 @@ Kamailio 暴露：
 6. BYE/re-INVITE 固定 owner；
 7. OPTIONS down/up 阈值和 component state 双门；
 8. drain 和滚动发布顺序；
-9. TLS/WSS、拓扑隐藏、伪造 header、ACL 和限流配置；
+9. TLS/WSS、Origin/JWT/From 绑定、REGISTER 2xx 后保存、WebPhone dialog、DMQ、拓扑隐藏、
+   伪造 header、ACL 和限流配置；
 10. Compose/Helm render、PDB、spread、NetworkPolicy、ServiceMonitor、PrometheusRule；
-11. SIPp 受控双 RustPBX 路由和单节点故障场景；
+11. SIPp 受控双 RustPBX 路由、单节点故障、公开 KDMQ 拒绝和真实 WSS REGISTER/刷新/注销/跨 Edge
+    投递场景；
 12. 交付包 hash、secret scan 和文档状态一致。
 
 物理 CPS、长稳、真实运营商、双 Zone 和节点扩展曲线在后续压测 Goal 中执行，本目标不把静态或

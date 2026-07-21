@@ -116,7 +116,25 @@ curl -fsS http://127.0.0.1:3000/metrics
 | `rustpbx_sip_transport_connections_active` / `rustpbx_sip_transport_connection_limit` | Gauge | 无业务标签 | TCP/TLS/WebSocket 连接占用 |
 | `rustpbx_sip_endpoint_active_limit_rejections_total` / `rustpbx_sip_endpoint_incoming_queue_rejections_total` / `rustpbx_sip_transport_connection_limit_rejections_total` | Counter | 无业务标签 | 显式过载拒绝证据 |
 
-### 3.5 安全和运维
+### 3.5 Kamailio SIP Edge
+
+| 指标 | 类型 | 关键标签 | 用途 |
+| --- | --- | --- | --- |
+| `ivekit_kamailio_snapshot_valid` / `ivekit_kamailio_snapshot_age_seconds` | Gauge | Pod | Cell 本地签名路由快照新鲜度 |
+| `ivekit_kamailio_new_call_nodes` | Gauge | Pod | 当前可接收新呼叫的 RustPBX 数量 |
+| `ivekit_kamailio_route_nodes` | Gauge | `state` | accepting/degraded/draining/offline 节点数 |
+| `ivekit_kamailio_route_reload_total` | Counter | `result` | dispatcher 原子发布后的 reload 结果 |
+| `ivekit_kamailio_core_metrics_up` | Gauge | Pod | loopback Kamailio 指标是否被 route-agent 安全代理 |
+| `kamailio_core_ivekit_dispatch_failures` | Counter | 无业务标签 | 初始 INVITE 候选耗尽 |
+| `kamailio_core_ivekit_pin_failures` | Counter | 无业务标签 | dialog owner pin/epoch 无法兑现 |
+| `kamailio_core_ivekit_webphone_auth_failures` | Counter | 无业务标签 | WSS Origin/JWT/subject/From 身份拒绝 |
+| `kamailio_core_ivekit_webphone_assertion_failures` | Counter | 无业务标签 | Edge 无法签发短期内部断言 |
+| `kamailio_core_ivekit_webphone_registrations` | Counter | 无业务标签 | RustPBX 2xx 后成功保存的 WebPhone location |
+| `kamailio_core_ivekit_webphone_location_save_failures` | Counter | 无业务标签 | RustPBX 已接受但 Edge usrloc 保存失败 |
+| `kamailio_core_ivekit_webphone_delivery_misses` | Counter | 无业务标签 | RustPBX 发起呼叫但 Edge 无可用 WebPhone location |
+| `kamailio_core_ivekit_dmq_rejects` | Counter | 无业务标签 | 非专用端口或非允许来源的 KDMQ 拒绝 |
+
+### 3.6 安全和运维
 
 | 指标 | 类型 | 关键标签 | 用途 |
 | --- | --- | --- | --- |
@@ -189,6 +207,74 @@ curl -fsS http://127.0.0.1:3000/metrics
 
 检查 RustPBX webhook/Router/CDR 队列、worker heartbeat、数据库锁和时钟偏差。先恢复事件消费，再判断是否需要 call reconciliation。
 
+### IveKitKamailioRouteSnapshot
+
+`IveKitKamailioSnapshotExpired` 表示该 Edge 已对新呼叫 fail-closed。先比较 route-agent
+`/readyz`、component-node `/v1/state`、Cell lease epoch、节点时钟和
+`ivekit_kamailio_route_reload_total`。签名、Cell/Zone/epoch 或 sequence 不一致时不得跳过校验；恢复
+Cell admission authority 或正确密钥后等待新快照发布。已有 dialog 继续走保留的 pin set，不要为恢复
+新呼叫而重启仍承载会话的 RustPBX。
+
+### IveKitKamailioCoreMetrics
+
+`IveKitKamailioCoreMetricsUnavailable` 表示 route-agent 可抓取，但 loopback `127.0.0.1:5065/metrics`
+不可读。检查 Kamailio 进程、xhttp_prom、共享网络命名空间和 1 MiB 响应上限。RPC/metrics 端口不得临时
+发布为 Service 或宿主机公网端口；修复 sidecar/配置后确认 `ivekit_kamailio_core_metrics_up=1`，再验证
+failover 和 pin counter 连续。
+
+### IveKitKamailioRouteCapacity
+
+`IveKitKamailioNoAvailableRustPbx` 和 `IveKitKamailioMajorityDestinationsDown` 先按
+accepting/degraded/draining/offline 分解。对比 component lease、recovery、safe headroom 与 OPTIONS
+状态：管理状态不健康时修复 Cell synchronizer，只有 OPTIONS 失败时检查 DNS、Pod/host 网络、5060
+ACL 和 RustPBX 进程。禁止把 draining 节点手工改回 pool；扩容后必须由更高 sequence 的签名快照纳入。
+
+### IveKitKamailioRouteReload
+
+`IveKitKamailioRouteReloadFailure` 说明 dispatcher 文件已准备但 loopback JSON-RPC 未激活。核对 RPC
+token 是否与渲染配置来自同一 Secret、端口是否为 5065、文件 UID/GID 与 Kamailio parser 结果。route-agent
+会重试同一 sequence，不应手工增加 sequence 或直接覆盖 dispatcher。reload 成功且快照仍新鲜后再结束事故。
+
+### IveKitKamailioFailover
+
+`IveKitKamailioFailoverExhausted` 表示一个未接通 INVITE 的有限候选全部发生 transport、408 或允许的
+5xx。保存对应时间窗的 OPTIONS、RustPBX admission/503、L4 分配和 counter 增量；确认不是重传风暴或
+全节点容量耗尽。业务 4xx 不应触发该计数，已收到 2xx 的 dialog 也不得换 owner。
+
+### IveKitKamailioDialogPin
+
+`IveKitKamailioDialogPinFailure` 表示 BYE、re-INVITE、UPDATE、INFO、PRACK 或 REFER 无法回到原
+RustPBX owner。检查 Record-Route/topoh key、pin set 是否在 drain 后被误删、Cell epoch 是否提前切换、
+原节点是否已离线。不能回退到新呼叫 pool；必要时明确终止该 dialog 并保留审计，修复发布/退役顺序。
+
+### IveKitKamailioWebPhone
+
+`IveKitKamailioWebPhoneAuthFailures` 先按同一时间窗检查允许的 HTTPS Origin、extension session
+issuer/audience、Edge 与 API 的时钟、JWT 文件挂载和 SIP From 是否等于 session subject。不要把 token
+或完整 WSS URL写入日志、工单和抓包附件。只在确认不是攻击流量后，再让客户端申请新 session 并重连。
+同时核对 LoadBalancer、Ingress、WAF 和 CDN 已关闭 query-string 访问日志或对 `token` 做不可逆脱敏；
+Kamailio 不记录 URI 并不能阻止上游代理泄露查询参数。
+
+`IveKitKamailioWebPhoneLocationSaveFailure` 表示 RustPBX 已返回 2xx，但 Edge `save("location")` 失败。
+检查 REGISTER Contact/Path、registrar/usrloc 内存、Pod 资源和 Kamailio parser 日志；该状态不能通过
+伪造 location 或跳过 RustPBX 鉴权修复。恢复后执行真实 WSS REGISTER、同连接 refresh、unregister，
+再从另一 Edge 验证 RustPBX 到浏览器的 Path/location 投递和 `ivkwp` dialog BYE。
+
+内部断言签发失败应视为 fail-closed：WSS 请求返回 503，但既有 RTP 媒体不应被 Edge 主动终止。
+浏览器握手 token 只绑定连接，后续请求使用新的 30 秒内部断言；不要为解决长通话问题延长或持久化
+浏览器 token。
+
+### IveKitKamailioDmq
+
+`IveKitKamailioDmqRejected` 表示 KDMQ 到达了错误端口或来源不在 `dmq_source_cidrs`。确认 UDP 5066
+只由 headless DMQ Service、Kamailio StatefulSet peer 和 NetworkPolicy 使用，bootstrap 地址端口与
+`server_port` 一致，且至少两个稳定 ordinal 可解析。公网 SIP Service 不得增加 5066，也不要临时扩大
+CIDR 来消除告警；无法解释的外部 KDMQ 应按状态注入尝试调查。
+
+DMQ 只复制已鉴权 usrloc，不复制 WSS JWT htable。单 Edge Compose 关闭 DMQ，因此不能用 Compose
+结果证明跨 Edge location 恢复。目标 Kubernetes 还需验证 Pod 重启、Edge A 注册后由 Edge B 投递、
+双 bootstrap 重建和非法来源拒绝。
+
 ### IveKitRustPbxSipCapacity
 
 `IveKitRustPbxSipTransactionSaturation`、`IveKitRustPbxSipQueueSaturation` 和
@@ -238,15 +324,16 @@ curl -fsS http://127.0.0.1:3000/metrics
 
 ## 5. Dashboard 面板
 
-`iveKit Shared Foundation Operations` 提供 16 个面板：API 请求与 5xx、通知队列深度/年龄/投递/健康、集成 Webhook 延迟与操作结果、Tinode 同步延迟与干预队列、智能 Provider 路由、LiveKit 丢包、Voice uncertain 与事件延迟、数据保留和限流拒绝。
+`iveKit Shared Foundation Operations` 提供 19 个面板：API 请求与 5xx、通知队列深度/年龄/投递/健康、集成 Webhook 延迟与操作结果、Tinode 同步延迟与干预队列、智能 Provider 路由、LiveKit 丢包、Voice uncertain 与事件延迟、数据保留、限流拒绝，以及 Kamailio Edge 健康、RustPBX pool 和路由失败。
 
 Dashboard 只有共享底座指标，不包含 OPC/LED 订单、客户、坐席绩效等业务指标。业务团队可以在自己的 dashboard 中引用 iveKit 指标，但不能修改共享底座标签合同。
 
 ## 6. 验收状态
 
-本地自动化已验证规则 YAML、dashboard JSON、指标名称、Helm 资源开关、Service selector 和交付包白名单。当前机器没有 Helm/Prometheus Operator/Grafana 运行环境，因此以下项目保持 `not_run`：
+本地自动化已验证规则 YAML、dashboard JSON、指标名称、Helm 资源开关、Service selector、Helm
+3.18.4 lint/template、Compose config 和交付包白名单。以下真实环境项目保持 `not_run`：
 
-- 目标 Kubernetes `helm lint/template/upgrade/rollback`；
+- 目标 Kubernetes `helm upgrade/rollback` 与真实双 Zone 调度；
 - Prometheus Operator 实际发现和规则加载；
 - Alertmanager 路由、静默和通知接收；
 - Grafana sidecar 自动导入和真实历史数据展示；

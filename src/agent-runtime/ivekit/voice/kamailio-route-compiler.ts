@@ -97,12 +97,13 @@ export function renderKamailioDispatcherList(
         newCallLines.push(dispatcherLine({
           set_id: pool.pool_id,
           node,
-          flags: 8,
+          flags: 9,
           attrs: [
             `duid=${node.node_id}`,
             `rweight=${node.routing_weight}`,
             `pinset=${node.pin_set_id}`,
-            `node=${node.node_id}`
+            `node=${node.node_id}`,
+            'ivekit_retain_state=1'
           ]
         }));
       }

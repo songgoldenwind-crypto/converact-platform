@@ -9,6 +9,7 @@ import type { ComponentNodeStateSnapshot } from '../src/agent-runtime/ivekit/pla
 import { ComponentNodeAdmissionController } from '../src/agent-runtime/ivekit/placement/component-node-admission.js';
 import { createComponentNodeAdmissionHttpServer } from '../src/agent-runtime/ivekit/placement/component-node-admission-http.js';
 import {
+  HttpKamailioCoreMetricsClient,
   HttpKamailioJsonRpcClient,
   KamailioRouteAgent,
   createKamailioRouteAgentHttpServer,
@@ -217,9 +218,57 @@ test('route agent health and metrics expose freshness without node or tenant car
   const metrics = await fetch(`http://127.0.0.1:${port}/metrics`).then((response) => response.text());
   assert.match(metrics, /ivekit_kamailio_snapshot_valid 1/);
   assert.match(metrics, /ivekit_kamailio_snapshot_sequence 1/);
+  assert.match(metrics, /ivekit_kamailio_new_call_nodes 1/);
   assert.match(metrics, /ivekit_kamailio_route_nodes\{state="accepting"\} 1/);
   assert.doesNotMatch(metrics, /rustpbx-a-0|tenant/);
   assert.ok(Buffer.byteLength(metrics) < 32_768);
+});
+
+test('route agent metrics merge bounded Kamailio loopback metrics', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'ivekit-kamailio-core-metrics-'));
+  const agent = routeAgent(directory, [routeNode(0, async () => componentState(0))]);
+  await agent.runOnce(T0);
+  const server = createKamailioRouteAgentHttpServer({
+    agent,
+    now: () => new Date(T0.getTime() + 1_000),
+    read_core_metrics: async () => '# TYPE kamailio_core_ivekit_pin_failures counter\nkamailio_core_ivekit_pin_failures 2\n'
+  });
+  const port = await listenOnRandomPort(server);
+  t.after(() => closeServer(server));
+
+  const metrics = await fetch(`http://127.0.0.1:${port}/metrics`).then((response) => response.text());
+  assert.match(metrics, /ivekit_kamailio_core_metrics_up 1/);
+  assert.match(metrics, /kamailio_core_ivekit_pin_failures 2/);
+});
+
+test('route agent metrics isolate Kamailio loopback scrape failures', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'ivekit-kamailio-core-down-'));
+  const agent = routeAgent(directory, [routeNode(0, async () => componentState(0))]);
+  await agent.runOnce(T0);
+  const server = createKamailioRouteAgentHttpServer({
+    agent,
+    now: () => new Date(T0.getTime() + 1_000),
+    read_core_metrics: async () => { throw new Error('Kamailio restarting'); }
+  });
+  const port = await listenOnRandomPort(server);
+  t.after(() => closeServer(server));
+
+  const response = await fetch(`http://127.0.0.1:${port}/metrics`);
+  const metrics = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(metrics, /ivekit_kamailio_snapshot_valid 1/);
+  assert.match(metrics, /ivekit_kamailio_core_metrics_up 0/);
+});
+
+test('Kamailio core metrics client is loopback-only and response-bounded', async () => {
+  assert.throws(() => new HttpKamailioCoreMetricsClient({
+    endpoint: 'http://kamailio.internal:5065/metrics'
+  }), /loopback/i);
+  const client = new HttpKamailioCoreMetricsClient({
+    endpoint: 'http://127.0.0.1:5065/metrics',
+    fetch: async () => new Response('x'.repeat(1_048_577), { status: 200 })
+  });
+  await assert.rejects(() => client.read(), /too large/i);
 });
 
 test('route agent runtime config loads topology and secrets only from bounded files', async () => {

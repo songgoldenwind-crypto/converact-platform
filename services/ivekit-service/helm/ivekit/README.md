@@ -35,7 +35,9 @@ rewrites. Do not also enable `config.env.OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED`
 
 Monitoring resources are opt-in because the Prometheus Operator CRDs and Grafana sidecar are external cluster dependencies. Enable `monitoring.serviceMonitor.enabled`, `monitoring.prometheusRule.enabled`, and `monitoring.grafanaDashboard.enabled` only after those dependencies exist. The rule and dashboard source files are under `files/` and can also be loaded directly by non-Helm Prometheus and Grafana installations. Keep the metrics endpoint private to the monitoring network; it contains bounded operational labels but is not an end-user API.
 
-Voice is disabled by default. Enabling it additionally requires the iveKit-patched immutable RustPBX digest, a tenant ID, a profile ID, and the configured RustPBX database URL/password, management API token, RWI token, webhook token, voice address HMAC root, and route snapshot signing key in the existing Secret. The management and RWI tokens must be distinct. The route signing key must be a distinct canonical-base64 32-byte secret; the address HMAC key must be the same root used by the iveKit API. The route projector sidecar polls one revision row, loads the bounded route set only after an authoritative routing change, renews the HMAC-only snapshot near expiry by atomic rename, and shares it with RustPBX through pod-local `emptyDir`. RustPBX fails new inbound routing closed when the snapshot is missing, invalid, or stale. The API runtime Secret must expose the same management token as `RUSTPBX_MANAGEMENT_TOKEN` and the RWI token as `RUSTPBX_RWI_TOKEN`. Set `voice.amiAllows` to explicit loopback and iveKit workload IP/CIDR entries; wildcard AMI access is forbidden. The RustPBX database and role must be provisioned before deployment. SIP and RTP exposure must be adapted to the target cluster load balancer and firewall.
+Voice is disabled by default. Enabling it additionally requires the iveKit-patched immutable RustPBX digest, the source-built immutable Kamailio digest, one exact Region/Zone/Cell identity, a tenant ID, a profile ID, and the configured RustPBX database URL/password, management API token, RWI token, webhook token, voice address HMAC root, route snapshot signing key, Kamailio route/topoh/RPC keys and TLS keypair/CA in the existing Secret. The management and RWI tokens must be distinct. The route signing key must be a distinct canonical-base64 32-byte secret; the address HMAC key must be the same root used by the iveKit API. The route projector sidecar polls one revision row, loads the bounded route set only after an authoritative routing change, renews the HMAC-only snapshot near expiry by atomic rename, and shares it with RustPBX through pod-local `emptyDir`. RustPBX fails new inbound routing closed when the snapshot is missing, invalid, or stale. The API runtime Secret must expose the same management token as `RUSTPBX_MANAGEMENT_TOKEN` and the RWI token as `RUSTPBX_RWI_TOKEN`. Set `voice.amiAllows` and `voice.kamailio.trustedSourceCidrs` to explicit networks; wildcard trust is forbidden. The RustPBX database and role must be provisioned before deployment.
+
+One Chart release is one Cell in one Zone. The default production topology uses a two-replica Kamailio StatefulSet behind a source-preserving L4 Service and a host-networked RustPBX StatefulSet with stable ordinal owners and a headless management Service. Configure exact `voice.webphone.allowedOrigins`, project the WebPhone JWT secret named by `voice.webphone.jwtSecretKey`, and restrict `voice.kamailio.rustpbxSourceCidrs` and `voice.kamailio.dmqSourceCidrs` to real internal networks. Authenticated WebPhone locations replicate over the Kamailio headless Service on UDP 5066; that port is intentionally absent from the public SIP Service. SIP/TLS/WSS are exposed only by Kamailio; RTP remains direct to RustPBX node addresses. Deploy Zone B as a separate release with its own identity and lease epoch. Because hostNetwork NetworkPolicy behavior is CNI-specific, enforce RustPBX management/SIP and RTP ranges with node firewall/security-group rules as well. Route-agent proxies bounded loopback Kamailio metrics through the internal metrics Service; JSON-RPC and the raw xhttp endpoint never receive a Service.
 
 `voice.recordingSpool.enabled=true` co-locates the bounded recording uploader.
 The existing Secret must additionally provide the key named by
@@ -57,14 +59,15 @@ The default Voice Secret key names are `rustpbx-database-url`,
 `voice.*Key` fields, but the secret values themselves must not enter
 `values.yaml`.
 
-Cell owner-epoch enforcement is separately opt-in through
-`voice.componentNode.enabled=true`. Configure the exact Region, Zone, Cell
+Cell owner-epoch enforcement is required when the Kamailio Edge is enabled.
+Configure the exact Region, Zone, Cell
 capacity profile IDs and the qualified RustPBX capacity vector under
 `voice.componentNode`; put the shared node token under
 `voice.componentNode.tokenKey` in the existing Secret. The sidecar and RustPBX
 share Pod networking on `127.0.0.1:3210`. The Pod remains unready until Cell
 lease recovery and reservation replay complete, and stale RWI mutations fail
-closed. Keep this disabled when no Cell admission synchronizer is deployed.
+closed. Without a Cell admission synchronizer the deployment intentionally
+stays fail-closed for new calls.
 
 Trunk and extension credentials are referenced as `env://NAME`. Add every referenced key and value to `secrets.runtimeEnvironmentSecret`, then add each key name to the comma-separated `config.env.OPC_IVEKIT_VOICE_SECRET_ENV_NAMES` allowlist. The management and RWI token names must remain present. Do not put credential values in `values.yaml`, `config.env`, Provider profile JSON, or resource API payloads.
 

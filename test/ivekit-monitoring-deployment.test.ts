@@ -48,7 +48,12 @@ test('iveKit Grafana dashboard is importable and uses only bounded shared metric
     'opc_ivekit_tinode_delivery_queue_lag_seconds',
     'opc_ivekit_media_qos_packet_loss_ratio_bucket',
     'opc_ivekit_voice_uncertain_commands_total',
-    'opc_ivekit_event_webhook_oldest_event_age_seconds'
+    'opc_ivekit_event_webhook_oldest_event_age_seconds',
+    'ivekit_kamailio_snapshot_valid',
+    'ivekit_kamailio_new_call_nodes',
+    'ivekit_kamailio_core_metrics_up',
+    'kamailio_core_ivekit_dispatch_failures',
+    'kamailio_core_ivekit_pin_failures'
   ]) assert.match(expressions, new RegExp(metric));
   assert.doesNotMatch(expressions, /tenant_id|notification_id|session_id|user_id/);
 });

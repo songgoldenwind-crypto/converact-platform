@@ -3,7 +3,26 @@
 The image is built from the exact upstream source `kamailio/kamailio@6.0.7`.
 The source archive SHA-256 is fixed in the Dockerfile. The build includes the
 standard module group plus `dispatcher`, `dialog`, `htable`, `tls`, `websocket`
-and `xhttp_prom`, which are required by the generated iveKit edge config.
+and `xhttp_prom`, plus `jwt`, `jansson`, `registrar`, `usrloc`, `path`, `dmq`
+and `dmq_usrloc`, which are required by the generated iveKit edge config.
+
+The image also applies the reviewed
+`patches/0001-dispatcher-retain-probe-state.patch`. New-call destinations start
+inactive and probing. Only dispatcher rows carrying
+`ivekit_retain_state=1` retain their OPTIONS state and consecutive-probe count
+across a file reload. This prevents capacity-weight refreshes from reviving a
+down RustPBX node, while a newly admitted node must pass the configured OPTIONS
+success threshold before it receives a call. Removing a node from the signed
+new-call pool still removes it from dispatcher regardless of retained state.
+
+WebPhone WSS uses an exact HTTPS Origin allowlist and a file-backed HS256 key.
+Kamailio binds the verified JWT subject to the connection and SIP From, then
+generates a fresh 30-second internal assertion for RustPBX to verify on every
+request. REGISTER is stored in Edge usrloc only after RustPBX returns 2xx.
+Production replicas run as a StatefulSet and replicate only authenticated
+locations through an internal UDP 5066 DMQ listener; the public SIP Service
+must never expose that port. Browser tokens, connection htable values, RPC
+tokens and topology keys must not enter logs or generated evidence.
 
 The previous `kamailio/kamailio:5.8` Compose reference did not identify an
 existing image. The official 5.8 store artifacts are amd64-only, so they are not

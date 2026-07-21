@@ -46,6 +46,9 @@ For the optional Voice profile, render the RustPBX configuration and run the Voi
 
 ```bash
 npm run render:rustpbx
+npm run render:kamailio-compose
+npm run render:kamailio
+npm run route:kamailio
 npm run preflight:voice
 npm run project:rustpbx-routes
 ```
@@ -66,13 +69,39 @@ HTTP/database lookup. Configure a tenant ID, profile ID, a distinct 32-byte
 base64 snapshot signing key, and the same voice-address HMAC root used by the
 iveKit API.
 
-The normal Compose Voice mode uses `--profile voice` and leaves owner-epoch
-enforcement disabled. Cell deployments use `--profile voice-capacity`, set
-`RUSTPBX_COMPONENT_NODE_ENABLED=true`, and configure the Region, Zone, Cell
-capacity profile, qualified dimensions and shared component-node token from
-`env.example`. That profile starts the complete Voice stack plus the compiled
-component-node sidecar in RustPBX's network namespace. Its `/readyz` remains
-unhealthy until the Cell synchronizer finishes lease and checkpoint recovery.
+Both Compose Voice profiles put Kamailio in front of RustPBX and enable
+owner-epoch enforcement. `--profile voice` starts one RustPBX owner while the
+predeclared second destination remains unavailable; `--profile voice-capacity`
+starts two owners with separate RTP ranges, storage, recording spool state and
+component-node sidecars. RustPBX never publishes SIP 5060 on the host. Only
+Kamailio publishes UDP/TCP 5060, TLS 5061 and WSS 7443; route-agent metrics are
+bound to host loopback. Neither profile is HA because Compose has one Edge.
+
+Configure the exact Region, Zone, Cell epoch, profile, two stable owner IDs,
+advertised SIP/WSS host and explicit trusted source CIDRs from `env.example`.
+The Kamailio image must be digest-pinned. Route HMAC, topoh, JSON-RPC and TLS
+material use file-backed Compose secrets. The value in
+`KAMAILIO_COMPONENT_NODE_TOKEN_FILE` must exactly match
+`OPC_IVEKIT_COMPONENT_NODE_TOKEN`, because route-agent and patched RustPBX
+consume the same component-node authority through different process contracts.
+Every node starts draining and `/readyz` remains unhealthy until the Cell
+admission synchronizer acquires its lease and completes checkpoint replay; do
+not hand-edit dispatcher state to bypass that fail-closed startup.
+
+WebPhone access additionally requires an exact HTTPS Origin allowlist and the
+file-backed WebPhone JWT secret shared by iveKit, Kamailio and RustPBX. The Edge
+verifies the browser token only at WSS handshake, binds its subject to SIP From,
+and sends RustPBX a new 30-second internal assertion for each SIP request.
+RustPBX remains authoritative for REGISTER; Kamailio saves the location only
+after a 2xx response. Compose has one Edge and deliberately disables DMQ, so it
+can verify REGISTER/refresh/unregister but cannot prove cross-Edge delivery or
+WebPhone HA. The Helm StatefulSet uses private UDP 5066 DMQ for that production
+contract.
+
+The browser handshake carries its short-lived token in the WSS query string.
+Configure every LoadBalancer, Ingress, WAF and CDN in front of Kamailio to omit
+the query string or irreversibly redact `token`; never place the complete WSS
+URL in access logs, error pages, metrics, tickets or packet-capture evidence.
 
 Voice trunk and extension objects store only `env://NAME` references. For Compose, put any additional credential values in `voice-runtime.env`, set `OPC_IVEKIT_VOICE_SECRET_ENV_NAMES` to the complete comma-separated allowlist, and keep the file mode at `0600`. The optional file is injected only into the iveKit API service; it is not mounted into RustPBX, PostgreSQL, migration, or recovery containers. `RUSTPBX_MANAGEMENT_TOKEN` and `RUSTPBX_RWI_TOKEN` remain separate required variables and must stay in the allowlist.
 

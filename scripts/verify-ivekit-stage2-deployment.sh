@@ -6,13 +6,15 @@ CHART_DIR="$ROOT_DIR/services/ivekit-service/helm/ivekit"
 PLATFORM_CHART_DIR="$ROOT_DIR/infra/k8s"
 COMPOSE_FILE="$ROOT_DIR/services/ivekit-service/docker-compose.yml"
 COMPOSE_ENV="$ROOT_DIR/services/ivekit-service/env.example"
+KAMAILIO_VALUES_FILE="$ROOT_DIR/test/fixtures/ivekit-kamailio-values.yaml"
 RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-helm.XXXXXX.yaml")
+KAMAILIO_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-kamailio.XXXXXX.yaml")
 EGRESS_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-egress.XXXXXX.yaml")
 FOUNDATION_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-foundation.XXXXXX.yaml")
 PLATFORM_IMAGE_VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-platform-images.XXXXXX.yaml")
 
 cleanup() {
-  rm -f "$RENDERED_FILE" "$EGRESS_RENDERED_FILE" "$FOUNDATION_RENDERED_FILE" "$PLATFORM_IMAGE_VALUES_FILE"
+  rm -f "$RENDERED_FILE" "$KAMAILIO_RENDERED_FILE" "$EGRESS_RENDERED_FILE" "$FOUNDATION_RENDERED_FILE" "$PLATFORM_IMAGE_VALUES_FILE"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -89,6 +91,45 @@ grep -q 'app.kubernetes.io/component: api' "$RENDERED_FILE"
 grep -q 'app.kubernetes.io/component: clamav' "$RENDERED_FILE"
 grep -q 'kind: PersistentVolumeClaim' "$RENDERED_FILE"
 grep -q 'type: ClusterIP' "$RENDERED_FILE"
+
+helm lint "$CHART_DIR" --values "$KAMAILIO_VALUES_FILE"
+helm template ivekit-kamailio "$CHART_DIR" \
+  --namespace ivekit \
+  --values "$KAMAILIO_VALUES_FILE" \
+  >"$KAMAILIO_RENDERED_FILE"
+
+test -s "$KAMAILIO_RENDERED_FILE"
+grep -q 'app.kubernetes.io/component: kamailio' "$KAMAILIO_RENDERED_FILE"
+grep -q 'kind: StatefulSet' "$KAMAILIO_RENDERED_FILE"
+grep -q 'rustpbx-headless' "$KAMAILIO_RENDERED_FILE"
+grep -q 'kamailio-topology.json' "$KAMAILIO_RENDERED_FILE"
+grep -q 'registry.example.com/ivekit/kamailio@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' "$KAMAILIO_RENDERED_FILE"
+grep -q 'externalTrafficPolicy: Local' "$KAMAILIO_RENDERED_FILE"
+grep -q 'sessionAffinity: ClientIP' "$KAMAILIO_RENDERED_FILE"
+
+node --input-type=module - "$KAMAILIO_RENDERED_FILE" <<'NODE'
+import { readFileSync } from 'node:fs';
+import { parseAllDocuments } from 'yaml';
+
+const documents = parseAllDocuments(readFileSync(process.argv[2], 'utf8'));
+for (const document of documents) {
+  if (document.errors.length > 0) throw document.errors[0];
+  const value = document.toJS();
+  if (value?.kind === 'ConfigMap' && value.metadata?.name?.endsWith('-kamailio-config')) {
+    JSON.parse(value.data['kamailio-runtime.json']);
+    JSON.parse(value.data['kamailio-topology.json']);
+  }
+}
+NODE
+
+if helm template ivekit-kamailio "$CHART_DIR" \
+  --namespace ivekit \
+  --values "$KAMAILIO_VALUES_FILE" \
+  --set-string voice.kamailio.image.digest= \
+  >/dev/null 2>&1; then
+  printf '%s\n' 'Kamailio unexpectedly rendered without an immutable image digest' >&2
+  exit 1
+fi
 
 EGRESS_DIGEST=sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 

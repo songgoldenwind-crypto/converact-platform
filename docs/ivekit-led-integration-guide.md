@@ -300,6 +300,14 @@ TTL 300 秒，允许范围 30 至 300 秒。迁移 094 提供 tenant RLS、幂�
 生命周期 guard，替代全局 `Mutex<Vec>` 扫描；地址复用时旧 guard 不能删除新连接。浏览器应在 plan
 过期前完成注册，过期或 capability 关闭时重新向 iveKit 申请，不得在 LED 数据库或日志保存 credential。
 
+生产接入路径固定为 `LED browser -> Kamailio WSS -> RustPBX`。Kamailio 对 WSS 执行精确 Origin、JWT
+issuer/audience/时效校验，把 subject 绑定到连接和 SIP From；之后每个 SIP 请求都重新签发 30 秒内部
+断言，由 RustPBX 再校验 subject/From 和分机归属。REGISTER 只有在 RustPBX 返回 2xx 后才写 Edge
+usrloc，两个 Kamailio StatefulSet ordinal 通过不对公网开放的 UDP 5066 DMQ 复制已鉴权 location。
+RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialog 使用独立 Record-Route 标记，
+不进入普通 PBX pin-set 逻辑。Compose 只有一个 Edge并关闭 DMQ；跨 Edge 投递必须在目标 Kubernetes
+用交付包内的 12 场景矩阵和 WSS driver 验收。
+
 实时媒体与录制继续是两个故障域。RustPBX 录音 capture 使用有界非阻塞队列，录音编解码、磁盘、
 终结和会话资源清理不在 RTP/媒体命令循环中同步等待；LiveKit Server 不依赖 Egress/对象存储。
 存储故障允许录制失败或不完整，但不得回压、重建或终止已建立的 SIP/RTP/WebRTC 会话。

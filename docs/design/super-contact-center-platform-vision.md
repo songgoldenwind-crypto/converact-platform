@@ -833,7 +833,7 @@ flowchart TD
 | Chatwoot | 延后 | 太重；用 ChannelAdapter 自建 |
 | Kong | 延后 | OPC 中间件够用 |
 | Keycloak | 替换为轻量 JWT | MVP 减重 |
-| Kamailio | 延后 | RustPBX 足够到 1000 并发 |
+| Kamailio | 已启用（Cell/MIX-100K 生产架构） | 早期 1000 路以内 RustPBX 可直入；大规模生产使用独立 SIP Edge 完成容量分发、dialog pin、drain 和安全边界 |
 | ClickHouse | 延后 | PG 物化视图够用前期 |
 
 ---

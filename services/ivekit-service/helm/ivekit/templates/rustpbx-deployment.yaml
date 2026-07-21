@@ -3,6 +3,16 @@
 {{- $profileId := required "voice.profileId is required when voice is enabled" .Values.voice.profileId -}}
 {{- $tenantId := required "voice.tenantId is required when voice is enabled" .Values.voice.tenantId -}}
 {{- $cellId := required "voice.cellId is required when voice is enabled" .Values.voice.cellId -}}
+{{- $replicaCount := int .Values.voice.replicaCount -}}
+{{- if or (lt $replicaCount 2) (gt $replicaCount 128) -}}
+{{- fail "voice.replicaCount must be between 2 and 128" -}}
+{{- end -}}
+{{- if and (gt $replicaCount 1) (not .Values.voice.network.hostNetwork) -}}
+{{- fail "voice.network.hostNetwork must be true for a multi-node RTP pool" -}}
+{{- end -}}
+{{- if and .Values.voice.kamailio.enabled (not .Values.voice.componentNode.enabled) -}}
+{{- fail "voice.componentNode.enabled must be true when Kamailio is enabled" -}}
+{{- end -}}
 {{- range $name, $value := dict "maxActiveTransactions" .Values.voice.sipCapacity.maxActiveTransactions "maxFinishedTransactions" .Values.voice.sipCapacity.maxFinishedTransactions "incomingTransactionQueueCapacity" .Values.voice.sipCapacity.incomingTransactionQueueCapacity "maxTransportConnections" .Values.voice.sipCapacity.maxTransportConnections -}}
 {{- if or (lt (int $value) 1) (gt (int $value) 10000000) -}}
 {{- fail (printf "voice.sipCapacity.%s must be between 1 and 10000000" $name) -}}
@@ -62,16 +72,18 @@
 {{- end -}}
 {{- end -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "ivekit.fullname" . }}-rustpbx
   labels:
     {{- include "ivekit.labels" . | nindent 4 }}
     app.kubernetes.io/component: rustpbx
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate
+  serviceName: {{ include "ivekit.rustpbxHeadlessFullname" . }}
+  replicas: {{ .Values.voice.replicaCount }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       {{- include "ivekit.selectorLabels" . | nindent 6 }}
@@ -87,6 +99,33 @@ spec:
         app.kubernetes.io/component: rustpbx
     spec:
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.voice.terminationGracePeriodSeconds }}
+      hostNetwork: {{ .Values.voice.network.hostNetwork }}
+      dnsPolicy: ClusterFirstWithHostNet
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.voice.scheduling.hostnameTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: rustpbx
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: {{ .Values.voice.scheduling.hostnameTopologyKey | quote }}
+              labelSelector:
+                matchLabels:
+                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: rustpbx
+      {{- with .Values.voice.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.voice.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -156,7 +195,13 @@ spec:
             - name: RUSTPBX_CDR_WEBHOOK_URL
               value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/cdrs" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
             - name: RUSTPBX_EXTERNAL_IP
+              {{- if .Values.voice.externalIp }}
               value: {{ .Values.voice.externalIp | quote }}
+              {{- else }}
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+              {{- end }}
             - name: RUSTPBX_SIP_PORT
               value: {{ .Values.voice.sipPort | quote }}
             - name: RUSTPBX_RTP_START_PORT
@@ -427,6 +472,24 @@ spec:
                       [ "$attempt" -lt 60 ] || exit 1
                       sleep 1
                     done
+            {{- if .Values.voice.componentNode.enabled }}
+            preStop:
+              exec:
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    drain_component_node() {
+                      local status=""
+                      exec 3<>/dev/tcp/127.0.0.1/3210 || return 1
+                      printf 'POST /v1/drain HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer %s\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}' "$IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN" >&3
+                      IFS= read -r status <&3 || return 1
+                      exec 3>&- 3<&-
+                      [[ "$status" == *" 200 "* ]]
+                    }
+                    drain_component_node
+                    sleep {{ .Values.voice.drainPropagationSeconds }}
+            {{- end }}
           ports:
             - name: management
               containerPort: 8080
@@ -479,13 +542,10 @@ spec:
           emptyDir: {}
         - name: route-snapshot
           emptyDir: {}
+        {{- if not .Values.voice.persistence.enabled }}
         - name: storage
-          {{- if .Values.voice.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ include "ivekit.fullname" . }}-rustpbx
-          {{- else }}
           emptyDir: {}
-          {{- end }}
+        {{- end }}
         {{- if .Values.voice.recordingSpool.enabled }}
         - name: recording-secrets
           projected:
@@ -501,16 +561,34 @@ spec:
         {{- end }}
         - name: tmp
           emptyDir: {}
+  {{- if .Values.voice.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+        labels:
+          {{- include "ivekit.labels" . | nindent 10 }}
+          app.kubernetes.io/component: rustpbx
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.voice.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.voice.persistence.size }}
+  {{- end }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "ivekit.fullname" . }}-rustpbx-internal
+  name: {{ include "ivekit.rustpbxHeadlessFullname" . }}
   labels:
     {{- include "ivekit.labels" . | nindent 4 }}
     app.kubernetes.io/component: rustpbx
 spec:
-  type: ClusterIP
+  clusterIP: None
+  # Cell admission must reach a draining Pod before its readiness lease exists.
+  publishNotReadyAddresses: true
   selector:
     {{- include "ivekit.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: rustpbx
@@ -525,51 +603,6 @@ spec:
       targetPort: component-node
       protocol: TCP
     {{- end }}
-{{- if and .Values.voice.webphone.enabled .Values.voice.webphone.ingress.enabled }}
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ include "ivekit.fullname" . }}-rustpbx-webphone
-  labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
-  {{- with .Values.voice.webphone.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  {{- with .Values.voice.webphone.ingress.className }}
-  ingressClassName: {{ . | quote }}
-  {{- end }}
-  {{- with .Values.voice.webphone.ingress.tls }}
-  tls:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-  rules:
-    - host: {{ .Values.voice.webphone.ingress.host | quote }}
-      http:
-        paths:
-          - path: {{ .Values.voice.webphone.ingress.path | quote }}
-            pathType: Exact
-            backend:
-              service:
-                name: {{ include "ivekit.fullname" . }}-rustpbx-internal
-                port:
-                  name: management
-{{- end }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "ivekit.fullname" . }}-rustpbx-sip
-  labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
-spec:
-  type: {{ .Values.voice.service.sipType }}
-  selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: rustpbx
-  ports:
     - name: sip-udp
       port: {{ .Values.voice.sipPort }}
       targetPort: sip-udp
@@ -578,40 +611,19 @@ spec:
       port: {{ .Values.voice.sipPort }}
       targetPort: sip-tcp
       protocol: TCP
+{{- if .Values.voice.podDisruptionBudget.enabled }}
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "ivekit.fullname" . }}-rustpbx-rtp
-  labels:
-    {{- include "ivekit.labels" . | nindent 4 }}
-spec:
-  type: {{ .Values.voice.service.rtpType }}
-  selector:
-    {{- include "ivekit.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: rustpbx
-  ports:
-    {{- range $port := untilStep (int .Values.voice.rtpStartPort) (add1 (int .Values.voice.rtpEndPort) | int) 1 }}
-    - name: rtp-{{ $port }}
-      port: {{ $port }}
-      targetPort: {{ $port }}
-      protocol: UDP
-    {{- end }}
-{{- if .Values.voice.persistence.enabled }}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
+apiVersion: policy/v1
+kind: PodDisruptionBudget
 metadata:
   name: {{ include "ivekit.fullname" . }}-rustpbx
   labels:
     {{- include "ivekit.labels" . | nindent 4 }}
 spec:
-  accessModes: ["ReadWriteOnce"]
-  {{- with .Values.voice.persistence.storageClass }}
-  storageClassName: {{ . | quote }}
-  {{- end }}
-  resources:
-    requests:
-      storage: {{ .Values.voice.persistence.size }}
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rustpbx
+  minAvailable: {{ .Values.voice.podDisruptionBudget.minAvailable }}
 {{- end }}
 {{- end }}

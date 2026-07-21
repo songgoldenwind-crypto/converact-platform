@@ -13,6 +13,11 @@
 > - **覆盖率**：原同一终点/同一口径给出 94% / 97% / 100% 多个数，口径混淆 —— 已统一标明双口径：**功能覆盖率**（翌实统计 103/110=94% @ S11，110/110=100% @ S12）与 **规划覆盖率**（已排入 Sprint 的功能占比，S12 后 100%）。两者均”≠ 功能可用性“（见下方 2026-06-22 校准与 audit 报告）
 > - **代码行引用**：`outbound-dialer.ts:116` 已更正为 `outbound-dialer.ts:111`（实际硬编码 `ringingCalls: 0`）；该文件在 `src/agent-runtime/call-center/` 根而非 `dialer/` 子目录
 > - **Sprint 4 交付物**：`inbound-router.ts` / `acd-engine.ts` / `call-queue.ts` / `did-store.ts` 均为规划中文件，已加"规划中"前缀避免被误读为已落地
+>
+> **生产架构覆盖（2026-07-21）**：本文件保留 2026-06-29 的千路以内 MVP 排期记录，但
+> “Kamailio 延后 v2.0+”已被 MIX-100K/Cell 生产目标撤销。当前生产链路为 Kamailio SIP Edge
+> + RustPBX B2BUA 节点池，执行规格见
+> `communication-foundation-production-completion.md` 和 `kamailio-sip-edge-design.md`。
 
 ---
 
@@ -33,6 +38,7 @@
 | 组件 | 角色 | 理由 |
 |------|------|------|
 | **RustPBX** | SBC / B2BUA / ACD | 用户选定，Rust 性能好，支持 WebSocket RWI |
+| **Kamailio** | SIP Edge / TLS/WSS / topology hiding / RustPBX dispatcher | MIX-100K Cell 需要独立无状态信令入口、容量感知分发、dialog pin、drain 和故障摘除；不承载 RTP |
 | **LiveKit** | SFU + SIP Bridge + Egress | 成熟的实时音视频基础，Agents SDK 生态 |
 | **LLM provider pool** | LLM (意向/质检/知识库) | 【已废·单一 DeepSeek】原仅 DeepSeek；现状按 provider pool（DeepSeek + Qwen/Claude/GPT-4o 等，见 `product-direction-2026-06.md` §7），中文能力强 + 性价比 + 多路冗余 |
 | **PostgreSQL** | 主数据库 | 多租户 SaaS 必须，ACID + 行锁 + 成熟运维 |
@@ -45,7 +51,7 @@
 | 组件 | 原位置 | 决定 | 理由 |
 |------|--------|------|------|
 | **Chatwoot** | Sprint 6 | **延后到 v2.0+** | 自身是重量级 Rails 应用，部署运维成本高。全渠道先用 Webhook adapter 模式，轻量接入 |
-| **Kamailio** | Sprint 9 | **延后到 v2.0+** | RustPBX 本身可处理 SIP 边缘。Kamailio 在 1000+ 并发 SIP 时才有必要 |
+| **Kamailio（历史 MVP 裁决）** | Sprint 9 | **已由 2026-07-21 生产裁决撤销** | 早期 1000 路以内可由 RustPBX 直入；Cell/MIX-100K 生产部署必须使用独立 Edge |
 | **Kong** | Sprint 9 | **延后到 v2.0+** | 中间件层已有 auth + rate limiting，Kong 在多团队/多版本 API 时才有 ROI |
 | **ClickHouse** | Sprint 9 | **延后** | Postgres + 物化视图足够支撑前 1000 租户的分析需求 |
 | **Keycloak** | Sprint 1 | **替换为轻量 JWT** | Keycloak 部署重、启动慢。MVP 阶段用自签 JWT + bcrypt 密码验证，支持 OIDC 扩展 |
@@ -820,7 +826,7 @@ flowchart TD
 | AI Agent 状态 | 每次 HTTP 查 DB | Redis 缓存 + 异步持久化 | 延迟从 200ms 降到 5ms |
 | 全渠道 | Chatwoot (重) | ChannelAdapter 接口 + 自建轻量收件箱 | 可控、轻量、可扩展 |
 | API 网关 | Kong | OPC 自带中间件 | 初期无需额外运维 |
-| SIP 边缘 | 【延后·v2.0+】Kamailio | RustPBX 直接暴露（1000+ 并发 SIP 时再评估 Kamailio，见 §移除表） | 减少组件数 |
+| SIP 边缘 | 早期规划曾使用 Kamailio | Kamailio Edge + RustPBX pool；仅本地签名路由快照进入 INVITE 热路径 | Cell 横向扩展、容量分发、dialog affinity、drain 和安全边界 |
 | 事件总线 | NATS (Day 1) | 延后到 Sprint 9 引入实验、Sprint 11 生产化 | 初期同步调用足够 |
 
 ---

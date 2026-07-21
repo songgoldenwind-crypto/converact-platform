@@ -290,6 +290,7 @@ clamav:
 
 voice:
   enabled: false
+  replicaCount: 2
   tenantId: ""
   profileId: ""
   cellId: ""
@@ -319,6 +320,8 @@ voice:
     enabled: true
     publicWssUrl: ""
     sipRealm: ""
+    # Exact HTTPS origins allowed to open the Kamailio WSS endpoint.
+    allowedOrigins: []
     jwtSecretKey: rustpbx-webphone-jwt-secret
     jwtIssuer: ivekit
     jwtAudience: rustpbx-webphone
@@ -369,7 +372,7 @@ voice:
         cpu: "1"
         memory: 512Mi
   componentNode:
-    enabled: false
+    enabled: true
     tokenKey: ivekit-component-node-token
     regionId: ""
     zoneId: ""
@@ -393,9 +396,18 @@ voice:
   sipPort: 5060
   rtpStartPort: 20000
   rtpEndPort: 20100
-  service:
-    sipType: LoadBalancer
-    rtpType: LoadBalancer
+  terminationGracePeriodSeconds: 300
+  drainPropagationSeconds: 15
+  network:
+    hostNetwork: true
+  scheduling:
+    zoneTopologyKey: topology.kubernetes.io/zone
+    hostnameTopologyKey: kubernetes.io/hostname
+    nodeSelector: {}
+    tolerations: []
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
   persistence:
     enabled: true
     size: 10Gi
@@ -407,6 +419,118 @@ voice:
     limits:
       cpu: "1"
       memory: 1Gi
+  kamailio:
+    enabled: true
+    replicaCount: 2
+    cellLeaseEpoch: 1
+    image:
+      repository: ghcr.io/songgoldenwind-crypto/opc-kamailio
+      digest: ""
+      pullPolicy: IfNotPresent
+    advertise:
+      sipHost: ""
+      wssHost: ""
+      sipPort: 5060
+      tlsPort: 5061
+      wssPort: 443
+    listeners:
+      sipPort: 5060
+      tlsPort: 5061
+      wssPort: 7443
+      rpcPort: 5065
+      dmqPort: 5066
+      metricsPort: 3220
+    trustedSourceCidrs:
+      - 10.0.0.0/8
+    # Source identities accepted from the host-network RustPBX pool and from
+    # peer Kamailio Pods. Keep both lists scoped to this Cell.
+    rustpbxSourceCidrs:
+      - 10.0.0.0/8
+    dmqSourceCidrs:
+      - 10.0.0.0/8
+    allowPublicWss: true
+    requireClientCertificate: false
+    dmq:
+      enabled: true
+      numWorkers: 4
+      pingIntervalSeconds: 30
+      syncBatchSize: 4000
+      syncBatchUsleep: 1000
+      syncMessageContacts: 50
+    limits:
+      maxMessageBytes: 65535
+      perSourceInviteCps: 100
+      cellInviteCps: 5000
+      pikeSamplingSeconds: 2
+      pikeRequestDensity: 30
+      maxFailovers: 3
+      retryAfterSeconds: 2
+    routeAgent:
+      edgeReplicaCount: 2
+      pollIntervalMs: 1000
+      snapshotTtlMs: 10000
+      degradedWeightFactor: "0.5"
+      maxParallelPolls: 16
+      rpcMaxAttempts: 3
+      rpcRetryDelayMs: 100
+      rpcTimeoutMs: 1000
+      currentKeyId: route-v1
+      previousKeyId: ""
+    pool:
+      id: 100
+      capacityDimension: voice.weighted_calls
+      pinSetBase: 10000
+      priority: 10
+      safeCapacityFallback: 2500
+    secretKeys:
+      topohKey: kamailio-topoh-key
+      rpcToken: kamailio-rpc-token
+      routeCurrentKey: kamailio-route-current-key
+      routePreviousKey: kamailio-route-previous-key
+      tlsPrivateKey: kamailio-tls-key.pem
+      tlsCertificate: kamailio-tls-cert.pem
+      tlsCa: kamailio-ca.pem
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      sessionAffinity: ClientIP
+      sessionAffinityTimeoutSeconds: 10800
+      annotations: {}
+      loadBalancerSourceRanges: []
+    networkPolicy:
+      enabled: true
+      ingressCidrs: []
+      # hostNetwork RustPBX Pods are addressed through node IPs; set this to the
+      # exact node subnet(s) used by the Cell in production.
+      rustpbxNodeCidrs:
+        - 10.0.0.0/8
+      dnsNamespaceSelector:
+        kubernetes.io/metadata.name: kube-system
+      dnsPodSelector:
+        k8s-app: kube-dns
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+    terminationGracePeriodSeconds: 60
+    scheduling:
+      zoneTopologyKey: topology.kubernetes.io/zone
+      hostnameTopologyKey: kubernetes.io/hostname
+      nodeSelector: {}
+      tolerations: []
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "2"
+        memory: 1Gi
+    routeAgentResources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
 
 tinode:
   enabled: false

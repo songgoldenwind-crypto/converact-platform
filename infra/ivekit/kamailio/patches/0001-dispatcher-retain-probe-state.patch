@@ -1,0 +1,75 @@
+--- a/src/modules/dispatcher/dispatch.c
++++ b/src/modules/dispatcher/dispatch.c
+@@ -233,6 +233,64 @@
+ 	return 0;
+ }
+ 
++#define IVEKIT_RETAIN_STATE_ATTR "ivekit_retain_state=1"
++#define IVEKIT_RUNTIME_STATE_MASK                                             \
++	(DS_INACTIVE_DST | DS_TRYING_DST | DS_DISABLED_DST | DS_PROBING_DST)
++
++static int ds_ivekit_retain_state_enabled(ds_dest_t *dest)
++{
++	char *cursor;
++	char *end;
++	char *separator;
++	size_t marker_len = sizeof(IVEKIT_RETAIN_STATE_ATTR) - 1;
++
++	if(dest == NULL || dest->attrs.body.s == NULL || dest->attrs.body.len <= 0)
++		return 0;
++
++	cursor = dest->attrs.body.s;
++	end = cursor + dest->attrs.body.len;
++	while(cursor < end) {
++		separator = memchr(cursor, ';', end - cursor);
++		if(separator == NULL)
++			separator = end;
++		if((size_t)(separator - cursor) == marker_len
++				&& strncasecmp(cursor, IVEKIT_RETAIN_STATE_ATTR, marker_len)
++						== 0)
++			return 1;
++		if(separator == end)
++			break;
++		cursor = separator + 1;
++	}
++
++	return 0;
++}
++
++static void ds_ivekit_retain_runtime_state(int group, ds_dest_t *dest)
++{
++	ds_set_t *current = NULL;
++	ds_dest_t *previous;
++	int i;
++
++	if(!ds_ivekit_retain_state_enabled(dest)
++			|| ds_get_index(group, *ds_crt_idx, &current) != 0)
++		return;
++
++	for(i = 0; i < current->nr; i++) {
++		previous = &current->dlist[i];
++		if(previous->uri.len != dest->uri.len
++				|| strncasecmp(previous->uri.s, dest->uri.s, dest->uri.len)
++						!= 0)
++			continue;
++
++		dest->flags = (dest->flags & ~IVEKIT_RUNTIME_STATE_MASK)
++				| (previous->flags & IVEKIT_RUNTIME_STATE_MASK);
++		dest->probing_count = previous->probing_count;
++		LM_DBG("retained iveKit dispatcher state for set %d uri %.*s\n", group,
++				dest->uri.len, dest->uri.s);
++		return;
++	}
++}
++
+ /**
+  * Recursivly iterate over ds_set and execute callback
+  */
+@@ -727,6 +785,7 @@
+ 	if(!dp) {
+ 		goto error;
+ 	}
++	ds_ivekit_retain_runtime_state(id, dp);
+ 
+ 	if(latency_stats != NULL) {
+ 		dp->latency_stats.stdev = latency_stats->stdev;

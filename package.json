@@ -25,6 +25,8 @@
     "ivekit:capacity:component-node": "node --import tsx scripts/ivekit-component-node-admission.ts",
     "ivekit:kamailio:render": "node --import tsx scripts/render-kamailio-config.ts",
     "ivekit:kamailio:route-agent": "node --import tsx scripts/ivekit-kamailio-route-agent.ts",
+    "ivekit:kamailio:acceptance": "node --import tsx scripts/ivekit-kamailio-acceptance.ts",
+    "ivekit:kamailio:webphone-acceptance": "node --import tsx scripts/ivekit-kamailio-webphone-acceptance.ts",
     "ivekit:capacity:rustdesk-owner": "node --import tsx scripts/ivekit-rustdesk-owner-binding.ts",
     "typecheck:ivekit:capacity-runtime": "tsc --noEmit -p infra/capacity/tsconfig.json",
     "verify:ivekit:component-hooks": "cd integrations/component-hook-go && GOCACHE=/tmp/ivekit-go-build-cache go test ./... && cd ../livekit-v1.13.3 && GOCACHE=/tmp/ivekit-livekit-owner-go-cache go test ./... && cd ../tinode-v0.25.3 && GOCACHE=/tmp/ivekit-tinode-owner-go-cache go test ./... && cd ../.. && CARGO_TARGET_DIR=/tmp/ivekit-component-hook-rs-target cargo test --locked --manifest-path integrations/component-hook-rs/Cargo.toml",

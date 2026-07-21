@@ -3,20 +3,29 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 test('iveKit Kamailio image is source-pinned, multi-arch buildable and non-root', async () => {
-  const [dockerfile, build, readme] = await Promise.all([
+  const [dockerfile, build, readme, dispatcherPatch] = await Promise.all([
     source('infra/ivekit/kamailio/Dockerfile'),
     source('infra/ivekit/kamailio/build.sh'),
-    source('infra/ivekit/kamailio/README.md')
+    source('infra/ivekit/kamailio/README.md'),
+    source('infra/ivekit/kamailio/patches/0001-dispatcher-retain-probe-state.patch')
   ]);
 
   assert.match(dockerfile, /ARG KAMAILIO_VERSION=6\.0\.7/);
   assert.match(dockerfile, /c4b5c17abba18d5378108df7138177caae33de7d54ead8c9ee1e28650b20d6b5/);
   for (const module of [
-    'dispatcher', 'dialog', 'htable', 'tls', 'websocket', 'xhttp_prom'
+    'dispatcher', 'dialog', 'dmq', 'dmq_usrloc', 'htable', 'jansson', 'jwt', 'path',
+    'registrar', 'tls', 'usrloc', 'websocket', 'xhttp_prom'
   ]) assert.match(dockerfile, new RegExp(`include_modules=.*${module}`));
+  for (const dependency of ['libjansson-dev', 'libjwt-dev', 'libjansson4', 'libjwt0']) {
+    assert.match(dockerfile, new RegExp(dependency));
+  }
   assert.match(dockerfile, /USER 10001:10001/);
   assert.match(dockerfile, /HEALTHCHECK NONE/);
+  assert.match(dockerfile, /0001-dispatcher-retain-probe-state\.patch/);
+  assert.match(dockerfile, /patch -p1/);
   assert.doesNotMatch(dockerfile, /sqlite|apt-get install[^\n]*kamailio/i);
+  assert.match(dispatcherPatch, /ivekit_retain_state=1/);
+  assert.match(dispatcherPatch, /probing_count/);
   assert.match(build, /docker buildx build/);
   assert.match(build, /IVEKIT_KAMAILIO_IMAGE/);
   assert.match(readme, /kamailio\/kamailio@6\.0\.7/);

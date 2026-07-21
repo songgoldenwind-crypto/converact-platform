@@ -40,8 +40,14 @@ test('Kamailio route compiler normalizes headroom and lowers degraded node weigh
   ]);
 
   const rendered = renderKamailioDispatcherList(body);
-  assert.match(rendered, /^100 sip:rustpbx-a-0\.internal:5060;transport=udp 8 10 .*rweight=100/m);
-  assert.match(rendered, /^100 sip:rustpbx-a-1\.internal:5060;transport=udp 8 10 .*rweight=25/m);
+  assert.match(
+    rendered,
+    /^100 sip:rustpbx-a-0\.internal:5060;transport=udp 9 10 .*rweight=100;.*ivekit_retain_state=1/m
+  );
+  assert.match(
+    rendered,
+    /^100 sip:rustpbx-a-1\.internal:5060;transport=udp 9 10 .*rweight=25;.*ivekit_retain_state=1/m
+  );
   assert.doesNotMatch(rendered, /^100 sip:rustpbx-a-2\./m);
   assert.doesNotMatch(rendered, /^100 sip:rustpbx-a-3\./m);
   assert.match(rendered, /^10002 sip:rustpbx-a-2\.internal:5060;transport=udp 8 10 .*pinset=10002/m);

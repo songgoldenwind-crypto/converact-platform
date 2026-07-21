@@ -74,11 +74,11 @@ Cell A/Zone B 部署相同角色。一个 Zone 故障时，控制面只在获得
 
 | 领域 | 已有能力 | 尚缺能力 | 当前裁决 |
 | --- | --- | --- | --- |
-| SIP/语音 | RustPBX fork、route snapshot、owner epoch、component admission、录音隔离、容量指标 | 正式 Kamailio Edge、多 RustPBX 分发、dialog pin、drain/failover、双 Zone、Edge 指标 | 部分完成 |
+| SIP/语音 | RustPBX fork、正式 Kamailio Edge、签名本地快照、容量加权分发、dialog pin、drain/failover、TLS/WSS 双重鉴权、REGISTER/DMQ location 闭环、component admission、录音隔离和 Edge 指标 | 目标双 Zone、真实 PSTN/RTP、真实双 Edge WSS/DMQ、物理 CPS/长稳和当前机器不可用的 Kamailio 镜像语法复验 | `implemented_not_run` |
 | IM | Tinode 完整业务接入、三节点容量模板、topic owner/fencing、fanout 热路径补丁、持久同步 worker | 正式 Chart 仍为单副本 Recreate；稳定集群发现、连接 drain、重连恢复、数据面指标和告警未统一 | 部分完成 |
 | 视频 | LiveKit owner hook、SFU 小房间优化、Egress 独立池和伸缩、媒体 QoS | 正式 LiveKit SFU 集群、Redis HA、独立 TURN、SIP 池、node drain/reconnect、数据面监控未形成完整交付 | 部分完成 |
 | 共享调度 | Cell placement、capacity vector、lease、component-node sidecar、owner fencing | 三个通信入口尚未全部消费相同状态；缺统一发布/drain 顺序 | 部分完成 |
-| 监控 | iveKit API、业务队列、RustPBX 热路径和 Egress 告警 | Kamailio、Tinode server、LiveKit server、TURN、LiveKit SIP 的数据面指标和 SLO 不完整 | 部分完成 |
+| 监控 | iveKit API、业务队列、RustPBX 热路径、Kamailio route-agent/core proxy 和 Egress 告警 | Tinode server、LiveKit server、TURN、LiveKit SIP 的数据面指标和 SLO 不完整 | 部分完成 |
 
 容量目录中的 StatefulSet 是设计和受控测试材料，不能替代正式交付 Chart。正式 Chart、默认
 values、交付包和监控规则必须使用同一拓扑和同一镜像身份。
@@ -102,7 +102,7 @@ values、交付包和监控规则必须使用同一拓扑和同一镜像身份�
 
 | 组件 | 入口与负载 | owner / affinity | 故障语义 | 正式交付缺口 |
 | --- | --- | --- | --- | --- |
-| Kamailio | L4 到至少两个 Edge；本地签名 dispatcher 快照按 RustPBX safe headroom 加权 | topology-hidden Record-Route 中的稳定 pin set | 初始 INVITE 仅对传输失败、408 和允许的 5xx 重试；已接通 dialog 不迁移 | 正在实现配置、安全、Chart、指标和双节点故障测试 |
+| Kamailio | L4 到至少两个 Edge；本地签名 dispatcher 快照按 RustPBX safe headroom 加权 | 普通呼叫使用 topology-hidden pin set；WebPhone 使用 Path、复制 location 和独立 `ivkwp` dialog 标记 | 初始 INVITE 仅对传输失败、408 和允许的 5xx 重试；已接通 dialog 不迁移；单 Edge 丢失后 WSS 重连 | 代码、Compose/Chart、指标、告警和受控故障合同已完成；真实双节点 SIPp/WSS/DMQ、双 Zone 与物理容量 `not_run` |
 | RustPBX | Kamailio 软选择 + RustPBX 本地 admission 硬门 | B2BUA dialog 固定在原节点，owner epoch fencing | 节点丢失时通话终止；录音、CDR、Router 故障不得中断 RTP | 多节点正式 values、Edge 联调、跨 Zone drain/失效测试 |
 | Tinode | L4/Service 分配 WebSocket；节点本地容量门拒绝新 session/topic | WebSocket 自然粘连；group topic 使用稳定 node ID 和 owner epoch | 节点丢失后客户端重连并按 durable sequence 恢复，不承诺无感迁移 | 原生 cluster 配置、正式三副本 Chart、连接 drain、数据面指标和故障测试 |
 | LiveKit Signal/SFU | HTTPS/WSS API 可进任意节点；Redis router 把 room 操作送到 owner，媒体直接到 owner SFU | room 和 track 固定在一个 SFU node | SFU 丢失后客户端重连并重新发布；不宣称透明 room migration | 正式多节点 Chart、真实外部 IP/host network、drain、Redis 故障和媒体指标 |
@@ -134,6 +134,20 @@ LiveKit 官方说明信令/API 节点是同质的，任意客户端可连接任�
 - 收到 2xx 后禁止换 owner。owner 失效时由终端重拨或上层恢复流程处理。
 - drain 时从新呼叫 pool 移除，但保留 pin set，直到 active dialog 为零或运维强制结束。
 - 路由快照过期时拒绝新 INVITE并返回 503/Retry-After，已有 dialog 继续走 pin set。
+
+### 5.3 WebPhone 与 Edge 集群
+
+- 浏览器短期 JWT 只用于 WSS 握手；Edge 验证精确 Origin、issuer/audience、时效和 subject，并只在
+  本 Pod 保存 `connection id -> subject`。
+- 每个 WSS SIP 请求都要求 From 与 subject 一致，并由 Edge 重新签发 30 秒内部断言供 RustPBX
+  二次验证。浏览器 token 不复制、不落日志，也不直接成为长通话后续请求的凭据。
+- REGISTER 先经 RustPBX 完成分机权限和共享 PostgreSQL locator 持久化；只有 2xx 响应才允许 Edge
+  保存内存 location。两个 Edge 通过专用 UDP 5066 的 `dmq_usrloc` 复制已鉴权 location。
+- Edge 使用 StatefulSet 稳定 ordinal 和 headless DMQ Service；DMQ 不对公网 Service 开放，来源
+  还受 CIDR 与 NetworkPolicy 限制。单 Edge Compose 明确关闭 DMQ，不宣称 WebPhone HA。
+- RustPBX 到浏览器沿 REGISTER Path 或复制 location 投递，并写入独立 WebPhone Record-Route。
+  后续请求按方向决定是否保留内部断言，不套用普通 RustPBX owner pin；连接断开后客户端申请新
+  session 并重连，不能宣称现有 WSS/TCP 无感迁移。
 
 详细契约见 `docs/design/kamailio-sip-edge-design.md`。
 
@@ -190,6 +204,20 @@ LiveKit 官方说明信令/API 节点是同质的，任意客户端可连接任�
 - LiveKit SIP active calls、dispatch latency/error、Redis connectivity。
 - Egress pending/active/spool/storage 指标继续沿用现有合同。
 
+### 7.4 QUIC/RoQ 技术裁决
+
+`quic优化视频传输.pdf` 证明了 RTP 媒体与大 DataChannel 共用瓶颈时，统一 QUIC 拥塞控制和
+媒体优先调度可以减少媒体延迟与抖动。但当前 iveKit 附件使用独立 HTTP/multipart，LiveKit
+参考 adapter 没有承载文件 DataChannel；当前固定 LiveKit Server 和上游 master 也没有 RoQ
+数据面。浏览器 `RTCDataChannel` 仍使用 SCTP/DTLS，只把文件换成 WebTransport 不能统一媒体与
+数据的拥塞控制。
+
+生产裁决是保留 LiveKit WebRTC，同时先补齐 RTCStats 采集、QoS 驱动的附件上传节流、暂停/恢复
+和服务端媒体/上传容量拆分。RoQ 使用 Pion/quic-go 建立独立实验，不进入默认端口、SDK 或容量
+主张；只有浏览器/原生客户端、TURN/E2EE/录制/重连能力和物理弱网曲线同时达标，才作为可协商
+transport capability 灰度。完整评审、测试矩阵和进入生产门槛见
+`docs/design/quic-video-transport-assessment.md`。
+
 ## 8. 数据与共享依赖
 
 - 生产 values 禁止内置单副本 PostgreSQL、Redis、NATS 和对象存储作为 HA 声明。
@@ -242,7 +270,7 @@ expand/contract，不把 restore 当作普通应用回滚。
 ### Goal A：Kamailio 与多 RustPBX
 
 完成本地签名路由快照、dispatcher/pin set、健康检查、drain、失败重试、TLS/WSS、拓扑隐藏、
-限流、Compose/Helm、指标、告警和受控双节点故障测试。
+WebPhone 双重鉴权、REGISTER/DMQ location、限流、Compose/Helm、指标、告警和受控双节点故障测试。
 
 ### Goal B：Tinode 正式集群
 
@@ -253,6 +281,9 @@ expand/contract，不把 restore 当作普通应用回滚。
 
 把 LiveKit owner StatefulSet、独立 coturn、LiveKit SIP 和现有 Egress pool 纳入正式 Chart；补齐
 Redis HA 外部合同、drain/reconnect、指标、告警和受控故障测试。
+
+该 Goal 同时补齐 RTCStats -> QoS 快照和媒体感知上传 governor。RoQ 不并入 Goal C 的生产路径，
+只按 `quic-video-transport-assessment.md` 的 Q2 建立隔离实验。
 
 ### Goal D：统一交付与故障演练
 

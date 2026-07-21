@@ -1,7 +1,7 @@
 # OPC AI 通信平台 — 安全与合规设计文档
 
 > **版本**: 1.2（按 `docs/design/README.md` 准绳标注目标态/已废词）
-> **更新日期**: 2026-06-29
+> **更新日期**: 2026-07-21
 > **文档状态**: 初稿 + 架构决策校准
 > **适用范围**: OPC 多租户 SaaS AI 语音/视频呼叫中心平台
 > **保密级别**: 内部
@@ -13,7 +13,8 @@
 ## ⚠️ 架构决策变更声明（2026-06-22 校准）
 
 > 本文档正文基于 Kong / Keycloak / Kamailio 三大外部组件设计安全模型。
-> 根据 `docs/design/revised-master-plan.md` 的最新架构决策，这三者已被移除或延后。
+> Kong 和 Keycloak 仍按下表移除/延后；Kamailio 已在 2026-07-21 的 MIX-100K/Cell 生产架构中
+> 重新启用。
 > 下方表格标明每个组件的"目标态"（本文档正文描述）与"现状"（代码实际实现）。
 > **阅读本文档时，请始终以下表为准判断哪些设计已落地、哪些仍是目标态。**
 
@@ -21,7 +22,7 @@
 |---|---|---|---|
 | **Kong API Gateway** | 生产 API 网关：JWT 验证、rate-limiting、WAF | ❌ 延后到 v2.0+。当前由 OPC 自带中间件（`src/middleware/auth.ts`）承担鉴权，无 rate-limiting/WAF | P1：rate-limiting 需补 |
 | **Keycloak IAM** | JWT 签发、Refresh Token、坐席密码存储 | ❌ 替换为轻量自签 JWT。当前 auth 中间件在 `src/middleware/auth.ts`，无 Refresh Token / 外部 IdP | P1：生产需接真实 IdP |
-| **Kamailio SIP Edge** | SIP 边缘代理、TLS 终结、Topological Hiding | ❌ 延后到 v2.0+。当前 SIP 边缘由 RustPBX 直接暴露 | P2：生产大规模需补 |
+| **Kamailio SIP Edge** | SIP 边缘代理、TLS/WSS、Topology Hiding、限流和 RustPBX 分发 | ✅ 代码/配置/Compose/Helm/指标和受控合同已实现；真实双 Zone/PSTN/物理容量 `not_run` | 环境验收：不可变镜像、目标证书/ACL、真实 SIPp 与容量 |
 
 **对正文的影响**：
 - §2（数据分类）中 Refresh Token / 坐席密码写入 Keycloak DB 项为**目标态参考**；当前实现是 OPC 自签 JWT + bcrypt（密码存 OPC DB），无 Refresh Token
@@ -32,7 +33,8 @@
 - §8（事件响应）§8.3 隔离动作中 Keycloak 管理 API / Kong consumer 禁用 / Kong IP restriction 为**目标态参考**；现状分别为轮换自签 JWT 密钥 / OPC 中间件禁用 API Key / OPC 中间件 IP 封禁
 - §10（SDLC）§10.2 工具链中 Kong WAF plugin 为**目标态参考**，当前无 WAF
 
-> 本节为正文 Kong / Keycloak / Kamailio 出现处的**唯一裁决表**。文中相应位置已加 `【目标态】` / `【已废】` / `【延后】` 行内标注（按 `docs/design/README.md` §3 禁用词表与 §4 标记规范）。
+> 本节为正文 Kong / Keycloak / Kamailio 出现处的**当前裁决表**。正文中 Kamailio 的旧
+> `【延后】` 标记只表示 2026-06-29 MVP 历史状态，不能用于现行生产部署。
 
 ---
 
@@ -61,7 +63,7 @@
 |---|---------|---------|-----------|------|---------|--------|
 | T01 | Spoofing | 伪造 JWT token 访问其他租户数据 | 认证网关 | 跨租户数据泄露 | JWKS 验证 + `tenant_id` claim 强校验 | **P0** |
 | T02 | Spoofing | 伪造 Webhook 回调冒充 OPC 平台 | Webhook 模块 | 租户系统被恶意操控 | HMAC-SHA256 签名 + timestamp 验证（±5min） | **P1** |
-| T03 | Spoofing | SIP 注册劫持（伪造 REGISTER） | 【延后·v2.0+】Kamailio/SIP（现状 RustPBX SIP 边缘） | 通话被窃听/拦截 | SIP Digest Auth + TLS + IP ACL | **P1** |
+| T03 | Spoofing | SIP 注册劫持（伪造 REGISTER） | Kamailio SIP Edge + RustPBX | 通话被窃听/拦截 | SIP Digest Auth + TLS/WSS + trunk/source ACL + 外部 owner header 清洗 | **P1** |
 | T04 | Tampering | 篡改 QM 质检评分数据 | 质检模块 | 质检失效，绩效数据不可信 | 评分记录不可变（append-only）+ 审计日志 | **P1** |
 | T05 | Tampering | 篡改转写文本掩盖坐席失误 | 转写存储 | 合规记录失真 | 转写生成后 SHA-256 签名，修改触发审计事件 | **P1** |
 | T06 | Tampering | 中间人修改 AI Agent prompt | Agent Runtime | AI 行为被操控 | prompt 模板版本化 + 变更审计 + mTLS 内网传输 | **P2** |
@@ -387,7 +389,7 @@ sequenceDiagram
 | OPC → MinIO | TLS | TLS 1.2 | 内部 CA | 同集群可 HTTP |
 | OPC → LiveKit | WSS | TLS 1.2 | LiveKit API secret | WebSocket Secure |
 | LiveKit → 客户端 | DTLS-SRTP | DTLS 1.2 | 自动协商 (ICE) | 媒体流加密 |
-| SIP 信令 (【延后·v2.0+】Kamailio) | TLS | TLS 1.2 | SIP trunk 证书 | 可选 SRTP 媒体；现状 RustPBX 直接终结 SIP |
+| SIP 信令（Kamailio Edge） | TLS | TLS 1.2+ | SIP trunk/Edge 证书 | topology hiding、源 ACL、RPC loopback；RTP 仍由 RustPBX 处理 |
 | SIP 媒体 | SRTP（可选） | - | 密钥协商 (SDES/DTLS) | 依赖 trunk 支持 |
 | NATS 集群内部 | TLS | TLS 1.2 | NATS server cert | 节点间加密 |
 | OPC → 【目标态·替换为自签 JWT】Keycloak | HTTPS | TLS 1.2 | Keycloak server cert | OIDC/JWKS 端点；现状此链路不存在 |
@@ -397,7 +399,8 @@ sequenceDiagram
 
 ### 5.2 加密架构图
 
-> 目标态拓扑图，含已废/延后的 Kong / Kamailio / Keycloak 节点；现状下这三者不存在，浏览器直连 OPC、SIP 直入 RustPBX、JWT 自签。
+> 本图保留 Kong/Keycloak 的目标态语义；Kamailio 已是现行 SIP Edge，SIP 不再以 RustPBX
+> 直接公网暴露作为生产拓扑。JWT 仍为当前轻量实现。
 
 ```mermaid
 graph TB

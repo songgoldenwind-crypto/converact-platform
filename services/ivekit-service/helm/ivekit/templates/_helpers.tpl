@@ -43,6 +43,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s@%s" $repository $digest -}}
 {{- end }}
 
+{{- define "ivekit.kamailioImage" -}}
+{{- $repository := required "voice.kamailio.image.repository is required when Kamailio is enabled" .Values.voice.kamailio.image.repository -}}
+{{- $digest := required "voice.kamailio.image.digest is required when Kamailio is enabled" .Values.voice.kamailio.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail "voice.kamailio.image.digest must be an immutable sha256 digest" -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- end }}
+
+{{- define "ivekit.rustpbxHeadlessFullname" -}}
+{{- printf "%s-rustpbx-headless" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{- define "ivekit.kamailioFullname" -}}
+{{- printf "%s-kamailio" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
 {{- define "ivekit.clamavFullname" -}}
 {{- printf "%s-clamav" (include "ivekit.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end }}

@@ -1,7 +1,7 @@
 # OPC 设计文档区 — 导航与治理
 
 > 本文件是 `docs/design/` 的导航与治理入口。新增/修改本目录任意 `.md` 前，先读本文件。
-> **快照日期**：2026-06-29（基于此次全量审计；下次大改前应重扫）
+> **快照日期**：2026-07-21（Kamailio/通信底座裁决已按 MIX-100K 目标重扫）
 
 ---
 
@@ -18,6 +18,9 @@
 | [gap-analysis.md](./gap-analysis.md) | ~280 | — | 2026-06-29 | 代码 vs 计划 gap + 2026-06-29 校准段 | 活跃 |
 | [voice-module-extraction-memo.md](./voice-module-extraction-memo.md) | ~120 | — | 2026-06-29 | `@opc/voice` 抽包备忘（14 表） | 未实施 |
 | [ivr-video-datachannel-protocol.md](./ivr-video-datachannel-protocol.md) | 76 | VC-3 | 2026-06-25 | IVR 视频 / DataChannel 事件协议 | Draft（明确标注待确认项） |
+| [communication-foundation-production-completion.md](./communication-foundation-production-completion.md) | — | 执行基线 | 2026-07-21 | IM/SIP/视频集群完备性与后续 Goals | 活跃、覆盖早期 MVP 裁决 |
+| [kamailio-sip-edge-design.md](./kamailio-sip-edge-design.md) | — | 执行设计 | 2026-07-21 | Kamailio/RustPBX Cell/Zone 路由与故障语义 | 活跃 |
+| [quic-video-transport-assessment.md](./quic-video-transport-assessment.md) | — | 技术裁决 | 2026-07-21 | QUIC/RoQ、LiveKit 与传输竞争治理 | 活跃、RoQ 仅实验 |
 
 **上级文档**（不在本目录）：[../product-direction-2026-06.md](../product-direction-2026-06.md) — 产品方向总纲 v1.1（2026-06-29 CCaaS 校准）。
 
@@ -70,10 +73,13 @@ flowchart LR
 | **Chatwoot** | 移除（architecture-v3 §附录 L1432：ChannelAdapter 自建替代） | 全渠道改 `omnichannel/` 自建 adapters | `【已废】` 前缀；除"历史/迁移说明"外不得列为交付物 |
 | **Kong** | 延后/替换（vision §5.5、security-design L20、gap-analysis L209） | OPC 自带 `src/middleware/auth.ts` | `【已废·目标态无】` 前缀；不得作为限流/WAF 控制项写入"现状" |
 | **Keycloak** | 替换（architecture-v3 L1428、security-design L21） | 自签 JWT + bcrypt（`src/middleware/auth.ts`） | `【已废·替换为自签 JWT】` 前缀；不得把 Token/密码存储写入"Keycloak DB" |
-| **Kamailio** | 延后 v2.0+（revised-master-plan §移除表 L38、security-design L22） | RustPBX 直接暴露作 SBC | `【延后·v2.0+】` 前缀；不得作为 Sprint 11 交付物 |
+| **Kamailio** | **已重新启用**（2026-07-21 MIX-100K/Cell 生产裁决） | Kamailio SIP Edge + RustPBX B2BUA 节点池；本地签名快照、容量加权、dialog pin、drain/failover | 现行生产设计无需“延后”前缀；旧文档中的 `【延后·v2.0+】` 只可保留为 1000 路以内 MVP 历史记录 |
 | **ClickHouse** | 延后（vision L835「PG 物化视图够用前期」） | PostgreSQL 物化视图 | `【延后·Phase 4+ 评估】` 前缀；不得作为当前 Dashboard/追踪数据源 |
 
-**2026-06-29 文档治理批次**已按上表前缀修正 §3 所列污染位置；新增各文档 `<关联文档>` 互链与变更日志。若再发现裸词，按 §6 清单修。
+**2026-06-29 文档治理批次**的历史修改仍保留。2026-07-21 起，Kamailio 的生产权威以
+`communication-foundation-production-completion.md` 和 `kamailio-sip-edge-design.md` 为准；
+其余组件继续按上表前缀治理。若再发现把 Kamailio 当作当前“延后”的文字，必须标明那是早期
+MVP 历史裁决，不得覆盖现行 Cell 架构。
 
 ---
 
