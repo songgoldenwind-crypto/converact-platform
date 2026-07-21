@@ -23,10 +23,10 @@ test('iveKit Kamailio image is source-pinned, multi-arch buildable and non-root'
   );
   assert.match(dockerfile, /f095f503c3a33fd9c6e3439212b461bda59d9c37ce64bffbe5a871fbd11ed29b/);
   for (const module of [
-    'dispatcher', 'dialog', 'dmq', 'dmq_usrloc', 'htable', 'jansson', 'jwt', 'path',
+    'dispatcher', 'dialog', 'dmq', 'dmq_usrloc', 'htable', 'jansson', 'jwt', 'outbound', 'path',
     'registrar', 'tls', 'usrloc', 'websocket', 'xhttp_prom'
   ]) assert.match(dockerfile, new RegExp(`include_modules=.*${module}`));
-  for (const dependency of ['libjansson-dev', 'libjansson4']) {
+  for (const dependency of ['libjansson-dev', 'libjansson4', 'netbase']) {
     assert.match(dockerfile, new RegExp(dependency));
   }
   assert.doesNotMatch(dockerfile, /libjwt-dev|libjwt0/);

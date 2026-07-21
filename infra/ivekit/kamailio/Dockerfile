@@ -56,7 +56,7 @@ RUN curl -fsSLo kamailio.tar.gz \
 
 WORKDIR /usr/src/kamailio-${KAMAILIO_VERSION}
 RUN patch -p1 < /tmp/0001-dispatcher-retain-probe-state.patch \
-    && make cfg prefix=/opt/kamailio group_include="standard" include_modules="dispatcher dialog dmq dmq_usrloc htable jansson jwt path registrar tls usrloc websocket xhttp_prom" \
+    && make cfg prefix=/opt/kamailio group_include="standard" include_modules="dispatcher dialog dmq dmq_usrloc htable jansson jwt outbound path registrar tls usrloc websocket xhttp_prom" \
     && make -j"$(nproc)" all \
     && make install
 
@@ -78,6 +78,7 @@ RUN apt-get update \
       libssl3 \
       libunistring2 \
       libxml2 \
+      netbase \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 kamailio \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin kamailio \

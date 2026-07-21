@@ -22,7 +22,7 @@ test('Kamailio renderer emits the complete stateful SIP edge route machine', () 
   });
 
   for (const module of [
-    'dispatcher.so', 'dialog.so', 'rr.so', 'topoh.so', 'tm.so', 'tmx.so',
+    'dispatcher.so', 'dialog.so', 'outbound.so', 'rr.so', 'topoh.so', 'tm.so', 'tmx.so',
     'pike.so', 'htable.so', 'ipops.so', 'jsonrpcs.so', 'xhttp.so',
     'websocket.so', 'tls.so', 'xhttp_prom.so', 'jwt.so', 'jansson.so',
     'registrar.so', 'usrloc.so', 'path.so', 'dmq.so', 'dmq_usrloc.so'
@@ -95,6 +95,8 @@ test('Kamailio renderer emits TLS and WSS configuration with strict transport bo
   assert.match(rendered.kamailio_cfg, /enable_tls=yes/);
   assert.match(rendered.kamailio_cfg, /listen=tls:0\.0\.0\.0:5061 advertise "sip\.cell-a\.example\.com":5061/);
   assert.match(rendered.kamailio_cfg, /listen=tls:0\.0\.0\.0:7443 advertise "wss\.cell-a\.example\.com":443/);
+  assert.match(rendered.kamailio_cfg, /alias="sip\.cell-a\.example\.com"/);
+  assert.match(rendered.kamailio_cfg, /alias="wss\.cell-a\.example\.com"/);
   assert.match(rendered.kamailio_cfg, /ws_handle_handshake\(\)/);
   assert.match(rendered.kamailio_cfg, /\$Rp == 7443/);
   assert.match(rendered.tls_cfg, /method = TLSv1\.2\+/);
