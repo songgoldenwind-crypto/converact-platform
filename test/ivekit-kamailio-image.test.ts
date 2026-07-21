@@ -16,13 +16,20 @@ test('iveKit Kamailio image is source-pinned, multi-arch buildable and non-root'
     /https:\/\/www\.kamailio\.org\/pub\/kamailio\/6\.0\.7\/src\/kamailio-6\.0\.7_src\.tar\.gz/
   );
   assert.match(dockerfile, /f147c3237bb43749eac7bbc1bc97761f6636e7b9cacda120b0911c2be9447865/);
+  assert.match(dockerfile, /ARG LIBJWT_VERSION=2\.1\.3/);
+  assert.match(
+    dockerfile,
+    /https:\/\/github\.com\/benmcollins\/libjwt\/releases\/download\/v2\.1\.3\/libjwt-2\.1\.3\.tar\.xz/
+  );
+  assert.match(dockerfile, /f095f503c3a33fd9c6e3439212b461bda59d9c37ce64bffbe5a871fbd11ed29b/);
   for (const module of [
     'dispatcher', 'dialog', 'dmq', 'dmq_usrloc', 'htable', 'jansson', 'jwt', 'path',
     'registrar', 'tls', 'usrloc', 'websocket', 'xhttp_prom'
   ]) assert.match(dockerfile, new RegExp(`include_modules=.*${module}`));
-  for (const dependency of ['libjansson-dev', 'libjwt-dev', 'libjansson4', 'libjwt0']) {
+  for (const dependency of ['libjansson-dev', 'libjansson4']) {
     assert.match(dockerfile, new RegExp(dependency));
   }
+  assert.doesNotMatch(dockerfile, /libjwt-dev|libjwt0/);
   assert.match(dockerfile, /USER 10001:10001/);
   assert.match(dockerfile, /HEALTHCHECK NONE/);
   assert.match(dockerfile, /0001-dispatcher-retain-probe-state\.patch/);

@@ -7,6 +7,10 @@ archive is deliberately not used as a reproducible build input. The build includ
 standard module group plus `dispatcher`, `dialog`, `htable`, `tls`, `websocket`
 and `xhttp_prom`, plus `jwt`, `jansson`, `registrar`, `usrloc`, `path`, `dmq`
 and `dmq_usrloc`, which are required by the generated iveKit edge config.
+Kamailio 6.0.7 requires libjwt 1.12 or newer and does not support libjwt 3.x.
+Debian Bookworm only packages libjwt 1.10.2, so the image also verifies and
+builds the official libjwt 2.1.3 release archive instead of linking the
+incompatible distribution package.
 
 The image also applies the reviewed
 `patches/0001-dispatcher-retain-probe-state.patch`. New-call destinations start
