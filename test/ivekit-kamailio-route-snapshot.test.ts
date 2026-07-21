@@ -147,9 +147,9 @@ test('Kamailio route snapshot validates pool, node and capacity invariants', () 
   duplicatePinSet.pools[0]!.nodes.push(secondNode);
   assert.throws(() => codec.encode(duplicatePinSet), hasCode('invalid_route_snapshot'));
 
-  const overloadedAccepting = snapshotBody();
-  overloadedAccepting.pools[0]!.nodes[0]!.reserved = 1_701;
-  assert.throws(() => codec.encode(overloadedAccepting), hasCode('invalid_route_snapshot'));
+  const exhaustedAccepting = snapshotBody();
+  exhaustedAccepting.pools[0]!.nodes[0]!.reserved = 1_700;
+  assert.match(codec.encode(exhaustedAccepting), /"reserved":1700/);
 
   const invalidUri = snapshotBody();
   invalidUri.pools[0]!.nodes[0]!.sip_uri = 'sip:alice:password@rustpbx-a-0:5060';

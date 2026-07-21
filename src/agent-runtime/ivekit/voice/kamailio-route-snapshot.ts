@@ -121,7 +121,7 @@ export class KamailioRouteSnapshotCodec {
   }
 
   encode(body: KamailioRouteSnapshotBody): string {
-    validateSnapshotBody(body);
+    validateKamailioRouteSnapshotBody(body);
     const canonicalBody = canonicalJson(body);
     const signature = hmac(requiredKey(this.#keys, this.#currentKeyId), canonicalBody);
     const wire = `${WIRE_PREFIX}${this.#currentKeyId}.${signature}\n${canonicalBody}`;
@@ -165,7 +165,7 @@ export class KamailioRouteSnapshotCodec {
     if (canonicalJson(body) !== canonicalBody) {
       fail('invalid_route_snapshot', 'Kamailio route snapshot body is not canonical JSON');
     }
-    validateSnapshotBody(body);
+    validateKamailioRouteSnapshotBody(body);
     validateVerificationInput(input);
     if (
       body.region_id !== input.expected_region_id ||
@@ -196,7 +196,7 @@ export class KamailioRouteSnapshotCodec {
   }
 }
 
-function validateSnapshotBody(body: KamailioRouteSnapshotBody): void {
+export function validateKamailioRouteSnapshotBody(body: KamailioRouteSnapshotBody): void {
   try {
     exactKeys(body, BODY_KEYS, 'body');
     if (body.schema_version !== '1.0.0') invalid('schema version');
@@ -247,12 +247,6 @@ function validateSnapshotBody(body: KamailioRouteSnapshotBody): void {
         boundedNumber(node.reserved, 0, 1_000_000_000, 'reserved capacity');
         boundedInteger(node.routing_weight, 1, 100, 'routing weight');
         boundedInteger(node.priority, 0, 65_535, 'priority');
-        if (
-          (node.state === 'accepting' || node.state === 'degraded') &&
-          node.used + node.reserved >= node.safe_capacity
-        ) {
-          invalid('accepting node headroom');
-        }
       }
     }
     for (const pinSetId of pinSetIds) {

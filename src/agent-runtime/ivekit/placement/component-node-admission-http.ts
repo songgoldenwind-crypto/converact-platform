@@ -10,7 +10,8 @@ import {
   type ComponentNodeAuthorization,
   type ComponentNodeBatchAuthorizationResult,
   type ComponentNodeAuthorizationInput,
-  type ComponentNodeLeaseHeartbeat
+  type ComponentNodeLeaseHeartbeat,
+  type ComponentNodeStateSnapshot
 } from './component-node-admission.js';
 
 export function createComponentNodeAdmissionHttpServer(input: {
@@ -178,6 +179,14 @@ export class HttpComponentNodeAdmissionClient {
     return this.#request<Record<string, unknown>>('/v1/lease', 'POST', heartbeat);
   }
 
+  async readState(): Promise<ComponentNodeStateSnapshot> {
+    const state = await this.#request<Record<string, unknown>>(
+      '/v1/state',
+      'GET'
+    );
+    return decodeComponentNodeState(state);
+  }
+
   async applyReservation(
     checkpoint: CellAdmissionReservationCheckpoint
   ): Promise<CellAdmissionReservationCheckpoint> {
@@ -219,20 +228,21 @@ export class HttpComponentNodeAdmissionClient {
 
   async #request<T>(
     path: string,
-    method: 'POST' | 'PUT',
-    body: unknown
+    method: 'GET' | 'POST' | 'PUT',
+    body?: unknown
   ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
     try {
+      const headers: Record<string, string> = {
+        authorization: `Bearer ${this.#token}`
+      };
+      if (body !== undefined) headers['content-type'] = 'application/json';
       const response = await this.#fetch(new URL(path, this.#endpoint), {
         method,
         signal: controller.signal,
-        headers: {
-          authorization: `Bearer ${this.#token}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify(body)
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body)
       });
       const payload = await boundedJsonResponse(response);
       if (!response.ok) {
@@ -256,6 +266,99 @@ export class HttpComponentNodeAdmissionClient {
       clearTimeout(timer);
     }
   }
+}
+
+function decodeComponentNodeState(
+  value: Record<string, unknown>
+): ComponentNodeStateSnapshot {
+  try {
+    exactResponseKeys(value, [
+      'cell_id', 'cell_lease_epoch', 'component', 'dimensions',
+      'drain_started_at', 'lease_expires_at', 'lease_fresh',
+      'lease_observed_at', 'node_id', 'recovery_pending', 'region_id',
+      'reservations', 'state', 'state_sequence', 'zone_id'
+    ]);
+    if (!['rustpbx', 'livekit', 'tinode', 'rustdesk'].includes(String(value.component))) {
+      throw new Error('component');
+    }
+    for (const key of ['region_id', 'zone_id', 'cell_id', 'node_id'] as const) {
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,254}$/.test(String(value[key] || ''))) {
+        throw new Error(key);
+      }
+    }
+    if (!['accepting', 'degraded', 'draining'].includes(String(value.state)) ||
+        !safeResponseInteger(value.state_sequence, 0, Number.MAX_SAFE_INTEGER) ||
+        !safeResponseInteger(value.cell_lease_epoch, 0, 0xffff_ffff) ||
+        typeof value.lease_fresh !== 'boolean' ||
+        typeof value.recovery_pending !== 'boolean') {
+      throw new Error('state');
+    }
+    optionalIsoTime(value.drain_started_at, 'drain_started_at');
+    optionalIsoTime(value.lease_observed_at, 'lease_observed_at');
+    optionalIsoTime(value.lease_expires_at, 'lease_expires_at');
+    if (value.cell_lease_epoch === 0 &&
+        (value.lease_observed_at !== '' || value.lease_expires_at !== '' || value.lease_fresh)) {
+      throw new Error('lease');
+    }
+    if (value.cell_lease_epoch !== 0 &&
+        (value.lease_observed_at === '' || value.lease_expires_at === '')) {
+      throw new Error('lease');
+    }
+
+    const dimensions = responseObject(value.dimensions);
+    const dimensionEntries = Object.entries(dimensions);
+    if (dimensionEntries.length < 1 || dimensionEntries.length > 64) throw new Error('dimensions');
+    for (const [name, raw] of dimensionEntries) {
+      if (!/^[a-z][a-z0-9_.]{2,127}$/.test(name)) throw new Error('dimension name');
+      const dimension = responseObject(raw);
+      exactResponseKeys(dimension, ['reserved', 'safe_capacity', 'unit', 'used']);
+      if (typeof dimension.unit !== 'string' || dimension.unit.length < 1 || dimension.unit.length > 64 ||
+          !safeResponseNumber(dimension.safe_capacity, 0, 1_000_000_000, false) ||
+          !safeResponseNumber(dimension.used, 0, 1_000_000_000, true) ||
+          !safeResponseNumber(dimension.reserved, 0, 1_000_000_000, true)) {
+        throw new Error('dimension');
+      }
+    }
+    const reservations = responseObject(value.reservations);
+    exactResponseKeys(reservations, ['active', 'closed', 'expired', 'reserved']);
+    for (const count of Object.values(reservations)) {
+      if (!safeResponseInteger(count, 0, Number.MAX_SAFE_INTEGER)) throw new Error('reservations');
+    }
+    return structuredClone(value) as unknown as ComponentNodeStateSnapshot;
+  } catch (error) {
+    if (error instanceof ComponentNodeAdmissionError) throw error;
+    throw new ComponentNodeAdmissionError('component_node_response_invalid', 502);
+  }
+}
+
+function exactResponseKeys(value: Record<string, unknown>, expected: string[]): void {
+  if (JSON.stringify(Object.keys(value).sort()) !== JSON.stringify([...expected].sort())) {
+    throw new Error('response fields');
+  }
+}
+
+function responseObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype) {
+    throw new Error('response object');
+  }
+  return value as Record<string, unknown>;
+}
+
+function optionalIsoTime(value: unknown, label: string): void {
+  if (value === '') return;
+  if (typeof value !== 'string') throw new Error(label);
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== value) throw new Error(label);
+}
+
+function safeResponseInteger(value: unknown, min: number, max: number): boolean {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
+}
+
+function safeResponseNumber(value: unknown, min: number, max: number, allowZero: boolean): boolean {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max &&
+    (allowZero || value > 0);
 }
 
 function renderMetrics(

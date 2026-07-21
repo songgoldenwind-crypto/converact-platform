@@ -59,6 +59,24 @@ export interface ComponentNodeBatchAuthorizationResult {
   };
 }
 
+export interface ComponentNodeStateSnapshot {
+  component: ComponentNodeComponent;
+  region_id: string;
+  zone_id: string;
+  cell_id: string;
+  node_id: string;
+  state: Exclude<AdmissionState, 'offline'>;
+  state_sequence: number;
+  drain_started_at: string;
+  cell_lease_epoch: number;
+  lease_observed_at: string;
+  lease_expires_at: string;
+  lease_fresh: boolean;
+  recovery_pending: boolean;
+  dimensions: FlatCapacityState;
+  reservations: Record<ReservationState, number>;
+}
+
 interface ReservationDeadline {
   at: number;
   reservation_id: string;
@@ -353,23 +371,7 @@ export class ComponentNodeAdmissionController {
     return expired;
   }
 
-  snapshot(now: Date): {
-    component: ComponentNodeComponent;
-    region_id: string;
-    zone_id: string;
-    cell_id: string;
-    node_id: string;
-    state: Exclude<AdmissionState, 'offline'>;
-    state_sequence: number;
-    drain_started_at: string;
-    cell_lease_epoch: number;
-    lease_observed_at: string;
-    lease_expires_at: string;
-    lease_fresh: boolean;
-    recovery_pending: boolean;
-    dimensions: FlatCapacityState;
-    reservations: Record<ReservationState, number>;
-  } {
+  snapshot(now: Date): ComponentNodeStateSnapshot {
     const timestamp = validNow(now);
     const counts: Record<ReservationState, number> = {
       reserved: 0,

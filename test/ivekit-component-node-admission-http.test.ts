@@ -57,6 +57,11 @@ test('component node HTTP client applies lease, reservation and authorization', 
 
   await client.applyLease(lease({ state: 'draining', recovery_complete: false }));
   await client.applyLease(lease());
+  const state = await client.readState();
+  assert.equal(state.component, 'livekit');
+  assert.equal(state.node_id, 'livekit-a');
+  assert.equal(state.lease_fresh, true);
+  assert.equal(state.dimensions['video.participants']?.safe_capacity, 100);
   const stored = await client.applyReservation(reservation());
   assert.equal(stored.state, 'reserved');
   const authorization = await client.authorize({
@@ -84,6 +89,44 @@ test('component node HTTP client applies lease, reservation and authorization', 
   assert.equal(batch[0]?.authorization?.allowed, true);
   assert.equal(batch[1]?.error?.code, 'stale_owner_epoch');
   assert.equal((await fetch(`${endpoint}/readyz`)).status, 200);
+});
+
+test('component node HTTP client authenticates state reads and rejects malformed or oversized state', async () => {
+  let request: { url: string; init?: RequestInit } | null = null;
+  const validClient = new HttpComponentNodeAdmissionClient({
+    endpoint: 'https://rustpbx-a.internal:3210',
+    service_token: token,
+    fetch: async (input, init) => {
+      request = { url: String(input), init };
+      return Response.json({ data: componentState() });
+    }
+  });
+  const state = await validClient.readState();
+  assert.equal(state.node_id, 'rustpbx-a');
+  assert.equal(request?.url, 'https://rustpbx-a.internal:3210/v1/state');
+  assert.equal(request?.init?.method, 'GET');
+  assert.equal((request?.init?.headers as Record<string, string>).authorization, `Bearer ${token}`);
+  assert.equal(request?.init?.body, undefined);
+
+  const malformedClient = new HttpComponentNodeAdmissionClient({
+    endpoint: 'https://rustpbx-a.internal:3210',
+    service_token: token,
+    fetch: async () => Response.json({ data: { ...componentState(), unexpected: true } })
+  });
+  await assert.rejects(
+    () => malformedClient.readState(),
+    (error: any) => error?.code === 'component_node_response_invalid'
+  );
+
+  const oversizedClient = new HttpComponentNodeAdmissionClient({
+    endpoint: 'https://rustpbx-a.internal:3210',
+    service_token: token,
+    fetch: async () => new Response('x'.repeat(131_073), { status: 200 })
+  });
+  await assert.rejects(
+    () => oversizedClient.readState(),
+    (error: any) => error?.code === 'component_node_response_too_large'
+  );
 });
 
 test('component node HTTP metrics are bounded and contain no tenant or interaction IDs', async (t) => {
@@ -233,6 +276,33 @@ function reservation() {
     payload_hash: 'a'.repeat(64),
     created_at: '2026-07-16T08:00:00.000Z',
     updated_at: '2026-07-16T08:00:00.000Z'
+  };
+}
+
+function componentState() {
+  return {
+    component: 'rustpbx',
+    region_id: 'region-a',
+    zone_id: 'zone-a',
+    cell_id: 'cell-a',
+    node_id: 'rustpbx-a',
+    state: 'accepting',
+    state_sequence: 12,
+    drain_started_at: '',
+    cell_lease_epoch: 3,
+    lease_observed_at: '2026-07-16T08:00:00.000Z',
+    lease_expires_at: '2026-07-16T08:00:10.000Z',
+    lease_fresh: true,
+    recovery_pending: false,
+    dimensions: {
+      'voice.weighted_calls': {
+        unit: 'calls',
+        safe_capacity: 2_500,
+        used: 800,
+        reserved: 50
+      }
+    },
+    reservations: { reserved: 50, active: 800, expired: 0, closed: 0 }
   };
 }
 
