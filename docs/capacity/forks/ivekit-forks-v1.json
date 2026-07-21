@@ -113,7 +113,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch",
-          "sha256": "926283f9ea9d65befd5beff0d13cb30e22ad3301212d198eb21fa3d6b12e2ff2",
+          "sha256": "022fe8d108486b2e930bc490c5a135218f839bd4b8b32f8b1527c53e820def11",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-webphone-registry.patch",
           "purpose": "Make the asynchronous call-record handoff bounded and profile-tunable, expose low-cardinality loss and queue telemetry, and remove per-call log amplification from the signaling path."
         }
