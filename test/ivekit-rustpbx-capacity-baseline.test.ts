@@ -17,6 +17,7 @@ test('RustPBX baseline keeps production authentication and an isolated topology'
   assert.match(compose, /PYTHON_IMAGE:\?PYTHON_IMAGE/);
   assert.match(compose, /CAPACITY_TOOLS_IMAGE:\?CAPACITY_TOOLS_IMAGE/);
   assert.match(compose, /scripts\/capacity\/fixtures\/rustpbx-router\.ts/);
+  assert.match(compose, /- node\n\s+- -e\n\s+- fetch\('http:\/\/127\.0\.0\.1:8081\/health'/);
   assert.match(compose, /172\.30\.44\.10/);
   assert.match(compose, /172\.30\.44\.20/);
   assert.doesNotMatch(compose, /^\s*ports:/m);
