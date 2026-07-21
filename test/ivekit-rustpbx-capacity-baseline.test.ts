@@ -24,6 +24,8 @@ test('RustPBX baseline keeps production authentication and an isolated topology'
   assert.match(template, /ensure_user = true/);
   assert.match(template, /fallback_to_static = false/);
   assert.match(template, /database_url = "postgresql:\/\/rustpbx_app:/);
+  assert.match(template, /max_concurrent = 256/);
+  assert.match(template, /channel_capacity = 65536/);
   assert.doesNotMatch(template, /sqlite/i);
   assert.match(bootstrap, /"allowed_ips": json\.dumps\(\[UAC_IP\]\)/);
   assert.match(bootstrap, /\/ami\/v1\/reload\/trunks/);
@@ -37,7 +39,7 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
     encoding: 'utf8',
     env: {
       ...process.env,
-      RUSTPBX_IMAGE: 'ivekit/rustpbx:0.4.11-ivekit.10-6c49ee76',
+      RUSTPBX_IMAGE: 'ivekit/rustpbx:0.4.11-ivekit.11-6c49ee76',
       POSTGRES_IMAGE: 'postgres@sha256:' + 'a'.repeat(64),
       PYTHON_IMAGE: 'python@sha256:' + 'b'.repeat(64),
       CAPACITY_TOOLS_IMAGE: 'ivekit/capacity-tools:test'
@@ -53,6 +55,6 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
   assert.doesNotMatch(config, /\{\{[A-Z0-9_]+\}\}/);
   assert.doesNotMatch(result.stdout, /RUSTPBX_(?:DB_PASSWORD|MANAGEMENT_TOKEN|RWI_TOKEN|WEBHOOK_TOKEN)=/);
   assert.match(env, /^COMPOSE_PROJECT_NAME=ivekit-rustpbx-baseline$/m);
-  assert.match(env, /^RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.10-6c49ee76$/m);
+  assert.match(env, /^RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.11-6c49ee76$/m);
   assert.match(env, /^CAPACITY_TOOLS_IMAGE=ivekit\/capacity-tools:test$/m);
 });
