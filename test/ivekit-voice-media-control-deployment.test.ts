@@ -45,6 +45,14 @@ describe('iveKit media control deployment', () => {
     assert.deepEqual(service.security_opt, ['no-new-privileges:true']);
     assert.equal(service.ports, undefined);
     assert.ok(service.healthcheck);
+    assert.match(
+      compose.services['rustpbx-component-node'].healthcheck.test.join(' '),
+      /\/livez/
+    );
+    assert.doesNotMatch(
+      compose.services['rustpbx-component-node'].healthcheck.test.join(' '),
+      /\/readyz/
+    );
   });
 
   it('makes simulator acceptance explicit and rejects simulator production startup', () => {
@@ -101,6 +109,10 @@ describe('iveKit media control deployment', () => {
     assert.match(
       entrypoint,
       /IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE/
+    );
+    assert.match(
+      entrypoint,
+      /state\.lease_fresh[\s\S]*!state\.recovery_pending/
     );
   });
 

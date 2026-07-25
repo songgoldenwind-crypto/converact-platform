@@ -70,8 +70,13 @@ const admissionHealthIntervalMs = integerEnv(
 let admissionReadyUntil = 0;
 async function refreshAdmissionReadiness(): Promise<void> {
   try {
-    await admission.readState();
-    admissionReadyUntil = Date.now() + admissionHealthIntervalMs * 3;
+    const state = await admission.readState();
+    const ready = state.lease_fresh &&
+      !state.recovery_pending &&
+      (state.state === 'accepting' || state.state === 'degraded');
+    admissionReadyUntil = ready
+      ? Date.now() + admissionHealthIntervalMs * 3
+      : 0;
   } catch {
     admissionReadyUntil = 0;
   }
