@@ -85,7 +85,7 @@
 - Create: `test/ivekit-rtpengine-source-overlay.test.ts`
 
 - [x] Write a failing test that verifies the exact tag, commit, archive URL, SHA-256, size, GPL notice, patch order, and refusal of an unpinned source tree.
-- [ ] Make the test create a temporary Git tree from the exact archive, run the overlay twice, and require the second result to report `already_applied` for every patch.
+- [x] Make the test create a temporary Git tree from the exact archive, run the overlay twice, and require the second result to report `already_applied` for every patch.
 - [x] Run the test and verify it fails because the source tooling is absent.
 - [x] Implement `fetch-source.sh` so it:
   - accepts a new empty output directory;
@@ -95,9 +95,18 @@
   - initializes a temporary Git repository solely to support deterministic patch application;
   - writes `ivekit-source-identity.json` with no credentials.
 - [x] Implement `apply-overlay.mjs` using `git apply --check`, `git apply --whitespace=error-all`, and reverse-check idempotency.
-- [ ] Reject partial overlays, dirty source before first application, unknown patch files, and source identity mismatches.
-- [ ] Run the source test twice and verify identical patch-set hashes.
-- [ ] Commit as `build(rtpengine): pin source and overlay`.
+- [x] Reject partial overlays, dirty source before first application, unknown patch files, and source identity mismatches.
+- [x] Run the source test twice and verify identical patch-set hashes.
+- [x] Commit as `build(rtpengine): pin source and overlay`.
+
+Completion evidence on 2026-07-26:
+
+- the exact archive produced four `applied` results on the first run and four `already_applied` results on the second run;
+- patch-set SHA-256: `04dc12587f53007a8fdc9d603ec07f867820af69066788dbde2e31678185c6a6`;
+- patched source tree SHA-256: `832600fecee772bbc7c126ebcb60de574f243db14830b29a86db55fc38181a5b`;
+- the overlay test also covers overlapping patch context, executable-mode
+  changes, and symlink identity targets so reverse checks cannot hide a
+  partial, mixed, or redirected patch set.
 
 ### Task 3: Bounded TCP NG And Owner Fence Fork
 
@@ -107,11 +116,12 @@
 - Create: `infra/ivekit/rtpengine/patches/0003-ivekit-drain-capacity.patch`
 - Create: `infra/ivekit/rtpengine/patches/0004-ivekit-metrics.patch`
 - Create: `infra/ivekit/rtpengine/overlay-tests/ivekit_owner_guard_test.c`
+- Create: `infra/ivekit/rtpengine/overlay-tests/ivekit_replay_protocol_test.py`
 - Modify: `test/ivekit-rtpengine-source-overlay.test.ts`
 
-- [ ] First add assertions that fail against unpatched upstream source.
-- [ ] Patch TCP NG to accept a complete bencoded frame up to a configured `ivekit-ng-max-frame-bytes`, default `262144`, while closing connections that exceed the bound before a complete frame.
-- [ ] Add required NG keys for iveKit mutations:
+- [x] First add assertions that fail against unpatched upstream source.
+- [x] Patch TCP NG to accept a complete bencoded frame up to a configured `ivekit-ng-max-frame-bytes`, default `262144`, while closing connections that exceed the bound before a complete frame.
+- [x] Add required NG keys for iveKit mutations:
 
 ```text
 ivekit-owner-epoch
@@ -121,13 +131,25 @@ ivekit-command-hash
 ivekit-reservation-id
 ```
 
-- [ ] Store a bounded call guard keyed by call ID. Compare owner epochs as unsigned 64-bit integers, require sequence one for a higher epoch, reject lower epochs before dispatch, and retain terminal tombstones for the configured retention period.
-- [ ] Keep query and statistics read-only. They may inspect a fenced call but cannot advance its epoch or sequence.
-- [ ] Add `ivekit drain` and `ivekit undrain` control commands. Drain rejects new call IDs with `ivekit node draining` while allowing existing-call mutations and delete.
-- [ ] Add a hard active-call admission ceiling and counters for accepted, replayed, stale-epoch, sequence-gap, draining, and capacity rejections.
-- [ ] Export only fixed-label metrics by command/result/runtime mode; never export call or endpoint identifiers as labels.
-- [ ] Run overlay tests, upstream unit tests for affected files, and ASAN/UBSAN unit binaries.
-- [ ] Commit as `feat(rtpengine): add fenced media admission`.
+- [x] Store a bounded call guard keyed by call ID. Compare owner epochs as unsigned 64-bit integers, require sequence one for a higher epoch, reject lower epochs before dispatch, and retain terminal tombstones for the configured retention period.
+- [x] Keep query and statistics read-only. They may inspect a fenced call but cannot advance its epoch or sequence.
+- [x] Add `ivekit drain` and `ivekit undrain` control commands. Drain rejects new call IDs with `ivekit node draining` while allowing existing-call mutations and delete.
+- [x] Add a hard active-call admission ceiling and counters for accepted, replayed, stale-epoch, sequence-gap, draining, and capacity rejections.
+- [x] Export only fixed-label metrics by command/result/runtime mode; never export call or endpoint identifiers as labels.
+- [x] Run overlay tests, upstream unit tests for affected files, and ASAN/UBSAN unit binaries.
+- [x] Commit as `feat(rtpengine): add fenced media admission`.
+
+Verification evidence on 2026-07-26:
+
+- `npm run test:ivekit:voice-media-goal2`: 17 tests passed;
+- the locked source compiled with the production `-O3` and LTO flags in the server build environment;
+- upstream `test-stats` and `test-transcode` both compiled, linked, and passed with `ivekit_guard.o`;
+- the owner guard boundary binary passed ASAN and UBSAN with leak detection enabled;
+- real NG admission, drain, hard-capacity, tombstone expiry, invalid runtime-mode, and `/metrics` protocol checks passed on `64.225.122.227`;
+- stable-cookie replay returned the native cached response, while the same
+  command under a different cookie was rejected before media dispatch;
+  counters remained exactly `accepted=1` and `replayed=1`;
+- all exported labels are fixed command, result, and runtime-mode values; call IDs, tenant IDs, reservation IDs, SDP, addresses, ports, and phone numbers are excluded.
 
 ### Task 4: Offline Userspace And Kernel Artifacts
 

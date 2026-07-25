@@ -1,0 +1,209 @@
+diff --git a/daemon/ivekit_guard.c b/daemon/ivekit_guard.c
+index 1da728d..7c5c2fb 100644
+--- a/daemon/ivekit_guard.c
++++ b/daemon/ivekit_guard.c
+@@ -31,6 +31,7 @@ static uint64_t ivekit_guard_active_call_limit;
+ static uint64_t ivekit_guard_entry_limit;
+ static int64_t ivekit_guard_tombstone_retention_us;
+ static _Atomic bool ivekit_guard_draining;
++static _Atomic bool ivekit_guard_initialized;
+ static _Atomic uint64_t ivekit_guard_active_calls;
+ static _Atomic uint64_t ivekit_guard_accepted;
+ static _Atomic uint64_t ivekit_guard_replayed;
+@@ -38,6 +39,8 @@ static _Atomic uint64_t ivekit_guard_stale_epoch;
+ static _Atomic uint64_t ivekit_guard_sequence_gap;
+ static _Atomic uint64_t ivekit_guard_draining_rejections;
+ static _Atomic uint64_t ivekit_guard_capacity_rejections;
++static char ivekit_guard_runtime_mode[IVEKIT_GUARD_RUNTIME_MODE_MAX + 1]
++	= "unconfigured";
+ 
+ static void ivekit_guard_entry_free(void *value) {
+ 	ivekit_guard_entry_t *entry = value;
+@@ -82,6 +85,18 @@ static uint64_t ivekit_guard_env_uint(const char *name, uint64_t fallback,
+ 	return parsed;
+ }
+ 
++static void ivekit_guard_runtime_mode_init(void) {
++	const char *mode = g_getenv("IVEKIT_RTPENGINE_RUNTIME_MODE");
++	if (!mode || !*mode)
++		mode = "unconfigured";
++	if (strcmp(mode, "unconfigured") && strcmp(mode, "userspace")
++			&& strcmp(mode, "kernel"))
++		die("Invalid IVEKIT_RTPENGINE_RUNTIME_MODE: expected "
++				"unconfigured, userspace, or kernel");
++	g_strlcpy(ivekit_guard_runtime_mode, mode,
++			sizeof(ivekit_guard_runtime_mode));
++}
++
+ static bool ivekit_guard_is_mutation(const str *command) {
+ 	static const char *const mutations[] = {
+ 		"offer", "answer", "delete",
+@@ -284,6 +299,7 @@ static void ivekit_guard_append_node_state(ng_command_ctx_t *ctx) {
+ 
+ void ivekit_guard_init(void) {
+ 	ivekit_guard_enabled = ivekit_guard_env_bool("IVEKIT_RTPENGINE_OWNER_GUARD", false);
++	ivekit_guard_runtime_mode_init();
+ 	ivekit_guard_active_call_limit = ivekit_guard_env_uint(
+ 			"IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS", 10000, 1, 10000000);
+ 	ivekit_guard_entry_limit = ivekit_guard_env_uint(
+@@ -298,6 +314,7 @@ void ivekit_guard_init(void) {
+ 	ivekit_guard_entries = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
+ 			ivekit_guard_entry_free);
+ 	atomic_init(&ivekit_guard_draining, false);
++	atomic_init(&ivekit_guard_initialized, false);
+ 	atomic_init(&ivekit_guard_active_calls, 0);
+ 	atomic_init(&ivekit_guard_accepted, 0);
+ 	atomic_init(&ivekit_guard_replayed, 0);
+@@ -305,15 +322,21 @@ void ivekit_guard_init(void) {
+ 	atomic_init(&ivekit_guard_sequence_gap, 0);
+ 	atomic_init(&ivekit_guard_draining_rejections, 0);
+ 	atomic_init(&ivekit_guard_capacity_rejections, 0);
++	atomic_store_explicit(&ivekit_guard_initialized, true,
++			memory_order_release);
+ 	ilog(LOG_INFO, "iveKit RTPengine owner guard is %s "
+-			"(active-call-limit=%" PRIu64 ", guard-entry-limit=%" PRIu64
++			"(runtime-mode=%s, active-call-limit=%" PRIu64
++			", guard-entry-limit=%" PRIu64
+ 			", tombstone-retention=%" PRIu64 " seconds)",
+ 			ivekit_guard_enabled ? "enabled" : "disabled",
++			ivekit_guard_runtime_mode,
+ 			ivekit_guard_active_call_limit, ivekit_guard_entry_limit,
+ 			retention_seconds);
+ }
+ 
+ void ivekit_guard_cleanup(void) {
++	atomic_store_explicit(&ivekit_guard_initialized, false,
++			memory_order_release);
+ 	if (ivekit_guard_entries) {
+ 		g_hash_table_destroy(ivekit_guard_entries);
+ 		ivekit_guard_entries = NULL;
+@@ -516,6 +539,11 @@ void ivekit_guard_append_response(ng_command_ctx_t *ctx,
+ 
+ void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *snapshot) {
+ 	memset(snapshot, 0, sizeof(*snapshot));
++	g_strlcpy(snapshot->runtime_mode, ivekit_guard_runtime_mode,
++			sizeof(snapshot->runtime_mode));
++	if (!atomic_load_explicit(&ivekit_guard_initialized,
++				memory_order_acquire))
++		return;
+ 	snapshot->accepted = atomic_load_explicit(&ivekit_guard_accepted,
+ 			memory_order_relaxed);
+ 	snapshot->replayed = atomic_load_explicit(&ivekit_guard_replayed,
+@@ -532,6 +560,7 @@ void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *snapshot) {
+ 			memory_order_relaxed);
+ 	snapshot->active_call_limit = ivekit_guard_active_call_limit;
+ 	snapshot->guard_entry_limit = ivekit_guard_entry_limit;
++	snapshot->enabled = ivekit_guard_enabled;
+ 	snapshot->draining = atomic_load_explicit(&ivekit_guard_draining,
+ 			memory_order_relaxed);
+ 	mutex_lock(&ivekit_guard_entries_lock);
+diff --git a/daemon/statistics.c b/daemon/statistics.c
+index 2867c8c..91fd1e8 100644
+--- a/daemon/statistics.c
++++ b/daemon/statistics.c
+@@ -8,6 +8,7 @@
+ #include "main.h"
+ #include "control_ng.h"
+ #include "bufferpool.h"
++#include "ivekit_guard.h"
+ 
+ int64_t rtpe_started;
+ 
+@@ -318,8 +319,75 @@ stats_metric_q *statistics_gather_metrics(struct interface_sampled_rate_stats *i
+ 
+ 	double calls_dur_iv;
+ 	uint64_t cur_sessions, num_sessions, min_sess_iv, max_sess_iv;
++	ivekit_guard_metrics_t ivekit;
++	ivekit_guard_metrics_snapshot(&ivekit);
+ 
+ 	HEADER("{", "");
++	if (ivekit.enabled) {
++	HEADER("ivekit", "iveKit media admission metrics:");
++	HEADER("{", "");
++
++	METRIC("ivekitguardaccepted", "Accepted iveKit media allocations",
++			"%" PRIu64, "%" PRIu64, ivekit.accepted);
++	PROM("ivekit_guard_events_total", "counter");
++	PROMLAB("command=\"admission\",result=\"accepted\",runtime_mode=\"%s\"",
++			ivekit.runtime_mode);
++	METRIC("ivekitguardreplayed", "Replayed iveKit media mutations",
++			"%" PRIu64, "%" PRIu64, ivekit.replayed);
++	PROM("ivekit_guard_events_total", "counter");
++	PROMLAB("command=\"mutation\",result=\"replayed\",runtime_mode=\"%s\"",
++			ivekit.runtime_mode);
++	METRIC("ivekitguardstaleepoch", "Rejected stale iveKit owner epochs",
++			"%" PRIu64, "%" PRIu64, ivekit.stale_epoch);
++	PROM("ivekit_guard_events_total", "counter");
++	PROMLAB("command=\"mutation\",result=\"stale_epoch\",runtime_mode=\"%s\"",
++			ivekit.runtime_mode);
++	METRIC("ivekitguardsequencegap", "Rejected iveKit command sequence gaps",
++			"%" PRIu64, "%" PRIu64, ivekit.sequence_gap);
++	PROM("ivekit_guard_events_total", "counter");
++	PROMLAB("command=\"mutation\",result=\"sequence_gap\",runtime_mode=\"%s\"",
++			ivekit.runtime_mode);
++	METRIC("ivekitguarddraining", "iveKit admission rejections while draining",
++			"%" PRIu64, "%" PRIu64, ivekit.draining_rejections);
++	PROM("ivekit_guard_events_total", "counter");
++	PROMLAB("command=\"admission\",result=\"draining\",runtime_mode=\"%s\"",
++			ivekit.runtime_mode);
++	METRIC("ivekitguardcapacity", "iveKit admission and guard capacity rejections",
++			"%" PRIu64, "%" PRIu64, ivekit.capacity_rejections);
++	PROM("ivekit_guard_events_total", "counter");
++	PROMLAB("command=\"admission\",result=\"capacity\",runtime_mode=\"%s\"",
++			ivekit.runtime_mode);
++
++	METRIC("ivekitactivecalls", "Active iveKit media calls",
++			"%" PRIu64, "%" PRIu64, ivekit.active_calls);
++	PROM("ivekit_active_calls", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitactivecalllimit", "Configured iveKit active media call limit",
++			"%" PRIu64, "%" PRIu64, ivekit.active_call_limit);
++	PROM("ivekit_active_call_limit", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitguardentries", "iveKit owner guard entries",
++			"%" PRIu64, "%" PRIu64, ivekit.guard_entries);
++	PROM("ivekit_guard_entries", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitguardentrylimit", "Configured iveKit owner guard entry limit",
++			"%" PRIu64, "%" PRIu64, ivekit.guard_entry_limit);
++	PROM("ivekit_guard_entry_limit", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitdraining", "iveKit media node drain state", "%u", "%u",
++			ivekit.draining ? 1 : 0);
++	PROM("ivekit_draining", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitownerguardenabled", "iveKit owner guard enabled state",
++			"%u", "%u", ivekit.enabled ? 1 : 0);
++	PROM("ivekit_owner_guard_enabled", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitruntimeinfo", "iveKit RTPengine runtime identity", "%u", "%u", 1);
++	PROM("ivekit_runtime_info", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++
++	HEADER("}", "");
++	}
+ 	HEADER("currentstatistics", "Statistics over currently running sessions:");
+ 	HEADER("{", "");
+ 
+diff --git a/include/ivekit_guard.h b/include/ivekit_guard.h
+index a59e228..49324ef 100644
+--- a/include/ivekit_guard.h
++++ b/include/ivekit_guard.h
+@@ -10,6 +10,7 @@
+ #define IVEKIT_GUARD_COMMAND_ID_MAX 256
+ #define IVEKIT_GUARD_COMMAND_HASH_MAX 64
+ #define IVEKIT_GUARD_RESERVATION_ID_MAX 256
++#define IVEKIT_GUARD_RUNTIME_MODE_MAX 15
+ 
+ typedef struct ivekit_guard_ticket {
+ 	void *entry;
+@@ -38,7 +39,9 @@ typedef struct ivekit_guard_metrics {
+ 	uint64_t active_call_limit;
+ 	uint64_t guard_entries;
+ 	uint64_t guard_entry_limit;
++	bool enabled;
+ 	bool draining;
++	char runtime_mode[IVEKIT_GUARD_RUNTIME_MODE_MAX + 1];
+ } ivekit_guard_metrics_t;
+ 
+ void ivekit_guard_init(void);

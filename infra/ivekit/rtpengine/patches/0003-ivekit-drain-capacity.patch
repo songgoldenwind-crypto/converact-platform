@@ -1,0 +1,435 @@
+diff --git a/daemon/control_ng.c b/daemon/control_ng.c
+index f988516..9e2bbdc 100644
+--- a/daemon/control_ng.c
++++ b/daemon/control_ng.c
+@@ -754,6 +754,11 @@ static void control_ng_process_payload(ng_ctx *hctx, str *reply, str *data, cons
+ 	// start command timer
+ 	cmd_start = now_us();
+ 
++	if (ivekit_guard_control(&command_ctx, &cmd, &errstr)) {
++		command_ctx.opmode = OP_CLI;
++		goto ivekit_command_complete;
++	}
++
+ 	errstr = ivekit_guard_begin(&command_ctx, &cmd, &callid, &ivekit_guard);
+ 	if (errstr)
+ 		goto err_send;
+@@ -892,6 +897,7 @@ static void control_ng_process_payload(ng_ctx *hctx, str *reply, str *data, cons
+ 			errstr = "Unrecognized command";
+ 	}
+ 
++ivekit_command_complete:
+ 	CH(homer_fill_values, hctx, &callid, command_ctx.opmode);
+ 	CH(homer_trace_msg_in, hctx, data);
+ 
+diff --git a/daemon/ivekit_guard.c b/daemon/ivekit_guard.c
+index 5fc98f6..1da728d 100644
+--- a/daemon/ivekit_guard.c
++++ b/daemon/ivekit_guard.c
+@@ -3,6 +3,7 @@
+ #include <errno.h>
+ #include <inttypes.h>
+ #include <limits.h>
++#include <stdatomic.h>
+ #include <string.h>
+ 
+ #include <glib.h>
+@@ -19,11 +20,24 @@ typedef struct ivekit_guard_entry {
+ 	char *command_hash;
+ 	char *reservation_id;
+ 	bool initialized;
++	bool active;
++	int64_t expires_at_us;
+ } ivekit_guard_entry_t;
+ 
+ static mutex_t ivekit_guard_entries_lock;
+ static GHashTable *ivekit_guard_entries;
+ static bool ivekit_guard_enabled;
++static uint64_t ivekit_guard_active_call_limit;
++static uint64_t ivekit_guard_entry_limit;
++static int64_t ivekit_guard_tombstone_retention_us;
++static _Atomic bool ivekit_guard_draining;
++static _Atomic uint64_t ivekit_guard_active_calls;
++static _Atomic uint64_t ivekit_guard_accepted;
++static _Atomic uint64_t ivekit_guard_replayed;
++static _Atomic uint64_t ivekit_guard_stale_epoch;
++static _Atomic uint64_t ivekit_guard_sequence_gap;
++static _Atomic uint64_t ivekit_guard_draining_rejections;
++static _Atomic uint64_t ivekit_guard_capacity_rejections;
+ 
+ static void ivekit_guard_entry_free(void *value) {
+ 	ivekit_guard_entry_t *entry = value;
+@@ -50,6 +64,24 @@ static bool ivekit_guard_env_bool(const char *name, bool fallback) {
+ 	return fallback;
+ }
+ 
++static uint64_t ivekit_guard_env_uint(const char *name, uint64_t fallback,
++		uint64_t minimum, uint64_t maximum)
++{
++	const char *value = g_getenv(name);
++	if (!value || !*value)
++		return fallback;
++	if (*value == '0')
++		die("Invalid %s: expected an integer between %" PRIu64 " and %" PRIu64,
++				name, minimum, maximum);
++	errno = 0;
++	char *end = NULL;
++	guint64 parsed = g_ascii_strtoull(value, &end, 10);
++	if (errno == ERANGE || !end || *end || parsed < minimum || parsed > maximum)
++		die("Invalid %s: expected an integer between %" PRIu64 " and %" PRIu64,
++				name, minimum, maximum);
++	return parsed;
++}
++
+ static bool ivekit_guard_is_mutation(const str *command) {
+ 	static const char *const mutations[] = {
+ 		"offer", "answer", "delete",
+@@ -74,6 +106,15 @@ static bool ivekit_guard_is_mutation(const str *command) {
+ 	return false;
+ }
+ 
++static bool ivekit_guard_is_allocation(const str *command) {
++	return str_eq(command, "offer") || str_eq(command, "publish")
++		|| str_eq(command, "create");
++}
++
++static bool ivekit_guard_is_delete(const str *command) {
++	return str_eq(command, "delete");
++}
++
+ static bool ivekit_guard_identifier(const str *value, size_t max) {
+ 	if (!value || !value->s || value->len == 0 || value->len > max)
+ 		return false;
+@@ -156,13 +197,42 @@ static bool ivekit_guard_sequence(ng_command_ctx_t *ctx, uint32_t *out) {
+ 	return true;
+ }
+ 
+-static ivekit_guard_entry_t *ivekit_guard_entry(const str *call_id) {
++static void ivekit_guard_sweep_expired_locked(int64_t now_us) {
++	GHashTableIter iterator;
++	void *key;
++	void *value;
++	g_hash_table_iter_init(&iterator, ivekit_guard_entries);
++	while (g_hash_table_iter_next(&iterator, &key, &value)) {
++		ivekit_guard_entry_t *entry = value;
++		mutex_lock(&entry->lock);
++		bool expired = !entry->active && entry->expires_at_us > 0
++			&& entry->expires_at_us <= now_us;
++		mutex_unlock(&entry->lock);
++		if (expired)
++			g_hash_table_iter_remove(&iterator);
++	}
++}
++
++static ivekit_guard_entry_t *ivekit_guard_entry(const str *call_id,
++		bool *state_capacity)
++{
+ 	char *key = g_strndup(call_id->s, call_id->len);
++	*state_capacity = false;
+ 	mutex_lock(&ivekit_guard_entries_lock);
+ 	ivekit_guard_entry_t *entry = g_hash_table_lookup(ivekit_guard_entries, key);
+ 	if (!entry) {
++		if (g_hash_table_size(ivekit_guard_entries) >= ivekit_guard_entry_limit)
++			ivekit_guard_sweep_expired_locked(g_get_monotonic_time());
++		if (g_hash_table_size(ivekit_guard_entries) >= ivekit_guard_entry_limit) {
++			*state_capacity = true;
++			mutex_unlock(&ivekit_guard_entries_lock);
++			g_free(key);
++			return NULL;
++		}
+ 		entry = g_new0(ivekit_guard_entry_t, 1);
+ 		mutex_init(&entry->lock);
++		entry->expires_at_us = g_get_monotonic_time()
++			+ ivekit_guard_tombstone_retention_us;
+ 		g_hash_table_insert(ivekit_guard_entries, key, entry);
+ 		key = NULL;
+ 	}
+@@ -177,13 +247,70 @@ static void ivekit_guard_replace(char **destination, const char *source) {
+ 	*destination = source ? g_strdup(source) : NULL;
+ }
+ 
++static bool ivekit_guard_reserve_active_call(void) {
++	uint64_t active = atomic_load_explicit(&ivekit_guard_active_calls,
++			memory_order_relaxed);
++	while (active < ivekit_guard_active_call_limit) {
++		if (atomic_compare_exchange_weak_explicit(&ivekit_guard_active_calls,
++				&active, active + 1, memory_order_relaxed, memory_order_relaxed))
++			return true;
++	}
++	return false;
++}
++
++static void ivekit_guard_release_active_call(void) {
++	uint64_t active = atomic_fetch_sub_explicit(&ivekit_guard_active_calls, 1,
++			memory_order_relaxed);
++	if (active == 0)
++		die("iveKit RTPengine active-call counter underflow");
++}
++
++static void ivekit_guard_append_node_state(ng_command_ctx_t *ctx) {
++	uint64_t entries;
++	mutex_lock(&ivekit_guard_entries_lock);
++	entries = g_hash_table_size(ivekit_guard_entries);
++	mutex_unlock(&ivekit_guard_entries_lock);
++	const ng_parser_t *parser = ctx->parser_ctx.parser;
++	parser->dict_add_int(ctx->resp, "ivekit-node-draining",
++			atomic_load_explicit(&ivekit_guard_draining, memory_order_relaxed) ? 1 : 0);
++	parser->dict_add_int(ctx->resp, "ivekit-active-calls",
++			atomic_load_explicit(&ivekit_guard_active_calls, memory_order_relaxed));
++	parser->dict_add_int(ctx->resp, "ivekit-active-call-limit",
++			ivekit_guard_active_call_limit);
++	parser->dict_add_int(ctx->resp, "ivekit-guard-entries", entries);
++	parser->dict_add_int(ctx->resp, "ivekit-guard-entry-limit",
++			ivekit_guard_entry_limit);
++}
++
+ void ivekit_guard_init(void) {
+ 	ivekit_guard_enabled = ivekit_guard_env_bool("IVEKIT_RTPENGINE_OWNER_GUARD", false);
++	ivekit_guard_active_call_limit = ivekit_guard_env_uint(
++			"IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS", 10000, 1, 10000000);
++	ivekit_guard_entry_limit = ivekit_guard_env_uint(
++			"IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES", 262144, 1, 10000000);
++	if (ivekit_guard_entry_limit < ivekit_guard_active_call_limit)
++		die("IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES must be at least "
++				"IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS");
++	uint64_t retention_seconds = ivekit_guard_env_uint(
++			"IVEKIT_RTPENGINE_TOMBSTONE_RETENTION_SECONDS", 60, 1, 86400);
++	ivekit_guard_tombstone_retention_us = retention_seconds * G_USEC_PER_SEC;
+ 	mutex_init(&ivekit_guard_entries_lock);
+ 	ivekit_guard_entries = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
+ 			ivekit_guard_entry_free);
+-	ilog(LOG_INFO, "iveKit RTPengine owner guard is %s",
+-			ivekit_guard_enabled ? "enabled" : "disabled");
++	atomic_init(&ivekit_guard_draining, false);
++	atomic_init(&ivekit_guard_active_calls, 0);
++	atomic_init(&ivekit_guard_accepted, 0);
++	atomic_init(&ivekit_guard_replayed, 0);
++	atomic_init(&ivekit_guard_stale_epoch, 0);
++	atomic_init(&ivekit_guard_sequence_gap, 0);
++	atomic_init(&ivekit_guard_draining_rejections, 0);
++	atomic_init(&ivekit_guard_capacity_rejections, 0);
++	ilog(LOG_INFO, "iveKit RTPengine owner guard is %s "
++			"(active-call-limit=%" PRIu64 ", guard-entry-limit=%" PRIu64
++			", tombstone-retention=%" PRIu64 " seconds)",
++			ivekit_guard_enabled ? "enabled" : "disabled",
++			ivekit_guard_active_call_limit, ivekit_guard_entry_limit,
++			retention_seconds);
+ }
+ 
+ void ivekit_guard_cleanup(void) {
+@@ -194,6 +321,27 @@ void ivekit_guard_cleanup(void) {
+ 	mutex_destroy(&ivekit_guard_entries_lock);
+ }
+ 
++bool ivekit_guard_control(ng_command_ctx_t *ctx, const str *command,
++		const char **error)
++{
++	bool drain = str_eq(command, "ivekit drain");
++	bool undrain = str_eq(command, "ivekit undrain");
++	bool status = str_eq(command, "ivekit status");
++	if (!drain && !undrain && !status)
++		return false;
++	*error = NULL;
++	if (!ivekit_guard_enabled) {
++		*error = "ivekit owner guard disabled";
++		return true;
++	}
++	if (drain)
++		atomic_store_explicit(&ivekit_guard_draining, true, memory_order_relaxed);
++	else if (undrain)
++		atomic_store_explicit(&ivekit_guard_draining, false, memory_order_relaxed);
++	ivekit_guard_append_node_state(ctx);
++	return true;
++}
++
+ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 		const str *call_id, ivekit_guard_ticket_t *ticket)
+ {
+@@ -201,6 +349,8 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 	if (!ivekit_guard_enabled || !ivekit_guard_is_mutation(command))
+ 		return NULL;
+ 	ticket->enabled = true;
++	ticket->allocation = ivekit_guard_is_allocation(command);
++	ticket->deletes_call = ivekit_guard_is_delete(command);
+ 
+ 	if (!ivekit_guard_identifier(call_id, 512))
+ 		return "ivekit invalid call id";
+@@ -233,12 +383,23 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 				sizeof(ticket->reservation_id), &reservation_id))
+ 		return "ivekit invalid reservation id";
+ 
+-	ivekit_guard_entry_t *entry = ivekit_guard_entry(call_id);
++	bool state_capacity;
++	ivekit_guard_entry_t *entry = ivekit_guard_entry(call_id, &state_capacity);
++	if (!entry) {
++		if (state_capacity) {
++			atomic_fetch_add_explicit(&ivekit_guard_capacity_rejections, 1,
++					memory_order_relaxed);
++			return "ivekit guard state capacity";
++		}
++		return "ivekit guard unavailable";
++	}
+ 	ticket->entry = entry;
+ 	ticket->locked = true;
+ 
+ 	if (!entry->initialized || ticket->owner_epoch > entry->owner_epoch) {
+ 		if (ticket->command_sequence != 1) {
++			atomic_fetch_add_explicit(&ivekit_guard_sequence_gap, 1,
++					memory_order_relaxed);
+ 			ivekit_guard_finish(ticket, false);
+ 			return "ivekit command sequence gap";
+ 		}
+@@ -248,10 +409,12 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 		ivekit_guard_replace(&entry->reservation_id, ticket->reservation_id);
+ 		ivekit_guard_replace(&entry->command_id, NULL);
+ 		ivekit_guard_replace(&entry->command_hash, NULL);
+-		return NULL;
++		goto admission;
+ 	}
+ 
+ 	if (ticket->owner_epoch < entry->owner_epoch) {
++		atomic_fetch_add_explicit(&ivekit_guard_stale_epoch, 1,
++				memory_order_relaxed);
+ 		ivekit_guard_finish(ticket, false);
+ 		return "ivekit stale owner epoch";
+ 	}
+@@ -263,7 +426,9 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 			&& !g_strcmp0(entry->command_id, ticket->command_id)
+ 			&& !g_strcmp0(entry->command_hash, ticket->command_hash)) {
+ 		ticket->replayed = true;
++		atomic_fetch_add_explicit(&ivekit_guard_replayed, 1,
++				memory_order_relaxed);
+ 		ivekit_guard_finish(ticket, false);
+ 		return "ivekit command already applied";
+ 	}
+ 	if (ticket->command_sequence <= entry->command_sequence) {
+@@ -270,6 +435,8 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 		return "ivekit stale command sequence";
+ 	}
+ 	if (ticket->command_sequence != entry->command_sequence + 1) {
++		atomic_fetch_add_explicit(&ivekit_guard_sequence_gap, 1,
++				memory_order_relaxed);
+ 		ivekit_guard_finish(ticket, false);
+ 		return "ivekit command sequence gap";
+ 	}
+@@ -277,6 +444,23 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 		ivekit_guard_finish(ticket, false);
+ 		return "ivekit command id conflict";
+ 	}
++
++admission:
++	if (ticket->allocation && !entry->active) {
++		if (atomic_load_explicit(&ivekit_guard_draining, memory_order_relaxed)) {
++			atomic_fetch_add_explicit(&ivekit_guard_draining_rejections, 1,
++					memory_order_relaxed);
++			ivekit_guard_finish(ticket, false);
++			return "ivekit node draining";
++		}
++		if (!ivekit_guard_reserve_active_call()) {
++			atomic_fetch_add_explicit(&ivekit_guard_capacity_rejections, 1,
++					memory_order_relaxed);
++			ivekit_guard_finish(ticket, false);
++			return "ivekit active call capacity";
++		}
++		ticket->admission_reserved = true;
++	}
+ 	return NULL;
+ }
+ 
+@@ -289,6 +473,24 @@ void ivekit_guard_finish(ivekit_guard_ticket_t *ticket, bool success) {
+ 		ivekit_guard_replace(&entry->command_id, ticket->command_id);
+ 		ivekit_guard_replace(&entry->command_hash, ticket->command_hash);
+ 	}
++	if (ticket->admission_reserved) {
++		if (success) {
++			entry->active = true;
++			entry->expires_at_us = 0;
++			atomic_fetch_add_explicit(&ivekit_guard_accepted, 1,
++					memory_order_relaxed);
++		}
++		else {
++			ivekit_guard_release_active_call();
++		}
++	}
++	if (success && ticket->deletes_call && entry->active) {
++		entry->active = false;
++		ivekit_guard_release_active_call();
++	}
++	if (!entry->active)
++		entry->expires_at_us = g_get_monotonic_time()
++			+ ivekit_guard_tombstone_retention_us;
+ 	mutex_unlock(&entry->lock);
+ 	ticket->locked = false;
+ }
+@@ -309,4 +511,30 @@ void ivekit_guard_append_response(ng_command_ctx_t *ctx,
+ 			ticket->reservation_id);
+ 	parser->dict_add_int(ctx->resp, "ivekit-command-replayed",
+ 			ticket->replayed ? 1 : 0);
++	ivekit_guard_append_node_state(ctx);
++}
++
++void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *snapshot) {
++	memset(snapshot, 0, sizeof(*snapshot));
++	snapshot->accepted = atomic_load_explicit(&ivekit_guard_accepted,
++			memory_order_relaxed);
++	snapshot->replayed = atomic_load_explicit(&ivekit_guard_replayed,
++			memory_order_relaxed);
++	snapshot->stale_epoch = atomic_load_explicit(&ivekit_guard_stale_epoch,
++			memory_order_relaxed);
++	snapshot->sequence_gap = atomic_load_explicit(&ivekit_guard_sequence_gap,
++			memory_order_relaxed);
++	snapshot->draining_rejections = atomic_load_explicit(
++			&ivekit_guard_draining_rejections, memory_order_relaxed);
++	snapshot->capacity_rejections = atomic_load_explicit(
++			&ivekit_guard_capacity_rejections, memory_order_relaxed);
++	snapshot->active_calls = atomic_load_explicit(&ivekit_guard_active_calls,
++			memory_order_relaxed);
++	snapshot->active_call_limit = ivekit_guard_active_call_limit;
++	snapshot->guard_entry_limit = ivekit_guard_entry_limit;
++	snapshot->draining = atomic_load_explicit(&ivekit_guard_draining,
++			memory_order_relaxed);
++	mutex_lock(&ivekit_guard_entries_lock);
++	snapshot->guard_entries = g_hash_table_size(ivekit_guard_entries);
++	mutex_unlock(&ivekit_guard_entries_lock);
+ }
+diff --git a/include/ivekit_guard.h b/include/ivekit_guard.h
+index 372ca35..a59e228 100644
+--- a/include/ivekit_guard.h
++++ b/include/ivekit_guard.h
+@@ -18,17 +18,36 @@ typedef struct ivekit_guard_ticket {
+ 	bool enabled;
+ 	bool locked;
+ 	bool replayed;
++	bool allocation;
++	bool deletes_call;
++	bool admission_reserved;
+ 	char owner_epoch_text[21];
+ 	char command_id[IVEKIT_GUARD_COMMAND_ID_MAX + 1];
+ 	char command_hash[IVEKIT_GUARD_COMMAND_HASH_MAX + 1];
+ 	char reservation_id[IVEKIT_GUARD_RESERVATION_ID_MAX + 1];
+ } ivekit_guard_ticket_t;
+ 
++typedef struct ivekit_guard_metrics {
++	uint64_t accepted;
++	uint64_t replayed;
++	uint64_t stale_epoch;
++	uint64_t sequence_gap;
++	uint64_t draining_rejections;
++	uint64_t capacity_rejections;
++	uint64_t active_calls;
++	uint64_t active_call_limit;
++	uint64_t guard_entries;
++	uint64_t guard_entry_limit;
++	bool draining;
++} ivekit_guard_metrics_t;
++
+ void ivekit_guard_init(void);
+ void ivekit_guard_cleanup(void);
++bool ivekit_guard_control(ng_command_ctx_t *, const str *, const char **);
+ const char *ivekit_guard_begin(ng_command_ctx_t *, const str *, const str *,
+ 		ivekit_guard_ticket_t *);
+ void ivekit_guard_finish(ivekit_guard_ticket_t *, bool);
+ void ivekit_guard_append_response(ng_command_ctx_t *, const ivekit_guard_ticket_t *);
++void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *);
+ 
+ #endif

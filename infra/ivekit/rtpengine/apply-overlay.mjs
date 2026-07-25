@@ -4,10 +4,13 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   existsSync,
+  lstatSync,
+  readdirSync,
   readFileSync,
+  readlinkSync,
   writeFileSync
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const RTPENGINE_UPSTREAM_TAG = 'mr26.0.1.13';
@@ -50,6 +53,160 @@ export function applyPinnedPatch(sourceRoot, patchPath) {
   }
 }
 
+function normalizedRelative(root, path) {
+  return relative(root, path).replaceAll('\\', '/');
+}
+
+function optionalLstat(path) {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if (error && typeof error === 'object' && error.code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function sourceTreeSha256(sourceRoot, ignoredPaths = []) {
+  const root = resolve(sourceRoot);
+  const ignored = new Set(
+    ignoredPaths.map((path) => normalizedRelative(root, resolve(path)))
+  );
+  const hash = createHash('sha256');
+
+  function visit(directory) {
+    const entries = readdirSync(directory, { withFileTypes: true })
+      .sort((left, right) => {
+        if (left.name < right.name) return -1;
+        if (left.name > right.name) return 1;
+        return 0;
+      });
+    for (const entry of entries) {
+      const path = join(directory, entry.name);
+      const name = normalizedRelative(root, path);
+      if (name === '.git' || name.startsWith('.git/') || ignored.has(name)) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        visit(path);
+        continue;
+      }
+      hash.update(name);
+      hash.update('\0');
+      if (entry.isFile()) {
+        const mode = lstatSync(path).mode & 0o111 ? '100755' : '100644';
+        hash.update(`${mode}\0`);
+        hash.update(readFileSync(path));
+      } else if (entry.isSymbolicLink()) {
+        hash.update('120000\0');
+        hash.update(readlinkSync(path));
+      } else {
+        const kind = lstatSync(path).mode.toString(8);
+        throw new Error(`RTPengine source contains unsupported entry: ${name} (${kind})`);
+      }
+      hash.update('\0');
+    }
+  }
+
+  visit(root);
+  return hash.digest('hex');
+}
+
+function assertPristineSource(sourceRoot, ignoredPaths) {
+  const root = resolve(sourceRoot);
+  const ignored = new Set(
+    ignoredPaths.map((path) => normalizedRelative(root, resolve(path)))
+  );
+  const output = execFileSync(
+    'git',
+    ['-C', root, 'status', '--porcelain=v1', '--untracked-files=all', '-z'],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  const dirty = output
+    .split('\0')
+    .filter(Boolean)
+    .map((entry) => entry.slice(3))
+    .filter((path) => !ignored.has(path.replaceAll('\\', '/')));
+  if (dirty.length > 0) {
+    throw new Error(
+      `RTPengine source is dirty or partially patched: ${dirty.slice(0, 8).join(', ')}`
+    );
+  }
+}
+
+function assertPatchSetIdentity(actual, expected) {
+  for (const key of [
+    'schema_version',
+    'component_id',
+    'source_commit',
+    'patch_set_id',
+    'patch_set_sha256'
+  ]) {
+    if (actual[key] !== expected[key]) {
+      throw new Error(`RTPengine patch-set identity mismatch: ${key}`);
+    }
+  }
+  if (JSON.stringify(actual.patches) !== JSON.stringify(expected.patches)) {
+    throw new Error('RTPengine patch-set identity mismatch: patches');
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(actual.patched_tree_sha256 || ''))) {
+    throw new Error('RTPengine patched source tree SHA-256 is missing');
+  }
+}
+
+export function applyPinnedPatchSet(
+  sourceRoot,
+  patches,
+  identityPath,
+  expectedIdentity,
+  ignoredPaths = []
+) {
+  const root = resolve(sourceRoot);
+  const resolvedIdentityPath = resolve(identityPath);
+  const treeIgnoredPaths = [...ignoredPaths, resolvedIdentityPath];
+  const identityStat = optionalLstat(resolvedIdentityPath);
+  if (identityStat && !identityStat.isFile()) {
+    throw new Error('RTPengine patch-set identity must be a regular file');
+  }
+  if (identityStat) {
+    const actualIdentity = JSON.parse(readFileSync(resolvedIdentityPath, 'utf8'));
+    assertPatchSetIdentity(actualIdentity, expectedIdentity);
+    const actualTreeSha256 = sourceTreeSha256(root, treeIgnoredPaths);
+    if (actualTreeSha256 !== actualIdentity.patched_tree_sha256) {
+      throw new Error('RTPengine patched source tree SHA-256 mismatch');
+    }
+    return {
+      patch_set: structuredClone(actualIdentity),
+      patch_results: patches.map(({ id, path }) => ({
+        id,
+        path,
+        status: 'already_applied'
+      }))
+    };
+  }
+
+  assertPristineSource(root, treeIgnoredPaths);
+  const patchResults = patches.map(({ id, path }) => ({
+    id,
+    path,
+    status: applyPinnedPatch(root, path)
+  }));
+  const patchSetIdentity = {
+    ...expectedIdentity,
+    patched_tree_sha256: sourceTreeSha256(root, treeIgnoredPaths)
+  };
+  writeFileSync(
+    resolvedIdentityPath,
+    `${JSON.stringify(patchSetIdentity, null, 2)}\n`,
+    { flag: 'wx', mode: 0o644 }
+  );
+  return {
+    patch_set: patchSetIdentity,
+    patch_results: patchResults
+  };
+}
+
 export function assertPinnedSource(sourceRoot) {
   const root = resolve(sourceRoot);
   const identityPath = join(root, 'ivekit-source-identity.json');
@@ -90,8 +247,16 @@ export function applyIveKitRtpengineOverlay(sourceRoot) {
   const root = resolve(sourceRoot);
   const sourceIdentity = assertPinnedSource(root);
   const lock = JSON.parse(readFileSync(sourceLockPath, 'utf8'));
-  const patchResults = [];
   const hash = createHash('sha256');
+  const patches = [];
+  const lockedPaths = new Set(lock.patch_set.patches.map((patch) => patch.path));
+  const discoveredPaths = readdirSync(join(overlayRoot, 'patches'))
+    .filter((name) => name.endsWith('.patch'))
+    .map((name) => `patches/${name}`)
+    .sort();
+  if (JSON.stringify(discoveredPaths) !== JSON.stringify([...lockedPaths].sort())) {
+    throw new Error('RTPengine patch directory contains an unlocked patch');
+  }
   for (const patch of lock.patch_set.patches) {
     const path = join(overlayRoot, patch.path);
     if (!existsSync(path)) {
@@ -101,29 +266,39 @@ export function applyIveKitRtpengineOverlay(sourceRoot) {
     hash.update(`${patch.id}\0${patch.path}\0`);
     hash.update(bytes);
     hash.update('\0');
-    patchResults.push({
+    patches.push({
       id: patch.id,
       path: patch.path,
-      status: applyPinnedPatch(root, path)
+      sourcePath: path
     });
   }
-  const patchSetIdentity = {
+  const expectedIdentity = {
     schema_version: '1.0.0',
     component_id: 'rtpengine',
     source_commit: sourceIdentity.commit,
     patch_set_id: lock.patch_set.id,
     patch_set_sha256: hash.digest('hex'),
-    patches: patchResults.map(({ id, path }) => ({ id, path }))
+    patches: patches.map(({ id, path }) => ({ id, path }))
   };
-  writeFileSync(
+  const applied = applyPinnedPatchSet(
+    root,
+    patches.map(({ id, path, sourcePath }) => ({
+      id,
+      path: sourcePath,
+      identityPath: path
+    })),
     join(root, 'ivekit-patch-set-identity.json'),
-    `${JSON.stringify(patchSetIdentity, null, 2)}\n`,
-    { mode: 0o644 }
+    expectedIdentity,
+    [join(root, 'ivekit-source-identity.json')]
   );
   return {
     source: sourceIdentity,
-    patch_set: patchSetIdentity,
-    patch_results: patchResults
+    patch_set: applied.patch_set,
+    patch_results: applied.patch_results.map((result, index) => ({
+      id: result.id,
+      path: patches[index].path,
+      status: result.status
+    }))
   };
 }
 

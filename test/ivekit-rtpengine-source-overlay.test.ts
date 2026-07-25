@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
+  chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  symlinkSync,
   writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -109,6 +112,175 @@ test('pinned patch application is idempotent', async () => {
   assert.equal(readFileSync(join(source, 'sample.txt'), 'utf8'), 'ivekit\n');
 });
 
+test('pinned patch-set identity survives overlapping patch context', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-rtpengine-patch-set-'));
+  const source = join(root, 'source');
+  const patchOne = join(root, 'one.patch');
+  const patchTwo = join(root, 'two.patch');
+  const identityPath = join(source, 'patch-set.json');
+  mkdirSync(source);
+  execFileSync('git', ['init', '-q', source]);
+  writeFileSync(join(source, 'sample.txt'), 'alpha\nbeta\ngamma\n');
+  execFileSync('git', ['-C', source, 'add', 'sample.txt']);
+  execFileSync(
+    'git',
+    [
+      '-C',
+      source,
+      '-c',
+      'user.name=ivekit-test',
+      '-c',
+      'user.email=ivekit-test@localhost',
+      'commit',
+      '-qm',
+      'fixture'
+    ]
+  );
+  writeFileSync(
+    patchOne,
+    [
+      'diff --git a/sample.txt b/sample.txt',
+      '--- a/sample.txt',
+      '+++ b/sample.txt',
+      '@@ -1,3 +1,3 @@',
+      '-alpha',
+      '+ALPHA',
+      ' beta',
+      ' gamma',
+      ''
+    ].join('\n')
+  );
+  writeFileSync(
+    patchTwo,
+    [
+      'diff --git a/sample.txt b/sample.txt',
+      '--- a/sample.txt',
+      '+++ b/sample.txt',
+      '@@ -1,3 +1,3 @@',
+      ' ALPHA',
+      '-beta',
+      '+BETA',
+      ' gamma',
+      ''
+    ].join('\n')
+  );
+  const module = await import(`${overlayModule}?patch-set=${Date.now()}`);
+  const patches = [
+    { id: 'one', path: patchOne },
+    { id: 'two', path: patchTwo }
+  ];
+  const identity = {
+    schema_version: '1.0.0',
+    component_id: 'rtpengine-test',
+    source_commit: 'fixture',
+    patch_set_id: 'fixture.1',
+    patch_set_sha256: 'a'.repeat(64),
+    patches: patches.map(({ id, path }) => ({ id, path }))
+  };
+
+  const first = module.applyPinnedPatchSet(
+    source,
+    patches,
+    identityPath,
+    identity
+  );
+  assert.deepEqual(
+    first.patch_results.map((entry: { status: string }) => entry.status),
+    ['applied', 'applied']
+  );
+  const second = module.applyPinnedPatchSet(
+    source,
+    patches,
+    identityPath,
+    identity
+  );
+  assert.deepEqual(
+    second.patch_results.map((entry: { status: string }) => entry.status),
+    ['already_applied', 'already_applied']
+  );
+  writeFileSync(join(source, 'sample.txt'), 'ALPHA\nchanged\ngamma\n');
+  assert.throws(
+    () => module.applyPinnedPatchSet(
+      source,
+      patches,
+      identityPath,
+      identity
+    ),
+    /patched source tree SHA-256 mismatch/
+  );
+  writeFileSync(join(source, 'sample.txt'), 'ALPHA\nBETA\ngamma\n');
+  chmodSync(join(source, 'sample.txt'), 0o755);
+  assert.throws(
+    () => module.applyPinnedPatchSet(
+      source,
+      patches,
+      identityPath,
+      identity
+    ),
+    /patched source tree SHA-256 mismatch/
+  );
+});
+
+test('patch-set identity refuses symlink writes', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'ivekit-rtpengine-symlink-'));
+  const source = join(root, 'source');
+  const patch = join(root, 'change.patch');
+  const identityPath = join(source, 'patch-set.json');
+  const outsidePath = join(root, 'outside.json');
+  mkdirSync(source);
+  execFileSync('git', ['init', '-q', source]);
+  writeFileSync(join(source, 'sample.txt'), 'upstream\n');
+  execFileSync('git', ['-C', source, 'add', 'sample.txt']);
+  execFileSync(
+    'git',
+    [
+      '-C',
+      source,
+      '-c',
+      'user.name=ivekit-test',
+      '-c',
+      'user.email=ivekit-test@localhost',
+      'commit',
+      '-qm',
+      'fixture'
+    ]
+  );
+  writeFileSync(
+    patch,
+    [
+      'diff --git a/sample.txt b/sample.txt',
+      '--- a/sample.txt',
+      '+++ b/sample.txt',
+      '@@ -1 +1 @@',
+      '-upstream',
+      '+ivekit',
+      ''
+    ].join('\n')
+  );
+  symlinkSync(outsidePath, identityPath);
+  const module = await import(`${overlayModule}?symlink=${Date.now()}`);
+  const patches = [{ id: 'one', path: patch }];
+  const identity = {
+    schema_version: '1.0.0',
+    component_id: 'rtpengine-test',
+    source_commit: 'fixture',
+    patch_set_id: 'fixture.1',
+    patch_set_sha256: 'a'.repeat(64),
+    patches: patches.map(({ id, path }) => ({ id, path }))
+  };
+
+  assert.throws(
+    () => module.applyPinnedPatchSet(
+      source,
+      patches,
+      identityPath,
+      identity
+    ),
+    /identity must be a regular file/
+  );
+  assert.equal(existsSync(outsidePath), false);
+});
+
 test('source identity assertion rejects an unpinned tree', async () => {
   const root = mkdtempSync(join(tmpdir(), 'ivekit-rtpengine-identity-'));
   writeFileSync(
@@ -160,6 +332,103 @@ test('owner fence patch rejects stale mutations before RTPengine dispatch', () =
   assert.match(patch, /uint32_t command_sequence/);
   assert.match(patch, /ivekit_guard_begin/);
   assert.match(patch, /ivekit_guard_finish/);
+  assert.match(patch, /owner_epoch_text/);
+  assert.doesNotMatch(patch, /char owner_epoch\[21\]/);
   assert.match(patch, /ivekit stale owner epoch/);
   assert.match(patch, /ivekit command sequence gap/);
+  assert.match(patch, /ivekit command already applied/);
+});
+
+test('drain and capacity patch bounds new call admission without dropping active calls', () => {
+  const patch = readFileSync(
+    'infra/ivekit/rtpengine/patches/0003-ivekit-drain-capacity.patch',
+    'utf8'
+  );
+  for (const setting of [
+    'IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS',
+    'IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES',
+    'IVEKIT_RTPENGINE_TOMBSTONE_RETENTION_SECONDS'
+  ]) {
+    assert.match(patch, new RegExp(setting));
+  }
+  assert.match(patch, /ivekit drain/);
+  assert.match(patch, /ivekit undrain/);
+  assert.match(patch, /ivekit node draining/);
+  assert.match(patch, /ivekit active call capacity/);
+  assert.match(patch, /ivekit guard state capacity/);
+  assert.match(patch, /expires_at_us/);
+  assert.match(patch, /admission_reserved/);
+  assert.match(patch, /accepted/);
+  assert.match(patch, /replayed/);
+  assert.match(patch, /stale_epoch/);
+  assert.match(patch, /sequence_gap/);
+  assert.match(patch, /draining_rejections/);
+  assert.match(patch, /capacity_rejections/);
+  assert.doesNotMatch(patch, /postgres|database query|redis command/i);
+});
+
+test('metrics patch exports a fixed low-cardinality iveKit metric set', () => {
+  const patch = readFileSync(
+    'infra/ivekit/rtpengine/patches/0004-ivekit-metrics.patch',
+    'utf8'
+  );
+
+  assert.match(patch, /IVEKIT_RTPENGINE_RUNTIME_MODE/);
+  assert.match(patch, /ivekit_guard_metrics_snapshot/);
+  assert.match(patch, /statistics_gather_metrics/);
+  for (const metric of [
+    'ivekit_guard_events_total',
+    'ivekit_active_calls',
+    'ivekit_active_call_limit',
+    'ivekit_guard_entries',
+    'ivekit_guard_entry_limit',
+    'ivekit_draining',
+    'ivekit_owner_guard_enabled',
+    'ivekit_runtime_info'
+  ]) {
+    assert.match(patch, new RegExp(metric));
+  }
+  for (const label of ['command', 'result', 'runtime_mode']) {
+    assert.match(patch, new RegExp(`${label}=\\\\?"`));
+  }
+  for (const forbiddenLabel of [
+    'tenant',
+    'call',
+    'reservation',
+    'command_id',
+    'sdp',
+    'ip',
+    'port',
+    'phone'
+  ]) {
+    assert.doesNotMatch(
+      patch,
+      new RegExp(`PROMLAB\\([^\\n]*${forbiddenLabel}`, 'i')
+    );
+  }
+  assert.doesNotMatch(patch, /postgres|database query|redis command/i);
+});
+
+test('owner guard overlay test exercises bounded identities and uint64 epochs', () => {
+  const source = readFileSync(
+    'infra/ivekit/rtpengine/overlay-tests/ivekit_owner_guard_test.c',
+    'utf8'
+  );
+  assert.match(source, /18446744073709551615/);
+  assert.match(source, /18446744073709551616/);
+  assert.match(source, /IVEKIT_GUARD_COMMAND_HASH_MAX/);
+  assert.match(source, /ivekit_guard_identifier/);
+  assert.match(source, /ivekit_guard_epoch/);
+  assert.match(source, /assert/);
+});
+
+test('replay protocol test requires cached stable-cookie and rejected cross-cookie behavior', () => {
+  const source = readFileSync(
+    'infra/ivekit/rtpengine/overlay-tests/ivekit_replay_protocol_test.py',
+    'utf8'
+  );
+  assert.match(source, /stable-cookie replay did not return cached response/);
+  assert.match(source, /cross-cookie replay was not rejected/);
+  assert.match(source, /accepted != 1 or replayed != 1/);
+  assert.match(source, /rejected_without_dispatch/);
 });

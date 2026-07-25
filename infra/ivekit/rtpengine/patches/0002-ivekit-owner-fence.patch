@@ -11,6 +11,26 @@ index 0a5f5b4..39bf35e 100644
  		cookie_cache.c udp_listener.c control_ng_flags_parser.c control_ng.strhash.c sdp.strhash.c stun.c rtcp.c \
  		crypto.c rtp.c call_interfaces.strhash.c dtls.c log.c cli.strhash.c graphite.c ice.c \
  		media_socket.c homer.c recording.c statistics.c cdr.c ssrc.c iptables.c tcp_listener.c \
+diff --git a/t/Makefile b/t/Makefile
+--- a/t/Makefile
++++ b/t/Makefile
+@@ -84,5 +84,5 @@ endif
+ LIBSRCS+=	codeclib.strhash.c resample.c socket.c streambuf.c dtmflib.c poller.c
+-DAEMONSRCS+=	control_ng_flags_parser.c codec.c call.c ice.c kernel.c media_socket.c stun.c \
++DAEMONSRCS+=	ivekit_guard.c control_ng_flags_parser.c codec.c call.c ice.c kernel.c media_socket.c stun.c \
+ 		dtls.c recording.c statistics.c rtcp.c redis.c iptables.c graphite.c \
+ 		cookie_cache.c udp_listener.c homer.c load.c cdr.c dtmf.c timerthread.c \
+ 		media_player.c jitter_buffer.c t38.c tcp_listener.c mqtt.c websocket.c \
+@@ -338,3 +338,3 @@ aead-aes-crypt:	aead-aes-crypt.o $(COMMONOBJS) crypto.o bencode.o
+ test-stats:	test-stats.o $(COMMONOBJS) codeclib.strhash.o resample.o codec.o ssrc.o call.o ice.o helpers.o \
+-	kernel.o media_socket.o stun.o bencode.o socket.o poller.o dtls.o recording.o statistics.o \
++	kernel.o media_socket.o stun.o bencode.o socket.o poller.o dtls.o recording.o statistics.o ivekit_guard.o \
+ 	rtcp.o redis.o iptables.o graphite.o call_interfaces.strhash.o sdp.strhash.o rtp.o crypto.o \
+@@ -347,3 +347,3 @@ test-stats:	test-stats.o $(COMMONOBJS) codeclib.strhash.o resample.o codec.o ssr
+ test-transcode:	test-transcode.o $(COMMONOBJS) codeclib.strhash.o resample.o codec.o ssrc.o call.o ice.o helpers.o \
+-	kernel.o media_socket.o stun.o bencode.o socket.o poller.o dtls.o recording.o statistics.o \
++	kernel.o media_socket.o stun.o bencode.o socket.o poller.o dtls.o recording.o statistics.o ivekit_guard.o \
+ 	rtcp.o redis.o iptables.o graphite.o call_interfaces.strhash.o sdp.strhash.o rtp.o crypto.o \
 diff --git a/daemon/control_ng.c b/daemon/control_ng.c
 index 3e8a41e..f988516 100644
 --- a/daemon/control_ng.c
@@ -90,7 +110,7 @@ new file mode 100644
 index 0000000..d49f2c7
 --- /dev/null
 +++ b/daemon/ivekit_guard.c
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,313 @@
 +#include "ivekit_guard.h"
 +
 +#include <errno.h>
@@ -307,7 +327,9 @@ index 0000000..d49f2c7
 +	parser->dict_get_str(ctx->req, "ivekit-command-id", &command_id);
 +	parser->dict_get_str(ctx->req, "ivekit-command-hash", &command_hash);
 +	parser->dict_get_str(ctx->req, "ivekit-reservation-id", &reservation_id);
-+	if (!ivekit_guard_epoch(&owner_epoch, &ticket->owner_epoch))
++	if (!ivekit_guard_epoch(&owner_epoch, &ticket->owner_epoch)
++			|| !ivekit_guard_copy(ticket->owner_epoch_text,
++				sizeof(ticket->owner_epoch_text), &owner_epoch))
 +		return "ivekit invalid owner epoch";
 +	if (!ivekit_guard_sequence(ctx, &ticket->command_sequence))
 +		return "ivekit invalid command sequence";
@@ -354,7 +376,8 @@ index 0000000..d49f2c7
 +			&& !g_strcmp0(entry->command_id, ticket->command_id)
 +			&& !g_strcmp0(entry->command_hash, ticket->command_hash)) {
 +		ticket->replayed = true;
-+		return NULL;
++		ivekit_guard_finish(ticket, false);
++		return "ivekit command already applied";
 +	}
 +	if (ticket->command_sequence <= entry->command_sequence) {
 +		ivekit_guard_finish(ticket, false);
@@ -389,10 +412,9 @@ index 0000000..d49f2c7
 +{
 +	if (!ticket || !ticket->enabled || !ctx->resp.gen)
 +		return;
-+	char owner_epoch[21];
-+	g_snprintf(owner_epoch, sizeof(owner_epoch), "%" PRIu64, ticket->owner_epoch);
 +	const ng_parser_t *parser = ctx->parser_ctx.parser;
-+	parser->dict_add_string(ctx->resp, "ivekit-owner-epoch", owner_epoch);
++	parser->dict_add_string(ctx->resp, "ivekit-owner-epoch",
++			ticket->owner_epoch_text);
 +	parser->dict_add_int(ctx->resp, "ivekit-command-sequence",
 +			ticket->command_sequence);
 +	parser->dict_add_string(ctx->resp, "ivekit-command-id", ticket->command_id);
@@ -407,7 +429,7 @@ new file mode 100644
 index 0000000..9e6464d
 --- /dev/null
 +++ b/include/ivekit_guard.h
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,34 @@
 +#ifndef _IVEKIT_GUARD_H_
 +#define _IVEKIT_GUARD_H_
 +
@@ -428,6 +450,7 @@ index 0000000..9e6464d
 +	bool enabled;
 +	bool locked;
 +	bool replayed;
++	char owner_epoch_text[21];
 +	char command_id[IVEKIT_GUARD_COMMAND_ID_MAX + 1];
 +	char command_hash[IVEKIT_GUARD_COMMAND_HASH_MAX + 1];
 +	char reservation_id[IVEKIT_GUARD_RESERVATION_ID_MAX + 1];
