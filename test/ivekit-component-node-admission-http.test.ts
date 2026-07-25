@@ -154,11 +154,28 @@ test('component node HTTP client authenticates state reads and rejects malformed
     service_token: token,
     fetch: async (input, init) => {
       request = { url: String(input), init };
-      return Response.json({ data: componentState() });
+      return Response.json({
+        data: {
+          ...componentState(),
+          dimensions: {
+            ...componentState().dimensions,
+            'data.local_spool_bytes': {
+              unit: 'bytes',
+              safe_capacity: 10 * 1024 ** 3,
+              used: 0,
+              reserved: 0
+            }
+          }
+        }
+      });
     }
   });
   const state = await validClient.readState();
   assert.equal(state.node_id, 'rustpbx-a');
+  assert.equal(
+    state.dimensions['data.local_spool_bytes']?.safe_capacity,
+    10 * 1024 ** 3
+  );
   assert.equal(request?.url, 'https://rustpbx-a.internal:3210/v1/state');
   assert.equal(request?.init?.method, 'GET');
   assert.equal((request?.init?.headers as Record<string, string>).authorization, `Bearer ${token}`);

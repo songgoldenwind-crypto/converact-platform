@@ -365,9 +365,9 @@ function decodeComponentNodeState(
       const dimension = responseObject(raw);
       exactResponseKeys(dimension, ['reserved', 'safe_capacity', 'unit', 'used']);
       if (typeof dimension.unit !== 'string' || dimension.unit.length < 1 || dimension.unit.length > 64 ||
-          !safeResponseNumber(dimension.safe_capacity, 0, 1_000_000_000, false) ||
-          !safeResponseNumber(dimension.used, 0, 1_000_000_000, true) ||
-          !safeResponseNumber(dimension.reserved, 0, 1_000_000_000, true)) {
+          !safeResponseNumber(dimension.safe_capacity, 0, Number.MAX_SAFE_INTEGER, false) ||
+          !safeResponseNumber(dimension.used, 0, Number.MAX_SAFE_INTEGER, true) ||
+          !safeResponseNumber(dimension.reserved, 0, Number.MAX_SAFE_INTEGER, true)) {
         throw new Error('dimension');
       }
     }
