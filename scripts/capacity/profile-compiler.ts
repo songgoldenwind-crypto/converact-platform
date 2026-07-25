@@ -16,6 +16,44 @@ interface ConnectionCategory {
   count: number;
 }
 
+export interface RtcPerformanceContract {
+  schema_version: '1.0.0';
+  measurement_scope: 'same_region_controlled_endpoint_to_endpoint';
+  clock_sync: {
+    method: 'monotonic_clock_with_observed_ntp_offset';
+    maximum_offset_ms: number;
+  };
+  required_quantiles: string[];
+  latency_ms: Record<string, number>;
+  media_quality: Record<string, number>;
+  reliability: Record<string, number>;
+  recovery_ms: Record<string, number>;
+  overload: {
+    queue_policy: 'bounded';
+    slow_consumer_policy: 'disconnect_or_degrade';
+    minimum_jain_fairness_index: number;
+    maximum_noisy_neighbor_p99_degradation_ratio: number;
+    degradation_order: string[];
+  };
+  security_performance: {
+    authorization_p99_ms: number;
+    rate_limit_decision_p99_ms: number;
+    overload_rejection_p99_ms: number;
+    new_admission_fails_closed: boolean;
+    established_media_avoids_remote_authorization: boolean;
+  };
+  required_resource_metrics: string[];
+  impairment_profiles: Array<{
+    id: string;
+    round_trip_time_ms: number;
+    jitter_ms: number;
+    packet_loss_ratio: number;
+    downstream_kbps: number;
+    upstream_kbps: number;
+    blackout_ms: number;
+  }>;
+}
+
 export interface CapacityWorkloadProfile {
   schema_version: string;
   profile_id: string;
@@ -67,6 +105,18 @@ export interface CapacityWorkloadProfile {
     zone_failure_repetitions: number;
     quorum_failures: string[];
   };
+  slos: {
+    sip_setup_success_ratio: number;
+    sip_route_p99_ms: number;
+    rtp_server_packet_loss_ratio: number;
+    im_ack_p99_ms: number;
+    durable_loss_count: number;
+    livekit_join_p99_ms: number;
+    new_admission_recovery_seconds: number;
+    four_node_linearity_ratio: number;
+    eight_node_linearity_ratio: number;
+  };
+  performance_contract: RtcPerformanceContract;
   external_dependencies: Array<{
     id: string;
     status: string;
@@ -86,6 +136,15 @@ export interface GeneratorFleetTopology {
   protocols: readonly string[];
 }
 
+export interface LoadShardWorkload {
+  workload_domain: WorkloadDomain;
+  workload_id: string;
+  workload_kind: string;
+  ordinal_start: number;
+  ordinal_end_exclusive: number;
+  expected_count: number;
+}
+
 export interface LoadShard {
   shard_id: string;
   workload_domain: WorkloadDomain;
@@ -94,6 +153,7 @@ export interface LoadShard {
   ordinal_start: number;
   ordinal_end_exclusive: number;
   expected_count: number;
+  covered_workloads?: LoadShardWorkload[];
   required_protocols: string[];
   assigned_fleet: LoadFleet;
   initial_lease_epoch: 0;
@@ -141,6 +201,7 @@ export interface LoadRunManifest {
     connections: number;
     by_workload: Record<string, number>;
   };
+  performance_contract: RtcPerformanceContract;
   external_dependencies: CapacityWorkloadProfile['external_dependencies'];
   start_not_before: string;
   evidence_prefix: string;
@@ -206,22 +267,28 @@ export function compileLoadRunManifest(input: CompileLoadRunManifestInput): Comp
       .sort((left, right) => left.fleet_id.localeCompare(right.fleet_id))
   };
   const availableFleets = new Set(topology.fleets.map((fleet) => fleet.fleet_id));
-  const shards = [
-    ...compileDomainShards(
+  const interactionShards = compileDomainShards(
       'interaction',
-      effective.interactions,
+      effective.interactions.filter((workload) => workload.kind !== 'tinode_im'),
       INTERACTION_BINDINGS,
       input.run.seed,
       input.shardSizeByWorkloadId,
       availableFleets
-    ),
-    ...compileDomainShards(
+    );
+  const connectionShards = compileDomainShards(
       'connection',
       effective.connections,
       CONNECTION_BINDINGS,
       input.run.seed,
       input.shardSizeByWorkloadId,
       availableFleets
+    );
+  const shards = [
+    ...interactionShards,
+    ...attachTinodeInteractionCoverage(
+      connectionShards,
+      effective.interactions,
+      effective.connections
     )
   ];
   const byWorkload = Object.fromEntries([
@@ -254,6 +321,7 @@ export function compileLoadRunManifest(input: CompileLoadRunManifestInput): Comp
       connections: connectionTotal,
       by_workload: byWorkload
     },
+    performance_contract: structuredClone(input.profile.performance_contract),
     external_dependencies: structuredClone(input.profile.external_dependencies),
     start_not_before: normalizeDate(input.run.startNotBefore, 'startNotBefore'),
     evidence_prefix: input.run.evidencePrefix
@@ -326,59 +394,98 @@ export function validateLoadRunManifest(
       binding: CONNECTION_BINDINGS[item.kind]
     }))
   ];
-  const expectedKeys = new Set(expected.map((item) => `${item.domain}:${item.id}`));
+  const expectedByKey = new Map<string, typeof expected[number]>(
+    expected.map((item) => [`${item.domain}:${item.id}`, item] as const)
+  );
   const shardIds = new Set<string>();
+
+  for (const shard of manifest.shards) {
+    if (shardIds.has(shard.shard_id)) throw new Error(`duplicate shard ${shard.shard_id}`);
+    shardIds.add(shard.shard_id);
+    const primary = expectedByKey.get(`${shard.workload_domain}:${shard.workload_id}`);
+    if (!primary) {
+      throw new Error(`unexpected shard workload ${shard.workload_domain}:${shard.workload_id}`);
+    }
+    if (shard.ordinal_end_exclusive <= shard.ordinal_start ||
+        shard.expected_count !== shard.ordinal_end_exclusive - shard.ordinal_start) {
+      throw new Error(`invalid shard range for ${shard.shard_id}`);
+    }
+    const expectedShardId = shardId(
+      primary.domain,
+      primary.id,
+      shard.ordinal_start,
+      shard.ordinal_end_exclusive
+    );
+    if (shard.shard_id !== expectedShardId || shard.workload_kind !== primary.kind ||
+        shard.assigned_fleet !== primary.binding.fleet ||
+        shard.initial_lease_epoch !== 0 ||
+        shard.seed !== canonicalSha256(`${manifest.seed}:${expectedShardId}`)) {
+      throw new Error(`invalid shard binding for ${shard.shard_id}`);
+    }
+    const workloads = loadShardWorkloads(shard);
+    const workloadKeys = new Set<string>();
+    const requiredProtocols = new Set<string>();
+    for (const workload of workloads) {
+      const key = `${workload.workload_domain}:${workload.workload_id}`;
+      if (workloadKeys.has(key)) {
+        throw new Error(`duplicate workload coverage ${key} for ${shard.shard_id}`);
+      }
+      workloadKeys.add(key);
+      const expectedWorkload = expectedByKey.get(key);
+      if (!expectedWorkload || expectedWorkload.kind !== workload.workload_kind) {
+        throw new Error(`unexpected shard workload ${key}`);
+      }
+      if (workload.expected_count !==
+          workload.ordinal_end_exclusive - workload.ordinal_start ||
+          workload.expected_count < 1) {
+        throw new Error(`invalid workload coverage ${key} for ${shard.shard_id}`);
+      }
+      if (expectedWorkload.binding.fleet !== shard.assigned_fleet) {
+        throw new Error(`covered workload ${key} belongs to another fleet`);
+      }
+      for (const protocol of expectedWorkload.binding.protocols) requiredProtocols.add(protocol);
+      if (workload !== workloads[0] &&
+          !isAllowedCompositeCoverage(shard, workload)) {
+        throw new Error(`unsupported composite workload coverage ${key}`);
+      }
+    }
+    const expectedProtocols = [...requiredProtocols].sort();
+    if (JSON.stringify([...shard.required_protocols].sort()) !==
+        JSON.stringify(expectedProtocols)) {
+      throw new Error(`invalid shard protocols for ${shard.shard_id}`);
+    }
+    if (!fleetIds.has(shard.assigned_fleet)) {
+      throw new Error(`shard ${shard.shard_id} references unavailable fleet ${shard.assigned_fleet}`);
+    }
+    for (const protocol of shard.required_protocols) {
+      if (!fleetProtocols.get(shard.assigned_fleet)?.has(protocol)) {
+        throw new Error(`fleet ${shard.assigned_fleet} is missing required protocol ${protocol}`);
+      }
+    }
+  }
 
   for (const workload of expected) {
     if (!workload.binding) throw new Error(`unsupported ${workload.domain} kind ${workload.kind}`);
-    const shards = manifest.shards
-      .filter((shard) => shard.workload_domain === workload.domain && shard.workload_id === workload.id)
+    const coverages = manifest.shards
+      .flatMap((shard) => loadShardWorkloads(shard))
+      .filter((item) =>
+        item.workload_domain === workload.domain && item.workload_id === workload.id)
       .sort((left, right) => left.ordinal_start - right.ordinal_start);
     if (workload.count === 0) {
-      if (shards.length > 0) throw new Error(`unexpected shard coverage for zero-count workload ${workload.id}`);
+      if (coverages.length > 0) {
+        throw new Error(`unexpected shard coverage for zero-count workload ${workload.id}`);
+      }
       continue;
     }
-    if (shards.length === 0) throw new Error(`missing shard coverage for ${workload.id}`);
+    if (coverages.length === 0) throw new Error(`missing shard coverage for ${workload.id}`);
     let cursor = 0;
-    for (const shard of shards) {
-      if (shardIds.has(shard.shard_id)) throw new Error(`duplicate shard ${shard.shard_id}`);
-      shardIds.add(shard.shard_id);
-      if (shard.ordinal_start !== cursor) {
+    for (const coverage of coverages) {
+      if (coverage.ordinal_start !== cursor) {
         throw new Error(`shard overlap or coverage gap for ${workload.id} at ${cursor}`);
       }
-      if (shard.ordinal_end_exclusive <= shard.ordinal_start ||
-          shard.expected_count !== shard.ordinal_end_exclusive - shard.ordinal_start) {
-        throw new Error(`invalid shard range for ${shard.shard_id}`);
-      }
-      const expectedShardId = shardId(
-        workload.domain,
-        workload.id,
-        shard.ordinal_start,
-        shard.ordinal_end_exclusive
-      );
-      if (shard.shard_id !== expectedShardId || shard.workload_kind !== workload.kind ||
-          shard.assigned_fleet !== workload.binding.fleet ||
-          JSON.stringify(shard.required_protocols) !== JSON.stringify(workload.binding.protocols) ||
-          shard.initial_lease_epoch !== 0 ||
-          shard.seed !== canonicalSha256(`${manifest.seed}:${expectedShardId}`)) {
-        throw new Error(`invalid shard binding for ${shard.shard_id}`);
-      }
-      if (!fleetIds.has(shard.assigned_fleet)) {
-        throw new Error(`shard ${shard.shard_id} references unavailable fleet ${shard.assigned_fleet}`);
-      }
-      for (const protocol of shard.required_protocols) {
-        if (!fleetProtocols.get(shard.assigned_fleet)?.has(protocol)) {
-          throw new Error(`fleet ${shard.assigned_fleet} is missing required protocol ${protocol}`);
-        }
-      }
-      cursor = shard.ordinal_end_exclusive;
+      cursor = coverage.ordinal_end_exclusive;
     }
     if (cursor !== workload.count) throw new Error(`incomplete shard coverage for ${workload.id}`);
-  }
-  for (const shard of manifest.shards) {
-    if (!expectedKeys.has(`${shard.workload_domain}:${shard.workload_id}`)) {
-      throw new Error(`unexpected shard workload ${shard.workload_domain}:${shard.workload_id}`);
-    }
   }
 
   const interactionTotal = effective.interactions.reduce((sum, item) => sum + item.count, 0);
@@ -398,6 +505,10 @@ export function validateLoadRunManifest(
   if (canonicalSha256(manifest.external_dependencies) !== canonicalSha256(profile.external_dependencies)) {
     throw new Error('manifest external dependency contract mismatch');
   }
+  if (canonicalSha256(manifest.performance_contract) !==
+      canonicalSha256(profile.performance_contract)) {
+    throw new Error('manifest RTC performance contract mismatch');
+  }
   if (canonicalSha256(manifest.phases) !== canonicalSha256(compilePhases(profile)) ||
       canonicalSha256(manifest.faults) !== canonicalSha256(compileFaults(profile))) {
     throw new Error('manifest phase or fault contract mismatch');
@@ -413,6 +524,81 @@ export function formatLoadEntityId(
   if (!Number.isInteger(ordinal) || ordinal < 0) throw new Error('entity ordinal must be a non-negative integer');
   if (!/^[a-z][a-z0-9_]{2,63}$/.test(workloadId)) throw new Error('invalid workload ID');
   return `${manifest.run_id}/${domain}/${workloadId}/${ordinal}`;
+}
+
+export function loadShardWorkloads(shard: LoadShard): LoadShardWorkload[] {
+  if (shard.covered_workloads !== undefined && !Array.isArray(shard.covered_workloads)) {
+    throw new Error(`invalid covered workloads for ${shard.shard_id}`);
+  }
+  return [{
+    workload_domain: shard.workload_domain,
+    workload_id: shard.workload_id,
+    workload_kind: shard.workload_kind,
+    ordinal_start: shard.ordinal_start,
+    ordinal_end_exclusive: shard.ordinal_end_exclusive,
+    expected_count: shard.expected_count
+  }, ...structuredClone(shard.covered_workloads || [])];
+}
+
+function attachTinodeInteractionCoverage(
+  shards: LoadShard[],
+  interactions: Array<{ id: string; kind: string; count: number }>,
+  connections: Array<{ id: string; kind: string; count: number }>
+): LoadShard[] {
+  const interaction = uniqueWorkloadByKind(interactions, 'tinode_im');
+  if (!interaction || interaction.count === 0) return shards;
+  const connection = uniqueWorkloadByKind(connections, 'tinode_websocket');
+  if (!connection || connection.count === 0) {
+    throw new Error('Tinode IM interactions require Tinode WebSocket connections');
+  }
+  const targetShards = shards.filter((shard) =>
+    shard.workload_domain === 'connection' &&
+    shard.workload_id === connection.id &&
+    shard.workload_kind === connection.kind);
+  if (targetShards.length === 0) {
+    throw new Error('Tinode WebSocket shards are missing for composite IM load');
+  }
+  let interactionCursor = 0;
+  let connectionCursor = 0;
+  const result = shards.map((shard) => {
+    if (!targetShards.includes(shard)) return shard;
+    connectionCursor += shard.expected_count;
+    const interactionEnd = Math.floor(connectionCursor * interaction.count / connection.count);
+    if (interactionEnd === interactionCursor) return shard;
+    const covered: LoadShardWorkload = {
+      workload_domain: 'interaction',
+      workload_id: interaction.id,
+      workload_kind: interaction.kind,
+      ordinal_start: interactionCursor,
+      ordinal_end_exclusive: interactionEnd,
+      expected_count: interactionEnd - interactionCursor
+    };
+    interactionCursor = interactionEnd;
+    return { ...shard, covered_workloads: [covered] };
+  });
+  if (interactionCursor !== interaction.count) {
+    throw new Error(`incomplete Tinode interaction coverage for ${interaction.id}`);
+  }
+  return result;
+}
+
+function uniqueWorkloadByKind<T extends { kind: string }>(
+  workloads: T[],
+  kind: string
+): T | undefined {
+  const matches = workloads.filter((workload) => workload.kind === kind);
+  if (matches.length > 1) throw new Error(`multiple workloads use kind ${kind}`);
+  return matches[0];
+}
+
+function isAllowedCompositeCoverage(
+  shard: LoadShard,
+  workload: LoadShardWorkload
+): boolean {
+  return shard.workload_domain === 'connection' &&
+    shard.workload_kind === 'tinode_websocket' &&
+    workload.workload_domain === 'interaction' &&
+    workload.workload_kind === 'tinode_im';
 }
 
 function compileDomainShards(
@@ -459,7 +645,7 @@ function shardId(domain: WorkloadDomain, workloadId: string, start: number, end:
 }
 
 function validateProfile(profile: CapacityWorkloadProfile): void {
-  if (profile.schema_version !== '1.2.0') throw new Error('unsupported workload profile schema');
+  if (profile.schema_version !== '1.3.0') throw new Error('unsupported workload profile schema');
   if (!/^[a-z][a-z0-9-]{2,63}-v[1-9][0-9]*$/.test(profile.profile_id)) {
     throw new Error('invalid profile ID');
   }
@@ -486,6 +672,7 @@ function validateProfile(profile: CapacityWorkloadProfile): void {
   }
   validateVoiceOwnership(profile);
   validateRecordingStorageIsolation(profile);
+  validatePerformanceContract(profile.performance_contract, profile.slos);
   if (!Array.isArray(profile.external_dependencies)) throw new Error('profile external dependencies are required');
 }
 
@@ -522,6 +709,162 @@ function validateRecordingStorageIsolation(profile: CapacityWorkloadProfile): vo
       isolation.overload_action !== 'drop_or_fail_recording_only') {
     throw new Error('recording storage must remain downstream and must not terminate or backpressure established media');
   }
+}
+
+const REQUIRED_QUANTILES = ['p50', 'p95', 'p99'];
+const DEGRADATION_ORDER = [
+  'preserve_audio',
+  'reduce_video_layers',
+  'reduce_video_frame_rate',
+  'drop_auxiliary_realtime_copies',
+  'reject_new_admission'
+];
+const IMPAIRMENT_PROFILE_IDS = [
+  'baseline',
+  'constrained_bandwidth',
+  'lossy_jitter',
+  'network_handoff',
+  'cross_region'
+];
+const REQUIRED_RESOURCE_METRICS = [
+  'server_cpu_p95_ratio',
+  'server_memory_per_1000_connections_bytes',
+  'server_egress_bits_per_second',
+  'client_cpu_p95_ratio',
+  'client_memory_p95_bytes',
+  'generator_cpu_p95_ratio',
+  'generator_nic_p95_ratio',
+  'cost_per_1000_active_interactions'
+];
+
+function validatePerformanceContract(
+  contract: RtcPerformanceContract,
+  summary: CapacityWorkloadProfile['slos']
+): void {
+  if (!contract || contract.schema_version !== '1.0.0' ||
+      contract.measurement_scope !== 'same_region_controlled_endpoint_to_endpoint') {
+    throw new Error('RTC performance contract must use endpoint-to-endpoint schema 1.0.0');
+  }
+  if (contract.clock_sync?.method !== 'monotonic_clock_with_observed_ntp_offset' ||
+      !isPositive(contract.clock_sync.maximum_offset_ms)) {
+    throw new Error('RTC performance clock synchronization contract is invalid');
+  }
+  if (!sameArray(contract.required_quantiles, REQUIRED_QUANTILES)) {
+    throw new Error('RTC performance quantiles must include P50, P95 and P99');
+  }
+  finiteNonNegativeRecord(contract.latency_ms, 'RTC latency');
+  finiteNonNegativeRecord(contract.media_quality, 'RTC media quality');
+  finiteNonNegativeRecord(contract.reliability, 'RTC reliability');
+  finiteNonNegativeRecord(contract.recovery_ms, 'RTC recovery');
+  for (const [p95, p99] of [
+    ['im_send_to_ack_p95', 'im_send_to_ack_p99'],
+    ['sip_post_dial_p95', 'sip_post_dial_p99'],
+    ['voice_mouth_to_ear_p95', 'voice_mouth_to_ear_p99'],
+    ['livekit_join_p95', 'livekit_join_p99'],
+    ['livekit_glass_to_glass_p95', 'livekit_glass_to_glass_p99'],
+    ['rustdesk_input_to_photon_p95', 'rustdesk_input_to_photon_p99']
+  ]) {
+    if (contract.latency_ms[p95] > contract.latency_ms[p99]) {
+      throw new Error(`RTC latency ${p95} cannot exceed ${p99}`);
+    }
+  }
+  for (const value of [
+    contract.media_quality.server_packet_loss_ratio,
+    contract.media_quality.endpoint_packet_loss_p95_ratio,
+    contract.media_quality.video_freeze_ratio,
+    contract.reliability.connection_success_ratio,
+    contract.reliability.sip_setup_success_ratio,
+    contract.reliability.reconnect_success_ratio,
+    contract.overload?.minimum_jain_fairness_index,
+    contract.overload?.maximum_noisy_neighbor_p99_degradation_ratio
+  ]) ratioValue(value, 'RTC performance ratio');
+  const mos = contract.media_quality.minimum_voice_mos_p50;
+  if (!Number.isFinite(mos) || mos < 1 || mos > 5) {
+    throw new Error('RTC minimum voice MOS must be between 1 and 5');
+  }
+  for (const key of [
+    'durable_loss_count',
+    'duplicate_delivery_count',
+    'out_of_order_delivery_count'
+  ]) {
+    if (!Number.isInteger(contract.reliability[key]) || contract.reliability[key] < 0) {
+      throw new Error(`RTC reliability ${key} must be a non-negative integer`);
+    }
+  }
+  if (contract.overload?.queue_policy !== 'bounded' ||
+      contract.overload.slow_consumer_policy !== 'disconnect_or_degrade' ||
+      !sameArray(contract.overload.degradation_order, DEGRADATION_ORDER)) {
+    throw new Error('RTC overload degradation must preserve audio before degrading video');
+  }
+  const security = contract.security_performance;
+  if (!security || !isNonNegative(security.authorization_p99_ms) ||
+      !isNonNegative(security.rate_limit_decision_p99_ms) ||
+      !isNonNegative(security.overload_rejection_p99_ms) ||
+      security.new_admission_fails_closed !== true ||
+      security.established_media_avoids_remote_authorization !== true) {
+    throw new Error('RTC security performance contract is invalid');
+  }
+  if (!sameArray(contract.required_resource_metrics, REQUIRED_RESOURCE_METRICS)) {
+    throw new Error('RTC performance contract is missing required resource or cost metrics');
+  }
+  if (!Array.isArray(contract.impairment_profiles) ||
+      !sameArray(contract.impairment_profiles.map((item) => item.id), IMPAIRMENT_PROFILE_IDS)) {
+    throw new Error('RTC impairment profiles must include baseline, constrained bandwidth, lossy jitter, network_handoff and cross_region');
+  }
+  for (const impairment of contract.impairment_profiles) {
+    for (const value of [
+      impairment.round_trip_time_ms,
+      impairment.jitter_ms,
+      impairment.blackout_ms
+    ]) {
+      if (!isNonNegative(value)) throw new Error(`RTC impairment ${impairment.id} is invalid`);
+    }
+    if (!isPositive(impairment.downstream_kbps) || !isPositive(impairment.upstream_kbps)) {
+      throw new Error(`RTC impairment ${impairment.id} bandwidth is invalid`);
+    }
+    ratioValue(impairment.packet_loss_ratio, `RTC impairment ${impairment.id} packet loss`);
+  }
+  const handoff = contract.impairment_profiles.find((item) => item.id === 'network_handoff');
+  if (!handoff || handoff.blackout_ms <= 0) {
+    throw new Error('RTC network_handoff impairment must include a blackout');
+  }
+  if (contract.latency_ms.sip_route_p99 !== summary.sip_route_p99_ms ||
+      contract.latency_ms.im_send_to_ack_p99 !== summary.im_ack_p99_ms ||
+      contract.latency_ms.livekit_join_p99 !== summary.livekit_join_p99_ms ||
+      contract.media_quality.server_packet_loss_ratio !== summary.rtp_server_packet_loss_ratio ||
+      contract.reliability.sip_setup_success_ratio !== summary.sip_setup_success_ratio ||
+      contract.reliability.durable_loss_count !== summary.durable_loss_count ||
+      contract.recovery_ms.new_admission_after_node_failure_p99 !==
+        summary.new_admission_recovery_seconds * 1_000) {
+    throw new Error('RTC performance contract and legacy SLO summary must not drift');
+  }
+}
+
+function finiteNonNegativeRecord(value: Record<string, number>, label: string): void {
+  if (!value || typeof value !== 'object' || Object.keys(value).length === 0) {
+    throw new Error(`${label} metrics are required`);
+  }
+  for (const [key, metric] of Object.entries(value)) {
+    if (!isNonNegative(metric)) throw new Error(`${label} ${key} is invalid`);
+  }
+}
+
+function ratioValue(value: unknown, label: string): void {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`${label} must be between 0 and 1`);
+  }
+}
+
+function sameArray(actual: unknown, expected: string[]): boolean {
+  return Array.isArray(actual) && JSON.stringify(actual) === JSON.stringify(expected);
+}
+
+function isPositive(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function isNonNegative(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
 function validateUniqueWorkloads(

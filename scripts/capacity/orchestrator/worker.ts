@@ -204,7 +204,10 @@ export function validateStartShardCommand(raw: unknown): CapacityStartShardComma
     'workload_domain', 'workload_id', 'workload_kind', 'ordinal_start',
     'ordinal_end_exclusive', 'expected_count', 'required_protocols', 'seed'
   ];
-  if (Object.keys(details).sort().join('|') !== assignmentKeys.sort().join('|') ||
+  const optionalAssignmentKeys = details.covered_workloads === undefined
+    ? assignmentKeys
+    : [...assignmentKeys, 'covered_workloads'];
+  if (Object.keys(details).sort().join('|') !== optionalAssignmentKeys.sort().join('|') ||
       !['interaction', 'connection'].includes(String(details.workload_domain))) {
     throw new LoadRunControlError('command_assignment_invalid', 400);
   }
@@ -227,7 +230,48 @@ export function validateStartShardCommand(raw: unknown): CapacityStartShardComma
         !/^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$/.test(protocol))) {
     throw new LoadRunControlError('command_assignment_invalid', 400);
   }
+  if (details.covered_workloads !== undefined) {
+    validateCoveredWorkloads(details.covered_workloads, {
+      workload_domain: String(details.workload_domain),
+      workload_id: String(details.workload_id)
+    });
+  }
   return structuredClone(value) as unknown as CapacityStartShardCommand;
+}
+
+function validateCoveredWorkloads(
+  raw: unknown,
+  primary: { workload_domain: string; workload_id: string }
+): void {
+  if (!Array.isArray(raw) || raw.length > 32) {
+    throw new LoadRunControlError('command_assignment_invalid', 400);
+  }
+  const seen = new Set([`${primary.workload_domain}:${primary.workload_id}`]);
+  const keys = [
+    'workload_domain', 'workload_id', 'workload_kind', 'ordinal_start',
+    'ordinal_end_exclusive', 'expected_count'
+  ].sort().join('|');
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new LoadRunControlError('command_assignment_invalid', 400);
+    }
+    const workload = item as Record<string, unknown>;
+    if (Object.keys(workload).sort().join('|') !== keys ||
+        !['interaction', 'connection'].includes(String(workload.workload_domain))) {
+      throw new LoadRunControlError('command_assignment_invalid', 400);
+    }
+    safeToken(workload.workload_id, 'workload_id');
+    safeToken(workload.workload_kind, 'workload_kind');
+    const start = integer(workload.ordinal_start, 'ordinal_start');
+    const end = integer(workload.ordinal_end_exclusive, 'ordinal_end_exclusive');
+    const expected = integer(workload.expected_count, 'expected_count');
+    const identity = `${workload.workload_domain}:${workload.workload_id}`;
+    if (end <= start || expected !== end - start || expected > 1_000_000_000 ||
+        seen.has(identity)) {
+      throw new LoadRunControlError('command_assignment_invalid', 400);
+    }
+    seen.add(identity);
+  }
 }
 
 function safeToken(value: unknown, field: string): string {

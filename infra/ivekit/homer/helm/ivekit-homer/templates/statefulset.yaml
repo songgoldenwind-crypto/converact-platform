@@ -1,0 +1,252 @@
+{{- include "ivekit-homer.validate" . -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ivekit-homer.fullname" . }}
+  labels:
+    {{- include "ivekit-homer.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "ivekit-homer.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "ivekit-homer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit-homer.selectorLabels" . | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: homer
+          image: {{ include "ivekit-homer.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--config-path", "/etc/homer", "--pid-file", "/tmp/homer-core.pid"]
+          ports:
+            - name: hep
+              containerPort: {{ .Values.homer.ingest.udpPort }}
+              protocol: UDP
+            - name: http
+              containerPort: {{ .Values.homer.coordinator.port }}
+              protocol: TCP
+            - name: flight
+              containerPort: {{ .Values.homer.node.flightPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.homer.metrics.port }}
+              protocol: TCP
+          env:
+            - name: HOMER_INGEST_ENABLE
+              value: "true"
+            - name: HOMER_INGEST_WORKER_COUNT
+              value: {{ .Values.homer.ingest.workerCount | quote }}
+            - name: HOMER_INGEST_QUEUE_SIZE
+              value: {{ .Values.homer.ingest.queueSize | quote }}
+            - name: HOMER_INGEST_UDP_ENABLE
+              value: "true"
+            - name: HOMER_INGEST_UDP_HOST
+              value: 0.0.0.0
+            - name: HOMER_INGEST_UDP_PORT
+              value: {{ .Values.homer.ingest.udpPort | quote }}
+            - name: HOMER_INGEST_UDP_MULTICORE
+              value: "true"
+            - name: HOMER_INGEST_TCP_ENABLE
+              value: "false"
+            - name: HOMER_INGEST_HTTP_ENABLE
+              value: "false"
+            - name: HOMER_INGEST_HTTPS_ENABLE
+              value: "false"
+            - name: HOMER_INGEST_HEP_HEPV2_ENABLE
+              value: "false"
+            - name: HOMER_INGEST_HEP_HEPV3_ENABLE
+              value: "true"
+            - name: HOMER_INGEST_HEP_PROTOBUF_ENABLE
+              value: "false"
+            - name: HOMER_STORAGE_ENABLE
+              value: "true"
+            - name: HOMER_STORAGE_DUCKLAKE_CATALOG_TYPE
+              value: postgres
+            - name: HOMER_STORAGE_DUCKLAKE_CATALOG_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.catalogDsnKey }}
+            - name: HOMER_STORAGE_DUCKLAKE_DATA_PATH
+              value: {{ .Values.homer.dataPath | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_LAKE_NAME
+              value: {{ .Values.homer.lakeName | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_BATCH_SIZE
+              value: {{ .Values.homer.storage.batchSize | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_FLUSH_INTERVAL_SEC
+              value: {{ .Values.homer.storage.flushIntervalSeconds | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_SEARCH_BUFFER
+              value: {{ .Values.homer.storage.searchBuffer | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_SHARD_COUNT
+              value: {{ .Values.homer.storage.shardCount | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_DATA_INLINING_ROW_LIMIT
+              value: "0"
+            - name: HOMER_STORAGE_DUCKLAKE_TUNING_THREADS
+              value: {{ .Values.homer.storage.threads | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_TUNING_MEMORY_LIMIT
+              value: {{ .Values.homer.storage.memoryLimit | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_TUNING_TEMP_DIRECTORY
+              value: {{ .Values.homer.storage.tempDirectory | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_COMPACTION_ENABLE
+              value: "true"
+            - name: HOMER_STORAGE_DUCKLAKE_COMPACTION_ENGINE
+              value: duckdb
+            - name: HOMER_STORAGE_DUCKLAKE_COMPACTION_CHECK_INTERVAL_SEC
+              value: {{ .Values.homer.storage.compactionIntervalSeconds | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_COMPACTION_RETENTION_DAYS
+              value: {{ .Values.homer.storage.retentionDays | quote }}
+            - name: HOMER_STORAGE_DUCKLAKE_STORAGE_POLICY_ENABLE
+              value: "false"
+            - name: HOMER_NODE_ENABLE
+              value: "true"
+            - name: HOMER_NODE_FLIGHT_SERVER_HOST
+              value: 0.0.0.0
+            - name: HOMER_NODE_FLIGHT_SERVER_PORT
+              value: {{ .Values.homer.node.flightPort | quote }}
+            - name: HOMER_NODE_FLIGHT_SERVER_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.nodeTokenKey }}
+            - name: HOMER_NODE_DUCKLAKE_LAKE_NAME
+              value: {{ .Values.homer.lakeName | quote }}
+            - name: HOMER_NODE_DUCKLAKE_VOLUMES_0_NAME
+              value: default
+            - name: HOMER_NODE_DUCKLAKE_VOLUMES_0_TYPE
+              value: local
+            - name: HOMER_NODE_DUCKLAKE_VOLUMES_0_CATALOG_TYPE
+              value: postgres
+            - name: HOMER_NODE_DUCKLAKE_VOLUMES_0_CATALOG_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.catalogDsnKey }}
+            - name: HOMER_NODE_DUCKLAKE_VOLUMES_0_PATH
+              value: {{ .Values.homer.dataPath | quote }}
+            - name: HOMER_COORDINATOR_ENABLE
+              value: "true"
+            - name: HOMER_COORDINATOR_HTTP_SERVER_ENABLE
+              value: "true"
+            - name: HOMER_COORDINATOR_HTTP_SERVER_HOST
+              value: 0.0.0.0
+            - name: HOMER_COORDINATOR_HTTP_SERVER_PORT
+              value: {{ .Values.homer.coordinator.port | quote }}
+            - name: HOMER_COORDINATOR_HTTP_SERVER_STATIC_PATH
+              value: /usr/local/homer-core/dist
+            - name: HOMER_COORDINATOR_NODES_0_NAME
+              value: local
+            - name: HOMER_COORDINATOR_NODES_0_HOST
+              value: 127.0.0.1
+            - name: HOMER_COORDINATOR_NODES_0_PORT
+              value: {{ .Values.homer.node.flightPort | quote }}
+            - name: HOMER_COORDINATOR_NODES_0_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.nodeTokenKey }}
+            - name: HOMER_COORDINATOR_SETTINGS_DB_PATH
+              value: {{ .Values.homer.settingsPath | quote }}
+            - name: HOMER_COORDINATOR_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.jwtSecretKey }}
+            - name: HOMER_COORDINATOR_AUTH_ADMIN_USER
+              value: {{ .Values.homer.adminUser | quote }}
+            - name: HOMER_COORDINATOR_AUTH_ADMIN_PASSWORD_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.adminPasswordHashKey }}
+            - name: HOMER_PROMETHEUS_ENABLE
+              value: "true"
+            - name: HOMER_PROMETHEUS_HOST
+              value: 0.0.0.0
+            - name: HOMER_PROMETHEUS_PORT
+              value: {{ .Values.homer.metrics.port | quote }}
+            - name: HOMER_LOG_JSON
+              value: "true"
+            - name: HOMER_LOG_OUTPUT_0
+              value: stdout
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 4
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/homer/data
+            - name: state
+              mountPath: /var/lib/homer/state
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.persistence.data.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.data.size }}
+    - metadata:
+        name: state
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.persistence.state.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.state.size }}

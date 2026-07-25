@@ -1,5 +1,6 @@
 node_modules/
 frontend/dist/
+librust_out.rlib
 .codegraph/
 .cursor/
 .trae/

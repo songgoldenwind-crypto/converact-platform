@@ -1,16 +1,19 @@
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
+import type { NodeConnectionOptions } from '@nats-io/transport-node';
 
 import {
   DurableLoadRunOrchestrator,
   JetStreamCapacityCommandBus,
   PostgresCapacityLoadRunRepository
 } from './capacity/orchestrator/index.js';
+import { resolveNatsConnectionOptions } from '../src/infra/nats-connection-options.js';
 
 export interface CapacityDispatcherConfig {
   database_url: string;
-  nats_servers: string[];
+  nats: NodeConnectionOptions;
+  nats_stream_replicas: number;
   dispatcher_id: string;
   interval_ms: number;
   lease_ttl_ms: number;
@@ -21,19 +24,19 @@ export function capacityDispatcherConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CapacityDispatcherConfig {
   const databaseUrl = String(env.OPC_DATABASE_URL || env.DATABASE_URL || '');
-  const natsServers = String(env.NATS_URL || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean);
   const dispatcherId = String(env.OPC_IVEKIT_CAPACITY_DISPATCHER_ID || '');
   if (!databaseUrl) throw new Error('OPC_DATABASE_URL is required');
-  if (natsServers.length === 0) throw new Error('NATS_URL is required');
   if (!/^[A-Za-z0-9][A-Za-z0-9._@:-]{2,255}$/.test(dispatcherId)) {
     throw new Error('OPC_IVEKIT_CAPACITY_DISPATCHER_ID is invalid');
   }
+  const nats = resolveNatsConnectionOptions(env, { defaultName: dispatcherId });
+  if (!nats) throw new Error('NATS_URL is required');
   return {
     database_url: databaseUrl,
-    nats_servers: natsServers,
+    nats,
+    nats_stream_replicas: replicaEnv(
+      env.OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS
+    ),
     dispatcher_id: dispatcherId,
     interval_ms: integerEnv(env.OPC_IVEKIT_CAPACITY_DISPATCH_INTERVAL_MS, 250, 50, 60_000),
     lease_ttl_ms: integerEnv(env.OPC_IVEKIT_CAPACITY_DISPATCH_LEASE_MS, 10_000, 1_000, 300_000),
@@ -54,7 +57,8 @@ export async function runCapacityDispatcher(
   try {
     await assertCapacityDispatcherSchema(pool);
     bus = await JetStreamCapacityCommandBus.connect({
-      servers: config.nats_servers
+      connection_options: config.nats,
+      stream_replicas: config.nats_stream_replicas
     });
     const orchestrator = new DurableLoadRunOrchestrator({
       repository: new PostgresCapacityLoadRunRepository(pool),
@@ -74,6 +78,17 @@ export async function runCapacityDispatcher(
     await bus?.close().catch(() => undefined);
     await pool.end();
   }
+}
+
+function replicaEnv(value: string | undefined): number {
+  if (!String(value || '').trim()) {
+    throw new Error('OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS is required');
+  }
+  const parsed = Number(value);
+  if (parsed !== 1 && parsed !== 3 && parsed !== 5) {
+    throw new Error('capacity command stream replicas must be 1, 3, or 5');
+  }
+  return parsed;
 }
 
 export async function assertCapacityDispatcherSchema(

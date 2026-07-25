@@ -35,10 +35,55 @@ opc:
 
 aiAgent:
   replicaCount: 2
+  tmpSizeLimit: 256Mi
   image:
     repository: opc/ai-agent
     digest: ""
     pullPolicy: IfNotPresent
+  providerRuntime:
+    llmFallbackProviders: "deepseek"
+    speechAsrProvider: "funasr"
+    speechAsrFallbackProviders: "deepgram,openai"
+    speechTtsProvider: "cosyvoice"
+    speechTtsFallbackProviders: "cartesia,openai"
+    sttAttemptTimeoutMs: 2000
+    llmAttemptTimeoutMs: 1200
+    ttsAttemptTimeoutMs: 1500
+    maxUnrecoverableErrors: 3
+  providers:
+    llmBaseUrl: ""
+    llmModel: "Qwen3.6-27B"
+    llmExtraBody: '{"chat_template_kwargs":{"enable_thinking":false}}'
+    deepseekApiBase: "https://api.deepseek.com/v1"
+    deepseekModel: "deepseek-chat"
+    funasrUrl: ""
+    cosyvoiceUrl: ""
+    cosyvoiceSpeakerId: "中文女"
+    credentials:
+      existingSecret: ""
+      llmApiKeyKey: "llm-api-key"
+      deepseekApiKeyKey: "deepseek-api-key"
+      openaiApiKeyKey: "openai-api-key"
+      deepgramApiKeyKey: "deepgram-api-key"
+      cartesiaApiKeyKey: "cartesia-api-key"
+  metrics:
+    port: 9090
+    udpHost: 127.0.0.1
+    udpPort: 9125
+    serviceMonitor:
+      enabled: false
+      interval: 15s
+      scrapeTimeout: 5s
+      labels: {}
+    prometheusRule:
+      enabled: false
+      duration: 5m
+    latencyBudgetsSeconds:
+      asr_final: 0.35
+      end_of_turn: 0.5
+      llm_first_token: 0.35
+      tts_first_audio: 0.3
+      speech_to_speech: 1.2
   resources:
     requests:
       memory: "512Mi"
@@ -58,7 +103,11 @@ frontend:
     port: 80
 
 postgres:
-  enabled: true
+  # external is the production contract. bundled-dev is a single-instance rollback for development only.
+  mode: external
+  external:
+    existingSecret: opc-database-runtime
+    secretKey: database-url
   image:
     repository: postgres
     digest: ""
@@ -88,13 +137,30 @@ livekit:
   apiKey: ""
   apiSecret: ""
   redis:
+    mode: direct
     address: ""
+    sentinelMasterName: ""
+    sentinelAddresses: []
+    sentinelUsername: ""
+    sentinelPassword: ""
     username: ""
     password: ""
     db: 0
-    useTLS: false
+    dialTimeoutMs: 2000
+    readTimeoutMs: 200
+    writeTimeoutMs: 200
+    poolSize: 0
+    reconnectWaitMs: 1000
+    maxReconnectAttempts: -1
+    tls:
+      enabled: false
+      secretName: ""
+      serverName: ""
+      caKey: ca.crt
+      clientCertKey: ""
+      clientKeyKey: ""
   image:
-    repository: livekit/livekit-server
+    repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server
     digest: ""
     pullPolicy: IfNotPresent
   service:
@@ -105,6 +171,10 @@ livekit:
   portRangeStart: 50000
   portRangeEnd: 50100
   useExternalIp: false
+  pliThrottle:
+    lowQuality: 100ms
+    midQuality: 100ms
+    highQuality: 100ms
   emptyTimeout: 300
   maxParticipants: 10
   resources:
@@ -138,6 +208,8 @@ voice:
     recordingChannelCapacity: 256
     recordingWorkerThreads: 4
     recordingWorkerQueueCapacity: 4096
+    udpReceiveBufferBytes: 1048576
+    udpSendBufferBytes: 524288
   callRecordCapacity:
     maxConcurrent: 64
     channelCapacity: 65536
@@ -320,12 +392,52 @@ media:
   smokeVerifyRecordingObject: "0"
   smokeRecordingObjectTimeoutMs: "60000"
   smokeRecordingObjectPollIntervalMs: "2000"
-  minioEndpoint: ""
-  minioBucket: recordings
-  minioAccessKey: minioadmin
-  minioSecretKey: minioadmin
+  realtimeAudioTap:
+    enabled: false
+    hmacSecretB64: ""
+    listenPort: 3010
+    path: /api/ivekit/realtime-audio-tap/livekit
+    tokenTtlSeconds: "60"
+    maxConnections: "4096"
+    prestartBufferMs: "1000"
+    maxPayloadBytes: "262144"
+    idleTimeoutMs: "60000"
+    startTimeoutMs: "5000"
+    shutdownTimeoutMs: "1000"
+    projectionQueueMaxItems: "4096"
+    projectionShutdownTimeoutMs: "1000"
+    retentionDays: "30"
+    socketVolumeSizeLimit: 4Mi
+    rustPbxChannelCapacity: "256"
+    rustPbxSendTimeoutMs: "10"
+    rustPbxGateway:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+    networkPolicy:
+      enabled: true
+  objectStorage:
+    mode: external
+    authMode: secret
+    endpoint: ""
+    bucket: recordings
+    region: us-east-1
+    forcePathStyle: false
+    existingSecret: opc-object-storage-runtime
+    accessKeyIdKey: access-key-id
+    secretAccessKeyKey: secret-access-key
   minio:
-    enabled: true
+    enabled: false
+    # Legacy development rollback only. Production uses media.objectStorage.mode=external.
+    endpoint: ""
+    bucket: recordings
+    existingSecret: opc-minio-legacy
+    accessKeyIdKey: access-key-id
+    secretAccessKeyKey: secret-access-key
     image:
       repository: minio/minio
       tag: RELEASE.2025-09-07T16-13-09Z
@@ -472,6 +584,46 @@ media:
           limits:
             memory: "16Gi"
             cpu: "16"
+  ingress:
+    enabled: false
+    replicaCount: 3
+    image:
+      repository: ivekit/livekit-ingress
+      digest: ""
+      pullPolicy: IfNotPresent
+    hostNetwork: true
+    rtmpPort: 1935
+    whipPort: 8080
+    rtcUdpPort: 7885
+    healthPort: 8090
+    prometheusPort: 9091
+    useExternalIp: true
+    terminationGracePeriodSeconds: 300
+    requestTimeoutMs: "15000"
+    pullHostAllowlist: ""
+    allowHttpUrl: false
+    service:
+      type: LoadBalancer
+    cpuCost:
+      rtmp: 2.0
+      whip: 2.0
+      whipBypassTranscoding: 0.1
+      url: 2.0
+      minIdleRatio: 0.2
+    disruptionBudget:
+      minAvailable: 2
+    networkPolicy:
+      publicCidrs:
+        - 0.0.0.0/0
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "4"
+      limits:
+        memory: "8Gi"
+        cpu: "8"
   sip:
     enabled: false
     gatewayEnabled: false
@@ -479,7 +631,7 @@ media:
     rustpbxTrunk: ""
     rustpbxRwiUrl: ""
     image:
-      repository: livekit/sip
+      repository: ghcr.io/songgoldenwind-crypto/opc-livekit-sip
       digest: ""
       pullPolicy: IfNotPresent
     service:
@@ -538,13 +690,13 @@ intelligence:
 
 attachmentProcessing:
   attachmentMaxBytes: "26214400"
-  ocrProviderMode: self_hosted
+  ocrProviderMode: third_party
   ocrProviderName: ""
   ocrBaseUrl: ""
   ocrEndpoint: /v1/ocr
   ocrToken: ""
   ocrTimeoutMs: "30000"
-  asrProviderMode: self_hosted
+  asrProviderMode: third_party
   asrProviderName: ""
   asrBaseUrl: ""
   asrEndpoint: /v1/asr
@@ -559,7 +711,7 @@ attachmentProcessing:
     retryDelaysMs: "5000,30000"
 
 qualityReview:
-  providerMode: self_hosted
+  providerMode: third_party
   providerName: ""
   baseUrl: ""
   endpoint: /v1/quality-review
@@ -577,8 +729,8 @@ qualityReview:
 rustdesk:
   enabled: true
   provider: rustdesk
-  serverVersion: "1.1.15"
-  clientVersion: "1.4.7"
+  serverVersion: "1.1.16"
+  clientVersion: "1.4.9"
   clientProfileTtlSeconds: "900"
   clientArtifactsJson: ""
   publicHost: rustdesk.example.com
@@ -624,7 +776,7 @@ rustdesk:
   alwaysUseRelay: "N"
   hostNetwork: false
   image:
-    repository: rustdesk/rustdesk-server
+    repository: ghcr.io/songgoldenwind-crypto/opc-rustdesk-server
     digest: ""
     pullPolicy: IfNotPresent
   service:
@@ -648,13 +800,34 @@ rustdesk:
 
 nats:
   enabled: true
-  storage: 1Gi
+  replicaCount: 3
+  storage: 100Gi
+  storageClass: ""
+  maxMemoryStore: 2GB
+  maxFileStore: 100GB
   image:
     repository: nats
     digest: ""
     pullPolicy: IfNotPresent
-  jetstream:
+  auth:
+    existingSecret: ""
+    userKey: client-user
+    passwordKey: client-password
+    routeUserKey: route-user
+    routePasswordKey: route-password
+  tls:
     enabled: true
+    secretName: ""
+    caKey: ca.crt
+    certKey: tls.crt
+    keyKey: tls.key
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "4000m"
 
 ingress:
   enabled: true

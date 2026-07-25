@@ -3,12 +3,14 @@ FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bb
 ARG TARGETARCH
 ARG RUSTPBX_COMMIT
 ARG RSIPSTACK_COMMIT
+ARG RUSTRTC_COMMIT
 ARG IVEKIT_PATCHSET
 
 LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
 LABEL org.opencontainers.image.description="iveKit RustPBX with reliable TCP reconnect"
 LABEL io.ivekit.rustpbx.commit="${RUSTPBX_COMMIT}"
 LABEL io.ivekit.rsipstack.commit="${RSIPSTACK_COMMIT}"
+LABEL io.ivekit.rustrtc.commit="${RUSTRTC_COMMIT}"
 LABEL io.ivekit.rustpbx.patchset="${IVEKIT_PATCHSET}"
 
 ENV LANG=C.UTF-8

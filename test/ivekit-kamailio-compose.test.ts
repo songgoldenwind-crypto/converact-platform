@@ -28,6 +28,14 @@ test('Compose builds a Cell-local Kamailio edge in front of two independently ow
 
   assert.match(services.kamailio.image, /IVEKIT_KAMAILIO_IMAGE.*immutable digest reference is required/);
   assert.deepEqual(services['kamailio-route-agent'].network_mode, 'service:kamailio');
+  assert.equal(
+    services['kamailio-route-agent'].environment.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED,
+    '${OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED:-false}'
+  );
+  assert.equal(
+    services['kamailio-route-agent'].environment.OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT,
+    '${OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT:-http://127.0.0.1:9090/metrics}'
+  );
   assert.deepEqual(services['rustpbx-component-node'].network_mode, 'service:rustpbx');
   assert.deepEqual(services['rustpbx-b-component-node'].network_mode, 'service:rustpbx-b');
   assert.deepEqual(services['rustpbx-b'].profiles, ['voice-capacity']);
@@ -39,6 +47,18 @@ test('Compose builds a Cell-local Kamailio edge in front of two independently ow
   assert.equal(services['kamailio-state-init'].user, '0:0');
   assert.match(services['kamailio-state-init'].command.join(' '), /chown -R 1000:10001/);
   assert.equal(services['kamailio-route-agent'].user, '1000:10001');
+  assert.deepEqual(services.kamailio.command, [
+    '-DD',
+    '-E',
+    '-x',
+    '${KAMAILIO_SHM_ALLOCATOR:-fm}',
+    '-m',
+    '${KAMAILIO_SHM_MEMORY_MB:-512}',
+    '-M',
+    '${KAMAILIO_PKG_MEMORY_MB:-32}',
+    '-f',
+    '/etc/kamailio/kamailio.cfg'
+  ]);
 
   const kamailioPorts = services.kamailio.ports.map(String).join('\n');
   assert.match(kamailioPorts, /SIP_PORT:-5060}.*SIP_PORT:-5060}\/udp/);
@@ -87,6 +107,10 @@ test('Compose Kamailio runtime compiler emits aligned strict config and two-node
     OPC_IVEKIT_KAMAILIO_TRUSTED_SOURCE_CIDRS: '127.0.0.0/8,172.16.0.0/12',
     OPC_IVEKIT_KAMAILIO_RUSTPBX_SOURCE_CIDRS: '172.16.0.0/12',
     OPC_IVEKIT_KAMAILIO_DMQ_SOURCE_CIDRS: '172.16.0.0/12',
+    OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED: 'true',
+    OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_HOST: 'homer-capture',
+    OPC_IVEKIT_KAMAILIO_HEP_CAPTURE_ID: '101',
+    OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED: 'true',
     OPC_IVEKIT_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS: 'https://agent.example.test',
     OPC_IVEKIT_WEBPHONE_JWT_ISSUER: 'ivekit',
     OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE: 'rustpbx-webphone',
@@ -106,6 +130,14 @@ test('Compose Kamailio runtime compiler emits aligned strict config and two-node
     '/run/secrets/kamailio-webphone-jwt-secret'
   );
   assert.equal(result.config.dmq.enabled, false);
+  assert.deepEqual(result.config.sip_trace, {
+    enabled: true,
+    collector_host: 'homer-capture',
+    collector_port: 9060,
+    capture_id: 101,
+    include_options: false,
+    initial_mode: 'off'
+  });
   assert.deepEqual(result.topology.pools[0]?.nodes.map((node) => ({
     id: node.node_id,
     component: node.component_endpoint,
@@ -132,6 +164,23 @@ test('Compose Kamailio runtime compiler emits aligned strict config and two-node
   }));
 });
 
+test('Compose Kamailio runtime compiler rejects incomplete HEP protection', () => {
+  assert.throws(
+    () => buildKamailioComposeRuntime(composeRuntimeEnv({
+      OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED: 'true',
+      OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED: 'false'
+    })),
+    /SIP trace and HEP high-water protection must be enabled together/i
+  );
+  assert.throws(
+    () => buildKamailioComposeRuntime(composeRuntimeEnv({
+      OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED: 'false',
+      OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED: 'true'
+    })),
+    /SIP trace and HEP high-water protection must be enabled together/i
+  );
+});
+
 test('standalone image packages the Compose runtime compiler and file-backed contracts', () => {
   const sourcePolicy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
     entrypoints: string[];
@@ -151,8 +200,34 @@ test('standalone image packages the Compose runtime compiler and file-backed con
   assert.match(env, /^OPC_IVEKIT_KAMAILIO_TRUSTED_SOURCE_CIDRS=/m);
   assert.match(env, /^OPC_IVEKIT_KAMAILIO_RUSTPBX_SOURCE_CIDRS=/m);
   assert.match(env, /^OPC_IVEKIT_KAMAILIO_DMQ_SOURCE_CIDRS=/m);
+  assert.match(env, /^OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED=/m);
+  assert.match(env, /^OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_HOST=/m);
+  assert.match(env, /^OPC_IVEKIT_KAMAILIO_HEP_METRICS_PORT=/m);
+  assert.match(env, /^OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED=/m);
+  assert.match(env, /^OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND=/m);
   assert.match(env, /^OPC_IVEKIT_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS=/m);
+  assert.match(env, /^KAMAILIO_SHM_ALLOCATOR=fm$/m);
+  assert.match(env, /^KAMAILIO_SHM_MEMORY_MB=512$/m);
+  assert.match(env, /^KAMAILIO_PKG_MEMORY_MB=32$/m);
   assert.match(env, /^RUSTPBX_OWNER_NODE_ID_B=/m);
   assert.match(env, /^KAMAILIO_ROUTE_KEY_CURRENT_FILE=\.\/secrets\//m);
   assert.match(env, /^KAMAILIO_WEBPHONE_JWT_SECRET_FILE=\.\/secrets\//m);
 });
+
+function composeRuntimeEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    OPC_IVEKIT_KAMAILIO_REGION_ID: 'region-a',
+    OPC_IVEKIT_KAMAILIO_ZONE_ID: 'zone-a',
+    OPC_IVEKIT_KAMAILIO_CELL_ID: 'cell-a',
+    OPC_IVEKIT_KAMAILIO_PROFILE_ID: 'cell-10k-v1',
+    OPC_IVEKIT_KAMAILIO_ADVERTISE_SIP_HOST: 'sip.example.test',
+    OPC_IVEKIT_KAMAILIO_TRUSTED_SOURCE_CIDRS: '127.0.0.0/8',
+    OPC_IVEKIT_KAMAILIO_RUSTPBX_SOURCE_CIDRS: '172.16.0.0/12',
+    OPC_IVEKIT_KAMAILIO_WEBPHONE_ALLOWED_ORIGINS: 'https://agent.example.test',
+    OPC_IVEKIT_WEBPHONE_JWT_ISSUER: 'ivekit',
+    OPC_IVEKIT_WEBPHONE_JWT_AUDIENCE: 'rustpbx-webphone',
+    RUSTPBX_OWNER_NODE_ID: 'rustpbx-a',
+    RUSTPBX_OWNER_NODE_ID_B: 'rustpbx-b',
+    ...overrides
+  };
+}

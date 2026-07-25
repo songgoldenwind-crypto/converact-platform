@@ -1,4 +1,9 @@
 import { getRedisClient, setRedisClientForTests, type RedisLike } from './redis-client.js';
+import {
+  buildIoRedisConstructorArgs,
+  resolveRedisConnectionOptions,
+  type IoRedisConnectionOptions
+} from './infra/redis-connection-options.js';
 
 export interface RedisPubSubLike {
   publish(channel: string, message: string): Promise<void>;
@@ -65,13 +70,10 @@ export async function getRedisPubSub(): Promise<RedisPubSubLike> {
     return sharedPubSub;
   }
 
-  const url = process.env.REDIS_URL || 'redis://localhost:6379';
+  const constructorArgs = buildIoRedisConstructorArgs(resolveRedisConnectionOptions());
   try {
     const mod = await import('ioredis');
-    const RedisCtor = mod.default as unknown as new (
-      url: string,
-      opts: { maxRetriesPerRequest: number; lazyConnect: boolean }
-    ) => {
+    interface IoRedisPublisher {
       connect(): Promise<void>;
       disconnect(): void;
       on(event: 'error', listener: (err: Error) => void): void;
@@ -83,12 +85,19 @@ export async function getRedisPubSub(): Promise<RedisPubSubLike> {
         subscribe(channel: string): Promise<number>;
         on(event: 'message', listener: (channel: string, message: string) => void): void;
       };
-    };
+    }
+    interface IoRedisConstructor {
+      new(options: IoRedisConnectionOptions): IoRedisPublisher;
+      new(url: string, options: IoRedisConnectionOptions): IoRedisPublisher;
+    }
+    const RedisCtor = mod.default as unknown as IoRedisConstructor;
 
     // ioredis emits 'error' on every failed (re)connection attempt. Without a
     // listener these become unhandled and crash/hang the process. Attach a
     // no-op listener so failures surface only via the connect() rejection.
-    const publisher = new RedisCtor(url, { maxRetriesPerRequest: 1, lazyConnect: true });
+    const publisher = constructorArgs.length === 1
+      ? new RedisCtor(constructorArgs[0])
+      : new RedisCtor(constructorArgs[0], constructorArgs[1]);
     publisher.on('error', () => { /* handled via connect() rejection */ });
     let subscriber: RedisSubscriber | null = null;
     try {

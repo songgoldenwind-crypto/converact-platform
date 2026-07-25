@@ -1,0 +1,23 @@
+{{- if and .Values.media.realtimeAudioTap.enabled .Values.media.realtimeAudioTap.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-realtime-audio-tap
+spec:
+  podSelector:
+    matchLabels:
+      app: opc
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: http
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ai-agent
+      ports:
+        - protocol: TCP
+          port: audio-tap
+{{- end }}

@@ -46,3 +46,14 @@ test('capacity worker checkpoint upgrade is safe for databases that already ran 
   assert.match(sql, /SET execution_state = 'running'[\s\S]*state = 'running'/i);
   assert.match(sql, /idx_ivekit_capacity_load_shards_worker_outstanding/i);
 });
+
+test('capacity composite workload upgrade persists co-executed workload coverage', () => {
+  const sql = readFileSync(
+    'src/migrations/100_ivekit_capacity_composite_workloads.sql',
+    'utf8'
+  );
+
+  assert.match(sql, /ALTER TABLE ivekit_capacity_load_shards/i);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS covered_workloads JSONB/i);
+  assert.match(sql, /jsonb_typeof\(covered_workloads\) = 'array'/i);
+});

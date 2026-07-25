@@ -1,0 +1,101 @@
+UTC=2026-07-24T13:18:27Z
+Linux pmt-web-test-sfo2 6.8.0-124-generic #124-Ubuntu SMP PREEMPT_DYNAMIC Tue May 26 13:00:45 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+CPUS=4
+               total        used        free      shared  buff/cache   available
+Mem:           7.8Gi       1.3Gi       4.1Gi        83Mi       2.7Gi       6.5Gi
+Swap:             0B          0B          0B
+RUSTPBX_PID=1372707
+SYSCTL
+net.core.rmem_default = 212992
+net.core.rmem_max = 25165824
+net.core.wmem_default = 212992
+net.core.wmem_max = 25165824
+CONTAINER_ENV
+RUSTRTC_UDP_SEND_BUFFER_BYTES=524288
+RUSTRTC_UDP_RECEIVE_BUFFER_BYTES=1048576
+ACTIVE_UDP_SOCKETS
+State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+UNCONN 0      0            0.0.0.0:23274      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:23275      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:31660      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:31661      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:23568      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:23569      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:24008      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:24009      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:36354      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:36355      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:24370      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:24371      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:24424      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:24425      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:20704      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:20705      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0         127.0.0.11:53904      0.0.0.0:*
+	 skmem:(r0,rb212992,t0,tb212992,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:25248      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:25249      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:37550      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:37551      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:sip        0.0.0.0:*
+	 skmem:(r0,rb212992,t0,tb212992,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26008      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26009      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26096      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26097      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:22068      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:22069      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26202      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26203      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:22108      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:22109      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:34550      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:34551      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26482      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26483      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:22686      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:22687      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26954      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:26955      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:39362      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f4096,w0,o0,bl0,d0)
+UNCONN 0      0            0.0.0.0:39363      0.0.0.0:*
+	 skmem:(r0,rb2097152,t0,tb1048576,f0,w0,o0,bl0,d0)

@@ -994,8 +994,8 @@ pydantic>=2.10.0
 | 服务 | 镜像 | Tag 策略 |
 |------|------|----------|
 | RustPBX | iveKit fixed-source image | 生产使用审核后的 immutable digest |
-| LiveKit Server | `livekit/livekit-server` | `v1.13.3`，生产制品绑定 digest |
-| LiveKit SIP | `livekit/sip` | `v1.6.0`，生产制品绑定 digest |
+| LiveKit Server | `ivekit/livekit-server` | `v1.13.4-ivekit.1`，生产制品必须绑定 iveKit fork 的 digest |
+| LiveKit SIP | iveKit exact-source image | `v1.7.0`，生产制品必须使用签名 digest |
 | LiveKit Egress | `ivekit/livekit-egress` | `v1.13.0` 源码基线，Chart 强制 custom image digest |
 | Redis | `redis` | standalone Media Core 固定 `7.4.9` |
 | MinIO | `minio/minio` | `RELEASE.2025-09-07T16-13-09Z` + manifest digest |

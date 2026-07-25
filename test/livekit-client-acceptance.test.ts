@@ -358,7 +358,7 @@ function completeReport(dir: string): Record<string, unknown> {
     operator: 'qa@example.com',
     checked_at: checkedAt,
     versions: {
-      server: 'v1.13.3',
+      server: 'v1.13.4',
       egress: 'v1.13.0',
       sip: 'v1.6.0',
       redis: '7.4.9',
@@ -479,7 +479,7 @@ function detailFixture(checkId: string): Record<string, unknown> {
 function detailValue(key: string): unknown {
   if (/(participants|workloads|replicas|reconnected)/.test(key)) return ['observed-value'];
   if (/(size_bytes|count|rooms)$/.test(key)) return 1;
-  if (key.includes('versions')) return { server: 'v1.13.3' };
+  if (key.includes('versions')) return { server: 'v1.13.4' };
   return `observed-${key}`;
 }
 

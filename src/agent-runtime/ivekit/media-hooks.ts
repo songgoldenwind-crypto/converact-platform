@@ -11,8 +11,12 @@ import {
   resolveRecordingObjectStream
 } from '../media-recording-object.js';
 import type { RecordingAuditEvent } from '../livekit/media-http.js';
-import type { RouteIveKitMediaApiOptions } from './media-http.js';
+import type {
+  LiveKitIngressAuditEvent,
+  RouteIveKitMediaApiOptions
+} from './media-http.js';
 import { IveKitTenantEventJournal } from './tenant-event-store.js';
+import { RealtimeSpeechStore } from './voice/realtime-speech-store.js';
 
 export interface IveKitMediaHooksInput {
   db: unknown;
@@ -24,6 +28,7 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
   return {
     pg: input.pg,
     eventStore: new IveKitTenantEventJournal(input.pg),
+    realtimeSpeechStore: new RealtimeSpeechStore(input.pg),
     onRecordingStarted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
       recordMediaRecordingEvidence(pg, recording, {
         roomName: context.roomName,
@@ -43,13 +48,21 @@ export function createIveKitMediaHooks(input: IveKitMediaHooksInput): RouteIveKi
     ...(retentionDays === undefined
       ? {}
       : { resolveRecordingRetentionDays: () => retentionDays }),
-    onRecordingDeleted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, (pg) =>
-      markMediaRecordingEvidenceDeleted(pg, recording, {
+    onRecordingDeleted: (recording, context) => withPgTenant(input.pg, recording.tenant_id, async (pg) => {
+      await markMediaRecordingEvidenceDeleted(pg, recording, {
         deletedBy: context.actorId,
         deletionSource: context.source
-      })
-    ),
-    onRecordingAudit: (event) => recordIveKitMediaAudit(input.db, event)
+      });
+      const interactionId = recording.media_call_id || recording.call_session_id;
+      if (interactionId) {
+        await new RealtimeSpeechStore(pg).deleteByInteraction({
+          tenant_id: recording.tenant_id,
+          interaction_id: interactionId
+        });
+      }
+    }),
+    onRecordingAudit: (event) => recordIveKitMediaAudit(input.db, event),
+    onIngressAudit: (event) => recordIveKitIngressAudit(input.db, event)
   };
 }
 
@@ -77,5 +90,22 @@ function recordIveKitMediaAudit(db: unknown, event: RecordingAuditEvent): void {
       (id, tenant_id, actor_id, action, object_type, object_id, metadata)
      VALUES (?, ?, ?, ?, 'media_recording', ?, ?)`,
     [id('audit'), tenantId, actorId, action, recordingId, json(metadata)]
+  );
+}
+
+function recordIveKitIngressAudit(db: unknown, event: LiveKitIngressAuditEvent): void {
+  const {
+    tenant_id: tenantId,
+    actor_id: actorId,
+    action,
+    ingress_id: ingressId,
+    ...metadata
+  } = event;
+  run(
+    db,
+    `INSERT INTO audit_logs
+      (id, tenant_id, actor_id, action, object_type, object_id, metadata)
+     VALUES (?, ?, ?, ?, 'livekit_ingress', ?, ?)`,
+    [id('audit'), tenantId, actorId, action, ingressId, json(metadata)]
   );
 }

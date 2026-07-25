@@ -53,6 +53,14 @@ test('standalone service lock is reproducibly derived and excludes unrelated roo
   const rootDependencies = Object.keys((generated.packages[''].dependencies || {})).sort();
   assert.deepEqual(rootDependencies, [
     '@aws-sdk/client-s3',
+    '@opentelemetry/exporter-trace-otlp-http',
+    '@opentelemetry/instrumentation-http',
+    '@opentelemetry/instrumentation-pg',
+    '@opentelemetry/instrumentation-undici',
+    '@opentelemetry/resources',
+    '@opentelemetry/sdk-node',
+    '@opentelemetry/sdk-trace-base',
+    'ajv',
     'file-type',
     'ioredis',
     'livekit-server-sdk',
@@ -121,9 +129,10 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
   const voiceCompose = readFileSync('services/ivekit-service/docker-compose.voice.yml', 'utf8');
   const serviceEnv = readFileSync('services/ivekit-service/env.example', 'utf8');
   const immutablePostgresImage = /^IVEKIT_POSTGRES_IMAGE=postgres:[^\s@]+@sha256:[a-f0-9]{64}$/m;
-  const immutableClamavImage = /^CLAMAV_IMAGE=clamav\/clamav:[^\s@]+@sha256:[a-f0-9]{64}$/m;
+  const immutableClamavImage =
+    'CLAMAV_IMAGE=clamav/clamav:1.5.2_base@sha256:3aa0c6d6a966dc062899e070fb13f87485acf0cbb710fccaae9a848cd5f5b09a';
   assert.match(serviceEnv, immutablePostgresImage);
-  assert.match(serviceEnv, immutableClamavImage);
+  assert.equal(serviceEnv.split('\n').includes(immutableClamavImage), true);
   assert.doesNotMatch(serviceEnv, /^IVEKIT_POSTGRES_IMAGE_TAG=/m);
   assert.match(
     compose,
@@ -149,7 +158,11 @@ test('standalone V3 examples expose provider profiles, storage, and bounded work
   assert.match(clamav, /clamdscan --ping/);
   assert.match(clamav, /clamav_signatures:\/var\/lib\/clamav/);
   assert.doesNotMatch(clamav, /ports:/);
-  assert.match(compose, /ivekit:[\s\S]*clamav:[\s\S]*condition: service_healthy/);
+  const ivekit = compose.match(/^  ivekit:\n([\s\S]*?)(?=^  [a-zA-Z0-9_-]+:\n|^volumes:)/m)?.[0] || '';
+  assert.match(ivekit, /depends_on:[\s\S]*migrate:[\s\S]*condition: service_completed_successfully/);
+  assert.doesNotMatch(ivekit, /\n {6}clamav:\n {8}condition: service_healthy/);
+  const readme = readFileSync('services/ivekit-service/README.md', 'utf8');
+  assert.match(readme, /ClamAV outage[^.]*must not gate API readiness or active communication/i);
   const dockerfile = readFileSync('services/ivekit-service/Dockerfile', 'utf8');
   assert.match(dockerfile, /apt-get install[^\n]*ffmpeg/);
   const servicePackage = JSON.parse(readFileSync('services/ivekit-service/package.json', 'utf8')) as {
@@ -169,6 +182,7 @@ test('standalone verifier requires every compiled operational entrypoint', () =>
   for (const entrypoint of [
     'ivekit-server.js',
     'ivekit-worker.js',
+    'ivekit-realtime-audio-tap-worker.js',
     'ivekit-kamailio-compose-config.js',
     'ivekit-kamailio-webphone-acceptance.js',
     'ivekit-render-rustpbx-config.js',

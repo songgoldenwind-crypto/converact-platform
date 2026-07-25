@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { canonicalJson, canonicalSha256 } from '../scripts/capacity/canonical-json.js';
@@ -9,6 +10,11 @@ import type {
   CapacityScalingProbeReference,
   CapacityScalingRunEvidenceDocument
 } from '../scripts/capacity/scaling-campaign.js';
+import { createPassingRtcPerformanceEvidence } from './helpers/rtc-performance-fixture.js';
+
+const performanceContract = JSON.parse(
+  readFileSync('docs/capacity/profiles/mix-100k-v1.json', 'utf8')
+).performance_contract;
 
 test('scaling source reloads only a database-verified hash-bound run evidence object', async () => {
   const fixture = sourceFixture();
@@ -66,6 +72,7 @@ function sourceFixture(): {
     phases: [],
     faults: [],
     expected_totals: { interactions: 100, connections: 0, by_workload: {} },
+    performance_contract: performanceContract,
     external_dependencies: [],
     start_not_before: '2026-07-17T08:00:00.000Z',
     evidence_prefix: 'capacity/curve-u1-a1'
@@ -82,6 +89,7 @@ function sourceFixture(): {
     mode: 'production',
     fleet_qualifications: [],
     shard_evidence: [],
+    performance_evidence: createPassingRtcPerformanceEvidence(performanceContract),
     external_dependencies: [],
     validation: {
       outcome: 'passed',
@@ -92,7 +100,8 @@ function sourceFixture(): {
         attempted: 100,
         accepted: 100,
         sut_observed: 100,
-        independent_observed: 100
+        independent_observed: 100,
+        by_workload: {}
       }
     }
   };

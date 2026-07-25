@@ -14,6 +14,7 @@ import {
 import {
   readCapacityControllerManifest
 } from './ivekit-capacity-controller.js';
+import type { CapacityEvidenceResult } from './capacity/evidence-validator.js';
 
 export interface CapacityFinalizerConfig {
   database_url: string;
@@ -88,12 +89,7 @@ export function readCapacityEvidenceSubmission(
 export async function runCapacityFinalizer(
   config: CapacityFinalizerConfig,
   signal?: AbortSignal
-): Promise<{
-  outcome: string;
-  reasons: string[];
-  external_not_run: string[];
-  reconciliation: Record<string, number>;
-}> {
+): Promise<CapacityEvidenceResult> {
   const pool = new Pool({
     connectionString: config.database_url,
     max: 4,

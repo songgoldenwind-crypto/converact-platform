@@ -40,6 +40,7 @@ test('Kamailio renderer emits the complete stateful SIP edge route machine', () 
   assert.match(rendered.kamailio_cfg, /ds_mark_dst\("tp"\)/);
   assert.match(rendered.kamailio_cfg, /record_route\(";ivkpin=/);
   assert.match(rendered.kamailio_cfg, /\$dlg_var\(ivekit_pin_set\)/);
+  assert.match(rendered.kamailio_cfg, /\$dlg_var\(ivekit_cell_epoch\) = "7";/);
   assert.match(rendered.kamailio_cfg, /\$\(route_uri\{uri\.param,ivkpin\}\)/);
   assert.match(rendered.kamailio_cfg, /dlg_manage\(\)/);
   assert.doesNotMatch(rendered.kamailio_cfg, /sqlite|sip:rustpbx:5060/);
@@ -47,9 +48,29 @@ test('Kamailio renderer emits the complete stateful SIP edge route machine', () 
 
 test('Kamailio renderer limits failover to transport, 408 and selected 5xx responses', () => {
   const cfg = render().kamailio_cfg;
+  const inviteFailure = cfg.slice(
+    cfg.indexOf('failure_route[RUSTPBX_FAILOVER]'),
+    cfg.indexOf('failure_route[RUSTPBX_REGISTER_FAILOVER]')
+  );
+  const registerFailure = cfg.slice(
+    cfg.indexOf('failure_route[RUSTPBX_REGISTER_FAILOVER]'),
+    cfg.indexOf('onreply_route[REGISTER_REPLY]')
+  );
 
   assert.match(cfg, /t_branch_timeout\(\)/);
-  assert.match(cfg, /t_check_status\("408\|500\|502\|503\|504"\)/);
+  for (const failureRoute of [inviteFailure, registerFailure]) {
+    const softOverload = failureRoute.slice(
+      failureRoute.indexOf('if (t_check_status("503"))'),
+      failureRoute.indexOf('if (!t_branch_timeout()')
+    );
+    assert.match(softOverload, /if \(t_check_status\("503"\)\)/);
+    assert.match(softOverload, /ds_next_dst\(\)/);
+    assert.doesNotMatch(softOverload, /ds_mark_dst\(/);
+    assert.match(
+      failureRoute,
+      /if \(!t_branch_timeout\(\) && !t_check_status\("408\|500\|502\|504"\)\) exit;[\s\S]*?ds_mark_dst\("tp"\)/
+    );
+  }
   assert.match(cfg, /t_is_canceled\(\)/);
   assert.match(cfg, /remove_record_route\(\)/);
   assert.match(
@@ -80,7 +101,18 @@ test('Kamailio renderer protects trust boundaries, RPC and topology data', () =>
   assert.match(cfg, /pike_check_req\(\)/);
   assert.doesNotMatch(cfg, /!~/);
   assert.match(cfg, /\$sht\(ivekit_source_cps=>/);
-  assert.match(cfg, /\$sht\(ivekit_global_cps=>/);
+  assert.match(cfg, /modparam\("htable", "htable", "ivekit_global_cps=>/);
+  assert.match(cfg, /\$sht\(ivekit_global_cps=>second\) != \$Ts/);
+  assert.match(cfg, /\$sht\(ivekit_global_cps=>count\) = 0/);
+  assert.match(
+    cfg,
+    /\$sht\(ivekit_global_cps=>count\) =\s*\$sht\(ivekit_global_cps=>count\) \+ 1/
+  );
+  assert.match(
+    cfg,
+    /if \(\$sht\(ivekit_global_cps=>count\) > 5000\) \{[\s\S]*?sl_send_reply\("503", "Cell CPS Exceeded"\)/
+  );
+  assert.doesNotMatch(cfg, /ratelimit|rl_check_pipe|\$vn\(|sht_lock|sht_unlock/);
   assert.match(cfg, /\$ml > 65535/);
   assert.match(
     cfg,
@@ -180,6 +212,82 @@ test('Kamailio renderer replicates only authenticated WebPhone locations across 
   assert.match(cfg, /dmq_handle_message\(\)/);
   assert.match(cfg, /update_stat\("ivekit_dmq_rejects", "\+1"\)/);
   assert.doesNotMatch(cfg, /ivekit_ws_sub[^\n]*(dmq|replicat)/i);
+});
+
+test('Kamailio renderer does not initialize DMQ modules when replication is disabled', () => {
+  const config = baseConfig();
+  const cfg = renderKamailioConfig({
+    ...config,
+    dmq: {
+      ...config.dmq,
+      enabled: false
+    }
+  }, secrets()).kamailio_cfg;
+
+  assert.doesNotMatch(cfg, /loadmodule "dmq\.so"/);
+  assert.doesNotMatch(cfg, /loadmodule "dmq_usrloc\.so"/);
+  assert.match(cfg, /sl_send_reply\("503", "DMQ Disabled"\)/);
+});
+
+test('Kamailio renderer mirrors SIP to an off-path HEPv3 collector without database writes', () => {
+  const cfg = renderKamailioConfig({
+    ...baseConfig(),
+    sip_trace: {
+      enabled: true,
+      collector_host: 'homer-capture.observability.svc.cluster.local',
+      collector_port: 9060,
+      capture_id: 101,
+      include_options: false,
+      initial_mode: 'off'
+    } as any
+  }, secrets()).kamailio_cfg;
+
+  assert.match(cfg, /loadmodule "siptrace\.so"/);
+  assert.match(cfg, /modparam\("siptrace", "duplicate_uri", "sip:homer-capture\.observability\.svc\.cluster\.local:9060"\)/);
+  assert.match(cfg, /modparam\("siptrace", "hep_mode_on", 1\)/);
+  assert.match(cfg, /modparam\("siptrace", "hep_version", 3\)/);
+  assert.match(cfg, /modparam\("siptrace", "hep_capture_id", 101\)/);
+  assert.match(cfg, /modparam\("siptrace", "trace_init_mode", 1\)/);
+  assert.match(cfg, /modparam\("siptrace", "trace_mode", 1\)/);
+  assert.match(cfg, /modparam\("siptrace", "trace_to_database", 0\)/);
+  assert.match(cfg, /loadmodule "cfgutils\.so"/);
+  assert.match(cfg, /ivekit_hep_control=>size=2/);
+  assert.match(cfg, /event_route\[htable:mod-init\]/);
+  assert.match(cfg, /\$sht\(ivekit_hep_control=>mode\) = 0/);
+  assert.match(cfg, /\$sht\(ivekit_hep_control=>sample_buckets\) = 102/);
+  assert.match(cfg, /event_route\[siptrace:msg\][\s\S]*ivekit_hep_control=>mode\) == 0[\s\S]*drop\(\)/);
+  assert.match(cfg, /core_hash\("\$ci", "", 10\)/);
+  assert.match(cfg, /\$rc > \$sht\(ivekit_hep_control=>sample_buckets\)/);
+  assert.match(cfg, /ivekit_hep_trace_events/);
+  assert.match(cfg, /ivekit_hep_trace_dropped_control/);
+  assert.match(cfg, /ivekit_hep_trace_sampled/);
+  assert.match(cfg, /event_route\[siptrace:msg\][\s\S]*is_method\("OPTIONS\|KDMQ"\)[\s\S]*drop\(\)/);
+  assert.doesNotMatch(cfg, /modparam\("siptrace", "db_url"/);
+});
+
+test('Kamailio renderer keeps HEP capture absent by default and rejects unsafe collectors', () => {
+  assert.doesNotMatch(render().kamailio_cfg, /siptrace/);
+  assert.throws(
+    () => renderKamailioConfig({
+      ...baseConfig(),
+      sip_trace: {
+        ...baseConfig().sip_trace,
+        enabled: true,
+        collector_host: '0.0.0.0'
+      }
+    }, secrets()),
+    /collector/i
+  );
+  assert.throws(
+    () => renderKamailioConfig({
+      ...baseConfig(),
+      sip_trace: {
+        ...baseConfig().sip_trace,
+        capture_id: 0
+      }
+    }, secrets()),
+    /capture_id/i
+  );
 });
 
 test('Kamailio renderer keeps disabled public WSS with no origins syntactically fail-closed', () => {
@@ -303,6 +411,45 @@ test('Kamailio runtime reads bounded secret files and writes generated configs a
   );
 });
 
+test('Kamailio runtime supports host-side rendering into container runtime paths', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'ivekit-kamailio-host-render-'));
+  const configFile = join(directory, 'config.json');
+  const topohFile = join(directory, 'topoh-key');
+  const rpcFile = join(directory, 'rpc-token');
+  const webphoneJwtFile = join(directory, 'webphone-jwt-secret');
+  const outputFile = join(directory, 'kamailio.cfg');
+  const tlsOutputFile = join(directory, 'tls.cfg');
+  const webphoneRuntimeFile = '/run/secrets/kamailio-webphone-jwt-secret';
+  const tlsRuntimeFile = '/etc/kamailio/tls.cfg';
+  await writeFile(configFile, JSON.stringify({
+    ...baseConfig(),
+    webphone_auth: {
+      ...baseConfig().webphone_auth,
+      jwt_secret_file: webphoneRuntimeFile
+    },
+    tls_config_file: tlsRuntimeFile
+  }), { mode: 0o600 });
+  await writeFile(topohFile, `${TOPOH_KEY}\n`, { mode: 0o600 });
+  await writeFile(rpcFile, `${RPC_TOKEN}\n`, { mode: 0o600 });
+  await writeFile(webphoneJwtFile, `${WEBPHONE_JWT_SECRET}\n`, { mode: 0o600 });
+
+  const runtime = await loadKamailioConfigRuntime({
+    OPC_IVEKIT_KAMAILIO_CONFIG_FILE: configFile,
+    OPC_IVEKIT_KAMAILIO_TOPOH_KEY_FILE: topohFile,
+    OPC_IVEKIT_KAMAILIO_RPC_TOKEN_FILE: rpcFile,
+    OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE: webphoneJwtFile,
+    OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_RUNTIME_FILE: webphoneRuntimeFile,
+    OPC_IVEKIT_KAMAILIO_OUTPUT_FILE: outputFile,
+    OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE: tlsOutputFile,
+    OPC_IVEKIT_KAMAILIO_TLS_RUNTIME_FILE: tlsRuntimeFile
+  });
+  await writeKamailioConfigRuntime(runtime);
+
+  assert.match(await readFile(outputFile, 'utf8'), /\/etc\/kamailio\/tls\.cfg/);
+  assert.match(await readFile(outputFile, 'utf8'), /\/run\/secrets\/kamailio-webphone-jwt-secret/);
+  assert.match(await readFile(tlsOutputFile, 'utf8'), /TLSv1\.2\+/);
+});
+
 test('Kamailio renderer has a file-only CLI and documented deployment contract', async () => {
   const [script, packageJson, envExample, referenceConfig, exampleJson] = await Promise.all([
     readFile(new URL('../scripts/render-kamailio-config.ts', import.meta.url), 'utf8'),
@@ -391,6 +538,14 @@ function baseConfig() {
       sync_batch_size: 4000,
       sync_batch_usleep: 1000,
       sync_message_contacts: 50
+    },
+    sip_trace: {
+      enabled: false,
+      collector_host: '127.0.0.1',
+      collector_port: 9060,
+      capture_id: 101,
+      include_options: false,
+      initial_mode: 'full' as const
     },
     max_message_bytes: 65_535,
     per_source_invite_cps: 100,

@@ -1,13 +1,13 @@
 # iveKit RustDesk Windows 固定版本部署
 
-更新日期：2026-07-17
+更新日期：2026-07-22
 
 ## 1. 用途与边界
 
 本部署包面向 OPC、LED 及其它业务的 Windows x64 受控终端，负责安装和校验以下组件：
 
-1. RustDesk OSS Windows client `1.4.7`。
-2. 与 RustDesk OSS server `1.1.15` 对齐的 self-hosted network config。
+1. RustDesk OSS Windows client `1.4.9` iveKit overlay。
+2. 与 RustDesk OSS server `1.1.16` iveKit fork 对齐的 self-hosted network config。
 3. iveKit effective capability policy。
 4. iveKit RustDesk edge companion 及 Windows 断开/服务恢复 adapter。
 5. 固定 WinSW `2.12.0` 的独立 Windows service。
@@ -25,10 +25,10 @@ UAC/login screen、真实 P2P/relay、键鼠、双屏、文件、剪贴板、录
 
 | 组件 | 固定版本 | 校验 |
 | --- | --- | --- |
-| RustDesk Windows x64 client | `1.4.7` | profile URL/filename/version、SHA-256、安装前 Authenticode publisher |
-| RustDesk OSS server | `1.1.15` | client profile 与 server evidence pin |
+| RustDesk Windows x64 client | `1.4.9@6c578292e8ebbbec708b76986ba8c4bc7c509747` | profile URL/filename/version、SHA-256、安装前 Authenticode publisher、overlay source identity |
+| RustDesk OSS server | `1.1.16@73523b31cfd25d77dee862e6fc9f5e1fb5e485ef` | client profile、server evidence 与 fork manifest pin |
 | WinSW x64 | `2.12.0` | 官方 release URL、运维录入的 SHA-256 |
-| Node.js | `>=23.0.0` | Windows `validate/install/repair` 读取实际 `node --version` |
+| Node.js | `>=24.0.0 <25.0.0` | Windows `validate/install/repair` 读取实际 `node --version` |
 | iveKit companion | manifest schema `1`、package version `6` | edge files manifest SHA-256、source commit、package aggregate hash、placement 与 owner-epoch protocol |
 
 RustDesk profile 必须先由 `npm run rustdesk:client-profile-pack` 从 iveKit API 生成。Windows generator
@@ -214,12 +214,12 @@ keyboard/mouse、multi-display、file、clipboard、recording、reconnect、auth
 | 错误 | 检查 |
 | --- | --- |
 | package hash/size mismatch | 包是否被改写、换行是否被工具转换、是否混入旧 release 文件 |
-| installer identity/version drift | client profile 是否来自当前 iveKit release，URL 是否仍指向 `1.4.7` |
+| installer identity/version drift | client profile 是否来自当前 iveKit release，URL 是否仍指向 `1.4.9` |
 | Authenticode validation failed | 下载物是否被代理替换、签名链是否受信、publisher 是否包含 RustDesk |
 | `--config` 或 `--option` 被拒绝 | 是否已管理员安装、RustDesk settings 是否被更高优先级 policy 禁止 CLI 修改 |
 | option readback drift | 本机策略/用户设置是否覆盖 package policy；不得绕过，应修复后重跑 repair |
 | invalid runtime ID | RustDesk service、ID server DNS/端口/key 是否正确 |
-| companion 启动失败 | Node >=23、WinSW wrapper log、token ACL、BaseUrl/Tenant/business ref 和 spool 路径 |
+| companion 启动失败 | Node >=24、WinSW wrapper log、token ACL、BaseUrl/Tenant/business ref 和 spool 路径 |
 | observation 不上报 | device 是否预注册、token identity/RustDesk ID、inbox 是否原子 `.json`、spool/quarantine 状态 |
 | evidence 不上传 | gateway 是否 active 且有 `record_screen/transfer_file` scope、manifest 是否无绝对路径、payload 是否已原子入 inbox、evidence spool/retry 状态 |
 | evidence 已上传但不可下载 | 正常检查 `scanning/processing/infected/failed`；只有 Stage 2 安全文件状态 `ready` 可下载 |

@@ -5,9 +5,14 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const LIVEKIT_UPSTREAM_TAG = 'v1.13.3';
+export const LIVEKIT_UPSTREAM_TAG = 'v1.13.4';
 export const LIVEKIT_UPSTREAM_COMMIT =
-  '8f6a9cb8b735549f0c5770df8ea70ac51f860ecb';
+  '0b3fd288e3ef3263ec475ba0d78cf3ad77459981';
+
+const LIVEKIT_BUILDER_IMAGE =
+  'golang:1.26-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2';
+const LIVEKIT_RUNTIME_IMAGE =
+  'alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40';
 
 export function applyPinnedPatch(sourceDir, patchPath) {
   const check = ['-C', sourceDir, 'apply', '--check', patchPath];
@@ -75,10 +80,48 @@ replace ivekit.local/livekitowner => ./ivekit/livekit-owner
 }
 
 export function patchLiveKitDockerfile(source) {
-  if (!source.includes('FROM golang:1.26-alpine AS builder')) {
+  const mutableBuilder = 'FROM golang:1.26-alpine AS builder';
+  const pinnedBuilder = `FROM ${LIVEKIT_BUILDER_IMAGE} AS builder`;
+  if (!source.includes(mutableBuilder) && !source.includes(pinnedBuilder)) {
     throw new Error('LiveKit Dockerfile builder identity mismatch');
   }
-  let next = source;
+  const mutableRuntime = 'FROM alpine';
+  const pinnedRuntime = `FROM ${LIVEKIT_RUNTIME_IMAGE}`;
+  if (!source.split('\n').includes(mutableRuntime) &&
+      !source.split('\n').includes(pinnedRuntime)) {
+    throw new Error('LiveKit Dockerfile runtime identity mismatch');
+  }
+  let next = source
+    .replace(mutableBuilder, pinnedBuilder)
+    .replace(`${mutableRuntime}\n`, `${pinnedRuntime}\n`);
+  const runtimeUser =
+    'RUN addgroup -S -g 10001 livekit \\\n' +
+    '  && adduser -S -D -H -u 10001 -G livekit livekit\n';
+  if (!next.includes(runtimeUser)) {
+    next = replaceOnce(
+      next,
+      `${pinnedRuntime}\n`,
+      `${pinnedRuntime}\n\n${runtimeUser}`,
+      'Dockerfile non-root runtime user'
+    );
+  }
+  const mutableBinaryCopy =
+    'COPY --from=builder /workspace/livekit-server /livekit-server';
+  const ownedBinaryCopy =
+    'COPY --from=builder --chown=livekit:livekit /workspace/livekit-server /livekit-server';
+  if (next.includes(mutableBinaryCopy)) {
+    next = next.replace(mutableBinaryCopy, ownedBinaryCopy);
+  } else if (!next.includes(ownedBinaryCopy)) {
+    throw new Error('LiveKit Dockerfile runtime binary copy mismatch');
+  }
+  if (!next.includes('\nUSER livekit\n')) {
+    next = replaceOnce(
+      next,
+      '\nENTRYPOINT ["/livekit-server"]',
+      '\nUSER livekit\n\nENTRYPOINT ["/livekit-server"]',
+      'Dockerfile non-root runtime identity'
+    );
+  }
   if (!/^COPY ivekit\/ ivekit\/$/m.test(next)) {
     next = replaceOnce(
       next,
@@ -422,7 +465,7 @@ export async function applyLiveKitOverlay(input) {
     { recursive: true, force: true }
   );
   await cp(
-    join(repoRoot, 'integrations/livekit-v1.13.3'),
+    join(repoRoot, 'integrations/livekit-v1.13.4'),
     ownerTarget,
     { recursive: true, force: true }
   );

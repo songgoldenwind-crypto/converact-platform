@@ -11,8 +11,9 @@ if [[ ! -d "$HOOK_DIR" && -d "$BUNDLE_ROOT/fork-hooks/rust" ]]; then
 fi
 RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
+RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-PATCHSET="ivekit.16"
+PATCHSET="ivekit.21"
 IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 case "$(uname -m)" in
@@ -42,6 +43,8 @@ git clone --filter=blob:none --no-checkout https://github.com/restsend/rustpbx.g
 git -C "$BUILD_ROOT/rustpbx" checkout --detach "$RUSTPBX_COMMIT"
 git clone --filter=blob:none --no-checkout https://github.com/restsend/rsipstack.git "$BUILD_ROOT/rsipstack"
 git -C "$BUILD_ROOT/rsipstack" checkout --detach "$RSIPSTACK_COMMIT"
+git clone --filter=blob:none --no-checkout https://github.com/restsend/rustrtc.git "$BUILD_ROOT/rustrtc"
+git -C "$BUILD_ROOT/rustrtc" checkout --detach "$RUSTRTC_COMMIT"
 
 git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-tcp-reconnect.patch"
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-tcp-reconnect.patch"
@@ -49,6 +52,8 @@ git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-capaci
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-capacity.patch"
 git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-retransmission-atomicity.patch"
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-retransmission-atomicity.patch"
+git -C "$BUILD_ROOT/rustrtc" apply --check "$PATCH_DIR/rustrtc-ivekit-udp-socket-capacity.patch"
+git -C "$BUILD_ROOT/rustrtc" apply "$PATCH_DIR/rustrtc-ivekit-udp-socket-capacity.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-ami-dialogs.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-ami-dialogs.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-rwi-originate-hangup.patch"
@@ -63,6 +68,8 @@ git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-recording-
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-recording-spool.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-local-rsipstack.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-local-rsipstack.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-local-rustrtc.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-local-rustrtc.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-sip-capacity.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-sip-capacity.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-media-hot-path.patch"
@@ -81,6 +88,10 @@ git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-callrecord
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-callrecord-failure-telemetry.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-webphone-edge-auth.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-webphone-edge-auth.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-realtime-audio-tap.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-realtime-audio-tap.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-http-client-capacity.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-http-client-capacity.patch"
 
 mkdir -p "$BUILD_ROOT/rustpbx/vendor/ivekit-component-hook"
 cp -R "$HOOK_DIR/." \
@@ -109,6 +120,19 @@ if [[ -n "${IVEKIT_RUSTPBX_CARGO_HOME:-}" ]]; then
   DOCKER_RUN_ARGS+=(-v "$CARGO_HOME_DIR:/cargo-home" -e CARGO_HOME=/cargo-home)
 fi
 
+if [[ -n "${IVEKIT_RUSTPBX_LOCKFILE_OUTPUT:-}" ]]; then
+  docker run "${DOCKER_RUN_ARGS[@]}" \
+    -v "$BUILD_ROOT:/build" \
+    -w /build/rustpbx \
+    "$RUST_BUILDER_IMAGE" \
+    cargo metadata --format-version 1 >/dev/null
+  LOCKFILE_OUTPUT_DIR="$(dirname "$IVEKIT_RUSTPBX_LOCKFILE_OUTPUT")"
+  mkdir -p "$LOCKFILE_OUTPUT_DIR"
+  cp "$BUILD_ROOT/rustpbx/Cargo.lock" "$IVEKIT_RUSTPBX_LOCKFILE_OUTPUT"
+  printf '%s\n' "$IVEKIT_RUSTPBX_LOCKFILE_OUTPUT"
+  exit 0
+fi
+
 docker run "${DOCKER_RUN_ARGS[@]}" \
   -v "$BUILD_ROOT:/build" \
   -w /build/rustpbx \
@@ -124,6 +148,7 @@ docker build \
   --build-arg "TARGETARCH=$TARGETARCH" \
   --build-arg "RUSTPBX_COMMIT=$RUSTPBX_COMMIT" \
   --build-arg "RSIPSTACK_COMMIT=$RSIPSTACK_COMMIT" \
+  --build-arg "RUSTRTC_COMMIT=$RUSTRTC_COMMIT" \
   --build-arg "IVEKIT_PATCHSET=$PATCHSET" \
   -t "$IMAGE" \
   "$BUILD_ROOT/rustpbx"

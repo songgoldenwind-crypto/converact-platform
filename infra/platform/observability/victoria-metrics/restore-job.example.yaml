@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ivekit-victoria-metrics-restore
+  labels:
+    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/component: restore
+spec:
+  suspend: true
+  backoffLimit: 0
+  activeDeadlineSeconds: 21600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ivekit-victoria-metrics
+        app.kubernetes.io/component: restore
+        opc.ivekit.io/victoria-metrics-role: backup
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vmrestore
+          image: victoriametrics/vmrestore@sha256:9a35e0b371f7afa435e6425afeaf5091fbf436dfc0e5273d63e096749a17b3dd
+          imagePullPolicy: IfNotPresent
+          args:
+            - -envflag.enable
+            - -envflag.prefix=VM_
+            - -storageDataPath=/storage
+            - -concurrency=2
+            - -maxBytesPerSecond=104857600
+            - -loggerFormat=json
+          env:
+            - name: VM_src
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-victoria-metrics-backup
+                  key: restoreSource
+            - name: VM_customS3Endpoint
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-victoria-metrics-backup
+                  key: endpoint
+                  optional: true
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-victoria-metrics-backup
+                  key: accessKeyId
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-victoria-metrics-backup
+                  key: secretAccessKey
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: data
+              mountPath: /storage
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ivekit-victoria-metrics-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi

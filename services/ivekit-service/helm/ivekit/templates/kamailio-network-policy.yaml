@@ -86,4 +86,26 @@ spec:
       ports:
         - port: {{ $kamailio.listeners.dmqPort }}
           protocol: UDP
+    {{- if $kamailio.sipTrace.enabled }}
+    - to:
+        {{- if and (not (empty $kamailio.networkPolicy.hepCollectorNamespaceSelector)) (not (empty $kamailio.networkPolicy.hepCollectorPodSelector)) }}
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml $kamailio.networkPolicy.hepCollectorNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml $kamailio.networkPolicy.hepCollectorPodSelector | nindent 14 }}
+        {{- end }}
+        {{- range $kamailio.networkPolicy.hepCollectorCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - port: {{ $kamailio.sipTrace.collectorPort }}
+          protocol: UDP
+        {{- if $kamailio.sipTrace.highWater.enabled }}
+        - port: {{ $kamailio.sipTrace.metricsPort }}
+          protocol: TCP
+        {{- end }}
+    {{- end }}
 {{- end }}

@@ -1,7 +1,7 @@
 import { rustDeskClientConfig } from './rustdesk-client-config.js';
 
-export const RUSTDESK_CLIENT_VERSION = '1.4.7' as const;
-export const RUSTDESK_SERVER_VERSION = '1.1.15' as const;
+export const RUSTDESK_CLIENT_VERSION = '1.4.9' as const;
+export const RUSTDESK_SERVER_VERSION = '1.1.16' as const;
 
 export type RustDeskClientDistributionPlatform = 'windows' | 'macos' | 'linux';
 export type RustDeskClientDistributionArchitecture = 'x86_64' | 'aarch64';
@@ -397,7 +397,7 @@ function assertArtifactIdentity(
   }
   const expectedFilename = `rustdesk-${RUSTDESK_CLIENT_VERSION}-${architecture}${extension}`;
   const customWindowsFilename = platform === 'windows' && architecture === 'x86_64' &&
-    /^rustdesk-1\.4\.7-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
+    /^rustdesk-1\.4\.9-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
   if (filename !== expectedFilename && !customWindowsFilename) {
     throw profileError(`RustDesk client artifact filename must equal ${expectedFilename} or a pinned iveKit Windows variant`, 500);
   }

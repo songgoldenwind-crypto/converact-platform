@@ -5,13 +5,22 @@ import json
 import logging
 
 import numpy as np
-from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli
+from livekit.agents import Agent, AgentSession, JobContext, JobProcess, WorkerOptions, cli
 from livekit.plugins import silero
 
+from livekit_audio_tap_transport import start_configured_livekit_audio_tap
 from opc_client import OPCClient
 from plugins.llm_config import get_llm
+from plugins.provider_runtime import build_session_connect_options
 from plugins.stt_selector import select_stt
 from plugins.tts_selector import select_tts
+from realtime_pipeline import (
+    aec_warmup_seconds,
+    build_turn_handling,
+    extract_conversation_turn,
+    extract_voice_latency_observations,
+    vad_load_options,
+)
 from scripts.spec_loader import resolve_agent_spec
 from tool_context import ToolContext
 from tools import (
@@ -26,6 +35,11 @@ from tools import (
     schedule_callback,
     send_material,
     transfer_human,
+)
+from voice_latency_metrics import (
+    prometheus_port,
+    record_voice_latency_observations,
+    start_voice_latency_metrics_server,
 )
 
 logger = logging.getLogger("ai-agent")
@@ -55,6 +69,10 @@ OUTBOUND_CAMPAIGN_TOOLS = [
     "report_call_outcome",
     "generate_summary",
 ]
+
+
+def prewarm_process(proc: JobProcess) -> None:
+    proc.userdata["vad"] = silero.VAD.load(**vad_load_options({"media_source": "sip"}))
 
 
 def build_tool(ctx: ToolContext, name: str):
@@ -91,7 +109,14 @@ def build_tool(ctx: ToolContext, name: str):
 async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect()
     opc = OPCClient()
-    ctx.add_shutdown_callback(opc.aclose)
+    audio_tap = None
+
+    async def shutdown_runtime() -> None:
+        if audio_tap is not None:
+            await audio_tap.stop()
+        await opc.aclose()
+
+    ctx.add_shutdown_callback(shutdown_runtime)
 
     try:
         room_meta = json.loads(ctx.room.metadata or "{}")
@@ -101,6 +126,19 @@ async def entrypoint(ctx: JobContext) -> None:
         tenant_id = room_meta.get("tenant_id", "")
         call_session_id = room_meta.get("call_session_id", "")
         current_node_id = room_meta.get("current_node_id")
+
+        try:
+            audio_tap = await start_configured_livekit_audio_tap(
+                room=ctx.room,
+                metadata=room_meta,
+                opc=opc,
+                on_event=_observe_audio_tap_event,
+            )
+        except Exception as error:
+            logger.warning(
+                "LiveKit audio tap unavailable; continuing primary media: %s",
+                type(error).__name__,
+            )
 
         script, spec = await resolve_agent_spec(
             opc=opc,
@@ -162,24 +200,55 @@ async def entrypoint(ctx: JobContext) -> None:
             bind_avatar_audio_session(avatar_session_key)
             ctx.add_shutdown_callback(_release_avatar_audio_feed)
 
+        vad = ctx.proc.userdata.get("vad")
+        if vad is None:
+            logger.warning("worker VAD was not prewarmed; loading in session")
+            vad = silero.VAD.load(**vad_load_options(room_meta))
+
         session = AgentSession(
-            vad=silero.VAD.load(),
-            stt=select_stt(language),
+            vad=vad,
+            stt=select_stt(language, vad=vad),
             llm=get_llm(),
             tts=select_tts(language, avatar_session_key=avatar_session_key),
+            turn_handling=build_turn_handling(room_meta),
+            aec_warmup_duration=aec_warmup_seconds(room_meta),
+            conn_options=build_session_connect_options(),
         )
 
         agent = Agent(instructions=instructions, tools=tools)
 
-        @session.on("user_speech_committed")
-        def on_user_speech(ev) -> None:
-            text = getattr(ev, "text", None) or str(ev)
-            asyncio.create_task(opc.report_turn(call_session_id, "customer", text))
-
-        @session.on("agent_speech_committed")
-        def on_agent_speech(ev) -> None:
-            text = getattr(ev, "text", None) or str(ev)
-            asyncio.create_task(opc.report_turn(call_session_id, "ai", text))
+        @session.on("conversation_item_added")
+        def on_conversation_item(ev) -> None:
+            try:
+                record_voice_latency_observations(
+                    extract_voice_latency_observations(
+                        ev,
+                        media_source=room_meta.get("media_source"),
+                    )
+                )
+            except Exception:
+                logger.warning(
+                    "voice latency observation failed; continuing session",
+                    exc_info=True,
+                )
+            turn = extract_conversation_turn(ev)
+            if turn is None:
+                return
+            logger.info(
+                "voice turn committed role=%s interrupted=%s latency_ms=%s",
+                turn["role"],
+                turn["interrupted"],
+                turn.get("latency_ms"),
+            )
+            asyncio.create_task(
+                opc.report_turn(
+                    call_session_id,
+                    turn["role"],
+                    turn["content"],
+                    stt_confidence=turn.get("stt_confidence"),
+                    latency_ms=turn.get("latency_ms"),
+                )
+            )
 
         await session.start(agent=agent, room=ctx.room)
 
@@ -231,13 +300,9 @@ async def entrypoint(ctx: JobContext) -> None:
 
             ctx.add_shutdown_callback(_stop_avatar_video)
 
-            @session.on("agent_started_speaking")
-            def on_speak_start() -> None:
-                avatar.set_speaking(True)
-
-            @session.on("agent_stopped_speaking")
-            def on_speak_stop() -> None:
-                avatar.set_speaking(False)
+            @session.on("agent_state_changed")
+            def on_agent_state_changed(event) -> None:
+                avatar.set_speaking(event.new_state == "speaking")
 
         from llm_client import aclose_llm_http
 
@@ -271,8 +336,41 @@ async def entrypoint(ctx: JobContext) -> None:
         raise
 
 
+def _observe_audio_tap_event(event: dict) -> None:
+    event_type = str(event.get("type") or "unknown")
+    reason = str(event.get("reason") or "")
+    dropped_ms = int(event.get("dropped_duration_ms") or 0)
+    if event_type.endswith(("failed", "control_failed")):
+        logger.warning(
+            "LiveKit audio tap event type=%s reason=%s",
+            event_type,
+            reason,
+        )
+    else:
+        logger.debug(
+            "LiveKit audio tap event type=%s reason=%s dropped_ms=%d",
+            event_type,
+            reason,
+            dropped_ms,
+        )
+
+
 def main() -> None:
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, agent_name="ai-agent"))
+    try:
+        start_voice_latency_metrics_server()
+    except OSError as error:
+        logger.warning(
+            "voice latency metrics collector unavailable; continuing worker: %s",
+            type(error).__name__,
+        )
+    cli.run_app(
+        WorkerOptions(
+            entrypoint_fnc=entrypoint,
+            prewarm_fnc=prewarm_process,
+            agent_name="ai-agent",
+            prometheus_port=prometheus_port(),
+        )
+    )
 
 
 if __name__ == "__main__":

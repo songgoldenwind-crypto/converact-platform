@@ -248,11 +248,11 @@ guard for the upstream forks. Open, periodic refresh and close may call the loca
 Per-command owner checks read only the in-process epoch/lease cache. RTP packets, WebRTC forwarding,
 RustDesk frames and Tinode fanout never call the agent.
 
-`integrations/livekit-v1.13.3/` specializes the Go guard for LiveKit rooms. Signed participant
+`integrations/livekit-v1.13.4/` specializes the Go guard for LiveKit rooms. Signed participant
 metadata supplies interaction, reservation, node and owner epoch. The first join opens the owner;
 subsequent joins, signals and administrative mutations use the local room registry. Refresh is
 bounded to batches of 64 and isolates stale rooms. `infra/ivekit/livekit/apply-overlay.mjs` is tied
-to `v1.13.3@8f6a9cb8b735549f0c5770df8ea70ac51f860ecb` and fails on source drift. It
+to `v1.13.4@0b3fd288e3ef3263ec475ba0d78cf3ad77459981` and fails on source drift. It
 also replaces LiveKit's generated internal node ID with `IVEKIT_COMPONENT_NODE_ID` before
 Prometheus, SignalClient and Router initialization, so Redis room routing, iveKit placement and the
 local sidecar use the same stable StatefulSet ordinal.
@@ -275,7 +275,7 @@ target fail closed. Claimed bindings are checkpointed to the ordinal's persisten
 expire automatically if pairing never completes.
 
 `infra/ivekit/rustdesk-server/` is pinned to
-`1.1.15@9bae9f2f39d92c4b4ba2e28e089da5071897b22e`. Its overlay leaves the opaque
+`1.1.16@73523b31cfd25d77dee862e6fc9f5e1fb5e485ef`. Its overlay leaves the opaque
 relay byte-copy branches unchanged. RustDesk's existing three-second timer performs only an
 in-process owner assertion so a stale lease terminates the exact relay without a network call.
 `infra/capacity/kubernetes/rustdesk-statefulset.yaml` colocates hbbs, hbbr, the binding broker and

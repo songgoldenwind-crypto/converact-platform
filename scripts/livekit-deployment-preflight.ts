@@ -75,9 +75,9 @@ type LiveKitReadinessTarget =
 type LiveKitDeploymentMode = 'external' | 'standalone-vm' | 'bundled-dev';
 
 const DEFAULT_MEDIA_IMAGE_TAGS = {
-  server: 'v1.13.3',
+  server: 'v1.13.4-ivekit.1',
   egress: 'v1.13.0',
-  sip: 'v1.6.0',
+  sip: 'v1.7.0',
   caddyl4: 'v2.11.3',
   redis: '7.4.9'
 } as const;
@@ -180,8 +180,14 @@ export function createLiveKitDeploymentPreflightReport(
     addPinnedImageTagCheck(checks, 'livekit_sip_image_tag', env.LIVEKIT_SIP_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.sip);
     addPinnedImageTagCheck(checks, 'livekit_caddyl4_image_tag', env.LIVEKIT_CADDYL4_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.caddyl4);
     addPinnedImageTagCheck(checks, 'livekit_redis_image_tag', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis);
-    addImmutableImageCheck(checks, 'livekit_server_image', env.LIVEKIT_SERVER_IMAGE);
+    addImmutableImageCheck(
+      checks,
+      'livekit_server_image',
+      env.LIVEKIT_SERVER_IMAGE,
+      'ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server'
+    );
     addImmutableImageCheck(checks, 'livekit_egress_image', env.LIVEKIT_EGRESS_IMAGE);
+    addImmutableImageCheck(checks, 'livekit_sip_image', env.LIVEKIT_SIP_IMAGE);
     addImmutableImageCheck(checks, 'livekit_caddyl4_image', env.LIVEKIT_CADDYL4_IMAGE);
     addImmutableImageCheck(checks, 'livekit_redis_image', env.LIVEKIT_REDIS_IMAGE);
   }
@@ -469,6 +475,7 @@ function liveKitDeploymentEnvChecklistItems(env: NodeJS.ProcessEnv): LiveKitDepl
     item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE_TAG', false, 'Pinned Redis image tag for standalone Media Core.', env.LIVEKIT_REDIS_IMAGE_TAG || DEFAULT_MEDIA_IMAGE_TAGS.redis),
     item('LiveKit Server', 'LIVEKIT_SERVER_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable LiveKit Server tag@sha256 reference.', env.LIVEKIT_SERVER_IMAGE),
     item('LiveKit Server', 'LIVEKIT_EGRESS_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable LiveKit Egress tag@sha256 reference.', env.LIVEKIT_EGRESS_IMAGE),
+    item('LiveKit Server', 'LIVEKIT_SIP_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable iveKit LiveKit SIP image@sha256 reference.', env.LIVEKIT_SIP_IMAGE),
     item('LiveKit Server', 'LIVEKIT_CADDYL4_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable Caddy L4 tag@sha256 reference.', env.LIVEKIT_CADDYL4_IMAGE),
     item('LiveKit Server', 'LIVEKIT_REDIS_IMAGE', parseDeploymentMode(env.OPC_LIVEKIT_DEPLOYMENT_MODE) === 'standalone-vm', 'Immutable Redis tag@sha256 reference.', env.LIVEKIT_REDIS_IMAGE),
     item('LiveKit Server', 'LIVEKIT_API_KEY', true, 'LiveKit API key. Can fall back to OPC_LIVEKIT_API_KEY.', env.LIVEKIT_API_KEY || env.OPC_LIVEKIT_API_KEY, true),
@@ -697,14 +704,25 @@ function addPinnedImageTagCheck(
 function addImmutableImageCheck(
   checks: LiveKitDeploymentPreflightCheck[],
   id: string,
-  value: string | undefined
+  value: string | undefined,
+  requiredRepository?: string
 ): void {
-  const valid = IMMUTABLE_IMAGE_REFERENCE.test(String(value || '').trim());
+  const normalized = String(value || '').trim();
+  const subject = normalized.slice(0, normalized.lastIndexOf('@'));
+  const tagSeparator = subject.lastIndexOf(':');
+  const repository = tagSeparator > subject.lastIndexOf('/') ? subject.slice(0, tagSeparator) : subject;
+  const zeroDigest = /@sha256:0{64}$/.test(normalized);
+  const repositoryValid = !requiredRepository || repository === requiredRepository;
+  const valid = IMMUTABLE_IMAGE_REFERENCE.test(normalized) && !zeroDigest && repositoryValid;
   addCheck(
     checks,
     id,
     valid ? 'pass' : 'fail',
-    valid ? `${id} uses an immutable sha256 digest` : `${id} must be a tag@sha256 image reference`
+    valid
+      ? `${id} uses an immutable sha256 digest`
+      : requiredRepository
+        ? `${id} must use ${requiredRepository} with a non-placeholder sha256 digest`
+        : `${id} must be a tag@sha256 image reference with a non-placeholder digest`
   );
 }
 

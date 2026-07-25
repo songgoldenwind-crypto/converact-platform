@@ -308,7 +308,7 @@ iveKit 的目标不是只服务 OPC 当前页面，而是作为“视频 + IM + 
 
 - 已完成：除原有 gateway/client-config/launch/audit/LED facade 能力外，已经增加 PostgreSQL `rustdesk_device_commands`、FORCE RLS、幂等 enqueue、并发 claim lease、claim token hash、设备绑定 HMAC edge token、进度/结果 API、并发 result 幂等、耗尽 lease 查询收敛、三次执行与退避、session adapter→service restart fallback、设备侧无 shell executor、超时进程组强制终止、结果摘要/哈希、全部结束入口的 reason 映射、严格 capability heartbeat 门禁、HTTP client/LED SDK 状态查询、physical-disconnect readiness、真实客户端 acceptance 字段与绑定审计要求，以及 Compose/K8s/server 与 edge 两个信任域的配置样例。详细实现和 API 见 §6.4.5。
 - 已完成：`clients/ivekit-reference` 增加独立 **Remote** 工作区，统一客户端通过顶层 Messages / Calls / Remote 三个工作区切换。Remote 工作区支持 business ref 解析注册设备、权限 scope 与 attended/unattended 选择、gateway session 创建、实际 granted scope、控制 owner/version、审计数量和物理断开状态展示，以及 ID server、relay、可选 API server、public key 和 fingerprint 手工配置。它只在用户点击时即时重取 launch plan，校验会话、目标、`rustdesk://` scheme 和 fingerprint 后拉起原生客户端，不把 signed launch URL/token 渲染到 DOM 或持久化。unattended 普通刷新不重复消费二次确认；主动拉起会重新确认。当前身份持有控制权时每 10 秒自动 heartbeat，失去 ownership、会话结束或卸载即停止；续租失败后以服务端 ownership 为准。控制权支持 acquire/release/transfer，组件提供 business ref、remote session 和 access mode 预填参数及可注入 protocol opener，便于 LED 壳层复用。
-- 已完成：新增 Windows、macOS、Linux 六个设备端 targeted-disconnect/service-restart wrapper；支持无副作用 validate、固定 argv 占位符、local-only session hook、服务存在性检查、幂等重复调用、缺失精准 hook/服务的可区分退出语义，并继续复用 edge executor 的 timeout、进程组强杀、输出限长哈希和 restart collateral-risk 审计。RustDesk OSS 1.4.7 没有稳定跨平台 incoming-session disconnect CLI，因此精准能力由本地版本专用 hook 显式提供，不猜测私有 IPC。
+- 已完成：新增 Windows、macOS、Linux 六个设备端 targeted-disconnect/service-restart wrapper；支持无副作用 validate、固定 argv 占位符、local-only session hook、服务存在性检查、幂等重复调用、缺失精准 hook/服务的可区分退出语义，并继续复用 edge executor 的 timeout、进程组强杀、输出限长哈希和 restart collateral-risk 审计。RustDesk OSS 1.4.9 没有稳定跨平台 incoming-session disconnect CLI，因此精准能力由本地版本专用 hook 显式提供，不猜测私有 IPC。
 - 已完成：新增 `remote.rustdesk.operation.observed` canonical telemetry 和 `scripts/rustdesk-operation-observer.ts`，统一 view/control/multi-display/file/clipboard/recording/disconnect 的 operation ID、status、observer、direction、display、byte count、checksum、duration 和 evidence refs；缺失遥测保持 `not_observed`。SDK 暴露 `recordOperationObservation()`。observer 复用 event-forwarder retry/dead-letter/replay 和稳定幂等键；服务端递归拒绝操作内容及凭证字段。control/file/clipboard 观察必须在数据库锁内匹配 active controller 和 control version 后才写审计。
 - 待服务器验收：按 RustDesk profile 启动真实 `hbbs/hbbr`，部署 Linux/Windows/macOS 设备 wrapper 和 edge agent，确认真实 RustDesk 版本下 targeted disconnect 或 service restart 的实际效果；使用两个真实客户端建立连接，执行 consent revoke/tool end/direct gateway end，验证控制端屏幕和键鼠能力停止、命令状态为 `succeeded`、requested→claimed→succeeded 审计完整、旧 launch URL 返回 409，并确认 fallback 重启造成的其它会话影响符合预期。
 - 第一版不做：fork RustDesk client、依赖 RustDesk Server Pro API、在应用表里保存 unattended password。
@@ -1177,7 +1177,7 @@ because absolute API paths would otherwise discard it.
 
 V1 支持窗口和 Windows/macOS/Linux 限制见
 [RustDesk client/server 版本矩阵](rustdesk-client-version-matrix.md)。矩阵固定
-`rustdesk-server:1.1.15` 与 RustDesk OSS client `1.4.7`；真实终端证据尚未执行的
+RustDesk Server `1.1.16@73523b31...` 与 RustDesk OSS client `1.4.9@6c578292...`；真实终端证据尚未执行的
 能力保持 `not_run`，不得用 mock、controlled E2E 或配置检查替代。
 
 浏览器使用短期 Bearer token，不接收 API key、private key、edge signing secret、
@@ -2166,7 +2166,7 @@ macOS 使用 `macos-disconnect.sh` / `macos-restart.sh`，默认 launchd label �
 
 六个 wrapper 均支持 `validate` 模式；该模式只检查本地 hook/service 可用性并输出无秘密 JSON，不执行断开或重启。edge agent 的正式 command args 必须使用 `execute`，不能把 validate 的退出 0 当作已物理断开。
 
-RustDesk OSS 1.4.7 当前没有公开、稳定、跨平台的 incoming-session targeted disconnect CLI。因此仓库不猜测私有 IPC：有本地版本专用 hook 时走精准路径，没有时明确失败并进入 service restart。真实控制端是否停止画面和键鼠仍必须由两台物理客户端观察，不能由 wrapper 退出码替代。
+RustDesk OSS 1.4.9 当前没有公开、稳定、跨平台的 incoming-session targeted disconnect CLI。因此仓库不猜测私有 IPC：有本地版本专用 hook 时走精准路径，没有时明确失败并进入 service restart。真实控制端是否停止画面和键鼠仍必须由两台物理客户端观察，不能由 wrapper 退出码替代。
 
 edge agent 使用 Node `spawn(executable, args, {shell:false})`。固定 args 支持且只支持 `{command_id}`、`{external_id}`、`{target_id}`、`{rustdesk_id}`、`{requested_reason}` 五个整参数占位符；未知占位符在启动阶段失败，不做字符串内插。相同标识也会通过以下环境变量交给兼容旧 wrapper：
 
@@ -3024,7 +3024,7 @@ OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL=0
 OPC_REMOTE_GATEWAY_CREATE_PATH=
 OPC_REMOTE_GATEWAY_SESSION_PATH=
 OPC_REMOTE_GATEWAY_AUDIT_PATH=
-RUSTDESK_SERVER_IMAGE_TAG=1.1.15
+RUSTDESK_SERVER_IMAGE_TAG=1.1.16
 RUSTDESK_ALWAYS_USE_RELAY=N
 OPC_RUSTDESK_CONTROL_PLANE_BASE_URL=
 OPC_RUSTDESK_ID_SERVER=
@@ -3266,7 +3266,7 @@ git diff --check
 | `npm run rustdesk:deployment-preflight` | RustDesk 无网络部署预检；在服务器 `opc` 容器内检查 control-plane base URL/token、public key 环境变量或文件、ID Server、launch base URL、生产 HTTPS launch base URL 门禁、target 或 edge-agent 派生目标、租户、collaboration API key、端口探测主机、protocol URL 模板和 edge-agent 输入。严格物理断开打开时必须声明 physical-disconnect readiness，并配置至少 32 字符的服务端 edge-token secret；同一轮运行 edge command readiness 时还会检查设备绑定 command token、edge API key/tenant、本地 adapter 和 poll/lease/timeout，且 lease 必须满足 `2 * timeout + 1000ms`。OPC 服务进程不要求设备 executable path，设备侧路径/args 也不会写进报告。`OPC_RUSTDESK_READINESS_REQUIRE_HTTPS_LAUNCH_URL=1` 时，公开 launch base URL 必须是 `https://`，否则以 `launch_base_url_https` 失败；失败时返回非 0，报告不输出 token 原文；设置 `OPC_RUSTDESK_PREFLIGHT_ENV_CHECKLIST_FILE=/tmp/rustdesk-env-checklist.md` 时会额外生成脱敏 Markdown 环境清单，新增 Edge Command 分组并继续覆盖其它 readiness/交接变量；设置 `OPC_RUSTDESK_PREFLIGHT_REPORT_FILE=/tmp/rustdesk-preflight.json` 时会写出脱敏 JSON report artifact，适合在跑真实 readiness 前先排查 env、key 文件挂载和公网 launch URL 方案 |
 | `npm run rustdesk:server-evidence` | RustDesk 服务端运行证据采集；读取 `OPC_RUSTDESK_SERVER_EVIDENCE_FILE` 写出 JSON report，默认检查 `/rustdesk/id_ed25519.pub`、ID/Relay/launch DNS、hbbs TCP `21115,21116,21118`、hbbr TCP `21117,21119`、UDP `21116`、launch TLS 和 Ingress 响应。可用 `OPC_RUSTDESK_SERVER_EVIDENCE_HBBS_TCP_PORTS`、`OPC_RUSTDESK_SERVER_EVIDENCE_HBBR_TCP_PORTS`、`OPC_RUSTDESK_SERVER_EVIDENCE_UDP_PORTS` 和 `OPC_RUSTDESK_SERVER_EVIDENCE_TIMEOUT_MS` 覆盖。它证明服务器 runtime 证据，不证明 RustDesk 客户端协议握手或真实远控体验 |
 | `npm run rustdesk:client-config-pack` | RustDesk 客户端安装配置交接包；读取 iveKit base URL/API key/tenant，通过 `/api/ivekit/rustdesk/client-config` 拉取 ID server、relay server、API server、public key 和 fingerprint；可选读取 `OPC_RUSTDESK_CLIENT_CONFIG_EXTERNAL_ID` 对应 launch plan，但静态 Markdown 中兼容 `launch_url` / `protocol_url` 字段保持为空，只记录 generation-time launch/protocol availability。客户端仅在用户主动发起启动前立即调用 `getGatewayLaunchPlan()` 获取即时短期 URL。它用于给现场/LED 研发配置 RustDesk 客户端，不证明客户端已经连接或远控成功 |
-| `npm run rustdesk:client-profile-pack` | RustDesk V1 desktop 分发交接 manifest；通过鉴权后的 `/api/ivekit/rustdesk/client-profile` 拉取 Windows x86_64、macOS x86_64/aarch64、Linux x86_64/aarch64 五个固定 tuple，并用可信部署记录中的 server `1.1.15` 与 key fingerprint 做漂移检查。客户端固定 `1.4.7`，artifact 只读取 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的 HTTPS URL、文件名和 64-hex SHA-256；缺任一 artifact 时 `ready=false`，不猜 checksum，不下载或执行安装器。Task 3 前 unattended 固定 `attended_only/not_configured` |
+| `npm run rustdesk:client-profile-pack` | RustDesk V1 desktop 分发交接 manifest；通过鉴权后的 `/api/ivekit/rustdesk/client-profile` 拉取 Windows x86_64、macOS x86_64/aarch64、Linux x86_64/aarch64 五个固定 tuple，并用可信部署记录中的 server `1.1.16` 与 key fingerprint 做漂移检查。客户端固定 `1.4.9`，artifact 只读取 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的 HTTPS URL、文件名和 64-hex SHA-256；缺任一 artifact 时 `ready=false`，不猜 checksum，不下载或执行安装器。Task 3 前 unattended 固定 `attended_only/not_configured` |
 | `npm run rustdesk:evidence-pack` | RustDesk 最终证据包生成器；读取 `OPC_RUSTDESK_EVIDENCE_*` 指向的部署命令清单、env checklist、preflight JSON、server evidence JSON、readiness JSON、真实客户端验收报告、audit coverage report 和可选 client config pack、audit、handoff、event、LED 输出，生成脱敏 Markdown evidence pack；若未显式设置 evidence 专用 report 路径，会兜底读取标准报告变量。它会复用 `rustdesk:client-acceptance`，因此真实验收必须通过包含 physical-disconnect requested/claimed/succeeded 在内的十类事件门禁；同时仍要求 `rustdesk:audit-coverage` 的七类操作/ended 事件报告为 ok。只有必需 artifact 均存在且 preflight/server evidence/readiness/真实客户端验收/audit coverage 全部通过时才返回 `ready_for_customer_review`；该脚本仍不替代真实服务器和真实客户端操作，只负责归档和门禁证据 |
 | `npm run rustdesk:handoff-pack` | RustDesk 交付包生成器；读取 env 后输出 Markdown，汇总当前 RustDesk 配置摘要、服务器验收命令、server evidence 命令、client config pack 命令、事件模板/validate-only 命令、真实客户端验收模板/报告命令、audit export、audit coverage/final evidence pack 门禁和 LED 最小对接脚本。该脚本不访问网络、不输出 token 原文，用于交给部署、QA 或 LED 研发作为运行顺序和责任边界说明 |
 | `npm run rustdesk:readiness` | RustDesk 专用服务器验收聚合入口；先自动执行无网络 deployment preflight，缺 env 或 public key 文件不可读时直接输出 JSON 报告且不发网络请求；设置 `OPC_RUSTDESK_READINESS_REPORT_FILE=/tmp/rustdesk-readiness.json` 时会把成功结果或 preflight 失败结果写成 JSON artifact；preflight 通过后默认打开 hbbs/hbbr TCP/UDP 端口、注册设备在线、operation audit、protocol URL 和公开 launch page 检查，并可用 `OPC_RUSTDESK_READINESS_RUN_EDGE_AGENT=1` 先注册/heartbeat。再设置 `OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1` 时，会执行 gateway end、设备 command claim、本地 adapter、result 和 disconnect status `succeeded` 检查；结果固定 `operatorObservedDisconnect=false`，不冒充真实客户端观察。阶段性跳过其它检查仍使用 `OPC_RUSTDESK_READINESS_*` 专用开关 |
@@ -3555,7 +3555,7 @@ Egress ----------- recording object -------> S3 / MinIO
 
 ### 17.5 版本与完成边界
 
-当前固定 Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。版本固定只表示构建可复现，不表示该组合已在目标服务器跑通。升级必须同时执行配置渲染、专项测试、真实双浏览器、强制 TURN 和 Egress 对象验收。
+当前固定 iveKit Server `v1.13.4-ivekit.1`、Egress `v1.13.0`、SIP `v1.7.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。版本固定只表示构建可复现，不表示该组合已在目标环境跑通。LiveKit Server 已在隔离 Linux amd64 服务器完成精确源码 overlay、单测、离线构建和非 root smoke；真实双浏览器、强制 TURN、Egress 对象链路、多节点和生产 digest/签名仍须单独验收。
 
 production 不允许 LiveKit 配置不完整时回退为 dev token，Compose/Helm 必须提供内部 URL、API key、API secret 和公网 WSS。preflight/渲染器拒绝示例占位密钥与常见弱默认值，并在 standalone 模式校验 signal/turn DNS、域名互异、ACME 邮箱和 exact image tag。
 
@@ -3747,7 +3747,7 @@ standalone Helm Chart 已包含 bundled Tinode 的 ConfigMap、Secret refs、单
 
 ### 24.2 RustDesk Windows 精准控制
 
-Windows companion 维护 ACL 保护的 native session registry，通过固定 named pipe 调用定制 RustDesk 1.4.7 overlay。精准断开必须解析到唯一 `native_session_id`，overlay 调用原生 `ui_cm_interface::close()` 并观察目标连接消失；映射缺失、漂移或 bridge 不可用都返回明确失败，不得把 wrapper 退出码当作物理断开。
+Windows companion 维护 ACL 保护的 native session registry，通过固定 named pipe 调用定制 RustDesk 1.4.9 overlay。精准断开必须解析到唯一 `native_session_id`，overlay 调用原生 `ui_cm_interface::close()` 并观察目标连接消失；映射缺失、漂移或 bridge 不可用都返回明确失败，不得把 wrapper 退出码当作物理断开。
 
 service restart 只作为 owner/admin 显式授权的 emergency fallback。授权必须包含原因、目标会话、一次性约束和 `collateral_sessions_may_disconnect=true`，且单独写审计。普通断开失败不会自动重启服务，避免误断同机其他会话。
 

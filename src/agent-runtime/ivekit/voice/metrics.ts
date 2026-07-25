@@ -73,6 +73,20 @@ const preflightTotal = new Counter({
   registers: [metricsRegistry]
 });
 
+const audioTapEventTotal = new Counter({
+  name: 'opc_ivekit_voice_audio_tap_events_total',
+  help: 'Total iveKit realtime audio tap gateway events',
+  labelNames: ['media_source', 'event_type', 'reason'],
+  registers: [metricsRegistry]
+});
+
+const audioTapDroppedSeconds = new Counter({
+  name: 'opc_ivekit_voice_audio_tap_dropped_seconds_total',
+  help: 'Total audio duration dropped by iveKit realtime audio tap gateways',
+  labelNames: ['media_source', 'reason'],
+  registers: [metricsRegistry]
+});
+
 export const voiceMetricDefinitions = [
   { name: 'opc_ivekit_voice_calls_total', labels: ['adapter', 'direction', 'state'] },
   { name: 'opc_ivekit_voice_commands_total', labels: ['adapter', 'kind', 'result', 'error_code'] },
@@ -82,7 +96,9 @@ export const voiceMetricDefinitions = [
   { name: 'opc_ivekit_voice_provider_events_total', labels: ['adapter', 'event_type', 'result'] },
   { name: 'opc_ivekit_voice_provider_event_lag_seconds', labels: ['adapter', 'event_type'] },
   { name: 'opc_ivekit_voice_bridges_total', labels: ['adapter', 'result'] },
-  { name: 'opc_ivekit_voice_preflight_total', labels: ['adapter', 'result'] }
+  { name: 'opc_ivekit_voice_preflight_total', labels: ['adapter', 'result'] },
+  { name: 'opc_ivekit_voice_audio_tap_events_total', labels: ['media_source', 'event_type', 'reason'] },
+  { name: 'opc_ivekit_voice_audio_tap_dropped_seconds_total', labels: ['media_source', 'reason'] }
 ];
 
 export function observeVoiceCall(input: {
@@ -146,6 +162,23 @@ export function observeVoicePreflight(input: { adapter: VoiceAdapter | string; r
   preflightTotal.labels(adapterLabel(input.adapter), enumLabel(input.result, PREFLIGHT_RESULTS)).inc();
 }
 
+export function observeRealtimeAudioTapGatewayEvent(input: {
+  media_source: string;
+  event_type: string;
+  reason?: string;
+  dropped_duration_ms?: number;
+}): void {
+  const mediaSource = enumLabel(input.media_source, AUDIO_TAP_MEDIA_SOURCES);
+  const eventType = enumLabel(input.event_type, AUDIO_TAP_EVENT_TYPES);
+  const reason = enumLabel(input.reason || 'none', AUDIO_TAP_REASONS);
+  audioTapEventTotal.labels(mediaSource, eventType, reason).inc();
+  if (eventType === 'tap.audio.dropped') {
+    audioTapDroppedSeconds.labels(mediaSource, reason).inc(
+      nonNegative(Number(input.dropped_duration_ms || 0)) / 1_000
+    );
+  }
+}
+
 const ADAPTERS = new Set(['rustpbx', 'livekit_sip', 'controlled', 'active_call', 'livekit_agents']);
 const DIRECTIONS = new Set(['inbound', 'outbound', 'both']);
 const CALL_STATES = new Set([
@@ -163,6 +196,40 @@ const RECONCILIATION_RESULTS = new Set(['succeeded', 'failed', 'pending', 'unkno
 const EVENT_RESULTS = new Set(['processed', 'retry_wait', 'failed', 'stale']);
 const BRIDGE_RESULTS = new Set(['active', 'completed', 'failed', 'cancelled', 'pending', 'unknown']);
 const PREFLIGHT_RESULTS = new Set(['ready', 'degraded', 'not_available', 'failed']);
+const AUDIO_TAP_MEDIA_SOURCES = new Set(['rustpbx', 'livekit']);
+const AUDIO_TAP_EVENT_TYPES = new Set([
+  'tap.connection.accepted',
+  'tap.connection.rejected',
+  'tap.audio.dropped',
+  'tap.session.started',
+  'tap.session.failed',
+  'tap.session.ended',
+  'tap.provider_event.dropped',
+  'tap.projection.failed',
+  'tap.gateway.error'
+]);
+const AUDIO_TAP_REASONS = new Set([
+  'none',
+  'audio_sequence_conflict',
+  'connection_capacity_exhausted',
+  'connection_idle_timeout',
+  'gateway_shutdown',
+  'provider_queue_overflow',
+  'provider_session_closed',
+  'provider_session_failed',
+  'provider_start_buffer_overflow',
+  'provider_start_event_overflow',
+  'provider_write_failed',
+  'projection_failed',
+  'projection_queue_overflow',
+  'projection_shutdown_timeout',
+  'protocol_start_timeout',
+  'source_closed',
+  'token_replayed',
+  'transport_closed',
+  'transport_error',
+  'worker_draining'
+]);
 const EVENT_TYPES = new Set([
   'call.incoming', 'call.ringing', 'call.answered', 'call.hold', 'call.transfer',
   'call.hangup', 'call.no_answer', 'call.busy', 'call.cdr'

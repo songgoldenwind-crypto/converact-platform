@@ -1,3 +1,9 @@
+import {
+  buildIoRedisConstructorArgs,
+  resolveRedisConnectionOptions,
+  type IoRedisConnectionOptions
+} from './infra/redis-connection-options.js';
+
 export interface RedisLike {
   set(key: string, value: string, mode: 'EX', ttl: number, flag: 'NX'): Promise<string | null>;
   setEx(key: string, value: string, ttl: number): Promise<void>;
@@ -63,17 +69,14 @@ let sharedClient: RedisLike | null = null;
 
 export async function getRedisClient(): Promise<RedisLike> {
   if (sharedClient) return sharedClient;
-  const url = process.env.REDIS_URL || 'redis://localhost:6379';
   if (process.env.OPC_USE_MEMORY_REDIS === '1') {
     sharedClient = new MemoryRedis();
     return sharedClient;
   }
+  const constructorArgs = buildIoRedisConstructorArgs(resolveRedisConnectionOptions());
   try {
     const mod = await import('ioredis');
-    const RedisCtor = mod.default as unknown as new (
-      url: string,
-      opts: { maxRetriesPerRequest: number; lazyConnect: boolean }
-    ) => {
+    interface IoRedisClient {
       connect(): Promise<void>;
       disconnect(): void;
       on(event: 'error', listener: (err: Error) => void): void;
@@ -83,8 +86,15 @@ export async function getRedisClient(): Promise<RedisLike> {
       hset(key: string, ...args: string[]): Promise<number>;
       expire(key: string, ttl: number): Promise<number>;
       quit(): Promise<string>;
-    };
-    const client = new RedisCtor(url, { maxRetriesPerRequest: 1, lazyConnect: true });
+    }
+    interface IoRedisConstructor {
+      new(options: IoRedisConnectionOptions): IoRedisClient;
+      new(url: string, options: IoRedisConnectionOptions): IoRedisClient;
+    }
+    const RedisCtor = mod.default as unknown as IoRedisConstructor;
+    const client = constructorArgs.length === 1
+      ? new RedisCtor(constructorArgs[0])
+      : new RedisCtor(constructorArgs[0], constructorArgs[1]);
     client.on('error', () => { /* handled via connect() rejection */ });
     try {
       await client.connect();

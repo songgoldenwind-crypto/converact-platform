@@ -6,6 +6,14 @@
 {{- required "media.sip.rustpbxTrunk is required when the SIP/VoLTE gateway is enabled" .Values.media.sip.rustpbxTrunk }}
 {{- required "media.sip.rustpbxRwiUrl is required when the SIP/VoLTE gateway is enabled" .Values.media.sip.rustpbxRwiUrl }}
 {{- end }}
+{{- if .Values.media.realtimeAudioTap.enabled }}
+{{- if or (lt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 100000) }}
+{{- fail "media.realtimeAudioTap.projectionQueueMaxItems must be between 1 and 100000" }}
+{{- end }}
+{{- if or (lt (int .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs) 10) (gt (int .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs) 30000) }}
+{{- fail "media.realtimeAudioTap.projectionShutdownTimeoutMs must be between 10 and 30000" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,19 +39,51 @@ spec:
           image: {{ include "opc.opcImage" . | quote }}
           imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
           ports:
-            - containerPort: 3000
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            {{- if .Values.media.realtimeAudioTap.enabled }}
+            - name: audio-tap
+              containerPort: {{ .Values.media.realtimeAudioTap.listenPort }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: PORT
               value: "3000"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: database-url
-            - name: REDIS_URL
-              value: redis://{{ .Release.Name }}-redis:6379
+                  name: {{ include "opc.databaseUrlSecretName" . }}
+                  key: {{ include "opc.databaseUrlSecretKey" . }}
+            {{ include "opc.redisClientEnv" . | nindent 12 }}
+            {{ if .Values.nats.enabled }}
             - name: NATS_URL
+              {{ if .Values.nats.tls.enabled }}
+              value: tls://{{ .Release.Name }}-nats:4222
+              {{ else }}
               value: nats://{{ .Release.Name }}-nats:4222
+              {{ end }}
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "nats.auth.existingSecret is required when NATS is enabled" .Values.nats.auth.existingSecret }}
+                  key: {{ .Values.nats.auth.userKey }}
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "nats.auth.existingSecret is required when NATS is enabled" .Values.nats.auth.existingSecret }}
+                  key: {{ .Values.nats.auth.passwordKey }}
+            - name: NATS_TLS_MODE
+              value: {{ ternary "required" "disabled" .Values.nats.tls.enabled | quote }}
+            {{ if .Values.nats.tls.enabled }}
+            - name: NATS_TLS_CA_FILE
+              value: /etc/nats/tls/{{ .Values.nats.tls.caKey }}
+            - name: NATS_TLS_CERT_FILE
+              value: /etc/nats/tls/{{ .Values.nats.tls.certKey }}
+            - name: NATS_TLS_KEY_FILE
+              value: /etc/nats/tls/{{ .Values.nats.tls.keyKey }}
+            {{ end }}
+            {{ end }}
             - name: LIVEKIT_URL
               value: {{ include "opc.livekitInternalUrl" . | quote }}
             - name: LIVEKIT_PUBLIC_URL
@@ -68,6 +108,55 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: media-invite-secret
+            {{- if .Values.media.realtimeAudioTap.enabled }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: realtime-audio-tap-hmac-secret-b64
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+              value: {{ .Values.media.realtimeAudioTap.tokenTtlSeconds | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST
+              value: 0.0.0.0
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT
+              value: {{ .Values.media.realtimeAudioTap.listenPort | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH
+              value: {{ .Values.media.realtimeAudioTap.path | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL
+              value: {{ printf "ws://$(POD_NAME).%s-opc-audio-tap.%s.svc:%v%s" .Release.Name .Release.Namespace .Values.media.realtimeAudioTap.listenPort .Values.media.realtimeAudioTap.path | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS
+              value: {{ .Values.media.realtimeAudioTap.maxConnections | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS
+              value: {{ .Values.media.realtimeAudioTap.prestartBufferMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES
+              value: {{ .Values.media.realtimeAudioTap.maxPayloadBytes | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.idleTimeoutMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.startTimeoutMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.shutdownTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+              value: {{ .Values.media.realtimeAudioTap.projectionQueueMaxItems | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
+            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+              value: {{ .Values.media.realtimeAudioTap.retentionDays | quote }}
+            {{- end }}
             - name: OPC_MEDIA_INVITE_TTL_MS
               value: {{ .Values.media.inviteTtlMs | default "86400000" | quote }}
             - name: OPC_MEDIA_RECORDING_RETENTION_DAYS
@@ -76,6 +165,14 @@ spec:
               value: {{ ternary "1" "0" (and .Values.media.egress.enabled .Values.media.egress.capacityMetrics.enabled) | quote }}
             - name: OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS
               value: {{ .Values.media.egress.capacityMetrics.intervalMs | quote }}
+            - name: OPC_LIVEKIT_INGRESS_ENABLED
+              value: {{ ternary "1" "0" .Values.media.ingress.enabled | quote }}
+            - name: OPC_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS
+              value: {{ .Values.media.ingress.requestTimeoutMs | quote }}
+            - name: OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST
+              value: {{ .Values.media.ingress.pullHostAllowlist | quote }}
+            - name: OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL
+              value: {{ ternary "1" "0" .Values.media.ingress.allowHttpUrl | quote }}
             - name: OPC_RECORDING_HTTP_ALLOWED_ORIGINS
               value: {{ .Values.media.recordingHttpAllowedOrigins | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
             - name: OPC_RECORDING_HTTP_TIMEOUT_MS
@@ -202,7 +299,7 @@ spec:
                   name: {{ .Release.Name }}-secrets
                   key: ivekit-translation-provider-token
             - name: OPC_OCR_PROVIDER_MODE
-              value: {{ .Values.attachmentProcessing.ocrProviderMode | default "self_hosted" | quote }}
+              value: {{ .Values.attachmentProcessing.ocrProviderMode | default "third_party" | quote }}
             - name: OPC_OCR_PROVIDER_NAME
               value: {{ .Values.attachmentProcessing.ocrProviderName | default "" | quote }}
             - name: OPC_OCR_BASE_URL
@@ -217,7 +314,7 @@ spec:
             - name: OPC_OCR_TIMEOUT_MS
               value: {{ .Values.attachmentProcessing.ocrTimeoutMs | default "30000" | quote }}
             - name: OPC_ASR_PROVIDER_MODE
-              value: {{ .Values.attachmentProcessing.asrProviderMode | default "self_hosted" | quote }}
+              value: {{ .Values.attachmentProcessing.asrProviderMode | default "third_party" | quote }}
             - name: OPC_ASR_PROVIDER_NAME
               value: {{ .Values.attachmentProcessing.asrProviderName | default "" | quote }}
             - name: OPC_ASR_BASE_URL
@@ -244,7 +341,7 @@ spec:
             - name: OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS
               value: {{ .Values.attachmentProcessing.worker.retryDelaysMs | default "5000,30000" | quote }}
             - name: OPC_QUALITY_REVIEW_PROVIDER_MODE
-              value: {{ .Values.qualityReview.providerMode | default "self_hosted" | quote }}
+              value: {{ .Values.qualityReview.providerMode | default "third_party" | quote }}
             - name: OPC_QUALITY_REVIEW_PROVIDER_NAME
               value: {{ .Values.qualityReview.providerName | default "" | quote }}
             - name: OPC_QUALITY_REVIEW_BASE_URL
@@ -521,28 +618,23 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: rustdesk-api-token
-            - name: MINIO_ENDPOINT
-              value: {{ .Values.media.minioEndpoint | default (printf "http://%s-minio:9000" .Release.Name) | quote }}
-            - name: MINIO_BUCKET
-              value: {{ .Values.media.minioBucket | default "recordings" | quote }}
-            - name: MINIO_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: minio-access-key
-            - name: MINIO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: minio-secret-key
+            {{ include "opc.objectStorageEnv" . | nindent 12 }}
           resources:
             {{- toYaml .Values.opc.resources | nindent 12 }}
-          {{- if .Values.rustdesk.enabled }}
+          {{ if or .Values.rustdesk.enabled (and .Values.nats.enabled .Values.nats.tls.enabled) .Values.livekit.redis.tls.enabled .Values.media.realtimeAudioTap.enabled }}
           volumeMounts:
+          {{ if .Values.rustdesk.enabled }}
             - name: rustdesk-data
               mountPath: /rustdesk
               readOnly: true
-          {{- end }}
+          {{ end }}
+          {{ if and .Values.nats.enabled .Values.nats.tls.enabled }}
+            - name: nats-tls
+              mountPath: /etc/nats/tls
+              readOnly: true
+          {{ end }}
+          {{ include "opc.livekitRedisTLSVolumeMount" . | nindent 12 }}
+          {{ end }}
           livenessProbe:
             httpGet:
               path: /api/health
@@ -555,12 +647,20 @@ spec:
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10
-      {{- if .Values.rustdesk.enabled }}
+      {{ if or .Values.rustdesk.enabled (and .Values.nats.enabled .Values.nats.tls.enabled) .Values.livekit.redis.tls.enabled .Values.media.realtimeAudioTap.enabled }}
       volumes:
+      {{ if .Values.rustdesk.enabled }}
         - name: rustdesk-data
           persistentVolumeClaim:
             claimName: {{ .Release.Name }}-rustdesk-data
-      {{- end }}
+      {{ end }}
+      {{ if and .Values.nats.enabled .Values.nats.tls.enabled }}
+        - name: nats-tls
+          secret:
+            secretName: {{ required "nats.tls.secretName is required when NATS TLS is enabled" .Values.nats.tls.secretName }}
+      {{ end }}
+      {{ include "opc.livekitRedisTLSVolume" . | nindent 8 }}
+      {{ end }}
 ---
 apiVersion: v1
 kind: Service
@@ -569,7 +669,29 @@ metadata:
 spec:
   type: {{ .Values.opc.service.type }}
   ports:
-    - port: {{ .Values.opc.service.port }}
-      targetPort: 3000
+    - name: http
+      port: {{ .Values.opc.service.port }}
+      targetPort: http
+    {{- if .Values.media.realtimeAudioTap.enabled }}
+    - name: audio-tap
+      port: {{ .Values.media.realtimeAudioTap.listenPort }}
+      targetPort: audio-tap
+    {{- end }}
   selector:
     app: opc
+{{- if .Values.media.realtimeAudioTap.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-opc-audio-tap
+spec:
+  clusterIP: None
+  selector:
+    app: opc
+  ports:
+    - name: audio-tap
+      port: {{ .Values.media.realtimeAudioTap.listenPort }}
+      targetPort: audio-tap
+      protocol: TCP
+{{- end }}

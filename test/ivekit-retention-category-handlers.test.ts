@@ -65,7 +65,10 @@ test('media-recording retention deletes the object before terminal state and ski
   const order: string[] = [];
   const pg = new RecordingPg((sql) => {
     if (/SELECT recording\.id, recording\.storage_url/i.test(sql)) return [
-      { id: 'recording-a', storage_url: 's3://recordings/a.mp4', held: false },
+      {
+        id: 'recording-a', storage_url: 's3://recordings/a.mp4',
+        media_call_id: 'media-call-a', call_session_id: '', held: false
+      },
       { id: 'recording-held', storage_url: 's3://recordings/held.mp4', held: true }
     ];
     if (/UPDATE call_recordings/i.test(sql)) order.push('state:deleted');
@@ -89,6 +92,9 @@ test('media-recording retention deletes the object before terminal state and ski
   assert.match(candidateQuery,
     /recording\.retention_until IS NULL[\s\S]*recording\.created_at <= \$2/i);
   assert.match(candidateQuery, /ORDER BY held ASC/i);
+  const transcriptDelete = pg.calls.find((sql) => /DELETE FROM ivekit_realtime_speech_segments/i.test(sql))!;
+  assert.match(transcriptDelete, /tenant_id = \$1 AND interaction_id = \$2/i);
+  assert.deepEqual(pg.params[pg.calls.indexOf(transcriptDelete)], ['tenant-a', 'media-call-a']);
 });
 
 function objectStorage(

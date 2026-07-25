@@ -1,0 +1,34 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: opc-postgres-backup
+  labels:
+    app.kubernetes.io/name: opc-postgres-backup
+    app.kubernetes.io/part-of: ivekit-platform
+spec:
+  configuration:
+    destinationPath: s3://opc-postgres-backups/cluster
+    serverName: opc-postgres
+    s3Credentials:
+      accessKeyId:
+        name: opc-postgres-backup-credentials
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: opc-postgres-backup-credentials
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: snappy
+      maxParallel: 8
+    data:
+      compression: gzip
+      jobs: 4
+  retentionPolicy: 30d
+  instanceSidecarConfiguration:
+    retentionPolicyIntervalSeconds: 1800
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi

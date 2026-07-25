@@ -33,6 +33,25 @@
 {{- if or (lt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 65536) -}}
 {{- fail "voice.mediaCapacity.recordingWorkerQueueCapacity must be between 1 and 65536" -}}
 {{- end -}}
+{{- range $name, $value := dict "udpReceiveBufferBytes" .Values.voice.mediaCapacity.udpReceiveBufferBytes "udpSendBufferBytes" .Values.voice.mediaCapacity.udpSendBufferBytes -}}
+{{- if or (lt (int $value) 65536) (gt (int $value) 16777216) -}}
+{{- fail (printf "voice.mediaCapacity.%s must be between 65536 and 16777216" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.realtimeAudioTap.enabled -}}
+{{- if or (lt (int .Values.realtimeAudioTap.rustPbxChannelCapacity) 1) (gt (int .Values.realtimeAudioTap.rustPbxChannelCapacity) 65536) -}}
+{{- fail "realtimeAudioTap.rustPbxChannelCapacity must be between 1 and 65536" -}}
+{{- end -}}
+{{- if or (lt (int .Values.realtimeAudioTap.rustPbxSendTimeoutMs) 1) (gt (int .Values.realtimeAudioTap.rustPbxSendTimeoutMs) 1000) -}}
+{{- fail "realtimeAudioTap.rustPbxSendTimeoutMs must be between 1 and 1000" -}}
+{{- end -}}
+{{- if or (lt (int .Values.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.realtimeAudioTap.projectionQueueMaxItems) 100000) -}}
+{{- fail "realtimeAudioTap.projectionQueueMaxItems must be between 1 and 100000" -}}
+{{- end -}}
+{{- if or (lt (int .Values.realtimeAudioTap.projectionShutdownTimeoutMs) 10) (gt (int .Values.realtimeAudioTap.projectionShutdownTimeoutMs) 30000) -}}
+{{- fail "realtimeAudioTap.projectionShutdownTimeoutMs must be between 10 and 30000" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.voice.recordingSpool.enabled -}}
 {{- $_ := required "voice.regionId is required when recording spool is enabled" .Values.voice.regionId -}}
 {{- $_ := required "voice.zoneId is required when recording spool is enabled" .Values.voice.zoneId -}}
@@ -223,6 +242,12 @@ spec:
               value: {{ .Values.voice.mediaCapacity.recordingWorkerThreads | quote }}
             - name: RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY
               value: {{ .Values.voice.mediaCapacity.recordingWorkerQueueCapacity | quote }}
+            - name: RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH
+              value: /run/ivekit/realtime-audio-tap.sock
+            - name: RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY
+              value: {{ .Values.realtimeAudioTap.rustPbxChannelCapacity | quote }}
+            - name: RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.rustPbxSendTimeoutMs | quote }}
             - name: RUSTPBX_CALL_RECORD_MAX_CONCURRENT
               value: {{ .Values.voice.callRecordCapacity.maxConcurrent | quote }}
             - name: RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY
@@ -384,11 +409,75 @@ spec:
               readOnly: true
           {{- end }}
         {{- end }}
+        {{- if .Values.realtimeAudioTap.enabled }}
+        - name: realtime-audio-tap-gateway
+          image: {{ include "ivekit.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "dist/ivekit-realtime-audio-tap-worker.js"]
+          {{- with .Values.secrets.runtimeEnvironmentSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ . }}
+          {{- end }}
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.realtimeAudioTapHmacSecretKey }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+              value: {{ .Values.realtimeAudioTap.tokenTtlSeconds | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH
+              value: /run/ivekit/realtime-audio-tap.sock
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_MAX_CONNECTIONS
+              value: {{ .Values.realtimeAudioTap.maxConnections | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS
+              value: {{ .Values.realtimeAudioTap.prestartBufferMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_IDLE_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.idleTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.shutdownTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+              value: {{ .Values.realtimeAudioTap.projectionQueueMaxItems | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
+            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+              value: {{ .Values.realtimeAudioTap.retentionDays | quote }}
+          readinessProbe:
+            exec:
+              command: ["sh", "-ec", "test -S /run/ivekit/realtime-audio-tap.sock"]
+            periodSeconds: 3
+            timeoutSeconds: 1
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.realtimeAudioTap.rustPbxGateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: realtime-audio-tap
+              mountPath: /run/ivekit
+        {{- end }}
         - name: rustpbx
           image: {{ $rustpbxImage | quote }}
           imagePullPolicy: {{ .Values.voice.image.pullPolicy }}
           args: ["--conf", "/app/config/rustpbx.toml"]
           env:
+            - name: RUSTRTC_UDP_RECEIVE_BUFFER_BYTES
+              value: {{ .Values.voice.mediaCapacity.udpReceiveBufferBytes | quote }}
+            - name: RUSTRTC_UDP_SEND_BUFFER_BYTES
+              value: {{ .Values.voice.mediaCapacity.udpSendBufferBytes | quote }}
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE
               value: /app/route-snapshot/routes.json
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
@@ -536,6 +625,10 @@ spec:
             - name: storage
               mountPath: /app/recording-spool
             {{- end }}
+            {{- if .Values.realtimeAudioTap.enabled }}
+            - name: realtime-audio-tap
+              mountPath: /run/ivekit
+            {{- end }}
             - name: tmp
               mountPath: /tmp
       volumes:
@@ -561,6 +654,12 @@ spec:
                       path: rustpbx-recording-service-key
                     - key: {{ .Values.voice.recordingSpool.leaseSecretKey }}
                       path: rustpbx-recording-lease-secret
+        {{- end }}
+        {{- if .Values.realtimeAudioTap.enabled }}
+        - name: realtime-audio-tap
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.realtimeAudioTap.socketVolumeSizeLimit }}
         {{- end }}
         - name: tmp
           emptyDir: {}

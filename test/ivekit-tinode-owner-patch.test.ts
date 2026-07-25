@@ -135,6 +135,20 @@ test('Tinode hot-path patch keeps personalized and cluster messages isolated', (
   assert.doesNotMatch(source, /http\.(?:Get|Post|Do)/);
 });
 
+test('Tinode PostgreSQL bootstrap patch handles absent and precreated databases safely', () => {
+  const source = readFileSync(
+    'infra/ivekit/tinode/patches/tinode-ivekit-postgres-bootstrap.patch',
+    'utf8'
+  );
+
+  assert.match(source, /ConnConfig\.Database = "postgres"/);
+  assert.match(source, /SELECT EXISTS \(SELECT 1 FROM pg_database/);
+  assert.match(source, /pgx\.Identifier\{a\.dbName\}\.Sanitize\(\)/);
+  assert.match(source, /errors\.As\(err, &pgErr\)/);
+  assert.match(source, /ivekit_bootstrap_test\.go/);
+  assert.match(source, /TestIvekitMissingDatabaseClassification/);
+});
+
 test('Tinode overlay makes the upstream runtime image compile the iveKit source', () => {
   const patchDockerfile = (tinodeOverlay as Record<string, unknown>)
     .patchTinodeDockerfile;
@@ -143,17 +157,78 @@ test('Tinode overlay makes the upstream runtime image compile the iveKit source'
   const patched = (patchDockerfile as (source: string) => string)(
     tinodeDockerfileFixture()
   );
-  assert.match(patched, /FROM golang:1\.26-alpine AS ivekit-builder/);
+  assert.match(patched, /ARG IVEKIT_TINODE_BUILDER_IMAGE/);
+  assert.match(patched, /ARG IVEKIT_TINODE_RUNTIME_IMAGE/);
+  assert.match(patched, /FROM \$\{IVEKIT_TINODE_BUILDER_IMAGE\} AS ivekit-builder/);
+  assert.match(patched, /FROM \$\{IVEKIT_TINODE_RUNTIME_IMAGE\}/);
   assert.match(patched, /COPY ivekit\/ ivekit\//);
-  assert.ok(patched.indexOf('COPY ivekit/ ivekit/') < patched.indexOf('RUN go mod download'));
+  assert.match(patched, /COPY vendor\/ vendor\//);
+  assert.match(patched, /COPY pbx\/ pbx\//);
+  assert.match(patched, /COPY server\/ server\//);
+  assert.match(patched, /COPY tinode-db\/ tinode-db\//);
+  assert.doesNotMatch(patched, /^COPY \. \.$/m);
+  assert.match(patched, /GOFLAGS=-mod=vendor/);
+  assert.doesNotMatch(patched, /go mod download/);
+  assert.match(patched, /GOCACHE=\/tmp\/ivekit-tinode-go-cache/);
+  assert.match(patched, /rm -rf \/tmp\/ivekit-tinode-go-cache/);
   assert.match(patched, /go build[\s\S]*-o \/out\/tinode \.\/server/);
+  assert.match(patched, /main\.buildstamp=v0\.25\.3-ivekit\.3/);
   assert.match(patched, /go build[\s\S]*-o \/out\/init-db \.\/tinode-db/);
   assert.match(patched, /COPY --from=ivekit-builder \/out\/tinode \./);
   assert.match(patched, /COPY docker\/tinode\/config\.template \./);
   assert.match(patched, /COPY tinode-db\/credentials\.sh \./);
+  assert.match(patched, /COPY tinode-db\/\*\.jpg \.\//);
+  assert.doesNotMatch(patched, /COPY tinode-db\/\*\.jpg \.\n/);
+  assert.match(patched, /adduser[\s\S]*-u 10001[\s\S]*tinode/);
+  assert.match(patched, /chown -R tinode:tinode \/opt\/tinode \/botdata \/var\/log/);
+  assert.match(patched, /ln -s \/usr\/local\/bin\/bash \/bin\/bash/);
+  assert.match(patched, /USER tinode/);
   assert.doesNotMatch(patched, /github\.com\/tinode\/chat\/releases\/download/);
   assert.equal(
     (patchDockerfile as (source: string) => string)(patched),
+    patched
+  );
+});
+
+test('Tinode runtime overlay keeps generated state writable under a read-only root filesystem', () => {
+  const patchEntrypoint = (tinodeOverlay as Record<string, unknown>)
+    .patchTinodeEntrypoint;
+  assert.equal(typeof patchEntrypoint, 'function');
+
+  const patched = (patchEntrypoint as (source: string) => string)(
+    tinodeEntrypointFixture()
+  );
+  assert.match(patched, /TINODE_RUNTIME_DIR/);
+  assert.match(patched, /FS_UPLOAD_DIR/);
+  assert.match(patched, /MEDIA_HANDLER.*fs/);
+  assert.match(patched, /CONFIG="\$\{RUNTIME_DIR\}\/working\.config"/);
+  assert.match(patched, /init_stdout="\$\{RUNTIME_DIR\}\/init-db-stdout\.txt"/);
+  assert.match(patched, /mkdir -p "\$\{STATIC_DIR\}"/);
+  assert.match(patched, /TINODE_INIT_ONLY/);
+  assert.match(patched, /\/opt\/tinode\/init-db/);
+  assert.match(patched, /exec \/opt\/tinode\/tinode/);
+  assert.equal(
+    (patchEntrypoint as (source: string) => string)(patched),
+    patched
+  );
+});
+
+test('Tinode config overlay parameterizes stable StatefulSet cluster members', () => {
+  const patchConfigTemplate = (tinodeOverlay as Record<string, unknown>)
+    .patchTinodeConfigTemplate;
+  assert.equal(typeof patchConfigTemplate, 'function');
+
+  const patched = (patchConfigTemplate as (source: string) => string)(
+    tinodeConfigTemplateFixture()
+  );
+  for (const index of [0, 1, 2]) {
+    assert.match(patched, new RegExp(`\\$TINODE_CLUSTER_NODE_${index}_NAME`));
+    assert.match(patched, new RegExp(`\\$TINODE_CLUSTER_NODE_${index}_ADDR`));
+  }
+  assert.match(patched, /"upload_dir": "\$FS_UPLOAD_DIR"/);
+  assert.match(patched, /"force_path_style": \$AWS_FORCE_PATH_STYLE/);
+  assert.equal(
+    (patchConfigTemplate as (source: string) => string)(patched),
     patched
   );
 });
@@ -163,13 +238,27 @@ test('Tinode build files retain the real upstream compile boundary', () => {
   const readme = readFileSync('infra/ivekit/tinode/README.md', 'utf8');
   const hook = readFileSync('infra/ivekit/tinode/server-hook.go', 'utf8');
 
-  assert.match(build, /go test -C "\$\{TINODE_SOURCE_DIR\}" \.\/server/);
+  assert.match(
+    build,
+    /go test -C "\$\{TINODE_SOURCE_DIR\}" -tags postgres/
+  );
+  assert.match(build, /\.\/server \.\/server\/db\/postgres/);
   assert.match(build, /ivekit\/component-hook-go" \.\/\.\.\./);
   assert.match(build, /ivekit\/tinode-owner" \.\/\.\.\./);
   assert.doesNotMatch(build, /\.\/ivekit\/\.\.\./);
   assert.match(build, /docker build/);
+  assert.match(build, /org\.opencontainers\.image\.version=v0\.25\.3-ivekit\.3/);
   assert.match(build, /--file "\$\{TINODE_SOURCE_DIR\}\/docker\/tinode\/Dockerfile"/);
   assert.match(build, /--build-arg "TARGET_DB=\$\{TINODE_TARGET_DB:-postgres\}"/);
+  assert.match(build, /IVEKIT_TINODE_BUILDER_IMAGE/);
+  assert.match(build, /IVEKIT_TINODE_RUNTIME_IMAGE/);
+  assert.match(build, /@sha256:\[a-f0-9\]/);
+  assert.match(build, /go -C "\$\{TINODE_SOURCE_DIR\}" mod vendor/);
+  assert.match(build, /--network=none/);
+  assert.match(build, /--build-arg "IVEKIT_TINODE_BUILDER_IMAGE=/);
+  assert.match(build, /--build-arg "IVEKIT_TINODE_RUNTIME_IMAGE=/);
+  assert.match(build, /image user[\s\S]*tinode/);
+  assert.match(build, /IVEKIT_COMPONENT_NODE_ID/);
   assert.match(readme, /Go 1\.26/);
   assert.match(readme, /remain `not_run`/);
   assert.match(hook, /IVEKIT_COMPONENT_NODE_ID/);
@@ -182,6 +271,8 @@ function tinodeDockerfileFixture(): string {
     'FROM alpine:3.22',
     'ARG TARGET_DB=mysql',
     'ENV TARGET_DB=$TARGET_DB',
+    'RUN apk update && \\',
+    '\tapk add --no-cache ca-certificates bash grep',
     'WORKDIR /opt/tinode',
     'COPY config.template .',
     'COPY entrypoint.sh .',
@@ -190,6 +281,71 @@ function tinodeDockerfileFixture(): string {
     'RUN mkdir /botdata',
     'RUN chmod +x entrypoint.sh',
     'RUN chmod +x credentials.sh',
+    ''
+  ].join('\n');
+}
+
+function tinodeEntrypointFixture(): string {
+  return [
+    '#!/bin/bash',
+    '',
+    'if [ ! -z "$EXT_CONFIG" ] ; then',
+    '\tCONFIG="$EXT_CONFIG"',
+    'else',
+    '\tCONFIG=working.config',
+    '\trm -f working.config',
+    '\twhile IFS=\'\' read -r line || [[ -n $line ]] ; do',
+    '\t\techo "$line" >> working.config',
+    '\tdone < config.template',
+    'fi',
+    'if [ ! -z "$EXT_STATIC_DIR" ] ; then',
+    '\tSTATIC_DIR=$EXT_STATIC_DIR',
+    'else',
+    '\tSTATIC_DIR="./static"',
+    'fi',
+    'echo "" > $STATIC_DIR/firebase-init.js',
+    'init_stdout=./init-db-stdout.txt',
+    './init-db \\',
+    '\t--reset=${RESET_DB} \\',
+    '\t--upgrade=${UPGRADE_DB} \\',
+    '\t--config=${CONFIG} \\',
+    '\t--data=${SAMPLE_DATA} \\',
+    '\t--no_init=${NO_DB_INIT} \\',
+    '\t1>${init_stdout}',
+    'if [ $? -ne 0 ]; then',
+    '\techo "./init-db failed. Quitting."',
+    '\texit 1',
+    'fi',
+    'if [ -s /botdata/tino-password ] ; then',
+    '\t./credentials.sh /botdata/.tn-cookie < /botdata/tino-password',
+    'fi',
+    'args=("--config=${CONFIG}" "--static_data=$STATIC_DIR" "--cluster_self=$CLUSTER_SELF" "--pprof_url=$PPROF_URL")',
+    './tinode "${args[@]}" 2>> /var/log/tinode.log',
+    ''
+  ].join('\n');
+}
+
+function tinodeConfigTemplateFixture(): string {
+  return [
+    '{',
+    '\t"media": {',
+    '\t\t"handlers": {',
+    '\t\t\t"fs": {"upload_dir": "uploads"},',
+    '\t\t\t"s3": {',
+    '\t\t\t\t"endpoint": "$AWS_S3_ENDPOINT",',
+    '\t\t\t\t"presign_ttl": 3600',
+    '\t\t\t}',
+    '\t\t}',
+    '\t},',
+    '\t"cluster_config": {',
+    '\t\t"self": "",',
+    '\t\t"nodes": [',
+    '\t\t\t{"name": "tinode-0", "addr": "tinode-0:12000"},',
+    '\t\t\t{"name": "tinode-1", "addr": "tinode-1:12001"},',
+    '\t\t\t{"name": "tinode-2", "addr": "tinode-2:12002"}',
+    '\t\t]',
+    '\t}',
+    '}',
     ''
   ].join('\n');
 }

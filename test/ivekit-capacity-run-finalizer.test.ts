@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -21,6 +21,11 @@ import {
   capacityFinalizerConfig,
   readCapacityEvidenceSubmission
 } from '../scripts/ivekit-capacity-finalizer.js';
+
+const performanceContract = JSON.parse(readFileSync(
+  'docs/capacity/profiles/cell-10k-v1.json',
+  'utf8'
+)).performance_contract;
 
 test('run finalizer validates every phase shard and binds the verified manifest object', async () => {
   const manifest = finalizerManifest(false);
@@ -207,13 +212,21 @@ function finalizerManifest(realDependencyNotRun: boolean): any {
       }]
     },
     shards: [{
-      shard_id: 'interaction/tinode_im/0-100',
-      workload_domain: 'interaction',
-      workload_id: 'tinode_im',
-      workload_kind: 'tinode_im',
+      shard_id: 'connection/tinode_websocket/0-150',
+      workload_domain: 'connection',
+      workload_id: 'tinode_websocket',
+      workload_kind: 'tinode_websocket',
       ordinal_start: 0,
-      ordinal_end_exclusive: 100,
-      expected_count: 100,
+      ordinal_end_exclusive: 150,
+      expected_count: 150,
+      covered_workloads: [{
+        workload_domain: 'interaction',
+        workload_id: 'tinode_im',
+        workload_kind: 'tinode_im',
+        ordinal_start: 0,
+        ordinal_end_exclusive: 100,
+        expected_count: 100
+      }],
       required_protocols: ['tinode_websocket'],
       assigned_fleet: 'tinode',
       initial_lease_epoch: 0,
@@ -226,9 +239,10 @@ function finalizerManifest(realDependencyNotRun: boolean): any {
     faults: [],
     expected_totals: {
       interactions: 100,
-      connections: 0,
-      by_workload: { tinode_im: 100 }
+      connections: 150,
+      by_workload: { tinode_im: 100, tinode_websocket: 150 }
     },
+    performance_contract: structuredClone(performanceContract),
     external_dependencies: realDependencyNotRun
       ? [{
         id: 'real_tinode',
@@ -252,15 +266,15 @@ function finalizerSubmission(
     mode,
     fleet_qualifications: [qualifyGeneratorFleet({
       fleet_id: 'tinode',
-      target_load: 100,
+      target_load: 150,
       workers: Array.from({ length: 5 }, (_, index) => ({
         worker_id: `tinode-worker-${index + 1}`,
         protocol: 'tinode_websocket',
         release_id: 'loadgen@abc123',
         hardware_class: 'gen-c16-10gbe',
         calibrated: true,
-        safe_capacity: 40,
-        assigned_load: 20,
+        safe_capacity: 50,
+        assigned_load: 30,
         cpu_p95_ratio: 0.4,
         memory_p95_ratio: 0.4,
         nic_p95_ratio: 0.4,
@@ -269,9 +283,27 @@ function finalizerSubmission(
         scheduler_lag_limit_ms: 10
       }))
     })],
-    shard_evidence: manifest.phases.map((phase: any) => ({
+    performance_evidence: validPerformanceEvidence(),
+    shard_evidence: manifest.phases.flatMap((phase: any) => [{
       phase_id: phase.id,
-      shard_id: 'interaction/tinode_im/0-100',
+      shard_id: 'connection/tinode_websocket/0-150',
+      workload_domain: 'connection' as const,
+      workload_id: 'tinode_websocket',
+      expected_count: 150,
+      lease_epoch: '1',
+      attempted_count: 150,
+      accepted_count: 150,
+      active_peak_count: 150,
+      sut_observed_count: 150,
+      independent_observed_count: 150,
+      duplicate_id_count: 0,
+      stale_action_count: 0,
+      protocol_error_count: 0,
+      rate_conformant: true,
+      slo_passed: true
+    }, {
+      phase_id: phase.id,
+      shard_id: 'connection/tinode_websocket/0-150',
       workload_domain: 'interaction' as const,
       workload_id: 'tinode_im',
       expected_count: 100,
@@ -286,6 +318,47 @@ function finalizerSubmission(
       protocol_error_count: 0,
       rate_conformant: true,
       slo_passed: true
+    }])
+  };
+}
+
+function validPerformanceEvidence() {
+  return {
+    schema_version: '1.0.0' as const,
+    measurement_scope: performanceContract.measurement_scope,
+    clock_offset_p99_ms: 1,
+    quantiles_collected: [...performanceContract.required_quantiles],
+    latency_ms: { ...performanceContract.latency_ms },
+    media_quality: { ...performanceContract.media_quality },
+    reliability: { ...performanceContract.reliability },
+    recovery_ms: { ...performanceContract.recovery_ms },
+    overload: {
+      jain_fairness_index: 0.99,
+      noisy_neighbor_p99_degradation_ratio: 0.1,
+      unbounded_queue_event_count: 0,
+      audio_priority_violation_count: 0,
+      slow_consumer_escape_count: 0,
+      observed_degradation_order: [...performanceContract.overload.degradation_order]
+    },
+    security_performance: {
+      authorization_p99_ms: 40,
+      rate_limit_decision_p99_ms: 5,
+      overload_rejection_p99_ms: 50,
+      unauthorized_admission_count: 0,
+      established_media_remote_authorization_count: 0
+    },
+    resource_metrics: Object.fromEntries(
+      performanceContract.required_resource_metrics.map((id: string) => [id, 1])
+    ),
+    impairment_profiles: performanceContract.impairment_profiles.map((profile: any) => ({
+      id: profile.id,
+      applied: structuredClone(profile),
+      sample_count: 100,
+      client_crash_count: 0,
+      established_media_terminated_count: 0,
+      unbounded_queue_event_count: 0,
+      reconnect_success_ratio: 1,
+      recovery_p99_ms: profile.id === 'network_handoff' ? 4000 : 2500
     }))
   };
 }

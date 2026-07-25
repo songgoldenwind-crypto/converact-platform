@@ -1,4 +1,4 @@
-{{- if .Values.tinode.enabled }}
+{{- if and .Values.tinode.enabled (eq .Values.tinode.mode "compact") }}
 {{- include "ivekit.tinodeValidate" . }}
 apiVersion: apps/v1
 kind: Deployment
@@ -37,6 +37,12 @@ spec:
             - configMapRef:
                 name: {{ include "ivekit.tinodeFullname" . }}
           env:
+            - name: TINODE_RUNTIME_DIR
+              value: /var/lib/tinode-runtime
+            - name: EXT_STATIC_DIR
+              value: /var/lib/tinode-runtime/static
+            - name: FS_UPLOAD_DIR
+              value: /botdata/uploads
             - name: POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
@@ -90,6 +96,10 @@ spec:
           volumeMounts:
             - name: botdata
               mountPath: /botdata
+            - name: runtime
+              mountPath: /var/lib/tinode-runtime
+            - name: logs
+              mountPath: /var/log
             - name: tmp
               mountPath: /tmp
       volumes:
@@ -102,4 +112,10 @@ spec:
           {{- end }}
         - name: tmp
           emptyDir: {}
+        - name: runtime
+          emptyDir:
+            sizeLimit: {{ .Values.tinode.cluster.runtimeVolumeSizeLimit }}
+        - name: logs
+          emptyDir:
+            sizeLimit: {{ .Values.tinode.cluster.logVolumeSizeLimit }}
 {{- end }}

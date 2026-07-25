@@ -10,11 +10,18 @@ on:
       - 'infra/**'
       - 'services/ivekit-service/**'
       - 'scripts/ivekit-delivery-bundle.ts'
+      - 'scripts/verify-component-governance.ts'
+      - 'scripts/lib/component-governance.ts'
+      - 'docs/architecture/component-authority-matrix-v1.json'
+      - 'docs/architecture/communication-technology-baseline-v1.json'
+      - 'docs/ivekit-component-governance.md'
+      - 'services/ivekit-service/helm/ivekit/profiles/**'
       - 'scripts/ivekit-release-operations.ts'
       - 'scripts/ivekit-stage2-release-evidence.ts'
       - 'scripts/livekit-deployment-preflight.ts'
       - 'scripts/verify-ivekit-stage2-deployment.sh'
       - 'test/ivekit-delivery-bundle.test.ts'
+      - 'test/component-governance.test.ts'
       - 'test/ivekit-release-operations.test.ts'
       - 'test/ivekit-stage2-deployment-gate.test.ts'
       - 'test/ivekit-stage2-release-evidence.test.ts'
@@ -27,11 +34,18 @@ on:
       - 'infra/**'
       - 'services/ivekit-service/**'
       - 'scripts/ivekit-delivery-bundle.ts'
+      - 'scripts/verify-component-governance.ts'
+      - 'scripts/lib/component-governance.ts'
+      - 'docs/architecture/component-authority-matrix-v1.json'
+      - 'docs/architecture/communication-technology-baseline-v1.json'
+      - 'docs/ivekit-component-governance.md'
+      - 'services/ivekit-service/helm/ivekit/profiles/**'
       - 'scripts/ivekit-release-operations.ts'
       - 'scripts/ivekit-stage2-release-evidence.ts'
       - 'scripts/livekit-deployment-preflight.ts'
       - 'scripts/verify-ivekit-stage2-deployment.sh'
       - 'test/ivekit-delivery-bundle.test.ts'
+      - 'test/component-governance.test.ts'
       - 'test/ivekit-release-operations.test.ts'
       - 'test/ivekit-stage2-deployment-gate.test.ts'
       - 'test/ivekit-stage2-release-evidence.test.ts'
@@ -49,7 +63,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '23'
+          node-version: '24'
           cache: npm
 
       - uses: azure/setup-helm@v5.0.0
@@ -61,6 +75,12 @@ jobs:
 
       - name: Verify Compose and Helm deployment contracts
         run: npm run verify:ivekit:stage2-deployment
+
+      - name: Verify component authority and deployment profiles
+        run: npm run verify:component-governance
+
+      - name: Verify communication technology baseline
+        run: npm run verify:technology-baseline
 
       - name: Verify release evidence and delivery bundle
         run: npm run test:ivekit:delivery

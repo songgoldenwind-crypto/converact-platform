@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
 
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { getPostgresOrNull, pgId, type PgQueryable } from '../../db-pg.js';
@@ -29,6 +30,14 @@ import {
   isLiveKitConfigured,
   readLiveKitConfig
 } from '../livekit/config.js';
+import {
+  createConfiguredLiveKitIngressProvider,
+  liveKitIngressConfigured,
+  type LiveKitIngressCreateCommand,
+  type LiveKitIngressInputType,
+  type LiveKitIngressProvider,
+  type LiveKitIngressRecord
+} from '../livekit/livekit-ingress-provider.js';
 import { liveKitConfigForPlacement } from '../livekit/token-service.js';
 import type { RecordingAuditEvent } from '../livekit/media-http.js';
 import type {
@@ -60,6 +69,12 @@ import type {
   MediaCallPlacementReservation
 } from '../livekit/media-call-service.js';
 import type { LiveKitWebhookResult } from '../livekit/types.js';
+import { RealtimeSpeechStore, type RealtimeSpeechStorePort } from './voice/realtime-speech-store.js';
+import type {
+  LiveKitRealtimeAudioTapGrantAuthorizer,
+  LiveKitRealtimeAudioTapGrantTrack,
+  RealtimeAudioTapGrantService
+} from './voice/realtime-audio-tap-grant.js';
 
 export interface RouteIveKitMediaApiOptions {
   pg?: PgQueryable;
@@ -68,6 +83,7 @@ export interface RouteIveKitMediaApiOptions {
     MediaQualityService,
     'reportQuality' | 'reportConnectionEvent' | 'getSummary' | 'prune'
   >;
+  realtimeSpeechStore?: Pick<RealtimeSpeechStorePort, 'list' | 'deleteByInteraction'>;
   eventStore?: Pick<IveKitTenantEventJournal, 'append'>;
   moderationProvider?: LiveKitModerationProvider;
   onRecordingStarted?: (recording: EgressRecord, context: { roomName: string }) => Promise<unknown>;
@@ -85,6 +101,26 @@ export interface RouteIveKitMediaApiOptions {
   egressPlacement?: LiveKitEgressPlacementPort;
   placementWorkerId?: string;
   preparedMediaCallPlacement?: PreparedMediaCallPlacement;
+  ingressProvider?: LiveKitIngressProvider | null;
+  onIngressAudit?: (event: LiveKitIngressAuditEvent) => void | Promise<void>;
+  realtime_audio_tap_grants?: Pick<
+    RealtimeAudioTapGrantService,
+    'grant' | 'list' | 'revoke'
+  >;
+  livekit_realtime_audio_tap_authorizer?: Pick<
+    LiveKitRealtimeAudioTapGrantAuthorizer,
+    'authorize'
+  >;
+  livekit_realtime_audio_tap_gateway_url?: string;
+}
+
+export interface LiveKitIngressAuditEvent {
+  tenant_id: string;
+  actor_id: string;
+  action: 'media.ingress.created' | 'media.ingress.updated' | 'media.ingress.deleted';
+  ingress_id: string;
+  room_name: string;
+  input_type: LiveKitIngressInputType;
 }
 
 export interface PreparedMediaCallPlacement {
@@ -144,6 +180,10 @@ function notFound(message: string): Error & { status: number } {
   return Object.assign(new Error(message), { status: 404 });
 }
 
+function serviceUnavailable(message: string): Error & { status: number } {
+  return Object.assign(new Error(message), { status: 503 });
+}
+
 function requireAuth(headers: Record<string, string | string[] | undefined>) {
   const ctx = resolveAuthContext(headers);
   if (!ctx.authenticated || !ctx.tenantId) {
@@ -155,6 +195,11 @@ function requireAuth(headers: Record<string, string | string[] | undefined>) {
 function requireRecordingCleanupRole(role: string): void {
   if (role === 'owner' || role === 'admin' || role === 'system') return;
   throw Object.assign(new Error('recording retention cleanup requires admin role'), { status: 403 });
+}
+
+function requireIngressOperatorRole(role: string): void {
+  if (role === 'owner' || role === 'admin' || role === 'operator' || role === 'system') return;
+  throw Object.assign(new Error('LiveKit Ingress operation requires operator role'), { status: 403 });
 }
 
 function bodyRecord(body: unknown): Record<string, unknown> {
@@ -179,6 +224,57 @@ function optionalBodyNumber(body: Record<string, unknown>, key: string): number 
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) throw badRequest(`${key} must be a number`);
   return parsed;
+}
+
+function requiredPositiveInteger(value: unknown, key: string): number {
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    throw badRequest(`${key} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function stringArrayBody(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const text = typeof item === 'string' ? item.trim() : '';
+    if (!text || text.length > 64) throw badRequest('array item must be a non-empty string');
+    return text;
+  });
+}
+
+function liveKitAudioTapGrantTracks(value: unknown): LiveKitRealtimeAudioTapGrantTrack[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 64) {
+    throw Object.assign(new Error('LiveKit audio tap tracks must contain 1 to 64 entries'), { status: 422 });
+  }
+  return value.map((item) => {
+    const track = bodyRecord(item);
+    if (track.media_source !== 'livekit') {
+      throw Object.assign(new Error('media call audio tap tracks must use LiveKit'), { status: 422 });
+    }
+    return {
+      media_source: 'livekit',
+      participant_id: requiredBodyString(track, 'participant_id'),
+      track_id: requiredBodyString(track, 'track_id')
+    };
+  });
+}
+
+function requiredIdempotencyKey(
+  headers: Record<string, string | string[] | undefined>
+): string {
+  const value = headerValue(headers, 'idempotency-key').trim();
+  if (!value || value.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/.test(value)) {
+    throw badRequest('Idempotency-Key is required and must be a valid identifier');
+  }
+  return value;
+}
+
+function optionalBodyBoolean(body: Record<string, unknown>, key: string): boolean | undefined {
+  const value = body[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'boolean') throw badRequest(`${key} must be a boolean`);
+  return value;
 }
 
 function optionalQueryNumber(value: string | null): number | undefined {
@@ -349,6 +445,7 @@ function capabilities(
       recording_object_check: true,
       recording_export: true,
       recording_retention_cleanup: true,
+      ingress: true,
       quality_observability: true,
       connection_rejoin_events: true,
       webhooks: true,
@@ -363,7 +460,8 @@ function capabilities(
       livekit_api_key_configured: Boolean(livekitApiKey),
       livekit_api_secret_configured: Boolean(livekitApiSecret),
       invite_secret_configured: Boolean(inviteSecret),
-      egress_configured: Boolean(minioAccessKey && minioSecretKey)
+      egress_configured: Boolean(minioAccessKey && minioSecretKey),
+      ingress_configured: liveKitIngressConfigured()
     }
   };
 }
@@ -543,6 +641,116 @@ export async function routeIveKitMediaApi(
     };
   }
 
+  const audioTapGrantMatch = routePath.match(
+    /^\/api\/ivekit\/media\/calls\/([^/]+)\/realtime-audio-tap-grants(?:\/([^/]+)\/(revoke))?$/
+  );
+  if (audioTapGrantMatch) {
+    const callId = decodeURIComponent(audioTapGrantMatch[1]);
+    const snapshot = await mediaCallService().getCall(ctx.tenantId, callId);
+    if (!snapshot) throw notFound('media call not found');
+    requireMediaCallAudioTapControlAccess(ctx, headers, snapshot);
+    requireNonTerminalMediaCall(snapshot);
+    const grants = options.realtime_audio_tap_grants;
+    if (!grants) throw serviceUnavailable('LiveKit realtime audio tap grants are not configured');
+    const grantId = audioTapGrantMatch[2]
+      ? decodeURIComponent(audioTapGrantMatch[2])
+      : '';
+    const action = audioTapGrantMatch[3] || '';
+
+    if (!grantId && method === 'POST') {
+      const input = bodyRecord(body);
+      const tracks = liveKitAudioTapGrantTracks(input.tracks);
+      requireGrantTrackParticipants(snapshot, tracks);
+      return {
+        status: 201,
+        data: await grants.grant({
+          tenant_id: ctx.tenantId,
+          interaction_id: callId,
+          media_session_id: snapshot.call.room_name,
+          purpose: requiredBodyString(input, 'purpose') as never,
+          consent_ref: requiredBodyString(input, 'consent_ref'),
+          source_language: requiredBodyString(input, 'source_language'),
+          target_languages: stringArrayBody(input.target_languages),
+          features: stringArrayBody(input.features) as never,
+          tracks,
+          expires_at: requiredBodyString(input, 'expires_at'),
+          actor: mediaActorIdentity(ctx, headers),
+          idempotency_key: requiredIdempotencyKey(headers)
+        })
+      };
+    }
+    if (!grantId && method === 'GET') {
+      return {
+        data: await grants.list({
+          tenant_id: ctx.tenantId,
+          interaction_id: callId,
+          limit: optionalQueryNumber(url.searchParams.get('limit')),
+          cursor: url.searchParams.get('cursor') || ''
+        })
+      };
+    }
+    if (grantId && action === 'revoke' && method === 'POST') {
+      const input = bodyRecord(body);
+      return {
+        data: await grants.revoke({
+          tenant_id: ctx.tenantId,
+          interaction_id: callId,
+          grant_id: grantId,
+          expected_revision: requiredPositiveInteger(input.revision, 'revision'),
+          actor: mediaActorIdentity(ctx, headers),
+          reason: requiredBodyString(input, 'reason')
+        })
+      };
+    }
+    throw Object.assign(new Error('unsupported realtime audio tap grant operation'), { status: 405 });
+  }
+
+  const audioTapAuthorizationMatch = routePath.match(
+    /^\/api\/ivekit\/media\/calls\/([^/]+)\/realtime-audio-tap-authorizations$/
+  );
+  if (audioTapAuthorizationMatch) {
+    if (ctx.role !== 'system') {
+      throw Object.assign(new Error('system role required for LiveKit audio tap authorization'), { status: 403 });
+    }
+    if (method !== 'POST') {
+      throw Object.assign(new Error('unsupported realtime audio tap authorization operation'), { status: 405 });
+    }
+    const callId = decodeURIComponent(audioTapAuthorizationMatch[1]);
+    const snapshot = await mediaCallService().getCall(ctx.tenantId, callId);
+    if (!snapshot) throw notFound('media call not found');
+    requireStreamableMediaCall(snapshot);
+    const input = bodyRecord(body);
+    const participantId = requiredBodyString(input, 'participant_id');
+    const trackId = requiredBodyString(input, 'track_id');
+    requireStreamableParticipant(snapshot, participantId);
+    const authorizer = options.livekit_realtime_audio_tap_authorizer;
+    if (!authorizer) throw serviceUnavailable('LiveKit realtime audio tap authorizer is not configured');
+    const gatewayUrl = liveKitAudioTapGatewayUrl(options.livekit_realtime_audio_tap_gateway_url);
+    const token = await authorizer.authorize({
+      tenant_id: ctx.tenantId,
+      interaction_id: callId,
+      media_session_id: snapshot.call.room_name,
+      participant_id: participantId,
+      track_id: trackId
+    });
+    if (!token) {
+      throw Object.assign(new Error('LiveKit audio tap is not authorized for this track'), { status: 403 });
+    }
+    return {
+      status: 201,
+      data: {
+        token,
+        gateway_url: gatewayUrl,
+        protocol: 'ivekit.livekit-audio-tap.v1',
+        audio: {
+          encoding: 'pcm_s16le',
+          sample_rate: 16_000,
+          channels: 1
+        }
+      }
+    };
+  }
+
   const mediaCallMatch = routePath.match(/^\/api\/ivekit\/media\/calls\/([^/]+)(?:\/([^/]+))?$/);
   if (mediaCallMatch) {
     const callId = decodeURIComponent(mediaCallMatch[1]);
@@ -580,6 +788,23 @@ export async function routeIveKitMediaApi(
       });
       if (!summary) throw notFound('media call not found');
       return { data: summary };
+    }
+
+    if (action === 'realtime-speech' && method === 'GET') {
+      const snapshot = await calls.getCall(ctx.tenantId, callId);
+      if (!snapshot) throw notFound('media call not found');
+      requireMediaCallReadAccess(ctx, headers, snapshot);
+      const store = options.realtimeSpeechStore || new RealtimeSpeechStore(
+        requireMediaCallPg(options.pg)
+      );
+      return {
+        data: await store.list({
+          tenant_id: ctx.tenantId,
+          interaction_id: callId,
+          limit: optionalQueryNumber(url.searchParams.get('limit')),
+          cursor: url.searchParams.get('cursor') || ''
+        })
+      };
     }
 
     if (action === 'qos' && method === 'POST') {
@@ -756,6 +981,119 @@ export async function routeIveKitMediaApi(
 
   if (routePath === '/api/ivekit/media/capabilities' && method === 'GET') {
     return { data: capabilities(ctx.tenantId, media) };
+  }
+
+  if (routePath === '/api/ivekit/media/ingresses' && method === 'POST') {
+    requireIngressOperatorRole(ctx.role);
+    const input = normalizeIngressCreateInput(bodyRecord(body));
+    requireTenantRoom(media, {
+      tenantId: ctx.tenantId,
+      roomName: input.room_name,
+      requireOpen: true
+    });
+    const idempotencyKey = requiredIngressIdempotencyKey(headers);
+    const idempotencyKeyHash = sha256(idempotencyKey);
+    const requestHash = sha256(canonicalJson(input));
+    if (options.pg) {
+      await options.pg.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        [`livekit-ingress:${ctx.tenantId}:${idempotencyKeyHash}`]
+      );
+    }
+    const provider = ingressProvider(options);
+    const existing = (await provider.list({ room_name: input.room_name })).find((record) =>
+      record.ownership?.tenant_id === ctx.tenantId &&
+      record.ownership.idempotency_key_hash === idempotencyKeyHash
+    );
+    if (existing) {
+      if (existing.ownership?.request_hash !== requestHash) {
+        throw Object.assign(
+          new Error('Idempotency-Key was already used for another LiveKit Ingress request'),
+          { status: 409 }
+        );
+      }
+      return { status: 200, data: { ...publicIngress(existing), replayed: true } };
+    }
+    const created = await provider.create({
+      ...input,
+      ownership: {
+        tenant_id: ctx.tenantId,
+        actor_id: ctx.userId,
+        idempotency_key_hash: idempotencyKeyHash,
+        request_hash: requestHash
+      }
+    });
+    await options.onIngressAudit?.({
+      tenant_id: ctx.tenantId,
+      actor_id: ctx.userId,
+      action: 'media.ingress.created',
+      ingress_id: created.ingress_id,
+      room_name: created.room_name,
+      input_type: created.input_type
+    });
+    return { status: 201, data: { ...publicIngress(created), replayed: false } };
+  }
+
+  if (routePath === '/api/ivekit/media/ingresses' && method === 'GET') {
+    requireIngressOperatorRole(ctx.role);
+    const roomName = String(url.searchParams.get('room_name') || '').trim();
+    if (!roomName) throw badRequest('room_name is required');
+    requireTenantRoom(media, { tenantId: ctx.tenantId, roomName });
+    const records = await ingressProvider(options).list({ room_name: roomName });
+    return { data: records.map(publicIngress) };
+  }
+
+  const ingressMatch = routePath.match(/^\/api\/ivekit\/media\/ingresses\/([^/]+)$/);
+  if (ingressMatch) {
+    requireIngressOperatorRole(ctx.role);
+    const ingressId = decodeURIComponent(ingressMatch[1]);
+    const provider = ingressProvider(options);
+    const current = await requireTenantIngress(media, provider, ctx.tenantId, ingressId);
+
+    if (method === 'GET') return { data: publicIngress(current) };
+
+    if (method === 'PATCH') {
+      const input = bodyRecord(body);
+      const roomName = optionalBodyString(input, 'room_name') || current.room_name;
+      requireTenantRoom(media, { tenantId: ctx.tenantId, roomName, requireOpen: true });
+      const updated = await provider.update({
+        ingress_id: ingressId,
+        name: optionalBodyString(input, 'name') ?? current.name,
+        room_name: roomName,
+        participant_identity: optionalBodyString(input, 'participant_identity') ??
+          current.participant_identity,
+        participant_name: optionalBodyString(input, 'participant_name') ?? current.participant_name,
+        participant_metadata: optionalBodyRecord(input, 'participant_metadata') ??
+          current.participant_metadata,
+        enable_transcoding: optionalBodyBoolean(input, 'enable_transcoding') ??
+          current.enable_transcoding,
+        audio: optionalBodyRecord(input, 'audio') ?? current.audio,
+        video: optionalBodyRecord(input, 'video') ?? current.video,
+        ownership: current.ownership
+      });
+      await options.onIngressAudit?.({
+        tenant_id: ctx.tenantId,
+        actor_id: ctx.userId,
+        action: 'media.ingress.updated',
+        ingress_id: updated.ingress_id,
+        room_name: updated.room_name,
+        input_type: updated.input_type
+      });
+      return { data: publicIngress(updated) };
+    }
+
+    if (method === 'DELETE') {
+      const deleted = await provider.delete(ingressId);
+      await options.onIngressAudit?.({
+        tenant_id: ctx.tenantId,
+        actor_id: ctx.userId,
+        action: 'media.ingress.deleted',
+        ingress_id: deleted.ingress_id,
+        room_name: deleted.room_name,
+        input_type: deleted.input_type
+      });
+      return { data: publicIngress(deleted) };
+    }
   }
 
   if (routePath === '/api/ivekit/media/moderation/recover' && method === 'POST') {
@@ -1114,6 +1452,177 @@ export async function routeIveKitMediaApi(
   return undefined;
 }
 
+function ingressProvider(options: RouteIveKitMediaApiOptions): LiveKitIngressProvider {
+  if (options.ingressProvider !== undefined) {
+    if (options.ingressProvider) return options.ingressProvider;
+    throw Object.assign(new Error('LiveKit Ingress is not configured'), { status: 503 });
+  }
+  try {
+    const provider = createConfiguredLiveKitIngressProvider();
+    if (provider) return provider;
+  } catch (cause) {
+    throw Object.assign(new Error('LiveKit Ingress configuration is invalid'), {
+      status: 503,
+      cause
+    });
+  }
+  throw Object.assign(new Error('LiveKit Ingress is not configured'), { status: 503 });
+}
+
+function normalizeIngressCreateInput(
+  input: Record<string, unknown>
+): Omit<LiveKitIngressCreateCommand, 'ownership'> {
+  const inputType = String(input.input_type || '').trim().toLowerCase();
+  if (inputType !== 'rtmp' && inputType !== 'whip' && inputType !== 'url') {
+    throw badRequest('input_type must be rtmp, whip, or url');
+  }
+  const roomName = boundedIngressText(requiredBodyString(input, 'room_name'), 'room_name', 255);
+  const participantIdentity = boundedIngressText(
+    requiredBodyString(input, 'participant_identity'),
+    'participant_identity',
+    255
+  );
+  const name = optionalBodyString(input, 'name');
+  const participantName = optionalBodyString(input, 'participant_name');
+  const participantMetadata = optionalBodyRecord(input, 'participant_metadata');
+  if (participantMetadata && Buffer.byteLength(canonicalJson(participantMetadata)) > 8_192) {
+    throw badRequest('participant_metadata exceeds 8192 bytes');
+  }
+  const requestedTranscoding = optionalBodyBoolean(input, 'enable_transcoding');
+  const enableTranscoding = requestedTranscoding ?? (inputType !== 'whip');
+  if (inputType !== 'whip' && !enableTranscoding) {
+    throw badRequest('RTMP and URL ingress require enable_transcoding=true');
+  }
+  const sourceUrl = optionalBodyString(input, 'url');
+  if (inputType === 'url') {
+    if (!sourceUrl) throw badRequest('url is required for URL ingress');
+    validateIngressPullUrl(sourceUrl);
+  } else if (sourceUrl) {
+    throw badRequest('url is only valid for URL ingress');
+  }
+  const audio = optionalBodyRecord(input, 'audio');
+  const video = optionalBodyRecord(input, 'video');
+  return {
+    input_type: inputType,
+    room_name: roomName,
+    participant_identity: participantIdentity,
+    enable_transcoding: enableTranscoding,
+    ...(name ? { name: boundedIngressText(name, 'name', 255) } : {}),
+    ...(participantName
+      ? { participant_name: boundedIngressText(participantName, 'participant_name', 255) }
+      : {}),
+    ...(participantMetadata ? { participant_metadata: participantMetadata } : {}),
+    ...(sourceUrl ? { url: sourceUrl } : {}),
+    ...(audio ? { audio } : {}),
+    ...(video ? { video } : {})
+  };
+}
+
+function validateIngressPullUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw badRequest('url must be an absolute URL');
+  }
+  const allowHttp = process.env.OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL === '1';
+  if (url.protocol !== 'https:' && !(allowHttp && url.protocol === 'http:')) {
+    throw badRequest('URL ingress requires https://');
+  }
+  if (url.username || url.password) throw badRequest('URL ingress credentials are not allowed in url');
+  const hostname = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (!hostname || ingressPrivateHost(hostname)) {
+    throw badRequest('URL ingress host must not be local or a private IP literal');
+  }
+  const allowed = String(process.env.OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  if (!allowed.length || !allowed.some((pattern) => ingressHostMatches(hostname, pattern))) {
+    throw badRequest('URL ingress host is not allowlisted');
+  }
+}
+
+function ingressPrivateHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
+    return true;
+  }
+  const version = isIP(hostname);
+  if (version === 4) {
+    const [a, b] = hostname.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 ||
+      (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) || a >= 224;
+  }
+  if (version === 6) {
+    return hostname === '::1' || hostname === '::' || /^f[cd]/.test(hostname) || /^fe[89ab]/.test(hostname);
+  }
+  return false;
+}
+
+function ingressHostMatches(hostname: string, pattern: string): boolean {
+  if (pattern.startsWith('*.')) {
+    const suffix = pattern.slice(1);
+    return hostname.endsWith(suffix) && hostname.length > suffix.length;
+  }
+  return hostname === pattern;
+}
+
+function requiredIngressIdempotencyKey(
+  headers: Record<string, string | string[] | undefined>
+): string {
+  const value = headerValue(headers, 'idempotency-key').trim();
+  if (!value) throw badRequest('Idempotency-Key is required');
+  if (value.length > 200) throw badRequest('Idempotency-Key must be at most 200 characters');
+  return value;
+}
+
+async function requireTenantIngress(
+  media: ReturnType<typeof createLiveKitMediaModule>,
+  provider: LiveKitIngressProvider,
+  tenantId: string,
+  ingressId: string
+): Promise<LiveKitIngressRecord> {
+  const record = (await provider.list({ ingress_id: ingressId }))[0];
+  if (!record) throw notFound('media ingress not found');
+  requireTenantRoom(media, { tenantId, roomName: record.room_name });
+  if (record.ownership && record.ownership.tenant_id !== tenantId) {
+    throw notFound('media ingress not found');
+  }
+  return record;
+}
+
+function publicIngress(record: LiveKitIngressRecord): Omit<LiveKitIngressRecord, 'ownership'> {
+  const { ownership: _ownership, ...safe } = record;
+  return safe;
+}
+
+function boundedIngressText(value: string, name: string, max: number): string {
+  if (value.length > max) throw badRequest(`${name} must be at most ${max} characters`);
+  return value;
+}
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw badRequest('Ingress request contains a non-finite number');
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`;
+  }
+  throw badRequest('Ingress request contains an unsupported value');
+}
+
 function mediaPlacementRecovery(value: unknown): {
   previous_owner_epoch: string;
   previous_reservation_id: string;
@@ -1280,6 +1789,78 @@ function requireMediaCallReadAccess(
   if (!snapshot.participants.some((participant) => participant.identity === identity && participant.status !== 'removed')) {
     throw notFound('media call not found');
   }
+}
+
+function requireMediaCallAudioTapControlAccess(
+  ctx: ReturnType<typeof requireAuth>,
+  headers: Record<string, string | string[] | undefined>,
+  snapshot: IveKitMediaCallSnapshot
+): void {
+  if (ctx.role === 'system' || ctx.role === 'owner' || ctx.role === 'admin') return;
+  if (ctx.role !== 'operator') {
+    throw Object.assign(new Error('media call host role required for audio tap grants'), { status: 403 });
+  }
+  const identity = mediaActorIdentity(ctx, headers);
+  const participant = snapshot.participants.find((item) =>
+    item.identity === identity && !['declined', 'left', 'missed', 'removed'].includes(item.status)
+  );
+  if (participant?.role !== 'host') {
+    throw Object.assign(new Error('media call host role required for audio tap grants'), { status: 403 });
+  }
+}
+
+function requireNonTerminalMediaCall(snapshot: IveKitMediaCallSnapshot): void {
+  if (['rejected', 'cancelled', 'timed_out', 'ended', 'failed'].includes(snapshot.call.status)) {
+    throw Object.assign(new Error('media call no longer accepts audio tap grants'), { status: 409 });
+  }
+}
+
+function requireStreamableMediaCall(snapshot: IveKitMediaCallSnapshot): void {
+  if (snapshot.call.status !== 'accepted' && snapshot.call.status !== 'active') {
+    throw Object.assign(new Error('media call is not active for realtime audio'), { status: 409 });
+  }
+}
+
+function requireGrantTrackParticipants(
+  snapshot: IveKitMediaCallSnapshot,
+  tracks: readonly LiveKitRealtimeAudioTapGrantTrack[]
+): void {
+  const streamable = new Set(
+    snapshot.participants
+      .filter((participant) => participant.status === 'accepted' || participant.status === 'joined')
+      .map((participant) => participant.identity)
+  );
+  if (tracks.some((track) => !streamable.has(track.participant_id))) {
+    throw Object.assign(
+      new Error('LiveKit audio tap grant contains a participant that is not connected to this call'),
+      { status: 422 }
+    );
+  }
+}
+
+function requireStreamableParticipant(
+  snapshot: IveKitMediaCallSnapshot,
+  participantId: string
+): void {
+  const participant = snapshot.participants.find((item) => item.identity === participantId);
+  if (!participant ||
+      (participant.status !== 'accepted' && participant.status !== 'joined')) {
+    throw notFound('media call participant not found');
+  }
+}
+
+function liveKitAudioTapGatewayUrl(value: string | undefined): string {
+  let url: URL;
+  try {
+    url = new URL(String(value || ''));
+  } catch {
+    throw serviceUnavailable('LiveKit realtime audio tap gateway URL is not configured');
+  }
+  if ((url.protocol !== 'ws:' && url.protocol !== 'wss:') ||
+      url.username || url.password || url.hash) {
+    throw serviceUnavailable('LiveKit realtime audio tap gateway URL is invalid');
+  }
+  return url.toString();
 }
 
 async function broadcastMediaCallTransition(tenantId: string, snapshot: IveKitMediaCallSnapshot): Promise<void> {

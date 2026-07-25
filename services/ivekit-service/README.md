@@ -36,6 +36,8 @@ The integration-event Webhook bridge is also disabled by default. Migration `073
 
 ClamAV persists signatures under `/var/lib/clamav`, runs through the official unprivileged entrypoint, and needs substantial memory while signatures reload. The supplied limits reserve 2 GiB and allow 4 GiB. The API replicas use PostgreSQL claim leases and `FOR UPDATE SKIP LOCKED`, so scan, derivative, and cleanup jobs remain single-owner when more than one API replica runs. `clamd` port 3310 must never be published outside the Compose network or Kubernetes ClusterIP because it has no transport authentication.
 
+A ClamAV outage must not gate API readiness or active communication. Compose and Helm start the API without waiting for `clamd`; pending files remain quarantined and the bounded scan worker retries through its durable PostgreSQL state. Scanner health is observed independently, and recovery resumes file processing without restarting SIP, WebRTC, IM, or remote-control sessions.
+
 Run the compiled V3 configuration gate before enabling OCR, ASR, quality, or translation workers:
 
 ```bash

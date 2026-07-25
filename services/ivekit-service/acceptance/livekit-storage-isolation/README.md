@@ -45,7 +45,9 @@ export OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolat
 npm run accept
 ```
 
-The command passes only when all three two-peer snapshots remain connected with the expected publications, Egress
-ends as `failed` with `storage_upload_failed`, storage bootstrap succeeds after recovery, and the output reports
-`storage_recovered=true`. The evidence file is forced to mode `0600` and omits tokens, secrets, object-store URLs,
-and raw Egress errors.
+The command passes only when all four two-peer snapshots remain connected with the expected publications and both
+peers' inbound/outbound audio bytes, video bytes, RTP packets, and decoded video frames strictly increase at every
+stage. The first Egress must end as `failed` with `storage_upload_failed`; after storage bootstrap recovers, a second
+Egress must finish as `complete` while media continues. The output reports
+`status=passed_controlled_runtime`, `media_transport_progress_verified=true`, and `storage_recovered=true`.
+The evidence file is forced to mode `0600` and omits tokens, secrets, object-store URLs, and raw Egress errors.

@@ -1,12 +1,19 @@
 import {
   AckPolicy,
-  JSONCodec,
   RetentionPolicy,
   StorageType,
-  connect,
+  jetstream,
+  jetstreamManager
+} from '@nats-io/jetstream';
+import {
   nanos,
+  type Codec,
   type NatsConnection
-} from 'nats';
+} from '@nats-io/nats-core';
+import {
+  connect,
+  type NodeConnectionOptions
+} from '@nats-io/transport-node';
 
 import {
   LoadRunControlError,
@@ -20,7 +27,7 @@ export class JetStreamCapacityCommandBus implements CapacityCommandBus {
   readonly #connection: NatsConnection;
   readonly #streamName: string;
   readonly #subjectPrefix: string;
-  readonly #codec = JSONCodec<CapacityStartShardCommand>();
+  readonly #codec = jsonCodec<CapacityStartShardCommand>();
 
   private constructor(input: {
     connection: NatsConnection;
@@ -33,7 +40,8 @@ export class JetStreamCapacityCommandBus implements CapacityCommandBus {
   }
 
   static async connect(input: {
-    servers: string | string[];
+    connection_options: NodeConnectionOptions;
+    stream_replicas: number;
     stream_name?: string;
     subject_prefix?: string;
     max_age_days?: number;
@@ -43,18 +51,16 @@ export class JetStreamCapacityCommandBus implements CapacityCommandBus {
     validStreamName(streamName);
     validSubjectPrefix(subjectPrefix);
     const maxAgeDays = boundedInteger(input.max_age_days ?? 7, 1, 365, 'max_age_days');
-    const connection = await connect({
-      servers: input.servers,
-      name: 'ivekit-capacity-orchestrator',
-      maxReconnectAttempts: -1
-    });
-    const manager = await connection.jetstreamManager();
+    const streamReplicas = validReplicaCount(input.stream_replicas);
+    const connection = await connect(input.connection_options);
+    const manager = await jetstreamManager(connection);
     try {
       try {
         const info = await manager.streams.info(streamName);
         assertCapacityStreamConfiguration(info.config, {
           subject: `${subjectPrefix}.>`,
-          max_age: nanos(maxAgeDays * 86_400_000)
+          max_age: nanos(maxAgeDays * 86_400_000),
+          num_replicas: streamReplicas
         });
       } catch (error) {
         if (!isNotFound(error)) throw error;
@@ -63,7 +69,8 @@ export class JetStreamCapacityCommandBus implements CapacityCommandBus {
           subjects: [`${subjectPrefix}.>`],
           retention: RetentionPolicy.Workqueue,
           storage: StorageType.File,
-          max_age: nanos(maxAgeDays * 86_400_000)
+          max_age: nanos(maxAgeDays * 86_400_000),
+          num_replicas: streamReplicas
         });
       }
       return new JetStreamCapacityCommandBus({
@@ -81,7 +88,7 @@ export class JetStreamCapacityCommandBus implements CapacityCommandBus {
     if (!command.subject.startsWith(`${this.#subjectPrefix}.`)) {
       throw new LoadRunControlError('command_subject_invalid', 400);
     }
-    await this.#connection.jetstream().publish(
+    await jetstream(this.#connection).publish(
       command.subject,
       this.#codec.encode(command.payload),
       { msgID: command.payload.command_id }
@@ -101,7 +108,7 @@ export class JetStreamCapacityCommandConsumer {
   readonly #connection: NatsConnection;
   readonly #streamName: string;
   readonly #consumerName: string;
-  readonly #codec = JSONCodec<unknown>();
+  readonly #codec = jsonCodec<unknown>();
   readonly #retryDelayMs: number;
   readonly #ackProgressIntervalMs: number;
 
@@ -120,7 +127,7 @@ export class JetStreamCapacityCommandConsumer {
   }
 
   static async connect(input: {
-    servers: string | string[];
+    connection_options: NodeConnectionOptions;
     stream_name?: string;
     subject_prefix?: string;
     fleet_id: string;
@@ -140,12 +147,8 @@ export class JetStreamCapacityCommandConsumer {
     const consumerName = input.consumer_name ||
       `capacity-${durableToken(input.fleet_id)}-${durableToken(input.worker_id)}`;
     const filterSubject = `${prefix}.${input.fleet_id}.${input.worker_id}`;
-    const connection = await connect({
-      servers: input.servers,
-      name: consumerName,
-      maxReconnectAttempts: -1
-    });
-    const manager = await connection.jetstreamManager();
+    const connection = await connect(input.connection_options);
+    const manager = await jetstreamManager(connection);
     try {
       try {
         const info = await manager.consumers.info(streamName, consumerName);
@@ -184,7 +187,7 @@ export class JetStreamCapacityCommandConsumer {
     handler: { handle(command: CapacityStartShardCommand): Promise<void> },
     options: { signal?: AbortSignal } = {}
   ): Promise<void> {
-    const consumer = await this.#connection.jetstream()
+    const consumer = await jetstream(this.#connection)
       .consumers.get(this.#streamName, this.#consumerName);
     const messages = await consumer.consume();
     const stop = () => {
@@ -222,22 +225,44 @@ export class JetStreamCapacityCommandConsumer {
   }
 }
 
+function jsonCodec<T>(): Codec<T> {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  return {
+    encode(value: T): Uint8Array {
+      return encoder.encode(JSON.stringify(value));
+    },
+    decode(data: Uint8Array): T {
+      return JSON.parse(decoder.decode(data)) as T;
+    }
+  };
+}
+
 export function assertCapacityStreamConfiguration(
   config: {
     subjects: string[];
     retention: RetentionPolicy;
     storage: StorageType;
     max_age: number;
+    num_replicas: number;
   },
-  expected: { subject: string; max_age: number }
+  expected: { subject: string; max_age: number; num_replicas: number }
 ): void {
   if (config.subjects.length !== 1 ||
       config.subjects[0] !== expected.subject ||
       config.retention !== RetentionPolicy.Workqueue ||
       config.storage !== StorageType.File ||
-      config.max_age !== expected.max_age) {
+      config.max_age !== expected.max_age ||
+      config.num_replicas !== expected.num_replicas) {
     throw new LoadRunControlError('capacity_stream_configuration_mismatch', 409);
   }
+}
+
+function validReplicaCount(value: number): number {
+  if (value !== 1 && value !== 3 && value !== 5) {
+    throw new LoadRunControlError('stream_replicas_invalid', 400);
+  }
+  return value;
 }
 
 export function assertCapacityConsumerConfiguration(

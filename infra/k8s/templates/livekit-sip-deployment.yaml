@@ -1,4 +1,18 @@
 {{- if .Values.media.sip.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-livekit-sip-config
+type: Opaque
+stringData:
+  sip.yaml: |
+    api_key: {{ include "opc.livekitApiKey" . | quote }}
+    api_secret: {{ include "opc.livekitApiSecret" . | quote }}
+    ws_url: {{ include "opc.livekitInternalUrl" . | quote }}
+    redis:
+      {{- include "opc.livekitRedisConfig" . | nindent 6 }}
+    sip_port: {{ .Values.media.sip.service.port | default 5061 }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,21 +33,6 @@ spec:
         - name: livekit-sip
           image: {{ include "opc.livekitSipImage" . | quote }}
           imagePullPolicy: {{ .Values.media.sip.image.pullPolicy | default "IfNotPresent" }}
-          env:
-            - name: LIVEKIT_URL
-              value: {{ include "opc.livekitInternalUrl" . | quote }}
-            - name: LIVEKIT_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: livekit-api-key
-            - name: LIVEKIT_API_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: livekit-api-secret
-            - name: SIP_PORT
-              value: {{ .Values.media.sip.service.port | default 5061 | quote }}
           ports:
             - name: sip-udp
               containerPort: 5061
@@ -41,8 +40,19 @@ spec:
             - name: sip-tcp
               containerPort: 5061
               protocol: TCP
+          volumeMounts:
+            - name: livekit-sip-config
+              mountPath: /sip/config.yaml
+              subPath: sip.yaml
+              readOnly: true
+            {{- include "opc.livekitRedisTLSVolumeMount" . | nindent 12 }}
           resources:
             {{- toYaml .Values.media.sip.resources | nindent 12 }}
+      volumes:
+        - name: livekit-sip-config
+          secret:
+            secretName: {{ .Release.Name }}-livekit-sip-config
+        {{- include "opc.livekitRedisTLSVolume" . | nindent 8 }}
 ---
 apiVersion: v1
 kind: Service

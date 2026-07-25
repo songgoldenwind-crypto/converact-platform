@@ -56,6 +56,13 @@ Tracked RWI mutations compare the supplied epoch against the in-process guard;
 bridge, transfer, ringback and supervisor commands validate every referenced
 call ID. No RTP packet, codec, mixer or recording frame path calls the agent.
 
+The HTTP-capacity patch keeps DNS and connection establishment from becoming a
+second signaling bottleneck. Reqwest uses its asynchronous Hickory resolver,
+dynamic call routing and CDR delivery use the same keepalive client policy, and
+the pool retains up to 64 idle connections per host. The concurrency limit still
+comes from the bounded call-record runtime; the larger pool avoids serial
+connection churn but does not create unbounded HTTP work.
+
 iveKit sends owner contracts in the RWI envelope's internal `ivekit_owners`
 field, outside the public voice command payload. Parking pickup resolves both
 call owners and fails before RWI execution when the legs are assigned to
@@ -260,6 +267,47 @@ calls remained active and Router/CDR counts exceeded the target by four. Treat
 1,400 CPS as the controlled signaling baseline for this hardware. It does not
 prove RTP, PSTN, WSS, sustained recovery, Cell-10K or MIX-100K capacity.
 
+The exact ivekit.18 amd64 Linux image adds asynchronous DNS and the shared
+64-idle-connection HTTP policy. On the same controlled four-vCPU host, a
+60-second direct RustPBX run at 1,000 target CPS completed 60,000 of 60,000
+calls with zero failures, remaining calls, retransmissions, or queue drops;
+Router and CDR deltas were both exactly 60,000, with SIP route P95/P99 of
+3/5 ms. The full SIPp -> Kamailio -> RustPBX run also completed 60,000 of
+60,000 with exact Kamailio/Router/CDR parity, zero retransmissions, and route
+P95/P99 of 8/19 ms. These are sustained signaling regression gates, not a new
+maximum-CPS claim. See
+`docs/evidence/wave3-rustpbx-kamailio-sip-capacity-server-validation-2026-07-24.md`.
+
+## RTP UDP socket capacity
+
+The ivekit.19 and later images pin `rustrtc` commit
+`166c6d22984429eb6b509920c14fcd69f974f0b3` and applies the UDP socket
+capacity patch before building RustPBX. RTP and direct RTCP sockets use
+non-blocking `socket2` creation and may request explicit kernel buffers:
+
+- `RUSTRTC_UDP_RECEIVE_BUFFER_BYTES`
+- `RUSTRTC_UDP_SEND_BUFFER_BYTES`
+
+Unset values preserve the operating-system default. Configured values must be
+between 65,536 and 16,777,216 bytes. Linux commonly reports an effective value
+larger than the request because it includes kernel accounting overhead. The
+limit is not pre-allocated per socket, but it is a permitted queue ceiling:
+raising it increases the amount of packet memory that a stalled media worker
+can retain. Admission limits and pod memory budgets must therefore be tuned
+together with the socket values.
+
+The controlled media baseline requests a 1 MiB receive buffer and 512 KiB send
+buffer. These values absorb short scheduler stalls; they do not compensate for
+sustained CPU saturation or an undersized media worker topology. Every
+capacity run gates Linux `RcvbufErrors`, `SndbufErrors`, `InErrors`, SIP
+reconciliation and expected RTP datagram coverage.
+
+Shared-host SIPp evidence can prove a controlled regression but cannot assign
+the combined host's saturation boundary to RustPBX. A production capacity
+claim requires an independent load generator, separate resource telemetry,
+strict packet-sequence evidence below the throughput frontier, and a zero
+kernel-drop throughput staircase at the claimed point.
+
 ## Recording media hot path
 
 The iveKit media patch removes recorder codec conversion, mixing, flushing and
@@ -302,6 +350,53 @@ The Rust unit gate `test_recording_stop_does_not_block_engine_on_busy_recorder`
 holds the recorder write lock while StopRecording and PauseRecording are sent;
 the pause event must still arrive within 250 ms. This proves command-loop lock
 isolation, not physical RTP continuity or stalled-filesystem behavior.
+
+## Realtime speech audio tap
+
+The realtime audio tap is an opt-in, per-session speech fork for streaming ASR,
+translation and voice-agent Providers. RustPBX accepts the
+`x-ivekit-audio-tap-token` only from the trusted HTTP router result stored in
+`dialplan.routed_headers`; an untrusted inbound SIP header cannot enable the
+tap. Dynamic routing returns the token as an internal route header, while
+snapshot routing receives it from authenticated inbound admission and injects
+the same trusted header. The opaque token is sent once in the local
+session-start message and must
+be verified by the co-located gateway against tenant, interaction, participant,
+purpose, consent, expiry and nonce.
+
+The forwarding path shares the existing `Arc<MediaSample>` and calls only
+`try_send` on a bounded per-session channel. A full or closed channel drops the
+auxiliary copy and increments a low-cardinality counter; it never waits on the
+gateway or a Provider. Codec decoding and resampling run in the asynchronous tap
+worker after the media handoff. Negotiated caller and callee speech is emitted
+as mono PCM16 at 16 kHz. Telephone-event payloads are excluded, codec profiles
+are updated after re-INVITE, and enabling the tap disables the raw RTP transport
+shortcut that would otherwise bypass the depacketized media track.
+
+Configure the RustPBX TOML fields only when the local gateway is present:
+
+| TOML field | Default | Valid range |
+| --- | --- | --- |
+| `realtime_audio_tap_socket_path` | unset/disabled | absolute Unix socket path, at most 100 bytes |
+| `realtime_audio_tap_channel_capacity` | `256` | 1 through 65,536 |
+| `realtime_audio_tap_send_timeout_ms` | `10` | 1 through 1,000 ms |
+
+The local stream protocol prefixes every message with a four-byte big-endian
+length, then uses `IATJ` JSON start/end controls or an `IAT1` 48-byte binary PCM
+header. The PCM header carries protocol version, leg,
+session-key digest, sequence, capture timestamp, sample rate and sample count.
+No tenant identifier, phone number or authorization token appears in per-frame
+payloads. Socket creation, connection, send, decode or gateway failure may
+disable or degrade realtime intelligence, but it cannot terminate the SIP
+dialog or block RTP forwarding.
+
+The exact ivekit.17 source passes `cargo check --locked` and ten focused Rust
+tests on the controlled amd64 Linux server. Those tests cover authorization,
+snapshot token propagation and validation, envelope bounds,
+PCMU-to-16-kHz normalization and both forwarding implementations under a full
+tap queue. The Node gateway token, nonce replay and real Unix socket contract
+tests also pass. Cross-process RustPBX RTP capture, external Provider streaming
+and physical capacity remain `not_run`.
 
 ## Session teardown isolation
 

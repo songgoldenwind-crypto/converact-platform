@@ -17,6 +17,16 @@ export interface PgQueryable {
   ): Promise<QueryResult<R>>;
 }
 
+export interface PostgresPoolErrorEvent {
+  event: 'postgres.pool.idle_client_error';
+  error_code: string;
+  action: 'connection_discarded';
+}
+
+interface PostgresPoolErrorEmitter {
+  on(event: 'error', listener: (error: Error) => void): unknown;
+}
+
 type TableRow = Record<string, unknown>;
 
 /**
@@ -2202,7 +2212,7 @@ export class MemoryPg implements PgQueryable {
     if (sql.startsWith('INSERT INTO collaboration_intelligence_policies')) {
       const tenantId = String(params[0]);
       const existing = this.table('collaboration_intelligence_policies').get(tenantId);
-      const expectedVersion = Number(params[22]);
+      const expectedVersion = Number(params[31]);
       if (existing && Number(existing.version) !== expectedVersion) return [];
       const now = this.nowIso();
       const row: TableRow = {
@@ -2211,24 +2221,33 @@ export class MemoryPg implements PgQueryable {
         asr_enabled: params[2],
         quality_review_enabled: params[3],
         translation_enabled: params[4],
-        ocr_profile_id: params[5],
-        asr_profile_id: params[6],
-        quality_profile_id: params[7],
-        translation_profile_id: params[8],
-        ocr_profile_ids: params[9],
-        asr_profile_ids: params[10],
-        quality_profile_ids: params[11],
-        translation_profile_ids: params[12],
-        allow_third_party: params[13],
-        auto_ocr: params[14],
-        auto_asr: params[15],
-        auto_quality_review: params[16],
-        auto_translation: params[17],
-        translation_target_languages: params[18],
-        min_ocr_confidence: params[19],
-        min_asr_confidence: params[20],
+        realtime_speech_enabled: params[5],
+        tts_enabled: params[6],
+        model_gateway_enabled: params[7],
+        ocr_profile_id: params[8],
+        asr_profile_id: params[9],
+        quality_profile_id: params[10],
+        translation_profile_id: params[11],
+        realtime_speech_profile_id: params[12],
+        tts_profile_id: params[13],
+        model_gateway_profile_id: params[14],
+        ocr_profile_ids: params[15],
+        asr_profile_ids: params[16],
+        quality_profile_ids: params[17],
+        translation_profile_ids: params[18],
+        realtime_speech_profile_ids: params[19],
+        tts_profile_ids: params[20],
+        model_gateway_profile_ids: params[21],
+        allow_third_party: params[22],
+        auto_ocr: params[23],
+        auto_asr: params[24],
+        auto_quality_review: params[25],
+        auto_translation: params[26],
+        translation_target_languages: params[27],
+        min_ocr_confidence: params[28],
+        min_asr_confidence: params[29],
         version: existing ? Number(existing.version) + 1 : 1,
-        updated_by: params[21],
+        updated_by: params[30],
         created_at: existing?.created_at || now,
         updated_at: now
       };
@@ -4084,6 +4103,26 @@ function jsonArray(value: unknown): unknown[] {
 let sharedPool: PgQueryable | null = null;
 let realPool: Pool | null = null;
 
+export function attachPostgresPoolErrorHandler(
+  pool: PostgresPoolErrorEmitter,
+  report: (
+    event: PostgresPoolErrorEvent
+  ) => void | PromiseLike<void> = reportPostgresPoolError
+): void {
+  pool.on('error', (error) => {
+    try {
+      const pending = report({
+        event: 'postgres.pool.idle_client_error',
+        error_code: safePostgresErrorCode(error),
+        action: 'connection_discarded'
+      });
+      if (pending) void Promise.resolve(pending).catch(() => undefined);
+    } catch {
+      // Error reporting must never recreate the unhandled pool error path.
+    }
+  });
+}
+
 export interface PostgresConnectionConfig {
   runtimeUrl: string;
   migrationUrl: string | null;
@@ -4141,6 +4180,7 @@ export async function initPostgres(): Promise<PgQueryable | null> {
       connectionString: config.migrationUrl,
       max: 1
     });
+    attachPostgresPoolErrorHandler(migrationPool);
     try {
       await migrationPool.query('SELECT 1');
       await runMigrations(migrationPool);
@@ -4153,6 +4193,7 @@ export async function initPostgres(): Promise<PgQueryable | null> {
     ...poolOptions,
     connectionString: config.runtimeUrl
   });
+  attachPostgresPoolErrorHandler(runtimePool);
   try {
     await runtimePool.query('SELECT 1');
     if (config.migrationUrl === config.runtimeUrl) {
@@ -4229,6 +4270,15 @@ export async function runMigrations(
 }
 
 export { isPostgresMigrationFile };
+
+function safePostgresErrorCode(error: Error): string {
+  const code = String((error as Error & { code?: unknown }).code || '');
+  return /^[A-Z0-9]{1,16}$/.test(code) ? code : 'unknown';
+}
+
+function reportPostgresPoolError(event: PostgresPoolErrorEvent): void {
+  process.stderr.write(`[postgres] ${JSON.stringify(event)}\n`);
+}
 
 export async function withPgTransaction<T>(
   pg: PgQueryable,

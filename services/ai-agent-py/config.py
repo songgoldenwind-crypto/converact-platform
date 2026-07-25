@@ -18,6 +18,7 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "8192"))
 LLM_TIMEOUT_MS = int(os.getenv("LLM_TIMEOUT_MS", "60000"))
 
 # Fallback LLM — DeepSeek (used when primary transport fails)
+LLM_FALLBACK_PROVIDERS = os.getenv("LLM_FALLBACK_PROVIDERS", "deepseek")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
 _deepseek_model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
@@ -32,7 +33,15 @@ CARTESIA_API_KEY = os.getenv("CARTESIA_API_KEY", "")
 
 # Self-hosted Chinese speech (Plan B on Mac host)
 SPEECH_ASR_PROVIDER = os.getenv("SPEECH_ASR_PROVIDER", "funasr").lower()
+SPEECH_ASR_FALLBACK_PROVIDERS = os.getenv(
+    "SPEECH_ASR_FALLBACK_PROVIDERS",
+    "deepgram,openai",
+)
 SPEECH_TTS_PROVIDER = os.getenv("SPEECH_TTS_PROVIDER", "cosyvoice").lower()
+SPEECH_TTS_FALLBACK_PROVIDERS = os.getenv(
+    "SPEECH_TTS_FALLBACK_PROVIDERS",
+    "cartesia,openai",
+)
 FUNASR_URL = os.getenv("FUNASR_URL", "http://127.0.0.1:8899")
 COSYVOICE_URL = os.getenv("COSYVOICE_URL", "http://127.0.0.1:50000")
 COSYVOICE_SPK_ID = os.getenv("COSYVOICE_SPK_ID", "中文女")

@@ -16,6 +16,7 @@ export interface IveKitMediaCapabilities {
     recording_object_check: boolean;
     recording_export: boolean;
     recording_retention_cleanup: boolean;
+    ingress: boolean;
     quality_observability: boolean;
     connection_rejoin_events: boolean;
     webhooks: boolean;
@@ -31,7 +32,56 @@ export interface IveKitMediaCapabilities {
     livekit_api_secret_configured: boolean;
     invite_secret_configured: boolean;
     egress_configured: boolean;
+    ingress_configured: boolean;
   };
+}
+
+export type IveKitMediaIngressInputType = 'rtmp' | 'whip' | 'url';
+
+export interface IveKitMediaIngress {
+  ingress_id: string;
+  name: string;
+  stream_key: string;
+  url: string;
+  input_type: IveKitMediaIngressInputType;
+  enable_transcoding?: boolean;
+  audio?: Record<string, unknown>;
+  video?: Record<string, unknown>;
+  room_name: string;
+  participant_identity: string;
+  participant_name: string;
+  participant_metadata: Record<string, unknown>;
+  reusable: boolean;
+  enabled?: boolean;
+  state: Record<string, unknown> | null;
+}
+
+export interface IveKitCreateMediaIngressInput {
+  input_type: IveKitMediaIngressInputType;
+  name?: string;
+  room_name: string;
+  participant_identity: string;
+  participant_name?: string;
+  participant_metadata?: Record<string, unknown>;
+  enable_transcoding?: boolean;
+  url?: string;
+  audio?: Record<string, unknown>;
+  video?: Record<string, unknown>;
+}
+
+export interface IveKitUpdateMediaIngressInput {
+  name?: string;
+  room_name?: string;
+  participant_identity?: string;
+  participant_name?: string;
+  participant_metadata?: Record<string, unknown>;
+  enable_transcoding?: boolean;
+  audio?: Record<string, unknown>;
+  video?: Record<string, unknown>;
+}
+
+export interface IveKitCreateMediaIngressResult extends IveKitMediaIngress {
+  replayed: boolean;
 }
 
 export type IveKitMediaCallStatus =
@@ -209,6 +259,44 @@ export interface IveKitMediaConnectionEventResult {
   participant_state: IveKitMediaQualityParticipantState;
   replayed: boolean;
 }
+
+export type IveKitRealtimeSpeechSegmentKind = 'transcript' | 'translation';
+
+export interface IveKitRealtimeSpeechSegment {
+  id: string;
+  tenant_id: string;
+  interaction_id: string;
+  media_session_id: string;
+  media_source: 'rustpbx' | 'livekit';
+  participant_id: string;
+  track_id: string;
+  purpose: 'live_captions' | 'live_translation';
+  consent_ref: string;
+  provider_profile_id: string;
+  provider: string;
+  provider_version: string;
+  source_event_id: string;
+  provider_session_id: string;
+  sequence: number;
+  kind: IveKitRealtimeSpeechSegmentKind;
+  segment_id: string;
+  speaker_id: string;
+  source_language: string;
+  target_language: string;
+  source_text: string;
+  translated_text: string;
+  confidence?: number;
+  start_ms?: number;
+  end_ms?: number;
+  provider_request_id: string;
+  latency_ms: Record<string, number>;
+  safe_metadata: Record<string, unknown>;
+  occurred_at: string;
+  retention_until: string;
+  created_at: string;
+}
+
+export type IveKitRealtimeSpeechSegmentPage = IveKitMediaCursorPage<IveKitRealtimeSpeechSegment>;
 
 export interface IveKitMediaQualitySummary {
   tenant_id: string;

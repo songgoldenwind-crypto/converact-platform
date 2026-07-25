@@ -63,18 +63,27 @@ test('LiveKit Egress overlay adds only the local pool policy module', () => {
 test('LiveKit Egress overlay makes the upstream production Dockerfile build the local policy', () => {
   const patched = patchLiveKitEgressDockerfile(egressDockerfileFixture());
 
+  for (const input of [
+    'IVEKIT_EGRESS_TEMPLATE_IMAGE',
+    'IVEKIT_EGRESS_BUILDER_IMAGE',
+    'IVEKIT_EGRESS_RUNTIME_IMAGE'
+  ]) {
+    assert.match(patched, new RegExp(`ARG ${input}`));
+    assert.match(patched, new RegExp(`FROM \\$\\{${input}\\}`));
+  }
+  assert.doesNotMatch(patched, /^FROM livekit\//m);
+  assert.doesNotMatch(patched, /^ADD https:\/\//m);
+  assert.doesNotMatch(patched, /apt-get/);
+  assert.doesNotMatch(patched, /chrome-installer/);
   assert.match(patched, /COPY ivekit\/egress-pool\/ ivekit\/egress-pool\//);
-  assert.ok(
-    patched.indexOf('COPY ivekit/egress-pool/ ivekit/egress-pool/') <
-      patched.indexOf('RUN go mod download')
-  );
+  assert.match(patched, /COPY vendor\/ vendor\//);
+  assert.match(patched, /GOFLAGS=-mod=vendor/);
+  assert.doesNotMatch(patched, /go mod download/);
+  assert.match(patched, /GOCACHE=\/tmp\/ivekit-egress-go-cache/);
+  assert.match(patched, /rm -rf \/tmp\/ivekit-egress-go-cache/);
   assert.match(patched, /COPY ivekit\/toolchain\/go\/ \/usr\/local\/go\//);
   assert.match(patched, /test "\$\(head -n 1 \/usr\/local\/go\/VERSION\)" = "go1\.26\.2"/);
   assert.doesNotMatch(patched, /wget https:\/\/go\.dev\/dl\/go1\.26\.2/);
-  assert.match(patched, /ARG IVEKIT_APT_MIRROR=https:\/\/ports\.ubuntu\.com\/ubuntu-ports/);
-  assert.match(patched, /Acquire::Retries=5/);
-  assert.match(patched, /Acquire::https::Timeout=30/);
-  assert.doesNotMatch(patched, /^RUN apt-get update/m);
   assert.match(patched, /go test \.\/pkg\/stats/);
   assert.ok(patched.indexOf('go test ./pkg/stats') < patched.indexOf('go build -a'));
   assert.equal(patchLiveKitEgressDockerfile(patched), patched);
@@ -93,8 +102,6 @@ test('LiveKit Egress build and Kubernetes pools enforce the source-level policy 
   assert.match(build, /aarch64\|arm64/);
   assert.match(build, /x86_64\|amd64/);
   assert.match(build, /GOSUMDB="\$\{GOSUMDB:-sum\.golang\.org\}"/);
-  assert.match(build, /IVEKIT_LIVEKIT_EGRESS_APT_MIRROR/);
-  assert.match(build, /--build-arg "IVEKIT_APT_MIRROR=\$\{IVEKIT_LIVEKIT_EGRESS_APT_MIRROR\}"/);
   assert.match(build, /chmod -R u\+w "\$\{toolchain_target\}"/);
   assert.match(build, /chmod 0555 "\$\{toolchain_target\}\/bin\/go"/);
   assert.match(build, /pkg\/tool\/linux_\$\{target_arch\}.*chmod 0555/);
@@ -103,6 +110,20 @@ test('LiveKit Egress build and Kubernetes pools enforce the source-level policy 
   assert.doesNotMatch(build, /go test -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}" \.\/pkg\/stats/);
   assert.match(build, /--file "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}\/build\/egress\/Dockerfile"/);
   assert.match(build, /--platform "linux\/\$\{target_arch\}"/);
+  for (const input of [
+    'TEMPLATE',
+    'BUILDER',
+    'RUNTIME'
+  ]) {
+    assert.match(build, new RegExp(`IVEKIT_LIVEKIT_EGRESS_${input}_IMAGE`));
+  }
+  assert.match(build, /@sha256:\[a-f0-9\]/);
+  assert.match(build, /go -C "\$\{LIVEKIT_EGRESS_SOURCE_DIR\}" mod vendor/);
+  assert.ok(
+    build.indexOf('rm -rf "${toolchain_target}"') <
+      build.indexOf('go -C "${LIVEKIT_EGRESS_SOURCE_DIR}" mod vendor')
+  );
+  assert.match(build, /--network=none/);
   assert.match(build, /io\.ivekit\.egress-pool-contract=ivekit-egress-pool-v1/);
   assert.match(build, /docker image inspect.*org\.opencontainers\.image\.revision/);
   assert.match(build, /docker run --rm --entrypoint \/bin\/egress.*--version/);
@@ -215,11 +236,20 @@ function egressDockerfileFixture(): string {
     'COPY pkg/ pkg/',
     'COPY version/ version/',
     'RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on GODEBUG=disablethp=1 go build -a -o egress ./cmd/server',
+    '# install tini',
+    'ENV TINI_VERSION v0.19.0',
+    'ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${TARGETARCH} /tini',
+    'RUN chmod +x /tini',
     '',
     'FROM livekit/gstreamer:1.24.12-prod',
+    'ARG TARGETPLATFORM',
     '# install deps',
     'RUN apt-get update && \\',
     '    apt-get install -y curl',
+    'COPY --from=livekit/chrome-installer:146.0.7680.177-1 /chrome-installer /chrome-installer',
+    '# copy files',
+    'COPY --from=1 /workspace/egress /bin/',
+    'COPY --from=1 /tini /tini',
     ''
   ].join('\n');
 }

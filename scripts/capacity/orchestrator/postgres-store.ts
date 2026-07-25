@@ -4,6 +4,7 @@ import type {
   PlacementPgQueryable
 } from '../../../src/agent-runtime/ivekit/placement/pg-queryable.js';
 import { canonicalSha256 } from '../canonical-json.js';
+import type { LoadShardWorkload } from '../profile-compiler.js';
 import {
   LoadRunControlError,
   type CapacityCommandOutboxRecord,
@@ -58,13 +59,15 @@ implements CapacityLoadRunRepository, CapacityShardExecutionCheckpointRepository
          INSERT INTO ivekit_capacity_load_shards
            (run_id, phase_id, shard_id, fleet_id, workload_domain, workload_id,
             workload_kind, ordinal_start, ordinal_end_exclusive, expected_count,
-            required_protocols, seed, state, lease_epoch, created_at, updated_at)
+            covered_workloads, required_protocols, seed, state, lease_epoch,
+            created_at, updated_at)
          SELECT $1, phase.phase_id, shard.value->>'shard_id',
            shard.value->>'assigned_fleet', shard.value->>'workload_domain',
            shard.value->>'workload_id', shard.value->>'workload_kind',
            (shard.value->>'ordinal_start')::integer,
            (shard.value->>'ordinal_end_exclusive')::integer,
            (shard.value->>'expected_count')::integer,
+           COALESCE(shard.value->'covered_workloads', '[]'::jsonb),
            shard.value->'required_protocols', shard.value->>'seed',
            'pending', 0, $6::timestamptz, $6::timestamptz
          FROM inserted_phases phase CROSS JOIN shard_input shard
@@ -416,6 +419,7 @@ implements CapacityLoadRunRepository, CapacityShardExecutionCheckpointRepository
                'ordinal_start', assigned.ordinal_start,
                'ordinal_end_exclusive', assigned.ordinal_end_exclusive,
                'expected_count', assigned.expected_count,
+               'covered_workloads', assigned.covered_workloads,
                'required_protocols', assigned.required_protocols,
                'seed', assigned.seed
              )
@@ -430,7 +434,8 @@ implements CapacityLoadRunRepository, CapacityShardExecutionCheckpointRepository
          assigned.lease_epoch::text AS lease_epoch, assigned.lease_expires_at,
          assigned.workload_domain, assigned.workload_id, assigned.workload_kind,
          assigned.ordinal_start, assigned.ordinal_end_exclusive,
-         assigned.expected_count, assigned.required_protocols, assigned.seed
+         assigned.expected_count, assigned.covered_workloads,
+         assigned.required_protocols, assigned.seed
        FROM assigned, charged_worker, enqueued`,
       [
         input.run_id, input.phase_id, input.worker_id, input.fleet_id,
@@ -470,7 +475,8 @@ implements CapacityLoadRunRepository, CapacityShardExecutionCheckpointRepository
          shard.lease_epoch::text AS lease_epoch, shard.lease_expires_at,
          shard.workload_domain, shard.workload_id, shard.workload_kind,
          shard.ordinal_start, shard.ordinal_end_exclusive,
-         shard.expected_count, shard.required_protocols, shard.seed,
+         shard.expected_count, shard.covered_workloads,
+         shard.required_protocols, shard.seed,
          (selected.state = 'leased') AS execution_claimed,
          CASE WHEN selected.state = 'leased' THEN 'running'
            ELSE selected.execution_state END AS execution_state,
@@ -936,6 +942,7 @@ function decodeAssignment(row: Row): CapacityShardAssignment {
     ordinal_start: Number(row.ordinal_start),
     ordinal_end_exclusive: Number(row.ordinal_end_exclusive),
     expected_count: Number(row.expected_count),
+    covered_workloads: workloadArray(row.covered_workloads),
     required_protocols: stringArray(row.required_protocols),
     seed: String(row.seed)
   };
@@ -1071,6 +1078,38 @@ function stringArray(value: unknown): string[] {
     throw new LoadRunControlError('string_array_invalid', 500);
   }
   return [...parsed];
+}
+
+function workloadArray(value: unknown): LoadShardWorkload[] {
+  const normalized = value ?? [];
+  const parsed = typeof normalized === 'string' ? JSON.parse(normalized) : normalized;
+  if (!Array.isArray(parsed)) {
+    throw new LoadRunControlError('workload_array_invalid', 500);
+  }
+  return parsed.map((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new LoadRunControlError('workload_array_invalid', 500);
+    }
+    const workload = item as Record<string, unknown>;
+    const domain = String(workload.workload_domain);
+    const start = Number(workload.ordinal_start);
+    const end = Number(workload.ordinal_end_exclusive);
+    const count = Number(workload.expected_count);
+    if (!['interaction', 'connection'].includes(domain) ||
+        !Number.isSafeInteger(start) || start < 0 ||
+        !Number.isSafeInteger(end) || end <= start ||
+        !Number.isSafeInteger(count) || count !== end - start) {
+      throw new LoadRunControlError('workload_array_invalid', 500);
+    }
+    return {
+      workload_domain: domain as LoadShardWorkload['workload_domain'],
+      workload_id: String(workload.workload_id),
+      workload_kind: String(workload.workload_kind),
+      ordinal_start: start,
+      ordinal_end_exclusive: end,
+      expected_count: count
+    };
+  });
 }
 
 function jsonObject(value: unknown): Record<string, unknown> {

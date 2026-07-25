@@ -26,7 +26,7 @@ import { startLiveKitEgressReconciliationWorker } from '../livekit/egress-reconc
 import { startLiveKitEgressCapacityMetricsWorker } from '../livekit/egress-capacity-metrics.js';
 import { startIveKitTenantEventRetentionWorker } from './tenant-event-retention-worker.js';
 import { MemoryPg, type PgQueryable } from '../../db-pg.js';
-import { wsBroadcast, wsBroadcastPersisted } from '../../ws.js';
+import { wsBroadcast, wsBroadcastPersisted, wsBroadcastToUsers } from '../../ws.js';
 import { syncIntelligenceSourceForAttachment } from '../collaboration/intelligence-source-service.js';
 import {
   RustDeskEvidenceIntelligenceService,
@@ -84,6 +84,12 @@ import {
   startInteractionPlacementWorker,
   type IveKitPlacementFoundation
 } from './placement/index.js';
+import {
+  startIveKitWorkerBacklogMetrics,
+  workerBacklogMetricsConfig
+} from './operations/worker-backlog-metrics.js';
+import { RealtimeSpeechProjection } from './voice/realtime-speech-projection.js';
+import { RealtimeSpeechStore } from './voice/realtime-speech-store.js';
 
 export interface IveKitWorkerHandle {
   stop(): Promise<void>;
@@ -109,6 +115,7 @@ export interface IveKitRuntimeAdapters {
   startEventWebhook(input: Parameters<typeof startIveKitEventWebhookWorker>[0]): IveKitWorkerHandle;
   startRetention(input: Parameters<typeof startPostgresIveKitRetentionWorker>[0]): IveKitWorkerHandle;
   startRuntimeHeartbeat(input: Parameters<typeof startIveKitRuntimeHeartbeat>[0]): IveKitWorkerHandle;
+  startWorkerBacklogMetrics(input: Parameters<typeof startIveKitWorkerBacklogMetrics>[0]): IveKitWorkerHandle;
   startIvrAction(input: Parameters<typeof startIveKitIvrPendingActionWorker>[0]): IveKitWorkerHandle;
   startIvrReconciliation(input: Parameters<typeof startIveKitIvrReconciliationWorker>[0]): IveKitWorkerHandle;
   startVoiceCommand(input: Parameters<typeof startIveKitVoiceCommandWorker>[0]): IveKitWorkerHandle;
@@ -133,6 +140,7 @@ export interface IveKitApplicationInput {
 }
 
 export interface IveKitApplication {
+  realtimeSpeechProjection: RealtimeSpeechProjection;
   stop(): Promise<void>;
 }
 
@@ -161,6 +169,25 @@ export interface IveKitTranslationEnqueuer {
   }, pg?: PgQueryable): Promise<unknown>;
 }
 
+export function createIveKitRealtimeSpeechProjection(
+  pg: PgQueryable,
+  env: NodeJS.ProcessEnv = process.env,
+  publish: IveKitEventPublisher = applicationPublisher(pg, env)
+): RealtimeSpeechProjection {
+  return new RealtimeSpeechProjection({
+    store: new RealtimeSpeechStore(pg),
+    broadcastEphemeral: (event) => wsBroadcastToUsers(
+      event.tenant_id,
+      event.audience_user_ids,
+      event.type,
+      event.data
+    ),
+    publishFinal: (event) => publish(event.tenant_id, event.type, event.data, {
+      idempotency_key: `realtime-speech-final:${event.data.projection_id}`
+    })
+  });
+}
+
 export function startIveKitApplication(input: IveKitApplicationInput): IveKitApplication {
   const env = input.env || process.env;
   const voiceConfig = iveKitVoiceWorkerConfig(env);
@@ -168,6 +195,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
   const notificationConfig = notificationDeliveryWorkerConfig(env);
   const notificationHealthConfig = notificationHealthWorkerConfig(env);
   const eventWebhookConfig = integrationEventWebhookWorkerConfig(env);
+  const backlogMetricsConfig = workerBacklogMetricsConfig(env);
   if (ivrConfig.enabled && !input.ivr_executor) {
     throw new Error('enabled iveKit IVR pending-action executor must be injected');
   }
@@ -175,6 +203,11 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     throw new Error('enabled iveKit IVR pending-action reconciler must be injected');
   }
   const publish = input.publish || applicationPublisher(input.pg, env);
+  const realtimeSpeechProjection = createIveKitRealtimeSpeechProjection(
+    input.pg,
+    env,
+    publish
+  );
   const replayEnabled = iveKitEventReplayEnabled(env);
   const providerEventJournal = new IveKitTenantEventJournal(input.pg, { env });
   const providerReplayStore = !input.publish && replayEnabled
@@ -278,6 +311,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
     startEventWebhook: input.adapters?.startEventWebhook || startIveKitEventWebhookWorker,
     startRetention: input.adapters?.startRetention || startPostgresIveKitRetentionWorker,
     startRuntimeHeartbeat: input.adapters?.startRuntimeHeartbeat || startIveKitRuntimeHeartbeat,
+    startWorkerBacklogMetrics: input.adapters?.startWorkerBacklogMetrics || startIveKitWorkerBacklogMetrics,
     startIvrAction: input.adapters?.startIvrAction || startIveKitIvrPendingActionWorker,
     startIvrReconciliation: input.adapters?.startIvrReconciliation || startIveKitIvrReconciliationWorker,
     startVoiceCommand: input.adapters?.startVoiceCommand || startIveKitVoiceCommandWorker,
@@ -291,6 +325,9 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
       instance_id: input.instanceId || env.OPC_IVEKIT_INSTANCE_ID || env.HOSTNAME || `ivekit-${process.pid}`,
       components: iveKitRuntimeComponents(env)
     }),
+    ...(backlogMetricsConfig.enabled ? [
+      adapters.startWorkerBacklogMetrics({ pg: input.pg, env })
+    ] : []),
     adapters.startTinode({
       pg: input.pg,
       env,
@@ -657,6 +694,7 @@ export function startIveKitApplication(input: IveKitApplicationInput): IveKitApp
   let stopPromise: Promise<void> | null = null;
 
   return {
+    realtimeSpeechProjection,
     stop() {
       if (!stopPromise) {
         stopPromise = (async () => {

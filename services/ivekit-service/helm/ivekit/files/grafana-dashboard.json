@@ -215,7 +215,11 @@
       "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
       "targets": [
         { "expr": "min by (pod) (ivekit_kamailio_snapshot_valid{job=~\"$job\"})", "legendFormat": "snapshot {{pod}}", "refId": "A" },
-        { "expr": "min by (pod) (ivekit_kamailio_core_metrics_up{job=~\"$job\"})", "legendFormat": "core metrics {{pod}}", "refId": "B" }
+        { "expr": "min by (pod) (ivekit_kamailio_core_metrics_up{job=~\"$job\"})", "legendFormat": "core metrics {{pod}}", "refId": "B" },
+        { "expr": "min by (pod) (ivekit_kamailio_hep_collector_up{job=~\"$job\"})", "legendFormat": "HEP collector {{pod}}", "refId": "C" },
+        { "expr": "max by (pod) (ivekit_kamailio_hep_mode{job=~\"$job\",mode=\"off\"})", "legendFormat": "HEP off {{pod}}", "refId": "D" },
+        { "expr": "max by (pod) (ivekit_kamailio_hep_control_pending{job=~\"$job\"})", "legendFormat": "HEP pending {{pod}}", "refId": "E" },
+        { "expr": "min by (pod) (ivekit_kamailio_hep_observation_valid{job=~\"$job\"})", "legendFormat": "HEP observation {{pod}}", "refId": "F" }
       ],
       "title": "Kamailio Edge Health",
       "type": "timeseries"
@@ -247,6 +251,30 @@
         { "expr": "sum(rate(kamailio_core_ivekit_dmq_rejects{job=~\"$job\"}[5m]))", "legendFormat": "DMQ rejected", "refId": "E" }
       ],
       "title": "Kamailio Routing Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "id": 20,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (media_source, event_type, reason) (rate(opc_ivekit_voice_audio_tap_events_total{job=~\"$job\",event_type=~\"tap.session.failed|tap.gateway.error|tap.connection.rejected\"}[5m]))", "legendFormat": "{{media_source}} {{event_type}} {{reason}}", "refId": "A" }
+      ],
+      "title": "Realtime Audio Tap Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "id": 21,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (media_source, reason) (rate(opc_ivekit_voice_audio_tap_dropped_seconds_total{job=~\"$job\"}[5m]))", "legendFormat": "{{media_source}} {{reason}}", "refId": "A" }
+      ],
+      "title": "Realtime Audio Tap Dropped Seconds",
       "type": "timeseries"
     }
   ],

@@ -63,7 +63,11 @@ test('RustPBX SIPp acceptance pins tools and covers the complete signaling matri
     '../services/ivekit-service/acceptance/sipp/answer-bye-uac.xml',
     import.meta.url
   ), 'utf8');
-  assert.equal(tcpUac.match(/<recv response="100" optional="true" \/>/g)?.length, 2);
+  assert.equal(tcpUac.match(/<recv response="100" optional="true"(?: rtd="sip_route")? \/>/g)?.length, 2);
+  assert.match(tcpUac, /<nop start_rtd="sip_post_dial" \/>/);
+  assert.match(tcpUac, /<send retrans="500" start_rtd="sip_route">/);
+  assert.match(tcpUac, /<recv response="100" optional="true" rtd="sip_route" \/>/);
+  assert.match(tcpUac, /<recv response="200" rrs="true" rtd="sip_post_dial" \/>/);
 });
 
 test('RustPBX SIPp acceptance counts duplicate inbound INVITEs as retransmissions', () => {

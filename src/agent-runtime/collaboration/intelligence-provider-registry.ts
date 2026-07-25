@@ -1,6 +1,13 @@
 import { isIP } from 'node:net';
 
-export type IntelligenceProviderCapability = 'ocr' | 'asr' | 'quality_review' | 'translation';
+export type IntelligenceProviderCapability =
+  | 'ocr'
+  | 'asr'
+  | 'quality_review'
+  | 'translation'
+  | 'realtime_speech'
+  | 'tts'
+  | 'model_gateway';
 export type IntelligenceProviderMode = 'self_hosted' | 'third_party';
 
 export interface IntelligenceProviderProfile {
@@ -18,6 +25,11 @@ export interface IntelligenceProviderProfile {
   failure_threshold: number;
   open_cooldown_ms: number;
   reservation_ttl_ms: number;
+  adapter: string;
+  provider_version: string;
+  data_region: string;
+  max_buffered_audio_ms: number;
+  max_session_seconds: number;
   name: string;
   legacy: boolean;
 }
@@ -35,6 +47,11 @@ export interface SafeIntelligenceProviderProfile {
   failure_threshold: number;
   open_cooldown_ms: number;
   reservation_ttl_ms: number;
+  adapter: string;
+  provider_version: string;
+  data_region: string;
+  max_buffered_audio_ms: number;
+  max_session_seconds: number;
 }
 
 export interface IntelligenceProviderRegistry {
@@ -50,7 +67,10 @@ const CAPABILITIES = new Set<IntelligenceProviderCapability>([
   'ocr',
   'asr',
   'quality_review',
-  'translation'
+  'translation',
+  'realtime_speech',
+  'tts',
+  'model_gateway'
 ]);
 const MODES = new Set<IntelligenceProviderMode>(['self_hosted', 'third_party']);
 const PROFILE_FIELDS = new Set([
@@ -68,6 +88,11 @@ const PROFILE_FIELDS = new Set([
   'failure_threshold',
   'open_cooldown_ms',
   'reservation_ttl_ms',
+  'adapter',
+  'provider_version',
+  'data_region',
+  'max_buffered_audio_ms',
+  'max_session_seconds',
   'name'
 ]);
 
@@ -103,7 +128,12 @@ export function createIntelligenceProviderRegistry(
       max_concurrency: profile.max_concurrency,
       failure_threshold: profile.failure_threshold,
       open_cooldown_ms: profile.open_cooldown_ms,
-      reservation_ttl_ms: profile.reservation_ttl_ms
+      reservation_ttl_ms: profile.reservation_ttl_ms,
+      adapter: profile.adapter,
+      provider_version: profile.provider_version,
+      data_region: profile.data_region,
+      max_buffered_audio_ms: profile.max_buffered_audio_ms,
+      max_session_seconds: profile.max_session_seconds
     })),
     profile: (id) => {
       const profile = byId.get(String(id || '').trim());
@@ -175,7 +205,7 @@ function normalizeProfile(value: unknown, label: string, legacy: boolean): Intel
     value.requests_per_day, 0, 0, 1_000_000_000, `${label} requests_per_day`
   );
   const maxConcurrency = boundedInteger(
-    value.max_concurrency, 10, 1, 100, `${label} max_concurrency`
+    value.max_concurrency, 10, 1, 1_000_000, `${label} max_concurrency`
   );
   const failureThreshold = boundedInteger(
     value.failure_threshold, 3, 1, 100, `${label} failure_threshold`
@@ -190,6 +220,38 @@ function normalizeProfile(value: unknown, label: string, legacy: boolean): Intel
   if (reservationTtlMs <= timeoutMs) {
     throw new Error(`${label} reservation_ttl_ms must be greater than timeout_ms`);
   }
+  const adapter = normalizedIdentifier(
+    value.adapter,
+    defaultAdapter(capability),
+    `${label} adapter`
+  );
+  const providerVersion = boundedText(
+    value.provider_version,
+    'unspecified',
+    64,
+    `${label} provider_version`
+  );
+  const dataRegion = boundedText(
+    value.data_region,
+    '',
+    64,
+    `${label} data_region`,
+    true
+  );
+  const maxBufferedAudioMs = boundedInteger(
+    value.max_buffered_audio_ms,
+    1_000,
+    100,
+    5_000,
+    `${label} max_buffered_audio_ms`
+  );
+  const maxSessionSeconds = boundedInteger(
+    value.max_session_seconds,
+    14_400,
+    30,
+    28_800,
+    `${label} max_session_seconds`
+  );
   const name = String(value.name || id).trim();
   if (!name || name.length > 100) throw new Error(`${label} name must be between 1 and 100 characters`);
   return {
@@ -207,6 +269,11 @@ function normalizeProfile(value: unknown, label: string, legacy: boolean): Intel
     failure_threshold: failureThreshold,
     open_cooldown_ms: openCooldownMs,
     reservation_ttl_ms: reservationTtlMs,
+    adapter,
+    provider_version: providerVersion,
+    data_region: dataRegion,
+    max_buffered_audio_ms: maxBufferedAudioMs,
+    max_session_seconds: maxSessionSeconds,
     name,
     legacy
   };
@@ -299,7 +366,17 @@ function normalizeEndpoint(value: unknown, fallback: string, label: string): str
 function defaultEndpoint(capability: IntelligenceProviderCapability): string {
   if (capability === 'quality_review') return '/v1/quality-review';
   if (capability === 'translation') return '/v1/translate';
+  if (capability === 'realtime_speech') return '/v1/realtime-speech';
+  if (capability === 'tts') return '/v1/tts';
+  if (capability === 'model_gateway') return '/v1/model';
   return `/v1/${capability}`;
+}
+
+function defaultAdapter(capability: IntelligenceProviderCapability): string {
+  if (capability === 'realtime_speech') return 'ivekit_realtime_speech_v1';
+  if (capability === 'tts') return 'ivekit_tts_v1';
+  if (capability === 'model_gateway') return 'openai_compatible';
+  return 'ivekit_http_v1';
 }
 
 function isPrivateOrContainerHost(rawHostname: string): boolean {
@@ -339,6 +416,32 @@ function boundedInteger(
     throw new Error(`${field} must be an integer between ${min} and ${max}`);
   }
   return parsed;
+}
+
+function normalizedIdentifier(
+  value: unknown,
+  fallback: string,
+  field: string
+): string {
+  const identifier = String(value || fallback).trim();
+  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(identifier)) {
+    throw new Error(`${field} must be lowercase and contain only letters, digits, _ or -`);
+  }
+  return identifier;
+}
+
+function boundedText(
+  value: unknown,
+  fallback: string,
+  maxLength: number,
+  field: string,
+  allowEmpty = false
+): string {
+  const text = String(value ?? fallback).trim();
+  if ((!allowEmpty && !text) || text.length > maxLength || /[\u0000-\u001f\u007f]/.test(text)) {
+    throw new Error(`${field} is invalid`);
+  }
+  return text;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

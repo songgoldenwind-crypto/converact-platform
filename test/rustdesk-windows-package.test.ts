@@ -87,8 +87,8 @@ test('Windows package binds installer, network config, companion, policy, servic
 
   assert.equal(built.manifest.schema_version, 1);
   assert.equal(built.manifest.source_commit, SOURCE_COMMIT);
-  assert.equal(built.manifest.rustdesk.client_version, '1.4.7');
-  assert.equal(built.manifest.rustdesk.server_version, '1.1.15');
+  assert.equal(built.manifest.rustdesk.client_version, '1.4.9');
+  assert.equal(built.manifest.rustdesk.server_version, '1.1.16');
   assert.equal(built.manifest.rustdesk.installer.sha256, INSTALLER_SHA256);
   assert.equal(
     built.manifest.rustdesk.installer.native_control_protocol,
@@ -181,7 +181,7 @@ test('Windows package writes a secret-free deterministic handoff with executable
   assert.match(service, /OPC_RUSTDESK_PRECISE_DISCONNECT_SCRIPT/);
   assert.match(service, /OPC_RUSTDESK_SESSION_REGISTRY_FILE/);
   assert.match(service, /OPC_RUSTDESK_NATIVE_CONTROL_PIPE/);
-  assert.match(service, /OPC_RUSTDESK_EDGE_CLIENT_VERSION.*1\.4\.7/);
+  assert.match(service, /OPC_RUSTDESK_EDGE_CLIENT_VERSION.*1\.4\.9/);
   assert.doesNotMatch(readFileSync(join(fixture.config.outputDir, 'README.md'), 'utf8'), /passed.*physical/i);
 });
 
@@ -192,7 +192,7 @@ test('Windows package rejects drift, unsafe config text, and incomplete profile 
       ...fixture.inputs,
       profile: { ...fixture.profile, client_version: '1.4.6' }
     }),
-    /client version must equal 1\.4\.7/
+    /client version must equal 1\.4\.9/
   );
   assert.throws(
     () => buildRustDeskWindowsPackage(fixture.config, {
@@ -341,10 +341,10 @@ test('Windows package command, environment samples, and Windows AST validation C
   assert.match(workflow, /System\.Management\.Automation\.Language\.Parser/);
   assert.match(workflow, /-Mode validate/);
   assert.match(workflow, /validate mode wrote to the install root/);
-  assert.match(workflow, /integrations\/rustdesk-1\.4\.7\/\*\*/);
+  assert.match(workflow, /integrations\/rustdesk-1\.4\.9\/\*\*/);
   assert.match(workflow, /repository: rustdesk\/rustdesk/);
-  assert.match(workflow, /ref: 0c86d4616298f09435f6236599b300964aa61460/);
-  assert.doesNotMatch(workflow, /^\s*ref: 1\.4\.7\s*$/m);
+  assert.match(workflow, /ref: 6c578292e8ebbbec708b76986ba8c4bc7c509747/);
+  assert.doesNotMatch(workflow, /^\s*ref: 1\.4\.9\s*$/m);
   assert.match(workflow, /apply-overlay\.mjs/);
   assert.match(workflow, /cargo check/);
 });
@@ -357,8 +357,8 @@ function createFixture() {
   const profile = {
     schema_version: 1,
     ready: true,
-    client_version: '1.4.7',
-    server_version: '1.1.15',
+    client_version: '1.4.9',
+    server_version: '1.1.16',
     server_key_fingerprint: SERVER_FINGERPRINT,
     manual_fields: {
       id_server: 'rustdesk.example.com:21116',
@@ -371,8 +371,8 @@ function createFixture() {
       architecture: 'x86_64',
       install_source: {
         state: 'configured',
-        url: 'https://github.com/acme/ivekit-rustdesk/releases/download/1.4.7/rustdesk-1.4.7-ivekit1-x86_64.exe',
-        filename: 'rustdesk-1.4.7-ivekit1-x86_64.exe',
+        url: 'https://github.com/acme/ivekit-rustdesk/releases/download/1.4.9/rustdesk-1.4.9-ivekit1-x86_64.exe',
+        filename: 'rustdesk-1.4.9-ivekit1-x86_64.exe',
         sha256: INSTALLER_SHA256,
         native_control_protocol: 'ivekit-rustdesk-native-control-v2',
         native_evidence_protocol: 'rustdesk-native-evidence-v1'

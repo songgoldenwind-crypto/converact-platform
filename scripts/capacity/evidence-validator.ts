@@ -1,5 +1,10 @@
 import type { WorkloadDomain } from './profile-compiler.js';
+import type { RtcPerformanceContract } from './profile-compiler.js';
 import type { GeneratorFleetQualification } from './generator-qualification.js';
+import {
+  evaluateRtcPerformanceEvidence,
+  type RtcPerformanceEvidence
+} from './performance-evaluator.js';
 
 export interface ExpectedEvidenceShard {
   phase_id?: string;
@@ -33,6 +38,13 @@ export interface CapacityEvidenceResult {
     accepted: number;
     sut_observed: number;
     independent_observed: number;
+    by_workload: Record<string, {
+      expected: number;
+      attempted: number;
+      accepted: number;
+      sut_observed: number;
+      independent_observed: number;
+    }>;
   };
 }
 
@@ -44,6 +56,8 @@ export function validateCapacityRunEvidence(input: {
   required_fleet_ids: string[];
   fleet_qualifications: ReadonlyArray<Readonly<GeneratorFleetQualification>>;
   shard_evidence: ShardRunEvidence[];
+  performance_contract: RtcPerformanceContract;
+  performance_evidence: RtcPerformanceEvidence;
   external_dependencies: Array<{
     id: string;
     status: string;
@@ -60,8 +74,20 @@ export function validateCapacityRunEvidence(input: {
     attempted: 0,
     accepted: 0,
     sut_observed: 0,
-    independent_observed: 0
+    independent_observed: 0,
+    by_workload: {} as CapacityEvidenceResult['reconciliation']['by_workload']
   };
+  for (const shard of input.expected_shards) {
+    const key = `${shard.workload_domain}:${shard.workload_id}`;
+    const workload = reconciliation.by_workload[key] ||= {
+      expected: 0,
+      attempted: 0,
+      accepted: 0,
+      sut_observed: 0,
+      independent_observed: 0
+    };
+    workload.expected += shard.expected_count;
+  }
 
   const requiredFleets = new Set(input.required_fleet_ids);
   const qualificationFleets = new Set<string>();
@@ -98,6 +124,11 @@ export function validateCapacityRunEvidence(input: {
       input.evidence_manifest_sha256 !== input.expected_manifest_sha256) {
     reasons.push('evidence does not bind the expected immutable manifest hash');
   }
+  const performance = evaluateRtcPerformanceEvidence(
+    input.performance_contract,
+    input.performance_evidence
+  );
+  reasons.push(...performance.reasons.map((reason) => `RTC performance: ${reason}`));
 
   const expectedById = uniqueMap(input.expected_shards, 'expected');
   const evidenceById = uniqueMap(input.shard_evidence, 'evidence', reasons);
@@ -119,6 +150,13 @@ export function validateCapacityRunEvidence(input: {
     reconciliation.accepted += evidence.accepted_count;
     reconciliation.sut_observed += evidence.sut_observed_count;
     reconciliation.independent_observed += evidence.independent_observed_count;
+    const workload = reconciliation.by_workload[
+      `${expected.workload_domain}:${expected.workload_id}`
+    ];
+    workload.attempted += evidence.attempted_count;
+    workload.accepted += evidence.accepted_count;
+    workload.sut_observed += evidence.sut_observed_count;
+    workload.independent_observed += evidence.independent_observed_count;
     if (!/^[1-9][0-9]{0,18}$/.test(evidence.lease_epoch)) {
       reasons.push(`shard ${shardLabel} has no active lease epoch`);
     }
@@ -173,7 +211,12 @@ export function validateCapacityRunEvidence(input: {
   };
 }
 
-function uniqueMap<T extends { phase_id?: string; shard_id: string }>(
+function uniqueMap<T extends {
+  phase_id?: string;
+  shard_id: string;
+  workload_domain: WorkloadDomain;
+  workload_id: string;
+}>(
   items: T[],
   label: string,
   reasons?: string[]
@@ -191,12 +234,30 @@ function uniqueMap<T extends { phase_id?: string; shard_id: string }>(
   return result;
 }
 
-function evidenceKey(value: { phase_id?: string; shard_id: string }): string {
-  return `${value.phase_id || ''}:${value.shard_id}`;
+function evidenceKey(value: {
+  phase_id?: string;
+  shard_id: string;
+  workload_domain: WorkloadDomain;
+  workload_id: string;
+}): string {
+  return [
+    value.phase_id || '',
+    value.shard_id,
+    value.workload_domain,
+    value.workload_id
+  ].join(':');
 }
 
-function evidenceLabel(value: { phase_id?: string; shard_id: string }): string {
-  return value.phase_id ? `${value.phase_id}/${value.shard_id}` : value.shard_id;
+function evidenceLabel(value: {
+  phase_id?: string;
+  shard_id: string;
+  workload_domain?: WorkloadDomain;
+  workload_id?: string;
+}): string {
+  const shard = value.phase_id ? `${value.phase_id}/${value.shard_id}` : value.shard_id;
+  return value.workload_domain && value.workload_id
+    ? `${shard}[${value.workload_domain}:${value.workload_id}]`
+    : shard;
 }
 
 function validateNonNegativeIntegers(evidence: ShardRunEvidence, reasons: string[]): void {

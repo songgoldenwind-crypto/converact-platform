@@ -276,7 +276,7 @@ services:
       OPC_REMOTE_GATEWAY_API_TOKEN: ${OPC_REMOTE_GATEWAY_API_TOKEN:?OPC_REMOTE_GATEWAY_API_TOKEN is required}
       OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: http://ivekit-api:3000
       RUSTDESK_SERVER_IMAGE_TAG: ${RUSTDESK_SERVER_IMAGE_TAG:?RUSTDESK_SERVER_IMAGE_TAG is required}
-      OPC_RUSTDESK_CLIENT_VERSION: ${OPC_RUSTDESK_CLIENT_VERSION:-1.4.7}
+      OPC_RUSTDESK_CLIENT_VERSION: ${OPC_RUSTDESK_CLIENT_VERSION:-1.4.9}
       OPC_RUSTDESK_ID_SERVER: ${OPC_RUSTDESK_ID_SERVER:?OPC_RUSTDESK_ID_SERVER is required}
       OPC_RUSTDESK_RELAY_SERVER: ${OPC_RUSTDESK_RELAY_SERVER:?OPC_RUSTDESK_RELAY_SERVER is required}
       OPC_RUSTDESK_PUBLIC_KEY_FILE: /rustdesk/id_ed25519.pub
@@ -342,7 +342,7 @@ services:
     environment:
       ALWAYS_USE_RELAY: ${RUSTDESK_ALWAYS_USE_RELAY:-N}
     volumes:
-      - rustdesk_data:/root
+      - rustdesk_data:/data
     depends_on:
       - rustdesk-hbbr
 
@@ -352,7 +352,7 @@ services:
     network_mode: "host"
     restart: unless-stopped
     volumes:
-      - rustdesk_data:/root
+      - rustdesk_data:/data
 
 networks:
   ivekit_media:

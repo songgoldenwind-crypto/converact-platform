@@ -10,6 +10,10 @@ This package deploys the reusable LiveKit media plane on one Linux VM. It follow
 
 It does not contain OPC source code and can be deployed as an independent service.
 
+For Kubernetes production, use the vendored official chart and fail-closed
+performance profile in [`helm/README.md`](helm/README.md). The application
+chart's bundled LiveKit remains a development-only option.
+
 When external S3 is unavailable, apply `docker-compose.storage.yml` as an optional overlay. It runs a pinned MinIO release, exposes its API and console on loopback only, initializes a private bucket and bucket-scoped service account, and prevents Egress from starting until that initialization succeeds. `MINIO_ROOT_*` is bootstrap-only; OPC and Egress receive only `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`.
 
 ## Storage failure isolation
@@ -50,6 +54,32 @@ npm run render:livekit-edge
 ```
 
 Generated files are written under `.runtime/livekit-edge` by default and are excluded from Git. `livekit.yaml` is written with mode `0600`; `egress.yaml` uses `0640` so the official non-root Egress process can read it through its root group without making credentials world-readable.
+
+### RTC recovery tuning
+
+The renderer writes one explicit PLI throttle policy into `rtc.pli_throttle`:
+
+```text
+OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS=100
+OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS=100
+OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS=100
+```
+
+Each value is bounded to `50..5000 ms` and is also recorded in
+`deployment-summary.json`. The `100/100/100 ms` profile is the tested iveKit
+weak-network recovery profile. It intentionally requests replacement keyframes
+more quickly than LiveKit's upstream sample defaults. A lower throttle can
+reduce a receiver's black-screen recovery time, but it can also increase
+keyframe traffic. Do not tune it independently of server egress, NACK/PLI
+counts, endpoint freeze ratio and glass-to-glass tails.
+
+Connection preparation and receiver jitter buffering are client-side policies,
+not LiveKit server settings. Capacity evidence must state
+`connection_preparation_mode` (`cold` or `signal_prewarmed`) and
+`receiver_jitter_buffer_target_ms`; results from different modes are not
+interchangeable. The production capacity baseline is `cold` with browser-default
+jitter buffering. A prewarmed connection or a nonzero buffer is a separately
+named experience/weak-network profile.
 
 ## Static validation
 

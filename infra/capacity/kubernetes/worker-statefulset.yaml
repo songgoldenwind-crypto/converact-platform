@@ -46,6 +46,24 @@ spec:
                 secretKeyRef:
                   name: ivekit-capacity-runtime
                   key: nats-url
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-capacity-runtime
+                  key: nats-user
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-capacity-runtime
+                  key: nats-password
+            - name: NATS_TLS_MODE
+              value: required
+            - name: NATS_TLS_CA_FILE
+              value: /etc/nats/tls/ca.crt
+            - name: NATS_TLS_CERT_FILE
+              value: /etc/nats/tls/tls.crt
+            - name: NATS_TLS_KEY_FILE
+              value: /etc/nats/tls/tls.key
             - name: OPC_IVEKIT_CAPACITY_RUN_ID
               valueFrom:
                 configMapKeyRef:
@@ -127,6 +145,9 @@ spec:
                   name: ivekit-capacity-worker
                   key: metadata-json
           volumeMounts:
+            - name: nats-tls
+              mountPath: /etc/nats/tls
+              readOnly: true
             - name: driver-spec
               mountPath: /etc/ivekit-capacity-worker
               readOnly: true
@@ -145,7 +166,44 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+        - name: network-impairment
+          image: replace.example.com/ivekit/capacity-tools@sha256:replace-with-capacity-tools-digest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "--import", "tsx", "scripts/ivekit-capacity-network-impairment.ts"]
+          env:
+            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_HOST
+              value: "127.0.0.1"
+            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_PORT
+              value: "3199"
+            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_INTERFACE
+              value: eth0
+            - name: OPC_IVEKIT_NETWORK_IMPAIRMENT_IFB_INTERFACE
+              value: ifb-ivekit0
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              port: 3199
+              path: /readyz
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 0
+            runAsNonRoot: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN"]
       volumes:
+        - name: nats-tls
+          secret:
+            secretName: ivekit-capacity-nats-tls
         - name: driver-spec
           configMap:
             name: ivekit-capacity-worker-driver

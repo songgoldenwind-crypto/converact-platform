@@ -1,0 +1,13 @@
+apiVersion: v2
+name: livekit-server
+description: Real-time infrastructure for developers. LiveKit is the open source stack for streaming audio, video, and data.
+type: application
+version: 1.11.0-ivekit.1
+appVersion: "v1.13.4-ivekit.1"
+
+annotations:
+  ivekit.io/upstream-repository: https://github.com/livekit/livekit-helm.git
+  ivekit.io/upstream-commit: 8f0ad0809c2be8cbed375a6f8bef10625e5e8a2b
+
+sources:
+  - https://github.com/livekit/livekit

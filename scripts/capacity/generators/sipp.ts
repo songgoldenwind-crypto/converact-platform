@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
-import { dirname, isAbsolute, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 
 export interface SippCapacityPlanInput {
   sipp_binary: string;
@@ -27,6 +27,9 @@ export interface SippCapacityPlanInput {
   timeout_seconds: number;
   rate_tolerance_ratio?: number;
   maximum_minor_watchdog_count?: number;
+  maximum_sip_route_p99_ms: number;
+  maximum_post_dial_p95_ms: number;
+  maximum_post_dial_p99_ms: number;
 }
 
 export interface SippCapacityProcessPlan {
@@ -36,6 +39,8 @@ export interface SippCapacityProcessPlan {
   args: string[];
   statistics_path: string;
   error_path: string;
+  result_directory: string;
+  response_time_filename_prefix: string;
   timeout_ms: number;
   run_id: string;
   shard_id: string;
@@ -45,6 +50,9 @@ export interface SippCapacityProcessPlan {
   target_cps: number;
   rate_tolerance_ratio: number;
   maximum_minor_watchdog_count: number;
+  maximum_sip_route_p99_ms: number;
+  maximum_post_dial_p95_ms: number;
+  maximum_post_dial_p99_ms: number;
 }
 
 export interface SippProcessResult {
@@ -76,6 +84,13 @@ export interface SippCapacityEvidence {
   process_exit_code: number;
   process_timed_out: boolean;
   reasons: string[];
+  sip_route_sample_count: number;
+  sip_route_p99_ms: number;
+  post_dial_sample_count: number;
+  post_dial_p95_ms: number;
+  post_dial_p99_ms: number;
+  quality_gate_passed: boolean;
+  quality_reasons: string[];
   sipp_version: string;
   sipp_binary_sha256: string;
 }
@@ -83,6 +98,7 @@ export interface SippCapacityEvidence {
 export type SippCapacityExecutor = (plan: SippCapacityProcessPlan) => Promise<{
   process: SippProcessResult;
   statistics_csv: string;
+  response_time_csv: string;
 }>;
 
 export function buildSippCapacityProcessPlan(input: SippCapacityPlanInput): SippCapacityProcessPlan {
@@ -90,6 +106,7 @@ export function buildSippCapacityProcessPlan(input: SippCapacityPlanInput): Sipp
   const artifactPrefix = `${input.run_id}-${input.worker_id}`;
   const statisticsPath = join(input.result_directory, `${artifactPrefix}-statistics.csv`);
   const errorPath = join(input.result_directory, `${artifactPrefix}-errors.log`);
+  const responseTimePrefix = `${basename(input.scenario_path).replace(/\.xml$/i, '')}_`;
   const args = [
     `${input.target_host}:${input.target_port}`,
     '-sf', input.scenario_path,
@@ -107,7 +124,9 @@ export function buildSippCapacityProcessPlan(input: SippCapacityPlanInput): Sipp
     '-trace_stat',
     '-stf', statisticsPath,
     '-trace_err',
-    '-error_file', errorPath
+    '-error_file', errorPath,
+    '-trace_rtt',
+    '-rtt_freq', '1'
   ];
   return {
     executable: input.sipp_binary,
@@ -116,6 +135,8 @@ export function buildSippCapacityProcessPlan(input: SippCapacityPlanInput): Sipp
     args,
     statistics_path: statisticsPath,
     error_path: errorPath,
+    result_directory: input.result_directory,
+    response_time_filename_prefix: responseTimePrefix,
     timeout_ms: (input.timeout_seconds + 10) * 1_000,
     run_id: input.run_id,
     shard_id: input.shard_id,
@@ -124,7 +145,10 @@ export function buildSippCapacityProcessPlan(input: SippCapacityPlanInput): Sipp
     expected_calls: input.total_calls,
     target_cps: input.target_cps,
     rate_tolerance_ratio: input.rate_tolerance_ratio ?? 0.01,
-    maximum_minor_watchdog_count: input.maximum_minor_watchdog_count ?? 0
+    maximum_minor_watchdog_count: input.maximum_minor_watchdog_count ?? 0,
+    maximum_sip_route_p99_ms: input.maximum_sip_route_p99_ms,
+    maximum_post_dial_p95_ms: input.maximum_post_dial_p95_ms,
+    maximum_post_dial_p99_ms: input.maximum_post_dial_p99_ms
   };
 }
 
@@ -143,10 +167,14 @@ export async function runSippCapacityProcess(
       target_cps: plan.target_cps,
       rate_tolerance_ratio: plan.rate_tolerance_ratio,
       maximum_minor_watchdog_count: plan.maximum_minor_watchdog_count,
+      maximum_sip_route_p99_ms: plan.maximum_sip_route_p99_ms,
+      maximum_post_dial_p95_ms: plan.maximum_post_dial_p95_ms,
+      maximum_post_dial_p99_ms: plan.maximum_post_dial_p99_ms,
       sipp_version: plan.sipp_version,
       sipp_binary_sha256: plan.sipp_binary_sha256,
       process: executed.process,
-      statistics_csv: executed.statistics_csv
+      statistics_csv: executed.statistics_csv,
+      response_time_csv: executed.response_time_csv
     });
   } catch (error) {
     return {
@@ -171,6 +199,13 @@ export async function runSippCapacityProcess(
       process_exit_code: -1,
       process_timed_out: false,
       reasons: [error instanceof Error ? error.message : String(error)],
+      sip_route_sample_count: 0,
+      sip_route_p99_ms: 0,
+      post_dial_sample_count: 0,
+      post_dial_p95_ms: 0,
+      post_dial_p99_ms: 0,
+      quality_gate_passed: false,
+      quality_reasons: ['SIPp response-time evidence was not produced'],
       sipp_version: plan.sipp_version,
       sipp_binary_sha256: plan.sipp_binary_sha256
     };
@@ -186,22 +221,33 @@ export function evaluateSippCapacityEvidence(input: {
   target_cps: number;
   rate_tolerance_ratio: number;
   maximum_minor_watchdog_count: number;
+  maximum_sip_route_p99_ms: number;
+  maximum_post_dial_p95_ms: number;
+  maximum_post_dial_p99_ms: number;
   sipp_version: string;
   sipp_binary_sha256: string;
   process: SippProcessResult;
   statistics_csv: string;
+  response_time_csv: string;
 }): SippCapacityEvidence {
   validateSippIdentity(input.sipp_version, input.sipp_binary_sha256);
   const stats = parseSippCapacityStatistics(input.statistics_csv);
   const output = `${input.process.stdout}\n${input.process.stderr}`;
   const watchdogMajor = countWatchdog(output, 'major');
   const watchdogMinor = countWatchdog(output, 'minor');
+  const responseTimes = parseSippResponseTimes(input.response_time_csv);
+  const sipRouteP99 = quantile(responseTimes.sip_route, 0.99);
+  const postDialP95 = quantile(responseTimes.sip_post_dial, 0.95);
+  const postDialP99 = quantile(responseTimes.sip_post_dial, 0.99);
   const rateConformant = Math.abs(stats.call_rate - input.target_cps) <=
     input.target_cps * input.rate_tolerance_ratio + Number.EPSILON;
   const reasons: string[] = [];
+  const qualityReasons: string[] = [];
+  const timerEvidenceInvalid = responseTimes.sip_route.length !== input.expected_calls ||
+    responseTimes.sip_post_dial.length !== input.expected_calls;
   const generatorInvalid = watchdogMajor > 0 ||
     watchdogMinor > input.maximum_minor_watchdog_count ||
-    (!rateConformant && stats.failed_calls === 0);
+    (!rateConformant && stats.failed_calls === 0) || timerEvidenceInvalid;
   if (watchdogMajor > 0) reasons.push(`SIPp watchdog major triggered ${watchdogMajor} times`);
   if (watchdogMinor > input.maximum_minor_watchdog_count) {
     reasons.push(`SIPp watchdog minor count ${watchdogMinor} exceeds ${input.maximum_minor_watchdog_count}`);
@@ -213,10 +259,31 @@ export function evaluateSippCapacityEvidence(input: {
   if (stats.failed_calls !== 0) reasons.push(`SIPp recorded ${stats.failed_calls} failed calls`);
   if (input.process.timed_out) reasons.push('SIPp process timed out');
   if (input.process.code !== 0) reasons.push(`SIPp process exited with ${input.process.code}`);
+  if (responseTimes.sip_route.length !== input.expected_calls) {
+    qualityReasons.push(
+      `SIPp sip_route sample count ${responseTimes.sip_route.length} does not equal ${input.expected_calls}`
+    );
+  }
+  if (responseTimes.sip_post_dial.length !== input.expected_calls) {
+    qualityReasons.push(
+      `SIPp sip_post_dial sample count ${responseTimes.sip_post_dial.length} does not equal ${input.expected_calls}`
+    );
+  }
+  if (sipRouteP99 > input.maximum_sip_route_p99_ms) {
+    qualityReasons.push(`SIPp route P99 ${sipRouteP99}ms exceeds ${input.maximum_sip_route_p99_ms}ms`);
+  }
+  if (postDialP95 > input.maximum_post_dial_p95_ms) {
+    qualityReasons.push(`SIPp post-dial P95 ${postDialP95}ms exceeds ${input.maximum_post_dial_p95_ms}ms`);
+  }
+  if (postDialP99 > input.maximum_post_dial_p99_ms) {
+    qualityReasons.push(`SIPp post-dial P99 ${postDialP99}ms exceeds ${input.maximum_post_dial_p99_ms}ms`);
+  }
+  reasons.push(...qualityReasons);
 
   const passed = input.process.code === 0 && !input.process.timed_out &&
     stats.successful_calls === input.expected_calls && stats.failed_calls === 0 && rateConformant &&
-    watchdogMajor === 0 && watchdogMinor <= input.maximum_minor_watchdog_count;
+    watchdogMajor === 0 && watchdogMinor <= input.maximum_minor_watchdog_count &&
+    qualityReasons.length === 0;
   return {
     protocol: 'sip',
     evidence_level: 'controlled',
@@ -239,6 +306,13 @@ export function evaluateSippCapacityEvidence(input: {
     process_exit_code: input.process.code,
     process_timed_out: input.process.timed_out,
     reasons,
+    sip_route_sample_count: responseTimes.sip_route.length,
+    sip_route_p99_ms: sipRouteP99,
+    post_dial_sample_count: responseTimes.sip_post_dial.length,
+    post_dial_p95_ms: postDialP95,
+    post_dial_p99_ms: postDialP99,
+    quality_gate_passed: qualityReasons.length === 0,
+    quality_reasons: qualityReasons,
     sipp_version: input.sipp_version,
     sipp_binary_sha256: input.sipp_binary_sha256
   };
@@ -247,20 +321,30 @@ export function evaluateSippCapacityEvidence(input: {
 async function executeSippCapacityPlan(plan: SippCapacityProcessPlan): Promise<{
   process: SippProcessResult;
   statistics_csv: string;
+  response_time_csv: string;
 }> {
   mkdirSync(dirname(plan.statistics_path), { recursive: true });
   const actualDigest = createHash('sha256').update(readFileSync(plan.executable)).digest('hex');
   if (actualDigest !== plan.sipp_binary_sha256) throw new Error('SIPp binary SHA-256 mismatch');
   rmSync(plan.statistics_path, { force: true });
   rmSync(plan.error_path, { force: true });
-  const process = await execute(plan.executable, plan.args, plan.timeout_ms);
+  for (const name of responseTimeFiles(plan)) rmSync(join(plan.result_directory, name), { force: true });
+  const process = await execute(plan.executable, plan.args, plan.timeout_ms, plan.result_directory);
   if (!existsSync(plan.statistics_path)) throw new Error('SIPp statistics file was not produced');
-  return { process, statistics_csv: readFileSync(plan.statistics_path, 'utf8') };
+  const responseTimeFilesAfterRun = responseTimeFiles(plan);
+  if (responseTimeFilesAfterRun.length !== 1) {
+    throw new Error(`SIPp produced ${responseTimeFilesAfterRun.length} response-time files instead of one`);
+  }
+  return {
+    process,
+    statistics_csv: readFileSync(plan.statistics_path, 'utf8'),
+    response_time_csv: readFileSync(join(plan.result_directory, responseTimeFilesAfterRun[0]), 'utf8')
+  };
 }
 
-function execute(executable: string, args: string[], timeoutMs: number): Promise<SippProcessResult> {
+function execute(executable: string, args: string[], timeoutMs: number, cwd: string): Promise<SippProcessResult> {
   return new Promise((resolve) => {
-    const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(executable, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
     let stderr = '';
     let timedOut = false;
@@ -281,6 +365,11 @@ function execute(executable: string, args: string[], timeoutMs: number): Promise
       resolve({ code: code ?? -1, stdout, stderr, timed_out: timedOut });
     });
   });
+}
+
+function responseTimeFiles(plan: SippCapacityProcessPlan): string[] {
+  return readdirSync(plan.result_directory)
+    .filter((name) => name.startsWith(plan.response_time_filename_prefix) && name.endsWith('_rtt.csv'));
 }
 
 function parseSippCapacityStatistics(csv: string): {
@@ -310,6 +399,35 @@ function parseSippCapacityStatistics(csv: string): {
     call_rate: number('CallRate(C)', false),
     elapsed_seconds: number('ElapsedTime(C)', false)
   };
+}
+
+function parseSippResponseTimes(csv: string): { sip_route: number[]; sip_post_dial: number[] } {
+  const lines = csv.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length === 0) throw new Error('SIPp response-time evidence is missing its header');
+  const headers = lines[0].split(';');
+  const responseTimeIndex = headers.indexOf('response_time_ms');
+  const timerIndex = headers.indexOf('rtd_no');
+  if (responseTimeIndex < 0 || timerIndex < 0) {
+    throw new Error('SIPp response-time evidence has an invalid header');
+  }
+  const result = { sip_route: [] as number[], sip_post_dial: [] as number[] };
+  for (const line of lines.slice(1)) {
+    const values = line.split(';');
+    const timer = values[timerIndex] as keyof typeof result;
+    if (!(timer in result)) continue;
+    const responseTime = Number(values[responseTimeIndex]);
+    if (!Number.isFinite(responseTime) || responseTime < 0) {
+      throw new Error(`SIPp response-time evidence contains invalid ${timer}`);
+    }
+    result[timer].push(responseTime);
+  }
+  return result;
+}
+
+function quantile(samples: number[], value: number): number {
+  if (samples.length === 0) return 0;
+  const sorted = [...samples].sort((left, right) => left - right);
+  return sorted[Math.max(0, Math.ceil(value * sorted.length) - 1)];
 }
 
 function countWatchdog(output: string, severity: 'major' | 'minor'): number {
@@ -358,6 +476,16 @@ function validatePlanInput(input: SippCapacityPlanInput): void {
   if (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 0.2) throw new Error('SIPp rate tolerance is invalid');
   const minor = input.maximum_minor_watchdog_count ?? 0;
   if (!Number.isInteger(minor) || minor < 0) throw new Error('SIPp minor watchdog limit is invalid');
+  for (const [field, value] of Object.entries({
+    maximum_sip_route_p99_ms: input.maximum_sip_route_p99_ms,
+    maximum_post_dial_p95_ms: input.maximum_post_dial_p95_ms,
+    maximum_post_dial_p99_ms: input.maximum_post_dial_p99_ms
+  })) {
+    if (!Number.isFinite(value) || value <= 0) throw new Error(`SIPp ${field} is invalid`);
+  }
+  if (input.maximum_post_dial_p95_ms > input.maximum_post_dial_p99_ms) {
+    throw new Error('SIPp post-dial P95 limit exceeds P99 limit');
+  }
 }
 
 function validateSippIdentity(version: string, sha256: string): void {

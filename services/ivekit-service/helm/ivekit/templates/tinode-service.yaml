@@ -16,4 +16,29 @@ spec:
       port: {{ .Values.tinode.service.port }}
       targetPort: http
       protocol: TCP
+{{- if eq .Values.tinode.mode "cluster" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.tinodeHeadlessFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+  ports:
+    - name: http
+      port: {{ .Values.tinode.service.port }}
+      targetPort: http
+      protocol: TCP
+    - name: cluster
+      port: {{ .Values.tinode.cluster.clusterPort }}
+      targetPort: cluster
+      protocol: TCP
+{{- end }}
 {{- end }}

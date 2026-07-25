@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-07-24T09:21:14.169Z",
+  "verification_scope": "server_helm_static_render",
+  "status": "passed",
+  "capacity_claim": "none",
+  "kubernetes_runtime_executed": false,
+  "upstream": {
+    "repository": "https://github.com/livekit/livekit-helm.git",
+    "commit": "8f0ad0809c2be8cbed375a6f8bef10625e5e8a2b",
+    "chart_version": "1.11.0",
+    "vendored_chart_version": "1.11.0-ivekit.1"
+  },
+  "helm": {
+    "version": "v4.2.1+gd591a19",
+    "archive_sha256": "479dca836e5b45e8bd222400c5591b0e3a647378f03ff96597180db97c17fdae"
+  },
+  "profile": {
+    "status": "passed",
+    "values_path": "<private-resolved-values>",
+    "image_reference": "ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server:v1.13.4-ivekit.1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "minimum_replicas": 2,
+    "maximum_replicas": 32,
+    "rtc_udp_port_count": 10001,
+    "cpu_limit_present": false,
+    "redis_password_secret": "livekit-valkey-auth",
+    "redis_tls_secret": "livekit-valkey-tls",
+    "resolved_image_digest_is_fixture": true
+  },
+  "render": {
+    "document_count": 8,
+    "kinds": {
+      "ConfigMap": 1,
+      "Deployment": 1,
+      "HorizontalPodAutoscaler": 1,
+      "PodDisruptionBudget": 1,
+      "Service": 2,
+      "ServiceAccount": 1,
+      "ServiceMonitor": 1
+    },
+    "image_digest_bound": true,
+    "host_network": true,
+    "redis_password_secret": "livekit-valkey-auth",
+    "api_key_secret": "livekit-api-keys",
+    "redis_tls_secret": "livekit-valkey-tls",
+    "config_has_redis_password": false,
+    "cpu_limit_present": false,
+    "zone_spread": "topology.kubernetes.io/zone",
+    "pdb_min_available": 1,
+    "hpa_min": 2,
+    "hpa_max": 32
+  },
+  "artifacts_sha256": {
+    "lock": "8beaf5bc069543a12adf3e0c12198f948980761f6aa0cdb9beb6c7693572e9f0",
+    "profile_template": "1bb78e238d951fc7b2e46d9d7a218cd076fad71d3baf5681c6398f854a58d0b2",
+    "chart": "bd8704ec287567a528d819882729c90c88ae321bcc07149e022840db6d31af90",
+    "deployment_template": "e08c1a2f6740a98daedec5025e907fd7fd6437e03ee6ecef8ec5b9b5a24af214",
+    "pdb_template": "70ecb85ad4115fdae74e2fd2a3b31f42bda32f5c508422a4feb8af7c1253f025",
+    "validator": "9a3fb2bb9253b7fc34fe6e4d8f37356cc9db1e204d7db804a4c238a23f0ac6b2",
+    "focused_test": "33f418688ce4efc18312827e2f7614b22c45558fa4bf56ae52b31c2f881840e7",
+    "rendered_manifest": "f8000208496705298d1ef1d06647fb1f7a0d4967f99710f6501931d72baa3183"
+  }
+}

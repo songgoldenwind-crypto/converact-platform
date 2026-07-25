@@ -59,7 +59,12 @@ test('provider registry parses safe profiles and resolves secrets only on explic
       max_concurrency: 4,
       failure_threshold: 5,
       open_cooldown_ms: 45_000,
-      reservation_ttl_ms: 40_000
+      reservation_ttl_ms: 40_000,
+      adapter: 'ivekit_http_v1',
+      provider_version: 'unspecified',
+      data_region: '',
+      max_buffered_audio_ms: 1_000,
+      max_session_seconds: 14_400
     },
     {
       id: 'translate-cloud',
@@ -73,7 +78,12 @@ test('provider registry parses safe profiles and resolves secrets only on explic
       max_concurrency: 10,
       failure_threshold: 3,
       open_cooldown_ms: 30_000,
-      reservation_ttl_ms: 35_000
+      reservation_ttl_ms: 35_000,
+      adapter: 'ivekit_http_v1',
+      provider_version: 'unspecified',
+      data_region: '',
+      max_buffered_audio_ms: 1_000,
+      max_session_seconds: 14_400
     }
   ]);
   const ocr = registry.requireProfile('ocr-internal', 'ocr');

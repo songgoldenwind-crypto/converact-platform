@@ -329,7 +329,7 @@ test('rustdesk edge agent device token mode uses the dedicated heartbeat without
     OPC_RUSTDESK_NATIVE_EVIDENCE_SPOOL_DIR: join(dir, 'native-spool'),
     OPC_RUSTDESK_NATIVE_FILE_ROOTS_JSON: JSON.stringify([join(dir, 'native-files')]),
     OPC_RUSTDESK_NATIVE_RECORDING_ROOTS_JSON: JSON.stringify([join(dir, 'native-recordings')]),
-    OPC_RUSTDESK_EDGE_CLIENT_VERSION: '1.4.7',
+    OPC_RUSTDESK_EDGE_CLIENT_VERSION: '1.4.9',
     OPC_RUSTDESK_EDGE_OS: 'windows'
   });
   const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -353,7 +353,7 @@ test('rustdesk edge agent device token mode uses the dedicated heartbeat without
   assert.equal(body.metadata.evidence_upload_capable, true);
   assert.equal(body.metadata.native_evidence_capable, true);
   assert.equal(body.metadata.evidence_poll_interval_ms, 2500);
-  assert.equal(body.metadata.client_version, '1.4.7');
+  assert.equal(body.metadata.client_version, '1.4.9');
   assert.equal(body.metadata.os, 'windows');
 });
 

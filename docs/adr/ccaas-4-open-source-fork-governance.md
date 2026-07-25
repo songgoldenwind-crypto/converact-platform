@@ -99,12 +99,12 @@ iveKit 选择 RustPBX、rsipstack、LiveKit、Tinode 和 RustDesk 作为语音�
 | --- | --- | --- |
 | RustPBX | 固定 commit + patch queue | 完成 Cell owner、recording fork 和热路径优化后转 maintained fork |
 | rsipstack | 固定 commit + patch queue | 传输层改动保持 patch queue；若引入独立 admission/transaction scheduler 则转 fork |
-| RustDesk Windows client | 1.4.7 fail-closed overlay | owner epoch、多屏/录制/传输状态深入客户端后转 maintained fork |
+| RustDesk Windows client | 1.4.9 fail-closed overlay | owner epoch、多屏/录制/传输状态深入客户端后转 maintained fork |
 | LiveKit Server | 上游 1.13.3 baseline | Cell admission、owner epoch、drain、rebuild 和 hot-path 改造使用 maintained fork |
 | LiveKit Egress | 上游 1.13.0 baseline | 先验证 adapter；缺少原子 admission、spool、epoch 或 reconciliation 时直接 fork |
 | LiveKit SIP | 上游 1.6.0 baseline | 先明确与 RustPBX 的唯一 owner 边界；进入容量 profile 后再决定 fork |
 | Tinode | 上游 0.25.3 baseline | topic owner、native mutation、Cell drain 和 fanout 优化使用 maintained fork |
-| RustDesk Server | 上游 1.1.15 baseline | relay admission、epoch、drain、metrics 和 hot-path 优化使用 maintained fork |
+| RustDesk Server | 上游 1.1.16 baseline | relay admission、epoch、drain、metrics 和 hot-path 优化使用 maintained fork |
 
 ## 5. 仓库与分支模型
 
@@ -160,9 +160,9 @@ ivekit/<upstream-version>+ivekit.<revision>
 示例：
 
 ```text
-ivekit/v1.13.3+ivekit.1
+ivekit/v1.13.4+ivekit.1
 ivekit/0.25.3+ivekit.2
-ivekit/1.1.15+ivekit.1
+ivekit/1.1.16+ivekit.1
 ```
 
 标签只能指向不可变 commit。容器、Windows installer 和符号包使用同一个 release identity，并在 fork manifest 中记录 digest。
@@ -205,7 +205,7 @@ ivekit/1.1.15+ivekit.1
 - builder container digest；Windows build 记录 runner image/version 和依赖缓存 identity。
 - build features、target、linker、CGO、CPU baseline 和环境变量白名单。
 
-仅写 `v1.13.3`、`0.25.3` 或 `1.1.15` 不足以成为生产身份。tag 必须解析为 commit，容器 tag 必须解析为 digest。
+仅写 `v1.13.4`、`0.25.3` 或 `1.1.16` 不足以成为生产身份。tag 必须解析为 commit，容器 tag 必须解析为 digest。
 
 ### 7.2 输出
 
@@ -590,7 +590,7 @@ Client/companion fork：
 
 1. RustPBX/rsipstack patch queue clean clone、apply、compile、unit 和 integration。
 2. 生成 custom image digest、SBOM 和 provenance。
-3. RustDesk 1.4.7 tag 解析 commit，Windows overlay apply/compile/package。
+3. RustDesk 1.4.9 tag 解析 commit，Windows overlay apply/compile/package。
 4. 不把真实双 Windows 尚未运行改写成 pass。
 
 ### Phase F2：Cell contract

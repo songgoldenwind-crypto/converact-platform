@@ -12,7 +12,7 @@ on:
       - "infra/ivekit/tinode/**"
       - "integrations/component-hook-go/**"
       - "integrations/component-hook-rs/**"
-      - "integrations/livekit-v1.13.3/**"
+      - "integrations/livekit-v1.13.4/**"
       - "integrations/tinode-v0.25.3/**"
       - "scripts/capacity/**"
       - "scripts/ivekit-capacity*.ts"
@@ -54,7 +54,7 @@ on:
       - "infra/ivekit/tinode/**"
       - "integrations/component-hook-go/**"
       - "integrations/component-hook-rs/**"
-      - "integrations/livekit-v1.13.3/**"
+      - "integrations/livekit-v1.13.4/**"
       - "integrations/tinode-v0.25.3/**"
       - "scripts/capacity/**"
       - "scripts/ivekit-capacity*.ts"
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "23"
+          node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run typecheck

@@ -8,16 +8,24 @@ test('capacity tools image and package expose the restart-safe worker process', 
   const runtimePackage = JSON.parse(
     readFileSync('infra/capacity/package.json', 'utf8')
   );
+  const runtimeTsconfig = readFileSync('infra/capacity/tsconfig.json', 'utf8');
 
   assert.match(
     dockerfile,
     /COPY infra\/capacity\/package\.json infra\/capacity\/package-lock\.json/i
   );
   assert.match(dockerfile, /COPY scripts\/ivekit-capacity-worker\.ts/i);
+  assert.match(dockerfile, /COPY --chmod=0755 scripts\/ivekit-capacity-tinode-composite\.ts/i);
+  assert.match(dockerfile, /COPY --chmod=0755 scripts\/ivekit-capacity-tinode-provision\.ts/i);
   assert.match(dockerfile, /COPY scripts\/ivekit-capacity-controller\.ts/i);
   assert.match(dockerfile, /COPY scripts\/ivekit-capacity-finalizer\.ts/i);
   assert.match(dockerfile, /COPY scripts\/ivekit-capacity-scaling-finalizer\.ts/i);
   assert.match(dockerfile, /COPY scripts\/ivekit-capacity-platform-finalizer\.ts/i);
+  assert.match(dockerfile, /COPY src\/infra\/nats-connection-options\.ts/i);
+  assert.match(
+    dockerfile,
+    /COPY services\/ivekit-service\/acceptance\/sipp\/answer-bye-uac\.xml \/opt\/ivekit\/scenarios\/answer-bye-uac\.xml/i
+  );
   assert.match(dockerfile, /COPY infra\/capacity\/tsconfig\.json/i);
   assert.match(
     dockerfile,
@@ -53,12 +61,42 @@ test('capacity tools image and package expose the restart-safe worker process', 
     /ivekit-capacity-platform-finalizer\.ts/
   );
   assert.match(
+    String(packageJson.scripts['ivekit:capacity:tinode-composite']),
+    /ivekit-capacity-tinode-composite\.ts/
+  );
+  assert.match(
+    String(packageJson.scripts['ivekit:capacity:tinode-provision']),
+    /ivekit-capacity-tinode-provision\.ts/
+  );
+  assert.match(
+    String(runtimePackage.scripts['tinode-composite']),
+    /ivekit-capacity-tinode-composite\.ts/
+  );
+  assert.match(
+    String(runtimePackage.scripts['tinode-provision']),
+    /ivekit-capacity-tinode-provision\.ts/
+  );
+  assert.match(runtimeTsconfig, /ivekit-capacity-tinode-composite\.ts/);
+  assert.match(runtimeTsconfig, /ivekit-capacity-tinode-provision\.ts/);
+  assert.match(
     String(packageJson.scripts['typecheck:ivekit:capacity-runtime']),
     /infra\/capacity\/tsconfig\.json/
   );
   assert.deepEqual(
     Object.keys(runtimePackage.dependencies).sort(),
-    ['@aws-sdk/client-s3', 'nats', 'pg', 'tsx', 'ws']
+    [
+      '@aws-sdk/client-s3',
+      '@nats-io/jetstream',
+      '@nats-io/nats-core',
+      '@nats-io/transport-node',
+      'pg',
+      'tsx',
+      'ws'
+    ]
+  );
+  assert.doesNotMatch(
+    readFileSync('scripts/capacity/orchestrator/jetstream-bus.ts', 'utf8'),
+    /from ['"]nats['"]/
   );
   assert.match(dockerfile, /npm prune --omit=dev --ignore-scripts/i);
 });
@@ -117,6 +155,13 @@ test('capacity worker deployment uses stable identity, one in-flight shard and d
   assert.match(yaml, /readOnlyRootFilesystem: true/i);
   assert.match(yaml, /emptyDir:[\s\S]*sizeLimit: 20Gi/i);
   assert.doesNotMatch(yaml, /hostNetwork:\s*true/i);
+  assert.match(yaml, /name: network-impairment[\s\S]*ivekit-capacity-network-impairment\.ts/i);
+  assert.match(yaml, /name: network-impairment[\s\S]*add: \["NET_ADMIN"\]/i);
+  assert.match(yaml, /name: worker[\s\S]*runAsNonRoot: true[\s\S]*drop: \["ALL"\]/i);
+  for (const name of ['NATS_USER', 'NATS_PASSWORD', 'NATS_TLS_MODE', 'NATS_TLS_CA_FILE']) {
+    assert.match(yaml, new RegExp(`name: ${name}`));
+  }
+  assert.match(yaml, /mountPath: \/etc\/nats\/tls[\s\S]*readOnly: true/i);
 });
 
 test('capacity controller deployment uses two fenced replicas and an immutable manifest volume', () => {
@@ -200,16 +245,35 @@ test('controlled Compose worker is opt-in and mounts an immutable driver bundle 
 test('capacity Compose requires an immutable NATS image reference', () => {
   const compose = readFileSync('infra/capacity/docker-compose.yml', 'utf8');
   const env = readFileSync('infra/capacity/env.example', 'utf8');
+  const productionCompose = readFileSync('infra/docker-compose.production.yml', 'utf8');
+  const productionEnv = readFileSync('infra/env.example', 'utf8');
+  const image = 'nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0';
 
   assert.match(
     compose,
     /image: \$\{OPC_IVEKIT_CAPACITY_NATS_IMAGE:\?OPC_IVEKIT_CAPACITY_NATS_IMAGE immutable digest reference is required\}/
   );
-  assert.match(
-    env,
-    /^OPC_IVEKIT_CAPACITY_NATS_IMAGE=nats:[^\s]+@sha256:[a-f0-9]{64}$/m
-  );
+  assert.match(env, new RegExp(`^OPC_IVEKIT_CAPACITY_NATS_IMAGE=${image}$`, 'm'));
   assert.doesNotMatch(compose, /^\s*image:\s*nats:[^@\s]+\s*$/m);
+  assert.match(
+    productionCompose,
+    /image: \$\{OPC_NATS_IMAGE:\?OPC_NATS_IMAGE immutable digest reference is required\}/
+  );
+  assert.match(productionEnv, new RegExp(`^OPC_NATS_IMAGE=${image}$`, 'm'));
+  assert.doesNotMatch(productionCompose, /^\s*image:\s*nats:[^@\s]+\s*$/m);
+  assert.match(compose, /\.\.\/config\/nats\.conf:\/etc\/nats\/nats\.conf:ro/);
+  assert.match(compose, /NATS_CLIENT_USER: \$\{OPC_IVEKIT_CAPACITY_NATS_USER:\?/);
+  assert.match(compose, /OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS: "1"/);
+});
+
+test('capacity dispatcher uses authenticated mTLS NATS and a three-replica command stream', () => {
+  const yaml = readFileSync('infra/capacity/kubernetes/dispatcher-deployment.yaml', 'utf8');
+
+  for (const name of ['NATS_USER', 'NATS_PASSWORD', 'NATS_TLS_MODE', 'NATS_TLS_CA_FILE']) {
+    assert.match(yaml, new RegExp(`name: ${name}`));
+  }
+  assert.match(yaml, /OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS[\s\S]*value: "3"/i);
+  assert.match(yaml, /mountPath: \/etc\/nats\/tls[\s\S]*readOnly: true/i);
 });
 
 test('capacity Kubernetes examples use digest-shaped image placeholders', () => {

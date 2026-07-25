@@ -1,0 +1,1340 @@
+diff --git a/src/config.rs b/src/config.rs
+index 9dfb8c65..30264988 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -896,6 +896,12 @@ pub struct ProxyConfig {
+     pub media_recording_worker_threads: usize,
+     #[serde(default = "default_media_recording_worker_queue_capacity")]
+     pub media_recording_worker_queue_capacity: usize,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub realtime_audio_tap_socket_path: Option<String>,
++    #[serde(default = "default_realtime_audio_tap_channel_capacity")]
++    pub realtime_audio_tap_channel_capacity: usize,
++    #[serde(default = "default_realtime_audio_tap_send_timeout_ms")]
++    pub realtime_audio_tap_send_timeout_ms: u64,
+     #[serde(default)]
+     pub queues: HashMap<String, RouteQueueConfig>,
+     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+@@ -1020,6 +1026,12 @@ fn default_media_recording_worker_threads() -> usize {
+ fn default_media_recording_worker_queue_capacity() -> usize {
+     4096
+ }
++fn default_realtime_audio_tap_channel_capacity() -> usize {
++    256
++}
++fn default_realtime_audio_tap_send_timeout_ms() -> u64 {
++    10
++}
+ 
+ fn available_parallelism() -> usize {
+     std::thread::available_parallelism()
+@@ -1379,6 +1391,9 @@ impl Default for ProxyConfig {
+             media_recording_channel_capacity: default_media_recording_channel_capacity(),
+             media_recording_worker_threads: default_media_recording_worker_threads(),
+             media_recording_worker_queue_capacity: default_media_recording_worker_queue_capacity(),
++            realtime_audio_tap_socket_path: None,
++            realtime_audio_tap_channel_capacity: default_realtime_audio_tap_channel_capacity(),
++            realtime_audio_tap_send_timeout_ms: default_realtime_audio_tap_send_timeout_ms(),
+             queues: HashMap::new(),
+             queues_files: Vec::new(),
+             trunks: HashMap::new(),
+diff --git a/src/ivekit_audio_tap.rs b/src/ivekit_audio_tap.rs
+new file mode 100644
+index 00000000..caa536d7
+--- /dev/null
++++ b/src/ivekit_audio_tap.rs
+@@ -0,0 +1,483 @@
++use crate::media::engine::command::SharedMediaSample;
++use crate::media::recorder::Leg;
++use audio_codec::{CodecType, Decoder, Resampler, create_decoder};
++use base64::Engine as _;
++use rustrtc::media::frame::MediaSample;
++use serde::Serialize;
++use sha2::{Digest, Sha256};
++use std::path::Path;
++use std::sync::Arc;
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::time::Duration;
++use tokio::io::AsyncWriteExt;
++use tokio::net::UnixStream;
++use tokio::sync::mpsc;
++use tracing::debug;
++
++pub const AUDIO_TAP_TOKEN_HEADER: &str = "x-ivekit-audio-tap-token";
++pub const AUDIO_TAP_PROTOCOL: &str = "ivekit-rustpbx-audio-tap-v1";
++pub const AUDIO_TAP_SAMPLE_RATE: u32 = 16_000;
++const AUDIO_ENVELOPE_HEADER_BYTES: usize = 48;
++const AUDIO_ENVELOPE_MAGIC: &[u8; 4] = b"IAT1";
++const AUDIO_ENVELOPE_VERSION: u8 = 1;
++const AUDIO_ENVELOPE_KIND_PCM: u8 = 2;
++const MAX_TOKEN_BYTES: usize = 2_048;
++const MAX_CONTROL_BYTES: usize = 4_096;
++
++#[derive(Clone)]
++pub struct EncodedAudioTapFrame {
++    pub leg: Leg,
++    pub sample: SharedMediaSample,
++    pub received_at_micros: u64,
++    pub codec: CodecType,
++    pub audio_payload_type: u8,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct AudioTapCodecProfile {
++    pub codec: CodecType,
++    pub payload_type: u8,
++}
++
++#[derive(Clone)]
++pub struct AudioTapCapture {
++    tx: mpsc::Sender<EncodedAudioTapFrame>,
++    dropped: Arc<AtomicU64>,
++}
++
++impl AudioTapCapture {
++    pub fn try_capture(&self, frame: EncodedAudioTapFrame) {
++        match self.tx.try_send(frame) {
++            Ok(()) => {
++                metrics::counter!(
++                    "rustpbx_realtime_audio_tap_capture_total",
++                    "result" => "accepted"
++                )
++                .increment(1);
++            }
++            Err(mpsc::error::TrySendError::Full(_)) => {
++                self.dropped.fetch_add(1, Ordering::Relaxed);
++                metrics::counter!(
++                    "rustpbx_realtime_audio_tap_capture_total",
++                    "result" => "dropped_full"
++                )
++                .increment(1);
++            }
++            Err(mpsc::error::TrySendError::Closed(_)) => {
++                self.dropped.fetch_add(1, Ordering::Relaxed);
++                metrics::counter!(
++                    "rustpbx_realtime_audio_tap_capture_total",
++                    "result" => "dropped_closed"
++                )
++                .increment(1);
++            }
++        }
++    }
++
++    pub fn dropped_frames(&self) -> u64 {
++        self.dropped.load(Ordering::Relaxed)
++    }
++
++    pub(crate) fn from_sender(tx: mpsc::Sender<EncodedAudioTapFrame>) -> Self {
++        Self {
++            tx,
++            dropped: Arc::new(AtomicU64::new(0)),
++        }
++    }
++}
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct AudioTapAuthorization {
++    pub token: String,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum AudioTapAuthorizationError {
++    Missing,
++    Invalid,
++}
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct AudioTapRuntimeConfig {
++    pub socket_path: String,
++    pub channel_capacity: usize,
++    pub send_timeout: Duration,
++}
++
++#[derive(Serialize)]
++struct ControlEnvelope<'a> {
++    protocol: &'static str,
++    event: &'static str,
++    session_id: &'a str,
++    session_key: String,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    authorization: Option<&'a str>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    reason: Option<&'a str>,
++}
++
++struct DecoderState {
++    codec: CodecType,
++    decoder: Box<dyn Decoder>,
++    resampler: Option<Resampler>,
++}
++
++impl DecoderState {
++    fn new(codec: CodecType) -> Self {
++        let decoder = create_decoder(codec);
++        let source_rate = decoder.sample_rate();
++        let resampler = (source_rate != AUDIO_TAP_SAMPLE_RATE)
++            .then(|| Resampler::new(source_rate as usize, AUDIO_TAP_SAMPLE_RATE as usize));
++        Self {
++            codec,
++            decoder,
++            resampler,
++        }
++    }
++
++    fn decode(&mut self, codec: CodecType, payload: &[u8]) -> Vec<i16> {
++        if self.codec != codec {
++            *self = Self::new(codec);
++        }
++        let decoded = self.decoder.decode(payload);
++        match self.resampler.as_mut() {
++            Some(resampler) => resampler.resample(&decoded),
++            None => decoded,
++        }
++    }
++}
++
++pub fn authorization_from_routed_headers(
++    headers: Option<&[rsipstack::sip::Header]>,
++) -> Result<AudioTapAuthorization, AudioTapAuthorizationError> {
++    let Some(raw) = headers
++        .and_then(|headers| {
++            headers
++                .iter()
++                .find(|header| header.name().eq_ignore_ascii_case(AUDIO_TAP_TOKEN_HEADER))
++        })
++        .map(|header| header.value().trim())
++    else {
++        metrics::counter!(
++            "rustpbx_realtime_audio_tap_authorization_total",
++            "result" => "missing"
++        )
++        .increment(1);
++        return Err(AudioTapAuthorizationError::Missing);
++    };
++    if raw.len() < 32
++        || raw.len() > MAX_TOKEN_BYTES
++        || !raw
++            .bytes()
++            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~'))
++    {
++        metrics::counter!(
++            "rustpbx_realtime_audio_tap_authorization_total",
++            "result" => "invalid"
++        )
++        .increment(1);
++        return Err(AudioTapAuthorizationError::Invalid);
++    }
++    metrics::counter!(
++        "rustpbx_realtime_audio_tap_authorization_total",
++        "result" => "accepted"
++    )
++    .increment(1);
++    Ok(AudioTapAuthorization {
++        token: raw.to_string(),
++    })
++}
++
++pub fn spawn_audio_tap(
++    session_id: String,
++    authorization: AudioTapAuthorization,
++    config: AudioTapRuntimeConfig,
++) -> AudioTapCapture {
++    let (tx, rx) = mpsc::channel(config.channel_capacity);
++    let capture = AudioTapCapture::from_sender(tx);
++    metrics::gauge!("rustpbx_realtime_audio_tap_queue_capacity")
++        .set(config.channel_capacity as f64);
++    crate::utils::media_spawn(run_audio_tap(session_id, authorization, config, rx));
++    capture
++}
++
++async fn run_audio_tap(
++    session_id: String,
++    authorization: AudioTapAuthorization,
++    config: AudioTapRuntimeConfig,
++    mut rx: mpsc::Receiver<EncodedAudioTapFrame>,
++) {
++    let session_key = session_key(&session_id);
++    let mut socket = match tokio::time::timeout(
++        config.send_timeout,
++        UnixStream::connect(Path::new(&config.socket_path)),
++    )
++    .await
++    {
++        Ok(Ok(socket)) => socket,
++        Ok(Err(error)) => {
++            audio_tap_failure("socket_connect");
++            debug!(session_id = %session_id, error = %error, "Realtime audio tap sidecar unavailable");
++            return;
++        }
++        Err(_) => {
++            audio_tap_failure("connect_timeout");
++            return;
++        }
++    };
++    let Some(started) = control_envelope(
++        "start",
++        &session_id,
++        &session_key,
++        Some(&authorization.token),
++        None,
++    ) else {
++        audio_tap_failure("control_encode");
++        return;
++    };
++    if !send_frame(&mut socket, &started, config.send_timeout, "start").await {
++        return;
++    }
++    metrics::gauge!("rustpbx_realtime_audio_tap_sessions_active").increment(1.0);
++
++    let mut caller_decoder: Option<DecoderState> = None;
++    let mut callee_decoder: Option<DecoderState> = None;
++    let mut sequence = 0u64;
++    while let Some(input) = rx.recv().await {
++        let MediaSample::Audio(frame) = &*input.sample else {
++            continue;
++        };
++        if frame.payload_type != Some(input.audio_payload_type) {
++            continue;
++        }
++        let payload = frame
++            .raw_packet
++            .as_ref()
++            .map(|packet| packet.payload.as_ref())
++            .unwrap_or(frame.data.as_ref());
++        let state = match input.leg {
++            Leg::A => &mut caller_decoder,
++            Leg::B => &mut callee_decoder,
++        };
++        let pcm = state
++            .get_or_insert_with(|| DecoderState::new(input.codec))
++            .decode(input.codec, payload);
++        if pcm.is_empty() {
++            audio_tap_failure("decode_empty");
++            continue;
++        }
++        sequence = sequence.wrapping_add(1);
++        let envelope = pcm_envelope(
++            &session_key,
++            sequence,
++            input.received_at_micros,
++            input.leg,
++            &pcm,
++        );
++        if send_frame(&mut socket, &envelope, config.send_timeout, "pcm").await {
++            metrics::counter!(
++                "rustpbx_realtime_audio_tap_frames_total",
++                "result" => "sent"
++            )
++            .increment(1);
++        }
++    }
++
++    if let Some(ended) = control_envelope(
++        "end",
++        &session_id,
++        &session_key,
++        None,
++        Some("source_closed"),
++    ) {
++        let _ = send_frame(&mut socket, &ended, config.send_timeout, "end").await;
++    } else {
++        audio_tap_failure("control_encode");
++    }
++    metrics::gauge!("rustpbx_realtime_audio_tap_sessions_active").decrement(1.0);
++}
++
++async fn send_frame(
++    socket: &mut UnixStream,
++    payload: &[u8],
++    timeout: Duration,
++    stage: &'static str,
++) -> bool {
++    let Ok(payload_len) = u32::try_from(payload.len()) else {
++        audio_tap_failure("frame_too_large");
++        return false;
++    };
++    let header = payload_len.to_be_bytes();
++    match tokio::time::timeout(timeout, async {
++        socket.write_all(&header).await?;
++        socket.write_all(payload).await
++    })
++    .await
++    {
++        Ok(Ok(())) => true,
++        Ok(Err(_)) => {
++            audio_tap_failure(stage);
++            false
++        }
++        Err(_) => {
++            audio_tap_failure("send_timeout");
++            false
++        }
++    }
++}
++
++fn audio_tap_failure(reason: &'static str) {
++    metrics::counter!(
++        "rustpbx_realtime_audio_tap_failures_total",
++        "reason" => reason
++    )
++    .increment(1);
++}
++
++fn control_envelope(
++    event: &'static str,
++    session_id: &str,
++    session_key: &[u8; 16],
++    authorization: Option<&str>,
++    reason: Option<&str>,
++) -> Option<Vec<u8>> {
++    let envelope = ControlEnvelope {
++        protocol: AUDIO_TAP_PROTOCOL,
++        event,
++        session_id,
++        session_key: base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(session_key),
++        authorization,
++        reason,
++    };
++    let payload = serde_json::to_vec(&envelope).ok()?;
++    if payload.len() > MAX_CONTROL_BYTES {
++        return None;
++    }
++    let mut output = Vec::with_capacity(4 + payload.len());
++    output.extend_from_slice(b"IATJ");
++    output.extend_from_slice(&payload);
++    Some(output)
++}
++
++fn pcm_envelope(
++    session_key: &[u8; 16],
++    sequence: u64,
++    received_at_micros: u64,
++    leg: Leg,
++    pcm: &[i16],
++) -> Vec<u8> {
++    let payload = audio_codec::samples_to_bytes(pcm);
++    let mut output = Vec::with_capacity(AUDIO_ENVELOPE_HEADER_BYTES + payload.len());
++    output.extend_from_slice(AUDIO_ENVELOPE_MAGIC);
++    output.push(AUDIO_ENVELOPE_VERSION);
++    output.push(AUDIO_ENVELOPE_KIND_PCM);
++    output.push(match leg {
++        Leg::A => 0,
++        Leg::B => 1,
++    });
++    output.push(0);
++    output.extend_from_slice(session_key);
++    output.extend_from_slice(&sequence.to_be_bytes());
++    output.extend_from_slice(&received_at_micros.to_be_bytes());
++    output.extend_from_slice(&AUDIO_TAP_SAMPLE_RATE.to_be_bytes());
++    output.extend_from_slice(&(pcm.len() as u32).to_be_bytes());
++    output.extend_from_slice(&payload);
++    output
++}
++
++fn session_key(session_id: &str) -> [u8; 16] {
++    let digest = Sha256::digest(session_id.as_bytes());
++    let mut key = [0u8; 16];
++    key.copy_from_slice(&digest[..16]);
++    key
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use rsipstack::sip::Header;
++
++    #[test]
++    fn authorization_accepts_only_explicit_routed_header() {
++        let token = format!("header.payload.{}", "s".repeat(32));
++        let headers = vec![Header::Other(
++            AUDIO_TAP_TOKEN_HEADER.to_string(),
++            token.clone(),
++        )];
++        assert_eq!(
++            authorization_from_routed_headers(Some(&headers)),
++            Ok(AudioTapAuthorization { token })
++        );
++        assert_eq!(
++            authorization_from_routed_headers(None),
++            Err(AudioTapAuthorizationError::Missing)
++        );
++        let invalid = vec![Header::Other(
++            AUDIO_TAP_TOKEN_HEADER.to_string(),
++            "invalid token with spaces".to_string(),
++        )];
++        assert_eq!(
++            authorization_from_routed_headers(Some(&invalid)),
++            Err(AudioTapAuthorizationError::Invalid)
++        );
++    }
++
++    #[test]
++    fn pcm_envelope_is_bounded_and_self_describing() {
++        let key = session_key("session-a");
++        let pcm = vec![1i16, -2, 3, -4];
++        let envelope = pcm_envelope(&key, 7, 9, Leg::B, &pcm);
++        assert_eq!(&envelope[..4], AUDIO_ENVELOPE_MAGIC);
++        assert_eq!(envelope[4], AUDIO_ENVELOPE_VERSION);
++        assert_eq!(envelope[5], AUDIO_ENVELOPE_KIND_PCM);
++        assert_eq!(envelope[6], 1);
++        assert_eq!(&envelope[8..24], &key);
++        assert_eq!(u64::from_be_bytes(envelope[24..32].try_into().unwrap()), 7);
++        assert_eq!(u64::from_be_bytes(envelope[32..40].try_into().unwrap()), 9);
++        assert_eq!(
++            u32::from_be_bytes(envelope[40..44].try_into().unwrap()),
++            16_000
++        );
++        assert_eq!(u32::from_be_bytes(envelope[44..48].try_into().unwrap()), 4);
++        assert_eq!(envelope.len(), AUDIO_ENVELOPE_HEADER_BYTES + pcm.len() * 2);
++    }
++
++    #[test]
++    fn stream_frame_prefix_is_big_endian_payload_length() {
++        assert_eq!(
++            u32::try_from(AUDIO_ENVELOPE_HEADER_BYTES)
++                .unwrap()
++                .to_be_bytes(),
++            [0, 0, 0, 48]
++        );
++    }
++
++    #[test]
++    fn pcmu_decoder_normalizes_to_pcm16_16khz() {
++        let mut state = DecoderState::new(CodecType::PCMU);
++        let pcm = state.decode(CodecType::PCMU, &[0xff; 160]);
++        assert_eq!(pcm.len(), 320);
++    }
++
++    #[test]
++    fn full_capture_queue_drops_without_waiting() {
++        let (tx, _rx) = mpsc::channel(1);
++        let capture = AudioTapCapture::from_sender(tx);
++        let frame = || EncodedAudioTapFrame {
++            leg: Leg::A,
++            sample: Arc::new(MediaSample::Audio(Default::default())),
++            received_at_micros: 1,
++            codec: CodecType::PCMU,
++            audio_payload_type: 0,
++        };
++        capture.try_capture(frame());
++        capture.try_capture(frame());
++        assert_eq!(capture.dropped_frames(), 1);
++    }
++
++    #[test]
++    fn oversized_control_envelope_is_rejected() {
++        let key = session_key("session-a");
++        assert!(control_envelope("start", &"s".repeat(4_096), &key, None, None).is_none());
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index c5820c73..efc1d5aa 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -13,6 +13,7 @@ pub mod handler;
+ pub mod license;
+ 
+ pub mod http_util;
++pub mod ivekit_audio_tap;
+ pub mod ivekit_owner;
+ pub mod ivekit_recording;
+ pub mod media;
+diff --git a/src/media/bridge.rs b/src/media/bridge.rs
+index 1c9ea20b..4c85a8c6 100644
+--- a/src/media/bridge.rs
++++ b/src/media/bridge.rs
+@@ -41,6 +41,7 @@
+ //! 3. The bridge's WebRTC side connects to the WebRTC client
+ //! 4. The bridge's RTP side connects to the SIP/RTP endpoint
+ 
++use crate::ivekit_audio_tap::{AudioTapCapture, AudioTapCodecProfile, EncodedAudioTapFrame};
+ use crate::media::ReceiveTimestampClock;
+ use crate::media::engine::command::SharedMediaSample;
+ use crate::media::recorder::{Leg as RecLeg, Recorder};
+@@ -544,6 +545,8 @@ struct ForwardLoopContext {
+     recorder_capture: Option<RecorderCapture>,
+     recorder_leg: Option<RecLeg>,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
++    audio_tap_capture: Option<AudioTapCapture>,
++    audio_tap_profile: Option<Arc<parking_lot::RwLock<Option<AudioTapCodecProfile>>>>,
+     receive_clock: ReceiveTimestampClock,
+     dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
+     transcoder: Option<Arc<parking_lot::Mutex<Option<Transcoder>>>>,
+@@ -578,6 +581,8 @@ impl ForwardLoopContextBuilder {
+                 recorder_capture: None,
+                 recorder_leg: None,
+                 sipflow_tx: None,
++                audio_tap_capture: None,
++                audio_tap_profile: None,
+                 receive_clock: ReceiveTimestampClock::new(),
+                 dtmf_sink: Arc::new(parking_lot::RwLock::new(None)),
+                 transcoder: None,
+@@ -608,6 +613,16 @@ impl ForwardLoopContextBuilder {
+         self
+     }
+ 
++    pub fn with_audio_tap(
++        mut self,
++        capture: Option<AudioTapCapture>,
++        profile: Option<Arc<parking_lot::RwLock<Option<AudioTapCodecProfile>>>>,
++    ) -> Self {
++        self.inner.audio_tap_capture = capture;
++        self.inner.audio_tap_profile = profile;
++        self
++    }
++
+     pub fn with_dtmf_sink(mut self, sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>) -> Self {
+         self.inner.dtmf_sink = sink;
+         self
+@@ -765,6 +780,7 @@ struct DirectionCodecState {
+     transcoder: Arc<parking_lot::Mutex<Option<Transcoder>>>,
+     timing: Arc<parking_lot::Mutex<Option<RtpTiming>>>,
+     dtmf_mapping: Arc<parking_lot::RwLock<Option<PayloadMapping>>>,
++    ingress_audio: Arc<parking_lot::RwLock<Option<AudioTapCodecProfile>>>,
+ }
+ 
+ impl DirectionCodecState {
+@@ -773,6 +789,7 @@ impl DirectionCodecState {
+             transcoder: Arc::new(parking_lot::Mutex::new(None)),
+             timing: Arc::new(parking_lot::Mutex::new(None)),
+             dtmf_mapping: Arc::new(parking_lot::RwLock::new(None)),
++            ingress_audio: Arc::new(parking_lot::RwLock::new(None)),
+         }
+     }
+ }
+@@ -827,6 +844,7 @@ pub struct BridgePeer {
+     caller_gate: Arc<AtomicBool>,
+     recorder_capture: Option<RecorderCapture>,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
++    audio_tap_capture: Option<AudioTapCapture>,
+     receive_clock: ReceiveTimestampClock,
+     dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
+     stats: BridgeStats,
+@@ -845,6 +863,7 @@ struct ForwardTrackArgs {
+     cancel_token: CancellationToken,
+     recorder_capture: Option<RecorderCapture>,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
++    audio_tap_capture: Option<AudioTapCapture>,
+     receive_clock: ReceiveTimestampClock,
+     dtmf_sink: Arc<parking_lot::RwLock<Option<DtmfSink>>>,
+ }
+@@ -865,6 +884,7 @@ struct DirectionParams {
+     transcoder: Option<Arc<parking_lot::Mutex<Option<Transcoder>>>>,
+     transcoder_timing: Option<Arc<parking_lot::Mutex<Option<RtpTiming>>>>,
+     dtmf_mapping: Option<Arc<parking_lot::RwLock<Option<PayloadMapping>>>>,
++    audio_tap_profile: Option<Arc<parking_lot::RwLock<Option<AudioTapCodecProfile>>>>,
+     gate: Option<Arc<AtomicBool>>,
+ }
+ 
+@@ -888,6 +908,7 @@ impl BridgePeer {
+             caller_gate: Arc::new(AtomicBool::new(false)),
+             recorder_capture: None,
+             sipflow_tx: None,
++            audio_tap_capture: None,
+             receive_clock: ReceiveTimestampClock::new(),
+             dtmf_sink: Arc::new(parking_lot::RwLock::new(None)),
+             stats: BridgeStats {
+@@ -1523,6 +1544,32 @@ impl BridgePeer {
+         peers.remove(peer_id)
+     }
+ 
++    /// Record the negotiated ingress audio codec used by auxiliary decoded-audio taps.
++    /// Updating this slot is safe during re-INVITE; forwarding reads a Copy snapshot.
++    pub fn set_ingress_audio_profile(
++        &self,
++        from_endpoint: BridgeEndpoint,
++        codec: AudioCodecType,
++        payload_type: u8,
++    ) {
++        let slot = match from_endpoint {
++            BridgeEndpoint::Callee => &self.callee_to_caller_codec.ingress_audio,
++            BridgeEndpoint::Caller => &self.caller_to_callee_codec.ingress_audio,
++        };
++        *slot.write() = Some(AudioTapCodecProfile {
++            codec,
++            payload_type,
++        });
++    }
++
++    pub fn clear_ingress_audio_profile(&self, from_endpoint: BridgeEndpoint) {
++        let slot = match from_endpoint {
++            BridgeEndpoint::Callee => &self.callee_to_caller_codec.ingress_audio,
++            BridgeEndpoint::Caller => &self.caller_to_callee_codec.ingress_audio,
++        };
++        slot.write().take();
++    }
++
+     /// Set forwarding route: audio from `from_peer` is sent to all peers in `to_peers`.
+     pub async fn set_route(
+         &self,
+@@ -2038,6 +2085,10 @@ impl BridgePeer {
+             )
+             .with_recorder_capture(common.recorder_capture.clone(), dir.recorder_leg)
+             .with_sipflow(common.sipflow_tx.clone(), common.receive_clock.clone())
++            .with_audio_tap(
++                common.audio_tap_capture.clone(),
++                dir.audio_tap_profile.clone(),
++            )
+             .with_dtmf_sink(Arc::clone(&common.dtmf_sink))
+             .with_transcoder(dir.transcoder.clone(), dir.transcoder_timing.clone())
+             .with_dtmf_mapping(dir.dtmf_mapping.clone())
+@@ -2055,6 +2106,7 @@ impl BridgePeer {
+             cancel_token: self.cancel_token.clone(),
+             recorder_capture: self.recorder_capture.clone(),
+             sipflow_tx: self.sipflow_tx.clone(),
++            audio_tap_capture: self.audio_tap_capture.clone(),
+             receive_clock: self.receive_clock.clone(),
+             dtmf_sink: Arc::clone(&self.dtmf_sink),
+         };
+@@ -2074,6 +2126,7 @@ impl BridgePeer {
+             transcoder: Some(Arc::clone(&self.caller_to_callee_codec.transcoder)),
+             transcoder_timing: Some(Arc::clone(&self.caller_to_callee_codec.timing)),
+             dtmf_mapping: Some(Arc::clone(&self.caller_to_callee_codec.dtmf_mapping)),
++            audio_tap_profile: Some(Arc::clone(&self.caller_to_callee_codec.ingress_audio)),
+             gate: Some(Arc::clone(&self.caller_gate)),
+         };
+ 
+@@ -2092,6 +2145,7 @@ impl BridgePeer {
+             transcoder: Some(Arc::clone(&self.callee_to_caller_codec.transcoder)),
+             transcoder_timing: Some(Arc::clone(&self.callee_to_caller_codec.timing)),
+             dtmf_mapping: Some(Arc::clone(&self.callee_to_caller_codec.dtmf_mapping)),
++            audio_tap_profile: Some(Arc::clone(&self.callee_to_caller_codec.ingress_audio)),
+             gate: None,
+         };
+ 
+@@ -2195,6 +2249,25 @@ impl BridgePeer {
+                                     (dtmf_pt, dtmf_clock_rate)
+                                 };
+                                 let record_peer_mic = ctx.output_mode.load(Ordering::Acquire) == BRIDGE_OUTPUT_PEER;
++                                let audio_tap_profile = ctx.audio_tap_profile
++                                    .as_ref()
++                                    .and_then(|slot| *slot.read())
++                                    .filter(|profile| matches!(
++                                        &sample,
++                                        MediaSample::Audio(frame)
++                                            if frame.payload_type == Some(profile.payload_type)
++                                    ));
++                                let needs_sipflow = record_peer_mic && ctx.sipflow_tx.is_some();
++                                let needs_audio_tap = audio_tap_profile.is_some()
++                                    && ctx.audio_tap_capture.is_some()
++                                    && ctx.recorder_leg.is_some();
++                                let shared_capture = (needs_sipflow || needs_audio_tap)
++                                    .then(|| Arc::new(sample.clone()));
++                                let received_at_micros = if shared_capture.is_some() {
++                                    ctx.receive_clock.now_micros()
++                                } else {
++                                    0
++                                };
+                                 if record_peer_mic {
+                                     if let (Some(capture), Some(leg)) =
+                                         (&ctx.recorder_capture, ctx.recorder_leg)
+@@ -2208,15 +2281,35 @@ impl BridgePeer {
+                                         );
+                                     }
+ 
+-                                    if let (Some(tx), Some(leg)) = (&ctx.sipflow_tx, ctx.recorder_leg) {
+-                                        let received_at_micros = ctx.receive_clock.now_micros();
++                                    if let (Some(tx), Some(leg), Some(shared)) =
++                                        (&ctx.sipflow_tx, ctx.recorder_leg, &shared_capture)
++                                    {
+                                         let _ = tx.try_send((
+                                             leg,
+-                                            Arc::new(sample.clone()),
++                                            Arc::clone(shared),
+                                             received_at_micros,
+                                         ));
+                                     }
+                                 }
++                                if let (
++                                    Some(capture),
++                                    Some(leg),
++                                    Some(profile),
++                                    Some(shared),
++                                ) = (
++                                    &ctx.audio_tap_capture,
++                                    ctx.recorder_leg,
++                                    audio_tap_profile,
++                                    &shared_capture,
++                                ) {
++                                    capture.try_capture(EncodedAudioTapFrame {
++                                        leg,
++                                        sample: Arc::clone(shared),
++                                        received_at_micros,
++                                        codec: profile.codec,
++                                        audio_payload_type: profile.payload_type,
++                                    });
++                                }
+                             }
+                             if !is_video {
+                                 Self::observe_dtmf_sample(
+@@ -2636,6 +2729,7 @@ pub struct BridgePeerBuilder {
+     recording_paused: Arc<AtomicBool>,
+     recording_channel_capacity: usize,
+     sipflow_tx: Option<mpsc::Sender<(RecLeg, SharedMediaSample, u64)>>,
++    audio_tap_capture: Option<AudioTapCapture>,
+     cname: Option<String>,
+     rtp_timeout: Option<std::time::Duration>,
+     rtp_timeout_tx: Option<mpsc::Sender<String>>,
+@@ -2665,6 +2759,7 @@ impl BridgePeerBuilder {
+             recording_paused: Arc::new(AtomicBool::new(false)),
+             recording_channel_capacity: 256,
+             sipflow_tx: None,
++            audio_tap_capture: None,
+             cname: None,
+             rtp_timeout: None,
+             rtp_timeout_tx: None,
+@@ -2801,6 +2896,11 @@ impl BridgePeerBuilder {
+         self
+     }
+ 
++    pub fn with_audio_tap_capture(mut self, capture: AudioTapCapture) -> Self {
++        self.audio_tap_capture = Some(capture);
++        self
++    }
++
+     pub fn with_cname(mut self, cname: String) -> Self {
+         self.cname = Some(cname);
+         self
+@@ -2932,6 +3032,7 @@ impl BridgePeerBuilder {
+         bridge.callee.sender_codec = self.callee_sender_codec;
+         bridge.recorder_capture = recorder_capture;
+         bridge.sipflow_tx = self.sipflow_tx;
++        bridge.audio_tap_capture = self.audio_tap_capture;
+         bridge.rtp_timeout = RtpTimeoutConfig {
+             duration: self.rtp_timeout,
+             notify_tx: self.rtp_timeout_tx,
+@@ -4448,6 +4549,68 @@ mod tests {
+         assert!(bridge.caller_to_callee_codec.transcoder.lock().is_none());
+     }
+ 
++    #[tokio::test]
++    async fn full_audio_tap_queue_does_not_block_bridge_forwarding() {
++        use rustrtc::media::track::sample_track;
++
++        let input = MediaSample::Audio(AudioFrame {
++            rtp_timestamp: 100,
++            clock_rate: 8000,
++            data: bytes::Bytes::from(vec![0xff; 160]),
++            sequence_number: Some(10),
++            payload_type: Some(0),
++            ..Default::default()
++        });
++        let mock_track: Arc<dyn MediaStreamTrack> = Arc::new(OneShotAudioTrack {
++            sample: parking_lot::Mutex::new(Some(input.clone())),
++        });
++        let (output_tx, output_track, _) = sample_track(MediaKind::Audio, 10);
++        let sender = Arc::new(parking_lot::Mutex::new(Some(output_tx)));
++        let (tap_tx, _tap_rx) = mpsc::channel(1);
++        let capture = AudioTapCapture::from_sender(tap_tx);
++        capture.try_capture(EncodedAudioTapFrame {
++            leg: RecLeg::A,
++            sample: Arc::new(input),
++            received_at_micros: 1,
++            codec: CodecType::PCMU,
++            audio_payload_type: 0,
++        });
++        let cancel = CancellationToken::new();
++        let ctx = ForwardLoopContextBuilder::new(
++            "tap-full".to_string(),
++            mock_track,
++            Arc::downgrade(&sender),
++            Arc::new(AtomicU8::new(BRIDGE_OUTPUT_PEER)),
++            cancel.clone(),
++            ForwardPath::new(LegTransport::Caller, LegTransport::Callee),
++            LegStats::new(),
++        )
++        .with_recorder_capture(None, Some(RecLeg::A))
++        .with_audio_tap(
++            Some(capture.clone()),
++            Some(Arc::new(parking_lot::RwLock::new(Some(
++                AudioTapCodecProfile {
++                    codec: CodecType::PCMU,
++                    payload_type: 0,
++                },
++            )))),
++        )
++        .build();
++
++        let task = crate::utils::media_spawn(async move {
++            BridgePeer::run_forward_loop(ctx).await;
++        });
++        let forwarded = tokio::time::timeout(Duration::from_secs(1), output_track.recv())
++            .await
++            .expect("bridge forwarding must not wait on a full audio tap queue")
++            .expect("forwarded sample");
++        cancel.cancel();
++        let _ = task.await;
++
++        assert!(matches!(forwarded, MediaSample::Audio(_)));
++        assert_eq!(capture.dropped_frames(), 1);
++    }
++
+     /// Verify that the bridge's forwarding loop applies a Transcoder when
+     /// configured.  Injects a G.729 encoded frame into a mock track, lets
+     /// run_forward_loop process it through the transcoder, and asserts the
+diff --git a/src/media/engine/command.rs b/src/media/engine/command.rs
+index a145a4c1..c0b778bb 100644
+--- a/src/media/engine/command.rs
++++ b/src/media/engine/command.rs
+@@ -28,6 +28,8 @@ pub type SharedMediaSample = Arc<rustrtc::media::frame::MediaSample>;
+ pub type SipFlowCaptureTx = mpsc::Sender<(crate::media::recorder::Leg, SharedMediaSample, u64)>;
+ pub type SipFlowCaptureRx = mpsc::Receiver<(crate::media::recorder::Leg, SharedMediaSample, u64)>;
+ 
++pub type AudioTapCaptureTx = crate::ivekit_audio_tap::AudioTapCapture;
++
+ // ---------------------------------------------------------------------------
+ // PcmFrame (used by PcmStream transport)
+ // ---------------------------------------------------------------------------
+diff --git a/src/media/forwarding_track.rs b/src/media/forwarding_track.rs
+index efc9f41b..792d42ed 100644
+--- a/src/media/forwarding_track.rs
++++ b/src/media/forwarding_track.rs
+@@ -1,3 +1,4 @@
++use crate::ivekit_audio_tap::{AudioTapCapture, EncodedAudioTapFrame};
+ use crate::media::engine::command::SharedMediaSample;
+ use crate::media::negotiate::NegotiatedLegProfile;
+ use crate::media::transcoder::{RtpTiming, Transcoder, rewrite_dtmf_duration};
+@@ -15,6 +16,7 @@ use tracing::trace;
+ 
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+ pub struct AudioMapping {
++    pub source_codec: audio_codec::CodecType,
+     pub source_pt: u8,
+     pub target_pt: u8,
+     pub source_clock_rate: u32,
+@@ -48,6 +50,7 @@ pub struct ForwardingTrack {
+     recorder_tx: Option<mpsc::Sender<(Leg, SharedMediaSample)>>,
+     recorder_drop_counter: Option<Arc<AtomicU64>>,
+     sipflow_tx: Option<mpsc::Sender<(Leg, SharedMediaSample, u64)>>,
++    audio_tap_capture: Option<AudioTapCapture>,
+     receive_clock: ReceiveTimestampClock,
+     recorder_leg: Leg,
+     dtmf_mapping: Mutex<Option<DtmfMapping>>,
+@@ -84,6 +87,7 @@ impl ForwardingTrack {
+             recorder_tx,
+             recorder_drop_counter: None,
+             sipflow_tx,
++            audio_tap_capture: None,
+             receive_clock: ReceiveTimestampClock::new(),
+             recorder_leg,
+             dtmf_mapping: Mutex::new(None),
+@@ -95,6 +99,11 @@ impl ForwardingTrack {
+         self
+     }
+ 
++    pub fn with_audio_tap_capture(mut self, capture: AudioTapCapture) -> Self {
++        self.audio_tap_capture = Some(capture);
++        self
++    }
++
+     pub fn stage_ingress_profile(&self, profile: NegotiatedLegProfile) {
+         *self.update_ingress_profile.lock() = Some(profile);
+     }
+@@ -139,6 +148,7 @@ impl ForwardingTrack {
+ 
+         let audio_mapping = match (&ingress.audio, &egress.audio) {
+             (Some(source_audio), Some(target_audio)) => Some(AudioMapping {
++                source_codec: source_audio.codec,
+                 source_pt: source_audio.payload_type,
+                 target_pt: target_audio.payload_type,
+                 source_clock_rate: source_audio.clock_rate,
+@@ -196,15 +206,31 @@ impl ForwardingTrack {
+ 
+     /// Tee the sample to recorder and/or SipFlow capture channels (non-blocking).
+     #[inline]
+-    fn tee_sample_to_capture_channels(&self, sample: &MediaSample) {
++    fn tee_sample_to_capture_channels(
++        &self,
++        sample: &MediaSample,
++        audio_mapping: Option<AudioMapping>,
++    ) {
+         let needs_recorder = self.recorder_tx.is_some();
+         let needs_sipflow = self.sipflow_tx.is_some();
+-        let shared = if needs_recorder || needs_sipflow {
++        let audio_tap_profile = match (sample, audio_mapping, &self.audio_tap_capture) {
++            (MediaSample::Audio(frame), Some(mapping), Some(_))
++                if frame.payload_type == Some(mapping.source_pt) =>
++            {
++                Some(mapping)
++            }
++            _ => None,
++        };
++        let shared = if needs_recorder || needs_sipflow || audio_tap_profile.is_some() {
+             Some(Arc::new(sample.clone()))
+         } else {
+             None
+         };
+-        let received_at_micros = self.receive_clock.now_micros();
++        let received_at_micros = if needs_sipflow || audio_tap_profile.is_some() {
++            self.receive_clock.now_micros()
++        } else {
++            0
++        };
+ 
+         if let (Some(tx), Some(shared)) = (&self.recorder_tx, &shared) {
+             if let Err(e) = tx.try_send((self.recorder_leg, Arc::clone(shared))) {
+@@ -223,6 +249,17 @@ impl ForwardingTrack {
+                 trace!(track_id = %self.track_id, "ForwardingTrack sipflow channel full: {e}");
+             }
+         }
++        if let (Some(capture), Some(profile), Some(shared)) =
++            (&self.audio_tap_capture, audio_tap_profile, &shared)
++        {
++            capture.try_capture(EncodedAudioTapFrame {
++                leg: self.recorder_leg,
++                sample: Arc::clone(shared),
++                received_at_micros,
++                codec: profile.source_codec,
++                audio_payload_type: profile.source_pt,
++            });
++        }
+     }
+ 
+     /// Try to map a DTMF telephone-event frame to the egress payload type.
+@@ -377,7 +414,7 @@ impl MediaStreamTrack for ForwardingTrack {
+             let dtmf_mapping = *self.dtmf_mapping.lock();
+             let sample = self.inner.recv().await?;
+ 
+-            self.tee_sample_to_capture_channels(&sample);
++            self.tee_sample_to_capture_channels(&sample, audio_mapping);
+ 
+             if let MediaSample::Audio(ref frame) = sample {
+                 let matched_dtmf = dtmf_mapping
+@@ -618,6 +655,40 @@ mod tests {
+         assert!(result.is_ok());
+     }
+ 
++    #[tokio::test]
++    async fn audio_tap_full_channel_does_not_block_media() {
++        use audio_codec::CodecType;
++
++        let (tap_tx, _tap_rx) = mpsc::channel(1);
++        let capture = AudioTapCapture::from_sender(tap_tx);
++        capture.try_capture(EncodedAudioTapFrame {
++            leg: Leg::A,
++            sample: Arc::new(audio_sample(0)),
++            received_at_micros: 1,
++            codec: CodecType::PCMU,
++            audio_payload_type: 0,
++        });
++
++        let profile = make_profile_with_dtmf(CodecType::PCMU, 0, None);
++        let ft = ForwardingTrack::new(
++            "test-audio-tap-full".to_string(),
++            OneShotTrack::new(audio_sample(0)),
++            None,
++            None,
++            Leg::A,
++            profile.clone(),
++            profile,
++        )
++        .with_audio_tap_capture(capture.clone());
++
++        let result = tokio::time::timeout(std::time::Duration::from_millis(100), ft.recv())
++            .await
++            .expect("recv must not block when audio tap channel is full");
++
++        assert!(result.is_ok());
++        assert_eq!(capture.dropped_frames(), 1);
++    }
++
+     #[tokio::test]
+     async fn recorder_full_channel_counts_drop_without_blocking() {
+         let (rec_tx, _rec_rx) = mpsc::channel::<(Leg, SharedMediaSample)>(1);
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 77bd96c4..2ef75577 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -192,6 +192,8 @@ pub struct SipSession {
+ 
+     pub conference_bridge: crate::call::runtime::SessionConferenceBridge,
+ 
++    realtime_audio_tap_capture: Option<crate::ivekit_audio_tap::AudioTapCapture>,
++
+     #[allow(dead_code)]
+     pub cmd_tx: Option<mpsc::Sender<CallCommand>>,
+ 
+@@ -804,6 +806,51 @@ impl SipSession {
+         Some(tx)
+     }
+ 
++    fn setup_realtime_audio_tap(
++        server: &SipServerRef,
++        context: &CallContext,
++    ) -> Option<crate::ivekit_audio_tap::AudioTapCapture> {
++        let socket_path = server
++            .proxy_config
++            .realtime_audio_tap_socket_path
++            .as_deref()?
++            .trim();
++        let capacity = server.proxy_config.realtime_audio_tap_channel_capacity;
++        let timeout_ms = server.proxy_config.realtime_audio_tap_send_timeout_ms;
++        if socket_path.is_empty()
++            || !Path::new(socket_path).is_absolute()
++            || socket_path.as_bytes().len() > 100
++            || capacity == 0
++            || capacity > 65_536
++            || timeout_ms == 0
++            || timeout_ms > 1_000
++        {
++            metrics::counter!(
++                "rustpbx_realtime_audio_tap_authorization_total",
++                "result" => "config_invalid"
++            )
++            .increment(1);
++            warn!(
++                session_id = %context.session_id,
++                "Realtime audio tap disabled because runtime configuration is invalid"
++            );
++            return None;
++        }
++        let authorization = crate::ivekit_audio_tap::authorization_from_routed_headers(
++            context.dialplan.routed_headers.as_deref(),
++        )
++        .ok()?;
++        Some(crate::ivekit_audio_tap::spawn_audio_tap(
++            context.session_id.clone(),
++            authorization,
++            crate::ivekit_audio_tap::AudioTapRuntimeConfig {
++                socket_path: socket_path.to_string(),
++                channel_capacity: capacity,
++                send_timeout: Duration::from_millis(timeout_ms),
++            },
++        ))
++    }
++
+     #[inline]
+     pub fn caller_peer(&self) -> Option<&Arc<dyn MediaPeer>> {
+         self.legs.caller_peer()
+@@ -966,6 +1013,11 @@ impl SipSession {
+ 
+         let initial = server_dialog.initial_request();
+         let caller_offer = Self::extract_sdp(initial.body());
++        let realtime_audio_tap_capture = if use_media_proxy {
++            Self::setup_realtime_audio_tap(&server, &context)
++        } else {
++            None
++        };
+ 
+         let session = Self {
+             id: session_id.clone(),
+@@ -1013,6 +1065,7 @@ impl SipSession {
+             recording_paused: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+             app_event_bridge: app_event_bridge.clone(),
+             conference_bridge: crate::call::runtime::SessionConferenceBridge::new(),
++            realtime_audio_tap_capture,
+             cmd_tx: Some(cmd_tx.clone()),
+             dtmf_digits: Vec::new(),
+             engine_session_destroyed: false,
+@@ -4128,6 +4181,9 @@ impl SipSession {
+                 bridge_builder = bridge_builder.with_sipflow_capture(sipflow_tx);
+             }
+         }
++        if let Some(capture) = self.realtime_audio_tap_capture.clone() {
++            bridge_builder = bridge_builder.with_audio_tap_capture(capture);
++        }
+ 
+         let rtp_timeout = self.context.dialplan.rtp_timeout.or_else(|| {
+             self.server
+@@ -5282,6 +5338,17 @@ impl SipSession {
+         let caller_endpoint = self.leg_bridge_endpoint(&LegId::from("caller"));
+         let callee_endpoint = self.leg_bridge_endpoint(&LegId::from("callee"));
+ 
++        if let Some(audio) = &caller_profile.audio {
++            bridge.set_ingress_audio_profile(caller_endpoint, audio.codec, audio.payload_type);
++        } else {
++            bridge.clear_ingress_audio_profile(caller_endpoint);
++        }
++        if let Some(audio) = &callee_profile.audio {
++            bridge.set_ingress_audio_profile(callee_endpoint, audio.codec, audio.payload_type);
++        } else {
++            bridge.clear_ingress_audio_profile(callee_endpoint);
++        }
++
+         match (&caller_profile.dtmf, &callee_profile.dtmf) {
+             (Some(caller_dtmf), Some(callee_dtmf)) => {
+                 bridge.set_dtmf_mapping(
+@@ -5537,6 +5604,7 @@ impl SipSession {
+         let bridge_eligible = !self.media.caller_answer_uses_media_bridge
+             && sipflow_tx.is_none()
+             && !self.context.dialplan.recording.enabled
++            && self.realtime_audio_tap_capture.is_none()
+             && same_codec;
+ 
+         if bridge_eligible {
+@@ -5617,6 +5685,7 @@ impl SipSession {
+         let session_id = self.context.session_id.clone();
+         // The same sipflow capture sink feeds both directions.
+         let (caller_sipflow_tx, callee_sipflow_tx) = (sipflow_tx.clone(), sipflow_tx);
++        let audio_tap_capture = self.realtime_audio_tap_capture.clone();
+ 
+         match Self::wire_with_forwarding_track(
+             Self::CALLER_FORWARDING_TRACK_ID,
+@@ -5628,6 +5697,7 @@ impl SipSession {
+             self.recording_paused.clone(),
+             Leg::A,
+             caller_sipflow_tx,
++            audio_tap_capture.clone(),
+             &session_id,
+             "caller→callee",
+             self.server.proxy_config.media_recording_channel_capacity,
+@@ -5659,6 +5729,7 @@ impl SipSession {
+             self.recording_paused.clone(),
+             Leg::B,
+             callee_sipflow_tx,
++            audio_tap_capture,
+             &session_id,
+             "callee→caller",
+             self.server.proxy_config.media_recording_channel_capacity,
+@@ -6114,6 +6185,7 @@ impl SipSession {
+         recording_paused: Arc<std::sync::atomic::AtomicBool>,
+         leg: crate::media::recorder::Leg,
+         sipflow_tx: Option<crate::media::engine::command::SipFlowCaptureTx>,
++        audio_tap_capture: Option<crate::ivekit_audio_tap::AudioTapCapture>,
+         session_id: &str,
+         direction: &str,
+         recording_channel_capacity: usize,
+@@ -6183,18 +6255,20 @@ impl SipSession {
+             tx
+         };
+ 
+-        let forwarding = Arc::new(
+-            ForwardingTrack::new(
+-                track_id.to_string(),
+-                receiver_track,
+-                Some(recorder_tx),
+-                sipflow_tx,
+-                leg,
+-                ingress_profile,
+-                egress_profile,
+-            )
+-            .with_recorder_drop_counter(recorder_drop_counter),
+-        );
++        let mut forwarding = ForwardingTrack::new(
++            track_id.to_string(),
++            receiver_track,
++            Some(recorder_tx),
++            sipflow_tx,
++            leg,
++            ingress_profile,
++            egress_profile,
++        )
++        .with_recorder_drop_counter(recorder_drop_counter);
++        if let Some(capture) = audio_tap_capture {
++            forwarding = forwarding.with_audio_tap_capture(capture);
++        }
++        let forwarding = Arc::new(forwarding);
+ 
+         let mut sender_builder = rustrtc::RtpSender::builder(
+             forwarding.clone() as Arc<dyn rustrtc::media::MediaStreamTrack>,
+@@ -6564,6 +6638,9 @@ impl SipSession {
+                     bridge_builder = bridge_builder.with_sipflow_capture(sipflow_tx);
+                 }
+             }
++            if let Some(capture) = self.realtime_audio_tap_capture.clone() {
++                bridge_builder = bridge_builder.with_audio_tap_capture(capture);
++            }
+ 
+             let bridge = bridge_builder.build();
+ 
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 3f7e553c..4dd6c326 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -267,7 +267,7 @@ impl HttpCallRouter {
+         call_id: &str,
+         destination: &str,
+         caller: &SipUser,
+-    ) -> Result<(), RouteError> {
++    ) -> Result<Option<String>, RouteError> {
+         let config = self.snapshot_admission.as_ref().ok_or_else(|| RouteError {
+             error: anyhow!("snapshot inbound admission is not configured"),
+             status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+@@ -348,7 +348,10 @@ impl HttpCallRouter {
+             status: Some(rsipstack::sip::StatusCode::ServiceUnavailable),
+             extensions: None,
+         })?;
+-        Ok(())
++        Ok(admitted
++            .data
++            .audio_tap_token
++            .and_then(validated_audio_tap_token))
+     }
+ }
+ 
+@@ -450,6 +453,30 @@ struct HttpSnapshotAdmissionResponse {
+     call_id: String,
+     reservation_id: String,
+     owner_epoch: String,
++    #[serde(default)]
++    audio_tap_token: Option<String>,
++}
++
++fn validated_audio_tap_token(token: String) -> Option<String> {
++    let trimmed = token.trim();
++    if trimmed.len() != token.len()
++        || !(32..=2048).contains(&token.len())
++        || token.chars().any(|character| character.is_control())
++    {
++        warn!("snapshot admission returned an invalid audio tap token");
++        return None;
++    }
++    Some(token)
++}
++
++fn attach_audio_tap_token(result: &mut HttpResponsePayload, token: Option<String>) {
++    let Some(token) = token else {
++        return;
++    };
++    result.headers.get_or_insert_with(HashMap::new).insert(
++        crate::ivekit_audio_tap::AUDIO_TAP_TOKEN_HEADER.to_string(),
++        token,
++    );
+ }
+ 
+ fn snapshot_admission_config_from_env() -> Option<HttpSnapshotAdmissionConfig> {
+@@ -773,8 +800,9 @@ impl CallRouter for HttpCallRouter {
+             .unwrap_or_default();
+ 
+         if self.snapshot_enabled {
+-            self.admit_snapshot_call(&call_id, &to, caller).await?;
+-            let result = self.snapshot_result(&to)?;
++            let audio_tap_token = self.admit_snapshot_call(&call_id, &to, caller).await?;
++            let mut result = self.snapshot_result(&to)?;
++            attach_audio_tap_token(&mut result, audio_tap_token);
+             trace!(%call_id, %to, action = ?result.action, "snapshot router resolved route");
+             return self.apply_result(result, call_id, original, direction, caller, cookie);
+         }
+@@ -964,4 +992,32 @@ mod snapshot_tests {
+             "4c93c707248e9918e06eb5eb429812184e08486b4211568a936e938b393d4393"
+         );
+     }
++
++    #[test]
++    fn audio_tap_snapshot_token_is_attached_to_trusted_route_headers() {
++        let mut result: HttpResponsePayload = serde_json::from_value(serde_json::json!({
++            "action": "forward",
++            "targets": ["sip:1001@127.0.0.1"]
++        }))
++        .unwrap();
++        attach_audio_tap_token(
++            &mut result,
++            Some("token-00000000000000000000000000000000".to_string()),
++        );
++        assert_eq!(
++            result
++                .headers
++                .as_ref()
++                .and_then(|headers| headers.get(crate::ivekit_audio_tap::AUDIO_TAP_TOKEN_HEADER))
++                .map(String::as_str),
++            Some("token-00000000000000000000000000000000")
++        );
++    }
++
++    #[test]
++    fn audio_tap_snapshot_token_validation_degrades_closed() {
++        assert!(validated_audio_tap_token("short".to_string()).is_none());
++        assert!(validated_audio_tap_token(format!("valid-token-{}\n", "x".repeat(32))).is_none());
++        assert!(validated_audio_tap_token(format!("token-{}", "x".repeat(2049))).is_none());
++    }
+ }

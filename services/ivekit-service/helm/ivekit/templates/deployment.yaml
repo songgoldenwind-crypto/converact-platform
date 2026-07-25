@@ -1,3 +1,11 @@
+{{- if .Values.realtimeAudioTap.enabled }}
+{{- if or (lt (int .Values.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.realtimeAudioTap.projectionQueueMaxItems) 100000) }}
+{{- fail "realtimeAudioTap.projectionQueueMaxItems must be between 1 and 100000" }}
+{{- end }}
+{{- if or (lt (int .Values.realtimeAudioTap.projectionShutdownTimeoutMs) 10) (gt (int .Values.realtimeAudioTap.projectionShutdownTimeoutMs) 30000) }}
+{{- fail "realtimeAudioTap.projectionShutdownTimeoutMs must be between 10 and 30000" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,37 +50,8 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if or .Values.clamav.enabled .Values.tinode.enabled }}
+      {{- if .Values.tinode.enabled }}
       initContainers:
-        {{- if .Values.clamav.enabled }}
-        - name: wait-for-clamav
-          image: {{ include "ivekit.image" . | quote }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command:
-            - node
-            - -e
-            - >-
-              const net=require('node:net');const host=process.env.CLAMD_HOST;const port=Number(process.env.CLAMD_PORT);
-              let attempts=0;const retry=()=>{const socket=net.createConnection({host,port});
-              socket.setTimeout(2000);socket.on('connect',()=>{socket.end();process.exit(0)});
-              const fail=()=>{socket.destroy();if(++attempts>=60)process.exit(1);setTimeout(retry,2000)};
-              socket.on('error',fail);socket.on('timeout',fail)};retry();
-          env:
-            - name: CLAMD_HOST
-              value: {{ include "ivekit.clamavFullname" . | quote }}
-            - name: CLAMD_PORT
-              value: {{ .Values.fileSecurity.clamdPort | quote }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
-            limits:
-              cpu: 100m
-              memory: 64Mi
-        {{- end }}
-        {{- if .Values.tinode.enabled }}
         - name: tinode-service-account-bootstrap
           image: {{ include "ivekit.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -106,7 +85,6 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
-        {{- end }}
       {{- end }}
       containers:
         {{- if .Values.placement.enabled }}
@@ -150,11 +128,20 @@ spec:
         - name: ivekit
           image: {{ include "ivekit.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.telemetry.enabled }}
+          command: ["node", "--import", "dist/telemetry.js", "dist/ivekit-server.js"]
+          {{- else }}
           command: ["node", "dist/ivekit-server.js"]
+          {{- end }}
           ports:
             - name: http
               containerPort: 3000
               protocol: TCP
+            {{- if .Values.realtimeAudioTap.enabled }}
+            - name: audio-tap
+              containerPort: {{ .Values.realtimeAudioTap.listenPort }}
+              protocol: TCP
+            {{- end }}
           {{- with .Values.secrets.runtimeEnvironmentSecret }}
           envFrom:
             - secretRef:
@@ -172,6 +159,22 @@ spec:
                   key: {{ .Values.secrets.runtimeDatabaseUrlKey }}
             - name: OPC_SCHEMA_MANAGED_BY_MIGRATIONS
               value: "1"
+            - name: OPC_OTEL_ENABLED
+              value: {{ ternary "1" "0" .Values.telemetry.enabled | quote }}
+            - name: OPC_OTEL_SERVICE_NAME
+              value: ivekit-api
+            - name: OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.telemetry.collectorEndpoint | quote }}
+            - name: OPC_OTEL_TRACE_SAMPLE_RATIO
+              value: {{ .Values.telemetry.sampleRatio | quote }}
+            - name: OPC_OTEL_MAX_QUEUE_SIZE
+              value: {{ .Values.telemetry.maxQueueSize | quote }}
+            - name: OPC_OTEL_MAX_EXPORT_BATCH_SIZE
+              value: {{ .Values.telemetry.maxExportBatchSize | quote }}
+            - name: OPC_OTEL_SCHEDULED_DELAY_MS
+              value: {{ .Values.telemetry.scheduledDelayMs | quote }}
+            - name: OPC_OTEL_EXPORT_TIMEOUT_MS
+              value: {{ .Values.telemetry.exportTimeoutMs | quote }}
             - name: OPC_OBJECT_STORAGE_REQUIRED
               value: "1"
             - name: OPC_IVEKIT_AUDIT_IP_HMAC_KEY
@@ -186,6 +189,55 @@ spec:
                   key: {{ .Values.secrets.rateLimitHmacKeyKey }}
             - name: OPC_IVEKIT_ALLOWED_ORIGINS
               value: {{ .Values.config.allowedOrigins | quote }}
+            {{- if .Values.realtimeAudioTap.enabled }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.secrets.realtimeAudioTapHmacSecretKey }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+              value: {{ .Values.realtimeAudioTap.tokenTtlSeconds | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST
+              value: 0.0.0.0
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT
+              value: {{ .Values.realtimeAudioTap.listenPort | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH
+              value: {{ .Values.realtimeAudioTap.path | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL
+              value: {{ printf "ws://$(POD_NAME).%s-audio-tap.%s.svc:%v%s" (include "ivekit.fullname" .) .Release.Namespace .Values.realtimeAudioTap.listenPort .Values.realtimeAudioTap.path | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS
+              value: {{ .Values.realtimeAudioTap.maxConnections | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS
+              value: {{ .Values.realtimeAudioTap.prestartBufferMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES
+              value: {{ .Values.realtimeAudioTap.maxPayloadBytes | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.idleTimeoutMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.startTimeoutMs | quote }}
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.shutdownTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+              value: {{ .Values.realtimeAudioTap.projectionQueueMaxItems | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
+            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+              value: {{ .Values.realtimeAudioTap.retentionDays | quote }}
+            {{- end }}
             {{- if .Values.placement.enabled }}
             - name: OPC_IVEKIT_PLACEMENT_ENABLED
               value: "1"

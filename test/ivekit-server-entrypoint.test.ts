@@ -27,6 +27,17 @@ test('package exposes the iveKit production start command', () => {
   assert.equal(pkg.scripts?.['start:ivekit'], 'tsx src/ivekit-server.ts');
   assert.equal(pkg.scripts?.['start:ivekit:worker'], 'tsx src/ivekit-worker.ts');
   assert.equal(
+    pkg.scripts?.['start:ivekit:realtime-audio-tap'],
+    'tsx src/ivekit-realtime-audio-tap-worker.ts'
+  );
+  const servicePackage = JSON.parse(
+    readFileSync('services/ivekit-service/package.json', 'utf8')
+  ) as { scripts?: Record<string, string> };
+  assert.equal(
+    servicePackage.scripts?.['start:realtime-audio-tap'],
+    'node dist/ivekit-realtime-audio-tap-worker.js'
+  );
+  assert.equal(
     pkg.scripts?.['test:ivekit:foundation'],
     'node --import tsx --test test/ivekit-standalone-http.test.ts test/ivekit-media-hooks.test.ts test/ivekit-application.test.ts test/ivekit-server-entrypoint.test.ts test/ivekit-sdk-package.test.ts test/ivekit-voice-controller.test.ts test/ivekit-voice-sdk.test.ts test/ivekit-sip-webphone.test.ts test/livekit-standalone-deployment.test.ts test/ivekit-contact-center-domain.test.ts test/ivekit-contact-center-migration.test.ts test/ivekit-contact-center-configuration.test.ts test/ivekit-contact-center-service.test.ts test/ivekit-contact-center-postgres.test.ts test/ivekit-contact-center-http.test.ts test/ivekit-contact-center-worker.test.ts'
   );

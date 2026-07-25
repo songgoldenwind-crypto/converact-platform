@@ -1,6 +1,6 @@
 # iveKit LED 集成与抽离指南
 
-> 版本：2026-07-19。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》和 V2 M6.3-M6.6 记录；物理 RustDesk 客户端、真实 Voice/PSTN/RTP 和未配置的 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
+> 版本：2026-07-23。面向 LED 项目架构师、后端、前端、部署和 QA。真实服务器证据见《iveKit服务器部署验收报告-2026-07-11》、V2 M6.3-M6.6 记录和 `docs/evidence/`；物理 RustDesk 客户端、真实 Voice/PSTN/RTP、真实 LiveKit 实时音频旁路和未配置的外部 OCR/ASR/AI provider 仍按人工/外部依赖项处理。
 
 ## 1. 交付目标
 
@@ -17,7 +17,7 @@ LED 不应复制 OPC 的 call-center 业务代码。稳定边界是 `/api/ivekit
 
 | 范围 | 代码状态 | 真实环境状态 |
 | --- | --- | --- |
-| Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention 和 preflight 已完成 | 真实 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制已通过 |
+| Media Core | 房间、join、参与人、录制生命周期、对象读/导出/retention、preflight，以及 LiveKit/RustPBX 到统一实时 ASR/翻译 Provider 路由的有界 PCM 旁路已完成 | 既有 LiveKit/Egress/MinIO、TURN、双浏览器音视频、屏幕共享、DataChannel 和录制受控验收保留；本轮真实 LiveKit `AudioStream -> iveKit -> 外部 Provider` 尚未运行 |
 | Collaboration Session | Tinode durable outbound、独立 IM 参考客户端、官方浏览器 SDK adapter、附件 OCR/ASR、质检/人审、IM 高级状态已完成 | 既有后端/Tinode server smoke 保留；本轮参考客户端双真实浏览器验收未运行，OCR/ASR/AI provider 待选型和配置 |
 | Remote Assistance | Web Assist 和 RustDesk 控制面/LED SDK/物理断开命令已完成 | RustDesk hbbs/hbbr、授权、launch、审计和撤权已通过；物理双客户端键鼠/文件/录屏仍需人工验收 |
 | Voice/IVR/Contact Center | Voice/IVR 后端、Contact Center ACD/callback/overflow/supervisor 控制面、监控投影、SDK 和 Queue Monitor 参考工作区已完成 | 受控 PostgreSQL/RustPBX 与 Queue Monitor 桌面/移动浏览器通过；真实 SIP/PSTN、浏览器媒体和 supervisor provider 保持 `not_run` |
@@ -188,7 +188,7 @@ await ivekit.rustdesk.endGatewaySession(remote.gatewaySession.external_id, {
 5. 当前身份取得控制权后每 10 秒调用 `heartbeatControl()` 续租；释放、转移、过期、会话结束或组件卸载后停止。续租失败会重新读取服务端 ownership，不在前端伪造所有权。
 6. 浏览器 protocol handler 必须由用户点击触发。LED 若封装桌面壳，应通过 `openProtocol(url)` 注入受控原生拉起实现，仍保留上述即时校验。
 
-Windows 设备侧精准断开由 ACL 保护的 session registry、固定 resolver 和 `ivekit-rustdesk-native-control-v2` named pipe 完成。gateway session 创建时由服务端生成不重复的 `ivekit_native_session_id`；launch plan 只把它放进 `rustdesk://` 的 `ivekit_session_id` 查询参数，不放进公开 metadata。定制 RustDesk 1.4.7 会把该值从深链、Flutter/CLI、多窗口、IPC 一直传到 connection manager。placement-enabled package v6 再把 `interaction_id + reservation_id + owner_epoch + command_id + native_session_id` 传入 companion 与原生 overlay；companion 先校验服务端 owner binding，再以每个 external session 一个原子状态分片持久化已接受的最大 epoch，旧 epoch 在原生执行前直接拒绝。原生 resolver 必须同时匹配 `native_session_id + controller_rustdesk_id`，只对该 native connection ID 调用 close，并在回显 owner identity、native session ID 且确认该连接消失后才报告成功；任一字段缺失、漂移或会话已替换均返回 `precise_disconnect_unavailable`。v1 只用于关闭 Cell placement 的滚动兼容。普通链路不会自动重启 RustDesk service。只有 owner/admin 显式调用 `authorizeEmergencyFallback()`、提交原因并确认 `collateral_sessions_may_disconnect=true` 后，companion 才能在同一授权约束下执行一次 emergency restart；该路径会独立审计，可能影响同机其他会话。macOS/Linux wrapper 仍保持显式 capability/不可用语义，不能伪装成 Windows 精准断开。
+Windows 设备侧精准断开由 ACL 保护的 session registry、固定 resolver 和 `ivekit-rustdesk-native-control-v2` named pipe 完成。gateway session 创建时由服务端生成不重复的 `ivekit_native_session_id`；launch plan 只把它放进 `rustdesk://` 的 `ivekit_session_id` 查询参数，不放进公开 metadata。定制 RustDesk 1.4.9 会把该值从深链、Flutter、多窗口、IPC 一直传到 connection manager。placement-enabled package v6 再把 `interaction_id + reservation_id + owner_epoch + command_id + native_session_id` 传入 companion 与原生 overlay；companion 先校验服务端 owner binding，再以每个 external session 一个原子状态分片持久化已接受的最大 epoch，旧 epoch 在原生执行前直接拒绝。原生 resolver 必须同时匹配 `native_session_id + controller_rustdesk_id`，只对该 native connection ID 调用 close，并在回显 owner identity、native session ID 且确认该连接消失后才报告成功；任一字段缺失、漂移或会话已替换均返回 `precise_disconnect_unavailable`。v1 只用于关闭 Cell placement 的滚动兼容。普通链路不会自动重启 RustDesk service。只有 owner/admin 显式调用 `authorizeEmergencyFallback()`、提交原因并确认 `collateral_sessions_may_disconnect=true` 后，companion 才能在同一授权约束下执行一次 emergency restart；该路径会独立审计，可能影响同机其他会话。macOS/Linux wrapper 仍保持显式 capability/不可用语义，不能伪装成 Windows 精准断开。
 
 原生 RustDesk/边车操作观测通过 `ivekit.rustdesk.recordOperationObservation()` 或 `npm run rustdesk:operation-observer` 上报。统一覆盖画面、键鼠、多显示器、文件、剪贴板、录屏和断开；同一 `operation_id + status` 使用稳定幂等键，并复用 event forwarder 的 retry/dead-letter/replay。LED 只能上报计数、方向、display ID、SHA-256、duration、状态和 evidence ref，不能发送文件内容、剪贴板正文、按键、屏幕像素、录像字节或凭证。没有 native observer 时必须展示 `not_observed`，不能从 HTTP 2xx 或 wrapper 成功推导真实操作成功。
 
@@ -276,7 +276,101 @@ sequenceDiagram
 6. LED UI 仍以 iveKit snapshot 和 `collaboration.message.edited/deleted` 为权威；`pending|processing|retry_wait` 仅表示执行面尚未收敛。
 7. edit 已发出但 ACK 丢失，或 worker 接管一个过期 `processing` edit lease 时，都直接成为 `provider_outcome_uncertain` dead letter，不自动重发；过期 delete 仍可自动重试。owner/admin 先核对 Tinode，再调用 `listTinodeMutationDeadLetters()` / `replayTinodeMutationDeadLetter()` 人工对账与重放。若之后到达可验证的原生 echo，iveKit 会在纠正 outbox 的同一事务持久化 `provider_mutation_updated(status=delivered,reconciled_from_status=dead_letter)`；LED 应通过实时事件、Webhook 或 replay 覆盖本地旧死信投影，实时广播失败不会丢失该纠正。
 
-### 5.3 RustDesk
+### 5.3 LiveKit 实时字幕与语音翻译
+
+实时字幕和翻译复用统一 Provider 治理，不把 ASR、翻译、数据库、对象存储或 NATS 放进 LiveKit 媒体回调。数据路径固定为：
+
+```text
+LiveKit remote AudioTrack
+  -> LiveKit Agents AudioStream
+  -> mono PCM16LE / 16 kHz / 20 ms
+  -> 每 track 有界内存队列
+  -> LAT1 内部 WebSocket
+  -> PolicyRealtimeSpeechRouter
+  -> third_party 或 self_hosted 实时 ASR/翻译 Provider
+  -> PostgreSQL 投影 / LED 事件
+```
+
+LED 先由当前 Media Call host 创建授权：
+
+```http
+POST /api/ivekit/media/calls/:callId/realtime-audio-tap-grants
+Idempotency-Key: <stable-operation-id>
+```
+
+```json
+{
+  "purpose": "live_translation",
+  "consent_ref": "consent-voice-001",
+  "source_language": "en",
+  "target_languages": ["zh-CN"],
+  "features": ["streaming_asr", "streaming_translation"],
+  "tracks": [
+    { "media_source": "livekit", "participant_id": "customer-001", "track_id": "*" }
+  ],
+  "expires_at": "2026-07-23T05:30:00.000Z"
+}
+```
+
+只有 system worker 能为已经在 active call 和 grant 中的具体 participant/track 调用：
+
+```http
+POST /api/ivekit/media/calls/:callId/realtime-audio-tap-authorizations
+```
+
+响应只包含一次性、短 TTL、绑定 tenant/call/room/participant/track 的 token、签发 Pod 的内部
+`gateway_url`、协议 `ivekit.livekit-audio-tap.v1` 和固定音频格式。LED 浏览器、业务后端和外部
+Provider 都不应直接取得该 token。房间 metadata 至少包含：
+
+```json
+{
+  "tenant_id": "tenant-led",
+  "media_call_id": "media-call-001",
+  "language": "en",
+  "realtime_audio_tap": {
+    "enabled": true,
+    "purpose": "live_translation",
+    "consent_ref": "consent-voice-001",
+    "target_languages": ["zh-CN"],
+    "features": ["streaming_asr", "streaming_translation"],
+    "frame_size_ms": 20,
+    "max_buffered_audio_ms": 1000
+  }
+}
+```
+
+每条音轨的采集和网络发送运行在不同任务。Provider 启动慢、WebSocket 断开或队列满时只丢弃最老的
+旁路帧并累计指标；LiveKit 主音频订阅、房间和其他参与人不等待旁路。重连次数和退避有界，每次重连
+重新申请一次性 token，不复用已经消费的 token。旁路启动失败只记录告警，AI Agent 主会话继续运行。
+
+AI Agent 使用 LiveKit Agents `1.6.6` 已提交消息的 `ChatMessage.metrics` 采集五段低基数指标：
+`transcription_delay`、`end_of_turn_delay`、`llm_node_ttft`、`tts_node_ttfb` 和 `e2e_latency`，
+分别投影为 ASR final、端点判定、LLM 首 token、TTS 首音频和 speech-to-speech。默认 P95 预算依次为
+`350/500/350/300/1200 ms`；`llm_node_ttft` 与 `tts_node_ttfb` 只适用于独立 STT-LLM-TTS pipeline，
+realtime model 不得伪造缺失阶段。参考：
+`https://docs.livekit.io/deploy/observability/data/`。
+
+每个 LiveKit job 子进程只把最多五条、总计不超过 4 KiB 的阶段观测通过非阻塞 loopback UDP 发给
+worker 父进程，父进程再更新 Prometheus Registry。这里不使用 Prometheus multiprocess mmap，
+避免长生命周期 worker 随累计通话数产生进程指标文件。UDP/Prometheus 故障只丢监控样本，绝不进入
+媒体、Provider 或 LED 事件主链的等待条件。
+
+独立 STT-LLM-TTS pipeline 使用 LiveKit Agents `1.6.6` 官方 `FallbackAdapter`。默认候选顺序为
+`funasr -> deepgram -> openai`、`primary -> deepseek` 和
+`cosyvoice -> cartesia -> openai`；未配置 URL 或 API key 的候选不会进入运行链。每个候选禁用
+内部重复重试，默认 ASR/LLM/TTS 尝试上限为 `2000/1200/1500 ms`，防止多层重试把实时对话拖成
+分钟级等待。LLM 已输出 token、TTS 已输出音频后不再切换，避免重复回答或拼接不同音色。
+`opc_ai_voice_provider_transitions_total{capability,provider,state}` 记录低基数可用性变化，Compose
+和 Helm 都可配置候选顺序、超时和不可恢复错误阈值；Kubernetes 凭据只能来自
+`aiAgent.providers.credentials.existingSecret`，不能写入 values 或 LED payload。
+
+Kubernetes 多副本不能把 token 发到任意 API Pod。授权请求由某个 API Pod 签发后，响应返回该 Pod
+在 headless Service 中的 DNS；HMAC 根密钥再按 Pod name 派生实例密钥，因此同一 token 在另一 Pod
+验签失败，同一 Pod 的 nonce store 拒绝二次消费。3010 端口只允许同 namespace 的 AI Agent
+selector 进入，不经公网 Service/Ingress。Compose 是单实例模式，使用服务网络地址且不发布 3010
+到宿主机。
+
+### 5.4 RustDesk
 
 RustDesk 前置条件是 collaboration remote session 已创建且授权 scope 已 grant。LED 使用 `createIveKitRustDeskLedSdk`：
 
@@ -287,7 +381,7 @@ RustDesk 前置条件是 collaboration remote session 已创建且授权 scope �
 5. 结束会话后查询 physical disconnect command 状态。
 6. 真实客户端必须人工确认屏幕和键鼠能力已经停止。
 
-### 5.4 Voice 与 WebPhone
+### 5.5 Voice 与 WebPhone
 
 LED 通过统一 SDK 的 `voice` client 使用分机、呼叫、IVR 和 Contact Center API。浏览器注册前先读取
 capabilities，只有 `capabilities.extension_sessions=true` 才调用
@@ -339,6 +433,9 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 | `076_rustdesk_evidence_intelligence_reconciliation.sql` | RustDesk ready evidence 的最小权限候选发现与 missed-callback 幂等补偿 |
 | `094_ivekit_voice_extension_sessions.sql` | WebPhone 短期 session 的幂等签发、RLS、过期索引和有界清理 |
 | `095_rustdesk_authorization_claims.sql` | 已运行旧 migration 064 的数据库升级到 claim/consume 两阶段授权状态机 |
+| `097_ivekit_realtime_intelligence.sql` | 实时 ASR/翻译 Provider 策略、配额、熔断和会话治理 |
+| `098_ivekit_realtime_speech_projection.sql` | 实时字幕/翻译投影、事件与 retention |
+| `099_ivekit_realtime_audio_tap_grants.sql` | consent-scoped PCM 旁路 grant、幂等、撤销与 FORCE RLS |
 
 迁移后必须验证 `ENABLE ROW LEVEL SECURITY`、`FORCE ROW LEVEL SECURITY`、tenant policy 和非 bypass 账号的跨租户拒绝。MemoryPg 测试不能替代真实 PostgreSQL。
 
@@ -356,6 +453,8 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 
 - `LIVEKIT_URL/API_KEY/API_SECRET`
 - `LIVEKIT_EGRESS_URL` 与 webhook secret
+- LiveKit Ingress 管理面由 `OPC_LIVEKIT_INGRESS_ENABLED=1` 启用；API 超时使用 `OPC_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS`
+- URL pull 必须配置 `OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST`；默认仅 HTTPS，HTTP 兼容开关 `OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL` 不应在公网生产启用
 - `OPC_MEDIA_CONFIG_RTC_TCP_PORT`，默认 `7881`
 - `OPC_MEDIA_CONFIG_RTC_UDP_PORT`，默认 `7882-7892`，生产防火墙必须开放同一 UDP 范围
 - `OPC_MEDIA_CONFIG_USE_EXTERNAL_IP=true` 用于生产公网 ICE 候选；本地固定配置保持 `false`
@@ -364,6 +463,15 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 - SIP/VoLTE 默认关闭；LED 需要该入口时设置 `OPC_SIP_VOLTE_ENABLED=1`，并完整配置 `LIVEKIT_SIP_BRIDGE_TARGET`、`RUSTPBX_LIVEKIT_TRUNK`、`RUSTPBX_RWI_URL`、`RUSTPBX_RWI_TOKEN`
 - LED 先调用 `GET /api/ivekit/media/capabilities`，仅在 `data.capabilities.sip_volte=ready` 时展示 SIP/VoLTE 入口；不得根据单个环境变量自行推断
 - 可选状态探针只验证并降级静态 active 状态，不能提升未启用或配置不完整的 gateway；真实 VoLTE/PSTN/RTP 仍按 Voice runbook 保持 `not_run`，直到目标线路 E2E 采证
+- 外部摄像头、OBS 或编码器通过 SDK 的 `createIngress/listIngresses/getIngress/updateIngress/deleteIngress` 接入 RTMP、WHIP 或受控 URL pull。LED 不得直连 LiveKit 管理 API，也不得持久化或记录返回的 `stream_key`/`url`
+- 实时字幕/翻译通过 `OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED=1` 显式启用；HMAC 根密钥使用 `OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64`，必须是 canonical base64 编码的 32 至 128 字节随机值
+- `OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS` 默认 60 秒；生产不应为了掩盖网络错误而放宽到长时 token
+- LiveKit gateway 使用 `OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT`（默认 3010）和 `OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH`；Kubernetes 的 `GATEWAY_URL`、`INSTANCE_ID` 和 Pod DNS 由 Helm 自动生成，不能手工改成负载均衡 Service
+- Kubernetes 将两类 gateway 拆开：API Pod 只启用 LiveKit WebSocket gateway；每个 RustPBX Pod 内同置独立 `realtime-audio-tap-gateway` sidecar，并通过 memory `emptyDir` 共享 `/run/ivekit/realtime-audio-tap.sock`。RustPBX 解码 PCM 不先跨节点或经过 Service
+- Compose 是单实例边界，iveKit 进程可同时启用两类 gateway；RustPBX 与 iveKit 必须挂载同一 `realtime_audio_tap` 私有卷。`OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED` 与 `OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED` 用于显式拆分进程职责，二者不能同时关闭
+- RustPBX renderer 通过 `RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH`、`...CHANNEL_CAPACITY` 和 `...SEND_TIMEOUT_MS` 生成受限配置；sidecar/Provider 不可用时只丢弃辅助旁路，不能阻塞 RTP
+- `MAX_CONNECTIONS`、`PRESTART_BUFFER_MS`、`MAX_PAYLOAD_BYTES`、`IDLE_TIMEOUT_MS`、`START_TIMEOUT_MS` 和 `SHUTDOWN_TIMEOUT_MS` 都是保护边界；持续丢帧应扩容/修复 Provider，不得无限增大缓冲
+- `services/ivekit-service/helm/ivekit/profiles/ai.values.yaml` 才会启用旁路；最小 core profile 默认关闭。Secret key 名默认为 `realtime-audio-tap-hmac-secret-b64`
 
 ### Collaboration Session
 
@@ -493,7 +601,7 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 - `sdk/*.tgz`：LED 可直接安装的 TypeScript SDK。
 - `client/`：已通过 chunk 预算的静态参考客户端。
 - `deploy/application/` 和 `deploy/livekit/`：应用面与媒体面分离 Compose；应用面必须设置 digest 固定的 `IVEKIT_SERVICE_IMAGE`，不依赖 OPC 源码目录。
-- `deploy/kubernetes/ivekit/`：部署 standalone iveKit、可选 RustPBX 和可选单副本 bundled Tinode；PostgreSQL/Redis/LiveKit 以及高可用 Tinode 通过外部服务接入，所有凭据来自接收方已有 Secret。
+- `deploy/kubernetes/ivekit/`：部署 standalone iveKit、可选 RustPBX，以及可选 bundled Tinode compact 单节点或 cluster 三节点；PostgreSQL、Redis、LiveKit 仍通过外部服务接入，Tinode 也可选择外部集群，所有凭据来自接收方已有 Secret。
 - `operations/`：升级前完整性/备份门禁、Compose/Helm rollout 与应用回退手册；数据库只允许从已验证升级前备份恢复。
 - `database/migrations/`：显式白名单内的通信域 overlay migration。
 - `docs/`、`examples/`：OpenAPI、详细设计、升级/回滚说明和最小接入示例。
@@ -520,11 +628,12 @@ OPC_IVEKIT_DELIVERY_IMAGE_DIGEST=sha256:<64-hex> \
 11. `infra/livekit/` 提供可从 OPC 独立运行的 Linux VM Media Core 包：LiveKit、Redis、Egress 和 Caddy L4 使用 host networking；Caddy 按两个 SNI 域名分流 WSS 与 TURN/TLS；LiveKit 使用内置 TURN，不增加 coturn。
 12. 独立部署渲染命令为 `npm run render:livekit-edge`。产物包括 `livekit.yaml`、`egress.yaml`、`caddy.yaml`、`firewall.md` 和不含秘密原文的 `deployment-summary.json`；LiveKit/Egress 凭据文件权限为 `0600`。
 13. 生产 Compose 默认按 `OPC_LIVEKIT_DEPLOYMENT_MODE=external` 消费外置 Media Core，内置 LiveKit/SIP/Egress 只在显式 `media-bundled` profile 下启用，且只用于联调。Kubernetes 同样默认 `livekit.enabled=false`，生产媒体节点应使用 LiveKit 官方 Helm chart 独立部署。
-14. 媒体镜像已固定为 LiveKit Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`；MinIO Server 固定为 `RELEASE.2025-09-07T16-13-09Z@sha256:14cea493...`，MinIO Client 固定为 `RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349e...`，PgBouncer 固定为 `v1.25.2-p0@sha256:7d7a27d...`。独立存储覆盖层要求同时提供 tag 与完整 manifest digest；升级必须成组回归，不使用 `latest`。
+14. 媒体镜像已固定为 iveKit LiveKit Server `v1.13.4-ivekit.1`、Egress `v1.13.0`、SIP `v1.7.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`；MinIO Server 固定为 `RELEASE.2025-09-07T16-13-09Z@sha256:14cea493...`，MinIO Client 固定为 `RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349e...`，PgBouncer 固定为 `v1.25.2-p0@sha256:7d7a27d...`。独立存储覆盖层要求同时提供 tag 与完整 manifest digest；升级必须成组回归，不使用 `latest`。当前 LiveKit Server 只有服务器构建候选，GHCR digest/签名与真实媒体仍为 `not_run`。
 15. production 缺内部 URL、API key、API secret 或公网 WSS 时直接失败，不会签发 `dev-token`。preflight 和渲染器还会拒绝 `your_key`、`change_me`、`devkey`、`secret`、`minioadmin` 等占位/弱默认值。
 16. 实时媒体与录制存储是两个故障域：LiveKit Server 不依赖 Egress/MinIO，RustPBX RTP 不依赖 uploader。Compose 的 MinIO 通过 `/minio/health/live` 后才运行 bucket bootstrap；Kubernetes 使用不可变 digest，并配置 startup/readiness/liveness 探针。2026-07-18 已在固定 manifest digest 后复跑双 Chromium、LiveKit、Egress 和 MinIO：停止 MinIO 后两端连接和四条发布/订阅轨保持不变，只有 Egress 以脱敏 `storage_upload_failed` 终止；LiveKit 未重启，恢复后 bucket 仍禁止匿名访问。该结果是受控本机证据，不是生产对象存储或公网 TURN 验收。
 17. root Kubernetes Chart 的 OPC、AI Agent、Frontend 镜像全部要求完整 SHA-256 digest，缺 digest 或继续使用 tag 时 Helm fail-closed。RustDesk 部署命令必须通过 `OPC_RUSTDESK_DEPLOYMENT_HELM_VALUES_FILE` 指向生产 values 文件；文件内需给出实际应用镜像 digest、Secret 引用和环境参数，不能直接使用仓库默认空值。
 18. RustPBX `.10` 把 WebPhone pre-auth 查找改为 O(1) keyed registry，并把会话销毁后的播放、MCU、bridge 清理放入限并发、硬超时后台任务。`SessionDestroyed` 只表示会话已脱离实时状态，不表示录音已经持久化完成；cleanup timeout/exhaustion 需要告警和 drain，但不能阻塞媒体命令循环。
+19. LiveKit/RustPBX 实时 PCM 旁路已完成双网关、每 track 有界队列、一次性 token、Pod 派生密钥、headless 定向路由、NetworkPolicy、低基数指标和三条告警。2026-07-23 服务器 TypeScript 专项 25/25、Python 专项 8/8、`tsc --noEmit`、standalone/full-platform Helm 和两份 Compose 配置均通过；真实 LiveKit 房间、真实外部流式 ASR/翻译、弱网、Provider 故障和容量仍未运行。
 
 以上代码尚未在目标服务器执行 Docker 镜像拉取、容器启动、真实数据库/bucket 初始化或真实 provider 请求。2026-07-11 已通过 SSH 完成目标服务器只读资源与端口盘点，但没有上传、部署或修改现有 LED 服务。
 
@@ -590,21 +699,29 @@ OPC_LIVEKIT_STORAGE_ISOLATION_OUTPUT_FILE=/secure/evidence/storage-isolation.jso
   npm run livekit:storage-isolation-acceptance
 ```
 
-   只有 `status=passed_controlled_local`、三次双 peer 快照都满足连续性、录制终态为 `failed`、故障码为
-   `storage_upload_failed` 且 `storage_recovered=true` 才通过。报告不得包含 URL 凭据、token、secret 或
-   原始对象存储错误。生产环境仍按 V6 Object Storage/LiveKit 两组独立采证，不得上传本机报告冒充。
+   只有 `status=passed_controlled_runtime`、四次双 peer 快照都满足连接与 publication 合同、双方
+   inbound/outbound 音频字节、视频字节、RTP 包和视频解码帧逐阶段严格增长、首次录制终态为
+   `failed/storage_upload_failed`、恢复录制终态为 `complete`，且
+   `media_transport_progress_verified=true`、`storage_recovered=true` 才通过。报告不得包含 URL
+   凭据、token、secret 或原始对象存储错误。生产环境仍按 V6 Object Storage/LiveKit 两组独立采证，
+   不得上传受控环境报告冒充。
 
    LED 交付包不依赖 OPC 源码树：进入 `acceptance/livekit-storage-isolation/`，先运行
    `npm ci --ignore-scripts` 和 `npm run install:chromium`，再按目录内 README 设置 LiveKit 凭据、专用
    Compose project、`OPC_LIVEKIT_STORAGE_ISOLATION_COMPOSE_FILES` 有序 JSON 数组、可选 env file 和
    `npm run accept`。独立 package/lock 已通过离仓安装与 `npm audit` 0 vulnerability；不要把 project
    指向共享或生产实例，因为命令会故意停止配置的对象存储服务。
+10. 在真实 LiveKit 房间中为两个远端音轨创建 grant，验证 `AudioStream -> LAT1 -> 实时 ASR/翻译
+    Provider -> LED 投影`。验收至少记录首个 partial/final 延迟、P50/P95/P99、旁路丢弃秒数、重连
+    成功率和 Provider 故障期间主音视频连续性；停止 Provider、阻断 3010、填满有界队列和重启一个
+    API Pod 时，主 LiveKit 会话不得中断。没有真实 Provider 和真实媒体 observation 时保持
+    `not_run`，25/25 与 8/8 单元测试不能替代该验收。
 
 ### 11.4 当前不得声称通过
 
 本机已完成双 Chromium + LiveKit + Egress + MinIO 的真实进程存储中断演练，但它仍是受控本机网络和对象存储。公网 LiveKit/TURN、真实 Tinode/RustDesk 客户端、生产对象存储、真实 OCR/ASR/AI、RustPBX/电话线路/RTP/物理音频、多副本和生产网络尚未完成。Voice validator 已经可执行，但模板、runbook 或 `ready_for_review` 本身不能证明观察真实发生；preflight 和受控 Provider 只证明配置/协议形状。
 
-TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 已补齐可选 bundled 单副本 Deployment、Secret/ConfigMap、Service、PVC、PDB、探针、资源、安全上下文、拓扑和 NetworkPolicy；真实 Helm rollout、存储和升级仍未运行。本机 fresh PostgreSQL/Tinode、MinIO 私有 bucket、真实 Egress 写入失败、存储中断媒体连续性和恢复已经验证；生产对象存储、existing volume 升级、跨主机和服务器重启恢复仍必须按 V6 采证，不能由本机结果替代。
+TURN/TLS、TURN/UDP、NAT、SNI 路由和防火墙的独立 Linux VM 配置已经在代码中补齐，但 DNS、ACME 证书签发、云防火墙、真实 ICE 候选和强制 relay 尚未运行验证。Tinode Kubernetes 已同时补齐 compact 单副本 Deployment 与 cluster 三副本 StatefulSet：三节点使用稳定 DNS、独立 client/headless Service、阻塞式数据库 bootstrap Job、共享 S3、PDB、跨 Zone/主机分散、安全上下文和 ring-only NetworkPolicy。隔离服务器已验证缺失数据库自动初始化、预建空库幂等初始化、MinIO S3 路径和三个 read-only-root 节点组环健康；目标 Kubernetes install/upgrade/rollback、PVC/S3 生产存储、节点/Zone 故障、重连、原生客户端收敛和容量仍未运行。本机既有 fresh PostgreSQL/Tinode、真实 Egress 写入失败、存储中断媒体连续性和恢复证据仍属历史受控证据，不能替代生产验收。
 
 ### 11.5 V6 统一八组验收
 

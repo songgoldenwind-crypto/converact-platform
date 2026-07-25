@@ -160,7 +160,7 @@ test('device token heartbeat resolves only a pre-registered matching business de
         evidence_upload_capable: true,
         evidence_poll_interval_ms: 2_500,
         os: 'windows',
-        client_version: '1.4.7'
+        client_version: '1.4.9'
       }
     }, token) as { status: number; data: { id: string; last_seen_actor: string; runtime_status: string } };
     assert.equal(response.status, 201);

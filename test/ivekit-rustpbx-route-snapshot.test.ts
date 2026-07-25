@@ -25,6 +25,20 @@ test('RustPBX route snapshot patch imports the HMAC constructor trait', () => {
   assert.match(patch, /use hmac::\{Hmac, KeyInit, Mac\};/);
 });
 
+test('RustPBX route snapshot patch covers display-name SIP To headers', () => {
+  const patch = readFileSync(
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-route-snapshot.patch',
+    'utf8'
+  );
+
+  assert.match(
+    patch,
+    /snapshot_result\(r#""iveKit RTP Route" <sip:\+8613800138000@pbx\.invalid>"#\)/
+  );
+  assert.match(patch, /\.split_once\('<'\)/);
+  assert.match(patch, /rest\.split_once\('>'\)/);
+});
+
 test('route snapshot projector signs a canonical HMAC-only snapshot and advances sequence', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'ivekit-route-snapshot-'));
   const output = join(directory, 'routes.json');

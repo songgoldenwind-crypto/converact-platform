@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/workload-profile.schema.json",
-  "schema_version": "1.2.0",
+  "schema_version": "1.3.0",
   "profile_id": "mix-100k-v1",
-  "revision": 2,
+  "revision": 3,
   "status": "target",
   "evidence_level": "target",
   "description": "One unified iveKit platform serving 100,000 pairwise-disjoint active interactions across Tinode IM, SIP voice, LiveKit A/V, LiveKit screen collaboration, and RustDesk remote assistance.",
@@ -284,6 +284,138 @@
     "new_admission_recovery_seconds": 30,
     "four_node_linearity_ratio": 0.93,
     "eight_node_linearity_ratio": 0.91
+  },
+  "performance_contract": {
+    "schema_version": "1.0.0",
+    "measurement_scope": "same_region_controlled_endpoint_to_endpoint",
+    "clock_sync": {
+      "method": "monotonic_clock_with_observed_ntp_offset",
+      "maximum_offset_ms": 5
+    },
+    "required_quantiles": ["p50", "p95", "p99"],
+    "latency_ms": {
+      "im_send_to_ack_p95": 200,
+      "im_send_to_ack_p99": 500,
+      "sip_route_p99": 150,
+      "sip_post_dial_p95": 800,
+      "sip_post_dial_p99": 1500,
+      "voice_mouth_to_ear_p95": 150,
+      "voice_mouth_to_ear_p99": 250,
+      "livekit_join_p95": 3000,
+      "livekit_join_p99": 5000,
+      "livekit_first_audio_p99": 1500,
+      "livekit_first_video_frame_p99": 2000,
+      "livekit_glass_to_glass_p95": 250,
+      "livekit_glass_to_glass_p99": 400,
+      "screen_first_frame_p99": 2000,
+      "screen_glass_to_glass_p95": 300,
+      "rustdesk_input_to_photon_p95": 200,
+      "rustdesk_input_to_photon_p99": 350
+    },
+    "media_quality": {
+      "server_packet_loss_ratio": 0.001,
+      "endpoint_packet_loss_p95_ratio": 0.01,
+      "jitter_p95_ms": 20,
+      "jitter_p99_ms": 30,
+      "video_freeze_ratio": 0.01,
+      "video_freezes_per_minute": 1,
+      "camera_receiver_frames_per_second_min": 24,
+      "video_frame_gap_p95_ms": 100,
+      "video_frame_gap_p99_ms": 150,
+      "av_sync_absolute_p95_ms": 80,
+      "minimum_voice_mos_p50": 4
+    },
+    "reliability": {
+      "connection_success_ratio": 0.999,
+      "sip_setup_success_ratio": 0.9999,
+      "reconnect_success_ratio": 0.999,
+      "durable_loss_count": 0,
+      "duplicate_delivery_count": 0,
+      "out_of_order_delivery_count": 0
+    },
+    "recovery_ms": {
+      "reconnect_p99": 5000,
+      "network_handoff_p99": 5000,
+      "bandwidth_step_p99": 3000,
+      "new_admission_after_node_failure_p99": 30000
+    },
+    "overload": {
+      "queue_policy": "bounded",
+      "slow_consumer_policy": "disconnect_or_degrade",
+      "minimum_jain_fairness_index": 0.95,
+      "maximum_noisy_neighbor_p99_degradation_ratio": 0.2,
+      "degradation_order": [
+        "preserve_audio",
+        "reduce_video_layers",
+        "reduce_video_frame_rate",
+        "drop_auxiliary_realtime_copies",
+        "reject_new_admission"
+      ]
+    },
+    "security_performance": {
+      "authorization_p99_ms": 50,
+      "rate_limit_decision_p99_ms": 10,
+      "overload_rejection_p99_ms": 100,
+      "new_admission_fails_closed": true,
+      "established_media_avoids_remote_authorization": true
+    },
+    "required_resource_metrics": [
+      "server_cpu_p95_ratio",
+      "server_memory_per_1000_connections_bytes",
+      "server_egress_bits_per_second",
+      "client_cpu_p95_ratio",
+      "client_memory_p95_bytes",
+      "generator_cpu_p95_ratio",
+      "generator_nic_p95_ratio",
+      "cost_per_1000_active_interactions"
+    ],
+    "impairment_profiles": [
+      {
+        "id": "baseline",
+        "round_trip_time_ms": 30,
+        "jitter_ms": 5,
+        "packet_loss_ratio": 0,
+        "downstream_kbps": 10000,
+        "upstream_kbps": 10000,
+        "blackout_ms": 0
+      },
+      {
+        "id": "constrained_bandwidth",
+        "round_trip_time_ms": 80,
+        "jitter_ms": 20,
+        "packet_loss_ratio": 0.01,
+        "downstream_kbps": 1500,
+        "upstream_kbps": 750,
+        "blackout_ms": 0
+      },
+      {
+        "id": "lossy_jitter",
+        "round_trip_time_ms": 120,
+        "jitter_ms": 40,
+        "packet_loss_ratio": 0.05,
+        "downstream_kbps": 3000,
+        "upstream_kbps": 1500,
+        "blackout_ms": 0
+      },
+      {
+        "id": "network_handoff",
+        "round_trip_time_ms": 80,
+        "jitter_ms": 20,
+        "packet_loss_ratio": 0.01,
+        "downstream_kbps": 3000,
+        "upstream_kbps": 1500,
+        "blackout_ms": 2000
+      },
+      {
+        "id": "cross_region",
+        "round_trip_time_ms": 180,
+        "jitter_ms": 30,
+        "packet_loss_ratio": 0.01,
+        "downstream_kbps": 5000,
+        "upstream_kbps": 2500,
+        "blackout_ms": 0
+      }
+    ]
   },
   "external_dependencies": [
     { "id": "pstn_sip_trunk", "status": "not_run", "required_for_production_pass": true },

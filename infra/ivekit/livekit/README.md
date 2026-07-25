@@ -3,8 +3,8 @@
 The fork target is exactly:
 
 ```text
-tag: v1.13.3
-commit: 8f6a9cb8b735549f0c5770df8ea70ac51f860ecb
+tag: v1.13.4
+commit: 0b3fd288e3ef3263ec475ba0d78cf3ad77459981
 ```
 
 `apply-overlay.mjs` verifies both identities before copying the shared Go
@@ -21,27 +21,26 @@ The same overlay applies
 copy-on-write downtrack snapshot through an atomic pointer and uses a serial,
 non-atomic RTP fanout below LiveKit's existing parallel threshold. Ordinary
 media and Opus RED forwarding share the same helper; large rooms retain the
-upstream parallel path. Patch application is idempotent and fails when neither
-the forward nor reverse check matches the pinned source.
+upstream parallel path. The v1.13.4 rebase also preserves upstream's runtime
+load-balancing threshold updates and excludes out-of-order recovery bursts from
+steady-state forwarding latency. Patch application is idempotent and fails when
+neither the forward nor reverse check matches the pinned source.
 
 ```bash
-LIVEKIT_SOURCE_DIR=/path/to/livekit-v1.13.3 \
-IVEKIT_LIVEKIT_IMAGE=registry.example.com/ivekit/livekit-server:v1.13.3-ivekit.2 \
+LIVEKIT_SOURCE_DIR=/path/to/livekit-v1.13.4 \
+IVEKIT_LIVEKIT_IMAGE=registry.example.com/ivekit/livekit-server:v1.13.4-ivekit.1-0b3fd288 \
 bash infra/ivekit/livekit/build.sh
 ```
 
-The build requires the upstream Go 1.26 toolchain and Docker. On 2026-07-18 the
-overlay and hot-path patch were applied twice to a clean
-`v1.13.3@8f6a9cb...` worktree. `cmd/server`, `pkg/sfu`, `pkg/sfu/utils` and both
-nested iveKit modules passed their Go tests; SFU packages also passed under the
-race detector. A local source-built arm64 image
-`ivekit/livekit-server:v1.13.3-ivekit.2-8f6a9cb8` was produced as
-`sha256:12c435e1badcca364b31cab2ff7aeb084b3718961e6837e81d4b0a3ac58accd2`;
-its labels, executable and iveKit component-node marker were inspected. An
-immutable registry digest, SBOM/provenance, real RTP/TURN traffic, multi-node
-recovery and physical capacity remain `not_run`.
+The build requires the upstream Go 1.26 toolchain and Docker. Its patched
+Dockerfile pins both the Go builder and Alpine runtime by digest and consumes a
+host-generated vendor tree. The exact v1.13.4 overlay, tests and Linux amd64
+image are validated on the isolated server; evidence is recorded in
+`docs/evidence/wave1-livekit-server-v1.13.4-validation-2026-07-22.md`.
+An immutable registry digest, SBOM/provenance, real RTP/TURN traffic,
+multi-node recovery and physical capacity remain `not_run`.
 
-The controlled Apple M5 microbenchmark reduced one-subscriber snapshot reads
+The historical controlled Apple M5 v1.13.3 microbenchmark reduced one-subscriber snapshot reads
 from 3.62-3.66 ns/op to 0.49-0.52 ns/op with zero allocations on both sides.
 That result is scoped to the snapshot operation and is not a server or Cell
 capacity claim.

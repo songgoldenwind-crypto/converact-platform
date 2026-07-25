@@ -23,12 +23,35 @@ replace ivekit.local/egresspool => ./ivekit/egress-pool
 }
 
 export function patchLiveKitEgressDockerfile(source) {
-  const builderImages = source.match(/^FROM livekit\/gstreamer:1\.24\.12-dev$/gm) || [];
-  if (builderImages.length !== 1) {
-    throw new Error('LiveKit Egress Dockerfile base image identity mismatch');
-  }
-
   let next = source;
+  const immutableBase = [
+    'ARG IVEKIT_EGRESS_TEMPLATE_IMAGE',
+    'ARG IVEKIT_EGRESS_BUILDER_IMAGE',
+    'ARG IVEKIT_EGRESS_RUNTIME_IMAGE',
+    'FROM ${IVEKIT_EGRESS_TEMPLATE_IMAGE} AS template',
+    'FROM ${IVEKIT_EGRESS_BUILDER_IMAGE} AS ivekit-builder',
+    'FROM ${IVEKIT_EGRESS_RUNTIME_IMAGE}'
+  ];
+  if (!immutableBase.every((line) => next.includes(line))) {
+    next = replaceOnce(
+      next,
+      'ARG TEMPLATE_TAG=latest\n\n' +
+        'FROM livekit/egress-templates:$TEMPLATE_TAG AS template\n\n' +
+        'FROM livekit/gstreamer:1.24.12-dev',
+      'ARG IVEKIT_EGRESS_TEMPLATE_IMAGE\n' +
+        'ARG IVEKIT_EGRESS_BUILDER_IMAGE\n' +
+        'ARG IVEKIT_EGRESS_RUNTIME_IMAGE\n\n' +
+        'FROM ${IVEKIT_EGRESS_TEMPLATE_IMAGE} AS template\n\n' +
+        'FROM ${IVEKIT_EGRESS_BUILDER_IMAGE} AS ivekit-builder',
+      'Dockerfile immutable build stages'
+    );
+    next = replaceOnce(
+      next,
+      'FROM livekit/gstreamer:1.24.12-prod',
+      'FROM ${IVEKIT_EGRESS_RUNTIME_IMAGE}',
+      'Dockerfile immutable runtime stage'
+    );
+  }
   const toolchainInstall = [
     '# install checksum-verified Go toolchain materialized by build.sh',
     'COPY ivekit/toolchain/go/ /usr/local/go/',
@@ -47,22 +70,19 @@ export function patchLiveKitEgressDockerfile(source) {
       'Dockerfile Go toolchain installation'
     );
   }
-  if (/^COPY ivekit\/ ivekit\/$/m.test(next)) {
-    next = replaceOnce(
-      next,
-      'COPY ivekit/ ivekit/',
-      'COPY ivekit/egress-pool/ ivekit/egress-pool/',
-      'Dockerfile legacy local policy module'
-    );
-  } else if (!/^COPY ivekit\/egress-pool\/ ivekit\/egress-pool\/$/m.test(next)) {
+  if (!/^COPY ivekit\/egress-pool\/ ivekit\/egress-pool\/$/m.test(next)) {
     next = replaceOnce(
       next,
       'COPY go.sum .\nRUN go mod download',
-      'COPY go.sum .\nCOPY ivekit/egress-pool/ ivekit/egress-pool/\nRUN go mod download',
-      'Dockerfile local policy module'
+      'COPY go.sum .\n' +
+        'COPY ivekit/egress-pool/ ivekit/egress-pool/\n' +
+        'COPY vendor/ vendor/\n' +
+        'ENV GOFLAGS=-mod=vendor',
+      'Dockerfile vendored policy module'
     );
   }
-  if (!/^RUN go test \.\/pkg\/stats$/m.test(next)) {
+  if (!next.includes('GOCACHE=/tmp/ivekit-egress-go-cache')) {
+    next = next.replace('RUN go test ./pkg/stats\n', '');
     const buildPattern = /^RUN .*go build -a -o egress \.\/cmd\/server$/m;
     const matches = [...next.matchAll(new RegExp(buildPattern.source, 'gm'))];
     if (matches.length !== 1 || matches[0].index == null) {
@@ -70,22 +90,30 @@ export function patchLiveKitEgressDockerfile(source) {
     }
     const build = matches[0][0];
     next = next.slice(0, matches[0].index) +
-      `RUN go test ./pkg/stats\n${build}` +
+      'RUN GOCACHE=/tmp/ivekit-egress-go-cache go test ./pkg/stats && \\\n' +
+      `    GOCACHE=/tmp/ivekit-egress-go-cache ${build.slice(4)} && \\\n` +
+      '    rm -rf /tmp/ivekit-egress-go-cache' +
       next.slice(matches[0].index + build.length);
   }
-  if (!/^ARG IVEKIT_APT_MIRROR=/m.test(next)) {
-    next = replaceOnce(
-      next,
-      '# install deps\nRUN apt-get update && \\\n    apt-get install -y',
-      [
-        '# install deps',
-        'ARG IVEKIT_APT_MIRROR=https://ports.ubuntu.com/ubuntu-ports',
-        'RUN sed -i "s|http://ports.ubuntu.com/ubuntu-ports|${IVEKIT_APT_MIRROR}|g" /etc/apt/sources.list.d/ubuntu.sources && \\',
-        '    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && \\',
-        '    apt-get install -y',
-      ].join('\n'),
-      'Dockerfile apt mirror and retry policy'
-    );
+  const installStart = next.indexOf('# install deps\n');
+  const copyFilesStart = next.indexOf('# copy files\n');
+  if (installStart >= 0) {
+    if (copyFilesStart < 0 || copyFilesStart <= installStart) {
+      throw new Error('LiveKit Egress Dockerfile runtime dependency anchor mismatch');
+    }
+    next = next.slice(0, installStart) +
+      '# runtime dependencies, Chrome and Tini are supplied by the immutable v1.13.0 runtime image\n\n' +
+      next.slice(copyFilesStart);
+  }
+  next = next.replaceAll('COPY --from=1 /workspace/egress /bin/', 'COPY --from=ivekit-builder /workspace/egress /bin/');
+  next = next.replaceAll('COPY --from=1 /tini /tini\n', '');
+  const tiniStart = next.indexOf('# install tini\n');
+  if (tiniStart >= 0) {
+    const runtimeStart = next.indexOf('FROM ${IVEKIT_EGRESS_RUNTIME_IMAGE}', tiniStart);
+    if (runtimeStart < 0) {
+      throw new Error('LiveKit Egress Dockerfile Tini anchor mismatch');
+    }
+    next = next.slice(0, tiniStart) + next.slice(runtimeStart);
   }
   return next;
 }

@@ -1,0 +1,23 @@
+deploymentProfiles:
+  core: true
+  ai: false
+  observability: false
+  benchmark: true
+
+# This non-production overlay removes unrelated workers so capacity evidence
+# belongs to the selected communication workload. POC systems are deployed by
+# isolated benchmark harnesses, never by the production Chart.
+autoscaling:
+  enabled: false
+clamav:
+  enabled: false
+fileSecurity:
+  scanWorkerEnabled: "0"
+  derivativeWorkerEnabled: "0"
+config:
+  env:
+    OPC_ATTACHMENT_PROCESSING_WORKER_ENABLED: "0"
+    OPC_QUALITY_REVIEW_WORKER_ENABLED: "0"
+    OPC_TRANSLATION_WORKER_ENABLED: "0"
+    OPC_IVEKIT_NOTIFICATION_WORKER_ENABLED: "0"
+    OPC_IVEKIT_EVENT_WEBHOOK_WORKER_ENABLED: "0"

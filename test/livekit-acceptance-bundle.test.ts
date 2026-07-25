@@ -160,7 +160,7 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     LIVEKIT_ACME_EMAIL: 'ops@example.com',
     LIVEKIT_API_KEY: 'bundle-livekit-key',
     LIVEKIT_API_SECRET: 'bundle-livekit-secret',
-    LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.3',
+    LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.4',
     LIVEKIT_EGRESS_IMAGE_TAG: 'v1.13.0',
     LIVEKIT_SIP_IMAGE_TAG: 'v1.6.0',
     LIVEKIT_CADDYL4_IMAGE_TAG: 'v2.11.3',

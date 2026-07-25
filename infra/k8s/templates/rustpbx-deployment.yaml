@@ -34,6 +34,25 @@
 {{- if or (lt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 1) (gt (int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity) 65536) -}}
 {{- fail "voice.mediaCapacity.recordingWorkerQueueCapacity must be between 1 and 65536" -}}
 {{- end -}}
+{{- range $name, $value := dict "udpReceiveBufferBytes" .Values.voice.mediaCapacity.udpReceiveBufferBytes "udpSendBufferBytes" .Values.voice.mediaCapacity.udpSendBufferBytes -}}
+{{- if or (lt (int $value) 65536) (gt (int $value) 16777216) -}}
+{{- fail (printf "voice.mediaCapacity.%s must be between 65536 and 16777216" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.media.realtimeAudioTap.enabled -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.rustPbxChannelCapacity) 1) (gt (int .Values.media.realtimeAudioTap.rustPbxChannelCapacity) 65536) -}}
+{{- fail "media.realtimeAudioTap.rustPbxChannelCapacity must be between 1 and 65536" -}}
+{{- end -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.rustPbxSendTimeoutMs) 1) (gt (int .Values.media.realtimeAudioTap.rustPbxSendTimeoutMs) 1000) -}}
+{{- fail "media.realtimeAudioTap.rustPbxSendTimeoutMs must be between 1 and 1000" -}}
+{{- end -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 100000) -}}
+{{- fail "media.realtimeAudioTap.projectionQueueMaxItems must be between 1 and 100000" -}}
+{{- end -}}
+{{- if or (lt (int .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs) 10) (gt (int .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs) 30000) -}}
+{{- fail "media.realtimeAudioTap.projectionShutdownTimeoutMs must be between 10 and 30000" -}}
+{{- end -}}
+{{- end -}}
 {{- $sipPort := int .Values.voice.service.sip.port -}}
 {{- $managementPort := int .Values.voice.service.managementPort -}}
 {{- $rtpStart := int .Values.voice.service.rtp.startPort -}}
@@ -160,6 +179,11 @@ stringData:
     media_recording_channel_capacity = {{ int .Values.voice.mediaCapacity.recordingChannelCapacity }}
     media_recording_worker_threads = {{ int .Values.voice.mediaCapacity.recordingWorkerThreads }}
     media_recording_worker_queue_capacity = {{ int .Values.voice.mediaCapacity.recordingWorkerQueueCapacity }}
+    {{- if .Values.media.realtimeAudioTap.enabled }}
+    realtime_audio_tap_socket_path = "/run/ivekit/realtime-audio-tap.sock"
+    realtime_audio_tap_channel_capacity = {{ int .Values.media.realtimeAudioTap.rustPbxChannelCapacity }}
+    realtime_audio_tap_send_timeout_ms = {{ int .Values.media.realtimeAudioTap.rustPbxSendTimeoutMs }}
+    {{- end }}
 
     {{- if .Values.voice.webphone.enabled }}
     [proxy.jwt_auth]
@@ -246,8 +270,8 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secrets
-                  key: database-url
+                  name: {{ include "opc.databaseUrlSecretName" . }}
+                  key: {{ include "opc.databaseUrlSecretKey" . }}
             - name: IVEKIT_RUSTPBX_ROUTE_TENANT_ID
               value: {{ $tenantId | quote }}
             - name: IVEKIT_RUSTPBX_ROUTE_PROFILE_ID
@@ -387,11 +411,93 @@ spec:
               readOnly: true
           {{- end }}
         {{- end }}
+        {{- if .Values.media.realtimeAudioTap.enabled }}
+        - name: realtime-audio-tap-gateway
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "--import", "tsx", "src/ivekit-realtime-audio-tap-worker.ts"]
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "opc.databaseUrlSecretName" . }}
+                  key: {{ include "opc.databaseUrlSecretKey" . }}
+            {{ include "opc.redisClientEnv" . | nindent 12 }}
+            - name: OPC_IVEKIT_PROVIDER_PROFILES_JSON
+              value: {{ .Values.intelligence.providerProfilesJson | default "[]" | quote }}
+            - name: OPC_IVEKIT_OCR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-ocr-provider-token
+            - name: OPC_IVEKIT_ASR_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-asr-provider-token
+            - name: OPC_IVEKIT_QUALITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-quality-provider-token
+            - name: OPC_IVEKIT_TRANSLATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: ivekit-translation-provider-token
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_RUSTPBX_AUDIO_TAP_GATEWAY_ENABLED
+              value: "1"
+            - name: OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_ENABLED
+              value: "0"
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: realtime-audio-tap-hmac-secret-b64
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS
+              value: {{ .Values.media.realtimeAudioTap.tokenTtlSeconds | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH
+              value: /run/ivekit/realtime-audio-tap.sock
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_MAX_CONNECTIONS
+              value: {{ .Values.media.realtimeAudioTap.maxConnections | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_PRESTART_BUFFER_MS
+              value: {{ .Values.media.realtimeAudioTap.prestartBufferMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_IDLE_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.idleTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.shutdownTimeoutMs | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS
+              value: {{ .Values.media.realtimeAudioTap.projectionQueueMaxItems | quote }}
+            - name: OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS
+              value: {{ .Values.media.realtimeAudioTap.projectionShutdownTimeoutMs | quote }}
+            - name: OPC_REALTIME_SPEECH_RETENTION_DAYS
+              value: {{ .Values.media.realtimeAudioTap.retentionDays | quote }}
+          readinessProbe:
+            exec:
+              command: ["sh", "-ec", "test -S /run/ivekit/realtime-audio-tap.sock"]
+            periodSeconds: 3
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: realtime-audio-tap
+              mountPath: /run/ivekit
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.media.realtimeAudioTap.rustPbxGateway.resources | nindent 12 }}
+        {{- end }}
         - name: rustpbx
           image: {{ $rustpbxImage | quote }}
           imagePullPolicy: {{ .Values.voice.image.pullPolicy | default "IfNotPresent" }}
           args: ["--conf", "/app/config/rustpbx.toml"]
           env:
+            - name: RUSTRTC_UDP_RECEIVE_BUFFER_BYTES
+              value: {{ .Values.voice.mediaCapacity.udpReceiveBufferBytes | quote }}
+            - name: RUSTRTC_UDP_SEND_BUFFER_BYTES
+              value: {{ .Values.voice.mediaCapacity.udpSendBufferBytes | quote }}
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE
               value: /app/route-snapshot/routes.json
             - name: IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
@@ -503,6 +609,10 @@ spec:
             - name: recording-spool
               mountPath: /app/recording-spool
             {{- end }}
+            {{- if .Values.media.realtimeAudioTap.enabled }}
+            - name: realtime-audio-tap
+              mountPath: /run/ivekit
+            {{- end }}
             - name: tmp
               mountPath: /tmp
           securityContext:
@@ -554,6 +664,12 @@ spec:
                       path: rustpbx-recording-service-key
                     - key: {{ .Values.voice.recordingSpool.leaseSecretKey }}
                       path: rustpbx-recording-lease-secret
+        {{- end }}
+        {{- if .Values.media.realtimeAudioTap.enabled }}
+        - name: realtime-audio-tap
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.media.realtimeAudioTap.socketVolumeSizeLimit }}
         {{- end }}
         - name: tmp
           emptyDir: {}

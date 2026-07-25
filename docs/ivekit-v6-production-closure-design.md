@@ -37,10 +37,12 @@ standalone Chart 新增可选 `tinode.enabled` 模式：
 - 使用独立 PostgreSQL 数据库，禁止与 iveKit runtime 角色混用；
 - 提供 HTTP Service、startup/readiness/liveness probe、资源限制、Pod 安全上下文、PDB、拓扑分散和 NetworkPolicy 开关；
 - iveKit API 在 bundled 模式自动使用集群内 Tinode URL，浏览器仍使用显式公网 WSS URL；
-- `botdata` 默认使用 PVC。bundled 模式严格限制为单副本；需要高可用时必须使用外部 Tinode 集群，避免把普通 Deployment 误当成 Tinode 集群；
-- Chart、README、values、交付包、监控和部署合同测试必须同时覆盖 external 与 bundled 两种模式。
+- bundled `compact` 模式严格限制为单副本，使用 PVC 持久化 `/botdata` 和本地附件；
+- bundled `cluster` 模式严格限制为三个 StatefulSet 副本，使用稳定 ordinal/DNS、headless ring Service、`minAvailable: 2` PDB、跨 Zone/主机分散以及共享 S3-compatible 附件存储；
+- cluster Pod 设置 `NO_DB_INIT=true`，数据库建库/建表和升级只由阻塞式 `pre-install,pre-upgrade` Job 执行，避免三个节点并发初始化；
+- Chart、README、values、交付包、监控和部署合同测试必须同时覆盖 external、compact 与 cluster 三种模式。
 
-Helm 不负责创建生产 PostgreSQL，也不把数据库密码写入 values。数据库和 Secret 由平台运维预先提供。
+Helm 不负责部署生产 PostgreSQL，也不把数据库密码写入 values。数据库角色和 Secret 由平台运维预先提供；目标数据库不存在时 bootstrap 角色需要 `CREATEDB`，预建空库则不需要重建。升级始终保持 `RESET_DB=false`。
 
 ## 4. Tinode 原生消息 mutation
 
@@ -78,7 +80,7 @@ Tinode inbound projector 识别 replacement/delete：
 Windows companion 新增 native session bridge，命令只接受已注册设备上的 `external_id + native_session_id`，不得执行任意命令行。bridge 的优先级：
 
 1. 从 ACL 保护的 registry 解析 `external_id + target_id + rustdesk_id` 对应的唯一 native connection ID；
-2. placement-enabled package v6 通过固定 `ivekit-rustdesk-native-control-v2` named pipe 传入 interaction、reservation、owner epoch、command ID 和 native ID；companion 持久化最大 epoch 后调用 RustDesk 1.4.7 overlay 的 `ui_cm_interface::close(native_id)`；
+2. placement-enabled package v6 通过固定 `ivekit-rustdesk-native-control-v2` named pipe 传入 interaction、reservation、owner epoch、command ID 和 native ID；companion 持久化最大 epoch 后调用 RustDesk 1.4.9 overlay 的 `ui_cm_interface::close(native_id)`；
 3. 映射缺失、连接漂移或原生接口不可用时返回 `precise_disconnect_unavailable`，不执行任意 hook。
 
 service restart 不再是普通自动 fallback。只有管理员显式提交 emergency fallback、确认 `collateral_sessions_may_disconnect=true` 并提供原因后才允许执行；操作必须产生单独审计事件。普通用户或自动 worker不得触发。
@@ -89,7 +91,7 @@ companion 回传 command ID、native session ID 哈希、执行方式、退出�
 
 Windows companion 观察 RustDesk 已完成的文件传输和本地录屏事件。仅在会话授权策略明确允许、文件路径位于配置的 allowlisted roots、文件句柄稳定且大小不再变化后创建 evidence upload 任务。
 
-定制 RustDesk 内置 allowlist scanner：从 ACL 保护的 roots manifest 读取文件/录屏根，基线后只对连续稳定的新文件写候选。companion 通过 device-token evidence context 将候选与唯一 controller、operation、预期文件名和时间窗关联，再原子、幂等生成 `rustdesk-native-evidence-v1` 事件。`Publish-IveKitRustDeskEvidence.ps1` 仅是固定故障恢复工具。Windows 包只接受同时声明 native control 和 native evidence 协议的自定义 RustDesk 1.4.7 制品；真实扫描器、关联和双机行为必须在物理 Windows 验收。
+定制 RustDesk 内置 allowlist scanner：从 ACL 保护的 roots manifest 读取文件/录屏根，基线后只对连续稳定的新文件写候选。companion 通过 device-token evidence context 将候选与唯一 controller、operation、预期文件名和时间窗关联，再原子、幂等生成 `rustdesk-native-evidence-v1` 事件。`Publish-IveKitRustDeskEvidence.ps1` 仅是固定故障恢复工具。Windows 包只接受同时声明 native control 和 native evidence 协议的自定义 RustDesk 1.4.9 制品；真实扫描器、关联和双机行为必须在物理 Windows 验收。
 
 会话结束后只保留 15 分钟录屏 finalization window。uploader 死信 payload 与可追踪状态不得分离压缩，按本地保留期或数量上限成对删除。远端成功后的本地清理也是可恢复状态：先持久化 `uploaded + manifest`，删除失败跨重启重试且不重复上传，删除完成后才能移除 manifest 和压缩终态。ready evidence 补偿对确定 `unsupported|ignored` 写终态标记，临时不就绪/失败仍可重试，避免旧文件占满有界候选批次。
 

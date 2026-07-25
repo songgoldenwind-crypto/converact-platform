@@ -156,7 +156,7 @@ All ordinary tables containing `tenant_id` must have both `relrowsecurity=true` 
 
 The iveKit application container never executes device commands. Install the edge agent and the matching files from `scripts/rustdesk-edge-adapters/` on each controlled Windows, macOS, or Linux device. Adapter processes are started with `shell:false`; dynamic values are individual allowlisted placeholders, never a server-provided command string.
 
-RustDesk OSS 1.4.7 does not expose a stable cross-platform CLI for terminating one incoming session. The `*-disconnect` wrapper therefore calls only a locally configured absolute-path session hook. If no version-specific hook exists it exits as unavailable, after which the `*-restart` adapter may restart the local RustDesk service with explicit collateral-session risk. Do not enable `OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1` until validate mode, command claim/result, and real two-client disconnect observation all pass.
+RustDesk OSS 1.4.9 does not expose a stable cross-platform CLI for terminating one incoming session. The `*-disconnect` wrapper therefore calls only a locally configured absolute-path session hook. If no version-specific hook exists it exits as unavailable, after which the `*-restart` adapter may restart the local RustDesk service with explicit collateral-session risk. Do not enable `OPC_RUSTDESK_REQUIRE_PHYSICAL_DISCONNECT=1` until validate mode, command claim/result, and real two-client disconnect observation all pass.
 
 Every wrapper supports a non-mutating validate invocation. Linux example:
 

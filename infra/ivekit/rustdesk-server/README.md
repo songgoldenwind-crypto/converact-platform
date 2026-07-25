@@ -1,4 +1,4 @@
-# iveKit RustDesk Server 1.1.15 Owner Overlay
+# iveKit RustDesk Server 1.1.16 Owner Overlay
 
 This exact-release overlay keeps the upstream RustDesk rendezvous and relay
 protocol intact while adding Cell ownership at connection establishment:
@@ -21,12 +21,16 @@ The stable RustDesk node is one paired hbbs/hbbr pod. Placement returns that
 pod's public ID and relay endpoints; a random load-balanced RustDesk service is
 not an ownership boundary.
 
-The overlay is pinned to root tag `1.1.15`, commit
-`9bae9f2f39d92c4b4ba2e28e089da5071897b22e`, and `libs/hbb_common` commit
+The overlay is pinned to root tag `1.1.16`, commit
+`73523b31cfd25d77dee862e6fc9f5e1fb5e485ef`, and `libs/hbb_common` commit
 `83419b6549636ee39dacef7776c473f5802e08d6`. On a clean checkout, the owner
 overlay plus `patches/rustdesk-server-ivekit-relay-hot-path.patch` applies
-idempotently and `cargo test --locked` passes against the exact root and
+idempotently and `cargo test --locked --all-features` passes against the exact root and
 submodule identities.
+
+The 1.1.16 rebase also carries the upstream unauthenticated UDP punch-hole
+reflection/amplification fix. The iveKit overlay does not weaken or bypass that
+upstream validation path.
 
 The relay hot-path patch makes two bounded changes:
 
@@ -44,18 +48,25 @@ management snapshot semantics. Run the operation-only benchmark with:
 infra/ivekit/rustdesk-server/bench/run.sh
 ```
 
-Three Apple M5 runs measured the global usage-map lower bound at
+Three Apple M5 runs against the superseded 1.1.15 source measured the global usage-map lower bound at
 `34.14-35.41 ns/op` versus `3.53-3.59 ns/op` for the sequence-fenced counters,
 and a 64 KiB WebSocket receive-and-forward allocation path at
 `4003.95-4084.75 ns/op` versus `1029.67-1168.72 ns/op` for owned frames. The
 baseline uses a standard-library lock and therefore understates the cost of
 the old asynchronous global write. These are operation-level measurements,
-not relay throughput, node density, Cell capacity, or Windows correctness.
+not relay throughput, node density, Cell capacity, Windows correctness, or a
+1.1.16 benchmark. They remain historical optimization evidence only.
 
-The repository Dockerfile produced local source-built arm64 image
-`ivekit/rustdesk-server:1.1.15-ivekit.2-9bae9f2f` as
-`sha256:ef06f2ce8ad100c0b75618844e7e8b3b738412dc4831c95d0145c0f031c9d774`.
-Its exact-source labels, non-root `rustdesk` user, hbbs/hbbr executables and
-owner-guard marker were inspected. An immutable registry digest,
-SBOM/provenance, two-Windows relay acceptance, real desktop/file traces,
-reconnect and physical capacity remain `not_run`.
+The repository now defines the candidate image
+`ghcr.io/songgoldenwind-crypto/opc-rustdesk-server:1.1.16-ivekit.1-73523b31`.
+Its workflow verifies the exact root and submodule identities, builds and tests
+the source, performs binary smoke checks, publishes by digest, and delegates
+SBOM, Trivy, Cosign and provenance checks to the shared OCI release gate. That
+workflow and registry publication have not run yet, so no immutable digest or
+1.1.16 image result is claimed. The Dockerfile runs as UID/GID `10001`, and the
+Compose/Helm contracts mount writable state at `/data`.
+
+The previous local 1.1.15 arm64 image and its digest remain superseded
+historical evidence; they are not deployable proof for this release. Registry
+digest, SBOM/signature/provenance, two-Windows relay acceptance, real
+desktop/file traces, reconnect and physical capacity remain `not_run`.

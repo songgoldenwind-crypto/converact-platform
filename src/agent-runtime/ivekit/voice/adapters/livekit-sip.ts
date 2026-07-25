@@ -19,7 +19,7 @@ import type {
 import type { VoiceLiveKitBridge } from '../types.js';
 import type { VoiceCall, VoiceCallCommand, VoiceDeploymentProfile } from '../types.js';
 
-const LIVEKIT_SERVER_SDK_VERSION = '2.15.4';
+const LIVEKIT_SERVER_SDK_VERSION = '2.17.0';
 
 export interface LiveKitSipClientPort {
   listSipOutboundTrunk(input?: { trunkIds?: string[] }): Promise<Array<{

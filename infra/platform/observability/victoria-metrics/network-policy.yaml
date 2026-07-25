@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ivekit-victoria-metrics
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-victoria-metrics
+      app.kubernetes.io/component: metrics-storage
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: opc.ivekit.io/victoria-metrics-role
+                operator: In
+                values: [writer, reader, backup]
+        - namespaceSelector:
+            matchLabels:
+              opc.ivekit.io/victoria-metrics-access: "true"
+          podSelector:
+            matchExpressions:
+              - key: opc.ivekit.io/victoria-metrics-role
+                operator: In
+                values: [writer, reader, backup]
+      ports:
+        - {protocol: TCP, port: 8428}
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ivekit-victoria-metrics-backup
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-victoria-metrics
+      app.kubernetes.io/component: backup
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ivekit-victoria-metrics
+              app.kubernetes.io/component: metrics-storage
+      ports:
+        - {protocol: TCP, port: 8428}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 8333}
+        - {protocol: TCP, port: 9000}

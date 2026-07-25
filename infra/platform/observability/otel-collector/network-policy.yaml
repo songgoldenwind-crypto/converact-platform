@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ivekit-otel-collector
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-otel-collector
+      app.kubernetes.io/component: trace-gateway
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - {protocol: TCP, port: 4317}
+        - {protocol: TCP, port: 4318}
+        - {protocol: TCP, port: 8888}
+        - {protocol: TCP, port: 13133}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 4317}
+        - {protocol: TCP, port: 4318}

@@ -33,6 +33,13 @@ export interface LiveKitMediaPeerSnapshot {
   remoteParticipants: number;
   remotePublications: number;
   localPublications: number;
+  inboundAudioBytes: number;
+  inboundVideoBytes: number;
+  outboundAudioBytes: number;
+  outboundVideoBytes: number;
+  inboundPackets: number;
+  outboundPackets: number;
+  videoFramesDecoded: number;
 }
 
 export interface LiveKitStorageIsolationRuntime {
@@ -51,14 +58,18 @@ export interface LiveKitStorageIsolationRuntime {
 
 export interface LiveKitStorageIsolationResult {
   schema_version: 1;
-  status: 'passed_controlled_local';
+  status: 'passed_controlled_runtime';
   room_name: string;
   egress_id: string;
   media_before: readonly LiveKitMediaPeerSnapshot[];
   media_during_storage_outage: readonly LiveKitMediaPeerSnapshot[];
   media_after_recording_failure: readonly LiveKitMediaPeerSnapshot[];
+  media_after_storage_recovery: readonly LiveKitMediaPeerSnapshot[];
   recording_terminal_status: 'failed';
   recording_failure_code: string;
+  media_transport_progress_verified: true;
+  recovery_egress_id: string;
+  recovery_recording_terminal_status: 'complete';
   storage_recovered: true;
 }
 
@@ -98,6 +109,10 @@ export async function runLiveKitStorageIsolationAcceptance(
   let roomCreated = false;
   let peersOpened = false;
   let storageStopped = false;
+  let egressId = '';
+  let recoveryEgressId = '';
+  let recordingTerminal = false;
+  let recoveryRecordingTerminal = false;
 
   try {
     await runtime.createRoom(roomName);
@@ -106,14 +121,16 @@ export async function runLiveKitStorageIsolationAcceptance(
     await runtime.openPeers(roomName);
 
     const mediaBefore = await waitForMediaContinuity(runtime, Date.now() + config.timeoutMs);
-    const { egressId } = await runtime.startRecording(roomName, `audit/${roomName}.mp4`);
+    ({ egressId } = await runtime.startRecording(roomName, `audit/${roomName}.mp4`));
     await waitForRecording(runtime, egressId, Date.now() + config.timeoutMs, ['active']);
 
     await runtime.stopStorage();
     storageStopped = true;
-    await runtime.wait(5_000);
-    const mediaDuringStorageOutage = await runtime.snapshotPeers();
-    assertLiveKitMediaContinuity(mediaDuringStorageOutage);
+    const mediaDuringStorageOutage = await waitForMediaProgress(
+      runtime,
+      mediaBefore,
+      Date.now() + config.timeoutMs
+    );
 
     try {
       await runtime.stopRecording(egressId);
@@ -129,29 +146,70 @@ export async function runLiveKitStorageIsolationAcceptance(
     if (terminal.status !== 'failed') {
       throw new Error(`recording did not fail during storage outage: ${terminal.status}`);
     }
+    recordingTerminal = true;
     const recordingFailureCode = classifyLiveKitEgressFailure(terminal.error);
     if (recordingFailureCode !== 'storage_upload_failed') {
       throw new Error('recording failure was not caused by storage upload');
     }
 
-    const mediaAfterRecordingFailure = await runtime.snapshotPeers();
-    assertLiveKitMediaContinuity(mediaAfterRecordingFailure);
+    const mediaAfterRecordingFailure = await waitForMediaProgress(
+      runtime,
+      mediaDuringStorageOutage,
+      Date.now() + config.timeoutMs
+    );
     await runtime.restoreStorage();
     storageStopped = false;
 
+    ({ egressId: recoveryEgressId } = await runtime.startRecording(
+      roomName,
+      `recovery/${roomName}.mp4`
+    ));
+    await waitForRecording(
+      runtime,
+      recoveryEgressId,
+      Date.now() + config.timeoutMs,
+      ['active']
+    );
+    const mediaAfterStorageRecovery = await waitForMediaProgress(
+      runtime,
+      mediaAfterRecordingFailure,
+      Date.now() + config.timeoutMs
+    );
+    await runtime.stopRecording(recoveryEgressId);
+    const recoveryTerminal = await waitForRecording(
+      runtime,
+      recoveryEgressId,
+      Date.now() + config.timeoutMs,
+      ['complete', 'failed', 'aborted']
+    );
+    if (recoveryTerminal.status !== 'complete') {
+      throw new Error(`recording did not recover after storage restore: ${recoveryTerminal.status}`);
+    }
+    recoveryRecordingTerminal = true;
+
     return {
       schema_version: 1,
-      status: 'passed_controlled_local',
+      status: 'passed_controlled_runtime',
       room_name: roomName,
       egress_id: egressId,
       media_before: mediaBefore,
       media_during_storage_outage: mediaDuringStorageOutage,
       media_after_recording_failure: mediaAfterRecordingFailure,
+      media_after_storage_recovery: mediaAfterStorageRecovery,
       recording_terminal_status: 'failed',
       recording_failure_code: recordingFailureCode,
+      media_transport_progress_verified: true,
+      recovery_egress_id: recoveryEgressId,
+      recovery_recording_terminal_status: 'complete',
       storage_recovered: true
     };
   } finally {
+    if (recoveryEgressId && !recoveryRecordingTerminal) {
+      await runtime.stopRecording(recoveryEgressId).catch(() => undefined);
+    }
+    if (egressId && !recordingTerminal) {
+      await runtime.stopRecording(egressId).catch(() => undefined);
+    }
     if (storageStopped) {
       await runtime.restoreStorage().catch(() => undefined);
     }
@@ -226,24 +284,9 @@ export async function createDefaultLiveKitStorageIsolationRuntime(
       browser = undefined;
     },
     async snapshotPeers() {
-      return Promise.all(pages.map((page) => page.evaluate(() => {
-        const state = globalThis as typeof globalThis & {
-          __ivekitStorageIsolationRoom?: BrowserLiveKitRoom;
-        };
-        const room = state.__ivekitStorageIsolationRoom;
-        if (!room) throw new Error('LiveKit browser peer is unavailable');
-        let remotePublications = 0;
-        for (const participant of room.remoteParticipants.values()) {
-          remotePublications += participant.trackPublications.size;
-        }
-        return {
-          identity: room.localParticipant.identity,
-          state: room.state,
-          remoteParticipants: room.remoteParticipants.size,
-          remotePublications,
-          localPublications: room.localParticipant.trackPublications.size
-        };
-      })));
+      return Promise.all(pages.map((page) =>
+        page.evaluate(readLiveKitMediaPeerSnapshotInBrowser)
+      ));
     },
     async startRecording(roomName, objectKey) {
       const info = await egressService.startRoomCompositeEgress(
@@ -280,11 +323,91 @@ export async function createDefaultLiveKitStorageIsolationRuntime(
 
 interface BrowserLiveKitRoom {
   state: string;
+  engine?: {
+    pcManager?: {
+      publisher: { getStats(): Promise<BrowserStatsReport> };
+      subscriber?: { getStats(): Promise<BrowserStatsReport> };
+    };
+  };
   localParticipant: {
     identity: string;
     trackPublications: { size: number };
   };
   remoteParticipants: Map<string, { trackPublications: { size: number } }>;
+}
+
+interface BrowserStatsReport {
+  forEach(callback: (value: unknown) => void): void;
+}
+
+export async function readLiveKitMediaPeerSnapshotInBrowser(): Promise<LiveKitMediaPeerSnapshot> {
+  const state = globalThis as typeof globalThis & {
+    __ivekitStorageIsolationRoom?: BrowserLiveKitRoom;
+  };
+  const room = state.__ivekitStorageIsolationRoom;
+  if (!room) throw new Error('LiveKit browser peer is unavailable');
+  const pcManager = room.engine?.pcManager;
+  if (!pcManager) throw new Error('LiveKit peer connection manager is unavailable');
+  const reports = await Promise.all([
+    pcManager.publisher.getStats(),
+    pcManager.subscriber?.getStats()
+  ]);
+  let inboundAudioBytes = 0;
+  let inboundVideoBytes = 0;
+  let outboundAudioBytes = 0;
+  let outboundVideoBytes = 0;
+  let inboundPackets = 0;
+  let outboundPackets = 0;
+  let videoFramesDecoded = 0;
+  for (const report of reports) {
+    report?.forEach((rawStat) => {
+      const stat = rawStat as Record<string, unknown>;
+      const kind = stat.kind || stat.mediaType;
+      if (stat.type === 'inbound-rtp' && stat.isRemote !== true) {
+        const bytesReceived = stat.bytesReceived;
+        const packetsReceived = stat.packetsReceived;
+        const framesDecoded = stat.framesDecoded;
+        const bytes = typeof bytesReceived === 'number' && Number.isFinite(bytesReceived) &&
+          bytesReceived >= 0 ? bytesReceived : 0;
+        inboundPackets += typeof packetsReceived === 'number' && Number.isFinite(packetsReceived) &&
+          packetsReceived >= 0 ? packetsReceived : 0;
+        if (kind === 'audio') inboundAudioBytes += bytes;
+        if (kind === 'video') {
+          inboundVideoBytes += bytes;
+          videoFramesDecoded += typeof framesDecoded === 'number' && Number.isFinite(framesDecoded) &&
+            framesDecoded >= 0 ? framesDecoded : 0;
+        }
+      }
+      if (stat.type === 'outbound-rtp' && stat.isRemote !== true) {
+        const bytesSent = stat.bytesSent;
+        const packetsSent = stat.packetsSent;
+        const bytes = typeof bytesSent === 'number' && Number.isFinite(bytesSent) &&
+          bytesSent >= 0 ? bytesSent : 0;
+        outboundPackets += typeof packetsSent === 'number' && Number.isFinite(packetsSent) &&
+          packetsSent >= 0 ? packetsSent : 0;
+        if (kind === 'audio') outboundAudioBytes += bytes;
+        if (kind === 'video') outboundVideoBytes += bytes;
+      }
+    });
+  }
+  let remotePublications = 0;
+  for (const participant of room.remoteParticipants.values()) {
+    remotePublications += participant.trackPublications.size;
+  }
+  return {
+    identity: room.localParticipant.identity,
+    state: room.state,
+    remoteParticipants: room.remoteParticipants.size,
+    remotePublications,
+    localPublications: room.localParticipant.trackPublications.size,
+    inboundAudioBytes,
+    inboundVideoBytes,
+    outboundAudioBytes,
+    outboundVideoBytes,
+    inboundPackets,
+    outboundPackets,
+    videoFramesDecoded
+  };
 }
 
 async function connectBrowserPeer(
@@ -422,6 +545,26 @@ async function waitForMediaContinuity(
   throw lastError instanceof Error ? lastError : new Error('LiveKit media continuity timed out');
 }
 
+async function waitForMediaProgress(
+  runtime: LiveKitStorageIsolationRuntime,
+  baseline: readonly LiveKitMediaPeerSnapshot[],
+  deadline: number
+): Promise<readonly LiveKitMediaPeerSnapshot[]> {
+  let lastError: unknown;
+  while (Date.now() <= deadline) {
+    const snapshots = await runtime.snapshotPeers();
+    assertLiveKitMediaContinuity(snapshots);
+    try {
+      assertLiveKitMediaProgress(baseline, snapshots);
+      return snapshots;
+    } catch (error) {
+      lastError = error;
+      await runtime.wait(250);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('LiveKit media progress timed out');
+}
+
 async function waitForRecording(
   runtime: LiveKitStorageIsolationRuntime,
   egressId: string,
@@ -521,6 +664,33 @@ export function assertLiveKitMediaContinuity(
     snapshot.localPublications >= 2
   );
   if (!healthy) throw new Error('LiveKit media continuity requirement failed');
+}
+
+export function assertLiveKitMediaProgress(
+  before: readonly LiveKitMediaPeerSnapshot[],
+  after: readonly LiveKitMediaPeerSnapshot[]
+): void {
+  assertLiveKitMediaContinuity(before);
+  assertLiveKitMediaContinuity(after);
+  const beforeByIdentity = new Map(before.map((snapshot) => [snapshot.identity, snapshot]));
+  const counters: ReadonlyArray<keyof LiveKitMediaPeerSnapshot> = [
+    'inboundAudioBytes',
+    'inboundVideoBytes',
+    'outboundAudioBytes',
+    'outboundVideoBytes',
+    'inboundPackets',
+    'outboundPackets',
+    'videoFramesDecoded'
+  ];
+  const progressed = after.every((snapshot) => {
+    const previous = beforeByIdentity.get(snapshot.identity);
+    return previous && counters.every((counter) =>
+      typeof previous[counter] === 'number' &&
+      typeof snapshot[counter] === 'number' &&
+      snapshot[counter] > previous[counter]
+    );
+  });
+  if (!progressed) throw new Error('LiveKit media progress requirement failed');
 }
 
 export function classifyLiveKitEgressFailure(error: string): string {

@@ -3,9 +3,9 @@ import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const RUSTDESK_SERVER_UPSTREAM_TAG = '1.1.15';
+export const RUSTDESK_SERVER_UPSTREAM_TAG = '1.1.16';
 export const RUSTDESK_SERVER_UPSTREAM_COMMIT =
-  '9bae9f2f39d92c4b4ba2e28e089da5071897b22e';
+  '73523b31cfd25d77dee862e6fc9f5e1fb5e485ef';
 export const RUSTDESK_SERVER_HBB_COMMON_COMMIT =
   '83419b6549636ee39dacef7776c473f5802e08d6';
 

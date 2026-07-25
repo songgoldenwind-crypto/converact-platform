@@ -29,6 +29,9 @@ spec:
         app: rustdesk
     spec:
       hostNetwork: {{ .Values.rustdesk.hostNetwork | default false }}
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: hbbs
           image: {{ include "opc.rustdeskImage" . | quote }}
@@ -52,7 +55,14 @@ spec:
               protocol: TCP
           volumeMounts:
             - name: rustdesk-data
-              mountPath: /root
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop: ["ALL"]
           resources:
             {{- toYaml .Values.rustdesk.resources | nindent 12 }}
         - name: hbbr
@@ -68,7 +78,14 @@ spec:
               protocol: TCP
           volumeMounts:
             - name: rustdesk-data
-              mountPath: /root
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop: ["ALL"]
           resources:
             {{- toYaml .Values.rustdesk.resources | nindent 12 }}
       volumes:

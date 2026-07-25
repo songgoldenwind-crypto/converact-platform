@@ -30,6 +30,26 @@ spec:
                 secretKeyRef:
                   name: ivekit-capacity-runtime
                   key: nats-url
+            - name: NATS_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-capacity-runtime
+                  key: nats-user
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ivekit-capacity-runtime
+                  key: nats-password
+            - name: NATS_TLS_MODE
+              value: required
+            - name: NATS_TLS_CA_FILE
+              value: /etc/nats/tls/ca.crt
+            - name: NATS_TLS_CERT_FILE
+              value: /etc/nats/tls/tls.crt
+            - name: NATS_TLS_KEY_FILE
+              value: /etc/nats/tls/tls.key
+            - name: OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS
+              value: "3"
             - name: OPC_IVEKIT_CAPACITY_DISPATCHER_ID
               valueFrom:
                 fieldRef:
@@ -40,6 +60,10 @@ spec:
               value: "10000"
             - name: OPC_IVEKIT_CAPACITY_DISPATCH_BATCH_SIZE
               value: "100"
+          volumeMounts:
+            - name: nats-tls
+              mountPath: /etc/nats/tls
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -53,6 +77,10 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: nats-tls
+          secret:
+            secretName: ivekit-capacity-nats-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

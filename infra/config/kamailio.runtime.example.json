@@ -50,6 +50,14 @@
     "sync_batch_usleep": 1000,
     "sync_message_contacts": 50
   },
+  "sip_trace": {
+    "enabled": false,
+    "collector_host": "127.0.0.1",
+    "collector_port": 9060,
+    "capture_id": 101,
+    "include_options": false,
+    "initial_mode": "full"
+  },
   "max_message_bytes": 65535,
   "per_source_invite_cps": 100,
   "global_invite_cps": 5000,

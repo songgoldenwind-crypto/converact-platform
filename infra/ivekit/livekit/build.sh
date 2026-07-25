@@ -19,7 +19,8 @@ GOCACHE="${LIVEKIT_GO_CACHE}" \
 go -C "${LIVEKIT_SOURCE_DIR}" mod vendor
 
 docker build \
-  --label "org.opencontainers.image.revision=8f6a9cb8b735549f0c5770df8ea70ac51f860ecb" \
+  --label "org.opencontainers.image.version=v1.13.4-ivekit.1" \
+  --label "org.opencontainers.image.revision=0b3fd288e3ef3263ec475ba0d78cf3ad77459981" \
   --label "io.ivekit.component=livekit-server" \
   --label "io.ivekit.owner-contract=component-node-v1" \
   --tag "${IVEKIT_LIVEKIT_IMAGE}" \

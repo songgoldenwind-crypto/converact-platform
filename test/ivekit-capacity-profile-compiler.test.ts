@@ -55,18 +55,41 @@ test('profile compiler creates deterministic, immutable and complete shards', ()
   assert.equal(first.manifest.profile_id, 'cell-10k-v1');
   assert.equal(first.manifest.expected_totals.interactions, 10_000);
   assert.equal(first.manifest.expected_totals.connections, 20_500);
-  assert.equal(first.manifest.shards.length, 31);
+  assert.equal(first.manifest.shards.length, 28);
   assert.doesNotThrow(() => validateLoadRunManifest(first.manifest, first.manifest_sha256, profile, forkManifest));
 
   const interactionCount = first.manifest.shards
-    .filter((shard) => shard.workload_domain === 'interaction')
-    .reduce((sum, shard) => sum + shard.expected_count, 0);
+    .flatMap((shard) => [
+      {
+        workload_domain: shard.workload_domain,
+        expected_count: shard.expected_count
+      },
+      ...(shard.covered_workloads || [])
+    ])
+    .filter((workload) => workload.workload_domain === 'interaction')
+    .reduce((sum, workload) => sum + workload.expected_count, 0);
   assert.equal(interactionCount, 10_000);
 
   const tinodeRanges = first.manifest.shards
-    .filter((shard) => shard.workload_id === 'tinode_im')
-    .map((shard) => [shard.ordinal_start, shard.ordinal_end_exclusive]);
+    .flatMap((shard) => shard.covered_workloads || [])
+    .filter((workload) => workload.workload_id === 'tinode_im')
+    .map((workload) => [workload.ordinal_start, workload.ordinal_end_exclusive]);
   assert.deepEqual(tinodeRanges, [[0, 2000], [2000, 4000], [4000, 6000]]);
+  const tinodeConnectionShards = first.manifest.shards
+    .filter((shard) => shard.workload_id === 'tinode_websocket');
+  assert.deepEqual(
+    tinodeConnectionShards.map((shard) => [
+      shard.ordinal_start,
+      shard.ordinal_end_exclusive,
+      shard.covered_workloads?.[0]?.expected_count
+    ]),
+    [[0, 3000, 2000], [3000, 6000, 2000], [6000, 9000, 2000]]
+  );
+  assert.equal(
+    first.manifest.shards.some((shard) =>
+      shard.workload_domain === 'interaction' && shard.workload_id === 'tinode_im'),
+    false
+  );
 
   assert.equal(
     formatLoadEntityId(first.manifest, 'interaction', 'tinode_im', 42),
@@ -119,6 +142,19 @@ test('profile compiler scales the full workload ratio and binds exact curve iden
   });
   assert.equal(scaled.manifest.expected_totals.interactions, 333);
   assert.equal(scaled.manifest.expected_totals.connections, 683);
+  assert.deepEqual(
+    scaled.manifest.shards
+      .find((shard) => shard.workload_id === 'tinode_websocket')
+      ?.covered_workloads,
+    [{
+      workload_domain: 'interaction',
+      workload_id: 'tinode_im',
+      workload_kind: 'tinode_im',
+      ordinal_start: 0,
+      ordinal_end_exclusive: 200,
+      expected_count: 200
+    }]
+  );
   assert.equal(scaled.manifest.capacity_context?.units, 4);
   assert.equal(scaled.manifest.profile_sha256, compileLoadRunManifest(input).manifest.profile_sha256);
   assert.doesNotThrow(() => validateLoadRunManifest(
@@ -127,6 +163,41 @@ test('profile compiler scales the full workload ratio and binds exact curve iden
     profile,
     forkManifest
   ));
+});
+
+test('profile compiler rejects multiple Tinode IM workloads for one connection pool', () => {
+  const split = structuredClone(profile);
+  const original = split.interactions.categories
+    .find((category: any) => category.id === 'tinode_im');
+  original.id = 'tinode_im_retail';
+  original.count = 3000;
+  original.disjoint_from.push('tinode_im_enterprise');
+  split.interactions.categories.push({
+    ...structuredClone(original),
+    id: 'tinode_im_enterprise',
+    disjoint_from: [
+      'tinode_im_retail',
+      ...original.disjoint_from.filter((id: string) => id !== 'tinode_im_enterprise')
+    ]
+  });
+  for (const category of split.interactions.categories) {
+    if (category.kind === 'tinode_im') continue;
+    category.disjoint_from = category.disjoint_from.flatMap((id: string) =>
+      id === 'tinode_im' ? ['tinode_im_retail', 'tinode_im_enterprise'] : [id]);
+  }
+
+  assert.throws(
+    () => compileLoadRunManifest({
+      ...input,
+      profile: split,
+      shardSizeByWorkloadId: {
+        ...input.shardSizeByWorkloadId,
+        tinode_im_retail: 1000,
+        tinode_im_enterprise: 1000
+      }
+    }),
+    /multiple workloads use kind tinode_im/
+  );
 });
 
 test('manifest hash binds profile, releases and seed', () => {
@@ -170,8 +241,8 @@ test('profile compiler rejects fleets that omit a shard-required protocol', () =
 });
 
 test('capacity profiles bind all primary voice ownership to RustPBX and exclude LiveKit SIP', () => {
-  assert.equal(profile.schema_version, '1.2.0');
-  assert.equal(profile.revision, 2);
+  assert.equal(profile.schema_version, '1.3.0');
+  assert.equal(profile.revision, 3);
   assert.deepEqual(profile.signaling.sip.ownership, {
     dialog_owner: 'rustpbx',
     rtp_owner: 'rustpbx',
@@ -197,6 +268,67 @@ test('capacity profile forbids recording storage from backpressuring established
     queue_policy: 'bounded_non_blocking',
     overload_action: 'drop_or_fail_recording_only'
   });
+});
+
+test('capacity profile binds endpoint QoE, weak-network and resource evidence to every run', () => {
+  assert.equal(profile.schema_version, '1.3.0');
+  assert.equal(profile.performance_contract.schema_version, '1.0.0');
+  assert.equal(
+    profile.performance_contract.measurement_scope,
+    'same_region_controlled_endpoint_to_endpoint'
+  );
+  assert.deepEqual(profile.performance_contract.required_quantiles, ['p50', 'p95', 'p99']);
+  assert.equal(profile.performance_contract.latency_ms.voice_mouth_to_ear_p95, 150);
+  assert.equal(profile.performance_contract.latency_ms.livekit_glass_to_glass_p95, 250);
+  assert.equal(profile.performance_contract.latency_ms.rustdesk_input_to_photon_p95, 200);
+  assert.equal(profile.performance_contract.media_quality.jitter_p99_ms, 30);
+  assert.equal(profile.performance_contract.media_quality.server_packet_loss_ratio, 0.001);
+  assert.deepEqual(profile.performance_contract.overload.degradation_order, [
+    'preserve_audio',
+    'reduce_video_layers',
+    'reduce_video_frame_rate',
+    'drop_auxiliary_realtime_copies',
+    'reject_new_admission'
+  ]);
+  assert.deepEqual(
+    profile.performance_contract.impairment_profiles.map((item: any) => item.id),
+    ['baseline', 'constrained_bandwidth', 'lossy_jitter', 'network_handoff', 'cross_region']
+  );
+
+  const compiled = compileLoadRunManifest(input);
+  assert.deepEqual(compiled.manifest.performance_contract, profile.performance_contract);
+});
+
+test('profile compiler rejects average-only, incomplete or unsafe RTC performance contracts', () => {
+  const averageOnly = structuredClone(profile);
+  assert.ok(averageOnly.performance_contract, 'performance contract is missing');
+  averageOnly.performance_contract.required_quantiles = ['p50'];
+  assert.throws(
+    () => compileLoadRunManifest({ ...input, profile: averageOnly }),
+    /P50.*P95.*P99|quantiles/i
+  );
+
+  const missingWeakNetwork = structuredClone(profile);
+  missingWeakNetwork.performance_contract.impairment_profiles =
+    missingWeakNetwork.performance_contract.impairment_profiles
+      .filter((item: any) => item.id !== 'network_handoff');
+  assert.throws(
+    () => compileLoadRunManifest({ ...input, profile: missingWeakNetwork }),
+    /network_handoff|impairment/i
+  );
+
+  const videoFirst = structuredClone(profile);
+  videoFirst.performance_contract.overload.degradation_order = [
+    'reduce_video_layers',
+    'preserve_audio',
+    'reduce_video_frame_rate',
+    'drop_auxiliary_realtime_copies',
+    'reject_new_admission'
+  ];
+  assert.throws(
+    () => compileLoadRunManifest({ ...input, profile: videoFirst }),
+    /audio.*degradation|degradation.*audio/i
+  );
 });
 
 test('profile compiler rejects a recording policy that can terminate or backpressure media', () => {

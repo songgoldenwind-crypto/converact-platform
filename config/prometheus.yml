@@ -16,6 +16,11 @@ scrape_configs:
       - targets: ['opc:3000']
     metrics_path: /metrics
 
+  - job_name: 'ai-agent'
+    static_configs:
+      - targets: ['ai-agent:9090']
+    metrics_path: /metrics
+
   - job_name: 'node-exporter'
     static_configs:
       - targets: ['node-exporter:9100']

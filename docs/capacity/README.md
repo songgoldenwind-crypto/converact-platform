@@ -1,14 +1,14 @@
 # iveKit 容量合同与架构治理
 
 > 状态：Active
-> 版本：3.3
-> 日期：2026-07-17
+> 版本：3.4
+> 日期：2026-07-22
 > 上级评审：[`../MIX-100K双Zone与Cell架构评审.md`](../MIX-100K双Zone与Cell架构评审.md)
 > 调研依据：[`../CCaaS十万并发容量对标与架构优化调研.md`](../CCaaS十万并发容量对标与架构优化调研.md)
 
 ## 1. 目的
 
-本目录保存 iveKit 单套平台提高单节点密度、保持横向扩展边际效率并最终验证 100,000 并发通信所需的机器可读合同和版本化配置。它解决六个问题：
+本目录保存 iveKit 单套平台提高单节点密度、保持横向扩展边际效率并最终验证 100,000 并发通信所需的机器可读合同和版本化配置。它解决七个问题：
 
 1. 每次 benchmark 使用完全相同的 interaction、连接、消息、媒体、录制和 Provider 负载。
 2. 节点、Cell 和 Zone 使用同一个 CapacityVector 交换容量，不以 CPU 或一个模糊并发数调度。
@@ -16,6 +16,7 @@
 4. RustPBX、LiveKit、Tinode、RustDesk 的 iveKit fork 可以独立演进，但必须保持可重现和可回退。
 5. 单节点 hard/safe capacity、单位资源密度和 1/2/4/8 节点曲线使用统一公式验收。
 6. 现实部署按需求扩容，不因为 100K endpoint 目标预分配完整计算资源。
+7. 容量、P95/P99 尾延迟、媒体质量、弱网恢复、公平性、安全开销和单位成本必须共同通过。
 
 本目录不代表任何容量已经通过。未经 evidence bundle 验证的数字均为 `target` 或 `assumption`。
 
@@ -26,6 +27,7 @@
 | [`schemas/workload-profile.schema.json`](schemas/workload-profile.schema.json) | 所有负载 profile 的 JSON Schema |
 | [`profiles/mix-100k-v1.json`](profiles/mix-100k-v1.json) | 第一版 100k 混合交互合同 |
 | [`profiles/cell-10k-v1.json`](profiles/cell-10k-v1.json) | MIX-100K 的 10% Cell 校准切片，不可乘十冒充平台通过 |
+| [`rtc-performance-contract-v1.md`](rtc-performance-contract-v1.md) | 端到端测量点、弱网矩阵、原始证据和联合判定语义 |
 | [`schemas/capacity-vector.schema.json`](schemas/capacity-vector.schema.json) | 节点、Cell、Zone 容量、使用量和 admission 合同 |
 | [`schemas/scaling-efficiency.schema.json`](schemas/scaling-efficiency.schema.json) | 单节点密度、聚合线性度和区段边际效率 Schema |
 | [`targets/mix-100k-efficiency-v1.json`](targets/mix-100k-efficiency-v1.json) | 单节点优先、component 90%/Cell 95% 边际门槛 |
@@ -76,6 +78,7 @@
 | Quorum fault domain | 第三投票/副本故障域，不要求承载完整媒体容量 |
 | Owner epoch | interaction owner 的单调递增 fencing 版本 |
 | Evidence bundle | 绑定版本、硬件、配置、profile、指标、错误和故障时间线的容量证据包 |
+| RTC performance contract | 与 workload profile 和 manifest 哈希绑定的端到端 QoE、弱网、恢复、公平性、安全开销及资源证据合同 |
 
 ## 4. 版本规则
 
@@ -183,6 +186,7 @@ config-digests.json
 summary.json
 errors.jsonl
 failure-timeline.jsonl
+performance-evidence.json
 metrics/
 logs/
 traces/
@@ -199,6 +203,7 @@ traces/
 - 开始/结束时间。
 - 数据 Zone 和 Cell 列表。
 - 外部依赖状态。
+- 完整 `performance_contract`；finalizer 必须从 `performance-evidence.json` 重算，不能信任调用方布尔结论。
 
 ## 9. 设计约束
 
@@ -208,6 +213,7 @@ traces/
 4. 双 Zone 正常各承载约 50%，任一 Zone 的 safe capacity 覆盖完整目标。
 5. NATS/Redis/PostgreSQL 自动 failover 使用第三仲裁故障域或等价托管仲裁。
 6. RoomComposite、转码、OCR/ASR/AI 和离线处理不得抢占核心实时池。
+7. 任何 Cell/100K 容量结果在 endpoint QoE、弱网恢复或公平性失败时必须整体失败。
 7. 开源组件允许 fork；fork 内部接口不得直接成为 LED/OPC 对外合同。
 8. 所有未知或未验证容量保持 `target/not_run`。
 9. 单节点 safe density 是第一优化目标，component 每区段 marginal >=90%，Cell/shared-data marginal >=95%。
@@ -248,13 +254,13 @@ traces/
 | `scripts/ivekit-cell-admission.ts` | controlled code pass | PostgreSQL reservation ledger、Cell lease fencing、双副本主动/待命接管、重启恢复、节点 checkpoint 同步和故障隔离 |
 | `scripts/ivekit-component-node-admission.ts` | controlled code pass | 可作为 LiveKit/Tinode/RustDesk/RustPBX sidecar 部署的 node lease、epoch、drain、授权和容量 agent |
 | `integrations/component-hook-go/` | controlled code pass | LiveKit/Tinode 的无第三方依赖 source hook；mutate 热路径只读内存 epoch/lease |
-| `integrations/livekit-v1.13.3/` | controlled code pass | LiveKit 房间 owner registry；首次入房打开 owner、后续信令/管理操作本地 fencing、最多 64 房间批量续租 |
-| `infra/ivekit/livekit/` | controlled overlay, compile and local image pass | 精确绑定 `v1.13.3@8f6a9cb...` 的 owner 覆盖层、小房间 SFU 热路径补丁和离线 vendor 构建入口；干净源码重复应用、Go 1.26 根模块/嵌套模块测试、SFU race 测试及 arm64 custom image/fork marker smoke 通过；不可变 Registry 制品与真实媒体仍为 `not_run` |
+| `integrations/livekit-v1.13.4/` | controlled code pass | LiveKit 房间 owner registry；首次入房打开 owner、后续信令/管理操作本地 fencing、最多 64 房间批量续租 |
+| `infra/ivekit/livekit/` | server-controlled overlay, compile and amd64 image pass | 精确绑定 `v1.13.4@0b3fd288...` 的 owner 覆盖层、小房间 SFU 热路径补丁和离线 vendor 构建入口；服务器对干净源码重复应用、Go 1.26.5 根模块/嵌套模块与 SFU race 测试、无网络构建及 UID/GID 10001 smoke 通过；不可变 Registry 制品与真实媒体仍为 `not_run` |
 | `integrations/tinode-v0.25.3/` | controlled code pass | Tinode topic owner registry；ROOT-only Trusted placement、owner 预加载、最多 64 topic 批量续租和 stale owner 隔离 |
 | `infra/ivekit/tinode/` | controlled overlay, compile and local image pass | 精确绑定 `v0.25.3@22a7c18...`，将 `cluster_self` 对齐稳定 ordinal，在 actor 启动前开 owner，并对 publish/meta mutation 做本地 fencing；普通前台会话延迟创建后台 timer，本地普通群聊扇出复用只读消息；干净源码重复 overlay、Go 1.26 server/race/嵌套模块测试及 arm64 source-built custom image/fork marker smoke 通过；不可变 Registry 制品与真实多节点仍为 `not_run` |
 | `integrations/component-hook-rs/` | controlled code pass | RustDesk/RustPBX 的无第三方依赖 source hook；mutate 热路径只读内存 epoch/lease |
 | `src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts` | controlled code pass | target 到 relay UUID 的短期精确绑定、歧义拒绝、过期回收和文件 checkpoint 重启恢复 |
-| `infra/ivekit/rustdesk-server/` | controlled overlay, compile and local image pass | 精确绑定 root `1.1.15@9bae9f2...` 与 `hbb_common@83419b6...`；hbbs/hbbr owner fencing、每会话原子 usage 和同协议 owned frame 补丁在干净源码幂等应用，`cargo test --locked`、digest-pinned multi-stage arm64 custom image、非 root 运行和 fork marker smoke 通过；不可变 Registry 制品、双 Windows 和物理容量仍为 `not_run` |
+| `infra/ivekit/rustdesk-server/` | controlled overlay and source compile pass | 精确绑定 root `1.1.16@73523b31...` 与 `hbb_common@83419b6...`；hbbs/hbbr owner fencing、每会话原子 usage 和同协议 owned frame 补丁在干净源码幂等应用，`cargo test --locked --all-features` 通过；加固 Dockerfile、非 root UID/GID 10001 和 OCI workflow 已实现，但 1.1.16 镜像构建、Registry digest、SBOM/签名/provenance、双 Windows 和物理容量仍为 `not_run` |
 | `infra/capacity/kubernetes/rustdesk-statefulset.yaml` | controlled deployment pass | 每个稳定 ordinal 同 Pod 部署 hbbs、hbbr、binding broker 和 component sidecar；不以随机 LoadBalancer 作为 owner 边界 |
 
 `controlled code pass` 只表示工具自身的自动化测试通过；它不表示 RustPBX、Tinode、iveKit、Cell-10K 或 MIX-100K 容量已经通过。
@@ -282,7 +288,7 @@ node --import tsx scripts/ivekit-capacity.ts validate-manifest \
   --bundle /path/to/evidence/load-run-manifest.json
 ```
 
-验证会重新计算 profile、fork 和 manifest SHA，并检查所有 shard 的完整覆盖、无重叠、fleet 绑定和确定性 seed。它不检查运行时流量；运行时仍需 generator qualification、三方计数和 SLO evidence。
+验证会重新计算 profile、fork 和 manifest SHA，并检查所有 shard 的完整覆盖、无重叠、fleet 绑定、确定性 seed 和 RTC performance contract。它不检查运行时流量；运行时仍需 generator qualification、三方计数以及由 finalizer 根据原始 performance evidence 重算的联合 SLO。
 
 ## 12. 变更日志
 
@@ -309,9 +315,10 @@ node --import tsx scripts/ivekit-capacity.ts validate-manifest \
 | 2.8 | 2026-07-17 | 将 RustPBX 录音编解码与磁盘工作移出 RTP 转发循环，增加固定工作线程、有界捕获队列、丢弃证据和部署参数 |
 | 2.9 | 2026-07-17 | 在精确 LiveKit v1.13.3 源码通过 owner overlay 与 Go 1.26 编译，增加 lock-free downtrack 快照及普通/RED 小房间无原子串行 RTP fanout |
 | 3.0 | 2026-07-17 | 在精确 Tinode v0.25.3 源码通过幂等 overlay、Go 1.26 编译与 race 测试，增加前台会话 lazy timer 和普通本地群聊零拷贝消息扇出 |
-| 3.1 | 2026-07-17 | 在精确 RustDesk Server 1.1.15 与固定 hbb_common 子模块通过幂等 overlay 和锁定 Cargo 测试，将 usage 更新移出全局映射写锁并保留同协议 relay frame 所有权；增加可交付操作级基准 |
+| 3.1 | 2026-07-17 | 历史证据：在精确 RustDesk Server 1.1.15 与固定 hbb_common 子模块通过幂等 overlay 和锁定 Cargo 测试，将 usage 更新移出全局映射写锁并保留同协议 relay frame 所有权；增加可交付操作级基准，该数字不外推到 1.1.16 |
 | 3.2 | 2026-07-17 | 增加完整 MIX 比例曲线点编译、精确运行身份、frontier 历史重放、migration 091、数据库/S3 验证型 scaling campaign finalizer 与 Kubernetes/交付接线 |
 | 3.3 | 2026-07-17 | 增加 component role 不可变身份、migration 092、曲线二次复算和九组件+Cell+共享数据+100K endpoint 平台聚合 finalizer；受控结果禁止平台声明 |
+| 3.4 | 2026-07-22 | Profile schema 升至 1.3；加入端到端 RTC QoE、弱网、公平性、安全开销和资源合同；run finalizer 不再仅信任 `slo_passed`，而是从原始 performance evidence 重算联合门禁 |
 
 ## 13. Phase 2 代码状态
 
@@ -332,9 +339,10 @@ node --import tsx scripts/ivekit-capacity.ts validate-manifest \
 | `integrations/component-hook-go/`、`integrations/component-hook-rs/` | 上游 fork 可嵌入的本地 epoch/lease guard，不在媒体/帧/fanout 热路径发远程请求 |
 | `infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch`、`rustpbx-ivekit-sip-capacity.patch` | 精确源码上的事务/缓存/队列/连接硬上限、503 overload、RustPBX 参数接线和低基数指标 |
 | `infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-hot-path.patch`、`rustpbx-ivekit-session-cleanup-isolation.patch` | 录音 I/O、录音生命周期和会话清理均与 RTP/媒体命令热路径隔离，过载时丢证据副本或强制回收资源而不反压现有通话 |
-| `integrations/livekit-v1.13.3/`、`infra/ivekit/livekit/` | 房间 owner registry、批量授权客户端、内部 router 节点身份对齐、精确 tag/commit 覆盖层、lock-free downtrack snapshot、小房间 RTP/RED 串行快路径和受控构建入口 |
+| `integrations/livekit-v1.13.4/`、`infra/ivekit/livekit/` | 房间 owner registry、批量授权客户端、内部 router 节点身份对齐、精确 tag/commit 覆盖层、lock-free downtrack snapshot、小房间 RTP/RED 串行快路径和受控构建入口 |
 | `infra/capacity/kubernetes/livekit-statefulset.yaml` | LiveKit fork 与 sidecar 共用稳定 ordinal node ID；横向副本不依赖易变 IP 或随机 Pod 身份 |
-| `integrations/tinode-v0.25.3/`、`infra/ivekit/tinode/` | topic owner registry、ROOT-only Trusted placement、稳定 `cluster_self`、精确 tag/commit 覆盖层和受控构建入口 |
+| `integrations/tinode-v0.25.3/`、`infra/ivekit/tinode/` | topic owner registry、ROOT-only Trusted placement、稳定 `cluster_self`、精确 tag/commit 覆盖层、不可变基础镜像、离线 vendor 和非 root 构建入口 |
+| `integrations/livekit-egress-v1.13.0/`、`infra/ivekit/livekit-egress/` | Egress pool/slot/drain fence、低基数指标、不可变 template/builder/runtime、离线 CGO 构建和统一 OCI release gate |
 | `infra/capacity/kubernetes/tinode-statefulset.yaml` | 三节点 Tinode cluster 与各自 sidecar 共用稳定 ordinal node ID；headless cluster DNS 和客户端 Service 分离，PDB 保留至少两个节点 |
 | `src/agent-runtime/ivekit/placement/rustdesk-owner-binding.ts`、`infra/ivekit/rustdesk-server/` | gateway 创建时向 selected owner 预登记 target；hbbs 认领 relay UUID，hbbr 打开 owner 并在原定时分支执行本地 lease fencing |
 | `infra/capacity/kubernetes/rustdesk-statefulset.yaml` | 每个 ordinal 是一组精确 hbbs/hbbr owner；binding 和 component sidecar 共用同一 Pod 身份与持久卷，外部 public endpoint 由 placement runtime 映射 |
@@ -345,6 +353,8 @@ node --import tsx scripts/ivekit-capacity.ts validate-manifest \
 | `scripts/capacity/probes/` | iveKit Edge、Tinode、RustPBX、LiveKit、RustDesk health/Prometheus capacity observation |
 | `scripts/capacity/generators/rtp-media-twin.ts` | SIP session manifest 驱动的 RTP packet/quality 计划和证据 |
 | `scripts/capacity/generators/livekit.ts` | 多小房间、screen、TURN、TrackEgress、RoomComposite 计划和证据 |
+| `scripts/capacity/generators/network-impairment.ts` | 双向 `tc/netem` 弱网计划、blackout、回滚和租约 fencing |
+| `scripts/ivekit-capacity-network-impairment.ts` | 仅回环监听的最小 `NET_ADMIN` sidecar，主 Worker 不提升权限 |
 | `scripts/capacity/generators/rustdesk.ts` | native hbbs/hbbr synthetic fleet 计划和证据，独立于 Windows correctness lane |
 | `infra/capacity/` | controlled Compose、dispatcher image 和 Kubernetes dispatcher 模板 |
 | 交付包 `capacity-runtime/` | 保留专用 tsconfig、锁文件、Dockerfile、dispatcher/controller/finalizer/worker、Cell/sidecar/binding 入口及最小 placement/SQL 端口；可独立类型检查并从该目录重建 capacity-tools 镜像 |
@@ -358,10 +368,10 @@ node --import tsx scripts/ivekit-capacity.ts validate-manifest \
 - 探针和生成器结果均流式或文件级限长，不允许无界响应进入控制面内存。
 - scaling campaign 不接受调用方直接提交测量值；它按不可变 run 引用从 PostgreSQL 和 S3 重新读取证据、复算哈希并重放搜索历史。任何身份漂移、缺点、乱序或受控模式都会阻止生产容量声明。
 - platform campaign 不信任来源曲线的 `outcome` 标签，会从 frontier repetitions 再算 aggregate/marginal gate；endpoint 通过不能覆盖任何角色曲线失败，真实环境缺失则保持 `not_run`。
-- RustPBX 完整 `.10` 补丁队列已在精确 `6c49ee76...` 源码上重放；rsipstack `8318e97...` 现在严格限制活动事务、finished retransmission state、入站事务队列和 TCP/TLS/WebSocket 连接，过载以 SIP 503 + `Retry-After` 或显式 outbound error 收口。RustPBX 统一接入有界 SIP、录音热路径和会话清理参数、低基数指标、ServiceMonitor 与告警。`.10` 固定源码已通过 Rust 1.94.1 macOS arm64 检查；较早候选的本地 custom image 和 12 个受控 SIPp 信令场景已通过，但不能替代 `.10` 的 Linux 镜像验收。`.10` Linux 镜像、真实 SIPp overload 曲线、阻塞存储、RTP/PSTN、故障切换和容量仍为 `not_run`。
-- LiveKit participant token 现在携带签名的 interaction、reservation、node、owner epoch、placement generation 和 recovery metadata。普通刷新不迁移房间；terminal reconnect 只有在旧 owner 被权威状态判定为不可恢复时，才以旧 reservation/epoch 为 CAS 前置条件生成更高代 placement，并用 durable handoff 关闭旧 reservation。并发恢复收敛到同一代，且不会重复创建 Egress。房间首次打开 owner，后续 join、signal 和管理 mutation 只检查进程内 guard；续租最多每批 64 个 owner。覆盖层还会在 Prometheus、SignalClient 和 Router 初始化前，将内部 `currentNode.NodeID()` 设置为 `IVEKIT_COMPONENT_NODE_ID`，因此 Redis room routing、placement 和 sidecar checkpoint 使用同一稳定 ordinal。精确 `v1.13.3@8f6a9cb...` 源码已通过重复 overlay、Go 1.26 编译、SFU 单测、race 测试及 arm64 source-built custom image/fork marker smoke；downtrack 快照读取微基准从 3.62-3.66 ns/op 降至 0.49-0.52 ns/op，但不可变 Registry 制品、真实 SFU 故障恢复、RTP/TURN 媒体和容量仍为 `not_run`。
-- Tinode 新 group topic 先持久化 Cell reservation，再直连被选中的 owner endpoint，由 ROOT 在 `desc.trusted.ivekit_placement` 写入 interaction、reservation、node 和 epoch；fork 在 actor 启动前开 owner，publish、typing/receipt 和 metadata mutation 只检查进程内 lease。续租最多每批 64 个 topic；owner open 失败会硬删除本次刚写入的 topic，避免孤儿绑定。`cluster_self`、ringhash 节点名、placement 和 sidecar checkpoint 共用稳定 StatefulSet ordinal。普通前台连接不再预分配后台 timer，background 状态用原子转换避免读写协程竞争；普通本地 group fanout 复用不可变消息，P2P、channel 和 cluster 仍保留独立 copy。精确 `v0.25.3@22a7c18...` 已通过重复 overlay、Go 1.26 server/race/嵌套模块测试及 arm64 source-built custom image/fork marker smoke；Apple M5 单次消息准备微基准从 41.19-42.81 ns/op、240 B/op、2 allocs/op 降到 1.580-1.586 ns/op、0 B/op、0 allocs/op。该结果不是整机吞吐证明；不可变 Registry 制品、三节点重连、native client 收敛和容量仍为 `not_run`。
-- RustDesk gateway 在现有 session 创建流程中向 selected ordinal 预登记 target、reservation 和 owner epoch；hbbs 收到 `RequestRelay` 后先将 target 原子认领为 relay UUID，hbbr 在 UUID 配对前打开 owner。数据转发仍是上游 opaque byte pipe，仅复用原三秒 timer 做进程内 lease 判断；无 HTTP、数据库或 broker 调用进入帧复制。覆盖层固定 root `1.1.15@9bae9f2...` 与 `hbb_common@83419b6...`，已在干净源码重复应用并通过 `cargo test --locked`、digest-pinned 多阶段 arm64 custom image、非 root 运行和 fork marker smoke。relay 配对时只向全局 `USAGE` 注册一次 `Arc`，周期更新改为每会话 sequence-fenced atomics；TCP `BytesMut.freeze()` 与 WebSocket 原生 `Vec` 在同协议转发时直接移动，仅混合协议边界发生转换。三次 Apple M5 操作级基准中，usage 更新下界由 `34.14-35.41 ns/op` 降至 `3.53-3.59 ns/op`，64 KiB WebSocket 接收转发分配路径由 `4003.95-4084.75 ns/op` 降至 `1029.67-1168.72 ns/op`；它们不证明 relay 吞吐或节点容量。不可变 Registry digest、SBOM/provenance、双 Windows 正确性、真实 desktop/file/reconnect 和物理容量仍为 `not_run`。
+- RustPBX 完整 `.18` 补丁队列已在精确 `6c49ee76...` 源码上重放；rsipstack `8318e97...` 严格限制活动事务、finished retransmission state、入站事务队列和 TCP/TLS/WebSocket 连接，过载以 SIP 503 + `Retry-After` 或显式 outbound error 收口。RustPBX 同时接入有界 SIP、录音热路径、会话清理、实时语音旁路、异步 DNS、共享 HTTP keepalive、低基数指标、ServiceMonitor 与告警。`.18` 的锁定 Rust 1.94 Linux amd64 镜像已在四 vCPU 服务器构建；直连 RustPBX 和经 Kamailio 的两次 60 秒、1,000 CPS 严格回归均完成 60,000/60,000 呼叫、零失败、零剩余、零重传和 Router/CDR 精确一致，经 Kamailio 路径还保持 60,000 INVITE 精确一致及 P95/P99 8/19 ms。该证据只接受持续信令回归，不替代 RTP/PSTN/WSS、长稳、过载恢复、多节点边际效率、阻塞存储和 Cell-10K/MIX-100K 验收。
+- LiveKit participant token 现在携带签名的 interaction、reservation、node、owner epoch、placement generation 和 recovery metadata。普通刷新不迁移房间；terminal reconnect 只有在旧 owner 被权威状态判定为不可恢复时，才以旧 reservation/epoch 为 CAS 前置条件生成更高代 placement，并用 durable handoff 关闭旧 reservation。并发恢复收敛到同一代，且不会重复创建 Egress。房间首次打开 owner，后续 join、signal 和管理 mutation 只检查进程内 guard；续租最多每批 64 个 owner。覆盖层还会在 Prometheus、SignalClient 和 Router 初始化前，将内部 `currentNode.NodeID()` 设置为 `IVEKIT_COMPONENT_NODE_ID`，因此 Redis room routing、placement 和 sidecar checkpoint 使用同一稳定 ordinal。精确 `v1.13.4@0b3fd288...` 源码已在隔离 Linux amd64 服务器通过重复 overlay、Go 1.26.5 根/嵌套模块与 SFU race 测试、离线构建、非 root 身份和 fork marker smoke。3.62-3.66 ns/op 到 0.49-0.52 ns/op 的 downtrack 快照微基准属于历史 v1.13.3 证据，不自动转移到新版本；不可变 Registry 制品、真实 SFU 故障恢复、RTP/TURN 媒体和容量仍为 `not_run`。
+- Tinode 新 group topic 先持久化 Cell reservation，再直连被选中的 owner endpoint，由 ROOT 在 `desc.trusted.ivekit_placement` 写入 interaction、reservation、node 和 epoch；fork 在 actor 启动前开 owner，publish、typing/receipt 和 metadata mutation 只检查进程内 lease。续租最多每批 64 个 topic；owner open 失败会硬删除本次刚写入的 topic，避免孤儿绑定。`cluster_self`、ringhash 节点名、placement 和 sidecar checkpoint 共用稳定 StatefulSet ordinal。普通前台连接不再预分配后台 timer，background 状态用原子转换避免读写协程竞争；普通本地 group fanout 复用不可变消息，P2P、channel 和 cluster 仍保留独立 copy。精确 `v0.25.3@22a7c18...` 已通过重复 overlay、Go 1.26 server/race/嵌套模块测试；隔离服务器以不可变 builder/runtime、vendor 和 `--network=none` 构建 Linux amd64 非 root 候选并完成 fork marker smoke。Apple M5 单次消息准备微基准从 41.19-42.81 ns/op、240 B/op、2 allocs/op 降到 1.580-1.586 ns/op、0 B/op、0 allocs/op。该结果不是整机吞吐证明；多架构 workflow 已接入统一 gate 但未执行，不可变 Registry 制品、三节点重连、native client 收敛和容量仍为 `not_run`。
+- RustDesk gateway 在现有 session 创建流程中向 selected ordinal 预登记 target、reservation 和 owner epoch；hbbs 收到 `RequestRelay` 后先将 target 原子认领为 relay UUID，hbbr 在 UUID 配对前打开 owner。数据转发仍是上游 opaque byte pipe，仅复用原三秒 timer 做进程内 lease 判断；无 HTTP、数据库或 broker 调用进入帧复制。当前覆盖层固定 root `1.1.16@73523b31...` 与 `hbb_common@83419b6...`，已在干净源码重复应用并通过 `cargo test --locked --all-features`。relay 配对时只向全局 `USAGE` 注册一次 `Arc`，周期更新改为每会话 sequence-fenced atomics；TCP `BytesMut.freeze()` 与 WebSocket 原生 `Vec` 在同协议转发时直接移动，仅混合协议边界发生转换。三次 Apple M5 操作级基准来自已被替换的 1.1.15：usage 更新下界由 `34.14-35.41 ns/op` 降至 `3.53-3.59 ns/op`，64 KiB WebSocket 接收转发分配路径由 `4003.95-4084.75 ns/op` 降至 `1029.67-1168.72 ns/op`；它们只作为历史优化证据，不证明 1.1.16 relay 吞吐或节点容量。1.1.16 镜像 workflow、不可变 Registry digest、SBOM/签名/provenance、双 Windows 正确性、真实 desktop/file/reconnect 和物理容量仍为 `not_run`。
 - RustDesk Windows package v6 在 placement 启用时强制 native-control v2。command claim、progress/result/recover、operation observation、evidence context/correlation/upload 和 native close 都校验同一 interaction/reservation/owner epoch；companion 只重写当前 external session 的小状态分片，旧 epoch 不会触发原生 API、上传或 emergency restart。签名客户端制品、双 Windows owner handoff 与物理行为仍为 `not_run`。
 - Cell admission 的主备 lease 现在同时校验 topology SHA-256。节点顺序不影响指纹，但节点 ID、endpoint、控制 endpoint、状态、能力、profile 或容量变化都会产生新指纹；活动 lease 不匹配时保持待命，只有释放/过期后才以递增 epoch 接管。
 

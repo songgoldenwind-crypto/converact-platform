@@ -1,0 +1,103 @@
+{
+  "status": "passed",
+  "verification_scope": "controlled_server_tinode_protocol",
+  "generated_at": "2026-07-23T12:45:58Z",
+  "actual_tinode_process": true,
+  "actual_postgresql_process": true,
+  "production_capacity_evidence": false,
+  "full_performance_matrix_complete": false,
+  "capacity_claim": "none",
+  "observation_scope": "client_only",
+  "checks": [
+    {
+      "name": "tinode_protocol_and_worker_tests",
+      "status": "passed",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "name": "tinode_interaction_worker_real_endpoint",
+      "status": "passed"
+    },
+    {
+      "name": "tinode_connection_worker_real_endpoint",
+      "status": "passed"
+    },
+    {
+      "name": "typescript_capacity_worker",
+      "status": "passed"
+    },
+    {
+      "name": "validation_resources_removed",
+      "status": "passed"
+    },
+    {
+      "name": "led_containers_healthy",
+      "status": "passed",
+      "count": 7
+    }
+  ],
+  "tinode": {
+    "source_version": "v0.25.3",
+    "source_revision": "22a7c18e9cd695e9a061bf1b8c84175196ef5a15",
+    "image": "ivekit/tinode:v0.25.3-ivekit.3-22a7c18e-amd64",
+    "image_id": "sha256:6c83d13fc244b000b5bd0b2489a918b3fd4ac90bbab46039fea6656fa41b6650",
+    "runtime_user": "tinode",
+    "read_only_root_filesystem": true
+  },
+  "interaction": {
+    "status": "controlled_pass",
+    "attempted_interactions": 1,
+    "published_messages": 20,
+    "delivered_messages": 20,
+    "durable_message_loss": 0,
+    "duplicate_messages": 0,
+    "out_of_order_messages": 0,
+    "send_to_ack_p95_ms": 6.293,
+    "send_to_ack_p99_ms": 7.885,
+    "send_to_delivery_p95_ms": 6.25,
+    "send_to_delivery_p99_ms": 7.837,
+    "offline_recovery_messages": 5,
+    "offline_recovery_converged_out_of_order": 0,
+    "offline_recovery_wire_out_of_order": 4,
+    "offline_recovery_p99_ms": 79.027,
+    "quality_gate_passed": true,
+    "protocol_errors": 0
+  },
+  "connections": {
+    "status": "controlled_pass",
+    "attempted": 2,
+    "accepted": 2,
+    "active_peak": 2,
+    "closed": 2,
+    "presence_queries": 10,
+    "typing_notes": 10,
+    "protocol_errors": 0
+  },
+  "environment": {
+    "server": "64.225.122.227",
+    "postgres_image": "postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20",
+    "validation_resources_remaining": 0,
+    "led_container_count": 7,
+    "led_all_healthy": true
+  },
+  "source_sha256": {
+    "scripts/capacity/generators/tinode.ts": "d899f47efa2f2fb96535ab205f6825b597b8cac6932e7ca8f7eabe50f78e346d",
+    "scripts/capacity/generators/tinode-worker.ts": "3b59a039f1e7c7f11d611ee8bb9fedcfa5f62080b2b383e65903155c78db0a03",
+    "scripts/ivekit-capacity-tinode-worker.ts": "02583c6ff78df6fb804468a906e9406b2c4307c6a21a03de112d40aa1745873b",
+    "test/ivekit-capacity-tinode-generator.test.ts": "11042a97e24e0eeb5516d822862222ee5c20350ef8558c4c831dfc9f4e3ac209",
+    "test/ivekit-capacity-tinode-worker.test.ts": "af11e51738af9920cd53a0874ae00ccc4db0e3c94f9aca35c0744b4d54979f3c",
+    "infra/capacity/Dockerfile": "30740a44b192d82e571e065fb23de7d9f05a1e88056d7cc84fb999cece1f9eff",
+    "infra/capacity/tsconfig.json": "a0f077251c1bb9703dea9bcbc11ec05334c9ca7edb350c9f6200d5710a0e4b42"
+  },
+  "not_run": [
+    "Tinode single-node capacity frontier",
+    "Tinode multi-node failover and long-duration soak",
+    "LiveKit audio and video media collectors",
+    "SIP and RTP media-quality collectors",
+    "RustDesk dual-Windows input-to-photon collector",
+    "packet loss, jitter, bandwidth and network handoff matrix",
+    "one, two, four and eight node scaling efficiency",
+    "Cell-10K and MIX-100K finalizers"
+  ]
+}

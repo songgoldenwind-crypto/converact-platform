@@ -41,14 +41,23 @@ const POLICY_FIELDS = new Set([
   'asr_enabled',
   'quality_review_enabled',
   'translation_enabled',
+  'realtime_speech_enabled',
+  'tts_enabled',
+  'model_gateway_enabled',
   'ocr_profile_id',
   'asr_profile_id',
   'quality_profile_id',
   'translation_profile_id',
+  'realtime_speech_profile_id',
+  'tts_profile_id',
+  'model_gateway_profile_id',
   'ocr_profile_ids',
   'asr_profile_ids',
   'quality_profile_ids',
   'translation_profile_ids',
+  'realtime_speech_profile_ids',
+  'tts_profile_ids',
+  'model_gateway_profile_ids',
   'allow_third_party',
   'auto_ocr',
   'auto_asr',
@@ -327,6 +336,21 @@ function publicCapabilities(
         policy.translation_enabled,
         policy.auto_translation,
         policy.translation_profile_ids
+      ),
+      realtime_speech: capability(
+        policy.realtime_speech_enabled,
+        false,
+        policy.realtime_speech_profile_ids
+      ),
+      tts: capability(
+        policy.tts_enabled,
+        false,
+        policy.tts_profile_ids
+      ),
+      model_gateway: capability(
+        policy.model_gateway_enabled,
+        false,
+        policy.model_gateway_profile_ids
       )
     },
     translation_target_languages: policy.translation_target_languages,

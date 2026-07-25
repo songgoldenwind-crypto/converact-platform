@@ -890,7 +890,7 @@ IVR 事件由会话提交后的统一投影器生成。普通 session HTTP、Rus
 - `acceptance/tools/ivekit-voice-acceptance.ts`：真实环境报告 validator 源码，可在交付环境中执行；拒绝 controlled/mock/Playwright/synthetic 证据。
 - `acceptance/voice-real-template.json`：绑定交付包 source commit、故意保持 `incomplete` 的 45 项真实验收模板。
 - `acceptance/voice-real-runbook.md`：RustPBX、SIP/PSTN、WebPhone/RTP、IVR、Realtime AI、LiveKit SIP bridge、Contact Center、恢复、隔离和性能的采证顺序。
-- `acceptance/rustpbx/`：无需 TypeScript runtime 的 Management、RWI/AMI reconciliation 和 SIPp JavaScript runner、独立 `package-lock.json`、Router/CDR fixture 与 15 个 SIPp XML；先在该目录执行 `npm ci --omit=dev --ignore-scripts` 安装锁定的 `ws@8.21.0`，SIPp 二进制由执行环境提供并在运行前校验固定 SHA-256。
+- `acceptance/rustpbx/`：无需 TypeScript runtime 的 Management、RWI/AMI reconciliation 和 SIPp JavaScript runner、独立 `package-lock.json`、Router/CDR fixture 与 15 个 SIPp XML；先在该目录执行 `npm ci --omit=dev --ignore-scripts` 安装锁定的 `ws@8.21.1`，SIPp 二进制由执行环境提供并在运行前校验固定 SHA-256。
 - `manifest.json`：直接声明 `voice_preflight`、`voice_compose`、`voice_helm` 和 RustPBX provider ownership；`real_environment_acceptance.rustpbx` 固定为 `not_run`，直到 source-bound 真实证据完成。
 
 ## 18. 兼容迁移

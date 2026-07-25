@@ -406,6 +406,7 @@ test('RustPBX recording spool provider routes derive tenant from auth and keep b
 test('RustPBX router webhook creates the authoritative inbound call before routing', async () => {
   const order: string[] = [];
   const inbound: Array<Record<string, unknown>> = [];
+  const authorizations: Array<Record<string, unknown>> = [];
   const module = {
     configuration_repository: {
       async getProfile(tenantId: string, profileId: string) {
@@ -469,12 +470,28 @@ test('RustPBX router webhook creates the authoritative inbound call before routi
             method: 'service_key'
           };
         }
-      } as never
+      } as never,
+      realtime_audio_tap_authorizer: {
+        async authorize(input) {
+          order.push('authorize-audio-tap');
+          authorizations.push({ ...input });
+          return 'tap-token-a-0000000000000000000000';
+        }
+      }
     }
-  ) as { data: { action: string } };
+  ) as { data: { action: string; headers: Record<string, string> } };
 
   assert.equal(result.data.action, 'forward');
-  assert.deepEqual(order, ['create-inbound', 'route']);
+  assert.equal(
+    result.data.headers['x-ivekit-audio-tap-token'],
+    'tap-token-a-0000000000000000000000'
+  );
+  assert.deepEqual(order, ['create-inbound', 'route', 'authorize-audio-tap']);
+  assert.deepEqual(authorizations, [{
+    tenant_id: 'tenant-secure',
+    interaction_id: 'call-inbound-a',
+    media_session_id: 'provider-inbound-a'
+  }]);
   assert.deepEqual(inbound, [{
     tenant_id: 'tenant-secure',
     profile_id: 'profile-a',
@@ -502,6 +519,7 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
   const order: string[] = [];
   const inbound: Array<Record<string, unknown>> = [];
   const reconciled: Array<Record<string, unknown>> = [];
+  const authorizations: Array<Record<string, unknown>> = [];
   const module = {
     configuration_repository: {
       async getProfile(tenantId: string, profileId: string) {
@@ -592,6 +610,13 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
           secret_refs: {},
           method: 'service_key'
         }
+      },
+      realtime_audio_tap_authorizer: {
+        async authorize(input) {
+          order.push('authorize-audio-tap');
+          authorizations.push({ ...input });
+          return 'tap-token-snapshot-a-000000000000000000';
+        }
       }
     }
   ) as {
@@ -604,6 +629,7 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
       owner_epoch: string;
       cell_id: string;
       owner_node_id: string;
+      audio_tap_token: string;
     };
     afterCommit?: () => Promise<void>;
   };
@@ -616,9 +642,15 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     reservation_id: 'reservation-voice-a',
     owner_epoch: '12884901889',
     cell_id: 'cell-a',
-    owner_node_id: 'rustpbx-a'
+    owner_node_id: 'rustpbx-a',
+    audio_tap_token: 'tap-token-snapshot-a-000000000000000000'
   });
-  assert.deepEqual(order, ['create-inbound']);
+  assert.deepEqual(order, ['create-inbound', 'authorize-audio-tap']);
+  assert.deepEqual(authorizations, [{
+    tenant_id: 'tenant-secure',
+    interaction_id: 'vcall-snapshot-a',
+    media_session_id: 'provider-snapshot-a'
+  }]);
   assert.equal(inbound[0]?.metadata &&
     (inbound[0].metadata as Record<string, unknown>).source,
   'rustpbx_snapshot_admission');
@@ -628,6 +660,98 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
   assert.equal(reconciled[0]?.tenant_id, 'tenant-secure');
   assert.equal(reconciled[0]?.interaction_id, 'vcall-snapshot-a');
   assert.match(String(reconciled[0]?.worker_id), /^voice:[a-f0-9]{32}$/);
+});
+
+test('Voice HTTP manages explicit realtime audio tap grants for an authoritative call', async (t) => {
+  const auth = installJwtAuth(t);
+  const operations: Array<{ operation: string; input: Record<string, unknown> }> = [];
+  const module = {
+    calls: {
+      async getCall(tenantId: string, callId: string) {
+        return { id: callId, tenant_id: tenantId, state: 'ringing' };
+      }
+    }
+  } as unknown as VoiceHttpModule;
+  const grants = {
+    async grant(input: Record<string, unknown>) {
+      operations.push({ operation: 'grant', input });
+      return {
+        grant: { id: 'tap-grant-a', ...input, status: 'active', revision: 1 },
+        replayed: false
+      };
+    },
+    async list(input: Record<string, unknown>) {
+      operations.push({ operation: 'list', input });
+      return { items: [{ id: 'tap-grant-a' }], next_cursor: null };
+    },
+    async revoke(input: Record<string, unknown>) {
+      operations.push({ operation: 'revoke', input });
+      return { id: 'tap-grant-a', status: 'revoked', revision: 2 };
+    }
+  };
+  const invoke = (
+    method: string,
+    path: string,
+    body: Record<string, unknown> = {},
+    headers: Record<string, string> = {}
+  ) => routeIveKitVoiceApi(
+    null,
+    method,
+    path,
+    new URL(`http://localhost${path}`),
+    body,
+    JSON.stringify(body),
+    {
+      authorization: `Bearer ${auth.token}`,
+      ...headers
+    },
+    {
+      module,
+      realtime_audio_tap_grants: grants as never
+    }
+  ) as Promise<{ status?: number; data: unknown }>;
+
+  const created = await invoke(
+    'POST',
+    '/api/ivekit/voice/calls/call-a/realtime-audio-tap-grants',
+    {
+      media_session_id: 'sip-call-a',
+      purpose: 'live_translation',
+      consent_ref: 'consent-a',
+      source_language: 'zh-CN',
+      target_languages: ['en-US'],
+      features: ['streaming_asr', 'streaming_translation'],
+      tracks: [
+        { leg: 'caller', participant_id: 'customer-a', track_id: 'call-a:caller' }
+      ],
+      expires_at: '2026-07-23T04:30:00.000Z'
+    },
+    { 'idempotency-key': 'grant-call-a' }
+  );
+  assert.equal(created.status, 201);
+  assert.equal((created.data as { grant: { id: string } }).grant.id, 'tap-grant-a');
+
+  const listed = await invoke(
+    'GET',
+    '/api/ivekit/voice/calls/call-a/realtime-audio-tap-grants'
+  );
+  assert.deepEqual(listed.data, {
+    items: [{ id: 'tap-grant-a' }],
+    next_cursor: null
+  });
+
+  const revoked = await invoke(
+    'POST',
+    '/api/ivekit/voice/calls/call-a/realtime-audio-tap-grants/tap-grant-a/revoke',
+    { revision: 1, reason: 'customer_withdrew_consent' }
+  );
+  assert.equal((revoked.data as { status: string }).status, 'revoked');
+  assert.deepEqual(operations.map((entry) => entry.operation), ['grant', 'list', 'revoke']);
+  assert.equal(operations[0]?.input.tenant_id, 'tenant-auth');
+  assert.equal(operations[0]?.input.interaction_id, 'call-a');
+  assert.equal(operations[0]?.input.actor, 'user-auth');
+  assert.equal(operations[0]?.input.idempotency_key, 'grant-call-a');
+  assert.equal(operations[2]?.input.grant_id, 'tap-grant-a');
 });
 
 test('Voice HTTP exposes the complete configuration call evidence and bridge route matrix', async (t) => {

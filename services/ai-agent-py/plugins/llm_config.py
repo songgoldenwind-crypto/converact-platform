@@ -6,34 +6,50 @@ from config import (
     DEEPSEEK_MODEL,
     LLM_API_KEY,
     LLM_BASE_URL,
+    LLM_FALLBACK_PROVIDERS,
     LLM_MODEL,
     is_fallback_llm_configured,
     is_primary_llm_configured,
     parse_llm_extra_body,
 )
+from plugins.provider_runtime import normalize_provider_order, wrap_llm_candidates
+
+_ALLOWED_PROVIDERS = {"primary", "deepseek"}
 
 
 def get_llm():
-    """Return LiveKit OpenAI-compatible LLM for voice sessions.
+    order = normalize_provider_order(
+        "primary",
+        LLM_FALLBACK_PROVIDERS,
+        allowed=_ALLOWED_PROVIDERS,
+        capability="LLM",
+    )
+    candidates = [
+        (provider, instance)
+        for provider in order
+        if (instance := _create_llm(provider)) is not None
+    ]
+    return wrap_llm_candidates(candidates)
 
-    Uses primary (27B) when LLM_API_KEY+LLM_BASE_URL are set; otherwise DeepSeek.
-    ``extra_body`` is supported by livekit.plugins.openai.LLM (>=1.0) for
-    provider-specific fields such as ``chat_template_kwargs.enable_thinking``.
-    """
-    if is_primary_llm_configured():
-        api_key, base_url, model = LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
-    elif is_fallback_llm_configured():
-        api_key, base_url, model = DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
-    else:
-        raise RuntimeError(
-            "Set LLM_API_KEY+LLM_BASE_URL (primary) and/or DEEPSEEK_API_KEY (fallback)"
-        )
 
+def _create_llm(provider: str):
     from livekit.plugins import openai
 
-    return openai.LLM(
-        model=model,
-        base_url=base_url,
-        api_key=api_key,
-        extra_body=parse_llm_extra_body(),
-    )
+    if provider == "primary":
+        if not is_primary_llm_configured():
+            return None
+        return openai.LLM(
+            model=LLM_MODEL,
+            base_url=LLM_BASE_URL,
+            api_key=LLM_API_KEY,
+            extra_body=parse_llm_extra_body(),
+        )
+    if provider == "deepseek":
+        if not is_fallback_llm_configured():
+            return None
+        return openai.LLM(
+            model=DEEPSEEK_MODEL,
+            base_url=DEEPSEEK_BASE_URL,
+            api_key=DEEPSEEK_API_KEY,
+        )
+    return None

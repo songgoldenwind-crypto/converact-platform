@@ -38,7 +38,7 @@ test('LiveKit SIP factory resolves refs only for client construction and preflig
   const preflight = await adapter.preflight({ sip_trunk_provider_ref: 'trunk-a' });
 
   assert.equal(preflight.ready, true);
-  assert.equal(preflight.provider_version, '2.15.4');
+  assert.equal(preflight.provider_version, '2.17.0');
   assert.deepEqual(resolved, [
     { ref: 'env://LIVEKIT_SIP_API_KEY', purpose: 'livekit_sip_api_key' },
     { ref: 'env://LIVEKIT_SIP_API_SECRET', purpose: 'livekit_sip_api_secret' }

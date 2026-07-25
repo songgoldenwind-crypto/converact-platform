@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 1s
+  scrape_timeout: 500ms
+  evaluation_interval: 1s
+  external_labels:
+    environment: ivekit-controlled-acceptance
+
+remote_write:
+  - name: ivekit-victoria-metrics
+    url: http://victoria-metrics:8428/api/v1/write
+    remote_timeout: 2s
+    queue_config:
+      capacity: 1000
+      min_shards: 1
+      max_shards: 2
+      max_samples_per_send: 100
+      batch_send_deadline: 1s
+      min_backoff: 100ms
+      max_backoff: 1s
+
+scrape_configs:
+  - job_name: ivekit-victoria-metrics-acceptance
+    static_configs:
+      - targets: [source:9100]

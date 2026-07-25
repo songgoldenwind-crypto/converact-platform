@@ -14,6 +14,7 @@ test('RustPBX baseline keeps production authentication and an isolated topology'
   const runner = readFileSync(join(root, 'run.sh'), 'utf8');
 
   assert.match(compose, /RUSTPBX_IMAGE:\?RUSTPBX_IMAGE/);
+  assert.match(compose, /KAMAILIO_IMAGE:\?KAMAILIO_IMAGE/);
   assert.match(compose, /POSTGRES_IMAGE:\?POSTGRES_IMAGE/);
   assert.match(compose, /PYTHON_IMAGE:\?PYTHON_IMAGE/);
   assert.match(compose, /CAPACITY_TOOLS_IMAGE:\?CAPACITY_TOOLS_IMAGE/);
@@ -41,7 +42,7 @@ test('RustPBX baseline keeps production authentication and an isolated topology'
   assert.match(runner, /router_delta/);
   assert.match(runner, /cdr_delta/);
   assert.match(runner, /successful_calls/);
-  assert.match(runner, /result != expected/);
+  assert.match(runner, /result\.get\(name\) != expected_value/);
   assert.equal(spawnSync('bash', ['-n', join(root, 'run.sh')]).status, 0);
 });
 
@@ -52,7 +53,8 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
     encoding: 'utf8',
     env: {
       ...process.env,
-      RUSTPBX_IMAGE: 'ivekit/rustpbx:0.4.11-ivekit.16-6c49ee76',
+      RUSTPBX_IMAGE: 'ivekit/rustpbx:0.4.11-ivekit.21-6c49ee76',
+      KAMAILIO_IMAGE: 'ivekit/kamailio:6.0.7-ivekit.1',
       POSTGRES_IMAGE: 'postgres@sha256:' + 'a'.repeat(64),
       PYTHON_IMAGE: 'python@sha256:' + 'b'.repeat(64),
       CAPACITY_TOOLS_IMAGE: 'ivekit/capacity-tools:test'
@@ -68,6 +70,7 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
   assert.doesNotMatch(config, /\{\{[A-Z0-9_]+\}\}/);
   assert.doesNotMatch(result.stdout, /RUSTPBX_(?:DB_PASSWORD|MANAGEMENT_TOKEN|RWI_TOKEN|WEBHOOK_TOKEN)=/);
   assert.match(env, /^COMPOSE_PROJECT_NAME=ivekit-rustpbx-baseline$/m);
-  assert.match(env, /^RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.16-6c49ee76$/m);
+  assert.match(env, /^RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.21-6c49ee76$/m);
+  assert.match(env, /^KAMAILIO_IMAGE=ivekit\/kamailio:6\.0\.7-ivekit\.1$/m);
   assert.match(env, /^CAPACITY_TOOLS_IMAGE=ivekit\/capacity-tools:test$/m);
 });

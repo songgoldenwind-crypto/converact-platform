@@ -35,6 +35,71 @@ groups:
           summary: "LLM error rate > 10%"
           description: "LLM API error rate is {{ $value | humanizePercentage }}."
 
+      - alert: AIVoiceASRFinalLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(opc_ai_voice_stage_latency_seconds_bucket{stage="asr_final"}[5m])) by (le, media_source)
+          ) > 0.35
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ASR final P95 latency exceeds 350ms"
+
+      - alert: AIVoiceEndOfTurnLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(opc_ai_voice_stage_latency_seconds_bucket{stage="end_of_turn"}[5m])) by (le, media_source)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "End-of-turn P95 latency exceeds 500ms"
+
+      - alert: AIVoiceLLMFirstTokenLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(opc_ai_voice_stage_latency_seconds_bucket{stage="llm_first_token"}[5m])) by (le, media_source)
+          ) > 0.35
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM first-token P95 latency exceeds 350ms"
+
+      - alert: AIVoiceTTSFirstAudioLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(opc_ai_voice_stage_latency_seconds_bucket{stage="tts_first_audio"}[5m])) by (le, media_source)
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TTS first-audio P95 latency exceeds 300ms"
+
+      - alert: AIVoiceSpeechToSpeechLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(opc_ai_voice_stage_latency_seconds_bucket{stage="speech_to_speech"}[5m])) by (le, media_source)
+          ) > 1.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Speech-to-speech P95 latency exceeds 1.2s"
+
+      - alert: AIVoiceProviderUnavailable
+        expr: |
+          sum by (capability, provider) (
+            increase(opc_ai_voice_provider_transitions_total{state="unavailable"}[5m])
+          ) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI voice {{ $labels.capability }} provider {{ $labels.provider }} became unavailable"
+
       - alert: LowQMScore
         expr: |
           histogram_quantile(0.5,

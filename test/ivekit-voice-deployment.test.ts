@@ -148,6 +148,8 @@ test('RustPBX renderer accepts only immutable PostgreSQL production inputs', () 
     ['RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY', '0'],
     ['RUSTPBX_MEDIA_RECORDING_WORKER_THREADS', '65'],
     ['RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY', '0'],
+    ['RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY', '0'],
+    ['RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS', '1001'],
     ['RUSTPBX_CALL_RECORD_MAX_CONCURRENT', '4097'],
     ['RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY', '262145'],
     ['RUSTPBX_CALL_RECORD_WORKER_THREADS', '17']
@@ -176,6 +178,9 @@ test('RustPBX renderer emits a usable config and a secret-free summary', () => {
   assert.match(rendered.config, /media_recording_channel_capacity = 256/);
   assert.match(rendered.config, /media_recording_worker_threads = 4/);
   assert.match(rendered.config, /media_recording_worker_queue_capacity = 4096/);
+  assert.match(rendered.config, /realtime_audio_tap_socket_path = "\/run\/ivekit\/realtime-audio-tap\.sock"/);
+  assert.match(rendered.config, /realtime_audio_tap_channel_capacity = 256/);
+  assert.match(rendered.config, /realtime_audio_tap_send_timeout_ms = 10/);
   assert.match(rendered.config, /max_concurrent = 64/);
   assert.match(rendered.config, /channel_capacity = 65536/);
   assert.match(rendered.config, /worker_threads = 1/);
@@ -219,6 +224,9 @@ test('RustPBX renderer emits a usable config and a secret-free summary', () => {
     media_recording_channel_capacity: 256,
     media_recording_worker_threads: 4,
     media_recording_worker_queue_capacity: 4096,
+    realtime_audio_tap_enabled: true,
+    realtime_audio_tap_channel_capacity: 256,
+    realtime_audio_tap_send_timeout_ms: 10,
     call_record_max_concurrent: 64,
     call_record_channel_capacity: 65536,
     call_record_worker_threads: 1,
@@ -239,6 +247,9 @@ test('RustPBX renderer accepts profile-tuned bounded SIP capacity', () => {
     RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: '1024',
     RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: '8',
     RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: '8192',
+    RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: '/run/ivekit/custom-audio-tap.sock',
+    RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY: '2048',
+    RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS: '25',
     RUSTPBX_CALL_RECORD_MAX_CONCURRENT: '512',
     RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY: '131072',
     RUSTPBX_CALL_RECORD_WORKER_THREADS: '3'
@@ -253,6 +264,9 @@ test('RustPBX renderer accepts profile-tuned bounded SIP capacity', () => {
   assert.match(rendered.config, /media_recording_channel_capacity = 1024/);
   assert.match(rendered.config, /media_recording_worker_threads = 8/);
   assert.match(rendered.config, /media_recording_worker_queue_capacity = 8192/);
+  assert.match(rendered.config, /realtime_audio_tap_socket_path = "\/run\/ivekit\/custom-audio-tap\.sock"/);
+  assert.match(rendered.config, /realtime_audio_tap_channel_capacity = 2048/);
+  assert.match(rendered.config, /realtime_audio_tap_send_timeout_ms = 25/);
   assert.match(rendered.config, /max_concurrent = 512/);
   assert.match(rendered.config, /channel_capacity = 131072/);
   assert.match(rendered.config, /worker_threads = 3/);

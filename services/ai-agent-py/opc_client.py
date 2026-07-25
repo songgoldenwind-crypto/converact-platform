@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import quote
 
 import httpx
 
@@ -19,12 +20,19 @@ class OPCClient:
         }
         self.client = httpx.AsyncClient(timeout=10.0)
 
-    async def _request_json(self, method: str, path: str, *, json_body: dict | None = None) -> dict:
+    async def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: dict | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict:
         response = await self.client.request(
             method,
             f"{self.base_url}{path}",
             json=json_body,
-            headers=self.headers,
+            headers={**self.headers, **(extra_headers or {})},
         )
         response.raise_for_status()
         payload = response.json()
@@ -32,6 +40,27 @@ class OPCClient:
             data = payload["data"]
             return data if isinstance(data, dict) else {"data": data}
         return payload if isinstance(payload, dict) else {"data": payload}
+
+    async def authorize_livekit_audio_tap(
+        self,
+        *,
+        tenant_id: str,
+        call_id: str,
+        participant_id: str,
+        track_id: str,
+    ) -> dict:
+        return await self._request_json(
+            "POST",
+            (
+                f"/api/ivekit/media/calls/{quote(call_id, safe='')}"
+                "/realtime-audio-tap-authorizations"
+            ),
+            json_body={
+                "participant_id": participant_id,
+                "track_id": track_id,
+            },
+            extra_headers={"X-Tenant-Id": tenant_id},
+        )
 
     async def get_voice_agent_spec(self, spec_id: str) -> dict | None:
         try:
@@ -45,14 +74,27 @@ class OPCClient:
             logger.warning("failed to fetch voice agent spec %s: %s", spec_id, error)
             return None
 
-    async def report_turn(self, call_session_id: str, role: str, content: str) -> None:
+    async def report_turn(
+        self,
+        call_session_id: str,
+        role: str,
+        content: str,
+        *,
+        stt_confidence: float | None = None,
+        latency_ms: int | None = None,
+    ) -> None:
         if not call_session_id:
             return
+        payload = {"role": role, "content": content}
+        if stt_confidence is not None:
+            payload["stt_confidence"] = stt_confidence
+        if latency_ms is not None:
+            payload["latency_ms"] = latency_ms
         try:
             await self._request_json(
                 "POST",
                 f"/api/call-center/calls/{call_session_id}/turns",
-                json_body={"role": role, "content": content},
+                json_body=payload,
             )
         except httpx.HTTPError as error:
             logger.warning("failed to report turn for %s: %s", call_session_id, error)

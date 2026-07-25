@@ -1,0 +1,143 @@
+{{- if .Values.monitoring.sipExporter.enabled }}
+{{- $exporter := .Values.monitoring.sipExporter -}}
+{{- $_ := required "monitoring.sipExporter.interface is required" $exporter.interface -}}
+{{- if empty $exporter.nodeSelector -}}
+{{- fail "monitoring.sipExporter.nodeSelector must select only voice nodes" -}}
+{{- end -}}
+{{- if eq (int $exporter.sipPort) (int $exporter.sipsPort) -}}
+{{- fail "monitoring.sipExporter.sipPort and sipsPort must differ" -}}
+{{- end -}}
+{{- $image := include "ivekit.sipExporterImage" . -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "ivekit.sipExporterFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sip-exporter
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sip-exporter
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: sip-exporter
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 15
+      nodeSelector:
+        {{- toYaml $exporter.nodeSelector | nindent 8 }}
+      {{- with $exporter.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: sip-exporter
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ $exporter.image.pullPolicy }}
+          env:
+            - name: SIP_EXPORTER_INTERFACE
+              value: {{ $exporter.interface | quote }}
+            - name: SIP_EXPORTER_HTTP_PORT
+              value: {{ $exporter.httpPort | quote }}
+            - name: SIP_EXPORTER_SIP_PORT
+              value: {{ $exporter.sipPort | quote }}
+            - name: SIP_EXPORTER_SIPS_PORT
+              value: {{ $exporter.sipsPort | quote }}
+            - name: SIP_EXPORTER_RTP_CAPTURE
+              value: {{ $exporter.rtpCapture | quote }}
+            - name: SIP_EXPORTER_RTP_STREAM_TTL
+              value: {{ $exporter.rtpStreamTtl | quote }}
+            - name: SIP_EXPORTER_IGNORE_OUTGOING
+              value: {{ $exporter.ignoreOutgoing | quote }}
+            - name: SIP_EXPORTER_HOST_LABELS
+              value: {{ $exporter.hostLabels | quote }}
+            - name: SIP_EXPORTER_TELEMETRY
+              value: {{ $exporter.telemetry | quote }}
+          ports:
+            - name: metrics
+              containerPort: {{ $exporter.httpPort }}
+              protocol: TCP
+          securityContext:
+            privileged: false
+            runAsNonRoot: false
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+              add: ["BPF", "NET_ADMIN", "NET_RAW"]
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml $exporter.resources | nindent 12 }}
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/sip-exporter
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: state
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ivekit.sipExporterFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sip-exporter
+spec:
+  selector:
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: sip-exporter
+  ports:
+    - name: metrics
+      port: {{ $exporter.httpPort }}
+      targetPort: metrics
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ivekit.sipExporterFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sip-exporter
+    {{- with .Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: sip-exporter
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}
+{{- end }}

@@ -24,7 +24,7 @@ export interface RustDeskClientProfilePackConfig {
   apiKey: string;
   tenantId: string;
   userId?: string;
-  expectedServerVersion: '1.1.15';
+  expectedServerVersion: '1.1.16';
   expectedServerKeyFingerprint: string;
 }
 
@@ -36,8 +36,8 @@ export interface RustDeskClientProfilePack {
   schema_version: 1;
   title: string;
   ready: boolean;
-  client_version: '1.4.7';
-  server_version: '1.1.15';
+  client_version: '1.4.9';
+  server_version: '1.1.16';
   generated_at: string;
   expires_at: string;
   manual_fields: RustDeskClientDistributionProfile['manual_fields'];
@@ -86,8 +86,8 @@ export function createRustDeskClientProfilePackConfigFromEnv(
     env.OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION,
     'OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_SERVER_VERSION is required'
   );
-  if (expectedServerVersion !== '1.1.15') {
-    throw new Error('RustDesk client profile expected server version must equal 1.1.15');
+  if (expectedServerVersion !== '1.1.16') {
+    throw new Error('RustDesk client profile expected server version must equal 1.1.16');
   }
   const expectedServerKeyFingerprint = requiredString(
     env.OPC_RUSTDESK_CLIENT_PROFILE_EXPECTED_FINGERPRINT,
@@ -107,7 +107,7 @@ export function createRustDeskClientProfilePackConfigFromEnv(
     apiKey,
     tenantId,
     ...(userId ? { userId } : {}),
-    expectedServerVersion: '1.1.15',
+    expectedServerVersion: '1.1.16',
     expectedServerKeyFingerprint
   };
 }
@@ -125,8 +125,8 @@ export async function buildRustDeskClientProfilePack(
   if (!String(config.expectedServerVersion || '').trim()) {
     throw new Error('RustDesk client profile expected server version is required');
   }
-  if (config.expectedServerVersion !== '1.1.15') {
-    throw new Error('RustDesk client profile expected server version must equal 1.1.15');
+  if (config.expectedServerVersion !== '1.1.16') {
+    throw new Error('RustDesk client profile expected server version must equal 1.1.16');
   }
   if (!String(config.expectedServerKeyFingerprint || '').trim()) {
     throw new Error('RustDesk client profile expected server key fingerprint is required');
@@ -140,7 +140,7 @@ export async function buildRustDeskClientProfilePack(
   for (const target of TARGETS) {
     const input: GetIveKitRustDeskClientProfileInput = {
       ...target,
-      client_version: '1.4.7',
+      client_version: '1.4.9',
       expected_server_version: config.expectedServerVersion,
       expected_server_key_fingerprint: config.expectedServerKeyFingerprint
     };
@@ -196,8 +196,8 @@ export async function buildRustDeskClientProfilePack(
     schema_version: 1,
     title: config.title,
     ready: missingTargets.length === 0,
-    client_version: '1.4.7',
-    server_version: '1.1.15',
+    client_version: '1.4.9',
+    server_version: '1.1.16',
     generated_at: generatedAt.toISOString(),
     expires_at: expiresAt,
     manual_fields: first.manual_fields,

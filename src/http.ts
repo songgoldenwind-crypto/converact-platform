@@ -376,6 +376,7 @@ async function route(
       ? (recording, context) => recordMediaRecordingEvidence(pg, recording, context)
       : undefined,
     onRecordingAudit: (event) => recordMediaAudit(db, event),
+    onIngressAudit: (event) => recordIngressAudit(db, event),
     resolveRecordingRetentionDays: (tenantId) => getComplianceSettings(db, tenantId).recording_retention_days,
     onRecordingDeleted: pg
       ? (recording, context) => markMediaRecordingEvidenceDeleted(pg, recording, {
@@ -643,6 +644,24 @@ function recordMediaAudit(db, event) {
     action,
     object_type: 'media_recording',
     object_id: recording_id,
+    metadata
+  });
+}
+
+function recordIngressAudit(db, event) {
+  const {
+    tenant_id,
+    actor_id,
+    action,
+    ingress_id,
+    ...metadata
+  } = event;
+  auditCallCenterAction(db, {
+    tenant_id,
+    actor_id,
+    action,
+    object_type: 'livekit_ingress',
+    object_id: ingress_id,
     metadata
   });
 }

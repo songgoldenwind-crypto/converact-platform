@@ -8,13 +8,14 @@ COMPOSE_FILE="$ROOT_DIR/services/ivekit-service/docker-compose.yml"
 COMPOSE_ENV="$ROOT_DIR/services/ivekit-service/env.example"
 KAMAILIO_VALUES_FILE="$ROOT_DIR/test/fixtures/ivekit-kamailio-values.yaml"
 RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-helm.XXXXXX.yaml")
+CLAMAV_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-clamav.XXXXXX.yaml")
 KAMAILIO_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-kamailio.XXXXXX.yaml")
 EGRESS_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-egress.XXXXXX.yaml")
 FOUNDATION_RENDERED_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-foundation.XXXXXX.yaml")
 PLATFORM_IMAGE_VALUES_FILE=$(mktemp "${TMPDIR:-/tmp}/ivekit-stage2-platform-images.XXXXXX.yaml")
 
 cleanup() {
-  rm -f "$RENDERED_FILE" "$KAMAILIO_RENDERED_FILE" "$EGRESS_RENDERED_FILE" "$FOUNDATION_RENDERED_FILE" "$PLATFORM_IMAGE_VALUES_FILE"
+  rm -f "$RENDERED_FILE" "$CLAMAV_RENDERED_FILE" "$KAMAILIO_RENDERED_FILE" "$EGRESS_RENDERED_FILE" "$FOUNDATION_RENDERED_FILE" "$PLATFORM_IMAGE_VALUES_FILE"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -72,25 +73,41 @@ EOF
 helm lint "$CHART_DIR" \
   --set-string image.repository=registry.example.invalid/ivekit/service \
   --set-string image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  --set-string clamav.image.repository=clamav/clamav \
-  --set-string clamav.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
   --set-string secrets.existingSecret=ivekit-runtime
 
 helm template ivekit "$CHART_DIR" \
   --set-string image.repository=registry.example.invalid/ivekit/service \
   --set-string image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  --set-string clamav.image.repository=clamav/clamav \
-  --set-string clamav.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
   --set-string secrets.existingSecret=ivekit-runtime \
   >"$RENDERED_FILE"
 
 test -s "$RENDERED_FILE"
 grep -q 'registry.example.invalid/ivekit/service@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$RENDERED_FILE"
-grep -q 'clamav/clamav@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$RENDERED_FILE"
 grep -q 'app.kubernetes.io/component: api' "$RENDERED_FILE"
-grep -q 'app.kubernetes.io/component: clamav' "$RENDERED_FILE"
-grep -q 'kind: PersistentVolumeClaim' "$RENDERED_FILE"
 grep -q 'type: ClusterIP' "$RENDERED_FILE"
+if grep -q 'app.kubernetes.io/component: clamav' "$RENDERED_FILE"; then
+  printf '%s\n' 'minimal core unexpectedly rendered ClamAV' >&2
+  exit 1
+fi
+
+helm template ivekit-clamav "$CHART_DIR" \
+  --set-string image.repository=registry.example.invalid/ivekit/service \
+  --set-string image.digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --set clamav.enabled=true \
+  --set-string clamav.image.repository=clamav/clamav \
+  --set-string clamav.image.digest=sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --set-string secrets.existingSecret=ivekit-runtime \
+  >"$CLAMAV_RENDERED_FILE"
+
+grep -q 'clamav/clamav@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' "$CLAMAV_RENDERED_FILE"
+grep -q 'app.kubernetes.io/component: clamav' "$CLAMAV_RENDERED_FILE"
+grep -q 'kind: StatefulSet' "$CLAMAV_RENDERED_FILE"
+grep -q 'podManagementPolicy: Parallel' "$CLAMAV_RENDERED_FILE"
+grep -q 'volumeClaimTemplates:' "$CLAMAV_RENDERED_FILE"
+grep -q 'kind: PodDisruptionBudget' "$CLAMAV_RENDERED_FILE"
+grep -q 'kind: NetworkPolicy' "$CLAMAV_RENDERED_FILE"
+grep -q 'clusterIP: None' "$CLAMAV_RENDERED_FILE"
+grep -q 'signatureMaxAgeMinutes must be at least 60' "$CHART_DIR/templates/clamav.yaml"
 
 helm lint "$CHART_DIR" --values "$KAMAILIO_VALUES_FILE"
 helm template ivekit-kamailio "$CHART_DIR" \
@@ -294,6 +311,8 @@ grep -q 'IVEKIT_EGRESS_POOL_NAME' "$EGRESS_RENDERED_FILE"
 grep -q 'ivekit.io/egress-image-contract: "ivekit-egress-pool-v1"' "$EGRESS_RENDERED_FILE"
 grep -q 'opc-platform-livekit-egress-track' "$EGRESS_RENDERED_FILE"
 grep -q 'opc-platform-livekit-egress-composite' "$EGRESS_RENDERED_FILE"
+
+sh scripts/verify-livekit-redis-topology.sh
 
 node --import tsx --test \
   test/livekit-deployment-preflight.test.ts \

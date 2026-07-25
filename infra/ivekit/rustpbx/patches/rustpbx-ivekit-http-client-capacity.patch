@@ -1,0 +1,68 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 738fb7b0..82d7b7c4 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -159,6 +159,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
+     "blocking",
+     "http2",
+     "charset",
++    "hickory-dns",
+ ] }
+ base64 = "0.22.1"
+ hmac = "0.13.0"
+diff --git a/src/http_util.rs b/src/http_util.rs
+index e79aa9af..28564cd9 100644
+--- a/src/http_util.rs
++++ b/src/http_util.rs
+@@ -11,7 +11,7 @@ use tokio::io::AsyncWriteExt;
+ 
+ const DEFAULT_HTTP_TCP_KEEPALIVE: Duration = Duration::from_secs(60);
+ const DEFAULT_HTTP_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+-const DEFAULT_HTTP_POOL_MAX_IDLE_PER_HOST: usize = 8;
++const DEFAULT_HTTP_POOL_MAX_IDLE_PER_HOST: usize = 64;
+ 
+ pub fn build_keepalive_client(
+     timeout: Option<Duration>,
+@@ -204,4 +204,9 @@ mod tests {
+         assert!(opts.timeout.is_none());
+         assert!(opts.headers.is_empty());
+     }
++
++    #[test]
++    fn keepalive_pool_retains_one_connection_per_cdr_save_slot() {
++        assert_eq!(DEFAULT_HTTP_POOL_MAX_IDLE_PER_HOST, 64);
++    }
+ }
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 4dd6c326..90e3c84e 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -62,16 +62,9 @@ impl HttpCallRouter {
+         probation_max_packets: Option<u8>,
+         snapshot_config: Option<HttpRouteSnapshotConfig>,
+     ) -> Self {
+-        let mut builder = reqwest::Client::builder();
+-        builder = builder
+-            .tcp_keepalive(Duration::from_secs(60))
+-            .pool_idle_timeout(Duration::from_secs(90))
+-            .pool_max_idle_per_host(8);
+-        if let Some(timeout) = config.timeout_ms {
+-            builder = builder.timeout(Duration::from_millis(timeout));
+-        } else {
+-            builder = builder.timeout(Duration::from_secs(5));
+-        }
++        let timeout = Duration::from_millis(config.timeout_ms.unwrap_or(5_000));
++        let client = crate::http_util::build_keepalive_client(Some(timeout), None)
++            .unwrap_or_else(|_| reqwest::Client::new());
+         let snapshot_admission =
+             snapshot_config.as_ref().and_then(|_| snapshot_admission_config_from_env());
+         let snapshot = Arc::new(ArcSwapOption::empty());
+@@ -96,7 +89,7 @@ impl HttpCallRouter {
+             default_media_proxy_mode,
+             enable_latching,
+             probation_max_packets,
+-            client: builder.build().unwrap_or_default(),
++            client,
+             snapshot,
+             snapshot_enabled: snapshot_config.is_some(),
+             snapshot_admission,

@@ -26,7 +26,7 @@
   <env name="OPC_RUSTDESK_EDGE_ACTOR_IDENTITY" value="rustdesk-windows-companion" />
   <env name="OPC_RUSTDESK_EDGE_INSTANCE_ID" value="{{EDGE_INSTANCE_ID}}" />
   <env name="OPC_RUSTDESK_EDGE_DEVICE_TOKEN_FILE" value="{{TOKEN_FILE}}" />
-  <env name="OPC_RUSTDESK_EDGE_CLIENT_VERSION" value="1.4.7" />
+  <env name="OPC_RUSTDESK_EDGE_CLIENT_VERSION" value="1.4.9" />
   <env name="OPC_RUSTDESK_EDGE_OS" value="windows" />
   <env name="OPC_IVEKIT_PLACEMENT_ENABLED" value="{{PLACEMENT_ENABLED}}" />
   <env name="OPC_RUSTDESK_NATIVE_CONTROL_PROTOCOL" value="{{NATIVE_CONTROL_PROTOCOL}}" />

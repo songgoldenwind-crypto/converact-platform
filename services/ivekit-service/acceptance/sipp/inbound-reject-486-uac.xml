@@ -2,10 +2,10 @@
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 
 <scenario name="iveKit RustPBX inbound route reject">
-  <send retrans="500">
+  <send retrans="500" start_rtd="sip_route" start_txn="invite">
     <![CDATA[
       INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
-      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-ivekit-[pid]-[call_number]
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
       From: iveKit SIPp <sip:sipp@[local_ip]:[local_port]>;tag=[call_number]
       To: iveKit Route <sip:[service]@[remote_ip]:[remote_port]>
       Call-ID: [call_id]
@@ -26,13 +26,13 @@
     ]]>
   </send>
 
-  <recv response="100" optional="true" />
-  <recv response="486" rtd="true" />
+  <recv response="100" optional="true" response_txn="invite" />
+  <recv response="486" rtd="sip_route" response_txn="invite" />
 
-  <send retrans="500">
+  <send retrans="500" ack_txn="invite">
     <![CDATA[
       ACK sip:[service]@[remote_ip]:[remote_port] SIP/2.0
-      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=z9hG4bK-ivekit-[pid]-[call_number]
+      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch-3]
       [last_From:]
       [last_To:]
       [last_Call-ID:]

@@ -8,30 +8,33 @@ The build is pinned to the exact upstream release identity:
 
 ```text
 repository: https://github.com/livekit/sip
-tag: v1.6.0
-commit: 02179d2eebe1493ad8c6a7961ceee84c34f8aca3
+tag: v1.7.0
+commit: d5d1e09bbe826baaae9c335d8f42523192c7ce29
 license: Apache-2.0
 ```
 
 The script fails before building if `LIVEKIT_SIP_SOURCE_DIR` is not at that
-commit. It uses the upstream `build/sip/Dockerfile`, records the full source
-commit in the OCI image, and verifies both the image label and executable
+commit. The iveKit Dockerfile runs upstream package tests, builds with immutable
+builder and runtime images, removes paths from the binary, runs as UID/GID
+10001, records the source identity, and verifies the image label and executable
 version after the build.
 
 ```bash
-LIVEKIT_SIP_SOURCE_DIR=/path/to/livekit-sip-v1.6.0 \
-IVEKIT_LIVEKIT_SIP_IMAGE=registry.example.com/ivekit/livekit-sip:v1.6.0-02179d2e \
+LIVEKIT_SIP_SOURCE_DIR=/path/to/livekit-sip-v1.7.0 \
+IVEKIT_LIVEKIT_SIP_IMAGE=registry.example.com/ivekit/livekit-sip:v1.7.0-d5d1e09b \
+LIVEKIT_SIP_BUILDER_IMAGE=golang:1.26@sha256:<digest> \
+LIVEKIT_SIP_RUNTIME_IMAGE=debian:trixie-slim@sha256:<digest> \
 bash infra/ivekit/livekit-sip/build.sh
 ```
 
 Set `IVEKIT_LIVEKIT_SIP_PLATFORM=linux/amd64` when producing the deployment
 architecture through a builder that can load or publish that platform. The
-local exact-source Linux arm64 candidate is
-`ivekit/livekit-sip:v1.6.0-02179d2e`, image
-`sha256:54e9acaa0313728305c995bc6d5384f65b6e7366b278e20517b0ffe8fd03ade3`.
-It reports `SIP version v1.6.0` and carries source revision
-`02179d2eebe1493ad8c6a7961ceee84c34f8aca3`.
+GitHub image workflow fetches the exact annotated tag, verifies the resolved
+commit, builds the amd64 image, publishes a manifest digest, and delegates that
+digest to the shared OCI release gate.
 
-This is compile evidence only. A registry digest, SBOM/provenance, Linux amd64
-artifact, real SIP media, RustPBX-to-LiveKit bridging, failover, drain behavior,
-PSTN and capacity measurements remain `not_run`.
+The earlier `v1.6.0` arm64 image remains historical compile evidence only. No
+`v1.7.0` build, unit result, registry digest, SBOM/provenance, real SIP media,
+RustPBX-to-LiveKit bridge, failover, drain, PSTN or capacity evidence exists in
+the current evidence set; all remain `not_run` until the workflow and target
+environment acceptance actually run.

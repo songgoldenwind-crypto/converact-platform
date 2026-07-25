@@ -1,12 +1,11 @@
-"""HTTP client TTS for CosyVoice FastAPI server.
+"""HTTP client TTS for a CosyVoice FastAPI server.
 
-Supports streaming: the CosyVoice server returns a complete WAV, but we
-chunk the PCM data into ~100ms segments and emit them incrementally so the
-avatar video source can start lip-sync inference before the full utterance
-finishes. This reduces perceived latency for the digital human.
+The current endpoint returns a complete WAV response. The client then emits
+bounded PCM chunks so downstream consumers do not receive one oversized frame.
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import wave
 from dataclasses import dataclass
@@ -22,6 +21,10 @@ from avatar.audio_feed import feed_tts_pcm
 # Chunk size for streaming: 100ms of audio at the TTS sample rate.
 # Smaller = lower latency but more overhead. 100ms balances both.
 _STREAM_CHUNK_MS = 100
+
+
+def _http_timeout_seconds(conn_options: tts.APIConnectOptions) -> float:
+    return float(conn_options.timeout)
 
 
 @dataclass
@@ -41,7 +44,7 @@ class CosyVoiceTTS(tts.TTS):
         avatar_session_key: str | None = None,
     ) -> None:
         super().__init__(
-            capabilities=tts.TTSCapabilities(streaming=True),
+            capabilities=tts.TTSCapabilities(streaming=False),
             sample_rate=sample_rate,
             num_channels=1,
         )
@@ -63,13 +66,15 @@ class _CosyVoiceChunkedStream(tts.ChunkedStream):
 
     async def _run(self, output_emitter: tts.AudioEmitter) -> None:
         opts = self._tts._opts
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{opts.base_url}/inference_sft",
-                json={"tts_text": self._input_text, "spk_id": opts.spk_id},
-            )
-            response.raise_for_status()
-            wav_bytes = response.content
+        timeout = _http_timeout_seconds(self._conn_options)
+        async with asyncio.timeout(timeout):
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{opts.base_url}/inference_sft",
+                    json={"tts_text": self._input_text, "spk_id": opts.spk_id},
+                )
+                response.raise_for_status()
+                wav_bytes = response.content
 
         with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
             sample_rate = wf.getframerate()

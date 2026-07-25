@@ -15,6 +15,13 @@ import {
   type KamailioRouteSnapshotBody,
   type KamailioRouteSnapshotKey
 } from './kamailio-route-snapshot.js';
+import {
+  HttpHomerMetricsClient,
+  KamailioHepHighWaterController,
+  KamailioHepHighWaterStateMachine,
+  type KamailioHepDecision,
+  type KamailioHepHighWaterPolicy
+} from './kamailio-hep-high-water.js';
 
 const POLL_FAILURE_THRESHOLD = 3;
 const MAXIMUM_CORE_METRICS_BYTES = 1_048_576;
@@ -488,7 +495,59 @@ export class HttpKamailioJsonRpcClient implements KamailioDispatcherReloadPort {
   }
 
   async reload(): Promise<void> {
-    let lastError: unknown = new Error('Kamailio dispatcher reload failed');
+    await this.#call('dispatcher.reload');
+  }
+
+  async applyHepControl(input: {
+    mode: 'full' | 'sampled' | 'off';
+    sample_buckets: number;
+    revision: number;
+  }): Promise<void> {
+    const sampleBuckets = boundedInteger(
+      input.sample_buckets,
+      1,
+      1_024,
+      'Kamailio HEP sample buckets'
+    );
+    const revision = boundedInteger(
+      input.revision,
+      1,
+      Number.MAX_SAFE_INTEGER,
+      'Kamailio HEP control revision'
+    );
+    const mode = { off: 0, sampled: 1, full: 2 }[input.mode];
+    if (mode === undefined) throw new Error('Kamailio HEP mode is invalid');
+    await this.#call('htable.seti', ['ivekit_hep_control', 'sample_buckets', sampleBuckets]);
+    await this.#call('htable.seti', ['ivekit_hep_control', 'mode', mode]);
+    await this.#call('htable.seti', ['ivekit_hep_control', 'revision', revision]);
+  }
+
+  async readHepControlRevision(): Promise<number> {
+    const result = await this.#call(
+      'htable.get',
+      ['ivekit_hep_control', 'revision']
+    );
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('Kamailio HEP control revision response is invalid');
+    }
+    const item = (result as Record<string, unknown>).item;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error('Kamailio HEP control revision response is invalid');
+    }
+    const value = (item as Record<string, unknown>).value;
+    if (typeof value !== 'number') {
+      throw new Error('Kamailio HEP control revision response is invalid');
+    }
+    return boundedInteger(
+      value,
+      0,
+      Number.MAX_SAFE_INTEGER,
+      'Kamailio HEP control revision'
+    );
+  }
+
+  async #call(method: string, params?: unknown[]): Promise<unknown> {
+    let lastError: unknown = new Error(`Kamailio RPC ${method} failed`);
     for (let attempt = 1; attempt <= this.#maxAttempts; attempt += 1) {
       const id = ++this.#requestId;
       const controller = new AbortController();
@@ -503,7 +562,8 @@ export class HttpKamailioJsonRpcClient implements KamailioDispatcherReloadPort {
           },
           body: JSON.stringify({
             jsonrpc: '2.0',
-            method: 'dispatcher.reload',
+            method,
+            ...(params ? { params } : {}),
             id
           })
         });
@@ -514,7 +574,7 @@ export class HttpKamailioJsonRpcClient implements KamailioDispatcherReloadPort {
             !Object.prototype.hasOwnProperty.call(payload, 'result')) {
           throw new Error('Kamailio RPC response is invalid');
         }
-        return;
+        return payload.result;
       } catch (error) {
         lastError = error;
       } finally {
@@ -567,6 +627,7 @@ export function createKamailioRouteAgentHttpServer(input: {
   agent: KamailioRouteAgent;
   now?: () => Date;
   read_core_metrics?: () => Promise<string>;
+  supplemental_metrics?: () => string;
 }): Server {
   const now = input.now || (() => new Date());
   return createServer((request, response) => {
@@ -589,7 +650,8 @@ export function createKamailioRouteAgentHttpServer(input: {
       void sendRouteAgentMetrics({
         response,
         own_metrics: input.agent.prometheusMetrics(now()),
-        read_core_metrics: input.read_core_metrics
+        read_core_metrics: input.read_core_metrics,
+        supplemental_metrics: input.supplemental_metrics
       });
       return;
     }
@@ -600,6 +662,13 @@ export function createKamailioRouteAgentHttpServer(input: {
 export interface KamailioRouteAgentRuntimeNode extends Omit<KamailioRouteAgentNode, 'read_state'> {
   component_endpoint: string;
   service_token: string;
+}
+
+export interface KamailioHepHighWaterRuntimeConfig {
+  poll_interval_ms: number;
+  metrics_endpoint: string;
+  metrics_timeout_ms: number;
+  policy: KamailioHepHighWaterPolicy;
 }
 
 export interface KamailioRouteAgentRuntimeConfig {
@@ -626,6 +695,7 @@ export interface KamailioRouteAgentRuntimeConfig {
     retry_delay_ms: number;
     timeout_ms: number;
   };
+  hep_high_water?: KamailioHepHighWaterRuntimeConfig;
 }
 
 export async function loadKamailioRouteAgentRuntimeConfig(
@@ -698,6 +768,14 @@ export async function loadKamailioRouteAgentRuntimeConfig(
     'dispatcher path'
   );
   if (snapshotPath === dispatcherPath) throw new Error('Kamailio publication paths must be distinct');
+  const hepHighWaterEnabled = envBoolean(
+    env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED,
+    false,
+    'OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED'
+  );
+  const hepHighWater = hepHighWaterEnabled
+    ? parseHepHighWaterRuntimeConfig(env)
+    : undefined;
 
   const config: KamailioRouteAgentRuntimeConfig = {
     host: checkedHost(env.OPC_IVEKIT_KAMAILIO_HOST || '127.0.0.1'),
@@ -724,7 +802,8 @@ export async function loadKamailioRouteAgentRuntimeConfig(
       max_attempts: envInteger(env.OPC_IVEKIT_KAMAILIO_RPC_MAX_ATTEMPTS, 3, 1, 5),
       retry_delay_ms: envInteger(env.OPC_IVEKIT_KAMAILIO_RPC_RETRY_DELAY_MS, 100, 0, 5_000),
       timeout_ms: envInteger(env.OPC_IVEKIT_KAMAILIO_RPC_TIMEOUT_MS, 1_000, 100, 5_000)
-    }
+    },
+    hep_high_water: hepHighWater
   };
   compileKamailioRouteSnapshotBody({
     sequence: 1,
@@ -795,7 +874,9 @@ export function createKamailioRouteAgentFromConfig(
 export interface KamailioRouteAgentRuntimeHandle {
   agent: KamailioRouteAgent;
   server: Server;
+  hep_controller?: KamailioHepHighWaterController;
   runOnce(): Promise<KamailioRouteAgentRunResult>;
+  runHepOnce?(): Promise<KamailioHepDecision & { revision: number }>;
   stop(): Promise<void>;
 }
 
@@ -816,6 +897,30 @@ export async function startKamailioRouteAgent(
     timeout_ms: config.rpc.timeout_ms,
     fetch: dependencies.fetch
   });
+  const homerMetrics = config.hep_high_water
+    ? new HttpHomerMetricsClient({
+        endpoint: config.hep_high_water.metrics_endpoint,
+        timeout_ms: config.hep_high_water.metrics_timeout_ms,
+        fetch: dependencies.fetch
+      })
+    : undefined;
+  const hepRpc = config.hep_high_water
+    ? new HttpKamailioJsonRpcClient({
+        ...config.rpc,
+        fetch: dependencies.fetch,
+        sleep: dependencies.sleep
+      })
+    : undefined;
+  const hepController = config.hep_high_water
+    ? new KamailioHepHighWaterController({
+        policy: config.hep_high_water.policy,
+        read_metrics: () => homerMetrics!.read(),
+        control: {
+          read_revision: () => hepRpc!.readHepControlRevision(),
+          apply: (input) => hepRpc!.applyHepControl(input)
+        }
+      })
+    : undefined;
   try {
     const existing = await readFile(config.snapshot_path, 'utf8');
     const restored = agent.restore(existing, now());
@@ -828,7 +933,10 @@ export async function startKamailioRouteAgent(
   const server = createKamailioRouteAgentHttpServer({
     agent,
     now,
-    read_core_metrics: () => coreMetrics.read()
+    read_core_metrics: () => coreMetrics.read(),
+    supplemental_metrics: hepController
+      ? () => hepController.prometheusMetrics()
+      : undefined
   });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -843,18 +951,38 @@ export async function startKamailioRouteAgent(
       throw error;
     }
   };
+  const hepTick = hepController
+    ? async (): Promise<KamailioHepDecision & { revision: number }> => {
+        try {
+          return await hepController.runOnce(now());
+        } catch (error) {
+          log(`[ivekit-kamailio-route-agent] HEP control update failed: ${safeLogMessage(error)}`);
+          throw error;
+        }
+      }
+    : undefined;
   await tick().catch(() => undefined);
+  if (hepTick) await hepTick().catch(() => undefined);
   const timer = setInterval(() => {
     void tick().catch(() => undefined);
   }, config.poll_interval_ms);
   timer.unref?.();
+  const hepTimer = hepTick && config.hep_high_water
+    ? setInterval(() => {
+        void hepTick().catch(() => undefined);
+      }, config.hep_high_water.poll_interval_ms)
+    : undefined;
+  hepTimer?.unref?.();
   return {
     agent,
     server,
+    hep_controller: hepController,
     runOnce: tick,
+    runHepOnce: hepTick,
     stop() {
       if (stopping) return stopping;
       clearInterval(timer);
+      if (hepTimer) clearInterval(hepTimer);
       stopping = closeHttpServer(server);
       return stopping;
     }
@@ -1112,6 +1240,140 @@ function envNumber(
   return parsed;
 }
 
+function parseHepHighWaterRuntimeConfig(
+  env: NodeJS.ProcessEnv
+): KamailioHepHighWaterRuntimeConfig {
+  const metricsEndpoint = requiredEnv(
+    env,
+    'OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT'
+  );
+  const metricsTimeoutMs = envInteger(
+    env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_METRICS_TIMEOUT_MS,
+    1_000,
+    100,
+    5_000
+  );
+  new HttpHomerMetricsClient({
+    endpoint: metricsEndpoint,
+    timeout_ms: metricsTimeoutMs
+  });
+  const policy: KamailioHepHighWaterPolicy = {
+    sample_percent: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_SAMPLE_PERCENT,
+      10,
+      0.1,
+      100
+    ),
+    queue_recover_ratio: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_RECOVER_RATIO,
+      0.2,
+      0,
+      1
+    ),
+    queue_sample_ratio: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_SAMPLE_RATIO,
+      0.5,
+      0,
+      1
+    ),
+    queue_off_ratio: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_QUEUE_OFF_RATIO,
+      0.8,
+      0,
+      1
+    ),
+    cpu_recover_cores: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_RECOVER_CORES,
+      0.3,
+      0,
+      1_024
+    ),
+    cpu_sample_cores: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_SAMPLE_CORES,
+      0.7,
+      0,
+      1_024
+    ),
+    cpu_off_cores: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_CPU_OFF_CORES,
+      1.5,
+      0,
+      1_024
+    ),
+    packets_recover_per_second: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_RECOVER_PER_SECOND,
+      2_000,
+      0,
+      100_000_000
+    ),
+    packets_sample_per_second: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_SAMPLE_PER_SECOND,
+      5_000,
+      0,
+      100_000_000
+    ),
+    packets_off_per_second: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PACKETS_OFF_PER_SECOND,
+      10_000,
+      0,
+      100_000_000
+    ),
+    processing_gap_recover_per_second: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_RECOVER_PER_SECOND,
+      25,
+      0,
+      100_000_000
+    ),
+    processing_gap_sample_per_second: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_SAMPLE_PER_SECOND,
+      250,
+      0,
+      100_000_000
+    ),
+    processing_gap_off_per_second: envNumber(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND,
+      1_000,
+      0,
+      100_000_000
+    ),
+    failure_samples_to_off: envInteger(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_FAILURE_SAMPLES_TO_OFF,
+      3,
+      1,
+      60
+    ),
+    recovery_samples: envInteger(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_RECOVERY_SAMPLES,
+      5,
+      1,
+      600
+    )
+  };
+  new KamailioHepHighWaterStateMachine(policy);
+  return {
+    poll_interval_ms: envInteger(
+      env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_POLL_INTERVAL_MS,
+      1_000,
+      100,
+      60_000
+    ),
+    metrics_endpoint: metricsEndpoint,
+    metrics_timeout_ms: metricsTimeoutMs,
+    policy
+  };
+}
+
+function envBoolean(
+  value: string | undefined,
+  fallback: boolean,
+  label: string
+): boolean {
+  if (value == null || value === '') return fallback;
+  if (value === 'true' || value === '1') return true;
+  if (value === 'false' || value === '0') return false;
+  throw new Error(`${label} must be true or false`);
+}
+
 function boundedInteger(value: number, minimum: number, maximum: number, label: string): number {
   if (!Number.isSafeInteger(value) || value < minimum || value > maximum) throw new Error(`${label} is invalid`);
   return value;
@@ -1155,6 +1417,7 @@ async function sendRouteAgentMetrics(input: {
   response: import('node:http').ServerResponse;
   own_metrics: string;
   read_core_metrics?: () => Promise<string>;
+  supplemental_metrics?: () => string;
 }): Promise<void> {
   let coreMetrics = '';
   let coreMetricsUp = 0;
@@ -1166,11 +1429,20 @@ async function sendRouteAgentMetrics(input: {
       coreMetrics = '';
     }
   }
+  let supplementalMetrics = '';
+  if (input.supplemental_metrics) {
+    try {
+      supplementalMetrics = checkedCoreMetricsText(input.supplemental_metrics());
+    } catch {
+      supplementalMetrics = '';
+    }
+  }
   const body = `${input.own_metrics}` +
     '# HELP ivekit_kamailio_core_metrics_up Whether Kamailio core metrics were read.\n' +
     '# TYPE ivekit_kamailio_core_metrics_up gauge\n' +
     `ivekit_kamailio_core_metrics_up ${coreMetricsUp}\n` +
-    coreMetrics;
+    coreMetrics +
+    supplementalMetrics;
   input.response.writeHead(200, {
     'content-type': 'text/plain; version=0.0.4; charset=utf-8',
     'content-length': Buffer.byteLength(body),

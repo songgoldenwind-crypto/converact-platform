@@ -13,6 +13,8 @@ import {
   writeFileSync
 } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
+
+import { resolveS3ConnectionConfig } from './s3-connection-config.js';
 import { dirname, join, resolve, sep } from 'node:path';
 
 import { id } from '../db-compat.js';
@@ -299,7 +301,8 @@ export class S3ObjectStorage implements ObjectStorage {
     private readonly region: string,
     private readonly endpoint: string | undefined,
     private readonly publicBaseUrl: string,
-    private readonly credentials?: { accessKeyId: string; secretAccessKey: string }
+    private readonly credentials?: { accessKeyId: string; secretAccessKey: string },
+    private readonly forcePathStyle = Boolean(endpoint)
   ) {}
 
   async upload(input: ObjectStorageUploadInput): Promise<ObjectStorageUploadResult> {
@@ -457,7 +460,7 @@ export class S3ObjectStorage implements ObjectStorage {
     return new S3Client({
       region: this.region,
       endpoint: this.endpoint,
-      forcePathStyle: Boolean(this.endpoint),
+      forcePathStyle: this.forcePathStyle,
       ...(this.credentials ? { credentials: this.credentials } : {})
     });
   }
@@ -481,23 +484,20 @@ export function createObjectStorage(env: NodeJS.ProcessEnv = process.env): Objec
 }
 
 function configuredObjectStorage(env: NodeJS.ProcessEnv): ObjectStorage {
-  const bucket = env.S3_BUCKET || env.OPC_S3_BUCKET || env.MINIO_BUCKET || '';
-  if (bucket) {
-    const region = env.S3_REGION || env.AWS_REGION || 'us-east-1';
-    const endpoint = env.S3_ENDPOINT || env.MINIO_ENDPOINT;
-    const accessKeyId = env.AWS_ACCESS_KEY_ID || env.S3_ACCESS_KEY_ID || env.MINIO_ACCESS_KEY || '';
-    const secretAccessKey = env.AWS_SECRET_ACCESS_KEY || env.S3_SECRET_ACCESS_KEY || env.MINIO_SECRET_KEY || '';
+  const config = resolveS3ConnectionConfig(env);
+  if (config) {
     const publicBaseUrl =
       env.S3_PUBLIC_BASE_URL ||
-      (endpoint
-        ? `${endpoint.replace(/\/$/, '')}/${bucket}`
-        : `https://${bucket}.s3.${region}.amazonaws.com`);
+      (config.endpoint
+        ? `${config.endpoint.replace(/\/$/, '')}/${config.bucket}`
+        : `https://${config.bucket}.s3.${config.region}.amazonaws.com`);
     return new S3ObjectStorage(
-      bucket,
-      region,
-      endpoint,
+      config.bucket,
+      config.region,
+      config.endpoint,
       publicBaseUrl,
-      accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined
+      config.credentials,
+      config.forcePathStyle
     );
   }
   if (requiredSharedObjectStorage(env.OPC_OBJECT_STORAGE_REQUIRED)) {

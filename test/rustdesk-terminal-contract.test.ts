@@ -123,19 +123,34 @@ test('RustDesk client matrix pins OSS versions and platform limitations without 
   assert.equal(existsSync(matrixPath), true, `${matrixPath} must exist`);
   const matrix = readFileSync(matrixPath, 'utf8');
 
-  assert.match(matrix, /rustdesk-server:1\.1\.15/);
-  assert.match(matrix, /RustDesk OSS client 1\.4\.7/);
-  assert.match(matrix, /releases\/tag\/1\.4\.7/);
+  assert.match(matrix, /1\.1\.16@73523b31cfd25d77dee862e6fc9f5e1fb5e485ef/);
+  assert.match(matrix, /1\.4\.9@6c578292e8ebbbec708b76986ba8c4bc7c509747/);
+  assert.match(matrix, /releases\/tag\/1\.1\.16/);
+  assert.match(matrix, /releases\/tag\/1\.4\.9/);
   assert.doesNotMatch(matrix, /rustdesk-server:latest/);
   for (const envPath of ['.env.example', 'infra/env.example', 'infra/ivekit/env.example']) {
     const env = readFileSync(envPath, 'utf8');
-    assert.match(env, /^RUSTDESK_SERVER_IMAGE_TAG=1\.1\.15$/m, envPath);
+    assert.match(env, /^RUSTDESK_SERVER_IMAGE_TAG=1\.1\.16$/m, envPath);
     assert.doesNotMatch(env, /^RUSTDESK_SERVER_IMAGE_TAG=(?:latest|1\.1\.14)$/m, envPath);
   }
-  for (const composePath of ['docker-compose.callcenter.yml', 'infra/docker-compose.production.yml']) {
-    const compose = readFileSync(composePath, 'utf8');
-    assert.match(compose, /rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:-1\.1\.15\}/, composePath);
-    assert.doesNotMatch(compose, /RUSTDESK_SERVER_IMAGE_TAG:-latest/, composePath);
+  const localCompose = readFileSync('docker-compose.callcenter.yml', 'utf8');
+  assert.match(localCompose, /rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:-1\.1\.16\}/);
+  assert.doesNotMatch(localCompose, /RUSTDESK_SERVER_IMAGE_TAG:-latest/);
+
+  const productionCompose = readFileSync('infra/docker-compose.production.yml', 'utf8');
+  assert.match(
+    productionCompose,
+    /image: \$\{RUSTDESK_SERVER_IMAGE:\?RUSTDESK_SERVER_IMAGE immutable digest reference is required\}/
+  );
+  assert.doesNotMatch(productionCompose, /rustdesk\/rustdesk-server:/);
+
+  for (const envPath of ['infra/env.example', 'infra/ivekit/env.example']) {
+    const env = readFileSync(envPath, 'utf8');
+    assert.match(
+      env,
+      /^RUSTDESK_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-rustdesk-server:1\.1\.16-ivekit\.1-73523b31@sha256:[a-f0-9]{64}$/m,
+      envPath
+    );
   }
   for (const expected of ['Windows', 'macOS', 'Linux', 'x86_64', 'aarch64', 'Wayland', 'not_run']) {
     assert.match(matrix, new RegExp(expected));
@@ -143,7 +158,7 @@ test('RustDesk client matrix pins OSS versions and platform limitations without 
   assert.match(matrix, /configured[\s\S]*available[\s\S]*granted[\s\S]*observed/);
 
   const detailedDesign = readFileSync('docs/iveKit视频IM通用能力详细设计.md', 'utf8');
-  assert.match(detailedDesign, /RUSTDESK_SERVER_IMAGE_TAG=1\.1\.15/);
+  assert.match(detailedDesign, /RUSTDESK_SERVER_IMAGE_TAG=1\.1\.16/);
   assert.doesNotMatch(detailedDesign, /RUSTDESK_SERVER_IMAGE_TAG=latest/);
 });
 

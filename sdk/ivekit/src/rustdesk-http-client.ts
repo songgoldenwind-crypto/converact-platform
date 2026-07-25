@@ -332,8 +332,8 @@ export function createIveKitRustDeskHttpClient(
         profileInput.expected_server_version,
         'expected_server_version is required'
       );
-      if (expectedServerVersion !== '1.1.15') {
-        throw new Error('expected_server_version must equal 1.1.15');
+      if (expectedServerVersion !== '1.1.16') {
+        throw new Error('expected_server_version must equal 1.1.16');
       }
       const expectedFingerprint = requiredString(
         profileInput.expected_server_key_fingerprint,
@@ -896,7 +896,7 @@ export async function projectRustDeskClientDistributionProfile(
     expected.expected_server_key_fingerprint,
     'expected_server_key_fingerprint is required'
   );
-  if (expectedServerVersion !== '1.1.15') throw invalidDistribution('expected_server_version');
+  if (expectedServerVersion !== '1.1.16') throw invalidDistribution('expected_server_version');
   if (!/^sha256:[a-f0-9]{16}$/.test(expectedFingerprint)) {
     throw invalidDistribution('expected_server_key_fingerprint');
   }
@@ -917,15 +917,15 @@ export async function projectRustDeskClientDistributionProfile(
 
   const clientVersion = distributionRecord(profile.client_version, 'client_version');
   if (
-    clientVersion.exact !== '1.4.7' ||
+    clientVersion.exact !== '1.4.9' ||
     !Array.isArray(clientVersion.allowed) ||
     clientVersion.allowed.length !== 1 ||
-    clientVersion.allowed[0] !== '1.4.7' ||
-    expected.client_version !== '1.4.7'
+    clientVersion.allowed[0] !== '1.4.9' ||
+    expected.client_version !== '1.4.9'
   ) {
     throw invalidDistribution('client_version');
   }
-  if (profile.server_version !== '1.1.15' || profile.server_version !== expectedServerVersion) {
+  if (profile.server_version !== '1.1.16' || profile.server_version !== expectedServerVersion) {
     throw invalidDistribution('server_version drift');
   }
 
@@ -976,8 +976,8 @@ export async function projectRustDeskClientDistributionProfile(
   return {
     platform,
     architecture,
-    client_version: { exact: '1.4.7', allowed: ['1.4.7'] },
-    server_version: '1.1.15',
+    client_version: { exact: '1.4.9', allowed: ['1.4.9'] },
+    server_version: '1.1.16',
     issued_at: issuedAt,
     expires_at: expiresAt,
     manual_fields: manualFields,
@@ -1105,7 +1105,7 @@ function validateDistributionArtifactReleasePath(url: URL, pathSegments: readonl
   if (
     pathSegments.length < 3 ||
     pathSegments.at(-3) !== releaseDirectory ||
-    pathSegments.at(-2) !== '1.4.7'
+    pathSegments.at(-2) !== '1.4.9'
   ) {
     throw invalidDistribution('install_source.release');
   }
@@ -1119,9 +1119,9 @@ function validateDistributionArtifactIdentity(
 ): void {
   const lower = filename.toLowerCase();
   const lowerIdentity = pathIdentity.toLowerCase();
-  if (!distributionArtifactToken(lower, '1.4.7')) throw invalidDistribution('install_source.version');
+  if (!distributionArtifactToken(lower, '1.4.9')) throw invalidDistribution('install_source.version');
   for (const version of distributionSemanticVersionTokens(lowerIdentity)) {
-    if (version !== '1.4.7') throw invalidDistribution('install_source.version');
+    if (version !== '1.4.9') throw invalidDistribution('install_source.version');
   }
   for (const candidate of ['windows', 'macos', 'linux'] as const) {
     if (candidate !== platform && distributionArtifactToken(lowerIdentity, candidate)) {
@@ -1142,8 +1142,8 @@ function validateDistributionArtifactIdentity(
     throw invalidDistribution('install_source.extension');
   }
   const customWindowsFilename = platform === 'windows' && architecture === 'x86_64' &&
-    /^rustdesk-1\.4\.7-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
-  if (filename !== `rustdesk-1.4.7-${architecture}${extension}` && !customWindowsFilename) {
+    /^rustdesk-1\.4\.9-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename);
+  if (filename !== `rustdesk-1.4.9-${architecture}${extension}` && !customWindowsFilename) {
     throw invalidDistribution('install_source.filename');
   }
 }

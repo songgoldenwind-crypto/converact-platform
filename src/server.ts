@@ -15,6 +15,7 @@ import {
 } from './agent-runtime/ivekit/tenant-event-store.js';
 import { migrateIvrRuntimeTables } from './db-migrations/ivr-runtime-schema.js';
 import { validateEnvOrExit } from './env-config.js';
+import { shutdownOpenTelemetry } from './telemetry.js';
 
 // Fail-fast on missing required env vars (production) / warn (other envs).
 validateEnvOrExit();
@@ -115,6 +116,7 @@ async function main() {
     await iveKitApplication.stop();
     db.close();
     await closePostgres();
+    await shutdownOpenTelemetry();
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown());

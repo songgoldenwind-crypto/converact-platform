@@ -56,3 +56,25 @@ async def test_opc_client_sends_tenant_id_on_ai_agent_dispatch_actions():
         "end_call",
         "schedule_callback",
     ]
+
+
+@pytest.mark.asyncio
+async def test_report_turn_forwards_normalized_speech_quality_fields():
+    client = OPCClient()
+    fake = FakeAsyncClient()
+    client.client = fake
+
+    await client.report_turn(
+        "call-1",
+        "customer",
+        "hello",
+        stt_confidence=0.93,
+        latency_ms=417,
+    )
+
+    assert fake.requests[0][2] == {
+        "role": "customer",
+        "content": "hello",
+        "stt_confidence": 0.93,
+        "latency_ms": 417,
+    }

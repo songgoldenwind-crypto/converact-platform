@@ -82,6 +82,7 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
   assert.deepEqual(policy.entrypoints, [
     'src/ivekit-server.ts',
     'src/ivekit-worker.ts',
+    'src/ivekit-realtime-audio-tap-worker.ts',
     'src/ivekit-backup.ts',
     'src/ivekit-restore.ts',
     'src/ivekit-migrate.ts',

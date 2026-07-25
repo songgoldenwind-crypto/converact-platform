@@ -10,14 +10,23 @@ export interface IntelligencePolicyUpdate {
   asr_enabled: boolean;
   quality_review_enabled: boolean;
   translation_enabled: boolean;
+  realtime_speech_enabled?: boolean;
+  tts_enabled?: boolean;
+  model_gateway_enabled?: boolean;
   ocr_profile_id?: string;
   asr_profile_id?: string;
   quality_profile_id?: string;
   translation_profile_id?: string;
+  realtime_speech_profile_id?: string;
+  tts_profile_id?: string;
+  model_gateway_profile_id?: string;
   ocr_profile_ids?: string[];
   asr_profile_ids?: string[];
   quality_profile_ids?: string[];
   translation_profile_ids?: string[];
+  realtime_speech_profile_ids?: string[];
+  tts_profile_ids?: string[];
+  model_gateway_profile_ids?: string[];
   allow_third_party: boolean;
   auto_ocr: boolean;
   auto_asr: boolean;
@@ -29,14 +38,23 @@ export interface IntelligencePolicyUpdate {
 }
 
 export interface IntelligencePolicy extends IntelligencePolicyUpdate {
+  realtime_speech_enabled: boolean;
+  tts_enabled: boolean;
+  model_gateway_enabled: boolean;
   ocr_profile_id: string;
   asr_profile_id: string;
   quality_profile_id: string;
   translation_profile_id: string;
+  realtime_speech_profile_id: string;
+  tts_profile_id: string;
+  model_gateway_profile_id: string;
   ocr_profile_ids: string[];
   asr_profile_ids: string[];
   quality_profile_ids: string[];
   translation_profile_ids: string[];
+  realtime_speech_profile_ids: string[];
+  tts_profile_ids: string[];
+  model_gateway_profile_ids: string[];
   tenant_id: string;
   configured: boolean;
   version: number;
@@ -46,14 +64,23 @@ export interface IntelligencePolicy extends IntelligencePolicyUpdate {
 }
 
 type NormalizedIntelligencePolicyUpdate = IntelligencePolicyUpdate & {
+  realtime_speech_enabled: boolean;
+  tts_enabled: boolean;
+  model_gateway_enabled: boolean;
   ocr_profile_id: string;
   asr_profile_id: string;
   quality_profile_id: string;
   translation_profile_id: string;
+  realtime_speech_profile_id: string;
+  tts_profile_id: string;
+  model_gateway_profile_id: string;
   ocr_profile_ids: string[];
   asr_profile_ids: string[];
   quality_profile_ids: string[];
   translation_profile_ids: string[];
+  realtime_speech_profile_ids: string[];
+  tts_profile_ids: string[];
+  model_gateway_profile_ids: string[];
 };
 
 export class IntelligencePolicyStore {
@@ -87,28 +114,42 @@ export class IntelligencePolicyStore {
     const result = await this.pg.query(
       `INSERT INTO collaboration_intelligence_policies
         (tenant_id, ocr_enabled, asr_enabled, quality_review_enabled, translation_enabled,
+         realtime_speech_enabled, tts_enabled, model_gateway_enabled,
          ocr_profile_id, asr_profile_id, quality_profile_id, translation_profile_id,
+         realtime_speech_profile_id, tts_profile_id, model_gateway_profile_id,
          ocr_profile_ids, asr_profile_ids, quality_profile_ids, translation_profile_ids,
+         realtime_speech_profile_ids, tts_profile_ids, model_gateway_profile_ids,
          allow_third_party, auto_ocr, auto_asr, auto_quality_review, auto_translation,
          translation_target_languages, min_ocr_confidence, min_asr_confidence,
          version, updated_by)
        VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-         $10::TEXT[], $11::TEXT[], $12::TEXT[], $13::TEXT[],
-         $14, $15, $16, $17, $18, $19::TEXT[], $20, $21, 1, $22)
+        ($1, $2, $3, $4, $5, $6, $7, $8,
+         $9, $10, $11, $12, $13, $14, $15,
+         $16::TEXT[], $17::TEXT[], $18::TEXT[], $19::TEXT[],
+         $20::TEXT[], $21::TEXT[], $22::TEXT[],
+         $23, $24, $25, $26, $27, $28::TEXT[], $29, $30, 1, $31)
        ON CONFLICT (tenant_id) DO UPDATE SET
          ocr_enabled = EXCLUDED.ocr_enabled,
          asr_enabled = EXCLUDED.asr_enabled,
          quality_review_enabled = EXCLUDED.quality_review_enabled,
          translation_enabled = EXCLUDED.translation_enabled,
+         realtime_speech_enabled = EXCLUDED.realtime_speech_enabled,
+         tts_enabled = EXCLUDED.tts_enabled,
+         model_gateway_enabled = EXCLUDED.model_gateway_enabled,
          ocr_profile_id = EXCLUDED.ocr_profile_id,
          asr_profile_id = EXCLUDED.asr_profile_id,
          quality_profile_id = EXCLUDED.quality_profile_id,
          translation_profile_id = EXCLUDED.translation_profile_id,
+         realtime_speech_profile_id = EXCLUDED.realtime_speech_profile_id,
+         tts_profile_id = EXCLUDED.tts_profile_id,
+         model_gateway_profile_id = EXCLUDED.model_gateway_profile_id,
          ocr_profile_ids = EXCLUDED.ocr_profile_ids,
          asr_profile_ids = EXCLUDED.asr_profile_ids,
          quality_profile_ids = EXCLUDED.quality_profile_ids,
          translation_profile_ids = EXCLUDED.translation_profile_ids,
+         realtime_speech_profile_ids = EXCLUDED.realtime_speech_profile_ids,
+         tts_profile_ids = EXCLUDED.tts_profile_ids,
+         model_gateway_profile_ids = EXCLUDED.model_gateway_profile_ids,
          allow_third_party = EXCLUDED.allow_third_party,
          auto_ocr = EXCLUDED.auto_ocr,
          auto_asr = EXCLUDED.auto_asr,
@@ -120,7 +161,7 @@ export class IntelligencePolicyStore {
          version = collaboration_intelligence_policies.version + 1,
          updated_by = EXCLUDED.updated_by,
          updated_at = CURRENT_TIMESTAMP
-       WHERE collaboration_intelligence_policies.version = $23
+       WHERE collaboration_intelligence_policies.version = $32
        RETURNING *`,
       [
         tenantId,
@@ -128,14 +169,23 @@ export class IntelligencePolicyStore {
         policy.asr_enabled,
         policy.quality_review_enabled,
         policy.translation_enabled,
+        policy.realtime_speech_enabled,
+        policy.tts_enabled,
+        policy.model_gateway_enabled,
         policy.ocr_profile_id,
         policy.asr_profile_id,
         policy.quality_profile_id,
         policy.translation_profile_id,
+        policy.realtime_speech_profile_id,
+        policy.tts_profile_id,
+        policy.model_gateway_profile_id,
         policy.ocr_profile_ids,
         policy.asr_profile_ids,
         policy.quality_profile_ids,
         policy.translation_profile_ids,
+        policy.realtime_speech_profile_ids,
+        policy.tts_profile_ids,
+        policy.model_gateway_profile_ids,
         policy.allow_third_party,
         policy.auto_ocr,
         policy.auto_asr,
@@ -164,14 +214,23 @@ export class IntelligencePolicyStore {
       asr_enabled: true,
       quality_review_enabled: true,
       translation_enabled: false,
+      realtime_speech_enabled: false,
+      tts_enabled: false,
+      model_gateway_enabled: false,
       ocr_profile_id: ocr?.id || '',
       asr_profile_id: asr?.id || '',
       quality_profile_id: quality?.id || '',
       translation_profile_id: '',
+      realtime_speech_profile_id: '',
+      tts_profile_id: '',
+      model_gateway_profile_id: '',
       ocr_profile_ids: ocr ? [ocr.id] : [],
       asr_profile_ids: asr ? [asr.id] : [],
       quality_profile_ids: quality ? [quality.id] : [],
       translation_profile_ids: [],
+      realtime_speech_profile_ids: [],
+      tts_profile_ids: [],
+      model_gateway_profile_ids: [],
       allow_third_party: defaults.some((profile) => profile.mode === 'third_party'),
       auto_ocr: true,
       auto_asr: true,
@@ -204,19 +263,43 @@ export class IntelligencePolicyStore {
       input.translation_profile_ids, input.translation_profile_id, 'translation', allowThirdParty,
       'translation_profile_ids'
     );
+    const realtimeSpeechRoute = this.normalizeProfileRoute(
+      input.realtime_speech_profile_ids, input.realtime_speech_profile_id,
+      'realtime_speech', allowThirdParty, 'realtime_speech_profile_ids'
+    );
+    const ttsRoute = this.normalizeProfileRoute(
+      input.tts_profile_ids, input.tts_profile_id, 'tts', allowThirdParty, 'tts_profile_ids'
+    );
+    const modelGatewayRoute = this.normalizeProfileRoute(
+      input.model_gateway_profile_ids, input.model_gateway_profile_id,
+      'model_gateway', allowThirdParty, 'model_gateway_profile_ids'
+    );
     const normalized = {
       ocr_enabled: requiredBoolean(input.ocr_enabled, 'ocr_enabled'),
       asr_enabled: requiredBoolean(input.asr_enabled, 'asr_enabled'),
       quality_review_enabled: requiredBoolean(input.quality_review_enabled, 'quality_review_enabled'),
       translation_enabled: requiredBoolean(input.translation_enabled, 'translation_enabled'),
+      realtime_speech_enabled: optionalBoolean(
+        input.realtime_speech_enabled, false, 'realtime_speech_enabled'
+      ),
+      tts_enabled: optionalBoolean(input.tts_enabled, false, 'tts_enabled'),
+      model_gateway_enabled: optionalBoolean(
+        input.model_gateway_enabled, false, 'model_gateway_enabled'
+      ),
       ocr_profile_id: ocrRoute[0] || '',
       asr_profile_id: asrRoute[0] || '',
       quality_profile_id: qualityRoute[0] || '',
       translation_profile_id: translationRoute[0] || '',
+      realtime_speech_profile_id: realtimeSpeechRoute[0] || '',
+      tts_profile_id: ttsRoute[0] || '',
+      model_gateway_profile_id: modelGatewayRoute[0] || '',
       ocr_profile_ids: ocrRoute,
       asr_profile_ids: asrRoute,
       quality_profile_ids: qualityRoute,
       translation_profile_ids: translationRoute,
+      realtime_speech_profile_ids: realtimeSpeechRoute,
+      tts_profile_ids: ttsRoute,
+      model_gateway_profile_ids: modelGatewayRoute,
       allow_third_party: allowThirdParty,
       auto_ocr: requiredBoolean(input.auto_ocr, 'auto_ocr'),
       auto_asr: requiredBoolean(input.auto_asr, 'auto_asr'),
@@ -286,14 +369,27 @@ function decodePolicy(row: Record<string, unknown>): IntelligencePolicy {
     asr_enabled: booleanValue(row.asr_enabled),
     quality_review_enabled: booleanValue(row.quality_review_enabled),
     translation_enabled: booleanValue(row.translation_enabled),
+    realtime_speech_enabled: booleanValue(row.realtime_speech_enabled),
+    tts_enabled: booleanValue(row.tts_enabled),
+    model_gateway_enabled: booleanValue(row.model_gateway_enabled),
     ocr_profile_id: String(row.ocr_profile_id || ''),
     asr_profile_id: String(row.asr_profile_id || ''),
     quality_profile_id: String(row.quality_profile_id || ''),
     translation_profile_id: String(row.translation_profile_id || ''),
+    realtime_speech_profile_id: String(row.realtime_speech_profile_id || ''),
+    tts_profile_id: String(row.tts_profile_id || ''),
+    model_gateway_profile_id: String(row.model_gateway_profile_id || ''),
     ocr_profile_ids: routeArray(row.ocr_profile_ids, row.ocr_profile_id),
     asr_profile_ids: routeArray(row.asr_profile_ids, row.asr_profile_id),
     quality_profile_ids: routeArray(row.quality_profile_ids, row.quality_profile_id),
     translation_profile_ids: routeArray(row.translation_profile_ids, row.translation_profile_id),
+    realtime_speech_profile_ids: routeArray(
+      row.realtime_speech_profile_ids, row.realtime_speech_profile_id
+    ),
+    tts_profile_ids: routeArray(row.tts_profile_ids, row.tts_profile_id),
+    model_gateway_profile_ids: routeArray(
+      row.model_gateway_profile_ids, row.model_gateway_profile_id
+    ),
     allow_third_party: booleanValue(row.allow_third_party),
     auto_ocr: booleanValue(row.auto_ocr),
     auto_asr: booleanValue(row.auto_asr),
@@ -344,6 +440,10 @@ function confidence(value: unknown, field: string): number {
 function requiredBoolean(value: unknown, field: string): boolean {
   if (typeof value !== 'boolean') throw policyError(`${field} must be a boolean`, 400);
   return value;
+}
+
+function optionalBoolean(value: unknown, fallback: boolean, field: string): boolean {
+  return value === undefined ? fallback : requiredBoolean(value, field);
 }
 
 function booleanValue(value: unknown): boolean {

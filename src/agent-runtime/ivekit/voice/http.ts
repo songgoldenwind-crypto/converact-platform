@@ -49,6 +49,7 @@ import {
 } from './postgres/unit-of-work.js';
 import { VoiceProviderEventService, VoiceRouterDecisionService } from './provider-event-service.js';
 import { VoiceProviderRegistry } from './provider-registry.js';
+import type { RealtimeAudioTapGrantService } from './realtime-audio-tap-grant.js';
 import { createIveKitVoiceProviderRegistry } from './runtime.js';
 import { EnvVoiceSecretResolver } from './secret-resolver.js';
 import type {
@@ -76,6 +77,18 @@ export interface VoiceExtensionSessionPort {
     actor: string;
     idempotency_key: string;
   }): Promise<VoiceExtensionSessionPlan>;
+}
+
+export const RUSTPBX_AUDIO_TAP_TOKEN_HEADER = 'x-ivekit-audio-tap-token';
+
+export interface RealtimeAudioTapRouteAuthorizationInput {
+  tenant_id: string;
+  interaction_id: string;
+  media_session_id: string;
+}
+
+export interface RealtimeAudioTapRouteAuthorizer {
+  authorize(input: RealtimeAudioTapRouteAuthorizationInput): Promise<string | null>;
 }
 
 export interface VoiceHttpModule {
@@ -110,6 +123,12 @@ export interface RouteIveKitVoiceApiOptions {
     'initialize' | 'uploadPart' | 'listParts' | 'complete' | 'finalize'
   >;
   recording_object_storage?: ObjectStorage;
+  realtime_audio_tap_authorizer?: RealtimeAudioTapRouteAuthorizer;
+  realtime_audio_tap_authorization_timeout_ms?: number;
+  realtime_audio_tap_grants?: Pick<
+    RealtimeAudioTapGrantService,
+    'grant' | 'list' | 'revoke'
+  >;
 }
 
 export interface PreparedVoiceCallPlacement {
@@ -302,7 +321,8 @@ export async function routeIveKitVoiceApi(
           deployment_profiles: true, sip_trunks: true, dids: true, extensions: true,
           extension_sessions: Boolean(options.extension_sessions || options.module?.extension_sessions),
           routes: true, calls: true, call_control: true, provider_events: true,
-          recordings: true, parking_slots: true, livekit_sip_bridge: true, provider_webhooks: true
+          recordings: true, parking_slots: true, livekit_sip_bridge: true, provider_webhooks: true,
+          realtime_audio_tap_grants: Boolean(options.realtime_audio_tap_grants)
         }
       }
     };
@@ -617,6 +637,68 @@ export async function routeIveKitVoiceApi(
     }
   }
 
+  const audioTapGrantMatch = routePath.match(
+    /^\/api\/ivekit\/voice\/calls\/([^/]+)\/realtime-audio-tap-grants(?:\/([^/]+)\/(revoke))?$/
+  );
+  if (audioTapGrantMatch) {
+    requireOperator(ctx);
+    const grants = options.realtime_audio_tap_grants;
+    if (!grants) throw capabilityUnavailable('realtime_audio_tap_grants');
+    const callId = decodeSegment(audioTapGrantMatch[1]);
+    await module.calls.getCall(ctx.tenantId, callId);
+    const grantId = audioTapGrantMatch[2]
+      ? decodeSegment(audioTapGrantMatch[2])
+      : '';
+    const action = audioTapGrantMatch[3] || '';
+    if (!grantId && method === 'POST') {
+      const input = bodyRecord(body);
+      return {
+        status: 201,
+        data: await grants.grant({
+          tenant_id: ctx.tenantId,
+          interaction_id: callId,
+          media_session_id: requiredString(input.media_session_id),
+          purpose: requiredString(input.purpose) as never,
+          consent_ref: requiredString(input.consent_ref),
+          source_language: requiredString(input.source_language),
+          target_languages: arrayValue(input.target_languages)
+            .map((language) => requiredString(language, 64)),
+          features: arrayValue(input.features)
+            .map((feature) => requiredString(feature, 64)) as never,
+          tracks: arrayValue(input.tracks).map((track) => bodyRecord(track)) as never,
+          expires_at: requiredString(input.expires_at),
+          actor: ctx.userId,
+          idempotency_key: requireIdempotencyKey(headers)
+        })
+      };
+    }
+    if (!grantId && method === 'GET') {
+      const page = listInput(ctx.tenantId, url);
+      return {
+        data: await grants.list({
+          tenant_id: ctx.tenantId,
+          interaction_id: callId,
+          limit: page.limit,
+          cursor: page.cursor
+        })
+      };
+    }
+    if (grantId && action === 'revoke' && method === 'POST') {
+      const input = bodyRecord(body);
+      return {
+        data: await grants.revoke({
+          tenant_id: ctx.tenantId,
+          interaction_id: callId,
+          grant_id: grantId,
+          expected_revision: requiredRevision(input.revision),
+          actor: ctx.userId,
+          reason: requiredString(input.reason)
+        })
+      };
+    }
+    throw new VoiceError({ code: 'validation_failed', status: 405 });
+  }
+
   const callMatch = routePath.match(
     /^\/api\/ivekit\/voice\/calls\/([^/]+)(?:\/(actions|events|recordings|bridges|participants|livekit-bridge))?$/
   );
@@ -883,18 +965,25 @@ async function routeProviderWebhook(input: {
             retryable: true
           });
         }
-        await createAuthoritativeInboundCall({
+        const authoritativeCall = await createAuthoritativeInboundCall({
           module,
           authenticated,
           request,
           placement: inboundPlacement,
           source: 'rustpbx_snapshot_admission'
         });
-        const owner = await input.options.placement.resolveOwner(tenantPg, {
-          tenant_id: authenticated.tenant_id,
-          interaction_id: inboundPlacement.call_id,
-          require_active: false
-        });
+        const [owner, audioTapToken] = await Promise.all([
+          input.options.placement.resolveOwner(tenantPg, {
+            tenant_id: authenticated.tenant_id,
+            interaction_id: inboundPlacement.call_id,
+            require_active: false
+          }),
+          authorizeRealtimeAudioTap(input.options, {
+            tenant_id: authenticated.tenant_id,
+            interaction_id: authoritativeCall.id,
+            media_session_id: request.call_id
+          })
+        ]);
         return {
           status: 201,
           data: {
@@ -904,7 +993,8 @@ async function routeProviderWebhook(input: {
             reservation_id: owner.reservation_id,
             owner_epoch: owner.owner_epoch,
             cell_id: owner.cell_id,
-            owner_node_id: owner.owner_node_id
+            owner_node_id: owner.owner_node_id,
+            ...(audioTapToken ? { audio_tap_token: audioTapToken } : {})
           },
           afterCommit: () => reconcileVoiceCallPlacement(
             input.options.placement,
@@ -913,8 +1003,9 @@ async function routeProviderWebhook(input: {
           )
         };
       }
+      let authoritativeCall: Awaited<ReturnType<VoiceCallService['createInbound']>> | null = null;
       if (request.direction === 'inbound' && request.method === 'INVITE') {
-        await createAuthoritativeInboundCall({
+        authoritativeCall = await createAuthoritativeInboundCall({
           module,
           authenticated,
           request,
@@ -922,13 +1013,31 @@ async function routeProviderWebhook(input: {
           source: 'rustpbx_router'
         });
       }
-      const decision = await module.router.decide({
-        tenant_id: authenticated.tenant_id,
-        profile_id: authenticated.profile_id,
-        request
-      });
+      const [decision, audioTapToken] = await Promise.all([
+        module.router.decide({
+          tenant_id: authenticated.tenant_id,
+          profile_id: authenticated.profile_id,
+          request
+        }),
+        authoritativeCall
+          ? authorizeRealtimeAudioTap(input.options, {
+              tenant_id: authenticated.tenant_id,
+              interaction_id: authoritativeCall.id,
+              media_session_id: request.call_id
+            })
+          : Promise.resolve('')
+      ]);
+      const response = decision.action === 'forward' && audioTapToken
+        ? {
+            ...decision,
+            headers: {
+              ...decision.headers,
+              [RUSTPBX_AUDIO_TAP_TOKEN_HEADER]: audioTapToken
+            }
+          }
+        : decision;
       return {
-        data: decision,
+        data: response,
         ...(prepared?.source === 'rustpbx_inbound'
           ? {
               afterCommit: () => reconcileVoiceCallPlacement(
@@ -1027,8 +1136,8 @@ async function createAuthoritativeInboundCall(input: {
   request: ReturnType<RustPbxRouterAdapter['normalizeRequest']>;
   placement: PreparedVoiceCallPlacement | null;
   source: 'rustpbx_router' | 'rustpbx_snapshot_admission';
-}): Promise<void> {
-  await input.module.calls.createInbound({
+}) {
+  return input.module.calls.createInbound({
     tenant_id: input.authenticated.tenant_id,
     profile_id: input.authenticated.profile_id,
     provider_call_id: input.request.call_id,
@@ -1050,6 +1159,41 @@ async function createAuthoritativeInboundCall(input: {
         }
       : {})
   });
+}
+
+async function authorizeRealtimeAudioTap(
+  options: RouteIveKitVoiceApiOptions,
+  input: RealtimeAudioTapRouteAuthorizationInput
+): Promise<string> {
+  if (!options.realtime_audio_tap_authorizer) return '';
+  const timeoutMs = boundedAuthorizationTimeout(
+    options.realtime_audio_tap_authorization_timeout_ms ?? 50
+  );
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const token = await Promise.race([
+      options.realtime_audio_tap_authorizer.authorize(input),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs);
+        timer.unref?.();
+      })
+    ]);
+    return typeof token === 'string' && token.length >= 32 && token.length <= 2_048
+      ? token
+      : '';
+  } catch {
+    return '';
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function boundedAuthorizationTimeout(value: unknown): number {
+  const timeout = Number(value);
+  if (!Number.isSafeInteger(timeout) || timeout < 5 || timeout > 500) {
+    throw validationError();
+  }
+  return timeout;
 }
 
 function providerInboundAddress(

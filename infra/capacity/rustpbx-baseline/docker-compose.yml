@@ -43,6 +43,9 @@ services:
   rustpbx:
     image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
     command: ["--conf", "/app/config/rustpbx.toml"]
+    environment:
+      RUSTRTC_UDP_RECEIVE_BUFFER_BYTES: ${RUSTRTC_UDP_RECEIVE_BUFFER_BYTES:?RUSTRTC_UDP_RECEIVE_BUFFER_BYTES is required}
+      RUSTRTC_UDP_SEND_BUFFER_BYTES: ${RUSTRTC_UDP_SEND_BUFFER_BYTES:?RUSTRTC_UDP_SEND_BUFFER_BYTES is required}
     init: true
     ulimits:
       nofile:
@@ -70,6 +73,53 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  kamailio:
+    image: ${KAMAILIO_IMAGE:?KAMAILIO_IMAGE is required}
+    command:
+      - -DD
+      - -E
+      - -x
+      - ${KAMAILIO_SHM_ALLOCATOR:?KAMAILIO_SHM_ALLOCATOR is required}
+      - -m
+      - ${KAMAILIO_SHM_MEMORY_MB:?KAMAILIO_SHM_MEMORY_MB is required}
+      - -M
+      - ${KAMAILIO_PKG_MEMORY_MB:?KAMAILIO_PKG_MEMORY_MB is required}
+      - -f
+      - /etc/kamailio/kamailio.cfg
+    init: true
+    depends_on:
+      rustpbx:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ${KAMAILIO_CONFIG_FILE:?KAMAILIO_CONFIG_FILE is required}:/etc/kamailio/kamailio.cfg:ro
+      - ${KAMAILIO_TLS_CONFIG_FILE:?KAMAILIO_TLS_CONFIG_FILE is required}:/etc/kamailio/tls.cfg:ro
+      - ${KAMAILIO_DISPATCHER_FILE:?KAMAILIO_DISPATCHER_FILE is required}:/var/lib/kamailio/dispatcher.list:ro
+      - ${KAMAILIO_TLS_KEY_FILE:?KAMAILIO_TLS_KEY_FILE is required}:/run/secrets/kamailio-tls-key:ro
+      - ${KAMAILIO_TLS_CERT_FILE:?KAMAILIO_TLS_CERT_FILE is required}:/run/secrets/kamailio-tls-cert:ro
+      - ${KAMAILIO_TLS_CA_FILE:?KAMAILIO_TLS_CA_FILE is required}:/run/secrets/kamailio-tls-ca:ro
+      - ${KAMAILIO_WEBPHONE_JWT_SECRET_FILE:?KAMAILIO_WEBPHONE_JWT_SECRET_FILE is required}:/run/secrets/kamailio-webphone-jwt-secret:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16777216,mode=1777
+      - /var/run/kamailio:size=16777216,mode=0750,uid=10001,gid=10001
+    healthcheck:
+      test: ["CMD", "/opt/kamailio/sbin/kamailio", "-c", "-f", "/etc/kamailio/kamailio.cfg"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 3s
+    networks:
+      baseline:
+        ipv4_address: 172.30.44.9
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   bootstrap:
     image: ${PYTHON_IMAGE:?PYTHON_IMAGE is required}
     command: ["python", "/bootstrap/bootstrap-inbound-trunk.py"]
@@ -77,7 +127,7 @@ services:
       RUSTPBX_BASE_URL: http://rustpbx:8080
       RUSTPBX_MANAGEMENT_TOKEN: ${RUSTPBX_MANAGEMENT_TOKEN:?RUSTPBX_MANAGEMENT_TOKEN is required}
       RUSTPBX_TRUNK_CREDENTIAL: ${RUSTPBX_TRUNK_CREDENTIAL:?RUSTPBX_TRUNK_CREDENTIAL is required}
-      RUSTPBX_ACCEPTANCE_UAC_IP: 172.30.44.20
+      RUSTPBX_ACCEPTANCE_UAC_IP: ${RUSTPBX_ACCEPTANCE_TRUNK_IP:-172.30.44.20}
     volumes:
       - ./bootstrap-inbound-trunk.py:/bootstrap/bootstrap-inbound-trunk.py:ro
     depends_on:

@@ -24,10 +24,10 @@ import {
 } from '../infra/ivekit/rustdesk-server/apply-overlay.mjs';
 
 test('RustDesk Server owner overlay is exact-release bound', () => {
-  assert.equal(RUSTDESK_SERVER_UPSTREAM_TAG, '1.1.15');
+  assert.equal(RUSTDESK_SERVER_UPSTREAM_TAG, '1.1.16');
   assert.equal(
     RUSTDESK_SERVER_UPSTREAM_COMMIT,
-    '9bae9f2f39d92c4b4ba2e28e089da5071897b22e'
+    '73523b31cfd25d77dee862e6fc9f5e1fb5e485ef'
   );
   assert.equal(
     RUSTDESK_SERVER_HBB_COMMON_COMMIT,
@@ -148,17 +148,38 @@ test('RustDesk Server hook declares bounded setup-only owner behavior', () => {
   assert.match(readme, /relay byte-copy loop does not call HTTP/);
   assert.match(readme, /remain\s+`not_run`/);
   assert.match(build, /submodule update --init --recursive/);
-  assert.match(build, /cargo test --locked/);
   assert.match(build, /--file "\$SCRIPT_DIR\/Dockerfile"/);
-  assert.match(build, /org\.opencontainers\.image\.revision=9bae9f2f/);
+  assert.match(build, /org\.opencontainers\.image\.revision=73523b31/);
   assert.match(build, /io\.ivekit\.owner-contract=component-node-v1/);
   assert.match(dockerfile, /FROM rust:1\.94-bookworm@sha256:[0-9a-f]{64} AS builder/);
+  assert.match(dockerfile, /cargo test --locked --all-features/);
   assert.match(dockerfile, /cargo build --locked --release --all-features/);
   assert.match(dockerfile, /COPY --from=builder \/source\/target\/release\/hbbs \/usr\/local\/bin\/hbbs/);
   assert.match(dockerfile, /COPY --from=builder \/source\/target\/release\/hbbr \/usr\/local\/bin\/hbbr/);
-  assert.match(dockerfile, /USER rustdesk/);
+  assert.match(dockerfile, /groupadd --system --gid 10001 rustdesk/);
+  assert.match(dockerfile, /useradd --system --uid 10001 --gid 10001/);
+  assert.match(dockerfile, /USER 10001:10001/);
   assert.match(dockerignore, /^target$/m);
   assert.match(dockerignore, /^\.git$/m);
+});
+
+test('RustDesk Server 1.1.16 image workflow binds exact source and shared OCI gate', () => {
+  const workflow = readFileSync(
+    '.github/workflows/ivekit-rustdesk-server-image.yml',
+    'utf8'
+  );
+  assert.match(workflow, /RUSTDESK_SERVER_UPSTREAM_TAG: 1\.1\.16/);
+  assert.match(workflow, /RUSTDESK_SERVER_UPSTREAM_COMMIT: 73523b31cfd25d77dee862e6fc9f5e1fb5e485ef/);
+  assert.match(workflow, /RUSTDESK_SERVER_HBB_COMMON_COMMIT: 83419b6549636ee39dacef7776c473f5802e08d6/);
+  assert.match(workflow, /submodule update --init --recursive/);
+  assert.match(workflow, /uses: \.\/\.github\/workflows\/ivekit-oci-release-gate\.yml/);
+  assert.match(workflow, /image: ghcr\.io\/songgoldenwind-crypto\/opc-rustdesk-server/);
+  assert.match(workflow, /digest: \$\{\{ needs\.publish\.outputs\.digest \}\}/);
+  const actions = [...workflow.matchAll(/uses:\s+([^@\s]+)@([^\s]+)/g)];
+  assert.ok(actions.length >= 1);
+  for (const [, action, revision] of actions) {
+    assert.match(revision, /^[a-f0-9]{40}$/, `${action} is not commit-pinned`);
+  }
 });
 
 test('RustDesk Server hook is a no-op when iveKit ownership is not configured', () => {

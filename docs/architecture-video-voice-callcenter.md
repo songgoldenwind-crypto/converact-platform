@@ -322,14 +322,14 @@ services:
       - DATABASE_URL=postgresql://opc:${POSTGRES_PASSWORD}@postgres:5432/opc
 
   livekit:
-    image: livekit/livekit-server:v1.13.3
+    image: ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server@sha256:<digest>
     network_mode: host              # WebRTC 需要 host network
     volumes:
       - ./config/livekit.yaml:/etc/livekit.yaml
     command: --config /etc/livekit.yaml
 
   livekit-sip:
-    image: livekit/sip:v1.6.0
+    image: ghcr.io/songgoldenwind-crypto/opc-livekit-sip@sha256:<digest>
     network_mode: host
     environment:
       - LIVEKIT_URL=ws://localhost:7880

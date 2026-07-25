@@ -17,10 +17,10 @@ import {
 } from '../infra/ivekit/livekit/apply-overlay.mjs';
 
 test('LiveKit owner overlay is exact-tag bound and patches every owner boundary', () => {
-  assert.equal(LIVEKIT_UPSTREAM_TAG, 'v1.13.3');
+  assert.equal(LIVEKIT_UPSTREAM_TAG, 'v1.13.4');
   assert.equal(
     LIVEKIT_UPSTREAM_COMMIT,
-    '8f6a9cb8b735549f0c5770df8ea70ac51f860ecb'
+    '0b3fd288e3ef3263ec475ba0d78cf3ad77459981'
   );
   const patched = patchLiveKitRoomManager(roomManagerFixture());
 
@@ -97,6 +97,21 @@ test('LiveKit overlay exposes local owner modules to the upstream image build', 
   assert.match(patched, /COPY vendor\/ vendor\//);
   assert.doesNotMatch(patched, /RUN go mod download/);
   assert.match(patched, /go build -mod=vendor/);
+  assert.match(
+    patched,
+    /FROM golang:1\.26-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS builder/
+  );
+  assert.match(
+    patched,
+    /FROM alpine:3\.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40/
+  );
+  assert.match(patched, /addgroup -S -g 10001 livekit/);
+  assert.match(patched, /adduser -S -D -H -u 10001 -G livekit livekit/);
+  assert.match(
+    patched,
+    /COPY --from=builder --chown=livekit:livekit \/workspace\/livekit-server \/livekit-server/
+  );
+  assert.match(patched, /USER livekit/);
   assert.equal(
     (patchDockerfile as (source: string) => string)(patched),
     patched
@@ -115,11 +130,7 @@ test('LiveKit owner build files state the real compile boundary', () => {
   assert.match(build, /go -C "\$\{LIVEKIT_SOURCE_DIR\}" mod vendor/);
   assert.match(build, /docker build/);
   assert.match(readme, /Go 1\.26/);
-  assert.match(readme, /ivekit\/livekit-server:v1\.13\.3-ivekit\.2-8f6a9cb8/);
-  assert.match(
-    readme,
-    /sha256:12c435e1badcca364b31cab2ff7aeb084b3718961e6837e81d4b0a3ac58accd2/
-  );
+  assert.match(readme, /ivekit\/livekit-server:v1\.13\.4-ivekit\.1-0b3fd288/);
   assert.match(readme, /immutable registry digest[\s\S]*remain `not_run`/);
   assert.match(readme, /real RTP\/TURN traffic/);
 });
@@ -161,6 +172,12 @@ function liveKitDockerfileFixture(): string {
     'COPY pkg/ pkg/',
     'COPY version/ version/',
     'RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH GO111MODULE=on go build -a -o livekit-server ./cmd/server',
+    '',
+    'FROM alpine',
+    '',
+    'COPY --from=builder /workspace/livekit-server /livekit-server',
+    '',
+    'ENTRYPOINT ["/livekit-server"]',
     ''
   ].join('\n');
 }
@@ -172,9 +189,11 @@ test('LiveKit small-room patch removes locks and heap aggregation from 1:1 RTP f
   );
   assert.match(hotPathPatch, /atomic\.Pointer\[\[\]T\]/);
   assert.match(hotPathPatch, /ShouldParallel/);
+  assert.match(hotPathPatch, /SetThreshold/);
   assert.match(hotPathPatch, /writeRTPToDownTracks/);
   assert.match(hotPathPatch, /TestWriteRTPToDownTracksUsesSerialSmallRoomPath/);
   assert.match(hotPathPatch, /TestDownTrackSpreaderConcurrentSnapshotReads/);
+  assert.match(hotPathPatch, /!extPkt\.IsOutOfOrder/);
   assert.doesNotMatch(hotPathPatch, /http\.|postgres|redis|nats/i);
 });
 

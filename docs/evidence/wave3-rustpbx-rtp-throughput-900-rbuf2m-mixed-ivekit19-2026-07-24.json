@@ -1,0 +1,1043 @@
+{
+  "schema_version": "1.0.0",
+  "suite": "iveKit RustPBX PCMU RTP staircase",
+  "status": "controlled_failed",
+  "error_code": "controlled_failed",
+  "capacity_claim": "none",
+  "observation_scope": "generator_and_sut_on_same_host",
+  "started_at": "2026-07-24T13:15:52.402Z",
+  "completed_at": "2026-07-24T13:16:41.873Z",
+  "points_requested": [
+    900
+  ],
+  "highest_controlled_pass_calls": 0,
+  "stopped_early": false,
+  "points": [
+    {
+      "calls": 900,
+      "calls_per_second": 50,
+      "status": "controlled_failed",
+      "error_code": "controlled_failed",
+      "campaign_report_path": "/opt/opc-wave123-validation-20260722/results/rtp-media/staircase-ivekit19-throughput-900-rbuf2m-valid/calls-900/report.json",
+      "campaign_report_sha256": "59e385d2b4eb03bacf5162e8a1e6ad2f9e16f428ad49e63f0cbafe6c50d19a4e",
+      "campaign": {
+        "schema_version": "1.0.0",
+        "suite": "iveKit RustPBX SIPp PCMU RTP check",
+        "status": "failed",
+        "error_code": "controlled_failed",
+        "generated_at": "2026-07-24T13:15:52.409Z",
+        "duration_ms": 49458,
+        "target": {
+          "docker_network": "ivekit-rustpbx-baseline",
+          "sip_target": "172.30.44.9:5060",
+          "uac_ip": "172.30.44.20",
+          "uas_ip": "172.30.44.22",
+          "service": "18005550200"
+        },
+        "load": {
+          "calls": 900,
+          "calls_per_second": 50,
+          "media_duration_ms": 20000,
+          "packets_per_second": 50,
+          "expected_media_packets": 900000,
+          "maximum_startup_missing_packets_per_call": 3,
+          "evidence_mode": "throughput",
+          "rtp_port_min": 6000,
+          "rtp_port_max": 7799
+        },
+        "tools": {
+          "sipp_version": "3.7.7",
+          "sipp_sha256": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef",
+          "container_image": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc",
+          "uac_scenario_sha256": "f89ad1bd601dbb1bb5df4c66d69bd6d855747efcff3a77e88e55fa814d6f3496",
+          "uas_scenario_sha256": "3390f966308c576a300ac3342812a4a764325528fc07a192a4dfa68bedd6b86d"
+        },
+        "commands": {
+          "uac_exit_code": 1,
+          "uac_timed_out": false,
+          "uas_exit_code": 1,
+          "uas_wait_timed_out": false
+        },
+        "sip": {
+          "uac": {
+            "successful_calls": 894,
+            "failed_calls": 6,
+            "retransmissions": 0
+          },
+          "uas": {
+            "successful_calls": 826,
+            "failed_calls": 74,
+            "retransmissions": 136
+          }
+        },
+        "media": {
+          "schema_version": "1.0.0",
+          "protocol": "sipp_rtp_throughput",
+          "evidence_level": "controlled_throughput",
+          "status": "controlled_failed",
+          "failure_class": "mixed_or_inconclusive",
+          "capacity_claim": "none",
+          "expected_calls": 900,
+          "expected_sut_datagrams_per_direction": 1800000,
+          "reasons": [
+            "RTP throughput inbound UDP coverage is below the configured floor",
+            "RTP throughput kernel UDP receive buffer errors are non-zero",
+            "RTP throughput kernel UDP inbound errors are non-zero",
+            "RTP throughput SIP call reconciliation failed",
+            "RTP throughput SIP retransmissions are non-zero",
+            "RTP throughput SIPp process exit code is non-zero"
+          ],
+          "attribution": {
+            "conclusion": "mixed_or_inconclusive",
+            "generator_signals": [
+              "RTP throughput inbound UDP coverage is below the configured floor",
+              "RTP throughput SIPp process exit code is non-zero"
+            ],
+            "sut_or_protocol_signals": [
+              "RTP throughput kernel UDP receive buffer errors are non-zero",
+              "RTP throughput kernel UDP inbound errors are non-zero",
+              "RTP throughput SIP call reconciliation failed",
+              "RTP throughput SIP retransmissions are non-zero"
+            ]
+          },
+          "udp": {
+            "in_datagrams_delta": 1690641,
+            "out_datagrams_delta": 1719711,
+            "inbound_coverage_ratio": 0.939245,
+            "outbound_coverage_ratio": 0.955395,
+            "receive_buffer_errors_delta": 242,
+            "send_buffer_errors_delta": 0,
+            "in_errors_delta": 242,
+            "no_ports_delta": 0
+          }
+        }
+      },
+      "resources": {
+        "containers": {
+          "rustpbx": {
+            "sample_count": 15,
+            "cpu_max_percent": 216.82,
+            "cpu_average_percent": 124.444,
+            "memory_max_bytes": 490943283.2,
+            "pids_max": 15,
+            "network_rx_delta_bytes": 366452000,
+            "network_tx_delta_bytes": 368823000
+          },
+          "kamailio": {
+            "sample_count": 15,
+            "cpu_max_percent": 17.34,
+            "cpu_average_percent": 8.385,
+            "memory_max_bytes": 48171581.44,
+            "pids_max": 26,
+            "network_rx_delta_bytes": 4600000,
+            "network_tx_delta_bytes": 4362000
+          },
+          "router": {
+            "sample_count": 15,
+            "cpu_max_percent": 29.84,
+            "cpu_average_percent": 13.542,
+            "memory_max_bytes": 66720890.88,
+            "pids_max": 26,
+            "network_rx_delta_bytes": 2930000,
+            "network_tx_delta_bytes": 560000
+          },
+          "postgres": {
+            "sample_count": 15,
+            "cpu_max_percent": 5.67,
+            "cpu_average_percent": 2.457,
+            "memory_max_bytes": 101575557.12,
+            "pids_max": 10,
+            "network_rx_delta_bytes": 128000,
+            "network_tx_delta_bytes": 300
+          },
+          "uac": {
+            "sample_count": 14,
+            "cpu_max_percent": 89.52,
+            "cpu_average_percent": 49.81,
+            "memory_max_bytes": 14868807.68,
+            "pids_max": 16,
+            "network_rx_delta_bytes": 171330000,
+            "network_tx_delta_bytes": 183520000
+          },
+          "uas": {
+            "sample_count": 12,
+            "cpu_max_percent": 93.38,
+            "cpu_average_percent": 54.804,
+            "memory_max_bytes": 10768875.52,
+            "pids_max": 14,
+            "network_rx_delta_bytes": 183440000,
+            "network_tx_delta_bytes": 171460000
+          }
+        },
+        "missing_roles": [],
+        "sampling_error_count": 0
+      },
+      "resource_samples": [
+        {
+          "elapsed_ms": 2156.028,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 3.46,
+              "memory_bytes": 12530483.2,
+              "pids": 15,
+              "network_rx_bytes": 548000,
+              "network_tx_bytes": 177000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 0.38,
+              "memory_bytes": 35200696.32,
+              "pids": 25,
+              "network_rx_bytes": 1010000,
+              "network_tx_bytes": 778000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 2.68,
+              "memory_bytes": 51736739.84,
+              "pids": 19,
+              "network_rx_bytes": 7970000,
+              "network_tx_bytes": 1550000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0.01,
+              "memory_bytes": 101544099.84,
+              "pids": 9,
+              "network_rx_bytes": 304000,
+              "network_tx_bytes": 54100,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 5532.445,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 184.33,
+              "memory_bytes": 117859942.4,
+              "pids": 15,
+              "network_rx_bytes": 9710000,
+              "network_tx_bytes": 9800000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 12.4,
+              "memory_bytes": 41534095.36,
+              "pids": 25,
+              "network_rx_bytes": 1840000,
+              "network_tx_bytes": 1560000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 4.18,
+              "memory_bytes": 51977912.32,
+              "pids": 19,
+              "network_rx_bytes": 8220000.000000001,
+              "network_tx_bytes": 1610000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 5.44,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54300,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 29.22,
+              "memory_bytes": 3825205.248,
+              "pids": 5,
+              "network_rx_bytes": 4670000,
+              "network_tx_bytes": 4480000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "uas": {
+              "cpu_percent": 26.95,
+              "memory_bytes": 3133145.088,
+              "pids": 5,
+              "network_rx_bytes": 4560000,
+              "network_tx_bytes": 4540000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 8879.219,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 203.09,
+              "memory_bytes": 205520896,
+              "pids": 15,
+              "network_rx_bytes": 30400000,
+              "network_tx_bytes": 30900000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 17.34,
+              "memory_bytes": 43085987.84,
+              "pids": 25,
+              "network_rx_bytes": 2490000,
+              "network_tx_bytes": 2170000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 28.56,
+              "memory_bytes": 52145684.48,
+              "pids": 19,
+              "network_rx_bytes": 8470000,
+              "network_tx_bytes": 1660000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 5.63,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 45.91,
+              "memory_bytes": 6631194.624,
+              "pids": 7,
+              "network_rx_bytes": 15000000,
+              "network_tx_bytes": 14700000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 43.16,
+              "memory_bytes": 4484759.552,
+              "pids": 6,
+              "network_rx_bytes": 11100000,
+              "network_tx_bytes": 11000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 12259.237,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 216.82,
+              "memory_bytes": 292867276.8,
+              "pids": 15,
+              "network_rx_bytes": 62600000,
+              "network_tx_bytes": 63200000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 10.05,
+              "memory_bytes": 43683676.16,
+              "pids": 25,
+              "network_rx_bytes": 3030000,
+              "network_tx_bytes": 2690000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 3.83,
+              "memory_bytes": 52470743.04,
+              "pids": 19,
+              "network_rx_bytes": 8730000,
+              "network_tx_bytes": 1720000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 61.87,
+              "memory_bytes": 9248440.32,
+              "pids": 10,
+              "network_rx_bytes": 31100000,
+              "network_tx_bytes": 30600000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 62.34,
+              "memory_bytes": 6237978.624,
+              "pids": 9,
+              "network_rx_bytes": 24700000,
+              "network_tx_bytes": 25400000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 15608.553,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 168.53,
+              "memory_bytes": 371195904,
+              "pids": 15,
+              "network_rx_bytes": 105000000,
+              "network_tx_bytes": 104000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 14.96,
+              "memory_bytes": 44763709.44,
+              "pids": 25,
+              "network_rx_bytes": 3520000,
+              "network_tx_bytes": 3200000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 22.92,
+              "memory_bytes": 66332917.76,
+              "pids": 26,
+              "network_rx_bytes": 8950000,
+              "network_tx_bytes": 1770000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 5.3,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 79.97,
+              "memory_bytes": 12111052.8,
+              "pids": 13,
+              "network_rx_bytes": 51600000,
+              "network_tx_bytes": 51900000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 79.3,
+              "memory_bytes": 8588886.016,
+              "pids": 11,
+              "network_rx_bytes": 44400000,
+              "network_tx_bytes": 45200000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 19093.287,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 176.98,
+              "memory_bytes": 461688012.8,
+              "pids": 15,
+              "network_rx_bytes": 154000000,
+              "network_tx_bytes": 148000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 8.68,
+              "memory_bytes": 45529169.92,
+              "pids": 25,
+              "network_rx_bytes": 3980000,
+              "network_tx_bytes": 3750000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 9.83,
+              "memory_bytes": 53162803.2,
+              "pids": 19,
+              "network_rx_bytes": 9200000,
+              "network_tx_bytes": 1830000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 5.41,
+              "memory_bytes": 101575557.12,
+              "pids": 10,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 88.21,
+              "memory_bytes": 13201571.84,
+              "pids": 15,
+              "network_rx_bytes": 73400000,
+              "network_tx_bytes": 75900000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 86.29,
+              "memory_bytes": 9879683.072,
+              "pids": 13,
+              "network_rx_bytes": 65500000,
+              "network_tx_bytes": 69500000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 22504.119,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 165.35,
+              "memory_bytes": 490943283.2,
+              "pids": 15,
+              "network_rx_bytes": 199000000,
+              "network_tx_bytes": 197000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 4.04,
+              "memory_bytes": 45613056,
+              "pids": 25,
+              "network_rx_bytes": 4250000,
+              "network_tx_bytes": 4000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 4.15,
+              "memory_bytes": 53309603.84,
+              "pids": 19,
+              "network_rx_bytes": 9380000,
+              "network_tx_bytes": 1860000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 86.9,
+              "memory_bytes": 14868807.68,
+              "pids": 16,
+              "network_rx_bytes": 97100000,
+              "network_tx_bytes": 98600000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 83.79,
+              "memory_bytes": 10768875.52,
+              "pids": 14,
+              "network_rx_bytes": 97800000,
+              "network_tx_bytes": 98900000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 123000
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 25910.713,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 147.43,
+              "memory_bytes": 478150656,
+              "pids": 15,
+              "network_rx_bytes": 245000000,
+              "network_tx_bytes": 245000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 14.04,
+              "memory_bytes": 46231715.84,
+              "pids": 25,
+              "network_rx_bytes": 4610000,
+              "network_tx_bytes": 4330000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 29.84,
+              "memory_bytes": 53403975.68,
+              "pids": 19,
+              "network_rx_bytes": 9650000,
+              "network_tx_bytes": 1910000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 5.67,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 85.77,
+              "memory_bytes": 12771655.68,
+              "pids": 16,
+              "network_rx_bytes": 121000000,
+              "network_tx_bytes": 122000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 83.85,
+              "memory_bytes": 8908701.696,
+              "pids": 14,
+              "network_rx_bytes": 122000000,
+              "network_tx_bytes": 122000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 123000
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 29225.142,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 164.33,
+              "memory_bytes": 476892364.8,
+              "pids": 15,
+              "network_rx_bytes": 292000000,
+              "network_tx_bytes": 292000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 11.84,
+              "memory_bytes": 46525317.12,
+              "pids": 25,
+              "network_rx_bytes": 4860000,
+              "network_tx_bytes": 4570000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 25.89,
+              "memory_bytes": 53288632.32,
+              "pids": 19,
+              "network_rx_bytes": 9830000,
+              "network_tx_bytes": 1950000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 89.52,
+              "memory_bytes": 10590617.6,
+              "pids": 16,
+              "network_rx_bytes": 145000000,
+              "network_tx_bytes": 145000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 93.38,
+              "memory_bytes": 7557087.232,
+              "pids": 14,
+              "network_rx_bytes": 144000000,
+              "network_tx_bytes": 146000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 123000
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 32656.87,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 176.73,
+              "memory_bytes": 471020339.2,
+              "pids": 15,
+              "network_rx_bytes": 330000000,
+              "network_tx_bytes": 331000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 6.22,
+              "memory_bytes": 46525317.12,
+              "pids": 25,
+              "network_rx_bytes": 5050000,
+              "network_tx_bytes": 4750000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 4.73,
+              "memory_bytes": 53477376,
+              "pids": 19,
+              "network_rx_bytes": 10200000,
+              "network_tx_bytes": 2009999.9999999998,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0.01,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 55.38,
+              "memory_bytes": 8577351.68,
+              "pids": 16,
+              "network_rx_bytes": 161000000,
+              "network_tx_bytes": 167000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 45.81,
+              "memory_bytes": 5889851.392,
+              "pids": 14,
+              "network_rx_bytes": 167000000,
+              "network_tx_bytes": 161000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 123000
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 35932.801,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 110.35,
+              "memory_bytes": 468818329.6,
+              "pids": 15,
+              "network_rx_bytes": 348000000,
+              "network_tx_bytes": 350000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 6.84,
+              "memory_bytes": 46525317.12,
+              "pids": 25,
+              "network_rx_bytes": 5200000,
+              "network_tx_bytes": 4880000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 2.94,
+              "memory_bytes": 53498347.52,
+              "pids": 19,
+              "network_rx_bytes": 10300000,
+              "network_tx_bytes": 2040000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 35.65,
+              "memory_bytes": 7187988.48,
+              "pids": 16,
+              "network_rx_bytes": 169000000,
+              "network_tx_bytes": 178000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 23.83,
+              "memory_bytes": 4858052.608,
+              "pids": 14,
+              "network_rx_bytes": 178000000,
+              "network_tx_bytes": 169000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 123000
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 39170.467,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 75.62,
+              "memory_bytes": 467664896,
+              "pids": 15,
+              "network_rx_bytes": 360000000,
+              "network_tx_bytes": 362000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 5.98,
+              "memory_bytes": 48171581.44,
+              "pids": 26,
+              "network_rx_bytes": 5280000,
+              "network_tx_bytes": 4950000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 1.34,
+              "memory_bytes": 53529804.8,
+              "pids": 19,
+              "network_rx_bytes": 10500000,
+              "network_tx_bytes": 2060000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 5.07,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 22.67,
+              "memory_bytes": 6512705.536,
+              "pids": 16,
+              "network_rx_bytes": 173000000,
+              "network_tx_bytes": 184000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 18.4,
+              "memory_bytes": 4464836.608,
+              "pids": 14,
+              "network_rx_bytes": 183000000,
+              "network_tx_bytes": 173000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 123000
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 42369.01,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 54.71,
+              "memory_bytes": 465987174.4,
+              "pids": 15,
+              "network_rx_bytes": 367000000,
+              "network_tx_bytes": 369000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 5.85,
+              "memory_bytes": 46525317.12,
+              "pids": 25,
+              "network_rx_bytes": 5450000,
+              "network_tx_bytes": 5110000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 25.48,
+              "memory_bytes": 53330575.36,
+              "pids": 19,
+              "network_rx_bytes": 10600000,
+              "network_tx_bytes": 2089999.9999999998,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0.01,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 305000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 11.66,
+              "memory_bytes": 4959764.48,
+              "pids": 16,
+              "network_rx_bytes": 176000000,
+              "network_tx_bytes": 188000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            },
+            "uas": {
+              "cpu_percent": 10.55,
+              "memory_bytes": 4091543.552,
+              "pids": 14,
+              "network_rx_bytes": 188000000,
+              "network_tx_bytes": 176000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 123000
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 45506.357,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 13.78,
+              "memory_bytes": 464728883.2,
+              "pids": 15,
+              "network_rx_bytes": 367000000,
+              "network_tx_bytes": 369000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 6.9,
+              "memory_bytes": 46535802.88,
+              "pids": 25,
+              "network_rx_bytes": 5560000,
+              "network_tx_bytes": 5140000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 20.33,
+              "memory_bytes": 53456404.48,
+              "pids": 19,
+              "network_rx_bytes": 10800000,
+              "network_tx_bytes": 2100000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 4.31,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 389000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 2.21,
+              "memory_bytes": 4514119.68,
+              "pids": 16,
+              "network_rx_bytes": 176000000,
+              "network_tx_bytes": 188000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            }
+          },
+          "errors": []
+        },
+        {
+          "elapsed_ms": 48657.127,
+          "containers": {
+            "rustpbx": {
+              "cpu_percent": 5.15,
+              "memory_bytes": 464728883.2,
+              "pids": 15,
+              "network_rx_bytes": 367000000,
+              "network_tx_bytes": 369000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "kamailio": {
+              "cpu_percent": 0.26,
+              "memory_bytes": 46556774.4,
+              "pids": 25,
+              "network_rx_bytes": 5610000,
+              "network_tx_bytes": 5140000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 0
+            },
+            "router": {
+              "cpu_percent": 16.43,
+              "memory_bytes": 66720890.88,
+              "pids": 26,
+              "network_rx_bytes": 10900000,
+              "network_tx_bytes": 2110000,
+              "block_read_bytes": 11900000,
+              "block_write_bytes": 12300
+            },
+            "postgres": {
+              "cpu_percent": 0,
+              "memory_bytes": 101554585.6,
+              "pids": 9,
+              "network_rx_bytes": 432000,
+              "network_tx_bytes": 54400,
+              "block_read_bytes": 22800000,
+              "block_write_bytes": 8189.999999999999
+            },
+            "uac": {
+              "cpu_percent": 2.4,
+              "memory_bytes": 4514119.68,
+              "pids": 16,
+              "network_rx_bytes": 176000000,
+              "network_tx_bytes": 188000000,
+              "block_read_bytes": 0,
+              "block_write_bytes": 4100
+            }
+          },
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

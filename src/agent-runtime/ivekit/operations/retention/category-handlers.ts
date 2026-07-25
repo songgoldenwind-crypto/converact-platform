@@ -229,6 +229,7 @@ async function deleteMediaRecordings(
   const candidates = await withPgTenant(pg, claim.policy.tenant_id, async (tenantPg) => {
     const result = await tenantPg.query<RetentionRow>(
       `SELECT recording.id, recording.storage_url,
+         recording.media_call_id, recording.call_session_id,
          EXISTS (
            SELECT 1 FROM ivekit_legal_holds hold
            WHERE hold.tenant_id = recording.tenant_id AND hold.category = 'media_recordings'
@@ -272,7 +273,16 @@ async function deleteMediaRecordings(
            RETURNING id`,
           [claim.policy.tenant_id, String(candidate.id), now().toISOString()]
         );
-        return (updated.rowCount ?? updated.rows.length) > 0;
+        const changed = (updated.rowCount ?? updated.rows.length) > 0;
+        const interactionId = String(candidate.media_call_id || candidate.call_session_id || '');
+        if (changed && interactionId) {
+          await tenantPg.query(
+            `DELETE FROM ivekit_realtime_speech_segments
+             WHERE tenant_id = $1 AND interaction_id = $2`,
+            [claim.policy.tenant_id, interactionId]
+          );
+        }
+        return changed;
       }
       await tenantPg.query(
         `UPDATE call_recordings

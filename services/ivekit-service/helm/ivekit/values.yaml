@@ -1,3 +1,11 @@
+deploymentProfiles:
+  # core is the mandatory base. Optional capability groups require an explicit
+  # overlay from profiles/ and cannot silently enable themselves.
+  core: true
+  ai: false
+  observability: false
+  benchmark: false
+
 replicaCount: 2
 
 autoscaling:
@@ -15,6 +23,15 @@ topologySpreadConstraints:
   maxSkew: 1
   whenUnsatisfiable: ScheduleAnyway
 
+telemetry:
+  enabled: false
+  collectorEndpoint: ""
+  sampleRatio: "0.1"
+  maxQueueSize: "2048"
+  maxExportBatchSize: "256"
+  scheduledDelayMs: "5000"
+  exportTimeoutMs: "3000"
+
 image:
   repository: ""
   digest: ""
@@ -30,6 +47,7 @@ secrets:
   runtimeDatabasePasswordKey: runtime-database-password
   auditIpHmacKeyKey: audit-ip-hmac-key
   rateLimitHmacKeyKey: rate-limit-hmac-key
+  realtimeAudioTapHmacSecretKey: realtime-audio-tap-hmac-secret-b64
 
 config:
   allowedOrigins: ""
@@ -80,6 +98,8 @@ config:
     OPC_IVEKIT_RUNTIME_HEARTBEAT_ENABLED: "1"
     OPC_IVEKIT_RUNTIME_HEARTBEAT_INTERVAL_MS: "10000"
     OPC_IVEKIT_RUNTIME_HEARTBEAT_STALE_AFTER_MS: "45000"
+    OPC_IVEKIT_WORKER_BACKLOG_METRICS_ENABLED: "0"
+    OPC_IVEKIT_WORKER_BACKLOG_METRICS_INTERVAL_MS: "5000"
     OPC_IVEKIT_EVENT_RETENTION_MS: "86400000"
     OPC_IVEKIT_EVENT_MAX_PAYLOAD_BYTES: "65536"
     OPC_IVEKIT_WS_REPLAY_MAX_EVENTS: "500"
@@ -104,6 +124,10 @@ config:
     OPC_LIVEKIT_EGRESS_RECONCILIATION_MAX_MISSING: "2"
     OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_ENABLED: "0"
     OPC_LIVEKIT_EGRESS_CAPACITY_METRICS_INTERVAL_MS: "5000"
+    OPC_LIVEKIT_INGRESS_ENABLED: "0"
+    OPC_LIVEKIT_INGRESS_REQUEST_TIMEOUT_MS: "15000"
+    OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST: ""
+    OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL: "0"
     OPC_IVEKIT_IVR_WORKERS_ENABLED: "0"
     OPC_IVEKIT_VOICE_WORKERS_ENABLED: "0"
     OPC_IVEKIT_VOICE_SECRET_ENV_NAMES: "RUSTPBX_MANAGEMENT_TOKEN,RUSTPBX_RWI_TOKEN"
@@ -154,6 +178,38 @@ service:
   type: ClusterIP
   port: 3000
 
+realtimeAudioTap:
+  enabled: false
+  listenPort: 3010
+  path: /api/ivekit/realtime-audio-tap/livekit
+  tokenTtlSeconds: "60"
+  maxConnections: "4096"
+  prestartBufferMs: "1000"
+  maxPayloadBytes: "262144"
+  idleTimeoutMs: "60000"
+  startTimeoutMs: "5000"
+  shutdownTimeoutMs: "1000"
+  projectionQueueMaxItems: "4096"
+  projectionShutdownTimeoutMs: "1000"
+  retentionDays: "30"
+  socketVolumeSizeLimit: 4Mi
+  rustPbxChannelCapacity: "256"
+  rustPbxSendTimeoutMs: "10"
+  rustPbxGateway:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  networkPolicy:
+    enabled: true
+    aiAgentPodSelector:
+      app: ai-agent
+    aiAgentNamespaceSelector: {}
+    additionalIngressFrom: []
+
 monitoring:
   serviceMonitor:
     enabled: false
@@ -167,6 +223,32 @@ monitoring:
     enabled: false
     labels:
       grafana_dashboard: "1"
+  # Passive eBPF SIP/RTP observer. It is intentionally off-path and disabled
+  # until an exact host interface and voice-node selector are provided.
+  sipExporter:
+    enabled: false
+    image:
+      repository: frzq/sip-exporter
+      digest: ""
+      pullPolicy: IfNotPresent
+    interface: ""
+    httpPort: 2112
+    sipPort: 5060
+    sipsPort: 5061
+    rtpCapture: true
+    rtpStreamTtl: 30s
+    ignoreOutgoing: false
+    hostLabels: false
+    telemetry: false
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: "1"
+        memory: 256Mi
 
 migration:
   activeDeadlineSeconds: 900
@@ -232,6 +314,19 @@ notificationWorker:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+  autoscaling:
+    enabled: false
+    prometheusAddress: ""
+    minReplicas: 1
+    maxReplicas: 32
+    pollingInterval: 15
+    cooldownPeriod: 180
+    fallbackFailureThreshold: 3
+    fallbackReplicas: 2
+    scaleDownStabilizationSeconds: 300
+    depthPerReplica: "50"
+    oldestAgeThresholdSeconds: "30"
+    oldestAgeActivationSeconds: "5"
   resources:
     requests:
       cpu: 100m
@@ -240,9 +335,115 @@ notificationWorker:
       cpu: "1"
       memory: 512Mi
 
+# Fixed, allow-listed asynchronous worker pools. Values cannot add arbitrary
+# worker switches; each pool maps to one reviewed environment contract in the
+# template. KEDA is optional and requires the external operator plus a
+# Prometheus-compatible query endpoint.
+workerPools:
+  prometheusAddress: ""
+  pollingInterval: 15
+  cooldownPeriod: 180
+  scaleDownStabilizationSeconds: 300
+  fallbackFailureThreshold: 3
+  terminationGracePeriodSeconds: 120
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 0
+  pools:
+    eventWebhook:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 16
+        fallbackReplicas: 1
+        depthPerReplica: "50"
+        oldestAgeThresholdSeconds: "30"
+        oldestAgeActivationSeconds: "5"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+    attachment:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 32
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "15"
+        oldestAgeActivationSeconds: "3"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "2"
+          memory: 2Gi
+    quality:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 32
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "15"
+        oldestAgeActivationSeconds: "3"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: "2"
+          memory: 1Gi
+    translation:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 0
+        maxReplicas: 32
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "15"
+        oldestAgeActivationSeconds: "3"
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: "2"
+          memory: 1Gi
+    fileSecurity:
+      enabled: false
+      replicaCount: 1
+      autoscaling:
+        enabled: false
+        minReplicas: 1
+        maxReplicas: 16
+        fallbackReplicas: 1
+        depthPerReplica: "10"
+        oldestAgeThresholdSeconds: "30"
+        oldestAgeActivationSeconds: "5"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "4"
+          memory: 4Gi
+
 fileSecurity:
   scannerMode: clamd
-  scanWorkerEnabled: "1"
+  scanWorkerEnabled: "0"
   scanIntervalMs: "5000"
   scanBatchSize: "25"
   scanLeaseMs: "60000"
@@ -251,7 +452,7 @@ fileSecurity:
   clamdHost: ""
   clamdPort: "3310"
   derivativeProviderMode: local_ffmpeg
-  derivativeWorkerEnabled: "1"
+  derivativeWorkerEnabled: "0"
   derivativeIntervalMs: "5000"
   derivativeBatchSize: "10"
   derivativeLeaseMs: "120000"
@@ -259,16 +460,33 @@ fileSecurity:
   cleanupConfirm: "0"
 
 clamav:
-  enabled: true
-  replicaCount: 1
+  enabled: false
+  replicaCount: 2
+  signatureMaxAgeMinutes: 4320
   image:
-    repository: clamav/clamav
-    digest: ""
+    repository: clamav/clamav:1.5.2_base
+    digest: sha256:3aa0c6d6a966dc062899e070fb13f87485acf0cbb710fccaae9a848cd5f5b09a
     pullPolicy: IfNotPresent
   persistence:
     enabled: true
     size: 2Gi
     storageClass: ""
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  podAntiAffinity:
+    enabled: true
+    topologyKey: kubernetes.io/hostname
+  topologySpreadConstraints:
+    enabled: true
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+  networkPolicy:
+    enabled: true
+    dnsNamespaceSelector:
+      kubernetes.io/metadata.name: kube-system
+    dnsPodSelector:
+      k8s-app: kube-dns
   podSecurityContext:
     runAsNonRoot: true
     runAsUser: 100
@@ -311,6 +529,8 @@ voice:
     recordingChannelCapacity: 256
     recordingWorkerThreads: 4
     recordingWorkerQueueCapacity: 4096
+    udpReceiveBufferBytes: 1048576
+    udpSendBufferBytes: 524288
   callRecordCapacity:
     maxConcurrent: 64
     channelCapacity: 65536
@@ -424,6 +644,10 @@ voice:
       repository: ghcr.io/songgoldenwind-crypto/opc-kamailio
       digest: ""
       pullPolicy: IfNotPresent
+    runtime:
+      sharedMemoryAllocator: fm
+      sharedMemoryMegabytes: 512
+      privateMemoryMegabytes: 32
     advertise:
       sipHost: ""
       wssHost: ""
@@ -454,6 +678,34 @@ voice:
       syncBatchSize: 4000
       syncBatchUsleep: 1000
       syncMessageContacts: 50
+    # Optional HOMER 11 (or any HEPv3-compatible collector) integration. HEP
+    # mirroring is disabled by default and never participates in call admission.
+    sipTrace:
+      enabled: false
+      collectorHost: 127.0.0.1
+      collectorPort: 9060
+      metricsPort: 9090
+      captureId: 101
+      includeOptions: false
+      highWater:
+        enabled: true
+        pollIntervalMs: 1000
+        metricsTimeoutMs: 1000
+        samplePercent: 10
+        queueRecoverRatio: 0.2
+        queueSampleRatio: 0.5
+        queueOffRatio: 0.8
+        cpuRecoverCores: 0.3
+        cpuSampleCores: 0.7
+        cpuOffCores: 1.5
+        packetsRecoverPerSecond: 2000
+        packetsSamplePerSecond: 5000
+        packetsOffPerSecond: 10000
+        processingGapRecoverPerSecond: 25
+        processingGapSamplePerSecond: 250
+        processingGapOffPerSecond: 1000
+        failureSamplesToOff: 3
+        recoverySamples: 5
     limits:
       maxMessageBytes: 65535
       perSourceInviteCps: 100
@@ -501,6 +753,13 @@ voice:
       # exact node subnet(s) used by the Cell in production.
       rustpbxNodeCidrs:
         - 10.0.0.0/8
+      # When sipTrace.enabled=true, allow the in-cluster HOMER workload by exact
+      # namespace and Pod labels. Narrow CIDRs remain available for an external
+      # HEP collector; never open HEP egress to a default route.
+      hepCollectorNamespaceSelector: {}
+      hepCollectorPodSelector:
+        app.kubernetes.io/component: homer
+      hepCollectorCidrs: []
       dnsNamespaceSelector:
         kubernetes.io/metadata.name: kube-system
       dnsPodSelector:
@@ -529,13 +788,18 @@ voice:
         cpu: 500m
         memory: 256Mi
 
+# compact is a single-node deployment. cluster is the fixed three-node native
+# Tinode ring used by production Cells.
 tinode:
   enabled: false
+  mode: compact
   replicaCount: 1
   image:
-    repository: tinode/tinode
+    repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-tinode-server
     digest: ""
     pullPolicy: IfNotPresent
+    allowedRepositories:
+      - ghcr.io/songgoldenwind-crypto/opc-ivekit-tinode-server
   secrets:
     postgresDsnKey: tinode-postgres-dsn
     apiKeySaltKey: tinode-api-key-salt
@@ -545,6 +809,8 @@ tinode:
     basicUserKey: tinode-basic-user
     basicPasswordKey: tinode-basic-password
     userPasswordSecretKey: tinode-user-password-secret
+    accessKeyIdKey: tinode-s3-access-key-id
+    secretAccessKeyKey: tinode-s3-secret-access-key
   config:
     upgradeDatabase: "false"
     accountGarbageCollectionEnabled: "true"
@@ -562,6 +828,41 @@ tinode:
     size: 5Gi
     storageClass: ""
     accessMode: ReadWriteOnce
+  cluster:
+    replicaCount: 3
+    clusterPort: 12000
+    terminationGracePeriodSeconds: 60
+    runtimeVolumeSizeLimit: 2Gi
+    logVolumeSizeLimit: 1Gi
+    media:
+      handler: s3
+      region: ""
+      bucket: ""
+      endpoint: ""
+      forcePathStyle: false
+      corsOrigins: '["*"]'
+    databaseBootstrap:
+      backoffLimit: 6
+      activeDeadlineSeconds: 900
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+    scheduling:
+      zoneTopologyKey: topology.kubernetes.io/zone
+      hostnameTopologyKey: kubernetes.io/hostname
+      nodeSelector: {}
+      tolerations: []
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
@@ -570,9 +871,9 @@ tinode:
     additionalIngressFrom: []
   podSecurityContext:
     runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    fsGroup: 1000
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
     seccompProfile:
       type: RuntimeDefault
   securityContext:

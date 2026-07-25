@@ -255,6 +255,20 @@ npm run ivekit:provider-governance-acceptance
 
 该命令使用正式 HTTP Translation Provider、正式路由执行器和治理存储，覆盖 success、429、5xx、timeout、终态不切换、quota、circuit open、half-open recovery 与 failover。输出固定声明 `verification_scope=controlled_provider_and_in_memory_governance`、`real_vendor_evidence=false`；它是代码级自动验收，不替代真实 OCR/ASR/翻译供应商效果和并发验收。
 
+实时 ASR/翻译 WSS adapter 与路由矩阵：
+
+```bash
+npm run ivekit:realtime-speech-provider-acceptance
+```
+
+该命令在当前主机 loopback 启动临时 WebSocket Provider，并直接使用正式
+`ivekit-realtime-speech-v1` adapter、策略路由和治理存储。固定覆盖二进制 PCM envelope、
+429、5xx、终态拒绝、认证失败、协议错误、启动超时、有界音频溢出、启动期 failover、终态
+不 failover，以及已建立会话断开后不自动切换 Provider。每个临时监听器和 socket 都在检查后
+关闭；报告不包含 URL、Authorization、token、音频或 Provider 原始错误，只声明
+`verification_scope=controlled_loopback_realtime_provider`、`real_vendor_evidence=false`。
+该命令不替代真实 WSS、真实 RustPBX/LiveKit 音频、弱网、准确率、延迟或容量验收。
+
 健康检查可由 admin 调 `POST /api/ivekit/intelligence/providers/health`。缺 token 返回 `http_class=not_run`，网络/超时不会回显 URL 或 secret。
 
 Provider 路由状态事件为 `collaboration.intelligence.provider.selected`、`collaboration.intelligence.provider.failed_over` 和 `collaboration.intelligence.provider.circuit_changed`。事件只含 capability、profile id、尝试次数和状态变化；事件写入失败不会回滚已经完成的 Provider 结果。
@@ -303,6 +317,11 @@ Provider 专用指标：
 
 当前仍没有专用 queue backlog/oldest-age gauge；上线监控必须显式配置上述 SQL/日志采集，不能把 Provider 请求指标误当作完整 worker 队列可观测性。这是运维实现边界，不影响 durable queue 正确性。
 
+实时音频旁路的 PostgreSQL 投影使用独立有界 dispatcher，不在 LiveKit/RustPBX gateway 回调中
+等待数据库。`opc_ivekit_voice_audio_tap_events_total` 的 `event_type=tap.projection.failed` 只允许
+`projection_failed`、`projection_queue_overflow` 和 `projection_shutdown_timeout` 三种低基数
+reason，不包含 SQL、租户、会话、正文或 Provider 原始错误。
+
 ## 11. 故障恢复
 
 1. Provider 故障：不删除 job；保留 worker 或暂时关闭 worker，恢复后按 due 时间继续。
@@ -311,6 +330,33 @@ Provider 专用指标：
 4. 原文变化：系统按 source hash 取消旧翻译；客户端保留原文并只显示当前 hash 对应结果。
 5. 终态 job：附件/录制源使用 retry API；翻译只允许 `failed` job retry，并重新校验 source/policy/profile。
 6. 跨租户或 RLS 异常：立即停 worker 和应用写流量；不得通过给 runtime 账号 `BYPASSRLS` 临时修复。
+7. 实时投影数据库短停：保持主媒体和 gateway；final 按固定退避重试，partial 不重试。队列满时先
+   淘汰已排队 partial；全部为 final 时拒绝新项并告警，禁止改成无界 Promise 或无限队列。
+8. LiveKit audio tap gateway 短停：客户端重新申请一次性 token 后重连当前签发实例；成功后重置
+   重连预算。预算耗尽只关闭辅助 tap，不离开 LiveKit room，也不重启主媒体。
+9. PostgreSQL 空闲连接被服务端终止：`pg.Pool` 记录
+   `postgres.pool.idle_client_error` 和合法错误码，丢弃失效连接；不得记录连接串、SQL 或原始
+   数据库错误正文。活跃查询继续失败给上层重试，禁止在 Pool listener 中重放业务写入。
+
+运行参数：
+
+| 环境变量 | 默认值 | 合法范围 | 语义 |
+| --- | ---: | ---: | --- |
+| `OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS` | `4096` | `1..100000` | 等待投影项上限，不含当前正在执行的 1 项 |
+| `OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS` | `1000` | `10..30000` | 关闭时等待投影排空的硬上限 |
+
+默认 final 重试间隔为 `100/250/500/1000/2000 ms`。这组值和 gateway 的 8 次有界重连用于吸收短暂
+抖动，不是数据库或 gateway 高可用的替代品。持续出现 overflow、retry 或 budget exhaustion 时应
+扩容/修复依赖并检查连接池，不得单纯无限增大队列或 timeout。
+
+进程恢复回归入口为 `npm run ivekit:realtime-recovery-acceptance`。它使用唯一 Compose project
+实际停止/恢复隔离 PostgreSQL，并终止/重启实际 Node gateway 子进程；Python 容器必须以
+`/workspace` 为首个 import path，并校验模块路径和源码 SHA-256。PostgreSQL 使用启动前预留的
+固定 loopback 端口，重启后端口不得漂移；验收退出时必须清理专用容器、网络和卷，并确认 LED
+容器身份和健康状态未变化。transport 必须使用不含 PostgreSQL/LED 的专属 internal 网络，
+宿主状态、只读事件/控制和 transport 可写输出必须分离，禁止回退到 host 网络或共享可写状态目录。
+通过后仍不能替代真实 LiveKit/RustPBX 媒体、
+CloudNativePG 主备或 Kubernetes Pod rolling 验收。
 
 ## 12. 升级与回滚
 

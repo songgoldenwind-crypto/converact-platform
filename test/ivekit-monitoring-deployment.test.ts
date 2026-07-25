@@ -23,6 +23,9 @@ test('iveKit Prometheus rules cover shared foundation failure domains with uniqu
     'IveKitIntelligenceRouteExhausted',
     'IveKitMediaPacketLossHigh',
     'IveKitVoiceCommandUncertain',
+    'IveKitRealtimeAudioTapFailure',
+    'IveKitRealtimeAudioTapDroppingAudio',
+    'IveKitRealtimeAudioTapReplayAttempt',
     'IveKitRetentionFailure'
   ]) assert.equal(names.includes(required), true, required);
   assert.equal(rules.every((rule) => Boolean(rule.expr) && Boolean(rule.for)), true);
@@ -48,6 +51,8 @@ test('iveKit Grafana dashboard is importable and uses only bounded shared metric
     'opc_ivekit_tinode_delivery_queue_lag_seconds',
     'opc_ivekit_media_qos_packet_loss_ratio_bucket',
     'opc_ivekit_voice_uncertain_commands_total',
+    'opc_ivekit_voice_audio_tap_events_total',
+    'opc_ivekit_voice_audio_tap_dropped_seconds_total',
     'opc_ivekit_event_webhook_oldest_event_age_seconds',
     'ivekit_kamailio_snapshot_valid',
     'ivekit_kamailio_new_call_nodes',

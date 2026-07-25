@@ -23,13 +23,24 @@ export interface RustDeskSyntheticPlanInput {
   forced_relay_ratio: number;
   high_motion_session_ratio: number;
   file_transfer_session_ratio: number;
+  reconnect_session_ratio: number;
+  quality_limits: RustDeskSyntheticQualityLimits;
   duration_seconds: number;
   result_path: string;
   driver: 'rustdesk_native';
 }
 
+export interface RustDeskSyntheticQualityLimits {
+  control_ack_p95_ms: number;
+  control_ack_p99_ms: number;
+  media_update_p95_ms: number;
+  media_update_p99_ms: number;
+  reconnect_success_ratio: number;
+  reconnect_recovery_p99_ms: number;
+}
+
 export interface RustDeskSyntheticProcessInput extends Record<string, unknown> {
-  schema_version: '1.0.0';
+  schema_version: '1.1.0';
   run_id: string;
   shard_id: string;
   worker_id: string;
@@ -40,6 +51,8 @@ export interface RustDeskSyntheticProcessInput extends Record<string, unknown> {
   expected_forced_relay_sessions: number;
   expected_high_motion_sessions: number;
   expected_file_transfers: number;
+  expected_reconnect_sessions: number;
+  quality_limits: RustDeskSyntheticQualityLimits;
   id_server: string;
   relay_server: string;
   public_key_fingerprint: string;
@@ -50,6 +63,7 @@ export interface RustDeskSyntheticProcessInput extends Record<string, unknown> {
   duration_seconds: number;
   driver: 'rustdesk_native';
   correctness_lane: 'synthetic_protocol_only';
+  latency_lane: 'synthetic_protocol_delivery_only';
   result_path: string;
 }
 
@@ -72,7 +86,13 @@ export interface RustDeskSyntheticRawEvidence {
   clipboard_event_count: number;
   file_transfer_completed_count: number;
   file_transfer_checksum_mismatch_count: number;
-  reconnect_count: number;
+  control_ack_p95_ms: number;
+  control_ack_p99_ms: number;
+  media_update_p95_ms: number;
+  media_update_p99_ms: number;
+  reconnect_attempt_count: number;
+  reconnect_success_count: number;
+  reconnect_recovery_p99_ms: number;
   stale_epoch_action_count: number;
   generator_cpu_p95_ratio: number;
   generator_nic_p95_ratio: number;
@@ -83,6 +103,7 @@ export interface RustDeskSyntheticEvidence {
   protocol: 'rustdesk_native';
   evidence_level: 'controlled';
   correctness_lane: 'synthetic_protocol_only';
+  latency_lane: 'synthetic_protocol_delivery_only';
   status: 'controlled_pass' | 'controlled_failed' | 'invalid_generator_capacity';
   failure_class: 'none' | 'generator' | 'sut_or_protocol';
   run_id: string;
@@ -110,10 +131,12 @@ export function buildRustDeskSyntheticPlan(
   ratio(input.forced_relay_ratio, 'forced relay ratio');
   ratio(input.high_motion_session_ratio, 'high motion ratio');
   ratio(input.file_transfer_session_ratio, 'file transfer ratio');
+  ratio(input.reconnect_session_ratio, 'reconnect session ratio');
+  validateQualityLimits(input.quality_limits);
   bounded(input.duration_seconds, 1, 86_400, 'duration');
   const expectedSessions = input.ordinal_end_exclusive - input.ordinal_start;
   const processInput: RustDeskSyntheticProcessInput = {
-    schema_version: '1.0.0',
+    schema_version: '1.1.0',
     run_id: input.run_id,
     shard_id: input.shard_id,
     worker_id: input.worker_id,
@@ -124,6 +147,8 @@ export function buildRustDeskSyntheticPlan(
     expected_forced_relay_sessions: Math.round(expectedSessions * input.forced_relay_ratio),
     expected_high_motion_sessions: Math.round(expectedSessions * input.high_motion_session_ratio),
     expected_file_transfers: Math.round(expectedSessions * input.file_transfer_session_ratio),
+    expected_reconnect_sessions: Math.round(expectedSessions * input.reconnect_session_ratio),
+    quality_limits: structuredClone(input.quality_limits),
     id_server: input.id_server,
     relay_server: input.relay_server,
     public_key_fingerprint: input.public_key_fingerprint,
@@ -145,6 +170,7 @@ export function buildRustDeskSyntheticPlan(
     duration_seconds: input.duration_seconds,
     driver: 'rustdesk_native',
     correctness_lane: 'synthetic_protocol_only',
+    latency_lane: 'synthetic_protocol_delivery_only',
     result_path: absolute(input.result_path, 'result path')
   };
   return {
@@ -168,6 +194,8 @@ export function evaluateRustDeskSyntheticEvidence(input: {
   expected_sessions: number;
   expected_forced_relay_sessions: number;
   expected_file_transfers: number;
+  expected_reconnect_sessions: number;
+  quality_limits: RustDeskSyntheticQualityLimits;
   binary_version: string;
   binary_sha256: string;
   raw: RustDeskSyntheticRawEvidence;
@@ -177,6 +205,7 @@ export function evaluateRustDeskSyntheticEvidence(input: {
   safeId(input.worker_id, 'worker ID');
   epoch(input.lease_epoch);
   checkedSha(input.binary_sha256);
+  validateQualityLimits(input.quality_limits);
   const raw = finiteRaw(input.raw);
   const reasons: string[] = [];
   const generatorInvalid = raw.generator_cpu_p95_ratio > 0.6 ||
@@ -220,12 +249,40 @@ export function evaluateRustDeskSyntheticEvidence(input: {
   if (raw.file_transfer_checksum_mismatch_count > 0) {
     reasons.push('RustDesk file transfer checksum mismatches were observed');
   }
+  maximum(raw.control_ack_p95_ms, input.quality_limits.control_ack_p95_ms, 'control ACK P95', reasons);
+  maximum(raw.control_ack_p99_ms, input.quality_limits.control_ack_p99_ms, 'control ACK P99', reasons);
+  maximum(raw.media_update_p95_ms, input.quality_limits.media_update_p95_ms, 'media update P95', reasons);
+  maximum(raw.media_update_p99_ms, input.quality_limits.media_update_p99_ms, 'media update P99', reasons);
+  exact(
+    raw.reconnect_attempt_count,
+    input.expected_reconnect_sessions,
+    'reconnect attempts',
+    reasons
+  );
+  if (raw.reconnect_success_count > raw.reconnect_attempt_count) {
+    reasons.push('RustDesk reconnect successes exceed attempts');
+  }
+  if (input.expected_reconnect_sessions > 0) {
+    const reconnectSuccessRatio = raw.reconnect_success_count / raw.reconnect_attempt_count;
+    if (reconnectSuccessRatio < input.quality_limits.reconnect_success_ratio) {
+      reasons.push(
+        `RustDesk reconnect success ratio ${reconnectSuccessRatio} is below ${input.quality_limits.reconnect_success_ratio}`
+      );
+    }
+    maximum(
+      raw.reconnect_recovery_p99_ms,
+      input.quality_limits.reconnect_recovery_p99_ms,
+      'reconnect recovery P99',
+      reasons
+    );
+  }
   if (raw.stale_epoch_action_count > 0) reasons.push('RustDesk stale lease actions were observed');
   const passed = reasons.length === 0;
   return {
     protocol: 'rustdesk_native',
     evidence_level: 'controlled',
     correctness_lane: 'synthetic_protocol_only',
+    latency_lane: 'synthetic_protocol_delivery_only',
     status: passed ? 'controlled_pass'
       : generatorInvalid ? 'invalid_generator_capacity' : 'controlled_failed',
     failure_class: passed ? 'none' : generatorInvalid ? 'generator' : 'sut_or_protocol',
@@ -252,6 +309,8 @@ export function evaluateRustDeskSyntheticPlanEvidence(
     expected_sessions: plan.input.expected_sessions,
     expected_forced_relay_sessions: plan.input.expected_forced_relay_sessions,
     expected_file_transfers: plan.input.expected_file_transfers,
+    expected_reconnect_sessions: plan.input.expected_reconnect_sessions,
+    quality_limits: plan.input.quality_limits,
     binary_version: plan.binary_version,
     binary_sha256: plan.binary_sha256,
     raw
@@ -280,6 +339,25 @@ function finiteRaw<T extends object>(raw: T): T {
 
 function exact(actual: number, expected: number, label: string, reasons: string[]): void {
   if (actual !== expected) reasons.push(`RustDesk ${label} ${actual} does not equal ${expected}`);
+}
+
+function maximum(actual: number, limit: number, label: string, reasons: string[]): void {
+  if (actual > limit) reasons.push(`RustDesk ${label} ${actual} exceeds ${limit}`);
+}
+
+function validateQualityLimits(limits: RustDeskSyntheticQualityLimits): void {
+  if (!limits || typeof limits !== 'object') throw new Error('invalid RustDesk quality limits');
+  for (const [field, value] of Object.entries(limits)) {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`invalid RustDesk quality limit ${field}`);
+  }
+  ratio(limits.reconnect_success_ratio, 'RustDesk reconnect success ratio');
+  if (limits.reconnect_success_ratio <= 0) throw new Error('invalid RustDesk reconnect success ratio');
+  if (limits.control_ack_p95_ms > limits.control_ack_p99_ms) {
+    throw new Error('RustDesk control ACK P95 limit exceeds P99 limit');
+  }
+  if (limits.media_update_p95_ms > limits.media_update_p99_ms) {
+    throw new Error('RustDesk media update P95 limit exceeds P99 limit');
+  }
 }
 
 function safeId(value: string, label: string): string {

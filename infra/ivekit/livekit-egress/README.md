@@ -55,26 +55,33 @@ are SumDB bound:
 - `linux/amd64`: `h1:mCBp0gCL9gQVqXpC60jQ7R46JDxL73qeF8hv6SnV2ss=`
 
 The build replaces upstream's container-internal `go.dev` download with that
-verified toolchain and uses HTTPS for Ubuntu package indexes. A reviewed mirror
-can be selected with `IVEKIT_LIVEKIT_EGRESS_APT_MIRROR`; changing the mirror
-does not change the requested package set. The script validates the resulting
-architecture, non-root user, source revision, component and pool-contract
-labels, Egress version and iveKit binary markers.
+verified toolchain, vendors all Go dependencies and runs the final image build
+with `--network=none`. Three digest-bound inputs define the complete build:
+Egress templates, the GStreamer development builder and the official matching
+Egress runtime. Reusing the official runtime preserves its Chrome, GStreamer
+and Tini contract without apt or remote downloads in the iveKit Dockerfile.
+The script validates architecture, non-root user, source revision, component
+and pool-contract labels, Egress version and iveKit binary markers.
 
 ```bash
 LIVEKIT_EGRESS_SOURCE_DIR=/path/to/livekit-egress-v1.13.0 \
 IVEKIT_LIVEKIT_EGRESS_IMAGE=ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0 \
+IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE=docker.io/livekit/egress-templates:sha-594b3b1@sha256:<digest> \
+IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE=docker.io/livekit/gstreamer:1.24.12-dev@sha256:<digest> \
+IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE=docker.io/livekit/egress:v1.13.0@sha256:<digest> \
+IVEKIT_LIVEKIT_EGRESS_TARGETARCH=amd64 \
 bash infra/ivekit/livekit-egress/build.sh
 ```
 
-On 2026-07-18 the overlay applied repeatedly to the exact `v1.13.0` source,
-the policy module and patched upstream `pkg/stats` tests passed, and the full
-CGO image built locally as Linux arm64. The verified local image is
-`ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0`, image ID
-`sha256:fde135c9f13c95e106ec5b075c9b039a95ac0c134f8f12e72018cc710f7810b2`,
-size `3115388408` bytes. This is a local source-built candidate, not an
-immutable registry digest or production artifact. The amd64 toolchain is
-pinned but the amd64 image build remains `not_run`.
+On 2026-07-22 the overlay applied repeatedly to the exact `v1.13.0` source on
+the isolated Linux amd64 validation server. The offline full CGO build produced
+`ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0-amd64`, image ID
+`sha256:e266932c428610111a417d6b38cbec7096680816eae09b23495575035456d3fe`,
+size `1,413,726,105` bytes. Runtime user, source revision, pool-contract labels,
+version and iveKit binary markers passed inspection. This is a controlled
+source-built candidate, not an immutable registry digest or production
+artifact. The earlier local arm64 build remains historical evidence; execution
+of the new multi-architecture GHCR workflow remains `not_run`.
 
 ## Storage failure isolation
 

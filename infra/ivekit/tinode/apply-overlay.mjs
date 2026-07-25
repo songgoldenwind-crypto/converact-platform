@@ -76,26 +76,36 @@ replace ivekit.local/tinodeowner => ./ivekit/tinode-owner
 
 export function patchTinodeDockerfile(source) {
   let next = source;
-  if (!next.includes('FROM golang:1.26-alpine AS ivekit-builder')) {
+  if (!next.includes('FROM ${IVEKIT_TINODE_BUILDER_IMAGE} AS ivekit-builder')) {
     next = replaceOnce(
       next,
       'FROM alpine:3.22',
-      'FROM golang:1.26-alpine AS ivekit-builder\n' +
+      'ARG IVEKIT_TINODE_BUILDER_IMAGE\n' +
+        'ARG IVEKIT_TINODE_RUNTIME_IMAGE\n' +
+        'FROM ${IVEKIT_TINODE_BUILDER_IMAGE} AS ivekit-builder\n' +
         'ARG TARGETARCH\n' +
         'ARG TARGET_DB=postgres\n' +
         'WORKDIR /src\n' +
         'COPY go.mod go.sum ./\n' +
         'COPY ivekit/ ivekit/\n' +
-        'RUN go mod download\n' +
+        'COPY vendor/ vendor/\n' +
+        'ENV GOFLAGS=-mod=vendor\n' +
         'COPY . .\n' +
         'RUN mkdir -p /out && \\\n' +
-        '\tCGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go test -tags "${TARGET_DB}" ./server && \\\n' +
-        '\tCGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w -X main.buildstamp=v0.25.3-ivekit.2" -tags "${TARGET_DB}" -o /out/tinode ./server && \\\n' +
-        '\tCGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w" -tags "${TARGET_DB}" -o /out/init-db ./tinode-db\n\n' +
-        'FROM alpine:3.22',
+        '\tGOCACHE=/tmp/ivekit-tinode-go-cache CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go test -tags "${TARGET_DB}" ./server ./server/db/postgres && \\\n' +
+        '\tGOCACHE=/tmp/ivekit-tinode-go-cache CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w -X main.buildstamp=v0.25.3-ivekit.3" -tags "${TARGET_DB}" -o /out/tinode ./server && \\\n' +
+        '\tGOCACHE=/tmp/ivekit-tinode-go-cache CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -trimpath -ldflags "-s -w" -tags "${TARGET_DB}" -o /out/init-db ./tinode-db && \\\n' +
+        '\trm -rf /tmp/ivekit-tinode-go-cache\n\n' +
+        'FROM ${IVEKIT_TINODE_RUNTIME_IMAGE}',
       'Dockerfile source builder'
     );
   }
+  next = replaceOnce(
+    next,
+    'COPY . .',
+    'COPY pbx/ pbx/\nCOPY server/ server/\nCOPY tinode-db/ tinode-db/',
+    'Dockerfile source boundary'
+  );
   next = replaceOnce(
     next,
     'COPY config.template .',
@@ -129,10 +139,177 @@ export function patchTinodeDockerfile(source) {
   }
   next = replaceOnce(
     next,
+    'COPY tinode-db/*.jpg .',
+    'COPY tinode-db/*.jpg ./',
+    'Dockerfile wildcard destination'
+  );
+  if (next.includes('RUN apk update && \\\n\tapk add --no-cache ca-certificates bash grep')) {
+    next = replaceOnce(
+      next,
+      'RUN apk update && \\\n\tapk add --no-cache ca-certificates bash grep',
+      'COPY --from=ivekit-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt',
+      'Dockerfile offline runtime certificates'
+    );
+  } else if (!next.includes('COPY --from=ivekit-builder /etc/ssl/certs/ca-certificates.crt')) {
+    throw new Error('Tinode Dockerfile offline runtime certificates anchor mismatch');
+  }
+  if (!next.includes('ln -s /usr/local/bin/bash /bin/bash')) {
+    next = replaceOnce(
+      next,
+      'COPY --from=ivekit-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt',
+      'COPY --from=ivekit-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt\n' +
+        'RUN test -x /usr/local/bin/bash && ln -s /usr/local/bin/bash /bin/bash',
+      'Dockerfile Bash compatibility link'
+    );
+  }
+  next = replaceOnce(
+    next,
     'RUN mkdir /botdata',
-    'RUN mkdir -p /botdata static',
+    'RUN addgroup -g 10001 -S tinode && \\\n' +
+      '\tadduser -S -D -H -u 10001 -G tinode tinode && \\\n' +
+      '\tmkdir -p /botdata /opt/tinode/static /var/log && \\\n' +
+      '\ttouch /var/log/tinode.log && \\\n' +
+      '\tchown -R tinode:tinode /opt/tinode /botdata /var/log',
     'Dockerfile runtime directories'
   );
+  if (!next.includes('USER tinode')) {
+    next = replaceOnce(
+      next,
+      'RUN chmod +x credentials.sh',
+      'RUN chmod +x credentials.sh\n\nUSER tinode',
+      'Dockerfile non-root runtime'
+    );
+  }
+  return next;
+}
+
+export function patchTinodeEntrypoint(source) {
+  const marker = '# iveKit writable runtime and deterministic cluster bootstrap';
+  if (source.includes(marker)) return source;
+
+  let next = replaceOnce(
+    source,
+    '#!/bin/bash\n',
+    '#!/bin/bash\n\n' +
+      `${marker}\n` +
+      'RUNTIME_DIR="${TINODE_RUNTIME_DIR:-/tmp/tinode-runtime}"\n' +
+      'mkdir -p "${RUNTIME_DIR}"\n' +
+      'FS_UPLOAD_DIR="${FS_UPLOAD_DIR:-${RUNTIME_DIR}/uploads}"\n' +
+      'AWS_FORCE_PATH_STYLE="${AWS_FORCE_PATH_STYLE:-false}"\n' +
+      'if [ "${MEDIA_HANDLER:-fs}" = "fs" ]; then\n' +
+      '\tmkdir -p "${FS_UPLOAD_DIR}"\n' +
+      'fi\n' +
+      'TINODE_CLUSTER_NODE_0_NAME="${TINODE_CLUSTER_NODE_0_NAME:-tinode-0}"\n' +
+      'TINODE_CLUSTER_NODE_0_ADDR="${TINODE_CLUSTER_NODE_0_ADDR:-tinode-0:12000}"\n' +
+      'TINODE_CLUSTER_NODE_1_NAME="${TINODE_CLUSTER_NODE_1_NAME:-tinode-1}"\n' +
+      'TINODE_CLUSTER_NODE_1_ADDR="${TINODE_CLUSTER_NODE_1_ADDR:-tinode-1:12001}"\n' +
+      'TINODE_CLUSTER_NODE_2_NAME="${TINODE_CLUSTER_NODE_2_NAME:-tinode-2}"\n' +
+      'TINODE_CLUSTER_NODE_2_ADDR="${TINODE_CLUSTER_NODE_2_ADDR:-tinode-2:12002}"\n',
+    'entrypoint runtime preamble'
+  );
+  next = replaceOnce(
+    next,
+    '\tCONFIG=working.config',
+    '\tCONFIG="${RUNTIME_DIR}/working.config"',
+    'entrypoint generated config path'
+  );
+  next = replaceOnce(
+    next,
+    '\trm -f working.config',
+    '\trm -f "${CONFIG}"',
+    'entrypoint generated config cleanup'
+  );
+  next = replaceOnce(
+    next,
+    '\t\techo "$line" >> working.config',
+    '\t\techo "$line" >> "${CONFIG}"',
+    'entrypoint generated config write'
+  );
+  next = replaceOnce(
+    next,
+    '\tSTATIC_DIR=$EXT_STATIC_DIR',
+    '\tSTATIC_DIR="$EXT_STATIC_DIR"',
+    'entrypoint external static path'
+  );
+  next = replaceOnce(
+    next,
+    '\tSTATIC_DIR="./static"',
+    '\tSTATIC_DIR="${RUNTIME_DIR}/static"',
+    'entrypoint default static path'
+  );
+  next = replaceOnce(
+    next,
+    '\tSTATIC_DIR="${RUNTIME_DIR}/static"\nfi',
+    '\tSTATIC_DIR="${RUNTIME_DIR}/static"\nfi\nmkdir -p "${STATIC_DIR}"',
+    'entrypoint writable static directory'
+  );
+  next = next
+    .replaceAll('> $STATIC_DIR/firebase-init.js', '> "${STATIC_DIR}/firebase-init.js"')
+    .replaceAll('> $STATIC_DIR/apple-app-site-association', '> "${STATIC_DIR}/apple-app-site-association"');
+  next = replaceOnce(
+    next,
+    'init_stdout=./init-db-stdout.txt',
+    'init_stdout="${RUNTIME_DIR}/init-db-stdout.txt"',
+    'entrypoint init output path'
+  );
+  next = replaceOnce(
+    next,
+    './init-db \\\n',
+    '/opt/tinode/init-db \\\n',
+    'entrypoint init binary path'
+  );
+  next = replaceOnce(
+    next,
+    'if [ $? -ne 0 ]; then\n\techo "./init-db failed. Quitting."\n\texit 1\nfi',
+    'if [ $? -ne 0 ]; then\n\techo "/opt/tinode/init-db failed. Quitting."\n\texit 1\nfi\n\n' +
+      'if [ "${TINODE_INIT_ONLY:-0}" = "1" ]; then\n' +
+      '\texit 0\n' +
+      'fi',
+    'entrypoint init-only gate'
+  );
+  next = replaceOnce(
+    next,
+    '\t./credentials.sh /botdata/.tn-cookie < /botdata/tino-password',
+    '\t/opt/tinode/credentials.sh /botdata/.tn-cookie < /botdata/tino-password',
+    'entrypoint credentials binary path'
+  );
+  next = replaceOnce(
+    next,
+    './tinode "${args[@]}" 2>> /var/log/tinode.log',
+    'exec /opt/tinode/tinode "${args[@]}" 2>> /var/log/tinode.log',
+    'entrypoint server exec path'
+  );
+  return next;
+}
+
+export function patchTinodeConfigTemplate(source) {
+  const replacements = [
+    [
+      '"upload_dir": "uploads"',
+      '"upload_dir": "$FS_UPLOAD_DIR"'
+    ],
+    [
+      '"endpoint": "$AWS_S3_ENDPOINT",',
+      '"endpoint": "$AWS_S3_ENDPOINT",\n' +
+        '\t\t\t\t"force_path_style": $AWS_FORCE_PATH_STYLE,'
+    ],
+    [
+      '{"name": "tinode-0", "addr": "tinode-0:12000"}',
+      '{"name": "$TINODE_CLUSTER_NODE_0_NAME", "addr": "$TINODE_CLUSTER_NODE_0_ADDR"}'
+    ],
+    [
+      '{"name": "tinode-1", "addr": "tinode-1:12001"}',
+      '{"name": "$TINODE_CLUSTER_NODE_1_NAME", "addr": "$TINODE_CLUSTER_NODE_1_ADDR"}'
+    ],
+    [
+      '{"name": "tinode-2", "addr": "tinode-2:12002"}',
+      '{"name": "$TINODE_CLUSTER_NODE_2_NAME", "addr": "$TINODE_CLUSTER_NODE_2_ADDR"}'
+    ]
+  ];
+  let next = source;
+  for (const [anchor, replacement] of replacements) {
+    next = replaceOnce(next, anchor, replacement, 'Tinode cluster member template');
+  }
   return next;
 }
 
@@ -271,6 +448,8 @@ export async function applyTinodeOverlay(input) {
   const topicPath = join(sourceDir, 'server/topic.go');
   const hookPath = join(sourceDir, 'server/ivekit_owner.go');
   const dockerfilePath = join(sourceDir, 'docker/tinode/Dockerfile');
+  const entrypointPath = join(sourceDir, 'docker/tinode/entrypoint.sh');
+  const configTemplatePath = join(sourceDir, 'docker/tinode/config.template');
   await writeFile(
     goModPath,
     patchTinodeGoMod(await readFile(goModPath, 'utf8')),
@@ -296,6 +475,16 @@ export async function applyTinodeOverlay(input) {
     patchTinodeDockerfile(await readFile(dockerfilePath, 'utf8')),
     'utf8'
   );
+  await writeFile(
+    entrypointPath,
+    patchTinodeEntrypoint(await readFile(entrypointPath, 'utf8')),
+    'utf8'
+  );
+  await writeFile(
+    configTemplatePath,
+    patchTinodeConfigTemplate(await readFile(configTemplatePath, 'utf8')),
+    'utf8'
+  );
   await cp(join(repoRoot, 'infra/ivekit/tinode/server-hook.go'), hookPath, {
     force: true
   });
@@ -311,11 +500,19 @@ export async function applyTinodeOverlay(input) {
       'infra/ivekit/tinode/patches/tinode-ivekit-session-fanout-hot-path.patch'
     )
   );
+  const postgresBootstrapPatchStatus = applyPinnedPatch(
+    sourceDir,
+    join(
+      repoRoot,
+      'infra/ivekit/tinode/patches/tinode-ivekit-postgres-bootstrap.patch'
+    )
+  );
   return {
     upstream_tag: TINODE_UPSTREAM_TAG,
     upstream_commit: TINODE_UPSTREAM_COMMIT,
     source_dir: sourceDir,
-    hot_path_patch_status: hotPathPatchStatus
+    hot_path_patch_status: hotPathPatchStatus,
+    postgres_bootstrap_patch_status: postgresBootstrapPatchStatus
   };
 }
 

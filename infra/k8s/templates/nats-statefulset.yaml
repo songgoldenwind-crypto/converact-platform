@@ -1,54 +1,91 @@
 {{- if .Values.nats.enabled }}
+{{- if lt (int .Values.nats.replicaCount) 3 }}
+{{- fail "nats.replicaCount must be at least 3 for a production JetStream quorum" }}
+{{- end }}
+{{- if eq (mod (int .Values.nats.replicaCount) 2) 0 }}
+{{- fail "nats.replicaCount must be odd so JetStream quorum has an unambiguous majority" }}
+{{- end }}
+{{- $authSecret := required "nats.auth.existingSecret is required when NATS is enabled" .Values.nats.auth.existingSecret }}
+{{- $tlsSecret := "" }}
+{{- if .Values.nats.tls.enabled }}
+{{- $tlsSecret = required "nats.tls.secretName is required when NATS TLS is enabled" .Values.nats.tls.secretName }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-nats-config
 data:
   nats.conf: |
-{{ .Files.Get "files/nats.conf" | default "port: 4222\nmonitor_port: 8222\njetstream { store_dir: /data/jetstream }\n" | indent 4 }}
+    server_name: $POD_NAME
+    port: 4222
+    monitor_port: 8222
+
+    authorization {
+      user: $NATS_CLIENT_USER
+      password: $NATS_CLIENT_PASSWORD
+      timeout: 2
+    }
+
+    jetstream {
+      store_dir: /data/jetstream
+      max_memory_store: {{ .Values.nats.maxMemoryStore }}
+      max_file_store: {{ .Values.nats.maxFileStore }}
+    }
+
+    cluster {
+      name: {{ .Release.Name }}-nats
+      listen: 0.0.0.0:6222
+      authorization {
+        user: $NATS_ROUTE_USER
+        password: $NATS_ROUTE_PASSWORD
+        timeout: 2
+      }
+      routes: [
+{{ $lastRoute := sub (int .Values.nats.replicaCount) 1 }}
+{{ range $index := until (int .Values.nats.replicaCount) }}
+        "nats-route://$NATS_ROUTE_USER:$NATS_ROUTE_PASSWORD@{{ $.Release.Name }}-nats-{{ $index }}.{{ $.Release.Name }}-nats-headless.{{ $.Release.Namespace }}.svc.cluster.local:6222"{{ if lt $index $lastRoute }},{{ end }}
+{{ end }}
+      ]
+{{ if .Values.nats.tls.enabled }}
+      tls {
+        cert_file: "/etc/nats/tls/{{ .Values.nats.tls.certKey }}"
+        key_file: "/etc/nats/tls/{{ .Values.nats.tls.keyKey }}"
+        ca_file: "/etc/nats/tls/{{ .Values.nats.tls.caKey }}"
+        verify: true
+        timeout: 2
+      }
+{{ end }}
+    }
+{{ if .Values.nats.tls.enabled }}
+
+    tls {
+      cert_file: "/etc/nats/tls/{{ .Values.nats.tls.certKey }}"
+      key_file: "/etc/nats/tls/{{ .Values.nats.tls.keyKey }}"
+      ca_file: "/etc/nats/tls/{{ .Values.nats.tls.caKey }}"
+      verify: true
+      timeout: 2
+    }
+{{ end }}
 ---
-apiVersion: apps/v1
-kind: StatefulSet
+apiVersion: v1
+kind: Service
 metadata:
-  name: {{ .Release.Name }}-nats
+  name: {{ .Release.Name }}-nats-headless
 spec:
-  serviceName: {{ .Release.Name }}-nats
-  replicas: 1
+  clusterIP: None
+  publishNotReadyAddresses: true
   selector:
-    matchLabels:
-      app: nats
-  template:
-    metadata:
-      labels:
-        app: nats
-    spec:
-      containers:
-        - name: nats
-          image: {{ include "opc.natsImage" . | quote }}
-          imagePullPolicy: {{ .Values.nats.image.pullPolicy | default "IfNotPresent" }}
-          args: ["-c", "/etc/nats/nats.conf"]
-          ports:
-            - containerPort: 4222
-              name: client
-            - containerPort: 8222
-              name: monitor
-          volumeMounts:
-            - name: config
-              mountPath: /etc/nats
-            - name: data
-              mountPath: /data
-      volumes:
-        - name: config
-          configMap:
-            name: {{ .Release.Name }}-nats-config
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        resources:
-          requests:
-            storage: {{ .Values.nats.storage | default "1Gi" }}
+    app: nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+    - name: cluster
+      port: 6222
+      targetPort: cluster
+    - name: monitor
+      port: 8222
+      targetPort: monitor
 ---
 apiVersion: v1
 kind: Service
@@ -58,10 +95,171 @@ spec:
   selector:
     app: nats
   ports:
-    - port: 4222
-      targetPort: 4222
-      name: client
-    - port: 8222
-      targetPort: 8222
-      name: monitor
+    - name: client
+      port: 4222
+      targetPort: client
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-nats-monitor
+spec:
+  selector:
+    app: nats
+  ports:
+    - name: monitor
+      port: 8222
+      targetPort: monitor
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-nats
+spec:
+  minAvailable: {{ add (div (int .Values.nats.replicaCount) 2) 1 }}
+  selector:
+    matchLabels:
+      app: nats
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-nats
+spec:
+  serviceName: {{ .Release.Name }}-nats-headless
+  replicas: {{ .Values.nats.replicaCount }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: nats
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: nats
+      containers:
+        - name: nats
+          image: {{ include "opc.natsImage" . | quote }}
+          imagePullPolicy: {{ .Values.nats.image.pullPolicy | default "IfNotPresent" }}
+          args: ["-c", "/etc/nats/nats.conf"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NATS_CLIENT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecret }}
+                  key: {{ .Values.nats.auth.userKey }}
+            - name: NATS_CLIENT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecret }}
+                  key: {{ .Values.nats.auth.passwordKey }}
+            - name: NATS_ROUTE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecret }}
+                  key: {{ .Values.nats.auth.routeUserKey }}
+            - name: NATS_ROUTE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $authSecret }}
+                  key: {{ .Values.nats.auth.routePasswordKey }}
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: cluster
+              containerPort: 6222
+            - name: monitor
+              containerPort: 8222
+          startupProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: monitor
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: monitor
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: monitor
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-ec", "kill -SIGUSR2 1; sleep 10"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml .Values.nats.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats/nats.conf
+              subPath: nats.conf
+              readOnly: true
+            - name: data
+              mountPath: /data
+{{ if .Values.nats.tls.enabled }}
+            - name: tls
+              mountPath: /etc/nats/tls
+              readOnly: true
+{{ end }}
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-nats-config
+{{ if .Values.nats.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ $tlsSecret }}
+{{ end }}
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+{{ if .Values.nats.storageClass }}
+        storageClassName: {{ .Values.nats.storageClass | quote }}
+{{ end }}
+        resources:
+          requests:
+            storage: {{ .Values.nats.storage }}
 {{- end }}

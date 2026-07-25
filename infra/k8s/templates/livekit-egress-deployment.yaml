@@ -28,7 +28,6 @@
 {{- fail "media.egress.image.digest must be an immutable sha256 digest" }}
 {{- end }}
 {{- $livekitInternalUrl := include "opc.livekitInternalUrl" . }}
-{{- $livekitRedisAddress := include "opc.livekitRedisAddress" . }}
 {{- range $poolName, $pool := .Values.media.egress.pools }}
 {{- if $pool.enabled }}
 apiVersion: v1
@@ -46,11 +45,7 @@ stringData:
     ws_url: {{ $livekitInternalUrl | quote }}
     insecure: {{ hasPrefix "ws://" $livekitInternalUrl }}
     redis:
-      address: {{ $livekitRedisAddress | quote }}
-      username: {{ $root.Values.livekit.redis.username | quote }}
-      password: {{ $root.Values.livekit.redis.password | quote }}
-      db: {{ $root.Values.livekit.redis.db }}
-      use_tls: {{ $root.Values.livekit.redis.useTLS }}
+      {{- include "opc.livekitRedisConfig" $root | nindent 6 }}
     health_port: {{ $root.Values.media.egress.healthPort | default 8091 }}
     prometheus_port: {{ $root.Values.media.egress.prometheusPort | default 9090 }}
     backup_storage: /var/lib/livekit-egress/backup
@@ -69,12 +64,12 @@ stringData:
       segment_output_max_duration: {{ $root.Values.media.egress.sessionLimits.segmentOutputMaxDuration | quote }}
     storage:
       s3:
-        access_key: {{ $root.Values.media.minioAccessKey | default "minioadmin" | quote }}
-        secret: {{ $root.Values.media.minioSecretKey | default "minioadmin" | quote }}
-        region: us-east-1
-        endpoint: {{ $root.Values.media.minioEndpoint | default (printf "http://%s-minio:9000" $root.Release.Name) | quote }}
-        bucket: {{ $root.Values.media.minioBucket | default "recordings" | quote }}
-        force_path_style: true
+        access_key: ""
+        secret: ""
+        region: {{ include "opc.objectStorageRegion" $root | quote }}
+        endpoint: {{ include "opc.objectStorageEndpoint" $root | quote }}
+        bucket: {{ include "opc.objectStorageBucket" $root | quote }}
+        force_path_style: {{ include "opc.objectStorageForcePathStyle" $root }}
         max_retries: {{ $root.Values.media.egress.storage.maxRetries | default 10 }}
         min_retry_delay: {{ $root.Values.media.egress.storage.minRetryDelay | default "500ms" | quote }}
         max_retry_delay: {{ $root.Values.media.egress.storage.maxRetryDelay | default "30s" | quote }}
@@ -170,6 +165,7 @@ spec:
               value: /var/run/ivekit-egress/draining
             - name: IVEKIT_EGRESS_SPOOL_PATH
               value: /var/lib/livekit-egress/backup
+            {{ include "opc.objectStorageEnv" $root | nindent 12 }}
           ports:
             - name: health
               containerPort: {{ $root.Values.media.egress.healthPort | default 8091 }}
@@ -209,6 +205,7 @@ spec:
               mountPath: /var/lib/livekit-egress/backup
             - name: runtime-state
               mountPath: /var/run/ivekit-egress
+            {{- include "opc.livekitRedisTLSVolumeMount" $root | nindent 12 }}
           resources:
             {{- toYaml $pool.resources | nindent 12 }}
       volumes:
@@ -217,6 +214,7 @@ spec:
             secretName: {{ $root.Release.Name }}-livekit-egress-{{ $poolName }}-config
         - name: runtime-state
           emptyDir: {}
+        {{- include "opc.livekitRedisTLSVolume" $root | nindent 8 }}
       {{- if not $pool.persistence.enabled }}
         - name: backup-spool
           emptyDir:

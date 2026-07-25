@@ -9,11 +9,11 @@ import {
   patchIveKitRustDeskSources,
   RUSTDESK_UPSTREAM_COMMIT,
   RUSTDESK_UPSTREAM_TAG
-} from '../integrations/rustdesk-1.4.7/apply-overlay.mjs';
+} from '../integrations/rustdesk-1.4.9/apply-overlay.mjs';
 
-test('RustDesk 1.4.7 overlay installs one fail-closed native control path idempotently', () => {
-  assert.equal(RUSTDESK_UPSTREAM_TAG, '1.4.7');
-  assert.equal(RUSTDESK_UPSTREAM_COMMIT, '0c86d4616298f09435f6236599b300964aa61460');
+test('RustDesk 1.4.9 overlay installs one fail-closed native control path idempotently', () => {
+  assert.equal(RUSTDESK_UPSTREAM_TAG, '1.4.9');
+  assert.equal(RUSTDESK_UPSTREAM_COMMIT, '6c578292e8ebbbec708b76986ba8c4bc7c509747');
   const source = {
     lib: 'mod ui_cm_interface;\n',
     connectionManager: [
@@ -34,8 +34,8 @@ test('RustDesk 1.4.7 overlay installs one fail-closed native control path idempo
 
   const lib = patched.lib;
   const cm = patched.connectionManager;
-  const native = readFileSync('integrations/rustdesk-1.4.7/ivekit_native_control.rs', 'utf8');
-  const evidence = readFileSync('integrations/rustdesk-1.4.7/ivekit_native_evidence.rs', 'utf8');
+  const native = readFileSync('integrations/rustdesk-1.4.9/ivekit_native_control.rs', 'utf8');
+  const evidence = readFileSync('integrations/rustdesk-1.4.9/ivekit_native_evidence.rs', 'utf8');
   assert.equal((lib.match(/pub mod ivekit_native_control/g) || []).length, 1);
   assert.equal((lib.match(/pub mod ivekit_native_evidence/g) || []).length, 1);
   assert.equal((cm.match(/ivekit_native_control::start_once/g) || []).length, 1);
@@ -93,6 +93,12 @@ test('RustDesk overlay rejects an unpinned checkout and source layout drift', ()
 
 test('RustDesk Windows CI checks out the immutable upstream commit', () => {
   const workflow = readFileSync('.github/workflows/ivekit-rustdesk-windows-ci.yml', 'utf8');
-  assert.match(workflow, /ref: 0c86d4616298f09435f6236599b300964aa61460/);
-  assert.doesNotMatch(workflow, /ref: 1\.4\.7/);
+  assert.match(workflow, /ref: 6c578292e8ebbbec708b76986ba8c4bc7c509747/);
+  assert.doesNotMatch(workflow, /ref: 1\.4\.9/);
+  assert.match(workflow, /integrations\/rustdesk-1\.4\.9\/apply-overlay\.mjs/);
+  const actions = [...workflow.matchAll(/uses:\s+([^@\s]+)@([^\s]+)/g)];
+  assert.ok(actions.length >= 5);
+  for (const [, action, revision] of actions) {
+    assert.match(revision, /^[a-f0-9]{40}$/, `${action} is not commit-pinned`);
+  }
 });

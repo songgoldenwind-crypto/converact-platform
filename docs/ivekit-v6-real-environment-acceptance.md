@@ -1,6 +1,6 @@
 # iveKit V6 真实环境验收与采证规范
 
-> 日期：2026-07-16  
+> 日期：2026-07-22
 > 适用范围：iveKit/LED 共享通信底座  
 > 当前状态：八组真实环境均为 `not_run`
 
@@ -19,7 +19,7 @@
 | `providers` | OCR、ASR、翻译、AI 质检 Provider | `not_run` | 尚无真实凭据、Endpoint、配额和准确率语料 |
 | `tinode` | 外部或 bundled Tinode、真实多客户端 | `not_run` | 尚无部署后的真实客户端环境 |
 | `livekit_turn_egress` | LiveKit、TURN/UDP/TLS、Egress、双浏览器 | `not_run` | 尚无公网 DNS/证书/媒体节点和真实终端 |
-| `rustdesk_windows` | 两台 Windows、RustDesk 1.4.7 iveKit build、文件/录屏/精准断开 | `not_run` | 尚无两台物理 Windows 和已签名制品 |
+| `rustdesk_windows` | 两台 Windows、RustDesk 1.4.9 iveKit build、文件/录屏/精准断开 | `not_run` | 尚无两台物理 Windows 和已签名制品 |
 | `voice_pstn` | RustPBX、SIP、IVR、WebPhone、PSTN、RTP | `not_run` | 尚无真实 trunk、DID 和物理音频环境 |
 | `notifications` | 商业邮件、短信、回执与退信 | `not_run` | 尚无商业账号和已验证发件身份 |
 | `object_storage` | 生产 S3、生命周期、扫描、隔离、恢复 | `not_run` | 尚无生产对象存储和安全扫描集成 |
@@ -134,7 +134,7 @@ npm run rustdesk:server-evidence
 npm run rustdesk:client-acceptance
 ```
 
-两台物理 Windows 必须安装同一 digest 的 `rustdesk-1.4.7-ivekit*-x86_64.exe`。Windows package manifest `package_version` 必须为 6；启用 Cell placement 时安装制品必须声明 `ivekit-rustdesk-native-control-v2` 与 `rustdesk-native-evidence-v1`，并验证 stale epoch 在 native close、operation observation 和 evidence upload 之前被拒绝。v1 只允许用于 placement 明确关闭的滚动兼容包。验收覆盖画面、键鼠、剪贴板、文件、多显示器、录屏、UAC、重连、owner handoff、指定会话精准断开及同机其他会话不受影响。
+两台物理 Windows 必须安装同一 digest 的 `rustdesk-1.4.9-ivekit*-x86_64.exe`。Windows package manifest `package_version` 必须为 6；启用 Cell placement 时安装制品必须声明 `ivekit-rustdesk-native-control-v2` 与 `rustdesk-native-evidence-v1`，并验证 stale epoch 在 native close、operation observation 和 evidence upload 之前被拒绝。v1 只允许用于 placement 明确关闭的滚动兼容包。验收覆盖画面、键鼠、剪贴板、文件、多显示器、录屏、UAC、重连、owner handoff、指定会话精准断开及同机其他会话不受影响。
 
 文件/录屏必须由定制 RustDesk allowlist scanner 在基线后自动产出稳定新文件候选，经 device-token evidence context 唯一关联 controller/operation/文件名/时间窗，再由 watcher/uploader 进入 secure-file。`Publish-IveKitRustDeskEvidence.ps1` 仅用于故障恢复。检查病毒/MIME/隔离/衍生物/OCR/ASR/AI 状态事件与原 operation ID 一致；验证无匹配、多匹配、路径逃逸、链接和复制期间变化均不上传。未被自动链路捕获或未上传的原生内容仍是 `native_unscanned/local_only`。
 

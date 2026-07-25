@@ -88,6 +88,11 @@ Egress 和 MinIO 验证：停止 MinIO 前、故障期间及 Egress 因 S3 上�
 未变化，MinIO 恢复后 bucket 仍为私有。该结果为 `passed_controlled_local`，不替代公网 TURN、
 生产 S3、目标 Kubernetes、真实 SIP/RTP/PSTN、磁盘满或多节点故障验收。
 
+2026-07-25 服务器复验把“轨道仍存在”升级为真实媒体流动合同：两个 peer 的 inbound/outbound
+音频字节、视频字节、RTP 包和视频解码帧在存储中断、首次 Egress 上传失败、存储恢复三个阶段均
+相对上一阶段严格增长；恢复后同一房间第二个 Egress 完成并产生可读取 MP4。裁决为
+`passed_controlled_server`，仍不替代生产对象存储、跨 Zone、容量和 RustPBX RTP 录音故障验收。
+
 ## 3. 需求证据矩阵
 
 状态定义：`implemented` 表示当前代码和自动化证据已经覆盖；`partial` 表示存在可用实现但未达到本目标；`missing` 表示当前没有通用实现；`environment` 表示代码入口存在但需要目标环境验收。

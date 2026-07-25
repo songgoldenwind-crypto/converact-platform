@@ -196,6 +196,11 @@ export {
 } from './intelligence-provider-routing.js';
 export type * from './intelligence-provider-routing.js';
 export {
+  createPolicyModelGatewayProviderResolver,
+  createPolicyTtsProviderResolver
+} from './generic-provider-routing.js';
+export type * from './generic-provider-routing.js';
+export {
   executeIntelligenceProviderRoute,
   IntelligenceProviderRouteError
 } from './intelligence-provider-route.js';
@@ -213,6 +218,13 @@ export {
   sanitizeProviderRequestId
 } from './provider-safety.js';
 export type * from './provider-safety.js';
+export { createHttpTtsProvider, TtsProviderError } from './tts-provider.js';
+export type * from './tts-provider.js';
+export {
+  createHttpModelGatewayProvider,
+  ModelGatewayProviderError
+} from './model-gateway-provider.js';
+export type * from './model-gateway-provider.js';
 export {
   createGuacamoleGatewayClient,
   createInMemoryRemoteGatewayClient,

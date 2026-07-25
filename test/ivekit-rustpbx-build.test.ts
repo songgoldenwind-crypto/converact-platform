@@ -45,6 +45,7 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.equal(spawnSync('bash', ['-n', 'infra/ivekit/rustpbx/build.sh']).status, 0);
   assert.match(buildScript, /RUSTPBX_COMMIT="[a-f0-9]{40}"/);
   assert.match(buildScript, /RSIPSTACK_COMMIT="[a-f0-9]{40}"/);
+  assert.match(buildScript, /RUSTRTC_COMMIT="[a-f0-9]{40}"/);
   assert.match(buildScript, /rust:1\.94-bookworm@sha256:[a-f0-9]{64}/);
   assert.match(buildScript, /cargo build --locked --release/);
   assert.match(buildScript, /IVEKIT_RUSTPBX_BUILD_CPUS/);
@@ -53,13 +54,16 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(buildScript, /IVEKIT_RUSTPBX_CARGO_HOME/);
   assert.match(buildScript, /cross compilation is not supported/);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.16"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.21"/);
   assert.match(buildScript, /cp "\$SCRIPT_DIR\/entrypoint\.sh"/);
   assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
 
   const lock = readFileSync('infra/ivekit/rustpbx/Cargo.lock', 'utf8');
-  assert.match(lock, /name = "rustrtc"\nversion = "0\.3\.90"/);
+  assert.match(
+    lock,
+    /name = "rustrtc"\nversion = "0\.3\.90"\ndependencies = \[[\s\S]*?"socket2 0\.6\.5"/
+  );
   assert.match(lock, /name = "rsipstack"\nversion = "0\.5\.18"\ndependencies =/);
 });
 
@@ -71,7 +75,7 @@ test('RustPBX deployment examples reference the current patchset', () => {
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.16-6c49ee76/,
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.21-6c49ee76/,
       path
     );
   }
@@ -264,8 +268,18 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
 test('iveKit publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.16-6c49ee76/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.21-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);
+  assert.match(imageWorkflow, /outputs:[\s\S]*digest: \$\{\{ steps\.digest\.outputs\.digest \}\}/);
+  assert.match(imageWorkflow, /uses: \.\/\.github\/workflows\/ivekit-oci-release-gate\.yml/);
+  assert.match(imageWorkflow, /digest: \$\{\{ needs\.manifest\.outputs\.digest \}\}/);
+  assert.match(imageWorkflow, /id-token: write/);
+  assert.match(imageWorkflow, /attestations: write/);
+  assert.match(imageWorkflow, /artifact-metadata: write/);
+  assert.doesNotMatch(imageWorkflow, /docker\/login-action@v\d/);
+  for (const match of imageWorkflow.matchAll(/uses:\s+[^@\s]+@([^\s]+)/g)) {
+    assert.match(match[1], /^[a-f0-9]{40}$/, `mutable action reference: ${match[0]}`);
+  }
 });

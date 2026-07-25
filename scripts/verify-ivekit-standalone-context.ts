@@ -21,6 +21,7 @@ run('npm', ['run', 'build'], outputDir);
 const entrypoints = [
   'ivekit-server.js',
   'ivekit-worker.js',
+  'ivekit-realtime-audio-tap-worker.js',
   'ivekit-migrate.js',
   'ivekit-init-runtime-role.js',
   'ivekit-intelligence-preflight.js',

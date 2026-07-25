@@ -1,0 +1,227 @@
+{
+  "schema_version": "1.0.0",
+  "suite": "iveKit Wave 2 LiveKit recording storage failure isolation",
+  "status": "passed_controlled_server",
+  "generated_at": "2026-07-24T21:24:19Z",
+  "server": {
+    "hostname": "pmt-web-test-sfo2",
+    "kernel": "Linux 6.8.0-124-generic",
+    "architecture": "x86_64",
+    "docker_version": "29.1.3",
+    "docker_compose_version": "2.40.3",
+    "source_root": "/opt/opc-wave123-validation-20260722/source",
+    "source_commit": "578a78bf42e3703a9d78fc0766be6a3b3cd5c35e",
+    "source_dirty": true,
+    "source_dirty_entries": 496
+  },
+  "artifacts": {
+    "acceptance_runner_sha256": "9154786200ba4f1e91b9c3d03b823520bb56d7e4277285b97e4cfd93a8afb0c4",
+    "acceptance_test_sha256": "5ad45b835eb2cc72535a2309e374bcb9523383bdf35a8b9d929e4de4d3338228",
+    "raw_result_sha256": "6d8ad6b2071bc5e5221d7a132547e5490a71886019ccccc2fc197442ba334893",
+    "compose_sha256": "097f97ba3bff002fd81b298ffa5d6eacc3a2aba257d0fbe8b1b0153e15f641c2",
+    "livekit_config_sha256": "b10d2341df1bfbfcc5ebf9e9ddb5e1d09455f4539dbd2015794176a1288d6901",
+    "egress_config_sha256": "ade7fe78c86ec6e83302c7b30fb0e03147a8ea8e4d904dca4dfc4b163e0158b8",
+    "raw_result_mode": "0600",
+    "raw_result_bytes": 3723,
+    "secret_and_endpoint_scan": "passed_empty"
+  },
+  "images": {
+    "livekit": {
+      "reference": "ivekit/livekit-server:v1.13.4-ivekit.1-0b3fd288",
+      "id": "sha256:95b4473a03aeba9d2c36c62450f1bc924ad0638a44a9edd4cae46860aed23963"
+    },
+    "egress": {
+      "reference": "ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0-amd64",
+      "id": "sha256:e266932c428610111a417d6b38cbec7096680816eae09b23495575035456d3fe"
+    },
+    "minio": {
+      "reference": "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z",
+      "id": "sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e"
+    },
+    "valkey": {
+      "reference": "ivekit/valkey:8.1-controlled",
+      "id": "sha256:1da6597cc08f09748b05f7a845492581c9442ea240be8e7bbfeb5f83ad1bcec8"
+    },
+    "browser": "HeadlessChrome 149.0.7827"
+  },
+  "verification": {
+    "focused_local_tests": {
+      "passed": 11,
+      "failed": 0
+    },
+    "focused_server_tests": {
+      "passed": 11,
+      "failed": 0
+    },
+    "broader_livekit_and_delivery_tests": {
+      "passed": 97,
+      "failed": 0
+    },
+    "typescript_no_emit": "passed",
+    "media_counter_monotonicity": "passed_both_peers_all_seven_counters_all_four_snapshots"
+  },
+  "runtime_result": {
+    "schema_version": 1,
+    "status": "passed_controlled_runtime",
+    "room_name": "ivekit-storage-isolation-mrzg6n79",
+    "primary_egress_id": "EG_XTxdm8YhXCgZ",
+    "recovery_egress_id": "EG_dRrUH8GeZ29k",
+    "snapshots": {
+      "before": [
+        {
+          "identity": "agent-a",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 866,
+          "inboundVideoBytes": 1213,
+          "outboundAudioBytes": 6362,
+          "outboundVideoBytes": 105653,
+          "inboundPackets": 11,
+          "outboundPackets": 187,
+          "videoFramesDecoded": 3
+        },
+        {
+          "identity": "agent-b",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 4000,
+          "inboundVideoBytes": 4645,
+          "outboundAudioBytes": 1146,
+          "outboundVideoBytes": 6084,
+          "inboundPackets": 34,
+          "outboundPackets": 27,
+          "videoFramesDecoded": 11
+        }
+      ],
+      "during_storage_outage": [
+        {
+          "identity": "agent-a",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 101098,
+          "inboundVideoBytes": 1088138,
+          "outboundAudioBytes": 107947,
+          "outboundVideoBytes": 2674517,
+          "inboundPackets": 1720,
+          "outboundPackets": 3451,
+          "videoFramesDecoded": 250
+        },
+        {
+          "identity": "agent-b",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 105585,
+          "inboundVideoBytes": 1209367,
+          "outboundAudioBytes": 101378,
+          "outboundVideoBytes": 2476683,
+          "inboundPackets": 1860,
+          "outboundPackets": 3248,
+          "videoFramesDecoded": 268
+        }
+      ],
+      "after_recording_failure": [
+        {
+          "identity": "agent-a",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 111648,
+          "inboundVideoBytes": 1197099,
+          "outboundAudioBytes": 118517,
+          "outboundVideoBytes": 2845339,
+          "inboundPackets": 1882,
+          "outboundPackets": 3680,
+          "videoFramesDecoded": 272
+        },
+        {
+          "identity": "agent-b",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 116155,
+          "inboundVideoBytes": 1313155,
+          "outboundAudioBytes": 111928,
+          "outboundVideoBytes": 2659100,
+          "inboundPackets": 2015,
+          "outboundPackets": 3489,
+          "videoFramesDecoded": 290
+        }
+      ],
+      "after_storage_recovery": [
+        {
+          "identity": "agent-a",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 197858,
+          "inboundVideoBytes": 2116541,
+          "outboundAudioBytes": 204894,
+          "outboundVideoBytes": 4279200,
+          "inboundPackets": 3243,
+          "outboundPackets": 5627,
+          "videoFramesDecoded": 460
+        },
+        {
+          "identity": "agent-b",
+          "state": "connected",
+          "remoteParticipants": 1,
+          "remotePublications": 2,
+          "localPublications": 2,
+          "inboundAudioBytes": 202532,
+          "inboundVideoBytes": 2182878,
+          "outboundAudioBytes": 198138,
+          "outboundVideoBytes": 4196599,
+          "inboundPackets": 3326,
+          "outboundPackets": 5542,
+          "videoFramesDecoded": 478
+        }
+      ]
+    },
+    "primary_recording_terminal_status": "failed",
+    "primary_recording_failure_code": "storage_upload_failed",
+    "media_transport_progress_verified": true,
+    "storage_recovered": true,
+    "recovery_recording_terminal_status": "complete",
+    "recovery_object": {
+      "name": "ivekit-storage-isolation-mrzg6n79.mp4",
+      "content_type": "video/mp4",
+      "size_bytes": 99530,
+      "etag": "25f09db193ea96591d148acfd07495a2",
+      "last_modified": "2026-07-24T21:24:18Z"
+    }
+  },
+  "failure_domain": {
+    "isolated_components_restart_count": 0,
+    "isolated_components_oom_killed": false,
+    "baseline_containers_checked": 9,
+    "baseline_restart_count": 0,
+    "baseline_oom_killed": false,
+    "baseline_status": "running"
+  },
+  "boundaries": {
+    "capacity_claim": "none",
+    "production_capacity_evidence": false,
+    "production_ha_evidence": false,
+    "controlled_server_only": true,
+    "not_run": [
+      "production object storage",
+      "cross-zone object storage failure",
+      "multi-egress-pool failover",
+      "disk-full and long-duration outage",
+      "public TURN and TLS path during storage failure",
+      "RustPBX real RTP recording storage failure",
+      "target Kubernetes rollout"
+    ]
+  }
+}

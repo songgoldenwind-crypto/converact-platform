@@ -1,0 +1,108 @@
+{
+  "status": "passed",
+  "verification_scope": "controlled_server_process_recovery",
+  "actual_postgresql_process_outage": true,
+  "actual_gateway_process_restart": true,
+  "real_media_continuity_evidence": false,
+  "real_vendor_evidence": false,
+  "capacity_claim": "none",
+  "generated_at": "2026-07-23T11:47:53.282Z",
+  "checks": [
+    {
+      "name": "actual_postgresql_process_outage",
+      "status": "passed"
+    },
+    {
+      "name": "actual_gateway_process_restart",
+      "status": "passed"
+    },
+    {
+      "name": "validation_resources_removed",
+      "status": "passed"
+    },
+    {
+      "name": "led_containers_unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "transport_network_internal",
+      "status": "passed"
+    }
+  ],
+  "postgres": {
+    "status": "passed",
+    "actual_postgresql_process_outage": true,
+    "retry_events": 3,
+    "projection_succeeded": true,
+    "persisted_rows": 1,
+    "process_pid": 3763693
+  },
+  "gateway": {
+    "status": "passed",
+    "actual_gateway_process_restart": true,
+    "gateway_process_restarted": true,
+    "first_gateway_pid": 3764056,
+    "second_gateway_pid": 3764266,
+    "authorization_attempts": 4,
+    "delivered_sequences": [
+      1,
+      2
+    ],
+    "transport_module_path": "/workspace/livekit_audio_tap_transport.py",
+    "transport_source_sha256": "932c15c119c1ea0a3f5c18e6806e58b159e2f4830fbb35341ebab7296d64cf57"
+  },
+  "environment": {
+    "status": "passed",
+    "validation_resources_remaining": 0,
+    "transport_network_internal": true,
+    "led_containers_unchanged": true,
+    "led_all_healthy": true,
+    "led_expected_container_count": 7,
+    "led_container_count_before": 7,
+    "led_container_count_after": 7,
+    "led_containers": [
+      {
+        "name": "led-platform-admin-1",
+        "container_id": "e3db77c8bc1a071fba2f51266a3e572aa838ffe963ddbc5054fbfc3f0986251f",
+        "started_at": "2026-07-23T10:01:54.066321813Z",
+        "status": "healthy"
+      },
+      {
+        "name": "led-platform-api-1",
+        "container_id": "5fc40243b9939204ef4f64471dfe0c18e16001bae572950e72c7dc32027c1e6d",
+        "started_at": "2026-07-23T10:01:48.196674873Z",
+        "status": "healthy"
+      },
+      {
+        "name": "led-platform-edge-1",
+        "container_id": "c1c1f077ce4f295e91c069fd008fde4618926d38f70ef241281c4a0891b96f1d",
+        "started_at": "2026-07-23T10:02:04.012677772Z",
+        "status": "healthy"
+      },
+      {
+        "name": "led-platform-minio-1",
+        "container_id": "0370f283569f07b54cf01f91da6eee37dc5fa66ea96aa67120388ae59cf44c82",
+        "started_at": "2026-07-22T07:38:43.977616187Z",
+        "status": "healthy"
+      },
+      {
+        "name": "led-platform-postgres-1",
+        "container_id": "432c4643ed0e002db2db7b556c2656849baa5e1c62e22c486586434c9419bf55",
+        "started_at": "2026-07-23T10:01:42.496089155Z",
+        "status": "healthy"
+      },
+      {
+        "name": "led-platform-system-tasks-1",
+        "container_id": "59396d827aa1091c6d9a05a2ef6ef4c5353855f9ab30f59ff4019928c52b4bab",
+        "started_at": "2026-07-23T10:01:54.065387786Z",
+        "status": "healthy"
+      },
+      {
+        "name": "led-platform-web-1",
+        "container_id": "3a2bd394a200289351e0ebb1235d0bb95ad9e1663771d2a91853446c2a32a8c8",
+        "started_at": "2026-07-23T10:01:54.064332577Z",
+        "status": "healthy"
+      }
+    ]
+  }
+}

@@ -25,4 +25,14 @@ spec:
       ports:
         - port: {{ .Values.tinode.service.port }}
           protocol: TCP
+    {{- if eq .Values.tinode.mode "cluster" }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: tinode
+      ports:
+        - port: {{ .Values.tinode.cluster.clusterPort }}
+          protocol: TCP
+    {{- end }}
 {{- end }}

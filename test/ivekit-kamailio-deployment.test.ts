@@ -20,6 +20,9 @@ test('Helm defaults model one production Cell Zone with bounded RustPBX and Kama
   assert.equal(values.voice.kamailio.image.repository.length > 0, true);
   assert.equal(values.voice.kamailio.image.digest, '');
   assert.equal(values.voice.kamailio.cellLeaseEpoch, 1);
+  assert.equal(values.voice.kamailio.runtime.sharedMemoryAllocator, 'fm');
+  assert.equal(values.voice.kamailio.runtime.sharedMemoryMegabytes, 512);
+  assert.equal(values.voice.kamailio.runtime.privateMemoryMegabytes, 32);
   assert.equal(values.voice.kamailio.routeAgent.edgeReplicaCount, values.voice.kamailio.replicaCount);
   assert.equal(values.voice.kamailio.routeAgent.snapshotTtlMs <= 10_000, true);
   assert.equal(values.voice.kamailio.routeAgent.pollIntervalMs <= 1_000, true);
@@ -30,6 +33,26 @@ test('Helm defaults model one production Cell Zone with bounded RustPBX and Kama
   assert.deepEqual(values.voice.kamailio.rustpbxSourceCidrs, ['10.0.0.0/8']);
   assert.deepEqual(values.voice.kamailio.dmqSourceCidrs, ['10.0.0.0/8']);
   assert.equal(values.voice.kamailio.dmq.enabled, true);
+  assert.equal(values.voice.kamailio.sipTrace.enabled, false);
+  assert.equal(values.voice.kamailio.sipTrace.collectorPort, 9060);
+  assert.equal(values.voice.kamailio.sipTrace.metricsPort, 9090);
+  assert.equal(values.voice.kamailio.sipTrace.highWater.enabled, true);
+  assert.equal(values.voice.kamailio.sipTrace.highWater.samplePercent, 10);
+  assert.equal(
+    values.voice.kamailio.sipTrace.highWater.queueRecoverRatio <
+      values.voice.kamailio.sipTrace.highWater.queueSampleRatio,
+    true
+  );
+  assert.equal(
+    values.voice.kamailio.sipTrace.highWater.queueSampleRatio <
+      values.voice.kamailio.sipTrace.highWater.queueOffRatio,
+    true
+  );
+  assert.deepEqual(values.voice.kamailio.networkPolicy.hepCollectorCidrs, []);
+  assert.deepEqual(values.voice.kamailio.networkPolicy.hepCollectorNamespaceSelector, {});
+  assert.deepEqual(values.voice.kamailio.networkPolicy.hepCollectorPodSelector, {
+    'app.kubernetes.io/component': 'homer'
+  });
   assert.equal(values.voice.kamailio.listeners.dmqPort, 5066);
   assert.equal(values.voice.kamailio.dmq.syncMessageContacts <= 150, true);
   assert.deepEqual(values.voice.service, undefined);
@@ -83,6 +106,15 @@ test('Kamailio Helm workload renders immutable config and runs route agent besid
   assert.match(config, /allowed_origins/);
   assert.match(config, /notification_address/);
   assert.match(config, /sip:%s-0\.%s-dmq/);
+  assert.match(config, /"sip_trace"/);
+  assert.match(config, /collector_host/);
+  assert.match(config, /requires a HEP collector namespace\/pod selector or narrow collector CIDRs/);
+  assert.match(config, /hepCollectorCidrs must not contain a default route/);
+  assert.match(config, /sipTrace\.highWater\.enabled/);
+  assert.match(config, /sipTrace\.metricsPort/);
+  assert.match(config, /sipTrace requires highWater\.enabled/);
+  assert.match(config, /sipTrace requires networkPolicy\.enabled/);
+  assert.match(config, /initial_mode/);
 
   assert.match(deployment, /kind: StatefulSet/);
   assert.match(deployment, /serviceName:.*-dmq/);
@@ -91,7 +123,14 @@ test('Kamailio Helm workload renders immutable config and runs route agent besid
   assert.match(deployment, /name: render-config[\s\S]*ivekit-render-kamailio-config\.js/);
   assert.match(deployment, /name: route-agent[\s\S]*ivekit-kamailio-route-agent\.js/);
   assert.match(deployment, /name: kamailio[\s\S]*kamailio\.image/);
+  assert.match(
+    deployment,
+    /args:[\s\S]*"-x"[\s\S]*sharedMemoryAllocator[\s\S]*"-m"[\s\S]*sharedMemoryMegabytes[\s\S]*"-M"[\s\S]*privateMemoryMegabytes/
+  );
   assert.match(deployment, /OPC_IVEKIT_KAMAILIO_RPC_ENDPOINT[\s\S]*127\.0\.0\.1:%v\/RPC[\s\S]*listeners\.rpcPort/);
+  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED/);
+  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HOMER_METRICS_ENDPOINT/);
+  assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_PROCESSING_GAP_OFF_PER_SECOND/);
   assert.match(deployment, /OPC_IVEKIT_KAMAILIO_HOST[\s\S]*0\.0\.0\.0/);
   assert.match(deployment, /OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE/);
   assert.match(deployment, /OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST[\s\S]*fieldPath: status\.podIP/);
@@ -113,6 +152,13 @@ test('Kamailio Helm workload renders immutable config and runs route agent besid
   assert.match(policy, /rustpbxNodeCidrs/);
   assert.match(policy, /app\.kubernetes\.io\/component: kamailio/);
   assert.match(policy, /listeners\.dmqPort/);
+  assert.match(policy, /sipTrace\.enabled/);
+  assert.match(policy, /hepCollectorCidrs/);
+  assert.match(policy, /hepCollectorNamespaceSelector/);
+  assert.match(policy, /hepCollectorPodSelector/);
+  assert.match(policy, /sipTrace\.collectorPort/);
+  assert.match(policy, /sipTrace\.metricsPort/);
+  assert.match(policy, /sipTrace\.highWater\.enabled/);
   assert.match(
     policy,
     /ingress:[\s\S]*?app\.kubernetes\.io\/component: kamailio[\s\S]*?listeners\.dmqPort[\s\S]*?protocol: UDP[\s\S]*?egress:/
@@ -149,6 +195,10 @@ test('Kamailio route health is scraped and failure domains have actionable alert
     'IveKitKamailioNoAvailableRustPbx',
     'IveKitKamailioMajorityDestinationsDown',
     'IveKitKamailioRouteReloadFailure',
+    'IveKitKamailioHepCollectorUnavailable',
+    'IveKitKamailioHepControlFailure',
+    'IveKitKamailioHepControlPending',
+    'IveKitKamailioHepTraceDisabled',
     'IveKitKamailioFailoverExhausted',
     'IveKitKamailioDialogPinFailure',
     'IveKitKamailioWebPhoneAuthFailures',

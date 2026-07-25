@@ -81,8 +81,10 @@ export function inspectIveKitIntelligenceEnv(
       ? quality
       : profile.capability === 'translation'
         ? translation
-        : attachment;
-    if (worker.claim_lease_ms != null && worker.claim_lease_ms < profile.timeout_ms + 5_000) {
+        : profile.capability === 'ocr' || profile.capability === 'asr'
+          ? attachment
+          : null;
+    if (worker?.claim_lease_ms != null && worker.claim_lease_ms < profile.timeout_ms + 5_000) {
       issues.push(`Provider profile ${profile.id} timeout exceeds its worker claim lease safety budget`);
     }
   }

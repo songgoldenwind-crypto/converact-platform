@@ -41,6 +41,42 @@
 {{- if and $kamailio.networkPolicy.enabled .Values.voice.network.hostNetwork (empty $kamailio.networkPolicy.rustpbxNodeCidrs) -}}
 {{- fail "voice.kamailio.networkPolicy.rustpbxNodeCidrs is required for hostNetwork RustPBX nodes" -}}
 {{- end -}}
+{{- if $kamailio.sipTrace.enabled -}}
+{{- $_ := required "voice.kamailio.sipTrace.collectorHost is required when SIP tracing is enabled" $kamailio.sipTrace.collectorHost -}}
+{{- if not $kamailio.sipTrace.highWater.enabled -}}
+{{- fail "voice.kamailio.sipTrace requires highWater.enabled" -}}
+{{- end -}}
+{{- if not $kamailio.networkPolicy.enabled -}}
+{{- fail "voice.kamailio.sipTrace requires networkPolicy.enabled" -}}
+{{- end -}}
+{{- if or (lt (int $kamailio.sipTrace.metricsPort) 1) (gt (int $kamailio.sipTrace.metricsPort) 65535) -}}
+{{- fail "voice.kamailio.sipTrace.metricsPort must be between 1 and 65535" -}}
+{{- end -}}
+{{- if or (lt (float64 $kamailio.sipTrace.highWater.samplePercent) 0.1) (gt (float64 $kamailio.sipTrace.highWater.samplePercent) 100.0) -}}
+{{- fail "voice.kamailio.sipTrace.highWater.samplePercent must be between 0.1 and 100" -}}
+{{- end -}}
+{{- if not (and (lt (float64 $kamailio.sipTrace.highWater.queueRecoverRatio) (float64 $kamailio.sipTrace.highWater.queueSampleRatio)) (lt (float64 $kamailio.sipTrace.highWater.queueSampleRatio) (float64 $kamailio.sipTrace.highWater.queueOffRatio))) -}}
+{{- fail "voice.kamailio.sipTrace.highWater queue thresholds must satisfy recover < sample < off" -}}
+{{- end -}}
+{{- if not (and (lt (float64 $kamailio.sipTrace.highWater.cpuRecoverCores) (float64 $kamailio.sipTrace.highWater.cpuSampleCores)) (lt (float64 $kamailio.sipTrace.highWater.cpuSampleCores) (float64 $kamailio.sipTrace.highWater.cpuOffCores))) -}}
+{{- fail "voice.kamailio.sipTrace.highWater CPU thresholds must satisfy recover < sample < off" -}}
+{{- end -}}
+{{- if not (and (lt (float64 $kamailio.sipTrace.highWater.packetsRecoverPerSecond) (float64 $kamailio.sipTrace.highWater.packetsSamplePerSecond)) (lt (float64 $kamailio.sipTrace.highWater.packetsSamplePerSecond) (float64 $kamailio.sipTrace.highWater.packetsOffPerSecond))) -}}
+{{- fail "voice.kamailio.sipTrace.highWater packet thresholds must satisfy recover < sample < off" -}}
+{{- end -}}
+{{- if not (and (lt (float64 $kamailio.sipTrace.highWater.processingGapRecoverPerSecond) (float64 $kamailio.sipTrace.highWater.processingGapSamplePerSecond)) (lt (float64 $kamailio.sipTrace.highWater.processingGapSamplePerSecond) (float64 $kamailio.sipTrace.highWater.processingGapOffPerSecond))) -}}
+{{- fail "voice.kamailio.sipTrace.highWater processing-gap thresholds must satisfy recover < sample < off" -}}
+{{- end -}}
+{{- $hasHepSelector := and (not (empty $kamailio.networkPolicy.hepCollectorNamespaceSelector)) (not (empty $kamailio.networkPolicy.hepCollectorPodSelector)) -}}
+{{- if and $kamailio.networkPolicy.enabled (empty $kamailio.networkPolicy.hepCollectorCidrs) (not $hasHepSelector) -}}
+{{- fail "voice.kamailio.networkPolicy requires a HEP collector namespace/pod selector or narrow collector CIDRs when SIP tracing is enabled" -}}
+{{- end -}}
+{{- range $kamailio.networkPolicy.hepCollectorCidrs -}}
+{{- if or (eq . "0.0.0.0/0") (eq . "::/0") -}}
+{{- fail "voice.kamailio.networkPolicy.hepCollectorCidrs must not contain a default route" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- if gt (add (int $kamailio.pool.pinSetBase) $rustpbxReplicas) 999999999 -}}
 {{- fail "voice.kamailio.pool.pinSetBase plus voice.replicaCount exceeds the pin-set range" -}}
 {{- end -}}
@@ -104,6 +140,14 @@ data:
         "sync_batch_size": {{ $kamailio.dmq.syncBatchSize }},
         "sync_batch_usleep": {{ $kamailio.dmq.syncBatchUsleep }},
         "sync_message_contacts": {{ $kamailio.dmq.syncMessageContacts }}
+      },
+      "sip_trace": {
+        "enabled": {{ $kamailio.sipTrace.enabled }},
+        "collector_host": {{ $kamailio.sipTrace.collectorHost | quote }},
+        "collector_port": {{ $kamailio.sipTrace.collectorPort }},
+        "capture_id": {{ $kamailio.sipTrace.captureId }},
+        "include_options": {{ $kamailio.sipTrace.includeOptions }},
+        "initial_mode": {{ ternary "off" "full" $kamailio.sipTrace.enabled | quote }}
       },
       "max_message_bytes": {{ $kamailio.limits.maxMessageBytes }},
       "per_source_invite_cps": {{ $kamailio.limits.perSourceInviteCps }},

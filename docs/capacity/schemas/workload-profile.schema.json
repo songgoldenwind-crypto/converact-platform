@@ -21,6 +21,7 @@
     "durations",
     "failure_model",
     "slos",
+    "performance_contract",
     "external_dependencies"
   ],
   "properties": {
@@ -29,7 +30,7 @@
       "minLength": 1
     },
     "schema_version": {
-      "const": "1.2.0"
+      "const": "1.3.0"
     },
     "profile_id": {
       "type": "string",
@@ -288,6 +289,9 @@
         "eight_node_linearity_ratio": { "$ref": "#/$defs/ratio" }
       }
     },
+    "performance_contract": {
+      "$ref": "#/$defs/performanceContract"
+    },
     "external_dependencies": {
       "type": "array",
       "minItems": 1,
@@ -310,6 +314,262 @@
     }
   },
   "$defs": {
+    "performanceContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "measurement_scope",
+        "clock_sync",
+        "required_quantiles",
+        "latency_ms",
+        "media_quality",
+        "reliability",
+        "recovery_ms",
+        "overload",
+        "security_performance",
+        "required_resource_metrics",
+        "impairment_profiles"
+      ],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "measurement_scope": { "const": "same_region_controlled_endpoint_to_endpoint" },
+        "clock_sync": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "maximum_offset_ms"],
+          "properties": {
+            "method": { "const": "monotonic_clock_with_observed_ntp_offset" },
+            "maximum_offset_ms": { "$ref": "#/$defs/positiveNumber" }
+          }
+        },
+        "required_quantiles": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "p50" },
+            { "const": "p95" },
+            { "const": "p99" }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "latency_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "im_send_to_ack_p95",
+            "im_send_to_ack_p99",
+            "sip_route_p99",
+            "sip_post_dial_p95",
+            "sip_post_dial_p99",
+            "voice_mouth_to_ear_p95",
+            "voice_mouth_to_ear_p99",
+            "livekit_join_p95",
+            "livekit_join_p99",
+            "livekit_first_audio_p99",
+            "livekit_first_video_frame_p99",
+            "livekit_glass_to_glass_p95",
+            "livekit_glass_to_glass_p99",
+            "screen_first_frame_p99",
+            "screen_glass_to_glass_p95",
+            "rustdesk_input_to_photon_p95",
+            "rustdesk_input_to_photon_p99"
+          ],
+          "properties": {
+            "im_send_to_ack_p95": { "$ref": "#/$defs/nonNegativeNumber" },
+            "im_send_to_ack_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "sip_route_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "sip_post_dial_p95": { "$ref": "#/$defs/nonNegativeNumber" },
+            "sip_post_dial_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "voice_mouth_to_ear_p95": { "$ref": "#/$defs/nonNegativeNumber" },
+            "voice_mouth_to_ear_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "livekit_join_p95": { "$ref": "#/$defs/nonNegativeNumber" },
+            "livekit_join_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "livekit_first_audio_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "livekit_first_video_frame_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "livekit_glass_to_glass_p95": { "$ref": "#/$defs/nonNegativeNumber" },
+            "livekit_glass_to_glass_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "screen_first_frame_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "screen_glass_to_glass_p95": { "$ref": "#/$defs/nonNegativeNumber" },
+            "rustdesk_input_to_photon_p95": { "$ref": "#/$defs/nonNegativeNumber" },
+            "rustdesk_input_to_photon_p99": { "$ref": "#/$defs/nonNegativeNumber" }
+          }
+        },
+        "media_quality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "server_packet_loss_ratio",
+            "endpoint_packet_loss_p95_ratio",
+            "jitter_p95_ms",
+            "jitter_p99_ms",
+            "video_freeze_ratio",
+            "video_freezes_per_minute",
+            "camera_receiver_frames_per_second_min",
+            "video_frame_gap_p95_ms",
+            "video_frame_gap_p99_ms",
+            "av_sync_absolute_p95_ms",
+            "minimum_voice_mos_p50"
+          ],
+          "properties": {
+            "server_packet_loss_ratio": { "$ref": "#/$defs/ratio" },
+            "endpoint_packet_loss_p95_ratio": { "$ref": "#/$defs/ratio" },
+            "jitter_p95_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "jitter_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "video_freeze_ratio": { "$ref": "#/$defs/ratio" },
+            "video_freezes_per_minute": { "$ref": "#/$defs/nonNegativeNumber" },
+            "camera_receiver_frames_per_second_min": { "$ref": "#/$defs/nonNegativeNumber" },
+            "video_frame_gap_p95_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "video_frame_gap_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "av_sync_absolute_p95_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "minimum_voice_mos_p50": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 5
+            }
+          }
+        },
+        "reliability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "connection_success_ratio",
+            "sip_setup_success_ratio",
+            "reconnect_success_ratio",
+            "durable_loss_count",
+            "duplicate_delivery_count",
+            "out_of_order_delivery_count"
+          ],
+          "properties": {
+            "connection_success_ratio": { "$ref": "#/$defs/ratio" },
+            "sip_setup_success_ratio": { "$ref": "#/$defs/ratio" },
+            "reconnect_success_ratio": { "$ref": "#/$defs/ratio" },
+            "durable_loss_count": { "$ref": "#/$defs/nonNegativeInteger" },
+            "duplicate_delivery_count": { "$ref": "#/$defs/nonNegativeInteger" },
+            "out_of_order_delivery_count": { "$ref": "#/$defs/nonNegativeInteger" }
+          }
+        },
+        "recovery_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reconnect_p99",
+            "network_handoff_p99",
+            "bandwidth_step_p99",
+            "new_admission_after_node_failure_p99"
+          ],
+          "properties": {
+            "reconnect_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "network_handoff_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "bandwidth_step_p99": { "$ref": "#/$defs/nonNegativeNumber" },
+            "new_admission_after_node_failure_p99": { "$ref": "#/$defs/nonNegativeNumber" }
+          }
+        },
+        "overload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "queue_policy",
+            "slow_consumer_policy",
+            "minimum_jain_fairness_index",
+            "maximum_noisy_neighbor_p99_degradation_ratio",
+            "degradation_order"
+          ],
+          "properties": {
+            "queue_policy": { "const": "bounded" },
+            "slow_consumer_policy": { "const": "disconnect_or_degrade" },
+            "minimum_jain_fairness_index": { "$ref": "#/$defs/ratio" },
+            "maximum_noisy_neighbor_p99_degradation_ratio": { "$ref": "#/$defs/ratio" },
+            "degradation_order": {
+              "type": "array",
+              "prefixItems": [
+                { "const": "preserve_audio" },
+                { "const": "reduce_video_layers" },
+                { "const": "reduce_video_frame_rate" },
+                { "const": "drop_auxiliary_realtime_copies" },
+                { "const": "reject_new_admission" }
+              ],
+              "items": false,
+              "minItems": 5,
+              "maxItems": 5
+            }
+          }
+        },
+        "security_performance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "authorization_p99_ms",
+            "rate_limit_decision_p99_ms",
+            "overload_rejection_p99_ms",
+            "new_admission_fails_closed",
+            "established_media_avoids_remote_authorization"
+          ],
+          "properties": {
+            "authorization_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "rate_limit_decision_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "overload_rejection_p99_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+            "new_admission_fails_closed": { "const": true },
+            "established_media_avoids_remote_authorization": { "const": true }
+          }
+        },
+        "required_resource_metrics": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "server_cpu_p95_ratio",
+              "server_memory_per_1000_connections_bytes",
+              "server_egress_bits_per_second",
+              "client_cpu_p95_ratio",
+              "client_memory_p95_bytes",
+              "generator_cpu_p95_ratio",
+              "generator_nic_p95_ratio",
+              "cost_per_1000_active_interactions"
+            ]
+          }
+        },
+        "impairment_profiles": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/networkImpairmentProfile" }
+        }
+      }
+    },
+    "networkImpairmentProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "round_trip_time_ms",
+        "jitter_ms",
+        "packet_loss_ratio",
+        "downstream_kbps",
+        "upstream_kbps",
+        "blackout_ms"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "baseline",
+            "constrained_bandwidth",
+            "lossy_jitter",
+            "network_handoff",
+            "cross_region"
+          ]
+        },
+        "round_trip_time_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+        "jitter_ms": { "$ref": "#/$defs/nonNegativeNumber" },
+        "packet_loss_ratio": { "$ref": "#/$defs/ratio" },
+        "downstream_kbps": { "$ref": "#/$defs/positiveNumber" },
+        "upstream_kbps": { "$ref": "#/$defs/positiveNumber" },
+        "blackout_ms": { "$ref": "#/$defs/nonNegativeNumber" }
+      }
+    },
     "resultStatus": {
       "enum": ["target", "not_run", "running", "failed", "component_pass", "cell_pass", "platform_pass", "external_not_run", "production_pass"]
     },
@@ -542,6 +802,7 @@
     "media.livekit.av.participants == media.livekit.av.rooms * 2 for the v1 one-to-one baseline",
     "media.livekit.screen.participants == media.livekit.screen.rooms * 2",
     "recording storage is downstream-only and cannot terminate or backpressure established media",
+    "capacity evidence is invalid unless endpoint QoE, weak-network, fairness, security-overhead and resource gates pass",
     "connections are derived load and never added to interactions.total"
   ]
 }

@@ -1,14 +1,18 @@
 services:
   capacity-nats:
     image: ${OPC_IVEKIT_CAPACITY_NATS_IMAGE:?OPC_IVEKIT_CAPACITY_NATS_IMAGE immutable digest reference is required}
-    command: ["-js", "-sd", "/data", "-m", "8222"]
+    command: ["-c", "/etc/nats/nats.conf"]
+    environment:
+      NATS_CLIENT_USER: ${OPC_IVEKIT_CAPACITY_NATS_USER:?set OPC_IVEKIT_CAPACITY_NATS_USER}
+      NATS_CLIENT_PASSWORD: ${OPC_IVEKIT_CAPACITY_NATS_PASSWORD:?set OPC_IVEKIT_CAPACITY_NATS_PASSWORD}
     ports:
       - "127.0.0.1:${OPC_CAPACITY_NATS_CLIENT_PORT:-4223}:4222"
       - "127.0.0.1:${OPC_CAPACITY_NATS_MONITOR_PORT:-8223}:8222"
     volumes:
+      - ../config/nats.conf:/etc/nats/nats.conf:ro
       - capacity_nats_data:/data
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8222/healthz"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
       interval: 5s
       timeout: 2s
       retries: 20
@@ -21,6 +25,10 @@ services:
     environment:
       OPC_DATABASE_URL: ${OPC_DATABASE_URL:?set OPC_DATABASE_URL}
       NATS_URL: nats://capacity-nats:4222
+      NATS_USER: ${OPC_IVEKIT_CAPACITY_NATS_USER:?set OPC_IVEKIT_CAPACITY_NATS_USER}
+      NATS_PASSWORD: ${OPC_IVEKIT_CAPACITY_NATS_PASSWORD:?set OPC_IVEKIT_CAPACITY_NATS_PASSWORD}
+      NATS_TLS_MODE: disabled
+      OPC_IVEKIT_CAPACITY_NATS_STREAM_REPLICAS: "1"
       OPC_IVEKIT_CAPACITY_DISPATCHER_ID: ${OPC_IVEKIT_CAPACITY_DISPATCHER_ID:-capacity-dispatcher-local}
       OPC_IVEKIT_CAPACITY_DISPATCH_INTERVAL_MS: ${OPC_IVEKIT_CAPACITY_DISPATCH_INTERVAL_MS:-250}
       OPC_IVEKIT_CAPACITY_DISPATCH_LEASE_MS: ${OPC_IVEKIT_CAPACITY_DISPATCH_LEASE_MS:-10000}
@@ -78,6 +86,9 @@ services:
     environment:
       OPC_DATABASE_URL: ${OPC_DATABASE_URL:?set OPC_DATABASE_URL}
       NATS_URL: nats://capacity-nats:4222
+      NATS_USER: ${OPC_IVEKIT_CAPACITY_NATS_USER:?set OPC_IVEKIT_CAPACITY_NATS_USER}
+      NATS_PASSWORD: ${OPC_IVEKIT_CAPACITY_NATS_PASSWORD:?set OPC_IVEKIT_CAPACITY_NATS_PASSWORD}
+      NATS_TLS_MODE: disabled
       OPC_IVEKIT_CAPACITY_RUN_ID: ${OPC_IVEKIT_CAPACITY_RUN_ID:?set OPC_IVEKIT_CAPACITY_RUN_ID}
       OPC_IVEKIT_CAPACITY_PHASE_ID: ${OPC_IVEKIT_CAPACITY_PHASE_ID:-}
       OPC_IVEKIT_CAPACITY_FLEET_ID: ${OPC_IVEKIT_CAPACITY_FLEET_ID:?set OPC_IVEKIT_CAPACITY_FLEET_ID}

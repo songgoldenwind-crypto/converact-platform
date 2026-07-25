@@ -26,6 +26,7 @@ test('storage isolation acceptance exports config continuity and failure classif
 
   assert.equal(typeof module.createLiveKitStorageIsolationConfigFromEnv, 'function');
   assert.equal(typeof module.assertLiveKitMediaContinuity, 'function');
+  assert.equal(typeof module.assertLiveKitMediaProgress, 'function');
   assert.equal(typeof module.classifyLiveKitEgressFailure, 'function');
   assert.equal(typeof module.runLiveKitStorageIsolationAcceptance, 'function');
   assert.equal(typeof module.createDefaultLiveKitStorageIsolationRuntime, 'function');
@@ -112,16 +113,7 @@ test('storage isolation continuity requires two connected peers and all media pu
   const { assertLiveKitMediaContinuity } = await import(
     '../scripts/livekit-storage-isolation-acceptance.js'
   );
-  const healthy = [
-    {
-      identity: 'agent-a', state: 'connected', remoteParticipants: 1,
-      remotePublications: 2, localPublications: 2
-    },
-    {
-      identity: 'agent-b', state: 'connected', remoteParticipants: 1,
-      remotePublications: 2, localPublications: 2
-    }
-  ];
+  const healthy = healthyPeerSnapshots();
 
   assert.doesNotThrow(() => assertLiveKitMediaContinuity(healthy));
   assert.throws(
@@ -135,6 +127,47 @@ test('storage isolation continuity requires two connected peers and all media pu
       index === 1 ? { ...peer, remotePublications: 1 } : peer
     )),
     /media continuity/i
+  );
+});
+
+test('storage isolation media progress requires bidirectional audio video and decoded frames', async () => {
+  const { assertLiveKitMediaProgress } = await import(
+    '../scripts/livekit-storage-isolation-acceptance.js'
+  );
+  const before = healthyPeerSnapshots();
+  const progressed = before.map((peer) => ({
+    ...peer,
+    inboundAudioBytes: peer.inboundAudioBytes + 1_000,
+    inboundVideoBytes: peer.inboundVideoBytes + 10_000,
+    outboundAudioBytes: peer.outboundAudioBytes + 1_000,
+    outboundVideoBytes: peer.outboundVideoBytes + 10_000,
+    inboundPackets: peer.inboundPackets + 20,
+    outboundPackets: peer.outboundPackets + 20,
+    videoFramesDecoded: peer.videoFramesDecoded + 10
+  }));
+
+  assert.doesNotThrow(() => assertLiveKitMediaProgress(before, progressed));
+  assert.throws(
+    () => assertLiveKitMediaProgress(before, progressed.map((peer, index) =>
+      index === 0 ? { ...peer, outboundVideoBytes: before[0]!.outboundVideoBytes } : peer
+    )),
+    /media progress/i
+  );
+  assert.throws(
+    () => assertLiveKitMediaProgress(before, progressed.map((peer, index) =>
+      index === 1 ? { ...peer, videoFramesDecoded: before[1]!.videoFramesDecoded } : peer
+    )),
+    /media progress/i
+  );
+});
+
+test('browser media snapshot evaluator is self-contained after tsx transformation', async () => {
+  const module = await import('../scripts/livekit-storage-isolation-acceptance.js');
+  assert.equal(typeof module.readLiveKitMediaPeerSnapshotInBrowser, 'function');
+  assert.doesNotMatch(
+    module.readLiveKitMediaPeerSnapshotInBrowser.toString(),
+    /\b__name\b/,
+    'Playwright page.evaluate cannot resolve Node-side transpiler helpers'
   );
 });
 
@@ -156,32 +189,55 @@ test('storage isolation runtime proves media continuity and restores storage', a
   );
   const events: string[] = [];
   let storageStopped = false;
+  let snapshots = 0;
+  let recoveryStopped = false;
+  let recordings = 0;
   const result = await runLiveKitStorageIsolationAcceptance(storageIsolationConfig(), {
     async createRoom(roomName) { events.push(`create:${roomName}`); },
     async deleteRoom(roomName) { events.push(`delete:${roomName}`); },
     async openPeers() { events.push('open_peers'); },
     async closePeers() { events.push('close_peers'); },
-    async snapshotPeers() { return healthyPeerSnapshots(); },
-    async startRecording() { events.push('start_recording'); return { egressId: 'EG_storage_1' }; },
-    async getRecording() {
-      return storageStopped
-        ? { status: 'failed', error: 'S3 PutObject http://minio:9000/recordings failed' }
+    async snapshotPeers() {
+      snapshots += 1;
+      return healthyPeerSnapshots(snapshots * 1_000);
+    },
+    async startRecording() {
+      recordings += 1;
+      const egressId = recordings === 1 ? 'EG_storage_1' : 'EG_recovery_1';
+      events.push(`start_recording:${egressId}`);
+      return { egressId };
+    },
+    async getRecording(egressId) {
+      if (egressId === 'EG_storage_1') {
+        return storageStopped
+          ? { status: 'failed', error: 'S3 PutObject http://minio:9000/recordings failed' }
+          : { status: 'active', error: '' };
+      }
+      return recoveryStopped
+        ? { status: 'complete', error: '' }
         : { status: 'active', error: '' };
     },
-    async stopRecording() { events.push('stop_recording'); },
+    async stopRecording(egressId) {
+      events.push(`stop_recording:${egressId}`);
+      if (egressId === 'EG_recovery_1') recoveryStopped = true;
+    },
     async stopStorage() { storageStopped = true; events.push('stop_storage'); },
     async restoreStorage() { storageStopped = false; events.push('restore_storage'); },
     async wait() {}
   });
 
-  assert.equal(result.status, 'passed_controlled_local');
+  assert.equal(result.status, 'passed_controlled_runtime');
   assert.equal(result.egress_id, 'EG_storage_1');
   assert.equal(result.recording_terminal_status, 'failed');
   assert.equal(result.recording_failure_code, 'storage_upload_failed');
   assert.equal(result.storage_recovered, true);
+  assert.equal(result.media_transport_progress_verified, true);
+  assert.equal(result.recovery_egress_id, 'EG_recovery_1');
+  assert.equal(result.recovery_recording_terminal_status, 'complete');
   assert.doesNotMatch(JSON.stringify(result), /minio:9000|PutObject|S3 /i);
   assert.ok(events.indexOf('stop_storage') < events.indexOf('restore_storage'));
-  assert.ok(events.indexOf('restore_storage') < events.indexOf('close_peers'));
+  assert.ok(events.indexOf('restore_storage') < events.indexOf('start_recording:EG_recovery_1'));
+  assert.ok(events.indexOf('stop_recording:EG_recovery_1') < events.indexOf('close_peers'));
   assert.match(events.at(-1) || '', /^delete:/);
 });
 
@@ -256,14 +312,18 @@ test('storage isolation report always tightens an existing output file to mode 0
 
   writeLiveKitStorageIsolationResult(outputFile, {
     schema_version: 1,
-    status: 'passed_controlled_local',
+    status: 'passed_controlled_runtime',
     room_name: 'room-safe',
     egress_id: 'EG_safe',
     media_before: healthyPeerSnapshots(),
     media_during_storage_outage: healthyPeerSnapshots(),
     media_after_recording_failure: healthyPeerSnapshots(),
+    media_after_storage_recovery: healthyPeerSnapshots(1_000),
     recording_terminal_status: 'failed',
     recording_failure_code: 'storage_upload_failed',
+    media_transport_progress_verified: true,
+    recovery_egress_id: 'EG_recovery',
+    recovery_recording_terminal_status: 'complete',
     storage_recovered: true
   });
 
@@ -286,15 +346,29 @@ function storageIsolationConfig() {
   };
 }
 
-function healthyPeerSnapshots() {
+function healthyPeerSnapshots(offset = 0) {
   return [
     {
       identity: 'agent-a', state: 'connected', remoteParticipants: 1,
-      remotePublications: 2, localPublications: 2
+      remotePublications: 2, localPublications: 2,
+      inboundAudioBytes: 10_000 + offset,
+      inboundVideoBytes: 100_000 + offset,
+      outboundAudioBytes: 10_000 + offset,
+      outboundVideoBytes: 100_000 + offset,
+      inboundPackets: 1_000 + offset,
+      outboundPackets: 1_000 + offset,
+      videoFramesDecoded: 500 + offset
     },
     {
       identity: 'agent-b', state: 'connected', remoteParticipants: 1,
-      remotePublications: 2, localPublications: 2
+      remotePublications: 2, localPublications: 2,
+      inboundAudioBytes: 10_000 + offset,
+      inboundVideoBytes: 100_000 + offset,
+      outboundAudioBytes: 10_000 + offset,
+      outboundVideoBytes: 100_000 + offset,
+      inboundPackets: 1_000 + offset,
+      outboundPackets: 1_000 + offset,
+      videoFramesDecoded: 500 + offset
     }
   ];
 }

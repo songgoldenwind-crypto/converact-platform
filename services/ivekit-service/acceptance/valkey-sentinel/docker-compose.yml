@@ -1,0 +1,94 @@
+x-valkey-data: &valkey-data
+  image: ${VALKEY_ACCEPTANCE_IMAGE:?immutable Valkey image is required}
+  user: "999:1000"
+  restart: "no"
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  networks:
+    - valkey_acceptance
+
+x-valkey-sentinel: &valkey-sentinel
+  image: ${VALKEY_ACCEPTANCE_IMAGE:?immutable Valkey image is required}
+  user: "999:1000"
+  restart: "no"
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  networks:
+    - valkey_acceptance
+
+services:
+  valkey-1:
+    <<: *valkey-data
+    command: ["valkey-server", "/etc/valkey/valkey.conf"]
+    volumes:
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/valkey-1.conf:/etc/valkey/valkey.conf:ro
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/data-users.acl:/etc/valkey/users.acl:ro
+      - valkey_1_data:/data
+
+  valkey-2:
+    <<: *valkey-data
+    command: ["valkey-server", "/etc/valkey/valkey.conf"]
+    volumes:
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/valkey-2.conf:/etc/valkey/valkey.conf:ro
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/data-users.acl:/etc/valkey/users.acl:ro
+      - valkey_2_data:/data
+
+  valkey-3:
+    <<: *valkey-data
+    command: ["valkey-server", "/etc/valkey/valkey.conf"]
+    volumes:
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/valkey-3.conf:/etc/valkey/valkey.conf:ro
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/data-users.acl:/etc/valkey/users.acl:ro
+      - valkey_3_data:/data
+
+  sentinel-1:
+    <<: *valkey-sentinel
+    command: ["/bin/sh", "-ec", "cp /config/sentinel.conf /tmp/sentinel.conf && exec valkey-sentinel /tmp/sentinel.conf"]
+    volumes:
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/sentinel-1.conf:/config/sentinel.conf:ro
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/sentinel-users.acl:/etc/valkey/sentinel-users.acl:ro
+    depends_on:
+      - valkey-1
+      - valkey-2
+      - valkey-3
+
+  sentinel-2:
+    <<: *valkey-sentinel
+    command: ["/bin/sh", "-ec", "cp /config/sentinel.conf /tmp/sentinel.conf && exec valkey-sentinel /tmp/sentinel.conf"]
+    volumes:
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/sentinel-2.conf:/config/sentinel.conf:ro
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/sentinel-users.acl:/etc/valkey/sentinel-users.acl:ro
+    depends_on:
+      - valkey-1
+      - valkey-2
+      - valkey-3
+
+  sentinel-3:
+    <<: *valkey-sentinel
+    command: ["/bin/sh", "-ec", "cp /config/sentinel.conf /tmp/sentinel.conf && exec valkey-sentinel /tmp/sentinel.conf"]
+    volumes:
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/sentinel-3.conf:/config/sentinel.conf:ro
+      - ${VALKEY_ACCEPTANCE_RUNTIME_DIR:?runtime directory is required}/sentinel-users.acl:/etc/valkey/sentinel-users.acl:ro
+    depends_on:
+      - valkey-1
+      - valkey-2
+      - valkey-3
+
+networks:
+  valkey_acceptance:
+    internal: true
+
+volumes:
+  valkey_1_data:
+  valkey_2_data:
+  valkey_3_data:

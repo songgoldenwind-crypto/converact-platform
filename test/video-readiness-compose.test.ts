@@ -159,15 +159,39 @@ test('Compose media services use pinned versions and production bundled media is
   const local = readFileSync(COMPOSE_PATH, 'utf8');
   const production = readFileSync(PRODUCTION_COMPOSE_PATH, 'utf8');
   const productionEnv = readFileSync(PRODUCTION_ENV_PATH, 'utf8');
+  const rootEnv = readFileSync(ROOT_ENV_PATH, 'utf8');
+  const k8sValues = readFileSync(K8S_VALUES_PATH, 'utf8');
 
+  assert.match(
+    readServiceBlock(local, 'livekit'),
+    /image: \$\{LIVEKIT_SERVER_IMAGE:-ivekit\/livekit-server:v1\.13\.4-ivekit\.1-0b3fd288\}/
+  );
+  assert.match(
+    readServiceBlock(production, 'livekit'),
+    /image: \$\{LIVEKIT_SERVER_IMAGE:\?LIVEKIT_SERVER_IMAGE immutable iveKit fork reference is required\}/
+  );
   for (const compose of [local, production]) {
-    assert.match(readServiceBlock(compose, 'livekit'), /livekit\/livekit-server:\$\{LIVEKIT_SERVER_IMAGE_TAG:-v1\.13\.3\}/);
-    assert.match(readServiceBlock(compose, 'livekit-sip'), /livekit\/sip:\$\{LIVEKIT_SIP_IMAGE_TAG:-v1\.6\.0\}/);
     const egress = readServiceBlock(compose, 'livekit-egress');
     assert.match(egress, /livekit\/egress:\$\{LIVEKIT_EGRESS_IMAGE_TAG:-v1\.13\.0\}/);
     assert.match(egress, /SYS_ADMIN/);
     assert.match(egress, /http:\/\/127\.0\.0\.1:8091/);
   }
+  assert.match(readServiceBlock(local, 'livekit-sip'), /livekit\/sip:\$\{LIVEKIT_SIP_IMAGE_TAG:-v1\.7\.0\}/);
+  assert.match(
+    readServiceBlock(production, 'livekit-sip'),
+    /image: \$\{LIVEKIT_SIP_IMAGE:\?LIVEKIT_SIP_IMAGE immutable reference is required\}/
+  );
+  assert.match(
+    productionEnv,
+    /^LIVEKIT_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server@sha256:[a-f0-9]{64}$/m
+  );
+  assert.match(
+    productionEnv,
+    /^LIVEKIT_SIP_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-livekit-sip@sha256:[a-f0-9]{64}$/m
+  );
+  assert.match(productionEnv, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.4-ivekit\.1$/m);
+  assert.match(rootEnv, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.4-ivekit\.1$/m);
+  assert.match(k8sValues, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server/);
 
   for (const service of ['livekit', 'livekit-sip', 'livekit-egress']) {
     assert.match(readServiceBlock(production, service), /profiles: \["media-bundled"\]/);
@@ -363,7 +387,7 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
     'IVEKIT_POSTGRES_IMAGE=postgres:16.10-alpine3.22',
     'IVEKIT_REDIS_IMAGE=redis:7.4.9',
     'TINODE_IMAGE=tinode/tinode:0.25.3',
-    'RUSTDESK_SERVER_IMAGE=rustdesk/rustdesk-server:1.1.15'
+    'RUSTDESK_SERVER_IMAGE=ghcr.io/songgoldenwind-crypto/opc-rustdesk-server:1.1.16-ivekit.1-73523b31'
   ]) {
     assert.match(envExample, new RegExp(`^${variable.replaceAll('.', '\\.')}@sha256:[a-f0-9]{64}$`, 'm'));
   }
@@ -500,7 +524,7 @@ test('compose files define RustDesk OSS runtime and wire OPC control-plane env',
 
   const localHbbs = readServiceBlock(localCompose, 'rustdesk-hbbs');
   const localHbbr = readServiceBlock(localCompose, 'rustdesk-hbbr');
-  assert.match(localHbbs, /image: rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:-1\.1\.15\}/);
+  assert.match(localHbbs, /image: rustdesk\/rustdesk-server:\$\{RUSTDESK_SERVER_IMAGE_TAG:-1\.1\.16\}/);
   assert.match(localHbbs, /command: hbbs/);
   assert.match(localHbbs, /ALWAYS_USE_RELAY: \$\{RUSTDESK_ALWAYS_USE_RELAY:-N\}/);
   assert.match(localHbbs, /"21115:21115\/tcp"/);
@@ -515,13 +539,15 @@ test('compose files define RustDesk OSS runtime and wire OPC control-plane env',
 
   const productionHbbs = readServiceBlock(productionCompose, 'rustdesk-hbbs');
   const productionHbbr = readServiceBlock(productionCompose, 'rustdesk-hbbr');
+  assert.match(productionHbbs, /image: \$\{RUSTDESK_SERVER_IMAGE:\?RUSTDESK_SERVER_IMAGE immutable digest reference is required\}/);
   assert.match(productionHbbs, /network_mode: "host"/);
   assert.match(productionHbbs, /command: hbbs/);
   assert.match(productionHbbs, /ALWAYS_USE_RELAY: \$\{RUSTDESK_ALWAYS_USE_RELAY:-N\}/);
-  assert.ok(readServiceVolumes(productionCompose, 'rustdesk-hbbs').includes('rustdesk_data:/root'));
+  assert.ok(readServiceVolumes(productionCompose, 'rustdesk-hbbs').includes('rustdesk_data:/data'));
+  assert.doesNotMatch(productionHbbs, /rustdesk\/rustdesk-server:/);
   assert.match(productionHbbr, /network_mode: "host"/);
   assert.match(productionHbbr, /command: hbbr/);
-  assert.ok(readServiceVolumes(productionCompose, 'rustdesk-hbbr').includes('rustdesk_data:/root'));
+  assert.ok(readServiceVolumes(productionCompose, 'rustdesk-hbbr').includes('rustdesk_data:/data'));
 
   for (const compose of [localCompose, productionCompose]) {
     const opcEnvironment = readServiceEnvironment(compose, 'opc');
@@ -783,6 +809,7 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   const aiAgentDeployment = readFileSync(K8S_AI_AGENT_DEPLOYMENT_PATH, 'utf8');
   const secrets = readFileSync(K8S_SECRETS_PATH, 'utf8');
   const values = readFileSync(K8S_VALUES_PATH, 'utf8');
+  const helpers = readFileSync(K8S_HELPERS_PATH, 'utf8');
 
   for (const envName of [
     'LIVEKIT_API_KEY',
@@ -799,10 +826,6 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
     'OPC_MEDIA_SMOKE_VERIFY_RECORDING_OBJECT',
     'OPC_MEDIA_SMOKE_RECORDING_OBJECT_TIMEOUT_MS',
     'OPC_MEDIA_SMOKE_RECORDING_OBJECT_POLL_INTERVAL_MS',
-    'MINIO_ENDPOINT',
-    'MINIO_BUCKET',
-    'MINIO_ACCESS_KEY',
-    'MINIO_SECRET_KEY',
     'OPC_API_KEY',
     'OPC_REMOTE_GATEWAY_PROVIDER',
     'OPC_REMOTE_GATEWAY_TENANT_ID',
@@ -849,6 +872,17 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   assert.match(aiAgentDeployment, /name: OPC_API_KEY/);
   assert.match(opcDeployment, /include "opc\.livekitInternalUrl"/);
   assert.match(opcDeployment, /include "opc\.livekitPublicUrl"/);
+  assert.match(opcDeployment, /include "opc\.objectStorageEnv"/);
+  for (const envName of [
+    'S3_ENDPOINT',
+    'S3_BUCKET',
+    'S3_REGION',
+    'S3_FORCE_PATH_STYLE',
+    'AWS_ACCESS_KEY_ID',
+    'AWS_SECRET_ACCESS_KEY'
+  ]) {
+    assert.match(helpers, new RegExp(`name: ${envName}`));
+  }
   assert.match(aiAgentDeployment, /include "opc\.livekitInternalUrl"/);
   assert.match(opcDeployment, /mountPath: \/rustdesk/);
   assert.match(opcDeployment, /claimName: {{ \.Release\.Name }}-rustdesk-data/);
@@ -864,8 +898,6 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
     'livekit-api-secret',
     'media-api-token',
     'media-invite-secret',
-    'minio-access-key',
-    'minio-secret-key',
     'opc-api-key',
     'rustdesk-api-token',
     'rustdesk-edge-token-secret',
@@ -882,17 +914,12 @@ test('Kubernetes templates pass reusable video env into opc and ai agent', () =>
   assert.match(values, /^    bridgeTarget: ""$/m);
   assert.match(values, /^    rustpbxTrunk: ""$/m);
   assert.match(values, /^    rustpbxRwiUrl: ""$/m);
-  for (const valueKey of [
-    'apiToken:',
-    'inviteSecret:',
-    'inviteTtlMs:',
-    'minioEndpoint:',
-    'minioBucket:',
-    'minioAccessKey:',
-    'minioSecretKey:'
-  ]) {
+  for (const valueKey of ['apiToken:', 'inviteSecret:', 'inviteTtlMs:', 'objectStorage:']) {
     assert.match(values, new RegExp(`^  ${valueKey}`, 'm'));
   }
+  assert.match(values, /^    mode: external$/m);
+  assert.match(values, /^    authMode: secret$/m);
+  assert.match(values, /^    existingSecret: opc-object-storage-runtime$/m);
 });
 
 test('Kubernetes chart defines the in-cluster media runtime dependencies', () => {
@@ -938,15 +965,17 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(egress, /\.Values\.media\.egress\.image\.repository/);
   assert.match(egress, /EGRESS_CONFIG_FILE/);
   assert.match(egress, /include "opc\.livekitInternalUrl"/);
-  assert.match(egress, /include "opc\.livekitRedisAddress"/);
+  assert.match(egress, /include "opc\.livekitRedisConfig"/);
   assert.match(egress, /insecure: {{ hasPrefix "ws:\/\/" \$livekitInternalUrl }}/);
   assert.doesNotMatch(egress, /^\s+insecure: true$/m);
   assert.match(egress, /logging:\n\s+level: info/);
-  assert.match(egress, /redis:\n\s+address:/);
-  assert.match(egress, /username:/);
-  assert.match(egress, /password:/);
-  assert.match(egress, /db:/);
-  assert.match(egress, /use_tls:/);
+  assert.match(egress, /redis:\n\s+\{\{- include "opc\.livekitRedisConfig"/);
+  assert.match(helpers, /define "opc\.livekitRedisConfig"/);
+  assert.match(helpers, /address:/);
+  assert.match(helpers, /username:/);
+  assert.match(helpers, /password:/);
+  assert.match(helpers, /db:/);
+  assert.match(helpers, /tls:/);
   assert.match(egress, /health_port:/);
   assert.match(egress, /prometheus_port:/);
   assert.match(egress, /backup_storage:/);
@@ -966,17 +995,17 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(egress, /kind: ScaledObject/);
   assert.match(egress, /kind: HorizontalPodAutoscaler/);
   assert.match(egress, /kind: PrometheusRule/);
-  assert.match(egress, /http:\/\/%s-minio:9000/);
+  assert.match(egress, /include "opc\.objectStorageEnv"/);
 
   assert.match(sip, /kind: Deployment/);
   assert.match(sip, /name: {{ \.Release\.Name }}-livekit-sip/);
   assert.match(sip, /include "opc\.livekitSipImage"/);
   assert.match(sip, /include "opc\.livekitInternalUrl"/);
-  assert.match(sip, /SIP_PORT/);
+  assert.match(sip, /sip_port: {{ \.Values\.media\.sip\.service\.port \| default 5061 }}/);
   assert.match(sip, /containerPort: 5061/);
   assert.match(sip, /kind: Service/);
 
-  assert.match(values, /repository: livekit\/livekit-server/);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server/);
   assert.match(values, /repository: minio\/minio/);
   const minioValuesStart = values.indexOf('  minio:\n', values.indexOf('media:\n'));
   const minioValues = values.slice(minioValuesStart, values.indexOf('  egress:\n', minioValuesStart));
@@ -984,10 +1013,14 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(minioValues, /digest: sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e/);
   assert.doesNotMatch(minioValues, /tag: latest/);
   assert.match(values, /repository: ivekit\/livekit-egress/);
-  assert.match(values, /repository: livekit\/sip/);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-livekit-sip/);
   assert.match(values, /^  enabled: false$/m);
   assert.match(values, /^  deploymentMode: external$/m);
-  assert.match(values, /^  redis:\n    address: ""\n    username: ""\n    password: ""\n    db: 0\n    useTLS: false$/m);
+  assert.match(
+    values,
+    /^  redis:\n    mode: direct\n    address: ""\n    sentinelMasterName: ""\n    sentinelAddresses: \[\]/m
+  );
+  assert.match(values, /^    reconnectWaitMs: 1000\n    maxReconnectAttempts: -1\n    tls:\n      enabled: false$/m);
   assert.match(values, /^  publicUrl: ""$/m);
   assert.doesNotMatch(values.slice(values.indexOf('livekit:'), values.indexOf('\n\nvoice:')), /tag:/);
   assert.match(values, /upstreamTag: v1\.13\.0/);
@@ -1010,7 +1043,7 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(helpers, /livekit\.apiSecret is required/);
   assert.match(helpers, /define "opc\.livekitRedisAddress"/);
   assert.match(helpers, /livekit\.redis\.address is required when external LiveKit uses in-chart Egress/);
-  assert.match(livekit, /include "opc\.livekitRedisAddress"/);
+  assert.match(livekit, /include "opc\.livekitRedisConfig"/);
   assert.doesNotMatch(readFileSync(K8S_SECRETS_PATH, 'utf8'), /livekit\.apiKey \| default "devkey"/);
   assert.doesNotMatch(readFileSync(K8S_SECRETS_PATH, 'utf8'), /livekit\.apiSecret \| default "secret"/);
   assert.doesNotMatch(livekit, /livekit\.apiKey \| default "devkey"/);
@@ -1021,6 +1054,11 @@ test('Kubernetes chart defines the in-cluster media runtime dependencies', () =>
   assert.match(values, /port: 9000/);
   assert.match(values, /consolePort: 9001/);
   assert.match(values, /^  sip:\n[\s\S]*?^      limits:\n        memory: "256Mi"\n        cpu: "300m"/m);
+  assert.match(values, /^  pliThrottle:\n    lowQuality: 100ms\n    midQuality: 100ms\n    highQuality: 100ms$/m);
+  assert.match(
+    livekit,
+    /pli_throttle:\n        low_quality: \{\{ \.Values\.livekit\.pliThrottle\.lowQuality \| quote \}\}\n        mid_quality: \{\{ \.Values\.livekit\.pliThrottle\.midQuality \| quote \}\}\n        high_quality: \{\{ \.Values\.livekit\.pliThrottle\.highQuality \| quote \}\}/
+  );
 
   for (const valueKey of [
     'image:',
@@ -1093,7 +1131,7 @@ test('Kubernetes chart renders every bundled infrastructure image by immutable d
     const end = values.indexOf('\n\n', start);
     assert.match(values.slice(start, end), /image:\n\s+repository: [^\n]+\n\s+digest: ""/);
   }
-  assert.match(values, /sip:\n[\s\S]*?image:\n\s+repository: livekit\/sip\n\s+digest: ""/);
+  assert.match(values, /sip:\n[\s\S]*?image:\n\s+repository: ghcr\.io\/songgoldenwind-crypto\/opc-livekit-sip\n\s+digest: ""/);
 });
 
 test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
@@ -1123,8 +1161,8 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   assert.match(rustdesk, /\.Values\.rustdesk\.service\.type/);
 
   assert.match(values, /^rustdesk:/m);
-  assert.match(values, /repository: rustdesk\/rustdesk-server/);
-  assert.match(values, /^  serverVersion: "1\.1\.15"$/m);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-rustdesk-server/);
+  assert.match(values, /^  serverVersion: "1\.1\.16"$/m);
   assert.match(values.slice(values.indexOf('rustdesk:')), /^    digest: ""$/m);
   assert.match(values, /alwaysUseRelay: "N"/);
   for (const [envName, valuePath] of [
@@ -1137,7 +1175,9 @@ test('Kubernetes chart defines RustDesk OSS runtime dependencies', () => {
   }
   assert.doesNotMatch(opc, /OPC_RUSTDESK_CLIENT_PROFILE_TTL_MS/);
   assert.match(rustdesk, /image: {{ include "opc\.rustdeskImage" \. \| quote }}/);
-  assert.match(values, /^  clientVersion: "1\.4\.7"$/m);
+  assert.match(values, /^  clientVersion: "1\.4\.9"$/m);
+  assert.ok((rustdesk.match(/mountPath: \/data/g) || []).length >= 2);
+  assert.match(rustdesk, /runAsUser: 10001/);
   assert.match(values, /^  clientProfileTtlSeconds: "900"$/m);
   assert.match(values, /^  clientArtifactsJson: ""$/m);
   for (const valueKey of [

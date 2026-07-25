@@ -16,6 +16,8 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 
+import { resolveS3ConnectionConfig } from '../../../storage/s3-connection-config.js';
+
 import {
   createIveKitBackupManifest,
   postgresClientEnvironment,
@@ -348,6 +350,7 @@ interface S3Configuration {
   bucket: string;
   region: string;
   endpoint?: string;
+  forcePathStyle: boolean;
   prefix: string;
   credentials?: { accessKeyId: string; secretAccessKey: string };
 }
@@ -469,26 +472,30 @@ async function writeMeasuredStream(body: Readable, destination: string): Promise
 }
 
 function s3Config(env: NodeJS.ProcessEnv): S3Configuration | null {
-  const bucket = String(env.S3_BUCKET || env.OPC_S3_BUCKET || env.MINIO_BUCKET || '').trim();
-  if (!bucket) return null;
-  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(bucket)) {
+  let resolved;
+  try {
+    resolved = resolveS3ConnectionConfig(env);
+  } catch (error) {
+    const message = String((error as Error).message || '');
+    if (message.includes('must be configured together')) {
+      throw operationError('s3_credentials_incomplete');
+    }
+    if (message.includes('S3_FORCE_PATH_STYLE')) {
+      throw operationError('s3_force_path_style_invalid');
+    }
+    throw error;
+  }
+  if (!resolved) return null;
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(resolved.bucket)) {
     throw operationError('s3_bucket_invalid');
   }
-  const accessKeyId = String(
-    env.AWS_ACCESS_KEY_ID || env.S3_ACCESS_KEY_ID || env.MINIO_ACCESS_KEY || ''
-  );
-  const secretAccessKey = String(
-    env.AWS_SECRET_ACCESS_KEY || env.S3_SECRET_ACCESS_KEY || env.MINIO_SECRET_KEY || ''
-  );
-  if (Boolean(accessKeyId) !== Boolean(secretAccessKey)) {
-    throw operationError('s3_credentials_incomplete');
-  }
   return {
-    bucket,
-    region: env.S3_REGION || env.AWS_REGION || 'us-east-1',
-    endpoint: env.S3_ENDPOINT || env.MINIO_ENDPOINT,
+    bucket: resolved.bucket,
+    region: resolved.region,
+    endpoint: resolved.endpoint,
+    forcePathStyle: resolved.forcePathStyle,
     prefix: safeS3Prefix(env.OPC_IVEKIT_BACKUP_OBJECT_PREFIX || ''),
-    ...(accessKeyId ? { credentials: { accessKeyId, secretAccessKey } } : {})
+    ...(resolved.credentials ? { credentials: resolved.credentials } : {})
   };
 }
 
@@ -496,7 +503,7 @@ function s3ClientOptions(config: S3Configuration) {
   return {
     region: config.region,
     endpoint: config.endpoint,
-    forcePathStyle: Boolean(config.endpoint),
+    forcePathStyle: config.forcePathStyle,
     ...(config.credentials ? { credentials: config.credentials } : {})
   };
 }

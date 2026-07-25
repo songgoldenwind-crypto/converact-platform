@@ -318,11 +318,11 @@ function completeReport(dir: string) {
     checked_at: '2026-07-06T00:10:00.000Z',
     runtime: {
       server: {
-        hbbs_version: '1.1.15', hbbr_version: '1.1.15', key_fingerprint: `sha256:${'b'.repeat(64)}`,
+        hbbs_version: '1.1.16', hbbr_version: '1.1.16', key_fingerprint: `sha256:${'b'.repeat(64)}`,
         id_server: 'rd-id.internal.company', relay_server: 'rd-relay.internal.company'
       },
-      agent: { platform: 'macos', architecture: 'aarch64', client_version: '1.4.7' },
-      target: { platform: 'windows', architecture: 'x86_64', client_version: '1.4.7', rustdesk_id: '987654321' }
+      agent: { platform: 'macos', architecture: 'aarch64', client_version: '1.4.9' },
+      target: { platform: 'windows', architecture: 'x86_64', client_version: '1.4.9', rustdesk_id: '987654321' }
     },
     physical_disconnect: completePhysicalDisconnect(),
     checks: completeChecks(dir),

@@ -170,7 +170,13 @@ test('external worker driver binds immutable binary identity and the fenced comm
 test('capacity worker config is explicit, bounded and restart-stable', () => {
   const config = capacityWorkerConfig({
     OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',
-    NATS_URL: 'nats://nats-a:4222,nats://nats-b:4222',
+    NATS_URL: 'tls://nats-a:4222,tls://nats-b:4222',
+    NATS_USER: 'capacity-worker',
+    NATS_PASSWORD: 'test-secret',
+    NATS_TLS_MODE: 'required',
+    NATS_TLS_CA_FILE: '/etc/nats/tls/ca.crt',
+    NATS_TLS_CERT_FILE: '/etc/nats/tls/tls.crt',
+    NATS_TLS_KEY_FILE: '/etc/nats/tls/tls.key',
     OPC_IVEKIT_CAPACITY_RUN_ID: 'run-capacity-001',
     OPC_IVEKIT_CAPACITY_PHASE_ID: 'steady',
     OPC_IVEKIT_CAPACITY_FLEET_ID: 'tinode',
@@ -191,10 +197,14 @@ test('capacity worker config is explicit, bounded and restart-stable', () => {
 
   assert.equal(config.fleet_id, 'tinode');
   assert.equal(config.safe_capacity, 2000);
-  assert.deepEqual(config.nats_servers, [
-    'nats://nats-a:4222',
-    'nats://nats-b:4222'
+  assert.deepEqual(config.nats.servers, [
+    'tls://nats-a:4222',
+    'tls://nats-b:4222'
   ]);
+  assert.equal(config.nats.name, 'tinode-worker-a');
+  assert.equal(config.nats.user, 'capacity-worker');
+  assert.equal(config.nats.pass, 'test-secret');
+  assert.equal(config.nats.tls && config.nats.tls.rejectUnauthorized, true);
   assert.deepEqual(config.metadata, { zone: 'zone-a' });
   assert.equal(capacityWorkerConfig({
     OPC_DATABASE_URL: 'postgresql://opc@postgres/ivekit',

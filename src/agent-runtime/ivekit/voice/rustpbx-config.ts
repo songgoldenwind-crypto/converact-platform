@@ -17,6 +17,9 @@ export interface RustPbxConfigSummary {
   media_recording_channel_capacity: number;
   media_recording_worker_threads: number;
   media_recording_worker_queue_capacity: number;
+  realtime_audio_tap_enabled: boolean;
+  realtime_audio_tap_channel_capacity: number;
+  realtime_audio_tap_send_timeout_ms: number;
   call_record_max_concurrent: number;
   call_record_channel_capacity: number;
   call_record_worker_threads: number;
@@ -51,6 +54,9 @@ interface RustPbxRenderInput {
   media_recording_channel_capacity: number;
   media_recording_worker_threads: number;
   media_recording_worker_queue_capacity: number;
+  realtime_audio_tap_socket_path: string;
+  realtime_audio_tap_channel_capacity: number;
+  realtime_audio_tap_send_timeout_ms: number;
   call_record_max_concurrent: number;
   call_record_channel_capacity: number;
   call_record_worker_threads: number;
@@ -84,6 +90,9 @@ export function renderRustPbxConfig(env: NodeJS.ProcessEnv): RustPbxRenderedConf
       media_recording_channel_capacity: input.media_recording_channel_capacity,
       media_recording_worker_threads: input.media_recording_worker_threads,
       media_recording_worker_queue_capacity: input.media_recording_worker_queue_capacity,
+      realtime_audio_tap_enabled: true,
+      realtime_audio_tap_channel_capacity: input.realtime_audio_tap_channel_capacity,
+      realtime_audio_tap_send_timeout_ms: input.realtime_audio_tap_send_timeout_ms,
       call_record_max_concurrent: input.call_record_max_concurrent,
       call_record_channel_capacity: input.call_record_channel_capacity,
       call_record_worker_threads: input.call_record_worker_threads,
@@ -192,6 +201,23 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
       4_096,
       65_536
     ),
+    realtime_audio_tap_socket_path: unixSocketPath(
+      env.RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH
+        || '/run/ivekit/realtime-audio-tap.sock',
+      'RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH'
+    ),
+    realtime_audio_tap_channel_capacity: positiveCapacity(
+      env.RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY,
+      'RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY',
+      256,
+      65_536
+    ),
+    realtime_audio_tap_send_timeout_ms: positiveCapacity(
+      env.RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS,
+      'RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS',
+      10,
+      1_000
+    ),
     call_record_max_concurrent: positiveCapacity(
       env.RUSTPBX_CALL_RECORD_MAX_CONCURRENT,
       'RUSTPBX_CALL_RECORD_MAX_CONCURRENT',
@@ -258,6 +284,9 @@ function renderConfig(input: RustPbxRenderInput): string {
     `media_recording_channel_capacity = ${input.media_recording_channel_capacity}`,
     `media_recording_worker_threads = ${input.media_recording_worker_threads}`,
     `media_recording_worker_queue_capacity = ${input.media_recording_worker_queue_capacity}`,
+    `realtime_audio_tap_socket_path = ${tomlString(input.realtime_audio_tap_socket_path)}`,
+    `realtime_audio_tap_channel_capacity = ${input.realtime_audio_tap_channel_capacity}`,
+    `realtime_audio_tap_send_timeout_ms = ${input.realtime_audio_tap_send_timeout_ms}`,
     '',
     '[proxy.locator]',
     'type = "database"',
@@ -367,6 +396,15 @@ function internalHttpUrl(value: string, field: string): string {
     throw new Error(`${field} must be a credential-free HTTP URL without query or fragment`);
   }
   return value;
+}
+
+function unixSocketPath(value: string, field: string): string {
+  const path = String(value || '').trim();
+  if (!path.startsWith('/') || path.includes('\0') || path.includes('\n') ||
+      Buffer.byteLength(path, 'utf8') > 100 || !path.endsWith('.sock')) {
+    throw new Error(`${field} must be an absolute Unix socket path ending in .sock`);
+  }
+  return path;
 }
 
 function optionalIp(value: string | undefined): string {

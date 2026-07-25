@@ -1,0 +1,166 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server
+  tag: v1.13.4-ivekit.1@sha256:REPLACE_WITH_64_HEX_DIGEST
+  pullPolicy: IfNotPresent
+
+terminationGracePeriodSeconds: 7200
+
+livekit:
+  port: 7880
+  log_level: info
+  prometheus_port: 6789
+  rtc:
+    tcp_port: 7881
+    port_range_start: 50000
+    port_range_end: 60000
+    use_external_ip: true
+    congestion_control:
+      enabled: true
+      allow_pause: true
+    allow_tcp_fallback: true
+    packet_buffer_size_video: 1000
+    packet_buffer_size_audio: 400
+    pli_throttle:
+      low_quality: 100ms
+      mid_quality: 100ms
+      high_quality: 100ms
+    strict_acks: true
+    batch_io:
+      batch_size: 128
+      max_flush_interval: 2ms
+  redis:
+    address: opc-valkey-primary.data.svc.cluster.local:6379
+    db: 0
+    tls:
+      enabled: true
+      insecure: false
+      server_name: opc-valkey-primary.data.svc.cluster.local
+      ca_cert_file: /etc/livekit-redis-tls/ca.crt
+      client_cert_file: /etc/livekit-redis-tls/tls.crt
+      client_key_file: /etc/livekit-redis-tls/tls.key
+  key_file: keys.yaml
+  room:
+    empty_timeout: 300
+    departure_timeout: 20
+    max_participants: 1000
+  node_selector:
+    kind: sysload
+    sort_by: sysload
+    algorithm: twochoice
+    sysload_limit: 0.65
+  turn:
+    enabled: true
+    domain: turn.media.example.com
+    secretName: livekit-turn-tls
+    tls_port: 5349
+    udp_port: 3478
+    relay_range_start: 30000
+    relay_range_end: 40000
+
+storeKeysInSecret:
+  enabled: true
+  existingSecret: livekit-api-keys
+  keys: {}
+
+redisPasswordSecret:
+  enabled: true
+  existingSecret: livekit-valkey-auth
+  key: redis-password
+
+redisTLSSecret:
+  enabled: true
+  existingSecret: livekit-valkey-tls
+  caKey: ca.crt
+  clientCertKey: tls.crt
+  clientKeyKey: tls.key
+
+loadBalancer:
+  type: disable
+  servicePort: 80
+  annotations: {}
+
+turnLoadbalancer:
+  enable: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 32
+  targetCPUUtilizationPercentage: 55
+
+nodeSelector:
+  opc.ivekit.io/media-plane: "true"
+
+resources:
+  requests:
+    cpu: "8"
+    memory: 8Gi
+  limits:
+    memory: 32Gi
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podHostNetwork: true
+
+podAnnotations:
+  sidecar.istio.io/inject: "false"
+  linkerd.io/inject: disabled
+  cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+tolerations:
+  - key: opc.ivekit.io/media-plane
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: livekit-server
+        topologyKey: kubernetes.io/hostname
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: livekit-server
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+deploymentStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 0
+    maxUnavailable: 1
+
+serviceMonitor:
+  create: true
+  annotations: {}
+  name: ""
+  interval: 15s

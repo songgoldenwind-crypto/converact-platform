@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0.0",
+  "status": "passed_controlled_server",
+  "server": "64.225.122.227",
+  "victoria_metrics_version": "v1.148.0",
+  "victoria_metrics_image_id": "sha256:407013e902f9a0ba1d4b2d4c077c47bbaf917c893c52ff39b19efe83a654afda",
+  "prometheus_version": "v3.12.0",
+  "prometheus_image_id": "sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac",
+  "initial_remote_write_value": 29,
+  "outage_source_start_value": 152,
+  "outage_source_end_value": 166,
+  "wal_recovered_value": 153,
+  "backup_floor_value": 153,
+  "backup_file_count": 25,
+  "restored_value": 177,
+  "communication_hot_path_dependency": false,
+  "led_container_invariant": "passed",
+  "production_object_store": "not_run",
+  "target_kubernetes": "not_run",
+  "dual_zone": "not_run",
+  "capacity_and_soak": "not_run"
+}

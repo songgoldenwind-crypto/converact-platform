@@ -74,6 +74,21 @@ export function buildKamailioComposeRuntime(
     perSourceCps,
     1_000_000
   );
+  const sipTraceEnabled = booleanValue(
+    env.OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED,
+    false,
+    'OPC_IVEKIT_KAMAILIO_SIP_TRACE_ENABLED'
+  );
+  const hepHighWaterEnabled = booleanValue(
+    env.OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED,
+    false,
+    'OPC_IVEKIT_KAMAILIO_HEP_HIGH_WATER_ENABLED'
+  );
+  if (sipTraceEnabled !== hepHighWaterEnabled) {
+    throw new Error(
+      'Kamailio SIP trace and HEP high-water protection must be enabled together'
+    );
+  }
   const nodeIds = [
     identifier(required(env, 'RUSTPBX_OWNER_NODE_ID')),
     identifier(required(env, 'RUSTPBX_OWNER_NODE_ID_B'))
@@ -141,6 +156,30 @@ export function buildKamailioComposeRuntime(
       sync_batch_size: 4_000,
       sync_batch_usleep: 1_000,
       sync_message_contacts: 50
+    },
+    sip_trace: {
+      enabled: sipTraceEnabled,
+      collector_host: networkHost(
+        env.OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_HOST || '127.0.0.1'
+      ),
+      collector_port: integer(
+        env.OPC_IVEKIT_KAMAILIO_HEP_COLLECTOR_PORT,
+        9_060,
+        1,
+        65_535
+      ),
+      capture_id: integer(
+        env.OPC_IVEKIT_KAMAILIO_HEP_CAPTURE_ID,
+        101,
+        1,
+        0xffff_ffff
+      ),
+      include_options: booleanValue(
+        env.OPC_IVEKIT_KAMAILIO_HEP_INCLUDE_OPTIONS,
+        false,
+        'OPC_IVEKIT_KAMAILIO_HEP_INCLUDE_OPTIONS'
+      ),
+      initial_mode: sipTraceEnabled && hepHighWaterEnabled ? 'off' : 'full'
     },
     max_message_bytes: integer(
       env.OPC_IVEKIT_KAMAILIO_MAX_MESSAGE_BYTES,

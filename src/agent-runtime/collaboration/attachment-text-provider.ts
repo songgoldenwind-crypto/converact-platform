@@ -18,6 +18,24 @@ export interface AttachmentVisualObservation {
   metadata?: Record<string, unknown>;
 }
 
+export interface AttachmentSpeechWord {
+  text: string;
+  start_ms: number;
+  end_ms: number;
+  confidence?: number;
+}
+
+export interface AttachmentSpeechSegment {
+  segment_id: string;
+  speaker_id: string;
+  start_ms: number;
+  end_ms: number;
+  text: string;
+  language?: string;
+  confidence?: number;
+  words?: AttachmentSpeechWord[];
+}
+
 export interface AttachmentTextExtractionInput {
   attachment_id: string;
   tenant_id: string;
@@ -40,6 +58,7 @@ export interface AttachmentTextExtractionResult {
   provider_request_id?: string;
   metadata?: Record<string, unknown>;
   observations?: AttachmentVisualObservation[];
+  speech_segments?: AttachmentSpeechSegment[];
 }
 
 export interface AttachmentTextProvider {
@@ -189,6 +208,9 @@ export function createHttpAttachmentTextProvider(
           : {}),
         ...('observations' in payload
           ? { observations: normalizeObservations(payload.observations, config.token || '') }
+          : {}),
+        ...(config.processor === 'asr' && 'segments' in payload
+          ? { speech_segments: normalizeSpeechSegments(payload.segments) }
           : {})
       };
     }
@@ -273,6 +295,98 @@ function optionalBoundedInteger(value: unknown, min: number, max: number): numbe
 function invalidObservationResponse(): AttachmentProviderError {
   return new AttachmentProviderError(
     'attachment provider returned invalid observations',
+    'provider_invalid_response',
+    false
+  );
+}
+
+function normalizeSpeechSegments(value: unknown): AttachmentSpeechSegment[] {
+  if (!Array.isArray(value) || value.length > 2_000) throw invalidSpeechSegmentResponse();
+  return value.map(normalizeSpeechSegment);
+}
+
+function normalizeSpeechSegment(value: unknown): AttachmentSpeechSegment {
+  if (!isRecord(value)) throw invalidSpeechSegmentResponse();
+  const segmentId = boundedSpeechIdentifier(value.segment_id, 'segment');
+  const speakerId = boundedSpeechIdentifier(value.speaker_id, 'speaker');
+  const startMs = requiredBoundedInteger(value.start_ms, 0, 604_800_000);
+  const endMs = requiredBoundedInteger(value.end_ms, 0, 604_800_000);
+  if (endMs < startMs) throw invalidSpeechSegmentResponse();
+  const text = boundedSpeechText(value.text, 8_192);
+  const language = optionalSpeechLanguage(value.language);
+  const confidence = optionalBoundedNumber(value.confidence, 0, 1);
+  const words = value.words == null ? undefined : normalizeSpeechWords(value.words, startMs, endMs);
+  return {
+    segment_id: segmentId,
+    speaker_id: speakerId,
+    start_ms: startMs,
+    end_ms: endMs,
+    text,
+    ...(language ? { language } : {}),
+    ...(confidence != null ? { confidence } : {}),
+    ...(words ? { words } : {})
+  };
+}
+
+function normalizeSpeechWords(value: unknown, segmentStartMs: number, segmentEndMs: number): AttachmentSpeechWord[] {
+  if (!Array.isArray(value) || value.length > 500) throw invalidSpeechSegmentResponse();
+  return value.map((word) => {
+    if (!isRecord(word)) throw invalidSpeechSegmentResponse();
+    const startMs = requiredBoundedInteger(word.start_ms, segmentStartMs, segmentEndMs);
+    const endMs = requiredBoundedInteger(word.end_ms, segmentStartMs, segmentEndMs);
+    if (endMs < startMs) throw invalidSpeechSegmentResponse();
+    const confidence = optionalBoundedNumber(word.confidence, 0, 1);
+    return {
+      text: boundedSpeechText(word.text, 256),
+      start_ms: startMs,
+      end_ms: endMs,
+      ...(confidence != null ? { confidence } : {})
+    };
+  });
+}
+
+function boundedSpeechIdentifier(value: unknown, fallbackPrefix: string): string {
+  const text = String(value || '').trim();
+  if (!text || text.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$/.test(text)) {
+    throw new AttachmentProviderError(
+      `${fallbackPrefix} identifier is invalid`,
+      'provider_invalid_response',
+      false
+    );
+  }
+  return text;
+}
+
+function boundedSpeechText(value: unknown, maxBytes: number): string {
+  if (typeof value !== 'string' || !value.trim() || Buffer.byteLength(value, 'utf8') > maxBytes
+    || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) {
+    throw invalidSpeechSegmentResponse();
+  }
+  return value.trim();
+}
+
+function optionalSpeechLanguage(value: unknown): string {
+  const language = String(value || '').trim();
+  if (!language) return '';
+  if (language.length > 35) throw invalidSpeechSegmentResponse();
+  try {
+    const canonical = Intl.getCanonicalLocales(language)[0];
+    if (!canonical) throw new Error('missing language');
+    return canonical;
+  } catch {
+    throw invalidSpeechSegmentResponse();
+  }
+}
+
+function requiredBoundedInteger(value: unknown, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) throw invalidSpeechSegmentResponse();
+  return parsed;
+}
+
+function invalidSpeechSegmentResponse(): AttachmentProviderError {
+  return new AttachmentProviderError(
+    'asr provider returned invalid speech segments',
     'provider_invalid_response',
     false
   );

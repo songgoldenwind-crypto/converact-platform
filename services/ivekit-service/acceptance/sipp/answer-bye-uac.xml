@@ -2,7 +2,9 @@
 <!DOCTYPE scenario SYSTEM "sipp.dtd">
 
 <scenario name="iveKit inbound answer and BYE UAC">
-  <send retrans="500">
+  <nop start_rtd="sip_post_dial" />
+
+  <send retrans="500" start_rtd="sip_route">
     <![CDATA[
       INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
       Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
@@ -26,11 +28,11 @@
     ]]>
   </send>
 
-  <recv response="100" optional="true" />
+  <recv response="100" optional="true" rtd="sip_route" />
   <recv response="100" optional="true" />
   <recv response="180" optional="true" />
   <recv response="183" optional="true" />
-  <recv response="200" rrs="true" rtd="true" />
+  <recv response="200" rrs="true" rtd="sip_post_dial" />
 
   <send>
     <![CDATA[

@@ -1,6 +1,7 @@
 import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
 import { closePostgres, initPostgres } from './db-pg.js';
 import { validateEnvOrExit } from './env-config.js';
+import { shutdownOpenTelemetry } from './telemetry.js';
 
 validateEnvOrExit();
 
@@ -33,6 +34,11 @@ async function main(): Promise<void> {
         }
         try {
           await closePostgres();
+        } catch (error) {
+          errors.push(error);
+        }
+        try {
+          await shutdownOpenTelemetry();
         } catch (error) {
           errors.push(error);
         }

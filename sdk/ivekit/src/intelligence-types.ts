@@ -1,6 +1,13 @@
 import type { IveKitPolicyFindingReview, IveKitPolicyFindingReviewInput } from './chat-types.js';
 
-export type IveKitProviderCapability = 'ocr' | 'asr' | 'quality_review' | 'translation';
+export type IveKitProviderCapability =
+  | 'ocr'
+  | 'asr'
+  | 'quality_review'
+  | 'translation'
+  | 'realtime_speech'
+  | 'tts'
+  | 'model_gateway';
 export type IveKitProviderMode = 'self_hosted' | 'third_party';
 
 interface IveKitIntelligencePolicySettings {
@@ -16,6 +23,18 @@ interface IveKitIntelligencePolicySettings {
   translation_target_languages: string[];
   min_ocr_confidence: number;
   min_asr_confidence: number;
+}
+
+interface IveKitRealtimeIntelligencePolicyUpdate {
+  realtime_speech_enabled?: boolean;
+  tts_enabled?: boolean;
+  model_gateway_enabled?: boolean;
+  realtime_speech_profile_id?: string;
+  tts_profile_id?: string;
+  model_gateway_profile_id?: string;
+  realtime_speech_profile_ids?: string[];
+  tts_profile_ids?: string[];
+  model_gateway_profile_ids?: string[];
 }
 
 type IveKitRouteNativePolicyProfiles = {
@@ -40,20 +59,30 @@ type IveKitLegacyPolicyProfiles = {
   translation_profile_ids?: string[];
 };
 
-export type IveKitIntelligencePolicyUpdate = IveKitIntelligencePolicySettings & (
+export type IveKitIntelligencePolicyUpdate = IveKitIntelligencePolicySettings &
+  IveKitRealtimeIntelligencePolicyUpdate & (
   | IveKitRouteNativePolicyProfiles
   | IveKitLegacyPolicyProfiles
 );
 
 export type IveKitIntelligencePolicy = IveKitIntelligencePolicySettings & {
+  realtime_speech_enabled: boolean;
+  tts_enabled: boolean;
+  model_gateway_enabled: boolean;
   ocr_profile_id: string;
   asr_profile_id: string;
   quality_profile_id: string;
   translation_profile_id: string;
+  realtime_speech_profile_id: string;
+  tts_profile_id: string;
+  model_gateway_profile_id: string;
   ocr_profile_ids: string[];
   asr_profile_ids: string[];
   quality_profile_ids: string[];
   translation_profile_ids: string[];
+  realtime_speech_profile_ids: string[];
+  tts_profile_ids: string[];
+  model_gateway_profile_ids: string[];
   tenant_id: string;
   configured: boolean;
   version: number;
@@ -99,6 +128,11 @@ export interface IveKitProviderProfileSummary {
   failure_threshold: number;
   open_cooldown_ms: number;
   reservation_ttl_ms: number;
+  adapter: string;
+  provider_version: string;
+  data_region: string;
+  max_buffered_audio_ms: number;
+  max_session_seconds: number;
 }
 
 export interface IveKitProviderRuntimeSnapshot {

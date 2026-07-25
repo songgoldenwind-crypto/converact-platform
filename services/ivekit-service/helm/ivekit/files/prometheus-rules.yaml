@@ -219,6 +219,39 @@ groups:
           summary: iveKit Voice provider events are delayed
           description: P95 Voice provider event lag has exceeded 30 seconds for ten minutes.
           runbook: docs/ivekit-monitoring-runbook.md#ivekitvoiceprovidereventlag
+      - alert: IveKitRealtimeAudioTapFailure
+        expr: increase(opc_ivekit_voice_audio_tap_events_total{event_type=~"tap.session.failed|tap.gateway.error"}[10m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: ivekit
+          component: realtime_audio_tap
+        annotations:
+          summary: iveKit realtime audio tap is failing
+          description: A RustPBX or LiveKit auxiliary PCM tap failed while the primary media path remained active.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrealtimeaudiotapfailure
+      - alert: IveKitRealtimeAudioTapDroppingAudio
+        expr: sum(rate(opc_ivekit_voice_audio_tap_dropped_seconds_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: ivekit
+          component: realtime_audio_tap
+        annotations:
+          summary: iveKit realtime audio tap is dropping sustained audio
+          description: Auxiliary ASR or translation consumers are not keeping up; primary RTC media is intentionally not backpressured.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrealtimeaudiotapdroppingaudio
+      - alert: IveKitRealtimeAudioTapReplayAttempt
+        expr: increase(opc_ivekit_voice_audio_tap_events_total{event_type="tap.connection.rejected",reason="token_replayed"}[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: ivekit
+          component: realtime_audio_tap
+        annotations:
+          summary: iveKit realtime audio tap token replay was rejected
+          description: A one-time PCM tap authorization was reused and requires security investigation.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrealtimeaudiotapreplayattempt
       - alert: IveKitIvrActionFailures
         expr: increase(opc_ivekit_ivr_pending_actions_total{result="failed"}[15m]) > 5
         for: 5m
@@ -349,6 +382,50 @@ groups:
           summary: Kamailio core metrics are unavailable through the route-agent proxy
           description: Route-agent remains observable, but dispatcher exhaustion and dialog pin failure telemetry from the loopback-only Kamailio endpoint is unavailable.
           runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiocoremetrics
+      - alert: IveKitKamailioHepCollectorUnavailable
+        expr: min by (namespace, pod) (ivekit_kamailio_hep_collector_up) < 1
+        for: 30s
+        labels:
+          severity: warning
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio HEP collector telemetry is unavailable
+          description: The local controller is shedding trace copies while HOMER metrics are unavailable; SIP routing and media readiness remain independent.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiohephighwater
+      - alert: IveKitKamailioHepControlFailure
+        expr: increase(ivekit_kamailio_hep_control_apply_failures_total[5m]) > 0
+        for: 15s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio rejected a local HEP control transition
+          description: Route-agent could not apply full, sampled, or off mode through authenticated loopback RPC and will retry without changing call readiness.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiohephighwater
+      - alert: IveKitKamailioHepControlPending
+        expr: max by (namespace, pod) (ivekit_kamailio_hep_control_pending) > 0
+        for: 30s
+        labels:
+          severity: critical
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio HEP desired state is not confirmed
+          description: The controller has not confirmed that the desired HEP mode and revision are committed in the local Kamailio htable; SIP routing and media readiness remain independent.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiohephighwater
+      - alert: IveKitKamailioHepTraceDisabled
+        expr: max by (namespace, pod) (ivekit_kamailio_hep_mode{mode="off"}) > 0
+        for: 30s
+        labels:
+          severity: warning
+          service: ivekit
+          component: kamailio
+        annotations:
+          summary: Kamailio HEP trace copies are disabled by high-water protection
+          description: HOMER queue, CPU, receive-processing gap, packet rate, or repeated scrape failure crossed the off threshold; calls continue without HEP copies.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitkamailiohephighwater
       - alert: IveKitKamailioNoAvailableRustPbx
         expr: min by (namespace, pod) (ivekit_kamailio_new_call_nodes) < 1
         for: 15s

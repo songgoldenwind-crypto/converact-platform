@@ -1,0 +1,36 @@
+{{- if and .Values.realtimeAudioTap.enabled .Values.realtimeAudioTap.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ivekit.fullname" . }}-realtime-audio-tap
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+  ingress:
+    # Preserve the release's existing HTTP reachability. This policy narrows
+    # only the additional PCM WebSocket port.
+    - ports:
+        - protocol: TCP
+          port: http
+    - from:
+        - {{- if .Values.realtimeAudioTap.networkPolicy.aiAgentNamespaceSelector }}
+          namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.realtimeAudioTap.networkPolicy.aiAgentNamespaceSelector | nindent 14 }}
+          {{- end }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.realtimeAudioTap.networkPolicy.aiAgentPodSelector | nindent 14 }}
+        {{- with .Values.realtimeAudioTap.networkPolicy.additionalIngressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: audio-tap
+{{- end }}

@@ -38,6 +38,17 @@ const room = await ivekit.media.createRoom({
   purpose: 'video_service',
   business_ref: orderRef
 });
+const ingress = await ivekit.media.createIngress({
+  input_type: 'whip',
+  room_name: room.room_name,
+  participant_identity: 'encoder-1001',
+  participant_name: 'LED field camera',
+  enable_transcoding: false
+}, { idempotencyKey: crypto.randomUUID() });
+// Treat ingress.stream_key and ingress.url as ephemeral publisher secrets.
+await ivekit.media.updateIngress(ingress.ingress_id, {
+  participant_name: 'LED field camera A'
+});
 const call: IveKitMediaCallSnapshot = await ivekit.media.createCall({
   media: 'video',
   participant_identities: ['customer-1001'],
@@ -302,7 +313,7 @@ Native integrations use `recordOperationObservation()` for view, control, multi-
 
 RustDesk native file and recording bytes are not uploaded by this browser SDK. The pinned Windows companion uses the fixed `rustdesk-native-evidence-v1` producer/watcher/uploader chain and publishes durable `remote.rustdesk.evidence.security_updated`, `.derivative_updated`, `.intelligence_enqueued`, `.intelligence_updated`, and `.quality_updated` events. The service idempotently reconciles ready evidence that missed its convergence callback, so clients may receive the enqueue event after process recovery. Product clients may render those metadata-only events, but must keep `native_unscanned` and `local_only` distinct from `ivekit_secure_file`.
 
-`getClientProfile()` returns a separately typed, pinned desktop distribution profile. Both expected server pins are mandatory. The SDK validates the requested platform/architecture, exact client and server versions, canonical 32-byte RustDesk public key, a Web Crypto-derived server-key fingerprint, canonical timestamps, expiry, a 60-second to one-hour lifetime, and exact release/platform/architecture installer identity. Official filenames use `rustdesk-1.4.7-<architecture>.<platform-extension>` without a platform token. Installer filenames are bounded canonical ASCII and URL basenames may not use whitespace, controls, Unicode, or percent escapes. A missing deployment artifact is returned as `install_source.state = 'not_configured'`; the SDK never downloads or executes it. Unattended access additionally requires an active access policy, active consent, and a fresh `unattended_launch` confirmation before `getGatewayLaunchPlan()` returns a usable plan.
+`getClientProfile()` returns a separately typed, pinned desktop distribution profile. Both expected server pins are mandatory. The SDK validates the requested platform/architecture, exact client and server versions, canonical 32-byte RustDesk public key, a Web Crypto-derived server-key fingerprint, canonical timestamps, expiry, a 60-second to one-hour lifetime, and exact release/platform/architecture installer identity. Official filenames use `rustdesk-1.4.9-<architecture>.<platform-extension>` without a platform token. Installer filenames are bounded canonical ASCII and URL basenames may not use whitespace, controls, Unicode, or percent escapes. A missing deployment artifact is returned as `install_source.state = 'not_configured'`; the SDK never downloads or executes it. Unattended access additionally requires an active access policy, active consent, and a fresh `unattended_launch` confirmation before `getGatewayLaunchPlan()` returns a usable plan.
 
 The controlled placement-enabled Windows package accepts only an iveKit 1.4.7 artifact that declares both `ivekit-rustdesk-native-control-v2` and `rustdesk-native-evidence-v1`. The SDK preserves v1 and v2 in the typed client profile, but v1 is valid only for a rolling package with Cell placement disabled. Official unmodified binaries remain valid general client-profile artifacts, but they cannot be used to claim owner-fenced precise disconnect or automatic native-evidence capabilities.
 

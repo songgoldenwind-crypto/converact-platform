@@ -2,8 +2,8 @@
   "schema_version": 1,
   "title": "Controlled RustDesk Windows Profile",
   "ready": true,
-  "client_version": "1.4.7",
-  "server_version": "1.1.15",
+  "client_version": "1.4.9",
+  "server_version": "1.1.16",
   "generated_at": "2026-07-15T00:00:00.000Z",
   "expires_at": "2099-01-01T00:00:00.000Z",
   "manual_fields": {
@@ -23,8 +23,8 @@
       "architecture": "x86_64",
       "install_source": {
         "state": "configured",
-        "url": "https://github.com/acme/ivekit-rustdesk/releases/download/1.4.7/rustdesk-1.4.7-ivekit1-x86_64.exe",
-        "filename": "rustdesk-1.4.7-ivekit1-x86_64.exe",
+        "url": "https://github.com/acme/ivekit-rustdesk/releases/download/1.4.9/rustdesk-1.4.9-ivekit1-x86_64.exe",
+        "filename": "rustdesk-1.4.9-ivekit1-x86_64.exe",
         "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         "native_control_protocol": "ivekit-rustdesk-native-control-v2",
         "native_evidence_protocol": "rustdesk-native-evidence-v1"

@@ -46,6 +46,8 @@ import type {
 } from './chat-types.js';
 import type {
   IveKitCreateMediaCallInput,
+  IveKitCreateMediaIngressInput,
+  IveKitCreateMediaIngressResult,
   IveKitCreateMediaRoomInput,
   IveKitMediaConnectionEventInput,
   IveKitMediaConnectionEventResult,
@@ -55,6 +57,7 @@ import type {
   IveKitMediaCapabilities,
   IveKitMediaJoinInput,
   IveKitMediaJoinPlan,
+  IveKitMediaIngress,
   IveKitMediaModerationResult,
   IveKitMediaModerationRecoveryResult,
   IveKitMediaMuteInput,
@@ -69,9 +72,11 @@ import type {
   IveKitMediaRecordingObjectInspection,
   IveKitMediaRecordingRetentionInput,
   IveKitMediaRecordingRetentionResult,
+  IveKitRealtimeSpeechSegmentPage,
   IveKitMediaRoom,
   IveKitMediaRoomJoinInput,
-  IveKitStartMediaRecordingInput
+  IveKitStartMediaRecordingInput,
+  IveKitUpdateMediaIngressInput
 } from './media-types.js';
 import type { IveKitSdkBusinessRef } from './types.js';
 import type { IveKitBusinessContext, IveKitUnifiedTimelinePage } from './context-types.js';
@@ -240,6 +245,17 @@ export interface IveKitSdkBinary {
 
 export interface IveKitMediaHttpClient {
   getCapabilities(): Promise<IveKitMediaCapabilities>;
+  createIngress(
+    input: IveKitCreateMediaIngressInput,
+    options: { idempotencyKey: string }
+  ): Promise<IveKitCreateMediaIngressResult>;
+  listIngresses(input: { room_name: string }): Promise<IveKitMediaIngress[]>;
+  getIngress(ingressId: string): Promise<IveKitMediaIngress>;
+  updateIngress(
+    ingressId: string,
+    input: IveKitUpdateMediaIngressInput
+  ): Promise<IveKitMediaIngress>;
+  deleteIngress(ingressId: string): Promise<IveKitMediaIngress>;
   createCall(input: IveKitCreateMediaCallInput): Promise<IveKitMediaCallSnapshot>;
   getCall(callId: string): Promise<IveKitMediaCallSnapshot>;
   transitionCall(
@@ -258,6 +274,10 @@ export interface IveKitMediaHttpClient {
     callId: string,
     input: IveKitMediaConnectionEventInput
   ): Promise<IveKitMediaConnectionEventResult>;
+  listRealtimeSpeech(
+    callId: string,
+    input?: { limit?: number; cursor?: string }
+  ): Promise<IveKitRealtimeSpeechSegmentPage>;
   createRoom(input: IveKitCreateMediaRoomInput): Promise<IveKitMediaRoom>;
   getRoom(roomName: string): Promise<IveKitMediaRoom>;
   closeRoom(roomName: string): Promise<IveKitMediaRoom>;
@@ -1443,8 +1463,31 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
     `${roomPath(roomName)}/participants/${pathSegment(identity, 'identity')}`;
   const recordingPath = (recordingId: string) =>
     `/api/ivekit/media/recordings/${pathSegment(recordingId, 'recordingId')}`;
+  const ingressPath = (ingressId: string) =>
+    `/api/ivekit/media/ingresses/${pathSegment(ingressId, 'ingressId')}`;
   return {
     getCapabilities: () => transport.json('GET', '/api/ivekit/media/capabilities'),
+    createIngress: (input, options) => transport.json(
+      'POST',
+      '/api/ivekit/media/ingresses',
+      {
+        body: input,
+        headers: {
+          'Idempotency-Key': requiredString(
+            options?.idempotencyKey,
+            'idempotencyKey is required'
+          )
+        }
+      }
+    ),
+    listIngresses: (input) => transport.json('GET', '/api/ivekit/media/ingresses', {
+      query: { room_name: requiredString(input?.room_name, 'room_name is required') }
+    }),
+    getIngress: (ingressId) => transport.json('GET', ingressPath(ingressId)),
+    updateIngress: (ingressId, input) => transport.json(
+      'PATCH', ingressPath(ingressId), { body: input }
+    ),
+    deleteIngress: (ingressId) => transport.json('DELETE', ingressPath(ingressId)),
     createCall: (input) => transport.json('POST', '/api/ivekit/media/calls', { body: input }),
     getCall: (callId) => transport.json('GET', callPath(callId)),
     transitionCall: (callId, input, options) => transport.json(
@@ -1475,6 +1518,11 @@ function createMediaClient(transport: IveKitTransport): IveKitMediaHttpClient {
       'POST',
       `${callPath(callId)}/connection-events`,
       { body: input }
+    ),
+    listRealtimeSpeech: (callId, input = {}) => transport.json(
+      'GET',
+      `${callPath(callId)}/realtime-speech`,
+      { query: { limit: optionalNumber(input.limit), cursor: input.cursor || '' } }
     ),
     createRoom: (input) => transport.json('POST', '/api/ivekit/media/rooms', { body: input }),
     getRoom: (roomName) => transport.json('GET', roomPath(roomName)),

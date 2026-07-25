@@ -125,15 +125,33 @@ test('standalone Helm chart gates migration before an immutable application roll
   assert.match(values, /^fileSecurity:$/m);
   assert.match(values, /scannerMode: clamd/);
   assert.match(values, /^clamav:$/m);
-  assert.match(values, /repository: clamav\/clamav/);
+  assert.match(values, /repository: clamav\/clamav:1\.5\.2_base/);
+  assert.match(
+    values,
+    /digest: sha256:3aa0c6d6a966dc062899e070fb13f87485acf0cbb710fccaae9a848cd5f5b09a/
+  );
   assert.match(helpers, /define "ivekit\.clamavImage"/);
-  assert.match(clamav, /kind: Deployment/);
+  assert.match(values, /replicaCount: 2/);
+  assert.match(values, /signatureMaxAgeMinutes: 4320/);
+  assert.match(clamav, /kind: StatefulSet/);
   assert.match(clamav, /kind: Service/);
-  assert.match(clamav, /kind: PersistentVolumeClaim/);
+  assert.match(clamav, /clusterIP: None/);
+  assert.match(clamav, /podManagementPolicy: Parallel/);
+  assert.match(clamav, /volumeClaimTemplates:/);
+  assert.match(clamav, /accessModes: \["ReadWriteOnce"\]/);
+  assert.match(clamav, /kind: PodDisruptionBudget/);
+  assert.match(clamav, /minAvailable:/);
+  assert.match(clamav, /podAntiAffinity:/);
+  assert.match(clamav, /topologySpreadConstraints:/);
+  assert.match(clamav, /kind: NetworkPolicy/);
   assert.match(clamav, /readinessProbe:/);
+  assert.match(clamav, /find \/var\/lib\/clamav[\s\S]*\.cld/);
   assert.match(clamav, /livenessProbe:/);
   assert.match(clamav, /resources:/);
   assert.match(clamav, /\/var\/lib\/clamav/);
   assert.doesNotMatch(clamav, /type: (?:NodePort|LoadBalancer)|hostPort:/);
+  assert.doesNotMatch(deployment, /wait-for-clamav/);
+  const readme = readFileSync('services/ivekit-service/helm/ivekit/README.md', 'utf8');
+  assert.match(readme, /ClamAV outage[^.]*must not gate API readiness or active communication/i);
   assert.doesNotMatch(`${values}\n${deployment}`, /opc\/platform|:latest/);
 });

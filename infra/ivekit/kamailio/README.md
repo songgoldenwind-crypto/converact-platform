@@ -6,7 +6,8 @@ whose SHA-256 is fixed in the Dockerfile; GitHub's dynamically generated tag
 archive is deliberately not used as a reproducible build input. The build includes the
 standard module group plus `dispatcher`, `dialog`, `htable`, `tls`, `websocket`
 and `xhttp_prom`, plus `jwt`, `jansson`, `registrar`, `usrloc`, `path`, `dmq`
-and `dmq_usrloc`, which are required by the generated iveKit edge config.
+and `dmq_usrloc`, which are required by the generated iveKit edge config. The
+image also includes `siptrace` for the optional, off-path HEPv3 integration.
 Kamailio 6.0.7 requires libjwt 1.12 or newer and does not support libjwt 3.x.
 Debian Bookworm only packages libjwt 1.10.2, so the image also verifies and
 builds the official libjwt 2.1.3 release archive instead of linking the
@@ -29,6 +30,13 @@ Production replicas run as a StatefulSet and replicate only authenticated
 locations through an internal UDP 5066 DMQ listener; the public SIP Service
 must never expose that port. Browser tokens, connection htable values, RPC
 tokens and topology keys must not enter logs or generated evidence.
+
+HEP capture is disabled by default. When enabled, `siptrace` duplicates SIP to
+a private HOMER-compatible UDP collector, never writes a local trace database,
+and drops OPTIONS and KDMQ capture noise. Collector reachability is not a
+readiness or call-admission dependency. Restrict the collector with the Helm
+NetworkPolicy CIDR list and complete the load/failure gates in
+`docs/deployment/kamailio-homer-hep.md` before enabling it in production.
 
 The previous `kamailio/kamailio:5.8` Compose reference did not identify an
 existing image. The official 5.8 store artifacts are amd64-only, so they are not

@@ -53,6 +53,12 @@ export type IntelligenceProviderReservation =
       circuit_transition?: IntelligenceProviderCircuitTransition;
     };
 
+export interface IntelligenceProviderLeaseRenewal {
+  lease_id: string;
+  profile_id: string;
+  expires_at: string;
+}
+
 export interface IntelligenceProviderGovernanceStoreOptions {
   now?: () => Date;
   leaseRetentionMs?: number;
@@ -253,6 +259,56 @@ export class IntelligenceProviderGovernanceStore {
       );
       await persistRuntime(pg, runtime);
       return publicRuntime(runtime, circuitTransition);
+    });
+  }
+
+  async renew(input: {
+    tenant_id: string;
+    lease_id: string;
+    profile: IntelligenceProviderProfile;
+  }): Promise<IntelligenceProviderLeaseRenewal> {
+    const tenantId = requiredText(input.tenant_id, 'tenant_id');
+    const leaseId = requiredText(input.lease_id, 'lease_id');
+    if (this.pg instanceof MemoryPg) {
+      const state = memoryState(this.pg);
+      const lease = state.leases.get(leaseId);
+      const now = this.now();
+      assertRenewableLease(lease, tenantId, input.profile, now);
+      const expiresAt = new Date(now.getTime() + input.profile.reservation_ttl_ms).toISOString();
+      lease!.expires_at = expiresAt;
+      lease!.updated_at = now.toISOString();
+      return { lease_id: leaseId, profile_id: input.profile.id, expires_at: expiresAt };
+    }
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const now = await databaseNow(pg);
+      const result = await pg.query(
+        `SELECT * FROM collaboration_intelligence_provider_leases
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+        [leaseId, tenantId]
+      );
+      const lease = result.rows[0] ? decodeLease(result.rows[0]) : undefined;
+      try {
+        assertRenewableLease(lease, tenantId, input.profile, now);
+      } catch (error) {
+        if (lease?.status === 'active' && lease.expires_at <= now.toISOString()) {
+          await pg.query(
+            `UPDATE collaboration_intelligence_provider_leases
+             SET status = 'expired', completed_at = $3, outcome_class = 'expired',
+                 error_code = 'reservation_expired', updated_at = $3
+             WHERE id = $1 AND tenant_id = $2 AND status = 'active'`,
+            [leaseId, tenantId, now.toISOString()]
+          );
+        }
+        throw error;
+      }
+      const expiresAt = new Date(now.getTime() + input.profile.reservation_ttl_ms).toISOString();
+      await pg.query(
+        `UPDATE collaboration_intelligence_provider_leases
+         SET expires_at = $3, updated_at = $4
+         WHERE id = $1 AND tenant_id = $2 AND status = 'active'`,
+        [leaseId, tenantId, expiresAt, now.toISOString()]
+      );
+      return { lease_id: leaseId, profile_id: input.profile.id, expires_at: expiresAt };
     });
   }
 
@@ -593,6 +649,30 @@ function decodeLease(row: Record<string, unknown>): LeaseRow {
     outcome_class: String(row.outcome_class || ''), error_code: String(row.error_code || ''),
     updated_at: timestampText(row.updated_at)
   };
+}
+
+function assertRenewableLease(
+  lease: LeaseRow | undefined,
+  tenantId: string,
+  profile: IntelligenceProviderProfile,
+  now: Date
+): asserts lease is LeaseRow {
+  if (!lease || lease.tenant_id !== tenantId) {
+    throw governanceError('provider reservation not found', 404);
+  }
+  if (lease.profile_id !== profile.id || lease.capability !== profile.capability) {
+    throw governanceError('provider reservation profile mismatch', 409);
+  }
+  if (lease.status !== 'active' || lease.expires_at <= now.toISOString()) {
+    if (lease.status === 'active') {
+      lease.status = 'expired';
+      lease.completed_at = now.toISOString();
+      lease.outcome_class = 'expired';
+      lease.error_code = 'reservation_expired';
+      lease.updated_at = now.toISOString();
+    }
+    throw governanceError('provider reservation expired', 409);
+  }
 }
 
 function publicRuntime(

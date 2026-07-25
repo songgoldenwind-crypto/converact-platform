@@ -34,7 +34,10 @@ function edgeEnv(outputDir: string): NodeJS.ProcessEnv {
     OPC_LIVEKIT_EDGE_TURN_TLS_PORT: '5349',
     OPC_LIVEKIT_EDGE_TURN_UDP_PORT: '3478',
     OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT: '8091',
-    LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.3',
+    OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS: '100',
+    OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS: '100',
+    OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS: '100',
+    LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.4-ivekit.1',
     LIVEKIT_EGRESS_IMAGE_TAG: 'v1.13.0',
     LIVEKIT_CADDYL4_IMAGE_TAG: 'v2.11.3',
     LIVEKIT_REDIS_IMAGE_TAG: '7.4.9'
@@ -61,6 +64,10 @@ test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and fire
     assert.match(livekit, /external_tls: true/);
     assert.match(livekit, /tls_port: 5349/);
     assert.match(livekit, /udp_port: 3478/);
+    assert.match(
+      livekit,
+      /pli_throttle:\n    low_quality: 100ms\n    mid_quality: 100ms\n    high_quality: 100ms/
+    );
     assert.match(livekit, /https:\/\/opc\.example\.com\/api\/media\/webhooks\/livekit/);
 
     assert.match(egress, /ws_url: "ws:\/\/127\.0\.0\.1:7880"/);
@@ -89,6 +96,11 @@ test('standalone LiveKit renderer writes signal, embedded TURN, Egress, and fire
     assert.equal(summary.turn_domain, 'turn.example.com');
     assert.equal(summary.api_key_configured, true);
     assert.equal(summary.api_secret_configured, true);
+    assert.deepEqual(summary.pli_throttle_ms, {
+      low_quality: 100,
+      mid_quality: 100,
+      high_quality: 100
+    });
     assert.equal(JSON.stringify(summary).includes('edge-livekit-secret'), false);
 
     assert.equal(statSync(result.livekitConfigPath).mode & 0o777, 0o600);
@@ -174,14 +186,19 @@ test('standalone LiveKit Compose is Linux host-networked and reproducibly pinned
   assert.match(compose, /http:\/\/127\.0\.0\.1:8091/);
   assert.match(redis, /^bind 127\.0\.0\.1 ::1$/m);
   assert.match(redis, /^protected-mode yes$/m);
-  assert.match(envExample, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.3$/m);
+  assert.match(envExample, /^LIVEKIT_SERVER_IMAGE_TAG=v1\.13\.4-ivekit\.1$/m);
   assert.match(envExample, /^LIVEKIT_EGRESS_IMAGE_TAG=v1\.13\.0$/m);
   assert.match(envExample, /^LIVEKIT_CADDYL4_IMAGE_TAG=v2\.11\.3$/m);
-  assert.match(envExample, /^LIVEKIT_SERVER_IMAGE=livekit\/livekit-server:v1\.13\.3@sha256:[a-f0-9]{64}$/m);
+  assert.match(envExample, /^LIVEKIT_SERVER_IMAGE=ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-livekit-server@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_EGRESS_IMAGE=livekit\/egress:v1\.13\.0@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_CADDYL4_IMAGE=livekit\/caddyl4:v2\.11\.3@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^LIVEKIT_REDIS_IMAGE=redis:7\.4\.9@sha256:[a-f0-9]{64}$/m);
   assert.match(envExample, /^OPC_LIVEKIT_DEPLOYMENT_MODE=standalone-vm$/m);
+  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_TOPOLOGY=direct$/m);
+  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME=$/m);
+  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES=$/m);
+  assert.match(envExample, /^OPC_MEDIA_CONFIG_REDIS_TLS_MODE=disabled$/m);
+  assert.match(compose, /redis-tls:\/etc\/livekit-redis-tls:ro/);
   assert.match(envExample, /^LIVEKIT_URL=ws:\/\/127\.0\.0\.1:7880$/m);
   assert.match(envExample, /^LIVEKIT_PUBLIC_URL=wss:\/\/livekit\.example\.com$/m);
   assert.doesNotMatch(envExample, /=latest$/m);

@@ -1,0 +1,149 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE is required}
+    environment:
+      POSTGRES_USER: rustpbx_app
+      POSTGRES_PASSWORD: ${RUSTPBX_DB_PASSWORD:?RUSTPBX_DB_PASSWORD is required}
+      POSTGRES_DB: rustpbx
+    tmpfs:
+      - /var/lib/postgresql/data:size=268435456,mode=0700
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rustpbx_app -d rustpbx"]
+      interval: 1s
+      timeout: 2s
+      retries: 60
+    networks:
+      isolation:
+        ipv4_address: 172.30.45.11
+    security_opt:
+      - no-new-privileges:true
+
+  rustpbx:
+    image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
+    command: ["--conf", "/app/config/rustpbx.toml"]
+    init: true
+    environment:
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY: ${RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY:?RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY is required}
+      IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY: ${RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY:?RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY is required}
+      IVEKIT_RUSTPBX_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_REFRESH_MS: "100"
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_URL: http://127.0.0.1:3210/inbound-admission
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS: "500"
+      IVEKIT_RUSTPBX_CELL_ID: isolation-cell
+      IVEKIT_RUSTPBX_OWNER_NODE_ID: rustpbx-isolation-1
+      IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED: "true"
+      IVEKIT_RUSTPBX_COMPONENT_NODE_URL: http://127.0.0.1:3210
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN: ${RUSTPBX_COMPONENT_TOKEN:?RUSTPBX_COMPONENT_TOKEN is required}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS: "500"
+      IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS: "1000"
+      IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED: "true"
+      IVEKIT_RUSTPBX_RECORDING_SPOOL_DIR: /app/recording-spool
+      IVEKIT_RUSTPBX_RECORDING_SEGMENT_SECONDS: "5"
+      IVEKIT_RUSTPBX_RECORDING_SEGMENT_MAX_BYTES: "1048576"
+      IVEKIT_REGION_ID: isolation-region
+      IVEKIT_ZONE_ID: isolation-zone
+      RUSTRTC_UDP_RECEIVE_BUFFER_BYTES: "1048576"
+      RUSTRTC_UDP_SEND_BUFFER_BYTES: "524288"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ${RUSTPBX_CONFIG_FILE:?RUSTPBX_CONFIG_FILE is required}:/app/config/rustpbx.toml:ro
+      - ${RUSTPBX_ROUTE_SNAPSHOT_FILE:?RUSTPBX_ROUTE_SNAPSHOT_FILE is required}:/app/route-snapshot/routes.json:ro
+      - recording-spool:/app/recording-spool
+    tmpfs:
+      - /app/generated:size=16777216,mode=0750
+      - /app/storage:size=67108864,mode=0750
+    healthcheck:
+      test: ["CMD", "/app/rustpbx", "--version"]
+      interval: 1s
+      timeout: 2s
+      retries: 60
+      start_period: 3s
+    networks:
+      isolation:
+        ipv4_address: 172.30.45.10
+    security_opt:
+      - no-new-privileges:true
+
+  owner:
+    image: ${NODE_IMAGE:?NODE_IMAGE is required}
+    command: ["node", "/acceptance/owner-admission.mjs"]
+    environment:
+      RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
+      IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN: ${RUSTPBX_COMPONENT_TOKEN:?RUSTPBX_COMPONENT_TOKEN is required}
+      IVEKIT_RUSTPBX_OWNER_NODE_ID: rustpbx-isolation-1
+      IVEKIT_RUSTPBX_OWNER_FIXTURE_PORT: "3210"
+    network_mode: service:rustpbx
+    depends_on:
+      rustpbx:
+        condition: service_healthy
+    volumes:
+      - ./owner-admission.mjs:/acceptance/owner-admission.mjs:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=8388608,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3210/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 1s
+      timeout: 2s
+      retries: 30
+    security_opt:
+      - no-new-privileges:true
+
+  bootstrap:
+    image: ${PYTHON_IMAGE:?PYTHON_IMAGE is required}
+    command: ["python", "/acceptance/bootstrap-inbound-trunk.py"]
+    environment:
+      RUSTPBX_BASE_URL: http://rustpbx:8080
+      RUSTPBX_MANAGEMENT_TOKEN: ${RUSTPBX_MANAGEMENT_TOKEN:?RUSTPBX_MANAGEMENT_TOKEN is required}
+      RUSTPBX_TRUNK_CREDENTIAL: ${RUSTPBX_TRUNK_CREDENTIAL:?RUSTPBX_TRUNK_CREDENTIAL is required}
+      RUSTPBX_ACCEPTANCE_UAC_IP: 172.30.45.20
+    depends_on:
+      owner:
+        condition: service_healthy
+    volumes:
+      - ./bootstrap-inbound-trunk.py:/acceptance/bootstrap-inbound-trunk.py:ro
+    networks:
+      isolation: {}
+    security_opt:
+      - no-new-privileges:true
+
+  fault:
+    image: ${FAULT_IMAGE:?FAULT_IMAGE is required}
+    command: ["sh", "-c", "trap 'exit 0' TERM INT; while :; do sleep 3600; done"]
+    volumes:
+      - recording-spool:/spool
+    depends_on:
+      owner:
+        condition: service_healthy
+    networks:
+      isolation: {}
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  recording-spool:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=16777216,mode=0777
+
+networks:
+  isolation:
+    name: ${IVEKIT_RUSTPBX_RECORDING_ISOLATION_NETWORK:-ivekit-rustpbx-recording-isolation}
+    ipam:
+      config:
+        - subnet: 172.30.45.0/24

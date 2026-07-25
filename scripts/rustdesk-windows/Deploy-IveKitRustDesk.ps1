@@ -86,7 +86,7 @@ function Read-Manifest {
   if ($manifest.secret_free -ne $true) {
     throw 'RustDesk Windows package must be marked secret-free.'
   }
-  if ($manifest.rustdesk.client_version -ne '1.4.7' -or $manifest.rustdesk.server_version -ne '1.1.15') {
+  if ($manifest.rustdesk.client_version -ne '1.4.9' -or $manifest.rustdesk.server_version -ne '1.1.16') {
     throw 'RustDesk client or server version drift detected.'
   }
   if ($manifest.companion.package_version -ne 6) {
@@ -134,7 +134,7 @@ function Read-CapabilityPolicy($Manifest) {
   if ($policy.schema_version -ne 1 -or $policy.platform -ne 'windows' -or $policy.architecture -ne 'x86_64') {
     throw 'Unsupported effective capability policy.'
   }
-  if ($policy.client_version -ne '1.4.7' -or $policy.access_mode -ne 'attended') {
+  if ($policy.client_version -ne '1.4.9' -or $policy.access_mode -ne 'attended') {
     throw 'Effective capability policy version or access mode drift detected.'
   }
   $actualNames = @($policy.options.PSObject.Properties.Name | Sort-Object)
@@ -493,7 +493,7 @@ function Invoke-InstallOrRepair($Policy) {
     if ($LASTEXITCODE -ne 0) { throw 'RustDesk silent installation failed.' }
     $rustDeskExe = Wait-RustDeskExecutable
     $version = Invoke-RustDesk $rustDeskExe @('--version')
-    if ($version -ne '1.4.7') { throw 'Installed RustDesk version drift detected.' }
+    if ($version -ne '1.4.9') { throw 'Installed RustDesk version drift detected.' }
     [void](Invoke-RustDesk $rustDeskExe @('--install-service'))
     Start-Service -Name 'RustDesk' -ErrorAction Stop
 

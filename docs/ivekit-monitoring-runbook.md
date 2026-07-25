@@ -110,6 +110,10 @@ curl -fsS http://127.0.0.1:3000/metrics
 | `opc_ivekit_voice_uncertain_commands_total` | Counter | `adapter,kind` | 结果不确定、需要对账的命令 |
 | `opc_ivekit_voice_provider_event_lag_seconds` | Histogram | `adapter,event_type` | Provider 事件处理延迟 |
 | `opc_ivekit_voice_reconciliations_total` | Counter | `adapter,result` | Voice 状态对账 |
+| `opc_ivekit_voice_audio_tap_events_total` | Counter | `media_source,event_type,reason` | RustPBX/LiveKit 实时 PCM 旁路连接、会话、丢弃、投影和失败 |
+| `opc_ivekit_voice_audio_tap_dropped_seconds_total` | Counter | `media_source,reason` | 为保护主媒体路径而丢弃的旁路音频秒数 |
+| `opc_ai_voice_stage_latency_seconds` | Histogram | `stage,media_source` | AI Agent 已提交 turn 的 ASR final、端点判定、LLM 首 token、TTS 首音频和端到端语音延迟 |
+| `opc_ai_voice_latency_budget_exceeded_total` | Counter | `stage,media_source` | 超过对应阶段延迟预算的样本数 |
 | `opc_ivekit_ivr_pending_actions_total` | Counter | `kind,result,error_code` | IVR durable action 结果 |
 | `rustpbx_sip_endpoint_running_transactions` / `rustpbx_sip_endpoint_active_transaction_limit` | Gauge | 无业务标签 | SIP 活动事务占用与硬上限 |
 | `rustpbx_sip_endpoint_incoming_queue_depth` / `rustpbx_sip_endpoint_incoming_queue_capacity` | Gauge | 无业务标签 | 有界事务队列占用 |
@@ -125,6 +129,17 @@ curl -fsS http://127.0.0.1:3000/metrics
 | `ivekit_kamailio_route_nodes` | Gauge | `state` | accepting/degraded/draining/offline 节点数 |
 | `ivekit_kamailio_route_reload_total` | Counter | `result` | dispatcher 原子发布后的 reload 结果 |
 | `ivekit_kamailio_core_metrics_up` | Gauge | Pod | loopback Kamailio 指标是否被 route-agent 安全代理 |
+| `ivekit_kamailio_hep_mode` | Gauge | `mode` | 最近一次确认写入 Kamailio 的 full/sampled/off 状态；尚未确认时三个 mode 均为 0 |
+| `ivekit_kamailio_hep_desired_mode` | Gauge | `mode` | 控制器根据 HOMER 压力选择的目标状态，三个 mode 中恰有一个为 1 |
+| `ivekit_kamailio_hep_control_pending` | Gauge | Pod | 目标状态或 revision 尚未由 Kamailio 确认 |
+| `ivekit_kamailio_hep_collector_up` | Gauge | Pod | route-agent 最近一次 HOMER metrics 抓取是否成功 |
+| `ivekit_kamailio_hep_observation_valid` | Gauge | Pod | queue/CPU/packet/gap 是否均来自可比较的连续 scrape；为 0 时禁止向 full 恢复 |
+| `ivekit_kamailio_hep_collector_queue_ratio` | Gauge | Pod | HOMER worker queue 使用比例 |
+| `ivekit_kamailio_hep_collector_cpu_cores` | Gauge | Pod | HOMER 进程使用的 CPU core 数 |
+| `ivekit_kamailio_hep_collector_packets_per_second` | Gauge | Pod | HOMER HEP 接收速率 |
+| `ivekit_kamailio_hep_collector_processing_gap_per_second` | Gauge | Pod | HEP 接收与处理速率的正差 |
+| `ivekit_kamailio_hep_control_apply_failures_total` | Counter | Pod | authenticated loopback RPC 应用失败 |
+| `ivekit_kamailio_hep_transitions_total` | Counter | Pod | 成功应用的 HEP 模式切换 |
 | `kamailio_core_ivekit_dispatch_failures` | Counter | 无业务标签 | 初始 INVITE 候选耗尽 |
 | `kamailio_core_ivekit_pin_failures` | Counter | 无业务标签 | dialog owner pin/epoch 无法兑现 |
 | `kamailio_core_ivekit_webphone_auth_failures` | Counter | 无业务标签 | WSS Origin/JWT/subject/From 身份拒绝 |
@@ -222,6 +237,28 @@ Cell admission authority 或正确密钥后等待新快照发布。已有 dialog
 发布为 Service 或宿主机公网端口；修复 sidecar/配置后确认 `ivekit_kamailio_core_metrics_up=1`，再验证
 failover 和 pin counter 连续。
 
+### IveKitKamailioHepHighWater
+
+`IveKitKamailioHepCollectorUnavailable` 表示 route-agent 无法读取 HOMER `/metrics`。先检查
+collector Pod、metrics Service/NetworkPolicy、DNS、TCP 端口和 1 MiB 响应上限；不要为了恢复
+诊断链路重启仍承载通话的 Kamailio。控制器会先 sampled，连续失败达到门槛后 off，SIP readiness
+保持独立。
+
+`IveKitKamailioHepControlFailure` 表示新的 mode/bucket/revision 未完整应用，
+`IveKitKamailioHepControlPending` 表示 desired 与已确认 applied 状态持续不一致。检查 loopback RPC
+token 文件、`127.0.0.1:5065/RPC`、共享网络命名空间和 htable 模块；控制器会重试同一目标状态，
+并在 Kamailio 重启导致 revision 归零后自动重放。route-agent 单独重启时，新控制器会先确认
+`off`，待两次可比较的 healthy 样本完成导数预热和恢复迟滞后才逐级放宽；如果重启后直接看到
+`full` 且 `observation_valid=0`，应视为保护失效。禁止手工递增 revision。恢复后确认 pending=0、
+apply failure counter 不再增加，并依次观察
+`off -> sampled -> full`，不应跳过恢复迟滞。
+
+`IveKitKamailioHepTraceDisabled` 表示 HEP 已进入 off。结合 queue、CPU、packet rate、processing
+gap 和 collector-up 判断是 collector 过载还是抓取失败。off 只丢失诊断副本，不应降低呼叫成功率；
+若 SIP 同时异常，按独立的 route snapshot、RustPBX pool、系统 CPU/网络和数据库告警排查。事故结束
+前保存 mode revision、transition counter 和同一时间窗的 HOMER 指标，禁止通过临时打开全量 trace
+制造二次过载。
+
 ### IveKitKamailioRouteCapacity
 
 `IveKitKamailioNoAvailableRustPbx` 和 `IveKitKamailioMajorityDestinationsDown` 先按
@@ -310,6 +347,56 @@ DMQ 只复制已鉴权 usrloc，不复制 WSS JWT htable。单 Edge Compose 关�
 文件系统或驱动。不要单纯调大清理并发；只有确认是正常突发且单任务延迟健康时，才调整
 `media_session_cleanup_concurrency`。真实超时注入和 RTP 连续性验收仍为 `not_run`。
 
+### IveKitRealtimeAudioTapFailure
+
+`IveKitRealtimeAudioTapFailure` 表示 RustPBX 或 LiveKit 的辅助 PCM 旁路出现 session/gateway 失败。
+先按 `media_source`、`event_type` 和有界 `reason` 分解，检查授权 grant、签发 Pod、headless DNS、
+AI Agent、Provider 路由/熔断和旁路 WebSocket。主 SIP/RTP/WebRTC 媒体不依赖旁路，不能为了恢复
+字幕或翻译而重启仍承载会话的 RustPBX、LiveKit 或 API Pod；先确认主媒体连续，再修复旁路消费者。
+
+### IveKitRealtimeAudioTapDroppingAudio
+
+`IveKitRealtimeAudioTapDroppingAudio` 表示辅助消费者持续跟不上输入。比较
+`provider_start_buffer_overflow`、`provider_queue_overflow`、`provider_write_failed` 和
+`transport_error`，同时检查 Provider 首包延迟、并发配额、CPU、AI Agent event loop 和 3010 网络。
+系统故意丢弃最老旁路帧而不反压 LiveKit `AudioStream` 或 RustPBX RTP。缓冲只吸收短抖动；持续
+丢帧应扩容 Provider/gateway、降低旁路功能或熔断故障 Provider，不得无限增大
+`PRESTART_BUFFER_MS`/`max_buffered_audio_ms`。
+
+### IveKitRealtimeAudioTapReplayAttempt
+
+`IveKitRealtimeAudioTapReplayAttempt` 是安全事件。立即定位签发时间窗、worker identity、call/grant、
+签发 Pod 和来源网络，撤销对应 grant 并检查 AI Agent/内部网络是否泄露 token。Kubernetes token
+绑定签发 Pod 的派生密钥，同 Pod nonce store 拒绝第二次消费；不得通过改成普通 ClusterIP、共享
+实例密钥或关闭 nonce 校验来“恢复”。只有确认根密钥泄露时才协调滚动轮换 HMAC Secret，轮换前要
+考虑正在建立的旁路连接；既有主媒体会话不应被终止。
+
+### OpcAIAgentVoiceStageLatencyHigh
+
+该告警按 `stage` 和 `media_source` 判断五分钟窗口 P95：ASR final `350 ms`、端点判定 `500 ms`、
+LLM 首 token `350 ms`、TTS 首音频 `300 ms`、speech-to-speech `1.2 s`。先确认是哪一段超预算，
+再检查 Provider 区域/配额/流式能力、网络 RTT、VAD endpointing、AI Agent CPU throttling 和有界旁路
+丢弃；不能只看总延迟后盲目扩大缓冲。
+
+LiveKit job 子进程用非阻塞 UDP 向同 Pod/容器的 `127.0.0.1:9125` 发送最多 4 KiB、最多五条的固定
+标签观测，worker 父进程聚合后由 `9090/metrics` 暴露。UDP 发送失败、collector 端口冲突或
+Prometheus 抓取失败只允许丢失监控样本，不得阻断 ASR/LLM/TTS、SIP/RTP/WebRTC 或终止会话。
+故障期间先用主媒体 QoS、Provider 请求和 turn 日志交叉确认，禁止为了恢复监控而重启仍承载会话的
+媒体节点。
+
+### OpcAIAgentVoiceProviderUnavailable
+
+该告警表示 ASR、LLM 或 TTS 的某个候选 Provider 在最近五分钟内被 LiveKit Agents
+`FallbackAdapter` 标记为不可用。先按 `capability` 和 `provider` 核对凭据、配额、429、网络 RTT、
+服务端首包时间和区域状态，再确认后备 Provider 是否已经接管。不要通过增加嵌套重试掩盖故障：
+默认每个候选只尝试一次，ASR/LLM/TTS 单次上限分别为 `2000/1200/1500 ms`，故障切换只允许在
+尚未产生可见转写、文本 token 或音频时发生，避免重复内容和语音拼接。
+
+`opc_ai_voice_provider_transitions_total{capability,provider,state}` 只有固定能力、Provider 和状态
+标签，不得加入 tenant、call、room、号码或文本。该计数通过与分段延迟相同的 loopback UDP 旁路
+汇聚；指标丢失不能阻断 Provider 或主媒体。若所有候选都不可用，应优先恢复至少一个 Provider 或
+执行已批准的人工接管，不要重启 LiveKit/RustPBX 媒体节点。
+
 ### IveKitIvrActionFailures
 
 按 action kind 和错误码检查音频资源、输入收集、queue/transfer/webhook 依赖。发布中的 IVR revision 不可原地修改，修复应产生新 revision。
@@ -324,7 +411,7 @@ DMQ 只复制已鉴权 usrloc，不复制 WSS JWT htable。单 Edge Compose 关�
 
 ## 5. Dashboard 面板
 
-`iveKit Shared Foundation Operations` 提供 19 个面板：API 请求与 5xx、通知队列深度/年龄/投递/健康、集成 Webhook 延迟与操作结果、Tinode 同步延迟与干预队列、智能 Provider 路由、LiveKit 丢包、Voice uncertain 与事件延迟、数据保留、限流拒绝，以及 Kamailio Edge 健康、RustPBX pool 和路由失败。
+`iveKit Shared Foundation Operations` 提供共享底座面板：API 请求与 5xx、通知队列深度/年龄/投递/健康、集成 Webhook 延迟与操作结果、Tinode 同步延迟与干预队列、智能 Provider 路由、LiveKit 丢包、实时 PCM 旁路失败/丢弃、AI Agent 五段语音延迟、Voice uncertain 与事件延迟、数据保留、限流拒绝，以及 Kamailio Edge 健康、RustPBX pool 和路由失败。
 
 Dashboard 只有共享底座指标，不包含 OPC/LED 订单、客户、坐席绩效等业务指标。业务团队可以在自己的 dashboard 中引用 iveKit 指标，但不能修改共享底座标签合同。
 

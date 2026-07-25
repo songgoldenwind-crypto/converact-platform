@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM debian:bookworm-slim AS builder
+FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818 AS builder
 
 ARG KAMAILIO_VERSION=6.0.7
 ARG KAMAILIO_SOURCE_URL=https://www.kamailio.org/pub/kamailio/6.0.7/src/kamailio-6.0.7_src.tar.gz
@@ -56,11 +56,11 @@ RUN curl -fsSLo kamailio.tar.gz \
 
 WORKDIR /usr/src/kamailio-${KAMAILIO_VERSION}
 RUN patch -p1 < /tmp/0001-dispatcher-retain-probe-state.patch \
-    && make cfg prefix=/opt/kamailio group_include="standard" include_modules="dispatcher dialog dmq dmq_usrloc htable jansson jwt outbound path registrar tls usrloc websocket xhttp_prom" \
+    && make cfg prefix=/opt/kamailio group_include="standard" include_modules="dispatcher dialog dmq dmq_usrloc htable jansson jwt outbound path registrar siptrace tls usrloc websocket xhttp_prom" \
     && make -j"$(nproc)" all \
     && make install
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:bookworm-slim@sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818 AS runtime
 
 ARG KAMAILIO_VERSION=6.0.7
 LABEL org.opencontainers.image.title="iveKit Kamailio SIP Edge" \

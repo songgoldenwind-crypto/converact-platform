@@ -356,7 +356,27 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       true
     );
     assert.equal(
+      files.includes('deploy/rustpbx/patches/rustpbx-ivekit-callrecord-capacity.patch'),
+      true
+    );
+    assert.equal(
+      files.includes('deploy/rustpbx/patches/rustpbx-ivekit-callrecord-database-policy.patch'),
+      true
+    );
+    assert.equal(
+      files.includes('deploy/rustpbx/patches/rustpbx-ivekit-callrecord-runtime-isolation.patch'),
+      true
+    );
+    assert.equal(
+      files.includes('deploy/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch'),
+      true
+    );
+    assert.equal(
       files.includes('deploy/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch'),
+      true
+    );
+    assert.equal(
+      files.includes('deploy/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch'),
       true
     );
     assert.equal(files.includes('acceptance/rustpbx/router.py'), true);
@@ -376,12 +396,12 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       name: 'ivekit-livekit-storage-isolation-acceptance',
       private: true,
       type: 'module',
-      engines: { node: '>=23.0.0' },
+      engines: { node: '>=24.0.0 <25.0.0' },
       dependencies: {
         'livekit-client': '2.20.1',
-        'livekit-server-sdk': '2.15.4',
+        'livekit-server-sdk': '2.17.0',
         'playwright': '1.61.1',
-        'tsx': '4.22.4'
+        'tsx': '4.23.1'
       },
       overrides: { esbuild: '0.28.1' },
       scripts: {
@@ -421,7 +441,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       version: '1.0.0',
       private: true,
       type: 'module',
-      dependencies: { ws: '8.21.0' },
+      dependencies: { ws: '8.21.1' },
       scripts: {
         management: 'node scripts/ivekit-rustpbx-management-acceptance.js',
         rwi: 'node scripts/ivekit-rustpbx-rwi-acceptance.js',
@@ -436,7 +456,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       packages: Record<string, { version?: string; integrity?: string }>;
     };
     assert.equal(rustPbxAcceptanceLock.lockfileVersion, 3);
-    assert.equal(rustPbxAcceptanceLock.packages['node_modules/ws']?.version, '8.21.0');
+    assert.equal(rustPbxAcceptanceLock.packages['node_modules/ws']?.version, '8.21.1');
     assert.match(rustPbxAcceptanceLock.packages['node_modules/ws']?.integrity || '', /^sha512-/);
     const compiledSippAcceptance = readFileSync(
       join(outputDir, 'acceptance', 'rustpbx', 'scripts', 'ivekit-rustpbx-sipp-acceptance.js'),
@@ -538,14 +558,48 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       scripts: Record<string, string>;
     };
     assert.deepEqual(kamailioAcceptancePackage.dependencies, {
-      tsx: '4.22.4',
-      ws: '8.21.0'
+      tsx: '4.23.1',
+      ws: '8.21.1'
     });
     assert.equal(kamailioAcceptancePackage.scripts.accept, 'tsx runner.ts');
     assert.equal(kamailioAcceptancePackage.scripts.webphone, 'tsx webphone-runner.ts');
     assert.equal(files.includes('docs/design/kamailio-sip-edge-design.md'), true);
     assert.equal(files.includes('docs/design/communication-foundation-production-completion.md'), true);
-    assert.equal(files.includes('docs/design/quic-video-transport-assessment.md'), true);
+    assert.equal(files.includes('docs/design/quic-video-transport-assessment.md'), false);
+    assert.equal(files.includes('docs/ivekit-component-governance.md'), true);
+    assert.equal(
+      files.includes('docs/architecture/component-authority-matrix-v1.json'),
+      true
+    );
+    assert.equal(
+      files.includes('docs/architecture/communication-technology-baseline-v1.json'),
+      true
+    );
+    for (const profile of ['core', 'ai', 'observability', 'benchmark']) {
+      assert.equal(
+        files.includes(`deploy/kubernetes/ivekit/profiles/${profile}.values.yaml`),
+        true
+      );
+    }
+    assert.equal(
+      files.includes('deploy/kubernetes/ivekit/templates/sip-exporter.yaml'),
+      true
+    );
+    assert.equal(files.includes('deploy/kubernetes/homer/Chart.yaml'), true);
+    assert.equal(files.includes('deploy/kubernetes/homer/values.yaml'), true);
+    assert.equal(
+      files.includes('deploy/kubernetes/homer/templates/statefulset.yaml'),
+      true
+    );
+    assert.equal(
+      files.includes('deploy/kubernetes/homer/templates/networkpolicy.yaml'),
+      true
+    );
+    assert.equal(files.includes('deploy/homer-source/apply-overlay.mjs'), true);
+    assert.equal(files.includes('deploy/homer-source/postgres_catalog_test.go'), true);
+    assert.equal(files.includes('docs/deployment/kamailio-homer-hep.md'), true);
+    assert.equal(files.includes('docs/deployment/oci-image-release-gate.md'), true);
+    assert.equal(files.includes('docs/deployment/dependency-update-policy.md'), true);
     assert.equal(files.includes('docs/ivekit-monitoring-runbook.md'), true);
     assert.equal(
       files.includes('docs/capacity/component-node-admission-protocol-v1.md'),
@@ -561,6 +615,10 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     );
     assert.equal(
       files.includes('docs/capacity/profiles/cell-10k-v1.json'),
+      true
+    );
+    assert.equal(
+      files.includes('docs/capacity/rtc-performance-contract-v1.md'),
       true
     );
     assert.equal(
@@ -597,6 +655,26 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     );
     assert.equal(
       files.includes('capacity-runtime/infra/capacity/Dockerfile'),
+      true
+    );
+    assert.equal(
+      files.includes('capacity-runtime/scripts/capacity/performance-evaluator.ts'),
+      true
+    );
+    assert.equal(
+      files.includes('capacity-runtime/scripts/capacity/generators/network-impairment.ts'),
+      true
+    );
+    assert.equal(
+      files.includes('capacity-runtime/scripts/ivekit-capacity-network-impairment.ts'),
+      true
+    );
+    assert.equal(
+      files.includes('capacity-runtime/src/infra/nats-connection-options.ts'),
+      true
+    );
+    assert.equal(
+      files.includes('capacity-runtime/services/ivekit-service/acceptance/sipp/answer-bye-uac.xml'),
       true
     );
     assert.equal(
@@ -650,8 +728,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     );
     assert.equal(files.includes('fork-hooks/go/hook.go'), true);
     assert.equal(files.includes('fork-hooks/go/http_authorizer.go'), true);
-    assert.equal(files.includes('fork-hooks/livekit-v1.13.3/registry.go'), true);
-    assert.equal(files.includes('fork-hooks/livekit-v1.13.3/registry_test.go'), true);
+    assert.equal(files.includes('fork-hooks/livekit-v1.13.4/registry.go'), true);
+    assert.equal(files.includes('fork-hooks/livekit-v1.13.4/registry_test.go'), true);
     assert.equal(files.includes('fork-hooks/tinode-v0.25.3/registry.go'), true);
     assert.equal(files.includes('fork-hooks/tinode-v0.25.3/registry_test.go'), true);
     assert.equal(files.includes('fork-hooks/rust/Cargo.toml'), true);
@@ -682,7 +760,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     }
     for (const livekitSipFile of [
       'components/livekit-sip/infra/ivekit/livekit-sip/README.md',
-      'components/livekit-sip/infra/ivekit/livekit-sip/build.sh'
+      'components/livekit-sip/infra/ivekit/livekit-sip/build.sh',
+      'components/livekit-sip/infra/ivekit/livekit-sip/Dockerfile'
     ]) {
       assert.equal(files.includes(livekitSipFile), true, livekitSipFile);
     }
@@ -982,8 +1061,8 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('acceptance/tools/ivekit-v6-real-acceptance.ts'), true);
     assert.equal(files.includes('deploy/kubernetes/ivekit/templates/tinode-deployment.yaml'), true);
     assert.equal(files.includes('edge/windows/Publish-IveKitRustDeskEvidence.ps1'), true);
-    assert.equal(files.includes('edge/rustdesk-1.4.7/ivekit_native_control.rs'), true);
-    assert.equal(files.includes('edge/rustdesk-1.4.7/ivekit_native_evidence.rs'), true);
+    assert.equal(files.includes('edge/rustdesk-1.4.9/ivekit_native_control.rs'), true);
+    assert.equal(files.includes('edge/rustdesk-1.4.9/ivekit_native_evidence.rs'), true);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

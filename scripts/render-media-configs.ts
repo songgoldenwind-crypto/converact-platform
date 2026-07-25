@@ -1,27 +1,48 @@
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import {
+  resolveRedisConnectionOptions,
+  type ResolvedRedisConnectionOptions
+} from '../src/infra/redis-connection-options.js';
+import {
+  resolveS3ConnectionConfig,
+  type S3ConnectionConfig
+} from '../src/storage/s3-connection-config.js';
+
+export interface MediaRedisRenderConfig {
+  connection: ResolvedRedisConnectionOptions;
+  readTimeoutMs: number;
+  writeTimeoutMs: number;
+  poolSize: number;
+}
+
+export interface LiveKitPliThrottleConfig {
+  lowQualityMs: number;
+  midQualityMs: number;
+  highQualityMs: number;
+}
 
 export interface MediaConfigRenderInput {
   outputDir: string;
   livekitApiKey: string;
   livekitApiSecret: string;
   livekitWsUrl: string;
-  livekitRedisAddress: string;
+  livekitRedis: MediaRedisRenderConfig;
   livekitWebhookUrl: string;
   livekitRtcTcpPort: number;
   livekitRtcUdpPort: string;
   livekitUseExternalIp: boolean;
+  livekitPliThrottle: LiveKitPliThrottleConfig;
   egressHealthPort: number;
-  minioEndpoint: string;
-  minioBucket: string;
-  minioAccessKey: string;
-  minioSecretKey: string;
+  objectStorage: S3ConnectionConfig;
 }
 
 export interface MediaConfigRenderResult {
   livekitConfigPath: string;
   egressConfigPath: string;
+  redisTlsDir: string;
 }
 
 export interface LiveKitEdgeConfigRenderInput extends MediaConfigRenderInput {
@@ -54,16 +75,14 @@ export function createMediaConfigRenderInputFromEnv(env: NodeJS.ProcessEnv): Med
     livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
     livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
     livekitWsUrl: env.OPC_MEDIA_CONFIG_LIVEKIT_URL || 'ws://livekit:7880',
-    livekitRedisAddress: env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || 'redis:6379',
+    livekitRedis: createMediaRedisRenderConfigFromEnv(env, 'redis:6379'),
     livekitWebhookUrl: env.OPC_MEDIA_CONFIG_WEBHOOK_URL || 'http://opc:3000/api/media/webhooks/livekit',
     livekitRtcTcpPort: parsePort(env.OPC_MEDIA_CONFIG_RTC_TCP_PORT, 'OPC_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
     livekitRtcUdpPort: parsePortRange(env.OPC_MEDIA_CONFIG_RTC_UDP_PORT, 'OPC_MEDIA_CONFIG_RTC_UDP_PORT', '7882-7892'),
     livekitUseExternalIp: parseBoolean(env.OPC_MEDIA_CONFIG_USE_EXTERNAL_IP, 'OPC_MEDIA_CONFIG_USE_EXTERNAL_IP', true),
+    livekitPliThrottle: createLiveKitPliThrottleConfigFromEnv(env),
     egressHealthPort: parsePort(env.OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT, 'OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
-    minioEndpoint: env.MINIO_ENDPOINT || 'http://minio:9000',
-    minioBucket: env.MINIO_BUCKET || 'recordings',
-    minioAccessKey: requiredEnv(env, 'MINIO_ACCESS_KEY'),
-    minioSecretKey: requiredEnv(env, 'MINIO_SECRET_KEY')
+    objectStorage: requiredMediaObjectStorage(env)
   };
 }
 
@@ -73,11 +92,12 @@ export function renderMediaConfigs(input: MediaConfigRenderInput): MediaConfigRe
 
   const livekitConfigPath = join(outputDir, 'livekit.yaml');
   const egressConfigPath = join(outputDir, 'egress.yaml');
+  const redisTlsDir = prepareRedisTlsDirectory(outputDir, input.livekitRedis.connection);
 
   writeSecretFile(livekitConfigPath, renderLiveKitConfig(input));
   writeSecretFile(egressConfigPath, renderEgressConfig(input), 0o640);
 
-  return { livekitConfigPath, egressConfigPath };
+  return { livekitConfigPath, egressConfigPath, redisTlsDir };
 }
 
 export function createLiveKitEdgeConfigRenderInputFromEnv(
@@ -120,20 +140,18 @@ export function createLiveKitEdgeConfigRenderInputFromEnv(
     livekitApiKey: requiredRuntimeSecret(env, 'LIVEKIT_API_KEY'),
     livekitApiSecret: requiredRuntimeSecret(env, 'LIVEKIT_API_SECRET'),
     livekitWsUrl: env.OPC_MEDIA_CONFIG_LIVEKIT_URL || 'ws://127.0.0.1:7880',
-    livekitRedisAddress: env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || '127.0.0.1:6379',
+    livekitRedis: createMediaRedisRenderConfigFromEnv(env, '127.0.0.1:6379'),
     livekitWebhookUrl: requiredEnv(env, 'OPC_MEDIA_CONFIG_WEBHOOK_URL'),
     livekitRtcTcpPort: parsePort(env.OPC_MEDIA_CONFIG_RTC_TCP_PORT, 'OPC_MEDIA_CONFIG_RTC_TCP_PORT', 7881),
     livekitRtcUdpPort: '',
     livekitUseExternalIp: true,
+    livekitPliThrottle: createLiveKitPliThrottleConfigFromEnv(env),
     rtcPortRangeStart,
     rtcPortRangeEnd,
     turnTlsPort: parsePort(env.OPC_LIVEKIT_EDGE_TURN_TLS_PORT, 'OPC_LIVEKIT_EDGE_TURN_TLS_PORT', 5349),
     turnUdpPort: parsePort(env.OPC_LIVEKIT_EDGE_TURN_UDP_PORT, 'OPC_LIVEKIT_EDGE_TURN_UDP_PORT', 3478),
     egressHealthPort: parsePort(env.OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT, 'OPC_MEDIA_CONFIG_EGRESS_HEALTH_PORT', 8091),
-    minioEndpoint: requiredEnv(env, 'MINIO_ENDPOINT'),
-    minioBucket: env.MINIO_BUCKET || 'recordings',
-    minioAccessKey: requiredRuntimeSecret(env, 'MINIO_ACCESS_KEY'),
-    minioSecretKey: requiredRuntimeSecret(env, 'MINIO_SECRET_KEY'),
+    objectStorage: requiredMediaObjectStorage(env),
     livekitServerImageTag: requiredExactImageTag(env.LIVEKIT_SERVER_IMAGE_TAG, 'LIVEKIT_SERVER_IMAGE_TAG'),
     livekitEgressImageTag: requiredExactImageTag(env.LIVEKIT_EGRESS_IMAGE_TAG, 'LIVEKIT_EGRESS_IMAGE_TAG'),
     livekitCaddyl4ImageTag: requiredExactImageTag(env.LIVEKIT_CADDYL4_IMAGE_TAG, 'LIVEKIT_CADDYL4_IMAGE_TAG'),
@@ -152,6 +170,7 @@ export function renderLiveKitEdgeConfigs(
   const caddyConfigPath = join(outputDir, 'caddy.yaml');
   const firewallChecklistPath = join(outputDir, 'firewall.md');
   const summaryPath = join(outputDir, 'deployment-summary.json');
+  const redisTlsDir = prepareRedisTlsDirectory(outputDir, input.livekitRedis.connection);
 
   writeSecretFile(livekitConfigPath, renderLiveKitEdgeConfig(input));
   writeSecretFile(egressConfigPath, renderEgressConfig(input), 0o640);
@@ -162,6 +181,7 @@ export function renderLiveKitEdgeConfigs(
   return {
     livekitConfigPath,
     egressConfigPath,
+    redisTlsDir,
     caddyConfigPath,
     firewallChecklistPath,
     summaryPath
@@ -175,9 +195,10 @@ function renderLiveKitConfig(input: MediaConfigRenderInput): string {
     `  tcp_port: ${input.livekitRtcTcpPort}`,
     `  udp_port: ${input.livekitRtcUdpPort}`,
     `  use_external_ip: ${input.livekitUseExternalIp}`,
+    ...renderLiveKitPliThrottle(input.livekitPliThrottle),
     '',
     'redis:',
-    `  address: ${yamlQuote(input.livekitRedisAddress)}`,
+    ...renderRedisConfig(input.livekitRedis),
     '',
     'keys:',
     `  ${yamlQuote(input.livekitApiKey)}: ${yamlQuote(input.livekitApiSecret)}`,
@@ -198,6 +219,7 @@ function renderLiveKitConfig(input: MediaConfigRenderInput): string {
 }
 
 function renderEgressConfig(input: MediaConfigRenderInput): string {
+  const credentials = input.objectStorage.credentials;
   return [
     'logging:',
     '  level: info',
@@ -206,16 +228,16 @@ function renderEgressConfig(input: MediaConfigRenderInput): string {
     `ws_url: ${yamlQuote(input.livekitWsUrl)}`,
     'insecure: true',
     'redis:',
-    `  address: ${yamlQuote(input.livekitRedisAddress)}`,
+    ...renderRedisConfig(input.livekitRedis),
     `health_port: ${input.egressHealthPort}`,
     'storage:',
     '  s3:',
-    `    access_key: ${yamlQuote(input.minioAccessKey)}`,
-    `    secret: ${yamlQuote(input.minioSecretKey)}`,
-    '    region: us-east-1',
-    `    endpoint: ${yamlQuote(input.minioEndpoint)}`,
-    `    bucket: ${yamlQuote(input.minioBucket)}`,
-    '    force_path_style: true',
+    `    access_key: ${yamlQuote(credentials?.accessKeyId || '')}`,
+    `    secret: ${yamlQuote(credentials?.secretAccessKey || '')}`,
+    `    region: ${yamlQuote(input.objectStorage.region)}`,
+    `    endpoint: ${yamlQuote(input.objectStorage.endpoint || '')}`,
+    `    bucket: ${yamlQuote(input.objectStorage.bucket)}`,
+    `    force_path_style: ${input.objectStorage.forcePathStyle}`,
     ''
   ].join('\n');
 }
@@ -230,8 +252,9 @@ function renderLiveKitEdgeConfig(input: LiveKitEdgeConfigRenderInput): string {
     `  port_range_start: ${input.rtcPortRangeStart}`,
     `  port_range_end: ${input.rtcPortRangeEnd}`,
     '  use_external_ip: true',
+    ...renderLiveKitPliThrottle(input.livekitPliThrottle),
     'redis:',
-    `  address: ${yamlQuote(input.livekitRedisAddress)}`,
+    ...renderRedisConfig(input.livekitRedis),
     'turn:',
     '  enabled: true',
     `  domain: ${yamlQuote(input.turnDomain)}`,
@@ -251,6 +274,15 @@ function renderLiveKitEdgeConfig(input: LiveKitEdgeConfigRenderInput): string {
     '  level: info',
     ''
   ].join('\n');
+}
+
+function renderLiveKitPliThrottle(config: LiveKitPliThrottleConfig): string[] {
+  return [
+    '  pli_throttle:',
+    `    low_quality: ${config.lowQualityMs}ms`,
+    `    mid_quality: ${config.midQualityMs}ms`,
+    `    high_quality: ${config.highQualityMs}ms`
+  ];
 }
 
 function renderCaddyL4Config(input: LiveKitEdgeConfigRenderInput): string {
@@ -354,8 +386,21 @@ function renderEdgeSummary(input: LiveKitEdgeConfigRenderInput): Record<string, 
     },
     api_key_configured: Boolean(input.livekitApiKey),
     api_secret_configured: Boolean(input.livekitApiSecret),
-    object_storage_configured: Boolean(input.minioEndpoint && input.minioAccessKey && input.minioSecretKey),
-    redis_address: input.livekitRedisAddress,
+    object_storage_configured: Boolean(input.objectStorage.bucket),
+    object_storage_auth: input.objectStorage.credentials ? 'static-secret' : 'workload-identity',
+    redis_topology: input.livekitRedis.connection.topology,
+    redis_address: input.livekitRedis.connection.topology === 'direct'
+      ? directRedisAddress(input.livekitRedis.connection.url)
+      : null,
+    redis_sentinel_count: input.livekitRedis.connection.topology === 'sentinel'
+      ? input.livekitRedis.connection.sentinels.length
+      : 0,
+    redis_tls_enabled: Boolean(input.livekitRedis.connection.tls),
+    pli_throttle_ms: {
+      low_quality: input.livekitPliThrottle.lowQualityMs,
+      mid_quality: input.livekitPliThrottle.midQualityMs,
+      high_quality: input.livekitPliThrottle.highQualityMs
+    },
     ports: {
       signal_tls_tcp: 443,
       rtc_tcp: input.livekitRtcTcpPort,
@@ -373,10 +418,211 @@ function renderEdgeSummary(input: LiveKitEdgeConfigRenderInput): Record<string, 
   };
 }
 
+function createMediaRedisRenderConfigFromEnv(
+  env: NodeJS.ProcessEnv,
+  fallbackAddress: string
+): MediaRedisRenderConfig {
+  const topology = String(
+    firstDefined(env.OPC_MEDIA_CONFIG_REDIS_TOPOLOGY, env.REDIS_TOPOLOGY) || 'direct'
+  ).trim();
+  const directAddress = String(env.OPC_MEDIA_CONFIG_REDIS_ADDRESS || '').trim();
+  if (topology === 'sentinel' && directAddress) {
+    throw new Error('OPC_MEDIA_CONFIG_REDIS_ADDRESS must be empty in sentinel topology');
+  }
+  const explicitUrl = firstDefined(env.OPC_MEDIA_CONFIG_REDIS_URL, env.REDIS_URL);
+  const redisEnv: Record<string, string | undefined> = {
+    REDIS_TOPOLOGY: topology,
+    REDIS_URL: topology === 'direct'
+      ? explicitUrl || toDirectRedisUrl(directAddress || fallbackAddress)
+      : explicitUrl,
+    REDIS_USERNAME: firstDefined(env.OPC_MEDIA_CONFIG_REDIS_USERNAME, env.REDIS_USERNAME),
+    REDIS_PASSWORD: firstDefined(env.OPC_MEDIA_CONFIG_REDIS_PASSWORD, env.REDIS_PASSWORD),
+    REDIS_SENTINEL_MASTER_NAME: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_MASTER_NAME,
+      env.REDIS_SENTINEL_MASTER_NAME
+    ),
+    REDIS_SENTINEL_ADDRESSES: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_ADDRESSES,
+      env.REDIS_SENTINEL_ADDRESSES
+    ),
+    REDIS_SENTINEL_USERNAME: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_USERNAME,
+      env.REDIS_SENTINEL_USERNAME
+    ),
+    REDIS_SENTINEL_PASSWORD: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_SENTINEL_PASSWORD,
+      env.REDIS_SENTINEL_PASSWORD
+    ),
+    REDIS_TLS_MODE: firstDefined(env.OPC_MEDIA_CONFIG_REDIS_TLS_MODE, env.REDIS_TLS_MODE),
+    REDIS_TLS_SERVER_NAME: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_TLS_SERVER_NAME,
+      env.REDIS_TLS_SERVER_NAME
+    ),
+    REDIS_TLS_CA_FILE: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_TLS_CA_FILE,
+      env.REDIS_TLS_CA_FILE
+    ),
+    REDIS_TLS_CERT_FILE: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_TLS_CERT_FILE,
+      env.REDIS_TLS_CERT_FILE
+    ),
+    REDIS_TLS_KEY_FILE: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_TLS_KEY_FILE,
+      env.REDIS_TLS_KEY_FILE
+    ),
+    REDIS_CONNECT_TIMEOUT_MS: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_CONNECT_TIMEOUT_MS,
+      env.REDIS_CONNECT_TIMEOUT_MS
+    ),
+    REDIS_RECONNECT_WAIT_MS: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_RECONNECT_WAIT_MS,
+      env.REDIS_RECONNECT_WAIT_MS
+    ),
+    REDIS_MAX_RECONNECT_ATTEMPTS: firstDefined(
+      env.OPC_MEDIA_CONFIG_REDIS_MAX_RECONNECT_ATTEMPTS,
+      env.REDIS_MAX_RECONNECT_ATTEMPTS
+    )
+  };
+
+  return {
+    connection: resolveRedisConnectionOptions(redisEnv),
+    readTimeoutMs: parseBoundedInteger(
+      env.OPC_MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS,
+      'OPC_MEDIA_CONFIG_REDIS_READ_TIMEOUT_MS',
+      200,
+      1,
+      60_000
+    ),
+    writeTimeoutMs: parseBoundedInteger(
+      env.OPC_MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS,
+      'OPC_MEDIA_CONFIG_REDIS_WRITE_TIMEOUT_MS',
+      200,
+      1,
+      60_000
+    ),
+    poolSize: parseBoundedInteger(
+      env.OPC_MEDIA_CONFIG_REDIS_POOL_SIZE,
+      'OPC_MEDIA_CONFIG_REDIS_POOL_SIZE',
+      0,
+      0,
+      1_000_000
+    )
+  };
+}
+
+function renderRedisConfig(config: MediaRedisRenderConfig): string[] {
+  const connection = config.connection;
+  const lines: string[] = [];
+  if (connection.topology === 'direct') {
+    lines.push(`  address: ${yamlQuote(directRedisAddress(connection.url))}`);
+  } else {
+    lines.push(`  sentinel_master_name: ${yamlQuote(connection.masterName)}`);
+    lines.push('  sentinel_addresses:');
+    for (const sentinel of connection.sentinels) {
+      lines.push(`    - ${yamlQuote(formatHostPort(sentinel.host, sentinel.port))}`);
+    }
+    lines.push(`  sentinel_username: ${yamlQuote(connection.sentinelUsername || '')}`);
+    lines.push(`  sentinel_password: ${yamlQuote(connection.sentinelPassword || '')}`);
+  }
+  lines.push(`  username: ${yamlQuote(connection.username || '')}`);
+  lines.push(`  password: ${yamlQuote(connection.password || '')}`);
+  lines.push('  db: 0');
+  lines.push(`  dial_timeout: ${connection.connectTimeoutMs}`);
+  lines.push(`  read_timeout: ${config.readTimeoutMs}`);
+  lines.push(`  write_timeout: ${config.writeTimeoutMs}`);
+  lines.push(`  pool_size: ${config.poolSize}`);
+  if (connection.tls) {
+    lines.push('  tls:');
+    lines.push('    enabled: true');
+    lines.push('    insecure: false');
+    if (connection.tls.serverName) {
+      lines.push(`    server_name: ${yamlQuote(connection.tls.serverName)}`);
+    }
+    if (connection.tls.caFile) {
+      lines.push('    ca_cert_file: /etc/livekit-redis-tls/ca.crt');
+    }
+    if (connection.tls.certFile && connection.tls.keyFile) {
+      lines.push('    client_cert_file: /etc/livekit-redis-tls/client.crt');
+      lines.push('    client_key_file: /etc/livekit-redis-tls/client.key');
+    }
+  }
+  return lines;
+}
+
+function prepareRedisTlsDirectory(
+  outputDir: string,
+  connection: ResolvedRedisConnectionOptions
+): string {
+  const tlsDir = join(outputDir, 'redis-tls');
+  const ca = connection.tls?.caFile ? readFileSync(connection.tls.caFile) : undefined;
+  const cert = connection.tls?.certFile ? readFileSync(connection.tls.certFile) : undefined;
+  const key = connection.tls?.keyFile ? readFileSync(connection.tls.keyFile) : undefined;
+  rmSync(tlsDir, { recursive: true, force: true });
+  mkdirSync(tlsDir, { recursive: true, mode: 0o700 });
+  chmodSync(tlsDir, 0o700);
+  if (!connection.tls) return tlsDir;
+  if (ca) writeTlsFile(join(tlsDir, 'ca.crt'), ca);
+  if (cert && key) {
+    writeTlsFile(join(tlsDir, 'client.crt'), cert);
+    writeTlsFile(join(tlsDir, 'client.key'), key);
+  }
+  return tlsDir;
+}
+
+function writeTlsFile(destination: string, content: Buffer): void {
+  writeFileSync(destination, content, { mode: 0o600 });
+  chmodSync(destination, 0o600);
+}
+
+function directRedisAddress(url: string): string {
+  const endpoint = new URL(url);
+  return formatHostPort(endpoint.hostname, Number(endpoint.port || 6379));
+}
+
+function formatHostPort(host: string, port: number): string {
+  const normalizedHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+  return `${normalizedHost}:${port}`;
+}
+
+function toDirectRedisUrl(address: string): string {
+  return /^rediss?:\/\//.test(address) ? address : `redis://${address}`;
+}
+
+function firstDefined(
+  preferred: string | undefined,
+  fallback: string | undefined
+): string | undefined {
+  return preferred === undefined ? fallback : preferred;
+}
+
 function requiredEnv(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key];
   if (!value) throw new Error(`${key} is required`);
   return value;
+}
+
+function requiredMediaObjectStorage(env: NodeJS.ProcessEnv): S3ConnectionConfig {
+  const normalizedEnv = { ...env };
+  const hasBucket = Boolean(env.S3_BUCKET || env.OPC_S3_BUCKET || env.MINIO_BUCKET);
+  const hasLegacyInput = Boolean(
+    env.MINIO_ENDPOINT || env.MINIO_ACCESS_KEY || env.MINIO_SECRET_KEY
+  );
+  if (!hasBucket && hasLegacyInput) normalizedEnv.MINIO_BUCKET = 'recordings';
+  if (!env.S3_ENDPOINT && !env.MINIO_ENDPOINT && hasLegacyInput) {
+    normalizedEnv.MINIO_ENDPOINT = 'http://minio:9000';
+  }
+  const config = resolveS3ConnectionConfig(normalizedEnv);
+  if (!config) throw new Error('S3_BUCKET or MINIO_BUCKET is required');
+  if (config.credentials) {
+    const names = config.source === 'aws'
+      ? ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']
+      : config.source === 's3'
+        ? ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']
+        : ['MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY'];
+    assertRuntimeSecret(config.credentials.accessKeyId, names[0]);
+    assertRuntimeSecret(config.credentials.secretAccessKey, names[1]);
+  }
+  return config;
 }
 
 function requiredDomain(env: NodeJS.ProcessEnv, key: string): string {
@@ -393,7 +639,10 @@ function optionalDomain(env: NodeJS.ProcessEnv, key: string): string | undefined
 }
 
 function requiredRuntimeSecret(env: NodeJS.ProcessEnv, key: string): string {
-  const secret = requiredEnv(env, key).trim();
+  return assertRuntimeSecret(requiredEnv(env, key).trim(), key);
+}
+
+function assertRuntimeSecret(secret: string, key: string): string {
   const weakValues = new Set(['admin', 'devkey', 'minioadmin', 'password', 'secret']);
   if (/^(?:replace_with|change_me|your_)/i.test(secret) || weakValues.has(secret.toLowerCase())) {
     throw new Error(`${key} must replace the example placeholder`);
@@ -421,6 +670,53 @@ function parsePort(value: string | undefined, key: string, fallback: number): nu
     throw new Error(`${key} must be an integer between 1 and 65535`);
   }
   return parsed;
+}
+
+function parseBoundedInteger(
+  value: string | undefined,
+  key: string,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return fallback;
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`${key} must be an integer between ${minimum} and ${maximum}`);
+  }
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${key} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return parsed;
+}
+
+function createLiveKitPliThrottleConfigFromEnv(
+  env: NodeJS.ProcessEnv
+): LiveKitPliThrottleConfig {
+  return {
+    lowQualityMs: parseBoundedInteger(
+      env.OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS,
+      'OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_LOW_MS',
+      100,
+      50,
+      5_000
+    ),
+    midQualityMs: parseBoundedInteger(
+      env.OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS,
+      'OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_MID_MS',
+      100,
+      50,
+      5_000
+    ),
+    highQualityMs: parseBoundedInteger(
+      env.OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS,
+      'OPC_MEDIA_CONFIG_RTC_PLI_THROTTLE_HIGH_MS',
+      100,
+      50,
+      5_000
+    )
+  };
 }
 
 function parsePortRange(value: string | undefined, key: string, fallback: string): string {

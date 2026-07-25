@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "status": "passed_controlled_server",
+  "completed_at": "2026-07-22T22:43:28.339Z",
+  "image": "chrislusf/seaweedfs:4.40@sha256:52194fba4fecd0083c842158b3a902ba6e04a63619b2b0efcd08007bdb6a4602",
+  "topology": [
+    "master",
+    "volume",
+    "filer",
+    "s3"
+  ],
+  "matrix": {
+    "status": "passed",
+    "bucket": "ivekit-seaweedfs-20260722-2618503",
+    "recovery_key": "acceptance/seaweedfs/recovery-ea390d90-a3b5-4e63-acdb-31a5b8bcfb1e",
+    "checks": {
+      "put_get_head_delete": "passed",
+      "large_object": "passed",
+      "multipart_complete": "passed",
+      "multipart_abort": "passed",
+      "range_get": "passed",
+      "versioning": "passed",
+      "object_lock_worm": "not_supported_upstream"
+    },
+    "durations_ms": {
+      "small_object": 231,
+      "large_object": 419,
+      "multipart_complete": 61
+    }
+  },
+  "outage": {
+    "status": "passed",
+    "request_failed_closed": true,
+    "elapsed_ms": 133,
+    "media_hot_path": "not_run_real_livekit_egress"
+  },
+  "recovery": {
+    "status": "passed",
+    "object_recovered": true
+  },
+  "target_kubernetes": "not_run_target_kubernetes",
+  "cross_zone_failure": "not_run_target_kubernetes",
+  "livekit_egress_storage_isolation": "not_run_real_livekit_egress",
+  "object_lock_worm": "not_supported_upstream"
+}

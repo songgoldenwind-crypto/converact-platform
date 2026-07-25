@@ -17,6 +17,7 @@ services:
     network_mode: "host"
     volumes:
       - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/livekit.yaml:/etc/livekit.yaml:ro
+      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/redis-tls:/etc/livekit-redis-tls:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -43,6 +44,7 @@ services:
       EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:
       - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/egress.yaml:/etc/egress.yaml:ro
+      - ${OPC_LIVEKIT_EDGE_CONFIG_DIR:?OPC_LIVEKIT_EDGE_CONFIG_DIR is required}/redis-tls:/etc/livekit-redis-tls:ro
     cap_add:
       - SYS_ADMIN
     healthcheck:

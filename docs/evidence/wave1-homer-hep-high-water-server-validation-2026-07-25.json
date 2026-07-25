@@ -1,0 +1,299 @@
+{
+  "schema_version": "1.0.0",
+  "suite": "iveKit Wave 1 Kamailio HEP high-water server validation",
+  "status": "passed",
+  "generated_at": "2026-07-24T20:55:01Z",
+  "server": {
+    "hostname": "pmt-web-test-sfo2",
+    "kernel": "6.8.0-124-generic",
+    "architecture": "x86_64",
+    "source_root": "/opt/opc-wave123-validation-20260722/source",
+    "source_commit": "578a78bf42e3703a9d78fc0766be6a3b3cd5c35e",
+    "source_dirty": true
+  },
+  "artifacts": {
+    "source_sha256": {
+      "controller": "98e24d827a467face50a15f19c9be624f3a80efb2a6bed9bebdf221c63456ef3",
+      "route_agent": "8050bbba424b08e5c6663d4a8b727a20f626b902665e279b42347bad7a0ef0d9",
+      "compose_runtime": "d38d2f40915cdaae997f8c0dabb6c043a590e17b3047401abca75ac82bfe4c58",
+      "kamailio_config": "1bae2d12ee431281db6adbe186076afcddf1af04ab6145535abbaff43f3060c5",
+      "acceptance": "166773be527de18afc15651e99a508256066a493acf72e1a95d2cd917ebb7ef7",
+      "controller_sequence": "1f6dcc64c03a5738dc56ec97822114fcdecf81ede996c84cc0fa88c5f21b9fcb",
+      "scenario": "970324a194b40851f5a651b6ef92335895c929050b6064b5352c7a4eb42798f8",
+      "sipp": "8e8ecdbe923bf608c844038adfa35c8595400c4629d629f00d51539ac24cdfef",
+      "runtime_config": "3d36369cadd0505359a9b60d5406971456034a7e936c6cf1bbc024113dfa67b5",
+      "rendered_config": "fda5353c8d7b9ae9da7bdcdcb1860a66ccea66e973ae15112cfa497a8ff65e4f",
+      "rendered_tls": "37bb9c30df29655cf31b35fbae8d0e70ccbe7b6ac5f9f61760837d0ecd853ec8"
+    },
+    "kamailio_image": "ivekit/kamailio:6.0.7-capacity-ced1eeb0",
+    "kamailio_image_id": "sha256:7f07e0f0e5d5b1736f91b4e05a4ae984f7ed1511355b29318825b17bd7f2a762",
+    "sipp_version": "3.7.7-PCAP"
+  },
+  "static_verification": {
+    "focused_node_tests": {
+      "status": "passed",
+      "passed": 63,
+      "failed": 0
+    },
+    "typescript_no_emit": "passed",
+    "helm_template": {
+      "status": "passed",
+      "rendered_bytes": 64524,
+      "rejects_trace_without_high_water": true,
+      "rejects_trace_without_network_policy": true
+    },
+    "compose_runtime": {
+      "status": "passed",
+      "rejects_trace_without_high_water": true,
+      "rejects_high_water_without_trace": true
+    },
+    "kamailio_config_check": "passed"
+  },
+  "controller_sequence": {
+    "status": "passed",
+    "sample_percent": 10,
+    "restart_required": false,
+    "route_agent_restart_simulated": true,
+    "initial_remote_mode": "off",
+    "initial_remote_revision": 200,
+    "steps": [
+      {
+        "name": "bootstrap-warmup-off",
+        "queue_ratio": 0.1,
+        "expected_mode": "off",
+        "decision_mode": "off",
+        "reason": "healthy",
+        "changed": false,
+        "revision": 201,
+        "applied_mode_value": 0,
+        "applied_revision": 201
+      },
+      {
+        "name": "bootstrap-recovery-hold",
+        "queue_ratio": 0.1,
+        "expected_mode": "off",
+        "decision_mode": "off",
+        "reason": "healthy",
+        "changed": false,
+        "revision": 201,
+        "applied_mode_value": 0,
+        "applied_revision": 201
+      },
+      {
+        "name": "bootstrap-to-sampled",
+        "queue_ratio": 0.1,
+        "expected_mode": "sampled",
+        "decision_mode": "sampled",
+        "reason": "recovery_hysteresis",
+        "changed": true,
+        "revision": 202,
+        "applied_mode_value": 1,
+        "applied_revision": 202
+      },
+      {
+        "name": "bootstrap-sampled-hold",
+        "queue_ratio": 0.1,
+        "expected_mode": "sampled",
+        "decision_mode": "sampled",
+        "reason": "healthy",
+        "changed": false,
+        "revision": 202,
+        "applied_mode_value": 1,
+        "applied_revision": 202
+      },
+      {
+        "name": "bootstrap-to-full",
+        "queue_ratio": 0.1,
+        "expected_mode": "full",
+        "decision_mode": "full",
+        "reason": "recovery_hysteresis",
+        "changed": true,
+        "revision": 203,
+        "applied_mode_value": 2,
+        "applied_revision": 203
+      },
+      {
+        "name": "queue-high-sampled",
+        "queue_ratio": 0.6,
+        "expected_mode": "sampled",
+        "decision_mode": "sampled",
+        "reason": "collector_queue_high",
+        "changed": true,
+        "revision": 204,
+        "applied_mode_value": 1,
+        "applied_revision": 204
+      },
+      {
+        "name": "queue-critical-off",
+        "queue_ratio": 0.9,
+        "expected_mode": "off",
+        "decision_mode": "off",
+        "reason": "collector_queue_critical",
+        "changed": true,
+        "revision": 205,
+        "applied_mode_value": 0,
+        "applied_revision": 205
+      },
+      {
+        "name": "recovery-off-hold",
+        "queue_ratio": 0.1,
+        "expected_mode": "off",
+        "decision_mode": "off",
+        "reason": "healthy",
+        "changed": false,
+        "revision": 205,
+        "applied_mode_value": 0,
+        "applied_revision": 205
+      },
+      {
+        "name": "recovery-to-sampled",
+        "queue_ratio": 0.1,
+        "expected_mode": "sampled",
+        "decision_mode": "sampled",
+        "reason": "recovery_hysteresis",
+        "changed": true,
+        "revision": 206,
+        "applied_mode_value": 1,
+        "applied_revision": 206
+      },
+      {
+        "name": "recovery-sampled-hold",
+        "queue_ratio": 0.1,
+        "expected_mode": "sampled",
+        "decision_mode": "sampled",
+        "reason": "healthy",
+        "changed": false,
+        "revision": 206,
+        "applied_mode_value": 1,
+        "applied_revision": 206
+      },
+      {
+        "name": "recovery-to-full",
+        "queue_ratio": 0.1,
+        "expected_mode": "full",
+        "decision_mode": "full",
+        "reason": "recovery_hysteresis",
+        "changed": true,
+        "revision": 207,
+        "applied_mode_value": 2,
+        "applied_revision": 207
+      },
+      {
+        "name": "remote-revision-reset-replay",
+        "queue_ratio": 0.1,
+        "expected_mode": "full",
+        "decision_mode": "full",
+        "reason": "healthy",
+        "changed": false,
+        "revision": 208,
+        "applied_mode_value": 2,
+        "applied_revision": 208
+      }
+    ],
+    "restart_initial_mode_value": 0,
+    "restart_initial_revision": 0,
+    "remote_revision_reset_replayed": true,
+    "control_pending_final": 0,
+    "observation_valid_final": 1,
+    "scrape_failures_total": 0,
+    "control_apply_failures_total": 0,
+    "transitions_total": 6
+  },
+  "media_path_invariant": {
+    "scenario": "inbound-reject-486-uac.xml",
+    "expected_result": "Every generated INVITE receives the expected 486 response and SIPp reports zero failed calls.",
+    "rtp_media_present": false,
+    "reason": "This suite isolates dynamic SIP HEP tracing behavior; it is not an RTP capacity test."
+  },
+  "runtime_validation": {
+    "full_reference": {
+      "mode": "full",
+      "revision": 304,
+      "offered_calls": 200,
+      "rate_cps": 50,
+      "successful_calls": 200,
+      "failed_calls": 0,
+      "sipp_exit_code": 0,
+      "hep_calls": 200,
+      "hep_rows": 1600,
+      "hep_rows_per_call_min": 8,
+      "hep_rows_per_call_max": 8
+    },
+    "sampled": {
+      "mode": "sampled",
+      "revision": 301,
+      "offered_calls": 1000,
+      "rate_cps": 100,
+      "successful_calls": 1000,
+      "failed_calls": 0,
+      "sipp_exit_code": 0,
+      "sample_buckets": 102,
+      "hash_space_buckets": 1024,
+      "configured_effective_percent": 9.9609375,
+      "hep_calls": 100,
+      "actual_sample_percent": 10.0,
+      "hep_rows": 800,
+      "hep_rows_per_call_min": 8,
+      "hep_rows_per_call_max": 8,
+      "acceptance_band_percent": [
+        7.0,
+        13.0
+      ]
+    },
+    "off": {
+      "mode": "off",
+      "revision": 302,
+      "offered_calls": 200,
+      "rate_cps": 50,
+      "successful_calls": 200,
+      "failed_calls": 0,
+      "sipp_exit_code": 0,
+      "hep_calls": 0,
+      "hep_rows": 0
+    },
+    "recovered_full": {
+      "mode": "full",
+      "revision": 303,
+      "offered_calls": 200,
+      "rate_cps": 50,
+      "successful_calls": 200,
+      "failed_calls": 0,
+      "sipp_exit_code": 0,
+      "hep_calls": 200,
+      "hep_rows": 1600,
+      "hep_rows_per_call_min": 8,
+      "hep_rows_per_call_max": 8
+    },
+    "kamailio_final_state": {
+      "status": "running",
+      "running": true,
+      "oom_killed": false,
+      "restart_count": 0,
+      "final_mode": "full",
+      "final_revision": 304
+    }
+  },
+  "result": {
+    "dynamic_mode_switch_without_restart": true,
+    "call_path_affected": false,
+    "sampled_by_complete_call_id": true,
+    "off_mode_emitted_hep": false,
+    "full_mode_recovered": true,
+    "fail_closed_after_kamailio_restart": true,
+    "fail_closed_after_route_agent_restart": true,
+    "remote_revision_reset_replayed": true,
+    "partial_rpc_write_recovery_tested": true,
+    "committed_response_loss_recovery_tested": true,
+    "desired_and_applied_modes_distinct": true,
+    "production_capacity_evidence": false,
+    "capacity_claim": "none"
+  },
+  "known_non_product_observations": [],
+  "not_run": [
+    "Deliberate UDP packet-loss injection while HEP is under sustained load",
+    "Multi-hour HEP soak at production event rate",
+    "Independent load generator and system-under-test hosts",
+    "Dual-Zone Kubernetes, PostgreSQL HA, Cell and MIX-100K capacity validation",
+    "Registry-backed SBOM, signing and vulnerability policy verification"
+  ]
+}

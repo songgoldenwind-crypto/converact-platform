@@ -3,6 +3,7 @@ import { readFile, stat, unlink } from 'node:fs/promises';
 import { isAbsolute, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deleteLocalUpload, readLocalUpload } from '../storage/object-storage.js';
+import { resolveS3ConnectionConfig } from '../storage/s3-connection-config.js';
 import type {
   EgressRecord,
   RecordingObjectContentResult,
@@ -118,7 +119,7 @@ async function openS3Stream(bucket: string, key: string, maxBytes: number): Prom
   if (!bucket || !key) return { status: 'missing_storage_url', source: 's3', error: 'missing_s3_bucket_or_key' };
   try {
     const { GetObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
-    const result = await new S3Client(s3ClientConfig()).send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const result = await new S3Client(s3ClientConfig(bucket)).send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     if (!result.Body) return { status: 'not_found', source: 's3', error: 'empty_s3_body' };
     if (result.ContentLength != null) assertRecordingObjectExportSize(result.ContentLength, maxBytes);
     if (!isAsyncIterable(result.Body)) return { status: 'unsupported', source: 's3', error: 's3_body_not_streamable' };
@@ -410,7 +411,7 @@ async function readS3Object(bucket: string, key: string, maxBytes: number): Prom
   if (!bucket || !key) return { status: 'missing_storage_url', source: 's3', error: 'missing_s3_bucket_or_key' };
   try {
     const { GetObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
-    const client = new S3Client(s3ClientConfig());
+    const client = new S3Client(s3ClientConfig(bucket));
     const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
     if (!result.Body) return { status: 'not_found', source: 's3', error: 'empty_s3_body' };
     if (result.ContentLength != null) assertRecordingObjectExportSize(result.ContentLength, maxBytes);
@@ -432,7 +433,7 @@ async function deleteS3Object(bucket: string, key: string): Promise<RecordingObj
   if (!bucket || !key) return { status: 'not_found', source: 's3', error: 'missing_s3_bucket_or_key' };
   try {
     const { DeleteObjectCommand, S3Client } = await import('@aws-sdk/client-s3');
-    const client = new S3Client(s3ClientConfig());
+    const client = new S3Client(s3ClientConfig(bucket));
     await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     return { status: 'deleted', source: 's3' };
   } catch (error) {
@@ -447,22 +448,25 @@ async function deleteS3Object(bucket: string, key: string): Promise<RecordingObj
   }
 }
 
-function s3ClientConfig() {
-  const endpoint = process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT;
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID || process.env.MINIO_ACCESS_KEY || '';
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY || process.env.MINIO_SECRET_KEY || '';
+function s3ClientConfig(fallbackBucket: string) {
+  const config = configuredS3Connection(fallbackBucket);
+  if (!config) throw new Error('S3 object storage is not configured');
   return {
-    region: process.env.S3_REGION || process.env.AWS_REGION || 'us-east-1',
-    endpoint,
-    forcePathStyle: Boolean(endpoint),
-    ...(accessKeyId && secretAccessKey
-      ? { credentials: { accessKeyId, secretAccessKey } }
-      : {})
+    region: config.region,
+    endpoint: config.endpoint,
+    forcePathStyle: config.forcePathStyle,
+    ...(config.credentials ? { credentials: config.credentials } : {})
   };
 }
 
 function configuredS3Bucket(): string {
-  return process.env.S3_BUCKET || process.env.OPC_S3_BUCKET || process.env.MINIO_BUCKET || '';
+  return configuredS3Connection()?.bucket || '';
+}
+
+function configuredS3Connection(fallbackBucket?: string) {
+  const configured = resolveS3ConnectionConfig(process.env);
+  if (configured || !fallbackBucket) return configured;
+  return resolveS3ConnectionConfig({ ...process.env, S3_BUCKET: fallbackBucket });
 }
 
 function s3BucketAllowed(bucket: string): boolean {
@@ -495,11 +499,11 @@ function isWithinRoot(path: string, root: string): boolean {
 
 function httpOriginAllowed(storageUrl: string): boolean {
   if (process.env.NODE_ENV !== 'production') return true;
+  const objectStorageEndpoint = configuredS3Connection()?.endpoint || '';
   const configured = [
     ...(process.env.OPC_RECORDING_HTTP_ALLOWED_ORIGINS || '').split(','),
     process.env.S3_PUBLIC_BASE_URL || '',
-    process.env.S3_ENDPOINT || '',
-    process.env.MINIO_ENDPOINT || ''
+    objectStorageEndpoint
   ]
     .map((value) => value.trim())
     .filter(Boolean)

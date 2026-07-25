@@ -161,6 +161,7 @@ Media Core 不返回 URL、API key 或 secret。与 LiveKit 浏览器接入有�
       "recording_retention_cleanup": true,
       "quality_observability": true,
       "connection_rejoin_events": true,
+      "ingress": true,
       "webhooks": true,
       "web_assist": true,
       "sip_volte": "planned"
@@ -173,7 +174,8 @@ Media Core 不返回 URL、API key 或 secret。与 LiveKit 浏览器接入有�
       "livekit_api_key_configured": true,
       "livekit_api_secret_configured": true,
       "invite_secret_configured": true,
-      "egress_configured": true
+      "egress_configured": true,
+      "ingress_configured": true
     }
   }
 }
@@ -277,7 +279,48 @@ participant 保持原非终态。LiveKit 管理端未配置时，显式 moderati
 生产环境的终态撤权也 fail-closed 为 `503`，不会伪造成功。管理调用超时可用
 `OPC_LIVEKIT_ADMIN_TIMEOUT_SECONDS=1..30` 配置，默认 10 秒。
 
-### 2.5 Recording/Egress
+### 2.5 LiveKit Ingress
+
+| Method | Path | 说明 |
+| --- | --- | --- |
+| POST | `/api/ivekit/media/ingresses` | 创建 RTMP、WHIP 或 URL pull；必须带 `Idempotency-Key` |
+| GET | `/api/ivekit/media/ingresses?room_name=...` | 列出当前 tenant 的 Ingress，可按房间过滤 |
+| GET | `/api/ivekit/media/ingresses/:ingress_id` | 查询单个 Ingress；外租户资源返回 `404` |
+| PATCH | `/api/ivekit/media/ingresses/:ingress_id` | 更新名称、目标房间、参与人、metadata、转码和音视频选项 |
+| DELETE | `/api/ivekit/media/ingresses/:ingress_id` | 删除 provider Ingress |
+
+创建示例：
+
+```json
+{
+  "input_type": "whip",
+  "name": "LED field encoder",
+  "room_name": "tenant-led-order-1001",
+  "participant_identity": "encoder-1001",
+  "participant_name": "Field camera",
+  "participant_metadata": { "source": "led-camera" },
+  "enable_transcoding": false
+}
+```
+
+`input_type` 为 `rtmp|whip|url`。RTMP 和 URL pull 必须转码；WHIP 默认绕过转码，
+可按需要显式开启。调用者必须是 `owner|admin|operator|system`，目标房间必须属于当前
+tenant。创建使用 PostgreSQL advisory lock 和写入 provider metadata 的哈希进行幂等：
+同 key 同 payload 返回 `200` 且 `replayed=true`，同 key 不同 payload 返回 `409`。
+LiveKit 是 Ingress 状态权威，iveKit 不维护第二份易漂移的 Ingress 状态表。
+
+URL pull 默认只接受 HTTPS，拒绝 URL 内用户名/密码、localhost 和私网 IP literal，且
+hostname 必须匹配 `OPC_LIVEKIT_INGRESS_PULL_HOST_ALLOWLIST`；`*.example.com` 只匹配
+子域。仅在受控内网兼容场景可设置 `OPC_LIVEKIT_INGRESS_ALLOW_HTTP_URL=1`。白名单并不
+替代目标集群的受控出站策略或 egress proxy，尤其不能单独作为 DNS rebinding 防护。
+
+响应中的 `stream_key` 与 `url` 是敏感接入数据，只能交给获授权的发布端，禁止日志、
+业务表持久化或前端分析上报。服务端内部 `tenant_id`、操作者、幂等 key hash 和请求 hash
+不会出现在公开 DTO。`capabilities.ingress=true` 表示接口存在；只有
+`config.ingress_configured=true` 才表示当前进程具备调用 LiveKit Ingress API 的配置，
+二者都不代表真实公网 RTMP/WHIP、转码或容量验收已经通过。
+
+### 2.6 Recording/Egress
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -350,7 +393,7 @@ missing 时必须经过两次独立观察才标记失败。终态释放失败返
 重复启动返回 `409`。JWT 启动时 `media_call_id` 对应的持久化 `room_name`
 必须与路径房间一致，否则按不可见资源返回 `404`。
 
-### 2.6 QoS、断线状态与重入审计
+### 2.7 QoS、断线状态与重入审计
 
 | Method | Path | 说明 |
 | --- | --- | --- |
@@ -657,7 +700,7 @@ AI 质检输入为目标消息加最近 20 条会话上下文，单项最多 4,0
 | GET | `/api/ivekit/intelligence/findings/:finding_id` | operator/admin/system | finding 与不可变 review history |
 | POST | `/api/ivekit/intelligence/findings/:finding_id/review` | operator/admin/system | confirmed/false_positive/resolved/escalated |
 
-policy 字段包括四类 enabled、兼容主 profile id、有序 `*_profile_ids`、automatic、`allow_third_party`、目标语言和 OCR/ASR confidence threshold。路由仅按数组顺序执行；只对可重试错误、配额、熔断或不可用候选执行 fallback，普通 4xx/非法输入等终态错误不会跨 Provider 转发。第三方 profile 只有在 `allow_third_party=true` 时可选。路由耗尽统一使用 `provider_route_unavailable`；运行时拒绝原因包括 `minute_quota_exhausted`、`day_quota_exhausted`、`concurrency_exhausted`、`circuit_open` 和 `circuit_half_open_busy`。租户队列的 `source` 支持 `text|ocr|asr|aggregate|ai`，finding 返回 detector/policy/evidence snapshot/content version。该队列供 Quality 工作区使用，不要求审核员仍是每个会话的 participant，但仍受 tenant、RBAC、软删除和 RLS 约束；普通 viewer 返回 403。
+policy 覆盖 `ocr|asr|quality_review|translation|realtime_speech|tts|model_gateway`。前四类保持原有 enabled、automatic、兼容主 profile id 和有序 `*_profile_ids`；后三类使用 enabled、兼容主 profile id 和有序 `*_profile_ids`，默认关闭。所有能力共享 `allow_third_party`、租户路由、配额、并发和熔断权威；`realtime_speech` 的长连接 lease 周期续租，但续租不重复消耗分钟/日请求额度。路由仅按数组顺序执行；只对可重试错误、配额、熔断或不可用候选执行 fallback，普通 4xx/非法输入等终态错误不会跨 Provider 转发。第三方 profile 只有在 `allow_third_party=true` 时可选。路由耗尽统一使用 `provider_route_unavailable`；运行时拒绝原因包括 `minute_quota_exhausted`、`day_quota_exhausted`、`concurrency_exhausted`、`circuit_open` 和 `circuit_half_open_busy`。租户队列的 `source` 支持 `text|ocr|asr|aggregate|ai`，finding 返回 detector/policy/evidence snapshot/content version。该队列供 Quality 工作区使用，不要求审核员仍是每个会话的 participant，但仍受 tenant、RBAC、软删除和 RLS 约束；普通 viewer 返回 403。
 
 ### 3.11 录制源导入与翻译
 
@@ -767,7 +810,7 @@ companion 监听 `OPC_RUSTDESK_EDGE_OBSERVATION_INPUT_DIR` 中通过原子 renam
 tenant、device、edge instance、gateway session、operation、size 和 hash。文件仍处于 `scanning` 或
 `processing` 时可写审计引用，但在 Stage 2 安全状态机进入 `ready` 前不可下载或进入 OCR/ASR。
 
-定制 RustDesk 1.4.7 客户端默认从 `%ProgramData%\iveKit\RustDesk\state\native-evidence-roots-v1.txt`
+定制 RustDesk 1.4.9 客户端默认从 `%ProgramData%\iveKit\RustDesk\state\native-evidence-roots-v1.txt`
 读取文件传输和录屏白名单。启动时只建立现有文件基线；之后的新文件必须是非链接普通文件、连续两次
 扫描保持大小稳定，才会在 `OPC_RUSTDESK_NATIVE_EVIDENCE_CANDIDATE_DIR` 原子生成不含文件正文的候选记录。
 候选记录只携带根类型、受控源路径、文件名、字节数、观察时间和当时 active controller RustDesk ID。
@@ -914,9 +957,9 @@ browser Web Crypto 从返回 key 独立计算既有 SHA-256 fingerprint，并同
 path/filename 中不得出现冲突的版本、platform 或 architecture token。Installer filename
 必须是 1–255 字符的 canonical ASCII，只允许 letters/digits/dot/underscore/plus/hyphen；
 URL raw basename 必须与 filename 完全一致，不接受 whitespace、control、Unicode 或 percent escape。
-官方 V1 basename 固定为 `rustdesk-1.4.7-x86_64.exe`、
-`rustdesk-1.4.7-x86_64.dmg`、`rustdesk-1.4.7-aarch64.dmg`、
-`rustdesk-1.4.7-x86_64.deb` 或 `rustdesk-1.4.7-aarch64.deb`；platform 由请求 tuple
+官方 V1 basename 固定为 `rustdesk-1.4.9-x86_64.exe`、
+`rustdesk-1.4.9-x86_64.dmg`、`rustdesk-1.4.9-aarch64.dmg`、
+`rustdesk-1.4.9-x86_64.deb` 或 `rustdesk-1.4.9-aarch64.deb`；platform 由请求 tuple
 和 extension 绑定，filename 不添加 `windows/macos/linux` token。
 
 Artifact 只从 `OPC_RUSTDESK_CLIENT_ARTIFACTS_JSON` 的显式 manifest 读取；缺少某个
@@ -927,9 +970,9 @@ completion clock 重新验证全部 profile 和最早
 `expires_at`，聚合期间过期会 fail closed。它只生成 JSON handoff，不下载或执行安装器。Task 3 前 unattended 固定为
 `mode=attended_only,state=not_configured`。profile 响应使用
 `Cache-Control: private, no-store`，并按认证、tenant 与 Origin 设置 `Vary`。
-部署必须显式设置 `RUSTDESK_SERVER_IMAGE_TAG=1.1.15`；Helm/Compose 同时向 OPC 注入
-`OPC_RUSTDESK_CLIENT_VERSION=1.4.7`、`OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900`
-和显式 artifact manifest，RustDesk server pods 与 OPC 使用同一个 image tag。
+部署必须显式设置 `RUSTDESK_SERVER_IMAGE_TAG=1.1.16`；生产 Compose/Helm 还必须使用批准仓库且携带 digest 的 `RUSTDESK_SERVER_IMAGE`。Helm/Compose 同时向 OPC 注入
+`OPC_RUSTDESK_CLIENT_VERSION=1.4.9`、`OPC_RUSTDESK_CLIENT_PROFILE_TTL_SECONDS=900`
+和显式 artifact manifest，RustDesk server pods 与 OPC 必须使用同一 server 版本身份。
 
 设备 claim/progress/result 路径只允许设备绑定 edge token，不属于 LED 普通前端/API key 的调用面。完整 scope、事件和验收规则见 RustDesk 专项设计。
 

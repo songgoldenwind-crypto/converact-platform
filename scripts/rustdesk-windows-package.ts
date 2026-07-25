@@ -14,8 +14,8 @@ import ts from 'typescript';
 import { createRustDeskWindowsCapabilityPolicy } from './rustdesk-windows-capability-policy.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const CLIENT_VERSION = '1.4.7' as const;
-const SERVER_VERSION = '1.1.15' as const;
+const CLIENT_VERSION = '1.4.9' as const;
+const SERVER_VERSION = '1.1.16' as const;
 type NativeControlProtocol =
   | 'ivekit-rustdesk-native-control-v1'
   | 'ivekit-rustdesk-native-control-v2';
@@ -490,7 +490,7 @@ function windowsProfile(
   const filename = requiredString(source.filename, 'RustDesk Windows installer filename is required');
   if (
     basename(url.pathname) !== filename ||
-    !/^rustdesk-1\.4\.7-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename)
+    !/^rustdesk-1\.4\.9-ivekit[A-Za-z0-9.-]*-x86_64\.exe$/.test(filename)
   ) {
     throw new Error('RustDesk Windows installer identity is invalid');
   }

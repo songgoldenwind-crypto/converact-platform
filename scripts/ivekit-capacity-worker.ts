@@ -1,6 +1,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
+import type { NodeConnectionOptions } from '@nats-io/transport-node';
 
 import { ExternalJsonCapacityShardDriver, readExternalCapacityWorkerSpec } from './capacity/generators/external-worker.js';
 import {
@@ -13,10 +14,11 @@ import {
   S3CapacityEvidenceObjectStore
 } from './capacity/orchestrator/index.js';
 import type { LoadFleet } from './capacity/profile-compiler.js';
+import { resolveNatsConnectionOptions } from '../src/infra/nats-connection-options.js';
 
 export interface CapacityWorkerConfig {
   database_url: string;
-  nats_servers: string[];
+  nats: NodeConnectionOptions;
   run_id: string;
   phase_id: string;
   fleet_id: LoadFleet;
@@ -45,23 +47,25 @@ export function capacityWorkerConfig(
   env: NodeJS.ProcessEnv = process.env
 ): CapacityWorkerConfig {
   const databaseUrl = required(env, 'OPC_DATABASE_URL');
-  const natsServers = required(env, 'NATS_URL')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean);
   const fleetId = required(env, 'OPC_IVEKIT_CAPACITY_FLEET_ID');
   if (!['tinode', 'ivekit_event_ws', 'sip', 'livekit', 'rustdesk'].includes(fleetId)) {
     throw new Error('OPC_IVEKIT_CAPACITY_FLEET_ID is invalid');
   }
+  const workerId = safeId(
+    required(env, 'OPC_IVEKIT_CAPACITY_WORKER_ID'),
+    'worker ID'
+  );
+  const nats = resolveNatsConnectionOptions(env, { defaultName: workerId });
+  if (!nats) throw new Error('NATS_URL is required');
   const config: CapacityWorkerConfig = {
     database_url: databaseUrl,
-    nats_servers: natsServers,
+    nats,
     run_id: safeId(required(env, 'OPC_IVEKIT_CAPACITY_RUN_ID'), 'run ID'),
     phase_id: env.OPC_IVEKIT_CAPACITY_PHASE_ID
       ? safeId(env.OPC_IVEKIT_CAPACITY_PHASE_ID, 'phase ID')
       : '',
     fleet_id: fleetId as LoadFleet,
-    worker_id: safeId(required(env, 'OPC_IVEKIT_CAPACITY_WORKER_ID'), 'worker ID'),
+    worker_id: workerId,
     release_id: safeId(required(env, 'OPC_IVEKIT_CAPACITY_RELEASE_ID'), 'release ID'),
     safe_capacity: integer(env.OPC_IVEKIT_CAPACITY_SAFE_CAPACITY, 1, 1_000_000_000),
     heartbeat_interval_ms: integer(
@@ -139,7 +143,7 @@ export async function runCapacityWorker(
       } }
     });
     consumer = await JetStreamCapacityCommandConsumer.connect({
-      servers: config.nats_servers,
+      connection_options: config.nats,
       fleet_id: config.fleet_id,
       worker_id: config.worker_id,
       ack_wait_ms: config.ack_wait_ms,

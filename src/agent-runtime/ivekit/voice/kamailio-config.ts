@@ -45,6 +45,15 @@ export interface KamailioDmqConfig {
   sync_message_contacts: number;
 }
 
+export interface KamailioSipTraceConfig {
+  enabled: boolean;
+  collector_host: string;
+  collector_port: number;
+  capture_id: number;
+  include_options: boolean;
+  initial_mode: 'full' | 'sampled' | 'off';
+}
+
 export interface KamailioConfig {
   schema_version: '1.0.0';
   region_id: string;
@@ -65,6 +74,7 @@ export interface KamailioConfig {
   allow_public_wss: boolean;
   webphone_auth: KamailioWebPhoneAuthConfig;
   dmq: KamailioDmqConfig;
+  sip_trace: KamailioSipTraceConfig;
   max_message_bytes: number;
   per_source_invite_cps: number;
   global_invite_cps: number;
@@ -131,9 +141,62 @@ modparam("dmq_usrloc", "batch_msg_contacts", ${config.dmq.sync_message_contacts}
 modparam("dmq_usrloc", "replicate_socket_info", 1)
 modparam("dmq_usrloc", "usrloc_delete", 1)
 ` : '';
+  const dmqModules = config.dmq.enabled
+    ? 'loadmodule "dmq.so"\nloadmodule "dmq_usrloc.so"\n'
+    : '';
   const dmqListener = config.dmq.enabled
     ? `listen=udp:${config.udp_listener.host}:${config.dmq.server_port}\n`
     : '';
+  const sipTraceModule = config.sip_trace.enabled
+    ? 'loadmodule "siptrace.so"\nloadmodule "cfgutils.so"\n'
+    : '';
+  const sipTraceParameters = config.sip_trace.enabled ? `
+# HEP is a best-effort, off-path duplicate. Never write traces from a SIP worker
+# to a local database or make collector availability part of call admission.
+modparam("siptrace", "duplicate_uri", "${hepCollectorUri(config.sip_trace)}")
+modparam("siptrace", "trace_to_database", 0)
+modparam("siptrace", "hep_mode_on", 1)
+modparam("siptrace", "hep_version", 3)
+modparam("siptrace", "hep_capture_id", ${config.sip_trace.capture_id})
+modparam("siptrace", "trace_init_mode", 1)
+modparam("siptrace", "trace_on", 1)
+modparam("siptrace", "trace_mode", 1)
+modparam("siptrace", "data_mode", 1)
+modparam("siptrace", "trace_sl_acks", 0)
+` : '';
+  const sipTraceEventRoute = config.sip_trace.enabled ? `
+event_route[htable:mod-init] {
+    # full=2, sampled=1, off=0. The local controller updates these entries via
+    # authenticated loopback RPC without reloading Kamailio or touching calls.
+    $sht(ivekit_hep_control=>mode) = ${{ off: 0, sampled: 1, full: 2 }[config.sip_trace.initial_mode]};
+    $sht(ivekit_hep_control=>sample_buckets) = 102;
+    $sht(ivekit_hep_control=>revision) = 0;
+}
+
+event_route[siptrace:msg] {
+    if (is_method("${config.sip_trace.include_options ? 'KDMQ' : 'OPTIONS|KDMQ'}")) {
+        drop();
+    }
+    update_stat("ivekit_hep_trace_events", "+1");
+    if ($sht(ivekit_hep_control=>mode) == $null ||
+            $sht(ivekit_hep_control=>mode) == 0) {
+        update_stat("ivekit_hep_trace_dropped_control", "+1");
+        drop();
+    }
+    if ($sht(ivekit_hep_control=>mode) == 1) {
+        if ($sht(ivekit_hep_control=>sample_buckets) <= 0) {
+            update_stat("ivekit_hep_trace_dropped_control", "+1");
+            drop();
+        }
+        core_hash("$ci", "", 10);
+        if ($rc > $sht(ivekit_hep_control=>sample_buckets)) {
+            update_stat("ivekit_hep_trace_dropped_control", "+1");
+            drop();
+        }
+        update_stat("ivekit_hep_trace_sampled", "+1");
+    }
+}
+` : '';
   const advertisedAliases = [...new Set([
     config.udp_listener.advertise?.host,
     config.tcp_listener.advertise?.host,
@@ -181,7 +244,7 @@ loadmodule "sanity.so"
 loadmodule "nathelper.so"
 loadmodule "dispatcher.so"
 loadmodule "dialog.so"
-loadmodule "topoh.so"
+${sipTraceModule}loadmodule "topoh.so"
 loadmodule "pike.so"
 loadmodule "htable.so"
 loadmodule "ipops.so"
@@ -196,8 +259,7 @@ loadmodule "jansson.so"
 loadmodule "usrloc.so"
 loadmodule "registrar.so"
 loadmodule "path.so"
-loadmodule "dmq.so"
-loadmodule "dmq_usrloc.so"
+${dmqModules}
 
 modparam("tm", "failure_reply_mode", 3)
 modparam("tm", "fr_timer", 30000)
@@ -219,14 +281,15 @@ modparam("dispatcher", "ds_ping_reply_codes", "class=2;code=404")
 
 modparam("dialog", "default_timeout", 14400)
 modparam("dialog", "dlg_match_mode", 1)
-modparam("topoh", "mask_key", "${kamailioString(secrets.topoh_mask_key)}")
+${sipTraceParameters}modparam("topoh", "mask_key", "${kamailioString(secrets.topoh_mask_key)}")
 modparam("topoh", "mask_ip", "127.0.0.8")
 
 modparam("pike", "sampling_time_unit", ${config.pike_sampling_seconds})
 modparam("pike", "reqs_density_per_unit", ${config.pike_request_density})
 modparam("htable", "htable", "ivekit_source_cps=>size=14;autoexpire=5;")
-modparam("htable", "htable", "ivekit_global_cps=>size=2;autoexpire=5;")
+modparam("htable", "htable", "ivekit_global_cps=>size=4;")
 modparam("htable", "htable", "ivekit_ws_sub=>size=18;")
+${config.sip_trace.enabled ? 'modparam("htable", "htable", "ivekit_hep_control=>size=2;")' : ''}
 modparam("jwt", "key_mode", 1)
 
 modparam("usrloc", "db_mode", 0)
@@ -257,6 +320,9 @@ modparam("statistics", "variable", "ivekit_webphone_registrations")
 modparam("statistics", "variable", "ivekit_webphone_location_save_failures")
 modparam("statistics", "variable", "ivekit_webphone_delivery_misses")
 modparam("statistics", "variable", "ivekit_dmq_rejects")
+${config.sip_trace.enabled ? `modparam("statistics", "variable", "ivekit_hep_trace_events")
+modparam("statistics", "variable", "ivekit_hep_trace_dropped_control")
+modparam("statistics", "variable", "ivekit_hep_trace_sampled")` : ''}
 
 request_route {
     route(REQINIT);
@@ -384,7 +450,8 @@ route[AUTH] {
             $sht(ivekit_global_cps=>second) = $Ts;
             $sht(ivekit_global_cps=>count) = 0;
         }
-        $sht(ivekit_global_cps=>count) = $sht(ivekit_global_cps=>count) + 1;
+        $sht(ivekit_global_cps=>count) =
+            $sht(ivekit_global_cps=>count) + 1;
         if ($sht(ivekit_global_cps=>count) > ${config.global_invite_cps}) {
             append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
             sl_send_reply("503", "Cell CPS Exceeded");
@@ -514,7 +581,7 @@ route[DISPATCH] {
         dlg_manage();
         $dlg_var(ivekit_pin_set) = $var(pinset);
         $dlg_var(ivekit_node_id) = $var(node_id);
-        $dlg_var(ivekit_cell_epoch) = ${config.cell_lease_epoch};
+        $dlg_var(ivekit_cell_epoch) = "${config.cell_lease_epoch}";
         record_route(";ivkpin=$var(pinset);ivkep=${config.cell_lease_epoch};ivks=1");
         t_on_failure("RUSTPBX_FAILOVER");
     }
@@ -556,7 +623,31 @@ route[RELAY] {
 
 failure_route[RUSTPBX_FAILOVER] {
     if (t_is_canceled()) exit;
-    if (!t_branch_timeout() && !t_check_status("408|500|502|503|504")) exit;
+
+    # A 503 is a soft capacity/dependency rejection, not proof that the SIP
+    # process is unreachable. Try another node without poisoning dispatcher
+    # health; active probes remain authoritative for reachability.
+    if (t_check_status("503")) {
+        if (ds_next_dst()) {
+            update_stat("ivekit_failovers", "+1");
+            route(READ_DISPATCHER_OWNER);
+            remove_record_route();
+            record_route(";ivkpin=$var(pinset);ivkep=${config.cell_lease_epoch};ivks=1");
+            $dlg_var(ivekit_pin_set) = $var(pinset);
+            $dlg_var(ivekit_node_id) = $var(node_id);
+            route(INTERNAL_HEADERS);
+            t_on_failure("RUSTPBX_FAILOVER");
+            if (!t_relay()) t_reply("500", "Relay Failed");
+            exit;
+        }
+
+        update_stat("ivekit_dispatch_failures", "+1");
+        append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
+        t_reply("503", "No Capacity");
+        exit;
+    }
+
+    if (!t_branch_timeout() && !t_check_status("408|500|502|504")) exit;
 
     ds_mark_dst("tp");
     if (ds_next_dst()) {
@@ -580,7 +671,25 @@ failure_route[RUSTPBX_FAILOVER] {
 
 failure_route[RUSTPBX_REGISTER_FAILOVER] {
     if (t_is_canceled()) exit;
-    if (!t_branch_timeout() && !t_check_status("408|500|502|503|504")) exit;
+
+    if (t_check_status("503")) {
+        if (ds_next_dst()) {
+            update_stat("ivekit_failovers", "+1");
+            route(READ_DISPATCHER_OWNER);
+            route(INTERNAL_HEADERS);
+            t_on_reply("REGISTER_REPLY");
+            t_on_failure("RUSTPBX_REGISTER_FAILOVER");
+            if (!t_relay()) t_reply("500", "Relay Failed");
+            exit;
+        }
+
+        update_stat("ivekit_dispatch_failures", "+1");
+        append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
+        t_reply("503", "Registration Backend Unavailable");
+        exit;
+    }
+
+    if (!t_branch_timeout() && !t_check_status("408|500|502|504")) exit;
 
     ds_mark_dst("tp");
     if (ds_next_dst()) {
@@ -679,6 +788,7 @@ event_route[dispatcher:dst-up] {
 event_route[websocket:closed] {
     $sht(ivekit_ws_sub=>$ws_conid) = $null;
 }
+${sipTraceEventRoute}
 `;
 
   const tlsCfg = `[server:default]
@@ -706,17 +816,25 @@ export async function loadKamailioConfigRuntime(
   );
   const outputFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_OUTPUT_FILE');
   const tlsOutputFile = requiredAbsoluteEnv(env, 'OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE');
+  const webphoneJwtRuntimeFile = optionalAbsoluteEnv(
+    env,
+    'OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_RUNTIME_FILE'
+  ) || webphoneJwtFile;
+  const tlsRuntimeFile = optionalAbsoluteEnv(
+    env,
+    'OPC_IVEKIT_KAMAILIO_TLS_RUNTIME_FILE'
+  ) || tlsOutputFile;
   const rawConfig = JSON.parse(await readBoundedFile(configFile, MAX_CONFIG_BYTES)) as KamailioConfig;
   if (env.OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST) {
     rawConfig.dmq.server_host = env.OPC_IVEKIT_KAMAILIO_DMQ_SERVER_HOST;
   }
   const config = validateConfig(rawConfig);
-  if (config.tls_config_file !== tlsOutputFile) {
-    throw new Error('tls_config_file must match OPC_IVEKIT_KAMAILIO_TLS_OUTPUT_FILE');
+  if (config.tls_config_file !== tlsRuntimeFile) {
+    throw new Error('tls_config_file must match the configured Kamailio TLS runtime file');
   }
-  if (config.webphone_auth.jwt_secret_file !== webphoneJwtFile) {
+  if (config.webphone_auth.jwt_secret_file !== webphoneJwtRuntimeFile) {
     throw new Error(
-      'webphone_auth.jwt_secret_file must match OPC_IVEKIT_KAMAILIO_WEBPHONE_JWT_SECRET_FILE'
+      'webphone_auth.jwt_secret_file must match the configured Kamailio WebPhone JWT runtime file'
     );
   }
   const secrets = validateSecrets({
@@ -749,7 +867,7 @@ function validateConfig(value: KamailioConfig): KamailioConfig {
     'dispatcher_file', 'dmq', 'dmq_source_cidrs', 'global_invite_cps', 'max_failovers', 'max_message_bytes',
     'per_source_invite_cps', 'pike_request_density', 'pike_sampling_seconds',
     'region_id', 'retry_after_seconds', 'rpc_listener', 'rustpbx_source_cidrs', 'schema_version',
-    'tcp_listener', 'tls', 'tls_config_file', 'tls_listener', 'trusted_source_cidrs', 'udp_listener',
+    'sip_trace', 'tcp_listener', 'tls', 'tls_config_file', 'tls_listener', 'trusted_source_cidrs', 'udp_listener',
     'webphone_auth', 'wss_listener', 'zone_id'
   ], 'Kamailio config');
   if (value.schema_version !== '1.0.0') throw new Error('unsupported Kamailio config schema_version');
@@ -780,6 +898,7 @@ function validateConfig(value: KamailioConfig): KamailioConfig {
   if (typeof value.allow_public_wss !== 'boolean') throw new Error('allow_public_wss is invalid');
   validateWebPhoneAuth(value.webphone_auth, value.allow_public_wss);
   validateDmq(value.dmq);
+  validateSipTrace(value.sip_trace);
   if (value.dmq.enabled && [
     value.udp_listener.port,
     value.tcp_listener.port,
@@ -862,6 +981,28 @@ function validateDmq(value: KamailioDmqConfig) {
   assertInteger(value.sync_batch_size, 1, 100_000, 'dmq.sync_batch_size');
   assertInteger(value.sync_batch_usleep, 0, 1_000_000, 'dmq.sync_batch_usleep');
   assertInteger(value.sync_message_contacts, 1, 150, 'dmq.sync_message_contacts');
+}
+
+function validateSipTrace(value: KamailioSipTraceConfig) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('sip_trace is invalid');
+  }
+  assertExactKeys(value as unknown as Record<string, unknown>, [
+    'capture_id', 'collector_host', 'collector_port', 'enabled', 'include_options',
+    'initial_mode'
+  ], 'sip_trace');
+  if (typeof value.enabled !== 'boolean' || typeof value.include_options !== 'boolean') {
+    throw new Error('sip_trace flags are invalid');
+  }
+  if (!validNetworkHost(value.collector_host) ||
+      value.collector_host === '0.0.0.0' || value.collector_host === '::') {
+    throw new Error('sip_trace collector is invalid');
+  }
+  assertInteger(value.collector_port, 1, 65_535, 'sip_trace.collector_port');
+  assertInteger(value.capture_id, 1, 0xffff_ffff, 'sip_trace.capture_id');
+  if (!['full', 'sampled', 'off'].includes(value.initial_mode)) {
+    throw new Error('sip_trace.initial_mode is invalid');
+  }
 }
 
 function validateTls(value: KamailioTlsConfig) {
@@ -1002,6 +1143,13 @@ function validNetworkHost(value: unknown): value is string {
   );
 }
 
+function hepCollectorUri(value: KamailioSipTraceConfig) {
+  const host = isIP(value.collector_host) === 6
+    ? `[${value.collector_host}]`
+    : value.collector_host;
+  return `sip:${kamailioString(host)}:${value.collector_port}`;
+}
+
 function isLoopback(host: string) {
   return host === '127.0.0.1' || host === '::1' || host === 'localhost';
 }
@@ -1025,6 +1173,13 @@ function rejectInlineSecrets(env: NodeJS.ProcessEnv) {
 function requiredAbsoluteEnv(env: NodeJS.ProcessEnv, name: string) {
   const value = env[name];
   if (!value || !isAbsolute(value) || value.length > 1024) throw new Error(`${name} must be an absolute path`);
+  return value;
+}
+
+function optionalAbsoluteEnv(env: NodeJS.ProcessEnv, name: string) {
+  const value = env[name];
+  if (value === undefined || value === '') return undefined;
+  if (!isAbsolute(value) || value.length > 1024) throw new Error(`${name} must be an absolute path`);
   return value;
 }
 

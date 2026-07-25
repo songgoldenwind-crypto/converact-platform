@@ -8,19 +8,19 @@ function chartFile(path: string): string {
   return readFileSync(new URL(path, root), 'utf8');
 }
 
-test('standalone Helm exposes an opt-in digest-pinned Tinode workload', () => {
+test('standalone Helm exposes an opt-in digest-pinned compact Tinode workload', () => {
   const values = chartFile('values.yaml');
   const helpers = chartFile('templates/_helpers.tpl');
   const deployment = chartFile('templates/tinode-deployment.yaml');
 
-  assert.match(values, /tinode:\n  enabled: false/);
+  assert.match(values, /tinode:\n  enabled: false\n  mode: compact/);
   assert.match(values, /replicaCount: 1/);
-  assert.match(values, /repository: tinode\/tinode/);
+  assert.match(values, /repository: ghcr\.io\/songgoldenwind-crypto\/opc-ivekit-tinode-server/);
   assert.match(values, /digest: ""/);
   assert.match(helpers, /define "ivekit\.tinodeImage"/);
   assert.match(helpers, /tinode\.image\.digest must be an immutable sha256 digest/);
-  assert.match(helpers, /bundled Tinode supports exactly one replica/);
-  assert.match(deployment, /\{\{- if \.Values\.tinode\.enabled \}\}/);
+  assert.match(helpers, /tinode\.replicaCount must be 1 in compact mode/);
+  assert.match(deployment, /and \.Values\.tinode\.enabled \(eq \.Values\.tinode\.mode "compact"\)/);
   assert.match(deployment, /image: \{\{ include "ivekit\.tinodeImage" \. \| quote \}\}/);
 });
 
@@ -95,7 +95,7 @@ test('bundled Tinode bootstraps its service account before API startup and enabl
   assert.equal(servicePackage.scripts['bootstrap:tinode'], 'node dist/ivekit-tinode-bootstrap.js');
 });
 
-test('Tinode Helm values keep secrets external and document external HA', () => {
+test('Tinode Helm values keep secrets external and document compact and cluster modes', () => {
   const values = chartFile('values.yaml');
   const readme = chartFile('README.md');
 
@@ -109,8 +109,10 @@ test('Tinode Helm values keep secrets external and document external HA', () => 
   assert.match(values, /userPasswordSecretKey: tinode-user-password-secret/);
   assert.match(values, /existingClaim: ""/);
   assert.match(readme, /bundled Tinode/i);
-  assert.match(readme, /external Tinode cluster/i);
-  assert.match(readme, /exactly one replica/i);
+  assert.match(readme, /three-node cluster/i);
+  assert.match(readme, /compact mode supports exactly one replica/i);
+  assert.match(readme, /shared S3 media is mandatory/i);
+  assert.match(readme, /CREATEDB/);
   assert.match(readme, /service account bootstrap/i);
   assert.doesNotMatch(values, /postgres(?:ql)?:\/\//i);
 });

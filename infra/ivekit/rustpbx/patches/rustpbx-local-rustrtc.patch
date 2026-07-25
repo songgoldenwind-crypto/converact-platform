@@ -1,0 +1,11 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 692fe8e..c980287 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -286,3 +286,6 @@ path = "src/bin/sipflow.rs"
+ [[bin]]
+ name = "verify-i18n"
+ path = "tools/verify_i18n.rs"
++
++[patch.crates-io]
++rustrtc = { path = "../rustrtc" }

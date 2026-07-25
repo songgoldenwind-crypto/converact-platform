@@ -1,8 +1,8 @@
 http_addr = "0.0.0.0:8080"
 log_level = "info"
 database_url = "postgresql://rustpbx_app:{{RUSTPBX_DB_PASSWORD}}@postgres:5432/rustpbx"
-rtp_start_port = 20000
-rtp_end_port = 20100
+rtp_start_port = {{RUSTPBX_RTP_START_PORT}}
+rtp_end_port = {{RUSTPBX_RTP_END_PORT}}
 storage_dir = "/app/storage"
 
 [console]
@@ -25,7 +25,7 @@ generated_dir = "/app/generated"
 udp_port = 5060
 tcp_port = 5060
 modules = ["acl", "auth", "presence", "registrar", "call"]
-media_proxy = "auto"
+media_proxy = "{{RUSTPBX_MEDIA_PROXY_MODE}}"
 ensure_user = true
 acl_rules = ["allow all", "deny all"]
 sip_max_active_transactions = 65536

@@ -1,0 +1,95 @@
+diff --git a/server/db/postgres/adapter.go b/server/db/postgres/adapter.go
+index 82efad9..aebd91f 100644
+--- a/server/db/postgres/adapter.go
++++ b/server/db/postgres/adapter.go
+@@ -161,8 +161,8 @@ func (a *adapter) Open(jsonconfig json.RawMessage) error {
+ 	if isMissingDb(err) {
+ 		// Missing DB is OK if we are initializing the database.
+-		// Since tinode DB does not exist, connect without specifying the DB name.
++		// Since the Tinode DB does not exist, connect to the maintenance database.
+ 		a.db.Close()
+-		a.poolConfig.ConnConfig.Database = ""
++		a.poolConfig.ConnConfig.Database = "postgres"
+ 		a.db, err = pgxpool.NewWithConfig(ctx, a.poolConfig)
+ 		if err != nil {
+ 			return err
+@@ -314,14 +314,27 @@ func (a *adapter) CreateDb(reset bool) error {
+ 		return err
+ 	}
+ 
++	databaseName := pgx.Identifier{a.dbName}.Sanitize()
++	databaseExists := false
+ 	if reset {
+-		if _, err = a.db.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s;", a.dbName)); err != nil {
++		if _, err = a.db.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s;", databaseName)); err != nil {
+ 			return err
+ 		}
++	} else {
++		err = a.db.QueryRow(
++			ctx,
++			"SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)",
++			a.dbName,
++		).Scan(&databaseExists)
++		if err != nil {
++			return err
++		}
+ 	}
+ 
+-	if _, err = a.db.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s WITH ENCODING utf8;", a.dbName)); err != nil {
+-		return err
++	if !databaseExists {
++		if _, err = a.db.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s WITH ENCODING utf8;", databaseName)); err != nil {
++			return err
++		}
+ 	}
+ 
+ 	a.poolConfig.ConnConfig.Database = a.dbName
+@@ -3630,9 +3643,8 @@ func isMissingDb(err error) bool {
+ 	if err == nil {
+ 		return false
+ 	}
+-
+-	msg := err.Error()
+-	return strings.Contains(msg, "SQLSTATE 3D000")
++	var pgErr *pgconn.PgError
++	return errors.As(err, &pgErr) && pgErr.Code == "3D000"
+ }
+ 
+ // setConnStr converts a config structure to a DSN connection string.
+diff --git a/server/db/postgres/ivekit_bootstrap_test.go b/server/db/postgres/ivekit_bootstrap_test.go
+new file mode 100644
+index 0000000..f6cf606
+--- /dev/null
++++ b/server/db/postgres/ivekit_bootstrap_test.go
+@@ -0,0 +1,31 @@
++//go:build postgres
++// +build postgres
++
++package postgres
++
++import (
++	"errors"
++	"fmt"
++	"testing"
++
++	"github.com/jackc/pgx/v5/pgconn"
++)
++
++func TestIvekitMissingDatabaseClassification(t *testing.T) {
++	missing := &pgconn.PgError{Code: "3D000"}
++	if !isMissingDb(missing) {
++		t.Fatal("expected PostgreSQL missing-database SQLSTATE to be recognized")
++	}
++	if !isMissingDb(fmt.Errorf("wrapped: %w", missing)) {
++		t.Fatal("expected wrapped PostgreSQL missing-database error to be recognized")
++	}
++	if isMissingDb(errors.New("untrusted text with SQLSTATE 3D000")) {
++		t.Fatal("plain error text must not be treated as a PostgreSQL protocol error")
++	}
++	if isMissingDb(&pgconn.PgError{Code: "42P01"}) {
++		t.Fatal("undefined-table SQLSTATE must not be treated as a missing database")
++	}
++	if isMissingDb(nil) {
++		t.Fatal("nil must not be treated as a missing database")
++	}
++}

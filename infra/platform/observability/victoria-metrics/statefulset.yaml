@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ivekit-victoria-metrics
+  labels:
+    app.kubernetes.io/name: ivekit-victoria-metrics
+    app.kubernetes.io/component: metrics-storage
+spec:
+  serviceName: ivekit-victoria-metrics
+  replicas: 1
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ivekit-victoria-metrics
+      app.kubernetes.io/component: metrics-storage
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ivekit-victoria-metrics
+        app.kubernetes.io/component: metrics-storage
+        opc.ivekit.io/victoria-metrics-role: storage
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: victoria-metrics
+          image: victoriametrics/victoria-metrics@sha256:407013e902f9a0ba1d4b2d4c077c47bbaf917c893c52ff39b19efe83a654afda
+          imagePullPolicy: IfNotPresent
+          args:
+            - -storageDataPath=/storage
+            - -retentionPeriod=30d
+            - -snapshotsMaxAge=48h
+            - -httpListenAddr=:8428
+            - -http.shutdownDelay=5s
+            - -http.maxGracefulShutdownDuration=30s
+            - -http.header.disableServerHostname
+            - -loggerFormat=json
+            - -memory.allowedPercent=60
+            - -maxLabelsPerTimeseries=50
+            - -maxLabelNameLen=256
+            - -maxLabelValueLen=2048
+            - -search.maxQueryDuration=30s
+            - -search.maxConcurrentRequests=16
+          ports:
+            - name: http
+              containerPort: 8428
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 6
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          volumeMounts:
+            - name: data
+              mountPath: /storage
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ivekit-victoria-metrics-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi

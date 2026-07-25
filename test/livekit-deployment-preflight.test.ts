@@ -20,11 +20,12 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     LIVEKIT_API_KEY: 'livekit-key',
     LIVEKIT_API_SECRET: 'livekit-secret',
     OPC_LIVEKIT_DEPLOYMENT_MODE: 'external',
-    LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.1',
+    LIVEKIT_SERVER_IMAGE_TAG: 'v1.13.4-ivekit.1',
     LIVEKIT_EGRESS_IMAGE_TAG: 'v1.12.0',
     LIVEKIT_SIP_IMAGE_TAG: 'v1.1.0',
-    LIVEKIT_SERVER_IMAGE: `livekit/livekit-server:v1.13.1@sha256:${'1'.repeat(64)}`,
+    LIVEKIT_SERVER_IMAGE: `ghcr.io/songgoldenwind-crypto/opc-ivekit-livekit-server@sha256:${'1'.repeat(64)}`,
     LIVEKIT_EGRESS_IMAGE: `livekit/egress:v1.12.0@sha256:${'2'.repeat(64)}`,
+    LIVEKIT_SIP_IMAGE: `ghcr.io/songgoldenwind-crypto/opc-livekit-sip@sha256:${'5'.repeat(64)}`,
     LIVEKIT_CADDYL4_IMAGE: `livekit/caddyl4:v2.11.3@sha256:${'3'.repeat(64)}`,
     LIVEKIT_REDIS_IMAGE: `redis:7.4.9@sha256:${'4'.repeat(64)}`,
     OPC_MEDIA_CONFIG_REDIS_ADDRESS: 'redis://livekit-redis.internal:6379',
@@ -252,6 +253,7 @@ test('LiveKit standalone VM preflight requires edge domains and immutable images
     LIVEKIT_SERVER_IMAGE_TAG: 'latest',
     LIVEKIT_SERVER_IMAGE: '',
     LIVEKIT_EGRESS_IMAGE: 'livekit/egress:latest',
+    LIVEKIT_SIP_IMAGE: 'livekit/sip:v1.7.0',
     LIVEKIT_CADDYL4_IMAGE: `livekit/caddyl4:v2.11.3@sha256:${'3'.repeat(63)}`,
     LIVEKIT_REDIS_IMAGE: 'redis@sha512:forbidden'
   }));
@@ -264,6 +266,7 @@ test('LiveKit standalone VM preflight requires edge domains and immutable images
     'livekit_server_image_tag',
     'livekit_server_image',
     'livekit_egress_image',
+    'livekit_sip_image',
     'livekit_caddyl4_image',
     'livekit_redis_image'
   ]) {
@@ -277,6 +280,16 @@ test('LiveKit standalone VM preflight requires edge domains and immutable images
     LIVEKIT_ACME_EMAIL: 'ops@example.com'
   }));
   assert.equal(configured.ok, true);
+
+  const upstreamServer = createLiveKitDeploymentPreflightReport(configuredEnv({
+    OPC_LIVEKIT_DEPLOYMENT_MODE: 'standalone-vm',
+    LIVEKIT_SIGNAL_DOMAIN: 'livekit.example.com',
+    LIVEKIT_TURN_DOMAIN: 'turn.example.com',
+    LIVEKIT_ACME_EMAIL: 'ops@example.com',
+    LIVEKIT_SERVER_IMAGE: `livekit/livekit-server:v1.13.4@sha256:${'1'.repeat(64)}`
+  }));
+  assert.equal(upstreamServer.ok, false);
+  assert.equal(upstreamServer.checks.find((check) => check.id === 'livekit_server_image')?.status, 'fail');
 });
 
 test('LiveKit deployment preflight rejects placeholders and invalid standalone identity values', () => {
@@ -416,6 +429,7 @@ test('LiveKit deployment preflight is exposed through scripts and env examples',
     'LIVEKIT_SERVER_IMAGE_TAG=',
     'LIVEKIT_EGRESS_IMAGE_TAG=',
     'LIVEKIT_SIP_IMAGE_TAG=',
+    'LIVEKIT_SIP_IMAGE=',
     'OPC_MEDIA_CONFIG_REDIS_ADDRESS=',
     'OPC_LIVEKIT_EDGE_TURN_TLS_PORT=',
     'OPC_LIVEKIT_EDGE_TURN_UDP_PORT=',

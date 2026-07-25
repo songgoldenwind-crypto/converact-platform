@@ -29,7 +29,7 @@ new file mode 100644
 index 0000000..9babc06
 --- /dev/null
 +++ b/src/ivekit_owner.rs
-@@ -0,0 +1,370 @@
+@@ -0,0 +1,429 @@
 +use anyhow::{Result, anyhow};
 +use async_trait::async_trait;
 +use dashmap::DashMap;
@@ -104,7 +104,7 @@ index 0000000..9babc06
 +static OWNERS: OnceLock<DashMap<String, Arc<OwnerEntry>>> = OnceLock::new();
 +
 +pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Result<()> {
-+    valid_identifier(provider_call_id)?;
++    valid_provider_call_id(provider_call_id)?;
 +    let Some(config) = config()? else {
 +        return Ok(());
 +    };
@@ -338,7 +338,7 @@ index 0000000..9babc06
 +        return Err("component node token is invalid".to_string());
 +    }
 +    let node_id = node_id.ok_or("component owner node ID is required")?;
-+    valid_identifier(&node_id).map_err(|_| "component owner node ID is invalid")?;
++    valid_node_identifier(&node_id).map_err(|_| "component owner node ID is invalid")?;
 +    let timeout_ms = env_u64("IVEKIT_RUSTPBX_COMPONENT_NODE_TIMEOUT_MS", 500, 100, 30_000)?;
 +    let refresh_ms = env_u64(
 +        "IVEKIT_RUSTPBX_COMPONENT_NODE_REFRESH_MS",
@@ -375,7 +375,34 @@ index 0000000..9babc06
 +    Ok(parsed)
 +}
 +
-+fn valid_identifier(value: &str) -> Result<()> {
++fn valid_provider_call_id(value: &str) -> Result<()> {
++    let mut words = value.split('@');
++    let left = words.next().unwrap_or_default();
++    let right = words.next();
++    if value.len() > 255
++        || !valid_call_id_word(left)
++        || right.is_some_and(|word| !valid_call_id_word(word))
++        || words.next().is_some()
++    {
++        return Err(anyhow!("invalid SIP Call-ID"));
++    }
++    Ok(())
++}
++
++fn valid_call_id_word(value: &str) -> bool {
++    !value.is_empty()
++        && value.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric()
++                || matches!(
++                    byte,
++                    b'-' | b'.' | b'!' | b'%' | b'*' | b'_' | b'+' | b'`' | b'\''
++                        | b'~' | b'(' | b')' | b'<' | b'>' | b':' | b'\\' | b'"' | b'/'
++                        | b'[' | b']' | b'?' | b'{' | b'}'
++                )
++        })
++}
++
++fn valid_node_identifier(value: &str) -> Result<()> {
 +    if value.is_empty()
 +        || value.len() > 255
 +        || !value.chars().enumerate().all(|(index, character)| {
@@ -399,6 +426,38 @@ index 0000000..9babc06
 +        .as_millis()
 +        .try_into()
 +        .unwrap_or(u64::MAX)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn owner_accepts_standard_sip_call_ids() {
++        assert!(valid_provider_call_id("1-24817@172.30.45.20").is_ok());
++        assert!(valid_provider_call_id("call_id:branch+one").is_ok());
++    }
++
++    #[test]
++    fn owner_rejects_malformed_or_unsafe_sip_call_ids() {
++        for value in [
++            "",
++            "@host",
++            "local@",
++            "local@host@extra",
++            "local host",
++            "local\nhost",
++            "本地@host",
++        ] {
++            assert!(valid_provider_call_id(value).is_err(), "{value:?}");
++        }
++    }
++
++    #[test]
++    fn component_node_identifier_remains_strict() {
++        assert!(valid_node_identifier("rustpbx-node-1").is_ok());
++        assert!(valid_node_identifier("rustpbx@node").is_err());
++    }
 +}
 diff --git a/src/lib.rs b/src/lib.rs
 index 35fe0a2..6dfa59d 100644

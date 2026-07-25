@@ -1,0 +1,294 @@
+{
+  "schema_version": "1.0.0",
+  "evidence_id": "wave3-tinode-composite-frontier-20260723",
+  "captured_at": "2026-07-23T13:37:57.974Z",
+  "status": "passed_controlled_server_frontier_to_1000",
+  "verification_scope": "single_node_tinode_composite_ramped_frontier",
+  "capacity_claim": "none",
+  "observation_scope": "client_plus_tinode_expvar_and_container_resources",
+  "server": {
+    "kernel": "Linux 6.8.0-124-generic x86_64 GNU/Linux",
+    "cpu_model": "DO-Regular",
+    "logical_cpu_count": 4,
+    "total_memory_bytes": 8326946816,
+    "docker_server_version": "29.1.3"
+  },
+  "images": {
+    "tinode": {
+      "reference": "ivekit/tinode:v0.25.3-ivekit.3-22a7c18e-amd64",
+      "id": "sha256:6c83d13fc244b000b5bd0b2489a918b3fd4ac90bbab46039fea6656fa41b6650"
+    },
+    "postgres": {
+      "reference": "postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20",
+      "id": "sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20"
+    }
+  },
+  "source_sha256": {
+    "scripts/capacity/generators/tinode.ts": "915c10904fe3325bb1589f6ad4f4520cfbe1778ac208ba4c53506749aafdb455",
+    "scripts/capacity/generators/tinode-composite.ts": "2d17454801de2206e60e96a1db8429139b7a5e52f590aa41e692eb63cd304e15",
+    "scripts/capacity/generators/tinode-composite-runner.ts": "87b2d1fcacaa53f3946c4753f3d8d749e7d328d548611ef7f97398338d96bcf7",
+    "scripts/capacity/generators/tinode-composite-provisioner.ts": "63167ed9824a9b969b55d8ff7addb8d1907aa3ede8c21118c4a873d88a19bebf",
+    "scripts/ivekit-capacity-tinode-composite.ts": "77ff5d282783787a70a39d7363937ea74ac98a333356cb6fe51eb234e31d6a74",
+    "scripts/ivekit-capacity-tinode-provision.ts": "485b219d32a1167bbd846b623de9f98be864d8e1e1e705891811d0d684de7794"
+  },
+  "workload": {
+    "topology": "customer device per interaction; agent primary device serves up to three topics; extra agent device reuses the same identity and topic set",
+    "messages_per_interaction": 2,
+    "message_body_bytes": 256,
+    "connection_ramp_per_second": 100,
+    "interaction_start_rate_per_second": 33,
+    "connection_hold_ms": 10000,
+    "receipts_enabled": true
+  },
+  "points": [
+    {
+      "connections": 100,
+      "interactions": 66,
+      "logical_identities": 88,
+      "topics": 66,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_only",
+      "reconciliation": {
+        "client_attempted": 100,
+        "client_accepted": 100,
+        "client_active_peak": 100,
+        "client_closed": 100,
+        "sut_live_sessions_max": 100
+      },
+      "messages": {
+        "published": 132,
+        "delivered": 132,
+        "send_window_ms": 1979.02,
+        "measured_per_second": 66.7
+      },
+      "connection_open_ms": {
+        "p50": 4.917,
+        "p95": 11.715,
+        "p99": 15.268
+      },
+      "send_to_ack_ms": {
+        "p50": 5.668,
+        "p95": 9.451,
+        "p99": 12.092
+      },
+      "send_to_delivery_ms": {
+        "p50": 5.733,
+        "p95": 9.531,
+        "p99": 12.166
+      },
+      "quality": {
+        "durable_loss": 0,
+        "duplicates": 0,
+        "out_of_order": 0,
+        "protocol_errors": 0,
+        "gate_passed": true
+      },
+      "elapsed_ms": 13026.541,
+      "resource_samples": 5,
+      "tinode_resources": {
+        "cpu_max_percent": 27.56,
+        "memory_max_bytes": 26602373.12,
+        "pids_max": 10
+      },
+      "generator_resources": {
+        "cpu_max_percent": 44.6,
+        "rss_max_kib": 92904
+      },
+      "sensitive_inputs_removed": true,
+      "result_sha256": "c6350f1383bcda4a827206ef8be990bad88e0ecf9116843aa0680b22d9991500",
+      "provision_result_sha256": "8d5f004d887330419d53ff88e29547cc6bc794568e18a24debe77c1666683bf9"
+    },
+    {
+      "connections": 250,
+      "interactions": 166,
+      "logical_identities": 222,
+      "topics": 166,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_only",
+      "reconciliation": {
+        "client_attempted": 250,
+        "client_accepted": 250,
+        "client_active_peak": 250,
+        "client_closed": 250,
+        "sut_live_sessions_max": 250
+      },
+      "messages": {
+        "published": 332,
+        "delivered": 332,
+        "send_window_ms": 5006.893,
+        "measured_per_second": 66.309
+      },
+      "connection_open_ms": {
+        "p50": 5.162,
+        "p95": 8.725,
+        "p99": 15.749
+      },
+      "send_to_ack_ms": {
+        "p50": 5.411,
+        "p95": 10.248,
+        "p99": 16.445
+      },
+      "send_to_delivery_ms": {
+        "p50": 5.32,
+        "p95": 10.422,
+        "p99": 16.597
+      },
+      "quality": {
+        "durable_loss": 0,
+        "duplicates": 0,
+        "out_of_order": 0,
+        "protocol_errors": 0,
+        "gate_passed": true
+      },
+      "elapsed_ms": 17583.187,
+      "resource_samples": 6,
+      "tinode_resources": {
+        "cpu_max_percent": 25.37,
+        "memory_max_bytes": 37769707.52,
+        "pids_max": 11
+      },
+      "generator_resources": {
+        "cpu_max_percent": 50,
+        "rss_max_kib": 82480
+      },
+      "sensitive_inputs_removed": true,
+      "result_sha256": "890124504344fd2c74076f0cb0c5290a3f7498cc7da2faf374d12ab66a579f12",
+      "provision_result_sha256": "633aa65a09883e5ad42dd02e00ac7e35aac8b11e755068282f7dac683c0ca7dd"
+    },
+    {
+      "connections": 500,
+      "interactions": 333,
+      "logical_identities": 444,
+      "topics": 333,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_only",
+      "reconciliation": {
+        "client_attempted": 500,
+        "client_accepted": 500,
+        "client_active_peak": 500,
+        "client_closed": 500,
+        "sut_live_sessions_max": 500
+      },
+      "messages": {
+        "published": 666,
+        "delivered": 666,
+        "send_window_ms": 10072.373,
+        "measured_per_second": 66.121
+      },
+      "connection_open_ms": {
+        "p50": 4.303,
+        "p95": 6.027,
+        "p99": 11.46
+      },
+      "send_to_ack_ms": {
+        "p50": 5.909,
+        "p95": 13.051,
+        "p99": 20.356
+      },
+      "send_to_delivery_ms": {
+        "p50": 5.873,
+        "p95": 13.259,
+        "p99": 19.697
+      },
+      "quality": {
+        "durable_loss": 0,
+        "duplicates": 0,
+        "out_of_order": 0,
+        "protocol_errors": 0,
+        "gate_passed": true
+      },
+      "elapsed_ms": 25190.963,
+      "resource_samples": 9,
+      "tinode_resources": {
+        "cpu_max_percent": 22.64,
+        "memory_max_bytes": 55920558.08,
+        "pids_max": 11
+      },
+      "generator_resources": {
+        "cpu_max_percent": 41.6,
+        "rss_max_kib": 88944
+      },
+      "sensitive_inputs_removed": true,
+      "result_sha256": "fcbd60865c97432f67ca391b5dda30c7de1c50a5fd73d7d048318b02a1a96bba",
+      "provision_result_sha256": "37009b403e6c456b1b4d48db76fac22d7b553dbd2d51867c7ca79555293c2211"
+    },
+    {
+      "connections": 1000,
+      "interactions": 666,
+      "logical_identities": 888,
+      "topics": 666,
+      "status": "controlled_pass",
+      "capacity_claim": "none",
+      "observation_scope": "client_only",
+      "reconciliation": {
+        "client_attempted": 1000,
+        "client_accepted": 1000,
+        "client_active_peak": 1000,
+        "client_closed": 1000,
+        "sut_live_sessions_max": 1000
+      },
+      "messages": {
+        "published": 1332,
+        "delivered": 1332,
+        "send_window_ms": 20163.563,
+        "measured_per_second": 66.06
+      },
+      "connection_open_ms": {
+        "p50": 5.136,
+        "p95": 8.096,
+        "p99": 11.73
+      },
+      "send_to_ack_ms": {
+        "p50": 6.431,
+        "p95": 13.686,
+        "p99": 24.923
+      },
+      "send_to_delivery_ms": {
+        "p50": 6.398,
+        "p95": 13.698,
+        "p99": 24.952
+      },
+      "quality": {
+        "durable_loss": 0,
+        "duplicates": 0,
+        "out_of_order": 0,
+        "protocol_errors": 0,
+        "gate_passed": true
+      },
+      "elapsed_ms": 40468.461,
+      "resource_samples": 15,
+      "tinode_resources": {
+        "cpu_max_percent": 29.37,
+        "memory_max_bytes": 88311070.72,
+        "pids_max": 12
+      },
+      "generator_resources": {
+        "cpu_max_percent": 45.5,
+        "rss_max_kib": 112008
+      },
+      "sensitive_inputs_removed": true,
+      "result_sha256": "4dcbe8b56b46dc8f4eb9007086d19e054936935f9b408781e267db9278ccf68e",
+      "provision_result_sha256": "8cfeeb785c80b5c6f8a4c0e5d75efb4700f3363dafa14b96caf50ef0a2b9819f"
+    }
+  ],
+  "controls": {
+    "isolated_docker_network_per_point": true,
+    "read_only_tinode_rootfs": true,
+    "capabilities_dropped": true,
+    "no_new_privileges": true,
+    "credential_bundle_mode": "0600",
+    "credential_bundle_removed_after_run": true,
+    "led_healthy_containers_after_each_point": 7,
+    "test_resources_remaining": 0
+  },
+  "limitations": [
+    "No independent packet capture or external load generator witness.",
+    "Container resource sampling uses docker stats and is not a fixed high-frequency profiler.",
+    "This campaign stops at 1000 connections and does not establish the single-node failure frontier.",
+    "No slow-consumer, reconnect storm, weak-network, failover, endurance or multi-node linearity stage is included.",
+    "capacity_claim remains none until immutable manifest integration and independent reconciliation are complete."
+  ]
+}

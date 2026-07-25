@@ -321,15 +321,15 @@ test('iveKit RustDesk HTTP client requests and projects a pinned client distribu
   const profile = await client.getClientProfile({
     platform: 'windows',
     architecture: 'x86_64',
-    client_version: '1.4.7',
-    expected_server_version: '1.1.15',
+    client_version: '1.4.9',
+    expected_server_version: '1.1.16',
     expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   });
 
   assert.equal(calls.length, 1);
   assert.equal(
     new URL(calls[0]).search,
-    '?platform=windows&architecture=x86_64&client_version=1.4.7&expected_server_version=1.1.15&expected_server_key_fingerprint=sha256%3Ac57cc3b55d39f9a6'
+    '?platform=windows&architecture=x86_64&client_version=1.4.9&expected_server_version=1.1.16&expected_server_key_fingerprint=sha256%3Ac57cc3b55d39f9a6'
   );
   assert.deepEqual(profile, responseProfile);
   assert.doesNotMatch(
@@ -349,8 +349,8 @@ test('iveKit RustDesk client profile preserves the placement-enabled native cont
   }, {
     platform: 'windows',
     architecture: 'x86_64',
-    client_version: '1.4.7',
-    expected_server_version: '1.1.15',
+    client_version: '1.4.9',
+    expected_server_version: '1.1.16',
     expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   }, new Date('2026-07-12T12:05:00.000Z'));
 
@@ -363,13 +363,13 @@ test('iveKit RustDesk client profile preserves the placement-enabled native cont
   }
 });
 
-test('iveKit RustDesk profile projection accepts the five official 1.4.7 desktop asset names', async () => {
+test('iveKit RustDesk profile projection accepts the five official 1.4.9 desktop asset names', async () => {
   const officialAssets = [
-    ['windows', 'x86_64', 'rustdesk-1.4.7-x86_64.exe'],
-    ['macos', 'x86_64', 'rustdesk-1.4.7-x86_64.dmg'],
-    ['macos', 'aarch64', 'rustdesk-1.4.7-aarch64.dmg'],
-    ['linux', 'x86_64', 'rustdesk-1.4.7-x86_64.deb'],
-    ['linux', 'aarch64', 'rustdesk-1.4.7-aarch64.deb']
+    ['windows', 'x86_64', 'rustdesk-1.4.9-x86_64.exe'],
+    ['macos', 'x86_64', 'rustdesk-1.4.9-x86_64.dmg'],
+    ['macos', 'aarch64', 'rustdesk-1.4.9-aarch64.dmg'],
+    ['linux', 'x86_64', 'rustdesk-1.4.9-x86_64.deb'],
+    ['linux', 'aarch64', 'rustdesk-1.4.9-aarch64.deb']
   ] as const;
 
   for (const [platform, architecture, filename] of officialAssets) {
@@ -381,13 +381,13 @@ test('iveKit RustDesk profile projection accepts the five official 1.4.7 desktop
       install_source: {
         ...base.install_source,
         filename,
-        url: `https://downloads.example.com/releases/1.4.7/${filename}`
+        url: `https://downloads.example.com/releases/1.4.9/${filename}`
       }
     }, {
       platform,
       architecture,
-      client_version: '1.4.7',
-      expected_server_version: '1.1.15',
+      client_version: '1.4.9',
+      expected_server_version: '1.1.16',
       expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
     }, new Date('2026-07-12T12:05:00.000Z'));
     assert.equal(projected.install_source.state, 'configured');
@@ -400,8 +400,8 @@ test('iveKit RustDesk profile projection rejects an invalid validation clock', a
     () => projectRustDeskClientDistributionProfile(expectedClientDistributionProfile(), {
       platform: 'windows',
       architecture: 'x86_64',
-      client_version: '1.4.7',
-      expected_server_version: '1.1.15',
+      client_version: '1.4.9',
+      expected_server_version: '1.1.16',
       expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
     }, new Date(Number.NaN)),
     /validation clock/
@@ -413,22 +413,22 @@ test('iveKit RustDesk client profile projection rejects drift, expiry, and malfo
   const expected = {
     platform: 'windows' as const,
     architecture: 'x86_64' as const,
-    client_version: '1.4.7',
-    expected_server_version: '1.1.15',
+    client_version: '1.4.9',
+    expected_server_version: '1.1.16',
     expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   };
   const invalid: Array<[string, unknown, RegExp]> = [
     ['platform drift', { ...base, platform: 'linux' }, /platform/],
     ['unsupported tuple', { ...base, architecture: 'aarch64' }, /tuple/],
     ['client drift', { ...base, client_version: { exact: '1.4.8', allowed: ['1.4.8'] } }, /client_version/],
-    ['floating allowed version', { ...base, client_version: { exact: '1.4.7', allowed: ['^1.4.7'] } }, /client_version/],
+    ['floating allowed version', { ...base, client_version: { exact: '1.4.9', allowed: ['^1.4.9'] } }, /client_version/],
     ['server drift', { ...base, server_version: '1.1.14' }, /server_version/],
     ['key drift', { ...base, server_key_fingerprint: 'sha256:0000000000000000' }, /fingerprint/],
     ['expired', { ...base, expires_at: '2020-01-01T00:00:00.000Z' }, /expired/],
     ['bad timestamp', { ...base, issued_at: 'today' }, /issued_at/],
     ['unsafe URL', {
       ...base,
-      install_source: { ...base.install_source, url: 'https://user:password@downloads.example.com/1.4.7/rustdesk.exe' }
+      install_source: { ...base.install_source, url: 'https://user:password@downloads.example.com/1.4.9/rustdesk.exe' }
     }, /install_source.url/],
     ['bad checksum', {
       ...base,
@@ -467,8 +467,8 @@ test('iveKit RustDesk client profile binds the returned public key to both finge
     async () => projectRustDeskClientDistributionProfile(profile, {
       platform: 'windows',
       architecture: 'x86_64',
-      client_version: '1.4.7',
-      expected_server_version: '1.1.15',
+      client_version: '1.4.9',
+      expected_server_version: '1.1.16',
       expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
     }, new Date('2026-07-12T12:05:00.000Z')),
     /public key fingerprint/
@@ -492,8 +492,8 @@ for (const [name, key] of [
       async () => projectRustDeskClientDistributionProfile(profile, {
         platform: 'windows',
         architecture: 'x86_64',
-        client_version: '1.4.7',
-        expected_server_version: '1.1.15',
+        client_version: '1.4.9',
+        expected_server_version: '1.1.16',
         expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
       }, new Date('2026-07-12T12:05:00.000Z')),
       /manual_fields.key/
@@ -515,12 +515,12 @@ test('iveKit RustDesk HTTP client rejects missing profile pins before fetch', as
   const base = {
     platform: 'windows' as const,
     architecture: 'x86_64' as const,
-    client_version: '1.4.7'
+    client_version: '1.4.9'
   };
 
   for (const input of [
     { ...base, expected_server_version: '', expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6' },
-    { ...base, expected_server_version: '1.1.15', expected_server_key_fingerprint: '' }
+    { ...base, expected_server_version: '1.1.16', expected_server_key_fingerprint: '' }
   ]) {
     await assert.rejects(() => client.getClientProfile(input), /expected_server_(?:version|key_fingerprint) is required/);
   }
@@ -529,10 +529,10 @@ test('iveKit RustDesk HTTP client rejects missing profile pins before fetch', as
 
 for (const [name, filename, urlFilename] of [
   ['version mismatch', 'rustdesk-1.4.8-windows-x86_64.exe', 'rustdesk-1.4.8-windows-x86_64.exe'],
-  ['platform mismatch', 'rustdesk-1.4.7-linux-x86_64.exe', 'rustdesk-1.4.7-linux-x86_64.exe'],
-  ['architecture mismatch', 'rustdesk-1.4.7-windows-aarch64.exe', 'rustdesk-1.4.7-windows-aarch64.exe'],
-  ['extension mismatch', 'rustdesk-1.4.7-x86_64.dmg', 'rustdesk-1.4.7-x86_64.dmg'],
-  ['URL basename mismatch', 'rustdesk-1.4.7-x86_64.exe', 'other-1.4.7-x86_64.exe']
+  ['platform mismatch', 'rustdesk-1.4.9-linux-x86_64.exe', 'rustdesk-1.4.9-linux-x86_64.exe'],
+  ['architecture mismatch', 'rustdesk-1.4.9-windows-aarch64.exe', 'rustdesk-1.4.9-windows-aarch64.exe'],
+  ['extension mismatch', 'rustdesk-1.4.9-x86_64.dmg', 'rustdesk-1.4.9-x86_64.dmg'],
+  ['URL basename mismatch', 'rustdesk-1.4.9-x86_64.exe', 'other-1.4.9-x86_64.exe']
 ] as const) {
   test(`iveKit RustDesk profile projection rejects artifact ${name}`, async () => {
     const profile = {
@@ -545,7 +545,7 @@ for (const [name, filename, urlFilename] of [
       install_source: {
         state: 'configured',
         filename,
-        url: `https://downloads.example.com/releases/1.4.7/${urlFilename}`,
+        url: `https://downloads.example.com/releases/1.4.9/${urlFilename}`,
         sha256: 'a'.repeat(64)
       }
     };
@@ -553,8 +553,8 @@ for (const [name, filename, urlFilename] of [
       async () => projectRustDeskClientDistributionProfile(profile, {
         platform: 'windows',
         architecture: 'x86_64',
-        client_version: '1.4.7',
-        expected_server_version: '1.1.15',
+        client_version: '1.4.9',
+        expected_server_version: '1.1.16',
         expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
       }, new Date('2026-07-12T12:05:00.000Z')),
       /install_source/
@@ -563,7 +563,7 @@ for (const [name, filename, urlFilename] of [
 }
 
 test('iveKit RustDesk profile projection rejects inexact release paths and contradictory identity tokens', async () => {
-  const expectedFilename = 'rustdesk-1.4.7-x86_64.exe';
+  const expectedFilename = 'rustdesk-1.4.9-x86_64.exe';
   const invalidSources = [
     {
       name: 'wrong release directory with correct basename',
@@ -577,30 +577,30 @@ test('iveKit RustDesk profile projection rejects inexact release paths and contr
     },
     {
       name: 'conflicting semantic version in filename',
-      filename: 'rustdesk-1.4.7-1.4.8-windows-x86_64.exe',
-      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-1.4.8-windows-x86_64.exe'
+      filename: 'rustdesk-1.4.9-1.4.8-windows-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.9/rustdesk-1.4.9-1.4.8-windows-x86_64.exe'
     },
     {
       name: 'conflicting semantic version in path',
       filename: expectedFilename,
-      url: `https://downloads.example.com/archive-1.4.8/releases/1.4.7/${expectedFilename}`
+      url: `https://downloads.example.com/archive-1.4.8/releases/1.4.9/${expectedFilename}`
     },
     {
       name: 'conflicting platform token',
-      filename: 'rustdesk-1.4.7-windows-linux-x86_64.exe',
-      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-linux-x86_64.exe'
+      filename: 'rustdesk-1.4.9-windows-linux-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.9/rustdesk-1.4.9-windows-linux-x86_64.exe'
     },
     {
       name: 'conflicting architecture token',
-      filename: 'rustdesk-1.4.7-windows-x86_64-aarch64.exe',
-      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-windows-x86_64-aarch64.exe'
+      filename: 'rustdesk-1.4.9-windows-x86_64-aarch64.exe',
+      url: 'https://downloads.example.com/releases/1.4.9/rustdesk-1.4.9-windows-x86_64-aarch64.exe'
     }
   ];
   const expected = {
     platform: 'windows' as const,
     architecture: 'x86_64' as const,
-    client_version: '1.4.7',
-    expected_server_version: '1.1.15',
+    client_version: '1.4.9',
+    expected_server_version: '1.1.16',
     expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   };
 
@@ -617,7 +617,7 @@ test('iveKit RustDesk profile projection rejects inexact release paths and contr
   }
 
   const base = expectedClientDistributionProfile();
-  const githubUrl = `https://github.com/rustdesk/rustdesk/releases/download/1.4.7/${expectedFilename}`;
+  const githubUrl = `https://github.com/rustdesk/rustdesk/releases/download/1.4.9/${expectedFilename}`;
   const githubProfile = await projectRustDeskClientDistributionProfile({
     ...base,
     install_source: { ...base.install_source, url: githubUrl }
@@ -629,25 +629,25 @@ test('iveKit RustDesk profile projection rejects inexact release paths and contr
 });
 
 test('iveKit RustDesk profile projection rejects noncanonical installer filenames', async () => {
-  const safe = 'rustdesk-1.4.7-x86_64.exe';
-  const baseUrl = 'https://downloads.example.com/releases/1.4.7/';
+  const safe = 'rustdesk-1.4.9-x86_64.exe';
+  const baseUrl = 'https://downloads.example.com/releases/1.4.9/';
   const invalidSources = [
-    ['raw URL newline', safe, `${baseUrl}rustdesk-1.4.7-x86_\n64.exe`],
-    ['encoded newline', 'rustdesk-1.4.7-x86_64\n.exe', `${baseUrl}rustdesk-1.4.7-x86_64%0A.exe`],
-    ['encoded control', 'rustdesk-1.4.7-x86_64\u0000.exe', `${baseUrl}rustdesk-1.4.7-x86_64%00.exe`],
-    ['whitespace', 'rustdesk 1.4.7-x86_64.exe', `${baseUrl}rustdesk%201.4.7-x86_64.exe`],
-    ['literal percent escape', 'rustdesk-%0A-1.4.7-x86_64.exe', `${baseUrl}rustdesk-%250A-1.4.7-x86_64.exe`],
-    ['encoded canonical basename', safe, `${baseUrl}rustdesk-1.4.7-%7886_64.exe`],
-    ['Unicode confusable', 'rustdеsk-1.4.7-x86_64.exe', `${baseUrl}rustdеsk-1.4.7-x86_64.exe`],
-    ['disallowed ASCII', 'rustdesk@1.4.7-x86_64.exe', `${baseUrl}rustdesk@1.4.7-x86_64.exe`],
-    ['overlong filename', `${'a'.repeat(230)}-rustdesk-1.4.7-x86_64.exe`, `${baseUrl}${'a'.repeat(230)}-rustdesk-1.4.7-x86_64.exe`],
-    ['malformed percent encoding', safe, `${baseUrl}rustdesk-1.4.7-x86_64%ZZ.exe`]
+    ['raw URL newline', safe, `${baseUrl}rustdesk-1.4.9-x86_\n64.exe`],
+    ['encoded newline', 'rustdesk-1.4.9-x86_64\n.exe', `${baseUrl}rustdesk-1.4.9-x86_64%0A.exe`],
+    ['encoded control', 'rustdesk-1.4.9-x86_64\u0000.exe', `${baseUrl}rustdesk-1.4.9-x86_64%00.exe`],
+    ['whitespace', 'rustdesk 1.4.9-x86_64.exe', `${baseUrl}rustdesk%201.4.9-x86_64.exe`],
+    ['literal percent escape', 'rustdesk-%0A-1.4.9-x86_64.exe', `${baseUrl}rustdesk-%250A-1.4.9-x86_64.exe`],
+    ['encoded canonical basename', safe, `${baseUrl}rustdesk-1.4.9-%7886_64.exe`],
+    ['Unicode confusable', 'rustdеsk-1.4.9-x86_64.exe', `${baseUrl}rustdеsk-1.4.9-x86_64.exe`],
+    ['disallowed ASCII', 'rustdesk@1.4.9-x86_64.exe', `${baseUrl}rustdesk@1.4.9-x86_64.exe`],
+    ['overlong filename', `${'a'.repeat(230)}-rustdesk-1.4.9-x86_64.exe`, `${baseUrl}${'a'.repeat(230)}-rustdesk-1.4.9-x86_64.exe`],
+    ['malformed percent encoding', safe, `${baseUrl}rustdesk-1.4.9-x86_64%ZZ.exe`]
   ] as const;
   const expected = {
     platform: 'windows' as const,
     architecture: 'x86_64' as const,
-    client_version: '1.4.7',
-    expected_server_version: '1.1.15',
+    client_version: '1.4.9',
+    expected_server_version: '1.1.16',
     expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
   };
 
@@ -675,8 +675,8 @@ test('iveKit RustDesk profile projection rejects lifetime below 60 seconds', asy
     () => projectRustDeskClientDistributionProfile(profile, {
       platform: 'windows',
       architecture: 'x86_64',
-      client_version: '1.4.7',
-      expected_server_version: '1.1.15',
+      client_version: '1.4.9',
+      expected_server_version: '1.1.16',
       expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
     }, new Date('2026-07-12T12:00:00.000Z')),
     /profile lifetime/
@@ -710,8 +710,8 @@ for (const [name, timestamps] of [
       async () => projectRustDeskClientDistributionProfile(profile, {
         platform: 'windows',
         architecture: 'x86_64',
-        client_version: '1.4.7',
-        expected_server_version: '1.1.15',
+        client_version: '1.4.9',
+        expected_server_version: '1.1.16',
         expected_server_key_fingerprint: 'sha256:c57cc3b55d39f9a6'
       }, new Date('2026-07-12T12:05:00.000Z')),
       /invalid RustDesk client distribution profile: (?:issued_at|expires_at|profile lifetime)/
@@ -1156,7 +1156,7 @@ function expectedTerminalProfile(deviceId: string) {
     architecture: 'x86_64' as const,
     client_version: {
       product: 'rustdesk' as const,
-      version: '1.4.7',
+      version: '1.4.9',
       channel: 'stable' as const,
       source: 'terminal_heartbeat' as const,
       reported_at: '2026-07-12T11:59:00.000Z'
@@ -1235,10 +1235,10 @@ function expectedClientDistributionProfile() {
     platform: 'windows' as const,
     architecture: 'x86_64' as const,
     client_version: {
-      exact: '1.4.7',
-      allowed: ['1.4.7'] as ['1.4.7']
+      exact: '1.4.9',
+      allowed: ['1.4.9'] as ['1.4.9']
     },
-    server_version: '1.1.15',
+    server_version: '1.1.16',
     issued_at: '2026-07-12T12:00:00.000Z',
     expires_at: '2026-07-12T12:15:00.000Z',
     manual_fields: {
@@ -1254,8 +1254,8 @@ function expectedClientDistributionProfile() {
     },
     install_source: {
       state: 'configured' as const,
-      url: 'https://downloads.example.com/releases/1.4.7/rustdesk-1.4.7-x86_64.exe',
-      filename: 'rustdesk-1.4.7-x86_64.exe',
+      url: 'https://downloads.example.com/releases/1.4.9/rustdesk-1.4.9-x86_64.exe',
+      filename: 'rustdesk-1.4.9-x86_64.exe',
       sha256: 'a'.repeat(64)
     },
     unattended_policy: {

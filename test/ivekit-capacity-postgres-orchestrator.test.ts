@@ -23,6 +23,7 @@ test('postgres shard assignment is atomic, skip-locked and writes its command ou
     ordinal_start: 0,
     ordinal_end_exclusive: 1000,
     expected_count: 1000,
+    covered_workloads: [],
     required_protocols: ['tinode_websocket'],
     seed: 'seed-a'
   }]);
@@ -40,12 +41,14 @@ test('postgres shard assignment is atomic, skip-locked and writes its command ou
   });
 
   assert.equal(assignment?.lease_epoch, '9007199254740993');
+  assert.deepEqual(assignment?.covered_workloads, []);
   assert.match(pg.calls[0]?.text || '', /FOR UPDATE OF shard, worker SKIP LOCKED/i);
   assert.match(pg.calls[0]?.text || '', /lease_epoch\s*=\s*selected\.lease_epoch\s*\+\s*1/i);
   assert.match(pg.calls[0]?.text || '', /INSERT INTO ivekit_capacity_command_outbox/i);
   assert.match(pg.calls[0]?.text || '', /assigned_load\s*=\s*worker\.assigned_load\s*\+/i);
   assert.match(pg.calls[0]?.text || '', /SELECT\s+\$7::text,\s*assigned\.run_id/i);
   assert.match(pg.calls[0]?.text || '', /'command_id',\s*\$7::text/i);
+  assert.match(pg.calls[0]?.text || '', /'covered_workloads',\s*assigned\.covered_workloads/i);
   assert.match(pg.calls[0]?.text || '', /\$8::text,\s*jsonb_build_object/i);
 });
 

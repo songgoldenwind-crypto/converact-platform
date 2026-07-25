@@ -1,0 +1,86 @@
+{
+  "artifacts": {
+    "catalog-file-counts.csv": "5a457e828c27d4e6e43440a12c1c1cc6988caffbb1f00b3dbd57d7435361a516",
+    "container-identities.txt": "c207b29bbf706d78224290b224fb4cb42d6a80fc2d7bc21abdc319414262a847",
+    "fresh-rows-after-idempotent.txt": "c11e3f4837efde2441e23a7b9da02131f53bf59fddeb7147c4ab81afe400460f",
+    "fresh-rows-after.txt": "c11e3f4837efde2441e23a7b9da02131f53bf59fddeb7147c4ab81afe400460f",
+    "fresh-rows-before.txt": "c11e3f4837efde2441e23a7b9da02131f53bf59fddeb7147c4ab81afe400460f",
+    "homer-after-maintenance.log": "684ff0ae72b57984879de87d699fed788cf5131a33e5f34ade9d7e147dd3d798",
+    "homer-ingest.log": "c0a132eb0c17d779b8567913b89cacb6cd14c3df326419be532a1ae4a83910f2",
+    "maintenance-first.log": "aed3184389b2489ffa96bbce2812f0d08b135afeb963d1721c6d886b06d26f8c",
+    "maintenance-idempotent.log": "f483c5b067c592202f7d615e255d82430809f07a27242d86462d4894316cba9e",
+    "network-members-before.txt": "dc816023147621d0ea8b490fb915180853069678f3979c286a6734380fd83296",
+    "old-rows-after-idempotent.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "old-rows-after.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "old-rows-before.txt": "c11e3f4837efde2441e23a7b9da02131f53bf59fddeb7147c4ab81afe400460f",
+    "parquet-file-counts.csv": "5a457e828c27d4e6e43440a12c1c1cc6988caffbb1f00b3dbd57d7435361a516",
+    "secret-scan.txt": "2700165975f68815c97d605c56eca8e90d497ade1264b6282401d13fee99ac27",
+    "send-fresh.log": "0a29a172a06312fe8072f42213a7d1d20440aa05012a54ce515937a57aee103c",
+    "send-old.log": "34d49713002988652d35a4c3312973f8e5a5934076462dc962ed6dc752143d6a",
+    "snapshot-counts.csv": "2118adcdfa9030ddeb0bf354d44c5f3d1b8c03ed4857b3659b72c784f0dbe191",
+    "test-resources-remaining.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+  },
+  "capacity_claim": "none",
+  "checks": {
+    "first_compaction_completed": true,
+    "fresh_rows_preserved": true,
+    "fresh_rows_seeded": true,
+    "idempotent_compaction_completed": true,
+    "idempotent_fresh_rows": true,
+    "idempotent_old_rows": true,
+    "old_rows_deleted": true,
+    "old_rows_seeded": true,
+    "secret_scan_passed": true,
+    "sensitive_inputs_removed": true,
+    "test_resources_removed": true
+  },
+  "configuration": {
+    "expire_older_than": "1s",
+    "fresh_packet_count": 200,
+    "old_packet_count": 200,
+    "old_timestamp_offset_seconds": -3456000,
+    "retention_days": 30
+  },
+  "generated_at": "2026-07-24T18:09:12.805285+00:00",
+  "maintenance": {
+    "catalog_data_file_counts": {
+      "after_first": 1,
+      "after_idempotent": 1,
+      "before": 2
+    },
+    "parquet_file_counts": {
+      "after_first": 1,
+      "after_idempotent": 1,
+      "before": 2
+    },
+    "snapshot_counts": {
+      "after_first": 1,
+      "after_idempotent": 1,
+      "before": 30
+    }
+  },
+  "production_capacity_evidence": false,
+  "rows": {
+    "fresh_after": 200,
+    "fresh_after_idempotent": 200,
+    "fresh_before": 200,
+    "old_after": 0,
+    "old_after_idempotent": 0,
+    "old_before": 200
+  },
+  "run_id": "homer-maint-20260724T180835Z-74b763eb",
+  "schema_version": "1.0.0",
+  "scope": "controlled_server_isolated_catalog",
+  "sensitive_inputs_removed": true,
+  "source": {
+    "hep_sender_sha256": "f8c3dbb0d736e3438b11a43492bb4f084feea1f1deb8078db7e096807fe2154c",
+    "homer_image": "ivekit/homer:11.0.297-ivekit.2-ac4e1ae7",
+    "homer_image_id": "sha256:d062461067849bbec3d4b84473f309d7e3b216bb29284d4124fc9960f361e389",
+    "postgres_image": "postgres:16.10-alpine3.22",
+    "postgres_image_id": "sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297",
+    "runner_sha256": "6861111c159784bf489197f2364cac874a5961fc329034bf7ac7e371d1fc4fd8"
+  },
+  "status": "controlled_pass",
+  "suite": "iveKit HOMER isolated retention and compaction",
+  "test_resources_remaining": 0
+}

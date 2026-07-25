@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { Pool } from 'pg';
@@ -12,6 +13,9 @@ import { canonicalSha256 } from '../scripts/capacity/canonical-json.js';
 import type { LoadRunManifest } from '../scripts/capacity/profile-compiler.js';
 
 const databaseUrl = process.env.OPC_IVEKIT_CAPACITY_TEST_DATABASE_URL || '';
+const performanceContract = JSON.parse(
+  readFileSync('docs/capacity/profiles/mix-100k-v1.json', 'utf8')
+).performance_contract;
 
 test('PostgreSQL capacity runtime preserves leases, accounting, outbox and pass barriers', {
   skip: !databaseUrl
@@ -76,6 +80,14 @@ test('PostgreSQL capacity runtime preserves leases, accounting, outbox and pass 
       now: '2026-07-16T08:00:03.000Z'
     });
     assert.equal(assignment?.lease_epoch, '1');
+    assert.deepEqual(assignment?.covered_workloads, [{
+      workload_domain: 'interaction',
+      workload_id: 'tinode-im',
+      workload_kind: 'tinode_im',
+      ordinal_start: 0,
+      ordinal_end_exclusive: 1000,
+      expected_count: 1000
+    }]);
 
     const commands = await repository.claimCommands({
       dispatcher_id: 'dispatcher-a',
@@ -85,6 +97,10 @@ test('PostgreSQL capacity runtime preserves leases, accounting, outbox and pass 
     });
     assert.equal(commands.length, 1);
     assert.equal(commands[0].payload.phase_id, 'steady');
+    assert.deepEqual(
+      commands[0].payload.assignment.covered_workloads,
+      assignment?.covered_workloads
+    );
     await repository.markCommandPublished({
       command_id: commands[0].command_id,
       dispatcher_id: commands[0].dispatcher_id,
@@ -226,13 +242,21 @@ function runManifest(): LoadRunManifest {
       }]
     },
     shards: [{
-      shard_id: 'interaction/tinode-im/0-1000',
-      workload_domain: 'interaction',
-      workload_id: 'tinode-im',
-      workload_kind: 'tinode_im',
+      shard_id: 'connection/tinode-websocket/0-1500',
+      workload_domain: 'connection',
+      workload_id: 'tinode-websocket',
+      workload_kind: 'tinode_websocket',
       ordinal_start: 0,
-      ordinal_end_exclusive: 1000,
-      expected_count: 1000,
+      ordinal_end_exclusive: 1500,
+      expected_count: 1500,
+      covered_workloads: [{
+        workload_domain: 'interaction',
+        workload_id: 'tinode-im',
+        workload_kind: 'tinode_im',
+        ordinal_start: 0,
+        ordinal_end_exclusive: 1000,
+        expected_count: 1000
+      }],
       required_protocols: ['tinode_websocket'],
       assigned_fleet: 'tinode',
       initial_lease_epoch: 0,
@@ -242,9 +266,10 @@ function runManifest(): LoadRunManifest {
     faults: [],
     expected_totals: {
       interactions: 1000,
-      connections: 0,
-      by_workload: { 'tinode-im': 1000 }
+      connections: 1500,
+      by_workload: { 'tinode-im': 1000, 'tinode-websocket': 1500 }
     },
+    performance_contract: performanceContract,
     external_dependencies: [],
     start_not_before: '2026-07-16T08:00:00.000Z',
     evidence_prefix: 'capacity/run-capacity-pg-001'

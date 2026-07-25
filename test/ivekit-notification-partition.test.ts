@@ -28,7 +28,7 @@ test('notification delivery work has stable indexed logical shards', () => {
   );
 });
 
-test('Helm deploys notification workers with StatefulSet ordinal partitioning', () => {
+test('Helm deploys notification workers as dynamically scalable competing consumers', () => {
   const template = readFileSync(
     'services/ivekit-service/helm/ivekit/templates/notification-worker.yaml',
     'utf8'
@@ -39,16 +39,18 @@ test('Helm deploys notification workers with StatefulSet ordinal partitioning', 
   );
   const worker = readFileSync('src/ivekit-worker.ts', 'utf8');
 
-  assert.match(template, /kind: StatefulSet/i);
-  assert.match(template, /partition_index="\$\{HOSTNAME##\*-\}"/);
-  assert.match(
-    template,
-    /OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX="\$\{partition_index\}"/
-  );
-  assert.match(template, /OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT/i);
+  assert.match(template, /kind: Deployment/i);
+  assert.doesNotMatch(template, /partition_index="\$\{HOSTNAME##\*-\}"/);
+  assert.match(template, /OPC_IVEKIT_NOTIFICATION_PARTITION_COUNT[\s\S]*value: "1"/i);
+  assert.match(template, /OPC_IVEKIT_NOTIFICATION_PARTITION_INDEX[\s\S]*value: "0"/i);
   assert.match(template, /exec node dist\/ivekit-worker\.js/i);
   assert.match(template, /OPC_TINODE_DELIVERY_WORKER_ENABLED[\s\S]*value: "0"/i);
   assert.match(values, /notificationWorker:[\s\S]*replicaCount: 2/i);
+  assert.match(values, /notificationWorker:[\s\S]*autoscaling:[\s\S]*enabled: false/i);
+  assert.match(template, /kind: ScaledObject/i);
+  assert.match(template, /opc_ivekit_worker_backlog_depth/);
+  assert.match(template, /opc_ivekit_worker_backlog_oldest_age_seconds/);
+  assert.match(template, /fallback:[\s\S]*failureThreshold:[\s\S]*replicas:/i);
   assert.doesNotMatch(worker, /createIveKitHttpServer|initWebSocket|server\.listen/);
   assert.match(worker, /startIveKitApplication/);
 });

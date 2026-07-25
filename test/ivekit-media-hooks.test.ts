@@ -146,3 +146,45 @@ test('standalone media hooks enter the recording tenant PostgreSQL transaction',
   assert.equal(queries[0]?.sql, 'BEGIN');
   assert.equal(queries.at(-1)?.sql, 'COMMIT');
 });
+
+test('recording deletion removes realtime speech projections in the recording tenant transaction', async () => {
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
+  const client = {
+    async query(sql: string, params: unknown[] = []) {
+      queries.push({ sql, params });
+      return { rows: [], rowCount: 0 };
+    },
+    release() {}
+  };
+  const pg = {
+    async query() {
+      throw new Error('unscoped pool query must not be used');
+    },
+    async connect() {
+      return client;
+    }
+  } as unknown as PgQueryable;
+  const tenantId = 'tenant-recording-deletion';
+  const interactionId = 'call-recording-deletion';
+  const hooks = createIveKitMediaHooks({ db: {}, pg });
+
+  await hooks.onRecordingDeleted?.(
+    {
+      ...recording(tenantId),
+      media_call_id: interactionId,
+      status: 'deleted',
+      object_status: 'deleted',
+      deleted_at: '2026-07-23T02:00:00.000Z'
+    },
+    { actorId: 'retention-worker', source: 'retention_cleanup' }
+  );
+
+  const tenantQuery = queries.find((entry) => entry.sql.includes("set_config('app.current_tenant'"));
+  const projectionDelete = queries.find((entry) =>
+    /DELETE FROM ivekit_realtime_speech_segments/i.test(entry.sql)
+  );
+  assert.deepEqual(tenantQuery?.params, [tenantId]);
+  assert.deepEqual(projectionDelete?.params, [tenantId, interactionId]);
+  assert.equal(queries[0]?.sql, 'BEGIN');
+  assert.equal(queries.at(-1)?.sql, 'COMMIT');
+});

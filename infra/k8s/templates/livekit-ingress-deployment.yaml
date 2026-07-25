@@ -1,0 +1,263 @@
+{{- if .Values.media.ingress.enabled }}
+{{- $root := . }}
+{{- $ingressImageRepository := required "media.ingress.image.repository is required when LiveKit Ingress is enabled" .Values.media.ingress.image.repository }}
+{{- $ingressImageDigest := required "media.ingress.image.digest is required when LiveKit Ingress is enabled" .Values.media.ingress.image.digest }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $ingressImageDigest) }}
+{{- fail "media.ingress.image.digest must be an immutable sha256 digest" }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-livekit-ingress-config
+type: Opaque
+stringData:
+  api-key: {{ include "opc.livekitApiKey" . | quote }}
+  api-secret: {{ include "opc.livekitApiSecret" . | quote }}
+  ingress.yaml: |
+    logging:
+      level: info
+      json: true
+    redis:
+      {{- include "opc.livekitRedisConfig" . | nindent 6 }}
+    health_port: {{ .Values.media.ingress.healthPort }}
+    prometheus_port: {{ .Values.media.ingress.prometheusPort }}
+    rtmp_port: {{ .Values.media.ingress.rtmpPort }}
+    whip_port: {{ .Values.media.ingress.whipPort }}
+    rtc_config:
+      udp_port: {{ .Values.media.ingress.rtcUdpPort }}
+      use_external_ip: {{ .Values.media.ingress.useExternalIp }}
+    cpu_cost:
+      rtmp_cpu_cost: {{ .Values.media.ingress.cpuCost.rtmp }}
+      whip_cpu_cost: {{ .Values.media.ingress.cpuCost.whip }}
+      whip_bypass_transcoding_cpu_cost: {{ .Values.media.ingress.cpuCost.whipBypassTranscoding }}
+      url_cpu_cost: {{ .Values.media.ingress.cpuCost.url }}
+      min_idle_ratio: {{ .Values.media.ingress.cpuCost.minIdleRatio }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-livekit-ingress-metrics
+spec:
+  selector:
+    app.kubernetes.io/name: livekit-ingress
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: health
+      port: {{ .Values.media.ingress.healthPort }}
+      targetPort: health
+    - name: metrics
+      port: {{ .Values.media.ingress.prometheusPort }}
+      targetPort: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-livekit-ingress-public
+spec:
+  type: {{ .Values.media.ingress.service.type }}
+  {{- if or (eq .Values.media.ingress.service.type "LoadBalancer") (eq .Values.media.ingress.service.type "NodePort") }}
+  externalTrafficPolicy: Local
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: livekit-ingress
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: rtmp
+      port: {{ .Values.media.ingress.rtmpPort }}
+      targetPort: rtmp
+      protocol: TCP
+    - name: whip
+      port: {{ .Values.media.ingress.whipPort }}
+      targetPort: whip
+      protocol: TCP
+    - name: whip-rtc
+      port: {{ .Values.media.ingress.rtcUdpPort }}
+      targetPort: whip-rtc
+      protocol: UDP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-livekit-ingress
+spec:
+  replicas: {{ .Values.media.ingress.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: livekit-ingress
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: livekit-ingress
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.media.ingress.prometheusPort | quote }}
+        prometheus.io/path: /metrics
+    spec:
+      hostNetwork: {{ .Values.media.ingress.hostNetwork }}
+      dnsPolicy: {{ ternary "ClusterFirstWithHostNet" "ClusterFirst" .Values.media.ingress.hostNetwork }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.media.ingress.terminationGracePeriodSeconds }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: livekit-ingress
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: livekit-ingress
+                  app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- with .Values.media.ingress.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.media.ingress.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ingress
+          image: "{{ $ingressImageRepository }}@{{ $ingressImageDigest }}"
+          imagePullPolicy: {{ .Values.media.ingress.image.pullPolicy }}
+          env:
+            - name: INGRESS_CONFIG_FILE
+              value: /etc/livekit-ingress/ingress.yaml
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-livekit-ingress-config
+                  key: api-key
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-livekit-ingress-config
+                  key: api-secret
+            - name: LIVEKIT_WS_URL
+              value: {{ include "opc.livekitInternalUrl" . | quote }}
+          ports:
+            - name: rtmp
+              containerPort: {{ .Values.media.ingress.rtmpPort }}
+              protocol: TCP
+            - name: whip
+              containerPort: {{ .Values.media.ingress.whipPort }}
+              protocol: TCP
+            - name: whip-rtc
+              containerPort: {{ .Values.media.ingress.rtcUdpPort }}
+              protocol: UDP
+            - name: health
+              containerPort: {{ .Values.media.ingress.healthPort }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.media.ingress.prometheusPort }}
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /availability
+              port: health
+            periodSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            periodSeconds: 10
+            failureThreshold: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "kill -s SIGTERM 1"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/livekit-ingress
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            {{- include "opc.livekitRedisTLSVolumeMount" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.media.ingress.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          secret:
+            secretName: {{ .Release.Name }}-livekit-ingress-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 2Gi
+        {{- include "opc.livekitRedisTLSVolume" . | nindent 8 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-livekit-ingress
+spec:
+  minAvailable: {{ .Values.media.ingress.disruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: livekit-ingress
+      app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-livekit-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: livekit-ingress
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        {{- range .Values.media.ingress.networkPolicy.publicCidrs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.media.ingress.rtmpPort }}
+          protocol: TCP
+        - port: {{ .Values.media.ingress.whipPort }}
+          protocol: TCP
+        - port: {{ .Values.media.ingress.rtcUdpPort }}
+          protocol: UDP
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+        - port: 6379
+          protocol: TCP
+        - port: 7880
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+        - protocol: UDP
+{{- end }}

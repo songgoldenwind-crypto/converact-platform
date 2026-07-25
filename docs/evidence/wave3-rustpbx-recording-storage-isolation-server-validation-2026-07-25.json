@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "status": "passed_controlled_runtime",
+  "run_id": "rustpbx-recording-isolation-1784939477659",
+  "fault_call_duration_ms": 32610,
+  "media_before_fault": {
+    "observed_at": "2026-07-25T00:30:10.580Z",
+    "uac_generated_packets": 11,
+    "uac_received_packets": 9,
+    "uas_generated_packets": 10,
+    "uas_received_packets": 11
+  },
+  "media_during_fault": {
+    "observed_at": "2026-07-25T00:30:10.976Z",
+    "uac_generated_packets": 31,
+    "uac_received_packets": 29,
+    "uas_generated_packets": 29,
+    "uas_received_packets": 30
+  },
+  "media_after_write_failure": {
+    "observed_at": "2026-07-25T00:30:11.319Z",
+    "uac_generated_packets": 49,
+    "uac_received_packets": 46,
+    "uas_generated_packets": 48,
+    "uas_received_packets": 48
+  },
+  "spool_fault": {
+    "kind": "enospc",
+    "available_bytes_before": 16777216,
+    "available_bytes_during": 0,
+    "filler_removed": true
+  },
+  "recorder_write_failure_count": 2,
+  "primary_recording_terminal_status": "failed",
+  "recording_failure_code": "local_spool_enospc",
+  "media_transport_progress_verified": true,
+  "recovery_recording_terminal_status": "complete",
+  "recovery_payload_size_bytes": 528324,
+  "recovery_segment_count": 7,
+  "rustpbx_restart_count": 0,
+  "rustpbx_oom_killed": false,
+  "capacity_claim": "none"
+}

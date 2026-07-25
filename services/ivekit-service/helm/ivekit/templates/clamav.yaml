@@ -1,75 +1,28 @@
 {{- if .Values.clamav.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+{{- if lt (int .Values.clamav.replicaCount) 2 }}
+{{- fail "clamav.replicaCount must be at least 2 when bundled ClamAV is enabled" }}
+{{- end }}
+{{- if lt (int .Values.clamav.signatureMaxAgeMinutes) 60 }}
+{{- fail "clamav.signatureMaxAgeMinutes must be at least 60" }}
+{{- end }}
+apiVersion: v1
+kind: Service
 metadata:
-  name: {{ include "ivekit.clamavFullname" . }}
+  name: {{ include "ivekit.clamavHeadlessFullname" . }}
   labels:
     {{- include "ivekit.labels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
 spec:
-  replicas: {{ .Values.clamav.replicaCount }}
-  strategy:
-    type: Recreate
+  clusterIP: None
+  publishNotReadyAddresses: true
   selector:
-    matchLabels:
-      {{- include "ivekit.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: clamav
-  template:
-    metadata:
-      labels:
-        {{- include "ivekit.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: clamav
-    spec:
-      automountServiceAccountToken: false
-      securityContext:
-        {{- toYaml .Values.clamav.podSecurityContext | nindent 8 }}
-      containers:
-        - name: clamav
-          image: {{ include "ivekit.clamavImage" . | quote }}
-          imagePullPolicy: {{ .Values.clamav.image.pullPolicy }}
-          command: ["/init-unprivileged"]
-          ports:
-            - name: clamd
-              containerPort: 3310
-              protocol: TCP
-          startupProbe:
-            exec:
-              command: ["clamdscan", "--ping", "1"]
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 60
-          readinessProbe:
-            exec:
-              command: ["clamdscan", "--ping", "1"]
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
-          livenessProbe:
-            exec:
-              command: ["clamdscan", "--ping", "1"]
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 4
-          securityContext:
-            {{- toYaml .Values.clamav.securityContext | nindent 12 }}
-          resources:
-            {{- toYaml .Values.clamav.resources | nindent 12 }}
-          volumeMounts:
-            - name: signatures
-              mountPath: /var/lib/clamav
-            - name: tmp
-              mountPath: /tmp
-      volumes:
-        - name: signatures
-          {{- if .Values.clamav.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ include "ivekit.clamavFullname" . }}
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
-        - name: tmp
-          emptyDir:
-            sizeLimit: 256Mi
+    {{- include "ivekit.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: clamav
+  ports:
+    - name: clamd
+      port: 3310
+      targetPort: clamd
+      protocol: TCP
 ---
 apiVersion: v1
 kind: Service
@@ -88,22 +41,190 @@ spec:
       port: 3310
       targetPort: clamd
       protocol: TCP
-{{- if .Values.clamav.persistence.enabled }}
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
+apiVersion: apps/v1
+kind: StatefulSet
 metadata:
   name: {{ include "ivekit.clamavFullname" . }}
   labels:
     {{- include "ivekit.labels" . | nindent 4 }}
     app.kubernetes.io/component: clamav
 spec:
-  accessModes: ["ReadWriteOnce"]
-  {{- with .Values.clamav.persistence.storageClass }}
-  storageClassName: {{ . | quote }}
+  serviceName: {{ include "ivekit.clamavHeadlessFullname" . }}
+  podManagementPolicy: Parallel
+  replicas: {{ .Values.clamav.replicaCount }}
+  updateStrategy:
+    type: RollingUpdate
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: clamav
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: clamav
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      {{- if .Values.clamav.podAntiAffinity.enabled }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: clamav
+              topologyKey: {{ .Values.clamav.podAntiAffinity.topologyKey | quote }}
+      {{- end }}
+      {{- if .Values.clamav.topologySpreadConstraints.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.clamav.topologySpreadConstraints.topologyKey | quote }}
+          whenUnsatisfiable: {{ .Values.clamav.topologySpreadConstraints.whenUnsatisfiable }}
+          labelSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: clamav
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.clamav.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: clamav
+          image: {{ include "ivekit.clamavImage" . | quote }}
+          imagePullPolicy: {{ .Values.clamav.image.pullPolicy }}
+          command: ["/init-unprivileged"]
+          ports:
+            - name: clamd
+              containerPort: 3310
+              protocol: TCP
+          startupProbe:
+            exec:
+              command: ["clamdscan", "--ping", "1"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 90
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - >-
+                  clamdscan --ping 1 &&
+                  test -n "$(find /var/lib/clamav -maxdepth 1 -type f
+                  \( -name '*.cvd' -o -name '*.cld' \)
+                  -mmin -{{ .Values.clamav.signatureMaxAgeMinutes }} -print -quit)"
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["clamdscan", "--ping", "1"]
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
+          securityContext:
+            {{- toYaml .Values.clamav.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.clamav.resources | nindent 12 }}
+          volumeMounts:
+            - name: signatures
+              mountPath: /var/lib/clamav
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        {{- if not .Values.clamav.persistence.enabled }}
+        - name: signatures
+          emptyDir: {}
+        {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+  {{- if .Values.clamav.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: signatures
+        labels:
+          {{- include "ivekit.labels" . | nindent 10 }}
+          app.kubernetes.io/component: clamav
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.clamav.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.clamav.persistence.size }}
   {{- end }}
-  resources:
-    requests:
-      storage: {{ .Values.clamav.persistence.size }}
+{{- if .Values.clamav.podDisruptionBudget.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ivekit.clamavFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clamav
+spec:
+  minAvailable: {{ .Values.clamav.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: clamav
+{{- end }}
+{{- if .Values.clamav.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ivekit.clamavFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: clamav
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: clamav
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+      ports:
+        - port: 3310
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.clamav.networkPolicy.dnsNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.clamav.networkPolicy.dnsPodSelector | nindent 14 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
 {{- end }}
 {{- end }}

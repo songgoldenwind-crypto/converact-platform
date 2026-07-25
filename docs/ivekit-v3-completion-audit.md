@@ -106,7 +106,7 @@ V4 当前 release 又在本机独立 PostgreSQL 14 harness 重跑 `scripts/verif
 | 文件安全 | implemented | migration 061、magic MIME、clamd/HTTP scanner、quarantine、FFmpeg/HTTP 派生、multipart/resume、retention cleanup；受控故障矩阵通过 | 生产对象存储、真实病毒样本库升级、目标容量和长稳 |
 | LiveKit | implemented | migration 063、QoS degraded/recovered、防抖、connection revision、terminal rejoin、preflight、参考客户端 Node `158/158` 和 Chromium Media `3/3` | 真实摄像头/麦克风、目标 TURN/Egress、弱网和公网媒体质量 |
 | Compose | implemented_and_rendered | standalone quiet config 通过；ClamAV 私网、探针、持久卷、资源和 worker 默认值已校验 | 目标服务器实际启动与长稳 |
-| Helm | implemented_and_rendered | Chart、digest 门禁、ClamAV Deployment/Service/PVC、API wait init、CI gate 已实现；2026-07-17 使用 Helm `v3.18.4` 完成 lint/template 和 `20/20` 发布合同 | 目标集群 install/upgrade/rollback 尚无执行证据 |
+| Helm | implemented_and_rendered | Chart、digest 门禁、ClamAV 双副本 StatefulSet、client/headless Service、每 Pod RWO 签名卷、签名新鲜度 readiness、PDB、反亲和和 NetworkPolicy 已实现；2026-07-22 已在服务器使用 Helm `v3.18.4` 重新 lint/template，单副本拒绝和 HA 合同通过；真实 ClamAV clean/EICAR 及文件安全回归 `59/59` 通过 | 目标 Kubernetes install/upgrade/rollback、跨节点 PVC、签名过期摘流、节点故障和媒体隔离尚无执行证据 |
 | Release evidence | implemented | delivery `25/25`；source/image/migration/config fingerprint、SBOM、secret scan 和 tamper rejection | 实际应用镜像 digest 与目标 runtime deployment fingerprint |
 
 代码门禁还包括 Stage 2 focused backend/deployment `110/110`、PostgreSQL harness 6 项、根
@@ -203,13 +203,13 @@ record 不再占满 bounded candidate window；Notification backoff 从 Provider
 
 | 能力 | 实现状态 | 当前代码与自动化证据 | 仍为 not_run |
 | --- | --- | --- | --- |
-| Tinode Kubernetes | implemented_not_run | standalone Chart 保留兼容型 bundled 单副本 ConfigMap/Secret refs、Deployment、Service、PVC、PDB、HTTP `/health` 探针、资源、安全上下文和 NetworkPolicy；Cell-10K 另提供三节点 fork StatefulSet、headless cluster Service、client Service、稳定 `cluster_self`、本地 sidecar 和 `minAvailable: 2` PDB；每个 API Pod 仍用 init container fail-closed 创建或验证 Tinode service account；Helm `v3.18.4` lint/template 已通过 | 目标集群 Helm install/upgrade/rollback、三节点 cluster/failover、真实 PVC 和长稳 |
+| Tinode Kubernetes | implemented_not_run | standalone Chart 支持 `compact` 单副本 Deployment 和 `cluster` 三副本 StatefulSet；cluster 使用稳定 ordinal/DNS、client/headless Service、单一 `pre-install,pre-upgrade` 数据库 bootstrap Job、共享 S3、read-only root、双 Zone/主机分散、ring-only NetworkPolicy 与 `minAvailable: 2` PDB；每个 API Pod仍用 init container fail-closed 创建或验证 Tinode service account；隔离服务器已验证缺失数据库、预建空库幂等初始化、MinIO S3 及三个健康节点组环，Helm lint/template 与无效配置 fail-closed 已通过 | 目标集群 Helm install/upgrade/rollback、节点/Zone 故障注入、真实 PVC/S3、重连、原生客户端收敛、容量和长稳 |
 | Tinode 原生 mutation | implemented | migration 074；本地 edit/delete 与 provider mutation outbox 同事务；版本串行、lease fencing、retry/dead-letter/replay、replacement/delete wire frame、inbound echo suppression、外部客户端投影、SDK sync status 和事件；edit pub ACK 丢失或过期 processing lease 被接管时立即以 `provider_outcome_uncertain` 死信，阻止重复 replacement，并提供 OpenAPI/SDK 人工对账重放；迟到 echo 在同一事务纠正 delivered 并以稳定幂等键写 durable correction event，提交后广播失败可由 replay/Webhook 恢复；bootstrap 兼容已有账号的 304/409；真实 PostgreSQL 已覆盖过期 edit claim 和 inbound 结果透传 | 真实 Tinode 1.4.7/0.25.1 多原生客户端一致性、ACK 丢失对账与故障恢复 |
-| RustDesk 精准断开 | implemented_not_run | migration 075 emergency authorization；ACL session registry/resolver；package v6 与 fixed native-control v2；命令、operation observation 和 evidence 全链携带 interaction/reservation/owner epoch；companion 每会话分片持久化最大 epoch，拒绝 stale owner 后才由 1.4.7 overlay 调用指定 `ui_cm_interface::close(native_id)`；普通失败不重启，owner/admin 显式确认后才允许 emergency restart | 两台 Windows、同机并发会话、owner handoff、UAC/login-screen 和物理断开观察 |
-| RustDesk 原生证据 | implemented_not_run | 定制 RustDesk allowlist scanner 基线并自动产出稳定新文件候选；device-token context 按 controller/operation/文件名/时间窗唯一关联；15 分钟会后 finalization window；watcher、稳定性/变更/hash gate、durable spool、单文件/分片 uploader、设备/session/operation 二次授权、secure-file、扫描/隔离/衍生物、PDF OCR、录屏 ASR+帧 OCR、AI 质检和 `remote.rustdesk.evidence.*` 状态事件；migration 076 对 unsupported/ignored 持久标记并补偿 missed callback；设备侧死信 payload 默认 7 天/数量上限成对清理；远端成功后的本地删除失败保留 `uploaded + manifest` 并跨重启只重试删除，所有 manifest-backed 状态禁止普通终态压缩；手工 PowerShell 仅为恢复工具 | 定制 RustDesk 1.4.7 Windows 编译、真实文件/录屏、ClamAV/对象存储和物理 Windows |
+| RustDesk 精准断开 | implemented_not_run | migration 075 emergency authorization；ACL session registry/resolver；package v6 与 fixed native-control v2；命令、operation observation 和 evidence 全链携带 interaction/reservation/owner epoch；companion 每会话分片持久化最大 epoch，拒绝 stale owner 后才由 1.4.9 overlay 调用指定 `ui_cm_interface::close(native_id)`；普通失败不重启，owner/admin 显式确认后才允许 emergency restart | 两台 Windows、同机并发会话、owner handoff、UAC/login-screen 和物理断开观察 |
+| RustDesk 原生证据 | implemented_not_run | 定制 RustDesk allowlist scanner 基线并自动产出稳定新文件候选；device-token context 按 controller/operation/文件名/时间窗唯一关联；15 分钟会后 finalization window；watcher、稳定性/变更/hash gate、durable spool、单文件/分片 uploader、设备/session/operation 二次授权、secure-file、扫描/隔离/衍生物、PDF OCR、录屏 ASR+帧 OCR、AI 质检和 `remote.rustdesk.evidence.*` 状态事件；migration 076 对 unsupported/ignored 持久标记并补偿 missed callback；设备侧死信 payload 默认 7 天/数量上限成对清理；远端成功后的本地删除失败保留 `uploaded + manifest` 并跨重启只重试删除，所有 manifest-backed 状态禁止普通终态压缩；手工 PowerShell 仅为恢复工具 | 定制 RustDesk 1.4.9 Windows 编译、真实文件/录屏、ClamAV/对象存储和物理 Windows |
 | 八组真实验收与交付 | implemented_not_run | `ivekit-v6-real-acceptance.ts` 固定八组、source/digest/environment/run/operator/QA/observation 绑定，拒绝 mock/controlled、符号链接、路径逃逸、hash 漂移和 `not_run` 伪证据；模板、校验器、V6 文档、Tinode Helm 与 RustDesk Windows/overlay 进入 hash/tamper 保护交付包 | Provider、Tinode、LiveKit、RustDesk、PSTN、商业通知、生产对象存储、Kubernetes 均缺真实资源 |
 
-RustDesk 未经自动 scanner/correlator/watcher/uploader 的内容仍保持 `native_unscanned` 或 `local_only`，不能由审计事件或静态配置推导为已扫描。placement-enabled Windows package builder 只接受同时声明 `ivekit-rustdesk-native-control-v2` 与 `rustdesk-native-evidence-v1` 的自定义 1.4.7 制品；v1 只允许在 placement 关闭时用于滚动兼容。交付白名单同时包含 control/evidence 两个 Rust 模块、owner epoch fence 与 correlator，SDK client-profile 投影保留 v2。Windows CI 已配置拉取固定上游、应用 overlay、安装 vcpkg manifest 并执行 `cargo check`；本工作区不具备 Windows runner，因此该远程 CI 与实际签名制品、候选扫描、授权关联和上传行为仍须在 GitHub/双机验收。
+RustDesk 未经自动 scanner/correlator/watcher/uploader 的内容仍保持 `native_unscanned` 或 `local_only`，不能由审计事件或静态配置推导为已扫描。placement-enabled Windows package builder 只接受同时声明 `ivekit-rustdesk-native-control-v2` 与 `rustdesk-native-evidence-v1` 的自定义 1.4.9 制品；v1 只允许在 placement 关闭时用于滚动兼容。交付白名单同时包含 control/evidence 两个 Rust 模块、owner epoch fence 与 correlator，SDK client-profile 投影保留 v2。Windows CI 已配置拉取精确 `1.4.9@6c578292...` 上游、应用 overlay、安装 vcpkg manifest 并执行 `cargo check`；本工作区不具备 Windows runner，因此该远程 CI 与实际签名制品、候选扫描、授权关联和上传行为仍须在 GitHub/双机验收。
 
 V6 统一真实验收规范位于 `docs/ivekit-v6-real-environment-acceptance.md`。截至本节日期，八组均为 `not_run`；这表示外部环境尚未验收，不表示已完成的代码/部署合同失败，也绝不等价于生产可放行。
 
@@ -229,7 +229,7 @@ V6 原始本地门禁为全仓 `2939` 项、`2928` pass、`0` fail、`11` 个环
 | Cell admission 持久化 | implemented | migration 078/083/084/093、PostgreSQL Cell lease、逐 reservation 权威账本、reserve/activate/close 先持久化后应答、重启恢复容量与 owner sequence；migration 093 对 reservation 权威表补齐 FORCE RLS 与 runtime grants；lease 绑定规范化 topology SHA-256 | 真实 PostgreSQL 双副本杀主、延迟/断网和长稳 |
 | Cell admission 高可用 | implemented_not_run | 双副本主动/待命；待命 `/livez=200`、`/readyz=503` 且拒绝准入；只重试 retryable lease；活动 lease 同时要求 owner 与 topology hash 一致；变更拓扑只能在释放/过期后递增 epoch 接管；Service 只路由 ready 主实例；RollingUpdate、PDB、拓扑分散；待命 projector 不重复探测组件 | 目标 Kubernetes 实际 rollout、PDB/节点驱逐、主实例失联接管时延和错配拓扑演练 |
 | 组件节点准入 | implemented_not_run | LiveKit/Tinode/RustDesk/RustPBX 通用 sidecar；稳定 ordinal 节点池、Cell 容量精确聚合、node lease、checkpoint、recovery-complete、drain、单条及最多 64 条批量授权、节点级故障隔离；Cell 重启自动重放未终态 owner，已删除 owner node 的恢复 fail closed；RustPBX Helm/Compose、LiveKit StatefulSet、三节点 Tinode StatefulSet 和配对 hbbs/hbbr RustDesk StatefulSet 均支持本地 sidecar 与相同稳定节点身份 | 多节点进程重启、真实 lease takeover、节点动态扩缩和真实热路径 |
-| 上游源码 hook | implemented_not_run | Go hook 面向 LiveKit/Tinode，Rust hook 面向 RustDesk/RustPBX；RustPBX 固定源码 release 编译、本地 custom image 和 12 个受控 SIPp 信令场景通过；LiveKit 固定 `v1.13.3@8f6a9cb...` 的 owner/router/SFU overlay、Go 1.26/race 测试与离线 arm64 custom image/fork marker smoke 通过；Tinode 固定 `v0.25.3@22a7c18...` 的 topic owner、稳定 `cluster_self`、mutation fencing、lazy timer/fanout 优化及 arm64 source-built custom image/fork marker smoke 通过；RustDesk Server 固定 root `1.1.15@9bae9f2...` 与 `hbb_common@83419b6...` 的 owner/relay 优化、`cargo test --locked`、digest-pinned arm64 custom image、非 root 运行和 fork marker smoke 通过；媒体包、帧和 fanout 热路径禁止远程调用 | 不可变 Registry digest/SBOM/provenance；RustPBX 真实 RTP/PSTN/overload；LiveKit/Tinode/RustDesk 真实多节点/双 Windows、真实媒体/relay/profile 和容量 |
+| 上游源码 hook | implemented_not_run | Go hook 面向 LiveKit/Tinode，Rust hook 面向 RustDesk/RustPBX；RustPBX 固定源码 release 编译、本地 custom image 和 12 个受控 SIPp 信令场景通过；LiveKit 固定 `v1.13.4@0b3fd288...` 的 owner/router/SFU overlay，已在隔离 Linux amd64 服务器通过 Go 1.26.5 根/嵌套模块与 SFU race 测试、离线非 root custom image/fork marker smoke；Tinode 固定 `v0.25.3@22a7c18...` 的 topic owner、稳定 `cluster_self`、mutation fencing、lazy timer/fanout 优化及 arm64 source-built custom image/fork marker smoke 通过；RustDesk Server 固定 root `1.1.16@73523b31...` 与 `hbb_common@83419b6...`，owner/relay overlay 幂等应用且 `cargo test --locked --all-features` 通过；1.1.16 OCI 构建、Registry 与真实 relay 仍未执行；媒体包、帧和 fanout 热路径禁止远程调用 | 不可变 Registry digest/SBOM/签名/provenance；RustPBX 真实 RTP/PSTN/overload；LiveKit/Tinode/RustDesk 真实多节点/双 Windows、真实媒体/relay/profile 和容量 |
 | 分布式容量验收 | implemented_not_run | PostgreSQL/JetStream run-phase-shard worker、租约与重复投递 fencing、S3 evidence、controller/run finalizer；曲线点按完整 MIX 比例确定性编译，component run 绑定必需角色；migration 091/scaling finalizer 从数据库与 S3 重读证据并重放 ramp/bracket/binary/final-repeat；migration 092/platform finalizer 强制九个组件角色、Cell、共享数据面和 100K endpoint 齐全，按 contract 从 frontier repetitions 二次复算每条曲线，并核对 endpoint 的 Cell 硬件/配置/故障预留与三方计数；只有全生产证据通过才产生 `platform_pass`，受控结果固定为 `none`；独立镜像、三个 finalizer Job、迁移和操作手册均进入交付包 | 不可变 capacity-tools 镜像构建与签名、真实生成器主机、三节点 JetStream、真实 S3、单机 frontier、九组件与 Cell/shared-data 物理曲线、Cell-10K 和 MIX-100K endpoint/平台物理运行 |
 
 本轮容量门禁的最新计数以 `docs/capacity/phase2-code-status.json` 为准；容量专项回归 `303/303`、scaling campaign 定向门禁 `9/9`、platform campaign 定向门禁 `12/12`、交付门禁 `55/55`，根 TypeScript 与独立 capacity-runtime typecheck 均通过。固定门禁覆盖 LiveKit CAS room-owner rebuild、Tinode/RustDesk Server 精确源码补丁真值、RustDesk client fork 状态、全部 patch SHA-256 真值、scaling 来源身份/顺序以及 platform 角色齐全、来源复算与 endpoint 不可覆盖规则。4 个专用 Event WS/Tinode generator 用例已使用真实 loopback socket 通过；RustDesk 回归、RustDesk SDK/LED 对接、参考客户端、SDK build、参考客户端 production build、容量 Compose 渲染和 Go/Rust component hooks 的最新结果同样以机器可读状态文件为准。参考客户端没有上调 334 KiB 首屏预算：默认 application chunk 为 `311101` 字节，RustDesk SDK 与 UI 仅在进入远控 workspace 时加载为 `49775` 字节独立 chunk。该结果只证明代码和部署合同，不产生任何 `C_hard`、`C_safe`、Cell-10K 或 MIX-100K 容量结论。
@@ -254,8 +254,8 @@ LED 业务逻辑、OPC 业务领域、移动端和数字人不属于 iveKit 底�
 | # | 原始目标 | 权威实现与交付证据 | 代码裁决 | 真实环境状态 |
 | --- | --- | --- | --- | --- |
 | 1 | Tinode IM 完整集成 | `src/agent-runtime/collaboration/tinode-*` 实现双向同步、会话、附件、已读/状态、离线恢复、原生 edit/delete outbox、迟到 echo 纠正、重放和指标；migration 062/074 持久化文件投递与 mutation；`services/ivekit-service/helm/ivekit/templates/tinode-*` 提供 bundled Kubernetes；`infra/ivekit/tinode/` 提供固定 `v0.25.3` 三节点 owner-aware fork；OpenAPI、SDK 和参考客户端均含消息、附件与 mutation 状态 | `implemented` | 真实 Tinode 多客户端收敛、三节点故障、目标 PVC/长稳为 `not_run` |
-| 2 | LiveKit 全部基础音视频 | `src/agent-runtime/livekit/` 覆盖房间、Token、参与人、音视频、屏幕共享、Webhook、moderation、录制、QoS、超时和重入；migration 063/087/088/089 覆盖质量与 Egress job/reconciliation/capacity；`infra/ivekit/livekit/` 固定 `v1.13.3` owner overlay；Egress 双池仅接受批准仓库 `ivekit/livekit-egress` 的 digest-bound 镜像，并与 external LiveKit 显式共享 Redis address/认证/TLS，缺 digest/shared Redis、使用上游全限定别名或任意其他仓库均 Helm fail-closed；参考客户端实现断线恢复与 320/390 移动布局；第 17 节已记录精确源码 Egress 本机镜像构建证据 | `implemented` | 不可变 amd64 生产 Egress 镜像、Registry digest/SBOM/签名/provenance、双客户端、摄像头/麦克风、TURN、对象链路、弱网和多实例为 `not_run` |
-| 3 | RustDesk Windows 远控闭环 | `src/agent-runtime/collaboration/rustdesk-*`、`scripts/rustdesk-*` 与 `scripts/rustdesk-windows/` 覆盖授权码、device command、session hook、精准断开、owner epoch、剪贴板/文件/多屏/录屏观察、durable spool、evidence 上传、审计和 emergency fallback；`integrations/rustdesk-1.4.7/` 含 native control/evidence overlay；Windows workflow、安装包、SDK/LED facade 和参考工作区已交付 | `implemented_not_run` | 定制签名 Windows 制品、双物理机、UAC/login screen、同机多会话和真实文件/录屏为 `not_run` |
+| 2 | LiveKit 全部基础音视频 | `src/agent-runtime/livekit/` 覆盖房间、Token、参与人、音视频、屏幕共享、Webhook、moderation、录制、QoS、超时和重入；migration 063/087/088/089 覆盖质量与 Egress job/reconciliation/capacity；`infra/ivekit/livekit/` 固定 `v1.13.4@0b3fd288...` owner/热路径 overlay，并已在隔离 Linux amd64 服务器完成单测、SFU race、离线构建和非 root smoke；Egress 双池仅接受批准仓库 `ivekit/livekit-egress` 的 digest-bound 镜像，并与 external LiveKit 显式共享 Redis address/认证/TLS，缺 digest/shared Redis、使用上游全限定别名或任意其他仓库均 Helm fail-closed；参考客户端实现断线恢复与 320/390 移动布局 | `implemented` | Server/Egress 不可变生产 digest/SBOM/签名/provenance、双客户端、摄像头/麦克风、TURN、对象链路、弱网和多实例为 `not_run` |
+| 3 | RustDesk Windows 远控闭环 | `src/agent-runtime/collaboration/rustdesk-*`、`scripts/rustdesk-*` 与 `scripts/rustdesk-windows/` 覆盖授权码、device command、session hook、精准断开、owner epoch、剪贴板/文件/多屏/录屏观察、durable spool、evidence 上传、审计和 emergency fallback；`integrations/rustdesk-1.4.9/` 含 native control/evidence overlay；Windows workflow、安装包、SDK/LED facade 和参考工作区已交付 | `implemented_not_run` | 定制签名 Windows 制品、双物理机、UAC/login screen、同机多会话和真实文件/录屏为 `not_run` |
 | 4 | RustPBX、SIP、WebPhone、IVR 与呼叫 | `src/agent-runtime/ivekit/voice/`、`ivr/` 和参考客户端 Voice/IVR 工作区覆盖注册、呼入/呼出、接听/拒绝、Hold、DTMF、设备、呼叫控制、路由、录音和 provider event；固定 RustPBX/rsipstack 源码 release 编译与本地 custom image 通过；`scripts/ivekit-rustpbx-sipp-acceptance.ts` 使用 SIPp 3.7.7 完成 12 个受控信令场景、19 个请求且 Router/CDR 增量均为 19 | `implemented_not_run` | 真实 RTP 音频连续性、浏览器 WSS/物理音频、PSTN、overload 曲线和 supervisor mixer 为 `not_run` |
 | 5 | OCR、ASR、翻译、AI 质检、防绕单与 Provider 治理 | collaboration intelligence、attachment text、translation、quality review、policy scan 与 provider registry/governance/route 覆盖第三方 HTTP 和自建 Provider 双模式、健康检查、配额、熔断、降级、故障切换、OCR/ASR/帧 OCR、AI finding、人工复核和文本/图片防绕单；migration 059/060/076、OpenAPI、SDK 和参考质量工作区提供持久状态与操作面 | `implemented` | 真实厂商/自建模型、凭据、准确率语料、配额与故障切换为 `not_run` |
 | 6 | 通知、文件安全、安全与运维 | `src/agent-runtime/ivekit/notifications/` 覆盖站内、Webhook、SMTP/HTTP Email、HTTP SMS、模板、偏好、回执、重试、死信和 Provider 治理；secure-file 模块覆盖 magic MIME、ClamAV/HTTP 扫描、隔离、转码、缩略图、分片续传、清理与 legal hold；authorization/audit/rate-limit/retention/heartbeat、监控、备份恢复、多副本 worker 和 Helm HPA/PDB/ServiceMonitor/PrometheusRule/Grafana/CronJob 已接线 | `implemented_not_run` | 商业邮件/短信、公网 Webhook、生产对象存储/ClamAV、目标监控栈、真实恢复和 Kubernetes 故障演练为 `not_run` |
@@ -366,7 +366,7 @@ PostgreSQL 或静态 Profile 解释成目标服务器、真实媒体、Windows�
 | 项目 | 结果 | 直接证据与边界 |
 | --- | --- | --- |
 | Capacity PostgreSQL | `passed_controlled_local` | PostgreSQL `16.10` 临时容器应用 migration 077 后，lease、accounting、outbox、evidence 与 pass barrier 集成 `1/1` 通过；真实执行发现并修复 `controller_lease_expires_at` 未别名为 decoder 所需的 `lease_expires_at`，以及 `$7/$8` 同时进入 TEXT/JSONB 时缺显式 `::text` 导致参数类型不确定。目标库 migration/restart 仍为 `not_run` |
-| RustDesk Client 1.4.7 | `implemented_not_run` | tag `1.4.7` 固定为 `0c86d4616298f09435f6236599b300964aa61460`；overlay 改为识别真实 `mod ui_cm_interface;` 源码锚点、校验 Git HEAD 并重复应用通过；Windows 编译、签名和双物理机仍为 `not_run` |
+| RustDesk Client 1.4.9 | `implemented_not_run` | tag `1.4.9` 固定为 `6c578292e8ebbbec708b76986ba8c4bc7c509747`；overlay 校验 Git HEAD 和真实源码锚点并重复应用通过；Windows 编译、签名和双物理机仍为 `not_run` |
 | LiveKit SIP v1.6.0 | `passed_controlled_local` | tag 固定为 `02179d2eebe1493ad8c6a7961ceee84c34f8aca3`；完整 Linux arm64 镜像 `sha256:54e9acaa0313728305c995bc6d5384f65b6e7366b278e20517b0ffe8fd03ade3` 构建并报告 `SIP version v1.6.0`；真实 SIP/RTP、PSTN、bridge failover 和 amd64 制品仍为 `not_run` |
 | 语音 owner 边界 | `implemented_contract` | Cell-10K 与 MIX-100K Profile schema `1.2.0` 明确 RustPBX 独占 dialog、RTP、recording 与 admission；LiveKit SIP 为 `optional_bridge_excluded`，不计入当前容量；Profile 编译器会拒绝第二 owner 或启用未计量 bridge |
 | LiveKit Egress v1.13.0 | `passed_controlled_local` | 精确 commit `7d3572a0bf1959cbbc452f5ba390b6a90b7dc249` 的 overlay 重复应用、pool policy 与 patched `pkg/stats` 测试、完整 CGO 编译和运行镜像构建通过；镜像 `ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0`，ID `sha256:fde135c9f13c95e106ec5b075c9b039a95ac0c134f8f12e72018cc710f7810b2`，Linux arm64，非 root `egress`，版本 `1.13.0`，revision/pool-contract/二进制标记复验通过 |
@@ -432,11 +432,20 @@ RustPBX 真实 RTP/物理音频、PSTN，以及存储长时间中断后的 spool
 后续交付复审发现首版只把 runner 源码复制到 `acceptance/tools/`，离开 OPC 源码树后仍会借用
 `clients/ivekit-reference/node_modules`，不满足独立交接。现已改为
 `acceptance/livekit-storage-isolation/` 独立包，包含 runner、README、精确 package/lock；依赖固定为
-LiveKit Client `2.20.1`、Server SDK `2.15.4`、Playwright `1.61.1`、tsx `4.22.4`，并 override
+LiveKit Client `2.20.1`、Server SDK `2.17.0`、Playwright `1.61.1`、tsx `4.23.1`，并 override
 esbuild `0.28.1`。runner 优先解析包内依赖，源码 checkout 才 fallback 到 reference client；配置支持
 一个 Compose file 或有序 JSON base/overlay 列表及可选 env file。`/tmp` 离仓执行 `npm ci` 安装 28 个
 package、`npm audit` 0 vulnerability，并成功加载 runner/runtime 与解析三个本地依赖；交付生成、hash、
 秘密扫描和 README 命令也进入自动门禁。该改善只使受控验收工具可独立运行，不改变生产项 `not_run`。
+
+2026-07-25 在隔离 Linux 服务器完成增强复验，裁决提升为 `passed_controlled_server`，但仍不是
+生产 HA 或容量结论。新版 runner 不再只看连接与 publication，而要求双 peer 的 inbound/outbound
+音频字节、视频字节、RTP 包和视频解码帧在四次快照间逐阶段严格增长。MinIO 停止后首次 Egress
+`EG_XTxdm8YhXCgZ` 以 `storage_upload_failed` 失败，媒体仍持续；恢复 MinIO/bucket 后，同一房间
+第二个 Egress `EG_dRrUH8GeZ29k` 以 `complete` 结束，认证对象核验得到 99,530 bytes 的
+`video/mp4`。隔离四组件与九个既有基线容器均 `RestartCount=0`、`OOMKilled=false`。专项本机和
+服务器各 `11/11`、相关 LiveKit/Egress/Delivery 回归 `97/97`、根 TypeScript 通过。机器证据见
+`docs/evidence/wave2-livekit-storage-isolation-server-validation-2026-07-25.json`。
 
 ## 20. 对象存储不可变部署与健康门禁复审（2026-07-18）
 
@@ -528,7 +537,7 @@ Voice、IVR、RustDesk 和交付合同变化。本节的测试计数为当前最
 | WebPhone session 签发 | `implemented` | migration 094 新增 tenant RLS、幂等唯一键、过期索引和按 tenant 有界 `SKIP LOCKED` 清理；`SECURITY DEFINER` 清理函数即使收到 NULL limit 也只取有界默认值。standalone server 按显式开关注入 PostgreSQL session service，短期 WSS/SIP credential 由 HMAC 生成且不持久化。配置、权限、幂等冲突、过期清理、SDK/controller 和 OpenAPI 合同通过；真实浏览器向 RustPBX 注册、ICE/RTP 和物理音频仍为 `not_run` |
 | IVR RWI 执行 | `implemented` | inbound call 只有在已持久化且可执行的 IVR action 存在时才 answer，否则 fail-closed hangup；DTMF/timeout/barge-in 按 call 串行并设置总量与单 call 有界队列。只有 provider 显式提供 `event_id`、`action_id` 或 sequence 时才去重，无 ID 的相同连续按键不会被误丢；任务失败被收敛并允许 provider 重试，revision CAS 防止并发覆盖；transfer provider exchange 不再重复执行外部副作用。真实 RustPBX RWI 长稳、语音播放/采集和 provider transfer 媒体仍为 `not_run` |
 | RustDesk 一次性授权并发 | `implemented_not_run` | verified code 在创建 gateway 前原子进入 `claimed`，成功持久化后才 consume；claim 受 actor、TTL 和唯一 claim ID 约束，失败释放，过期 claim 可恢复，数据库约束强制 claimed actor 与 verified actor 一致。migration 095 为已经执行旧 064 的数据库提供 forward-only 升级；新库 schema 与 MemoryPg 同步。真实 PostgreSQL 多实例竞争和进程崩溃恢复仍需目标环境复验 |
-| RustDesk 原生精准断开 | `implemented_not_run` | gateway 创建时生成服务端原生 session ID，launch plan 只在 `rustdesk://` 的 `ivekit_session_id` 参数中传递并从公开 metadata 删除；定制 1.4.7 overlay 将它贯穿深链、Flutter/CLI、多窗口、IPC 和 connection manager。named-pipe resolver 同时匹配 `native_session_id + controller_rustdesk_id`，响应也回显并复核该 ID，避免同控制方并发会话互相误断。overlay/SDK/HTTP/Windows companion 静态与单元门禁通过；Windows 编译、签名和双物理机精准断开仍为 `not_run` |
+| RustDesk 原生精准断开 | `implemented_not_run` | gateway 创建时生成服务端原生 session ID，launch plan 只在 `rustdesk://` 的 `ivekit_session_id` 参数中传递并从公开 metadata 删除；定制 1.4.9 overlay 将它贯穿深链、Flutter、多窗口、IPC 和 connection manager。named-pipe resolver 同时匹配 `native_session_id + controller_rustdesk_id`，响应也回显并复核该 ID，避免同控制方并发会话互相误断。overlay/SDK/HTTP/Windows companion 静态与单元门禁通过；Windows 编译、签名和双物理机精准断开仍为 `not_run` |
 | 录制存储故障域 | `implemented_contract_and_controlled` | LiveKit Server 继续不依赖 Egress/MinIO；RustPBX RTP capture、录音 lifecycle、session cleanup 和对象上传均不向实时媒体命令循环反向等待。存储、writer、uploader 或 cleanup 故障允许录制不完整、丢弃、失败或资源强制回收，但不得终止或回压已建立电话/视频。第 19-20 节 LiveKit 受控本机进程证据仍有效；RustPBX 阻塞磁盘、真实 RTP 和跨节点故障注入保持 `not_run` |
 
 ### 22.1 当前门禁
@@ -573,3 +582,447 @@ Compose render、Helm lint/template、Prometheus YAML、Grafana JSON 和 SIPp XM
 内 `kamailio -c` 与真实 Docker SIPp/WSS/DMQ 运行时验证时，这两项必须保持 `not_run`，不能由 renderer
 测试代替。真实 PSTN/RTP、双 Edge WSS/DMQ、目标 Kubernetes、双 Zone、长稳、单机 frontier、
 Cell-10K 和 MIX-100K 也继续为 `not_run`；`capacity_claim=none`。
+
+## 24. Wave 1 OCI 核心镜像供应链复审（2026-07-22）
+
+本节补齐仓库自有核心镜像的统一构建入口，不把服务器本地镜像误报为生产 Registry 制品。
+`.github/workflows/ivekit-source-image-release.yml` 统一执行固定 commit 的 Actions、Git SHA tag、
+amd64/arm64 构建和 digest 交接，再调用唯一 OCI release gate 完成 Trivy、Cosign、SBOM 与 provenance。
+核心矩阵已覆盖 OPC platform、frontend、iveKit service、capacity tools、Kamailio 和 AI agent；外部
+基础镜像全部固定 digest。
+
+服务器首次真实构建发现 iveKit service 不能直接使用 `services/ivekit-service` 作为上下文，因为权威
+源码位于根 `src/`。现工作流只允许 `none|ivekit-standalone` 两种预处理模式，拒绝任意 shell；服务镜像
+先按 source policy 生成独立上下文再构建。服务器契约测试 `7/7`、Actionlint `1.7.12`、capacity-tools
+及 iveKit-service Linux amd64 构建和无网络运行检查均通过；两个镜像运行 UID 均为 1000。详细 image
+ID、体积和 context checksum 见 `docs/evidence/wave1-oci-source-image-server-validation-2026-07-22.md`。
+
+仍为 `not_run`：GitHub Runner 多架构构建、GHCR push、Registry Trivy、Cosign、GitHub attestation、
+目标 Kubernetes admission/rollout。本节记录时尚未接入的 LiveKit Egress、Tinode release gate 已由
+第 26 节关闭代码缺口，但其工作流仍未实际执行。上述服务器镜像不得作为已签名生产制品使用；
+`capacity_claim` 继续为 `none`。
+
+## 25. LiveKit Server v1.13.4 精确源码 rebase（2026-07-22）
+
+LiveKit Server 已从 `v1.13.3@8f6a9cb...` 升级为精确
+`v1.13.4@0b3fd288e3ef3263ec475ba0d78cf3ad77459981`。owner overlay 与小房间热路径补丁已在新源码上重新生成，
+不是把旧 patch 以宽松模式强套到新版本。rebase 保留上游动态 fanout threshold 和乱序包不计入稳态
+forwarding latency 的修复，同时保留 iveKit 不可变 downtrack snapshot、普通 RTP 与 Opus RED 的小房间串行路径。
+
+隔离 Linux amd64 服务器对干净源码连续执行 overlay 两次，结果为 `applied`、`already_applied`；
+`cmd/server`、`pkg/sfu`、`pkg/sfu/utils`、component hook 与 owner module 的 Go 1.26.5 测试通过。
+使用 vendor tree 和 `--network=none` 构建的候选镜像为
+`sha256:95b4473a03aeba9d2c36c62450f1bc924ad0638a44a9edd4cae46860aed23963`，37,554,217 bytes，
+运行 UID/GID 为 `10001:10001`，版本、精确 revision、component/owner labels 与 fork marker 均通过。
+首个 root runtime 候选被判定为安全缺陷并废弃，最终 overlay 已强制非 root。
+
+`.github/workflows/ivekit-livekit-server-image.yml` 已接入精确双 checkout、Go 测试、vendor、多架构构建和
+统一 OCI release gate。详细服务器记录见
+`docs/evidence/wave1-livekit-server-v1.13.4-validation-2026-07-22.md`。
+
+仍为 `not_run`：GHCR 多架构 digest、Trivy/SBOM/Cosign/provenance、真实双客户端媒体、
+强制 TURN、弱网、重连、排空、节点故障、多节点 Redis routing、目标 Kubernetes 与 Cell 容量。历史
+v1.13.3 race 和 Apple M5 微基准只保留为历史证据，不自动成为 v1.13.4 结论；`capacity_claim=none`。
+
+## 26. Tinode 与 LiveKit Egress 精确源码 OCI 收口（2026-07-22）
+
+本节关闭第 24 节记录的两个 release-gate 代码缺口，同时坚持“服务器候选镜像不等于 Registry
+生产制品”。所有动态构建和运行态验收在 `64.225.122.227` 的隔离目录完成，本机没有运行 Docker
+回归；LED Compose 项目前后均保持 7 个运行容器，验收结束后没有遗留 Tinode/Egress 容器。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| Tinode `v0.25.3` | `passed_controlled_server` | 精确 `22a7c18e9cd695e9a061bf1b8c84175196ef5a15`；overlay 重复应用幂等；依赖预先 vendor，最终 Docker build 使用 `--network=none`；仅复制必需源码子树并以 `10001:10001` 运行。Linux amd64 镜像 `ivekit/tinode:v0.25.3-ivekit.2-22a7c18e-amd64`，ID `sha256:d87632a4b964cb260019c6bbd032b938d3c7d1fefb0c02248666b4d963e1dbc9`，`46,877,689` bytes；版本、revision、component/owner contract 和二进制标记通过 |
+| LiveKit Egress `v1.13.0` | `passed_controlled_server` | 精确 `7d3572a0bf1959cbbc452f5ba390b6a90b7dc249`；overlay 重复应用幂等；SumDB 固定 Go 1.26.2、vendor、最终 `--network=none` 构建；模板、GStreamer builder 与官方 Egress runtime 均固定 manifest digest。Linux amd64 镜像 `ivekit/livekit-egress:v1.13.0-ivekit.1-7d3572a0-amd64`，ID `sha256:e266932c428610111a417d6b38cbec7096680816eae09b23495575035456d3fe`，`1,413,726,105` bytes，非 root `egress`；版本、revision、pool contract 和二进制标记通过 |
+| 供应链 workflow | `implemented_not_run` | 新增 Tinode、Egress 精确源码 amd64/arm64 workflow，校验不可变基础镜像，发布单一 GHCR manifest digest 后调用统一 OCI gate；focused 契约测试在服务器通过 `24/24`。GitHub Runner、GHCR、Trivy、SBOM、Cosign 与 provenance 尚未执行 |
+| 构建兼容性修复 | `passed_controlled_server` | 服务器 Docker 29 无 Buildx，legacy builder 暴露并验证了 Tinode 通配 `COPY` 目标、Bash 路径、Go cache 同层清理，以及 Egress 重跑前清理已物化 toolchain 四个问题。修复后两镜像均离线完成并通过身份检查 |
+
+完整基础镜像 digest、命令边界和 `not_run` 清单见
+`docs/evidence/wave1-tinode-egress-oci-server-validation-2026-07-22.md`。
+
+仍为 `not_run`：两个新 workflow 的真实 GitHub Runner/arm64/GHCR 执行，Registry digest、漏洞扫描、
+SBOM、签名和 provenance，Tinode 三节点/原生客户端/重连/容量，Egress Track/Composite 真实媒体、共享
+Redis 中断、对象存储故障、目标 Kubernetes 和容量。`capacity_claim=none`。
+
+## 27. LiveKit Ingress v1.5.0 生产化底座（2026-07-23）
+
+本节把此前缺失的 RTMP、WHIP 和 URL pull 输入能力补入共用通信底座。Ingress 媒体处理继续由
+LiveKit Ingress 独立 worker 负责，iveKit API 只处理租户授权、幂等、房间归属、审计和 provider
+编排，不把转码或媒体包处理引入 Node.js 控制面热路径。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 精确源码镜像 | `passed_controlled_server` | `livekit/ingress v1.5.0@363f6090d572db8eef5b60c273c0970826fb7ca6`；overlay 重复应用幂等；Go 1.25.0 SumDB 校验、vendor、digest-bound GStreamer builder/runtime 和最终 `--network=none` 构建；Linux amd64 镜像 `ivekit/livekit-ingress:v1.5.0-ivekit.1-363f6090-amd64`，ID `sha256:639b1689dfae305b6495467c71ed7e2ce42f2c43161a512d91bfb38310ec3bf9`，`260,631,118` bytes，运行用户 `10001:10001` |
+| API 与 SDK | `implemented_controlled` | `POST/GET/PATCH/DELETE /api/ivekit/media/ingresses` 和 SDK 完整生命周期；角色、tenant room、provider-authority 状态、创建幂等冲突、公开 DTO 去除内部 ownership；URL pull 默认 HTTPS、显式 host allowlist、拒绝 URL 凭据与私网 IP literal |
+| Kubernetes worker | `implemented_not_deployed` | digest-only stateless Deployment；RTMP/WHIP/UDP 独立端口；availability/health/metrics；`maxSurge=0` 避免 hostNetwork 端口冲突；hostname anti-affinity、zone spread、PDB、NetworkPolicy、non-root、read-only root 和 bounded `/tmp`。Helm v3.18.4 render/lint 在服务器通过，未在目标集群 apply |
+| 供应链 workflow | `implemented_not_run` | `.github/workflows/ivekit-livekit-ingress-image.yml` 构建 amd64/arm64 并向统一 OCI gate 交接 manifest digest；Actionlint 通过。GitHub Runner、GHCR、Trivy、SBOM、Cosign 和 provenance 未执行 |
+
+服务器隔离、不可变输入、镜像身份和完整 `not_run` 清单见
+`docs/evidence/wave2-livekit-ingress-v1.5.0-validation-2026-07-23.md`。真实 RTMP/WHIP/URL 媒体、
+转码、simulcast、Redis 中断恢复、滚动排空、DNS rebinding 防护、目标集群受控出站、多 Zone 故障与
+worker frontier/Cell-10K 仍为 `not_run`；`capacity_claim=none`。
+
+## 28. Wave 2 可观测性、异步弹性与指标存储收口（2026-07-23）
+
+本节完成 OpenTelemetry、KEDA、worker backlog 和 VictoriaMetrics 代码闭环。它们全部位于通信热路径之外：Prometheus 继续负责指标定义、抓取、规则和告警；OpenTelemetry 只处理低频控制面 traces；VictoriaMetrics 只承担 Prometheus-compatible 长期存储；KEDA 只调整明确允许的离线 worker，不扩缩 SIP、RTP、SFU、Tinode 扇出或 RustDesk relay。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| Backlog 与 worker 弹性 | `implemented_controlled` | migration 096 以固定 `search_path` 的只读聚合函数提供六类 depth/oldest-age；API 低频 observer 输出低基数指标。Notification 已从 ordinal StatefulSet 改为 PostgreSQL lease、`SKIP LOCKED` 和 fencing 保障的竞争消费者 Deployment；Webhook、附件、质检、翻译、文件安全各自是独立 Deployment/PDB |
+| KEDA | `implemented_not_deployed` | 六类 allowlist ScaledObject 同时观察 depth 与 oldest-age，具有有界 min/max/fallback、快扩慢缩、cooldown/stabilization，并要求 AI、observability Profile 与非空 Prometheus 地址。服务器 Helm v3.18.4 的正向渲染和缺地址负向门禁通过；目标 CRD/operator 和真实 backlog 扩缩仍未运行 |
+| OpenTelemetry | `passed_controlled_server` | Node SDK 固定八个精确依赖，只自动采集 HTTP、PG parent span 和 Undici；NATS 只传播合法 `traceparent`/`tracestate`，不传播 baggage。Collector `0.153.0@sha256:93aad750...` 为 trace-only、双副本、隐私过滤、有界 queue/retry。受控服务器首次投递成功，Collector 停止时业务 canary 继续且 exporter 在有界时间 fail-open，恢复后再次投递；LED 七容器不变。机器证据：`docs/evidence/wave2-opentelemetry-runtime-2026-07-22.json` |
+| VictoriaMetrics | `passed_controlled_server` | 最新社区版 `v1.148.0@sha256:407013e...` vmsingle、200 GiB/30-day 起始 Profile、label/query 边界、NetworkPolicy、PDB、默认暂停的 vmbackup CronJob和显式 restore 示例。真实 Prometheus `v3.12.0` remote-write 后停库，指标源与 Prometheus 保持运行，vmsingle 恢复后 WAL 补发；随后社区 vmbackup 生成备份，清空临时数据盘并由 vmrestore 恢复查询。vmsingle/vmbackup/vmrestore 均在 UID 1000、只读根文件系统、无 capability、禁止提权条件下通过；机器证据：`docs/evidence/wave2-victoria-metrics-runtime-2026-07-22.json` |
+
+仍为 `not_run`：目标 Kubernetes 与 KEDA/Prometheus Operator 版本、真实 trace backend、生产 S3 备份、StorageClass IOPS/扩容/节点丢失、双 Zone、真实通信会话期间 Collector/metrics 故障、长期 retention、worker 毒消息与长稳、吞吐和成本曲线。受控服务器结果不产生 Cell-10K/MIX-100K 容量结论，`capacity_claim=none`。
+
+## 29. Wave 3 LiveKit/RustPBX 实时智能音频旁路（2026-07-23）
+
+本节把外部实时 ASR/翻译从“只有 Provider 接口”推进到真实媒体源可接入的统一旁路。RustPBX 解码后
+PCM 和 LiveKit Agents `AudioStream` 都进入同一 `PolicyRealtimeSpeechRouter`；third-party 与
+self-hosted Provider 继续接受配额、熔断、健康、降级和租户 policy 治理。旁路不改变 LiveKit SFU、
+RustPBX RTP 或 AI Agent 主会话的所有权。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| RustPBX/LiveKit 双输入 | `implemented_controlled_server` | RustPBX 本地 Unix socket 与 LiveKit 内部 WebSocket 双 gateway；固定 PCM16LE/16 kHz/LAT1；双 gateway 共享统一 router/projection，但各自有连接、payload、启动、空闲和 shutdown 上限。Kubernetes 中 RustPBX Pod 同置专用 gateway sidecar 并共享 memory `emptyDir`，API Pod 只运行 LiveKit gateway；Compose 共享私有 named volume |
+| 主媒体故障隔离 | `implemented_controlled_server` | LiveKit 每 track capture 与发送任务分离，队列满丢最老旁路帧；RustPBX patch 使用有界非阻塞 capture；Provider/数据库/对象存储/NATS 不在媒体回调热路径。单元测试证明慢 Provider 不反压 gateway，但真实 RTP/WebRTC 连续性故障注入仍未运行 |
+| 授权与多副本防重放 | `implemented_controlled_server` | host 创建 consent-scoped grant；system worker 只能为 active call participant/track 申请短期一次性 token；Kubernetes HMAC 按 Pod name 派生并返回签发 Pod headless DNS，同 Pod nonce 拒绝重放，3010 只允许 AI Agent selector |
+| 运行与 Provider 接线 | `implemented_controlled_server` | AI Agent room metadata 显式 opt-in；旁路启动失败只告警并继续主 session；断线每次申请新 token并有界重连；实时事件进入受 retention 约束的 PostgreSQL/LED projection |
+| 指标、告警与大盘 | `implemented_controlled_server` | `opc_ivekit_voice_audio_tap_events_total`、`...dropped_seconds_total` 仅用低基数标签；Failure、DroppingAudio、ReplayAttempt 三条规则和两张 Grafana 图；运维手册给出不重启主媒体的处置边界 |
+| 部署合同 | `passed_controlled_server` | standalone core 默认关闭、AI profile 显式启用；standalone/full-platform Helm lint/template、LiveKit Pod 直连 headless Service、AI Agent-only NetworkPolicy；RustPBX Pod 内专用 gateway sidecar 与 memory `emptyDir` UDS；两份 Compose 共享私有 UDS 卷且不向宿主机发布 3010 |
+| 自动化回归 | `passed_controlled_server` | 原始音频专项 `25/25`，最终音频/监控/部署/renderer/source-graph 合并集 `65/65`，`tsc --noEmit`，Python compileall 与专项 `8/8`。完整命令和不可变工具输入见 `docs/evidence/wave3-realtime-audio-tap-server-validation-2026-07-23.md` |
+
+仍为 `not_run`：真实 LiveKit/RustPBX 媒体、真实外部流式 ASR/翻译、真实 Provider 的
+故障/429/高首包延迟、弱网、API Pod/AI Agent/3010 故障注入、P50/P95/P99、单机连接密度和
+Cell-10K/MIX-100K。受控 loopback Provider 故障矩阵已由第 32 节补齐，但不能替代上述真实环境
+证据；`capacity_claim=none`。
+
+## 30. Wave 3 AI Agent 分段语音延迟闭环（2026-07-23）
+
+本节在第 29 节实时 PCM 旁路之上补齐 ASR/LLM/TTS 分段延迟的可观测和验收门槛。Provider 仍可在
+third-party 与 self-hosted 之间切换；指标来自统一 LiveKit turn，而不是绑定某个厂商 adapter，
+所以切换 Provider 不改变标签、告警或 LED 对接契约。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 五段延迟 | `implemented_controlled_server` | 从 LiveKit Agents `1.6.6` committed `ChatMessage.metrics` 提取 ASR final、end-of-turn、LLM TTFT、TTS TTFB 和 speech-to-speech；拒绝 NaN、负值和超界值，仅保留固定 stage/media source 标签 |
+| 热路径隔离 | `implemented_controlled_server` | job 子进程使用 loopback-only 非阻塞 UDP；每报文最多 4 KiB、最多五条观测，父进程更新普通 Prometheus Registry。collector/发送/抓取失败只丢监控样本，不回压媒体或 Provider；已移除会随 job 累积文件的 Prometheus multiprocess mmap 目录 |
+| 预算与告警 | `implemented_controlled_server` | 默认 P95 预算为 ASR `350 ms`、end-of-turn `500 ms`、LLM `350 ms`、TTS `300 ms`、端到端 `1.2 s`；Compose 抓取 `ai-agent:9090`，Helm 提供 Service、ServiceMonitor 和五条 stage 规则 |
+| 镜像安全 | `passed_controlled_server` | 首次服务器镜像检查发现 root runtime 并拒绝验收；Dockerfile 改为固定 `10001:10001`，Helm 强制 non-root、RuntimeDefault seccomp、只读根、禁提权、drop capabilities 和 256 MiB memory `/tmp`。严格容器运行身份及全量测试通过 |
+| 自动化回归 | `passed_controlled_server` | AI Agent Python 全量 `54/54`；Node 部署契约 `3/3`；`tsc --noEmit`；两份 Compose、Helm、Prometheus config 与 9 条规则真实解析；镜像 ID、命令和边界见 `docs/evidence/wave3-ai-voice-latency-server-validation-2026-07-23.md` |
+
+仍为 `not_run`：真实第三方/自建 ASR、LLM、TTS，真实 SIP/RustPBX/LiveKit 媒体，真实
+P50/P95/P99、429/超时/断流/failover、弱网、长稳、单机 frontier、Cell-10K 和 MIX-100K。
+当前预算是验收门槛，不是服务器已经达到的性能数字；`capacity_claim=none`。
+
+## 31. Wave 3 AI Agent Provider 故障切换闭环（2026-07-23）
+
+本节在第 30 节分段延迟之上补齐独立 STT-LLM-TTS pipeline 的运行时故障切换。它只改变 AI
+Agent 的 Provider 选择和失败语义，不把外部请求、Prometheus、数据库、对象存储或 NATS 放入
+LiveKit/RustPBX 媒体包热路径。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| Provider 链 | `implemented_controlled_server` | LiveKit Agents `1.6.6` 官方 STT/LLM/TTS `FallbackAdapter`；显式、去重、最多四候选；未配置 URL/key 的候选自动排除，无候选时 fail closed |
+| 实时失败语义 | `implemented_controlled_server` | 默认 STT/LLM/TTS 单次上限 `2000/1200/1500 ms`，候选内部重试为 0；LLM 已输出 token、TTS 已输出音频后禁止跨 Provider 重放；CosyVoice 继承 session TTS 上限而非独立等待 60 秒 |
+| 监控与告警 | `implemented_controlled_server` | `opc_ai_voice_provider_transitions_total{capability,provider,state}` 仅使用固定低基数标签，经 loopback 非阻塞 UDP 汇聚；Compose 与 Helm 均新增 Provider unavailable 规则 |
+| 部署与凭据 | `passed_controlled_server` | 两份 Compose 接线主/后备 Provider、超时和错误阈值；Helm 在不可变 digest 和生产必填值门禁下渲染成功，API key 只从 `aiAgent.providers.credentials.existingSecret` 引用 |
+| 自动化回归 | `passed_controlled_server` | AI Agent Python `63/63`；Node 部署合同 `4/4`；`tsc --noEmit`；两份 Compose、Helm、Prometheus config 与 10 条规则真实解析；严格候选镜像和命令见 `docs/evidence/wave3-ai-voice-provider-fallback-server-validation-2026-07-23.md` |
+
+仍为 `not_run`：真实第三方/自建 ASR、LLM、TTS，429/超时/断流/区域故障注入，真实
+SIP/RustPBX/LiveKit 音频中的切换和重复内容检查，多副本 Secret 轮换、P50/P95/P99、长稳、单机
+frontier、Cell-10K 和 MIX-100K。当前只能声明代码和受控服务器部署合同成立；
+`capacity_claim=none`。
+
+## 32. Wave 3 实时语音 Provider 故障矩阵（2026-07-23）
+
+本节补齐第 29 节实时 ASR/翻译链路缺少的可重复故障矩阵。验收运行于
+`64.225.122.227` loopback，直接使用正式 WSS adapter、正式策略路由和
+`IntelligenceProviderGovernanceStore`；受控 Provider 只产生确定性协议响应，不作为真实供应商。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 错误分类 | `passed_controlled_server` | 429、5xx、终态输入拒绝、认证失败、协议错误和启动超时分别保留为 `provider_rate_limited`、`provider_transient_failure`、`provider_rejected`、`provider_auth_failed`、`protocol_mismatch` 和 `provider_timeout`；Provider 原始 message 不进入应用错误或报告 |
+| 音频与背压 | `passed_controlled_server` | 成功路径传输真实二进制 `IVAF` PCM envelope 并收到 normalized final event；100 ms 有界队列第六个 20 ms 帧返回 `dropped_overflow`，不等待 socket I/O |
+| 路由边界 | `passed_controlled_server` | retryable 5xx 只在启动阶段切到第二 profile；终态错误不切换；已建立 primary 断开只发 `provider.degraded` 并关闭后续写入，未启动 fallback |
+| 自动化回归 | `passed_controlled_server` | 独立验收报告 11/11 checks passed；实时语音、LiveKit/RustPBX audio tap、投影和部署相关 Node 回归 `51/51`；`tsc --noEmit` 退出码 `0` |
+| LED 隔离 | `passed_controlled_server` | 验收后仅有 7 个既有 LED 容器运行，无 OPC/Provider 验证容器遗留 |
+
+命令为 `npm run ivekit:realtime-speech-provider-acceptance`，报告固定声明
+`verification_scope=controlled_loopback_realtime_provider` 和 `real_vendor_evidence=false`。
+完整时间、文件 hash、命令结果和未运行边界见
+`docs/evidence/wave3-realtime-provider-failure-matrix-server-validation-2026-07-23.md`。
+
+仍为 `not_run`：真实 WSS Provider 与凭据、真实 RustPBX RTP/LiveKit track、网络 loss/jitter、
+Provider 区域故障、CloudNativePG 主备和 gateway Pod 滚动、字幕客户端、真实 P50/P95/P99、长稳、单机
+frontier、Cell-10K 和 MIX-100K。`capacity_claim=none`。
+
+## 33. Wave 3 实时旁路恢复与投影隔离（2026-07-23）
+
+本节关闭第 32 节之后可在受控服务器完成的两个代码缺口：LiveKit audio tap 的重连预算此前不会在
+成功恢复后重置，且初次启动不等待短暂 gateway 重启；Provider event 到 PostgreSQL projection
+此前是无界 fire-and-forget Promise，在数据库短停时可能持续积累。修复不改变主媒体所有权，也不把
+数据库、Provider 或监控引入 RTP/WebRTC 热路径。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| LiveKit transport 恢复 | `passed_controlled_server` | 初连与断线统一最多 8 次有界重试，成功后重置预算；服务器真实 loopback WebSocket 监听器关闭后在同一端口重启，客户端重新授权并送达当前 PCM 帧。第 34 节进一步完成实际 Node gateway 子进程重启；仍不是生产 Pod rolling 或真实 LiveKit track 证据 |
+| PostgreSQL 投影隔离 | `passed_controlled_server` | gateway 回调只执行同步 `offer`；默认队列 4096，最多 100000，另有 1 个 in-flight；final 使用 100/250/500/1000/2000 ms 重试并优先于已排队 partial，partial 失败不重试，shutdown 默认 1000 ms。第 34 节进一步完成实际 PostgreSQL 容器进程停启 |
+| 部署合同 | `passed_controlled_server` | 两份 Compose 暴露同名参数；standalone/full-platform Helm values、API Pod 和 RustPBX gateway sidecar 保持一致，并对队列 `1..100000`、shutdown `10..30000 ms` fail closed。两份 Compose、两套 Helm lint/template 在服务器通过 |
+| 自动化回归 | `passed_controlled_server` | 实时链路 Node `73/73`；AI Agent Python `67/67`，其中 transport 专项 `8/8`；`tsc --noEmit` 与 `git diff --check` 通过。完整命令、hash 和环境见 `docs/evidence/wave3-realtime-audio-tap-recovery-server-validation-2026-07-23.md` |
+
+仍为 `not_run`：CloudNativePG 主备切换、gateway Kubernetes Pod 滚动和多副本 draining、
+真实 LiveKit/RustPBX 媒体连续性、真实外部 Provider、弱网、字幕客户端、长稳、P50/P95/P99、单机
+frontier、Cell-10K 和 MIX-100K。受控故障测试不产生容量或生产可用性结论；
+`capacity_claim=none`。
+
+## 34. Wave 3 实时旁路实际进程恢复（2026-07-23）
+
+本节把第 33 节的 dependency/listener 故障注入提升为隔离服务器上的实际进程故障，同时不扩大
+证据边界。验收入口为 `npm run ivekit:realtime-recovery-acceptance`，所有 PostgreSQL 容器、
+网络、卷、Node gateway 子进程和 Python transport 容器均使用唯一运行身份并在退出时清理。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| PostgreSQL 实际进程恢复 | `passed_controlled_server` | 建立生产 `initPostgres` pool 后停止实际 PostgreSQL 16 容器；final 投影观察到 3 次重试，恢复后成功，`persisted_rows=1`。停库首次暴露的空闲连接 `error(57P01)` 未监听问题已修复；runtime/migration pool 只记录低敏错误码，同步和异步 reporter 故障均被隔离，失效连接由 `pg` 丢弃 |
+| Node gateway 实际进程恢复 | `passed_controlled_server` | Python transport 先向 PID `3764056` 送达序号 1，终止 gateway 后重新授权，向 PID `3764266` 送达序号 2；授权共尝试 4 次。容器以 `/workspace` 为首个 import path，并校验模块路径和源码 SHA-256 |
+| 验收隔离 | `passed_controlled_server` | PostgreSQL 只发布到 loopback；transport 使用不含 PostgreSQL/LED 的专属 internal bridge 访问授权 HTTP 和 WebSocket，不使用 host 网络；宿主状态、只读事件/控制和 transport 可写输出分离；Python UID/GID 10001、只读根、drop all capabilities、禁止提权；固定 PostgreSQL 端口有 3 次有界绑定重试；所有等待硬有界；成功和注入失败后均无验收容器/网络/卷残留；LED 七容器 ID、启动时间不变且全部 healthy |
+| 自动化回归 | `passed_controlled_server` | 恢复合同 `5/5`、Pool error `3/3`、相关 Node `78/78`、AI Agent Python 当前源码 `67/67`、`tsc --noEmit`、`sh -n` 和 `git diff --check` 通过 |
+
+机器证据与源码哈希见
+`docs/evidence/wave3-realtime-process-recovery-server-validation-2026-07-23.md` 和
+`docs/evidence/wave3-realtime-process-recovery-2026-07-23.json`。报告固定声明
+`verification_scope=controlled_server_process_recovery`、
+`real_media_continuity_evidence=false`、`real_vendor_evidence=false` 和
+`capacity_claim=none`。
+
+仍为 `not_run`：真实 LiveKit subscribed track、RustPBX RTP、电话/视频主媒体连续性、
+CloudNativePG 主备、gateway Kubernetes Pod rolling、多副本路由/draining、真实 Provider、
+弱网、跨地域、字幕客户端、P50/P95/P99、长稳、单机 frontier、1/2/4/8 扩展效率、
+Cell-10K 和 MIX-100K。
+
+## 35. Wave 3 Tinode 真实协议容量采集器（2026-07-23）
+
+本节开始关闭第 8 个 Wave 3 任务中的真实端点采集缺口，但不把低负载协议回归升级为容量结论。
+新的 worker 使用实际 Tinode WebSocket、实际自编译 Tinode 进程和 PostgreSQL，不通过 mock
+协议填充 finalizer。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 消息采集器 | `passed_controlled_server` | 20/20 publish ACK 与 delivery；持久丢失、重复和最终业务乱序均为 0；send-to-ACK P95/P99 为 `6.293/7.885 ms`，send-to-delivery P95/P99 为 `6.250/7.837 ms` |
+| 离线恢复 | `passed_controlled_server` | marker + `since` cursor 恢复 5/5，P99 `79.027 ms`；Tinode 倒序历史回放在线上产生 4 次 regression，但 provider sequence 精确匹配并重建为 0 次业务乱序；wire 与 converged order 分别记录 |
+| 长连接采集器 | `passed_controlled_server` | 2/2 socket 同时活跃并正常关闭；真实执行 10 次 presence get 与 10 次 typing note；协议错误 0 |
+| Worker 与凭据 | `implemented_controlled_server` | 通用 `CapacityStartShardCommand`；interaction/connection 双 domain；有界并发与超时；`0600` credential bundle；所有 worker 使用同一不可变 binding table，按 `run_id + phase_id + shard_id` 精确选取 bundle 并核验 SHA-256；测试覆盖两个非零全局序号分片和错误 hash fail closed；证据不包含 API key/token/password；SHA-pinned `0755` 外部入口和 capacity 镜像打包已接线 |
+| 回归与隔离 | `passed_controlled_server` | focused `9/9`、capacity TypeScript 和相关 diff gate 通过；Tinode 只读根、drop all capabilities、禁止提权；临时容器/网络/凭据残留 0；LED 七容器全部 healthy |
+| 复合负载模型 | `implemented_controlled_server` | 审计确认 Profile 的设备连接是承载活跃会话的总连接池，不能把 `tinode_im` 再实现成额外 socket。新增 composite generator/runner/provisioner，一条坐席连接可订阅 3 个主题，额外设备复用同一坐席身份；provisioner 可按分片生成非零 connection/interaction 全局 ordinal，账号身份以全局 connection ordinal 派生，同一 campaign namespace 连续预置两个分片无冲突。协议测试证明 N 条连接承载 M 个会话时服务端只接收 N 条 WebSocket。限速器按客户端实际启动时间发放令牌，事件循环迟滞只延长 ramp，不再追赶形成尖峰，并记录 connection/interaction start window |
+| 复合调度与证据 | `implemented_controlled_server` | Profile compiler 以 `tinode_websocket` 为物理分片并用 `covered_workloads` 按比例覆盖一个连续 `tinode_im` 逻辑负载，Cell-10K 不再产生 6000 条额外 socket；migration 100 保存复合关系，租约、outbox 与 `CapacityStartShardCommand` 原样传递；正式 Tinode worker 调用 composite runner，在同一连接池执行 IM 并输出连接/交互双维度证据；finalizer 以 phase + physical shard + workload dimension 分别核对。服务器容量回归 `191/191`（另 1 项真实 PostgreSQL 环境门禁默认跳过），capacity TypeScript 通过；临时 PostgreSQL 16 实测历史 migration 077→升级 082→新增 100，创建、分配、命令、证据与完成屏障 `1/1` 通过 |
+| 受控单机阶梯 | `passed_controlled_server_current_source_to_1000` | 当前严格 composite generator、runner、provisioner 和验收器 SHA-256 已记录；ramp 为 100 connections/s、33 interactions/s，连接保持 10 秒。100/250/500/1000 四点全部通过 start-window 门禁并由客户端与 Tinode expvar 对账。1000 点 1000/1000 attempted/accepted/active/closed、666/666 interactions、1332/1332 delivery，建连 P95/P99 `6.342/9.603 ms`，delivery P95/P99 `3.728/5.689 ms`，Tinode 峰值 CPU `29.85%`、内存 `92,620,718.08 bytes`，零丢失、重复、乱序、协议和采样错误；凭据、容器和网络残留为 0，LED 七容器 ID/健康状态不变。该点是配置上限，不是失败 frontier 或生产容量结论 |
+
+机器证据与实现说明见
+`docs/evidence/wave3-tinode-capacity-collector-2026-07-23.json` 和
+`docs/evidence/wave3-tinode-capacity-collector-server-validation-2026-07-23.md`。报告固定声明
+`verification_scope=controlled_server_tinode_protocol`、
+`observation_scope=client_only`、`production_capacity_evidence=false` 和
+`capacity_claim=none`。
+
+阶梯机器证据见
+`docs/evidence/wave3-tinode-composite-frontier-2026-07-23.json`（历史限速器）和
+`docs/evidence/wave3-tinode-composite-strict-staircase-2026-07-23.json`（当前严格限速器）。
+当前证据绑定自编译 Tinode/PostgreSQL 镜像、服务器硬件、五个执行源码 SHA-256、四个点的
+结果 SHA-256、逐时资源样本和 Tinode `LiveSessions`。凭据与输入文件均已删除，临时
+容器/网络残留为 0，LED 七容器保持 healthy。完整服务器容量回归为 `191/191`，另 1 项真实
+PostgreSQL 环境门禁默认跳过；capacity TypeScript 通过。
+
+仍为 `not_run`：实际分布式 campaign 的逐分片 composite credential 真实预置与执行、
+Tinode 超过 1000 的失败 frontier、独立生成器见证、
+慢消费者/重连风暴/长稳、三节点故障切换，
+LiveKit 真实媒体采集，SIP/RTP 质量采集，RustDesk 双 Windows，弱网/跨地域，完整资源与
+成本曲线、1/2/4/8 扩展效率、Cell-10K 和 MIX-100K。manifest/finalizer 已不再重复连接，
+但现有阶梯仍缺独立见证和完整 campaign，因此不得直接升级为生产容量结论，
+`capacity_claim` 继续为 `none`。
+
+## 36. Wave 3 LiveKit 首媒体与弱网恢复测量闭环（2026-07-24）
+
+本节修正浏览器采集器对首视频和首音频的测量干扰，并把验证过的 PLI、连接准备和接收端缓冲策略
+提升为显式部署/容量合同。它不启动新的容量压测，也不把单房间弱网结果解释成单机或 Cell 容量。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 首媒体定义 | `implemented_controlled_server` | first video 在第一个 `requestVideoFrameCallback` 记录，不再等待 visual marker；marker 只负责 glass-to-glass。playout audio probe 在 video decoder 前启动。schema `1.7.0` 记录 primary publish、remote tracks ready、ready 后首音频和首渲染视频四个阶段尾延迟 |
+| 启动模式与接收策略 | `implemented_contract` | plan 显式绑定 `connection_preparation_mode=cold\|signal_prewarmed`、`receiver_jitter_buffer_target_ms` 和 subscriber quality；默认容量基线为 cold、`0`（浏览器控制）和 auto。prewarmed/非零 buffer 只能作为独立命名 profile，不能替代 cold baseline |
+| PLI 部署配置 | `implemented_controlled_server` | renderer、standalone edge 与 bundled-dev Kubernetes 均写 `rtc.pli_throttle`；iveKit profile 为 low/mid/high `100/100/100 ms`，每项限制 `50..5000 ms`，独立机 `deployment-summary.json` 保留实际值。lower throttle 的 keyframe/egress 代价必须和 NACK/PLI、freeze、G2G 一起验收 |
+| loss+jitter 修正复测 | `passed_controlled_server_profile` | 1 房间/2 浏览器、60 秒、双向 `3 Mbps`、`120 ms` RTT、`40 ms` jitter、`5%` loss；signal prewarm、receiver buffer `400 ms`、PLI `100/100/100 ms`。join P99 `1508.4 ms`、首音频 P99 `2093.6 ms`、首渲染视频 P99 `2343.5 ms`、G2G P95/P99 `656.8/791.3 ms`、freeze `4.205%`/`7.999 per minute`、接收 FPS `29.946`，manifest-bound 结果 `controlled_pass` |
+| 启动/缓冲四格校准 | `completed_controlled_server_matrix` | LED 停服后以相同弱网 profile 各跑 1 次 cold/0、cold/400、prewarmed/0、prewarmed/400。只有 prewarmed/400 `controlled_pass`；prewarmed/0 freeze `41.11%`，证明预热不能替代接收缓冲；cold/400 只剩 G2G P99 `1355.7 ms` 超过 1200 ms。单次校准不构成重复性或生产默认结论 |
+| 浏览器小房间边界 | `blocked_by_same_host_generator` | 1 房间生成器/整机 CPU P95 `44.95/47.10%`；2 房间达到 `84.81/86.58%` 并触发 generator/host `60/85%` 资格线，尽管 4/4 tracks、0 loss、0 freeze。按门禁停止 4/6 房间；必须使用独立浏览器生成器 |
+| 原生 SFU track 边界 | `passed_controlled_server_to_90` | workload-bound `lk` 在 90 tracks 得到 90/90、26.0 Mbit/s、0 loss/error，生成器/LiveKit/整机 CPU P95 `30.53/12.44/62.63%`，`controlled_pass`；160 tracks 得到 160/160、48.7 Mbit/s、0 loss/error，但整机 P95 `90%`，结果 `invalid_generator_capacity`，故未跑 250 tracks |
+| 官方 Helm 生产 Profile | `implemented_server_rendered` | 精确 vendored `livekit/livekit-helm@8f0ad0809c2be8cbed375a6f8bef10625e5e8a2b`，iveKit delta 只增加 Valkey 密码/TLS Secret、双 Zone spread 和 PDB；生产 Profile 强制 manifest digest、host network、8 CPU request、无 CPU limit、2→32 HPA、10001 RTC UDP ports、100/100/100 ms PLI、API/Valkey/TURN 外部 Secret。服务器使用 checksum-pinned Helm `v4.2.1` 完成 validator、lint、template 和 8 个对象结构门禁；fixture digest 仅用于静态渲染，未部署 Kubernetes |
+| 证据与回归 | `passed_controlled_server` | 新证据 `wave3-livekit-network-loss-jitter-first-frame-controlled-pass-2026-07-24.json` SHA-256 `0398f6e128ec3d9c9ef0458a3abfdc69360059dac4d8e48400b0f40b2ceb5912`；本机和服务器相同 RTC/renderer/Compose/Helm 契约集均 `102/102`；服务器完整 `tsc --noEmit` 退出码 0 |
+
+当前仍为 `not_run`：四格矩阵多次重复、独立 generator/SUT、浏览器正式并发阶梯、LiveKit
+单机失败 frontier、1/2/4/8 扩展曲线、外部 TURN/TLS、handoff、cross-region、长稳、
+Cell-10K、MIX-100K，以及官方 Chart 在目标 Kubernetes 的 install/upgrade/rollback、真实
+双 Zone 调度、扩缩和节点故障。LED 服务已经停止并完成本节受控阶梯，但生成器和 SUT 仍共享
+同一 4-vCPU Linux boot domain；90 tracks 只能作为本机受控合格点，160 tracks 不能升级为
+容量点。所有新增证据均保持 `capacity_claim=none`。
+
+## 37. Wave 3 Kamailio/RustPBX 持续信令边界与 503 隔离（2026-07-24）
+
+本节在 LED 服务停服后，以同一组不可变镜像运行
+`SIPp -> Kamailio -> RustPBX -> authenticated Router -> PostgreSQL CDR` 的 60 秒持续阶梯。
+场景以 486 结束且不携带 RTP；因此只验证 SIP 控制面，不代表媒体、录音、转码或完整 PBX 容量。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 1,200 CPS 故障定位 | `fixed_controlled_server` | 首轮 1,200 CPS 中一次 RustPBX Router send failure 返回 503；Kamailio 将 503 当作硬节点故障，三次快速响应跨过 probing threshold 并摘除唯一目的地，放大为 3,999 个失败。72,000 INVITE 全部到达 Kamailio，排除生成器和网络丢失 |
+| 软/硬失败分类 | `implemented_tested_server` | INVITE/REGISTER 的 503 改为 soft rejection：只尝试下一个目的地，不修改节点健康；无备选时返回带 `Retry-After` 的有界 503。408/500/502/504 继续标记硬故障并主动探测。先红后绿的 focused 回归 `14/14` |
+| 修正后持续阶梯 | `passed_controlled_server_to_1250` | 1,000 CPS 为 60,000/60,000，P95/P99 `15/44.001 ms`；1,200 CPS 为 72,000/72,000，P95/P99 `20/51.001 ms`；均零失败、零剩余、零重传。1,250 CPS 为 75,000/75,000，P95/P99 `29/90.002 ms`，是当前同机最高合格点 |
+| 同机失败边界 | `blocked_by_same_host_generator` | 1,300 CPS 的 78,000 INVITE 全部到达 Kamailio，77,862 在硬时限内完成、138 未收口、171 重传，P95/P99 `1758.03/7624.13 ms`；宿主 CPU P95 `98%`。1,400 CPS 同样表现为整机饱和和尾延迟累积，没有再次出现 503 摘除放大 |
+| 容量解释 | `capacity_claim_none` | SIPp、Kamailio、RustPBX、Router、PostgreSQL 共用 4 vCPU，合格点宿主 CPU P95 已为 `92%`。1,250 CPS 是该共享主机/486 无媒体场景的受控稳定线，不是 RustPBX 单组件上限，也不能直接宣称优于 FreeSWITCH/Asterisk |
+
+机器证据为 `wave3-sip-kamailio-frontier-led-off-2026-07-24.json`、
+`wave3-sip-kamailio-frontier-soft503-fix-led-off-2026-07-24.json` 和
+`wave3-sip-kamailio-frontier-refine-soft503-fix-led-off-2026-07-24.json`，SHA-256 分别为
+`ff2a01b0e940802b5e76f086a70b8e5a3f2108bb3c58b7b5c6d8e54b54c9ac0b`、
+`d62a56ab5491c8f6722bb000eb531302b35c4d444a41a732a6725f6b957b7fed` 和
+`ecdb0866029422bc4dc91be5b0c4566961102649c4ea83a7812183c7d4634089`。
+真实 RustPBX 上限仍需独立 generator/SUT；同硬件同场景 FreeSWITCH/Asterisk A/B、G.711/SRTP、
+录音、转码、IVR、会议、长稳、过载恢复和 1/2/4 节点边际效率保持 `not_run`。
+`capacity_claim=none`。
+
+## 38. Wave 3 RustPBX/rustrtc RTP socket 与媒体边界（2026-07-24）
+
+本节不改变 SIP 信令第 37 节的结论。它新增固定 `rustrtc` 源码、RTP/RTCP socket 缓冲控制、
+UDP 错误归因和真实 PCMU RTP 回归；SIPp UAC/UAS、Kamailio、RustPBX、Router 与 PostgreSQL
+仍共享一台 4-vCPU/8-GB 服务器，所以所有结果保持 `capacity_claim=none`。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 固定源码与镜像 | `passed_controlled_server` | RustPBX `6c49ee76...`、rsipstack `8318e97b...`、rustrtc `166c6d2...`；固定 Rust 1.94.1 执行 `cargo build --locked --release` 通过，生成 `ivekit.19` 本地镜像 `sha256:da8407a...a288cb`，OCI 标签精确匹配三份提交和 patchset |
+| UDP socket 合同 | `implemented_tested_server` | RTP 与直接 RTCP socket 使用 `socket2`；配置范围 64 KiB..16 MiB；Compose、两套 Helm 与基线接线。活动通话实测 1 MiB/512 KiB 请求对应 Linux `rb=2 MiB/tb=1 MiB`，默认 socket 仍为 212,992 bytes |
+| 严格媒体序列 | `passed_controlled_server_to_10` | 10 路、20 秒 PCMU，SIP 双端 10/10、零重传；双向 durable loss、sequence gap、duplicate、reorder 均为 0。150 路为 UAC 149/150、UAS 150/150，生成器约 96% CPU，故 `invalid_generator_capacity`，不能写成通过 |
+| RTP 吞吐合格线 | `passed_controlled_server_to_800` | 600/800 路均双端精确 SIP 对账、零失败、零重传、零 `RcvbufErrors/SndbufErrors/InErrors`。800 路 RustPBX 平均/峰值 CPU `150.881/204.58%`、最大内存 `441,869,926.4` bytes |
+| 900 路边界 | `mixed_or_inconclusive` | 1-MiB 样本 UAC 900/900、UAS 878/900、117 重传、75 `RcvbufErrors`；生成器与 SUT/protocol 信号同时存在。2-MiB 诊断仍失败并出现 242 `RcvbufErrors`，不接受继续堆 buffer 作为扩容方案 |
+| 与 ivekit.18 对照 | `no_regression_observed` | 相同 800 路受控样本旧版平均/峰值 CPU `151.502/218.86%`、约 444 MB；新版为 `150.881/204.58%`、约 442 MB。单次样本只证明未观察到回归，不构成统计性能提升 |
+
+机器证据、SHA-256 与完整限制见
+`docs/evidence/wave3-rustpbx-rtp-media-capacity-server-validation-2026-07-24.md`。仍为
+`not_run`：独立 generator/SUT、物理 mouth-to-ear、PSTN、SRTP、转码、录音、IVR、会议、
+长稳、过载恢复、rustrtc worker/socket sharding、1/2/4 节点扩展效率，以及同硬件同场景
+FreeSWITCH/Asterisk A/B。当前证据只能说明 RustPBX 在既定 RTP 直通场景具有较好效率，
+不能证明其综合性能已经优于 FreeSWITCH 或 Asterisk。
+
+## 39. Wave 1 HOMER PostgreSQL/HEPv3 受控服务器闭环（2026-07-24）
+
+本节把此前只有静态合同的 HOMER 11 PostgreSQL fork 推进到精确源码构建、真实 HEP 呼叫检索和
+故障隔离。HOMER 始终是 Kamailio 的 fail-open 诊断副本，不进入 SIP/RTP admission、readiness
+或同步事务确认。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 精确源码和镜像 | `passed_controlled_server` | HOMER `11.0.297@ac4e1ae7...` 接受 overlay 并通过 PostgreSQL catalog Go 测试；Go 1.26.5 编译出 Linux amd64 候选镜像 `sha256:fe0d45e...c893d`，inspect size `121,407,366` bytes，UID/GID `10001:10001`。三份基础镜像均由 manifest digest 固定，二进制内嵌完整 commit 并由 build script 复核 |
+| PostgreSQL catalog | `passed_controlled_server` | PostgreSQL DuckLake catalog attach 成功并创建 28 张 metadata 表；Chart 继续强制 `catalogType=postgres` 和一 Cell 一个 writer。最终镜像不含 SQLite CLI 或 `sqlite_scanner` |
+| HEP 完整呼叫 | `passed_controlled_server` | 真实 PCMU 呼叫按 Call-ID 检索到 14 条记录，覆盖 `INVITE -> 100 -> 180 -> 200 -> ACK -> BYE -> 200`；双 Kamailio 受控 trace 点的重复记录符合拓扑预期 |
+| 排除规则 | `passed_controlled_server` | `include_options=false` 时，唯一 OPTIONS 收到 200、唯一 KDMQ 收到 403，二者在 HOMER 中均为 0 行 |
+| Collector 故障隔离 | `passed_controlled_server` | HOMER 停止期间 5/5 UAC、5/5 UAS 成功，零失败和 SIP 重传；RTP coverage `99.36%`，durable loss、gap、duplicate、reorder 均为 0；恢复 collector 未重启呼叫基线 |
+| PostgreSQL 故障隔离 | `passed_controlled_server` | PostgreSQL 停止期间 HOMER 保持运行，3/3 UAC、3/3 UAS 成功，零失败和 SIP 重传；RTP coverage `99.20%`，durable loss、gap、duplicate、reorder 均为 0 |
+| PostgreSQL 恢复写入 | `passed_controlled_server` | PostgreSQL 恢复后无需重启 HOMER；新 INVITE 收到 100/486，按唯一 Call-ID 检索到 8 条新记录。最终候选镜像接管 catalog 后再次检索到 8 条新记录，关闭了源码 hash、镜像 ID 和运行时证据错位 |
+| 运行时加固 | `passed_controlled_server` | 只读根文件系统、`/tmp/homer-core.pid`、非 root、restart count 0、OOM false；最终镜像没有 Node、npm、`package.json`、lockfile 或 `node_modules` |
+| 供应链 | `partial_not_released` | 上游 lockfile 仍有 8 项构建期 npm 告警，运行镜像不包含相关包；共享 OCI gate 尚未执行，因此没有 Registry digest、最终漏洞门禁、SBOM、Cosign 或 provenance，`production_eligible=false` |
+
+机器证据为
+`docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.json`，研发说明为
+`docs/evidence/wave1-homer-postgres-hep-server-validation-2026-07-24.md`。
+
+第 40 节已经补齐同硬件 HEP A/B 和隔离 retention/compaction/删除，第 41 节补齐动态 high-water、
+确定性采样和无需重启的 trace transition。其余仍为 `not_run`：HEP deliberate loss/持续限速、
+生产数据量 retention 吞吐和长稳、目标 Kubernetes、
+双 Zone、生产 PostgreSQL failover、独立 generator/SUT、Cell-10K、MIX-100K，以及多架构
+Registry 发布和完整供应链门禁。`capacity_claim=none`。
+
+## 40. Wave 1 HOMER HEP A/B 与维护闭环（2026-07-25）
+
+本节继续关闭第 39 节在当前服务器可以执行的两个缺口：同机 HEP enabled/disabled A/B，以及
+独立 PostgreSQL DuckLake catalog 的 retention、expiration、compaction、删除和幂等性。
+HOMER 仍是 fail-open 旁路；所有结果都是共享四 vCPU 主机上的受控证据，不是生产容量结论。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| HEP 400 CPS | `passed_controlled_server` | enabled/disabled 各 2 次均为 8,000/8,000，零失败、remaining 和 retransmission；enabled 两次均精确写入 64,000/64,000 HEP rows。双重复中位 P95/P99 从 `6/9 ms` 变为 `10/15.001 ms`，本机可观察开销约 `+4/+6.001 ms` |
+| HEP 700 CPS | `passed_controlled_server` | enabled/disabled 各 2 次均为 14,000/14,000，零失败、remaining 和 retransmission；enabled 两次均精确写入 112,000/112,000 HEP rows。共享主机已接近饱和，顺序方差较大，只接受完整性，不宣称时延改善 |
+| HEP 900 CPS | `rejected_controlled_server` | 首个 enabled 样本 17,988/18,000、12 failed、624 retransmissions；第二个 enabled 样本虽为 18,000/18,000 且 144,000/144,000 rows，但 route P95/P99 `151.003/330.006 ms` 超过既有 `150/250 ms` 门槛。该点不合格 |
+| HEP 运行决策 | `implemented_evidence_bound` | 400 CPS 可观察到 HEP edge 和 HOMER CPU 明显增加；700 CPS 共享主机方差已不可用于精确归因。本轮 A/B 当时要求补 HEP queue/drop/high-water 和无重启动态采样/关闭；第 41 节已经完成该代码与受控服务器闭环，独立 generator/SUT 后才能给 safe CPS |
+| 维护 CLI 缺陷 | `fixed_controlled_server` | 首次探索发现 modular config 未把 threads/memory/temp directory 传入 CLI，fallback 又把 PostgreSQL DSN 当本地 path 并进入 warning。该探索证据被判无效并删除；`ivekit.2` 同时传播 tuning 并拒绝 postgres/postgresql/libpq DSN 派生 spill path |
+| 精确镜像 | `passed_controlled_server` | `11.0.297-ivekit.2-ac4e1ae7` image ID `sha256:d062461...1e389`，size `121,408,787` bytes，UID/GID `10001:10001`；精确 upstream commit、DuckLake/CLI Go test、UI build、二进制 commit 和 DuckDB `1.5.4` 均已验证 |
+| 隔离 retention | `passed_controlled_server` | 40 天前 HEP rows `200→0→0`，当前 rows `200→200→200`；30 天策略第一次和第二次幂等执行均完成 |
+| 隔离 compaction | `passed_controlled_server` | snapshots `30→1→1`，catalog data files `2→1→1`，Parquet files `2→1→1` |
+| 安全和清理 | `passed_controlled_server` | 证据生成前删除 env，按随机值与 DSN pattern 双重脱敏扫描；最终日志无 PostgreSQL URI、spill-path warning、error 或 warn；isolated container/network/volume/data 残留为 0，基线容器未连接、未重启 |
+| 供应链 | `partial_not_released` | 新镜像仍是服务器本地 candidate；上游 frontend lockfile 本次报告 9 项构建期 advisory，Node/npm/package artifacts 不在运行镜像。Registry digest、最终 vulnerability policy、SBOM、Cosign 和 provenance 未运行 |
+
+HEP A/B 机器证据和解释报告为
+`docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.json` 与
+`docs/evidence/wave1-homer-hep-ab-server-validation-2026-07-25.md`；维护机器证据和解释报告为
+`docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.json` 与
+`docs/evidence/wave1-homer-retention-compaction-server-validation-2026-07-25.md`。两组证据均
+绑定执行源码 SHA-256，固定 `capacity_claim=none` 且
+`production_capacity_evidence=false`。
+
+第 41 节已补齐 queue/CPU/packet/gap high-water、动态 trace transition 和无重启恢复。仍为
+`not_run`：HEP deliberate loss、持续限速、长稳和生产数据量维护吞吐，独立 generator/SUT，
+目标 Kubernetes/双 Zone/node loss，生产 PostgreSQL
+HA failover，Cell-10K/MIX-100K，以及多架构 Registry、SBOM、签名和 provenance。
+
+## 41. Wave 1 HOMER HEP 动态高水位闭环（2026-07-25）
+
+本节关闭第 39、40 节留下的 HEP 高水位、确定性采样、动态关闭和无重启恢复代码缺口。它只证明
+观测旁路保护机制，不改变第 37、38 节关于 RustPBX 信令和 RTP 容量的边界。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 高水位控制器 | `implemented_tested_server` | route-agent 抓取 HOMER queue ratio、CPU cores、HEP packet rate 和 receive/process gap；严重度上升立即 full→sampled→off，恢复按连续健康样本逐级执行；导数预热禁止恢复；collector 连续失败先 sampled 后 off；RPC 失败保持目标状态并重试；并发 poll 单飞。Kamailio 重启初始 `off/0`；route-agent 单独重启也从 `off` 启动并在导数预热期间保持保护模式；revision reset、部分 RPC 写入和已提交但响应丢失均有恢复覆盖，desired/applied/pending/observation-valid 分离暴露 |
+| 确定性采样 | `passed_controlled_server` | 10% 编译为稳定 `102/1024` Call-ID buckets；`core_hash(...,10)` 的 1..1024 返回边界使用 `<=102`；1,000/1,000 SIP 成功，实际采到 100 个 Call-ID、800 rows，采样率 10.0%；每个会话恒定 8 rows，未出现半条会话 |
+| 完全关闭 | `passed_controlled_server` | mode `off/302` 下 200/200 SIP 成功、HEP 0 rows；观测旁路关闭没有改变预期 486 主路径 |
+| 无重启恢复 | `passed_controlled_server` | full/304 为 200 calls/1,600 rows，sampled/301、off/302 后恢复 full/303，再次得到 200 calls/1,600 rows；Kamailio restart count 0、OOM false、最近日志无 product error |
+| 部署与告警 | `implemented_server_rendered` | Helm/Compose/env 接入所有阈值和 HOMER metrics endpoint；source/target NetworkPolicy 同时允许 HEP UDP 与 metrics TCP；生产 Helm 在 trace 打开但 high-water 或 NetworkPolicy 关闭时拒绝渲染；Compose 同样拒绝 trace/high-water 任一单独启用；新增 collector unavailable、control failure、control pending、trace disabled 告警及 Grafana 状态面板 |
+| 回归 | `passed_controlled_server` | 聚焦 Node 测试 63/63、根 `tsc --noEmit`、Helm 正向与两个 fail-closed 反例、Compose 双向 fail-closed、真实 Kamailio config check、真实 htable.get、route-agent restart 保守启动和 restart/replay 全部通过 |
+| 容量解释 | `capacity_claim_none` | 运行场景是无 RTP 的 486 SIP 回归，用于证明模式切换和 HEP 对账；不构成 RustPBX、Kamailio、HOMER 或平台容量上限 |
+
+机器证据和解释报告为
+`docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.json` 与
+`docs/evidence/wave1-homer-hep-high-water-server-validation-2026-07-25.md`。机器证据 SHA-256 为
+`591b84dfb4fa56c08a4da57806579c87aedfb019d618924c35ba72e14536f53b`，并绑定源码、镜像、
+渲染配置、场景与 SIPp 哈希。
+
+仍为 `not_run`：HEP 高负载下主动 UDP 丢包注入、多小时 soak、生产数据量 retention 吞吐、
+独立 generator/SUT、目标 Kubernetes 双 Zone/节点丢失/PostgreSQL HA、Cell-10K/MIX-100K，
+以及 Registry 多架构发布、SBOM、签名和 provenance。`capacity_claim=none`。
+
+## 42. Wave 3 RustPBX 录音存储 ENOSPC 与真实 RTP 隔离（2026-07-25）
+
+本节关闭第 16、22、29、38 节一直保留的 RustPBX“真实 RTP 通话中录音盘写满”证据缺口。
+验收使用独立 Compose 网络、16 MiB tmpfs spool、固定 SIPp 3.7.7、真实 PCMU 双向 RTP 和
+新的 `ivekit.21` 精确源码镜像。它证明一次已建立呼叫的存储故障隔离和故障后录音恢复，不是
+单机容量、生产 HA 或 PSTN 结论。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 精确镜像 | `passed_controlled_server` | RustPBX `6c49ee76...`、rsipstack `8318e97b...`、rustrtc `166c6d2...`；`cargo build --locked --release` 生成 `ivekit.21` 本地镜像 `sha256:b119f7a...db57dba`，大小 `71,065,985` bytes，OCI 标签精确匹配三份提交与 patchset |
+| 合法 SIP 路由 | `fixed_tested_server` | 快照路由原来只接受裸 SIP URI，合法 `To: 显示名 <sip:+号码@host>` 被 404；`.21` 从 angle brackets 提取 URI，嵌入 Rust 测试绑定该报文，真实验收越过路由并建立媒体。公共 SIPp RTP plan 同时支持可选前导 `+`，仍拒绝 URI 注入 |
+| Owner 合同 | `fixed_tested_server` | fixture 不再把带 `@` 的 provider Call-ID 冒充内部 interaction ID；改为 `vcall-*`，返回独立 `provider_call_id`，并使用 `cell_lease_epoch << 32 | local_epoch` 的 `4294967297`，真实 Rust guard open 通过 |
+| ENOSPC 注入 | `passed_controlled_server` | 录音 spool 可用空间 `16,777,216→0` bytes，观察到 2 次显式 recorder write-failure marker；故障录音终态 `failed/local_spool_enospc`，且没有错误发布 completion |
+| 主媒体连续性 | `passed_controlled_server` | 故障前 UAC 生成/接收 `11/9`、UAS `10/11`；盘满时推进到 `31/29`、`29/30`；writer 熔断后再次推进到 `49/46`、`48/48`。四向计数在两个故障阶段都严格增长，证明录音失败未停止或反压已建立 RTP |
+| 存储恢复 | `passed_controlled_server` | 仅移除 fault filler 后发起新呼叫，恢复录音 `complete`，payload `528,324` bytes、7 segments，manifest 和 completion 均存在 |
+| 进程与隔离 | `passed_controlled_server` | RustPBX restart `0`、OOM false；验收容器、网络、卷残留 0；9 个既有 HOMER/LiveKit/RustPBX 基线容器全部 running、restart `0`、OOM false |
+| 诊断安全 | `implemented_tested` | 启动失败会在清理前保存 Compose 状态和 RustPBX 尾部日志；URL credentials、Bearer、authorization、password、token、secret 统一脱敏，文件为 `0600`。本轮由此精确定位旧 `nofile=65536`，验收拓扑已提升为镜像要求的 `262144` |
+| 容量解释 | `capacity_claim_none` | 单呼叫、同一 4-vCPU 主机的故障隔离结果，不提供并发录音或 PBX 单机上限 |
+
+机器证据和研发说明为
+`docs/evidence/wave3-rustpbx-recording-storage-isolation-server-validation-2026-07-25.json` 与
+`docs/evidence/wave3-rustpbx-recording-storage-isolation-server-validation-2026-07-25.md`；
+机器证据 SHA-256 为
+`9e2189ff2144cd2b0746519b9ffa75147037bfa40f983a91a81da1e2baed69cb`，原始服务器文件权限
+`0600`，不含 endpoint 或 credential。
+
+仍为 `not_run`：并发录音饱和、慢/阻塞磁盘、inode exhaustion、只读重挂载、多小时存储中断、
+spool watermark admission 与对象上传故障负载，SRTP、转码、IVR、会议、PSTN、长稳、
+独立 generator/SUT、1/2/4 节点边际效率、Cell-10K 和 MIX-100K。Registry digest、SBOM、
+签名与 provenance 也尚未完成；`capacity_claim=none`。

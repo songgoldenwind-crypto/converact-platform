@@ -1,0 +1,245 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index d2fe4e5..702a079 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -41,6 +41,7 @@ base64 = "0.22.1"
+ local-ip-address = "0.6"
+ rand = "0.10.1"
+ parking_lot = "0.12"
++socket2 = "=0.6.5"
+ x509-parser = "0.18.1"
+ igd = { version = "0.12", features = ["aio"] }
+ rcgen = { version = "0.14.8", default-features = false, features = [
+diff --git a/src/config.rs b/src/config.rs
+index 9a396fc..2668eee 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -445,6 +445,18 @@ pub struct RtcConfiguration {
+     pub dtls_buffer_size: usize,
+     pub rtp_start_port: Option<u16>,
+     pub rtp_end_port: Option<u16>,
++    /// Requested kernel receive buffer for each RTP/RTCP UDP socket.
++    ///
++    /// The operating system may round or cap the effective value. When unset,
++    /// `RUSTRTC_UDP_RECEIVE_BUFFER_BYTES` may provide the process-wide value.
++    #[serde(default)]
++    pub udp_receive_buffer_size: Option<usize>,
++    /// Requested kernel send buffer for each RTP/RTCP UDP socket.
++    ///
++    /// The operating system may round or cap the effective value. When unset,
++    /// `RUSTRTC_UDP_SEND_BUFFER_BYTES` may provide the process-wide value.
++    #[serde(default)]
++    pub udp_send_buffer_size: Option<usize>,
+     pub ice_gather_udp_hosts: bool,
+     pub tcp_port_range_start: Option<u16>,
+     pub tcp_port_range_end: Option<u16>,
+@@ -533,6 +545,8 @@ impl Default for RtcConfiguration {
+             dtls_buffer_size: 2048,
+             rtp_start_port: None,
+             rtp_end_port: None,
++            udp_receive_buffer_size: None,
++            udp_send_buffer_size: None,
+             ice_gather_udp_hosts: true,
+             tcp_port_range_start: None,
+             tcp_port_range_end: None,
+@@ -679,6 +693,16 @@ impl RtcConfigurationBuilder {
+         self
+     }
+ 
++    pub fn udp_socket_buffer_sizes(
++        mut self,
++        receive_bytes: Option<usize>,
++        send_bytes: Option<usize>,
++    ) -> Self {
++        self.inner.udp_receive_buffer_size = receive_bytes;
++        self.inner.udp_send_buffer_size = send_bytes;
++        self
++    }
++
+     pub fn ice_gather_udp_hosts(mut self, enable: bool) -> Self {
+         self.inner.ice_gather_udp_hosts = enable;
+         self
+diff --git a/src/transports/ice/mod.rs b/src/transports/ice/mod.rs
+index aba2b65..42599ed 100644
+--- a/src/transports/ice/mod.rs
++++ b/src/transports/ice/mod.rs
+@@ -22,12 +22,13 @@ use futures::stream::{FuturesUnordered, StreamExt};
+ use std::collections::{HashMap, VecDeque};
+ use std::io::ErrorKind;
+ use std::net::{IpAddr, SocketAddr};
+-use std::sync::Arc;
+ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
++use std::sync::{Arc, OnceLock};
+ 
+ use std::time::{Duration, Instant};
+ 
+ use anyhow::{Context, Result, anyhow, bail};
++use socket2::{Domain, Protocol, Socket, Type};
+ use tokio::net::{TcpListener, TcpStream, UdpSocket, lookup_host};
+ use tokio::sync::{Mutex, broadcast, mpsc, oneshot, watch};
+ use tokio::time::timeout;
+@@ -40,9 +41,87 @@ use self::stun::{
+ };
+ 
+ pub(crate) const MAX_STUN_MESSAGE: usize = 1500;
++const MIN_UDP_SOCKET_BUFFER_BYTES: usize = 64 * 1024;
++const MAX_UDP_SOCKET_BUFFER_BYTES: usize = 16 * 1024 * 1024;
++static UDP_RECEIVE_BUFFER_FROM_ENV: OnceLock<std::result::Result<Option<usize>, String>> =
++    OnceLock::new();
++static UDP_SEND_BUFFER_FROM_ENV: OnceLock<std::result::Result<Option<usize>, String>> =
++    OnceLock::new();
+ #[cfg(any(test, feature = "simulator"))]
+ static PACKET_LOSS_RATE: AtomicU32 = AtomicU32::new(u32::MAX);
+ 
++#[derive(Clone, Copy)]
++struct UdpSocketBufferSizes {
++    receive: Option<usize>,
++    send: Option<usize>,
++}
++
++fn udp_socket_buffer_sizes(config: &RtcConfiguration) -> Result<UdpSocketBufferSizes> {
++    Ok(UdpSocketBufferSizes {
++        receive: configured_udp_socket_buffer(
++            config.udp_receive_buffer_size,
++            "RUSTRTC_UDP_RECEIVE_BUFFER_BYTES",
++            &UDP_RECEIVE_BUFFER_FROM_ENV,
++        )?,
++        send: configured_udp_socket_buffer(
++            config.udp_send_buffer_size,
++            "RUSTRTC_UDP_SEND_BUFFER_BYTES",
++            &UDP_SEND_BUFFER_FROM_ENV,
++        )?,
++    })
++}
++
++fn configured_udp_socket_buffer(
++    configured: Option<usize>,
++    environment_name: &'static str,
++    cache: &'static OnceLock<std::result::Result<Option<usize>, String>>,
++) -> Result<Option<usize>> {
++    let value = match configured {
++        Some(value) => Some(value),
++        None => cache
++            .get_or_init(|| {
++                let raw = match std::env::var(environment_name) {
++                    Ok(value) => value,
++                    Err(std::env::VarError::NotPresent) => return Ok(None),
++                    Err(error) => return Err(format!("{environment_name}: {error}")),
++                };
++                raw.parse::<usize>()
++                    .map(Some)
++                    .map_err(|_| format!("{environment_name} must be an integer"))
++            })
++            .clone()
++            .map_err(|error| anyhow!(error))?,
++    };
++    if let Some(value) = value
++        && !(MIN_UDP_SOCKET_BUFFER_BYTES..=MAX_UDP_SOCKET_BUFFER_BYTES).contains(&value)
++    {
++        bail!(
++            "{environment_name} must be between {} and {} bytes",
++            MIN_UDP_SOCKET_BUFFER_BYTES,
++            MAX_UDP_SOCKET_BUFFER_BYTES
++        );
++    }
++    Ok(value)
++}
++
++fn bind_configured_udp_socket(config: &RtcConfiguration, address: SocketAddr) -> Result<UdpSocket> {
++    let buffers = udp_socket_buffer_sizes(config)?;
++    let socket = Socket::new(
++        Domain::for_address(address),
++        Type::DGRAM,
++        Some(Protocol::UDP),
++    )?;
++    socket.set_nonblocking(true)?;
++    if let Some(bytes) = buffers.receive {
++        socket.set_recv_buffer_size(bytes)?;
++    }
++    if let Some(bytes) = buffers.send {
++        socket.set_send_buffer_size(bytes)?;
++    }
++    socket.bind(&address.into())?;
++    UdpSocket::from_std(socket.into()).map_err(Into::into)
++}
++
+ pub(crate) fn should_drop_packet() -> bool {
+     #[cfg(not(any(test, feature = "simulator")))]
+     return false;
+@@ -2049,18 +2128,18 @@ async fn bind_direct_rtcp_socket(
+         .checked_add(1)
+         .map(|port| SocketAddr::new(rtp_base.ip(), port));
+     let rtcp = if let Some(addr) = rtcp_bind_addr {
+-        match UdpSocket::bind(addr).await {
++        match bind_configured_udp_socket(&inner.config, addr) {
+             Ok(socket) => socket,
+             Err(err) => {
+                 debug!(
+                     "Failed to bind RTCP socket on {}, falling back to ephemeral port: {}",
+                     addr, err
+                 );
+-                UdpSocket::bind(SocketAddr::new(rtp_base.ip(), 0)).await?
++                bind_configured_udp_socket(&inner.config, SocketAddr::new(rtp_base.ip(), 0))?
+             }
+         }
+     } else {
+-        UdpSocket::bind(SocketAddr::new(rtp_base.ip(), 0)).await?
++        bind_configured_udp_socket(&inner.config, SocketAddr::new(rtp_base.ip(), 0))?
+     };
+     let local_rtcp_addr = rtcp.local_addr()?;
+     let rtcp = Arc::new(rtcp);
+@@ -3339,6 +3418,7 @@ impl IceGatherer {
+     }
+ 
+     async fn bind_socket(&self, ip: IpAddr) -> Result<UdpSocket> {
++        udp_socket_buffer_sizes(&self.config)?;
+         if let (Some(start), Some(end)) = (self.config.rtp_start_port, self.config.rtp_end_port) {
+             let start = start.saturating_add(start % 2);
+             let end = end - (end % 2);
+@@ -3352,7 +3432,7 @@ impl IceGatherer {
+             let mut port = start + (start_index * 2);
+ 
+             for _ in 0..port_count {
+-                match UdpSocket::bind(SocketAddr::new(ip, port)).await {
++                match bind_configured_udp_socket(&self.config, SocketAddr::new(ip, port)) {
+                     Ok(socket) => return Ok(socket),
+                     Err(_) => {
+                         port = port.saturating_add(2);
+@@ -3364,9 +3444,7 @@ impl IceGatherer {
+             }
+             bail!("No available even RTP ports in range {}..={}", start, end)
+         } else {
+-            UdpSocket::bind(SocketAddr::new(ip, 0))
+-                .await
+-                .map_err(|e| anyhow!(e))
++            bind_configured_udp_socket(&self.config, SocketAddr::new(ip, 0))
+         }
+     }
+ 
+diff --git a/src/transports/ice/tests.rs b/src/transports/ice/tests.rs
+index d193359..f277766 100644
+--- a/src/transports/ice/tests.rs
++++ b/src/transports/ice/tests.rs
+@@ -3438,6 +3438,22 @@ fn pick_free_udp_port() -> u16 {
+     s.local_addr().unwrap().port()
+ }
+ 
++#[tokio::test]
++async fn configured_udp_buffers_are_applied_to_rtp_sockets() -> Result<()> {
++    let requested = 512 * 1024;
++    let config = RtcConfiguration {
++        udp_receive_buffer_size: Some(requested),
++        udp_send_buffer_size: Some(requested),
++        ..Default::default()
++    };
++    let socket = super::bind_configured_udp_socket(&config, "127.0.0.1:0".parse().unwrap())?;
++    let socket = socket2::SockRef::from(&socket);
++
++    assert!(socket.recv_buffer_size()? >= requested);
++    assert!(socket.send_buffer_size()? >= requested);
++    Ok(())
++}
++
+ /// Direct test of the shared UDP demux loop: two sessions register distinct
+ /// ufrags on the same socket, and a STUN Binding Request is routed to the
+ /// session named in USERNAME. Non-STUN packets then follow the learned

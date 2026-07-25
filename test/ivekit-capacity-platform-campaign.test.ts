@@ -12,10 +12,14 @@ import type {
   CapacityScalingRunEvidenceDocument
 } from '../scripts/capacity/scaling-campaign.js';
 import { evaluateScalingCurve } from '../scripts/capacity/scaling-curve.js';
+import { createPassingRtcPerformanceEvidence } from './helpers/rtc-performance-fixture.js';
 
 const contract = JSON.parse(
   readFileSync('docs/capacity/targets/mix-100k-efficiency-v1.json', 'utf8')
 );
+const performanceContract = JSON.parse(
+  readFileSync('docs/capacity/profiles/mix-100k-v1.json', 'utf8')
+).performance_contract;
 
 test('platform campaign requires every component, cell, shared-data and 100K endpoint gate', async () => {
   const fixture = platformFixture('production');
@@ -247,6 +251,7 @@ function platformFixture(mode: 'controlled' | 'production'): {
     phases: [],
     faults: [],
     expected_totals: { interactions: 100_000, connections: 0, by_workload: {} },
+    performance_contract: performanceContract,
     external_dependencies: [],
     start_not_before: '2026-07-17T08:00:00.000Z',
     evidence_prefix: 'capacity/mix-100k-endpoint-run'
@@ -263,6 +268,7 @@ function platformFixture(mode: 'controlled' | 'production'): {
     mode,
     fleet_qualifications: [],
     shard_evidence: [],
+    performance_evidence: createPassingRtcPerformanceEvidence(performanceContract),
     external_dependencies: [],
     validation: {
       outcome: 'passed',
@@ -273,7 +279,8 @@ function platformFixture(mode: 'controlled' | 'production'): {
         attempted: 100_000,
         accepted: 100_000,
         sut_observed: 100_000,
-        independent_observed: 100_000
+        independent_observed: 100_000,
+        by_workload: {}
       }
     }
   };

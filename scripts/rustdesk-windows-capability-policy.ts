@@ -28,7 +28,7 @@ export interface RustDeskWindowsCapabilityPolicy {
   schema_version: 1;
   platform: 'windows';
   architecture: 'x86_64';
-  client_version: '1.4.7';
+  client_version: '1.4.9';
   access_mode: 'attended';
   scopes: [
     'view_screen',
@@ -58,7 +58,7 @@ export function createRustDeskWindowsCapabilityPolicy(): RustDeskWindowsCapabili
     schema_version: 1,
     platform: 'windows',
     architecture: 'x86_64',
-    client_version: '1.4.7',
+    client_version: '1.4.9',
     access_mode: 'attended',
     scopes: [
       'view_screen',

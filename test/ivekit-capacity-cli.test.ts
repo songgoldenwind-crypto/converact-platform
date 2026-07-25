@@ -61,7 +61,7 @@ test('capacity CLI functions compile and validate an immutable Cell-10K bundle',
 
   assert.equal(validated.manifest_sha256, compiled.manifest_sha256);
   assert.equal(validated.manifest.expected_totals.interactions, 10_000);
-  assert.equal(validated.manifest.shards.length, 55);
+  assert.equal(validated.manifest.shards.length, 50);
   assert.match(readFileSync(outputPath, 'utf8'), /"manifest_sha256": "[a-f0-9]{64}"/);
 });
 

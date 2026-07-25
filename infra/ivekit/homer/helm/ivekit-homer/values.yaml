@@ -1,0 +1,107 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+secrets:
+  existingSecret: ""
+  catalogDsnKey: homer-ducklake-postgres-dsn
+  nodeTokenKey: homer-node-token
+  jwtSecretKey: homer-jwt-secret
+  adminPasswordHashKey: homer-admin-password-hash
+
+homer:
+  catalogType: postgres
+  lakeName: homer_lake
+  dataPath: /var/lib/homer/data/parquet
+  settingsPath: /var/lib/homer/state/homer_settings.duckdb
+  adminUser: admin
+  ingest:
+    workerCount: 4
+    queueSize: 80000
+    udpPort: 9060
+  storage:
+    batchSize: 10000
+    flushIntervalSeconds: 10
+    searchBuffer: true
+    shardCount: 1
+    threads: 4
+    memoryLimit: 4GB
+    tempDirectory: /var/lib/homer/data/.duckdb-spill
+    retentionDays: 30
+    compactionIntervalSeconds: 1800
+  coordinator:
+    port: 8080
+  node:
+    flightPort: 50051
+  metrics:
+    port: 9090
+
+service:
+  annotations: {}
+
+persistence:
+  data:
+    storageClass: ""
+    size: 100Gi
+  state:
+    storageClass: ""
+    size: 5Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: "2"
+    memory: 6Gi
+  limits:
+    cpu: "8"
+    memory: 12Gi
+
+terminationGracePeriodSeconds: 60
+
+podDisruptionBudget:
+  enabled: true
+
+networkPolicy:
+  enabled: false
+  kamailioNamespaceSelector: {}
+  kamailioPodSelector:
+    matchLabels:
+      app.kubernetes.io/component: kamailio
+  operatorIngressFrom: []
+  monitoringIngressFrom: []
+  postgresEgressCidrs: []
+  postgresPort: 5432
+  dnsNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: kube-system
+  dnsPodSelector:
+    matchLabels:
+      k8s-app: kube-dns
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,4 +1,4 @@
-{{- if and .Values.tinode.enabled .Values.tinode.persistence.enabled (not .Values.tinode.persistence.existingClaim) }}
+{{- if and .Values.tinode.enabled (eq .Values.tinode.mode "compact") .Values.tinode.persistence.enabled (not .Values.tinode.persistence.existingClaim) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

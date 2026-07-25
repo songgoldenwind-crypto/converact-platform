@@ -1,0 +1,9 @@
+{
+  "component": "livekit-cli",
+  "version": "2.18.1",
+  "upstream": "https://github.com/livekit/livekit-cli",
+  "asset": "lk_2.18.1_linux_amd64.tar.gz",
+  "download_url": "https://github.com/livekit/livekit-cli/releases/download/v2.18.1/lk_2.18.1_linux_amd64.tar.gz",
+  "sha256": "2185c98a3fd3c9e6ecf224ed6ebb1689c5abf17383db7d8294bec0056bb90c73",
+  "role": "capacity_load_generator"
+}

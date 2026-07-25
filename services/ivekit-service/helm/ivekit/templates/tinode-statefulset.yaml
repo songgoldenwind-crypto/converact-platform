@@ -1,0 +1,199 @@
+{{- if and .Values.tinode.enabled (eq .Values.tinode.mode "cluster") }}
+{{- include "ivekit.tinodeValidate" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ivekit.tinodeFullname" . }}
+  labels:
+    {{- include "ivekit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tinode
+spec:
+  serviceName: {{ include "ivekit.tinodeHeadlessFullname" . }}
+  replicas: {{ .Values.tinode.cluster.replicaCount }}
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      {{- include "ivekit.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tinode
+  template:
+    metadata:
+      labels:
+        {{- include "ivekit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tinode
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.tinode.cluster.terminationGracePeriodSeconds }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.tinode.cluster.scheduling.zoneTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: tinode
+        - maxSkew: 1
+          topologyKey: {{ .Values.tinode.cluster.scheduling.hostnameTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "ivekit.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: tinode
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: {{ .Values.tinode.cluster.scheduling.hostnameTopologyKey | quote }}
+              labelSelector:
+                matchLabels:
+                  {{- include "ivekit.selectorLabels" . | nindent 18 }}
+                  app.kubernetes.io/component: tinode
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: {{ .Values.tinode.cluster.scheduling.zoneTopologyKey | quote }}
+                labelSelector:
+                  matchLabels:
+                    {{- include "ivekit.selectorLabels" . | nindent 20 }}
+                    app.kubernetes.io/component: tinode
+      {{- with .Values.tinode.cluster.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tinode.cluster.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.tinode.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: tinode
+          image: {{ include "ivekit.tinodeImage" . | quote }}
+          imagePullPolicy: {{ .Values.tinode.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "ivekit.tinodeFullname" . }}
+          env:
+            - name: POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.postgresDsnKey }}
+            - name: API_KEY_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.apiKeySaltKey }}
+            - name: AUTH_TOKEN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.authTokenKeyKey }}
+            - name: UID_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.uidEncryptionKeyKey }}
+            - name: CLUSTER_SELF
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NO_DB_INIT
+              value: "true"
+            - name: TINODE_RUNTIME_DIR
+              value: /var/lib/tinode-runtime
+            - name: EXT_STATIC_DIR
+              value: /var/lib/tinode-runtime/static
+            - name: MEDIA_HANDLER
+              value: "s3"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.accessKeyIdKey }}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.secretAccessKeyKey }}
+            - name: AWS_REGION
+              value: {{ .Values.tinode.cluster.media.region | quote }}
+            - name: AWS_S3_BUCKET
+              value: {{ .Values.tinode.cluster.media.bucket | quote }}
+            - name: AWS_S3_ENDPOINT
+              value: {{ .Values.tinode.cluster.media.endpoint | quote }}
+            - name: AWS_FORCE_PATH_STYLE
+              value: {{ .Values.tinode.cluster.media.forcePathStyle | quote }}
+            - name: AWS_CORS_ORIGINS
+              value: {{ .Values.tinode.cluster.media.corsOrigins | quote }}
+            - name: TINODE_CLUSTER_NODE_0_NAME
+              value: {{ printf "%s-0" (include "ivekit.tinodeFullname" .) | quote }}
+            - name: TINODE_CLUSTER_NODE_0_ADDR
+              value: {{ printf "%s-0.%s:%v" (include "ivekit.tinodeFullname" .) (include "ivekit.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
+            - name: TINODE_CLUSTER_NODE_1_NAME
+              value: {{ printf "%s-1" (include "ivekit.tinodeFullname" .) | quote }}
+            - name: TINODE_CLUSTER_NODE_1_ADDR
+              value: {{ printf "%s-1.%s:%v" (include "ivekit.tinodeFullname" .) (include "ivekit.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
+            - name: TINODE_CLUSTER_NODE_2_NAME
+              value: {{ printf "%s-2" (include "ivekit.tinodeFullname" .) | quote }}
+            - name: TINODE_CLUSTER_NODE_2_ADDR
+              value: {{ printf "%s-2.%s:%v" (include "ivekit.tinodeFullname" .) (include "ivekit.tinodeHeadlessFullname" .) .Values.tinode.cluster.clusterPort | quote }}
+          ports:
+            - name: http
+              containerPort: 6060
+              protocol: TCP
+            - name: cluster
+              containerPort: {{ .Values.tinode.cluster.clusterPort }}
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 3
+            timeoutSeconds: 1
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 4
+          securityContext:
+            {{- toYaml .Values.tinode.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.tinode.cluster.resources | nindent 12 }}
+          volumeMounts:
+            - name: botdata
+              mountPath: /botdata
+            - name: runtime
+              mountPath: /var/lib/tinode-runtime
+            - name: logs
+              mountPath: /var/log
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: botdata
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: runtime
+          emptyDir:
+            sizeLimit: {{ .Values.tinode.cluster.runtimeVolumeSizeLimit }}
+        - name: logs
+          emptyDir:
+            sizeLimit: {{ .Values.tinode.cluster.logVolumeSizeLimit }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+{{- end }}

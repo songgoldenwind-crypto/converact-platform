@@ -295,10 +295,10 @@ export interface RustDeskClientDistributionProfile {
   platform: RustDeskClientDistributionPlatform;
   architecture: RustDeskClientDistributionArchitecture;
   client_version: {
-    exact: '1.4.7';
-    allowed: ['1.4.7'];
+    exact: '1.4.9';
+    allowed: ['1.4.9'];
   };
-  server_version: '1.1.15';
+  server_version: '1.1.16';
   issued_at: string;
   expires_at: string;
   manual_fields: {

@@ -822,7 +822,7 @@ LiveKit 第一版的代码级生产网络缺口已经按独立 Media Core 方向
 3. preflight 现在区分 `external`、`standalone-vm`、`bundled-dev`，分别检查内部地址、公网 WSS、独立 VM 域名/ACME 邮箱和固定镜像版本。离线报告继续脱敏，也不把静态检查冒充网络验收。
 4. `infra/livekit/` 已形成 OPC 无关的 Linux host-network 部署包，包含 LiveKit 内置 TURN、Caddy L4 SNI 分流、Redis、Egress、健康检查、配置渲染和防火墙清单。
 5. production Compose 默认外置 Media Core；内置 Server/SIP/Egress 放入 `media-bundled` profile。Kubernetes 默认关闭仓库内 bundled LiveKit，生产要求外部地址和公网地址，媒体节点应使用官方 LiveKit Helm chart。
-6. K8s Egress 模板已改为当前 `logging`、`redis`、`health_port`、`storage.s3` schema，并增加 `SYS_ADMIN` 与健康检查；镜像版本固定为 Server `v1.13.3`、Egress `v1.13.0`、SIP `v1.6.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。
+6. K8s Egress 模板已改为当前 `logging`、`redis`、`health_port`、`storage.s3` schema，并增加 `SYS_ADMIN` 与健康检查；镜像版本固定为 iveKit Server `v1.13.4-ivekit.1`、Egress `v1.13.0`、SIP `v1.7.0`、Caddy L4 `v2.11.3`、Redis `7.4.9`。
 7. production Token 服务在 LiveKit 内部地址/key/secret 不完整时 fail-closed，不再产生 dev token；Compose 与 Helm 同样在解析/渲染阶段要求真实凭据。preflight 拒绝示例占位密钥，并校验 standalone signal/turn 域名不同且 ACME 邮箱合法。
 
 本地专项测试、TypeScript 检查和 Compose 静态解析已经通过。Docker daemon 当前未运行，Helm CLI 当前未安装，因此镜像启动和 Helm render 没有被声明为通过。2026-07-11 已完成目标服务器 SSH/资源/端口只读盘点，但尚未上传或部署；DNS、证书、WSS、ICE UDP/TCP、强制 TURN、双浏览器音视频/屏幕共享、Egress 对象写入、多副本和性能仍属于服务器验收。

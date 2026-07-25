@@ -282,6 +282,7 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'scripts/ivekit-capacity-scaling-finalizer.ts',
   'scripts/ivekit-capacity-platform-finalizer.ts',
   'scripts/ivekit-capacity-worker.ts',
+  'scripts/ivekit-capacity-network-impairment.ts',
   'scripts/ivekit-cell-admission.ts',
   'scripts/ivekit-cell-capacity-projector.ts',
   'scripts/ivekit-component-node-admission.ts',
@@ -294,6 +295,7 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'scripts/capacity/generators/external-worker.ts',
   'scripts/capacity/generators/ivekit-event-ws.ts',
   'scripts/capacity/generators/livekit.ts',
+  'scripts/capacity/generators/network-impairment.ts',
   'scripts/capacity/generators/rtp-media-twin.ts',
   'scripts/capacity/generators/rustdesk.ts',
   'scripts/capacity/generators/sipp.ts',
@@ -308,6 +310,7 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'scripts/capacity/orchestrator/types.ts',
   'scripts/capacity/orchestrator/worker-runtime.ts',
   'scripts/capacity/orchestrator/worker.ts',
+  'scripts/capacity/performance-evaluator.ts',
   'scripts/capacity/probes/component-probe.ts',
   'scripts/capacity/probes/index.ts',
   'scripts/capacity/probes/prometheus.ts',
@@ -319,8 +322,10 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'scripts/capacity/scaling-campaign.ts',
   'scripts/capacity/scaling-curve.ts',
   'scripts/capacity/shard-lease.ts',
+  'services/ivekit-service/acceptance/sipp/answer-bye-uac.xml',
   'src/ivekit-component-node-admission.ts',
   'src/ivekit-placement-snapshot-projector.ts',
+  'src/infra/nats-connection-options.ts',
   'src/agent-runtime/ivekit/placement/admission-http.ts',
   'src/agent-runtime/ivekit/placement/admission-ledger.ts',
   'src/agent-runtime/ivekit/placement/admission.ts',
@@ -371,6 +376,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'templates/rustpbx-deployment.yaml',
     'templates/service.yaml',
     'templates/service-monitor.yaml',
+    'templates/sip-exporter.yaml',
     'templates/grafana-dashboard.yaml',
     'templates/tinode-config.yaml',
     'templates/tinode-deployment.yaml',
@@ -378,11 +384,37 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'templates/tinode-pdb.yaml',
     'templates/tinode-pvc.yaml',
     'templates/tinode-service.yaml',
+    'profiles/core.values.yaml',
+    'profiles/ai.values.yaml',
+    'profiles/observability.values.yaml',
+    'profiles/benchmark.values.yaml',
     'files/prometheus-rules.yaml',
     'files/grafana-dashboard.json'
   ].map((name) => ({
     source: `services/ivekit-service/helm/ivekit/${name}`,
     destination: `deploy/kubernetes/ivekit/${name}`
+  })),
+  ...[
+    'Chart.yaml',
+    'values.yaml',
+    'templates/_helpers.tpl',
+    'templates/statefulset.yaml',
+    'templates/service.yaml',
+    'templates/networkpolicy.yaml',
+    'templates/pdb.yaml',
+    'templates/servicemonitor.yaml'
+  ].map((name) => ({
+    source: `infra/ivekit/homer/helm/ivekit-homer/${name}`,
+    destination: `deploy/kubernetes/homer/${name}`
+  })),
+  ...[
+    'README.md',
+    'build.sh',
+    'apply-overlay.mjs',
+    'postgres_catalog_test.go'
+  ].map((name) => ({
+    source: `infra/ivekit/homer/${name}`,
+    destination: `deploy/homer-source/${name}`
   })),
   ...[
     'README.md',
@@ -394,6 +426,26 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
   {
     source: 'scripts/livekit-storage-isolation-acceptance.ts',
     destination: 'acceptance/livekit-storage-isolation/runner.ts'
+  },
+  {
+    source: 'scripts/ivekit-rustpbx-recording-isolation-acceptance.ts',
+    destination: 'acceptance/rustpbx-recording-isolation/runner.ts'
+  },
+  {
+    source: 'scripts/capacity/sipp-rtp-check.ts',
+    destination: 'acceptance/rustpbx-recording-isolation/capacity/sipp-rtp-check.ts'
+  },
+  {
+    source: 'services/ivekit-service/acceptance/rustpbx-recording-isolation/docker-compose.yml',
+    destination: 'acceptance/rustpbx-recording-isolation/docker-compose.yml'
+  },
+  {
+    source: 'services/ivekit-service/acceptance/rustpbx-recording-isolation/owner-admission.mjs',
+    destination: 'acceptance/rustpbx-recording-isolation/owner-admission.mjs'
+  },
+  {
+    source: 'services/ivekit-service/acceptance/rustpbx-recording-isolation/bootstrap-inbound-trunk.py',
+    destination: 'acceptance/rustpbx-recording-isolation/bootstrap-inbound-trunk.py'
   },
   {
     source: 'scripts/ivekit-kamailio-acceptance.ts',
@@ -446,6 +498,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-monitoring-runbook.md',
     'ivekit-integration-event-webhook-runbook.md',
     'ivekit-rustdesk-windows-deployment.md',
+    'ivekit-component-governance.md',
     'ivekit-v6-production-closure-design.md',
     'ivekit-v6-production-closure-plan.md',
     'ivekit-v6-real-environment-acceptance.md',
@@ -456,10 +509,25 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'kamailio-sip-edge-design.md',
     'kamailio-sip-edge-implementation-plan.md',
     'communication-foundation-production-completion.md',
-    'quic-video-transport-assessment.md'
+    'external-intelligence-provider-boundaries.md'
   ].map((name) => ({
     source: `docs/design/${name}`,
     destination: `docs/design/${name}`
+  })),
+  ...[
+    'kamailio-homer-hep.md',
+    'oci-image-release-gate.md',
+    'dependency-update-policy.md'
+  ].map((name) => ({
+    source: `docs/deployment/${name}`,
+    destination: `docs/deployment/${name}`
+  })),
+  ...[
+    'communication-technology-baseline-v1.json',
+    'component-authority-matrix-v1.json'
+  ].map((name) => ({
+    source: `docs/architecture/${name}`,
+    destination: `docs/architecture/${name}`
   })),
   ...[
     'README.md',
@@ -473,6 +541,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'phase2-code-status.json',
     'profiles/cell-10k-v1.json',
     'profiles/mix-100k-v1.json',
+    'rtc-performance-contract-v1.md',
     'run-config.example.json',
     'schemas/capacity-vector.schema.json',
     'schemas/fork-manifest.schema.json',
@@ -529,8 +598,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'registry.go',
     'registry_test.go'
   ].map((name) => ({
-    source: `integrations/livekit-v1.13.3/${name}`,
-    destination: `fork-hooks/livekit-v1.13.3/${name}`
+    source: `integrations/livekit-v1.13.4/${name}`,
+    destination: `fork-hooks/livekit-v1.13.4/${name}`
   })),
   ...[
     'go.mod',
@@ -589,7 +658,12 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-media-hot-path.patch',
     'rustpbx-ivekit-session-cleanup-isolation.patch',
     'rustpbx-ivekit-webphone-registry.patch',
-    'rustpbx-ivekit-webphone-edge-auth.patch'
+    'rustpbx-ivekit-callrecord-capacity.patch',
+    'rustpbx-ivekit-callrecord-database-policy.patch',
+    'rustpbx-ivekit-callrecord-runtime-isolation.patch',
+    'rustpbx-ivekit-callrecord-failure-telemetry.patch',
+    'rustpbx-ivekit-webphone-edge-auth.patch',
+    'rustpbx-ivekit-realtime-audio-tap.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`
@@ -632,7 +706,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     source: `infra/k8s/${source}`,
     destination: `components/livekit-egress/infra/k8s/${destination}`
   })),
-  ...['README.md', 'build.sh'].map((name) => ({
+  ...['README.md', 'build.sh', 'Dockerfile'].map((name) => ({
     source: `infra/ivekit/livekit-sip/${name}`,
     destination: `components/livekit-sip/infra/ivekit/livekit-sip/${name}`
   })),
@@ -750,7 +824,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'apply-overlay.mjs',
     'ivekit_native_control.rs',
     'ivekit_native_evidence.rs'
-  ].map((name) => ({ source: `integrations/rustdesk-1.4.7/${name}`, destination: `edge/rustdesk-1.4.7/${name}` })),
+  ].map((name) => ({ source: `integrations/rustdesk-1.4.9/${name}`, destination: `edge/rustdesk-1.4.9/${name}` })),
   ...[
     'linux-disconnect.sh',
     'linux-restart.sh',
@@ -1096,7 +1170,7 @@ export function buildIveKitDeliveryBundle(
       version: '1.0.0',
       private: true,
       type: 'module',
-      dependencies: { ws: '8.21.0' },
+      dependencies: { ws: '8.21.1' },
       scripts: {
         management: 'node scripts/ivekit-rustpbx-management-acceptance.js',
         rwi: 'node scripts/ivekit-rustpbx-rwi-acceptance.js',
@@ -1112,8 +1186,8 @@ export function buildIveKitDeliveryBundle(
       packages?: Record<string, Record<string, unknown>>;
     };
     const lockedWs = repositoryLock.packages?.['node_modules/ws'];
-    if (lockedWs?.version !== '8.21.0' || typeof lockedWs.integrity !== 'string') {
-      throw new Error('repository package lock does not pin ws@8.21.0');
+    if (lockedWs?.version !== '8.21.1' || typeof lockedWs.integrity !== 'string') {
+      throw new Error('repository package lock does not pin ws@8.21.1');
     }
     writeFileSync(
       join(outputDir, 'acceptance', 'rustpbx', 'package-lock.json'),
@@ -1561,7 +1635,7 @@ function renderBundleReadme(): string {
     '- `deploy/kubernetes/ivekit/`: standalone digest-pinned Helm Chart with a migration gate.',
     '- `deploy/livekit/`: separately deployable LiveKit media plane.',
     '- `components/livekit-egress/`: exact-source Egress overlay, local pool policy, image build script, and digest-only dual-pool Helm subset in repository-relative layout.',
-    '- `components/livekit-sip/`: exact-source optional SIP bridge image build and source-identity runbook.',
+    '- `components/livekit-sip/`: LiveKit SIP v1.7.0 exact-source optional bridge, immutable-base hardened Dockerfile, build script, and source-identity runbook.',
     '- `deploy/rustpbx/`: pinned RustPBX/rsipstack source patches and reproducible native image build.',
     '- `database/migrations/`: ordered communication-domain overlay migrations used by the application image.',
     '- `docs/`: API, architecture, LED integration, roadmap and provider compatibility documents.',

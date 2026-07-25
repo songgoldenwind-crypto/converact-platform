@@ -17,7 +17,7 @@
 1. iveKit 当前附件走独立 HTTP/分片上传，参考客户端的 LiveKit adapter 只承载音频、视频和屏幕
    共享，并没有把文件放进 LiveKit DataChannel。论文中的 SCTP 竞争不会原样出现，但同一用户出口
    上的 HTTP 上传仍会与媒体竞争。
-2. 当前固定的 LiveKit Server `v1.13.3` 和 2026-07-21 检查的上游 master 都使用 WebRTC
+2. 当前固定的 iveKit LiveKit Server `v1.13.4-ivekit.1` 和 2026-07-21 检查的上游 master 都使用 WebRTC
    SRTP/DTLS/SCTP，没有 RoQ 或 WebTransport 媒体实现。只改 Server 不够，浏览器和所有客户端也
    必须支持同一传输协商、拥塞反馈和恢复语义。
 3. 浏览器标准 `RTCDataChannel` 仍以 SCTP/DTLS 为传输。WebTransport 虽然使用 QUIC，但把文件

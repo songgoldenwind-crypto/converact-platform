@@ -278,7 +278,7 @@ index 30ead67..285d611 100644
  struct HttpResponsePayload {
      pub action: HttpRouteAction,
      pub targets: Option<Vec<String>>,
-@@ -107,6 +314,269 @@ struct HttpResponsePayload {
+@@ -107,6 +314,270 @@ struct HttpResponsePayload {
      pub allow_codecs: Option<Vec<String>>,
  }
  
@@ -528,13 +528,14 @@ index 30ead67..285d611 100644
 +fn destination_e164(value: &str) -> Option<String> {
 +    let trimmed = value.trim();
 +    let candidate = trimmed
-+        .strip_prefix("sip:")
-+        .or_else(|| trimmed.strip_prefix("sips:"))
++        .split_once('<')
++        .and_then(|(_, rest)| rest.split_once('>').map(|(uri, _)| uri))
 +        .unwrap_or(trimmed);
-+    let user = candidate
-+        .split(['@', ';', '>'])
-+        .next()?
-+        .trim_start_matches('<');
++    let candidate = candidate
++        .strip_prefix("sip:")
++        .or_else(|| candidate.strip_prefix("sips:"))
++        .unwrap_or(candidate);
++    let user = candidate.split(['@', ';']).next()?;
 +    is_e164(user).then(|| user.to_string())
 +}
 +
@@ -548,7 +549,7 @@ index 30ead67..285d611 100644
  #[async_trait]
  impl CallRouter for HttpCallRouter {
      async fn resolve(
-@@ -135,6 +605,12 @@ impl CallRouter for HttpCallRouter {
+@@ -135,6 +606,12 @@ impl CallRouter for HttpCallRouter {
              .map(|h| h.value().to_string())
              .unwrap_or_default();
  
@@ -561,7 +562,7 @@ index 30ead67..285d611 100644
          let mut headers = HashMap::new();
          for header in original.headers.iter() {
              let h_str = header.to_string();
-@@ -206,7 +682,7 @@ impl CallRouter for HttpCallRouter {
+@@ -206,7 +683,7 @@ impl CallRouter for HttpCallRouter {
              extensions: None,
          })?;
  
@@ -570,7 +571,7 @@ index 30ead67..285d611 100644
              %call_id,
              from = %payload.from,
              to = %payload.to,
-@@ -215,126 +691,109 @@ impl CallRouter for HttpCallRouter {
+@@ -215,126 +692,109 @@ impl CallRouter for HttpCallRouter {
              "HTTP router resolved route"
          );
  
@@ -748,7 +749,7 @@ index 30ead67..285d611 100644
 -                    }
 -                }
 +        let result = router
-+            .snapshot_result("sip:+8613800138000@pbx.invalid")
++            .snapshot_result(r#""iveKit RTP Route" <sip:+8613800138000@pbx.invalid>"#)
 +            .unwrap();
 +        assert_eq!(router.snapshot.load_full().unwrap().source_revision, 11);
 +        assert_eq!(result.action, HttpRouteAction::Forward);

@@ -5,7 +5,11 @@ import {
   type ShardRunEvidence
 } from '../evidence-validator.js';
 import type { GeneratorFleetQualification } from '../generator-qualification.js';
-import type { LoadRunManifest } from '../profile-compiler.js';
+import type { RtcPerformanceEvidence } from '../performance-evaluator.js';
+import {
+  loadShardWorkloads,
+  type LoadRunManifest
+} from '../profile-compiler.js';
 import type { CapacityRunControlState } from './controller.js';
 import {
   LoadRunControlError,
@@ -22,6 +26,7 @@ export interface CapacityRunEvidenceSubmission {
   mode: 'controlled' | 'production';
   fleet_qualifications: GeneratorFleetQualification[];
   shard_evidence: ShardRunEvidence[];
+  performance_evidence: RtcPerformanceEvidence;
 }
 
 export interface CapacityRunEvidenceDocument {
@@ -36,6 +41,7 @@ export interface CapacityRunEvidenceDocument {
   mode: 'controlled' | 'production';
   fleet_qualifications: GeneratorFleetQualification[];
   shard_evidence: ShardRunEvidence[];
+  performance_evidence: RtcPerformanceEvidence;
   external_dependencies: LoadRunManifest['external_dependencies'];
   validation: CapacityEvidenceResult;
 }
@@ -131,18 +137,21 @@ export class CapacityRunEvidenceFinalizer {
       expected_manifest_sha256: manifestSha256,
       evidence_manifest_sha256: input.submission.manifest_sha256,
       expected_shards: input.manifest.phases.flatMap((phase) =>
-        input.manifest.shards.map((shard) => ({
-          phase_id: phase.id,
-          shard_id: shard.shard_id,
-          workload_domain: shard.workload_domain,
-          workload_id: shard.workload_id,
-          expected_count: shard.expected_count
-        }))),
+        input.manifest.shards.flatMap((shard) =>
+          loadShardWorkloads(shard).map((workload) => ({
+            phase_id: phase.id,
+            shard_id: shard.shard_id,
+            workload_domain: workload.workload_domain,
+            workload_id: workload.workload_id,
+            expected_count: workload.expected_count
+          })))),
       required_fleet_ids: input.manifest.topology.fleets.map(
         (fleet) => fleet.fleet_id
       ),
       fleet_qualifications: input.submission.fleet_qualifications,
       shard_evidence: input.submission.shard_evidence,
+      performance_contract: input.manifest.performance_contract,
+      performance_evidence: input.submission.performance_evidence,
       external_dependencies: input.manifest.external_dependencies
     });
     const document = capacityRunEvidenceDocument(
@@ -307,6 +316,7 @@ export function capacityRunEvidenceDocument(
     mode: submission.mode,
     fleet_qualifications: structuredClone(submission.fleet_qualifications),
     shard_evidence: structuredClone(submission.shard_evidence),
+    performance_evidence: structuredClone(submission.performance_evidence),
     external_dependencies: structuredClone(manifest.external_dependencies),
     validation: structuredClone(validation)
   };
@@ -323,7 +333,9 @@ function validateSubmission(
       submission.manifest_sha256 !== manifestSha256 ||
       !['controlled', 'production'].includes(submission.mode) ||
       !Array.isArray(submission.fleet_qualifications) ||
-      !Array.isArray(submission.shard_evidence)) {
+      !Array.isArray(submission.shard_evidence) ||
+      !submission.performance_evidence ||
+      typeof submission.performance_evidence !== 'object') {
     throw new LoadRunControlError('run_evidence_submission_invalid', 400);
   }
 }

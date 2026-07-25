@@ -1,0 +1,30 @@
+services:
+  backend:
+    image: node:24-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
+    command: ["node", "/app/backend.mjs"]
+    environment:
+      PORT: "4318"
+    volumes:
+      - ./backend.mjs:/app/backend.mjs:ro
+      - ${OTEL_ACCEPT_EVIDENCE_DIR:?OTEL_ACCEPT_EVIDENCE_DIR is required}:/evidence
+    networks: [acceptance]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4318/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+  collector:
+    image: otel/opentelemetry-collector-contrib@sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa
+    command: ["--config=/conf/collector.yaml"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./collector.yaml:/conf/collector.yaml:ro
+    ports:
+      - "127.0.0.1::4318"
+    networks: [acceptance]
+
+networks:
+  acceptance:
+    driver: bridge

@@ -498,7 +498,7 @@ Prometheus labels禁止使用 `interaction_id`、`message_id` 等无限高基数
 
 - `infra/ivekit/rustpbx/build.sh` 固定上游 commit 并应用 RustPBX/rsipstack 补丁。
 - `infra/ivekit/rustpbx/patches/` 保存 RustPBX patch queue。
-- `integrations/rustdesk-1.4.7/` 已存在 RustDesk 客户端 overlay。
+- `integrations/rustdesk-1.4.9/` 已存在 RustDesk 客户端 overlay。
 - LiveKit、Tinode 与 RustDesk server 已具备 pinned overlay/build contract。
 
 下一步是将 LiveKit Egress、LiveKit SIP 以及后续由 profile 触发的 hot-path fork 接入同一套

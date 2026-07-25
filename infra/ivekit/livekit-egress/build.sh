@@ -3,11 +3,27 @@ set -euo pipefail
 
 : "${LIVEKIT_EGRESS_SOURCE_DIR:?LIVEKIT_EGRESS_SOURCE_DIR is required}"
 : "${IVEKIT_LIVEKIT_EGRESS_IMAGE:?IVEKIT_LIVEKIT_EGRESS_IMAGE is required}"
+: "${IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE:?IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE is required}"
+: "${IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE:?IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE is required}"
+: "${IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE:?IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE is required}"
 
 LIVEKIT_EGRESS_UPSTREAM_COMMIT="7d3572a0bf1959cbbc452f5ba390b6a90b7dc249"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
 GOSUMDB="${GOSUMDB:-sum.golang.org}"
+
+require_immutable_image() {
+  local label="$1"
+  local image="$2"
+  if [[ ! "${image}" =~ @sha256:[a-f0-9]{64}$ ]]; then
+    printf '%s must end with @sha256:<64 lowercase hex>\n' "${label}" >&2
+    exit 1
+  fi
+}
+
+require_immutable_image IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE "${IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE}"
+require_immutable_image IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE "${IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE}"
+require_immutable_image IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE "${IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE}"
 
 requested_arch="${IVEKIT_LIVEKIT_EGRESS_TARGETARCH:-$(docker info --format '{{.Architecture}}')}"
 case "${requested_arch}" in
@@ -34,6 +50,12 @@ if [[ "${actual_commit}" != "${LIVEKIT_EGRESS_UPSTREAM_COMMIT}" ]]; then
 fi
 
 node "${SCRIPT_DIR}/apply-overlay.mjs" "${LIVEKIT_EGRESS_SOURCE_DIR}"
+toolchain_target="${LIVEKIT_EGRESS_SOURCE_DIR}/ivekit/toolchain/go"
+if [[ -d "${toolchain_target}" ]]; then
+  chmod -R u+w "${toolchain_target}"
+fi
+rm -rf "${toolchain_target}"
+go -C "${LIVEKIT_EGRESS_SOURCE_DIR}" mod vendor
 
 toolchain_json="$(
   GOPROXY="${GOPROXY}" GOSUMDB="${GOSUMDB}" GOTOOLCHAIN=local \
@@ -51,11 +73,6 @@ if [[ "$(head -n 1 "${toolchain_dir}/VERSION")" != "go1.26.2" ]]; then
   exit 1
 fi
 
-toolchain_target="${LIVEKIT_EGRESS_SOURCE_DIR}/ivekit/toolchain/go"
-if [[ -d "${toolchain_target}" ]]; then
-  chmod -R u+w "${toolchain_target}"
-fi
-rm -rf "${toolchain_target}"
 mkdir -p "${toolchain_target}"
 cp -R "${toolchain_dir}/." "${toolchain_target}/"
 chmod 0555 "${toolchain_target}/bin/go" "${toolchain_target}/bin/gofmt"
@@ -64,11 +81,13 @@ find "${toolchain_target}/pkg/tool/linux_${target_arch}" -type f -exec chmod 055
 GOCACHE="${GOCACHE:-/tmp/ivekit-livekit-egress-go-cache}" \
   go test -C "${LIVEKIT_EGRESS_SOURCE_DIR}/ivekit/egress-pool" ./...
 
-IVEKIT_LIVEKIT_EGRESS_APT_MIRROR="${IVEKIT_LIVEKIT_EGRESS_APT_MIRROR:-https://ports.ubuntu.com/ubuntu-ports}"
 docker build \
+  --network=none \
   --file "${LIVEKIT_EGRESS_SOURCE_DIR}/build/egress/Dockerfile" \
   --platform "linux/${target_arch}" \
-  --build-arg "IVEKIT_APT_MIRROR=${IVEKIT_LIVEKIT_EGRESS_APT_MIRROR}" \
+  --build-arg "IVEKIT_EGRESS_TEMPLATE_IMAGE=${IVEKIT_LIVEKIT_EGRESS_TEMPLATE_IMAGE}" \
+  --build-arg "IVEKIT_EGRESS_BUILDER_IMAGE=${IVEKIT_LIVEKIT_EGRESS_BUILDER_IMAGE}" \
+  --build-arg "IVEKIT_EGRESS_RUNTIME_IMAGE=${IVEKIT_LIVEKIT_EGRESS_RUNTIME_IMAGE}" \
   --label "org.opencontainers.image.revision=${LIVEKIT_EGRESS_UPSTREAM_COMMIT}" \
   --label "io.ivekit.component=livekit-egress" \
   --label "io.ivekit.egress-pool-contract=ivekit-egress-pool-v1" \

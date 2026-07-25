@@ -94,6 +94,7 @@ export interface CapacityStartShardCommand {
     | 'ordinal_start'
     | 'ordinal_end_exclusive'
     | 'expected_count'
+    | 'covered_workloads'
     | 'required_protocols'
     | 'seed'>;
 }

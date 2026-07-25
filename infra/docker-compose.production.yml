@@ -92,13 +92,20 @@ services:
       retries: 5
 
   nats:
-    image: nats:2-alpine
-    command: -js -m 8222
-    ports:
-      - "4222:4222"
-      - "8222:8222"
+    image: ${OPC_NATS_IMAGE:?OPC_NATS_IMAGE immutable digest reference is required}
+    command: ["-c", "/etc/nats/nats.conf"]
+    environment:
+      NATS_CLIENT_USER: ${NATS_USER:?NATS_USER is required}
+      NATS_CLIENT_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD is required}
     volumes:
+      - ./config/nats.conf:/etc/nats/nats.conf:ro
       - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8222/healthz?js-enabled-only=true"]
+      interval: 5s
+      timeout: 2s
+      retries: 30
+    restart: unless-stopped
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
@@ -155,7 +162,7 @@ services:
 
   # --- Media Layer ---
   livekit:
-    image: livekit/livekit-server:${LIVEKIT_SERVER_IMAGE_TAG:-v1.13.3}
+    image: ${LIVEKIT_SERVER_IMAGE:?LIVEKIT_SERVER_IMAGE immutable iveKit fork reference is required}
     profiles: ["media-bundled"]
     command: --config /etc/livekit.yaml
     ports:
@@ -168,7 +175,7 @@ services:
       - redis
 
   livekit-sip:
-    image: livekit/sip:${LIVEKIT_SIP_IMAGE_TAG:-v1.6.0}
+    image: ${LIVEKIT_SIP_IMAGE:?LIVEKIT_SIP_IMAGE immutable reference is required}
     profiles: ["media-bundled"]
     environment:
       LIVEKIT_URL: ws://livekit:7880
@@ -243,6 +250,9 @@ services:
       RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_CHANNEL_CAPACITY:-256}
       RUSTPBX_MEDIA_RECORDING_WORKER_THREADS: ${RUSTPBX_MEDIA_RECORDING_WORKER_THREADS:-4}
       RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY: ${RUSTPBX_MEDIA_RECORDING_WORKER_QUEUE_CAPACITY:-4096}
+      RUSTPBX_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/ivekit/realtime-audio-tap.sock
+      RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY: ${RUSTPBX_REALTIME_AUDIO_TAP_CHANNEL_CAPACITY:-256}
+      RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS: ${RUSTPBX_REALTIME_AUDIO_TAP_SEND_TIMEOUT_MS:-10}
       RUSTPBX_CALL_RECORD_MAX_CONCURRENT: ${RUSTPBX_CALL_RECORD_MAX_CONCURRENT:-64}
       RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY: ${RUSTPBX_CALL_RECORD_CHANNEL_CAPACITY:-65536}
       RUSTPBX_CALL_RECORD_WORKER_THREADS: ${RUSTPBX_CALL_RECORD_WORKER_THREADS:-1}
@@ -283,6 +293,8 @@ services:
     init: true
     restart: unless-stopped
     environment:
+      RUSTRTC_UDP_RECEIVE_BUFFER_BYTES: ${RUSTRTC_UDP_RECEIVE_BUFFER_BYTES:-1048576}
+      RUSTRTC_UDP_SEND_BUFFER_BYTES: ${RUSTRTC_UDP_SEND_BUFFER_BYTES:-524288}
       IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
       IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY: ${RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY:?RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY is required}
       IVEKIT_RUSTPBX_ROUTE_LOOKUP_HMAC_ROOT_KEY: ${OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY:?OPC_IVEKIT_VOICE_ADDRESS_HMAC_KEY is required}
@@ -311,6 +323,7 @@ services:
       - rustpbx-generated-config:/app/generated
       - rustpbx-route-snapshot:/app/route-snapshot:ro
       - rustpbx-storage:/app/storage
+      - realtime_audio_tap:/run/ivekit
     depends_on:
       rustpbx-postgres-bootstrap:
         condition: service_completed_successfully
@@ -374,25 +387,25 @@ services:
         condition: service_healthy
 
   rustdesk-hbbs:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
+    image: ${RUSTDESK_SERVER_IMAGE:?RUSTDESK_SERVER_IMAGE immutable digest reference is required}
     command: hbbs
     profiles: ["rustdesk"]
     network_mode: "host"
     environment:
       ALWAYS_USE_RELAY: ${RUSTDESK_ALWAYS_USE_RELAY:-N}
     volumes:
-      - rustdesk_data:/root
+      - rustdesk_data:/data
     depends_on:
       - rustdesk-hbbr
     restart: unless-stopped
 
   rustdesk-hbbr:
-    image: rustdesk/rustdesk-server:${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
+    image: ${RUSTDESK_SERVER_IMAGE:?RUSTDESK_SERVER_IMAGE immutable digest reference is required}
     command: hbbr
     profiles: ["rustdesk"]
     network_mode: "host"
     volumes:
-      - rustdesk_data:/root
+      - rustdesk_data:/data
     restart: unless-stopped
 
   # --- Application Layer ---
@@ -418,11 +431,17 @@ services:
       - path: ${OPC_IVEKIT_VOICE_RUNTIME_ENV_FILE:-./voice-runtime.env}
         required: false
     build: ..
+    expose:
+      - "3000"
+      - "3010"
     environment:
       PORT: "3000"
       DATABASE_URL: postgres://opc:${POSTGRES_PASSWORD}@pgbouncer:6432/opc
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
+      NATS_USER: ${NATS_USER:?NATS_USER is required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD is required}
+      NATS_TLS_MODE: disabled
       LIVEKIT_URL: ${LIVEKIT_URL:?LIVEKIT_URL is required}
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:?LIVEKIT_PUBLIC_URL is required}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
@@ -535,14 +554,31 @@ services:
       OPC_IVEKIT_ASR_TOKEN: ${OPC_IVEKIT_ASR_TOKEN:-}
       OPC_IVEKIT_QUALITY_TOKEN: ${OPC_IVEKIT_QUALITY_TOKEN:-}
       OPC_IVEKIT_TRANSLATION_TOKEN: ${OPC_IVEKIT_TRANSLATION_TOKEN:-}
+      OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED: ${OPC_IVEKIT_REALTIME_AUDIO_TAP_ENABLED:-0}
+      OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64: ${OPC_IVEKIT_REALTIME_AUDIO_TAP_HMAC_SECRET_B64:-}
+      OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS: ${OPC_IVEKIT_REALTIME_AUDIO_TAP_TOKEN_TTL_SECONDS:-60}
+      OPC_IVEKIT_REALTIME_AUDIO_TAP_SOCKET_PATH: /run/ivekit/realtime-audio-tap.sock
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_HOST: 0.0.0.0
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_LISTEN_PORT:-3010}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PATH:-/api/ivekit/realtime-audio-tap/livekit}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_GATEWAY_URL:-ws://opc:3010/api/ivekit/realtime-audio-tap/livekit}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_CONNECTIONS:-4096}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_PRESTART_BUFFER_MS:-1000}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_MAX_PAYLOAD_BYTES:-262144}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_IDLE_TIMEOUT_MS:-60000}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_START_TIMEOUT_MS:-5000}
+      OPC_IVEKIT_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS: ${OPC_IVEKIT_LIVEKIT_AUDIO_TAP_SHUTDOWN_TIMEOUT_MS:-1000}
+      OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS: ${OPC_IVEKIT_REALTIME_PROJECTION_QUEUE_MAX_ITEMS:-4096}
+      OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS: ${OPC_IVEKIT_REALTIME_PROJECTION_SHUTDOWN_TIMEOUT_MS:-1000}
+      OPC_REALTIME_SPEECH_RETENTION_DAYS: ${OPC_REALTIME_SPEECH_RETENTION_DAYS:-30}
       OPC_COLLABORATION_ATTACHMENT_MAX_BYTES: ${OPC_COLLABORATION_ATTACHMENT_MAX_BYTES:-26214400}
-      OPC_OCR_PROVIDER_MODE: ${OPC_OCR_PROVIDER_MODE:-self_hosted}
+      OPC_OCR_PROVIDER_MODE: ${OPC_OCR_PROVIDER_MODE:-third_party}
       OPC_OCR_PROVIDER_NAME: ${OPC_OCR_PROVIDER_NAME:-}
       OPC_OCR_BASE_URL: ${OPC_OCR_BASE_URL:-}
       OPC_OCR_ENDPOINT: ${OPC_OCR_ENDPOINT:-/v1/ocr}
       OPC_OCR_TOKEN: ${OPC_OCR_TOKEN:-}
       OPC_OCR_TIMEOUT_MS: ${OPC_OCR_TIMEOUT_MS:-30000}
-      OPC_ASR_PROVIDER_MODE: ${OPC_ASR_PROVIDER_MODE:-self_hosted}
+      OPC_ASR_PROVIDER_MODE: ${OPC_ASR_PROVIDER_MODE:-third_party}
       OPC_ASR_PROVIDER_NAME: ${OPC_ASR_PROVIDER_NAME:-}
       OPC_ASR_BASE_URL: ${OPC_ASR_BASE_URL:-}
       OPC_ASR_ENDPOINT: ${OPC_ASR_ENDPOINT:-/v1/asr}
@@ -554,7 +590,7 @@ services:
       OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS: ${OPC_ATTACHMENT_PROCESSING_MAX_ATTEMPTS:-3}
       OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS: ${OPC_ATTACHMENT_PROCESSING_CLAIM_LEASE_MS:-120000}
       OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS: ${OPC_ATTACHMENT_PROCESSING_RETRY_DELAYS_MS:-5000,30000}
-      OPC_QUALITY_REVIEW_PROVIDER_MODE: ${OPC_QUALITY_REVIEW_PROVIDER_MODE:-self_hosted}
+      OPC_QUALITY_REVIEW_PROVIDER_MODE: ${OPC_QUALITY_REVIEW_PROVIDER_MODE:-third_party}
       OPC_QUALITY_REVIEW_PROVIDER_NAME: ${OPC_QUALITY_REVIEW_PROVIDER_NAME:-}
       OPC_QUALITY_REVIEW_BASE_URL: ${OPC_QUALITY_REVIEW_BASE_URL:-}
       OPC_QUALITY_REVIEW_ENDPOINT: ${OPC_QUALITY_REVIEW_ENDPOINT:-/v1/quality-review}
@@ -596,8 +632,8 @@ services:
       OPC_REMOTE_GATEWAY_CONSENT_SCOPES: ${OPC_REMOTE_GATEWAY_CONSENT_SCOPES:-view_screen,control_mouse_keyboard,record_screen,transfer_file,clipboard}
       OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL: ${OPC_REMOTE_GATEWAY_CHECK_LAUNCH_URL:-0}
       OPC_RUSTDESK_CONTROL_PLANE_BASE_URL: ${OPC_RUSTDESK_CONTROL_PLANE_BASE_URL:-http://opc:3000}
-      RUSTDESK_SERVER_IMAGE_TAG: ${RUSTDESK_SERVER_IMAGE_TAG:-1.1.15}
-      OPC_RUSTDESK_CLIENT_VERSION: ${OPC_RUSTDESK_CLIENT_VERSION:-1.4.7}
+      RUSTDESK_SERVER_IMAGE_TAG: ${RUSTDESK_SERVER_IMAGE_TAG:-1.1.16}
+      OPC_RUSTDESK_CLIENT_VERSION: ${OPC_RUSTDESK_CLIENT_VERSION:-1.4.9}
       OPC_RUSTDESK_ID_SERVER: ${OPC_RUSTDESK_ID_SERVER}
       OPC_RUSTDESK_RELAY_SERVER: ${OPC_RUSTDESK_RELAY_SERVER}
       OPC_RUSTDESK_API_SERVER: ${OPC_RUSTDESK_API_SERVER:-}
@@ -643,11 +679,12 @@ services:
       redis:
         condition: service_healthy
       nats:
-        condition: service_started
+        condition: service_healthy
       minio-init:
         condition: service_completed_successfully
     volumes:
       - rustdesk_data:/rustdesk:ro
+      - realtime_audio_tap:/run/ivekit
 
   ai-agent:
     build: ../services/ai-agent-py
@@ -657,13 +694,42 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
       OPC_API_URL: http://opc:3000
       OPC_API_KEY: ${OPC_API_KEY}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
-      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
-      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-Qwen3.6-27B}
+      LLM_EXTRA_BODY: ${LLM_EXTRA_BODY:-{"chat_template_kwargs":{"enable_thinking":false}}}
+      LLM_FALLBACK_PROVIDERS: ${LLM_FALLBACK_PROVIDERS:-deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_API_BASE: ${DEEPSEEK_API_BASE:-https://api.deepseek.com/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      CARTESIA_API_KEY: ${CARTESIA_API_KEY:-}
+      SPEECH_ASR_PROVIDER: ${SPEECH_ASR_PROVIDER:-funasr}
+      SPEECH_ASR_FALLBACK_PROVIDERS: ${SPEECH_ASR_FALLBACK_PROVIDERS:-deepgram,openai}
+      SPEECH_TTS_PROVIDER: ${SPEECH_TTS_PROVIDER:-cosyvoice}
+      SPEECH_TTS_FALLBACK_PROVIDERS: ${SPEECH_TTS_FALLBACK_PROVIDERS:-cartesia,openai}
+      FUNASR_URL: ${FUNASR_URL:-}
+      COSYVOICE_URL: ${COSYVOICE_URL:-}
+      COSYVOICE_SPK_ID: ${COSYVOICE_SPK_ID:-中文女}
+      AI_AGENT_STT_ATTEMPT_TIMEOUT_MS: ${AI_AGENT_STT_ATTEMPT_TIMEOUT_MS:-2000}
+      AI_AGENT_LLM_ATTEMPT_TIMEOUT_MS: ${AI_AGENT_LLM_ATTEMPT_TIMEOUT_MS:-1200}
+      AI_AGENT_TTS_ATTEMPT_TIMEOUT_MS: ${AI_AGENT_TTS_ATTEMPT_TIMEOUT_MS:-1500}
+      AI_AGENT_MAX_UNRECOVERABLE_PROVIDER_ERRORS: ${AI_AGENT_MAX_UNRECOVERABLE_PROVIDER_ERRORS:-3}
       NATS_URL: nats://nats:4222
+      NATS_USER: ${NATS_USER:?NATS_USER is required}
+      NATS_PASSWORD: ${NATS_PASSWORD:?NATS_PASSWORD is required}
+      NATS_TLS_MODE: disabled
+      AI_AGENT_PROMETHEUS_PORT: ${AI_AGENT_PROMETHEUS_PORT:-9090}
+      AI_AGENT_VOICE_METRICS_UDP_HOST: 127.0.0.1
+      AI_AGENT_VOICE_METRICS_UDP_PORT: ${AI_AGENT_VOICE_METRICS_UDP_PORT:-9125}
+    expose:
+      - "9090"
     depends_on:
-      - opc
-      - nats
+      opc:
+        condition: service_started
+      nats:
+        condition: service_healthy
 
   # --- Omnichannel ---
   chatwoot:
@@ -701,3 +767,4 @@ volumes:
   rustpbx-route-snapshot:
   rustpbx-storage:
   rustdesk_data:
+  realtime_audio_tap:

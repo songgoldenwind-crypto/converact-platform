@@ -403,6 +403,30 @@ test('command handler resumes durable result finalization without restarting the
 });
 
 test('start shard command validation bounds payload, protocols and validity window', () => {
+  const composite = commandPayload();
+  composite.assignment.covered_workloads = [{
+    workload_domain: 'interaction',
+    workload_id: 'tinode_im',
+    workload_kind: 'tinode_im',
+    ordinal_start: 0,
+    ordinal_end_exclusive: 600,
+    expected_count: 600
+  }];
+  assert.deepEqual(
+    validateStartShardCommand(composite).assignment.covered_workloads,
+    composite.assignment.covered_workloads
+  );
+  assert.deepEqual(
+    validateStartShardCommand({
+      ...commandPayload(),
+      assignment: {
+        ...commandPayload().assignment,
+        covered_workloads: []
+      }
+    }).assignment.covered_workloads,
+    []
+  );
+
   assert.throws(
     () => validateStartShardCommand({
       ...commandPayload(),
@@ -411,6 +435,20 @@ test('start shard command validation bounds payload, protocols and validity wind
     }),
     (error: unknown) => error instanceof LoadRunControlError &&
       error.code === 'command_payload_invalid'
+  );
+  assert.throws(
+    () => validateStartShardCommand({
+      ...composite,
+      assignment: {
+        ...composite.assignment,
+        covered_workloads: [{
+          ...composite.assignment.covered_workloads[0],
+          expected_count: 599
+        }]
+      }
+    }),
+    (error: unknown) => error instanceof LoadRunControlError &&
+      error.code === 'command_assignment_invalid'
   );
   assert.throws(
     () => validateStartShardCommand({

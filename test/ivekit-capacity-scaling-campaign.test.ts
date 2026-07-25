@@ -9,10 +9,14 @@ import {
   type CapacityScalingCampaignSubmission,
   type CapacityScalingRunEvidenceDocument
 } from '../scripts/capacity/scaling-campaign.js';
+import { createPassingRtcPerformanceEvidence } from './helpers/rtc-performance-fixture.js';
 
 const contract = JSON.parse(
   readFileSync('docs/capacity/targets/mix-100k-efficiency-v1.json', 'utf8')
 );
+const performanceContract = JSON.parse(
+  readFileSync('docs/capacity/profiles/mix-100k-v1.json', 'utf8')
+).performance_contract;
 
 test('scaling campaign replays every source-bound frontier before issuing a curve result', async () => {
   const fixture = await campaignFixture();
@@ -151,6 +155,7 @@ async function campaignFixture(): Promise<{
         mode: 'production',
         fleet_qualifications: [],
         shard_evidence: [],
+        performance_evidence: createPassingRtcPerformanceEvidence(performanceContract),
         external_dependencies: [],
         validation: {
           outcome: entry.outcome,
@@ -161,7 +166,8 @@ async function campaignFixture(): Promise<{
             attempted: entry.requested_load,
             accepted: entry.outcome === 'passed' ? entry.requested_load : 0,
             sut_observed: entry.outcome === 'passed' ? entry.requested_load : 0,
-            independent_observed: entry.outcome === 'passed' ? entry.requested_load : 0
+            independent_observed: entry.outcome === 'passed' ? entry.requested_load : 0,
+            by_workload: {}
           }
         }
       };
@@ -238,6 +244,7 @@ function loadManifest(input: {
       connections: 0,
       by_workload: {}
     },
+    performance_contract: performanceContract,
     external_dependencies: [],
     start_not_before: '2026-07-17T08:00:00.000Z',
     evidence_prefix: `capacity/${input.run_id}`

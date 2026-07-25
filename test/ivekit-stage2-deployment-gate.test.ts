@@ -13,6 +13,10 @@ test('stage 2 deployment gate renders Compose and Helm with immutable images', (
     packageJson.scripts['verify:ivekit:stage2-deployment'],
     'sh scripts/verify-ivekit-stage2-deployment.sh'
   );
+  assert.equal(
+    packageJson.scripts['verify:ivekit:livekit-redis-topology'],
+    'sh scripts/verify-livekit-redis-topology.sh'
+  );
   assert.match(script, /docker compose[\s\S]*config --quiet/);
   assert.match(script, /helm lint/);
   assert.match(script, /helm template/);
@@ -66,6 +70,7 @@ test('stage 2 deployment gate renders Compose and Helm with immutable images', (
   assert.match(script, /external Egress unexpectedly rendered without shared Redis/);
   assert.match(script, /external Egress unexpectedly rendered without a custom image digest/);
   assert.match(script, /IVEKIT_EGRESS_POOL_NAME/);
+  assert.match(script, /sh scripts\/verify-livekit-redis-topology\.sh/);
   assert.match(script, /test\/livekit-deployment-preflight\.test\.ts/);
   assert.match(script, /test\/ivekit-stage2-release-evidence\.test\.ts/);
   assert.match(workflow, /azure\/setup-helm@v5\.0\.0/);

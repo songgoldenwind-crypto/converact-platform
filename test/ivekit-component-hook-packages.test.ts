@@ -12,7 +12,7 @@ test('Go and Rust component hooks enforce local hot-path epoch checks', () => {
     'utf8'
   );
   const livekitOwner = readFileSync(
-    'integrations/livekit-v1.13.3/registry.go',
+    'integrations/livekit-v1.13.4/registry.go',
     'utf8'
   );
   const livekitOverlay = readFileSync(
@@ -52,7 +52,7 @@ test('Go and Rust component hooks enforce local hot-path epoch checks', () => {
   assert.doesNotMatch(livekitOwner, /RTP|RTCP|PacketRouter/);
   assert.match(
     livekitOverlay,
-    /8f6a9cb8b735549f0c5770df8ea70ac51f860ecb/
+    /0b3fd288e3ef3263ec475ba0d78cf3ad77459981/
   );
   assert.match(livekitOverlay, /currentNode\.SetNodeID/);
   assert.match(tinodeOwner, /func \(registry \*Registry\) OpenOrAssert/);
@@ -65,14 +65,14 @@ test('Go and Rust component hooks enforce local hot-path epoch checks', () => {
   assert.match(tinodeOverlay, /ivekitUseStableClusterNodeID/);
   assert.match(
     rustdeskServerOverlay,
-    /9bae9f2f39d92c4b4ba2e28e089da5071897b22e/
+    /73523b31cfd25d77dee862e6fc9f5e1fb5e485ef/
   );
   assert.match(rustdeskServerOverlay, /claim_relay/);
   assert.match(rustdeskServerOverlay, /assert_relay/);
   assert.match(rustdeskServerHook, /Guard::new/);
   assert.doesNotMatch(rustdeskServerHook, /send_raw|peer\.recv|stream\.recv/);
   assert.match(workflow, /go test \.\/\.\.\./);
-  assert.match(workflow, /integrations\/livekit-v1\.13\.3/);
+  assert.match(workflow, /integrations\/livekit-v1\.13\.4/);
   assert.match(workflow, /integrations\/tinode-v0\.25\.3/);
   assert.match(workflow, /rustdesk-owner-boundary/);
   assert.match(workflow, /cargo test --locked/);
@@ -88,7 +88,7 @@ test('component hook docs prohibit remote calls in media and fanout loops', () =
     'utf8'
   );
   const livekitReadme = readFileSync(
-    'integrations/livekit-v1.13.3/README.md',
+    'integrations/livekit-v1.13.4/README.md',
     'utf8'
   );
   const tinodeReadme = readFileSync(

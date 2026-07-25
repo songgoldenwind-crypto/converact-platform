@@ -151,7 +151,7 @@ Task 2 验证证据（2026-07-15）：
 
 ### Task 3：Windows 固定版本部署包
 
-- [x] 生成 secret-free manifest，绑定 RustDesk `1.4.7`、installer SHA-256、server `1.1.15`、
+- [x] 生成 secret-free manifest，绑定 RustDesk `1.4.9`、installer SHA-256、server `1.1.16`、
   public-key fingerprint、edge package hash 和 source commit。
 - [x] PowerShell 支持 `validate|install|repair|uninstall`；校验管理员、Windows x64、checksum、
   Authenticode 状态、service、`--config` 结果、`--get-id` 和 rollback metadata。
@@ -162,7 +162,7 @@ Task 2 验证证据（2026-07-15）：
 
 Task 3 当前证据（2026-07-15）：
 
-- 固定 RustDesk client `1.4.7`、server `1.1.15` 和稳定 WinSW `2.12.0`；拒绝 latest、3.x alpha、
+- 固定 RustDesk client `1.4.9`、server `1.1.16` 和稳定 WinSW `2.12.0`；拒绝 latest、3.x alpha、
   artifact/fingerprint/source commit 漂移。
 - package generator、完整 edge 源码转译、`node --check`、edge token file 和部署接线测试通过，根项目
   类型检查通过。
@@ -188,7 +188,7 @@ Task 4 当前证据（2026-07-15）：
 - companion spool/bridge 覆盖原子 inbox、重复接收、租约恢复、退避、最大尝试 dead letter、进程锁、
   symlink、脱敏 quarantine 和 token 不落盘。成功记录只保留 observation hash。
 - agent/Windows package 已包含 observation contract、spool 和 bridge，固定 service 环境声明 client
-  `1.4.7`、Windows、inbox/spool 与 2 秒 poll。相关本机测试 `23/23` 通过；真实 Windows 仍 `not_run`。
+  `1.4.9`、Windows、inbox/spool 与 2 秒 poll。相关本机合同测试已实现；真实 Windows 仍 `not_run`。
 
 ### Task 5：文件、录屏与证据
 
