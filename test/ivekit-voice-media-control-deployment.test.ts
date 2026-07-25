@@ -55,6 +55,41 @@ describe('iveKit media control deployment', () => {
     );
   });
 
+  it('keeps component leases alive through the Cell admission leader', () => {
+    const service = compose.services['cell-admission'];
+    assert.ok(service);
+    assert.deepEqual(service.profiles, ['voice-capacity', 'voice-media-control']);
+    assert.deepEqual(service.command, [
+      'node',
+      '--import',
+      'tsx',
+      'scripts/ivekit-cell-admission.ts'
+    ]);
+    assert.equal(service.user, 'node');
+    assert.equal(service.read_only, true);
+    assert.deepEqual(service.cap_drop, ['ALL']);
+    assert.deepEqual(service.security_opt, ['no-new-privileges:true']);
+    assert.equal(service.ports, undefined);
+    assert.deepEqual(service.expose, ['3200']);
+    assert.equal(
+      service.environment.OPC_IVEKIT_CELL_NODES_JSON,
+      '${RUSTPBX_CELL_NODES_JSON:?RUSTPBX_CELL_NODES_JSON is required}'
+    );
+    assert.equal(
+      service.environment.OPC_IVEKIT_COMPONENT_NODE_TOKEN,
+      '${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required}'
+    );
+    assert.match(service.healthcheck.test.join(' '), /\/readyz/);
+    assert.equal(
+      service.depends_on['rustpbx-component-node'].condition,
+      'service_healthy'
+    );
+    assert.equal(
+      compose.services['media-control'].depends_on['cell-admission'].condition,
+      'service_healthy'
+    );
+  });
+
   it('makes simulator acceptance explicit and rejects simulator production startup', () => {
     const service = compose.services['media-control'];
     assert.equal(
@@ -122,6 +157,7 @@ describe('iveKit media control deployment', () => {
       'rustpbx-route-snapshot',
       'rustpbx',
       'rustpbx-component-node',
+      'cell-admission',
       'media-control'
     ]) {
       assert.ok(

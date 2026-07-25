@@ -204,6 +204,61 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  cell-admission:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    profiles: ["voice-capacity", "voice-media-control"]
+    command: ["node", "--import", "tsx", "scripts/ivekit-cell-admission.ts"]
+    init: true
+    restart: unless-stopped
+    user: node
+    read_only: true
+    environment:
+      OPC_DATABASE_URL: postgresql://opc_runtime:${OPC_RUNTIME_DB_PASSWORD:?OPC_RUNTIME_DB_PASSWORD is required}@postgres:5432/opc
+      OPC_IVEKIT_CELL_ADMISSION_HOST: 0.0.0.0
+      OPC_IVEKIT_CELL_ADMISSION_PORT: "3200"
+      OPC_IVEKIT_CELL_ADMISSION_TOKEN: ${OPC_IVEKIT_CELL_ADMISSION_TOKEN:?OPC_IVEKIT_CELL_ADMISSION_TOKEN is required}
+      OPC_IVEKIT_CELL_REGION_ID: ${RUSTPBX_COMPONENT_NODE_REGION_ID:?RUSTPBX_COMPONENT_NODE_REGION_ID is required}
+      OPC_IVEKIT_CELL_ZONE_ID: ${RUSTPBX_COMPONENT_NODE_ZONE_ID:?RUSTPBX_COMPONENT_NODE_ZONE_ID is required}
+      OPC_IVEKIT_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      OPC_IVEKIT_CELL_INSTANCE_ID: ${RUSTPBX_CELL_ADMISSION_INSTANCE_ID:-rustpbx-cell-admission-1}
+      OPC_IVEKIT_CELL_LEASE_TTL_MS: ${RUSTPBX_CELL_LEASE_TTL_MS:-30000}
+      OPC_IVEKIT_CELL_LEASE_RENEWAL_INTERVAL_MS: ${RUSTPBX_CELL_LEASE_RENEWAL_INTERVAL_MS:-10000}
+      OPC_IVEKIT_CELL_LEASE_CLAIM_RETRY_MS: ${RUSTPBX_CELL_LEASE_CLAIM_RETRY_MS:-1000}
+      OPC_IVEKIT_CELL_PROFILE_IDS: ${RUSTPBX_COMPONENT_NODE_PROFILE_IDS:?RUSTPBX_COMPONENT_NODE_PROFILE_IDS is required}
+      OPC_IVEKIT_CELL_INTERACTION_KINDS: sip_voice
+      OPC_IVEKIT_CELL_RESERVATION_TTL_MS: ${RUSTPBX_CELL_RESERVATION_TTL_MS:-10000}
+      OPC_IVEKIT_CELL_TERMINAL_RETENTION_MS: ${RUSTPBX_CELL_TERMINAL_RETENTION_MS:-300000}
+      OPC_IVEKIT_CELL_SWEEP_INTERVAL_MS: ${RUSTPBX_CELL_SWEEP_INTERVAL_MS:-1000}
+      OPC_IVEKIT_CELL_INITIAL_STATE: accepting
+      OPC_IVEKIT_CELL_DIMENSIONS_JSON: ${RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON:?RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON is required}
+      OPC_IVEKIT_CELL_NODES_JSON: ${RUSTPBX_CELL_NODES_JSON:?RUSTPBX_CELL_NODES_JSON is required}
+      OPC_IVEKIT_COMPONENT_NODE_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required}
+      OPC_IVEKIT_COMPONENT_NODE_LEASE_TTL_MS: ${RUSTPBX_COMPONENT_NODE_LEASE_TTL_MS:-30000}
+      OPC_IVEKIT_COMPONENT_NODE_HEARTBEAT_INTERVAL_MS: ${RUSTPBX_COMPONENT_NODE_HEARTBEAT_INTERVAL_MS:-10000}
+      OPC_IVEKIT_COMPONENT_NODE_TIMEOUT_MS: ${RUSTPBX_COMPONENT_NODE_TIMEOUT_MS:-2000}
+    expose:
+      - "3200"
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+      rustpbx-component-node:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3200/readyz').then(r=>{if(!r.ok)process.exit(1)})
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   media-control:
     image: ${IVEKIT_MEDIA_CONTROL_IMAGE_NAME:-ivekit-media-control:local}
     build:
@@ -240,6 +295,8 @@ services:
       rustpbx:
         condition: service_healthy
       rustpbx-component-node:
+        condition: service_healthy
+      cell-admission:
         condition: service_healthy
     healthcheck:
       test:
