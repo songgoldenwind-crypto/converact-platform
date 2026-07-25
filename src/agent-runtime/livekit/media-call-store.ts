@@ -460,13 +460,13 @@ function decodeCall(row: Record<string, unknown>): IveKitMediaCall {
     title: String(row.title || ''),
     metadata: jsonObject(row.metadata),
     ring_timeout_seconds: Number(row.ring_timeout_seconds || 30),
-    ring_expires_at: nullableString(row.ring_expires_at),
-    accepted_at: nullableString(row.accepted_at),
-    started_at: nullableString(row.started_at),
-    ended_at: nullableString(row.ended_at),
+    ring_expires_at: nullableTimestamp(row.ring_expires_at),
+    accepted_at: nullableTimestamp(row.accepted_at),
+    started_at: nullableTimestamp(row.started_at),
+    ended_at: nullableTimestamp(row.ended_at),
     end_reason: String(row.end_reason || ''),
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at)
+    created_at: timestamp(row.created_at),
+    updated_at: timestamp(row.updated_at)
   };
 }
 
@@ -480,22 +480,22 @@ function decodeParticipant(row: Record<string, unknown>): IveKitMediaCallPartici
     status: String(row.status) as IveKitMediaCallParticipant['status'],
     display_name: String(row.display_name || ''),
     metadata: jsonObject(row.metadata),
-    invited_at: String(row.invited_at),
-    accepted_at: nullableString(row.accepted_at),
-    joined_at: nullableString(row.joined_at),
-    left_at: nullableString(row.left_at),
+    invited_at: timestamp(row.invited_at),
+    accepted_at: nullableTimestamp(row.accepted_at),
+    joined_at: nullableTimestamp(row.joined_at),
+    left_at: nullableTimestamp(row.left_at),
     connection_revision: Number(row.connection_revision || 0),
     connection_state: String(row.connection_state || 'disconnected') as IveKitMediaCallParticipant['connection_state'],
-    connection_updated_at: nullableString(row.connection_updated_at),
-    last_disconnected_at: nullableString(row.last_disconnected_at),
-    last_rejoined_at: nullableString(row.last_rejoined_at),
+    connection_updated_at: nullableTimestamp(row.connection_updated_at),
+    last_disconnected_at: nullableTimestamp(row.last_disconnected_at),
+    last_rejoined_at: nullableTimestamp(row.last_rejoined_at),
     quality_state: String(row.quality_state || 'unknown') as IveKitMediaCallParticipant['quality_state'],
     quality_degraded_streak: Number(row.quality_degraded_streak || 0),
     quality_recovered_streak: Number(row.quality_recovered_streak || 0),
     last_quality_level: String(row.last_quality_level || 'unknown') as IveKitMediaCallParticipant['last_quality_level'],
     last_quality_sample_id: String(row.last_quality_sample_id || ''),
-    last_qos_at: nullableString(row.last_qos_at),
-    updated_at: String(row.updated_at)
+    last_qos_at: nullableTimestamp(row.last_qos_at),
+    updated_at: timestamp(row.updated_at)
   };
 }
 
@@ -516,7 +516,7 @@ function decodeModerationAction(row: Record<string, unknown>): IveKitMediaModera
     reason: String(row.reason || ''),
     metadata: jsonObject(row.metadata),
     result_snapshot: jsonObject(row.result_snapshot),
-    created_at: String(row.created_at)
+    created_at: timestamp(row.created_at)
   };
 }
 
@@ -537,14 +537,22 @@ function decodeModerationCommand(row: Record<string, unknown>): IveKitMediaModer
     result_snapshot: row.result_snapshot == null ? null : jsonObject(row.result_snapshot),
     error_code: String(row.error_code || ''),
     error_message: String(row.error_message || ''),
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at),
-    completed_at: nullableString(row.completed_at)
+    created_at: timestamp(row.created_at),
+    updated_at: timestamp(row.updated_at),
+    completed_at: nullableTimestamp(row.completed_at)
   };
 }
 
-function nullableString(value: unknown): string | null {
-  return value == null || value === '' ? null : String(value);
+function timestamp(value: unknown): string {
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (!Number.isFinite(date.getTime())) {
+    throw new Error('media call database timestamp is invalid');
+  }
+  return date.toISOString();
+}
+
+function nullableTimestamp(value: unknown): string | null {
+  return value == null || value === '' ? null : timestamp(value);
 }
 
 function jsonObject(value: unknown): Record<string, unknown> {
