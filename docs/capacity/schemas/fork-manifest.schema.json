@@ -219,6 +219,9 @@
         },
         "source_identity_complete": {
           "type": "boolean"
+        },
+        "source_archive": {
+          "$ref": "#/$defs/source_archive"
         }
       },
       "allOf": [
@@ -295,6 +298,29 @@
           }
         }
       ]
+    },
+    "source_archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     },
     "build": {
       "type": "object",

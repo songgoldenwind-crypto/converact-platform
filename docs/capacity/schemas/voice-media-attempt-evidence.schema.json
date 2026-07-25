@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/voice-media-attempt-evidence.schema.json",
+  "title": "iveKit voice media capacity attempt evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_type",
+    "status",
+    "failure_class",
+    "run_id",
+    "attempt_id",
+    "profile_id",
+    "phase_id",
+    "repetition",
+    "observation_kind",
+    "started_at",
+    "finished_at",
+    "source_identity",
+    "counters",
+    "reconciliation",
+    "generator_qualification",
+    "sut_evaluation",
+    "clock",
+    "raw_input_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "evidence_type": {
+      "const": "voice_media_attempt"
+    },
+    "status": {
+      "enum": ["passed", "failed", "invalid_generator_capacity"]
+    },
+    "failure_class": {
+      "enum": ["none", "generator", "sut_or_protocol"]
+    },
+    "run_id": {
+      "$ref": "#/$defs/id"
+    },
+    "attempt_id": {
+      "$ref": "#/$defs/id"
+    },
+    "profile_id": {
+      "$ref": "#/$defs/id"
+    },
+    "phase_id": {
+      "$ref": "#/$defs/id"
+    },
+    "repetition": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "observation_kind": {
+      "enum": ["steady_state", "phase_end"]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_identity": {
+      "$ref": "#/$defs/sourceIdentity"
+    },
+    "counters": {
+      "$ref": "#/$defs/counters"
+    },
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempted_minus_connected_failed",
+        "connected_minus_active_completed",
+        "reconciled"
+      ],
+      "properties": {
+        "attempted_minus_connected_failed": {
+          "type": "integer"
+        },
+        "connected_minus_active_completed": {
+          "type": "integer"
+        },
+        "reconciled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "generator_qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["qualified", "reasons", "observed"],
+      "properties": {
+        "qualified": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "$ref": "#/$defs/reasons"
+        },
+        "observed": {
+          "$ref": "#/$defs/generator"
+        }
+      }
+    },
+    "sut_evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "reasons", "media", "sut"],
+      "properties": {
+        "passed": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "$ref": "#/$defs/reasons"
+        },
+        "media": {
+          "$ref": "#/$defs/media"
+        },
+        "sut": {
+          "$ref": "#/$defs/sut"
+        }
+      }
+    },
+    "clock": {
+      "$ref": "#/$defs/clock"
+    },
+    "raw_input_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._@:/-]{1,255}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0
+    },
+    "ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{2,127}$"
+      }
+    },
+    "sourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_sha256",
+        "fork_manifest_sha256",
+        "sut_release_id",
+        "generator_release_id"
+      ],
+      "properties": {
+        "profile_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "fork_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sut_release_id": {
+          "$ref": "#/$defs/id"
+        },
+        "generator_release_id": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "counters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempted", "connected", "failed", "active", "completed"],
+      "properties": {
+        "attempted": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "connected": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "failed": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "active": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "completed": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_packet_rate",
+        "actual_packet_rate",
+        "cpu_p95_ratio",
+        "nic_p95_ratio",
+        "host_packet_drop_count",
+        "scheduler_lag_p99_seconds"
+      ],
+      "properties": {
+        "expected_packet_rate": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "actual_packet_rate": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "cpu_p95_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "nic_p95_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "host_packet_drop_count": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "scheduler_lag_p99_seconds": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        }
+      }
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clock_source", "ntp_offset_seconds", "captured_at"],
+      "properties": {
+        "clock_source": {
+          "$ref": "#/$defs/id"
+        },
+        "ntp_offset_seconds": {
+          "type": "number"
+        },
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected_sessions",
+        "protocol_handshake_count",
+        "sent_packets",
+        "received_packets",
+        "receive_loss_ratio",
+        "duplicate_packet_count",
+        "out_of_order_packet_count",
+        "jitter_p99_seconds"
+      ],
+      "properties": {
+        "expected_sessions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "protocol_handshake_count": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "sent_packets": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "received_packets": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "receive_loss_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "duplicate_packet_count": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "out_of_order_packet_count": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "jitter_p99_seconds": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        }
+      }
+    },
+    "sut": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "setup_success_ratio",
+        "relay_latency_p99_seconds",
+        "unexpected_restart_count",
+        "oom_kill_count"
+      ],
+      "properties": {
+        "setup_success_ratio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "relay_latency_p99_seconds": {
+          "$ref": "#/$defs/nonNegativeNumber"
+        },
+        "unexpected_restart_count": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "oom_kill_count": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        }
+      }
+    }
+  }
+}

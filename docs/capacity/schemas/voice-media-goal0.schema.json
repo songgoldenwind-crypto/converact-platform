@@ -1,0 +1,369 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/voice-media-goal0.schema.json",
+  "title": "iveKit voice media Goal 0 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "revision",
+    "status",
+    "generated_at",
+    "source_spike_path",
+    "metrics_contract_path",
+    "profile_paths",
+    "authority",
+    "placement",
+    "harness",
+    "failure_matrix",
+    "compatibility",
+    "rollback",
+    "claim"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "contract_id": {
+      "const": "voice-media-goal0-v1"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["target", "implemented", "verified", "retired"]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_spike_path": {
+      "$ref": "#/$defs/repositoryPath"
+    },
+    "metrics_contract_path": {
+      "$ref": "#/$defs/repositoryPath"
+    },
+    "profile_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/repositoryPath"
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adr_path",
+        "call_dialog_owner",
+        "logical_media_graph_owner",
+        "wire_transport_owner",
+        "effective_wire_sdp_owner",
+        "inserted_processing_runtime_owner",
+        "recording_manifest_owner",
+        "cell_spool_authority"
+      ],
+      "properties": {
+        "adr_path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "call_dialog_owner": {
+          "const": "rustpbx"
+        },
+        "logical_media_graph_owner": {
+          "const": "rustpbx"
+        },
+        "wire_transport_owner": {
+          "const": "rtpengine"
+        },
+        "effective_wire_sdp_owner": {
+          "const": "rtpengine"
+        },
+        "inserted_processing_runtime_owner": {
+          "const": "media_processing_service"
+        },
+        "recording_manifest_owner": {
+          "const": "regional_recording_service"
+        },
+        "cell_spool_authority": {
+          "const": "pending_segments_only"
+        }
+      }
+    },
+    "placement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "owner_scope",
+        "call_affinity",
+        "normal_media_cross_zone",
+        "active_media_migration",
+        "cross_zone_new_call_failover",
+        "regional_metadata_cross_zone"
+      ],
+      "properties": {
+        "owner_scope": {
+          "const": "cell_zone"
+        },
+        "call_affinity": {
+          "const": "sticky_for_call_lifetime"
+        },
+        "normal_media_cross_zone": {
+          "const": false
+        },
+        "active_media_migration": {
+          "const": "forbidden"
+        },
+        "cross_zone_new_call_failover": {
+          "const": "allowed_after_capacity_and_health_gate"
+        },
+        "regional_metadata_cross_zone": {
+          "const": true
+        }
+      }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter_status",
+        "drivers",
+        "reconciliation_counters",
+        "generator_failure_outcome",
+        "attempt_evidence_retention",
+        "required_clock_metadata",
+        "evidence_schema_path",
+        "evidence_finalizer"
+      ],
+      "properties": {
+        "adapter_status": {
+          "enum": ["skeleton", "implemented", "verified"]
+        },
+        "drivers": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["driver_id", "path", "role", "status"],
+            "properties": {
+              "driver_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{2,127}$"
+              },
+              "path": {
+                "$ref": "#/$defs/repositoryPath"
+              },
+              "role": {
+                "enum": [
+                  "sip_signaling",
+                  "rtp_generation",
+                  "rtp_throughput",
+                  "attempt_evaluation",
+                  "evidence_finalization"
+                ]
+              },
+              "status": {
+                "enum": ["existing_reusable", "skeleton", "implemented", "verified"]
+              }
+            }
+          }
+        },
+        "reconciliation_counters": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["attempted", "connected", "failed", "active", "completed"]
+          }
+        },
+        "generator_failure_outcome": {
+          "const": "invalid_generator_capacity"
+        },
+        "attempt_evidence_retention": {
+          "const": "all_attempts_including_invalid"
+        },
+        "required_clock_metadata": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["clock_source", "ntp_offset_seconds", "captured_at"]
+          }
+        },
+        "evidence_schema_path": {
+          "$ref": "#/$defs/repositoryPath"
+        },
+        "evidence_finalizer": {
+          "$ref": "#/$defs/repositoryPath"
+        }
+      }
+    },
+    "failure_matrix": {
+      "type": "array",
+      "minItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "failure_id",
+          "established_media",
+          "new_admission",
+          "new_mandatory_recording",
+          "claim_effect",
+          "required_evidence"
+        ],
+        "properties": {
+          "failure_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,127}$"
+          },
+          "established_media": {
+            "enum": ["continue", "continue_degraded", "may_interrupt"]
+          },
+          "new_admission": {
+            "enum": [
+              "continue",
+              "continue_via_peer",
+              "continue_without_optional_feature",
+              "reject_affected_shard",
+              "reject"
+            ]
+          },
+          "new_mandatory_recording": {
+            "enum": ["continue", "continue_if_spool_healthy", "reject"]
+          },
+          "claim_effect": {
+            "enum": [
+              "none",
+              "degraded",
+              "invalidate_failure_run",
+              "freeze_capacity_claim"
+            ]
+          },
+          "required_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9._-]{2,127}$"
+            }
+          }
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "control_protocol",
+        "source_version",
+        "source_commit",
+        "rollout_order",
+        "active_session_rule"
+      ],
+      "properties": {
+        "control_protocol": {
+          "const": "rtpengine-ng"
+        },
+        "source_version": {
+          "const": "mr26.0.1.13"
+        },
+        "source_commit": {
+          "const": "506cfa74386a5373e40fca139a932917f22f0524"
+        },
+        "rollout_order": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "shadow_query",
+              "canary_new_calls",
+              "cell_new_calls",
+              "regional_new_calls"
+            ]
+          }
+        },
+        "active_session_rule": {
+          "const": "never_switch_transport_owner_in_place"
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "new_calls_only",
+        "active_session_migration",
+        "requirements"
+      ],
+      "properties": {
+        "strategy": {
+          "const": "restore_rustpbx_direct_media_for_new_calls"
+        },
+        "new_calls_only": {
+          "const": true
+        },
+        "active_session_migration": {
+          "const": "forbidden"
+        },
+        "requirements": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "preserve_existing_rtpengine_sessions_until_bye",
+              "pin_exact_rustpbx_and_rtpengine_identities",
+              "fence_new_rtpengine_allocations",
+              "retain_all_attempt_and_packet_evidence",
+              "reconcile_active_sessions_before_completion"
+            ]
+          }
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_complete",
+        "capacity_verified",
+        "production_eligible",
+        "blocking_evidence"
+      ],
+      "properties": {
+        "runtime_complete": {
+          "type": "boolean"
+        },
+        "capacity_verified": {
+          "type": "boolean"
+        },
+        "production_eligible": {
+          "type": "boolean"
+        },
+        "blocking_evidence": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,127}$"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "repositoryPath": {
+      "type": "string",
+      "pattern": "^(docs|scripts|artifacts)/[A-Za-z0-9._/-]+$"
+    }
+  }
+}

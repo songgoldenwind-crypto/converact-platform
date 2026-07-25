@@ -1,0 +1,183 @@
+{
+  "schema_version": "1.0.0",
+  "profile_id": "vos-eq-v1-rtp-10k-v1",
+  "revision": 1,
+  "status": "target",
+  "description": "Role-isolated target for 10,000 concurrent two-leg G.711 calls on one rtpengine kernel fast-path node; this profile is not a measured capacity claim.",
+  "source_identity": {
+    "fork_manifest_path": "docs/capacity/forks/ivekit-forks-v1.json",
+    "component_id": "rtpengine",
+    "upstream_version": "mr26.0.1.13",
+    "upstream_commit": "506cfa74386a5373e40fca139a932917f22f0524",
+    "archive_sha256": "a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143"
+  },
+  "primary_sut": {
+    "role": "rtp_fast_path",
+    "component_id": "rtpengine",
+    "node_count": 1,
+    "hardware": {
+      "qualification": "required_exact",
+      "deployment_model": "bare_metal",
+      "cpu_architecture": "x86_64",
+      "physical_cores": 32,
+      "logical_cpus": 32,
+      "memory_bytes": 34359738368,
+      "nic_bps": 10000000000,
+      "numa_nodes": 1
+    }
+  },
+  "auxiliary_topology": [
+    {
+      "role": "sip_edge",
+      "component_id": "kamailio",
+      "node_count": 2,
+      "qualification": "required",
+      "included_in_primary_claim": false
+    },
+    {
+      "role": "call_control",
+      "component_id": "rustpbx",
+      "node_count": 2,
+      "qualification": "required",
+      "included_in_primary_claim": false
+    },
+    {
+      "role": "load_generator",
+      "component_id": "sipp-rtp-fleet",
+      "node_count": 2,
+      "qualification": "external",
+      "included_in_primary_claim": false
+    },
+    {
+      "role": "metrics",
+      "component_id": "victoriametrics",
+      "node_count": 1,
+      "qualification": "required",
+      "included_in_primary_claim": false
+    },
+    {
+      "role": "packet_capture",
+      "component_id": "capture-witness",
+      "node_count": 1,
+      "qualification": "optional",
+      "included_in_primary_claim": false
+    }
+  ],
+  "workload": {
+    "traffic_model": "bidirectional_two_leg_relay",
+    "media_path": "kernel_fast_path",
+    "transport": "RTP_UDP",
+    "codec": "PCMU",
+    "clock_rate_hz": 8000,
+    "packetization_ms": 20,
+    "payload_bytes_per_packet": 160,
+    "wire_bytes_per_packet": 238,
+    "srtp": false,
+    "recording": "none",
+    "transcoding": false,
+    "active_calls": 10000,
+    "rtp_legs": 20000,
+    "bidirectional_streams": 20000,
+    "rtp_rx_pps": 1000000,
+    "rtp_tx_pps": 1000000,
+    "aggregate_pps": 2000000,
+    "wire_rx_bps": 1904000000,
+    "wire_tx_bps": 1904000000,
+    "steady_cps": 100,
+    "burst_cps": 300,
+    "mean_hold_seconds": 600
+  },
+  "phases": [
+    {
+      "phase_id": "warmup",
+      "purpose": "Warm caches, routes and allocator state without producing a capacity result.",
+      "duration_seconds": 600,
+      "load_ratio": 0.1
+    },
+    {
+      "phase_id": "staircase",
+      "purpose": "Increase active calls in bounded steps and locate the first resource knee.",
+      "duration_seconds": 1800,
+      "load_ratio": 0.8
+    },
+    {
+      "phase_id": "steady",
+      "purpose": "Measure the declared 10K target under stable G.711 bidirectional relay.",
+      "duration_seconds": 3600,
+      "load_ratio": 1
+    },
+    {
+      "phase_id": "frontier",
+      "purpose": "Probe beyond the target without allowing frontier results to certify steady capacity.",
+      "duration_seconds": 900,
+      "load_ratio": 1.1
+    },
+    {
+      "phase_id": "endurance",
+      "purpose": "Detect memory, socket, port, conntrack and packet-loss drift over long duration.",
+      "duration_seconds": 28800,
+      "load_ratio": 0.8
+    }
+  ],
+  "thresholds": {
+    "setup_success_ratio": 0.9999,
+    "server_packet_loss_ratio": 0.001,
+    "relay_latency_p99_seconds": 0.01,
+    "steady_cpu_utilization_ratio": 0.75,
+    "burst_cpu_utilization_ratio": 0.9,
+    "nic_utilization_ratio": 0.7,
+    "reconciliation_delta": 0,
+    "unexpected_process_restart_count": 0,
+    "oom_kill_count": 0
+  },
+  "finalizer": {
+    "entrypoint": "scripts/ivekit-capacity-finalizer.ts",
+    "adapter_status": "skeleton",
+    "minimum_repetitions": 3,
+    "preserve_all_attempts": true,
+    "invalidate_on_generator_failure": true,
+    "reconciliation_counters": [
+      "attempted",
+      "connected",
+      "failed",
+      "active",
+      "completed"
+    ],
+    "invalidation_reasons": [
+      "generator_capacity_exhausted",
+      "generator_clock_invalid",
+      "generator_packet_loss_exceeded",
+      "counter_reconciliation_failed",
+      "evidence_incomplete",
+      "sut_identity_mismatch"
+    ]
+  },
+  "external_dependencies": [
+    {
+      "dependency_id": "exact-bare-metal-hardware",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    },
+    {
+      "dependency_id": "rtpengine-kernel-module",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    },
+    {
+      "dependency_id": "independent-load-generator-fleet",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    },
+    {
+      "dependency_id": "synchronized-clocks",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    }
+  ],
+  "claim": {
+    "status": "target",
+    "capacity_claim": "none",
+    "verified_at": null,
+    "evidence_manifest": null
+  }
+}

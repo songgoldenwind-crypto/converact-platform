@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "baseline_id": "ivekit-communication-technology-2026-07",
-  "audited_at": "2026-07-22",
+  "audited_at": "2026-07-25",
   "scope": "OPC and LED shared communication foundation",
   "status": "approved_for_staged_delivery",
   "principles": [
@@ -87,14 +87,14 @@
     {
       "id": "rtpengine",
       "layer": "voice-media",
-      "capability": "optional RTP anchoring, NAT traversal, transcoding, media policy",
-      "current": "not integrated",
-      "target": "mr26 release line, exact source at adoption",
-      "action": "poc",
-      "rollout": "benchmark-gated",
+      "capability": "RTP/RTCP fast-path transport, NAT traversal, SRTP, media forking and optional transcoding",
+      "current": "mr26.0.1.13 exact source and capability spike pinned; build, integration and benchmark not run",
+      "target": "maintained exact-source fork at 506cfa74386a5373e40fca139a932917f22f0524 with role-isolated kernel fast-path, processing, transcoding and recording profiles",
+      "action": "add",
+      "rollout": "goal-0-source-pinned-implementation-not-run",
       "hot_path": true,
-      "rationale": "Useful for carrier and legacy interop, but unconditional double anchoring adds CPU, bandwidth, ports, and failure surface.",
-      "gates": ["RustPBX native RTP baseline", "A/B calls per core", "P99 jitter", "SRTP", "DTMF", "recording", "failover"]
+      "rationale": "The VOS-EQ and 100K design separates RustPBX logical media control from high-PPS wire transport. rtpengine is the selected fast-path owner, but direct RustPBX media remains the rollback path and no target number is a capacity claim until exact-hardware evidence passes.",
+      "gates": ["exact-source reproducible build", "NG offer/answer/delete/query integration", "owner epoch fencing", "kernel and userspace profile separation", "A/B calls per core", "P99 relay latency and jitter", "SRTP and DTMF", "recording outage isolation", "node failure accounting", "10K single-node evidence"]
     },
     {
       "id": "homer",

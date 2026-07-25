@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 42,
+  "revision": 43,
   "status": "proposed",
-  "generated_at": "2026-07-25T08:04:37+08:00",
+  "generated_at": "2026-07-25T11:49:03+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -788,6 +788,115 @@
       "traceability": {
         "upstream_license": "verification_pending",
         "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "rtpengine",
+      "name": "Sipwise rtpengine",
+      "role": "Cell-local RTP/RTCP fast path, effective wire SDP, ICE, DTLS/SRTP, media forking and optional transcoding executor",
+      "lifecycle": "planned",
+      "integration_mode": "maintained_fork",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/sipwise/rtpengine",
+        "version": "mr26.0.1.13",
+        "pin_kind": "exact_tag",
+        "commit": "506cfa74386a5373e40fca139a932917f22f0524",
+        "release_ref": "mr26.0.1.13",
+        "source_identity_complete": true,
+        "source_archive": {
+          "url": "https://codeload.github.com/sipwise/rtpengine/tar.gz/refs/tags/mr26.0.1.13",
+          "sha256": "a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143",
+          "size_bytes": 6987926
+        }
+      },
+      "protocols": [
+        {
+          "protocol_id": "rtpengine-ng",
+          "version": "mr26",
+          "visibility": "component_internal"
+        }
+      ],
+      "planned_changes": [
+        {
+          "change_id": "rtpengine-exact-source-build-v1",
+          "summary": "Create an offline reproducible userspace, kernel module and recording-daemon build from the pinned source archive.",
+          "capacity_dimensions": [
+            "voice.rtp_rx_pps",
+            "voice.rtp_tx_pps",
+            "voice.rx_bps",
+            "voice.tx_bps"
+          ],
+          "acceptance_evidence": [
+            "Archive SHA-256, extracted source commit, builder dependencies and produced artifacts reconcile to one source identity.",
+            "Userspace, kernel mode and recording daemon each have an immutable image or package identity with SBOM, signature and provenance."
+          ]
+        },
+        {
+          "change_id": "rtpengine-owner-capacity-fork-v1",
+          "summary": "Add owner epoch fencing, role-specific capacity slots, bounded low-cardinality telemetry and deterministic drain behavior.",
+          "capacity_dimensions": [
+            "voice.rtp_rx_pps",
+            "voice.rtp_tx_pps",
+            "voice.rtp_port_pairs",
+            "voice.srtp_sessions",
+            "voice.recording_forks"
+          ],
+          "acceptance_evidence": [
+            "Stale epochs cannot mutate or delete a newer owner session.",
+            "Admission, drain and overload tests preserve established media and reject new work before resource exhaustion."
+          ]
+        },
+        {
+          "change_id": "rtpengine-rustpbx-media-graph-v1",
+          "summary": "Bind RustPBX logical media graph decisions to idempotent rtpengine NG commands and explicit unknown-result reconciliation.",
+          "capacity_dimensions": [
+            "sip.active_dialogs",
+            "voice.concurrent_calls",
+            "voice.recording_forks",
+            "voice.transcode.g711_opus"
+          ],
+          "acceptance_evidence": [
+            "Offer, answer, update, delete, query, recording and forwarding operations are replay-safe.",
+            "Control-plane interruption does not terminate an established kernel-forwarded RTP session."
+          ]
+        }
+      ],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "not_run",
+        "compile": "not_run",
+        "unit": "not_run",
+        "integration": "not_run",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          "docs/capacity/forks/rtpengine-mr26-source-spike-v1.json",
+          "docs/adr/ccaas-5-media-authority-and-rtpengine.md",
+          "test/ivekit-voice-media-goal0-contract.test.ts"
+        ],
+        "checked_at": "2026-07-25T11:49:03+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The exact upstream source identity and source capability spike are complete, but no iveKit patch queue, reproducible build, immutable artifact, SBOM, signature or provenance exists yet.",
+          "Kernel/userspace fallback, NG control reconciliation, SRTP, ICE, recording, transcoding, failure isolation and VOS-EQ capacity remain not_run.",
+          "No target Linux kernel, nftables module, NIC/NUMA profile or independent generator evidence exists."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 14,
+        "critical_security_fix_sla_days": 3,
+        "merge_strategy": "rebase_patch_queue",
+        "compatibility_policy": "rtpengine source, kernel module, recording daemon, RustPBX NG client and Kamailio integration move in one manifest revision.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "GPL-3.0-only",
+        "notice_recorded": true,
         "sbom_status": "not_run",
         "provenance_status": "not_run"
       }

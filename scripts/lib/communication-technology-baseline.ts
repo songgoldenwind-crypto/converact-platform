@@ -22,7 +22,10 @@ const REQUIRED_DECISIONS: Readonly<Record<string, { action: string; targetInclud
   'opentelemetry': { action: 'add', targetIncludes: 'OpenTelemetry' },
   'realtime-voice-pipeline': { action: 'keep', targetIncludes: 'LiveKit Agents' },
   'redis-to-valkey': { action: 'replace', targetIncludes: 'Valkey 9.1.0' },
-  'rtpengine': { action: 'poc', targetIncludes: 'mr26' },
+  'rtpengine': {
+    action: 'add',
+    targetIncludes: '506cfa74386a5373e40fca139a932917f22f0524'
+  },
   'rustdesk-server': { action: 'upgrade', targetIncludes: '1.1.16' },
   'seaweedfs': { action: 'add', targetIncludes: 'SeaweedFS 4.40' },
   'siphon-sip': { action: 'poc', targetIncludes: 'v1.4.1' },

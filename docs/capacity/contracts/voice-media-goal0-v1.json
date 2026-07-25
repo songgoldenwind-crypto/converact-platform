@@ -1,0 +1,214 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "voice-media-goal0-v1",
+  "revision": 1,
+  "status": "target",
+  "generated_at": "2026-07-25T12:20:00+08:00",
+  "source_spike_path": "docs/capacity/forks/rtpengine-mr26-source-spike-v1.json",
+  "metrics_contract_path": "docs/capacity/contracts/voice-media-metrics-v1.json",
+  "profile_paths": [
+    "docs/capacity/profiles/vos-eq-v1-rtp-10k-v1.json"
+  ],
+  "authority": {
+    "adr_path": "docs/adr/ccaas-5-media-authority-and-rtpengine.md",
+    "call_dialog_owner": "rustpbx",
+    "logical_media_graph_owner": "rustpbx",
+    "wire_transport_owner": "rtpengine",
+    "effective_wire_sdp_owner": "rtpengine",
+    "inserted_processing_runtime_owner": "media_processing_service",
+    "recording_manifest_owner": "regional_recording_service",
+    "cell_spool_authority": "pending_segments_only"
+  },
+  "placement": {
+    "owner_scope": "cell_zone",
+    "call_affinity": "sticky_for_call_lifetime",
+    "normal_media_cross_zone": false,
+    "active_media_migration": "forbidden",
+    "cross_zone_new_call_failover": "allowed_after_capacity_and_health_gate",
+    "regional_metadata_cross_zone": true
+  },
+  "harness": {
+    "adapter_status": "skeleton",
+    "drivers": [
+      {
+        "driver_id": "rustpbx-sipp-acceptance",
+        "path": "scripts/ivekit-rustpbx-sipp-acceptance.ts",
+        "role": "sip_signaling",
+        "status": "existing_reusable"
+      },
+      {
+        "driver_id": "sipp-rtp-campaign",
+        "path": "scripts/capacity/sipp-rtp-campaign.ts",
+        "role": "rtp_generation",
+        "status": "existing_reusable"
+      },
+      {
+        "driver_id": "sipp-rtp-throughput",
+        "path": "scripts/capacity/sipp-rtp-throughput.ts",
+        "role": "rtp_throughput",
+        "status": "existing_reusable"
+      },
+      {
+        "driver_id": "voice-media-attempt-evidence",
+        "path": "scripts/capacity/voice-media-attempt-evidence.ts",
+        "role": "attempt_evaluation",
+        "status": "implemented"
+      },
+      {
+        "driver_id": "capacity-finalizer",
+        "path": "scripts/ivekit-capacity-finalizer.ts",
+        "role": "evidence_finalization",
+        "status": "skeleton"
+      }
+    ],
+    "reconciliation_counters": [
+      "attempted",
+      "connected",
+      "failed",
+      "active",
+      "completed"
+    ],
+    "generator_failure_outcome": "invalid_generator_capacity",
+    "attempt_evidence_retention": "all_attempts_including_invalid",
+    "required_clock_metadata": [
+      "clock_source",
+      "ntp_offset_seconds",
+      "captured_at"
+    ],
+    "evidence_schema_path": "docs/capacity/schemas/voice-media-attempt-evidence.schema.json",
+    "evidence_finalizer": "scripts/ivekit-capacity-finalizer.ts"
+  },
+  "failure_matrix": [
+    {
+      "failure_id": "kamailio-node-unavailable",
+      "established_media": "continue",
+      "new_admission": "continue_via_peer",
+      "new_mandatory_recording": "continue",
+      "claim_effect": "degraded",
+      "required_evidence": [
+        "sip_route_recovery_seconds",
+        "established_rtp_loss_ratio",
+        "peer_admission_count"
+      ]
+    },
+    {
+      "failure_id": "rustpbx-owner-unavailable",
+      "established_media": "continue_degraded",
+      "new_admission": "reject_affected_shard",
+      "new_mandatory_recording": "continue_if_spool_healthy",
+      "claim_effect": "invalidate_failure_run",
+      "required_evidence": [
+        "owner_epoch",
+        "dialog_reconciliation",
+        "rtp_continuity"
+      ]
+    },
+    {
+      "failure_id": "rtpengine-node-unavailable",
+      "established_media": "may_interrupt",
+      "new_admission": "continue_via_peer",
+      "new_mandatory_recording": "continue_if_spool_healthy",
+      "claim_effect": "invalidate_failure_run",
+      "required_evidence": [
+        "affected_session_count",
+        "peer_capacity_reservation",
+        "packet_loss_window"
+      ]
+    },
+    {
+      "failure_id": "recording-node-unavailable",
+      "established_media": "continue",
+      "new_admission": "continue_without_optional_feature",
+      "new_mandatory_recording": "reject",
+      "claim_effect": "degraded",
+      "required_evidence": [
+        "media_continuity",
+        "recording_admission_rejections",
+        "spool_backlog"
+      ]
+    },
+    {
+      "failure_id": "object-storage-unavailable",
+      "established_media": "continue",
+      "new_admission": "continue_without_optional_feature",
+      "new_mandatory_recording": "reject",
+      "claim_effect": "degraded",
+      "required_evidence": [
+        "established_media_continuity",
+        "durable_spool_bytes",
+        "mandatory_recording_rejections"
+      ]
+    },
+    {
+      "failure_id": "regional-durable-store-unavailable",
+      "established_media": "continue_degraded",
+      "new_admission": "reject",
+      "new_mandatory_recording": "reject",
+      "claim_effect": "freeze_capacity_claim",
+      "required_evidence": [
+        "regional_store_health",
+        "owner_lease_age",
+        "admission_rejections"
+      ]
+    },
+    {
+      "failure_id": "intelligence-provider-unavailable",
+      "established_media": "continue_degraded",
+      "new_admission": "continue_without_optional_feature",
+      "new_mandatory_recording": "continue",
+      "claim_effect": "none",
+      "required_evidence": [
+        "provider_circuit_state",
+        "base_media_continuity",
+        "fallback_decision"
+      ]
+    },
+    {
+      "failure_id": "load-generator-capacity-exhausted",
+      "established_media": "continue",
+      "new_admission": "reject_affected_shard",
+      "new_mandatory_recording": "continue",
+      "claim_effect": "invalidate_failure_run",
+      "required_evidence": [
+        "generator_cpu",
+        "generator_packet_loss",
+        "attempt_reconciliation"
+      ]
+    }
+  ],
+  "compatibility": {
+    "control_protocol": "rtpengine-ng",
+    "source_version": "mr26.0.1.13",
+    "source_commit": "506cfa74386a5373e40fca139a932917f22f0524",
+    "rollout_order": [
+      "shadow_query",
+      "canary_new_calls",
+      "cell_new_calls",
+      "regional_new_calls"
+    ],
+    "active_session_rule": "never_switch_transport_owner_in_place"
+  },
+  "rollback": {
+    "strategy": "restore_rustpbx_direct_media_for_new_calls",
+    "new_calls_only": true,
+    "active_session_migration": "forbidden",
+    "requirements": [
+      "preserve_existing_rtpengine_sessions_until_bye",
+      "pin_exact_rustpbx_and_rtpengine_identities",
+      "fence_new_rtpengine_allocations",
+      "retain_all_attempt_and_packet_evidence",
+      "reconcile_active_sessions_before_completion"
+    ]
+  },
+  "claim": {
+    "runtime_complete": false,
+    "capacity_verified": false,
+    "production_eligible": false,
+    "blocking_evidence": [
+      "rtpengine-build-not-run",
+      "kernel-fast-path-not-run",
+      "goal0-finalizer-adapter-skeleton",
+      "bare-metal-capacity-not-run"
+    ]
+  }
+}

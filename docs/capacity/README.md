@@ -1,8 +1,8 @@
 # iveKit 容量合同与架构治理
 
 > 状态：Active
-> 版本：3.4
-> 日期：2026-07-22
+> 版本：3.5
+> 日期：2026-07-25
 > 上级评审：[`../MIX-100K双Zone与Cell架构评审.md`](../MIX-100K双Zone与Cell架构评审.md)
 > 调研依据：[`../CCaaS十万并发容量对标与架构优化调研.md`](../CCaaS十万并发容量对标与架构优化调研.md)
 
@@ -27,13 +27,23 @@
 | [`schemas/workload-profile.schema.json`](schemas/workload-profile.schema.json) | 所有负载 profile 的 JSON Schema |
 | [`profiles/mix-100k-v1.json`](profiles/mix-100k-v1.json) | 第一版 100k 混合交互合同 |
 | [`profiles/cell-10k-v1.json`](profiles/cell-10k-v1.json) | MIX-100K 的 10% Cell 校准切片，不可乘十冒充平台通过 |
+| [`schemas/voice-media-profile.schema.json`](schemas/voice-media-profile.schema.json) | 语音 fast-path、处理、转码和录音角色隔离的容量 Profile Schema |
+| [`profiles/vos-eq-v1-rtp-10k-v1.json`](profiles/vos-eq-v1-rtp-10k-v1.json) | 单 rtpengine 节点 10K 双腿 G.711 RTP 目标；当前不是实测容量声明 |
+| [`schemas/source-capability-spike.schema.json`](schemas/source-capability-spike.schema.json) | 精确上游源码能力勘探与约束记录 Schema |
+| [`forks/rtpengine-mr26-source-spike-v1.json`](forks/rtpengine-mr26-source-spike-v1.json) | rtpengine mr26.0.1.13 源码能力、依赖、限制与待补缺口 |
+| [`schemas/metrics-contract.schema.json`](schemas/metrics-contract.schema.json) | 指标类型、单位、标签、桶和时钟元数据 Schema |
+| [`contracts/voice-media-metrics-v1.json`](contracts/voice-media-metrics-v1.json) | 语音媒体、录音、容量、接管和生成器指标合同 |
+| [`schemas/voice-media-attempt-evidence.schema.json`](schemas/voice-media-attempt-evidence.schema.json) | 单次语音媒体运行的身份、计数对账、生成器资格和 SUT 结果证据 Schema |
+| [`schemas/voice-media-goal0.schema.json`](schemas/voice-media-goal0.schema.json) | Goal 0 权威、部署、harness、故障、兼容和回滚合同 Schema |
+| [`contracts/voice-media-goal0-v1.json`](contracts/voice-media-goal0-v1.json) | Goal 0 机器可读总合同及 `not_run/skeleton` 真实状态 |
+| [`../adr/ccaas-5-media-authority-and-rtpengine.md`](../adr/ccaas-5-media-authority-and-rtpengine.md) | RustPBX、rtpengine、媒体处理和区域录音清单的权威边界 |
 | [`rtc-performance-contract-v1.md`](rtc-performance-contract-v1.md) | 端到端测量点、弱网矩阵、原始证据和联合判定语义 |
 | [`schemas/capacity-vector.schema.json`](schemas/capacity-vector.schema.json) | 节点、Cell、Zone 容量、使用量和 admission 合同 |
 | [`schemas/scaling-efficiency.schema.json`](schemas/scaling-efficiency.schema.json) | 单节点密度、聚合线性度和区段边际效率 Schema |
 | [`targets/mix-100k-efficiency-v1.json`](targets/mix-100k-efficiency-v1.json) | 单节点优先、component 90%/Cell 95% 边际门槛 |
 | [`cell-10k-pilot-budget.md`](cell-10k-pilot-budget.md) | 10K 派生网络/录制/文件/Provider 预算和最少节点求解 |
 | [`schemas/fork-manifest.schema.json`](schemas/fork-manifest.schema.json) | 开源 fork/patch queue 清单 Schema |
-| [`forks/ivekit-forks-v1.json`](forks/ivekit-forks-v1.json) | RustPBX、LiveKit、Tinode、RustDesk 的精确源码、补丁、构建、验证和发布阻断清单 |
+| [`forks/ivekit-forks-v1.json`](forks/ivekit-forks-v1.json) | rtpengine、RustPBX、LiveKit、Tinode、RustDesk 的精确源码、补丁、构建、验证和发布阻断清单 |
 | [`component-node-admission-protocol-v1.md`](component-node-admission-protocol-v1.md) | Cell 到 LiveKit/Tinode/RustDesk/RustPBX 节点的 lease、checkpoint、epoch、drain 和重启恢复内部合同 |
 | [`implementation-plan-phase1.md`](implementation-plan-phase1.md) | 容量 harness 第一阶段实施顺序、测试合同和完成门槛 |
 | [`implementation-plan-phase2.md`](implementation-plan-phase2.md) | Cell placement、持久编排器、组件探针和媒体 generator 第二阶段实现与服务器待验收清单 |
@@ -248,6 +258,7 @@ traces/
 | `scripts/capacity/generators/ivekit-event-ws.ts` | controlled protocol pass | 真实 WS 鉴权、durable cursor、reconnect、重复/乱序和 journal hash |
 | `scripts/capacity/generators/tinode.ts` | controlled protocol pass | 真实 Tinode hello/login/sub/presence/typing/publish/receipt/reconnect 和 journal hash |
 | `scripts/capacity/generators/sipp.ts` | controlled parser/runner pass | SIPp CPS/并发计划、统计、watchdog 和 SUT/generator 故障分类；本机无 SIPp，真实进程为 `not_run` |
+| `scripts/capacity/voice-media-attempt-evidence.ts` | controlled code pass | 统一 attempted/connected/failed/active/completed 对账，生成器饱和/时钟/丢包与 SUT/协议失败分离，并绑定原始输入 SHA-256 |
 | `scripts/ivekit-capacity-worker.ts` | controlled code pass | PostgreSQL heartbeat/assignment、JetStream fenced consume、固定 SHA 外部生成器、结果检查点、S3 evidence 和可恢复完成；真实 generator binary 为 `not_run` |
 | `scripts/ivekit-capacity-controller.ts` | controlled code pass | immutable run 创建/恢复、controller lease、动态 phase 推进、失败 phase 收口和 finalizing barrier |
 | `scripts/ivekit-capacity-finalizer.ts` | controlled code pass | `phase_id + shard_id` 三方核对、fleet qualification、生产依赖门禁、run evidence manifest 和 passed/failed/not_run 裁决 |

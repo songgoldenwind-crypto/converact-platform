@@ -70,6 +70,22 @@ test('technology baseline records controlled Valkey failover without claiming cu
   assert.ok(valkey.gates.some((gate) => /LiveKit.*not_run/i.test(gate)));
 });
 
+test('technology baseline selects the exact rtpengine source without claiming runtime proof', async () => {
+  const baseline = validateTechnologyBaseline(JSON.parse(
+    await readFile(
+      'docs/architecture/communication-technology-baseline-v1.json',
+      'utf8'
+    )
+  ));
+  const rtpengine = baseline.decisions.find((decision) => decision.id === 'rtpengine');
+
+  assert.ok(rtpengine);
+  assert.equal(rtpengine.action, 'add');
+  assert.match(rtpengine.target, /506cfa74386a5373e40fca139a932917f22f0524/);
+  assert.match(rtpengine.current, /benchmark not run/);
+  assert.match(rtpengine.rollout, /implementation-not-run/);
+});
+
 test('old Wave 3 candidates remain outside the reset RTC and external-provider wave', async () => {
   const baseline = JSON.parse(
     await readFile(
