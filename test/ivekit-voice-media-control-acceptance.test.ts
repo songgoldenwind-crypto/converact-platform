@@ -18,9 +18,16 @@ describe('iveKit voice media Goal 1 controlled acceptance', () => {
     const outputDir = mkdtempSync(join(tmpdir(), 'ivekit-media-goal1-'));
 
     const result = await runVoiceMediaGoal1ControlledAcceptance({
-      source_commit: SOURCE_COMMIT,
-      image_digest: IMAGE_DIGEST,
-      config_hash: CONFIG_HASH,
+      source_dir: '/controlled/source',
+      container_name: 'controlled-media-control',
+      rendered_config_file: '/controlled/compose.yaml',
+      identity_provider: async () => ({
+        source_commit: SOURCE_COMMIT,
+        image_digest: IMAGE_DIGEST,
+        config_hash: CONFIG_HASH,
+        verification_mode: 'injected-test',
+        deployment_identity_verified: false
+      }),
       generated_at: GENERATED_AT,
       output_dir: outputDir
     });
@@ -34,6 +41,11 @@ describe('iveKit voice media Goal 1 controlled acceptance', () => {
     assert.equal(evidence.source_commit, SOURCE_COMMIT);
     assert.equal(evidence.image_digest, IMAGE_DIGEST);
     assert.equal(evidence.config_hash, CONFIG_HASH);
+    assert.equal(evidence.identity_verification.mode, 'injected-test');
+    assert.equal(
+      evidence.identity_verification.deployment_identity_verified,
+      false
+    );
     assert.equal(evidence.generated_at, GENERATED_AT);
     assert.equal(
       Object.values(evidence.checks).every((value) => value === true),
@@ -44,7 +56,9 @@ describe('iveKit voice media Goal 1 controlled acceptance', () => {
       [
         'rtpengine-wire-transport',
         'physical-media-quality',
-        'physical-capacity'
+        'physical-capacity',
+        'rustpbx-runtime-wiring',
+        'container-restart-persistence'
       ]
     );
     assert.equal(evidence.observations.command_replay.prepare_side_effects, 1);
@@ -59,9 +73,16 @@ describe('iveKit voice media Goal 1 controlled acceptance', () => {
 
     await assert.rejects(
       runVoiceMediaGoal1ControlledAcceptance({
-        source_commit: 'short',
-        image_digest: IMAGE_DIGEST,
-        config_hash: CONFIG_HASH,
+        source_dir: '/controlled/source',
+        container_name: 'controlled-media-control',
+        rendered_config_file: '/controlled/compose.yaml',
+        identity_provider: async () => ({
+          source_commit: 'short',
+          image_digest: IMAGE_DIGEST,
+          config_hash: CONFIG_HASH,
+          verification_mode: 'injected-test',
+          deployment_identity_verified: false
+        }),
         generated_at: GENERATED_AT,
         output_dir: outputDir
       }),

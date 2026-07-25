@@ -11,16 +11,13 @@ import {
   InMemoryMediaTransport
 } from '../src/agent-runtime/ivekit/media-control/simulator.js';
 import {
-  HttpComponentNodeAdmissionClient
+  HttpComponentNodeAdmissionClient,
+  type ComponentNodeAdmissionClientTlsOptions
 } from '../src/agent-runtime/ivekit/placement/component-node-admission-http.js';
 
 const production = booleanEnv('IVEKIT_MEDIA_CONTROL_PRODUCTION', true);
 const requireMtls = booleanEnv(
   'IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS',
-  production
-);
-const requireProductionTransport = booleanEnv(
-  'IVEKIT_MEDIA_CONTROL_REQUIRE_PRODUCTION_TRANSPORT',
   production
 );
 const transportMode = stringEnv(
@@ -33,7 +30,7 @@ if (transportMode !== 'simulator') {
 if (production && !requireMtls) {
   throw new Error('IVEKIT media control production mTLS cannot be disabled');
 }
-if (requireProductionTransport) {
+if (production && transportMode === 'simulator') {
   throw new Error('IVEKIT media control simulator is not production eligible');
 }
 
@@ -45,9 +42,18 @@ const admissionToken = secret(
   'IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN',
   'IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN_FILE'
 );
+const admissionRequireMtls = booleanEnv(
+  'IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS',
+  production
+);
+if (production && !admissionRequireMtls) {
+  throw new Error('IVEKIT media control admission mTLS cannot be disabled');
+}
 const admission = new HttpComponentNodeAdmissionClient({
   endpoint: requiredEnv('IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT'),
   service_token: admissionToken,
+  production: admissionRequireMtls,
+  tls: admissionRequireMtls ? admissionTlsOptions() : undefined,
   timeout_ms: integerEnv(
     'IVEKIT_MEDIA_CONTROL_ADMISSION_TIMEOUT_MS',
     2_000,
@@ -79,7 +85,12 @@ admissionHealthTimer.unref();
 const agent = new MediaControlAgent({
   authority: {
     async authorize(input) {
-      const authorization = await admission.authorize(input);
+      const authorization = await admission.authorize({
+        reservation_id: input.media_reservation_id,
+        interaction_id: input.call_id,
+        owner_epoch: input.owner_epoch,
+        operation: input.operation
+      });
       return {
         owner_epoch: authorization.owner_epoch,
         reservation_expires_at: authorization.reservation_expires_at,
@@ -148,8 +159,7 @@ sweepTimer.unref();
 server.listen(port, host, () => {
   process.stdout.write(
     `ivekit media control agent listening on ${host}:${port} ` +
-    `transport=${transportMode} production=${production} ` +
-    `mtls=${requireMtls} production_transport=${requireProductionTransport}\n`
+    `transport=${transportMode} production=${production} mtls=${requireMtls}\n`
   );
 });
 
@@ -178,6 +188,23 @@ function tlsOptions(): MediaControlServerTlsOptions {
     key: readRequiredFile('IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE'),
     cert: readRequiredFile('IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE'),
     ca: readRequiredFile('IVEKIT_MEDIA_CONTROL_TLS_CA_FILE')
+  };
+}
+
+function admissionTlsOptions(): ComponentNodeAdmissionClientTlsOptions {
+  return {
+    key: readRequiredFile(
+      'IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_KEY_FILE'
+    ),
+    cert: readRequiredFile(
+      'IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CERT_FILE'
+    ),
+    ca: readRequiredFile(
+      'IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE'
+    ),
+    servername:
+      process.env.IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_SERVERNAME?.trim() ||
+      undefined
   };
 }
 

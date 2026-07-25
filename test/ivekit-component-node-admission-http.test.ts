@@ -1,4 +1,12 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -9,6 +17,54 @@ import {
 import { listenOnRandomPort } from './test-helpers.js';
 
 const token = 'component-node-service-token-1234567890';
+
+test('component node production boundary completes a mutual-TLS handshake', async (t) => {
+  const certificates = testCertificates();
+  t.after(async () => {
+    rmSync(certificates.directory, { recursive: true, force: true });
+  });
+  const server = createComponentNodeAdmissionHttpServer({
+    controller: fixture(),
+    service_token: token,
+    production: true,
+    tls: {
+      key: certificates.serverKey,
+      cert: certificates.serverCert,
+      ca: certificates.ca
+    },
+    now: () => new Date('2026-07-16T08:00:00.000Z')
+  });
+  const port = await listenOrSkip(t, server);
+  if (port === null) return;
+  const client = new HttpComponentNodeAdmissionClient({
+    endpoint: `https://127.0.0.1:${port}`,
+    service_token: token,
+    production: true,
+    tls: {
+      key: certificates.clientKey,
+      cert: certificates.clientCert,
+      ca: certificates.ca
+    }
+  });
+
+  assert.equal((await client.readState()).node_id, 'livekit-a');
+  assert.throws(
+    () => createComponentNodeAdmissionHttpServer({
+      controller: fixture(),
+      service_token: token,
+      production: true
+    }),
+    /production mTLS is required/
+  );
+  assert.throws(
+    () => new HttpComponentNodeAdmissionClient({
+      endpoint: `https://127.0.0.1:${port}`,
+      service_token: token,
+      production: true
+    }),
+    /production mTLS is required/
+  );
+});
 
 test('component node HTTP fences readiness, authentication and target identity', async (t) => {
   const controller = fixture();
@@ -127,6 +183,27 @@ test('component node HTTP client authenticates state reads and rejects malformed
     () => oversizedClient.readState(),
     (error: any) => error?.code === 'component_node_response_too_large'
   );
+
+  let pulls = 0;
+  const streamingClient = new HttpComponentNodeAdmissionClient({
+    endpoint: 'https://rustpbx-a.internal:3210',
+    service_token: token,
+    fetch: async () => new Response(new ReadableStream({
+      pull(controller) {
+        pulls += 1;
+        if (pulls <= 10) {
+          controller.enqueue(new Uint8Array(65_536));
+        } else {
+          controller.close();
+        }
+      }
+    }), { status: 200 })
+  });
+  await assert.rejects(
+    () => streamingClient.readState(),
+    (error: any) => error?.code === 'component_node_response_too_large'
+  );
+  assert.ok(pulls <= 4, `response stream was not cancelled after the bound: ${pulls}`);
 });
 
 test('component node HTTP metrics are bounded and contain no tenant or interaction IDs', async (t) => {
@@ -335,4 +412,57 @@ function closeServer(server: import('node:http').Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
   });
+}
+
+function testCertificates(): {
+  directory: string;
+  ca: Buffer;
+  serverKey: Buffer;
+  serverCert: Buffer;
+  clientKey: Buffer;
+  clientCert: Buffer;
+} {
+  const directory = mkdtempSync(join(tmpdir(), 'ivekit-component-mtls-'));
+  const run = (...arguments_: string[]) => {
+    execFileSync('openssl', arguments_, {
+      cwd: directory,
+      stdio: 'ignore'
+    });
+  };
+  run(
+    'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+    '-keyout', 'ca.key', '-out', 'ca.crt', '-days', '1',
+    '-subj', '/CN=ivekit-component-test-ca'
+  );
+  run(
+    'req', '-new', '-newkey', 'rsa:2048', '-nodes',
+    '-keyout', 'server.key', '-out', 'server.csr',
+    '-subj', '/CN=127.0.0.1',
+    '-addext', 'subjectAltName=IP:127.0.0.1',
+    '-addext', 'extendedKeyUsage=serverAuth'
+  );
+  run(
+    'x509', '-req', '-in', 'server.csr',
+    '-CA', 'ca.crt', '-CAkey', 'ca.key', '-CAcreateserial',
+    '-out', 'server.crt', '-days', '1', '-copy_extensions', 'copy'
+  );
+  run(
+    'req', '-new', '-newkey', 'rsa:2048', '-nodes',
+    '-keyout', 'client.key', '-out', 'client.csr',
+    '-subj', '/CN=ivekit-component-client',
+    '-addext', 'extendedKeyUsage=clientAuth'
+  );
+  run(
+    'x509', '-req', '-in', 'client.csr',
+    '-CA', 'ca.crt', '-CAkey', 'ca.key',
+    '-out', 'client.crt', '-days', '1', '-copy_extensions', 'copy'
+  );
+  return {
+    directory,
+    ca: readFileSync(join(directory, 'ca.crt')),
+    serverKey: readFileSync(join(directory, 'server.key')),
+    serverCert: readFileSync(join(directory, 'server.crt')),
+    clientKey: readFileSync(join(directory, 'client.key')),
+    clientCert: readFileSync(join(directory, 'client.crt'))
+  };
 }

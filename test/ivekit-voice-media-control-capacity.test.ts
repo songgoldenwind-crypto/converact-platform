@@ -3,11 +3,11 @@ import { describe, it } from 'node:test';
 
 import {
   MediaControlAgent,
-  MediaControlError,
   type MediaControlAuthorityPort
 } from '../src/agent-runtime/ivekit/media-control/agent.js';
-import type {
-  MediaControlCommand
+import {
+  mediaControlPayloadHash,
+  type MediaControlCommand
 } from '../src/agent-runtime/ivekit/media-control/protocol.js';
 import type {
   MediaTransportCommand,
@@ -34,7 +34,7 @@ class StatelessCapacityTransport implements MediaTransportPort {
     return {
       state: 'succeeded',
       command_id: command.command_id,
-      transport_session_id: `t-${command.reservation_id}`,
+      transport_session_id: `t-${command.media_reservation_id}`,
       effective_sdp: '',
       session_state: 'prepared',
       applied_at: NOW.toISOString()
@@ -53,19 +53,26 @@ class StatelessCapacityTransport implements MediaTransportPort {
 }
 
 function prepare(index: number): MediaControlCommand {
+  const payload = {
+    offer_sdp: '',
+    media_profile_id: 'g711-relay-v1'
+  };
   return {
     protocol_version: 'ivekit.media-control.v1',
-    action: 'prepare',
+    action: 'offer',
     command_id: `c-${index}`,
-    reservation_id: `r-${index}`,
-    interaction_id: `i-${index}`,
+    tenant_id: `t-${index}`,
+    call_id: `i-${index}`,
+    leg_id: `l-${index}`,
+    cell_id: 'cell-1',
+    owner_node_id: 'rustpbx-1',
     owner_epoch: OWNER_EPOCH,
-    sequence: 1,
-    lease_expires_at: '2026-07-25T00:01:00.000Z',
-    payload: {
-      offer_sdp: '',
-      media_profile_id: 'g711-relay-v1'
-    }
+    media_reservation_id: `r-${index}`,
+    command_sequence: 1,
+    idempotency_key: `idem-${index}`,
+    expires_at: '2026-07-25T00:01:00.000Z',
+    payload,
+    payload_hash: mediaControlPayloadHash(payload)
   };
 }
 
@@ -81,7 +88,7 @@ describe('iveKit media control 100K reservation model', () => {
 
     for (let index = 1; index <= 100_000; index += 1) {
       const result = await agent.execute(prepare(index), NOW);
-      assert.equal(result.state, 'succeeded');
+      assert.equal(result.result_class, 'committed');
     }
     const heapGrowth = Math.max(
       0,
@@ -100,12 +107,9 @@ describe('iveKit media control 100K reservation model', () => {
     );
     assert.equal(agent.scheduledDeadlineCount(), 100_000);
 
-    await assert.rejects(
-      agent.execute(prepare(100_001), NOW),
-      (error: unknown) =>
-        error instanceof MediaControlError &&
-        error.code === 'media_control_capacity_exhausted'
-    );
+    const rejected = await agent.execute(prepare(100_001), NOW);
+    assert.equal(rejected.result_class, 'rejected_capacity');
+    assert.equal(rejected.error_code, 'media_control_capacity_exhausted');
     assert.equal(agent.reservationCount(), 100_000);
   });
 
@@ -123,11 +127,11 @@ describe('iveKit media control 100K reservation model', () => {
 
     assert.match(
       metrics,
-      /ivekit_media_control_commands_total\{action="prepare",result="succeeded"\} 1/
+      /ivekit_media_control_commands_total\{action="offer",result="committed"\} 1/
     );
     assert.match(
       metrics,
-      /ivekit_media_control_commands_total\{action="prepare",result="replayed"\} 1/
+      /ivekit_media_control_commands_total\{action="offer",result="replayed"\} 1/
     );
     assert.match(
       metrics,
@@ -136,12 +140,12 @@ describe('iveKit media control 100K reservation model', () => {
     assert.match(metrics, /ivekit_media_control_reservations 1/);
     for (const forbidden of [
       input.command_id,
-      input.reservation_id,
-      input.interaction_id,
+      input.media_reservation_id,
+      input.call_id,
       input.owner_epoch,
       'tenant_id',
       'call_id',
-      'reservation_id',
+      'media_reservation_id',
       'command_id'
     ]) {
       assert.equal(metrics.includes(forbidden), false, forbidden);

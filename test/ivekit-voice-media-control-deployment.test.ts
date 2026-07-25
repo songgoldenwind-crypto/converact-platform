@@ -21,6 +21,14 @@ describe('iveKit media control deployment', () => {
     assert.match(dockerfile, /^USER node:node$/m);
     assert.match(
       dockerfile,
+      /LABEL org\.opencontainers\.image\.revision="\$\{OPC_SOURCE_COMMIT\}"/
+    );
+    assert.equal(
+      compose.services['media-control'].build.args.OPC_SOURCE_COMMIT,
+      '${OPC_SOURCE_COMMIT:-unknown}'
+    );
+    assert.match(
+      dockerfile,
       /ENTRYPOINT \["node", "--import", "tsx", "scripts\/ivekit-media-control-agent\.ts"\]/
     );
     assert.doesNotMatch(dockerfile, /\b(latest|curl|wget)\b/);
@@ -54,12 +62,29 @@ describe('iveKit media control deployment', () => {
       'false'
     );
     assert.equal(
-      service.environment.IVEKIT_MEDIA_CONTROL_REQUIRE_PRODUCTION_TRANSPORT,
+      service.environment.IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS,
       'false'
+    );
+    assert.equal(
+      compose.services['rustpbx-component-node']
+        .environment.OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS,
+      'false'
+    );
+    assert.equal(
+      service.environment.IVEKIT_MEDIA_CONTROL_REQUIRE_PRODUCTION_TRANSPORT,
+      undefined
     );
     assert.match(
       entrypoint,
       /simulator is not production eligible/
+    );
+    assert.match(
+      entrypoint,
+      /if \(production && transportMode === 'simulator'\)/
+    );
+    assert.doesNotMatch(
+      entrypoint,
+      /IVEKIT_MEDIA_CONTROL_REQUIRE_PRODUCTION_TRANSPORT/
     );
     assert.match(
       entrypoint,
@@ -72,6 +97,10 @@ describe('iveKit media control deployment', () => {
     assert.match(
       entrypoint,
       /IVEKIT_MEDIA_CONTROL_TLS_CA_FILE/
+    );
+    assert.match(
+      entrypoint,
+      /IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE/
     );
   });
 

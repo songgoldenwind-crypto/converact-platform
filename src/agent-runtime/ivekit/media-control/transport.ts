@@ -6,10 +6,16 @@ import type {
 export interface MediaTransportCommand {
   action: MediaControlAction;
   command_id: string;
-  reservation_id: string;
-  interaction_id: string;
+  tenant_id: string;
+  call_id: string;
+  leg_id: string;
+  cell_id: string;
+  owner_node_id: string;
   owner_epoch: string;
-  sequence: number;
+  media_reservation_id: string;
+  command_sequence: number;
+  idempotency_key: string;
+  payload_hash: string;
   command_hash: string;
   transport_session_id?: string;
   payload: Record<string, unknown>;
@@ -48,14 +54,14 @@ export type MediaTransportQuery =
 
 export interface MediaTransportCommandIdentity {
   command_id: string;
-  reservation_id: string;
+  media_reservation_id: string;
   owner_epoch: string;
   command_hash: string;
 }
 
 export interface MediaTransportSessionSnapshot {
-  reservation_id: string;
-  interaction_id: string;
+  media_reservation_id: string;
+  call_id: string;
   owner_epoch: string;
   last_sequence: number;
   state: MediaSessionState;
@@ -70,8 +76,8 @@ export interface MediaTransportPort {
     identity: MediaTransportCommandIdentity
   ): Promise<MediaTransportQuery>;
   querySession(input: {
-    reservation_id: string;
-    interaction_id: string;
+    media_reservation_id: string;
+    call_id: string;
   }): Promise<MediaTransportSessionSnapshot | undefined>;
   releaseSession(transportSessionId: string, reason: string): Promise<void>;
 }

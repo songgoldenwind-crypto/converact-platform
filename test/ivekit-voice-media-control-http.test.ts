@@ -23,8 +23,9 @@ import {
   createMediaControlHttpServer,
   type MediaControlHttpServer
 } from '../src/agent-runtime/ivekit/media-control/http.js';
-import type {
-  MediaControlCommand
+import {
+  mediaControlPayloadHash,
+  type MediaControlCommand
 } from '../src/agent-runtime/ivekit/media-control/protocol.js';
 import {
   InMemoryMediaTransport
@@ -45,19 +46,26 @@ class AllowAuthority implements MediaControlAuthorityPort {
 }
 
 function command(): MediaControlCommand {
+  const payload = {
+    offer_sdp: 'v=0\r\n',
+    media_profile_id: 'g711-relay-v1'
+  };
   return {
     protocol_version: 'ivekit.media-control.v1',
-    action: 'prepare',
+    action: 'offer',
     command_id: 'http-command-1',
-    reservation_id: 'http-reservation-1',
-    interaction_id: 'http-call-1',
+    tenant_id: 'http-tenant-handle-1',
+    call_id: 'http-call-1',
+    leg_id: 'http-leg-1',
+    cell_id: 'http-cell-1',
+    owner_node_id: 'http-rustpbx-1',
     owner_epoch: ((1n << 32n) | 1n).toString(),
-    sequence: 1,
-    lease_expires_at: '2026-07-25T00:01:00.000Z',
-    payload: {
-      offer_sdp: 'v=0\r\n',
-      media_profile_id: 'g711-relay-v1'
-    }
+    media_reservation_id: 'http-reservation-1',
+    command_sequence: 1,
+    idempotency_key: 'http-idem-1',
+    expires_at: '2026-07-25T00:01:00.000Z',
+    payload,
+    payload_hash: mediaControlPayloadHash(payload)
   };
 }
 
@@ -130,7 +138,10 @@ describe('iveKit media control HTTP boundary', () => {
         }
       });
 
-      assert.equal((await client.execute(command())).state, 'succeeded');
+      assert.equal(
+        (await client.execute(command())).result_class,
+        'committed'
+      );
       await assert.rejects(httpsWithoutClientCertificate(
         endpoint,
         certificates.ca
@@ -159,13 +170,14 @@ describe('iveKit media control HTTP boundary', () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     });
 
-    assert.equal(first.state, 'succeeded');
-    assert.deepEqual(replay, first);
+    assert.equal(first.result_class, 'committed');
+    assert.equal(replay.result_class, 'replayed');
+    assert.deepEqual(replay.session, first.session);
     assert.equal(session.state, 'prepared');
     assert.equal(metrics.status, 200);
     assert.match(
       await metrics.text(),
-      /ivekit_media_control_commands_total\{action="prepare",result="replayed"\} 1/
+      /ivekit_media_control_commands_total\{action="offer",result="replayed"\} 1/
     );
   });
 
@@ -225,7 +237,7 @@ describe('iveKit media control HTTP boundary', () => {
 
     assert.deepEqual(result, {
       protocol_version: 'ivekit.media-control.v1',
-      state: 'unknown',
+      result_class: 'unknown',
       command_id: 'http-command-1',
       error_code: 'media_control_timeout',
       retryable: true
@@ -247,9 +259,9 @@ describe('iveKit media control HTTP boundary', () => {
 
     const result = await client.execute(command());
 
-    assert.equal(result.state, 'unknown');
+    assert.equal(result.result_class, 'unknown');
     assert.equal(
-      result.state === 'unknown' && result.error_code,
+      result.result_class === 'unknown' && result.error_code,
       'media_control_timeout'
     );
   });
@@ -261,7 +273,7 @@ describe('iveKit media control HTTP boundary', () => {
         body: {
           data: {
             protocol_version: 'ivekit.media-control.v1',
-            state: 'succeeded',
+            result_class: 'committed',
             command_id: 'http-command-1'
           }
         }
@@ -290,7 +302,7 @@ describe('iveKit media control HTTP boundary', () => {
 
       const result = await client.execute(command());
 
-      assert.equal(result.state, 'unknown');
+      assert.equal(result.result_class, 'unknown');
       assert.equal(result.command_id, 'http-command-1');
     }
   });

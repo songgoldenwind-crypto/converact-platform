@@ -7,6 +7,8 @@ import {
   checkedMediaControlCommand,
   checkedMediaControlReconcileInput,
   mediaControlCommandHash,
+  mediaControlIdempotencyHash,
+  mediaControlPayloadHash,
   type MediaControlCommand
 } from '../src/agent-runtime/ivekit/media-control/protocol.js';
 
@@ -24,19 +26,26 @@ ajv.addFormat('date-time', {
 });
 const validate = ajv.compile(schema);
 
+const offerPayload = {
+  offer_sdp: 'v=0\r\n',
+  media_profile_id: 'g711-relay-v1'
+};
 const prepare: MediaControlCommand = {
   protocol_version: 'ivekit.media-control.v1',
-  action: 'prepare',
+  action: 'offer',
   command_id: 'command-1',
-  reservation_id: 'reservation-1',
-  interaction_id: 'call-1',
+  tenant_id: 'tenant-handle-1',
+  call_id: 'call-1',
+  leg_id: 'leg-1',
+  cell_id: 'cell-1',
+  owner_node_id: 'rustpbx-1',
   owner_epoch: ((1n << 32n) | 1n).toString(),
-  sequence: 1,
-  lease_expires_at: '2026-07-25T00:01:00.000Z',
-  payload: {
-    offer_sdp: 'v=0\r\n',
-    media_profile_id: 'g711-relay-v1'
-  }
+  media_reservation_id: 'reservation-1',
+  command_sequence: 1,
+  idempotency_key: 'idempotency-1',
+  expires_at: '2026-07-25T00:01:00.000Z',
+  payload: offerPayload,
+  payload_hash: mediaControlPayloadHash(offerPayload)
 };
 
 describe('iveKit media control protocol v1', () => {
@@ -44,27 +53,23 @@ describe('iveKit media control protocol v1', () => {
     const documents = [
       prepare,
       {
+        ...prepare,
         protocol_version: 'ivekit.media-control.v1',
-        action: 'commit',
+        action: 'answer',
         command_id: 'command-2',
-        reservation_id: 'reservation-1',
-        interaction_id: 'call-1',
-        owner_epoch: prepare.owner_epoch,
-        sequence: 2,
-        lease_expires_at: prepare.lease_expires_at,
-        payload: {}
+        command_sequence: 2,
+        idempotency_key: 'idempotency-2',
+        payload: {},
+        payload_hash: mediaControlPayloadHash({})
       },
       {
         protocol_version: 'ivekit.media-control.v1',
         action: 'reconcile',
-        command_id: 'command-1',
-        reservation_id: 'reservation-1',
-        interaction_id: 'call-1',
-        owner_epoch: prepare.owner_epoch
+        command: prepare
       },
       {
         protocol_version: 'ivekit.media-control.v1',
-        state: 'unknown',
+        result_class: 'unknown',
         command_id: 'command-1',
         error_code: 'transport_timeout',
         retryable: true
@@ -86,9 +91,9 @@ describe('iveKit media control protocol v1', () => {
       { ...prepare, owner_epoch: '-1' },
       { ...prepare, command_id: 42 },
       { ...prepare, owner_epoch: 42 },
-      { ...prepare, sequence: 0 },
-      { ...prepare, lease_expires_at: 'tomorrow' },
-      { ...prepare, lease_expires_at: '2026-07-25T00:01:00Z' },
+      { ...prepare, command_sequence: 0 },
+      { ...prepare, expires_at: 'tomorrow' },
+      { ...prepare, expires_at: '2026-07-25T00:01:00Z' },
       { ...prepare, extra: true },
       {
         ...prepare,
@@ -117,13 +122,24 @@ describe('iveKit media control protocol v1', () => {
       mediaControlCommandHash(prepare),
       mediaControlCommandHash(reversed)
     );
+    assert.equal(
+      mediaControlIdempotencyHash(prepare),
+      mediaControlIdempotencyHash({
+        ...prepare,
+        command_id: 'retry-command-id'
+      })
+    );
   });
 
   it('runtime validation enforces the same protocol and bounds', () => {
     assert.deepEqual(checkedMediaControlCommand(prepare), prepare);
     assert.throws(
-      () => checkedMediaControlCommand({ ...prepare, sequence: 0 }),
+      () => checkedMediaControlCommand({ ...prepare, command_sequence: 0 }),
       /media_control_sequence_invalid/
+    );
+    assert.throws(
+      () => checkedMediaControlCommand({ ...prepare, payload_hash: '0'.repeat(64) }),
+      /media_control_payload_hash_invalid/
     );
     assert.throws(
       () => checkedMediaControlCommand({
@@ -154,18 +170,12 @@ describe('iveKit media control protocol v1', () => {
       checkedMediaControlReconcileInput({
         protocol_version: 'ivekit.media-control.v1',
         action: 'reconcile',
-        command_id: prepare.command_id,
-        reservation_id: prepare.reservation_id,
-        interaction_id: prepare.interaction_id,
-        owner_epoch: prepare.owner_epoch
+        command: prepare
       }),
       {
         protocol_version: 'ivekit.media-control.v1',
         action: 'reconcile',
-        command_id: prepare.command_id,
-        reservation_id: prepare.reservation_id,
-        interaction_id: prepare.interaction_id,
-        owner_epoch: prepare.owner_epoch
+        command: prepare
       }
     );
   });

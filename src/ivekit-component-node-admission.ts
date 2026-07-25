@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { isAbsolute } from 'node:path';
 
@@ -6,7 +7,8 @@ import {
   type ComponentNodeComponent
 } from './agent-runtime/ivekit/placement/component-node-admission.js';
 import {
-  createComponentNodeAdmissionHttpServer
+  createComponentNodeAdmissionHttpServer,
+  type ComponentNodeAdmissionTlsOptions
 } from './agent-runtime/ivekit/placement/component-node-admission-http.js';
 import type {
   FlatCapacityState,
@@ -20,6 +22,8 @@ export interface ComponentNodeAdmissionRuntimeConfig {
   host: string;
   port: number;
   service_token: string;
+  production: boolean;
+  tls?: ComponentNodeAdmissionTlsOptions;
   component: ComponentNodeComponent;
   region_id: string;
   zone_id: string;
@@ -44,6 +48,24 @@ export function componentNodeAdmissionRuntimeConfig(
       /change[_-]?me|replace|placeholder|example/i.test(token)) {
     throw new Error('OPC_IVEKIT_COMPONENT_NODE_TOKEN is invalid');
   }
+  const production = boolean(
+    env.OPC_IVEKIT_COMPONENT_NODE_PRODUCTION,
+    false,
+    'OPC_IVEKIT_COMPONENT_NODE_PRODUCTION'
+  );
+  const requireMtls = boolean(
+    env.OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS,
+    production,
+    'OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS'
+  );
+  if (production && !requireMtls) {
+    throw new Error('component node production mTLS cannot be disabled');
+  }
+  const tls = requireMtls ? {
+    key: readRequiredFile(env, 'OPC_IVEKIT_COMPONENT_NODE_TLS_KEY_FILE'),
+    cert: readRequiredFile(env, 'OPC_IVEKIT_COMPONENT_NODE_TLS_CERT_FILE'),
+    ca: readRequiredFile(env, 'OPC_IVEKIT_COMPONENT_NODE_TLS_CA_FILE')
+  } : undefined;
   const component = componentValue(
     required(env, 'OPC_IVEKIT_COMPONENT_NODE_COMPONENT')
   );
@@ -77,6 +99,8 @@ export function componentNodeAdmissionRuntimeConfig(
     host: host(env.OPC_IVEKIT_COMPONENT_NODE_HOST || '0.0.0.0'),
     port: integer(env.OPC_IVEKIT_COMPONENT_NODE_PORT, 3210, 1, 65_535),
     service_token: token,
+    production,
+    ...(tls ? { tls } : {}),
     component,
     region_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_REGION_ID')),
     zone_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_ZONE_ID')),
@@ -154,6 +178,8 @@ export async function runComponentNodeAdmission(
   const server = createComponentNodeAdmissionHttpServer({
     controller,
     service_token: config.service_token,
+    production: config.production,
+    tls: config.tls,
     max_body_bytes: config.max_body_bytes,
     before_new_reservation: recordingSpoolGate
       ? (checkpoint, now) => recordingSpoolGate.assertReservation(
@@ -287,6 +313,27 @@ function closeServer(server: import('node:http').Server): Promise<void> {
   return new Promise((resolve, reject) => {
     server.close((error) => error ? reject(error) : resolve());
   });
+}
+
+function boolean(
+  raw: string | undefined,
+  fallback: boolean,
+  field: string
+): boolean {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value) return fallback;
+  if (value === 'true' || value === '1') return true;
+  if (value === 'false' || value === '0') return false;
+  throw new Error(`${field} must be true or false`);
+}
+
+function readRequiredFile(
+  env: NodeJS.ProcessEnv,
+  field: string
+): Buffer {
+  const value = readFileSync(required(env, field));
+  if (value.length < 1) throw new Error(`${field} is empty`);
+  return value;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

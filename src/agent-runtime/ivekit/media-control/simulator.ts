@@ -10,8 +10,8 @@ export type SimulatedFailure =
   | 'after_apply_timeout';
 
 interface SimulatedSession {
-  reservation_id: string;
-  interaction_id: string;
+  media_reservation_id: string;
+  call_id: string;
   transport_session_id: string;
   effective_sdp: string;
   state: 'prepared' | 'committed' | 'cancelled' | 'closed' | 'expired';
@@ -38,9 +38,23 @@ export class InMemoryMediaTransport implements MediaTransportPort {
   #failNextRelease = false;
   #nextSession = 1;
   readonly #now: () => Date;
+  readonly #maxSessions: number;
+  readonly #maxCommands: number;
 
-  constructor(input: { now?: () => Date } = {}) {
+  constructor(input: {
+    now?: () => Date;
+    max_sessions?: number;
+    max_commands?: number;
+  } = {}) {
     this.#now = input.now ?? (() => new Date());
+    this.#maxSessions = boundedLimit(
+      input.max_sessions ?? 100_000,
+      'max_sessions'
+    );
+    this.#maxCommands = boundedLimit(
+      input.max_commands ?? 1_600_000,
+      'max_commands'
+    );
   }
 
   failNext(failure: SimulatedFailure): void {
@@ -58,7 +72,7 @@ export class InMemoryMediaTransport implements MediaTransportPort {
   async execute(command: MediaTransportCommand): Promise<MediaTransportOutcome> {
     const key = commandKey(command);
     const recorded = this.#commands.get(key);
-    const current = this.#sessions.get(command.reservation_id);
+    const current = this.#sessions.get(command.media_reservation_id);
     if (current && compareEpoch(command.owner_epoch, current.owner_epoch) < 0) {
       return failedOutcome(command, 'stale_owner_epoch');
     }
@@ -66,6 +80,9 @@ export class InMemoryMediaTransport implements MediaTransportPort {
       return recorded.command_hash === command.command_hash
         ? structuredClone(recorded.outcome)
         : failedOutcome(command, 'command_payload_conflict');
+    }
+    if (this.#commands.size >= this.#maxCommands) {
+      return failedOutcome(command, 'transport_command_capacity_exhausted');
     }
 
     const failure = this.#nextFailure;
@@ -97,7 +114,7 @@ export class InMemoryMediaTransport implements MediaTransportPort {
 
   async queryCommand(input: {
     command_id: string;
-    reservation_id: string;
+    media_reservation_id: string;
     owner_epoch: string;
     command_hash: string;
   }): Promise<MediaTransportQuery> {
@@ -133,16 +150,16 @@ export class InMemoryMediaTransport implements MediaTransportPort {
   }
 
   async querySession(input: {
-    reservation_id: string;
-    interaction_id: string;
+    media_reservation_id: string;
+    call_id: string;
   }) {
-    const session = this.#sessions.get(input.reservation_id);
-    if (!session || session.interaction_id !== input.interaction_id) {
+    const session = this.#sessions.get(input.media_reservation_id);
+    if (!session || session.call_id !== input.call_id) {
       return undefined;
     }
     return {
-      reservation_id: session.reservation_id,
-      interaction_id: session.interaction_id,
+      media_reservation_id: session.media_reservation_id,
+      call_id: session.call_id,
       owner_epoch: session.owner_epoch,
       last_sequence: session.last_sequence,
       state: session.state,
@@ -175,11 +192,19 @@ export class InMemoryMediaTransport implements MediaTransportPort {
     return [...this.#sideEffects.values()].reduce((sum, count) => sum + count, 0);
   }
 
+  sessionCount(): number {
+    return this.#sessions.size;
+  }
+
+  commandCount(): number {
+    return this.#commands.size;
+  }
+
   #apply(
     command: MediaTransportCommand
   ): Exclude<MediaTransportOutcome, { state: 'unknown' }> {
-    const current = this.#sessions.get(command.reservation_id);
-    if (command.action === 'prepare') {
+    const current = this.#sessions.get(command.media_reservation_id);
+    if (command.action === 'offer') {
       if (current) {
         const fenceError = applyFence(current, command);
         if (fenceError) return failedOutcome(command, fenceError);
@@ -193,22 +218,25 @@ export class InMemoryMediaTransport implements MediaTransportPort {
           applied_at: current.updated_at
         };
       }
+      if (this.#sessions.size >= this.#maxSessions) {
+        return failedOutcome(command, 'transport_capacity_exhausted');
+      }
       const offerSdp = String(command.payload.offer_sdp ?? '');
       const session: SimulatedSession = {
-        reservation_id: command.reservation_id,
-        interaction_id: command.interaction_id,
+        media_reservation_id: command.media_reservation_id,
+        call_id: command.call_id,
         transport_session_id: `transport-${this.#nextSession++}`,
         effective_sdp: offerSdp.includes('a=ivekit-media-node:')
           ? offerSdp
           : `${offerSdp}a=ivekit-media-node:simulator\r\n`,
         state: 'prepared',
         owner_epoch: command.owner_epoch,
-        last_sequence: command.sequence,
+        last_sequence: command.command_sequence,
         forwarding: false,
         forwarded_packets: 0,
         updated_at: this.#now().toISOString()
       };
-      this.#sessions.set(command.reservation_id, session);
+      this.#sessions.set(command.media_reservation_id, session);
       this.#sessionsByTransportId.set(session.transport_session_id, session);
       this.#increment(command.action);
       return {
@@ -234,18 +262,21 @@ export class InMemoryMediaTransport implements MediaTransportPort {
     const fenceError = applyFence(current, command);
     if (fenceError) return failedOutcome(command, fenceError);
 
-    if (command.action === 'commit') {
+    if (command.action === 'answer' || command.action === 'start_forward') {
       current.state = 'committed';
       current.forwarding = true;
-    } else if (command.action === 'cancel') {
-      current.state = 'cancelled';
-      current.forwarding = false;
-    } else {
+    } else if (command.action === 'delete') {
       current.state = 'closed';
       current.forwarding = false;
+    } else if (command.action === 'stop_forward' ||
+               command.action === 'block_media') {
+      current.forwarding = false;
+    } else if (command.action === 'unblock_media' &&
+               current.state === 'committed') {
+      current.forwarding = true;
     }
     current.updated_at = this.#now().toISOString();
-    this.#increment(command.action);
+    if (command.action !== 'query') this.#increment(command.action);
     return {
       state: 'succeeded',
       command_id: command.command_id,
@@ -263,10 +294,10 @@ export class InMemoryMediaTransport implements MediaTransportPort {
 
 function commandKey(input: {
   command_id: string;
-  reservation_id: string;
+  media_reservation_id: string;
   owner_epoch: string;
 }): string {
-  return `${input.reservation_id}\0${input.owner_epoch}\0${input.command_id}`;
+  return `${input.media_reservation_id}\0${input.owner_epoch}\0${input.command_id}`;
 }
 
 function applyFence(
@@ -276,13 +307,13 @@ function applyFence(
   const epoch = compareEpoch(command.owner_epoch, session.owner_epoch);
   if (epoch < 0) return 'stale_owner_epoch';
   if (epoch > 0) {
-    if (command.sequence !== 1) return 'owner_takeover_sequence_invalid';
+    if (command.command_sequence !== 1) return 'owner_takeover_sequence_invalid';
     session.owner_epoch = command.owner_epoch;
     session.last_sequence = 0;
   }
-  if (command.sequence <= session.last_sequence) return 'stale_sequence';
-  if (command.sequence !== session.last_sequence + 1) return 'sequence_gap';
-  session.last_sequence = command.sequence;
+  if (command.command_sequence <= session.last_sequence) return 'stale_sequence';
+  if (command.command_sequence !== session.last_sequence + 1) return 'sequence_gap';
+  session.last_sequence = command.command_sequence;
   return '';
 }
 
@@ -300,6 +331,14 @@ function failedOutcome(
     state: 'failed',
     command_id: command.command_id,
     error_code: errorCode,
-    retryable: false
+    retryable: errorCode === 'transport_capacity_exhausted' ||
+      errorCode === 'transport_command_capacity_exhausted'
   };
+}
+
+function boundedLimit(value: number, name: string): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 10_000_000) {
+    throw new Error(`simulated ${name} is invalid`);
+  }
+  return value;
 }

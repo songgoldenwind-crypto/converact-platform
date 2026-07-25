@@ -1,5 +1,14 @@
 import { timingSafeEqual } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
+import {
+  createServer,
+  type RequestListener,
+  type Server
+} from 'node:http';
+import {
+  createServer as createSecureServer,
+  request as requestHttps,
+  type RequestOptions as HttpsRequestOptions
+} from 'node:https';
 
 import type {
   CellAdmissionReservationCheckpoint
@@ -14,9 +23,22 @@ import {
   type ComponentNodeStateSnapshot
 } from './component-node-admission.js';
 
+export interface ComponentNodeAdmissionTlsOptions {
+  key: string | Buffer;
+  cert: string | Buffer;
+  ca: string | Buffer | Array<string | Buffer>;
+}
+
+export interface ComponentNodeAdmissionClientTlsOptions
+extends ComponentNodeAdmissionTlsOptions {
+  servername?: string;
+}
+
 export function createComponentNodeAdmissionHttpServer(input: {
   controller: ComponentNodeAdmissionController;
   service_token: string;
+  production?: boolean;
+  tls?: ComponentNodeAdmissionTlsOptions;
   max_body_bytes?: number;
   now?: () => Date;
   before_new_reservation?: (
@@ -25,6 +47,10 @@ export function createComponentNodeAdmissionHttpServer(input: {
   ) => void | Promise<void>;
   additional_metrics?: (now: Date) => string;
 }): Server {
+  if (input.production && !input.tls) {
+    throw new Error('component node production mTLS is required');
+  }
+  if (input.tls) validateTls(input.tls);
   const config = {
     controller: input.controller,
     service_token: safeToken(input.service_token),
@@ -38,7 +64,10 @@ export function createComponentNodeAdmissionHttpServer(input: {
     before_new_reservation: input.before_new_reservation,
     additional_metrics: input.additional_metrics
   };
-  return createServer(async (request, response) => {
+  const handler: RequestListener = async (
+    request,
+    response
+  ) => {
     try {
       const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
       if (request.method === 'GET' && url.pathname === '/livez') {
@@ -147,7 +176,17 @@ export function createComponentNodeAdmissionHttpServer(input: {
         }
       });
     }
-  });
+  };
+  return input.tls
+    ? createSecureServer({
+        key: input.tls.key,
+        cert: input.tls.cert,
+        ca: input.tls.ca,
+        requestCert: true,
+        rejectUnauthorized: true,
+        minVersion: 'TLSv1.2'
+      }, handler)
+    : createServer(handler);
 }
 
 export class HttpComponentNodeAdmissionClient {
@@ -155,10 +194,13 @@ export class HttpComponentNodeAdmissionClient {
   readonly #token: string;
   readonly #timeoutMs: number;
   readonly #fetch: typeof fetch;
+  readonly #tls?: ComponentNodeAdmissionClientTlsOptions;
 
   constructor(input: {
     endpoint: string;
     service_token: string;
+    production?: boolean;
+    tls?: ComponentNodeAdmissionClientTlsOptions;
     timeout_ms?: number;
     fetch?: typeof fetch;
   }) {
@@ -170,7 +212,17 @@ export class HttpComponentNodeAdmissionClient {
       30_000,
       'component node timeout'
     );
-    this.#fetch = input.fetch || globalThis.fetch;
+    this.#tls = input.tls;
+    if (input.production &&
+        (this.#endpoint.protocol !== 'https:' || !this.#tls)) {
+      throw new Error('component node production mTLS is required');
+    }
+    if (this.#tls && this.#endpoint.protocol !== 'https:') {
+      throw new Error('component node TLS requires an HTTPS endpoint');
+    }
+    if (this.#tls) validateTls(this.#tls);
+    this.#fetch = input.fetch ||
+      (this.#tls ? createMutualTlsFetch(this.#tls) : globalThis.fetch);
   }
 
   async applyLease(
@@ -432,10 +484,30 @@ async function boundedJsonResponse(
   if (declared > maximumBytes) {
     throw new ComponentNodeAdmissionError('component_node_response_too_large', 502);
   }
-  const text = await response.text();
-  if (Buffer.byteLength(text) > maximumBytes) {
-    throw new ComponentNodeAdmissionError('component_node_response_too_large', 502);
+  const chunks: Buffer[] = [];
+  let total = 0;
+  if (response.body) {
+    const reader = response.body.getReader();
+    try {
+      while (true) {
+        const result = await reader.read();
+        if (result.done) break;
+        const chunk = Buffer.from(result.value);
+        total += chunk.length;
+        if (total > maximumBytes) {
+          await reader.cancel('component_node_response_too_large');
+          throw new ComponentNodeAdmissionError(
+            'component_node_response_too_large',
+            502
+          );
+        }
+        chunks.push(chunk);
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
+  const text = Buffer.concat(chunks, total).toString('utf8');
   try {
     return object(JSON.parse(text));
   } catch (error) {
@@ -466,6 +538,120 @@ function safeToken(value: string): string {
     throw new Error('invalid component node service token');
   }
   return value;
+}
+
+function validateTls(
+  tls: ComponentNodeAdmissionTlsOptions
+): void {
+  for (const value of [tls.key, tls.cert]) {
+    if ((typeof value !== 'string' && !Buffer.isBuffer(value)) ||
+        Buffer.byteLength(value) < 1) {
+      throw new Error('invalid component node TLS configuration');
+    }
+  }
+  const authorities = Array.isArray(tls.ca) ? tls.ca : [tls.ca];
+  if (authorities.length < 1 ||
+      authorities.some((value) =>
+        (typeof value !== 'string' && !Buffer.isBuffer(value)) ||
+        Buffer.byteLength(value) < 1)) {
+    throw new Error('invalid component node TLS configuration');
+  }
+}
+
+function createMutualTlsFetch(
+  tls: ComponentNodeAdmissionClientTlsOptions
+): typeof fetch {
+  return (async (
+    input: Parameters<typeof fetch>[0],
+    init: Parameters<typeof fetch>[1] = {}
+  ) => {
+    const target = new URL(
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url
+    );
+    if (target.protocol !== 'https:') {
+      throw new Error('component node TLS request must use HTTPS');
+    }
+    const encoded = encodeRequestBody(init.body);
+    const headers = Object.fromEntries(new Headers(init.headers).entries());
+    const options: HttpsRequestOptions = {
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || undefined,
+      path: `${target.pathname}${target.search}`,
+      method: init.method || 'GET',
+      headers: {
+        ...headers,
+        ...(encoded && headers['content-length'] === undefined
+          ? { 'content-length': String(encoded.length) }
+          : {})
+      },
+      key: tls.key,
+      cert: tls.cert,
+      ca: tls.ca,
+      servername: tls.servername,
+      rejectUnauthorized: true,
+      minVersion: 'TLSv1.2'
+    };
+    return await new Promise<Response>((resolve, reject) => {
+      const request = requestHttps(options, (response) => {
+        const chunks: Buffer[] = [];
+        let total = 0;
+        response.on('data', (chunk: Buffer | string) => {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          total += buffer.length;
+          if (total > 131_072) {
+            request.destroy(new ComponentNodeAdmissionError(
+              'component_node_response_too_large',
+              502
+            ));
+            return;
+          }
+          chunks.push(buffer);
+        });
+        response.on('end', () => {
+          resolve(new Response(Buffer.concat(chunks, total), {
+            status: response.statusCode || 502,
+            headers: responseHeaders(response.headers)
+          }));
+        });
+      });
+      const abort = () => request.destroy(
+        Object.assign(new Error('aborted'), { name: 'AbortError' })
+      );
+      init.signal?.addEventListener('abort', abort, { once: true });
+      request.once('close', () =>
+        init.signal?.removeEventListener('abort', abort)
+      );
+      request.once('error', reject);
+      if (encoded) request.write(encoded);
+      request.end();
+    });
+  }) as typeof fetch;
+}
+
+function encodeRequestBody(
+  value: RequestInit['body']
+): Buffer | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') return Buffer.from(value);
+  if (Buffer.isBuffer(value)) return value;
+  if (value instanceof Uint8Array) return Buffer.from(value);
+  throw new Error('component node request body is unsupported');
+}
+
+function responseHeaders(
+  input: import('node:http').IncomingHttpHeaders
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [name, value] of Object.entries(input)) {
+    if (value === undefined) continue;
+    result[name] = Array.isArray(value) ? value.join(', ') : String(value);
+  }
+  return result;
 }
 
 function checkedEndpoint(value: string): URL {

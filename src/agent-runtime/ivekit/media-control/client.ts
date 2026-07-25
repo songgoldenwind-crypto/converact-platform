@@ -77,7 +77,7 @@ export class HttpMediaControlClient {
       if (isUnknownOutcome(error)) {
         return {
           protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-          state: 'unknown',
+          result_class: 'unknown',
           command_id: checked.command_id,
           error_code: error.code,
           retryable: true
@@ -102,8 +102,8 @@ export class HttpMediaControlClient {
       if (isUnknownOutcome(error)) {
         return {
           protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-          state: 'unknown',
-          command_id: checked.command_id,
+          result_class: 'unknown',
+          command_id: checked.command.command_id,
           error_code: error.code,
           retryable: true
         };

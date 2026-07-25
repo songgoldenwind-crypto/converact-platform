@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -19,20 +20,36 @@ import {
   InMemoryMediaTransport,
   type SimulatedFailure
 } from '../src/agent-runtime/ivekit/media-control/simulator.js';
-import type {
-  MediaControlAction,
-  MediaControlCommand
+import {
+  mediaControlPayloadHash,
+  type MediaControlAction,
+  type MediaControlCommand
 } from '../src/agent-runtime/ivekit/media-control/protocol.js';
 
 const OWNER_EPOCH = ((7n << 32n) | 11n).toString();
 
 export interface VoiceMediaGoal1AcceptanceInput {
+  source_dir: string;
+  container_name: string;
+  rendered_config_file: string;
+  output_dir: string;
+  generated_at?: string;
+  identity_provider?: VoiceMediaGoal1IdentityProvider;
+}
+
+export interface VoiceMediaGoal1DeploymentIdentity {
   source_commit: string;
   image_digest: string;
   config_hash: string;
-  output_dir: string;
-  generated_at?: string;
+  verification_mode: 'docker-runtime' | 'injected-test';
+  deployment_identity_verified: boolean;
 }
+
+export type VoiceMediaGoal1IdentityProvider = (input: {
+  source_dir: string;
+  container_name: string;
+  rendered_config_file: string;
+}) => Promise<VoiceMediaGoal1DeploymentIdentity>;
 
 export interface VoiceMediaGoal1AcceptanceResult {
   report_file: string;
@@ -49,8 +66,8 @@ class ControlledAuthority implements MediaControlAuthorityPort {
   ) {}
 
   async authorize(input: {
-    reservation_id: string;
-    interaction_id: string;
+    media_reservation_id: string;
+    call_id: string;
     owner_epoch: string;
     operation: 'open' | 'mutate' | 'close';
   }) {
@@ -69,9 +86,41 @@ class ControlledAuthority implements MediaControlAuthorityPort {
 export async function runVoiceMediaGoal1ControlledAcceptance(
   input: VoiceMediaGoal1AcceptanceInput
 ): Promise<VoiceMediaGoal1AcceptanceResult> {
-  const sourceCommit = exactHash(input.source_commit, 40, 'full source commit is required');
-  const imageDigest = digest(input.image_digest, 'image digest is required');
-  const configHash = digest(input.config_hash, 'configuration hash is required');
+  const identity = await (
+    input.identity_provider ?? inspectDeploymentIdentity
+  )({
+    source_dir: requiredText(input.source_dir, 'source directory is required'),
+    container_name: requiredText(
+      input.container_name,
+      'container name is required'
+    ),
+    rendered_config_file: requiredText(
+      input.rendered_config_file,
+      'rendered configuration file is required'
+    )
+  });
+  const sourceCommit = exactHash(
+    identity.source_commit,
+    40,
+    'full source commit is required'
+  );
+  const imageDigest = digest(
+    identity.image_digest,
+    'image digest is required'
+  );
+  const configHash = digest(
+    identity.config_hash,
+    'configuration hash is required'
+  );
+  if (!['docker-runtime', 'injected-test'].includes(
+    identity.verification_mode
+  )) {
+    throw new Error('deployment identity verification mode is invalid');
+  }
+  if ((identity.verification_mode === 'docker-runtime') !==
+      (identity.deployment_identity_verified === true)) {
+    throw new Error('deployment identity verification claim is invalid');
+  }
   const generatedAt = timestamp(input.generated_at || new Date().toISOString());
   const now = new Date(generatedAt);
   const outputDir = resolve(input.output_dir);
@@ -94,15 +143,15 @@ export async function runVoiceMediaGoal1ControlledAcceptance(
     prepare_commit_cancel_expiry:
       lifecycle.prepared_state === 'prepared' &&
       lifecycle.committed_state === 'committed' &&
-      lifecycle.cancelled_state === 'cancelled' &&
+      lifecycle.cancelled_state === 'closed' &&
       lifecycle.expired_state === 'expired',
     before_apply_reconciled_exactly_once:
-      beforeApply.initial_state === 'unknown' &&
-      beforeApply.reconciled_state === 'succeeded' &&
+      beforeApply.initial_result_class === 'unknown' &&
+      beforeApply.reconciled_result_class === 'committed' &&
       beforeApply.prepare_side_effects === 1,
     after_apply_reconciled_exactly_once:
-      afterApply.initial_state === 'unknown' &&
-      afterApply.reconciled_state === 'succeeded' &&
+      afterApply.initial_result_class === 'unknown' &&
+      afterApply.reconciled_result_class === 'committed' &&
       afterApply.prepare_side_effects === 1,
     agent_restart_recovers_transport_state:
       restart.closed_state === 'closed' &&
@@ -133,6 +182,11 @@ export async function runVoiceMediaGoal1ControlledAcceptance(
     source_commit: sourceCommit,
     image_digest: imageDigest,
     config_hash: configHash,
+    identity_verification: {
+      mode: identity.verification_mode,
+      deployment_identity_verified:
+        identity.deployment_identity_verified === true
+    },
     generated_at: generatedAt,
     checks,
     observations: {
@@ -163,6 +217,16 @@ export async function runVoiceMediaGoal1ControlledAcceptance(
         dependency: 'physical-capacity',
         status: 'not_run',
         reason: 'Controlled acceptance makes no CPS, RTP-leg, packet-rate, or concurrency claim.'
+      },
+      {
+        dependency: 'rustpbx-runtime-wiring',
+        status: 'not_run',
+        reason: 'Goal 1 validates the adapter contract; Goal 3 wires it into the RustPBX runtime.'
+      },
+      {
+        dependency: 'container-restart-persistence',
+        status: 'not_run',
+        reason: 'The simulator is process-local; Goal 2 validates restart recovery against the durable rtpengine transport.'
       }
     ]
   };
@@ -171,8 +235,10 @@ export async function runVoiceMediaGoal1ControlledAcceptance(
   const report = {
     schema_version: 1,
     goal: evidence.goal,
-    status: 'passed',
+    status: 'controlled_passed',
     environment_class: evidence.environment_class,
+    deployment_identity_verified:
+      evidence.identity_verification.deployment_identity_verified,
     capacity_claim: evidence.capacity_claim,
     source_commit: sourceCommit,
     image_digest: imageDigest,
@@ -208,75 +274,85 @@ function fixture(now: Date, failure?: SimulatedFailure) {
 function command(
   now: Date,
   action: MediaControlAction,
-  sequence: number,
+  command_sequence: number,
   reservationId: string,
   overrides: Partial<MediaControlCommand> = {}
 ): MediaControlCommand {
+  const payload = overrides.payload ?? (action === 'offer'
+    ? { offer_sdp: 'v=0\r\n', media_profile_id: 'g711-relay-v1' }
+    : {});
   return {
     protocol_version: 'ivekit.media-control.v1',
     action,
-    command_id: `${reservationId}-${action}-${sequence}`,
-    reservation_id: reservationId,
-    interaction_id: `${reservationId}-interaction`,
+    command_id: `${reservationId}-${action}-${command_sequence}`,
+    tenant_id: 'controlled-tenant-handle',
+    call_id: `${reservationId}-interaction`,
+    leg_id: `${reservationId}-leg`,
+    cell_id: 'controlled-cell',
+    owner_node_id: 'controlled-rustpbx',
     owner_epoch: OWNER_EPOCH,
-    sequence,
-    lease_expires_at: new Date(now.getTime() + 60_000).toISOString(),
-    payload: action === 'prepare'
-      ? { offer_sdp: 'v=0\r\n', media_profile_id: 'g711-relay-v1' }
-      : {},
-    ...overrides
+    media_reservation_id: reservationId,
+    command_sequence,
+    idempotency_key: `${reservationId}-${action}-${command_sequence}`,
+    expires_at: new Date(now.getTime() + 60_000).toISOString(),
+    ...overrides,
+    payload,
+    payload_hash: overrides.payload_hash ?? mediaControlPayloadHash(payload)
   };
 }
 
 async function staleEpochScenario(now: Date) {
   const { agent, transport } = fixture(now);
-  let rejected = false;
-  try {
-    await agent.execute(command(now, 'prepare', 1, 'controlled-stale', {
-      owner_epoch: ((6n << 32n) | 99n).toString()
-    }), now);
-  } catch (error) {
-    rejected = error instanceof MediaControlError &&
-      error.code === 'stale_owner_epoch';
-  }
+  const result = await agent.execute(command(
+    now,
+    'offer',
+    1,
+    'controlled-stale',
+    { owner_epoch: ((6n << 32n) | 99n).toString() }
+  ), now);
+  const rejected = result.result_class === 'rejected_epoch' &&
+    result.error_code === 'stale_owner_epoch';
   return { rejected, side_effects: transport.sideEffectCount() };
 }
 
 async function replayScenario(now: Date) {
   const { agent, transport } = fixture(now);
-  const input = command(now, 'prepare', 1, 'controlled-replay');
+  const input = command(now, 'offer', 1, 'controlled-replay');
   const first = await agent.execute(input, now);
   const repeated = await agent.execute(structuredClone(input), now);
   return {
-    results_equal: JSON.stringify(first) === JSON.stringify(repeated),
-    prepare_side_effects: transport.sideEffectCount('prepare')
+    results_equal:
+      first.result_class === 'committed' &&
+      repeated.result_class === 'replayed' &&
+      JSON.stringify(first.session) === JSON.stringify(repeated.session),
+    prepare_side_effects: transport.sideEffectCount('offer')
   };
 }
 
 async function lifecycleScenario(now: Date) {
   const committed = fixture(now);
   const preparedResult = await committed.agent.execute(
-    command(now, 'prepare', 1, 'controlled-lifecycle-commit'),
+    command(now, 'offer', 1, 'controlled-lifecycle-commit'),
     now
   );
   const committedResult = await committed.agent.execute(
-    command(now, 'commit', 2, 'controlled-lifecycle-commit'),
+    command(now, 'answer', 2, 'controlled-lifecycle-commit'),
     now
   );
 
   const cancelled = fixture(now);
   await cancelled.agent.execute(
-    command(now, 'prepare', 1, 'controlled-lifecycle-cancel'),
+    command(now, 'offer', 1, 'controlled-lifecycle-cancel'),
     now
   );
   const cancelledResult = await cancelled.agent.execute(
-    command(now, 'cancel', 2, 'controlled-lifecycle-cancel'),
+    command(now, 'delete', 2, 'controlled-lifecycle-cancel'),
     now
   );
 
   const expired = fixture(now);
   await expired.agent.execute(
-    command(now, 'prepare', 1, 'controlled-lifecycle-expire'),
+    command(now, 'offer', 1, 'controlled-lifecycle-expire'),
     now
   );
   await expired.agent.sweep(new Date(now.getTime() + 61_000));
@@ -291,20 +367,17 @@ async function lifecycleScenario(now: Date) {
 
 async function uncertaintyScenario(now: Date, failure: SimulatedFailure) {
   const { agent, transport } = fixture(now, failure);
-  const input = command(now, 'prepare', 1, `controlled-${failure}`);
+  const input = command(now, 'offer', 1, `controlled-${failure}`);
   const initial = await agent.execute(input, now);
   const reconciled = await agent.reconcile({
     protocol_version: 'ivekit.media-control.v1',
     action: 'reconcile',
-    reservation_id: input.reservation_id,
-    interaction_id: input.interaction_id,
-    owner_epoch: input.owner_epoch,
-    command_id: input.command_id
+    command: input
   }, now);
   return {
-    initial_state: initial.state,
-    reconciled_state: reconciled.state,
-    prepare_side_effects: transport.sideEffectCount('prepare')
+    initial_result_class: initial.result_class,
+    reconciled_result_class: reconciled.result_class,
+    prepare_side_effects: transport.sideEffectCount('offer')
   };
 }
 
@@ -312,13 +385,13 @@ async function restartScenario(now: Date) {
   const { authority, transport } = fixture(now);
   const first = new MediaControlAgent({ authority, transport });
   const reservationId = 'controlled-restart';
-  await first.execute(command(now, 'prepare', 1, reservationId), now);
-  await first.execute(command(now, 'commit', 2, reservationId), now);
+  await first.execute(command(now, 'offer', 1, reservationId), now);
+  await first.execute(command(now, 'answer', 2, reservationId), now);
   const forwardedBeforeRestart = transport.forwardPackets(reservationId, 10);
 
   const restarted = new MediaControlAgent({ authority, transport });
   const closed = await restarted.execute(
-    command(now, 'close', 3, reservationId),
+    command(now, 'delete', 3, reservationId),
     now
   );
   return {
@@ -331,21 +404,117 @@ async function restartScenario(now: Date) {
 async function controlPlaneOutageScenario(now: Date) {
   const { agent, authority, transport } = fixture(now);
   const reservationId = 'controlled-outage';
-  await agent.execute(command(now, 'prepare', 1, reservationId), now);
-  await agent.execute(command(now, 'commit', 2, reservationId), now);
+  await agent.execute(command(now, 'offer', 1, reservationId), now);
+  await agent.execute(command(now, 'answer', 2, reservationId), now);
   authority.available = false;
-  let controlCommandRejected = false;
-  try {
-    await agent.execute(command(now, 'close', 3, reservationId), now);
-  } catch {
-    controlCommandRejected = true;
-  }
+  const result = await agent.execute(
+    command(now, 'delete', 3, reservationId),
+    now
+  );
+  const controlCommandRejected =
+    result.result_class === 'terminal_error' &&
+    result.error_code === 'media_control_authority_unavailable';
   return {
     control_command_rejected: controlCommandRejected,
     forwarded_packets: transport.forwardPackets(reservationId, 500),
     still_forwarding: transport.isForwarding(reservationId),
     metrics: agent.renderMetrics()
   };
+}
+
+export async function inspectDeploymentIdentity(input: {
+  source_dir: string;
+  container_name: string;
+  rendered_config_file: string;
+}): Promise<VoiceMediaGoal1DeploymentIdentity> {
+  const sourceDir = resolve(input.source_dir);
+  const configFile = resolve(input.rendered_config_file);
+  if (!existsSync(configFile) || !statSync(configFile).isFile()) {
+    throw new Error('rendered configuration file is not a regular file');
+  }
+  const sourceCommit = commandOutput(
+    'git',
+    ['-C', sourceDir, 'rev-parse', 'HEAD'],
+    'source commit inspection failed'
+  ).toLowerCase();
+  const dirty = commandOutput(
+    'git',
+    ['-C', sourceDir, 'status', '--porcelain'],
+    'source status inspection failed'
+  );
+  if (dirty) throw new Error('source checkout must be clean');
+
+  const containerName = requiredText(
+    input.container_name,
+    'container name is required'
+  );
+  const imageDigest = commandOutput(
+    'docker',
+    ['container', 'inspect', '--format={{.Image}}', containerName],
+    'deployed container image inspection failed'
+  ).toLowerCase();
+  const imageRevision = commandOutput(
+    'docker',
+    [
+      'container',
+      'inspect',
+      '--format={{index .Config.Labels "org.opencontainers.image.revision"}}',
+      containerName
+    ],
+    'deployed container source label inspection failed'
+  ).toLowerCase();
+  const running = commandOutput(
+    'docker',
+    ['container', 'inspect', '--format={{.State.Running}}', containerName],
+    'deployed container state inspection failed'
+  );
+  const health = commandOutput(
+    'docker',
+    [
+      'container',
+      'inspect',
+      '--format={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}',
+      containerName
+    ],
+    'deployed container health inspection failed'
+  );
+  if (running !== 'true' || health !== 'healthy') {
+    throw new Error('deployed media-control container is not healthy');
+  }
+  if (imageRevision !== sourceCommit) {
+    throw new Error('deployed image source revision does not match checkout');
+  }
+  const configHash = `sha256:${createHash('sha256')
+    .update(readFileSync(configFile))
+    .digest('hex')}`;
+  return {
+    source_commit: sourceCommit,
+    image_digest: imageDigest,
+    config_hash: configHash,
+    verification_mode: 'docker-runtime',
+    deployment_identity_verified: true
+  };
+}
+
+function commandOutput(
+  executable: string,
+  arguments_: string[],
+  message: string
+): string {
+  try {
+    return execFileSync(executable, arguments_, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+  } catch {
+    throw new Error(message);
+  }
+}
+
+function requiredText(value: string, message: string): string {
+  const normalized = String(value || '').trim();
+  if (!normalized) throw new Error(message);
+  return normalized;
 }
 
 function exactHash(value: string, length: number, message: string): string {
@@ -376,9 +545,12 @@ function refuseNonEmptyOutput(outputDir: string): void {
 
 async function main(): Promise<void> {
   const result = await runVoiceMediaGoal1ControlledAcceptance({
-    source_commit: process.env.OPC_IVEKIT_MEDIA_GOAL1_SOURCE_COMMIT || '',
-    image_digest: process.env.OPC_IVEKIT_MEDIA_GOAL1_IMAGE_DIGEST || '',
-    config_hash: process.env.OPC_IVEKIT_MEDIA_GOAL1_CONFIG_HASH || '',
+    source_dir:
+      process.env.OPC_IVEKIT_MEDIA_GOAL1_SOURCE_DIR || process.cwd(),
+    container_name:
+      process.env.OPC_IVEKIT_MEDIA_GOAL1_CONTAINER_NAME || '',
+    rendered_config_file:
+      process.env.OPC_IVEKIT_MEDIA_GOAL1_RENDERED_CONFIG_FILE || '',
     generated_at: process.env.OPC_IVEKIT_MEDIA_GOAL1_GENERATED_AT,
     output_dir: process.env.OPC_IVEKIT_MEDIA_GOAL1_ACCEPTANCE_DIR ||
       resolve('.tmp/ivekit-voice-media-goal1-acceptance')

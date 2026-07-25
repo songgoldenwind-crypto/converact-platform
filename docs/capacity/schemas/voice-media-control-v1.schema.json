@@ -35,19 +35,19 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "reservation_id",
-        "interaction_id",
+        "media_reservation_id",
+        "call_id",
         "owner_epoch",
         "last_sequence",
         "state",
         "transport_session_id",
         "effective_sdp",
-        "lease_expires_at",
+        "expires_at",
         "updated_at"
       ],
       "properties": {
-        "reservation_id": { "$ref": "#/$defs/identifier" },
-        "interaction_id": { "$ref": "#/$defs/identifier" },
+        "media_reservation_id": { "$ref": "#/$defs/identifier" },
+        "call_id": { "$ref": "#/$defs/identifier" },
         "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
         "last_sequence": {
           "type": "integer",
@@ -68,7 +68,7 @@
           "type": "string",
           "maxLength": 16384
         },
-        "lease_expires_at": {
+        "expires_at": {
           "$ref": "#/$defs/canonical_date_time"
         },
         "updated_at": {
@@ -83,42 +83,74 @@
         "protocol_version",
         "action",
         "command_id",
-        "reservation_id",
-        "interaction_id",
+        "tenant_id",
+        "call_id",
+        "leg_id",
+        "cell_id",
+        "owner_node_id",
         "owner_epoch",
-        "sequence",
-        "lease_expires_at",
-        "payload"
+        "media_reservation_id",
+        "command_sequence",
+        "idempotency_key",
+        "expires_at",
+        "payload",
+        "payload_hash"
       ],
       "properties": {
         "protocol_version": {
           "const": "ivekit.media-control.v1"
         },
         "action": {
-          "enum": ["prepare", "commit", "cancel", "close"]
+          "enum": [
+            "offer",
+            "answer",
+            "update",
+            "delete",
+            "query",
+            "block_media",
+            "unblock_media",
+            "start_forward",
+            "stop_forward",
+            "start_recording_fork",
+            "stop_recording_fork",
+            "play_media",
+            "stop_media",
+            "inject_dtmf",
+            "subscribe_quality",
+            "drain_node"
+          ]
         },
         "command_id": { "$ref": "#/$defs/identifier" },
-        "reservation_id": { "$ref": "#/$defs/identifier" },
-        "interaction_id": { "$ref": "#/$defs/identifier" },
+        "tenant_id": { "$ref": "#/$defs/identifier" },
+        "call_id": { "$ref": "#/$defs/identifier" },
+        "leg_id": { "$ref": "#/$defs/identifier" },
+        "cell_id": { "$ref": "#/$defs/identifier" },
+        "owner_node_id": { "$ref": "#/$defs/identifier" },
         "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
-        "sequence": {
+        "media_reservation_id": { "$ref": "#/$defs/identifier" },
+        "command_sequence": {
           "type": "integer",
           "minimum": 1,
           "maximum": 4294967295
         },
-        "lease_expires_at": {
+        "expires_at": {
           "$ref": "#/$defs/canonical_date_time"
         },
+        "idempotency_key": { "$ref": "#/$defs/identifier" },
         "payload": {
           "type": "object",
           "maxProperties": 64
+        },
+        "payload_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
         }
       },
       "allOf": [
         {
           "if": {
             "properties": {
-              "action": { "const": "prepare" }
+              "action": { "const": "offer" }
             },
             "required": ["action"]
           },
@@ -149,10 +181,7 @@
       "required": [
         "protocol_version",
         "action",
-        "reservation_id",
-        "interaction_id",
-        "owner_epoch",
-        "command_id"
+        "command"
       ],
       "properties": {
         "protocol_version": {
@@ -161,10 +190,7 @@
         "action": {
           "const": "reconcile"
         },
-        "reservation_id": { "$ref": "#/$defs/identifier" },
-        "interaction_id": { "$ref": "#/$defs/identifier" },
-        "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
-        "command_id": { "$ref": "#/$defs/identifier" }
+        "command": { "$ref": "#/$defs/command" }
       }
     },
     "result": {
@@ -172,15 +198,22 @@
       "additionalProperties": false,
       "required": [
         "protocol_version",
-        "state",
+        "result_class",
         "command_id"
       ],
       "properties": {
         "protocol_version": {
           "const": "ivekit.media-control.v1"
         },
-        "state": {
-          "enum": ["succeeded", "failed", "unknown"]
+        "result_class": {
+          "enum": [
+            "committed",
+            "replayed",
+            "rejected_capacity",
+            "rejected_epoch",
+            "terminal_error",
+            "unknown"
+          ]
         },
         "command_id": { "$ref": "#/$defs/identifier" },
         "error_code": { "$ref": "#/$defs/identifier" },
@@ -191,9 +224,9 @@
         {
           "if": {
             "properties": {
-              "state": { "const": "succeeded" }
+              "result_class": { "enum": ["committed", "replayed"] }
             },
-            "required": ["state"]
+            "required": ["result_class"]
           },
           "then": {
             "required": ["session"],
@@ -208,9 +241,16 @@
         {
           "if": {
             "properties": {
-              "state": { "enum": ["failed", "unknown"] }
+              "result_class": {
+                "enum": [
+                  "rejected_capacity",
+                  "rejected_epoch",
+                  "terminal_error",
+                  "unknown"
+                ]
+              }
             },
-            "required": ["state"]
+            "required": ["result_class"]
           },
           "then": {
             "required": ["error_code", "retryable"]
@@ -219,9 +259,9 @@
         {
           "if": {
             "properties": {
-              "state": { "const": "unknown" }
+              "result_class": { "const": "unknown" }
             },
-            "required": ["state"]
+            "required": ["result_class"]
           },
           "then": {
             "properties": {

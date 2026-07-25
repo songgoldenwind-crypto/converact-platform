@@ -238,13 +238,40 @@ export class ComponentNodeAdmissionController {
     }
     if (existing) {
       assertSameReservation(existing, checkpoint);
+      const ownerComparison = compareOwnerEpoch(
+        checkpoint.owner_epoch,
+        existing.owner_epoch
+      );
+      if (ownerComparison < 0) {
+        throw new ComponentNodeAdmissionError('stale_owner_epoch', 409);
+      }
+      const ownerTakeover = ownerComparison > 0;
+      if (ownerTakeover && (
+        (existing.state !== 'reserved' && existing.state !== 'active') ||
+        (checkpoint.state !== 'reserved' && checkpoint.state !== 'active')
+      )) {
+        throw new ComponentNodeAdmissionError(
+          'component_reservation_takeover_invalid',
+          409
+        );
+      }
       const transition = stateTransition(existing.state, checkpoint.state);
-      if (transition === 'same') return structuredClone(existing);
-      if (Date.parse(checkpoint.updated_at) < Date.parse(existing.updated_at)) {
+      if (Date.parse(checkpoint.updated_at) <
+          Date.parse(existing.updated_at) ||
+          (ownerTakeover && Date.parse(checkpoint.updated_at) ===
+            Date.parse(existing.updated_at))) {
         throw new ComponentNodeAdmissionError(
           'component_reservation_state_regression',
           409
         );
+      }
+      if (ownerTakeover) existing.owner_epoch = checkpoint.owner_epoch;
+      if (transition === 'same') {
+        if (!ownerTakeover) return structuredClone(existing);
+        existing.updated_at = checkpoint.updated_at;
+        this.#schedule(existing, timestamp);
+        this.#stateSequence += 1;
+        return structuredClone(existing);
       }
       this.#applyCapacityTransition(existing, checkpoint.state);
       existing.state = checkpoint.state;
@@ -569,7 +596,6 @@ function assertSameReservation(
     'zone_id',
     'cell_id',
     'owner_node_id',
-    'owner_epoch',
     'endpoint',
     'tenant_id',
     'routing_partition_id',

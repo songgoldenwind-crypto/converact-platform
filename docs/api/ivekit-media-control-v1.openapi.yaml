@@ -115,11 +115,11 @@ paths:
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
-  /v1/sessions/{reservation_id}:
+  /v1/sessions/{media_reservation_id}:
     get:
       operationId: getMediaControlSession
       parameters:
-        - name: reservation_id
+        - name: media_reservation_id
           in: path
           required: true
           schema:
@@ -194,39 +194,74 @@ components:
         - protocol_version
         - action
         - command_id
-        - reservation_id
-        - interaction_id
+        - tenant_id
+        - call_id
+        - leg_id
+        - cell_id
+        - owner_node_id
         - owner_epoch
-        - sequence
-        - lease_expires_at
+        - media_reservation_id
+        - command_sequence
+        - idempotency_key
+        - expires_at
         - payload
+        - payload_hash
       properties:
         protocol_version:
           $ref: "#/components/schemas/ProtocolVersion"
         action:
-          enum: [prepare, commit, cancel, close]
+          enum:
+            - offer
+            - answer
+            - update
+            - delete
+            - query
+            - block_media
+            - unblock_media
+            - start_forward
+            - stop_forward
+            - start_recording_fork
+            - stop_recording_fork
+            - play_media
+            - stop_media
+            - inject_dtmf
+            - subscribe_quality
+            - drain_node
         command_id:
           $ref: "#/components/schemas/Identifier"
-        reservation_id:
+        tenant_id:
           $ref: "#/components/schemas/Identifier"
-        interaction_id:
+        call_id:
+          $ref: "#/components/schemas/Identifier"
+        leg_id:
+          $ref: "#/components/schemas/Identifier"
+        cell_id:
+          $ref: "#/components/schemas/Identifier"
+        owner_node_id:
           $ref: "#/components/schemas/Identifier"
         owner_epoch:
           $ref: "#/components/schemas/OwnerEpoch"
-        sequence:
+        media_reservation_id:
+          $ref: "#/components/schemas/Identifier"
+        command_sequence:
           type: integer
           minimum: 1
           maximum: 4294967295
-        lease_expires_at:
+        expires_at:
           $ref: "#/components/schemas/CanonicalDateTime"
+        idempotency_key:
+          $ref: "#/components/schemas/Identifier"
         payload:
           type: object
           maxProperties: 64
+        payload_hash:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
       allOf:
         - if:
             properties:
               action:
-                const: prepare
+                const: offer
             required: [action]
           then:
             properties:
@@ -245,41 +280,32 @@ components:
       required:
         - protocol_version
         - action
-        - command_id
-        - reservation_id
-        - interaction_id
-        - owner_epoch
+        - command
       properties:
         protocol_version:
           $ref: "#/components/schemas/ProtocolVersion"
         action:
           type: string
           const: reconcile
-        command_id:
-          $ref: "#/components/schemas/Identifier"
-        reservation_id:
-          $ref: "#/components/schemas/Identifier"
-        interaction_id:
-          $ref: "#/components/schemas/Identifier"
-        owner_epoch:
-          $ref: "#/components/schemas/OwnerEpoch"
+        command:
+          $ref: "#/components/schemas/Command"
     Session:
       type: object
       additionalProperties: false
       required:
-        - reservation_id
-        - interaction_id
+        - media_reservation_id
+        - call_id
         - owner_epoch
         - last_sequence
         - state
         - transport_session_id
         - effective_sdp
-        - lease_expires_at
+        - expires_at
         - updated_at
       properties:
-        reservation_id:
+        media_reservation_id:
           $ref: "#/components/schemas/Identifier"
-        interaction_id:
+        call_id:
           $ref: "#/components/schemas/Identifier"
         owner_epoch:
           $ref: "#/components/schemas/OwnerEpoch"
@@ -294,19 +320,25 @@ components:
         effective_sdp:
           type: string
           maxLength: 16384
-        lease_expires_at:
+        expires_at:
           $ref: "#/components/schemas/CanonicalDateTime"
         updated_at:
           $ref: "#/components/schemas/CanonicalDateTime"
     Result:
       type: object
       additionalProperties: false
-      required: [protocol_version, state, command_id]
+      required: [protocol_version, result_class, command_id]
       properties:
         protocol_version:
           $ref: "#/components/schemas/ProtocolVersion"
-        state:
-          enum: [succeeded, failed, unknown]
+        result_class:
+          enum:
+            - committed
+            - replayed
+            - rejected_capacity
+            - rejected_epoch
+            - terminal_error
+            - unknown
         command_id:
           $ref: "#/components/schemas/Identifier"
         error_code:
@@ -317,19 +349,22 @@ components:
           $ref: "#/components/schemas/Session"
       oneOf:
         - properties:
-            state:
-              const: succeeded
+            result_class:
+              enum: [committed, replayed]
           required: [session]
           not:
             anyOf:
               - required: [error_code]
               - required: [retryable]
         - properties:
-            state:
-              const: failed
+            result_class:
+              enum:
+                - rejected_capacity
+                - rejected_epoch
+                - terminal_error
           required: [error_code, retryable]
         - properties:
-            state:
+            result_class:
               const: unknown
             retryable:
               const: true

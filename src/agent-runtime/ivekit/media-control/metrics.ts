@@ -1,11 +1,11 @@
-import type { MediaControlAction } from './protocol.js';
+import {
+  MEDIA_CONTROL_ACTIONS,
+  MEDIA_CONTROL_RESULT_CLASSES,
+  type MediaControlAction,
+  type MediaControlResultClass
+} from './protocol.js';
 
-export type MediaControlCommandMetricResult =
-  | 'succeeded'
-  | 'failed'
-  | 'unknown'
-  | 'replayed'
-  | 'rejected';
+export type MediaControlCommandMetricResult = MediaControlResultClass;
 
 export type MediaControlMetricSessionState =
   | 'pending'
@@ -16,18 +16,9 @@ export type MediaControlMetricSessionState =
   | 'expired'
   | 'failed';
 
-const ACTIONS: readonly MediaControlAction[] = [
-  'prepare',
-  'commit',
-  'cancel',
-  'close'
-];
+const ACTIONS: readonly MediaControlAction[] = MEDIA_CONTROL_ACTIONS;
 const RESULTS: readonly MediaControlCommandMetricResult[] = [
-  'succeeded',
-  'failed',
-  'unknown',
-  'replayed',
-  'rejected'
+  ...MEDIA_CONTROL_RESULT_CLASSES
 ];
 const SESSION_STATES: readonly MediaControlMetricSessionState[] = [
   'pending',
@@ -58,7 +49,7 @@ export class MediaControlMetrics {
   }
 
   recordReconciliation(
-    result: Exclude<MediaControlCommandMetricResult, 'replayed' | 'rejected'>
+    result: MediaControlCommandMetricResult
   ): void {
     this.#reconciliations.set(
       result,
@@ -110,7 +101,7 @@ export class MediaControlMetrics {
       '# HELP ivekit_media_control_reconciliations_total Unknown command reconciliation outcomes.',
       '# TYPE ivekit_media_control_reconciliations_total counter'
     );
-    for (const result of ['succeeded', 'failed', 'unknown'] as const) {
+    for (const result of RESULTS) {
       lines.push(
         `ivekit_media_control_reconciliations_total{result="${result}"} ` +
         `${this.#reconciliations.get(result) ?? 0}`

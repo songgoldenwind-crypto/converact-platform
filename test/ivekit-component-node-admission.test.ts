@@ -150,6 +150,38 @@ test('component node authorization fences identity, state and owner epoch', () =
   }, new Date('2026-07-16T08:00:04.000Z')).allowed, true);
 });
 
+test('component node applies a monotonic owner takeover for the same reservation', () => {
+  const controller = readyFixture();
+  controller.applyReservation(
+    reservation(),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+  const takeover = controller.applyReservation(
+    reservation({
+      owner_epoch: '12884901890',
+      updated_at: '2026-07-16T08:00:02.000Z'
+    }),
+    new Date('2026-07-16T08:00:02.000Z')
+  );
+
+  assert.equal(takeover.owner_epoch, '12884901890');
+  assert.equal(controller.authorize({
+    reservation_id: 'reservation-a',
+    interaction_id: 'room-a',
+    owner_epoch: '12884901890',
+    operation: 'open'
+  }, new Date('2026-07-16T08:00:03.000Z')).allowed, true);
+  assert.throws(
+    () => controller.authorize({
+      reservation_id: 'reservation-a',
+      interaction_id: 'room-a',
+      owner_epoch: '12884901889',
+      operation: 'open'
+    }, new Date('2026-07-16T08:00:03.000Z')),
+    (error: any) => error?.code === 'stale_owner_epoch'
+  );
+});
+
 test('component node batch authorization isolates stale owners inside one bounded refresh', () => {
   const controller = readyFixture();
   controller.applyReservation(

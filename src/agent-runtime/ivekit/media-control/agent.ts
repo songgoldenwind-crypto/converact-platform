@@ -4,6 +4,8 @@ import {
   checkedMediaControlReconcileInput,
   compareMediaOwnerEpoch,
   mediaControlCommandHash,
+  mediaControlIdempotencyHash,
+  type MediaControlAction,
   type MediaControlCommand,
   type MediaControlReconcileInput,
   type MediaControlResult,
@@ -30,8 +32,8 @@ export interface MediaControlAuthorization {
 
 export interface MediaControlAuthorityPort {
   authorize(input: {
-    reservation_id: string;
-    interaction_id: string;
+    media_reservation_id: string;
+    call_id: string;
     owner_epoch: string;
     operation: 'open' | 'mutate' | 'close';
   }, now: Date): Promise<MediaControlAuthorization>;
@@ -39,18 +41,24 @@ export interface MediaControlAuthorityPort {
 
 interface RecordedCommand {
   hash: string;
+  idempotency_hash: string;
   command: MediaControlCommand;
   result: MediaControlResult;
 }
 
 interface MediaControlRecord {
-  reservation_id: string;
-  interaction_id: string;
+  media_reservation_id: string;
+  tenant_id: string;
+  call_id: string;
+  leg_id: string;
+  cell_id: string;
+  owner_node_id: string;
   owner_epoch: string;
   last_sequence: number;
-  lease_expires_at: string;
+  expires_at: string;
   session?: MediaSessionSnapshot;
   commands: Map<string, RecordedCommand>;
+  idempotency_keys: Map<string, string>;
   unresolved_command_id: string;
   terminal_at: number;
   metric_state: MediaControlMetricSessionState;
@@ -62,7 +70,7 @@ interface MediaControlRecord {
 
 interface MediaControlDeadline {
   at: number;
-  reservation_id: string;
+  media_reservation_id: string;
   revision: number;
   kind: 'lease' | 'evict';
 }
@@ -127,25 +135,41 @@ export class MediaControlAgent {
     const timestamp = validNow(now);
     let command: MediaControlCommand;
     let hash: string;
+    let idempotencyHash: string;
     try {
       command = checkedMediaControlCommand(rawCommand);
       hash = mediaControlCommandHash(command);
+      idempotencyHash = mediaControlIdempotencyHash(command);
     } catch (error) {
       throw protocolError(error);
     }
 
-    return this.#serial.run(command.reservation_id, () =>
-      this.#executeChecked(command, hash, timestamp, now)
-    );
+    try {
+      return await this.#serial.run(command.media_reservation_id, () =>
+        this.#executeChecked(
+          command,
+          hash,
+          idempotencyHash,
+          timestamp,
+          now
+        )
+      );
+    } catch (error) {
+      if (!(error instanceof MediaControlError)) throw error;
+      const result = this.#projectControlError(command, error);
+      this.#metrics.recordCommand(command.action, result.result_class);
+      return result;
+    }
   }
 
   async #executeChecked(
     command: MediaControlCommand,
     hash: string,
+    idempotencyHash: string,
     timestamp: number,
     now: Date
   ): Promise<MediaControlResult> {
-    let record = this.#records.get(command.reservation_id);
+    let record = this.#records.get(command.media_reservation_id);
     if (record) {
       this.#assertIdentity(record, command);
       const epochComparison = compareMediaOwnerEpoch(
@@ -159,22 +183,43 @@ export class MediaControlAgent {
         const replay = record.commands.get(command.command_id);
         if (replay) {
           if (replay.hash !== hash) {
-            this.#metrics.recordCommand(command.action, 'rejected');
             throw new MediaControlError(
               'command_payload_conflict',
               409,
               false
             );
           }
-          await this.#authorize(command, now);
-          this.#metrics.recordCommand(command.action, 'replayed');
-          return this.#publicRecordedResult(record, replay);
+          const result = this.#publicRecordedResult(record, replay);
+          this.#metrics.recordCommand(command.action, result.result_class);
+          return result;
+        }
+        const idempotentCommandId = record.idempotency_keys.get(
+          command.idempotency_key
+        );
+        const idempotentReplay = idempotentCommandId
+          ? record.commands.get(idempotentCommandId)
+          : undefined;
+        if (idempotentReplay) {
+          if (idempotentReplay.idempotency_hash !== idempotencyHash) {
+            throw new MediaControlError(
+              'idempotency_key_conflict',
+              409,
+              false
+            );
+          }
+          const result = this.#publicRecordedResult(
+            record,
+            idempotentReplay,
+            command.command_id
+          );
+          this.#metrics.recordCommand(command.action, result.result_class);
+          return result;
         }
       }
     }
 
-    if ((command.action === 'prepare' || command.action === 'commit') &&
-        Date.parse(command.lease_expires_at) <= timestamp) {
+    if (command.action !== 'delete' &&
+        Date.parse(command.expires_at) <= timestamp) {
       throw new MediaControlError('media_control_lease_expired', 409, true);
     }
 
@@ -183,15 +228,19 @@ export class MediaControlAgent {
       const recovered = await this.#recoverFromTransport(
         command,
         hash,
+        idempotencyHash,
         timestamp
       );
       record = recovered.record;
       if (recovered.result) {
-        this.#metrics.recordCommand(command.action, 'replayed');
+        this.#metrics.recordCommand(
+          command.action,
+          recovered.result.result_class
+        );
         return structuredClone(recovered.result);
       }
     }
-    if (!record && command.action !== 'prepare') {
+    if (!record && command.action !== 'offer') {
       throw new MediaControlError('media_session_not_found', 404, false);
     }
     if (!record && this.#activeReservations >= this.#maxReservations) {
@@ -203,18 +252,20 @@ export class MediaControlAgent {
     }
 
     if (record && compareMediaOwnerEpoch(command.owner_epoch, record.owner_epoch) > 0) {
-      if (command.sequence !== 1) {
+      if (command.command_sequence !== 1) {
         throw new MediaControlError('owner_takeover_sequence_invalid', 409, false);
       }
       record.owner_epoch = command.owner_epoch;
+      record.owner_node_id = command.owner_node_id;
       record.last_sequence = 0;
       record.commands.clear();
+      record.idempotency_keys.clear();
       record.unresolved_command_id = '';
       if (record.session) record.session.owner_epoch = command.owner_epoch;
     }
 
     if (!record) {
-      if (command.sequence !== 1) {
+      if (command.command_sequence !== 1) {
         throw new MediaControlError('sequence_gap', 409, false);
       }
       record = this.#createRecord(command, 'pending');
@@ -223,10 +274,10 @@ export class MediaControlAgent {
     if (record.unresolved_command_id) {
       throw new MediaControlError('command_reconciliation_required', 409, true);
     }
-    if (command.sequence <= record.last_sequence) {
+    if (command.command_sequence <= record.last_sequence) {
       throw new MediaControlError('stale_sequence', 409, false);
     }
-    if (command.sequence !== record.last_sequence + 1) {
+    if (command.command_sequence !== record.last_sequence + 1) {
       throw new MediaControlError('sequence_gap', 409, false);
     }
     if (!this.#makeJournalSpace(record)) {
@@ -237,15 +288,19 @@ export class MediaControlAgent {
     const transportCommand = this.#transportCommand(record, command);
     const outcome = await this.#executeTransport(transportCommand);
     const result = this.#applyOutcome(record, command, outcome, timestamp);
-    record.last_sequence = command.sequence;
-    record.lease_expires_at = command.lease_expires_at;
+    record.last_sequence = command.command_sequence;
+    record.expires_at = command.expires_at;
     record.unresolved_command_id =
-      result.state === 'unknown' ? command.command_id : '';
+      result.result_class === 'unknown' ? command.command_id : '';
     record.commands.set(
       command.command_id,
-      compactRecordedCommand(command, hash, result)
+      compactRecordedCommand(command, hash, idempotencyHash, result)
     );
-    this.#metrics.recordCommand(command.action, result.state);
+    record.idempotency_keys.set(
+      command.idempotency_key,
+      command.command_id
+    );
+    this.#metrics.recordCommand(command.action, result.result_class);
     this.#scheduleRecord(record);
     return structuredClone(result);
   }
@@ -261,9 +316,16 @@ export class MediaControlAgent {
     } catch (error) {
       throw protocolError(error);
     }
-    return this.#serial.run(input.reservation_id, () =>
-      this.#reconcileChecked(input, timestamp, now)
-    );
+    try {
+      return await this.#serial.run(input.command.media_reservation_id, () =>
+        this.#reconcileChecked(input, timestamp, now)
+      );
+    } catch (error) {
+      if (!(error instanceof MediaControlError)) throw error;
+      const result = this.#projectControlError(input.command, error);
+      this.#metrics.recordReconciliation(result.result_class);
+      return result;
+    }
   }
 
   async #reconcileChecked(
@@ -271,11 +333,27 @@ export class MediaControlAgent {
     timestamp: number,
     now: Date
   ): Promise<MediaControlResult> {
-    const record = this.#records.get(input.reservation_id);
-    if (!record || record.interaction_id !== input.interaction_id) {
+    const command = input.command;
+    const hash = mediaControlCommandHash(command);
+    const record = this.#records.get(command.media_reservation_id);
+    if (!record) {
+      const result = await this.#executeChecked(
+        command,
+        hash,
+        mediaControlIdempotencyHash(command),
+        timestamp,
+        now
+      );
+      this.#metrics.recordReconciliation(result.result_class);
+      return result;
+    }
+    if (record.call_id !== command.call_id) {
       throw new MediaControlError('media_session_not_found', 404, false);
     }
-    const comparison = compareMediaOwnerEpoch(input.owner_epoch, record.owner_epoch);
+    const comparison = compareMediaOwnerEpoch(
+      command.owner_epoch,
+      record.owner_epoch
+    );
     if (comparison !== 0) {
       throw new MediaControlError(
         comparison < 0 ? 'stale_owner_epoch' : 'owner_epoch_ahead',
@@ -283,19 +361,22 @@ export class MediaControlAgent {
         comparison > 0
       );
     }
-    const recorded = record.commands.get(input.command_id);
+    const recorded = record.commands.get(command.command_id);
     if (!recorded) {
       throw new MediaControlError('media_command_not_found', 404, false);
     }
+    if (recorded.hash !== hash) {
+      throw new MediaControlError('command_payload_conflict', 409, false);
+    }
     await this.#authorize(recorded.command, now);
-    if (recorded.result.state !== 'unknown') {
+    if (recorded.result.result_class !== 'unknown') {
       return this.#publicRecordedResult(record, recorded);
     }
 
     const query = await this.#transport.queryCommand({
-      command_id: input.command_id,
-      reservation_id: input.reservation_id,
-      owner_epoch: input.owner_epoch,
+      command_id: command.command_id,
+      media_reservation_id: command.media_reservation_id,
+      owner_epoch: command.owner_epoch,
       command_hash: recorded.hash
     });
     const outcome = query.found
@@ -311,8 +392,8 @@ export class MediaControlAgent {
     );
     recorded.result = structuredClone(result);
     record.unresolved_command_id =
-      result.state === 'unknown' ? input.command_id : '';
-    this.#metrics.recordReconciliation(result.state);
+      result.result_class === 'unknown' ? command.command_id : '';
+    this.#metrics.recordReconciliation(result.result_class);
     this.#scheduleRecord(record);
     return structuredClone(result);
   }
@@ -343,8 +424,8 @@ export class MediaControlAgent {
     let expired = 0;
     while (this.#deadlines[0] && this.#deadlines[0].at <= timestamp) {
       const deadline = popDeadline(this.#deadlines)!;
-      expired += await this.#serial.run(deadline.reservation_id, async () => {
-        const record = this.#records.get(deadline.reservation_id);
+      expired += await this.#serial.run(deadline.media_reservation_id, async () => {
+        const record = this.#records.get(deadline.media_reservation_id);
         if (!record || deadline.revision !== record.deadline_revision) return 0;
         record.deadline_at = 0;
         record.deadline_kind = '';
@@ -368,14 +449,10 @@ export class MediaControlAgent {
   ): Promise<MediaControlAuthorization> {
     try {
       const authorization = await this.#authority.authorize({
-        reservation_id: command.reservation_id,
-        interaction_id: command.interaction_id,
+        media_reservation_id: command.media_reservation_id,
+        call_id: command.call_id,
         owner_epoch: command.owner_epoch,
-        operation: command.action === 'prepare'
-          ? 'open'
-          : command.action === 'commit'
-            ? 'mutate'
-            : 'close'
+        operation: authorityOperation(command.action)
       }, now);
       const comparison = compareMediaOwnerEpoch(
         command.owner_epoch,
@@ -388,7 +465,7 @@ export class MediaControlAgent {
           comparison > 0
         );
       }
-      if (authorization.reservation_expires_at !== command.lease_expires_at) {
+      if (authorization.reservation_expires_at !== command.expires_at) {
         throw new MediaControlError(
           'reservation_lease_mismatch',
           409,
@@ -396,8 +473,7 @@ export class MediaControlAgent {
         );
       }
       const nodeLease = Date.parse(authorization.node_lease_expires_at);
-      if (command.action !== 'cancel' &&
-          command.action !== 'close' &&
+      if (command.action !== 'delete' &&
           (!Number.isFinite(nodeLease) || nodeLease <= now.getTime())) {
         throw new MediaControlError(
           'component_node_lease_expired',
@@ -455,10 +531,16 @@ export class MediaControlAgent {
     return {
       action: command.action,
       command_id: command.command_id,
-      reservation_id: command.reservation_id,
-      interaction_id: command.interaction_id,
+      tenant_id: command.tenant_id,
+      call_id: command.call_id,
+      leg_id: command.leg_id,
+      cell_id: command.cell_id,
+      owner_node_id: command.owner_node_id,
       owner_epoch: command.owner_epoch,
-      sequence: command.sequence,
+      media_reservation_id: command.media_reservation_id,
+      command_sequence: command.command_sequence,
+      idempotency_key: command.idempotency_key,
+      payload_hash: command.payload_hash,
       command_hash: mediaControlCommandHash(command),
       transport_session_id: record.session?.transport_session_id,
       payload: structuredClone(command.payload)
@@ -474,7 +556,7 @@ export class MediaControlAgent {
     if (outcome.state === 'unknown') {
       return {
         protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-        state: 'unknown',
+        result_class: 'unknown',
         command_id: command.command_id,
         error_code: outcome.error_code,
         retryable: true,
@@ -488,7 +570,7 @@ export class MediaControlAgent {
       }
       return {
         protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-        state: 'failed',
+        result_class: mediaControlFailureClass(outcome.error_code),
         command_id: command.command_id,
         error_code: outcome.error_code,
         retryable: outcome.retryable,
@@ -497,14 +579,14 @@ export class MediaControlAgent {
     }
     const state = outcome.session_state;
     const session: MediaSessionSnapshot = {
-      reservation_id: command.reservation_id,
-      interaction_id: command.interaction_id,
+      media_reservation_id: command.media_reservation_id,
+      call_id: command.call_id,
       owner_epoch: command.owner_epoch,
-      last_sequence: command.sequence,
+      last_sequence: command.command_sequence,
       state,
       transport_session_id: outcome.transport_session_id,
       effective_sdp: outcome.effective_sdp,
-      lease_expires_at: command.lease_expires_at,
+      expires_at: command.expires_at,
       updated_at: canonicalTransportTime(outcome.applied_at, timestamp)
     };
     record.session = session;
@@ -512,9 +594,27 @@ export class MediaControlAgent {
     record.terminal_at = isTerminal(state) ? timestamp : 0;
     return {
       protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-      state: 'succeeded',
+      result_class: 'committed',
       command_id: command.command_id,
       session: structuredClone(session)
+    };
+  }
+
+  #projectControlError(
+    command: MediaControlCommand,
+    error: MediaControlError
+  ): MediaControlResult {
+    const resultClass = mediaControlFailureClass(error.code);
+    const session = this.#records.get(
+      command.media_reservation_id
+    )?.session;
+    return {
+      protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
+      result_class: resultClass,
+      command_id: command.command_id,
+      error_code: error.code,
+      retryable: error.retryable,
+      ...(session ? { session: structuredClone(session) } : {})
     };
   }
 
@@ -522,8 +622,23 @@ export class MediaControlAgent {
     record: MediaControlRecord,
     command: MediaControlCommand
   ): void {
-    if (record.interaction_id !== command.interaction_id) {
+    if (record.tenant_id !== command.tenant_id ||
+        record.call_id !== command.call_id ||
+        record.leg_id !== command.leg_id ||
+        record.cell_id !== command.cell_id) {
       throw new MediaControlError('reservation_identity_conflict', 409, false);
+    }
+    const epoch = compareMediaOwnerEpoch(
+      command.owner_epoch,
+      record.owner_epoch
+    );
+    if (epoch <= 0 &&
+        record.owner_node_id !== command.owner_node_id) {
+      throw new MediaControlError(
+        epoch < 0 ? 'stale_owner_epoch' : 'owner_node_conflict',
+        409,
+        false
+      );
     }
   }
 
@@ -551,14 +666,12 @@ export class MediaControlAgent {
     command: MediaControlCommand
   ): void {
     const state = record.session?.state;
-    const allowed =
-      (command.action === 'prepare' && state === undefined) ||
-      (command.action === 'prepare' && state === 'prepared') ||
-      (command.action === 'commit' && state === 'prepared') ||
-      (command.action === 'commit' && state === 'committed') ||
-      (command.action === 'cancel' && state === 'prepared') ||
-      (command.action === 'close' && state === 'prepared') ||
-      (command.action === 'close' && state === 'committed');
+    const allowed = command.action === 'offer'
+      ? state === undefined || state === 'prepared'
+      : command.action === 'delete'
+        ? state === 'prepared' || state === 'committed'
+        : command.action !== 'drain_node' &&
+          (state === 'prepared' || state === 'committed');
     if (!allowed) {
       throw new MediaControlError('media_session_transition_invalid', 409, false);
     }
@@ -567,8 +680,15 @@ export class MediaControlAgent {
   #makeJournalSpace(record: MediaControlRecord): boolean {
     if (record.commands.size < this.#maxCommandsPerReservation) return true;
     for (const [commandId, command] of record.commands) {
-      if (command.result.state === 'unknown') continue;
+      if (command.result.result_class === 'unknown') continue;
       record.commands.delete(commandId);
+      if (record.idempotency_keys.get(
+        command.command.idempotency_key
+      ) === commandId) {
+        record.idempotency_keys.delete(
+          command.command.idempotency_key
+        );
+      }
       return true;
     }
     return false;
@@ -576,9 +696,14 @@ export class MediaControlAgent {
 
   #publicRecordedResult(
     record: MediaControlRecord,
-    command: RecordedCommand
+    command: RecordedCommand,
+    responseCommandId = command.command.command_id
   ): MediaControlResult {
     const result = structuredClone(command.result);
+    result.command_id = responseCommandId;
+    if (result.result_class === 'committed') {
+      result.result_class = 'replayed';
+    }
     if (result.session &&
         !result.session.effective_sdp &&
         record.session?.transport_session_id ===
@@ -591,6 +716,7 @@ export class MediaControlAgent {
   async #recoverFromTransport(
     command: MediaControlCommand,
     hash: string,
+    idempotencyHash: string,
     timestamp: number
   ): Promise<{
     record?: MediaControlRecord;
@@ -601,12 +727,12 @@ export class MediaControlAgent {
     try {
       [transportSession, query] = await Promise.all([
         this.#transport.querySession({
-          reservation_id: command.reservation_id,
-          interaction_id: command.interaction_id
+          media_reservation_id: command.media_reservation_id,
+          call_id: command.call_id
         }),
         this.#transport.queryCommand({
           command_id: command.command_id,
-          reservation_id: command.reservation_id,
+          media_reservation_id: command.media_reservation_id,
           owner_epoch: command.owner_epoch,
           command_hash: hash
         })
@@ -614,6 +740,19 @@ export class MediaControlAgent {
     } catch {
       throw new MediaControlError(
         'media_control_transport_unavailable',
+        503,
+        true
+      );
+    }
+
+    const recoveredState = transportSession?.state ||
+      (query.found && query.outcome.state === 'succeeded'
+        ? query.outcome.session_state
+        : undefined);
+    if (recoveredState && !isTerminal(recoveredState) &&
+        this.#activeReservations >= this.#maxReservations) {
+      throw new MediaControlError(
+        'media_control_capacity_exhausted',
         503,
         true
       );
@@ -633,11 +772,15 @@ export class MediaControlAgent {
     );
     record.commands.set(
       command.command_id,
-      compactRecordedCommand(command, hash, result)
+      compactRecordedCommand(command, hash, idempotencyHash, result)
+    );
+    record.idempotency_keys.set(
+      command.idempotency_key,
+      command.command_id
     );
     record.unresolved_command_id = '';
     if (!transportSession) {
-      record.last_sequence = command.sequence;
+      record.last_sequence = command.command_sequence;
       if (result.session) {
         record.session = structuredClone(result.session);
         this.#transitionMetric(record, result.session.state);
@@ -658,14 +801,14 @@ export class MediaControlAgent {
     record.owner_epoch = session.owner_epoch;
     record.last_sequence = session.last_sequence;
     record.session = {
-      reservation_id: session.reservation_id,
-      interaction_id: session.interaction_id,
+      media_reservation_id: session.media_reservation_id,
+      call_id: session.call_id,
       owner_epoch: session.owner_epoch,
       last_sequence: session.last_sequence,
       state: session.state,
       transport_session_id: session.transport_session_id,
       effective_sdp: session.effective_sdp,
-      lease_expires_at: command.lease_expires_at,
+      expires_at: command.expires_at,
       updated_at: session.updated_at
     };
     if (isTerminal(session.state)) {
@@ -680,12 +823,17 @@ export class MediaControlAgent {
     metricState: MediaControlMetricSessionState
   ): MediaControlRecord {
     const record: MediaControlRecord = {
-      reservation_id: command.reservation_id,
-      interaction_id: command.interaction_id,
+      media_reservation_id: command.media_reservation_id,
+      tenant_id: command.tenant_id,
+      call_id: command.call_id,
+      leg_id: command.leg_id,
+      cell_id: command.cell_id,
+      owner_node_id: command.owner_node_id,
       owner_epoch: command.owner_epoch,
       last_sequence: 0,
-      lease_expires_at: command.lease_expires_at,
+      expires_at: command.expires_at,
       commands: new Map(),
+      idempotency_keys: new Map(),
       unresolved_command_id: '',
       terminal_at: 0,
       metric_state: metricState,
@@ -694,7 +842,7 @@ export class MediaControlAgent {
       deadline_kind: '',
       cleanup_retry_count: 0
     };
-    this.#records.set(record.reservation_id, record);
+    this.#records.set(record.media_reservation_id, record);
     this.#metrics.addSession(metricState);
     if (isMetricTerminal(metricState)) this.#terminalReservations += 1;
     else this.#activeReservations += 1;
@@ -710,7 +858,7 @@ export class MediaControlAgent {
     if (outcome.state === 'failed') {
       return {
         protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-        state: 'failed',
+        result_class: mediaControlFailureClass(outcome.error_code),
         command_id: command.command_id,
         error_code: outcome.error_code,
         retryable: outcome.retryable,
@@ -719,17 +867,17 @@ export class MediaControlAgent {
     }
     return {
       protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-      state: 'succeeded',
+      result_class: 'replayed',
       command_id: command.command_id,
       session: {
-        reservation_id: command.reservation_id,
-        interaction_id: command.interaction_id,
+        media_reservation_id: command.media_reservation_id,
+        call_id: command.call_id,
         owner_epoch: command.owner_epoch,
-        last_sequence: command.sequence,
+        last_sequence: command.command_sequence,
         state: outcome.session_state,
         transport_session_id: outcome.transport_session_id,
         effective_sdp: outcome.effective_sdp,
-        lease_expires_at: command.lease_expires_at,
+        expires_at: command.expires_at,
         updated_at: canonicalTransportTime(outcome.applied_at, timestamp)
       }
     };
@@ -746,15 +894,14 @@ export class MediaControlAgent {
         if (unresolved) {
           const query = await this.#transport.queryCommand({
             command_id: unresolved.command.command_id,
-            reservation_id: unresolved.command.reservation_id,
+            media_reservation_id: unresolved.command.media_reservation_id,
             owner_epoch: unresolved.command.owner_epoch,
             command_hash: unresolved.hash
           });
           let outcome: MediaTransportOutcome | undefined;
           if (query.found) {
             outcome = query.outcome;
-          } else if (unresolved.command.action === 'cancel' ||
-                     unresolved.command.action === 'close') {
+          } else if (unresolved.command.action === 'delete') {
             try {
               await this.#authorize(unresolved.command, now);
             } catch (error) {
@@ -776,15 +923,15 @@ export class MediaControlAgent {
               timestamp
             );
             unresolved.result = structuredClone(result);
-            this.#metrics.recordReconciliation(result.state);
-            if (result.state === 'unknown') {
+            this.#metrics.recordReconciliation(result.result_class);
+            if (result.result_class === 'unknown') {
               this.#rescheduleCleanup(record, timestamp);
               return 0;
             }
           } else {
             unresolved.result = {
               protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-              state: 'failed',
+              result_class: 'terminal_error',
               command_id: unresolved.command.command_id,
               error_code: 'media_control_lease_expired',
               retryable: false,
@@ -792,7 +939,7 @@ export class MediaControlAgent {
                 ? { session: structuredClone(record.session) }
                 : {})
             };
-            this.#metrics.recordReconciliation('failed');
+            this.#metrics.recordReconciliation('terminal_error');
           }
         }
         record.unresolved_command_id = '';
@@ -841,7 +988,7 @@ export class MediaControlAgent {
       record.session?.state === 'prepared'
     ) {
       kind = 'lease';
-      at = overrideAt ?? Date.parse(record.lease_expires_at);
+      at = overrideAt ?? Date.parse(record.expires_at);
     }
     if (record.deadline_kind === kind && record.deadline_at === at) return;
     record.deadline_revision += 1;
@@ -850,14 +997,14 @@ export class MediaControlAgent {
     if (!kind) return;
     pushDeadline(this.#deadlines, {
       at,
-      reservation_id: record.reservation_id,
+      media_reservation_id: record.media_reservation_id,
       revision: record.deadline_revision,
       kind
     });
     if (kind === 'evict') {
       pushDeadline(this.#terminalOrder, {
         at,
-        reservation_id: record.reservation_id,
+        media_reservation_id: record.media_reservation_id,
         revision: record.deadline_revision,
         kind
       });
@@ -885,7 +1032,7 @@ export class MediaControlAgent {
   ): void {
     command.result = {
       protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
-      state: 'failed',
+      result_class: 'rejected_epoch',
       command_id: command.command.command_id,
       error_code: error.code,
       retryable: false,
@@ -895,7 +1042,7 @@ export class MediaControlAgent {
     record.terminal_at = timestamp;
     record.cleanup_retry_count = 0;
     this.#transitionMetric(record, 'failed');
-    this.#metrics.recordReconciliation('failed');
+    this.#metrics.recordReconciliation('rejected_epoch');
     this.#scheduleRecord(record);
   }
 
@@ -905,7 +1052,7 @@ export class MediaControlAgent {
       if (!deadline) {
         throw new Error('media control terminal index is inconsistent');
       }
-      const record = this.#records.get(deadline.reservation_id);
+      const record = this.#records.get(deadline.media_reservation_id);
       if (!record ||
           deadline.revision !== record.deadline_revision ||
           record.deadline_kind !== 'evict') {
@@ -916,7 +1063,7 @@ export class MediaControlAgent {
   }
 
   #removeRecord(record: MediaControlRecord): void {
-    if (!this.#records.delete(record.reservation_id)) return;
+    if (!this.#records.delete(record.media_reservation_id)) return;
     if (isMetricTerminal(record.metric_state)) {
       this.#terminalReservations -= 1;
     } else {
@@ -940,17 +1087,40 @@ export class MediaControlError extends Error {
 function compactRecordedCommand(
   command: MediaControlCommand,
   hash: string,
+  idempotencyHash: string,
   result: MediaControlResult
 ): RecordedCommand {
   const storedCommand = structuredClone(command);
   const storedResult = structuredClone(result);
-  if (result.state !== 'unknown') storedCommand.payload = {};
+  if (result.result_class !== 'unknown') storedCommand.payload = {};
   if (storedResult.session) storedResult.session.effective_sdp = '';
   return {
     hash,
+    idempotency_hash: idempotencyHash,
     command: storedCommand,
     result: storedResult
   };
+}
+
+function mediaControlFailureClass(
+  errorCode: string
+): 'rejected_capacity' | 'rejected_epoch' | 'terminal_error' {
+  if ([
+    'media_control_capacity_exhausted',
+    'command_journal_exhausted',
+    'transport_capacity_exhausted',
+    'transport_command_capacity_exhausted'
+  ].includes(errorCode)) {
+    return 'rejected_capacity';
+  }
+  if ([
+    'stale_owner_epoch',
+    'owner_epoch_ahead',
+    'owner_takeover_sequence_invalid'
+  ].includes(errorCode)) {
+    return 'rejected_epoch';
+  }
+  return 'terminal_error';
 }
 
 function isTerminal(state: MediaSessionState): boolean {
@@ -999,6 +1169,14 @@ function boundedInteger(
   return value;
 }
 
+function authorityOperation(
+  action: MediaControlAction
+): 'open' | 'mutate' | 'close' {
+  if (action === 'offer') return 'open';
+  if (action === 'delete') return 'close';
+  return 'mutate';
+}
+
 function pushDeadline(
   heap: MediaControlDeadline[],
   value: MediaControlDeadline
@@ -1042,8 +1220,8 @@ function deadlineOrder(
   right: MediaControlDeadline
 ): number {
   if (left.at !== right.at) return left.at - right.at;
-  if (left.reservation_id !== right.reservation_id) {
-    return left.reservation_id < right.reservation_id ? -1 : 1;
+  if (left.media_reservation_id !== right.media_reservation_id) {
+    return left.media_reservation_id < right.media_reservation_id ? -1 : 1;
   }
   return left.revision - right.revision;
 }
