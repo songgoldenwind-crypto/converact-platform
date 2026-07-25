@@ -84,17 +84,17 @@
 - Create: `infra/ivekit/rtpengine/apply-overlay.mjs`
 - Create: `test/ivekit-rtpengine-source-overlay.test.ts`
 
-- [ ] Write a failing test that verifies the exact tag, commit, archive URL, SHA-256, size, GPL notice, patch order, and refusal of an unpinned source tree.
+- [x] Write a failing test that verifies the exact tag, commit, archive URL, SHA-256, size, GPL notice, patch order, and refusal of an unpinned source tree.
 - [ ] Make the test create a temporary Git tree from the exact archive, run the overlay twice, and require the second result to report `already_applied` for every patch.
-- [ ] Run the test and verify it fails because the source tooling is absent.
-- [ ] Implement `fetch-source.sh` so it:
+- [x] Run the test and verify it fails because the source tooling is absent.
+- [x] Implement `fetch-source.sh` so it:
   - accepts a new empty output directory;
   - downloads only the locked archive;
   - verifies `6987926` bytes and the locked SHA-256 before extraction;
   - verifies the tag resolves to the locked commit;
   - initializes a temporary Git repository solely to support deterministic patch application;
   - writes `ivekit-source-identity.json` with no credentials.
-- [ ] Implement `apply-overlay.mjs` using `git apply --check`, `git apply --whitespace=error-all`, and reverse-check idempotency.
+- [x] Implement `apply-overlay.mjs` using `git apply --check`, `git apply --whitespace=error-all`, and reverse-check idempotency.
 - [ ] Reject partial overlays, dirty source before first application, unknown patch files, and source identity mismatches.
 - [ ] Run the source test twice and verify identical patch-set hashes.
 - [ ] Commit as `build(rtpengine): pin source and overlay`.
