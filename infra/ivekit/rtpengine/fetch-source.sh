@@ -19,12 +19,18 @@ if find "$OUTPUT_DIR" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
   exit 64
 fi
 
-for command in curl git tar; do
+for command in git tar; do
   command -v "$command" >/dev/null || {
     printf '%s is required\n' "$command" >&2
     exit 69
   }
 done
+if [[ -z "${IVEKIT_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
+  command -v curl >/dev/null || {
+    printf 'curl is required\n' >&2
+    exit 69
+  }
+fi
 
 BUILD_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ivekit-rtpengine-source.XXXXXX")"
 cleanup() {
@@ -41,6 +47,16 @@ if [[ -z "${IVEKIT_RTPENGINE_ARCHIVE_FILE:-}" ]]; then
     --connect-timeout 10 \
     --output "$ARCHIVE_FILE" \
     "$ARCHIVE_URL"
+  RESOLVED_COMMIT="$(
+    git ls-remote \
+      https://github.com/sipwise/rtpengine.git \
+      "refs/tags/${VERSION}" |
+      awk 'NR == 1 { print $1 }'
+  )"
+  if [[ "$RESOLVED_COMMIT" != "$COMMIT" ]]; then
+    printf 'RTPengine release tag commit mismatch\n' >&2
+    exit 65
+  fi
 fi
 
 ACTUAL_SIZE="$(wc -c < "$ARCHIVE_FILE" | tr -d '[:space:]')"
@@ -57,17 +73,6 @@ else
 fi
 if [[ "$ACTUAL_SHA256" != "$ARCHIVE_SHA256" ]]; then
   printf 'RTPengine archive SHA-256 mismatch\n' >&2
-  exit 65
-fi
-
-RESOLVED_COMMIT="$(
-  git ls-remote \
-    https://github.com/sipwise/rtpengine.git \
-    "refs/tags/${VERSION}" |
-    awk 'NR == 1 { print $1 }'
-)"
-if [[ "$RESOLVED_COMMIT" != "$COMMIT" ]]; then
-  printf 'RTPengine release tag commit mismatch\n' >&2
   exit 65
 fi
 

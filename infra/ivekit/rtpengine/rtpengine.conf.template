@@ -1,0 +1,13 @@
+[rtpengine]
+interface=__INTERFACE__
+listen-ng=__LISTEN_NG__
+listen-http=__LISTEN_HTTP__
+port-min=__PORT_MIN__
+port-max=__PORT_MAX__
+table=__TABLE__
+foreground=true
+log-stderr=true
+delete-delay=0
+recording-dir=__RECORDING_DIR__
+recording-method=pcap
+recording-format=eth

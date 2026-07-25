@@ -162,15 +162,53 @@ Verification evidence on 2026-07-26:
 - Create: `infra/ivekit/rtpengine/README.md`
 - Create: `test/ivekit-rtpengine-build-contract.test.ts`
 
-- [ ] Write a failing static build-contract test for pinned `FROM` digests, non-root userspace runtime, read-only root filesystem compatibility, exact labels, architecture handling, offline final build, and separate kernel/userspace artifacts.
-- [ ] Build the dependency-complete toolchain from the locked Debian snapshot and record its immutable digest.
-- [ ] Make `build.sh` fetch and patch before build, then run the source compile with `docker build --network=none`.
-- [ ] Build `rtpengine`, `rtpengine-recording`, and the nftables kernel module as separate artifacts.
-- [ ] Label artifacts with upstream commit, archive SHA-256, patch-set SHA-256, target architecture, and `io.ivekit.runtime-mode`.
-- [ ] Support native `amd64` and native `arm64` userspace builds. Refuse silent cross-compilation and record unexecuted architecture builds as `not_run`.
-- [ ] Make entrypoint refuse `kernel` mode unless the loaded module identity matches the image metadata. Make `auto` mode emit an explicit userspace-fallback metric and runtime identity.
-- [ ] Verify the userspace runtime runs without package-manager or compiler tools.
-- [ ] Commit as `build(rtpengine): add reproducible runtime artifacts`.
+- [x] Write a failing static build-contract test for pinned `FROM` digests, non-root userspace runtime, read-only root filesystem compatibility, exact labels, architecture handling, offline final build, and separate kernel/userspace artifacts.
+- [x] Build the dependency-complete toolchain from the locked Debian snapshot and record its immutable digest.
+- [x] Make `build.sh` fetch and patch before build, then run the source compile with `docker build --network=none`.
+- [ ] Build `rtpengine`, `rtpengine-recording`, and the nftables kernel module as separate artifacts. Userspace and recording passed; the kernel targets are implemented but the real module remains `not_run` until matching headers are supplied.
+- [x] Label artifacts with upstream commit, archive SHA-256, patch-set SHA-256, target architecture, and `io.ivekit.runtime-mode`.
+- [x] Support native `amd64` and native `arm64` userspace builds. Refuse silent cross-compilation and record unexecuted architecture builds as `not_run`.
+- [x] Make entrypoint refuse `kernel` mode unless the loaded module identity matches the image metadata. Make `auto` mode emit an explicit userspace-fallback metric and runtime identity.
+- [x] Verify the userspace runtime runs without package-manager or compiler tools.
+- [x] Commit as `build(rtpengine): add reproducible runtime artifacts`.
+
+Verification evidence on `64.225.122.227` on 2026-07-26:
+
+- Debian snapshot: `20260725T000000Z`;
+- amd64 toolchain image:
+  `sha256:1b858f21573a2a5322825ee566a204ed34d093b447392d910d4b99e5771c9752`;
+- upstream commit:
+  `506cfa74386a5373e40fca139a932917f22f0524`;
+- source archive SHA-256:
+  `a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143`;
+- patch-set SHA-256:
+  `74af037355d83672ac8a9c136c7ca6f4800a5a8b735f17e4b515a85430360352`;
+- patched-tree SHA-256:
+  `1e893d6bfb1d915f7953d34672c7005b89e0b9e26689631093877f860482e63c`;
+- amd64 userspace image:
+  `sha256:8af0304eeff75d2996d9ef52fc8c59a00f0c2d5f239f4e0ebbf23b6c5cdca091`;
+- amd64 recording image:
+  `sha256:ce4f0fa22a3fe1e38f5fe0f4471620fc27e54f2b316cc8cc2c3842ea698ba14d`;
+- source preparation from the locked local archive and final artifact builds
+  completed with network disabled; both images run as UID/GID `10001:10001`
+  and contain no `apt`, `dpkg`, compiler, or `make`;
+- relay, recording, and kernel artifact stages use independent compile chains;
+  both verified runtime images carry the exact toolchain image ID label;
+- the userspace daemon started with a read-only root filesystem, generated
+  runtime state only in tmpfs mounts, and exported an explicit auto-fallback
+  metric;
+- the production entrypoint enables owner fencing by default; real UDP NG
+  replay returned the native cached response for a stable cookie and rejected
+  the same command under a different cookie before dispatch;
+- upstream `test-stats` and `test-transcode` passed; the owner-guard boundary
+  binary passed ASAN and UBSAN with leak detection enabled;
+- forced kernel mode with mismatched module identity was refused with exit
+  code `78`; a forged legacy environment identity could not bypass the
+  image-embedded identity requirement;
+- native arm64 execution and a real kernel-module build remain `not_run`
+  because this host is amd64 and matching host kernel headers were not
+  supplied. The build targets and refusal contracts are present; these results
+  must not be represented as hardware verification.
 
 ### Task 5: Deterministic Bencode And Persistent TCP NG Client
 

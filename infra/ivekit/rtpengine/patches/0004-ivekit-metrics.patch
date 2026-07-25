@@ -10,16 +10,17 @@ index 1da728d..7c5c2fb 100644
  static _Atomic uint64_t ivekit_guard_active_calls;
  static _Atomic uint64_t ivekit_guard_accepted;
  static _Atomic uint64_t ivekit_guard_replayed;
-@@ -38,6 +39,8 @@ static _Atomic uint64_t ivekit_guard_stale_epoch;
+@@ -38,6 +39,9 @@ static _Atomic uint64_t ivekit_guard_stale_epoch;
  static _Atomic uint64_t ivekit_guard_sequence_gap;
  static _Atomic uint64_t ivekit_guard_draining_rejections;
  static _Atomic uint64_t ivekit_guard_capacity_rejections;
 +static char ivekit_guard_runtime_mode[IVEKIT_GUARD_RUNTIME_MODE_MAX + 1]
 +	= "unconfigured";
++static bool ivekit_guard_userspace_fallback;
  
  static void ivekit_guard_entry_free(void *value) {
  	ivekit_guard_entry_t *entry = value;
-@@ -82,6 +85,18 @@ static uint64_t ivekit_guard_env_uint(const char *name, uint64_t fallback,
+@@ -82,6 +85,22 @@ static uint64_t ivekit_guard_env_uint(const char *name, uint64_t fallback,
  	return parsed;
  }
  
@@ -33,6 +34,10 @@ index 1da728d..7c5c2fb 100644
 +				"unconfigured, userspace, or kernel");
 +	g_strlcpy(ivekit_guard_runtime_mode, mode,
 +			sizeof(ivekit_guard_runtime_mode));
++	ivekit_guard_userspace_fallback = ivekit_guard_env_bool(
++			"IVEKIT_RTPENGINE_USERSPACE_FALLBACK", false);
++	if (ivekit_guard_userspace_fallback && strcmp(mode, "userspace"))
++		die("IVEKIT_RTPENGINE_USERSPACE_FALLBACK requires userspace mode");
 +}
 +
  static bool ivekit_guard_is_mutation(const str *command) {
@@ -89,11 +94,12 @@ index 1da728d..7c5c2fb 100644
  	snapshot->accepted = atomic_load_explicit(&ivekit_guard_accepted,
  			memory_order_relaxed);
  	snapshot->replayed = atomic_load_explicit(&ivekit_guard_replayed,
-@@ -532,6 +560,7 @@ void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *snapshot) {
+@@ -532,6 +565,8 @@ void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *snapshot) {
  			memory_order_relaxed);
  	snapshot->active_call_limit = ivekit_guard_active_call_limit;
  	snapshot->guard_entry_limit = ivekit_guard_entry_limit;
 +	snapshot->enabled = ivekit_guard_enabled;
++	snapshot->userspace_fallback = ivekit_guard_userspace_fallback;
  	snapshot->draining = atomic_load_explicit(&ivekit_guard_draining,
  			memory_order_relaxed);
  	mutex_lock(&ivekit_guard_entries_lock);
@@ -109,7 +115,7 @@ index 2867c8c..91fd1e8 100644
  
  int64_t rtpe_started;
  
-@@ -318,8 +319,75 @@ stats_metric_q *statistics_gather_metrics(struct interface_sampled_rate_stats *i
+@@ -318,8 +319,79 @@ stats_metric_q *statistics_gather_metrics(struct interface_sampled_rate_stats *i
  
  	double calls_dur_iv;
  	uint64_t cur_sessions, num_sessions, min_sess_iv, max_sess_iv;
@@ -179,6 +185,10 @@ index 2867c8c..91fd1e8 100644
 +	METRIC("ivekitruntimeinfo", "iveKit RTPengine runtime identity", "%u", "%u", 1);
 +	PROM("ivekit_runtime_info", "gauge");
 +	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekituserspacefallback", "iveKit userspace fallback state",
++			"%u", "%u", ivekit.userspace_fallback ? 1 : 0);
++	PROM("ivekit_userspace_fallback", "gauge");
++	PROMLAB("reason=\"kernel_identity_unavailable\"");
 +
 +	HEADER("}", "");
 +	}
@@ -197,11 +207,12 @@ index a59e228..49324ef 100644
  
  typedef struct ivekit_guard_ticket {
  	void *entry;
-@@ -38,7 +39,9 @@ typedef struct ivekit_guard_metrics {
+@@ -38,7 +39,10 @@ typedef struct ivekit_guard_metrics {
  	uint64_t active_call_limit;
  	uint64_t guard_entries;
  	uint64_t guard_entry_limit;
 +	bool enabled;
++	bool userspace_fallback;
  	bool draining;
 +	char runtime_mode[IVEKIT_GUARD_RUNTIME_MODE_MAX + 1];
  } ivekit_guard_metrics_t;

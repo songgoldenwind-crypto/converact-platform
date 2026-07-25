@@ -384,7 +384,8 @@ test('metrics patch exports a fixed low-cardinality iveKit metric set', () => {
     'ivekit_guard_entry_limit',
     'ivekit_draining',
     'ivekit_owner_guard_enabled',
-    'ivekit_runtime_info'
+    'ivekit_runtime_info',
+    'ivekit_userspace_fallback'
   ]) {
     assert.match(patch, new RegExp(metric));
   }
