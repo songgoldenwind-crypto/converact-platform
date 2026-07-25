@@ -65,6 +65,18 @@ test('readiness migration exposes only a bounded migration-version probe to the 
   assert.match(sql, /GRANT EXECUTE ON FUNCTION.*TO opc_runtime/s);
 });
 
+test('root and standalone migration sets share the runtime security marker required by readiness', () => {
+  const root = readFileSync(
+    new URL('../src/migrations/090_ivekit_runtime_security.sql', import.meta.url),
+    'utf8'
+  );
+  const standalone = readFileSync(
+    new URL('../services/ivekit-service/migrations/090_ivekit_runtime_security.sql', import.meta.url),
+    'utf8'
+  );
+  assert.equal(root, standalone);
+});
+
 test('readiness fails closed for missing database, migrations, or security keys', async () => {
   const missingDatabase = await createIveKitReadinessProbe({ pg: null, env: validEnv }).probe();
   assert.equal(missingDatabase.status, 'not_ready');
