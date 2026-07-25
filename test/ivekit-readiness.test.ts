@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import type { PgQueryable } from '../src/db-pg.js';
@@ -8,9 +9,15 @@ import {
 } from '../src/agent-runtime/ivekit/operations/readiness.js';
 
 class ReadyPg implements PgQueryable {
+  readonly queries: string[] = [];
+
   async query<R>(text: string): Promise<any> {
-    if (/schema_migrations/i.test(text)) {
+    this.queries.push(text);
+    if (/opc_ivekit_applied_migration_versions/i.test(text)) {
       return { rows: REQUIRED_MIGRATIONS.map((version) => ({ version })) as R[] };
+    }
+    if (/\bFROM\s+(?:public\.)?schema_migrations\b/i.test(text)) {
+      throw new Error('permission denied for table schema_migrations');
     }
     if (/ivekit_notification_endpoints/i.test(text)) {
       return { rows: [{ active: '2', unhealthy: '1' }] as R[] };
@@ -27,18 +34,35 @@ const validEnv = {
   OPC_IVEKIT_RATE_LIMIT_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
 };
 
-test('readiness requires the RustDesk authorization claim upgrade', () => {
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '095_rustdesk_authorization_claims');
+test('readiness requires the RustDesk authorization and least-privilege probe upgrades', () => {
+  assert.equal(REQUIRED_MIGRATIONS.includes('095_rustdesk_authorization_claims'), true);
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '101_ivekit_migration_readiness');
 });
 
 test('readiness executes SQL, verifies migrations, and reports nonblocking provider degradation', async () => {
-  const result = await createIveKitReadinessProbe({ pg: new ReadyPg(), env: validEnv }).probe();
+  const pg = new ReadyPg();
+  const result = await createIveKitReadinessProbe({ pg, env: validEnv }).probe();
   assert.equal(result.status, 'ready');
   assert.equal(result.checks.database.status, 'ok');
   assert.equal(result.checks.migrations.status, 'ok');
   assert.equal(result.checks.notification_providers.status, 'degraded');
   assert.equal(result.checks.notification_providers.blocking, false);
   assert.equal(result.checks.runtime_heartbeat.status, 'disabled');
+  assert.equal(pg.queries.some((query) => /opc_ivekit_applied_migration_versions/i.test(query)), true);
+  assert.equal(pg.queries.some((query) => /\bFROM\s+(?:public\.)?schema_migrations\b/i.test(query)), false);
+});
+
+test('readiness migration exposes only a bounded migration-version probe to the runtime role', () => {
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '101_ivekit_migration_readiness');
+  const sql = readFileSync(
+    new URL('../src/migrations/101_ivekit_migration_readiness.sql', import.meta.url),
+    'utf8'
+  );
+  assert.match(sql, /opc_ivekit_applied_migration_versions\(TEXT\[\]\)/);
+  assert.match(sql, /SECURITY DEFINER/);
+  assert.match(sql, /cardinality\(p_versions\).*256/s);
+  assert.match(sql, /REVOKE ALL ON FUNCTION.*FROM PUBLIC/s);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION.*TO opc_runtime/s);
 });
 
 test('readiness fails closed for missing database, migrations, or security keys', async () => {

@@ -44,6 +44,10 @@ test('runtime-role initializer parameterizes password and commits least-privileg
     pg.calls.some((call) => call.text.includes('opc_ivekit_voice_profile_context')),
     true
   );
+  assert.equal(
+    pg.calls.some((call) => call.text.includes('opc_ivekit_applied_migration_versions')),
+    true
+  );
 });
 
 test('runtime-role initializer rejects an unexpected migration role', async () => {

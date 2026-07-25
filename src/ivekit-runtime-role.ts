@@ -101,6 +101,9 @@ export async function initializeIveKitRuntimeRole(
         IF to_regprocedure('public.opc_ivekit_recording_worker_tenant_ids(timestamp with time zone,integer)') IS NOT NULL THEN
           GRANT EXECUTE ON FUNCTION public.opc_ivekit_recording_worker_tenant_ids(TIMESTAMPTZ, INTEGER) TO opc_runtime;
         END IF;
+        IF to_regprocedure('public.opc_ivekit_applied_migration_versions(text[])') IS NOT NULL THEN
+          GRANT EXECUTE ON FUNCTION public.opc_ivekit_applied_migration_versions(TEXT[]) TO opc_runtime;
+        END IF;
       END
       $$
     `);
