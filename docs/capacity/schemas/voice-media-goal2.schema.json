@@ -1,0 +1,429 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/voice-media-goal2.schema.json",
+  "title": "iveKit voice media Goal 2 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "revision",
+    "status",
+    "generated_at",
+    "source",
+    "authority",
+    "actions",
+    "runtime_modes",
+    "failure_matrix",
+    "evidence",
+    "verification",
+    "claim"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "contract_id": {
+      "const": "voice-media-goal2-v1"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": ["target", "implemented", "verified", "retired"]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "version",
+        "release_ref",
+        "commit",
+        "archive_url",
+        "archive_sha256",
+        "archive_size_bytes",
+        "license",
+        "integration_mode",
+        "required_patch_ids"
+      ],
+      "properties": {
+        "repository": {
+          "const": "https://github.com/sipwise/rtpengine"
+        },
+        "version": {
+          "const": "mr26.0.1.13"
+        },
+        "release_ref": {
+          "const": "mr26.0.1.13"
+        },
+        "commit": {
+          "const": "506cfa74386a5373e40fca139a932917f22f0524"
+        },
+        "archive_url": {
+          "const": "https://codeload.github.com/sipwise/rtpengine/tar.gz/refs/tags/mr26.0.1.13"
+        },
+        "archive_sha256": {
+          "const": "a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143"
+        },
+        "archive_size_bytes": {
+          "const": 6987926
+        },
+        "license": {
+          "const": "GPL-3.0-only"
+        },
+        "integration_mode": {
+          "const": "maintained_fork"
+        },
+        "required_patch_ids": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "prefixItems": [
+            {
+              "const": "rtpengine-tcp-ng-bounded-frame-v1"
+            },
+            {
+              "const": "rtpengine-ivekit-owner-fence-v1"
+            },
+            {
+              "const": "rtpengine-ivekit-drain-capacity-v1"
+            },
+            {
+              "const": "rtpengine-ivekit-low-cardinality-metrics-v1"
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_dialog_owner",
+        "logical_media_graph_owner",
+        "wire_transport_owner",
+        "effective_wire_sdp_owner",
+        "command_authority",
+        "reservation_authority",
+        "packet_path_remote_dependency",
+        "command_wal_scope"
+      ],
+      "properties": {
+        "call_dialog_owner": {
+          "const": "rustpbx"
+        },
+        "logical_media_graph_owner": {
+          "const": "rustpbx"
+        },
+        "wire_transport_owner": {
+          "const": "rtpengine"
+        },
+        "effective_wire_sdp_owner": {
+          "const": "rtpengine"
+        },
+        "command_authority": {
+          "const": "media_control_agent"
+        },
+        "reservation_authority": {
+          "const": "component_node_admission"
+        },
+        "packet_path_remote_dependency": {
+          "const": false
+        },
+        "command_wal_scope": {
+          "const": "cell_local_bounded"
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "rtpengine_command",
+          "mutation",
+          "requires_owner_fence",
+          "verification"
+        ],
+        "properties": {
+          "action": {
+            "enum": [
+              "offer",
+              "answer",
+              "update",
+              "delete",
+              "query",
+              "block_media",
+              "unblock_media",
+              "start_forward",
+              "stop_forward",
+              "start_recording_fork",
+              "stop_recording_fork",
+              "play_media",
+              "stop_media",
+              "inject_dtmf",
+              "subscribe_quality",
+              "drain_node"
+            ]
+          },
+          "rtpengine_command": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 64
+          },
+          "mutation": {
+            "type": "boolean"
+          },
+          "requires_owner_fence": {
+            "type": "boolean"
+          },
+          "verification": {
+            "$ref": "#/$defs/verificationStatus"
+          }
+        }
+      }
+    },
+    "runtime_modes": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "capacity_profile",
+          "requires_module_identity",
+          "verification"
+        ],
+        "properties": {
+          "mode": {
+            "enum": [
+              "userspace",
+              "kernel",
+              "recording",
+              "transcoding"
+            ]
+          },
+          "capacity_profile": {
+            "const": "distinct"
+          },
+          "requires_module_identity": {
+            "type": "boolean"
+          },
+          "verification": {
+            "$ref": "#/$defs/verificationStatus"
+          }
+        }
+      }
+    },
+    "failure_matrix": {
+      "type": "array",
+      "minItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "failure_id",
+          "established_media",
+          "new_admission",
+          "claim_effect",
+          "required_evidence"
+        ],
+        "properties": {
+          "failure_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,127}$"
+          },
+          "established_media": {
+            "enum": [
+              "continue",
+              "continue_degraded",
+              "interrupt_visible",
+              "not_applicable"
+            ]
+          },
+          "new_admission": {
+            "enum": [
+              "continue",
+              "reject",
+              "reject_stale_owner",
+              "replay_without_side_effect",
+              "unknown_then_reconcile",
+              "continue_userspace_distinct_profile",
+              "not_applicable"
+            ]
+          },
+          "claim_effect": {
+            "enum": [
+              "none",
+              "degraded",
+              "invalidate_failure_run",
+              "invalid_generator_capacity",
+              "separate_capacity_profile"
+            ]
+          },
+          "required_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{2,127}$"
+            }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_identity",
+        "retain_invalid_attempts",
+        "forbid_secret_material",
+        "packet_metrics",
+        "quality_metrics"
+      ],
+      "properties": {
+        "required_identity": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "source_archive_sha256",
+              "source_commit",
+              "patch_set_sha256",
+              "builder_image_digest",
+              "runtime_image_digest",
+              "runtime_config_sha256",
+              "host_kernel",
+              "kernel_module_sha256"
+            ]
+          }
+        },
+        "retain_invalid_attempts": {
+          "const": true
+        },
+        "forbid_secret_material": {
+          "const": true
+        },
+        "packet_metrics": {
+          "type": "array",
+          "minItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "rtp_rx_packets",
+              "rtp_tx_packets",
+              "rtcp_rx_packets",
+              "rtcp_tx_packets",
+              "packet_loss_ratio",
+              "jitter_ms",
+              "first_packet_ms"
+            ]
+          }
+        },
+        "quality_metrics": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "sequence_continuity",
+              "ssrc_continuity",
+              "payload_integrity",
+              "srtp_plaintext_absent"
+            ]
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_identity",
+        "patch_apply",
+        "compile",
+        "unit",
+        "integration",
+        "real_environment",
+        "benchmark"
+      ],
+      "properties": {
+        "source_identity": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "patch_apply": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "compile": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "unit": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "integration": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "real_environment": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "benchmark": {
+          "$ref": "#/$defs/verificationStatus"
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "benchmark",
+        "capacity_claim",
+        "production_eligible",
+        "blocking_reasons"
+      ],
+      "properties": {
+        "benchmark": {
+          "$ref": "#/$defs/verificationStatus"
+        },
+        "capacity_claim": {
+          "enum": ["none", "userspace_measured", "kernel_measured"]
+        },
+        "production_eligible": {
+          "type": "boolean"
+        },
+        "blocking_reasons": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,127}$"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "verificationStatus": {
+      "enum": ["not_run", "passed", "failed", "invalid"]
+    }
+  }
+}

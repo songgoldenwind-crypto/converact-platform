@@ -57,9 +57,9 @@
 - Create: `test/ivekit-voice-media-goal2-contract.test.ts`
 - Modify: `package.json`
 
-- [ ] Write a failing schema test that requires exact source identity, required patch IDs, runtime modes, command mappings, failure behavior, evidence files, and honest `not_run` statuses.
-- [ ] Run `node --import tsx --test test/ivekit-voice-media-goal2-contract.test.ts` and verify it fails because the contract does not exist.
-- [ ] Define `voice-media-goal2-v1.json` with these required patch IDs:
+- [x] Write a failing schema test that requires exact source identity, required patch IDs, runtime modes, command mappings, failure behavior, evidence files, and honest `not_run` statuses.
+- [x] Run `node --import tsx --test test/ivekit-voice-media-goal2-contract.test.ts` and verify it fails because the contract does not exist.
+- [x] Define `voice-media-goal2-v1.json` with these required patch IDs:
 
 ```json
 [
@@ -70,11 +70,11 @@
 ]
 ```
 
-- [ ] Require the contract to classify `offer`, `answer`, `update`, `delete`, `query`, media block/unblock, forwarding, recording, playback, DTMF injection, quality subscription, and drain.
-- [ ] Require failure assertions for stale epoch, command replay, before/after-apply timeout, media-control restart, admission outage, database outage, recorder outage, RTPengine failure, kernel fallback, and load-generator invalidation.
-- [ ] Add `test:ivekit:voice-media-goal2` to `package.json`.
-- [ ] Run the contract test and verify it passes.
-- [ ] Commit as `test(media): freeze RTPengine Goal 2 contract`.
+- [x] Require the contract to classify `offer`, `answer`, `update`, `delete`, `query`, media block/unblock, forwarding, recording, playback, DTMF injection, quality subscription, and drain.
+- [x] Require failure assertions for stale epoch, command replay, before/after-apply timeout, media-control restart, admission outage, database outage, recorder outage, RTPengine failure, kernel fallback, and load-generator invalidation.
+- [x] Add `test:ivekit:voice-media-goal2` to `package.json`.
+- [x] Run the contract test and verify it passes.
+- [x] Commit as `test(media): freeze RTPengine Goal 2 contract`.
 
 ### Task 2: Exact Source Fetch And Idempotent Overlay
 
