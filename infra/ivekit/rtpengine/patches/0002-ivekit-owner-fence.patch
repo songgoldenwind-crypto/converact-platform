@@ -1,0 +1,443 @@
+diff --git a/daemon/Makefile b/daemon/Makefile
+index 0a5f5b4..39bf35e 100644
+--- a/daemon/Makefile
++++ b/daemon/Makefile
+@@ -84,7 +84,7 @@ endif
+ CFLAGS+=	$(CFLAGS_MQTT)
+ LDLIBS+=	$(LDLIBS_MQTT)
+ 
+-SRCS=		main.c kernel.c helpers.c control_tcp.c call.c control_udp.c redis.c \
++SRCS=		main.c kernel.c helpers.c control_tcp.c call.c control_udp.c redis.c ivekit_guard.c \
+ 		cookie_cache.c udp_listener.c control_ng_flags_parser.c control_ng.strhash.c sdp.strhash.c stun.c rtcp.c \
+ 		crypto.c rtp.c call_interfaces.strhash.c dtls.c log.c cli.strhash.c graphite.c ice.c \
+ 		media_socket.c homer.c recording.c statistics.c cdr.c ssrc.c iptables.c tcp_listener.c \
+diff --git a/daemon/control_ng.c b/daemon/control_ng.c
+index 3e8a41e..f988516 100644
+--- a/daemon/control_ng.c
++++ b/daemon/control_ng.c
+@@ -24,6 +24,7 @@
+ #include "tcp_listener.h"
+ #include "main.h"
+ #include "cli.h"
++#include "ivekit_guard.h"
+ 
+ mutex_t rtpe_cngs_lock;
+ mutex_t tcp_connections_lock;
+@@ -684,6 +685,8 @@ static void control_ng_process_payload(ng_ctx *hctx, str *reply, str *data, cons
+ 	struct control_ng_stats* cur = get_control_ng_stats(&sin->address);
+ 
+ 	ng_command_ctx_t command_ctx = {.opmode = -1};
++	ivekit_guard_ticket_t ivekit_guard = {0};
++	bool ivekit_guard_finished = false;
+ 	const ng_parser_t *parser = &ng_parser_native;
+ 
+ 	command_ctx.ngbuf = *ngbufp = ng_buffer_new(ref);
+@@ -751,6 +754,10 @@ static void control_ng_process_payload(ng_ctx *hctx, str *reply, str *data, cons
+ 	// start command timer
+ 	cmd_start = now_us();
+ 
++	errstr = ivekit_guard_begin(&command_ctx, &cmd, &callid, &ivekit_guard);
++	if (errstr)
++		goto err_send;
++
+ 	switch (__csh_lookup(&cmd)) {
+ 		case CSH_LOOKUP("ping"):
+ 			resultstr = "pong";
+@@ -903,6 +910,8 @@ static void control_ng_process_payload(ng_ctx *hctx, str *reply, str *data, cons
+ 	if (errstr)
+ 		goto err_send;
+ 
++	ivekit_guard_finish(&ivekit_guard, true);
++	ivekit_guard_finished = true;
+ 	parser->dict_add_string(command_ctx.resp, "result", resultstr);
+ 
+ 	// update interval statistics
+@@ -912,6 +921,10 @@ static void control_ng_process_payload(ng_ctx *hctx, str *reply, str *data, cons
+ 	goto send_resp;
+ 
+ err_send:
++	if (!ivekit_guard_finished) {
++		ivekit_guard_finish(&ivekit_guard, false);
++		ivekit_guard_finished = true;
++	}
+ 
+ 	if (errstr < magic_load_limit_strings[0] || errstr > magic_load_limit_strings[__LOAD_LIMIT_MAX-1]) {
+ 		ilogs(control, LOG_WARNING, "Protocol error in packet from %s: %s [" STR_FORMAT_M "]",
+@@ -927,6 +940,7 @@ err_send:
+ 	}
+ 
+ send_resp:
++	ivekit_guard_append_response(&command_ctx, &ivekit_guard);
+ 	if (cmd.s) {
+ 		ilogs(control, LOG_INFO, "Replying to '" STR_FORMAT "' "
+ 				"from %s (elapsed time %" PRId64 ".%06" PRId64 " sec)",
+@@ -1229,6 +1243,7 @@ static void ivekit_ng_frame_limit_init(void) {
+ void control_ng_init(void) {
+ 	ivekit_ng_frame_limit_init();
+ 	ilog(LOG_INFO, "iveKit TCP NG frame limit is %zu bytes", ivekit_ng_max_frame_bytes);
++	ivekit_guard_init();
+ 
+ 	mutex_init(&rtpe_cngs_lock);
+ 	rtpe_cngs_hash = g_hash_table_new(sockaddr_t_hash, sockaddr_t_eq);
+@@ -1236,4 +1251,5 @@ void control_ng_init(void) {
+ }
+ void control_ng_cleanup(void) {
+ 	cookie_cache_cleanup(&ng_cookie_cache);
++	ivekit_guard_cleanup();
+ }
+diff --git a/daemon/ivekit_guard.c b/daemon/ivekit_guard.c
+new file mode 100644
+index 0000000..d49f2c7
+--- /dev/null
++++ b/daemon/ivekit_guard.c
+@@ -0,0 +1,311 @@
++#include "ivekit_guard.h"
++
++#include <errno.h>
++#include <inttypes.h>
++#include <limits.h>
++#include <string.h>
++
++#include <glib.h>
++
++#include "control_ng.h"
++#include "log.h"
++#include "main.h"
++
++typedef struct ivekit_guard_entry {
++	mutex_t lock;
++	uint64_t owner_epoch;
++	uint32_t command_sequence;
++	char *command_id;
++	char *command_hash;
++	char *reservation_id;
++	bool initialized;
++} ivekit_guard_entry_t;
++
++static mutex_t ivekit_guard_entries_lock;
++static GHashTable *ivekit_guard_entries;
++static bool ivekit_guard_enabled;
++
++static void ivekit_guard_entry_free(void *value) {
++	ivekit_guard_entry_t *entry = value;
++	if (!entry)
++		return;
++	mutex_destroy(&entry->lock);
++	g_free(entry->command_id);
++	g_free(entry->command_hash);
++	g_free(entry->reservation_id);
++	g_free(entry);
++}
++
++static bool ivekit_guard_env_bool(const char *name, bool fallback) {
++	const char *value = g_getenv(name);
++	if (!value || !*value)
++		return fallback;
++	if (!g_ascii_strcasecmp(value, "1") || !g_ascii_strcasecmp(value, "true")
++			|| !g_ascii_strcasecmp(value, "yes") || !g_ascii_strcasecmp(value, "on"))
++		return true;
++	if (!g_ascii_strcasecmp(value, "0") || !g_ascii_strcasecmp(value, "false")
++			|| !g_ascii_strcasecmp(value, "no") || !g_ascii_strcasecmp(value, "off"))
++		return false;
++	die("Invalid %s: expected true or false", name);
++	return fallback;
++}
++
++static bool ivekit_guard_is_mutation(const str *command) {
++	static const char *const mutations[] = {
++		"offer", "answer", "delete",
++		"start recording", "stop recording", "pause recording",
++		"start forwarding", "stop forwarding",
++		"block DTMF", "unblock DTMF",
++		"block media", "unblock media",
++		"silence media", "unsilence media",
++		"block silence media", "unblock silence media",
++		"play media", "stop media", "play DTMF",
++		"publish", "subscribe request", "subscribe answer", "unsubscribe",
++		"inject start", "inject stop", "connect",
++		"create", "create answer",
++	};
++
++	if (!command || !command->s)
++		return false;
++	for (size_t i = 0; i < G_N_ELEMENTS(mutations); i++) {
++		if (str_eq(command, mutations[i]))
++			return true;
++	}
++	return false;
++}
++
++static bool ivekit_guard_identifier(const str *value, size_t max) {
++	if (!value || !value->s || value->len == 0 || value->len > max)
++		return false;
++	for (size_t i = 0; i < value->len; i++) {
++		unsigned char ch = value->s[i];
++		if (!g_ascii_isalnum(ch) && ch != '.' && ch != '_' && ch != ':'
++				&& ch != '@' && ch != '/' && ch != '-')
++			return false;
++	}
++	return true;
++}
++
++static bool ivekit_guard_hash(const str *value) {
++	if (!value || !value->s || value->len != IVEKIT_GUARD_COMMAND_HASH_MAX)
++		return false;
++	for (size_t i = 0; i < value->len; i++) {
++		unsigned char ch = value->s[i];
++		if (!g_ascii_isdigit(ch) && (ch < 'a' || ch > 'f'))
++			return false;
++	}
++	return true;
++}
++
++static bool ivekit_guard_epoch(const str *value, uint64_t *out) {
++	if (!value || !value->s || value->len == 0 || value->len > 20
++			|| value->s[0] == '0')
++		return false;
++	for (size_t i = 0; i < value->len; i++) {
++		if (!g_ascii_isdigit(value->s[i]))
++			return false;
++	}
++	char buffer[21];
++	memcpy(buffer, value->s, value->len);
++	buffer[value->len] = '\0';
++	errno = 0;
++	char *end = NULL;
++	guint64 parsed = g_ascii_strtoull(buffer, &end, 10);
++	if (errno == ERANGE || !end || *end || parsed == 0)
++		return false;
++	*out = parsed;
++	return true;
++}
++
++static bool ivekit_guard_copy(char *destination, size_t capacity, const str *source) {
++	if (!source || !source->s || source->len >= capacity)
++		return false;
++	memcpy(destination, source->s, source->len);
++	destination[source->len] = '\0';
++	return true;
++}
++
++static bool ivekit_guard_sequence(ng_command_ctx_t *ctx, uint32_t *out) {
++	const ng_parser_t *parser = ctx->parser_ctx.parser;
++	str text = STR_NULL;
++	parser->dict_get_str(ctx->req, "ivekit-command-sequence", &text);
++	if (text.s) {
++		if (text.len == 0 || text.len > 10 || text.s[0] == '0')
++			return false;
++		for (size_t i = 0; i < text.len; i++) {
++			if (!g_ascii_isdigit(text.s[i]))
++				return false;
++		}
++		char buffer[11];
++		memcpy(buffer, text.s, text.len);
++		buffer[text.len] = '\0';
++		errno = 0;
++		char *end = NULL;
++		guint64 parsed = g_ascii_strtoull(buffer, &end, 10);
++		if (errno == ERANGE || !end || *end || parsed == 0 || parsed > UINT32_MAX)
++			return false;
++		*out = (uint32_t) parsed;
++		return true;
++	}
++
++	long long parsed = parser->dict_get_int_str(ctx->req,
++			"ivekit-command-sequence", -1);
++	if (parsed < 1 || (unsigned long long) parsed > UINT32_MAX)
++		return false;
++	*out = (uint32_t) parsed;
++	return true;
++}
++
++static ivekit_guard_entry_t *ivekit_guard_entry(const str *call_id) {
++	char *key = g_strndup(call_id->s, call_id->len);
++	mutex_lock(&ivekit_guard_entries_lock);
++	ivekit_guard_entry_t *entry = g_hash_table_lookup(ivekit_guard_entries, key);
++	if (!entry) {
++		entry = g_new0(ivekit_guard_entry_t, 1);
++		mutex_init(&entry->lock);
++		g_hash_table_insert(ivekit_guard_entries, key, entry);
++		key = NULL;
++	}
++	mutex_lock(&entry->lock);
++	mutex_unlock(&ivekit_guard_entries_lock);
++	g_free(key);
++	return entry;
++}
++
++static void ivekit_guard_replace(char **destination, const char *source) {
++	g_free(*destination);
++	*destination = source ? g_strdup(source) : NULL;
++}
++
++void ivekit_guard_init(void) {
++	ivekit_guard_enabled = ivekit_guard_env_bool("IVEKIT_RTPENGINE_OWNER_GUARD", false);
++	mutex_init(&ivekit_guard_entries_lock);
++	ivekit_guard_entries = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
++			ivekit_guard_entry_free);
++	ilog(LOG_INFO, "iveKit RTPengine owner guard is %s",
++			ivekit_guard_enabled ? "enabled" : "disabled");
++}
++
++void ivekit_guard_cleanup(void) {
++	if (ivekit_guard_entries) {
++		g_hash_table_destroy(ivekit_guard_entries);
++		ivekit_guard_entries = NULL;
++	}
++	mutex_destroy(&ivekit_guard_entries_lock);
++}
++
++const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
++		const str *call_id, ivekit_guard_ticket_t *ticket)
++{
++	memset(ticket, 0, sizeof(*ticket));
++	if (!ivekit_guard_enabled || !ivekit_guard_is_mutation(command))
++		return NULL;
++	ticket->enabled = true;
++
++	if (!ivekit_guard_identifier(call_id, 512))
++		return "ivekit invalid call id";
++
++	const ng_parser_t *parser = ctx->parser_ctx.parser;
++	str owner_epoch = STR_NULL;
++	str command_id = STR_NULL;
++	str command_hash = STR_NULL;
++	str reservation_id = STR_NULL;
++	parser->dict_get_str(ctx->req, "ivekit-owner-epoch", &owner_epoch);
++	parser->dict_get_str(ctx->req, "ivekit-command-id", &command_id);
++	parser->dict_get_str(ctx->req, "ivekit-command-hash", &command_hash);
++	parser->dict_get_str(ctx->req, "ivekit-reservation-id", &reservation_id);
++	if (!ivekit_guard_epoch(&owner_epoch, &ticket->owner_epoch))
++		return "ivekit invalid owner epoch";
++	if (!ivekit_guard_sequence(ctx, &ticket->command_sequence))
++		return "ivekit invalid command sequence";
++	if (!ivekit_guard_identifier(&command_id, IVEKIT_GUARD_COMMAND_ID_MAX)
++			|| !ivekit_guard_copy(ticket->command_id,
++				sizeof(ticket->command_id), &command_id))
++		return "ivekit invalid command id";
++	if (!ivekit_guard_hash(&command_hash)
++			|| !ivekit_guard_copy(ticket->command_hash,
++				sizeof(ticket->command_hash), &command_hash))
++		return "ivekit invalid command hash";
++	if (!ivekit_guard_identifier(&reservation_id, IVEKIT_GUARD_RESERVATION_ID_MAX)
++			|| !ivekit_guard_copy(ticket->reservation_id,
++				sizeof(ticket->reservation_id), &reservation_id))
++		return "ivekit invalid reservation id";
++
++	ivekit_guard_entry_t *entry = ivekit_guard_entry(call_id);
++	ticket->entry = entry;
++	ticket->locked = true;
++
++	if (!entry->initialized || ticket->owner_epoch > entry->owner_epoch) {
++		if (ticket->command_sequence != 1) {
++			ivekit_guard_finish(ticket, false);
++			return "ivekit command sequence gap";
++		}
++		entry->initialized = true;
++		entry->owner_epoch = ticket->owner_epoch;
++		entry->command_sequence = 0;
++		ivekit_guard_replace(&entry->reservation_id, ticket->reservation_id);
++		ivekit_guard_replace(&entry->command_id, NULL);
++		ivekit_guard_replace(&entry->command_hash, NULL);
++		return NULL;
++	}
++
++	if (ticket->owner_epoch < entry->owner_epoch) {
++		ivekit_guard_finish(ticket, false);
++		return "ivekit stale owner epoch";
++	}
++	if (g_strcmp0(entry->reservation_id, ticket->reservation_id)) {
++		ivekit_guard_finish(ticket, false);
++		return "ivekit reservation mismatch";
++	}
++	if (ticket->command_sequence == entry->command_sequence
++			&& !g_strcmp0(entry->command_id, ticket->command_id)
++			&& !g_strcmp0(entry->command_hash, ticket->command_hash)) {
++		ticket->replayed = true;
++		return NULL;
++	}
++	if (ticket->command_sequence <= entry->command_sequence) {
++		ivekit_guard_finish(ticket, false);
++		return "ivekit stale command sequence";
++	}
++	if (ticket->command_sequence != entry->command_sequence + 1) {
++		ivekit_guard_finish(ticket, false);
++		return "ivekit command sequence gap";
++	}
++	if (!g_strcmp0(entry->command_id, ticket->command_id)) {
++		ivekit_guard_finish(ticket, false);
++		return "ivekit command id conflict";
++	}
++	return NULL;
++}
++
++void ivekit_guard_finish(ivekit_guard_ticket_t *ticket, bool success) {
++	if (!ticket || !ticket->locked)
++		return;
++	ivekit_guard_entry_t *entry = ticket->entry;
++	if (success && !ticket->replayed) {
++		entry->command_sequence = ticket->command_sequence;
++		ivekit_guard_replace(&entry->command_id, ticket->command_id);
++		ivekit_guard_replace(&entry->command_hash, ticket->command_hash);
++	}
++	mutex_unlock(&entry->lock);
++	ticket->locked = false;
++}
++
++void ivekit_guard_append_response(ng_command_ctx_t *ctx,
++		const ivekit_guard_ticket_t *ticket)
++{
++	if (!ticket || !ticket->enabled || !ctx->resp.gen)
++		return;
++	char owner_epoch[21];
++	g_snprintf(owner_epoch, sizeof(owner_epoch), "%" PRIu64, ticket->owner_epoch);
++	const ng_parser_t *parser = ctx->parser_ctx.parser;
++	parser->dict_add_string(ctx->resp, "ivekit-owner-epoch", owner_epoch);
++	parser->dict_add_int(ctx->resp, "ivekit-command-sequence",
++			ticket->command_sequence);
++	parser->dict_add_string(ctx->resp, "ivekit-command-id", ticket->command_id);
++	parser->dict_add_string(ctx->resp, "ivekit-command-hash", ticket->command_hash);
++	parser->dict_add_string(ctx->resp, "ivekit-reservation-id",
++			ticket->reservation_id);
++	parser->dict_add_int(ctx->resp, "ivekit-command-replayed",
++			ticket->replayed ? 1 : 0);
++}
+diff --git a/include/ivekit_guard.h b/include/ivekit_guard.h
+new file mode 100644
+index 0000000..9e6464d
+--- /dev/null
++++ b/include/ivekit_guard.h
+@@ -0,0 +1,33 @@
++#ifndef _IVEKIT_GUARD_H_
++#define _IVEKIT_GUARD_H_
++
++#include <stdbool.h>
++#include <stdint.h>
++
++#include "str.h"
++#include "types.h"
++
++#define IVEKIT_GUARD_COMMAND_ID_MAX 256
++#define IVEKIT_GUARD_COMMAND_HASH_MAX 64
++#define IVEKIT_GUARD_RESERVATION_ID_MAX 256
++
++typedef struct ivekit_guard_ticket {
++	void *entry;
++	uint64_t owner_epoch;
++	uint32_t command_sequence;
++	bool enabled;
++	bool locked;
++	bool replayed;
++	char command_id[IVEKIT_GUARD_COMMAND_ID_MAX + 1];
++	char command_hash[IVEKIT_GUARD_COMMAND_HASH_MAX + 1];
++	char reservation_id[IVEKIT_GUARD_RESERVATION_ID_MAX + 1];
++} ivekit_guard_ticket_t;
++
++void ivekit_guard_init(void);
++void ivekit_guard_cleanup(void);
++const char *ivekit_guard_begin(ng_command_ctx_t *, const str *, const str *,
++		ivekit_guard_ticket_t *);
++void ivekit_guard_finish(ivekit_guard_ticket_t *, bool);
++void ivekit_guard_append_response(ng_command_ctx_t *, const ivekit_guard_ticket_t *);
++
++#endif

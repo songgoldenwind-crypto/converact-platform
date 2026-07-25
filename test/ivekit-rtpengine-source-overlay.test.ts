@@ -129,3 +129,37 @@ test('source identity assertion rejects an unpinned tree', async () => {
     /source commit mismatch/
   );
 });
+
+test('TCP NG patch bounds fragmented SDP frames without the upstream 1 KiB cutoff', () => {
+  const patch = readFileSync(
+    'infra/ivekit/rtpengine/patches/0001-tcp-ng-bounded-frame.patch',
+    'utf8'
+  );
+  assert.match(patch, /IVEKIT_RTPENGINE_NG_MAX_FRAME_BYTES/);
+  assert.match(patch, /262144/);
+  assert.match(patch, /ivekit_ng_max_frame_bytes/);
+  assert.match(patch, /streambuf_bufsize/);
+  assert.doesNotMatch(patch, /^\+.*> 1024/m);
+});
+
+test('owner fence patch rejects stale mutations before RTPengine dispatch', () => {
+  const patch = readFileSync(
+    'infra/ivekit/rtpengine/patches/0002-ivekit-owner-fence.patch',
+    'utf8'
+  );
+  for (const key of [
+    'ivekit-owner-epoch',
+    'ivekit-command-sequence',
+    'ivekit-command-id',
+    'ivekit-command-hash',
+    'ivekit-reservation-id'
+  ]) {
+    assert.match(patch, new RegExp(key));
+  }
+  assert.match(patch, /uint64_t owner_epoch/);
+  assert.match(patch, /uint32_t command_sequence/);
+  assert.match(patch, /ivekit_guard_begin/);
+  assert.match(patch, /ivekit_guard_finish/);
+  assert.match(patch, /ivekit stale owner epoch/);
+  assert.match(patch, /ivekit command sequence gap/);
+});
