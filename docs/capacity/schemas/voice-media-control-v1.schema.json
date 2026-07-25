@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/voice-media-control-v1.schema.json",
+  "title": "iveKit Voice Media Control Protocol v1",
+  "x-ivekit-limits": {
+    "payload_bytes": 131072,
+    "sdp_bytes": 16384,
+    "json_depth": 16,
+    "json_nodes": 4096,
+    "object_properties": 64,
+    "array_items": 1024
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/command" },
+    { "$ref": "#/$defs/reconcile" },
+    { "$ref": "#/$defs/result" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9._:@/-]+$"
+    },
+    "owner_epoch": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "canonical_date_time": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reservation_id",
+        "interaction_id",
+        "owner_epoch",
+        "last_sequence",
+        "state",
+        "transport_session_id",
+        "effective_sdp",
+        "lease_expires_at",
+        "updated_at"
+      ],
+      "properties": {
+        "reservation_id": { "$ref": "#/$defs/identifier" },
+        "interaction_id": { "$ref": "#/$defs/identifier" },
+        "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
+        "last_sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "state": {
+          "enum": [
+            "prepared",
+            "committed",
+            "cancelled",
+            "closed",
+            "expired"
+          ]
+        },
+        "transport_session_id": { "$ref": "#/$defs/identifier" },
+        "effective_sdp": {
+          "type": "string",
+          "maxLength": 16384
+        },
+        "lease_expires_at": {
+          "$ref": "#/$defs/canonical_date_time"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/canonical_date_time"
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "action",
+        "command_id",
+        "reservation_id",
+        "interaction_id",
+        "owner_epoch",
+        "sequence",
+        "lease_expires_at",
+        "payload"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": "ivekit.media-control.v1"
+        },
+        "action": {
+          "enum": ["prepare", "commit", "cancel", "close"]
+        },
+        "command_id": { "$ref": "#/$defs/identifier" },
+        "reservation_id": { "$ref": "#/$defs/identifier" },
+        "interaction_id": { "$ref": "#/$defs/identifier" },
+        "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "lease_expires_at": {
+          "$ref": "#/$defs/canonical_date_time"
+        },
+        "payload": {
+          "type": "object",
+          "maxProperties": 64
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": { "const": "prepare" }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["offer_sdp", "media_profile_id"],
+                "properties": {
+                  "offer_sdp": {
+                    "type": "string",
+                    "maxLength": 16384
+                  },
+                  "media_profile_id": {
+                    "$ref": "#/$defs/identifier"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "reconcile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "action",
+        "reservation_id",
+        "interaction_id",
+        "owner_epoch",
+        "command_id"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": "ivekit.media-control.v1"
+        },
+        "action": {
+          "const": "reconcile"
+        },
+        "reservation_id": { "$ref": "#/$defs/identifier" },
+        "interaction_id": { "$ref": "#/$defs/identifier" },
+        "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
+        "command_id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol_version",
+        "state",
+        "command_id"
+      ],
+      "properties": {
+        "protocol_version": {
+          "const": "ivekit.media-control.v1"
+        },
+        "state": {
+          "enum": ["succeeded", "failed", "unknown"]
+        },
+        "command_id": { "$ref": "#/$defs/identifier" },
+        "error_code": { "$ref": "#/$defs/identifier" },
+        "retryable": { "type": "boolean" },
+        "session": { "$ref": "#/$defs/session" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": { "const": "succeeded" }
+            },
+            "required": ["state"]
+          },
+          "then": {
+            "required": ["session"],
+            "not": {
+              "anyOf": [
+                { "required": ["error_code"] },
+                { "required": ["retryable"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": { "enum": ["failed", "unknown"] }
+            },
+            "required": ["state"]
+          },
+          "then": {
+            "required": ["error_code", "retryable"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": { "const": "unknown" }
+            },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "retryable": { "const": true }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

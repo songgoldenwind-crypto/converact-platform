@@ -47,6 +47,7 @@ export interface ComponentNodeAuthorization {
   owner_epoch: string;
   state_sequence: number;
   lease_expires_at: string;
+  reservation_expires_at: string;
 }
 
 export interface ComponentNodeBatchAuthorizationResult {
@@ -310,7 +311,8 @@ export class ComponentNodeAdmissionController {
       cell_lease_epoch: this.#cellLeaseEpoch,
       owner_epoch: reservation.owner_epoch,
       state_sequence: this.#stateSequence,
-      lease_expires_at: this.#leaseExpiresAt
+      lease_expires_at: this.#leaseExpiresAt,
+      reservation_expires_at: reservation.expires_at
     };
   }
 

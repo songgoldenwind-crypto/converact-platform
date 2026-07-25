@@ -6,7 +6,7 @@ services:
 
   rustpbx-config-render:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice", "voice-capacity"]
+    profiles: ["voice", "voice-capacity", "voice-media-control"]
     command: ["node", "--import", "tsx", "scripts/render-rustpbx-config.ts"]
     restart: "no"
     environment:
@@ -48,7 +48,7 @@ services:
 
   rustpbx-route-snapshot:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice", "voice-capacity"]
+    profiles: ["voice", "voice-capacity", "voice-media-control"]
     command: ["node", "--import", "tsx", "src/ivekit-rustpbx-route-snapshot.ts"]
     init: true
     restart: unless-stopped
@@ -71,7 +71,7 @@ services:
 
   rustpbx:
     image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
-    profiles: ["voice", "voice-capacity"]
+    profiles: ["voice", "voice-capacity", "voice-media-control"]
     command: ["--conf", "/app/config/rustpbx.toml"]
     init: true
     restart: unless-stopped
@@ -163,7 +163,7 @@ services:
 
   rustpbx-component-node:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice-capacity"]
+    profiles: ["voice-capacity", "voice-media-control"]
     command: ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
     init: true
     restart: unless-stopped
@@ -199,6 +199,55 @@ services:
       interval: 5s
       timeout: 2s
       retries: 20
+    security_opt:
+      - no-new-privileges:true
+
+  media-control:
+    image: ${IVEKIT_MEDIA_CONTROL_IMAGE_NAME:-ivekit-media-control:local}
+    build:
+      context: ../..
+      dockerfile: infra/ivekit/media-control/Dockerfile
+    profiles: ["voice-media-control"]
+    init: true
+    restart: unless-stopped
+    user: node
+    read_only: true
+    network_mode: service:rustpbx
+    command: []
+    environment:
+      IVEKIT_MEDIA_CONTROL_PRODUCTION: "false"
+      IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS: "false"
+      IVEKIT_MEDIA_CONTROL_REQUIRE_PRODUCTION_TRANSPORT: "false"
+      IVEKIT_MEDIA_CONTROL_TRANSPORT: simulator
+      IVEKIT_MEDIA_CONTROL_HOST: 0.0.0.0
+      IVEKIT_MEDIA_CONTROL_PORT: 3211
+      IVEKIT_MEDIA_CONTROL_TOKEN: ${OPC_IVEKIT_MEDIA_CONTROL_TOKEN:?OPC_IVEKIT_MEDIA_CONTROL_TOKEN is required}
+      IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT: http://127.0.0.1:3210
+      IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required}
+      IVEKIT_MEDIA_CONTROL_ADMISSION_HEALTH_INTERVAL_MS: ${IVEKIT_MEDIA_CONTROL_ADMISSION_HEALTH_INTERVAL_MS:-1000}
+      IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS: ${IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS:-100000}
+      IVEKIT_MEDIA_CONTROL_MAX_TERMINAL_RESERVATIONS: ${IVEKIT_MEDIA_CONTROL_MAX_TERMINAL_RESERVATIONS:-100000}
+      IVEKIT_MEDIA_CONTROL_MAX_COMMANDS_PER_RESERVATION: ${IVEKIT_MEDIA_CONTROL_MAX_COMMANDS_PER_RESERVATION:-16}
+      IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS: ${IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS:-300000}
+      IVEKIT_MEDIA_CONTROL_SWEEP_INTERVAL_MS: ${IVEKIT_MEDIA_CONTROL_SWEEP_INTERVAL_MS:-1000}
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    depends_on:
+      rustpbx:
+        condition: service_healthy
+      rustpbx-component-node:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3211/readyz').then(r=>{if(!r.ok)process.exit(1)})
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
 

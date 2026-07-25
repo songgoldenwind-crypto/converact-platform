@@ -285,7 +285,10 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.match(bootstrap, /NOBYPASSRLS/);
   assert.match(bootstrap, /REVOKE CONNECT ON DATABASE rustpbx FROM PUBLIC/);
   assert.match(voice, /image: \$\{RUSTPBX_IMAGE:\?RUSTPBX_IMAGE is required\}/);
-  assert.match(voice, /profiles: \["voice", "voice-capacity"\]/);
+  assert.match(
+    voice,
+    /profiles: \["voice", "voice-capacity", "voice-media-control"\]/
+  );
   assert.match(voice, /scripts\/render-rustpbx-config\.ts/);
   assert.match(voice, /src\/ivekit-rustpbx-route-snapshot\.ts/);
   assert.match(voice, /rustpbx-route-snapshot:\/app\/route-snapshot/);
@@ -295,7 +298,10 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.match(voice, /IVEKIT_RUSTPBX_CELL_ID/);
   assert.match(voice, /IVEKIT_RUSTPBX_OWNER_NODE_ID/);
   assert.match(voice, /rustpbx-component-node:/);
-  assert.match(voice, /profiles: \["voice-capacity"\]/);
+  assert.match(
+    voice,
+    /profiles: \["voice-capacity", "voice-media-control"\]/
+  );
   assert.match(voice, /scripts\/ivekit-component-node-admission\.ts/);
   assert.match(voice, /network_mode: service:rustpbx/);
   assert.match(voice, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT: rustpbx/);

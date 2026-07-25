@@ -3,6 +3,7 @@ export * from './adapters/controlled-provider.js';
 export * from './adapters/controlled-realtime-ai.js';
 export * from './adapters/external-realtime-speech.js';
 export * from './adapters/livekit-sip.js';
+export * from './adapters/media-control.js';
 export * from './adapters/rustpbx-management.js';
 export * from './adapters/rustpbx-provider.js';
 export * from './adapters/rustpbx-events.js';

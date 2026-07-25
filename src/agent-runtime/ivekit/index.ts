@@ -25,6 +25,7 @@ export * from './operations/retention/index.js';
 export * from './operations/readiness.js';
 export * from './operations/runtime-heartbeat.js';
 export * from './placement/index.js';
+export * from './media-control/index.js';
 export * from './recordings/index.js';
 export { routeIveKitIvrApi } from './ivr/http.js';
 export type * from './ivr/http.js';
