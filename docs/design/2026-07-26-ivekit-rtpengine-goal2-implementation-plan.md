@@ -216,21 +216,48 @@ Verification evidence on `64.225.122.227` on 2026-07-26:
 - Create: `src/agent-runtime/ivekit/media-control/bencode.ts`
 - Create: `src/agent-runtime/ivekit/media-control/rtpengine-ng.ts`
 - Create: `test/ivekit-rtpengine-ng.test.ts`
+- Create: `scripts/ivekit-rtpengine-ng-acceptance.ts`
 
-- [ ] Write failing tests for deterministic dictionary ordering, arbitrary byte strings, nested lists, integer bounds, duplicate keys, malformed lengths, depth/node/byte limits, and fragmented TCP frames.
-- [ ] Write a real TCP test server that returns responses out of order and sends a frame in one-byte fragments.
-- [ ] Use a stable cookie derived from `command_id` and `command_hash`; never generate a new cookie on retry.
-- [ ] Implement one bounded connection pool per RTPengine endpoint with:
+- [x] Write failing tests for deterministic dictionary ordering, arbitrary byte strings, nested lists, integer bounds, duplicate keys, malformed lengths, depth/node/byte limits, and fragmented TCP frames.
+- [x] Write a real TCP test server that returns responses out of order and sends a frame in one-byte fragments.
+- [x] Use a stable cookie derived from `command_id` and `command_hash`; never generate a new cookie on retry.
+- [x] Implement one bounded connection pool per RTPengine endpoint with:
   - maximum in-flight requests;
+  - maximum outstanding request bytes and TCP backpressure;
   - absolute request deadlines;
   - cookie-to-request matching;
   - bounded response bytes;
   - reconnect with jittered backoff;
   - `unknown` for disconnect after write;
   - deterministic failure for rejection before write.
-- [ ] Parse unsolicited DTMF notifications separately so they cannot satisfy a command promise.
-- [ ] Run the focused test and the Goal 1 protocol/agent tests.
-- [ ] Commit as `feat(media): add RTPengine NG client`.
+- [x] Parse unsolicited DTMF notifications separately so they cannot satisfy a command promise.
+- [x] Run the focused test and the Goal 1 protocol/agent tests.
+- [x] Commit as `feat(media): add RTPengine NG client`.
+
+Verification evidence on 2026-07-26:
+
+- 16 focused tests passed against real loopback TCP sockets, including
+  out-of-order responses, one-byte fragments, embedded newlines, stable-cookie
+  reconnect, pool expansion, coalesced self-delimiting frames, absolute
+  deadlines, overload, bounded outstanding bytes, close-during-connect,
+  single-attempt backoff, cross-connection cookie isolation, oversized
+  responses, and real-format unsolicited DTMF;
+- bencode rejects non-canonical integers, duplicate dictionary keys, malformed
+  lengths, trailing bytes, invalid Unicode dictionary keys, and configured
+  depth/node/byte/string limits;
+- an independent review found and the implementation fixed newline framing,
+  incorrect DTMF shape, multi-connection DTMF duplication, unbounded socket
+  queues, close-during-connect retention, duplicate backoff advancement,
+  invalid UTF-8 key collisions, and cross-slot response matching;
+- the independent re-review reported no blocking findings and confirmed all
+  eight issues were resolved;
+- against the locked amd64 userspace image on `64.225.122.227`, the compiled
+  client sent 128 concurrent `ping` commands over real TCP-NG without newline
+  framing and received 128 `pong` responses in `75.882 ms`; the isolated
+  temporary RTPengine container was removed after the run;
+- the full TypeScript typecheck passed;
+- all 66 Goal 1 media-control protocol, authority, HTTP, deployment, capacity,
+  recovery, and adapter tests passed, including the 100,000-reservation model.
 
 ### Task 6: Checksummed Local Command WAL
 
