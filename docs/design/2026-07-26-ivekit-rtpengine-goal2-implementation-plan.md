@@ -265,13 +265,33 @@ Verification evidence on 2026-07-26:
 - Create: `src/agent-runtime/ivekit/media-control/journal.ts`
 - Create: `test/ivekit-media-control-journal.test.ts`
 
-- [ ] Write failing tests for append/replay, process reopen, truncated tail, checksum mismatch, symlink refusal, file permissions, terminal retention, byte bound, and atomic compaction.
-- [ ] Store only command identity, command hash, owner epoch, sequence, transport call ID, result class, effective SDP, session state, and timestamps.
-- [ ] Prefix every record with length and SHA-256. Ignore only an incomplete final record; reject corruption in any committed record.
-- [ ] Open files with no-follow semantics where supported, require mode `0600`, fsync successful command outcomes before returning them, and fsync the parent directory after atomic rename.
-- [ ] Compact only terminal records outside retention. Never discard an unknown or active session.
-- [ ] Enforce both record-count and byte bounds; fail readiness before unbounded growth.
-- [ ] Commit as `feat(media): persist transport command journal`.
+- [x] Write failing tests for append/replay, process reopen, truncated tail, checksum mismatch, symlink refusal, file permissions, terminal retention, byte bound, and atomic compaction.
+- [x] Store only command identity, command hash, owner epoch, sequence, transport call ID, result class, effective SDP, session state, and timestamps.
+- [x] Prefix every record with length and SHA-256. Ignore only an incomplete final record; reject corruption in any committed record.
+- [x] Open files with no-follow semantics where supported, require mode `0600`, fsync successful command outcomes before returning them, and fsync the parent directory after atomic rename.
+- [x] Compact only terminal records outside retention. Never discard an unknown or active session.
+- [x] Enforce both record-count and byte bounds; fail readiness before unbounded growth.
+- [x] Commit as `feat(media): persist transport command journal`.
+
+Task 6 evidence:
+
+- the WAL uses a length/complement header plus SHA-256, streams recovery
+  without allocating the file size, rolls back partial writes and failed
+  durability syncs, and rejects committed corruption;
+- the persistent writer lock is an inode `flock` on a protected `0600`
+  lock file in the WAL directory, so process pauses do not permit takeover
+  and process death releases the lock in the kernel;
+- the writer lock was verified across two Linux containers with separate
+  network namespaces and different in-container mount paths to the same
+  host directory; the second writer was rejected and could reacquire after
+  the first container was removed;
+- deployments must mount the complete WAL directory and use a filesystem
+  with coherent `flock` semantics;
+- local Task 6 tests passed `21/21`, the full Goal 2 suite passed `61/61`,
+  the TypeScript typecheck passed, and the Linux isolated-container Task 6
+  suite passed `21/21`;
+- an independent final review reported no blocking or high-severity
+  correctness, security, or durability findings.
 
 ### Task 7: RTPengine `MediaTransportPort`
 
