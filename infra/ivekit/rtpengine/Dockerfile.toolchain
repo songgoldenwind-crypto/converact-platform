@@ -65,6 +65,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     && install -d -o root -g root -m 0755 /etc/ivekit \
     && dpkg-query -W -f='${Package}=${Version}\n' \
       | LC_ALL=C sort > /usr/share/ivekit-runtime-packages.txt \
+    && install -m 0444 /var/lib/dpkg/status \
+      /usr/share/ivekit-runtime-dpkg-status \
     && rm -f \
       /usr/bin/apt \
       /usr/bin/apt-cache \
@@ -94,6 +96,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       /var/log/apt \
       /usr/share/doc \
       /usr/share/man \
+    && install -d -o root -g root -m 0755 /var/lib/dpkg \
+    && install -m 0444 /usr/share/ivekit-runtime-dpkg-status \
+      /var/lib/dpkg/status \
     && find /var/log -type f -exec truncate -s 0 {} +
 
 FROM snapshot-base AS toolchain

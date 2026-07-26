@@ -95,6 +95,9 @@ test('toolchain uses a pinned Debian snapshot and contains build plus runtime de
   assert.match(source, /AS toolchain/);
   assert.match(source, /io\.ivekit\.toolchain\.snapshot/);
   assert.match(source, /\/opt\/ivekit-runtime-rootfs/);
+  assert.match(source, /\/var\/lib\/dpkg\/status/);
+  assert.match(source, /ivekit-runtime-dpkg-status/);
+  assert.match(source, /rm -f[\s\S]*\/usr\/bin\/dpkg/);
 });
 
 test('runtime Dockerfile creates separate offline artifacts with immutable labels', () => {

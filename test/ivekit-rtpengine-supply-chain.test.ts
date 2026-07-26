@@ -250,6 +250,30 @@ describe('iveKit RTPengine supply-chain evidence', () => {
       /CycloneDX SBOM is invalid/
     );
   });
+
+  it('rejects a package-blind runtime SBOM', () => {
+    const input = validInput();
+    input.cyclonedx.document.components = [{
+      type: 'container',
+      name: 'ivekit/rtpengine',
+      version: DIGEST_A
+    }];
+
+    assert.throws(
+      () => buildRtpengineSupplyChainEvidence(input),
+      /runtime package coverage is missing/
+    );
+  });
+
+  it('accepts the current CycloneDX 1.7 format', () => {
+    const input = validInput();
+    input.cyclonedx.document.specVersion = '1.7';
+
+    assert.equal(
+      buildRtpengineSupplyChainEvidence(input).artifacts.cyclonedx.format,
+      'CycloneDX-1.7'
+    );
+  });
 });
 
 function validInput(): RtpengineSupplyChainInput {
@@ -281,6 +305,10 @@ function validInput(): RtpengineSupplyChainInput {
           type: 'container',
           name: 'ivekit/rtpengine',
           version: DIGEST_A
+        }, {
+          type: 'library',
+          name: 'libssl3t64',
+          version: '3.5.1-1'
         }]
       }
     },

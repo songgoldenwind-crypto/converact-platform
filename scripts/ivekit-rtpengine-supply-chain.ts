@@ -98,7 +98,7 @@ export interface RtpengineSupplyChainEvidence {
   identity: RtpengineSupplyChainInput['identity'];
   artifacts: {
     cyclonedx: {
-      format: 'CycloneDX-1.6';
+      format: 'CycloneDX-1.6' | 'CycloneDX-1.7';
       sha256: string;
       component_count: number;
     };
@@ -212,7 +212,8 @@ export function buildRtpengineSupplyChainEvidence(
     identity,
     artifacts: {
       cyclonedx: {
-        format: 'CycloneDX-1.6',
+        format: `CycloneDX-${cycloneDx.document.specVersion}` as
+          'CycloneDX-1.6' | 'CycloneDX-1.7',
         sha256: cycloneDx.sha256,
         component_count: cycloneDx.document.components.length
       },
@@ -355,13 +356,19 @@ function checkedCycloneDx(
   if (!input ||
       !SHA256.test(input.sha256) ||
       input.document?.bomFormat !== 'CycloneDX' ||
-      input.document.specVersion !== '1.6' ||
+      !['1.6', '1.7'].includes(input.document.specVersion) ||
       !/^urn:uuid:[0-9a-f-]{36}$/i.test(input.document.serialNumber) ||
       !Number.isSafeInteger(input.document.version) ||
       input.document.version < 1 ||
       !Array.isArray(input.document.components) ||
       input.document.components.length > 1_000_000) {
     throw new Error('CycloneDX SBOM is invalid');
+  }
+  const packageComponents = input.document.components.filter(
+    (component) => component.type !== 'container'
+  );
+  if (packageComponents.length === 0) {
+    throw new Error('runtime package coverage is missing from CycloneDX SBOM');
   }
   return structuredClone(input);
 }
