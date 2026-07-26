@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import net, { type AddressInfo, type Socket } from 'node:net';
 import { describe, it } from 'node:test';
@@ -614,6 +615,46 @@ describe('persistent RTPengine TCP NG client', () => {
       await client.close();
       await server.close();
     }
+  });
+
+  it('keeps an active request alive until connection failure is classified', async () => {
+    const port = await unusedPort();
+    const script = `
+      import { RtpengineNgClient } from './src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+      const client = new RtpengineNgClient({
+        host: '127.0.0.1',
+        port: ${port},
+        requestTimeoutMs: 100,
+        reconnectMinDelayMs: 10,
+        reconnectMaxDelayMs: 10
+      });
+      try {
+        await client.request(
+          { command: 'ivekit status' },
+          { command_id: 'liveness-probe', command_hash: '${HASH_A}' }
+        );
+        process.exitCode = 2;
+      } catch (error) {
+        process.stdout.write(String(error?.code ?? error));
+      } finally {
+        await client.close();
+      }
+    `;
+    const child = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', '--input-type=module', '--eval', script],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        timeout: 3_000
+      }
+    );
+
+    assert.equal(child.status, 0, child.stderr);
+    assert.match(
+      child.stdout,
+      /rtpengine_ng_(connect_failed|deadline)/
+    );
   });
 });
 

@@ -77,6 +77,7 @@ fi
 
 interface="${IVEKIT_RTPENGINE_INTERFACE:-public/127.0.0.1}"
 listen_ng="${IVEKIT_RTPENGINE_LISTEN_NG:-0.0.0.0:22222}"
+listen_tcp_ng="${IVEKIT_RTPENGINE_LISTEN_TCP_NG:-0.0.0.0:22222}"
 listen_http="${IVEKIT_RTPENGINE_LISTEN_HTTP:-0.0.0.0:8080}"
 port_min="${IVEKIT_RTPENGINE_PORT_MIN:-23000}"
 port_max="${IVEKIT_RTPENGINE_PORT_MAX:-32768}"
@@ -97,6 +98,7 @@ safe_config_value() {
 
 safe_config_value interface "${interface}"
 safe_config_value listen_ng "${listen_ng}"
+safe_config_value listen_tcp_ng "${listen_tcp_ng}"
 safe_config_value listen_http "${listen_http}"
 safe_config_value port_min "${port_min}"
 safe_config_value port_max "${port_max}"
@@ -109,6 +111,7 @@ trap 'rm -f "${config_tmp}"' EXIT HUP INT TERM
 sed \
   -e "s|__INTERFACE__|${interface}|g" \
   -e "s|__LISTEN_NG__|${listen_ng}|g" \
+  -e "s|__LISTEN_TCP_NG__|${listen_tcp_ng}|g" \
   -e "s|__LISTEN_HTTP__|${listen_http}|g" \
   -e "s|__PORT_MIN__|${port_min}|g" \
   -e "s|__PORT_MAX__|${port_max}|g" \

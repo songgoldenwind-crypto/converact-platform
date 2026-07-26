@@ -63,16 +63,20 @@ spec:
 {{- end }}
             - name: IVEKIT_RTPENGINE_LISTEN_NG
               value: "127.0.0.1:22222"
+            - name: IVEKIT_RTPENGINE_LISTEN_TCP_NG
+              value: "127.0.0.1:22222"
             - name: IVEKIT_RTPENGINE_LISTEN_HTTP
               value: "0.0.0.0:8080"
             - name: IVEKIT_RTPENGINE_PORT_MIN
               value: {{ .Values.rtpengine.mediaPorts.minimum | quote }}
             - name: IVEKIT_RTPENGINE_PORT_MAX
               value: {{ .Values.rtpengine.mediaPorts.maximum | quote }}
-            - name: IVEKIT_RTPENGINE_ACTIVE_CALL_LIMIT
+            - name: IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS
               value: {{ .Values.rtpengine.activeCallLimit | quote }}
-            - name: IVEKIT_RTPENGINE_GUARD_ENTRY_LIMIT
+            - name: IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES
               value: {{ .Values.rtpengine.guardEntryLimit | quote }}
+            - name: IVEKIT_RTPENGINE_REPLAY_SDP_MAX_BYTES
+              value: {{ .Values.rtpengine.replaySdpMaxBytes | quote }}
           ports:
             - name: metrics
               containerPort: 8080

@@ -1,6 +1,7 @@
 [rtpengine]
 interface=__INTERFACE__
 listen-ng=__LISTEN_NG__
+listen-tcp-ng=__LISTEN_TCP_NG__
 listen-http=__LISTEN_HTTP__
 port-min=__PORT_MIN__
 port-max=__PORT_MAX__

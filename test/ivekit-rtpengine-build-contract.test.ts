@@ -270,6 +270,10 @@ test('entrypoint resolves kernel identity without writing the root filesystem', 
     /interface=public\/127\.0\.0\.1!203\.0\.113\.10/
   );
   assert.match(
+    readFileSync(config, 'utf8'),
+    /listen-tcp-ng=0\.0\.0\.0:22222/
+  );
+  assert.match(
     readFileSync(join(runtime, 'runtime.prom'), 'utf8'),
     /ivekit_rtpengine_userspace_fallback\{[^}]+\} 1/
   );
@@ -304,6 +308,11 @@ test('userspace runtime contract excludes build and package-manager tools', () =
   const entrypoint = readFileSync(`${ROOT}/entrypoint.sh`, 'utf8');
   assert.match(entrypoint, /IVEKIT_RTPENGINE_CONFIG_TEMPLATE/);
   assert.match(entrypoint, /IVEKIT_RTPENGINE_CONFIG_PATH/);
+  assert.match(entrypoint, /IVEKIT_RTPENGINE_LISTEN_TCP_NG/);
+  assert.match(
+    readFileSync(`${ROOT}/rtpengine.conf.template`, 'utf8'),
+    /listen-tcp-ng=__LISTEN_TCP_NG__/
+  );
 });
 
 test('Goal 2 command executes the Task 4 build contract', () => {

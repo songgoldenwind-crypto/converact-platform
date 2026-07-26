@@ -23,6 +23,7 @@ rtpengine:
     maximum: 32768
   activeCallLimit: 100000
   guardEntryLimit: 1600000
+  replaySdpMaxBytes: 268435456
   runtimeVolume:
     sizeLimit: 16Mi
   recordingVolume:

@@ -71,6 +71,26 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
     rtpengine.environment.IVEKIT_RTPENGINE_LISTEN_NG,
     '0.0.0.0:22222'
   );
+  assert.equal(
+    rtpengine.environment.IVEKIT_RTPENGINE_LISTEN_TCP_NG,
+    '0.0.0.0:22222'
+  );
+  assert.equal(
+    rtpengine.environment.IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS,
+    '${IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS:-100000}'
+  );
+  assert.equal(
+    rtpengine.environment.IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES,
+    '${IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES:-1600000}'
+  );
+  assert.equal(
+    rtpengine.environment.IVEKIT_RTPENGINE_REPLAY_SDP_MAX_BYTES,
+    '${IVEKIT_RTPENGINE_REPLAY_SDP_MAX_BYTES:-268435456}'
+  );
+  assert.equal(
+    rtpengine.environment.IVEKIT_RTPENGINE_ACTIVE_CALL_LIMIT,
+    undefined
+  );
   assert.ok(rtpengine.healthcheck);
 
   assert.equal(
@@ -196,6 +216,10 @@ test('Helm chart deploys digest-only userspace media nodes with private NG contr
   assert.match(daemonset, /hostNetwork: true/);
   assert.match(daemonset, /sha256:\[a-f0-9\]\{64\}/);
   assert.match(daemonset, /IVEKIT_RTPENGINE_LISTEN_NG[\s\S]*127\.0\.0\.1:22222/);
+  assert.match(
+    daemonset,
+    /IVEKIT_RTPENGINE_LISTEN_TCP_NG[\s\S]*127\.0\.0\.1:22222/
+  );
   assert.match(daemonset, /fieldPath: status\.hostIP/);
   assert.match(daemonset, /IVEKIT_RTPENGINE_PORT_MIN/);
   assert.match(daemonset, /IVEKIT_RTPENGINE_PORT_MAX/);

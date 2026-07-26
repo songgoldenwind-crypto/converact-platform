@@ -192,7 +192,6 @@ export class RtpengineNgClient {
         () => this.#expire(cookie),
         Math.max(1, deadlineAt - Date.now())
       );
-      timer.unref();
       const pending: PendingRequest = {
         cookie,
         slot,
@@ -342,7 +341,6 @@ export class RtpengineNgClient {
       const timeout = setTimeout(() => {
         socket.destroy(new Error('connect deadline'));
       }, Math.max(1, deadlineAt - Date.now()));
-      timeout.unref();
 
       const cleanup = (): void => {
         clearTimeout(timeout);
@@ -677,7 +675,6 @@ function unknown(code: string): RtpengineNgRequestError {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, milliseconds);
-    timer.unref();
+    setTimeout(resolve, milliseconds);
   });
 }
