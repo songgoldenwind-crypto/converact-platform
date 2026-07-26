@@ -386,15 +386,29 @@ Task 7 evidence:
 - Create: `infra/ivekit/helm/rtpengine/templates/daemonset.yaml`
 - Create: `infra/ivekit/helm/rtpengine/templates/service.yaml`
 - Create: `infra/ivekit/helm/rtpengine/templates/servicemonitor.yaml`
+- Create: `infra/ivekit/helm/rtpengine/templates/pdb.yaml`
+- Create: `infra/ivekit/helm/rtpengine/values-userspace.yaml`
+- Create: `infra/ivekit/helm/rtpengine/values-kernel.yaml`
+- Create: `infra/ivekit/helm/rtpengine/README.md`
+- Create: `scripts/ivekit-rtpengine-deployment-preflight.ts`
+- Create: `scripts/ivekit-rtpengine-drain.ts`
 - Create: `test/ivekit-rtpengine-deployment.test.ts`
 
-- [ ] Write a failing deployment test that rejects production simulator mode, mutable image tags, public NG control ports, missing WAL volume, missing UDP media range, unbounded resources, and kernel mode without the required host mounts/capabilities.
-- [ ] Add `IVEKIT_MEDIA_CONTROL_TRANSPORT=rtpengine` and require endpoint, WAL directory, runtime mode, request pool, and byte bounds.
-- [ ] Keep the NG control service private. Publish only the declared RTP/RTCP UDP range on media nodes.
-- [ ] Mount the WAL on a dedicated bounded volume. Keep the media-control root filesystem read-only.
-- [ ] Separate Helm values for privileged kernel nodes and unprivileged userspace nodes with explicit node selectors, taints, PDB, drain hook, and ServiceMonitor.
-- [ ] Preserve established RTPengine sessions when media-control is recreated.
-- [ ] Commit as `feat(deploy): add RTPengine media nodes`.
+- [x] Write a failing deployment test that rejects production simulator mode, mutable image tags, public NG control ports, missing WAL volume, missing UDP media range, unbounded resources, and kernel mode without the required host mounts/capabilities.
+- [x] Add `IVEKIT_MEDIA_CONTROL_TRANSPORT=rtpengine` and require endpoint, WAL directory, runtime mode, request pool, and byte bounds.
+- [x] Keep the NG control service private. Publish only the declared RTP/RTCP UDP range on media nodes.
+- [x] Mount the WAL on a dedicated bounded volume. Keep the media-control root filesystem read-only.
+- [x] Separate Helm values for privileged kernel nodes and unprivileged userspace nodes with explicit node selectors, taints, PDB, drain hook, and ServiceMonitor.
+- [x] Preserve the RTPengine process and durable WAL when media-control is recreated. Task 9 validates continuity with active RTP packets.
+- [x] Commit as `feat(deploy): add RTPengine media nodes`.
+
+Task 8 completed in commits `0ad9ee9` and `754ae01`. Local Goal 2 tests pass
+`90/90`, Goal 1 tests pass `68/68`, TypeScript typecheck passes, and both Helm
+profiles passed real server-side lint. The isolated server run found and fixed
+the missing TCP NG listener and unreferenced active-request timers, then proved
+that media-control restart preserves the WAL inode and the unchanged
+RTPengine process. See
+`docs/evidence/goal2-rtpengine-deployment-server-validation-2026-07-26.md`.
 
 ### Task 9: Real RTP, RTCP, SRTP, And Restart Acceptance
 
