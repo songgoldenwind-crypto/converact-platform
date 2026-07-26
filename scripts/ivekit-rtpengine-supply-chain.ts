@@ -71,12 +71,14 @@ export interface RtpengineSupplyChainInput {
   trivy: {
     sha256: string;
     tool_version: string;
+    scanner_image_digest: string;
     database_updated_at: string;
     document: TrivyDocument;
   };
   secret_scan: {
     sha256: string;
     tool_version: string;
+    scanner_image_digest: string;
     document: TrivyDocument;
   };
   signature:
@@ -111,12 +113,14 @@ export interface RtpengineSupplyChainEvidence {
       format: 'Trivy-JSON-2';
       sha256: string;
       tool_version: string;
+      scanner_image_digest: string;
       database_updated_at: string;
     };
     secret_scan: {
       format: 'Trivy-JSON-2';
       sha256: string;
       tool_version: string;
+      scanner_image_digest: string;
     };
   };
   policy: {
@@ -226,12 +230,14 @@ export function buildRtpengineSupplyChainEvidence(
         format: 'Trivy-JSON-2',
         sha256: trivy.sha256,
         tool_version: trivy.tool_version,
+        scanner_image_digest: trivy.scanner_image_digest,
         database_updated_at: trivy.database_updated_at
       },
       secret_scan: {
         format: 'Trivy-JSON-2',
         sha256: secretScan.sha256,
-        tool_version: secretScan.tool_version
+        tool_version: secretScan.tool_version,
+        scanner_image_digest: secretScan.scanner_image_digest
       }
     },
     policy: {
@@ -396,6 +402,7 @@ function checkedTrivy(
   if (!input ||
       !SHA256.test(input.sha256) ||
       !singleLine(input.tool_version, 128) ||
+      !SHA256_DIGEST.test(input.scanner_image_digest) ||
       input.document?.SchemaVersion !== 2 ||
       input.document.ArtifactType !== 'container_image' ||
       !Array.isArray(input.document.Results) ||
@@ -419,6 +426,7 @@ function checkedSecretScan(
   if (!input ||
       !SHA256.test(input.sha256) ||
       !singleLine(input.tool_version, 128) ||
+      !SHA256_DIGEST.test(input.scanner_image_digest) ||
       input.document?.SchemaVersion !== 2 ||
       !Array.isArray(input.document.Results) ||
       input.document.Results.length > 1_000_000) {
@@ -609,6 +617,10 @@ export async function collectRtpengineSupplyChainEvidence(
         env,
         'IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_VERSION'
       ),
+      scanner_image_digest: required(
+        env,
+        'IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_IMAGE_DIGEST'
+      ),
       database_updated_at: required(
         env,
         'IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_DB_UPDATED_AT'
@@ -620,6 +632,10 @@ export async function collectRtpengineSupplyChainEvidence(
       tool_version: required(
         env,
         'IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCANNER_VERSION'
+      ),
+      scanner_image_digest: required(
+        env,
+        'IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCANNER_IMAGE_DIGEST'
       ),
       document: secretScan.document
     },

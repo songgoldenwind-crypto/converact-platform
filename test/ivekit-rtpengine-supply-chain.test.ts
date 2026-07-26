@@ -36,6 +36,14 @@ describe('iveKit RTPengine supply-chain evidence', () => {
     assert.equal(evidence.policy.secret_finding_count, 0);
     assert.equal(evidence.signature.status, 'not_run');
     assert.equal(
+      evidence.artifacts.vulnerability_scan.scanner_image_digest,
+      DIGEST_C
+    );
+    assert.equal(
+      evidence.artifacts.secret_scan.scanner_image_digest,
+      DIGEST_C
+    );
+    assert.equal(
       evidence.provenance.predicateType,
       'https://slsa.dev/provenance/v1'
     );
@@ -95,10 +103,14 @@ describe('iveKit RTPengine supply-chain evidence', () => {
         IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCAN: paths.secrets,
         IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_VERSION:
           input.trivy.tool_version,
+        IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_IMAGE_DIGEST:
+          input.trivy.scanner_image_digest,
         IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_DB_UPDATED_AT:
           input.trivy.database_updated_at,
         IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCANNER_VERSION:
           input.secret_scan.tool_version,
+        IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCANNER_IMAGE_DIGEST:
+          input.secret_scan.scanner_image_digest,
         IVEKIT_RTPENGINE_SUPPLY_CHAIN_SIGNATURE_NOT_RUN_REASON:
           'No keyless CI identity or cosign key is available',
         IVEKIT_RTPENGINE_SUPPLY_CHAIN_GENERATED_AT: input.generated_at,
@@ -122,10 +134,14 @@ describe('iveKit RTPengine supply-chain evidence', () => {
           IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCAN: paths.secrets,
           IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_VERSION:
             input.trivy.tool_version,
+          IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_IMAGE_DIGEST:
+            input.trivy.scanner_image_digest,
           IVEKIT_RTPENGINE_SUPPLY_CHAIN_TRIVY_DB_UPDATED_AT:
             input.trivy.database_updated_at,
           IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCANNER_VERSION:
             input.secret_scan.tool_version,
+          IVEKIT_RTPENGINE_SUPPLY_CHAIN_SECRET_SCANNER_IMAGE_DIGEST:
+            input.secret_scan.scanner_image_digest,
           IVEKIT_RTPENGINE_SUPPLY_CHAIN_SIGNATURE_NOT_RUN_REASON:
             'No keyless CI identity or cosign key is available',
           IVEKIT_RTPENGINE_SUPPLY_CHAIN_GENERATED_AT: input.generated_at,
@@ -329,6 +345,7 @@ function validInput(): RtpengineSupplyChainInput {
     trivy: {
       sha256: '4'.repeat(64),
       tool_version: '0.65.0',
+      scanner_image_digest: DIGEST_C,
       database_updated_at: '2026-07-26T03:00:00.000Z',
       document: {
         SchemaVersion: 2,
@@ -344,6 +361,7 @@ function validInput(): RtpengineSupplyChainInput {
     secret_scan: {
       sha256: '5'.repeat(64),
       tool_version: '0.65.0',
+      scanner_image_digest: DIGEST_C,
       document: {
         SchemaVersion: 2,
         ArtifactName: 'ivekit/rtpengine',
