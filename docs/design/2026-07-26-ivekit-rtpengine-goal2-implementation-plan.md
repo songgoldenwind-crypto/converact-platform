@@ -446,12 +446,22 @@ transcoding, and capacity remain explicit `not_run` items. See
 - Create: `test/ivekit-rtpengine-supply-chain.test.ts`
 - Modify: `infra/ivekit/rtpengine/build.sh`
 
-- [ ] Write a failing test for CycloneDX and SPDX SBOMs, Trivy JSON, OCI digest, provenance, signature reference, source identity, patch-set identity, and secret scanning.
-- [ ] Generate SBOMs from the exact runtime image and retain vulnerability severity plus database timestamp.
-- [ ] Produce an in-toto/SLSA-style provenance statement binding source archive, patch set, builder digest, build arguments, architecture, and output digest.
-- [ ] Sign by digest when `IVEKIT_COSIGN_KEY` or keyless CI identity is available. Otherwise emit `signature.status=not_run`; never create a false pass.
-- [ ] Reject release on critical vulnerabilities without a recorded exception and expiry.
-- [ ] Commit as `build(rtpengine): attest media artifacts`.
+- [x] Write a failing test for CycloneDX and SPDX SBOMs, Trivy JSON, OCI digest, provenance, signature reference, source identity, patch-set identity, and secret scanning.
+- [x] Generate SBOMs from the exact runtime image and retain vulnerability severity plus database timestamp.
+- [x] Produce an in-toto/SLSA-style provenance statement binding source archive, patch set, builder digest, build arguments, architecture, and output digest.
+- [x] Sign by digest when `IVEKIT_COSIGN_KEY` or keyless CI identity is available. Otherwise emit `signature.status=not_run`; never create a false pass.
+- [x] Reject release on critical vulnerabilities without a recorded exception and expiry.
+- [x] Commit as `build(rtpengine): attest media artifacts`.
+
+Task 10 completed on the isolated server. The final package-aware image exposed
+284 Debian packages to Trivy while retaining no package-manager executable.
+CycloneDX 1.7 contains 285 components and SPDX 2.3 contains 286 packages. The
+fixed Trivy 0.72.0 image reported 24 vulnerabilities, including one Critical
+`libxml2` finding covered by an explicit exception expiring 2026-08-09, and
+zero secrets. Signing remains accurately recorded as `not_run`. The modified
+runtime image also passed the real-media regression suite 20/20. This task
+makes no capacity claim. See
+`docs/evidence/goal2-rtpengine-supply-chain-server-validation-2026-07-26.md`.
 
 ### Task 11: Goal 2 Finalizer And Documentation
 
