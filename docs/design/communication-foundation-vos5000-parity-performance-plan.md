@@ -2,7 +2,7 @@
 
 > 文档状态：终态架构裁决与后续开发计划
 >
-> 更新日期：2026-07-25
+> 更新日期：2026-07-26
 >
 > 适用范围：OPC 与 LED 共用的 iveKit 通信底座
 >
@@ -1295,6 +1295,20 @@ rtpengine/RecordingManifest 后，必须发布新的 `MIX-100K-v2` 或更高 rev
 - basic RTP/RTCP/SRTP/recording fork 通过。
 
 依赖：Goal 0、Goal 1。
+
+当前实现状态（2026-07-26）：
+
+- exact source、五个维护补丁、离线 userspace 构建、TCP NG、owner fence、
+  drain/capacity、低基数指标、持久 replay、Compose/Helm 和供应链证据已实现；
+- 精确 userspace 镜像通过 120/120 精确源码门禁、20/20 真实
+  RTP/RTCP/SDES-SRTP 与控制故障回归；
+- finalizer 将旧镜像尝试保留为 identity mismatch，只晋级精确包清单镜像；
+- 当前状态为 `implemented`，不是 `production_pass`；
+- kernel、recording、transcoding、七项故障矩阵、签名和物理容量仍为
+  `not_run`，因此 `benchmark=not_run`、`capacity_claim=none`。
+
+机器证据：
+[`../evidence/goal2-rtpengine-final-evidence-2026-07-26.json`](../evidence/goal2-rtpengine-final-evidence-2026-07-26.json)。
 
 ### Goal 3：RustPBX 媒体编排接入
 

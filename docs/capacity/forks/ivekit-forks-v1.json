@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 43,
+  "revision": 44,
   "status": "proposed",
-  "generated_at": "2026-07-25T11:49:03+08:00",
+  "generated_at": "2026-07-26T13:23:17+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -15,7 +15,8 @@
     "A controlled ivekit.15 boundary run at 1,500 CPS did not pass the strict gate: 20 calls remained active and Router/CDR counts exceeded the expected total by four. The evidence therefore establishes a 1,400-CPS signaling baseline on this shared four-vCPU host, not production capacity, RTP capacity, Cell-10K or MIX-100K completion.",
     "The exact ivekit.18 amd64 Linux image sha256:d36c5b94a1f63dfc5c1536f7bd00d6a23e5a3eecee26e6dfc7ebf3dd95c16b22 passed separate direct-RustPBX and SIPp-through-Kamailio 60-second 1,000-CPS gates: both completed 60,000 of 60,000 calls with exact Router/CDR parity and zero failures, remaining calls, retransmissions or queue drops; the full edge path also had exact 60,000 Kamailio INVITEs and route P95/P99 of 8/19 ms. This accepts the HTTP-capacity regression gate but is not a new maximum-CPS, RTP or production-capacity claim.",
     "The exact ivekit.19 amd64 Linux candidate image sha256:da8407a298fe782d082c1d1f0f63609e1958f6f3f04b98d70324b7ff68a288cb was built with the pinned RustPBX, rsipstack and rustrtc sources plus the locked dependency graph. Its configured RTP/RTCP socket buffers are visible at runtime. Strict 10-call packet-sequence evidence and controlled 600/800-call throughput evidence pass on the shared four-vCPU host; the 150-call strict run is generator-invalid and the 900-call throughput runs are mixed or inconclusive, so independent-generator and Cell-10K capacity remain release gates.",
-    "Business licensing decisions are outside this architecture record; engineering traceability and source identity remain release requirements."
+    "Business licensing decisions are outside this architecture record; engineering traceability and source identity remain release requirements.",
+    "RTPengine Goal 2 userspace implementation finalized with exact-artifact functional evidence; benchmark and capacity claim remain not_run/none."
   ],
   "components": [
     {
@@ -796,7 +797,7 @@
       "component_id": "rtpengine",
       "name": "Sipwise rtpengine",
       "role": "Cell-local RTP/RTCP fast path, effective wire SDP, ICE, DTLS/SRTP, media forking and optional transcoding executor",
-      "lifecycle": "planned",
+      "lifecycle": "active_engineering",
       "integration_mode": "maintained_fork",
       "source_modification_allowed": true,
       "upstream": {
@@ -866,25 +867,30 @@
       ],
       "verification": {
         "source_identity": "passed",
-        "patch_apply": "not_run",
-        "compile": "not_run",
-        "unit": "not_run",
-        "integration": "not_run",
+        "patch_apply": "passed",
+        "compile": "passed",
+        "unit": "passed",
+        "integration": "passed",
         "benchmark": "not_run",
-        "real_environment": "not_run",
+        "real_environment": "passed",
         "evidence_paths": [
-          "docs/capacity/forks/rtpengine-mr26-source-spike-v1.json",
-          "docs/adr/ccaas-5-media-authority-and-rtpengine.md",
-          "test/ivekit-voice-media-goal0-contract.test.ts"
+          "docs/capacity/contracts/voice-media-goal2-v1.json",
+          "docs/evidence/goal2-rtpengine-lifecycle-stages-2026-07-26.json",
+          "docs/evidence/goal2-rtpengine-exact-source-unit-2026-07-26.tap",
+          "docs/evidence/goal2-rtpengine-compile-runtime-inspection-2026-07-26.json",
+          "docs/evidence/goal2-rtpengine-package-inventory-media-regression-2026-07-26.json",
+          "docs/evidence/goal2-rtpengine-supply-chain-2026-07-26.json",
+          "docs/evidence/goal2-rtpengine-final-evidence-2026-07-26.json"
         ],
-        "checked_at": "2026-07-25T11:49:03+08:00"
+        "checked_at": "2026-07-26T13:23:17+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The exact upstream source identity and source capability spike are complete, but no iveKit patch queue, reproducible build, immutable artifact, SBOM, signature or provenance exists yet.",
-          "Kernel/userspace fallback, NG control reconciliation, SRTP, ICE, recording, transcoding, failure isolation and VOS-EQ capacity remain not_run.",
-          "No target Linux kernel, nftables module, NIC/NUMA profile or independent generator evidence exists."
+          "The exact userspace artifact passed source, patch, compile, unit, integration and real-server functional gates, but kernel, recording and transcoding runtime profiles remain not_run.",
+          "Seven Goal 2 failure-matrix rows remain not_run, including PostgreSQL lease expiry, recorder, object-storage and kernel fallback evidence.",
+          "Benchmark and capacity_claim remain not_run/none until a later physical campaign retains at least three valid repetitions for one runtime mode.",
+          "Image signing is not_run and CVE-2026-6653 has a time-limited exception expiring 2026-08-09."
         ]
       },
       "upgrade_policy": {
@@ -897,9 +903,61 @@
       "traceability": {
         "upstream_license": "GPL-3.0-only",
         "notice_recorded": true,
-        "sbom_status": "not_run",
-        "provenance_status": "not_run"
-      }
+        "sbom_status": "passed",
+        "provenance_status": "passed"
+      },
+      "build": {
+        "reproducible": true,
+        "lockfile_enforced": true,
+        "script": "infra/ivekit/rtpengine/build.sh",
+        "builder_image": "sha256:1b858f21573a2a5322825ee566a204ed34d093b447392d910d4b99e5771c9752",
+        "features": [
+          "amd64",
+          "offline-build",
+          "package-inventory",
+          "userspace"
+        ],
+        "output_image": "ivekit/rtpengine:task10-4b67a26",
+        "output_digest": "sha256:6690e23db010b23ae9da680c842e7ece1a0a0723562d771ffe37af76b090f4a7"
+      },
+      "runtime_artifact": {
+        "reference": "ivekit/rtpengine:task10-4b67a26",
+        "kind": "custom_candidate",
+        "contains_declared_modifications": true,
+        "digest": "sha256:6690e23db010b23ae9da680c842e7ece1a0a0723562d771ffe37af76b090f4a7"
+      },
+      "patches": [
+        {
+          "path": "infra/ivekit/rtpengine/patches/0001-tcp-ng-bounded-frame.patch",
+          "sha256": "9aed572084c9267f02b76f0847773bb00ab1329cfa4c4332917a461cda1a8c68",
+          "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
+          "purpose": "Accept bounded complete TCP NG frames without the upstream 1 KiB cutoff."
+        },
+        {
+          "path": "infra/ivekit/rtpengine/patches/0002-ivekit-owner-fence.patch",
+          "sha256": "327aebdcf0cacff155cc3ea5eb011e50c518788894b5759204be0048879f48f0",
+          "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
+          "purpose": "Fence every media mutation by owner epoch, sequence and stable command identity."
+        },
+        {
+          "path": "infra/ivekit/rtpengine/patches/0003-ivekit-drain-capacity.patch",
+          "sha256": "3f2e13e5bbc2786339e0b60721e8a962ba421b68cd2ee883901960cc9a70cf9a",
+          "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
+          "purpose": "Reject new calls during drain or hard-capacity exhaustion while preserving established media."
+        },
+        {
+          "path": "infra/ivekit/rtpengine/patches/0004-ivekit-metrics.patch",
+          "sha256": "29192549c73775249252ddbdd383c54f6d3c842f51640a7d61a4bbdaa0cafb82",
+          "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
+          "purpose": "Export fixed low-cardinality iveKit admission and transport metrics."
+        },
+        {
+          "path": "infra/ivekit/rtpengine/patches/0005-ivekit-durable-replay.patch",
+          "sha256": "b87258a60ceced26efc08b4828b4c86569f9be671ee971101456d0731e5a4969",
+          "applies_to": "rtpengine@506cfa74386a5373e40fca139a932917f22f0524",
+          "purpose": "Retain effective SDP and deterministic replay facts for WAL-backed recovery."
+        }
+      ]
     },
     {
       "component_id": "rustdesk-client",
@@ -1350,8 +1408,8 @@
             "The independently compiled Go policy fails startup for invalid policy, rejects cross-pool requests, enforces an explicit process slot limit, fails closed on drain-file errors, and counts exact rejection reasons.",
             "Kubernetes Track and Composite StatefulSets carry disjoint allow-lists, independent slot limits, deterministic preStop drain markers, persistent backup spool, independent disruption budgets, KEDA/HPA policies and Prometheus alerts.",
             "iveKit persists one durable child job and object lifecycle per accepted provider Egress request, binds it to an exact reservation and owner epoch, and closes that capacity from terminal webhook or leased reconciliation.",
-          "Control-plane metrics aggregate durable pending/active/stopping jobs by pool while fork metrics expose active slots, process limit, drain state, rejections, spool pressure and network transmission.",
-          "The exact v1.13.0 source builds offline on the isolated server into a verified Linux amd64 image whose non-root user, source revision, pool-contract labels, version and iveKit binary markers are checked by the build script."
+            "Control-plane metrics aggregate durable pending/active/stopping jobs by pool while fork metrics expose active slots, process limit, drain state, rejections, spool pressure and network transmission.",
+            "The exact v1.13.0 source builds offline on the isolated server into a verified Linux amd64 image whose non-root user, source revision, pool-contract labels, version and iveKit binary markers are checked by the build script."
           ]
         }
       ],
@@ -2085,13 +2143,13 @@
         "lockfile_enforced": true,
         "script": "infra/ivekit/homer/build.sh",
         "features": [
-        "postgres-ducklake-catalog",
-        "offline-duckdb-extensions",
-        "nonroot-runtime",
-        "cell-local-catalog",
-        "readonly-root-writable-pid",
-        "maintenance-cli-tuning",
-        "dsn-safe-spill-resolution"
+          "postgres-ducklake-catalog",
+          "offline-duckdb-extensions",
+          "nonroot-runtime",
+          "cell-local-catalog",
+          "readonly-root-writable-pid",
+          "maintenance-cli-tuning",
+          "dsn-safe-spill-resolution"
         ],
         "output_image": "ivekit/homer:11.0.297-ivekit.2-ac4e1ae7"
       },
@@ -2103,15 +2161,15 @@
       "patches": [
         {
           "path": "infra/ivekit/homer/apply-overlay.mjs",
-        "sha256": "4110dee014b20b96d7680fbfbfaf5d48f0ec7de933af8454dfe3ee52eeb4b66e",
+          "sha256": "4110dee014b20b96d7680fbfbfaf5d48f0ec7de933af8454dfe3ee52eeb4b66e",
           "applies_to": "homer@ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b",
-        "purpose": "Add PostgreSQL-backed DuckLake catalogs to writer and reader paths, isolate SQLite-only maintenance, preserve maintenance CLI tuning, reject DSN-derived spill paths, bundle the PostgreSQL extension, and generate a hardened source-built image."
+          "purpose": "Add PostgreSQL-backed DuckLake catalogs to writer and reader paths, isolate SQLite-only maintenance, preserve maintenance CLI tuning, reject DSN-derived spill paths, bundle the PostgreSQL extension, and generate a hardened source-built image."
         },
         {
           "path": "infra/ivekit/homer/postgres_catalog_test.go",
-        "sha256": "cc4d87dfa8c3ea2db7c5f2cd1d6fa16efc4d99aa5a3ede6f4546a9d3488c8e50",
+          "sha256": "cc4d87dfa8c3ea2db7c5f2cd1d6fa16efc4d99aa5a3ede6f4546a9d3488c8e50",
           "applies_to": "homer@ac4e1ae7f63660a655a5ef42e6607ab4cefc1c6b after apply-overlay.mjs",
-        "purpose": "Verify PostgreSQL catalog normalization, injection-safe ATTACH SQL, the one-writer-per-Cell sharding guard, and DSN-safe spill resolution inside the exact upstream Go module."
+          "purpose": "Verify PostgreSQL catalog normalization, injection-safe ATTACH SQL, the one-writer-per-Cell sharding guard, and DSN-safe spill resolution inside the exact upstream Go module."
         }
       ],
       "protocols": [

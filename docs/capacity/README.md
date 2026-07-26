@@ -1,8 +1,8 @@
 # iveKit 容量合同与架构治理
 
 > 状态：Active
-> 版本：3.5
-> 日期：2026-07-25
+> 版本：3.6
+> 日期：2026-07-26
 > 上级评审：[`../MIX-100K双Zone与Cell架构评审.md`](../MIX-100K双Zone与Cell架构评审.md)
 > 调研依据：[`../CCaaS十万并发容量对标与架构优化调研.md`](../CCaaS十万并发容量对标与架构优化调研.md)
 
@@ -36,6 +36,8 @@
 | [`schemas/voice-media-attempt-evidence.schema.json`](schemas/voice-media-attempt-evidence.schema.json) | 单次语音媒体运行的身份、计数对账、生成器资格和 SUT 结果证据 Schema |
 | [`schemas/voice-media-goal0.schema.json`](schemas/voice-media-goal0.schema.json) | Goal 0 权威、部署、harness、故障、兼容和回滚合同 Schema |
 | [`contracts/voice-media-goal0-v1.json`](contracts/voice-media-goal0-v1.json) | Goal 0 机器可读总合同及 `not_run/skeleton` 真实状态 |
+| [`contracts/voice-media-goal2-v1.json`](contracts/voice-media-goal2-v1.json) | RTPengine 精确源码、媒体控制、真实 RTP/SRTP、故障与诚实容量声明合同 |
+| [`../../scripts/ivekit-voice-media-goal2-finalize.ts`](../../scripts/ivekit-voice-media-goal2-finalize.ts) | 绑定供应链、生命周期、全部尝试和故障矩阵的 Goal 2 finalizer |
 | [`../adr/ccaas-5-media-authority-and-rtpengine.md`](../adr/ccaas-5-media-authority-and-rtpengine.md) | RustPBX、rtpengine、媒体处理和区域录音清单的权威边界 |
 | [`rtc-performance-contract-v1.md`](rtc-performance-contract-v1.md) | 端到端测量点、弱网矩阵、原始证据和联合判定语义 |
 | [`schemas/capacity-vector.schema.json`](schemas/capacity-vector.schema.json) | 节点、Cell、Zone 容量、使用量和 admission 合同 |
@@ -149,6 +151,24 @@ Scaling contract 单独版本化。修改 priority、headroom、linearity/margin
 | `production_pass` | 声明范围内平台和外部环境均通过 |
 
 状态只能由 evidence validator 根据原始证据生成，不能手工把 `not_run` 改成 `pass`。
+
+### 5.1 RTPengine Goal 2 当前状态
+
+2026-07-26 的精确 userspace 候选镜像已完成 source identity、patch apply、
+compile、unit、integration 和真实服务器功能验收，finalizer 状态为
+`implemented`。旧镜像验收尝试被保留为 `retained_identity_mismatch`，带完整包清单
+的精确镜像成为 `accepted_functional`。
+
+该结果不等于容量或生产通过：
+
+- `benchmark=not_run`，`capacity_claim=none`；
+- kernel、recording、transcoding runtime mode 仍为 `not_run`；
+- 故障矩阵 5 项通过、7 项 `not_run`；
+- 镜像签名 `not_run`；
+- `CVE-2026-6653` 的临时例外在 2026-08-09 到期。
+
+机器结果见
+[`../evidence/goal2-rtpengine-final-evidence-2026-07-26.json`](../evidence/goal2-rtpengine-final-evidence-2026-07-26.json)。
 
 ## 6. 单位规范
 
