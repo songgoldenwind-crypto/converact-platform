@@ -10,6 +10,9 @@ import {
   type MediaControlServerTlsOptions
 } from '../src/agent-runtime/ivekit/media-control/http.js';
 import {
+  MediaControlEventBroker
+} from '../src/agent-runtime/ivekit/media-control/events.js';
+import {
   MediaCommandJournal
 } from '../src/agent-runtime/ivekit/media-control/journal.js';
 import {
@@ -47,9 +50,27 @@ if (production && !requireMtls) {
 if (production && transportMode === 'simulator') {
   throw new Error('IVEKIT media control simulator is not production eligible');
 }
-const transportRuntime = transportMode === 'rtpengine'
-  ? await openTransportRuntime('rtpengine')
-  : await openTransportRuntime('simulator');
+const events = new MediaControlEventBroker({
+  maxBindings: integerEnv(
+    'IVEKIT_MEDIA_CONTROL_EVENT_MAX_BINDINGS',
+    100_000,
+    1,
+    10_000_000
+  ),
+  maxRetainedEventsPerOwner: integerEnv(
+    'IVEKIT_MEDIA_CONTROL_EVENT_REPLAY_CAPACITY',
+    4_096,
+    1,
+    1_000_000
+  ),
+  maxSubscriptionsPerOwner: integerEnv(
+    'IVEKIT_MEDIA_CONTROL_EVENT_MAX_SUBSCRIBERS_PER_OWNER',
+    2,
+    1,
+    16
+  )
+});
+const transportRuntime = await openTransportRuntime(transportMode, events);
 
 const serviceToken = secret(
   'IVEKIT_MEDIA_CONTROL_TOKEN',
@@ -153,6 +174,7 @@ const server = createMediaControlHttpServer({
   service_token: serviceToken,
   production: requireMtls,
   tls,
+  events: events,
   ready: () => Date.now() < admissionReadyUntil,
   max_body_bytes: integerEnv(
     'IVEKIT_MEDIA_CONTROL_MAX_BODY_BYTES',
@@ -300,7 +322,8 @@ interface TransportRuntime {
 }
 
 async function openTransportRuntime(
-  mode: string
+  mode: string,
+  events: MediaControlEventBroker
 ): Promise<TransportRuntime> {
   if (mode === 'simulator') {
     return {
@@ -360,7 +383,8 @@ async function openTransportRuntime(
       2_000,
       1,
       300_000
-    )
+    ),
+    onDtmf: (event) => events.publishRtpengineDtmf(event)
   });
   const journal = await MediaCommandJournal.open({
     path: join(

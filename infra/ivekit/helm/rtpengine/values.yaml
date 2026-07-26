@@ -48,6 +48,9 @@ mediaControl:
   maxTerminalReservations: 100000
   maxCommandsPerReservation: 16
   terminalRetentionMs: 300000
+  eventMaxBindings: 100000
+  eventReplayCapacity: 4096
+  eventMaxSubscribersPerOwner: 2
   rtpengine:
     maxConnections: 4
     maxInFlight: 1024

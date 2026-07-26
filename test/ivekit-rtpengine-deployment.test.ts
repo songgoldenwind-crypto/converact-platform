@@ -14,7 +14,8 @@ test('media-control selects RTPengine explicitly and bounds every durable input'
   const runtime = read('scripts/ivekit-media-control-agent.ts');
   const dockerfile = read('infra/ivekit/media-control/Dockerfile');
 
-  assert.match(runtime, /transportMode === 'rtpengine'/);
+  assert.match(runtime, /openTransportRuntime\(transportMode, events\)/);
+  assert.match(runtime, /mode !== 'rtpengine'/);
   assert.match(runtime, /RtpengineNgClient/);
   assert.match(runtime, /RtpengineMediaTransport\.open/);
   assert.match(runtime, /MediaCommandJournal\.open/);

@@ -321,17 +321,27 @@ PII-free branch identity，但 losing branch 的 RTPengine 定向 delete 尚未�
 - 修改 `src/agent-runtime/ivekit/voice/media-lifecycle.ts`
 - 新建 `test/ivekit-rustpbx-media-mid-dialog-patch.test.ts`
 
-- [ ] caller/callee 发起 re-INVITE 均以原 reservation 的下一 sequence 执行 update。
-- [ ] UPDATE offer/answer 和 session refresh 无 SDP 时不产生无意义 media mutation。
-- [ ] direction 覆盖 `sendrecv`、`sendonly`、`recvonly`、`inactive`。
-- [ ] codec、ptime、connection address、RTCP mux 和 ICE restart 变化进入 payload hash。
-- [ ] offer glare 返回 491，并使用有界随机退避；失败重试复用同 logical operation 但使用
+- [x] caller/callee 发起 re-INVITE 均以原 reservation 的下一 sequence 执行 update。
+- [x] UPDATE offer/answer 和 session refresh 无 SDP 时不产生无意义 media mutation。
+- [x] direction 覆盖 `sendrecv`、`sendonly`、`recvonly`、`inactive`。
+- [x] codec、ptime、connection address、RTCP mux 和 ICE restart 变化进入 payload hash。
+- [x] offer glare 返回 491，并使用有界随机退避；失败重试复用同 logical operation 但使用
       新 sequence。
-- [ ] hold/resume 只在 media update committed 后改变 RustPBX LegState。
-- [ ] RTP DTMF 走 RTPengine inject；SIP INFO DTMF 仍按端点策略透传。
-- [ ] RTPengine unsolicited DTMF 进入 RustPBX event channel，不得满足 command promise。
-- [ ] update unknown 时保持既有 RTP，冻结后续 mutation 并启动 reconcile。
-- [ ] 提交：`feat(rustpbx): orchestrate mid-dialog media`。
+- [x] hold/resume 只在 media update committed 后改变 RustPBX LegState。
+- [x] RTP DTMF 走 RTPengine inject；SIP INFO DTMF 仍按端点策略透传。
+- [x] RTPengine unsolicited DTMF 进入 RustPBX event channel，不得满足 command promise。
+- [x] update unknown 时保持既有 RTP，冻结后续 mutation 并启动 reconcile。
+- [x] 提交：`feat(rustpbx): orchestrate mid-dialog media`。
+
+当前本机证据：补丁在 media-control client 基线的干净 worktree 可一次性应用，双向
+caller/callee SIP tag、原 reservation、连续 sequence 和 RTP DTMF 的 Rust lifecycle
+及事件解码测试 `22/22` 通过，exact-source `cargo check --locked` 通过，仓库 Goal 3
+门禁 `40/40` 通过；兼容回归 Goal 1 `75/75`、Goal 2 `131/131` 通过。ordinary relay
+的 491 每次有界随机退避后都会对
+同一 logical offer 申请下一 media command sequence；本地 bridge 不需要 media sequence，
+继续使用单次有界 SIP 重试。RTPengine `onDTMF` 与 command promise 保持隔离，并通过每个
+RustPBX owner 一条的认证 NDJSON 流回灌现有 call command channel；事件按 owner 精准路由，
+使用连续 sequence 和有界重放窗口断线续传，慢消费者不会扩张无界内存。
 
 ### Task 6：终止、timeout、补偿和 orphan 回收
 

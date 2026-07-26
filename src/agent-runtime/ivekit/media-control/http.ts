@@ -15,6 +15,11 @@ import {
   MediaControlAgent,
   MediaControlError
 } from './agent.js';
+import {
+  MediaControlEventBroker,
+  MediaControlEventGapError,
+  type MediaControlEventSubscription
+} from './events.js';
 import type {
   MediaControlCommand,
   MediaControlReconcileInput
@@ -36,6 +41,7 @@ export function createMediaControlHttpServer(input: {
   max_body_bytes?: number;
   now?: () => Date;
   ready?: () => boolean;
+  events?: MediaControlEventBroker;
 }): MediaControlHttpServer {
   const token = safeToken(input.service_token);
   const maxBodyBytes = boundedInteger(
@@ -72,13 +78,44 @@ export function createMediaControlHttpServer(input: {
       if (request.method === 'GET' && url.pathname === '/metrics') {
         return sendMetrics(response, input.agent.renderMetrics());
       }
+      if (request.method === 'GET' && url.pathname === '/v1/events') {
+        if (!input.events) {
+          throw new MediaControlError('media_events_disabled', 404, false);
+        }
+        requireNdjson(request.headers);
+        const ownerNodeId = url.searchParams.get('owner_node_id') || '';
+        if (!/^[A-Za-z0-9._:@/-]{1,256}$/.test(ownerNodeId)) {
+          throw new MediaControlError(
+            'media_event_owner_node_id_invalid',
+            400,
+            false
+          );
+        }
+        const afterSequence = querySequence(
+          url.searchParams.get('after_sequence')
+        );
+        const subscription = input.events.subscribe({
+          owner_node_id: ownerNodeId,
+          after_sequence: afterSequence
+        });
+        return streamEvents(request, response, subscription);
+      }
       if (request.method === 'POST' && url.pathname === '/v1/commands') {
         requireJson(request.headers);
         const body = await readJsonBody(request, maxBodyBytes);
+        const command = structuredClone(body) as MediaControlCommand;
         const result = await input.agent.execute(
-          structuredClone(body) as MediaControlCommand,
+          command,
           now()
         );
+        if (result.result_class === 'committed' ||
+            result.result_class === 'replayed') {
+          if (command.action === 'delete') {
+            input.events?.release(command.call_id, command.owner_epoch);
+          } else {
+            input.events?.bind(command);
+          }
+        }
         return sendJson(response, 200, { data: result });
       }
       if (request.method === 'POST' && url.pathname === '/v1/reconcile') {
@@ -182,6 +219,72 @@ function requireJson(headers: IncomingHttpHeaders): void {
   }
 }
 
+function requireNdjson(headers: IncomingHttpHeaders): void {
+  const accepted = String(headers.accept || '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase());
+  if (!accepted.includes('application/x-ndjson') &&
+      !accepted.includes('*/*')) {
+    throw new MediaControlError('accept_invalid', 406, false);
+  }
+}
+
+function querySequence(value: string | null): number {
+  if (value === null || !/^(?:0|[1-9][0-9]{0,15})$/.test(value)) {
+    throw new MediaControlError(
+      'media_event_after_sequence_invalid',
+      400,
+      false
+    );
+  }
+  const sequence = Number(value);
+  if (!Number.isSafeInteger(sequence)) {
+    throw new MediaControlError(
+      'media_event_after_sequence_invalid',
+      400,
+      false
+    );
+  }
+  return sequence;
+}
+
+async function streamEvents(
+  request: IncomingMessage,
+  response: ServerResponse,
+  subscription: MediaControlEventSubscription
+): Promise<void> {
+  response.writeHead(200, {
+    'content-type': 'application/x-ndjson; charset=utf-8',
+    'cache-control': 'no-store',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+    'x-content-type-options': 'nosniff'
+  });
+  response.flushHeaders();
+  let closed = false;
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
+    subscription.close();
+  };
+  request.once('aborted', close);
+  response.once('close', close);
+  try {
+    while (!closed) {
+      const item = await subscription.next();
+      if (item.done || closed) break;
+      if (!response.write(`${JSON.stringify(item.value)}\n`)) {
+        await new Promise<void>((resolve) => response.once('drain', resolve));
+      }
+    }
+  } finally {
+    close();
+    request.off('aborted', close);
+    response.off('close', close);
+    if (!response.writableEnded) response.end();
+  }
+}
+
 function requireToken(headers: IncomingHttpHeaders, expected: string): void {
   const supplied = String(headers.authorization || '');
   if (!safeEqual(supplied, `Bearer ${expected}`)) {
@@ -240,6 +343,13 @@ function projectError(error: unknown): {
       code: error.code,
       status: error.status,
       retryable: error.retryable
+    };
+  }
+  if (error instanceof MediaControlEventGapError) {
+    return {
+      code: error.message,
+      status: 409,
+      retryable: false
     };
   }
   return {
