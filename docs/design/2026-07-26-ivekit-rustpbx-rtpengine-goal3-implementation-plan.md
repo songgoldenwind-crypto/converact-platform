@@ -247,15 +247,17 @@ command identity 由 canonical JSON golden vectors 约束。Rust 与 TypeScript 
 - 新建 `test/ivekit-rustpbx-media-lifecycle.test.ts`
 - 修改 `test/ivekit-rustpbx-media-control-adapter.test.ts`
 
-- [ ] 用纯状态机测试覆盖合法和非法 transition。
-- [ ] adapter 增加 `update`、`query`、`injectDtmf`、`expire` 和 owner takeover。
-- [ ] pending reconciliation 从单 command Map 扩展为可序列化 snapshot。
-- [ ] 同 reservation 存在 unknown 时拒绝不同 mutation，但允许同 command reconcile。
-- [ ] canonical payload hash 和 command identity 提供 Rust 可复用 golden vectors。
-- [ ] 明确 early answer 与 final answer 的 sequence 和状态差异。
-- [ ] DTMF 只允许 committed session，duration/gap/volume 有上限。
-- [ ] 运行 Goal 1、Goal 2 和新 Goal 3 focused tests。
-- [ ] 提交：`feat(media): define RustPBX media lifecycle`。
+- [x] 用纯状态机测试覆盖合法和非法 transition。
+- [x] adapter 增加 `update`、`query`、`injectDtmf`、`expire` 和 owner takeover。
+- [x] pending reconciliation 从单 command Map 扩展为可序列化 snapshot，并在 transport
+      执行前预留有界 uncertainty slot。
+- [x] 同 reservation 存在 unknown 时拒绝所有 execute retry，只允许 reconcile；并发
+      mutation 也在 transport 前拒绝。
+- [x] canonical payload hash 和 command identity 提供 Rust 可复用 golden vectors。
+- [x] 明确 early answer 与 final answer 的 sequence 和状态差异。
+- [x] DTMF 按 RTPengine 原生协议每条命令只接收一个 digit，duration/gap/volume 有上限。
+- [x] 运行 Goal 1、Goal 2、新 Goal 3 focused tests及全量 TypeScript typecheck。
+- [x] 提交：`feat(media): define RustPBX media lifecycle`。
 
 ### Task 3：实现 RustPBX 原生 media-control client
 
