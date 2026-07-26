@@ -418,15 +418,26 @@ RTPengine process. See
 - Create: `test/ivekit-rtpengine-acceptance.test.ts`
 - Modify: `package.json`
 
-- [ ] Write a failing acceptance test that requires immutable deployment identity and bounded evidence.
-- [ ] Generate two endpoint SDPs, execute offer/answer through media-control, and send timestamped G.711 RTP plus RTCP in both directions without requiring a sound card.
-- [ ] Verify packet count, sequence continuity, SSRC, payload integrity, relay address, first-packet time, packet loss, jitter, and RTCP receipt.
-- [ ] Repeat with SDES SRTP and verify that plaintext is not observable on the relay-facing capture.
-- [ ] Stop media-control and Cell admission during an established stream; require RTP to continue.
-- [ ] Recreate media-control with the same WAL; require query and idempotent delete to succeed without a second allocation.
-- [ ] Exercise drain, hard capacity, stale epoch, higher-epoch takeover, before-write failure, after-write disconnect, and RTPengine process failure.
-- [ ] Mark kernel, recording, and transcoding checks independently; never infer them from plain userspace RTP.
-- [ ] Commit as `test(media): add real RTPengine acceptance`.
+- [x] Write a failing acceptance test that requires immutable deployment identity and bounded evidence.
+- [x] Generate two endpoint SDPs, execute offer/answer through media-control, and send timestamped G.711 RTP plus RTCP in both directions without requiring a sound card.
+- [x] Verify packet count, sequence continuity, SSRC, payload integrity, relay address, first-packet time, packet loss, jitter, and RTCP receipt.
+- [x] Repeat with SDES SRTP and verify that plaintext is not observable on the relay-facing capture.
+- [x] Stop media-control and Cell admission during an established stream; require RTP to continue.
+- [x] Recreate media-control with the same WAL; require query and idempotent delete to succeed without a second allocation.
+- [x] Exercise drain, hard capacity, stale epoch, higher-epoch takeover, before-write failure, after-write disconnect, and RTPengine process failure.
+- [x] Mark kernel, recording, and transcoding checks independently; never infer them from plain userspace RTP.
+- [x] Commit as `test(media): add real RTPengine acceptance`.
+
+Task 9 completed in commit `3f2391d`. Local Goal 2 tests pass `109/109`,
+Goal 1 tests pass `68/68`, TypeScript typecheck passes, and the exact committed
+artifact passed all `20/20` real-server checks. The final userspace run carried
+500 PCMU RTP packets plus RTCP in each direction and 100 SDES-SRTP packets in
+each direction with zero loss, duplicates, ordering errors, invalid packets,
+or protected-wire plaintext matches. Established RTP continued while isolated
+media-control and admission were stopped, and the same WAL inode recovered the
+session for query and idempotent delete. Kernel forwarding, recording,
+transcoding, and capacity remain explicit `not_run` items. See
+`docs/evidence/goal2-rtpengine-real-media-acceptance-2026-07-26.md`.
 
 ### Task 10: Supply-Chain Evidence
 

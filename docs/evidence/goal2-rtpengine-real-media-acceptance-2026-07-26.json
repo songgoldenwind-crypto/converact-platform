@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "goal": "voice-media-control-goal2-task9",
+  "environment_class": "real_server",
+  "capacity_claim": "none",
+  "status": "passed",
+  "source_commit": "3f2391d1f7e38359d0c5354517f8b364d29f6dc9",
+  "rtpengine_image_digest": "sha256:6ded6283bcb553eb96e728c23048ec28aed12bc277c90db8daffd1ba22b1ecad",
+  "config_hash": "sha256:cd571cbaa882ebb0d0ed8b611b80e206ece174e42704fb057ced2cefc744c54e",
+  "runtime_mode": "userspace",
+  "generated_at": "2026-07-26T04:26:49.862Z",
+  "checks": {
+    "plaintext_offer_answer": true,
+    "plaintext_relay_endpoint": true,
+    "plaintext_bidirectional_rtp": true,
+    "plaintext_packet_integrity": true,
+    "plaintext_sequence_and_ssrc": true,
+    "plaintext_loss_and_jitter": true,
+    "plaintext_rtcp": true,
+    "sdes_srtp_offer_answer": true,
+    "sdes_srtp_bidirectional": true,
+    "srtp_plaintext_absent": true,
+    "control_plane_outage_continuity": true,
+    "wal_restart_recovery": true,
+    "idempotent_delete": true,
+    "drain_rejects_new": true,
+    "hard_capacity_rejects_new": true,
+    "stale_epoch_rejected": true,
+    "higher_epoch_takeover": true,
+    "before_write_failure_classified": true,
+    "after_write_disconnect_reconciled": true,
+    "rtpengine_failure_classified": true
+  },
+  "observations": {
+    "plaintext": {
+      "mode": "rtp",
+      "scenario_id": "server-plain-26f1e77f77ae",
+      "offer_result_class": "committed",
+      "answer_result_class": "committed",
+      "query_result_class": "committed",
+      "deleted_result_class": "committed",
+      "delete_replay_result_class": "replayed",
+      "endpoint_a": {
+        "received_packets": 500,
+        "unique_packets": 500,
+        "lost_packets": 0,
+        "duplicate_packets": 0,
+        "out_of_order_packets": 0,
+        "first_packet_ms": 121,
+        "jitter_ms": 0.7984043418056732,
+        "rtcp_packets": 1,
+        "invalid_packets": 0,
+        "sent_rtp_packets": 500,
+        "sent_rtcp_packets": 1,
+        "sent_octets": 80000,
+        "wire_plaintext_match_packets": 500
+      },
+      "endpoint_b": {
+        "received_packets": 500,
+        "unique_packets": 500,
+        "lost_packets": 0,
+        "duplicate_packets": 0,
+        "out_of_order_packets": 0,
+        "first_packet_ms": 120,
+        "jitter_ms": 0.7356053779866042,
+        "rtcp_packets": 1,
+        "invalid_packets": 0,
+        "sent_rtp_packets": 500,
+        "sent_rtcp_packets": 1,
+        "sent_octets": 80000,
+        "wire_plaintext_match_packets": 500
+      },
+      "relay_for_a": {
+        "address": "64.225.122.227",
+        "port": 36070,
+        "profile": "RTP/AVP",
+        "payload_types": [
+          0
+        ]
+      },
+      "relay_for_b": {
+        "address": "64.225.122.227",
+        "port": 36088,
+        "profile": "RTP/AVP",
+        "payload_types": [
+          0
+        ]
+      },
+      "continuity": {
+        "received_before_callback": 2,
+        "received_after_callback": 352,
+        "relay_port_preserved_after_restart": true
+      }
+    },
+    "sdes_srtp": {
+      "mode": "sdes_srtp",
+      "scenario_id": "server-srtp-dd73fadd0470",
+      "offer_result_class": "committed",
+      "answer_result_class": "committed",
+      "deleted_result_class": "committed",
+      "endpoint_a": {
+        "received_packets": 100,
+        "unique_packets": 100,
+        "lost_packets": 0,
+        "duplicate_packets": 0,
+        "out_of_order_packets": 0,
+        "first_packet_ms": 54,
+        "jitter_ms": 1.1223265807842815,
+        "rtcp_packets": 0,
+        "invalid_packets": 0,
+        "sent_rtp_packets": 100,
+        "sent_rtcp_packets": 0,
+        "sent_octets": 16000,
+        "wire_plaintext_match_packets": 0
+      },
+      "endpoint_b": {
+        "received_packets": 100,
+        "unique_packets": 100,
+        "lost_packets": 0,
+        "duplicate_packets": 0,
+        "out_of_order_packets": 0,
+        "first_packet_ms": 53,
+        "jitter_ms": 1.07551492232102,
+        "rtcp_packets": 0,
+        "invalid_packets": 0,
+        "sent_rtp_packets": 100,
+        "sent_rtcp_packets": 0,
+        "sent_octets": 16000,
+        "wire_plaintext_match_packets": 0
+      },
+      "relay_for_a": {
+        "address": "64.225.122.227",
+        "port": 36007,
+        "profile": "RTP/SAVP",
+        "payload_types": [
+          0
+        ]
+      },
+      "relay_for_b": {
+        "address": "64.225.122.227",
+        "port": 36090,
+        "profile": "RTP/SAVP",
+        "payload_types": [
+          0
+        ]
+      }
+    },
+    "control_matrix": {
+      "drain_result": {
+        "protocol_version": "ivekit.media-control.v1",
+        "result_class": "terminal_error",
+        "command_id": "task9-offer-server-fdd44a13c313-drain",
+        "error_code": "transport_node_draining",
+        "retryable": true
+      },
+      "capacity_result": {
+        "protocol_version": "ivekit.media-control.v1",
+        "result_class": "rejected_capacity",
+        "command_id": "task9-offer-server-fdd44a13c313-capacity-overflow",
+        "error_code": "transport_capacity_exhausted",
+        "retryable": true
+      },
+      "stale_epoch_result": {
+        "protocol_version": "ivekit.media-control.v1",
+        "result_class": "rejected_epoch",
+        "command_id": "task9-query-server-fdd44a13c313-epoch-stale",
+        "error_code": "stale_owner_epoch",
+        "retryable": false,
+        "session": {
+          "media_reservation_id": "task9-reservation-server-fdd44a13c313-epoch",
+          "call_id": "task9-call-server-fdd44a13c313-epoch",
+          "owner_epoch": "500",
+          "last_sequence": 1,
+          "state": "prepared",
+          "transport_session_id": "task9-call-server-fdd44a13c313-epoch",
+          "effective_sdp": "v=0\r\no=- 900000003 1 IN IP4 64.225.122.227\r\ns=ivekit-rtpengine-acceptance\r\nt=0 0\r\nm=audio 36006 RTP/AVP 0\r\nc=IN IP4 64.225.122.227\r\na=rtpmap:0 PCMU/8000\r\na=ssrc:1010565123 cname:ivekit-900000003\r\na=sendrecv\r\na=rtcp:36007\r\na=rtcp-mux\r\na=ptime:20\r\n",
+          "expires_at": "2099-01-01T00:00:00.000Z",
+          "updated_at": "2026-07-26T04:26:48.163Z"
+        }
+      },
+      "higher_epoch_result": {
+        "protocol_version": "ivekit.media-control.v1",
+        "result_class": "committed",
+        "command_id": "task9-query-server-fdd44a13c313-epoch-takeover",
+        "session": {
+          "media_reservation_id": "task9-reservation-server-fdd44a13c313-epoch",
+          "call_id": "task9-call-server-fdd44a13c313-epoch",
+          "owner_epoch": "501",
+          "last_sequence": 1,
+          "state": "prepared",
+          "transport_session_id": "task9-call-server-fdd44a13c313-epoch",
+          "effective_sdp": "v=0\r\no=- 900000003 1 IN IP4 64.225.122.227\r\ns=ivekit-rtpengine-acceptance\r\nt=0 0\r\nm=audio 36006 RTP/AVP 0\r\nc=IN IP4 64.225.122.227\r\na=rtpmap:0 PCMU/8000\r\na=ssrc:1010565123 cname:ivekit-900000003\r\na=sendrecv\r\na=rtcp:36007\r\na=rtcp-mux\r\na=ptime:20\r\n",
+          "expires_at": "2099-01-01T00:00:00.000Z",
+          "updated_at": "2026-07-26T04:26:48.183Z"
+        }
+      },
+      "rtpengine_failure_result": {
+        "protocol_version": "ivekit.media-control.v1",
+        "result_class": "terminal_error",
+        "command_id": "task9-offer-server-fdd44a13c313-engine-down",
+        "error_code": "rtpengine_ng_connect_failed",
+        "retryable": true
+      }
+    },
+    "wal": {
+      "inode_before": "13449420",
+      "inode_after": "13449420",
+      "inode_preserved": true
+    },
+    "regression": {
+      "command": "node --import tsx --test --test-name-pattern=...",
+      "before_write_failure_classified": true,
+      "after_write_disconnect_reconciled": true
+    }
+  },
+  "not_run": [
+    {
+      "dependency": "kernel-forwarding",
+      "reason": "userspace runtime selected for Task 9"
+    },
+    {
+      "dependency": "recording",
+      "reason": "recording is independently accepted in Task 10"
+    },
+    {
+      "dependency": "transcoding",
+      "reason": "transcoding is independently accepted in Task 11"
+    }
+  ]
+}
