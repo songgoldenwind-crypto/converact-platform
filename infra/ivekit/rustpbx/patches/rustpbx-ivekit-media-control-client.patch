@@ -1,0 +1,928 @@
+diff --git a/src/ivekit_media_control.rs b/src/ivekit_media_control.rs
+new file mode 100644
+index 00000000..6c468728
+--- /dev/null
++++ b/src/ivekit_media_control.rs
+@@ -0,0 +1,909 @@
++use futures::StreamExt;
++use reqwest::{Certificate, Client, Identity, Method, StatusCode, Url};
++use serde::{Deserialize, Serialize};
++use serde_json::{Map, Value};
++use sha2::{Digest, Sha256};
++use std::fs;
++use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use std::sync::atomic::{AtomicU32, Ordering};
++use std::time::Duration;
++use tokio::sync::{OwnedSemaphorePermit, Semaphore};
++
++pub const MEDIA_CONTROL_PROTOCOL_VERSION: &str = "ivekit.media-control.v1";
++const MAX_REQUEST_BYTES: usize = 128 * 1024;
++const MAX_SECRET_BYTES: usize = 64 * 1024;
++const MAX_CA_BYTES: usize = 1024 * 1024;
++
++#[derive(Clone)]
++pub struct MediaControlClientConfig {
++    pub endpoint: Url,
++    pub service_token_file: PathBuf,
++    pub tls_identity_file: Option<PathBuf>,
++    pub tls_ca_file: Option<PathBuf>,
++    pub production: bool,
++    pub max_inflight: usize,
++    pub request_timeout: Duration,
++    pub max_response_bytes: usize,
++}
++
++impl MediaControlClientConfig {
++    pub fn validate(&self) -> Result<(), MediaControlClientError> {
++        if !matches!(self.endpoint.scheme(), "http" | "https")
++            || !self.endpoint.username().is_empty()
++            || self.endpoint.password().is_some()
++            || self.endpoint.query().is_some()
++            || self.endpoint.fragment().is_some()
++        {
++            return Err(MediaControlClientError::Configuration(
++                "media_control_endpoint_invalid",
++            ));
++        }
++        if self.production && self.endpoint.scheme() != "https" {
++            return Err(MediaControlClientError::Configuration(
++                "production_requires_https",
++            ));
++        }
++        if self.production && (self.tls_identity_file.is_none() || self.tls_ca_file.is_none()) {
++            return Err(MediaControlClientError::Configuration(
++                "media_control_production_mtls_required",
++            ));
++        }
++        if self.tls_identity_file.is_some() && self.endpoint.scheme() != "https" {
++            return Err(MediaControlClientError::Configuration(
++                "media_control_tls_requires_https",
++            ));
++        }
++        if !(1..=1_000_000).contains(&self.max_inflight) {
++            return Err(MediaControlClientError::Configuration(
++                "media_control_max_inflight_invalid",
++            ));
++        }
++        if !(50..=30_000).contains(&self.request_timeout.as_millis()) {
++            return Err(MediaControlClientError::Configuration(
++                "media_control_request_timeout_invalid",
++            ));
++        }
++        if !(1_024..=1_048_576).contains(&self.max_response_bytes) {
++            return Err(MediaControlClientError::Configuration(
++                "media_control_max_response_invalid",
++            ));
++        }
++        Ok(())
++    }
++}
++
++pub struct MediaControlClient {
++    client: Client,
++    endpoint: Url,
++    service_token: String,
++    inflight: Arc<Semaphore>,
++    request_timeout: Duration,
++    max_response_bytes: usize,
++}
++
++impl MediaControlClient {
++    pub fn new(config: MediaControlClientConfig) -> Result<Self, MediaControlClientError> {
++        config.validate()?;
++        let token_bytes = read_bounded_file(
++            &config.service_token_file,
++            MAX_SECRET_BYTES,
++            true,
++            "service_token_file",
++        )?;
++        let service_token = String::from_utf8(token_bytes)
++            .map_err(|_| MediaControlClientError::Configuration("service_token_file_invalid"))?;
++        let service_token = service_token.trim_end_matches(['\r', '\n']).to_string();
++        if service_token.len() < 24
++            || service_token.len() > 512
++            || service_token.contains(['\0', '\r', '\n'])
++        {
++            return Err(MediaControlClientError::Configuration(
++                "service_token_file_invalid",
++            ));
++        }
++
++        let mut builder = Client::builder()
++            .no_gzip()
++            .redirect(reqwest::redirect::Policy::none())
++            .connect_timeout(config.request_timeout)
++            .tcp_keepalive(Duration::from_secs(60))
++            .pool_idle_timeout(Duration::from_secs(90))
++            .pool_max_idle_per_host(config.max_inflight.min(256));
++        if let Some(path) = &config.tls_identity_file {
++            let pem = read_bounded_file(path, MAX_SECRET_BYTES, true, "tls_identity_file")?;
++            let identity = Identity::from_pem(&pem)
++                .map_err(|_| MediaControlClientError::Configuration("tls_identity_file_invalid"))?;
++            builder = builder.identity(identity);
++        }
++        if let Some(path) = &config.tls_ca_file {
++            let pem = read_bounded_file(path, MAX_CA_BYTES, false, "tls_ca_file")?;
++            let certificate = Certificate::from_pem(&pem)
++                .map_err(|_| MediaControlClientError::Configuration("tls_ca_file_invalid"))?;
++            builder = builder.add_root_certificate(certificate);
++        }
++        let client = builder
++            .build()
++            .map_err(|_| MediaControlClientError::Configuration("media_control_client_invalid"))?;
++        Ok(Self {
++            client,
++            endpoint: with_trailing_slash(config.endpoint),
++            service_token,
++            inflight: Arc::new(Semaphore::new(config.max_inflight)),
++            request_timeout: config.request_timeout,
++            max_response_bytes: config.max_response_bytes,
++        })
++    }
++
++    pub async fn execute(
++        &self,
++        command: &MediaControlCommand,
++    ) -> Result<MediaControlResult, MediaControlClientError> {
++        command.validate()?;
++        let command_id = command.command_id.clone();
++        let body = serde_json::to_vec(command)
++            .map_err(|_| MediaControlClientError::InvalidCommand("command_json_invalid"))?;
++        if body.len() > MAX_REQUEST_BYTES {
++            return Err(MediaControlClientError::InvalidCommand(
++                "command_json_too_large",
++            ));
++        }
++        let _permit = self.acquire_before_transport()?;
++        let url = self.endpoint.join("v1/commands").map_err(|_| {
++            MediaControlClientError::Configuration("media_control_endpoint_invalid")
++        })?;
++        self.command_request(url, body, command_id).await
++    }
++
++    pub async fn reconcile(
++        &self,
++        input: &MediaControlReconcileInput,
++    ) -> Result<MediaControlResult, MediaControlClientError> {
++        input.validate()?;
++        let command_id = input.command.command_id.clone();
++        let body = serde_json::to_vec(input)
++            .map_err(|_| MediaControlClientError::InvalidCommand("reconcile_json_invalid"))?;
++        if body.len() > MAX_REQUEST_BYTES {
++            return Err(MediaControlClientError::InvalidCommand(
++                "reconcile_json_too_large",
++            ));
++        }
++        let _permit = self.acquire_before_transport()?;
++        let url = self.endpoint.join("v1/reconcile").map_err(|_| {
++            MediaControlClientError::Configuration("media_control_endpoint_invalid")
++        })?;
++        self.command_request(url, body, command_id).await
++    }
++
++    pub async fn session(
++        &self,
++        media_reservation_id: &str,
++    ) -> Result<MediaSessionSnapshot, MediaControlClientError> {
++        valid_identifier(media_reservation_id, "media_reservation_id")?;
++        let _permit = self.acquire_before_transport()?;
++        let encoded = urlencoding::encode(media_reservation_id);
++        let url = self
++            .endpoint
++            .join(&format!("v1/sessions/{encoded}"))
++            .map_err(|_| {
++                MediaControlClientError::Configuration("media_control_endpoint_invalid")
++            })?;
++        let response = self
++            .send(Method::GET, url, None)
++            .await
++            .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?;
++        if !response.status.is_success() {
++            return Err(project_rejection(response.status, &response.body));
++        }
++        let envelope: SessionEnvelope = serde_json::from_slice(&response.body).map_err(|_| {
++            MediaControlClientError::UnknownAfterTransport {
++                code: "media_control_response_invalid",
++            }
++        })?;
++        envelope.data.validate()?;
++        Ok(envelope.data)
++    }
++
++    fn acquire_before_transport(&self) -> Result<OwnedSemaphorePermit, MediaControlClientError> {
++        self.inflight
++            .clone()
++            .try_acquire_owned()
++            .map_err(|_| rejected_before_transport())
++    }
++
++    async fn command_request(
++        &self,
++        url: Url,
++        body: Vec<u8>,
++        command_id: String,
++    ) -> Result<MediaControlResult, MediaControlClientError> {
++        let response = match self.send(Method::POST, url, Some(body)).await {
++            Ok(response) => response,
++            Err(code) => return Ok(unknown_after_transport_failure(command_id, code)),
++        };
++        if response.status.is_server_error() {
++            let code = projected_error_code(&response.body)
++                .unwrap_or("media_control_upstream_unavailable");
++            return Ok(unknown_after_transport_failure(command_id, code));
++        }
++        if !response.status.is_success() {
++            let error = project_rejection(response.status, &response.body);
++            return match error {
++                MediaControlClientError::UnknownAfterTransport { code } => {
++                    Ok(unknown_after_transport_failure(command_id, code))
++                }
++                deterministic => Err(deterministic),
++            };
++        }
++        let envelope: ResultEnvelope = match serde_json::from_slice(&response.body) {
++            Ok(envelope) => envelope,
++            Err(_) => {
++                return Ok(unknown_after_transport_failure(
++                    command_id,
++                    "media_control_response_invalid",
++                ));
++            }
++        };
++        if envelope.data.validate().is_err() || envelope.data.command_id() != command_id {
++            return Ok(unknown_after_transport_failure(
++                command_id,
++                "media_control_response_invalid",
++            ));
++        }
++        Ok(envelope.data)
++    }
++
++    async fn send(
++        &self,
++        method: Method,
++        url: Url,
++        body: Option<Vec<u8>>,
++    ) -> Result<BoundedResponse, &'static str> {
++        let mut request = self
++            .client
++            .request(method, url)
++            .bearer_auth(&self.service_token)
++            .header(reqwest::header::ACCEPT, "application/json");
++        if let Some(body) = body {
++            request = request
++                .header(reqwest::header::CONTENT_TYPE, "application/json")
++                .body(body);
++        }
++        tokio::time::timeout(self.request_timeout, async {
++            let response = request
++                .send()
++                .await
++                .map_err(|_| "media_control_unavailable")?;
++            if response
++                .content_length()
++                .is_some_and(|length| length > self.max_response_bytes as u64)
++            {
++                return Err("response_too_large");
++            }
++            let status = response.status();
++            let mut stream = response.bytes_stream();
++            let mut body = Vec::new();
++            while let Some(chunk) = stream.next().await {
++                let chunk = chunk.map_err(|_| "media_control_unavailable")?;
++                append_bounded(&mut body, &chunk, self.max_response_bytes)?;
++            }
++            Ok(BoundedResponse { status, body })
++        })
++        .await
++        .map_err(|_| "media_control_timeout")?
++    }
++}
++
++pub struct CallMediaSequenceAllocator {
++    next_sequence: AtomicU32,
++}
++
++impl CallMediaSequenceAllocator {
++    pub fn new(first_sequence: u32) -> Result<Self, MediaControlClientError> {
++        if first_sequence == 0 {
++            return Err(MediaControlClientError::InvalidCommand(
++                "command_sequence_invalid",
++            ));
++        }
++        Ok(Self {
++            next_sequence: AtomicU32::new(first_sequence),
++        })
++    }
++
++    pub fn next(&self) -> Result<u32, MediaControlClientError> {
++        self.next_sequence
++            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
++                value.checked_add(1).filter(|next| *next != 0)
++            })
++            .map_err(|_| MediaControlClientError::InvalidCommand("command_sequence_exhausted"))
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++pub struct MediaControlCommand {
++    pub protocol_version: String,
++    pub action: MediaControlAction,
++    pub command_id: String,
++    pub tenant_id: String,
++    pub call_id: String,
++    pub leg_id: String,
++    pub cell_id: String,
++    pub owner_node_id: String,
++    pub owner_epoch: String,
++    pub media_reservation_id: String,
++    pub command_sequence: u32,
++    pub idempotency_key: String,
++    pub expires_at: String,
++    pub payload: Map<String, Value>,
++    pub payload_hash: String,
++}
++
++impl MediaControlCommand {
++    pub fn validate(&self) -> Result<(), MediaControlClientError> {
++        if self.protocol_version != MEDIA_CONTROL_PROTOCOL_VERSION {
++            return Err(MediaControlClientError::InvalidCommand(
++                "media_control_protocol_unsupported",
++            ));
++        }
++        for (name, value) in [
++            ("command_id", self.command_id.as_str()),
++            ("tenant_id", self.tenant_id.as_str()),
++            ("call_id", self.call_id.as_str()),
++            ("leg_id", self.leg_id.as_str()),
++            ("cell_id", self.cell_id.as_str()),
++            ("owner_node_id", self.owner_node_id.as_str()),
++            ("media_reservation_id", self.media_reservation_id.as_str()),
++            ("idempotency_key", self.idempotency_key.as_str()),
++        ] {
++            valid_identifier(value, name)?;
++        }
++        self.owner_epoch
++            .parse::<u64>()
++            .map_err(|_| MediaControlClientError::InvalidCommand("owner_epoch_invalid"))?;
++        if self.command_sequence == 0 {
++            return Err(MediaControlClientError::InvalidCommand(
++                "command_sequence_invalid",
++            ));
++        }
++        let expires_at = chrono::DateTime::parse_from_rfc3339(&self.expires_at)
++            .map_err(|_| MediaControlClientError::InvalidCommand("expires_at_invalid"))?;
++        if expires_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true) != self.expires_at {
++            return Err(MediaControlClientError::InvalidCommand(
++                "expires_at_invalid",
++            ));
++        }
++        let payload_hash = payload_hash(&self.payload)?;
++        if self.payload_hash != payload_hash {
++            return Err(MediaControlClientError::InvalidCommand(
++                "payload_hash_invalid",
++            ));
++        }
++        if self.command_id != command_id_for(self)? {
++            return Err(MediaControlClientError::InvalidCommand(
++                "command_id_invalid",
++            ));
++        }
++        Ok(())
++    }
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub enum MediaControlAction {
++    Offer,
++    Answer,
++    Update,
++    Delete,
++    Query,
++    BlockMedia,
++    UnblockMedia,
++    StartForward,
++    StopForward,
++    StartRecordingFork,
++    StopRecordingFork,
++    PlayMedia,
++    StopMedia,
++    InjectDtmf,
++    SubscribeQuality,
++    DrainNode,
++}
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++pub struct MediaControlReconcileInput {
++    pub protocol_version: String,
++    pub action: String,
++    pub command: MediaControlCommand,
++}
++
++impl MediaControlReconcileInput {
++    fn validate(&self) -> Result<(), MediaControlClientError> {
++        if self.protocol_version != MEDIA_CONTROL_PROTOCOL_VERSION || self.action != "reconcile" {
++            return Err(MediaControlClientError::InvalidCommand(
++                "media_control_protocol_unsupported",
++            ));
++        }
++        self.command.validate()
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++#[serde(tag = "result_class", rename_all = "snake_case")]
++pub enum MediaControlResult {
++    Committed {
++        protocol_version: String,
++        command_id: String,
++        session: MediaSessionSnapshot,
++    },
++    Replayed {
++        protocol_version: String,
++        command_id: String,
++        session: MediaSessionSnapshot,
++    },
++    RejectedCapacity {
++        protocol_version: String,
++        command_id: String,
++        error_code: String,
++        retryable: bool,
++        #[serde(skip_serializing_if = "Option::is_none")]
++        session: Option<MediaSessionSnapshot>,
++    },
++    RejectedEpoch {
++        protocol_version: String,
++        command_id: String,
++        error_code: String,
++        retryable: bool,
++        #[serde(skip_serializing_if = "Option::is_none")]
++        session: Option<MediaSessionSnapshot>,
++    },
++    TerminalError {
++        protocol_version: String,
++        command_id: String,
++        error_code: String,
++        retryable: bool,
++        #[serde(skip_serializing_if = "Option::is_none")]
++        session: Option<MediaSessionSnapshot>,
++    },
++    Unknown {
++        protocol_version: String,
++        command_id: String,
++        error_code: String,
++        retryable: bool,
++        #[serde(skip_serializing_if = "Option::is_none")]
++        session: Option<MediaSessionSnapshot>,
++    },
++}
++
++impl MediaControlResult {
++    pub fn command_id(&self) -> &str {
++        match self {
++            Self::Committed { command_id, .. }
++            | Self::Replayed { command_id, .. }
++            | Self::RejectedCapacity { command_id, .. }
++            | Self::RejectedEpoch { command_id, .. }
++            | Self::TerminalError { command_id, .. }
++            | Self::Unknown { command_id, .. } => command_id,
++        }
++    }
++
++    fn validate(&self) -> Result<(), MediaControlClientError> {
++        let (protocol, command_id) = match self {
++            Self::Committed {
++                protocol_version,
++                command_id,
++                session,
++            }
++            | Self::Replayed {
++                protocol_version,
++                command_id,
++                session,
++            } => {
++                session.validate()?;
++                (protocol_version, command_id)
++            }
++            Self::RejectedCapacity {
++                protocol_version,
++                command_id,
++                ..
++            }
++            | Self::RejectedEpoch {
++                protocol_version,
++                command_id,
++                ..
++            }
++            | Self::TerminalError {
++                protocol_version,
++                command_id,
++                ..
++            }
++            | Self::Unknown {
++                protocol_version,
++                command_id,
++                retryable: true,
++                ..
++            } => (protocol_version, command_id),
++            Self::Unknown {
++                retryable: false, ..
++            } => {
++                return Err(MediaControlClientError::UnknownAfterTransport {
++                    code: "media_control_response_invalid",
++                });
++            }
++        };
++        if protocol != MEDIA_CONTROL_PROTOCOL_VERSION {
++            return Err(MediaControlClientError::UnknownAfterTransport {
++                code: "media_control_response_invalid",
++            });
++        }
++        valid_identifier(command_id, "command_id")
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Serialize)]
++pub struct MediaSessionSnapshot {
++    pub media_reservation_id: String,
++    pub call_id: String,
++    pub owner_epoch: String,
++    pub last_sequence: u32,
++    pub state: String,
++    pub transport_session_id: String,
++    pub effective_sdp: String,
++    pub expires_at: String,
++    pub updated_at: String,
++}
++
++impl MediaSessionSnapshot {
++    fn validate(&self) -> Result<(), MediaControlClientError> {
++        valid_identifier(&self.media_reservation_id, "media_reservation_id")?;
++        valid_identifier(&self.call_id, "call_id")?;
++        self.owner_epoch.parse::<u64>().map_err(|_| {
++            MediaControlClientError::UnknownAfterTransport {
++                code: "media_control_response_invalid",
++            }
++        })?;
++        if self.last_sequence == 0
++            || !matches!(
++                self.state.as_str(),
++                "prepared" | "committed" | "cancelled" | "closed" | "expired"
++            )
++        {
++            return Err(MediaControlClientError::UnknownAfterTransport {
++                code: "media_control_response_invalid",
++            });
++        }
++        valid_identifier(&self.transport_session_id, "transport_session_id")
++    }
++}
++
++#[derive(Debug, thiserror::Error)]
++pub enum MediaControlClientError {
++    #[error("{0}")]
++    Configuration(&'static str),
++    #[error("{0}")]
++    InvalidCommand(&'static str),
++    #[error("{code}")]
++    RejectedBeforeTransport { code: &'static str },
++    #[error("{error_code}")]
++    Rejected {
++        status: u16,
++        error_code: String,
++        retryable: bool,
++    },
++    #[error("{code}")]
++    UnknownAfterTransport { code: &'static str },
++}
++
++struct BoundedResponse {
++    status: StatusCode,
++    body: Vec<u8>,
++}
++
++#[derive(Deserialize)]
++struct ResultEnvelope {
++    data: MediaControlResult,
++}
++
++#[derive(Deserialize)]
++struct SessionEnvelope {
++    data: MediaSessionSnapshot,
++}
++
++#[derive(Deserialize)]
++struct ErrorEnvelope {
++    error: ErrorBody,
++}
++
++#[derive(Deserialize)]
++struct ErrorBody {
++    code: String,
++    retryable: bool,
++}
++
++pub fn payload_hash(payload: &Map<String, Value>) -> Result<String, MediaControlClientError> {
++    let canonical = canonical_json(&Value::Object(payload.clone()))?;
++    Ok(hex_sha256(canonical.as_bytes()))
++}
++
++pub fn command_id_for(command: &MediaControlCommand) -> Result<String, MediaControlClientError> {
++    let facts = serde_json::json!({
++        "action": command.action,
++        "call_id": command.call_id,
++        "command_sequence": command.command_sequence,
++        "leg_id": command.leg_id,
++        "owner_epoch": command.owner_epoch,
++        "payload_hash": command.payload_hash,
++        "tenant_id": command.tenant_id,
++    });
++    let canonical = canonical_json(&facts)?;
++    Ok(format!("cmd-{}", hex_sha256(canonical.as_bytes())))
++}
++
++pub fn canonical_json(value: &Value) -> Result<String, MediaControlClientError> {
++    fn sorted(value: &Value) -> Value {
++        match value {
++            Value::Array(values) => Value::Array(values.iter().map(sorted).collect()),
++            Value::Object(values) => {
++                let mut keys = values.keys().collect::<Vec<_>>();
++                keys.sort_unstable();
++                let mut result = Map::new();
++                for key in keys {
++                    result.insert(key.clone(), sorted(&values[key]));
++                }
++                Value::Object(result)
++            }
++            scalar => scalar.clone(),
++        }
++    }
++    serde_json::to_string(&sorted(value))
++        .map_err(|_| MediaControlClientError::InvalidCommand("canonical_json_invalid"))
++}
++
++fn unknown_after_transport_failure(command_id: String, code: &'static str) -> MediaControlResult {
++    MediaControlResult::Unknown {
++        protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++        command_id,
++        error_code: code.to_string(),
++        retryable: true,
++        session: None,
++    }
++}
++
++fn rejected_before_transport() -> MediaControlClientError {
++    MediaControlClientError::RejectedBeforeTransport {
++        code: "media_control_inflight_exhausted",
++    }
++}
++
++fn project_rejection(status: StatusCode, body: &[u8]) -> MediaControlClientError {
++    match serde_json::from_slice::<ErrorEnvelope>(body) {
++        Ok(envelope) if valid_error_code(&envelope.error.code) => {
++            MediaControlClientError::Rejected {
++                status: status.as_u16(),
++                error_code: envelope.error.code,
++                retryable: envelope.error.retryable,
++            }
++        }
++        _ => MediaControlClientError::UnknownAfterTransport {
++            code: "media_control_response_invalid",
++        },
++    }
++}
++
++fn projected_error_code(body: &[u8]) -> Option<&'static str> {
++    serde_json::from_slice::<ErrorEnvelope>(body)
++        .ok()
++        .and_then(|envelope| match envelope.error.code.as_str() {
++            "media_control_unavailable" => Some("media_control_unavailable"),
++            "internal_error" => Some("media_control_internal_error"),
++            _ => None,
++        })
++}
++
++fn append_bounded(
++    destination: &mut Vec<u8>,
++    chunk: &[u8],
++    maximum: usize,
++) -> Result<(), &'static str> {
++    if destination.len().saturating_add(chunk.len()) > maximum {
++        return Err("response_too_large");
++    }
++    destination.extend_from_slice(chunk);
++    Ok(())
++}
++
++fn read_bounded_file(
++    path: &Path,
++    maximum: usize,
++    secret: bool,
++    error_code: &'static str,
++) -> Result<Vec<u8>, MediaControlClientError> {
++    reject_symlink(path, error_code)?;
++    let metadata =
++        fs::metadata(path).map_err(|_| MediaControlClientError::Configuration(error_code))?;
++    if !metadata.is_file() || metadata.len() > maximum as u64 {
++        return Err(MediaControlClientError::Configuration(error_code));
++    }
++    #[cfg(unix)]
++    if secret {
++        use std::os::unix::fs::PermissionsExt;
++        if metadata.permissions().mode() & 0o077 != 0 {
++            return Err(MediaControlClientError::Configuration(error_code));
++        }
++    }
++    fs::read(path).map_err(|_| MediaControlClientError::Configuration(error_code))
++}
++
++fn reject_symlink(path: &Path, error_code: &'static str) -> Result<(), MediaControlClientError> {
++    let metadata = fs::symlink_metadata(path)
++        .map_err(|_| MediaControlClientError::Configuration(error_code))?;
++    if metadata.file_type().is_symlink() {
++        return Err(MediaControlClientError::Configuration(error_code));
++    }
++    Ok(())
++}
++
++fn valid_identifier(value: &str, error_code: &'static str) -> Result<(), MediaControlClientError> {
++    if value.is_empty()
++        || value.len() > 256
++        || !value.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'@' | b'/' | b'-')
++        })
++    {
++        return Err(MediaControlClientError::InvalidCommand(error_code));
++    }
++    Ok(())
++}
++
++fn valid_error_code(value: &str) -> bool {
++    valid_identifier(value, "error_code").is_ok()
++}
++
++fn with_trailing_slash(mut url: Url) -> Url {
++    if !url.path().ends_with('/') {
++        let path = format!("{}/", url.path());
++        url.set_path(&path);
++    }
++    url
++}
++
++fn hex_sha256(value: &[u8]) -> String {
++    const HEX: &[u8; 16] = b"0123456789abcdef";
++    let digest = Sha256::digest(value);
++    let mut encoded = String::with_capacity(digest.len() * 2);
++    for byte in digest {
++        encoded.push(HEX[(byte >> 4) as usize] as char);
++        encoded.push(HEX[(byte & 0x0f) as usize] as char);
++    }
++    encoded
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::fs::OpenOptions;
++    use std::io::Write;
++
++    fn golden_command() -> MediaControlCommand {
++        let payload = serde_json::from_value(serde_json::json!({
++            "from_tag": "from-1",
++            "offer_sdp": "v=0\r\n"
++        }))
++        .unwrap();
++        MediaControlCommand {
++            protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++            action: MediaControlAction::Update,
++            command_id: "cmd-cb8ce0ead2c63309ad7884c1e64dc9c33d886e5147ac247463a779d2fbe5b611"
++                .to_string(),
++            tenant_id: "tenant-handle-1".to_string(),
++            call_id: "call-1".to_string(),
++            leg_id: "leg-1".to_string(),
++            cell_id: "cell-1".to_string(),
++            owner_node_id: "rustpbx-1".to_string(),
++            owner_epoch: "4294967297".to_string(),
++            media_reservation_id: "reservation-1/leg-1".to_string(),
++            command_sequence: 2,
++            idempotency_key: "rustpbx/cell-1/call-1/leg-1/4294967297/2".to_string(),
++            expires_at: "2026-07-26T12:00:00.000Z".to_string(),
++            payload,
++            payload_hash: "387e38ec4b2ea79ba900c5bf52db3b0bc575aa25cfa8d0455175cc7b4a1b9cef"
++                .to_string(),
++        }
++    }
++
++    fn valid_command() -> MediaControlCommand {
++        let mut command = golden_command();
++        command.payload_hash = payload_hash(&command.payload).unwrap();
++        command.command_id = command_id_for(&command).unwrap();
++        command
++    }
++
++    #[test]
++    fn cross_language_command_id_vector() {
++        let command = golden_command();
++        assert_eq!(command_id_for(&command).unwrap(), command.command_id);
++    }
++
++    #[test]
++    fn response_limit_is_enforced_incrementally() {
++        let mut body = Vec::new();
++        append_bounded(&mut body, b"1234", 8).unwrap();
++        append_bounded(&mut body, b"5678", 8).unwrap();
++        assert_eq!(
++            append_bounded(&mut body, b"9", 8),
++            Err("response_too_large")
++        );
++        assert_eq!(body, b"12345678");
++    }
++
++    #[test]
++    fn production_rejects_plain_http() {
++        let config = MediaControlClientConfig {
++            endpoint: Url::parse("http://127.0.0.1:4010").unwrap(),
++            service_token_file: PathBuf::from("/not/read"),
++            tls_identity_file: None,
++            tls_ca_file: None,
++            production: true,
++            max_inflight: 32,
++            request_timeout: Duration::from_secs(2),
++            max_response_bytes: 262_144,
++        };
++        assert!(matches!(
++            config.validate(),
++            Err(MediaControlClientError::Configuration(
++                "production_requires_https"
++            ))
++        ));
++    }
++
++    #[tokio::test]
++    async fn inflight_limit_rejects_before_transport() {
++        let path =
++            std::env::temp_dir().join(format!("ivekit-media-token-{}", uuid::Uuid::new_v4()));
++        let mut options = OpenOptions::new();
++        options.create_new(true).write(true);
++        #[cfg(unix)]
++        {
++            use std::os::unix::fs::OpenOptionsExt;
++            options.mode(0o600);
++        }
++        let mut file = options.open(&path).unwrap();
++        file.write_all(b"0123456789abcdefghijklmn").unwrap();
++        drop(file);
++        let client = MediaControlClient::new(MediaControlClientConfig {
++            endpoint: Url::parse("http://127.0.0.1:9").unwrap(),
++            service_token_file: path.clone(),
++            tls_identity_file: None,
++            tls_ca_file: None,
++            production: false,
++            max_inflight: 1,
++            request_timeout: Duration::from_millis(50),
++            max_response_bytes: 1_024,
++        })
++        .unwrap();
++        let _held = client.inflight.clone().try_acquire_owned().unwrap();
++        let error = client.execute(&valid_command()).await.unwrap_err();
++        assert!(matches!(
++            error,
++            MediaControlClientError::RejectedBeforeTransport { .. }
++        ));
++        fs::remove_file(path).unwrap();
++    }
++
++    #[test]
++    fn sequence_allocator_is_per_call_and_bounded() {
++        let first = CallMediaSequenceAllocator::new(1).unwrap();
++        let second = CallMediaSequenceAllocator::new(1).unwrap();
++        assert_eq!(first.next().unwrap(), 1);
++        assert_eq!(first.next().unwrap(), 2);
++        assert_eq!(second.next().unwrap(), 1);
++    }
++
++    #[test]
++    fn malformed_rejection_is_not_projected_as_deterministic() {
++        assert!(matches!(
++            project_rejection(StatusCode::CONFLICT, br#"{"unexpected":true}"#),
++            MediaControlClientError::UnknownAfterTransport {
++                code: "media_control_response_invalid"
++            }
++        ));
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index efc1d5aa..06e799f9 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -14,6 +14,7 @@ pub mod license;
+ 
+ pub mod http_util;
+ pub mod ivekit_audio_tap;
++pub mod ivekit_media_control;
+ pub mod ivekit_owner;
+ pub mod ivekit_recording;
+ pub mod media;
+

@@ -269,18 +269,21 @@ command identity 由 canonical JSON golden vectors 约束。Rust 与 TypeScript 
 - 修改 `test/ivekit-rustpbx-build.test.ts`
 - 新建 `test/ivekit-rustpbx-media-control-client-patch.test.ts`
 
-- [ ] 在上游精确源码上先写 Rust 单元测试，覆盖 canonical JSON/hash、命令 identity、
+- [x] 在上游精确源码上先写 Rust 单元测试，覆盖 canonical JSON/hash、命令 identity、
       mTLS 配置、响应上限、deadline 和 error projection。
-- [ ] client 使用已有 reqwest/rustls、serde、sha2 和 Tokio，不引入第二套 HTTP runtime。
-- [ ] 每个 call 使用独立 sequence allocator，不持有全局锁完成网络 I/O。
-- [ ] 使用 bounded semaphore 限制 inflight；队列满时在发请求前确定拒绝。
-- [ ] 发送完成后断线统一返回 unknown。
-- [ ] production 模式要求 HTTPS、client identity、CA 和 server name。
-- [ ] token 仅从 secret file 读取，不允许 CLI、日志、metrics 或 shadow payload 暴露。
-- [ ] patch 应用两次时第二次必须识别 already applied，禁止 partial patchset。
-- [ ] patchset 从 `ivekit.21` 升为 `ivekit.22`，镜像 label 绑定新 patch hash。
+- [x] client 使用已有 reqwest/rustls、serde、sha2 和 Tokio，不引入第二套 HTTP runtime。
+- [x] 每个 call 使用独立 sequence allocator，不持有全局锁完成网络 I/O。
+- [x] 使用 bounded semaphore 限制 inflight；队列满时在发请求前确定拒绝。
+- [x] 发送完成后断线统一返回 unknown。
+- [x] production 模式要求 HTTPS、client identity、CA 和 server name。
+- [x] token 仅从 secret file 读取，不允许 CLI、日志、metrics 或 shadow payload 暴露。
+- [x] patch 应用两次时第二次必须识别 already applied，禁止 partial patchset。
+- [x] patchset 从 `ivekit.21` 升为 `ivekit.22`，镜像 label 绑定新 patch hash。
 - [ ] cargo fmt、clippy、unit 和 exact-source `cargo check --locked` 通过。
 - [ ] 提交：`feat(rustpbx): add media control client`。
+
+当前本机证据：Rust 1.94.1 的 focused unit 与 exact-source `cargo check --locked`
+已通过；Clippy 仍需在服务器的 Rust 1.94 工具链执行，因此最后一项保持未完成。
 
 ### Task 4：初始 INVITE、early media 和 final answer
 

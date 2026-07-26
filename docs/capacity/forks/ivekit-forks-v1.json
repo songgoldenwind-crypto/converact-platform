@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.21-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.22-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.21-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.22-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -162,6 +162,12 @@
           "sha256": "7d576209813e3e6975547287bdd7ef4669707e2d14d22f7086aadedc60f88c9a",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-realtime-audio-tap.patch",
           "purpose": "Use asynchronous DNS resolution, retain enough idle HTTP connections for the bounded CDR saver, and apply one keepalive policy to dynamic call routing and CDR delivery."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
+          "sha256": "89277517f9928b1c964f31cf2f83bff49ba17c6903d67502d092a523a9a10e40",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-http-client-capacity.patch",
+          "purpose": "Add a bounded native media-control client with deterministic cross-language command identity, production mTLS, secret-file loading, incremental response limits and explicit before/after-transport failure semantics without touching RTP packet forwarding."
         }
       ],
       "protocols": [
@@ -429,6 +435,21 @@
           ]
         },
         {
+          "change_id": "rustpbx-media-control-client-v1",
+          "summary": "Give each RustPBX call a bounded, owner-fenced native path to the cell-local media-control service while keeping network I/O outside RTP forwarding.",
+          "capacity_dimensions": [
+            "voice.concurrent_calls",
+            "voice.rtp_legs",
+            "workers.media_control_inflight"
+          ],
+          "acceptance_evidence": [
+            "The patch applies after the exact ivekit.21 queue and compiles with the locked Rust 1.94.1 dependency graph.",
+            "Six focused Rust tests cover the TypeScript-compatible command ID golden vector, per-call sequence allocation, incremental response limits, production HTTPS enforcement, malformed deterministic responses and rejection before transport when inflight capacity is exhausted.",
+            "The client disables transparent gzip and redirects, uses one total request deadline, bounds request and response bytes, rejects symlinked or overly permissive secret files, and requires identity plus CA PEM in production.",
+            "No RTP packet, media engine or forwarding-track source is modified by this patch; SIP lifecycle wiring and real server mTLS integration remain Goal 3 follow-up work."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -507,12 +528,14 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
           "test/ivekit-rustpbx-webphone-edge-auth.test.ts",
           "test/ivekit-rustpbx-audio-tap.test.ts",
           "test/ivekit-rustpbx-http-client-capacity-patch.test.ts",
+          "test/ivekit-rustpbx-media-control-client-patch.test.ts",
           "test/ivekit-rustrtc-udp-socket-capacity.test.ts",
           "test/ivekit-capacity-sip-kamailio-baseline.test.ts",
           "test/ivekit-capacity-sip-kamailio-staircase.test.ts",

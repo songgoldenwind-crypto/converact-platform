@@ -184,11 +184,11 @@ test('HOMER fork status records controlled PostgreSQL/HEP evidence without claim
   );
 });
 
-test('RustPBX fork manifest tracks the complete ivekit.21 patch queue', () => {
+test('RustPBX fork manifest tracks the complete ivekit.22 patch queue', () => {
   const rustpbx = manifest.components.find((component) => component.component_id === 'rustpbx');
   assert.ok(rustpbx);
 
-  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.21-6c49ee76';
+  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.22-6c49ee76';
   assert.equal(rustpbx.runtime_artifact.reference, expectedReference);
   for (const path of [
     'infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch',
@@ -197,7 +197,8 @@ test('RustPBX fork manifest tracks the complete ivekit.21 patch queue', () => {
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-callrecord-failure-telemetry.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-webphone-edge-auth.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch'
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch'
   ]) {
     assert.ok(rustpbx.patches?.some((patch) => patch.path === path), path);
   }
@@ -208,7 +209,8 @@ test('RustPBX fork manifest tracks the complete ivekit.21 patch queue', () => {
     'rustpbx-callrecord-failure-telemetry-v1',
     'rustpbx-webphone-edge-auth-v1',
     'rustpbx-realtime-audio-tap-v1',
-    'rustpbx-http-client-capacity-v1'
+    'rustpbx-http-client-capacity-v1',
+    'rustpbx-media-control-client-v1'
   ]) {
     assert.ok(
       rustpbx.implemented_changes?.some((change) => change.change_id === changeId),
