@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  dialogShadowPairHash,
   dialogShadowRecordHash,
+  type DialogShadowPairReplicaAck,
   type DialogShadowRecord,
   type DialogShadowReplicaAck,
   type DialogShadowReplicaHealth
@@ -12,6 +14,7 @@ import {
   applyDialogShadowEnvelope,
   assertNatsDialogShadowStream,
   type DialogShadowJetStreamEnvelope,
+  type DialogShadowPairJetStreamEnvelope,
   type DialogShadowJetStreamPort
 } from '../src/agent-runtime/ivekit/voice/dialog-shadow-jetstream.js';
 
@@ -59,6 +62,12 @@ class MemoryPort implements DialogShadowJetStreamPort {
     envelope: DialogShadowJetStreamEnvelope;
   }> = [];
   acknowledgements: DialogShadowReplicaAck[] = [];
+  publishedPairs: Array<{
+    subject: string;
+    message_id: string;
+    envelope: DialogShadowPairJetStreamEnvelope;
+  }> = [];
+  pairAcknowledgements: DialogShadowPairReplicaAck[] = [];
   health: DialogShadowReplicaHealth[] = [];
 
   async publish(input: {
@@ -73,9 +82,41 @@ class MemoryPort implements DialogShadowJetStreamPort {
     return structuredClone(this.acknowledgements);
   }
 
+  async publishPair(input: {
+    subject: string;
+    message_id: string;
+    envelope: DialogShadowPairJetStreamEnvelope;
+  }): Promise<void> {
+    this.publishedPairs.push(structuredClone(input));
+  }
+
+  async collectPairAcks(): Promise<DialogShadowPairReplicaAck[]> {
+    return structuredClone(this.pairAcknowledgements);
+  }
+
   async replicaHealth(): Promise<DialogShadowReplicaHealth[]> {
     return structuredClone(this.health);
   }
+}
+
+function recoveryRecord(
+  dialogId: string,
+  overrides: Partial<DialogShadowRecord> = {}
+): DialogShadowRecord {
+  return record({
+    schema_version: 2,
+    dialog_id: dialogId,
+    provider_session_ref: 'call-session-a',
+    recovery_capsule: {
+      schema_version: 1,
+      algorithm: 'A256GCM',
+      key_id: 'recovery-2026-07',
+      nonce: Buffer.alloc(12, 0x11).toString('base64url'),
+      ciphertext: Buffer.from('opaque').toString('base64url'),
+      auth_tag: Buffer.alloc(16, 0x22).toString('base64url')
+    },
+    ...overrides
+  });
 }
 
 test('JetStream shadow bus publishes deterministic Cell-scoped identities', async () => {
@@ -115,6 +156,47 @@ test('JetStream shadow bus publishes deterministic Cell-scoped identities', asyn
     `ivekit.dialog_shadow.cell-a.acks.${hash}`
   );
   assert.equal(port.published[0].envelope.record_hash, hash);
+});
+
+test('JetStream shadow bus replicates a recovery pair as one message and one ACK', async () => {
+  const port = new MemoryPort();
+  const bus = new JetStreamDialogShadowReplicationBus({
+    port,
+    cell_id: 'cell-a',
+    origin_node_id: 'rustpbx-a',
+    subject_prefix: 'ivekit.dialog_shadow'
+  });
+  const pair = [
+    recoveryRecord('dialog-caller'),
+    recoveryRecord('dialog-callee')
+  ] as const;
+  const pairHash = dialogShadowPairHash(pair);
+  const recordHashes = pair.map(dialogShadowRecordHash).sort() as [string, string];
+  port.pairAcknowledgements = [{
+    schema_version: 1,
+    cell_id: 'cell-a',
+    dialog_ids: ['dialog-callee', 'dialog-caller'],
+    owner_epoch: 7,
+    sequence: 1,
+    pair_hash: pairHash,
+    record_hashes: recordHashes,
+    node_id: 'rustpbx-b',
+    fault_domain: 'zone-b-rack-1',
+    durable: true,
+    acknowledged_at: '2026-07-26T00:00:01.010Z'
+  }];
+
+  assert.deepEqual(
+    await bus.replicatePair(pair, pairHash),
+    port.pairAcknowledgements
+  );
+  assert.equal(port.publishedPairs.length, 1);
+  assert.equal(port.publishedPairs[0].message_id, `cell-a:pair:${pairHash}`);
+  assert.equal(port.publishedPairs[0].envelope.pair_hash, pairHash);
+  assert.deepEqual(
+    port.publishedPairs[0].envelope.records.map((item) => item.dialog_id),
+    ['dialog-callee', 'dialog-caller']
+  );
 });
 
 test('JetStream shadow bus rejects cross-Cell publication and delegates health', async () => {
@@ -254,4 +336,62 @@ test('replica ACK is created only after the remote WAL append succeeds', async (
     }),
     /dialog_shadow_envelope_invalid/
   );
+});
+
+test('recovery-pair ACK is created only after one atomic remote WAL append', async () => {
+  const pair = [
+    recoveryRecord('dialog-caller'),
+    recoveryRecord('dialog-callee')
+  ] as const;
+  const pairHash = dialogShadowPairHash(pair);
+  const recordHashes = pair.map(dialogShadowRecordHash).sort() as [string, string];
+  const envelope: DialogShadowPairJetStreamEnvelope = {
+    schema_version: 2,
+    origin_node_id: 'rustpbx-a',
+    pair_hash: pairHash,
+    record_hashes: recordHashes,
+    ack_subject: `ivekit.dialog_shadow.cell-a.pair_acks.${pairHash}`,
+    records: [...pair].sort(
+      (left, right) => left.dialog_id.localeCompare(right.dialog_id)
+    ) as [DialogShadowRecord, DialogShadowRecord]
+  };
+  let appendPairCalls = 0;
+  const acknowledgement = await applyDialogShadowEnvelope(envelope, {
+    subject_prefix: 'ivekit.dialog_shadow',
+    local_identity: {
+      cell_id: 'cell-a',
+      node_id: 'rustpbx-b',
+      fault_domain: 'zone-b-rack-1'
+    },
+    journal: {
+      async append() {
+        throw new Error('single-record append must not be used');
+      },
+      async appendPair(candidate) {
+        appendPairCalls += 1;
+        assert.deepEqual(candidate, envelope.records);
+        return {
+          status: 'committed',
+          pair_hash: pairHash,
+          record_hashes: recordHashes
+        };
+      }
+    },
+    now: () => new Date('2026-07-26T00:00:01.010Z')
+  });
+
+  assert.equal(appendPairCalls, 1);
+  assert.deepEqual(acknowledgement, {
+    schema_version: 1,
+    cell_id: 'cell-a',
+    dialog_ids: ['dialog-callee', 'dialog-caller'],
+    owner_epoch: 7,
+    sequence: 1,
+    pair_hash: pairHash,
+    record_hashes: recordHashes,
+    node_id: 'rustpbx-b',
+    fault_domain: 'zone-b-rack-1',
+    durable: true,
+    acknowledged_at: '2026-07-26T00:00:01.010Z'
+  });
 });

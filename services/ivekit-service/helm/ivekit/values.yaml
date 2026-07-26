@@ -607,6 +607,72 @@ voice:
       limits:
         cpu: 500m
         memory: 256Mi
+  # VOICE-HA-T1 only. Ordinary calls remain independent from PostgreSQL/NATS
+  # and work without this sidecar.
+  dialogShadow:
+    enabled: false
+    endpoint: https://localhost:3212/
+    faultDomain: ""
+    spiffeTrustDomain: ivekit.internal
+    serviceTokenKey: ivekit-dialog-shadow-token
+    recoveryDatabaseUrlKey: ivekit-dialog-recovery-database-url
+    currentRecoveryKeyId: recovery-current
+    currentRecoveryKeyKey: ivekit-dialog-recovery-current-key
+    previousRecoveryKeyId: recovery-previous
+    previousRecoveryKeyKey: ivekit-dialog-recovery-previous-key
+    serverTlsSecretName: ""
+    serverTlsKeyKey: tls.key
+    serverTlsCertificateKey: tls.crt
+    serverTlsClientCaKey: ca.crt
+    # The CSI provider must issue a unique identity for each Pod. identity.pem
+    # is a combined private key + certificate whose single URI SAN is:
+    # spiffe://<trust>/cells/<cell>/fault-domains/<fault>/nodes/<pod-name>
+    clientIdentity:
+      identityFile: identity.pem
+      caFile: ca.pem
+      csi:
+        driver: ""
+        readOnly: true
+        volumeAttributes: {}
+    journal:
+      maxRecords: "1000000"
+      maxBytes: "268435456"
+      maxRecordBytes: "32768"
+      compactIntervalMs: "60000"
+    recovery:
+      tokenTtlMs: "5000"
+      nodeLeaseTtlMs: "3000"
+      postgresPoolMax: "8"
+    nats:
+      urls: []
+      tlsSecretName: ""
+      tlsCaKey: ca.crt
+      tlsCertificateKey: tls.crt
+      tlsPrivateKeyKey: tls.key
+      faultDomainsSecretName: ""
+      faultDomainsKey: fault-domains.json
+      placementCluster: ""
+      placementTags: []
+      streamName: IVEKIT_DIALOG_SHADOW
+      subjectPrefix: ivekit.dialog_shadow
+      streamReplicas: 3
+      requiredFaultDomains: 2
+      maxAgeMs: "900000"
+      ackWaitMs: "2000"
+      maxAckPending: "256"
+      quorumTimeoutMs: "500"
+    rustPbx:
+      maxInflight: "2048"
+      timeoutMs: "500"
+      maxResponseBytes: "131072"
+      heartbeatIntervalMs: "1000"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
   amiAllows:
     - 127.0.0.1
   externalIp: ""

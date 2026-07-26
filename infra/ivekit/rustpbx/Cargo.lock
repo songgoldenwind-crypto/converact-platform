@@ -4476,6 +4476,7 @@ dependencies = [
 name = "rustpbx"
 version = "0.4.11"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "arc-swap",
  "argon2",

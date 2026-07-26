@@ -442,6 +442,57 @@ guard cleanup and 10,000 simultaneous keyed entries. Patch application,
 formatting, and the ivekit.16 amd64 Linux image build pass on the exact upstream
 commit; runtime WSS load remains `not_run`.
 
+## VOICE-HA-T1 dialog recovery
+
+The ivekit.27 patch set keeps RustPBX authoritative for Call, Leg, Dialog and
+the logical media graph while RTPengine remains authoritative for effective
+wire SDP, ports and transport runtime. A confirmed T1 B2BUA session stores two
+reciprocal, bounded AES-256-GCM recovery capsules. The shadow service commits
+the caller and callee records as one hash-bound WAL and JetStream operation
+before exposing a state-changing SIP success.
+
+A replacement owner may claim a higher epoch only through the cell-local
+takeover coordinator. The claim requires a complete, non-terminal T1 pair from
+two RustPBX fault domains and returns a single-use token. The new owner prepares
+both restored records, reconciles the existing RTPengine reservation, commits
+the pair under the new epoch, consumes the token and only then becomes the
+active mutation authority. Unknown token-consume outcomes are resolved through
+the authoritative owner endpoint; they are never guessed or replayed as a new
+mutation.
+
+The recovered controller serializes both dialog receivers. It relays INFO,
+OPTIONS, NOTIFY, REFER, MESSAGE and PUBLISH, runs re-INVITE and UPDATE through
+the restored media lifecycle, atomically advances both shadow records, strips
+hop, dialog, authentication and recovery identity headers, and bounds terminal
+BYE, media delete and owner cleanup. Its event queue is bounded at 64 entries;
+a terminal event waits at most 100 ms for queue admission. Any unknown shadow
+write or required reconciliation freezes the recovered controller instead of
+issuing another mutation. Normal session cleanup commits both legs as one
+recoverable terminal pair and duplicate cleanup is a no-op. Successful INVITE
+and UPDATE responses also refresh the rsipstack remote target from their unique
+Contact before the next in-dialog request is created.
+
+Dialog recovery is opt-in. Compose enables the complete dual-owner voice stack
+and both node-local sidecars through the self-contained `voice-t1` profile; no
+second profile is required to satisfy its local dependency graph. Helm requires
+persistent WAL, mounted service/recovery secrets, TLS-only NATS, a three- or
+five-node cross-fault-domain stream and a per-Pod CSI client identity whose URI
+SAN matches the RustPBX owner. Projected secret targets may be `0400`, `0600`,
+`0440` or `0640`: owner read is mandatory, group read is allowed for the
+constrained Pod `fsGroup`, and group write/execute or any world permission is
+rejected. Kubernetes atomic-writer symlinks are accepted only when their
+canonical targets remain inside the mounted secret directory. The agent listens
+only on `127.0.0.1:3212`; ordinary voice profiles do not wait for the shadow
+service, NATS or PostgreSQL.
+
+The exact clean-source ivekit.27 queue applies all 28 patches and passes locked
+library compilation, 19 Rust recovery contract tests, four recovered-media
+takeover tests and the complete 247-test rsipstack library suite. The standalone
+source graph also builds the packaged dialog-shadow executable. This is code and
+reproducibility evidence only. Physical dual-node failover, real RTP continuity,
+three-node JetStream fault domains, Kubernetes CSI identity mounting and the
+five-second takeover RTO remain `not_run`.
+
 ## Reproducibility
 
 - RustPBX: `6c49ee76baa54fdbf8f98020cc9bee158c7c15de`

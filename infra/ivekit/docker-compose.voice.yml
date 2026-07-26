@@ -6,7 +6,7 @@ services:
 
   rustpbx-config-render:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice", "voice-capacity", "voice-media-control"]
+    profiles: ["voice", "voice-capacity", "voice-media-control", "voice-t1"]
     command: ["node", "--import", "tsx", "scripts/render-rustpbx-config.ts"]
     restart: "no"
     environment:
@@ -48,7 +48,7 @@ services:
 
   rustpbx-route-snapshot:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice", "voice-capacity", "voice-media-control"]
+    profiles: ["voice", "voice-capacity", "voice-media-control", "voice-t1"]
     command: ["node", "--import", "tsx", "src/ivekit-rustpbx-route-snapshot.ts"]
     init: true
     restart: unless-stopped
@@ -71,7 +71,7 @@ services:
 
   rustpbx:
     image: ${RUSTPBX_IMAGE:?RUSTPBX_IMAGE is required}
-    profiles: ["voice", "voice-capacity", "voice-media-control"]
+    profiles: ["voice", "voice-capacity", "voice-media-control", "voice-t1"]
     command: ["--conf", "/app/config/rustpbx.toml"]
     init: true
     restart: unless-stopped
@@ -86,6 +86,20 @@ services:
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
+      IVEKIT_RUSTPBX_FAULT_DOMAIN: ${RUSTPBX_FAULT_DOMAIN:-}
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_ENDPOINT: ${RUSTPBX_DIALOG_SHADOW_ENDPOINT:-}
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_TOKEN_FILE: /run/secrets/dialog-shadow-token
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_PRODUCTION: "true"
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE: /run/secrets/dialog-shadow-client-identity
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_CA_FILE: /run/secrets/dialog-shadow-ca
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_INFLIGHT: ${RUSTPBX_DIALOG_SHADOW_MAX_INFLIGHT:-2048}
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_TIMEOUT_MS: ${RUSTPBX_DIALOG_SHADOW_TIMEOUT_MS:-500}
+      IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_RESPONSE_BYTES: ${RUSTPBX_DIALOG_SHADOW_MAX_RESPONSE_BYTES:-131072}
+      IVEKIT_RUSTPBX_DIALOG_HEARTBEAT_INTERVAL_MS: ${RUSTPBX_DIALOG_HEARTBEAT_INTERVAL_MS:-1000}
+      IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID:-recovery-current}
+      IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_FILE: /run/secrets/dialog-recovery-current-key
+      IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID:-recovery-previous}
+      IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_FILE: /run/secrets/dialog-recovery-previous-key
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS: ${RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS:-250}
       IVEKIT_RUSTPBX_MEDIA_CONTROL_MODE: ${RUSTPBX_MEDIA_CONTROL_MODE:-}
       IVEKIT_RUSTPBX_MEDIA_CONTROL_FAILURE_POLICY: ${RUSTPBX_MEDIA_CONTROL_FAILURE_POLICY:-fail_closed}
@@ -122,6 +136,12 @@ services:
       - rustpbx-route-snapshot:/app/route-snapshot:ro
       - rustpbx-storage:/app/storage
       - rustpbx-recording-spool:/app/recording-spool
+    secrets:
+      - dialog-shadow-token
+      - dialog-shadow-client-identity
+      - dialog-shadow-ca
+      - dialog-recovery-current-key
+      - dialog-recovery-previous-key
     networks:
       default: {}
     depends_on:
@@ -140,9 +160,85 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  rustpbx-dialog-shadow:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    profiles: ["voice-t1"]
+    command: ["node", "--import", "tsx", "src/ivekit-dialog-shadow-agent.ts"]
+    init: true
+    restart: unless-stopped
+    network_mode: service:rustpbx
+    environment:
+      IVEKIT_DIALOG_SHADOW_PRODUCTION: "true"
+      IVEKIT_DIALOG_SHADOW_HOST: 127.0.0.1
+      IVEKIT_DIALOG_SHADOW_PORT: 3212
+      IVEKIT_DIALOG_SHADOW_CELL_ID: ${RUSTPBX_CELL_ID:-invalid}
+      IVEKIT_DIALOG_SHADOW_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:-invalid}
+      IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN: ${RUSTPBX_FAULT_DOMAIN:-invalid}
+      IVEKIT_DIALOG_SHADOW_JOURNAL_PATH: /app/dialog-shadow/dialog-shadow.wal
+      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS:-1000000}
+      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES:-268435456}
+      IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES: ${IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES:-32768}
+      IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS: ${IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS:-60000}
+      IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE: /run/secrets/dialog-shadow-token
+      IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE: /run/secrets/dialog-shadow-server-key
+      IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE: /run/secrets/dialog-shadow-server-cert
+      IVEKIT_DIALOG_SHADOW_TLS_CA_FILE: /run/secrets/dialog-shadow-ca
+      IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN: ${IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN:-ivekit.internal}
+      IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE: /run/secrets/dialog-recovery-database-url
+      IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID:-recovery-current}
+      IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE: /run/secrets/dialog-recovery-current-key
+      IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID: ${RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID:-recovery-previous}
+      IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE: /run/secrets/dialog-recovery-previous-key
+      IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS: ${IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS:-5000}
+      IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS: ${IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS:-3000}
+      IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX: ${IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX:-8}
+      IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE: /run/secrets/dialog-shadow-nats-fault-domains
+      IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER: ${IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER:-invalid}
+      IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS: ${IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS:-}
+      IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS: ${IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS:-3}
+      IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS: ${IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS:-2}
+      NATS_URL: ${RUSTPBX_DIALOG_SHADOW_NATS_URL:-}
+      NATS_TLS_MODE: required
+      NATS_TLS_CA_FILE: /run/secrets/dialog-shadow-nats-ca
+      NATS_TLS_CERT_FILE: /run/secrets/dialog-shadow-nats-cert
+      NATS_TLS_KEY_FILE: /run/secrets/dialog-shadow-nats-key
+      NATS_CONNECT_TIMEOUT_MS: ${NATS_CONNECT_TIMEOUT_MS:-5000}
+      NATS_RECONNECT_WAIT_MS: ${NATS_RECONNECT_WAIT_MS:-1000}
+      NATS_MAX_RECONNECT_ATTEMPTS: ${NATS_MAX_RECONNECT_ATTEMPTS:--1}
+    volumes:
+      - rustpbx-storage:/app/dialog-shadow
+    secrets:
+      - dialog-shadow-token
+      - dialog-shadow-server-key
+      - dialog-shadow-server-cert
+      - dialog-shadow-ca
+      - dialog-recovery-database-url
+      - dialog-recovery-current-key
+      - dialog-recovery-previous-key
+      - dialog-shadow-nats-ca
+      - dialog-shadow-nats-cert
+      - dialog-shadow-nats-key
+      - dialog-shadow-nats-fault-domains
+    depends_on:
+      rustpbx:
+        condition: service_started
+      postgres-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - const net=require('node:net');const s=net.connect(3212,'127.0.0.1',()=>{s.destroy();process.exit(0)});s.setTimeout(1000,()=>process.exit(1));s.on('error',()=>process.exit(1))
+      interval: 5s
+      timeout: 2s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+
   rustpbx-recording-spool:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice", "voice-capacity"]
+    profiles: ["voice", "voice-capacity", "voice-t1"]
     command: ["node", "--import", "tsx", "src/ivekit-rustpbx-recording-spool.ts"]
     init: true
     restart: unless-stopped
@@ -174,7 +270,7 @@ services:
 
   rustpbx-component-node:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice-capacity", "voice-media-control"]
+    profiles: ["voice-capacity", "voice-media-control", "voice-t1"]
     command: ["node", "--import", "tsx", "scripts/ivekit-component-node-admission.ts"]
     init: true
     restart: unless-stopped
@@ -217,7 +313,7 @@ services:
 
   cell-admission:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice-capacity", "voice-media-control"]
+    profiles: ["voice-capacity", "voice-media-control", "voice-t1"]
     command: ["node", "--import", "tsx", "scripts/ivekit-cell-admission.ts"]
     init: true
     restart: unless-stopped
@@ -421,7 +517,7 @@ services:
 
   rustpbx-runtime-recovery:
     image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
-    profiles: ["voice", "voice-capacity"]
+    profiles: ["voice", "voice-capacity", "voice-t1"]
     command: ["node", "--import", "tsx", "scripts/ivekit-rustpbx-recovery.ts"]
     restart: "no"
     network_mode: service:rustpbx
@@ -477,3 +573,27 @@ secrets:
     file: ${RUSTPBX_RECORDING_SERVICE_KEY_FILE:?RUSTPBX_RECORDING_SERVICE_KEY_FILE is required}
   rustpbx-recording-lease-secret:
     file: ${RUSTPBX_RECORDING_LEASE_SECRET_FILE:?RUSTPBX_RECORDING_LEASE_SECRET_FILE is required}
+  dialog-shadow-token:
+    file: ${RUSTPBX_DIALOG_SHADOW_TOKEN_FILE:-/dev/null}
+  dialog-shadow-server-key:
+    file: ${RUSTPBX_DIALOG_SHADOW_SERVER_KEY_FILE:-/dev/null}
+  dialog-shadow-server-cert:
+    file: ${RUSTPBX_DIALOG_SHADOW_SERVER_CERT_FILE:-/dev/null}
+  dialog-shadow-client-identity:
+    file: ${RUSTPBX_DIALOG_SHADOW_CLIENT_IDENTITY_FILE:-/dev/null}
+  dialog-shadow-ca:
+    file: ${RUSTPBX_DIALOG_SHADOW_CA_FILE:-/dev/null}
+  dialog-recovery-database-url:
+    file: ${RUSTPBX_DIALOG_RECOVERY_DATABASE_URL_FILE:-/dev/null}
+  dialog-recovery-current-key:
+    file: ${RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_FILE:-/dev/null}
+  dialog-recovery-previous-key:
+    file: ${RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_FILE:-/dev/null}
+  dialog-shadow-nats-ca:
+    file: ${RUSTPBX_DIALOG_SHADOW_NATS_CA_FILE:-/dev/null}
+  dialog-shadow-nats-cert:
+    file: ${RUSTPBX_DIALOG_SHADOW_NATS_CERT_FILE:-/dev/null}
+  dialog-shadow-nats-key:
+    file: ${RUSTPBX_DIALOG_SHADOW_NATS_KEY_FILE:-/dev/null}
+  dialog-shadow-nats-fault-domains:
+    file: ${RUSTPBX_DIALOG_SHADOW_NATS_FAULT_DOMAINS_FILE:-/dev/null}

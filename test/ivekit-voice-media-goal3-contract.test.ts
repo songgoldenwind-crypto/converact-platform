@@ -66,6 +66,7 @@ test('Goal 3 freezes every media orchestration source identity', () => {
     'rustpbx-ivekit-media-control-client-v1',
     'rustpbx-ivekit-media-lifecycle-v1',
     'rustpbx-ivekit-dialog-shadow-v1',
+    'rustpbx-ivekit-dialog-recovery-v1',
     'rustpbx-ivekit-dual-leg-cdr-v1'
   ]);
 });

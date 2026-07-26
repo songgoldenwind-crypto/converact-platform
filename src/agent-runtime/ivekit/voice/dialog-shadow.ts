@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 
-const RECORD_KEYS = [
+import {
+  assertDialogRecoveryCapsuleEnvelope,
+  type DialogRecoveryCapsuleEnvelope
+} from './dialog-recovery-capsule.js';
+
+const BASE_RECORD_KEYS = [
   'schema_version',
   'tenant_id',
   'cell_id',
@@ -27,6 +32,14 @@ const RECORD_KEYS = [
   'recorded_at',
   'terminal'
 ] as const;
+const RECOVERY_RECORD_KEYS = [
+  ...BASE_RECORD_KEYS,
+  'recovery_capsule'
+] as const;
+const TAKEOVER_RECOVERY_RECORD_KEYS = [
+  ...RECOVERY_RECORD_KEYS,
+  'takeover_id'
+] as const;
 
 const DIALOG_STATES = [
   'trying',
@@ -41,7 +54,7 @@ export type DialogShadowState = typeof DIALOG_STATES[number];
 export type DialogShadowProfile = 'VOICE-HA-T1' | (string & {});
 
 export interface DialogShadowRecord {
-  schema_version: 1;
+  schema_version: 1 | 2;
   tenant_id: string;
   cell_id: string;
   dialog_id: string;
@@ -66,6 +79,8 @@ export interface DialogShadowRecord {
   cdr_sequence: number;
   recorded_at: string;
   terminal: boolean;
+  recovery_capsule?: DialogRecoveryCapsuleEnvelope;
+  takeover_id?: string;
 }
 
 export interface DialogShadowJournalAppendResult {
@@ -73,8 +88,17 @@ export interface DialogShadowJournalAppendResult {
   record_hash: string;
 }
 
+export interface DialogShadowPairAppendResult {
+  status: 'committed' | 'replayed';
+  pair_hash: string;
+  record_hashes: string[];
+}
+
 export interface DialogShadowJournalPort {
   append(record: DialogShadowRecord): Promise<DialogShadowJournalAppendResult>;
+  appendPair?(
+    records: readonly [DialogShadowRecord, DialogShadowRecord]
+  ): Promise<DialogShadowPairAppendResult>;
 }
 
 export interface DialogShadowReplicaAck {
@@ -98,17 +122,44 @@ export interface DialogShadowReplicaHealth {
   ready: boolean;
 }
 
+export interface DialogShadowPairReplicaAck {
+  schema_version: 1;
+  cell_id: string;
+  dialog_ids: [string, string];
+  owner_epoch: number;
+  sequence: number;
+  pair_hash: string;
+  record_hashes: [string, string];
+  node_id: string;
+  fault_domain: string;
+  durable: boolean;
+  acknowledged_at: string;
+}
+
 export interface DialogShadowReplicationBus {
   replicate(
     record: DialogShadowRecord,
     recordHash: string
   ): Promise<DialogShadowReplicaAck[]>;
+  replicatePair?(
+    records: readonly [DialogShadowRecord, DialogShadowRecord],
+    pairHash: string
+  ): Promise<DialogShadowPairReplicaAck[]>;
   replicaHealth(): Promise<DialogShadowReplicaHealth[]>;
 }
 
 export interface DialogShadowCommitProof {
   status: 'committed';
   record_hash: string;
+  fault_domains: string[];
+  owner_epoch: number;
+  sequence: number;
+}
+
+export interface DialogShadowPairCommitProof {
+  status: 'committed';
+  pair_hash: string;
+  record_hashes: [string, string];
   fault_domains: string[];
   owner_epoch: number;
   sequence: number;
@@ -182,6 +233,12 @@ export class DialogShadowQuorum {
   ): Promise<DialogShadowNotRequired | DialogShadowCommitProof> {
     if (!requiresShadow(profile)) return { status: 'not_required' };
     const record = assertDialogShadowRecord(value);
+    if (profile === 'VOICE-HA-T1' &&
+        (record.state === 'confirmed' ||
+         record.state === 'updating' ||
+         record.state === 'terminated')) {
+      throw new DialogShadowError('dialog_shadow_pair_required', 409);
+    }
     if (record.cell_id !== this.#localIdentity.cell_id ||
         record.owner_node_id !== this.#localIdentity.node_id ||
         record.owner_fault_domain !== this.#localIdentity.fault_domain) {
@@ -222,6 +279,70 @@ export class DialogShadowQuorum {
       fault_domains: [...domains].sort(),
       owner_epoch: record.owner_epoch,
       sequence: record.sequence
+    };
+  }
+
+  async commitPair(
+    profile: DialogShadowProfile,
+    values: readonly [DialogShadowRecord, DialogShadowRecord]
+  ): Promise<DialogShadowNotRequired | DialogShadowPairCommitProof> {
+    if (!requiresShadow(profile)) return { status: 'not_required' };
+    const records = assertDialogShadowPair(values);
+    if (records.some((record) =>
+      record.cell_id !== this.#localIdentity.cell_id ||
+      record.owner_node_id !== this.#localIdentity.node_id ||
+      record.owner_fault_domain !== this.#localIdentity.fault_domain
+    )) {
+      throw new DialogShadowError('dialog_shadow_owner_mismatch', 409);
+    }
+    if (!this.#localJournal.appendPair ||
+        !this.#replicationBus.replicatePair) {
+      throw unavailable();
+    }
+    const pairHash = dialogShadowPairHash(records);
+    const recordHashes = records
+      .map(dialogShadowRecordHash)
+      .sort() as [string, string];
+    let local: DialogShadowPairAppendResult;
+    try {
+      local = await this.#localJournal.appendPair(records);
+    } catch (error) {
+      throw unavailable(error);
+    }
+    if (local.pair_hash !== pairHash ||
+        local.record_hashes.length !== 2 ||
+        local.record_hashes.some((hash, index) => hash !== recordHashes[index])) {
+      throw new DialogShadowError('dialog_shadow_local_identity_mismatch', 503);
+    }
+
+    let acknowledgements: DialogShadowPairReplicaAck[];
+    try {
+      acknowledgements = await this.#replicationBus.replicatePair(
+        records,
+        pairHash
+      );
+    } catch (error) {
+      throw unavailable(error);
+    }
+    const domains = new Set([this.#localIdentity.fault_domain]);
+    for (const acknowledgement of acknowledgements) {
+      if (validPairReplicaAck(
+        acknowledgement,
+        records,
+        pairHash,
+        this.#localIdentity
+      )) {
+        domains.add(acknowledgement.fault_domain);
+      }
+    }
+    if (domains.size < this.#requiredFaultDomains) throw unavailable();
+    return {
+      status: 'committed',
+      pair_hash: pairHash,
+      record_hashes: recordHashes,
+      fault_domains: [...domains].sort(),
+      owner_epoch: records[0].owner_epoch,
+      sequence: records[0].sequence
     };
   }
 }
@@ -273,14 +394,21 @@ export function assertDialogShadowRecord(
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error('record must be an object');
     }
+    if (value.schema_version !== 1 && value.schema_version !== 2) {
+      throw new Error('schema version mismatch');
+    }
+    const expectedKeys = value.schema_version === 2
+      ? value.takeover_id === undefined
+        ? RECOVERY_RECORD_KEYS
+        : TAKEOVER_RECOVERY_RECORD_KEYS
+      : BASE_RECORD_KEYS;
     const keys = Object.keys(value).sort();
-    if (keys.length !== RECORD_KEYS.length ||
-        keys.some((key, index) => key !== [...RECORD_KEYS].sort()[index])) {
+    if (keys.length !== expectedKeys.length ||
+        keys.some((key, index) => key !== [...expectedKeys].sort()[index])) {
       throw new Error('record fields mismatch');
     }
-    if (value.schema_version !== 1) throw new Error('schema version mismatch');
     const result: DialogShadowRecord = {
-      schema_version: 1,
+      schema_version: value.schema_version,
       tenant_id: identifier(value.tenant_id, 'tenant_id'),
       cell_id: identifier(value.cell_id, 'cell_id'),
       dialog_id: identifier(value.dialog_id, 'dialog_id'),
@@ -314,7 +442,7 @@ export function assertDialogShadowRecord(
       ),
       media_reservation_id: nullable(
         value.media_reservation_id,
-        (item) => identifier(item, 'media_reservation_id')
+        mediaReservationId
       ),
       provider_session_ref: nullable(
         value.provider_session_ref,
@@ -327,7 +455,17 @@ export function assertDialogShadowRecord(
         'cdr_sequence'
       ),
       recorded_at: timestamp(value.recorded_at),
-      terminal: boolean(value.terminal, 'terminal')
+      terminal: boolean(value.terminal, 'terminal'),
+      ...(value.schema_version === 2
+        ? {
+            recovery_capsule: assertDialogRecoveryCapsuleEnvelope(
+              value.recovery_capsule!
+            ),
+            ...(value.takeover_id === undefined
+              ? {}
+              : { takeover_id: identifier(value.takeover_id, 'takeover_id') })
+          }
+        : {})
     };
     if (result.terminal !== (result.state === 'terminated')) {
       throw new Error('terminal state mismatch');
@@ -345,6 +483,53 @@ export function assertDialogShadowRecord(
 export function dialogShadowRecordHash(value: DialogShadowRecord): string {
   const record = assertDialogShadowRecord(value);
   return createHash('sha256').update(canonicalJson(record)).digest('hex');
+}
+
+export function assertDialogShadowPair(
+  values: readonly [DialogShadowRecord, DialogShadowRecord]
+): [DialogShadowRecord, DialogShadowRecord] {
+  try {
+    if (!Array.isArray(values) || values.length !== 2) {
+      throw new Error('pair requires exactly two records');
+    }
+    const records = values
+      .map(assertDialogShadowRecord)
+      .sort((left, right) => left.dialog_id.localeCompare(right.dialog_id)) as
+      [DialogShadowRecord, DialogShadowRecord];
+    const first = records[0];
+    const second = records[1];
+    if (first.schema_version !== 2 ||
+        second.schema_version !== 2 ||
+        first.dialog_id === second.dialog_id ||
+        !first.recovery_capsule ||
+        !second.recovery_capsule ||
+        !first.provider_session_ref ||
+        first.provider_session_ref !== second.provider_session_ref ||
+        first.tenant_id !== second.tenant_id ||
+        first.cell_id !== second.cell_id ||
+        first.owner_node_id !== second.owner_node_id ||
+        first.owner_fault_domain !== second.owner_fault_domain ||
+        first.owner_epoch !== second.owner_epoch ||
+        first.sequence !== second.sequence ||
+        first.auth_context_ref !== second.auth_context_ref ||
+        first.takeover_id !== second.takeover_id ||
+        first.terminal !== second.terminal) {
+      throw new Error('pair identity mismatch');
+    }
+    return records;
+  } catch (error) {
+    if (error instanceof DialogShadowError) throw error;
+    throw new DialogShadowError('dialog_shadow_pair_invalid', 400, error);
+  }
+}
+
+export function dialogShadowPairHash(
+  values: readonly [DialogShadowRecord, DialogShadowRecord]
+): string {
+  const hashes = assertDialogShadowPair(values)
+    .map(dialogShadowRecordHash)
+    .sort();
+  return createHash('sha256').update(hashes.join(':')).digest('hex');
 }
 
 export class DialogShadowError extends Error {
@@ -398,6 +583,35 @@ function validReplicaAck(
   }
 }
 
+function validPairReplicaAck(
+  value: DialogShadowPairReplicaAck,
+  records: [DialogShadowRecord, DialogShadowRecord],
+  pairHash: string,
+  local: { cell_id: string; node_id: string; fault_domain: string }
+): boolean {
+  try {
+    const recordHashes = records.map(dialogShadowRecordHash).sort();
+    const dialogIds = records.map((record) => record.dialog_id).sort();
+    return value.schema_version === 1 &&
+      value.cell_id === records[0].cell_id &&
+      value.owner_epoch === records[0].owner_epoch &&
+      value.sequence === records[0].sequence &&
+      value.pair_hash === pairHash &&
+      value.dialog_ids.length === 2 &&
+      value.dialog_ids.every((id, index) => id === dialogIds[index]) &&
+      value.record_hashes.length === 2 &&
+      value.record_hashes.every((hash, index) => hash === recordHashes[index]) &&
+      value.node_id !== local.node_id &&
+      value.fault_domain !== local.fault_domain &&
+      value.durable === true &&
+      Number.isFinite(Date.parse(value.acknowledged_at)) &&
+      identifier(value.node_id, 'node_id').length > 0 &&
+      identifier(value.fault_domain, 'fault_domain').length > 0;
+  } catch {
+    return false;
+  }
+}
+
 function requiresShadow(profile: DialogShadowProfile): boolean {
   return profile === 'VOICE-HA-T1';
 }
@@ -410,6 +624,14 @@ function identifier(value: unknown, field: string): string {
   const result = String(value || '');
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(result)) {
     throw new Error(`${field} is invalid`);
+  }
+  return result;
+}
+
+function mediaReservationId(value: unknown): string {
+  const result = String(value || '');
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,255}$/.test(result)) {
+    throw new Error('media_reservation_id is invalid');
   }
   return result;
 }

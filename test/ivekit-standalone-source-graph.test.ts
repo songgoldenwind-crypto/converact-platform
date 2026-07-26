@@ -77,6 +77,7 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     entrypoints: string[];
     forbidden_prefixes: string[];
     assets: string[];
+    migrations: string[];
   };
 
   assert.deepEqual(policy.entrypoints, [
@@ -99,10 +100,15 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/ivekit-component-node-admission.ts',
     'src/ivekit-placement-snapshot-projector.ts',
     'src/ivekit-rustpbx-recovery.ts',
+    'src/ivekit-dialog-shadow-agent.ts',
     'src/ivekit-voice-preflight.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
     'src/agent-runtime/ivekit/ivr/index.ts',
     'src/agent-runtime/ivekit/contact-center/index.ts'
+  ]);
+  assert.deepEqual(policy.migrations.slice(-2), [
+    '101_ivekit_migration_readiness.sql',
+    '102_ivekit_voice_dialog_takeovers.sql'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',
@@ -116,6 +122,19 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
   assert.equal(policy.assets.includes('services/ivekit-service/docker-compose.voice.yml'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/init-rustpbx-database.sh'), true);
   assert.equal(policy.assets.includes('services/ivekit-service/env.example'), true);
+});
+
+test('standalone verifier proves the packaged dialog-shadow sidecar entrypoint', () => {
+  const verifier = readFileSync('scripts/verify-ivekit-standalone-context.ts', 'utf8');
+  const servicePackage = JSON.parse(
+    readFileSync('services/ivekit-service/package.json', 'utf8')
+  ) as { scripts: Record<string, string> };
+
+  assert.equal(
+    servicePackage.scripts['start:dialog-shadow'],
+    'node dist/ivekit-dialog-shadow-agent.js'
+  );
+  assert.match(verifier, /'ivekit-dialog-shadow-agent\.js'/);
 });
 
 test('standalone PostgreSQL compatibility worker requires no writable application filesystem', () => {

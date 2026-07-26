@@ -21,6 +21,7 @@
     "route:kamailio": "node dist/ivekit-kamailio-route-agent.js",
     "accept:kamailio-webphone": "node dist/ivekit-kamailio-webphone-acceptance.js",
     "recover:rustpbx": "node dist/ivekit-rustpbx-recovery.js",
+    "start:dialog-shadow": "node dist/ivekit-dialog-shadow-agent.js",
     "restore": "node dist/ivekit-restore.js",
     "start": "node --import dist/telemetry.js dist/ivekit-server.js",
     "start:worker": "node --import dist/telemetry.js dist/ivekit-worker.js",
@@ -31,6 +32,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1092.0",
+    "@nats-io/jetstream": "3.4.0",
+    "@nats-io/nats-core": "3.4.0",
+    "@nats-io/transport-node": "3.4.0",
     "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
     "@opentelemetry/instrumentation-http": "0.220.0",
     "@opentelemetry/instrumentation-pg": "0.72.0",

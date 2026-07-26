@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { ComponentNodeStateSnapshot } from '../src/agent-runtime/ivekit/placement/component-node-admission.js';
 import {
   compileKamailioRouteSnapshotBody,
+  kamailioRecoverySetId,
   renderKamailioDispatcherList,
   type KamailioRoutePoolSource
 } from '../src/agent-runtime/ivekit/voice/kamailio-route-compiler.js';
@@ -52,6 +53,20 @@ test('Kamailio route compiler normalizes headroom and lowers degraded node weigh
   assert.doesNotMatch(rendered, /^100 sip:rustpbx-a-3\./m);
   assert.match(rendered, /^10002 sip:rustpbx-a-2\.internal:5060;transport=udp 8 10 .*pinset=10002/m);
   assert.match(rendered, /^10003 sip:rustpbx-a-3\.internal:5060;transport=udp 9 10 .*pinset=10003/m);
+  assert.match(
+    rendered,
+    /^1000010000 sip:rustpbx-a-1\.internal:5060;transport=udp 8 10 .*recover_for=10000/m
+  );
+  assert.doesNotMatch(
+    rendered,
+    /^1000010000 sip:rustpbx-a-0\./m
+  );
+  assert.match(
+    rendered,
+    /^1000010002 sip:rustpbx-a-0\.internal:5060;transport=udp 8 10 .*recover_for=10002/m
+  );
+  assert.doesNotMatch(rendered, /^1000010000 sip:rustpbx-a-[23]\./m);
+  assert.equal(kamailioRecoverySetId(10_000), 1_000_010_000);
 });
 
 test('exhausted accepting nodes leave the new-call pool but retain their pin set', () => {

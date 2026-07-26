@@ -25,11 +25,26 @@ export interface DialogShadowAgentConfig {
   };
   server: {
     max_body_bytes: number;
+    spiffe_trust_domain: string;
     tls: null | {
       key_file: string;
       cert_file: string;
       ca_file: string;
     };
+  };
+  recovery: {
+    database_url: string;
+    current_key: {
+      key_id: string;
+      key: Buffer;
+    };
+    previous_key: null | {
+      key_id: string;
+      key: Buffer;
+    };
+    token_ttl_ms: number;
+    node_lease_ttl_ms: number;
+    postgres_pool_max: number;
   };
   nats: {
     connection_options: NodeConnectionOptions;
@@ -105,6 +120,38 @@ export function loadDialogShadowAgentConfig(
   if (!connectionOptions) throw new Error('dialog shadow NATS is required');
   if (production && connectionOptions.tls === null) {
     throw new Error('dialog shadow production NATS TLS is required');
+  }
+
+  const recoveryDatabaseUrl = secretFileOrInline({
+    env,
+    readFile,
+    file_name: 'IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE',
+    inline_name: 'IVEKIT_DIALOG_RECOVERY_DATABASE_URL',
+    production,
+    production_inline_error:
+      'dialog shadow production inline recovery database URL is forbidden',
+    maximum: 4_096
+  });
+  const currentRecoveryKey = recoveryKey({
+    env,
+    readFile,
+    id_name: 'IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID',
+    file_name: 'IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE',
+    inline_name: 'IVEKIT_DIALOG_RECOVERY_CURRENT_KEY',
+    production,
+    required: true
+  });
+  const previousRecoveryKey = recoveryKey({
+    env,
+    readFile,
+    id_name: 'IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID',
+    file_name: 'IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE',
+    inline_name: 'IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY',
+    production,
+    required: false
+  });
+  if (previousRecoveryKey?.key_id === currentRecoveryKey!.key_id) {
+    throw new Error('dialog recovery key ids must be distinct');
   }
 
   const faultDomainFile = optionalAbsolutePath(
@@ -200,15 +247,44 @@ export function loadDialogShadowAgentConfig(
       max_body_bytes: integerEnv(
         env,
         'IVEKIT_DIALOG_SHADOW_MAX_BODY_BYTES',
-        48 * 1024,
+        128 * 1024,
         1024,
         1024 * 1024
+      ),
+      spiffe_trust_domain: trustDomain(
+        env.IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN
       ),
       tls: tlsCount === 3 ? {
         key_file: tlsKeyFile!,
         cert_file: tlsCertFile!,
         ca_file: tlsCaFile!
       } : null
+    },
+    recovery: {
+      database_url: postgresUrl(recoveryDatabaseUrl),
+      current_key: currentRecoveryKey!,
+      previous_key: previousRecoveryKey,
+      token_ttl_ms: integerEnv(
+        env,
+        'IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS',
+        5_000,
+        500,
+        30_000
+      ),
+      node_lease_ttl_ms: integerEnv(
+        env,
+        'IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS',
+        3_000,
+        1_000,
+        30_000
+      ),
+      postgres_pool_max: integerEnv(
+        env,
+        'IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX',
+        8,
+        1,
+        64
+      )
     },
     nats: {
       connection_options: connectionOptions,
@@ -266,6 +342,82 @@ export function loadDialogShadowAgentConfig(
       )
     }
   };
+}
+
+function secretFileOrInline(input: {
+  env: NodeJS.ProcessEnv;
+  readFile: (path: string) => Buffer;
+  file_name: string;
+  inline_name: string;
+  production: boolean;
+  production_inline_error: string;
+  maximum: number;
+}): string {
+  const file = optionalAbsolutePath(input.env[input.file_name], input.file_name);
+  const inline = optionalString(
+    input.env[input.inline_name],
+    input.inline_name,
+    input.maximum
+  );
+  if (input.production && inline) {
+    throw new Error(input.production_inline_error);
+  }
+  if (file && inline) {
+    throw new Error(`${input.file_name} and ${input.inline_name} are mutually exclusive`);
+  }
+  const value = file
+    ? input.readFile(file).toString('utf8').trim()
+    : inline;
+  if (!value || value.length > input.maximum || /[\0\r\n]/.test(value)) {
+    throw new Error(`${input.inline_name} secret is invalid`);
+  }
+  return value;
+}
+
+function recoveryKey(input: {
+  env: NodeJS.ProcessEnv;
+  readFile: (path: string) => Buffer;
+  id_name: string;
+  file_name: string;
+  inline_name: string;
+  production: boolean;
+  required: boolean;
+}): { key_id: string; key: Buffer } | null {
+  const keyIdText = String(input.env[input.id_name] || '').trim();
+  const file = optionalAbsolutePath(input.env[input.file_name], input.file_name);
+  const inline = optionalString(
+    input.env[input.inline_name],
+    input.inline_name,
+    128
+  );
+  if (input.production && inline) {
+    throw new Error('dialog shadow production inline recovery key is forbidden');
+  }
+  if (file && inline) {
+    throw new Error(`${input.file_name} and ${input.inline_name} are mutually exclusive`);
+  }
+  if (!keyIdText && !file && !inline && !input.required) return null;
+  const keyId = requiredIdentifier(keyIdText, input.id_name);
+  const encoded = file
+    ? input.readFile(file).toString('utf8').trim()
+    : inline;
+  const key = Buffer.from(encoded, 'base64');
+  if (!encoded ||
+      key.byteLength !== 32 ||
+      key.toString('base64').replace(/=+$/, '') !== encoded.replace(/=+$/, '')) {
+    throw new Error(`${input.inline_name} must be a canonical 32-byte base64 key`);
+  }
+  return { key_id: keyId, key };
+}
+
+function postgresUrl(value: string): string {
+  const result = new URL(value);
+  if ((result.protocol !== 'postgresql:' && result.protocol !== 'postgres:') ||
+      !result.hostname ||
+      result.hash) {
+    throw new Error('dialog recovery database URL is invalid');
+  }
+  return result.toString();
 }
 
 function parseFaultDomains(value: string): Record<string, string> {
@@ -366,6 +518,15 @@ function host(value: string): string {
   const result = value.trim();
   if (!/^(?:[A-Za-z0-9][A-Za-z0-9.-]{0,252}|::1)$/.test(result)) {
     throw new Error('IVEKIT_DIALOG_SHADOW_HOST is invalid');
+  }
+  return result;
+}
+
+function trustDomain(value: unknown): string {
+  const result = String(value || '').trim();
+  if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/.test(result) ||
+      result.includes('..')) {
+    throw new Error('IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN is invalid');
   }
   return result;
 }

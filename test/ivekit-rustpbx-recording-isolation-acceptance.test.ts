@@ -65,7 +65,7 @@ test('RustPBX recording isolation runtime plan fails closed on mutable inputs', 
     IVEKIT_RUSTPBX_RECORDING_ISOLATION_DIR: '/tmp/ivekit-recording-isolation',
     IVEKIT_RUSTPBX_RECORDING_ISOLATION_COMPOSE_FILE: '/tmp/docker-compose.yml',
     IVEKIT_RUSTPBX_RECORDING_ISOLATION_IMAGE:
-      'ivekit/rustpbx:0.4.11-ivekit.26-6c49ee76',
+      'ivekit/rustpbx:0.4.11-ivekit.27-6c49ee76',
     IVEKIT_RUSTPBX_RECORDING_ISOLATION_POSTGRES_IMAGE:
       'postgres@sha256:' + 'a'.repeat(64),
     IVEKIT_RUSTPBX_RECORDING_ISOLATION_NODE_IMAGE:

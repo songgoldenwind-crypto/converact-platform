@@ -20,6 +20,7 @@
     "src/ivekit-component-node-admission.ts",
     "src/ivekit-placement-snapshot-projector.ts",
     "src/ivekit-rustpbx-recovery.ts",
+    "src/ivekit-dialog-shadow-agent.ts",
     "src/ivekit-voice-preflight.ts",
     "src/agent-runtime/ivekit/voice/index.ts",
     "src/agent-runtime/ivekit/ivr/index.ts",
@@ -130,6 +131,7 @@
     "093_ivekit_cell_admission_rls.sql",
     "094_ivekit_voice_extension_sessions.sql",
     "095_rustdesk_authorization_claims.sql",
-    "101_ivekit_migration_readiness.sql"
+    "101_ivekit_migration_readiness.sql",
+    "102_ivekit_voice_dialog_takeovers.sql"
   ]
 }

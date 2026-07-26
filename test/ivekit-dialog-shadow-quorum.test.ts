@@ -6,9 +6,11 @@ import {
   DialogShadowQuorum,
   assertDialogShadowRecord,
   assertDialogShadowStreamEvidence,
+  dialogShadowPairHash,
   dialogShadowRecordHash,
   type DialogShadowJournalPort,
   type DialogShadowRecord,
+  type DialogShadowPairReplicaAck,
   type DialogShadowReplicaAck,
   type DialogShadowReplicationBus
 } from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
@@ -61,6 +63,15 @@ class MemoryJournal implements DialogShadowJournalPort {
       record_hash: dialogShadowRecordHash(value)
     };
   }
+
+  async appendPair(values: readonly [DialogShadowRecord, DialogShadowRecord]) {
+    this.records.push(...structuredClone(values));
+    return {
+      status: 'committed' as const,
+      pair_hash: dialogShadowPairHash(values),
+      record_hashes: values.map(dialogShadowRecordHash).sort()
+    };
+  }
 }
 
 class FailingJournal extends MemoryJournal {
@@ -79,15 +90,58 @@ class MemoryBus implements DialogShadowReplicationBus {
     ready: true
   }];
   calls = 0;
+  pairAcks: DialogShadowPairReplicaAck[] = [];
+  pairCalls = 0;
 
   async replicate(): Promise<DialogShadowReplicaAck[]> {
     this.calls += 1;
     return structuredClone(this.acks);
   }
 
+  async replicatePair(): Promise<DialogShadowPairReplicaAck[]> {
+    this.pairCalls += 1;
+    return structuredClone(this.pairAcks);
+  }
+
   async replicaHealth() {
     return structuredClone(this.health);
   }
+}
+
+function recoveryPair(): [DialogShadowRecord, DialogShadowRecord] {
+  const capsule = {
+    schema_version: 1 as const,
+    algorithm: 'A256GCM' as const,
+    key_id: 'recovery-2026-07',
+    nonce: Buffer.alloc(12, 0x11).toString('base64url'),
+    ciphertext: Buffer.from('opaque').toString('base64url'),
+    auth_tag: Buffer.alloc(16, 0x22).toString('base64url')
+  };
+  return ['dialog-caller', 'dialog-callee'].map((dialogId) => record({
+    schema_version: 2,
+    dialog_id: dialogId,
+    provider_session_ref: 'call-session-a',
+    recovery_capsule: capsule,
+    takeover_id: 'dto-takeover-a'
+  })) as [DialogShadowRecord, DialogShadowRecord];
+}
+
+function remotePairAck(
+  pair: [DialogShadowRecord, DialogShadowRecord]
+): DialogShadowPairReplicaAck {
+  return {
+    schema_version: 1,
+    cell_id: 'cell-a',
+    dialog_ids: pair.map((item) => item.dialog_id).sort() as [string, string],
+    owner_epoch: pair[0].owner_epoch,
+    sequence: pair[0].sequence,
+    pair_hash: dialogShadowPairHash(pair),
+    record_hashes: pair.map(dialogShadowRecordHash).sort() as [string, string],
+    node_id: 'rustpbx-b',
+    fault_domain: 'zone-b-rack-1',
+    durable: true,
+    acknowledged_at: '2026-07-26T00:00:01.010Z'
+  };
 }
 
 function quorum(journal = new MemoryJournal(), bus = new MemoryBus()) {
@@ -137,6 +191,26 @@ test('T1 commit requires matching durable ACKs from two fault domains', async ()
     'zone-b-rack-1'
   ]);
   assert.equal(proof.record_hash, dialogShadowRecordHash(value));
+});
+
+test('T1 recovery pair reaches quorum through one atomic local and remote append', async () => {
+  const pair = recoveryPair();
+  const { coordinator, journal, bus } = quorum();
+  bus.pairAcks = [remotePairAck(pair)];
+
+  const proof = await coordinator.commitPair('VOICE-HA-T1', pair);
+
+  assert.equal(journal.records.length, 2);
+  assert.equal(bus.calls, 0);
+  assert.equal(bus.pairCalls, 1);
+  assert.deepEqual(proof, {
+    status: 'committed',
+    pair_hash: dialogShadowPairHash(pair),
+    record_hashes: pair.map(dialogShadowRecordHash).sort(),
+    fault_domains: ['zone-a-rack-1', 'zone-b-rack-1'],
+    owner_epoch: 7,
+    sequence: 1
+  });
 });
 
 test('T1 commit rejects duplicate-domain, stale and mismatched ACKs', async () => {

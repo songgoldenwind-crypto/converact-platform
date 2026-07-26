@@ -266,7 +266,9 @@ const STANDALONE_MIGRATIONS = [
   '092_ivekit_capacity_platform_campaigns.sql',
   '093_ivekit_cell_admission_rls.sql',
   '094_ivekit_voice_extension_sessions.sql',
-  '095_rustdesk_authorization_claims.sql'
+  '095_rustdesk_authorization_claims.sql',
+  '101_ivekit_migration_readiness.sql',
+  '102_ivekit_voice_dialog_takeovers.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [

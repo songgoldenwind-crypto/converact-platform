@@ -90,6 +90,8 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('093_ivekit_cell_admission_rls.sql'), true);
   assert.equal(migrations.includes('094_ivekit_voice_extension_sessions.sql'), true);
   assert.equal(migrations.includes('095_rustdesk_authorization_claims.sql'), true);
+  assert.equal(migrations.includes('101_ivekit_migration_readiness.sql'), true);
+  assert.equal(migrations.includes('102_ivekit_voice_dialog_takeovers.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -196,10 +198,12 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('094_ivekit_voice_extension_sessions.sql') <
       migrations.indexOf('095_rustdesk_authorization_claims.sql') &&
       migrations.indexOf('095_rustdesk_authorization_claims.sql') <
-      migrations.indexOf('101_ivekit_migration_readiness.sql'),
+      migrations.indexOf('101_ivekit_migration_readiness.sql') &&
+      migrations.indexOf('101_ivekit_migration_readiness.sql') <
+      migrations.indexOf('102_ivekit_voice_dialog_takeovers.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '101_ivekit_migration_readiness.sql');
+  assert.equal(migrations.at(-1), '102_ivekit_voice_dialog_takeovers.sql');
   const runtimeSecurity = readFileSync(
     'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'

@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 47,
+  "revision": 49,
   "status": "proposed",
-  "generated_at": "2026-07-26T20:28:40+08:00",
+  "generated_at": "2026-07-27T04:07:18+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.26-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.27-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.26-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.27-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -180,6 +180,12 @@
           "sha256": "589ac55dfec9865996acc142f4a76aaf7fea7e7f341663c71425eecdb6cde4e6",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-lifecycle.patch",
           "purpose": "Commit bounded PII-minimized per-leg dialog recovery state through the cell-local mTLS shadow service before visible T1 18x, 200 and successful in-dialog responses, with exact replay after uncertain transport outcomes and ordinary-profile isolation."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
+          "sha256": "038fd5c02c35221c7d32409342f2fcab0d563906b3cab305e62de9802f8a9a17",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-shadow.patch",
+          "purpose": "Authenticate reciprocal two-leg recovery capsules, claim and consume one-time owner takeover, atomically publish the new owner epoch, restore RTPengine media state, and run a recovered B2BUA controller for in-dialog signaling, SDP renegotiation and bounded terminal cleanup."
         }
       ],
       "protocols": [
@@ -503,6 +509,24 @@
           ]
         },
         {
+          "change_id": "rustpbx-dialog-owner-takeover-v1",
+          "summary": "Recover both confirmed B2BUA legs and the RTPengine reservation under one fenced owner epoch, then continue in-dialog signaling through one serialized controller.",
+          "capacity_dimensions": [
+            "sip.active_dialogs",
+            "sip.transactions_per_second",
+            "voice.concurrent_calls",
+            "voice.rtp_legs"
+          ],
+          "acceptance_evidence": [
+            "AES-256-GCM recovery capsules authenticate tenant, Cell, dialog, owner epoch and sequence while preserving the original interaction identity and reciprocal caller/callee relationship.",
+            "The new owner commits both legs as one hash-bound pair before consuming the one-time takeover token; uncertain consume outcomes are resolved only through the authoritative owner endpoint.",
+            "The recovered controller relays INFO, OPTIONS, NOTIFY, REFER, MESSAGE and PUBLISH, performs bidirectional re-INVITE/UPDATE through the restored RTPengine lifecycle, advances both snapshots atomically, and bounds BYE/media/owner cleanup.",
+            "Nineteen Rust recovery contract tests, four recovered-media takeover tests and the complete 247-test rsipstack library suite pass on clean fixed-source clones with Rust 1.94.1 after replaying the exact ivekit.27 queue and locked library compilation.",
+            "The standalone 402-file source context installs, compiles and verifies the packaged dialog-shadow executable; Compose and Helm static contracts require node-local mTLS, persistent WAL and fail-closed T1 activation without coupling ordinary voice to PostgreSQL or NATS.",
+            "Physical multi-node failover, real RTP continuity, three-node JetStream fault-domain loss and takeover RTO remain not_run."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -583,6 +607,7 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -592,6 +617,7 @@
           "test/ivekit-rustpbx-media-control-client-patch.test.ts",
           "test/ivekit-rustpbx-media-lifecycle-patch.test.ts",
           "test/ivekit-rustpbx-media-mid-dialog-patch.test.ts",
+          "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
           "test/ivekit-media-control-events.test.ts",
           "src/agent-runtime/ivekit/media-control/events.ts",
           "scripts/ivekit-media-control-agent.ts",
@@ -619,7 +645,7 @@
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-26T17:59:50+08:00"
+        "checked_at": "2026-07-27T04:07:18+08:00"
       },
       "release_gate": {
         "production_eligible": false,
@@ -681,6 +707,12 @@
           "sha256": "17c770a3948128d1afb1fcf99af871aa543bf93178e31008b6bb053052a732a9",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-capacity.patch",
           "purpose": "Publish the bounded finished transaction response before releasing the active transaction key so an in-flight retransmission cannot be admitted as duplicate Router and CDR work."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
+          "sha256": "eb087e1762ecc2edce5cba3d94865a444a41c95fa1fcbbc70362d6dbf155cc66",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-retransmission-atomicity.patch",
+          "purpose": "Keep handled in-dialog request events from replacing confirmed dialog authority and expose a uniform immutable snapshot for restored B2BUA persistence."
         }
       ],
       "implemented_changes": [
@@ -724,6 +756,20 @@
             "A two-worker Rust regression sends a duplicate request concurrently with final response publication and rejects a second server transaction.",
             "The ivekit.16 Linux image compiled and passed the strict 1,400-CPS signaling repeat with zero retransmissions; the controlled ivekit.15 1,500-CPS boundary did not pass and no higher capacity is claimed."
           ]
+        },
+        {
+          "change_id": "rsipstack-dialog-recovery-state-v1",
+          "summary": "Preserve confirmed dialog authority while publishing in-dialog transaction events and expose one snapshot API across restored dialog variants.",
+          "capacity_dimensions": [
+            "sip.active_dialogs",
+            "sip.transactions_per_second"
+          ],
+          "acceptance_evidence": [
+            "INFO, UPDATE, OPTIONS, NOTIFY, REFER, MESSAGE and PUBLISH publish their transaction handles without replacing the confirmed durable state.",
+            "The dialog wrapper exports the role, tags, route set, contacts and local/remote CSeq needed by the RustPBX recovery capsule.",
+            "Successful INVITE and UPDATE responses refresh the remote target from one Contact before the next in-dialog request is created.",
+            "The complete 247-test rsipstack library suite passes after clean exact-source replay of the ivekit.27 patch queue."
+          ]
         }
       ],
       "planned_changes": [],
@@ -740,11 +786,13 @@
           "infra/ivekit/rustpbx/patches/rsipstack-tcp-reconnect.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
+          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
+          "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-22T04:46:10+08:00"
+        "checked_at": "2026-07-27T04:07:18+08:00"
       },
       "release_gate": {
         "production_eligible": false,

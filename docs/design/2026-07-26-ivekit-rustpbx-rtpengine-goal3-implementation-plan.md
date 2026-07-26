@@ -406,24 +406,73 @@ Task 7 evidence:
 
 ### Task 8：Owner takeover 与 Kamailio epoch routing
 
+**状态：** 代码与本地精确补丁回放完成；真实双 RustPBX 故障域、三节点
+JetStream、RTP 连续性和不超过 5 秒的 takeover RTO 仍由 Task 11 服务器验收，
+当前保持 `not_run`。
+
 **文件：**
 
-- 修改 Goal 3 dialog shadow patch
-- 修改 `infra/ivekit/kamailio/kamailio.cfg`
-- 修改 `infra/ivekit/kamailio/scripts/render-dispatcher-snapshot.ts`
-- 新建 `test/ivekit-rustpbx-owner-takeover-patch.test.ts`
+- 新建 `infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch`
+- 新建 `infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch`
+- 新建 `src/agent-runtime/ivekit/voice/dialog-recovery-capsule.ts`
+- 新建 `src/agent-runtime/ivekit/voice/dialog-owner-takeover.ts`
+- 新建 `src/agent-runtime/ivekit/voice/postgres/dialog-owner-takeover-store.ts`
+- 新建 `src/migrations/102_ivekit_voice_dialog_takeovers.sql`
+- 修改 dialog shadow HTTP、JetStream、WAL、runtime、server 和 Kamailio route compiler
+- 新建独立 dialog-shadow agent 入口，修改源/独立 Compose 及独立 Helm RustPBX
+  StatefulSet，使 T1 恢复 sidecar 与 owner node-local 共置
+- 新建 owner takeover、recovery capsule、PostgreSQL、HTTP 和精确补丁测试
 - 新建 `test/ivekit-kamailio-dialog-recovery-routing.test.ts`
+- 新建 `test/ivekit-dialog-recovery-deployment.test.ts`
 
-- [ ] 新 owner 通过 CAS 获得更高 owner epoch 和一次性 takeover token。
-- [ ] 只有 shadow complete 且未终结的 T1 dialog 可自动 takeover。
-- [ ] 恢复 local/remote tag、route set、CSeq、media reservation 和 CDR sequence。
-- [ ] 新 epoch 第一条 RTPengine mutation sequence 为 1。
-- [ ] Kamailio 在 recovery window 内将离线 pinned owner 路由到 epoch coordinator；
+- [x] 新 owner 通过 CAS 获得更高 owner epoch 和一次性 takeover token。
+- [x] 只有 shadow complete 且未终结的 T1 dialog 可自动 takeover。
+- [x] 恢复 local/remote tag、route set、CSeq、media reservation 和 CDR sequence。
+- [x] 新 epoch 第一条 RTPengine mutation sequence 为 1。
+- [x] Kamailio 在 recovery window 内将离线 pinned owner 路由到 epoch coordinator；
       只有确认 dialog 不存在或已终结才返回 481。
-- [ ] stale owner 的 in-dialog mutation 必须被 RustPBX 和 RTPengine 双重拒绝。
-- [ ] takeover 失败不停止既有 RTP；端点可支持时走 re-INVITE recovery。
-- [ ] 自动验收 RTO、重复副作用、CSeq 单调性和最终 BYE。
-- [ ] 提交：`feat(voice): recover T1 dialog ownership`。
+- [x] stale owner 的 in-dialog mutation 被 RustPBX authority 和 RTPengine owner fence
+      双重拒绝。
+- [x] takeover 失败不删除既有 RTP reservation；成功恢复后通过 re-INVITE/UPDATE
+      继续媒体协商。
+- [x] 正常会话清理把两腿作为一个可恢复终态提交；重复清理无副作用，终态仍保留加密
+      recovery capsule。
+- [x] 恢复控制器使用 64 项有界队列，终态入队最多等待 100 ms；authority outcome
+      unknown 或 reconcile required 时冻结，不继续猜测性 mutation。
+- [x] 成功 INVITE/UPDATE 响应的唯一 Contact 刷新 rsipstack remote target，下一条
+      in-dialog 请求使用新 Request-URI。
+- [x] T1 部署通过 node-local sidecar、mTLS、每 Pod SPIFFE client identity、持久 WAL、
+      PostgreSQL CAS 和三节点 JetStream fail closed；普通 profile 默认不启用且不依赖
+      NATS/PostgreSQL。
+- [x] `voice-t1` 是依赖闭合的完整双 owner Compose profile；Helm `0440 + fsGroup`
+      projected secret 可由 RustPBX 安全读取，组写/执行、world 权限和越界 symlink
+      均 fail closed。
+- [x] 本地自动化覆盖 token 重放、重复副作用、双腿 CSeq/sequence 单调性、恢复后的
+      in-dialog 请求和有界最终 BYE。
+- [ ] 真实故障注入下自动验收 takeover RTO P50/P95/P99；由 Task 11/12 完成。
+- [x] 提交：`feat(voice): recover T1 dialog ownership`。
+
+Task 8 evidence:
+
+- `npm run typecheck` 通过。
+- `npm run test:ivekit:voice-media-goal3` 已将 Task 8 的恢复、Kamailio 与部署合同纳入
+  正式门禁，`130/130` 通过；31 个改动相关测试文件 `181/181` 通过。
+- `npm run test:ivekit:capacity` 为 `336/336`，`npm run test:ivekit:delivery` 为
+  `58/58`，根目录和容量 runtime TypeScript 类型检查通过。
+- 独立交付上下文解析 402 个源码文件，完成 `npm ci`、TypeScript build，并验证
+  `dist/ivekit-dialog-shadow-agent.js` 等 17 个必需入口真实生成。
+- 从固定 RustPBX、rsipstack、rustrtc commit 依次重放构建脚本中的全部 28 个补丁后，
+  `cargo check --locked --lib` 通过。
+- Rust 1.94.1 干净重放源码下，19 项 dialog recovery 合同、3 项 recovered media
+  takeover、1 项 unresolved takeover 冻结测试及 rsipstack 全部 `247/247` library
+  测试通过。
+- `.github/workflows/ivekit-rustpbx-image.yml`、构建脚本、三套环境样例和 fork manifest
+  已原子推进到 `ivekit.27`；该 tag 尚无不可变 registry digest、SBOM、签名或 provenance。
+- Compose 和 Helm 静态部署合同通过，包括 `voice-t1` 依赖闭包、Kubernetes
+  atomic-writer symlink 及共享密钥权限合同；本机没有 Helm CLI，因此真实 chart
+  render、Kubernetes sidecar 启动及每 Pod CSI SPIFFE 证书挂载仍保持 `not_run`。
+- 真实多节点 SIP/RTP、JetStream 故障域、owner crash、RTP 连续性及 5 秒 RTO
+  均保持 `not_run`，不会由本地合同测试推导为 `functional_pass`。
 
 ### Task 9：双腿 CDR 和 durable convergence
 

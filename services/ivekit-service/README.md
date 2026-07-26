@@ -71,13 +71,16 @@ HTTP/database lookup. Configure a tenant ID, profile ID, a distinct 32-byte
 base64 snapshot signing key, and the same voice-address HMAC root used by the
 iveKit API.
 
-Both Compose Voice profiles put Kamailio in front of RustPBX and enable
+All Compose Voice profiles put Kamailio in front of RustPBX and enable
 owner-epoch enforcement. `--profile voice` starts one RustPBX owner while the
 predeclared second destination remains unavailable; `--profile voice-capacity`
 starts two owners with separate RTP ranges, storage, recording spool state and
-component-node sidecars. RustPBX never publishes SIP 5060 on the host. Only
-Kamailio publishes UDP/TCP 5060, TLS 5061 and WSS 7443; route-agent metrics are
-bound to host loopback. Neither profile is HA because Compose has one Edge.
+component-node sidecars. The self-contained `--profile voice-t1` starts that
+complete two-owner stack plus both node-local durable dialog-shadow sidecars;
+its local dependency graph does not require another profile. RustPBX never
+publishes SIP 5060 on the host. Only Kamailio publishes UDP/TCP 5060, TLS 5061
+and WSS 7443; route-agent metrics are bound to host loopback. Compose still has
+one Edge, so `voice-t1` exercises owner recovery but does not claim Zone HA.
 
 Configure the exact Region, Zone, Cell epoch, profile, two stable owner IDs,
 advertised SIP/WSS host and explicit trusted source CIDRs from `env.example`.

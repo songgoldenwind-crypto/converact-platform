@@ -9,10 +9,13 @@ import {
 import path from 'node:path';
 
 import {
+  assertDialogShadowPair,
   assertDialogShadowRecord,
+  dialogShadowPairHash,
   dialogShadowRecordHash,
   type DialogShadowJournalAppendResult,
   type DialogShadowJournalPort,
+  type DialogShadowPairAppendResult,
   type DialogShadowRecord
 } from './dialog-shadow.js';
 
@@ -22,7 +25,19 @@ const HEADER_BYTES = 16;
 const DEFAULT_MAX_RECORDS = 1_000_000;
 const DEFAULT_MAX_BYTES = 256 * 1024 * 1024;
 const DEFAULT_MAX_RECORD_BYTES = 32 * 1024;
+const PAIR_FRAME_OVERHEAD_BYTES = 4 * 1024;
 const CRC_TABLE = crcTable();
+
+interface DialogShadowPairFrame {
+  frame_type: 'dialog_shadow_pair';
+  schema_version: 1;
+  pair_hash: string;
+  records: [DialogShadowRecord, DialogShadowRecord];
+}
+
+type DialogShadowPersistedFrame =
+  | { frame_type: 'dialog_shadow_record'; record: DialogShadowRecord }
+  | DialogShadowPairFrame;
 
 export interface DialogShadowJournalOptions {
   path: string;
@@ -37,8 +52,10 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
   readonly #maxRecords: number;
   readonly #maxBytes: number;
   readonly #maxRecordBytes: number;
+  readonly #maxFrameBytes: number;
   #handle: FileHandle | null;
   #records: DialogShadowRecord[];
+  #frames: DialogShadowPersistedFrame[];
   #bytes: number;
   #tail: Promise<void> = Promise.resolve();
   #closeRequested = false;
@@ -47,19 +64,23 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
     path: string;
     handle: FileHandle;
     records: DialogShadowRecord[];
+    frames: DialogShadowPersistedFrame[];
     bytes: number;
     maxRecords: number;
     maxBytes: number;
     maxRecordBytes: number;
+    maxFrameBytes: number;
   }) {
     this.#path = input.path;
     this.#directory = path.dirname(input.path);
     this.#handle = input.handle;
     this.#records = input.records;
+    this.#frames = input.frames;
     this.#bytes = input.bytes;
     this.#maxRecords = input.maxRecords;
     this.#maxBytes = input.maxBytes;
     this.#maxRecordBytes = input.maxRecordBytes;
+    this.#maxFrameBytes = input.maxFrameBytes;
   }
 
   static async open(
@@ -84,6 +105,10 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
       Math.min(maxBytes - HEADER_BYTES, 1024 * 1024),
       'maxRecordBytes'
     );
+    const maxFrameBytes = Math.min(
+      maxBytes - HEADER_BYTES,
+      maxRecordBytes * 2 + PAIR_FRAME_OVERHEAD_BYTES
+    );
     const existed = await pathExists(journalPath);
     const handle = await open(
       journalPath,
@@ -104,7 +129,12 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
       if (stat.size > maxBytes) throw capacity();
       const bytes = Buffer.allocUnsafe(stat.size);
       if (stat.size > 0) await readAll(handle, bytes);
-      const decoded = decodeFrames(bytes, maxRecordBytes, maxRecords);
+      const decoded = decodeFrames(
+        bytes,
+        maxRecordBytes,
+        maxFrameBytes,
+        maxRecords
+      );
       if (decoded.bytesRead < stat.size) {
         await handle.truncate(decoded.bytesRead);
         await handle.sync();
@@ -113,10 +143,12 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
         path: journalPath,
         handle,
         records: decoded.records,
+        frames: decoded.frames,
         bytes: decoded.bytesRead,
         maxRecords,
         maxBytes,
-        maxRecordBytes
+        maxRecordBytes,
+        maxFrameBytes
       });
     } catch (error) {
       await handle.close().catch(() => {});
@@ -150,13 +182,148 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
         throw projectError(error, 'dialog_shadow_append_failed');
       }
       this.#records.push(record);
+      this.#frames.push({
+        frame_type: 'dialog_shadow_record',
+        record
+      });
       this.#bytes += frame.byteLength;
       return { status: 'committed', record_hash: hash };
     });
   }
 
+  appendPair(
+    values: readonly [DialogShadowRecord, DialogShadowRecord]
+  ): Promise<DialogShadowPairAppendResult> {
+    return this.#enqueue(async () => {
+      const records = assertDialogShadowPair(values);
+      const pairHash = dialogShadowPairHash(records);
+      const recordHashes = records.map(dialogShadowRecordHash).sort();
+      const transitions = validatePairTransitions(this.#records, records);
+      if (transitions.every((transition) => transition === 'replayed') &&
+          this.#frames.some((frame) =>
+            frame.frame_type === 'dialog_shadow_pair' &&
+            frame.pair_hash === pairHash
+          )) {
+        return {
+          status: 'replayed',
+          pair_hash: pairHash,
+          record_hashes: recordHashes
+        };
+      }
+      const frame = encodePairFrame(
+        {
+          frame_type: 'dialog_shadow_pair',
+          schema_version: 1,
+          pair_hash: pairHash,
+          records
+        },
+        this.#maxRecordBytes,
+        this.#maxFrameBytes
+      );
+      const appendCount = transitions.filter(
+        (transition) => transition === 'append'
+      ).length;
+      if (this.#records.length + appendCount > this.#maxRecords ||
+          this.#bytes + frame.byteLength > this.#maxBytes) {
+        throw capacity();
+      }
+      const handle = this.#requiredHandle();
+      const previousBytes = this.#bytes;
+      try {
+        await writeAll(handle, frame, previousBytes);
+        await handle.sync();
+      } catch (error) {
+        await handle.truncate(previousBytes).catch(() => {});
+        await handle.sync().catch(() => {});
+        throw projectError(error, 'dialog_shadow_pair_append_failed');
+      }
+      for (const [index, transition] of transitions.entries()) {
+        if (transition === 'append') this.#records.push(records[index]!);
+      }
+      this.#frames.push({
+        frame_type: 'dialog_shadow_pair',
+        schema_version: 1,
+        pair_hash: pairHash,
+        records
+      });
+      this.#bytes += frame.byteLength;
+      return {
+        status: 'committed',
+        pair_hash: pairHash,
+        record_hashes: recordHashes
+      };
+    });
+  }
+
   replay(): Promise<DialogShadowRecord[]> {
     return this.#enqueue(async () => structuredClone(this.#records));
+  }
+
+  latestRecoveryPair(input: {
+    tenant_id: string;
+    cell_id: string;
+    call_session_ref: string;
+    owner_node_id?: string;
+    owner_epoch?: number;
+    takeover_id?: string;
+  }): Promise<DialogShadowRecord[]> {
+    const tenantId = journalIdentifier(input.tenant_id);
+    const cellId = journalIdentifier(input.cell_id);
+    const callSessionRef = journalIdentifier(input.call_session_ref);
+    const ownerNodeId = input.owner_node_id === undefined
+      ? undefined
+      : journalIdentifier(input.owner_node_id);
+    const ownerEpoch = input.owner_epoch === undefined
+      ? undefined
+      : boundedInteger(input.owner_epoch, 1, 0xffff_ffff, 'ownerEpoch');
+    const takeoverId = input.takeover_id === undefined
+      ? undefined
+      : journalIdentifier(input.takeover_id);
+    return this.#enqueue(async () => {
+      return structuredClone(latestRecoveryFrame(
+        this.#frames,
+        tenantId,
+        cellId,
+        callSessionRef,
+        { owner_node_id: ownerNodeId, owner_epoch: ownerEpoch, takeover_id: takeoverId }
+      ));
+    });
+  }
+
+  resolveRecoveryPair(input: {
+    tenant_id: string;
+    cell_id: string;
+    dialog_id: string;
+  }): Promise<{
+    call_session_ref: string;
+    records: DialogShadowRecord[];
+  } | null> {
+    const tenantId = journalIdentifier(input.tenant_id);
+    const cellId = journalIdentifier(input.cell_id);
+    const dialogId = journalIdentifier(input.dialog_id);
+    return this.#enqueue(async () => {
+      const matched = [...this.#frames].reverse()
+        .filter(isPersistedPairFrame)
+        .flatMap((frame) => frame.records)
+        .find((record) =>
+          record.schema_version === 2 &&
+          record.tenant_id === tenantId &&
+          record.cell_id === cellId &&
+          record.dialog_id === dialogId &&
+          record.provider_session_ref !== null
+        );
+      if (!matched?.provider_session_ref) return null;
+      const latest = latestRecoveryFrame(
+        this.#frames,
+        tenantId,
+        cellId,
+        matched.provider_session_ref
+      );
+      return {
+        call_session_ref: matched.provider_session_ref,
+        records: structuredClone(latest)
+      };
+    });
   }
 
   compact(): Promise<{
@@ -168,15 +335,35 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
       for (const record of this.#records) {
         latest.set(dialogKey(record), record);
       }
-      const retained = [...latest.values()].sort(compareRecords);
-      if (retained.length === this.#records.length) {
+      const latestHashes = new Map(
+        [...latest.entries()].map(([key, record]) => [
+          key,
+          dialogShadowRecordHash(record)
+        ])
+      );
+      const retainedFrames = this.#frames.filter((frame) =>
+        frameRecords(frame).some((record) =>
+          latestHashes.get(dialogKey(record)) === dialogShadowRecordHash(record)
+        )
+      );
+      const retained = retainedFrames.flatMap(frameRecords)
+        .filter((record, index, records) =>
+          records.findIndex((candidate) =>
+            dialogKey(candidate) === dialogKey(record) &&
+            dialogShadowRecordHash(candidate) === dialogShadowRecordHash(record)
+          ) === index
+        )
+        .sort(compareRecords);
+      if (retainedFrames.length === this.#frames.length) {
         return {
           removed_records: 0,
           retained_records: retained.length
         };
       }
-      const frames = retained.map(
-        (record) => encodeFrame(record, this.#maxRecordBytes)
+      const frames = retainedFrames.map(
+        (frame) => frame.frame_type === 'dialog_shadow_pair'
+          ? encodePairFrame(frame, this.#maxRecordBytes, this.#maxFrameBytes)
+          : encodeFrame(frame.record, this.#maxRecordBytes)
       );
       const bytes = frames.reduce((total, frame) => total + frame.byteLength, 0);
       if (retained.length > this.#maxRecords || bytes > this.#maxBytes) {
@@ -185,6 +372,7 @@ export class DialogShadowJournal implements DialogShadowJournalPort {
       await this.#replace(frames);
       const removed = this.#records.length - retained.length;
       this.#records = retained;
+      this.#frames = retainedFrames;
       this.#bytes = bytes;
       return {
         removed_records: removed,
@@ -327,6 +515,63 @@ function validateTransition(
   return 'append';
 }
 
+function journalIdentifier(value: unknown): string {
+  const result = String(value || '');
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(result)) {
+    throw new DialogShadowJournalError('dialog_shadow_recovery_query_invalid');
+  }
+  return result;
+}
+
+function latestRecoveryFrame(
+  frames: DialogShadowPersistedFrame[],
+  tenantId: string,
+  cellId: string,
+  callSessionRef: string,
+  filter: {
+    owner_node_id?: string;
+    owner_epoch?: number;
+    takeover_id?: string;
+  } = {}
+): DialogShadowRecord[] {
+  const eligible = frames.filter(isPersistedPairFrame).filter((frame) =>
+    frame.records.every((record) =>
+      record.schema_version === 2 &&
+      record.tenant_id === tenantId &&
+      record.cell_id === cellId &&
+      record.provider_session_ref === callSessionRef &&
+      (filter.owner_node_id === undefined ||
+       record.owner_node_id === filter.owner_node_id) &&
+      (filter.owner_epoch === undefined ||
+       record.owner_epoch === filter.owner_epoch) &&
+      (filter.takeover_id === undefined ||
+       record.takeover_id === filter.takeover_id)
+    )
+  );
+  const latest = eligible.sort((left, right) =>
+    left.records[0].owner_epoch - right.records[0].owner_epoch ||
+    left.records[0].sequence - right.records[0].sequence ||
+    left.pair_hash.localeCompare(right.pair_hash)
+  ).at(-1);
+  return latest
+    ? [...latest.records].sort(
+      (left, right) => left.dialog_id.localeCompare(right.dialog_id)
+    )
+    : [];
+}
+
+function isPersistedPairFrame(
+  frame: DialogShadowPersistedFrame
+): frame is DialogShadowPairFrame {
+  return frame.frame_type === 'dialog_shadow_pair';
+}
+
+function frameRecords(frame: DialogShadowPersistedFrame): DialogShadowRecord[] {
+  return frame.frame_type === 'dialog_shadow_pair'
+    ? [...frame.records]
+    : [frame.record];
+}
+
 function encodeFrame(
   value: DialogShadowRecord,
   maxRecordBytes: number
@@ -345,12 +590,60 @@ function encodeFrame(
   return frame;
 }
 
+function encodePairFrame(
+  value: DialogShadowPairFrame,
+  maxRecordBytes: number,
+  maxFrameBytes: number
+): Buffer {
+  const records = assertDialogShadowPair(value.records);
+  const pairHash = dialogShadowPairHash(records);
+  if (value.schema_version !== 1 ||
+      value.frame_type !== 'dialog_shadow_pair' ||
+      value.pair_hash !== pairHash ||
+      records.some((record) =>
+        Buffer.byteLength(JSON.stringify(record), 'utf8') > maxRecordBytes
+      )) {
+    throw new DialogShadowJournalError('dialog_shadow_pair_frame_invalid');
+  }
+  return encodeRawFrame({
+    frame_type: 'dialog_shadow_pair',
+    schema_version: 1,
+    pair_hash: pairHash,
+    records
+  }, maxFrameBytes, 'dialog_shadow_pair_too_large');
+}
+
+function encodeRawFrame(
+  value: unknown,
+  maximumBytes: number,
+  tooLargeCode: string
+): Buffer {
+  const payload = Buffer.from(JSON.stringify(value), 'utf8');
+  if (payload.byteLength > maximumBytes) {
+    throw new DialogShadowJournalError(tooLargeCode);
+  }
+  const frame = Buffer.allocUnsafe(HEADER_BYTES + payload.byteLength);
+  MAGIC.copy(frame, 0);
+  frame.writeUInt16BE(VERSION, 4);
+  frame.writeUInt16BE(0, 6);
+  frame.writeUInt32BE(payload.byteLength, 8);
+  frame.writeUInt32BE(crc32(payload), 12);
+  payload.copy(frame, HEADER_BYTES);
+  return frame;
+}
+
 function decodeFrames(
   bytes: Buffer,
   maxRecordBytes: number,
+  maxFrameBytes: number,
   maxRecords: number
-): { records: DialogShadowRecord[]; bytesRead: number } {
+): {
+  records: DialogShadowRecord[];
+  frames: DialogShadowPersistedFrame[];
+  bytesRead: number;
+} {
   const records: DialogShadowRecord[] = [];
+  const frames: DialogShadowPersistedFrame[] = [];
   let offset = 0;
   while (offset < bytes.byteLength) {
     const remaining = bytes.byteLength - offset;
@@ -363,7 +656,7 @@ function decodeFrames(
     const payloadBytes = bytes.readUInt32BE(offset + 8);
     const checksum = bytes.readUInt32BE(offset + 12);
     if (version !== VERSION || flags !== 0 ||
-        payloadBytes === 0 || payloadBytes > maxRecordBytes) {
+        payloadBytes === 0 || payloadBytes > maxFrameBytes) {
       throw new DialogShadowJournalError('dialog_shadow_frame_invalid');
     }
     if (remaining < HEADER_BYTES + payloadBytes) break;
@@ -374,23 +667,94 @@ function decodeFrames(
     if (crc32(payload) !== checksum) {
       throw new DialogShadowJournalError('dialog_shadow_checksum_mismatch');
     }
-    let decoded: DialogShadowRecord;
+    let decoded: unknown;
     try {
-      decoded = assertDialogShadowRecord(
-        JSON.parse(payload.toString('utf8')) as DialogShadowRecord
-      );
+      decoded = JSON.parse(payload.toString('utf8'));
     } catch (error) {
       throw new DialogShadowJournalError(
         'dialog_shadow_record_invalid',
         { cause: error }
       );
     }
-    validateTransition(records, decoded, dialogShadowRecordHash(decoded));
-    records.push(decoded);
+    if (isPairFrame(decoded)) {
+      const pair = decodePairFrame(decoded, maxRecordBytes);
+      const transitions = validatePairTransitions(records, pair.records);
+      for (const [index, transition] of transitions.entries()) {
+        if (transition === 'append') records.push(pair.records[index]!);
+      }
+      frames.push(pair);
+    } else {
+      if (payloadBytes > maxRecordBytes) {
+        throw new DialogShadowJournalError('dialog_shadow_record_too_large');
+      }
+      const record = assertDialogShadowRecord(decoded as DialogShadowRecord);
+      const transition = validateTransition(
+        records,
+        record,
+        dialogShadowRecordHash(record)
+      );
+      if (transition === 'append') records.push(record);
+      frames.push({
+        frame_type: 'dialog_shadow_record',
+        record
+      });
+    }
     if (records.length > maxRecords) throw capacity();
     offset += HEADER_BYTES + payloadBytes;
   }
-  return { records, bytesRead: offset };
+  return { records, frames, bytesRead: offset };
+}
+
+function isPairFrame(value: unknown): value is DialogShadowPairFrame {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (value as Record<string, unknown>).frame_type === 'dialog_shadow_pair'
+  );
+}
+
+function decodePairFrame(
+  value: DialogShadowPairFrame,
+  maxRecordBytes: number
+): DialogShadowPairFrame {
+  const keys = Object.keys(value).sort();
+  const expected = ['frame_type', 'schema_version', 'pair_hash', 'records'].sort();
+  if (keys.length !== expected.length ||
+      keys.some((key, index) => key !== expected[index]) ||
+      value.schema_version !== 1 ||
+      !/^[a-f0-9]{64}$/.test(String(value.pair_hash || '')) ||
+      !Array.isArray(value.records) ||
+      value.records.length !== 2) {
+    throw new DialogShadowJournalError('dialog_shadow_pair_frame_invalid');
+  }
+  const records = assertDialogShadowPair(
+    value.records as [DialogShadowRecord, DialogShadowRecord]
+  );
+  if (records.some((record) =>
+    Buffer.byteLength(JSON.stringify(record), 'utf8') > maxRecordBytes
+  ) || dialogShadowPairHash(records) !== value.pair_hash) {
+    throw new DialogShadowJournalError('dialog_shadow_pair_frame_invalid');
+  }
+  return { ...value, records };
+}
+
+function validatePairTransitions(
+  existing: DialogShadowRecord[],
+  pair: readonly [DialogShadowRecord, DialogShadowRecord]
+): Array<'append' | 'replayed'> {
+  const projected = [...existing];
+  const transitions: Array<'append' | 'replayed'> = [];
+  for (const record of pair) {
+    const transition = validateTransition(
+      projected,
+      record,
+      dialogShadowRecordHash(record)
+    );
+    transitions.push(transition);
+    if (transition === 'append') projected.push(record);
+  }
+  return transitions;
 }
 
 function crc32(bytes: Uint8Array): number {

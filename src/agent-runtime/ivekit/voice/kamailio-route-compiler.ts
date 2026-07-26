@@ -6,6 +6,9 @@ import {
   validateKamailioRouteSnapshotBody
 } from './kamailio-route-snapshot.js';
 
+const RECOVERY_SET_OFFSET = 1_000_000_000;
+const MAX_BASE_SET_ID = 999_999_999;
+
 export interface KamailioRustPbxRouteSource {
   node_id: string;
   sip_uri: string;
@@ -89,6 +92,7 @@ export function renderKamailioDispatcherList(
   validateKamailioRouteSnapshotBody(body);
   const newCallLines: string[] = [];
   const pinLines: string[] = [];
+  const recoveryLines: string[] = [];
   const pools = [...body.pools].sort((left, right) => left.pool_id - right.pool_id);
   for (const pool of pools) {
     const nodes = [...pool.nodes].sort((left, right) => left.node_id.localeCompare(right.node_id));
@@ -117,10 +121,37 @@ export function renderKamailioDispatcherList(
           `node=${node.node_id}`
         ]
       }));
+      const recoverySetId = kamailioRecoverySetId(node.pin_set_id);
+      for (const candidate of nodes) {
+        if (candidate.node_id === node.node_id ||
+            !isEligibleForRecovery(candidate)) {
+          continue;
+        }
+        recoveryLines.push(dispatcherLine({
+          set_id: recoverySetId,
+          node: candidate,
+          flags: 8,
+          attrs: [
+            `duid=${candidate.node_id}-r${node.pin_set_id}`,
+            `recover_for=${node.pin_set_id}`,
+            `pinset=${candidate.pin_set_id}`,
+            `node=${candidate.node_id}`
+          ]
+        }));
+      }
     }
   }
-  const lines = [...newCallLines, ...pinLines];
+  const lines = [...newCallLines, ...pinLines, ...recoveryLines];
   return lines.length > 0 ? `${lines.join('\n')}\n` : '';
+}
+
+export function kamailioRecoverySetId(pinSetId: number): number {
+  if (!Number.isSafeInteger(pinSetId) ||
+      pinSetId < 1 ||
+      pinSetId > MAX_BASE_SET_ID) {
+    throw new Error('Kamailio pin set id cannot be mapped to a recovery set');
+  }
+  return RECOVERY_SET_OFFSET + pinSetId;
 }
 
 function projectNode(
@@ -200,6 +231,11 @@ function applyRelativeWeights(
 
 function isEligibleForNewCalls(node: KamailioRouteSnapshotNode): boolean {
   return (node.state === 'accepting' || node.state === 'degraded') && headroom(node) > 0;
+}
+
+function isEligibleForRecovery(node: KamailioRouteSnapshotNode): boolean {
+  return (node.state === 'accepting' || node.state === 'degraded') &&
+    headroom(node) > 0;
 }
 
 function headroom(node: KamailioRouteSnapshotNode): number {

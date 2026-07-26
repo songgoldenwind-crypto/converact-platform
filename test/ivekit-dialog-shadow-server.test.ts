@@ -10,6 +10,13 @@ import type {
 } from '../src/agent-runtime/ivekit/voice/dialog-shadow-http.js';
 
 const SERVICE_TOKEN = 'dialog-shadow-service-token-aa';
+const PEER = {
+  spiffe_id:
+    'spiffe://ivekit.internal/cells/cell-a/fault-domains/zone-a-rack-1/nodes/rustpbx-a',
+  cell_id: 'cell-a',
+  node_id: 'rustpbx-a',
+  fault_domain: 'zone-a-rack-1'
+};
 
 class Coordinator implements DialogShadowHttpCoordinator {
   async commit() {
@@ -21,12 +28,35 @@ class Coordinator implements DialogShadowHttpCoordinator {
   }
 }
 
+const takeoverCoordinator = {
+  async heartbeatNode() {
+    return lease();
+  },
+  async assertNodeLease() {
+    return lease();
+  },
+  async observeCommittedPair() {
+    return {} as any;
+  },
+  async claimByDialog() {
+    throw new Error('not used');
+  },
+  async consume() {
+    throw new Error('not used');
+  },
+  async checkAuthority() {
+    throw new Error('not used');
+  }
+};
+
 test('dialog shadow server exposes health and bridges bounded HTTP requests', async (t) => {
   let ready = false;
   const server = createDialogShadowHttpServer({
     coordinator: new Coordinator(),
     service_token: SERVICE_TOKEN,
     production: false,
+    takeover_coordinator: takeoverCoordinator,
+    development_peer_identity: PEER,
     ready: () => ready
   });
   server.listen(0, '127.0.0.1');
@@ -63,6 +93,15 @@ test('dialog shadow server exposes health and bridges bounded HTTP requests', as
   assert.equal(admission.status, 200);
   assert.deepEqual(await admission.json(), { status: 'not_required' });
 });
+
+function lease() {
+  return {
+    ...PEER,
+    heartbeat_at: '2026-07-26T01:00:00.000Z',
+    lease_expires_at: '2026-07-26T01:00:03.000Z',
+    revision: 1
+  };
+}
 
 test('dialog shadow production server fails closed without mTLS', () => {
   assert.throws(

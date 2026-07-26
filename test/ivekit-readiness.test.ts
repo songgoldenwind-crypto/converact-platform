@@ -34,9 +34,9 @@ const validEnv = {
   OPC_IVEKIT_RATE_LIMIT_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
 };
 
-test('readiness requires the RustDesk authorization and least-privilege probe upgrades', () => {
+test('readiness requires the latest dialog takeover migration', () => {
   assert.equal(REQUIRED_MIGRATIONS.includes('095_rustdesk_authorization_claims'), true);
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '101_ivekit_migration_readiness');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '102_ivekit_voice_dialog_takeovers');
 });
 
 test('readiness executes SQL, verifies migrations, and reports nonblocking provider degradation', async () => {
@@ -53,7 +53,7 @@ test('readiness executes SQL, verifies migrations, and reports nonblocking provi
 });
 
 test('readiness migration exposes only a bounded migration-version probe to the runtime role', () => {
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '101_ivekit_migration_readiness');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '102_ivekit_voice_dialog_takeovers');
   const sql = readFileSync(
     new URL('../src/migrations/101_ivekit_migration_readiness.sql', import.meta.url),
     'utf8'

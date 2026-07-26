@@ -34,6 +34,7 @@ const entrypoints = [
   'ivekit-rustpbx-recording-spool.js',
   'ivekit-component-node-admission.js',
   'ivekit-rustpbx-recovery.js',
+  'ivekit-dialog-shadow-agent.js',
   'ivekit-voice-preflight.js'
 ].map((name) => join(outputDir, 'dist', name));
 for (const entrypoint of entrypoints) {

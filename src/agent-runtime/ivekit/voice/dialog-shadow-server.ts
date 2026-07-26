@@ -9,11 +9,16 @@ import {
   createServer as createHttpsServer,
   type Server as HttpsServer
 } from 'node:https';
+import { type TLSSocket } from 'node:tls';
 
 import {
   handleDialogShadowRequest,
+  type DialogOwnerTakeoverHttpCoordinator,
   type DialogShadowHttpCoordinator
 } from './dialog-shadow-http.js';
+import type {
+  DialogPeerIdentity
+} from './dialog-owner-takeover.js';
 
 export interface DialogShadowServerTlsOptions {
   key: string | Buffer;
@@ -25,16 +30,19 @@ export type DialogShadowHttpServer = HttpServer | HttpsServer;
 
 export function createDialogShadowHttpServer(input: {
   coordinator: DialogShadowHttpCoordinator;
+  takeover_coordinator?: DialogOwnerTakeoverHttpCoordinator;
   service_token: string;
   production?: boolean;
   tls?: DialogShadowServerTlsOptions;
+  spiffe_trust_domain?: string;
+  development_peer_identity?: DialogPeerIdentity;
   ready?: () => boolean;
   max_body_bytes?: number;
 }): DialogShadowHttpServer {
   const production = input.production ?? true;
   const ready = input.ready ?? (() => true);
   const maxBodyBytes = boundedInteger(
-    input.max_body_bytes ?? 48 * 1024,
+    input.max_body_bytes ?? 128 * 1024,
     1024,
     1024 * 1024,
     'dialog shadow body limit'
@@ -42,6 +50,10 @@ export function createDialogShadowHttpServer(input: {
   if (production && !input.tls) {
     throw new Error('dialog shadow production mTLS is required');
   }
+  if (production && input.development_peer_identity) {
+    throw new Error('dialog shadow development identity is forbidden');
+  }
+  const trustDomain = trustDomainValue(input.spiffe_trust_domain, production);
   const handler = async (
     request: IncomingMessage,
     response: ServerResponse
@@ -71,6 +83,12 @@ export function createDialogShadowHttpServer(input: {
         await handleDialogShadowRequest(fetchRequest, {
           service_token: input.service_token,
           coordinator: input.coordinator,
+          takeover_coordinator: input.takeover_coordinator,
+          peer_identity: peerIdentity(
+            request,
+            trustDomain,
+            input.development_peer_identity
+          ),
           max_body_bytes: maxBodyBytes
         })
       );
@@ -90,6 +108,55 @@ export function createDialogShadowHttpServer(input: {
   server.requestTimeout = 10_000;
   server.keepAliveTimeout = 5_000;
   return server;
+}
+
+function peerIdentity(
+  request: IncomingMessage,
+  trustDomain: string,
+  developmentIdentity?: DialogPeerIdentity
+): DialogPeerIdentity | undefined {
+  if (developmentIdentity) return developmentIdentity;
+  const socket = request.socket as TLSSocket;
+  if (!socket.authorized || typeof socket.getPeerX509Certificate !== 'function') {
+    return undefined;
+  }
+  const certificate = socket.getPeerX509Certificate();
+  const san = certificate?.subjectAltName || '';
+  const identities = [...san.matchAll(/(?:^|,\s*)URI:([^,]+)(?=,\s*|$)/g)]
+    .map((match) => match[1] || '')
+    .filter((value) => value.startsWith('spiffe://'));
+  if (identities.length !== 1) return undefined;
+  let uri: URL;
+  try {
+    uri = new URL(identities[0]);
+  } catch {
+    return undefined;
+  }
+  if (uri.protocol !== 'spiffe:' || uri.hostname !== trustDomain ||
+      uri.username || uri.password || uri.port || uri.search || uri.hash ||
+      uri.pathname.includes('%')) {
+    return undefined;
+  }
+  const match = uri.pathname.match(
+    /^\/cells\/([A-Za-z0-9][A-Za-z0-9._:-]{0,127})\/fault-domains\/([A-Za-z0-9][A-Za-z0-9._:-]{0,127})\/nodes\/([A-Za-z0-9][A-Za-z0-9._:-]{0,127})$/
+  );
+  if (!match) return undefined;
+  return {
+    spiffe_id: uri.toString(),
+    cell_id: match[1]!,
+    fault_domain: match[2]!,
+    node_id: match[3]!
+  };
+}
+
+function trustDomainValue(value: unknown, required: boolean): string {
+  const result = String(value || '');
+  if (!result && !required) return 'ivekit.invalid';
+  if (!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/.test(result) ||
+      result.includes('..')) {
+    throw new Error('dialog shadow SPIFFE trust domain is invalid');
+  }
+  return result;
 }
 
 function secureServer(

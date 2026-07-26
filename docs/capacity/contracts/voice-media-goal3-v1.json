@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0.0",
   "contract_id": "voice-media-goal3-v1",
-  "revision": 1,
+  "revision": 2,
   "status": "target",
-  "generated_at": "2026-07-26T10:00:00.000Z",
+  "generated_at": "2026-07-26T20:07:18.000Z",
   "sources": {
     "rustpbx": {
       "repository": "https://github.com/restsend/rustpbx",
@@ -26,6 +26,7 @@
     "rustpbx-ivekit-media-control-client-v1",
     "rustpbx-ivekit-media-lifecycle-v1",
     "rustpbx-ivekit-dialog-shadow-v1",
+    "rustpbx-ivekit-dialog-recovery-v1",
     "rustpbx-ivekit-dual-leg-cdr-v1"
   ],
   "authority": {

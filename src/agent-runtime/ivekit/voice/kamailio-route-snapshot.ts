@@ -6,6 +6,7 @@ const MAX_NODES = 1_024;
 const MAX_POOLS = 256;
 const MIN_TTL_MS = 1_000;
 const MAX_TTL_MS = 300_000;
+const MAX_BASE_SET_ID = 999_999_999;
 
 const BODY_KEYS = [
   'cell_id',
@@ -238,7 +239,7 @@ export function validateKamailioRouteSnapshotBody(body: KamailioRouteSnapshotBod
     let nodeCount = 0;
     for (const pool of body.pools) {
       exactKeys(pool, POOL_KEYS, 'pool');
-      boundedInteger(pool.pool_id, 1, 0x7fff_ffff, 'pool id');
+      boundedInteger(pool.pool_id, 1, MAX_BASE_SET_ID, 'pool id');
       if (poolIds.has(pool.pool_id)) invalid('duplicate pool id');
       poolIds.add(pool.pool_id);
       safeProfile(pool.profile_id);
@@ -253,7 +254,7 @@ export function validateKamailioRouteSnapshotBody(body: KamailioRouteSnapshotBod
         if (nodeIds.has(node.node_id)) invalid('duplicate node id');
         nodeIds.add(node.node_id);
         checkedSipUri(node.sip_uri);
-        boundedInteger(node.pin_set_id, 1, 0x7fff_ffff, 'pin set id');
+        boundedInteger(node.pin_set_id, 1, MAX_BASE_SET_ID, 'pin set id');
         if (pinSetIds.has(node.pin_set_id)) invalid('duplicate pin set id');
         pinSetIds.add(node.pin_set_id);
         if (!['accepting', 'degraded', 'draining', 'offline'].includes(node.state)) {

@@ -65,8 +65,8 @@
     },
     "required_patch_ids": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 4,
+      "minItems": 5,
+      "maxItems": 5,
       "uniqueItems": true,
       "prefixItems": [
         {
@@ -77,6 +77,9 @@
         },
         {
           "const": "rustpbx-ivekit-dialog-shadow-v1"
+        },
+        {
+          "const": "rustpbx-ivekit-dialog-recovery-v1"
         },
         {
           "const": "rustpbx-ivekit-dual-leg-cdr-v1"

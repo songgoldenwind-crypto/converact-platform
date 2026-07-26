@@ -387,6 +387,10 @@ route[AUTH] {
     remove_hf("X-IveKit-Cell-ID");
     remove_hf("X-IveKit-Cell-Lease-Epoch");
     remove_hf("X-IveKit-Edge-Schema");
+    remove_hf("X-IveKit-Recovery");
+    remove_hf("X-IveKit-Previous-Pin-Set");
+    remove_hf("X-IveKit-Previous-Cell-Epoch");
+    remove_hf("X-IveKit-Recovery-Set");
     remove_hf("X-Auth-Token");
 
     $var(trusted_source) = 0;
@@ -475,19 +479,43 @@ route[WITHINDLG] {
     $var(pinset) = $(route_uri{uri.param,ivkpin});
     $var(pin_epoch) = $(route_uri{uri.param,ivkep});
     if ($var(pinset) == $null || !($var(pinset) =~ "^[1-9][0-9]{0,8}$") ||
-            $var(pin_epoch) != "${config.cell_lease_epoch}") {
+            $var(pin_epoch) == $null || !($var(pin_epoch) =~ "^[1-9][0-9]{0,9}$")) {
         update_stat("ivekit_pin_failures", "+1");
-        sl_send_reply("481", "Invalid Dialog Owner");
+        sl_send_reply("400", "Invalid Dialog Owner Metadata");
         exit;
     }
-    if (!ds_select_dst("$var(pinset)", "0", "1")) {
+    if ($var(pin_epoch) > ${config.cell_lease_epoch}) {
         update_stat("ivekit_pin_failures", "+1");
         append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
-        sl_send_reply("503", "Dialog Owner Unavailable");
+        sl_send_reply("503", "Dialog Epoch Coordinator Stale");
+        exit;
+    }
+    $var(previous_pinset) = $var(pinset);
+    if ($var(pin_epoch) == ${config.cell_lease_epoch} &&
+            ds_select_dst("$var(pinset)", "0", "1")) {
+        route(READ_DISPATCHER_OWNER);
+        route(INTERNAL_HEADERS);
+        route(RELAY);
+    }
+
+    # An old Cell epoch or unavailable pinned owner is recoverable. The selected
+    # RustPBX candidate verifies the shadow pair and PostgreSQL owner CAS before
+    # it may return 481 or mutate media.
+    update_stat("ivekit_pin_failures", "+1");
+    $var(recoveryset) = $var(previous_pinset) + 1000000000;
+    if (!ds_select_dst("$var(recoveryset)", "0", "${config.max_failovers}")) {
+        append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
+        sl_send_reply("503", "Dialog Recovery Unavailable");
         exit;
     }
     route(READ_DISPATCHER_OWNER);
     route(INTERNAL_HEADERS);
+    append_hf("X-IveKit-Recovery: 1\\r\\n");
+    append_hf("X-IveKit-Previous-Pin-Set: $var(previous_pinset)\\r\\n");
+    append_hf("X-IveKit-Previous-Cell-Epoch: $var(pin_epoch)\\r\\n");
+    append_hf("X-IveKit-Recovery-Set: $var(recoveryset)\\r\\n");
+    $avp(ivekit_recovery_attempt) = 1;
+    t_on_failure("DIALOG_RECOVERY_FAILOVER");
     route(RELAY);
 }
 
@@ -555,6 +583,10 @@ route[WEBPHONE_RELAY] {
     remove_hf("X-IveKit-Cell-ID");
     remove_hf("X-IveKit-Cell-Lease-Epoch");
     remove_hf("X-IveKit-Edge-Schema");
+    remove_hf("X-IveKit-Recovery");
+    remove_hf("X-IveKit-Previous-Pin-Set");
+    remove_hf("X-IveKit-Previous-Cell-Epoch");
+    remove_hf("X-IveKit-Recovery-Set");
     route(RELAY);
 }
 
@@ -666,6 +698,42 @@ failure_route[RUSTPBX_FAILOVER] {
     update_stat("ivekit_dispatch_failures", "+1");
     append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
     t_reply("503", "No Capacity");
+    exit;
+}
+
+failure_route[DIALOG_RECOVERY_FAILOVER] {
+    if (t_is_canceled()) exit;
+    if (!t_branch_timeout() && !t_check_status("408|500|502|503|504")) exit;
+
+    if ($avp(ivekit_recovery_attempt) == $null) {
+        $avp(ivekit_recovery_attempt) = 1;
+    }
+    if ($avp(ivekit_recovery_attempt) >= ${config.max_failovers}) {
+        update_stat("ivekit_dispatch_failures", "+1");
+        append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
+        t_reply("503", "Dialog Recovery Unavailable");
+        exit;
+    }
+
+    # A candidate-local 503 leaves dispatcher health to active probes. Network
+    # timeout and gateway failures are positive evidence that this target must
+    # be quarantined before selecting the next deterministic recovery owner.
+    if (!t_check_status("503")) {
+        ds_mark_dst("tp");
+    }
+    if (ds_next_dst()) {
+        $avp(ivekit_recovery_attempt) = $avp(ivekit_recovery_attempt) + 1;
+        update_stat("ivekit_failovers", "+1");
+        route(READ_DISPATCHER_OWNER);
+        route(INTERNAL_HEADERS);
+        t_on_failure("DIALOG_RECOVERY_FAILOVER");
+        if (!t_relay()) t_reply("500", "Relay Failed");
+        exit;
+    }
+
+    update_stat("ivekit_dispatch_failures", "+1");
+    append_to_reply("Retry-After: ${config.retry_after_seconds}\\r\\n");
+    t_reply("503", "Dialog Recovery Unavailable");
     exit;
 }
 

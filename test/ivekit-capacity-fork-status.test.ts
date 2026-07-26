@@ -184,11 +184,11 @@ test('HOMER fork status records controlled PostgreSQL/HEP evidence without claim
   );
 });
 
-test('RustPBX fork manifest tracks the complete ivekit.26 patch queue', () => {
+test('RustPBX fork manifest tracks the complete ivekit.27 patch queue', () => {
   const rustpbx = manifest.components.find((component) => component.component_id === 'rustpbx');
   assert.ok(rustpbx);
 
-  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.26-6c49ee76';
+  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.27-6c49ee76';
   assert.equal(rustpbx.runtime_artifact.reference, expectedReference);
   for (const path of [
     'infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch',
@@ -200,7 +200,8 @@ test('RustPBX fork manifest tracks the complete ivekit.26 patch queue', () => {
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch'
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch'
   ]) {
     assert.ok(rustpbx.patches?.some((patch) => patch.path === path), path);
   }
@@ -214,7 +215,8 @@ test('RustPBX fork manifest tracks the complete ivekit.26 patch queue', () => {
     'rustpbx-http-client-capacity-v1',
     'rustpbx-media-control-client-v1',
     'rustpbx-media-lifecycle-v1',
-    'rustpbx-dialog-shadow-quorum-v1'
+    'rustpbx-dialog-shadow-quorum-v1',
+    'rustpbx-dialog-owner-takeover-v1'
   ]) {
     assert.ok(
       rustpbx.implemented_changes?.some((change) => change.change_id === changeId),

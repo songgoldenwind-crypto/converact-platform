@@ -2,22 +2,45 @@ import { timingSafeEqual } from 'node:crypto';
 
 import {
   DialogShadowError,
+  assertDialogShadowPair,
   assertDialogShadowRecord,
+  dialogShadowPairHash,
   dialogShadowRecordHash,
   type DialogShadowCommitProof,
   type DialogShadowNotRequired,
   type DialogShadowProfile,
+  type DialogShadowPairCommitProof,
   type DialogShadowRecord
 } from './dialog-shadow.js';
+import {
+  DialogOwnerTakeoverError,
+  type DialogPeerIdentity,
+  type DialogOwnerTakeoverCoordinator
+} from './dialog-owner-takeover.js';
 
 const COMMIT_PATH = '/internal/ivekit/v1/dialog-shadow/commit';
+const COMMIT_PAIR_PATH = '/internal/ivekit/v1/dialog-shadow/commit-pair';
 const ADMISSION_PATH = '/internal/ivekit/v1/dialog-shadow/admission';
+const TAKEOVER_CLAIM_PATH = '/internal/ivekit/v1/dialog-owner/claim';
+const TAKEOVER_CONSUME_PATH = '/internal/ivekit/v1/dialog-owner/consume';
+const TAKEOVER_AUTHORITY_PATH = '/internal/ivekit/v1/dialog-owner/authority';
+const TAKEOVER_HEARTBEAT_PATH = '/internal/ivekit/v1/dialog-owner/heartbeat';
+const TAKEOVER_PATHS = new Set([
+  TAKEOVER_CLAIM_PATH,
+  TAKEOVER_CONSUME_PATH,
+  TAKEOVER_AUTHORITY_PATH,
+  TAKEOVER_HEARTBEAT_PATH
+]);
 
 export interface DialogShadowHttpCoordinator {
   commit(
     profile: DialogShadowProfile,
     record: DialogShadowRecord
   ): Promise<DialogShadowNotRequired | DialogShadowCommitProof>;
+  commitPair?(
+    profile: DialogShadowProfile,
+    records: readonly [DialogShadowRecord, DialogShadowRecord]
+  ): Promise<DialogShadowNotRequired | DialogShadowPairCommitProof>;
   assertAdmission(
     profile: DialogShadowProfile
   ): Promise<DialogShadowNotRequired | {
@@ -26,16 +49,39 @@ export interface DialogShadowHttpCoordinator {
   }>;
 }
 
+export interface DialogOwnerTakeoverHttpCoordinator {
+  heartbeatNode(
+    identity: DialogPeerIdentity
+  ): ReturnType<DialogOwnerTakeoverCoordinator['heartbeatNode']>;
+  assertNodeLease(
+    identity: DialogPeerIdentity
+  ): ReturnType<DialogOwnerTakeoverCoordinator['assertNodeLease']>;
+  observeCommittedPair(
+    records: readonly [DialogShadowRecord, DialogShadowRecord]
+  ): ReturnType<DialogOwnerTakeoverCoordinator['observeCommittedPair']>;
+  claimByDialog(
+    input: Parameters<DialogOwnerTakeoverCoordinator['claimByDialog']>[0]
+  ): ReturnType<DialogOwnerTakeoverCoordinator['claimByDialog']>;
+  consume(
+    input: Parameters<DialogOwnerTakeoverCoordinator['consume']>[0]
+  ): ReturnType<DialogOwnerTakeoverCoordinator['consume']>;
+  checkAuthority(
+    input: Parameters<DialogOwnerTakeoverCoordinator['checkAuthority']>[0]
+  ): ReturnType<DialogOwnerTakeoverCoordinator['checkAuthority']>;
+}
+
 export async function handleDialogShadowRequest(
   request: Request,
   input: {
     service_token: string;
     coordinator: DialogShadowHttpCoordinator;
+    takeover_coordinator?: DialogOwnerTakeoverHttpCoordinator;
+    peer_identity?: DialogPeerIdentity;
     max_body_bytes?: number;
   }
 ): Promise<Response> {
   const maximumBodyBytes = boundedInteger(
-    input.max_body_bytes ?? 48 * 1024,
+    input.max_body_bytes ?? 128 * 1024,
     1024,
     1024 * 1024,
     'max_body_bytes'
@@ -43,7 +89,10 @@ export async function handleDialogShadowRequest(
   const expectedToken = serviceToken(input.service_token);
   const url = new URL(request.url);
   if (request.method !== 'POST') return json(405, { error: 'method_not_allowed' });
-  if (url.pathname !== COMMIT_PATH && url.pathname !== ADMISSION_PATH) {
+  if (url.pathname !== COMMIT_PATH &&
+      url.pathname !== COMMIT_PAIR_PATH &&
+      url.pathname !== ADMISSION_PATH &&
+      !TAKEOVER_PATHS.has(url.pathname)) {
     return json(404, { error: 'not_found' });
   }
   if (!request.headers.get('content-type')?.toLowerCase()
@@ -71,24 +120,160 @@ export async function handleDialogShadowRequest(
 
   try {
     const payload = strictObject(body);
+    const peer = input.peer_identity;
+    if (!peer) {
+      return json(401, { error: 'dialog_shadow_peer_identity_required' });
+    }
+    if (TAKEOVER_PATHS.has(url.pathname)) {
+      if (!input.takeover_coordinator) {
+        return json(503, { error: 'dialog_owner_takeover_unavailable' });
+      }
+      return await handleTakeoverRequest(
+        url.pathname,
+        payload,
+        input.takeover_coordinator,
+        peer
+      );
+    }
+    if (!input.takeover_coordinator) {
+      return json(503, { error: 'dialog_owner_takeover_unavailable' });
+    }
+    await input.takeover_coordinator.assertNodeLease(peer);
     const profile = dialogProfile(payload.profile);
     if (url.pathname === ADMISSION_PATH) {
       exactKeys(payload, ['profile']);
       return json(200, await input.coordinator.assertAdmission(profile));
     }
+    if (url.pathname === COMMIT_PAIR_PATH) {
+      if (!input.coordinator.commitPair) {
+        return json(503, { error: 'dialog_shadow_pair_commit_unavailable' });
+      }
+      exactKeys(payload, ['profile', 'records']);
+      if (!Array.isArray(payload.records) || payload.records.length !== 2) {
+        throw new Error('pair requires exactly two records');
+      }
+      const records = assertDialogShadowPair(
+        payload.records as [DialogShadowRecord, DialogShadowRecord]
+      );
+      assertPeerRecords(peer, records);
+      const proof = await input.coordinator.commitPair(profile, records);
+      await input.takeover_coordinator.observeCommittedPair(records);
+      return json(
+        200,
+        proof
+      );
+    }
     exactKeys(payload, ['profile', 'record']);
+    const record = assertDialogShadowRecord(payload.record as DialogShadowRecord);
+    assertPeerRecords(peer, [record]);
     return json(
       200,
-      await input.coordinator.commit(
-        profile,
-        assertDialogShadowRecord(payload.record as DialogShadowRecord)
-      )
+      await input.coordinator.commit(profile, record)
     );
   } catch (error) {
+    if (error instanceof DialogOwnerTakeoverError) {
+      return json(error.status, { error: error.code });
+    }
     if (error instanceof DialogShadowError) {
       return json(error.status, { error: error.code });
     }
     return json(400, { error: 'invalid_request' });
+  }
+}
+
+async function handleTakeoverRequest(
+  path: string,
+  payload: Record<string, unknown>,
+  coordinator: DialogOwnerTakeoverHttpCoordinator,
+  peer: DialogPeerIdentity
+): Promise<Response> {
+  if (path === TAKEOVER_HEARTBEAT_PATH) {
+    exactKeys(payload, []);
+    return json(200, await coordinator.heartbeatNode(peer));
+  }
+  await coordinator.assertNodeLease(peer);
+  if (String(payload.cell_id || '') !== peer.cell_id) {
+    throw new DialogOwnerTakeoverError(
+      'dialog_owner_takeover_identity_mismatch',
+      403
+    );
+  }
+  if (path === TAKEOVER_CLAIM_PATH) {
+    exactKeys(payload, [
+      'profile',
+      'tenant_id',
+      'cell_id',
+      'dialog_id',
+      'idempotency_key',
+      'reason'
+    ]);
+    return json(200, await coordinator.claimByDialog({
+      profile: dialogProfile(payload.profile),
+      tenant_id: String(payload.tenant_id || ''),
+      cell_id: String(payload.cell_id || ''),
+      dialog_id: String(payload.dialog_id || ''),
+      caller: peer,
+      idempotency_key: String(payload.idempotency_key || ''),
+      reason: String(payload.reason || '')
+    }));
+  }
+  if (path === TAKEOVER_CONSUME_PATH) {
+    exactKeys(payload, [
+      'tenant_id',
+      'cell_id',
+      'call_session_ref',
+      'takeover_id',
+      'owner_epoch',
+      'takeover_token'
+    ]);
+    return json(200, await coordinator.consume({
+      tenant_id: String(payload.tenant_id || ''),
+      cell_id: String(payload.cell_id || ''),
+      call_session_ref: String(payload.call_session_ref || ''),
+      takeover_id: String(payload.takeover_id || ''),
+      owner_node_id: peer.node_id,
+      owner_epoch: boundedInteger(
+        payload.owner_epoch,
+        2,
+        0xffff_ffff,
+        'owner_epoch'
+      ),
+      takeover_token: String(payload.takeover_token || '')
+    }));
+  }
+  exactKeys(payload, [
+    'tenant_id',
+    'cell_id',
+    'call_session_ref',
+    'owner_epoch'
+  ]);
+  return json(200, await coordinator.checkAuthority({
+    tenant_id: String(payload.tenant_id || ''),
+    cell_id: String(payload.cell_id || ''),
+    call_session_ref: String(payload.call_session_ref || ''),
+    owner_node_id: peer.node_id,
+    owner_epoch: boundedInteger(
+      payload.owner_epoch,
+      1,
+      0xffff_ffff,
+      'owner_epoch'
+    )
+  }));
+}
+
+function assertPeerRecords(
+  peer: DialogPeerIdentity,
+  records: readonly DialogShadowRecord[]
+): void {
+  if (records.some((record) =>
+    record.cell_id !== peer.cell_id ||
+    record.owner_node_id !== peer.node_id ||
+    record.owner_fault_domain !== peer.fault_domain
+  )) {
+    throw new DialogOwnerTakeoverError(
+      'dialog_owner_takeover_identity_mismatch',
+      403
+    );
   }
 }
 
@@ -134,6 +319,27 @@ export class HttpDialogShadowClient {
     if (proof.record_hash !== dialogShadowRecordHash(record) ||
         proof.owner_epoch !== record.owner_epoch ||
         proof.sequence !== record.sequence) {
+      throw new DialogShadowError('dialog_shadow_response_mismatch', 503);
+    }
+    return proof;
+  }
+
+  async commitPair(
+    profile: DialogShadowProfile,
+    values: readonly [DialogShadowRecord, DialogShadowRecord]
+  ): Promise<DialogShadowNotRequired | DialogShadowPairCommitProof> {
+    const records = assertDialogShadowPair(values);
+    const response = await this.#post(COMMIT_PAIR_PATH, { profile, records });
+    if (response.status === 'not_required') return { status: 'not_required' };
+    const proof = pairCommitProof(response);
+    const pairHash = dialogShadowPairHash(records);
+    const recordHashes = records.map(dialogShadowRecordHash).sort();
+    if (proof.pair_hash !== pairHash ||
+        proof.record_hashes.some(
+          (hash, index) => hash !== recordHashes[index]
+        ) ||
+        proof.owner_epoch !== records[0].owner_epoch ||
+        proof.sequence !== records[0].sequence) {
       throw new DialogShadowError('dialog_shadow_response_mismatch', 503);
     }
     return proof;
@@ -217,6 +423,36 @@ function commitProof(value: Record<string, unknown>): DialogShadowCommitProof {
   return {
     status: 'committed',
     record_hash: String(value.record_hash),
+    fault_domains: faultDomains(value.fault_domains),
+    owner_epoch: boundedInteger(value.owner_epoch, 1, 0xffff_ffff, 'owner_epoch'),
+    sequence: boundedInteger(value.sequence, 1, 0xffff_ffff, 'sequence')
+  };
+}
+
+function pairCommitProof(
+  value: Record<string, unknown>
+): DialogShadowPairCommitProof {
+  exactKeys(value, [
+    'status',
+    'pair_hash',
+    'record_hashes',
+    'fault_domains',
+    'owner_epoch',
+    'sequence'
+  ]);
+  if (value.status !== 'committed' ||
+      !/^[a-f0-9]{64}$/.test(String(value.pair_hash || '')) ||
+      !Array.isArray(value.record_hashes) ||
+      value.record_hashes.length !== 2 ||
+      value.record_hashes.some(
+        (hash) => !/^[a-f0-9]{64}$/.test(String(hash || ''))
+      )) {
+    throw new DialogShadowError('dialog_shadow_response_invalid', 503);
+  }
+  return {
+    status: 'committed',
+    pair_hash: String(value.pair_hash),
+    record_hashes: value.record_hashes.map(String).sort() as [string, string],
     fault_domains: faultDomains(value.fault_domains),
     owner_epoch: boundedInteger(value.owner_epoch, 1, 0xffff_ffff, 'owner_epoch'),
     sequence: boundedInteger(value.sequence, 1, 0xffff_ffff, 'sequence')

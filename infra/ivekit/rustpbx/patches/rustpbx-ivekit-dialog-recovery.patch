@@ -1,0 +1,4574 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index a45b836e..ee447e39 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -162,6 +162,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
+     "hickory-dns",
+ ] }
+ base64 = "0.22.1"
++aes-gcm = "0.10.3"
+ hmac = "0.13.0"
+ sha2 = "0.11.0"
+ dotenvy = "0.15.7"
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index dcaf02e6..b1a9b9d1 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -1,17 +1,57 @@
++use aes_gcm::aead::{Aead, Payload};
++use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
+ use async_trait::async_trait;
++use base64::Engine as _;
++use base64::engine::general_purpose::STANDARD;
++use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+ use serde::de::DeserializeOwned;
+ use serde::{Deserialize, Serialize};
+ use sha2::{Digest, Sha256};
+ use std::collections::{HashMap, HashSet};
+ use std::path::PathBuf;
++use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+ use std::sync::{Arc, OnceLock};
+ use std::time::Duration;
+-use tokio::sync::Semaphore;
++use tokio::sync::{Mutex, Semaphore};
+ 
+ const PROFILE_T1: &str = "VOICE-HA-T1";
+ const MAX_RECORD_BYTES: usize = 32 * 1024;
+ const MAX_ROUTE_SET: usize = 16;
+ const MAX_ROUTE_BYTES: usize = 512;
++const RECOVERY_AAD_PREFIX: &[u8] = b"ivekit-dialog-recovery-v1\0";
++const RECOVERY_NONCE_BYTES: usize = 12;
++const RECOVERY_TAG_BYTES: usize = 16;
++const MAX_RECOVERY_PLAINTEXT_BYTES: usize = 16 * 1024;
++
++fn production_secret_mode_is_safe(mode: u32) -> bool {
++    let mode = mode & 0o7777;
++    mode & 0o400 != 0 && mode & 0o7137 == 0
++}
++
++fn secret_file_metadata(
++    path: &std::path::Path,
++    maximum_bytes: u64,
++) -> Result<std::fs::Metadata, DialogShadowError> {
++    let link_metadata =
++        std::fs::symlink_metadata(path).map_err(|_| DialogShadowError::InvalidBinding)?;
++    let metadata = std::fs::metadata(path).map_err(|_| DialogShadowError::InvalidBinding)?;
++    if !metadata.file_type().is_file() || metadata.len() > maximum_bytes {
++        return Err(DialogShadowError::InvalidBinding);
++    }
++    if link_metadata.file_type().is_symlink() {
++        let parent = path.parent().ok_or(DialogShadowError::InvalidBinding)?;
++        let canonical_parent =
++            std::fs::canonicalize(parent).map_err(|_| DialogShadowError::InvalidBinding)?;
++        let canonical_target =
++            std::fs::canonicalize(path).map_err(|_| DialogShadowError::InvalidBinding)?;
++        if !canonical_target.starts_with(canonical_parent) {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++    } else if !link_metadata.file_type().is_file() {
++        return Err(DialogShadowError::InvalidBinding);
++    }
++    Ok(metadata)
++}
+ 
+ #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+ #[serde(rename_all = "snake_case")]
+@@ -24,6 +64,217 @@ pub enum DialogShadowState {
+     Terminated,
+ }
+ 
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct DialogRecoveryCapsuleKey {
++    key_id: String,
++    key: [u8; 32],
++}
++
++impl DialogRecoveryCapsuleKey {
++    pub fn new(key_id: &str, key: &[u8]) -> Result<Self, DialogShadowError> {
++        if !valid_identifier(key_id) || key.len() != 32 {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        let mut checked = [0_u8; 32];
++        checked.copy_from_slice(key);
++        Ok(Self {
++            key_id: key_id.to_string(),
++            key: checked,
++        })
++    }
++
++    pub fn from_base64_file(
++        key_id: &str,
++        path: &std::path::Path,
++        production: bool,
++    ) -> Result<Self, DialogShadowError> {
++        let metadata = secret_file_metadata(path, 256)?;
++        if production {
++            #[cfg(unix)]
++            {
++                use std::os::unix::fs::PermissionsExt;
++                if !production_secret_mode_is_safe(metadata.permissions().mode()) {
++                    return Err(DialogShadowError::InvalidBinding);
++                }
++            }
++        }
++        let raw = std::fs::read_to_string(path).map_err(|_| DialogShadowError::InvalidBinding)?;
++        let encoded = raw.trim_end_matches(['\r', '\n']);
++        if encoded.is_empty() || encoded.trim() != encoded {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        let decoded = STANDARD
++            .decode(encoded)
++            .map_err(|_| DialogShadowError::InvalidBinding)?;
++        if STANDARD.encode(&decoded) != encoded {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        Self::new(key_id, &decoded)
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogRecoveryCapsuleBinding {
++    pub tenant_id: String,
++    pub cell_id: String,
++    pub dialog_id: String,
++    pub owner_epoch: u64,
++    pub sequence: u32,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogRecoveryCapsulePayload {
++    pub schema_version: u8,
++    pub call_session_ref: String,
++    pub interaction_id: String,
++    pub dialog_id: String,
++    pub peer_dialog_id: String,
++    pub leg: String,
++    pub dialog_role: String,
++    pub raw_call_id: String,
++    pub local_tag: String,
++    pub remote_tag: String,
++    pub from_uri: String,
++    pub to_uri: String,
++    pub local_contact_uri: String,
++    pub remote_uri: String,
++    pub remote_contact_uri: Option<String>,
++    pub route_set: Vec<String>,
++    pub local_cseq: u32,
++    pub remote_cseq: u32,
++    pub supports_100rel: bool,
++    pub media_reservation_id: String,
++    pub cdr_sequence: u64,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogRecoveryCapsuleEnvelope {
++    pub schema_version: u8,
++    pub algorithm: String,
++    pub key_id: String,
++    pub nonce: String,
++    pub ciphertext: String,
++    pub auth_tag: String,
++}
++
++#[derive(Clone)]
++pub struct DialogRecoveryCapsuleCodec {
++    current_key_id: String,
++    keys: HashMap<String, [u8; 32]>,
++}
++
++impl DialogRecoveryCapsuleCodec {
++    pub fn new(
++        current: DialogRecoveryCapsuleKey,
++        previous: Option<DialogRecoveryCapsuleKey>,
++    ) -> Result<Self, DialogShadowError> {
++        if previous
++            .as_ref()
++            .is_some_and(|value| value.key_id == current.key_id)
++        {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        let current_key_id = current.key_id.clone();
++        let mut keys = HashMap::from([(current.key_id, current.key)]);
++        if let Some(previous) = previous {
++            keys.insert(previous.key_id, previous.key);
++        }
++        Ok(Self {
++            current_key_id,
++            keys,
++        })
++    }
++
++    pub fn seal(
++        &self,
++        value: &DialogRecoveryCapsulePayload,
++        binding: &DialogRecoveryCapsuleBinding,
++    ) -> Result<DialogRecoveryCapsuleEnvelope, DialogShadowError> {
++        validate_recovery_payload(value)?;
++        validate_recovery_binding(binding)?;
++        let plaintext = canonical_json(value)?;
++        if plaintext.len() > MAX_RECOVERY_PLAINTEXT_BYTES {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        let nonce: [u8; RECOVERY_NONCE_BYTES] = rand::random();
++        let key = self
++            .keys
++            .get(&self.current_key_id)
++            .ok_or(DialogShadowError::InvalidBinding)?;
++        let ciphertext_with_tag = Aes256Gcm::new_from_slice(key)
++            .map_err(|_| DialogShadowError::InvalidBinding)?
++            .encrypt(
++                Nonce::from_slice(&nonce),
++                Payload {
++                    msg: plaintext.as_bytes(),
++                    aad: &recovery_aad(binding)?,
++                },
++            )
++            .map_err(|_| DialogShadowError::RecoveryAuthenticationFailed)?;
++        let split = ciphertext_with_tag
++            .len()
++            .checked_sub(RECOVERY_TAG_BYTES)
++            .ok_or(DialogShadowError::InvalidRecord)?;
++        Ok(DialogRecoveryCapsuleEnvelope {
++            schema_version: 1,
++            algorithm: "A256GCM".to_string(),
++            key_id: self.current_key_id.clone(),
++            nonce: URL_SAFE_NO_PAD.encode(nonce),
++            ciphertext: URL_SAFE_NO_PAD.encode(&ciphertext_with_tag[..split]),
++            auth_tag: URL_SAFE_NO_PAD.encode(&ciphertext_with_tag[split..]),
++        })
++    }
++
++    pub fn open(
++        &self,
++        value: &DialogRecoveryCapsuleEnvelope,
++        binding: &DialogRecoveryCapsuleBinding,
++    ) -> Result<DialogRecoveryCapsulePayload, DialogShadowError> {
++        validate_recovery_binding(binding)?;
++        if value.schema_version != 1
++            || value.algorithm != "A256GCM"
++            || !valid_identifier(&value.key_id)
++        {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        let key = self
++            .keys
++            .get(&value.key_id)
++            .ok_or(DialogShadowError::InvalidBinding)?;
++        let nonce = decode_base64url(&value.nonce, Some(RECOVERY_NONCE_BYTES))?;
++        let mut ciphertext = decode_base64url(&value.ciphertext, None)?;
++        let tag = decode_base64url(&value.auth_tag, Some(RECOVERY_TAG_BYTES))?;
++        if ciphertext.len() < 2 || ciphertext.len() > MAX_RECOVERY_PLAINTEXT_BYTES {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        ciphertext.extend_from_slice(&tag);
++        let plaintext = Aes256Gcm::new_from_slice(key)
++            .map_err(|_| DialogShadowError::InvalidBinding)?
++            .decrypt(
++                Nonce::from_slice(&nonce),
++                Payload {
++                    msg: &ciphertext,
++                    aad: &recovery_aad(binding)?,
++                },
++            )
++            .map_err(|_| DialogShadowError::RecoveryAuthenticationFailed)?;
++        if plaintext.len() > MAX_RECOVERY_PLAINTEXT_BYTES {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        let text = std::str::from_utf8(&plaintext).map_err(|_| DialogShadowError::InvalidRecord)?;
++        let payload: DialogRecoveryCapsulePayload =
++            serde_json::from_str(text).map_err(|_| DialogShadowError::InvalidRecord)?;
++        validate_recovery_payload(&payload)?;
++        if canonical_json(&payload)? != text {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        Ok(payload)
++    }
++}
++
+ #[derive(Clone, Debug, Eq, PartialEq)]
+ pub struct DialogShadowBinding {
+     tenant_id: String,
+@@ -90,6 +341,7 @@ pub struct DialogShadowEvent {
+     pub provider_session_ref: Option<String>,
+     pub cdr_sequence: u64,
+     pub terminal: bool,
++    pub recovery_payload: Option<DialogRecoveryCapsulePayload>,
+ }
+ 
+ #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+@@ -119,6 +371,10 @@ pub struct DialogShadowRecord {
+     pub cdr_sequence: u64,
+     pub recorded_at: String,
+     pub terminal: bool,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub recovery_capsule: Option<DialogRecoveryCapsuleEnvelope>,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub takeover_id: Option<String>,
+ }
+ 
+ #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+@@ -142,6 +398,121 @@ pub struct DialogShadowCommitProof {
+     pub sequence: u32,
+ }
+ 
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogShadowCommitPairRequest {
++    pub profile: String,
++    pub records: [DialogShadowRecord; 2],
++}
++
++impl DialogShadowCommitPairRequest {
++    pub fn record_hashes(&self) -> Result<[String; 2], DialogShadowError> {
++        validate_shadow_pair(&self.records)?;
++        let mut hashes = [hash_json(&self.records[0])?, hash_json(&self.records[1])?];
++        hashes.sort();
++        Ok(hashes)
++    }
++
++    pub fn pair_hash(&self) -> Result<String, DialogShadowError> {
++        let hashes = self.record_hashes()?;
++        Ok(sha256(&hashes.join(":")))
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogShadowPairCommitProof {
++    pub status: String,
++    pub pair_hash: String,
++    pub record_hashes: [String; 2],
++    pub fault_domains: Vec<String>,
++    pub owner_epoch: u64,
++    pub sequence: u32,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogOwnerTakeoverClaimRequest {
++    pub profile: String,
++    pub tenant_id: String,
++    pub cell_id: String,
++    pub dialog_id: String,
++    pub idempotency_key: String,
++    pub reason: String,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
++#[serde(deny_unknown_fields)]
++pub struct DialogOwnerTakeoverClaimResponse {
++    pub status: String,
++    pub takeover_id: String,
++    pub owner_node_id: String,
++    pub owner_epoch: u64,
++    pub takeover_token: String,
++    pub token_expires_at: String,
++    pub shadow_records: Vec<DialogShadowRecord>,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogOwnerTakeoverConsumeRequest {
++    pub tenant_id: String,
++    pub cell_id: String,
++    pub call_session_ref: String,
++    pub takeover_id: String,
++    pub owner_epoch: u64,
++    pub takeover_token: String,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
++#[serde(deny_unknown_fields)]
++pub struct DialogOwnerTakeoverConsumeResponse {
++    pub status: String,
++    pub owner_node_id: String,
++    pub owner_epoch: u64,
++    pub revision: u64,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct DialogOwnerAuthorityRequest {
++    pub tenant_id: String,
++    pub cell_id: String,
++    pub call_session_ref: String,
++    pub owner_epoch: u64,
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
++#[serde(deny_unknown_fields)]
++pub struct DialogOwnerAuthorityResponse {
++    pub status: String,
++    pub active_owner_node_id: Option<String>,
++    pub active_owner_epoch: Option<u64>,
++}
++
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct DialogOwnerNodeIdentity {
++    pub cell_id: String,
++    pub node_id: String,
++    pub fault_domain: String,
++}
++
++#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
++struct DialogOwnerHeartbeatRequest {}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
++#[serde(deny_unknown_fields)]
++pub struct DialogOwnerHeartbeatResponse {
++    pub spiffe_id: String,
++    pub cell_id: String,
++    pub node_id: String,
++    pub fault_domain: String,
++    pub heartbeat_at: String,
++    pub lease_expires_at: String,
++    pub revision: u64,
++}
++
+ #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+ pub struct DialogShadowAdmissionProof {
+     pub status: String,
+@@ -177,6 +548,13 @@ pub trait DialogShadowCommitExecutor: Send + Sync {
+         &self,
+         request: &DialogShadowCommitRequest,
+     ) -> Result<DialogShadowCommitProof, DialogShadowError>;
++
++    async fn commit_pair(
++        &self,
++        _request: &DialogShadowCommitPairRequest,
++    ) -> Result<DialogShadowPairCommitProof, DialogShadowError> {
++        Err(DialogShadowError::Unavailable)
++    }
+ }
+ 
+ #[derive(Clone, Debug)]
+@@ -189,6 +567,8 @@ pub struct DialogShadowHttpClientConfig {
+     pub max_inflight: usize,
+     pub request_timeout: Duration,
+     pub max_response_bytes: usize,
++    pub owner_identity: Option<DialogOwnerNodeIdentity>,
++    pub owner_heartbeat_interval: Duration,
+ }
+ 
+ pub struct DialogShadowHttpClient {
+@@ -198,6 +578,11 @@ pub struct DialogShadowHttpClient {
+     capacity: Semaphore,
+     request_timeout: Duration,
+     max_response_bytes: usize,
++    owner_identity: Option<DialogOwnerNodeIdentity>,
++    owner_heartbeat_interval: Duration,
++    owner_lease_fresh_until_ms: AtomicI64,
++    owner_heartbeat_lock: Mutex<()>,
++    owner_heartbeat_started: AtomicBool,
+ }
+ 
+ impl DialogShadowHttpClient {
+@@ -242,10 +627,15 @@ impl DialogShadowHttpClient {
+             capacity: Semaphore::new(config.max_inflight),
+             request_timeout: config.request_timeout,
+             max_response_bytes: config.max_response_bytes,
++            owner_identity: config.owner_identity,
++            owner_heartbeat_interval: config.owner_heartbeat_interval,
++            owner_lease_fresh_until_ms: AtomicI64::new(0),
++            owner_heartbeat_lock: Mutex::new(()),
++            owner_heartbeat_started: AtomicBool::new(false),
+         })
+     }
+ 
+-    async fn post_json<T: Serialize + ?Sized, R: DeserializeOwned>(
++    async fn post_json_raw<T: Serialize + ?Sized, R: DeserializeOwned>(
+         &self,
+         path: &str,
+         request: &T,
+@@ -270,9 +660,7 @@ impl DialogShadowHttpClient {
+         .await
+         .map_err(|_| DialogShadowError::OutcomeUnknown)?
+         .map_err(|_| DialogShadowError::OutcomeUnknown)?;
+-        if !response.status().is_success() {
+-            return Err(DialogShadowError::Unavailable);
+-        }
++        let status = response.status();
+         if response
+             .content_length()
+             .is_some_and(|size| size > self.max_response_bytes as u64)
+@@ -291,8 +679,185 @@ impl DialogShadowHttpClient {
+             }
+             body.extend_from_slice(&chunk);
+         }
++        if !status.is_success() {
++            #[derive(Deserialize)]
++            #[serde(deny_unknown_fields)]
++            struct ErrorResponse {
++                error: String,
++            }
++            let error = serde_json::from_slice::<ErrorResponse>(&body)
++                .map_err(|_| DialogShadowError::Unavailable)?;
++            return match (status.as_u16(), error.error.as_str()) {
++                (404, "dialog_owner_absent") | (410, "dialog_owner_terminal") => {
++                    Err(DialogShadowError::AbsentOrTerminal)
++                }
++                _ => Err(DialogShadowError::Unavailable),
++            };
++        }
+         serde_json::from_slice::<R>(&body).map_err(|_| DialogShadowError::OutcomeUnknown)
+     }
++
++    async fn post_json<T: Serialize + ?Sized, R: DeserializeOwned>(
++        &self,
++        path: &str,
++        request: &T,
++    ) -> Result<R, DialogShadowError> {
++        self.ensure_owner_lease().await?;
++        self.post_json_raw(path, request).await
++    }
++
++    async fn refresh_owner_lease(&self, force: bool) -> Result<(), DialogShadowError> {
++        let Some(identity) = self.owner_identity.as_ref() else {
++            return Ok(());
++        };
++        if !force && self.owner_lease_is_fresh() {
++            return Ok(());
++        }
++        let _guard = self.owner_heartbeat_lock.lock().await;
++        if !force && self.owner_lease_is_fresh() {
++            return Ok(());
++        }
++        let response = self
++            .post_json_raw::<_, DialogOwnerHeartbeatResponse>(
++                "/internal/ivekit/v1/dialog-owner/heartbeat",
++                &DialogOwnerHeartbeatRequest::default(),
++            )
++            .await?;
++        if response.cell_id != identity.cell_id
++            || response.node_id != identity.node_id
++            || response.fault_domain != identity.fault_domain
++            || !response.spiffe_id.starts_with("spiffe://")
++            || response.revision == 0
++        {
++            return Err(DialogShadowError::Unavailable);
++        }
++        let heartbeat = chrono::DateTime::parse_from_rfc3339(&response.heartbeat_at)
++            .map_err(|_| DialogShadowError::OutcomeUnknown)?;
++        let expiry = chrono::DateTime::parse_from_rfc3339(&response.lease_expires_at)
++            .map_err(|_| DialogShadowError::OutcomeUnknown)?;
++        let ttl_ms = (expiry - heartbeat).num_milliseconds();
++        if ttl_ms <= 0 || ttl_ms > 30_000 {
++            return Err(DialogShadowError::OutcomeUnknown);
++        }
++        let fresh_for_ms = ttl_ms.saturating_mul(2).saturating_div(3).max(1);
++        self.owner_lease_fresh_until_ms.store(
++            chrono::Utc::now()
++                .timestamp_millis()
++                .saturating_add(fresh_for_ms),
++            Ordering::Release,
++        );
++        Ok(())
++    }
++
++    async fn ensure_owner_lease(&self) -> Result<(), DialogShadowError> {
++        self.refresh_owner_lease(false).await
++    }
++
++    fn owner_lease_is_fresh(&self) -> bool {
++        self.owner_identity.is_none()
++            || self.owner_lease_fresh_until_ms.load(Ordering::Acquire)
++                > chrono::Utc::now().timestamp_millis()
++    }
++
++    pub fn start_owner_heartbeat(self: &Arc<Self>) -> Result<(), DialogShadowError> {
++        if self.owner_identity.is_none()
++            || self.owner_heartbeat_started.swap(true, Ordering::AcqRel)
++        {
++            return Ok(());
++        }
++        let runtime = tokio::runtime::Handle::try_current().map_err(|_| {
++            self.owner_heartbeat_started.store(false, Ordering::Release);
++            DialogShadowError::Unavailable
++        })?;
++        let client = Arc::clone(self);
++        let interval = self.owner_heartbeat_interval;
++        runtime.spawn(async move {
++            loop {
++                if client.refresh_owner_lease(true).await.is_err() {
++                    client
++                        .owner_lease_fresh_until_ms
++                        .store(0, Ordering::Release);
++                }
++                tokio::time::sleep(interval).await;
++            }
++        });
++        Ok(())
++    }
++
++    pub async fn claim_takeover(
++        &self,
++        request: &DialogOwnerTakeoverClaimRequest,
++        expected_owner_node_id: &str,
++    ) -> Result<DialogOwnerTakeoverClaimResponse, DialogShadowError> {
++        validate_takeover_claim_request(request)?;
++        if !valid_identifier(expected_owner_node_id) {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        let response = self
++            .post_json::<_, DialogOwnerTakeoverClaimResponse>(
++                "/internal/ivekit/v1/dialog-owner/claim",
++                request,
++            )
++            .await?;
++        validate_takeover_claim_response(request, expected_owner_node_id, response)
++    }
++
++    pub async fn consume_takeover(
++        &self,
++        request: &DialogOwnerTakeoverConsumeRequest,
++        expected_owner_node_id: &str,
++    ) -> Result<DialogOwnerTakeoverConsumeResponse, DialogShadowError> {
++        validate_takeover_consume_request(request)?;
++        if !valid_identifier(expected_owner_node_id) {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        let response = self
++            .post_json::<_, DialogOwnerTakeoverConsumeResponse>(
++                "/internal/ivekit/v1/dialog-owner/consume",
++                request,
++            )
++            .await?;
++        if response.status != "active"
++            || response.owner_node_id != expected_owner_node_id
++            || response.owner_epoch != request.owner_epoch
++            || response.revision == 0
++        {
++            return Err(DialogShadowError::OutcomeUnknown);
++        }
++        Ok(response)
++    }
++
++    pub async fn check_authority(
++        &self,
++        request: &DialogOwnerAuthorityRequest,
++        expected_owner_node_id: &str,
++    ) -> Result<DialogOwnerAuthorityResponse, DialogShadowError> {
++        validate_authority_request(request)?;
++        if !valid_identifier(expected_owner_node_id) {
++            return Err(DialogShadowError::InvalidBinding);
++        }
++        let response = self
++            .post_json::<_, DialogOwnerAuthorityResponse>(
++                "/internal/ivekit/v1/dialog-owner/authority",
++                request,
++            )
++            .await?;
++        if !matches!(
++            response.status.as_str(),
++            "active" | "pending" | "stale" | "terminal" | "absent"
++        ) || response
++            .active_owner_node_id
++            .as_deref()
++            .is_some_and(|value| !valid_identifier(value))
++            || response.active_owner_epoch.is_some_and(|value| value == 0)
++            || (response.status == "active"
++                && (response.active_owner_node_id.as_deref() != Some(expected_owner_node_id)
++                    || response.active_owner_epoch != Some(request.owner_epoch)))
++        {
++            return Err(DialogShadowError::OutcomeUnknown);
++        }
++        Ok(response)
++    }
+ }
+ 
+ #[async_trait]
+@@ -320,17 +885,38 @@ impl DialogShadowCommitExecutor for DialogShadowHttpClient {
+         self.post_json("/internal/ivekit/v1/dialog-shadow/commit", request)
+             .await
+     }
++
++    async fn commit_pair(
++        &self,
++        request: &DialogShadowCommitPairRequest,
++    ) -> Result<DialogShadowPairCommitProof, DialogShadowError> {
++        if request.profile != PROFILE_T1 {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        validate_shadow_pair(&request.records)?;
++        let mut proof: DialogShadowPairCommitProof = self
++            .post_json("/internal/ivekit/v1/dialog-shadow/commit-pair", request)
++            .await?;
++        proof.record_hashes.sort();
++        if !valid_pair_proof(request, &proof) {
++            return Err(DialogShadowError::OutcomeUnknown);
++        }
++        Ok(proof)
++    }
+ }
+ 
+ pub struct DialogShadowLifecycle {
+     binding: DialogShadowBinding,
+     executor: Arc<dyn DialogShadowCommitExecutor>,
++    recovery_codec: Option<Arc<DialogRecoveryCapsuleCodec>>,
+     next_sequence: u32,
+     pending: Option<(DialogShadowEvent, DialogShadowCommitRequest)>,
++    last_committed: Option<DialogShadowEvent>,
+ }
+ 
+ struct DialogShadowRuntimeConfig {
+     executor: Arc<DialogShadowHttpClient>,
++    recovery_codec: Arc<DialogRecoveryCapsuleCodec>,
+ }
+ 
+ static DIALOG_SHADOW_RUNTIME: OnceLock<
+@@ -341,7 +927,8 @@ pub enum IveKitDialogShadowRuntime {
+     Disabled,
+     Ready {
+         binding: DialogShadowBinding,
+-        executor: Arc<DialogShadowHttpClient>,
++        executor: Arc<dyn DialogShadowCommitExecutor>,
++        recovery_codec: Arc<DialogRecoveryCapsuleCodec>,
+         dialogs: HashMap<String, DialogShadowLifecycle>,
+     },
+     FailClosed {
+@@ -415,6 +1002,7 @@ impl IveKitDialogShadowRuntime {
+         Self::Ready {
+             binding,
+             executor: config.executor.clone(),
++            recovery_codec: config.recovery_codec.clone(),
+             dialogs: HashMap::new(),
+         }
+     }
+@@ -447,16 +1035,92 @@ impl IveKitDialogShadowRuntime {
+             Self::Ready {
+                 binding,
+                 executor,
++                recovery_codec,
+                 dialogs,
+             } => {
+                 let lifecycle = dialogs.entry(event.dialog_id.clone()).or_insert_with(|| {
+-                    DialogShadowLifecycle::new(binding.clone(), executor.clone())
++                    DialogShadowLifecycle::new_with_recovery_codec(
++                        binding.clone(),
++                        executor.clone(),
++                        recovery_codec.clone(),
++                    )
+                 });
+                 lifecycle.commit(event).await.map(Some)
+             }
+             Self::FailClosed { .. } => Err(DialogShadowError::Unavailable),
+         }
+     }
++
++    pub async fn commit_pair(
++        &mut self,
++        events: [DialogShadowEvent; 2],
++    ) -> Result<Option<DialogShadowPairCommitProof>, DialogShadowError> {
++        match self {
++            Self::Disabled => Ok(None),
++            Self::Ready {
++                binding,
++                executor,
++                recovery_codec,
++                dialogs,
++            } => {
++                if events[0].dialog_id == events[1].dialog_id {
++                    return Err(DialogShadowError::InvalidRecord);
++                }
++                let mut requests = Vec::with_capacity(2);
++                for event in &events {
++                    let lifecycle = dialogs.entry(event.dialog_id.clone()).or_insert_with(|| {
++                        DialogShadowLifecycle::new_with_recovery_codec(
++                            binding.clone(),
++                            executor.clone(),
++                            recovery_codec.clone(),
++                        )
++                    });
++                    requests.push(lifecycle.reserve(event)?);
++                }
++                let request = DialogShadowCommitPairRequest {
++                    profile: PROFILE_T1.to_string(),
++                    records: [requests[0].record.clone(), requests[1].record.clone()],
++                };
++                validate_shadow_pair(&request.records)?;
++                let proof = executor.commit_pair(&request).await?;
++                if !valid_pair_proof(&request, &proof) {
++                    return Err(DialogShadowError::OutcomeUnknown);
++                }
++                for request in &requests {
++                    dialogs
++                        .get_mut(&request.record.dialog_id)
++                        .ok_or(DialogShadowError::ReconcileRequired)?
++                        .accept_reserved(request)?;
++                }
++                Ok(Some(proof))
++            }
++            Self::FailClosed { .. } => Err(DialogShadowError::Unavailable),
++        }
++    }
++
++    pub async fn terminate_pair(
++        &mut self,
++        reason: &str,
++    ) -> Result<Option<DialogShadowPairCommitProof>, DialogShadowError> {
++        if reason.is_empty() || reason.len() > 4096 {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        let mut events = match self {
++            Self::Disabled => return Ok(None),
++            Self::FailClosed { .. } => return Err(DialogShadowError::Unavailable),
++            Self::Ready { dialogs, .. } => dialogs
++                .values()
++                .filter_map(|lifecycle| lifecycle.terminal_event(reason))
++                .collect::<Vec<_>>(),
++        };
++        if events.is_empty() {
++            return Ok(None);
++        }
++        if events.len() != 2 {
++            return Err(DialogShadowError::ReconcileRequired);
++        }
++        self.commit_pair([events.remove(0), events.remove(0)]).await
++    }
+ }
+ 
+ impl DialogShadowLifecycle {
+@@ -467,8 +1131,25 @@ impl DialogShadowLifecycle {
+         Self {
+             binding,
+             executor,
++            recovery_codec: None,
++            next_sequence: 1,
++            pending: None,
++            last_committed: None,
++        }
++    }
++
++    pub fn new_with_recovery_codec(
++        binding: DialogShadowBinding,
++        executor: Arc<dyn DialogShadowCommitExecutor>,
++        recovery_codec: Arc<DialogRecoveryCapsuleCodec>,
++    ) -> Self {
++        Self {
++            binding,
++            executor,
++            recovery_codec: Some(recovery_codec),
+             next_sequence: 1,
+             pending: None,
++            last_committed: None,
+         }
+     }
+ 
+@@ -486,11 +1167,7 @@ impl DialogShadowLifecycle {
+         let request = self.reserve(&event)?;
+         match self.executor.commit(&request).await {
+             Ok(proof) if valid_proof(&request, &proof) => {
+-                self.pending = None;
+-                self.next_sequence = self
+-                    .next_sequence
+-                    .checked_add(1)
+-                    .ok_or(DialogShadowError::SequenceExhausted)?;
++                self.accept_reserved(&request)?;
+                 Ok(proof)
+             }
+             Ok(_) => Err(DialogShadowError::OutcomeUnknown),
+@@ -506,6 +1183,43 @@ impl DialogShadowLifecycle {
+         self.pending.is_some()
+     }
+ 
++    fn terminal_event(&self, reason: &str) -> Option<DialogShadowEvent> {
++        let mut event = self.last_committed.clone()?;
++        if event.state == DialogShadowState::Terminated {
++            return None;
++        }
++        if !matches!(
++            event.state,
++            DialogShadowState::Confirmed | DialogShadowState::Updating
++        ) {
++            return None;
++        }
++        event.state = DialogShadowState::Terminated;
++        event.terminal = true;
++        event.final_response_identity = Some(reason.to_string());
++        Some(event)
++    }
++
++    fn accept_reserved(
++        &mut self,
++        request: &DialogShadowCommitRequest,
++    ) -> Result<(), DialogShadowError> {
++        let Some((event, pending)) = self.pending.as_ref() else {
++            return Err(DialogShadowError::ReconcileRequired);
++        };
++        if pending != request {
++            return Err(DialogShadowError::ReconcileRequired);
++        }
++        let committed = event.clone();
++        self.pending = None;
++        self.last_committed = Some(committed);
++        self.next_sequence = self
++            .next_sequence
++            .checked_add(1)
++            .ok_or(DialogShadowError::SequenceExhausted)?;
++        Ok(())
++    }
++
+     fn reserve(
+         &mut self,
+         event: &DialogShadowEvent,
+@@ -527,8 +1241,26 @@ impl DialogShadowLifecycle {
+         event: &DialogShadowEvent,
+     ) -> Result<DialogShadowCommitRequest, DialogShadowError> {
+         validate_event(event)?;
+-        let record = DialogShadowRecord {
+-            schema_version: 1,
++        let recovery_capsule = match &event.recovery_payload {
++            Some(payload) => Some(
++                self.recovery_codec
++                    .as_ref()
++                    .ok_or(DialogShadowError::InvalidBinding)?
++                    .seal(
++                        payload,
++                        &DialogRecoveryCapsuleBinding {
++                            tenant_id: self.binding.tenant_id.clone(),
++                            cell_id: self.binding.cell_id.clone(),
++                            dialog_id: event.dialog_id.clone(),
++                            owner_epoch: self.binding.owner_epoch,
++                            sequence: self.next_sequence,
++                        },
++                    )?,
++            ),
++            None => None,
++        };
++        let record = DialogShadowRecord {
++            schema_version: if recovery_capsule.is_some() { 2 } else { 1 },
+             tenant_id: self.binding.tenant_id.clone(),
+             cell_id: self.binding.cell_id.clone(),
+             dialog_id: event.dialog_id.clone(),
+@@ -553,6 +1285,8 @@ impl DialogShadowLifecycle {
+             cdr_sequence: event.cdr_sequence,
+             recorded_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+             terminal: event.terminal,
++            recovery_capsule,
++            takeover_id: None,
+         };
+         let request = DialogShadowCommitRequest {
+             profile: PROFILE_T1.to_string(),
+@@ -581,8 +1315,12 @@ pub enum DialogShadowError {
+     OutcomeUnknown,
+     #[error("dialog_shadow_unavailable")]
+     Unavailable,
++    #[error("dialog_owner_absent_or_terminal")]
++    AbsentOrTerminal,
+     #[error("dialog_shadow_sequence_exhausted")]
+     SequenceExhausted,
++    #[error("dialog_recovery_capsule_authentication_failed")]
++    RecoveryAuthenticationFailed,
+ }
+ 
+ fn valid_proof(request: &DialogShadowCommitRequest, proof: &DialogShadowCommitProof) -> bool {
+@@ -601,6 +1339,56 @@ fn valid_proof(request: &DialogShadowCommitRequest, proof: &DialogShadowCommitPr
+         && domains.len() >= 2
+ }
+ 
++fn valid_pair_proof(
++    request: &DialogShadowCommitPairRequest,
++    proof: &DialogShadowPairCommitProof,
++) -> bool {
++    let Ok(expected_pair_hash) = request.pair_hash() else {
++        return false;
++    };
++    let Ok(expected_record_hashes) = request.record_hashes() else {
++        return false;
++    };
++    let domains = proof
++        .fault_domains
++        .iter()
++        .filter(|domain| valid_identifier(domain))
++        .collect::<HashSet<_>>();
++    proof.status == "committed"
++        && proof.pair_hash == expected_pair_hash
++        && proof.record_hashes == expected_record_hashes
++        && proof.owner_epoch == request.records[0].owner_epoch
++        && proof.sequence == request.records[0].sequence
++        && domains.len() >= 2
++}
++
++fn validate_shadow_pair(records: &[DialogShadowRecord; 2]) -> Result<(), DialogShadowError> {
++    let first = &records[0];
++    let second = &records[1];
++    if first.schema_version != 2
++        || second.schema_version != 2
++        || first.dialog_id == second.dialog_id
++        || first.recovery_capsule.is_none()
++        || second.recovery_capsule.is_none()
++        || first.provider_session_ref.is_none()
++        || first.provider_session_ref != second.provider_session_ref
++        || first.tenant_id != second.tenant_id
++        || first.cell_id != second.cell_id
++        || first.owner_node_id != second.owner_node_id
++        || first.owner_fault_domain != second.owner_fault_domain
++        || first.owner_epoch == 0
++        || first.owner_epoch != second.owner_epoch
++        || first.sequence == 0
++        || first.sequence != second.sequence
++        || first.auth_context_ref != second.auth_context_ref
++        || first.takeover_id != second.takeover_id
++        || first.terminal != second.terminal
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
+ fn validate_event(event: &DialogShadowEvent) -> Result<(), DialogShadowError> {
+     if event.raw_call_id.is_empty()
+         || event.raw_call_id.len() > 1024
+@@ -629,7 +1417,7 @@ fn validate_event(event: &DialogShadowEvent) -> Result<(), DialogShadowError> {
+         || event
+             .media_reservation_id
+             .as_deref()
+-            .is_some_and(|value| !valid_identifier(value))
++            .is_some_and(|value| !valid_media_reservation_id(value))
+         || event
+             .provider_session_ref
+             .as_deref()
+@@ -638,6 +1426,25 @@ fn validate_event(event: &DialogShadowEvent) -> Result<(), DialogShadowError> {
+     {
+         return Err(DialogShadowError::InvalidRecord);
+     }
++    if let Some(payload) = &event.recovery_payload {
++        validate_recovery_payload(payload)?;
++        if !matches!(
++            event.state,
++            DialogShadowState::Confirmed
++                | DialogShadowState::Updating
++                | DialogShadowState::Terminated
++        ) || event.provider_session_ref.as_deref() != Some(payload.call_session_ref.as_str())
++            || event.dialog_id != payload.dialog_id
++            || event.local_tag != payload.local_tag
++            || event.remote_tag.as_deref() != Some(payload.remote_tag.as_str())
++            || event.local_cseq != payload.local_cseq
++            || event.remote_cseq != payload.remote_cseq
++            || event.media_reservation_id.as_deref() != Some(payload.media_reservation_id.as_str())
++            || event.cdr_sequence != payload.cdr_sequence
++        {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++    }
+     Ok(())
+ }
+ 
+@@ -695,9 +1502,242 @@ fn valid_route(value: &str) -> bool {
+     })
+ }
+ 
++fn validate_recovery_binding(
++    value: &DialogRecoveryCapsuleBinding,
++) -> Result<(), DialogShadowError> {
++    if !valid_identifier(&value.tenant_id)
++        || !valid_identifier(&value.cell_id)
++        || !valid_identifier(&value.dialog_id)
++        || value.owner_epoch == 0
++        || value.owner_epoch > u32::MAX as u64
++        || value.sequence == 0
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
++fn validate_recovery_payload(
++    value: &DialogRecoveryCapsulePayload,
++) -> Result<(), DialogShadowError> {
++    let sip_uri = |value: &str| {
++        !value.is_empty()
++            && value.len() <= 1024
++            && (value.starts_with("sip:") || value.starts_with("sips:"))
++            && !value
++                .bytes()
++                .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
++    };
++    if value.schema_version != 1
++        || !valid_identifier(&value.call_session_ref)
++        || !valid_identifier(&value.interaction_id)
++        || !valid_identifier(&value.dialog_id)
++        || !valid_identifier(&value.peer_dialog_id)
++        || value.dialog_id == value.peer_dialog_id
++        || !matches!(value.leg.as_str(), "caller" | "callee")
++        || !matches!(value.dialog_role.as_str(), "uac" | "uas")
++        || value.raw_call_id.is_empty()
++        || value.raw_call_id.len() > 512
++        || value
++            .raw_call_id
++            .bytes()
++            .any(|byte| byte.is_ascii_control())
++        || !valid_sip_tag(&value.local_tag)
++        || !valid_sip_tag(&value.remote_tag)
++        || !sip_uri(&value.from_uri)
++        || !sip_uri(&value.to_uri)
++        || !sip_uri(&value.local_contact_uri)
++        || !sip_uri(&value.remote_uri)
++        || value
++            .remote_contact_uri
++            .as_deref()
++            .is_some_and(|uri| !sip_uri(uri))
++        || value.route_set.len() > MAX_ROUTE_SET
++        || value.route_set.iter().any(|route| !sip_uri(route))
++        || value.local_cseq > 0x7fff_ffff
++        || value.remote_cseq > 0x7fff_ffff
++        || !valid_media_reservation_id(&value.media_reservation_id)
++        || value.cdr_sequence > 9_007_199_254_740_991
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
++fn validate_takeover_claim_request(
++    value: &DialogOwnerTakeoverClaimRequest,
++) -> Result<(), DialogShadowError> {
++    if value.profile != PROFILE_T1
++        || !valid_identifier(&value.tenant_id)
++        || !valid_identifier(&value.cell_id)
++        || !valid_identifier(&value.dialog_id)
++        || !valid_identifier(&value.idempotency_key)
++        || value.reason.is_empty()
++        || value.reason.len() > 256
++        || value.reason.bytes().any(|byte| byte.is_ascii_control())
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
++fn valid_media_reservation_id(value: &str) -> bool {
++    !value.is_empty()
++        && value.len() <= 256
++        && value.bytes().enumerate().all(|(index, byte)| {
++            byte.is_ascii_alphanumeric()
++                || (index > 0 && matches!(byte, b'.' | b'_' | b':' | b'@' | b'/' | b'-'))
++        })
++}
++
++fn validate_takeover_claim_response(
++    request: &DialogOwnerTakeoverClaimRequest,
++    expected_owner_node_id: &str,
++    mut value: DialogOwnerTakeoverClaimResponse,
++) -> Result<DialogOwnerTakeoverClaimResponse, DialogShadowError> {
++    if value.status != "claimed"
++        || !valid_identifier(&value.takeover_id)
++        || value.owner_node_id != expected_owner_node_id
++        || !(2..=u32::MAX as u64).contains(&value.owner_epoch)
++        || decode_base64url(&value.takeover_token, Some(32)).is_err()
++        || chrono::DateTime::parse_from_rfc3339(&value.token_expires_at).is_err()
++        || value.shadow_records.len() != 2
++    {
++        return Err(DialogShadowError::OutcomeUnknown);
++    }
++    value
++        .shadow_records
++        .sort_by(|left, right| left.dialog_id.cmp(&right.dialog_id));
++    let first = &value.shadow_records[0];
++    let second = &value.shadow_records[1];
++    if first.dialog_id == second.dialog_id
++        || !value
++            .shadow_records
++            .iter()
++            .any(|record| record.dialog_id == request.dialog_id)
++        || value.shadow_records.iter().any(|record| {
++            record.schema_version != 2
++                || record.recovery_capsule.is_none()
++                || record.tenant_id != request.tenant_id
++                || record.cell_id != request.cell_id
++                || record.owner_node_id == expected_owner_node_id
++                || record.owner_epoch == 0
++                || record.owner_epoch >= value.owner_epoch
++                || record.terminal
++                || !matches!(
++                    record.state,
++                    DialogShadowState::Confirmed | DialogShadowState::Updating
++                )
++                || record.remote_tag.is_none()
++                || record.media_reservation_id.is_none()
++                || record.provider_session_ref.is_none()
++        })
++        || first.owner_node_id != second.owner_node_id
++        || first.owner_fault_domain != second.owner_fault_domain
++        || first.owner_epoch != second.owner_epoch
++        || first.provider_session_ref != second.provider_session_ref
++    {
++        return Err(DialogShadowError::OutcomeUnknown);
++    }
++    Ok(value)
++}
++
++fn validate_takeover_consume_request(
++    value: &DialogOwnerTakeoverConsumeRequest,
++) -> Result<(), DialogShadowError> {
++    if !valid_identifier(&value.tenant_id)
++        || !valid_identifier(&value.cell_id)
++        || !valid_identifier(&value.call_session_ref)
++        || !valid_identifier(&value.takeover_id)
++        || !(2..=u32::MAX as u64).contains(&value.owner_epoch)
++        || decode_base64url(&value.takeover_token, Some(32)).is_err()
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
++fn validate_authority_request(
++    value: &DialogOwnerAuthorityRequest,
++) -> Result<(), DialogShadowError> {
++    if !valid_identifier(&value.tenant_id)
++        || !valid_identifier(&value.cell_id)
++        || !valid_identifier(&value.call_session_ref)
++        || value.owner_epoch == 0
++        || value.owner_epoch > u32::MAX as u64
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(())
++}
++
++fn recovery_aad(value: &DialogRecoveryCapsuleBinding) -> Result<Vec<u8>, DialogShadowError> {
++    let mut aad = Vec::from(RECOVERY_AAD_PREFIX);
++    aad.extend_from_slice(canonical_json(value)?.as_bytes());
++    Ok(aad)
++}
++
++fn decode_base64url(value: &str, exact_bytes: Option<usize>) -> Result<Vec<u8>, DialogShadowError> {
++    if value.is_empty()
++        || !value
++            .bytes()
++            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let decoded = URL_SAFE_NO_PAD
++        .decode(value)
++        .map_err(|_| DialogShadowError::InvalidRecord)?;
++    if URL_SAFE_NO_PAD.encode(&decoded) != value
++        || exact_bytes.is_some_and(|expected| decoded.len() != expected)
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(decoded)
++}
++
++fn canonical_json<T: Serialize>(value: &T) -> Result<String, DialogShadowError> {
++    let value = serde_json::to_value(value).map_err(|_| DialogShadowError::InvalidRecord)?;
++    canonical_json_value(&value)
++}
++
++fn canonical_json_value(value: &serde_json::Value) -> Result<String, DialogShadowError> {
++    match value {
++        serde_json::Value::Null => Ok("null".to_string()),
++        serde_json::Value::Bool(value) => Ok(value.to_string()),
++        serde_json::Value::Number(value) => Ok(value.to_string()),
++        serde_json::Value::String(value) => {
++            serde_json::to_string(value).map_err(|_| DialogShadowError::InvalidRecord)
++        }
++        serde_json::Value::Array(values) => {
++            let values = values
++                .iter()
++                .map(canonical_json_value)
++                .collect::<Result<Vec<_>, _>>()?;
++            Ok(format!("[{}]", values.join(",")))
++        }
++        serde_json::Value::Object(values) => {
++            let mut keys = values.keys().collect::<Vec<_>>();
++            keys.sort();
++            let fields = keys
++                .into_iter()
++                .map(|key| {
++                    Ok(format!(
++                        "{}:{}",
++                        serde_json::to_string(key).map_err(|_| DialogShadowError::InvalidRecord)?,
++                        canonical_json_value(&values[key])?
++                    ))
++                })
++                .collect::<Result<Vec<_>, DialogShadowError>>()?;
++            Ok(format!("{{{}}}", fields.join(",")))
++        }
++    }
++}
++
+ fn hash_json<T: Serialize>(value: &T) -> Result<String, DialogShadowError> {
+-    let encoded = serde_json::to_vec(value).map_err(|_| DialogShadowError::InvalidRecord)?;
+-    Ok(hex_sha256(Sha256::digest(encoded)))
++    Ok(hex_sha256(Sha256::digest(
++        canonical_json(value)?.as_bytes(),
++    )))
+ }
+ 
+ fn sha256(value: &str) -> String {
+@@ -708,6 +1748,1322 @@ pub fn stable_dialog_shadow_id(raw_call_id: &str, local_tag: &str, remote_tag: &
+     sha256(&format!("{raw_call_id}\0{local_tag}\0{remote_tag}"))
+ }
+ 
++pub fn open_recovery_pair(
++    codec: &DialogRecoveryCapsuleCodec,
++    records: &[DialogShadowRecord],
++) -> Result<Vec<DialogRecoveryCapsulePayload>, DialogShadowError> {
++    if records.len() != 2 {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let mut records = records.to_vec();
++    records.sort_by(|left, right| left.dialog_id.cmp(&right.dialog_id));
++    let first = &records[0];
++    let second = &records[1];
++    if first.dialog_id == second.dialog_id
++        || first.tenant_id != second.tenant_id
++        || first.cell_id != second.cell_id
++        || first.owner_node_id != second.owner_node_id
++        || first.owner_fault_domain != second.owner_fault_domain
++        || first.owner_epoch != second.owner_epoch
++        || first.provider_session_ref != second.provider_session_ref
++        || records.iter().any(|record| {
++            record.schema_version != 2
++                || record.recovery_capsule.is_none()
++                || record.terminal
++                || !matches!(
++                    record.state,
++                    DialogShadowState::Confirmed | DialogShadowState::Updating
++                )
++                || record.remote_tag.is_none()
++                || record.media_reservation_id.is_none()
++                || record.provider_session_ref.is_none()
++        })
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let payloads = records
++        .iter()
++        .map(|record| {
++            let payload = codec
++                .open(
++                    record
++                        .recovery_capsule
++                        .as_ref()
++                        .ok_or(DialogShadowError::InvalidRecord)?,
++                    &DialogRecoveryCapsuleBinding {
++                        tenant_id: record.tenant_id.clone(),
++                        cell_id: record.cell_id.clone(),
++                        dialog_id: record.dialog_id.clone(),
++                        owner_epoch: record.owner_epoch,
++                        sequence: record.sequence,
++                    },
++                )
++                .map_err(|_| DialogShadowError::InvalidRecord)?;
++            if payload.dialog_id != record.dialog_id
++                || payload.call_session_ref
++                    != record
++                        .provider_session_ref
++                        .as_deref()
++                        .ok_or(DialogShadowError::InvalidRecord)?
++                || payload.local_tag != record.local_tag
++                || Some(payload.remote_tag.as_str()) != record.remote_tag.as_deref()
++                || payload.local_cseq != record.local_cseq
++                || payload.remote_cseq != record.remote_cseq
++                || Some(payload.media_reservation_id.as_str())
++                    != record.media_reservation_id.as_deref()
++                || payload.cdr_sequence != record.cdr_sequence
++                || sha256(&payload.raw_call_id) != record.call_id_hash
++            {
++                return Err(DialogShadowError::InvalidRecord);
++            }
++            Ok(payload)
++        })
++        .collect::<Result<Vec<_>, _>>()?;
++    let caller = payloads
++        .iter()
++        .find(|payload| payload.leg == "caller")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let callee = payloads
++        .iter()
++        .find(|payload| payload.leg == "callee")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    if caller.dialog_role != "uas"
++        || callee.dialog_role != "uac"
++        || caller.peer_dialog_id != callee.dialog_id
++        || callee.peer_dialog_id != caller.dialog_id
++        || caller.call_session_ref != callee.call_session_ref
++        || caller.interaction_id != callee.interaction_id
++        || caller.media_reservation_id != callee.media_reservation_id
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    Ok(payloads)
++}
++
++pub async fn recover_dialog_pair(
++    dialog_layer: &Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
++    requested_dialog_id: &str,
++) -> Result<rsipstack::dialog::DialogId, DialogShadowError> {
++    let config = dialog_shadow_runtime_config()
++        .map_err(|_| DialogShadowError::Unavailable)?
++        .ok_or(DialogShadowError::Unavailable)?;
++    let tenant_id =
++        required_env("IVEKIT_RUSTPBX_ROUTE_TENANT_ID").ok_or(DialogShadowError::InvalidBinding)?;
++    let cell_id =
++        required_env("IVEKIT_RUSTPBX_CELL_ID").ok_or(DialogShadowError::InvalidBinding)?;
++    let owner_node_id =
++        required_env("IVEKIT_RUSTPBX_OWNER_NODE_ID").ok_or(DialogShadowError::InvalidBinding)?;
++    let owner_fault_domain =
++        required_env("IVEKIT_RUSTPBX_FAULT_DOMAIN").ok_or(DialogShadowError::InvalidBinding)?;
++    let claim = config
++        .executor
++        .claim_takeover(
++            &DialogOwnerTakeoverClaimRequest {
++                profile: PROFILE_T1.to_string(),
++                tenant_id: tenant_id.clone(),
++                cell_id: cell_id.clone(),
++                dialog_id: requested_dialog_id.to_string(),
++                idempotency_key: format!(
++                    "recovery-{}",
++                    sha256(&format!(
++                        "{tenant_id}\0{cell_id}\0{requested_dialog_id}\0{owner_node_id}"
++                    ))
++                ),
++                reason: "owner_route_recovery".to_string(),
++            },
++            &owner_node_id,
++        )
++        .await?;
++    let auth_context_ref = claim
++        .shadow_records
++        .first()
++        .map(|record| record.auth_context_ref.clone())
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let payloads = open_recovery_pair(&config.recovery_codec, &claim.shadow_records)?;
++    let requested_payload = payloads
++        .iter()
++        .find(|payload| payload.dialog_id == requested_dialog_id)
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let call_session_ref = requested_payload.call_session_ref.clone();
++    let interaction_id = requested_payload.interaction_id.clone();
++    let previous_owner_epoch = claim.shadow_records[0].owner_epoch;
++    let callee = payloads
++        .iter()
++        .find(|payload| payload.leg == "callee")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let snapshots = payloads
++        .iter()
++        .map(recovery_payload_to_dialog_snapshot)
++        .collect::<Result<Vec<_>, _>>()?;
++    let requested_rsip_dialog_id = snapshots
++        .iter()
++        .find(|snapshot| {
++            stable_dialog_shadow_id(
++                &snapshot.id.call_id,
++                &snapshot.id.local_tag,
++                &snapshot.id.remote_tag,
++            ) == requested_dialog_id
++        })
++        .map(|snapshot| snapshot.id.clone())
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let mut restored_ids = Vec::with_capacity(snapshots.len());
++    let mut restored_receivers = Vec::with_capacity(snapshots.len());
++    for (payload, snapshot) in payloads.iter().zip(snapshots) {
++        if dialog_layer.get_dialog(&snapshot.id).is_some() {
++            remove_restored_dialogs(dialog_layer, &restored_ids);
++            return Err(DialogShadowError::Unavailable);
++        }
++        let snapshot_id = snapshot.id.clone();
++        let (state_sender, state_receiver) = dialog_layer.new_dialog_state_channel();
++        let restored = dialog_layer
++            .restore_from_snapshot(snapshot, state_sender)
++            .map_err(|_| DialogShadowError::Unavailable)?;
++        if !restored {
++            remove_restored_dialogs(dialog_layer, &restored_ids);
++            return Err(DialogShadowError::Unavailable);
++        }
++        restored_ids.push(snapshot_id.clone());
++        restored_receivers.push((
++            RecoveredDialogSide::from_leg(&payload.leg)?,
++            snapshot_id,
++            state_receiver,
++        ));
++    }
++    let active_records = match commit_recovered_shadow_pair(
++        config,
++        &tenant_id,
++        &cell_id,
++        &owner_node_id,
++        &owner_fault_domain,
++        claim.owner_epoch,
++        &claim.takeover_id,
++        &call_session_ref,
++        &auth_context_ref,
++        &payloads,
++    )
++    .await
++    {
++        Ok(records) => records,
++        Err(error) => {
++            remove_restored_dialogs(dialog_layer, &restored_ids);
++            return Err(error);
++        }
++    };
++    let takeover = crate::ivekit_media_lifecycle::takeover_recovered_media(
++        &crate::ivekit_media_lifecycle::MediaRecoveryTakeoverInput {
++            tenant_id: tenant_id.clone(),
++            cell_id: cell_id.clone(),
++            owner_node_id: owner_node_id.clone(),
++            previous_owner_epoch,
++            owner_epoch: claim.owner_epoch,
++            media_reservation_id: callee.media_reservation_id.clone(),
++            from_tag: payloads
++                .iter()
++                .find(|payload| payload.leg == "caller")
++                .ok_or(DialogShadowError::InvalidRecord)?
++                .remote_tag
++                .clone(),
++            to_tag: callee.remote_tag.clone(),
++            winning_branch: crate::ivekit_media_lifecycle::stable_dialog_branch_id(
++                &callee.raw_call_id,
++                &callee.local_tag,
++                &callee.remote_tag,
++            ),
++        },
++    )
++    .await;
++    let recovered_media = takeover.map_err(|error| {
++        remove_restored_dialogs(dialog_layer, &restored_ids);
++        match error {
++            crate::ivekit_media_lifecycle::MediaLifecycleError::OutcomeUnknown
++            | crate::ivekit_media_lifecycle::MediaLifecycleError::ReconcileRequired => {
++                DialogShadowError::ReconcileRequired
++            }
++            _ => DialogShadowError::Unavailable,
++        }
++    })?;
++    let consume_request = DialogOwnerTakeoverConsumeRequest {
++        tenant_id: tenant_id.clone(),
++        cell_id: cell_id.clone(),
++        call_session_ref: call_session_ref.clone(),
++        takeover_id: claim.takeover_id.clone(),
++        owner_epoch: claim.owner_epoch,
++        takeover_token: claim.takeover_token,
++    };
++    let consumed = config
++        .executor
++        .consume_takeover(&consume_request, &owner_node_id)
++        .await;
++    let authority_active = if consumed.is_ok() {
++        true
++    } else {
++        config
++            .executor
++            .check_authority(
++                &DialogOwnerAuthorityRequest {
++                    tenant_id: tenant_id.clone(),
++                    cell_id: cell_id.clone(),
++                    call_session_ref: call_session_ref.clone(),
++                    owner_epoch: claim.owner_epoch,
++                },
++                &owner_node_id,
++            )
++            .await
++            .is_ok_and(|authority| authority.status == "active")
++    };
++    if !authority_active {
++        remove_restored_dialogs(dialog_layer, &restored_ids);
++        return Err(DialogShadowError::OutcomeUnknown);
++    }
++    let reservation_id = callee
++        .media_reservation_id
++        .strip_suffix("/callee")
++        .ok_or(DialogShadowError::InvalidRecord)?
++        .to_string();
++    if crate::ivekit_owner::ensure_owner(
++        &call_session_ref,
++        crate::ivekit_owner::OwnerContract {
++            reservation_id,
++            interaction_id,
++            owner_epoch: claim.owner_epoch.to_string(),
++            availability_profile: PROFILE_T1.to_string(),
++            auth_context_ref: Some(auth_context_ref.clone()),
++        },
++    )
++    .await
++    .is_err()
++    {
++        remove_restored_dialogs(dialog_layer, &restored_ids);
++        return Err(DialogShadowError::Unavailable);
++    }
++    spawn_recovered_dialog_controller(
++        dialog_layer.clone(),
++        restored_receivers,
++        payloads,
++        recovered_media,
++        active_records,
++        RecoveredShadowPairContext {
++            tenant_id,
++            cell_id,
++            owner_node_id,
++            owner_fault_domain,
++            owner_epoch: claim.owner_epoch,
++            takeover_id: claim.takeover_id,
++            call_session_ref,
++            auth_context_ref,
++        },
++        config.executor.clone(),
++        config.recovery_codec.clone(),
++    )?;
++    Ok(requested_rsip_dialog_id)
++}
++
++#[derive(Clone)]
++struct RecoveredShadowPairContext {
++    tenant_id: String,
++    cell_id: String,
++    owner_node_id: String,
++    owner_fault_domain: String,
++    owner_epoch: u64,
++    takeover_id: String,
++    call_session_ref: String,
++    auth_context_ref: String,
++}
++
++const RECOVERED_DIALOG_REQUEST_TIMEOUT: Duration = Duration::from_secs(32);
++const RECOVERED_DIALOG_TERMINATION_TIMEOUT: Duration = Duration::from_secs(2);
++const RECOVERED_DIALOG_GLARE_RETRIES: usize = 2;
++const RECOVERED_DIALOG_EVENT_CAPACITY: usize = 64;
++const RECOVERED_DIALOG_TERMINAL_ENQUEUE_TIMEOUT: Duration = Duration::from_millis(100);
++
++#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
++enum RecoveredDialogSide {
++    Caller,
++    Callee,
++}
++
++impl RecoveredDialogSide {
++    fn from_leg(value: &str) -> Result<Self, DialogShadowError> {
++        match value {
++            "caller" => Ok(Self::Caller),
++            "callee" => Ok(Self::Callee),
++            _ => Err(DialogShadowError::InvalidRecord),
++        }
++    }
++
++    fn peer(self) -> Self {
++        match self {
++            Self::Caller => Self::Callee,
++            Self::Callee => Self::Caller,
++        }
++    }
++
++    fn media_side(self) -> crate::ivekit_media_lifecycle::MediaDialogSide {
++        match self {
++            Self::Caller => crate::ivekit_media_lifecycle::MediaDialogSide::Caller,
++            Self::Callee => crate::ivekit_media_lifecycle::MediaDialogSide::Callee,
++        }
++    }
++}
++
++struct RecoveredDialogEvent {
++    side: RecoveredDialogSide,
++    state: rsipstack::dialog::dialog::DialogState,
++}
++
++enum RecoveredControllerFlow {
++    Continue,
++    Stop,
++}
++
++struct RecoveredDialogController {
++    dialog_layer: Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
++    caller_dialog_id: rsipstack::dialog::DialogId,
++    callee_dialog_id: rsipstack::dialog::DialogId,
++    payloads: Vec<DialogRecoveryCapsulePayload>,
++    media: crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
++    sequence: u32,
++    context: RecoveredShadowPairContext,
++    executor: Arc<dyn DialogShadowCommitExecutor>,
++    codec: Arc<DialogRecoveryCapsuleCodec>,
++    frozen: bool,
++}
++
++#[allow(clippy::too_many_arguments)]
++fn spawn_recovered_dialog_controller(
++    dialog_layer: Arc<rsipstack::dialog::dialog_layer::DialogLayer>,
++    receivers: Vec<(
++        RecoveredDialogSide,
++        rsipstack::dialog::DialogId,
++        rsipstack::dialog::dialog::DialogStateReceiver,
++    )>,
++    payloads: Vec<DialogRecoveryCapsulePayload>,
++    media: crate::ivekit_media_lifecycle::IveKitMediaLifecycle,
++    active_records: [DialogShadowRecord; 2],
++    context: RecoveredShadowPairContext,
++    executor: Arc<dyn DialogShadowCommitExecutor>,
++    codec: Arc<DialogRecoveryCapsuleCodec>,
++) -> Result<(), DialogShadowError> {
++    validate_shadow_pair(&active_records)?;
++    if receivers.len() != 2
++        || active_records[0].sequence == 0
++        || active_records[0].sequence != active_records[1].sequence
++        || active_records
++            .iter()
++            .any(|record| record.owner_epoch != context.owner_epoch)
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let mut caller_dialog_id = None;
++    let mut callee_dialog_id = None;
++    for (side, dialog_id, _) in &receivers {
++        let target = match side {
++            RecoveredDialogSide::Caller => &mut caller_dialog_id,
++            RecoveredDialogSide::Callee => &mut callee_dialog_id,
++        };
++        if target.is_some() {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        let payload = payloads
++            .iter()
++            .find(|payload| RecoveredDialogSide::from_leg(&payload.leg).ok() == Some(*side))
++            .ok_or(DialogShadowError::InvalidRecord)?;
++        if stable_dialog_shadow_id(
++            &dialog_id.call_id,
++            &dialog_id.local_tag,
++            &dialog_id.remote_tag,
++        ) != payload.dialog_id
++        {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        *target = Some(dialog_id.clone());
++    }
++    let controller = RecoveredDialogController {
++        dialog_layer,
++        caller_dialog_id: caller_dialog_id.ok_or(DialogShadowError::InvalidRecord)?,
++        callee_dialog_id: callee_dialog_id.ok_or(DialogShadowError::InvalidRecord)?,
++        payloads,
++        media,
++        sequence: active_records[0].sequence,
++        context,
++        executor,
++        codec,
++        frozen: false,
++    };
++    let (event_sender, event_receiver) =
++        tokio::sync::mpsc::channel(RECOVERED_DIALOG_EVENT_CAPACITY);
++    for (side, _, mut receiver) in receivers {
++        let sender = event_sender.clone();
++        tokio::spawn(async move {
++            while let Some(state) = receiver.recv().await {
++                let event = RecoveredDialogEvent { side, state };
++                match sender.try_send(event) {
++                    Ok(()) => {}
++                    Err(tokio::sync::mpsc::error::TrySendError::Full(event)) => {
++                        if matches!(
++                            &event.state,
++                            rsipstack::dialog::dialog::DialogState::Terminated(_, _)
++                        ) {
++                            if !matches!(
++                                tokio::time::timeout(
++                                    RECOVERED_DIALOG_TERMINAL_ENQUEUE_TIMEOUT,
++                                    sender.send(event),
++                                )
++                                .await,
++                                Ok(Ok(()))
++                            ) {
++                                break;
++                            }
++                        } else {
++                            reject_recovered_dialog_event(event).await;
++                        }
++                    }
++                    Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => break,
++                }
++            }
++        });
++    }
++    drop(event_sender);
++    tokio::spawn(controller.run(event_receiver));
++    Ok(())
++}
++
++impl RecoveredDialogController {
++    async fn run(mut self, mut receiver: tokio::sync::mpsc::Receiver<RecoveredDialogEvent>) {
++        while let Some(event) = receiver.recv().await {
++            match self.handle_event(event).await {
++                Ok(RecoveredControllerFlow::Continue) => {}
++                Ok(RecoveredControllerFlow::Stop) => return,
++                Err(
++                    error @ (DialogShadowError::OutcomeUnknown
++                    | DialogShadowError::ReconcileRequired),
++                ) => {
++                    self.frozen = true;
++                    tracing::warn!(
++                        call_session_ref = %self.context.call_session_ref,
++                        owner_epoch = self.context.owner_epoch,
++                        error = %error,
++                        "recovered dialog controller froze mutations while preserving media"
++                    );
++                }
++                Err(error) => {
++                    tracing::warn!(
++                        call_session_ref = %self.context.call_session_ref,
++                        owner_epoch = self.context.owner_epoch,
++                        error = %error,
++                        "recovered dialog controller failed closed"
++                    );
++                    self.terminate_all("controller_failure").await;
++                    return;
++                }
++            }
++        }
++        self.terminate_all("dialog_state_channel_closed").await;
++    }
++
++    async fn handle_event(
++        &mut self,
++        event: RecoveredDialogEvent,
++    ) -> Result<RecoveredControllerFlow, DialogShadowError> {
++        use rsipstack::dialog::dialog::DialogState;
++
++        if self.frozen {
++            return match event.state {
++                DialogState::Terminated(id, _) => {
++                    self.require_dialog_id(event.side, &id)?;
++                    self.terminate_all("frozen_dialog_terminated").await;
++                    Ok(RecoveredControllerFlow::Stop)
++                }
++                state => {
++                    reject_recovered_dialog_event(RecoveredDialogEvent {
++                        side: event.side,
++                        state,
++                    })
++                    .await;
++                    Ok(RecoveredControllerFlow::Continue)
++                }
++            };
++        }
++
++        match event.state {
++            DialogState::Updated(id, request, handle) => {
++                self.require_dialog_id(event.side, &id)?;
++                self.handle_updated(event.side, request, handle).await
++            }
++            DialogState::Info(id, request, handle)
++            | DialogState::Options(id, request, handle)
++            | DialogState::Notify(id, request, handle)
++            | DialogState::Refer(id, request, handle)
++            | DialogState::Message(id, request, handle)
++            | DialogState::Publish(id, request, handle) => {
++                self.require_dialog_id(event.side, &id)?;
++                self.handle_signaling_request(event.side, request, handle)
++                    .await
++            }
++            DialogState::Terminated(id, _) => {
++                self.require_dialog_id(event.side, &id)?;
++                self.terminate_all("dialog_terminated").await;
++                Ok(RecoveredControllerFlow::Stop)
++            }
++            _ => Ok(RecoveredControllerFlow::Continue),
++        }
++    }
++
++    async fn handle_signaling_request(
++        &mut self,
++        side: RecoveredDialogSide,
++        request: rsipstack::sip::Request,
++        handle: rsipstack::dialog::dialog::TransactionHandle,
++    ) -> Result<RecoveredControllerFlow, DialogShadowError> {
++        let method = request.method;
++        let response = self
++            .request_peer(
++                side,
++                method,
++                relay_headers(&request.headers.0),
++                request.body,
++            )
++            .await;
++        let (status, headers, body) = match response {
++            Some(response) => (
++                response.status_code,
++                relay_headers(&response.headers.0),
++                response.body,
++            ),
++            None => (
++                rsipstack::sip::StatusCode::ServiceUnavailable,
++                Vec::new(),
++                Vec::new(),
++            ),
++        };
++        let final_response_identity = format!("{} {}", status.code(), method);
++        if let Err(error) = self
++            .refresh_and_commit(
++                DialogShadowState::Confirmed,
++                Some(&final_response_identity),
++                None,
++                None,
++            )
++            .await
++        {
++            let _ = handle
++                .reply(rsipstack::sip::StatusCode::ServiceUnavailable)
++                .await;
++            return Err(error);
++        }
++        handle
++            .respond(
++                status,
++                (!headers.is_empty()).then_some(headers),
++                (!body.is_empty()).then_some(body),
++            )
++            .await
++            .map_err(|_| DialogShadowError::Unavailable)?;
++        Ok(RecoveredControllerFlow::Continue)
++    }
++
++    async fn handle_updated(
++        &mut self,
++        side: RecoveredDialogSide,
++        request: rsipstack::sip::Request,
++        handle: rsipstack::dialog::dialog::TransactionHandle,
++    ) -> Result<RecoveredControllerFlow, DialogShadowError> {
++        use rsipstack::sip::StatusCodeKind;
++
++        if !matches!(
++            request.method,
++            rsipstack::sip::Method::Invite | rsipstack::sip::Method::Update
++        ) {
++            let _ = handle.reply(rsipstack::sip::StatusCode::BadRequest).await;
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        if request.body.is_empty() {
++            return self.handle_signaling_request(side, request, handle).await;
++        }
++        let logical_offer = match std::str::from_utf8(&request.body) {
++            Ok(value) if !value.trim().is_empty() => value.to_string(),
++            _ => {
++                let _ = handle
++                    .reply(rsipstack::sip::StatusCode::NotAcceptableHere)
++                    .await;
++                return Ok(RecoveredControllerFlow::Continue);
++            }
++        };
++        let method = request.method;
++        let headers = relay_headers(&request.headers.0);
++        let mut glare_retries = 0usize;
++        let response = loop {
++            let effective_offer = match self
++                .media
++                .prepare_mid_dialog_offer(side.media_side(), &logical_offer)
++                .await
++            {
++                Ok(value) => value,
++                Err(error) => {
++                    let status = match error {
++                        crate::ivekit_media_lifecycle::MediaLifecycleError::InvalidSdp
++                        | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected => {
++                            rsipstack::sip::StatusCode::NotAcceptableHere
++                        }
++                        _ => rsipstack::sip::StatusCode::ServiceUnavailable,
++                    };
++                    let final_response_identity = format!("{} {}", status.code(), method);
++                    if self
++                        .refresh_and_commit(
++                            DialogShadowState::Updating,
++                            Some(&final_response_identity),
++                            Some(&logical_offer),
++                            None,
++                        )
++                        .await
++                        .is_err()
++                    {
++                        let _ = handle
++                            .reply(rsipstack::sip::StatusCode::ServiceUnavailable)
++                            .await;
++                        return Err(DialogShadowError::OutcomeUnknown);
++                    }
++                    let _ = handle.reply(status).await;
++                    return if matches!(
++                        error,
++                        crate::ivekit_media_lifecycle::MediaLifecycleError::InvalidSdp
++                            | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected
++                    ) {
++                        Ok(RecoveredControllerFlow::Continue)
++                    } else {
++                        Err(DialogShadowError::OutcomeUnknown)
++                    };
++                }
++            };
++            let response = self
++                .request_peer(side, method, headers.clone(), effective_offer.into_bytes())
++                .await;
++            if response.as_ref().is_some_and(|value| {
++                value.status_code == rsipstack::sip::StatusCode::RequestPending
++            }) && glare_retries < RECOVERED_DIALOG_GLARE_RETRIES
++            {
++                tokio::time::sleep(Duration::from_millis(250 * (glare_retries as u64 + 1))).await;
++                glare_retries += 1;
++                continue;
++            }
++            break response;
++        };
++        let Some(response) = response else {
++            let status = rsipstack::sip::StatusCode::ServiceUnavailable;
++            let final_response_identity = format!("{} {}", status.code(), method);
++            self.refresh_and_commit(
++                DialogShadowState::Updating,
++                Some(&final_response_identity),
++                Some(&logical_offer),
++                None,
++            )
++            .await?;
++            handle
++                .reply(status)
++                .await
++                .map_err(|_| DialogShadowError::Unavailable)?;
++            return Ok(RecoveredControllerFlow::Continue);
++        };
++        if response.status_code.kind() != StatusCodeKind::Successful {
++            let status = response.status_code;
++            let response_headers = relay_headers(&response.headers.0);
++            let response_body = response.body;
++            let final_response_identity = format!("{} {}", status.code(), method);
++            self.refresh_and_commit(
++                DialogShadowState::Updating,
++                Some(&final_response_identity),
++                Some(&logical_offer),
++                None,
++            )
++            .await?;
++            handle
++                .respond(
++                    status,
++                    (!response_headers.is_empty()).then_some(response_headers),
++                    (!response_body.is_empty()).then_some(response_body),
++                )
++                .await
++                .map_err(|_| DialogShadowError::Unavailable)?;
++            return Ok(RecoveredControllerFlow::Continue);
++        }
++        let logical_answer = match std::str::from_utf8(&response.body) {
++            Ok(value) if !value.trim().is_empty() => value.to_string(),
++            _ => {
++                let _ = handle.reply(rsipstack::sip::StatusCode::BadGateway).await;
++                return Err(DialogShadowError::OutcomeUnknown);
++            }
++        };
++        let effective_answer = match self
++            .media
++            .commit_mid_dialog_answer(side.media_side(), &logical_answer)
++            .await
++        {
++            Ok(value) => value,
++            Err(_) => {
++                let _ = handle
++                    .reply(rsipstack::sip::StatusCode::ServiceUnavailable)
++                    .await;
++                return Err(DialogShadowError::OutcomeUnknown);
++            }
++        };
++        let status = response.status_code;
++        let mut response_headers = relay_headers(&response.headers.0);
++        if !response_headers
++            .iter()
++            .any(|header| header.name().eq_ignore_ascii_case("content-type"))
++        {
++            response_headers.push(rsipstack::sip::Header::ContentType(
++                rsipstack::sip::headers::ContentType::from("application/sdp"),
++            ));
++        }
++        let final_response_identity = format!("{} {}", status.code(), method);
++        if let Err(error) = self
++            .refresh_and_commit(
++                DialogShadowState::Updating,
++                Some(&final_response_identity),
++                Some(&logical_offer),
++                Some(&effective_answer),
++            )
++            .await
++        {
++            let _ = handle
++                .reply(rsipstack::sip::StatusCode::ServiceUnavailable)
++                .await;
++            return Err(error);
++        }
++        handle
++            .respond(
++                status,
++                Some(response_headers),
++                Some(effective_answer.into_bytes()),
++            )
++            .await
++            .map_err(|_| DialogShadowError::Unavailable)?;
++        Ok(RecoveredControllerFlow::Continue)
++    }
++
++    async fn request_peer(
++        &self,
++        source: RecoveredDialogSide,
++        method: rsipstack::sip::Method,
++        headers: Vec<rsipstack::sip::Header>,
++        body: Vec<u8>,
++    ) -> Option<rsipstack::sip::Response> {
++        let dialog = self.dialog(source.peer()).ok()?;
++        match tokio::time::timeout(
++            RECOVERED_DIALOG_REQUEST_TIMEOUT,
++            dialog.request(
++                method,
++                (!headers.is_empty()).then_some(headers),
++                (!body.is_empty()).then_some(body),
++            ),
++        )
++        .await
++        {
++            Ok(Ok(response)) => response,
++            Ok(Err(error)) => {
++                tracing::warn!(
++                    call_session_ref = %self.context.call_session_ref,
++                    %method,
++                    error = %error,
++                    "recovered peer dialog request failed"
++                );
++                None
++            }
++            Err(_) => {
++                tracing::warn!(
++                    call_session_ref = %self.context.call_session_ref,
++                    %method,
++                    "recovered peer dialog request timed out"
++                );
++                None
++            }
++        }
++    }
++
++    async fn refresh_and_commit(
++        &mut self,
++        state: DialogShadowState,
++        final_response_identity: Option<&str>,
++        logical_offer_sdp: Option<&str>,
++        logical_answer_sdp: Option<&str>,
++    ) -> Result<(), DialogShadowError> {
++        let payloads = self.refreshed_payloads()?;
++        let sequence = self
++            .sequence
++            .checked_add(1)
++            .ok_or(DialogShadowError::SequenceExhausted)?;
++        let request = recovered_shadow_pair_request(
++            &self.context,
++            &self.codec,
++            &payloads,
++            state,
++            sequence,
++            final_response_identity,
++            logical_offer_sdp,
++            logical_answer_sdp,
++        )?;
++        self.executor.commit_pair(&request).await?;
++        self.sequence = sequence;
++        self.payloads = payloads;
++        Ok(())
++    }
++
++    fn refreshed_payloads(&self) -> Result<Vec<DialogRecoveryCapsulePayload>, DialogShadowError> {
++        let caller = self.dialog(RecoveredDialogSide::Caller)?;
++        let callee = self.dialog(RecoveredDialogSide::Callee)?;
++        let caller_snapshot = caller.snapshot();
++        let callee_snapshot = callee.snapshot();
++        let previous_caller = self.payload(RecoveredDialogSide::Caller)?;
++        let previous_callee = self.payload(RecoveredDialogSide::Callee)?;
++        let caller_payload = recovery_payload_from_dialog_snapshots(
++            &self.context.call_session_ref,
++            &previous_caller.interaction_id,
++            &previous_caller.media_reservation_id,
++            previous_caller.cdr_sequence,
++            &caller_snapshot,
++            &callee_snapshot,
++        )?;
++        let callee_payload = recovery_payload_from_dialog_snapshots(
++            &self.context.call_session_ref,
++            &previous_callee.interaction_id,
++            &previous_callee.media_reservation_id,
++            previous_callee.cdr_sequence,
++            &callee_snapshot,
++            &caller_snapshot,
++        )?;
++        if caller_payload.dialog_id != previous_caller.dialog_id
++            || callee_payload.dialog_id != previous_callee.dialog_id
++        {
++            return Err(DialogShadowError::InvalidRecord);
++        }
++        Ok(vec![caller_payload, callee_payload])
++    }
++
++    async fn terminate_all(&mut self, reason: &str) {
++        for side in [RecoveredDialogSide::Caller, RecoveredDialogSide::Callee] {
++            if let Ok(dialog) = self.dialog(side) {
++                let _ = tokio::time::timeout(RECOVERED_DIALOG_TERMINATION_TIMEOUT, dialog.hangup())
++                    .await;
++            }
++        }
++        if let Err(error) = self.media.close_media().await {
++            tracing::warn!(
++                call_session_ref = %self.context.call_session_ref,
++                error = %error,
++                "recovered media close failed"
++            );
++        }
++        if let Some(sequence) = self.sequence.checked_add(1) {
++            match recovered_shadow_pair_request(
++                &self.context,
++                &self.codec,
++                &self.payloads,
++                DialogShadowState::Terminated,
++                sequence,
++                Some(reason),
++                None,
++                None,
++            ) {
++                Ok(request) => {
++                    if let Err(error) = self.executor.commit_pair(&request).await {
++                        tracing::warn!(
++                            call_session_ref = %self.context.call_session_ref,
++                            error = %error,
++                            "recovered terminal dialog shadow commit failed"
++                        );
++                    }
++                }
++                Err(error) => {
++                    tracing::warn!(
++                        call_session_ref = %self.context.call_session_ref,
++                        error = %error,
++                        "recovered terminal dialog shadow build failed"
++                    );
++                }
++            }
++        }
++        self.dialog_layer.remove_dialog(&self.caller_dialog_id);
++        self.dialog_layer.remove_dialog(&self.callee_dialog_id);
++        crate::ivekit_owner::close_owner(&self.context.call_session_ref).await;
++    }
++
++    fn payload(
++        &self,
++        side: RecoveredDialogSide,
++    ) -> Result<&DialogRecoveryCapsulePayload, DialogShadowError> {
++        self.payloads
++            .iter()
++            .find(|payload| RecoveredDialogSide::from_leg(&payload.leg).ok() == Some(side))
++            .ok_or(DialogShadowError::InvalidRecord)
++    }
++
++    fn dialog(
++        &self,
++        side: RecoveredDialogSide,
++    ) -> Result<rsipstack::dialog::dialog::Dialog, DialogShadowError> {
++        self.dialog_layer
++            .get_dialog(self.dialog_id(side))
++            .ok_or(DialogShadowError::Unavailable)
++    }
++
++    fn require_dialog_id(
++        &self,
++        side: RecoveredDialogSide,
++        dialog_id: &rsipstack::dialog::DialogId,
++    ) -> Result<(), DialogShadowError> {
++        if self.dialog_id(side) == dialog_id {
++            Ok(())
++        } else {
++            Err(DialogShadowError::InvalidRecord)
++        }
++    }
++
++    fn dialog_id(&self, side: RecoveredDialogSide) -> &rsipstack::dialog::DialogId {
++        match side {
++            RecoveredDialogSide::Caller => &self.caller_dialog_id,
++            RecoveredDialogSide::Callee => &self.callee_dialog_id,
++        }
++    }
++}
++
++async fn reject_recovered_dialog_event(event: RecoveredDialogEvent) {
++    use rsipstack::dialog::dialog::DialogState;
++
++    match event.state {
++        DialogState::Updated(_, _, handle)
++        | DialogState::Info(_, _, handle)
++        | DialogState::Options(_, _, handle)
++        | DialogState::Notify(_, _, handle)
++        | DialogState::Refer(_, _, handle)
++        | DialogState::Message(_, _, handle)
++        | DialogState::Publish(_, _, handle) => {
++            let _ = handle
++                .reply(rsipstack::sip::StatusCode::ServiceUnavailable)
++                .await;
++        }
++        _ => {}
++    }
++}
++
++#[allow(clippy::too_many_arguments)]
++fn recovered_shadow_pair_request(
++    context: &RecoveredShadowPairContext,
++    codec: &DialogRecoveryCapsuleCodec,
++    payloads: &[DialogRecoveryCapsulePayload],
++    state: DialogShadowState,
++    sequence: u32,
++    final_response_identity: Option<&str>,
++    logical_offer_sdp: Option<&str>,
++    logical_answer_sdp: Option<&str>,
++) -> Result<DialogShadowCommitPairRequest, DialogShadowError> {
++    if payloads.len() != 2
++        || sequence == 0
++        || context.owner_epoch == 0
++        || context.owner_epoch > u32::MAX as u64
++        || !valid_identifier(&context.tenant_id)
++        || !valid_identifier(&context.cell_id)
++        || !valid_identifier(&context.owner_node_id)
++        || !valid_identifier(&context.owner_fault_domain)
++        || !valid_identifier(&context.takeover_id)
++        || !valid_identifier(&context.call_session_ref)
++        || !valid_identifier(&context.auth_context_ref)
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let caller = payloads
++        .iter()
++        .find(|payload| payload.leg == "caller")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    let callee = payloads
++        .iter()
++        .find(|payload| payload.leg == "callee")
++        .ok_or(DialogShadowError::InvalidRecord)?;
++    if caller.dialog_role != "uas"
++        || callee.dialog_role != "uac"
++        || caller.peer_dialog_id != callee.dialog_id
++        || callee.peer_dialog_id != caller.dialog_id
++        || caller.call_session_ref != context.call_session_ref
++        || callee.call_session_ref != context.call_session_ref
++        || caller.interaction_id != callee.interaction_id
++        || caller.media_reservation_id != callee.media_reservation_id
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let terminal = state == DialogShadowState::Terminated;
++    let recorded_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
++    let mut records = payloads
++        .iter()
++        .map(|payload| {
++            validate_recovery_payload(payload)?;
++            let recovery_capsule = codec.seal(
++                payload,
++                &DialogRecoveryCapsuleBinding {
++                    tenant_id: context.tenant_id.clone(),
++                    cell_id: context.cell_id.clone(),
++                    dialog_id: payload.dialog_id.clone(),
++                    owner_epoch: context.owner_epoch,
++                    sequence,
++                },
++            )?;
++            let record = DialogShadowRecord {
++                schema_version: 2,
++                tenant_id: context.tenant_id.clone(),
++                cell_id: context.cell_id.clone(),
++                dialog_id: payload.dialog_id.clone(),
++                call_id_hash: sha256(&payload.raw_call_id),
++                owner_node_id: context.owner_node_id.clone(),
++                owner_fault_domain: context.owner_fault_domain.clone(),
++                owner_epoch: context.owner_epoch,
++                sequence,
++                state,
++                local_tag: payload.local_tag.clone(),
++                remote_tag: Some(payload.remote_tag.clone()),
++                route_set: payload.route_set.clone(),
++                local_cseq: payload.local_cseq,
++                remote_cseq: payload.remote_cseq,
++                branch_hash: sha256(&format!(
++                    "{}\0{}\0{}",
++                    payload.raw_call_id, payload.local_tag, payload.remote_tag
++                )),
++                final_response_hash: final_response_identity.map(sha256),
++                auth_context_ref: context.auth_context_ref.clone(),
++                logical_offer_hash: logical_offer_sdp.map(sha256),
++                logical_answer_hash: logical_answer_sdp.map(sha256),
++                media_reservation_id: Some(payload.media_reservation_id.clone()),
++                provider_session_ref: Some(context.call_session_ref.clone()),
++                cdr_sequence: payload.cdr_sequence,
++                recorded_at: recorded_at.clone(),
++                terminal,
++                recovery_capsule: Some(recovery_capsule),
++                takeover_id: Some(context.takeover_id.clone()),
++            };
++            if serde_json::to_vec(&record)
++                .map_err(|_| DialogShadowError::InvalidRecord)?
++                .len()
++                > MAX_RECORD_BYTES
++            {
++                return Err(DialogShadowError::InvalidRecord);
++            }
++            Ok(record)
++        })
++        .collect::<Result<Vec<_>, DialogShadowError>>()?;
++    records.sort_by(|left, right| left.dialog_id.cmp(&right.dialog_id));
++    let request = DialogShadowCommitPairRequest {
++        profile: PROFILE_T1.to_string(),
++        records: records
++            .try_into()
++            .map_err(|_| DialogShadowError::InvalidRecord)?,
++    };
++    validate_shadow_pair(&request.records)?;
++    Ok(request)
++}
++
++fn relay_headers(headers: &[rsipstack::sip::Header]) -> Vec<rsipstack::sip::Header> {
++    const HOP_OR_DIALOG_HEADERS: &[&str] = &[
++        "authentication-info",
++        "authorization",
++        "call-id",
++        "contact",
++        "content-length",
++        "cseq",
++        "from",
++        "max-forwards",
++        "path",
++        "proxy-authenticate",
++        "proxy-authorization",
++        "record-route",
++        "route",
++        "to",
++        "via",
++        "www-authenticate",
++        "x-ivekit-recovery",
++    ];
++    headers
++        .iter()
++        .filter(|header| {
++            let name = header.name();
++            !HOP_OR_DIALOG_HEADERS
++                .iter()
++                .any(|blocked| name.eq_ignore_ascii_case(blocked))
++        })
++        .cloned()
++        .collect()
++}
++
++#[allow(clippy::too_many_arguments)]
++async fn commit_recovered_shadow_pair(
++    config: &DialogShadowRuntimeConfig,
++    tenant_id: &str,
++    cell_id: &str,
++    owner_node_id: &str,
++    owner_fault_domain: &str,
++    owner_epoch: u64,
++    takeover_id: &str,
++    call_session_ref: &str,
++    auth_context_ref: &str,
++    payloads: &[DialogRecoveryCapsulePayload],
++) -> Result<[DialogShadowRecord; 2], DialogShadowError> {
++    let request = recovered_shadow_pair_request(
++        &RecoveredShadowPairContext {
++            tenant_id: tenant_id.to_string(),
++            cell_id: cell_id.to_string(),
++            owner_node_id: owner_node_id.to_string(),
++            owner_fault_domain: owner_fault_domain.to_string(),
++            owner_epoch,
++            takeover_id: takeover_id.to_string(),
++            call_session_ref: call_session_ref.to_string(),
++            auth_context_ref: auth_context_ref.to_string(),
++        },
++        &config.recovery_codec,
++        payloads,
++        DialogShadowState::Confirmed,
++        1,
++        None,
++        None,
++        None,
++    )?;
++    let records = request.records.clone();
++    config.executor.commit_pair(&request).await.map(|_| records)
++}
++
++fn remove_restored_dialogs(
++    dialog_layer: &rsipstack::dialog::dialog_layer::DialogLayer,
++    ids: &[rsipstack::dialog::DialogId],
++) {
++    for id in ids {
++        dialog_layer.remove_dialog(id);
++    }
++}
++
++pub fn recovery_payload_from_dialog_snapshots(
++    call_session_ref: &str,
++    interaction_id: &str,
++    media_reservation_id: &str,
++    cdr_sequence: u64,
++    snapshot: &rsipstack::dialog::dialog::DialogSnapshot,
++    peer: &rsipstack::dialog::dialog::DialogSnapshot,
++) -> Result<DialogRecoveryCapsulePayload, DialogShadowError> {
++    use rsipstack::dialog::dialog::DialogSnapshotState;
++    use rsipstack::transaction::key::TransactionRole;
++
++    if !valid_identifier(call_session_ref)
++        || !valid_identifier(interaction_id)
++        || !valid_media_reservation_id(media_reservation_id)
++        || snapshot.state != DialogSnapshotState::Confirmed
++        || peer.state != DialogSnapshotState::Confirmed
++        || snapshot.role == peer.role
++        || snapshot.id.remote_tag.is_empty()
++        || peer.id.remote_tag.is_empty()
++    {
++        return Err(DialogShadowError::InvalidRecord);
++    }
++    let dialog_id = stable_dialog_shadow_id(
++        &snapshot.id.call_id,
++        &snapshot.id.local_tag,
++        &snapshot.id.remote_tag,
++    );
++    let peer_dialog_id =
++        stable_dialog_shadow_id(&peer.id.call_id, &peer.id.local_tag, &peer.id.remote_tag);
++    let (leg, dialog_role) = match snapshot.role {
++        TransactionRole::Server => ("caller", "uas"),
++        TransactionRole::Client => ("callee", "uac"),
++    };
++    let payload = DialogRecoveryCapsulePayload {
++        schema_version: 1,
++        call_session_ref: call_session_ref.to_string(),
++        interaction_id: interaction_id.to_string(),
++        dialog_id,
++        peer_dialog_id,
++        leg: leg.to_string(),
++        dialog_role: dialog_role.to_string(),
++        raw_call_id: snapshot.id.call_id.clone(),
++        local_tag: snapshot.id.local_tag.clone(),
++        remote_tag: snapshot.id.remote_tag.clone(),
++        from_uri: snapshot.from.uri.to_string(),
++        to_uri: snapshot.to.uri.to_string(),
++        local_contact_uri: snapshot
++            .local_contact
++            .as_ref()
++            .ok_or(DialogShadowError::InvalidRecord)?
++            .to_string(),
++        remote_uri: snapshot.remote_uri.to_string(),
++        remote_contact_uri: snapshot
++            .remote_contact
++            .as_ref()
++            .map(|contact| contact.value().to_string()),
++        route_set: snapshot
++            .route_set
++            .iter()
++            .map(|route| route.value().to_string())
++            .collect(),
++        local_cseq: snapshot.local_cseq,
++        remote_cseq: snapshot.remote_cseq,
++        supports_100rel: snapshot.supports_100rel,
++        media_reservation_id: media_reservation_id.to_string(),
++        cdr_sequence,
++    };
++    validate_recovery_payload(&payload)?;
++    Ok(payload)
++}
++
++pub fn recovery_payload_to_dialog_snapshot(
++    value: &DialogRecoveryCapsulePayload,
++) -> Result<rsipstack::dialog::dialog::DialogSnapshot, DialogShadowError> {
++    use rsipstack::dialog::dialog::{DialogSnapshot, DialogSnapshotState};
++    use rsipstack::sip::headers::{typed, untyped};
++    use rsipstack::sip::uri::Tag;
++    use rsipstack::transaction::key::TransactionRole;
++
++    validate_recovery_payload(value)?;
++    let role = match value.dialog_role.as_str() {
++        "uac" => TransactionRole::Client,
++        "uas" => TransactionRole::Server,
++        _ => return Err(DialogShadowError::InvalidRecord),
++    };
++    let parse_uri = |raw: &str| {
++        rsipstack::sip::Uri::try_from(raw).map_err(|_| DialogShadowError::InvalidRecord)
++    };
++    let from_tag = if role == TransactionRole::Client {
++        &value.local_tag
++    } else {
++        &value.remote_tag
++    };
++    let to_tag = if role == TransactionRole::Client {
++        &value.remote_tag
++    } else {
++        &value.local_tag
++    };
++    let from = typed::From::from(parse_uri(&value.from_uri)?).with_tag(Tag::from(from_tag.clone()));
++    let to = typed::To::from(parse_uri(&value.to_uri)?).with_tag(Tag::from(to_tag.clone()));
++    let route_set = value
++        .route_set
++        .iter()
++        .map(|route| untyped::Route::new(route.clone()))
++        .collect();
++    Ok(DialogSnapshot {
++        state: DialogSnapshotState::Confirmed,
++        role,
++        id: rsipstack::dialog::DialogId {
++            call_id: value.raw_call_id.clone(),
++            local_tag: value.local_tag.clone(),
++            remote_tag: value.remote_tag.clone(),
++        },
++        from,
++        to,
++        local_cseq: value.local_cseq,
++        remote_cseq: value.remote_cseq,
++        local_contact: Some(parse_uri(&value.local_contact_uri)?),
++        remote_uri: parse_uri(&value.remote_uri)?,
++        remote_contact: value
++            .remote_contact_uri
++            .as_ref()
++            .map(|contact| untyped::Contact::new(contact.clone())),
++        route_set,
++        supports_100rel: value.supports_100rel,
++    })
++}
++
+ fn hex_sha256(digest: impl AsRef<[u8]>) -> String {
+     const HEX: &[u8; 16] = b"0123456789abcdef";
+     let bytes = digest.as_ref();
+@@ -739,8 +3095,17 @@ fn validate_http_config(config: &DialogShadowHttpClientConfig) -> Result<(), Dia
+         || config.request_timeout < Duration::from_millis(50)
+         || config.request_timeout > Duration::from_secs(10)
+         || !(1024..=1024 * 1024).contains(&config.max_response_bytes)
++        || config.owner_heartbeat_interval < Duration::from_millis(100)
++        || config.owner_heartbeat_interval > Duration::from_secs(10)
++        || config.owner_identity.as_ref().is_some_and(|identity| {
++            !valid_identifier(&identity.cell_id)
++                || !valid_identifier(&identity.node_id)
++                || !valid_identifier(&identity.fault_domain)
++        })
+         || (config.production
+-            && (config.tls_identity_file.is_none() || config.tls_ca_file.is_none()))
++            && (config.tls_identity_file.is_none()
++                || config.tls_ca_file.is_none()
++                || config.owner_identity.is_none()))
+     {
+         return Err(DialogShadowError::InvalidBinding);
+     }
+@@ -748,15 +3113,13 @@ fn validate_http_config(config: &DialogShadowHttpClientConfig) -> Result<(), Dia
+ }
+ 
+ fn read_service_token(path: &PathBuf, production: bool) -> Result<String, DialogShadowError> {
++    let metadata = secret_file_metadata(path, 4_097)?;
+     if production {
+         #[cfg(unix)]
+         {
+             use std::os::unix::fs::PermissionsExt;
+-            let mode = std::fs::metadata(path)
+-                .map_err(|_| DialogShadowError::InvalidBinding)?
+-                .permissions()
+-                .mode();
+-            if mode & 0o077 != 0 {
++            let mode = metadata.permissions().mode();
++            if !production_secret_mode_is_safe(mode) {
+                 return Err(DialogShadowError::InvalidBinding);
+             }
+         }
+@@ -800,7 +3163,7 @@ fn build_dialog_shadow_runtime_config()
+         parsed_u64_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TIMEOUT_MS", 500, 50, 10_000)?;
+     let max_response_bytes = parsed_usize_env(
+         "IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_RESPONSE_BYTES",
+-        16 * 1024,
++        128 * 1024,
+         1_024,
+         1024 * 1024,
+     )?;
+@@ -814,20 +3177,69 @@ fn build_dialog_shadow_runtime_config()
+             return Err("dialog_shadow_binding_config_invalid");
+         }
+     }
+-    let executor = DialogShadowHttpClient::new(DialogShadowHttpClientConfig {
+-        endpoint,
+-        service_token_file: PathBuf::from(service_token_file),
+-        tls_identity_file: required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE")
+-            .map(PathBuf::from),
+-        tls_ca_file: required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_CA_FILE").map(PathBuf::from),
++    let owner_identity = DialogOwnerNodeIdentity {
++        cell_id: required_env("IVEKIT_RUSTPBX_CELL_ID")
++            .ok_or("dialog_shadow_binding_config_invalid")?,
++        node_id: required_env("IVEKIT_RUSTPBX_OWNER_NODE_ID")
++            .ok_or("dialog_shadow_binding_config_invalid")?,
++        fault_domain: required_env("IVEKIT_RUSTPBX_FAULT_DOMAIN")
++            .ok_or("dialog_shadow_binding_config_invalid")?,
++    };
++    let owner_heartbeat_interval_ms = parsed_u64_env(
++        "IVEKIT_RUSTPBX_DIALOG_HEARTBEAT_INTERVAL_MS",
++        1_000,
++        100,
++        10_000,
++    )?;
++    let executor = Arc::new(
++        DialogShadowHttpClient::new(DialogShadowHttpClientConfig {
++            endpoint,
++            service_token_file: PathBuf::from(service_token_file),
++            tls_identity_file: required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE")
++                .map(PathBuf::from),
++            tls_ca_file: required_env("IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_CA_FILE")
++                .map(PathBuf::from),
++            production,
++            max_inflight,
++            request_timeout: Duration::from_millis(request_timeout_ms),
++            max_response_bytes,
++            owner_identity: Some(owner_identity),
++            owner_heartbeat_interval: Duration::from_millis(owner_heartbeat_interval_ms),
++        })
++        .map_err(|_| "dialog_shadow_client_invalid")?,
++    );
++    executor
++        .start_owner_heartbeat()
++        .map_err(|_| "dialog_shadow_heartbeat_start_failed")?;
++    let current_key_id = required_env("IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID")
++        .ok_or("dialog_recovery_current_key_id_missing")?;
++    let current_key_file = required_env("IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_FILE")
++        .ok_or("dialog_recovery_current_key_file_missing")?;
++    let current = DialogRecoveryCapsuleKey::from_base64_file(
++        &current_key_id,
++        std::path::Path::new(&current_key_file),
+         production,
+-        max_inflight,
+-        request_timeout: Duration::from_millis(request_timeout_ms),
+-        max_response_bytes,
+-    })
+-    .map_err(|_| "dialog_shadow_client_invalid")?;
++    )
++    .map_err(|_| "dialog_recovery_current_key_invalid")?;
++    let previous_key_id = required_env("IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID");
++    let previous_key_file = required_env("IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_FILE");
++    let previous = match (previous_key_id, previous_key_file) {
++        (None, None) => None,
++        (Some(key_id), Some(key_file)) => Some(
++            DialogRecoveryCapsuleKey::from_base64_file(
++                &key_id,
++                std::path::Path::new(&key_file),
++                production,
++            )
++            .map_err(|_| "dialog_recovery_previous_key_invalid")?,
++        ),
++        _ => return Err("dialog_recovery_previous_key_pair_invalid"),
++    };
++    let recovery_codec = DialogRecoveryCapsuleCodec::new(current, previous)
++        .map_err(|_| "dialog_recovery_key_rotation_invalid")?;
+     Ok(Some(Arc::new(DialogShadowRuntimeConfig {
+-        executor: Arc::new(executor),
++        executor,
++        recovery_codec: Arc::new(recovery_codec),
+     })))
+ }
+ 
+@@ -885,3 +3297,132 @@ fn parsed_u64_env(
+     }
+     Ok(value)
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn recovery_payload(
++        dialog_id: &str,
++        peer_dialog_id: &str,
++        leg: &str,
++        dialog_role: &str,
++    ) -> DialogRecoveryCapsulePayload {
++        DialogRecoveryCapsulePayload {
++            schema_version: 1,
++            call_session_ref: "call-session-a".into(),
++            interaction_id: "interaction-a".into(),
++            dialog_id: dialog_id.into(),
++            peer_dialog_id: peer_dialog_id.into(),
++            leg: leg.into(),
++            dialog_role: dialog_role.into(),
++            raw_call_id: format!("{leg}-call-id@example.invalid"),
++            local_tag: format!("{leg}-local"),
++            remote_tag: format!("{leg}-remote"),
++            from_uri: "sip:caller@example.invalid".into(),
++            to_uri: "sip:callee@example.invalid".into(),
++            local_contact_uri: "sip:rustpbx@example.internal:5060".into(),
++            remote_uri: "sip:peer@example.invalid".into(),
++            remote_contact_uri: Some("sip:peer@198.51.100.10:5060".into()),
++            route_set: vec!["sip:edge.example.internal:5061;transport=tls;lr".into()],
++            local_cseq: 22,
++            remote_cseq: 18,
++            supports_100rel: true,
++            media_reservation_id: "reservation-a/callee".into(),
++            cdr_sequence: 12,
++        }
++    }
++
++    #[test]
++    fn recovered_update_builds_one_pair_with_shared_takeover_identity() {
++        let codec = DialogRecoveryCapsuleCodec::new(
++            DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x55; 32]).unwrap(),
++            None,
++        )
++        .unwrap();
++        let request = recovered_shadow_pair_request(
++            &RecoveredShadowPairContext {
++                tenant_id: "tenant-a".into(),
++                cell_id: "cell-a".into(),
++                owner_node_id: "rustpbx-b".into(),
++                owner_fault_domain: "zone-b-rack-1".into(),
++                owner_epoch: 8,
++                takeover_id: "takeover-a".into(),
++                call_session_ref: "call-session-a".into(),
++                auth_context_ref: "auth-context-a".into(),
++            },
++            &codec,
++            &[
++                recovery_payload("dialog-a", "dialog-b", "caller", "uas"),
++                recovery_payload("dialog-b", "dialog-a", "callee", "uac"),
++            ],
++            DialogShadowState::Updating,
++            2,
++            Some("200 INVITE"),
++            Some("v=0\r\na=offer\r\n"),
++            Some("v=0\r\na=answer\r\n"),
++        )
++        .unwrap();
++
++        assert_eq!(request.profile, PROFILE_T1);
++        assert!(request.records.iter().all(|record| {
++            record.sequence == 2
++                && record.owner_epoch == 8
++                && record.takeover_id.as_deref() == Some("takeover-a")
++                && record.state == DialogShadowState::Updating
++                && !record.terminal
++        }));
++        assert_eq!(request.record_hashes().unwrap().len(), 2);
++        assert_eq!(request.pair_hash().unwrap().len(), 64);
++    }
++
++    #[test]
++    fn relayed_headers_drop_dialog_transaction_and_authentication_identity() {
++        use rsipstack::sip::Header;
++
++        let headers = relay_headers(&[
++            Header::Other("Via".into(), "SIP/2.0/UDP source.invalid".into()),
++            Header::Other("Call-ID".into(), "private-call-id".into()),
++            Header::Other("Authorization".into(), "secret".into()),
++            Header::Other("Route".into(), "<sip:source.invalid;lr>".into()),
++            Header::Other("X-Correlation-ID".into(), "correlation-a".into()),
++            Header::ContentType("application/dtmf-relay".into()),
++        ]);
++
++        assert_eq!(headers.len(), 2);
++        assert_eq!(headers[0].name(), "X-Correlation-ID");
++        assert_eq!(headers[1].name(), "Content-Type");
++    }
++
++    #[test]
++    fn recovered_dialog_sides_are_strict_symmetric_and_media_aligned() {
++        assert_eq!(
++            RecoveredDialogSide::from_leg("caller").unwrap(),
++            RecoveredDialogSide::Caller
++        );
++        assert_eq!(
++            RecoveredDialogSide::from_leg("callee").unwrap(),
++            RecoveredDialogSide::Callee
++        );
++        assert_eq!(
++            RecoveredDialogSide::Caller.peer(),
++            RecoveredDialogSide::Callee
++        );
++        assert_eq!(
++            RecoveredDialogSide::Callee.peer(),
++            RecoveredDialogSide::Caller
++        );
++        assert_eq!(
++            RecoveredDialogSide::Caller.media_side(),
++            crate::ivekit_media_lifecycle::MediaDialogSide::Caller
++        );
++        assert_eq!(
++            RecoveredDialogSide::Callee.media_side(),
++            crate::ivekit_media_lifecycle::MediaDialogSide::Callee
++        );
++        assert_eq!(
++            RecoveredDialogSide::from_leg("third-leg"),
++            Err(DialogShadowError::InvalidRecord)
++        );
++    }
++}
+diff --git a/src/ivekit_media_lifecycle.rs b/src/ivekit_media_lifecycle.rs
+index 7c480e36..29bfb783 100644
+--- a/src/ivekit_media_lifecycle.rs
++++ b/src/ivekit_media_lifecycle.rs
+@@ -768,6 +768,14 @@ pub trait MediaControlExecutor: Send + Sync {
+     ) -> Result<MediaControlResult, MediaControlClientError>;
+ }
+ 
++#[async_trait::async_trait]
++trait RecoveryMediaControlExecutor: MediaControlExecutor {
++    async fn session(
++        &self,
++        media_reservation_id: &str,
++    ) -> Result<MediaSessionSnapshot, MediaControlClientError>;
++}
++
+ #[async_trait::async_trait]
+ impl MediaControlExecutor for MediaControlClient {
+     async fn execute(
+@@ -778,6 +786,16 @@ impl MediaControlExecutor for MediaControlClient {
+     }
+ }
+ 
++#[async_trait::async_trait]
++impl RecoveryMediaControlExecutor for MediaControlClient {
++    async fn session(
++        &self,
++        media_reservation_id: &str,
++    ) -> Result<MediaSessionSnapshot, MediaControlClientError> {
++        MediaControlClient::session(self, media_reservation_id).await
++    }
++}
++
+ pub struct IveKitMediaLifecycle {
+     binding: MediaAdmissionBinding,
+     executor: Arc<dyn MediaControlExecutor>,
+@@ -809,6 +827,58 @@ impl IveKitMediaLifecycle {
+         })
+     }
+ 
++    #[allow(clippy::too_many_arguments)]
++    pub fn restore_committed(
++        binding: MediaAdmissionBinding,
++        executor: Arc<dyn MediaControlExecutor>,
++        from_tag: &str,
++        to_tag: &str,
++        winning_branch: &str,
++        effective_sdp: &str,
++        last_sequence: u32,
++    ) -> Result<Self, MediaLifecycleError> {
++        if !valid_sip_tag(from_tag) || !valid_sip_tag(to_tag) {
++            return Err(MediaLifecycleError::InvalidBinding("dialog_tag"));
++        }
++        if !valid_identifier(winning_branch) {
++            return Err(MediaLifecycleError::InvalidBranch);
++        }
++        checked_sdp(effective_sdp)?;
++        let next_sequence = last_sequence
++            .checked_add(1)
++            .filter(|value| *value > 1)
++            .ok_or(MediaLifecycleError::SequenceExhausted)?;
++        let mut branches = HashMap::new();
++        branches.insert(
++            winning_branch.to_string(),
++            MediaBranch {
++                disposition: BranchDisposition::Winner,
++            },
++        );
++        Ok(Self {
++            binding,
++            executor,
++            from_tag: from_tag.to_string(),
++            to_tag: Some(to_tag.to_string()),
++            callee: PerLegMediaState {
++                leg_id: "callee".to_string(),
++                logical_sdp: Some(effective_sdp.to_string()),
++                effective_sdp: Some(effective_sdp.to_string()),
++                state: NegotiationState::Committed,
++                next_sequence,
++                pending_previous_state: None,
++                pending_kind: None,
++                pending_branch: None,
++                unknown_command_id: None,
++                branches,
++                winning_branch: Some(winning_branch.to_string()),
++                sent_487: false,
++            },
++            close_command: None,
++            close_confirmed: false,
++        })
++    }
++
+     pub fn state(&self) -> NegotiationState {
+         self.callee.state()
+     }
+@@ -1334,6 +1404,225 @@ pub fn media_control_requested() -> bool {
+     required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT").is_some()
+ }
+ 
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct MediaRecoveryTakeoverInput {
++    pub tenant_id: String,
++    pub cell_id: String,
++    pub owner_node_id: String,
++    pub previous_owner_epoch: u64,
++    pub owner_epoch: u64,
++    pub media_reservation_id: String,
++    pub from_tag: String,
++    pub to_tag: String,
++    pub winning_branch: String,
++}
++
++pub async fn takeover_recovered_media(
++    input: &MediaRecoveryTakeoverInput,
++) -> Result<IveKitMediaLifecycle, MediaLifecycleError> {
++    let config = media_control_runtime_config()
++        .map_err(|_| MediaLifecycleError::ConfigurationInvalid)?
++        .ok_or(MediaLifecycleError::ConfigurationInvalid)?;
++    takeover_recovered_media_with_executor(
++        input,
++        config.executor.clone(),
++        &required_env("IVEKIT_RUSTPBX_MEDIA_PROFILE_ID")
++            .ok_or(MediaLifecycleError::ConfigurationInvalid)?,
++    )
++    .await
++}
++
++async fn takeover_recovered_media_with_executor<T>(
++    input: &MediaRecoveryTakeoverInput,
++    executor: Arc<T>,
++    media_profile_id: &str,
++) -> Result<IveKitMediaLifecycle, MediaLifecycleError>
++where
++    T: RecoveryMediaControlExecutor + 'static,
++{
++    let existing = recovery_session(executor.as_ref(), &input.media_reservation_id).await?;
++    if existing.owner_epoch == input.owner_epoch.to_string() {
++        return restore_recovered_media(input, executor, media_profile_id, existing);
++    }
++    require_previous_media_owner(input, &existing)?;
++    let command =
++        build_recovered_media_takeover_command(input, &existing.call_id, &existing.effective_sdp)?;
++
++    for attempt in 0..2 {
++        let result = MediaControlExecutor::execute(executor.as_ref(), &command).await;
++        match result {
++            Ok(
++                MediaControlResult::Committed {
++                    command_id,
++                    session,
++                    ..
++                }
++                | MediaControlResult::Replayed {
++                    command_id,
++                    session,
++                    ..
++                },
++            ) => {
++                if command_id != command.command_id {
++                    return Err(MediaLifecycleError::OutcomeUnknown);
++                }
++                return restore_recovered_media(input, executor, media_profile_id, session);
++            }
++            Ok(MediaControlResult::RejectedCapacity { .. })
++            | Ok(MediaControlResult::TerminalError { .. })
++            | Err(MediaControlClientError::Configuration(_))
++            | Err(MediaControlClientError::InvalidCommand(_))
++            | Err(MediaControlClientError::RejectedBeforeTransport { .. })
++            | Err(MediaControlClientError::Rejected { .. }) => {
++                return Err(MediaLifecycleError::ControlRejected);
++            }
++            Ok(MediaControlResult::RejectedEpoch { .. })
++            | Ok(MediaControlResult::Unknown { .. })
++            | Err(MediaControlClientError::UnknownAfterTransport { .. }) => {}
++        }
++
++        let observed = recovery_session(executor.as_ref(), &input.media_reservation_id).await?;
++        if observed.owner_epoch == input.owner_epoch.to_string() {
++            return restore_recovered_media(input, executor, media_profile_id, observed);
++        }
++        require_previous_media_owner(input, &observed)?;
++        if attempt == 1 {
++            return Err(MediaLifecycleError::ReconcileRequired);
++        }
++    }
++    Err(MediaLifecycleError::ReconcileRequired)
++}
++
++async fn recovery_session(
++    executor: &dyn RecoveryMediaControlExecutor,
++    media_reservation_id: &str,
++) -> Result<MediaSessionSnapshot, MediaLifecycleError> {
++    executor
++        .session(media_reservation_id)
++        .await
++        .map_err(|error| match error {
++            MediaControlClientError::UnknownAfterTransport { .. } => {
++                MediaLifecycleError::ReconcileRequired
++            }
++            _ => MediaLifecycleError::ControlRejected,
++        })
++}
++
++fn require_previous_media_owner(
++    input: &MediaRecoveryTakeoverInput,
++    session: &MediaSessionSnapshot,
++) -> Result<(), MediaLifecycleError> {
++    if session.media_reservation_id != input.media_reservation_id
++        || session.owner_epoch != input.previous_owner_epoch.to_string()
++        || !matches!(session.state.as_str(), "prepared" | "committed")
++    {
++        return Err(MediaLifecycleError::ControlRejected);
++    }
++    Ok(())
++}
++
++fn restore_recovered_media<T>(
++    input: &MediaRecoveryTakeoverInput,
++    executor: Arc<T>,
++    media_profile_id: &str,
++    session: MediaSessionSnapshot,
++) -> Result<IveKitMediaLifecycle, MediaLifecycleError>
++where
++    T: MediaControlExecutor + 'static,
++{
++    if session.media_reservation_id != input.media_reservation_id
++        || session.owner_epoch != input.owner_epoch.to_string()
++        || session.last_sequence != 1
++        || !matches!(session.state.as_str(), "prepared" | "committed")
++    {
++        return Err(MediaLifecycleError::OutcomeUnknown);
++    }
++    let admission_reservation_id = input
++        .media_reservation_id
++        .strip_suffix("/callee")
++        .ok_or(MediaLifecycleError::InvalidBinding("media_reservation_id"))?;
++    let binding = MediaAdmissionBinding::new(
++        &input.tenant_id,
++        &session.call_id,
++        &input.cell_id,
++        &input.owner_node_id,
++        &input.owner_epoch.to_string(),
++        admission_reservation_id,
++        media_profile_id,
++    )?;
++    let lifecycle_executor: Arc<dyn MediaControlExecutor> = executor;
++    IveKitMediaLifecycle::restore_committed(
++        binding,
++        lifecycle_executor,
++        &input.from_tag,
++        &input.to_tag,
++        &input.winning_branch,
++        &session.effective_sdp,
++        session.last_sequence,
++    )
++}
++
++fn build_recovered_media_takeover_command(
++    input: &MediaRecoveryTakeoverInput,
++    call_id: &str,
++    effective_sdp: &str,
++) -> Result<MediaControlCommand, MediaLifecycleError> {
++    if !valid_identifier(&input.tenant_id)
++        || !valid_identifier(&input.cell_id)
++        || !valid_identifier(&input.owner_node_id)
++        || !valid_identifier(&input.media_reservation_id)
++        || !valid_identifier(&input.winning_branch)
++        || !valid_identifier(call_id)
++        || !valid_sip_tag(&input.from_tag)
++        || !valid_sip_tag(&input.to_tag)
++        || input.previous_owner_epoch == 0
++        || input.owner_epoch <= input.previous_owner_epoch
++    {
++        return Err(MediaLifecycleError::InvalidBinding("media_takeover"));
++    }
++    checked_sdp(effective_sdp)?;
++    let payload = serde_json::json!({
++        "from_tag": input.from_tag,
++        "negotiation_role": "offer",
++        "owner_takeover": true,
++        "previous_owner_epoch": input.previous_owner_epoch.to_string(),
++        "sdp": effective_sdp,
++        "to_tag": input.to_tag,
++    });
++    let payload = match payload {
++        Value::Object(payload) => payload,
++        _ => return Err(MediaLifecycleError::CommandInvalid),
++    };
++    let payload_hash = payload_hash(&payload).map_err(|_| MediaLifecycleError::CommandInvalid)?;
++    let mut command = MediaControlCommand {
++        protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++        action: MediaControlAction::Update,
++        command_id: "pending".to_string(),
++        tenant_id: input.tenant_id.clone(),
++        call_id: call_id.to_string(),
++        leg_id: "callee".to_string(),
++        cell_id: input.cell_id.clone(),
++        owner_node_id: input.owner_node_id.clone(),
++        owner_epoch: input.owner_epoch.to_string(),
++        media_reservation_id: input.media_reservation_id.clone(),
++        command_sequence: 1,
++        idempotency_key: format!(
++            "rustpbx/{}/{}/callee/{}/1",
++            input.cell_id, call_id, input.owner_epoch
++        ),
++        expires_at: (chrono::Utc::now() + chrono::Duration::seconds(30))
++            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
++        payload,
++        payload_hash,
++    };
++    command.command_id =
++        command_id_for(&command).map_err(|_| MediaLifecycleError::CommandInvalid)?;
++    command
++        .validate()
++        .map_err(|_| MediaLifecycleError::CommandInvalid)?;
++    Ok(command)
++}
++
+ pub fn spawn_media_control_event_listener(
+     registry: Arc<crate::proxy::active_call_registry::ActiveProxyCallRegistry>,
+     cancel: CancellationToken,
+@@ -1622,6 +1911,31 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn recovered_committed_media_resumes_after_takeover_sequence_one() {
++        let executor = executor_with_results(Vec::new());
++        let lifecycle = IveKitMediaLifecycle::restore_committed(
++            binding(),
++            executor,
++            "caller-tag",
++            "callee-tag",
++            "branch-a",
++            "v=0\r\na=sendrecv\r\n",
++            1,
++        )
++        .unwrap();
++
++        assert_eq!(lifecycle.state(), NegotiationState::Committed);
++        assert_eq!(lifecycle.from_tag, "caller-tag");
++        assert_eq!(lifecycle.to_tag.as_deref(), Some("callee-tag"));
++        assert_eq!(lifecycle.callee.next_sequence(), 2);
++        assert_eq!(lifecycle.callee.winning_branch(), Some("branch-a"));
++        assert_eq!(
++            lifecycle.callee.effective_sdp(),
++            Some("v=0\r\na=sendrecv\r\n")
++        );
++    }
++
+     #[test]
+     fn execution_profile_keeps_non_relay_workloads_local() {
+         assert_eq!(
+@@ -1789,9 +2103,40 @@ mod tests {
+         assert!(MediaControlRuntimeMode::parse(Some("all")).is_err());
+     }
+ 
++    #[test]
++    fn recovered_media_takeover_is_the_first_command_of_the_higher_epoch() {
++        let command = build_recovered_media_takeover_command(
++            &MediaRecoveryTakeoverInput {
++                tenant_id: "tenant-a".into(),
++                cell_id: "cell-a".into(),
++                owner_node_id: "rustpbx-b".into(),
++                previous_owner_epoch: 7,
++                owner_epoch: 8,
++                media_reservation_id: "admission-a/callee".into(),
++                from_tag: "caller-tag".into(),
++                to_tag: "callee-tag".into(),
++                winning_branch: "branch-a".into(),
++            },
++            "call-a",
++            "v=0\r\na=existing-media\r\n",
++        )
++        .unwrap();
++
++        assert_eq!(command.action as u8, MediaControlAction::Update as u8);
++        assert_eq!(command.command_sequence, 1);
++        assert_eq!(command.owner_epoch, "8");
++        assert_eq!(command.media_reservation_id, "admission-a/callee");
++        assert_eq!(command.payload["owner_takeover"], true);
++        assert_eq!(command.payload["previous_owner_epoch"], "7");
++        assert_eq!(command.payload["sdp"], "v=0\r\na=existing-media\r\n");
++        assert_eq!(command.idempotency_key, "rustpbx/cell-a/call-a/callee/8/1");
++        command.validate().unwrap();
++    }
++
+     struct StubExecutor {
+         commands: Mutex<Vec<MediaControlCommand>>,
+         results: Mutex<VecDeque<Result<MediaControlResult, MediaControlClientError>>>,
++        sessions: Mutex<VecDeque<Result<MediaSessionSnapshot, MediaControlClientError>>>,
+     }
+ 
+     #[async_trait::async_trait]
+@@ -1808,6 +2153,19 @@ mod tests {
+         }
+     }
+ 
++    #[async_trait::async_trait]
++    impl RecoveryMediaControlExecutor for StubExecutor {
++        async fn session(
++            &self,
++            _media_reservation_id: &str,
++        ) -> Result<MediaSessionSnapshot, MediaControlClientError> {
++            self.sessions
++                .lock()
++                .pop_front()
++                .expect("stub session is required")
++        }
++    }
++
+     fn committed(
+         command_id: &str,
+         sequence: u32,
+@@ -1835,9 +2193,148 @@ mod tests {
+         Arc::new(StubExecutor {
+             commands: Mutex::new(Vec::new()),
+             results: Mutex::new(results.into_iter().map(Ok).collect()),
++            sessions: Mutex::new(VecDeque::new()),
+         })
+     }
+ 
++    fn recovered_session(owner_epoch: u64) -> MediaSessionSnapshot {
++        MediaSessionSnapshot {
++            media_reservation_id: "admission-a/callee".to_string(),
++            call_id: "call-a".to_string(),
++            owner_epoch: owner_epoch.to_string(),
++            last_sequence: 1,
++            state: "committed".to_string(),
++            transport_session_id: "rtpengine-a".to_string(),
++            effective_sdp: "v=0\r\na=existing-media\r\n".to_string(),
++            expires_at: "2026-07-26T12:00:30.000Z".to_string(),
++            updated_at: "2026-07-26T12:00:00.000Z".to_string(),
++        }
++    }
++
++    fn recovery_input() -> MediaRecoveryTakeoverInput {
++        MediaRecoveryTakeoverInput {
++            tenant_id: "tenant-a".into(),
++            cell_id: "cell-a".into(),
++            owner_node_id: "rustpbx-b".into(),
++            previous_owner_epoch: 4_294_967_297,
++            owner_epoch: 4_294_967_298,
++            media_reservation_id: "admission-a/callee".into(),
++            from_tag: "caller-tag".into(),
++            to_tag: "callee-tag".into(),
++            winning_branch: "branch-a".into(),
++        }
++    }
++
++    #[tokio::test]
++    async fn recovered_media_takeover_resumes_after_a_lost_success_response() {
++        let executor = executor_with_results(Vec::new());
++        executor
++            .sessions
++            .lock()
++            .push_back(Ok(recovered_session(4_294_967_298)));
++
++        let lifecycle = takeover_recovered_media_with_executor(
++            &recovery_input(),
++            executor.clone(),
++            "g711-relay-v1",
++        )
++        .await
++        .unwrap();
++
++        assert_eq!(lifecycle.state(), NegotiationState::Committed);
++        assert!(executor.commands.lock().is_empty());
++    }
++
++    #[tokio::test]
++    async fn recovered_media_takeover_replays_the_exact_command_after_unknown() {
++        let input = recovery_input();
++        let existing = recovered_session(input.previous_owner_epoch);
++        let command = build_recovered_media_takeover_command(
++            &input,
++            &existing.call_id,
++            &existing.effective_sdp,
++        )
++        .unwrap();
++        let mut committed = recovered_session(input.owner_epoch);
++        committed.last_sequence = 1;
++        let executor = executor_with_results(Vec::new());
++        executor
++            .sessions
++            .lock()
++            .extend([Ok(existing.clone()), Ok(existing)]);
++        executor.results.lock().extend([
++            Ok(MediaControlResult::Unknown {
++                protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++                command_id: command.command_id.clone(),
++                error_code: "transport_timeout".into(),
++                retryable: true,
++                session: None,
++            }),
++            Ok(MediaControlResult::Replayed {
++                protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++                command_id: command.command_id.clone(),
++                session: committed,
++            }),
++        ]);
++
++        takeover_recovered_media_with_executor(&input, executor.clone(), "g711-relay-v1")
++            .await
++            .unwrap();
++
++        let commands = executor.commands.lock();
++        assert_eq!(commands.len(), 2);
++        assert_eq!(commands[0].command_id, commands[1].command_id);
++        assert_eq!(commands[0].idempotency_key, commands[1].idempotency_key);
++        assert!(
++            commands
++                .iter()
++                .all(|command| matches!(command.action, MediaControlAction::Update))
++        );
++    }
++
++    #[tokio::test]
++    async fn unresolved_media_takeover_freezes_without_deleting_the_session() {
++        let input = recovery_input();
++        let existing = recovered_session(input.previous_owner_epoch);
++        let command = build_recovered_media_takeover_command(
++            &input,
++            &existing.call_id,
++            &existing.effective_sdp,
++        )
++        .unwrap();
++        let executor = executor_with_results(Vec::new());
++        executor
++            .sessions
++            .lock()
++            .extend([Ok(existing.clone()), Ok(existing.clone()), Ok(existing)]);
++        for _ in 0..2 {
++            executor
++                .results
++                .lock()
++                .push_back(Ok(MediaControlResult::Unknown {
++                    protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++                    command_id: command.command_id.clone(),
++                    error_code: "transport_timeout".into(),
++                    retryable: true,
++                    session: None,
++                }));
++        }
++
++        let result =
++            takeover_recovered_media_with_executor(&input, executor.clone(), "g711-relay-v1").await;
++        assert!(matches!(
++            result,
++            Err(MediaLifecycleError::ReconcileRequired)
++        ));
++        let commands = executor.commands.lock();
++        assert_eq!(commands.len(), 2);
++        assert!(
++            commands
++                .iter()
++                .all(|command| matches!(command.action, MediaControlAction::Update))
++        );
++    }
++
+     #[tokio::test]
+     async fn ordinary_relay_uses_effective_offer_before_outbound_invite() {
+         let executor = executor_with_results(vec![committed(
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+index 18d51e6f..1d0b9e5c 100644
+--- a/src/ivekit_owner.rs
++++ b/src/ivekit_owner.rs
+@@ -160,7 +160,7 @@ impl CallSessionHook for IveKitOwnerSessionHook {
+     }
+ }
+ 
+-async fn close_owner(provider_call_id: &str) {
++pub(crate) async fn close_owner(provider_call_id: &str) {
+     let Some((_, entry)) = owners().remove(provider_call_id) else {
+         return;
+     };
+diff --git a/src/proxy/call.rs b/src/proxy/call.rs
+index 094d6126..3fd22ecd 100644
+--- a/src/proxy/call.rs
++++ b/src/proxy/call.rs
+@@ -1713,8 +1713,48 @@ impl CallModule {
+         let mut dialog = match self.inner.dialog_layer.get_dialog(&dialog_id) {
+             Some(dialog) => dialog,
+             None => {
+-                debug!(%dialog_id, method=%tx.original.method, "dialog not found for message");
+-                return Ok(());
++                let recovery_requested = tx.original.headers.iter().any(|header| {
++                    matches!(
++                        header,
++                        rsipstack::sip::Header::Other(name, value)
++                            if name.eq_ignore_ascii_case("X-IveKit-Recovery")
++                                && value.trim() == "1"
++                    )
++                });
++                if !recovery_requested {
++                    debug!(%dialog_id, method=%tx.original.method, "dialog not found for message");
++                    tx.reply(rsipstack::sip::StatusCode::CallTransactionDoesNotExist)
++                        .await?;
++                    return Ok(());
++                }
++                let stable_id = crate::ivekit_dialog_shadow::stable_dialog_shadow_id(
++                    &dialog_id.call_id,
++                    &dialog_id.local_tag,
++                    &dialog_id.remote_tag,
++                );
++                let recovered_id = match crate::ivekit_dialog_shadow::recover_dialog_pair(
++                    &self.inner.dialog_layer,
++                    &stable_id,
++                )
++                .await
++                {
++                    Ok(recovered_id) => recovered_id,
++                    Err(error) => {
++                        warn!(
++                            %stable_id,
++                            method = %tx.original.method,
++                            error = %error,
++                            "dialog recovery failed"
++                        );
++                        tx.reply(rsipstack::sip::StatusCode::ServiceUnavailable)
++                            .await?;
++                        return Ok(());
++                    }
++                };
++                self.inner
++                    .dialog_layer
++                    .get_dialog(&recovered_id)
++                    .ok_or_else(|| anyhow!("recovered dialog is unavailable"))?
+             }
+         };
+ 
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index 1f678045..f32531ab 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -5167,14 +5167,10 @@ impl SipSession {
+         callee_sdp
+     }
+ 
+-    fn dialog_shadow_event(
++    fn dialog_shadow_snapshot(
+         &self,
+         dialog_id: &DialogId,
+-        state: crate::ivekit_dialog_shadow::DialogShadowState,
+-        final_response_identity: Option<String>,
+-        logical_offer_sdp: Option<String>,
+-        logical_answer_sdp: Option<String>,
+-    ) -> Result<crate::ivekit_dialog_shadow::DialogShadowEvent> {
++    ) -> Result<rsipstack::dialog::dialog::DialogSnapshot> {
+         let dialog = self
+             .server
+             .dialog_layer
+@@ -5184,15 +5180,47 @@ impl SipSession {
+                     .then(|| Dialog::ServerInvite(self.server_dialog.clone()))
+             })
+             .ok_or_else(|| anyhow!("dialog shadow source dialog is unavailable"))?;
+-        let snapshot = match dialog {
+-            Dialog::ServerInvite(dialog) => dialog.snapshot(),
+-            Dialog::ClientInvite(dialog) => dialog.snapshot(),
+-            _ => return Err(anyhow!("dialog shadow requires an INVITE dialog")),
+-        };
++        match dialog {
++            Dialog::ServerInvite(dialog) => Ok(dialog.snapshot()),
++            Dialog::ClientInvite(dialog) => Ok(dialog.snapshot()),
++            _ => Err(anyhow!("dialog shadow requires an INVITE dialog")),
++        }
++    }
++
++    fn dialog_shadow_event(
++        &self,
++        snapshot: &rsipstack::dialog::dialog::DialogSnapshot,
++        peer_snapshot: Option<&rsipstack::dialog::dialog::DialogSnapshot>,
++        state: crate::ivekit_dialog_shadow::DialogShadowState,
++        final_response_identity: Option<String>,
++        logical_offer_sdp: Option<String>,
++        logical_answer_sdp: Option<String>,
++    ) -> Result<crate::ivekit_dialog_shadow::DialogShadowEvent> {
+         let owner = crate::ivekit_owner::owner_contract(&self.context.session_id)
+             .ok_or_else(|| anyhow!("dialog shadow owner contract is unavailable"))?;
+         let remote_tag =
+             (!snapshot.id.remote_tag.is_empty()).then(|| snapshot.id.remote_tag.clone());
++        let recovery_payload = if matches!(
++            state,
++            crate::ivekit_dialog_shadow::DialogShadowState::Confirmed
++                | crate::ivekit_dialog_shadow::DialogShadowState::Updating
++                | crate::ivekit_dialog_shadow::DialogShadowState::Terminated
++        ) {
++            Some(
++                crate::ivekit_dialog_shadow::recovery_payload_from_dialog_snapshots(
++                    &self.context.session_id,
++                    &owner.interaction_id,
++                    &format!("{}/callee", owner.reservation_id),
++                    0,
++                    snapshot,
++                    peer_snapshot
++                        .ok_or_else(|| anyhow!("dialog shadow recovery peer is unavailable"))?,
++                )
++                .map_err(|error| anyhow!("dialog shadow recovery payload failed: {error}"))?,
++            )
++        } else {
++            None
++        };
+         Ok(crate::ivekit_dialog_shadow::DialogShadowEvent {
+             state,
+             raw_call_id: snapshot.id.call_id.clone(),
+@@ -5203,7 +5231,11 @@ impl SipSession {
+             ),
+             local_tag: snapshot.id.local_tag.clone(),
+             remote_tag,
+-            route_set: snapshot.route_set.iter().map(ToString::to_string).collect(),
++            route_set: snapshot
++                .route_set
++                .iter()
++                .map(|route| route.value().to_string())
++                .collect(),
+             local_cseq: snapshot.local_cseq,
+             remote_cseq: snapshot.remote_cseq,
+             raw_branch_identity: format!(
+@@ -5213,10 +5245,11 @@ impl SipSession {
+             final_response_identity,
+             logical_offer_sdp,
+             logical_answer_sdp,
+-            media_reservation_id: Some(owner.reservation_id),
+-            provider_session_ref: None,
++            media_reservation_id: Some(format!("{}/callee", owner.reservation_id)),
++            provider_session_ref: Some(self.context.session_id.clone()),
+             cdr_sequence: 0,
+             terminal: state == crate::ivekit_dialog_shadow::DialogShadowState::Terminated,
++            recovery_payload,
+         })
+     }
+ 
+@@ -5236,17 +5269,49 @@ impl SipSession {
+             dialogs.push(callee);
+         }
+         let mut seen = HashSet::new();
++        let mut snapshots = Vec::new();
+         for candidate in dialogs {
+             if !seen.insert(candidate.clone()) {
+                 continue;
+             }
+-            let event = self.dialog_shadow_event(
+-                &candidate,
++            snapshots.push(self.dialog_shadow_snapshot(&candidate)?);
++        }
++        let requires_pair = matches!(
++            state,
++            crate::ivekit_dialog_shadow::DialogShadowState::Confirmed
++                | crate::ivekit_dialog_shadow::DialogShadowState::Updating
++                | crate::ivekit_dialog_shadow::DialogShadowState::Terminated
++        );
++        if requires_pair && snapshots.len() != 2 {
++            return Err(anyhow!(
++                "dialog shadow recovery requires exactly two confirmed dialog legs"
++            ));
++        }
++        let mut events = Vec::with_capacity(snapshots.len());
++        for (index, snapshot) in snapshots.iter().enumerate() {
++            let peer = requires_pair.then(|| &snapshots[1 - index]);
++            events.push(self.dialog_shadow_event(
++                snapshot,
++                peer,
+                 state,
+                 final_response_identity.clone(),
+                 logical_offer_sdp.clone(),
+                 logical_answer_sdp.clone(),
+-            )?;
++            )?);
++        }
++        if requires_pair {
++            self.ivekit_dialog_shadow
++                .commit_pair([events.remove(0), events.remove(0)])
++                .await
++                .map_err(|error| {
++                    anyhow!(
++                        "dialog shadow pair commit failed: {error}; runtime={:?}",
++                        self.ivekit_dialog_shadow.failure_code()
++                    )
++                })?;
++            return Ok(());
++        }
++        for event in events {
+             self.ivekit_dialog_shadow
+                 .commit(event)
+                 .await
+@@ -8231,6 +8296,27 @@ impl SipSession {
+     async fn cleanup(&mut self) {
+         trace!(session_id = %self.context.session_id, "Cleaning up session");
+ 
++        if self.ivekit_dialog_shadow.is_required() {
++            match tokio::time::timeout(
++                Duration::from_millis(500),
++                self.ivekit_dialog_shadow
++                    .terminate_pair("normal_session_cleanup"),
++            )
++            .await
++            {
++                Ok(Ok(_)) => {}
++                Ok(Err(error)) => warn!(
++                    session_id = %self.context.session_id,
++                    error = %error,
++                    "dialog_shadow_terminal_commit_unconfirmed"
++                ),
++                Err(_) => warn!(
++                    session_id = %self.context.session_id,
++                    "dialog_shadow_terminal_commit_unconfirmed"
++                ),
++            }
++        }
++
+         if self.ivekit_execution_profile
+             == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
+         {
+diff --git a/tests/ivekit_dialog_shadow_contract_test.rs b/tests/ivekit_dialog_shadow_contract_test.rs
+index 26e5ef5a..8f3313bf 100644
+--- a/tests/ivekit_dialog_shadow_contract_test.rs
++++ b/tests/ivekit_dialog_shadow_contract_test.rs
+@@ -1,10 +1,17 @@
+ use async_trait::async_trait;
++use rsipstack::transaction::key::TransactionRole;
+ use rustpbx::ivekit_dialog_shadow::{
++    DialogOwnerAuthorityRequest, DialogOwnerNodeIdentity, DialogOwnerTakeoverClaimRequest,
++    DialogOwnerTakeoverConsumeRequest, DialogRecoveryCapsuleBinding, DialogRecoveryCapsuleCodec,
++    DialogRecoveryCapsuleEnvelope, DialogRecoveryCapsuleKey, DialogRecoveryCapsulePayload,
+     DialogShadowAdmissionProof, DialogShadowBinding, DialogShadowCommitExecutor,
+-    DialogShadowCommitProof, DialogShadowCommitRequest, DialogShadowError, DialogShadowEvent,
+-    DialogShadowHttpClient, DialogShadowHttpClientConfig, DialogShadowLifecycle, DialogShadowState,
++    DialogShadowCommitPairRequest, DialogShadowCommitProof, DialogShadowCommitRequest,
++    DialogShadowError, DialogShadowEvent, DialogShadowHttpClient, DialogShadowHttpClientConfig,
++    DialogShadowLifecycle, DialogShadowPairCommitProof, DialogShadowState,
++    IveKitDialogShadowRuntime, open_recovery_pair, recovery_payload_from_dialog_snapshots,
++    recovery_payload_to_dialog_snapshot,
+ };
+-use std::collections::VecDeque;
++use std::collections::{HashMap, VecDeque};
+ use std::path::PathBuf;
+ use std::sync::{Arc, Mutex};
+ use std::time::Duration;
+@@ -15,6 +22,7 @@ use tokio::net::TcpListener;
+ struct ScriptedExecutor {
+     requests: Mutex<Vec<DialogShadowCommitRequest>>,
+     results: Mutex<VecDeque<Result<DialogShadowCommitProof, DialogShadowError>>>,
++    pair_requests: Mutex<Vec<DialogShadowCommitPairRequest>>,
+     admissions: Mutex<VecDeque<Result<DialogShadowAdmissionProof, DialogShadowError>>>,
+ }
+ 
+@@ -40,6 +48,21 @@ impl DialogShadowCommitExecutor for ScriptedExecutor {
+             .pop_front()
+             .unwrap_or(Err(DialogShadowError::Unavailable))
+     }
++
++    async fn commit_pair(
++        &self,
++        request: &DialogShadowCommitPairRequest,
++    ) -> Result<DialogShadowPairCommitProof, DialogShadowError> {
++        self.pair_requests.lock().unwrap().push(request.clone());
++        Ok(DialogShadowPairCommitProof {
++            status: "committed".into(),
++            pair_hash: request.pair_hash().unwrap(),
++            record_hashes: request.record_hashes().unwrap(),
++            fault_domains: vec!["zone-a-rack-1".into(), "zone-b-rack-1".into()],
++            owner_epoch: request.records[0].owner_epoch,
++            sequence: request.records[0].sequence,
++        })
++    }
+ }
+ 
+ #[tokio::test]
+@@ -72,6 +95,147 @@ fn binding() -> DialogShadowBinding {
+     .unwrap()
+ }
+ 
++#[test]
++fn typescript_recovery_capsule_fixture_opens_and_authenticates_all_binding_fields() {
++    let codec = DialogRecoveryCapsuleCodec::new(
++        DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x55; 32]).unwrap(),
++        None,
++    )
++    .unwrap();
++    let binding = DialogRecoveryCapsuleBinding {
++        tenant_id: "tenant-a".into(),
++        cell_id: "cell-a".into(),
++        dialog_id: "dialog-caller".into(),
++        owner_epoch: 7,
++        sequence: 4,
++    };
++    let envelope = DialogRecoveryCapsuleEnvelope {
++        schema_version: 1,
++        algorithm: "A256GCM".into(),
++        key_id: "recovery-2026-07".into(),
++        nonce: "ZmZmZmZmZmZmZmZm".into(),
++        ciphertext: "RJ_dMxlwdjqlGmNsyMahEEpSSWgfF8AkC6bsAVO8FntbKRyy1QX5w2K-FqjFlD4RK4zzYNDI1KPKfmnaRKME6seaqc2kyeMez1D65yCVIjwPYNCa_Q0dgVqSTfVtBx69VwTIOrdL9Y6hV5E9vV_XDvqET9AwQ95HK90SfAXGJvy7n2CT0V9fpSxImxHZ4KghSTjWXej2oc4f2HPG3YQZHlKBr7xEKhDrd_gETHo3BadMaFw4lkLVVzlGlP0HxXHV9Dm7xGtNBWIahDipz-jqaKD5msv-jDYYAHT8730-6FIJlxi25aVL1fDSpYUGVWsUmhIIX9w2hAlfzXLLKEnoAOez08t4CmrGB-6Kt8U86VVD8i1hODoiT3Y7Bzc3Nx4H5ygF7hSHXDIIPsSgLoojx83jdnMdEMEZiZrmiZstnQ2b4UmHR3a0mZYas7F-zHZ32o94n_qN0rz0ypA_fQD-bFE8LiRl-4yhTZvQfK7ZUI3utOzH4cq6n-O2JddrM7JEGqOJz4M41gb0ouUERE-Fbj1Zh5IZ4-dRGFjd5ePVUm4a6K3koaPIi_nYAxdzkDeij8VNfAvUDVpoYp2gLNl40-l4Yluwbx9URGQc4ZhcpTAu1VefLsKmXbAnFwrWyUuuJ4EAU7_cFSoV53Q4NusMyX2Ke3KnFxkwgEICy3gH4hiP7ENPCc6mSt1s3GmRARqoEuBaYbgKOWM1QYDCX7eGrmm16DkII6wCFQ66hk-O558ZHMktLxJvGmUEvIjt2OtI8b30CisTGo9TZ959rlIGzCEDizKEXPR2VvAR52HGuwC0IkSgjJWSWJWZ2ekPmDTYTYADHCxlG4kL2tuFC3963dsQzTbAR-8rGTKF-cCQLOEco0U9JO9fFlkH-S_Muftt-PMuYlqz-1IGXw2TTAZvGbq-wN818BBXE-AnA8fGFBow4VR_CBV9d1lN11W4667Al6CrzKdPRjQ".into(),
++        auth_tag: "HB9EkPy65rySUsxW6et_Vg".into(),
++    };
++
++    let payload = codec.open(&envelope, &binding).unwrap();
++    assert_eq!(
++        payload,
++        DialogRecoveryCapsulePayload {
++            schema_version: 1,
++            call_session_ref: "call-session-a".into(),
++            interaction_id: "interaction-a".into(),
++            dialog_id: "dialog-caller".into(),
++            peer_dialog_id: "dialog-callee".into(),
++            leg: "caller".into(),
++            dialog_role: "uas".into(),
++            raw_call_id: "caller-call-id@example.invalid".into(),
++            local_tag: "caller-local".into(),
++            remote_tag: "caller-remote".into(),
++            from_uri: "sip:+8613800138000@example.invalid".into(),
++            to_uri: "sip:service@example.invalid".into(),
++            local_contact_uri: "sip:rustpbx-a@example.internal:5060".into(),
++            remote_uri: "sip:+8613800138000@example.invalid".into(),
++            remote_contact_uri: Some("sip:+8613800138000@198.51.100.10:5060".into()),
++            route_set: vec!["sip:edge-a@example.internal:5061;transport=tls;lr".into()],
++            local_cseq: 22,
++            remote_cseq: 18,
++            supports_100rel: true,
++            media_reservation_id: "reservation-caller".into(),
++            cdr_sequence: 12,
++        }
++    );
++
++    let mut wrong_binding = binding.clone();
++    wrong_binding.owner_epoch = 8;
++    assert_eq!(
++        codec.open(&envelope, &wrong_binding).unwrap_err(),
++        DialogShadowError::RecoveryAuthenticationFailed
++    );
++    let mut tampered = envelope;
++    tampered.ciphertext.replace_range(0..1, "S");
++    assert_eq!(
++        codec.open(&tampered, &binding).unwrap_err(),
++        DialogShadowError::RecoveryAuthenticationFailed
++    );
++}
++
++#[test]
++fn recovery_key_file_is_canonical_bounded_and_permission_checked_in_production() {
++    let directory = std::env::temp_dir().join(format!(
++        "ivekit-dialog-recovery-key-{}-{}",
++        std::process::id(),
++        rand::random::<u64>()
++    ));
++    std::fs::create_dir(&directory).unwrap();
++    let path = directory.join("recovery.key");
++    std::fs::write(&path, "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=\n").unwrap();
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::PermissionsExt;
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
++    }
++    DialogRecoveryCapsuleKey::from_base64_file("recovery-2026-07", &path, true).unwrap();
++
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::PermissionsExt;
++        use std::os::unix::fs::symlink;
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o440)).unwrap();
++        DialogRecoveryCapsuleKey::from_base64_file("recovery-2026-07", &path, true).unwrap();
++
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o460)).unwrap();
++        assert_eq!(
++            DialogRecoveryCapsuleKey::from_base64_file("recovery-2026-07", &path, true,)
++                .unwrap_err(),
++            DialogShadowError::InvalidBinding
++        );
++
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o404)).unwrap();
++        assert_eq!(
++            DialogRecoveryCapsuleKey::from_base64_file("recovery-2026-07", &path, true,)
++                .unwrap_err(),
++            DialogShadowError::InvalidBinding
++        );
++
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o4440)).unwrap();
++        assert_eq!(
++            DialogRecoveryCapsuleKey::from_base64_file("recovery-2026-07", &path, true,)
++                .unwrap_err(),
++            DialogShadowError::InvalidBinding
++        );
++
++        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o440)).unwrap();
++        let projected = directory.join("projected.key");
++        symlink("recovery.key", &projected).unwrap();
++        DialogRecoveryCapsuleKey::from_base64_file("recovery-2026-07", &projected, true).unwrap();
++
++        let escaped_target = std::env::temp_dir().join(format!(
++            "ivekit-dialog-recovery-escaped-{}-{}",
++            std::process::id(),
++            rand::random::<u64>()
++        ));
++        std::fs::write(
++            &escaped_target,
++            "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=\n",
++        )
++        .unwrap();
++        std::fs::set_permissions(&escaped_target, std::fs::Permissions::from_mode(0o400)).unwrap();
++        let escaped = directory.join("escaped.key");
++        symlink(&escaped_target, &escaped).unwrap();
++        assert_eq!(
++            DialogRecoveryCapsuleKey::from_base64_file("recovery-2026-07", &escaped, true,)
++                .unwrap_err(),
++            DialogShadowError::InvalidBinding
++        );
++        std::fs::remove_file(escaped).unwrap();
++        std::fs::remove_file(escaped_target).unwrap();
++        std::fs::remove_file(projected).unwrap();
++    }
++    std::fs::remove_file(path).unwrap();
++    std::fs::remove_dir(directory).unwrap();
++}
++
+ fn event(state: DialogShadowState) -> DialogShadowEvent {
+     DialogShadowEvent {
+         state,
+@@ -90,9 +254,243 @@ fn event(state: DialogShadowState) -> DialogShadowEvent {
+         provider_session_ref: None,
+         cdr_sequence: 1,
+         terminal: false,
++        recovery_payload: None,
++    }
++}
++
++fn recovery_payload() -> DialogRecoveryCapsulePayload {
++    DialogRecoveryCapsulePayload {
++        schema_version: 1,
++        call_session_ref: "call-session-a".into(),
++        interaction_id: "interaction-a".into(),
++        dialog_id: "dialog-a".into(),
++        peer_dialog_id: "dialog-b".into(),
++        leg: "caller".into(),
++        dialog_role: "uas".into(),
++        raw_call_id: "call-with-private-number@example.invalid".into(),
++        local_tag: "caller-tag".into(),
++        remote_tag: "callee-tag".into(),
++        from_uri: "sip:+8613800138000@example.invalid".into(),
++        to_uri: "sip:service@example.invalid".into(),
++        local_contact_uri: "sip:rustpbx-a@example.internal:5060".into(),
++        remote_uri: "sip:+8613800138000@example.invalid".into(),
++        remote_contact_uri: Some("sip:+8613800138000@198.51.100.10:5060".into()),
++        route_set: vec!["sip:edge-a@example.internal:5061;transport=tls;lr".into()],
++        local_cseq: 1,
++        remote_cseq: 1,
++        supports_100rel: true,
++        media_reservation_id: "reservation-a-caller".into(),
++        cdr_sequence: 1,
+     }
+ }
+ 
++fn recovery_events() -> [DialogShadowEvent; 2] {
++    let caller_payload = recovery_payload();
++    let mut callee_payload = caller_payload.clone();
++    callee_payload.dialog_id = "dialog-b".into();
++    callee_payload.peer_dialog_id = "dialog-a".into();
++    callee_payload.leg = "callee".into();
++    callee_payload.dialog_role = "uac".into();
++    callee_payload.raw_call_id = "callee-call-id@example.invalid".into();
++    callee_payload.local_tag = "callee-local".into();
++    callee_payload.remote_tag = "callee-remote".into();
++
++    let mut caller = event(DialogShadowState::Confirmed);
++    caller.provider_session_ref = Some("call-session-a".into());
++    caller.media_reservation_id = Some("reservation-a-caller".into());
++    caller.recovery_payload = Some(caller_payload);
++
++    let mut callee = caller.clone();
++    callee.raw_call_id = "callee-call-id@example.invalid".into();
++    callee.dialog_id = "dialog-b".into();
++    callee.local_tag = "callee-local".into();
++    callee.remote_tag = Some("callee-remote".into());
++    callee.raw_branch_identity = "callee-branch".into();
++    callee.recovery_payload = Some(callee_payload);
++    [caller, callee]
++}
++
++#[tokio::test]
++async fn normal_runtime_commits_recoverable_terminal_state_as_one_pair() {
++    let codec = Arc::new(
++        DialogRecoveryCapsuleCodec::new(
++            DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x55; 32]).unwrap(),
++            None,
++        )
++        .unwrap(),
++    );
++    let executor = Arc::new(ScriptedExecutor::default());
++    let mut runtime = IveKitDialogShadowRuntime::Ready {
++        binding: binding(),
++        executor: executor.clone(),
++        recovery_codec: codec,
++        dialogs: HashMap::new(),
++    };
++
++    runtime.commit_pair(recovery_events()).await.unwrap();
++    runtime
++        .terminate_pair("normal_session_cleanup")
++        .await
++        .unwrap();
++
++    let pairs = executor.pair_requests.lock().unwrap();
++    assert_eq!(pairs.len(), 2);
++    assert_eq!(pairs[0].records[0].sequence, 1);
++    assert_eq!(pairs[1].records[0].sequence, 2);
++    assert!(pairs[1].records.iter().all(|record| {
++        record.state == DialogShadowState::Terminated
++            && record.terminal
++            && record.schema_version == 2
++            && record.recovery_capsule.is_some()
++    }));
++    drop(pairs);
++
++    assert!(
++        runtime
++            .terminate_pair("duplicate_cleanup")
++            .await
++            .unwrap()
++            .is_none()
++    );
++}
++
++#[test]
++fn recovery_payload_rebuilds_a_confirmed_rsipstack_snapshot_for_both_roles() {
++    for (role, expected) in [
++        ("uas", TransactionRole::Server),
++        ("uac", TransactionRole::Client),
++    ] {
++        let mut payload = recovery_payload();
++        payload.dialog_role = role.into();
++        let snapshot = recovery_payload_to_dialog_snapshot(&payload).unwrap();
++        assert_eq!(snapshot.role, expected);
++        assert_eq!(snapshot.id.call_id, payload.raw_call_id);
++        assert_eq!(snapshot.id.local_tag, payload.local_tag);
++        assert_eq!(snapshot.id.remote_tag, payload.remote_tag);
++        assert_eq!(snapshot.local_cseq, payload.local_cseq);
++        assert_eq!(snapshot.remote_cseq, payload.remote_cseq);
++        assert_eq!(
++            snapshot.local_contact.unwrap().to_string(),
++            payload.local_contact_uri
++        );
++        assert_eq!(snapshot.remote_uri.to_string(), payload.remote_uri);
++        assert_eq!(
++            snapshot.remote_contact.unwrap().value(),
++            payload.remote_contact_uri.as_deref().unwrap()
++        );
++        assert_eq!(snapshot.route_set[0].value(), payload.route_set[0]);
++    }
++}
++
++#[test]
++fn confirmed_dialog_snapshots_produce_reciprocal_caller_and_callee_payloads() {
++    let caller_payload = recovery_payload();
++    let mut callee_payload = recovery_payload();
++    callee_payload.dialog_id = "dialog-b".into();
++    callee_payload.peer_dialog_id = "dialog-a".into();
++    callee_payload.leg = "callee".into();
++    callee_payload.dialog_role = "uac".into();
++    callee_payload.raw_call_id = "callee-call-id@example.invalid".into();
++    callee_payload.local_tag = "callee-local".into();
++    callee_payload.remote_tag = "callee-remote".into();
++    let caller = recovery_payload_to_dialog_snapshot(&caller_payload).unwrap();
++    let callee = recovery_payload_to_dialog_snapshot(&callee_payload).unwrap();
++
++    let rebuilt_caller = recovery_payload_from_dialog_snapshots(
++        "call-session-a",
++        "interaction-a",
++        "reservation-a/callee",
++        9,
++        &caller,
++        &callee,
++    )
++    .unwrap();
++    let rebuilt_callee = recovery_payload_from_dialog_snapshots(
++        "call-session-a",
++        "interaction-a",
++        "reservation-a/callee",
++        10,
++        &callee,
++        &caller,
++    )
++    .unwrap();
++
++    assert_eq!(rebuilt_caller.leg, "caller");
++    assert_eq!(rebuilt_caller.dialog_role, "uas");
++    assert_eq!(rebuilt_callee.leg, "callee");
++    assert_eq!(rebuilt_callee.dialog_role, "uac");
++    assert_eq!(rebuilt_caller.peer_dialog_id, rebuilt_callee.dialog_id);
++    assert_eq!(rebuilt_callee.peer_dialog_id, rebuilt_caller.dialog_id);
++    assert_eq!(rebuilt_caller.media_reservation_id, "reservation-a/callee");
++    assert_eq!(rebuilt_caller.cdr_sequence, 9);
++    assert_eq!(rebuilt_callee.cdr_sequence, 10);
++}
++
++#[test]
++fn encrypted_shadow_records_open_only_as_a_reciprocal_two_leg_pair() {
++    let codec = DialogRecoveryCapsuleCodec::new(
++        DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x55; 32]).unwrap(),
++        None,
++    )
++    .unwrap();
++    let records = recovery_records();
++    let payloads = open_recovery_pair(&codec, &records).unwrap();
++
++    assert_eq!(payloads[0].dialog_id, records[0].dialog_id);
++    assert_eq!(payloads[1].dialog_id, records[1].dialog_id);
++    assert_eq!(payloads[0].peer_dialog_id, payloads[1].dialog_id);
++    assert_eq!(payloads[1].peer_dialog_id, payloads[0].dialog_id);
++    assert_eq!(payloads[0].leg, "caller");
++    assert_eq!(payloads[1].leg, "callee");
++
++    let mut tampered = records;
++    tampered[1].owner_epoch += 1;
++    assert_eq!(
++        open_recovery_pair(&codec, &tampered).unwrap_err(),
++        DialogShadowError::InvalidRecord
++    );
++}
++
++#[test]
++fn confirmed_recovery_state_is_emitted_only_as_an_encrypted_v2_capsule() {
++    let codec = Arc::new(
++        DialogRecoveryCapsuleCodec::new(
++            DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x55; 32]).unwrap(),
++            None,
++        )
++        .unwrap(),
++    );
++    let executor = Arc::new(ScriptedExecutor::default());
++    let mut lifecycle =
++        DialogShadowLifecycle::new_with_recovery_codec(binding(), executor, codec.clone());
++    let mut value = event(DialogShadowState::Confirmed);
++    value.provider_session_ref = Some("call-session-a".into());
++    value.recovery_payload = Some(recovery_payload());
++
++    let request = lifecycle.preview_request(&value).unwrap();
++
++    assert_eq!(request.record.schema_version, 2);
++    let capsule = request.record.recovery_capsule.as_ref().unwrap();
++    let encoded = serde_json::to_string(&request).unwrap();
++    assert!(!encoded.contains("private-number"));
++    assert!(!encoded.contains("+8613800138000"));
++    assert_eq!(
++        codec
++            .open(
++                capsule,
++                &DialogRecoveryCapsuleBinding {
++                    tenant_id: request.record.tenant_id.clone(),
++                    cell_id: request.record.cell_id.clone(),
++                    dialog_id: request.record.dialog_id.clone(),
++                    owner_epoch: request.record.owner_epoch,
++                    sequence: request.record.sequence,
++                },
++            )
++            .unwrap(),
++        recovery_payload()
++    );
++}
++
+ fn proof(request: &DialogShadowCommitRequest) -> DialogShadowCommitProof {
+     DialogShadowCommitProof {
+         status: "committed".into(),
+@@ -307,6 +705,8 @@ async fn http_client_sends_bounded_authenticated_commit() {
+         max_inflight: 8,
+         request_timeout: Duration::from_millis(500),
+         max_response_bytes: 16 * 1024,
++        owner_identity: None,
++        owner_heartbeat_interval: Duration::from_secs(1),
+     })
+     .unwrap();
+     let executor = Arc::new(ScriptedExecutor::default());
+@@ -321,6 +721,414 @@ async fn http_client_sends_bounded_authenticated_commit() {
+     std::fs::remove_file(token_path).unwrap();
+ }
+ 
++#[tokio::test]
++async fn http_client_heartbeats_the_mtls_owner_before_t1_requests() {
++    let _ = rustls::crypto::ring::default_provider().install_default();
++    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++    let address = listener.local_addr().unwrap();
++    let token_path = temporary_token_file();
++    std::fs::write(&token_path, "shadow-service-token-aa").unwrap();
++
++    let server = tokio::spawn(async move {
++        for expected in [
++            "/internal/ivekit/v1/dialog-owner/heartbeat",
++            "/internal/ivekit/v1/dialog-shadow/admission",
++            "/internal/ivekit/v1/dialog-shadow/admission",
++        ] {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let (path, body) = read_json_request(&mut stream).await;
++            assert_eq!(path, expected);
++            if path.ends_with("/heartbeat") {
++                assert_eq!(body, serde_json::json!({}));
++                write_json_response(
++                    &mut stream,
++                    &serde_json::json!({
++                        "spiffe_id": "spiffe://ivekit.internal/cells/cell-a/fault-domains/zone-b-rack-1/nodes/rustpbx-b",
++                        "cell_id": "cell-a",
++                        "node_id": "rustpbx-b",
++                        "fault_domain": "zone-b-rack-1",
++                        "heartbeat_at": "2026-07-26T01:00:00.000Z",
++                        "lease_expires_at": "2026-07-26T01:00:03.000Z",
++                        "revision": 1
++                    }),
++                )
++                .await;
++            } else {
++                assert_eq!(body, serde_json::json!({ "profile": "VOICE-HA-T1" }));
++                write_json_response(
++                    &mut stream,
++                    &serde_json::json!({
++                        "status": "ready",
++                        "fault_domains": ["zone-a-rack-1", "zone-b-rack-1"]
++                    }),
++                )
++                .await;
++            }
++        }
++    });
++
++    let client = DialogShadowHttpClient::new(DialogShadowHttpClientConfig {
++        endpoint: format!("http://{address}").parse().unwrap(),
++        service_token_file: token_path.clone(),
++        tls_identity_file: None,
++        tls_ca_file: None,
++        production: false,
++        max_inflight: 8,
++        request_timeout: Duration::from_millis(500),
++        max_response_bytes: 16 * 1024,
++        owner_identity: Some(DialogOwnerNodeIdentity {
++            cell_id: "cell-a".into(),
++            node_id: "rustpbx-b".into(),
++            fault_domain: "zone-b-rack-1".into(),
++        }),
++        owner_heartbeat_interval: Duration::from_secs(1),
++    })
++    .unwrap();
++
++    client.assert_admission().await.unwrap();
++    client.assert_admission().await.unwrap();
++
++    server.await.unwrap();
++    std::fs::remove_file(token_path).unwrap();
++}
++
++#[tokio::test]
++async fn http_client_commits_recovered_dialogs_as_one_atomic_pair() {
++    let _ = rustls::crypto::ring::default_provider().install_default();
++    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++    let address = listener.local_addr().unwrap();
++    let token_path = temporary_token_file();
++    std::fs::write(&token_path, "shadow-service-token-aa").unwrap();
++    let mut records = recovery_records();
++    for record in &mut records {
++        record.takeover_id = Some("takeover-a".into());
++    }
++    let request = DialogShadowCommitPairRequest {
++        profile: "VOICE-HA-T1".into(),
++        records: [records[0].clone(), records[1].clone()],
++    };
++    let expected_pair_hash = request.pair_hash().unwrap();
++    let expected_record_hashes = request.record_hashes().unwrap();
++    let response_pair_hash = expected_pair_hash.clone();
++    let response_record_hashes = expected_record_hashes.clone();
++    let expected_body = serde_json::to_value(&request).unwrap();
++
++    let server = tokio::spawn(async move {
++        let (mut stream, _) = listener.accept().await.unwrap();
++        let (path, body) = read_json_request(&mut stream).await;
++        assert_eq!(path, "/internal/ivekit/v1/dialog-shadow/commit-pair");
++        assert_eq!(body, expected_body);
++        write_json_response(
++            &mut stream,
++            &serde_json::json!({
++                "status": "committed",
++                "pair_hash": response_pair_hash,
++                "record_hashes": response_record_hashes,
++                "fault_domains": ["zone-a-rack-1", "zone-b-rack-1"],
++                "owner_epoch": 7,
++                "sequence": 1
++            }),
++        )
++        .await;
++    });
++
++    let client = dialog_shadow_http_client(address, &token_path, 128 * 1024);
++    assert_eq!(
++        client.commit_pair(&request).await.unwrap(),
++        DialogShadowPairCommitProof {
++            status: "committed".into(),
++            pair_hash: expected_pair_hash,
++            record_hashes: expected_record_hashes,
++            fault_domains: vec!["zone-a-rack-1".into(), "zone-b-rack-1".into()],
++            owner_epoch: 7,
++            sequence: 1,
++        }
++    );
++    server.await.unwrap();
++    std::fs::remove_file(token_path).unwrap();
++}
++
++#[tokio::test]
++async fn http_client_claims_takeover_by_dialog_without_client_supplied_authority() {
++    let _ = rustls::crypto::ring::default_provider().install_default();
++    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++    let address = listener.local_addr().unwrap();
++    let token_path = temporary_token_file();
++    std::fs::write(&token_path, "shadow-service-token-aa").unwrap();
++    let records = recovery_records();
++
++    let server = tokio::spawn(async move {
++        let (mut stream, _) = listener.accept().await.unwrap();
++        let (path, body) = read_json_request(&mut stream).await;
++        assert_eq!(path, "/internal/ivekit/v1/dialog-owner/claim");
++        assert_eq!(
++            body,
++            serde_json::json!({
++                "profile": "VOICE-HA-T1",
++                "tenant_id": "tenant-a",
++                "cell_id": "cell-a",
++                "dialog_id": "dialog-a",
++                "idempotency_key": "takeover-request-a",
++                "reason": "owner_heartbeat_expired"
++            })
++        );
++        let response = serde_json::json!({
++            "status": "claimed",
++            "takeover_id": "takeover-a",
++            "owner_node_id": "rustpbx-b",
++            "owner_epoch": 8,
++            "takeover_token": URL_SAFE_TOKEN,
++            "token_expires_at": "2026-07-26T01:00:05.000Z",
++            "shadow_records": records
++        });
++        write_json_response(&mut stream, &response).await;
++    });
++
++    let client = dialog_shadow_http_client(address, &token_path, 128 * 1024);
++    let response = client
++        .claim_takeover(
++            &DialogOwnerTakeoverClaimRequest {
++                profile: "VOICE-HA-T1".into(),
++                tenant_id: "tenant-a".into(),
++                cell_id: "cell-a".into(),
++                dialog_id: "dialog-a".into(),
++                idempotency_key: "takeover-request-a".into(),
++                reason: "owner_heartbeat_expired".into(),
++            },
++            "rustpbx-b",
++        )
++        .await
++        .unwrap();
++
++    assert_eq!(response.status, "claimed");
++    assert_eq!(response.takeover_id, "takeover-a");
++    assert_eq!(response.owner_node_id, "rustpbx-b");
++    assert_eq!(response.owner_epoch, 8);
++    assert_eq!(response.takeover_token, URL_SAFE_TOKEN);
++    assert_eq!(
++        response
++            .shadow_records
++            .iter()
++            .map(|record| record.dialog_id.as_str())
++            .collect::<Vec<_>>(),
++        vec!["dialog-a", "dialog-b"]
++    );
++    server.await.unwrap();
++    std::fs::remove_file(token_path).unwrap();
++}
++
++#[tokio::test]
++async fn http_client_consumes_the_one_time_token_before_new_owner_activation() {
++    let _ = rustls::crypto::ring::default_provider().install_default();
++    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++    let address = listener.local_addr().unwrap();
++    let token_path = temporary_token_file();
++    std::fs::write(&token_path, "shadow-service-token-aa").unwrap();
++
++    let server = tokio::spawn(async move {
++        let (mut stream, _) = listener.accept().await.unwrap();
++        let (path, body) = read_json_request(&mut stream).await;
++        assert_eq!(path, "/internal/ivekit/v1/dialog-owner/consume");
++        assert_eq!(
++            body,
++            serde_json::json!({
++                "tenant_id": "tenant-a",
++                "cell_id": "cell-a",
++                "call_session_ref": "call-session-a",
++                "takeover_id": "takeover-a",
++                "owner_epoch": 8,
++                "takeover_token": URL_SAFE_TOKEN
++            })
++        );
++        write_json_response(
++            &mut stream,
++            &serde_json::json!({
++                "status": "active",
++                "owner_node_id": "rustpbx-b",
++                "owner_epoch": 8,
++                "revision": 3
++            }),
++        )
++        .await;
++    });
++
++    let client = dialog_shadow_http_client(address, &token_path, 128 * 1024);
++    let response = client
++        .consume_takeover(
++            &DialogOwnerTakeoverConsumeRequest {
++                tenant_id: "tenant-a".into(),
++                cell_id: "cell-a".into(),
++                call_session_ref: "call-session-a".into(),
++                takeover_id: "takeover-a".into(),
++                owner_epoch: 8,
++                takeover_token: URL_SAFE_TOKEN.into(),
++            },
++            "rustpbx-b",
++        )
++        .await
++        .unwrap();
++    assert_eq!(response.status, "active");
++    assert_eq!(response.owner_node_id, "rustpbx-b");
++    assert_eq!(response.owner_epoch, 8);
++    assert_eq!(response.revision, 3);
++    server.await.unwrap();
++    std::fs::remove_file(token_path).unwrap();
++}
++
++#[tokio::test]
++async fn http_client_resolves_uncertain_consume_from_authoritative_owner_state() {
++    let _ = rustls::crypto::ring::default_provider().install_default();
++    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++    let address = listener.local_addr().unwrap();
++    let token_path = temporary_token_file();
++    std::fs::write(&token_path, "shadow-service-token-aa").unwrap();
++
++    let server = tokio::spawn(async move {
++        let (mut stream, _) = listener.accept().await.unwrap();
++        let (path, body) = read_json_request(&mut stream).await;
++        assert_eq!(path, "/internal/ivekit/v1/dialog-owner/authority");
++        assert_eq!(
++            body,
++            serde_json::json!({
++                "tenant_id": "tenant-a",
++                "cell_id": "cell-a",
++                "call_session_ref": "call-session-a",
++                "owner_epoch": 8
++            })
++        );
++        write_json_response(
++            &mut stream,
++            &serde_json::json!({
++                "status": "active",
++                "active_owner_node_id": "rustpbx-b",
++                "active_owner_epoch": 8
++            }),
++        )
++        .await;
++    });
++
++    let client = dialog_shadow_http_client(address, &token_path, 128 * 1024);
++    let response = client
++        .check_authority(
++            &DialogOwnerAuthorityRequest {
++                tenant_id: "tenant-a".into(),
++                cell_id: "cell-a".into(),
++                call_session_ref: "call-session-a".into(),
++                owner_epoch: 8,
++            },
++            "rustpbx-b",
++        )
++        .await
++        .unwrap();
++    assert_eq!(response.status, "active");
++    assert_eq!(response.active_owner_node_id.as_deref(), Some("rustpbx-b"));
++    assert_eq!(response.active_owner_epoch, Some(8));
++    server.await.unwrap();
++    std::fs::remove_file(token_path).unwrap();
++}
++
++const URL_SAFE_TOKEN: &str = "d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3c";
++
++fn recovery_records() -> Vec<rustpbx::ivekit_dialog_shadow::DialogShadowRecord> {
++    let codec = Arc::new(
++        DialogRecoveryCapsuleCodec::new(
++            DialogRecoveryCapsuleKey::new("recovery-2026-07", &[0x55; 32]).unwrap(),
++            None,
++        )
++        .unwrap(),
++    );
++    [
++        ("dialog-a", "dialog-b", "caller", "uas"),
++        ("dialog-b", "dialog-a", "callee", "uac"),
++    ]
++    .into_iter()
++    .map(|(dialog_id, peer_dialog_id, leg, role)| {
++        let executor = Arc::new(ScriptedExecutor::default());
++        let mut lifecycle =
++            DialogShadowLifecycle::new_with_recovery_codec(binding(), executor, codec.clone());
++        let mut value = event(DialogShadowState::Confirmed);
++        value.dialog_id = dialog_id.into();
++        value.provider_session_ref = Some("call-session-a".into());
++        let mut payload = recovery_payload();
++        payload.dialog_id = dialog_id.into();
++        payload.peer_dialog_id = peer_dialog_id.into();
++        payload.leg = leg.into();
++        payload.dialog_role = role.into();
++        value.recovery_payload = Some(payload);
++        lifecycle.preview_request(&value).unwrap().record
++    })
++    .collect()
++}
++
++fn dialog_shadow_http_client(
++    address: std::net::SocketAddr,
++    token_path: &PathBuf,
++    max_response_bytes: usize,
++) -> DialogShadowHttpClient {
++    DialogShadowHttpClient::new(DialogShadowHttpClientConfig {
++        endpoint: format!("http://{address}").parse().unwrap(),
++        service_token_file: token_path.clone(),
++        tls_identity_file: None,
++        tls_ca_file: None,
++        production: false,
++        max_inflight: 8,
++        request_timeout: Duration::from_millis(500),
++        max_response_bytes,
++        owner_identity: None,
++        owner_heartbeat_interval: Duration::from_secs(1),
++    })
++    .unwrap()
++}
++
++async fn read_json_request(stream: &mut tokio::net::TcpStream) -> (String, serde_json::Value) {
++    let mut received = Vec::new();
++    let mut buffer = [0_u8; 4096];
++    loop {
++        let read = stream.read(&mut buffer).await.unwrap();
++        assert!(read > 0);
++        received.extend_from_slice(&buffer[..read]);
++        let Some(header_end) = received.windows(4).position(|part| part == b"\r\n\r\n") else {
++            continue;
++        };
++        let headers = String::from_utf8_lossy(&received[..header_end]);
++        let content_length = headers
++            .lines()
++            .find_map(|line| {
++                line.to_ascii_lowercase()
++                    .strip_prefix("content-length:")
++                    .map(str::trim)
++                    .and_then(|value| value.parse::<usize>().ok())
++            })
++            .unwrap();
++        if received.len() < header_end + 4 + content_length {
++            continue;
++        }
++        let path = headers
++            .lines()
++            .next()
++            .unwrap()
++            .split_whitespace()
++            .nth(1)
++            .unwrap()
++            .to_string();
++        let body =
++            serde_json::from_slice(&received[header_end + 4..header_end + 4 + content_length])
++                .unwrap();
++        return (path, body);
++    }
++}
++
++async fn write_json_response(stream: &mut tokio::net::TcpStream, value: &serde_json::Value) {
++    let body = serde_json::to_vec(value).unwrap();
++    let response = format!(
++        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
++        body.len()
++    );
++    stream.write_all(response.as_bytes()).await.unwrap();
++    stream.write_all(&body).await.unwrap();
++    stream.shutdown().await.unwrap();
++}
++
+ fn temporary_token_file() -> PathBuf {
+     std::env::temp_dir().join(format!(
+         "ivekit-dialog-shadow-token-{}-{}",

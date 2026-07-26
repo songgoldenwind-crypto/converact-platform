@@ -18,6 +18,10 @@ import {
 import type {
   DialogShadowRecord
 } from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
+import {
+  dialogShadowPairHash,
+  dialogShadowRecordHash
+} from '../src/agent-runtime/ivekit/voice/dialog-shadow.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -96,6 +100,148 @@ test('dialog shadow WAL persists checksummed binary frames across restart', asyn
   assert.deepEqual(await reopened.replay(), [record(), record(2)]);
 });
 
+test('dialog shadow WAL commits a recovery pair as one crash-atomic frame', async (t) => {
+  const { journal, journalPath } = await temporaryJournal(t);
+  const pair = [
+    recoveryRecord('dialog-caller', 1),
+    recoveryRecord('dialog-callee', 1)
+  ] as const;
+
+  const committed = await journal.appendPair(pair);
+  assert.deepEqual(committed, {
+    status: 'committed',
+    pair_hash: dialogShadowPairHash(pair),
+    record_hashes: pair.map((item) => dialogShadowRecordHash(item)).sort()
+  });
+  await journal.close();
+
+  const bytes = await readFile(journalPath);
+  assert.equal(16 + bytes.readUInt32BE(8), bytes.byteLength);
+  const reopened = await DialogShadowJournal.open({ path: journalPath });
+  t.after(() => reopened.close());
+  assert.deepEqual(
+    await reopened.replay(),
+    [...pair].sort((left, right) => left.dialog_id.localeCompare(right.dialog_id))
+  );
+});
+
+test('dialog shadow WAL discards an incomplete recovery-pair frame as a unit', async (t) => {
+  const { journal, journalPath } = await temporaryJournal(t);
+  const pair = [
+    recoveryRecord('dialog-caller', 1),
+    recoveryRecord('dialog-callee', 1)
+  ] as const;
+  await journal.appendPair(pair);
+  await journal.close();
+
+  const bytes = await readFile(journalPath);
+  await writeFile(journalPath, bytes.subarray(0, Math.floor(bytes.byteLength / 2)));
+  const reopened = await DialogShadowJournal.open({ path: journalPath });
+  t.after(() => reopened.close());
+  assert.deepEqual(await reopened.replay(), []);
+  assert.equal((await readFile(journalPath)).byteLength, 0);
+});
+
+test('dialog shadow WAL returns only the latest v2 pair for a recovery session', async (t) => {
+  const { journal } = await temporaryJournal(t);
+  await journal.appendPair([
+    recoveryRecord('dialog-caller', 1),
+    recoveryRecord('dialog-callee', 1)
+  ]);
+  await journal.appendPair([
+    recoveryRecord('dialog-caller', 2),
+    recoveryRecord('dialog-callee', 2)
+  ]);
+
+  const pair = await journal.latestRecoveryPair({
+    tenant_id: 'tenant-a',
+    cell_id: 'cell-a',
+    call_session_ref: 'call-session-a'
+  });
+
+  assert.deepEqual(
+    pair.map((item) => [item.dialog_id, item.sequence]),
+    [['dialog-callee', 2], ['dialog-caller', 2]]
+  );
+});
+
+test('dialog shadow WAL resolves the complete pair selected by owner authority', async (t) => {
+  const { journal } = await temporaryJournal(t);
+  const oldPair = [
+    recoveryRecord('dialog-caller', 1),
+    recoveryRecord('dialog-callee', 1)
+  ] as const;
+  const preparedPair = oldPair.map((item) => ({
+    ...item,
+    owner_node_id: 'rustpbx-b',
+    owner_fault_domain: 'zone-b-rack-1',
+    owner_epoch: 8,
+    sequence: 1,
+    recorded_at: '2026-07-26T00:01:00.000Z',
+    takeover_id: 'dto-takeover-a'
+  })) as [DialogShadowRecord, DialogShadowRecord];
+  await journal.appendPair(oldPair);
+  await journal.appendPair(preparedPair);
+
+  const active = await journal.latestRecoveryPair({
+    tenant_id: 'tenant-a',
+    cell_id: 'cell-a',
+    call_session_ref: 'call-session-a',
+    owner_node_id: 'rustpbx-a',
+    owner_epoch: 7
+  });
+  const prepared = await journal.latestRecoveryPair({
+    tenant_id: 'tenant-a',
+    cell_id: 'cell-a',
+    call_session_ref: 'call-session-a',
+    owner_node_id: 'rustpbx-b',
+    owner_epoch: 8,
+    takeover_id: 'dto-takeover-a'
+  });
+
+  assert.deepEqual(
+    active,
+    [...oldPair].sort((left, right) => left.dialog_id.localeCompare(right.dialog_id))
+  );
+  assert.deepEqual(
+    prepared,
+    [...preparedPair].sort((left, right) => left.dialog_id.localeCompare(right.dialog_id))
+  );
+});
+
+test('dialog shadow WAL resolves the authoritative recovery pair from either dialog ID', async (t) => {
+  const { journal } = await temporaryJournal(t);
+  await journal.appendPair([
+    recoveryRecord('dialog-caller', 1),
+    recoveryRecord('dialog-callee', 1)
+  ]);
+  await journal.appendPair([
+    recoveryRecord('dialog-caller', 2),
+    recoveryRecord('dialog-callee', 2)
+  ]);
+
+  for (const dialogId of ['dialog-caller', 'dialog-callee']) {
+    const recovery = await journal.resolveRecoveryPair({
+      tenant_id: 'tenant-a',
+      cell_id: 'cell-a',
+      dialog_id: dialogId
+    });
+    assert.equal(recovery?.call_session_ref, 'call-session-a');
+    assert.deepEqual(
+      recovery?.records.map((item) => [item.dialog_id, item.sequence]),
+      [['dialog-callee', 2], ['dialog-caller', 2]]
+    );
+  }
+  assert.equal(
+    await journal.resolveRecoveryPair({
+      tenant_id: 'tenant-a',
+      cell_id: 'cell-a',
+      dialog_id: 'dialog-missing'
+    }),
+    null
+  );
+});
+
 test('dialog shadow WAL repairs only a truncated tail and rejects checksum corruption', async (t) => {
   const { journal, journalPath } = await temporaryJournal(t);
   await journal.append(record());
@@ -116,6 +262,26 @@ test('dialog shadow WAL repairs only a truncated tail and rejects checksum corru
     (error) => code(error) === 'dialog_shadow_checksum_mismatch'
   );
 });
+
+function recoveryRecord(
+  dialogId: string,
+  sequence: number,
+  sessionRef = 'call-session-a'
+): DialogShadowRecord {
+  return record(sequence, {
+    schema_version: 2,
+    dialog_id: dialogId,
+    provider_session_ref: sessionRef,
+    recovery_capsule: {
+      schema_version: 1,
+      algorithm: 'A256GCM',
+      key_id: 'recovery-2026-07',
+      nonce: Buffer.alloc(12, 0x11).toString('base64url'),
+      ciphertext: Buffer.from('opaque').toString('base64url'),
+      auth_tag: Buffer.alloc(16, 0x22).toString('base64url')
+    }
+  });
+}
 
 test('dialog shadow WAL enforces epoch, sequence and replay identity', async (t) => {
   const { journal } = await temporaryJournal(t);
