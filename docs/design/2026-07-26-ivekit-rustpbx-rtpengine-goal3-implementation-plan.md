@@ -222,20 +222,21 @@ command identity 由 canonical JSON golden vectors 约束。Rust 与 TypeScript 
 - 新建 `test/ivekit-voice-media-goal3-contract.test.ts`
 - 修改 `package.json`
 
-- [ ] 先写失败测试，要求固定四个上游 commit、Goal 2 patch/image identity 和 Goal 3
+- [x] 先写失败测试，要求固定四个上游 commit、Goal 2 patch/image identity 和 Goal 3
       RustPBX patch IDs。
-- [ ] 合同必须列出 offer、answer、update、delete、query、reconcile、DTMF、timeout、
+- [x] 合同必须列出 offer、answer、update、delete、query、reconcile、DTMF、timeout、
       drain 和 takeover。
-- [ ] 合同必须列出 INVITE、180、183、PRACK、UPDATE、200、ACK、CANCEL、487、BYE、
+- [x] 合同必须列出 INVITE、180、183、PRACK、UPDATE、200、ACK、CANCEL、487、BYE、
       re-INVITE、hold/resume 和 session timer。
-- [ ] 合同必须区分 caller/callee 两腿和 ordinary/T1 两种 profile。
-- [ ] 合同必须要求 unknown outcome、stale epoch、sequence gap、capacity reject、
+- [x] 合同必须区分 caller/callee 两腿和 ordinary/T1 两种 profile。
+- [x] 合同必须要求 unknown outcome、stale epoch、sequence gap、capacity reject、
       media-control restart、RustPBX restart、RTPengine restart、shadow quorum loss、
       PostgreSQL outage、NATS outage、recorder outage 和 object-store outage。
-- [ ] 初始 evidence status 全部为 `not_run`。
-- [ ] 添加 `test:ivekit:voice-media-goal3` 和 `ivekit:voice-media-goal3:finalize`。
-- [ ] 运行 focused test 并确认先红后绿。
-- [ ] 提交：`test(media): freeze RustPBX Goal 3 contract`。
+- [x] 初始 evidence status 全部为 `not_run`。
+- [x] 添加 `test:ivekit:voice-media-goal3`。finalizer 命令随 Task 12 的真实脚本一起加入，
+      不提前暴露不可执行的 package 命令。
+- [x] 运行 focused test 并确认先红后绿。
+- [x] 提交：`test(media): freeze RustPBX Goal 3 contract`。
 
 ### Task 2：补齐参考媒体生命周期和 adapter
 
