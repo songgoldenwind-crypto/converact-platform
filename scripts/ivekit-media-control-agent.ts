@@ -1,4 +1,6 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
   MediaControlAgent
@@ -8,8 +10,20 @@ import {
   type MediaControlServerTlsOptions
 } from '../src/agent-runtime/ivekit/media-control/http.js';
 import {
+  MediaCommandJournal
+} from '../src/agent-runtime/ivekit/media-control/journal.js';
+import {
+  RtpengineMediaTransport
+} from '../src/agent-runtime/ivekit/media-control/rtpengine.js';
+import {
+  RtpengineNgClient
+} from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
+import {
   InMemoryMediaTransport
 } from '../src/agent-runtime/ivekit/media-control/simulator.js';
+import type {
+  MediaTransportPort
+} from '../src/agent-runtime/ivekit/media-control/transport.js';
 import {
   HttpComponentNodeAdmissionClient,
   type ComponentNodeAdmissionClientTlsOptions
@@ -22,9 +36,9 @@ const requireMtls = booleanEnv(
 );
 const transportMode = stringEnv(
   'IVEKIT_MEDIA_CONTROL_TRANSPORT',
-  'simulator'
+  production ? 'rtpengine' : 'simulator'
 );
-if (transportMode !== 'simulator') {
+if (transportMode !== 'simulator' && transportMode !== 'rtpengine') {
   throw new Error('IVEKIT media control transport is unsupported');
 }
 if (production && !requireMtls) {
@@ -33,6 +47,9 @@ if (production && !requireMtls) {
 if (production && transportMode === 'simulator') {
   throw new Error('IVEKIT media control simulator is not production eligible');
 }
+const transportRuntime = transportMode === 'rtpengine'
+  ? await openTransportRuntime('rtpengine')
+  : await openTransportRuntime('simulator');
 
 const serviceToken = secret(
   'IVEKIT_MEDIA_CONTROL_TOKEN',
@@ -103,7 +120,7 @@ const agent = new MediaControlAgent({
       };
     }
   },
-  transport: new InMemoryMediaTransport(),
+  transport: transportRuntime.transport,
   max_reservations: integerEnv(
     'IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS',
     100_000,
@@ -178,6 +195,12 @@ async function shutdown(signal: string): Promise<void> {
   const forced = setTimeout(() => process.exit(1), 10_000);
   forced.unref();
   await new Promise<void>((resolve) => server.close(() => resolve()));
+  await transportRuntime.drain().catch((error) => {
+    process.stderr.write(
+      `ivekit media control drain failed: ${safeError(error)}\n`
+    );
+  });
+  await transportRuntime.close();
   clearTimeout(forced);
 }
 
@@ -268,4 +291,200 @@ function integerEnv(
 function safeError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message.replace(/[\r\n\0]/g, ' ').slice(0, 256);
+}
+
+interface TransportRuntime {
+  transport: MediaTransportPort;
+  drain(): Promise<void>;
+  close(): Promise<void>;
+}
+
+async function openTransportRuntime(
+  mode: string
+): Promise<TransportRuntime> {
+  if (mode === 'simulator') {
+    return {
+      transport: new InMemoryMediaTransport(),
+      async drain() {},
+      async close() {}
+    };
+  }
+  if (mode !== 'rtpengine') {
+    throw new Error('IVEKIT media control transport is unsupported');
+  }
+
+  const runtimeMode = requiredEnv('IVEKIT_RTPENGINE_RUNTIME_MODE');
+  if (runtimeMode !== 'userspace' && runtimeMode !== 'kernel') {
+    throw new Error(
+      'IVEKIT_RTPENGINE_RUNTIME_MODE must be userspace or kernel'
+    );
+  }
+  const endpoint = rtpengineEndpoint(
+    requiredEnv('IVEKIT_RTPENGINE_NG_ENDPOINT')
+  );
+  const client = new RtpengineNgClient({
+    host: endpoint.host,
+    port: endpoint.port,
+    maxConnections: integerEnv(
+      'IVEKIT_RTPENGINE_MAX_CONNECTIONS',
+      4,
+      1,
+      64
+    ),
+    maxInFlight: integerEnv(
+      'IVEKIT_RTPENGINE_MAX_IN_FLIGHT',
+      1_024,
+      1,
+      100_000
+    ),
+    maxRequestBytes: integerEnv(
+      'IVEKIT_RTPENGINE_MAX_REQUEST_BYTES',
+      1_048_576,
+      64,
+      67_108_864
+    ),
+    maxResponseBytes: integerEnv(
+      'IVEKIT_RTPENGINE_MAX_RESPONSE_BYTES',
+      1_048_576,
+      64,
+      67_108_864
+    ),
+    maxQueuedBytes: integerEnv(
+      'IVEKIT_RTPENGINE_MAX_QUEUED_BYTES',
+      4_194_304,
+      64,
+      67_108_864
+    ),
+    requestTimeoutMs: integerEnv(
+      'IVEKIT_RTPENGINE_REQUEST_TIMEOUT_MS',
+      2_000,
+      1,
+      300_000
+    )
+  });
+  const journal = await MediaCommandJournal.open({
+    path: join(
+      requiredEnv('IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY'),
+      'media-command.wal'
+    ),
+    maxRecords: integerEnv(
+      'IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS',
+      1_000_000,
+      1,
+      10_000_000
+    ),
+    maxBytes: integerEnv(
+      'IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES',
+      268_435_456,
+      512,
+      17_179_869_184
+    ),
+    maxRecordBytes: integerEnv(
+      'IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES',
+      2_097_152,
+      256,
+      67_108_864
+    ),
+    terminalRetentionMs: integerEnv(
+      'IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS',
+      300_000,
+      0,
+      2_592_000_000
+    )
+  });
+
+  try {
+    await rtpengineControl(client, 'ivekit status');
+    const transport = await RtpengineMediaTransport.open({
+      client,
+      journal,
+      recoveryConcurrency: integerEnv(
+        'IVEKIT_RTPENGINE_RECOVERY_CONCURRENCY',
+        32,
+        1,
+        256
+      ),
+      maxSessions: integerEnv(
+        'IVEKIT_RTPENGINE_MAX_SESSIONS',
+        100_000,
+        1,
+        10_000_000
+      ),
+      maxCommands: integerEnv(
+        'IVEKIT_RTPENGINE_MAX_COMMANDS',
+        1_600_000,
+        1,
+        10_000_000
+      ),
+      terminalRetentionMs: integerEnv(
+        'IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS',
+        300_000,
+        0,
+        2_592_000_000
+      )
+    });
+    return {
+      transport,
+      async drain() {
+        await rtpengineControl(client, 'ivekit drain');
+      },
+      async close() {
+        await transport.close();
+      }
+    };
+  } catch (error) {
+    await client.close().catch(() => undefined);
+    await journal.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+function rtpengineEndpoint(value: string): {
+  host: string;
+  port: number;
+} {
+  let endpoint: URL;
+  try {
+    endpoint = new URL(value);
+  } catch {
+    throw new Error('IVEKIT_RTPENGINE_NG_ENDPOINT is invalid');
+  }
+  if (endpoint.protocol !== 'tcp:' ||
+      endpoint.username ||
+      endpoint.password ||
+      (endpoint.pathname !== '' && endpoint.pathname !== '/') ||
+      endpoint.search ||
+      endpoint.hash ||
+      !endpoint.hostname ||
+      !endpoint.port) {
+    throw new Error('IVEKIT_RTPENGINE_NG_ENDPOINT is invalid');
+  }
+  const port = Number(endpoint.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error('IVEKIT_RTPENGINE_NG_ENDPOINT is invalid');
+  }
+  return { host: endpoint.hostname, port };
+}
+
+async function rtpengineControl(
+  client: RtpengineNgClient,
+  command: 'ivekit status' | 'ivekit drain'
+): Promise<void> {
+  const commandId = `runtime-${randomUUID()}`;
+  const response = await client.request(
+    { command },
+    {
+      command_id: commandId,
+      command_hash: createHash('sha256')
+        .update(command, 'utf8')
+        .digest('hex')
+    }
+  );
+  const result = response.result;
+  const value = Buffer.isBuffer(result)
+    ? result.toString('utf8')
+    : String(result ?? '');
+  if (value !== 'ok') {
+    throw new Error(`RTPengine ${command} rejected`);
+  }
 }

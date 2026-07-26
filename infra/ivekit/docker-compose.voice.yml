@@ -259,6 +259,76 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  rtpengine-config-validate:
+    image: ${IVEKIT_MEDIA_CONTROL_IMAGE_NAME:-ivekit-media-control:local}
+    profiles: ["voice-media-control"]
+    entrypoint:
+      - node
+      - --import
+      - tsx
+      - scripts/ivekit-rtpengine-deployment-preflight.ts
+    restart: "no"
+    user: node
+    read_only: true
+    environment:
+      IVEKIT_RTPENGINE_IMAGE: ${IVEKIT_RTPENGINE_IMAGE:?IVEKIT_RTPENGINE_IMAGE must be digest-pinned}
+      IVEKIT_RTPENGINE_RUNTIME_MODE: userspace
+      IVEKIT_RTPENGINE_INTERFACE: ${IVEKIT_RTPENGINE_INTERFACE:?IVEKIT_RTPENGINE_INTERFACE is required}
+      IVEKIT_RTPENGINE_PORT_MIN: ${IVEKIT_RTPENGINE_PORT_MIN:-23000}
+      IVEKIT_RTPENGINE_PORT_MAX: ${IVEKIT_RTPENGINE_PORT_MAX:-32768}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  rtpengine:
+    image: ${IVEKIT_RTPENGINE_IMAGE:?IVEKIT_RTPENGINE_IMAGE must be digest-pinned}
+    profiles: ["voice-media-control"]
+    init: true
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    environment:
+      IVEKIT_RTPENGINE_RUNTIME_MODE: userspace
+      IVEKIT_RTPENGINE_INTERFACE: ${IVEKIT_RTPENGINE_INTERFACE:?IVEKIT_RTPENGINE_INTERFACE is required}
+      IVEKIT_RTPENGINE_LISTEN_NG: 0.0.0.0:22222
+      IVEKIT_RTPENGINE_LISTEN_HTTP: 0.0.0.0:8080
+      IVEKIT_RTPENGINE_PORT_MIN: ${IVEKIT_RTPENGINE_PORT_MIN:-23000}
+      IVEKIT_RTPENGINE_PORT_MAX: ${IVEKIT_RTPENGINE_PORT_MAX:-32768}
+      IVEKIT_RTPENGINE_ACTIVE_CALL_LIMIT: ${IVEKIT_RTPENGINE_ACTIVE_CALL_LIMIT:-100000}
+      IVEKIT_RTPENGINE_GUARD_ENTRY_LIMIT: ${IVEKIT_RTPENGINE_GUARD_ENTRY_LIMIT:-1600000}
+    expose:
+      - "22222"
+      - "8080"
+    ports:
+      - "${IVEKIT_RTPENGINE_BIND_ADDRESS:-0.0.0.0}:${IVEKIT_RTPENGINE_PORT_MIN:-23000}-${IVEKIT_RTPENGINE_PORT_MAX:-32768}:${IVEKIT_RTPENGINE_PORT_MIN:-23000}-${IVEKIT_RTPENGINE_PORT_MAX:-32768}/udp"
+    tmpfs:
+      - /run/ivekit-rtpengine:size=16m,uid=10001,gid=10001,mode=0700
+      - /rec:size=64m,uid=10001,gid=10001,mode=0700
+    deploy:
+      resources:
+        limits:
+          cpus: ${IVEKIT_RTPENGINE_CPU_LIMIT:-4}
+          memory: ${IVEKIT_RTPENGINE_MEMORY_LIMIT:-4G}
+        reservations:
+          cpus: ${IVEKIT_RTPENGINE_CPU_RESERVATION:-1}
+          memory: ${IVEKIT_RTPENGINE_MEMORY_RESERVATION:-1G}
+    depends_on:
+      rtpengine-config-validate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -r /run/ivekit-rtpengine/runtime.identity && kill -0 1
+      interval: 5s
+      timeout: 2s
+      retries: 20
+      start_period: 10s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   media-control:
     image: ${IVEKIT_MEDIA_CONTROL_IMAGE_NAME:-ivekit-media-control:local}
     build:
@@ -276,7 +346,7 @@ services:
     environment:
       IVEKIT_MEDIA_CONTROL_PRODUCTION: "false"
       IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS: "false"
-      IVEKIT_MEDIA_CONTROL_TRANSPORT: simulator
+      IVEKIT_MEDIA_CONTROL_TRANSPORT: rtpengine
       IVEKIT_MEDIA_CONTROL_HOST: 0.0.0.0
       IVEKIT_MEDIA_CONTROL_PORT: 3211
       IVEKIT_MEDIA_CONTROL_TOKEN: ${OPC_IVEKIT_MEDIA_CONTROL_TOKEN:?OPC_IVEKIT_MEDIA_CONTROL_TOKEN is required}
@@ -289,9 +359,28 @@ services:
       IVEKIT_MEDIA_CONTROL_MAX_COMMANDS_PER_RESERVATION: ${IVEKIT_MEDIA_CONTROL_MAX_COMMANDS_PER_RESERVATION:-16}
       IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS: ${IVEKIT_MEDIA_CONTROL_TERMINAL_RETENTION_MS:-300000}
       IVEKIT_MEDIA_CONTROL_SWEEP_INTERVAL_MS: ${IVEKIT_MEDIA_CONTROL_SWEEP_INTERVAL_MS:-1000}
+      IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY: /var/lib/ivekit-media-control
+      IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS: ${IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS:-1000000}
+      IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES: ${IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES:-268435456}
+      IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES: ${IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES:-2097152}
+      IVEKIT_RTPENGINE_NG_ENDPOINT: tcp://rtpengine:22222
+      IVEKIT_RTPENGINE_RUNTIME_MODE: userspace
+      IVEKIT_RTPENGINE_MAX_CONNECTIONS: ${IVEKIT_RTPENGINE_MAX_CONNECTIONS:-4}
+      IVEKIT_RTPENGINE_MAX_IN_FLIGHT: ${IVEKIT_RTPENGINE_MAX_IN_FLIGHT:-1024}
+      IVEKIT_RTPENGINE_MAX_REQUEST_BYTES: ${IVEKIT_RTPENGINE_MAX_REQUEST_BYTES:-1048576}
+      IVEKIT_RTPENGINE_MAX_RESPONSE_BYTES: ${IVEKIT_RTPENGINE_MAX_RESPONSE_BYTES:-1048576}
+      IVEKIT_RTPENGINE_MAX_QUEUED_BYTES: ${IVEKIT_RTPENGINE_MAX_QUEUED_BYTES:-4194304}
+      IVEKIT_RTPENGINE_REQUEST_TIMEOUT_MS: ${IVEKIT_RTPENGINE_REQUEST_TIMEOUT_MS:-2000}
+      IVEKIT_RTPENGINE_RECOVERY_CONCURRENCY: ${IVEKIT_RTPENGINE_RECOVERY_CONCURRENCY:-32}
+      IVEKIT_RTPENGINE_MAX_SESSIONS: ${IVEKIT_RTPENGINE_MAX_SESSIONS:-100000}
+      IVEKIT_RTPENGINE_MAX_COMMANDS: ${IVEKIT_RTPENGINE_MAX_COMMANDS:-1600000}
+    volumes:
+      - media-control-wal:/var/lib/ivekit-media-control
     tmpfs:
       - /tmp:size=16m,mode=1777
     depends_on:
+      rtpengine:
+        condition: service_healthy
       rustpbx:
         condition: service_healthy
       rustpbx-component-node:
@@ -363,6 +452,7 @@ volumes:
   rustpbx-storage:
   rustpbx-recording-spool:
   rustpbx-recording-state:
+  media-control-wal: {}
 
 secrets:
   rustpbx-recording-service-key:

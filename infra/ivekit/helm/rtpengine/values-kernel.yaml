@@ -1,0 +1,12 @@
+runtimeMode: kernel
+
+nodeSelector:
+  ivekit.io/rtpengine-kernel-ready: "true"
+
+rtpengine:
+  image:
+    repository: ghcr.io/example/ivekit-rtpengine-kernel
+    digest: ""
+
+kernel:
+  hostMounts: true

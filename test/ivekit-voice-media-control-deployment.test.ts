@@ -90,7 +90,7 @@ describe('iveKit media control deployment', () => {
     );
   });
 
-  it('makes simulator acceptance explicit and rejects simulator production startup', () => {
+  it('uses RTPengine acceptance and rejects simulator production startup', () => {
     const service = compose.services['media-control'];
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_PRODUCTION,
@@ -98,7 +98,7 @@ describe('iveKit media control deployment', () => {
     );
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_TRANSPORT,
-      'simulator'
+      'rtpengine'
     );
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS,
@@ -158,6 +158,7 @@ describe('iveKit media control deployment', () => {
       'rustpbx',
       'rustpbx-component-node',
       'cell-admission',
+      'rtpengine',
       'media-control'
     ]) {
       assert.ok(

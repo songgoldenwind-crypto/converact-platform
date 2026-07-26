@@ -13,6 +13,9 @@ COPY src ./src
 COPY scripts ./scripts
 COPY shared ./shared
 
+RUN install -d -m 0700 /var/lib/ivekit-media-control \
+    && chown node:node /var/lib/ivekit-media-control
+
 ENV NODE_ENV=production
 ENV IVEKIT_MEDIA_CONTROL_HOST=0.0.0.0
 ENV IVEKIT_MEDIA_CONTROL_PORT=3211

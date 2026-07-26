@@ -1,0 +1,83 @@
+runtimeMode: userspace
+
+nodeSelector:
+  ivekit.io/rtpengine-userspace-ready: "true"
+
+tolerations:
+  - key: ivekit.io/media-node
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+
+terminationGracePeriodSeconds: 45
+
+rtpengine:
+  image:
+    repository: ghcr.io/example/ivekit-rtpengine-userspace
+    digest: ""
+    pullPolicy: IfNotPresent
+  interfaceFromHostIP: true
+  interface: ""
+  mediaPorts:
+    minimum: 23000
+    maximum: 32768
+  activeCallLimit: 100000
+  guardEntryLimit: 1600000
+  runtimeVolume:
+    sizeLimit: 16Mi
+  recordingVolume:
+    sizeLimit: 1Gi
+  resources:
+    requests:
+      cpu: "2"
+      memory: 2Gi
+    limits:
+      cpu: "8"
+      memory: 8Gi
+
+mediaControl:
+  image:
+    repository: ghcr.io/example/ivekit-media-control
+    digest: ""
+    pullPolicy: IfNotPresent
+  admissionEndpoint: https://ivekit-cell-admission.ivekit.svc:3200
+  existingSecret: ivekit-media-control
+  tlsSecret: ivekit-media-control-tls
+  maxReservations: 100000
+  maxTerminalReservations: 100000
+  maxCommandsPerReservation: 16
+  terminalRetentionMs: 300000
+  rtpengine:
+    maxConnections: 4
+    maxInFlight: 1024
+    maxRequestBytes: 1048576
+    maxResponseBytes: 1048576
+    maxQueuedBytes: 4194304
+    requestTimeoutMs: 2000
+    recoveryConcurrency: 32
+    maxSessions: 100000
+    maxCommands: 1600000
+  wal:
+    hostPath: /var/lib/ivekit-media-control
+    maxRecords: 1000000
+    maxBytes: 268435456
+    maxRecordBytes: 2097152
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+kernel:
+  hostMounts: false
+
+serviceMonitor:
+  enabled: true
+  interval: 15s
+  scrapeTimeout: 5s
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
