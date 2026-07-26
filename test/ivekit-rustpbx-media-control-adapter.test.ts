@@ -88,6 +88,7 @@ describe('RustPBX media-control adapter', () => {
       ...identity(1, 'prepare-1'),
       logical_offer_sdp: 'v=0\r\na=sendrecv\r\n',
       media_profile_id: 'g711-relay-v1',
+      from_tag: 'sip-from-tag-1',
       transport_hints: { address_family: 'ipv4' }
     });
 
@@ -98,6 +99,7 @@ describe('RustPBX media-control adapter', () => {
       client.commands[0].payload.offer_sdp,
       'v=0\r\na=sendrecv\r\n'
     );
+    assert.equal(client.commands[0].payload.from_tag, 'sip-from-tag-1');
     assert.equal(result.logical_offer_sdp, 'v=0\r\na=sendrecv\r\n');
     assert.equal(
       result.effective_sdp,
@@ -118,11 +120,17 @@ describe('RustPBX media-control adapter', () => {
     await adapter.prepare({
       ...identity(1, 'prepare-1'),
       logical_offer_sdp: 'v=0\r\n',
-      media_profile_id: 'g711-relay-v1'
+      media_profile_id: 'g711-relay-v1',
+      from_tag: 'sip-from-tag-1'
     });
 
     await assert.rejects(
-      adapter.commit(identity(2, 'commit-2')),
+      adapter.commit({
+        ...identity(2, 'commit-2'),
+        answer_sdp: 'v=0\r\na=recvonly\r\n',
+        from_tag: 'sip-from-tag-1',
+        to_tag: 'sip-to-tag-1'
+      }),
       (error: unknown) =>
         error instanceof MediaControlError &&
         error.code === 'command_reconciliation_required'
@@ -143,7 +151,8 @@ describe('RustPBX media-control adapter', () => {
     await adapter.prepare({
       ...identity(1, 'prepare-1'),
       logical_offer_sdp: 'v=0\r\n',
-      media_profile_id: 'g711-relay-v1'
+      media_profile_id: 'g711-relay-v1',
+      from_tag: 'sip-from-tag-1'
     });
     client.reconcileResult = success(client.commands[0]);
 
@@ -153,11 +162,21 @@ describe('RustPBX media-control adapter', () => {
       owner_epoch: OWNER_EPOCH
     });
     client.next = undefined;
-    const committed = await adapter.commit(identity(2, 'commit-2'));
+    const committed = await adapter.commit({
+      ...identity(2, 'commit-2'),
+      answer_sdp: 'v=0\r\na=recvonly\r\n',
+      from_tag: 'sip-from-tag-1',
+      to_tag: 'sip-to-tag-1'
+    });
 
     assert.equal(reconciled.result.result_class, 'committed');
     assert.equal(client.reconciliations[0].command.command_id, 'prepare-1');
     assert.equal(committed.result.result_class, 'committed');
     assert.equal(client.commands[1].command_sequence, 2);
+    assert.deepEqual(client.commands[1].payload, {
+      answer_sdp: 'v=0\r\na=recvonly\r\n',
+      from_tag: 'sip-from-tag-1',
+      to_tag: 'sip-to-tag-1'
+    });
   });
 });

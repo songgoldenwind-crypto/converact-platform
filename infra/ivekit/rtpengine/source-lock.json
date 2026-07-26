@@ -12,7 +12,7 @@
     "license": "GPL-3.0-only"
   },
   "patch_set": {
-    "id": "ivekit-rtpengine-mr26.0.1.13.1",
+    "id": "ivekit-rtpengine-mr26.0.1.13.2",
     "patches": [
       {
         "id": "rtpengine-tcp-ng-bounded-frame-v1",
@@ -29,6 +29,10 @@
       {
         "id": "rtpengine-ivekit-low-cardinality-metrics-v1",
         "path": "patches/0004-ivekit-metrics.patch"
+      },
+      {
+        "id": "rtpengine-ivekit-durable-replay-v1",
+        "path": "patches/0005-ivekit-durable-replay.patch"
       }
     ]
   }

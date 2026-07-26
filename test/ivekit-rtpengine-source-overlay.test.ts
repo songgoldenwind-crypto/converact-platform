@@ -41,7 +41,8 @@ test('RTPengine source lock freezes archive, commit and patch order', () => {
       'rtpengine-tcp-ng-bounded-frame-v1',
       'rtpengine-ivekit-owner-fence-v1',
       'rtpengine-ivekit-drain-capacity-v1',
-      'rtpengine-ivekit-low-cardinality-metrics-v1'
+      'rtpengine-ivekit-low-cardinality-metrics-v1',
+      'rtpengine-ivekit-durable-replay-v1'
     ]
   );
 });
@@ -410,6 +411,45 @@ test('metrics patch exports a fixed low-cardinality iveKit metric set', () => {
   assert.doesNotMatch(patch, /postgres|database query|redis command/i);
 });
 
+test('durable replay patch owns replay SDP and preserves recovery queries', () => {
+  const patch = readFileSync(
+    'infra/ivekit/rtpengine/patches/0005-ivekit-durable-replay.patch',
+    'utf8'
+  );
+
+  assert.match(patch, /ivekit_guard_capture_response/);
+  assert.match(patch, /if \(str_eq\(command, "query"\)\)/);
+  assert.match(patch, /if \(!command_id\.s\)/);
+  assert.match(
+    patch,
+    /ticket->replay_sdp = g_memdup2\(\s*\+?\s*entry->effective_sdp/
+  );
+  assert.match(patch, /dict_add_str_dup\(ctx->resp, "sdp", &replay_sdp\)/);
+  assert.match(patch, /g_clear_pointer\(&ticket->replay_sdp, g_free\)/);
+  assert.match(patch, /IVEKIT_RTPENGINE_REPLAY_SDP_MAX_BYTES/);
+  assert.match(patch, /ivekit_guard_replay_sdp_bytes/);
+  assert.match(patch, /ivekit replay ack/);
+  assert.match(patch, /ivekit command status/);
+  assert.match(patch, /ivekit-command-status/);
+  assert.match(patch, /ivekit-command-result/);
+  assert.match(patch, /invalid_effective_sdp/);
+  assert.match(patch, /ivekit-guard-entry-found/);
+  assert.match(patch, /ivekit-ack-command-id/);
+  assert.match(patch, /ivekit_replay_sdp_bytes/);
+  assert.match(patch, /ivekit_replay_sdp_byte_limit/);
+  assert.match(
+    patch,
+    /if \(ticket->replay_sdp_reserved == 0\)\s*\n\+\s*return;/
+  );
+  assert.doesNotMatch(
+    patch,
+    /^\+\s*parser->dict_add_str\(ctx->resp, "sdp", &replay_sdp\)/m
+  );
+  assert.doesNotMatch(patch, /strlen\(ticket->replay_sdp\)/);
+  assert.match(patch, /g_utf8_validate/);
+  assert.match(patch, /ticket->replay_sdp_bytes/);
+});
+
 test('owner guard overlay test exercises bounded identities and uint64 epochs', () => {
   const source = readFileSync(
     'infra/ivekit/rtpengine/overlay-tests/ivekit_owner_guard_test.c',
@@ -423,13 +463,21 @@ test('owner guard overlay test exercises bounded identities and uint64 epochs', 
   assert.match(source, /assert/);
 });
 
-test('replay protocol test requires cached stable-cookie and rejected cross-cookie behavior', () => {
+test('replay protocol preserves SDP across stable and cross-cookie replays', () => {
   const source = readFileSync(
     'infra/ivekit/rtpengine/overlay-tests/ivekit_replay_protocol_test.py',
     'utf8'
   );
   assert.match(source, /stable-cookie replay did not return cached response/);
   assert.match(source, /cross-cookie replay was not rejected/);
+  assert.match(source, /cross-cookie replay marker missing/);
+  assert.match(source, /cross-cookie replay SDP missing/);
+  assert.match(source, /exact applied command status missing/);
+  assert.match(source, /next command status was not unseen/);
+  assert.match(source, /conflicting command status was not fenced/);
+  assert.match(source, /raw recovery query was fenced/);
+  assert.match(source, /guarded query did not advance sequence/);
+  assert.match(source, /post-query media mutation hit a sequence gap/);
   assert.match(source, /accepted != 1 or replayed != 1/);
-  assert.match(source, /rejected_without_dispatch/);
+  assert.match(source, /fenced_replay_with_sdp/);
 });

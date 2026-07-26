@@ -300,9 +300,9 @@ Task 6 evidence:
 - Modify: `src/agent-runtime/ivekit/media-control/index.ts`
 - Create: `test/ivekit-rtpengine-media-transport.test.ts`
 
-- [ ] Write failing tests using a real TCP NG fixture for offer, answer, update, delete, query, block/unblock, start/stop forwarding, start/stop recording, play/stop media, DTMF, quality query, and drain.
-- [ ] Require offer payload fields `offer_sdp`, `from_tag`, and `media_profile_id`; require answer/update tags according to the SIP dialog state.
-- [ ] Map iveKit actions exactly:
+- [x] Write failing tests using a real TCP NG fixture for offer, answer, update, delete, query, block/unblock, start/stop forwarding, start/stop recording, play/stop media, DTMF, quality query, and drain.
+- [x] Require offer payload fields `offer_sdp`, `from_tag`, and `media_profile_id`; require answer/update tags according to the SIP dialog state.
+- [x] Map iveKit actions exactly:
 
 ```text
 offer               -> offer
@@ -323,11 +323,56 @@ subscribe_quality   -> query
 drain_node          -> ivekit drain
 ```
 
-- [ ] Send all owner/fencing keys on every mutating request and keep logical SDP separate from returned effective SDP.
-- [ ] On startup, load active WAL sessions, query RTPengine by call ID, and mark missing calls closed. Do not claim active recovery without both WAL and RTPengine facts.
-- [ ] On unknown outcome, query WAL first, then RTPengine. Replay only with the same cookie after RTPengine proves the command was not observed.
-- [ ] Keep delete idempotent and retain the owner tombstone.
-- [ ] Commit as `feat(media): execute commands through RTPengine`.
+- [x] Send all owner/fencing keys on every mutating request and keep logical SDP separate from returned effective SDP.
+- [x] On startup, load active WAL sessions, query RTPengine by call ID, and mark missing calls closed. Do not claim active recovery without both WAL and RTPengine facts.
+- [x] On unknown outcome, query WAL first, then RTPengine. Replay only with the same cookie after RTPengine proves the command was not observed.
+- [x] Keep delete idempotent and retain the owner tombstone.
+- [x] Commit as `feat(media): execute commands through RTPengine`.
+
+Task 7 evidence:
+
+- the transport maps every Goal 1 action through the RTPengine TCP NG client,
+  validates dialog tags and SDP before I/O, and persists action, exact failure
+  semantics, effective SDP, and dialog tags in the checksummed WAL;
+- the iveKit RTPengine fork exposes an exact `ivekit command status` query with
+  `applied`, `unseen`, and `conflict` results. Unknown non-idempotent commands
+  such as DTMF are not replayed unless the guard proves the exact command was
+  not observed;
+- successful negotiation replay state is released through an acknowledged,
+  bounded, exponentially retried replay-ACK queue. Fast retry exhaustion
+  escalates to bounded low-frequency retry instead of abandoning cleanup.
+  Startup reconciles the newest unknown negotiation before proving and
+  acknowledging the newest successful negotiation for each reservation.
+  Pending, failed, succeeded, escalated, and abandoned ACK counts are
+  available to the runtime metrics adapter;
+- effective SDP is limited to 256 KiB and rejects NUL or invalid UTF-8 in both
+  the TypeScript transport and the C fork. An applied negotiation with an
+  unsafe effective SDP is fenced, deleted with a stable compensating command,
+  and persisted as a deterministic terminal failure. A lost cleanup response
+  converges through the compensating command's exact status without repeating
+  its side effect. Session lookup, command cleanup, and transport-session
+  release use bounded maps and direct indexes;
+- runtime WAL compaction retains a dirty marker across failures, retries with
+  bounded exponential backoff, and retries again before the next append so a
+  transient compaction failure cannot permanently consume WAL capacity;
+- local Goal 1 regression tests passed `68/68`, the Goal 2 suite passed
+  `83/83`, TypeScript typecheck passed, and `git diff --check` passed;
+- the full repository suite completed `4,074` tests with `4,059` passed,
+  `13` skipped, and the same two pre-existing baseline failures: the curated
+  delivery bundle expects `84` files but currently contains `85`, and the
+  Renovate upstream watch does not yet declare RTPengine `mr26.0.1.13`;
+- independent final review reported no Critical or Important findings after
+  validating cross-epoch recovery ordering, restart cleanup convergence, and
+  append-before-compaction retry behavior;
+- the pinned source built natively on the isolated Linux server as image
+  `sha256:13c3eb5e17b63dea05a33b2628de9a43e8b18cc495ce2fc148db6c9c852c017a`
+  with patch-set SHA-256
+  `51f842076f044d5d914ef8f89ad0a72a9ab1e6a2d26ee5899a5e457d09efd0f3`;
+- the real daemon protocol probe returned
+  `command_status=applied_unseen_conflict`,
+  `stable_cookie_result=cached`, `cross_cookie_result=fenced_replay_with_sdp`,
+  and `replay_sdp_ack=released`. The temporary RTPengine container was removed
+  after the run, and all seven LED containers remained healthy.
 
 ### Task 8: Runtime Selection And Deployment
 

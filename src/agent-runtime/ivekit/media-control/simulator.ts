@@ -17,6 +17,8 @@ interface SimulatedSession {
   state: 'prepared' | 'committed' | 'cancelled' | 'closed' | 'expired';
   owner_epoch: string;
   last_sequence: number;
+  from_tag: string | null;
+  to_tag: string | null;
   forwarding: boolean;
   forwarded_packets: number;
   updated_at: string;
@@ -165,6 +167,8 @@ export class InMemoryMediaTransport implements MediaTransportPort {
       state: session.state,
       transport_session_id: session.transport_session_id,
       effective_sdp: session.effective_sdp,
+      from_tag: session.from_tag,
+      to_tag: session.to_tag,
       updated_at: session.updated_at
     };
   }
@@ -232,6 +236,8 @@ export class InMemoryMediaTransport implements MediaTransportPort {
         state: 'prepared',
         owner_epoch: command.owner_epoch,
         last_sequence: command.command_sequence,
+        from_tag: textTag(command.payload.from_tag),
+        to_tag: textTag(command.payload.to_tag),
         forwarding: false,
         forwarded_packets: 0,
         updated_at: this.#now().toISOString()
@@ -275,6 +281,8 @@ export class InMemoryMediaTransport implements MediaTransportPort {
                current.state === 'committed') {
       current.forwarding = true;
     }
+    current.from_tag = textTag(command.payload.from_tag) ?? current.from_tag;
+    current.to_tag = textTag(command.payload.to_tag) ?? current.to_tag;
     current.updated_at = this.#now().toISOString();
     if (command.action !== 'query') this.#increment(command.action);
     return {
@@ -290,6 +298,10 @@ export class InMemoryMediaTransport implements MediaTransportPort {
   #increment(action: string): void {
     this.#sideEffects.set(action, (this.#sideEffects.get(action) ?? 0) + 1);
   }
+}
+
+function textTag(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function commandKey(input: {

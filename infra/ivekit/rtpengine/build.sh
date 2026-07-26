@@ -166,7 +166,7 @@ if [[ ! "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 IMAGE_PREFIX="${IVEKIT_RTPENGINE_IMAGE_PREFIX:-ivekit/rtpengine}"
-IMAGE_VERSION="${IVEKIT_RTPENGINE_IMAGE_VERSION:-mr26.0.1.13-ivekit.1}"
+IMAGE_VERSION="${IVEKIT_RTPENGINE_IMAGE_VERSION:-mr26.0.1.13-ivekit.2}"
 COMMON_BUILD_ARGS=(
   --network=none
   --pull=false

@@ -449,6 +449,40 @@ describe('checksummed media command journal', () => {
     });
   });
 
+  it('compacts a terminal reservation after the same unknown command resolves', async () => {
+    await withJournalPath(async (journalPath) => {
+      const journal = await MediaCommandJournal.open({
+        path: journalPath,
+        terminalRetentionMs: 5_000
+      });
+      const uncertain = record({
+        command_id: 'resolved-command',
+        media_reservation_id: 'reservation-resolved',
+        result_class: 'unknown',
+        session_state: null,
+        terminal_at: null
+      });
+      const resolved = record({
+        command_id: uncertain.command_id,
+        command_hash: uncertain.command_hash,
+        media_reservation_id: uncertain.media_reservation_id,
+        command_sequence: uncertain.command_sequence,
+        session_state: 'closed',
+        terminal_at: '2026-07-25T23:59:40.000Z',
+        recorded_at: '2026-07-25T23:59:40.000Z'
+      });
+      await journal.append(uncertain);
+      await journal.append(resolved);
+
+      assert.deepEqual(
+        await journal.compact(new Date('2026-07-26T00:00:00.000Z')),
+        { removedRecords: 2, retainedRecords: 0 }
+      );
+      assert.deepEqual(await journal.replay(), []);
+      await journal.close();
+    });
+  });
+
   it('enforces record-count and byte bounds without growing the WAL', async () => {
     await withJournalPath(async (journalPath) => {
       const journal = await MediaCommandJournal.open({
@@ -599,16 +633,26 @@ describe('checksummed media command journal', () => {
 function record(
   overrides: Partial<MediaCommandJournalRecord> = {}
 ): MediaCommandJournalRecord {
+  const resultClass = overrides.result_class ?? 'succeeded';
   return {
+    action: 'offer',
     command_id: 'command-1',
     media_reservation_id: 'reservation-1',
     command_hash: 'a'.repeat(64),
     owner_epoch: '4294967297',
     command_sequence: 1,
     transport_call_id: 'transport-call-1',
-    result_class: 'succeeded',
+    result_class: resultClass,
+    error_code: resultClass === 'succeeded'
+      ? null
+      : overrides.error_code ?? 'rtpengine_test_failure',
+    retryable: resultClass === 'succeeded'
+      ? null
+      : overrides.retryable ?? resultClass === 'unknown',
     effective_sdp: '',
     session_state: 'prepared',
+    from_tag: 'from-a',
+    to_tag: null,
     recorded_at: '2026-07-26T00:00:00.000Z',
     terminal_at: null,
     ...overrides

@@ -1,0 +1,577 @@
+diff --git a/daemon/control_ng.c b/daemon/control_ng.c
+index 9e2bbdc..95ffc40 100644
+--- a/daemon/control_ng.c
++++ b/daemon/control_ng.c
+@@ -916,6 +916,7 @@ ivekit_command_complete:
+ 	if (errstr)
+ 		goto err_send;
+ 
++	ivekit_guard_capture_response(&command_ctx, &ivekit_guard);
+ 	ivekit_guard_finish(&ivekit_guard, true);
+ 	ivekit_guard_finished = true;
+ 	parser->dict_add_string(command_ctx.resp, "result", resultstr);
+diff --git a/daemon/ivekit_guard.c b/daemon/ivekit_guard.c
+index 0d025cd..fc55e17 100644
+--- a/daemon/ivekit_guard.c
++++ b/daemon/ivekit_guard.c
+@@ -19,6 +19,9 @@ typedef struct ivekit_guard_entry {
+ 	char *command_id;
+ 	char *command_hash;
+ 	char *reservation_id;
++	char *effective_sdp;
++	uint64_t effective_sdp_bytes;
++	bool invalid_effective_sdp;
+ 	bool initialized;
+ 	bool active;
+ 	int64_t expires_at_us;
+@@ -29,6 +32,7 @@ static GHashTable *ivekit_guard_entries;
+ static bool ivekit_guard_enabled;
+ static uint64_t ivekit_guard_active_call_limit;
+ static uint64_t ivekit_guard_entry_limit;
++static uint64_t ivekit_guard_replay_sdp_byte_limit;
+ static int64_t ivekit_guard_tombstone_retention_us;
+ static _Atomic bool ivekit_guard_draining;
+ static _Atomic bool ivekit_guard_initialized;
+@@ -39,10 +43,26 @@ static _Atomic uint64_t ivekit_guard_stale_epoch;
+ static _Atomic uint64_t ivekit_guard_sequence_gap;
+ static _Atomic uint64_t ivekit_guard_draining_rejections;
+ static _Atomic uint64_t ivekit_guard_capacity_rejections;
++static _Atomic uint64_t ivekit_guard_replay_sdp_bytes;
+ static char ivekit_guard_runtime_mode[IVEKIT_GUARD_RUNTIME_MODE_MAX + 1]
+ 	= "unconfigured";
+ static bool ivekit_guard_userspace_fallback;
+ 
++static void ivekit_guard_release_replay_sdp_bytes(uint64_t bytes) {
++	if (bytes == 0)
++		return;
++	uint64_t previous = atomic_fetch_sub_explicit(
++			&ivekit_guard_replay_sdp_bytes, bytes, memory_order_relaxed);
++	if (previous < bytes)
++		die("iveKit RTPengine replay SDP byte counter underflow");
++}
++
++static void ivekit_guard_clear_replay_sdp(ivekit_guard_entry_t *entry) {
++	ivekit_guard_release_replay_sdp_bytes(entry->effective_sdp_bytes);
++	entry->effective_sdp_bytes = 0;
++	g_clear_pointer(&entry->effective_sdp, g_free);
++}
++
+ static void ivekit_guard_entry_free(void *value) {
+ 	ivekit_guard_entry_t *entry = value;
+ 	if (!entry)
+@@ -51,6 +71,7 @@ static void ivekit_guard_entry_free(void *value) {
+ 	g_free(entry->command_id);
+ 	g_free(entry->command_hash);
+ 	g_free(entry->reservation_id);
++	ivekit_guard_clear_replay_sdp(entry);
+ 	g_free(entry);
+ }
+ 
+@@ -104,7 +125,7 @@ static void ivekit_guard_runtime_mode_init(void) {
+ 
+ static bool ivekit_guard_is_mutation(const str *command) {
+ 	static const char *const mutations[] = {
+-		"offer", "answer", "delete",
++		"offer", "answer", "delete", "query",
+ 		"start recording", "stop recording", "pause recording",
+ 		"start forwarding", "stop forwarding",
+ 		"block DTMF", "unblock DTMF",
+@@ -135,6 +156,10 @@ static bool ivekit_guard_is_delete(const str *command) {
+ 	return str_eq(command, "delete");
+ }
+ 
++static bool ivekit_guard_is_negotiation(const str *command) {
++	return str_eq(command, "offer") || str_eq(command, "answer");
++}
++
+ static bool ivekit_guard_identifier(const str *value, size_t max) {
+ 	if (!value || !value->s || value->len == 0 || value->len > max)
+ 		return false;
+@@ -186,10 +211,12 @@ static bool ivekit_guard_copy(char *destination, size_t capacity, const str *sou
+ 	return true;
+ }
+ 
+-static bool ivekit_guard_sequence(ng_command_ctx_t *ctx, uint32_t *out) {
++static bool ivekit_guard_sequence_value(ng_command_ctx_t *ctx,
++		const char *key, uint32_t *out)
++{
+ 	const ng_parser_t *parser = ctx->parser_ctx.parser;
+ 	str text = STR_NULL;
+-	parser->dict_get_str(ctx->req, "ivekit-command-sequence", &text);
++	parser->dict_get_str(ctx->req, key, &text);
+ 	if (text.s) {
+ 		if (text.len == 0 || text.len > 10 || text.s[0] == '0')
+ 			return false;
+@@ -209,14 +236,18 @@ static bool ivekit_guard_sequence(ng_command_ctx_t *ctx, uint32_t *out) {
+ 		return true;
+ 	}
+ 
+-	long long parsed = parser->dict_get_int_str(ctx->req,
+-			"ivekit-command-sequence", -1);
++	long long parsed = parser->dict_get_int_str(ctx->req, key, -1);
+ 	if (parsed < 1 || (unsigned long long) parsed > UINT32_MAX)
+ 		return false;
+ 	*out = (uint32_t) parsed;
+ 	return true;
+ }
+ 
++static bool ivekit_guard_sequence(ng_command_ctx_t *ctx, uint32_t *out) {
++	return ivekit_guard_sequence_value(
++			ctx, "ivekit-command-sequence", out);
++}
++
+ static void ivekit_guard_sweep_expired_locked(int64_t now_us) {
+ 	GHashTableIter iterator;
+ 	void *key;
+@@ -285,6 +316,19 @@ static void ivekit_guard_release_active_call(void) {
+ 		die("iveKit RTPengine active-call counter underflow");
+ }
+ 
++static bool ivekit_guard_reserve_replay_sdp_bytes(uint64_t bytes) {
++	uint64_t used = atomic_load_explicit(
++			&ivekit_guard_replay_sdp_bytes, memory_order_relaxed);
++	while (bytes <= ivekit_guard_replay_sdp_byte_limit
++			&& used <= ivekit_guard_replay_sdp_byte_limit - bytes) {
++		if (atomic_compare_exchange_weak_explicit(
++				&ivekit_guard_replay_sdp_bytes, &used, used + bytes,
++				memory_order_relaxed, memory_order_relaxed))
++			return true;
++	}
++	return false;
++}
++
+ static void ivekit_guard_append_node_state(ng_command_ctx_t *ctx) {
+ 	uint64_t entries;
+ 	mutex_lock(&ivekit_guard_entries_lock);
+@@ -300,6 +344,11 @@ static void ivekit_guard_append_node_state(ng_command_ctx_t *ctx) {
+ 	parser->dict_add_int(ctx->resp, "ivekit-guard-entries", entries);
+ 	parser->dict_add_int(ctx->resp, "ivekit-guard-entry-limit",
+ 			ivekit_guard_entry_limit);
++	parser->dict_add_int(ctx->resp, "ivekit-replay-sdp-bytes",
++			atomic_load_explicit(
++				&ivekit_guard_replay_sdp_bytes, memory_order_relaxed));
++	parser->dict_add_int(ctx->resp, "ivekit-replay-sdp-byte-limit",
++			ivekit_guard_replay_sdp_byte_limit);
+ }
+ 
+ void ivekit_guard_init(void) {
+@@ -309,6 +358,11 @@ void ivekit_guard_init(void) {
+ 			"IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS", 10000, 1, 10000000);
+ 	ivekit_guard_entry_limit = ivekit_guard_env_uint(
+ 			"IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES", 262144, 1, 10000000);
++	ivekit_guard_replay_sdp_byte_limit = ivekit_guard_env_uint(
++			"IVEKIT_RTPENGINE_REPLAY_SDP_MAX_BYTES",
++			256ULL * 1024 * 1024,
++			IVEKIT_GUARD_REPLAY_SDP_RESERVATION,
++			64ULL * 1024 * 1024 * 1024);
+ 	if (ivekit_guard_entry_limit < ivekit_guard_active_call_limit)
+ 		die("IVEKIT_RTPENGINE_GUARD_MAX_ENTRIES must be at least "
+ 				"IVEKIT_RTPENGINE_MAX_ACTIVE_CALLS");
+@@ -327,15 +381,18 @@ void ivekit_guard_init(void) {
+ 	atomic_init(&ivekit_guard_sequence_gap, 0);
+ 	atomic_init(&ivekit_guard_draining_rejections, 0);
+ 	atomic_init(&ivekit_guard_capacity_rejections, 0);
++	atomic_init(&ivekit_guard_replay_sdp_bytes, 0);
+ 	atomic_store_explicit(&ivekit_guard_initialized, true,
+ 			memory_order_release);
+ 	ilog(LOG_INFO, "iveKit RTPengine owner guard is %s "
+ 			"(runtime-mode=%s, active-call-limit=%" PRIu64
+ 			", guard-entry-limit=%" PRIu64
++			", replay-sdp-byte-limit=%" PRIu64
+ 			", tombstone-retention=%" PRIu64 " seconds)",
+ 			ivekit_guard_enabled ? "enabled" : "disabled",
+ 			ivekit_guard_runtime_mode,
+ 			ivekit_guard_active_call_limit, ivekit_guard_entry_limit,
++			ivekit_guard_replay_sdp_byte_limit,
+ 			retention_seconds);
+ }
+ 
+@@ -355,14 +412,164 @@ bool ivekit_guard_control(ng_command_ctx_t *ctx, const str *command,
+ 	bool drain = str_eq(command, "ivekit drain");
+ 	bool undrain = str_eq(command, "ivekit undrain");
+ 	bool status = str_eq(command, "ivekit status");
+-	if (!drain && !undrain && !status)
++	bool replay_ack = str_eq(command, "ivekit replay ack");
++	bool command_status = str_eq(command, "ivekit command status");
++	if (!drain && !undrain && !status && !replay_ack && !command_status)
+ 		return false;
+ 	*error = NULL;
+ 	if (!ivekit_guard_enabled) {
+ 		*error = "ivekit owner guard disabled";
+ 		return true;
+ 	}
+-	if (drain)
++	if (command_status) {
++		const ng_parser_t *parser = ctx->parser_ctx.parser;
++		str call_id = STR_NULL;
++		str owner_epoch = STR_NULL;
++		str command_id = STR_NULL;
++		str command_hash = STR_NULL;
++		str reservation_id = STR_NULL;
++		uint64_t owner_epoch_value;
++		uint32_t command_sequence;
++		char owner_epoch_text[21];
++		char command_id_text[IVEKIT_GUARD_COMMAND_ID_MAX + 1];
++		char command_hash_text[IVEKIT_GUARD_COMMAND_HASH_MAX + 1];
++		char reservation_id_text[IVEKIT_GUARD_RESERVATION_ID_MAX + 1];
++		parser->dict_get_str(ctx->req, "call-id", &call_id);
++		parser->dict_get_str(ctx->req,
++				"ivekit-status-owner-epoch", &owner_epoch);
++		parser->dict_get_str(ctx->req,
++				"ivekit-status-command-id", &command_id);
++		parser->dict_get_str(ctx->req,
++				"ivekit-status-command-hash", &command_hash);
++		parser->dict_get_str(ctx->req,
++				"ivekit-status-reservation-id", &reservation_id);
++		if (!ivekit_guard_identifier(&call_id, 512)
++				|| !ivekit_guard_epoch(&owner_epoch, &owner_epoch_value)
++				|| !ivekit_guard_copy(owner_epoch_text,
++					sizeof(owner_epoch_text), &owner_epoch)
++				|| !ivekit_guard_sequence_value(ctx,
++					"ivekit-status-command-sequence", &command_sequence)
++				|| !ivekit_guard_identifier(
++					&command_id, IVEKIT_GUARD_COMMAND_ID_MAX)
++				|| !ivekit_guard_copy(command_id_text,
++					sizeof(command_id_text), &command_id)
++				|| !ivekit_guard_hash(&command_hash)
++				|| !ivekit_guard_copy(command_hash_text,
++					sizeof(command_hash_text), &command_hash)
++				|| !ivekit_guard_identifier(
++					&reservation_id, IVEKIT_GUARD_RESERVATION_ID_MAX)
++				|| !ivekit_guard_copy(reservation_id_text,
++					sizeof(reservation_id_text), &reservation_id)) {
++			*error = "ivekit invalid command status";
++			return true;
++		}
++
++		char *key = g_strndup(call_id.s, call_id.len);
++		mutex_lock(&ivekit_guard_entries_lock);
++		ivekit_guard_entry_t *entry = g_hash_table_lookup(
++				ivekit_guard_entries, key);
++		if (entry)
++			mutex_lock(&entry->lock);
++		mutex_unlock(&ivekit_guard_entries_lock);
++		g_free(key);
++
++		const char *command_state = "unseen";
++		bool found = entry != NULL;
++		if (entry && entry->initialized) {
++			bool same_owner = owner_epoch_value == entry->owner_epoch;
++			bool same_reservation =
++				!g_strcmp0(entry->reservation_id, reservation_id_text);
++			bool applied = same_owner && same_reservation
++				&& command_sequence == entry->command_sequence
++				&& !g_strcmp0(entry->command_id, command_id_text)
++				&& !g_strcmp0(entry->command_hash, command_hash_text);
++			bool exact_next = same_owner && same_reservation
++				&& command_sequence == entry->command_sequence + 1
++				&& g_strcmp0(entry->command_id, command_id_text);
++			bool new_owner = owner_epoch_value > entry->owner_epoch
++				&& command_sequence == 1;
++			if (applied) {
++				command_state = "applied";
++				parser->dict_add_string(ctx->resp, "ivekit-owner-epoch",
++						owner_epoch_text);
++				parser->dict_add_int(ctx->resp, "ivekit-command-sequence",
++						command_sequence);
++				parser->dict_add_string(ctx->resp, "ivekit-command-id",
++						command_id_text);
++				parser->dict_add_string(ctx->resp, "ivekit-command-hash",
++						command_hash_text);
++				parser->dict_add_string(ctx->resp, "ivekit-reservation-id",
++						reservation_id_text);
++				parser->dict_add_int(ctx->resp,
++						"ivekit-command-replayed", 1);
++				if (entry->invalid_effective_sdp) {
++					parser->dict_add_string(ctx->resp,
++							"ivekit-command-result",
++							"invalid_effective_sdp");
++				}
++				if (entry->effective_sdp && entry->effective_sdp_bytes > 0) {
++					str replay_sdp = {
++						.s = entry->effective_sdp,
++						.len = entry->effective_sdp_bytes,
++					};
++					parser->dict_add_str_dup(
++							ctx->resp, "sdp", &replay_sdp);
++				}
++			}
++			else if (!exact_next && !new_owner) {
++				command_state = "conflict";
++			}
++		}
++		parser->dict_add_string(
++				ctx->resp, "ivekit-command-status", command_state);
++		parser->dict_add_int(ctx->resp,
++				"ivekit-guard-entry-found", found ? 1 : 0);
++		if (entry)
++			mutex_unlock(&entry->lock);
++	}
++	else if (replay_ack) {
++		const ng_parser_t *parser = ctx->parser_ctx.parser;
++		str call_id = STR_NULL;
++		str command_id = STR_NULL;
++		str command_hash = STR_NULL;
++		char command_id_text[IVEKIT_GUARD_COMMAND_ID_MAX + 1];
++		char command_hash_text[IVEKIT_GUARD_COMMAND_HASH_MAX + 1];
++		parser->dict_get_str(ctx->req, "call-id", &call_id);
++		parser->dict_get_str(ctx->req, "ivekit-ack-command-id", &command_id);
++		parser->dict_get_str(ctx->req, "ivekit-ack-command-hash", &command_hash);
++		if (!ivekit_guard_identifier(&call_id, 512)
++				|| !ivekit_guard_identifier(
++					&command_id, IVEKIT_GUARD_COMMAND_ID_MAX)
++				|| !ivekit_guard_copy(command_id_text,
++					sizeof(command_id_text), &command_id)
++				|| !ivekit_guard_hash(&command_hash)
++				|| !ivekit_guard_copy(command_hash_text,
++					sizeof(command_hash_text), &command_hash)) {
++			*error = "ivekit invalid replay ack";
++			return true;
++		}
++		char *key = g_strndup(call_id.s, call_id.len);
++		mutex_lock(&ivekit_guard_entries_lock);
++		ivekit_guard_entry_t *entry = g_hash_table_lookup(
++				ivekit_guard_entries, key);
++		if (entry)
++			mutex_lock(&entry->lock);
++		mutex_unlock(&ivekit_guard_entries_lock);
++		g_free(key);
++		bool acknowledged = false;
++		if (entry) {
++			if (!g_strcmp0(entry->command_id, command_id_text)
++					&& !g_strcmp0(entry->command_hash, command_hash_text)) {
++				ivekit_guard_clear_replay_sdp(entry);
++				entry->invalid_effective_sdp = false;
++				acknowledged = true;
++			}
++			mutex_unlock(&entry->lock);
++		}
++		parser->dict_add_int(ctx->resp,
++				"ivekit-replay-acknowledged", acknowledged ? 1 : 0);
++	}
++	else if (drain)
+ 		atomic_store_explicit(&ivekit_guard_draining, true, memory_order_relaxed);
+ 	else if (undrain)
+ 		atomic_store_explicit(&ivekit_guard_draining, false, memory_order_relaxed);
+@@ -376,6 +583,13 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 	memset(ticket, 0, sizeof(*ticket));
+ 	if (!ivekit_guard_enabled || !ivekit_guard_is_mutation(command))
+ 		return NULL;
++	if (str_eq(command, "query")) {
++		str command_id = STR_NULL;
++		ctx->parser_ctx.parser->dict_get_str(ctx->req,
++				"ivekit-command-id", &command_id);
++		if (!command_id.s)
++			return NULL;
++	}
+ 	ticket->enabled = true;
+ 	ticket->allocation = ivekit_guard_is_allocation(command);
+ 	ticket->deletes_call = ivekit_guard_is_delete(command);
+@@ -437,6 +651,8 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 		ivekit_guard_replace(&entry->reservation_id, ticket->reservation_id);
+ 		ivekit_guard_replace(&entry->command_id, NULL);
+ 		ivekit_guard_replace(&entry->command_hash, NULL);
++		ivekit_guard_clear_replay_sdp(entry);
++		entry->invalid_effective_sdp = false;
+ 		goto admission;
+ 	}
+ 
+@@ -454,6 +670,12 @@ const char *ivekit_guard_begin(ng_command_ctx_t *ctx, const str *command,
+ 			&& !g_strcmp0(entry->command_id, ticket->command_id)
+ 			&& !g_strcmp0(entry->command_hash, ticket->command_hash)) {
+ 		ticket->replayed = true;
++		ticket->invalid_effective_sdp = entry->invalid_effective_sdp;
++		if (entry->effective_sdp && entry->effective_sdp_bytes > 0) {
++			ticket->replay_sdp = g_memdup2(
++					entry->effective_sdp, entry->effective_sdp_bytes);
++			ticket->replay_sdp_bytes = entry->effective_sdp_bytes;
++		}
+ 		atomic_fetch_add_explicit(&ivekit_guard_replayed, 1,
+ 				memory_order_relaxed);
+ 		ivekit_guard_finish(ticket, false);
+@@ -490,9 +712,44 @@ admission:
+ 		}
+ 		ticket->admission_reserved = true;
+ 	}
++	if (ivekit_guard_is_negotiation(command)) {
++		if (!ivekit_guard_reserve_replay_sdp_bytes(
++				IVEKIT_GUARD_REPLAY_SDP_RESERVATION)) {
++			atomic_fetch_add_explicit(&ivekit_guard_capacity_rejections, 1,
++					memory_order_relaxed);
++			ivekit_guard_finish(ticket, false);
++			return "ivekit replay SDP capacity";
++		}
++		ticket->replay_sdp_reserved = IVEKIT_GUARD_REPLAY_SDP_RESERVATION;
++	}
+ 	return NULL;
+ }
+ 
++void ivekit_guard_capture_response(ng_command_ctx_t *ctx,
++		ivekit_guard_ticket_t *ticket)
++{
++	if (!ticket || !ticket->locked || ticket->replayed)
++		return;
++	ivekit_guard_entry_t *entry = ticket->entry;
++	ivekit_guard_clear_replay_sdp(entry);
++	entry->invalid_effective_sdp = false;
++	if (ticket->replay_sdp_reserved == 0)
++		return;
++	str sdp = STR_NULL;
++	ctx->parser_ctx.parser->dict_get_str(ctx->resp, "sdp", &sdp);
++	if (sdp.s && sdp.len > 0 && sdp.len <= IVEKIT_GUARD_EFFECTIVE_SDP_MAX
++			&& !memchr(sdp.s, '\0', sdp.len)
++			&& g_utf8_validate(sdp.s, sdp.len, NULL)) {
++		entry->effective_sdp = g_memdup2(sdp.s, sdp.len);
++		entry->effective_sdp_bytes = sdp.len;
++		ticket->replay_sdp_committed = sdp.len;
++	}
++	else {
++		entry->invalid_effective_sdp = true;
++		ticket->invalid_effective_sdp = true;
++	}
++}
++
+ void ivekit_guard_finish(ivekit_guard_ticket_t *ticket, bool success) {
+ 	if (!ticket || !ticket->locked)
+ 		return;
+@@ -520,27 +777,47 @@ void ivekit_guard_finish(ivekit_guard_ticket_t *ticket, bool success) {
+ 	if (!entry->active)
+ 		entry->expires_at_us = g_get_monotonic_time()
+ 			+ ivekit_guard_tombstone_retention_us;
++	if (ticket->replay_sdp_reserved > ticket->replay_sdp_committed) {
++		ivekit_guard_release_replay_sdp_bytes(
++				ticket->replay_sdp_reserved - ticket->replay_sdp_committed);
++	}
+ 	mutex_unlock(&entry->lock);
+ 	ticket->locked = false;
+ }
+ 
+ void ivekit_guard_append_response(ng_command_ctx_t *ctx,
+-		const ivekit_guard_ticket_t *ticket)
++		ivekit_guard_ticket_t *ticket)
+ {
+-	if (!ticket || !ticket->enabled || !ctx->resp.gen)
++	if (!ticket)
+ 		return;
+-	const ng_parser_t *parser = ctx->parser_ctx.parser;
+-	parser->dict_add_string(ctx->resp, "ivekit-owner-epoch",
+-			ticket->owner_epoch_text);
+-	parser->dict_add_int(ctx->resp, "ivekit-command-sequence",
+-			ticket->command_sequence);
+-	parser->dict_add_string(ctx->resp, "ivekit-command-id", ticket->command_id);
+-	parser->dict_add_string(ctx->resp, "ivekit-command-hash", ticket->command_hash);
+-	parser->dict_add_string(ctx->resp, "ivekit-reservation-id",
+-			ticket->reservation_id);
+-	parser->dict_add_int(ctx->resp, "ivekit-command-replayed",
+-			ticket->replayed ? 1 : 0);
+-	ivekit_guard_append_node_state(ctx);
++	if (ticket->enabled && ctx->resp.gen) {
++		const ng_parser_t *parser = ctx->parser_ctx.parser;
++		parser->dict_add_string(ctx->resp, "ivekit-owner-epoch",
++				ticket->owner_epoch_text);
++		parser->dict_add_int(ctx->resp, "ivekit-command-sequence",
++				ticket->command_sequence);
++		parser->dict_add_string(ctx->resp, "ivekit-command-id",
++				ticket->command_id);
++		parser->dict_add_string(ctx->resp, "ivekit-command-hash",
++				ticket->command_hash);
++		parser->dict_add_string(ctx->resp, "ivekit-reservation-id",
++				ticket->reservation_id);
++		parser->dict_add_int(ctx->resp, "ivekit-command-replayed",
++				ticket->replayed ? 1 : 0);
++		if (ticket->invalid_effective_sdp) {
++			parser->dict_add_string(ctx->resp, "ivekit-command-result",
++					"invalid_effective_sdp");
++		}
++		if (ticket->replay_sdp) {
++			str replay_sdp = {
++				.s = ticket->replay_sdp,
++				.len = ticket->replay_sdp_bytes,
++			};
++			parser->dict_add_str_dup(ctx->resp, "sdp", &replay_sdp);
++		}
++		ivekit_guard_append_node_state(ctx);
++	}
++	g_clear_pointer(&ticket->replay_sdp, g_free);
+ }
+ 
+ void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *snapshot) {
+@@ -566,6 +843,9 @@ void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *snapshot) {
+ 			memory_order_relaxed);
+ 	snapshot->active_call_limit = ivekit_guard_active_call_limit;
+ 	snapshot->guard_entry_limit = ivekit_guard_entry_limit;
++	snapshot->replay_sdp_bytes = atomic_load_explicit(
++			&ivekit_guard_replay_sdp_bytes, memory_order_relaxed);
++	snapshot->replay_sdp_byte_limit = ivekit_guard_replay_sdp_byte_limit;
+ 	snapshot->enabled = ivekit_guard_enabled;
+ 	snapshot->userspace_fallback = ivekit_guard_userspace_fallback;
+ 	snapshot->draining = atomic_load_explicit(&ivekit_guard_draining,
+diff --git a/daemon/statistics.c b/daemon/statistics.c
+index c9bd3c7..371f394 100644
+--- a/daemon/statistics.c
++++ b/daemon/statistics.c
+@@ -374,6 +374,15 @@ stats_metric_q *statistics_gather_metrics(struct interface_sampled_rate_stats *i
+ 			"%" PRIu64, "%" PRIu64, ivekit.guard_entry_limit);
+ 	PROM("ivekit_guard_entry_limit", "gauge");
+ 	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitreplaysdpbytes", "iveKit replay SDP bytes",
++			"%" PRIu64, "%" PRIu64, ivekit.replay_sdp_bytes);
++	PROM("ivekit_replay_sdp_bytes", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
++	METRIC("ivekitreplaysdpbytelimit",
++			"Configured iveKit replay SDP byte limit",
++			"%" PRIu64, "%" PRIu64, ivekit.replay_sdp_byte_limit);
++	PROM("ivekit_replay_sdp_byte_limit", "gauge");
++	PROMLAB("runtime_mode=\"%s\"", ivekit.runtime_mode);
+ 	METRIC("ivekitdraining", "iveKit media node drain state", "%u", "%u",
+ 			ivekit.draining ? 1 : 0);
+ 	PROM("ivekit_draining", "gauge");
+diff --git a/include/ivekit_guard.h b/include/ivekit_guard.h
+index f8831fe..fe50f7b 100644
+--- a/include/ivekit_guard.h
++++ b/include/ivekit_guard.h
+@@ -11,6 +11,8 @@
+ #define IVEKIT_GUARD_COMMAND_HASH_MAX 64
+ #define IVEKIT_GUARD_RESERVATION_ID_MAX 256
+ #define IVEKIT_GUARD_RUNTIME_MODE_MAX 15
++#define IVEKIT_GUARD_EFFECTIVE_SDP_MAX (256 * 1024)
++#define IVEKIT_GUARD_REPLAY_SDP_RESERVATION IVEKIT_GUARD_EFFECTIVE_SDP_MAX
+ 
+ typedef struct ivekit_guard_ticket {
+ 	void *entry;
+@@ -22,10 +24,15 @@ typedef struct ivekit_guard_ticket {
+ 	bool allocation;
+ 	bool deletes_call;
+ 	bool admission_reserved;
++	bool invalid_effective_sdp;
++	uint64_t replay_sdp_reserved;
++	uint64_t replay_sdp_committed;
++	uint64_t replay_sdp_bytes;
+ 	char owner_epoch_text[21];
+ 	char command_id[IVEKIT_GUARD_COMMAND_ID_MAX + 1];
+ 	char command_hash[IVEKIT_GUARD_COMMAND_HASH_MAX + 1];
+ 	char reservation_id[IVEKIT_GUARD_RESERVATION_ID_MAX + 1];
++	char *replay_sdp;
+ } ivekit_guard_ticket_t;
+ 
+ typedef struct ivekit_guard_metrics {
+@@ -39,6 +46,8 @@ typedef struct ivekit_guard_metrics {
+ 	uint64_t active_call_limit;
+ 	uint64_t guard_entries;
+ 	uint64_t guard_entry_limit;
++	uint64_t replay_sdp_bytes;
++	uint64_t replay_sdp_byte_limit;
+ 	bool enabled;
+ 	bool userspace_fallback;
+ 	bool draining;
+@@ -50,8 +59,9 @@ void ivekit_guard_cleanup(void);
+ bool ivekit_guard_control(ng_command_ctx_t *, const str *, const char **);
+ const char *ivekit_guard_begin(ng_command_ctx_t *, const str *, const str *,
+ 		ivekit_guard_ticket_t *);
++void ivekit_guard_capture_response(ng_command_ctx_t *, ivekit_guard_ticket_t *);
+ void ivekit_guard_finish(ivekit_guard_ticket_t *, bool);
+-void ivekit_guard_append_response(ng_command_ctx_t *, const ivekit_guard_ticket_t *);
++void ivekit_guard_append_response(ng_command_ctx_t *, ivekit_guard_ticket_t *);
+ void ivekit_guard_metrics_snapshot(ivekit_guard_metrics_t *);
+ 
+ #endif

@@ -11,7 +11,11 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { MediaSessionState } from './protocol.js';
+import {
+  MEDIA_CONTROL_ACTIONS,
+  type MediaControlAction,
+  type MediaSessionState
+} from './protocol.js';
 
 const HEADER_BYTES = 40;
 const MAX_UINT64 = (1n << 64n) - 1n;
@@ -24,6 +28,7 @@ const TERMINAL_STATES = new Set<MediaSessionState>([
 ]);
 
 export interface MediaCommandJournalRecord {
+  action: MediaControlAction;
   command_id: string;
   media_reservation_id: string;
   command_hash: string;
@@ -31,8 +36,12 @@ export interface MediaCommandJournalRecord {
   command_sequence: number;
   transport_call_id: string;
   result_class: 'succeeded' | 'failed' | 'unknown';
+  error_code: string | null;
+  retryable: boolean | null;
   effective_sdp: string;
   session_state: MediaSessionState | null;
+  from_tag: string | null;
+  to_tag: string | null;
   recorded_at: string;
   terminal_at: string | null;
 }
@@ -227,16 +236,25 @@ export class MediaCommandJournal {
       }
       const cutoff = timestamp - this.#terminalRetentionMs;
       const latest = new Map<string, MediaCommandJournalRecord>();
-      const unresolved = new Set<string>();
+      const unresolved = new Map<string, string>();
       for (const record of this.#records) {
         latest.set(record.media_reservation_id, record);
+        const key = [
+          record.media_reservation_id,
+          record.owner_epoch,
+          record.command_id,
+          record.command_hash
+        ].join('\0');
         if (record.result_class === 'unknown') {
-          unresolved.add(record.media_reservation_id);
+          unresolved.set(key, record.media_reservation_id);
+        } else {
+          unresolved.delete(key);
         }
       }
+      const unresolvedReservations = new Set(unresolved.values());
       const removable = new Set<string>();
       for (const [reservationId, record] of latest) {
-        if (!unresolved.has(reservationId) &&
+        if (!unresolvedReservations.has(reservationId) &&
             isExpiredTerminal(record, cutoff)) {
           removable.add(reservationId);
         }
@@ -687,6 +705,7 @@ async function decodeRecords(
 function checkedRecord(value: unknown): MediaCommandJournalRecord {
   if (!isObject(value)) throw invalidRecord();
   const fields = [
+    'action',
     'command_id',
     'media_reservation_id',
     'command_hash',
@@ -694,8 +713,12 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
     'command_sequence',
     'transport_call_id',
     'result_class',
+    'error_code',
+    'retryable',
     'effective_sdp',
     'session_state',
+    'from_tag',
+    'to_tag',
     'recorded_at',
     'terminal_at'
   ];
@@ -704,6 +727,10 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
     throw invalidRecord();
   }
 
+  const action = String(value.action || '');
+  if (!MEDIA_CONTROL_ACTIONS.includes(action as MediaControlAction)) {
+    throw invalidRecord();
+  }
   const commandId = boundedText(value.command_id, 256);
   const reservationId = boundedText(value.media_reservation_id, 256);
   const commandHash = String(value.command_hash || '');
@@ -723,8 +750,28 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
   if (!['succeeded', 'failed', 'unknown'].includes(resultClass)) {
     throw invalidRecord();
   }
+  const errorCode = value.error_code === null
+    ? null
+    : boundedText(value.error_code, 128);
+  const retryable = value.retryable;
+  if (retryable !== null && typeof retryable !== 'boolean') {
+    throw invalidRecord();
+  }
+  const checkedRetryable = retryable as boolean | null;
+  if (resultClass === 'succeeded' &&
+      (errorCode !== null || checkedRetryable !== null)) {
+    throw invalidRecord();
+  }
+  if (resultClass !== 'succeeded' &&
+      (errorCode === null || typeof checkedRetryable !== 'boolean')) {
+    throw invalidRecord();
+  }
+  if (resultClass === 'unknown' && checkedRetryable !== true) {
+    throw invalidRecord();
+  }
   if (typeof value.effective_sdp !== 'string' ||
-      Buffer.byteLength(value.effective_sdp, 'utf8') > 1024 * 1024) {
+      value.effective_sdp.includes('\0') ||
+      Buffer.byteLength(value.effective_sdp, 'utf8') > 256 * 1024) {
     throw invalidRecord();
   }
   const sessionState = value.session_state;
@@ -732,6 +779,8 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
     throw invalidRecord();
   }
   const checkedSessionState = sessionState as MediaSessionState | null;
+  const fromTag = nullableTag(value.from_tag);
+  const toTag = nullableTag(value.to_tag);
   const recordedAt = checkedTimestamp(value.recorded_at);
   const terminalAt = value.terminal_at === null
     ? null
@@ -750,6 +799,7 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
   }
 
   return {
+    action: action as MediaControlAction,
     command_id: commandId,
     media_reservation_id: reservationId,
     command_hash: commandHash,
@@ -757,11 +807,22 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
     command_sequence: commandSequence,
     transport_call_id: transportCallId,
     result_class: resultClass as MediaCommandJournalRecord['result_class'],
+    error_code: errorCode,
+    retryable: checkedRetryable,
     effective_sdp: value.effective_sdp,
     session_state: checkedSessionState,
+    from_tag: fromTag,
+    to_tag: toTag,
     recorded_at: recordedAt,
     terminal_at: terminalAt
   };
+}
+
+function nullableTag(value: unknown): string | null {
+  if (value === null) return null;
+  const tag = boundedText(value, 256);
+  if (/[\0\r\n]/.test(tag)) throw invalidRecord();
+  return tag;
 }
 
 function isExpiredTerminal(

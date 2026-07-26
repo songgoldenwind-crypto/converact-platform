@@ -30,12 +30,26 @@ export interface RustPbxMediaControlIdentity {
 export interface RustPbxMediaPrepareInput extends RustPbxMediaControlIdentity {
   logical_offer_sdp: string;
   media_profile_id: string;
+  from_tag: string;
   transport_hints?: Record<string, unknown>;
 }
 
-export interface RustPbxMediaMutationInput extends RustPbxMediaControlIdentity {
+export interface RustPbxMediaCommitInput extends RustPbxMediaControlIdentity {
+  answer_sdp: string;
+  from_tag: string;
+  to_tag: string;
   payload?: Record<string, unknown>;
 }
+
+export interface RustPbxMediaDeleteInput extends RustPbxMediaControlIdentity {
+  from_tag: string;
+  to_tag?: string;
+  payload?: Record<string, unknown>;
+}
+
+export type RustPbxMediaMutationInput =
+  | RustPbxMediaCommitInput
+  | RustPbxMediaDeleteInput;
 
 export interface RustPbxMediaReconcileInput {
   media_reservation_id: string;
@@ -69,6 +83,7 @@ export class RustPbxMediaControlAdapter {
     const payload = {
       offer_sdp: input.logical_offer_sdp,
       media_profile_id: input.media_profile_id,
+      from_tag: input.from_tag,
       ...(input.transport_hints
         ? { transport_hints: structuredClone(input.transport_hints) }
         : {})
@@ -93,19 +108,19 @@ export class RustPbxMediaControlAdapter {
   }
 
   async commit(
-    input: RustPbxMediaMutationInput
+    input: RustPbxMediaCommitInput
   ): Promise<RustPbxMediaControlOperationResult> {
     return this.#mutate('answer', input);
   }
 
   async cancel(
-    input: RustPbxMediaMutationInput
+    input: RustPbxMediaDeleteInput
   ): Promise<RustPbxMediaControlOperationResult> {
     return this.#mutate('delete', input);
   }
 
   async close(
-    input: RustPbxMediaMutationInput
+    input: RustPbxMediaDeleteInput
   ): Promise<RustPbxMediaControlOperationResult> {
     return this.#mutate('delete', input);
   }
@@ -141,9 +156,16 @@ export class RustPbxMediaControlAdapter {
 
   async #mutate(
     action: 'answer' | 'delete',
-    input: RustPbxMediaMutationInput
+    input: RustPbxMediaCommitInput | RustPbxMediaDeleteInput
   ): Promise<RustPbxMediaControlOperationResult> {
-    const payload = structuredClone(input.payload ?? {});
+    const payload = {
+      ...structuredClone(input.payload ?? {}),
+      from_tag: input.from_tag,
+      ...(input.to_tag ? { to_tag: input.to_tag } : {}),
+      ...(action === 'answer'
+        ? { answer_sdp: (input as RustPbxMediaCommitInput).answer_sdp }
+        : {})
+    };
     return this.#execute({
       protocol_version: 'ivekit.media-control.v1',
       action,

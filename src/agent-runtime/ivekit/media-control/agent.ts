@@ -288,7 +288,10 @@ export class MediaControlAgent {
     const transportCommand = this.#transportCommand(record, command);
     const outcome = await this.#executeTransport(transportCommand);
     const result = this.#applyOutcome(record, command, outcome, timestamp);
-    record.last_sequence = command.command_sequence;
+    if (result.result_class === 'committed' ||
+        result.result_class === 'unknown') {
+      record.last_sequence = command.command_sequence;
+    }
     record.expires_at = command.expires_at;
     record.unresolved_command_id =
       result.result_class === 'unknown' ? command.command_id : '';
@@ -393,6 +396,11 @@ export class MediaControlAgent {
     recorded.result = structuredClone(result);
     record.unresolved_command_id =
       result.result_class === 'unknown' ? command.command_id : '';
+    if (result.result_class !== 'unknown' &&
+        result.result_class !== 'committed' &&
+        result.result_class !== 'replayed') {
+      record.last_sequence = command.command_sequence - 1;
+    }
     this.#metrics.recordReconciliation(result.result_class);
     this.#scheduleRecord(record);
     return structuredClone(result);

@@ -10,6 +10,9 @@ import {
   InMemoryMediaTransport,
   type SimulatedFailure
 } from '../src/agent-runtime/ivekit/media-control/simulator.js';
+import type {
+  MediaTransportPort
+} from '../src/agent-runtime/ivekit/media-control/transport.js';
 import {
   mediaControlPayloadHash,
   type MediaControlAction,
@@ -256,6 +259,100 @@ describe('iveKit media control agent', () => {
     assert.equal(rejected.result_class, 'terminal_error');
     assert.equal(rejected.error_code, 'command_reconciliation_required');
     assert.equal(transport.sideEffectCount('answer'), 0);
+  });
+
+  it('does not consume command_sequence for a deterministic transport failure', async () => {
+    const authority = new FakeAuthority();
+    const delegate = new InMemoryMediaTransport();
+    let attempts = 0;
+    const transport: MediaTransportPort = {
+      async execute(input) {
+        attempts += 1;
+        if (attempts === 1) {
+          return {
+            state: 'failed',
+            command_id: input.command_id,
+            error_code: 'transport_capacity_exhausted',
+            retryable: true
+          };
+        }
+        return delegate.execute(input);
+      },
+      queryCommand: (input) => delegate.queryCommand(input),
+      querySession: (input) => delegate.querySession(input),
+      releaseSession: (id, reason) => delegate.releaseSession(id, reason)
+    };
+    const agent = new MediaControlAgent({ authority, transport });
+
+    const failed = await agent.execute(command('offer', 1), NOW);
+    const retry = await agent.execute(command('offer', 1, {
+      command_id: 'cmd-offer-replacement',
+      idempotency_key: 'idem-offer-replacement'
+    }), NOW);
+
+    assert.equal(failed.result_class, 'rejected_capacity');
+    assert.equal(retry.result_class, 'committed', JSON.stringify(retry));
+    assert.equal(retry.session?.last_sequence, 1);
+  });
+
+  it('releases command_sequence when an unknown command resolves failed', async () => {
+    const authority = new FakeAuthority();
+    const delegate = new InMemoryMediaTransport();
+    let first = true;
+    let unknownIssued = false;
+    const transport: MediaTransportPort = {
+      async execute(input) {
+        if (first) {
+          first = false;
+          unknownIssued = true;
+          return {
+            state: 'unknown',
+            command_id: input.command_id,
+            error_code: 'transport_timeout',
+            retryable: true
+          };
+        }
+        return delegate.execute(input);
+      },
+      async queryCommand(input) {
+        if (!unknownIssued) return { found: false };
+        return {
+          found: true,
+          outcome: {
+            state: 'failed',
+            command_id: input.command_id,
+            error_code: 'transport_capacity_exhausted',
+            retryable: true
+          }
+        };
+      },
+      querySession: (input) => delegate.querySession(input),
+      releaseSession: (id, reason) => delegate.releaseSession(id, reason)
+    };
+    const agent = new MediaControlAgent({ authority, transport });
+    const original = command('offer', 1);
+
+    assert.equal(
+      (await agent.execute(original, NOW)).result_class,
+      'unknown'
+    );
+    const reconciled = await agent.reconcile({
+      protocol_version: 'ivekit.media-control.v1',
+      action: 'reconcile',
+      command: original
+    }, NOW);
+    const replacement = await agent.execute(command('offer', 1, {
+      command_id: 'cmd-offer-after-failed-reconcile',
+      idempotency_key: 'idem-offer-after-failed-reconcile'
+    }), NOW);
+
+    assert.equal(reconciled.result_class, 'rejected_capacity');
+    assert.equal(
+      replacement.result_class,
+      'committed',
+      JSON.stringify(replacement)
+    );
+    assert.equal(replacement.session?.last_sequence, 1);
   });
 
   it('allows an authorized higher epoch takeover and fences the old owner', async () => {

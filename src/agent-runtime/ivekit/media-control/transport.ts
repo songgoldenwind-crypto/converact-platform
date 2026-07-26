@@ -67,6 +67,8 @@ export interface MediaTransportSessionSnapshot {
   state: MediaSessionState;
   transport_session_id: string;
   effective_sdp: string;
+  from_tag: string | null;
+  to_tag: string | null;
   updated_at: string;
 }
 
