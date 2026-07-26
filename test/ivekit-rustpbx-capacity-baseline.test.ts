@@ -53,7 +53,7 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
     encoding: 'utf8',
     env: {
       ...process.env,
-      RUSTPBX_IMAGE: 'ivekit/rustpbx:0.4.11-ivekit.22-6c49ee76',
+      RUSTPBX_IMAGE: 'ivekit/rustpbx:0.4.11-ivekit.23-6c49ee76',
       KAMAILIO_IMAGE: 'ivekit/kamailio:6.0.7-ivekit.1',
       POSTGRES_IMAGE: 'postgres@sha256:' + 'a'.repeat(64),
       PYTHON_IMAGE: 'python@sha256:' + 'b'.repeat(64),
@@ -70,7 +70,7 @@ test('RustPBX baseline preparation creates private runtime secrets without leaki
   assert.doesNotMatch(config, /\{\{[A-Z0-9_]+\}\}/);
   assert.doesNotMatch(result.stdout, /RUSTPBX_(?:DB_PASSWORD|MANAGEMENT_TOKEN|RWI_TOKEN|WEBHOOK_TOKEN)=/);
   assert.match(env, /^COMPOSE_PROJECT_NAME=ivekit-rustpbx-baseline$/m);
-  assert.match(env, /^RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.22-6c49ee76$/m);
+  assert.match(env, /^RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.23-6c49ee76$/m);
   assert.match(env, /^KAMAILIO_IMAGE=ivekit\/kamailio:6\.0\.7-ivekit\.1$/m);
   assert.match(env, /^CAPACITY_TOOLS_IMAGE=ivekit\/capacity-tools:test$/m);
 });

@@ -23,6 +23,7 @@ import type {
 
 const TERMINAL_STATES = new Set(['cancelled', 'closed', 'expired']);
 const IDENTIFIER = /^[A-Za-z0-9._:@/-]{1,256}$/;
+const SIP_TAG = /^[A-Za-z0-9.!%*_+`'~-]{1,256}$/;
 const HASH = /^[a-f0-9]{64}$/;
 const MAX_LOGICAL_SDP_BYTES = 16 * 1024;
 const MAX_EFFECTIVE_SDP_BYTES = 256 * 1024;
@@ -1431,11 +1432,11 @@ function negotiationFields(
     : 'sdp';
   const fields: BencodeDictionary = {
     sdp: boundedSdp(payload[sdpKey]),
-    'from-tag': identifier(payload.from_tag)
+    'from-tag': sipTag(payload.from_tag)
   };
-  if (role === 'answer') fields['to-tag'] = identifier(payload.to_tag);
+  if (role === 'answer') fields['to-tag'] = sipTag(payload.to_tag);
   else if (payload.to_tag !== undefined) {
-    fields['to-tag'] = identifier(payload.to_tag);
+    fields['to-tag'] = sipTag(payload.to_tag);
   }
   const profile = payload.media_profile_id;
   if (role === 'offer' && actionSpecificSdp && profile === undefined) {
@@ -1458,10 +1459,10 @@ function tagFields(
 ): BencodeDictionary {
   const fields: BencodeDictionary = {};
   if (options.requireFrom || payload.from_tag !== undefined) {
-    fields['from-tag'] = identifier(payload.from_tag);
+    fields['from-tag'] = sipTag(payload.from_tag);
   }
   if (payload.to_tag !== undefined) {
-    fields['to-tag'] = identifier(payload.to_tag);
+    fields['to-tag'] = sipTag(payload.to_tag);
   }
   return fields;
 }
@@ -1666,6 +1667,12 @@ function identifier(value: unknown): string {
   return text;
 }
 
+function sipTag(value: unknown): string {
+  const text = String(value ?? '');
+  if (!SIP_TAG.test(text)) throw payloadError();
+  return text;
+}
+
 function boundedText(value: unknown, maximumBytes: number): string {
   if (typeof value !== 'string' ||
       value.length < 1 ||
@@ -1798,7 +1805,7 @@ function digest(value: string): string {
 }
 
 function payloadTag(value: unknown): string | null {
-  return typeof value === 'string' && IDENTIFIER.test(value)
+  return typeof value === 'string' && SIP_TAG.test(value)
     ? value
     : null;
 }

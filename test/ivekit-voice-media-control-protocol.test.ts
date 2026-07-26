@@ -175,8 +175,48 @@ describe('iveKit media control protocol v1', () => {
       {
         protocol_version: 'ivekit.media-control.v1',
         action: 'reconcile',
-        command: prepare
+      command: prepare
       }
     );
+  });
+
+  it('accepts only bounded RFC 3261 token characters for SIP tags', () => {
+    const validTag = "Az09-.!%*_+`'~";
+    const validPayload = {
+      ...offerPayload,
+      from_tag: validTag,
+      to_tag: validTag
+    };
+    const validCommand: MediaControlCommand = {
+      ...prepare,
+      payload: validPayload,
+      payload_hash: mediaControlPayloadHash(validPayload)
+    };
+
+    assert.equal(validate(validCommand), true, ajv.errorsText(validate.errors));
+    assert.deepEqual(checkedMediaControlCommand(validCommand), validCommand);
+
+    for (const invalidTag of [
+      'tag with space',
+      'tag:with-colon',
+      'tag/with-slash',
+      'tag\r\nwith-control',
+      'x'.repeat(257)
+    ]) {
+      const payload = {
+        ...offerPayload,
+        from_tag: invalidTag
+      };
+      const commandWithInvalidTag: MediaControlCommand = {
+        ...prepare,
+        payload,
+        payload_hash: mediaControlPayloadHash(payload)
+      };
+      assert.equal(validate(commandWithInvalidTag), false);
+      assert.throws(
+        () => checkedMediaControlCommand(commandWithInvalidTag),
+        /media_control_from_tag_invalid/
+      );
+    }
   });
 });

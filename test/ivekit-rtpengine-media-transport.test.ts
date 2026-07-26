@@ -20,7 +20,8 @@ import {
   MediaCommandJournal
 } from '../src/agent-runtime/ivekit/media-control/journal.js';
 import {
-  RtpengineMediaTransport
+  RtpengineMediaTransport,
+  rtpengineRequest
 } from '../src/agent-runtime/ivekit/media-control/rtpengine.js';
 import {
   RtpengineNgClient,
@@ -39,6 +40,41 @@ const FENCE_KEYS = [
 ] as const;
 
 describe('RTPengine MediaTransportPort', () => {
+  it('preserves bounded RFC 3261 SIP tags without weakening internal identifiers', () => {
+    const validTag = "Az09-.!%*_+`'~";
+    const request = rtpengineRequest(command({
+      action: 'answer',
+      payload: {
+        answer_sdp: logicalSdp('answer'),
+        from_tag: validTag,
+        to_tag: validTag
+      }
+    }));
+
+    assert.equal(text(request['from-tag']), validTag);
+    assert.equal(text(request['to-tag']), validTag);
+
+    for (const invalidTag of [
+      'tag with space',
+      'tag:with-colon',
+      'tag/with-slash',
+      'tag\r\nwith-control',
+      'x'.repeat(257)
+    ]) {
+      assert.throws(
+        () => rtpengineRequest(command({
+          action: 'answer',
+          payload: {
+            answer_sdp: logicalSdp('answer'),
+            from_tag: invalidTag,
+            to_tag: 'callee-tag'
+          }
+        })),
+        /rtpengine_payload_invalid/
+      );
+    }
+  });
+
   it('maps every media action to a real TCP NG request with exact fencing', async () => {
     await withFixture(async ({ fixture, transport }) => {
       const actions: Array<{

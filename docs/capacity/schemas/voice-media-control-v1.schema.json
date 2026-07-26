@@ -22,6 +22,12 @@
       "maxLength": 256,
       "pattern": "^[A-Za-z0-9._:@/-]+$"
     },
+    "sip_tag": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9.!%*_+`'~-]+$"
+    },
     "owner_epoch": {
       "type": "string",
       "pattern": "^(0|[1-9][0-9]{0,19})$"
@@ -139,7 +145,11 @@
         "idempotency_key": { "$ref": "#/$defs/identifier" },
         "payload": {
           "type": "object",
-          "maxProperties": 64
+          "maxProperties": 64,
+          "properties": {
+            "from_tag": { "$ref": "#/$defs/sip_tag" },
+            "to_tag": { "$ref": "#/$defs/sip_tag" }
+          }
         },
         "payload_hash": {
           "type": "string",

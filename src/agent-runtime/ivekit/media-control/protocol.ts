@@ -107,6 +107,7 @@ export interface MediaControlReconcileInput {
 }
 
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:@/-]{1,256}$/;
+const SIP_TAG_PATTERN = /^[A-Za-z0-9.!%*_+`'~-]{1,256}$/;
 const OWNER_EPOCH_PATTERN = /^(?:0|[1-9][0-9]{0,19})$/;
 const UINT64_MAX = (1n << 64n) - 1n;
 const MAX_PAYLOAD_BYTES = 128 * 1024;
@@ -177,6 +178,13 @@ export function checkedMediaControlCommand(
   const payloadJson = JSON.stringify(input.payload);
   if (Buffer.byteLength(payloadJson, 'utf8') > MAX_PAYLOAD_BYTES) {
     throw new Error('media_control_payload_too_large');
+  }
+  for (const name of ['from_tag', 'to_tag'] as const) {
+    const value = input.payload[name];
+    if (value !== undefined &&
+        (typeof value !== 'string' || !SIP_TAG_PATTERN.test(value))) {
+      throw new Error(`media_control_${name}_invalid`);
+    }
   }
   if (!/^[a-f0-9]{64}$/.test(input.payload_hash) ||
       input.payload_hash !== mediaControlPayloadHash(input.payload)) {

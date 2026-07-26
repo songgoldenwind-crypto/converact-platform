@@ -280,7 +280,7 @@ command identity 由 canonical JSON golden vectors 约束。Rust 与 TypeScript 
 - [x] patch 应用两次时第二次必须识别 already applied，禁止 partial patchset。
 - [x] patchset 从 `ivekit.21` 升为 `ivekit.22`，镜像 label 绑定新 patch hash。
 - [ ] cargo fmt、clippy、unit 和 exact-source `cargo check --locked` 通过。
-- [ ] 提交：`feat(rustpbx): add media control client`。
+- [x] 提交：`feat(rustpbx): add media control client`。
 
 当前本机证据：Rust 1.94.1 的 focused unit 与 exact-source `cargo check --locked`
 已通过；Clippy 仍需在服务器的 Rust 1.94 工具链执行，因此最后一项保持未完成。
@@ -293,18 +293,25 @@ command identity 由 canonical JSON golden vectors 约束。Rust 与 TypeScript 
 - 修改 `infra/ivekit/rustpbx/build.sh`
 - 新建 `test/ivekit-rustpbx-media-lifecycle-patch.test.ts`
 
-- [ ] `SipSession` 增加 bounded per-leg media state，不保存 secret。
-- [ ] route snapshot admission binding 在创建 session 时固化。
-- [ ] `prepare_callee_media_offer` 在 ordinary relay profile 调用 media offer 并使用
+- [x] `SipSession` 增加 bounded per-leg media state，不保存 secret。
+- [x] route snapshot admission binding 在创建 session 时固化。
+- [x] `prepare_callee_media_offer` 在 ordinary relay profile 调用 media offer 并使用
       effective SDP。
-- [ ] 183+SDP 先完成 early media mutation，再向 caller 发送 183。
-- [ ] final 200+SDP 先完成 answer mutation，再向 caller 发送 200。
+- [x] 183+SDP 先完成 early media mutation，再向 caller 发送 183。
+- [x] final 200+SDP 先完成 answer mutation，再向 caller 发送 200。
 - [ ] 无 SDP、offerless INVITE、late offer 和 ACK answer 走独立测试向量。
 - [ ] 多 early dialog 只允许获胜分支 commit，失败分支幂等 delete。
-- [ ] local IVR、conference、transcoding、WebRTC bridge 和显式 bypass 继续走 RustPBX
+- [x] local IVR、conference、transcoding、WebRTC bridge 和显式 bypass 继续走 RustPBX
       media graph，不被错误送入 ordinary relay。
-- [ ] RTPengine 不可用时按 route profile fail closed 或显式 fallback，禁止静默绕过。
-- [ ] 提交：`feat(rustpbx): orchestrate RTPengine call setup`。
+- [x] RTPengine 不可用时按 route profile fail closed 或显式 fallback，禁止静默绕过。
+- [x] SIP tag 使用独立 RFC 3261 token 校验，不复用 iveKit 内部 identifier 字符集。
+- [x] 提交：`feat(rustpbx): orchestrate RTPengine call setup`。
+
+当前本机证据：14 个 lifecycle/command Rust 测试和 exact-source
+`cargo check --locked --lib` 已通过。offerless/late-offer/ACK answer 已有独立纯状态
+向量，但尚未接入 rsipstack 的 ACK body；多 early branch 已有 bounded winner 状态和
+PII-free branch identity，但 losing branch 的 RTPengine 定向 delete 尚未接线，因此这
+两项保持未完成。
 
 ### Task 5：re-INVITE、UPDATE、hold/resume 和 DTMF
 

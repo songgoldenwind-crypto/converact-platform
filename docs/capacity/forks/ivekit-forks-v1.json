@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.22-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.23-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.22-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.23-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -168,6 +168,12 @@
           "sha256": "89277517f9928b1c964f31cf2f83bff49ba17c6903d67502d092a523a9a10e40",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-http-client-capacity.patch",
           "purpose": "Add a bounded native media-control client with deterministic cross-language command identity, production mTLS, secret-file loading, incremental response limits and explicit before/after-transport failure semantics without touching RTP packet forwarding."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
+          "sha256": "eb1b08e10ce3e5a6c95219e24729568db9fa0a14c152c719b708835059cbe10a",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-control-client.patch",
+          "purpose": "Bind ordinary SIP relay offer, early media and final answer transactions to owner-fenced RTPengine reservations while keeping IVR, queue, recording, audio-tap, WebRTC, parallel-fork and offerless profiles on the existing local media graph."
         }
       ],
       "protocols": [
@@ -450,6 +456,21 @@
           ]
         },
         {
+          "change_id": "rustpbx-media-lifecycle-v1",
+          "summary": "Commit ordinary relay offer, early answer and final answer through media-control before exposing RTPengine effective SDP in outbound INVITE, caller 183 or caller 200.",
+          "capacity_dimensions": [
+            "voice.concurrent_calls",
+            "voice.rtp_legs",
+            "workers.media_control_inflight"
+          ],
+          "acceptance_evidence": [
+            "The patch applies after the exact ivekit.22 queue and the complete ivekit.23 source passes locked Rust 1.94.1 library compilation.",
+            "Thirteen focused Rust tests cover immutable owner binding, bounded leg and branch state, explicit profile selection, offerless and late-offer state, monotonic offer/early/final sequences, PII-free branch identity, unknown freezing and effective-SDP identity checks.",
+            "Ordinary relay calls execute offer before outbound INVITE, update(answer) before caller 183 and answer before caller 200; malformed or unknown committed snapshots fail closed and freeze further mutations.",
+            "IVR, queue, recording, audio tap, WebRTC bridge, parallel fork, explicit bypass and offerless calls retain the local RustPBX graph; real server RTPengine, TURN and capacity validation remain not_run."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -529,6 +550,7 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-realtime-audio-tap.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-http-client-capacity.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -536,6 +558,7 @@
           "test/ivekit-rustpbx-audio-tap.test.ts",
           "test/ivekit-rustpbx-http-client-capacity-patch.test.ts",
           "test/ivekit-rustpbx-media-control-client-patch.test.ts",
+          "test/ivekit-rustpbx-media-lifecycle-patch.test.ts",
           "test/ivekit-rustrtc-udp-socket-capacity.test.ts",
           "test/ivekit-capacity-sip-kamailio-baseline.test.ts",
           "test/ivekit-capacity-sip-kamailio-staircase.test.ts",
