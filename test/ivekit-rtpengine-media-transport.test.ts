@@ -256,6 +256,51 @@ describe('RTPengine MediaTransportPort', () => {
     });
   });
 
+  it('classifies a pre-write NG connection outage as retryable', async () => {
+    const unavailable = net.createServer();
+    unavailable.listen(0, '127.0.0.1');
+    await once(unavailable, 'listening');
+    const port = (unavailable.address() as AddressInfo).port;
+    unavailable.close();
+    await once(unavailable, 'close');
+    const directory = await secureTemporaryDirectory();
+    const journal = await MediaCommandJournal.open({
+      path: path.join(directory, 'media-command.wal')
+    });
+    const client = new RtpengineNgClient({
+      host: '127.0.0.1',
+      port,
+      maxConnections: 1,
+      maxInFlight: 4,
+      requestTimeoutMs: 100,
+      reconnectMinDelayMs: 1_000,
+      reconnectMaxDelayMs: 1_000
+    });
+    const transport = await RtpengineMediaTransport.open({
+      client,
+      journal
+    });
+    try {
+      const outcome = await transport.execute(command({
+        command_id: 'connect-outage-offer',
+        command_hash: hash('command:connect-outage-offer'),
+        payload: {
+          offer_sdp: logicalSdp('connect-outage'),
+          from_tag: 'from-connect-outage',
+          media_profile_id: 'profile-g711'
+        }
+      }));
+
+      assert.equal(outcome.state, 'failed');
+      if (outcome.state !== 'failed') assert.fail();
+      assert.equal(outcome.error_code, 'rtpengine_ng_connect_failed');
+      assert.equal(outcome.retryable, true);
+    } finally {
+      await transport.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('preserves the exact failed outcome across WAL restart', async () => {
     const fixture = await NgFixture.start();
     const directory = await secureTemporaryDirectory();

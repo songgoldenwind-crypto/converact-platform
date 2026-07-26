@@ -1756,6 +1756,8 @@ function retryable(code: string): boolean {
   return code.includes('capacity') ||
     code.includes('deadline') ||
     code.includes('unavailable') ||
+    code === 'rtpengine_ng_connect_failed' ||
+    code === 'rtpengine_ng_disconnected' ||
     code === 'transport_node_draining';
 }
 
