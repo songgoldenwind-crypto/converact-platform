@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "goal": "voice-media-control-goal2-task11",
+  "evidence_kind": "compile-runtime-inspection",
+  "status": "passed",
+  "generated_at": "2026-07-26T05:15:17.000Z",
+  "host_kernel": "6.8.0-124-generic",
+  "image_digest": "sha256:6690e23db010b23ae9da680c842e7ece1a0a0723562d771ffe37af76b090f4a7",
+  "binary": {
+    "path": "/usr/local/bin/rtpengine",
+    "version": "26.0.1.13+0~mr26.0.1.13",
+    "sha256": "3259c737fc5edc10dc1437289dc81f6bbddea11614b10d0198637bf34a94f812"
+  },
+  "runtime_package_inventory": {
+    "path": "/var/lib/dpkg/status",
+    "sha256": "0f253f196998700dd9d2f552968a43cc383dbddd011847133ee12a71d28a2962",
+    "package_manager_executable_count": 0
+  },
+  "labels": {
+    "io.ivekit.rtpengine.archive-sha256": "a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143",
+    "io.ivekit.rtpengine.patch-set-sha256": "51f842076f044d5d914ef8f89ad0a72a9ab1e6a2d26ee5899a5e457d09efd0f3",
+    "io.ivekit.rtpengine.source-commit": "506cfa74386a5373e40fca139a932917f22f0524",
+    "io.ivekit.runtime-mode": "userspace",
+    "io.ivekit.runtime-package-inventory": "dpkg-status-v1",
+    "io.ivekit.runtime-parent": "sha256:13c3eb5e17b63dea05a33b2628de9a43e8b18cc495ce2fc148db6c9c852c017a",
+    "io.ivekit.target-architecture": "amd64",
+    "io.ivekit.toolchain.image-id": "sha256:1b858f21573a2a5322825ee566a204ed34d093b447392d910d4b99e5771c9752",
+    "org.opencontainers.image.description": "iveKit RTPengine userspace media relay",
+    "org.opencontainers.image.revision": "4b67a26f42a8753eaa215567eb3e4ab8b8c16bd5",
+    "org.opencontainers.image.source": "https://github.com/songgoldenwind-crypto/opc-platform"
+  }
+}

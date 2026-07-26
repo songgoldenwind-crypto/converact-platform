@@ -1,0 +1,34 @@
+[
+  {
+    "stage": "patch_apply",
+    "status": "passed",
+    "generated_at": "2026-07-26T05:15:43.000Z",
+    "source_commit": "4b67a26f42a8753eaa215567eb3e4ab8b8c16bd5",
+    "evidence_sha256": "31ca733d6fcdd5ed5d5f98d42e503c3fbf84e7311290fb4ad85688a78a4e358b",
+    "patch_set_sha256": "51f842076f044d5d914ef8f89ad0a72a9ab1e6a2d26ee5899a5e457d09efd0f3"
+  },
+  {
+    "stage": "compile",
+    "status": "passed",
+    "generated_at": "2026-07-26T05:15:17.000Z",
+    "source_commit": "4b67a26f42a8753eaa215567eb3e4ab8b8c16bd5",
+    "evidence_sha256": "102acbad33d9430a2860739fb401d331d89d86dabb72af85e2d0d9957224b2c3",
+    "image_digest": "sha256:6690e23db010b23ae9da680c842e7ece1a0a0723562d771ffe37af76b090f4a7"
+  },
+  {
+    "stage": "unit",
+    "status": "passed",
+    "generated_at": "2026-07-26T05:15:43.000Z",
+    "source_commit": "4b67a26f42a8753eaa215567eb3e4ab8b8c16bd5",
+    "evidence_sha256": "31ca733d6fcdd5ed5d5f98d42e503c3fbf84e7311290fb4ad85688a78a4e358b",
+    "image_digest": "sha256:6690e23db010b23ae9da680c842e7ece1a0a0723562d771ffe37af76b090f4a7"
+  },
+  {
+    "stage": "integration",
+    "status": "passed",
+    "generated_at": "2026-07-26T04:49:28.041Z",
+    "source_commit": "4b67a26f42a8753eaa215567eb3e4ab8b8c16bd5",
+    "evidence_sha256": "7e6589a9f23b908983410977179c035ce1f30b3791efb33fff19063a6a7461cf",
+    "image_digest": "sha256:6690e23db010b23ae9da680c842e7ece1a0a0723562d771ffe37af76b090f4a7"
+  }
+]
