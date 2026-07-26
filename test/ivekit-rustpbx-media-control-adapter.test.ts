@@ -131,6 +131,7 @@ function transportRequest(command: MediaControlCommand) {
     owner_node_id: command.owner_node_id,
     owner_epoch: command.owner_epoch,
     media_reservation_id: command.media_reservation_id,
+    expires_at: command.expires_at,
     command_sequence: command.command_sequence,
     idempotency_key: command.idempotency_key,
     payload_hash: command.payload_hash,

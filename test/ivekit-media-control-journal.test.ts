@@ -49,6 +49,31 @@ describe('checksummed media command journal', () => {
     });
   });
 
+  it('replays identity-aware records while preserving legacy WAL compatibility', async () => {
+    await withJournalPath(async (journalPath) => {
+      const journal = await MediaCommandJournal.open({ path: journalPath });
+      const legacy = record({ command_id: 'legacy-command' });
+      const identityAware = {
+        ...record({
+          command_id: 'identity-command',
+          command_sequence: 2
+        }),
+        tenant_id: 'tenant-a',
+        leg_id: 'leg-a',
+        cell_id: 'cell-a',
+        owner_node_id: 'node-a',
+        expires_at: '2026-07-26T08:05:00.000Z'
+      } as MediaCommandJournalRecord;
+      await journal.append(legacy);
+      await journal.append(identityAware);
+      await journal.close();
+
+      const reopened = await MediaCommandJournal.open({ path: journalPath });
+      assert.deepEqual(await reopened.replay(), [legacy, identityAware]);
+      await reopened.close();
+    });
+  });
+
   it('serializes concurrent appends without interleaving records', async () => {
     await withJournalPath(async (journalPath) => {
       const journal = await MediaCommandJournal.open({

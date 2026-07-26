@@ -16,6 +16,9 @@ import {
   MediaCommandJournal
 } from '../src/agent-runtime/ivekit/media-control/journal.js';
 import {
+  ComponentNodeMediaOrphanProbe
+} from '../src/agent-runtime/ivekit/media-control/orphan-probe.js';
+import {
   RtpengineMediaTransport
 } from '../src/agent-runtime/ivekit/media-control/rtpengine.js';
 import {
@@ -165,6 +168,13 @@ const agent = new MediaControlAgent({
     300_000,
     1_000,
     86_400_000
+  ),
+  orphan_probe: new ComponentNodeMediaOrphanProbe(admission),
+  orphan_batch_size: integerEnv(
+    'IVEKIT_MEDIA_CONTROL_ORPHAN_BATCH_SIZE',
+    256,
+    1,
+    10_000
   )
 });
 
@@ -199,6 +209,27 @@ const sweepTimer = setInterval(() => {
   });
 }, sweepIntervalMs);
 sweepTimer.unref();
+const orphanSweepIntervalMs = integerEnv(
+  'IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS',
+  30_000,
+  1_000,
+  300_000
+);
+let orphanSweepRunning = false;
+const orphanSweepTimer = setInterval(() => {
+  if (orphanSweepRunning) return;
+  orphanSweepRunning = true;
+  void agent.sweepOrphans(new Date())
+    .catch((error) => {
+      process.stderr.write(
+        `ivekit media orphan sweep failed: ${safeError(error)}\n`
+      );
+    })
+    .finally(() => {
+      orphanSweepRunning = false;
+    });
+}, orphanSweepIntervalMs);
+orphanSweepTimer.unref();
 
 server.listen(port, host, () => {
   process.stdout.write(
@@ -212,6 +243,7 @@ async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
   stopping = true;
   clearInterval(sweepTimer);
+  clearInterval(orphanSweepTimer);
   clearInterval(admissionHealthTimer);
   process.stdout.write(`ivekit media control agent stopping on ${signal}\n`);
   const forced = setTimeout(() => process.exit(1), 10_000);

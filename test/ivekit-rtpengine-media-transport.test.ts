@@ -691,6 +691,50 @@ describe('RTPengine MediaTransportPort', () => {
     }
   });
 
+  it('restores complete orphan candidates from the WAL after restart', async () => {
+    const fixture = await NgFixture.start();
+    const directory = await secureTemporaryDirectory();
+    const journalPath = path.join(directory, 'media-command.wal');
+    try {
+      const first = await openTransport(fixture, journalPath);
+      const offered = command({
+        action: 'offer',
+        expires_at: '2026-07-26T08:05:00.000Z',
+        payload: {
+          offer_sdp: logicalSdp('orphan-restart'),
+          from_tag: 'from-a',
+          media_profile_id: 'profile-g711'
+        }
+      });
+      assert.equal((await first.execute(offered)).state, 'succeeded');
+      await first.close();
+
+      const recovered = await openTransport(fixture, journalPath);
+      assert.deepEqual(await recovered.scanOrphanCandidates({
+        after: '',
+        limit: 1
+      }), {
+        items: [{
+          tenant_id: offered.tenant_id,
+          call_id: offered.call_id,
+          leg_id: offered.leg_id,
+          cell_id: offered.cell_id,
+          owner_node_id: offered.owner_node_id,
+          owner_epoch: offered.owner_epoch,
+          media_reservation_id: offered.media_reservation_id,
+          transport_session_id: offered.call_id,
+          expires_at: offered.expires_at,
+          state: 'prepared'
+        }],
+        next_cursor: offered.media_reservation_id
+      });
+      await recovered.close();
+    } finally {
+      await fixture.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('recovers an applied unknown initial offer after restart', async () => {
     const fixture = await NgFixture.start();
     const directory = await secureTemporaryDirectory();
@@ -1387,6 +1431,7 @@ function command(
     owner_node_id: 'node-a',
     owner_epoch: '1',
     media_reservation_id: 'reservation-a',
+    expires_at: '2026-07-26T08:05:00.000Z',
     command_sequence: 1,
     idempotency_key: `idempotency-${commandId}`,
     payload_hash: hash(`payload:${commandId}`),

@@ -280,6 +280,8 @@ describe('iveKit media control agent', () => {
       },
       queryCommand: (input) => delegate.queryCommand(input),
       querySession: (input) => delegate.querySession(input),
+      scanOrphanCandidates: (input) =>
+        delegate.scanOrphanCandidates(input),
       releaseSession: (id, reason) => delegate.releaseSession(id, reason)
     };
     const agent = new MediaControlAgent({ authority, transport });
@@ -327,6 +329,8 @@ describe('iveKit media control agent', () => {
         };
       },
       querySession: (input) => delegate.querySession(input),
+      scanOrphanCandidates: (input) =>
+        delegate.scanOrphanCandidates(input),
       releaseSession: (id, reason) => delegate.releaseSession(id, reason)
     };
     const agent = new MediaControlAgent({ authority, transport });

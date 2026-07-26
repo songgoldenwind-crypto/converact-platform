@@ -352,16 +352,16 @@ RustPBX owner 一条的认证 NDJSON 流回灌现有 call command channel；事�
 - 新建 `test/ivekit-rustpbx-media-cleanup-patch.test.ts`
 - 新建 `test/ivekit-media-orphan-reconciler.test.ts`
 
-- [ ] CANCEL before offer、after offer、after 183 和 200 race 分别验收。
-- [ ] non-2xx ACK 不创建新 reservation。
-- [ ] BYE 双向并发时只执行一次逻辑 close，重复 delete 必须 replay。
-- [ ] SIP cleanup 使用有界 deadline；media delete timeout 进入 durable reconciliation，
+- [x] CANCEL before offer、after offer、after 183 和 200 race 分别验收。
+- [x] non-2xx ACK 不创建新 reservation。
+- [x] BYE 双向并发时只执行一次逻辑 close，重复 delete 必须 replay。
+- [x] SIP cleanup 使用有界 deadline；media delete timeout 进入 durable reconciliation，
       不延迟 BYE 超过合同上限。
-- [ ] media timeout 产生稳定 cause、终止 interaction 并删除 reservation。
-- [ ] orphan reconciler 仅回收 lease 已过期且 owner/session 都不存在的媒体。
-- [ ] recorder、AI tap 和对象存储 cleanup 失败只影响 evidence 状态。
-- [ ] 进程 Drop safety-net 不执行未带 identity 的裸 delete。
-- [ ] 提交：`feat(media): reconcile RustPBX media cleanup`。
+- [x] media timeout 产生稳定 cause、终止 interaction 并删除 reservation。
+- [x] orphan reconciler 仅回收 lease 已过期且 owner/session 都不存在的媒体。
+- [x] recorder、AI tap 和对象存储 cleanup 失败只影响 evidence 状态。
+- [x] 进程 Drop safety-net 不执行未带 identity 的裸 delete。
+- [x] 提交：`feat(media): reconcile RustPBX media cleanup`。
 
 ### Task 7：Dialog shadow journal 和 T1 quorum
 

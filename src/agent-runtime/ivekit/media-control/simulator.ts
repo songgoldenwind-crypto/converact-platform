@@ -1,5 +1,6 @@
 import type {
   MediaTransportCommand,
+  MediaTransportOrphanCandidate,
   MediaTransportOutcome,
   MediaTransportPort,
   MediaTransportQuery
@@ -12,6 +13,11 @@ export type SimulatedFailure =
 interface SimulatedSession {
   media_reservation_id: string;
   call_id: string;
+  tenant_id: string;
+  leg_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  expires_at: string;
   transport_session_id: string;
   effective_sdp: string;
   state: 'prepared' | 'committed' | 'cancelled' | 'closed' | 'expired';
@@ -147,8 +153,39 @@ export class InMemoryMediaTransport implements MediaTransportPort {
     const session = this.#sessionsByTransportId.get(transportSessionId);
     if (!session) return;
     session.forwarding = false;
-    if (reason === 'lease_expired') session.state = 'expired';
+    session.state = reason === 'lease_expired' ? 'expired' : 'closed';
     session.updated_at = this.#now().toISOString();
+  }
+
+  async scanOrphanCandidates(input: {
+    after: string;
+    limit: number;
+  }): Promise<{
+    items: MediaTransportOrphanCandidate[];
+    next_cursor: string;
+  }> {
+    const limit = boundedScanLimit(input.limit);
+    const sessions = [...this.#sessions.values()].filter(
+      (session) => session.state === 'prepared' ||
+        session.state === 'committed'
+    );
+    if (sessions.length === 0) return { items: [], next_cursor: '' };
+    const previous = input.after
+      ? sessions.findIndex(
+          (session) => session.media_reservation_id === input.after
+        )
+      : -1;
+    const items: MediaTransportOrphanCandidate[] = [];
+    for (let offset = 1;
+      offset <= sessions.length && items.length < limit;
+      offset += 1) {
+      const session = sessions[(previous + offset) % sessions.length];
+      items.push(orphanCandidate(session));
+    }
+    return {
+      items,
+      next_cursor: items.at(-1)?.media_reservation_id ?? ''
+    };
   }
 
   async querySession(input: {
@@ -229,6 +266,11 @@ export class InMemoryMediaTransport implements MediaTransportPort {
       const session: SimulatedSession = {
         media_reservation_id: command.media_reservation_id,
         call_id: command.call_id,
+        tenant_id: command.tenant_id,
+        leg_id: command.leg_id,
+        cell_id: command.cell_id,
+        owner_node_id: command.owner_node_id,
+        expires_at: command.expires_at,
         transport_session_id: `transport-${this.#nextSession++}`,
         effective_sdp: offerSdp.includes('a=ivekit-media-node:')
           ? offerSdp
@@ -283,6 +325,8 @@ export class InMemoryMediaTransport implements MediaTransportPort {
     }
     current.from_tag = textTag(command.payload.from_tag) ?? current.from_tag;
     current.to_tag = textTag(command.payload.to_tag) ?? current.to_tag;
+    current.expires_at = command.expires_at;
+    current.owner_node_id = command.owner_node_id;
     current.updated_at = this.#now().toISOString();
     if (command.action !== 'query') this.#increment(command.action);
     return {
@@ -298,6 +342,30 @@ export class InMemoryMediaTransport implements MediaTransportPort {
   #increment(action: string): void {
     this.#sideEffects.set(action, (this.#sideEffects.get(action) ?? 0) + 1);
   }
+}
+
+function orphanCandidate(
+  session: SimulatedSession
+): MediaTransportOrphanCandidate {
+  return {
+    tenant_id: session.tenant_id,
+    call_id: session.call_id,
+    leg_id: session.leg_id,
+    cell_id: session.cell_id,
+    owner_node_id: session.owner_node_id,
+    owner_epoch: session.owner_epoch,
+    media_reservation_id: session.media_reservation_id,
+    transport_session_id: session.transport_session_id,
+    expires_at: session.expires_at,
+    state: session.state as 'prepared' | 'committed'
+  };
+}
+
+function boundedScanLimit(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > 10_000) {
+    throw new Error('orphan scan limit is invalid');
+  }
+  return value;
 }
 
 function textTag(value: unknown): string | null {

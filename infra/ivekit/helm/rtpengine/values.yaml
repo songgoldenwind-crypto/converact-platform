@@ -51,6 +51,8 @@ mediaControl:
   eventMaxBindings: 100000
   eventReplayCapacity: 4096
   eventMaxSubscribersPerOwner: 2
+  orphanBatchSize: 256
+  orphanSweepIntervalMs: 30000
   rtpengine:
     maxConnections: 4
     maxInFlight: 1024

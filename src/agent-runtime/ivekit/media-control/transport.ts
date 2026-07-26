@@ -13,6 +13,7 @@ export interface MediaTransportCommand {
   owner_node_id: string;
   owner_epoch: string;
   media_reservation_id: string;
+  expires_at: string;
   command_sequence: number;
   idempotency_key: string;
   payload_hash: string;
@@ -62,6 +63,11 @@ export interface MediaTransportCommandIdentity {
 export interface MediaTransportSessionSnapshot {
   media_reservation_id: string;
   call_id: string;
+  tenant_id?: string;
+  leg_id?: string;
+  cell_id?: string;
+  owner_node_id?: string;
+  expires_at?: string;
   owner_epoch: string;
   last_sequence: number;
   state: MediaSessionState;
@@ -70,6 +76,19 @@ export interface MediaTransportSessionSnapshot {
   from_tag: string | null;
   to_tag: string | null;
   updated_at: string;
+}
+
+export interface MediaTransportOrphanCandidate {
+  tenant_id: string;
+  call_id: string;
+  leg_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  owner_epoch: string;
+  media_reservation_id: string;
+  transport_session_id: string;
+  expires_at: string;
+  state: 'prepared' | 'committed';
 }
 
 export interface MediaTransportPort {
@@ -81,5 +100,12 @@ export interface MediaTransportPort {
     media_reservation_id: string;
     call_id: string;
   }): Promise<MediaTransportSessionSnapshot | undefined>;
+  scanOrphanCandidates(input: {
+    after: string;
+    limit: number;
+  }): Promise<{
+    items: MediaTransportOrphanCandidate[];
+    next_cursor: string;
+  }>;
   releaseSession(transportSessionId: string, reason: string): Promise<void>;
 }

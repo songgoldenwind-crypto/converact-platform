@@ -44,6 +44,11 @@ export interface MediaCommandJournalRecord {
   to_tag: string | null;
   recorded_at: string;
   terminal_at: string | null;
+  tenant_id?: string;
+  leg_id?: string;
+  cell_id?: string;
+  owner_node_id?: string;
+  expires_at?: string;
 }
 
 export interface MediaCommandJournalOptions {
@@ -722,7 +727,20 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
     'recorded_at',
     'terminal_at'
   ];
-  if (Object.keys(value).length !== fields.length ||
+  const identityFields = [
+    'tenant_id',
+    'leg_id',
+    'cell_id',
+    'owner_node_id',
+    'expires_at'
+  ];
+  const identityCount = identityFields.filter(
+    (field) => Object.hasOwn(value, field)
+  ).length;
+  const hasIdentity = identityCount === identityFields.length;
+  if ((identityCount !== 0 && !hasIdentity) ||
+      Object.keys(value).length !== fields.length +
+        (hasIdentity ? identityFields.length : 0) ||
       fields.some((field) => !Object.hasOwn(value, field))) {
     throw invalidRecord();
   }
@@ -797,6 +815,15 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
       terminalAt !== null) {
     throw invalidRecord();
   }
+  const identity = hasIdentity
+    ? {
+        tenant_id: boundedText(value.tenant_id, 256),
+        leg_id: boundedText(value.leg_id, 256),
+        cell_id: boundedText(value.cell_id, 256),
+        owner_node_id: boundedText(value.owner_node_id, 256),
+        expires_at: checkedTimestamp(value.expires_at)
+      }
+    : {};
 
   return {
     action: action as MediaControlAction,
@@ -814,7 +841,8 @@ function checkedRecord(value: unknown): MediaCommandJournalRecord {
     from_tag: fromTag,
     to_tag: toTag,
     recorded_at: recordedAt,
-    terminal_at: terminalAt
+    terminal_at: terminalAt,
+    ...identity
   };
 }
 

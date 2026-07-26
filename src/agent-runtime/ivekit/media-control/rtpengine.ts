@@ -15,6 +15,7 @@ import {
 import type {
   MediaTransportCommand,
   MediaTransportCommandIdentity,
+  MediaTransportOrphanCandidate,
   MediaTransportOutcome,
   MediaTransportPort,
   MediaTransportQuery,
@@ -259,6 +260,61 @@ export class RtpengineMediaTransport implements MediaTransportPort {
     });
   }
 
+  async scanOrphanCandidates(input: {
+    after: string;
+    limit: number;
+  }): Promise<{
+    items: MediaTransportOrphanCandidate[];
+    next_cursor: string;
+  }> {
+    this.#assertOpen();
+    const limit = integer(input.limit, 1, 10_000, 'orphan_scan_limit');
+    if (typeof input.after !== 'string' || input.after.length > 256) {
+      throw new RtpengineMediaTransportError('orphan_scan_cursor_invalid');
+    }
+    const sessions = [...this.#sessions.values()].filter(
+      (session): session is MediaTransportSessionSnapshot & {
+        tenant_id: string;
+        leg_id: string;
+        cell_id: string;
+        owner_node_id: string;
+        expires_at: string;
+        state: 'prepared' | 'committed';
+      } => (
+        (session.state === 'prepared' || session.state === 'committed') &&
+        completeSessionIdentity(session)
+      )
+    );
+    if (sessions.length === 0) return { items: [], next_cursor: '' };
+    const previous = input.after
+      ? sessions.findIndex(
+          (session) => session.media_reservation_id === input.after
+        )
+      : -1;
+    const items: MediaTransportOrphanCandidate[] = [];
+    for (let offset = 1;
+      offset <= sessions.length && items.length < limit;
+      offset += 1) {
+      const session = sessions[(previous + offset) % sessions.length]!;
+      items.push({
+        tenant_id: session.tenant_id,
+        call_id: session.call_id,
+        leg_id: session.leg_id,
+        cell_id: session.cell_id,
+        owner_node_id: session.owner_node_id,
+        owner_epoch: session.owner_epoch,
+        media_reservation_id: session.media_reservation_id,
+        transport_session_id: session.transport_session_id,
+        expires_at: session.expires_at,
+        state: session.state
+      });
+    }
+    return {
+      items,
+      next_cursor: items.at(-1)?.media_reservation_id ?? ''
+    };
+  }
+
   releaseSession(
     transportSessionId: string,
     reason: string
@@ -294,13 +350,14 @@ export class RtpengineMediaTransport implements MediaTransportPort {
       const outcome = await this.#execute({
         action: 'delete',
         command_id: commandId,
-        tenant_id: 'ivekit-system',
+        tenant_id: current.tenant_id ?? 'ivekit-system',
         call_id: current.call_id,
-        leg_id: 'ivekit-system',
-        cell_id: 'ivekit-system',
-        owner_node_id: 'ivekit-system',
+        leg_id: current.leg_id ?? 'ivekit-system',
+        cell_id: current.cell_id ?? 'ivekit-system',
+        owner_node_id: current.owner_node_id ?? 'ivekit-system',
         owner_epoch: current.owner_epoch,
         media_reservation_id: current.media_reservation_id,
+        expires_at: current.expires_at ?? canonicalNow(this.#now()),
         command_sequence: current.last_sequence + 1,
         idempotency_key: commandId,
         payload_hash: digest(JSON.stringify({
@@ -618,7 +675,12 @@ export class RtpengineMediaTransport implements MediaTransportPort {
       from_tag: payloadTag(command.payload.from_tag) ?? current?.from_tag ?? null,
       to_tag: payloadTag(command.payload.to_tag) ?? current?.to_tag ?? null,
       recorded_at: now,
-      terminal_at: terminal ? now : null
+      terminal_at: terminal ? now : null,
+      tenant_id: current?.tenant_id ?? command.tenant_id,
+      leg_id: current?.leg_id ?? command.leg_id,
+      cell_id: current?.cell_id ?? command.cell_id,
+      owner_node_id: current?.owner_node_id ?? command.owner_node_id,
+      expires_at: command.expires_at
     };
     await this.#appendRecord(record);
     this.#applyRecord(record);
@@ -788,7 +850,8 @@ export class RtpengineMediaTransport implements MediaTransportPort {
       from_tag: session.from_tag,
       to_tag: session.to_tag,
       recorded_at: now,
-      terminal_at: now
+      terminal_at: now,
+      ...journalIdentityFromSession(session)
     };
     await this.#appendRecord(record);
     this.#applyRecord(record);
@@ -1173,6 +1236,15 @@ export class RtpengineMediaTransport implements MediaTransportPort {
     const session: MediaTransportSessionSnapshot = {
       media_reservation_id: record.media_reservation_id,
       call_id: record.transport_call_id,
+      ...(record.tenant_id
+        ? {
+            tenant_id: record.tenant_id,
+            leg_id: record.leg_id!,
+            cell_id: record.cell_id!,
+            owner_node_id: record.owner_node_id!,
+            expires_at: record.expires_at!
+          }
+        : {}),
       owner_epoch: record.owner_epoch,
       last_sequence: record.command_sequence,
       state: record.session_state,
@@ -1877,19 +1949,54 @@ function commandFromRecord(
   return {
     action: record.action,
     command_id: record.command_id,
-    tenant_id: 'ivekit-recovery',
+    tenant_id: record.tenant_id ?? 'ivekit-recovery',
     call_id: record.transport_call_id,
-    leg_id: 'ivekit-recovery',
-    cell_id: 'ivekit-recovery',
-    owner_node_id: 'ivekit-recovery',
+    leg_id: record.leg_id ?? 'ivekit-recovery',
+    cell_id: record.cell_id ?? 'ivekit-recovery',
+    owner_node_id: record.owner_node_id ?? 'ivekit-recovery',
     owner_epoch: record.owner_epoch,
     media_reservation_id: record.media_reservation_id,
+    expires_at: record.expires_at ?? record.recorded_at,
     command_sequence: record.command_sequence,
     idempotency_key: record.command_id,
     payload_hash: digest(JSON.stringify(payload)),
     command_hash: record.command_hash,
     transport_session_id: record.transport_call_id,
     payload
+  };
+}
+
+function completeSessionIdentity(
+  session: MediaTransportSessionSnapshot
+): session is MediaTransportSessionSnapshot & {
+  tenant_id: string;
+  leg_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  expires_at: string;
+} {
+  return Boolean(
+    session.tenant_id &&
+    session.leg_id &&
+    session.cell_id &&
+    session.owner_node_id &&
+    session.expires_at
+  );
+}
+
+function journalIdentityFromSession(
+  session: MediaTransportSessionSnapshot
+): Pick<
+  MediaCommandJournalRecord,
+  'tenant_id' | 'leg_id' | 'cell_id' | 'owner_node_id' | 'expires_at'
+> | Record<string, never> {
+  if (!completeSessionIdentity(session)) return {};
+  return {
+    tenant_id: session.tenant_id,
+    leg_id: session.leg_id,
+    cell_id: session.cell_id,
+    owner_node_id: session.owner_node_id,
+    expires_at: session.expires_at
   };
 }
 

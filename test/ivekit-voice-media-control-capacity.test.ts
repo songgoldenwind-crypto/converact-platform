@@ -49,6 +49,10 @@ class StatelessCapacityTransport implements MediaTransportPort {
     return undefined;
   }
 
+  async scanOrphanCandidates() {
+    return { items: [], next_cursor: '' };
+  }
+
   async releaseSession(): Promise<void> {}
 }
 

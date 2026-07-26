@@ -161,6 +161,10 @@ spec:
               value: {{ .Values.mediaControl.eventReplayCapacity | quote }}
             - name: IVEKIT_MEDIA_CONTROL_EVENT_MAX_SUBSCRIBERS_PER_OWNER
               value: {{ .Values.mediaControl.eventMaxSubscribersPerOwner | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_ORPHAN_BATCH_SIZE
+              value: {{ .Values.mediaControl.orphanBatchSize | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS
+              value: {{ .Values.mediaControl.orphanSweepIntervalMs | quote }}
             - name: IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY
               value: /var/lib/ivekit-media-control
             - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS

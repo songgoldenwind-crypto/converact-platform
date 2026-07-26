@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.24-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.25-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.24-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.25-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -171,9 +171,9 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
-          "sha256": "e00e9432732870af64c14be9cacd1a6f5d8c289786a22cb44ceb84bee08870fa",
+          "sha256": "bc62776846a7b3d87e39976d437ed6b41e90d9c7b74651d394996049534b059a",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-control-client.patch",
-          "purpose": "Bind ordinary SIP relay initial and bidirectional mid-dialog offer/answer transactions plus RTP DTMF injection to owner-fenced RTPengine reservations, and return unsolicited RTPengine DTMF over a bounded replayable per-owner event stream while keeping IVR, queue, recording, audio-tap, WebRTC, parallel-fork and offerless profiles on the existing local media graph."
+          "purpose": "Bind ordinary SIP relay initial and bidirectional mid-dialog offer/answer transactions plus RTP DTMF injection to owner-fenced RTPengine reservations, return unsolicited RTPengine DTMF over a bounded replayable per-owner event stream, and close allocated media through a stable replayable delete bounded outside the SIP cleanup path while keeping IVR, queue, recording, audio-tap, WebRTC, parallel-fork and offerless profiles on the existing local media graph."
         }
       ],
       "protocols": [
@@ -457,18 +457,20 @@
         },
         {
           "change_id": "rustpbx-media-lifecycle-v1",
-          "summary": "Commit ordinary relay initial and bidirectional mid-dialog offer/answer mutations plus RTP DTMF through media-control before exposing RTPengine effective SDP or call state, and route unsolicited DTMF back to the owning RustPBX call channel.",
+          "summary": "Commit ordinary relay initial and bidirectional mid-dialog offer/answer mutations plus RTP DTMF through media-control before exposing RTPengine effective SDP or call state, route unsolicited DTMF back to the owning RustPBX call channel, and close allocated media with a stable replayable delete outside the SIP critical path.",
           "capacity_dimensions": [
             "voice.concurrent_calls",
             "voice.rtp_legs",
             "workers.media_control_inflight"
           ],
           "acceptance_evidence": [
-            "The patch applies after the exact ivekit.22 queue and the complete ivekit.24 source passes locked Rust 1.94.1 library compilation.",
-            "Fourteen focused Rust tests cover immutable owner binding, bounded leg and branch state, explicit profile selection, offerless and late-offer state, monotonic initial and mid-dialog sequences, bidirectional SIP tag orientation, PII-free branch identity, unknown freezing and effective-SDP identity checks.",
+            "The patch applies after the exact ivekit.22 queue and the complete ivekit.25 source passes locked Rust 1.94.1 library compilation.",
+            "Nineteen focused Rust tests cover immutable owner binding, bounded leg and branch state, explicit profile selection, offerless and late-offer state, monotonic initial and mid-dialog sequences, bidirectional SIP tag orientation including early-media cleanup, PII-free branch identity, unknown freezing, effective-SDP identity checks, cancellation without allocation and stable delete replay after an uncertain response.",
             "Two Rust decoder tests and six TypeScript broker/HTTP tests cover bounded incremental NDJSON parsing, strict owner and sequence validation, owner takeover, replay gaps, authenticated streaming and isolation of RTPengine notifications from command promises.",
             "Ordinary relay calls execute offer before outbound INVITE, update(answer) before caller 183 and answer before caller 200; caller/callee re-INVITE and UPDATE reuse the reservation with monotonic sequences, 491 retries are bounded, and malformed or unknown committed snapshots fail closed.",
             "Each RustPBX node opens one media event stream, resumes from its last committed sequence and delivers DTMF through the existing bounded call command channel; media-control retains a bounded per-owner replay window and never broadcasts events across owners.",
+            "SipSession cleanup bounds media-control deletion to 250 ms, keeps the same command identity across retries, leaves uncertain deletes to durable WAL reconciliation, and never issues an identity-free network delete from Drop.",
+            "The media-control agent restores complete orphan candidates from its backward-compatible WAL and releases them only after lease expiry plus proof that both the owner and component reservation are absent; invalid timestamps and authority outages fail closed.",
             "IVR, queue, recording, audio tap, WebRTC bridge, parallel fork, explicit bypass and offerless calls retain the local RustPBX graph; real server RTPengine, TURN and capacity validation remain not_run."
           ]
         },

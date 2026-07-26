@@ -39,6 +39,23 @@ export interface MediaControlAuthorityPort {
   }, now: Date): Promise<MediaControlAuthorization>;
 }
 
+export interface MediaControlOrphanProof {
+  owner_exists: boolean;
+  session_exists: boolean;
+}
+
+export interface MediaControlOrphanProbe {
+  inspect(input: {
+    tenant_id: string;
+    call_id: string;
+    cell_id: string;
+    owner_node_id: string;
+    owner_epoch: string;
+    media_reservation_id: string;
+    reservation_expires_at: string;
+  }, now: Date): Promise<MediaControlOrphanProof>;
+}
+
 interface RecordedCommand {
   hash: string;
   idempotency_hash: string;
@@ -82,6 +99,8 @@ export class MediaControlAgent {
   readonly #maxTerminalReservations: number;
   readonly #maxCommandsPerReservation: number;
   readonly #terminalRetentionMs: number;
+  readonly #orphanProbe?: MediaControlOrphanProbe;
+  readonly #orphanBatchSize: number;
   readonly #metrics: MediaControlMetrics;
   readonly #records = new Map<string, MediaControlRecord>();
   readonly #deadlines: MediaControlDeadline[] = [];
@@ -89,6 +108,7 @@ export class MediaControlAgent {
   readonly #serial = new KeyedSerialExecutor();
   #activeReservations = 0;
   #terminalReservations = 0;
+  #orphanCursor = '';
 
   constructor(input: {
     authority: MediaControlAuthorityPort;
@@ -97,6 +117,8 @@ export class MediaControlAgent {
     max_terminal_reservations?: number;
     max_commands_per_reservation?: number;
     terminal_retention_ms?: number;
+    orphan_probe?: MediaControlOrphanProbe;
+    orphan_batch_size?: number;
     metrics?: MediaControlMetrics;
   }) {
     this.#authority = input.authority;
@@ -124,6 +146,13 @@ export class MediaControlAgent {
       1_000,
       86_400_000,
       'terminal_retention_ms'
+    );
+    this.#orphanProbe = input.orphan_probe;
+    this.#orphanBatchSize = boundedInteger(
+      input.orphan_batch_size ?? 256,
+      1,
+      10_000,
+      'orphan_batch_size'
     );
     this.#metrics = input.metrics ?? new MediaControlMetrics();
   }
@@ -447,6 +476,85 @@ export class MediaControlAgent {
     return expired;
   }
 
+  async sweepOrphans(
+    now: Date,
+    requestedLimit = this.#orphanBatchSize
+  ): Promise<{
+    inspected: number;
+    released: number;
+    deferred: number;
+  }> {
+    const timestamp = validNow(now);
+    const limit = boundedInteger(
+      requestedLimit,
+      1,
+      this.#orphanBatchSize,
+      'orphan_sweep_limit'
+    );
+    const result = { inspected: 0, released: 0, deferred: 0 };
+    if (!this.#orphanProbe) return result;
+
+    const page = await this.#transport.scanOrphanCandidates({
+      after: this.#orphanCursor,
+      limit
+    });
+    this.#orphanCursor = page.next_cursor;
+    for (const candidate of page.items) {
+      const expiresAt = Date.parse(candidate.expires_at);
+      if (!Number.isFinite(expiresAt)) {
+        result.inspected += 1;
+        result.deferred += 1;
+        continue;
+      }
+      if (expiresAt > timestamp) continue;
+      await this.#serial.run(candidate.media_reservation_id, async () => {
+        const record = this.#records.get(candidate.media_reservation_id);
+        if (record && (
+          record.terminal_at > 0 ||
+          record.call_id !== candidate.call_id ||
+          record.owner_epoch !== candidate.owner_epoch ||
+          record.owner_node_id !== candidate.owner_node_id
+        )) {
+          result.deferred += 1;
+          return;
+        }
+        result.inspected += 1;
+        try {
+          const proof = await this.#orphanProbe!.inspect({
+            tenant_id: candidate.tenant_id,
+            call_id: candidate.call_id,
+            cell_id: candidate.cell_id,
+            owner_node_id: candidate.owner_node_id,
+            owner_epoch: candidate.owner_epoch,
+            media_reservation_id: candidate.media_reservation_id,
+            reservation_expires_at: candidate.expires_at
+          }, now);
+          if (proof.owner_exists || proof.session_exists) {
+            result.deferred += 1;
+            return;
+          }
+          await this.#transport.releaseSession(
+            candidate.transport_session_id,
+            'orphaned_owner_and_session'
+          );
+          if (record?.session) {
+            record.session.state = 'closed';
+            record.session.updated_at = now.toISOString();
+            record.terminal_at = timestamp;
+            record.cleanup_retry_count = 0;
+            this.#transitionMetric(record, 'closed');
+            this.#scheduleRecord(record);
+          }
+          result.released += 1;
+        } catch {
+          result.deferred += 1;
+          if (record) this.#rescheduleCleanup(record, timestamp);
+        }
+      });
+    }
+    return result;
+  }
+
   scheduledDeadlineCount(): number {
     return this.#deadlines.length;
   }
@@ -546,6 +654,7 @@ export class MediaControlAgent {
       owner_node_id: command.owner_node_id,
       owner_epoch: command.owner_epoch,
       media_reservation_id: command.media_reservation_id,
+      expires_at: command.expires_at,
       command_sequence: command.command_sequence,
       idempotency_key: command.idempotency_key,
       payload_hash: command.payload_hash,
