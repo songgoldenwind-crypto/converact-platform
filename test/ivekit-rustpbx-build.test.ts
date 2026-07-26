@@ -54,7 +54,7 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(buildScript, /IVEKIT_RUSTPBX_CARGO_HOME/);
   assert.match(buildScript, /cross compilation is not supported/);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.25"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.26"/);
   assert.match(buildScript, /cp "\$SCRIPT_DIR\/entrypoint\.sh"/);
   assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
@@ -75,7 +75,7 @@ test('RustPBX deployment examples reference the current patchset', () => {
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.25-6c49ee76/,
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.26-6c49ee76/,
       path
     );
   }
@@ -268,7 +268,7 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
 test('iveKit publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.25-6c49ee76/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.26-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);

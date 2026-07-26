@@ -58,6 +58,7 @@ import type {
   VoiceCallCommand,
   VoiceCallState,
   VoiceConfigurationCommand,
+  VoiceDeploymentProfile,
   VoiceExtension,
   VoiceExtensionSessionPlan,
   VoiceRecording,
@@ -947,7 +948,10 @@ async function routeProviderWebhook(input: {
   if (authenticated.adapter !== 'rustpbx') throw webhookAuthFailed();
   return withPgTenant(pg, authenticated.tenant_id, async (tenantPg) => {
     const module = await resolveModule(tenantPg, authenticated.tenant_id, input.options);
-    await assertAuthenticatedProviderProfile(module, authenticated);
+    const profile = await assertAuthenticatedProviderProfile(
+      module,
+      authenticated
+    );
 
     if (input.action === 'router' || input.action === 'inbound-admission') {
       const request = new RustPbxRouterAdapter().normalizeRequest(input.body as never);
@@ -984,6 +988,7 @@ async function routeProviderWebhook(input: {
             media_session_id: request.call_id
           })
         ]);
+        const availability = availabilityProfile(profile);
         return {
           status: 201,
           data: {
@@ -994,6 +999,15 @@ async function routeProviderWebhook(input: {
             owner_epoch: owner.owner_epoch,
             cell_id: owner.cell_id,
             owner_node_id: owner.owner_node_id,
+            availability_profile: availability,
+            ...(availability === 'VOICE-HA-T1'
+              ? {
+                  auth_context_ref: authenticationContextReference(
+                    authenticated,
+                    profile
+                  )
+                }
+              : {}),
             ...(audioTapToken ? { audio_tap_token: audioTapToken } : {})
           },
           afterCommit: () => reconcileVoiceCallPlacement(
@@ -1072,7 +1086,7 @@ async function routeProviderWebhook(input: {
 async function assertAuthenticatedProviderProfile(
   module: VoiceHttpModule,
   authenticated: VoiceWebhookAuthentication
-): Promise<void> {
+): Promise<VoiceDeploymentProfile> {
   const profile = await module.configuration_repository.getProfile(
     authenticated.tenant_id,
     authenticated.profile_id
@@ -1080,6 +1094,45 @@ async function assertAuthenticatedProviderProfile(
   if (!profile || profile.tenant_id !== authenticated.tenant_id
     || profile.id !== authenticated.profile_id || profile.adapter !== authenticated.adapter
     || profile.status === 'archived') throw webhookAuthFailed();
+  return profile;
+}
+
+function availabilityProfile(
+  profile: VoiceDeploymentProfile
+): 'VOICE-ORDINARY' | 'VOICE-HA-T1' {
+  const value = profile.config?.availability_profile;
+  if (value === undefined || value === 'VOICE-ORDINARY') {
+    return 'VOICE-ORDINARY';
+  }
+  if (value === 'VOICE-HA-T1') return value;
+  throw new VoiceError({
+    code: 'capability_unavailable',
+    status: 503,
+    retryable: false
+  });
+}
+
+function authenticationContextReference(
+  authenticated: VoiceWebhookAuthentication,
+  profile: VoiceDeploymentProfile
+): string {
+  if (!Number.isSafeInteger(profile.revision) || profile.revision < 1) {
+    throw new VoiceError({
+      code: 'capability_unavailable',
+      status: 503,
+      retryable: false
+    });
+  }
+  const digest = createHash('sha256')
+    .update([
+      authenticated.tenant_id,
+      authenticated.profile_id,
+      authenticated.adapter,
+      authenticated.method,
+      String(profile.revision)
+    ].join('\0'))
+    .digest('hex');
+  return `auth-context:${digest}`;
 }
 
 function createRecordingSpoolIntake(

@@ -46,7 +46,7 @@ test('Goal 0 pins rtpengine source, archive, license and rollout truthfully', ()
   );
 
   assert.ok(rtpengine);
-  assert.equal(rtpengine.lifecycle, 'planned');
+  assert.equal(rtpengine.lifecycle, 'active_engineering');
   assert.equal(rtpengine.integration_mode, 'maintained_fork');
   assert.equal(rtpengine.upstream.version, 'mr26.0.1.13');
   assert.equal(rtpengine.upstream.release_ref, 'mr26.0.1.13');
@@ -61,8 +61,8 @@ test('Goal 0 pins rtpengine source, archive, license and rollout truthfully', ()
   assert.equal(rtpengine.traceability.upstream_license, 'GPL-3.0-only');
   assert.equal(rtpengine.traceability.notice_recorded, true);
   assert.equal(rtpengine.verification.source_identity, 'passed');
-  assert.equal(rtpengine.verification.compile, 'not_run');
-  assert.equal(rtpengine.verification.integration, 'not_run');
+  assert.equal(rtpengine.verification.compile, 'passed');
+  assert.equal(rtpengine.verification.integration, 'passed');
   assert.equal(rtpengine.verification.benchmark, 'not_run');
   assert.equal(rtpengine.release_gate.production_eligible, false);
 });

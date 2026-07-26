@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 46,
+  "revision": 47,
   "status": "proposed",
-  "generated_at": "2026-07-26T17:59:50+08:00",
+  "generated_at": "2026-07-26T20:28:40+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.25-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.26-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.25-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.26-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -174,6 +174,12 @@
           "sha256": "bc62776846a7b3d87e39976d437ed6b41e90d9c7b74651d394996049534b059a",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-control-client.patch",
           "purpose": "Bind ordinary SIP relay initial and bidirectional mid-dialog offer/answer transactions plus RTP DTMF injection to owner-fenced RTPengine reservations, return unsolicited RTPengine DTMF over a bounded replayable per-owner event stream, and close allocated media through a stable replayable delete bounded outside the SIP cleanup path while keeping IVR, queue, recording, audio-tap, WebRTC, parallel-fork and offerless profiles on the existing local media graph."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch",
+          "sha256": "589ac55dfec9865996acc142f4a76aaf7fea7e7f341663c71425eecdb6cde4e6",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-lifecycle.patch",
+          "purpose": "Commit bounded PII-minimized per-leg dialog recovery state through the cell-local mTLS shadow service before visible T1 18x, 200 and successful in-dialog responses, with exact replay after uncertain transport outcomes and ordinary-profile isolation."
         }
       ],
       "protocols": [
@@ -194,6 +200,11 @@
         },
         {
           "protocol_id": "ivekit-rustpbx-audio-tap",
+          "version": "1",
+          "visibility": "component_internal"
+        },
+        {
+          "protocol_id": "ivekit-dialog-shadow",
           "version": "1",
           "visibility": "component_internal"
         }
@@ -472,6 +483,23 @@
             "SipSession cleanup bounds media-control deletion to 250 ms, keeps the same command identity across retries, leaves uncertain deletes to durable WAL reconciliation, and never issues an identity-free network delete from Drop.",
             "The media-control agent restores complete orphan candidates from its backward-compatible WAL and releases them only after lease expiry plus proof that both the owner and component reservation are absent; invalid timestamps and authority outages fail closed.",
             "IVR, queue, recording, audio tap, WebRTC bridge, parallel fork, explicit bypass and offerless calls retain the local RustPBX graph; real server RTPengine, TURN and capacity validation remain not_run."
+          ]
+        },
+        {
+          "change_id": "rustpbx-dialog-shadow-quorum-v1",
+          "summary": "Persist T1 dialog recovery snapshots locally and across RustPBX fault domains before exposing state-changing SIP success while keeping ordinary calls independent of the shadow path.",
+          "capacity_dimensions": [
+            "sip.active_dialogs",
+            "sip.transactions_per_second",
+            "events.outbox_per_second"
+          ],
+          "acceptance_evidence": [
+            "The exact patch applies after ivekit.25, seven focused Rust tests pass with Rust 1.94.1, and the complete ivekit.26 source passes locked compilation.",
+            "The Rust client uses one bounded mTLS request, secret-file authentication, exact request replay after unknown outcomes and per-dialog monotonic sequence validation.",
+            "The TypeScript coordinator fsyncs the local versioned CRC WAL, publishes deterministic Cell-scoped JetStream records, accepts only durable remote ACKs from distinct RustPBX fault domains, and proves three or five file-backed stream replicas span at least two NATS fault domains.",
+            "T1 admission fails closed when remote durable health is insufficient; VOICE-ORDINARY does not depend on the shadow service.",
+            "RustPBX commits caller and callee dialog legs before visible 180, 183, 200 and successful state-changing in-dialog responses without storing raw Call-ID, branch identity or SDP in the durable record.",
+            "Real multi-node NATS and SIP server validation remains not_run until the Goal 3 server regression gate."
           ]
         },
         {

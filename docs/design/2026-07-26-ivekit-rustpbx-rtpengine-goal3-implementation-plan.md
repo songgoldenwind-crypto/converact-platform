@@ -370,21 +370,39 @@ RustPBX owner 一条的认证 NDJSON 流回灌现有 call command channel；事�
 - 新建 `src/agent-runtime/ivekit/voice/dialog-shadow.ts`
 - 新建 `src/agent-runtime/ivekit/voice/dialog-shadow-journal.ts`
 - 新建 `src/agent-runtime/ivekit/voice/dialog-shadow-http.ts`
+- 新建 `src/agent-runtime/ivekit/voice/dialog-shadow-jetstream.ts`
+- 新建 `src/agent-runtime/ivekit/voice/dialog-shadow-runtime.ts`
+- 新建 `src/agent-runtime/ivekit/voice/dialog-shadow-server.ts`
+- 新建 `scripts/ivekit-dialog-shadow-agent.ts`
 - 新建 `test/ivekit-dialog-shadow-journal.test.ts`
 - 新建 `test/ivekit-dialog-shadow-quorum.test.ts`
+- 新建 `test/ivekit-dialog-shadow-http.test.ts`
+- 新建 `test/ivekit-dialog-shadow-jetstream.test.ts`
+- 新建 `test/ivekit-dialog-shadow-runtime.test.ts`
+- 新建 `test/ivekit-dialog-shadow-server.test.ts`
+- 新建 `test/ivekit-rustpbx-dialog-shadow-patch.test.ts`
 - 新建补丁 `infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch`
 
-- [ ] 定义 versioned bounded binary record，包含 local/remote tag、route set、CSeq、
+- [x] 定义 versioned bounded binary record，包含 local/remote tag、route set、CSeq、
       branch/final response hash、auth context ref、logical offer/answer hash、media
       reservation、provider session ref 和 CDR sequence。
-- [ ] record 禁止 token、私钥、完整认证头、原始号码和不受限 body。
-- [ ] local WAL 使用 length、version、CRC/checksum、fsync、atomic compaction 和硬上限。
-- [ ] T1 append 只有在同 Cell 至少两个 RustPBX 故障域 ACK 后才成功。
-- [ ] NATS JetStream 作为复制总线，stream replicas 和 placement 必须证明跨故障域。
-- [ ] shadow 不可用时停止新的 T1 admission；普通 profile 不受影响。
-- [ ] 可见 18x/200 和状态改变 in-dialog 2xx 前执行 shadow commit。
-- [ ] 旧 epoch append、sequence gap、payload mismatch 和 replay 有确定语义。
-- [ ] 提交：`feat(voice): add dialog shadow quorum`。
+- [x] record 禁止 token、私钥、完整认证头、原始号码和不受限 body。
+- [x] local WAL 使用 length、version、CRC/checksum、fsync、atomic compaction 和硬上限。
+- [x] T1 append 只有在同 Cell 至少两个 RustPBX 故障域 ACK 后才成功。
+- [x] NATS JetStream 作为复制总线，stream replicas 和 placement 必须证明跨故障域。
+- [x] shadow 不可用时停止新的 T1 admission；普通 profile 不受影响。
+- [x] 可见 18x/200 和状态改变 in-dialog 2xx 前执行 shadow commit。
+- [x] 旧 epoch append、sequence gap、payload mismatch 和 replay 有确定语义。
+- [x] 提交：`feat(voice): add dialog shadow quorum`。
+
+Task 7 evidence:
+
+- `npm run typecheck` 通过。
+- `npm run test:ivekit:voice-media-goal3` 通过 78 项测试。
+- Voice HTTP、镜像清单、补丁队列、容量基线和录音隔离扩展回归通过 55 项测试。
+- Rust 1.94.1 下 7 项 dialog shadow 契约测试及完整 `cargo check --locked` 通过。
+- 精确补丁在固定 RustPBX 基线及 `ivekit.25` 队列后可应用，并由静态测试验证关键源
+  顺序；真实三节点 JetStream、故障域中断和容量性能仍由 Task 10/11 进行服务器验收。
 
 ### Task 8：Owner takeover 与 Kamailio epoch routing
 

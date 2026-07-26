@@ -21,7 +21,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/songgoldenwind-crypto/opc-rustpbx
-  VERSION: 0.4.11-ivekit.25-6c49ee76
+  VERSION: 0.4.11-ivekit.26-6c49ee76
 
 jobs:
   build:

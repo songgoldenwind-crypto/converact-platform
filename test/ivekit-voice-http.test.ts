@@ -527,7 +527,9 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
           id: profileId,
           tenant_id: tenantId,
           adapter: 'rustpbx',
-          status: 'enabled'
+          status: 'enabled',
+          config: { availability_profile: 'VOICE-HA-T1' },
+          revision: 7
         };
       }
     },
@@ -630,11 +632,22 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
       cell_id: string;
       owner_node_id: string;
       audio_tap_token: string;
+      availability_profile: string;
+      auth_context_ref: string;
     };
     afterCommit?: () => Promise<void>;
   };
 
   assert.equal(result.status, 201);
+  const authContextRef = `auth-context:${createHash('sha256')
+    .update([
+      'tenant-secure',
+      'profile-a',
+      'rustpbx',
+      'service_key',
+      '7'
+    ].join('\0'))
+    .digest('hex')}`;
   assert.deepEqual(result.data, {
     accepted: true,
     call_id: 'vcall-snapshot-a',
@@ -643,6 +656,8 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     owner_epoch: '12884901889',
     cell_id: 'cell-a',
     owner_node_id: 'rustpbx-a',
+    availability_profile: 'VOICE-HA-T1',
+    auth_context_ref: authContextRef,
     audio_tap_token: 'tap-token-snapshot-a-000000000000000000'
   });
   assert.deepEqual(order, ['create-inbound', 'authorize-audio-tap']);
