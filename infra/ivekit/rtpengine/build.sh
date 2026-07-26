@@ -21,12 +21,23 @@ if [[ "$TARGETARCH" != "$NATIVE_ARCH" ]]; then
 fi
 
 case "$ACTION" in
-  toolchain|userspace|recording|kernel|all) ;;
+  toolchain|userspace|recording|kernel|supply-chain|all) ;;
   *)
-    echo "usage: $0 [toolchain|userspace|recording|kernel|all]" >&2
+    echo "usage: $0 [toolchain|userspace|recording|kernel|supply-chain|all]" >&2
     exit 64
     ;;
 esac
+
+if [[ "$ACTION" == supply-chain ]]; then
+  command -v node >/dev/null || {
+    echo "node is required for supply-chain evidence" >&2
+    exit 1
+  }
+  : "${IVEKIT_RTPENGINE_SUPPLY_CHAIN_EVIDENCE_OUTPUT:?supply-chain evidence output is required}"
+  REPOSITORY_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+  exec node --import tsx \
+    "$REPOSITORY_ROOT/scripts/ivekit-rtpengine-supply-chain.ts"
+fi
 
 command -v docker >/dev/null || {
   echo "docker is required" >&2

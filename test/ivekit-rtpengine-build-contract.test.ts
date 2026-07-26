@@ -212,6 +212,18 @@ test('build script refuses cross compilation and performs final builds offline',
   assert.match(onlineBranch, /git ls-remote/);
 });
 
+test('build script exposes the supply-chain evidence gate', () => {
+  const source = readFileSync(`${ROOT}/build.sh`, 'utf8');
+
+  assert.match(
+    source,
+    /toolchain\|userspace\|recording\|kernel\|supply-chain\|all/
+  );
+  assert.match(source, /ivekit-rtpengine-supply-chain\.ts/);
+  assert.match(source, /node --import tsx/);
+  assert.match(source, /IVEKIT_RTPENGINE_SUPPLY_CHAIN_EVIDENCE_OUTPUT/);
+});
+
 test('entrypoint resolves kernel identity without writing the root filesystem', () => {
   const source = readFileSync(`${ROOT}/entrypoint.sh`, 'utf8');
   assert.match(source, /IVEKIT_RTPENGINE_RUNTIME_MODE/);
