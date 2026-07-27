@@ -201,7 +201,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
-          "sha256": "ffa47f73dd07d1b5d42c6d866563c5c234437a51fd95af7b3494d8db8402bf48",
+          "sha256": "44a2adc257a610d09ffe050eb04a56e158e35e593a0b05b36c5e79e517f42315",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-tracing.patch",
           "purpose": "Align snapshot inbound-admission parsing with the direct iveKit HTTP response body so successful Cell reservation and ownership admission can enter the local signed route snapshot."
         }
