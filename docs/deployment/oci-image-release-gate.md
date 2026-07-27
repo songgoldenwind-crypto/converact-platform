@@ -23,15 +23,21 @@ The reusable workflow fails closed unless:
 
 1. the image repository is a lowercase, digestless `ghcr.io/...` name;
 2. the subject digest is exactly `sha256:` plus 64 lowercase hexadecimal characters;
-3. Trivy `v0.70.0` can generate an SPDX JSON SBOM for that digest;
-4. no HIGH or CRITICAL vulnerability is reported, including unfixed findings;
-5. Cosign keyless signing succeeds with the GitHub Actions OIDC identity;
-6. SLSA build provenance and the SPDX SBOM are attached to the same digest and pushed to GHCR;
-7. both the Cosign signature and GitHub artifact attestations verify before the job exits.
+3. Trivy `v0.70.0` can generate both CycloneDX and SPDX JSON SBOMs for that digest;
+4. full vulnerability JSON evidence is retained and no HIGH or CRITICAL
+   vulnerability is reported, including unfixed findings;
+5. a dedicated Trivy secret scan reports no embedded image secrets;
+6. the two SBOMs and both scan reports are retained as one immutable-run artifact;
+7. Cosign keyless signing succeeds with the GitHub Actions OIDC identity;
+8. SLSA build provenance and both SBOMs are attached to the same digest and pushed to GHCR;
+9. both the Cosign signature and GitHub artifact attestations verify before the job exits.
 
 All third-party Actions are pinned to full commits. In particular, Trivy Action
 uses the immutable `v0.36.0` commit and installs Trivy `v0.70.0`; tag references
 such as `@master`, `@v4` or `@v0.36.0` are not accepted by the repository tests.
+The scan bundle uses the immutable `actions/upload-artifact` `v4.6.2` commit and
+is retained for 30 days. A successful table scan without the JSON reports does
+not satisfy the evidence contract.
 
 ### 2.1 Build-context preparation
 

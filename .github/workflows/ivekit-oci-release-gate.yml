@@ -54,6 +54,16 @@ jobs:
           printf '%s' "${GH_TOKEN}" |
             docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
 
+      - name: Generate CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ inputs.image }}@${{ inputs.digest }}
+          format: cyclonedx
+          output: image.sbom.cyclonedx.json
+          scanners: vuln
+          version: v0.70.0
+          cache: 'false'
+
       - name: Generate SPDX SBOM
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
@@ -61,7 +71,31 @@ jobs:
           format: spdx-json
           output: image.sbom.spdx.json
           scanners: vuln
-          version: v0.70.0
+          skip-setup-trivy: 'true'
+          cache: 'false'
+
+      - name: Generate vulnerability evidence
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ inputs.image }}@${{ inputs.digest }}
+          format: json
+          output: image.vulnerabilities.trivy.json
+          scanners: vuln
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+          ignore-unfixed: 'false'
+          skip-setup-trivy: 'true'
+          cache: 'false'
+
+      - name: Block embedded secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ inputs.image }}@${{ inputs.digest }}
+          format: json
+          output: image.secrets.trivy.json
+          scanners: secret
+          exit-code: '1'
+          skip-setup-trivy: 'true'
           cache: 'false'
 
       - name: Block HIGH and CRITICAL vulnerabilities
@@ -75,6 +109,18 @@ jobs:
           ignore-unfixed: 'false'
           skip-setup-trivy: 'true'
           cache: 'false'
+
+      - name: Retain scan evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ivekit-oci-supply-chain-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            image.sbom.cyclonedx.json
+            image.sbom.spdx.json
+            image.vulnerabilities.trivy.json
+            image.secrets.trivy.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
@@ -100,6 +146,14 @@ jobs:
           subject-name: ${{ inputs.image }}
           subject-digest: ${{ inputs.digest }}
           sbom-path: image.sbom.spdx.json
+          push-to-registry: true
+
+      - name: Attest CycloneDX SBOM
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6
+        with:
+          subject-name: ${{ inputs.image }}
+          subject-digest: ${{ inputs.digest }}
+          sbom-path: image.sbom.cyclonedx.json
           push-to-registry: true
 
       - name: Verify signature and attestations

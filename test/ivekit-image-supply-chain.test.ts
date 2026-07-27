@@ -22,8 +22,13 @@ test('shared OCI release gate fails closed on mutable subjects and severe vulner
   assert.match(workflow, /\^ghcr\\\.io\/\[a-z0-9/);
   assert.match(workflow, /\^sha256:\[a-f0-9\]\{64\}\$/);
   assert.match(workflow, /image-ref: \$\{\{ inputs\.image \}\}@\$\{\{ inputs\.digest \}\}/);
+  assert.match(workflow, /format: cyclonedx/);
+  assert.match(workflow, /output: image\.sbom\.cyclonedx\.json/);
   assert.match(workflow, /format: spdx-json/);
   assert.match(workflow, /output: image\.sbom\.spdx\.json/);
+  assert.match(workflow, /output: image\.vulnerabilities\.trivy\.json/);
+  assert.match(workflow, /output: image\.secrets\.trivy\.json/);
+  assert.match(workflow, /scanners: secret/);
   assert.match(workflow, /severity: HIGH,CRITICAL/);
   assert.match(workflow, /exit-code: '1'/);
   assert.match(workflow, /ignore-unfixed: 'false'/);
@@ -35,22 +40,26 @@ test('shared OCI release gate signs and attests the immutable image subject', ()
   assert.match(workflow, /cosign verify "\$\{IMAGE\}@\$\{DIGEST\}"/);
   assert.match(workflow, /subject-name: \$\{\{ inputs\.image \}\}/);
   assert.match(workflow, /subject-digest: \$\{\{ inputs\.digest \}\}/);
+  assert.match(workflow, /sbom-path: image\.sbom\.cyclonedx\.json/);
   assert.match(workflow, /sbom-path: image\.sbom\.spdx\.json/);
-  assert.ok((workflow.match(/push-to-registry: true/g) || []).length >= 2);
+  assert.match(workflow, /path:[\s\S]*image\.vulnerabilities\.trivy\.json[\s\S]*image\.secrets\.trivy\.json/);
+  assert.match(workflow, /if-no-files-found: error/);
+  assert.ok((workflow.match(/push-to-registry: true/g) || []).length >= 3);
   assert.match(workflow, /gh attestation verify "oci:\/\/\$\{IMAGE\}@\$\{DIGEST\}"/);
 });
 
 test('shared OCI release gate pins every third-party action to a full commit', () => {
   const actions = [...workflow.matchAll(/uses:\s+([^@\s]+)@([^\s]+)/g)];
-  assert.ok(actions.length >= 5);
+  assert.ok(actions.length >= 9);
   for (const [, action, revision] of actions) {
     assert.match(revision, /^[a-f0-9]{40}$/, `${action} is not commit-pinned`);
   }
   assert.match(workflow, /aquasecurity\/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25/);
   assert.match(workflow, /sigstore\/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6/);
   assert.ok(
-    (workflow.match(/actions\/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6/g) || []).length >= 2
+    (workflow.match(/actions\/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6/g) || []).length >= 3
   );
+  assert.match(workflow, /actions\/upload-artifact@[a-f0-9]{40}/);
 });
 
 test('every repository Dockerfile pins external base images by digest', () => {

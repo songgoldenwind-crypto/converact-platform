@@ -327,7 +327,7 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
 test('iveKit publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.28-6c49ee76/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.29-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);
