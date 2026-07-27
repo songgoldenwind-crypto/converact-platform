@@ -321,6 +321,44 @@ test('canonical and legacy Helm define independent bounded media profiles', () =
   }
 });
 
+test('Compose projects fresh RustPBX capacity into OPC placement admission', () => {
+  assert.match(voiceCompose, /^  rustpbx-capacity-projector:\n/m);
+  assert.match(
+    voiceCompose,
+    /rustpbx-capacity-projector:[\s\S]*scripts\/ivekit-cell-capacity-projector\.ts/
+  );
+  assert.match(voiceCompose, /^  rustpbx-placement-snapshot-projector:\n/m);
+  assert.match(
+    voiceCompose,
+    /rustpbx-placement-snapshot-projector:[\s\S]*src\/ivekit-placement-snapshot-projector\.ts/
+  );
+  assert.match(
+    voiceCompose,
+    /rustpbx-placement-snapshot-projector:[\s\S]*ivekit-placement-snapshot:\/run\/ivekit-placement/
+  );
+  assert.match(
+    voiceCompose,
+    /OPC_IVEKIT_PLACEMENT_ENABLED: \$\{OPC_IVEKIT_PLACEMENT_ENABLED:-0\}[\s\S]*OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE: \/run\/ivekit-placement\/placement\.json/
+  );
+  assert.match(
+    voiceCompose,
+    /ivekit-placement-snapshot:\/run\/ivekit-placement:ro/
+  );
+  assert.match(
+    voiceCompose,
+    /rustpbx-placement-snapshot-projector:[\s\S]*condition: service_healthy/
+  );
+  for (const variable of [
+    'RUSTPBX_CELL_CAPACITY_PROFILE_ID',
+    'RUSTPBX_CELL_CAPACITY_PROFILE_SHA256',
+    'RUSTPBX_CELL_CAPACITY_PROBES_JSON',
+    'OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON',
+    'OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON'
+  ]) {
+    assert.match(voiceEnvExample, new RegExp(`^${variable}=`, 'm'));
+  }
+});
+
 test('RustPBX reaches node-local media-control through mTLS and file secrets only', () => {
   for (const values of [helmValues, legacyHelmValues]) {
     assert.match(values, /^  mediaControl:\n    enabled: true/m);

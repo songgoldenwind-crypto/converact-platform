@@ -396,6 +396,78 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  rustpbx-capacity-projector:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    profiles: ["voice-capacity", "voice-media-control", "voice-t1"]
+    command: ["node", "--import", "tsx", "scripts/ivekit-cell-capacity-projector.ts"]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    environment:
+      OPC_IVEKIT_CELL_ADMISSION_ENDPOINT: http://cell-admission:3200
+      OPC_IVEKIT_CELL_ADMISSION_TOKEN: ${OPC_IVEKIT_CELL_ADMISSION_TOKEN:?OPC_IVEKIT_CELL_ADMISSION_TOKEN is required}
+      OPC_IVEKIT_CELL_REGION_ID: ${RUSTPBX_COMPONENT_NODE_REGION_ID:?RUSTPBX_COMPONENT_NODE_REGION_ID is required}
+      OPC_IVEKIT_CELL_ZONE_ID: ${RUSTPBX_COMPONENT_NODE_ZONE_ID:?RUSTPBX_COMPONENT_NODE_ZONE_ID is required}
+      OPC_IVEKIT_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
+      OPC_IVEKIT_CELL_CAPACITY_PROFILE_ID: ${RUSTPBX_CELL_CAPACITY_PROFILE_ID:?RUSTPBX_CELL_CAPACITY_PROFILE_ID is required}
+      OPC_IVEKIT_CELL_CAPACITY_PROFILE_SHA256: ${RUSTPBX_CELL_CAPACITY_PROFILE_SHA256:?RUSTPBX_CELL_CAPACITY_PROFILE_SHA256 is required}
+      OPC_IVEKIT_CELL_PROBE_INTERVAL_MS: ${RUSTPBX_CELL_CAPACITY_PROBE_INTERVAL_MS:-2000}
+      OPC_IVEKIT_CELL_OBSERVATION_TTL_MS: ${RUSTPBX_CELL_CAPACITY_OBSERVATION_TTL_MS:-10000}
+      OPC_IVEKIT_CELL_DIMENSIONS_JSON: ${RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON:?RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON is required}
+      OPC_IVEKIT_CELL_NODES_JSON: ${RUSTPBX_CELL_NODES_JSON:?RUSTPBX_CELL_NODES_JSON is required}
+      OPC_IVEKIT_CELL_PROBES_JSON: ${RUSTPBX_CELL_CAPACITY_PROBES_JSON:?RUSTPBX_CELL_CAPACITY_PROBES_JSON is required}
+    depends_on:
+      cell-admission:
+        condition: service_healthy
+      rustpbx-component-node:
+        condition: service_healthy
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  rustpbx-placement-snapshot-projector:
+    image: ${IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local}
+    profiles: ["voice-capacity", "voice-media-control", "voice-t1"]
+    command: ["node", "--import", "tsx", "src/ivekit-placement-snapshot-projector.ts"]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    environment:
+      OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE: /run/ivekit-placement/placement.json
+      OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: ${OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON:?OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON is required}
+      OPC_IVEKIT_PLACEMENT_SNAPSHOT_KEY_ID: ${OPC_IVEKIT_PLACEMENT_SNAPSHOT_KEY_ID:?OPC_IVEKIT_PLACEMENT_SNAPSHOT_KEY_ID is required}
+      OPC_IVEKIT_PLACEMENT_PROFILE_ID: ${OPC_IVEKIT_PLACEMENT_PROFILE_ID:?OPC_IVEKIT_PLACEMENT_PROFILE_ID is required}
+      OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON: ${OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON:?OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON is required}
+      OPC_IVEKIT_CELL_ADMISSION_TOKEN: ${OPC_IVEKIT_CELL_ADMISSION_TOKEN:?OPC_IVEKIT_CELL_ADMISSION_TOKEN is required}
+      OPC_IVEKIT_PLACEMENT_PROJECTOR_INTERVAL_MS: ${OPC_IVEKIT_PLACEMENT_PROJECTOR_INTERVAL_MS:-2000}
+      OPC_IVEKIT_PLACEMENT_SNAPSHOT_TTL_MS: ${OPC_IVEKIT_PLACEMENT_SNAPSHOT_TTL_MS:-10000}
+      OPC_IVEKIT_PLACEMENT_PROJECTOR_TIMEOUT_MS: ${OPC_IVEKIT_PLACEMENT_PROJECTOR_TIMEOUT_MS:-2000}
+    volumes:
+      - ivekit-placement-snapshot:/run/ivekit-placement
+    depends_on:
+      cell-admission:
+        condition: service_healthy
+      rustpbx-capacity-projector:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - const fs=require('node:fs'),p='/run/ivekit-placement/placement.json',v=JSON.parse(fs.readFileSync(p,'utf8'));if(Date.parse(v.body.expires_at)<=Date.now())process.exit(1)
+      interval: 2s
+      timeout: 1s
+      retries: 20
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   rtpengine-config-validate:
     image: ${IVEKIT_MEDIA_CONTROL_IMAGE_NAME:-ivekit-media-control:local}
     profiles: ["voice-media-control"]
@@ -594,12 +666,37 @@ services:
       OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS: ${OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_INTERVAL_MS:-60000}
       OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT: ${OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_TENANT_LIMIT:-100}
       OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE: ${OPC_IVEKIT_WEBPHONE_SESSION_CLEANUP_BATCH_SIZE:-500}
+      OPC_IVEKIT_PLACEMENT_ENABLED: ${OPC_IVEKIT_PLACEMENT_ENABLED:-0}
+      OPC_IVEKIT_PLACEMENT_SNAPSHOT_FILE: /run/ivekit-placement/placement.json
+      OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON: ${OPC_IVEKIT_PLACEMENT_SNAPSHOT_HMAC_KEYS_JSON:-}
+      OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON: ${OPC_IVEKIT_PLACEMENT_TOKEN_HMAC_KEYS_JSON:-}
+      OPC_IVEKIT_PLACEMENT_TOKEN_KEY_ID: ${OPC_IVEKIT_PLACEMENT_TOKEN_KEY_ID:-}
+      OPC_IVEKIT_CELL_ADMISSION_TOKEN: ${OPC_IVEKIT_CELL_ADMISSION_TOKEN:-}
+      OPC_IVEKIT_PLACEMENT_HOME_REGION_ID: ${OPC_IVEKIT_PLACEMENT_HOME_REGION_ID:-}
+      OPC_IVEKIT_PLACEMENT_FAILOVER_REGION_IDS: ${OPC_IVEKIT_PLACEMENT_FAILOVER_REGION_IDS:-}
+      OPC_IVEKIT_PLACEMENT_SNAPSHOT_REFRESH_MS: ${OPC_IVEKIT_PLACEMENT_SNAPSHOT_REFRESH_MS:-1000}
+      OPC_IVEKIT_PLACEMENT_STALE_GRACE_MS: ${OPC_IVEKIT_PLACEMENT_STALE_GRACE_MS:-30000}
+      OPC_IVEKIT_PLACEMENT_ADMISSION_TIMEOUT_MS: ${OPC_IVEKIT_PLACEMENT_ADMISSION_TIMEOUT_MS:-2000}
+      OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON: ${OPC_IVEKIT_PLACEMENT_MEDIA_POLICY_JSON:-}
+      OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON: ${OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON:-}
+      OPC_IVEKIT_PLACEMENT_TINODE_POLICY_JSON: ${OPC_IVEKIT_PLACEMENT_TINODE_POLICY_JSON:-}
+      OPC_IVEKIT_PLACEMENT_RUSTDESK_POLICY_JSON: ${OPC_IVEKIT_PLACEMENT_RUSTDESK_POLICY_JSON:-}
+      OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON: ${OPC_IVEKIT_PLACEMENT_EGRESS_TRACK_POLICY_JSON:-}
+      OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON: ${OPC_IVEKIT_PLACEMENT_EGRESS_COMPOSITE_POLICY_JSON:-}
+      OPC_IVEKIT_PLACEMENT_WORKER_INTERVAL_MS: ${OPC_IVEKIT_PLACEMENT_WORKER_INTERVAL_MS:-250}
+      OPC_IVEKIT_PLACEMENT_WORKER_TENANT_LIMIT: ${OPC_IVEKIT_PLACEMENT_WORKER_TENANT_LIMIT:-100}
+      OPC_IVEKIT_PLACEMENT_WORKER_BATCH_SIZE: ${OPC_IVEKIT_PLACEMENT_WORKER_BATCH_SIZE:-50}
+    volumes:
+      - ivekit-placement-snapshot:/run/ivekit-placement:ro
     depends_on:
       rustpbx:
         condition: service_healthy
         required: false
       rustpbx-runtime-recovery:
         condition: service_completed_successfully
+        required: false
+      rustpbx-placement-snapshot-projector:
+        condition: service_healthy
         required: false
 
 volumes:
@@ -610,6 +707,7 @@ volumes:
   rustpbx-recording-spool:
   rustpbx-recording-state:
   media-control-wal: {}
+  ivekit-placement-snapshot:
 
 secrets:
   rustpbx-cdr-service-key:

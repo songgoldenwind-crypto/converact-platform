@@ -138,6 +138,49 @@ test('component probe fails closed when required metrics disappear and exposes d
   assert.equal(drainResult.state, 'draining');
 });
 
+test('RustPBX probe accepts every Goal 3 admission dimension', async () => {
+  const dimensions = {
+    'voice.weighted_calls': 2,
+    'voice.t1_shadow_slots': 1,
+    'voice.transcode_slots': 3,
+    'voice.recording_slots': 4,
+    'voice.realtime_asr_streams': 5,
+    'data.local_spool_bytes': 6
+  };
+  const probe = createComponentCapacityProbe({
+    ...baseConfig('rustpbx'),
+    health_url: 'http://rustpbx:3210/readyz',
+    metrics_url: 'http://rustpbx:3210/metrics',
+    drain_metric: 'ivekit_component_node_draining',
+    dimensions: Object.fromEntries(Object.keys(dimensions).map((dimension) => [
+      dimension,
+      {
+        metric: 'ivekit_component_node_capacity_used',
+        aggregation: 'sum' as const,
+        unit: dimension === 'data.local_spool_bytes' ? 'bytes' : 'count',
+        safe_capacity: 100,
+        labels: { dimension }
+      }
+    ])),
+    fetch: fixtureFetch({
+      'http://rustpbx:3210/readyz': response(200, '{"status":"ready"}', 'application/json'),
+      'http://rustpbx:3210/metrics': response(200, [
+        'ivekit_component_node_draining 0',
+        ...Object.entries(dimensions).map(
+          ([dimension, used]) =>
+            `ivekit_component_node_capacity_used{dimension="${dimension}"} ${used}`
+        )
+      ].join('\n'), 'text/plain')
+    })
+  });
+
+  const result = await probe.collect(new Date('2026-07-16T08:00:00.000Z'));
+  assert.equal(result.outcome, 'observed');
+  for (const [dimension, used] of Object.entries(dimensions)) {
+    assert.equal(result.dimensions[dimension]?.used, used);
+  }
+});
+
 test('component-specific dimension allowlists reject cross-component capacity wiring', () => {
   assert.throws(() => createComponentCapacityProbe({
     ...baseConfig('livekit'),

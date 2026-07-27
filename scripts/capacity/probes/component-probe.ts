@@ -29,6 +29,9 @@ const DIMENSION_ALLOWLISTS: Record<CapacityComponent, ReadonlySet<string>> = {
   ]),
   rustpbx: new Set([
     'voice.weighted_calls',
+    'voice.t1_shadow_slots',
+    'voice.transcode_slots',
+    'voice.realtime_asr_streams',
     'voice.registered_endpoints',
     'voice.active_dialogs',
     'voice.rtp_legs',
