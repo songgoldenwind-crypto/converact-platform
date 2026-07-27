@@ -69,6 +69,10 @@ test('Goal 3 freezes every media orchestration source identity', () => {
     'rustpbx-ivekit-dialog-recovery-v1',
     'rustpbx-ivekit-dual-leg-cdr-v1'
   ]);
+  assert.ok(document.evidence.required_identity.includes('opc_image_digest'));
+  assert.ok(
+    document.evidence.required_identity.includes('media_control_image_digest')
+  );
 });
 
 test('Goal 3 preserves authority and packet-path independence', () => {
@@ -192,6 +196,8 @@ test('Goal 3 starts with honest verification and no capacity claim', () => {
     'rtpengine_commit',
     'rustpbx_patch_set_sha256',
     'rtpengine_patch_set_sha256',
+    'opc_image_digest',
+    'media_control_image_digest',
     'rustpbx_image_digest',
     'rtpengine_image_digest',
     'runtime_config_sha256',

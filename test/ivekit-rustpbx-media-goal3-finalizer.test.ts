@@ -120,6 +120,9 @@ test('Goal 3 finalizer promotes capacity only from an exact production campaign'
     status: 'passed',
     evidence_sha256: digest('capacity'),
     opc_commit: input.source_identity.opc_commit,
+    opc_image_digest: input.source_identity.opc_image_digest,
+    media_control_image_digest:
+      input.source_identity.media_control_image_digest,
     rustpbx_image_digest: input.source_identity.rustpbx_image_digest,
     rtpengine_image_digest: input.source_identity.rtpengine_image_digest,
     runtime_config_sha256: input.source_identity.runtime_config_sha256,
@@ -193,6 +196,8 @@ function finalizerInput(
       generated_at: '2026-07-27T13:50:00.000Z',
       source_identity: {
         opc_commit: sourceIdentity.opc_commit,
+        opc_image_digest: sourceIdentity.opc_image_digest,
+        media_control_image_digest: sourceIdentity.media_control_image_digest,
         rustpbx_image_digest: sourceIdentity.rustpbx_image_digest,
         rtpengine_image_digest: sourceIdentity.rtpengine_image_digest
       },
@@ -300,6 +305,8 @@ function acceptance(
       ],
       rustpbx_patch_set_sha256: '1'.repeat(64),
       rtpengine_patch_set_sha256: '2'.repeat(64),
+      opc_image_digest: `sha256:${'7'.repeat(64)}`,
+      media_control_image_digest: `sha256:${'8'.repeat(64)}`,
       rustpbx_image_digest: `sha256:${'3'.repeat(64)}`,
       rtpengine_image_digest: `sha256:${'4'.repeat(64)}`,
       runtime_config_sha256: '5'.repeat(64),

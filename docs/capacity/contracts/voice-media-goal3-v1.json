@@ -288,6 +288,8 @@
       "rtpengine_commit",
       "rustpbx_patch_set_sha256",
       "rtpengine_patch_set_sha256",
+      "opc_image_digest",
+      "media_control_image_digest",
       "rustpbx_image_digest",
       "rtpengine_image_digest",
       "runtime_config_sha256",

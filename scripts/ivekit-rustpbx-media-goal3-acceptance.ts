@@ -82,6 +82,8 @@ export interface RustPbxMediaGoal3AcceptanceInput {
     rustpbx_patch_ids: string[];
     rustpbx_patch_set_sha256: string;
     rtpengine_patch_set_sha256: string;
+    opc_image_digest: string;
+    media_control_image_digest: string;
     rustpbx_image_digest: string;
     rtpengine_image_digest: string;
     runtime_config_sha256: string;
@@ -322,6 +324,8 @@ function validateSourceIdentity(
     }
   }
   for (const field of [
+    'opc_image_digest',
+    'media_control_image_digest',
     'rustpbx_image_digest',
     'rtpengine_image_digest'
   ] as const) {

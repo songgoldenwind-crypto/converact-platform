@@ -91,6 +91,8 @@ interface CapacityCampaignPassed {
   status: 'passed';
   evidence_sha256: string;
   opc_commit: string;
+  opc_image_digest: string;
+  media_control_image_digest: string;
   rustpbx_image_digest: string;
   rtpengine_image_digest: string;
   runtime_config_sha256: string;
@@ -112,6 +114,8 @@ export interface RustPbxMediaGoal3FinalizerInput {
     generated_at: string;
     source_identity: {
       opc_commit: string;
+      opc_image_digest: string;
+      media_control_image_digest: string;
       rustpbx_image_digest: string;
       rtpengine_image_digest: string;
     };
@@ -433,6 +437,8 @@ function validateSupplyChainIdentity(
 ): void {
   if (!identity ||
       !COMMIT.test(String(identity.opc_commit || '')) ||
+      !IMAGE_DIGEST.test(String(identity.opc_image_digest || '')) ||
+      !IMAGE_DIGEST.test(String(identity.media_control_image_digest || '')) ||
       !IMAGE_DIGEST.test(String(identity.rustpbx_image_digest || '')) ||
       !IMAGE_DIGEST.test(String(identity.rtpengine_image_digest || ''))) {
     throw new Error('Goal 3 supply-chain source identity is invalid');
@@ -445,6 +451,8 @@ function validateCapacityCampaign(
   validateStatusEvidence(input, 'capacity campaign');
   if (input.status === 'not_run') return;
   if (!COMMIT.test(input.opc_commit) ||
+      !IMAGE_DIGEST.test(input.opc_image_digest) ||
+      !IMAGE_DIGEST.test(input.media_control_image_digest) ||
       !IMAGE_DIGEST.test(input.rustpbx_image_digest) ||
       !IMAGE_DIGEST.test(input.rtpengine_image_digest) ||
       !SHA256.test(input.runtime_config_sha256) ||
@@ -491,6 +499,9 @@ function supplyChainMatchesIdentity(
   expected: RustPbxMediaGoal3FinalizerInput['source_identity']
 ): boolean {
   return supply.opc_commit === expected.opc_commit &&
+    supply.opc_image_digest === expected.opc_image_digest &&
+    supply.media_control_image_digest ===
+      expected.media_control_image_digest &&
     supply.rustpbx_image_digest === expected.rustpbx_image_digest &&
     supply.rtpengine_image_digest === expected.rtpengine_image_digest;
 }
@@ -509,6 +520,9 @@ function capacityDisposition(
   }
   const identityMatches =
     input.opc_commit === identity.opc_commit &&
+    input.opc_image_digest === identity.opc_image_digest &&
+    input.media_control_image_digest ===
+      identity.media_control_image_digest &&
     input.rustpbx_image_digest === identity.rustpbx_image_digest &&
     input.rtpengine_image_digest === identity.rtpengine_image_digest &&
     input.runtime_config_sha256 === identity.runtime_config_sha256;
@@ -551,7 +565,9 @@ function validateIdentity(
       throw new Error('Goal 3 source digest is invalid');
     }
   }
-  if (!IMAGE_DIGEST.test(identity.rustpbx_image_digest) ||
+  if (!IMAGE_DIGEST.test(identity.opc_image_digest) ||
+      !IMAGE_DIGEST.test(identity.media_control_image_digest) ||
+      !IMAGE_DIGEST.test(identity.rustpbx_image_digest) ||
       !IMAGE_DIGEST.test(identity.rtpengine_image_digest) ||
       !Array.isArray(identity.rustpbx_patch_ids) ||
       identity.rustpbx_patch_ids.length < 1 ||
@@ -571,6 +587,8 @@ function sameIdentity(
     left.rtpengine_commit === right.rtpengine_commit &&
     left.rustpbx_patch_set_sha256 === right.rustpbx_patch_set_sha256 &&
     left.rtpengine_patch_set_sha256 === right.rtpengine_patch_set_sha256 &&
+    left.opc_image_digest === right.opc_image_digest &&
+    left.media_control_image_digest === right.media_control_image_digest &&
     left.rustpbx_image_digest === right.rustpbx_image_digest &&
     left.rtpengine_image_digest === right.rtpengine_image_digest &&
     left.runtime_config_sha256 === right.runtime_config_sha256 &&

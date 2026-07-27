@@ -43,6 +43,16 @@ test('Goal 3 acceptance retains an invalid mixed identity but cannot promote it'
   assert.deepEqual(evidence.identity_errors, ['rustpbx_commit_mismatch']);
 });
 
+test('Goal 3 acceptance requires every runtime image digest', () => {
+  const input = validInput();
+  input.source_identity.media_control_image_digest = '';
+
+  assert.throws(
+    () => buildRustPbxMediaGoal3Acceptance(input, contract),
+    /media_control_image_digest is invalid/
+  );
+});
+
 test('Goal 3 acceptance reports ordinary and T1 independently when T1 is not run', () => {
   const input = validInput();
   for (const id of [
@@ -125,6 +135,8 @@ function validInput(): RustPbxMediaGoal3AcceptanceInput {
       rustpbx_patch_ids: [...contract.required_patch_ids],
       rustpbx_patch_set_sha256: '1'.repeat(64),
       rtpengine_patch_set_sha256: '2'.repeat(64),
+      opc_image_digest: `sha256:${'7'.repeat(64)}`,
+      media_control_image_digest: `sha256:${'8'.repeat(64)}`,
       rustpbx_image_digest: `sha256:${'3'.repeat(64)}`,
       rtpengine_image_digest: `sha256:${'4'.repeat(64)}`,
       runtime_config_sha256: '5'.repeat(64),
