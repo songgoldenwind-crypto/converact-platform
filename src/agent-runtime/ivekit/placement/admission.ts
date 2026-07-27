@@ -72,6 +72,12 @@ export class CellAdmissionController {
   readonly #dimensions: FlatCapacityState;
   readonly #nodes: AdmissionNode[];
   readonly #nodesById: Map<string, AdmissionNode>;
+  readonly #desiredNodeStates = new Map<string, AdmissionState>();
+  readonly #nodeAvailability = new Map<string, {
+    generation: number;
+    unavailable: boolean;
+    desired_state_revision: number;
+  }>();
   readonly #reservations = new Map<string, InternalReservation>();
   readonly #idempotency = new Map<string, string>();
   readonly #deadlines: ReservationDeadline[] = [];
@@ -160,6 +166,14 @@ export class CellAdmissionController {
       throw new Error('duplicate admission node ID');
     }
     this.#nodesById = new Map(this.#nodes.map((node) => [node.node_id, node]));
+    for (const node of this.#nodes) {
+      this.#desiredNodeStates.set(node.node_id, node.state);
+      this.#nodeAvailability.set(node.node_id, {
+        generation: 0,
+        unavailable: false,
+        desired_state_revision: 0
+      });
+    }
     this.#state = validAdmissionState(input.state || 'accepting');
     this.#idFactory = input.id_factory || randomUUID;
     this.#restore(input.recovered_reservations || []);
@@ -462,8 +476,17 @@ export class CellAdmissionController {
       );
       applyObservedUsage(configured.dimensions, observed.dimensions, activeNode);
       const previousState = configured.state;
-      configured.state = observed.state;
-      if (observed.state !== 'offline' || previousState !== 'offline') {
+      const previousDesiredState = this.#desiredNodeStates.get(configured.node_id);
+      const availability = this.#requiredNodeAvailability(configured.node_id);
+      if (previousDesiredState !== observed.state) {
+        availability.desired_state_revision += 1;
+      }
+      this.#desiredNodeStates.set(configured.node_id, observed.state);
+      if (!availability.unavailable) {
+        configured.state = observed.state;
+      }
+      if (!availability.unavailable &&
+          (observed.state !== 'offline' || previousState !== 'offline')) {
         configured.recovery_safe_after = '';
       }
     }
@@ -532,6 +555,8 @@ export class CellAdmissionController {
     node_id: string;
     control_endpoint: string;
     state: AdmissionState;
+    availability_generation: number;
+    desired_state_revision: number;
   }> {
     return this.#nodes
       .filter((node) => Boolean(node.control_endpoint && node.component))
@@ -539,7 +564,11 @@ export class CellAdmissionController {
         component: node.component as 'rustpbx' | 'livekit' | 'tinode' | 'rustdesk',
         node_id: node.node_id,
         control_endpoint: node.control_endpoint || '',
-        state: node.state
+        state: this.#desiredNodeStates.get(node.node_id) || node.state,
+        availability_generation: this.#requiredNodeAvailability(node.node_id)
+          .generation,
+        desired_state_revision: this.#requiredNodeAvailability(node.node_id)
+          .desired_state_revision
       }));
   }
 
@@ -549,8 +578,14 @@ export class CellAdmissionController {
     recoverySafeAfter?: string
   ): void {
     const node = this.#requiredNode(checkedId(nodeId));
-    node.state = validAdmissionState(state);
-    if (state !== 'offline') {
+    const desiredState = validAdmissionState(state);
+    const availability = this.#requiredNodeAvailability(node.node_id);
+    if (this.#desiredNodeStates.get(node.node_id) !== desiredState) {
+      availability.desired_state_revision += 1;
+    }
+    this.#desiredNodeStates.set(node.node_id, desiredState);
+    node.state = availability.unavailable ? 'offline' : desiredState;
+    if (state !== 'offline' && !availability.unavailable) {
       node.recovery_safe_after = '';
       return;
     }
@@ -561,6 +596,54 @@ export class CellAdmissionController {
       }
       node.recovery_safe_after = new Date(timestamp).toISOString();
     }
+  }
+
+  markNodeUnavailable(
+    nodeId: string,
+    recoverySafeAfter?: string,
+    expectedGeneration?: number
+  ): boolean {
+    const node = this.#requiredNode(checkedId(nodeId));
+    const availability = this.#requiredNodeAvailability(node.node_id);
+    if (expectedGeneration !== undefined &&
+        checkedAvailabilityGeneration(expectedGeneration) !==
+          availability.generation) {
+      return false;
+    }
+    availability.generation += 1;
+    availability.unavailable = true;
+    node.state = 'offline';
+    if (recoverySafeAfter === undefined) return true;
+    const timestamp = Date.parse(recoverySafeAfter);
+    if (!Number.isFinite(timestamp)) {
+      throw new Error('invalid component node recovery fence');
+    }
+    node.recovery_safe_after = new Date(timestamp).toISOString();
+    return true;
+  }
+
+  restoreNodeAvailability(
+    nodeId: string,
+    expectedGeneration: number,
+    expectedDesiredStateRevision: number
+  ): boolean {
+    const node = this.#requiredNode(checkedId(nodeId));
+    const availability = this.#requiredNodeAvailability(node.node_id);
+    if (checkedAvailabilityGeneration(expectedGeneration) !==
+        availability.generation ||
+        checkedAvailabilityGeneration(expectedDesiredStateRevision) !==
+          availability.desired_state_revision ||
+        !availability.unavailable) {
+      return false;
+    }
+    availability.generation += 1;
+    availability.unavailable = false;
+    const desiredState = this.#desiredNodeStates.get(node.node_id) || node.state;
+    node.state = desiredState;
+    if (desiredState !== 'offline') {
+      node.recovery_safe_after = '';
+    }
+    return true;
   }
 
   #restore(checkpoints: CellAdmissionReservationCheckpoint[]): void {
@@ -654,6 +737,16 @@ export class CellAdmissionController {
     const node = this.#nodesById.get(id);
     if (!node) throw new Error('reservation owner node is missing');
     return node;
+  }
+
+  #requiredNodeAvailability(id: string): {
+    generation: number;
+    unavailable: boolean;
+    desired_state_revision: number;
+  } {
+    const availability = this.#nodeAvailability.get(id);
+    if (!availability) throw new Error('admission node availability missing');
+    return availability;
   }
 }
 
@@ -992,6 +1085,13 @@ function publicReservation(value: InternalReservation): AdmissionReservation {
 function validAdmissionState(value: AdmissionState): AdmissionState {
   if (!['accepting', 'degraded', 'draining', 'offline'].includes(value)) {
     throw new Error('invalid admission state');
+  }
+  return value;
+}
+
+function checkedAvailabilityGeneration(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error('invalid node availability generation');
   }
   return value;
 }

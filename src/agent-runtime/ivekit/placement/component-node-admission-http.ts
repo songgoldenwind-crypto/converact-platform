@@ -167,6 +167,24 @@ export function createComponentNodeAdmissionHttpServer(input: {
           drained
         });
       }
+      const recoveryReservation = url.pathname.match(
+        /^\/v1\/recovery\/reservations\/([^/]+)$/
+      );
+      if (request.method === 'PUT' && recoveryReservation) {
+        const reservationId = decodeSegment(recoveryReservation[1]);
+        const body = structuredClone(
+          object(await readJsonBody(request, config.max_body_bytes))
+        ) as unknown as CellAdmissionReservationCheckpoint;
+        if (body.reservation_id !== reservationId) {
+          throw new ComponentNodeAdmissionError(
+            'component_reservation_path_mismatch',
+            409
+          );
+        }
+        return sendJson(response, 200, {
+          data: config.controller.applyRecoveryReservation(body, config.now())
+        });
+      }
       const reservation = url.pathname.match(/^\/v1\/reservations\/([^/]+)$/);
       if (request.method === 'PUT' && reservation) {
         const reservationId = decodeSegment(reservation[1]);
@@ -343,8 +361,13 @@ export class HttpComponentNodeAdmissionClient {
 
   async applyLease(
     heartbeat: ComponentNodeLeaseHeartbeat
-  ): Promise<Record<string, unknown>> {
-    return this.#request<Record<string, unknown>>('/v1/lease', 'POST', heartbeat);
+  ): Promise<ComponentNodeStateSnapshot> {
+    const state = await this.#request<Record<string, unknown>>(
+      '/v1/lease',
+      'POST',
+      heartbeat
+    );
+    return decodeComponentNodeState(state);
   }
 
   async readState(): Promise<ComponentNodeStateSnapshot> {
@@ -360,6 +383,16 @@ export class HttpComponentNodeAdmissionClient {
   ): Promise<CellAdmissionReservationCheckpoint> {
     return this.#request<CellAdmissionReservationCheckpoint>(
       `/v1/reservations/${encodeURIComponent(checkpoint.reservation_id)}`,
+      'PUT',
+      checkpoint
+    );
+  }
+
+  async applyRecoveryReservation(
+    checkpoint: CellAdmissionReservationCheckpoint
+  ): Promise<CellAdmissionReservationCheckpoint> {
+    return this.#request<CellAdmissionReservationCheckpoint>(
+      `/v1/recovery/reservations/${encodeURIComponent(checkpoint.reservation_id)}`,
       'PUT',
       checkpoint
     );

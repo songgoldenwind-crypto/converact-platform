@@ -346,7 +346,7 @@ export async function runCellAdmission(
         checkpoints: recoveredReservations,
         targets,
         cell_state: controller.snapshot().state,
-        now: recoveryTime
+        now: new Date()
       });
     }
     server = createCellAdmissionHttpServer({
@@ -413,17 +413,44 @@ export async function runCellAdmission(
     ? setInterval(() => {
         if (heartbeatInFlight || !controller || !nodeSynchronizer) return;
         const targets = controller.componentNodeTargets();
+        const availabilityGenerations = new Map(
+          targets.map((target) => [
+            target.node_id,
+            target.availability_generation
+          ])
+        );
+        const desiredStateRevisions = new Map(
+          targets.map((target) => [
+            target.node_id,
+            target.desired_state_revision
+          ])
+        );
         heartbeatInFlight = nodeSynchronizer.syncLeases({
           targets,
           cell_state: controller.snapshot().state,
           now: new Date()
         }).then((result) => {
+          for (const nodeId of result.succeeded) {
+            const generation = availabilityGenerations.get(nodeId);
+            const desiredStateRevision = desiredStateRevisions.get(nodeId);
+            if (generation !== undefined &&
+                desiredStateRevision !== undefined) {
+              controller?.restoreNodeAvailability(
+                nodeId,
+                generation,
+                desiredStateRevision
+              );
+            }
+          }
           for (const failure of result.failed) {
-            controller?.setNodeState(
-              failure.node_id,
-              'offline',
-              failure.recovery_safe_after
-            );
+            const generation = availabilityGenerations.get(failure.node_id);
+            if (generation !== undefined) {
+              controller?.markNodeUnavailable(
+                failure.node_id,
+                failure.recovery_safe_after,
+                generation
+              );
+            }
             console.error(
               `[ivekit-cell-admission] component node heartbeat failed for ` +
               `${failure.node_id}: ${failure.error}`

@@ -43,6 +43,16 @@ test('Cell admission runtime config compiles an explicit Cell-10K capacity model
   assert.equal(Number(BigInt(reservation.owner_epoch) >> 32n), 7);
 });
 
+test('Cell admission startup separates ledger cutoff time from recovery lease time', () => {
+  const source = readFileSync('scripts/ivekit-cell-admission.ts', 'utf8');
+  const recoveryCall = source.match(
+    /await nodeSynchronizer\.recover\(\{[\s\S]*?\n\s*\}\);/
+  )?.[0] || '';
+
+  assert.match(recoveryCall, /now: new Date\(\)/);
+  assert.doesNotMatch(recoveryCall, /now: recoveryTime/);
+});
+
 test('Cell admission runtime compiles stable node pools and rejects dual topology authority', () => {
   const env = validEnv();
   delete env.OPC_IVEKIT_CELL_NODES_JSON;

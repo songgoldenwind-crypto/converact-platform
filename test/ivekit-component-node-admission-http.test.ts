@@ -147,6 +147,46 @@ test('component node HTTP client applies lease, reservation and authorization', 
   assert.equal((await fetch(`${endpoint}/readyz`)).status, 200);
 });
 
+test('component node HTTP separates recovery replay from ordinary reservation admission', async (t) => {
+  const controller = fixture();
+  let ordinaryAdmissionGates = 0;
+  const server = createComponentNodeAdmissionHttpServer({
+    controller,
+    service_token: token,
+    now: () => new Date('2026-07-16T08:00:01.000Z'),
+    before_new_reservation() {
+      ordinaryAdmissionGates += 1;
+    }
+  });
+  const port = await listenOrSkip(t, server);
+  if (port === null) return;
+  const client = new HttpComponentNodeAdmissionClient({
+    endpoint: `http://127.0.0.1:${port}`,
+    service_token: token,
+    timeout_ms: 1_000
+  });
+
+  await client.applyLease(lease({
+    state: 'draining',
+    recovery_complete: false
+  }));
+  await assert.rejects(
+    () => client.applyReservation(reservation()),
+    (error: any) => error?.code === 'component_node_draining'
+  );
+  assert.equal(
+    (await client.applyRecoveryReservation(reservation())).reservation_id,
+    'reservation-a'
+  );
+  assert.equal(ordinaryAdmissionGates, 1);
+
+  await client.applyLease(lease());
+  await assert.rejects(
+    () => client.applyRecoveryReservation(reservation()),
+    (error: any) => error?.code === 'component_node_recovery_not_pending'
+  );
+});
+
 test('component node HTTP client authenticates state reads and rejects malformed or oversized state', async () => {
   let request: { url: string; init?: RequestInit } | null = null;
   const validClient = new HttpComponentNodeAdmissionClient({

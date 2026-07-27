@@ -236,7 +236,7 @@ async function persistCheckpoint(
     const code = safeErrorCode(candidate.code);
     if (nodeId && code.startsWith('component_node_')) {
       try {
-        config.controller.setNodeState(nodeId, 'offline');
+        config.controller.markNodeUnavailable(nodeId);
       } catch {
         // The failing target may already have been removed from this Cell.
       }

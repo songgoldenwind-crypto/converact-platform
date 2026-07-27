@@ -6,7 +6,8 @@ import {
 } from './component-node-admission-http.js';
 import type {
   ComponentNodeComponent,
-  ComponentNodeLeaseHeartbeat
+  ComponentNodeLeaseHeartbeat,
+  ComponentNodeStateSnapshot
 } from './component-node-admission.js';
 import type { AdmissionState } from './types.js';
 
@@ -20,8 +21,11 @@ export interface ComponentNodeSyncTarget {
 export interface ComponentNodeAdmissionClientPort {
   applyLease(
     heartbeat: ComponentNodeLeaseHeartbeat
-  ): Promise<Record<string, unknown>>;
+  ): Promise<ComponentNodeStateSnapshot>;
   applyReservation(
+    checkpoint: CellAdmissionReservationCheckpoint
+  ): Promise<CellAdmissionReservationCheckpoint>;
+  applyRecoveryReservation(
     checkpoint: CellAdmissionReservationCheckpoint
   ): Promise<CellAdmissionReservationCheckpoint>;
 }
@@ -35,6 +39,18 @@ export interface ComponentNodeSyncResult {
     recovery_safe_after: string;
   }>;
 }
+
+interface NodeSyncGate {
+  active_checkpoints: number;
+  writer_active: boolean;
+  waiting_writers: Array<() => void>;
+  waiting_checkpoints: Array<() => void>;
+}
+
+type ComponentNodeHeartbeatFactory = (
+  recoveryComplete: boolean,
+  state?: 'accepting' | 'degraded' | 'draining'
+) => ComponentNodeLeaseHeartbeat;
 
 export class ComponentNodeSynchronizer {
   readonly #identity: {
@@ -52,7 +68,16 @@ export class ComponentNodeSynchronizer {
     string,
     Map<string, CellAdmissionReservationCheckpoint>
   >();
+  readonly #pendingCheckpoints = new Map<
+    string,
+    Map<string, CellAdmissionReservationCheckpoint>
+  >();
   readonly #leaseExpiresAt = new Map<string, string>();
+  readonly #nodeGates = new Map<string, NodeSyncGate>();
+  readonly #dirtyNodes = new Set<string>();
+  readonly #maxConcurrentCheckpointSyncs: number;
+  readonly #maxQueuedCheckpointSyncs: number;
+  readonly #monotonicClockMs: () => number;
 
   constructor(input: {
     region_id: string;
@@ -62,6 +87,9 @@ export class ComponentNodeSynchronizer {
     service_token: string;
     lease_ttl_ms: number;
     timeout_ms?: number;
+    max_concurrent_checkpoint_syncs?: number;
+    max_queued_checkpoint_syncs?: number;
+    monotonic_clock_ms?: () => number;
     targets: ComponentNodeSyncTarget[];
     client_factory?: (
       target: ComponentNodeSyncTarget
@@ -86,6 +114,19 @@ export class ComponentNodeSynchronizer {
       Math.min(30_000, leaseTtlMs),
       'component node sync timeout'
     );
+    this.#maxConcurrentCheckpointSyncs = boundedInteger(
+      input.max_concurrent_checkpoint_syncs ?? 64,
+      1,
+      1_024,
+      'component node concurrent checkpoint syncs'
+    );
+    this.#maxQueuedCheckpointSyncs = boundedInteger(
+      input.max_queued_checkpoint_syncs ?? 4_096,
+      0,
+      1_000_000,
+      'component node queued checkpoint syncs'
+    );
+    this.#monotonicClockMs = input.monotonic_clock_ms || Date.now;
     const targetIds = new Set<string>();
     const factory = input.client_factory || ((target) =>
       new HttpComponentNodeAdmissionClient({
@@ -110,6 +151,14 @@ export class ComponentNodeSynchronizer {
     if (this.#targets.size === 0) {
       throw new Error('component node sync targets are required');
     }
+    for (const nodeId of this.#targets.keys()) {
+      this.#nodeGates.set(nodeId, {
+        active_checkpoints: 0,
+        writer_active: false,
+        waiting_writers: [],
+        waiting_checkpoints: []
+      });
+    }
     this.#identity = {
       region_id: input.region_id,
       zone_id: input.zone_id,
@@ -125,26 +174,30 @@ export class ComponentNodeSynchronizer {
     cell_state: AdmissionState;
     now: Date;
   }): Promise<void> {
-    const draining = await this.syncLeases({
-      targets: input.targets,
-      cell_state: 'draining',
-      now: input.now,
-      recovery_complete: false
-    });
-    requireAllNodes(draining, 'component_node_recovery_lease_failed');
     for (const checkpoint of [...input.checkpoints].sort(
       (left, right) =>
         left.created_at.localeCompare(right.created_at) ||
         left.reservation_id.localeCompare(right.reservation_id)
     )) {
-      await this.applyCheckpoint(checkpoint, input.now);
+      const target = this.#targets.get(checkpoint.owner_node_id);
+      if (!target ||
+          target.target.component !== componentForKind(checkpoint.interaction_kind)) {
+        throw new ComponentNodeSyncError(
+          'component_node_target_mismatch',
+          checkpoint.owner_node_id
+        );
+      }
+      this.#rememberCheckpoint(checkpoint);
     }
-    const ready = await this.syncLeases({
+    for (const target of input.targets) {
+      this.#dirtyNodes.add(target.node_id);
+    }
+    const recovered = await this.syncLeases({
       targets: input.targets,
       cell_state: input.cell_state,
       now: input.now
     });
-    requireAllNodes(ready, 'component_node_recovery_ready_failed');
+    requireAllNodes(recovered, 'component_node_recovery_failed');
   }
 
   async applyCheckpoint(
@@ -164,15 +217,31 @@ export class ComponentNodeSynchronizer {
         checkpoint.owner_node_id
       );
     }
-    this.#rememberCheckpoint(checkpoint);
+    let release: () => void;
     try {
-      return await target.client.applyReservation(checkpoint);
+      release = await this.#acquireCheckpointPermit(checkpoint.owner_node_id);
     } catch (error) {
-      throw new ComponentNodeSyncError(
-        'component_node_checkpoint_failed',
-        checkpoint.owner_node_id,
-        error
-      );
+      this.#rememberPendingCheckpoint(checkpoint);
+      this.#dirtyNodes.add(checkpoint.owner_node_id);
+      throw error;
+    }
+    try {
+      this.#rememberCheckpoint(checkpoint);
+      try {
+        const applied = await target.client.applyReservation(checkpoint);
+        this.#forgetPendingCheckpoint(checkpoint);
+        this.#forgetAppliedTerminalCheckpoint(checkpoint);
+        return applied;
+      } catch (error) {
+        this.#dirtyNodes.add(checkpoint.owner_node_id);
+        throw new ComponentNodeSyncError(
+          'component_node_checkpoint_failed',
+          checkpoint.owner_node_id,
+          error
+        );
+      }
+    } finally {
+      release();
     }
   }
 
@@ -183,9 +252,6 @@ export class ComponentNodeSynchronizer {
     recovery_complete?: boolean;
   }): Promise<ComponentNodeSyncResult> {
     validDate(input.now);
-    const expiresAt = new Date(
-      input.now.getTime() + this.#identity.lease_ttl_ms
-    ).toISOString();
     const settled = await Promise.all(input.targets.map(async (candidate) => {
       const target = checkedTarget(candidate);
       const configured = this.#targets.get(target.node_id);
@@ -197,60 +263,103 @@ export class ComponentNodeSynchronizer {
           target.node_id
         );
       }
-      const heartbeat: ComponentNodeLeaseHeartbeat = {
-        component: target.component,
-        region_id: this.#identity.region_id,
-        zone_id: this.#identity.zone_id,
-        cell_id: this.#identity.cell_id,
-        node_id: target.node_id,
-        cell_lease_epoch: this.#identity.cell_lease_epoch,
-        state: desiredNodeState(input.cell_state, target.state),
-        recovery_complete: input.recovery_complete !== false,
-        observed_at: input.now.toISOString(),
-        expires_at: expiresAt
-      };
+      const queuedAt = validMonotonicTime(this.#monotonicClockMs());
+      const release = await this.#acquireWriterPermit(target.node_id);
       try {
-        await configured.client.applyLease(heartbeat);
-        this.#leaseExpiresAt.set(target.node_id, expiresAt);
-        return {
-          node_id: target.node_id,
-          error_code: '',
-          error: '',
-          recovery_safe_after: ''
+        const desiredState = desiredNodeState(input.cell_state, target.state);
+        const createHeartbeat: ComponentNodeHeartbeatFactory = (
+          recoveryComplete,
+          state = desiredState
+        ) => {
+          const heartbeatAt = new Date(
+            input.now.getTime() + Math.max(
+              0,
+              validMonotonicTime(this.#monotonicClockMs()) - queuedAt
+            )
+          );
+          return {
+            component: target.component,
+            region_id: this.#identity.region_id,
+            zone_id: this.#identity.zone_id,
+            cell_id: this.#identity.cell_id,
+            node_id: target.node_id,
+            cell_lease_epoch: this.#identity.cell_lease_epoch,
+            state,
+            recovery_complete: recoveryComplete,
+            observed_at: heartbeatAt.toISOString(),
+            expires_at: new Date(
+              heartbeatAt.getTime() + this.#identity.lease_ttl_ms
+            ).toISOString()
+          };
         };
-      } catch (error) {
-        if (heartbeat.recovery_complete &&
-            errorCode(error) === 'component_node_recovery_required') {
-          try {
-            await this.#recoverTarget(
+        const heartbeat = createHeartbeat(input.recovery_complete !== false);
+        try {
+          if (heartbeat.recovery_complete &&
+              this.#dirtyNodes.has(target.node_id)) {
+            const recoveredLease = await this.#recoverTarget(
               configured.client,
-              heartbeat,
+              createHeartbeat,
               target.node_id
             );
-            this.#leaseExpiresAt.set(target.node_id, expiresAt);
+            this.#leaseExpiresAt.set(
+              target.node_id,
+              recoveredLease.expires_at
+            );
             return {
               node_id: target.node_id,
               error_code: '',
               error: '',
               recovery_safe_after: ''
             };
-          } catch (recoveryError) {
-            return {
-              node_id: target.node_id,
-              error_code: errorCode(recoveryError),
-              error: errorMessage(recoveryError),
-              recovery_safe_after: this.#leaseExpiresAt.get(target.node_id) ||
-                expiresAt
-            };
           }
+          const acknowledgement = await configured.client.applyLease(heartbeat);
+          assertLeaseAcknowledgement(acknowledgement, heartbeat);
+          this.#leaseExpiresAt.set(target.node_id, heartbeat.expires_at);
+          return {
+            node_id: target.node_id,
+            error_code: '',
+            error: '',
+            recovery_safe_after: ''
+          };
+        } catch (error) {
+          if (heartbeat.recovery_complete &&
+              errorCode(error) === 'component_node_recovery_required') {
+            try {
+              const recoveredLease = await this.#recoverTarget(
+                configured.client,
+                createHeartbeat,
+                target.node_id
+              );
+              this.#leaseExpiresAt.set(
+                target.node_id,
+                recoveredLease.expires_at
+              );
+              return {
+                node_id: target.node_id,
+                error_code: '',
+                error: '',
+                recovery_safe_after: ''
+              };
+            } catch (recoveryError) {
+              return {
+                node_id: target.node_id,
+                error_code: errorCode(recoveryError),
+                error: errorMessage(recoveryError),
+                recovery_safe_after: this.#leaseExpiresAt.get(target.node_id) ||
+                  heartbeat.expires_at
+              };
+            }
+          }
+          return {
+            node_id: target.node_id,
+            error_code: errorCode(error),
+            error: errorMessage(error),
+            recovery_safe_after: this.#leaseExpiresAt.get(target.node_id) ||
+              heartbeat.expires_at
+          };
         }
-        return {
-          node_id: target.node_id,
-          error_code: errorCode(error),
-          error: errorMessage(error),
-          recovery_safe_after: this.#leaseExpiresAt.get(target.node_id) ||
-            expiresAt
-        };
+      } finally {
+        release();
       }
     }));
     return {
@@ -268,33 +377,244 @@ export class ComponentNodeSynchronizer {
 
   async #recoverTarget(
     client: ComponentNodeAdmissionClientPort,
-    desired: ComponentNodeLeaseHeartbeat,
+    createHeartbeat: ComponentNodeHeartbeatFactory,
     nodeId: string
-  ): Promise<void> {
-    await client.applyLease({
-      ...desired,
-      state: 'draining',
-      recovery_complete: false
-    });
-    const checkpoints = [...(this.#checkpoints.get(nodeId)?.values() || [])]
+  ): Promise<ComponentNodeLeaseHeartbeat> {
+    let recoveryHeartbeat = createHeartbeat(false, 'draining');
+    assertLeaseAcknowledgement(
+      await client.applyLease(recoveryHeartbeat),
+      recoveryHeartbeat
+    );
+    const pendingSnapshot = new Map(
+      this.#pendingCheckpoints.get(nodeId) || []
+    );
+    const checkpointsById = new Map(
+      this.#checkpoints.get(nodeId) || []
+    );
+    for (const [reservationId, checkpoint] of pendingSnapshot) {
+      checkpointsById.set(reservationId, checkpoint);
+    }
+    const checkpoints = [...checkpointsById.values()]
       .sort((left, right) =>
         left.created_at.localeCompare(right.created_at) ||
         left.reservation_id.localeCompare(right.reservation_id)
       );
     for (const checkpoint of checkpoints) {
-      await client.applyReservation(checkpoint);
+      const renewed = createHeartbeat(false, 'draining');
+      if (Date.parse(renewed.observed_at) -
+          Date.parse(recoveryHeartbeat.observed_at) >=
+          this.#identity.lease_ttl_ms / 2) {
+        assertLeaseAcknowledgement(
+          await client.applyLease(renewed),
+          renewed
+        );
+        recoveryHeartbeat = renewed;
+      }
+      await this.#applyRecoveryCheckpoint(checkpoint);
     }
-    await client.applyLease(desired);
+    if (!this.#completeReconciliation(nodeId, pendingSnapshot)) {
+      recoveryHeartbeat = createHeartbeat(false, 'draining');
+      assertLeaseAcknowledgement(
+        await client.applyLease(recoveryHeartbeat),
+        recoveryHeartbeat
+      );
+      throw new ComponentNodeSyncError(
+        'component_node_reconciliation_pending',
+        nodeId
+      );
+    }
+    const desired = createHeartbeat(true);
+    assertLeaseAcknowledgement(
+      await client.applyLease(desired),
+      desired
+    );
+    if (this.#dirtyNodes.has(nodeId)) {
+      recoveryHeartbeat = createHeartbeat(false, 'draining');
+      assertLeaseAcknowledgement(
+        await client.applyLease(recoveryHeartbeat),
+        recoveryHeartbeat
+      );
+      throw new ComponentNodeSyncError(
+        'component_node_reconciliation_pending',
+        nodeId
+      );
+    }
+    return desired;
+  }
+
+  async #applyRecoveryCheckpoint(
+    checkpoint: CellAdmissionReservationCheckpoint
+  ): Promise<CellAdmissionReservationCheckpoint> {
+    const target = this.#targets.get(checkpoint.owner_node_id);
+    if (!target) {
+      throw new ComponentNodeSyncError(
+        'component_node_target_missing',
+        checkpoint.owner_node_id
+      );
+    }
+    if (target.target.component !== componentForKind(checkpoint.interaction_kind)) {
+      throw new ComponentNodeSyncError(
+        'component_node_target_mismatch',
+        checkpoint.owner_node_id
+      );
+    }
+    this.#rememberCheckpoint(checkpoint);
+    try {
+      return await target.client.applyRecoveryReservation(checkpoint);
+    } catch (error) {
+      this.#dirtyNodes.add(checkpoint.owner_node_id);
+      throw new ComponentNodeSyncError(
+        'component_node_checkpoint_failed',
+        checkpoint.owner_node_id,
+        error
+      );
+    }
+  }
+
+  async #acquireCheckpointPermit(nodeId: string): Promise<() => void> {
+    const gate = this.#requiredNodeGate(nodeId);
+    if (!gate.writer_active &&
+        gate.waiting_writers.length === 0 &&
+        gate.active_checkpoints < this.#maxConcurrentCheckpointSyncs) {
+      gate.active_checkpoints += 1;
+      return this.#checkpointRelease(nodeId);
+    }
+    if (gate.waiting_checkpoints.length >= this.#maxQueuedCheckpointSyncs) {
+      throw new ComponentNodeSyncError(
+        'component_node_sync_backpressure',
+        nodeId
+      );
+    }
+    await new Promise<void>((resolve) => {
+      gate.waiting_checkpoints.push(resolve);
+    });
+    return this.#checkpointRelease(nodeId);
+  }
+
+  async #acquireWriterPermit(nodeId: string): Promise<() => void> {
+    const gate = this.#requiredNodeGate(nodeId);
+    if (!gate.writer_active && gate.active_checkpoints === 0) {
+      gate.writer_active = true;
+      return this.#writerRelease(nodeId);
+    }
+    await new Promise<void>((resolve) => {
+      gate.waiting_writers.push(resolve);
+    });
+    return this.#writerRelease(nodeId);
+  }
+
+  #checkpointRelease(nodeId: string): () => void {
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const gate = this.#requiredNodeGate(nodeId);
+      gate.active_checkpoints -= 1;
+      this.#drainNodeGate(gate);
+    };
+  }
+
+  #writerRelease(nodeId: string): () => void {
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const gate = this.#requiredNodeGate(nodeId);
+      gate.writer_active = false;
+      this.#drainNodeGate(gate);
+    };
+  }
+
+  #drainNodeGate(gate: NodeSyncGate): void {
+    if (gate.writer_active) return;
+    if (gate.waiting_writers.length > 0) {
+      if (gate.active_checkpoints === 0) {
+        gate.writer_active = true;
+        gate.waiting_writers.shift()!();
+      }
+      return;
+    }
+    while (gate.active_checkpoints < this.#maxConcurrentCheckpointSyncs &&
+        gate.waiting_checkpoints.length > 0) {
+      gate.active_checkpoints += 1;
+      gate.waiting_checkpoints.shift()!();
+    }
+  }
+
+  #requiredNodeGate(nodeId: string): NodeSyncGate {
+    const gate = this.#nodeGates.get(nodeId);
+    if (!gate) {
+      throw new ComponentNodeSyncError(
+        'component_node_target_missing',
+        nodeId
+      );
+    }
+    return gate;
   }
 
   #rememberCheckpoint(checkpoint: CellAdmissionReservationCheckpoint): void {
     const node = this.#checkpoints.get(checkpoint.owner_node_id) || new Map();
-    if (checkpoint.state === 'reserved' || checkpoint.state === 'active') {
-      node.set(checkpoint.reservation_id, structuredClone(checkpoint));
-      this.#checkpoints.set(checkpoint.owner_node_id, node);
+    node.set(checkpoint.reservation_id, structuredClone(checkpoint));
+    this.#checkpoints.set(checkpoint.owner_node_id, node);
+  }
+
+  #rememberPendingCheckpoint(
+    checkpoint: CellAdmissionReservationCheckpoint
+  ): void {
+    const node = this.#pendingCheckpoints.get(checkpoint.owner_node_id) ||
+      new Map();
+    node.set(checkpoint.reservation_id, structuredClone(checkpoint));
+    this.#pendingCheckpoints.set(checkpoint.owner_node_id, node);
+  }
+
+  #forgetPendingCheckpoint(
+    checkpoint: CellAdmissionReservationCheckpoint
+  ): void {
+    const node = this.#pendingCheckpoints.get(checkpoint.owner_node_id);
+    const remembered = node?.get(checkpoint.reservation_id);
+    if (!node || !remembered ||
+        !sameCheckpointRevision(remembered, checkpoint)) {
+      return;
+    }
+    node.delete(checkpoint.reservation_id);
+    if (node.size === 0) {
+      this.#pendingCheckpoints.delete(checkpoint.owner_node_id);
+    }
+  }
+
+  #forgetAppliedTerminalCheckpoint(
+    checkpoint: CellAdmissionReservationCheckpoint
+  ): void {
+    if (checkpoint.state === 'reserved' || checkpoint.state === 'active') return;
+    const node = this.#checkpoints.get(checkpoint.owner_node_id);
+    const remembered = node?.get(checkpoint.reservation_id);
+    if (!node || !remembered ||
+        !sameCheckpointRevision(remembered, checkpoint)) {
+      return;
+    }
+    node.delete(checkpoint.reservation_id);
+    if (node.size === 0) this.#checkpoints.delete(checkpoint.owner_node_id);
+  }
+
+  #completeReconciliation(
+    nodeId: string,
+    pendingSnapshot: Map<string, CellAdmissionReservationCheckpoint>
+  ): boolean {
+    const node = this.#checkpoints.get(nodeId);
+    if (node) {
+      for (const checkpoint of [...node.values()]) {
+        this.#forgetAppliedTerminalCheckpoint(checkpoint);
+      }
+    }
+    for (const checkpoint of pendingSnapshot.values()) {
+      this.#forgetPendingCheckpoint(checkpoint);
+    }
+    if ((this.#pendingCheckpoints.get(nodeId)?.size || 0) === 0) {
+      this.#dirtyNodes.delete(nodeId);
+      return true;
     } else {
-      node.delete(checkpoint.reservation_id);
-      if (node.size === 0) this.#checkpoints.delete(checkpoint.owner_node_id);
+      this.#dirtyNodes.add(nodeId);
+      return false;
     }
   }
 }
@@ -335,6 +655,46 @@ function desiredNodeState(
   return cellState === 'degraded' || nodeState === 'degraded'
     ? 'degraded'
     : 'accepting';
+}
+
+function assertLeaseAcknowledgement(
+  acknowledgement: ComponentNodeStateSnapshot,
+  heartbeat: ComponentNodeLeaseHeartbeat
+): void {
+  if (acknowledgement.component !== heartbeat.component ||
+      acknowledgement.region_id !== heartbeat.region_id ||
+      acknowledgement.zone_id !== heartbeat.zone_id ||
+      acknowledgement.cell_id !== heartbeat.cell_id ||
+      acknowledgement.node_id !== heartbeat.node_id ||
+      acknowledgement.cell_lease_epoch !== heartbeat.cell_lease_epoch ||
+      acknowledgement.state !== heartbeat.state ||
+      acknowledgement.recovery_pending === heartbeat.recovery_complete ||
+      acknowledgement.lease_observed_at !== heartbeat.observed_at ||
+      acknowledgement.lease_expires_at !== heartbeat.expires_at ||
+      acknowledgement.lease_fresh !== true) {
+    throw new ComponentNodeSyncError(
+      'component_node_state_mismatch',
+      heartbeat.node_id
+    );
+  }
+}
+
+function sameCheckpointRevision(
+  left: CellAdmissionReservationCheckpoint,
+  right: CellAdmissionReservationCheckpoint
+): boolean {
+  return left.reservation_id === right.reservation_id &&
+    left.owner_epoch === right.owner_epoch &&
+    left.state === right.state &&
+    left.updated_at === right.updated_at &&
+    left.payload_hash === right.payload_hash;
+}
+
+function validMonotonicTime(value: number): number {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error('invalid component node monotonic clock');
+  }
+  return value;
 }
 
 function checkedTarget(target: ComponentNodeSyncTarget): ComponentNodeSyncTarget {

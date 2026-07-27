@@ -178,6 +178,9 @@ export class ComponentNodeAdmissionController {
         return this.snapshot(now);
       }
     }
+    if (!heartbeat.recovery_complete) {
+      this.#resetReservationsForRecovery();
+    }
     this.#cellLeaseEpoch = heartbeat.cell_lease_epoch;
     this.#leaseObservedAt = new Date(observedAt).toISOString();
     this.#leaseExpiresAt = new Date(Date.parse(heartbeat.expires_at)).toISOString();
@@ -230,6 +233,27 @@ export class ComponentNodeAdmissionController {
     value: CellAdmissionReservationCheckpoint,
     now: Date
   ): CellAdmissionReservationCheckpoint {
+    return this.#applyReservation(value, now, false);
+  }
+
+  applyRecoveryReservation(
+    value: CellAdmissionReservationCheckpoint,
+    now: Date
+  ): CellAdmissionReservationCheckpoint {
+    if (!this.#recoveryPending) {
+      throw new ComponentNodeAdmissionError(
+        'component_node_recovery_not_pending',
+        409
+      );
+    }
+    return this.#applyReservation(value, now, true);
+  }
+
+  #applyReservation(
+    value: CellAdmissionReservationCheckpoint,
+    now: Date,
+    recoveryReplay: boolean
+  ): CellAdmissionReservationCheckpoint {
     const timestamp = validNow(now);
     const checkpoint = checkedCheckpoint(value, this.#identity);
     const owner = splitOwnerEpoch(checkpoint.owner_epoch);
@@ -237,7 +261,7 @@ export class ComponentNodeAdmissionController {
       throw new ComponentNodeAdmissionError('component_node_lease_missing', 503, true);
     }
     const existing = this.#reservations.get(checkpoint.reservation_id);
-    if (!existing && this.#newAdmissionsBlocked &&
+    if (!existing && this.#newAdmissionsBlocked && !recoveryReplay &&
         (checkpoint.state === 'reserved' || checkpoint.state === 'active')) {
       throw new ComponentNodeAdmissionError('component_node_draining', 503, true);
     }
@@ -476,6 +500,14 @@ export class ComponentNodeAdmissionController {
     } else if (reservation.state === 'active' && next === 'closed') {
       addCapacity(this.#dimensions, reservation.required_capacity, 'used', -1);
     }
+  }
+
+  #resetReservationsForRecovery(): void {
+    for (const reservation of this.#reservations.values()) {
+      this.#applyCapacityTransition(reservation, 'closed');
+    }
+    this.#reservations.clear();
+    this.#deadlines.length = 0;
   }
 
   #schedule(

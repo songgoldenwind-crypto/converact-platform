@@ -516,6 +516,134 @@ test('Cell admission applies monotonic live capacity observations without changi
   );
 });
 
+test('Cell admission keeps desired node state separate from transient heartbeat availability', () => {
+  const controller = fixture(undefined, {
+    weighted_calls: 0,
+    recording_slots: 0
+  });
+  const firstTarget = controller.componentNodeTargets()[0]!;
+
+  controller.markNodeUnavailable(
+    'rustpbx-a',
+    '2026-07-16T08:00:10.000Z',
+    firstTarget.availability_generation
+  );
+  assert.equal(controller.snapshot().nodes[0]?.state, 'offline');
+  assert.equal(
+    controller.componentNodeTargets()[0]?.state,
+    'accepting'
+  );
+
+  controller.applyCapacityObservation(
+    capacityObservation(),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+  assert.equal(controller.snapshot().nodes[0]?.state, 'offline');
+
+  controller.restoreNodeAvailability(
+    'rustpbx-a',
+    firstTarget.availability_generation,
+    firstTarget.desired_state_revision
+  );
+  assert.equal(controller.snapshot().nodes[0]?.state, 'offline');
+
+  const recoveryTarget = controller.componentNodeTargets()[0]!;
+  controller.restoreNodeAvailability(
+    'rustpbx-a',
+    recoveryTarget.availability_generation,
+    recoveryTarget.desired_state_revision
+  );
+  assert.equal(controller.snapshot().nodes[0]?.state, 'accepting');
+  assert.equal(controller.snapshot().nodes[0]?.recovery_safe_after, '');
+});
+
+test('Cell admission preserves the takeover fence while desired node state remains offline', () => {
+  const controller = fixture(undefined, {
+    weighted_calls: 0,
+    recording_slots: 0
+  });
+  const target = controller.componentNodeTargets()[0]!;
+  controller.markNodeUnavailable(
+    'rustpbx-a',
+    '2026-07-16T08:00:10.000Z',
+    target.availability_generation
+  );
+  const staleRecoveryTarget = controller.componentNodeTargets()[0]!;
+  const baseObservation = capacityObservation();
+  const observation = {
+    ...baseObservation,
+    nodes: baseObservation.nodes.map((node) => ({
+      ...node,
+      state: 'offline' as const
+    }))
+  };
+  controller.applyCapacityObservation(
+    observation,
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+
+  const recoveryTarget = controller.componentNodeTargets()[0]!;
+  assert.equal(
+    recoveryTarget.availability_generation,
+    staleRecoveryTarget.availability_generation
+  );
+  assert.notEqual(
+    recoveryTarget.desired_state_revision,
+    staleRecoveryTarget.desired_state_revision
+  );
+  controller.restoreNodeAvailability(
+    'rustpbx-a',
+    staleRecoveryTarget.availability_generation,
+    staleRecoveryTarget.desired_state_revision
+  );
+  assert.equal(controller.snapshot().nodes[0]?.state, 'offline');
+  controller.restoreNodeAvailability(
+    'rustpbx-a',
+    recoveryTarget.availability_generation,
+    recoveryTarget.desired_state_revision
+  );
+  assert.equal(controller.snapshot().nodes[0]?.state, 'offline');
+  assert.equal(
+    controller.snapshot().nodes[0]?.recovery_safe_after,
+    '2026-07-16T08:00:10.000Z'
+  );
+});
+
+test('Cell admission desired-state changes cannot suppress an in-flight heartbeat failure', () => {
+  const controller = fixture(undefined, {
+    weighted_calls: 0,
+    recording_slots: 0
+  });
+  const inFlightTarget = controller.componentNodeTargets()[0]!;
+  const baseObservation = capacityObservation();
+  controller.applyCapacityObservation({
+    ...baseObservation,
+    nodes: baseObservation.nodes.map((node) => ({
+      ...node,
+      state: 'degraded' as const
+    }))
+  }, new Date('2026-07-16T08:00:01.000Z'));
+
+  const updatedTarget = controller.componentNodeTargets()[0]!;
+  assert.equal(
+    updatedTarget.availability_generation,
+    inFlightTarget.availability_generation
+  );
+  assert.notEqual(
+    updatedTarget.desired_state_revision,
+    inFlightTarget.desired_state_revision
+  );
+  assert.equal(
+    controller.markNodeUnavailable(
+      'rustpbx-a',
+      '2026-07-16T08:00:10.000Z',
+      inFlightTarget.availability_generation
+    ),
+    true
+  );
+  assert.equal(controller.snapshot().nodes[0]?.state, 'offline');
+});
+
 test('Cell admission fails closed after live capacity expires', () => {
   const controller = fixture(undefined, {
     weighted_calls: 0,
@@ -568,6 +696,7 @@ function fixture(
     nodes: [{
       node_id: 'rustpbx-a',
       endpoint: 'https://rustpbx-a.internal',
+      control_endpoint: 'https://rustpbx-control.internal',
       state: 'accepting',
       profile_ids: ['cell-10k-v1'],
       interaction_kinds: ['sip_voice'],

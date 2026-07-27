@@ -32,6 +32,89 @@ test('component node admission starts draining and requires a fresh Cell lease',
   assert.equal(controller.snapshot(new Date('2026-07-16T08:00:01.000Z')).state, 'accepting');
 });
 
+test('component node recovery accepts authoritative reservation replay before admissions reopen', () => {
+  const controller = fixture();
+  controller.applyLease(
+    lease({ state: 'draining', recovery_complete: false }),
+    new Date('2026-07-16T08:00:00.000Z')
+  );
+
+  assert.throws(
+    () => controller.applyReservation(
+      reservation(),
+      new Date('2026-07-16T08:00:00.500Z')
+    ),
+    (error: any) => error?.code === 'component_node_draining'
+  );
+  assert.equal(
+    controller.applyRecoveryReservation(
+      reservation(),
+      new Date('2026-07-16T08:00:00.500Z')
+    ).reservation_id,
+    'reservation-a'
+  );
+  assert.equal(
+    controller.snapshot(new Date('2026-07-16T08:00:00.500Z')).recovery_pending,
+    true
+  );
+  controller.applyLease(
+    lease({
+      observed_at: '2026-07-16T08:00:01.000Z',
+      expires_at: '2026-07-16T08:00:11.000Z'
+    }),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+  assert.equal(
+    controller.snapshot(new Date('2026-07-16T08:00:01.000Z')).state,
+    'accepting'
+  );
+});
+
+test('component node recovery replaces stale reservations before authoritative replay', () => {
+  const controller = readyFixture();
+  controller.applyReservation(
+    reservation(),
+    new Date('2026-07-16T08:00:00.500Z')
+  );
+  controller.applyLease(
+    lease({
+      state: 'draining',
+      recovery_complete: false,
+      observed_at: '2026-07-16T08:00:01.000Z',
+      expires_at: '2026-07-16T08:00:11.000Z'
+    }),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+
+  const reset = controller.snapshot(new Date('2026-07-16T08:00:01.000Z'));
+  assert.equal(reset.reservations.reserved, 0);
+  assert.equal(reset.dimensions['video.participants'].reserved, 0);
+  assert.throws(
+    () => controller.authorize({
+      reservation_id: 'reservation-a',
+      interaction_id: 'room-a',
+      owner_epoch: '12884901889',
+      operation: 'open'
+    }, new Date('2026-07-16T08:00:01.000Z')),
+    (error: any) => error?.code === 'component_reservation_not_found'
+  );
+
+  controller.applyRecoveryReservation(
+    reservation(),
+    new Date('2026-07-16T08:00:01.500Z')
+  );
+  controller.applyLease(
+    lease({
+      observed_at: '2026-07-16T08:00:02.000Z',
+      expires_at: '2026-07-16T08:00:12.000Z'
+    }),
+    new Date('2026-07-16T08:00:02.000Z')
+  );
+  const recovered = controller.snapshot(new Date('2026-07-16T08:00:02.000Z'));
+  assert.equal(recovered.reservations.reserved, 1);
+  assert.equal(recovered.dimensions['video.participants'].reserved, 1);
+});
+
 test('component node admission applies reservation transitions idempotently', () => {
   const controller = readyFixture();
   const reserved = controller.applyReservation(
