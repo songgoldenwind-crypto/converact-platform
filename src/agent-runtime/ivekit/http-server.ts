@@ -49,6 +49,7 @@ import {
   type RouteIveKitContactCenterApiOptions
 } from './contact-center/http.js';
 import { ContactCenterError } from './contact-center/errors.js';
+import { PlacementError } from './placement/types.js';
 import { VoiceError } from './voice/errors.js';
 import { IvrError } from './ivr/errors.js';
 import {
@@ -493,12 +494,18 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
           error instanceof ContactCenterError || error instanceof NotificationError ||
           error instanceof IveKitOperationsError || error instanceof IveKitRateLimitError
           || error instanceof IveKitRetentionError || error instanceof RecordingSpoolIntakeError
+          || error instanceof PlacementError
             ? error : null;
         const code = domainError?.code ?? (status >= 500 ? 'internal_error' : httpVoiceErrorCode(status));
         sendJson(
           response,
           status,
-          voiceErrorEnvelope(code, domainError?.retryable === true, requestId),
+          voiceErrorEnvelope(
+            code,
+            domainError?.retryable === true,
+            requestId,
+            structuredErrorDetails(domainError)
+          ),
           error instanceof IveKitRateLimitError
             ? { 'retry-after': error.retry_after_seconds }
             : {}
@@ -571,16 +578,43 @@ function requestIdentifier(headers: Record<string, string | string[] | undefined
     : randomUUID();
 }
 
-function voiceErrorEnvelope(code: string, retryable: boolean, requestId: string): Record<string, unknown> {
+function voiceErrorEnvelope(
+  code: string,
+  retryable: boolean,
+  requestId: string,
+  details: Readonly<Record<string, unknown>> = {}
+): Record<string, unknown> {
   return {
     error: {
       code,
       message: voiceErrorMessage(code),
       retryable,
       request_id: requestId,
-      details: {}
+      details
     }
   };
+}
+
+function structuredErrorDetails(error: unknown): Readonly<Record<string, unknown>> {
+  if (!(error instanceof PlacementError)) return {};
+  const allowed = new Set([
+    'cell_id',
+    'owner_node_id',
+    'reservation_id',
+    'attempted_cells',
+    'last_error_code'
+  ]);
+  const output: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(error.details)) {
+    if (!allowed.has(key)) continue;
+    if (typeof value === 'string' && value.length <= 255) {
+      output[key] = value;
+    } else if (Array.isArray(value) && value.length <= 32 &&
+        value.every((item) => typeof item === 'string' && item.length <= 255)) {
+      output[key] = [...value];
+    }
+  }
+  return output;
 }
 
 function voiceErrorMessage(code: string): string {
@@ -619,6 +653,10 @@ function voiceErrorMessage(code: string): string {
     invalid_supervisor_transition: 'contact center supervisor transition is not allowed',
     capacity_exhausted: 'contact center queue or agent capacity is exhausted',
     conflict: 'contact center resource conflicts with current state',
+    placement_state_conflict: 'voice placement conflicts with current owner state',
+    placement_idempotency_conflict: 'voice placement idempotency key conflicts with an existing owner',
+    placement_unavailable: 'voice placement is unavailable',
+    placement_capacity_exhausted: 'voice placement capacity is exhausted',
     internal_error: 'internal server error'
   };
   return messages[code] || 'voice request failed';

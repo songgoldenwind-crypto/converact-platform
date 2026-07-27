@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
+import { PlacementError } from '../src/agent-runtime/ivekit/placement/types.js';
 import { prepareIveKitVoiceCallPlacement } from '../src/agent-runtime/ivekit/voice/http.js';
 import type { VoiceCallPlacementPort } from '../src/agent-runtime/ivekit/voice/call-service.js';
 import type { PgQueryable } from '../src/db-pg.js';
@@ -264,6 +265,96 @@ test('RustPBX snapshot admission prepares the same strict inbound owner reservat
   assert.equal(prepared?.reservation?.interaction_id, prepared?.call_id);
   assert.equal(reservations[0]?.preferred_cell_id, 'cell-a');
   assert.equal(reservations[0]?.preferred_owner_node_id, 'rustpbx-a');
+});
+
+test('voice HTTP preserves structured Cell placement failures', async (t) => {
+  const placement: VoiceCallPlacementPort = {
+    async reserve() {
+      throw new PlacementError({
+        code: 'placement_state_conflict',
+        status: 409,
+        retryable: false,
+        details: { cell_id: 'cell-a' }
+      });
+    },
+    async hasPlacement() {
+      return false;
+    },
+    async persistReserved() {},
+    async releaseUncommitted() {},
+    async requestState() {},
+    async reconcileOne() {
+      return 'succeeded';
+    },
+    async resolveOwner() {
+      throw new Error('not used');
+    }
+  };
+  const server = createIveKitHttpServer({
+    db: {},
+    pg: new RecordingPool([]),
+    voiceOptions: {
+      placement,
+      webhook_authenticator: {
+        async authenticate() {
+          return {
+            tenant_id: 'tenant-a',
+            profile_id: 'profile-a',
+            adapter: 'rustpbx',
+            secret_refs: {},
+            method: 'service_key'
+          };
+        }
+      } as never
+    }
+  });
+  let port: number;
+  try {
+    port = await listenOnRandomPort(server);
+  } catch (error) {
+    if (['EPERM', 'EACCES'].includes(String((error as NodeJS.ErrnoException).code))) {
+      t.skip('loopback listener unavailable');
+      return;
+    }
+    throw error;
+  }
+  t.after(async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  const response = await fetch(
+    `http://127.0.0.1:${port}/api/ivekit/voice/providers/profile-a/inbound-admission`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-pbx-key': 'service-key'
+      },
+      body: JSON.stringify({
+        call_id: 'provider-placement-conflict-a',
+        from: 'sip:+8613900139000@carrier.internal',
+        to: 'sip:1001@pbx.internal',
+        source_addr: '10.0.0.8:5060',
+        direction: 'inbound',
+        method: 'INVITE',
+        uri: 'sip:1001@pbx.internal',
+        ivekit_cell_id: 'cell-a',
+        ivekit_owner_node_id: 'rustpbx-a'
+      })
+    }
+  );
+
+  assert.equal(response.status, 409);
+  const payload = await response.json() as {
+    error: {
+      code: string;
+      retryable: boolean;
+      details: Record<string, unknown>;
+    };
+  };
+  assert.equal(payload.error.code, 'placement_state_conflict');
+  assert.equal(payload.error.retryable, false);
+  assert.deepEqual(payload.error.details, { cell_id: 'cell-a' });
 });
 
 class RecordingPool implements PgQueryable {
