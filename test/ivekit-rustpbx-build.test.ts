@@ -57,8 +57,38 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(buildScript, /IVEKIT_RUSTPBX_BUILD_JOBS/);
   assert.match(buildScript, /IVEKIT_RUSTPBX_CARGO_HOME/);
   assert.match(buildScript, /cross compilation is not supported/);
+  assert.match(
+    buildScript,
+    /git -C "\$SOURCE_ROOT" status --porcelain --/
+  );
+  assert.match(
+    buildScript,
+    /infra\/ivekit\/rustpbx integrations\/component-hook-rs/
+  );
+  assert.match(buildScript, /SHA256_COMMAND=\(sha256sum\)/);
+  assert.match(buildScript, /PATCH_SET_SHA256=/);
+  assert.match(buildScript, /find \. -type f -name '\*\.patch'.*LC_ALL=C sort/);
+  assert.match(buildScript, /OPC_SOURCE_COMMIT=.*rev-parse HEAD/s);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
   assert.match(buildScript, /PATCHSET="ivekit\.29"/);
+  assert.match(
+    buildScript,
+    /--build-arg "OPC_SOURCE_COMMIT=\$OPC_SOURCE_COMMIT"/
+  );
+  assert.match(
+    buildScript,
+    /--build-arg "IVEKIT_PATCH_SET_SHA256=\$PATCH_SET_SHA256"/
+  );
+  assert.match(runtimeDockerfile, /ARG OPC_SOURCE_COMMIT/);
+  assert.match(runtimeDockerfile, /ARG IVEKIT_PATCH_SET_SHA256/);
+  assert.match(
+    runtimeDockerfile,
+    /org\.opencontainers\.image\.revision="\$\{OPC_SOURCE_COMMIT\}"/
+  );
+  assert.match(
+    runtimeDockerfile,
+    /io\.ivekit\.rustpbx\.patch-set-sha256="\$\{IVEKIT_PATCH_SET_SHA256\}"/
+  );
   assert.match(buildScript, /cp "\$SCRIPT_DIR\/entrypoint\.sh"/);
   assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);

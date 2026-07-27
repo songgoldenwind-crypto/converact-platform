@@ -4,14 +4,18 @@ ARG TARGETARCH
 ARG RUSTPBX_COMMIT
 ARG RSIPSTACK_COMMIT
 ARG RUSTRTC_COMMIT
+ARG OPC_SOURCE_COMMIT
 ARG IVEKIT_PATCHSET
+ARG IVEKIT_PATCH_SET_SHA256
 
 LABEL org.opencontainers.image.source="https://github.com/songgoldenwind-crypto/opc-platform"
+LABEL org.opencontainers.image.revision="${OPC_SOURCE_COMMIT}"
 LABEL org.opencontainers.image.description="iveKit RustPBX with reliable TCP reconnect"
 LABEL io.ivekit.rustpbx.commit="${RUSTPBX_COMMIT}"
 LABEL io.ivekit.rsipstack.commit="${RSIPSTACK_COMMIT}"
 LABEL io.ivekit.rustrtc.commit="${RUSTRTC_COMMIT}"
 LABEL io.ivekit.rustpbx.patchset="${IVEKIT_PATCHSET}"
+LABEL io.ivekit.rustpbx.patch-set-sha256="${IVEKIT_PATCH_SET_SHA256}"
 
 ENV LANG=C.UTF-8
 ENV TZ=UTC

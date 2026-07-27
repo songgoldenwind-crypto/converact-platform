@@ -16,6 +16,50 @@ RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f
 PATCHSET="ivekit.29"
 IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
+if command -v sha256sum >/dev/null; then
+  SHA256_COMMAND=(sha256sum)
+elif command -v shasum >/dev/null; then
+  SHA256_COMMAND=(shasum -a 256)
+else
+  echo "sha256sum or shasum is required" >&2
+  exit 1
+fi
+
+PATCH_SET_SHA256="$(
+  (
+    cd "$PATCH_DIR"
+    while IFS= read -r patch; do
+      printf '%s\0' "${patch#./}"
+      cat "$patch"
+      printf '\0'
+    done < <(find . -type f -name '*.patch' -print | LC_ALL=C sort)
+  ) | "${SHA256_COMMAND[@]}" | awk '{ print $1 }'
+)"
+[[ "$PATCH_SET_SHA256" =~ ^[a-f0-9]{64}$ ]] || {
+  echo "RustPBX patch-set SHA-256 is invalid" >&2
+  exit 1
+}
+
+if git -C "$SOURCE_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  RELEVANT_STATUS="$(
+    git -C "$SOURCE_ROOT" status --porcelain -- \
+      infra/ivekit/rustpbx integrations/component-hook-rs
+  )"
+  [[ -z "$RELEVANT_STATUS" ]] || {
+    echo "RustPBX build inputs contain uncommitted changes" >&2
+    exit 1
+  }
+  OPC_SOURCE_COMMIT="$(
+    git -C "$SOURCE_ROOT" rev-parse HEAD
+  )"
+else
+  OPC_SOURCE_COMMIT="${IVEKIT_RUSTPBX_OPC_SOURCE_COMMIT:-}"
+fi
+[[ "$OPC_SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ ]] || {
+  echo "exact OPC source commit is required" >&2
+  exit 1
+}
+
 case "$(uname -m)" in
   x86_64) NATIVE_ARCH="amd64" ;;
   arm64|aarch64) NATIVE_ARCH="arm64" ;;
@@ -190,8 +234,18 @@ docker build \
   --build-arg "RUSTPBX_COMMIT=$RUSTPBX_COMMIT" \
   --build-arg "RSIPSTACK_COMMIT=$RSIPSTACK_COMMIT" \
   --build-arg "RUSTRTC_COMMIT=$RUSTRTC_COMMIT" \
+  --build-arg "OPC_SOURCE_COMMIT=$OPC_SOURCE_COMMIT" \
   --build-arg "IVEKIT_PATCHSET=$PATCHSET" \
+  --build-arg "IVEKIT_PATCH_SET_SHA256=$PATCH_SET_SHA256" \
   -t "$IMAGE" \
   "$BUILD_ROOT/rustpbx"
 
+test "$(
+  docker image inspect "$IMAGE" \
+    --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+)" = "$OPC_SOURCE_COMMIT"
+test "$(
+  docker image inspect "$IMAGE" \
+    --format '{{ index .Config.Labels "io.ivekit.rustpbx.patch-set-sha256" }}'
+)" = "$PATCH_SET_SHA256"
 docker image inspect "$IMAGE" --format '{{.Id}}'
