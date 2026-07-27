@@ -88,7 +88,15 @@ const voiceExtensionTables = [
   'ivekit_recording_segment_events',
   'ivekit_recording_upload_leases',
   'ivekit_recording_segment_uploads',
-  'ivekit_recording_upload_parts'
+  'ivekit_recording_upload_parts',
+  'ivekit_voice_extension_sessions',
+  'ivekit_voice_cdr_durability_contracts',
+  'ivekit_voice_dialog_terminal_repairs',
+  'ivekit_voice_terminal_repair_worker_leases',
+  'ivekit_voice_cdr_calls',
+  'ivekit_voice_cdr_legs',
+  'ivekit_voice_cdr_submissions',
+  'ivekit_voice_cdr_receipts'
 ];
 
 const ivrFoundationTables = [
@@ -177,7 +185,11 @@ function opcMigrationsWithoutVoiceFoundation(): { directory: string; cleanup(): 
       '059_ivekit_provider_governance.sql',
       '060_ivekit_content_intelligence.sql',
       '079_ivekit_voice_route_snapshot_revision.sql',
-      '086_ivekit_recording_manifests.sql'
+      '086_ivekit_recording_manifests.sql',
+      '090_ivekit_runtime_security.sql',
+      '094_ivekit_voice_extension_sessions.sql',
+      '097_ivekit_realtime_intelligence.sql',
+      '103_ivekit_voice_cdr_convergence.sql'
     ].includes(name)) continue;
     copyFileSync(resolve('src/migrations', name), join(directory, name));
   }

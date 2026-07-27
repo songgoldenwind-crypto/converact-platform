@@ -405,6 +405,16 @@ async function deleteTenantEvents(
        FROM ivekit_tenant_events event
        WHERE event.tenant_id = $1
          AND event.expires_at <= $3::timestamptz
+         AND NOT EXISTS (
+           SELECT 1 FROM ivekit_voice_cdr_calls cdr_call
+           WHERE cdr_call.tenant_id = event.tenant_id
+             AND cdr_call.billing_event_id = event.id
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM ivekit_voice_cdr_receipts cdr_receipt
+           WHERE cdr_receipt.tenant_id = event.tenant_id
+             AND cdr_receipt.billing_event_id = event.id
+         )
        ORDER BY held ASC, event.expires_at, event.id
        LIMIT $4 FOR UPDATE SKIP LOCKED
      ), deleted AS (

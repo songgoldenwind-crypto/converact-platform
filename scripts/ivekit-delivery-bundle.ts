@@ -268,7 +268,8 @@ const STANDALONE_MIGRATIONS = [
   '094_ivekit_voice_extension_sessions.sql',
   '095_rustdesk_authorization_claims.sql',
   '101_ivekit_migration_readiness.sql',
-  '102_ivekit_voice_dialog_takeovers.sql'
+  '102_ivekit_voice_dialog_takeovers.sql',
+  '103_ivekit_voice_cdr_convergence.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [
@@ -498,6 +499,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'ivekit-backup-restore-runbook.md',
     'ivekit-notification-operations-runbook.md',
     'ivekit-monitoring-runbook.md',
+    'ivekit-voice-cdr-durability-runbook.md',
     'ivekit-integration-event-webhook-runbook.md',
     'ivekit-rustdesk-windows-deployment.md',
     'ivekit-component-governance.md',

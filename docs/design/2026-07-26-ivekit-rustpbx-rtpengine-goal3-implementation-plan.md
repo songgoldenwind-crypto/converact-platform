@@ -279,7 +279,7 @@ command identity 由 canonical JSON golden vectors 约束。Rust 与 TypeScript 
 - [x] token 仅从 secret file 读取，不允许 CLI、日志、metrics 或 shadow payload 暴露。
 - [x] patch 应用两次时第二次必须识别 already applied，禁止 partial patchset。
 - [x] patchset 从 `ivekit.21` 升为 `ivekit.22`，镜像 label 绑定新 patch hash。
-- [ ] cargo fmt、clippy、unit 和 exact-source `cargo check --locked` 通过。
+- [x] cargo fmt、clippy、unit 和 exact-source `cargo check --locked` 通过。
 - [x] 提交：`feat(rustpbx): add media control client`。
 
 当前本机证据：Rust 1.94.1 的 focused unit 与 exact-source `cargo check --locked`
@@ -299,8 +299,8 @@ command identity 由 canonical JSON golden vectors 约束。Rust 与 TypeScript 
       effective SDP。
 - [x] 183+SDP 先完成 early media mutation，再向 caller 发送 183。
 - [x] final 200+SDP 先完成 answer mutation，再向 caller 发送 200。
-- [ ] 无 SDP、offerless INVITE、late offer 和 ACK answer 走独立测试向量。
-- [ ] 多 early dialog 只允许获胜分支 commit，失败分支幂等 delete。
+- [x] 无 SDP、offerless INVITE、late offer 和 ACK answer 走独立测试向量。
+- [x] 多 early dialog 只允许获胜分支 commit，失败分支幂等 delete。
 - [x] local IVR、conference、transcoding、WebRTC bridge 和显式 bypass 继续走 RustPBX
       media graph，不被错误送入 ordinary relay。
 - [x] RTPengine 不可用时按 route profile fail closed 或显式 fallback，禁止静默绕过。
@@ -476,22 +476,121 @@ Task 8 evidence:
 
 ### Task 9：双腿 CDR 和 durable convergence
 
+**状态：** 代码、精确 RustPBX 补丁、本地迁移合同和自动化回归完成；真实 Region
+跨 Zone PostgreSQL quorum、进程重启、持续 spool replay、真实 RTP 连续性和负载仍为
+`not_run`。
+
 **文件：**
 
 - 新建补丁 `infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch`
-- 修改 `src/agent-runtime/ivekit/integration-event-*`
+- 新建 `src/agent-runtime/ivekit/voice/cdr-convergence.ts`
+- 新建 `src/agent-runtime/ivekit/voice/postgres/cdr-convergence-store.ts`
+- 新建 `src/agent-runtime/ivekit/voice/dialog-terminal-shadow-repair.ts`
+- 新建 `src/migrations/103_ivekit_voice_cdr_convergence.sql`
+- 修改 Voice HTTP、readiness、Compose、Helm 和 RustPBX 部署配置
+- 新建 `docs/ivekit-voice-cdr-durability-runbook.md`
 - 新建 `test/ivekit-rustpbx-dual-leg-cdr-patch.test.ts`
 - 新建 `test/ivekit-voice-cdr-convergence.test.ts`
+- 新建 `test/ivekit-terminal-shadow-repair.test.ts`
+- 新建 `test/ivekit-dialog-terminal-repair-postgres.test.ts`
 
-- [ ] 每腿记录 dialog ID hash、direction、SIP final code、hangup cause、answer time、
+- [x] 每腿记录 dialog ID hash、direction、SIP final code、hangup cause、answer time、
       end time、media result、reservation ref、owner epoch 和 route snapshot revision。
-- [ ] call-level CDR 记录 winning branch、early media、transfer chain 和 media timeout。
-- [ ] CDR sequence 在 owner takeover 后单调递增。
-- [ ] Cell local spool 只标记 `pending_unacknowledged`。
-- [ ] 只有 Region 跨 Zone quorum-backed durable store ACK 后标记 `committed`。
-- [ ] 重放不重复计费，不覆盖更高 sequence，不丢 caller/callee 任一腿。
-- [ ] CDR/store outage 不进入 RTP packet path。
-- [ ] 提交：`feat(voice): converge dual-leg CDR`。
+- [x] call-level CDR 记录 winning branch、early media、transfer chain 和 media timeout。
+- [x] CDR sequence 在 owner takeover 后单调递增。
+- [x] Cell local spool 只标记 `pending_unacknowledged`。
+- [x] 只有 Region 跨 Zone quorum-backed durable store ACK 后标记 `committed`。
+- [x] 重放不重复计费，不覆盖更高 sequence，不丢 caller/callee 任一腿。
+- [x] submission hash 与 receipt append-only journal 通过复合外键绑定；未知或篡改的
+      历史 sequence 不会获得 durable ACK。
+- [x] T1 提交在同一事务内锁定并校验 Cell/node/owner epoch；pending takeover、
+      terminal owner 和 stale owner 的新 payload 全部拒绝；接管前已 journal 化的
+      精确 sequence/hash 可继续取得或完成 receipt。
+- [x] caller/callee 终态独立产生；接管后保留旧 epoch 的历史腿可恢复投影，但不能授权
+      新提交。
+- [x] T1 在 CDR 提交前先提交双腿 `terminating` quorum；该状态的 takeover 只能执行
+      finalization，不恢复 SIP dialog、RTPengine 或媒体控制器。
+- [x] RustPBX 将 `expected_region_id` 纳入 canonical payload 和提交 hash；Region
+      store 在任何数据库访问前拒绝配置 Region 不一致的 payload。精确提交使用
+      64-slot semaphore 和 `.t1pending` 独占文件，不持有跨网络请求的全局锁，崩溃后
+      可原子恢复为后台 replay。
+- [x] T1 receipt 与 owner terminal fence 在同一 PostgreSQL 事务提交，并持久化
+      call ID、receipt ID、Region、durability contract、sequence/hash 与
+      `terminal_shadow_pending`；terminal shadow 观察后清除 repair 标志，shadow
+      失败期间 takeover 仍返回 terminal。
+- [x] `terminal_shadow_pending` 由专用跨进程 repair lease 扫描；repair 严格绑定原始
+      Region CDR call/receipt/durability contract、sequence/hash、source owner epoch
+      和 fault domain，只重放冻结的 terminal shadow，不进入 SIP/media takeover；
+      claim、reserve 和 completion 每一步都重新校验这组精确权威，完成事务以同一绑定
+      清除 pending fence，复合外键、RLS 和函数权限禁止跨租户或伪造 receipt。
+- [x] repair worker 每轮在独立 lease 表建立短租约后再 claim；该租约与 RustPBX
+      dialog owner liveness 完全分离，冷启动无需等待新 T1 呼叫，同时不会替已停止的
+      RustPBX owner 制造假 heartbeat 或阻塞非终态 takeover。
+- [x] recovery capsule 接受 Rust 发出的原始 call timing 与 route snapshot revision，
+      同时保持旧版 TypeScript canonical payload 字节稳定；非法时间关系、未知字段和
+      超界 revision 全部拒绝。
+- [x] uploader 使用跨轮次有界目录游标；backlog 指标取最近完整周期与当前部分周期的
+      较大值，每轮最多扫描/保留 4096 条并以 64 并发上传；spool 使用
+      `0700/0600`，`202 pending` 不会形成紧密重试，启动清理不会删除当前进程的
+      临时写入。
+- [x] CDR 持久化使用 4096 条硬上限专用 writer queue；终态只在文件 fsync、原子
+      rename 和目录 fsync 后确认；队列满时只 fence 后续 admission，不把健康 spool
+      错报为故障，并通过同一 writer 的异步 MPSC 对既有终态执行有界背压。等待者挂起
+      Future 而不占用 OS/Tokio worker 线程。writer 保留失败批次并以有界退避持续
+      重试，断开时才进入全局异步互斥、单 blocking task 的 emergency writer；已建立
+      媒体不受影响。
+- [x] 每条 spool 记录持久化独立 retry sidecar，延迟记录不阻塞健康记录；service key
+      每轮重读，projected Secret 原子轮换无需重启；扫描、读取、hash、sidecar、隔离和
+      删除均移到 blocking worker。
+- [x] 两条 tenant-event retention 路径均跳过被 CDR call/receipt 外键引用的计费事件，
+      不会因一条受保护事件阻断同批普通过期事件。
+- [x] Helm projected Secret 只允许解析到 Secret mount 内部的目标。
+- [x] 当前与旧版 Compose/Helm 均接入 CDR spool/key；Compose 默认 production 并要求
+      显式 HTTPS endpoint，两套 Helm 都拒绝关闭持久卷且独立要求 CDR Region。
+- [x] 旧版 `infra/k8s` Helm 入口补齐 node-local dialog-shadow sidecar、持久 WAL、
+      mTLS/CSI SPIFFE 身份、NATS 跨故障域放置、terminal repair 和 RustPBX recovery
+      配置，并与主 chart 采用相同的 fail-closed T1 合同。
+- [x] 标准 migration runner 在事务外验证并发索引元数据，缺失或畸形时并发创建/重建；
+      同名约束必须精确匹配唯一索引、列顺序和有效状态；迁移事务使用 5 秒
+      `lock_timeout`，SQL 二次校验后只挂载约束，避免事务内同步建索引造成长锁。
+- [x] CDR/store outage 不进入 RTP packet path。
+- [x] 提交：`feat(voice): converge dual-leg CDR`。
+
+Task 9 evidence:
+
+- 固定上游 commit 上依次通过 `git apply --check` 并重放全部 29 个补丁；Task 9
+  补丁 SHA-256 为
+  `84c1dd9d91c2d12a8505dd99fb0416e76471bb8ef37e68e0c70e46fd6fa5984f`，基线、
+  独立补丁回放树和精确编译树中的 Rust 源文件 SHA-256 完全相同；回放树
+  `git diff --check` 和 Task 9 新文件 `rustfmt --check` 通过。
+- Rust 1.94.1 与 RustPBX 仓库锁文件下
+  `cargo check --locked --features cross --bin rustpbx --bin sipflow` 通过；Clippy
+  完成且 Task 9 新文件没有新增告警，上游既有 203 条告警作为可见债务保留。RustPBX
+  iveKit 定向单元测试 `64/64`、缺失 callee 终态独立性 `1/1`、dialog
+  shadow/recovery 合同 `20/20` 通过。rsipstack
+  上游不提交独立 `Cargo.lock`，按其 manifest 解析后 library 测试 `247/247` 通过；
+  RustPBX 对 rsipstack 的生产依赖仍由 RustPBX 锁文件固定。
+- `npm run test:ivekit:voice-media-goal3` 为 `202/202`；fork/构建/dialog recovery/CDR
+  身份聚焦合同 `42/42`；完整交付套件 `58/58`；精确 CDR/owner/repair 与部署聚焦
+  回归 `80` 项、`79` 通过、`1` 项按 PostgreSQL 环境条件跳过、`0` 失败；全仓
+  `npm test` 为 `4315` 项、`4301` 通过、`14` 跳过、`0` 失败；
+  `npm run typecheck` 和 `git diff --check` 通过。
+- 本机临时 PostgreSQL 14.18 实例完成新库、旧 OPC 非空库升级、重复迁移、Tinode
+  入站/投影、IVR、受控 RustPBX 和 terminal shadow repair 并发/RLS/fault-domain
+  回归，共 7 项、0 失败；旧库夹具按依赖顺序补装 runtime security、WebPhone、
+  realtime intelligence 和 CDR migrations，历史 migration checksum 未被修改。
+- fork manifest 中 Task 9 补丁 SHA-256 与磁盘内容匹配，交付 bundle 已包含 CDR
+  durability runbook；旧版 Helm 的 T1 sidecar 静态合同通过。本机没有 Helm CLI，
+  因此真实 chart render 保持 `not_run`；本地测试未写入生产 SQLite。
+- `VOICE-HA-T1` 正常和 recovered cleanup 都强制执行“本地文件/目录 fsync、精确
+  sequence/hash 获得当前 Region 跨 Zone `committed` receipt、最后提交双腿 terminal
+  shadow”。Region 未提交时 shadow 保持 non-terminal 并可被更高 epoch 接管；Region
+  已提交后进程退出也不会丢失 CDR。`VOICE-ORDINARY` 以本地 durable spool 为成功边界，
+  没有第二 durable sink；唯一 spool 丢失后再发生 SIGKILL/OOM/Pod 驱逐属于未保护
+  双故障，不能宣称零丢失。需要该保证的租户必须使用 T1；Task 11 保留强杀与恢复证据。
+- 真实双 Zone PostgreSQL durability contract、进程重启后的持续 spool replay、
+  Region takeover、真实 RTP 连续性和负载仍为 `not_run`，不得据此宣称
+  `functional_pass`、`production_pass` 或 `capacity_pass`。
 
 ### Task 10：部署、容量隔离和可观测性
 

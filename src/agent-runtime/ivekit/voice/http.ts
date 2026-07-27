@@ -20,6 +20,10 @@ import {
   VoiceCallService,
   type VoiceCallPlacementPort
 } from './call-service.js';
+import {
+  parseVoiceDualLegCdr,
+  type VoiceCdrConvergencePort
+} from './cdr-convergence.js';
 import { VoicePolicyComplianceService } from './compliance-service.js';
 import { canonicalVoicePayloadHash } from './canonical.js';
 import { VoiceConfigurationService } from './configuration-service.js';
@@ -39,6 +43,7 @@ import type {
   VoiceSecretResolver
 } from './ports.js';
 import { PostgresVoiceCallStore } from './postgres/call-store.js';
+import { PostgresVoiceCdrConvergenceStore } from './postgres/cdr-convergence-store.js';
 import { PostgresVoiceCommandStore } from './postgres/command-store.js';
 import { PostgresVoiceConfigurationStore } from './postgres/configuration-store.js';
 import { PostgresVoiceProviderEventStore } from './postgres/provider-event-store.js';
@@ -101,6 +106,7 @@ export interface VoiceHttpModule {
   provider_event_repository: VoiceProviderEventRepository;
   recordings: VoiceRecordingRepository;
   provider_events: VoiceProviderEventService;
+  cdrs: VoiceCdrConvergencePort;
   rustpbx_events: RustPbxEventsAdapter;
   router: VoiceRouterDecisionService;
   extension_sessions?: VoiceExtensionSessionPort;
@@ -109,6 +115,7 @@ export interface VoiceHttpModule {
 export interface RouteIveKitVoiceApiOptions {
   module?: VoiceHttpModule;
   create_module?: (pg: PgQueryable, tenantId: string) => VoiceHttpModule | Promise<VoiceHttpModule>;
+  cdr_region_id?: string;
   webhook_authenticator?: VoiceWebhookAuthenticator;
   provider_registry?: VoiceProviderRegistry;
   address_protector?: VoiceAddressProtector;
@@ -830,6 +837,9 @@ export function createPostgresVoiceHttpModule(
     provider_event_repository: providerEventRepository,
     recordings,
     provider_events: new VoiceProviderEventService({ events: providerEventRepository, calls: callRepository }),
+    cdrs: new PostgresVoiceCdrConvergenceStore(pg, {
+      region_id: configuredCdrRegionId(options)
+    }),
     rustpbx_events: new RustPbxEventsAdapter(),
     router: new VoiceRouterDecisionService({
       configuration: configurationRepository,
@@ -839,6 +849,16 @@ export function createPostgresVoiceHttpModule(
     }),
     extension_sessions: options.extension_sessions
   };
+}
+
+function configuredCdrRegionId(
+  options: RouteIveKitVoiceApiOptions,
+  env: NodeJS.ProcessEnv = process.env
+): string | undefined {
+  return options.cdr_region_id?.trim() ||
+    env.OPC_IVEKIT_CDR_REGION_ID?.trim() ||
+    env.OPC_IVEKIT_PLACEMENT_HOME_REGION_ID?.trim() ||
+    undefined;
 }
 
 type ProviderWebhookAction = 'router' | 'inbound-admission' | 'events' | 'cdrs';
@@ -969,6 +989,12 @@ async function routeProviderWebhook(input: {
             retryable: true
           });
         }
+        const routeSnapshotRevision = await assertRouteSnapshotRevision(
+          tenantPg,
+          authenticated.tenant_id,
+          authenticated.profile_id,
+          request.route_snapshot_revision
+        );
         const authoritativeCall = await createAuthoritativeInboundCall({
           module,
           authenticated,
@@ -999,6 +1025,7 @@ async function routeProviderWebhook(input: {
             owner_epoch: owner.owner_epoch,
             cell_id: owner.cell_id,
             owner_node_id: owner.owner_node_id,
+            route_snapshot_revision: routeSnapshotRevision,
             availability_profile: availability,
             ...(availability === 'VOICE-HA-T1'
               ? {
@@ -1063,10 +1090,19 @@ async function routeProviderWebhook(input: {
           : {})
       };
     }
-    const normalized = module.rustpbx_events.normalize(
-      input.action === 'cdrs' ? 'cdr' : 'http',
-      input.body
-    );
+    if (input.action === 'cdrs') {
+      const receipt = await module.cdrs.converge({
+        tenant_id: authenticated.tenant_id,
+        profile_id: authenticated.profile_id,
+        authoritative_availability_profile: availabilityProfile(profile),
+        envelope: parseVoiceDualLegCdr(input.body)
+      });
+      return {
+        status: receipt.state === 'committed' ? 200 : 202,
+        data: receipt
+      };
+    }
+    const normalized = module.rustpbx_events.normalize('http', input.body);
     const result = await module.provider_events.ingest({
       tenant_id: authenticated.tenant_id,
       profile_id: authenticated.profile_id,
@@ -1202,7 +1238,10 @@ async function createAuthoritativeInboundCall(input: {
       id: input.request.call_id
     },
     metadata: {
-      source: input.source
+      source: input.source,
+      ...(input.request.route_snapshot_revision === null
+        ? {}
+        : { route_snapshot_revision: input.request.route_snapshot_revision })
     },
     ...(input.placement
       ? {
@@ -1212,6 +1251,39 @@ async function createAuthoritativeInboundCall(input: {
         }
       : {})
   });
+}
+
+async function assertRouteSnapshotRevision(
+  pg: PgQueryable,
+  tenantId: string,
+  profileId: string,
+  requestedRevision: number | null
+): Promise<number> {
+  if (requestedRevision === null) throw validationError();
+  const result = await pg.query<{ revision: unknown }>(
+    `/* ivekit-voice:assert-route-snapshot-revision */
+     SELECT revision
+     FROM ivekit_voice_route_snapshot_revisions
+     WHERE tenant_id = $1 AND profile_id = $2
+     FOR SHARE`,
+    [tenantId, profileId]
+  );
+  const revision = Number(result.rows[0]?.revision);
+  if (!Number.isSafeInteger(revision) || revision < 1) {
+    throw new VoiceError({
+      code: 'capability_unavailable',
+      status: 503,
+      retryable: true
+    });
+  }
+  if (revision !== requestedRevision) {
+    throw new VoiceError({
+      code: 'revision_conflict',
+      status: 409,
+      retryable: false
+    });
+  }
+  return revision;
 }
 
 async function authorizeRealtimeAudioTap(

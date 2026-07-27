@@ -161,6 +161,10 @@ test('tenant event retention prunes expired rows per tenant without touching liv
   const source = readFileSync('src/agent-runtime/ivekit/tenant-event-store.ts', 'utf8');
   assert.match(source, /hold\.category = 'tenant_events'/);
   assert.match(source, /hold\.resource_type = 'tenant_event'/);
+  assert.match(source, /FROM ivekit_voice_cdr_calls cdr_call/);
+  assert.match(source, /cdr_call\.billing_event_id = ivekit_tenant_events\.id/);
+  assert.match(source, /FROM ivekit_voice_cdr_receipts cdr_receipt/);
+  assert.match(source, /cdr_receipt\.billing_event_id = ivekit_tenant_events\.id/);
   const pg = new MemoryPg();
   let now = new Date('2026-07-12T10:00:00.000Z');
   const events = new IveKitTenantEventStore(pg, {

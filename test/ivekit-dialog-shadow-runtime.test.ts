@@ -59,6 +59,9 @@ test('dialog shadow runtime loads production identity, mTLS, and NATS placement'
   assert.equal(config.recovery.current_key.key.byteLength, 32);
   assert.equal(config.recovery.previous_key?.key_id, 'recovery-2026-06');
   assert.equal(config.recovery.postgres_pool_max, 8);
+  assert.equal(config.recovery.terminal_repair_interval_ms, 1_000);
+  assert.equal(config.recovery.terminal_repair_lease_ttl_ms, 10_000);
+  assert.equal(config.recovery.terminal_repair_tenant_batch_size, 32);
   assert.deepEqual(config.nats.server_fault_domains, {
     'nats-a': 'zone-a-rack-1',
     'nats-b': 'zone-b-rack-1',

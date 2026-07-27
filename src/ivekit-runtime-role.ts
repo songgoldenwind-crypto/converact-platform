@@ -68,6 +68,26 @@ export async function initializeIveKitRuntimeRole(
         IF to_regclass('public.schema_migrations') IS NOT NULL THEN
           REVOKE ALL PRIVILEGES ON TABLE public.schema_migrations FROM opc_runtime;
         END IF;
+        IF to_regclass('public.ivekit_voice_cdr_calls') IS NOT NULL THEN
+          REVOKE DELETE, TRUNCATE
+            ON TABLE public.ivekit_voice_cdr_calls
+            FROM opc_runtime;
+        END IF;
+        IF to_regclass('public.ivekit_voice_cdr_legs') IS NOT NULL THEN
+          REVOKE DELETE, TRUNCATE
+            ON TABLE public.ivekit_voice_cdr_legs
+            FROM opc_runtime;
+        END IF;
+        IF to_regclass('public.ivekit_voice_cdr_submissions') IS NOT NULL THEN
+          REVOKE UPDATE, DELETE, TRUNCATE
+            ON TABLE public.ivekit_voice_cdr_submissions
+            FROM opc_runtime;
+        END IF;
+        IF to_regclass('public.ivekit_voice_cdr_receipts') IS NOT NULL THEN
+          REVOKE UPDATE, DELETE, TRUNCATE
+            ON TABLE public.ivekit_voice_cdr_receipts
+            FROM opc_runtime;
+        END IF;
         IF to_regprocedure('public.opc_rustdesk_session_by_external_id(text)') IS NOT NULL THEN
           GRANT EXECUTE ON FUNCTION public.opc_rustdesk_session_by_external_id(TEXT) TO opc_runtime;
         END IF;

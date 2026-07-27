@@ -493,6 +493,119 @@ reproducibility evidence only. Physical dual-node failover, real RTP continuity,
 three-node JetStream fault domains, Kubernetes CSI identity mounting and the
 five-second takeover RTO remain `not_run`.
 
+## Dual-leg CDR durable convergence
+
+The ivekit.28 queue adds an owner-fenced dual-leg terminal CDR without changing
+the RTP forwarding path. Caller and callee outcomes are derived independently;
+one leg cannot copy the other leg's final SIP code, hangup cause, timing or
+media result. Each leg carries a hashed dialog identity, direction, reservation
+reference, owner epoch and exact route-snapshot revision. Call-level state
+records the real winning branch, early media, transfer chain and media timeout.
+
+RustPBX writes only `pending_unacknowledged` records to its per-owner persistent
+spool. A dedicated writer has a hard queue limit of 4096 records and acknowledges
+the terminal call path only after file sync, atomic rename and directory sync;
+the normal path performs those syscalls on the dedicated thread. Startup creates
+and verifies this writer before readiness can admit calls. Queue saturation
+marks admission unhealthy and immediately fences future calls without marking a
+working spool unhealthy or cancelling terminal persistence for existing calls.
+Full-queue producers apply bounded backpressure through the same single writer,
+awaiting Tokio MPSC capacity and a oneshot durability ACK as futures; they do not
+occupy OS or Tokio worker threads and do not fan out synchronous fsync calls.
+The writer retains a failed batch, retries it with bounded backoff, and acknowledges
+only after durability is re-proven. A disconnected writer uses one globally
+serialized asynchronous lock and one blocking emergency writer, retaining the
+request until it is durable. Successful durability restores admission health.
+Established media continues throughout. Spool
+directories and records use mode `0700` and `0600`; temporary names include a
+process-incarnation nonce, so startup removes abandoned records without deleting
+the current process's write.
+
+The uploader keeps a bounded directory cursor across passes, scans at most 4096
+entries per pass and sends at most 64 concurrently. T1 exact Region commits use
+a separate 64-slot semaphore and never hold a process-global lock across network
+I/O. Slot exhaustion fences only new T1 admission. A T1 record is fsynced as an
+exclusive `.t1pending` file; failure or process restart atomically releases it
+as `.json` for background replay, so exact commit and the scanner cannot race
+the same record. Its backlog gauge is the
+larger of the last complete scan count and the current partial-cycle count, not
+an instantaneous full-directory enumeration. Secret reads, directory and record
+I/O, hashes, retry sidecars, quarantine and deletion run on blocking workers.
+Each record has a persistent retry sidecar and independent
+bounded exponential backoff with jitter. A delayed or poisoned record therefore
+cannot starve healthy CDRs. A permanent protocol failure moves only that record
+into `quarantine/`. The uploader rejects redirects and insecure production
+endpoints, re-reads the file-backed service key on every pass for restart-free
+projected-Secret rotation, and deletes a spool file only after a matching
+`committed` receipt acknowledges the exact sequence and payload hash. Restart
+resumes the existing spool before the node accepts a new owner-authorized call.
+CDR API, PostgreSQL and object-storage failures never enter the RTP packet path.
+
+iveKit accepts a new durable receipt only from the active
+`OPC_IVEKIT_CDR_REGION_ID` contract. RustPBX independently requires
+`IVEKIT_RUSTPBX_CDR_REGION_ID` and rejects a successful response whose receipt
+names any other Region. The contract must represent synchronous
+quorum across at least two distinct Zones. Missing Region identity or contract
+keeps the CDR pending. A higher sequence after Region takeover uses the new
+Region contract, while exact historical replay returns its original receipt.
+For `VOICE-HA-T1`, the PostgreSQL transaction locks the authoritative dialog
+owner and accepts an unjournaled submission only from the exact Cell, RustPBX
+node and owner epoch when no takeover is pending and the ownership row is
+non-terminal. An exact sequence and payload hash already present in the
+append-only submission journal may retrieve or finish its receipt after
+takeover; it cannot introduce new data. The transaction
+maintains the latest call projection, both leg projections, an append-only
+submission-hash journal and an append-only receipt journal. A retained leg from
+an earlier owner epoch remains recoverable after takeover, but cannot authorize
+a new submission. A composite foreign key binds every receipt to the exact
+submitted sequence and payload hash; unknown or changed historical payloads
+fail with 409, stale unjournaled owners remain fenced, and replay cannot
+duplicate the billing event.
+The receipt transaction also terminally fences the exact owner and stores
+`terminal_cdr_sequence`, `terminal_cdr_payload_hash` and
+`terminal_shadow_pending=true`. Observing the matching terminal shadow clears
+that pending repair flag. A missing terminal-shadow ACK can therefore require
+repair, but can never reopen an ended call for takeover.
+
+Both current and legacy Compose/Helm entry points mount a dedicated file-backed
+CDR service key and persistent per-node spool. Both Helm charts reject
+`voice.persistence.enabled=false`; an ephemeral CDR spool is not a supported
+production mode. Helm projects the key group-readable for the constrained Pod
+`fsGroup`; RustPBX accepts the projected symlink only when its canonical target
+remains inside the configured Secret mount. Voice deployments require an
+independent API CDR Region; it is not inferred from placement. Compose defaults
+RustPBX to production and requires an explicit HTTPS CDR endpoint. On a non-empty
+`ivekit_tenant_events` table, the migration runner validates and creates or
+repairs the composite unique index concurrently before the transactional
+migration revalidates and attaches it as a constraint. Contract activation,
+quorum-loss handling, quarantine recovery, monitoring and rollback are defined in
+`docs/ivekit-voice-cdr-durability-runbook.md`.
+
+The exact ivekit.28 queue contains 29 patches. Locked Rust compilation, 64
+iveKit-focused Rust tests, the independent missing-callee test, 20 dialog
+shadow/recovery contract tests and the TypeScript regressions are reproducibility
+evidence only.
+Physical cross-Zone PostgreSQL quorum, process restart, sustained spool replay,
+real RTP continuity during store loss and capacity remain `not_run`.
+
+`VOICE-HA-T1` first commits a reciprocal `terminating` shadow quorum, then
+enforces local file and directory sync, an exact configured-Region cross-Zone
+`committed` receipt and the database terminal fence, and only then the
+reciprocal `terminated` shadow quorum. A failed Region commit leaves the shadow
+in `terminating`; a higher-epoch takeover is finalization-only and does not
+restore SIP dialogs, RTPengine sessions or media control. A process loss after
+the receipt cannot lose the already committed CDR, and a failed final shadow
+commit remains blocked by the database terminal fence. Recovered finalizers use
+the same receipt-before-terminal-shadow ordering with bounded retry. The Drop
+reporter is only a best-effort safety net and never marks a CDR sent before
+durability.
+
+`VOICE-ORDINARY` intentionally has no replicated shadow dependency and treats
+the local durable spool as its success boundary. Loss of its sole spool while
+the process is then killed is an unprotected double failure. Tenants requiring
+zero terminal-CDR loss under that fault combination must use `VOICE-HA-T1`;
+ordinary mode must not be described as providing it.
+
 ## Reproducibility
 
 - RustPBX: `6c49ee76baa54fdbf8f98020cc9bee158c7c15de`
@@ -506,6 +619,16 @@ Run on a native amd64 or arm64 Docker host:
 ```bash
 npm run ivekit:rustpbx-build
 ```
+
+Run the same exact-source patch application plus fmt, check, clippy and focused
+behavior gates without publishing an image:
+
+```bash
+IVEKIT_RUSTPBX_VERIFY_ONLY=1 bash infra/ivekit/rustpbx/build.sh
+```
+
+The RustPBX image workflow runs this verification before either architecture
+build and also runs it for pull requests without GHCR publication.
 
 Override the output image with `IVEKIT_RUSTPBX_IMAGE`. Cross compilation is
 rejected so an image cannot be mislabeled with binaries from another architecture.

@@ -17,6 +17,7 @@ test('RustPBX Router normalization keeps routing fields and drops unsafe payload
     direction: 'inbound',
     method: 'INVITE',
     uri: 'sip:+8613900139000@pbx.test',
+    route_snapshot_revision: 42,
     headers: {
       'User-Agent': 'controlled-phone',
       'X-Request-Id': 'request-a',
@@ -32,6 +33,7 @@ test('RustPBX Router normalization keeps routing fields and drops unsafe payload
   assert.equal(normalized.call_id, 'call-a');
   assert.equal(normalized.from, '+8613800138000');
   assert.equal(normalized.to, '+8613900139000');
+  assert.equal(normalized.route_snapshot_revision, 42);
   assert.deepEqual(normalized.headers, {
     'user-agent': 'controlled-phone',
     'x-request-id': 'request-a'
@@ -41,6 +43,20 @@ test('RustPBX Router normalization keeps routing fields and drops unsafe payload
     assert.equal(safe.includes(value), false, value);
   }
   assert.equal(safe.includes('+8613800138000'), false);
+  assert.equal(normalized.safe_payload.route_snapshot_revision, 42);
+  assert.throws(
+    () => adapter.normalizeRequest({
+      call_id: 'call-a',
+      from: '+8613800138000',
+      to: '+8613900139000',
+      source_addr: '10.0.0.8:5060',
+      direction: 'inbound',
+      method: 'INVITE',
+      uri: 'sip:+8613900139000@pbx.test',
+      route_snapshot_revision: 0
+    }),
+    hasVoiceCode('validation_failed')
+  );
 });
 
 test('RustPBX Router maps portable forwarding decisions only through explicit SIP targets', () => {

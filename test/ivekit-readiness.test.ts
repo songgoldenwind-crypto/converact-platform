@@ -34,9 +34,9 @@ const validEnv = {
   OPC_IVEKIT_RATE_LIMIT_HMAC_KEY: Buffer.alloc(32, 2).toString('base64')
 };
 
-test('readiness requires the latest dialog takeover migration', () => {
+test('readiness requires the latest voice CDR convergence migration', () => {
   assert.equal(REQUIRED_MIGRATIONS.includes('095_rustdesk_authorization_claims'), true);
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '102_ivekit_voice_dialog_takeovers');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '103_ivekit_voice_cdr_convergence');
 });
 
 test('readiness executes SQL, verifies migrations, and reports nonblocking provider degradation', async () => {
@@ -53,7 +53,7 @@ test('readiness executes SQL, verifies migrations, and reports nonblocking provi
 });
 
 test('readiness migration exposes only a bounded migration-version probe to the runtime role', () => {
-  assert.equal(REQUIRED_MIGRATIONS.at(-1), '102_ivekit_voice_dialog_takeovers');
+  assert.equal(REQUIRED_MIGRATIONS.at(-1), '103_ivekit_voice_cdr_convergence');
   const sql = readFileSync(
     new URL('../src/migrations/101_ivekit_migration_readiness.sql', import.meta.url),
     'utf8'

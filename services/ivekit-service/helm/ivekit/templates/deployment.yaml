@@ -6,6 +6,9 @@
 {{- fail "realtimeAudioTap.projectionShutdownTimeoutMs must be between 10 and 30000" }}
 {{- end }}
 {{- end }}
+{{- if .Values.voice.enabled }}
+{{- required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -189,6 +192,10 @@ spec:
                   key: {{ .Values.secrets.rateLimitHmacKeyKey }}
             - name: OPC_IVEKIT_ALLOWED_ORIGINS
               value: {{ .Values.config.allowedOrigins | quote }}
+            {{- if .Values.voice.enabled }}
+            - name: OPC_IVEKIT_CDR_REGION_ID
+              value: {{ .Values.voice.cdr.regionId | quote }}
+            {{- end }}
             {{- if .Values.realtimeAudioTap.enabled }}
             - name: POD_NAME
               valueFrom:

@@ -288,6 +288,16 @@ export class IveKitTenantEventStore {
                  AND hold.resource_id = ivekit_tenant_events.id::text
                  AND hold.status = 'active'
              )
+             AND NOT EXISTS (
+               SELECT 1 FROM ivekit_voice_cdr_calls cdr_call
+               WHERE cdr_call.tenant_id = ivekit_tenant_events.tenant_id
+                 AND cdr_call.billing_event_id = ivekit_tenant_events.id
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM ivekit_voice_cdr_receipts cdr_receipt
+               WHERE cdr_receipt.tenant_id = ivekit_tenant_events.tenant_id
+                 AND cdr_receipt.billing_event_id = ivekit_tenant_events.id
+             )
            ORDER BY id ASC
            LIMIT $3
          )

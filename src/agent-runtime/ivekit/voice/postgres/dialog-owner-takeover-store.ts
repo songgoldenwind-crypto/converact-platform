@@ -9,7 +9,15 @@ import {
   type DialogOwnerTakeoverConsumeWrite,
   type DialogOwnerTakeoverStore
 } from '../dialog-owner-takeover.js';
-import type { DialogShadowRecord } from '../dialog-shadow.js';
+import {
+  assertDialogShadowPair,
+  dialogShadowPairHash,
+  type DialogShadowRecord
+} from '../dialog-shadow.js';
+import {
+  type DialogTerminalShadowRepairClaim,
+  type DialogTerminalShadowRepairStore
+} from '../dialog-terminal-shadow-repair.js';
 
 interface TakeoverReplayRow {
   id: string;
@@ -22,7 +30,7 @@ interface TakeoverReplayRow {
 }
 
 export class PostgresDialogOwnerTakeoverStore
-implements DialogOwnerTakeoverStore {
+implements DialogOwnerTakeoverStore, DialogTerminalShadowRepairStore {
   constructor(private readonly pg: PgQueryable) {}
 
   claim(input: DialogOwnerTakeoverClaimWrite): Promise<{
@@ -498,6 +506,8 @@ implements DialogOwnerTakeoverStore {
          UPDATE ivekit_voice_dialog_ownership
          SET shadow_pair_hash = $4,
              terminal = $5,
+             terminal_shadow_pending = CASE
+               WHEN $5 = TRUE THEN FALSE ELSE terminal_shadow_pending END,
              revision = revision + 1,
              updated_at = $6::timestamptz
          WHERE tenant_id = $1
@@ -521,6 +531,482 @@ implements DialogOwnerTakeoverStore {
       );
       if (!updated.rows[0]) unavailable();
       return decodeAuthority(updated.rows[0]);
+    });
+  }
+
+  async pendingTenantIds(input: {
+    cell_id: string;
+    limit: number;
+  }): Promise<string[]> {
+    const cellId = identifier(input.cell_id);
+    const limit = integer(input.limit, 1, 256);
+    const result = await this.pg.query(
+      `/* ivekit-dialog-terminal-repair:pending-tenants */
+       SELECT tenant_id
+       FROM opc_ivekit_terminal_shadow_repair_tenant_ids($1, $2)`,
+      [cellId, limit]
+    );
+    return result.rows.map((row) => identifier(row.tenant_id));
+  }
+
+  async heartbeatTerminalShadowRepairWorker(input: {
+    identity: DialogPeerIdentity;
+    heartbeat_at: Date;
+    lease_ttl_ms: number;
+  }): Promise<void> {
+    const identity = {
+      spiffe_id: spiffeId(input.identity.spiffe_id),
+      cell_id: identifier(input.identity.cell_id),
+      node_id: identifier(input.identity.node_id),
+      fault_domain: identifier(input.identity.fault_domain)
+    };
+    const heartbeatAt = timestamp(input.heartbeat_at);
+    const leaseTtlMs = integer(input.lease_ttl_ms, 500, 60_000);
+    const expiresAt = new Date(
+      Date.parse(heartbeatAt) + leaseTtlMs
+    ).toISOString();
+    const result = await this.pg.query(
+      `/* ivekit-dialog-terminal-repair:heartbeat-worker */
+       INSERT INTO ivekit_voice_terminal_repair_worker_leases
+        (cell_id, worker_id, fault_domain, spiffe_id, heartbeat_at,
+         lease_expires_at, revision)
+       VALUES ($1, $2, $3, $4, $5::timestamptz, $6::timestamptz, 1)
+       ON CONFLICT (cell_id, worker_id) DO UPDATE
+       SET fault_domain = EXCLUDED.fault_domain,
+           spiffe_id = EXCLUDED.spiffe_id,
+           heartbeat_at = EXCLUDED.heartbeat_at,
+           lease_expires_at = EXCLUDED.lease_expires_at,
+           revision =
+             ivekit_voice_terminal_repair_worker_leases.revision + 1
+       WHERE ivekit_voice_terminal_repair_worker_leases.spiffe_id =
+             EXCLUDED.spiffe_id
+       RETURNING worker_id`,
+      [
+        identity.cell_id,
+        identity.node_id,
+        identity.fault_domain,
+        identity.spiffe_id,
+        heartbeatAt,
+        expiresAt
+      ]
+    );
+    if (!result.rows[0]) {
+      throw new DialogOwnerTakeoverError(
+        'dialog_terminal_shadow_repair_identity_conflict',
+        409
+      );
+    }
+  }
+
+  claimTerminalShadowRepair(input: {
+    repair_id: string;
+    tenant_id: string;
+    identity: DialogPeerIdentity;
+    claimed_at: Date;
+    lease_ttl_ms: number;
+  }): Promise<DialogTerminalShadowRepairClaim | null> {
+    const repairId = identifier(input.repair_id);
+    const tenantId = identifier(input.tenant_id);
+    const identity = {
+      spiffe_id: spiffeId(input.identity.spiffe_id),
+      cell_id: identifier(input.identity.cell_id),
+      node_id: identifier(input.identity.node_id),
+      fault_domain: identifier(input.identity.fault_domain)
+    };
+    const claimedAt = timestamp(input.claimed_at);
+    const leaseTtlMs = integer(input.lease_ttl_ms, 500, 60_000);
+    const expiresAt = new Date(
+      Date.parse(claimedAt) + leaseTtlMs
+    ).toISOString();
+    return withPgTenant(this.pg, tenantId, async (pg) => {
+      const lease = await pg.query(
+        `/* ivekit-dialog-terminal-repair:assert-worker-lease */
+         SELECT worker_id
+         FROM ivekit_voice_terminal_repair_worker_leases
+         WHERE cell_id = $1
+           AND worker_id = $2
+           AND fault_domain = $3
+           AND spiffe_id = $4
+           AND lease_expires_at > $5::timestamptz
+         FOR UPDATE`,
+        [
+          identity.cell_id,
+          identity.node_id,
+          identity.fault_domain,
+          identity.spiffe_id,
+          claimedAt
+        ]
+      );
+      if (!lease.rows[0]) {
+        throw new DialogOwnerTakeoverError(
+          'dialog_terminal_shadow_repair_candidate_inactive',
+          503
+        );
+      }
+      const authorityResult = await pg.query(
+        `/* ivekit-dialog-terminal-repair:lock-authority */
+         SELECT ${AUTHORITY_COLUMNS_OWNERSHIP}
+         FROM ivekit_voice_dialog_ownership ownership
+         JOIN ivekit_voice_cdr_receipts receipt
+           ON receipt.tenant_id = ownership.tenant_id
+          AND receipt.receipt_id = ownership.terminal_cdr_receipt_id
+          AND receipt.call_id = ownership.terminal_cdr_call_id
+          AND receipt.acknowledged_sequence = ownership.terminal_cdr_sequence
+          AND receipt.acknowledged_payload_hash =
+            ownership.terminal_cdr_payload_hash
+          AND receipt.region_id = ownership.terminal_cdr_region_id
+          AND receipt.durability_contract_id =
+            ownership.terminal_cdr_durability_contract_id
+          AND receipt.cell_id = ownership.cell_id
+          AND receipt.owner_node_id = ownership.owner_node_id
+          AND receipt.owner_epoch = ownership.owner_epoch
+          AND receipt.availability_profile = ownership.profile
+         JOIN ivekit_voice_cdr_calls cdr_call
+           ON cdr_call.tenant_id = receipt.tenant_id
+          AND cdr_call.call_id = receipt.call_id
+          AND cdr_call.provider_call_id = ownership.call_session_ref
+          AND cdr_call.receipt_id = receipt.receipt_id
+          AND cdr_call.state = 'committed'
+         WHERE ownership.tenant_id = $1
+           AND ownership.cell_id = $2
+           AND ownership.terminal = TRUE
+           AND ownership.terminal_shadow_pending = TRUE
+           AND ownership.terminal_cdr_sequence IS NOT NULL
+           AND ownership.terminal_cdr_payload_hash IS NOT NULL
+           AND ownership.terminal_cdr_call_id IS NOT NULL
+           AND ownership.terminal_cdr_receipt_id IS NOT NULL
+           AND ownership.terminal_cdr_region_id IS NOT NULL
+           AND ownership.terminal_cdr_durability_contract_id IS NOT NULL
+           AND ownership.pending_takeover_id IS NULL
+         ORDER BY ownership.updated_at, ownership.call_session_ref
+         LIMIT 1
+         FOR UPDATE OF ownership SKIP LOCKED`,
+        [tenantId, identity.cell_id]
+      );
+      if (!authorityResult.rows[0]) return null;
+      const authority = decodeAuthority(authorityResult.rows[0]);
+      const existingResult = await pg.query(
+        `/* ivekit-dialog-terminal-repair:find-claim */
+         SELECT id, tenant_id, cell_id, call_session_ref,
+           source_owner_node_id, source_owner_fault_domain,
+           source_owner_epoch, source_pair_hash,
+           repair_owner_node_id, repair_owner_fault_domain,
+           repair_owner_epoch, terminal_cdr_sequence,
+           terminal_cdr_payload_hash, terminal_cdr_call_id,
+           terminal_cdr_receipt_id, terminal_cdr_region_id,
+           terminal_cdr_durability_contract_id, claimed_at, expires_at
+         FROM ivekit_voice_dialog_terminal_repairs
+         WHERE tenant_id = $1
+           AND cell_id = $2
+           AND call_session_ref = $3
+           AND state = 'claimed'
+         ORDER BY repair_owner_epoch DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [tenantId, identity.cell_id, authority.call_session_ref]
+      );
+      if (existingResult.rows[0]) {
+        const existing = decodeTerminalRepair(existingResult.rows[0]);
+        if (!matchesTerminalCdrAuthority(existing, authority)) unavailable();
+        const sameOwner = existing.repair_owner_node_id === identity.node_id &&
+          existing.repair_owner_fault_domain === identity.fault_domain;
+        if (!sameOwner) {
+          if (Date.parse(existing.expires_at) > Date.parse(claimedAt)) {
+            return null;
+          }
+          await pg.query(
+            `/* ivekit-dialog-terminal-repair:expire-foreign-claim */
+             UPDATE ivekit_voice_dialog_terminal_repairs
+             SET state = 'expired',
+                 updated_at = $5::timestamptz
+             WHERE id = $1
+               AND tenant_id = $2
+               AND cell_id = $3
+               AND call_session_ref = $4
+               AND state = 'claimed'
+               AND expires_at <= $5::timestamptz`,
+            [
+              existing.repair_id,
+              tenantId,
+              identity.cell_id,
+              authority.call_session_ref,
+              claimedAt
+            ]
+          );
+          return null;
+        }
+        if (Date.parse(existing.expires_at) <= Date.parse(claimedAt)) {
+          const renewed = await pg.query(
+            `/* ivekit-dialog-terminal-repair:renew-local-claim */
+             UPDATE ivekit_voice_dialog_terminal_repairs
+             SET expires_at = $5::timestamptz,
+                 updated_at = $6::timestamptz
+             WHERE id = $1
+               AND tenant_id = $2
+               AND cell_id = $3
+               AND call_session_ref = $4
+               AND state = 'claimed'
+             RETURNING id, tenant_id, cell_id, call_session_ref,
+               source_owner_node_id, source_owner_fault_domain,
+               source_owner_epoch, source_pair_hash,
+               repair_owner_node_id, repair_owner_fault_domain,
+               repair_owner_epoch, terminal_cdr_sequence,
+               terminal_cdr_payload_hash, terminal_cdr_call_id,
+               terminal_cdr_receipt_id, terminal_cdr_region_id,
+               terminal_cdr_durability_contract_id, claimed_at, expires_at`,
+            [
+              existing.repair_id,
+              tenantId,
+              identity.cell_id,
+              authority.call_session_ref,
+              expiresAt,
+              claimedAt
+            ]
+          );
+          if (!renewed.rows[0]) unavailable();
+          return decodeTerminalRepair(renewed.rows[0]);
+        }
+        return existing;
+      }
+      const ownerEpoch = authority.owner_epoch_high_watermark + 1;
+      if (ownerEpoch > 0xffff_ffff ||
+          authority.terminal_cdr_sequence === null ||
+          authority.terminal_cdr_payload_hash === null ||
+          authority.terminal_cdr_call_id === null ||
+          authority.terminal_cdr_receipt_id === null ||
+          authority.terminal_cdr_region_id === null ||
+          authority.terminal_cdr_durability_contract_id === null) {
+        unavailable();
+      }
+      const reserved = await pg.query(
+        `/* ivekit-dialog-terminal-repair:reserve-epoch */
+         UPDATE ivekit_voice_dialog_ownership
+         SET owner_epoch_high_watermark = $4,
+             revision = revision + 1,
+             updated_at = $5::timestamptz
+         WHERE tenant_id = $1
+           AND cell_id = $2
+           AND call_session_ref = $3
+           AND owner_epoch_high_watermark < $4
+           AND terminal = TRUE
+           AND terminal_shadow_pending = TRUE
+           AND terminal_cdr_sequence = $6
+           AND terminal_cdr_payload_hash = $7
+           AND terminal_cdr_call_id = $8
+           AND terminal_cdr_receipt_id = $9
+           AND terminal_cdr_region_id = $10
+           AND terminal_cdr_durability_contract_id = $11
+           AND pending_takeover_id IS NULL
+         RETURNING ${AUTHORITY_COLUMNS}`,
+        [
+          tenantId,
+          identity.cell_id,
+          authority.call_session_ref,
+          ownerEpoch,
+          claimedAt,
+          authority.terminal_cdr_sequence,
+          authority.terminal_cdr_payload_hash,
+          authority.terminal_cdr_call_id,
+          authority.terminal_cdr_receipt_id,
+          authority.terminal_cdr_region_id,
+          authority.terminal_cdr_durability_contract_id
+        ]
+      );
+      if (!reserved.rows[0]) unavailable();
+      const inserted = await pg.query(
+        `/* ivekit-dialog-terminal-repair:insert-claim */
+         INSERT INTO ivekit_voice_dialog_terminal_repairs
+          (id, tenant_id, cell_id, call_session_ref,
+           source_owner_node_id, source_owner_fault_domain,
+           source_owner_epoch, source_pair_hash,
+           repair_owner_node_id, repair_owner_fault_domain,
+           repair_owner_epoch, terminal_cdr_sequence,
+           terminal_cdr_payload_hash, terminal_cdr_call_id,
+           terminal_cdr_receipt_id, terminal_cdr_region_id,
+           terminal_cdr_durability_contract_id, state, claimed_at, expires_at,
+           completed_at, terminal_pair_hash, updated_at)
+         VALUES
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+           $14, $15, $16, $17, 'claimed', $18::timestamptz,
+           $19::timestamptz, NULL, NULL, $18::timestamptz)
+         RETURNING id, tenant_id, cell_id, call_session_ref,
+           source_owner_node_id, source_owner_fault_domain,
+           source_owner_epoch, source_pair_hash,
+           repair_owner_node_id, repair_owner_fault_domain,
+           repair_owner_epoch, terminal_cdr_sequence,
+           terminal_cdr_payload_hash, terminal_cdr_call_id,
+           terminal_cdr_receipt_id, terminal_cdr_region_id,
+           terminal_cdr_durability_contract_id, claimed_at, expires_at`,
+        [
+          repairId,
+          tenantId,
+          identity.cell_id,
+          authority.call_session_ref,
+          authority.owner_node_id,
+          authority.owner_fault_domain,
+          authority.owner_epoch,
+          authority.shadow_pair_hash,
+          identity.node_id,
+          identity.fault_domain,
+          ownerEpoch,
+          authority.terminal_cdr_sequence,
+          authority.terminal_cdr_payload_hash,
+          authority.terminal_cdr_call_id,
+          authority.terminal_cdr_receipt_id,
+          authority.terminal_cdr_region_id,
+          authority.terminal_cdr_durability_contract_id,
+          claimedAt,
+          expiresAt
+        ]
+      );
+      if (!inserted.rows[0]) unavailable();
+      return decodeTerminalRepair(inserted.rows[0]);
+    });
+  }
+
+  completeTerminalShadowRepair(input: {
+    claim: DialogTerminalShadowRepairClaim;
+    records: readonly [DialogShadowRecord, DialogShadowRecord];
+    pair_hash: string;
+    completed_at: Date;
+  }): Promise<DialogOwnerAuthorityRecord> {
+    const claim = decodeTerminalRepair(repairRow(input.claim));
+    const records = assertDialogShadowPair(input.records);
+    const pairHash = hash(input.pair_hash);
+    const completedAt = timestamp(input.completed_at);
+    if (dialogShadowPairHash(records) !== pairHash ||
+        records.some((record) =>
+          record.tenant_id !== claim.tenant_id ||
+          record.cell_id !== claim.cell_id ||
+          record.provider_session_ref !== claim.call_session_ref ||
+          record.owner_node_id !== claim.repair_owner_node_id ||
+          record.owner_fault_domain !== claim.repair_owner_fault_domain ||
+          record.owner_epoch !== claim.repair_owner_epoch ||
+          record.sequence !== 1 ||
+          record.state !== 'terminated' ||
+          !record.terminal ||
+          record.takeover_id !== claim.repair_id ||
+          record.cdr_sequence !== claim.terminal_cdr_sequence ||
+          record.terminal_cdr_payload_hash !==
+            claim.terminal_cdr_payload_hash
+        )) {
+      throw new DialogOwnerTakeoverError(
+        'dialog_terminal_shadow_repair_binding_mismatch',
+        409
+      );
+    }
+    return withPgTenant(this.pg, claim.tenant_id, async (pg) => {
+      const result = await pg.query(
+        `/* ivekit-dialog-terminal-repair:complete */
+         WITH bound_receipt AS (
+           SELECT receipt.receipt_id
+           FROM ivekit_voice_cdr_receipts receipt
+           JOIN ivekit_voice_cdr_calls cdr_call
+             ON cdr_call.tenant_id = receipt.tenant_id
+            AND cdr_call.call_id = receipt.call_id
+            AND cdr_call.provider_call_id = $4
+            AND cdr_call.receipt_id = receipt.receipt_id
+            AND cdr_call.state = 'committed'
+           WHERE receipt.tenant_id = $2
+             AND receipt.receipt_id = $16
+             AND receipt.call_id = $17
+             AND receipt.acknowledged_sequence = $10
+             AND receipt.acknowledged_payload_hash = $13
+             AND receipt.region_id = $18
+             AND receipt.durability_contract_id = $19
+             AND receipt.cell_id = $3
+             AND receipt.owner_node_id = $5
+             AND receipt.owner_epoch = $6
+             AND receipt.availability_profile = 'VOICE-HA-T1'
+         ),
+         completed_repair AS (
+           UPDATE ivekit_voice_dialog_terminal_repairs
+           SET state = 'committed',
+               completed_at = $12::timestamptz,
+               terminal_pair_hash = $11,
+               updated_at = $12::timestamptz
+           WHERE id = $1
+             AND tenant_id = $2
+             AND cell_id = $3
+             AND call_session_ref = $4
+             AND source_owner_node_id = $5
+             AND source_owner_fault_domain = $15
+             AND source_owner_epoch = $6
+             AND source_pair_hash = $7
+             AND repair_owner_node_id = $8
+             AND repair_owner_epoch = $9
+             AND terminal_cdr_sequence = $10
+             AND terminal_cdr_payload_hash = $13
+             AND terminal_cdr_call_id = $17
+             AND terminal_cdr_receipt_id = $16
+             AND terminal_cdr_region_id = $18
+             AND terminal_cdr_durability_contract_id = $19
+             AND state = 'claimed'
+             AND EXISTS (SELECT 1 FROM bound_receipt)
+           RETURNING id
+         ),
+         completed_authority AS (
+           UPDATE ivekit_voice_dialog_ownership
+           SET owner_node_id = $8,
+               owner_fault_domain = $14,
+               owner_epoch = $9,
+               shadow_pair_hash = $11,
+               terminal_shadow_pending = FALSE,
+               revision = revision + 1,
+               updated_at = $12::timestamptz
+           WHERE tenant_id = $2
+             AND cell_id = $3
+             AND call_session_ref = $4
+             AND owner_node_id = $5
+             AND owner_fault_domain = $15
+             AND owner_epoch = $6
+             AND owner_epoch_high_watermark >= $9
+             AND shadow_pair_hash = $7
+             AND terminal = TRUE
+             AND terminal_shadow_pending = TRUE
+             AND terminal_cdr_sequence = $10
+             AND terminal_cdr_payload_hash = $13
+             AND terminal_cdr_call_id = $17
+             AND terminal_cdr_receipt_id = $16
+             AND terminal_cdr_region_id = $18
+             AND terminal_cdr_durability_contract_id = $19
+             AND pending_takeover_id IS NULL
+             AND EXISTS (SELECT 1 FROM completed_repair)
+           RETURNING ${AUTHORITY_COLUMNS}
+         )
+         SELECT * FROM completed_authority`,
+        [
+          claim.repair_id,
+          claim.tenant_id,
+          claim.cell_id,
+          claim.call_session_ref,
+          claim.source_owner_node_id,
+          claim.source_owner_epoch,
+          claim.source_pair_hash,
+          claim.repair_owner_node_id,
+          claim.repair_owner_epoch,
+          claim.terminal_cdr_sequence,
+          pairHash,
+          completedAt,
+          claim.terminal_cdr_payload_hash,
+          claim.repair_owner_fault_domain,
+          claim.source_owner_fault_domain,
+          claim.terminal_cdr_receipt_id,
+          claim.terminal_cdr_call_id,
+          claim.terminal_cdr_region_id,
+          claim.terminal_cdr_durability_contract_id
+        ]
+      );
+      if (!result.rows[0]) unavailable();
+      const authority = decodeAuthority(result.rows[0]);
+      if (!authority.terminal ||
+          authority.terminal_shadow_pending ||
+          authority.owner_node_id !== claim.repair_owner_node_id ||
+          authority.owner_epoch !== claim.repair_owner_epoch ||
+          authority.shadow_pair_hash !== pairHash) {
+        unavailable();
+      }
+      return authority;
     });
   }
 
@@ -724,7 +1210,7 @@ implements DialogOwnerTakeoverStore {
   }
 }
 
-const AUTHORITY_COLUMNS = [
+const AUTHORITY_COLUMN_NAMES = [
   'tenant_id',
   'cell_id',
   'call_session_ref',
@@ -735,6 +1221,13 @@ const AUTHORITY_COLUMNS = [
   'owner_epoch_high_watermark',
   'shadow_pair_hash',
   'terminal',
+  'terminal_shadow_pending',
+  'terminal_cdr_sequence',
+  'terminal_cdr_payload_hash',
+  'terminal_cdr_call_id',
+  'terminal_cdr_receipt_id',
+  'terminal_cdr_region_id',
+  'terminal_cdr_durability_contract_id',
   'pending_takeover_id',
   'pending_owner_node_id',
   'pending_owner_fault_domain',
@@ -742,7 +1235,11 @@ const AUTHORITY_COLUMNS = [
   'pending_token_sha256',
   'pending_expires_at',
   'revision'
-].join(', ');
+] as const;
+const AUTHORITY_COLUMNS = AUTHORITY_COLUMN_NAMES.join(', ');
+const AUTHORITY_COLUMNS_OWNERSHIP = AUTHORITY_COLUMN_NAMES
+  .map((column) => `ownership.${column} AS ${column}`)
+  .join(', ');
 
 function decodeAuthority(row: Record<string, unknown>): DialogOwnerAuthorityRecord {
   const result: DialogOwnerAuthorityRecord = {
@@ -760,6 +1257,15 @@ function decodeAuthority(row: Record<string, unknown>): DialogOwnerAuthorityReco
     ),
     shadow_pair_hash: hash(row.shadow_pair_hash),
     terminal: boolean(row.terminal),
+    terminal_shadow_pending: boolean(row.terminal_shadow_pending),
+    terminal_cdr_sequence: nullableSafeInteger(row.terminal_cdr_sequence),
+    terminal_cdr_payload_hash: nullableHash(row.terminal_cdr_payload_hash),
+    terminal_cdr_call_id: nullableIdentifier(row.terminal_cdr_call_id),
+    terminal_cdr_receipt_id: nullableIdentifier(row.terminal_cdr_receipt_id),
+    terminal_cdr_region_id: nullableIdentifier(row.terminal_cdr_region_id),
+    terminal_cdr_durability_contract_id: nullableIdentifier(
+      row.terminal_cdr_durability_contract_id
+    ),
     pending_takeover_id: nullableIdentifier(row.pending_takeover_id),
     pending_owner_node_id: nullableIdentifier(row.pending_owner_node_id),
     pending_owner_fault_domain: nullableIdentifier(row.pending_owner_fault_domain),
@@ -776,7 +1282,20 @@ function decodeAuthority(row: Record<string, unknown>): DialogOwnerAuthorityReco
     result.pending_token_sha256,
     result.pending_expires_at
   ];
+  const terminalCdrAuthority = [
+    result.terminal_cdr_sequence,
+    result.terminal_cdr_payload_hash,
+    result.terminal_cdr_call_id,
+    result.terminal_cdr_receipt_id,
+    result.terminal_cdr_region_id,
+    result.terminal_cdr_durability_contract_id
+  ];
   if (result.owner_epoch_high_watermark < result.owner_epoch ||
+      (terminalCdrAuthority.every((value) => value === null)
+        ? false
+        : terminalCdrAuthority.some((value) => value === null)) ||
+      (result.terminal_shadow_pending &&
+        (!result.terminal || result.terminal_cdr_sequence === null)) ||
       (pending.every((value) => value === null)
         ? false
         : pending.some((value) => value === null)) ||
@@ -786,6 +1305,83 @@ function decodeAuthority(row: Record<string, unknown>): DialogOwnerAuthorityReco
     unavailable();
   }
   return result;
+}
+
+function decodeTerminalRepair(
+  row: Record<string, unknown>
+): DialogTerminalShadowRepairClaim {
+  const result: DialogTerminalShadowRepairClaim = {
+    repair_id: identifier(row.id),
+    tenant_id: identifier(row.tenant_id),
+    cell_id: identifier(row.cell_id),
+    call_session_ref: identifier(row.call_session_ref),
+    source_owner_node_id: identifier(row.source_owner_node_id),
+    source_owner_fault_domain: identifier(row.source_owner_fault_domain),
+    source_owner_epoch: integer(row.source_owner_epoch, 1, 0xffff_fffe),
+    source_pair_hash: hash(row.source_pair_hash),
+    repair_owner_node_id: identifier(row.repair_owner_node_id),
+    repair_owner_fault_domain: identifier(row.repair_owner_fault_domain),
+    repair_owner_epoch: integer(row.repair_owner_epoch, 2, 0xffff_ffff),
+    terminal_cdr_sequence: integer(
+      row.terminal_cdr_sequence,
+      1,
+      Number.MAX_SAFE_INTEGER
+    ),
+    terminal_cdr_payload_hash: hash(row.terminal_cdr_payload_hash),
+    terminal_cdr_call_id: identifier(row.terminal_cdr_call_id),
+    terminal_cdr_receipt_id: identifier(row.terminal_cdr_receipt_id),
+    terminal_cdr_region_id: identifier(row.terminal_cdr_region_id),
+    terminal_cdr_durability_contract_id: identifier(
+      row.terminal_cdr_durability_contract_id
+    ),
+    claimed_at: timestamp(row.claimed_at),
+    expires_at: timestamp(row.expires_at)
+  };
+  if (result.repair_owner_epoch <= result.source_owner_epoch ||
+      Date.parse(result.expires_at) <= Date.parse(result.claimed_at)) {
+    unavailable();
+  }
+  return result;
+}
+
+function repairRow(
+  claim: DialogTerminalShadowRepairClaim
+): Record<string, unknown> {
+  return {
+    id: claim.repair_id,
+    tenant_id: claim.tenant_id,
+    cell_id: claim.cell_id,
+    call_session_ref: claim.call_session_ref,
+    source_owner_node_id: claim.source_owner_node_id,
+    source_owner_fault_domain: claim.source_owner_fault_domain,
+    source_owner_epoch: claim.source_owner_epoch,
+    source_pair_hash: claim.source_pair_hash,
+    repair_owner_node_id: claim.repair_owner_node_id,
+    repair_owner_fault_domain: claim.repair_owner_fault_domain,
+    repair_owner_epoch: claim.repair_owner_epoch,
+    terminal_cdr_sequence: claim.terminal_cdr_sequence,
+    terminal_cdr_payload_hash: claim.terminal_cdr_payload_hash,
+    terminal_cdr_call_id: claim.terminal_cdr_call_id,
+    terminal_cdr_receipt_id: claim.terminal_cdr_receipt_id,
+    terminal_cdr_region_id: claim.terminal_cdr_region_id,
+    terminal_cdr_durability_contract_id:
+      claim.terminal_cdr_durability_contract_id,
+    claimed_at: claim.claimed_at,
+    expires_at: claim.expires_at
+  };
+}
+
+function matchesTerminalCdrAuthority(
+  claim: DialogTerminalShadowRepairClaim,
+  authority: DialogOwnerAuthorityRecord
+): boolean {
+  return claim.terminal_cdr_sequence === authority.terminal_cdr_sequence &&
+    claim.terminal_cdr_payload_hash === authority.terminal_cdr_payload_hash &&
+    claim.terminal_cdr_call_id === authority.terminal_cdr_call_id &&
+    claim.terminal_cdr_receipt_id === authority.terminal_cdr_receipt_id &&
+    claim.terminal_cdr_region_id === authority.terminal_cdr_region_id &&
+    claim.terminal_cdr_durability_contract_id ===
+      authority.terminal_cdr_durability_contract_id;
 }
 
 function decodeReplay(row: Record<string, unknown>): TakeoverReplayRow {
@@ -910,6 +1506,12 @@ function nullableInteger(value: unknown): number | null {
   return value === null || value === undefined
     ? null
     : integer(value, 2, 0xffff_ffff);
+}
+
+function nullableSafeInteger(value: unknown): number | null {
+  return value === null || value === undefined
+    ? null
+    : integer(value, 1, Number.MAX_SAFE_INTEGER);
 }
 
 function timestamp(value: unknown): string {

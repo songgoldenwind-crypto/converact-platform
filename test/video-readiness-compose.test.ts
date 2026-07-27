@@ -1127,8 +1127,10 @@ test('Kubernetes chart renders every bundled infrastructure image by immutable d
   }
 
   for (const section of ['postgres', 'redis', 'nats', 'livekit', 'rustdesk']) {
-    const start = values.indexOf(`${section}:\n`);
+    const marker = `\n${section}:\n`;
+    const start = values.indexOf(marker) + 1;
     const end = values.indexOf('\n\n', start);
+    assert.notEqual(start, 0, `missing top-level ${section} values`);
     assert.match(values.slice(start, end), /image:\n\s+repository: [^\n]+\n\s+digest: ""/);
   }
   assert.match(values, /sip:\n[\s\S]*?image:\n\s+repository: ghcr\.io\/songgoldenwind-crypto\/opc-livekit-sip\n\s+digest: ""/);

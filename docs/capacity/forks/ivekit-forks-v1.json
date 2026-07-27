@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.27-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.28-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.27-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.28-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -186,6 +186,12 @@
           "sha256": "038fd5c02c35221c7d32409342f2fcab0d563906b3cab305e62de9802f8a9a17",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-shadow.patch",
           "purpose": "Authenticate reciprocal two-leg recovery capsules, claim and consume one-time owner takeover, atomically publish the new owner epoch, restore RTPengine media state, and run a recovered B2BUA controller for in-dialog signaling, SDP renegotiation and bounded terminal cleanup."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
+          "sha256": "84c1dd9d91c2d12a8505dd99fb0416e76471bb8ef37e68e0c70e46fd6fa5984f",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-recovery.patch",
+          "purpose": "Emit owner-fenced dual-leg CDR projections with exact route revision and recovered timing, hash-bind the configured Region before upload, persist T1 termination intent before Region commit, bind terminal repair to the exact Region receipt and durability contract, use bounded concurrent exact commits without a global network lock, finalize terminating takeovers without restoring SIP or media, and delete records only after an authenticated Region durable-quorum receipt."
         }
       ],
       "protocols": [
@@ -213,6 +219,11 @@
           "protocol_id": "ivekit-dialog-shadow",
           "version": "1",
           "visibility": "component_internal"
+        },
+        {
+          "protocol_id": "ivekit-rustpbx-dual-leg-cdr",
+          "version": "1",
+          "visibility": "ivekit_internal"
         }
       ],
       "implemented_changes": [
@@ -527,6 +538,25 @@
           ]
         },
         {
+          "change_id": "rustpbx-dual-leg-cdr-v1",
+          "summary": "Converge one monotonic owner-fenced CDR projection for both B2BUA legs, including route revision, winning branch, early media, transfer chain, media outcome and recovery timing, through a restart-safe local spool and authenticated Region durable-quorum receipt.",
+          "capacity_dimensions": [
+            "sip.active_dialogs",
+            "voice.concurrent_calls",
+            "events.outbox_per_second",
+            "data.local_spool_bytes"
+          ],
+          "acceptance_evidence": [
+            "The exact ivekit.28 patch queue applies after dialog recovery and the locked RustPBX library compiles with Rust 1.94.1.",
+            "Sixty-one focused iveKit Rust library tests, one independent missing-callee terminal test and twenty dialog-shadow contract tests pass against the exact modified source; the Task 9 file adds no Clippy warning.",
+            "The spool writer is initialized before readiness, fences only new admission on saturation, applies bounded asynchronous MPSC backpressure to existing terminal calls without blocking OS or Tokio worker threads, retains failed batches for bounded-backoff retry and acknowledges through oneshot only after file and directory durability; the uploader resumes pending local records before accepting new owner-authorized calls, bounds every scan and response, rejects redirects and insecure production endpoints, and removes a record only after validating a matching committed receipt.",
+            "TypeScript convergence tests prove both-leg preservation, monotonic sequence, exact replay, conflict detection, stale missing-leg fill, no duplicate billing event and pending-to-committed promotion only after a Region durable-quorum receipt.",
+            "New sequence admission selects only the configured local Region contract; exact historical replay returns its journaled receipt, while higher sequence Region takeover cannot reuse the previous Region contract.",
+            "Append-only submission and receipt journals bind tenant, call, sequence and payload hash through a composite PostgreSQL foreign key; unknown or changed historical payloads fail closed without duplicate billing.",
+            "T1 requires local file and directory durability followed by an exact current-Region cross-Zone committed receipt before committing the reciprocal terminal shadow pair; a failed Region commit leaves the shadow takeover-eligible and recovered owners follow the same ordering. Ordinary mode uses local durable spool as its success boundary and does not claim zero loss for simultaneous sole-spool loss plus process kill. No Rust RTP forwarding or media packet hot-path source is modified; physical Region quorum loss, process restart, cross-Zone receipt and load testing remain not_run."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -608,6 +638,7 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -618,6 +649,11 @@
           "test/ivekit-rustpbx-media-lifecycle-patch.test.ts",
           "test/ivekit-rustpbx-media-mid-dialog-patch.test.ts",
           "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
+          "test/ivekit-rustpbx-dual-leg-cdr-patch.test.ts",
+          "test/ivekit-voice-cdr-convergence.test.ts",
+          "src/agent-runtime/ivekit/voice/cdr-convergence.ts",
+          "src/agent-runtime/ivekit/voice/postgres/cdr-convergence-store.ts",
+          "src/migrations/103_ivekit_voice_cdr_convergence.sql",
           "test/ivekit-media-control-events.test.ts",
           "src/agent-runtime/ivekit/media-control/events.ts",
           "scripts/ivekit-media-control-agent.ts",

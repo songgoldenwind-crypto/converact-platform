@@ -48,6 +48,23 @@ test('runtime-role initializer parameterizes password and commits least-privileg
     pg.calls.some((call) => call.text.includes('opc_ivekit_applied_migration_versions')),
     true
   );
+  const grants = pg.calls.map((call) => call.text).join('\n');
+  assert.match(
+    grants,
+    /REVOKE UPDATE, DELETE, TRUNCATE\s+ON TABLE public\.ivekit_voice_cdr_submissions\s+FROM opc_runtime/i
+  );
+  assert.match(
+    grants,
+    /REVOKE UPDATE, DELETE, TRUNCATE\s+ON TABLE public\.ivekit_voice_cdr_receipts\s+FROM opc_runtime/i
+  );
+  assert.match(
+    grants,
+    /REVOKE DELETE, TRUNCATE\s+ON TABLE public\.ivekit_voice_cdr_calls\s+FROM opc_runtime/i
+  );
+  assert.match(
+    grants,
+    /REVOKE DELETE, TRUNCATE\s+ON TABLE public\.ivekit_voice_cdr_legs\s+FROM opc_runtime/i
+  );
 });
 
 test('runtime-role initializer rejects an unexpected migration role', async () => {

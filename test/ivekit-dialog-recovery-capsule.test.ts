@@ -142,6 +142,52 @@ test('capsule preserves the executable per-leg media reservation identity', () =
   );
 });
 
+test('capsule accepts Rust timing and route revision fields without changing legacy payloads', () => {
+  const rustPayload = payload({
+    started_at: '2026-07-27T01:00:00.000Z',
+    answered_at: '2026-07-27T01:00:02.000Z',
+    route_snapshot_revision: 42
+  });
+  const rustEnvelope = codec().seal(rustPayload, binding());
+  assert.deepEqual(codec().open(rustEnvelope, binding()), rustPayload);
+
+  const legacyPayload = payload();
+  const legacyEnvelope = codec().seal(legacyPayload, binding());
+  assert.deepEqual(codec().open(legacyEnvelope, binding()), legacyPayload);
+  assert.equal('started_at' in codec().open(legacyEnvelope, binding()), false);
+  assert.equal('route_snapshot_revision' in codec().open(legacyEnvelope, binding()), false);
+});
+
+test('capsule rejects invalid Rust timing and route revision fields', () => {
+  for (const value of [
+    payload({
+      started_at: null,
+      answered_at: '2026-07-27T01:00:02.000Z',
+      route_snapshot_revision: 42
+    }),
+    payload({
+      started_at: '2026-07-27T01:00:03.000Z',
+      answered_at: '2026-07-27T01:00:02.000Z',
+      route_snapshot_revision: 42
+    }),
+    payload({
+      started_at: 'not-a-timestamp',
+      answered_at: null,
+      route_snapshot_revision: 42
+    }),
+    payload({
+      started_at: null,
+      answered_at: null,
+      route_snapshot_revision: 0
+    })
+  ]) {
+    assert.throws(
+      () => codec().seal(value, binding()),
+      (error) => code(error) === 'dialog_recovery_capsule_invalid'
+    );
+  }
+});
+
 function code(error: unknown): string {
   return error instanceof DialogRecoveryCapsuleError ? error.code : '';
 }

@@ -87,6 +87,14 @@ test('Postgres retention store deletes tenant events in bounded legal-hold-aware
   assert.match(query.text, /event\.expires_at <= \$3::timestamptz/i);
   assert.equal(query.params?.[2], claim().started_at);
   assert.match(query.text, /ORDER BY held ASC/i);
+  assert.match(
+    query.text,
+    /cdr_call\.billing_event_id = event\.id/i
+  );
+  assert.match(
+    query.text,
+    /cdr_receipt\.billing_event_id = event\.id/i
+  );
 });
 
 test('Postgres retention store writes optimistic policies and idempotent legal holds', async () => {

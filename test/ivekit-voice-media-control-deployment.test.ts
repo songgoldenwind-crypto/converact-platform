@@ -58,7 +58,10 @@ describe('iveKit media control deployment', () => {
   it('keeps component leases alive through the Cell admission leader', () => {
     const service = compose.services['cell-admission'];
     assert.ok(service);
-    assert.deepEqual(service.profiles, ['voice-capacity', 'voice-media-control']);
+    assert.deepEqual(
+      service.profiles,
+      ['voice-capacity', 'voice-media-control', 'voice-t1']
+    );
     assert.deepEqual(service.command, [
       'node',
       '--import',

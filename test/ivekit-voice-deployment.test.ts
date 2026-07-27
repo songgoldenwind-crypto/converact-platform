@@ -287,7 +287,7 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.match(voice, /image: \$\{RUSTPBX_IMAGE:\?RUSTPBX_IMAGE is required\}/);
   assert.match(
     voice,
-    /profiles: \["voice", "voice-capacity", "voice-media-control"\]/
+    /profiles: \["voice", "voice-capacity", "voice-media-control", "voice-t1"\]/
   );
   assert.match(voice, /scripts\/render-rustpbx-config\.ts/);
   assert.match(voice, /src\/ivekit-rustpbx-route-snapshot\.ts/);
@@ -300,7 +300,7 @@ test('standalone Voice overlay isolates RustPBX data and exposes only SIP and RT
   assert.match(voice, /rustpbx-component-node:/);
   assert.match(
     voice,
-    /profiles: \["voice-capacity", "voice-media-control"\]/
+    /profiles: \["voice-capacity", "voice-media-control", "voice-t1"\]/
   );
   assert.match(voice, /scripts\/ivekit-component-node-admission\.ts/);
   assert.match(voice, /network_mode: service:rustpbx/);

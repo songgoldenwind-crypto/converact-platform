@@ -14,6 +14,17 @@
 {{- if ne .Values.voice.database.name "rustpbx" -}}
 {{- fail "voice.database.name must be rustpbx" -}}
 {{- end -}}
+{{- $cdrEndpoint := required "voice.cdr.endpoint is required when voice is enabled" .Values.voice.cdr.endpoint -}}
+{{- $_ := required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId -}}
+{{- if not (hasPrefix "https://" $cdrEndpoint) -}}
+{{- fail "voice.cdr.endpoint must use HTTPS" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.cdr.pollIntervalMs) 100) (gt (int .Values.voice.cdr.pollIntervalMs) 60000) -}}
+{{- fail "voice.cdr.pollIntervalMs must be between 100 and 60000" -}}
+{{- end -}}
+{{- if not .Values.voice.persistence.enabled -}}
+{{- fail "voice.persistence.enabled must be true for the durable CDR spool" -}}
+{{- end -}}
 {{- range $name, $value := dict "maxActiveTransactions" .Values.voice.sipCapacity.maxActiveTransactions "maxFinishedTransactions" .Values.voice.sipCapacity.maxFinishedTransactions "incomingTransactionQueueCapacity" .Values.voice.sipCapacity.incomingTransactionQueueCapacity "maxTransportConnections" .Values.voice.sipCapacity.maxTransportConnections -}}
 {{- if or (lt (int $value) 1) (gt (int $value) 10000000) -}}
 {{- fail (printf "voice.sipCapacity.%s must be between 1 and 10000000" $name) -}}
@@ -94,6 +105,69 @@
 {{- $_ := required "voice.componentNode.token is required when component-node is enabled" .Values.voice.componentNode.token -}}
 {{- if empty .Values.voice.componentNode.profileIds -}}
 {{- fail "voice.componentNode.profileIds is required when component-node is enabled" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.voice.dialogShadow.enabled -}}
+{{- if not .Values.voice.persistence.enabled -}}
+{{- fail "voice.persistence.enabled must be true when dialog shadow is enabled" -}}
+{{- end -}}
+{{- if not (regexMatch "^https://localhost:3212/?$" (required "voice.dialogShadow.endpoint is required" .Values.voice.dialogShadow.endpoint)) -}}
+{{- fail "voice.dialogShadow.endpoint must be node-local https://localhost:3212/" -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.faultDomain is required" .Values.voice.dialogShadow.faultDomain -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" .Values.voice.dialogShadow.faultDomain) -}}
+{{- fail "voice.dialogShadow.faultDomain is invalid" -}}
+{{- end -}}
+{{- if not (regexMatch "(^[a-z0-9]$)|(^[a-z0-9][a-z0-9.-]{0,251}[a-z0-9]$)" (required "voice.dialogShadow.spiffeTrustDomain is required" .Values.voice.dialogShadow.spiffeTrustDomain)) -}}
+{{- fail "voice.dialogShadow.spiffeTrustDomain is invalid" -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.serviceTokenKey is required" .Values.voice.dialogShadow.serviceTokenKey -}}
+{{- $_ := required "voice.dialogShadow.serviceToken is required" .Values.voice.dialogShadow.serviceToken -}}
+{{- $_ := required "voice.dialogShadow.recoveryDatabaseUrlKey is required" .Values.voice.dialogShadow.recoveryDatabaseUrlKey -}}
+{{- $_ := required "voice.dialogShadow.recoveryDatabaseUrl is required" .Values.voice.dialogShadow.recoveryDatabaseUrl -}}
+{{- $_ := required "voice.dialogShadow.currentRecoveryKeyId is required" .Values.voice.dialogShadow.currentRecoveryKeyId -}}
+{{- $_ := required "voice.dialogShadow.currentRecoveryKeyKey is required" .Values.voice.dialogShadow.currentRecoveryKeyKey -}}
+{{- $_ := required "voice.dialogShadow.currentRecoveryKey is required" .Values.voice.dialogShadow.currentRecoveryKey -}}
+{{- $_ := required "voice.dialogShadow.previousRecoveryKeyId is required" .Values.voice.dialogShadow.previousRecoveryKeyId -}}
+{{- $_ := required "voice.dialogShadow.previousRecoveryKeyKey is required" .Values.voice.dialogShadow.previousRecoveryKeyKey -}}
+{{- $_ := required "voice.dialogShadow.previousRecoveryKey is required" .Values.voice.dialogShadow.previousRecoveryKey -}}
+{{- if eq .Values.voice.dialogShadow.currentRecoveryKeyId .Values.voice.dialogShadow.previousRecoveryKeyId -}}
+{{- fail "voice.dialogShadow recovery key ids must be distinct" -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.serverTlsSecretName is required" .Values.voice.dialogShadow.serverTlsSecretName -}}
+{{- $_ := required "voice.dialogShadow.clientIdentity.csi.driver is required" .Values.voice.dialogShadow.clientIdentity.csi.driver -}}
+{{- if empty .Values.voice.dialogShadow.clientIdentity.csi.volumeAttributes -}}
+{{- fail "voice.dialogShadow.clientIdentity.csi.volumeAttributes must identify a per-Pod certificate provider" -}}
+{{- end -}}
+{{- range $name, $value := dict "identityFile" .Values.voice.dialogShadow.clientIdentity.identityFile "caFile" .Values.voice.dialogShadow.clientIdentity.caFile -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" $value) -}}
+{{- fail (printf "voice.dialogShadow.clientIdentity.%s must be a filename" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- if empty .Values.voice.dialogShadow.nats.urls -}}
+{{- fail "voice.dialogShadow.nats.urls must contain TLS NATS endpoints" -}}
+{{- end -}}
+{{- range .Values.voice.dialogShadow.nats.urls -}}
+{{- if not (regexMatch "^tls://[^/@[:space:]]+(:[0-9]+)?$" .) -}}
+{{- fail "voice.dialogShadow.nats.urls must contain credential-free tls:// endpoints" -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := required "voice.dialogShadow.nats.tlsSecretName is required" .Values.voice.dialogShadow.nats.tlsSecretName -}}
+{{- $_ := required "voice.dialogShadow.nats.faultDomainsSecretName is required" .Values.voice.dialogShadow.nats.faultDomainsSecretName -}}
+{{- $_ := required "voice.dialogShadow.nats.placementCluster is required" .Values.voice.dialogShadow.nats.placementCluster -}}
+{{- if empty .Values.voice.dialogShadow.nats.placementTags -}}
+{{- fail "voice.dialogShadow.nats.placementTags is required" -}}
+{{- end -}}
+{{- $streamReplicas := int .Values.voice.dialogShadow.nats.streamReplicas -}}
+{{- if not (or (eq $streamReplicas 3) (eq $streamReplicas 5)) -}}
+{{- fail "voice.dialogShadow.nats.streamReplicas must be 3 or 5" -}}
+{{- end -}}
+{{- $requiredFaultDomains := int .Values.voice.dialogShadow.nats.requiredFaultDomains -}}
+{{- if or (lt $requiredFaultDomains 2) (gt $requiredFaultDomains $streamReplicas) -}}
+{{- fail "voice.dialogShadow.nats.requiredFaultDomains must be between 2 and streamReplicas" -}}
+{{- end -}}
+{{- if ge (int .Values.voice.dialogShadow.rustPbx.heartbeatIntervalMs) (int .Values.voice.dialogShadow.recovery.nodeLeaseTtlMs) -}}
+{{- fail "voice.dialogShadow.rustPbx.heartbeatIntervalMs must be lower than recovery.nodeLeaseTtlMs" -}}
 {{- end -}}
 {{- end -}}
 {{- $opcImage := include "opc.opcImage" . -}}
@@ -489,11 +563,140 @@ spec:
           resources:
             {{- toYaml .Values.media.realtimeAudioTap.rustPbxGateway.resources | nindent 12 }}
         {{- end }}
+        {{- if .Values.voice.dialogShadow.enabled }}
+        - name: dialog-shadow-agent
+          image: {{ $opcImage | quote }}
+          imagePullPolicy: {{ .Values.opc.image.pullPolicy }}
+          command: ["node", "dist/ivekit-dialog-shadow-agent.js"]
+          env:
+            - name: IVEKIT_DIALOG_SHADOW_PRODUCTION
+              value: "true"
+            - name: IVEKIT_DIALOG_SHADOW_HOST
+              value: "127.0.0.1"
+            - name: IVEKIT_DIALOG_SHADOW_PORT
+              value: "3212"
+            - name: IVEKIT_DIALOG_SHADOW_CELL_ID
+              value: {{ $cellId | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: IVEKIT_DIALOG_SHADOW_FAULT_DOMAIN
+              value: {{ .Values.voice.dialogShadow.faultDomain | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_PATH
+              value: /app/dialog-shadow/dialog-shadow.wal
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORDS
+              value: {{ .Values.voice.dialogShadow.journal.maxRecords | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_BYTES
+              value: {{ .Values.voice.dialogShadow.journal.maxBytes | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_JOURNAL_MAX_RECORD_BYTES
+              value: {{ .Values.voice.dialogShadow.journal.maxRecordBytes | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_COMPACT_INTERVAL_MS
+              value: {{ .Values.voice.dialogShadow.journal.compactIntervalMs | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE
+              value: /run/dialog-shadow-secrets/service-token
+            - name: IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE
+              value: /run/dialog-shadow-server-tls/server.key
+            - name: IVEKIT_DIALOG_SHADOW_TLS_CERT_FILE
+              value: /run/dialog-shadow-server-tls/server.crt
+            - name: IVEKIT_DIALOG_SHADOW_TLS_CA_FILE
+              value: /run/dialog-shadow-server-tls/client-ca.crt
+            - name: IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN
+              value: {{ .Values.voice.dialogShadow.spiffeTrustDomain | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE
+              value: /run/dialog-shadow-agent-secrets/database-url
+            - name: IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_ID
+              value: {{ .Values.voice.dialogShadow.currentRecoveryKeyId | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_CURRENT_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-current-key
+            - name: IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_ID
+              value: {{ .Values.voice.dialogShadow.previousRecoveryKeyId | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_PREVIOUS_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-previous-key
+            - name: IVEKIT_DIALOG_RECOVERY_TOKEN_TTL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.tokenTtlMs | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_NODE_LEASE_TTL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.nodeLeaseTtlMs | quote }}
+            - name: IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX
+              value: {{ .Values.voice.dialogShadow.recovery.postgresPoolMax | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairIntervalMs | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairLeaseTtlMs | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairTenantBatchSize | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE
+              value: /run/dialog-shadow-nats-fault-domains/fault-domains.json
+            - name: IVEKIT_DIALOG_SHADOW_NATS_STREAM
+              value: {{ .Values.voice.dialogShadow.nats.streamName | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_SUBJECT_PREFIX
+              value: {{ .Values.voice.dialogShadow.nats.subjectPrefix | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER
+              value: {{ .Values.voice.dialogShadow.nats.placementCluster | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_TAGS
+              value: {{ join "," .Values.voice.dialogShadow.nats.placementTags | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_STREAM_REPLICAS
+              value: {{ .Values.voice.dialogShadow.nats.streamReplicas | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_REQUIRED_FAULT_DOMAINS
+              value: {{ .Values.voice.dialogShadow.nats.requiredFaultDomains | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_MAX_AGE_MS
+              value: {{ .Values.voice.dialogShadow.nats.maxAgeMs | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_ACK_WAIT_MS
+              value: {{ .Values.voice.dialogShadow.nats.ackWaitMs | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_NATS_MAX_ACK_PENDING
+              value: {{ .Values.voice.dialogShadow.nats.maxAckPending | quote }}
+            - name: IVEKIT_DIALOG_SHADOW_QUORUM_TIMEOUT_MS
+              value: {{ .Values.voice.dialogShadow.nats.quorumTimeoutMs | quote }}
+            - name: NATS_URL
+              value: {{ join "," .Values.voice.dialogShadow.nats.urls | quote }}
+            - name: NATS_TLS_MODE
+              value: required
+            - name: NATS_TLS_CA_FILE
+              value: /run/dialog-shadow-nats-tls/ca.crt
+            - name: NATS_TLS_CERT_FILE
+              value: /run/dialog-shadow-nats-tls/client.crt
+            - name: NATS_TLS_KEY_FILE
+              value: /run/dialog-shadow-nats-tls/client.key
+          readinessProbe:
+            tcpSocket:
+              port: 3212
+            periodSeconds: 3
+            timeoutSeconds: 1
+          livenessProbe:
+            tcpSocket:
+              port: 3212
+            periodSeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: storage
+              mountPath: /app/dialog-shadow
+            - name: dialog-shadow-shared-secrets
+              mountPath: /run/dialog-shadow-secrets
+              readOnly: true
+            - name: dialog-shadow-agent-secrets
+              mountPath: /run/dialog-shadow-agent-secrets
+              readOnly: true
+            - name: dialog-shadow-server-tls
+              mountPath: /run/dialog-shadow-server-tls
+              readOnly: true
+            - name: dialog-shadow-nats-tls
+              mountPath: /run/dialog-shadow-nats-tls
+              readOnly: true
+            - name: dialog-shadow-nats-fault-domains
+              mountPath: /run/dialog-shadow-nats-fault-domains
+              readOnly: true
+          securityContext:
+            {{- toYaml .Values.voice.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.voice.dialogShadow.resources | nindent 12 }}
+        {{- end }}
         - name: rustpbx
           image: {{ $rustpbxImage | quote }}
           imagePullPolicy: {{ .Values.voice.image.pullPolicy | default "IfNotPresent" }}
           args: ["--conf", "/app/config/rustpbx.toml"]
           env:
+            - name: RUSTPBX_ENV
+              value: production
             - name: RUSTRTC_UDP_RECEIVE_BUFFER_BYTES
               value: {{ .Values.voice.mediaCapacity.udpReceiveBufferBytes | quote }}
             - name: RUSTRTC_UDP_SEND_BUFFER_BYTES
@@ -529,8 +732,48 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            {{- if .Values.voice.dialogShadow.enabled }}
+            - name: IVEKIT_RUSTPBX_FAULT_DOMAIN
+              value: {{ .Values.voice.dialogShadow.faultDomain | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_ENDPOINT
+              value: {{ .Values.voice.dialogShadow.endpoint | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TOKEN_FILE
+              value: /run/dialog-shadow-secrets/service-token
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_PRODUCTION
+              value: "true"
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE
+              value: {{ printf "/run/dialog-shadow-client-tls/%s" .Values.voice.dialogShadow.clientIdentity.identityFile | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_CA_FILE
+              value: {{ printf "/run/dialog-shadow-client-tls/%s" .Values.voice.dialogShadow.clientIdentity.caFile | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_INFLIGHT
+              value: {{ .Values.voice.dialogShadow.rustPbx.maxInflight | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_TIMEOUT_MS
+              value: {{ .Values.voice.dialogShadow.rustPbx.timeoutMs | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_SHADOW_MAX_RESPONSE_BYTES
+              value: {{ .Values.voice.dialogShadow.rustPbx.maxResponseBytes | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_HEARTBEAT_INTERVAL_MS
+              value: {{ .Values.voice.dialogShadow.rustPbx.heartbeatIntervalMs | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_ID
+              value: {{ .Values.voice.dialogShadow.currentRecoveryKeyId | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_CURRENT_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-current-key
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_ID
+              value: {{ .Values.voice.dialogShadow.previousRecoveryKeyId | quote }}
+            - name: IVEKIT_RUSTPBX_DIALOG_RECOVERY_PREVIOUS_KEY_FILE
+              value: /run/dialog-shadow-secrets/recovery-previous-key
+            {{- end }}
             - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS
               value: "250"
+            - name: IVEKIT_RUSTPBX_CDR_SPOOL_DIR
+              value: /app/storage/cdr-spool
+            - name: IVEKIT_RUSTPBX_CDR_ENDPOINT
+              value: {{ $cdrEndpoint | quote }}
+            - name: IVEKIT_RUSTPBX_CDR_REGION_ID
+              value: {{ .Values.voice.cdr.regionId | quote }}
+            - name: IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE
+              value: /run/cdr-secrets/service-key
+            - name: IVEKIT_RUSTPBX_CDR_POLL_MS
+              value: {{ .Values.voice.cdr.pollIntervalMs | quote }}
             - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED
               value: {{ ternary "true" "false" .Values.voice.recordingSpool.enabled | quote }}
             {{- if .Values.voice.recordingSpool.enabled }}
@@ -605,6 +848,9 @@ spec:
               readOnly: true
             - name: storage
               mountPath: /app/storage
+            - name: cdr-secrets
+              mountPath: /run/cdr-secrets
+              readOnly: true
             {{- if .Values.voice.recordingSpool.enabled }}
             - name: recording-spool
               mountPath: /app/recording-spool
@@ -612,6 +858,14 @@ spec:
             {{- if .Values.media.realtimeAudioTap.enabled }}
             - name: realtime-audio-tap
               mountPath: /run/ivekit
+            {{- end }}
+            {{- if .Values.voice.dialogShadow.enabled }}
+            - name: dialog-shadow-shared-secrets
+              mountPath: /run/dialog-shadow-secrets
+              readOnly: true
+            - name: dialog-shadow-client-tls
+              mountPath: /run/dialog-shadow-client-tls
+              readOnly: true
             {{- end }}
             - name: tmp
               mountPath: /tmp
@@ -642,6 +896,15 @@ spec:
           emptyDir: {}
         - name: route-snapshot
           emptyDir: {}
+        - name: cdr-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: rustpbx-webhook-token
+                      path: service-key
         {{- if not .Values.voice.persistence.enabled }}
         - name: storage
           emptyDir: {}
@@ -664,6 +927,71 @@ spec:
                       path: rustpbx-recording-service-key
                     - key: {{ .Values.voice.recordingSpool.leaseSecretKey }}
                       path: rustpbx-recording-lease-secret
+        {{- end }}
+        {{- if .Values.voice.dialogShadow.enabled }}
+        - name: dialog-shadow-shared-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.serviceTokenKey }}
+                      path: service-token
+                    - key: {{ .Values.voice.dialogShadow.currentRecoveryKeyKey }}
+                      path: recovery-current-key
+                    - key: {{ .Values.voice.dialogShadow.previousRecoveryKeyKey }}
+                      path: recovery-previous-key
+        - name: dialog-shadow-agent-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.recoveryDatabaseUrlKey }}
+                      path: database-url
+        - name: dialog-shadow-server-tls
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.voice.dialogShadow.serverTlsSecretName }}
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.serverTlsKeyKey }}
+                      path: server.key
+                    - key: {{ .Values.voice.dialogShadow.serverTlsCertificateKey }}
+                      path: server.crt
+                    - key: {{ .Values.voice.dialogShadow.serverTlsClientCaKey }}
+                      path: client-ca.crt
+        - name: dialog-shadow-client-tls
+          csi:
+            driver: {{ .Values.voice.dialogShadow.clientIdentity.csi.driver | quote }}
+            readOnly: {{ .Values.voice.dialogShadow.clientIdentity.csi.readOnly }}
+            volumeAttributes:
+              {{- toYaml .Values.voice.dialogShadow.clientIdentity.csi.volumeAttributes | nindent 14 }}
+        - name: dialog-shadow-nats-tls
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.voice.dialogShadow.nats.tlsSecretName }}
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.nats.tlsCaKey }}
+                      path: ca.crt
+                    - key: {{ .Values.voice.dialogShadow.nats.tlsCertificateKey }}
+                      path: client.crt
+                    - key: {{ .Values.voice.dialogShadow.nats.tlsPrivateKeyKey }}
+                      path: client.key
+        - name: dialog-shadow-nats-fault-domains
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Values.voice.dialogShadow.nats.faultDomainsSecretName }}
+                  items:
+                    - key: {{ .Values.voice.dialogShadow.nats.faultDomainsKey }}
+                      path: fault-domains.json
         {{- end }}
         {{- if .Values.media.realtimeAudioTap.enabled }}
         - name: realtime-audio-tap

@@ -76,6 +76,7 @@ node --import tsx --test test/tinode-inbound-store.test.ts
 node --import tsx --test test/tinode-inbound-projector.test.ts
 node --import tsx --test test/ivekit-ivr-postgres.test.ts
 node --import tsx --test test/ivekit-voice-controlled-postgres.test.ts
+node --import tsx --test test/ivekit-dialog-terminal-repair-postgres.test.ts
 
 trap - INT TERM HUP EXIT
 "$PG_CTL" -D "$DATA" -m fast -w stop >/dev/null

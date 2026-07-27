@@ -190,7 +190,8 @@ export const REQUIRED_MIGRATIONS = [
   '094_ivekit_voice_extension_sessions',
   '095_rustdesk_authorization_claims',
   '101_ivekit_migration_readiness',
-  '102_ivekit_voice_dialog_takeovers'
+  '102_ivekit_voice_dialog_takeovers',
+  '103_ivekit_voice_cdr_convergence'
 ] as const;
 
 function configurationCheck(env: NodeJS.ProcessEnv): IveKitReadinessResult['checks']['configuration'] {

@@ -25,6 +25,9 @@ import {
   createDialogShadowHttpServer
 } from './agent-runtime/ivekit/voice/dialog-shadow-server.js';
 import {
+  DialogTerminalShadowRepairWorker
+} from './agent-runtime/ivekit/voice/dialog-terminal-shadow-repair.js';
+import {
   PostgresDialogOwnerTakeoverStore
 } from './agent-runtime/ivekit/voice/postgres/dialog-owner-takeover-store.js';
 
@@ -94,15 +97,17 @@ try {
   await journal.close().catch(() => undefined);
   throw error;
 }
+const takeoverStore = new PostgresDialogOwnerTakeoverStore(database);
+const recoveryCodec = new DialogRecoveryCapsuleCodec({
+  current: config.recovery.current_key,
+  ...(config.recovery.previous_key
+    ? { previous: config.recovery.previous_key }
+    : {})
+});
 const takeoverCoordinator = new DialogOwnerTakeoverCoordinator({
-  store: new PostgresDialogOwnerTakeoverStore(database),
+  store: takeoverStore,
   shadow_reader: journal,
-  recovery_codec: new DialogRecoveryCapsuleCodec({
-    current: config.recovery.current_key,
-    ...(config.recovery.previous_key
-      ? { previous: config.recovery.previous_key }
-      : {})
-  }),
+  recovery_codec: recoveryCodec,
   token_hmac_keys: {
     current: config.recovery.current_key,
     ...(config.recovery.previous_key
@@ -111,6 +116,22 @@ const takeoverCoordinator = new DialogOwnerTakeoverCoordinator({
   },
   token_ttl_ms: config.recovery.token_ttl_ms,
   node_lease_ttl_ms: config.recovery.node_lease_ttl_ms
+});
+const terminalRepairWorker = new DialogTerminalShadowRepairWorker({
+  identity: {
+    ...config.identity,
+    spiffe_id:
+      `spiffe://${config.server.spiffe_trust_domain}` +
+      `/cells/${config.identity.cell_id}` +
+      `/fault-domains/${config.identity.fault_domain}` +
+      `/nodes/${config.identity.node_id}`
+  },
+  store: takeoverStore,
+  shadow_reader: journal,
+  recovery_codec: recoveryCodec,
+  shadow_committer: shadowCoordinator,
+  lease_ttl_ms: config.recovery.terminal_repair_lease_ttl_ms,
+  tenant_batch_size: config.recovery.terminal_repair_tenant_batch_size
 });
 const tls = config.server.tls ? {
   key: readFileSync(config.server.tls.key_file),
@@ -144,6 +165,26 @@ const compactTimer = setInterval(() => {
 }, config.journal.compact_interval_ms);
 compactTimer.unref();
 
+let repairingTerminalShadow = false;
+const runTerminalRepair = (): void => {
+  if (repairingTerminalShadow || stopping) return;
+  repairingTerminalShadow = true;
+  void terminalRepairWorker.runOnce()
+    .catch((error) => {
+      process.stderr.write(
+        `ivekit terminal shadow repair failed: ${safeError(error)}\n`
+      );
+    })
+    .finally(() => {
+      repairingTerminalShadow = false;
+    });
+};
+const terminalRepairTimer = setInterval(
+  runTerminalRepair,
+  config.recovery.terminal_repair_interval_ms
+);
+terminalRepairTimer.unref();
+
 server.listen(config.port, config.host, () => {
   process.stdout.write(
     `ivekit dialog shadow agent listening on ${config.host}:${config.port} ` +
@@ -157,6 +198,7 @@ async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
   stopping = true;
   clearInterval(compactTimer);
+  clearInterval(terminalRepairTimer);
   process.stdout.write(`ivekit dialog shadow agent stopping on ${signal}\n`);
   const forced = setTimeout(() => process.exit(1), 10_000);
   forced.unref();

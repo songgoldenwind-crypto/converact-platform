@@ -237,10 +237,7 @@ impl<A: Authorizer> Guard<A> {
         self.close_authorized(authorization)
     }
 
-    pub fn close_authorized(
-        &self,
-        authorization: Authorization,
-    ) -> Result<(), GuardError> {
+    pub fn close_authorized(&self, authorization: Authorization) -> Result<(), GuardError> {
         let current = self.current()?;
         if current.closed {
             return Ok(());
@@ -367,9 +364,7 @@ mod tests {
             .refresh_authorized(authorization(8_000, 2), 2_000)
             .unwrap();
         guard.assert_mutation(&request.owner_epoch, 3_000).unwrap();
-        guard
-            .close_authorized(authorization(8_000, 3))
-            .unwrap();
+        guard.close_authorized(authorization(8_000, 3)).unwrap();
 
         assert_eq!(guard.authorizer.call_count(), 0);
         assert_eq!(

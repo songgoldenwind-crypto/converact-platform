@@ -59,6 +59,7 @@ class TakeoverCoordinator implements DialogOwnerTakeoverHttpCoordinator {
     });
     return {
       status: 'claimed' as const,
+      recovery_mode: 'resume' as const,
       takeover_id: 'takeover-a',
       owner_node_id: 'rustpbx-b',
       owner_epoch: 8,
@@ -92,7 +93,9 @@ test('cell-local takeover HTTP routes claim, consume and authority checks', asyn
   const coordinator = new TakeoverCoordinator();
   const claim = await request('/claim', claimBody(), coordinator);
   assert.equal(claim.status, 200);
-  assert.equal((await claim.json() as any).owner_epoch, 8);
+  const claimBodyResult = await claim.json() as any;
+  assert.equal(claimBodyResult.owner_epoch, 8);
+  assert.equal(claimBodyResult.recovery_mode, 'resume');
 
   const consume = await request('/consume', {
     tenant_id: 'tenant-a',

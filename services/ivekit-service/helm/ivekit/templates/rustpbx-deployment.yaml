@@ -3,7 +3,18 @@
 {{- $profileId := required "voice.profileId is required when voice is enabled" .Values.voice.profileId -}}
 {{- $tenantId := required "voice.tenantId is required when voice is enabled" .Values.voice.tenantId -}}
 {{- $cellId := required "voice.cellId is required when voice is enabled" .Values.voice.cellId -}}
+{{- $cdrEndpoint := required "voice.cdr.endpoint is required when voice is enabled" .Values.voice.cdr.endpoint -}}
+{{- $_ := required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId -}}
 {{- $replicaCount := int .Values.voice.replicaCount -}}
+{{- if not (hasPrefix "https://" $cdrEndpoint) -}}
+{{- fail "voice.cdr.endpoint must use HTTPS" -}}
+{{- end -}}
+{{- if or (lt (int .Values.voice.cdr.pollIntervalMs) 100) (gt (int .Values.voice.cdr.pollIntervalMs) 60000) -}}
+{{- fail "voice.cdr.pollIntervalMs must be between 100 and 60000" -}}
+{{- end -}}
+{{- if not .Values.voice.persistence.enabled -}}
+{{- fail "voice.persistence.enabled must be true for the durable CDR spool" -}}
+{{- end -}}
 {{- if or (lt $replicaCount 2) (gt $replicaCount 128) -}}
 {{- fail "voice.replicaCount must be between 2 and 128" -}}
 {{- end -}}
@@ -584,6 +595,12 @@ spec:
               value: {{ .Values.voice.dialogShadow.recovery.nodeLeaseTtlMs | quote }}
             - name: IVEKIT_DIALOG_RECOVERY_POSTGRES_POOL_MAX
               value: {{ .Values.voice.dialogShadow.recovery.postgresPoolMax | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairIntervalMs | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairLeaseTtlMs | quote }}
+            - name: IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE
+              value: {{ .Values.voice.dialogShadow.recovery.terminalRepairTenantBatchSize | quote }}
             - name: IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE
               value: /run/dialog-shadow-nats-fault-domains/fault-domains.json
             - name: IVEKIT_DIALOG_SHADOW_NATS_STREAM
@@ -654,6 +671,8 @@ spec:
           imagePullPolicy: {{ .Values.voice.image.pullPolicy }}
           args: ["--conf", "/app/config/rustpbx.toml"]
           env:
+            - name: RUSTPBX_ENV
+              value: production
             - name: RUSTRTC_UDP_RECEIVE_BUFFER_BYTES
               value: {{ .Values.voice.mediaCapacity.udpReceiveBufferBytes | quote }}
             - name: RUSTRTC_UDP_SEND_BUFFER_BYTES
@@ -721,6 +740,16 @@ spec:
             {{- end }}
             - name: IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS
               value: "250"
+            - name: IVEKIT_RUSTPBX_CDR_SPOOL_DIR
+              value: /app/storage/cdr-spool
+            - name: IVEKIT_RUSTPBX_CDR_ENDPOINT
+              value: {{ .Values.voice.cdr.endpoint | quote }}
+            - name: IVEKIT_RUSTPBX_CDR_REGION_ID
+              value: {{ .Values.voice.cdr.regionId | quote }}
+            - name: IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE
+              value: /run/cdr-secrets/service-key
+            - name: IVEKIT_RUSTPBX_CDR_POLL_MS
+              value: {{ .Values.voice.cdr.pollIntervalMs | quote }}
             - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED
               value: {{ ternary "true" "false" .Values.voice.recordingSpool.enabled | quote }}
             {{- if .Values.voice.recordingSpool.enabled }}
@@ -831,6 +860,9 @@ spec:
               readOnly: true
             - name: storage
               mountPath: /app/storage
+            - name: cdr-secrets
+              mountPath: /run/cdr-secrets
+              readOnly: true
             {{- if .Values.voice.recordingSpool.enabled }}
             - name: storage
               mountPath: /app/recording-spool
@@ -856,6 +888,15 @@ spec:
           emptyDir: {}
         - name: route-snapshot
           emptyDir: {}
+        - name: cdr-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ include "ivekit.secretName" . }}
+                  items:
+                    - key: {{ .Values.voice.webhookTokenKey }}
+                      path: service-key
         {{- if not .Values.voice.persistence.enabled }}
         - name: storage
           emptyDir: {}

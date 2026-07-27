@@ -44,6 +44,9 @@ export interface DialogShadowAgentConfig {
     };
     token_ttl_ms: number;
     node_lease_ttl_ms: number;
+    terminal_repair_interval_ms: number;
+    terminal_repair_lease_ttl_ms: number;
+    terminal_repair_tenant_batch_size: number;
     postgres_pool_max: number;
   };
   nats: {
@@ -277,6 +280,27 @@ export function loadDialogShadowAgentConfig(
         3_000,
         1_000,
         30_000
+      ),
+      terminal_repair_interval_ms: integerEnv(
+        env,
+        'IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS',
+        1_000,
+        100,
+        60_000
+      ),
+      terminal_repair_lease_ttl_ms: integerEnv(
+        env,
+        'IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS',
+        10_000,
+        500,
+        60_000
+      ),
+      terminal_repair_tenant_batch_size: integerEnv(
+        env,
+        'IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE',
+        32,
+        1,
+        256
       ),
       postgres_pool_max: integerEnv(
         env,

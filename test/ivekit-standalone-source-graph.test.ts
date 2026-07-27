@@ -106,9 +106,10 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/agent-runtime/ivekit/ivr/index.ts',
     'src/agent-runtime/ivekit/contact-center/index.ts'
   ]);
-  assert.deepEqual(policy.migrations.slice(-2), [
+  assert.deepEqual(policy.migrations.slice(-3), [
     '101_ivekit_migration_readiness.sql',
-    '102_ivekit_voice_dialog_takeovers.sql'
+    '102_ivekit_voice_dialog_takeovers.sql',
+    '103_ivekit_voice_cdr_convergence.sql'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',

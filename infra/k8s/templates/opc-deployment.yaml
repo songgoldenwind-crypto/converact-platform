@@ -6,6 +6,9 @@
 {{- required "media.sip.rustpbxTrunk is required when the SIP/VoLTE gateway is enabled" .Values.media.sip.rustpbxTrunk }}
 {{- required "media.sip.rustpbxRwiUrl is required when the SIP/VoLTE gateway is enabled" .Values.media.sip.rustpbxRwiUrl }}
 {{- end }}
+{{- if .Values.voice.enabled }}
+{{- required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId }}
+{{- end }}
 {{- if .Values.media.realtimeAudioTap.enabled }}
 {{- if or (lt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 100000) }}
 {{- fail "media.realtimeAudioTap.projectionQueueMaxItems must be between 1 and 100000" }}
@@ -420,6 +423,8 @@ spec:
             {{- if .Values.voice.enabled }}
             - name: OPC_IVEKIT_VOICE_WORKERS_ENABLED
               value: "1"
+            - name: OPC_IVEKIT_CDR_REGION_ID
+              value: {{ .Values.voice.cdr.regionId | quote }}
             - name: OPC_IVEKIT_VOICE_COMMAND_INTERVAL_MS
               value: {{ .Values.voice.workers.commandIntervalMs | quote }}
             - name: OPC_IVEKIT_VOICE_COMMAND_BATCH_SIZE

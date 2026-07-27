@@ -53,6 +53,9 @@ test('standalone service lock is reproducibly derived and excludes unrelated roo
   const rootDependencies = Object.keys((generated.packages[''].dependencies || {})).sort();
   assert.deepEqual(rootDependencies, [
     '@aws-sdk/client-s3',
+    '@nats-io/jetstream',
+    '@nats-io/nats-core',
+    '@nats-io/transport-node',
     '@opentelemetry/exporter-trace-otlp-http',
     '@opentelemetry/instrumentation-http',
     '@opentelemetry/instrumentation-pg',

@@ -10,6 +10,7 @@ export interface RustPbxRouterRequestInput {
   direction: unknown;
   method: unknown;
   uri: unknown;
+  route_snapshot_revision?: unknown;
   headers?: unknown;
   [key: string]: unknown;
 }
@@ -22,6 +23,7 @@ export interface RustPbxNormalizedRouterRequest {
   direction: 'inbound' | 'outbound';
   method: string;
   uri: string;
+  route_snapshot_revision: number | null;
   headers: Record<string, string>;
   safe_payload: Record<string, unknown>;
 }
@@ -87,6 +89,9 @@ export class RustPbxRouterAdapter {
       direction,
       method,
       uri: boundedString(input.uri, 1024),
+      route_snapshot_revision: optionalPositiveSafeInteger(
+        input.route_snapshot_revision
+      ),
       headers: normalizeRequestHeaders(input.headers),
       safe_payload: {}
     };
@@ -98,6 +103,7 @@ export class RustPbxRouterAdapter {
       direction: normalized.direction,
       method: normalized.method,
       uri: normalized.uri,
+      route_snapshot_revision: normalized.route_snapshot_revision,
       headers: normalized.headers
     });
     return normalized;
@@ -203,6 +209,12 @@ function boundedTimeout(value: unknown): number {
 function boundedRingTimeout(value: unknown): number {
   if (value === undefined) return 30;
   if (!Number.isInteger(value) || Number(value) < 30 || Number(value) > 120) throw validationError();
+  return Number(value);
+}
+
+function optionalPositiveSafeInteger(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (!Number.isSafeInteger(value) || Number(value) < 1) throw validationError();
   return Number(value);
 }
 

@@ -81,6 +81,7 @@ export interface DialogShadowRecord {
   terminal: boolean;
   recovery_capsule?: DialogRecoveryCapsuleEnvelope;
   takeover_id?: string;
+  terminal_cdr_payload_hash?: string;
 }
 
 export interface DialogShadowJournalAppendResult {
@@ -402,9 +403,12 @@ export function assertDialogShadowRecord(
         ? RECOVERY_RECORD_KEYS
         : TAKEOVER_RECOVERY_RECORD_KEYS
       : BASE_RECORD_KEYS;
+    const expectedRecordKeys = value.terminal_cdr_payload_hash === undefined
+      ? expectedKeys
+      : [...expectedKeys, 'terminal_cdr_payload_hash'];
     const keys = Object.keys(value).sort();
-    if (keys.length !== expectedKeys.length ||
-        keys.some((key, index) => key !== [...expectedKeys].sort()[index])) {
+    if (keys.length !== expectedRecordKeys.length ||
+        keys.some((key, index) => key !== [...expectedRecordKeys].sort()[index])) {
       throw new Error('record fields mismatch');
     }
     const result: DialogShadowRecord = {
@@ -463,12 +467,24 @@ export function assertDialogShadowRecord(
             ),
             ...(value.takeover_id === undefined
               ? {}
-              : { takeover_id: identifier(value.takeover_id, 'takeover_id') })
+              : { takeover_id: identifier(value.takeover_id, 'takeover_id') }),
+            ...(value.terminal_cdr_payload_hash === undefined
+              ? {}
+              : {
+                  terminal_cdr_payload_hash: sha256(
+                    value.terminal_cdr_payload_hash,
+                    'terminal_cdr_payload_hash'
+                  )
+                })
           }
         : {})
     };
     if (result.terminal !== (result.state === 'terminated')) {
       throw new Error('terminal state mismatch');
+    }
+    if (result.terminal_cdr_payload_hash !== undefined &&
+        (!result.terminal || !result.takeover_id || result.cdr_sequence < 1)) {
+      throw new Error('terminal CDR binding mismatch');
     }
     if (Buffer.byteLength(canonicalJson(result), 'utf8') > 32 * 1024) {
       throw new Error('record exceeds maximum size');
@@ -513,6 +529,7 @@ export function assertDialogShadowPair(
         first.sequence !== second.sequence ||
         first.auth_context_ref !== second.auth_context_ref ||
         first.takeover_id !== second.takeover_id ||
+        first.terminal_cdr_payload_hash !== second.terminal_cdr_payload_hash ||
         first.terminal !== second.terminal) {
       throw new Error('pair identity mismatch');
     }

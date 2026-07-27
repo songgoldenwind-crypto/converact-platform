@@ -517,6 +517,7 @@ test('RustPBX router webhook creates the authoritative inbound call before routi
 
 test('RustPBX snapshot inbound admission creates the call without invoking dynamic routing', async () => {
   const order: string[] = [];
+  const database: string[] = [];
   const inbound: Array<Record<string, unknown>> = [];
   const reconciled: Array<Record<string, unknown>> = [];
   const authorizations: Array<Record<string, unknown>> = [];
@@ -556,10 +557,11 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     method: 'INVITE',
     uri: 'sip:1001@pbx.internal',
     ivekit_cell_id: 'cell-a',
-    ivekit_owner_node_id: 'rustpbx-a'
+    ivekit_owner_node_id: 'rustpbx-a',
+    route_snapshot_revision: 42
   };
   const result = await routeIveKitVoiceApi(
-    recordingPool([]),
+    recordingPool(database, 42),
     'POST',
     '/api/ivekit/voice/providers/profile-a/inbound-admission',
     new URL('http://localhost/api/ivekit/voice/providers/profile-a/inbound-admission'),
@@ -631,6 +633,7 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
       owner_epoch: string;
       cell_id: string;
       owner_node_id: string;
+      route_snapshot_revision: number;
       audio_tap_token: string;
       availability_profile: string;
       auth_context_ref: string;
@@ -656,11 +659,15 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     owner_epoch: '12884901889',
     cell_id: 'cell-a',
     owner_node_id: 'rustpbx-a',
+    route_snapshot_revision: 42,
     availability_profile: 'VOICE-HA-T1',
     auth_context_ref: authContextRef,
     audio_tap_token: 'tap-token-snapshot-a-000000000000000000'
   });
   assert.deepEqual(order, ['create-inbound', 'authorize-audio-tap']);
+  assert.equal(database.some((query) =>
+    query.includes('ivekit_voice_route_snapshot_revisions') &&
+    query.includes('tenant-secure,profile-a')), true);
   assert.deepEqual(authorizations, [{
     tenant_id: 'tenant-secure',
     interaction_id: 'vcall-snapshot-a',
@@ -669,12 +676,103 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
   assert.equal(inbound[0]?.metadata &&
     (inbound[0].metadata as Record<string, unknown>).source,
   'rustpbx_snapshot_admission');
+  assert.equal(inbound[0]?.metadata &&
+    (inbound[0].metadata as Record<string, unknown>).route_snapshot_revision,
+  42);
   assert.equal(inbound[0]?.placement_prepared, true);
   await result.afterCommit?.();
   assert.equal(reconciled.length, 1);
   assert.equal(reconciled[0]?.tenant_id, 'tenant-secure');
   assert.equal(reconciled[0]?.interaction_id, 'vcall-snapshot-a');
   assert.match(String(reconciled[0]?.worker_id), /^voice:[a-f0-9]{32}$/);
+});
+
+test('RustPBX snapshot admission rejects a stale route revision before creating the call', async () => {
+  const sideEffects: string[] = [];
+  const body = {
+    call_id: 'provider-snapshot-stale',
+    from: 'sip:+8613900139000@carrier.internal',
+    to: 'sip:1001@pbx.internal',
+    source_addr: '10.0.0.8:5060',
+    direction: 'inbound',
+    method: 'INVITE',
+    uri: 'sip:1001@pbx.internal',
+    ivekit_cell_id: 'cell-a',
+    ivekit_owner_node_id: 'rustpbx-a',
+    route_snapshot_revision: 41
+  };
+  const module = {
+    configuration_repository: {
+      async getProfile() {
+        return {
+          id: 'profile-a',
+          tenant_id: 'tenant-secure',
+          adapter: 'rustpbx',
+          status: 'enabled',
+          config: {},
+          revision: 7
+        };
+      }
+    },
+    calls: {
+      async createInbound() {
+        sideEffects.push('create-inbound');
+        throw new Error('stale snapshot must not create a call');
+      }
+    }
+  } as unknown as VoiceHttpModule;
+
+  await assert.rejects(
+    () => routeIveKitVoiceApi(
+      recordingPool([], 42),
+      'POST',
+      '/api/ivekit/voice/providers/profile-a/inbound-admission',
+      new URL('http://localhost/api/ivekit/voice/providers/profile-a/inbound-admission'),
+      body,
+      JSON.stringify(body),
+      { 'x-pbx-key': 'service-key' },
+      {
+        create_module: () => module,
+        webhook_authenticator: {
+          async authenticate() {
+            return {
+              tenant_id: 'tenant-secure',
+              profile_id: 'profile-a',
+              adapter: 'rustpbx',
+              secret_refs: {},
+              method: 'service_key'
+            };
+          }
+        } as never,
+        placement: {
+          async resolveOwner() {
+            sideEffects.push('resolve-owner');
+            throw new Error('stale snapshot must not resolve an owner');
+          }
+        } as never,
+        prepared_call_placement: {
+          source: 'rustpbx_inbound',
+          tenant_id: 'tenant-secure',
+          call_id: 'vcall-snapshot-stale',
+          reservation: {
+            interaction_id: 'vcall-snapshot-stale',
+            value: {}
+          } as never,
+          provider_authentication: {
+            tenant_id: 'tenant-secure',
+            profile_id: 'profile-a',
+            adapter: 'rustpbx',
+            secret_refs: {},
+            method: 'service_key'
+          }
+        }
+      }
+    ),
+    (error: unknown) => error instanceof VoiceError &&
+      error.code === 'revision_conflict' &&
+      error.status === 409
+  );
+  assert.deepEqual(sideEffects, []);
 });
 
 test('Voice HTTP manages explicit realtime audio tap grants for an authoritative call', async (t) => {
@@ -972,12 +1070,21 @@ function installJwtAuth(t: import('node:test').TestContext): { token: string } {
   return { token: signAccessToken({ sub: 'user-auth', tid: 'tenant-auth', role: 'admin' }) };
 }
 
-function recordingPool(order: string[]): PgQueryable {
+function recordingPool(order: string[], routeRevision?: number): PgQueryable {
   const client = {
     release() { order.push('RELEASE'); },
     async query(text: string, values?: unknown[]) {
       const normalized = text.replace(/\s+/g, ' ').trim();
       order.push(values?.length ? `${normalized}:${values.join(',')}` : normalized);
+      if (normalized.includes('ivekit_voice_route_snapshot_revisions')) {
+        return {
+          rows: routeRevision === undefined ? [] : [{ revision: routeRevision }],
+          rowCount: routeRevision === undefined ? 0 : 1,
+          command: '',
+          oid: 0,
+          fields: []
+        };
+      }
       return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] };
     }
   };
@@ -1109,6 +1216,7 @@ function completeVoiceModule(operations: string[]): VoiceHttpModule {
       async listBridgesForCall() { operations.push('bridge:list'); return []; }
     } as never,
     provider_events: {} as never,
+    cdrs: {} as never,
     rustpbx_events: {} as never,
     router: {} as never,
     extension_sessions: {

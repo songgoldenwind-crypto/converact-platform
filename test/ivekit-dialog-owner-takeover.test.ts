@@ -84,6 +84,13 @@ class MemoryTakeoverStore implements DialogOwnerTakeoverStore {
       owner_epoch_high_watermark: ownerEpoch,
       shadow_pair_hash: input.shadow_pair_hash,
       terminal: false,
+      terminal_shadow_pending: false,
+      terminal_cdr_sequence: null,
+      terminal_cdr_payload_hash: null,
+      terminal_cdr_call_id: null,
+      terminal_cdr_receipt_id: null,
+      terminal_cdr_region_id: null,
+      terminal_cdr_durability_contract_id: null,
       pending_takeover_id: input.takeover_id,
       pending_owner_node_id: input.owner_node_id,
       pending_owner_fault_domain: input.owner_fault_domain,
@@ -500,6 +507,51 @@ test('complete confirmed T1 shadow pair receives higher epoch and one-time token
 
   const replay = await service.claimByDialog(claimInput());
   assert.deepEqual(replay, claimed);
+});
+
+test('terminating T1 shadow pair can only be taken over for finalization', async () => {
+  const { coordinator: service, reader } = coordinator();
+  reader.records = [
+    record('caller', { state: 'terminating' }),
+    record('callee', { state: 'terminating' })
+  ];
+
+  const claimed = await service.claimByDialog(claimInput());
+
+  assert.equal(claimed.recovery_mode, 'finalize');
+  assert.equal(claimed.shadow_records.every(
+    (item) => item.state === 'terminating' && item.terminal === false
+  ), true);
+});
+
+test('terminating takeover consumes only a durable terminating pair', async () => {
+  const { coordinator: service, reader, store } = productionCoordinator();
+  reader.records = [
+    record('caller', { state: 'terminating' }),
+    record('callee', { state: 'terminating' })
+  ];
+  const claimed = await service.claimByDialog(claimInput());
+  assert.equal(claimed.recovery_mode, 'finalize');
+  const prepared = [
+    { ...preparedRecord('caller', claimed.takeover_id), state: 'terminating' as const },
+    { ...preparedRecord('callee', claimed.takeover_id), state: 'terminating' as const }
+  ] as [DialogShadowRecord, DialogShadowRecord];
+  reader.records.push(...prepared);
+  await service.observeCommittedPair(prepared);
+
+  const active = await service.consume({
+    tenant_id: 'tenant-a',
+    cell_id: 'cell-a',
+    call_session_ref: 'call-session-a',
+    takeover_id: claimed.takeover_id,
+    owner_node_id: 'rustpbx-b',
+    owner_epoch: claimed.owner_epoch,
+    takeover_token: claimed.takeover_token
+  });
+
+  assert.equal(active.status, 'active');
+  assert.equal(store.authority?.owner_epoch, 8);
+  assert.equal(store.authority?.terminal, false);
 });
 
 test('consuming the token activates new owner and fences stale mutation authority', async () => {

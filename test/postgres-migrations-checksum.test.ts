@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import {
+  prepareVoiceCdrConcurrentIndex,
   readPostgresMigrationPlan,
   runPostgresMigrationsOnClient,
   type MigrationQueryable
@@ -46,6 +47,30 @@ class FailOnceMigrationPg extends MigrationPg {
       throw new Error('simulated migration failure');
     }
     return super.query(text, params);
+  }
+}
+
+class ConcurrentIndexPg implements MigrationQueryable {
+  readonly queries: string[] = [];
+
+  constructor(
+    private readonly indexRows: Record<string, unknown>[],
+    private readonly constraintRows: Record<string, unknown>[] = []
+  ) {}
+
+  async query(text: string): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
+    const sql = text.replace(/\s+/g, ' ').trim();
+    this.queries.push(sql);
+    if (sql.includes('FROM pg_constraint')) {
+      return {
+        rows: structuredClone(this.constraintRows),
+        rowCount: this.constraintRows.length
+      };
+    }
+    if (sql.includes('FROM pg_index')) {
+      return { rows: structuredClone(this.indexRows), rowCount: this.indexRows.length };
+    }
+    return { rows: [], rowCount: 0 };
   }
 }
 
@@ -109,4 +134,116 @@ test('failed migration rolls back without a ledger entry and succeeds on forward
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('voice CDR migration preflight creates a missing concurrent unique index', async () => {
+  const pg = new ConcurrentIndexPg([]);
+
+  await prepareVoiceCdrConcurrentIndex(pg);
+
+  assert.equal(
+    pg.queries.some((query) =>
+      query.includes('CREATE UNIQUE INDEX CONCURRENTLY uq_ivekit_tenant_events_tenant_id')
+    ),
+    true
+  );
+  assert.equal(pg.queries.some((query) => query.includes('DROP INDEX CONCURRENTLY')), false);
+});
+
+test('voice CDR migration preflight rebuilds a malformed named index', async () => {
+  const pg = new ConcurrentIndexPg([{
+    indisunique: true,
+    indisvalid: false,
+    indisready: true,
+    no_predicate: true,
+    no_expressions: true,
+    indnkeyatts: 2,
+    indnatts: 2,
+    key_columns: ['id', 'tenant_id']
+  }]);
+
+  await prepareVoiceCdrConcurrentIndex(pg);
+
+  const drop = pg.queries.findIndex((query) =>
+    query.includes('DROP INDEX CONCURRENTLY public.uq_ivekit_tenant_events_tenant_id')
+  );
+  const create = pg.queries.findIndex((query) =>
+    query.includes('CREATE UNIQUE INDEX CONCURRENTLY uq_ivekit_tenant_events_tenant_id')
+  );
+  assert.ok(drop >= 0);
+  assert.ok(create > drop);
+});
+
+test('voice CDR migration preflight preserves a valid concurrent index or constraint', async () => {
+  const valid = {
+    indisunique: true,
+    indisvalid: true,
+    indisready: true,
+    no_predicate: true,
+    no_expressions: true,
+    indnkeyatts: 2,
+    indnatts: 2,
+    key_columns: ['tenant_id', 'id']
+  };
+  const indexed = new ConcurrentIndexPg([valid]);
+  const constrained = new ConcurrentIndexPg([], [{
+    ...valid,
+    constraint_type: 'u'
+  }]);
+
+  await prepareVoiceCdrConcurrentIndex(indexed);
+  await prepareVoiceCdrConcurrentIndex(constrained);
+
+  for (const pg of [indexed, constrained]) {
+    assert.equal(
+      pg.queries.some((query) =>
+        query.includes('CREATE UNIQUE INDEX CONCURRENTLY') ||
+        query.includes('DROP INDEX CONCURRENTLY')
+      ),
+      false
+    );
+  }
+});
+
+test('voice CDR migration preflight rejects a malformed named constraint', async () => {
+  const malformed = new ConcurrentIndexPg([], [{
+    constraint_type: 'u',
+    indisunique: true,
+    indisvalid: true,
+    indisready: true,
+    no_predicate: true,
+    no_expressions: true,
+    indnkeyatts: 1,
+    indnatts: 1,
+    key_columns: ['id']
+  }]);
+
+  await assert.rejects(
+    () => prepareVoiceCdrConcurrentIndex(malformed),
+    /named unique constraint is invalid/i
+  );
+  assert.equal(
+    malformed.queries.some((query) =>
+      query.includes('CREATE UNIQUE INDEX CONCURRENTLY') ||
+      query.includes('DROP INDEX CONCURRENTLY')
+    ),
+    false
+  );
+});
+
+test('voice CDR migration uses a bounded transaction lock timeout', async () => {
+  const pg = new MigrationPg();
+  await runPostgresMigrationsOnClient(pg, [{
+    file: '103_ivekit_voice_cdr_convergence.sql',
+    version: '103_ivekit_voice_cdr_convergence',
+    checksum: 'a'.repeat(64),
+    sql: 'SELECT 103'
+  }]);
+
+  assert.equal(
+    pg.executedSql.some((sql) =>
+      /SET LOCAL lock_timeout = '5s'/i.test(sql)
+    ),
+    true
+  );
 });

@@ -38,8 +38,11 @@ test('Compose builds a Cell-local Kamailio edge in front of two independently ow
   );
   assert.deepEqual(services['rustpbx-component-node'].network_mode, 'service:rustpbx');
   assert.deepEqual(services['rustpbx-b-component-node'].network_mode, 'service:rustpbx-b');
-  assert.deepEqual(services['rustpbx-b'].profiles, ['voice-capacity']);
-  assert.deepEqual(services['rustpbx-b-component-node'].profiles, ['voice-capacity']);
+  assert.deepEqual(services['rustpbx-b'].profiles, ['voice-capacity', 'voice-t1']);
+  assert.deepEqual(
+    services['rustpbx-b-component-node'].profiles,
+    ['voice-capacity', 'voice-t1']
+  );
   assert.equal(services['kamailio-compose-config-render'].user, '0:0');
   assert.match(services['kamailio-compose-config-render'].command.join(' '), /chown 1000:1000/);
   assert.equal(services['kamailio-config-render'].user, '0:0');

@@ -19,6 +19,8 @@ voice:
   image:
     repository: registry.example.com/ivekit/rustpbx
     digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  cdr:
+    endpoint: https://ivekit-api.cell-a.example.com/api/ivekit/voice/providers/cell-10k-v1/cdrs
   webphone:
     publicWssUrl: wss://wss.cell-a.example.com/ws
     sipRealm: sip.cell-a.example.com

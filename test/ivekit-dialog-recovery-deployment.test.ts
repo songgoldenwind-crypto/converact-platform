@@ -8,12 +8,22 @@ const standaloneCompose = readFileSync(
   'services/ivekit-service/docker-compose.voice.yml',
   'utf8'
 );
+const envExamples = [
+  readFileSync('infra/env.example', 'utf8'),
+  readFileSync('infra/ivekit/env.example', 'utf8'),
+  readFileSync('services/ivekit-service/env.example', 'utf8')
+];
 const helmValues = readFileSync(
   'services/ivekit-service/helm/ivekit/values.yaml',
   'utf8'
 );
 const helmRustPbx = readFileSync(
   'services/ivekit-service/helm/ivekit/templates/rustpbx-deployment.yaml',
+  'utf8'
+);
+const legacyHelmValues = readFileSync('infra/k8s/values.yaml', 'utf8');
+const legacyHelmRustPbx = readFileSync(
+  'infra/k8s/templates/rustpbx-deployment.yaml',
   'utf8'
 );
 const rustPbxRecoveryPatch = readFileSync(
@@ -67,6 +77,9 @@ test('Compose co-locates a durable production dialog-shadow agent with each Rust
     assert.match(compose, /IVEKIT_DIALOG_SHADOW_SERVICE_TOKEN_FILE: \/run\/secrets\/dialog-shadow-token/);
     assert.match(compose, /IVEKIT_DIALOG_SHADOW_TLS_KEY_FILE: \/run\/secrets\/dialog-shadow-server-key/);
     assert.match(compose, /IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE: \/run\/secrets\/dialog-recovery-database-url/);
+    assert.match(compose, /IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS: \$\{IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS:-1000\}/);
+    assert.match(compose, /IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS: \$\{IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS:-10000\}/);
+    assert.match(compose, /IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE: \$\{IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE:-32\}/);
     assert.match(compose, /IVEKIT_DIALOG_SHADOW_NATS_SERVER_FAULT_DOMAINS_FILE: \/run\/secrets\/dialog-shadow-nats-fault-domains/);
     assert.match(compose, /NATS_TLS_MODE: required/);
     assert.match(compose, /NATS_TLS_CA_FILE: \/run\/secrets\/dialog-shadow-nats-ca/);
@@ -91,6 +104,14 @@ test('Compose co-locates a durable production dialog-shadow agent with each Rust
     standaloneCompose,
     /- rustpbx-b-storage:\/app\/dialog-shadow/
   );
+});
+
+test('terminal shadow repair tuning is explicit in every supported environment surface', () => {
+  for (const example of envExamples) {
+    assert.match(example, /^IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS=1000$/m);
+    assert.match(example, /^IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS=10000$/m);
+    assert.match(example, /^IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE=32$/m);
+  }
 });
 
 test('Compose enables RustPBX recovery only through mounted mTLS and rotation secrets', () => {
@@ -171,6 +192,9 @@ test('Helm makes dialog recovery a fail-closed node-local sidecar contract', () 
   assert.match(helmValues, /nats:\n      urls: \[\]/);
   assert.match(helmValues, /tlsSecretName: ""/);
   assert.match(helmValues, /faultDomainsSecretName: ""/);
+  assert.match(helmValues, /terminalRepairIntervalMs: "1000"/);
+  assert.match(helmValues, /terminalRepairLeaseTtlMs: "10000"/);
+  assert.match(helmValues, /terminalRepairTenantBatchSize: "32"/);
 
   assert.match(
     helmRustPbx,
@@ -190,6 +214,18 @@ test('Helm makes dialog recovery a fail-closed node-local sidecar contract', () 
   assert.match(helmRustPbx, /IVEKIT_DIALOG_SHADOW_PRODUCTION/);
   assert.match(helmRustPbx, /IVEKIT_DIALOG_SHADOW_SPIFFE_TRUST_DOMAIN/);
   assert.match(helmRustPbx, /IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE/);
+  assert.match(
+    helmRustPbx,
+    /IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS[\s\S]*voice\.dialogShadow\.recovery\.terminalRepairIntervalMs/
+  );
+  assert.match(
+    helmRustPbx,
+    /IVEKIT_DIALOG_TERMINAL_REPAIR_LEASE_TTL_MS[\s\S]*voice\.dialogShadow\.recovery\.terminalRepairLeaseTtlMs/
+  );
+  assert.match(
+    helmRustPbx,
+    /IVEKIT_DIALOG_TERMINAL_REPAIR_TENANT_BATCH_SIZE[\s\S]*voice\.dialogShadow\.recovery\.terminalRepairTenantBatchSize/
+  );
   assert.match(helmRustPbx, /IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER/);
   assert.match(helmRustPbx, /IVEKIT_RUSTPBX_DIALOG_SHADOW_ENDPOINT/);
   assert.match(helmRustPbx, /IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE/);
@@ -200,4 +236,41 @@ test('Helm makes dialog recovery a fail-closed node-local sidecar contract', () 
   assert.match(helmRustPbx, /driver: \{\{ \.Values\.voice\.dialogShadow\.clientIdentity\.csi\.driver/);
   assert.match(helmRustPbx, /volumeAttributes:/);
   assert.doesNotMatch(helmRustPbx, /containerPort: 3212/);
+});
+
+test('legacy Helm entrypoint carries the same fail-closed T1 recovery contract', () => {
+  assert.match(legacyHelmValues, /^  dialogShadow:\n    enabled: false/m);
+  assert.match(legacyHelmValues, /terminalRepairIntervalMs: "1000"/);
+  assert.match(legacyHelmValues, /terminalRepairLeaseTtlMs: "10000"/);
+  assert.match(legacyHelmValues, /terminalRepairTenantBatchSize: "32"/);
+  assert.match(
+    legacyHelmRustPbx,
+    /voice\.dialogShadow\.serverTlsSecretName is required/
+  );
+  assert.match(
+    legacyHelmRustPbx,
+    /voice\.dialogShadow\.clientIdentity\.csi\.driver is required/
+  );
+  assert.match(
+    legacyHelmRustPbx,
+    /voice\.dialogShadow\.nats\.tlsSecretName is required/
+  );
+  assert.match(legacyHelmRustPbx, /- name: dialog-shadow-agent/);
+  assert.match(
+    legacyHelmRustPbx,
+    /command: \["node", "dist\/ivekit-dialog-shadow-agent\.js"\]/
+  );
+  assert.match(legacyHelmRustPbx, /IVEKIT_DIALOG_RECOVERY_DATABASE_URL_FILE/);
+  assert.match(legacyHelmRustPbx, /IVEKIT_DIALOG_TERMINAL_REPAIR_INTERVAL_MS/);
+  assert.match(legacyHelmRustPbx, /IVEKIT_DIALOG_SHADOW_NATS_PLACEMENT_CLUSTER/);
+  assert.match(legacyHelmRustPbx, /IVEKIT_RUSTPBX_DIALOG_SHADOW_ENDPOINT/);
+  assert.match(
+    legacyHelmRustPbx,
+    /IVEKIT_RUSTPBX_DIALOG_SHADOW_TLS_IDENTITY_FILE/
+  );
+  assert.match(legacyHelmRustPbx, /mountPath: \/app\/dialog-shadow/);
+  assert.match(legacyHelmRustPbx, /mountPath: \/run\/dialog-shadow-server-tls/);
+  assert.match(legacyHelmRustPbx, /mountPath: \/run\/dialog-shadow-client-tls/);
+  assert.match(legacyHelmRustPbx, /mountPath: \/run\/dialog-shadow-nats-tls/);
+  assert.doesNotMatch(legacyHelmRustPbx, /containerPort: 3212/);
 });

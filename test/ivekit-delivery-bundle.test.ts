@@ -601,6 +601,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(files.includes('docs/deployment/oci-image-release-gate.md'), true);
     assert.equal(files.includes('docs/deployment/dependency-update-policy.md'), true);
     assert.equal(files.includes('docs/ivekit-monitoring-runbook.md'), true);
+    assert.equal(files.includes('docs/ivekit-voice-cdr-durability-runbook.md'), true);
     assert.equal(
       files.includes('docs/capacity/component-node-admission-protocol-v1.md'),
       true
@@ -853,13 +854,14 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       '094_ivekit_voice_extension_sessions.sql',
       '095_rustdesk_authorization_claims.sql',
       '101_ivekit_migration_readiness.sql',
-      '102_ivekit_voice_dialog_takeovers.sql'
+      '102_ivekit_voice_dialog_takeovers.sql',
+      '103_ivekit_voice_cdr_convergence.sql'
     ]) assert.equal(files.includes(`database/migrations/${migration}`), true, migration);
     const migrationManifest = JSON.parse(readFileSync(
       join(outputDir, 'service', 'migration-manifest.json'),
       'utf8'
     )) as { migrations: Array<{ file: string; sha256: string }> };
-    assert.equal(migrationManifest.migrations.length, 86);
+    assert.equal(migrationManifest.migrations.length, 87);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '041_tinode_inbound_sync.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '042_ivekit_tenant_events.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '043_ivekit_intelligence_translation.sql'), true);
@@ -916,6 +918,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '095_rustdesk_authorization_claims.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '101_ivekit_migration_readiness.sql'), true);
     assert.equal(migrationManifest.migrations.some((entry) => entry.file === '102_ivekit_voice_dialog_takeovers.sql'), true);
+    assert.equal(migrationManifest.migrations.some((entry) => entry.file === '103_ivekit_voice_cdr_convergence.sql'), true);
     assert.equal(migrationManifest.migrations.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)), true);
     const imageMetadata = JSON.parse(readFileSync(
       join(outputDir, 'service', 'image-metadata.json'),

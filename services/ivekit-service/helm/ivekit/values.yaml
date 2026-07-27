@@ -540,6 +540,10 @@ voice:
   managementTokenKey: rustpbx-management-token
   rwiTokenKey: rustpbx-rwi-token
   webhookTokenKey: rustpbx-webhook-token
+  cdr:
+    regionId: ""
+    endpoint: ""
+    pollIntervalMs: "500"
   webphone:
     enabled: true
     publicWssUrl: ""
@@ -643,6 +647,9 @@ voice:
       tokenTtlMs: "5000"
       nodeLeaseTtlMs: "3000"
       postgresPoolMax: "8"
+      terminalRepairIntervalMs: "1000"
+      terminalRepairLeaseTtlMs: "10000"
+      terminalRepairTenantBatchSize: "32"
     nats:
       urls: []
       tlsSecretName: ""

@@ -7,20 +7,24 @@ const RUSTPBX_PATCH = readFileSync(
   'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
   'utf8'
 );
+const DUAL_LEG_CDR_PATCH = readFileSync(
+  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch',
+  'utf8'
+);
 const RSIPSTACK_PATCH = readFileSync(
   'infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch',
   'utf8'
 );
 
-test('ivekit.27 applies dialog recovery after the existing authority patches', () => {
-  assert.match(BUILD, /PATCHSET="ivekit\.27"/);
+test('ivekit.28 retains dialog recovery before dual-leg CDR convergence', () => {
+  assert.match(BUILD, /PATCHSET="ivekit\.28"/);
   assert.match(
     BUILD,
     /rsipstack-ivekit-retransmission-atomicity\.patch"[\s\S]*rsipstack-ivekit-dialog-recovery\.patch"/
   );
   assert.match(
     BUILD,
-    /rustpbx-ivekit-dialog-shadow\.patch"[\s\S]*rustpbx-ivekit-dialog-recovery\.patch"/
+    /rustpbx-ivekit-dialog-shadow\.patch"[\s\S]*rustpbx-ivekit-dialog-recovery\.patch"[\s\S]*rustpbx-ivekit-dual-leg-cdr\.patch"/
   );
 });
 
@@ -51,6 +55,22 @@ test('normal cleanup durably terminates both legs without discarding recovery ca
   assert.match(RUSTPBX_PATCH, /record\.recovery_capsule\.is_some\(\)/);
   assert.match(RUSTPBX_PATCH, /\.terminate_pair\("duplicate_cleanup"\)/);
   assert.match(RUSTPBX_PATCH, /\.is_none\(\)/);
+});
+
+test('recovered finalization freezes CDR bytes and retries shadow without re-emitting CDR', () => {
+  assert.match(
+    DUAL_LEG_CDR_PATCH,
+    /pub async fn emit_recovered_terminal_cdr\([\s\S]*?ended_at: &str/
+  );
+  assert.match(
+    DUAL_LEG_CDR_PATCH,
+    /emit_recovered_terminal_cdr\([\s\S]*?cdr_sequence,[\s\S]*?&ended_at/
+  );
+  const shadowRetry = DUAL_LEG_CDR_PATCH.match(
+    /async fn retry_recovered_terminal_shadow[\s\S]*?\n\+\}/
+  )?.[0] || '';
+  assert.doesNotMatch(shadowRetry, /emit_recovered_terminal_cdr/);
+  assert.match(shadowRetry, /commit_pair/);
 });
 
 test('recovered dialog controller has bounded backpressure and freezes uncertain authority', () => {

@@ -2,6 +2,12 @@ name: iveKit RustPBX image
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/ivekit-rustpbx-image.yml'
+      - 'infra/ivekit/rustpbx/**'
+      - 'integrations/component-hook-rs/**'
+      - 'package.json'
   push:
     branches:
       - main
@@ -21,11 +27,24 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/songgoldenwind-crypto/opc-rustpbx
-  VERSION: 0.4.11-ivekit.27-6c49ee76
+  VERSION: 0.4.11-ivekit.28-6c49ee76
 
 jobs:
+  verify:
+    name: Verify exact-source RustPBX behavior
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Apply pinned patchset and run Rust behavior gates
+        env:
+          IVEKIT_RUSTPBX_VERIFY_ONLY: "1"
+        run: bash infra/ivekit/rustpbx/build.sh
+
   build:
     name: Build ${{ matrix.arch }}
+    needs: verify
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:

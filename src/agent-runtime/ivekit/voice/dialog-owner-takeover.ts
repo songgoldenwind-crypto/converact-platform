@@ -22,6 +22,13 @@ export interface DialogOwnerAuthorityRecord {
   owner_epoch_high_watermark: number;
   shadow_pair_hash: string;
   terminal: boolean;
+  terminal_shadow_pending: boolean;
+  terminal_cdr_sequence: number | null;
+  terminal_cdr_payload_hash: string | null;
+  terminal_cdr_call_id: string | null;
+  terminal_cdr_receipt_id: string | null;
+  terminal_cdr_region_id: string | null;
+  terminal_cdr_durability_contract_id: string | null;
   pending_takeover_id: string | null;
   pending_owner_node_id: string | null;
   pending_owner_fault_domain: string | null;
@@ -140,6 +147,7 @@ export interface DialogOwnerTakeoverDiscoveryInput {
 
 export interface DialogOwnerTakeoverClaimResponse {
   status: 'claimed';
+  recovery_mode: 'resume' | 'finalize';
   takeover_id: string;
   owner_node_id: string;
   owner_epoch: number;
@@ -344,6 +352,7 @@ export class DialogOwnerTakeoverCoordinator {
       ...input,
       shadow_records: shadowRecords
     });
+    const recoveryMode = recoveryModeForPair(shadowRecords);
     const now = validDate(this.#now());
     const takeoverId = identifier(this.#idFactory(), 'takeover ID');
     const tokenExpiresAt = new Date(now.getTime() + this.#tokenTtlMs).toISOString();
@@ -385,6 +394,7 @@ export class DialogOwnerTakeoverCoordinator {
     });
     return {
       status: 'claimed',
+      recovery_mode: recoveryMode,
       takeover_id: result.takeover_id,
       owner_node_id: checked.owner_node_id,
       owner_epoch: result.owner_epoch,
@@ -502,11 +512,14 @@ export class DialogOwnerTakeoverCoordinator {
           record.sequence !== 1 ||
           record.provider_session_ref !== input.call_session_ref ||
           record.terminal ||
-          (record.state !== 'confirmed' && record.state !== 'updating') ||
+          (record.state !== 'confirmed' &&
+            record.state !== 'updating' &&
+            record.state !== 'terminating') ||
           !record.recovery_capsule
         )) {
       ineligible();
     }
+    recoveryModeForPair(records);
     const payloads = records.map((record) =>
       this.#recoveryCodec.open(record.recovery_capsule!, {
         tenant_id: record.tenant_id,
@@ -611,11 +624,14 @@ export class DialogOwnerTakeoverCoordinator {
         .sort((left, right) => left.dialog_id.localeCompare(right.dialog_id));
       const first = records[0]!;
       const second = records[1]!;
+      recoveryModeForPair(records);
       if (records.some((record) =>
         record.schema_version !== 2 ||
         !record.recovery_capsule ||
         record.terminal ||
-        (record.state !== 'confirmed' && record.state !== 'updating') ||
+        (record.state !== 'confirmed' &&
+          record.state !== 'updating' &&
+          record.state !== 'terminating') ||
         record.tenant_id !== tenantId ||
         record.cell_id !== cellId ||
         record.owner_node_id !== previousOwnerNodeId ||
@@ -724,6 +740,21 @@ export class DialogOwnerTakeoverCoordinator {
       }))
       .digest('base64url');
   }
+}
+
+function recoveryModeForPair(
+  records: readonly DialogShadowRecord[]
+): 'resume' | 'finalize' {
+  if (records.length !== 2) ineligible();
+  if (records.every((record) => record.state === 'terminating')) {
+    return 'finalize';
+  }
+  if (records.every((record) =>
+    record.state === 'confirmed' || record.state === 'updating'
+  )) {
+    return 'resume';
+  }
+  ineligible();
 }
 
 export class DialogOwnerTakeoverError extends Error {

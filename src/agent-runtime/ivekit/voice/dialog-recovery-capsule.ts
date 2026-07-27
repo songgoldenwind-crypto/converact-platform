@@ -31,6 +31,11 @@ const PAYLOAD_KEYS = [
   'supports_100rel',
   'to_uri'
 ].sort();
+const PAYLOAD_OPTIONAL_KEYS = [
+  'answered_at',
+  'route_snapshot_revision',
+  'started_at'
+].sort();
 const ENVELOPE_KEYS = [
   'algorithm',
   'auth_tag',
@@ -69,7 +74,10 @@ export interface DialogRecoveryCapsulePayload {
   remote_cseq: number;
   supports_100rel: boolean;
   media_reservation_id: string;
+  started_at?: string | null;
+  answered_at?: string | null;
   cdr_sequence: number;
+  route_snapshot_revision?: number;
 }
 
 export interface DialogRecoveryCapsuleEnvelope {
@@ -218,7 +226,7 @@ export function assertDialogRecoveryCapsulePayload(
   value: DialogRecoveryCapsulePayload
 ): DialogRecoveryCapsulePayload {
   try {
-    exactKeys(value, PAYLOAD_KEYS);
+    exactKeys(value, PAYLOAD_KEYS, PAYLOAD_OPTIONAL_KEYS);
     if (value.schema_version !== 1) invalid();
     const result: DialogRecoveryCapsulePayload = {
       schema_version: 1,
@@ -245,7 +253,26 @@ export function assertDialogRecoveryCapsulePayload(
       media_reservation_id: mediaReservationId(value.media_reservation_id),
       cdr_sequence: integer(value.cdr_sequence, 0, Number.MAX_SAFE_INTEGER)
     };
+    if (hasOwn(value, 'started_at')) {
+      result.started_at = optionalTimestamp(value.started_at);
+    }
+    if (hasOwn(value, 'answered_at')) {
+      result.answered_at = optionalTimestamp(value.answered_at);
+    }
+    if (hasOwn(value, 'route_snapshot_revision')) {
+      result.route_snapshot_revision = integer(
+        value.route_snapshot_revision,
+        1,
+        Number.MAX_SAFE_INTEGER
+      );
+    }
     if (result.dialog_id === result.peer_dialog_id) invalid();
+    if (result.answered_at !== undefined && result.answered_at !== null) {
+      if (result.started_at === undefined || result.started_at === null ||
+          Date.parse(result.answered_at) < Date.parse(result.started_at)) {
+        invalid();
+      }
+    }
     if (Buffer.byteLength(canonicalJson(result), 'utf8') > MAX_PLAINTEXT_BYTES) {
       invalid();
     }
@@ -325,12 +352,34 @@ function aad(value: DialogRecoveryCapsuleBinding): Buffer {
   );
 }
 
-function exactKeys(value: unknown, expected: string[]): void {
+function exactKeys(
+  value: unknown,
+  expected: string[],
+  optional: string[] = []
+): void {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
-      Object.getPrototypeOf(value) !== Object.prototype ||
-      JSON.stringify(Object.keys(value).sort()) !== JSON.stringify(expected)) {
+      Object.getPrototypeOf(value) !== Object.prototype) {
     invalid();
   }
+  const actual = Object.keys(value);
+  if (expected.some((key) => !actual.includes(key)) ||
+      actual.some((key) => !expected.includes(key) && !optional.includes(key))) {
+    invalid();
+  }
+}
+
+function hasOwn(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function optionalTimestamp(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value) ||
+      !Number.isFinite(Date.parse(value))) {
+    invalid();
+  }
+  return value;
 }
 
 function identifier(value: unknown, maximum: number): string {

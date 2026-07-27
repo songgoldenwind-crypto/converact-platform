@@ -58,7 +58,7 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(buildScript, /IVEKIT_RUSTPBX_CARGO_HOME/);
   assert.match(buildScript, /cross compilation is not supported/);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.27"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.28"/);
   assert.match(buildScript, /cp "\$SCRIPT_DIR\/entrypoint\.sh"/);
   assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
@@ -79,10 +79,50 @@ test('RustPBX deployment examples reference the current patchset', () => {
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.27-6c49ee76/,
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.28-6c49ee76/,
       path
     );
   }
+});
+
+test('RustPBX CI verifies exact-source behavior before publishing images', () => {
+  assert.match(imageWorkflow, /^  pull_request:\s*$/m);
+  assert.match(imageWorkflow, /^  verify:\s*$/m);
+  assert.match(
+    imageWorkflow,
+    /IVEKIT_RUSTPBX_VERIFY_ONLY: "1"[\s\S]*bash infra\/ivekit\/rustpbx\/build\.sh/
+  );
+  assert.match(
+    imageWorkflow,
+    /^  build:\s*\n\s+name:[\s\S]*\n\s+needs: verify\s*$/m
+  );
+  assert.match(
+    imageWorkflow,
+    /if: github\.event_name != 'pull_request'/
+  );
+  assert.match(buildScript, /IVEKIT_RUSTPBX_VERIFY_ONLY/);
+  assert.match(buildScript, /rustup component add rustfmt clippy/);
+  assert.match(buildScript, /rustpbx-ivekit-dual-leg-cdr\.patch[\s\S]*--numstat/);
+  assert.match(
+    buildScript,
+    /rustfmt --edition 2024 --check --config skip_children=true/
+  );
+  assert.match(
+    buildScript,
+    /cargo fmt --manifest-path vendor\/ivekit-component-hook\/Cargo\.toml -- --check/
+  );
+  assert.doesNotMatch(buildScript, /cargo fmt --all/);
+  assert.match(buildScript, /cargo check --locked --features cross --bin rustpbx --bin sipflow/);
+  assert.match(buildScript, /cargo clippy --locked --lib --features cross --no-deps/);
+  assert.match(buildScript, /cargo test --locked --lib ivekit_/);
+  assert.match(
+    buildScript,
+    /cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller/
+  );
+  assert.match(
+    buildScript,
+    /cargo test --locked --test ivekit_dialog_shadow_contract_test/
+  );
 });
 
 test('iveKit RustPBX patch reconnects only failed TCP sends and removes matching stale entries', () => {
@@ -287,7 +327,7 @@ test('iveKit exposes reproducible RustPBX build and acceptance commands', () => 
 test('iveKit publishes native amd64 and arm64 RustPBX images as one manifest', () => {
   assert.match(imageWorkflow, /runner: ubuntu-24\.04\n/);
   assert.match(imageWorkflow, /runner: ubuntu-24\.04-arm\n/);
-  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.27-6c49ee76/);
+  assert.match(imageWorkflow, /VERSION: 0\.4\.11-ivekit\.28-6c49ee76/);
   assert.match(imageWorkflow, /docker manifest create/);
   assert.match(imageWorkflow, /docker manifest push/);
   assert.match(imageWorkflow, /packages: write/);

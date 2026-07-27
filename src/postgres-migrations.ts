@@ -16,6 +16,9 @@ export interface PostgresMigration {
   sql: string;
 }
 
+const VOICE_CDR_MIGRATION = '103_ivekit_voice_cdr_convergence';
+const VOICE_EVENT_UNIQUE_INDEX = 'uq_ivekit_tenant_events_tenant_id';
+
 export function isPostgresMigrationFile(file: string): boolean {
   return /^\d{3}_[a-z0-9_]+\.sql$/.test(file);
 }
@@ -74,8 +77,14 @@ export async function runPostgresMigrationsOnClient(
       continue;
     }
 
+    if (migration.version === VOICE_CDR_MIGRATION) {
+      await prepareVoiceCdrConcurrentIndex(pg);
+    }
     await pg.query('BEGIN');
     try {
+      if (migration.version === VOICE_CDR_MIGRATION) {
+        await pg.query("SET LOCAL lock_timeout = '5s'");
+      }
       await pg.query(migration.sql);
       await pg.query(
         'INSERT INTO schema_migrations (version, checksum) VALUES ($1, $2)',
@@ -87,4 +96,102 @@ export async function runPostgresMigrationsOnClient(
       throw error;
     }
   }
+}
+
+export async function prepareVoiceCdrConcurrentIndex(
+  pg: MigrationQueryable
+): Promise<void> {
+  const constraint = await pg.query(`
+    SELECT
+      constraint_meta.contype AS constraint_type,
+      index_meta.indisunique,
+      index_meta.indisvalid,
+      index_meta.indisready,
+      index_meta.indpred IS NULL AS no_predicate,
+      index_meta.indexprs IS NULL AS no_expressions,
+      index_meta.indnkeyatts,
+      index_meta.indnatts,
+      ARRAY(
+        SELECT attribute.attname::text
+        FROM unnest(index_meta.indkey::smallint[]) WITH ORDINALITY
+          AS key_column(attnum, position)
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = index_meta.indrelid
+         AND attribute.attnum = key_column.attnum
+        WHERE key_column.position <= index_meta.indnkeyatts
+        ORDER BY key_column.position
+      ) AS key_columns
+    FROM pg_constraint constraint_meta
+    LEFT JOIN pg_index index_meta
+      ON index_meta.indexrelid = constraint_meta.conindid
+    WHERE constraint_meta.conrelid = 'public.ivekit_tenant_events'::regclass
+      AND constraint_meta.conname = '${VOICE_EVENT_UNIQUE_INDEX}'
+  `);
+  if (constraint.rowCount && constraint.rowCount > 0) {
+    if (constraint.rows[0]?.constraint_type === 'u' &&
+        isValidVoiceEventUniqueIndex(constraint.rows[0])) {
+      return;
+    }
+    throw new Error(
+      `PostgreSQL named unique constraint is invalid: ${VOICE_EVENT_UNIQUE_INDEX}`
+    );
+  }
+
+  const index = await pg.query(`
+    SELECT
+      index_meta.indisunique,
+      index_meta.indisvalid,
+      index_meta.indisready,
+      index_meta.indpred IS NULL AS no_predicate,
+      index_meta.indexprs IS NULL AS no_expressions,
+      index_meta.indnkeyatts,
+      index_meta.indnatts,
+      ARRAY(
+        SELECT attribute.attname::text
+        FROM unnest(index_meta.indkey::smallint[]) WITH ORDINALITY
+          AS key_column(attnum, position)
+        JOIN pg_attribute attribute
+          ON attribute.attrelid = index_meta.indrelid
+         AND attribute.attnum = key_column.attnum
+        WHERE key_column.position <= index_meta.indnkeyatts
+        ORDER BY key_column.position
+      ) AS key_columns
+    FROM pg_index index_meta
+    JOIN pg_class index_relation
+      ON index_relation.oid = index_meta.indexrelid
+    JOIN pg_namespace index_namespace
+      ON index_namespace.oid = index_relation.relnamespace
+    WHERE index_namespace.nspname = 'public'
+      AND index_relation.relname = '${VOICE_EVENT_UNIQUE_INDEX}'
+      AND index_meta.indrelid = 'public.ivekit_tenant_events'::regclass
+  `);
+  if (isValidVoiceEventUniqueIndex(index.rows[0])) return;
+
+  if (index.rowCount && index.rowCount > 0) {
+    await pg.query(
+      `DROP INDEX CONCURRENTLY public.${VOICE_EVENT_UNIQUE_INDEX}`
+    );
+  }
+  await pg.query(`
+    CREATE UNIQUE INDEX CONCURRENTLY ${VOICE_EVENT_UNIQUE_INDEX}
+      ON public.ivekit_tenant_events (tenant_id, id)
+  `);
+}
+
+function isValidVoiceEventUniqueIndex(
+  row: Record<string, unknown> | undefined
+): boolean {
+  if (!row) return false;
+  const columns = row.key_columns;
+  return row.indisunique === true &&
+    row.indisvalid === true &&
+    row.indisready === true &&
+    row.no_predicate === true &&
+    row.no_expressions === true &&
+    Number(row.indnkeyatts) === 2 &&
+    Number(row.indnatts) === 2 &&
+    Array.isArray(columns) &&
+    columns.length === 2 &&
+    columns[0] === 'tenant_id' &&
+    columns[1] === 'id';
 }
