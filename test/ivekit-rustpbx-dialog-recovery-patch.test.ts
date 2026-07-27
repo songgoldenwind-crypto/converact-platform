@@ -121,6 +121,10 @@ test('media takeover queries authority and replays one exact command without des
     RUSTPBX_PATCH,
     /MediaControlExecutor::execute\(executor\.as_ref\(\), &command\)/
   );
+  assert.match(
+    RUSTPBX_PATCH,
+    /admission_reservation_id: admission_reservation_id\.to_string\(\)/
+  );
   assert.match(RUSTPBX_PATCH, /MediaLifecycleError::ReconcileRequired/);
   assert.doesNotMatch(RUSTPBX_PATCH, /MediaControlCommand::Delete/);
 });

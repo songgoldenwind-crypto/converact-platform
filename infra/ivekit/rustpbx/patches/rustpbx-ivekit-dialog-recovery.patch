@@ -2983,7 +2983,7 @@ index 7c480e36..29bfb783 100644
      pub fn state(&self) -> NegotiationState {
          self.callee.state()
      }
-@@ -1334,6 +1404,225 @@ pub fn media_control_requested() -> bool {
+@@ -1334,6 +1404,230 @@ pub fn media_control_requested() -> bool {
      required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT").is_some()
  }
  
@@ -3163,6 +3163,10 @@ index 7c480e36..29bfb783 100644
 +    {
 +        return Err(MediaLifecycleError::InvalidBinding("media_takeover"));
 +    }
++    let admission_reservation_id = input
++        .media_reservation_id
++        .strip_suffix("/callee")
++        .ok_or(MediaLifecycleError::InvalidBinding("media_reservation_id"))?;
 +    checked_sdp(effective_sdp)?;
 +    let payload = serde_json::json!({
 +        "from_tag": input.from_tag,
@@ -3188,6 +3192,7 @@ index 7c480e36..29bfb783 100644
 +        owner_node_id: input.owner_node_id.clone(),
 +        owner_epoch: input.owner_epoch.to_string(),
 +        media_reservation_id: input.media_reservation_id.clone(),
++        admission_reservation_id: admission_reservation_id.to_string(),
 +        command_sequence: 1,
 +        idempotency_key: format!(
 +            "rustpbx/{}/{}/callee/{}/1",
@@ -3241,7 +3246,7 @@ index 7c480e36..29bfb783 100644
      #[test]
      fn execution_profile_keeps_non_relay_workloads_local() {
          assert_eq!(
-@@ -1789,9 +2103,40 @@ mod tests {
+@@ -1789,9 +2103,41 @@ mod tests {
          assert!(MediaControlRuntimeMode::parse(Some("all")).is_err());
      }
  
@@ -3268,6 +3273,7 @@ index 7c480e36..29bfb783 100644
 +        assert_eq!(command.command_sequence, 1);
 +        assert_eq!(command.owner_epoch, "8");
 +        assert_eq!(command.media_reservation_id, "admission-a/callee");
++        assert_eq!(command.admission_reservation_id, "admission-a");
 +        assert_eq!(command.payload["owner_takeover"], true);
 +        assert_eq!(command.payload["previous_owner_epoch"], "7");
 +        assert_eq!(command.payload["sdp"], "v=0\r\na=existing-media\r\n");

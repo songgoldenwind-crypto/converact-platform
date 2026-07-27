@@ -183,7 +183,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
-          "sha256": "038fd5c02c35221c7d32409342f2fcab0d563906b3cab305e62de9802f8a9a17",
+          "sha256": "06bbf472c3a946a0658642b80b482375b3a56e0e45e3cace3dc67945cf79577b",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-shadow.patch",
           "purpose": "Authenticate reciprocal two-leg recovery capsules, claim and consume one-time owner takeover, atomically publish the new owner epoch, restore RTPengine media state, and run a recovered B2BUA controller for in-dialog signaling, SDP renegotiation and bounded terminal cleanup."
         },
