@@ -340,6 +340,12 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       true
     );
     assert.equal(
+      files.includes(
+        'deploy/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch'
+      ),
+      true
+    );
+    assert.equal(
       files.includes('deploy/rustpbx/patches/rustpbx-ivekit-owner-epoch.patch'),
       true
     );

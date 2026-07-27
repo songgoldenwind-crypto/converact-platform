@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 50,
+  "revision": 51,
   "status": "proposed",
-  "generated_at": "2026-07-27T20:48:35+08:00",
+  "generated_at": "2026-07-28T02:21:35+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.29-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.30-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.29-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.30-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -198,6 +198,12 @@
           "sha256": "1d322f5805d364f5d68fd0a038df3ba78dbb3d0803241dc2a3753aaa245b6c37",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dual-leg-cdr.patch",
           "purpose": "Propagate a deterministic sampled W3C trace context from each RustPBX call into cell-local media-control requests without exposing raw call identity, SDP, phone numbers, authorization material or service secrets."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
+          "sha256": "ffa47f73dd07d1b5d42c6d866563c5c234437a51fd95af7b3494d8db8402bf48",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-tracing.patch",
+          "purpose": "Align snapshot inbound-admission parsing with the direct iveKit HTTP response body so successful Cell reservation and ownership admission can enter the local signed route snapshot."
         }
       ],
       "protocols": [
@@ -575,7 +581,20 @@
             "A stable SHA-256-derived trace identifier binds commands from the same call without transmitting the raw call identifier, while each command receives a separate span identifier.",
             "Deterministic sampling is configurable from zero through one and defaults to one percent in the deployment surfaces.",
             "The tracing patch adds no SDP, phone number, authorization token or service-secret logging, and does not modify RTP packet forwarding source.",
-            "The ivekit.29 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
+            "The ivekit.30 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
+          ]
+        },
+        {
+          "change_id": "rustpbx-inbound-admission-response-contract-v1",
+          "summary": "Consume the direct successful iveKit inbound-admission response without an obsolete data envelope.",
+          "capacity_dimensions": [
+            "sip.transactions_per_second",
+            "voice.concurrent_calls"
+          ],
+          "acceptance_evidence": [
+            "A focused patch contract test requires the exact response parser change to follow the complete ivekit.29 queue.",
+            "The parser retains accepted, route revision, owner epoch, reservation, authorization context and optional audio-tap validation while removing only the nonexistent data envelope.",
+            "Exact-source locked compilation, image build and real SIPp signaling remain release gates for ivekit.30."
           ]
         },
         {
@@ -662,6 +681,7 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -705,12 +725,12 @@
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-27T20:48:35+08:00"
+        "checked_at": "2026-07-28T02:21:35+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The current ivekit.29 media-tracing patch applies and passes source-format checks, but its locked native compile, image build, runtime trace continuity and overhead comparison remain not_run.",
+          "The current ivekit.30 response-contract patch follows the complete media-tracing queue, but its locked native compile, image build, real SIPp admission path, runtime trace continuity and overhead comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."

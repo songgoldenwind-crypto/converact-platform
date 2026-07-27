@@ -6,6 +6,8 @@ import test from 'node:test';
 
 const patchPath =
   'infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission.patch';
+const responseContractPatchPath =
+  'infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch';
 
 test('RustPBX snapshot fork admits inbound calls before local route lookup', () => {
   const patch = readFileSync(patchPath, 'utf8');
@@ -40,6 +42,20 @@ test('RustPBX inbound admission patch is a syntactically valid git patch', () =>
   assert.match(parsed.stdout, /^151\t0\tsrc\/proxy\/routing\/http\.rs\s*$/);
 });
 
+test('RustPBX parses the direct iveKit HTTP response after the complete patch queue', () => {
+  const patch = readFileSync(responseContractPatchPath, 'utf8');
+  const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
+
+  assert.match(
+    build,
+    /rustpbx-ivekit-media-tracing\.patch"[\s\S]*rustpbx-ivekit-inbound-admission-response-contract\.patch"/
+  );
+  assert.match(patch, /\.json::<HttpSnapshotAdmissionResponse>\(\)/);
+  assert.match(patch, /-struct HttpSnapshotAdmissionEnvelope/);
+  assert.doesNotMatch(patch, /^\+.*admitted\.data\./m);
+  assert.match(patch, /^\+.*admitted\.accepted/m);
+});
+
 test('fork manifest records the implemented RustPBX Cell owner patch identity', () => {
   const manifest = JSON.parse(
     readFileSync('docs/capacity/forks/ivekit-forks-v1.json', 'utf8')
@@ -72,5 +88,15 @@ test('fork manifest records the implemented RustPBX Cell owner patch identity', 
       (change) => change.change_id === 'rustpbx-cell-owner-v1'
     ),
     false
+  );
+  const responseContractPatch = rustpbx.patches.find(
+    (item) => item.path === responseContractPatchPath
+  );
+  assert.ok(responseContractPatch);
+  assert.equal(
+    responseContractPatch.sha256,
+    createHash('sha256')
+      .update(readFileSync(responseContractPatchPath))
+      .digest('hex')
   );
 });

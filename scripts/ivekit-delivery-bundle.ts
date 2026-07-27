@@ -654,6 +654,8 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rsipstack-tcp-reconnect.patch',
     'rsipstack-ivekit-capacity.patch',
     'rsipstack-ivekit-retransmission-atomicity.patch',
+    'rsipstack-ivekit-dialog-recovery.patch',
+    'rustrtc-ivekit-udp-socket-capacity.patch',
     'rustpbx-ivekit-ami-dialogs.patch',
     'rustpbx-ivekit-rwi-originate-hangup.patch',
     'rustpbx-ivekit-route-snapshot.patch',
@@ -661,6 +663,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-owner-epoch.patch',
     'rustpbx-ivekit-recording-spool.patch',
     'rustpbx-local-rsipstack.patch',
+    'rustpbx-local-rustrtc.patch',
     'rustpbx-ivekit-sip-capacity.patch',
     'rustpbx-ivekit-media-hot-path.patch',
     'rustpbx-ivekit-session-cleanup-isolation.patch',
@@ -670,7 +673,15 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-callrecord-runtime-isolation.patch',
     'rustpbx-ivekit-callrecord-failure-telemetry.patch',
     'rustpbx-ivekit-webphone-edge-auth.patch',
-    'rustpbx-ivekit-realtime-audio-tap.patch'
+    'rustpbx-ivekit-realtime-audio-tap.patch',
+    'rustpbx-ivekit-http-client-capacity.patch',
+    'rustpbx-ivekit-media-control-client.patch',
+    'rustpbx-ivekit-media-lifecycle.patch',
+    'rustpbx-ivekit-dialog-shadow.patch',
+    'rustpbx-ivekit-dialog-recovery.patch',
+    'rustpbx-ivekit-dual-leg-cdr.patch',
+    'rustpbx-ivekit-media-tracing.patch',
+    'rustpbx-ivekit-inbound-admission-response-contract.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`
