@@ -50,6 +50,13 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
 
   assert.ok(rtpengine);
   assert.ok(validator);
+  assert.equal(validator.user, 'node');
+  assert.equal(validator.read_only, true);
+  assert.deepEqual(
+    validator.tmpfs,
+    ['/tmp:size=16m,uid=1000,gid=1000,mode=0700'],
+    'the read-only Node preflight needs a writable /tmp for tsx'
+  );
   assert.equal(
     rtpengine.depends_on['rtpengine-config-validate'].condition,
     'service_completed_successfully'
