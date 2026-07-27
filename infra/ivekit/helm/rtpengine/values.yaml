@@ -37,6 +37,15 @@ rtpengine:
       memory: 8Gi
 
 mediaControl:
+  host: 127.0.0.1
+  telemetry:
+    enabled: false
+    collectorEndpoint: ""
+    sampleRatio: "0.01"
+    maxQueueSize: "2048"
+    maxExportBatchSize: "512"
+    scheduledDelayMs: "5000"
+    exportTimeoutMs: "10000"
   image:
     repository: ghcr.io/example/ivekit-media-control
     digest: ""

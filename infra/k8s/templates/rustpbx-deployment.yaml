@@ -16,6 +16,10 @@
 {{- end -}}
 {{- $cdrEndpoint := required "voice.cdr.endpoint is required when voice is enabled" .Values.voice.cdr.endpoint -}}
 {{- $_ := required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId -}}
+{{- $admissionProfileIds := list .Values.voice.admissionProfiles.ordinary.id .Values.voice.admissionProfiles.t1.id .Values.voice.admissionProfiles.ivrTranscoding.id .Values.voice.admissionProfiles.recording.id .Values.voice.admissionProfiles.aiTap.id -}}
+{{- if ne (len $admissionProfileIds) (len (uniq $admissionProfileIds)) -}}
+{{- fail "RustPBX admission profile ids must be distinct" -}}
+{{- end -}}
 {{- if not (hasPrefix "https://" $cdrEndpoint) -}}
 {{- fail "voice.cdr.endpoint must use HTTPS" -}}
 {{- end -}}
@@ -106,6 +110,43 @@
 {{- if empty .Values.voice.componentNode.profileIds -}}
 {{- fail "voice.componentNode.profileIds is required when component-node is enabled" -}}
 {{- end -}}
+{{- if ne (len .Values.voice.componentNode.profileIds) (len $admissionProfileIds) -}}
+{{- fail "voice.componentNode.profileIds must contain every RustPBX admission profile" -}}
+{{- end -}}
+{{- range $admissionProfileIds -}}
+{{- if not (has . $.Values.voice.componentNode.profileIds) -}}
+{{- fail "voice.componentNode.profileIds must contain every RustPBX admission profile" -}}
+{{- end -}}
+{{- end -}}
+{{- $_ := required "voice.componentNode.profileRequirementsJson is required" .Values.voice.componentNode.profileRequirementsJson -}}
+{{- if empty .Values.voice.componentNode.readinessProfileIds -}}
+{{- fail "voice.componentNode.readinessProfileIds is required" -}}
+{{- end -}}
+{{- $componentDimensions := fromJson .Values.voice.componentNode.dimensionsJson -}}
+{{- range $profile := list .Values.voice.admissionProfiles.ordinary .Values.voice.admissionProfiles.t1 .Values.voice.admissionProfiles.ivrTranscoding .Values.voice.admissionProfiles.recording .Values.voice.admissionProfiles.aiTap -}}
+{{- if not (hasKey $componentDimensions $profile.dimension) -}}
+{{- fail (printf "voice.componentNode.dimensionsJson must contain %s" $profile.dimension) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.voice.mediaControl.enabled -}}
+{{- if ne .Values.voice.mediaControl.endpoint "https://localhost:3211/" -}}
+{{- fail "voice.mediaControl.endpoint must be https://localhost:3211/" -}}
+{{- end -}}
+{{- $_ := required "voice.mediaControl.serviceTokenKey is required" .Values.voice.mediaControl.serviceTokenKey -}}
+{{- $_ := required "voice.mediaControl.serviceToken is required" .Values.voice.mediaControl.serviceToken -}}
+{{- $_ := required "voice.mediaControl.clientTlsSecretName is required" .Values.voice.mediaControl.clientTlsSecretName -}}
+{{- if or (ne .Values.voice.mediaControl.mode "ordinary_relay") (ne .Values.voice.mediaControl.failurePolicy "fail_closed") -}}
+{{- fail "voice.mediaControl must use ordinary_relay and fail_closed" -}}
+{{- end -}}
+{{- if not (regexMatch "^(0(\\.[0-9]+)?|1(\\.0+)?)$" .Values.voice.mediaControl.traceSampleRatio) -}}
+{{- fail "voice.mediaControl.traceSampleRatio must be between 0 and 1" -}}
+{{- end -}}
+{{- range $name, $value := dict "identityFile" .Values.voice.mediaControl.identityFile "caFile" .Values.voice.mediaControl.caFile -}}
+{{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" $value) -}}
+{{- fail (printf "voice.mediaControl.%s must be a filename" $name) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- if .Values.voice.dialogShadow.enabled -}}
 {{- if not .Values.voice.persistence.enabled -}}
@@ -117,6 +158,9 @@
 {{- $_ := required "voice.dialogShadow.faultDomain is required" .Values.voice.dialogShadow.faultDomain -}}
 {{- if not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" .Values.voice.dialogShadow.faultDomain) -}}
 {{- fail "voice.dialogShadow.faultDomain is invalid" -}}
+{{- end -}}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9.]{0,61}[a-z0-9])?$" .Values.voice.dialogShadow.faultDomain) -}}
+{{- fail "voice.dialogShadow.faultDomain must be a Kubernetes fault-domain label" -}}
 {{- end -}}
 {{- if not (regexMatch "(^[a-z0-9]$)|(^[a-z0-9][a-z0-9.-]{0,251}[a-z0-9]$)" (required "voice.dialogShadow.spiffeTrustDomain is required" .Values.voice.dialogShadow.spiffeTrustDomain)) -}}
 {{- fail "voice.dialogShadow.spiffeTrustDomain is invalid" -}}
@@ -327,8 +371,40 @@ spec:
         prometheus.io/path: /metrics
       labels:
         app: rustpbx
+        {{- if .Values.voice.dialogShadow.enabled }}
+        ivekit.io/t1-shadow-fault-domain: {{ .Values.voice.dialogShadow.faultDomain | quote }}
+        {{- end }}
     spec:
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.voice.terminationGracePeriodSeconds }}
+      hostNetwork: {{ .Values.voice.network.hostNetwork }}
+      dnsPolicy: ClusterFirstWithHostNet
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.voice.scheduling.hostnameTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: rustpbx
+        - maxSkew: 1
+          topologyKey: {{ .Values.voice.scheduling.zoneTopologyKey | quote }}
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: rustpbx
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: {{ .Values.voice.scheduling.hostnameTopologyKey | quote }}
+              labelSelector:
+                matchLabels:
+                  app: rustpbx
+      nodeSelector:
+        {{- toYaml .Values.voice.scheduling.nodeSelector | nindent 8 }}
+      {{- with .Values.voice.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         {{- toYaml .Values.voice.podSecurityContext | nindent 8 }}
       {{- with .Values.global.imagePullSecrets }}
@@ -446,10 +522,36 @@ spec:
                   fieldPath: metadata.name
             - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS
               value: {{ join "," .Values.voice.componentNode.profileIds | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON
+              value: {{ .Values.voice.componentNode.profileRequirementsJson | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS
+              value: {{ join "," .Values.voice.componentNode.readinessProfileIds | quote }}
             - name: OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS
               value: sip_voice
             - name: OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON
               value: {{ .Values.voice.componentNode.dimensionsJson | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED
+              value: {{ ternary "true" "false" .Values.voice.mediaControl.enabled | quote }}
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE
+              value: /app/route-snapshot/routes.json
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE
+              value: /run/rustpbx-route-secrets/hmac-key
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID
+              value: {{ $tenantId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID
+              value: {{ $profileId | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT
+              value: {{ .Values.voice.mediaControl.endpoint | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.identityFile | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.caFile | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS
+              value: {{ .Values.voice.mediaControl.readinessTimeoutMs | quote }}
+            - name: OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS
+              value: {{ .Values.voice.mediaControl.readinessRefreshMs | quote }}
+            {{- end }}
             - name: OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS
               value: {{ .Values.voice.componentNode.terminalRetentionMs | quote }}
             - name: OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS
@@ -474,16 +576,34 @@ spec:
               port: component-node
             periodSeconds: 10
             timeoutSeconds: 2
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -ec
+                  - sleep {{ add (div (int .Values.voice.componentNode.drainWaitMs) 1000) .Values.voice.drainPropagationSeconds 5 }}
           securityContext:
             {{- toYaml .Values.voice.securityContext | nindent 12 }}
           resources:
             {{- toYaml .Values.voice.componentNode.resources | nindent 12 }}
-          {{- if .Values.voice.recordingSpool.enabled }}
           volumeMounts:
+            - name: route-snapshot
+              mountPath: /app/route-snapshot
+              readOnly: true
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: rustpbx-route-secrets
+              mountPath: /run/rustpbx-route-secrets
+              readOnly: true
+            - name: media-control-client-tls
+              mountPath: /run/media-control-client-tls
+              readOnly: true
+            {{- end }}
+            {{- if .Values.voice.recordingSpool.enabled }}
             - name: recording-state
               mountPath: /app/recording-state
               readOnly: true
-          {{- end }}
+            {{- end }}
         {{- end }}
         {{- if .Values.media.realtimeAudioTap.enabled }}
         - name: realtime-audio-tap-gateway
@@ -732,6 +852,32 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT
+              value: {{ .Values.voice.mediaControl.endpoint | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TOKEN_FILE
+              value: /run/media-control-secrets/service-token
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_PRODUCTION
+              value: "true"
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_MODE
+              value: {{ .Values.voice.mediaControl.mode | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_FAILURE_POLICY
+              value: {{ .Values.voice.mediaControl.failurePolicy | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_INFLIGHT
+              value: {{ .Values.voice.mediaControl.maxInflight | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TIMEOUT_MS
+              value: {{ .Values.voice.mediaControl.timeoutMs | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_RESPONSE_BYTES
+              value: {{ .Values.voice.mediaControl.maxResponseBytes | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TRACE_SAMPLE_RATIO
+              value: {{ .Values.voice.mediaControl.traceSampleRatio | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_IDENTITY_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.identityFile | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_CA_FILE
+              value: {{ printf "/run/media-control-client-tls/%s" .Values.voice.mediaControl.caFile | quote }}
+            - name: IVEKIT_RUSTPBX_MEDIA_PROFILE_ID
+              value: {{ .Values.voice.admissionProfiles.ordinary.id | quote }}
+            {{- end }}
             {{- if .Values.voice.dialogShadow.enabled }}
             - name: IVEKIT_RUSTPBX_FAULT_DOMAIN
               value: {{ .Values.voice.dialogShadow.faultDomain | quote }}
@@ -827,6 +973,25 @@ spec:
                       [ "$attempt" -lt 60 ] || exit 1
                       sleep 1
                     done
+            {{- if .Values.voice.componentNode.enabled }}
+            preStop:
+              exec:
+                command:
+                  - /bin/bash
+                  - -ec
+                  - |
+                    drain_component_node() {
+                      local status=""
+                      local payload
+                      payload='{"propagation_delay_ms":{{ mul .Values.voice.drainPropagationSeconds 1000 }},"wait_for_reservations_ms":{{ .Values.voice.componentNode.drainWaitMs }},"poll_interval_ms":{{ .Values.voice.componentNode.drainPollMs }}}'
+                      exec 3<>/dev/tcp/127.0.0.1/3210 || return 1
+                      printf 'POST /v1/drain HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer %s\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s' "$IVEKIT_RUSTPBX_COMPONENT_NODE_TOKEN" "${#payload}" "$payload" >&3
+                      IFS= read -r status <&3 || return 1
+                      exec 3>&- 3<&-
+                      [[ "$status" == *" 200 "* ]]
+                    }
+                    drain_component_node
+            {{- end }}
           ports:
             - name: management
               containerPort: {{ $managementPort }}
@@ -851,6 +1016,14 @@ spec:
             - name: cdr-secrets
               mountPath: /run/cdr-secrets
               readOnly: true
+            {{- if .Values.voice.mediaControl.enabled }}
+            - name: media-control-secrets
+              mountPath: /run/media-control-secrets
+              readOnly: true
+            - name: media-control-client-tls
+              mountPath: /run/media-control-client-tls
+              readOnly: true
+            {{- end }}
             {{- if .Values.voice.recordingSpool.enabled }}
             - name: recording-spool
               mountPath: /app/recording-spool
@@ -905,6 +1078,30 @@ spec:
                   items:
                     - key: rustpbx-webhook-token
                       path: service-key
+        {{- if .Values.voice.mediaControl.enabled }}
+        - name: media-control-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: {{ .Values.voice.mediaControl.serviceTokenKey }}
+                      path: service-token
+        - name: rustpbx-route-secrets
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .Release.Name }}-secrets
+                  items:
+                    - key: rustpbx-route-snapshot-hmac-key
+                      path: hmac-key
+        - name: media-control-client-tls
+          secret:
+            secretName: {{ .Values.voice.mediaControl.clientTlsSecretName }}
+            defaultMode: 0440
+        {{- end }}
         {{- if not .Values.voice.persistence.enabled }}
         - name: storage
           emptyDir: {}
@@ -1152,6 +1349,12 @@ spec:
       path: /metrics
       interval: {{ .Values.voice.monitoring.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.voice.monitoring.serviceMonitor.scrapeTimeout }}
+    {{- if .Values.voice.componentNode.enabled }}
+    - port: component-node
+      path: /metrics
+      interval: {{ .Values.voice.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.voice.monitoring.serviceMonitor.scrapeTimeout }}
+    {{- end }}
 {{- end }}
 {{- if .Values.voice.monitoring.prometheusRule.enabled }}
 ---
@@ -1210,5 +1413,26 @@ spec:
             severity: critical
           annotations:
             summary: RustPBX force-dropped session resources to keep the media loop responsive
+        - alert: IveKitRustPbxOrdinaryRelayCapacityUnavailable
+          expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-ordinary-v1"}) < 1
+          for: 30s
+          labels:
+            severity: critical
+          annotations:
+            summary: A RustPBX node cannot admit ordinary relayed calls
+        - alert: IveKitRustPbxRecordingProfileExhausted
+          expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-recording-v1"}) < 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: A RustPBX recording profile is out of safe capacity
+        - alert: IveKitRustPbxAiTapProfileExhausted
+          expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-ai-tap-v1"}) < 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: A RustPBX AI audio-tap profile is out of safe capacity
 {{- end }}
 {{- end }}

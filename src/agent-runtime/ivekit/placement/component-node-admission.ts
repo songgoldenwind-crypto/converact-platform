@@ -101,6 +101,7 @@ export class ComponentNodeAdmissionController {
   #state: Exclude<AdmissionState, 'offline'> = 'draining';
   #recoveryPending = true;
   #stickyDrain = false;
+  #newAdmissionsBlocked = true;
   #drainStartedAt = '';
   #cellLeaseEpoch = 0;
   #leaseObservedAt = '';
@@ -183,9 +184,11 @@ export class ComponentNodeAdmissionController {
     this.#recoveryPending = !heartbeat.recovery_complete;
     if (this.#recoveryPending) {
       this.#state = 'draining';
+      this.#newAdmissionsBlocked = true;
       this.#drainStartedAt ||= now.toISOString();
     } else if (!this.#stickyDrain) {
       this.#state = heartbeat.state;
+      this.#newAdmissionsBlocked = heartbeat.state === 'draining';
       this.#drainStartedAt = heartbeat.state === 'draining'
         ? this.#drainStartedAt || now.toISOString()
         : '';
@@ -195,6 +198,12 @@ export class ComponentNodeAdmissionController {
   }
 
   startDrain(now: Date): ReturnType<ComponentNodeAdmissionController['snapshot']> {
+    this.startRouteDrain(now);
+    this.stopNewAdmissions();
+    return this.snapshot(now);
+  }
+
+  startRouteDrain(now: Date): ReturnType<ComponentNodeAdmissionController['snapshot']> {
     validNow(now);
     this.#stickyDrain = true;
     if (this.#state !== 'draining') {
@@ -205,6 +214,12 @@ export class ComponentNodeAdmissionController {
       this.#drainStartedAt ||= now.toISOString();
     }
     return this.snapshot(now);
+  }
+
+  stopNewAdmissions(): void {
+    if (this.#newAdmissionsBlocked) return;
+    this.#newAdmissionsBlocked = true;
+    this.#stateSequence += 1;
   }
 
   hasReservation(reservationId: string): boolean {
@@ -222,7 +237,7 @@ export class ComponentNodeAdmissionController {
       throw new ComponentNodeAdmissionError('component_node_lease_missing', 503, true);
     }
     const existing = this.#reservations.get(checkpoint.reservation_id);
-    if (!existing && this.#state === 'draining' &&
+    if (!existing && this.#newAdmissionsBlocked &&
         (checkpoint.state === 'reserved' || checkpoint.state === 'active')) {
       throw new ComponentNodeAdmissionError('component_node_draining', 503, true);
     }

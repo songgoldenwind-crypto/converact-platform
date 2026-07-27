@@ -343,7 +343,9 @@ const CAPACITY_RUNTIME_SOURCE_PATHS = [
   'src/agent-runtime/ivekit/placement/snapshot.ts',
   'src/agent-runtime/ivekit/placement/types.ts',
   'src/agent-runtime/ivekit/recordings/recording-manifest.ts',
-  'src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts'
+  'src/agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.ts',
+  'src/agent-runtime/ivekit/voice/rustpbx-media-readiness.ts',
+  'src/agent-runtime/ivekit/voice/rustpbx-route-snapshot-envelope.ts'
 ] as const;
 
 export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [

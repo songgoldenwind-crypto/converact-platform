@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import { chmod, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,11 +13,16 @@ import {
   compileRustPbxRouteRules,
   type VoiceRouteDependency
 } from './agent-runtime/ivekit/voice/route-compiler.js';
+import {
+  canonicalRustPbxRouteSnapshotJson as canonicalJson,
+  decodeRustPbxRouteSnapshotEnvelope,
+  decodeRustPbxRouteSnapshotKey,
+  RUSTPBX_ROUTE_SNAPSHOT_MAX_BYTES as MAX_SNAPSHOT_BYTES,
+  RUSTPBX_ROUTE_SNAPSHOT_MAX_ROUTES as MAX_ROUTES,
+  RUSTPBX_ROUTE_SNAPSHOT_WIRE_PREFIX as WIRE_PREFIX,
+  verifyRustPbxRouteSnapshotEnvelope as verifyRouteSnapshotEnvelope
+} from './agent-runtime/ivekit/voice/rustpbx-route-snapshot-envelope.js';
 import type { VoiceCapability } from './agent-runtime/ivekit/voice/types.js';
-
-const MAX_ROUTES = 100_000;
-const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
-const WIRE_PREFIX = 'ivekit-route-snapshot-v1.';
 
 export interface RustPbxRouteProjectionProfile {
   tenant_id: string;
@@ -157,7 +162,7 @@ export function createRustPbxRouteSnapshotProjector(input: {
   const tenantId = validIdentifier(input.tenant_id, 'tenant_id');
   const profileId = validIdentifier(input.profile_id, 'profile_id');
   const outputPath = resolve(requiredText(input.output_path, 'output_path'));
-  const signingKey = decodeKey(input.signing_key);
+  const signingKey = decodeRustPbxRouteSnapshotKey(input.signing_key);
   const ttlMs = boundedInteger(input.ttl_ms, 1_000, 300_000, 'ttl_ms');
   const availableDependencies = new Set(input.available_dependencies ?? []);
   const routerAdapter = new RustPbxRouterAdapter();
@@ -263,18 +268,10 @@ export function verifyRustPbxRouteSnapshotEnvelope(
     now?: Date;
   }
 ): RustPbxRouteSnapshotBody {
-  const now = input.now ?? new Date();
-  validDate(now);
-  const body = decodeEnvelope(
+  return verifyRouteSnapshotEnvelope<RustPbxRouterResponse>(
     raw,
-    decodeKey(input.signing_key),
-    validIdentifier(input.tenant_id, 'tenant_id'),
-    validIdentifier(input.profile_id, 'profile_id')
+    input
   );
-  if (Date.parse(body.expires_at) <= now.getTime()) {
-    throw new Error('RustPBX route snapshot is expired');
-  }
-  return body;
 }
 
 async function readExistingBody(
@@ -285,52 +282,16 @@ async function readExistingBody(
 ): Promise<RustPbxRouteSnapshotBody | null> {
   try {
     const raw = await readFile(path, 'utf8');
-    return decodeEnvelope(raw, signingKey, tenantId, profileId);
+    return decodeRustPbxRouteSnapshotEnvelope<RustPbxRouterResponse>(
+      raw,
+      signingKey,
+      tenantId,
+      profileId
+    );
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     return null;
   }
-}
-
-function decodeEnvelope(
-  raw: string,
-  signingKey: Buffer,
-  tenantId: string,
-  profileId: string
-): RustPbxRouteSnapshotBody {
-  if (!raw || Buffer.byteLength(raw) > MAX_SNAPSHOT_BYTES) {
-    throw new Error('RustPBX route snapshot envelope is invalid');
-  }
-  const newline = raw.indexOf('\n');
-  const header = newline < 0 ? '' : raw.slice(0, newline);
-  const encodedBody = newline < 0 ? '' : raw.slice(newline + 1);
-  if (!new RegExp(`^${WIRE_PREFIX.replaceAll('.', '\\.')}[A-Za-z0-9_-]{43}$`).test(header)
-    || !encodedBody) {
-    throw new Error('RustPBX route snapshot envelope is invalid');
-  }
-  const signature = header.slice(WIRE_PREFIX.length);
-  const expected = createHmac('sha256', signingKey).update(encodedBody).digest();
-  const actual = Buffer.from(signature, 'base64url');
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
-    throw new Error('RustPBX route snapshot signature mismatch');
-  }
-  const body = plainRecord(JSON.parse(encodedBody)) as unknown as RustPbxRouteSnapshotBody;
-  if (canonicalJson(body) !== encodedBody
-    || body.schema_version !== '1.0.0'
-    || !Number.isSafeInteger(body.sequence) || body.sequence < 1
-    || !Number.isSafeInteger(body.source_revision) || body.source_revision < 1
-    || body.tenant_id !== tenantId || body.profile_id !== profileId) {
-    throw new Error('RustPBX route snapshot identity or schema is invalid');
-  }
-  const generatedAt = Date.parse(body.generated_at);
-  const expiresAt = Date.parse(body.expires_at);
-  if (!Number.isFinite(generatedAt) || !Number.isFinite(expiresAt)
-    || expiresAt <= generatedAt || expiresAt - generatedAt > 300_000
-    || !isPlainRecord(body.routes) || Object.keys(body.routes).length > MAX_ROUTES) {
-    throw new Error('RustPBX route snapshot body is invalid');
-  }
-  for (const key of Object.keys(body.routes)) validAddressHmac(key);
-  return body;
 }
 
 function compileRoutes(
@@ -387,17 +348,6 @@ function normalizeCapabilities(input: Record<string, unknown>): Record<VoiceCapa
   ])) as Record<VoiceCapability, boolean>;
 }
 
-function decodeKey(value: string): Buffer {
-  if (!/^[A-Za-z0-9+/]{43}=$/.test(String(value || ''))) {
-    throw new Error('RustPBX route snapshot signing key must be canonical base64');
-  }
-  const key = Buffer.from(value, 'base64');
-  if (key.length !== 32 || key.toString('base64') !== value) {
-    throw new Error('RustPBX route snapshot signing key must decode to 32 bytes');
-  }
-  return key;
-}
-
 function validAddressHmac(value: string): string {
   if (!/^[a-f0-9]{64}$/.test(String(value || ''))) {
     throw new Error('RustPBX route snapshot address HMAC is invalid');
@@ -451,31 +401,6 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
-}
-
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(canonicalize(value, new Set<object>()));
-}
-
-function canonicalize(value: unknown, ancestors: Set<object>): unknown {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new TypeError('canonical JSON rejects non-finite numbers');
-    return Object.is(value, -0) ? 0 : value;
-  }
-  if (typeof value !== 'object') throw new TypeError(`canonical JSON rejects ${typeof value}`);
-  if (ancestors.has(value)) throw new TypeError('canonical JSON rejects circular objects');
-  ancestors.add(value);
-  try {
-    if (Array.isArray(value)) return value.map((item) => canonicalize(item, ancestors));
-    if (!isPlainRecord(value)) throw new TypeError('canonical JSON rejects non-plain objects');
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [
-      key,
-      canonicalize(value[key], ancestors)
-    ]));
-  } finally {
-    ancestors.delete(value);
-  }
 }
 
 export interface RustPbxRouteSnapshotRuntimeConfig {

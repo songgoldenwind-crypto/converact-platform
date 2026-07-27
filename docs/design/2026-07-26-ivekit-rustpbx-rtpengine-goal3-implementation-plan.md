@@ -602,18 +602,18 @@ Task 9 evidence:
 - 修改 `infra/ivekit/rustpbx/README.md`
 - 新建 `test/ivekit-rustpbx-media-deployment.test.ts`
 
-- [ ] ordinary relay、T1、IVR/transcoding、recording 和 AI tap 使用独立 admission profile。
-- [ ] RustPBX 与 media-control 使用 loopback/Unix 或 cell-local mTLS，不暴露公网端口。
-- [ ] service token、client cert 和 CA 只通过 secret volume。
-- [ ] readiness 同时反映 route snapshot freshness、media-control availability 和 profile
+- [x] ordinary relay、T1、IVR/transcoding、recording 和 AI tap 使用独立 admission profile。
+- [x] RustPBX 与 media-control 使用 loopback/Unix 或 cell-local mTLS，不暴露公网端口。
+- [x] service token、client cert 和 CA 只通过 secret volume。
+- [x] readiness 同时反映 route snapshot freshness、media-control availability 和 profile
       capacity；liveness 不因外部 Provider 故障失败。
-- [ ] drain 先将 Kamailio weight 归零，再拒绝新 admission，最后等待 dialogs。
-- [ ] PDB、anti-affinity、topology spread 和 T1 shadow fault-domain label 有模板门禁。
-- [ ] 指标只使用固定 label：action、result、leg、profile、runtime_mode、failure_stage。
-- [ ] tracing 传播 trace ID，但日志和 span attribute 不含 SDP、号码或 secret。
-- [ ] 录制/AI tap queue 和 ordinary relay 使用独立 semaphore、内存预算和告警。
-- [ ] rollback 保留 Goal 2 media sessions，禁止为回滚重启整 Cell RTPengine。
-- [ ] 提交：`feat(deploy): add RustPBX media orchestration`。
+- [x] drain 先将 Kamailio weight 归零，再拒绝新 admission，最后等待 dialogs。
+- [x] PDB、anti-affinity、topology spread 和 T1 shadow fault-domain label 有模板门禁。
+- [x] 指标只使用固定 label：action、result、leg、profile、runtime_mode、failure_stage。
+- [x] tracing 传播 trace ID，但日志和 span attribute 不含 SDP、号码或 secret。
+- [x] 录制/AI tap queue 和 ordinary relay 使用独立 semaphore、内存预算和告警。
+- [x] rollback 保留 Goal 2 media sessions，禁止为回滚重启整 Cell RTPengine。
+- [x] 提交：`feat(deploy): add RustPBX media orchestration`。
 
 ### Task 11：服务器功能和故障验收
 

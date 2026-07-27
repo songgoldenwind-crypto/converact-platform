@@ -58,7 +58,7 @@ test('iveKit RustPBX build pins source, toolchain, lockfile, and runtime base', 
   assert.match(buildScript, /IVEKIT_RUSTPBX_CARGO_HOME/);
   assert.match(buildScript, /cross compilation is not supported/);
   assert.match(runtimeDockerfile, /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m);
-  assert.match(buildScript, /PATCHSET="ivekit\.28"/);
+  assert.match(buildScript, /PATCHSET="ivekit\.29"/);
   assert.match(buildScript, /cp "\$SCRIPT_DIR\/entrypoint\.sh"/);
   assert.match(runtimeDockerfile, /COPY entrypoint\.ivekit\.sh \/app\/entrypoint\.sh/);
   assert.match(runtimeDockerfile, /ENTRYPOINT \["\/app\/entrypoint\.sh"\]/);
@@ -79,7 +79,7 @@ test('RustPBX deployment examples reference the current patchset', () => {
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.28-6c49ee76/,
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.29-6c49ee76/,
       path
     );
   }

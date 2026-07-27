@@ -69,4 +69,10 @@ spec:
       path: /metrics
       interval: {{ .Values.monitoring.serviceMonitor.interval }}
       scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+    {{- if .Values.voice.componentNode.enabled }}
+    - port: component-node
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+    {{- end }}
 {{- end }}

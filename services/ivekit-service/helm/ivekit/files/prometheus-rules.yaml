@@ -357,6 +357,39 @@ groups:
           summary: RustPBX force-dropped session resources to keep the media loop responsive
           description: A playback, MCU, or bridge cleanup timed out or the bounded cleanup executor was full; live calls remained isolated but cleanup evidence requires investigation.
           runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxsessioncleanup
+      - alert: IveKitRustPbxOrdinaryRelayCapacityUnavailable
+        expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-ordinary-v1"}) < 1
+        for: 30s
+        labels:
+          severity: critical
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: A RustPBX node cannot admit ordinary relayed calls
+          description: The ordinary relay profile has no safe capacity on at least one node; it is removed from new-call routing while established media continues.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxmediaprofiles
+      - alert: IveKitRustPbxRecordingProfileExhausted
+        expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-recording-v1"}) < 1
+        for: 2m
+        labels:
+          severity: warning
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: A RustPBX recording profile is out of safe capacity
+          description: New recording work is degraded independently; ordinary relayed calls and established RTP must remain available.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxmediaprofiles
+      - alert: IveKitRustPbxAiTapProfileExhausted
+        expr: min(ivekit_rustpbx_media_profile_ready{profile="voice-ai-tap-v1"}) < 1
+        for: 2m
+        labels:
+          severity: warning
+          service: ivekit
+          component: rustpbx
+        annotations:
+          summary: A RustPBX AI audio-tap profile is out of safe capacity
+          description: New ASR or translation taps are degraded independently and must not backpressure ordinary relayed calls.
+          runbook: docs/ivekit-monitoring-runbook.md#ivekitrustpbxmediaprofiles
 
   - name: ivekit.kamailio.edge
     rules:

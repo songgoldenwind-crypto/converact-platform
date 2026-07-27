@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import '../src/telemetry.js';
 import {
   MediaControlAgent
 } from '../src/agent-runtime/ivekit/media-control/agent.js';

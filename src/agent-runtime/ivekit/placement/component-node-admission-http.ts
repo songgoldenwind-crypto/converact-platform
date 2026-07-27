@@ -34,6 +34,14 @@ extends ComponentNodeAdmissionTlsOptions {
   servername?: string;
 }
 
+export interface ComponentNodeAdditionalReadiness {
+  ready: boolean;
+  failure_stages?: readonly string[];
+  route_snapshot?: unknown;
+  media_control?: unknown;
+  profiles?: unknown;
+}
+
 export function createComponentNodeAdmissionHttpServer(input: {
   controller: ComponentNodeAdmissionController;
   service_token: string;
@@ -45,6 +53,11 @@ export function createComponentNodeAdmissionHttpServer(input: {
     checkpoint: CellAdmissionReservationCheckpoint,
     now: Date
   ) => void | Promise<void>;
+  readiness?: (
+    state: ComponentNodeStateSnapshot,
+    now: Date
+  ) => ComponentNodeAdditionalReadiness |
+    Promise<ComponentNodeAdditionalReadiness>;
   additional_metrics?: (now: Date) => string;
 }): Server {
   if (input.production && !input.tls) {
@@ -62,6 +75,7 @@ export function createComponentNodeAdmissionHttpServer(input: {
     ),
     now: input.now || (() => new Date()),
     before_new_reservation: input.before_new_reservation,
+    readiness: input.readiness,
     additional_metrics: input.additional_metrics
   };
   const handler: RequestListener = async (
@@ -74,9 +88,16 @@ export function createComponentNodeAdmissionHttpServer(input: {
         return sendJson(response, 200, { status: 'alive' });
       }
       if (request.method === 'GET' && url.pathname === '/readyz') {
-        const state = config.controller.snapshot(config.now());
+        const now = config.now();
+        const state = config.controller.snapshot(now);
+        const readiness = await additionalReadiness(
+          config.readiness,
+          state,
+          now
+        );
         const ready = state.lease_fresh && !state.recovery_pending &&
-          (state.state === 'accepting' || state.state === 'degraded');
+          (state.state === 'accepting' || state.state === 'degraded') &&
+          readiness.ready;
         return sendJson(response, ready ? 200 : 503, {
           status: ready ? 'ready' : 'not_ready',
           state: state.state,
@@ -85,7 +106,8 @@ export function createComponentNodeAdmissionHttpServer(input: {
           component: state.component,
           node_id: state.node_id,
           cell_lease_epoch: state.cell_lease_epoch,
-          state_sequence: state.state_sequence
+          state_sequence: state.state_sequence,
+          readiness
         });
       }
       if (request.method === 'GET' && url.pathname === '/metrics') {
@@ -112,9 +134,37 @@ export function createComponentNodeAdmissionHttpServer(input: {
         });
       }
       if (request.method === 'POST' && url.pathname === '/v1/drain') {
-        await readJsonBody(request, config.max_body_bytes);
-        return sendJson(response, 200, {
-          data: config.controller.startDrain(config.now())
+        const body = object(await readJsonBody(request, config.max_body_bytes));
+        const drain = config.controller.startRouteDrain(config.now());
+        const propagationDelayMs = optionalBoundedInteger(
+          body.propagation_delay_ms,
+          0,
+          60_000,
+          'component drain propagation delay'
+        );
+        const waitForReservationsMs = optionalBoundedInteger(
+          body.wait_for_reservations_ms,
+          0,
+          3_600_000,
+          'component drain reservation timeout'
+        );
+        const pollIntervalMs = optionalBoundedInteger(
+          body.poll_interval_ms,
+          50,
+          5_000,
+          'component drain poll interval',
+          250
+        );
+        const drained = await waitForReservationDrain({
+          controller: config.controller,
+          now: config.now,
+          propagation_delay_ms: propagationDelayMs,
+          wait_for_reservations_ms: waitForReservationsMs,
+          poll_interval_ms: pollIntervalMs
+        });
+        return sendJson(response, drained ? 200 : 503, {
+          data: drain,
+          drained
         });
       }
       const reservation = url.pathname.match(/^\/v1\/reservations\/([^/]+)$/);
@@ -187,6 +237,72 @@ export function createComponentNodeAdmissionHttpServer(input: {
         minVersion: 'TLSv1.2'
       }, handler)
     : createServer(handler);
+}
+
+async function waitForReservationDrain(input: {
+  controller: ComponentNodeAdmissionController;
+  now: () => Date;
+  propagation_delay_ms: number;
+  wait_for_reservations_ms: number;
+  poll_interval_ms: number;
+}): Promise<boolean> {
+  if (input.propagation_delay_ms > 0) {
+    await delay(input.propagation_delay_ms);
+  }
+  input.controller.stopNewAdmissions();
+  const deadline = Date.now() + input.wait_for_reservations_ms;
+  do {
+    const reservations = input.controller.snapshot(input.now()).reservations;
+    if (reservations.reserved === 0 && reservations.active === 0) return true;
+    if (input.wait_for_reservations_ms === 0 || Date.now() >= deadline) {
+      return false;
+    }
+    await delay(Math.min(input.poll_interval_ms, Math.max(1, deadline - Date.now())));
+  } while (true);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function optionalBoundedInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  field: string,
+  fallback = 0
+): number {
+  if (value === undefined) return fallback;
+  if (!Number.isSafeInteger(value) ||
+      (value as number) < minimum || (value as number) > maximum) {
+    throw new ComponentNodeAdmissionError(
+      `${field.replaceAll(' ', '_')}_invalid`,
+      400
+    );
+  }
+  return value as number;
+}
+
+async function additionalReadiness(
+  callback: ((
+    state: ComponentNodeStateSnapshot,
+    now: Date
+  ) => ComponentNodeAdditionalReadiness |
+    Promise<ComponentNodeAdditionalReadiness>) | undefined,
+  state: ComponentNodeStateSnapshot,
+  now: Date
+): Promise<ComponentNodeAdditionalReadiness> {
+  if (!callback) return { ready: true };
+  try {
+    const result = await callback(state, now);
+    if (!result || typeof result !== 'object' ||
+        typeof result.ready !== 'boolean') {
+      return { ready: false, failure_stages: ['readiness_contract'] };
+    }
+    return structuredClone(result);
+  } catch {
+    return { ready: false, failure_stages: ['readiness_probe'] };
+  }
 }
 
 export class HttpComponentNodeAdmissionClient {

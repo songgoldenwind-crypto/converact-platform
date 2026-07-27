@@ -169,6 +169,56 @@ retries that marker until iveKit confirms that sequences `1..N` all exist and
 are uploaded, then removes the local indexes and marker. A missing segment can
 therefore delay finalization but cannot be silently skipped.
 
+## Goal 3 media orchestration and rolling rollback
+
+Ordinary relay, T1 shadow, IVR/transcoding, recording, and AI audio tap use
+separate admission profiles and capacity dimensions. Ordinary relay uses the
+bounded media-control semaphore and response limit. Recording uses its own
+non-blocking capture queue, lifecycle executor, spool waterline, and uploader
+resources. AI tap uses a separate bounded Unix-socket channel and gateway
+resources. Exhausting recording or AI tap capacity degrades only that optional
+profile; it does not make the ordinary relay profile or an established RTP
+session unavailable.
+
+The component-node readiness endpoint combines the signed route snapshot,
+node-local media-control readiness, and required profile capacity. Its liveness
+endpoint remains process-local and does not depend on object storage, recording,
+ASR, translation, or other external providers. Prometheus scrapes both RustPBX
+management metrics and component-node media-profile metrics. Metric labels are
+bounded to operational enums such as `failure_stage` and `profile`; they never
+contain tenant IDs, call IDs, numbers, SDP, tokens, or certificate material.
+
+The Goal 3 rolling rollback contract is:
+
+1. Set the selected RustPBX Pod to draining through component-node admission.
+   Kamailio observes that state and removes the Pod's new-call weight.
+2. Wait for route propagation, then block new local reservations and wait for
+   reserved/active dialog checkpoints to reach zero before replacing the Pod.
+   Existing RTPengine sessions remain authoritative while the owner drains.
+3. Roll back one RustPBX/media-control Pod at a time under the PDB and
+   cross-Zone topology constraints, using the previous immutable image digest
+   and matching configuration identity.
+4. A rollback must not restart the entire Cell RTPengine. RTPengine replacement,
+   when independently required, is drained and rolled one media node at a time.
+5. If drain times out, stop the rollout and preserve the Pod and evidence. Do
+   not force a Cell-wide restart or convert an uncertain media command into a
+   successful result.
+
+RustPBX media-control requests carry a W3C `traceparent` generated without the
+raw call identifier. All commands for one call share a deterministic SHA-256
+trace identifier and receive distinct command span identifiers. Sampling is
+deterministic and configured by
+`IVEKIT_RUSTPBX_MEDIA_CONTROL_TRACE_SAMPLE_RATIO`; the deployment default is
+`0.01`. The patch does not add SDP, number, authorization, token, or certificate
+data to logs or trace headers and does not modify RTP packet forwarding.
+
+The co-located media-control process can export its own bounded OpenTelemetry
+spans through `OPC_OTEL_*`. Export is disabled by default and, when enabled,
+uses explicit queue, batch, delay, timeout, endpoint, and sample-ratio limits.
+The exact ivekit.29 patch queue applies and its new tracing files pass Rustfmt.
+Locked native compilation, image build, multi-Pod trace continuity, and an
+enabled-versus-disabled overhead comparison remain `not_run`.
+
 The internal provider endpoints are:
 
 - `POST /api/ivekit/voice/providers/:profile_id/recording-spool/segments`

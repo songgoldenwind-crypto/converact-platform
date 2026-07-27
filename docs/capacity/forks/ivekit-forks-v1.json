@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 49,
+  "revision": 50,
   "status": "proposed",
-  "generated_at": "2026-07-27T04:07:18+08:00",
+  "generated_at": "2026-07-27T20:48:35+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.28-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.29-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.28-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.29-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -192,6 +192,12 @@
           "sha256": "84c1dd9d91c2d12a8505dd99fb0416e76471bb8ef37e68e0c70e46fd6fa5984f",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-recovery.patch",
           "purpose": "Emit owner-fenced dual-leg CDR projections with exact route revision and recovered timing, hash-bind the configured Region before upload, persist T1 termination intent before Region commit, bind terminal repair to the exact Region receipt and durability contract, use bounded concurrent exact commits without a global network lock, finalize terminating takeovers without restoring SIP or media, and delete records only after an authenticated Region durable-quorum receipt."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
+          "sha256": "1d322f5805d364f5d68fd0a038df3ba78dbb3d0803241dc2a3753aaa245b6c37",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dual-leg-cdr.patch",
+          "purpose": "Propagate a deterministic sampled W3C trace context from each RustPBX call into cell-local media-control requests without exposing raw call identity, SDP, phone numbers, authorization material or service secrets."
         }
       ],
       "protocols": [
@@ -557,6 +563,22 @@
           ]
         },
         {
+          "change_id": "rustpbx-media-tracing-v1",
+          "summary": "Propagate bounded sampled W3C trace context across RustPBX and cell-local media-control while preserving the media hot path and sensitive-data boundary.",
+          "capacity_dimensions": [
+            "voice.concurrent_calls",
+            "workers.media_control_inflight",
+            "events.outbox_per_second"
+          ],
+          "acceptance_evidence": [
+            "The patch applies after the exact ivekit.28 queue on the pinned RustPBX source; independent git apply, rustfmt and diff checks pass.",
+            "A stable SHA-256-derived trace identifier binds commands from the same call without transmitting the raw call identifier, while each command receives a separate span identifier.",
+            "Deterministic sampling is configurable from zero through one and defaults to one percent in the deployment surfaces.",
+            "The tracing patch adds no SDP, phone number, authorization token or service-secret logging, and does not modify RTP packet forwarding source.",
+            "The ivekit.29 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -594,9 +616,9 @@
       "verification": {
         "source_identity": "passed",
         "patch_apply": "passed",
-        "compile": "passed",
+        "compile": "not_run",
         "unit": "partial",
-        "integration": "passed",
+        "integration": "partial",
         "benchmark": "partial",
         "real_environment": "not_run",
         "evidence_paths": [
@@ -639,6 +661,7 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -650,6 +673,7 @@
           "test/ivekit-rustpbx-media-mid-dialog-patch.test.ts",
           "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
           "test/ivekit-rustpbx-dual-leg-cdr-patch.test.ts",
+          "test/ivekit-rustpbx-media-deployment.test.ts",
           "test/ivekit-voice-cdr-convergence.test.ts",
           "src/agent-runtime/ivekit/voice/cdr-convergence.ts",
           "src/agent-runtime/ivekit/voice/postgres/cdr-convergence-store.ts",
@@ -681,11 +705,12 @@
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-27T04:07:18+08:00"
+        "checked_at": "2026-07-27T20:48:35+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
+          "The current ivekit.29 media-tracing patch applies and passes source-format checks, but its locked native compile, image build, runtime trace continuity and overhead comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."

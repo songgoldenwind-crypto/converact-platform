@@ -17,6 +17,11 @@ import type {
 import {
   RustPbxRecordingSpoolCapacityGate
 } from './agent-runtime/ivekit/recordings/rustpbx-recording-spool-capacity.js';
+import {
+  RustPbxMediaReadinessProbe,
+  type RustPbxMediaReadinessProbeConfig,
+  type RustPbxMediaReadinessProfile
+} from './agent-runtime/ivekit/voice/rustpbx-media-readiness.js';
 
 export interface ComponentNodeAdmissionRuntimeConfig {
   host: string;
@@ -38,6 +43,7 @@ export interface ComponentNodeAdmissionRuntimeConfig {
   recording_spool_metrics_file: string;
   recording_spool_refresh_ms: number;
   recording_spool_stale_ms: number;
+  media_readiness: RustPbxMediaReadinessProbeConfig | null;
 }
 
 export function componentNodeAdmissionRuntimeConfig(
@@ -80,6 +86,83 @@ export function componentNodeAdmissionRuntimeConfig(
   if (Object.keys(dimensions).length === 0) {
     throw new Error('component node capacity dimensions are required');
   }
+  const profileIds = csv(
+    required(env, 'OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS')
+  );
+  const mediaReadinessEnabled = boolean(
+    env.OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED,
+    false,
+    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED'
+  );
+  let mediaReadiness: RustPbxMediaReadinessProbeConfig | null = null;
+  if (mediaReadinessEnabled) {
+    if (component !== 'rustpbx') {
+      throw new Error('media readiness is supported only for RustPBX');
+    }
+    const requirements = jsonObject<Record<string, Record<string, number>>>(
+      required(env, 'OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'),
+      'OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'
+    );
+    const readinessProfiles = new Set(csv(required(
+      env,
+      'OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS'
+    )));
+    if (Object.keys(requirements).length !== profileIds.length ||
+        profileIds.some((profileId) => !requirements[profileId]) ||
+        [...readinessProfiles].some((profileId) => !profileIds.includes(profileId))) {
+      throw new Error('RustPBX media readiness profiles do not match component profiles');
+    }
+    const profiles: RustPbxMediaReadinessProfile[] = profileIds.map(
+      (profileId) => ({
+        id: profileId,
+        required_capacity: requirements[profileId],
+        required_for_pod_readiness: readinessProfiles.has(profileId)
+      })
+    );
+    mediaReadiness = {
+      route_snapshot_file: required(
+        env,
+        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE'
+      ),
+      route_snapshot_signing_key: readRequiredTextFile(
+        env,
+        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE'
+      ),
+      route_tenant_id: identifier(required(
+        env,
+        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID'
+      )),
+      route_profile_id: identifier(required(
+        env,
+        'OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID'
+      )),
+      media_control_endpoint: required(
+        env,
+        'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT'
+      ),
+      media_control_identity: readRequiredFile(
+        env,
+        'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE'
+      ),
+      media_control_ca: readRequiredFile(
+        env,
+        'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE'
+      ),
+      media_control_timeout_ms: integer(
+        env.OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS,
+        500,
+        50,
+        5_000
+      ),
+      refresh_interval_ms: integer(
+        env.OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS,
+        1_000,
+        100,
+        30_000
+      ),
+      profiles
+    };
+  }
   const recordingSpoolMetricsFile = String(
     env.OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE || ''
   ).trim();
@@ -106,7 +189,7 @@ export function componentNodeAdmissionRuntimeConfig(
     zone_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_ZONE_ID')),
     cell_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_CELL_ID')),
     node_id: identifier(required(env, 'OPC_IVEKIT_COMPONENT_NODE_ID')),
-    profile_ids: csv(required(env, 'OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS')),
+    profile_ids: profileIds,
     interaction_kinds: interactionKinds,
     terminal_retention_ms: integer(
       env.OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS,
@@ -139,7 +222,8 @@ export function componentNodeAdmissionRuntimeConfig(
       5_000,
       1_000,
       300_000
-    )
+    ),
+    media_readiness: mediaReadiness
   };
 }
 
@@ -174,6 +258,9 @@ export async function runComponentNodeAdmission(
 ): Promise<void> {
   const controller = createConfiguredComponentNodeAdmissionController(config);
   const recordingSpoolGate = createConfiguredRustPbxRecordingSpoolCapacityGate(config);
+  const mediaReadiness = config.media_readiness
+    ? new RustPbxMediaReadinessProbe(config.media_readiness)
+    : null;
   await recordingSpoolGate?.refresh();
   const server = createComponentNodeAdmissionHttpServer({
     controller,
@@ -187,8 +274,14 @@ export async function runComponentNodeAdmission(
           now
         )
       : undefined,
-    additional_metrics: recordingSpoolGate
-      ? (now) => recordingSpoolGate.prometheusMetrics(now)
+    readiness: mediaReadiness
+      ? (state, now) => mediaReadiness.evaluate(state, now)
+      : undefined,
+    additional_metrics: recordingSpoolGate || mediaReadiness
+      ? (now) => [
+          recordingSpoolGate?.prometheusMetrics(now) || '',
+          mediaReadiness?.prometheusMetrics() || ''
+        ].filter(Boolean).join('')
       : undefined
   });
   const sweepTimer = setInterval(() => {
@@ -333,6 +426,15 @@ function readRequiredFile(
 ): Buffer {
   const value = readFileSync(required(env, field));
   if (value.length < 1) throw new Error(`${field} is empty`);
+  return value;
+}
+
+function readRequiredTextFile(
+  env: NodeJS.ProcessEnv,
+  field: string
+): string {
+  const value = readRequiredFile(env, field).toString('utf8').trim();
+  if (!value) throw new Error(`${field} is empty`);
   return value;
 }
 

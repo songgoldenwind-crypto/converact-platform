@@ -262,6 +262,38 @@ test('component node drain rejects new reservations but permits existing open an
   }, new Date('2026-07-16T08:00:03.000Z')).allowed, true);
 });
 
+test('component node route drain publishes draining before blocking new admission', () => {
+  const controller = readyFixture();
+  controller.startRouteDrain(new Date('2026-07-16T08:00:01.000Z'));
+
+  assert.equal(
+    controller.snapshot(new Date('2026-07-16T08:00:01.000Z')).state,
+    'draining'
+  );
+  assert.equal(
+    controller.applyReservation(
+      reservation(),
+      new Date('2026-07-16T08:00:01.000Z')
+    ).state,
+    'reserved'
+  );
+
+  controller.stopNewAdmissions();
+  assert.throws(
+    () => controller.applyReservation(
+      reservation({
+        reservation_id: 'reservation-b',
+        interaction_id: 'room-b',
+        owner_epoch: '12884901890',
+        created_at: '2026-07-16T08:00:02.000Z',
+        updated_at: '2026-07-16T08:00:02.000Z'
+      }),
+      new Date('2026-07-16T08:00:02.000Z')
+    ),
+    (error: any) => error?.code === 'component_node_draining'
+  );
+});
+
 test('higher Cell lease epoch immediately fences stale owners', () => {
   const controller = readyFixture();
   controller.applyReservation(

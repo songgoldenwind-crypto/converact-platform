@@ -16,6 +16,14 @@
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.mediaControl.image.digest) }}
 {{- fail "mediaControl.image.digest must be an immutable sha256 digest" }}
 {{- end }}
+{{- if not (regexMatch "^(0(\\.[0-9]+)?|1(\\.0+)?)$" .Values.mediaControl.telemetry.sampleRatio) }}
+{{- fail "mediaControl.telemetry.sampleRatio must be between 0 and 1" }}
+{{- end }}
+{{- if .Values.mediaControl.telemetry.enabled }}
+{{- if not (regexMatch "^https?://[^/@]+(:[0-9]+)?(/[^@]*)?/v1/traces$" (required "mediaControl.telemetry.collectorEndpoint is required when telemetry is enabled" .Values.mediaControl.telemetry.collectorEndpoint)) }}
+{{- fail "mediaControl.telemetry.collectorEndpoint must be a credential-free HTTP(S) /v1/traces endpoint" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -124,7 +132,7 @@ spec:
             - name: IVEKIT_MEDIA_CONTROL_TRANSPORT
               value: rtpengine
             - name: IVEKIT_MEDIA_CONTROL_HOST
-              value: "0.0.0.0"
+              value: {{ .Values.mediaControl.host | quote }}
             - name: IVEKIT_MEDIA_CONTROL_PORT
               value: "3211"
             - name: IVEKIT_MEDIA_CONTROL_TOKEN_FILE
@@ -165,6 +173,22 @@ spec:
               value: {{ .Values.mediaControl.orphanBatchSize | quote }}
             - name: IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS
               value: {{ .Values.mediaControl.orphanSweepIntervalMs | quote }}
+            - name: OPC_OTEL_ENABLED
+              value: {{ ternary "1" "0" .Values.mediaControl.telemetry.enabled | quote }}
+            - name: OPC_OTEL_SERVICE_NAME
+              value: ivekit-media-control
+            - name: OPC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.mediaControl.telemetry.collectorEndpoint | quote }}
+            - name: OPC_OTEL_TRACE_SAMPLE_RATIO
+              value: {{ .Values.mediaControl.telemetry.sampleRatio | quote }}
+            - name: OPC_OTEL_MAX_QUEUE_SIZE
+              value: {{ .Values.mediaControl.telemetry.maxQueueSize | quote }}
+            - name: OPC_OTEL_MAX_EXPORT_BATCH_SIZE
+              value: {{ .Values.mediaControl.telemetry.maxExportBatchSize | quote }}
+            - name: OPC_OTEL_SCHEDULED_DELAY_MS
+              value: {{ .Values.mediaControl.telemetry.scheduledDelayMs | quote }}
+            - name: OPC_OTEL_EXPORT_TIMEOUT_MS
+              value: {{ .Values.mediaControl.telemetry.exportTimeoutMs | quote }}
             - name: IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY
               value: /var/lib/ivekit-media-control
             - name: IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS

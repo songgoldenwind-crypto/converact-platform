@@ -281,6 +281,58 @@ test('component node HTTP supports drain and bounds request bodies', async (t) =
   assert.equal(oversized.status, 413);
 });
 
+test('component node HTTP waits for route propagation before blocking admission', async (t) => {
+  const controller = fixture();
+  controller.applyLease(
+    lease({ state: 'draining', recovery_complete: false }),
+    new Date('2026-07-16T08:00:00.000Z')
+  );
+  controller.applyLease(lease(), new Date('2026-07-16T08:00:00.000Z'));
+  const server = createComponentNodeAdmissionHttpServer({
+    controller,
+    service_token: token,
+    now: () => new Date('2026-07-16T08:00:01.000Z')
+  });
+  const port = await listenOrSkip(t, server);
+  if (port === null) return;
+  const endpoint = `http://127.0.0.1:${port}`;
+
+  const draining = fetch(`${endpoint}/v1/drain`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      propagation_delay_ms: 100,
+      wait_for_reservations_ms: 0,
+      poll_interval_ms: 50
+    })
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(
+    controller.snapshot(new Date('2026-07-16T08:00:01.000Z')).state,
+    'draining'
+  );
+  assert.equal(
+    controller.applyReservation(
+      reservation(),
+      new Date('2026-07-16T08:00:01.000Z')
+    ).state,
+    'reserved'
+  );
+  assert.equal((await draining).status, 503);
+  assert.throws(
+    () => controller.applyReservation(
+      {
+        ...reservation(),
+        reservation_id: 'reservation-b',
+        interaction_id: 'room-b',
+        owner_epoch: '12884901890'
+      },
+      new Date('2026-07-16T08:00:01.000Z')
+    ),
+    (error: any) => error?.code === 'component_node_draining'
+  );
+});
+
 test('component node HTTP runs the local capacity gate only for new reservations', async (t) => {
   const controller = fixture();
   controller.applyLease(

@@ -210,6 +210,22 @@ voice:
     recordingWorkerQueueCapacity: 4096
     udpReceiveBufferBytes: 1048576
     udpSendBufferBytes: 524288
+  admissionProfiles:
+    ordinary:
+      id: voice-ordinary-v1
+      dimension: voice.weighted_calls
+    t1:
+      id: voice-ha-t1-v1
+      dimension: voice.t1_shadow_slots
+    ivrTranscoding:
+      id: voice-ivr-transcoding-v1
+      dimension: voice.transcode_slots
+    recording:
+      id: voice-recording-v1
+      dimension: voice.recording_slots
+    aiTap:
+      id: voice-ai-tap-v1
+      dimension: voice.realtime_asr_streams
   callRecordCapacity:
     maxConcurrent: 64
     channelCapacity: 65536
@@ -306,11 +322,21 @@ voice:
     token: ""
     regionId: ""
     zoneId: ""
-    profileIds: []
+    profileIds:
+      - voice-ordinary-v1
+      - voice-ha-t1-v1
+      - voice-ivr-transcoding-v1
+      - voice-recording-v1
+      - voice-ai-tap-v1
+    profileRequirementsJson: '{"voice-ordinary-v1":{"voice.weighted_calls":1},"voice-ha-t1-v1":{"voice.t1_shadow_slots":1},"voice-ivr-transcoding-v1":{"voice.transcode_slots":1},"voice-recording-v1":{"voice.recording_slots":1},"voice-ai-tap-v1":{"voice.realtime_asr_streams":1}}'
+    readinessProfileIds:
+      - voice-ordinary-v1
     dimensionsJson: ""
     port: 3210
     timeoutMs: "500"
     refreshMs: "3000"
+    drainWaitMs: "240000"
+    drainPollMs: "250"
     terminalRetentionMs: "300000"
     sweepIntervalMs: "1000"
     resources:
@@ -320,6 +346,22 @@ voice:
       limits:
         cpu: 500m
         memory: 256Mi
+  mediaControl:
+    enabled: true
+    endpoint: https://localhost:3211/
+    serviceTokenKey: rustpbx-media-control-token
+    serviceToken: ""
+    clientTlsSecretName: ""
+    identityFile: identity.pem
+    caFile: ca.pem
+    mode: ordinary_relay
+    failurePolicy: fail_closed
+    maxInflight: "2048"
+    timeoutMs: "500"
+    maxResponseBytes: "262144"
+    readinessTimeoutMs: "500"
+    readinessRefreshMs: "1000"
+    traceSampleRatio: "0.01"
   # VOICE-HA-T1 only. Ordinary calls remain independent from PostgreSQL/NATS
   # and work without this sidecar.
   dialogShadow:
@@ -391,6 +433,16 @@ voice:
         cpu: "1"
         memory: 512Mi
   externalIp: ""
+  terminationGracePeriodSeconds: 300
+  drainPropagationSeconds: 15
+  network:
+    hostNetwork: true
+  scheduling:
+    zoneTopologyKey: topology.kubernetes.io/zone
+    hostnameTopologyKey: kubernetes.io/hostname
+    nodeSelector:
+      ivekit.io/media-node: "true"
+    tolerations: []
   service:
     managementPort: 8080
     sip:

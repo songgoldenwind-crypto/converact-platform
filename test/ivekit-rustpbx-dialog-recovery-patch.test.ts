@@ -16,15 +16,15 @@ const RSIPSTACK_PATCH = readFileSync(
   'utf8'
 );
 
-test('ivekit.28 retains dialog recovery before dual-leg CDR convergence', () => {
-  assert.match(BUILD, /PATCHSET="ivekit\.28"/);
+test('ivekit.29 retains recovery and CDR convergence before media tracing', () => {
+  assert.match(BUILD, /PATCHSET="ivekit\.29"/);
   assert.match(
     BUILD,
     /rsipstack-ivekit-retransmission-atomicity\.patch"[\s\S]*rsipstack-ivekit-dialog-recovery\.patch"/
   );
   assert.match(
     BUILD,
-    /rustpbx-ivekit-dialog-shadow\.patch"[\s\S]*rustpbx-ivekit-dialog-recovery\.patch"[\s\S]*rustpbx-ivekit-dual-leg-cdr\.patch"/
+    /rustpbx-ivekit-dialog-shadow\.patch"[\s\S]*rustpbx-ivekit-dialog-recovery\.patch"[\s\S]*rustpbx-ivekit-dual-leg-cdr\.patch"[\s\S]*rustpbx-ivekit-media-tracing\.patch"/
   );
 });
 
