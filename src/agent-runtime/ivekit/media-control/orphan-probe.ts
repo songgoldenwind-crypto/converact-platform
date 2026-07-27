@@ -64,9 +64,7 @@ implements MediaControlOrphanProbe {
         owner_epoch: input.owner_epoch,
         operation: 'close'
       });
-      if (authorization.owner_epoch !== input.owner_epoch ||
-          authorization.reservation_expires_at !==
-            input.reservation_expires_at) {
+      if (authorization.owner_epoch !== input.owner_epoch) {
         throw new Error('media_orphan_reservation_identity_mismatch');
       }
       return true;

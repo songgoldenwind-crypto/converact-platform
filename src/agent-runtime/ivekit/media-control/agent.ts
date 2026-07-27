@@ -24,6 +24,8 @@ import {
 } from './metrics.js';
 import { KeyedSerialExecutor } from './serial-executor.js';
 
+const MAX_MEDIA_CONTROL_LEASE_HORIZON_MS = 60_000;
+
 export interface MediaControlAuthorization {
   owner_epoch: string;
   reservation_expires_at: string;
@@ -247,9 +249,18 @@ export class MediaControlAgent {
       }
     }
 
-    if (command.action !== 'delete' &&
-        Date.parse(command.expires_at) <= timestamp) {
-      throw new MediaControlError('media_control_lease_expired', 409, true);
+    if (command.action !== 'delete') {
+      const expiresAt = Date.parse(command.expires_at);
+      if (expiresAt <= timestamp) {
+        throw new MediaControlError('media_control_lease_expired', 409, true);
+      }
+      if (expiresAt > timestamp + MAX_MEDIA_CONTROL_LEASE_HORIZON_MS) {
+        throw new MediaControlError(
+          'media_control_lease_horizon_exceeded',
+          400,
+          false
+        );
+      }
     }
 
     await this.#authorize(command, now);
@@ -579,13 +590,6 @@ export class MediaControlAgent {
           comparison < 0 ? 'stale_owner_epoch' : 'owner_epoch_ahead',
           409,
           comparison > 0
-        );
-      }
-      if (authorization.reservation_expires_at !== command.expires_at) {
-        throw new MediaControlError(
-          'reservation_lease_mismatch',
-          409,
-          true
         );
       }
       const nodeLease = Date.parse(authorization.node_lease_expires_at);

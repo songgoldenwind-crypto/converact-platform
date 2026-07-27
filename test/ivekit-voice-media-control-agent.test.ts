@@ -113,6 +113,32 @@ describe('iveKit media control agent', () => {
     assert.equal(transport.sideEffectCount('answer'), 1);
   });
 
+  it('keeps the bounded media lease independent from the admission reservation TTL', async () => {
+    const { agent, authority, transport } = fixture();
+    const mediaLease = '2026-07-25T00:00:30.000Z';
+
+    const prepared = await agent.execute(command('offer', 1, {
+      expires_at: mediaLease
+    }), NOW);
+
+    assert.equal(prepared.result_class, 'committed');
+    assert.equal(prepared.session?.expires_at, mediaLease);
+    assert.equal(authority.calls, 1);
+    assert.equal(transport.sideEffectCount('offer'), 1);
+  });
+
+  it('rejects an excessively long media lease before a transport side effect', async () => {
+    const { agent, transport } = fixture();
+
+    const rejected = await agent.execute(command('offer', 1, {
+      expires_at: '2026-07-25T00:05:00.000Z'
+    }), NOW);
+
+    assert.equal(rejected.result_class, 'terminal_error');
+    assert.equal(rejected.error_code, 'media_control_lease_horizon_exceeded');
+    assert.equal(transport.sideEffectCount(), 0);
+  });
+
   it('rejects every stale owner epoch before a transport side effect', async () => {
     const { agent, transport } = fixture();
     const stale = ((6n << 32n) | 99n).toString();

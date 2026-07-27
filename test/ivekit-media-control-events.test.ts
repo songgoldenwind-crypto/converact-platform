@@ -42,7 +42,7 @@ const command = (
     media_reservation_id: `reservation-${callId}`,
     command_sequence: 1,
     idempotency_key: `idem-${callId}-${ownerEpoch}`,
-    expires_at: '2026-07-26T18:00:00.000Z',
+    expires_at: '2026-07-26T17:00:30.000Z',
     payload,
     payload_hash: mediaControlPayloadHash(payload)
   };

@@ -114,6 +114,31 @@ describe('component-node media orphan proof', () => {
     });
   });
 
+  it('does not confuse the media cleanup lease with the admission reservation TTL', async () => {
+    const probe = new ComponentNodeMediaOrphanProbe({
+      async readState() {
+        return state(false);
+      },
+      async authorize() {
+        return {
+          allowed: true as const,
+          component: 'rustpbx' as const,
+          node_id: 'rustpbx-1',
+          cell_lease_epoch: 9,
+          owner_epoch: INPUT.owner_epoch,
+          state_sequence: 1,
+          lease_expires_at: '2026-07-26T00:00:30.000Z',
+          reservation_expires_at: '2026-07-26T00:00:10.000Z'
+        };
+      }
+    });
+
+    assert.deepEqual(await probe.inspect(INPUT, NOW), {
+      owner_exists: false,
+      session_exists: true
+    });
+  });
+
   it('requires both an expired owner lease and an absent reservation', async () => {
     const probe = new ComponentNodeMediaOrphanProbe({
       async readState() {
