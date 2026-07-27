@@ -17,7 +17,8 @@ import {
   MediaCommandJournal
 } from '../src/agent-runtime/ivekit/media-control/journal.js';
 import {
-  ComponentNodeMediaOrphanProbe
+  ComponentNodeMediaOrphanProbe,
+  mediaControlAdmissionReady
 } from '../src/agent-runtime/ivekit/media-control/orphan-probe.js';
 import {
   RtpengineMediaTransport
@@ -119,10 +120,7 @@ let admissionReadyUntil = 0;
 async function refreshAdmissionReadiness(): Promise<void> {
   try {
     const state = await admission.readState();
-    const ready = state.lease_fresh &&
-      !state.recovery_pending &&
-      (state.state === 'accepting' || state.state === 'degraded');
-    admissionReadyUntil = ready
+    admissionReadyUntil = mediaControlAdmissionReady(state)
       ? Date.now() + admissionHealthIntervalMs * 3
       : 0;
   } catch {

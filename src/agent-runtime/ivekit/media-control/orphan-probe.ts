@@ -16,6 +16,12 @@ interface ComponentNodeOrphanAuthority {
   ): Promise<ComponentNodeAuthorization>;
 }
 
+export function mediaControlAdmissionReady(
+  state: ComponentNodeStateSnapshot
+): boolean {
+  return state.lease_fresh && !state.recovery_pending;
+}
+
 export class ComponentNodeMediaOrphanProbe
 implements MediaControlOrphanProbe {
   readonly #authority: ComponentNodeOrphanAuthority;

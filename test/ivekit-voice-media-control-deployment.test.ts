@@ -159,7 +159,11 @@ describe('iveKit media control deployment', () => {
     assert.match(entrypoint, /isLoopbackHttpEndpoint/);
     assert.match(
       entrypoint,
-      /state\.lease_fresh[\s\S]*!state\.recovery_pending/
+      /mediaControlAdmissionReady\(state\)/
+    );
+    assert.doesNotMatch(
+      entrypoint,
+      /state\.state === '(?:accepting|degraded)'/
     );
   });
 

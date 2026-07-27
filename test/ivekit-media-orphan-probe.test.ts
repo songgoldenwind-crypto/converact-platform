@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
-  ComponentNodeMediaOrphanProbe
+  ComponentNodeMediaOrphanProbe,
+  mediaControlAdmissionReady
 } from '../src/agent-runtime/ivekit/media-control/orphan-probe.js';
 import {
   ComponentNodeAdmissionError,
@@ -60,6 +61,26 @@ const INPUT = {
 };
 
 describe('component-node media orphan proof', () => {
+  it('keeps media readiness independent from the component drain state', () => {
+    for (const componentState of ['accepting', 'degraded', 'draining'] as const) {
+      assert.equal(
+        mediaControlAdmissionReady({
+          ...state(true),
+          state: componentState
+        }),
+        true
+      );
+    }
+    assert.equal(mediaControlAdmissionReady(state(false)), false);
+    assert.equal(
+      mediaControlAdmissionReady({
+        ...state(true),
+        recovery_pending: true
+      }),
+      false
+    );
+  });
+
   it('reports live owner and reservation without weakening close authority', async () => {
     let authorization: ComponentNodeAuthorizationInput | undefined;
     const probe = new ComponentNodeMediaOrphanProbe({
