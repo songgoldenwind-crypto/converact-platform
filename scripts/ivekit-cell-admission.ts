@@ -320,9 +320,7 @@ export async function runCellAdmission(
       now: recoveryTime.toISOString()
     });
     const recoveredReservations = await reservationLedger.load({
-      region_id: config.region_id,
-      zone_id: config.zone_id,
-      cell_id: config.cell_id,
+      leader,
       terminal_retention_ms: config.terminal_retention_ms,
       now: recoveryTime.toISOString()
     });

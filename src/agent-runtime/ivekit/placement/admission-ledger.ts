@@ -2,7 +2,10 @@ import { splitOwnerEpoch } from './owner-epoch.js';
 import type {
   CellAdmissionReservationCheckpoint
 } from './admission.js';
-import type { PlacementPgQueryable } from './pg-queryable.js';
+import {
+  type PlacementPgQueryable,
+  withPlacementPgTenant
+} from './pg-queryable.js';
 import type { InteractionKind, ReservationState } from './types.js';
 
 const MAX_RECOVERY_ROWS = 250_000;
@@ -19,14 +22,12 @@ export class PostgresCellAdmissionLedger {
   constructor(private readonly pg: PlacementPgQueryable) {}
 
   async load(input: {
-    region_id: string;
-    zone_id: string;
-    cell_id: string;
+    leader: CellAdmissionLeader;
     terminal_retention_ms: number;
     now: string;
     limit?: number;
   }): Promise<CellAdmissionReservationCheckpoint[]> {
-    validateCellIdentity(input);
+    validateLeader(input.leader);
     validTimestamp(input.now);
     const retentionMs = boundedInteger(
       input.terminal_retention_ms,
@@ -41,24 +42,16 @@ export class PostgresCellAdmissionLedger {
       'recovery limit'
     );
     const result = await this.pg.query<Record<string, unknown>>(
-      `SELECT reservation_id, state, region_id, zone_id, cell_id,
-         owner_node_id, owner_epoch::text AS owner_epoch, endpoint,
-         expires_at, required_capacity, tenant_id, routing_partition_id,
-         interaction_id, interaction_kind, profile_id, idempotency_key,
-         payload_hash, created_at, updated_at
-       FROM ivekit_cell_admission_reservations
-       WHERE region_id = $1 AND zone_id = $2 AND cell_id = $3
-         AND (
-           state IN ('reserved', 'active')
-           OR updated_at >= $4::timestamptz -
-             ($5::bigint * interval '1 millisecond')
-         )
-       ORDER BY created_at, reservation_id
-       LIMIT $6`,
+      `SELECT *
+       FROM opc_ivekit_cell_admission_recovery_rows(
+         $1, $2, $3, $4, $5::bigint, $6::timestamptz, $7::bigint, $8::integer
+       )`,
       [
-        input.region_id,
-        input.zone_id,
-        input.cell_id,
+        input.leader.region_id,
+        input.leader.zone_id,
+        input.leader.cell_id,
+        input.leader.owner_instance_id,
+        input.leader.cell_lease_epoch,
         input.now,
         retentionMs,
         limit
@@ -87,8 +80,12 @@ export class PostgresCellAdmissionLedger {
     if (owner.cell_lease_epoch > input.leader.cell_lease_epoch) {
       throw new CellAdmissionLedgerError('future_owner_epoch', 409);
     }
-    const result = await this.pg.query<Record<string, unknown>>(
-      `WITH active_lease AS (
+    return withPlacementPgTenant(
+      this.pg,
+      checkpoint.tenant_id,
+      async (pg) => {
+        const result = await pg.query<Record<string, unknown>>(
+          `WITH active_lease AS (
          SELECT 1
          FROM ivekit_cell_leases
          WHERE region_id = $1 AND zone_id = $2 AND cell_id = $3
@@ -137,35 +134,39 @@ export class PostgresCellAdmissionLedger {
          interaction_id, interaction_kind, profile_id, idempotency_key,
          payload_hash, created_at, updated_at
        FROM stored`,
-      [
-        input.leader.region_id,
-        input.leader.zone_id,
-        input.leader.cell_id,
-        input.leader.owner_instance_id,
-        input.leader.cell_lease_epoch,
-        input.now,
-        checkpoint.reservation_id,
-        checkpoint.tenant_id,
-        checkpoint.routing_partition_id,
-        checkpoint.interaction_id,
-        checkpoint.interaction_kind,
-        checkpoint.profile_id,
-        checkpoint.owner_node_id,
-        checkpoint.owner_epoch,
-        owner.cell_lease_epoch,
-        checkpoint.endpoint,
-        JSON.stringify(checkpoint.required_capacity),
-        checkpoint.idempotency_key,
-        checkpoint.payload_hash,
-        checkpoint.state,
-        checkpoint.expires_at,
-        checkpoint.created_at,
-        checkpoint.updated_at
-      ]
+        [
+          input.leader.region_id,
+          input.leader.zone_id,
+          input.leader.cell_id,
+          input.leader.owner_instance_id,
+          input.leader.cell_lease_epoch,
+          input.now,
+          checkpoint.reservation_id,
+          checkpoint.tenant_id,
+          checkpoint.routing_partition_id,
+          checkpoint.interaction_id,
+          checkpoint.interaction_kind,
+          checkpoint.profile_id,
+          checkpoint.owner_node_id,
+          checkpoint.owner_epoch,
+          owner.cell_lease_epoch,
+          checkpoint.endpoint,
+          JSON.stringify(checkpoint.required_capacity),
+          checkpoint.idempotency_key,
+          checkpoint.payload_hash,
+          checkpoint.state,
+          checkpoint.expires_at,
+          checkpoint.created_at,
+          checkpoint.updated_at
+          ]
+        );
+        const row = result.rows[0];
+        if (!row) {
+          throw new CellAdmissionLedgerError('stale_cell_lease', 409, true);
+        }
+        return decodeCheckpoint(row);
+      }
     );
-    const row = result.rows[0];
-    if (!row) throw new CellAdmissionLedgerError('stale_cell_lease', 409, true);
-    return decodeCheckpoint(row);
   }
 
   async expireDue(input: {
@@ -175,27 +176,9 @@ export class PostgresCellAdmissionLedger {
     validateLeader(input.leader);
     validTimestamp(input.now);
     const result = await this.pg.query<Record<string, unknown>>(
-      `WITH active_lease AS (
-         SELECT 1
-         FROM ivekit_cell_leases
-         WHERE region_id = $1 AND zone_id = $2 AND cell_id = $3
-           AND owner_instance_id = $4
-           AND lease_epoch = $5::bigint
-           AND state = 'active'
-           AND lease_expires_at > $6::timestamptz
-       ),
-       expired AS (
-         UPDATE ivekit_cell_admission_reservations reservation
-         SET state = 'expired', updated_at = $6::timestamptz
-         FROM active_lease
-         WHERE reservation.region_id = $1
-           AND reservation.zone_id = $2
-           AND reservation.cell_id = $3
-           AND reservation.state = 'reserved'
-           AND reservation.expires_at <= $6::timestamptz
-         RETURNING 1
-       )
-       SELECT count(*)::text AS expired_count FROM expired`,
+      `SELECT opc_ivekit_expire_cell_admission_reservations(
+         $1, $2, $3, $4, $5::bigint, $6::timestamptz
+       )::text AS expired_count`,
       [
         input.leader.region_id,
         input.leader.zone_id,

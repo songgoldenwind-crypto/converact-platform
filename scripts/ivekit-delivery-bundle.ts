@@ -269,7 +269,8 @@ const STANDALONE_MIGRATIONS = [
   '095_rustdesk_authorization_claims.sql',
   '101_ivekit_migration_readiness.sql',
   '102_ivekit_voice_dialog_takeovers.sql',
-  '103_ivekit_voice_cdr_convergence.sql'
+  '103_ivekit_voice_cdr_convergence.sql',
+  '104_ivekit_cell_admission_ledger_runtime.sql'
 ];
 
 const CAPACITY_RUNTIME_SOURCE_PATHS = [

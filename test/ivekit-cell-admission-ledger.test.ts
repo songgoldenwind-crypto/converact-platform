@@ -24,6 +24,24 @@ test('Cell admission ledger migration persists fenced reservation state', () => 
   assert.match(sql, /idx_ivekit_cell_admission_reservations_due/i);
 });
 
+test('Cell admission ledger runtime migration preserves tenant RLS and exposes bounded Cell maintenance', () => {
+  const sql = readFileSync(
+    'src/migrations/104_ivekit_cell_admission_ledger_runtime.sql',
+    'utf8'
+  );
+
+  assert.match(sql, /USING \(opc_rls_bypass\(\) OR tenant_id = opc_current_tenant\(\)\)/i);
+  assert.match(sql, /WITH CHECK \(opc_rls_bypass\(\) OR tenant_id = opc_current_tenant\(\)\)/i);
+  assert.match(sql, /opc_ivekit_cell_admission_recovery_rows/i);
+  assert.match(sql, /opc_ivekit_expire_cell_admission_reservations/i);
+  assert.match(sql, /SECURITY DEFINER/);
+  assert.match(sql, /SET search_path = pg_catalog, public/i);
+  assert.match(sql, /p_terminal_retention_ms NOT BETWEEN 1000 AND 86400000/i);
+  assert.match(sql, /p_limit NOT BETWEEN 1 AND 250000/i);
+  assert.match(sql, /REVOKE ALL ON FUNCTION[\s\S]+FROM PUBLIC/i);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION[\s\S]+TO opc_runtime/i);
+});
+
 test('Cell admission restores active and reserved capacity plus the current owner sequence', () => {
   const controller = fixture([
     checkpoint({
@@ -89,15 +107,20 @@ test('Postgres Cell admission ledger fences writes through the active Cell lease
   });
 
   assert.equal(stored.reservation_id, 'reservation-a');
-  assert.match(pg.calls[0]?.text || '', /ivekit_cell_leases/i);
-  assert.match(pg.calls[0]?.text || '', /owner_instance_id = \$\d+/i);
-  assert.match(pg.calls[0]?.text || '', /lease_epoch = \$\d+::bigint/i);
-  assert.match(pg.calls[0]?.text || '', /lease_expires_at > \$\d+::timestamptz/i);
-  assert.match(pg.calls[0]?.text || '', /ON CONFLICT \(region_id, zone_id, cell_id, reservation_id\)/i);
+  assert.equal(pg.calls[0]?.text, 'BEGIN');
+  assert.match(pg.calls[1]?.text || '', /set_config\('app\.current_tenant'/i);
+  assert.deepEqual(pg.calls[1]?.params, ['tenant-a']);
+  assert.match(pg.calls[2]?.text || '', /ivekit_cell_leases/i);
+  assert.match(pg.calls[2]?.text || '', /owner_instance_id = \$\d+/i);
+  assert.match(pg.calls[2]?.text || '', /lease_epoch = \$\d+::bigint/i);
+  assert.match(pg.calls[2]?.text || '', /lease_expires_at > \$\d+::timestamptz/i);
+  assert.match(pg.calls[2]?.text || '', /ON CONFLICT \(region_id, zone_id, cell_id, reservation_id\)/i);
+  assert.equal(pg.calls[3]?.text, 'COMMIT');
 });
 
 test('Postgres Cell admission ledger rejects a stale leader and loads bounded recovery rows', async () => {
-  const stale = new PostgresCellAdmissionLedger(new QueryStub([]) as any);
+  const stalePg = new QueryStub([]);
+  const stale = new PostgresCellAdmissionLedger(stalePg as any);
   await assert.rejects(
     () => stale.persist({
       checkpoint: checkpoint(),
@@ -107,6 +130,7 @@ test('Postgres Cell admission ledger rejects a stale leader and loads bounded re
     (error: unknown) => error instanceof CellAdmissionLedgerError &&
       error.code === 'stale_cell_lease'
   );
+  assert.equal(stalePg.calls.at(-1)?.text, 'ROLLBACK');
 
   const pg = new QueryStub([
     checkpoint(),
@@ -118,17 +142,27 @@ test('Postgres Cell admission ledger rejects a stale leader and loads bounded re
   ]);
   const ledger = new PostgresCellAdmissionLedger(pg as any);
   const rows = await ledger.load({
-    region_id: 'region-a',
-    zone_id: 'zone-a',
-    cell_id: 'cell-a',
+    leader: leader(),
     terminal_retention_ms: 300_000,
     now: '2026-07-16T08:00:00.000Z'
   });
 
   assert.equal(rows.length, 2);
-  assert.match(pg.calls[0]?.text || '', /state IN \('reserved', 'active'\)/i);
-  assert.match(pg.calls[0]?.text || '', /updated_at >=/i);
-  assert.match(pg.calls[0]?.text || '', /LIMIT \$\d+/i);
+  const recoverySql = (pg.calls[0]?.text || '').replace(/\s+/g, ' ');
+  assert.match(
+    recoverySql,
+    /opc_ivekit_cell_admission_recovery_rows\(\s*\$1, \$2, \$3, \$4, \$5::bigint, \$6::timestamptz, \$7::bigint, \$8::integer\s*\)/i
+  );
+  assert.deepEqual(pg.calls[0]?.params, [
+    'region-a',
+    'zone-a',
+    'cell-a',
+    'admission-a',
+    3,
+    '2026-07-16T08:00:00.000Z',
+    300_000,
+    250_000
+  ]);
 });
 
 test('Postgres Cell admission expiry sweep is lease fenced', async () => {
@@ -140,9 +174,19 @@ test('Postgres Cell admission expiry sweep is lease fenced', async () => {
   });
 
   assert.equal(expired, 3);
-  assert.match(pg.calls[0]?.text || '', /SET state = 'expired'/i);
-  assert.match(pg.calls[0]?.text || '', /state = 'reserved'/i);
-  assert.match(pg.calls[0]?.text || '', /ivekit_cell_leases/i);
+  const expirySql = (pg.calls[0]?.text || '').replace(/\s+/g, ' ');
+  assert.match(
+    expirySql,
+    /opc_ivekit_expire_cell_admission_reservations\(\s*\$1, \$2, \$3, \$4, \$5::bigint, \$6::timestamptz\s*\)/i
+  );
+  assert.deepEqual(pg.calls[0]?.params, [
+    'region-a',
+    'zone-a',
+    'cell-a',
+    'admission-a',
+    3,
+    '2026-07-16T08:00:11.000Z'
+  ]);
 });
 
 function fixture(
@@ -226,6 +270,9 @@ class QueryStub {
 
   async query(text: string, params: unknown[] = []): Promise<any> {
     this.calls.push({ text, params });
+    if (/^(?:BEGIN|COMMIT|ROLLBACK)$|set_config\(/i.test(text)) {
+      return { rows: [], rowCount: 0 };
+    }
     return { rows: [...this.rows], rowCount: this.rows.length };
   }
 }
