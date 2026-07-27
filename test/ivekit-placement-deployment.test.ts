@@ -104,9 +104,15 @@ test('RustPBX deployment admits the configured voice placement profile', () => {
     env,
     'RUSTPBX_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'
   )) as Record<string, Record<string, number>>;
+  const cellNodes = JSON.parse(envValue(
+    env,
+    'RUSTPBX_CELL_NODES_JSON'
+  )) as Array<{ node_id: string; profile_ids: string[] }>;
+  const rustPbxNode = cellNodes.find((node) => node.node_id === 'rustpbx-node-a');
 
   assert.equal(profileIds.includes(policy.profile_id), true);
   assert.deepEqual(requirements[policy.profile_id], policy.fixed_capacity);
+  assert.equal(rustPbxNode?.profile_ids.includes(policy.profile_id), true);
 });
 
 function envValue(source: string, name: string): string {
