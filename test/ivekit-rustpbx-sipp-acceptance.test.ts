@@ -11,6 +11,7 @@ import {
   parseSippStatistics,
   renderSippCallIdTemplate,
   renderRustPbxSippJUnit,
+  resolveSippScenarioDirectory,
   selectDefaultSippScenarioDirectory,
   selectRustPbxSippScenarios
 } from '../scripts/ivekit-rustpbx-sipp-acceptance.js';
@@ -23,6 +24,17 @@ test('RustPBX SIPp acceptance ignores an incomplete delivery scenario directory'
   ));
 
   assert.equal(selectDefaultSippScenarioDirectory(delivery, repository), repository);
+});
+
+test('RustPBX SIPp acceptance prefers an explicit delivery directory lazily', () => {
+  assert.equal(
+    resolveSippScenarioDirectory(
+      '/opt/ivekit/acceptance/sipp',
+      '/missing/delivery',
+      '/missing/repository'
+    ),
+    '/opt/ivekit/acceptance/sipp'
+  );
 });
 
 test('RustPBX SIPp acceptance pins tools and covers the complete signaling matrix', () => {

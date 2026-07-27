@@ -18,10 +18,6 @@ const REPOSITORY_SCENARIO_DIR = fileURLToPath(new URL(
   '../services/ivekit-service/acceptance/sipp/',
   import.meta.url
 ));
-const DEFAULT_SCENARIO_DIR = selectDefaultSippScenarioDirectory(
-  DELIVERY_SCENARIO_DIR,
-  REPOSITORY_SCENARIO_DIR
-);
 const MAX_COMMAND_OUTPUT = 2 * 1024 * 1024;
 
 export interface SippStatistics {
@@ -116,6 +112,17 @@ export function selectDefaultSippScenarioDirectory(
   if (complete(deliveryDirectory)) return deliveryDirectory;
   if (complete(repositoryDirectory)) return repositoryDirectory;
   throw new Error('RustPBX SIPp scenario assets are incomplete');
+}
+
+export function resolveSippScenarioDirectory(
+  configuredDirectory: string | undefined,
+  deliveryDirectory = DELIVERY_SCENARIO_DIR,
+  repositoryDirectory = REPOSITORY_SCENARIO_DIR
+): string {
+  const configured = String(configuredDirectory || '').trim();
+  return configured
+    ? resolve(configured)
+    : selectDefaultSippScenarioDirectory(deliveryDirectory, repositoryDirectory);
 }
 
 export function createRustPbxSippScenarios(
@@ -453,7 +460,7 @@ function optionsFromEnv(env: NodeJS.ProcessEnv): RustPbxSippOptions {
     rustpbx_ip: ipv4(env.IVEKIT_RUSTPBX_ACCEPTANCE_IP || '172.30.44.10'),
     uac_ip: ipv4(env.IVEKIT_RUSTPBX_ACCEPTANCE_UAC_IP || '172.30.44.20'),
     sipp_binary: resolve(binary),
-    scenario_dir: resolve(env.IVEKIT_RUSTPBX_SIPP_SCENARIO_DIR || DEFAULT_SCENARIO_DIR),
+    scenario_dir: resolveSippScenarioDirectory(env.IVEKIT_RUSTPBX_SIPP_SCENARIO_DIR),
     result_dir: resolve(env.IVEKIT_RUSTPBX_SIPP_RESULT_DIR || `.tmp/ivekit-rustpbx-sipp-${Date.now()}`),
     router_container: String(env.IVEKIT_RUSTPBX_ROUTER_CONTAINER || '').trim(),
     extension: boundedDigits(env.IVEKIT_RUSTPBX_EXTENSION || '8199'),
