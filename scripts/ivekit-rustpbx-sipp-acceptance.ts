@@ -123,23 +123,23 @@ export function createRustPbxSippScenarios(
   extension = '8199'
 ): RustPbxSippScenario[] {
   return [
-    scenario('route-reject', 'inbound-reject-486-uac.xml', undefined, undefined, '18005550999'),
-    scenario('answer-udp', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.22', '18005550200'),
-    scenario('early-cancel', 'early-cancel-uac.xml', 'early-cancel-uas.xml', '172.30.44.23', '18005550201'),
-    scenario('downstream-busy', 'expect-486-uac.xml', 'busy-486-uas.xml', '172.30.44.24', '18005550202'),
-    scenario('downstream-unavailable', 'expect-503-uac.xml', 'unavailable-503-uas.xml', '172.30.44.25', '18005550203'),
+    scenario('route-reject', 'inbound-reject-486-uac.xml', undefined, undefined, '+18005550999'),
+    scenario('answer-udp', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.22', '+18005550200'),
+    scenario('early-cancel', 'early-cancel-uac.xml', 'early-cancel-uas.xml', '172.30.44.23', '+18005550201'),
+    scenario('downstream-busy', 'expect-486-uac.xml', 'busy-486-uas.xml', '172.30.44.24', '+18005550202'),
+    scenario('downstream-unavailable', 'expect-503-uac.xml', 'unavailable-503-uas.xml', '172.30.44.25', '+18005550203'),
     {
-      ...scenario('no-answer-timeout', 'expect-487-timeout-uac.xml', 'no-answer-uas.xml', '172.30.44.26', '18005550204'),
+      ...scenario('no-answer-timeout', 'expect-487-timeout-uac.xml', 'no-answer-uas.xml', '172.30.44.26', '+18005550204'),
       timeout_seconds: 45
     },
-    scenario('answer-tcp', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.27', '18005550205', 'tcp'),
-    scenario('answer-tcp-reconnect', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.27', '18005550205', 'tcp'),
+    scenario('answer-tcp', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.27', '+18005550205', 'tcp'),
+    scenario('answer-tcp-reconnect', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.27', '+18005550205', 'tcp'),
     {
-      ...scenario('udp-retransmission', 'expect-486-uac.xml', 'delayed-busy-486-uas.xml', '172.30.44.28', '18005550206'),
+      ...scenario('udp-retransmission', 'expect-486-uac.xml', 'delayed-busy-486-uas.xml', '172.30.44.28', '+18005550206'),
       minimum_retransmissions: 1
     },
     {
-      ...scenario('concurrent-udp-10', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.22', '18005550200'),
+      ...scenario('concurrent-udp-10', 'answer-bye-uac.xml', 'answer-bye-uas.xml', '172.30.44.22', '+18005550200'),
       calls: 10,
       timeout_seconds: 30
     },
@@ -506,7 +506,7 @@ async function waitForRouterEvidence(
 
 function expectedCallCount(scenarios: RustPbxSippScenario[]): number {
   return scenarios
-    .filter((entry) => entry.service?.startsWith('180055502') || entry.id === 'route-reject')
+    .filter((entry) => entry.service?.startsWith('+180055502') || entry.id === 'route-reject')
     .reduce((total, entry) => total + entry.calls, 0);
 }
 

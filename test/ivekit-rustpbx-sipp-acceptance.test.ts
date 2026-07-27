@@ -46,7 +46,13 @@ test('RustPBX SIPp acceptance pins tools and covers the complete signaling matri
   ]);
   assert.equal(scenarios.find((scenario) => scenario.id === 'udp-retransmission')?.minimum_retransmissions, 1);
   assert.equal(scenarios.find((scenario) => scenario.id === 'concurrent-udp-10')?.calls, 10);
-  assert.equal(scenarios.filter((scenario) => scenario.service?.startsWith('180055502')).length, 9);
+  assert.equal(scenarios.filter((scenario) => scenario.service?.startsWith('+180055502')).length, 9);
+  assert.ok(
+    scenarios
+      .filter((scenario) => scenario.service && scenario.id !== 'register-digest'
+        && scenario.id !== 'register-invalid-password')
+      .every((scenario) => /^\+[1-9][0-9]{6,14}$/.test(scenario.service!))
+  );
   assert.equal(scenarios.find((scenario) => scenario.id === 'register-digest')?.uac_ip, '172.30.44.21');
   assert.equal(scenarios.find((scenario) => scenario.id === 'register-invalid-password')?.uac_ip, '172.30.44.29');
   assert.deepEqual(
