@@ -47,11 +47,11 @@ describe('iveKit media control deployment', () => {
     assert.ok(service.healthcheck);
     assert.match(
       compose.services['rustpbx-component-node'].healthcheck.test.join(' '),
-      /\/livez/
+      /\/readyz/
     );
     assert.doesNotMatch(
       compose.services['rustpbx-component-node'].healthcheck.test.join(' '),
-      /\/readyz/
+      /\/livez/
     );
   });
 
@@ -85,19 +85,19 @@ describe('iveKit media control deployment', () => {
     assert.match(service.healthcheck.test.join(' '), /\/readyz/);
     assert.equal(
       service.depends_on['rustpbx-component-node'].condition,
-      'service_healthy'
+      'service_started'
     );
     assert.equal(
       compose.services['media-control'].depends_on['cell-admission'].condition,
-      'service_healthy'
+      'service_started'
     );
   });
 
-  it('uses RTPengine acceptance and rejects simulator production startup', () => {
+  it('uses production RTPengine with mTLS media and loopback admission', () => {
     const service = compose.services['media-control'];
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_PRODUCTION,
-      'false'
+      'true'
     );
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_TRANSPORT,
@@ -105,11 +105,15 @@ describe('iveKit media control deployment', () => {
     );
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS,
-      'false'
+      'true'
     );
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS,
       'false'
+    );
+    assert.equal(
+      service.environment.IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT,
+      'http://127.0.0.1:3210'
     );
     assert.equal(
       compose.services['rustpbx-component-node']
@@ -148,6 +152,11 @@ describe('iveKit media control deployment', () => {
       entrypoint,
       /IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE/
     );
+    assert.match(
+      entrypoint,
+      /production admission without mTLS must use loopback HTTP/
+    );
+    assert.match(entrypoint, /isLoopbackHttpEndpoint/);
     assert.match(
       entrypoint,
       /state\.lease_fresh[\s\S]*!state\.recovery_pending/

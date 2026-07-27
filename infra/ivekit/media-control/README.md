@@ -35,16 +35,15 @@ IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORD_BYTES=2097152
 IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE=/run/secrets/media-control-tls-key
 IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE=/run/secrets/media-control-tls-cert
 IVEKIT_MEDIA_CONTROL_TLS_CA_FILE=/run/secrets/media-control-tls-ca
-IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=true
-IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_KEY_FILE=/run/secrets/admission-client-key
-IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CERT_FILE=/run/secrets/admission-client-cert
-IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE=/run/secrets/admission-ca
-OPC_IVEKIT_COMPONENT_NODE_PRODUCTION=true
-OPC_IVEKIT_COMPONENT_NODE_REQUIRE_MTLS=true
-OPC_IVEKIT_COMPONENT_NODE_TLS_KEY_FILE=/run/secrets/admission-server-key
-OPC_IVEKIT_COMPONENT_NODE_TLS_CERT_FILE=/run/secrets/admission-server-cert
-OPC_IVEKIT_COMPONENT_NODE_TLS_CA_FILE=/run/secrets/admission-ca
+IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT=http://127.0.0.1:3210
+IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=false
 ```
+
+Production permits admission without mTLS only for the exact loopback HTTP
+endpoint above. A non-loopback component-node endpoint must use HTTPS and set
+`IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=true` together with the admission
+client key, certificate, and CA files. RustPBX-to-media-control traffic always
+uses mTLS in production.
 
 The process can now run with a real production transport, but the Goal 2
 release remains `production_eligible=false`. Kernel, recording, transcoding,

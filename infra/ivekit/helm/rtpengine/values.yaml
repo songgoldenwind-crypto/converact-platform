@@ -50,7 +50,8 @@ mediaControl:
     repository: ghcr.io/example/ivekit-media-control
     digest: ""
     pullPolicy: IfNotPresent
-  admissionEndpoint: https://ivekit-cell-admission.ivekit.svc:3200
+  admissionEndpoint: http://127.0.0.1:3210
+  admissionRequireMtls: false
   existingSecret: ivekit-media-control
   tlsSecret: ivekit-media-control-tls
   maxReservations: 100000

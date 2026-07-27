@@ -88,11 +88,17 @@ const admissionRequireMtls = booleanEnv(
   'IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS',
   production
 );
-if (production && !admissionRequireMtls) {
-  throw new Error('IVEKIT media control admission mTLS cannot be disabled');
+const admissionEndpoint = requiredEnv(
+  'IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT'
+);
+if (production && !admissionRequireMtls &&
+    !isLoopbackHttpEndpoint(admissionEndpoint)) {
+  throw new Error(
+    'production admission without mTLS must use loopback HTTP'
+  );
 }
 const admission = new HttpComponentNodeAdmissionClient({
-  endpoint: requiredEnv('IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT'),
+  endpoint: admissionEndpoint,
   service_token: admissionToken,
   production: admissionRequireMtls,
   tls: admissionRequireMtls ? admissionTlsOptions() : undefined,
@@ -521,6 +527,20 @@ function rtpengineEndpoint(value: string): {
     throw new Error('IVEKIT_RTPENGINE_NG_ENDPOINT is invalid');
   }
   return { host: endpoint.hostname, port };
+}
+
+function isLoopbackHttpEndpoint(value: string): boolean {
+  try {
+    const endpoint = new URL(value);
+    return endpoint.protocol === 'http:' &&
+      ['127.0.0.1', '::1', 'localhost'].includes(endpoint.hostname) &&
+      !endpoint.username &&
+      !endpoint.password &&
+      !endpoint.search &&
+      !endpoint.hash;
+  } catch {
+    return false;
+  }
 }
 
 async function rtpengineControl(

@@ -109,11 +109,11 @@ services:
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS: ${RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS:-250}
       IVEKIT_RUSTPBX_MEDIA_CONTROL_MODE: ${RUSTPBX_MEDIA_CONTROL_MODE:-}
       IVEKIT_RUSTPBX_MEDIA_CONTROL_FAILURE_POLICY: ${RUSTPBX_MEDIA_CONTROL_FAILURE_POLICY:-fail_closed}
-      IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT: ${RUSTPBX_MEDIA_CONTROL_ENDPOINT:-}
-      IVEKIT_RUSTPBX_MEDIA_CONTROL_TOKEN_FILE: ${RUSTPBX_MEDIA_CONTROL_TOKEN_FILE:-}
-      IVEKIT_RUSTPBX_MEDIA_CONTROL_PRODUCTION: ${RUSTPBX_MEDIA_CONTROL_PRODUCTION:-true}
-      IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_IDENTITY_FILE: ${RUSTPBX_MEDIA_CONTROL_TLS_IDENTITY_FILE:-}
-      IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_CA_FILE: ${RUSTPBX_MEDIA_CONTROL_TLS_CA_FILE:-}
+      IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT: https://localhost:3211/
+      IVEKIT_RUSTPBX_MEDIA_CONTROL_TOKEN_FILE: /run/secrets/media-control-token
+      IVEKIT_RUSTPBX_MEDIA_CONTROL_PRODUCTION: "true"
+      IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_IDENTITY_FILE: /run/secrets/media-control-client-identity
+      IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_CA_FILE: /run/secrets/media-control-ca
       IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_INFLIGHT: ${RUSTPBX_MEDIA_CONTROL_MAX_INFLIGHT:-2048}
       IVEKIT_RUSTPBX_MEDIA_CONTROL_TIMEOUT_MS: ${RUSTPBX_MEDIA_CONTROL_TIMEOUT_MS:-500}
       IVEKIT_RUSTPBX_MEDIA_CONTROL_MAX_RESPONSE_BYTES: ${RUSTPBX_MEDIA_CONTROL_MAX_RESPONSE_BYTES:-262144}
@@ -149,6 +149,9 @@ services:
       - dialog-shadow-ca
       - dialog-recovery-current-key
       - dialog-recovery-previous-key
+      - media-control-token
+      - media-control-client-identity
+      - media-control-ca
     networks:
       default: {}
     depends_on:
@@ -297,8 +300,20 @@ services:
       OPC_IVEKIT_COMPONENT_NODE_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       OPC_IVEKIT_COMPONENT_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
       OPC_IVEKIT_COMPONENT_NODE_PROFILE_IDS: ${RUSTPBX_COMPONENT_NODE_PROFILE_IDS:?RUSTPBX_COMPONENT_NODE_PROFILE_IDS is required}
+      OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON: ${RUSTPBX_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON:?RUSTPBX_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON is required}
+      OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS: ${RUSTPBX_COMPONENT_NODE_READINESS_PROFILE_IDS:?RUSTPBX_COMPONENT_NODE_READINESS_PROFILE_IDS is required}
       OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: sip_voice
       OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON: ${RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON:?RUSTPBX_COMPONENT_NODE_DIMENSIONS_JSON is required}
+      OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED: "true"
+      OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
+      OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE: /run/secrets/route-snapshot-hmac-key
+      OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID: ${RUSTPBX_TENANT_ID:?RUSTPBX_TENANT_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID: ${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}
+      OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT: https://localhost:3211/
+      OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE: /run/secrets/media-control-client-identity
+      OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE: /run/secrets/media-control-ca
+      OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS: ${RUSTPBX_MEDIA_CONTROL_TIMEOUT_MS:-500}
+      OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS: ${RUSTPBX_MEDIA_READINESS_REFRESH_MS:-1000}
       OPC_IVEKIT_COMPONENT_NODE_TERMINAL_RETENTION_MS: ${RUSTPBX_COMPONENT_NODE_TERMINAL_RETENTION_MS:-300000}
       OPC_IVEKIT_COMPONENT_NODE_SWEEP_INTERVAL_MS: ${RUSTPBX_COMPONENT_NODE_SWEEP_INTERVAL_MS:-1000}
       OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_METRICS_FILE: /app/recording-state/metrics.json
@@ -306,6 +321,11 @@ services:
       OPC_IVEKIT_COMPONENT_NODE_RECORDING_SPOOL_STALE_MS: ${RUSTPBX_RECORDING_METRICS_STALE_MS:-5000}
     volumes:
       - rustpbx-recording-state:/app/recording-state:ro
+      - rustpbx-route-snapshot:/app/route-snapshot:ro
+    secrets:
+      - route-snapshot-hmac-key
+      - media-control-client-identity
+      - media-control-ca
     depends_on:
       rustpbx:
         condition: service_started
@@ -314,7 +334,7 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:3210/livez').then(r=>{if(!r.ok)process.exit(1)})
+        - fetch('http://127.0.0.1:3210/readyz').then(r=>{if(!r.ok)process.exit(1)})
       interval: 5s
       timeout: 2s
       retries: 20
@@ -359,7 +379,7 @@ services:
       postgres-migrate:
         condition: service_completed_successfully
       rustpbx-component-node:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test:
         - CMD
@@ -463,14 +483,17 @@ services:
     network_mode: service:rustpbx
     command: []
     environment:
-      IVEKIT_MEDIA_CONTROL_PRODUCTION: "false"
-      IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS: "false"
+      IVEKIT_MEDIA_CONTROL_PRODUCTION: "true"
+      IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS: "true"
       IVEKIT_MEDIA_CONTROL_TRANSPORT: rtpengine
-      IVEKIT_MEDIA_CONTROL_HOST: 0.0.0.0
+      IVEKIT_MEDIA_CONTROL_HOST: 127.0.0.1
       IVEKIT_MEDIA_CONTROL_PORT: 3211
-      IVEKIT_MEDIA_CONTROL_TOKEN: ${OPC_IVEKIT_MEDIA_CONTROL_TOKEN:?OPC_IVEKIT_MEDIA_CONTROL_TOKEN is required}
+      IVEKIT_MEDIA_CONTROL_TOKEN_FILE: /run/secrets/media-control-token
+      IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE: /run/secrets/media-control-server-key
+      IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE: /run/secrets/media-control-server-cert
+      IVEKIT_MEDIA_CONTROL_TLS_CA_FILE: /run/secrets/media-control-ca
       IVEKIT_MEDIA_CONTROL_ADMISSION_ENDPOINT: http://127.0.0.1:3210
-      IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN:?OPC_IVEKIT_COMPONENT_NODE_TOKEN is required}
+      IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN_FILE: /run/secrets/component-node-token
       IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS: "false"
       IVEKIT_MEDIA_CONTROL_ADMISSION_HEALTH_INTERVAL_MS: ${IVEKIT_MEDIA_CONTROL_ADMISSION_HEALTH_INTERVAL_MS:-1000}
       IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS: ${IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS:-100000}
@@ -500,6 +523,13 @@ services:
       IVEKIT_RTPENGINE_MAX_COMMANDS: ${IVEKIT_RTPENGINE_MAX_COMMANDS:-1600000}
     volumes:
       - media-control-wal:/var/lib/ivekit-media-control
+    secrets:
+      - media-control-token
+      - media-control-server-key
+      - media-control-server-cert
+      - media-control-client-identity
+      - media-control-ca
+      - component-node-token
     tmpfs:
       - /tmp:size=16m,mode=1777
     depends_on:
@@ -508,15 +538,15 @@ services:
       rustpbx:
         condition: service_healthy
       rustpbx-component-node:
-        condition: service_healthy
+        condition: service_started
       cell-admission:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:3211/readyz').then(r=>{if(!r.ok)process.exit(1)})
+        - const fs=require('node:fs'),https=require('node:https'),identity=fs.readFileSync('/run/secrets/media-control-client-identity'),ca=fs.readFileSync('/run/secrets/media-control-ca');const r=https.request('https://localhost:3211/readyz',{key:identity,cert:identity,ca},x=>{x.resume();x.on('end',()=>process.exit(x.statusCode===200?0:1))});r.setTimeout(1000,()=>r.destroy());r.on('error',()=>process.exit(1));r.end()
       interval: 5s
       timeout: 2s
       retries: 20
@@ -586,6 +616,20 @@ secrets:
     file: ${RUSTPBX_RECORDING_SERVICE_KEY_FILE:?RUSTPBX_RECORDING_SERVICE_KEY_FILE is required}
   rustpbx-recording-lease-secret:
     file: ${RUSTPBX_RECORDING_LEASE_SECRET_FILE:?RUSTPBX_RECORDING_LEASE_SECRET_FILE is required}
+  media-control-token:
+    file: ${RUSTPBX_MEDIA_CONTROL_TOKEN_FILE:?RUSTPBX_MEDIA_CONTROL_TOKEN_FILE is required}
+  media-control-server-key:
+    file: ${RUSTPBX_MEDIA_CONTROL_SERVER_KEY_FILE:?RUSTPBX_MEDIA_CONTROL_SERVER_KEY_FILE is required}
+  media-control-server-cert:
+    file: ${RUSTPBX_MEDIA_CONTROL_SERVER_CERT_FILE:?RUSTPBX_MEDIA_CONTROL_SERVER_CERT_FILE is required}
+  media-control-client-identity:
+    file: ${RUSTPBX_MEDIA_CONTROL_CLIENT_IDENTITY_FILE:?RUSTPBX_MEDIA_CONTROL_CLIENT_IDENTITY_FILE is required}
+  media-control-ca:
+    file: ${RUSTPBX_MEDIA_CONTROL_CA_FILE:?RUSTPBX_MEDIA_CONTROL_CA_FILE is required}
+  component-node-token:
+    environment: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+  route-snapshot-hmac-key:
+    environment: RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
   dialog-shadow-token:
     file: ${RUSTPBX_DIALOG_SHADOW_TOKEN_FILE:-/dev/null}
   dialog-shadow-server-key:

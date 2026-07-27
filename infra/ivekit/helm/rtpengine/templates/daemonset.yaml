@@ -19,6 +19,12 @@
 {{- if not (regexMatch "^(0(\\.[0-9]+)?|1(\\.0+)?)$" .Values.mediaControl.telemetry.sampleRatio) }}
 {{- fail "mediaControl.telemetry.sampleRatio must be between 0 and 1" }}
 {{- end }}
+{{- if and (not .Values.mediaControl.admissionRequireMtls) (ne .Values.mediaControl.admissionEndpoint "http://127.0.0.1:3210") }}
+{{- fail "mediaControl admission without mTLS must use http://127.0.0.1:3210" }}
+{{- end }}
+{{- if and .Values.mediaControl.admissionRequireMtls (not (hasPrefix "https://" .Values.mediaControl.admissionEndpoint)) }}
+{{- fail "mediaControl admission mTLS requires an HTTPS endpoint" }}
+{{- end }}
 {{- if .Values.mediaControl.telemetry.enabled }}
 {{- if not (regexMatch "^https?://[^/@]+(:[0-9]+)?(/[^@]*)?/v1/traces$" (required "mediaControl.telemetry.collectorEndpoint is required when telemetry is enabled" .Values.mediaControl.telemetry.collectorEndpoint)) }}
 {{- fail "mediaControl.telemetry.collectorEndpoint must be a credential-free HTTP(S) /v1/traces endpoint" }}
@@ -142,19 +148,21 @@ spec:
             - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TOKEN_FILE
               value: /run/secrets/admission-token
             - name: IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS
-              value: "true"
+              value: {{ ternary "true" "false" .Values.mediaControl.admissionRequireMtls | quote }}
             - name: IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE
               value: /run/tls/tls.key
             - name: IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE
               value: /run/tls/tls.crt
             - name: IVEKIT_MEDIA_CONTROL_TLS_CA_FILE
               value: /run/tls/ca.crt
+            {{- if .Values.mediaControl.admissionRequireMtls }}
             - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_KEY_FILE
               value: /run/tls/tls.key
             - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CERT_FILE
               value: /run/tls/tls.crt
             - name: IVEKIT_MEDIA_CONTROL_ADMISSION_TLS_CA_FILE
               value: /run/tls/ca.crt
+            {{- end }}
             - name: IVEKIT_MEDIA_CONTROL_MAX_RESERVATIONS
               value: {{ .Values.mediaControl.maxReservations | quote }}
             - name: IVEKIT_MEDIA_CONTROL_MAX_TERMINAL_RESERVATIONS

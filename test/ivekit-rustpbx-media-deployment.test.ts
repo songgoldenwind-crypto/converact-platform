@@ -50,6 +50,14 @@ const mediaControlAgent = readFileSync(
   'scripts/ivekit-media-control-agent.ts',
   'utf8'
 );
+const voiceCompose = readFileSync(
+  'infra/ivekit/docker-compose.voice.yml',
+  'utf8'
+);
+const voiceEnvExample = readFileSync(
+  'infra/ivekit/env.example',
+  'utf8'
+);
 
 const profiles: RustPbxMediaReadinessProfile[] = [
   {
@@ -357,6 +365,65 @@ test('RustPBX reaches node-local media-control through mTLS and file secrets onl
     rtpengineDaemonSet,
     /IVEKIT_MEDIA_CONTROL_HOST[\s\S]{0,100}value: "0\.0\.0\.0"/
   );
+
+  assert.match(
+    voiceCompose,
+    /IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT: https:\/\/localhost:3211\//
+  );
+  assert.match(
+    voiceCompose,
+    /IVEKIT_RUSTPBX_MEDIA_CONTROL_TOKEN_FILE: \/run\/secrets\/media-control-token/
+  );
+  assert.match(
+    voiceCompose,
+    /IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_IDENTITY_FILE: \/run\/secrets\/media-control-client-identity/
+  );
+  assert.match(
+    voiceCompose,
+    /IVEKIT_RUSTPBX_MEDIA_CONTROL_TLS_CA_FILE: \/run\/secrets\/media-control-ca/
+  );
+  assert.match(voiceCompose, /IVEKIT_MEDIA_CONTROL_PRODUCTION: "true"/);
+  assert.match(voiceCompose, /IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS: "true"/);
+  assert.match(voiceCompose, /IVEKIT_MEDIA_CONTROL_HOST: 127\.0\.0\.1/);
+  assert.match(
+    voiceCompose,
+    /IVEKIT_MEDIA_CONTROL_TOKEN_FILE: \/run\/secrets\/media-control-token/
+  );
+  assert.match(
+    voiceCompose,
+    /IVEKIT_MEDIA_CONTROL_TLS_KEY_FILE: \/run\/secrets\/media-control-server-key/
+  );
+  assert.match(
+    voiceCompose,
+    /IVEKIT_MEDIA_CONTROL_TLS_CERT_FILE: \/run\/secrets\/media-control-server-cert/
+  );
+  assert.match(
+    voiceCompose,
+    /IVEKIT_MEDIA_CONTROL_TLS_CA_FILE: \/run\/secrets\/media-control-ca/
+  );
+  assert.doesNotMatch(
+    voiceCompose,
+    /IVEKIT_MEDIA_CONTROL_TOKEN: \$\{OPC_IVEKIT_MEDIA_CONTROL_TOKEN/
+  );
+  for (const secret of [
+    'media-control-token',
+    'media-control-server-key',
+    'media-control-server-cert',
+    'media-control-client-identity',
+    'media-control-ca'
+  ]) {
+    assert.match(voiceCompose, new RegExp(`- ${secret}`));
+    assert.match(voiceCompose, new RegExp(`^  ${secret}:\\n    file:`, 'm'));
+  }
+  for (const variable of [
+    'RUSTPBX_MEDIA_CONTROL_TOKEN_FILE',
+    'RUSTPBX_MEDIA_CONTROL_SERVER_KEY_FILE',
+    'RUSTPBX_MEDIA_CONTROL_SERVER_CERT_FILE',
+    'RUSTPBX_MEDIA_CONTROL_CLIENT_IDENTITY_FILE',
+    'RUSTPBX_MEDIA_CONTROL_CA_FILE'
+  ]) {
+    assert.match(voiceEnvExample, new RegExp(`^${variable}=`, 'm'));
+  }
 });
 
 test('media-control tracing is bounded, configurable, and excludes sensitive media data', () => {
@@ -412,6 +479,47 @@ test('deployment wires composite readiness, ordered drain, and fault-domain gate
     assert.match(template, /podAntiAffinity:/);
     assert.match(template, /kind: PodDisruptionBudget/);
     assert.match(template, /ivekit\.io\/t1-shadow-fault-domain/);
+  }
+
+  assert.match(
+    voiceCompose,
+    /OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_ENABLED: "true"/
+  );
+  for (const variable of [
+    'OPC_IVEKIT_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON',
+    'OPC_IVEKIT_COMPONENT_NODE_READINESS_PROFILE_IDS',
+    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_FILE',
+    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_SNAPSHOT_HMAC_KEY_FILE',
+    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_TENANT_ID',
+    'OPC_IVEKIT_COMPONENT_NODE_ROUTE_PROFILE_ID',
+    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_ENDPOINT',
+    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_IDENTITY_FILE',
+    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TLS_CA_FILE',
+    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_CONTROL_TIMEOUT_MS',
+    'OPC_IVEKIT_COMPONENT_NODE_MEDIA_READINESS_REFRESH_MS'
+  ]) {
+    assert.match(voiceCompose, new RegExp(`${variable}:`));
+  }
+  assert.match(
+    voiceCompose,
+    /fetch\('http:\/\/127\.0\.0\.1:3210\/readyz'\)/
+  );
+  assert.doesNotMatch(
+    voiceCompose,
+    /fetch\('http:\/\/127\.0\.0\.1:3210\/livez'\)/
+  );
+  assert.match(
+    voiceCompose,
+    /https\.request\('https:\/\/localhost:3211\/readyz'/
+  );
+  for (const profile of [
+    'voice-ordinary-v1',
+    'voice-ha-t1-v1',
+    'voice-ivr-transcoding-v1',
+    'voice-recording-v1',
+    'voice-ai-tap-v1'
+  ]) {
+    assert.match(voiceEnvExample, new RegExp(profile));
   }
 });
 
