@@ -94,6 +94,7 @@ function identity(command_sequence: number, commandId: string) {
     cell_id: 'cell-1',
     owner_node_id: 'rustpbx-1',
     owner_epoch: OWNER_EPOCH,
+    admission_reservation_id: 'reservation-1',
     media_reservation_id: 'reservation-1',
     command_sequence,
     idempotency_key: `idem-${commandId}`,

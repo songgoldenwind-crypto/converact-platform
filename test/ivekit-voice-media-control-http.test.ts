@@ -60,6 +60,7 @@ function command(): MediaControlCommand {
     cell_id: 'http-cell-1',
     owner_node_id: 'http-rustpbx-1',
     owner_epoch: ((1n << 32n) | 1n).toString(),
+    admission_reservation_id: 'http-reservation-1',
     media_reservation_id: 'http-reservation-1',
     command_sequence: 1,
     idempotency_key: 'http-idem-1',

@@ -25,7 +25,7 @@ test('RustPBX media lifecycle patch is ordered and exact-source applicable', () 
     build,
     /rustpbx-ivekit-media-control-client\.patch"[\s\S]*rustpbx-ivekit-media-lifecycle\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.30"/);
+  assert.match(build, /PATCHSET="ivekit\.31"/);
   assert.match(patch, /IveKitMediaLifecycle/);
   assert.match(patch, /OrdinaryRelay/);
 });
@@ -39,6 +39,10 @@ test('session freezes an immutable bounded media admission binding', () => {
   assert.match(effective, /owner_node_id/);
   assert.match(effective, /owner_epoch/);
   assert.match(effective, /admission_reservation_id/);
+  assert.match(
+    effective,
+    /admission_reservation_id:\s*self\.binding\.admission_reservation_id\(\)\.to_string\(\)/
+  );
   assert.match(effective, /media_profile_id/);
   assert.match(effective, /MAX_MEDIA_LEGS/);
   assert.match(effective, /MAX_MEDIA_BRANCHES/);

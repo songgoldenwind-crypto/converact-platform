@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.30-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.31-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.30-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.31-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -165,13 +165,13 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch",
-          "sha256": "89277517f9928b1c964f31cf2f83bff49ba17c6903d67502d092a523a9a10e40",
+          "sha256": "33a445efed24975f268952586910b61e545263151381553b9d05a01481e60707",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-http-client-capacity.patch",
           "purpose": "Add a bounded native media-control client with deterministic cross-language command identity, production mTLS, secret-file loading, incremental response limits and explicit before/after-transport failure semantics without touching RTP packet forwarding."
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
-          "sha256": "bc62776846a7b3d87e39976d437ed6b41e90d9c7b74651d394996049534b059a",
+          "sha256": "8718e7fdc1221f837d353366dcb8411c8328710949e8662a87ba18ce2998ea34",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-control-client.patch",
           "purpose": "Bind ordinary SIP relay initial and bidirectional mid-dialog offer/answer transactions plus RTP DTMF injection to owner-fenced RTPengine reservations, return unsolicited RTPengine DTMF over a bounded replayable per-owner event stream, and close allocated media through a stable replayable delete bounded outside the SIP cleanup path while keeping IVR, queue, recording, audio-tap, WebRTC, parallel-fork and offerless profiles on the existing local media graph."
         },
@@ -581,7 +581,7 @@
             "A stable SHA-256-derived trace identifier binds commands from the same call without transmitting the raw call identifier, while each command receives a separate span identifier.",
             "Deterministic sampling is configurable from zero through one and defaults to one percent in the deployment surfaces.",
             "The tracing patch adds no SDP, phone number, authorization token or service-secret logging, and does not modify RTP packet forwarding source.",
-            "The ivekit.30 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
+            "The ivekit.31 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
           ]
         },
         {
@@ -594,7 +594,7 @@
           "acceptance_evidence": [
             "A focused patch contract test requires the exact response parser change to follow the complete ivekit.29 queue.",
             "The parser retains accepted, route revision, owner epoch, reservation, authorization context and optional audio-tap validation while removing only the nonexistent data envelope.",
-            "Exact-source locked compilation, image build and real SIPp signaling remain release gates for ivekit.30."
+            "Exact-source locked compilation, image build and real SIPp signaling remain release gates for ivekit.31."
           ]
         },
         {
@@ -730,7 +730,7 @@
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The current ivekit.30 response-contract patch follows the complete media-tracing queue, but its locked native compile, image build, real SIPp admission path, runtime trace continuity and overhead comparison remain not_run.",
+          "The current ivekit.31 response-contract patch follows the complete media-tracing queue, but its locked native compile, image build, real SIPp admission path, runtime trace continuity and overhead comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."

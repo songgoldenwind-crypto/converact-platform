@@ -27,14 +27,21 @@ class FakeAuthority implements MediaControlAuthorityPort {
   available = true;
   ownerEpoch = OWNER_EPOCH;
   calls = 0;
+  lastInput: {
+    admission_reservation_id: string;
+    call_id: string;
+    owner_epoch: string;
+    operation: 'open' | 'mutate' | 'close';
+  } | undefined;
 
   async authorize(input: {
-    media_reservation_id: string;
+    admission_reservation_id: string;
     call_id: string;
     owner_epoch: string;
     operation: 'open' | 'mutate' | 'close';
   }) {
     this.calls += 1;
+    this.lastInput = structuredClone(input);
     if (!this.available) throw new Error('control plane unavailable');
     if (input.owner_epoch !== this.ownerEpoch) {
       throw new MediaControlError('stale_owner_epoch', 409, false);
@@ -68,6 +75,7 @@ function command(
     cell_id: 'cell-1',
     owner_node_id: 'rustpbx-1',
     owner_epoch: OWNER_EPOCH,
+    admission_reservation_id: 'reservation-1',
     media_reservation_id: 'reservation-1',
     command_sequence,
     idempotency_key: `idem-${action}-${command_sequence}`,
@@ -124,6 +132,24 @@ describe('iveKit media control agent', () => {
     assert.equal(prepared.result_class, 'committed');
     assert.equal(prepared.session?.expires_at, mediaLease);
     assert.equal(authority.calls, 1);
+    assert.equal(transport.sideEffectCount('offer'), 1);
+  });
+
+  it('authorizes the admission reservation independently from the leg media session', async () => {
+    const { agent, authority, transport } = fixture();
+
+    const prepared = await agent.execute(command('offer', 1, {
+      media_reservation_id: 'reservation-1/leg-1'
+    }), NOW);
+
+    assert.equal(prepared.result_class, 'committed');
+    assert.deepEqual(authority.lastInput, {
+      admission_reservation_id: 'reservation-1',
+      call_id: 'call-1',
+      owner_epoch: OWNER_EPOCH,
+      operation: 'open'
+    });
+    assert.equal(prepared.session?.media_reservation_id, 'reservation-1/leg-1');
     assert.equal(transport.sideEffectCount('offer'), 1);
   });
 

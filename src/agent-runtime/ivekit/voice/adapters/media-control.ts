@@ -25,6 +25,7 @@ export interface RustPbxMediaControlIdentity {
   cell_id: string;
   owner_node_id: string;
   owner_epoch: string;
+  admission_reservation_id: string;
   media_reservation_id: string;
   command_sequence: number;
   idempotency_key: string;
@@ -179,6 +180,7 @@ export class RustPbxMediaControlAdapter {
       cell_id: input.cell_id,
       owner_node_id: input.owner_node_id,
       owner_epoch: input.owner_epoch,
+      admission_reservation_id: input.admission_reservation_id,
       media_reservation_id: input.media_reservation_id,
       command_sequence: input.command_sequence,
       idempotency_key: input.idempotency_key,
@@ -421,6 +423,7 @@ function command(
     cell_id: input.cell_id,
     owner_node_id: input.owner_node_id,
     owner_epoch: input.owner_epoch,
+    admission_reservation_id: input.admission_reservation_id,
     media_reservation_id: input.media_reservation_id,
     command_sequence: input.command_sequence,
     idempotency_key: input.idempotency_key,

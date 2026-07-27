@@ -53,6 +53,7 @@ export interface MediaControlCommand {
   cell_id: string;
   owner_node_id: string;
   owner_epoch: string;
+  admission_reservation_id: string;
   media_reservation_id: string;
   command_sequence: number;
   idempotency_key: string;
@@ -129,6 +130,7 @@ export function checkedMediaControlCommand(
     'cell_id',
     'owner_node_id',
     'owner_epoch',
+    'admission_reservation_id',
     'media_reservation_id',
     'command_sequence',
     'idempotency_key',
@@ -151,6 +153,7 @@ export function checkedMediaControlCommand(
     ['leg_id', input.leg_id],
     ['cell_id', input.cell_id],
     ['owner_node_id', input.owner_node_id],
+    ['admission_reservation_id', input.admission_reservation_id],
     ['media_reservation_id', input.media_reservation_id],
     ['idempotency_key', input.idempotency_key]
   ] as const) {

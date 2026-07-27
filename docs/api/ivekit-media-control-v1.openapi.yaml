@@ -200,6 +200,7 @@ components:
         - cell_id
         - owner_node_id
         - owner_epoch
+        - admission_reservation_id
         - media_reservation_id
         - command_sequence
         - idempotency_key
@@ -241,6 +242,8 @@ components:
           $ref: "#/components/schemas/Identifier"
         owner_epoch:
           $ref: "#/components/schemas/OwnerEpoch"
+        admission_reservation_id:
+          $ref: "#/components/schemas/Identifier"
         media_reservation_id:
           $ref: "#/components/schemas/Identifier"
         command_sequence:

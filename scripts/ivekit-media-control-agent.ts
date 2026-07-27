@@ -137,7 +137,7 @@ const agent = new MediaControlAgent({
   authority: {
     async authorize(input) {
       const authorization = await admission.authorize({
-        reservation_id: input.media_reservation_id,
+        reservation_id: input.admission_reservation_id,
         interaction_id: input.call_id,
         owner_epoch: input.owner_epoch,
         operation: input.operation

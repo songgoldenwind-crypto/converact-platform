@@ -66,7 +66,7 @@ class ControlledAuthority implements MediaControlAuthorityPort {
   ) {}
 
   async authorize(input: {
-    media_reservation_id: string;
+    admission_reservation_id: string;
     call_id: string;
     owner_epoch: string;
     operation: 'open' | 'mutate' | 'close';
@@ -291,11 +291,13 @@ function command(
     cell_id: 'controlled-cell',
     owner_node_id: 'controlled-rustpbx',
     owner_epoch: OWNER_EPOCH,
-    media_reservation_id: reservationId,
     command_sequence,
     idempotency_key: `${reservationId}-${action}-${command_sequence}`,
     expires_at: new Date(now.getTime() + 60_000).toISOString(),
     ...overrides,
+    admission_reservation_id:
+      overrides.admission_reservation_id ?? reservationId,
+    media_reservation_id: overrides.media_reservation_id ?? reservationId,
     payload,
     payload_hash: overrides.payload_hash ?? mediaControlPayloadHash(payload)
   };

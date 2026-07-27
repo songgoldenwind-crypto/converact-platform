@@ -39,6 +39,7 @@ const command = (
     cell_id: 'cell-events',
     owner_node_id: ownerNodeId,
     owner_epoch: ownerEpoch,
+    admission_reservation_id: `reservation-${callId}`,
     media_reservation_id: `reservation-${callId}`,
     command_sequence: 1,
     idempotency_key: `idem-${callId}-${ownerEpoch}`,

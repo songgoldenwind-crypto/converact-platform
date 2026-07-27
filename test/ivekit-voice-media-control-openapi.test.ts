@@ -69,6 +69,7 @@ describe('iveKit media control OpenAPI contract', () => {
       'cell_id',
       'owner_node_id',
       'owner_epoch',
+      'admission_reservation_id',
       'media_reservation_id',
       'command_sequence',
       'idempotency_key',

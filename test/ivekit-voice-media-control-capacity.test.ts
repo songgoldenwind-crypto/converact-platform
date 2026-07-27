@@ -71,6 +71,7 @@ function prepare(index: number): MediaControlCommand {
     cell_id: 'cell-1',
     owner_node_id: 'rustpbx-1',
     owner_epoch: OWNER_EPOCH,
+    admission_reservation_id: `r-${index}`,
     media_reservation_id: `r-${index}`,
     command_sequence: 1,
     idempotency_key: `idem-${index}`,

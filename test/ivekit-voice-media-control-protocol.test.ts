@@ -40,6 +40,7 @@ const prepare: MediaControlCommand = {
   cell_id: 'cell-1',
   owner_node_id: 'rustpbx-1',
   owner_epoch: ((1n << 32n) | 1n).toString(),
+  admission_reservation_id: 'admission-reservation-1',
   media_reservation_id: 'reservation-1',
   command_sequence: 1,
   idempotency_key: 'idempotency-1',
@@ -94,6 +95,10 @@ describe('iveKit media control protocol v1', () => {
       { ...prepare, command_sequence: 0 },
       { ...prepare, expires_at: 'tomorrow' },
       { ...prepare, expires_at: '2026-07-25T00:01:00Z' },
+      {
+        ...prepare,
+        admission_reservation_id: undefined
+      },
       { ...prepare, extra: true },
       {
         ...prepare,

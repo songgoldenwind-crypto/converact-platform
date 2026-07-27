@@ -34,7 +34,7 @@ export interface MediaControlAuthorization {
 
 export interface MediaControlAuthorityPort {
   authorize(input: {
-    media_reservation_id: string;
+    admission_reservation_id: string;
     call_id: string;
     owner_epoch: string;
     operation: 'open' | 'mutate' | 'close';
@@ -576,7 +576,7 @@ export class MediaControlAgent {
   ): Promise<MediaControlAuthorization> {
     try {
       const authorization = await this.#authority.authorize({
-        media_reservation_id: command.media_reservation_id,
+        admission_reservation_id: command.admission_reservation_id,
         call_id: command.call_id,
         owner_epoch: command.owner_epoch,
         operation: authorityOperation(command.action)

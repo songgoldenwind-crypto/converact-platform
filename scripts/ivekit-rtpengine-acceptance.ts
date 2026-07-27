@@ -128,6 +128,7 @@ export function createRtpengineAcceptanceCommand(input: {
   action: MediaControlAction;
   command_id: string;
   call_id: string;
+  admission_reservation_id?: string;
   media_reservation_id: string;
   owner_epoch: string;
   command_sequence: number;
@@ -152,6 +153,8 @@ export function createRtpengineAcceptanceCommand(input: {
     cell_id: 'ivekit-acceptance-cell',
     owner_node_id: 'ivekit-acceptance-node',
     owner_epoch: input.owner_epoch,
+    admission_reservation_id:
+      input.admission_reservation_id ?? input.media_reservation_id,
     media_reservation_id: input.media_reservation_id,
     command_sequence: input.command_sequence,
     idempotency_key: input.command_id,

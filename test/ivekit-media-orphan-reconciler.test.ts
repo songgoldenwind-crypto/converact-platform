@@ -121,6 +121,7 @@ function command(
     cell_id: 'cell-1',
     owner_node_id: 'rustpbx-1',
     owner_epoch: OWNER_EPOCH,
+    admission_reservation_id: reservation,
     media_reservation_id: reservation,
     command_sequence: sequence,
     idempotency_key: `idem-${reservation}-${action}-${sequence}`,

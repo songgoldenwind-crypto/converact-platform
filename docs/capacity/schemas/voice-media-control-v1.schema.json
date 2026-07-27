@@ -95,6 +95,7 @@
         "cell_id",
         "owner_node_id",
         "owner_epoch",
+        "admission_reservation_id",
         "media_reservation_id",
         "command_sequence",
         "idempotency_key",
@@ -133,6 +134,7 @@
         "cell_id": { "$ref": "#/$defs/identifier" },
         "owner_node_id": { "$ref": "#/$defs/identifier" },
         "owner_epoch": { "$ref": "#/$defs/owner_epoch" },
+        "admission_reservation_id": { "$ref": "#/$defs/identifier" },
         "media_reservation_id": { "$ref": "#/$defs/identifier" },
         "command_sequence": {
           "type": "integer",

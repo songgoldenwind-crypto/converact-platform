@@ -18,7 +18,7 @@ test('RustPBX media-control client patch is ordered and exact-source applicable'
     build,
     /rustpbx-ivekit-http-client-capacity\.patch"[\s\S]*rustpbx-ivekit-media-control-client\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.30"/);
+  assert.match(build, /PATCHSET="ivekit\.31"/);
   assert.match(patch, /pub mod ivekit_media_control/);
   assert.match(patch, /src\/ivekit_media_control\.rs/);
   assert.match(patch, /ivekit\.media-control\.v1/);
@@ -62,6 +62,7 @@ test('RustPBX media-control client preserves command and uncertainty semantics',
 
   assert.match(effective, /owner_epoch/);
   assert.match(effective, /command_sequence/);
+  assert.match(effective, /admission_reservation_id/);
   assert.match(effective, /media_reservation_id/);
   assert.match(effective, /idempotency_key/);
   assert.match(effective, /payload_hash/);
@@ -80,7 +81,7 @@ test('RustPBX media-control client preserves command and uncertainty semantics',
   );
 });
 
-test('RustPBX deployment references advance atomically to ivekit.30', () => {
+test('RustPBX deployment references advance atomically to ivekit.31', () => {
   for (const path of [
     'infra/env.example',
     'infra/ivekit/env.example',
@@ -88,7 +89,7 @@ test('RustPBX deployment references advance atomically to ivekit.30', () => {
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.30-6c49ee76/,
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.31-6c49ee76/,
       path
     );
   }

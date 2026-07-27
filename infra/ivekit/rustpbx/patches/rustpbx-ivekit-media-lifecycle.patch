@@ -300,7 +300,7 @@ new file mode 100644
 index 00000000..7c480e36
 --- /dev/null
 +++ b/src/ivekit_media_lifecycle.rs
-@@ -0,0 +1,2428 @@
+@@ -0,0 +1,2433 @@
 +use std::collections::HashMap;
 +use std::path::PathBuf;
 +use std::sync::Arc;
@@ -395,6 +395,10 @@ index 00000000..7c480e36
 +
 +    pub fn media_profile_id(&self) -> &str {
 +        &self.media_profile_id
++    }
++
++    pub fn admission_reservation_id(&self) -> &str {
++        &self.admission_reservation_id
 +    }
 +
 +    pub fn media_reservation_id(&self, leg_id: &str) -> Result<String, MediaLifecycleError> {
@@ -1396,6 +1400,7 @@ index 00000000..7c480e36
 +            cell_id: self.binding.cell_id().to_string(),
 +            owner_node_id: self.binding.owner_node_id().to_string(),
 +            owner_epoch: self.binding.owner_epoch().to_string(),
++            admission_reservation_id: self.binding.admission_reservation_id().to_string(),
 +            media_reservation_id,
 +            command_sequence: sequence,
 +            idempotency_key: format!(
