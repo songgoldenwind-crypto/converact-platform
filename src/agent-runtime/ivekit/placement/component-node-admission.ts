@@ -28,6 +28,7 @@ export interface ComponentNodeLeaseHeartbeat {
   cell_lease_epoch: number;
   state: Exclude<AdmissionState, 'offline'>;
   recovery_complete: boolean;
+  recovery_reset: boolean;
   observed_at: string;
   expires_at: string;
 }
@@ -97,6 +98,7 @@ export class ComponentNodeAdmissionController {
   };
   readonly #dimensions: FlatCapacityState;
   readonly #reservations = new Map<string, CellAdmissionReservationCheckpoint>();
+  readonly #recoveredOwnerReservations = new Set<string>();
   readonly #deadlines: ReservationDeadline[] = [];
   #state: Exclude<AdmissionState, 'offline'> = 'draining';
   #recoveryPending = true;
@@ -174,12 +176,22 @@ export class ComponentNodeAdmissionController {
       if (observedAt === currentObservedAt &&
           heartbeat.expires_at === this.#leaseExpiresAt &&
           heartbeat.state === this.#state &&
+          heartbeat.recovery_reset === false &&
           heartbeat.recovery_complete === !this.#recoveryPending) {
         return this.snapshot(now);
       }
     }
-    if (!heartbeat.recovery_complete) {
+    if (!heartbeat.recovery_complete && heartbeat.recovery_reset) {
       this.#resetReservationsForRecovery();
+    } else if (!heartbeat.recovery_complete && !this.#recoveryPending) {
+      throw new ComponentNodeAdmissionError(
+        'component_node_recovery_renewal_not_pending',
+        409,
+        true
+      );
+    }
+    if (heartbeat.cell_lease_epoch > this.#cellLeaseEpoch) {
+      this.#recoveredOwnerReservations.clear();
     }
     this.#cellLeaseEpoch = heartbeat.cell_lease_epoch;
     this.#leaseObservedAt = new Date(observedAt).toISOString();
@@ -238,11 +250,19 @@ export class ComponentNodeAdmissionController {
 
   applyRecoveryReservation(
     value: CellAdmissionReservationCheckpoint,
-    now: Date
+    now: Date,
+    recoveryCellLeaseEpoch: number
   ): CellAdmissionReservationCheckpoint {
     if (!this.#recoveryPending) {
       throw new ComponentNodeAdmissionError(
         'component_node_recovery_not_pending',
+        409
+      );
+    }
+    if (!Number.isInteger(recoveryCellLeaseEpoch) ||
+        recoveryCellLeaseEpoch !== this.#cellLeaseEpoch) {
+      throw new ComponentNodeAdmissionError(
+        'component_node_recovery_epoch_mismatch',
         409
       );
     }
@@ -265,8 +285,16 @@ export class ComponentNodeAdmissionController {
         (checkpoint.state === 'reserved' || checkpoint.state === 'active')) {
       throw new ComponentNodeAdmissionError('component_node_draining', 503, true);
     }
-    if ((checkpoint.state === 'reserved' || checkpoint.state === 'active') &&
-        owner.cell_lease_epoch !== this.#cellLeaseEpoch) {
+    const ownerLeaseMismatch = owner.cell_lease_epoch !== this.#cellLeaseEpoch;
+    const recoveredOwnerContinuation = Boolean(
+      existing &&
+      this.#recoveredOwnerReservations.has(checkpoint.reservation_id) &&
+      existing.owner_epoch === checkpoint.owner_epoch &&
+      existing.state === checkpoint.state
+    );
+    if (ownerLeaseMismatch &&
+        !recoveredOwnerContinuation &&
+        (!recoveryReplay || owner.cell_lease_epoch > this.#cellLeaseEpoch)) {
       throw new ComponentNodeAdmissionError(
         owner.cell_lease_epoch < this.#cellLeaseEpoch
           ? 'stale_owner_epoch'
@@ -306,9 +334,13 @@ export class ComponentNodeAdmissionController {
       }
       if (ownerTakeover) existing.owner_epoch = checkpoint.owner_epoch;
       if (transition === 'same') {
-        if (!ownerTakeover) return structuredClone(existing);
+        if (!ownerTakeover) {
+          this.#trackRecoveredOwner(existing, recoveryReplay);
+          return structuredClone(existing);
+        }
         existing.updated_at = checkpoint.updated_at;
         this.#schedule(existing, timestamp);
+        this.#trackRecoveredOwner(existing, recoveryReplay);
         this.#stateSequence += 1;
         return structuredClone(existing);
       }
@@ -316,6 +348,7 @@ export class ComponentNodeAdmissionController {
       existing.state = checkpoint.state;
       existing.updated_at = checkpoint.updated_at;
       this.#schedule(existing, timestamp);
+      this.#trackRecoveredOwner(existing, recoveryReplay);
       this.#stateSequence += 1;
       return structuredClone(existing);
     }
@@ -324,6 +357,7 @@ export class ComponentNodeAdmissionController {
     this.#reservations.set(stored.reservation_id, stored);
     this.#chargeNew(stored);
     this.#schedule(stored, timestamp);
+    this.#trackRecoveredOwner(stored, recoveryReplay);
     this.#stateSequence += 1;
     return structuredClone(stored);
   }
@@ -353,7 +387,8 @@ export class ComponentNodeAdmissionController {
     if (input.operation !== 'close') {
       this.#requireFreshLease(timestamp);
       const owner = splitOwnerEpoch(input.owner_epoch);
-      if (owner.cell_lease_epoch !== this.#cellLeaseEpoch) {
+      if (owner.cell_lease_epoch !== this.#cellLeaseEpoch &&
+          !this.#recoveredOwnerReservations.has(reservation.reservation_id)) {
         throw new ComponentNodeAdmissionError(
           owner.cell_lease_epoch < this.#cellLeaseEpoch
             ? 'stale_owner_epoch'
@@ -425,6 +460,7 @@ export class ComponentNodeAdmissionController {
         this.#applyCapacityTransition(reservation, 'expired');
         reservation.state = 'expired';
         reservation.updated_at = now.toISOString();
+        this.#recoveredOwnerReservations.delete(reservation.reservation_id);
         this.#schedule(reservation, timestamp);
         this.#stateSequence += 1;
         expired += 1;
@@ -433,6 +469,7 @@ export class ComponentNodeAdmissionController {
           Date.parse(reservation.updated_at) +
             this.#identity.terminal_retention_ms <= timestamp) {
         this.#reservations.delete(reservation.reservation_id);
+        this.#recoveredOwnerReservations.delete(reservation.reservation_id);
         this.#stateSequence += 1;
       }
     }
@@ -507,7 +544,24 @@ export class ComponentNodeAdmissionController {
       this.#applyCapacityTransition(reservation, 'closed');
     }
     this.#reservations.clear();
+    this.#recoveredOwnerReservations.clear();
     this.#deadlines.length = 0;
+  }
+
+  #trackRecoveredOwner(
+    reservation: CellAdmissionReservationCheckpoint,
+    recoveryReplay: boolean
+  ): void {
+    const owner = splitOwnerEpoch(reservation.owner_epoch);
+    if (owner.cell_lease_epoch < this.#cellLeaseEpoch &&
+        (reservation.state === 'reserved' || reservation.state === 'active')) {
+      if (recoveryReplay ||
+          this.#recoveredOwnerReservations.has(reservation.reservation_id)) {
+        this.#recoveredOwnerReservations.add(reservation.reservation_id);
+      }
+    } else {
+      this.#recoveredOwnerReservations.delete(reservation.reservation_id);
+    }
   }
 
   #schedule(
@@ -568,6 +622,8 @@ function validateLease(
     throw new ComponentNodeAdmissionError('component_node_state_invalid', 400);
   }
   if (typeof heartbeat.recovery_complete !== 'boolean' ||
+      typeof heartbeat.recovery_reset !== 'boolean' ||
+      (heartbeat.recovery_complete && heartbeat.recovery_reset) ||
       (!heartbeat.recovery_complete && heartbeat.state !== 'draining')) {
     throw new ComponentNodeAdmissionError('component_node_recovery_state_invalid', 400);
   }

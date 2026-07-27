@@ -480,6 +480,7 @@ test('route agent runtime reaches ready against real component-node and JSON-RPC
     cell_lease_epoch: 7,
     state: 'draining',
     recovery_complete: false,
+    recovery_reset: true,
     observed_at: '2026-07-21T07:59:59.000Z',
     expires_at: '2026-07-21T08:00:20.000Z'
   }, T0);
@@ -492,6 +493,7 @@ test('route agent runtime reaches ready against real component-node and JSON-RPC
     cell_lease_epoch: 7,
     state: 'accepting',
     recovery_complete: true,
+    recovery_reset: false,
     observed_at: '2026-07-21T08:00:00.000Z',
     expires_at: '2026-07-21T08:00:20.000Z'
   }, T0);

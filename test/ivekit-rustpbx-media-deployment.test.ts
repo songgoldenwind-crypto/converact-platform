@@ -251,6 +251,7 @@ test('component-node liveness ignores media dependencies while readiness fails c
     cell_lease_epoch: 1,
     state: 'draining',
     recovery_complete: false,
+    recovery_reset: true,
     observed_at: now.toISOString(),
     expires_at: new Date(now.getTime() + 30_000).toISOString()
   }, now);
@@ -263,6 +264,7 @@ test('component-node liveness ignores media dependencies while readiness fails c
     cell_lease_epoch: 1,
     state: 'accepting',
     recovery_complete: true,
+    recovery_reset: false,
     observed_at: new Date(now.getTime() + 1).toISOString(),
     expires_at: new Date(now.getTime() + 30_000).toISOString()
   }, new Date(now.getTime() + 1));

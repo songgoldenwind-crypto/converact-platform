@@ -174,15 +174,19 @@ test('component node HTTP separates recovery replay from ordinary reservation ad
     () => client.applyReservation(reservation()),
     (error: any) => error?.code === 'component_node_draining'
   );
+  await assert.rejects(
+    () => client.applyRecoveryReservation(reservation(), 2),
+    (error: any) => error?.code === 'component_node_recovery_epoch_mismatch'
+  );
   assert.equal(
-    (await client.applyRecoveryReservation(reservation())).reservation_id,
+    (await client.applyRecoveryReservation(reservation(), 3)).reservation_id,
     'reservation-a'
   );
   assert.equal(ordinaryAdmissionGates, 1);
 
   await client.applyLease(lease());
   await assert.rejects(
-    () => client.applyRecoveryReservation(reservation()),
+    () => client.applyRecoveryReservation(reservation(), 3),
     (error: any) => error?.code === 'component_node_recovery_not_pending'
   );
 });
@@ -297,7 +301,7 @@ test('component node HTTP supports drain and bounds request bodies', async (t) =
   const server = createComponentNodeAdmissionHttpServer({
     controller,
     service_token: token,
-    max_body_bytes: 256,
+    max_body_bytes: 320,
     now: () => new Date('2026-07-16T08:00:01.000Z')
   });
   const port = await listenOrSkip(t, server);
@@ -426,7 +430,7 @@ function fixture(): ComponentNodeAdmissionController {
 }
 
 function lease(overrides: Record<string, unknown> = {}) {
-  return {
+  const heartbeat = {
     component: 'livekit' as const,
     region_id: 'region-a',
     zone_id: 'zone-a',
@@ -435,10 +439,16 @@ function lease(overrides: Record<string, unknown> = {}) {
     cell_lease_epoch: 3,
     state: 'accepting' as const,
     recovery_complete: true,
+    recovery_reset: false,
     observed_at: '2026-07-16T08:00:00.000Z',
     expires_at: '2026-07-16T08:00:10.000Z',
     ...overrides
   };
+  if (overrides.recovery_reset === undefined &&
+      heartbeat.recovery_complete === false) {
+    heartbeat.recovery_reset = true;
+  }
+  return heartbeat;
 }
 
 function reservation() {

@@ -796,6 +796,7 @@ function fixture(
     service_token: 'component-node-service-token-1234567890',
     lease_ttl_ms: 10_000,
     timeout_ms: 1_000,
+    monotonic_clock_ms: () => 0,
     targets: targets(),
     client_factory(target): ComponentNodeAdmissionClientPort {
       return {

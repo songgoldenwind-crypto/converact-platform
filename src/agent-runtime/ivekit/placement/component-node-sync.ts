@@ -26,7 +26,8 @@ export interface ComponentNodeAdmissionClientPort {
     checkpoint: CellAdmissionReservationCheckpoint
   ): Promise<CellAdmissionReservationCheckpoint>;
   applyRecoveryReservation(
-    checkpoint: CellAdmissionReservationCheckpoint
+    checkpoint: CellAdmissionReservationCheckpoint,
+    cellLeaseEpoch: number
   ): Promise<CellAdmissionReservationCheckpoint>;
 }
 
@@ -49,7 +50,8 @@ interface NodeSyncGate {
 
 type ComponentNodeHeartbeatFactory = (
   recoveryComplete: boolean,
-  state?: 'accepting' | 'degraded' | 'draining'
+  state?: 'accepting' | 'degraded' | 'draining',
+  recoveryReset?: boolean
 ) => ComponentNodeLeaseHeartbeat;
 
 export class ComponentNodeSynchronizer {
@@ -269,7 +271,8 @@ export class ComponentNodeSynchronizer {
         const desiredState = desiredNodeState(input.cell_state, target.state);
         const createHeartbeat: ComponentNodeHeartbeatFactory = (
           recoveryComplete,
-          state = desiredState
+          state = desiredState,
+          recoveryReset = false
         ) => {
           const heartbeatAt = new Date(
             input.now.getTime() + Math.max(
@@ -286,13 +289,18 @@ export class ComponentNodeSynchronizer {
             cell_lease_epoch: this.#identity.cell_lease_epoch,
             state,
             recovery_complete: recoveryComplete,
+            recovery_reset: recoveryReset,
             observed_at: heartbeatAt.toISOString(),
             expires_at: new Date(
               heartbeatAt.getTime() + this.#identity.lease_ttl_ms
             ).toISOString()
           };
         };
-        const heartbeat = createHeartbeat(input.recovery_complete !== false);
+        const heartbeat = createHeartbeat(
+          input.recovery_complete !== false,
+          undefined,
+          input.recovery_complete === false
+        );
         try {
           if (heartbeat.recovery_complete &&
               this.#dirtyNodes.has(target.node_id)) {
@@ -380,7 +388,7 @@ export class ComponentNodeSynchronizer {
     createHeartbeat: ComponentNodeHeartbeatFactory,
     nodeId: string
   ): Promise<ComponentNodeLeaseHeartbeat> {
-    let recoveryHeartbeat = createHeartbeat(false, 'draining');
+    let recoveryHeartbeat = createHeartbeat(false, 'draining', true);
     assertLeaseAcknowledgement(
       await client.applyLease(recoveryHeartbeat),
       recoveryHeartbeat
@@ -413,7 +421,7 @@ export class ComponentNodeSynchronizer {
       await this.#applyRecoveryCheckpoint(checkpoint);
     }
     if (!this.#completeReconciliation(nodeId, pendingSnapshot)) {
-      recoveryHeartbeat = createHeartbeat(false, 'draining');
+      recoveryHeartbeat = createHeartbeat(false, 'draining', true);
       assertLeaseAcknowledgement(
         await client.applyLease(recoveryHeartbeat),
         recoveryHeartbeat
@@ -429,7 +437,7 @@ export class ComponentNodeSynchronizer {
       desired
     );
     if (this.#dirtyNodes.has(nodeId)) {
-      recoveryHeartbeat = createHeartbeat(false, 'draining');
+      recoveryHeartbeat = createHeartbeat(false, 'draining', true);
       assertLeaseAcknowledgement(
         await client.applyLease(recoveryHeartbeat),
         recoveryHeartbeat
@@ -460,7 +468,10 @@ export class ComponentNodeSynchronizer {
     }
     this.#rememberCheckpoint(checkpoint);
     try {
-      return await target.client.applyRecoveryReservation(checkpoint);
+      return await target.client.applyRecoveryReservation(
+        checkpoint,
+        this.#identity.cell_lease_epoch
+      );
     } catch (error) {
       this.#dirtyNodes.add(checkpoint.owner_node_id);
       throw new ComponentNodeSyncError(

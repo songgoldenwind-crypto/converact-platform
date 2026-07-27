@@ -172,17 +172,36 @@ export function createComponentNodeAdmissionHttpServer(input: {
       );
       if (request.method === 'PUT' && recoveryReservation) {
         const reservationId = decodeSegment(recoveryReservation[1]);
-        const body = structuredClone(
-          object(await readJsonBody(request, config.max_body_bytes))
+        const body = object(
+          await readJsonBody(request, config.max_body_bytes)
+        );
+        if (JSON.stringify(Object.keys(body).sort()) !==
+            JSON.stringify(['cell_lease_epoch', 'checkpoint'])) {
+          throw new ComponentNodeAdmissionError(
+            'component_node_recovery_request_invalid',
+            400
+          );
+        }
+        const checkpoint = structuredClone(
+          object(body.checkpoint)
         ) as unknown as CellAdmissionReservationCheckpoint;
-        if (body.reservation_id !== reservationId) {
+        if (checkpoint.reservation_id !== reservationId) {
           throw new ComponentNodeAdmissionError(
             'component_reservation_path_mismatch',
             409
           );
         }
         return sendJson(response, 200, {
-          data: config.controller.applyRecoveryReservation(body, config.now())
+          data: config.controller.applyRecoveryReservation(
+            checkpoint,
+            config.now(),
+            requiredBoundedInteger(
+              body.cell_lease_epoch,
+              1,
+              0xffff_ffff,
+              'component node recovery Cell lease epoch'
+            )
+          )
         });
       }
       const reservation = url.pathname.match(/^\/v1\/reservations\/([^/]+)$/);
@@ -301,6 +320,22 @@ function optionalBoundedInteger(
   return value as number;
 }
 
+function requiredBoundedInteger(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  field: string
+): number {
+  if (!Number.isSafeInteger(value) ||
+      (value as number) < minimum || (value as number) > maximum) {
+    throw new ComponentNodeAdmissionError(
+      `${field.replaceAll(' ', '_')}_invalid`,
+      400
+    );
+  }
+  return value as number;
+}
+
 async function additionalReadiness(
   callback: ((
     state: ComponentNodeStateSnapshot,
@@ -389,12 +424,21 @@ export class HttpComponentNodeAdmissionClient {
   }
 
   async applyRecoveryReservation(
-    checkpoint: CellAdmissionReservationCheckpoint
+    checkpoint: CellAdmissionReservationCheckpoint,
+    cellLeaseEpoch: number
   ): Promise<CellAdmissionReservationCheckpoint> {
     return this.#request<CellAdmissionReservationCheckpoint>(
       `/v1/recovery/reservations/${encodeURIComponent(checkpoint.reservation_id)}`,
       'PUT',
-      checkpoint
+      {
+        cell_lease_epoch: requiredBoundedInteger(
+          cellLeaseEpoch,
+          1,
+          0xffff_ffff,
+          'component node recovery Cell lease epoch'
+        ),
+        checkpoint
+      }
     );
   }
 

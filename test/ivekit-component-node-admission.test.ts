@@ -49,7 +49,8 @@ test('component node recovery accepts authoritative reservation replay before ad
   assert.equal(
     controller.applyRecoveryReservation(
       reservation(),
-      new Date('2026-07-16T08:00:00.500Z')
+      new Date('2026-07-16T08:00:00.500Z'),
+      3
     ).reservation_id,
     'reservation-a'
   );
@@ -101,7 +102,8 @@ test('component node recovery replaces stale reservations before authoritative r
 
   controller.applyRecoveryReservation(
     reservation(),
-    new Date('2026-07-16T08:00:01.500Z')
+    new Date('2026-07-16T08:00:01.500Z'),
+    3
   );
   controller.applyLease(
     lease({
@@ -113,6 +115,147 @@ test('component node recovery replaces stale reservations before authoritative r
   const recovered = controller.snapshot(new Date('2026-07-16T08:00:02.000Z'));
   assert.equal(recovered.reservations.reserved, 1);
   assert.equal(recovered.dimensions['video.participants'].reserved, 1);
+});
+
+test('component node recovery fences the request lease while preserving an older active owner', () => {
+  const controller = fixture();
+  controller.applyLease(
+    lease({ state: 'draining', recovery_complete: false }),
+    new Date('2026-07-16T08:00:00.000Z')
+  );
+  const recovered = reservation({
+    state: 'active',
+    owner_epoch: '8589934593'
+  });
+
+  assert.throws(
+    () => controller.applyRecoveryReservation(
+      recovered,
+      new Date('2026-07-16T08:00:00.500Z'),
+      2
+    ),
+    (error: any) => error?.code === 'component_node_recovery_epoch_mismatch'
+  );
+  controller.applyRecoveryReservation(
+    recovered,
+    new Date('2026-07-16T08:00:00.500Z'),
+    3
+  );
+  controller.applyLease(
+    lease({
+      observed_at: '2026-07-16T08:00:01.000Z',
+      expires_at: '2026-07-16T08:00:11.000Z'
+    }),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+
+  assert.equal(
+    controller.authorize({
+      reservation_id: 'reservation-a',
+      interaction_id: 'room-a',
+      owner_epoch: '8589934593',
+      operation: 'mutate'
+    }, new Date('2026-07-16T08:00:02.000Z')).allowed,
+    true
+  );
+  assert.equal(
+    controller.applyReservation(
+      recovered,
+      new Date('2026-07-16T08:00:02.000Z')
+    ).state,
+    'active'
+  );
+  assert.equal(
+    controller.authorize({
+      reservation_id: 'reservation-a',
+      interaction_id: 'room-a',
+      owner_epoch: '8589934593',
+      operation: 'mutate'
+    }, new Date('2026-07-16T08:00:02.500Z')).allowed,
+    true
+  );
+  assert.throws(
+    () => controller.applyReservation(
+      {
+        ...recovered,
+        state: 'closed',
+        updated_at: '2026-07-16T08:00:03.000Z'
+      },
+      new Date('2026-07-16T08:00:03.000Z')
+    ),
+    (error: any) => error?.code === 'stale_owner_epoch'
+  );
+  assert.throws(
+    () => controller.applyReservation(
+      reservation({
+        reservation_id: 'reservation-stale',
+        interaction_id: 'room-stale',
+        idempotency_key: 'idem-stale',
+        owner_epoch: '8589934594'
+      }),
+      new Date('2026-07-16T08:00:02.000Z')
+    ),
+    (error: any) => error?.code === 'stale_owner_epoch'
+  );
+});
+
+test('component node recovery renewal preserves reservations already replayed', () => {
+  const controller = fixture();
+  controller.applyLease(
+    lease({
+      state: 'draining',
+      recovery_complete: false,
+      recovery_reset: true
+    }),
+    new Date('2026-07-16T08:00:00.000Z')
+  );
+  controller.applyRecoveryReservation(
+    reservation(),
+    new Date('2026-07-16T08:00:00.500Z'),
+    3
+  );
+  controller.applyLease(
+    lease({
+      state: 'draining',
+      recovery_complete: false,
+      recovery_reset: false,
+      observed_at: '2026-07-16T08:00:01.000Z',
+      expires_at: '2026-07-16T08:00:11.000Z'
+    }),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+
+  const renewed = controller.snapshot(new Date('2026-07-16T08:00:01.000Z'));
+  assert.equal(renewed.recovery_pending, true);
+  assert.equal(renewed.reservations.reserved, 1);
+  assert.equal(renewed.dimensions['video.participants'].reserved, 1);
+});
+
+test('component node repeated recovery reset clears partial replay at the same lease timestamp', () => {
+  const controller = fixture();
+  const resetLease = lease({
+    state: 'draining',
+    recovery_complete: false,
+    recovery_reset: true
+  });
+  controller.applyLease(
+    resetLease,
+    new Date('2026-07-16T08:00:00.000Z')
+  );
+  controller.applyRecoveryReservation(
+    reservation(),
+    new Date('2026-07-16T08:00:00.500Z'),
+    3
+  );
+  controller.applyLease(
+    resetLease,
+    new Date('2026-07-16T08:00:00.500Z')
+  );
+
+  const reset = controller.snapshot(new Date('2026-07-16T08:00:00.500Z'));
+  assert.equal(reset.recovery_pending, true);
+  assert.equal(reset.reservations.reserved, 0);
+  assert.equal(reset.dimensions['video.participants'].reserved, 0);
 });
 
 test('component node admission applies reservation transitions idempotently', () => {
@@ -470,7 +613,7 @@ function fixture(): ComponentNodeAdmissionController {
 }
 
 function lease(overrides: Record<string, unknown> = {}) {
-  return {
+  const heartbeat = {
     region_id: 'region-a',
     zone_id: 'zone-a',
     cell_id: 'cell-a',
@@ -479,10 +622,16 @@ function lease(overrides: Record<string, unknown> = {}) {
     cell_lease_epoch: 3,
     state: 'accepting' as const,
     recovery_complete: true,
+    recovery_reset: false,
     observed_at: '2026-07-16T08:00:00.000Z',
     expires_at: '2026-07-16T08:00:10.000Z',
     ...overrides
   };
+  if (overrides.recovery_reset === undefined &&
+      heartbeat.recovery_complete === false) {
+    heartbeat.recovery_reset = true;
+  }
+  return heartbeat;
 }
 
 function reservation(overrides: Record<string, unknown> = {}) {
