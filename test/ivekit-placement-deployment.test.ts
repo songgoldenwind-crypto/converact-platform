@@ -86,3 +86,31 @@ test('Cell admission examples declare component capabilities instead of intercha
   assert.match(env, /"component":"rustdesk"[\s\S]*"remote\.active_sessions"/);
   assert.match(env, /OPC_IVEKIT_PLACEMENT_TOPOLOGY_JSON=/);
 });
+
+test('RustPBX deployment admits the configured voice placement profile', () => {
+  const env = readFileSync('infra/ivekit/env.example', 'utf8');
+  const policy = JSON.parse(envValue(
+    env,
+    'OPC_IVEKIT_PLACEMENT_VOICE_POLICY_JSON'
+  )) as {
+    profile_id: string;
+    fixed_capacity: Record<string, number>;
+  };
+  const profileIds = envValue(
+    env,
+    'RUSTPBX_COMPONENT_NODE_PROFILE_IDS'
+  ).split(',');
+  const requirements = JSON.parse(envValue(
+    env,
+    'RUSTPBX_COMPONENT_NODE_PROFILE_REQUIREMENTS_JSON'
+  )) as Record<string, Record<string, number>>;
+
+  assert.equal(profileIds.includes(policy.profile_id), true);
+  assert.deepEqual(requirements[policy.profile_id], policy.fixed_capacity);
+});
+
+function envValue(source: string, name: string): string {
+  const line = source.split('\n').find((entry) => entry.startsWith(`${name}=`));
+  assert.ok(line, `${name} is missing`);
+  return line.slice(name.length + 1);
+}
