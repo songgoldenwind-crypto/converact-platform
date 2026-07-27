@@ -139,6 +139,38 @@ test('Cell capacity projector fails a missing or failed node closed at its safe 
   assert.equal(projected.dimensions['im.websocket_connections'].used, 2_000);
 });
 
+test('Cell capacity projector preserves a configured node drain over healthy observations', () => {
+  const projected = buildCellCapacityObservation({
+    sequence: 44,
+    observed_at: '2026-07-16T08:00:01.000Z',
+    expires_at: '2026-07-16T08:00:06.000Z',
+    region_id: 'region-a',
+    zone_id: 'zone-a',
+    cell_id: 'cell-a',
+    cell_lease_epoch: 7,
+    profile_id: 'cell-10k-v1',
+    profile_sha256: 'a'.repeat(64),
+    dimensions: {
+      'im.websocket_connections': {
+        unit: 'connections', safe_capacity: 2_000, used: 0, reserved: 0
+      }
+    },
+    nodes: [{
+      node_id: 'tinode-a',
+      state: 'draining',
+      dimensions: {
+        'im.websocket_connections': {
+          unit: 'connections', safe_capacity: 2_000, used: 0, reserved: 0
+        }
+      }
+    }],
+    observations: [componentObservation()]
+  });
+
+  assert.equal(projected.nodes[0]?.state, 'draining');
+  assert.equal(projected.nodes[0]?.dimensions['im.websocket_connections'].used, 750);
+});
+
 test('Cell capacity projector discovers the current lease epoch before publishing', async () => {
   const published: any[] = [];
   const states: string[] = [];

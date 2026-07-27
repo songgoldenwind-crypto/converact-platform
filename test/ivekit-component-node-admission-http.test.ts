@@ -147,6 +147,34 @@ test('component node HTTP client applies lease, reservation and authorization', 
   assert.equal((await fetch(`${endpoint}/readyz`)).status, 200);
 });
 
+test('component node separates operational health from admission readiness', async (t) => {
+  const controller = fixture();
+  controller.applyLease(
+    lease({ state: 'draining', recovery_complete: false }),
+    new Date('2026-07-16T08:00:00.000Z')
+  );
+  controller.applyLease(
+    lease({ state: 'draining', recovery_complete: true }),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+  const server = createComponentNodeAdmissionHttpServer({
+    controller,
+    service_token: token,
+    now: () => new Date('2026-07-16T08:00:01.000Z'),
+    readiness: async () => ({ ready: true })
+  });
+  const port = await listenOrSkip(t, server);
+  if (port === null) return;
+  const endpoint = `http://127.0.0.1:${port}`;
+
+  const operational = await fetch(`${endpoint}/operationalz`);
+  const ready = await fetch(`${endpoint}/readyz`);
+
+  assert.equal(operational.status, 200);
+  assert.equal((await operational.json() as any).status, 'operational');
+  assert.equal(ready.status, 503);
+});
+
 test('component node HTTP separates recovery replay from ordinary reservation admission', async (t) => {
   const controller = fixture();
   let ordinaryAdmissionGates = 0;
@@ -290,6 +318,7 @@ test('component node HTTP metrics are bounded and contain no tenant or interacti
   const body = await response.text();
   assert.equal(response.status, 200);
   assert.match(body, /ivekit_component_node_lease_fresh 1/);
+  assert.match(body, /ivekit_component_node_route_drain_active 0/);
   assert.match(body, /ivekit_component_node_reservations\{state="reserved"\} 1/);
   assert.match(body, /ivekit_component_node_capacity_reserved\{dimension="video\.participants"\} 1/);
   assert.doesNotMatch(body, /tenant-a|room-a|reservation-a/);
@@ -316,6 +345,8 @@ test('component node HTTP supports drain and bounds request bodies', async (t) =
   await client.applyLease(lease());
   await client.drain();
   assert.equal(controller.snapshot(new Date('2026-07-16T08:00:01.000Z')).state, 'draining');
+  const metrics = await (await fetch(`${endpoint}/metrics`)).text();
+  assert.match(metrics, /ivekit_component_node_route_drain_active 1/);
 
   const oversized = await fetch(`${endpoint}/v1/lease`, {
     method: 'POST',

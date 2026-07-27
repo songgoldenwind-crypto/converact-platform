@@ -69,12 +69,13 @@ replay fails closed.
 ## 5. Internal HTTP Contract
 
 Mutation and diagnostic-state endpoints require a constant-time bearer-token check and bounded JSON
-bodies. `/livez`, `/readyz` and label-bounded `/metrics` are intended for the private cluster
-network and never expose tenant, interaction or reservation identifiers.
+bodies. `/livez`, `/operationalz`, `/readyz` and label-bounded `/metrics` are intended for the
+private cluster network and never expose tenant, interaction or reservation identifiers.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/livez` | Process liveness only |
+| `GET` | `/operationalz` | Cell lease and recovery are current and required local dependencies are ready; admission drain state is ignored |
 | `GET` | `/readyz` | Current Cell lease is fresh and node is accepting/degraded |
 | `GET` | `/metrics` | Label-bounded aggregate reservation and capacity metrics |
 | `GET` | `/v1/state` | Identity, lease, drain state, reservation counts and capacity |
@@ -91,6 +92,13 @@ Every lease heartbeat carries `recovery_complete`. A fresh agent rejects
 `recovery_complete=true` with `component_node_recovery_required`. The Cell then sends a draining
 heartbeat with `recovery_complete=false`, replays the node's non-terminal checkpoints, and sends
 the desired lease with `recovery_complete=true`. Readiness remains false while recovery is pending.
+
+Capacity projectors probe `/operationalz`, not `/readyz`. This prevents a cold-start cycle where a
+node waits for Cell admission while the Cell waits for a capacity observation from that node.
+`ivekit_component_node_route_drain_active` reports an explicit sticky route drain separately from
+the temporary `draining` state sent during recovery or Cell-wide admission changes. The configured
+node topology remains an upper bound, so a statically draining/offline node cannot be promoted by a
+healthy observation.
 
 ## 6. Source Hook Rules
 

@@ -87,6 +87,28 @@ export function createComponentNodeAdmissionHttpServer(input: {
       if (request.method === 'GET' && url.pathname === '/livez') {
         return sendJson(response, 200, { status: 'alive' });
       }
+      if (request.method === 'GET' && url.pathname === '/operationalz') {
+        const now = config.now();
+        const state = config.controller.snapshot(now);
+        const readiness = await additionalReadiness(
+          config.readiness,
+          state,
+          now
+        );
+        const operational = state.lease_fresh && !state.recovery_pending &&
+          readiness.ready;
+        return sendJson(response, operational ? 200 : 503, {
+          status: operational ? 'operational' : 'not_operational',
+          state: state.state,
+          lease_fresh: state.lease_fresh,
+          recovery_pending: state.recovery_pending,
+          component: state.component,
+          node_id: state.node_id,
+          cell_lease_epoch: state.cell_lease_epoch,
+          state_sequence: state.state_sequence,
+          readiness
+        });
+      }
       if (request.method === 'GET' && url.pathname === '/readyz') {
         const now = config.now();
         const state = config.controller.snapshot(now);
@@ -114,6 +136,7 @@ export function createComponentNodeAdmissionHttpServer(input: {
         const now = config.now();
         return sendMetrics(response, renderMetrics(
           config.controller.snapshot(now),
+          config.controller.routeDrainActive(),
           config.additional_metrics?.(now) || ''
         ));
       }
@@ -608,6 +631,7 @@ function safeResponseNumber(value: unknown, min: number, max: number, allowZero:
 
 function renderMetrics(
   snapshot: ReturnType<ComponentNodeAdmissionController['snapshot']>,
+  routeDrainActive: boolean,
   additional = ''
 ): string {
   const lines = [
@@ -621,6 +645,8 @@ function renderMetrics(
     `ivekit_component_node_recovery_pending ${snapshot.recovery_pending ? 1 : 0}`,
     '# TYPE ivekit_component_node_draining gauge',
     `ivekit_component_node_draining ${snapshot.state === 'draining' ? 1 : 0}`,
+    '# TYPE ivekit_component_node_route_drain_active gauge',
+    `ivekit_component_node_route_drain_active ${routeDrainActive ? 1 : 0}`,
     '# TYPE ivekit_component_node_reservations gauge'
   ];
   for (const state of ['reserved', 'active', 'expired', 'closed'] as const) {

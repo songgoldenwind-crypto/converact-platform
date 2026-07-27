@@ -47,11 +47,11 @@ describe('iveKit media control deployment', () => {
     assert.ok(service.healthcheck);
     assert.match(
       compose.services['rustpbx-component-node'].healthcheck.test.join(' '),
-      /\/readyz/
+      /\/operationalz/
     );
     assert.doesNotMatch(
       compose.services['rustpbx-component-node'].healthcheck.test.join(' '),
-      /\/livez/
+      /\/readyz|\/livez/
     );
   });
 

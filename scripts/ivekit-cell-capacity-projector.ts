@@ -189,7 +189,9 @@ export function buildCellCapacityObservation(input: {
     }
     nodes.push({
       node_id: expected.node_id,
-      state: failedClosed ? 'offline' : observation!.state,
+      state: failedClosed
+        ? 'offline'
+        : moreRestrictiveAdmissionState(expected.state, observation!.state),
       dimensions
     });
   }
@@ -463,6 +465,21 @@ function validAdmissionState(value: string): AdmissionState {
     throw new Error('invalid Cell capacity node state');
   }
   return value as AdmissionState;
+}
+
+function moreRestrictiveAdmissionState(
+  configured: AdmissionState,
+  observed: AdmissionState
+): AdmissionState {
+  const precedence: AdmissionState[] = [
+    'accepting',
+    'degraded',
+    'draining',
+    'offline'
+  ];
+  return precedence[
+    Math.max(precedence.indexOf(configured), precedence.indexOf(observed))
+  ];
 }
 
 function validIdentifier(value: string): string {

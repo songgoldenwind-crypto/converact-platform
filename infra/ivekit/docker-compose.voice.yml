@@ -334,7 +334,7 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:3210/readyz').then(r=>{if(!r.ok)process.exit(1)})
+        - fetch('http://127.0.0.1:3210/operationalz').then(r=>{if(!r.ok)process.exit(1)})
       interval: 5s
       timeout: 2s
       retries: 20

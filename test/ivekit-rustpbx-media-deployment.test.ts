@@ -359,6 +359,14 @@ test('Compose projects fresh RustPBX capacity into OPC placement admission', () 
   ]) {
     assert.match(voiceEnvExample, new RegExp(`^${variable}=`, 'm'));
   }
+  assert.match(
+    voiceEnvExample,
+    /"health_url":"http:\/\/rustpbx:3210\/operationalz"/
+  );
+  assert.match(
+    voiceEnvExample,
+    /"drain_metric":"ivekit_component_node_route_drain_active"/
+  );
 });
 
 test('RustPBX reaches node-local media-control through mTLS and file secrets only', () => {
@@ -542,11 +550,11 @@ test('deployment wires composite readiness, ordered drain, and fault-domain gate
   }
   assert.match(
     voiceCompose,
-    /fetch\('http:\/\/127\.0\.0\.1:3210\/readyz'\)/
+    /fetch\('http:\/\/127\.0\.0\.1:3210\/operationalz'\)/
   );
   assert.doesNotMatch(
     voiceCompose,
-    /fetch\('http:\/\/127\.0\.0\.1:3210\/livez'\)/
+    /fetch\('http:\/\/127\.0\.0\.1:3210\/(?:readyz|livez)'\)/
   );
   assert.match(
     voiceCompose,

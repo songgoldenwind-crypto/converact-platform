@@ -149,9 +149,9 @@ test('RustPBX probe accepts every Goal 3 admission dimension', async () => {
   };
   const probe = createComponentCapacityProbe({
     ...baseConfig('rustpbx'),
-    health_url: 'http://rustpbx:3210/readyz',
+    health_url: 'http://rustpbx:3210/operationalz',
     metrics_url: 'http://rustpbx:3210/metrics',
-    drain_metric: 'ivekit_component_node_draining',
+    drain_metric: 'ivekit_component_node_route_drain_active',
     dimensions: Object.fromEntries(Object.keys(dimensions).map((dimension) => [
       dimension,
       {
@@ -163,9 +163,13 @@ test('RustPBX probe accepts every Goal 3 admission dimension', async () => {
       }
     ])),
     fetch: fixtureFetch({
-      'http://rustpbx:3210/readyz': response(200, '{"status":"ready"}', 'application/json'),
+      'http://rustpbx:3210/operationalz': response(
+        200,
+        '{"status":"operational","state":"draining"}',
+        'application/json'
+      ),
       'http://rustpbx:3210/metrics': response(200, [
-        'ivekit_component_node_draining 0',
+        'ivekit_component_node_route_drain_active 0',
         ...Object.entries(dimensions).map(
           ([dimension, used]) =>
             `ivekit_component_node_capacity_used{dimension="${dimension}"} ${used}`

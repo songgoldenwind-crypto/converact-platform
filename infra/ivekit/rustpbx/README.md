@@ -180,13 +180,18 @@ resources. Exhausting recording or AI tap capacity degrades only that optional
 profile; it does not make the ordinary relay profile or an established RTP
 session unavailable.
 
-The component-node readiness endpoint combines the signed route snapshot,
-node-local media-control readiness, and required profile capacity. Its liveness
-endpoint remains process-local and does not depend on object storage, recording,
-ASR, translation, or other external providers. Prometheus scrapes both RustPBX
-management metrics and component-node media-profile metrics. Metric labels are
-bounded to operational enums such as `failure_stage` and `profile`; they never
-contain tenant IDs, call IDs, numbers, SDP, tokens, or certificate material.
+The component-node operational endpoint combines the current Cell lease and
+recovery state with the signed route snapshot, node-local media-control
+readiness, and required profile capacity, but deliberately ignores the current
+admission state. Capacity projection uses that endpoint so a cold Cell can
+observe the node before authorizing new calls. The readiness endpoint adds the
+accepting/degraded admission requirement. Liveness remains process-local and
+does not depend on object storage, recording, ASR, translation, or other
+external providers. Prometheus exposes explicit route drain separately from a
+temporary recovery drain and scrapes both RustPBX management and component-node
+media-profile metrics. Metric labels are bounded to operational enums such as
+`failure_stage` and `profile`; they never contain tenant IDs, call IDs, numbers,
+SDP, tokens, or certificate material.
 
 The Goal 3 rolling rollback contract is:
 

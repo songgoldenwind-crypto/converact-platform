@@ -151,6 +151,10 @@ export class ComponentNodeAdmissionController {
     this.#dimensions = cloneDimensions(input.dimensions);
   }
 
+  routeDrainActive(): boolean {
+    return this.#stickyDrain;
+  }
+
   applyLease(
     heartbeat: ComponentNodeLeaseHeartbeat,
     now: Date
