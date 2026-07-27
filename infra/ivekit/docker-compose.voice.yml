@@ -629,7 +629,7 @@ secrets:
   media-control-ca:
     file: ${RUSTPBX_MEDIA_CONTROL_CA_FILE:?RUSTPBX_MEDIA_CONTROL_CA_FILE is required}
   component-node-token:
-    environment: OPC_IVEKIT_COMPONENT_NODE_TOKEN
+    file: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE:?OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE is required}
   route-snapshot-hmac-key:
     environment: RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
   dialog-shadow-token:

@@ -122,6 +122,18 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
     mediaControl.depends_on.rtpengine.condition,
     'service_healthy'
   );
+  assert.equal(
+    compose.secrets['component-node-token'].file,
+    '${OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE:?OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE is required}'
+  );
+  assert.equal(
+    compose.secrets['component-node-token'].environment,
+    undefined
+  );
+  assert.match(
+    read('infra/ivekit/env.example'),
+    /^OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE=\.\/secrets\/component-node-token$/m
+  );
   assert.ok(compose.volumes['media-control-wal']);
   assert.equal(mediaControl.read_only, true);
   assert.equal(mediaControl.ports, undefined);
