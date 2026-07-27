@@ -32,6 +32,16 @@ export interface MediaControlAuthorization {
   node_lease_expires_at: string;
 }
 
+export interface MediaControlAuthorizationFailure {
+  admission_reservation_id: string;
+  call_id: string;
+  owner_epoch: string;
+  operation: 'open' | 'mutate' | 'close';
+  error_code: string;
+  status: number;
+  retryable: boolean;
+}
+
 export interface MediaControlAuthorityPort {
   authorize(input: {
     admission_reservation_id: string;
@@ -104,6 +114,9 @@ export class MediaControlAgent {
   readonly #orphanProbe?: MediaControlOrphanProbe;
   readonly #orphanBatchSize: number;
   readonly #metrics: MediaControlMetrics;
+  readonly #authorizationFailureObserver?: (
+    failure: MediaControlAuthorizationFailure
+  ) => void;
   readonly #records = new Map<string, MediaControlRecord>();
   readonly #deadlines: MediaControlDeadline[] = [];
   readonly #terminalOrder: MediaControlDeadline[] = [];
@@ -122,6 +135,9 @@ export class MediaControlAgent {
     orphan_probe?: MediaControlOrphanProbe;
     orphan_batch_size?: number;
     metrics?: MediaControlMetrics;
+    authorization_failure_observer?: (
+      failure: MediaControlAuthorizationFailure
+    ) => void;
   }) {
     this.#authority = input.authority;
     this.#transport = input.transport;
@@ -157,6 +173,8 @@ export class MediaControlAgent {
       'orphan_batch_size'
     );
     this.#metrics = input.metrics ?? new MediaControlMetrics();
+    this.#authorizationFailureObserver =
+      input.authorization_failure_observer;
   }
 
   async execute(
@@ -574,12 +592,13 @@ export class MediaControlAgent {
     command: MediaControlCommand,
     now: Date
   ): Promise<MediaControlAuthorization> {
+    const operation = authorityOperation(command.action);
     try {
       const authorization = await this.#authority.authorize({
         admission_reservation_id: command.admission_reservation_id,
         call_id: command.call_id,
         owner_epoch: command.owner_epoch,
-        operation: authorityOperation(command.action)
+        operation
       }, now);
       const comparison = compareMediaOwnerEpoch(
         command.owner_epoch,
@@ -603,29 +622,21 @@ export class MediaControlAgent {
       }
       return authorization;
     } catch (error) {
-      if (error instanceof MediaControlError) throw error;
-      const candidate = error as {
-        code?: unknown;
-        status?: unknown;
-        retryable?: unknown;
-      };
-      const code = String(candidate?.code || '');
-      const status = Number(candidate?.status);
-      if (/^[a-z][a-z0-9_]{1,127}$/.test(code) &&
-          Number.isInteger(status) &&
-          status >= 400 &&
-          status <= 599) {
-        throw new MediaControlError(
-          code,
-          status,
-          candidate.retryable === true
-        );
+      const projected = projectAuthorizationError(error);
+      try {
+        this.#authorizationFailureObserver?.({
+          admission_reservation_id: command.admission_reservation_id,
+          call_id: command.call_id,
+          owner_epoch: command.owner_epoch,
+          operation,
+          error_code: projected.code,
+          status: projected.status,
+          retryable: projected.retryable
+        });
+      } catch {
+        // Diagnostics must not change media authorization behavior.
       }
-      throw new MediaControlError(
-        'media_control_authority_unavailable',
-        503,
-        true
-      );
+      throw projected;
     }
   }
 
@@ -1192,6 +1203,32 @@ export class MediaControlAgent {
     }
     this.#metrics.removeSession(record.metric_state);
   }
+}
+
+function projectAuthorizationError(error: unknown): MediaControlError {
+  if (error instanceof MediaControlError) return error;
+  const candidate = error as {
+    code?: unknown;
+    status?: unknown;
+    retryable?: unknown;
+  };
+  const code = String(candidate?.code || '');
+  const status = Number(candidate?.status);
+  if (/^[a-z][a-z0-9_]{1,127}$/.test(code) &&
+      Number.isInteger(status) &&
+      status >= 400 &&
+      status <= 599) {
+    return new MediaControlError(
+      code,
+      status,
+      candidate.retryable === true
+    );
+  }
+  return new MediaControlError(
+    'media_control_authority_unavailable',
+    503,
+    true
+  );
 }
 
 export class MediaControlError extends Error {

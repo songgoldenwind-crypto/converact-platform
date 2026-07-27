@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   MediaControlAgent,
   MediaControlError,
+  type MediaControlAuthorizationFailure,
   type MediaControlAuthorityPort
 } from '../src/agent-runtime/ivekit/media-control/agent.js';
 import {
@@ -151,6 +152,43 @@ describe('iveKit media control agent', () => {
     });
     assert.equal(prepared.session?.media_reservation_id, 'reservation-1/leg-1');
     assert.equal(transport.sideEffectCount('offer'), 1);
+  });
+
+  it('reports the normalized authority failure before rejecting media', async () => {
+    const failures: MediaControlAuthorizationFailure[] = [];
+    const transport = new InMemoryMediaTransport();
+    const agent = new MediaControlAgent({
+      authority: {
+        async authorize() {
+          throw Object.assign(new Error('reservation is not projected yet'), {
+            code: 'component_reservation_not_found',
+            status: 404,
+            retryable: false
+          });
+        }
+      },
+      transport,
+      authorization_failure_observer: (failure) => failures.push(failure)
+    });
+
+    const rejected = await agent.execute(command('offer', 1, {
+      call_id: 'vcall-authority-failure',
+      admission_reservation_id: 'reservation-authority-failure',
+      media_reservation_id: 'reservation-authority-failure/leg-1'
+    }), NOW);
+
+    assert.equal(rejected.result_class, 'terminal_error');
+    assert.equal(rejected.error_code, 'component_reservation_not_found');
+    assert.deepEqual(failures, [{
+      admission_reservation_id: 'reservation-authority-failure',
+      call_id: 'vcall-authority-failure',
+      owner_epoch: OWNER_EPOCH,
+      operation: 'open',
+      error_code: 'component_reservation_not_found',
+      status: 404,
+      retryable: false
+    }]);
+    assert.equal(transport.sideEffectCount(), 0);
   });
 
   it('rejects an excessively long media lease before a transport side effect', async () => {

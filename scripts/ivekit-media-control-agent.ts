@@ -180,8 +180,25 @@ const agent = new MediaControlAgent({
     256,
     1,
     10_000
-  )
+  ),
+  authorization_failure_observer: (failure) => {
+    process.stderr.write(
+      'ivekit media authorization rejected ' +
+      `code=${failure.error_code} status=${failure.status} ` +
+      `retryable=${failure.retryable} operation=${failure.operation} ` +
+      `reservation_hash=${diagnosticHash(failure.admission_reservation_id)} ` +
+      `interaction_hash=${diagnosticHash(failure.call_id)} ` +
+      `owner_epoch=${failure.owner_epoch}\n`
+    );
+  }
 });
+
+function diagnosticHash(value: string): string {
+  return createHash('sha256')
+    .update(value, 'utf8')
+    .digest('hex')
+    .slice(0, 16);
+}
 
 const tls = requireMtls ? tlsOptions() : undefined;
 const server = createMediaControlHttpServer({
