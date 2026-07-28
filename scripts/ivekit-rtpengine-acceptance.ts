@@ -56,6 +56,28 @@ export interface RtpengineAcceptanceIdentity {
   runtime_mode: 'userspace' | 'kernel';
 }
 
+export interface RtpengineAcceptanceAdmissionIdentity {
+  admission_reservation_id: string;
+  tenant_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  owner_epoch: string;
+}
+
+export interface RtpengineAcceptanceAdmissionPort {
+  reserve(input: {
+    interaction_id: string;
+    idempotency_key: string;
+  }): Promise<RtpengineAcceptanceAdmissionIdentity>;
+  activate(
+    reservation: RtpengineAcceptanceAdmissionIdentity
+  ): Promise<RtpengineAcceptanceAdmissionIdentity>;
+  takeover(
+    reservation: RtpengineAcceptanceAdmissionIdentity
+  ): Promise<RtpengineAcceptanceAdmissionIdentity>;
+  close(reservation: RtpengineAcceptanceAdmissionIdentity): Promise<void>;
+}
+
 export interface RtpengineAcceptanceEvidence {
   schema_version: 1;
   goal: 'voice-media-control-goal2-task9';
@@ -128,8 +150,11 @@ export function createRtpengineAcceptanceCommand(input: {
   action: MediaControlAction;
   command_id: string;
   call_id: string;
+  tenant_id?: string;
   admission_reservation_id?: string;
   media_reservation_id: string;
+  cell_id?: string;
+  owner_node_id?: string;
   owner_epoch: string;
   command_sequence: number;
   expires_at: string;
@@ -138,7 +163,12 @@ export function createRtpengineAcceptanceCommand(input: {
   for (const [label, value] of [
     ['command ID', input.command_id],
     ['call ID', input.call_id],
-    ['media reservation ID', input.media_reservation_id]
+    ['tenant ID', input.tenant_id ?? 'ivekit-acceptance'],
+    ['media reservation ID', input.media_reservation_id],
+    ['admission reservation ID',
+      input.admission_reservation_id ?? input.media_reservation_id],
+    ['Cell ID', input.cell_id ?? 'ivekit-acceptance-cell'],
+    ['owner node ID', input.owner_node_id ?? 'ivekit-acceptance-node']
   ] as const) {
     if (!IDENTIFIER.test(value)) throw new Error(`${label} is invalid`);
   }
@@ -147,11 +177,11 @@ export function createRtpengineAcceptanceCommand(input: {
     protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION,
     action: input.action,
     command_id: input.command_id,
-    tenant_id: 'ivekit-acceptance',
+    tenant_id: input.tenant_id ?? 'ivekit-acceptance',
     call_id: input.call_id,
     leg_id: 'ivekit-acceptance-leg',
-    cell_id: 'ivekit-acceptance-cell',
-    owner_node_id: 'ivekit-acceptance-node',
+    cell_id: input.cell_id ?? 'ivekit-acceptance-cell',
+    owner_node_id: input.owner_node_id ?? 'ivekit-acceptance-node',
     owner_epoch: input.owner_epoch,
     admission_reservation_id:
       input.admission_reservation_id ?? input.media_reservation_id,
@@ -233,6 +263,7 @@ export async function runRtpengineMediaScenario(input: {
   packet_interval_ms: number;
   receive_timeout_ms: number;
   during_stream?: () => Promise<void>;
+  admission?: RtpengineAcceptanceAdmissionPort;
 }): Promise<RtpengineMediaScenarioResult> {
   const baseUrl = checkedBaseUrl(input.media_control_base_url);
   const token = checkedToken(input.media_control_token);
@@ -279,6 +310,14 @@ export async function runRtpengineMediaScenario(input: {
   const reservationId = `task9-reservation-${input.scenario_id}`;
   const fromTag = `task9-from-${input.scenario_id}`;
   const toTag = `task9-to-${input.scenario_id}`;
+  let authority: RtpengineAcceptanceAdmissionIdentity = {
+    admission_reservation_id: reservationId,
+    tenant_id: 'ivekit-acceptance',
+    cell_id: 'ivekit-acceptance-cell',
+    owner_node_id: 'ivekit-acceptance-node',
+    owner_epoch: input.owner_epoch
+  };
+  let admissionReserved = false;
   const expiresAt = input.expires_at ||
     new Date(Date.now() + 10 * 60_000).toISOString();
   if (!canonicalDate(expiresAt) || Date.parse(expiresAt) <= Date.now()) {
@@ -290,7 +329,21 @@ export async function runRtpengineMediaScenario(input: {
   const keyB = input.mode === 'sdes_srtp'
     ? createSdesKeyMaterial()
     : undefined;
+  let offerCommand: MediaControlCommand | undefined;
+  let offerResolved = false;
+  let offerCommitted = false;
+  let mediaDeleted = false;
+  let nextSequence = 1;
+  let deleteCommand: MediaControlCommand | undefined;
+  let primaryError: unknown;
   try {
+    if (input.admission) {
+      authority = await input.admission.reserve({
+        interaction_id: callId,
+        idempotency_key: `task9-admission-${input.scenario_id}`
+      });
+      admissionReserved = true;
+    }
     const localA = endpointA.localEndpoint();
     const localB = endpointB.localEndpoint();
     const offerSdp = buildEndpointSdp({
@@ -301,12 +354,16 @@ export async function runRtpengineMediaScenario(input: {
       mode: input.mode,
       key_material: keyA
     });
-    const offer = createRtpengineAcceptanceCommand({
+    offerCommand = createRtpengineAcceptanceCommand({
       action: 'offer',
       command_id: `task9-offer-${input.scenario_id}`,
       call_id: callId,
+      tenant_id: authority.tenant_id,
+      admission_reservation_id: authority.admission_reservation_id,
       media_reservation_id: reservationId,
-      owner_epoch: input.owner_epoch,
+      cell_id: authority.cell_id,
+      owner_node_id: authority.owner_node_id,
+      owner_epoch: authority.owner_epoch,
       command_sequence: 1,
       expires_at: expiresAt,
       payload: {
@@ -315,8 +372,19 @@ export async function runRtpengineMediaScenario(input: {
         from_tag: fromTag
       }
     });
-    const offerResult = await postMediaCommand(baseUrl, token, offer, fetchImpl);
+    const offerResult = await postMediaCommand(
+      baseUrl,
+      token,
+      offerCommand,
+      fetchImpl
+    );
+    offerResolved = true;
     const offerSession = successfulSession(offerResult, 'offer');
+    offerCommitted = true;
+    nextSequence = 2;
+    if (input.admission) {
+      authority = await input.admission.activate(authority);
+    }
     const relayForB = parseRelayEndpoint(offerSession.effective_sdp);
 
     const answerSdp = buildEndpointSdp({
@@ -331,9 +399,13 @@ export async function runRtpengineMediaScenario(input: {
       action: 'answer',
       command_id: `task9-answer-${input.scenario_id}`,
       call_id: callId,
+      tenant_id: authority.tenant_id,
+      admission_reservation_id: authority.admission_reservation_id,
       media_reservation_id: reservationId,
-      owner_epoch: input.owner_epoch,
-      command_sequence: 2,
+      cell_id: authority.cell_id,
+      owner_node_id: authority.owner_node_id,
+      owner_epoch: authority.owner_epoch,
+      command_sequence: nextSequence,
       expires_at: expiresAt,
       payload: {
         answer_sdp: answerSdp,
@@ -343,6 +415,7 @@ export async function runRtpengineMediaScenario(input: {
     });
     const answerResult = await postMediaCommand(baseUrl, token, answer, fetchImpl);
     const answerSession = successfulSession(answerResult, 'answer');
+    nextSequence += 1;
     const relayForA = parseRelayEndpoint(answerSession.effective_sdp);
 
     if (input.mode === 'sdes_srtp') {
@@ -381,14 +454,19 @@ export async function runRtpengineMediaScenario(input: {
         action: 'query',
         command_id: `task9-query-${input.scenario_id}`,
         call_id: callId,
+        tenant_id: authority.tenant_id,
+        admission_reservation_id: authority.admission_reservation_id,
         media_reservation_id: reservationId,
-        owner_epoch: input.owner_epoch,
-        command_sequence: 3,
+        cell_id: authority.cell_id,
+        owner_node_id: authority.owner_node_id,
+        owner_epoch: authority.owner_epoch,
+        command_sequence: nextSequence,
         expires_at: expiresAt,
         payload: { from_tag: fromTag, to_tag: toTag }
       });
       queryResult = await postMediaCommand(baseUrl, token, query, fetchImpl);
       const querySession = successfulSession(queryResult, 'query');
+      nextSequence += 1;
       const recoveredRelay = parseRelayEndpoint(querySession.effective_sdp);
       continuity = {
         received_before_callback: receivedBefore,
@@ -417,13 +495,17 @@ export async function runRtpengineMediaScenario(input: {
         timeout_ms: receiveTimeoutMs
       })
     ]);
-    const deleteCommand = createRtpengineAcceptanceCommand({
+    deleteCommand = createRtpengineAcceptanceCommand({
       action: 'delete',
       command_id: `task9-delete-${input.scenario_id}`,
       call_id: callId,
+      tenant_id: authority.tenant_id,
+      admission_reservation_id: authority.admission_reservation_id,
       media_reservation_id: reservationId,
-      owner_epoch: input.owner_epoch,
-      command_sequence: input.during_stream ? 4 : 3,
+      cell_id: authority.cell_id,
+      owner_node_id: authority.owner_node_id,
+      owner_epoch: authority.owner_epoch,
+      command_sequence: nextSequence,
       expires_at: expiresAt,
       payload: { from_tag: fromTag, to_tag: toTag }
     });
@@ -434,6 +516,7 @@ export async function runRtpengineMediaScenario(input: {
       fetchImpl
     );
     successfulSession(deleteResult, 'delete');
+    mediaDeleted = true;
     const replayedDelete = input.during_stream
       ? await postMediaCommand(baseUrl, token, deleteCommand, fetchImpl)
       : undefined;
@@ -457,8 +540,70 @@ export async function runRtpengineMediaScenario(input: {
       relay_for_b: relayForB,
       ...(continuity ? { continuity } : {})
     };
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
-    await Promise.all([endpointA.close(), endpointB.close()]);
+    let cleanupError: unknown;
+    if (offerCommand && !offerResolved) {
+      try {
+        const reconciled = await postMediaCommand(
+          baseUrl,
+          token,
+          offerCommand,
+          fetchImpl
+        );
+        offerResolved = true;
+        if (successfulResult(reconciled)) {
+          offerCommitted = true;
+          nextSequence = 2;
+        }
+      } catch (error) {
+        cleanupError = error;
+      }
+    }
+    if (offerCommitted && !mediaDeleted) {
+      try {
+        const cleanupCommand = deleteCommand ??
+          createRtpengineAcceptanceCommand({
+            action: 'delete',
+            command_id: `task9-delete-${input.scenario_id}-cleanup`,
+            call_id: callId,
+            tenant_id: authority.tenant_id,
+            admission_reservation_id: authority.admission_reservation_id,
+            media_reservation_id: reservationId,
+            cell_id: authority.cell_id,
+            owner_node_id: authority.owner_node_id,
+            owner_epoch: authority.owner_epoch,
+            command_sequence: nextSequence,
+            expires_at: expiresAt,
+            payload: { from_tag: fromTag, to_tag: toTag }
+          });
+        successfulSession(
+          await postMediaCommand(baseUrl, token, cleanupCommand, fetchImpl),
+          'cleanup delete'
+        );
+        mediaDeleted = true;
+      } catch (error) {
+        cleanupError ??= error;
+      }
+    }
+    if (input.admission &&
+        admissionReserved &&
+        offerResolved &&
+        (!offerCommitted || mediaDeleted)) {
+      try {
+        await input.admission.close(authority);
+      } catch (error) {
+        cleanupError ??= error;
+      }
+    }
+    try {
+      await Promise.all([endpointA.close(), endpointB.close()]);
+    } catch (error) {
+      cleanupError ??= error;
+    }
+    if (!primaryError && cleanupError) throw cleanupError;
   }
 }
 
@@ -473,6 +618,7 @@ export async function runRtpengineControlMatrix(input: {
   set_drain(value: boolean): Promise<void>;
   stop_rtpengine(): Promise<void>;
   start_rtpengine(): Promise<void>;
+  admission?: RtpengineAcceptanceAdmissionPort;
   regression_checks: {
     before_write_failure_classified: boolean;
     after_write_disconnect_reconciled: boolean;
@@ -507,7 +653,8 @@ export async function runRtpengineControlMatrix(input: {
       bindAddress: input.bind_address,
       expiresAt: input.expires_at,
       id: `${matrixId}-drain`,
-      ownerEpoch: '200'
+      ownerEpoch: '200',
+      admission: input.admission
     });
   } finally {
     await input.set_drain(false);
@@ -524,7 +671,8 @@ export async function runRtpengineControlMatrix(input: {
         bindAddress: input.bind_address,
         expiresAt: input.expires_at,
         id: `${matrixId}-capacity-${index}`,
-        ownerEpoch: String(300 + index)
+        ownerEpoch: String(300 + index),
+        admission: input.admission
       });
       if (!successfulResult(session.result)) {
         throw new Error('RTPengine capacity prefill was rejected');
@@ -538,7 +686,8 @@ export async function runRtpengineControlMatrix(input: {
       bindAddress: input.bind_address,
       expiresAt: input.expires_at,
       id: `${matrixId}-capacity-overflow`,
-      ownerEpoch: '399'
+      ownerEpoch: '399',
+      admission: input.admission
     });
   } finally {
     for (const session of capacitySessions.reverse()) {
@@ -559,11 +708,14 @@ export async function runRtpengineControlMatrix(input: {
     bindAddress: input.bind_address,
     expiresAt: input.expires_at,
     id: `${matrixId}-epoch`,
-    ownerEpoch: '500'
+    ownerEpoch: '500',
+    admission: input.admission
   });
   if (!successfulResult(epochSession.result)) {
     throw new Error('RTPengine epoch precondition was rejected');
   }
+  const staleOwnerEpoch = (BigInt(epochSession.authority.owner_epoch) - 1n)
+    .toString();
   const staleEpochResult = await postMediaCommand(
     baseUrl,
     token,
@@ -571,14 +723,26 @@ export async function runRtpengineControlMatrix(input: {
       action: 'query',
       command_id: `task9-query-${epochSession.id}-stale`,
       call_id: epochSession.call_id,
+      tenant_id: epochSession.authority.tenant_id,
+      admission_reservation_id:
+        epochSession.authority.admission_reservation_id,
       media_reservation_id: epochSession.reservation_id,
-      owner_epoch: '499',
+      cell_id: epochSession.authority.cell_id,
+      owner_node_id: epochSession.authority.owner_node_id,
+      owner_epoch: staleOwnerEpoch,
       command_sequence: 1,
       expires_at: input.expires_at,
       payload: { from_tag: epochSession.from_tag }
     }),
     fetchImpl
   );
+  const takeoverAuthority = input.admission
+    ? await input.admission.takeover(epochSession.authority)
+    : {
+        ...epochSession.authority,
+        owner_epoch:
+          (BigInt(epochSession.authority.owner_epoch) + 1n).toString()
+      };
   const higherEpochResult = await postMediaCommand(
     baseUrl,
     token,
@@ -586,8 +750,12 @@ export async function runRtpengineControlMatrix(input: {
       action: 'query',
       command_id: `task9-query-${epochSession.id}-takeover`,
       call_id: epochSession.call_id,
+      tenant_id: takeoverAuthority.tenant_id,
+      admission_reservation_id: takeoverAuthority.admission_reservation_id,
       media_reservation_id: epochSession.reservation_id,
-      owner_epoch: '501',
+      cell_id: takeoverAuthority.cell_id,
+      owner_node_id: takeoverAuthority.owner_node_id,
+      owner_epoch: takeoverAuthority.owner_epoch,
       command_sequence: 1,
       expires_at: input.expires_at,
       payload: { from_tag: epochSession.from_tag }
@@ -598,7 +766,11 @@ export async function runRtpengineControlMatrix(input: {
     baseUrl,
     token,
     input.expires_at,
-    { ...epochSession, owner_epoch: '501', delete_sequence: 2 },
+    {
+      ...epochSession,
+      authority: takeoverAuthority,
+      delete_sequence: 2
+    },
     fetchImpl
   );
 
@@ -612,7 +784,8 @@ export async function runRtpengineControlMatrix(input: {
       bindAddress: input.bind_address,
       expiresAt: input.expires_at,
       id: `${matrixId}-engine-down`,
-      ownerEpoch: '600'
+      ownerEpoch: '600',
+      admission: input.admission
     });
   } finally {
     await input.start_rtpengine();
@@ -658,7 +831,8 @@ interface ControlSession {
   call_id: string;
   reservation_id: string;
   from_tag: string;
-  owner_epoch: string;
+  authority: RtpengineAcceptanceAdmissionIdentity;
+  admission?: RtpengineAcceptanceAdmissionPort;
   delete_sequence: number;
   result: MediaControlResult;
 }
@@ -671,8 +845,19 @@ async function sendControlOffer(input: {
   expiresAt: string;
   id: string;
   ownerEpoch: string;
+  admission?: RtpengineAcceptanceAdmissionPort;
 }): Promise<MediaControlResult> {
-  return (await openControlSession(input)).result;
+  const session = await openControlSession(input);
+  if (successfulResult(session.result)) {
+    await deleteControlSession(
+      input.baseUrl,
+      input.token,
+      input.expiresAt,
+      session,
+      input.fetchImpl
+    );
+  }
+  return session.result;
 }
 
 async function openControlSession(input: {
@@ -683,6 +868,7 @@ async function openControlSession(input: {
   expiresAt: string;
   id: string;
   ownerEpoch: string;
+  admission?: RtpengineAcceptanceAdmissionPort;
 }): Promise<ControlSession> {
   const endpoint = await openRtpMediaEndpoint({
     bind_address: input.bindAddress,
@@ -693,7 +879,23 @@ async function openControlSession(input: {
   const callId = `task9-call-${input.id}`;
   const reservationId = `task9-reservation-${input.id}`;
   const fromTag = `task9-from-${input.id}`;
+  let authority: RtpengineAcceptanceAdmissionIdentity = {
+    admission_reservation_id: reservationId,
+    tenant_id: 'ivekit-acceptance',
+    cell_id: 'ivekit-acceptance-cell',
+    owner_node_id: 'ivekit-acceptance-node',
+    owner_epoch: input.ownerEpoch
+  };
+  let admissionReserved = false;
+  let offerCommitted = false;
   try {
+    if (input.admission) {
+      authority = await input.admission.reserve({
+        interaction_id: callId,
+        idempotency_key: `task9-admission-${input.id}`
+      });
+      admissionReserved = true;
+    }
     const local = endpoint.localEndpoint();
     const offerSdp = buildEndpointSdp({
       address: input.bindAddress,
@@ -709,8 +911,12 @@ async function openControlSession(input: {
         action: 'offer',
         command_id: `task9-offer-${input.id}`,
         call_id: callId,
+        tenant_id: authority.tenant_id,
+        admission_reservation_id: authority.admission_reservation_id,
         media_reservation_id: reservationId,
-        owner_epoch: input.ownerEpoch,
+        cell_id: authority.cell_id,
+        owner_node_id: authority.owner_node_id,
+        owner_epoch: authority.owner_epoch,
         command_sequence: 1,
         expires_at: input.expiresAt,
         payload: {
@@ -721,15 +927,51 @@ async function openControlSession(input: {
       }),
       input.fetchImpl
     );
+    offerCommitted = successfulResult(result);
+    if (input.admission) {
+      if (offerCommitted) {
+        authority = await input.admission.activate(authority);
+      } else if (admissionReserved) {
+        await input.admission.close(authority);
+        admissionReserved = false;
+      }
+    }
     return {
       id: input.id,
       call_id: callId,
       reservation_id: reservationId,
       from_tag: fromTag,
-      owner_epoch: input.ownerEpoch,
+      authority,
+      admission: input.admission,
       delete_sequence: 2,
       result
     };
+  } catch (error) {
+    if (offerCommitted) {
+      await postMediaCommand(
+        input.baseUrl,
+        input.token,
+        createRtpengineAcceptanceCommand({
+          action: 'delete',
+          command_id: `task9-delete-${input.id}-activation-cleanup`,
+          call_id: callId,
+          tenant_id: authority.tenant_id,
+          admission_reservation_id: authority.admission_reservation_id,
+          media_reservation_id: reservationId,
+          cell_id: authority.cell_id,
+          owner_node_id: authority.owner_node_id,
+          owner_epoch: authority.owner_epoch,
+          command_sequence: 2,
+          expires_at: input.expiresAt,
+          payload: { from_tag: fromTag }
+        }),
+        input.fetchImpl
+      ).catch(() => undefined);
+    }
+    if (input.admission && admissionReserved) {
+      await input.admission.close(authority).catch(() => undefined);
+    }
+    throw error;
   } finally {
     await endpoint.close();
   }
@@ -747,10 +989,16 @@ async function deleteControlSession(
     token,
     createRtpengineAcceptanceCommand({
       action: 'delete',
-      command_id: `task9-delete-${session.id}-${session.owner_epoch}`,
+      command_id:
+        `task9-delete-${session.id}-${session.authority.owner_epoch}`,
       call_id: session.call_id,
+      tenant_id: session.authority.tenant_id,
+      admission_reservation_id:
+        session.authority.admission_reservation_id,
       media_reservation_id: session.reservation_id,
-      owner_epoch: session.owner_epoch,
+      cell_id: session.authority.cell_id,
+      owner_node_id: session.authority.owner_node_id,
+      owner_epoch: session.authority.owner_epoch,
       command_sequence: session.delete_sequence,
       expires_at: expiresAt,
       payload: { from_tag: session.from_tag }
@@ -762,6 +1010,7 @@ async function deleteControlSession(
       `RTPengine control cleanup failed: ${resultErrorCode(result)}`
     );
   }
+  await session.admission?.close(session.authority);
   return result;
 }
 

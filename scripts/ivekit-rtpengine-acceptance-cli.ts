@@ -15,11 +15,24 @@ import {
   RtpengineNgClient
 } from '../src/agent-runtime/ivekit/media-control/rtpengine-ng.js';
 import {
+  HttpCellAdmissionClient
+} from '../src/agent-runtime/ivekit/placement/admission-http.js';
+import {
+  composeOwnerEpoch,
+  splitOwnerEpoch
+} from '../src/agent-runtime/ivekit/placement/owner-epoch.js';
+import type {
+  AdmissionReservation,
+  CapacityRequirement
+} from '../src/agent-runtime/ivekit/placement/types.js';
+import {
   RTPENGINE_ACCEPTANCE_REQUIRED_CHECKS,
   buildRtpengineAcceptanceEvidence,
   runRtpengineControlMatrix,
   runRtpengineMediaScenario,
   type RtpengineAcceptanceCheck,
+  type RtpengineAcceptanceAdmissionIdentity,
+  type RtpengineAcceptanceAdmissionPort,
   type RtpengineAcceptanceEvidence,
   type RtpengineAcceptanceIdentity,
   type RtpengineMediaScenarioResult
@@ -28,6 +41,7 @@ import {
 const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/;
 const CONTAINER = /^[A-Za-z0-9][A-Za-z0-9_.-]{2,127}$/;
+const IDENTIFIER = /^[A-Za-z0-9._:@/-]{1,256}$/;
 const MAX_PROCESS_OUTPUT_BYTES = 1_048_576;
 const MAX_TLS_FILE_BYTES = 262_144;
 
@@ -62,6 +76,7 @@ export interface RtpengineAcceptanceCliConfig {
   receive_timeout_ms: number;
   outage_hold_ms: number;
   maximum_jitter_ms: number;
+  admission?: RtpengineAcceptanceAdmissionPort;
 }
 
 export function loadRtpengineAcceptanceCliConfig(
@@ -170,6 +185,7 @@ export function loadRtpengineAcceptanceCliConfig(
     mediaPortMinimum + 1,
     65_535
   );
+  const admission = loadRtpengineAcceptanceAdmission(env);
   return {
     media_control_base_url: baseUrl,
     media_control_token: token,
@@ -249,7 +265,8 @@ export function loadRtpengineAcceptanceCliConfig(
       30,
       0.1,
       1_000
-    )
+    ),
+    ...(admission ? { admission } : {})
   };
 }
 
@@ -294,6 +311,7 @@ export async function runRtpengineAcceptanceCli(
       packet_count: config.plaintext_packet_count,
       packet_interval_ms: config.packet_interval_ms,
       receive_timeout_ms: config.receive_timeout_ms,
+      admission: config.admission,
       during_stream: async () => {
         walInodeBefore = await mediaWalInode(config);
         try {
@@ -328,7 +346,8 @@ export async function runRtpengineAcceptanceCli(
       expires_at: config.expires_at,
       packet_count: config.srtp_packet_count,
       packet_interval_ms: config.packet_interval_ms,
-      receive_timeout_ms: config.receive_timeout_ms
+      receive_timeout_ms: config.receive_timeout_ms,
+      admission: config.admission
     });
     const matrix = await runRtpengineControlMatrix({
       media_control_base_url: config.media_control_base_url,
@@ -337,6 +356,7 @@ export async function runRtpengineAcceptanceCli(
       bind_address: config.bind_address,
       expires_at: config.expires_at,
       maximum_active_calls: config.maximum_active_calls,
+      admission: config.admission,
       matrix_id: `server-${randomSuffix()}`,
       set_drain: (value) => setNodeDrain(config, value),
       stop_rtpengine: async () => {
@@ -710,12 +730,15 @@ function absolutePath(value: string, name: string): string {
   return value;
 }
 
-function checkedHttpUrl(value: string): void {
+function checkedHttpUrl(
+  value: string,
+  field = 'IVEKIT_MEDIA_CONTROL_ENDPOINT'
+): void {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    throw new Error('IVEKIT_MEDIA_CONTROL_ENDPOINT is invalid');
+    throw new Error(`${field} is invalid`);
   }
   if (!['http:', 'https:'].includes(url.protocol) ||
       url.username ||
@@ -723,8 +746,201 @@ function checkedHttpUrl(value: string): void {
       url.search ||
       url.hash ||
       (url.pathname !== '' && url.pathname !== '/')) {
-    throw new Error('IVEKIT_MEDIA_CONTROL_ENDPOINT is invalid');
+    throw new Error(`${field} is invalid`);
   }
+}
+
+function loadRtpengineAcceptanceAdmission(
+  env: Record<string, string | undefined>
+): RtpengineAcceptanceAdmissionPort | undefined {
+  const fields = [
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ENDPOINT',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TOKEN',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TENANT_ID',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REGION_ID',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ZONE_ID',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_CELL_ID',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_PROFILE_ID',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_OWNER_NODE_ID',
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON'
+  ] as const;
+  const configured = fields.filter((field) => env[field]?.trim());
+  if (configured.length === 0) return undefined;
+  if (configured.length !== fields.length) {
+    throw new Error('Cell admission configuration must be complete');
+  }
+
+  const endpoint = required(
+    env,
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ENDPOINT'
+  );
+  checkedHttpUrl(
+    endpoint,
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ENDPOINT'
+  );
+  const tenantId = acceptanceIdentifier(
+    required(env, 'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TENANT_ID'),
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TENANT_ID'
+  );
+  const regionId = acceptanceIdentifier(
+    required(env, 'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REGION_ID'),
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REGION_ID'
+  );
+  const zoneId = acceptanceIdentifier(
+    required(env, 'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ZONE_ID'),
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ZONE_ID'
+  );
+  const cellId = acceptanceIdentifier(
+    required(env, 'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_CELL_ID'),
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_CELL_ID'
+  );
+  const profileId = acceptanceIdentifier(
+    required(env, 'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_PROFILE_ID'),
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_PROFILE_ID'
+  );
+  const ownerNodeId = acceptanceIdentifier(
+    required(env, 'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_OWNER_NODE_ID'),
+    'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_OWNER_NODE_ID'
+  );
+  const requiredCapacity = acceptanceCapacity(
+    required(
+      env,
+      'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON'
+    )
+  );
+  const client = new HttpCellAdmissionClient({
+    endpoint,
+    service_token: required(
+      env,
+      'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TOKEN'
+    ),
+    timeout_ms: 5_000
+  });
+
+  const identity = (
+    reservation: AdmissionReservation,
+    expectedState: AdmissionReservation['state'],
+    expectedReservationId?: string
+  ): RtpengineAcceptanceAdmissionIdentity => {
+    if (reservation.state !== expectedState ||
+        reservation.region_id !== regionId ||
+        reservation.zone_id !== zoneId ||
+        reservation.cell_id !== cellId ||
+        reservation.owner_node_id !== ownerNodeId ||
+        (expectedReservationId &&
+          reservation.reservation_id !== expectedReservationId)) {
+      throw new Error('Cell admission reservation identity is invalid');
+    }
+    splitOwnerEpoch(reservation.owner_epoch);
+    return {
+      admission_reservation_id: acceptanceIdentifier(
+        reservation.reservation_id,
+        'Cell admission reservation ID'
+      ),
+      tenant_id: tenantId,
+      cell_id: cellId,
+      owner_node_id: ownerNodeId,
+      owner_epoch: reservation.owner_epoch
+    };
+  };
+
+  return {
+    reserve: async ({ interaction_id, idempotency_key }) => {
+      acceptanceIdentifier(interaction_id, 'acceptance interaction ID');
+      acceptanceIdentifier(idempotency_key, 'acceptance idempotency key');
+      const state = await client.state();
+      return identity(await client.reserve({
+        request_id: `${idempotency_key}-request`,
+        idempotency_key,
+        tenant_id: tenantId,
+        routing_partition_id: 'rtpengine-acceptance',
+        interaction_id,
+        interaction_kind: 'sip_voice',
+        profile_id: profileId,
+        required_capacity: requiredCapacity,
+        preferred_region_id: regionId,
+        preferred_zone_id: zoneId,
+        preferred_cell_id: cellId,
+        preferred_owner_node_id: ownerNodeId,
+        region_id: regionId,
+        zone_id: zoneId,
+        cell_id: cellId,
+        snapshot_version: Math.max(1, state.capacity_sequence),
+        cell_lease_epoch: state.cell_lease_epoch
+      }), 'reserved');
+    },
+    activate: async (reservation) => identity(
+      await client.activate(reservation.admission_reservation_id),
+      'active',
+      reservation.admission_reservation_id
+    ),
+    takeover: async (reservation) => {
+      const current = splitOwnerEpoch(reservation.owner_epoch);
+      if (current.cell_local_sequence >= 0xffff_ffff) {
+        throw new Error('Cell admission owner epoch is exhausted');
+      }
+      const ownerEpoch = composeOwnerEpoch(
+        current.cell_lease_epoch,
+        current.cell_local_sequence + 1
+      );
+      return identity(await client.takeover(
+        reservation.admission_reservation_id,
+        {
+          expected_owner_epoch: reservation.owner_epoch,
+          owner_epoch: ownerEpoch,
+          owner_node_id: ownerNodeId
+        }
+      ), 'active', reservation.admission_reservation_id);
+    },
+    close: async (reservation) => {
+      identity(
+        await client.close(reservation.admission_reservation_id),
+        'closed',
+        reservation.admission_reservation_id
+      );
+    }
+  };
+}
+
+function acceptanceIdentifier(value: string, field: string): string {
+  if (!IDENTIFIER.test(value)) throw new Error(`${field} is invalid`);
+  return value;
+}
+
+function acceptanceCapacity(value: string): CapacityRequirement {
+  if (Buffer.byteLength(value, 'utf8') > 4_096) {
+    throw new Error(
+      'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON is invalid'
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(
+      'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON is invalid'
+    );
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(
+      'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON is invalid'
+    );
+  }
+  const entries = Object.entries(parsed);
+  if (entries.length < 1 || entries.length > 16 ||
+      entries.some(([name, amount]) =>
+        !IDENTIFIER.test(name) ||
+        !Number.isFinite(amount) ||
+        Number(amount) <= 0 ||
+        Number(amount) > 1_000_000
+      )) {
+    throw new Error(
+      'IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON is invalid'
+    );
+  }
+  return Object.fromEntries(
+    entries.map(([name, amount]) => [name, Number(amount)])
+  );
 }
 
 function loadRtpengineAcceptanceFetch(

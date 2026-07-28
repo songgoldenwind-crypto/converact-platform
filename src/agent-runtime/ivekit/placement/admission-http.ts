@@ -10,7 +10,9 @@ import {
   type AdmissionReservation,
   type CellAdmissionPort,
   type CellAdmissionRequest,
-  type CellReservationLifecyclePort
+  type CellAdmissionTakeoverRequest,
+  type CellReservationLifecyclePort,
+  type CellReservationTakeoverPort
 } from './types.js';
 
 interface CellAdmissionHttpServerInput {
@@ -47,6 +49,7 @@ interface CellAdmissionStandbyHttpServerInput {
 export interface CellAdmissionStateSnapshot {
   state: import('./types.js').AdmissionState;
   cell_lease_epoch: number;
+  capacity_sequence: number;
   nodes: Array<{
     node_id: string;
     state: import('./types.js').AdmissionState;
@@ -182,6 +185,31 @@ export function createCellAdmissionHttpServer(
           data: reservation
         });
       }
+      const takeover = url.pathname.match(
+        /^\/v1\/reservations\/([^/]+)\/takeover$/
+      );
+      if (request.method === 'POST' && takeover) {
+        const reservationId = decodeSegment(takeover[1]);
+        const body = object(await readJsonBody(request, config.max_body_bytes));
+        if (JSON.stringify(Object.keys(body).sort()) !== JSON.stringify([
+          'expected_owner_epoch',
+          'owner_epoch',
+          'owner_node_id'
+        ])) {
+          throw new PlacementError({
+            code: 'reservation_takeover_request_invalid',
+            status: 400
+          });
+        }
+        const now = config.now();
+        const result = config.controller.takeover(
+          reservationId,
+          structuredClone(body) as unknown as CellAdmissionTakeoverRequest,
+          now
+        );
+        await persistCheckpoint(config, reservationId, now);
+        return sendJson(response, 200, { data: result });
+      }
       const lifecycle = url.pathname.match(
         /^\/v1\/reservations\/([^/]+)\/(activate|close)$/
       );
@@ -267,8 +295,10 @@ async function persistCheckpoint(
   }
 }
 
-export class HttpCellAdmissionClient
-implements CellAdmissionPort, CellReservationLifecyclePort {
+export class HttpCellAdmissionClient implements
+  CellAdmissionPort,
+  CellReservationLifecyclePort,
+  CellReservationTakeoverPort {
   readonly #endpoint: URL;
   readonly #serviceToken: string;
   readonly #timeoutMs: number;
@@ -304,6 +334,17 @@ implements CellAdmissionPort, CellReservationLifecyclePort {
     return this.#request(
       `/v1/reservations/${encodeURIComponent(reservationId)}/activate`,
       {}
+    );
+  }
+
+  async takeover(
+    reservationId: string,
+    input: CellAdmissionTakeoverRequest
+  ): Promise<AdmissionReservation> {
+    safeIdentifier(reservationId);
+    return this.#request(
+      `/v1/reservations/${encodeURIComponent(reservationId)}/takeover`,
+      input
     );
   }
 
@@ -354,7 +395,10 @@ implements CellAdmissionPort, CellReservationLifecyclePort {
 
   async #request(
     path: string,
-    body: CellAdmissionRequest | Record<string, never>
+    body:
+      CellAdmissionRequest |
+      CellAdmissionTakeoverRequest |
+      Record<string, never>
   ): Promise<AdmissionReservation> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
@@ -399,9 +443,12 @@ function checkedAdmissionStateSnapshot(value: unknown): CellAdmissionStateSnapsh
   const input = object(value);
   const state = admissionState(input.state);
   const cellLeaseEpoch = Number(input.cell_lease_epoch);
+  const capacitySequence = Number(input.capacity_sequence);
   if (!Number.isInteger(cellLeaseEpoch) ||
       cellLeaseEpoch < 1 ||
-      cellLeaseEpoch > 0xffff_ffff) {
+      cellLeaseEpoch > 0xffff_ffff ||
+      !Number.isSafeInteger(capacitySequence) ||
+      capacitySequence < 0) {
     throw new PlacementError({ code: 'admission_state_invalid', status: 502 });
   }
   if (!Array.isArray(input.nodes) || !Array.isArray(input.reservations)) {
@@ -432,6 +479,7 @@ function checkedAdmissionStateSnapshot(value: unknown): CellAdmissionStateSnapsh
   return {
     state,
     cell_lease_epoch: cellLeaseEpoch,
+    capacity_sequence: capacitySequence,
     nodes,
     reservations
   };

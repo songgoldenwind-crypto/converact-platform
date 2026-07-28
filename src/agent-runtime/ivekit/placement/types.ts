@@ -136,6 +136,12 @@ export interface AdmissionReservation {
   required_capacity: CapacityRequirement;
 }
 
+export interface CellAdmissionTakeoverRequest {
+  expected_owner_epoch: string;
+  owner_epoch: string;
+  owner_node_id: string;
+}
+
 export interface CellAdmissionPort {
   reserve(input: CellAdmissionRequest): Promise<AdmissionReservation>;
 }
@@ -143,6 +149,13 @@ export interface CellAdmissionPort {
 export interface CellReservationLifecyclePort {
   activate(reservationId: string): Promise<AdmissionReservation>;
   close(reservationId: string): Promise<AdmissionReservation>;
+}
+
+export interface CellReservationTakeoverPort {
+  takeover(
+    reservationId: string,
+    input: CellAdmissionTakeoverRequest
+  ): Promise<AdmissionReservation>;
 }
 
 export interface TenantRegionDirectory {

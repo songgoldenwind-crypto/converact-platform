@@ -23,7 +23,9 @@ import {
   buildRtpengineAcceptanceEvidence,
   createRtpengineAcceptanceCommand,
   runRtpengineControlMatrix,
-  runRtpengineMediaScenario
+  runRtpengineMediaScenario,
+  type RtpengineAcceptanceAdmissionIdentity,
+  type RtpengineAcceptanceAdmissionPort
 } from '../scripts/ivekit-rtpengine-acceptance.js';
 import { mediaControlPayloadHash } from '../src/agent-runtime/ivekit/media-control/protocol.js';
 import {
@@ -334,7 +336,11 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       action: 'offer',
       command_id: 'task9-offer-1',
       call_id: 'task9-call-1',
+      tenant_id: 'goal3-tenant',
+      admission_reservation_id: 'cell-reservation-1',
       media_reservation_id: 'task9-reservation-1',
+      cell_id: 'cell-a',
+      owner_node_id: 'rustpbx-node-a',
       owner_epoch: '7',
       command_sequence: 1,
       expires_at: '2026-07-26T05:00:00.000Z',
@@ -347,6 +353,10 @@ describe('iveKit RTPengine real acceptance evidence', () => {
 
     assert.equal(command.protocol_version, 'ivekit.media-control.v1');
     assert.equal(command.owner_epoch, '7');
+    assert.equal(command.tenant_id, 'goal3-tenant');
+    assert.equal(command.admission_reservation_id, 'cell-reservation-1');
+    assert.equal(command.cell_id, 'cell-a');
+    assert.equal(command.owner_node_id, 'rustpbx-node-a');
     assert.equal(command.command_sequence, 1);
     assert.equal(command.payload_hash, mediaControlPayloadHash(command.payload));
     assert.equal(command.idempotency_key, 'task9-offer-1');
@@ -432,6 +442,31 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       config.containers.media_control,
       'ivekit-goal2-task9-media-control'
     );
+    const authoritative = loadRtpengineAcceptanceCliConfig({
+      ...env,
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ENDPOINT:
+        'http://127.0.0.1:33200',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TOKEN:
+        'task9-admission-token-123456789',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TENANT_ID: 'goal3-tenant',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REGION_ID: 'region-a',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ZONE_ID: 'zone-a',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_CELL_ID: 'ivekit-cell-a',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_PROFILE_ID: 'voice-ordinary-v1',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_OWNER_NODE_ID:
+        'rustpbx-node-a',
+      IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON:
+        '{"voice.weighted_calls":1}'
+    });
+    assert.ok(authoritative.admission);
+    assert.throws(
+      () => loadRtpengineAcceptanceCliConfig({
+        ...env,
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ENDPOINT:
+          'http://127.0.0.1:33200'
+      }),
+      /Cell admission configuration must be complete/
+    );
     assert.throws(
       () => loadRtpengineAcceptanceCliConfig({
         ...env,
@@ -477,7 +512,9 @@ describe('iveKit RTPengine real acceptance evidence', () => {
     let offerSdp = '';
     let answerSdp = '';
     const actions: string[] = [];
+    const commands: Array<Record<string, any>> = [];
     const commandIds = new Set<string>();
+    const authority = fakeAcceptanceAdmission();
     let fetchCalls = 0;
     const mediaControlFetch: typeof fetch = async (...arguments_) => {
       fetchCalls += 1;
@@ -487,6 +524,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
       const command = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      commands.push(command);
       actions.push(command.action);
       if (command.action === 'offer') offerSdp = command.payload.offer_sdp;
       if (command.action === 'answer') answerSdp = command.payload.answer_sdp;
@@ -533,6 +571,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
         mode: 'rtp',
         scenario_id: 'unit-plain',
         owner_epoch: '1',
+        admission: authority.port,
         packet_count: 8,
         packet_interval_ms: 1,
         receive_timeout_ms: 1_000,
@@ -548,6 +587,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
         mode: 'sdes_srtp',
         scenario_id: 'unit-srtp',
         owner_epoch: '2',
+        admission: authority.port,
         packet_count: 8,
         packet_interval_ms: 1,
         receive_timeout_ms: 1_000
@@ -558,6 +598,21 @@ describe('iveKit RTPengine real acceptance evidence', () => {
         'offer', 'answer', 'delete'
       ]);
       assert.equal(fetchCalls, actions.length);
+      assert.deepEqual(authority.events, [
+        'reserve:task9-call-unit-plain',
+        'activate:admission-task9-call-unit-plain',
+        'close:admission-task9-call-unit-plain',
+        'reserve:task9-call-unit-srtp',
+        'activate:admission-task9-call-unit-srtp',
+        'close:admission-task9-call-unit-srtp'
+      ]);
+      assert.ok(commands.every((command) =>
+        command.admission_reservation_id.startsWith('admission-task9-call-') &&
+        command.tenant_id === 'goal3-tenant' &&
+        command.cell_id === 'ivekit-cell-a' &&
+        command.owner_node_id === 'rustpbx-node-a' &&
+        BigInt(command.owner_epoch) >= 4_294_967_297n
+      ));
       assert.equal(result.endpoint_a.unique_packets, 8);
       assert.equal(result.endpoint_b.unique_packets, 8);
       assert.equal(result.endpoint_a.rtcp_packets, 1);
@@ -581,11 +636,70 @@ describe('iveKit RTPengine real acceptance evidence', () => {
     }
   });
 
+  it('deletes committed media before closing admission after a later failure', async () => {
+    const authority = fakeAcceptanceAdmission();
+    const actions: string[] = [];
+    let offerSdp = '';
+    const server = createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const command = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      actions.push(command.action);
+      if (command.action === 'offer') {
+        offerSdp = command.payload.offer_sdp;
+      }
+      const result = command.action === 'answer'
+        ? failure(
+            command.command_id,
+            'terminal_error',
+            'rtpengine_answer_rejected',
+            false
+          )
+        : success(command, offerSdp);
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ data: result }));
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve)
+    );
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+
+    try {
+      await assert.rejects(
+        runRtpengineMediaScenario({
+          media_control_base_url: `http://127.0.0.1:${address.port}`,
+          media_control_token: 'task9-cleanup-token-that-is-long-enough',
+          bind_address: '127.0.0.1',
+          mode: 'rtp',
+          scenario_id: 'unit-cleanup',
+          owner_epoch: '1',
+          packet_count: 8,
+          packet_interval_ms: 1,
+          receive_timeout_ms: 1_000,
+          admission: authority.port
+        }),
+        /RTPengine answer failed/
+      );
+      assert.deepEqual(actions, ['offer', 'answer', 'delete']);
+      assert.deepEqual(authority.events, [
+        'reserve:task9-call-unit-cleanup',
+        'activate:admission-task9-call-unit-cleanup',
+        'close:admission-task9-call-unit-cleanup'
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => error ? reject(error) : resolve())
+      );
+    }
+  });
+
   it('runs drain, capacity, epoch, and RTPengine outage controls', async () => {
     const token = 'task9-control-token-that-is-long-enough';
     let draining = false;
     let engineRunning = true;
     let fetchCalls = 0;
+    const authority = fakeAcceptanceAdmission();
     const active = new Map<string, { epoch: bigint; sdp: string }>();
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
@@ -661,6 +775,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
         bind_address: '127.0.0.1',
         expires_at: '2099-01-01T00:00:00.000Z',
         maximum_active_calls: 2,
+        admission: authority.port,
         set_drain: async (value) => {
           draining = value;
         },
@@ -683,6 +798,15 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       assert.equal(matrix.checks.rtpengine_failure_classified, true);
       assert.ok(fetchCalls > 0);
       assert.equal(active.size, 0);
+      assert.equal(
+        authority.events.filter((event) => event.startsWith('takeover:')).length,
+        1
+      );
+      assert.equal(
+        authority.states.size,
+        authority.events.filter((event) => event.startsWith('close:')).length
+      );
+      assert.ok([...authority.states.values()].every((state) => state === 'closed'));
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => error ? reject(error) : resolve())
@@ -726,4 +850,58 @@ function success(
       updated_at: '2026-07-26T04:00:00.000Z'
     }
   };
+}
+
+function fakeAcceptanceAdmission(): {
+  port: RtpengineAcceptanceAdmissionPort;
+  events: string[];
+  states: Map<string, 'reserved' | 'active' | 'closed'>;
+} {
+  const events: string[] = [];
+  const states = new Map<string, 'reserved' | 'active' | 'closed'>();
+  const identities = new Map<string, RtpengineAcceptanceAdmissionIdentity>();
+  let sequence = 0n;
+  const required = (reservation: RtpengineAcceptanceAdmissionIdentity) => {
+    const current = identities.get(reservation.admission_reservation_id);
+    assert.ok(current);
+    return current;
+  };
+  const port: RtpengineAcceptanceAdmissionPort = {
+    reserve: async ({ interaction_id }) => {
+      sequence += 1n;
+      const identity = {
+        admission_reservation_id: `admission-${interaction_id}`,
+        tenant_id: 'goal3-tenant',
+        cell_id: 'ivekit-cell-a',
+        owner_node_id: 'rustpbx-node-a',
+        owner_epoch: (4_294_967_296n + sequence).toString()
+      };
+      identities.set(identity.admission_reservation_id, identity);
+      states.set(identity.admission_reservation_id, 'reserved');
+      events.push(`reserve:${interaction_id}`);
+      return identity;
+    },
+    activate: async (reservation) => {
+      const current = required(reservation);
+      states.set(current.admission_reservation_id, 'active');
+      events.push(`activate:${current.admission_reservation_id}`);
+      return current;
+    },
+    takeover: async (reservation) => {
+      const current = required(reservation);
+      const next = {
+        ...current,
+        owner_epoch: (BigInt(current.owner_epoch) + 1n).toString()
+      };
+      identities.set(next.admission_reservation_id, next);
+      events.push(`takeover:${next.admission_reservation_id}`);
+      return next;
+    },
+    close: async (reservation) => {
+      const current = required(reservation);
+      states.set(current.admission_reservation_id, 'closed');
+      events.push(`close:${current.admission_reservation_id}`);
+    }
+  };
+  return { port, events, states };
 }

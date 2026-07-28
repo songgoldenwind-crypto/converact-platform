@@ -95,6 +95,73 @@ test('duplicate reservation IDs fail before capacity is charged again', () => {
   assert.deepEqual(controller.snapshot().dimensions, before);
 });
 
+test('Cell admission atomically advances an active reservation owner epoch', () => {
+  const controller = fixture();
+  const reserved = controller.reserve({
+    request_id: 'request-takeover',
+    idempotency_key: 'idem-takeover',
+    tenant_id: 'tenant-a',
+    routing_partition_id: 'tenant-a:call-takeover',
+    interaction_id: 'call-takeover',
+    interaction_kind: 'sip_voice',
+    profile_id: 'cell-10k-v1',
+    required_capacity: { 'voice.weighted_calls': 1 }
+  }, new Date('2026-07-16T08:00:00.000Z'));
+  const active = controller.activate(
+    reserved.reservation_id,
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+  const nextEpoch = (BigInt(active.owner_epoch) + 1n).toString();
+
+  const takenOver = controller.takeover(
+    active.reservation_id,
+    {
+      expected_owner_epoch: active.owner_epoch,
+      owner_epoch: nextEpoch,
+      owner_node_id: active.owner_node_id
+    },
+    new Date('2026-07-16T08:00:02.000Z')
+  );
+  const replay = controller.takeover(
+    active.reservation_id,
+    {
+      expected_owner_epoch: active.owner_epoch,
+      owner_epoch: nextEpoch,
+      owner_node_id: active.owner_node_id
+    },
+    new Date('2026-07-16T08:00:03.000Z')
+  );
+
+  assert.equal(takenOver.owner_epoch, nextEpoch);
+  assert.equal(replay.owner_epoch, nextEpoch);
+  assert.equal(controller.checkpoint(active.reservation_id).owner_epoch, nextEpoch);
+  assert.throws(
+    () => controller.takeover(
+      active.reservation_id,
+      {
+        expected_owner_epoch: nextEpoch,
+        owner_epoch: (BigInt(nextEpoch) + 1n).toString(),
+        owner_node_id: 'rustpbx-b'
+      },
+      new Date('2026-07-16T08:00:03.500Z')
+    ),
+    (error: any) =>
+      error?.code === 'cross_node_takeover_transfer_fence_required'
+  );
+  assert.throws(
+    () => controller.takeover(
+      active.reservation_id,
+      {
+        expected_owner_epoch: active.owner_epoch,
+        owner_epoch: (BigInt(nextEpoch) + 1n).toString(),
+        owner_node_id: active.owner_node_id
+      },
+      new Date('2026-07-16T08:00:04.000Z')
+    ),
+    (error: any) => error?.code === 'stale_owner_epoch'
+  );
+});
+
 test('capacity failure does not leak a partial reservation', () => {
   const controller = fixture();
   controller.reserve({

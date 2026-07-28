@@ -1,10 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { composeOwnerEpoch, splitOwnerEpoch } from './owner-epoch.js';
+import {
+  compareOwnerEpoch,
+  composeOwnerEpoch,
+  splitOwnerEpoch
+} from './owner-epoch.js';
 import {
   PlacementError,
   type AdmissionReservation,
   type AdmissionState,
+  type CellAdmissionTakeoverRequest,
   type CellCapacityObservation,
   type CellCapacityObservationDimension,
   type CapacityDimensionState,
@@ -325,6 +330,81 @@ export class CellAdmissionController {
     addCapacity(node.dimensions, reservation.required_capacity, 'used', 1);
     reservation.state = 'active';
     reservation.updated_at = now.toISOString();
+    return publicReservation(reservation);
+  }
+
+  takeover(
+    reservationId: string,
+    request: CellAdmissionTakeoverRequest,
+    now: Date
+  ): AdmissionReservation {
+    const timestamp = validNow(now);
+    const reservation = this.#requiredReservation(reservationId);
+    safeId(request.owner_node_id);
+    let nextOwner: ReturnType<typeof splitOwnerEpoch>;
+    try {
+      splitOwnerEpoch(request.expected_owner_epoch);
+      nextOwner = splitOwnerEpoch(request.owner_epoch);
+    } catch {
+      throw new PlacementError({
+        code: 'owner_epoch_invalid',
+        status: 400
+      });
+    }
+    if (reservation.owner_epoch === request.owner_epoch &&
+        reservation.owner_node_id === request.owner_node_id) {
+      return publicReservation(reservation);
+    }
+    const expectedComparison = compareOwnerEpoch(
+      request.expected_owner_epoch,
+      reservation.owner_epoch
+    );
+    if (expectedComparison !== 0) {
+      throw new PlacementError({
+        code: expectedComparison < 0
+          ? 'stale_owner_epoch'
+          : 'owner_epoch_ahead',
+        status: 409,
+        retryable: expectedComparison > 0
+      });
+    }
+    if (reservation.state !== 'active') {
+      throw new PlacementError({
+        code: 'reservation_takeover_invalid_state',
+        status: 409
+      });
+    }
+    if (compareOwnerEpoch(request.owner_epoch, reservation.owner_epoch) <= 0 ||
+        nextOwner.cell_lease_epoch !== this.#config.cell_lease_epoch) {
+      throw new PlacementError({
+        code: 'reservation_takeover_epoch_invalid',
+        status: 409
+      });
+    }
+    if (request.owner_node_id !== reservation.owner_node_id) {
+      throw new PlacementError({
+        code: 'cross_node_takeover_transfer_fence_required',
+        status: 409
+      });
+    }
+    const nextNode = this.#requiredNode(request.owner_node_id);
+    if ((nextNode.state !== 'accepting' && nextNode.state !== 'degraded') ||
+        !nextNode.profile_ids.includes(reservation.profile_id) ||
+        !nextNode.interaction_kinds.includes(reservation.interaction_kind)) {
+      throw new PlacementError({
+        code: 'owner_node_unavailable',
+        status: 503,
+        retryable: true
+      });
+    }
+    reservation.owner_node_id = nextNode.node_id;
+    reservation.owner_epoch = request.owner_epoch;
+    reservation.endpoint = nextNode.endpoint;
+    reservation.updated_at = new Date(timestamp).toISOString();
+    this.#localSequence = Math.max(
+      this.#localSequence,
+      nextOwner.cell_local_sequence
+    );
     return publicReservation(reservation);
   }
 

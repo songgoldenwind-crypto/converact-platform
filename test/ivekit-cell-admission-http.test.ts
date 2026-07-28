@@ -108,6 +108,11 @@ test('Cell admission HTTP reserves idempotently and exposes lifecycle operations
   });
 
   const first = await client.reserve(reservationRequest());
+  const state = await client.state();
+  assert.equal(
+    state.capacity_sequence,
+    controller.snapshot().capacity_sequence
+  );
   const replay = await client.reserve({
     ...reservationRequest(),
     request_id: 'request-retry'
@@ -156,6 +161,54 @@ test('Cell admission HTTP persists every acknowledged reservation transition', a
     `${reserved.reservation_id}:reserved`,
     `${reserved.reservation_id}:active`,
     `${reserved.reservation_id}:closed`
+  ]);
+});
+
+test('Cell admission HTTP persists and replays an owner takeover', async (t) => {
+  const controller = fixture();
+  const persisted: string[] = [];
+  const server = createCellAdmissionHttpServer({
+    controller,
+    service_token: token,
+    region_id: 'region-a',
+    zone_id: 'zone-a',
+    cell_id: 'cell-a',
+    cell_lease_epoch: 3,
+    persistence: {
+      async persist(checkpoint) {
+        persisted.push(`${checkpoint.state}:${checkpoint.owner_epoch}`);
+      }
+    }
+  });
+  const port = await listenOrSkip(t, server);
+  if (port === null) return;
+  const client = new HttpCellAdmissionClient({
+    endpoint: `http://127.0.0.1:${port}`,
+    service_token: token,
+    timeout_ms: 1_000
+  });
+  const reserved = await client.reserve(reservationRequest());
+  const active = await client.activate(reserved.reservation_id);
+  const nextEpoch = (BigInt(active.owner_epoch) + 1n).toString();
+  const input = {
+    expected_owner_epoch: active.owner_epoch,
+    owner_epoch: nextEpoch,
+    owner_node_id: active.owner_node_id
+  };
+
+  const takenOver = await client.takeover(active.reservation_id, input);
+  const replay = await client.takeover(active.reservation_id, input);
+  const closed = await client.close(active.reservation_id);
+
+  assert.equal(takenOver.owner_epoch, nextEpoch);
+  assert.equal(replay.owner_epoch, nextEpoch);
+  assert.equal(closed.owner_epoch, nextEpoch);
+  assert.deepEqual(persisted, [
+    `reserved:${reserved.owner_epoch}`,
+    `active:${active.owner_epoch}`,
+    `active:${nextEpoch}`,
+    `active:${nextEpoch}`,
+    `closed:${nextEpoch}`
   ]);
 });
 
