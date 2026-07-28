@@ -65,8 +65,8 @@
     },
     "required_patch_ids": {
       "type": "array",
-      "minItems": 5,
-      "maxItems": 5,
+      "minItems": 6,
+      "maxItems": 6,
       "uniqueItems": true,
       "prefixItems": [
         {
@@ -83,6 +83,9 @@
         },
         {
           "const": "rustpbx-ivekit-dual-leg-cdr-v1"
+        },
+        {
+          "const": "rustpbx-ivekit-cdr-mtls-noop-v1"
         }
       ],
       "items": false

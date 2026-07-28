@@ -18,7 +18,7 @@ test('RustPBX media-control client patch is ordered and exact-source applicable'
     build,
     /rustpbx-ivekit-http-client-capacity\.patch"[\s\S]*rustpbx-ivekit-media-control-client\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.32"/);
+  assert.match(build, /PATCHSET="ivekit\.33"/);
   assert.match(patch, /pub mod ivekit_media_control/);
   assert.match(patch, /src\/ivekit_media_control\.rs/);
   assert.match(patch, /ivekit\.media-control\.v1/);
@@ -81,7 +81,7 @@ test('RustPBX media-control client preserves command and uncertainty semantics',
   );
 });
 
-test('RustPBX deployment references advance atomically to ivekit.32', () => {
+test('RustPBX deployment references advance atomically to ivekit.33', () => {
   for (const path of [
     'infra/env.example',
     'infra/ivekit/env.example',
@@ -89,7 +89,7 @@ test('RustPBX deployment references advance atomically to ivekit.32', () => {
   ]) {
     assert.match(
       readFileSync(path, 'utf8'),
-      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.32-6c49ee76/,
+      /RUSTPBX_IMAGE=ivekit\/rustpbx:0\.4\.11-ivekit\.33-6c49ee76/,
       path
     );
   }
@@ -107,7 +107,7 @@ test('RustPBX media tracing patch follows dual-leg CDR and is exact-source appli
   );
   assert.match(
     build,
-    /rustpbx-ivekit-dual-leg-cdr\.patch"[\s\S]*rustpbx-ivekit-media-tracing\.patch"/
+    /rustpbx-ivekit-dual-leg-cdr\.patch"[\s\S]*rustpbx-ivekit-cdr-mtls-noop\.patch"[\s\S]*rustpbx-ivekit-media-tracing\.patch"/
   );
   assert.match(tracingPatch, /trace_sample_ratio/);
   assert.match(tracingPatch, /traceparent/);

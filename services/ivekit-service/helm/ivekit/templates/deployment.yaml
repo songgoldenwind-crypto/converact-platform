@@ -8,6 +8,7 @@
 {{- end }}
 {{- if .Values.voice.enabled }}
 {{- required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId }}
+{{- required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
 {{- end }}
 apiVersion: apps/v1
 kind: Deployment
@@ -140,6 +141,11 @@ spec:
             - name: http
               containerPort: 3000
               protocol: TCP
+            {{- if .Values.voice.enabled }}
+            - name: internal-tls
+              containerPort: 3443
+              protocol: TCP
+            {{- end }}
             {{- if .Values.realtimeAudioTap.enabled }}
             - name: audio-tap
               containerPort: {{ .Values.realtimeAudioTap.listenPort }}
@@ -155,6 +161,16 @@ spec:
               value: production
             - name: PORT
               value: "3000"
+            {{- if .Values.voice.enabled }}
+            - name: OPC_IVEKIT_INTERNAL_TLS_PORT
+              value: "3443"
+            - name: OPC_IVEKIT_INTERNAL_TLS_KEY_FILE
+              value: /run/ivekit-cdr-tls/server.key
+            - name: OPC_IVEKIT_INTERNAL_TLS_CERT_FILE
+              value: /run/ivekit-cdr-tls/server.crt
+            - name: OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE
+              value: /run/ivekit-cdr-tls/ca.crt
+            {{- end }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -432,6 +448,11 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.voice.enabled }}
+            - name: ivekit-cdr-tls
+              mountPath: /run/ivekit-cdr-tls
+              readOnly: true
+            {{- end }}
             {{- if .Values.placement.enabled }}
             - name: placement-snapshot
               mountPath: /run/ivekit-placement
@@ -440,6 +461,19 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if .Values.voice.enabled }}
+        - name: ivekit-cdr-tls
+          secret:
+            secretName: {{ required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
+            defaultMode: 0400
+            items:
+              - key: {{ .Values.voice.cdr.tls.serverKeyKey }}
+                path: server.key
+              - key: {{ .Values.voice.cdr.tls.serverCertKey }}
+                path: server.crt
+              - key: {{ .Values.voice.cdr.tls.caKey }}
+                path: ca.crt
+        {{- end }}
         {{- if .Values.placement.enabled }}
         - name: placement-snapshot
           emptyDir:

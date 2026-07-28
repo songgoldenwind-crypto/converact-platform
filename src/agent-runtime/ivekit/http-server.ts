@@ -1,4 +1,12 @@
-import { createServer as createHttpServer, type Server } from 'node:http';
+import {
+  createServer as createHttpServer,
+  type RequestListener,
+  type Server
+} from 'node:http';
+import {
+  createServer as createHttpsServer,
+  type ServerOptions as HttpsServerOptions
+} from 'node:https';
 import { randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
@@ -108,6 +116,7 @@ export interface IveKitRouteAdapters {
 export interface IveKitHttpServerInput {
   db: unknown;
   pg: PgQueryable | null;
+  tls?: HttpsServerOptions;
   routes?: Partial<IveKitRouteAdapters>;
   mediaOptions?: RouteIveKitMediaApiOptions;
   chatOptions?: RouteIveKitChatApiOptions;
@@ -152,6 +161,10 @@ const allowedExactPaths = new Set([
 ]);
 
 export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
+  if (input.tls &&
+      (input.tls.requestCert !== true || input.tls.rejectUnauthorized !== true)) {
+    throw new Error('iveKit internal TLS must require an authorized client certificate');
+  }
   const routes: IveKitRouteAdapters = {
     media: input.routes?.media || routeIveKitMediaApi,
     chat: input.routes?.chat || routeIveKitChatApi,
@@ -174,7 +187,7 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
     placementProbe: input.placementReadinessProbe
   });
 
-  return createHttpServer(async (request, response) => {
+  const requestListener: RequestListener = async (request, response) => {
     const requestId = requestIdentifier(request.headers);
     response.setHeader('x-request-id', requestId);
     let requestPath = '/';
@@ -519,7 +532,10 @@ export function createIveKitHttpServer(input: IveKitHttpServerInput): Server {
         }
       });
     }
-  });
+  };
+  return input.tls
+    ? createHttpsServer(input.tls, requestListener)
+    : createHttpServer(requestListener);
 }
 
 async function releasePreparedMediaCallPlacement(

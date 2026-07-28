@@ -560,6 +560,12 @@ voice:
     regionId: ""
     endpoint: ""
     pollIntervalMs: "500"
+    tls:
+      secretName: ""
+      serverKeyKey: server.key
+      serverCertKey: server.crt
+      clientIdentityKey: client-identity.pem
+      caKey: ca.crt
   webphone:
     enabled: true
     publicWssUrl: ""

@@ -40,7 +40,6 @@ interface RustPbxRenderInput {
   rwi_token: string;
   webhook_token: string;
   router_url: string;
-  cdr_webhook_url: string;
   external_ip: string;
   sip_port: number;
   rtp_start_port: number;
@@ -143,10 +142,6 @@ function inputFromEnv(env: NodeJS.ProcessEnv): RustPbxRenderInput {
     rwi_token: rwiToken,
     webhook_token: webhookToken,
     router_url: internalHttpUrl(required(env, 'RUSTPBX_ROUTER_URL'), 'RUSTPBX_ROUTER_URL'),
-    cdr_webhook_url: internalHttpUrl(
-      required(env, 'RUSTPBX_CDR_WEBHOOK_URL'),
-      'RUSTPBX_CDR_WEBHOOK_URL'
-    ),
     external_ip: optionalIp(env.RUSTPBX_EXTERNAL_IP),
     sip_port: sipPort,
     rtp_start_port: rtpStartPort,
@@ -330,13 +325,11 @@ function renderConfig(input: RustPbxRenderInput): string {
     'scopes = ["call.control", "queue.control", "record.control", "supervisor.control", "media.stream"]',
     '',
     '[callrecord]',
-    'type = "http"',
+    'type = "noop"',
     `max_concurrent = ${input.call_record_max_concurrent}`,
     `channel_capacity = ${input.call_record_channel_capacity}`,
     `worker_threads = ${input.call_record_worker_threads}`,
     'persist_to_database = false',
-    `url = ${tomlString(input.cdr_webhook_url)}`,
-    `headers = { "X-PBX-Key" = ${tomlString(input.webhook_token)} }`,
     ''
   ].join('\n');
 }

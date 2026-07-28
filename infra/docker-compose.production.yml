@@ -236,7 +236,6 @@ services:
       RUSTPBX_RWI_TOKEN: ${RUSTPBX_RWI_TOKEN:?RUSTPBX_RWI_TOKEN is required}
       RUSTPBX_WEBHOOK_TOKEN: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       RUSTPBX_ROUTER_URL: http://opc:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/router
-      RUSTPBX_CDR_WEBHOOK_URL: http://opc:3000/api/ivekit/voice/providers/${RUSTPBX_PROFILE_ID:?RUSTPBX_PROFILE_ID is required}/cdrs
       RUSTPBX_EXTERNAL_IP: ${RUSTPBX_EXTERNAL_IP:-}
       RUSTPBX_SIP_PORT: "5060"
       RUSTPBX_RTP_START_PORT: "20000"
@@ -293,6 +292,7 @@ services:
     init: true
     restart: unless-stopped
     environment:
+      RUSTPBX_ENV: production
       RUSTRTC_UDP_RECEIVE_BUFFER_BYTES: ${RUSTRTC_UDP_RECEIVE_BUFFER_BYTES:-1048576}
       RUSTRTC_UDP_SEND_BUFFER_BYTES: ${RUSTRTC_UDP_SEND_BUFFER_BYTES:-524288}
       IVEKIT_RUSTPBX_ROUTE_SNAPSHOT_FILE: /app/route-snapshot/routes.json
@@ -305,6 +305,13 @@ services:
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_SERVICE_KEY: ${RUSTPBX_WEBHOOK_TOKEN:?RUSTPBX_WEBHOOK_TOKEN is required}
       IVEKIT_RUSTPBX_CELL_ID: ${RUSTPBX_CELL_ID:?RUSTPBX_CELL_ID is required}
       IVEKIT_RUSTPBX_OWNER_NODE_ID: ${RUSTPBX_OWNER_NODE_ID:?RUSTPBX_OWNER_NODE_ID is required}
+      IVEKIT_RUSTPBX_CDR_SPOOL_DIR: /app/storage/cdr-spool
+      IVEKIT_RUSTPBX_CDR_ENDPOINT: ${RUSTPBX_CDR_ENDPOINT:?RUSTPBX_CDR_ENDPOINT is required}
+      IVEKIT_RUSTPBX_CDR_REGION_ID: ${OPC_IVEKIT_CDR_REGION_ID:?OPC_IVEKIT_CDR_REGION_ID is required}
+      IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE: /run/secrets/rustpbx-cdr-service-key
+      IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE: /run/secrets/rustpbx-cdr-client-identity
+      IVEKIT_RUSTPBX_CDR_TLS_CA_FILE: /run/secrets/rustpbx-cdr-ca
+      IVEKIT_RUSTPBX_CDR_POLL_MS: ${RUSTPBX_CDR_POLL_MS:-500}
       IVEKIT_RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS: ${RUSTPBX_INBOUND_ADMISSION_TIMEOUT_MS:-250}
       IVEKIT_RUSTPBX_COMPONENT_NODE_ENABLED: ${RUSTPBX_COMPONENT_NODE_ENABLED:-false}
       IVEKIT_RUSTPBX_COMPONENT_NODE_URL: http://127.0.0.1:3210
@@ -324,6 +331,12 @@ services:
       - rustpbx-route-snapshot:/app/route-snapshot:ro
       - rustpbx-storage:/app/storage
       - realtime_audio_tap:/run/ivekit
+    secrets:
+      - rustpbx-cdr-service-key
+      - source: rustpbx-cdr-client-identity
+        target: rustpbx-cdr-client-identity
+        mode: 0400
+      - rustpbx-cdr-ca
     depends_on:
       rustpbx-postgres-bootstrap:
         condition: service_completed_successfully
@@ -434,8 +447,13 @@ services:
     expose:
       - "3000"
       - "3010"
+      - "3443"
     environment:
       PORT: "3000"
+      OPC_IVEKIT_INTERNAL_TLS_PORT: "3443"
+      OPC_IVEKIT_INTERNAL_TLS_KEY_FILE: /run/secrets/rustpbx-cdr-server-key
+      OPC_IVEKIT_INTERNAL_TLS_CERT_FILE: /run/secrets/rustpbx-cdr-server-cert
+      OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE: /run/secrets/rustpbx-cdr-ca
       DATABASE_URL: postgres://opc:${POSTGRES_PASSWORD}@pgbouncer:6432/opc
       REDIS_URL: redis://redis:6379
       NATS_URL: nats://nats:4222
@@ -673,6 +691,12 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       CHATWOOT_URL: http://chatwoot:3000
       CHATWOOT_API_TOKEN: ${CHATWOOT_API_TOKEN:-}
+    secrets:
+      - source: rustpbx-cdr-server-key
+        target: rustpbx-cdr-server-key
+        mode: 0400
+      - rustpbx-cdr-server-cert
+      - rustpbx-cdr-ca
     depends_on:
       pgbouncer:
         condition: service_healthy
@@ -768,3 +792,15 @@ volumes:
   rustpbx-storage:
   rustdesk_data:
   realtime_audio_tap:
+
+secrets:
+  rustpbx-cdr-service-key:
+    file: ${RUSTPBX_CDR_SERVICE_KEY_FILE:?RUSTPBX_CDR_SERVICE_KEY_FILE is required}
+  rustpbx-cdr-server-key:
+    file: ${RUSTPBX_CDR_SERVER_KEY_FILE:?RUSTPBX_CDR_SERVER_KEY_FILE is required}
+  rustpbx-cdr-server-cert:
+    file: ${RUSTPBX_CDR_SERVER_CERT_FILE:?RUSTPBX_CDR_SERVER_CERT_FILE is required}
+  rustpbx-cdr-client-identity:
+    file: ${RUSTPBX_CDR_CLIENT_IDENTITY_FILE:?RUSTPBX_CDR_CLIENT_IDENTITY_FILE is required}
+  rustpbx-cdr-ca:
+    file: ${RUSTPBX_CDR_CA_FILE:?RUSTPBX_CDR_CA_FILE is required}

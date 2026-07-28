@@ -1,5 +1,11 @@
 import { startIveKitApplication } from './agent-runtime/ivekit/application.js';
-import { createIveKitHttpServer } from './agent-runtime/ivekit/http-server.js';
+import {
+  createIveKitHttpServer,
+  type IveKitHttpServerInput
+} from './agent-runtime/ivekit/http-server.js';
+import {
+  loadIveKitInternalTlsConfig
+} from './agent-runtime/ivekit/internal-tls.js';
 import { createIveKitMediaHooks } from './agent-runtime/ivekit/media-hooks.js';
 import { createConfiguredPlacementFoundation } from './agent-runtime/ivekit/placement/index.js';
 import {
@@ -34,6 +40,7 @@ async function main(): Promise<void> {
   if (!process.env.DATABASE_URL && !process.env.PGHOST) {
     throw new Error('DATABASE_URL or PGHOST/PGDATABASE/PGUSER is required');
   }
+  const internalTls = loadIveKitInternalTlsConfig();
   createObjectStorage();
   const pg = await initPostgres();
   if (!pg) throw new Error('cannot connect to Postgres');
@@ -45,6 +52,7 @@ async function main(): Promise<void> {
   let realtimeAudioTap:
     ReturnType<typeof createConfiguredRealtimeAudioTapRuntime> | null = null;
   let server: ReturnType<typeof createIveKitHttpServer> | null = null;
+  let internalServer: ReturnType<typeof createIveKitHttpServer> | null = null;
   let shutdownPromise: Promise<void> | null = null;
 
   const shutdown = (): Promise<void> => {
@@ -54,6 +62,13 @@ async function main(): Promise<void> {
         if (server) {
           try {
             await closeHttpServer(server);
+          } catch (error) {
+            errors.push(error);
+          }
+        }
+        if (internalServer) {
+          try {
+            await closeHttpServer(internalServer);
           } catch (error) {
             errors.push(error);
           }
@@ -122,7 +137,7 @@ async function main(): Promise<void> {
       projection: application.realtimeSpeechProjection
     });
     await realtimeAudioTap.start();
-    server = createIveKitHttpServer({
+    const serverInput: IveKitHttpServerInput = {
       db,
       pg,
       mediaOptions: {
@@ -156,13 +171,27 @@ async function main(): Promise<void> {
         } : {})
       },
       placementReadinessProbe: placement?.runtime
-    });
+    };
+    server = createIveKitHttpServer(serverInput);
     initWebSocket(server, iveKitEventReplayEnabled()
       ? { eventStore: new IveKitTenantEventStore(pg) }
       : {});
     const port = Number(process.env.PORT || 3000);
+    if (internalTls?.port === port) {
+      throw new Error('OPC_IVEKIT_INTERNAL_TLS_PORT must differ from PORT');
+    }
     await listenHttpServer(server, port);
     console.log(`iveKit communication platform running at http://localhost:${port}`);
+    if (internalTls) {
+      internalServer = createIveKitHttpServer({
+        ...serverInput,
+        tls: internalTls.tls
+      });
+      await listenHttpServer(internalServer, internalTls.port);
+      console.log(
+        `iveKit internal mTLS endpoint running at https://localhost:${internalTls.port}`
+      );
+    }
   } catch (error) {
     await shutdown().catch((shutdownError) => {
       throw new AggregateError(

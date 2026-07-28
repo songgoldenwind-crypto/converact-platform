@@ -331,8 +331,6 @@ spec:
             {{- end }}
             - name: RUSTPBX_ROUTER_URL
               value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/router" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
-            - name: RUSTPBX_CDR_WEBHOOK_URL
-              value: {{ printf "http://%s:%v/api/ivekit/voice/providers/%s/cdrs" (include "ivekit.fullname" .) .Values.service.port $profileId | quote }}
             - name: RUSTPBX_EXTERNAL_IP
               {{- if .Values.voice.externalIp }}
               value: {{ .Values.voice.externalIp | quote }}
@@ -871,6 +869,10 @@ spec:
               value: {{ .Values.voice.cdr.regionId | quote }}
             - name: IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE
               value: /run/cdr-secrets/service-key
+            - name: IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE
+              value: /run/cdr-secrets/client-identity.pem
+            - name: IVEKIT_RUSTPBX_CDR_TLS_CA_FILE
+              value: /run/cdr-secrets/ca.crt
             - name: IVEKIT_RUSTPBX_CDR_POLL_MS
               value: {{ .Values.voice.cdr.pollIntervalMs | quote }}
             - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED
@@ -1029,6 +1031,13 @@ spec:
                   items:
                     - key: {{ .Values.voice.webhookTokenKey }}
                       path: service-key
+              - secret:
+                  name: {{ required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
+                  items:
+                    - key: {{ .Values.voice.cdr.tls.clientIdentityKey }}
+                      path: client-identity.pem
+                    - key: {{ .Values.voice.cdr.tls.caKey }}
+                      path: ca.crt
         {{- if .Values.voice.mediaControl.enabled }}
         - name: media-control-secrets
           projected:

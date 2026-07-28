@@ -185,6 +185,14 @@ test('RustPBX renderer emits a usable config and a secret-free summary', () => {
   assert.match(rendered.config, /channel_capacity = 65536/);
   assert.match(rendered.config, /worker_threads = 1/);
   assert.match(rendered.config, /persist_to_database = false/);
+  assert.match(
+    rendered.config,
+    /\[callrecord\]\s*\ntype = "noop"/
+  );
+  assert.doesNotMatch(
+    rendered.config,
+    /\[callrecord\][\s\S]*X-PBX-Key/
+  );
   assert.match(rendered.config, /\[\[proxy\.user_backends\]\]\s*\ntype = "extension"\s*\nttl = 30/);
   assert.match(rendered.config, /ws_handler = "\/ws"/);
   assert.match(rendered.config, /\[proxy\.jwt_auth\]/);

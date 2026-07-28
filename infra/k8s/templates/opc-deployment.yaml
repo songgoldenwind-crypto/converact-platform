@@ -8,6 +8,7 @@
 {{- end }}
 {{- if .Values.voice.enabled }}
 {{- required "voice.cdr.regionId is required when voice is enabled" .Values.voice.cdr.regionId }}
+{{- required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
 {{- end }}
 {{- if .Values.media.realtimeAudioTap.enabled }}
 {{- if or (lt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 1) (gt (int .Values.media.realtimeAudioTap.projectionQueueMaxItems) 100000) }}
@@ -45,6 +46,11 @@ spec:
             - name: http
               containerPort: 3000
               protocol: TCP
+            {{- if .Values.voice.enabled }}
+            - name: internal-tls
+              containerPort: 3443
+              protocol: TCP
+            {{- end }}
             {{- if .Values.media.realtimeAudioTap.enabled }}
             - name: audio-tap
               containerPort: {{ .Values.media.realtimeAudioTap.listenPort }}
@@ -53,6 +59,16 @@ spec:
           env:
             - name: PORT
               value: "3000"
+            {{- if .Values.voice.enabled }}
+            - name: OPC_IVEKIT_INTERNAL_TLS_PORT
+              value: "3443"
+            - name: OPC_IVEKIT_INTERNAL_TLS_KEY_FILE
+              value: /run/ivekit-cdr-tls/server.key
+            - name: OPC_IVEKIT_INTERNAL_TLS_CERT_FILE
+              value: /run/ivekit-cdr-tls/server.crt
+            - name: OPC_IVEKIT_INTERNAL_TLS_CLIENT_CA_FILE
+              value: /run/ivekit-cdr-tls/ca.crt
+            {{- end }}
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -626,8 +642,13 @@ spec:
             {{ include "opc.objectStorageEnv" . | nindent 12 }}
           resources:
             {{- toYaml .Values.opc.resources | nindent 12 }}
-          {{ if or .Values.rustdesk.enabled (and .Values.nats.enabled .Values.nats.tls.enabled) .Values.livekit.redis.tls.enabled .Values.media.realtimeAudioTap.enabled }}
+          {{ if or .Values.voice.enabled .Values.rustdesk.enabled (and .Values.nats.enabled .Values.nats.tls.enabled) .Values.livekit.redis.tls.enabled .Values.media.realtimeAudioTap.enabled }}
           volumeMounts:
+          {{ if .Values.voice.enabled }}
+            - name: ivekit-cdr-tls
+              mountPath: /run/ivekit-cdr-tls
+              readOnly: true
+          {{ end }}
           {{ if .Values.rustdesk.enabled }}
             - name: rustdesk-data
               mountPath: /rustdesk
@@ -652,8 +673,21 @@ spec:
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10
-      {{ if or .Values.rustdesk.enabled (and .Values.nats.enabled .Values.nats.tls.enabled) .Values.livekit.redis.tls.enabled .Values.media.realtimeAudioTap.enabled }}
+      {{ if or .Values.voice.enabled .Values.rustdesk.enabled (and .Values.nats.enabled .Values.nats.tls.enabled) .Values.livekit.redis.tls.enabled .Values.media.realtimeAudioTap.enabled }}
       volumes:
+      {{ if .Values.voice.enabled }}
+        - name: ivekit-cdr-tls
+          secret:
+            secretName: {{ required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
+            defaultMode: 0400
+            items:
+              - key: {{ .Values.voice.cdr.tls.serverKeyKey }}
+                path: server.key
+              - key: {{ .Values.voice.cdr.tls.serverCertKey }}
+                path: server.crt
+              - key: {{ .Values.voice.cdr.tls.caKey }}
+                path: ca.crt
+      {{ end }}
       {{ if .Values.rustdesk.enabled }}
         - name: rustdesk-data
           persistentVolumeClaim:
@@ -677,6 +711,11 @@ spec:
     - name: http
       port: {{ .Values.opc.service.port }}
       targetPort: http
+    {{- if .Values.voice.enabled }}
+    - name: internal-tls
+      port: 3443
+      targetPort: internal-tls
+    {{- end }}
     {{- if .Values.media.realtimeAudioTap.enabled }}
     - name: audio-tap
       port: {{ .Values.media.realtimeAudioTap.listenPort }}

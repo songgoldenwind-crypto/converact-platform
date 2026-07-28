@@ -15,6 +15,12 @@ spec:
       port: {{ .Values.service.port }}
       targetPort: http
       protocol: TCP
+    {{- if .Values.voice.enabled }}
+    - name: internal-tls
+      port: 3443
+      targetPort: internal-tls
+      protocol: TCP
+    {{- end }}
     {{- if .Values.realtimeAudioTap.enabled }}
     - name: audio-tap
       port: {{ .Values.realtimeAudioTap.listenPort }}

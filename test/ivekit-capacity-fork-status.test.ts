@@ -184,11 +184,11 @@ test('HOMER fork status records controlled PostgreSQL/HEP evidence without claim
   );
 });
 
-test('RustPBX fork manifest tracks the complete ivekit.32 patch queue', () => {
+test('RustPBX fork manifest tracks the complete ivekit.33 patch queue', () => {
   const rustpbx = manifest.components.find((component) => component.component_id === 'rustpbx');
   assert.ok(rustpbx);
 
-  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.32-6c49ee76';
+  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.33-6c49ee76';
   assert.equal(rustpbx.runtime_artifact.reference, expectedReference);
   for (const path of [
     'infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch',
@@ -203,6 +203,7 @@ test('RustPBX fork manifest tracks the complete ivekit.32 patch queue', () => {
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-shadow.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch'
   ]) {
@@ -221,6 +222,7 @@ test('RustPBX fork manifest tracks the complete ivekit.32 patch queue', () => {
     'rustpbx-dialog-shadow-quorum-v1',
     'rustpbx-dialog-owner-takeover-v1',
     'rustpbx-dual-leg-cdr-v1',
+    'rustpbx-cdr-mtls-noop-v1',
     'rustpbx-media-tracing-v1',
     'rustpbx-inbound-admission-response-contract-v1'
   ]) {

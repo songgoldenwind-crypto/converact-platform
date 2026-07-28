@@ -918,6 +918,10 @@ spec:
               value: {{ .Values.voice.cdr.regionId | quote }}
             - name: IVEKIT_RUSTPBX_CDR_SERVICE_KEY_FILE
               value: /run/cdr-secrets/service-key
+            - name: IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE
+              value: /run/cdr-secrets/client-identity.pem
+            - name: IVEKIT_RUSTPBX_CDR_TLS_CA_FILE
+              value: /run/cdr-secrets/ca.crt
             - name: IVEKIT_RUSTPBX_CDR_POLL_MS
               value: {{ .Values.voice.cdr.pollIntervalMs | quote }}
             - name: IVEKIT_RUSTPBX_RECORDING_SPOOL_ENABLED
@@ -1064,20 +1068,27 @@ spec:
         - name: config
           secret:
             secretName: {{ .Release.Name }}-rustpbx-config
-            defaultMode: 0400
+            defaultMode: 0440
         - name: generated
           emptyDir: {}
         - name: route-snapshot
           emptyDir: {}
         - name: cdr-secrets
           projected:
-            defaultMode: 0440
+            defaultMode: 0400
             sources:
               - secret:
                   name: {{ .Release.Name }}-secrets
                   items:
                     - key: rustpbx-webhook-token
                       path: service-key
+              - secret:
+                  name: {{ required "voice.cdr.tls.secretName is required when voice is enabled" .Values.voice.cdr.tls.secretName }}
+                  items:
+                    - key: {{ .Values.voice.cdr.tls.clientIdentityKey }}
+                      path: client-identity.pem
+                    - key: {{ .Values.voice.cdr.tls.caKey }}
+                      path: ca.crt
         {{- if .Values.voice.mediaControl.enabled }}
         - name: media-control-secrets
           projected:

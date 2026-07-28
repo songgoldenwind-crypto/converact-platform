@@ -301,7 +301,8 @@ function acceptance(
         'rustpbx-ivekit-media-lifecycle-v1',
         'rustpbx-ivekit-dialog-shadow-v1',
         'rustpbx-ivekit-dialog-recovery-v1',
-        'rustpbx-ivekit-dual-leg-cdr-v1'
+        'rustpbx-ivekit-dual-leg-cdr-v1',
+        'rustpbx-ivekit-cdr-mtls-noop-v1'
       ],
       rustpbx_patch_set_sha256: '1'.repeat(64),
       rtpengine_patch_set_sha256: '2'.repeat(64),
