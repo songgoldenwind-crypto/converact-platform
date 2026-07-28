@@ -53,10 +53,10 @@ runtime。替换结论、exact source 和提取边界见
 | `services/voice-media-rs/src/session.rs` | owner-fenced processing session 状态机 |
 | `services/voice-media-rs/src/rtp.rs` | RTP/RTCP、RFC 4733、PCM 注入和 packet processor |
 | `services/voice-media-rs/src/worker.rs` | 固定 mio worker、UDP socket、IVR timer 和有界事件队列 |
-| `services/voice-media-rs/src/http.rs` | mTLS control API、health 和 metrics |
+| `services/voice-media-rs/src/http.rs` | 有界认证 control API、health、readiness 和 metrics |
 | `src/agent-runtime/ivekit/media-control/processing.ts` | processing transport client |
 | `src/agent-runtime/ivekit/media-control/router.ts` | fast-path/processing profile 路由 |
-| `infra/ivekit/media-processing/*` | 可重复镜像和运行配置 |
+| `infra/ivekit/voice-media/*` | 可重复镜像和运行配置 |
 | `test/ivekit-voice-media-goal4-*.test.ts` | 合同、集成、部署和 finalizer 门禁 |
 
 ## 3. Task 1：冻结 Goal 4 合同
@@ -150,6 +150,14 @@ runtime。替换结论、exact source 和提取边界见
   和 update，将 SDP 目的地址作为 early-media hint，并在对端发包后切换到验证过的
   symmetric RTP source；会话端口、codec slot、worker 安装及 owner-fenced 状态以
   事务方式提交，bind/control 失败时完整回滚。
+- [x] `main.rs` 已接入 Tokio/Axum 服务，暴露 processing command、reconcile、query、
+  health、readiness 和低基数 Prometheus metrics；阻塞运行时操作统一进入有界
+  `spawn_blocking` 控制路径。
+- [x] 控制面强制请求体上限和 fail-fast inflight semaphore；Bearer 与可信代理注入的
+  client identity 可同时校验，超大请求保留 `413`，错误配置在绑定端口前 fail closed。
+- [ ] client identity header 不是原生 mTLS；Task 6 必须由受信 sidecar/mesh 完成
+  TLS 客户端证书校验并剥离外部同名 header，或为服务增加原生 Rustls，完成前不得声明
+  end-to-end mTLS。
 - [x] processing command 保存有界历史 effective SDP，并提供
   `command_id + owner_epoch + command_hash` reconcile；prepared 超时先删除 worker
   再归还端口/slot，terminal retention 到期后再清理运行时状态。
@@ -163,11 +171,13 @@ runtime。替换结论、exact source 和提取边界见
 
 ## 7. Task 5：media-control 与 RustPBX 接入
 
-- [ ] `processing.ts` 实现 bounded HTTP/mTLS client，禁止 redirect、压缩响应和无限 body。
-- [ ] `router.ts` 仅按冻结 profile 路由：
-  `VOICE-ORDINARY -> RTPengine`，
+- [x] `processing.ts` 实现 bounded HTTP client，禁止 redirect、压缩响应和无限 body；
+  Bearer 与受信 sidecar 注入的 client identity 可同时校验，原生 mTLS 仍归 Task 6。
+- [x] `router.ts` 仅按冻结 media profile 路由：
+  `g711-relay-v1 -> RTPengine`，
   `VOICE-IVR-G711-OPUS-V1 -> processing pool`。
-- [ ] 同 reservation 的全部后续命令固定到同一 transport，禁止 update 时换执行器。
+- [x] 同 reservation 的全部后续命令固定到同一 transport，禁止 update 时换执行器；
+  重启后同时探测两个 transport，双侧同时认领时 fail closed。
 - [ ] 将 worker 内已完成的 terminal-event reliable outbox 接到 media-control durable
   handoff，并提供 query/reconcile；worker telemetry queue 满可以丢统计事件，但
   playback/gather 完成事件不得在进程边界永久丢失。
@@ -178,12 +188,15 @@ runtime。替换结论、exact source 和提取边界见
 
 ## 8. Task 6：部署、指标和过载保护
 
-- [ ] 新增可重复 processing image，固定 Rust、rustrtc、audio-codec 和 lockfile identity。
-- [ ] Compose/Helm 使用独立 workload、ServiceAccount、mTLS Secret、PDB、
+- [x] 新增可重复 processing image，固定 Rust toolchain、依赖 lockfile 和运行镜像 digest。
+- [ ] Compose/Helm 已接入独立 processing 容器/sidecar、独立 UDP 端口范围、只读文件系统、
+  非 root、资源上限和探针；仍需补齐独立 workload、ServiceAccount、原生 mTLS Secret、PDB、
   anti-affinity、topology spread、hostNetwork 可选项和 CPU/NUMA 资源。
-- [ ] readiness 同时要求 port budget、codec registry 和 control identity；
+- [ ] readiness 已要求 worker 与 RTP port budget；仍需加入 codec registry、control identity，
   drain 先将路由权重归零，再拒绝 prepare，最后等待 active sessions。
-- [ ] 指标至少包含 pair slots、processing seconds、jitter depth、reorder、duplicate、
+- [ ] 已暴露 active/retained sessions、RTP packet、datagram retention、queue drop、
+  control rejection 和 port budget；仍需补齐 pair slots、processing seconds、
+  jitter depth、reorder、duplicate、
   late、conceal、queue drop、RTP/RTCP、active sessions 和 drain。
 - [ ] 告警区分 capacity exhausted、packet backlog、processing P99、持续 PLC、
   one-way/no-media 和 worker stall。
@@ -222,11 +235,17 @@ runtime。替换结论、exact source 和提取边界见
 
 1. Task 1–3 已完成：机器合同、G.711/Opus 内核和 owner-fenced processing session
    均有自动化门禁。
-2. Task 4 的 core-library 切片已完成固定 RTP worker、PCMU/PCMA/Opus wire path、
+2. Task 4 的 runtime/HTTP 切片已完成固定 RTP worker、PCMU/PCMA/Opus wire path、
    RFC 4733、IVR pure/worker 状态机、有界 terminal-event outbox、datagram-retention
-   admission、事务化 `ProcessingRuntime`、结构化 SDP 和 command reconcile；它尚未
-   接入 `main.rs`/HTTP control API，不能按生产服务声明完成。
-3. Task 4 的本地结构与行为测试边界已补齐；steady-state allocation、per-leg RTCP 指标、
-   SIP INFO 到 RustPBX 以及 durable event handoff 分别归入 Task 6、Task 5。
-4. Task 5–9、真实服务器媒体/质量/容量证据仍未完成，合同继续保持 `not_run`，
+   admission、事务化 `ProcessingRuntime`、结构化 SDP、command reconcile 及
+   Tokio/Axum control service。HTTP 契约覆盖双凭据、body limit、readiness、聚合指标
+   和规范化 hash/decimal；完整 Rust 回归与严格 Clippy 已通过。
+3. Task 5 已完成 bounded processing transport、`g711-relay-v1`/processing profile
+   混合路由、reservation transport 粘滞、双 transport 重启探测、公平 orphan scan
+   和 owner-fenced release context。RustPBX 逐会话 processing profile/codec 注入、
+   SIP INFO、SIP 503 映射及 terminal-event durable handoff 仍未完成。
+4. Task 6 已完成可重复 processing image、Compose 同网络命名空间部署、Helm sidecar
+   骨架、独立 UDP 端口边界和基础 readiness/metrics。原生或 mesh mTLS、完整 drain、
+   K8s workload 隔离、全量媒体指标和告警仍未完成。
+5. Task 7–9、真实服务器媒体/质量/容量证据仍未完成，合同继续保持 `not_run`，
    不声明生产容量。

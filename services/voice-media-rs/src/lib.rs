@@ -2,6 +2,7 @@ pub mod capacity;
 pub mod codec;
 pub mod datagram_pool;
 pub mod frame;
+pub mod http;
 pub mod ivr;
 pub mod jitter;
 pub mod pipeline;

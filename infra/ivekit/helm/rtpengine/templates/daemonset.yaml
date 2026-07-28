@@ -16,6 +16,18 @@
 {{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.mediaControl.image.digest) }}
 {{- fail "mediaControl.image.digest must be an immutable sha256 digest" }}
 {{- end }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.voiceMedia.image.digest) }}
+{{- fail "voiceMedia.image.digest must be an immutable sha256 digest" }}
+{{- end }}
+{{- if or (lt (int .Values.voiceMedia.mediaPorts.minimum) 1024) (ge (int .Values.voiceMedia.mediaPorts.minimum) (int .Values.voiceMedia.mediaPorts.maximum)) (gt (int .Values.voiceMedia.mediaPorts.maximum) 65535) (ne (mod (int .Values.voiceMedia.mediaPorts.minimum) 2) 0) (ne (mod (int .Values.voiceMedia.mediaPorts.maximum) 2) 0) }}
+{{- fail "voiceMedia.mediaPorts must be a bounded even UDP pair range" }}
+{{- end }}
+{{- if and (le (int .Values.voiceMedia.mediaPorts.minimum) (int .Values.rtpengine.mediaPorts.maximum)) (ge (int .Values.voiceMedia.mediaPorts.maximum) (int .Values.rtpengine.mediaPorts.minimum)) }}
+{{- fail "voiceMedia.mediaPorts must not overlap rtpengine.mediaPorts" }}
+{{- end }}
+{{- if gt (int .Values.voiceMedia.maxDrainPerDatagram) (int .Values.voiceMedia.jitterCapacity) }}
+{{- fail "voiceMedia.maxDrainPerDatagram must not exceed jitterCapacity" }}
+{{- end }}
 {{- if not (regexMatch "^(0(\\.[0-9]+)?|1(\\.0+)?)$" .Values.mediaControl.telemetry.sampleRatio) }}
 {{- fail "mediaControl.telemetry.sampleRatio must be between 0 and 1" }}
 {{- end }}
@@ -127,6 +139,84 @@ spec:
               mountPath: /lib/modules
               readOnly: true
 {{- end }}
+        - name: voice-media
+          image: "{{ .Values.voiceMedia.image.repository }}@{{ .Values.voiceMedia.image.digest }}"
+          imagePullPolicy: {{ .Values.voiceMedia.image.pullPolicy }}
+          env:
+            - name: VOICE_MEDIA_LISTEN
+              value: 127.0.0.1:8093
+            - name: VOICE_MEDIA_API_TOKEN_FILE
+              value: /run/secrets/voice-media-processing-token
+            - name: VOICE_MEDIA_CLIENT_IDENTITY
+              value: {{ .Values.voiceMedia.clientIdentity | quote }}
+            - name: VOICE_MEDIA_RTP_BIND_IP
+              value: 0.0.0.0
+            - name: VOICE_MEDIA_RTP_ADVERTISED_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
+            - name: VOICE_MEDIA_RTP_PORT_START
+              value: {{ .Values.voiceMedia.mediaPorts.minimum | quote }}
+            - name: VOICE_MEDIA_RTP_PORT_END
+              value: {{ .Values.voiceMedia.mediaPorts.maximum | quote }}
+            - name: VOICE_MEDIA_WORKER_THREADS
+              value: {{ .Values.voiceMedia.workerThreads | quote }}
+            - name: VOICE_MEDIA_MAX_SESSIONS
+              value: {{ .Values.voiceMedia.maxSessions | quote }}
+            - name: VOICE_MEDIA_CODEC_PAIR_CAPACITY
+              value: {{ .Values.voiceMedia.codecPairCapacity | quote }}
+            - name: VOICE_MEDIA_SESSION_SHARDS
+              value: {{ .Values.voiceMedia.sessionShards | quote }}
+            - name: VOICE_MEDIA_MAX_INFLIGHT_CONTROL
+              value: {{ .Values.voiceMedia.maxInflightControl | quote }}
+            - name: VOICE_MEDIA_COMMAND_HISTORY_PER_SESSION
+              value: {{ .Values.voiceMedia.commandHistoryPerSession | quote }}
+            - name: VOICE_MEDIA_TERMINAL_RETENTION_MS
+              value: {{ .Values.voiceMedia.terminalRetentionMs | quote }}
+            - name: VOICE_MEDIA_SWEEP_INTERVAL_MS
+              value: {{ .Values.voiceMedia.sweepIntervalMs | quote }}
+            - name: VOICE_MEDIA_SWEEP_LIMIT
+              value: {{ .Values.voiceMedia.sweepLimit | quote }}
+            - name: VOICE_MEDIA_JITTER_CAPACITY
+              value: {{ .Values.voiceMedia.jitterCapacity | quote }}
+            - name: VOICE_MEDIA_MAX_DRAIN_PER_DATAGRAM
+              value: {{ .Values.voiceMedia.maxDrainPerDatagram | quote }}
+          ports:
+            - name: voice-media
+              containerPort: 8093
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /health
+              port: voice-media
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /ready
+              port: voice-media
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+{{ toYaml .Values.voiceMedia.resources | indent 12 }}
+          volumeMounts:
+            - name: media-control-secret
+              mountPath: /run/secrets
+              readOnly: true
         - name: media-control
           image: "{{ .Values.mediaControl.image.repository }}@{{ .Values.mediaControl.image.digest }}"
           imagePullPolicy: {{ .Values.mediaControl.image.pullPolicy }}
@@ -136,7 +226,7 @@ spec:
             - name: IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS
               value: "true"
             - name: IVEKIT_MEDIA_CONTROL_TRANSPORT
-              value: rtpengine
+              value: hybrid
             - name: IVEKIT_MEDIA_CONTROL_HOST
               value: {{ .Values.mediaControl.host | quote }}
             - name: IVEKIT_MEDIA_CONTROL_PORT
@@ -181,6 +271,20 @@ spec:
               value: {{ .Values.mediaControl.orphanBatchSize | quote }}
             - name: IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS
               value: {{ .Values.mediaControl.orphanSweepIntervalMs | quote }}
+            - name: IVEKIT_MEDIA_CONTROL_TRANSPORT_MAX_BINDINGS
+              value: {{ .Values.mediaControl.maxTransportBindings | quote }}
+            - name: IVEKIT_PROCESSING_MEDIA_ENDPOINT
+              value: http://127.0.0.1:8093
+            - name: IVEKIT_PROCESSING_MEDIA_TOKEN_FILE
+              value: /run/secrets/voice-media-processing-token
+            - name: IVEKIT_PROCESSING_MEDIA_CLIENT_IDENTITY
+              value: {{ .Values.voiceMedia.clientIdentity | quote }}
+            - name: IVEKIT_PROCESSING_MEDIA_TIMEOUT_MS
+              value: {{ .Values.mediaControl.processing.requestTimeoutMs | quote }}
+            - name: IVEKIT_PROCESSING_MEDIA_MAX_RESPONSE_BYTES
+              value: {{ .Values.mediaControl.processing.maxResponseBytes | quote }}
+            - name: IVEKIT_PROCESSING_MEDIA_MAX_RELEASE_CONTEXTS
+              value: {{ .Values.mediaControl.processing.maxReleaseContexts | quote }}
             - name: OPC_OTEL_ENABLED
               value: {{ ternary "1" "0" .Values.mediaControl.telemetry.enabled | quote }}
             - name: OPC_OTEL_SERVICE_NAME

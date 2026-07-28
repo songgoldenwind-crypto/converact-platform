@@ -193,6 +193,7 @@ services:
       - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/udp"
       - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_SIP_PORT:-5060}:5060/tcp"
       - "${RUSTPBX_BIND_ADDRESS:-0.0.0.0}:${RUSTPBX_RTP_START_PORT:-20000}-${RUSTPBX_RTP_END_PORT:-20100}:20000-20100/udp"
+      - "${IVEKIT_PROCESSING_MEDIA_BIND_ADDRESS:-0.0.0.0}:${IVEKIT_PROCESSING_MEDIA_RTP_PORT_START:-40000}-${IVEKIT_PROCESSING_MEDIA_RTP_PORT_END:-59998}:${IVEKIT_PROCESSING_MEDIA_RTP_PORT_START:-40000}-${IVEKIT_PROCESSING_MEDIA_RTP_PORT_END:-59998}/udp"
     volumes:
       - rustpbx-runtime-config:/app/config:ro
       - rustpbx-generated-config:/app/generated
@@ -550,6 +551,8 @@ services:
       IVEKIT_RTPENGINE_INTERFACE: ${IVEKIT_RTPENGINE_INTERFACE:?IVEKIT_RTPENGINE_INTERFACE is required}
       IVEKIT_RTPENGINE_PORT_MIN: ${IVEKIT_RTPENGINE_PORT_MIN:-23000}
       IVEKIT_RTPENGINE_PORT_MAX: ${IVEKIT_RTPENGINE_PORT_MAX:-32768}
+      IVEKIT_PROCESSING_MEDIA_RTP_PORT_START: ${IVEKIT_PROCESSING_MEDIA_RTP_PORT_START:-40000}
+      IVEKIT_PROCESSING_MEDIA_RTP_PORT_END: ${IVEKIT_PROCESSING_MEDIA_RTP_PORT_END:-59998}
     tmpfs:
       - /tmp:size=16m,uid=1000,gid=1000,mode=0700
     cap_drop:
@@ -607,6 +610,70 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  voice-media-processing:
+    image: ${IVEKIT_VOICE_MEDIA_IMAGE_NAME:-ivekit-voice-media:local}
+    build:
+      context: ../..
+      dockerfile: infra/ivekit/voice-media/Dockerfile
+      args:
+        OPC_SOURCE_COMMIT: ${OPC_SOURCE_COMMIT:-unknown}
+    profiles: ["voice-media-control"]
+    init: true
+    restart: unless-stopped
+    read_only: true
+    network_mode: service:rustpbx
+    environment:
+      VOICE_MEDIA_LISTEN: 127.0.0.1:8093
+      VOICE_MEDIA_API_TOKEN_FILE: /run/secrets/voice-media-processing-token
+      VOICE_MEDIA_CLIENT_IDENTITY: media-control-sidecar
+      VOICE_MEDIA_RTP_BIND_IP: 0.0.0.0
+      VOICE_MEDIA_RTP_ADVERTISED_IP: ${IVEKIT_PROCESSING_MEDIA_ADVERTISED_IP:?IVEKIT_PROCESSING_MEDIA_ADVERTISED_IP is required}
+      VOICE_MEDIA_RTP_PORT_START: ${IVEKIT_PROCESSING_MEDIA_RTP_PORT_START:-40000}
+      VOICE_MEDIA_RTP_PORT_END: ${IVEKIT_PROCESSING_MEDIA_RTP_PORT_END:-59998}
+      VOICE_MEDIA_WORKER_THREADS: ${IVEKIT_PROCESSING_MEDIA_WORKER_THREADS:-4}
+      VOICE_MEDIA_MAX_SESSIONS: ${IVEKIT_PROCESSING_MEDIA_MAX_SESSIONS:-5000}
+      VOICE_MEDIA_CODEC_PAIR_CAPACITY: ${IVEKIT_PROCESSING_MEDIA_CODEC_PAIR_CAPACITY:-5000}
+      VOICE_MEDIA_SESSION_SHARDS: ${IVEKIT_PROCESSING_MEDIA_SESSION_SHARDS:-64}
+      VOICE_MEDIA_MAX_INFLIGHT_CONTROL: ${IVEKIT_PROCESSING_MEDIA_MAX_INFLIGHT_CONTROL:-1024}
+      VOICE_MEDIA_COMMAND_HISTORY_PER_SESSION: ${IVEKIT_PROCESSING_MEDIA_COMMAND_HISTORY_PER_SESSION:-32}
+      VOICE_MEDIA_TERMINAL_RETENTION_MS: ${IVEKIT_PROCESSING_MEDIA_TERMINAL_RETENTION_MS:-300000}
+      VOICE_MEDIA_SWEEP_INTERVAL_MS: ${IVEKIT_PROCESSING_MEDIA_SWEEP_INTERVAL_MS:-1000}
+      VOICE_MEDIA_SWEEP_LIMIT: ${IVEKIT_PROCESSING_MEDIA_SWEEP_LIMIT:-1024}
+      VOICE_MEDIA_JITTER_CAPACITY: ${IVEKIT_PROCESSING_MEDIA_JITTER_CAPACITY:-8}
+      VOICE_MEDIA_MAX_DRAIN_PER_DATAGRAM: ${IVEKIT_PROCESSING_MEDIA_MAX_DRAIN_PER_DATAGRAM:-8}
+    secrets:
+      - voice-media-processing-token
+    tmpfs:
+      - /tmp:size=16m,uid=10001,gid=10001,mode=0700
+    depends_on:
+      rustpbx:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - --show-error
+        - http://127.0.0.1:8093/ready
+      interval: 5s
+      timeout: 2s
+      retries: 20
+      start_period: 10s
+    stop_grace_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: ${IVEKIT_PROCESSING_MEDIA_CPU_LIMIT:-4}
+          memory: ${IVEKIT_PROCESSING_MEDIA_MEMORY_LIMIT:-4G}
+        reservations:
+          cpus: ${IVEKIT_PROCESSING_MEDIA_CPU_RESERVATION:-1}
+          memory: ${IVEKIT_PROCESSING_MEDIA_MEMORY_RESERVATION:-1G}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   media-control:
     image: ${IVEKIT_MEDIA_CONTROL_IMAGE_NAME:-ivekit-media-control:local}
     build:
@@ -624,7 +691,7 @@ services:
     environment:
       IVEKIT_MEDIA_CONTROL_PRODUCTION: "true"
       IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS: "true"
-      IVEKIT_MEDIA_CONTROL_TRANSPORT: rtpengine
+      IVEKIT_MEDIA_CONTROL_TRANSPORT: hybrid
       IVEKIT_MEDIA_CONTROL_HOST: 127.0.0.1
       IVEKIT_MEDIA_CONTROL_PORT: 3211
       IVEKIT_MEDIA_CONTROL_TOKEN_FILE: /run/secrets/media-control-token
@@ -645,6 +712,13 @@ services:
       IVEKIT_MEDIA_CONTROL_SWEEP_INTERVAL_MS: ${IVEKIT_MEDIA_CONTROL_SWEEP_INTERVAL_MS:-1000}
       IVEKIT_MEDIA_CONTROL_ORPHAN_BATCH_SIZE: ${IVEKIT_MEDIA_CONTROL_ORPHAN_BATCH_SIZE:-256}
       IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS: ${IVEKIT_MEDIA_CONTROL_ORPHAN_SWEEP_INTERVAL_MS:-30000}
+      IVEKIT_MEDIA_CONTROL_TRANSPORT_MAX_BINDINGS: ${IVEKIT_MEDIA_CONTROL_TRANSPORT_MAX_BINDINGS:-100000}
+      IVEKIT_PROCESSING_MEDIA_ENDPOINT: http://127.0.0.1:8093
+      IVEKIT_PROCESSING_MEDIA_TOKEN_FILE: /run/secrets/voice-media-processing-token
+      IVEKIT_PROCESSING_MEDIA_CLIENT_IDENTITY: media-control-sidecar
+      IVEKIT_PROCESSING_MEDIA_TIMEOUT_MS: ${IVEKIT_PROCESSING_MEDIA_TIMEOUT_MS:-2000}
+      IVEKIT_PROCESSING_MEDIA_MAX_RESPONSE_BYTES: ${IVEKIT_PROCESSING_MEDIA_MAX_RESPONSE_BYTES:-262144}
+      IVEKIT_PROCESSING_MEDIA_MAX_RELEASE_CONTEXTS: ${IVEKIT_PROCESSING_MEDIA_MAX_RELEASE_CONTEXTS:-100000}
       IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY: /var/lib/ivekit-media-control
       IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS: ${IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS:-1000000}
       IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES: ${IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES:-268435456}
@@ -669,10 +743,13 @@ services:
       - media-control-client-identity
       - media-control-ca
       - component-node-token
+      - voice-media-processing-token
     tmpfs:
       - /tmp:size=16m,mode=1777
     depends_on:
       rtpengine:
+        condition: service_healthy
+      voice-media-processing:
         condition: service_healthy
       rustpbx:
         condition: service_healthy
@@ -813,6 +890,8 @@ secrets:
     file: ${RUSTPBX_MEDIA_CONTROL_CA_FILE:?RUSTPBX_MEDIA_CONTROL_CA_FILE is required}
   component-node-token:
     file: ${OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE:?OPC_IVEKIT_COMPONENT_NODE_TOKEN_FILE is required}
+  voice-media-processing-token:
+    file: ${IVEKIT_PROCESSING_MEDIA_TOKEN_FILE:?IVEKIT_PROCESSING_MEDIA_TOKEN_FILE is required}
   route-snapshot-hmac-key:
     environment: RUSTPBX_ROUTE_SNAPSHOT_HMAC_KEY
   dialog-shadow-token:

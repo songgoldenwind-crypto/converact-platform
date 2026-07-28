@@ -142,6 +142,13 @@ pub struct SweepReport {
     pub evicted: usize,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SessionScanResult {
+    pub inspected: usize,
+    pub items: Vec<ProcessingSessionSnapshot>,
+    pub next_cursor: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SweepAction {
     ExpirePrepared,
@@ -286,6 +293,7 @@ struct SessionResources {
 
 struct RecordedCommand {
     command_id: Box<str>,
+    applied_command_id: Option<Box<str>>,
     idempotency_key: Box<str>,
     command_hash: [u8; 32],
     idempotency_hash: [u8; 32],
@@ -465,6 +473,104 @@ impl ProcessingSessionRegistry {
             record.last_sequence,
             record.expires_at_ms,
         ))
+    }
+
+    pub fn scan_active(
+        &self,
+        after: &str,
+        limit: usize,
+    ) -> Result<SessionScanResult, SessionError> {
+        if limit == 0 || limit > 10_000 {
+            return Err(SessionError::InvalidCommand {
+                field: "scan_limit",
+            });
+        }
+        if !after.is_empty() {
+            validate_identifier(after, "scan_cursor")?;
+        }
+        let inspection_budget = self.session_count();
+        if inspection_budget == 0 {
+            return Ok(SessionScanResult::default());
+        }
+
+        let shard_count = self.shards.len();
+        let start_shard = if after.is_empty() {
+            0
+        } else {
+            self.shard_index(after)
+        };
+        let mut result = SessionScanResult {
+            items: Vec::with_capacity(limit.min(self.active_session_count())),
+            ..SessionScanResult::default()
+        };
+        let mut start_split = None;
+
+        for offset in 0..shard_count {
+            if result.items.len() >= limit || result.inspected >= inspection_budget {
+                break;
+            }
+            let shard_index = (start_shard + offset) & (shard_count - 1);
+            let shard = lock(&self.shards[shard_index])?;
+            let split = if offset == 0 && !after.is_empty() {
+                let split = shard
+                    .sweep_order
+                    .iter()
+                    .position(|candidate| candidate == after)
+                    .map(|position| position + 1);
+                start_split = split;
+                split.unwrap_or(0)
+            } else {
+                0
+            };
+            for key in shard.sweep_order.iter().skip(split) {
+                if result.items.len() >= limit || result.inspected >= inspection_budget {
+                    break;
+                }
+                result.inspected += 1;
+                result.next_cursor.clone_from(key);
+                let Some(record) = shard.records.get(key) else {
+                    continue;
+                };
+                if matches!(
+                    record.state,
+                    ProcessingSessionState::Prepared | ProcessingSessionState::Committed
+                ) {
+                    result.items.push(project_snapshot(
+                        record,
+                        record.state,
+                        record.last_sequence,
+                        record.expires_at_ms,
+                    ));
+                }
+            }
+        }
+        if result.items.len() < limit && result.inspected < inspection_budget {
+            if let Some(split) = start_split {
+                let shard = lock(&self.shards[start_shard])?;
+                for key in shard.sweep_order.iter().take(split) {
+                    if result.items.len() >= limit || result.inspected >= inspection_budget {
+                        break;
+                    }
+                    result.inspected += 1;
+                    result.next_cursor.clone_from(key);
+                    let Some(record) = shard.records.get(key) else {
+                        continue;
+                    };
+                    if matches!(
+                        record.state,
+                        ProcessingSessionState::Prepared | ProcessingSessionState::Committed
+                    ) {
+                        result.items.push(project_snapshot(
+                            record,
+                            record.state,
+                            record.last_sequence,
+                            record.expires_at_ms,
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(result)
     }
 
     pub fn command_count(&self, media_reservation_id: &str) -> usize {
@@ -682,7 +788,7 @@ impl ProcessingSessionRegistry {
         }
         let takeover = command.owner_epoch > record.owner_epoch;
         if command.owner_epoch == record.owner_epoch {
-            if let Some(result) = replay(record, &command)? {
+            if let Some(result) = replay(record, &command, self.config.max_commands_per_session)? {
                 return Ok(result);
             }
         } else if command.command_sequence != 1 {
@@ -967,8 +1073,9 @@ fn assert_transition(
 }
 
 fn replay(
-    record: &SessionRecord,
+    record: &mut SessionRecord,
     command: &ProcessingCommand,
+    maximum: usize,
 ) -> Result<Option<SessionCommandResult>, SessionError> {
     if let Some(recorded) = record
         .commands
@@ -985,20 +1092,36 @@ fn replay(
             true,
         )));
     }
-    if let Some(recorded) = record
+    if let Some(index) = record
         .commands
         .iter()
-        .find(|candidate| candidate.idempotency_key.as_ref() == command.idempotency_key)
+        .position(|candidate| candidate.idempotency_key.as_ref() == command.idempotency_key)
     {
+        let recorded = &record.commands[index];
         if recorded.idempotency_hash != command.idempotency_hash {
             return Err(SessionError::IdempotencyKeyConflict);
         }
-        return Ok(Some(project_result(
-            record,
-            recorded,
-            command.command_id.clone(),
-            true,
-        )));
+        let result = project_result(record, recorded, command.command_id.clone(), true);
+        if recorded.command_id.as_ref() != command.command_id {
+            let applied_command_id = recorded
+                .applied_command_id
+                .as_deref()
+                .unwrap_or(&recorded.command_id)
+                .to_owned();
+            let sequence = recorded.sequence;
+            let state = recorded.state;
+            let expires_at_ms = recorded.expires_at_ms;
+            push_replay_alias(
+                record,
+                command,
+                maximum,
+                applied_command_id,
+                sequence,
+                state,
+                expires_at_ms,
+            );
+        }
+        return Ok(Some(result));
     }
     Ok(None)
 }
@@ -1009,12 +1132,37 @@ fn push_recorded(record: &mut SessionRecord, command: &ProcessingCommand, maximu
     }
     record.commands.push_back(RecordedCommand {
         command_id: command.command_id.clone().into_boxed_str(),
+        applied_command_id: None,
         idempotency_key: command.idempotency_key.clone().into_boxed_str(),
         command_hash: command.command_hash,
         idempotency_hash: command.idempotency_hash,
         sequence: command.command_sequence,
         state: record.state,
         expires_at_ms: command.expires_at_ms,
+    });
+}
+
+fn push_replay_alias(
+    record: &mut SessionRecord,
+    command: &ProcessingCommand,
+    maximum: usize,
+    applied_command_id: String,
+    sequence: u32,
+    state: ProcessingSessionState,
+    expires_at_ms: u64,
+) {
+    if record.commands.len() >= maximum {
+        record.commands.pop_front();
+    }
+    record.commands.push_back(RecordedCommand {
+        command_id: command.command_id.clone().into_boxed_str(),
+        applied_command_id: Some(applied_command_id.into_boxed_str()),
+        idempotency_key: command.idempotency_key.clone().into_boxed_str(),
+        command_hash: command.command_hash,
+        idempotency_hash: command.idempotency_hash,
+        sequence,
+        state,
+        expires_at_ms,
     });
 }
 
@@ -1026,7 +1174,11 @@ fn project_result(
 ) -> SessionCommandResult {
     SessionCommandResult {
         response_command_id,
-        applied_command_id: command.command_id.to_string(),
+        applied_command_id: command
+            .applied_command_id
+            .as_deref()
+            .unwrap_or(&command.command_id)
+            .to_string(),
         replayed,
         snapshot: project_snapshot(
             record,
@@ -1071,4 +1223,88 @@ fn map_capacity_error(error: CapacityError) -> SessionError {
 
 fn lock<T>(mutex: &Mutex<T>) -> Result<MutexGuard<'_, T>, SessionError> {
     mutex.lock().map_err(|_| SessionError::RegistryPoisoned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn one_item_scan_pages_advance_across_shards_before_wrapping() {
+        let registry = ProcessingSessionRegistry::new(
+            ProcessingSessionRegistryConfig {
+                max_sessions: 4,
+                max_commands_per_session: 8,
+                terminal_retention_ms: 100,
+                max_lease_horizon_ms: 60_000,
+                shard_count: 4,
+                rtp_port_start: 30_000,
+                rtp_port_end: 30_014,
+            },
+            Arc::new(CodecPairCapacity::uniform(4)),
+        )
+        .expect("registry");
+        let mut shard_zero = Vec::new();
+        let mut shard_one = Vec::new();
+        for index in 0..10_000 {
+            let candidate = format!("scan-{index}");
+            match registry.shard_index(&candidate) {
+                0 if shard_zero.len() < 2 => shard_zero.push(candidate),
+                1 if shard_one.is_empty() => shard_one.push(candidate),
+                _ => {}
+            }
+            if shard_zero.len() == 2 && shard_one.len() == 1 {
+                break;
+            }
+        }
+        assert_eq!(shard_zero.len(), 2);
+        assert_eq!(shard_one.len(), 1);
+        let reservations = [
+            shard_zero[0].clone(),
+            shard_zero[1].clone(),
+            shard_one[0].clone(),
+        ];
+        for (index, reservation) in reservations.iter().enumerate() {
+            registry
+                .execute(
+                    ProcessingCommand {
+                        action: ProcessingAction::Offer,
+                        command_id: format!("command-{index}"),
+                        tenant_id: "tenant-a".to_owned(),
+                        call_id: format!("call-{index}"),
+                        leg_id: "leg-a".to_owned(),
+                        cell_id: "cell-a".to_owned(),
+                        owner_node_id: "node-a".to_owned(),
+                        owner_epoch: 1,
+                        admission_reservation_id: format!("admission-{index}"),
+                        media_reservation_id: reservation.clone(),
+                        command_sequence: 1,
+                        idempotency_key: format!("idempotency-{index}"),
+                        expires_at_ms: 10_000,
+                        command_hash: [index as u8; 32],
+                        idempotency_hash: [(index + 16) as u8; 32],
+                        profile: Some(ProcessingProfile {
+                            leg_a_codec: AudioCodec::Pcmu,
+                            leg_b_codec: AudioCodec::Opus,
+                            packetization_ms: 20,
+                            leg_a_payload_type: 0,
+                            leg_b_payload_type: 111,
+                        }),
+                    },
+                    1_000,
+                )
+                .expect("offer");
+        }
+
+        let mut cursor = String::new();
+        let mut seen = HashSet::new();
+        for _ in 0..reservations.len() {
+            let page = registry.scan_active(&cursor, 1).expect("scan");
+            assert_eq!(page.items.len(), 1);
+            seen.insert(page.items[0].media_reservation_id.clone());
+            cursor = page.next_cursor;
+        }
+        assert_eq!(seen, reservations.into_iter().collect());
+    }
 }

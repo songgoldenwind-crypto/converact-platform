@@ -131,6 +131,7 @@ function transportRequest(command: MediaControlCommand) {
     cell_id: command.cell_id,
     owner_node_id: command.owner_node_id,
     owner_epoch: command.owner_epoch,
+    admission_reservation_id: command.admission_reservation_id,
     media_reservation_id: command.media_reservation_id,
     expires_at: command.expires_at,
     command_sequence: command.command_sequence,

@@ -1430,6 +1430,7 @@ function command(
     cell_id: 'cell-a',
     owner_node_id: 'node-a',
     owner_epoch: '1',
+    admission_reservation_id: 'admission-a',
     media_reservation_id: 'reservation-a',
     expires_at: '2026-07-26T08:05:00.000Z',
     command_sequence: 1,

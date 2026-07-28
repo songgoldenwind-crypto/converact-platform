@@ -129,6 +129,40 @@ fn lifecycle_allocates_once_commits_and_releases_all_resources() {
 }
 
 #[test]
+fn active_session_scan_is_bounded_cursor_driven_and_skips_terminal_records() {
+    let registry = new_registry(Arc::new(CodecPairCapacity::uniform(8)));
+    for reservation in ["scan-a", "scan-b", "scan-c"] {
+        registry
+            .execute(command(reservation, ProcessingAction::Offer, 1, 1), 1_000)
+            .expect("offer");
+    }
+    registry
+        .execute(command("scan-b", ProcessingAction::Answer, 2, 1), 1_001)
+        .expect("answer");
+    registry
+        .execute(command("scan-c", ProcessingAction::Delete, 2, 1), 1_002)
+        .expect("delete");
+
+    let first = registry.scan_active("", 1).expect("first scan");
+    assert_eq!(first.items.len(), 1);
+    assert!(!first.next_cursor.is_empty());
+    assert!(matches!(
+        first.items[0].state,
+        ProcessingSessionState::Prepared | ProcessingSessionState::Committed
+    ));
+
+    let complete = registry.scan_active("", 8).expect("complete scan");
+    let mut reservations = complete
+        .items
+        .iter()
+        .map(|snapshot| snapshot.media_reservation_id.as_str())
+        .collect::<Vec<_>>();
+    reservations.sort_unstable();
+    assert_eq!(reservations, ["scan-a", "scan-b"]);
+    assert_eq!(complete.inspected, 3);
+}
+
+#[test]
 fn side_effect_failure_rolls_back_new_admission_and_replay_never_reapplies() {
     let capacity = Arc::new(CodecPairCapacity::uniform(4));
     let registry = new_registry(Arc::clone(&capacity));

@@ -36,6 +36,34 @@ rtpengine:
       cpu: "8"
       memory: 8Gi
 
+voiceMedia:
+  image:
+    repository: ghcr.io/example/ivekit-voice-media
+    digest: ""
+    pullPolicy: IfNotPresent
+  clientIdentity: media-control-sidecar
+  mediaPorts:
+    minimum: 40000
+    maximum: 59998
+  workerThreads: 4
+  maxSessions: 5000
+  codecPairCapacity: 5000
+  sessionShards: 64
+  maxInflightControl: 1024
+  commandHistoryPerSession: 32
+  terminalRetentionMs: 300000
+  sweepIntervalMs: 1000
+  sweepLimit: 1024
+  jitterCapacity: 8
+  maxDrainPerDatagram: 8
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
 mediaControl:
   host: 127.0.0.1
   telemetry:
@@ -63,6 +91,11 @@ mediaControl:
   eventMaxSubscribersPerOwner: 2
   orphanBatchSize: 256
   orphanSweepIntervalMs: 30000
+  maxTransportBindings: 100000
+  processing:
+    requestTimeoutMs: 2000
+    maxResponseBytes: 262144
+    maxReleaseContexts: 100000
   rtpengine:
     maxConnections: 4
     maxInFlight: 1024

@@ -7,6 +7,10 @@ const dockerfile = readFileSync(
   'infra/ivekit/media-control/Dockerfile',
   'utf8'
 );
+const voiceMediaDockerfile = readFileSync(
+  'infra/ivekit/voice-media/Dockerfile',
+  'utf8'
+);
 const entrypoint = readFileSync(
   'scripts/ivekit-media-control-agent.ts',
   'utf8'
@@ -55,6 +59,36 @@ describe('iveKit media control deployment', () => {
     );
   });
 
+  it('builds the processing pool from a locked Rust graph and runs it unprivileged', () => {
+    const service = compose.services['voice-media-processing'];
+    assert.match(
+      voiceMediaDockerfile,
+      /^FROM rust:1\.94-bookworm@sha256:[a-f0-9]{64} AS builder$/m
+    );
+    assert.match(voiceMediaDockerfile, /cargo build --locked --release/);
+    assert.match(
+      voiceMediaDockerfile,
+      /^FROM debian:bookworm-slim@sha256:[a-f0-9]{64}$/m
+    );
+    assert.match(voiceMediaDockerfile, /^USER 10001:10001$/m);
+    assert.equal(service.network_mode, 'service:rustpbx');
+    assert.equal(service.read_only, true);
+    assert.deepEqual(service.cap_drop, ['ALL']);
+    assert.deepEqual(service.security_opt, ['no-new-privileges:true']);
+    assert.equal(service.ports, undefined);
+    assert.ok(service.healthcheck);
+    assert.ok(service.deploy.resources.limits.cpus);
+    assert.ok(service.deploy.resources.limits.memory);
+    assert.equal(
+      service.environment.VOICE_MEDIA_RTP_PORT_START,
+      '${IVEKIT_PROCESSING_MEDIA_RTP_PORT_START:-40000}'
+    );
+    assert.equal(
+      service.environment.VOICE_MEDIA_RTP_PORT_END,
+      '${IVEKIT_PROCESSING_MEDIA_RTP_PORT_END:-59998}'
+    );
+  });
+
   it('keeps component leases alive through the Cell admission leader', () => {
     const service = compose.services['cell-admission'];
     assert.ok(service);
@@ -76,7 +110,7 @@ describe('iveKit media control deployment', () => {
     assert.deepEqual(service.expose, ['3200']);
     assert.equal(
       service.environment.OPC_IVEKIT_CELL_NODES_JSON,
-      '${RUSTPBX_CELL_NODES_JSON:?RUSTPBX_CELL_NODES_JSON is required}'
+      '${IVEKIT_CELL_NODES_JSON:-${RUSTPBX_CELL_NODES_JSON:?RUSTPBX_CELL_NODES_JSON is required}}'
     );
     assert.equal(
       service.environment.OPC_IVEKIT_COMPONENT_NODE_TOKEN,
@@ -93,7 +127,7 @@ describe('iveKit media control deployment', () => {
     );
   });
 
-  it('uses production RTPengine with mTLS media and loopback admission', () => {
+  it('uses the production hybrid media router with mTLS and loopback internals', () => {
     const service = compose.services['media-control'];
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_PRODUCTION,
@@ -101,7 +135,7 @@ describe('iveKit media control deployment', () => {
     );
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_TRANSPORT,
-      'rtpengine'
+      'hybrid'
     );
     assert.equal(
       service.environment.IVEKIT_MEDIA_CONTROL_REQUIRE_MTLS,
@@ -175,6 +209,7 @@ describe('iveKit media control deployment', () => {
       'rustpbx-component-node',
       'cell-admission',
       'rtpengine',
+      'voice-media-processing',
       'media-control'
     ]) {
       assert.ok(

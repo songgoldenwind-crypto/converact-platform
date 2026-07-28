@@ -32,10 +32,31 @@ try {
   if (maximum <= minimum) {
     throw new Error('IVEKIT RTPengine media port range is invalid');
   }
+  const processingMinimum = integerEnv(
+    'IVEKIT_PROCESSING_MEDIA_RTP_PORT_START',
+    1_024,
+    65_534
+  );
+  const processingMaximum = integerEnv(
+    'IVEKIT_PROCESSING_MEDIA_RTP_PORT_END',
+    1_025,
+    65_535
+  );
+  if (processingMaximum <= processingMinimum ||
+      processingMinimum % 2 !== 0 ||
+      processingMaximum % 2 !== 0) {
+    throw new Error('IVEKIT processing media port range is invalid');
+  }
+  if (processingMinimum <= maximum && processingMaximum >= minimum) {
+    throw new Error(
+      'IVEKIT processing media ports must not overlap RTPengine ports'
+    );
+  }
 
   process.stdout.write(
     `ivekit RTPengine deployment preflight passed mode=${runtimeMode} ` +
-    `ports=${minimum}-${maximum}\n`
+    `ports=${minimum}-${maximum} ` +
+    `processing_ports=${processingMinimum}-${processingMaximum}\n`
   );
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);

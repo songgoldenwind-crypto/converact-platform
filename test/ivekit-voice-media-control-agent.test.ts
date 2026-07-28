@@ -107,6 +107,36 @@ function fixture(input: {
 }
 
 describe('iveKit media control agent', () => {
+  it('forwards the admission reservation identity to the media transport', async () => {
+    const authority = new FakeAuthority();
+    const delegate = new InMemoryMediaTransport();
+    let observed: Record<string, unknown> | undefined;
+    const transport: MediaTransportPort = {
+      execute: (input) => {
+        observed = structuredClone(input) as unknown as Record<string, unknown>;
+        return delegate.execute(input);
+      },
+      queryCommand: (input) => delegate.queryCommand(input),
+      querySession: (input) => delegate.querySession(input),
+      scanOrphanCandidates: (input) => delegate.scanOrphanCandidates(input),
+      releaseSession: (transportSessionId, reason) =>
+        delegate.releaseSession(transportSessionId, reason)
+    };
+    const agent = new MediaControlAgent({
+      authority,
+      transport,
+      max_reservations: 100,
+      max_terminal_reservations: 100,
+      max_commands_per_reservation: 8,
+      terminal_retention_ms: 1_000
+    });
+
+    const prepared = await agent.execute(command('offer', 1), NOW);
+
+    assert.equal(prepared.result_class, 'committed');
+    assert.equal(observed?.admission_reservation_id, 'reservation-1');
+  });
+
   it('prepares and commits a media session through the transport port', async () => {
     const { agent, transport } = fixture();
 

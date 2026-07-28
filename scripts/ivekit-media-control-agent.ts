@@ -21,6 +21,12 @@ import {
   mediaControlAdmissionReady
 } from '../src/agent-runtime/ivekit/media-control/orphan-probe.js';
 import {
+  ProcessingMediaTransport
+} from '../src/agent-runtime/ivekit/media-control/processing.js';
+import {
+  MediaTransportRouter
+} from '../src/agent-runtime/ivekit/media-control/router.js';
+import {
   RtpengineMediaTransport
 } from '../src/agent-runtime/ivekit/media-control/rtpengine.js';
 import {
@@ -44,9 +50,9 @@ const requireMtls = booleanEnv(
 );
 const transportMode = stringEnv(
   'IVEKIT_MEDIA_CONTROL_TRANSPORT',
-  production ? 'rtpengine' : 'simulator'
+  production ? 'hybrid' : 'simulator'
 );
-if (transportMode !== 'simulator' && transportMode !== 'rtpengine') {
+if (!['simulator', 'rtpengine', 'hybrid'].includes(transportMode)) {
   throw new Error('IVEKIT media control transport is unsupported');
 }
 if (production && !requireMtls) {
@@ -393,6 +399,56 @@ async function openTransportRuntime(
       async drain() {},
       async close() {}
     };
+  }
+  if (mode === 'hybrid') {
+    const fastPath = await openTransportRuntime('rtpengine', events);
+    try {
+      const processing = new ProcessingMediaTransport({
+        endpoint: requiredEnv('IVEKIT_PROCESSING_MEDIA_ENDPOINT'),
+        bearer_token: secret(
+          'IVEKIT_PROCESSING_MEDIA_TOKEN',
+          'IVEKIT_PROCESSING_MEDIA_TOKEN_FILE'
+        ),
+        client_identity: requiredEnv(
+          'IVEKIT_PROCESSING_MEDIA_CLIENT_IDENTITY'
+        ),
+        request_timeout_ms: integerEnv(
+          'IVEKIT_PROCESSING_MEDIA_TIMEOUT_MS',
+          2_000,
+          50,
+          300_000
+        ),
+        max_response_bytes: integerEnv(
+          'IVEKIT_PROCESSING_MEDIA_MAX_RESPONSE_BYTES',
+          262_144,
+          256,
+          4_194_304
+        ),
+        max_release_contexts: integerEnv(
+          'IVEKIT_PROCESSING_MEDIA_MAX_RELEASE_CONTEXTS',
+          100_000,
+          1,
+          10_000_000
+        )
+      });
+      return {
+        transport: new MediaTransportRouter({
+          fast_path: fastPath.transport,
+          processing,
+          max_bindings: integerEnv(
+            'IVEKIT_MEDIA_CONTROL_TRANSPORT_MAX_BINDINGS',
+            100_000,
+            1,
+            10_000_000
+          )
+        }),
+        drain: () => fastPath.drain(),
+        close: () => fastPath.close()
+      };
+    } catch (error) {
+      await fastPath.close().catch(() => undefined);
+      throw error;
+    }
   }
   if (mode !== 'rtpengine') {
     throw new Error('IVEKIT media control transport is unsupported');

@@ -10,7 +10,7 @@ function read(path: string): string {
   return readFileSync(path, 'utf8');
 }
 
-test('media-control selects RTPengine explicitly and bounds every durable input', () => {
+test('media-control selects the hybrid router and bounds every transport input', () => {
   const runtime = read('scripts/ivekit-media-control-agent.ts');
   const dockerfile = read('infra/ivekit/media-control/Dockerfile');
 
@@ -18,6 +18,8 @@ test('media-control selects RTPengine explicitly and bounds every durable input'
   assert.match(runtime, /mode !== 'rtpengine'/);
   assert.match(runtime, /RtpengineNgClient/);
   assert.match(runtime, /RtpengineMediaTransport\.open/);
+  assert.match(runtime, /ProcessingMediaTransport/);
+  assert.match(runtime, /MediaTransportRouter/);
   assert.match(runtime, /MediaCommandJournal\.open/);
   for (const name of [
     'IVEKIT_RTPENGINE_NG_ENDPOINT',
@@ -47,6 +49,7 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
   const rtpengine = compose.services.rtpengine;
   const validator = compose.services['rtpengine-config-validate'];
   const mediaControl = compose.services['media-control'];
+  const voiceMedia = compose.services['voice-media-processing'];
 
   assert.ok(rtpengine);
   assert.ok(validator);
@@ -103,7 +106,7 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
 
   assert.equal(
     mediaControl.environment.IVEKIT_MEDIA_CONTROL_TRANSPORT,
-    'rtpengine'
+    'hybrid'
   );
   assert.equal(
     mediaControl.environment.IVEKIT_RTPENGINE_NG_ENDPOINT,
@@ -120,6 +123,23 @@ test('Compose runs an independent bounded RTPengine and persistent media-control
   );
   assert.equal(
     mediaControl.depends_on.rtpengine.condition,
+    'service_healthy'
+  );
+  assert.ok(voiceMedia);
+  assert.deepEqual(voiceMedia.profiles, ['voice-media-control']);
+  assert.equal(voiceMedia.network_mode, 'service:rustpbx');
+  assert.equal(voiceMedia.read_only, true);
+  assert.deepEqual(voiceMedia.cap_drop, ['ALL']);
+  assert.equal(
+    voiceMedia.environment.VOICE_MEDIA_API_TOKEN_FILE,
+    '/run/secrets/voice-media-processing-token'
+  );
+  assert.equal(
+    mediaControl.environment.IVEKIT_PROCESSING_MEDIA_ENDPOINT,
+    'http://127.0.0.1:8093'
+  );
+  assert.equal(
+    mediaControl.depends_on['voice-media-processing'].condition,
     'service_healthy'
   );
   assert.equal(
@@ -146,7 +166,9 @@ test('Compose preflight rejects mutable images and invalid media ranges', () => 
     IVEKIT_RTPENGINE_RUNTIME_MODE: 'userspace',
     IVEKIT_RTPENGINE_INTERFACE: 'public/203.0.113.10',
     IVEKIT_RTPENGINE_PORT_MIN: '23000',
-    IVEKIT_RTPENGINE_PORT_MAX: '32768'
+    IVEKIT_RTPENGINE_PORT_MAX: '32768',
+    IVEKIT_PROCESSING_MEDIA_RTP_PORT_START: '40000',
+    IVEKIT_PROCESSING_MEDIA_RTP_PORT_END: '59998'
   };
   const mutable = spawnSync(
     process.execPath,
@@ -181,6 +203,24 @@ test('Compose preflight rejects mutable images and invalid media ranges', () => 
   assert.notEqual(reversedRange.status, 0);
   assert.match(reversedRange.stderr, /media port range/);
 
+  const overlappingRange = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', script],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: {
+        ...baseEnvironment,
+        IVEKIT_RTPENGINE_IMAGE:
+          `example/rtpengine@sha256:${'b'.repeat(64)}`,
+        IVEKIT_PROCESSING_MEDIA_RTP_PORT_START: '30000',
+        IVEKIT_PROCESSING_MEDIA_RTP_PORT_END: '40000'
+      }
+    }
+  );
+  assert.notEqual(overlappingRange.status, 0);
+  assert.match(overlappingRange.stderr, /must not overlap/);
+
   const valid = spawnSync(
     process.execPath,
     ['--import', 'tsx', script],
@@ -190,7 +230,7 @@ test('Compose preflight rejects mutable images and invalid media ranges', () => 
       env: {
         ...baseEnvironment,
         IVEKIT_RTPENGINE_IMAGE:
-          `example/rtpengine@sha256:${'b'.repeat(64)}`
+          `example/rtpengine@sha256:${'c'.repeat(64)}`
       }
     }
   );
@@ -222,6 +262,8 @@ test('Helm chart deploys digest-only userspace media nodes with private NG contr
   assert.equal(values.rtpengine.interfaceFromHostIP, true);
   assert.ok(values.mediaControl.image.repository);
   assert.equal(values.mediaControl.image.digest, '');
+  assert.ok(values.voiceMedia.image.repository);
+  assert.equal(values.voiceMedia.image.digest, '');
   assert.ok(Object.keys(values.nodeSelector).length > 0);
   assert.ok(values.tolerations.length > 0);
   assert.ok(values.rtpengine.mediaPorts.minimum >= 1024);
@@ -231,6 +273,10 @@ test('Helm chart deploys digest-only userspace media nodes with private NG contr
   );
   assert.ok(values.mediaControl.wal.maxBytes > 0);
   assert.ok(values.mediaControl.wal.hostPath.startsWith('/'));
+  assert.ok(
+    values.voiceMedia.mediaPorts.minimum >
+      values.rtpengine.mediaPorts.maximum
+  );
 
   assert.match(daemonset, /kind: DaemonSet/);
   assert.match(daemonset, /hostNetwork: true/);
@@ -244,6 +290,9 @@ test('Helm chart deploys digest-only userspace media nodes with private NG contr
   assert.match(daemonset, /IVEKIT_RTPENGINE_PORT_MIN/);
   assert.match(daemonset, /IVEKIT_RTPENGINE_PORT_MAX/);
   assert.match(daemonset, /IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES/);
+  assert.match(daemonset, /name: voice-media/);
+  assert.match(daemonset, /IVEKIT_PROCESSING_MEDIA_ENDPOINT/);
+  assert.match(daemonset, /VOICE_MEDIA_RTP_ADVERTISED_IP[\s\S]*status\.hostIP/);
   assert.match(daemonset, /readOnlyRootFilesystem: true/);
   assert.match(daemonset, /capabilities:[\s\S]*drop:[\s\S]*ALL/);
   assert.match(daemonset, /preStop:[\s\S]*ivekit-rtpengine-drain/);

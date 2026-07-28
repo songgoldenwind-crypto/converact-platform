@@ -5,11 +5,14 @@ It provides the versioned owner/reservation/epoch/command_sequence contract,
 idempotency, unknown reconciliation, bounded state, and low-cardinality
 metrics.
 
-Two transports are compiled:
+Three transport modes are compiled:
 
 - `simulator` is limited to development and controlled Goal 1 acceptance;
-- `rtpengine` executes real TCP NG commands against the pinned iveKit
-  RTPengine fork and is the only transport accepted in production mode.
+- `rtpengine` executes the G.711 relay fast path against the pinned iveKit
+  RTPengine fork;
+- `hybrid` routes `g711-relay-v1` to RTPengine and
+  `VOICE-IVR-G711-OPUS-V1` to the Cell-local `voice-media-rs` processing
+  pool. Unknown profiles fail closed.
 
 Development simulator configuration:
 
@@ -25,9 +28,12 @@ Production additionally requires:
 
 ```text
 IVEKIT_MEDIA_CONTROL_PRODUCTION=true
-IVEKIT_MEDIA_CONTROL_TRANSPORT=rtpengine
+IVEKIT_MEDIA_CONTROL_TRANSPORT=hybrid
 IVEKIT_RTPENGINE_NG_ENDPOINT=tcp://rtpengine:22222
 IVEKIT_RTPENGINE_RUNTIME_MODE=userspace
+IVEKIT_PROCESSING_MEDIA_ENDPOINT=http://127.0.0.1:8093
+IVEKIT_PROCESSING_MEDIA_TOKEN_FILE=/run/secrets/voice-media-processing-token
+IVEKIT_PROCESSING_MEDIA_CLIENT_IDENTITY=media-control-sidecar
 IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY=/var/lib/ivekit-media-control
 IVEKIT_MEDIA_CONTROL_WAL_MAX_RECORDS=1000000
 IVEKIT_MEDIA_CONTROL_WAL_MAX_BYTES=268435456
@@ -44,6 +50,11 @@ endpoint above. A non-loopback component-node endpoint must use HTTPS and set
 `IVEKIT_MEDIA_CONTROL_ADMISSION_REQUIRE_MTLS=true` together with the admission
 client key, certificate, and CA files. RustPBX-to-media-control traffic always
 uses mTLS in production.
+
+The processing endpoint may use plain HTTP only on loopback. Its bearer token
+is file-backed, and the configured client identity is a same-Cell assertion,
+not native mTLS. The processing service binds a dedicated, non-overlapping UDP
+range and advertises the node media address.
 
 The process can now run with a real production transport, but the Goal 2
 release remains `production_eligible=false`. Kernel, recording, transcoding,

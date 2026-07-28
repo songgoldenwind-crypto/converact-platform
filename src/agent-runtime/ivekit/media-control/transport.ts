@@ -12,6 +12,7 @@ export interface MediaTransportCommand {
   cell_id: string;
   owner_node_id: string;
   owner_epoch: string;
+  admission_reservation_id: string;
   media_reservation_id: string;
   expires_at: string;
   command_sequence: number;

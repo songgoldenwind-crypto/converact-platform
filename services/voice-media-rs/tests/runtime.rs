@@ -2,6 +2,7 @@ use audio_codec::{create_decoder, create_encoder, CodecType};
 use rustrtc::rtp::{RtpHeader, RtpPacket};
 use rustrtc::{MediaKind, SdpType, SessionDescription};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use voice_media_rs::capacity::CodecPairCapacity;
@@ -21,8 +22,15 @@ fn localhost(port: u16) -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port)
 }
 
+static NEXT_RTP_PORT: AtomicUsize = AtomicUsize::new(40_000);
+
 fn free_even_pair() -> (u16, u16) {
-    for start in (30_000..60_000).step_by(4) {
+    loop {
+        let start = NEXT_RTP_PORT.fetch_add(4, Ordering::Relaxed);
+        if start > 59_996 {
+            panic!("no free even UDP pair");
+        }
+        let start = u16::try_from(start).expect("RTP test port");
         let Ok(first) = UdpSocket::bind(localhost(start)) else {
             continue;
         };
@@ -33,7 +41,6 @@ fn free_even_pair() -> (u16, u16) {
         drop(second);
         return (start, start + 2);
     }
-    panic!("no free even UDP pair");
 }
 
 fn config(port_start: u16, port_end: u16) -> ProcessingRuntimeConfig {

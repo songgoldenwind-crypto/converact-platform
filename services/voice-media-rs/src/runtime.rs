@@ -71,6 +71,19 @@ pub struct ProcessingRuntimeResult {
     pub snapshot: ProcessingRuntimeSnapshot,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcessingRuntimeOrphanCandidate {
+    pub session: ProcessingSessionSnapshot,
+    pub transport_session_id: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProcessingRuntimeScanResult {
+    pub inspected: usize,
+    pub items: Vec<ProcessingRuntimeOrphanCandidate>,
+    pub next_cursor: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessingRuntimeError {
     InvalidConfiguration { field: &'static str },
@@ -237,6 +250,26 @@ impl ProcessingRuntime {
             .reconcile(command)?
             .map(|result| self.project_result(result))
             .transpose()
+    }
+
+    pub fn scan_active_sessions(
+        &self,
+        after: &str,
+        limit: usize,
+    ) -> Result<ProcessingRuntimeScanResult, ProcessingRuntimeError> {
+        let scan = self.registry.scan_active(after, limit)?;
+        Ok(ProcessingRuntimeScanResult {
+            inspected: scan.inspected,
+            items: scan
+                .items
+                .into_iter()
+                .map(|session| ProcessingRuntimeOrphanCandidate {
+                    transport_session_id: transport_session_id(&session.media_reservation_id),
+                    session,
+                })
+                .collect(),
+            next_cursor: scan.next_cursor,
+        })
     }
 
     pub fn worker_snapshot(&self) -> Result<RtpWorkerPoolSnapshot, ProcessingRuntimeError> {
