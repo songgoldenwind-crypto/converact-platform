@@ -107,7 +107,9 @@ export class PostgresCellAdmissionLedger {
            $21::timestamptz, $22::timestamptz, $23::timestamptz
          FROM active_lease
          ON CONFLICT (region_id, zone_id, cell_id, reservation_id) DO UPDATE
-         SET state = CASE
+         SET owner_epoch = EXCLUDED.owner_epoch,
+             cell_lease_epoch = EXCLUDED.cell_lease_epoch,
+             state = CASE
                WHEN ivekit_cell_admission_reservations.state = 'closed' THEN 'closed'
                WHEN EXCLUDED.state = 'closed' THEN 'closed'
                WHEN ivekit_cell_admission_reservations.state = 'expired' THEN 'expired'
@@ -123,9 +125,23 @@ export class PostgresCellAdmissionLedger {
            AND ivekit_cell_admission_reservations.interaction_id = EXCLUDED.interaction_id
            AND ivekit_cell_admission_reservations.interaction_kind = EXCLUDED.interaction_kind
            AND ivekit_cell_admission_reservations.owner_node_id = EXCLUDED.owner_node_id
-           AND ivekit_cell_admission_reservations.owner_epoch = EXCLUDED.owner_epoch
            AND ivekit_cell_admission_reservations.idempotency_key = EXCLUDED.idempotency_key
            AND ivekit_cell_admission_reservations.payload_hash = EXCLUDED.payload_hash
+           AND (
+             (
+               ivekit_cell_admission_reservations.owner_epoch = EXCLUDED.owner_epoch
+               AND (
+                 ivekit_cell_admission_reservations.state = EXCLUDED.state
+                 OR EXCLUDED.cell_lease_epoch = $5::bigint
+               )
+             )
+             OR (
+               ivekit_cell_admission_reservations.state = 'active'
+               AND EXCLUDED.state = 'active'
+               AND ivekit_cell_admission_reservations.owner_epoch < EXCLUDED.owner_epoch
+               AND EXCLUDED.cell_lease_epoch = $5::bigint
+             )
+           )
          RETURNING *
        )
        SELECT reservation_id, state, region_id, zone_id, cell_id,

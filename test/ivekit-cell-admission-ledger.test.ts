@@ -118,6 +118,43 @@ test('Postgres Cell admission ledger fences writes through the active Cell lease
   assert.equal(pg.calls[3]?.text, 'COMMIT');
 });
 
+test('Postgres Cell admission ledger fences a same-node active owner takeover', async () => {
+  const pg = new QueryStub([
+    checkpoint({
+      state: 'active',
+      owner_epoch: '12884901890',
+      updated_at: '2026-07-16T08:00:01.000Z'
+    })
+  ]);
+  const ledger = new PostgresCellAdmissionLedger(pg as any);
+  await ledger.persist({
+    checkpoint: checkpoint({
+      state: 'active',
+      owner_epoch: '12884901890',
+      updated_at: '2026-07-16T08:00:01.000Z'
+    }),
+    leader: leader(),
+    now: '2026-07-16T08:00:01.000Z'
+  });
+
+  const sql = pg.calls[2]?.text || '';
+  assert.match(sql, /SET owner_epoch = EXCLUDED\.owner_epoch/i);
+  assert.match(sql, /cell_lease_epoch = EXCLUDED\.cell_lease_epoch/i);
+  assert.match(
+    sql,
+    /ivekit_cell_admission_reservations\.owner_node_id = EXCLUDED\.owner_node_id/i
+  );
+  assert.match(
+    sql,
+    /ivekit_cell_admission_reservations\.state = 'active'[\s\S]+EXCLUDED\.state = 'active'/i
+  );
+  assert.match(
+    sql,
+    /ivekit_cell_admission_reservations\.owner_epoch < EXCLUDED\.owner_epoch/i
+  );
+  assert.match(sql, /EXCLUDED\.cell_lease_epoch = \$5::bigint/i);
+});
+
 test('Postgres Cell admission ledger rejects a stale leader and loads bounded recovery rows', async () => {
   const stalePg = new QueryStub([]);
   const stale = new PostgresCellAdmissionLedger(stalePg as any);
