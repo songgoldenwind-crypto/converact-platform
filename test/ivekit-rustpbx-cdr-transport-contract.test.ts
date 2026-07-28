@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -27,8 +28,9 @@ test('RustPBX CDR transport uses mTLS and a no-op legacy sink', () => {
     'utf8'
   );
 
+  assert.equal(spawnSync('git', ['apply', '--numstat', patchPath]).status, 0);
   assert.match(build, /rustpbx-ivekit-cdr-mtls-noop\.patch/);
-  assert.match(build, /PATCHSET="ivekit\.33"/);
+  assert.match(build, /PATCHSET="ivekit\.34"/);
   assert.match(
     build,
     /rustpbx-ivekit-dual-leg-cdr\.patch"[\s\S]*rustpbx-ivekit-cdr-mtls-noop\.patch"[\s\S]*rustpbx-ivekit-media-tracing\.patch"/
@@ -38,10 +40,19 @@ test('RustPBX CDR transport uses mTLS and a no-op legacy sink', () => {
   assert.match(patch, /IVEKIT_RUSTPBX_CDR_TLS_CA_FILE/);
   assert.match(patch, /Identity::from_pem/);
   assert.match(patch, /Certificate::from_pem/);
-  assert.match(patch, /add_root_certificate/);
-  assert.match(patch, /tls_built_in_root_certs\(false\)/);
+  assert.match(patch, /tls_certs_only\(\[ca\]\)/);
+  assert.doesNotMatch(patch, /add_root_certificate/);
+  assert.doesNotMatch(patch, /tls_built_in_root_certs/);
   assert.match(patch, /permissions\(\)\.mode\(\) & 0o037/);
   assert.doesNotMatch(patch, /permissions\(\)\.mode\(\) & 0o077/);
+  assert.match(
+    patch,
+    /--- a\/src\/callrecord\/storage\.rs[\s\S]*Some\(CallRecordStorageConfig::Noop\) => Ok\(None\)/
+  );
+  assert.match(
+    patch,
+    /--- a\/src\/console\/handlers\/setting\.rs[\s\S]*Some\(CallRecordStorageConfig::Noop\)[\s\S]*CallRecordStorageConfig::Noop => Some/
+  );
   assert.match(patch, /production_cdr_requires_mtls_files/);
   assert.match(compose, /OPC_IVEKIT_INTERNAL_TLS_PORT: "3443"/);
   assert.match(compose, /IVEKIT_RUSTPBX_CDR_TLS_IDENTITY_FILE:/);

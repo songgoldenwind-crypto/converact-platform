@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 52,
+  "revision": 53,
   "status": "proposed",
-  "generated_at": "2026-07-28T10:20:49+08:00",
+  "generated_at": "2026-07-28T11:18:07+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.33-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.34-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.33-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.34-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -195,7 +195,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch",
-          "sha256": "94c22d8861f53583a9aa075efed8ed5f6c299ca77560d8379a0c43816eed4de6",
+          "sha256": "c7ed7f87d8afae920298f32fbe0b0c2874f7135e2b13b1731e82b1f570686ce1",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dual-leg-cdr.patch",
           "purpose": "Make the durable dual-leg spool the only authoritative CDR sink, preserve bounded call-record queue tuning through an explicit no-op sink, and protect replay delivery with production-required client identity and private-CA verification."
         },
@@ -587,7 +587,7 @@
             "An explicit no-op CallRecord storage variant retains bounded teardown queue and worker controls without serializing or retrying a second incompatible network representation.",
             "Production CDR startup requires an HTTPS endpoint, a bounded client identity PEM and a bounded private CA PEM; the client disables redirects and response decompression while retaining bounded connect and request timeouts.",
             "The OPC process exposes a separate internal TLS listener requiring a trusted client certificate while retaining the public HTTP and WebSocket listener unchanged.",
-            "Compose and both Helm deployment surfaces mount separate server and client credentials without embedding private material. Exact-source compile, image build, spool replay and PostgreSQL durable-receipt verification remain release gates for ivekit.33."
+            "Compose and both Helm deployment surfaces mount separate server and client credentials without embedding private material. Exact-source compile, image build, spool replay and PostgreSQL durable-receipt verification remain release gates for ivekit.34."
           ]
         },
         {
@@ -603,7 +603,7 @@
             "A stable SHA-256-derived trace identifier binds commands from the same call without transmitting the raw call identifier, while each command receives a separate span identifier.",
             "Deterministic sampling is configurable from zero through one and defaults to one percent in the deployment surfaces.",
             "The tracing patch adds no SDP, phone number, authorization token or service-secret logging, and does not modify RTP packet forwarding source.",
-            "The ivekit.33 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
+            "The ivekit.34 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
           ]
         },
         {
@@ -616,7 +616,7 @@
           "acceptance_evidence": [
             "A focused patch contract test requires the exact response parser change to follow the complete ivekit.29 queue.",
             "The parser retains accepted, route revision, owner epoch, reservation, authorization context and optional audio-tap validation while removing only the nonexistent data envelope.",
-            "Exact-source locked compilation, image build and real SIPp signaling remain release gates for ivekit.33."
+            "Exact-source locked compilation, image build and real SIPp signaling remain release gates for ivekit.34."
           ]
         },
         {
@@ -752,7 +752,7 @@
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The current ivekit.33 response-contract patch follows the complete media-tracing queue, but its locked native compile, image build, real SIPp admission path, runtime trace continuity and overhead comparison remain not_run.",
+          "The current ivekit.34 response-contract patch follows the complete media-tracing queue, but its locked native compile, image build, real SIPp admission path, runtime trace continuity and overhead comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."
