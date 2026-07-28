@@ -354,6 +354,92 @@ test('iveKit media facade accepts LiveKit webhook raw bodies without platform au
   }
 });
 
+test('iveKit media webhook journals room and participant lifecycle events', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  clearLiveKitEnv();
+  const db = createDatabase(':memory:');
+  const tenantId = createTenant(db, { name: 'iveKit Webhook Event Tenant' }).id;
+  const events: Array<{
+    tenant_id: string;
+    type: string;
+    data: unknown;
+    idempotency_key?: string;
+  }> = [];
+  const eventStore = {
+    async append(event: (typeof events)[number]) {
+      events.push(event);
+    }
+  };
+
+  try {
+    await route(
+      db,
+      'POST',
+      '/api/ivekit/media/rooms',
+      {
+        purpose: 'video_service',
+        room_name: 'ivekit-webhook-event-room',
+        business_ref: { type: 'order_assignment', id: 'assignment-webhook-event' }
+      },
+      authHeaders(tenantId)
+    );
+
+    for (const payload of [
+      {
+        id: 'livekit-event-room-started',
+        event: 'room_started',
+        room: { name: 'ivekit-webhook-event-room', sid: 'RM_event' }
+      },
+      {
+        id: 'livekit-event-participant-joined',
+        event: 'participant_joined',
+        room: { name: 'ivekit-webhook-event-room' },
+        participant: {
+          identity: 'customer-webhook-event',
+          metadata: JSON.stringify({ role: 'customer' })
+        }
+      }
+    ]) {
+      const rawBody = JSON.stringify(payload);
+      await routeIveKitMediaApi(
+        db,
+        'POST',
+        '/api/ivekit/media/webhooks/livekit',
+        new URL('http://localhost/api/ivekit/media/webhooks/livekit'),
+        rawBody,
+        rawBody,
+        {},
+        { eventStore }
+      );
+    }
+
+    assert.deepEqual(events.map((event) => event.type), [
+      'ivekit.media.call.updated',
+      'ivekit.media.participant.updated'
+    ]);
+    assert.deepEqual(events.map((event) => event.tenant_id), [tenantId, tenantId]);
+    assert.deepEqual(events.map((event) => event.data), [
+      {
+        business_ref: { type: 'order_assignment', id: 'assignment-webhook-event' },
+        room_name: 'ivekit-webhook-event-room',
+        status: 'active'
+      },
+      {
+        business_ref: { type: 'order_assignment', id: 'assignment-webhook-event' },
+        identity: 'customer-webhook-event',
+        participant_identity: 'customer-webhook-event',
+        role: 'customer',
+        room_name: 'ivekit-webhook-event-room',
+        status: 'joined'
+      }
+    ]);
+    assert.equal(events.every((event) => Boolean(event.idempotency_key)), true);
+    assert.equal(new Set(events.map((event) => event.idempotency_key)).size, 2);
+  } finally {
+    db.close();
+  }
+});
+
 test('iveKit media webhook completes recording evidence through the facade hook', async () => {
   process.env.OPC_API_KEY = API_KEY;
   clearLiveKitEnv();

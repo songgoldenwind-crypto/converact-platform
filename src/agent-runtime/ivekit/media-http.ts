@@ -531,6 +531,7 @@ export async function routeIveKitMediaApi(
         ? body
         : JSON.stringify(body || {});
     const result = await media.webhooks.handleWebhook(rawBodyText, authHeader || undefined);
+    await journalLiveKitLifecycleEvent(media, result, rawBodyText, options.eventStore);
     await revokeTerminalCallRevival(rawBodyText, result, options);
     await closeTerminalEgressPlacement(media, result, options);
     if (result.recording) await broadcastMediaRecording(options.pg, 'ivekit.media.recording.updated', result.recording);
@@ -1969,6 +1970,78 @@ async function publishMediaConnectionEvent(
 function mediaEventIdempotencyKey(namespace: string, parts: readonly unknown[]): string {
   const digest = createHash('sha256').update(parts.map(String).join('\u0000')).digest('hex');
   return `${namespace}:${digest}`;
+}
+
+async function journalLiveKitLifecycleEvent(
+  media: ReturnType<typeof createLiveKitMediaModule>,
+  result: LiveKitWebhookResult,
+  rawBody: string,
+  eventStore?: Pick<IveKitTenantEventJournal, 'append'>
+): Promise<void> {
+  if (!eventStore || !result.event || !result.room_name) return;
+  const room = media.rooms.getRoomByName(result.room_name);
+  if (!room) return;
+
+  const providerEvent = bodyRecord(JSON.parse(rawBody || '{}'));
+  const participant = bodyRecord(providerEvent.participant);
+  const identity = String(participant.identity || '').trim();
+  const storedParticipant = identity
+    ? media.participants.getParticipant(result.room_name, identity)
+    : null;
+  const businessRef = roomBusinessRef(room);
+  const base = {
+    ...(businessRef ? { business_ref: { type: businessRef.type, id: businessRef.id } } : {}),
+    room_name: result.room_name
+  };
+  let type = '';
+  let data: Record<string, unknown> | null = null;
+
+  if (result.event === 'room_started' && room.status === 'active') {
+    type = 'ivekit.media.call.updated';
+    data = { ...base, status: 'active' };
+  } else if (result.event === 'room_finished' && room.status === 'closed') {
+    type = 'ivekit.media.call.ended';
+    data = { ...base, status: 'ended' };
+  } else if (
+    result.event === 'participant_joined' &&
+    storedParticipant?.status === 'joined'
+  ) {
+    type = 'ivekit.media.participant.updated';
+    data = {
+      ...base,
+      identity,
+      participant_identity: identity,
+      role: storedParticipant.role,
+      status: 'joined'
+    };
+  } else if (
+    result.event === 'participant_left' &&
+    storedParticipant?.status === 'left'
+  ) {
+    type = 'ivekit.media.participant.updated';
+    data = {
+      ...base,
+      identity,
+      participant_identity: identity,
+      role: storedParticipant.role,
+      status: 'left'
+    };
+  }
+  if (!type || !data) return;
+
+  const providerEventId = String(providerEvent.id || '').trim() ||
+    createHash('sha256').update(rawBody).digest('hex');
+  await eventStore.append({
+    tenant_id: room.tenant_id,
+    type,
+    data,
+    idempotency_key: mediaEventIdempotencyKey('livekit-lifecycle', [
+      providerEventId,
+      result.event,
+      result.room_name,
+      identity
+    ])
+  });
 }
 
 function broadcastMediaModeration(
