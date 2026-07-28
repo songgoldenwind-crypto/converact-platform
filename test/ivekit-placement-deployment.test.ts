@@ -115,8 +115,70 @@ test('RustPBX deployment admits the configured voice placement profile', () => {
   assert.equal(rustPbxNode?.profile_ids.includes(policy.profile_id), true);
 });
 
+test('standalone Cell deployment admits Tinode through its native owner guard', () => {
+  const compose = readFileSync(
+    'infra/ivekit/docker-compose.voice.yml',
+    'utf8'
+  );
+  const env = readFileSync('infra/ivekit/env.example', 'utf8');
+
+  const tinode = serviceBlock(compose, 'tinode');
+  const componentNode = serviceBlock(compose, 'tinode-component-node');
+  const admission = serviceBlock(compose, 'cell-admission');
+  const capacity = serviceBlock(compose, 'rustpbx-capacity-projector');
+
+  assert.match(tinode, /IVEKIT_COMPONENT_NODE_ENDPOINT: http:\/\/127\.0\.0\.1:3210/);
+  assert.match(tinode, /IVEKIT_COMPONENT_NODE_ID: \$\{TINODE_OWNER_NODE_ID/);
+  assert.match(tinode, /IVEKIT_OWNER_GUARD_REQUIRED: "1"/);
+  assert.match(tinode, /IVEKIT_TINODE_OWNER_API_TOKEN:/);
+
+  assert.match(componentNode, /network_mode: service:tinode/);
+  assert.match(componentNode, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT: tinode/);
+  assert.match(componentNode, /OPC_IVEKIT_COMPONENT_NODE_INTERACTION_KINDS: tinode_im/);
+  assert.match(componentNode, /OPC_IVEKIT_COMPONENT_NODE_DIMENSIONS_JSON:/);
+  assert.match(componentNode, /fetch\('http:\/\/127\.0\.0\.1:3210\/operationalz'\)/);
+
+  assert.match(admission, /OPC_IVEKIT_CELL_INTERACTION_KINDS: \$\{IVEKIT_CELL_INTERACTION_KINDS/);
+  assert.match(admission, /OPC_IVEKIT_CELL_DIMENSIONS_JSON: \$\{IVEKIT_CELL_DIMENSIONS_JSON/);
+  assert.match(admission, /OPC_IVEKIT_CELL_NODES_JSON: \$\{IVEKIT_CELL_NODES_JSON/);
+  assert.match(capacity, /OPC_IVEKIT_CELL_PROBES_JSON: \$\{IVEKIT_CELL_CAPACITY_PROBES_JSON/);
+  assert.match(capacity, /tinode-component-node:[\s\S]*condition: service_healthy/);
+
+  const kinds = envValue(env, 'IVEKIT_CELL_INTERACTION_KINDS').split(',');
+  const nodes = JSON.parse(envValue(env, 'IVEKIT_CELL_NODES_JSON')) as Array<{
+    node_id: string;
+    interaction_kinds: string[];
+  }>;
+  const probes = JSON.parse(
+    envValue(env, 'IVEKIT_CELL_CAPACITY_PROBES_JSON')
+  ) as Array<{
+    component: string;
+    metrics_url: string;
+    dimensions: Record<string, { labels?: Record<string, string> }>;
+  }>;
+  const tinodeNode = nodes.find((node) => node.node_id === 'tinode-node-a');
+  const tinodeProbe = probes.find((probe) => probe.component === 'tinode');
+
+  assert.equal(kinds.includes('sip_voice'), true);
+  assert.equal(kinds.includes('tinode_im'), true);
+  assert.deepEqual(tinodeNode?.interaction_kinds, ['tinode_im']);
+  assert.equal(tinodeProbe?.metrics_url, 'http://tinode:3210/metrics');
+  assert.deepEqual(
+    tinodeProbe?.dimensions['im.presence_sessions']?.labels,
+    { dimension: 'im.presence_sessions' }
+  );
+});
+
 function envValue(source: string, name: string): string {
   const line = source.split('\n').find((entry) => entry.startsWith(`${name}=`));
   assert.ok(line, `${name} is missing`);
   return line.slice(name.length + 1);
+}
+
+function serviceBlock(source: string, name: string): string {
+  const block = source.match(
+    new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-zA-Z0-9_-]+:\\n|^volumes:)`, 'm')
+  )?.[0];
+  assert.ok(block, `${name} service is missing`);
+  return block;
 }
