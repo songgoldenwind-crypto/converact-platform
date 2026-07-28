@@ -476,6 +476,119 @@ describe('iveKit RTPengine real acceptance evidence', () => {
     );
   });
 
+  it('acceptance takeover advances into the current Cell lease epoch', async () => {
+    const previousOwnerEpoch = (142n * 4_294_967_296n + 2n).toString();
+    const expectedOwnerEpoch = (143n * 4_294_967_296n + 1n).toString();
+    let requestedOwnerEpoch = '';
+    const server = createServer(async (request, response) => {
+      if (request.method === 'GET' && request.url === '/v1/state') {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({
+          data: {
+            state: 'accepting',
+            cell_lease_epoch: 143,
+            capacity_sequence: 1,
+            nodes: [{
+              node_id: 'rustpbx-node-a',
+              state: 'accepting',
+              recovery_safe_after: ''
+            }],
+            reservations: [{
+              reservation_id: 'reservation-a',
+              state: 'active',
+              owner_node_id: 'rustpbx-node-a',
+              owner_epoch: previousOwnerEpoch
+            }]
+          }
+        }));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      requestedOwnerEpoch = String(body.owner_epoch || '');
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        data: {
+          reservation_id: 'reservation-a',
+          state: 'active',
+          region_id: 'region-a',
+          zone_id: 'zone-a',
+          cell_id: 'ivekit-cell-a',
+          owner_node_id: 'rustpbx-node-a',
+          owner_epoch: requestedOwnerEpoch,
+          endpoint: 'http://rustpbx:8080',
+          expires_at: '2099-01-01T00:00:00.000Z',
+          required_capacity: { 'voice.weighted_calls': 1 }
+        }
+      }));
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve)
+    );
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+
+    try {
+      const config = loadRtpengineAcceptanceCliConfig({
+        IVEKIT_MEDIA_CONTROL_ENDPOINT: 'http://127.0.0.1:33211',
+        IVEKIT_MEDIA_CONTROL_TOKEN: 'task9-media-control-token-123456789',
+        IVEKIT_RTPENGINE_ACCEPTANCE_BIND_ADDRESS: '127.0.0.1',
+        IVEKIT_RTPENGINE_ACCEPTANCE_EXPIRES_AT:
+          '2099-01-01T00:00:00.000Z',
+        IVEKIT_RTPENGINE_ACCEPTANCE_SOURCE_COMMIT: 'a'.repeat(40),
+        IVEKIT_RTPENGINE_ACCEPTANCE_IMAGE_DIGEST:
+          `sha256:${'b'.repeat(64)}`,
+        IVEKIT_RTPENGINE_ACCEPTANCE_CONFIG_HASH:
+          `sha256:${'c'.repeat(64)}`,
+        IVEKIT_RTPENGINE_ACCEPTANCE_RUNTIME_MODE: 'userspace',
+        IVEKIT_RTPENGINE_ACCEPTANCE_OUTPUT: '/evidence/task9.json',
+        IVEKIT_RTPENGINE_ACCEPTANCE_SOURCE_DIR: '/work',
+        IVEKIT_RTPENGINE_ACCEPTANCE_DOCKER_BINARY: '/usr/bin/docker',
+        IVEKIT_RTPENGINE_ACCEPTANCE_CONTAINER_PREFIX:
+          'ivekit-goal2-task9-',
+        IVEKIT_RTPENGINE_ACCEPTANCE_MEDIA_CONTROL_CONTAINER:
+          'ivekit-goal2-task9-media-control',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_CONTAINER:
+          'ivekit-goal2-task9-admission',
+        IVEKIT_RTPENGINE_ACCEPTANCE_RTPENGINE_CONTAINER:
+          'ivekit-goal2-task9-rtpengine',
+        IVEKIT_RTPENGINE_ACCEPTANCE_NG_HOST: '127.0.0.1',
+        IVEKIT_RTPENGINE_ACCEPTANCE_NG_PORT: '32222',
+        IVEKIT_RTPENGINE_ACCEPTANCE_MEDIA_PORT_MIN: '36000',
+        IVEKIT_RTPENGINE_ACCEPTANCE_MEDIA_PORT_MAX: '36100',
+        IVEKIT_RTPENGINE_ACCEPTANCE_MAX_ACTIVE_CALLS: '2',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ENDPOINT:
+          `http://127.0.0.1:${address.port}`,
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TOKEN:
+          'task9-admission-token-123456789',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_TENANT_ID: 'goal3-tenant',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REGION_ID: 'region-a',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_ZONE_ID: 'zone-a',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_CELL_ID: 'ivekit-cell-a',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_PROFILE_ID:
+          'voice-ordinary-v1',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_OWNER_NODE_ID:
+          'rustpbx-node-a',
+        IVEKIT_RTPENGINE_ACCEPTANCE_ADMISSION_REQUIRED_CAPACITY_JSON:
+          '{"voice.weighted_calls":1}'
+      });
+      assert.ok(config.admission);
+      const takenOver = await config.admission.takeover({
+        admission_reservation_id: 'reservation-a',
+        tenant_id: 'goal3-tenant',
+        cell_id: 'ivekit-cell-a',
+        owner_node_id: 'rustpbx-node-a',
+        owner_epoch: previousOwnerEpoch
+      });
+
+      assert.equal(requestedOwnerEpoch, expectedOwnerEpoch);
+      assert.equal(takenOver.owner_epoch, expectedOwnerEpoch);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('starts acceptance from a clean isolated RTPengine process', async () => {
     const calls: string[] = [];
 
@@ -601,11 +714,27 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       assert.deepEqual(authority.events, [
         'reserve:task9-call-unit-plain',
         'activate:admission-task9-call-unit-plain',
+        'takeover:admission-task9-call-unit-plain',
         'close:admission-task9-call-unit-plain',
         'reserve:task9-call-unit-srtp',
         'activate:admission-task9-call-unit-srtp',
         'close:admission-task9-call-unit-srtp'
       ]);
+      const plaintextAnswer = commands.find((command) =>
+        command.action === 'answer' &&
+        command.call_id === 'task9-call-unit-plain'
+      );
+      const plaintextQuery = commands.find((command) =>
+        command.action === 'query' &&
+        command.call_id === 'task9-call-unit-plain'
+      );
+      assert.ok(plaintextAnswer);
+      assert.ok(plaintextQuery);
+      assert.ok(
+        BigInt(plaintextQuery.owner_epoch) >
+        BigInt(plaintextAnswer.owner_epoch)
+      );
+      assert.equal(plaintextQuery.command_sequence, 1);
       assert.ok(commands.every((command) =>
         command.admission_reservation_id.startsWith('admission-task9-call-') &&
         command.tenant_id === 'goal3-tenant' &&

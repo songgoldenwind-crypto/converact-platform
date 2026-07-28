@@ -449,6 +449,10 @@ export async function runRtpengineMediaScenario(input: {
       await waitForTrafficStart(endpointA, endpointB, packetCount);
       const receivedBefore = receivedTotal(endpointA, endpointB, packetCount);
       await input.during_stream();
+      if (input.admission) {
+        authority = await input.admission.takeover(authority);
+        nextSequence = 1;
+      }
       const receivedAfter = receivedTotal(endpointA, endpointB, packetCount);
       const query = createRtpengineAcceptanceCommand({
         action: 'query',

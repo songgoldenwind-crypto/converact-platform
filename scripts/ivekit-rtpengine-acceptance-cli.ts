@@ -876,12 +876,28 @@ function loadRtpengineAcceptanceAdmission(
     ),
     takeover: async (reservation) => {
       const current = splitOwnerEpoch(reservation.owner_epoch);
-      if (current.cell_local_sequence >= 0xffff_ffff) {
+      const state = await client.state();
+      if (state.cell_lease_epoch < current.cell_lease_epoch) {
+        throw new Error('Cell admission lease epoch regressed');
+      }
+      let nextSequence = state.cell_lease_epoch === current.cell_lease_epoch
+        ? current.cell_local_sequence
+        : 0;
+      for (const candidate of state.reservations) {
+        const owner = splitOwnerEpoch(candidate.owner_epoch);
+        if (owner.cell_lease_epoch === state.cell_lease_epoch) {
+          nextSequence = Math.max(
+            nextSequence,
+            owner.cell_local_sequence
+          );
+        }
+      }
+      if (nextSequence >= 0xffff_ffff) {
         throw new Error('Cell admission owner epoch is exhausted');
       }
       const ownerEpoch = composeOwnerEpoch(
-        current.cell_lease_epoch,
-        current.cell_local_sequence + 1
+        state.cell_lease_epoch,
+        nextSequence + 1
       );
       return identity(await client.takeover(
         reservation.admission_reservation_id,
