@@ -4,6 +4,16 @@ use std::fmt::{Display, Formatter};
 
 const HALF_SEQUENCE_SPACE: u16 = 1 << 15;
 
+pub trait SequenceNumbered {
+    fn sequence_number(&self) -> u16;
+}
+
+impl SequenceNumbered for RtpAudioFrame {
+    fn sequence_number(&self) -> u16 {
+        self.sequence
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JitterPush {
     Accepted,
@@ -14,8 +24,8 @@ pub enum JitterPush {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum JitterPop {
-    Frame(RtpAudioFrame),
+pub enum JitterPop<T = RtpAudioFrame> {
+    Frame(T),
     Gap { sequence: u16 },
     Waiting,
     Empty,
@@ -52,15 +62,15 @@ impl Display for JitterConfigError {
 
 impl Error for JitterConfigError {}
 
-pub struct BoundedJitterBuffer {
-    slots: Vec<Option<RtpAudioFrame>>,
+pub struct BoundedJitterBuffer<T = RtpAudioFrame> {
+    slots: Vec<Option<T>>,
     expected: Option<u16>,
     len: usize,
     wait_depth: u16,
     stats: JitterStats,
 }
 
-impl BoundedJitterBuffer {
+impl<T: SequenceNumbered> BoundedJitterBuffer<T> {
     pub fn new(capacity: usize, wait_depth: usize) -> Result<Self, JitterConfigError> {
         if capacity < 2 {
             return Err(JitterConfigError::CapacityTooSmall);
@@ -70,7 +80,7 @@ impl BoundedJitterBuffer {
         }
 
         Ok(Self {
-            slots: vec![None; capacity],
+            slots: std::iter::repeat_with(|| None).take(capacity).collect(),
             expected: None,
             len: 0,
             wait_depth: wait_depth as u16,
@@ -78,9 +88,10 @@ impl BoundedJitterBuffer {
         })
     }
 
-    pub fn push(&mut self, frame: RtpAudioFrame) -> JitterPush {
-        let expected = *self.expected.get_or_insert(frame.sequence);
-        let distance = frame.sequence.wrapping_sub(expected);
+    pub fn push(&mut self, frame: T) -> JitterPush {
+        let sequence = frame.sequence_number();
+        let expected = *self.expected.get_or_insert(sequence);
+        let distance = sequence.wrapping_sub(expected);
 
         if distance >= HALF_SEQUENCE_SPACE {
             self.stats.late += 1;
@@ -91,9 +102,9 @@ impl BoundedJitterBuffer {
             return JitterPush::TooFarAhead { distance };
         }
 
-        let index = frame.sequence as usize % self.slots.len();
+        let index = sequence as usize % self.slots.len();
         match &self.slots[index] {
-            Some(existing) if existing.sequence == frame.sequence => {
+            Some(existing) if existing.sequence_number() == sequence => {
                 self.stats.duplicate += 1;
                 JitterPush::Duplicate
             }
@@ -110,7 +121,7 @@ impl BoundedJitterBuffer {
         }
     }
 
-    pub fn pop(&mut self) -> JitterPop {
+    pub fn pop(&mut self) -> JitterPop<T> {
         let Some(expected) = self.expected else {
             return JitterPop::Empty;
         };
@@ -118,7 +129,7 @@ impl BoundedJitterBuffer {
         let index = expected as usize % self.slots.len();
         if self.slots[index]
             .as_ref()
-            .is_some_and(|frame| frame.sequence == expected)
+            .is_some_and(|frame| frame.sequence_number() == expected)
         {
             let frame = self.slots[index]
                 .take()
@@ -136,7 +147,7 @@ impl BoundedJitterBuffer {
             .slots
             .iter()
             .flatten()
-            .map(|frame| frame.sequence.wrapping_sub(expected))
+            .map(|frame| frame.sequence_number().wrapping_sub(expected))
             .filter(|distance| *distance < HALF_SEQUENCE_SPACE)
             .max()
             .unwrap_or(0);

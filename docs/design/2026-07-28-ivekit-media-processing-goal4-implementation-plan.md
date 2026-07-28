@@ -17,6 +17,10 @@ processing pool。processing pool 使用 owner epoch、reservation、codec-pair 
 **Tech Stack:** Rust 2021、Tokio、rustrtc exact commit、audio-codec 0.3.40、
 Axum、Prometheus metrics、TypeScript media-control、Compose/Helm、SIPp/RTP generator。
 
+**Source decision:** rvoip 仅作为可审计的能力来源，不作为第二套在线 SIP/RTP/WebRTC
+runtime。替换结论、exact source 和提取边界见
+[`ADR-CCAAS-7`](../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md)。
+
 ---
 
 ## 1. 不变量
@@ -105,14 +109,25 @@ Axum、Prometheus metrics、TypeScript media-control、Compose/Helm、SIPp/RTP g
 
 ## 6. Task 4：RTP、IVR 与 DTMF 数据面
 
-- [ ] `rtp.rs` 使用固定 worker/shard 和 `SO_REUSEPORT`，每个 shard 有固定 packet budget；
-  包路径只读取本地 session snapshot。
-- [ ] 两腿各自维护 SSRC、sequence、timestamp、source validation、jitter 和 RTCP 统计。
+- [x] `worker.rs` 使用固定原生 worker/shard、可配置 `SO_REUSEPORT` 和固定 packet
+  budget；有界 ready queue 保留 edge-triggered budget continuation，不创建 per-leg task。
+- [x] hard-bounded `DatagramPool` 使用 `ArrayQueue`、原子 allocation ceiling 和
+  `Bytes::from_owner`；最后一个引用释放时同步归还，耗尽时由 worker-local discard
+  buffer 排空内核队列，不阻塞、不扩容、不自旋。
+- [x] RTP packet processor 使用 owned `Bytes` 输入和复用 output scratch，不在 parser 与
+  codec 之间复制 payload。
+- [x] 两腿各自维护 SSRC、sequence、timestamp、source validation、jitter 和 RTCP 统计。
+- [x] PCMU/PCMA/Opus RTP wire path 支持双向 payload type、sequence 和 timestamp 重写。
+- [x] RFC 4733 支持 event 映射、duration clock 缩放和 start/completed 重复抑制。
 - [ ] IVR playback 预解码到有界 PCM frame cache；文件、HTTP、对象存储不进入 RTP loop。
-- [ ] gather 同时支持 RFC 4733 和 SIP INFO，in-band DTMF 作为后续独立能力状态。
+- [ ] SIP INFO gather 接入 RustPBX command path；in-band DTMF 作为后续独立能力状态。
 - [ ] playback/gather command 支持 start/stop/barge-in，重复命令不重复播放或完成事件。
-- [ ] packet-loop 测试覆盖一方无媒体、NAT source 更新、DTMF duration、播放结束、
-  barge-in、队列满和 session 删除竞争。
+- [x] packet-loop 测试覆盖双向真实 UDP、NAT source 更新、DTMF duration/retransmit、
+  单次 budget 以上 burst、并发 pool ceiling、session 安装冲突和容量耗尽。
+- [ ] packet-loop 继续覆盖一方无媒体、播放结束、barge-in、事件队列满和播放中
+  session 删除竞争。
+- [ ] rvoip-derived buffer/packet/benchmark 代码必须固定 exact source identity；只提取
+  必需模块，不引入其 SIP、WebRTC 或通用 session runtime。
 
 ## 7. Task 5：media-control 与 RustPBX 接入
 
@@ -152,7 +167,8 @@ Axum、Prometheus metrics、TypeScript media-control、Compose/Helm、SIPp/RTP g
 
 ## 10. Task 8：后续 codec 与会议切片
 
-- [ ] G.729：独立 pair、ptime、能力/许可状态、质量和容量签署。
+- [ ] G.729：以 rvoip exact-commit G.729A/AB 为候选源码，独立 pair、ptime、来源、
+  reference vector、互通、质量和容量签署；不得因源码存在直接标记完成。
 - [ ] AMR-NB/WB：独立 fmtp、mode-set、octet-align、DTX 和容量签署。
 - [ ] conference/mix：按 participant-input 和 output mix slot 准入，不复用 transcode slot。
 - [ ] T.38：UDPTL redundancy、ECM、G.711 fallback 和 fax quality 独立签署。

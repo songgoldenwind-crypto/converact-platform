@@ -1665,6 +1665,7 @@ Goal 0..10 --> Goal 11 正式验收
 | Kamailio 是否处理 RTP | 否 | 保持 SIP Edge 轻量，避免信令和媒体故障耦合 |
 | RustPBX 是否继续处理所有 RTP | 否 | 通用用户态媒体循环难以稳定达到目标 PPS |
 | 是否引入 rtpengine | 是，维护 fork | 成熟内核转发、SDP、SRTP、fork、录音和转码基础能显著缩短差距 |
+| rvoip 是否整体替换 RustPBX | 当前否，选择性提取 | 尚缺 iveKit owner/recovery/CDR/media-control 合同和发布级 carrier topology；详见 ADR-CCAAS-7 |
 | RustPBX 是否失去媒体权威 | 否 | RustPBX 保留 Call/Leg/Dialog 和逻辑媒体图；wire SDP/transport runtime 由执行器权威 |
 | 是否使用 Redis 迁移活跃媒体 | 否 | RTP 会话有本地 socket、sequence、crypto 和 kernel state，不能靠共享 KV 无损迁移 |
 | 录音是否与媒体同进程 | 否 | 存储故障必须隔离 |
@@ -1687,6 +1688,8 @@ Goal 0..10 --> Goal 11 正式验收
   继续作为 SIP Edge 详细设计；本文明确其不拥有媒体。
 - [iveKit V3 Completion Audit](../ivekit-v3-completion-audit.md)：
   继续记录 implemented/controlled/not_run 事实。
+- [rvoip 替换与能力提取审计](../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md)：
+  固定 rvoip 的技术定位、可提取能力、禁止重复 runtime 的边界和未来替换门槛。
 
 本文是后续 Goal 的总入口。若其他文档与本文在媒体职责、容量口径或故障语义上冲突，以本文终态裁决为准，
 但实现状态仍以 completion audit 和机器可读 evidence 为准。

@@ -18,7 +18,7 @@ fn frame(sequence: u16, timestamp: u32, payload: Vec<u8>) -> RtpAudioFrame {
         timestamp,
         payload_type: 0,
         marker: false,
-        payload,
+        payload: payload.into(),
     }
 }
 

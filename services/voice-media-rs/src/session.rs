@@ -290,7 +290,7 @@ struct PortPool {
 
 impl PortPool {
     fn new(start: u16, end: u16) -> Result<Self, SessionError> {
-        if start > end || start % 2 != 0 || end % 2 != 0 {
+        if start > end || !start.is_multiple_of(2) || !end.is_multiple_of(2) {
             return Err(SessionError::InvalidConfiguration {
                 field: "rtp_port_range",
             });

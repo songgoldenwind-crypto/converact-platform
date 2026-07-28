@@ -197,7 +197,7 @@ impl ProcessingPipeline {
                 timestamp,
                 payload_type: self.config.target_payload_type,
                 marker: input.marker,
-                payload,
+                payload: payload.into(),
             },
             concealment: Concealment::None,
         })
@@ -241,10 +241,14 @@ impl ProcessingPipeline {
                 timestamp,
                 payload_type: self.config.target_payload_type,
                 marker: false,
-                payload,
+                payload: payload.into(),
             },
             concealment,
         })
+    }
+
+    pub(crate) fn map_rtp_timing(&mut self, sequence: u16, timestamp: u32) -> (u16, u32) {
+        self.timing.map(sequence, timestamp)
     }
 }
 
