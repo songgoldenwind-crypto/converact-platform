@@ -184,11 +184,11 @@ test('HOMER fork status records controlled PostgreSQL/HEP evidence without claim
   );
 });
 
-test('RustPBX fork manifest tracks the complete ivekit.31 patch queue', () => {
+test('RustPBX fork manifest tracks the complete ivekit.32 patch queue', () => {
   const rustpbx = manifest.components.find((component) => component.component_id === 'rustpbx');
   assert.ok(rustpbx);
 
-  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.31-6c49ee76';
+  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.32-6c49ee76';
   assert.equal(rustpbx.runtime_artifact.reference, expectedReference);
   for (const path of [
     'infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch',

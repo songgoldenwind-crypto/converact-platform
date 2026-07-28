@@ -3,7 +3,7 @@ new file mode 100644
 index 00000000..6c468728
 --- /dev/null
 +++ b/src/ivekit_media_control.rs
-@@ -0,0 +1,912 @@
+@@ -0,0 +1,924 @@
 +use futures::StreamExt;
 +use reqwest::{Certificate, Client, Identity, Method, StatusCode, Url};
 +use serde::{Deserialize, Serialize};
@@ -598,6 +598,18 @@ index 00000000..6c468728
 +    },
 +    #[error("{code}")]
 +    UnknownAfterTransport { code: &'static str },
++}
++
++impl MediaControlClientError {
++    pub fn failure_code(&self) -> &str {
++        match self {
++            Self::Configuration(code)
++            | Self::InvalidCommand(code)
++            | Self::RejectedBeforeTransport { code }
++            | Self::UnknownAfterTransport { code } => code,
++            Self::Rejected { error_code, .. } => error_code,
++        }
++    }
 +}
 +
 +struct BoundedResponse {

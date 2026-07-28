@@ -220,7 +220,7 @@ data to logs or trace headers and does not modify RTP packet forwarding.
 The co-located media-control process can export its own bounded OpenTelemetry
 spans through `OPC_OTEL_*`. Export is disabled by default and, when enabled,
 uses explicit queue, batch, delay, timeout, endpoint, and sample-ratio limits.
-The exact ivekit.31 patch queue applies and its changed Rust files pass Rustfmt.
+The exact ivekit.32 patch queue applies and its changed Rust files pass Rustfmt.
 Locked native compilation, image build, multi-Pod trace continuity, and an
 enabled-versus-disabled overhead comparison remain `not_run`.
 

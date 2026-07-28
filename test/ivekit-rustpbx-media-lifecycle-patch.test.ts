@@ -25,7 +25,7 @@ test('RustPBX media lifecycle patch is ordered and exact-source applicable', () 
     build,
     /rustpbx-ivekit-media-control-client\.patch"[\s\S]*rustpbx-ivekit-media-lifecycle\.patch"/
   );
-  assert.match(build, /PATCHSET="ivekit\.31"/);
+  assert.match(build, /PATCHSET="ivekit\.32"/);
   assert.match(patch, /IveKitMediaLifecycle/);
   assert.match(patch, /OrdinaryRelay/);
 });
@@ -105,4 +105,33 @@ test('local media profiles stay local and remote failures never silently bypass'
   assert.match(effective, /Unknown/);
   assert.match(effective, /reconcile_required/);
   assert.doesNotMatch(effective, /unwrap_or.*bypass|unwrap_or_else.*bypass/);
+});
+
+test('media-control failures retain a safe diagnostic code across the lifecycle boundary', () => {
+  const effective = effectivePatch();
+  const clientPatch = readFileSync(
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-control-client.patch',
+    'utf8'
+  )
+    .split('\n')
+    .filter((line) => !line.startsWith('-') || line.startsWith('---'))
+    .join('\n');
+
+  assert.match(
+    clientPatch,
+    /impl MediaControlClientError[\s\S]*pub fn failure_code\(&self\) -> &str/
+  );
+  assert.match(
+    effective,
+    /ControlRejected\s*\{\s*code: String\s*\}/
+  );
+  assert.match(
+    effective,
+    /Err\(error\)[\s\S]{0,300}error\.failure_code\(\)\.to_string\(\)/
+  );
+  assert.match(
+    effective,
+    /failure_code = error\.failure_code\(\)/
+  );
+  assert.match(effective, /client_failure_code_survives_lifecycle_boundary/);
 });
