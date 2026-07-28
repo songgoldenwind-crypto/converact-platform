@@ -478,6 +478,11 @@ describe('iveKit RTPengine real acceptance evidence', () => {
     let answerSdp = '';
     const actions: string[] = [];
     const commandIds = new Set<string>();
+    let fetchCalls = 0;
+    const mediaControlFetch: typeof fetch = async (...arguments_) => {
+      fetchCalls += 1;
+      return globalThis.fetch(...arguments_);
+    };
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -523,6 +528,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       const result = await runRtpengineMediaScenario({
         media_control_base_url: `http://127.0.0.1:${address.port}`,
         media_control_token: token,
+        media_control_fetch: mediaControlFetch,
         bind_address: '127.0.0.1',
         mode: 'rtp',
         scenario_id: 'unit-plain',
@@ -537,6 +543,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       const srtpResult = await runRtpengineMediaScenario({
         media_control_base_url: `http://127.0.0.1:${address.port}`,
         media_control_token: token,
+        media_control_fetch: mediaControlFetch,
         bind_address: '127.0.0.1',
         mode: 'sdes_srtp',
         scenario_id: 'unit-srtp',
@@ -550,6 +557,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
         'offer', 'answer', 'query', 'delete', 'delete',
         'offer', 'answer', 'delete'
       ]);
+      assert.equal(fetchCalls, actions.length);
       assert.equal(result.endpoint_a.unique_packets, 8);
       assert.equal(result.endpoint_b.unique_packets, 8);
       assert.equal(result.endpoint_a.rtcp_packets, 1);
@@ -577,6 +585,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
     const token = 'task9-control-token-that-is-long-enough';
     let draining = false;
     let engineRunning = true;
+    let fetchCalls = 0;
     const active = new Map<string, { epoch: bigint; sdp: string }>();
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
@@ -645,6 +654,10 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       const matrix = await runRtpengineControlMatrix({
         media_control_base_url: `http://127.0.0.1:${address.port}`,
         media_control_token: token,
+        media_control_fetch: async (...arguments_) => {
+          fetchCalls += 1;
+          return globalThis.fetch(...arguments_);
+        },
         bind_address: '127.0.0.1',
         expires_at: '2099-01-01T00:00:00.000Z',
         maximum_active_calls: 2,
@@ -668,6 +681,7 @@ describe('iveKit RTPengine real acceptance evidence', () => {
       assert.equal(matrix.checks.stale_epoch_rejected, true);
       assert.equal(matrix.checks.higher_epoch_takeover, true);
       assert.equal(matrix.checks.rtpengine_failure_classified, true);
+      assert.ok(fetchCalls > 0);
       assert.equal(active.size, 0);
     } finally {
       await new Promise<void>((resolve, reject) =>

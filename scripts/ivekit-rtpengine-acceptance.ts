@@ -223,6 +223,7 @@ export function buildRtpengineAcceptanceEvidence(input: {
 export async function runRtpengineMediaScenario(input: {
   media_control_base_url: string;
   media_control_token: string;
+  media_control_fetch?: typeof fetch;
   bind_address: string;
   mode: 'rtp' | 'sdes_srtp';
   scenario_id: string;
@@ -235,6 +236,7 @@ export async function runRtpengineMediaScenario(input: {
 }): Promise<RtpengineMediaScenarioResult> {
   const baseUrl = checkedBaseUrl(input.media_control_base_url);
   const token = checkedToken(input.media_control_token);
+  const fetchImpl = input.media_control_fetch ?? globalThis.fetch;
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(input.scenario_id)) {
     throw new Error('RTPengine scenario ID is invalid');
   }
@@ -313,7 +315,7 @@ export async function runRtpengineMediaScenario(input: {
         from_tag: fromTag
       }
     });
-    const offerResult = await postMediaCommand(baseUrl, token, offer);
+    const offerResult = await postMediaCommand(baseUrl, token, offer, fetchImpl);
     const offerSession = successfulSession(offerResult, 'offer');
     const relayForB = parseRelayEndpoint(offerSession.effective_sdp);
 
@@ -339,7 +341,7 @@ export async function runRtpengineMediaScenario(input: {
         to_tag: toTag
       }
     });
-    const answerResult = await postMediaCommand(baseUrl, token, answer);
+    const answerResult = await postMediaCommand(baseUrl, token, answer, fetchImpl);
     const answerSession = successfulSession(answerResult, 'answer');
     const relayForA = parseRelayEndpoint(answerSession.effective_sdp);
 
@@ -385,7 +387,7 @@ export async function runRtpengineMediaScenario(input: {
         expires_at: expiresAt,
         payload: { from_tag: fromTag, to_tag: toTag }
       });
-      queryResult = await postMediaCommand(baseUrl, token, query);
+      queryResult = await postMediaCommand(baseUrl, token, query, fetchImpl);
       const querySession = successfulSession(queryResult, 'query');
       const recoveredRelay = parseRelayEndpoint(querySession.effective_sdp);
       continuity = {
@@ -425,10 +427,15 @@ export async function runRtpengineMediaScenario(input: {
       expires_at: expiresAt,
       payload: { from_tag: fromTag, to_tag: toTag }
     });
-    const deleteResult = await postMediaCommand(baseUrl, token, deleteCommand);
+    const deleteResult = await postMediaCommand(
+      baseUrl,
+      token,
+      deleteCommand,
+      fetchImpl
+    );
     successfulSession(deleteResult, 'delete');
     const replayedDelete = input.during_stream
-      ? await postMediaCommand(baseUrl, token, deleteCommand)
+      ? await postMediaCommand(baseUrl, token, deleteCommand, fetchImpl)
       : undefined;
     if (replayedDelete) successfulSession(replayedDelete, 'delete replay');
 
@@ -458,6 +465,7 @@ export async function runRtpengineMediaScenario(input: {
 export async function runRtpengineControlMatrix(input: {
   media_control_base_url: string;
   media_control_token: string;
+  media_control_fetch?: typeof fetch;
   bind_address: string;
   expires_at: string;
   maximum_active_calls: number;
@@ -472,6 +480,7 @@ export async function runRtpengineControlMatrix(input: {
 }): Promise<RtpengineControlMatrixResult> {
   const baseUrl = checkedBaseUrl(input.media_control_base_url);
   const token = checkedToken(input.media_control_token);
+  const fetchImpl = input.media_control_fetch ?? globalThis.fetch;
   if (!canonicalDate(input.expires_at) ||
       Date.parse(input.expires_at) <= Date.now()) {
     throw new Error('future control matrix expiry is required');
@@ -494,6 +503,7 @@ export async function runRtpengineControlMatrix(input: {
     drainResult = await sendControlOffer({
       baseUrl,
       token,
+      fetchImpl,
       bindAddress: input.bind_address,
       expiresAt: input.expires_at,
       id: `${matrixId}-drain`,
@@ -510,6 +520,7 @@ export async function runRtpengineControlMatrix(input: {
       const session = await openControlSession({
         baseUrl,
         token,
+        fetchImpl,
         bindAddress: input.bind_address,
         expiresAt: input.expires_at,
         id: `${matrixId}-capacity-${index}`,
@@ -523,6 +534,7 @@ export async function runRtpengineControlMatrix(input: {
     capacityResult = await sendControlOffer({
       baseUrl,
       token,
+      fetchImpl,
       bindAddress: input.bind_address,
       expiresAt: input.expires_at,
       id: `${matrixId}-capacity-overflow`,
@@ -530,13 +542,20 @@ export async function runRtpengineControlMatrix(input: {
     });
   } finally {
     for (const session of capacitySessions.reverse()) {
-      await deleteControlSession(baseUrl, token, input.expires_at, session);
+      await deleteControlSession(
+        baseUrl,
+        token,
+        input.expires_at,
+        session,
+        fetchImpl
+      );
     }
   }
 
   const epochSession = await openControlSession({
     baseUrl,
     token,
+    fetchImpl,
     bindAddress: input.bind_address,
     expiresAt: input.expires_at,
     id: `${matrixId}-epoch`,
@@ -557,7 +576,8 @@ export async function runRtpengineControlMatrix(input: {
       command_sequence: 1,
       expires_at: input.expires_at,
       payload: { from_tag: epochSession.from_tag }
-    })
+    }),
+    fetchImpl
   );
   const higherEpochResult = await postMediaCommand(
     baseUrl,
@@ -571,13 +591,15 @@ export async function runRtpengineControlMatrix(input: {
       command_sequence: 1,
       expires_at: input.expires_at,
       payload: { from_tag: epochSession.from_tag }
-    })
+    }),
+    fetchImpl
   );
   await deleteControlSession(
     baseUrl,
     token,
     input.expires_at,
-    { ...epochSession, owner_epoch: '501', delete_sequence: 2 }
+    { ...epochSession, owner_epoch: '501', delete_sequence: 2 },
+    fetchImpl
   );
 
   let rtpengineFailureResult: MediaControlResult;
@@ -586,6 +608,7 @@ export async function runRtpengineControlMatrix(input: {
     rtpengineFailureResult = await sendControlOffer({
       baseUrl,
       token,
+      fetchImpl,
       bindAddress: input.bind_address,
       expiresAt: input.expires_at,
       id: `${matrixId}-engine-down`,
@@ -643,6 +666,7 @@ interface ControlSession {
 async function sendControlOffer(input: {
   baseUrl: URL;
   token: string;
+  fetchImpl: typeof fetch;
   bindAddress: string;
   expiresAt: string;
   id: string;
@@ -654,6 +678,7 @@ async function sendControlOffer(input: {
 async function openControlSession(input: {
   baseUrl: URL;
   token: string;
+  fetchImpl: typeof fetch;
   bindAddress: string;
   expiresAt: string;
   id: string;
@@ -693,7 +718,8 @@ async function openControlSession(input: {
           media_profile_id: 'g711-relay-v1',
           from_tag: fromTag
         }
-      })
+      }),
+      input.fetchImpl
     );
     return {
       id: input.id,
@@ -713,7 +739,8 @@ async function deleteControlSession(
   baseUrl: URL,
   token: string,
   expiresAt: string,
-  session: ControlSession
+  session: ControlSession,
+  fetchImpl: typeof fetch
 ): Promise<MediaControlResult> {
   const result = await postMediaCommand(
     baseUrl,
@@ -727,7 +754,8 @@ async function deleteControlSession(
       command_sequence: session.delete_sequence,
       expires_at: expiresAt,
       payload: { from_tag: session.from_tag }
-    })
+    }),
+    fetchImpl
   );
   if (!successfulResult(result)) {
     throw new Error(
@@ -749,9 +777,10 @@ function resultErrorCode(result: MediaControlResult): string {
 async function postMediaCommand(
   baseUrl: URL,
   token: string,
-  command: MediaControlCommand
+  command: MediaControlCommand,
+  fetchImpl: typeof fetch
 ): Promise<MediaControlResult> {
-  const response = await fetch(new URL('/v1/commands', baseUrl), {
+  const response = await fetchImpl(new URL('/v1/commands', baseUrl), {
     method: 'POST',
     headers: {
       authorization: `Bearer ${token}`,

@@ -1,6 +1,11 @@
 import { execFile } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
 import { open } from 'node:fs/promises';
+import {
+  request as requestHttps,
+  type RequestOptions as HttpsRequestOptions
+} from 'node:https';
 import { isIP } from 'node:net';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -24,10 +29,12 @@ const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/;
 const CONTAINER = /^[A-Za-z0-9][A-Za-z0-9_.-]{2,127}$/;
 const MAX_PROCESS_OUTPUT_BYTES = 1_048_576;
+const MAX_TLS_FILE_BYTES = 262_144;
 
 export interface RtpengineAcceptanceCliConfig {
   media_control_base_url: string;
   media_control_token: string;
+  media_control_fetch: typeof fetch;
   bind_address: string;
   expires_at: string;
   identity: RtpengineAcceptanceIdentity;
@@ -62,6 +69,7 @@ export function loadRtpengineAcceptanceCliConfig(
 ): RtpengineAcceptanceCliConfig {
   const baseUrl = required(env, 'IVEKIT_MEDIA_CONTROL_ENDPOINT');
   checkedHttpUrl(baseUrl);
+  const mediaControlFetch = loadRtpengineAcceptanceFetch(baseUrl, env);
   const token = required(env, 'IVEKIT_MEDIA_CONTROL_TOKEN');
   if (token.length < 24 || token.length > 512 || /[\0\r\n]/.test(token)) {
     throw new Error('IVEKIT_MEDIA_CONTROL_TOKEN is invalid');
@@ -165,6 +173,7 @@ export function loadRtpengineAcceptanceCliConfig(
   return {
     media_control_base_url: baseUrl,
     media_control_token: token,
+    media_control_fetch: mediaControlFetch,
     bind_address: bindAddress,
     expires_at: expiresAt,
     identity: {
@@ -276,6 +285,7 @@ export async function runRtpengineAcceptanceCli(
     const plaintext = await runRtpengineMediaScenario({
       media_control_base_url: config.media_control_base_url,
       media_control_token: config.media_control_token,
+      media_control_fetch: config.media_control_fetch,
       bind_address: config.bind_address,
       mode: 'rtp',
       scenario_id: `server-plain-${randomSuffix()}`,
@@ -310,6 +320,7 @@ export async function runRtpengineAcceptanceCli(
     const srtp = await runRtpengineMediaScenario({
       media_control_base_url: config.media_control_base_url,
       media_control_token: config.media_control_token,
+      media_control_fetch: config.media_control_fetch,
       bind_address: config.bind_address,
       mode: 'sdes_srtp',
       scenario_id: `server-srtp-${randomSuffix()}`,
@@ -322,6 +333,7 @@ export async function runRtpengineAcceptanceCli(
     const matrix = await runRtpengineControlMatrix({
       media_control_base_url: config.media_control_base_url,
       media_control_token: config.media_control_token,
+      media_control_fetch: config.media_control_fetch,
       bind_address: config.bind_address,
       expires_at: config.expires_at,
       maximum_active_calls: config.maximum_active_calls,
@@ -528,7 +540,7 @@ async function restoreControlPlane(
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(readyUrl, {
+      const response = await config.media_control_fetch(readyUrl, {
         signal: AbortSignal.timeout(1_000)
       });
       if (response.ok) return;
@@ -713,6 +725,212 @@ function checkedHttpUrl(value: string): void {
       (url.pathname !== '' && url.pathname !== '/')) {
     throw new Error('IVEKIT_MEDIA_CONTROL_ENDPOINT is invalid');
   }
+}
+
+function loadRtpengineAcceptanceFetch(
+  baseUrl: string,
+  env: Record<string, string | undefined>
+): typeof fetch {
+  const endpoint = new URL(baseUrl);
+  const identityFile = String(
+    env.IVEKIT_RTPENGINE_ACCEPTANCE_TLS_IDENTITY_FILE || ''
+  ).trim();
+  const caFile = String(
+    env.IVEKIT_RTPENGINE_ACCEPTANCE_TLS_CA_FILE || ''
+  ).trim();
+  const configuredServername = String(
+    env.IVEKIT_RTPENGINE_ACCEPTANCE_TLS_SERVERNAME || ''
+  ).trim();
+  const configured = [identityFile, caFile].filter(Boolean).length;
+
+  if (endpoint.protocol === 'http:') {
+    if (configured !== 0 || configuredServername) {
+      throw new Error('RTPengine acceptance TLS requires an HTTPS endpoint');
+    }
+    return globalThis.fetch;
+  }
+  if (configured !== 2) {
+    throw new Error(
+      'RTPengine acceptance TLS fields must be configured together'
+    );
+  }
+  const servername = checkedTlsServername(
+    configuredServername || unbracketedHostname(endpoint.hostname)
+  );
+  const identity = readAcceptanceTlsFile(
+    identityFile,
+    'IVEKIT_RTPENGINE_ACCEPTANCE_TLS_IDENTITY_FILE',
+    true
+  );
+  const ca = readAcceptanceTlsFile(
+    caFile,
+    'IVEKIT_RTPENGINE_ACCEPTANCE_TLS_CA_FILE',
+    false
+  );
+  return createAcceptanceMutualTlsFetch({
+    endpoint,
+    identity,
+    ca,
+    servername
+  });
+}
+
+function createAcceptanceMutualTlsFetch(input: {
+  endpoint: URL;
+  identity: Buffer;
+  ca: Buffer;
+  servername: string;
+}): typeof fetch {
+  return (async (
+    requestInput: Parameters<typeof fetch>[0],
+    init: Parameters<typeof fetch>[1] = {}
+  ) => {
+    const target = new URL(
+      typeof requestInput === 'string'
+        ? requestInput
+        : requestInput instanceof URL
+          ? requestInput.href
+          : requestInput.url
+    );
+    if (target.protocol !== 'https:' ||
+        target.origin !== input.endpoint.origin) {
+      throw new Error(
+        'RTPengine acceptance TLS request must use the configured HTTPS origin'
+      );
+    }
+    if (init.signal?.aborted) throw abortError();
+    const encoded = encodeAcceptanceRequestBody(init.body);
+    const headers = Object.fromEntries(new Headers(init.headers).entries());
+    const options: HttpsRequestOptions = {
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || undefined,
+      path: `${target.pathname}${target.search}`,
+      method: init.method || 'GET',
+      headers: {
+        ...headers,
+        ...(encoded && headers['content-length'] === undefined
+          ? { 'content-length': String(encoded.length) }
+          : {})
+      },
+      key: input.identity,
+      cert: input.identity,
+      ca: input.ca,
+      ...(isIP(input.servername) === 0
+        ? { servername: input.servername }
+        : {}),
+      rejectUnauthorized: true,
+      minVersion: 'TLSv1.2'
+    };
+    return await new Promise<Response>((resolvePromise, rejectPromise) => {
+      const request = requestHttps(options, (response) => {
+        const chunks: Buffer[] = [];
+        let total = 0;
+        let oversized = false;
+        response.on('data', (chunk: Buffer | string) => {
+          if (oversized) return;
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          total += buffer.length;
+          if (total > MAX_PROCESS_OUTPUT_BYTES) {
+            oversized = true;
+            request.destroy(
+              new Error('RTPengine acceptance response is too large')
+            );
+            return;
+          }
+          chunks.push(buffer);
+        });
+        response.once('error', rejectPromise);
+        response.on('end', () => {
+          if (oversized) return;
+          const status = response.statusCode || 502;
+          const body = [204, 205, 304].includes(status)
+            ? null
+            : Buffer.concat(chunks, total);
+          resolvePromise(new Response(body, {
+            status,
+            statusText: response.statusMessage,
+            headers: acceptanceResponseHeaders(response.headers)
+          }));
+        });
+      });
+      const abort = () => request.destroy(abortError());
+      init.signal?.addEventListener('abort', abort, { once: true });
+      request.once('close', () =>
+        init.signal?.removeEventListener('abort', abort)
+      );
+      request.once('error', rejectPromise);
+      if (encoded) request.write(encoded);
+      request.end();
+    });
+  }) as typeof fetch;
+}
+
+function readAcceptanceTlsFile(
+  path: string,
+  field: string,
+  secret: boolean
+): Buffer {
+  absolutePath(path, field);
+  const metadata = statSync(path);
+  if (!metadata.isFile()) throw new Error(`${field} must be a file`);
+  if (metadata.size < 1 || metadata.size > MAX_TLS_FILE_BYTES) {
+    throw new Error(`${field} size is invalid`);
+  }
+  if (secret &&
+      process.platform !== 'win32' &&
+      (metadata.mode & 0o037) !== 0) {
+    throw new Error(`${field} permissions are too broad`);
+  }
+  const value = readFileSync(path);
+  if (value.length < 1 || value.length > MAX_TLS_FILE_BYTES) {
+    throw new Error(`${field} size is invalid`);
+  }
+  return value;
+}
+
+function checkedTlsServername(value: string): string {
+  if (!value ||
+      value.length > 253 ||
+      /[\0\r\n/\\]/.test(value) ||
+      (isIP(value) === 0 &&
+        !/^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(value))) {
+    throw new Error(
+      'IVEKIT_RTPENGINE_ACCEPTANCE_TLS_SERVERNAME is invalid'
+    );
+  }
+  return value;
+}
+
+function unbracketedHostname(value: string): string {
+  return value.startsWith('[') && value.endsWith(']')
+    ? value.slice(1, -1)
+    : value;
+}
+
+function encodeAcceptanceRequestBody(
+  value: RequestInit['body']
+): Buffer | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') return Buffer.from(value);
+  if (Buffer.isBuffer(value)) return value;
+  if (value instanceof Uint8Array) return Buffer.from(value);
+  throw new Error('RTPengine acceptance request body is unsupported');
+}
+
+function acceptanceResponseHeaders(
+  input: import('node:http').IncomingHttpHeaders
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [name, value] of Object.entries(input)) {
+    if (value === undefined) continue;
+    result[name] = Array.isArray(value) ? value.join(', ') : String(value);
+  }
+  return result;
+}
+
+function abortError(): Error {
+  return Object.assign(new Error('aborted'), { name: 'AbortError' });
 }
 
 function required(
