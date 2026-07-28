@@ -133,5 +133,8 @@ test('media-control failures retain a safe diagnostic code across the lifecycle 
     effective,
     /failure_code = error\.failure_code\(\)/
   );
-  assert.match(effective, /client_failure_code_survives_lifecycle_boundary/);
+  assert.match(
+    effective,
+    /Err\(error\)[\s\S]{0,300}ControlRejected\s*\{[\s\S]{0,120}error\.failure_code\(\)\.to_string\(\)/
+  );
 });

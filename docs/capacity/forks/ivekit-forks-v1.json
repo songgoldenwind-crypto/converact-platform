@@ -171,7 +171,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-lifecycle.patch",
-          "sha256": "c1fa4491de8f377d08de97afbd04b8daaef651633f7f329274d233db2dfc49c9",
+          "sha256": "78768f1ee931b8d6614f614e5e5eeb41b7556ff7b263667e89413f0a4fa5e03e",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-control-client.patch",
           "purpose": "Bind ordinary SIP relay initial and bidirectional mid-dialog offer/answer transactions plus RTP DTMF injection to owner-fenced RTPengine reservations, retain safe media-control failure codes across the lifecycle boundary, return unsolicited RTPengine DTMF over a bounded replayable per-owner event stream, and close allocated media through a stable replayable delete bounded outside the SIP cleanup path while keeping IVR, queue, recording, audio-tap, WebRTC, parallel-fork and offerless profiles on the existing local media graph."
         },
@@ -183,7 +183,7 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dialog-recovery.patch",
-          "sha256": "06bbf472c3a946a0658642b80b482375b3a56e0e45e3cace3dc67945cf79577b",
+          "sha256": "37c4445b9f0ede510cf9d264e9e7c29fed50eb10e3340eb5df37ce1efa3d756c",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-dialog-shadow.patch",
           "purpose": "Authenticate reciprocal two-leg recovery capsules, claim and consume one-time owner takeover, atomically publish the new owner epoch, restore RTPengine media state, and run a recovered B2BUA controller for in-dialog signaling, SDP renegotiation and bounded terminal cleanup."
         },

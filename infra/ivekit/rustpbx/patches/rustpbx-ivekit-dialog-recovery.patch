@@ -1961,7 +1961,7 @@ index dcaf02e6..b1a9b9d1 100644
 +                Err(error) => {
 +                    let status = match error {
 +                        crate::ivekit_media_lifecycle::MediaLifecycleError::InvalidSdp
-+                        | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected => {
++                        | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected { .. } => {
 +                            rsipstack::sip::StatusCode::NotAcceptableHere
 +                        }
 +                        _ => rsipstack::sip::StatusCode::ServiceUnavailable,
@@ -1986,7 +1986,7 @@ index dcaf02e6..b1a9b9d1 100644
 +                    return if matches!(
 +                        error,
 +                        crate::ivekit_media_lifecycle::MediaLifecycleError::InvalidSdp
-+                            | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected
++                            | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected { .. }
 +                    ) {
 +                        Ok(RecoveredControllerFlow::Continue)
 +                    } else {
@@ -2983,7 +2983,7 @@ index 7c480e36..29bfb783 100644
      pub fn state(&self) -> NegotiationState {
          self.callee.state()
      }
-@@ -1334,6 +1404,230 @@ pub fn media_control_requested() -> bool {
+@@ -1334,6 +1404,240 @@ pub fn media_control_requested() -> bool {
      required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT").is_some()
  }
  
@@ -3051,13 +3051,19 @@ index 7c480e36..29bfb783 100644
 +                }
 +                return restore_recovered_media(input, executor, media_profile_id, session);
 +            }
-+            Ok(MediaControlResult::RejectedCapacity { .. })
-+            | Ok(MediaControlResult::TerminalError { .. })
-+            | Err(MediaControlClientError::Configuration(_))
-+            | Err(MediaControlClientError::InvalidCommand(_))
-+            | Err(MediaControlClientError::RejectedBeforeTransport { .. })
-+            | Err(MediaControlClientError::Rejected { .. }) => {
-+                return Err(MediaLifecycleError::ControlRejected);
++            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
++            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
++                return Err(MediaLifecycleError::ControlRejected { code: error_code });
++            }
++            Err(
++                error @ (MediaControlClientError::Configuration(_)
++                | MediaControlClientError::InvalidCommand(_)
++                | MediaControlClientError::RejectedBeforeTransport { .. }
++                | MediaControlClientError::Rejected { .. }),
++            ) => {
++                return Err(MediaLifecycleError::ControlRejected {
++                    code: error.failure_code().to_string(),
++                });
 +            }
 +            Ok(MediaControlResult::RejectedEpoch { .. })
 +            | Ok(MediaControlResult::Unknown { .. })
@@ -3087,7 +3093,9 @@ index 7c480e36..29bfb783 100644
 +            MediaControlClientError::UnknownAfterTransport { .. } => {
 +                MediaLifecycleError::ReconcileRequired
 +            }
-+            _ => MediaLifecycleError::ControlRejected,
++            _ => MediaLifecycleError::ControlRejected {
++                code: error.failure_code().to_string(),
++            },
 +        })
 +}
 +
@@ -3099,7 +3107,9 @@ index 7c480e36..29bfb783 100644
 +        || session.owner_epoch != input.previous_owner_epoch.to_string()
 +        || !matches!(session.state.as_str(), "prepared" | "committed")
 +    {
-+        return Err(MediaLifecycleError::ControlRejected);
++        return Err(MediaLifecycleError::ControlRejected {
++            code: "media_recovery_owner_invalid".to_string(),
++        });
 +    }
 +    Ok(())
 +}
