@@ -6,6 +6,7 @@ import { routeIveKitMediaApi } from '../src/agent-runtime/ivekit/media-http.js';
 import { createLiveKitMediaModule } from '../src/agent-runtime/livekit/index.js';
 import { resetMediaGatewayRegistryForTests } from '../src/agent-runtime/media-gateway/index.js';
 import { createDatabase, run } from '../src/db.js';
+import { getPgTenantContext } from '../src/db-pg-tenant.js';
 import { createServer as createOpcServer } from '../src/http.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 import { createTenant } from '../src/platform/tenant-core.js';
@@ -383,17 +384,35 @@ test('iveKit media webhook journals room and participant lifecycle events', asyn
       },
       authHeaders(tenantId)
     );
+    const tenantGuardedDb = {
+      prepare(sql: string) {
+        if (sql.includes('livekit_rooms')) {
+          assert.equal(getPgTenantContext().tenantId, tenantId);
+        }
+        return db.prepare(sql);
+      },
+      exec(sql: string) {
+        return db.exec(sql);
+      }
+    };
 
     for (const payload of [
       {
         id: 'livekit-event-room-started',
         event: 'room_started',
-        room: { name: 'ivekit-webhook-event-room', sid: 'RM_event' }
+        room: {
+          name: 'ivekit-webhook-event-room',
+          sid: 'RM_event',
+          metadata: JSON.stringify({ tenant_id: tenantId })
+        }
       },
       {
         id: 'livekit-event-participant-joined',
         event: 'participant_joined',
-        room: { name: 'ivekit-webhook-event-room' },
+        room: {
+          name: 'ivekit-webhook-event-room',
+          metadata: JSON.stringify({ tenant_id: tenantId })
+        },
         participant: {
           identity: 'customer-webhook-event',
           metadata: JSON.stringify({ role: 'customer' })
@@ -402,7 +421,7 @@ test('iveKit media webhook journals room and participant lifecycle events', asyn
     ]) {
       const rawBody = JSON.stringify(payload);
       await routeIveKitMediaApi(
-        db,
+        tenantGuardedDb,
         'POST',
         '/api/ivekit/media/webhooks/livekit',
         new URL('http://localhost/api/ivekit/media/webhooks/livekit'),

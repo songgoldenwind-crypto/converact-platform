@@ -3,7 +3,10 @@ import { isIP } from 'node:net';
 
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { getPostgresOrNull, pgId, type PgQueryable } from '../../db-pg.js';
-import { withPgTenant } from '../../db-pg-tenant.js';
+import {
+  runWithPgTenantContextAsync,
+  withPgTenant
+} from '../../db-pg-tenant.js';
 import { wsBroadcastToUsers } from '../../ws.js';
 import { createLiveKitMediaModule, issueSupervisorToken } from '../livekit/index.js';
 import { MediaCallService } from '../livekit/media-call-service.js';
@@ -1979,69 +1982,79 @@ async function journalLiveKitLifecycleEvent(
   eventStore?: Pick<IveKitTenantEventJournal, 'append'>
 ): Promise<void> {
   if (!eventStore || !result.event || !result.room_name) return;
-  const room = media.rooms.getRoomByName(result.room_name);
-  if (!room) return;
-
   const providerEvent = bodyRecord(JSON.parse(rawBody || '{}'));
-  const participant = bodyRecord(providerEvent.participant);
-  const identity = String(participant.identity || '').trim();
-  const storedParticipant = identity
-    ? media.participants.getParticipant(result.room_name, identity)
-    : null;
-  const businessRef = roomBusinessRef(room);
-  const base = {
-    ...(businessRef ? { business_ref: { type: businessRef.type, id: businessRef.id } } : {}),
-    room_name: result.room_name
+  const providerRoom = bodyRecord(providerEvent.room);
+  const tenantId = String(parseWebhookMetadata(providerRoom.metadata).tenant_id || '').trim();
+  const append = async () => {
+    const room = media.rooms.getRoomByName(result.room_name!);
+    if (!room || (tenantId && room.tenant_id !== tenantId)) return;
+
+    const participant = bodyRecord(providerEvent.participant);
+    const identity = String(participant.identity || '').trim();
+    const storedParticipant = identity
+      ? media.participants.getParticipant(result.room_name!, identity)
+      : null;
+    const businessRef = roomBusinessRef(room);
+    const base = {
+      ...(businessRef ? { business_ref: { type: businessRef.type, id: businessRef.id } } : {}),
+      room_name: result.room_name
+    };
+    let type = '';
+    let data: Record<string, unknown> | null = null;
+
+    if (result.event === 'room_started' && room.status === 'active') {
+      type = 'ivekit.media.call.updated';
+      data = { ...base, status: 'active' };
+    } else if (result.event === 'room_finished' && room.status === 'closed') {
+      type = 'ivekit.media.call.ended';
+      data = { ...base, status: 'ended' };
+    } else if (
+      result.event === 'participant_joined' &&
+      storedParticipant?.status === 'joined'
+    ) {
+      type = 'ivekit.media.participant.updated';
+      data = {
+        ...base,
+        identity,
+        participant_identity: identity,
+        role: storedParticipant.role,
+        status: 'joined'
+      };
+    } else if (
+      result.event === 'participant_left' &&
+      storedParticipant?.status === 'left'
+    ) {
+      type = 'ivekit.media.participant.updated';
+      data = {
+        ...base,
+        identity,
+        participant_identity: identity,
+        role: storedParticipant.role,
+        status: 'left'
+      };
+    }
+    if (!type || !data) return;
+
+    const providerEventId = String(providerEvent.id || '').trim() ||
+      createHash('sha256').update(rawBody).digest('hex');
+    await eventStore.append({
+      tenant_id: room.tenant_id,
+      type,
+      data,
+      idempotency_key: mediaEventIdempotencyKey('livekit-lifecycle', [
+        providerEventId,
+        result.event,
+        result.room_name,
+        identity
+      ])
+    });
   };
-  let type = '';
-  let data: Record<string, unknown> | null = null;
 
-  if (result.event === 'room_started' && room.status === 'active') {
-    type = 'ivekit.media.call.updated';
-    data = { ...base, status: 'active' };
-  } else if (result.event === 'room_finished' && room.status === 'closed') {
-    type = 'ivekit.media.call.ended';
-    data = { ...base, status: 'ended' };
-  } else if (
-    result.event === 'participant_joined' &&
-    storedParticipant?.status === 'joined'
-  ) {
-    type = 'ivekit.media.participant.updated';
-    data = {
-      ...base,
-      identity,
-      participant_identity: identity,
-      role: storedParticipant.role,
-      status: 'joined'
-    };
-  } else if (
-    result.event === 'participant_left' &&
-    storedParticipant?.status === 'left'
-  ) {
-    type = 'ivekit.media.participant.updated';
-    data = {
-      ...base,
-      identity,
-      participant_identity: identity,
-      role: storedParticipant.role,
-      status: 'left'
-    };
+  if (tenantId) {
+    await runWithPgTenantContextAsync({ tenantId }, append);
+    return;
   }
-  if (!type || !data) return;
-
-  const providerEventId = String(providerEvent.id || '').trim() ||
-    createHash('sha256').update(rawBody).digest('hex');
-  await eventStore.append({
-    tenant_id: room.tenant_id,
-    type,
-    data,
-    idempotency_key: mediaEventIdempotencyKey('livekit-lifecycle', [
-      providerEventId,
-      result.event,
-      result.room_name,
-      identity
-    ])
-  });
+  await append();
 }
 
 function broadcastMediaModeration(
