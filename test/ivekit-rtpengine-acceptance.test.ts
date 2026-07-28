@@ -823,6 +823,59 @@ describe('iveKit RTPengine real acceptance evidence', () => {
     }
   });
 
+  it('preserves a stream failure while bounded sends settle before socket close', async () => {
+    const authority = fakeAcceptanceAdmission();
+    let offerSdp = '';
+    let answerSdp = '';
+    const actions: string[] = [];
+    const server = createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const command = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      actions.push(command.action);
+      if (command.action === 'offer') offerSdp = command.payload.offer_sdp;
+      if (command.action === 'answer') answerSdp = command.payload.answer_sdp;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        data: success(command, answerSdp || offerSdp)
+      }));
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve)
+    );
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+
+    try {
+      await assert.rejects(
+        runRtpengineMediaScenario({
+          media_control_base_url: `http://127.0.0.1:${address.port}`,
+          media_control_token: 'task9-stream-token-that-is-long-enough',
+          bind_address: '127.0.0.1',
+          mode: 'rtp',
+          scenario_id: 'unit-stream-failure',
+          owner_epoch: '1',
+          packet_count: 50,
+          packet_interval_ms: 5,
+          receive_timeout_ms: 1_000,
+          admission: authority.port,
+          during_stream: async () => {
+            throw new Error('control-plane-recovery-failed');
+          }
+        }),
+        /control-plane-recovery-failed/
+      );
+      assert.deepEqual(actions, ['offer', 'answer', 'delete']);
+      assert.deepEqual(authority.events, [
+        'reserve:task9-call-unit-stream-failure',
+        'activate:admission-task9-call-unit-stream-failure',
+        'close:admission-task9-call-unit-stream-failure'
+      ]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('runs drain, capacity, epoch, and RTPengine outage controls', async () => {
     const token = 'task9-control-token-that-is-long-enough';
     let draining = false;

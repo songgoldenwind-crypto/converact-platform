@@ -335,6 +335,7 @@ export async function runRtpengineMediaScenario(input: {
   let mediaDeleted = false;
   let nextSequence = 1;
   let deleteCommand: MediaControlCommand | undefined;
+  let sending: Promise<unknown> | undefined;
   let primaryError: unknown;
   try {
     if (input.admission) {
@@ -429,7 +430,7 @@ export async function runRtpengineMediaScenario(input: {
       });
     }
 
-    const sending = Promise.all([
+    sending = Promise.all([
       endpointA.sendPcmu({
         target: relayForA,
         packet_count: packetCount,
@@ -481,6 +482,7 @@ export async function runRtpengineMediaScenario(input: {
       };
     }
     await sending;
+    sending = undefined;
     if (input.mode === 'rtp') {
       await Promise.all([
         endpointA.sendRtcp(relayForA),
@@ -598,6 +600,13 @@ export async function runRtpengineMediaScenario(input: {
         (!offerCommitted || mediaDeleted)) {
       try {
         await input.admission.close(authority);
+      } catch (error) {
+        cleanupError ??= error;
+      }
+    }
+    if (sending) {
+      try {
+        await sending;
       } catch (error) {
         cleanupError ??= error;
       }
