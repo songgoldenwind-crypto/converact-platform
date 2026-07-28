@@ -262,7 +262,7 @@ async function persistCheckpoint(
     };
     const nodeId = String(candidate.node_id || '');
     const code = safeErrorCode(candidate.code);
-    if (nodeId && code.startsWith('component_node_')) {
+    if (nodeId) {
       try {
         config.controller.markNodeUnavailable(nodeId);
       } catch {

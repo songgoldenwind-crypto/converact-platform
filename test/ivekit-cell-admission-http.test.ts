@@ -294,7 +294,7 @@ test('Cell admission HTTP drains and fails closed when its durable ledger is una
   assert.equal(controller.snapshot().state, 'draining');
 });
 
-test('Cell admission isolates a failed component node without draining the whole Cell', async (t) => {
+test('Cell admission preserves a component rejection without draining the whole Cell', async (t) => {
   const controller = fixture();
   const server = createCellAdmissionHttpServer({
     controller,
@@ -309,10 +309,10 @@ test('Cell admission isolates a failed component node without draining the whole
     node_sync: {
       async applyCheckpoint() {
         const error = Object.assign(new Error('controlled node outage'), {
-          code: 'component_node_checkpoint_failed',
+          code: 'component_reservation_state_regression',
           node_id: 'rustpbx-a',
-          status: 503,
-          retryable: true
+          status: 409,
+          retryable: false
         });
         throw error;
       }
@@ -326,11 +326,11 @@ test('Cell admission isolates a failed component node without draining the whole
     body: JSON.stringify(reservationRequest())
   });
 
-  assert.equal(response.status, 503);
+  assert.equal(response.status, 409);
   assert.deepEqual(await response.json(), {
     error: {
-      code: 'component_node_checkpoint_failed',
-      retryable: true
+      code: 'component_reservation_state_regression',
+      retryable: false
     }
   });
   assert.equal(controller.snapshot().state, 'accepting');
