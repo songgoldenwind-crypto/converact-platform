@@ -49,8 +49,10 @@ runtime。替换结论、exact source 和提取边界见
 | `services/voice-media-rs/src/frame.rs` | 无运行时依赖的 RTP 音频帧值对象 |
 | `services/voice-media-rs/src/jitter.rs` | 有界 reorder、duplicate、late 和 gap 决策 |
 | `services/voice-media-rs/src/pipeline.rs` | decode、PLC、resample、encode 和 RTP timing |
+| `services/voice-media-rs/src/ivr.rs` | 有界 prompt cache、playback/gather、barge-in 和幂等状态机 |
 | `services/voice-media-rs/src/session.rs` | owner-fenced processing session 状态机 |
-| `services/voice-media-rs/src/rtp.rs` | UDP socket、port allocator 和 packet loop |
+| `services/voice-media-rs/src/rtp.rs` | RTP/RTCP、RFC 4733、PCM 注入和 packet processor |
+| `services/voice-media-rs/src/worker.rs` | 固定 mio worker、UDP socket、IVR timer 和有界事件队列 |
 | `services/voice-media-rs/src/http.rs` | mTLS control API、health 和 metrics |
 | `src/agent-runtime/ivekit/media-control/processing.ts` | processing transport client |
 | `src/agent-runtime/ivekit/media-control/router.ts` | fast-path/processing profile 路由 |
@@ -114,20 +116,43 @@ runtime。替换结论、exact source 和提取边界见
 - [x] hard-bounded `DatagramPool` 使用 `ArrayQueue`、原子 allocation ceiling 和
   `Bytes::from_owner`；最后一个引用释放时同步归还，耗尽时由 worker-local discard
   buffer 排空内核队列，不阻塞、不扩容、不自旋。
+- [x] 会话安装按两侧 jitter capacity 预留 datagram retention budget，并为每个 worker
+  保留一个瞬时接收 buffer；容量不足在绑定 socket 前拒绝新会话，删除会话自动归还，
+  防止 jitter 长期持有 owner 后把接收路径锁死。
 - [x] RTP packet processor 使用 owned `Bytes` 输入和复用 output scratch，不在 parser 与
   codec 之间复制 payload。
-- [x] 两腿各自维护 SSRC、sequence、timestamp、source validation、jitter 和 RTCP 统计。
+- [x] 两腿各自维护 SSRC、sequence、timestamp、source validation 和 jitter；当前
+  RTCP report/statistics 是 session aggregate，per-leg RTCP 指标归入 Task 6。
 - [x] PCMU/PCMA/Opus RTP wire path 支持双向 payload type、sequence 和 timestamp 重写。
 - [x] RFC 4733 支持 event 映射、duration clock 缩放和 start/completed 重复抑制。
-- [ ] IVR playback 预解码到有界 PCM frame cache；文件、HTTP、对象存储不进入 RTP loop。
-- [ ] SIP INFO gather 接入 RustPBX command path；in-band DTMF 作为后续独立能力状态。
-- [ ] playback/gather command 支持 start/stop/barge-in，重复命令不重复播放或完成事件。
-- [x] packet-loop 测试覆盖双向真实 UDP、NAT source 更新、DTMF duration/retransmit、
-  单次 budget 以上 burst、并发 pool ceiling、session 安装冲突和容量耗尽。
-- [ ] packet-loop 继续覆盖一方无媒体、播放结束、barge-in、事件队列满和播放中
-  session 删除竞争。
-- [ ] rvoip-derived buffer/packet/benchmark 代码必须固定 exact source identity；只提取
-  必需模块，不引入其 SIP、WebRTC 或通用 session runtime。
+- [x] IVR playback 在控制路径重采样并写入有界 48 kHz/20 ms PCM frame cache；
+  文件、HTTP、对象存储不进入 RTP loop。
+- [x] worker 暴露 SIP INFO digit 输入，并与 RFC 4733 共用一个有界 gather/去重状态机。
+- [ ] 将 SIP INFO gather API 接入 RustPBX command path；in-band DTMF 作为后续独立能力状态。
+- [x] playback/gather command 支持 start/stop/barge-in、首键/键间超时和会话删除取消；
+  在配置的有界 replay window 内，重复 command/event 返回原结果且不重复播放、收号或
+  生成完成事件。
+- [x] IVR 使用每 worker 有界 indexed mutable min-heap deadline queue；update 原位调整，
+  不积累 stale timer。迟到 tick 跳帧而不突发补帧，无 RTP destination 时按 20 ms 重试。
+- [x] playback/gather 开始前预留 terminal-event slot；完成、停止、超时和 session removal
+  事件经有界 reliable outbox 交付，主事件队列满时保留待发。容量不足拒绝新 IVR work；
+  非终态 telemetry 仍允许丢弃且不阻塞媒体或控制线程。
+- [x] 生成提示音与实时媒体共享同一 RTP sequence/timestamp domain，提示音结束后的
+  实时帧显式重新锚定，包含生成流完整 sequence wrap 后恢复，防止序号或时间戳倒退。
+- [x] 第一版 playback 固定为 `replace` 语义：目标方向仍消费 jitter/RFC 4733，
+  但不编码或发送实时媒体，避免提示音与实时流形成双倍包率；播放完成后连续恢复。
+- [x] UDP send `WouldBlock`/error 采用实时媒体 drop-and-advance：记录计数并丢弃该 20 ms
+  frame，不重试过期 RTP；Task 6 补齐按 leg/result 的低基数指标和告警。
+- [x] processor 测试覆盖 NAT source 更新、RTCP、DTMF duration/retransmit、replace
+  suppression tail 和恢复；worker UDP 测试覆盖双向 wire、PCMA/Opus、burst、
+  `SO_REUSEPORT`、晚到 destination、RFC 4733 barge-in、安装冲突及资源准入。
+- [x] IVR pure-state 测试覆盖背压、首键/键间超时、截止时刻 digit、迟到跳帧、
+  RFC 4733/SIP INFO 共用状态、stop/replay、cache 全部上限及 session removal；
+  worker 测试覆盖有界 timer fairness 和 terminal-event overload。
+- [ ] 用 allocator/heap profiler 验证稳定 RTP packet loop 的分配次数与高水位；代码已复用
+  PCM conceal/output scratch，但 codec 上游 API 仍可能分配，未取得证据前不声明零分配。
+- [x] ADR 固定 rvoip exact source identity、替换结论和提取边界；不引入其 SIP、
+  WebRTC、QUIC/MoQ 或通用 session runtime。未来复制或改写代码仍须逐文件登记 provenance。
 
 ## 7. Task 5：media-control 与 RustPBX 接入
 
@@ -136,6 +161,9 @@ runtime。替换结论、exact source 和提取边界见
   `VOICE-ORDINARY -> RTPengine`，
   `VOICE-IVR-G711-OPUS-V1 -> processing pool`。
 - [ ] 同 reservation 的全部后续命令固定到同一 transport，禁止 update 时换执行器。
+- [ ] 将 worker 内已完成的 terminal-event reliable outbox 接到 media-control durable
+  handoff，并提供 query/reconcile；worker telemetry queue 满可以丢统计事件，但
+  playback/gather 完成事件不得在进程边界永久丢失。
 - [ ] RustPBX patch 将 processing profile、codec pair 和 ptime 写入 offer；
   effective SDP 成功后才向对端暴露。
 - [ ] processing pool capacity/error 映射为稳定 SIP 503 + Retry-After，不静默退回本地转码。
@@ -183,12 +211,14 @@ runtime。替换结论、exact source 和提取边界见
 - [ ] Goal 4 只有全部 codec/IVR/conference/T.38 交付完成才标记 `implemented`；
   未有物理证据仍不得标记 `production_pass`。
 
-## 12. 第一执行批
+## 12. 当前执行状态
 
-本次立即执行 Task 1 和 Task 2。完成门槛：
-
-1. Goal 4 合同和 G.711/Opus profile 可被机器校验；
-2. `voice-media-rs` 不再只是 HTTP 桩，具备可测试的 codec-pair capacity、
-   bounded jitter/reorder 和 PLC/transcode core；
-3. Rust 单测、Clippy、TypeScript 合同测试全部通过；
-4. 未接入真实 UDP/media-control 的项目诚实保持 `not_run`。
+1. Task 1–3 已完成：机器合同、G.711/Opus 内核和 owner-fenced processing session
+   均有自动化门禁。
+2. Task 4 的 core-library 切片已完成固定 RTP worker、PCMU/PCMA/Opus wire path、
+   RFC 4733、IVR pure/worker 状态机、有界 terminal-event outbox 和 datagram-retention
+   admission；它尚未接入 `main.rs`/HTTP runtime，不能按生产服务声明完成。
+3. Task 4 的本地结构与行为测试边界已补齐；steady-state allocation、per-leg RTCP 指标、
+   SIP INFO 到 RustPBX 以及 durable event handoff 分别归入 Task 6、Task 5。
+4. Task 5–9、真实服务器媒体/质量/容量证据仍未完成，合同继续保持 `not_run`，
+   不声明生产容量。

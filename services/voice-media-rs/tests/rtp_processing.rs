@@ -5,8 +5,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use voice_media_rs::codec::AudioCodec;
 use voice_media_rs::pipeline::Concealment;
 use voice_media_rs::rtp::{
-    DtmfEvent, DtmfPhase, EmissionKind, PacketDisposition, ProcessingLeg, RtpEmission,
-    RtpProcessError, RtpProcessSink, RtpSessionConfig, RtpSessionProcessor, TelephoneEventConfig,
+    DtmfEvent, DtmfPhase, EmissionKind, PacketDisposition, ProcessingLeg, RtpEgressPolicy,
+    RtpEmission, RtpProcessError, RtpProcessSink, RtpSessionConfig, RtpSessionProcessor,
+    TelephoneEventConfig,
 };
 use voice_media_rs::session::ProcessingProfile;
 
@@ -199,6 +200,216 @@ fn packet_processor_transcodes_both_directions_and_rewrites_wire_headers() {
 }
 
 #[test]
+fn generated_ivr_pcm_shares_the_egress_rtp_sequence_domain() {
+    let mut processor = RtpSessionProcessor::new(config()).expect("processor");
+    let mut collector = Collector::default();
+    processor
+        .process_bytes(
+            ProcessingLeg::B,
+            addr(40_002),
+            opus(10, 48_000, 222),
+            0,
+            &mut collector,
+        )
+        .expect("latch B");
+    collector.emissions.clear();
+
+    assert!(processor
+        .emit_pcm_48k(ProcessingLeg::B, &sine(48_000, 960), true, &mut collector,)
+        .expect("first prompt frame"));
+    assert!(processor
+        .emit_pcm_48k(ProcessingLeg::B, &sine(48_000, 960), false, &mut collector,)
+        .expect("second prompt frame"));
+    let first = RtpPacket::parse(&collector.emissions[0].datagram).expect("first prompt RTP");
+    let second = RtpPacket::parse(&collector.emissions[1].datagram).expect("second prompt RTP");
+    assert_eq!(collector.emissions[0].kind, EmissionKind::Playback);
+    assert!(first.header.marker);
+    assert_eq!(first.header.sequence_number, 5_000);
+    assert_eq!(second.header.sequence_number, 5_001);
+    assert_eq!(
+        second.header.timestamp.wrapping_sub(first.header.timestamp),
+        960
+    );
+
+    collector.emissions.clear();
+    processor
+        .process_bytes(
+            ProcessingLeg::A,
+            addr(40_000),
+            pcmu(20, 1_600, 111),
+            20,
+            &mut collector,
+        )
+        .expect("live media after prompt");
+    let resumed = RtpPacket::parse(&collector.emissions[0].datagram).expect("resumed RTP");
+    assert_eq!(resumed.header.sequence_number, 5_002);
+    assert_eq!(
+        resumed
+            .header
+            .timestamp
+            .wrapping_sub(second.header.timestamp),
+        960
+    );
+}
+
+#[test]
+fn ivr_replace_policy_consumes_live_media_without_advancing_the_wire_timeline() {
+    let mut processor = RtpSessionProcessor::new(config()).expect("processor");
+    let mut collector = Collector::default();
+    processor
+        .process_bytes(
+            ProcessingLeg::B,
+            addr(40_002),
+            opus(10, 48_000, 222),
+            0,
+            &mut collector,
+        )
+        .expect("latch B");
+    processor
+        .process_bytes(
+            ProcessingLeg::A,
+            addr(40_000),
+            pcmu(20, 1_600, 111),
+            1,
+            &mut collector,
+        )
+        .expect("initial live frame");
+    collector.emissions.clear();
+
+    assert!(processor
+        .emit_pcm_48k(ProcessingLeg::B, &sine(48_000, 960), true, &mut collector)
+        .expect("first prompt frame"));
+    let first_prompt =
+        RtpPacket::parse(&collector.emissions[0].datagram).expect("first prompt RTP");
+    collector.emissions.clear();
+
+    let suppressed = processor
+        .process_bytes_with_policy(
+            ProcessingLeg::A,
+            addr(40_000),
+            pcmu(21, 1_760, 111),
+            20,
+            RtpEgressPolicy::Suppress(ProcessingLeg::B),
+            &mut collector,
+        )
+        .expect("suppressed live frame");
+    assert_eq!(suppressed.disposition, PacketDisposition::Suppressed);
+    assert_eq!(suppressed.emitted_packets, 0);
+    assert!(collector.emissions.is_empty());
+
+    assert!(processor
+        .emit_pcm_48k(ProcessingLeg::B, &sine(48_000, 960), false, &mut collector,)
+        .expect("second prompt frame"));
+    let second_prompt =
+        RtpPacket::parse(&collector.emissions[0].datagram).expect("second prompt RTP");
+    assert_eq!(
+        second_prompt.header.sequence_number,
+        first_prompt.header.sequence_number.wrapping_add(1)
+    );
+    assert_eq!(
+        second_prompt
+            .header
+            .timestamp
+            .wrapping_sub(first_prompt.header.timestamp),
+        960
+    );
+    collector.emissions.clear();
+
+    processor
+        .process_bytes(
+            ProcessingLeg::A,
+            addr(40_000),
+            pcmu(22, 1_920, 111),
+            40,
+            &mut collector,
+        )
+        .expect("live media resumes after prompt");
+    let resumed = RtpPacket::parse(&collector.emissions[0].datagram).expect("resumed RTP");
+    assert_eq!(
+        resumed.header.sequence_number,
+        second_prompt.header.sequence_number.wrapping_add(1)
+    );
+    assert_eq!(
+        resumed
+            .header
+            .timestamp
+            .wrapping_sub(second_prompt.header.timestamp),
+        960
+    );
+    assert_eq!(processor.stats().suppressed_media_packets, 1);
+}
+
+#[test]
+fn replace_policy_keeps_buffered_media_and_gaps_suppressed_after_playback_ends() {
+    let mut processor = RtpSessionProcessor::new(config()).expect("processor");
+    let mut collector = Collector::default();
+    processor
+        .process_bytes(
+            ProcessingLeg::B,
+            addr(40_002),
+            opus(10, 48_000, 222),
+            0,
+            &mut collector,
+        )
+        .expect("latch B");
+    processor
+        .process_bytes(
+            ProcessingLeg::A,
+            addr(40_000),
+            pcmu(20, 1_600, 111),
+            1,
+            &mut collector,
+        )
+        .expect("initial live frame");
+    collector.emissions.clear();
+    processor
+        .emit_pcm_48k(ProcessingLeg::B, &sine(48_000, 960), true, &mut collector)
+        .expect("first prompt");
+    collector.emissions.clear();
+
+    let waiting = processor
+        .process_bytes_with_policy(
+            ProcessingLeg::A,
+            addr(40_000),
+            pcmu(22, 1_920, 111),
+            20,
+            RtpEgressPolicy::Suppress(ProcessingLeg::B),
+            &mut collector,
+        )
+        .expect("buffered suppressed media");
+    assert_eq!(waiting.disposition, PacketDisposition::Waiting);
+    assert!(collector.emissions.is_empty());
+    processor
+        .emit_pcm_48k(ProcessingLeg::B, &sine(48_000, 960), false, &mut collector)
+        .expect("second prompt");
+    let second_prompt =
+        RtpPacket::parse(&collector.emissions[0].datagram).expect("second prompt RTP");
+    collector.emissions.clear();
+
+    processor
+        .process_bytes(
+            ProcessingLeg::A,
+            addr(40_000),
+            pcmu(23, 2_080, 111),
+            40,
+            &mut collector,
+        )
+        .expect("first post-playback media");
+    assert_eq!(
+        collector.emissions.len(),
+        1,
+        "old gap and buffered media must retain their replace suppression"
+    );
+    let resumed = RtpPacket::parse(&collector.emissions[0].datagram).expect("resumed RTP");
+    assert_eq!(
+        resumed.header.sequence_number,
+        second_prompt.header.sequence_number.wrapping_add(1)
+    );
+    assert_eq!(processor.stats().suppressed_media_packets, 1);
+    assert_eq!(processor.stats().suppressed_gap_packets, 1);
+}
+
+#[test]
 fn packet_processor_rejects_wrong_payload_type_before_decode() {
     let mut processor = RtpSessionProcessor::new(config()).expect("processor");
     let mut collector = Collector::default();
@@ -324,6 +535,8 @@ fn rfc4733_events_are_remapped_scaled_and_completed_once() {
         vec![
             DtmfEvent {
                 ingress_leg: ProcessingLeg::A,
+                ssrc: 111,
+                rtp_timestamp: 1_600,
                 code: 5,
                 digit: '5',
                 phase: DtmfPhase::Started,
@@ -332,6 +545,8 @@ fn rfc4733_events_are_remapped_scaled_and_completed_once() {
             },
             DtmfEvent {
                 ingress_leg: ProcessingLeg::A,
+                ssrc: 111,
+                rtp_timestamp: 1_600,
                 code: 5,
                 digit: '5',
                 phase: DtmfPhase::Completed,

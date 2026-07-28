@@ -33,6 +33,7 @@ pub enum PipelineError {
     InvalidPayloadType { payload_type: u8 },
     DecodeFailed,
     EncodeFailed,
+    InvalidPcmSamples { expected: usize, actual: usize },
     NoFrameForConcealment,
 }
 
@@ -50,6 +51,12 @@ impl Display for PipelineError {
             }
             Self::DecodeFailed => formatter.write_str("audio decoder returned no PCM"),
             Self::EncodeFailed => formatter.write_str("audio encoder returned no payload"),
+            Self::InvalidPcmSamples { expected, actual } => {
+                write!(
+                    formatter,
+                    "invalid generated PCM frame: expected {expected} samples, got {actual}"
+                )
+            }
             Self::NoFrameForConcealment => {
                 formatter.write_str("cannot conceal before the first real audio frame")
             }
@@ -93,19 +100,51 @@ impl RtpTiming {
     }
 
     fn map(&mut self, sequence: u16, timestamp: u32) -> (u16, u32) {
-        let source = *self.source.get_or_insert(SourceDomain {
-            sequence,
-            timestamp,
-        });
+        if self.source.is_none() {
+            self.source = Some(SourceDomain {
+                sequence,
+                timestamp,
+            });
+            if let Some((last_sequence, last_timestamp)) = self.last_output {
+                self.output_sequence = last_sequence.wrapping_add(1);
+                self.output_timestamp = last_timestamp.wrapping_add(self.target_packet_ticks);
+            }
+        }
+        let source = self.source.expect("initialized RTP source domain");
         let sequence_delta = sequence.wrapping_sub(source.sequence);
         let timestamp_delta = timestamp.wrapping_sub(source.timestamp);
         let scaled_timestamp_delta = (u64::from(timestamp_delta)
             * u64::from(self.target_clock_rate)
             / u64::from(self.source_clock_rate)) as u32;
-        let output = (
+        let mut output = (
             self.output_sequence.wrapping_add(sequence_delta),
             self.output_timestamp.wrapping_add(scaled_timestamp_delta),
         );
+        if let Some((last_sequence, last_timestamp)) = self.last_output {
+            let expected_sequence = last_sequence.wrapping_add(1);
+            if output.0 != expected_sequence {
+                self.source = Some(SourceDomain {
+                    sequence,
+                    timestamp,
+                });
+                self.output_sequence = expected_sequence;
+                self.output_timestamp = last_timestamp.wrapping_add(self.target_packet_ticks);
+                output = (self.output_sequence, self.output_timestamp);
+            }
+        }
+        self.last_output = Some(output);
+        output
+    }
+
+    fn next_generated(&mut self) -> (u16, u32) {
+        self.source = None;
+        let output = match self.last_output {
+            Some((last_sequence, last_timestamp)) => (
+                last_sequence.wrapping_add(1),
+                last_timestamp.wrapping_add(self.target_packet_ticks),
+            ),
+            None => (self.output_sequence, self.output_timestamp),
+        };
         self.last_output = Some(output);
         output
     }
@@ -128,8 +167,10 @@ pub struct ProcessingPipeline {
     decoder: Box<dyn Decoder>,
     encoder: Box<dyn Encoder>,
     resampler: Option<Resampler>,
+    playback_resampler: Option<Resampler>,
     timing: RtpTiming,
     last_real_pcm: Vec<i16>,
+    conceal_scratch: Vec<i16>,
     conceal_run: u16,
 }
 
@@ -154,15 +195,23 @@ impl ProcessingPipeline {
                 encoder.sample_rate() as usize,
             )
         });
+        let playback_resampler = (encoder.sample_rate() != 48_000)
+            .then(|| Resampler::new(48_000, encoder.sample_rate() as usize));
         let timing = RtpTiming::new(config);
+        let target_samples = config
+            .pair
+            .target()
+            .samples_per_packet(config.packetization_ms);
 
         Ok(Self {
             config,
             decoder,
             encoder,
             resampler,
+            playback_resampler,
             timing,
-            last_real_pcm: Vec::new(),
+            last_real_pcm: Vec::with_capacity(target_samples),
+            conceal_scratch: Vec::with_capacity(target_samples),
             conceal_run: 0,
         })
     }
@@ -188,7 +237,8 @@ impl ProcessingPipeline {
             return Err(PipelineError::EncodeFailed);
         }
         let (sequence, timestamp) = self.timing.map(input.sequence, input.timestamp);
-        self.last_real_pcm = pcm;
+        self.last_real_pcm.clear();
+        self.last_real_pcm.extend_from_slice(&pcm);
         self.conceal_run = 0;
 
         Ok(ProcessedAudioFrame {
@@ -209,27 +259,25 @@ impl ProcessingPipeline {
         }
 
         self.conceal_run = self.conceal_run.saturating_add(1);
-        let (pcm, concealment) = if self.conceal_run <= self.config.max_conceal_frames {
+        self.conceal_scratch.clear();
+        let concealment = if self.conceal_run <= self.config.max_conceal_frames {
             let decay = 0.8_f32.powi(i32::from(self.conceal_run));
-            (
+            self.conceal_scratch.extend(
                 self.last_real_pcm
                     .iter()
-                    .map(|sample| (f32::from(*sample) * decay) as i16)
-                    .collect(),
-                Concealment::DecayedPrevious {
-                    run: self.conceal_run,
-                },
-            )
+                    .map(|sample| (f32::from(*sample) * decay) as i16),
+            );
+            Concealment::DecayedPrevious {
+                run: self.conceal_run,
+            }
         } else {
-            (
-                vec![0; self.last_real_pcm.len()],
-                Concealment::Silence {
-                    run: self.conceal_run,
-                },
-            )
+            self.conceal_scratch.resize(self.last_real_pcm.len(), 0);
+            Concealment::Silence {
+                run: self.conceal_run,
+            }
         };
 
-        let payload = self.encoder.encode(&pcm);
+        let payload = self.encoder.encode(&self.conceal_scratch);
         if payload.is_empty() {
             return Err(PipelineError::EncodeFailed);
         }
@@ -247,6 +295,52 @@ impl ProcessingPipeline {
         })
     }
 
+    pub fn generate_pcm_48k(
+        &mut self,
+        input: &[i16],
+        marker: bool,
+    ) -> Result<ProcessedAudioFrame, PipelineError> {
+        const INPUT_SAMPLES: usize = 48_000 * 20 / 1_000;
+        if input.len() != INPUT_SAMPLES {
+            return Err(PipelineError::InvalidPcmSamples {
+                expected: INPUT_SAMPLES,
+                actual: input.len(),
+            });
+        }
+        let mut resampled = self
+            .playback_resampler
+            .as_mut()
+            .map(|resampler| resampler.resample(input));
+        if let Some(pcm) = &mut resampled {
+            normalize_pcm(
+                pcm,
+                self.config
+                    .pair
+                    .target()
+                    .samples_per_packet(self.config.packetization_ms),
+            );
+        }
+        let pcm = resampled.as_deref().unwrap_or(input);
+        let payload = self.encoder.encode(pcm);
+        if payload.is_empty() {
+            return Err(PipelineError::EncodeFailed);
+        }
+        let (sequence, timestamp) = self.timing.next_generated();
+        self.last_real_pcm.clear();
+        self.last_real_pcm.extend_from_slice(pcm);
+        self.conceal_run = 0;
+        Ok(ProcessedAudioFrame {
+            frame: RtpAudioFrame {
+                sequence,
+                timestamp,
+                payload_type: self.config.target_payload_type,
+                marker,
+                payload: payload.into(),
+            },
+            concealment: Concealment::None,
+        })
+    }
+
     pub(crate) fn map_rtp_timing(&mut self, sequence: u16, timestamp: u32) -> (u16, u32) {
         self.timing.map(sequence, timestamp)
     }
@@ -260,5 +354,34 @@ fn normalize_pcm(pcm: &mut Vec<i16>, expected_samples: usize) {
         }
         std::cmp::Ordering::Greater => pcm.truncate(expected_samples),
         std::cmp::Ordering::Equal => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PipelineConfig, RtpTiming};
+    use crate::codec::{AudioCodec, CodecPair};
+
+    #[test]
+    fn generated_sequence_wrap_still_reanchors_the_next_live_packet() {
+        let mut timing = RtpTiming::new(PipelineConfig {
+            pair: CodecPair::new(AudioCodec::Pcmu, AudioCodec::Opus).expect("codec pair"),
+            packetization_ms: 20,
+            target_payload_type: 111,
+            initial_output_sequence: 5_000,
+            initial_output_timestamp: 96_000,
+            max_conceal_frames: 2,
+        });
+        assert_eq!(timing.map(10, 1_600), (5_000, 96_000));
+        for _ in 0..=u16::MAX {
+            timing.next_generated();
+        }
+        let last_generated = timing.last_output.expect("generated output");
+        let resumed = timing.map(11, 1_760);
+        assert_eq!(resumed.0, last_generated.0.wrapping_add(1));
+        assert_eq!(
+            resumed.1,
+            last_generated.1.wrapping_add(timing.target_packet_ticks)
+        );
     }
 }
