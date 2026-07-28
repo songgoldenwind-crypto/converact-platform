@@ -5,6 +5,7 @@ use voice_media_rs::codec::{AudioCodec, CodecPair};
 use voice_media_rs::session::{
     ProcessingAction, ProcessingCommand, ProcessingProfile, ProcessingSessionRegistry,
     ProcessingSessionRegistryConfig, ProcessingSessionState, ReconcileCommand, SessionError,
+    SessionExecutionError, SessionSweepError, SweepAction,
 };
 
 fn profile() -> ProcessingProfile {
@@ -125,6 +126,100 @@ fn lifecycle_allocates_once_commits_and_releases_all_resources() {
         })
         .expect("unknown reconcile")
         .is_none());
+}
+
+#[test]
+fn side_effect_failure_rolls_back_new_admission_and_replay_never_reapplies() {
+    let capacity = Arc::new(CodecPairCapacity::uniform(4));
+    let registry = new_registry(Arc::clone(&capacity));
+    let forward = CodecPair::new(AudioCodec::Pcmu, AudioCodec::Opus).expect("pair");
+    let reverse = CodecPair::new(AudioCodec::Opus, AudioCodec::Pcmu).expect("pair");
+    let available_ports = registry.available_port_count();
+    let offer = command("media-transaction", ProcessingAction::Offer, 1, 1);
+
+    assert_eq!(
+        registry
+            .execute_with(offer.clone(), 1_000, |_| Err("bind_failed"))
+            .expect_err("worker bind failure"),
+        SessionExecutionError::SideEffect("bind_failed")
+    );
+    assert_eq!(registry.session_count(), 0);
+    assert_eq!(registry.active_session_count(), 0);
+    assert_eq!(registry.available_port_count(), available_ports);
+    assert_eq!(capacity.snapshot(forward).used, 0);
+    assert_eq!(capacity.snapshot(reverse).used, 0);
+
+    let committed = registry
+        .execute_with(offer.clone(), 1_001, |snapshot| {
+            assert_eq!(snapshot.state, ProcessingSessionState::Prepared);
+            assert_eq!(snapshot.ports.leg_a_rtp_port % 2, 0);
+            Ok::<(), &'static str>(())
+        })
+        .expect("retry after rollback");
+    assert!(!committed.replayed);
+    let replayed = registry
+        .execute_with(offer, 1_002, |_| -> Result<(), &'static str> {
+            panic!("replay must not repeat the committed worker side effect")
+        })
+        .expect("replay");
+    assert!(replayed.replayed);
+    assert_eq!(registry.session_count(), 1);
+    assert_eq!(capacity.snapshot(forward).used, 1);
+    assert_eq!(capacity.snapshot(reverse).used, 1);
+}
+
+#[test]
+fn side_effect_failure_preserves_delete_and_owner_takeover_state() {
+    let registry = new_registry(Arc::new(CodecPairCapacity::uniform(4)));
+    registry
+        .execute(
+            command("media-transaction-existing", ProcessingAction::Offer, 1, 1),
+            1_000,
+        )
+        .expect("offer");
+    registry
+        .execute(
+            command("media-transaction-existing", ProcessingAction::Answer, 2, 1),
+            1_001,
+        )
+        .expect("answer");
+
+    let delete = command("media-transaction-existing", ProcessingAction::Delete, 3, 1);
+    assert_eq!(
+        registry
+            .execute_with(delete.clone(), 1_002, |_| Err("worker_remove_failed"))
+            .expect_err("delete side effect"),
+        SessionExecutionError::SideEffect("worker_remove_failed")
+    );
+    let after_delete_failure = registry
+        .snapshot("media-transaction-existing")
+        .expect("session remains");
+    assert_eq!(
+        after_delete_failure.state,
+        ProcessingSessionState::Committed
+    );
+    assert_eq!(after_delete_failure.last_sequence, 2);
+    assert!(after_delete_failure.resources_active);
+
+    let takeover = command("media-transaction-existing", ProcessingAction::Query, 1, 2);
+    assert_eq!(
+        registry
+            .execute_with(takeover, 1_003, |_| Err("takeover_probe_failed"))
+            .expect_err("takeover side effect"),
+        SessionExecutionError::SideEffect("takeover_probe_failed")
+    );
+    let after_takeover_failure = registry
+        .snapshot("media-transaction-existing")
+        .expect("session remains");
+    assert_eq!(after_takeover_failure.owner_epoch, 1);
+    assert_eq!(after_takeover_failure.owner_node_id, "owner-1");
+    assert_eq!(after_takeover_failure.last_sequence, 2);
+
+    let closed = registry
+        .execute_with(delete, 1_004, |_| Ok::<(), &'static str>(()))
+        .expect("delete retry");
+    assert_eq!(closed.snapshot.state, ProcessingSessionState::Closed);
+    assert!(!closed.snapshot.resources_active);
 }
 
 #[test]
@@ -308,6 +403,45 @@ fn expired_prepared_sessions_release_resources_but_committed_media_survives() {
             .state,
         ProcessingSessionState::Committed
     );
+}
+
+#[test]
+fn sweep_side_effect_failure_preserves_prepared_resources_for_retry() {
+    let capacity = Arc::new(CodecPairCapacity::uniform(4));
+    let registry = new_registry(Arc::clone(&capacity));
+    let forward = CodecPair::new(AudioCodec::Pcmu, AudioCodec::Opus).expect("pair");
+    let reverse = CodecPair::new(AudioCodec::Opus, AudioCodec::Pcmu).expect("pair");
+    let mut offer = command("media-sweep-side-effect", ProcessingAction::Offer, 1, 1);
+    offer.expires_at_ms = 1_010;
+    registry.execute(offer, 1_000).expect("offer");
+
+    assert_eq!(
+        registry
+            .sweep_with(1_011, 1, |action, snapshot| {
+                assert_eq!(action, SweepAction::ExpirePrepared);
+                assert_eq!(snapshot.state, ProcessingSessionState::Expired);
+                Err("worker_remove_failed")
+            })
+            .expect_err("sweep side effect"),
+        SessionSweepError::SideEffect("worker_remove_failed")
+    );
+    let retained = registry
+        .snapshot("media-sweep-side-effect")
+        .expect("prepared state retained");
+    assert_eq!(retained.state, ProcessingSessionState::Prepared);
+    assert!(retained.resources_active);
+    assert_eq!(capacity.snapshot(forward).used, 1);
+    assert_eq!(capacity.snapshot(reverse).used, 1);
+
+    let retried = registry
+        .sweep_with(1_011, 1, |action, _| {
+            assert_eq!(action, SweepAction::ExpirePrepared);
+            Ok::<(), &'static str>(())
+        })
+        .expect("sweep retry");
+    assert_eq!(retried.expired, 1);
+    assert_eq!(capacity.snapshot(forward).used, 0);
+    assert_eq!(capacity.snapshot(reverse).used, 0);
 }
 
 #[test]

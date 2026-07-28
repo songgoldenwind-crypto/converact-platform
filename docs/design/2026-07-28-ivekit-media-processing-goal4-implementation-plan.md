@@ -146,6 +146,13 @@ runtime。替换结论、exact source 和提取边界见
 - [x] processor 测试覆盖 NAT source 更新、RTCP、DTMF duration/retransmit、replace
   suppression tail 和恢复；worker UDP 测试覆盖双向 wire、PCMA/Opus、burst、
   `SO_REUSEPORT`、晚到 destination、RFC 4733 barge-in、安装冲突及资源准入。
+- [x] `ProcessingRuntime` 使用 `rustrtc::SessionDescription` 解析/重写 offer、answer
+  和 update，将 SDP 目的地址作为 early-media hint，并在对端发包后切换到验证过的
+  symmetric RTP source；会话端口、codec slot、worker 安装及 owner-fenced 状态以
+  事务方式提交，bind/control 失败时完整回滚。
+- [x] processing command 保存有界历史 effective SDP，并提供
+  `command_id + owner_epoch + command_hash` reconcile；prepared 超时先删除 worker
+  再归还端口/slot，terminal retention 到期后再清理运行时状态。
 - [x] IVR pure-state 测试覆盖背压、首键/键间超时、截止时刻 digit、迟到跳帧、
   RFC 4733/SIP INFO 共用状态、stop/replay、cache 全部上限及 session removal；
   worker 测试覆盖有界 timer fairness 和 terminal-event overload。
@@ -216,8 +223,9 @@ runtime。替换结论、exact source 和提取边界见
 1. Task 1–3 已完成：机器合同、G.711/Opus 内核和 owner-fenced processing session
    均有自动化门禁。
 2. Task 4 的 core-library 切片已完成固定 RTP worker、PCMU/PCMA/Opus wire path、
-   RFC 4733、IVR pure/worker 状态机、有界 terminal-event outbox 和 datagram-retention
-   admission；它尚未接入 `main.rs`/HTTP runtime，不能按生产服务声明完成。
+   RFC 4733、IVR pure/worker 状态机、有界 terminal-event outbox、datagram-retention
+   admission、事务化 `ProcessingRuntime`、结构化 SDP 和 command reconcile；它尚未
+   接入 `main.rs`/HTTP control API，不能按生产服务声明完成。
 3. Task 4 的本地结构与行为测试边界已补齐；steady-state allocation、per-leg RTCP 指标、
    SIP INFO 到 RustPBX 以及 durable event handoff 分别归入 Task 6、Task 5。
 4. Task 5–9、真实服务器媒体/质量/容量证据仍未完成，合同继续保持 `not_run`，

@@ -234,6 +234,12 @@ enum ControlCommand {
         session_id: Arc<str>,
         response: SyncSender<Result<bool, WorkerError>>,
     },
+    SetDestination {
+        session_id: Arc<str>,
+        leg: ProcessingLeg,
+        destination: Option<SocketAddr>,
+        response: SyncSender<Result<(), WorkerError>>,
+    },
     Ivr {
         session_id: Arc<str>,
         command: IvrControlCommand,
@@ -487,6 +493,27 @@ impl RtpWorkerPool {
             worker,
             ControlCommand::Remove {
                 session_id,
+                response: response_tx,
+            },
+        )?;
+        receive_response(response_rx, self.config.control_timeout)
+    }
+
+    pub fn set_destination_hint(
+        &self,
+        session_id: &str,
+        leg: ProcessingLeg,
+        destination: Option<SocketAddr>,
+    ) -> Result<(), WorkerError> {
+        let session_id = validated_session_id(session_id)?;
+        let worker = &self.workers[stable_worker_index(session_id.as_bytes(), self.workers.len())];
+        let (response_tx, response_rx) = mpsc::sync_channel(1);
+        send_control(
+            worker,
+            ControlCommand::SetDestination {
+                session_id,
+                leg,
+                destination,
                 response: response_tx,
             },
         )?;
@@ -1005,6 +1032,21 @@ impl WorkerRuntime {
             } => {
                 let removed = self.remove(&session_id);
                 let _ = response.try_send(Ok(removed));
+            }
+            ControlCommand::SetDestination {
+                session_id,
+                leg,
+                destination,
+                response,
+            } => {
+                let result = self
+                    .sessions
+                    .get_mut(session_id.as_ref())
+                    .ok_or(WorkerError::SessionNotFound)
+                    .map(|session| {
+                        session.processor.set_destination_hint(leg, destination);
+                    });
+                let _ = response.try_send(result);
             }
             ControlCommand::Ivr {
                 session_id,

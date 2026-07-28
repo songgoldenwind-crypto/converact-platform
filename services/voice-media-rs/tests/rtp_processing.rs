@@ -129,6 +129,62 @@ fn opus(sequence: u16, timestamp: u32, ssrc: u32) -> Bytes {
 }
 
 #[test]
+fn destination_hint_carries_early_media_until_symmetric_rtp_rebinds_it() {
+    let mut processor = RtpSessionProcessor::new(config()).expect("processor");
+    let hinted_b = addr(40_010);
+    let learned_b = addr(40_012);
+    processor.set_destination_hint(ProcessingLeg::B, Some(hinted_b));
+    let mut collector = Collector::default();
+
+    for (sequence, timestamp) in [(1, 0), (2, 160)] {
+        processor
+            .process_bytes(
+                ProcessingLeg::A,
+                addr(40_000),
+                pcmu(sequence, timestamp, 111),
+                u64::from(sequence),
+                &mut collector,
+            )
+            .expect("early A media");
+    }
+    assert_eq!(collector.emissions.len(), 2);
+    assert!(collector
+        .emissions
+        .iter()
+        .all(|emission| emission.destination == hinted_b));
+
+    processor
+        .process_bytes(
+            ProcessingLeg::B,
+            learned_b,
+            opus(10, 48_000, 222),
+            10,
+            &mut collector,
+        )
+        .expect("symmetric B media");
+    for (sequence, timestamp) in [(3, 320), (4, 480)] {
+        processor
+            .process_bytes(
+                ProcessingLeg::A,
+                addr(40_000),
+                pcmu(sequence, timestamp, 111),
+                10 + u64::from(sequence),
+                &mut collector,
+            )
+            .expect("A media after B source learned");
+    }
+    assert_eq!(
+        collector
+            .emissions
+            .iter()
+            .rfind(|emission| emission.egress_leg == ProcessingLeg::B)
+            .expect("B emission")
+            .destination,
+        learned_b
+    );
+}
+
+#[test]
 fn packet_processor_transcodes_both_directions_and_rewrites_wire_headers() {
     let mut processor = RtpSessionProcessor::new(config()).expect("processor");
     let mut collector = Collector::default();

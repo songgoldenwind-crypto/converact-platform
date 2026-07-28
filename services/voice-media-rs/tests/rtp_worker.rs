@@ -343,6 +343,45 @@ fn fixed_worker_processes_real_udp_in_both_directions_without_task_per_leg() {
 }
 
 #[test]
+fn worker_destination_hint_delivers_early_media_before_symmetric_rtp() {
+    let pool = RtpWorkerPool::new(worker_config()).expect("worker pool");
+    let binding = pool
+        .install_session(
+            "media-destination-hint",
+            localhost(0),
+            localhost(0),
+            media_config(),
+        )
+        .expect("install session");
+    let endpoint_a = endpoint();
+    let endpoint_b = endpoint();
+    pool.set_destination_hint(
+        "media-destination-hint",
+        ProcessingLeg::B,
+        Some(endpoint_b.local_addr().expect("B local address")),
+    )
+    .expect("set destination hint");
+
+    endpoint_a
+        .send_to(&pcmu(1, 0, 111), binding.leg_a_local_addr)
+        .expect("first early packet");
+    endpoint_a
+        .send_to(&pcmu(2, 160, 111), binding.leg_a_local_addr)
+        .expect("second early packet");
+
+    let mut receive = [0_u8; 2_048];
+    let (received, source) = endpoint_b.recv_from(&mut receive).expect("early Opus");
+    assert_eq!(source, binding.leg_b_local_addr);
+    assert_eq!(
+        RtpPacket::parse(&receive[..received])
+            .expect("wire Opus")
+            .header
+            .payload_type,
+        111
+    );
+}
+
+#[test]
 fn fixed_worker_processes_pcma_and_opus_on_the_real_udp_wire_path() {
     let pool = RtpWorkerPool::new(worker_config()).expect("worker pool");
     let binding = pool

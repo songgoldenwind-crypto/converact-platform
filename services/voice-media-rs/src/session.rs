@@ -1,6 +1,7 @@
 use crate::capacity::{CapacityError, CodecPairCapacity, CodecPairPermit};
 use crate::codec::{AudioCodec, CodecPair};
 use std::collections::{hash_map::RandomState, HashMap, VecDeque};
+use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::hash::BuildHasher;
@@ -142,6 +143,12 @@ pub struct SweepReport {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SweepAction {
+    ExpirePrepared,
+    EvictTerminal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionError {
     InvalidConfiguration { field: &'static str },
     InvalidCommand { field: &'static str },
@@ -237,6 +244,30 @@ impl Display for SessionError {
 }
 
 impl Error for SessionError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionExecutionError<E> {
+    Session(SessionError),
+    SideEffect(E),
+}
+
+impl<E> From<SessionError> for SessionExecutionError<E> {
+    fn from(value: SessionError) -> Self {
+        Self::Session(value)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionSweepError<E> {
+    Session(SessionError),
+    SideEffect(E),
+}
+
+impl<E> From<SessionError> for SessionSweepError<E> {
+    fn from(value: SessionError) -> Self {
+        Self::Session(value)
+    }
+}
 
 struct SessionIdentity {
     media_reservation_id: String,
@@ -363,14 +394,30 @@ impl ProcessingSessionRegistry {
         command: ProcessingCommand,
         now_ms: u64,
     ) -> Result<SessionCommandResult, SessionError> {
+        match self.execute_with(command, now_ms, |_| Ok::<(), Infallible>(())) {
+            Ok(result) => Ok(result),
+            Err(SessionExecutionError::Session(error)) => Err(error),
+            Err(SessionExecutionError::SideEffect(never)) => match never {},
+        }
+    }
+
+    pub fn execute_with<F, E>(
+        &self,
+        command: ProcessingCommand,
+        now_ms: u64,
+        apply: F,
+    ) -> Result<SessionCommandResult, SessionExecutionError<E>>
+    where
+        F: FnOnce(&ProcessingSessionSnapshot) -> Result<(), E>,
+    {
         self.validate_command(&command, now_ms)?;
         let shard_index = self.shard_index(&command.media_reservation_id);
         let mut shard = lock(&self.shards[shard_index])?;
 
         if let Some(record) = shard.records.get_mut(&command.media_reservation_id) {
-            return self.execute_existing(record, command, now_ms);
+            return self.execute_existing(record, command, now_ms, apply);
         }
-        self.execute_new(&mut shard, command)
+        self.execute_new(&mut shard, command, apply)
     }
 
     pub fn reconcile(
@@ -446,10 +493,27 @@ impl ProcessingSessionRegistry {
     }
 
     pub fn sweep(&self, now_ms: u64, limit: usize) -> Result<SweepReport, SessionError> {
+        match self.sweep_with(now_ms, limit, |_, _| Ok::<(), Infallible>(())) {
+            Ok(report) => Ok(report),
+            Err(SessionSweepError::Session(error)) => Err(error),
+            Err(SessionSweepError::SideEffect(never)) => match never {},
+        }
+    }
+
+    pub fn sweep_with<F, E>(
+        &self,
+        now_ms: u64,
+        limit: usize,
+        mut apply: F,
+    ) -> Result<SweepReport, SessionSweepError<E>>
+    where
+        F: FnMut(SweepAction, &ProcessingSessionSnapshot) -> Result<(), E>,
+    {
         if limit == 0 {
             return Err(SessionError::InvalidCommand {
                 field: "sweep_limit",
-            });
+            }
+            .into());
         }
         let mut report = SweepReport::default();
         let inspection_budget = limit.min(self.session_count());
@@ -474,6 +538,17 @@ impl ProcessingSessionRegistry {
                 if record.state == ProcessingSessionState::Prepared
                     && record.expires_at_ms <= now_ms
                 {
+                    let proposed = project_snapshot(
+                        record,
+                        ProcessingSessionState::Expired,
+                        record.last_sequence,
+                        record.expires_at_ms,
+                    );
+                    if let Err(error) = apply(SweepAction::ExpirePrepared, &proposed) {
+                        shard.sweep_order.push_back(key);
+                        self.sweep_cursor.store(shard_index, Ordering::Relaxed);
+                        return Err(SessionSweepError::SideEffect(error));
+                    }
                     self.release_resources(record)?;
                     record.state = ProcessingSessionState::Expired;
                     record.terminal_at_ms = now_ms;
@@ -483,6 +558,17 @@ impl ProcessingSessionRegistry {
                     && now_ms.saturating_sub(record.terminal_at_ms)
                         >= self.config.terminal_retention_ms
                 {
+                    let snapshot = project_snapshot(
+                        record,
+                        record.state,
+                        record.last_sequence,
+                        record.expires_at_ms,
+                    );
+                    if let Err(error) = apply(SweepAction::EvictTerminal, &snapshot) {
+                        shard.sweep_order.push_back(key);
+                        self.sweep_cursor.store(shard_index, Ordering::Relaxed);
+                        return Err(SessionSweepError::SideEffect(error));
+                    }
                     remove = true;
                 }
             }
@@ -500,19 +586,24 @@ impl ProcessingSessionRegistry {
         Ok(report)
     }
 
-    fn execute_new(
+    fn execute_new<F, E>(
         &self,
         shard: &mut SessionShard,
         command: ProcessingCommand,
-    ) -> Result<SessionCommandResult, SessionError> {
+        apply: F,
+    ) -> Result<SessionCommandResult, SessionExecutionError<E>>
+    where
+        F: FnOnce(&ProcessingSessionSnapshot) -> Result<(), E>,
+    {
         if command.action != ProcessingAction::Offer {
-            return Err(SessionError::SessionNotFound);
+            return Err(SessionError::SessionNotFound.into());
         }
         if command.command_sequence != 1 {
             return Err(SessionError::SequenceGap {
                 expected: 1,
                 actual: command.command_sequence,
-            });
+            }
+            .into());
         }
         let profile = command.profile.ok_or(SessionError::InvalidProfile)?;
         profile.codec_pairs()?;
@@ -521,7 +612,7 @@ impl ProcessingSessionRegistry {
             Ok(resources) => resources,
             Err(error) => {
                 self.session_count.fetch_sub(1, Ordering::AcqRel);
-                return Err(error);
+                return Err(error.into());
             }
         };
         let assigned_ports = resources.ports;
@@ -545,6 +636,22 @@ impl ProcessingSessionRegistry {
             commands: VecDeque::with_capacity(self.config.max_commands_per_session),
             terminal_at_ms: 0,
         };
+        let proposed = project_snapshot(
+            &record,
+            ProcessingSessionState::Prepared,
+            command.command_sequence,
+            command.expires_at_ms,
+        );
+        if let Err(error) = apply(&proposed) {
+            let resources = record
+                .resources
+                .take()
+                .expect("new processing resources must exist before commit");
+            let release_result = self.release_uncommitted_resources(resources);
+            self.session_count.fetch_sub(1, Ordering::AcqRel);
+            release_result?;
+            return Err(SessionExecutionError::SideEffect(error));
+        }
         push_recorded(&mut record, &command, self.config.max_commands_per_session);
         let recorded = record
             .commands
@@ -559,28 +666,27 @@ impl ProcessingSessionRegistry {
         Ok(result)
     }
 
-    fn execute_existing(
+    fn execute_existing<F, E>(
         &self,
         record: &mut SessionRecord,
         command: ProcessingCommand,
         now_ms: u64,
-    ) -> Result<SessionCommandResult, SessionError> {
+        apply: F,
+    ) -> Result<SessionCommandResult, SessionExecutionError<E>>
+    where
+        F: FnOnce(&ProcessingSessionSnapshot) -> Result<(), E>,
+    {
         assert_identity(record, &command)?;
         if command.owner_epoch < record.owner_epoch {
-            return Err(SessionError::StaleOwnerEpoch);
+            return Err(SessionError::StaleOwnerEpoch.into());
         }
+        let takeover = command.owner_epoch > record.owner_epoch;
         if command.owner_epoch == record.owner_epoch {
             if let Some(result) = replay(record, &command)? {
                 return Ok(result);
             }
-        } else {
-            if command.command_sequence != 1 {
-                return Err(SessionError::OwnerTakeoverSequenceInvalid);
-            }
-            record.owner_epoch = command.owner_epoch;
-            record.owner_node_id = command.owner_node_id.clone();
-            record.last_sequence = 0;
-            record.commands.clear();
+        } else if command.command_sequence != 1 {
+            return Err(SessionError::OwnerTakeoverSequenceInvalid.into());
         }
 
         if command.action != ProcessingAction::Delete {
@@ -590,35 +696,50 @@ impl ProcessingSessionRegistry {
                 self.config.max_lease_horizon_ms,
             )?;
         }
-        let expected = record.last_sequence.saturating_add(1);
-        if command.command_sequence <= record.last_sequence {
-            return Err(SessionError::StaleSequence);
+        let previous_sequence = if takeover { 0 } else { record.last_sequence };
+        let expected = previous_sequence.saturating_add(1);
+        if command.command_sequence <= previous_sequence {
+            return Err(SessionError::StaleSequence.into());
         }
         if command.command_sequence != expected {
             return Err(SessionError::SequenceGap {
                 expected,
                 actual: command.command_sequence,
-            });
+            }
+            .into());
         }
         assert_transition(record.state, command.action)?;
-        match command.action {
-            ProcessingAction::Offer => {
-                if command.profile != Some(record.profile) {
-                    return Err(SessionError::InvalidProfile);
-                }
-                record.state = ProcessingSessionState::Prepared;
-            }
-            ProcessingAction::Answer => {
-                record.state = ProcessingSessionState::Committed;
-            }
-            ProcessingAction::Update | ProcessingAction::Query => {}
-            ProcessingAction::Delete => {
-                self.release_resources(record)?;
-                record.state = ProcessingSessionState::Closed;
-                record.terminal_at_ms = now_ms;
-                self.active_session_count.fetch_sub(1, Ordering::AcqRel);
-            }
+        if command.action == ProcessingAction::Offer && command.profile != Some(record.profile) {
+            return Err(SessionError::InvalidProfile.into());
         }
+        let next_state = match command.action {
+            ProcessingAction::Offer => ProcessingSessionState::Prepared,
+            ProcessingAction::Answer => ProcessingSessionState::Committed,
+            ProcessingAction::Update | ProcessingAction::Query => record.state,
+            ProcessingAction::Delete => ProcessingSessionState::Closed,
+        };
+        let mut proposed = project_snapshot(
+            record,
+            next_state,
+            command.command_sequence,
+            command.expires_at_ms,
+        );
+        if takeover {
+            proposed.owner_epoch = command.owner_epoch;
+            proposed.owner_node_id.clone_from(&command.owner_node_id);
+        }
+        apply(&proposed).map_err(SessionExecutionError::SideEffect)?;
+        if takeover {
+            record.owner_epoch = command.owner_epoch;
+            record.owner_node_id.clone_from(&command.owner_node_id);
+            record.commands.clear();
+        }
+        if command.action == ProcessingAction::Delete {
+            self.release_resources(record)?;
+            record.terminal_at_ms = now_ms;
+            self.active_session_count.fetch_sub(1, Ordering::AcqRel);
+        }
+        record.state = next_state;
         record.last_sequence = command.command_sequence;
         record.expires_at_ms = command.expires_at_ms;
         push_recorded(record, &command, self.config.max_commands_per_session);
@@ -732,6 +853,15 @@ impl ProcessingSessionRegistry {
             .expect("checked processing resources must exist");
         debug_assert_eq!(resources.ports, assigned_ports);
         ports.release_pair(assigned_ports);
+        drop(resources);
+        Ok(())
+    }
+
+    fn release_uncommitted_resources(
+        &self,
+        resources: SessionResources,
+    ) -> Result<(), SessionError> {
+        lock(&self.ports)?.release_pair(resources.ports);
         drop(resources);
         Ok(())
     }

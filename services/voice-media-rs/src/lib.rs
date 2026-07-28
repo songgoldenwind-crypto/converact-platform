@@ -6,5 +6,6 @@ pub mod ivr;
 pub mod jitter;
 pub mod pipeline;
 pub mod rtp;
+pub mod runtime;
 pub mod session;
 pub mod worker;

@@ -681,6 +681,8 @@ pub struct RtpSessionProcessor {
     config: RtpSessionConfig,
     leg_a_source: Option<SourceLatch>,
     leg_b_source: Option<SourceLatch>,
+    leg_a_destination_hint: Option<SocketAddr>,
+    leg_b_destination_hint: Option<SocketAddr>,
     a_to_b: DirectionProcessor,
     b_to_a: DirectionProcessor,
     stats: RtpProcessStats,
@@ -725,6 +727,8 @@ impl RtpSessionProcessor {
             config,
             leg_a_source: None,
             leg_b_source: None,
+            leg_a_destination_hint: None,
+            leg_b_destination_hint: None,
             a_to_b,
             b_to_a,
             stats: RtpProcessStats::default(),
@@ -805,7 +809,7 @@ impl RtpSessionProcessor {
             payload: packet.payload,
             kind,
         };
-        let destination = self.source(ingress_leg.opposite());
+        let destination = self.destination(ingress_leg.opposite());
         let direction = match ingress_leg {
             ProcessingLeg::A => &mut self.a_to_b,
             ProcessingLeg::B => &mut self.b_to_a,
@@ -858,7 +862,7 @@ impl RtpSessionProcessor {
         marker: bool,
         sink: &mut S,
     ) -> Result<bool, RtpProcessError> {
-        let Some(destination) = self.source(egress_leg) else {
+        let Some(destination) = self.destination(egress_leg) else {
             self.stats.no_destination_packets += 1;
             return Ok(false);
         };
@@ -884,6 +888,13 @@ impl RtpSessionProcessor {
         }
     }
 
+    pub fn set_destination_hint(&mut self, leg: ProcessingLeg, destination: Option<SocketAddr>) {
+        match leg {
+            ProcessingLeg::A => self.leg_a_destination_hint = destination,
+            ProcessingLeg::B => self.leg_b_destination_hint = destination,
+        }
+    }
+
     pub fn buffered_packets(&self, ingress_leg: ProcessingLeg) -> usize {
         match ingress_leg {
             ProcessingLeg::A => self.a_to_b.jitter.len(),
@@ -893,6 +904,13 @@ impl RtpSessionProcessor {
 
     pub fn stats(&self) -> RtpProcessStats {
         self.stats
+    }
+
+    fn destination(&self, leg: ProcessingLeg) -> Option<SocketAddr> {
+        self.source(leg).or(match leg {
+            ProcessingLeg::A => self.leg_a_destination_hint,
+            ProcessingLeg::B => self.leg_b_destination_hint,
+        })
     }
 
     fn accept_source(
