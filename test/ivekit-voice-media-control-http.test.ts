@@ -21,6 +21,7 @@ import {
 } from '../src/agent-runtime/ivekit/media-control/client.js';
 import {
   createMediaControlHttpServer,
+  type MediaControlHttpFailure,
   type MediaControlHttpServer
 } from '../src/agent-runtime/ivekit/media-control/http.js';
 import {
@@ -223,6 +224,37 @@ describe('iveKit media control HTTP boundary', () => {
     assert.equal(contentType.status, 415);
     assert.equal(invalidJson.status, 400);
     assert.equal(oversized.status, 413);
+  });
+
+  it('reports a normalized HTTP rejection without changing its response', async () => {
+    const failures: MediaControlHttpFailure[] = [];
+    const endpoint = await listen(createMediaControlHttpServer({
+      agent: agent(),
+      service_token: TOKEN,
+      now: () => NOW,
+      error_observer: (failure) => failures.push(failure)
+    }));
+
+    const response = await fetch(new URL('/v1/commands', endpoint), {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        'content-type': 'application/json'
+      },
+      body: '{}'
+    });
+    const body = await response.json() as {
+      error: { code: string; retryable: boolean };
+    };
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(failures, [{
+      method: 'POST',
+      path: '/v1/commands',
+      error_code: body.error.code,
+      status: 400,
+      retryable: body.error.retryable
+    }]);
   });
 
   it('returns unknown when a mutating request times out', async () => {

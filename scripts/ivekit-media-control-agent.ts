@@ -208,6 +208,14 @@ const server = createMediaControlHttpServer({
   tls,
   events: events,
   ready: () => Date.now() < admissionReadyUntil,
+  error_observer: (failure) => {
+    process.stderr.write(
+      'ivekit media HTTP request rejected ' +
+      `method=${failure.method} path=${failure.path} ` +
+      `code=${failure.error_code} status=${failure.status} ` +
+      `retryable=${failure.retryable}\n`
+    );
+  },
   max_body_bytes: integerEnv(
     'IVEKIT_MEDIA_CONTROL_MAX_BODY_BYTES',
     262_144,

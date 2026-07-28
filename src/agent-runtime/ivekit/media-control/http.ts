@@ -33,6 +33,14 @@ export interface MediaControlServerTlsOptions {
 
 export type MediaControlHttpServer = HttpServer | HttpsServer;
 
+export interface MediaControlHttpFailure {
+  method: string;
+  path: string;
+  error_code: string;
+  status: number;
+  retryable: boolean;
+}
+
 export function createMediaControlHttpServer(input: {
   agent: MediaControlAgent;
   service_token: string;
@@ -42,6 +50,7 @@ export function createMediaControlHttpServer(input: {
   now?: () => Date;
   ready?: () => boolean;
   events?: MediaControlEventBroker;
+  error_observer?: (failure: MediaControlHttpFailure) => void;
 }): MediaControlHttpServer {
   const token = safeToken(input.service_token);
   const maxBodyBytes = boundedInteger(
@@ -59,11 +68,14 @@ export function createMediaControlHttpServer(input: {
     request: IncomingMessage,
     response: ServerResponse
   ): Promise<void> => {
+    const method = String(request.method || 'UNKNOWN').slice(0, 16);
+    let path = '';
     try {
       const url = new URL(
         request.url || '/',
         `http://${request.headers.host || 'localhost'}`
       );
+      path = url.pathname;
       if (request.method === 'GET' && url.pathname === '/livez') {
         return sendJson(response, 200, { status: 'alive' });
       }
@@ -144,6 +156,17 @@ export function createMediaControlHttpServer(input: {
       });
     } catch (error) {
       const projected = projectError(error);
+      try {
+        input.error_observer?.({
+          method,
+          path: path || 'invalid',
+          error_code: projected.code,
+          status: projected.status,
+          retryable: projected.retryable
+        });
+      } catch {
+        // Diagnostics must not change the HTTP rejection.
+      }
       return sendJson(response, projected.status, {
         error: {
           code: projected.code,
