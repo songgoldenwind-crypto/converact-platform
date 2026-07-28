@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { MemoryPg, pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
+import { pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { createObjectStorage, isLocalObjectStorage, readLocalUpload } from '../../storage/object-storage.js';
@@ -23,6 +23,11 @@ import {
   type ChatGateway,
   type ChatTopicInput
 } from './chat-gateway.js';
+import {
+  withCollaborationParticipantLock,
+  withCollaborationSessionLock
+} from './collaboration-lock.js';
+import { closeCollaborationSession } from './collaboration-session-lifecycle.js';
 import {
   AttachmentProcessingService,
   type AttachmentProcessingServiceInput
@@ -230,50 +235,6 @@ function requirePg(pg: PgQueryable | null): PgQueryable {
     throw Object.assign(new Error('postgres is required for collaboration API'), { status: 503 });
   }
   return pg;
-}
-
-const memoryParticipantLockTails = new WeakMap<MemoryPg, Map<string, Promise<void>>>();
-
-export async function withCollaborationParticipantLock<T>(
-  pg: PgQueryable,
-  input: { tenantId: string; sessionId: string; identity: string },
-  fn: (lockedPg: PgQueryable) => Promise<T>
-): Promise<T> {
-  const lockKey = `${input.tenantId}\u0000${input.sessionId}\u0000${input.identity}`;
-  if (pg instanceof MemoryPg) {
-    let locks = memoryParticipantLockTails.get(pg);
-    if (!locks) {
-      locks = new Map();
-      memoryParticipantLockTails.set(pg, locks);
-    }
-    const previous = locks.get(lockKey) || Promise.resolve();
-    let release!: () => void;
-    const current = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    locks.set(lockKey, current);
-    await previous;
-    try {
-      return await fn(pg);
-    } finally {
-      release();
-      if (locks.get(lockKey) === current) locks.delete(lockKey);
-    }
-  }
-  return withPgTransaction(pg, async (transactionPg) => {
-    const lock = await transactionPg.query<{ acquired: boolean }>(
-      'SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext($2)) AS acquired',
-      [`${input.tenantId}:${input.sessionId}`, input.identity]
-    );
-    if (lock.rows[0]?.acquired !== true) {
-      throw Object.assign(new Error('collaboration participant update in progress; retry request'), {
-        status: 409,
-        code: 'collaboration_participant_busy',
-        retryable: true
-      });
-    }
-    return fn(transactionPg);
-  });
 }
 
 function requireMediaDb(db: unknown): unknown {
@@ -3380,22 +3341,60 @@ export async function routeCollaborationApi(
     if ((action === 'retry' && method !== 'POST') || (!action && method !== 'GET')) {
       return { status: 405, data: { error: 'method not allowed' } };
     }
-    const { gateway } = await resolveTinodeSessionGateway({
-      pg: requirePg(pg),
-      options,
-      tenantId: ctx.tenantId,
-      sessionId
-    });
+    if (action === 'retry') {
+      return withCollaborationSessionLock(requirePg(pg), {
+        tenantId: ctx.tenantId,
+        sessionId,
+        mode: 'shared'
+      }, async (lockedPg) => {
+        const currentSession = await createCollaborationModule({ pg: lockedPg }).sessions.getSession(sessionId);
+        if (!currentSession || currentSession.tenant_id !== ctx.tenantId) {
+          return { status: 404, data: { error: 'collaboration session not found' } };
+        }
+        if (currentSession.status !== 'open') {
+          return { status: 409, data: { error: 'collaboration session is closed' } };
+        }
+        const { gateway } = await resolveTinodeSessionGateway({
+          pg: lockedPg,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId
+        });
+        const delivery = new TinodeMessageDeliveryService({
+          pg: lockedPg,
+          gateway,
+          ...(options.tinodeDelivery || {})
+        });
+        const message = await delivery.retryMessage({
+          tenant_id: ctx.tenantId,
+          message_id: messageId
+        });
+        if (!message || message.session_id !== sessionId) {
+          return { status: 404, data: { error: 'collaboration message not found' } };
+        }
+        const attempts = await delivery.listAttempts({
+          tenant_id: ctx.tenantId,
+          message_id: message.id
+        });
+        return {
+          data: {
+            session_id: sessionId,
+            message_id: message.id,
+            delivery: message.provider_delivery,
+            attempts
+          }
+        };
+      });
+    }
     const delivery = new TinodeMessageDeliveryService({
       pg: requirePg(pg),
-      gateway,
+      gateway: options.chatGateway || configuredChatGateway(),
       ...(options.tinodeDelivery || {})
     });
-    const message = action === 'retry' && method === 'POST'
-      ? await delivery.retryMessage({ tenant_id: ctx.tenantId, message_id: messageId })
-      : !action && method === 'GET'
-        ? await delivery.getMessage({ tenant_id: ctx.tenantId, message_id: messageId })
-        : null;
+    const message = await delivery.getMessage({
+      tenant_id: ctx.tenantId,
+      message_id: messageId
+    });
     if (!message || message.session_id !== sessionId) {
       return { status: 404, data: { error: 'collaboration message not found' } };
     }
@@ -3610,72 +3609,46 @@ export async function routeCollaborationApi(
 
     if (section === 'close' && !action && method === 'POST') {
       const actorIdentity = collaborationActorIdentity(ctx, headers);
-      const participants = await module.sessions.listParticipants({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id
-      });
-      if (!participants.some((participant) => participant.identity === actorIdentity && !participant.left_at)) {
-        return { status: 403, data: { error: 'active participant identity is required' } };
-      }
-      const { gateway } = await resolveTinodeSessionGateway({
+      const closed = await closeCollaborationSession({
         pg: requirePg(pg),
-        options,
-        tenantId: ctx.tenantId,
-        sessionId: collaboration.id
-      });
-      const binding = await module.sessions.getChatBinding({
         tenant_id: ctx.tenantId,
-        session_id: collaboration.id
-      });
-      if (binding && binding.provider !== gateway.provider) {
-        return { status: 503, data: { error: 'chat provider gateway is unavailable' } };
-      }
-      if (binding) {
-        await Promise.all(participants.filter((participant) => !participant.left_at).map((participant) =>
-          gateway.removeParticipant({
+        session_id: collaboration.id,
+        actor_identity: actorIdentity,
+        gateway: options.chatGateway,
+        resolve_gateway: async (lockedPg) => (await resolveTinodeSessionGateway({
+          pg: lockedPg,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id
+        })).gateway,
+        on_tinode_closed: async (lockedPg) => {
+          if (!options.tinodePlacement || !await options.tinodePlacement.hasPlacement(lockedPg, {
             tenant_id: ctx.tenantId,
-            session_id: collaboration.id,
-            provider_topic_id: binding.provider_topic_id,
-            identity: participant.identity,
-            display_name: participant.display_name,
-            access_mode: 'N'
-          })
-        ));
-      }
-      const closed = await module.sessions.closeSession(collaboration.id);
-      const placementClosed = Boolean(
-        binding?.provider === 'tinode' &&
-        options.tinodePlacement &&
-        await options.tinodePlacement.hasPlacement(requirePg(pg), {
-          tenant_id: ctx.tenantId,
-          interaction_id: collaboration.id
-        })
-      );
-      if (placementClosed) {
-        await options.tinodePlacement!.requestState(requirePg(pg), {
-          tenant_id: ctx.tenantId,
-          interaction_id: collaboration.id,
-          desired_state: 'closed',
-          reason: 'tinode_session_closed'
+            interaction_id: collaboration.id
+          })) {
+            return undefined;
+          }
+          await options.tinodePlacement.requestState(lockedPg, {
+            tenant_id: ctx.tenantId,
+            interaction_id: collaboration.id,
+            desired_state: 'closed',
+            reason: 'tinode_session_closed'
+          });
+          return () => reconcileTinodePlacement(options, ctx.tenantId, collaboration.id);
+        }
+      });
+      if (closed.ok === false) return { status: closed.status, data: { error: closed.error } };
+      if (closed.was_open) {
+        wsBroadcast(ctx.tenantId, 'collaboration.session.closed', {
+          session_id: collaboration.id,
+          session: closed.session,
+          closed_by: actorIdentity
         });
       }
-      wsBroadcast(ctx.tenantId, 'collaboration.session.closed', {
-        session_id: collaboration.id,
-        session: closed,
-        closed_by: actorIdentity
-      });
       return {
         status: 200,
-        data: closed,
-        ...(placementClosed
-          ? {
-              afterCommit: () => reconcileTinodePlacement(
-                options,
-                ctx.tenantId,
-                collaboration.id
-              )
-            }
-          : {})
+        data: closed.session,
+        ...(closed.after_commit ? { afterCommit: closed.after_commit } : {})
       };
     }
 
@@ -3966,12 +3939,25 @@ export async function routeCollaborationApi(
       }
       const role = collaborationParticipantRole(input.role || 'customer');
       if (!role) return { status: 400, data: { error: 'unsupported participant role' } };
-      const participant = await withCollaborationParticipantLock(requirePg(pg), {
+      const participantResult = await withCollaborationParticipantLock(requirePg(pg), {
         tenantId: ctx.tenantId,
         sessionId: collaboration.id,
         identity
       }, async (lockedPg) => {
         const lockedModule = createCollaborationModule({ pg: lockedPg });
+        const currentSession = await lockedModule.sessions.getSession(collaboration.id);
+        if (!currentSession || currentSession.tenant_id !== ctx.tenantId) {
+          return {
+            ok: false as const,
+            response: { status: 404, data: { error: 'collaboration session not found' } }
+          };
+        }
+        if (currentSession.status !== 'open') {
+          return {
+            ok: false as const,
+            response: { status: 409, data: { error: 'collaboration session is closed' } }
+          };
+        }
         const { gateway } = await resolveTinodeSessionGateway({
           pg: lockedPg,
           options,
@@ -3985,7 +3971,7 @@ export async function routeCollaborationApi(
           options,
           tenantId: ctx.tenantId,
           sessionId: collaboration.id,
-          title: collaboration.title
+          title: currentSession.title
         });
         const providerUser = await gateway.ensureUser({
           tenant_id: ctx.tenantId,
@@ -4019,8 +4005,10 @@ export async function routeCollaborationApi(
           display_name: input.display_name ? String(input.display_name) : undefined,
           provider_user_id: providerUser.provider_user_id
         });
-        return participant;
+        return { ok: true as const, participant };
       });
+      if (!participantResult.ok) return participantResult.response;
+      const participant = participantResult.participant;
       wsBroadcast(ctx.tenantId, 'collaboration.participant.joined', {
         session_id: collaboration.id,
         participant
@@ -4029,23 +4017,37 @@ export async function routeCollaborationApi(
     }
 
     if (section === 'chat' && action === 'bind' && method === 'POST') {
-      const { gateway } = await resolveTinodeSessionGateway({
-        pg: requirePg(pg),
-        options,
-        tenantId: ctx.tenantId,
-        sessionId: collaboration.id
-      });
-      const binding = await ensureSessionChatBinding({
-        pg: requirePg(pg),
-        module,
-        gateway,
-        options,
+      return withCollaborationSessionLock(requirePg(pg), {
         tenantId: ctx.tenantId,
         sessionId: collaboration.id,
-        title: collaboration.title,
-        metadata: bodyObject(input.metadata)
+        mode: 'shared'
+      }, async (lockedPg) => {
+        const lockedModule = createCollaborationModule({ pg: lockedPg });
+        const currentSession = await lockedModule.sessions.getSession(collaboration.id);
+        if (!currentSession || currentSession.tenant_id !== ctx.tenantId) {
+          return { status: 404, data: { error: 'collaboration session not found' } };
+        }
+        if (currentSession.status !== 'open') {
+          return { status: 409, data: { error: 'collaboration session is closed' } };
+        }
+        const { gateway } = await resolveTinodeSessionGateway({
+          pg: lockedPg,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id
+        });
+        const binding = await ensureSessionChatBinding({
+          pg: lockedPg,
+          module: lockedModule,
+          gateway,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id,
+          title: currentSession.title,
+          metadata: bodyObject(input.metadata)
+        });
+        return { status: 201, data: binding };
       });
-      return { status: 201, data: binding };
     }
 
     if (section === 'chat' && action === 'client-plan' && method === 'POST') {
@@ -4192,88 +4194,102 @@ export async function routeCollaborationApi(
         return { status: 403, data: { error: 'chat identity must match authenticated user' } };
       }
 
-      const { gateway } = await resolveTinodeSessionGateway({
-        pg: requirePg(pg),
-        options,
-        tenantId: ctx.tenantId,
-        sessionId: collaboration.id
-      });
-      const binding = await ensureSessionChatBinding({
-        pg: requirePg(pg),
-        module,
-        gateway,
-        options,
+      return withCollaborationSessionLock(requirePg(pg), {
         tenantId: ctx.tenantId,
         sessionId: collaboration.id,
-        title: collaboration.title
-      });
-      const delivery = new TinodeMessageDeliveryService({
-        pg: requirePg(pg),
-        gateway,
-        ...(options.tinodeDelivery || {})
-      });
-      const result = await delivery.createAndDeliver({
-        tenant_id: ctx.tenantId,
-        session_id: collaboration.id,
-        sender_identity: senderIdentity,
-        message_type: messageType,
-        body: bodyText,
-        original_language: input.original_language ? String(input.original_language) : undefined,
-        metadata: {
-          ...bodyObject(input.metadata),
-          attachment_count: attachments.length
-        },
-        attachments,
-        provider_topic_id: binding.provider_topic_id,
-        provider_payload: providerMessageBody(messageType, bodyText, attachments),
-        policy_text: policyScanText(bodyText, attachments),
-        idempotency_key: headerValue(headers, 'idempotency-key') || String(input.idempotency_key || ''),
-        reply_to_message_id: input.reply_to_message_id ? String(input.reply_to_message_id) : undefined,
-        forwarded_from_message_id: input.forwarded_from_message_id
-          ? String(input.forwarded_from_message_id)
-          : undefined,
-        mentions: stringArray(input.mentions)
-      });
-      const processingJobs = await attachmentProcessingService(requirePg(pg), options)
-        .enqueueMessage(result.message);
-      const quality = qualityReviewService(requirePg(pg), options);
-      const qualityReviewJob = qualityReviewAutoEnqueue(quality)
-        ? await quality.service.enqueueMessage({
-          tenant_id: ctx.tenantId,
-          message_id: result.message.id
-        })
-        : null;
-      const payload = {
-        session_id: collaboration.id,
-        message: result.message,
-        policy: result.policy,
-        binding,
-        idempotency_replayed: result.replayed,
-        attachment_processing_jobs: processingJobs,
-        quality_review_job: qualityReviewJob
-      };
-      if (result.created) wsBroadcast(ctx.tenantId, 'collaboration.message.created', payload);
-      if (result.created && result.policy.matched) {
-        wsBroadcast(ctx.tenantId, 'collaboration.policy.matched', {
-          session_id: collaboration.id,
-          message_id: result.message.id,
-          events: result.policy.events
+        mode: 'shared'
+      }, async (lockedPg) => {
+        const lockedModule = createCollaborationModule({ pg: lockedPg });
+        const currentSession = await lockedModule.sessions.getSession(collaboration.id);
+        if (!currentSession || currentSession.tenant_id !== ctx.tenantId) {
+          return { status: 404, data: { error: 'collaboration session not found' } };
+        }
+        if (currentSession.status !== 'open') {
+          return { status: 409, data: { error: 'collaboration session is closed' } };
+        }
+        const { gateway } = await resolveTinodeSessionGateway({
+          pg: lockedPg,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id
         });
-      }
-      const deliveryStatus = result.message.provider_delivery.status;
-      const status = result.replayed
-        ? 200
-        : deliveryStatus === 'pending'
+        const binding = await ensureSessionChatBinding({
+          pg: lockedPg,
+          module: lockedModule,
+          gateway,
+          options,
+          tenantId: ctx.tenantId,
+          sessionId: collaboration.id,
+          title: currentSession.title
+        });
+        const delivery = new TinodeMessageDeliveryService({
+          pg: lockedPg,
+          gateway,
+          ...(options.tinodeDelivery || {})
+        });
+        const result = await delivery.createAndDeliver({
+          tenant_id: ctx.tenantId,
+          session_id: collaboration.id,
+          sender_identity: senderIdentity,
+          message_type: messageType,
+          body: bodyText,
+          original_language: input.original_language ? String(input.original_language) : undefined,
+          metadata: {
+            ...bodyObject(input.metadata),
+            attachment_count: attachments.length
+          },
+          attachments,
+          provider_topic_id: binding.provider_topic_id,
+          provider_payload: providerMessageBody(messageType, bodyText, attachments),
+          policy_text: policyScanText(bodyText, attachments),
+          idempotency_key: headerValue(headers, 'idempotency-key') || String(input.idempotency_key || ''),
+          reply_to_message_id: input.reply_to_message_id ? String(input.reply_to_message_id) : undefined,
+          forwarded_from_message_id: input.forwarded_from_message_id
+            ? String(input.forwarded_from_message_id)
+            : undefined,
+          mentions: stringArray(input.mentions)
+        });
+        const processingJobs = await attachmentProcessingService(lockedPg, options)
+          .enqueueMessage(result.message);
+        const quality = qualityReviewService(lockedPg, options);
+        const qualityReviewJob = qualityReviewAutoEnqueue(quality)
+          ? await quality.service.enqueueMessage({
+            tenant_id: ctx.tenantId,
+            message_id: result.message.id
+          })
+          : null;
+        const payload = {
+          session_id: collaboration.id,
+          message: result.message,
+          policy: result.policy,
+          binding,
+          idempotency_replayed: result.replayed,
+          attachment_processing_jobs: processingJobs,
+          quality_review_job: qualityReviewJob
+        };
+        if (result.created) wsBroadcast(ctx.tenantId, 'collaboration.message.created', payload);
+        if (result.created && result.policy.matched) {
+          wsBroadcast(ctx.tenantId, 'collaboration.policy.matched', {
+            session_id: collaboration.id,
+            message_id: result.message.id,
+            events: result.policy.events
+          });
+        }
+        const deliveryStatus = result.message.provider_delivery.status;
+        const status = result.replayed
+          ? 200
+          : deliveryStatus === 'pending'
             || deliveryStatus === 'publishing'
             || deliveryStatus === 'retry_wait'
             || deliveryStatus === 'blocked_by_file_security'
-          ? 202
-          : deliveryStatus === 'blocked'
-            ? 422
-            : deliveryStatus === 'failed'
-            ? 502
-            : 201;
-      return { status, data: payload };
+            ? 202
+            : deliveryStatus === 'blocked'
+              ? 422
+              : deliveryStatus === 'failed'
+                ? 502
+                : 201;
+        return { status, data: payload };
+      });
     }
   }
 

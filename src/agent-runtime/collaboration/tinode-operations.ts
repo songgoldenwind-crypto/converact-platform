@@ -347,9 +347,18 @@ export class TinodeOperationsService {
                claim_token = '', claimed_until = NULL,
                last_error_code = '', last_error_message = '', updated_at = $3
            WHERE tenant_id = $1 AND id = $2
+             AND EXISTS (
+               SELECT 1 FROM collaboration_sessions AS session
+               WHERE session.tenant_id = tinode_message_mutation_outbox.tenant_id
+                 AND session.id = tinode_message_mutation_outbox.session_id
+                 AND session.status = 'open'
+             )
            RETURNING *`,
           [input.tenant_id, outboxId, now]
         );
+        if (!updated.rows[0]) {
+          throw operationsError('closed collaboration sessions cannot replay Tinode mutations', 409);
+        }
         return {
           dead_letter: decodeMutationDeadLetter(updated.rows[0]),
           replay_id: replayId,

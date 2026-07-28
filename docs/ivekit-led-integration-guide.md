@@ -433,6 +433,8 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 | `076_rustdesk_evidence_intelligence_reconciliation.sql` | RustDesk ready evidence 的最小权限候选发现与 missed-callback 幂等补偿 |
 | `094_ivekit_voice_extension_sessions.sql` | WebPhone 短期 session 的幂等签发、RLS、过期索引和有界清理 |
 | `095_rustdesk_authorization_claims.sql` | 已运行旧 migration 064 的数据库升级到 claim/consume 两阶段授权状态机 |
+| `105_tinode_closed_session_inbound.sql` | 历史 closed session 的 inbound cursor 暂停，以及只发现 open session 的 inbound worker |
+| `106_tinode_open_session_mutation_queue.sql` | 历史 delivery/mutation 队列终止，以及只发现 open session 的两个 Tinode worker |
 | `097_ivekit_realtime_intelligence.sql` | 实时 ASR/翻译 Provider 策略、配额、熔断和会话治理 |
 | `098_ivekit_realtime_speech_projection.sql` | 实时字幕/翻译投影、事件与 retention |
 | `099_ivekit_realtime_audio_tap_grants.sql` | consent-scoped PCM 旁路 grant、幂等、撤销与 FORCE RLS |
@@ -479,8 +481,9 @@ RustPBX 发起呼叫沿 Path 或复制 location 到达浏览器，WebPhone dialo
 - 自建模式必填 `TINODE_POSTGRES_DSN`、32 字节 base64 `TINODE_AUTH_TOKEN_KEY`、16 字节 base64 `TINODE_UID_ENCRYPTION_KEY`
 - 所有生产模式都必须提供公网 `wss://` 的 `TINODE_PUBLIC_WS_URL`，或可推导 WSS 的 `https://` `TINODE_PUBLIC_BASE_URL`
 - Tinode server 镜像默认固定为 `tinode/tinode:0.25.3`，升级前必须执行真实 server、SDK 和 ACL 回归
-- `TINODE_BASE_URL/WS_URL/PUBLIC_WS_URL/API_KEY`
-- Tinode root token 或 basic root 凭据
+- `TINODE_BASE_URL/WS_URL/PUBLIC_WS_URL`
+- 非 root 浏览器 `TINODE_API_KEY` 与服务端专用 `TINODE_ROOT_API_KEY`，两者必须分离且值不能相同；任一缺失或相同都会 fail closed，LED 只可能从 client-plan 短期获得前者
+- Tinode root token 或 basic service account；自建 bootstrap 还需要 `TINODE_POSTGRES_DSN`，并在重新登录确认 `authlvl=root` 后才放行 API Pod
 - `TINODE_USER_PASSWORD_SECRET`
 - delivery worker、attachment worker、quality worker 参数
 - `OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS`

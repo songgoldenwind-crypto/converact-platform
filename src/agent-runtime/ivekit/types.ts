@@ -1,4 +1,5 @@
 import type { PgQueryable } from '../../db-pg.js';
+import type { ChatGateway } from '../collaboration/chat-gateway.js';
 import type { RemoteGatewayAuditEvent, RemoteGatewayClient } from '../collaboration/remote-gateway-client.js';
 import type { RustDeskGatewaySession } from '../collaboration/rustdesk-gateway-session-store.js';
 import type { RustDeskClientConfig } from '../collaboration/rustdesk-client-config.js';
@@ -213,6 +214,7 @@ export interface IveKitModuleInput {
   media?: {
     livekit?: LiveKitConfig;
   };
+  chatGateway?: ChatGateway;
   remoteGateway?: RemoteGatewayClient;
   evidence?: {
     base_url?: string;

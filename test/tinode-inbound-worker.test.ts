@@ -45,6 +45,8 @@ test('Tinode inbound worker config requires provider authentication and validate
 
   assert.deepEqual(tinodeInboundWorkerConfig({
     TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
+    TINODE_API_KEY: 'browser-api-key',
+    TINODE_ROOT_API_KEY: 'root-api-key',
     TINODE_AUTH_TOKEN: 'service-token',
     OPC_TINODE_INBOUND_WORKER_ENABLED: '1',
     OPC_TINODE_INBOUND_INTERVAL_MS: '7000',
@@ -64,6 +66,11 @@ test('Tinode inbound worker config requires provider authentication and validate
     deadLetterMaxAttempts: 4,
     allowedAttachmentHosts: ['files.example.com', 'cdn.example.com']
   });
+  assert.equal(tinodeInboundWorkerConfig({
+    TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
+    TINODE_AUTH_TOKEN: 'service-token',
+    OPC_TINODE_INBOUND_WORKER_ENABLED: '1'
+  } as NodeJS.ProcessEnv).enabled, false);
 
   assert.throws(() => tinodeInboundWorkerConfig({
     TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',

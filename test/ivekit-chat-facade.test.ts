@@ -21,6 +21,7 @@ const TINODE_ENV_KEYS = [
   'TINODE_PUBLIC_BASE_URL',
   'TINODE_PUBLIC_WS_URL',
   'TINODE_API_KEY',
+  'TINODE_ROOT_API_KEY',
   'TINODE_AUTH_TOKEN',
   'TINODE_BASIC_USER',
   'TINODE_BASIC_PASSWORD',
@@ -82,6 +83,7 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
   process.env.TINODE_BASE_URL = 'https://tinode.example.com';
   process.env.TINODE_PUBLIC_WS_URL = 'wss://chat.example.com/v0/channels';
   process.env.TINODE_API_KEY = 'tinode-api-key';
+  process.env.TINODE_ROOT_API_KEY = 'tinode-root-api-key';
   process.env.TINODE_AUTH_TOKEN = 'tinode-root-token';
   process.env.TINODE_USER_PASSWORD_SECRET = 'tinode-user-secret';
   try {
@@ -129,6 +131,7 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
     assert.equal(result.data.capabilities.message_reactions, true);
     assert.equal(result.data.capabilities.message_pins, true);
     assert.equal(result.data.config.provider_configured, true);
+    assert.equal(result.data.config.root_api_key_configured, true);
     assert.equal(result.data.config.root_auth_configured, true);
     assert.equal(result.data.config.user_provisioning_configured, true);
     assert.equal(result.data.config.inbound_sync_configured, true);
@@ -150,8 +153,34 @@ test('iveKit chat facade exposes capabilities without leaking Tinode server cred
       '/api/ivekit/chat/sessions/:session_id/messages/:message_id/quality-review'
     );
     assert.equal(JSON.stringify(result).includes('tinode-root-token'), false);
+    assert.equal(JSON.stringify(result).includes('tinode-root-api-key'), false);
     assert.equal(JSON.stringify(result).includes('tinode-user-secret'), false);
     assert.equal(JSON.stringify(result).includes('tinode-api-key'), false);
+  } finally {
+    restoreEnv(snapshot);
+  }
+});
+
+test('iveKit chat capabilities fail closed when browser and root API keys are identical', async () => {
+  const snapshot = snapshotEnv(['OPC_API_KEY', ...TINODE_ENV_KEYS]);
+  process.env.OPC_API_KEY = API_KEY;
+  process.env.TINODE_WS_URL = 'wss://tinode.example.com/v0/channels';
+  process.env.TINODE_API_KEY = 'shared-api-key';
+  process.env.TINODE_ROOT_API_KEY = ' shared-api-key ';
+  process.env.TINODE_AUTH_TOKEN = 'root-token';
+  process.env.TINODE_USER_PASSWORD_SECRET = 'user-password-secret';
+  try {
+    const result = await route(
+      new MemoryPg(),
+      'GET',
+      '/api/ivekit/chat/capabilities',
+      null,
+      authHeaders('tenant_chat_key_separation')
+    ) as { data: { config: Record<string, unknown> } };
+
+    assert.equal(result.data.config.api_keys_distinct, false);
+    assert.equal(result.data.config.provider_configured, false);
+    assert.equal(result.data.config.inbound_sync_configured, false);
   } finally {
     restoreEnv(snapshot);
   }

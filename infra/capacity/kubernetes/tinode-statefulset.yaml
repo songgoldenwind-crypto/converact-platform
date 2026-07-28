@@ -80,6 +80,8 @@ spec:
                   fieldPath: metadata.name
             - name: IVEKIT_OWNER_GUARD_REQUIRED
               value: "1"
+            - name: IVEKIT_TINODE_CLUSTER_MODE
+              value: "clustered"
             - name: IVEKIT_OWNER_REFRESH_INTERVAL_MS
               value: "3000"
             - name: IVEKIT_OWNER_REFRESH_TIMEOUT_MS

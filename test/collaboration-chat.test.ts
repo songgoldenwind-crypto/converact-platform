@@ -81,9 +81,54 @@ test('configured chat gateway uses Tinode when websocket URL is configured', () 
   const gateway = configuredChatGateway({
     TINODE_WS_URL: 'ws://tinode.local/v0/channels',
     TINODE_API_KEY: 'tinode-api-key',
+    TINODE_ROOT_API_KEY: 'tinode-root-api-key',
     TINODE_AUTH_TOKEN: 'tinode-auth-token'
   } as NodeJS.ProcessEnv);
   assert.equal(gateway.provider, 'tinode');
+});
+
+test('configured chat gateway rejects a browser key without a server root key', () => {
+  assert.throws(() => configuredChatGateway({
+    TINODE_WS_URL: 'ws://tinode.local/v0/channels',
+    TINODE_API_KEY: 'public-browser-key',
+    TINODE_AUTH_TOKEN: 'tinode-auth-token'
+  } as NodeJS.ProcessEnv), /TINODE_ROOT_API_KEY is required/);
+});
+
+test('configured chat gateway rejects identical browser and root API keys', () => {
+  assert.throws(() => configuredChatGateway({
+    TINODE_WS_URL: 'ws://tinode.local/v0/channels',
+    TINODE_API_KEY: 'shared-api-key',
+    TINODE_ROOT_API_KEY: ' shared-api-key ',
+    TINODE_AUTH_TOKEN: 'tinode-auth-token'
+  } as NodeJS.ProcessEnv), /must be different/);
+});
+
+test('configured chat gateway uses the server root API key without reusing the browser key', async () => {
+  const { url, apiKeys, close } = await startFakeTinodeServer();
+  try {
+    const gateway = configuredChatGateway({
+      TINODE_WS_URL: url,
+      TINODE_API_KEY: 'public-browser-key',
+      TINODE_ROOT_API_KEY: 'tinode-api-key',
+      TINODE_AUTH_TOKEN: 'tinode-auth-token'
+    } as NodeJS.ProcessEnv);
+
+    await gateway.ensureTopic({
+      tenant_id: 'tenant_root_key',
+      session_id: 'session_root_key',
+      trusted: {
+        ivekit_placement: {
+          owner_node_id: 'tinode-a'
+        }
+      }
+    });
+
+    assert.deepEqual(apiKeys, ['tinode-api-key']);
+    assert.equal(apiKeys.includes('public-browser-key'), false);
+  } finally {
+    await close();
+  }
 });
 
 test('Tinode chat gateway removes URL credentials from persisted binding metadata', async () => {
@@ -562,14 +607,16 @@ async function startFakeTinodeServer(options: {
 } = {}): Promise<{
   url: string;
   packets: Array<Record<string, any>>;
+  apiKeys: string[];
   close: () => Promise<void>;
 }> {
   const packets: Array<Record<string, any>> = [];
+  const apiKeys: string[] = [];
   let accountAttempted = false;
   const server = createServer();
   const wss = new WebSocketServer({ server, path: '/v0/channels' });
   wss.on('connection', (ws, req) => {
-    assert.equal(req.url?.includes('apikey=tinode-api-key'), true);
+    apiKeys.push(new URL(req.url || '/', 'ws://localhost').searchParams.get('apikey') || '');
     ws.on('message', (raw) => {
       const packet = JSON.parse(String(raw));
       packets.push(packet);
@@ -659,6 +706,7 @@ async function startFakeTinodeServer(options: {
   return {
     url: `ws://127.0.0.1:${address.port}/v0/channels`,
     packets,
+    apiKeys,
     close: async () => {
       await new Promise<void>((resolve) => wss.close(() => resolve()));
       await new Promise<void>((resolve) => server.close(() => resolve()));

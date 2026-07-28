@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { pgId, withPgTransaction, type PgQueryable } from '../../db-pg.js';
 import { withPgTenant } from '../../db-pg-tenant.js';
+import { withCollaborationSessionLock } from './collaboration-lock.js';
 import { CollaborationStore } from './collaboration-store.js';
 import type {
   CollaborationMessageReceipt,
@@ -313,8 +314,19 @@ export class CollaborationMessageStateStore {
     enqueue_provider_mutation?: boolean;
   }): Promise<CollaborationMessage> {
     const actorIdentity = requiredIdentity(input.actor_identity);
-    return withPgTenant(this.pg, input.tenant_id, (scopedPg) =>
+    return withCollaborationSessionLock(this.pg, {
+      tenantId: input.tenant_id,
+      sessionId: input.session_id,
+      mode: 'shared'
+    }, (lockedPg) => withPgTenant(lockedPg, input.tenant_id, (scopedPg) =>
       withPgTransaction(scopedPg, async (pg) => {
+        const session = await new CollaborationStore(pg).requireTenantSession(
+          input.tenant_id,
+          input.session_id
+        );
+        if (session.status !== 'open') {
+          throw Object.assign(new Error('collaboration session is closed'), { status: 409 });
+        }
         await this.requireActiveParticipant(pg, input.tenant_id, input.session_id, actorIdentity);
         const rowResult = await pg.query(
           `SELECT * FROM collaboration_messages
@@ -438,7 +450,7 @@ export class CollaborationMessageStateStore {
         if (!message) throw Object.assign(new Error('collaboration message not found'), { status: 404 });
         return message;
       })
-    );
+    ));
   }
 }
 

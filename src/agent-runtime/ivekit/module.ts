@@ -1,4 +1,5 @@
 import { createCollaborationModule } from '../collaboration/index.js';
+import { closeCollaborationSession } from '../collaboration/collaboration-session-lifecycle.js';
 import { rustDeskClientConfig } from '../collaboration/rustdesk-client-config.js';
 import {
   rustDeskGatewayEventPermissionError,
@@ -26,6 +27,7 @@ import type {
   RemoteToolSession
 } from '../collaboration/types.js';
 import type { MediaJoinPlan, ParticipantRole } from '../media-gateway/index.js';
+import { withPgTenant } from '../../db-pg-tenant.js';
 import { createWebAssistJoinPath, verifyWebAssistJoinToken, webAssistExpiresAt } from './remote-assist-token.js';
 import { IveKitTenantEventJournal } from './tenant-event-store.js';
 import type {
@@ -375,7 +377,18 @@ export function createIveKitModule(input: IveKitModuleInput): IveKitModule {
         });
       },
       close: async (closeInput) => {
-        await collaboration.sessions.closeSession(closeInput.collaboration_session_id);
+        const closed = await withPgTenant(input.pg, closeInput.tenant_id, (tenantPg) =>
+          closeCollaborationSession({
+            pg: tenantPg,
+            tenant_id: closeInput.tenant_id,
+            session_id: closeInput.collaboration_session_id,
+            actor_identity: closeInput.actor_identity,
+            gateway: input.chatGateway
+          })
+        );
+        if (closed.ok === false) {
+          throw Object.assign(new Error(closed.error), { status: closed.status });
+        }
       }
     },
     media: {

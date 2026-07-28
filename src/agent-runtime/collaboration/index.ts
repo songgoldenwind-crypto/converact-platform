@@ -22,9 +22,22 @@ export interface CollaborationModuleInput {
   pg: PgQueryable;
 }
 
+type CollaborationSessions = Omit<CollaborationStore, 'closeSession'>;
+
+function createCollaborationSessions(pg: PgQueryable): CollaborationSessions {
+  const store = new CollaborationStore(pg);
+  Object.defineProperty(store, 'closeSession', {
+    value: undefined,
+    configurable: false,
+    enumerable: false,
+    writable: false
+  });
+  return store;
+}
+
 export function createCollaborationModule(input: CollaborationModuleInput) {
   return {
-    sessions: new CollaborationStore(input.pg),
+    sessions: createCollaborationSessions(input.pg),
     remote: new RemoteAssistanceStore(input.pg),
     rustdeskCommands: new RustDeskDeviceCommandStore(input.pg),
     rustdeskAccessPolicies: new RustDeskAccessPolicyStore(input.pg),
@@ -53,7 +66,6 @@ export function createCollaborationModule(input: CollaborationModuleInput) {
   };
 }
 
-export { CollaborationStore } from './collaboration-store.js';
 export {
   configuredChatGateway,
   LocalChatGateway,

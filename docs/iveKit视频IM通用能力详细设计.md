@@ -2281,7 +2281,7 @@ OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1
 | Tinode 用户创建 | 已完成 | `acc login=true` |
 | Tinode 用户已存在登录 | 已完成 | 409 fallback basic login |
 | Tinode 参与人授权 | 已完成 | `set sub.user/mode=JRP`；不含 `W`，浏览器不能绕过 iveKit 直发业务消息 |
-| Tinode 参与人权限撤销 | 已完成 | `participants/leave` 时把 `set sub.user/mode` 置为 `N` |
+| Tinode 参与人权限撤销 | 已完成并通过服务器验收 | `participants/leave` 撤销单人权限；关闭 session 时使用持久化的 Tinode `usr...` ID 撤销全部 active participant，全部成功后才提交本地 revoked/closed 状态 |
 | Tinode 文本发布 | 已完成 | `pub` |
 | Durable provider delivery | 已完成第一版 | 本地消息与附件先入 PostgreSQL 并完成 policy scan，再领取 provider claim；失败进入退避而不是丢失本地证据 |
 | 消息创建幂等 | 已完成 | `Idempotency-Key` / `idempotency_key` 绑定消息 payload；同 key 同 payload 返回原消息，不重复发布或扫描，不同 payload 返回 409 |
@@ -2295,9 +2295,9 @@ OPC_RUSTDESK_READINESS_CHECK_PHYSICAL_DISCONNECT=1
 | iveKit Chat HTTP facade | 已完成第一版 | LED/其它项目统一使用 `/api/ivekit/chat/*` |
 | Tinode 部署 preflight | 已完成本地代码 | 生成脱敏 env checklist 和 JSON report，真实服务器待执行 |
 | Tinode 附件同步 | 已完成本地代码 | Drafty `IM/VD/AU/EX` 仅同步 HTTPS 允许域名的引用和有界元数据，拒绝并不持久化内嵌 bytes |
-| Tinode inbound seq/cursor sync | 已完成并通过服务器验收 | 每 binding 持久化 data/del cursor、claim lease 和幂等 inbox；真实 Tinode 已覆盖普通消息、outbound echo 去重、replace、Drafty 引用、delete、policy scan、AI 质检入队、离线补偿和重启幂等 |
+| Tinode inbound seq/cursor sync | 已完成并通过服务器验收 | 每 binding 持久化 data/del cursor、claim lease 和幂等 inbox；关闭会话会原子 upsert `paused` cursor 并清除租约，消除 worker 关闭前快照在关闭后创建 active cursor 的竞态；真实 Tinode 已覆盖普通消息、outbound echo 去重、replace、Drafty 引用、delete、policy scan、AI 质检入队、离线补偿、重启幂等和关闭后不再重试 |
 | Durable tenant event replay | 已完成并通过服务器验收 | PostgreSQL 单调 event ID、签名 cursor、HTTP 增量页、WebSocket resume、当前参与人/RBAC、定向 audience、请求事务后缓冲、Redis 去重和 retention worker；重启、撤权、跨租户、定向可见性均通过 |
-| 浏览器 Tinode SDK join | 待真实环境 | 前端已领取 client-plan，但真实 SDK join 未验收 |
+| Tinode WebSocket client join | 协议链路已通过服务器验收 | 两个真实 WebSocket client 使用各自 client-plan 完成 token login、同 topic 订阅、双向收取和离线恢复；LED 浏览器页面中的官方 SDK/UI 操作仍由 LED 联调验收 |
 
 ### 6.5.2 iveKit 稳定 HTTP facade
 
@@ -2321,6 +2321,7 @@ Content-Type: application/json
 | `POST` | `/api/ivekit/chat/sessions/:session_id/client-plan` | 创建/复用 Tinode 用户并返回浏览器 join plan |
 | `POST` | `/api/ivekit/chat/sessions/:session_id/participants` | 添加本地参与人并同步 Tinode topic 权限 |
 | `POST` | `/api/ivekit/chat/sessions/:session_id/participants/leave` | 保留参与历史并回收 Tinode topic 权限 |
+| `POST` | `/api/ivekit/chat/sessions/:session_id/close` | 幂等关闭会话；先验证 provider user 映射，再暂停 inbound cursor、撤销全部 Tinode participant，最后提交 revoked/closed 状态 |
 | `GET` | `/api/ivekit/chat/sessions/:session_id/messages?limit=100` | 读取本地可审计消息镜像 |
 | `POST` | `/api/ivekit/chat/sessions/:session_id/messages` | 先写本地镜像并扫描防绕单，再发布 provider；失败进入 durable retry |
 | `GET` | `/api/ivekit/chat/sessions/:session_id/messages/:message_id/delivery` | 查询权威投递状态和每次 attempt 历史 |
@@ -2368,6 +2369,7 @@ Content-Type: application/json
     "provider_configured": true,
     "provider_url_configured": true,
     "api_key_configured": true,
+    "root_api_key_configured": true,
     "root_auth_configured": true,
     "user_provisioning_configured": true,
     "client_ws_configured": true,
@@ -2386,7 +2388,11 @@ Content-Type: application/json
 }
 ```
 
-`capabilities.config` 只返回是否配置，不返回 `TINODE_API_KEY`、`TINODE_AUTH_TOKEN`、`TINODE_BASIC_PASSWORD` 或 `TINODE_USER_PASSWORD_SECRET` 原文。`client-plan` 可以返回当前用户的 Tinode token 和浏览器连接必需的 API key，但不会返回 root token 或用户密码派生 secret。
+`capabilities.config` 只返回是否配置及 `api_keys_distinct` 布尔值，不返回 `TINODE_API_KEY`、`TINODE_ROOT_API_KEY`、`TINODE_AUTH_TOKEN`、`TINODE_BASIC_PASSWORD`、`TINODE_POSTGRES_DSN` 或 `TINODE_USER_PASSWORD_SECRET` 原文。`TINODE_API_KEY` 与 `TINODE_ROOT_API_KEY` 任一缺失或两者值相同，provider capability、worker、preflight 和 client-plan 都会 fail closed。`client-plan` 只返回当前用户的 Tinode token 和非 root 浏览器 API key，绝不会返回 root API key、root token、数据库 DSN 或用户密码派生 secret。
+
+会话关闭采用“远端撤权成功后提交本地终态”的失败原子性：先确认每个 active participant 都有 provider user 映射，校验通过后才暂停 inbound cursor 和执行撤权；任一映射缺失或 Tinode 撤权失败时返回错误，本地 participant mapping、session status 和 cursor 操作随事务回滚，便于调用方安全重试。全部远端撤权成功后才把映射标记为 `revoked` 并把 session 标记为 `closed`。重复关闭返回同一 closed session；历史 closed session 如果遗留 active mapping，会执行幂等补偿撤权。`pauseBinding()` 使用 `INSERT ... ON CONFLICT DO UPDATE` 物化 paused cursor，即使 worker 在关闭前已取得 open-session 快照，也不能在提交后留下可领取的 active cursor。
+
+会话写路径采用同一 session 级 transaction advisory read/write lock，锁键带 `opc.collaboration.session.v1` 命名空间，避免与 LiveKit 等其它领域的 advisory lock 碰撞。成员新增、binding、client-plan、新消息以及 Tinode delivery/retry 持 shared lock，close 持 exclusive lock；冲突立即返回可重试 `409`，不阻塞连接池。关闭后 CollaborationStore 拒绝新消息，delivery `listDue/claimById` 也只允许 open session，因此 worker 不能在撤权提交后继续发布历史队列消息。
 
 API key/system 调用可代表业务身份发起服务端操作；JWT 用户的 `client-plan`、消息发送、receipt、typing、presence 和 mutation 身份必须来自 token `sub`，不能用 body/header 冒用其他参与人。浏览器获得的 Tinode token 仅有 `JRP` topic 权限，`direct_client_publish=false` 不只是前端约定，也由 Tinode ACL 去掉 `W` 权限落实。
 
@@ -3069,12 +3075,18 @@ TINODE_WS_URL=
 TINODE_PUBLIC_BASE_URL=
 TINODE_PUBLIC_WS_URL=
 TINODE_API_KEY=
+TINODE_ROOT_API_KEY=
 TINODE_AUTH_TOKEN=
 TINODE_BASIC_USER=
 TINODE_BASIC_PASSWORD=
+TINODE_POSTGRES_DSN=
 TINODE_USER_PASSWORD_SECRET=
 TINODE_REQUEST_TIMEOUT_MS=5000
 OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS=900000
+OPC_TINODE_INBOUND_WORKER_ENABLED=1
+OPC_TINODE_INBOUND_INTERVAL_MS=5000
+OPC_TINODE_INBOUND_TENANT_LIMIT=100
+OPC_TINODE_INBOUND_PULL_LIMIT=100
 OPC_TINODE_DELIVERY_WORKER_ENABLED=1
 OPC_TINODE_DELIVERY_INTERVAL_MS=5000
 OPC_TINODE_DELIVERY_BATCH_SIZE=50
@@ -3090,11 +3102,16 @@ OPC_TINODE_PREFLIGHT_REPORT_FILE=/tmp/tinode-preflight.json
 
 - `TINODE_BASE_URL` / `TINODE_WS_URL`：服务端访问 Tinode。
 - `TINODE_PUBLIC_BASE_URL` / `TINODE_PUBLIC_WS_URL`：浏览器访问 Tinode。
-- `TINODE_AUTH_TOKEN`：服务端管理/root/token 登录，不下发。
-- `TINODE_BASIC_USER` + `TINODE_BASIC_PASSWORD`：可作为 root token 的替代登录方式，必须成对配置，password 不下发。
+- `TINODE_API_KEY`：非 root 浏览器 API key，只用于 client-plan 和客户端握手。
+- `TINODE_ROOT_API_KEY`：服务端专用 root API key，用于可信 metadata/owner fencing；必须与 `TINODE_API_KEY` 分离且绝不下发。
+- `TINODE_AUTH_TOKEN`：可选的服务端 root token 登录，不下发。
+- `TINODE_BASIC_USER` + `TINODE_BASIC_PASSWORD`：服务账号凭据，必须成对配置；自建部署的 bootstrap 会创建或登录该账号，通过 `TINODE_POSTGRES_DSN` 参数化提升 `basic:<username>` 到 auth level 30，重新登录并确认 `authlvl=root` 后才允许 OPC 启动。
+- `TINODE_POSTGRES_DSN`：自建 Tinode bootstrap 专用 PostgreSQL DSN；对应数据库角色必须只能在受控部署任务中更新 Tinode `auth` 表，不提供给 LED 或浏览器。
 - `TINODE_USER_PASSWORD_SECRET`：生成确定性 basic 用户密码，不下发。
 - `TINODE_REQUEST_TIMEOUT_MS`：Tinode WebSocket 每个阶段的超时，默认 5000ms。
 - `OPC_CHAT_MESSAGE_MUTATION_WINDOW_MS`：发送者编辑/软删除文本消息的时间窗，默认 900000ms；合法范围 1000 到 86400000ms。
+- `OPC_TINODE_INBOUND_WORKER_ENABLED`：入站历史补偿与原生 mutation 投影开关；Tinode URL 和 root auth 配齐时默认启用。
+- `OPC_TINODE_INBOUND_INTERVAL_MS` / `TENANT_LIMIT` / `PULL_LIMIT`：入站轮询间隔、每轮租户上限和每 binding 拉取上限；关闭 session 后 cursor 固定 paused，不参与后续 discovery/claim。
 - `OPC_TINODE_DELIVERY_WORKER_ENABLED`：有 Tinode URL 时默认启用 durable delivery worker；设为 `0` 可停用。
 - `OPC_TINODE_DELIVERY_INTERVAL_MS` / `OPC_TINODE_DELIVERY_BATCH_SIZE`：轮询间隔和单批上限。
 - `OPC_TINODE_DELIVERY_MAX_ATTEMPTS` / `OPC_TINODE_DELIVERY_RETRY_DELAYS_MS`：最大尝试次数与退避序列。
@@ -3113,7 +3130,7 @@ npm run tinode:deployment-preflight
 npm run smoke:chat:tinode
 ```
 
-preflight 不发网络请求：它校验 `TINODE_BASE_URL` 或 `TINODE_WS_URL`、API key、root token 或成对 basic root 凭据、用户密码派生 secret、smoke tenant、浏览器 WebSocket URL 派生结果，以及 worker interval/batch/attempt/timeout/lease 的时序约束，并生成不包含 secret 原文的 Markdown/JSON。它只证明配置形状，真实 topic/user/subscription/publish、PostgreSQL claim 竞争和 provider 恢复重试仍由服务器 smoke/联调验收。
+preflight 不发网络请求：它分别校验 `TINODE_API_KEY` 与 `TINODE_ROOT_API_KEY`、`TINODE_BASE_URL` 或 `TINODE_WS_URL`、root token 或成对 basic root 凭据、自建模式 PostgreSQL DSN、用户密码派生 secret、smoke tenant、浏览器 WebSocket URL 派生结果，以及 worker interval/batch/attempt/timeout/lease 的时序约束，并生成不包含 secret 原文的 Markdown/JSON。它只证明配置形状，service account root 提升/复核、真实 topic/user/subscription/publish、PostgreSQL claim 竞争、关闭竞态和 provider 恢复重试仍由服务器 bootstrap/smoke/联调验收。
 
 ### 9.5 Object Storage / Recording
 
@@ -3739,7 +3756,7 @@ RWI `originate` 使用 iveKit call id 作为上游 `call_id`；`0.4.11-ivekit.3`
 
 ### 24.1 Tinode Kubernetes 与原生消息一致性
 
-standalone Helm Chart 已包含 bundled Tinode 的 ConfigMap、Secret refs、单副本 Deployment、Service、PVC、PDB、NetworkPolicy、HTTP health probe、资源限制和安全上下文。iveKit API Pod 在启动前通过 init container 幂等创建或验证 Tinode service account；账号冲突响应兼容 304/409，但随后必须真实登录成功。bundled 模式只允许单副本；需要横向扩展时切换 external Tinode/共享数据库和独立容量设计，不能把单 PVC 模板直接扩成多副本。
+standalone Helm Chart 已包含 bundled Tinode 的 ConfigMap、Secret refs、单副本 Deployment、Service、PVC、PDB、NetworkPolicy、HTTP health probe、资源限制和安全上下文。iveKit API Pod 在启动前通过 init container 幂等创建或验证 Tinode service account；账号冲突响应兼容 304/409，basic 登录后若尚非 root，则只对配置的 `basic:<username>` credential 执行参数化 auth level 30 提升，并重新登录要求 Tinode 明确返回 `authlvl=root`。`TINODE_API_KEY` 是下发给浏览器的非 root key，`TINODE_ROOT_API_KEY` 与 root service account 都只留在服务端，任一缺失或验证失败都阻止 API Pod 启动。bundled 模式只允许单副本；需要横向扩展时切换 external Tinode/共享数据库和独立容量设计，不能把单 PVC 模板直接扩成多副本。
 
 消息 edit/delete 采用 `iveKit 权威 mutation + PostgreSQL outbox + Tinode 原生 replacement/delete`。同一消息按 `mutation_version` 串行，worker 使用 lease/fencing、稳定 mutation ID、有界重试和管理员 dead-letter replay。edit 发出后 ACK 丢失或 worker 接管可能已发送的过期 edit lease 时，状态固定为 `provider_outcome_uncertain`，禁止自动重发；delete 仍可安全重试。
 
@@ -3780,3 +3797,41 @@ LED 仍只依赖 `@opc/ivekit-sdk`、`/api/ivekit/*`、tenant event replay 和�
 当前机器没有 Helm CLI/目标 Kubernetes、GitHub Windows runner、两台 Windows 物理机、真实 Tinode 多客户端、真实 LiveKit/TURN/Egress、PSTN、真实 OCR/ASR/AI/翻译 Provider、商业短信邮件和生产对象存储，因此这些数据面仍是 `not_run`。Windows CI 的固定上游 overlay `cargo check` 已配置但未在本机执行。上述状态不影响代码闭环结论，也不能被解释为生产环境已经放行。
 
 十万并发通信属于后续独立容量与性能目标：需要定义并发构成、SLO、流量模型、单机基线、压测工具、自动扩缩容、故障注入和容量成本模型。本轮只保留 PostgreSQL/Redis/对象存储外置、无本地状态依赖、lease/fencing 和多实例部署前提，不声明十万并发已经验证。
+
+## 25. 2026-07-28 IM 关闭一致性最终设计
+
+### 25.1 单一关闭入口
+
+会话关闭只能经过 `closeCollaborationSession()`。HTTP、SDK 与 iveKit facade 均进入该服务；
+公开 collaboration module 不再暴露底层 raw `closeSession`。facade 使用根 PostgreSQL Pool 时，
+先通过 `withPgTenant()` 建立 tenant RLS 事务，再在同一连接上获取 session exclusive advisory
+lock，避免 MemoryPg 测试通过而真实 runtime role 返回假 404。
+
+### 25.2 锁与终态顺序
+
+参与人、binding、client-plan、消息、edit/delete mutation、delivery claim/publish/complete 使用
+同一 session key 的 shared transaction lock；关闭使用 exclusive lock。锁冲突立即返回
+`409 collaboration_session_busy`，调用方退避后重试同一关闭意图，不在数据库连接上排队等待。
+
+关闭顺序固定为：
+
+1. tenant/session/活动 actor 和全部 Tinode provider-user mapping 预检。
+2. 将活动 provider user 的 topic access mode 降为 `N`。
+3. 在同一 PostgreSQL 事务内 revoke mapping、pause inbound cursor。
+4. 将非终态 delivery 写为 `failed/session_closed`，将非终态 mutation 写为
+   `dead_letter/session_closed`，清空 claim/lease/next-attempt。
+5. 写入 session `closed`，提交后发布 durable/realtime 关闭事件。
+
+关闭后，存储层和 worker claim 双重检查 `session.status=open`。migration 105 回填历史关闭会话
+的 inbound cursor；migration 106 回填历史 delivery/mutation 队列，并替换两个只发现 open
+session 的 tenant-discovery 函数，避免关闭会话占满 1000 tenant discovery 上限而饿死活跃租户。
+
+### 25.3 故障边界
+
+Provider 撤权是外部网络副作用，无法与 PostgreSQL COMMIT 组成分布式原子事务。当前顺序优先
+保证不会留下越权：provider 撤权失败时不提交本地关闭；provider 已撤权而后续数据库提交失败时，
+可能出现“本地仍 open、provider 已撤权”的可用性恢复场景，需通过 retry/reconciliation 恢复，
+不能擅自重新开放 provider 权限。
+
+migration 106 的历史回填为单事务批量更新。代码与真实 PostgreSQL fresh/upgrade/RLS 验证已通过，
+但生产级历史数据量下的锁持有时间、分批迁移阈值和在线升级窗口归入后续性能与容量目标。

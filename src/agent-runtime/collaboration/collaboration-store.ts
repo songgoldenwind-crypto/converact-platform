@@ -24,6 +24,7 @@ import type {
   PolicyScanResult
 } from './types.js';
 import type { PolicyEvidenceRef, PolicyFindingSource } from './types.js';
+import { withCollaborationSessionLock } from './collaboration-lock.js';
 
 export interface CollaborationMessageAttachmentInput {
   secure_file_id?: string;
@@ -402,13 +403,21 @@ export class CollaborationStore {
   }
 
   async postOutgoingMessage(input: CollaborationOutgoingMessageInput): Promise<CollaborationOutgoingMessageResult> {
-    await this.requireTenantSession(input.tenant_id, input.session_id);
     const idempotencyKey = normalizedIdempotencyKey(input.idempotency_key);
     const payloadHash = String(input.idempotency_payload_hash || '').trim();
     if (idempotencyKey && !payloadHash) {
       throw Object.assign(new Error('idempotency payload hash is required'), { status: 400 });
     }
-    return withPgTransaction(this.pg, async (pg) => {
+    return withCollaborationSessionLock(this.pg, {
+      tenantId: input.tenant_id,
+      sessionId: input.session_id,
+      mode: 'shared'
+    }, (lockedPg) => withPgTransaction(lockedPg, async (pg) => {
+      const store = new CollaborationStore(pg);
+      const session = await store.requireTenantSession(input.tenant_id, input.session_id);
+      if (session.status !== 'open') {
+        throw Object.assign(new Error('collaboration session is closed'), { status: 409 });
+      }
       if (idempotencyKey) {
         const existing = await messageRowByIdempotencyKey(pg, input.tenant_id, input.session_id, idempotencyKey);
         if (existing) {
@@ -420,7 +429,7 @@ export class CollaborationStore {
         }
       }
 
-      const relations = await this.validateMessageRelations(input);
+      const relations = await store.validateMessageRelations(input);
 
       const messageId = pgId('cmsg');
       const result = await pg.query(
@@ -463,7 +472,7 @@ export class CollaborationStore {
         };
       }
       for (const attachment of input.attachments || []) {
-        await this.insertMessageAttachment({
+        await store.insertMessageAttachment({
           ...attachment,
           tenant_id: input.tenant_id,
           session_id: input.session_id,
@@ -475,7 +484,7 @@ export class CollaborationStore {
         message: await messageWithAttachments(pg, decodeMessage(inserted.rows[0])),
         created: true
       };
-    });
+    }));
   }
 
   async getMessage(input: { tenant_id: string; message_id: string }): Promise<CollaborationMessage | null> {

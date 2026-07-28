@@ -1,13 +1,22 @@
+import { Pool } from 'pg';
+
+import type { PgQueryable } from '../../db-pg.js';
+import { tinodeServerApiKey } from './tinode-env.js';
+
+const TINODE_ROOT_AUTH_LEVEL = 30;
+
 export interface TinodeServiceAccountBootstrapConfig {
   wsUrl: string;
   apiKey: string;
   username: string;
   password: string;
   timeoutMs: number;
+  postgresDsn?: string;
 }
 
 export interface TinodeServiceAccountBootstrapResult {
   status: 'created' | 'existing';
+  authLevel: 'root';
 }
 
 interface WebSocketLike {
@@ -18,6 +27,7 @@ interface WebSocketLike {
 }
 
 type WebSocketConstructor = new (url: string) => WebSocketLike;
+type TinodeRootAccountPromoter = (username: string) => Promise<void>;
 
 class TinodeBootstrapProtocolError extends Error {
   constructor(readonly code: number, text: string) {
@@ -33,7 +43,8 @@ export function tinodeServiceAccountBootstrapConfigFromEnv(
   if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
     throw new Error('TINODE_WS_URL must use ws or wss');
   }
-  const apiKey = required(env, 'TINODE_API_KEY');
+  const apiKey = tinodeServerApiKey(env);
+  if (!apiKey) throw new Error('TINODE_ROOT_API_KEY is required');
   const username = required(env, 'TINODE_BASIC_USER');
   if (!/^[a-zA-Z0-9_.-]{3,96}$/.test(username)) {
     throw new Error('TINODE_BASIC_USER must be 3..96 safe characters');
@@ -46,27 +57,68 @@ export function tinodeServiceAccountBootstrapConfigFromEnv(
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 60_000) {
     throw new Error('TINODE_BOOTSTRAP_TIMEOUT_MS must be an integer between 250 and 60000');
   }
-  return { wsUrl, apiKey, username, password, timeoutMs };
+  const postgresDsn = required(env, 'TINODE_POSTGRES_DSN');
+  let parsedPostgresDsn: URL;
+  try {
+    parsedPostgresDsn = new URL(postgresDsn);
+  } catch {
+    throw new Error('TINODE_POSTGRES_DSN must be a valid PostgreSQL URL');
+  }
+  if (!['postgres:', 'postgresql:'].includes(parsedPostgresDsn.protocol)) {
+    throw new Error('TINODE_POSTGRES_DSN must use postgres or postgresql');
+  }
+  return { wsUrl, apiKey, username, password, timeoutMs, postgresDsn };
 }
 
 export async function bootstrapTinodeServiceAccount(
   config: TinodeServiceAccountBootstrapConfig,
-  WebSocketImpl: WebSocketConstructor = globalThis.WebSocket as unknown as WebSocketConstructor
+  WebSocketImpl: WebSocketConstructor = globalThis.WebSocket as unknown as WebSocketConstructor,
+  rootAccountPromoter?: TinodeRootAccountPromoter
 ): Promise<TinodeServiceAccountBootstrapResult> {
   if (!WebSocketImpl) throw new Error('WebSocket runtime is unavailable');
-  const url = new URL(config.wsUrl);
-  url.searchParams.set('apikey', config.apiKey);
-  const socket = new WebSocketImpl(url.toString());
-  try {
-    await waitForOpen(socket, config.timeoutMs);
-    await request(socket, 'hi', {
-      id: 'bootstrap-hi',
-      ver: '0.22',
-      ua: 'OPC iveKit Tinode bootstrap'
-    }, config.timeoutMs);
+  const initial = await ensureServiceAccount(config, WebSocketImpl);
+  if (initial.authLevel === 'root') {
+    return { status: initial.status, authLevel: 'root' };
+  }
+
+  const promote = rootAccountPromoter || configuredRootAccountPromoter(config);
+  await promote(config.username);
+  const verifiedAuthLevel = await loginServiceAccount(config, WebSocketImpl);
+  if (verifiedAuthLevel !== 'root') {
+    throw new Error(
+      `Tinode service account must authenticate at root level after promotion; received ${verifiedAuthLevel || 'unknown'}`
+    );
+  }
+  return { status: initial.status, authLevel: 'root' };
+}
+
+export async function promoteTinodeBasicAccountToRoot(
+  pg: PgQueryable,
+  username: string
+): Promise<void> {
+  const result = await pg.query<{ authlvl: number }>(
+    `UPDATE auth
+        SET authlvl = $1
+      WHERE uname = $2
+        AND scheme = $3
+      RETURNING authlvl`,
+    [TINODE_ROOT_AUTH_LEVEL, `basic:${username.toLowerCase()}`, 'basic']
+  );
+  if (result.rowCount !== 1 || Number(result.rows[0]?.authlvl) !== TINODE_ROOT_AUTH_LEVEL) {
+    throw new Error(
+      `Tinode root promotion expected exactly one basic credential, updated ${result.rowCount || 0}`
+    );
+  }
+}
+
+async function ensureServiceAccount(
+  config: TinodeServiceAccountBootstrapConfig,
+  WebSocketImpl: WebSocketConstructor
+): Promise<{ status: 'created' | 'existing'; authLevel: string }> {
+  return withTinodeSocket(config, WebSocketImpl, async (socket) => {
     const secret = Buffer.from(`${config.username}:${config.password}`).toString('base64');
     try {
-      await request(socket, 'acc', {
+      const response = await request(socket, 'acc', {
         id: 'bootstrap-account',
         user: `new${config.username}`,
         scheme: 'basic',
@@ -79,22 +131,85 @@ export async function bootstrapTinodeServiceAccount(
           private: { source: 'opc-ivekit-bootstrap' }
         }
       }, config.timeoutMs);
-      return { status: 'created' };
+      return { status: 'created', authLevel: responseAuthLevel(response) };
     } catch (error) {
       if (
         !(error instanceof TinodeBootstrapProtocolError) ||
         (error.code !== 304 && error.code !== 409)
       ) throw error;
-      await request(socket, 'login', {
+      const response = await request(socket, 'login', {
         id: 'bootstrap-login',
         scheme: 'basic',
         secret
       }, config.timeoutMs);
-      return { status: 'existing' };
+      return { status: 'existing', authLevel: responseAuthLevel(response) };
     }
+  });
+}
+
+async function loginServiceAccount(
+  config: TinodeServiceAccountBootstrapConfig,
+  WebSocketImpl: WebSocketConstructor
+): Promise<string> {
+  return withTinodeSocket(config, WebSocketImpl, async (socket) => {
+    const response = await request(socket, 'login', {
+      id: 'bootstrap-root-login',
+      scheme: 'basic',
+      secret: Buffer.from(`${config.username}:${config.password}`).toString('base64')
+    }, config.timeoutMs);
+    return responseAuthLevel(response);
+  });
+}
+
+async function withTinodeSocket<T>(
+  config: TinodeServiceAccountBootstrapConfig,
+  WebSocketImpl: WebSocketConstructor,
+  operation: (socket: WebSocketLike) => Promise<T>
+): Promise<T> {
+  const url = new URL(config.wsUrl);
+  url.searchParams.set('apikey', config.apiKey);
+  const socket = new WebSocketImpl(url.toString());
+  try {
+    await waitForOpen(socket, config.timeoutMs);
+    await request(socket, 'hi', {
+      id: 'bootstrap-hi',
+      ver: '0.22',
+      ua: 'OPC iveKit Tinode bootstrap'
+    }, config.timeoutMs);
+    return await operation(socket);
   } finally {
     socket.close();
   }
+}
+
+function configuredRootAccountPromoter(
+  config: TinodeServiceAccountBootstrapConfig
+): TinodeRootAccountPromoter {
+  if (!config.postgresDsn) {
+    throw new Error(
+      'TINODE_POSTGRES_DSN is required to promote the Tinode service account to root'
+    );
+  }
+  return async (username) => {
+    const pool = new Pool({
+      connectionString: config.postgresDsn,
+      max: 1,
+      connectionTimeoutMillis: config.timeoutMs,
+      query_timeout: config.timeoutMs,
+      application_name: 'opc-ivekit-tinode-bootstrap'
+    });
+    try {
+      await promoteTinodeBasicAccountToRoot(pool, username);
+    } finally {
+      await pool.end();
+    }
+  };
+}
+
+function responseAuthLevel(response: Record<string, unknown>): string {
+  const params = response.params;
+  if (!params || typeof params !== 'object' || Array.isArray(params)) return '';
+  return String((params as Record<string, unknown>).authlvl || '').trim().toLowerCase();
 }
 
 async function waitForOpen(socket: WebSocketLike, timeoutMs: number): Promise<void> {

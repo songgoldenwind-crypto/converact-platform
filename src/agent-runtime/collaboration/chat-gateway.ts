@@ -1,6 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
 import { WebSocket } from 'ws';
 
+import { tinodeServerApiKey } from './tinode-env.js';
+
 export const TINODE_RECEIVE_ONLY_ACCESS_MODE = 'JRP';
 
 export interface ChatTopicInput {
@@ -353,9 +355,11 @@ function configuredTinodeChatGateway(
   endpoint: Pick<TinodeGatewayConfig, 'base_url' | 'ws_url'>,
   env: NodeJS.ProcessEnv
 ): ChatGateway {
+  const apiKey = tinodeServerApiKey(env);
+  if (!apiKey) throw new Error('TINODE_ROOT_API_KEY is required for Tinode server connections');
   return new TinodeChatGateway({
     ...endpoint,
-    api_key: env.TINODE_API_KEY ? String(env.TINODE_API_KEY) : undefined,
+    api_key: apiKey,
     auth_token: env.TINODE_AUTH_TOKEN ? String(env.TINODE_AUTH_TOKEN) : undefined,
     basic_user: env.TINODE_BASIC_USER ? String(env.TINODE_BASIC_USER) : undefined,
     basic_password: env.TINODE_BASIC_PASSWORD ? String(env.TINODE_BASIC_PASSWORD) : undefined,

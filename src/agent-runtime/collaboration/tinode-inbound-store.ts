@@ -80,6 +80,27 @@ export class TinodeInboundStore {
     return result.rows.map((row) => String(row.tenant_id)).filter(Boolean);
   }
 
+  async pauseBinding(input: { tenant_id: string; binding_id: string }): Promise<void> {
+    await withPgTenant(this.input.pg, input.tenant_id, (pg) => pg.query(
+      `INSERT INTO tinode_inbound_cursors
+         (id, tenant_id, binding_id, provider_topic_id, status)
+       SELECT $2, binding.tenant_id, binding.id, binding.provider_topic_id, 'paused'
+       FROM collaboration_chat_bindings AS binding
+       WHERE binding.tenant_id = $1
+         AND binding.id = $3
+         AND binding.provider = 'tinode'
+       ON CONFLICT (tenant_id, binding_id) DO UPDATE
+       SET status = 'paused',
+           lease_token_hash = '',
+           lease_until = NULL,
+           next_retry_at = NULL,
+           last_error_code = '',
+           last_error_message = '',
+           updated_at = CURRENT_TIMESTAMP`,
+      [input.tenant_id, pgId('ticursor'), input.binding_id]
+    ).then(() => undefined));
+  }
+
   async claimNext(input: { tenant_id: string; lease_ms: number }): Promise<TinodeInboundClaim | null> {
     const leaseMs = boundedLease(input.lease_ms);
     const claimToken = randomBytes(32).toString('base64url');
@@ -92,6 +113,10 @@ export class TinodeInboundStore {
           (id, tenant_id, binding_id, provider_topic_id)
          SELECT $2 || '_' || binding.id, binding.tenant_id, binding.id, binding.provider_topic_id
          FROM collaboration_chat_bindings AS binding
+         JOIN collaboration_sessions AS session
+           ON session.tenant_id = binding.tenant_id
+          AND session.id = binding.session_id
+          AND session.status = 'open'
          WHERE binding.tenant_id = $1
            AND binding.provider = 'tinode'
            AND binding.provider_status = 'bound'
@@ -105,6 +130,10 @@ export class TinodeInboundStore {
            JOIN collaboration_chat_bindings AS binding
              ON binding.id = cursor.binding_id
             AND binding.tenant_id = cursor.tenant_id
+           JOIN collaboration_sessions AS session
+             ON session.tenant_id = binding.tenant_id
+            AND session.id = binding.session_id
+            AND session.status = 'open'
            WHERE cursor.tenant_id = $1
              AND binding.provider = 'tinode'
              AND binding.provider_status = 'bound'

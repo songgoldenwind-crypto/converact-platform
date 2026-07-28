@@ -4,11 +4,29 @@ import { test } from 'node:test';
 
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
-import { LocalChatGateway, type ChatParticipantInput } from '../src/agent-runtime/collaboration/chat-gateway.js';
+import {
+  LocalChatGateway,
+  TinodeChatGateway,
+  type ChatParticipantInput
+} from '../src/agent-runtime/collaboration/chat-gateway.js';
+import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
+import { withCollaborationSessionLock } from '../src/agent-runtime/collaboration/collaboration-lock.js';
 import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
 import { MemoryPg } from '../src/db-pg.js';
 
 const API_KEY = 'test-chat-pagination-key';
+
+class RecordingMemoryPg extends MemoryPg {
+  readonly statements: string[] = [];
+
+  override async query<R extends import('pg').QueryResultRow = import('pg').QueryResultRow>(
+    text: string,
+    params: unknown[] = []
+  ): Promise<import('pg').QueryResult<R>> {
+    this.statements.push(text.replace(/\s+/g, ' ').trim());
+    return super.query<R>(text, params);
+  }
+}
 
 function headers(tenantId: string, userId = 'agent-page'): Record<string, string> {
   return {
@@ -185,6 +203,420 @@ test('iveKit closes a session only after revoking every active provider particip
   assert.equal((await store.getSession(session.id))?.status, 'closed');
 });
 
+test('iveKit close fails fast while a shared session operation is in flight', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_session_close_lock';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'CLOSE-LOCK-1' }
+  });
+  await store.addParticipant({
+    tenant_id: tenantId,
+    session_id: session.id,
+    identity: 'agent-page',
+    role: 'agent'
+  });
+  await store.ensureChatBinding({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'local',
+    provider_topic_id: 'local-lock-topic'
+  });
+
+  let releaseShared!: () => void;
+  let sharedEntered!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    sharedEntered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    releaseShared = resolve;
+  });
+  const holder = withCollaborationSessionLock(pg, {
+    tenantId,
+    sessionId: session.id,
+    mode: 'shared'
+  }, async () => {
+    sharedEntered();
+    await gate;
+  });
+  await entered;
+
+  await assert.rejects(
+    () => routeIveKitChatApi(
+      pg,
+      'POST',
+      `/api/ivekit/chat/sessions/${session.id}/close`,
+      new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+      {},
+      '',
+      headers(tenantId),
+      { chatGateway: new TrackingLocalGateway() }
+    ),
+    (error: unknown) =>
+      (error as { status?: number }).status === 409 &&
+      (error as { code?: string }).code === 'collaboration_session_busy'
+  );
+
+  releaseShared();
+  await holder;
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/close`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+    {},
+    '',
+    headers(tenantId),
+    { chatGateway: new TrackingLocalGateway() }
+  ) as { status: number; data: { status: string } };
+  assert.equal(response.status, 200);
+  assert.equal(response.data.status, 'closed');
+});
+
+test('direct CollaborationStore message writes cannot bypass an exclusive session close lock', async () => {
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_direct_message_lock';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'DIRECT-LOCK-1' }
+  });
+  let releaseExclusive!: () => void;
+  let exclusiveEntered!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    exclusiveEntered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    releaseExclusive = resolve;
+  });
+  const holder = withCollaborationSessionLock(pg, {
+    tenantId,
+    sessionId: session.id,
+    mode: 'exclusive'
+  }, async () => {
+    exclusiveEntered();
+    await gate;
+  });
+  await entered;
+
+  await assert.rejects(
+    () => store.postMessage({
+      tenant_id: tenantId,
+      session_id: session.id,
+      sender_identity: 'agent-direct',
+      message_type: 'text',
+      body: 'must wait for close'
+    }),
+    (error: unknown) =>
+      (error as { code?: string }).code === 'collaboration_session_busy'
+  );
+
+  releaseExclusive();
+  await holder;
+  assert.deepEqual(await store.listMessages({
+    tenant_id: tenantId,
+    session_id: session.id
+  }), []);
+});
+
+test('iveKit closes a Tinode session with mapped provider user ids and revokes the mappings', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_tinode_session_close';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'TINODE-CLOSE-1' }
+  });
+  for (const [identity, role] of [['agent-page', 'agent'], ['customer-1', 'customer']] as const) {
+    await store.addParticipant({ tenant_id: tenantId, session_id: session.id, identity, role });
+  }
+  const binding = await store.ensureChatBinding({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'tinode',
+    provider_topic_id: 'grp-tinode-close'
+  });
+  const providerUsers = new TinodeProviderUserStore(pg);
+  await providerUsers.upsert({
+    tenant_id: tenantId,
+    session_id: session.id,
+    binding_id: binding.id,
+    provider_user_id: 'usr-agent-provider',
+    identity: 'agent-page'
+  });
+  await providerUsers.upsert({
+    tenant_id: tenantId,
+    session_id: session.id,
+    binding_id: binding.id,
+    provider_user_id: 'usr-customer-provider',
+    identity: 'customer-1'
+  });
+
+  const gateway = new TrackingTinodeGateway();
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/close`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+    {},
+    '',
+    headers(tenantId),
+    { chatGateway: gateway }
+  ) as { status: number; data: { status: string } };
+
+  assert.equal(response.status, 200);
+  assert.equal(response.data.status, 'closed');
+  assert.deepEqual(gateway.removed.sort(), [
+    'agent-page:usr-agent-provider',
+    'customer-1:usr-customer-provider'
+  ]);
+  assert.equal((await providerUsers.getByIdentity({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'tinode',
+    identity: 'agent-page'
+  }))?.status, 'revoked');
+  assert.equal((await providerUsers.getByIdentity({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'tinode',
+    identity: 'customer-1'
+  }))?.status, 'revoked');
+});
+
+test('iveKit reconciles active Tinode mappings left by a legacy closed session', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_legacy_tinode_close';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'LEGACY-CLOSE-1' }
+  });
+  await store.addParticipant({
+    tenant_id: tenantId,
+    session_id: session.id,
+    identity: 'agent-page',
+    role: 'agent'
+  });
+  const binding = await store.ensureChatBinding({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'tinode',
+    provider_topic_id: 'grp-legacy-tinode-close'
+  });
+  const providerUsers = new TinodeProviderUserStore(pg);
+  await providerUsers.upsert({
+    tenant_id: tenantId,
+    session_id: session.id,
+    binding_id: binding.id,
+    provider_user_id: 'usr-legacy-agent',
+    identity: 'agent-page'
+  });
+  await store.closeSession(session.id);
+
+  const gateway = new TrackingTinodeGateway();
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/close`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+    {},
+    '',
+    headers(tenantId),
+    { chatGateway: gateway }
+  ) as { status: number; data: { status: string } };
+
+  assert.equal(response.status, 200);
+  assert.equal(response.data.status, 'closed');
+  assert.deepEqual(gateway.removed, ['agent-page:usr-legacy-agent']);
+  assert.equal((await providerUsers.getByIdentity({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'tinode',
+    identity: 'agent-page'
+  }))?.status, 'revoked');
+});
+
+test('iveKit rejects adding a participant after the session is closed', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_closed_participant_add';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'CLOSED-ADD-1' }
+  });
+  await store.addParticipant({
+    tenant_id: tenantId,
+    session_id: session.id,
+    identity: 'agent-page',
+    role: 'agent'
+  });
+  await store.closeSession(session.id);
+
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/participants`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/participants`),
+    { identity: 'customer-late', role: 'customer' },
+    '',
+    headers(tenantId),
+    { chatGateway: new TrackingTinodeGateway() }
+  ) as { status: number; data: { error?: string } };
+
+  assert.equal(response.status, 409);
+  assert.match(String(response.data.error), /session is closed/);
+  assert.equal((await store.listParticipants({
+    tenant_id: tenantId,
+    session_id: session.id
+  })).some((participant) => participant.identity === 'customer-late'), false);
+});
+
+test('iveKit rejects binding Tinode after the session is closed', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_closed_chat_bind';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'CLOSED-BIND-1' }
+  });
+  await store.closeSession(session.id);
+
+  const gateway = new TrackingTinodeGateway();
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/bind`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/bind`),
+    {},
+    '',
+    headers(tenantId),
+    { chatGateway: gateway }
+  ) as { status: number; data: { error?: string } };
+
+  assert.equal(response.status, 409);
+  assert.match(String(response.data.error), /session is closed/);
+  assert.equal(await store.getChatBinding({
+    tenant_id: tenantId,
+    session_id: session.id
+  }), null);
+});
+
+test('iveKit rejects creating a message after the session is closed', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_closed_message_create';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'CLOSED-MESSAGE-1' }
+  });
+  await store.closeSession(session.id);
+
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/messages`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/messages`),
+    { sender_identity: 'agent-page', body: 'too late' },
+    '',
+    headers(tenantId),
+    { chatGateway: new TrackingLocalGateway() }
+  ) as { status: number; data: { error?: string } };
+
+  assert.equal(response.status, 409);
+  assert.match(String(response.data.error), /session is closed/);
+  assert.deepEqual(await store.listMessages({
+    tenant_id: tenantId,
+    session_id: session.id
+  }), []);
+});
+
+test('iveKit closes an unbound session even when Tinode is the configured provider', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new MemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_unbound_tinode_close';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'UNBOUND-CLOSE-1' }
+  });
+  await store.addParticipant({
+    tenant_id: tenantId,
+    session_id: session.id,
+    identity: 'agent-page',
+    role: 'agent'
+  });
+
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/close`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+    {},
+    '',
+    headers(tenantId),
+    { chatGateway: new TrackingTinodeGateway() }
+  ) as { status: number; data: { status?: string; error?: string } };
+
+  assert.equal(response.status, 200);
+  assert.equal(response.data.status, 'closed');
+  assert.equal((await store.getSession(session.id))?.status, 'closed');
+});
+
+test('iveKit leaves inbound active when Tinode close is missing a provider user mapping', async () => {
+  process.env.OPC_API_KEY = API_KEY;
+  const pg = new RecordingMemoryPg();
+  const store = new CollaborationStore(pg);
+  const tenantId = 'tenant_tinode_close_missing_mapping';
+  const session = await store.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'MISSING-MAPPING-1' }
+  });
+  for (const [identity, role] of [['agent-page', 'agent'], ['customer-1', 'customer']] as const) {
+    await store.addParticipant({ tenant_id: tenantId, session_id: session.id, identity, role });
+  }
+  const binding = await store.ensureChatBinding({
+    tenant_id: tenantId,
+    session_id: session.id,
+    provider: 'tinode',
+    provider_topic_id: 'grp-tinode-missing-mapping'
+  });
+  await new TinodeProviderUserStore(pg).upsert({
+    tenant_id: tenantId,
+    session_id: session.id,
+    binding_id: binding.id,
+    provider_user_id: 'usr-agent-provider',
+    identity: 'agent-page'
+  });
+  pg.statements.length = 0;
+
+  const response = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/close`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+    {},
+    '',
+    headers(tenantId),
+    { chatGateway: new TrackingTinodeGateway() }
+  ) as { status: number; data: { error?: string } };
+
+  assert.equal(response.status, 409);
+  assert.match(String(response.data.error), /missing its provider user mapping/);
+  assert.equal(
+    pg.statements.some((statement) => statement.startsWith('INSERT INTO tinode_inbound_cursors')),
+    false
+  );
+  assert.equal((await store.getSession(session.id))?.status, 'open');
+});
+
 test('iveKit chat pages message history in both directions and searches before limiting', async () => {
   process.env.OPC_API_KEY = API_KEY;
   const pg = new MemoryPg();
@@ -286,6 +718,18 @@ class TrackingLocalGateway extends LocalChatGateway {
 
   override async removeParticipant(input: ChatParticipantInput): Promise<void> {
     this.removed.push(input.identity);
+  }
+}
+
+class TrackingTinodeGateway extends TinodeChatGateway {
+  readonly removed: string[] = [];
+
+  constructor() {
+    super({ base_url: 'http://tinode:6060' });
+  }
+
+  override async removeParticipant(input: ChatParticipantInput): Promise<void> {
+    this.removed.push(`${input.identity}:${input.provider_user_id || ''}`);
   }
 }
 

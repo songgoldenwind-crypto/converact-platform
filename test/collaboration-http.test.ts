@@ -3654,12 +3654,14 @@ test('collaboration HTTP marks participants left and revokes Tinode access', asy
     baseUrl: process.env.TINODE_BASE_URL,
     wsUrl: process.env.TINODE_WS_URL,
     apiKey: process.env.TINODE_API_KEY,
+    rootApiKey: process.env.TINODE_ROOT_API_KEY,
     token: process.env.TINODE_AUTH_TOKEN
   };
   try {
     process.env.TINODE_BASE_URL = tinode.url.replace(/^ws:/, 'http:').replace('/v0/channels', '');
     process.env.TINODE_WS_URL = tinode.url;
-    process.env.TINODE_API_KEY = 'tinode-http-api-key';
+    process.env.TINODE_API_KEY = 'tinode-http-public-api-key';
+    process.env.TINODE_ROOT_API_KEY = 'tinode-http-api-key';
     process.env.TINODE_AUTH_TOKEN = 'tinode-http-token';
     const pg = new MemoryPg();
     const tenantId = 'tenant_chat_leave_http';
@@ -3726,6 +3728,7 @@ test('collaboration HTTP marks participants left and revokes Tinode access', asy
     restoreEnv('TINODE_BASE_URL', previousEnv.baseUrl);
     restoreEnv('TINODE_WS_URL', previousEnv.wsUrl);
     restoreEnv('TINODE_API_KEY', previousEnv.apiKey);
+    restoreEnv('TINODE_ROOT_API_KEY', previousEnv.rootApiKey);
     restoreEnv('TINODE_AUTH_TOKEN', previousEnv.token);
   }
 });
@@ -3837,12 +3840,14 @@ test('collaboration HTTP reuses existing Tinode topic binding when sending messa
     baseUrl: process.env.TINODE_BASE_URL,
     wsUrl: process.env.TINODE_WS_URL,
     apiKey: process.env.TINODE_API_KEY,
+    rootApiKey: process.env.TINODE_ROOT_API_KEY,
     token: process.env.TINODE_AUTH_TOKEN
   };
   try {
     process.env.TINODE_BASE_URL = tinode.url.replace(/^ws:/, 'http:').replace('/v0/channels', '');
     process.env.TINODE_WS_URL = tinode.url;
-    process.env.TINODE_API_KEY = 'tinode-http-api-key';
+    process.env.TINODE_API_KEY = 'tinode-http-public-api-key';
+    process.env.TINODE_ROOT_API_KEY = 'tinode-http-api-key';
     process.env.TINODE_AUTH_TOKEN = 'tinode-http-token';
     const pg = new MemoryPg();
     const tenantId = 'tenant_chat_tinode_http';
@@ -3884,6 +3889,7 @@ test('collaboration HTTP reuses existing Tinode topic binding when sending messa
     restoreEnv('TINODE_BASE_URL', previousEnv.baseUrl);
     restoreEnv('TINODE_WS_URL', previousEnv.wsUrl);
     restoreEnv('TINODE_API_KEY', previousEnv.apiKey);
+    restoreEnv('TINODE_ROOT_API_KEY', previousEnv.rootApiKey);
     restoreEnv('TINODE_AUTH_TOKEN', previousEnv.token);
   }
 });
@@ -3895,12 +3901,14 @@ test('collaboration HTTP syncs Tinode participant access when adding participant
     baseUrl: process.env.TINODE_BASE_URL,
     wsUrl: process.env.TINODE_WS_URL,
     apiKey: process.env.TINODE_API_KEY,
+    rootApiKey: process.env.TINODE_ROOT_API_KEY,
     token: process.env.TINODE_AUTH_TOKEN
   };
   try {
     process.env.TINODE_BASE_URL = tinode.url.replace(/^ws:/, 'http:').replace('/v0/channels', '');
     process.env.TINODE_WS_URL = tinode.url;
-    process.env.TINODE_API_KEY = 'tinode-http-api-key';
+    process.env.TINODE_API_KEY = 'tinode-http-public-api-key';
+    process.env.TINODE_ROOT_API_KEY = 'tinode-http-api-key';
     process.env.TINODE_AUTH_TOKEN = 'tinode-http-token';
     const pg = new MemoryPg();
     const tenantId = 'tenant_chat_tinode_participant';
@@ -3948,6 +3956,7 @@ test('collaboration HTTP syncs Tinode participant access when adding participant
     restoreEnv('TINODE_BASE_URL', previousEnv.baseUrl);
     restoreEnv('TINODE_WS_URL', previousEnv.wsUrl);
     restoreEnv('TINODE_API_KEY', previousEnv.apiKey);
+    restoreEnv('TINODE_ROOT_API_KEY', previousEnv.rootApiKey);
     restoreEnv('TINODE_AUTH_TOKEN', previousEnv.token);
   }
 });
@@ -3960,6 +3969,7 @@ test('collaboration HTTP returns Tinode client join plan without leaking server 
     wsUrl: process.env.TINODE_WS_URL,
     publicWsUrl: process.env.TINODE_PUBLIC_WS_URL,
     apiKey: process.env.TINODE_API_KEY,
+    rootApiKey: process.env.TINODE_ROOT_API_KEY,
     token: process.env.TINODE_AUTH_TOKEN,
     userPasswordSecret: process.env.TINODE_USER_PASSWORD_SECRET
   };
@@ -3967,7 +3977,8 @@ test('collaboration HTTP returns Tinode client join plan without leaking server 
     process.env.TINODE_BASE_URL = tinode.url.replace(/^ws:/, 'http:').replace('/v0/channels', '');
     process.env.TINODE_WS_URL = tinode.url;
     process.env.TINODE_PUBLIC_WS_URL = 'wss://chat.example.com/v0/channels';
-    process.env.TINODE_API_KEY = 'tinode-http-api-key';
+    process.env.TINODE_API_KEY = 'tinode-http-public-api-key';
+    process.env.TINODE_ROOT_API_KEY = 'tinode-http-api-key';
     process.env.TINODE_AUTH_TOKEN = 'tinode-http-token';
     process.env.TINODE_USER_PASSWORD_SECRET = 'tinode-user-secret';
     const pg = new MemoryPg();
@@ -4014,8 +4025,9 @@ test('collaboration HTTP returns Tinode client join plan without leaking server 
     assert.equal(planResult.data.provider_topic_id, 'grpHttpTinodeTopic');
     assert.equal(planResult.data.provider_user_id, 'usrHttpCreatedCustomer');
     assert.equal(planResult.data.auth_token, 'token-http-created-customer');
-    assert.equal(planResult.data.ws_url, 'wss://chat.example.com/v0/channels?apikey=tinode-http-api-key');
-    assert.equal(planResult.data.api_key, 'tinode-http-api-key');
+    assert.equal(planResult.data.ws_url, 'wss://chat.example.com/v0/channels?apikey=tinode-http-public-api-key');
+    assert.equal(planResult.data.api_key, 'tinode-http-public-api-key');
+    assert.equal(JSON.stringify(planResult.data).includes('tinode-http-api-key'), false);
     assert.equal(JSON.stringify(planResult.data).includes('tinode-http-token'), false);
     assert.equal(JSON.stringify(planResult.data).includes('tinode-user-secret'), false);
     assert.equal(tinode.packets.some((packet) => packet.acc?.scheme === 'basic' && packet.acc?.login === true), true);
@@ -4033,6 +4045,7 @@ test('collaboration HTTP returns Tinode client join plan without leaking server 
     restoreEnv('TINODE_WS_URL', previousEnv.wsUrl);
     restoreEnv('TINODE_PUBLIC_WS_URL', previousEnv.publicWsUrl);
     restoreEnv('TINODE_API_KEY', previousEnv.apiKey);
+    restoreEnv('TINODE_ROOT_API_KEY', previousEnv.rootApiKey);
     restoreEnv('TINODE_AUTH_TOKEN', previousEnv.token);
     restoreEnv('TINODE_USER_PASSWORD_SECRET', previousEnv.userPasswordSecret);
   }

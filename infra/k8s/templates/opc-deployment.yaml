@@ -228,6 +228,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secrets
                   key: tinode-api-key
+            - name: TINODE_ROOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: tinode-root-api-key
             - name: TINODE_AUTH_TOKEN
               valueFrom:
                 secretKeyRef:

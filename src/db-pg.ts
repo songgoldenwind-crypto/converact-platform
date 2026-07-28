@@ -63,6 +63,7 @@ export class MemoryPg implements PgQueryable {
     this.ensureTable('collaboration_message_translations');
     this.ensureTable('collaboration_chat_bindings');
     this.ensureTable('collaboration_provider_users');
+    this.ensureTable('tinode_inbound_cursors');
     this.ensureTable('collaboration_policy_events');
     this.ensureTable('collaboration_policy_findings');
     this.ensureTable('collaboration_policy_finding_reviews');
@@ -106,6 +107,12 @@ export class MemoryPg implements PgQueryable {
   }
 
   private execute(sql: string, params: unknown[]): TableRow[] | { rows: TableRow[]; rowCount: number } {
+    if (
+      sql.startsWith('SELECT pg_try_advisory_xact_lock_shared') ||
+      sql.startsWith('SELECT pg_try_advisory_xact_lock(')
+    ) {
+      return [{ acquired: true }];
+    }
     if (sql.startsWith('SELECT pg_advisory_xact_lock')) return [];
 
     if (sql.includes('ivekit_unified_timeline')) {
@@ -1021,6 +1028,66 @@ export class MemoryPg implements PgQueryable {
       return [];
     }
 
+    if (
+      sql.startsWith('INSERT INTO tinode_inbound_cursors') &&
+      sql.includes("provider_topic_id, status") &&
+      sql.includes("'paused'")
+    ) {
+      const tenantId = String(params[0]);
+      const bindingId = String(params[2]);
+      const binding = this.table('collaboration_chat_bindings').get(bindingId);
+      if (
+        !binding ||
+        String(binding.tenant_id) !== tenantId ||
+        String(binding.provider) !== 'tinode'
+      ) {
+        return { rows: [], rowCount: 0 };
+      }
+      const existing = [...this.table('tinode_inbound_cursors').values()].find((candidate) =>
+        String(candidate.tenant_id) === tenantId &&
+        String(candidate.binding_id) === bindingId
+      );
+      const now = this.nowIso();
+      const row = existing || {
+        id: params[1],
+        tenant_id: tenantId,
+        binding_id: bindingId,
+        provider_topic_id: binding.provider_topic_id,
+        last_data_seq: 0,
+        last_del_id: 0,
+        consecutive_failures: 0,
+        created_at: now
+      };
+      row.status = 'paused';
+      row.lease_token_hash = '';
+      row.lease_until = null;
+      row.next_retry_at = null;
+      row.last_error_code = '';
+      row.last_error_message = '';
+      row.updated_at = now;
+      this.table('tinode_inbound_cursors').set(String(row.id), row);
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (sql.startsWith("UPDATE tinode_inbound_cursors SET status = 'paused'")) {
+      let rowCount = 0;
+      for (const row of this.table('tinode_inbound_cursors').values()) {
+        if (
+          String(row.tenant_id) !== String(params[0]) ||
+          String(row.binding_id) !== String(params[1])
+        ) continue;
+        row.status = 'paused';
+        row.lease_token_hash = '';
+        row.lease_until = null;
+        row.next_retry_at = null;
+        row.last_error_code = '';
+        row.last_error_message = '';
+        row.updated_at = this.nowIso();
+        rowCount += 1;
+      }
+      return { rows: [], rowCount };
+    }
+
     if (sql.startsWith('INSERT INTO collaboration_messages')) {
       const idempotencyKey = String(params[8] || '');
       if (idempotencyKey) {
@@ -1336,6 +1403,77 @@ export class MemoryPg implements PgQueryable {
       return { rows: [row], rowCount: 1 };
     }
 
+    if (sql.startsWith('SELECT tenant_id FROM opc_tinode_mutation_tenant_ids')) {
+      const now = String(params[0]);
+      const limit = Number(params[1] || 50);
+      const tenantIds = new Set<string>();
+      for (const row of [...this.table('tinode_message_mutation_outbox').values()]
+        .sort((left, right) => compareRows(left, right))) {
+        const session = this.table('collaboration_sessions').get(String(row.session_id));
+        const message = this.table('collaboration_messages').get(String(row.message_id));
+        if (!session || String(session.status) !== 'open') continue;
+        if (!message || String(message.provider) !== 'tinode' || !message.provider_message_id) continue;
+        if (Number(row.attempt_count || 0) >= Number(row.max_attempts || 0)) continue;
+        const status = String(row.status);
+        const due = status === 'pending' ||
+          (status === 'retry_wait' && (!row.next_attempt_at || String(row.next_attempt_at) <= now)) ||
+          (status === 'processing' && Boolean(row.claimed_until) && String(row.claimed_until) <= now);
+        if (!due) continue;
+        const earlierPending = [...this.table('tinode_message_mutation_outbox').values()].some(
+          (earlier) =>
+            String(earlier.tenant_id) === String(row.tenant_id) &&
+            String(earlier.message_id) === String(row.message_id) &&
+            Number(earlier.mutation_version) < Number(row.mutation_version) &&
+            String(earlier.status) !== 'delivered'
+        );
+        if (earlierPending) continue;
+        tenantIds.add(String(row.tenant_id));
+        if (tenantIds.size >= limit) break;
+      }
+      return [...tenantIds].map((tenant_id) => ({ tenant_id }));
+    }
+
+    if (
+      sql.startsWith('WITH candidate AS') &&
+      sql.includes('UPDATE tinode_message_mutation_outbox AS outbox')
+    ) {
+      const tenantId = String(params[0]);
+      const now = String(params[1]);
+      const candidate = [...this.table('tinode_message_mutation_outbox').values()]
+        .filter((row) => String(row.tenant_id) === tenantId)
+        .filter((row) => {
+          const session = this.table('collaboration_sessions').get(String(row.session_id));
+          const message = this.table('collaboration_messages').get(String(row.message_id));
+          if (!session || String(session.status) !== 'open') return false;
+          if (!message || String(message.provider) !== 'tinode' || !message.provider_message_id) return false;
+          if (Number(row.attempt_count || 0) >= Number(row.max_attempts || 0)) return false;
+          const status = String(row.status);
+          const due = status === 'pending' ||
+            (status === 'retry_wait' && (!row.next_attempt_at || String(row.next_attempt_at) <= now)) ||
+            (status === 'processing' && Boolean(row.claimed_until) && String(row.claimed_until) <= now);
+          if (!due) return false;
+          return ![...this.table('tinode_message_mutation_outbox').values()].some(
+            (earlier) =>
+              String(earlier.tenant_id) === tenantId &&
+              String(earlier.message_id) === String(row.message_id) &&
+              Number(earlier.mutation_version) < Number(row.mutation_version) &&
+              String(earlier.status) !== 'delivered'
+          );
+        })
+        .sort((left, right) => compareRows(left, right))[0];
+      if (!candidate) return { rows: [], rowCount: 0 };
+      const message = this.table('collaboration_messages').get(String(candidate.message_id))!;
+      const previousStatus = candidate.status;
+      candidate.status = 'processing';
+      candidate.attempt_count = Number(candidate.attempt_count || 0) + 1;
+      candidate.claim_token = params[2];
+      candidate.claimed_until = params[3];
+      candidate.target_provider_message_id = message.provider_message_id;
+      candidate.next_attempt_at = null;
+      candidate.updated_at = now;
+      return { rows: [{ ...candidate, previous_status: previousStatus }], rowCount: 1 };
+    }
+
     if (
       sql.startsWith('SELECT * FROM tinode_message_mutation_outbox WHERE tenant_id') &&
       sql.includes('mutation_id = $2')
@@ -1352,10 +1490,76 @@ export class MemoryPg implements PgQueryable {
         .sort((a, b) => Number(a.mutation_version) - Number(b.mutation_version));
     }
 
+    if (
+      sql.startsWith("UPDATE tinode_message_mutation_outbox SET status = 'dead_letter'") &&
+      sql.includes("status IN ('pending', 'processing', 'retry_wait')")
+    ) {
+      let rowCount = 0;
+      for (const row of this.table('tinode_message_mutation_outbox').values()) {
+        if (
+          String(row.tenant_id) !== String(params[0]) ||
+          String(row.session_id) !== String(params[1]) ||
+          !['pending', 'processing', 'retry_wait'].includes(String(row.status))
+        ) continue;
+        const now = this.nowIso();
+        row.status = 'dead_letter';
+        row.next_attempt_at = null;
+        row.claim_token = '';
+        row.claimed_until = null;
+        row.last_error_code = 'session_closed';
+        row.last_error_message = 'collaboration session closed before provider mutation completed';
+        row.completed_at = row.completed_at || now;
+        row.updated_at = now;
+        rowCount += 1;
+      }
+      return { rows: [], rowCount };
+    }
+
+    if (sql.startsWith("UPDATE tinode_message_mutation_outbox SET status = 'delivered'")) {
+      const row = this.table('tinode_message_mutation_outbox').get(String(params[0]));
+      if (
+        !row ||
+        String(row.tenant_id) !== String(params[1]) ||
+        String(row.status) !== 'processing' ||
+        String(row.claim_token) !== String(params[2])
+      ) return { rows: [], rowCount: 0 };
+      row.status = 'delivered';
+      row.provider_operation_id = params[3];
+      row.claim_token = '';
+      row.claimed_until = null;
+      row.completed_at = params[4];
+      row.updated_at = params[4];
+      row.last_error_code = '';
+      row.last_error_message = '';
+      return { rows: [], rowCount: 1 };
+    }
+
+    if (sql.startsWith('UPDATE tinode_message_mutation_outbox SET status = $4')) {
+      const row = this.table('tinode_message_mutation_outbox').get(String(params[0]));
+      if (
+        !row ||
+        String(row.tenant_id) !== String(params[1]) ||
+        String(row.status) !== 'processing' ||
+        String(row.claim_token) !== String(params[2])
+      ) return { rows: [], rowCount: 0 };
+      row.status = params[3];
+      row.next_attempt_at = params[4];
+      row.claim_token = '';
+      row.claimed_until = null;
+      row.last_error_code = params[5];
+      row.last_error_message = params[6];
+      row.updated_at = params[7];
+      return { rows: [], rowCount: 1 };
+    }
+
     if (sql.startsWith("UPDATE collaboration_messages SET provider_delivery_status = 'publishing'")) {
       const row = this.table('collaboration_messages').get(String(params[0]));
       if (!row || String(row.tenant_id) !== String(params[1]) || String(row.provider) !== 'tinode') {
         return { rows: [], rowCount: 0 };
+      }
+      if (sql.includes("session.status = 'open'")) {
+        const session = this.table('collaboration_sessions').get(String(row.session_id));
+        if (!session || String(session.status) !== 'open') return { rows: [], rowCount: 0 };
       }
       const now = String(params[4]);
       const status = String(row.provider_delivery_status);
@@ -1427,6 +1631,32 @@ export class MemoryPg implements PgQueryable {
       };
     }
 
+    if (
+      sql.startsWith("UPDATE collaboration_messages SET provider_delivery_status = 'failed'") &&
+      sql.includes("provider_last_error_code = 'session_closed'")
+    ) {
+      let rowCount = 0;
+      for (const row of this.table('collaboration_messages').values()) {
+        if (
+          String(row.tenant_id) !== String(params[0]) ||
+          String(row.session_id) !== String(params[1]) ||
+          String(row.provider) !== 'tinode' ||
+          !['pending', 'blocked_by_file_security', 'publishing', 'retry_wait']
+            .includes(String(row.provider_delivery_status))
+        ) continue;
+        row.provider_delivery_status = 'failed';
+        row.provider_delivery_claim_token_hash = '';
+        row.provider_delivery_lease_until = null;
+        row.provider_next_attempt_at = null;
+        row.provider_last_error_code = 'session_closed';
+        row.provider_last_error_message =
+          'collaboration session closed before provider delivery completed';
+        row.provider_delivery_updated_at = this.nowIso();
+        rowCount += 1;
+      }
+      return { rows: [], rowCount };
+    }
+
     if (sql.startsWith("UPDATE collaboration_messages SET provider_delivery_status = 'failed'")) {
       const tenantScoped = sql.includes('WHERE tenant_id = $1');
       const tenantId = tenantScoped ? String(params[0]) : '';
@@ -1490,13 +1720,22 @@ export class MemoryPg implements PgQueryable {
       return { rows, rowCount: rows.length };
     }
 
-    if (sql.startsWith('SELECT id, tenant_id FROM collaboration_messages')) {
-      const tenantScoped = sql.includes('WHERE tenant_id = $1');
+    if (
+      sql.startsWith('SELECT id, tenant_id FROM collaboration_messages') ||
+      sql.startsWith('SELECT messages.id, messages.tenant_id, messages.session_id')
+    ) {
+      const tenantScoped = sql.includes('WHERE tenant_id = $1') ||
+        sql.includes('WHERE messages.tenant_id = $1');
       const tenantId = tenantScoped ? String(params[0]) : '';
       const now = String(params[tenantScoped ? 1 : 0]);
       const limit = Number(params[tenantScoped ? 2 : 1]);
       return [...this.table('collaboration_messages').values()]
         .filter((row) => !tenantScoped || String(row.tenant_id) === tenantId)
+        .filter((row) => {
+          if (!sql.includes("session.status = 'open'")) return true;
+          const session = this.table('collaboration_sessions').get(String(row.session_id));
+          return Boolean(session && String(session.status) === 'open');
+        })
         .filter((row) => String(row.provider) === 'tinode')
         .filter((row) => {
           const status = String(row.provider_delivery_status);
@@ -1506,7 +1745,7 @@ export class MemoryPg implements PgQueryable {
         })
         .sort((a, b) => String(a.provider_next_attempt_at || a.created_at).localeCompare(String(b.provider_next_attempt_at || b.created_at)))
         .slice(0, limit)
-        .map((row) => ({ id: row.id, tenant_id: row.tenant_id }));
+        .map((row) => ({ id: row.id, tenant_id: row.tenant_id, session_id: row.session_id }));
     }
 
     if (sql.startsWith('SELECT id, tenant_id, provider_delivery_attempts FROM collaboration_messages')) {
@@ -1547,6 +1786,32 @@ export class MemoryPg implements PgQueryable {
       };
       this.table('collaboration_message_delivery_attempts').set(String(row.id), row);
       return { rows: [], rowCount: 1 };
+    }
+
+    if (
+      sql.startsWith("UPDATE collaboration_message_delivery_attempts AS attempt SET status = 'failed'") &&
+      sql.includes("error_code = 'session_closed'")
+    ) {
+      let rowCount = 0;
+      for (const attempt of this.table('collaboration_message_delivery_attempts').values()) {
+        const message = this.table('collaboration_messages').get(String(attempt.message_id));
+        if (
+          !message ||
+          String(message.tenant_id) !== String(params[0]) ||
+          String(message.session_id) !== String(params[1]) ||
+          String(message.provider) !== 'tinode' ||
+          !['pending', 'blocked_by_file_security', 'publishing', 'retry_wait']
+            .includes(String(message.provider_delivery_status)) ||
+          String(attempt.status) !== 'started'
+        ) continue;
+        attempt.status = 'failed';
+        attempt.completed_at = this.nowIso();
+        attempt.error_code = 'session_closed';
+        attempt.error_message =
+          'collaboration session closed before provider delivery completed';
+        rowCount += 1;
+      }
+      return { rows: [], rowCount };
     }
 
     if (sql.startsWith('UPDATE collaboration_message_delivery_attempts attempts')) {

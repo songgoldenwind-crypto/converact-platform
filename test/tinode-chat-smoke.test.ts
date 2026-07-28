@@ -18,12 +18,32 @@ test('Tinode chat smoke config requires base URL api key and auth', () => {
   );
   assert.throws(
     () => createTinodeChatSmokeConfigFromEnv({ TINODE_BASE_URL: 'http://tinode.local', TINODE_AUTH_TOKEN: 'token' }),
-    /TINODE_API_KEY is required/
+    /TINODE_ROOT_API_KEY is required/
   );
   assert.throws(
-    () => createTinodeChatSmokeConfigFromEnv({ TINODE_BASE_URL: 'http://tinode.local', TINODE_API_KEY: 'key' }),
+    () => createTinodeChatSmokeConfigFromEnv({ TINODE_BASE_URL: 'http://tinode.local', TINODE_ROOT_API_KEY: 'key' }),
     /TINODE_AUTH_TOKEN or TINODE_BASIC_USER is required/
   );
+  assert.throws(
+    () => createTinodeChatSmokeConfigFromEnv({
+      TINODE_BASE_URL: 'http://tinode.local',
+      TINODE_API_KEY: 'public-browser-key',
+      TINODE_AUTH_TOKEN: 'token'
+    }),
+    /TINODE_ROOT_API_KEY is required/
+  );
+});
+
+test('Tinode chat smoke prefers the server root API key over the browser key', () => {
+  const config = createTinodeChatSmokeConfigFromEnv({
+    TINODE_BASE_URL: 'http://tinode.local',
+    TINODE_API_KEY: 'public-browser-key',
+    TINODE_ROOT_API_KEY: 'root-server-key',
+    TINODE_AUTH_TOKEN: 'root-token',
+    TINODE_CHAT_SMOKE_TENANT_ID: 'tenant-smoke'
+  });
+
+  assert.equal(config.apiKey, 'root-server-key');
 });
 
 test('Tinode chat smoke is wired into package scripts and env example', () => {
@@ -37,6 +57,7 @@ test('Tinode chat smoke is wired into package scripts and env example', () => {
     'TINODE_BASE_URL=',
     'TINODE_WS_URL=',
     'TINODE_API_KEY=',
+    'TINODE_ROOT_API_KEY=',
     'TINODE_AUTH_TOKEN=',
     'TINODE_USER_PASSWORD_SECRET=',
     'TINODE_CHAT_SMOKE_TENANT_ID=',

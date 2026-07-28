@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
+  startTinodeSyncWorker,
   TinodeSyncWorker,
   tinodeSyncWorkerConfig,
   type TinodeSyncWorkerRunResult
 } from '../src/agent-runtime/collaboration/tinode-sync-worker.js';
+import { MemoryPg } from '../src/db-pg.js';
 
 const EMPTY_RESULT: TinodeSyncWorkerRunResult = {
   examined: 0,
@@ -20,6 +22,9 @@ test('Tinode sync worker config activates only for a configured provider', () =>
   assert.equal(tinodeSyncWorkerConfig({} as NodeJS.ProcessEnv).enabled, false);
   const config = tinodeSyncWorkerConfig({
     TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
+    TINODE_API_KEY: 'browser-api-key',
+    TINODE_ROOT_API_KEY: 'root-api-key',
+    TINODE_AUTH_TOKEN: 'root-auth-token',
     OPC_TINODE_DELIVERY_WORKER_ENABLED: '1',
     OPC_TINODE_DELIVERY_INTERVAL_MS: '7000',
     OPC_TINODE_DELIVERY_BATCH_SIZE: '25',
@@ -36,6 +41,10 @@ test('Tinode sync worker config activates only for a configured provider', () =>
     claimLeaseMs: 40_000,
     retryDelaysMs: [3_000, 12_000, 30_000]
   });
+  assert.equal(tinodeSyncWorkerConfig({
+    TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
+    OPC_TINODE_DELIVERY_WORKER_ENABLED: '1'
+  } as NodeJS.ProcessEnv).enabled, false);
   assert.throws(
     () => tinodeSyncWorkerConfig({
       TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
@@ -51,6 +60,19 @@ test('Tinode sync worker config activates only for a configured provider', () =>
     } as NodeJS.ProcessEnv),
     /CLAIM_LEASE_MS.*26000/
   );
+});
+
+test('Tinode sync worker does not construct a gateway when disabled', async () => {
+  const worker = startTinodeSyncWorker({
+    pg: new MemoryPg(),
+    env: {
+      TINODE_WS_URL: 'wss://tinode.example.com/v0/channels',
+      OPC_TINODE_DELIVERY_WORKER_ENABLED: '0'
+    } as NodeJS.ProcessEnv
+  });
+
+  assert.deepEqual(await worker.runOnce(), EMPTY_RESULT);
+  await worker.stop();
 });
 
 test('Tinode sync worker coalesces overlapping runs', async () => {
@@ -101,6 +123,7 @@ test('Tinode sync worker is wired into server shutdown and deployment env exampl
   assert.match(application, /startTinodeSyncWorker/);
   assert.match(application, /collaboration\.message\.delivery_updated/);
   for (const source of [rootEnv, productionEnv]) {
+    assert.match(source, /TINODE_ROOT_API_KEY/);
     assert.match(source, /OPC_TINODE_DELIVERY_WORKER_ENABLED/);
     assert.match(source, /OPC_TINODE_DELIVERY_INTERVAL_MS/);
     assert.match(source, /OPC_TINODE_DELIVERY_MAX_ATTEMPTS/);
@@ -109,10 +132,12 @@ test('Tinode sync worker is wired into server shutdown and deployment env exampl
   for (const source of [compose, productionCompose, deployment]) {
     assert.match(source, /TINODE_BASE_URL/);
     assert.match(source, /TINODE_API_KEY/);
+    assert.match(source, /TINODE_ROOT_API_KEY/);
     assert.match(source, /OPC_TINODE_DELIVERY_WORKER_ENABLED/);
     assert.match(source, /OPC_TINODE_DELIVERY_CLAIM_LEASE_MS/);
   }
   assert.match(secrets, /tinode-api-key/);
+  assert.match(secrets, /tinode-root-api-key/);
   assert.match(secrets, /tinode-user-password-secret/);
   assert.match(values, /^tinode:/m);
 });

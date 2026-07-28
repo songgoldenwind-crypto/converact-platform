@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { PgQueryable } from '../../db-pg.js';
+import { withPgTenant } from '../../db-pg-tenant.js';
 import { resolveAuthContext } from '../../middleware/auth.js';
 import { createObjectStorage } from '../../storage/object-storage.js';
 import {
@@ -8,6 +9,7 @@ import {
   type PreparedTinodeSessionPlacement,
   type RouteCollaborationApiOptions
 } from '../collaboration/collaboration-http.js';
+import { tinodeApiKeysDistinct } from '../collaboration/tinode-env.js';
 import { messageMutationWindowMs } from '../collaboration/message-state-store.js';
 import { TINODE_RECEIVE_ONLY_ACCESS_MODE } from '../collaboration/chat-gateway.js';
 import { CollaborationStore } from '../collaboration/collaboration-store.js';
@@ -68,10 +70,12 @@ export async function prepareIveKitChatPlacement(
   const ctx = requireAuth(headers);
   if (!pg) throw Object.assign(new Error('PostgreSQL is required for Tinode placement'), { status: 503 });
   const sessionId = decodeURIComponent(match[1]);
-  const existing = await options.tinodePlacement.hasPlacement(pg, {
-    tenant_id: ctx.tenantId,
-    interaction_id: sessionId
-  });
+  const existing = await withPgTenant(pg, ctx.tenantId, (scopedPg) =>
+    options.tinodePlacement!.hasPlacement(scopedPg, {
+      tenant_id: ctx.tenantId,
+      interaction_id: sessionId
+    })
+  );
   return {
     tenant_id: ctx.tenantId,
     session_id: sessionId,
@@ -90,13 +94,17 @@ export async function prepareIveKitChatPlacement(
 function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env) {
   const providerUrlConfigured = hasValue(env.TINODE_BASE_URL) || hasValue(env.TINODE_WS_URL);
   const apiKeyConfigured = hasValue(env.TINODE_API_KEY);
+  const rootApiKeyConfigured = hasValue(env.TINODE_ROOT_API_KEY);
+  const apiKeysDistinct = tinodeApiKeysDistinct(env);
   const rootAuthConfigured = hasValue(env.TINODE_AUTH_TOKEN) || (
     hasValue(env.TINODE_BASIC_USER) && hasValue(env.TINODE_BASIC_PASSWORD)
   );
   const userProvisioningConfigured = hasValue(env.TINODE_USER_PASSWORD_SECRET);
   const clientWsConfigured = providerUrlConfigured || hasValue(env.TINODE_PUBLIC_BASE_URL) || hasValue(env.TINODE_PUBLIC_WS_URL);
-  const providerConfigured = providerUrlConfigured && apiKeyConfigured && rootAuthConfigured;
-  const inboundSyncConfigured = providerUrlConfigured && rootAuthConfigured &&
+  const providerConfigured = providerUrlConfigured && apiKeyConfigured && rootApiKeyConfigured &&
+    apiKeysDistinct && rootAuthConfigured;
+  const inboundSyncConfigured = providerUrlConfigured && rootApiKeyConfigured &&
+    apiKeysDistinct && rootAuthConfigured &&
     String(env.OPC_TINODE_INBOUND_WORKER_ENABLED || '1').trim() !== '0';
 
   return {
@@ -154,6 +162,8 @@ function chatCapabilities(tenantId: string, env: NodeJS.ProcessEnv = process.env
       provider_configured: providerConfigured,
       provider_url_configured: providerUrlConfigured,
       api_key_configured: apiKeyConfigured,
+      root_api_key_configured: rootApiKeyConfigured,
+      api_keys_distinct: apiKeysDistinct,
       root_auth_configured: rootAuthConfigured,
       user_provisioning_configured: userProvisioningConfigured,
       client_ws_configured: clientWsConfigured,

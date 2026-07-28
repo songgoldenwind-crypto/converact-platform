@@ -490,6 +490,7 @@ call 结束、成员撤权、切换 call 或组件卸载会取消 timer、停止
     "message_soft_delete": true
   },
   "config": {
+    "api_keys_distinct": true,
     "inbound_sync_configured": true,
     "message_mutation_window_ms": 900000,
     "tinode_client_access_mode": "JRP"
@@ -502,7 +503,9 @@ call 结束、成员撤权、切换 call 或组件卸载会取消 timer、停止
 
 强制裁决：`direct_client_publish=false`。Tinode client-plan 的 topic ACL 为 `JRP`，不含 `W`。业务消息只能走 `/messages`，否则本地镜像、防绕单、OCR/ASR 和 AI 质检会失去证据。
 
-会话分页项的 `summary` 包含 `unread_count`、`online_participant_count` 和 `last_message`。只有当前认证身份仍是该会话活动参与人时才返回消息摘要，否则返回全零/空摘要；未读数按当前认证身份计算；软删除消息返回空正文和 `deleted=true`；在线人数只统计未离开且 presence TTL 未过期的参与人。关闭操作要求当前身份仍是活动参与人，先把绑定 topic 上所有活动参与人的 mode 降为 `N`，任一 provider 撤权失败都不会把数据库提前标为 closed；成功后广播 `collaboration.session.closed`。
+会话分页项的 `summary` 包含 `unread_count`、`online_participant_count` 和 `last_message`。只有当前认证身份仍是该会话活动参与人时才返回消息摘要，否则返回全零/空摘要；未读数按当前认证身份计算；软删除消息返回空正文和 `deleted=true`；在线人数只统计未离开且 presence TTL 未过期的参与人。关闭操作要求当前身份仍是活动参与人。服务端先验证全部活动参与人的持久化 Tinode `provider_user_id` 映射，再把绑定 topic 上全部活动参与人的 mode 降为 `N`；provider 撤权成功后，在同一 PostgreSQL 事务内暂停 inbound cursor、终止未完成 delivery/mutation 队列、提交 provider mapping `revoked` 和 session `closed`，随后广播 `collaboration.session.closed`。任一映射缺失或 provider 撤权失败都不会提前改变本地终态，便于安全重试；重复关闭返回同一终态。
+
+成员新增、binding、client-plan、新消息、edit/delete mutation 和 provider delivery/retry 使用带业务命名空间的 PostgreSQL transaction advisory shared lock；关闭使用同一 session key 的 exclusive lock。发生并发冲突时立即返回可重试 `409 collaboration_session_busy`，不会等待占满连接池。关闭后存储层拒绝新消息和 mutation，delivery 变为 `failed/session_closed`，未完成 mutation 变为 `dead_letter/session_closed`，due/claim 和 tenant-discovery SQL 都只选择 `status=open` 的 session。公开 collaboration module 不暴露底层 raw `closeSession`；HTTP、SDK 和 iveKit facade 必须经过统一关闭生命周期。
 
 ### 3.2 参与人和 Tinode plan
 

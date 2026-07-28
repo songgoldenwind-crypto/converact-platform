@@ -176,7 +176,7 @@ test('iveKit chat enforces active membership participant RBAC and non-revivable 
   }
 });
 
-test('iveKit serializes participant leave against Tinode client-plan grants', async () => {
+test('iveKit fails participant leave fast during a Tinode client-plan grant and succeeds on retry', async () => {
   const previous = {
     apiKey: process.env.OPC_API_KEY,
     publicWsUrl: process.env.TINODE_PUBLIC_WS_URL,
@@ -254,19 +254,33 @@ test('iveKit serializes participant leave against Tinode client-plan grants', as
     ]);
     assert.equal(provisioningStarted, true, 'client-plan must use the injected Tinode gateway');
 
-    const leavePromise = systemRoute(
+    const leaveAttempt = systemRoute(
       pg,
       'POST',
       `/api/ivekit/chat/sessions/${session.id}/participants/leave`,
       { identity: 'race-member' },
       tenantId,
       gateway
-    ) as Promise<{ status: number }>;
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    ).then(
+      (value) => ({ value, error: null }),
+      (error: unknown) => ({ value: null, error })
+    );
+    const busy = await leaveAttempt;
+    assert.equal((busy.error as { status?: number }).status, 409);
+    assert.equal((busy.error as { code?: string }).code, 'collaboration_participant_busy');
+    assert.equal((busy.error as { retryable?: boolean }).retryable, true);
     releaseProvisioning.resolve();
 
-    const [plan, leave] = await Promise.all([planPromise, leavePromise]);
+    const plan = await planPromise;
     assert.equal(plan.status, 201);
+    const leave = await systemRoute(
+      pg,
+      'POST',
+      `/api/ivekit/chat/sessions/${session.id}/participants/leave`,
+      { identity: 'race-member' },
+      tenantId,
+      gateway
+    ) as { status: number };
     assert.equal(leave.status, 201);
     assert.deepEqual(operations, ['grant', 'revoke']);
     const mapping = await new TinodeProviderUserStore(pg).getByIdentity({

@@ -262,6 +262,9 @@ test('Tinode build files retain the real upstream compile boundary', () => {
   assert.match(readme, /Go 1\.26/);
   assert.match(readme, /remain `not_run`/);
   assert.match(hook, /IVEKIT_COMPONENT_NODE_ID/);
+  assert.match(hook, /IVEKIT_TINODE_CLUSTER_MODE/);
+  assert.match(hook, /case "standalone"/);
+  assert.match(hook, /case "", "clustered"/);
   assert.match(hook, /ivekitTopicOwners\.Assert/);
   assert.doesNotMatch(hook, /fanout/);
 });

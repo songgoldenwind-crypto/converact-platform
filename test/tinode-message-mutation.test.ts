@@ -3,14 +3,21 @@ import test from 'node:test';
 
 import {
   ChatMutationOutcomeUnknownError,
+  type ChatGateway,
   type ChatMutationInput,
   type ChatMutationResult
 } from '../src/agent-runtime/collaboration/chat-gateway.js';
+import { withCollaborationSessionLock } from '../src/agent-runtime/collaboration/collaboration-lock.js';
+import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
+import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
+import { TinodeMessageDeliveryService } from '../src/agent-runtime/collaboration/tinode-message-delivery.js';
 import {
   TinodeMessageMutationService,
+  TinodeMessageMutationStore,
   type TinodeMessageMutationClaim,
   type TinodeMessageMutationStoreContract
 } from '../src/agent-runtime/collaboration/tinode-message-mutation.js';
+import { MemoryPg } from '../src/db-pg.js';
 
 class FakeMutationStore implements TinodeMessageMutationStoreContract {
   readonly completed: string[] = [];
@@ -201,4 +208,141 @@ test('Tinode mutation worker dead-letters the final attempt', async () => {
   assert.equal(summary.dead_letter, 1);
   assert.equal(store.failures[0]?.terminal, true);
   assert.equal(store.failures[0]?.nextAttemptAt, null);
+});
+
+test('mutation callback failures happen after durable completion and do not republish', async () => {
+  const store = new FakeMutationStore([claim()]);
+  let providerCalls = 0;
+  const service = new TinodeMessageMutationService({
+    store,
+    gateway: {
+      provider: 'tinode',
+      async mutateMessage(input) {
+        providerCalls += 1;
+        return {
+          provider: 'tinode',
+          provider_topic_id: input.provider_topic_id,
+          provider_operation_id: 'op-callback-committed',
+          provider_sync_status: 'published',
+          metadata: {}
+        };
+      }
+    },
+    onMutationUpdated: () => {
+      throw new Error('mutation callback failed');
+    }
+  });
+
+  await assert.rejects(
+    () => service.runDue({ tenant_id: 'tenant_1', limit: 1 }),
+    /mutation callback failed/
+  );
+  assert.deepEqual(store.completed, ['tmut_1']);
+  assert.equal((await service.runDue({ tenant_id: 'tenant_1', limit: 1 })).examined, 0);
+  assert.equal(providerCalls, 1);
+});
+
+test('real mutation worker holds a shared session lock through provider publish and completion', async () => {
+  const pg = new MemoryPg();
+  const sessions = new CollaborationStore(pg);
+  const tenantId = 'tenant_mutation_lock';
+  const session = await sessions.openSession({
+    tenant_id: tenantId,
+    business_ref: { tenant_id: tenantId, type: 'service_order', id: 'MUTATION-LOCK-1' }
+  });
+  await sessions.addParticipant({
+    tenant_id: tenantId,
+    session_id: session.id,
+    identity: 'agent-mutation',
+    role: 'agent'
+  });
+  let mutationEntered!: () => void;
+  let releaseMutation!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    mutationEntered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    releaseMutation = resolve;
+  });
+  const gateway: ChatGateway = {
+    provider: 'tinode',
+    async ensureTopic(input) {
+      return {
+        provider: 'tinode',
+        provider_topic_id: `grp_${input.session_id}`,
+        provider_status: 'bound',
+        metadata: {}
+      };
+    },
+    async ensureUser(input) {
+      return { provider_user_id: `usr_${input.identity}`, metadata: {} };
+    },
+    async addParticipant() {},
+    async removeParticipant() {},
+    async publishMessage(input) {
+      return {
+        provider: 'tinode',
+        provider_topic_id: input.provider_topic_id,
+        provider_message_id: 'seq-mutation-source',
+        provider_sync_status: 'published',
+        metadata: {}
+      };
+    },
+    async mutateMessage(input) {
+      mutationEntered();
+      await gate;
+      return {
+        provider: 'tinode',
+        provider_topic_id: input.provider_topic_id,
+        provider_operation_id: 'op-mutation-lock',
+        provider_sync_status: 'published',
+        metadata: {}
+      };
+    }
+  };
+  const delivered = await new TinodeMessageDeliveryService({
+    pg,
+    gateway,
+    fileSecurityGate: null
+  }).createAndDeliver({
+    tenant_id: tenantId,
+    session_id: session.id,
+    sender_identity: 'agent-mutation',
+    message_type: 'text',
+    body: 'before edit',
+    provider_topic_id: 'grp_mutation_lock',
+    provider_payload: 'before edit'
+  });
+  await new CollaborationMessageStateStore(pg).editMessage({
+    tenant_id: tenantId,
+    session_id: session.id,
+    message_id: delivered.message.id,
+    actor_identity: 'agent-mutation',
+    body: 'after edit'
+  });
+  const worker = new TinodeMessageMutationService({
+    pg,
+    store: new TinodeMessageMutationStore(pg),
+    gateway
+  });
+
+  const running = worker.runDue({ tenant_id: tenantId, limit: 1 });
+  await entered;
+  await assert.rejects(
+    () => withCollaborationSessionLock(pg, {
+      tenantId,
+      sessionId: session.id,
+      mode: 'exclusive'
+    }, async () => undefined),
+    (error: unknown) =>
+      (error as { code?: string }).code === 'collaboration_session_busy'
+  );
+  releaseMutation();
+  assert.equal((await running).delivered, 1);
+  const outbox = await pg.query(
+    'SELECT * FROM tinode_message_mutation_outbox WHERE tenant_id = $1 AND message_id = $2 ORDER BY mutation_version ASC',
+    [tenantId, delivered.message.id]
+  );
+  assert.equal(outbox.rows[0]?.status, 'delivered');
+  assert.equal(outbox.rows[0]?.provider_operation_id, 'op-mutation-lock');
 });

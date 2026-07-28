@@ -16,12 +16,27 @@ import (
 var ivekitTopicOwners *tinodeowner.Registry
 
 func ivekitUseStableClusterNodeID(clusterSelf *string) error {
-	nodeID := strings.TrimSpace(os.Getenv("IVEKIT_COMPONENT_NODE_ID"))
-	if nodeID == "" {
-		return nil
-	}
 	if clusterSelf == nil {
 		return errors.New("ivekit Tinode cluster_self pointer is nil")
+	}
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("IVEKIT_TINODE_CLUSTER_MODE")))
+	switch mode {
+	case "standalone":
+		if strings.TrimSpace(*clusterSelf) != "" {
+			return errors.New("ivekit Tinode standalone mode requires empty cluster_self")
+		}
+		return nil
+	case "", "clustered":
+	default:
+		return errors.New("ivekit Tinode cluster mode must be standalone or clustered")
+	}
+
+	nodeID := strings.TrimSpace(os.Getenv("IVEKIT_COMPONENT_NODE_ID"))
+	if nodeID == "" {
+		if mode == "clustered" {
+			return errors.New("ivekit Tinode clustered mode requires component node ID")
+		}
+		return nil
 	}
 	if current := strings.TrimSpace(*clusterSelf); current != "" && current != nodeID {
 		return errors.New("ivekit Tinode cluster_self does not match component node ID")

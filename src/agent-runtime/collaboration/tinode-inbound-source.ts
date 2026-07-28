@@ -1,5 +1,7 @@
 import { WebSocket } from 'ws';
 
+import { tinodeServerApiKey } from './tinode-env.js';
+
 export interface TinodeInboundPullInput {
   provider_topic_id: string;
   last_data_seq: number;
@@ -75,9 +77,11 @@ export function configuredTinodeInboundSource(
 ): TinodeInboundWireSource | null {
   const rawWsUrl = String(env.TINODE_WS_URL || '').trim() || defaultTinodeWsUrl(String(env.TINODE_BASE_URL || ''));
   if (!rawWsUrl) return null;
+  const apiKey = tinodeServerApiKey(env);
+  if (!apiKey) throw new Error('TINODE_ROOT_API_KEY is required for Tinode inbound sync');
   return new TinodeInboundWireSource({
     ws_url: rawWsUrl,
-    api_key: value(env.TINODE_API_KEY),
+    api_key: apiKey,
     auth_token: value(env.TINODE_AUTH_TOKEN),
     basic_user: value(env.TINODE_BASIC_USER),
     basic_password: value(env.TINODE_BASIC_PASSWORD),

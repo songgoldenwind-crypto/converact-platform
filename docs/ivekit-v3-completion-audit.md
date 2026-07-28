@@ -102,7 +102,7 @@ V4 当前 release 又在本机独立 PostgreSQL 14 harness 重跑 `scripts/verif
 
 | 能力 | 实现状态 | 当前证据 | 仍为 not_run |
 | --- | --- | --- | --- |
-| Tinode IM | implemented | 双向 durable sync、附件安全导入/发布门禁、operation snapshot、dead-letter replay、指标；focused 与 PostgreSQL harness 通过 | 当前 release 的真实 Tinode 多客户端、长稳和公网故障切换 |
+| Tinode IM | implemented_single_node_verified | 双向 durable sync、附件安全导入/发布门禁、operation snapshot、dead-letter replay、指标；focused、PostgreSQL harness 和真实服务器双 WebSocket client 已通过；浏览器 key/root key 分离且禁止同值，service account root 复核，关闭时 provider ID 撤权、幂等终态、paused inbound cursor、session read/write lock、closed-session 新消息拒绝和 delivery/retry 停止均已实现 | 三节点故障、长稳、公网故障切换和 LED 浏览器 UI |
 | 文件安全 | implemented | migration 061、magic MIME、clamd/HTTP scanner、quarantine、FFmpeg/HTTP 派生、multipart/resume、retention cleanup；受控故障矩阵通过 | 生产对象存储、真实病毒样本库升级、目标容量和长稳 |
 | LiveKit | implemented | migration 063、QoS degraded/recovered、防抖、connection revision、terminal rejoin、preflight、参考客户端 Node `158/158` 和 Chromium Media `3/3` | 真实摄像头/麦克风、目标 TURN/Egress、弱网和公网媒体质量 |
 | Compose | implemented_and_rendered | standalone quiet config 通过；ClamAV 私网、探针、持久卷、资源和 worker 默认值已校验 | 目标服务器实际启动与长稳 |
@@ -203,8 +203,8 @@ record 不再占满 bounded candidate window；Notification backoff 从 Provider
 
 | 能力 | 实现状态 | 当前代码与自动化证据 | 仍为 not_run |
 | --- | --- | --- | --- |
-| Tinode Kubernetes | implemented_not_run | standalone Chart 支持 `compact` 单副本 Deployment 和 `cluster` 三副本 StatefulSet；cluster 使用稳定 ordinal/DNS、client/headless Service、单一 `pre-install,pre-upgrade` 数据库 bootstrap Job、共享 S3、read-only root、双 Zone/主机分散、ring-only NetworkPolicy 与 `minAvailable: 2` PDB；每个 API Pod仍用 init container fail-closed 创建或验证 Tinode service account；隔离服务器已验证缺失数据库、预建空库幂等初始化、MinIO S3 及三个健康节点组环，Helm lint/template 与无效配置 fail-closed 已通过 | 目标集群 Helm install/upgrade/rollback、节点/Zone 故障注入、真实 PVC/S3、重连、原生客户端收敛、容量和长稳 |
-| Tinode 原生 mutation | implemented | migration 074；本地 edit/delete 与 provider mutation outbox 同事务；版本串行、lease fencing、retry/dead-letter/replay、replacement/delete wire frame、inbound echo suppression、外部客户端投影、SDK sync status 和事件；edit pub ACK 丢失或过期 processing lease 被接管时立即以 `provider_outcome_uncertain` 死信，阻止重复 replacement，并提供 OpenAPI/SDK 人工对账重放；迟到 echo 在同一事务纠正 delivered 并以稳定幂等键写 durable correction event，提交后广播失败可由 replay/Webhook 恢复；bootstrap 兼容已有账号的 304/409；真实 PostgreSQL 已覆盖过期 edit claim 和 inbound 结果透传 | 真实 Tinode 1.4.7/0.25.1 多原生客户端一致性、ACK 丢失对账与故障恢复 |
+| Tinode Kubernetes | implemented_not_run | standalone Chart 支持 `compact` 单副本 Deployment 和 `cluster` 三副本 StatefulSet；cluster 使用稳定 ordinal/DNS、client/headless Service、单一 `pre-install,pre-upgrade` 数据库 bootstrap Job、共享 S3、read-only root、双 Zone/主机分散、ring-only NetworkPolicy 与 `minAvailable: 2` PDB；每个 API Pod 仍用 init container fail-closed 创建/登录 Tinode service account，必要时通过限定的 PostgreSQL credential 更新提升到 auth level 30，并在重新登录明确取得 `authlvl=root` 后才启动；隔离服务器已验证缺失数据库、预建空库幂等初始化、MinIO S3 及三个健康节点组环，Helm lint/template 与无效配置 fail-closed 已通过 | 目标集群 Helm install/upgrade/rollback、节点/Zone 故障注入、真实 PVC/S3、重连、原生客户端收敛、容量和长稳 |
+| Tinode 原生 mutation | implemented | migration 074；本地 edit/delete 与 provider mutation outbox 同事务；版本串行、lease fencing、retry/dead-letter/replay、replacement/delete wire frame、inbound echo suppression、外部客户端投影、SDK sync status 和事件；edit pub ACK 丢失或过期 processing lease 被接管时立即以 `provider_outcome_uncertain` 死信，阻止重复 replacement，并提供 OpenAPI/SDK 人工对账重放；迟到 echo 在同一事务纠正 delivered 并以稳定幂等键写 durable correction event，提交后广播失败可由 replay/Webhook 恢复；bootstrap 兼容已有账号的 304/409，随后必须完成 root 提升与重新登录复核；真实 PostgreSQL 已覆盖过期 edit claim 和 inbound 结果透传 | 真实 Tinode 多原生客户端 mutation ACK 丢失对账与三节点故障恢复 |
 | RustDesk 精准断开 | implemented_not_run | migration 075 emergency authorization；ACL session registry/resolver；package v6 与 fixed native-control v2；命令、operation observation 和 evidence 全链携带 interaction/reservation/owner epoch；companion 每会话分片持久化最大 epoch，拒绝 stale owner 后才由 1.4.9 overlay 调用指定 `ui_cm_interface::close(native_id)`；普通失败不重启，owner/admin 显式确认后才允许 emergency restart | 两台 Windows、同机并发会话、owner handoff、UAC/login-screen 和物理断开观察 |
 | RustDesk 原生证据 | implemented_not_run | 定制 RustDesk allowlist scanner 基线并自动产出稳定新文件候选；device-token context 按 controller/operation/文件名/时间窗唯一关联；15 分钟会后 finalization window；watcher、稳定性/变更/hash gate、durable spool、单文件/分片 uploader、设备/session/operation 二次授权、secure-file、扫描/隔离/衍生物、PDF OCR、录屏 ASR+帧 OCR、AI 质检和 `remote.rustdesk.evidence.*` 状态事件；migration 076 对 unsupported/ignored 持久标记并补偿 missed callback；设备侧死信 payload 默认 7 天/数量上限成对清理；远端成功后的本地删除失败保留 `uploaded + manifest` 并跨重启只重试删除，所有 manifest-backed 状态禁止普通终态压缩；手工 PowerShell 仅为恢复工具 | 定制 RustDesk 1.4.9 Windows 编译、真实文件/录屏、ClamAV/对象存储和物理 Windows |
 | 八组真实验收与交付 | implemented_not_run | `ivekit-v6-real-acceptance.ts` 固定八组、source/digest/environment/run/operator/QA/observation 绑定，拒绝 mock/controlled、符号链接、路径逃逸、hash 漂移和 `not_run` 伪证据；模板、校验器、V6 文档、Tinode Helm 与 RustDesk Windows/overlay 进入 hash/tamper 保护交付包 | Provider、Tinode、LiveKit、RustDesk、PSTN、商业通知、生产对象存储、Kubernetes 均缺真实资源 |
@@ -253,7 +253,7 @@ LED 业务逻辑、OPC 业务领域、移动端和数字人不属于 iveKit 底�
 
 | # | 原始目标 | 权威实现与交付证据 | 代码裁决 | 真实环境状态 |
 | --- | --- | --- | --- | --- |
-| 1 | Tinode IM 完整集成 | `src/agent-runtime/collaboration/tinode-*` 实现双向同步、会话、附件、已读/状态、离线恢复、原生 edit/delete outbox、迟到 echo 纠正、重放和指标；migration 062/074 持久化文件投递与 mutation；`services/ivekit-service/helm/ivekit/templates/tinode-*` 提供 bundled Kubernetes；`infra/ivekit/tinode/` 提供固定 `v0.25.3` 三节点 owner-aware fork；OpenAPI、SDK 和参考客户端均含消息、附件与 mutation 状态 | `implemented` | 真实 Tinode 多客户端收敛、三节点故障、目标 PVC/长稳为 `not_run` |
+| 1 | Tinode IM 完整集成 | `src/agent-runtime/collaboration/tinode-*` 实现双向同步、会话、附件、已读/状态、离线恢复、原生 edit/delete outbox、迟到 echo 纠正、重放和指标；migration 062/074/105/106 持久化文件投递、mutation、closed-session inbound 和历史队列收敛；public/root API key 分离并拒绝同值、root service account bootstrap、provider user ID 撤权、session shared/exclusive lock、关闭后新写入与 delivery/retry/mutation 阻断均已实现；公开 module 不暴露 raw close；`services/ivekit-service/helm/ivekit/templates/tinode-*` 提供 bundled Kubernetes；`infra/ivekit/tinode/` 提供固定 `v0.25.3` 三节点 owner-aware fork；OpenAPI、SDK 和参考客户端均含消息、附件与 mutation 状态 | `implemented_single_node_verified` | 三节点故障、目标 PVC、长稳和 LED 浏览器 UI 为 `not_run` |
 | 2 | LiveKit 全部基础音视频 | `src/agent-runtime/livekit/` 覆盖房间、Token、参与人、音视频、屏幕共享、Webhook、moderation、录制、QoS、超时和重入；migration 063/087/088/089 覆盖质量与 Egress job/reconciliation/capacity；`infra/ivekit/livekit/` 固定 `v1.13.4@0b3fd288...` owner/热路径 overlay，并已在隔离 Linux amd64 服务器完成单测、SFU race、离线构建和非 root smoke；Egress 双池仅接受批准仓库 `ivekit/livekit-egress` 的 digest-bound 镜像，并与 external LiveKit 显式共享 Redis address/认证/TLS，缺 digest/shared Redis、使用上游全限定别名或任意其他仓库均 Helm fail-closed；参考客户端实现断线恢复与 320/390 移动布局 | `implemented` | Server/Egress 不可变生产 digest/SBOM/签名/provenance、双客户端、摄像头/麦克风、TURN、对象链路、弱网和多实例为 `not_run` |
 | 3 | RustDesk Windows 远控闭环 | `src/agent-runtime/collaboration/rustdesk-*`、`scripts/rustdesk-*` 与 `scripts/rustdesk-windows/` 覆盖授权码、device command、session hook、精准断开、owner epoch、剪贴板/文件/多屏/录屏观察、durable spool、evidence 上传、审计和 emergency fallback；`integrations/rustdesk-1.4.9/` 含 native control/evidence overlay；Windows workflow、安装包、SDK/LED facade 和参考工作区已交付 | `implemented_not_run` | 定制签名 Windows 制品、双物理机、UAC/login screen、同机多会话和真实文件/录屏为 `not_run` |
 | 4 | RustPBX、SIP、WebPhone、IVR 与呼叫 | `src/agent-runtime/ivekit/voice/`、`ivr/` 和参考客户端 Voice/IVR 工作区覆盖注册、呼入/呼出、接听/拒绝、Hold、DTMF、设备、呼叫控制、路由、录音和 provider event；固定 RustPBX/rsipstack 源码 release 编译与本地 custom image 通过；`scripts/ivekit-rustpbx-sipp-acceptance.ts` 使用 SIPp 3.7.7 完成 12 个受控信令场景、19 个请求且 Router/CDR 增量均为 19 | `implemented_not_run` | 真实 RTP 音频连续性、浏览器 WSS/物理音频、PSTN、overload 曲线和 supervisor mixer 为 `not_run` |
@@ -1026,3 +1026,21 @@ HA failover，Cell-10K/MIX-100K，以及多架构 Registry、SBOM、签名和 pr
 spool watermark admission 与对象上传故障负载，SRTP、转码、IVR、会议、PSTN、长稳、
 独立 generator/SUT、1/2/4 节点边际效率、Cell-10K 和 MIX-100K。Registry digest、SBOM、
 签名与 provenance 也尚未完成；`capacity_claim=none`。
+
+## 43. Tinode IM 关闭一致性服务器终审（2026-07-28）
+
+本节记录 IM 正确性优先于下一轮性能优化的最终收口。服务器只滚动
+`ivekit-goal3-0f9b063-opc-1`，没有修改或重启 LED 容器、代码、配置和数据。
+
+| 项目 | 结果 | 直接证据与边界 |
+| --- | --- | --- |
+| 镜像与迁移 | `passed_server` | `ivekit/opc:im-final8-3f1a7d3ab2f3`，image ID `sha256:530e6e3...51484ea`；容器 healthy、restart 0；schema migration 105/106 已按序落库，readiness 报告 migrations missing 为空 |
+| HTTP/Tinode E2E | `passed_server` | 建会话、两名参与人、Tinode binding、两份带短期 token 的 client-plan、后端消息 publish、edit mutation、close 和重复 close 全部成功；关闭后 participant/bind/client-plan/message/edit/delete/delivery-retry 七条路径均返回 409 |
+| PostgreSQL 终态 | `passed_server` | session closed 且有 closed_at；两个 provider user 全部 revoked；一个 inbound cursor paused；edit mutation 为 `dead_letter/session_closed`；该 session 的非终态 delivery/mutation 均为 0 |
+| facade RLS | `passed_server` | 使用真实 runtime root Pool 直接调用 iveKit facade 重复关闭成功，证明 facade 在同一 tenant RLS 事务内获取 advisory lock，不再出现无上下文假 404 |
+| 本地门禁 | `passed` | 根 typecheck、完整 communication/IM/Tinode 回归、delivery bundle/readiness/standalone migration 契约和 fork SHA-256 门禁通过；独立复审为 0 P0 / 0 P1 |
+| 残余容量风险 | `not_run` | migration 106 在生产级历史队列上的锁时长，以及真实阻塞 Provider 网络调用下的并发 close 压测尚未执行；二者进入下一性能目标，不改变本节 IM 正确性结论 |
+
+Provider 撤权与 PostgreSQL COMMIT 不能形成分布式原子事务。当前顺序优先避免越权：撤权失败不提交
+本地关闭；撤权成功后数据库失败可能留下本地 open、provider 已撤权的可用性恢复场景，需要
+retry/reconciliation，不能自动放宽 ACL。该边界已写入详细设计和 LED 对接规则。

@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 
 import { TinodeChatGateway, type TinodeGatewayConfig } from '../src/agent-runtime/collaboration/chat-gateway.js';
+import { tinodeServerApiKey } from '../src/agent-runtime/collaboration/tinode-env.js';
 
 export interface TinodeChatSmokeConfig {
   baseUrl: string;
@@ -33,7 +34,7 @@ export interface TinodeChatSmokeResult {
 export function createTinodeChatSmokeConfigFromEnv(env: NodeJS.ProcessEnv): TinodeChatSmokeConfig {
   const baseUrl = String(env.TINODE_BASE_URL || '').trim();
   const wsUrl = String(env.TINODE_WS_URL || '').trim();
-  const apiKey = String(env.TINODE_API_KEY || '').trim();
+  const apiKey = tinodeServerApiKey(env);
   const authToken = String(env.TINODE_AUTH_TOKEN || '').trim();
   const basicUser = String(env.TINODE_BASIC_USER || '').trim();
   const participantIdentity = String(env.TINODE_CHAT_SMOKE_PARTICIPANT_IDENTITY || '').trim();
@@ -41,7 +42,7 @@ export function createTinodeChatSmokeConfigFromEnv(env: NodeJS.ProcessEnv): Tino
   const userPasswordSecret = String(env.TINODE_USER_PASSWORD_SECRET || '').trim();
 
   if (!baseUrl && !wsUrl) throw new Error('TINODE_BASE_URL or TINODE_WS_URL is required');
-  if (!apiKey) throw new Error('TINODE_API_KEY is required');
+  if (!apiKey) throw new Error('TINODE_ROOT_API_KEY is required');
   if (!authToken && !basicUser) throw new Error('TINODE_AUTH_TOKEN or TINODE_BASIC_USER is required');
   if (participantIdentity && !participantProviderUserId && !userPasswordSecret) {
     throw new Error('TINODE_USER_PASSWORD_SECRET is required when creating Tinode smoke participant accounts');

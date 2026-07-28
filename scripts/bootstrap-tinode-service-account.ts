@@ -7,6 +7,7 @@ import {
 
 export {
   bootstrapTinodeServiceAccount,
+  promoteTinodeBasicAccountToRoot,
   tinodeServiceAccountBootstrapConfigFromEnv
 } from '../src/agent-runtime/collaboration/tinode-service-account-bootstrap.js';
 

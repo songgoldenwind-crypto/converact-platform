@@ -27,6 +27,7 @@ import {
   type TinodeInboundClaim,
   type TinodeInboundProcessResult
 } from './tinode-inbound-store.js';
+import { tinodeApiKeysDistinct } from './tinode-env.js';
 
 export interface TinodeInboundWorkerConfig {
   enabled: boolean;
@@ -238,9 +239,12 @@ export function tinodeInboundWorkerConfig(
     throw new Error('OPC_TINODE_INBOUND_WORKER_ENABLED must be 0 or 1');
   }
   const providerConfigured = hasValue(env.TINODE_WS_URL) || hasValue(env.TINODE_BASE_URL);
-  const authenticationConfigured = hasValue(env.TINODE_AUTH_TOKEN) || hasValue(env.TINODE_BASIC_USER);
+  const authenticationConfigured = hasValue(env.TINODE_AUTH_TOKEN) || (
+    hasValue(env.TINODE_BASIC_USER) && hasValue(env.TINODE_BASIC_PASSWORD)
+  );
   return {
-    enabled: providerConfigured && authenticationConfigured && enabledFlag !== '0',
+    enabled: providerConfigured && authenticationConfigured &&
+      tinodeApiKeysDistinct(env) && enabledFlag !== '0',
     intervalMs: boundedInteger(
       env.OPC_TINODE_INBOUND_INTERVAL_MS,
       5_000,

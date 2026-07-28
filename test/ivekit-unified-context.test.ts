@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import { routeCollaborationApi } from '../src/agent-runtime/collaboration/collaboration-http.js';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
+import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { MediaCallStore } from '../src/agent-runtime/livekit/media-call-store.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
@@ -152,7 +153,7 @@ test('iveKit context returns a projected system view without provider secrets', 
   try {
     const pg = new MemoryPg();
     const seeded = await seedContext(pg);
-    await createCollaborationModule({ pg }).sessions.closeSession(seeded.chat.id);
+    await new CollaborationStore(pg).closeSession(seeded.chat.id);
     const result = await getContext(pg, apiHeaders());
 
     assert.deepEqual(result.data.business_ref, { type: 'service_order', id: 'SO-CONTEXT-1' });

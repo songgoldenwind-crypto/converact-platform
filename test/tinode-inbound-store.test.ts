@@ -18,11 +18,37 @@ import {
 } from '../src/agent-runtime/collaboration/tinode-inbound-protocol.js';
 import { applyIveKitMigrations } from '../src/ivekit-migrations.js';
 import { initializeIveKitRuntimeRole } from '../src/ivekit-runtime-role.js';
+import type { PgQueryable } from '../src/db-pg.js';
 
 const adminUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_DATABASE_URL || '';
 const runtimeUrl = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_DATABASE_URL || '';
 const runtimePassword = process.env.OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD || '';
 const maybe = adminUrl && runtimeUrl && runtimePassword ? test : test.skip;
+
+test('Tinode inbound pause materializes a paused cursor and invalidates an existing lease', async () => {
+  const statements: Array<{ text: string; params?: unknown[] }> = [];
+  const pg = {
+    async query(text: string, params?: unknown[]) {
+      statements.push({ text, params });
+      return { rows: [], rowCount: 1, command: 'UPDATE', oid: 0, fields: [] };
+    }
+  } as unknown as PgQueryable;
+
+  await new TinodeInboundStore({ pg }).pauseBinding({
+    tenant_id: 'tenant-pause',
+    binding_id: 'binding-pause'
+  });
+
+  assert.match(statements[0].text, /set_config\('app\.current_tenant'/);
+  const pause = statements.find((statement) => statement.text.includes('INSERT INTO tinode_inbound_cursors'));
+  assert.ok(pause);
+  assert.match(pause.text, /SELECT \$2, binding\.tenant_id, binding\.id, binding\.provider_topic_id, 'paused'/);
+  assert.match(pause.text, /ON CONFLICT \(tenant_id, binding_id\) DO UPDATE/);
+  assert.match(pause.text, /status = 'paused'/);
+  assert.match(pause.text, /lease_token_hash = ''/);
+  assert.equal(pause.params?.[0], 'tenant-pause');
+  assert.match(String(pause.params?.[1]), /^ticursor_/);
+});
 
 maybe('Tinode inbound claim, inbox replay, drift detection, dead letter, and cursor are durable', async () => {
   const admin = new Pool({ connectionString: adminUrl, max: 1 });
@@ -171,6 +197,18 @@ maybe('Tinode inbound claim, inbox replay, drift detection, dead letter, and cur
     assert.equal(Number(cursor.rows[0].last_del_id), 0);
     assert.equal(cursor.rows[0].lease_token_hash, '');
     assert.equal(cursor.rows[0].lease_until, null);
+    await store.pauseBinding({ tenant_id: tenantId, binding_id: bindingId });
+    await admin.query(
+      `UPDATE collaboration_sessions SET status = 'closed', closed_at = CURRENT_TIMESTAMP
+       WHERE tenant_id = $1 AND id = $2`,
+      [tenantId, sessionId]
+    );
+    assert.equal((await store.discoverTenantIds({ limit: 10 })).includes(tenantId), false);
+    assert.equal(await store.claimNext({ tenant_id: tenantId, lease_ms: 30_000 }), null);
+    assert.equal((await admin.query(
+      `SELECT status FROM tinode_inbound_cursors WHERE tenant_id = $1 AND binding_id = $2`,
+      [tenantId, bindingId]
+    )).rows[0].status, 'paused');
     assert.equal(Number((await admin.query(
       `SELECT count(*) FROM tinode_inbound_events WHERE tenant_id = $1`
     , [tenantId])).rows[0].count), 4);

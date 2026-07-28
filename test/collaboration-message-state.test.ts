@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { MemoryPg } from '../src/db-pg.js';
 import { signAccessToken } from '../src/middleware/auth.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
+import { closeCollaborationSession } from '../src/agent-runtime/collaboration/collaboration-session-lifecycle.js';
 import { CollaborationMessageStateStore } from '../src/agent-runtime/collaboration/message-state-store.js';
 import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
 import { PolicyFindingStore } from '../src/agent-runtime/collaboration/policy-finding-store.js';
@@ -301,6 +302,58 @@ test('Tinode-backed message mutations create a same-transaction provider outbox'
   assert.equal(afterInboundProjection.rows.length, 1);
 });
 
+test('closing a session terminalizes pending Tinode mutations and rejects later edits', async () => {
+  const fixture = await messageFixture();
+  const collaboration = new CollaborationStore(fixture.pg);
+  const created = await collaboration.postOutgoingMessage({
+    tenant_id: fixture.tenantId,
+    session_id: fixture.sessionId,
+    sender_identity: 'customer-state',
+    message_type: 'text',
+    body: 'original close-safe body',
+    provider: 'tinode',
+    provider_topic_id: 'grp_close_safe',
+    provider_payload: 'original close-safe body',
+    provider_delivery_status: 'delivered'
+  });
+  const states = new CollaborationMessageStateStore(fixture.pg);
+  await states.editMessage({
+    tenant_id: fixture.tenantId,
+    session_id: fixture.sessionId,
+    message_id: created.message.id,
+    actor_identity: 'customer-state',
+    body: 'queued edit before close'
+  });
+
+  const closed = await closeCollaborationSession({
+    pg: fixture.pg,
+    tenant_id: fixture.tenantId,
+    session_id: fixture.sessionId,
+    actor_identity: 'customer-state'
+  });
+  assert.equal(closed.ok, true);
+  const outbox = await fixture.pg.query(
+    'SELECT * FROM tinode_message_mutation_outbox WHERE tenant_id = $1 AND message_id = $2 ORDER BY mutation_version ASC',
+    [fixture.tenantId, created.message.id]
+  );
+  assert.equal(outbox.rows[0]?.status, 'dead_letter');
+  assert.equal(outbox.rows[0]?.last_error_code, 'session_closed');
+  assert.equal(outbox.rows[0]?.claim_token, '');
+
+  await assert.rejects(
+    () => states.editMessage({
+      tenant_id: fixture.tenantId,
+      session_id: fixture.sessionId,
+      message_id: created.message.id,
+      actor_identity: 'customer-state',
+      body: 'must not mutate after close'
+    }),
+    (error: unknown) =>
+      (error as { status?: number }).status === 409 &&
+      /session is closed/.test(String((error as Error).message))
+  );
+});
+
 test('message mutation window is enforced from the original creation time', async () => {
   const fixture = await messageFixture();
   const createdAt = new Date(fixture.messages[0]!.created_at).getTime();
@@ -357,6 +410,21 @@ test('message state migration defines receipt uniqueness and forced tenant RLS',
   assert.match(migration, /before_body_hash/);
   assert.match(migration, /tenant_id, session_id, created_at, id/);
   assert.match(migration, /FORCE ROW LEVEL SECURITY/);
+});
+
+test('Tinode queue migration drains closed sessions and only schedules open sessions', () => {
+  const migration = readFileSync(
+    'src/migrations/106_tinode_open_session_mutation_queue.sql',
+    'utf8'
+  );
+  assert.match(migration, /UPDATE public\.tinode_message_mutation_outbox AS outbox/);
+  assert.match(migration, /UPDATE public\.collaboration_messages AS message/);
+  assert.match(migration, /last_error_code = 'session_closed'/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION opc_tinode_delivery_worker_tenant_ids/);
+  assert.match(migration, /CREATE OR REPLACE FUNCTION opc_tinode_mutation_tenant_ids/);
+  assert.equal((migration.match(/session\.status = 'open'/g) || []).length, 2);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION opc_tinode_delivery_worker_tenant_ids/);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION opc_tinode_mutation_tenant_ids/);
 });
 
 test('message mutation window is exposed across deployment surfaces', () => {

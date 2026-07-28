@@ -4,11 +4,23 @@ import { createDatabase } from '../src/db.js';
 import { MemoryPg } from '../src/db-pg.js';
 import { createIveKitModule } from '../src/agent-runtime/ivekit/index.js';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
+import {
+  LocalChatGateway,
+  type ChatParticipantInput
+} from '../src/agent-runtime/collaboration/chat-gateway.js';
 import type { RemoteGatewayClient } from '../src/agent-runtime/collaboration/remote-gateway-client.js';
 import { RustDeskGatewaySessionStore } from '../src/agent-runtime/collaboration/rustdesk-gateway-session-store.js';
 import { createTenant } from '../src/platform/tenant-core.js';
 
 const RUSTDESK_PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
+
+class RecordingLocalChatGateway extends LocalChatGateway {
+  readonly removed: string[] = [];
+
+  override async removeParticipant(input: ChatParticipantInput): Promise<void> {
+    this.removed.push(input.identity);
+  }
+}
 
 test('createIveKitModule exposes the reusable first-version facades', () => {
   const db = createDatabase(':memory:');
@@ -95,6 +107,71 @@ test('sessions.open creates a LED service order video and Web Assist bundle', as
   assert.equal(sessions[0].collaboration_session_id, bundle.collaboration_session_id);
 
   db.close();
+});
+
+test('sessions.close facade applies participant revocation and closed-session write guards', async () => {
+  const db = createDatabase(':memory:');
+  const pg = new MemoryPg();
+  const tenant = createTenant(db, { name: 'Facade Close Tenant' });
+  const gateway = new RecordingLocalChatGateway();
+  const iveKit = createIveKitModule({ db, pg, chatGateway: gateway });
+  const bundle = await iveKit.sessions.open({
+    tenant_id: tenant.id,
+    business_ref: {
+      tenant_id: tenant.id,
+      type: 'service_order',
+      id: 'facade-close-order'
+    },
+    participants: [
+      { identity: 'customer-close', role: 'customer' },
+      { identity: 'agent-close', role: 'agent' }
+    ]
+  });
+  const collaboration = createCollaborationModule({ pg });
+  await collaboration.sessions.ensureChatBinding({
+    tenant_id: tenant.id,
+    session_id: bundle.collaboration_session_id,
+    provider: 'local',
+    provider_topic_id: 'local-facade-close'
+  });
+
+  await iveKit.sessions.close({
+    tenant_id: tenant.id,
+    collaboration_session_id: bundle.collaboration_session_id,
+    actor_identity: 'agent-close'
+  });
+  assert.equal(
+    (await collaboration.sessions.getSession(bundle.collaboration_session_id))?.status,
+    'closed'
+  );
+  assert.deepEqual(gateway.removed.sort(), ['agent-close', 'customer-close']);
+
+  await iveKit.sessions.close({
+    tenant_id: tenant.id,
+    collaboration_session_id: bundle.collaboration_session_id,
+    actor_identity: 'agent-close'
+  });
+  assert.equal(gateway.removed.length, 2);
+  await assert.rejects(
+    () => iveKit.collaboration.postMessage({
+      tenant_id: tenant.id,
+      session_id: bundle.collaboration_session_id,
+      sender_identity: 'agent-close',
+      message_type: 'text',
+      body: 'must not be stored'
+    }),
+    (error: unknown) => (error as { status?: number }).status === 409
+  );
+
+  db.close();
+});
+
+test('raw session close is not exposed by the public collaboration module', () => {
+  const module = createCollaborationModule({ pg: new MemoryPg() });
+  assert.equal(
+    (module.sessions as unknown as { closeSession?: unknown }).closeSession,
+    undefined
+  );
 });
 
 test('remote.createWebAssistJoin requires active consent and returns a short lived join path', async () => {

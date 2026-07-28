@@ -13,6 +13,7 @@ import type {
   TinodeFileDeliveryGate,
   TinodeFileDeliveryTransition
 } from './tinode-file-delivery-gate.js';
+import { tinodeApiKeysDistinct } from './tinode-env.js';
 import {
   TinodeMessageMutationService,
   TinodeMessageMutationStore,
@@ -88,6 +89,9 @@ export class TinodeSyncWorker {
 
 export function tinodeSyncWorkerConfig(env: NodeJS.ProcessEnv = process.env): TinodeSyncWorkerConfig {
   const providerConfigured = hasValue(env.TINODE_BASE_URL) || hasValue(env.TINODE_WS_URL);
+  const rootAuthConfigured = hasValue(env.TINODE_AUTH_TOKEN) || (
+    hasValue(env.TINODE_BASIC_USER) && hasValue(env.TINODE_BASIC_PASSWORD)
+  );
   const enabledFlag = String(env.OPC_TINODE_DELIVERY_WORKER_ENABLED || '').trim();
   if (enabledFlag && enabledFlag !== '0' && enabledFlag !== '1') {
     throw new Error('OPC_TINODE_DELIVERY_WORKER_ENABLED must be 0 or 1');
@@ -100,7 +104,8 @@ export function tinodeSyncWorkerConfig(env: NodeJS.ProcessEnv = process.env): Ti
     throw new Error(`OPC_TINODE_DELIVERY_CLAIM_LEASE_MS must be between ${minimumLeaseMs} and 300000`);
   }
   return {
-    enabled: providerConfigured && enabledFlag !== '0',
+    enabled: providerConfigured && rootAuthConfigured &&
+      tinodeApiKeysDistinct(env) && enabledFlag !== '0',
     intervalMs: boundedInteger(env.OPC_TINODE_DELIVERY_INTERVAL_MS, 5_000, 1_000, 300_000, 'OPC_TINODE_DELIVERY_INTERVAL_MS'),
     batchSize: boundedInteger(env.OPC_TINODE_DELIVERY_BATCH_SIZE, 50, 1, 200, 'OPC_TINODE_DELIVERY_BATCH_SIZE'),
     maxAttempts: boundedInteger(env.OPC_TINODE_DELIVERY_MAX_ATTEMPTS, 3, 1, 10, 'OPC_TINODE_DELIVERY_MAX_ATTEMPTS'),
@@ -127,6 +132,18 @@ export function startTinodeSyncWorker(input: {
 }): TinodeSyncWorker {
   const env = input.env || process.env;
   const config = tinodeSyncWorkerConfig(env);
+  if (!config.enabled) {
+    return new TinodeSyncWorker({
+      config,
+      runDeliveryBatch: async () => ({
+        examined: 0,
+        claimed: 0,
+        delivered: 0,
+        retry_wait: 0,
+        failed: 0
+      })
+    });
+  }
   const gateway = configuredChatGateway(env);
   const service = new TinodeMessageDeliveryService({
     pg: input.pg,
@@ -140,6 +157,7 @@ export function startTinodeSyncWorker(input: {
   });
   const mutationService = new TinodeMessageMutationService({
     store: new TinodeMessageMutationStore(input.pg),
+    pg: input.pg,
     gateway,
     retryDelaysMs: config.retryDelaysMs,
     leaseMs: config.claimLeaseMs,

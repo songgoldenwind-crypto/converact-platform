@@ -447,6 +447,7 @@ export async function applyTinodeOverlay(input) {
   const topicInitPath = join(sourceDir, 'server/init_topic.go');
   const topicPath = join(sourceDir, 'server/topic.go');
   const hookPath = join(sourceDir, 'server/ivekit_owner.go');
+  const hookTestPath = join(sourceDir, 'server/ivekit_owner_test.go');
   const dockerfilePath = join(sourceDir, 'docker/tinode/Dockerfile');
   const entrypointPath = join(sourceDir, 'docker/tinode/entrypoint.sh');
   const configTemplatePath = join(sourceDir, 'docker/tinode/config.template');
@@ -488,9 +489,14 @@ export async function applyTinodeOverlay(input) {
   await cp(join(repoRoot, 'infra/ivekit/tinode/server-hook.go'), hookPath, {
     force: true
   });
+  await cp(
+    join(repoRoot, 'infra/ivekit/tinode/server-hook_test.go'),
+    hookTestPath,
+    { force: true }
+  );
   execFileSync(
     'gofmt',
-    ['-w', mainPath, topicInitPath, topicPath, hookPath],
+    ['-w', mainPath, topicInitPath, topicPath, hookPath, hookTestPath],
     { stdio: 'inherit' }
   );
   const hotPathPatchStatus = applyPinnedPatch(

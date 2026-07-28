@@ -4,7 +4,11 @@ import type { QueryResult, QueryResultRow } from 'pg';
 
 import type { ChatGateway } from '../src/agent-runtime/collaboration/chat-gateway.js';
 import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
-import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
+import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
+import {
+  prepareIveKitChatPlacement,
+  routeIveKitChatApi
+} from '../src/agent-runtime/ivekit/chat-http.js';
 import { createIveKitHttpServer } from '../src/agent-runtime/ivekit/http-server.js';
 import type {
   ComponentPlacementAdapter,
@@ -13,6 +17,7 @@ import type {
 import { MemoryPg, type PgQueryable } from '../src/db-pg.js';
 import { createDatabase } from '../src/db.js';
 import { createServer as createOpcServer } from '../src/http.js';
+import { signAccessToken } from '../src/middleware/auth.js';
 import { listenOnRandomPort } from './test-helpers.js';
 
 type TinodePlacement = Pick<
@@ -26,7 +31,7 @@ type TinodePlacement = Pick<
   | 'resolveOwner'
 >;
 
-test('chat HTTP reserves Tinode capacity before opening the tenant transaction', async (t) => {
+test('chat HTTP scopes the Tinode placement lookup before reserving capacity', async (t) => {
   const previousApiKey = process.env.OPC_API_KEY;
   process.env.OPC_API_KEY = 'chat-placement-http-key';
   const events: string[] = [];
@@ -37,6 +42,7 @@ test('chat HTTP reserves Tinode capacity before opening the tenant transaction',
       return reservation;
     },
     async hasPlacement() {
+      events.push('has-placement');
       return false;
     },
     async persistReserved() {},
@@ -96,13 +102,50 @@ test('chat HTTP reserves Tinode capacity before opening the tenant transaction',
   );
 
   assert.equal(response.status, 201);
-  assert.deepEqual(events.slice(0, 4), [
+  assert.deepEqual(events.slice(0, 9), [
+    'BEGIN',
+    'RLS',
+    'has-placement',
+    'COMMIT',
     'reserve:collab-a',
     'BEGIN',
     'RLS',
-    'route:collab-a'
+    'route:collab-a',
+    'COMMIT'
   ]);
   assert.equal(events.includes('release'), false);
+});
+
+test('JWT chat placement lookup uses the signed tenant transaction', async () => {
+  const previousJwtSecret = process.env.OPC_JWT_SECRET;
+  process.env.OPC_JWT_SECRET = 'chat-placement-jwt-secret-at-least-32-bytes';
+  const events: string[] = [];
+  const placement = placementFixture(events);
+  placement.hasPlacement = async () => {
+    events.push('has-placement');
+    return true;
+  };
+  try {
+    const prepared = await prepareIveKitChatPlacement(
+      'POST',
+      '/api/ivekit/chat/sessions/collab-jwt/participants',
+      {
+        authorization: `Bearer ${signAccessToken({
+          sub: 'agent-jwt',
+          tid: 'tenant-jwt',
+          role: 'operator'
+        })}`
+      },
+      { tinodePlacement: placement },
+      new RecordingPool(events)
+    );
+
+    assert.equal(prepared?.tenant_id, 'tenant-jwt');
+    assert.equal(prepared?.reservation, null);
+    assert.deepEqual(events, ['BEGIN', 'RLS', 'has-placement', 'COMMIT']);
+  } finally {
+    restoreEnv('OPC_JWT_SECRET', previousJwtSecret);
+  }
 });
 
 test('the OPC main HTTP server uses the same Tinode placement boundary', async (t) => {
@@ -124,6 +167,7 @@ test('the OPC main HTTP server uses the same Tinode placement boundary', async (
   const db = createDatabase(':memory:');
   const server = createOpcServer(db, pg, {
     ivekitChat: {
+      chatGateway: tinodeGatewayFixture(),
       tinodePlacement: placement,
       placementWorkerId: 'opc-chat-placement-test'
     }
@@ -164,7 +208,10 @@ test('the OPC main HTTP server uses the same Tinode placement boundary', async (
   );
 
   assert.equal(response.status, 201);
-  assert.deepEqual(events.slice(0, 5), [
+  assert.deepEqual(events.slice(0, 8), [
+    'BEGIN',
+    'RLS',
+    'COMMIT',
     `reserve:${session.id}`,
     'BEGIN',
     'RLS',
@@ -248,9 +295,11 @@ test('Tinode client plan uses the active Cell owner websocket endpoint', async (
   const previousApiKey = process.env.OPC_API_KEY;
   const previousPublicWs = process.env.TINODE_PUBLIC_WS_URL;
   const previousApiKeyValue = process.env.TINODE_API_KEY;
+  const previousRootApiKeyValue = process.env.TINODE_ROOT_API_KEY;
   process.env.OPC_API_KEY = 'chat-owner-route-key';
   process.env.TINODE_PUBLIC_WS_URL = 'wss://global-chat.invalid/v0/channels';
-  process.env.TINODE_API_KEY = 'owner-api-key';
+  process.env.TINODE_API_KEY = 'public-owner-api-key';
+  process.env.TINODE_ROOT_API_KEY = 'root-owner-api-key';
   const pg = new MemoryPg();
   const store = new CollaborationStore(pg);
   const session = await store.openSession({
@@ -287,17 +336,20 @@ test('Tinode client plan uses the active Cell owner websocket endpoint', async (
         chatGateway: gateway,
         tinodePlacement: placement
       }
-    ) as { status: number; data: { ws_url: string } };
+    ) as { status: number; data: { ws_url: string; api_key: string } };
 
     assert.equal(result.status, 201);
     assert.equal(
       result.data.ws_url,
-      'wss://tinode-owner.internal/v0/channels?apikey=owner-api-key'
+      'wss://tinode-owner.internal/v0/channels?apikey=public-owner-api-key'
     );
+    assert.equal(result.data.api_key, 'public-owner-api-key');
+    assert.equal(JSON.stringify(result).includes('root-owner-api-key'), false);
   } finally {
     restoreEnv('OPC_API_KEY', previousApiKey);
     restoreEnv('TINODE_PUBLIC_WS_URL', previousPublicWs);
     restoreEnv('TINODE_API_KEY', previousApiKeyValue);
+    restoreEnv('TINODE_ROOT_API_KEY', previousRootApiKeyValue);
   }
 });
 
@@ -374,11 +426,25 @@ test('closing a Tinode session closes and reconciles its Cell placement', async 
     identity: 'agent-close',
     role: 'agent'
   });
-  await store.ensureChatBinding({
+  const binding = await store.ensureChatBinding({
     tenant_id: 'tenant-close',
     session_id: session.id,
     provider: 'tinode',
     provider_topic_id: 'grp-close'
+  });
+  await new TinodeProviderUserStore(pg).upsert({
+    tenant_id: 'tenant-close',
+    session_id: session.id,
+    binding_id: binding.id,
+    provider_user_id: 'usr-agent-close',
+    identity: 'agent-close'
+  });
+  const message = await store.postMessage({
+    tenant_id: 'tenant-close',
+    session_id: session.id,
+    sender_identity: 'agent-close',
+    message_type: 'text',
+    body: 'placement close retry guard'
   });
   const placement = placementFixture(events);
 
@@ -413,10 +479,60 @@ test('closing a Tinode session closes and reconciles its Cell placement', async 
     `state:${session.id}:closed`,
     `reconcile:${session.id}:chat-close-test`
   ]);
+
+  const repeated = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/close`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/close`),
+    {},
+    '',
+    {
+      'x-api-key': 'chat-placement-close-key',
+      'x-tenant-id': 'tenant-close',
+      'x-user-id': 'agent-close'
+    },
+    {
+      chatGateway: tinodeGatewayFixture(),
+      tinodePlacement: placement,
+      placementWorkerId: 'chat-close-test'
+    }
+  ) as { status: number; data: { status: string }; afterCommit?: unknown };
+
+  assert.equal(repeated.status, 200);
+  assert.equal(repeated.data.status, 'closed');
+  assert.equal(repeated.afterCommit, undefined);
+  assert.deepEqual(events, [
+    `state:${session.id}:closed`,
+    `reconcile:${session.id}:chat-close-test`
+  ]);
+
+  const closedRetry = await routeIveKitChatApi(
+    pg,
+    'POST',
+    `/api/ivekit/chat/sessions/${session.id}/messages/${message.id}/delivery/retry`,
+    new URL(`http://localhost/api/ivekit/chat/sessions/${session.id}/messages/${message.id}/delivery/retry`),
+    {},
+    '',
+    {
+      'x-api-key': 'chat-placement-close-key',
+      'x-tenant-id': 'tenant-close',
+      'x-user-id': 'agent-close'
+    },
+    {
+      chatGateway: tinodeGatewayFixture(),
+      tinodePlacement: placement,
+      placementWorkerId: 'chat-close-test'
+    }
+  ) as { status: number; data: { error: string } };
+
+  assert.equal(closedRetry.status, 409);
+  assert.match(closedRetry.data.error, /session is closed/);
   restoreEnv('OPC_API_KEY', previousApiKey);
 });
 
 function placementFixture(events: string[]): TinodePlacement {
+  let ownerActive = true;
   return {
     async reserve(input) {
       return placementReservation(input.interaction_id);
@@ -430,12 +546,16 @@ function placementFixture(events: string[]): TinodePlacement {
     async releaseUncommitted() {},
     async requestState(_pg, input) {
       events.push(`state:${input.interaction_id}:${input.desired_state}`);
+      ownerActive = input.desired_state !== 'closed';
     },
     async reconcileOne(input) {
       events.push(`reconcile:${input.interaction_id}:${input.worker_id}`);
       return 'succeeded';
     },
     async resolveOwner() {
+      if (!ownerActive) {
+        throw Object.assign(new Error('placement_owner_not_active'), { status: 503 });
+      }
       return {
         interaction_kind: 'tinode_im',
         owner_component: 'tinode',

@@ -7,6 +7,8 @@ import {
   type ChatMutationInput,
   type ChatMutationResult
 } from './chat-gateway.js';
+import { withCollaborationSessionLock } from './collaboration-lock.js';
+import { CollaborationStore } from './collaboration-store.js';
 
 const DEFAULT_RETRY_DELAYS_MS = [2_000, 10_000, 30_000, 120_000] as const;
 
@@ -71,6 +73,7 @@ export interface TinodeMessageMutationStoreContract {
 export class TinodeMessageMutationService {
   private readonly store: TinodeMessageMutationStoreContract;
   private readonly gateway: Pick<ChatGateway, 'provider' | 'mutateMessage'>;
+  private readonly pg?: PgQueryable;
   private readonly now: () => Date;
   private readonly retryDelaysMs: readonly number[];
   private readonly leaseMs: number;
@@ -81,6 +84,7 @@ export class TinodeMessageMutationService {
 
   constructor(input: {
     store: TinodeMessageMutationStoreContract;
+    pg?: PgQueryable;
     gateway: Pick<ChatGateway, 'provider' | 'mutateMessage'>;
     now?: () => Date;
     retryDelaysMs?: readonly number[];
@@ -91,6 +95,7 @@ export class TinodeMessageMutationService {
     ) => void | Promise<void>;
   }) {
     this.store = input.store;
+    this.pg = input.pg;
     this.gateway = input.gateway;
     this.now = input.now || (() => new Date());
     this.retryDelaysMs = validRetryDelays(input.retryDelaysMs || DEFAULT_RETRY_DELAYS_MS);
@@ -113,7 +118,56 @@ export class TinodeMessageMutationService {
         });
         if (!claim) break;
         summary.examined += 1;
-        await this.processClaim(claim, summary);
+        let notification: TinodeMessageMutationStatus['status'] | null = null;
+        if (!this.pg) {
+          notification = await this.processClaim(claim, summary, this.store);
+        } else {
+          try {
+            notification = await withCollaborationSessionLock(this.pg, {
+              tenantId: claim.tenant_id,
+              sessionId: claim.session_id,
+              mode: 'shared'
+            }, async (lockedPg) => {
+              const open = await withPgTenant(lockedPg, claim.tenant_id, async (tenantPg) => {
+                const session = await new CollaborationStore(tenantPg).getSession(claim.session_id);
+                return Boolean(
+                  session &&
+                  session.tenant_id === claim.tenant_id &&
+                  session.status === 'open'
+                );
+              });
+              const lockedStore = new TinodeMessageMutationStore(lockedPg);
+              if (!open) {
+                const failed = await lockedStore.fail({
+                  claim,
+                  terminal: true,
+                  next_attempt_at: null,
+                  error_code: 'session_closed',
+                  error_message: 'collaboration session closed before provider mutation completed'
+                });
+                if (failed) {
+                  summary.dead_letter += 1;
+                  return 'dead_letter';
+                }
+                summary.stale += 1;
+                return null;
+              }
+              return this.processClaim(claim, summary, lockedStore);
+            });
+          } catch (error) {
+            if (!isSessionBusyError(error)) throw error;
+            const released = await this.store.fail({
+              claim,
+              terminal: false,
+              next_attempt_at: this.now(),
+              error_code: 'session_busy',
+              error_message: 'collaboration session update in progress'
+            });
+            if (released) summary.retry_wait += 1;
+            else summary.stale += 1;
+          }
+        }
+        if (notification) await this.onMutationUpdated?.(claim, notification);
       }
       if (summary.examined >= limit) break;
     }
@@ -122,8 +176,9 @@ export class TinodeMessageMutationService {
 
   private async processClaim(
     claim: TinodeMessageMutationClaim,
-    summary: TinodeMessageMutationRunSummary
-  ): Promise<void> {
+    summary: TinodeMessageMutationRunSummary,
+    store: TinodeMessageMutationStoreContract
+  ): Promise<TinodeMessageMutationStatus['status'] | null> {
     try {
       if (claim.action === 'edit' && claim.recovered_from_processing) {
         throw new ChatMutationOutcomeUnknownError(
@@ -147,11 +202,12 @@ export class TinodeMessageMutationService {
       if (result.provider_sync_status !== 'published') {
         throw new Error('Tinode mutation provider did not publish the operation');
       }
-      const completed = await this.store.complete(claim, result, this.now());
+      const completed = await store.complete(claim, result, this.now());
       if (completed) {
         summary.delivered += 1;
-        await this.onMutationUpdated?.(claim, 'delivered');
+        return 'delivered';
       } else summary.stale += 1;
+      return null;
     } catch (error) {
       const terminal = error instanceof ChatMutationOutcomeUnknownError
         || claim.attempt_count >= claim.max_attempts;
@@ -160,7 +216,7 @@ export class TinodeMessageMutationService {
         Math.max(0, claim.attempt_count - 1),
         this.retryDelaysMs.length - 1
       )] || 0;
-      const failed = await this.store.fail({
+      const failed = await store.fail({
         claim,
         terminal,
         next_attempt_at: terminal ? null : new Date(completedAt.getTime() + retryDelay),
@@ -170,11 +226,12 @@ export class TinodeMessageMutationService {
       if (!failed) summary.stale += 1;
       else if (terminal) {
         summary.dead_letter += 1;
-        await this.onMutationUpdated?.(claim, 'dead_letter');
+        return 'dead_letter';
       } else {
         summary.retry_wait += 1;
-        await this.onMutationUpdated?.(claim, 'retry_wait');
+        return 'retry_wait';
       }
+      return null;
     }
   }
 }
@@ -218,6 +275,9 @@ export class TinodeMessageMutationStore implements TinodeMessageMutationStoreCon
            FROM tinode_message_mutation_outbox AS outbox
            JOIN collaboration_messages AS message
              ON message.id = outbox.message_id AND message.tenant_id = outbox.tenant_id
+           JOIN collaboration_sessions AS session
+             ON session.id = outbox.session_id AND session.tenant_id = outbox.tenant_id
+            AND session.status = 'open'
            WHERE outbox.tenant_id = $1
              AND message.provider = 'tinode'
              AND message.provider_message_id <> ''
@@ -299,6 +359,10 @@ export class TinodeMessageMutationStore implements TinodeMessageMutationStoreCon
       return Number(updated.rowCount || 0) === 1;
     });
   }
+}
+
+function isSessionBusyError(error: unknown): boolean {
+  return (error as { code?: unknown })?.code === 'collaboration_session_busy';
 }
 
 function decodeClaim(row: Record<string, unknown>): TinodeMessageMutationClaim {

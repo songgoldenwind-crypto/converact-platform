@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migrationPath = 'src/migrations/041_tinode_inbound_sync.sql';
+const closedSessionMigrationPath = 'src/migrations/105_tinode_closed_session_inbound.sql';
 
 test('Tinode inbound migration defines durable mappings, cursors, inbox, and dead letters', () => {
   const sql = readFileSync(migrationPath, 'utf8');
@@ -36,4 +37,29 @@ test('standalone migration manifest includes Tinode inbound before runtime secur
   const security = policy.migrations.indexOf('services/ivekit-service/migrations/090_ivekit_runtime_security.sql');
   assert.equal(inbound >= 0, true);
   assert.equal(inbound < security, true);
+});
+
+test('Tinode closed-session migration pauses cursors and excludes closed sessions from discovery', () => {
+  const sql = readFileSync(closedSessionMigrationPath, 'utf8');
+  const policy = JSON.parse(readFileSync('services/ivekit-service/source-policy.json', 'utf8')) as {
+    migrations: string[];
+  };
+  const store = readFileSync('src/agent-runtime/collaboration/tinode-inbound-store.ts', 'utf8');
+  const lifecycle = readFileSync(
+    'src/agent-runtime/collaboration/collaboration-session-lifecycle.ts',
+    'utf8'
+  );
+
+  assert.match(sql, /UPDATE (?:public\.)?tinode_inbound_cursors/);
+  assert.match(sql, /SET status = 'paused'/);
+  assert.match(sql, /session\.status = 'closed'/);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION opc_tinode_inbound_tenant_ids/);
+  assert.match(sql, /session\.status = 'open'/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION opc_tinode_inbound_tenant_ids/);
+  assert.equal(policy.migrations.includes('105_tinode_closed_session_inbound.sql'), true);
+  assert.equal(policy.migrations.at(-1), '106_tinode_open_session_mutation_queue.sql');
+
+  assert.match(store, /async pauseBinding/);
+  assert.equal((store.match(/session\.status = 'open'/g) || []).length >= 2, true);
+  assert.match(lifecycle, /pauseBinding\(\{/);
 });

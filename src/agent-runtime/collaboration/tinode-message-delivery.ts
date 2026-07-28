@@ -9,6 +9,7 @@ import {
   type CollaborationMessageAttachmentInput,
   type CollaborationOutgoingMessageInput
 } from './collaboration-store.js';
+import { withCollaborationSessionLock } from './collaboration-lock.js';
 import type {
   CollaborationMessage,
   CollaborationMessageDeliveryAttempt,
@@ -98,6 +99,7 @@ interface DeliveryOutcome {
 interface DueMessage {
   id: string;
   tenant_id: string;
+  session_id: string;
 }
 
 export class TinodeMessageDeliveryService {
@@ -185,16 +187,28 @@ export class TinodeMessageDeliveryService {
       tenant_id: input.tenant_id,
       message_id: prepared.message.id
     });
-    const claim = await withPgTenant(this.pg, input.tenant_id, (pg) =>
-      new TinodeMessageDeliveryStore(pg).claimById({
+    const delivered = await withCollaborationSessionLock(this.pg, {
+      tenantId: input.tenant_id,
+      sessionId: input.session_id,
+      mode: 'shared'
+    }, async (lockedPg) => withPgTenant(lockedPg, input.tenant_id, async (tenantPg) => {
+      const session = await new CollaborationStore(tenantPg).getSession(input.session_id);
+      if (!session || session.tenant_id !== input.tenant_id) {
+        throw Object.assign(new Error('collaboration session not found'), { status: 404 });
+      }
+      if (session.status !== 'open') {
+        throw Object.assign(new Error('collaboration session is closed'), { status: 409 });
+      }
+      const claim = await new TinodeMessageDeliveryStore(tenantPg).claimById({
         tenant_id: input.tenant_id,
         message_id: prepared.message.id,
         now: this.now(),
         lease_ms: this.claimLeaseMs,
         max_attempts: this.maxAttempts
-      })
-    );
-    if (!claim) {
+      });
+      return claim ? this.publishAndComplete(claim, tenantPg) : null;
+    }));
+    if (!delivered) {
       const message = await this.getMessage({
         tenant_id: input.tenant_id,
         message_id: prepared.message.id
@@ -206,10 +220,9 @@ export class TinodeMessageDeliveryService {
         replayed: false
       };
     }
-
-    const message = await this.publishAndComplete(claim);
+    await this.onDeliveryUpdated?.(delivered);
     return {
-      message,
+      message: delivered,
       policy: prepared.policy,
       created: true,
       replayed: false
@@ -257,18 +270,31 @@ export class TinodeMessageDeliveryService {
       failed: 0
     };
     for (const candidate of due) {
-      const claim = await this.inScope(candidate.tenant_id, (pg) =>
-        new TinodeMessageDeliveryStore(pg).claimById({
-          tenant_id: candidate.tenant_id,
-          message_id: candidate.id,
-          now: this.now(),
-          lease_ms: this.claimLeaseMs,
-          max_attempts: this.maxAttempts
-        })
-      );
-      if (!claim) continue;
+      let message: CollaborationMessage | null = null;
+      try {
+        message = await withCollaborationSessionLock(this.pg, {
+          tenantId: candidate.tenant_id,
+          sessionId: candidate.session_id,
+          mode: 'shared'
+        }, async (lockedPg) => {
+          const claim = await withPgTenant(lockedPg, candidate.tenant_id, (tenantPg) =>
+            new TinodeMessageDeliveryStore(tenantPg).claimById({
+              tenant_id: candidate.tenant_id,
+              message_id: candidate.id,
+              now: this.now(),
+              lease_ms: this.claimLeaseMs,
+              max_attempts: this.maxAttempts
+            })
+          );
+          return claim ? this.publishAndComplete(claim, lockedPg) : null;
+        });
+      } catch (error) {
+        if (isSessionBusyError(error)) continue;
+        throw error;
+      }
+      if (!message) continue;
+      await this.onDeliveryUpdated?.(message);
       summary.claimed += 1;
-      const message = await this.publishAndComplete(claim);
       if (message.provider_delivery.status === 'delivered') summary.delivered += 1;
       if (message.provider_delivery.status === 'retry_wait') summary.retry_wait += 1;
       if (message.provider_delivery.status === 'failed') summary.failed += 1;
@@ -287,17 +313,40 @@ export class TinodeMessageDeliveryService {
   async retryMessage(input: { tenant_id: string; message_id: string }): Promise<CollaborationMessage | null> {
     await this.fileSecurityGate?.reconcileMessage(input);
     await this.reconcileExpired(input.tenant_id);
-    const claim = await withPgTenant(this.pg, input.tenant_id, (pg) =>
-      new TinodeMessageDeliveryStore(pg).claimById({
+    const existing = await withPgTenant(this.pg, input.tenant_id, (pg) =>
+      new CollaborationStore(pg).getMessage(input)
+    );
+    if (!existing) return null;
+    const result = await withCollaborationSessionLock(this.pg, {
+      tenantId: input.tenant_id,
+      sessionId: existing.session_id,
+      mode: 'shared'
+    }, async (lockedPg) => withPgTenant(lockedPg, input.tenant_id, async (tenantPg) => {
+      const session = await new CollaborationStore(tenantPg).getSession(existing.session_id);
+      if (!session || session.tenant_id !== input.tenant_id) return null;
+      if (session.status !== 'open') {
+        throw Object.assign(new Error('collaboration session is closed'), { status: 409 });
+      }
+      const claim = await new TinodeMessageDeliveryStore(tenantPg).claimById({
         tenant_id: input.tenant_id,
         message_id: input.message_id,
         now: this.now(),
         lease_ms: this.claimLeaseMs,
         max_attempts: this.maxAttempts
-      })
-    );
-    if (claim) return this.publishAndComplete(claim);
-    return this.getMessage(input);
+      });
+      if (claim) {
+        return {
+          message: await this.publishAndComplete(claim, tenantPg),
+          updated: true
+        };
+      }
+      return {
+        message: await new CollaborationStore(tenantPg).getMessage(input),
+        updated: false
+      };
+    }));
+    if (result.updated && result.message) await this.onDeliveryUpdated?.(result.message);
+    return result.message;
   }
 
   async listAttempts(input: {
@@ -317,10 +366,13 @@ export class TinodeMessageDeliveryService {
     return this.fileSecurityGate?.reconcileFile(input) || [];
   }
 
-  private async publishAndComplete(claim: DeliveryClaim): Promise<CollaborationMessage> {
+  private async publishAndComplete(
+    claim: DeliveryClaim,
+    pg: PgQueryable = this.pg
+  ): Promise<CollaborationMessage> {
     const outcome = await this.publish(claim);
-    const message = await withPgTenant(this.pg, claim.tenant_id, (pg) =>
-      new TinodeMessageDeliveryStore(pg).complete({
+    const message = await withPgTenant(pg, claim.tenant_id, (tenantPg) =>
+      new TinodeMessageDeliveryStore(tenantPg).complete({
         claim,
         outcome,
         now: this.now(),
@@ -328,7 +380,6 @@ export class TinodeMessageDeliveryService {
         retry_delay_ms: retryDelayForAttempt(this.retryDelaysMs, claim.attempt_number)
       })
     );
-    await this.onDeliveryUpdated?.(message);
     return message;
   }
 
@@ -425,6 +476,13 @@ class TinodeMessageDeliveryStore {
              provider_delivery_updated_at = $5
          WHERE id = $1 AND tenant_id = $2 AND provider = 'tinode'
            AND provider_delivery_attempts < $6
+           AND EXISTS (
+             SELECT 1
+             FROM collaboration_sessions AS session
+             WHERE session.id = collaboration_messages.session_id
+               AND session.tenant_id = collaboration_messages.tenant_id
+               AND session.status = 'open'
+           )
            AND NOT EXISTS (
              SELECT 1
              FROM collaboration_message_attachments AS attachment
@@ -568,30 +626,44 @@ class TinodeMessageDeliveryStore {
     const now = input.now.toISOString();
     const result = input.tenant_id
       ? await this.pg.query(
-        `SELECT id, tenant_id FROM collaboration_messages
-         WHERE tenant_id = $1 AND provider = 'tinode'
+        `SELECT messages.id, messages.tenant_id, messages.session_id
+         FROM collaboration_messages AS messages
+         JOIN collaboration_sessions AS session
+           ON session.id = messages.session_id
+          AND session.tenant_id = messages.tenant_id
+          AND session.status = 'open'
+         WHERE messages.tenant_id = $1 AND messages.provider = 'tinode'
            AND (
-             provider_delivery_status = 'pending'
-             OR (provider_delivery_status = 'retry_wait' AND (provider_next_attempt_at IS NULL OR provider_next_attempt_at <= $2))
-             OR (provider_delivery_status = 'publishing' AND provider_delivery_lease_until <= $2)
+             messages.provider_delivery_status = 'pending'
+             OR (messages.provider_delivery_status = 'retry_wait' AND (messages.provider_next_attempt_at IS NULL OR messages.provider_next_attempt_at <= $2))
+             OR (messages.provider_delivery_status = 'publishing' AND messages.provider_delivery_lease_until <= $2)
            )
-         ORDER BY COALESCE(provider_next_attempt_at, created_at) ASC
+         ORDER BY COALESCE(messages.provider_next_attempt_at, messages.created_at) ASC
          LIMIT $3`,
         [input.tenant_id, now, input.limit]
       )
       : await this.pg.query(
-        `SELECT id, tenant_id FROM collaboration_messages
-         WHERE provider = 'tinode'
+        `SELECT messages.id, messages.tenant_id, messages.session_id
+         FROM collaboration_messages AS messages
+         JOIN collaboration_sessions AS session
+           ON session.id = messages.session_id
+          AND session.tenant_id = messages.tenant_id
+          AND session.status = 'open'
+         WHERE messages.provider = 'tinode'
            AND (
-             provider_delivery_status = 'pending'
-             OR (provider_delivery_status = 'retry_wait' AND (provider_next_attempt_at IS NULL OR provider_next_attempt_at <= $1))
-             OR (provider_delivery_status = 'publishing' AND provider_delivery_lease_until <= $1)
+             messages.provider_delivery_status = 'pending'
+             OR (messages.provider_delivery_status = 'retry_wait' AND (messages.provider_next_attempt_at IS NULL OR messages.provider_next_attempt_at <= $1))
+             OR (messages.provider_delivery_status = 'publishing' AND messages.provider_delivery_lease_until <= $1)
            )
-         ORDER BY COALESCE(provider_next_attempt_at, created_at) ASC
+         ORDER BY COALESCE(messages.provider_next_attempt_at, messages.created_at) ASC
          LIMIT $2`,
         [now, input.limit]
       );
-    return result.rows.map((row) => ({ id: String(row.id), tenant_id: String(row.tenant_id) }));
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      tenant_id: String(row.tenant_id),
+      session_id: String(row.session_id)
+    }));
   }
 
   async listAttempts(input: {
@@ -815,6 +887,14 @@ function retryDelayForAttempt(delays: readonly number[], attemptNumber: number):
 function positiveInteger(value: number, field: string): number {
   if (!Number.isInteger(value) || value <= 0) throw new Error(`${field} must be a positive integer`);
   return value;
+}
+
+function isSessionBusyError(error: unknown): boolean {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    (error as { code?: unknown }).code === 'collaboration_session_busy'
+  );
 }
 
 function boundedLimit(value: number | undefined): number {

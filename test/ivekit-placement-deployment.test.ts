@@ -131,6 +131,7 @@ test('standalone Cell deployment admits Tinode through its native owner guard', 
   assert.match(tinode, /IVEKIT_COMPONENT_NODE_ID: \$\{TINODE_OWNER_NODE_ID/);
   assert.match(tinode, /IVEKIT_OWNER_GUARD_REQUIRED: "1"/);
   assert.match(tinode, /IVEKIT_TINODE_OWNER_API_TOKEN:/);
+  assert.match(tinode, /IVEKIT_TINODE_CLUSTER_MODE: standalone/);
 
   assert.match(componentNode, /network_mode: service:tinode/);
   assert.match(componentNode, /OPC_IVEKIT_COMPONENT_NODE_COMPONENT: tinode/);
@@ -166,6 +167,18 @@ test('standalone Cell deployment admits Tinode through its native owner guard', 
   assert.deepEqual(
     tinodeProbe?.dimensions['im.presence_sessions']?.labels,
     { dimension: 'im.presence_sessions' }
+  );
+});
+
+test('Tinode production StatefulSet explicitly enables clustered identity', () => {
+  const statefulSet = readFileSync(
+    'infra/capacity/kubernetes/tinode-statefulset.yaml',
+    'utf8'
+  );
+
+  assert.match(
+    statefulSet,
+    /name: IVEKIT_TINODE_CLUSTER_MODE[\s\S]*value: "clustered"/
   );
 });
 

@@ -1961,7 +1961,7 @@
       "patches": [
         {
           "path": "infra/ivekit/tinode/apply-overlay.mjs",
-          "sha256": "b29e401be7025d7962c9e3b8a3cd16dc8d2f815340579416ee7eda2391760df1",
+          "sha256": "44a93f49abb3a221c12d6051ee0efefc4c3c486f600d1ba35e7ee2a5a4460816",
           "applies_to": "tinode@22a7c18e9cd695e9a061bf1b8c84175196ef5a15",
           "purpose": "Apply the exact-release owner and hot-path overlays; parameterize writable runtime, local media and stable cluster members; and convert the upstream Dockerfile into an offline, bounded-source, non-root iveKit server and deterministic database initializer."
         },

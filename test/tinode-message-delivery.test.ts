@@ -12,7 +12,11 @@ import type {
   ChatUserBinding,
   ChatUserInput
 } from '../src/agent-runtime/collaboration/chat-gateway.js';
+import { withCollaborationSessionLock } from '../src/agent-runtime/collaboration/collaboration-lock.js';
+import { closeCollaborationSession } from '../src/agent-runtime/collaboration/collaboration-session-lifecycle.js';
+import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
+import { TinodeProviderUserStore } from '../src/agent-runtime/collaboration/tinode-provider-user-store.js';
 import { routeIveKitChatApi } from '../src/agent-runtime/ivekit/chat-http.js';
 import {
   TinodeMessageDeliveryService,
@@ -66,6 +70,7 @@ function publishedResult(providerTopicId: string, providerMessageId: string): Ch
 async function fixture(options: {
   outcomes: Array<ChatPublishResult | Error>;
   maxAttempts?: number;
+  onDeliveryUpdated?: (message: import('../src/agent-runtime/collaboration/types.js').CollaborationMessage) => void | Promise<void>;
 }) {
   const pg = new MemoryPg();
   const module = createCollaborationModule({ pg });
@@ -85,7 +90,8 @@ async function fixture(options: {
     now: () => new Date(nowMs),
     retryDelaysMs: [1_000, 2_000],
     maxAttempts: options.maxAttempts ?? 3,
-    claimLeaseMs: 5_000
+    claimLeaseMs: 5_000,
+    onDeliveryUpdated: options.onDeliveryUpdated
   });
   const input = {
     tenant_id: 'tenant_delivery',
@@ -183,6 +189,164 @@ test('Tinode delivery retries due work and does not republish a delivered messag
     failed: 0
   } satisfies TinodeDeliveryRunSummary);
   assert.equal(f.gateway.published.length, 2);
+});
+
+test('delivery callback failures occur after commit and cannot republish the provider message', async () => {
+  const f = await fixture({
+    outcomes: [
+      new Error('temporary network failure'),
+      publishedResult('grp_delivery', 'seq-callback-committed')
+    ],
+    onDeliveryUpdated: (message) => {
+      if (message.provider_delivery.status === 'delivered') {
+        throw new Error('application callback failed');
+      }
+    }
+  });
+  const created = await f.service.createAndDeliver(f.input);
+  assert.equal(created.message.provider_delivery.status, 'retry_wait');
+  f.advance(1_001);
+
+  await assert.rejects(
+    () => f.service.runDue({ limit: 10 }),
+    /application callback failed/
+  );
+  const committed = await f.service.getMessage({
+    tenant_id: f.input.tenant_id,
+    message_id: created.message.id
+  });
+  assert.equal(committed?.provider_delivery.status, 'delivered');
+  assert.equal(committed?.provider_delivery.provider_message_id, 'seq-callback-committed');
+  assert.equal((await f.service.runDue({ limit: 10 })).examined, 0);
+  assert.equal(f.gateway.published.length, 2);
+});
+
+test('Tinode delivery rejects new messages after the collaboration session closes', async () => {
+  const f = await fixture({ outcomes: [publishedResult('grp_delivery', 'seq-closed')] });
+  await new CollaborationStore(f.pg).closeSession(f.input.session_id);
+
+  await assert.rejects(
+    () => f.service.createAndDeliver(f.input),
+    (error: unknown) =>
+      (error as { status?: number }).status === 409 &&
+      /session is closed/.test(String((error as Error).message))
+  );
+  assert.equal(f.gateway.published.length, 0);
+  assert.deepEqual(await f.module.sessions.listMessages({
+    tenant_id: f.input.tenant_id,
+    session_id: f.input.session_id
+  }), []);
+});
+
+test('Tinode delivery does not retry queued messages after the collaboration session closes', async () => {
+  const f = await fixture({
+    outcomes: [
+      new Error('temporary network failure'),
+      publishedResult('grp_delivery', 'seq-must-not-publish')
+    ]
+  });
+  const created = await f.service.createAndDeliver(f.input);
+  assert.equal(created.message.provider_delivery.status, 'retry_wait');
+  await new CollaborationStore(f.pg).closeSession(f.input.session_id);
+  f.advance(1_001);
+
+  assert.deepEqual(await f.service.runDue({ limit: 10 }), {
+    examined: 0,
+    claimed: 0,
+    delivered: 0,
+    retry_wait: 0,
+    failed: 0
+  } satisfies TinodeDeliveryRunSummary);
+  await assert.rejects(
+    () => f.service.retryMessage({
+      tenant_id: f.input.tenant_id,
+      message_id: created.message.id
+    }),
+    (error: unknown) =>
+      (error as { status?: number }).status === 409 &&
+      /session is closed/.test(String((error as Error).message))
+  );
+  assert.equal(f.gateway.published.length, 1);
+});
+
+test('Tinode lifecycle close terminalizes queued provider delivery', async () => {
+  const f = await fixture({ outcomes: [new Error('temporary network failure')] });
+  const store = new CollaborationStore(f.pg);
+  await store.addParticipant({
+    tenant_id: f.input.tenant_id,
+    session_id: f.input.session_id,
+    identity: f.input.sender_identity,
+    role: 'customer'
+  });
+  const binding = await store.ensureChatBinding({
+    tenant_id: f.input.tenant_id,
+    session_id: f.input.session_id,
+    provider: 'tinode',
+    provider_topic_id: f.input.provider_topic_id
+  });
+  await new TinodeProviderUserStore(f.pg).upsert({
+    tenant_id: f.input.tenant_id,
+    session_id: f.input.session_id,
+    binding_id: binding.id,
+    provider_user_id: 'usr_customer_1',
+    identity: f.input.sender_identity
+  });
+  const created = await f.service.createAndDeliver(f.input);
+  assert.equal(created.message.provider_delivery.status, 'retry_wait');
+
+  const closed = await closeCollaborationSession({
+    pg: f.pg,
+    tenant_id: f.input.tenant_id,
+    session_id: f.input.session_id,
+    actor_identity: f.input.sender_identity,
+    gateway: f.gateway
+  });
+  assert.equal(closed.ok, true);
+  const message = await f.service.getMessage({
+    tenant_id: f.input.tenant_id,
+    message_id: created.message.id
+  });
+  assert.equal(message?.provider_delivery.status, 'failed');
+  assert.equal(message?.provider_delivery.last_error_code, 'session_closed');
+  assert.equal((await f.service.runDue({ limit: 10 })).examined, 0);
+  assert.equal(f.gateway.published.length, 1);
+});
+
+test('Tinode retry delivery holds a shared collaboration session lock while publishing', async () => {
+  const f = await fixture({
+    outcomes: [
+      new Error('temporary network failure'),
+      publishedResult('grp_delivery', 'seq-after-lock')
+    ]
+  });
+  await f.service.createAndDeliver(f.input);
+  f.advance(1_001);
+  let publishEntered!: () => void;
+  let releasePublish!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    publishEntered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    releasePublish = resolve;
+  });
+  f.gateway.beforePublish = async () => {
+    publishEntered();
+    await gate;
+  };
+
+  const retry = f.service.runDue({ limit: 10 });
+  await entered;
+  await assert.rejects(
+    () => withCollaborationSessionLock(f.pg, {
+      tenantId: f.input.tenant_id,
+      sessionId: f.input.session_id,
+      mode: 'exclusive'
+    }, async () => undefined),
+    (error: unknown) =>
+      (error as { code?: string }).code === 'collaboration_session_busy'
+  );
+  releasePublish();
+  assert.equal((await retry).delivered, 1);
 });
 
 test('Tinode delivery uses a client idempotency key without duplicate policy or provider work', async () => {

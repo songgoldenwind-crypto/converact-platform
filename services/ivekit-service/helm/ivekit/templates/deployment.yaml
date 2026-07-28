@@ -63,11 +63,16 @@ spec:
           env:
             - name: TINODE_WS_URL
               value: {{ printf "ws://%s:%v/v0/channels" (include "ivekit.tinodeFullname" .) .Values.tinode.service.port | quote }}
-            - name: TINODE_API_KEY
+            - name: TINODE_ROOT_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" . }}
-                  key: {{ .Values.tinode.secrets.apiKeyKey }}
+                  key: {{ .Values.tinode.secrets.rootApiKeyKey }}
+            - name: TINODE_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.postgresDsnKey }}
             - name: TINODE_BASIC_USER
               valueFrom:
                 secretKeyRef:
@@ -401,6 +406,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "ivekit.secretName" . }}
                   key: {{ .Values.tinode.secrets.apiKeyKey }}
+            - name: TINODE_ROOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ivekit.secretName" . }}
+                  key: {{ .Values.tinode.secrets.rootApiKeyKey }}
             - name: TINODE_BASIC_USER
               valueFrom:
                 secretKeyRef:

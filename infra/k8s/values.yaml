@@ -783,6 +783,7 @@ tinode:
   publicBaseUrl: ""
   publicWsUrl: ""
   apiKey: ""
+  rootApiKey: ""
   authToken: ""
   basicUser: ""
   basicPassword: ""

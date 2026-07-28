@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { tinodeApiKeysDistinct } from '../src/agent-runtime/collaboration/tinode-env.js';
 import { tinodeSyncWorkerConfig, type TinodeSyncWorkerConfig } from '../src/agent-runtime/collaboration/tinode-sync-worker.js';
 
 export type TinodeDeploymentPreflightStatus = 'pass' | 'warn' | 'fail';
@@ -19,6 +20,8 @@ export interface TinodeDeploymentPreflightReport {
     serverRuntimeConfigured: boolean;
     browserClientConfigured: boolean;
     providerConfigured: boolean;
+    rootApiKeyConfigured: boolean;
+    apiKeysDistinct: boolean;
     rootAuthConfigured: boolean;
     userProvisioningConfigured: boolean;
     baseUrl: string;
@@ -74,6 +77,8 @@ export function createTinodeDeploymentPreflightReport(
   const baseUrl = safeReportUrl(rawBaseUrl);
   const wsUrl = safeReportUrl(rawWsUrl);
   const apiKeyConfigured = hasValue(env.TINODE_API_KEY);
+  const rootApiKeyConfigured = hasValue(env.TINODE_ROOT_API_KEY);
+  const apiKeysDistinct = tinodeApiKeysDistinct(env);
   const rootTokenConfigured = hasValue(env.TINODE_AUTH_TOKEN);
   const basicRootAuthConfigured = hasValue(env.TINODE_BASIC_USER) && hasValue(env.TINODE_BASIC_PASSWORD);
   const rootAuthConfigured = rootTokenConfigured || basicRootAuthConfigured;
@@ -157,6 +162,24 @@ export function createTinodeDeploymentPreflightReport(
   );
   addCheck(
     checks,
+    'tinode_root_api_key',
+    rootApiKeyConfigured ? 'pass' : 'fail',
+    rootApiKeyConfigured
+      ? 'TINODE_ROOT_API_KEY is configured for server-side protocol connections'
+      : 'TINODE_ROOT_API_KEY is required for server-side trusted metadata operations'
+  );
+  if (apiKeyConfigured && rootApiKeyConfigured) {
+    addCheck(
+      checks,
+      'tinode_api_key_separation',
+      apiKeysDistinct ? 'pass' : 'fail',
+      apiKeysDistinct
+        ? 'Browser and server root API keys are distinct'
+        : 'TINODE_API_KEY and TINODE_ROOT_API_KEY must be different'
+    );
+  }
+  addCheck(
+    checks,
     'tinode_root_auth',
     rootAuthConfigured ? 'pass' : 'fail',
     rootAuthConfigured
@@ -194,7 +217,10 @@ export function createTinodeDeploymentPreflightReport(
       deploymentMode,
       serverRuntimeConfigured,
       browserClientConfigured,
-      providerConfigured: providerUrlConfigured && apiKeyConfigured,
+      providerConfigured: providerUrlConfigured && apiKeyConfigured &&
+        rootApiKeyConfigured && apiKeysDistinct,
+      rootApiKeyConfigured,
+      apiKeysDistinct,
       rootAuthConfigured,
       userProvisioningConfigured,
       baseUrl,
@@ -284,7 +310,8 @@ function tinodeDeploymentEnvChecklistItems(
     item('Tinode Runtime', 'TINODE_UID_ENCRYPTION_KEY', selfHosted, true, env.TINODE_UID_ENCRYPTION_KEY, 'Base64-encoded 16-byte Tinode UID encryption key.'),
     item('Tinode Runtime', 'TINODE_SAMPLE_DATA', false, false, env.TINODE_SAMPLE_DATA, 'Optional path to Tinode sample data; leave blank in production.'),
     item('Tinode Runtime', 'TINODE_UPGRADE_DB', false, false, env.TINODE_UPGRADE_DB, 'Set true only for an intentional Tinode schema upgrade.'),
-    item('Tinode Auth', 'TINODE_API_KEY', true, true, env.TINODE_API_KEY, 'Tinode API key used for protocol connections.'),
+    item('Tinode Auth', 'TINODE_API_KEY', true, true, env.TINODE_API_KEY, 'Non-root Tinode API key exposed only in browser client plans.'),
+    item('Tinode Auth', 'TINODE_ROOT_API_KEY', true, true, env.TINODE_ROOT_API_KEY, 'Root Tinode API key used only by OPC server-side protocol connections.'),
     item('Tinode Auth', 'TINODE_AUTH_TOKEN', !basicRootAuthConfigured, true, env.TINODE_AUTH_TOKEN, 'Tinode root auth token. Optional when complete basic root credentials are configured.'),
     item('Tinode Auth', 'TINODE_BASIC_USER', !rootTokenConfigured, false, env.TINODE_BASIC_USER, 'Tinode root basic-auth user. Optional when TINODE_AUTH_TOKEN is configured.'),
     item('Tinode Auth', 'TINODE_BASIC_PASSWORD', !rootTokenConfigured, true, env.TINODE_BASIC_PASSWORD, 'Tinode root basic-auth password. Optional when TINODE_AUTH_TOKEN is configured.'),

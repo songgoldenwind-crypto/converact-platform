@@ -77,8 +77,13 @@ test('bundled Tinode bootstraps its service account before API startup and enabl
 
   assert.match(apiDeployment, /name: tinode-service-account-bootstrap/);
   assert.match(apiDeployment, /command: \["node", "dist\/ivekit-tinode-bootstrap\.js"\]/);
+  assert.match(
+    apiDeployment,
+    /name: TINODE_POSTGRES_DSN[\s\S]*?key: \{\{ \.Values\.tinode\.secrets\.postgresDsnKey \}\}/
+  );
   for (const envName of [
     'TINODE_API_KEY',
+    'TINODE_ROOT_API_KEY',
     'TINODE_BASIC_USER',
     'TINODE_BASIC_PASSWORD',
     'TINODE_USER_PASSWORD_SECRET'
@@ -102,6 +107,7 @@ test('Tinode Helm values keep secrets external and document compact and cluster 
   assert.match(values, /postgresDsnKey: tinode-postgres-dsn/);
   assert.match(values, /apiKeySaltKey: tinode-api-key-salt/);
   assert.match(values, /apiKeyKey: tinode-api-key/);
+  assert.match(values, /rootApiKeyKey: tinode-root-api-key/);
   assert.match(values, /authTokenKeyKey: tinode-auth-token-key/);
   assert.match(values, /uidEncryptionKeyKey: tinode-uid-encryption-key/);
   assert.match(values, /basicUserKey: tinode-basic-user/);
@@ -114,5 +120,7 @@ test('Tinode Helm values keep secrets external and document compact and cluster 
   assert.match(readme, /shared S3 media is mandatory/i);
   assert.match(readme, /CREATEDB/);
   assert.match(readme, /service account bootstrap/i);
+  assert.match(readme, /Root-level service account/i);
+  assert.match(readme, /parameterized PostgreSQL update/i);
   assert.doesNotMatch(values, /postgres(?:ql)?:\/\//i);
 });

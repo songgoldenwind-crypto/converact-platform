@@ -19,6 +19,7 @@ function configuredEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     TINODE_PUBLIC_BASE_URL: 'https://chat.example.com',
     TINODE_PUBLIC_WS_URL: 'wss://chat.example.com/v0/channels',
     TINODE_API_KEY: 'tinode-api-key',
+    TINODE_ROOT_API_KEY: 'tinode-root-api-key',
     TINODE_AUTH_TOKEN: 'tinode-root-token',
     TINODE_USER_PASSWORD_SECRET: 'tinode-user-secret',
     TINODE_REQUEST_TIMEOUT_MS: '5000',
@@ -50,6 +51,7 @@ test('Tinode deployment preflight reports missing required deployment env', () =
 
   assert.equal(report.ok, false);
   assert.equal(report.summary.providerConfigured, false);
+  assert.equal(report.summary.rootApiKeyConfigured, false);
   assert.equal(report.summary.rootAuthConfigured, false);
   assert.equal(report.summary.userProvisioningConfigured, false);
   assert.deepEqual(
@@ -57,6 +59,7 @@ test('Tinode deployment preflight reports missing required deployment env', () =
     [
       'tinode_base_url',
       'tinode_api_key',
+      'tinode_root_api_key',
       'tinode_root_auth',
       'tinode_user_password_secret',
       'tinode_smoke_tenant'
@@ -69,6 +72,7 @@ test('Tinode deployment preflight passes configured websocket and user provision
 
   assert.equal(report.ok, true);
   assert.equal(report.summary.providerConfigured, true);
+  assert.equal(report.summary.rootApiKeyConfigured, true);
   assert.equal(report.summary.rootAuthConfigured, true);
   assert.equal(report.summary.userProvisioningConfigured, true);
   assert.equal(report.summary.clientWsUrl, 'wss://chat.example.com/v0/channels');
@@ -77,9 +81,39 @@ test('Tinode deployment preflight passes configured websocket and user provision
   assert.equal(report.checks.every((check) => check.status !== 'fail'), true);
 
   const serialized = JSON.stringify(report);
-  for (const secret of ['tinode-root-token', 'tinode-user-secret', 'tinode-api-key']) {
+  for (const secret of ['tinode-root-token', 'tinode-user-secret', 'tinode-api-key', 'tinode-root-api-key']) {
     assert.equal(serialized.includes(secret), false);
   }
+});
+
+test('Tinode deployment preflight rejects a provider configured without a server root API key', () => {
+  const report = createTinodeDeploymentPreflightReport(configuredEnv({
+    TINODE_ROOT_API_KEY: ''
+  }));
+
+  assert.equal(report.ok, false);
+  assert.equal(report.summary.providerConfigured, false);
+  assert.equal(report.summary.rootApiKeyConfigured, false);
+  assert.equal(
+    report.checks.some((check) => check.id === 'tinode_root_api_key' && check.status === 'fail'),
+    true
+  );
+});
+
+test('Tinode deployment preflight rejects identical browser and root API keys', () => {
+  const report = createTinodeDeploymentPreflightReport(configuredEnv({
+    TINODE_ROOT_API_KEY: ' tinode-api-key '
+  }));
+
+  assert.equal(report.ok, false);
+  assert.equal(report.summary.providerConfigured, false);
+  assert.equal(report.summary.apiKeysDistinct, false);
+  assert.equal(
+    report.checks.some((check) =>
+      check.id === 'tinode_api_key_separation' && check.status === 'fail'
+    ),
+    true
+  );
 });
 
 test('Tinode self-hosted preflight requires PostgreSQL and correctly sized runtime keys', () => {
@@ -241,10 +275,12 @@ test('Tinode deployment env checklist masks secrets and groups variables', () =>
     assert.match(checklist, new RegExp(heading));
   }
   assert.match(checklist, /\| TINODE_API_KEY \| required \| `configured` \|/);
+  assert.match(checklist, /\| TINODE_ROOT_API_KEY \| required \| `configured` \|/);
   assert.match(checklist, /\| TINODE_AUTH_TOKEN \| required \| `configured` \|/);
   assert.match(checklist, /\| TINODE_USER_PASSWORD_SECRET \| required \| `configured` \|/);
   assert.match(checklist, /\| OPC_TINODE_DELIVERY_CLAIM_LEASE_MS \| required \| `30000` \|/);
   assert.equal(checklist.includes('tinode-root-token'), false);
+  assert.equal(checklist.includes('tinode-root-api-key'), false);
   assert.equal(checklist.includes('tinode-user-secret'), false);
 });
 
@@ -289,7 +325,7 @@ test('Tinode deployment preflight CLI writes requested artifacts without leaking
   assert.equal(JSON.parse(stdout).ok, true);
   assert.equal(JSON.parse(readFileSync(reportPath, 'utf8')).ok, true);
   assert.match(readFileSync(checklistPath, 'utf8'), /TINODE_PUBLIC_WS_URL/);
-  for (const value of ['tinode-root-token', 'tinode-user-secret', 'tinode-api-key']) {
+  for (const value of ['tinode-root-token', 'tinode-user-secret', 'tinode-api-key', 'tinode-root-api-key']) {
     assert.equal(stdout.includes(value), false);
     assert.equal(readFileSync(checklistPath, 'utf8').includes(value), false);
   }

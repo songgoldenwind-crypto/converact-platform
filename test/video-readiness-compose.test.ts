@@ -347,6 +347,15 @@ test('standalone iveKit application stack isolates PostgreSQL, Tinode, OPC, and 
   assert.match(tinodeBootstrap, /image: \$\{IVEKIT_OPC_IMAGE_NAME:-ivekit-opc:local\}/);
   assert.match(tinodeBootstrap, /bootstrap-tinode-service-account\.ts/);
   assert.match(tinodeBootstrap, /tinode:\n\s+condition: service_healthy/);
+  const tinodeBootstrapEnvironment = readServiceEnvironment(compose, 'tinode-bootstrap');
+  assert.equal(
+    tinodeBootstrapEnvironment.TINODE_POSTGRES_DSN,
+    'postgresql://tinode_app@postgres:5432/tinode?sslmode=disable&connect_timeout=10'
+  );
+  assert.equal(
+    tinodeBootstrapEnvironment.PGPASSWORD,
+    '${TINODE_DB_PASSWORD:?TINODE_DB_PASSWORD is required}'
+  );
 
   const opc = readServiceBlock(compose, 'opc');
   assert.match(opc, /command: \["npm", "run", "start:ivekit"\]/);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createCollaborationModule } from '../src/agent-runtime/collaboration/index.js';
+import { CollaborationStore } from '../src/agent-runtime/collaboration/collaboration-store.js';
 import type {
   RemoteGatewayAuditEvent,
   RemoteGatewayClient,
@@ -223,7 +224,7 @@ test('collaboration and remote assistance can be resolved by business ref and cl
     remote_session_id: remote.id,
     actor_identity: 'agent_2'
   });
-  const closedSession = await module.sessions.closeSession(session.id);
+  const closedSession = await new CollaborationStore(pg).closeSession(session.id);
   const endedTool = await module.remote.getToolSession(tool.id);
   const auditCount = Number(
     (await pg.query<{ count: number }>(
