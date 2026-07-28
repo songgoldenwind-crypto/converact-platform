@@ -1,0 +1,145 @@
+{
+  "schema_version": "1.0.0",
+  "profile_id": "vos-eq-v3-g711-opus-1k-v1",
+  "revision": 1,
+  "status": "target",
+  "description": "Role-isolated target for 1,000 concurrent two-leg G.711 and Opus processing sessions; this is not a measured capacity claim.",
+  "source_identity": {
+    "contract_path": "docs/capacity/contracts/voice-media-goal4-v1.json",
+    "component_id": "voice-media-rs",
+    "service_version": "0.2.0",
+    "rustrtc_commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
+    "audio_codec_version": "0.3.40"
+  },
+  "primary_sut": {
+    "role": "processing",
+    "component_id": "voice-media-rs",
+    "node_count": 1,
+    "hardware": {
+      "qualification": "required_exact",
+      "deployment_model": "bare_metal",
+      "cpu_architecture": "x86_64",
+      "physical_cores": 32,
+      "logical_cpus": 32,
+      "memory_bytes": 68719476736,
+      "nic_bps": 25000000000,
+      "numa_nodes": 1
+    }
+  },
+  "generator": {
+    "component_id": "sipp-rtp-processing-fleet",
+    "separate_from_sut": true,
+    "minimum_nodes": 2,
+    "maximum_cpu_utilization_ratio": 0.7,
+    "clock_offset_max_ms": 5
+  },
+  "workload": {
+    "traffic_model": "bidirectional_two_leg_processing",
+    "media_path": "processing_inserted",
+    "transport": "RTP_UDP",
+    "codec_pairs": [
+      "PCMU_TO_PCMA",
+      "PCMA_TO_PCMU",
+      "PCMU_TO_OPUS",
+      "OPUS_TO_PCMU",
+      "PCMA_TO_OPUS",
+      "OPUS_TO_PCMA"
+    ],
+    "packetization_ms": 20,
+    "transcoding": true,
+    "recording": "none",
+    "active_processing_sessions": 1000,
+    "rtp_legs": 2000,
+    "aggregate_pps": 200000,
+    "steady_cps": 50,
+    "burst_cps": 150,
+    "mean_hold_seconds": 600
+  },
+  "phases": [
+    {
+      "phase_id": "warmup",
+      "duration_seconds": 600,
+      "load_ratio": 0.1
+    },
+    {
+      "phase_id": "staircase",
+      "duration_seconds": 1800,
+      "load_ratio": 0.8
+    },
+    {
+      "phase_id": "steady",
+      "duration_seconds": 3600,
+      "load_ratio": 1
+    },
+    {
+      "phase_id": "frontier",
+      "duration_seconds": 900,
+      "load_ratio": 1.1
+    },
+    {
+      "phase_id": "endurance",
+      "duration_seconds": 28800,
+      "load_ratio": 0.8
+    }
+  ],
+  "thresholds": {
+    "setup_success_ratio": 0.999,
+    "server_packet_loss_ratio": 0.001,
+    "processing_latency_p99_ms": 10,
+    "steady_cpu_utilization_ratio": 0.75,
+    "burst_cpu_utilization_ratio": 0.9,
+    "reconciliation_delta": 0,
+    "unexpected_process_restart_count": 0,
+    "unexpected_ordinary_relay_termination_count": 0
+  },
+  "quality": {
+    "minimum_pesq": 3.6,
+    "minimum_mos_lqo": 3.8,
+    "maximum_consecutive_plc_frames": 10,
+    "weak_network_profiles": [
+      "reorder",
+      "duplicate",
+      "loss_1_percent",
+      "loss_3_percent",
+      "loss_5_percent",
+      "burst_loss",
+      "jitter_20ms",
+      "jitter_40ms"
+    ]
+  },
+  "finalizer": {
+    "entrypoint": "scripts/ivekit-voice-media-goal4-finalize.ts",
+    "adapter_status": "skeleton",
+    "minimum_repetitions": 3,
+    "invalidate_on_generator_failure": true,
+    "preserve_all_attempts": true
+  },
+  "external_dependencies": [
+    {
+      "dependency_id": "exact-bare-metal-hardware",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    },
+    {
+      "dependency_id": "independent-load-generator-fleet",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    },
+    {
+      "dependency_id": "synchronized-clocks",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    },
+    {
+      "dependency_id": "physical-audio-quality-collector",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    }
+  ],
+  "claim": {
+    "status": "target",
+    "capacity_claim": "none",
+    "verified_at": null,
+    "evidence_manifest": null
+  }
+}

@@ -1,0 +1,384 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opc.local/schemas/voice-media-goal4.schema.json",
+  "title": "iveKit media processing and transcoding Goal 4 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "revision",
+    "status",
+    "generated_at",
+    "sources",
+    "authority",
+    "codec_slices",
+    "feature_slices",
+    "processing_runtime",
+    "failure_matrix",
+    "metrics",
+    "profile_path",
+    "verification",
+    "claim"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "contract_id": { "const": "voice-media-goal4-v1" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "status": {
+      "enum": ["target", "implemented", "functional_pass", "retired"]
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rustpbx",
+        "rustrtc",
+        "rtpengine",
+        "audio_codec",
+        "processing_service"
+      ],
+      "properties": {
+        "rustpbx": { "$ref": "#/$defs/gitSource" },
+        "rustrtc": { "$ref": "#/$defs/gitSource" },
+        "rtpengine": { "$ref": "#/$defs/gitSource" },
+        "audio_codec": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["crate", "version"],
+          "properties": {
+            "crate": { "const": "audio-codec" },
+            "version": { "const": "0.3.40" }
+          }
+        },
+        "processing_service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "version"],
+          "properties": {
+            "path": { "const": "services/voice-media-rs" },
+            "version": { "const": "0.2.0" }
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_dialog_owner",
+        "logical_media_graph_owner",
+        "fast_path_owner",
+        "processing_owner",
+        "command_authority",
+        "reservation_authority",
+        "packet_path_remote_dependency",
+        "ordinary_relay_enters_processing_pool"
+      ],
+      "properties": {
+        "call_dialog_owner": { "const": "rustpbx" },
+        "logical_media_graph_owner": { "const": "rustpbx" },
+        "fast_path_owner": { "const": "rtpengine" },
+        "processing_owner": { "const": "voice-media-rs" },
+        "command_authority": { "const": "media_control_agent" },
+        "reservation_authority": { "const": "component_node_admission" },
+        "packet_path_remote_dependency": { "const": false },
+        "ordinary_relay_enters_processing_pool": { "const": false }
+      }
+    },
+    "codec_slices": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/codecSlice" }
+    },
+    "feature_slices": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slice_id", "features", "verification"],
+        "properties": {
+          "slice_id": {
+            "enum": ["ivr-v1", "conference-v1"]
+          },
+          "features": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "playback",
+                "gather",
+                "barge_in",
+                "rfc4733",
+                "sip_info",
+                "in_band_dtmf",
+                "mix",
+                "mute",
+                "volume",
+                "active_speaker"
+              ]
+            }
+          },
+          "verification": { "$ref": "#/$defs/verificationStatus" }
+        }
+      }
+    },
+    "processing_runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codec_pair_slots_bounded",
+        "rtp_receive_queue_bounded",
+        "jitter_buffer_bounded",
+        "playback_queue_bounded",
+        "event_queue_bounded",
+        "unknown_codec_fail_closed",
+        "cross_pair_slot_borrowing",
+        "control_plane_failure_established_media",
+        "owner_epoch_fenced",
+        "command_sequence_fenced",
+        "idempotent_replay",
+        "database_in_packet_path",
+        "provider_in_packet_path",
+        "object_storage_in_packet_path"
+      ],
+      "properties": {
+        "codec_pair_slots_bounded": { "const": true },
+        "rtp_receive_queue_bounded": { "const": true },
+        "jitter_buffer_bounded": { "const": true },
+        "playback_queue_bounded": { "const": true },
+        "event_queue_bounded": { "const": true },
+        "unknown_codec_fail_closed": { "const": true },
+        "cross_pair_slot_borrowing": { "const": false },
+        "control_plane_failure_established_media": { "const": "continue" },
+        "owner_epoch_fenced": { "const": true },
+        "command_sequence_fenced": { "const": true },
+        "idempotent_replay": { "const": true },
+        "database_in_packet_path": { "const": false },
+        "provider_in_packet_path": { "const": false },
+        "object_storage_in_packet_path": { "const": false }
+      }
+    },
+    "failure_matrix": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "failure_id",
+          "established_processing",
+          "new_processing_admission",
+          "ordinary_relay",
+          "required_evidence"
+        ],
+        "properties": {
+          "failure_id": {
+            "enum": [
+              "processing-capacity-exhausted",
+              "processing-control-unavailable",
+              "processing-worker-restart",
+              "postgres-unavailable",
+              "nats-unavailable",
+              "recorder-unavailable",
+              "object-storage-unavailable"
+            ]
+          },
+          "established_processing": {
+            "enum": ["continue", "interrupt_visible", "degrade_evidence_only"]
+          },
+          "new_processing_admission": {
+            "enum": ["continue", "reject", "reject_profile"]
+          },
+          "ordinary_relay": { "const": "continue" },
+          "required_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{2,63}$"
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed_labels", "forbidden_labels", "required_metrics"],
+      "properties": {
+        "allowed_labels": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "prefixItems": [
+            { "const": "codec_pair" },
+            { "const": "direction" },
+            { "const": "profile" },
+            { "const": "result" },
+            { "const": "failure_stage" },
+            { "const": "runtime_mode" }
+          ],
+          "items": false
+        },
+        "forbidden_labels": {
+          "type": "array",
+          "minItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "tenant_id",
+              "call_id",
+              "leg_id",
+              "reservation_id",
+              "phone_number",
+              "ssrc"
+            ]
+          }
+        },
+        "required_metrics": {
+          "type": "array",
+          "minItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^ivekit_voice_processing_[a-z0-9_]+$"
+          }
+        }
+      }
+    },
+    "profile_path": {
+      "const": "docs/capacity/profiles/vos-eq-v3-g711-opus-1k-v1.json"
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "rust_unit",
+        "exact_source_compile",
+        "real_rtp",
+        "quality",
+        "failure_isolation",
+        "capacity",
+        "supply_chain"
+      ],
+      "properties": {
+        "schema": { "$ref": "#/$defs/verificationStatus" },
+        "rust_unit": { "$ref": "#/$defs/verificationStatus" },
+        "exact_source_compile": { "$ref": "#/$defs/verificationStatus" },
+        "real_rtp": { "$ref": "#/$defs/verificationStatus" },
+        "quality": { "$ref": "#/$defs/verificationStatus" },
+        "failure_isolation": { "$ref": "#/$defs/verificationStatus" },
+        "capacity": { "$ref": "#/$defs/verificationStatus" },
+        "supply_chain": { "$ref": "#/$defs/verificationStatus" }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "functional",
+        "production",
+        "benchmark",
+        "capacity_claim",
+        "production_eligible"
+      ],
+      "properties": {
+        "functional": { "$ref": "#/$defs/claimStatus" },
+        "production": { "$ref": "#/$defs/claimStatus" },
+        "benchmark": { "$ref": "#/$defs/claimStatus" },
+        "capacity_claim": { "const": "none" },
+        "production_eligible": { "const": false }
+      }
+    }
+  },
+  "$defs": {
+    "gitSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "codecSlice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slice_id",
+        "codecs",
+        "codec_pairs",
+        "packetization_ms",
+        "capacity_profile_id",
+        "verification"
+      ],
+      "properties": {
+        "slice_id": {
+          "enum": ["g711-opus-v1", "g729-v1", "amr-v1", "t38-v1"]
+        },
+        "codecs": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "PCMU",
+              "PCMA",
+              "OPUS",
+              "G729",
+              "AMR_NB",
+              "AMR_WB",
+              "T38"
+            ]
+          }
+        },
+        "codec_pairs": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z0-9_]+_TO_[A-Z0-9_]+$"
+          }
+        },
+        "packetization_ms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 60
+          }
+        },
+        "capacity_profile_id": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z][a-z0-9-]{2,127}-v[1-9][0-9]*$"
+        },
+        "verification": { "$ref": "#/$defs/verificationStatus" }
+      }
+    },
+    "verificationStatus": {
+      "enum": ["not_run", "controlled_pass", "failed", "production_pass"]
+    },
+    "claimStatus": {
+      "enum": ["not_run", "failed", "functional_pass", "production_pass"]
+    }
+  }
+}

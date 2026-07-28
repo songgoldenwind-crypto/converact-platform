@@ -1,0 +1,261 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "voice-media-goal4-v1",
+  "revision": 1,
+  "status": "target",
+  "generated_at": "2026-07-28T12:00:00.000Z",
+  "sources": {
+    "rustpbx": {
+      "repository": "https://github.com/restsend/rustpbx",
+      "commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
+    },
+    "rustrtc": {
+      "repository": "https://github.com/restsend/rustrtc",
+      "commit": "166c6d22984429eb6b509920c14fcd69f974f0b3"
+    },
+    "rtpengine": {
+      "repository": "https://github.com/sipwise/rtpengine",
+      "commit": "506cfa74386a5373e40fca139a932917f22f0524"
+    },
+    "audio_codec": {
+      "crate": "audio-codec",
+      "version": "0.3.40"
+    },
+    "processing_service": {
+      "path": "services/voice-media-rs",
+      "version": "0.2.0"
+    }
+  },
+  "authority": {
+    "call_dialog_owner": "rustpbx",
+    "logical_media_graph_owner": "rustpbx",
+    "fast_path_owner": "rtpengine",
+    "processing_owner": "voice-media-rs",
+    "command_authority": "media_control_agent",
+    "reservation_authority": "component_node_admission",
+    "packet_path_remote_dependency": false,
+    "ordinary_relay_enters_processing_pool": false
+  },
+  "codec_slices": [
+    {
+      "slice_id": "g711-opus-v1",
+      "codecs": ["PCMU", "PCMA", "OPUS"],
+      "codec_pairs": [
+        "PCMU_TO_PCMA",
+        "PCMA_TO_PCMU",
+        "PCMU_TO_OPUS",
+        "OPUS_TO_PCMU",
+        "PCMA_TO_OPUS",
+        "OPUS_TO_PCMA"
+      ],
+      "packetization_ms": [20],
+      "capacity_profile_id": "vos-eq-v3-g711-opus-1k-v1",
+      "verification": "not_run"
+    },
+    {
+      "slice_id": "g729-v1",
+      "codecs": ["PCMU", "PCMA", "G729"],
+      "codec_pairs": [
+        "PCMU_TO_G729",
+        "G729_TO_PCMU",
+        "PCMA_TO_G729",
+        "G729_TO_PCMA"
+      ],
+      "packetization_ms": [10, 20],
+      "capacity_profile_id": null,
+      "verification": "not_run"
+    },
+    {
+      "slice_id": "amr-v1",
+      "codecs": ["PCMU", "PCMA", "OPUS", "AMR_NB", "AMR_WB"],
+      "codec_pairs": [
+        "PCMU_TO_AMR_NB",
+        "AMR_NB_TO_PCMU",
+        "PCMU_TO_AMR_WB",
+        "AMR_WB_TO_PCMU",
+        "OPUS_TO_AMR_WB",
+        "AMR_WB_TO_OPUS"
+      ],
+      "packetization_ms": [20],
+      "capacity_profile_id": null,
+      "verification": "not_run"
+    },
+    {
+      "slice_id": "t38-v1",
+      "codecs": ["PCMU", "PCMA", "T38"],
+      "codec_pairs": [
+        "PCMU_TO_T38",
+        "T38_TO_PCMU",
+        "PCMA_TO_T38",
+        "T38_TO_PCMA"
+      ],
+      "packetization_ms": [20],
+      "capacity_profile_id": null,
+      "verification": "not_run"
+    }
+  ],
+  "feature_slices": [
+    {
+      "slice_id": "ivr-v1",
+      "features": [
+        "playback",
+        "gather",
+        "barge_in",
+        "rfc4733",
+        "sip_info",
+        "in_band_dtmf"
+      ],
+      "verification": "not_run"
+    },
+    {
+      "slice_id": "conference-v1",
+      "features": [
+        "mix",
+        "mute",
+        "volume",
+        "active_speaker"
+      ],
+      "verification": "not_run"
+    }
+  ],
+  "processing_runtime": {
+    "codec_pair_slots_bounded": true,
+    "rtp_receive_queue_bounded": true,
+    "jitter_buffer_bounded": true,
+    "playback_queue_bounded": true,
+    "event_queue_bounded": true,
+    "unknown_codec_fail_closed": true,
+    "cross_pair_slot_borrowing": false,
+    "control_plane_failure_established_media": "continue",
+    "owner_epoch_fenced": true,
+    "command_sequence_fenced": true,
+    "idempotent_replay": true,
+    "database_in_packet_path": false,
+    "provider_in_packet_path": false,
+    "object_storage_in_packet_path": false
+  },
+  "failure_matrix": [
+    {
+      "failure_id": "processing-capacity-exhausted",
+      "established_processing": "continue",
+      "new_processing_admission": "reject",
+      "ordinary_relay": "continue",
+      "required_evidence": [
+        "capacity_rejection",
+        "existing_processing_continuity",
+        "ordinary_relay_continuity"
+      ]
+    },
+    {
+      "failure_id": "processing-control-unavailable",
+      "established_processing": "continue",
+      "new_processing_admission": "reject",
+      "ordinary_relay": "continue",
+      "required_evidence": [
+        "rtp_continuity",
+        "command_reconciliation"
+      ]
+    },
+    {
+      "failure_id": "processing-worker-restart",
+      "established_processing": "interrupt_visible",
+      "new_processing_admission": "reject",
+      "ordinary_relay": "continue",
+      "required_evidence": [
+        "affected_processing_sessions",
+        "ordinary_relay_continuity",
+        "orphan_recovery"
+      ]
+    },
+    {
+      "failure_id": "postgres-unavailable",
+      "established_processing": "continue",
+      "new_processing_admission": "reject",
+      "ordinary_relay": "continue",
+      "required_evidence": [
+        "rtp_continuity",
+        "durable_admission_rejected"
+      ]
+    },
+    {
+      "failure_id": "nats-unavailable",
+      "established_processing": "continue",
+      "new_processing_admission": "reject_profile",
+      "ordinary_relay": "continue",
+      "required_evidence": [
+        "rtp_continuity",
+        "ordinary_admission_unaffected"
+      ]
+    },
+    {
+      "failure_id": "recorder-unavailable",
+      "established_processing": "degrade_evidence_only",
+      "new_processing_admission": "continue",
+      "ordinary_relay": "continue",
+      "required_evidence": [
+        "rtp_continuity",
+        "recording_state"
+      ]
+    },
+    {
+      "failure_id": "object-storage-unavailable",
+      "established_processing": "degrade_evidence_only",
+      "new_processing_admission": "continue",
+      "ordinary_relay": "continue",
+      "required_evidence": [
+        "rtp_continuity",
+        "bounded_spool"
+      ]
+    }
+  ],
+  "metrics": {
+    "allowed_labels": [
+      "codec_pair",
+      "direction",
+      "profile",
+      "result",
+      "failure_stage",
+      "runtime_mode"
+    ],
+    "forbidden_labels": [
+      "tenant_id",
+      "call_id",
+      "leg_id",
+      "reservation_id",
+      "phone_number",
+      "ssrc"
+    ],
+    "required_metrics": [
+      "ivekit_voice_processing_slots",
+      "ivekit_voice_processing_commands_total",
+      "ivekit_voice_processing_latency_seconds",
+      "ivekit_voice_processing_rtp_packets_total",
+      "ivekit_voice_processing_rtcp_packets_total",
+      "ivekit_voice_processing_jitter_depth",
+      "ivekit_voice_processing_reordered_total",
+      "ivekit_voice_processing_duplicate_total",
+      "ivekit_voice_processing_late_total",
+      "ivekit_voice_processing_concealed_total",
+      "ivekit_voice_processing_queue_dropped_total",
+      "ivekit_voice_processing_sessions"
+    ]
+  },
+  "profile_path": "docs/capacity/profiles/vos-eq-v3-g711-opus-1k-v1.json",
+  "verification": {
+    "schema": "not_run",
+    "rust_unit": "not_run",
+    "exact_source_compile": "not_run",
+    "real_rtp": "not_run",
+    "quality": "not_run",
+    "failure_isolation": "not_run",
+    "capacity": "not_run",
+    "supply_chain": "not_run"
+  },
+  "claim": {
+    "functional": "not_run",
+    "production": "not_run",
+    "benchmark": "not_run",
+    "capacity_claim": "none",
+    "production_eligible": false
+  }
+}

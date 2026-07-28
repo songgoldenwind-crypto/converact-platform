@@ -68,23 +68,28 @@ fn main() {
         } else {
             match (method, url.as_str()) {
                 (Method::Get, "/health") => json_response(
-                StatusCode(200),
-                json!({
-                    "status": "ok",
-                    "service": "voice-media-rs",
-                    "capabilities": {
-                        "webrtc_session_create": "ready",
-                        "recording_archive": "ready",
-                        "recording_purge": "ready",
-                        "gather_digits": "stub_experimental"
-                    }
-                }),
-            ),
+                    StatusCode(200),
+                    json!({
+                        "status": "ok",
+                        "service": "voice-media-rs",
+                        "capabilities": {
+                            "webrtc_session_create": "ready",
+                            "recording_archive": "ready",
+                            "recording_purge": "ready",
+                            "processing_core": "library_ready_not_runtime_wired",
+                            "processing_sessions": "owner_fenced_not_runtime_wired",
+                            "gather_digits": "stub_experimental"
+                        }
+                    }),
+                ),
                 (Method::Post, "/webrtc/session/create") => {
                     handle_json_request::<WebRtcSessionRequest, _>(&mut request, issue_session)
                 }
                 (Method::Post, "/recordings/archive") => {
-                    handle_json_request::<RecordingArchiveRequest, _>(&mut request, archive_recording)
+                    handle_json_request::<RecordingArchiveRequest, _>(
+                        &mut request,
+                        archive_recording,
+                    )
                 }
                 (Method::Post, "/recordings/purge") => {
                     handle_json_request::<RecordingPurgeRequest, _>(&mut request, purge_recording)
@@ -105,12 +110,16 @@ fn main() {
 }
 
 fn issue_session(payload: WebRtcSessionRequest) -> Value {
-    let _request_scope = (&payload.tenant_id, &payload.call_session_id, &payload.status);
+    let _request_scope = (
+        &payload.tenant_id,
+        &payload.call_session_id,
+        &payload.status,
+    );
     let token = payload.token.unwrap_or_else(generate_token);
     let ttl_seconds = payload.ttl_seconds.unwrap_or(900);
-    let expires_at = payload.expires_at.unwrap_or_else(|| {
-        chrono_like_expiry(ttl_seconds)
-    });
+    let expires_at = payload
+        .expires_at
+        .unwrap_or_else(|| chrono_like_expiry(ttl_seconds));
     let ice_servers = payload
         .ice_servers
         .unwrap_or_else(|| vec![json!({ "urls": "stun:stun.l.google.com:19302" })]);
@@ -184,7 +193,8 @@ fn hash_token(token: &str) -> String {
 }
 
 fn chrono_like_expiry(ttl_seconds: u64) -> String {
-    (Utc::now() + chrono::Duration::seconds(ttl_seconds as i64)).to_rfc3339_opts(SecondsFormat::Millis, true)
+    (Utc::now() + chrono::Duration::seconds(ttl_seconds as i64))
+        .to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
 fn now_rfc3339() -> String {
@@ -214,7 +224,10 @@ fn authorize_request(request: &tiny_http::Request) -> bool {
     provided == required
 }
 
-fn handle_json_request<T, F>(request: &mut tiny_http::Request, handler: F) -> Response<std::io::Cursor<Vec<u8>>>
+fn handle_json_request<T, F>(
+    request: &mut tiny_http::Request,
+    handler: F,
+) -> Response<std::io::Cursor<Vec<u8>>>
 where
     T: DeserializeOwned,
     F: FnOnce(T) -> Value,
@@ -241,11 +254,15 @@ where
 }
 
 fn json_response(status: StatusCode, payload: Value) -> Response<std::io::Cursor<Vec<u8>>> {
-    let body = serde_json::to_vec(&payload).unwrap_or_else(|_| b"{\"error\":\"encode_failed\"}".to_vec());
+    let body =
+        serde_json::to_vec(&payload).unwrap_or_else(|_| b"{\"error\":\"encode_failed\"}".to_vec());
     let mut response = Response::from_data(body).with_status_code(status);
     response.add_header(
-        Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).expect("content type header"),
+        Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..])
+            .expect("content type header"),
     );
-    response.add_header(Header::from_bytes(&b"X-Service"[..], &b"voice-media-rs"[..]).expect("service header"));
+    response.add_header(
+        Header::from_bytes(&b"X-Service"[..], &b"voice-media-rs"[..]).expect("service header"),
+    );
     response
 }

@@ -38,6 +38,10 @@
 | [`contracts/voice-media-goal0-v1.json`](contracts/voice-media-goal0-v1.json) | Goal 0 机器可读总合同及 `not_run/skeleton` 真实状态 |
 | [`contracts/voice-media-goal2-v1.json`](contracts/voice-media-goal2-v1.json) | RTPengine 精确源码、媒体控制、真实 RTP/SRTP、故障与诚实容量声明合同 |
 | [`../../scripts/ivekit-voice-media-goal2-finalize.ts`](../../scripts/ivekit-voice-media-goal2-finalize.ts) | 绑定供应链、生命周期、全部尝试和故障矩阵的 Goal 2 finalizer |
+| [`schemas/voice-media-goal4.schema.json`](schemas/voice-media-goal4.schema.json) | Goal 4 源码身份、权威边界、处理运行时、故障矩阵和声明状态 Schema |
+| [`schemas/voice-media-processing-profile.schema.json`](schemas/voice-media-processing-profile.schema.json) | 独立媒体处理池负载、生成器、硬件和质量门槛 Schema |
+| [`contracts/voice-media-goal4-v1.json`](contracts/voice-media-goal4-v1.json) | Goal 4 G.711/Opus 首批切片、处理池隔离和诚实证据状态合同 |
+| [`profiles/vos-eq-v3-g711-opus-1k-v1.json`](profiles/vos-eq-v3-g711-opus-1k-v1.json) | 单处理节点 1K 双向 G.711/Opus 转码目标；当前不是实测容量声明 |
 | [`../adr/ccaas-5-media-authority-and-rtpengine.md`](../adr/ccaas-5-media-authority-and-rtpengine.md) | RustPBX、rtpengine、媒体处理和区域录音清单的权威边界 |
 | [`rtc-performance-contract-v1.md`](rtc-performance-contract-v1.md) | 端到端测量点、弱网矩阵、原始证据和联合判定语义 |
 | [`schemas/capacity-vector.schema.json`](schemas/capacity-vector.schema.json) | 节点、Cell、Zone 容量、使用量和 admission 合同 |
