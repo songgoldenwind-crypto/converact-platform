@@ -511,6 +511,12 @@ test('RustPBX router webhook creates the authoritative inbound call before routi
     },
     metadata: {
       source: 'rustpbx_router'
+    },
+    provider_runtime_profile: {
+      id: 'profile-a',
+      tenant_id: 'tenant-secure',
+      adapter: 'rustpbx',
+      status: 'enabled'
     }
   }]);
 });
@@ -529,7 +535,17 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
           tenant_id: tenantId,
           adapter: 'rustpbx',
           status: 'enabled',
-          config: { availability_profile: 'VOICE-HA-T1' },
+          config: {
+            availability_profile: 'VOICE-HA-T1',
+            media_control_profile: {
+              media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+              leg_a_codec: 'PCMU',
+              leg_b_codec: 'OPUS',
+              leg_a_payload_type: 0,
+              leg_b_payload_type: 111,
+              packetization_ms: 20
+            }
+          },
           revision: 7
         };
       }
@@ -637,6 +653,15 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
       audio_tap_token: string;
       availability_profile: string;
       auth_context_ref: string;
+      tenant_id: string;
+      media_control_profile: {
+        media_profile_id: string;
+        leg_a_codec: string;
+        leg_b_codec: string;
+        leg_a_payload_type: number;
+        leg_b_payload_type: number;
+        packetization_ms: number;
+      };
     };
     afterCommit?: () => Promise<void>;
   };
@@ -662,6 +687,15 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
     route_snapshot_revision: 42,
     availability_profile: 'VOICE-HA-T1',
     auth_context_ref: authContextRef,
+    tenant_id: 'tenant-secure',
+    media_control_profile: {
+      media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+      leg_a_codec: 'PCMU',
+      leg_b_codec: 'OPUS',
+      leg_a_payload_type: 0,
+      leg_b_payload_type: 111,
+      packetization_ms: 20
+    },
     audio_tap_token: 'tap-token-snapshot-a-000000000000000000'
   });
   assert.deepEqual(order, ['create-inbound', 'authorize-audio-tap']);
@@ -679,6 +713,37 @@ test('RustPBX snapshot inbound admission creates the call without invoking dynam
   assert.equal(inbound[0]?.metadata &&
     (inbound[0].metadata as Record<string, unknown>).route_snapshot_revision,
   42);
+  assert.deepEqual(inbound[0]?.owner_contract_facts, {
+    route_snapshot_revision: 42,
+    availability_profile: 'VOICE-HA-T1',
+    auth_context_ref: authContextRef,
+    media_control_profile: {
+      media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+      leg_a_codec: 'PCMU',
+      leg_b_codec: 'OPUS',
+      leg_a_payload_type: 0,
+      leg_b_payload_type: 111,
+      packetization_ms: 20
+    }
+  });
+  assert.deepEqual(inbound[0]?.provider_runtime_profile, {
+    id: 'profile-a',
+    tenant_id: 'tenant-secure',
+    adapter: 'rustpbx',
+    status: 'enabled',
+    config: {
+      availability_profile: 'VOICE-HA-T1',
+      media_control_profile: {
+        media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+        leg_a_codec: 'PCMU',
+        leg_b_codec: 'OPUS',
+        leg_a_payload_type: 0,
+        leg_b_payload_type: 111,
+        packetization_ms: 20
+      }
+    },
+    revision: 7
+  });
   assert.equal(inbound[0]?.placement_prepared, true);
   await result.afterCommit?.();
   assert.equal(reconciled.length, 1);

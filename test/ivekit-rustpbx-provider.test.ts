@@ -442,7 +442,16 @@ function ownerContract(
   return {
     interaction_id: interactionId,
     reservation_id: reservationId,
-    owner_epoch: ownerEpoch
+    owner_epoch: ownerEpoch,
+    route_snapshot_revision: 7,
+    availability_profile: 'VOICE-ORDINARY' as const,
+    auth_context_ref: null,
+    tenant_id: 'tenant-a',
+    cell_id: 'cell-a',
+    owner_node_id: 'rustpbx-a',
+    media_control_profile: {
+      media_profile_id: 'g711-relay-v1' as const
+    }
   };
 }
 

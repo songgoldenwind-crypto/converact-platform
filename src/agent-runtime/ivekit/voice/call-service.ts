@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { PgQueryable } from '../../../db-pg.js';
 import type {
@@ -7,8 +7,17 @@ import type {
 } from '../placement/component-placement.js';
 import { canonicalVoicePayloadHash, safeVoiceProviderPayload } from './canonical.js';
 import { supportsVoiceCommand, VOICE_CAPABILITY_SCHEMA_VERSION } from './capabilities.js';
-import { assertVoiceConfigContainsNoSecrets, voiceProfileConfigHash } from './deployment-profile-service.js';
+import {
+  assertVoiceConfigContainsNoSecrets,
+  validateVoiceDeploymentProfile,
+  voiceProfileConfigHash
+} from './deployment-profile-service.js';
 import { VoiceError } from './errors.js';
+import {
+  parseRustPbxMediaControlProfile,
+  resolveRustPbxMediaControlProfile,
+  type RustPbxMediaControlProfile
+} from './media-control-profile.js';
 import { observeVoiceCall, observeVoiceCommand } from './metrics.js';
 import type {
   VoiceAddressProtector,
@@ -138,6 +147,26 @@ export interface CreateInboundVoiceCallInput {
   call_id?: string;
   placement_reservation?: ComponentPlacementReservation;
   placement_prepared?: boolean;
+  owner_contract_facts?: VoiceCallOwnerContractFacts;
+  provider_runtime_profile?: VoiceDeploymentProfile;
+}
+
+export interface VoiceCallOwnerContractFacts {
+  route_snapshot_revision: number;
+  availability_profile: 'VOICE-ORDINARY' | 'VOICE-HA-T1';
+  auth_context_ref: string | null;
+  media_control_profile: RustPbxMediaControlProfile;
+}
+
+interface VoiceProviderRuntimeBinding {
+  profile_id: string;
+  adapter: VoiceDeploymentProfile['adapter'];
+  base_url: string;
+  desired_version: string;
+  config: Record<string, unknown>;
+  secret_refs: Record<string, string>;
+  profile_revision: number;
+  config_hash: string;
 }
 
 export interface EnqueueVoiceCallActionInput {
@@ -150,6 +179,8 @@ export interface EnqueueVoiceCallActionInput {
 }
 
 const REQUEST_HASH_KEY = '_ivekit_request_hash';
+const OWNER_CONTRACT_FACTS_KEY = '_ivekit_owner_contract_facts';
+const PROVIDER_RUNTIME_BINDING_KEY = '_ivekit_provider_runtime_binding';
 const CALL_CONTROL_CAPABILITY: Partial<Record<VoiceCommandKind, VoiceCapability>> = {
   originate: 'rwi',
   answer: 'rwi',
@@ -244,7 +275,7 @@ export class VoiceCallService {
           }
           return { call: replay, command, created: false };
         }
-        const policy = await this.#authorizeRuntime(
+        const { policy, profile } = await this.#authorizeRuntime(
           context,
           tenantId,
           input.profile_id,
@@ -254,6 +285,7 @@ export class VoiceCallService {
         if (policy.require_outbound_consent && !compliance.evidence_ref) {
           throw complianceDenied();
         }
+        const providerRuntimeBinding = freezeVoiceProviderRuntime(profile);
         const call: VoiceCall = {
           id: callId,
           tenant_id: tenantId,
@@ -268,7 +300,11 @@ export class VoiceCallService {
           to: projection(to),
           idempotency_key: idempotencyKey,
           initiated_by: actor,
-          metadata: { ...safeMetadata(input.metadata), [REQUEST_HASH_KEY]: requestHash },
+          metadata: {
+            ...safeMetadata(input.metadata),
+            [REQUEST_HASH_KEY]: requestHash,
+            [PROVIDER_RUNTIME_BINDING_KEY]: providerRuntimeBinding
+          },
           ringing_at: null,
           answered_at: null,
           ended_at: null,
@@ -277,6 +313,11 @@ export class VoiceCallService {
           created_at: now,
           updated_at: now
         };
+        if (this.#placement) {
+          if (!reservation) throw providerUnavailable();
+          call.metadata[OWNER_CONTRACT_FACTS_KEY] =
+            outboundVoiceCallOwnerContractFacts(call, profile, reservation);
+        }
         const insertedCall = await context.calls.insert(call, from, to);
         const command = await context.commands.insertCall(this.#newCommand({
           tenant_id: tenantId,
@@ -336,8 +377,20 @@ export class VoiceCallService {
     try {
     const from = await this.#protectAddress(tenantId, input.from);
     const to = await this.#protectAddress(tenantId, input.to);
+    const ownerContractFacts = input.owner_contract_facts === undefined
+      ? null
+      : parseVoiceCallOwnerContractFacts(input.owner_contract_facts);
+    const requestedRuntimeBinding = input.provider_runtime_profile === undefined
+      ? null
+      : freezeVoiceProviderRuntime(input.provider_runtime_profile);
+    if (requestedRuntimeBinding &&
+        (requestedRuntimeBinding.profile_id !== profileId ||
+          input.provider_runtime_profile?.tenant_id !== tenantId)) {
+      throw validationError();
+    }
     const requestHash = canonicalVoicePayloadHash({ profile_id: profileId, provider_call_id: providerCallId,
-      external_event_id: externalEventId, from_hmac: from.hmac, to_hmac: to.hmac });
+      external_event_id: externalEventId, from_hmac: from.hmac, to_hmac: to.hmac,
+      owner_contract_facts: ownerContractFacts });
     const idempotencyKey = `inbound:${profileId}:${externalEventId}`;
     const now = this.#timestamp();
     const call = await this.#unitOfWork.run(tenantId, async (context) => {
@@ -356,13 +409,32 @@ export class VoiceCallService {
         }
         return { call: replay, created: false };
       }
-      await this.#authorizeRuntime(context, tenantId, profileId, null);
+      const { profile } = await this.#authorizeRuntime(
+        context,
+        tenantId,
+        profileId,
+        null
+      );
+      const providerRuntimeBinding = requestedRuntimeBinding ??
+        freezeVoiceProviderRuntime(profile);
+      if (requestedRuntimeBinding &&
+          (profile.revision !== requestedRuntimeBinding.profile_revision ||
+            voiceProfileConfigHash(profile) !== requestedRuntimeBinding.config_hash)) {
+        throw providerUnavailable();
+      }
       const inserted = await context.calls.insert({
         id: callId, tenant_id: tenantId, business_ref: businessRef(input.business_ref),
         provider_profile_id: profileId, provider_call_id: providerCallId, provider_dialog_id: '',
         media_call_id: null, direction: 'inbound', state: 'ringing', from: projection(from), to: projection(to),
         idempotency_key: idempotencyKey, initiated_by: `provider:${profileId}`,
-        metadata: { ...safeInboundMetadata(input.metadata), [REQUEST_HASH_KEY]: requestHash },
+        metadata: {
+          ...safeInboundMetadata(input.metadata),
+          [REQUEST_HASH_KEY]: requestHash,
+          [PROVIDER_RUNTIME_BINDING_KEY]: providerRuntimeBinding,
+          ...(ownerContractFacts
+            ? { [OWNER_CONTRACT_FACTS_KEY]: ownerContractFacts }
+            : {})
+        },
         ringing_at: now, answered_at: null, ended_at: null, termination_reason: '',
         revision: 1, created_at: now, updated_at: now
       }, from, to);
@@ -434,8 +506,16 @@ export class VoiceCallService {
       }
       const call = required(await context.calls.get(tenantId, callId, { for_update: true }));
       validateActionState(call.state, kind);
-      const policy = await this.#authorizeRuntime(context, tenantId, call.provider_profile_id, kind, payload);
-      if (recordingAction && policy.recording_mode === 'disabled') throw complianceDenied();
+      const policy = kind === 'hangup'
+        ? null
+        : (await this.#authorizeRuntime(
+            context,
+            tenantId,
+            call.provider_profile_id,
+            kind,
+            payload
+          )).policy;
+      if (recordingAction && policy?.recording_mode === 'disabled') throw complianceDenied();
       const parkingSlot = kind === 'park'
         ? await this.#prepareParkingReservation(context, call, String(payload.slot))
         : kind === 'pickup'
@@ -504,7 +584,10 @@ export class VoiceCallService {
     profileIdInput: string,
     command: VoiceCommandKind | null,
     payload: Record<string, unknown> = {}
-  ): Promise<VoicePolicy> {
+  ): Promise<{
+    policy: VoicePolicy;
+    profile: VoiceDeploymentProfile;
+  }> {
     const profileId = boundedIdentifier(profileIdInput);
     const profile = required(await context.configuration.getProfile(tenantId, profileId));
     if (profile.status !== 'enabled' && profile.status !== 'degraded') throw new VoiceError({ code: 'capability_unavailable', status: 501 });
@@ -524,7 +607,7 @@ export class VoiceCallService {
     }
     const policy = required(await context.configuration.getPolicy(tenantId));
     if (policy.status !== 'active') throw complianceDenied();
-    return policy;
+    return { policy, profile };
   }
 
   async #protectAddress(tenantId: string, input: VoiceClearAddressInput): Promise<VoiceProtectedAddress> {
@@ -662,18 +745,12 @@ export class VoiceProviderCallCommandExecutor {
     }
     const parkingExecution = await this.#parkingExecution(command, call);
     if (parkingExecution.replayed) return parkingExecution.replayed;
-    const profile = required(await this.#configuration.getProfile(command.tenant_id, call.provider_profile_id));
-    const capability = requiredCapabilityForVoiceCommand(command.kind);
-    const snapshot = await this.#configuration.getLatestCapabilitySnapshot(command.tenant_id, profile.id);
-    if (!snapshot || snapshot.status !== 'ready' || snapshot.config_hash !== voiceProfileConfigHash(profile)
-      || snapshot.capabilities[capability] !== true
-      || snapshot.capability_schema_version !== VOICE_CAPABILITY_SCHEMA_VERSION
-      || !supportsVoiceCommand(snapshot.action_capabilities, command.kind, command.payload)) {
-      throw new VoiceError({
-        code: 'capability_unavailable', status: 501,
-        details: { capability, command: command.kind }
-      });
-    }
+    const frozenProfile = voiceCallProviderRuntime(call);
+    const profile = frozenProfile ??
+      required(await this.#configuration.getProfile(
+        command.tenant_id,
+        call.provider_profile_id
+      ));
     let clearAddress: string | undefined;
     if (command.kind === 'originate') {
       const address = required(await this.#calls.getProtectedAddress(command.tenant_id, call.id, 'to'));
@@ -799,16 +876,40 @@ export class VoiceProviderCallCommandExecutor {
         throw providerUnavailable();
       }
       const providerCallId = item.call.provider_call_id || item.call.id;
+      const frozenFacts = voiceCallOwnerContractFacts(item.call);
+      const mediaControlProfile = frozenFacts?.media_control_profile ??
+        resolveRustPbxMediaControlProfile(profile);
+      const availabilityProfile = frozenFacts?.availability_profile ??
+        ownerAvailabilityProfile(profile);
       const contract = {
         reservation_id: item.owner.reservation_id,
         interaction_id: item.call.id,
-        owner_epoch: item.owner.owner_epoch
+        owner_epoch: item.owner.owner_epoch,
+        route_snapshot_revision: frozenFacts?.route_snapshot_revision ??
+          item.owner.snapshot_version,
+        availability_profile: availabilityProfile,
+        auth_context_ref: frozenFacts?.auth_context_ref ??
+          (availabilityProfile === 'VOICE-HA-T1'
+            ? outboundAuthContextReference(item.call, profile)
+            : null),
+        tenant_id: item.call.tenant_id,
+        cell_id: item.owner.cell_id,
+        owner_node_id: item.owner.owner_node_id,
+        media_control_profile: mediaControlProfile
       };
       const existing = ownerContracts[providerCallId];
       if (existing && (
         existing.reservation_id !== contract.reservation_id ||
         existing.interaction_id !== contract.interaction_id ||
-        existing.owner_epoch !== contract.owner_epoch
+        existing.owner_epoch !== contract.owner_epoch ||
+        existing.route_snapshot_revision !== contract.route_snapshot_revision ||
+        existing.availability_profile !== contract.availability_profile ||
+        existing.auth_context_ref !== contract.auth_context_ref ||
+        existing.tenant_id !== contract.tenant_id ||
+        existing.cell_id !== contract.cell_id ||
+        existing.owner_node_id !== contract.owner_node_id ||
+        canonicalVoicePayloadHash(existing.media_control_profile) !==
+          canonicalVoicePayloadHash(contract.media_control_profile)
       )) {
         throw providerUnavailable();
       }
@@ -970,6 +1071,253 @@ export class VoiceProviderCallCommandExecutor {
       released_at: command.kind === 'park' ? now : null
     }, current.revision);
   }
+}
+
+function ownerAvailabilityProfile(
+  profile: VoiceDeploymentProfile
+): 'VOICE-ORDINARY' | 'VOICE-HA-T1' {
+  const value = profile.config?.availability_profile;
+  if (value === undefined || value === 'VOICE-ORDINARY') {
+    return 'VOICE-ORDINARY';
+  }
+  if (value === 'VOICE-HA-T1') return value;
+  throw new VoiceError({
+    code: 'capability_unavailable',
+    status: 503,
+    retryable: false
+  });
+}
+
+function outboundAuthContextReference(
+  call: VoiceCall,
+  profile: VoiceDeploymentProfile
+): string {
+  if (!Number.isSafeInteger(profile.revision) || profile.revision < 1) {
+    throw new VoiceError({
+      code: 'capability_unavailable',
+      status: 503,
+      retryable: false
+    });
+  }
+  const digest = createHash('sha256')
+    .update([
+      call.tenant_id,
+      call.id,
+      call.initiated_by,
+      profile.id,
+      profile.adapter,
+      String(profile.revision)
+    ].join('\0'))
+    .digest('hex');
+  return `auth-context:${digest}`;
+}
+
+function outboundVoiceCallOwnerContractFacts(
+  call: VoiceCall,
+  profile: VoiceDeploymentProfile,
+  reservation: ComponentPlacementReservation
+): VoiceCallOwnerContractFacts {
+  const routeSnapshotRevision = reservation.value?.record?.snapshot_version;
+  if (!Number.isSafeInteger(routeSnapshotRevision) ||
+      routeSnapshotRevision < 1) {
+    throw providerUnavailable();
+  }
+  const availabilityProfile = ownerAvailabilityProfile(profile);
+  return {
+    route_snapshot_revision: routeSnapshotRevision,
+    availability_profile: availabilityProfile,
+    auth_context_ref: availabilityProfile === 'VOICE-HA-T1'
+      ? outboundAuthContextReference(call, profile)
+      : null,
+    media_control_profile: resolveRustPbxMediaControlProfile(profile)
+  };
+}
+
+function voiceCallOwnerContractFacts(
+  call: VoiceCall
+): VoiceCallOwnerContractFacts | null {
+  const value = call.metadata[OWNER_CONTRACT_FACTS_KEY];
+  if (value === undefined) return null;
+  try {
+    return parseVoiceCallOwnerContractFacts(value);
+  } catch {
+    throw providerUnavailable();
+  }
+}
+
+function parseVoiceCallOwnerContractFacts(
+  value: unknown
+): VoiceCallOwnerContractFacts {
+  const record = plainRecord(value);
+  const expectedKeys = new Set([
+    'route_snapshot_revision',
+    'availability_profile',
+    'auth_context_ref',
+    'media_control_profile'
+  ]);
+  const keys = Object.keys(record);
+  if (keys.length !== expectedKeys.size ||
+      keys.some((key) => !expectedKeys.has(key)) ||
+      !Number.isSafeInteger(record.route_snapshot_revision) ||
+      Number(record.route_snapshot_revision) < 1) {
+    throw validationError();
+  }
+  const availabilityProfile = record.availability_profile;
+  if (availabilityProfile !== 'VOICE-ORDINARY' &&
+      availabilityProfile !== 'VOICE-HA-T1') {
+    throw validationError();
+  }
+  const authContextRef = record.auth_context_ref;
+  let checkedAuthContextRef: string | null;
+  if (availabilityProfile === 'VOICE-ORDINARY') {
+    if (authContextRef !== null) throw validationError();
+    checkedAuthContextRef = null;
+  } else {
+    if (typeof authContextRef !== 'string' ||
+        !/^auth-context:[a-f0-9]{64}$/.test(authContextRef)) {
+      throw validationError();
+    }
+    checkedAuthContextRef = authContextRef;
+  }
+  let mediaControlProfile: RustPbxMediaControlProfile;
+  try {
+    mediaControlProfile = parseRustPbxMediaControlProfile(
+      record.media_control_profile
+    );
+  } catch {
+    throw validationError();
+  }
+  return {
+    route_snapshot_revision: Number(record.route_snapshot_revision),
+    availability_profile: availabilityProfile,
+    auth_context_ref: checkedAuthContextRef,
+    media_control_profile: mediaControlProfile
+  };
+}
+
+function freezeVoiceProviderRuntime(
+  profile: VoiceDeploymentProfile
+): VoiceProviderRuntimeBinding {
+  validateVoiceDeploymentProfile(profile);
+  const binding: VoiceProviderRuntimeBinding = {
+    profile_id: profile.id,
+    adapter: profile.adapter,
+    base_url: profile.base_url,
+    desired_version: profile.desired_version,
+    config: structuredClone(profile.config),
+    secret_refs: Object.fromEntries(
+      Object.entries(profile.secret_refs)
+        .sort(([left], [right]) => left.localeCompare(right))
+    ),
+    profile_revision: profile.revision,
+    config_hash: voiceProfileConfigHash(profile)
+  };
+  parseVoiceProviderRuntimeBinding(binding, profile.tenant_id);
+  return binding;
+}
+
+function voiceCallProviderRuntime(
+  call: VoiceCall
+): VoiceDeploymentProfile | null {
+  const value = call.metadata[PROVIDER_RUNTIME_BINDING_KEY];
+  if (value === undefined) return null;
+  try {
+    const profile = parseVoiceProviderRuntimeBinding(value, call.tenant_id);
+    if (profile.id !== call.provider_profile_id) throw validationError();
+    return profile;
+  } catch {
+    throw providerUnavailable();
+  }
+}
+
+function parseVoiceProviderRuntimeBinding(
+  value: unknown,
+  tenantId: string
+): VoiceDeploymentProfile {
+  const record = plainRecord(value);
+  const expectedKeys = new Set([
+    'profile_id',
+    'adapter',
+    'base_url',
+    'desired_version',
+    'config',
+    'secret_refs',
+    'profile_revision',
+    'config_hash'
+  ]);
+  const keys = Object.keys(record);
+  if (keys.length !== expectedKeys.size ||
+      keys.some((key) => !expectedKeys.has(key))) {
+    throw validationError();
+  }
+  const profileId = boundedIdentifier(record.profile_id);
+  if (profileId !== record.profile_id) throw validationError();
+  const adapters: VoiceDeploymentProfile['adapter'][] = [
+    'rustpbx',
+    'livekit_sip',
+    'active_call',
+    'livekit_agents',
+    'controlled'
+  ];
+  if (!adapters.includes(record.adapter as VoiceDeploymentProfile['adapter'])) {
+    throw validationError();
+  }
+  const adapter = record.adapter as VoiceDeploymentProfile['adapter'];
+  const baseUrl = runtimeBindingString(record.base_url, 2_048);
+  const desiredVersion = runtimeBindingString(record.desired_version, 256);
+  if (!Number.isSafeInteger(record.profile_revision) ||
+      Number(record.profile_revision) < 1 ||
+      typeof record.config_hash !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(record.config_hash)) {
+    throw validationError();
+  }
+  const config = structuredClone(plainRecord(record.config));
+  canonicalVoicePayloadHash(config);
+  assertVoiceConfigContainsNoSecrets(config);
+  if (Buffer.byteLength(JSON.stringify(config), 'utf8') > 64 * 1024) {
+    throw validationError();
+  }
+  const rawSecretRefs = plainRecord(record.secret_refs);
+  if (Object.keys(rawSecretRefs).length > 64) throw validationError();
+  const secretRefs: Record<string, string> = {};
+  for (const [key, ref] of Object.entries(rawSecretRefs)) {
+    if (!/^[A-Za-z][A-Za-z0-9_.-]{0,127}$/.test(key) ||
+        typeof ref !== 'string' ||
+        !/^env:\/\/[A-Z][A-Z0-9_]*$/.test(ref)) {
+      throw validationError();
+    }
+    secretRefs[key] = ref;
+  }
+  const profile: VoiceDeploymentProfile = {
+    id: profileId,
+    tenant_id: boundedIdentifier(tenantId),
+    name: 'frozen-call-runtime',
+    adapter,
+    status: 'enabled',
+    base_url: baseUrl,
+    desired_version: desiredVersion,
+    config,
+    secret_refs: secretRefs,
+    revision: Number(record.profile_revision),
+    created_by: 'ivekit-runtime-binding',
+    updated_by: 'ivekit-runtime-binding',
+    created_at: '1970-01-01T00:00:00.000Z',
+    updated_at: '1970-01-01T00:00:00.000Z'
+  };
+  validateVoiceDeploymentProfile(profile);
+  if (voiceProfileConfigHash(profile) !== record.config_hash) {
+    throw validationError();
+  }
+  return profile;
+}
+
+function runtimeBindingString(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string' ||
+      value.length > maxLength ||
+      /[\u0000-\u001f\u007f]/.test(value)) {
+    throw validationError();
+  }
+  return value;
 }
 
 function routeVoiceProfileToOwner(

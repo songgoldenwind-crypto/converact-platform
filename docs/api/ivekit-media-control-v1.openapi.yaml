@@ -180,6 +180,138 @@ components:
       type: string
       format: date-time
       pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    MediaCodec:
+      type: string
+      enum: [PCMU, PCMA, OPUS]
+    FastPathOfferPayload:
+      type: object
+      additionalProperties: false
+      required: [offer_sdp, media_profile_id]
+      properties:
+        offer_sdp:
+          type: string
+          maxLength: 16384
+        media_profile_id:
+          const: g711-relay-v1
+        from_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+        to_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+    ProcessingOfferPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - offer_sdp
+        - media_profile_id
+        - leg_a_codec
+        - leg_b_codec
+        - leg_a_payload_type
+        - leg_b_payload_type
+        - packetization_ms
+      properties:
+        offer_sdp:
+          type: string
+          maxLength: 16384
+        media_profile_id:
+          const: VOICE-IVR-G711-OPUS-V1
+        from_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+        to_tag:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: "^[A-Za-z0-9.!%*_+`'~-]+$"
+        leg_a_codec:
+          $ref: "#/components/schemas/MediaCodec"
+        leg_b_codec:
+          $ref: "#/components/schemas/MediaCodec"
+        leg_a_payload_type:
+          type: integer
+          minimum: 0
+          maximum: 127
+        leg_b_payload_type:
+          type: integer
+          minimum: 0
+          maximum: 127
+        packetization_ms:
+          const: 20
+      allOf:
+        - if:
+            properties:
+              leg_a_codec:
+                const: PCMU
+            required: [leg_a_codec]
+          then:
+            properties:
+              leg_a_payload_type:
+                const: 0
+        - if:
+            properties:
+              leg_a_codec:
+                const: PCMA
+            required: [leg_a_codec]
+          then:
+            properties:
+              leg_a_payload_type:
+                const: 8
+        - if:
+            properties:
+              leg_a_codec:
+                const: OPUS
+            required: [leg_a_codec]
+          then:
+            properties:
+              leg_a_payload_type:
+                minimum: 96
+                maximum: 127
+        - if:
+            properties:
+              leg_b_codec:
+                const: PCMU
+            required: [leg_b_codec]
+          then:
+            properties:
+              leg_b_payload_type:
+                const: 0
+        - if:
+            properties:
+              leg_b_codec:
+                const: PCMA
+            required: [leg_b_codec]
+          then:
+            properties:
+              leg_b_payload_type:
+                const: 8
+        - if:
+            properties:
+              leg_b_codec:
+                const: OPUS
+            required: [leg_b_codec]
+          then:
+            properties:
+              leg_b_payload_type:
+                minimum: 96
+                maximum: 127
+        - oneOf:
+            - properties:
+                leg_a_codec:
+                  enum: [PCMU, PCMA]
+                leg_b_codec:
+                  const: OPUS
+            - properties:
+                leg_a_codec:
+                  const: OPUS
+                leg_b_codec:
+                  enum: [PCMU, PCMA]
     Health:
       type: object
       additionalProperties: false
@@ -277,6 +409,9 @@ components:
                     maxLength: 16384
                   media_profile_id:
                     $ref: "#/components/schemas/Identifier"
+                oneOf:
+                  - $ref: "#/components/schemas/FastPathOfferPayload"
+                  - $ref: "#/components/schemas/ProcessingOfferPayload"
     Reconcile:
       type: object
       additionalProperties: false

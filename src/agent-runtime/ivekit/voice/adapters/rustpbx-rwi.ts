@@ -2,6 +2,10 @@ import WebSocket, { type RawData } from 'ws';
 
 import { canonicalVoicePayloadHash, safeVoiceProviderPayload } from '../canonical.js';
 import { VoiceError } from '../errors.js';
+import {
+  parseRustPbxMediaControlProfile,
+  type RustPbxMediaControlProfile
+} from '../media-control-profile.js';
 import type { VoiceSecretResolver } from '../ports.js';
 import type { VoiceCommandKind } from '../types.js';
 
@@ -52,6 +56,13 @@ export interface RustPbxRwiOwnerContract {
   reservation_id: string;
   interaction_id: string;
   owner_epoch: string;
+  route_snapshot_revision: number;
+  availability_profile: 'VOICE-ORDINARY' | 'VOICE-HA-T1';
+  auth_context_ref: string | null;
+  tenant_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  media_control_profile: RustPbxMediaControlProfile;
 }
 
 export type RustPbxRwiOwnerContracts =
@@ -589,7 +600,9 @@ function validatedOwnerContracts(
     const callId = boundedString(providerCallId, 256);
     if (!isRecord(raw) ||
         Object.keys(raw).some((key) => ![
-          'reservation_id', 'interaction_id', 'owner_epoch'
+          'reservation_id', 'interaction_id', 'owner_epoch', 'tenant_id',
+          'cell_id', 'owner_node_id', 'route_snapshot_revision',
+          'availability_profile', 'auth_context_ref', 'media_control_profile'
         ].includes(key))) {
       throw validationError();
     }
@@ -598,10 +611,39 @@ function validatedOwnerContracts(
         BigInt(ownerEpoch) > 0xffff_ffff_ffff_ffffn) {
       throw validationError();
     }
+    const routeSnapshotRevision = raw.route_snapshot_revision;
+    if (!Number.isSafeInteger(routeSnapshotRevision) ||
+        Number(routeSnapshotRevision) < 1) {
+      throw validationError();
+    }
+    const availabilityProfile = raw.availability_profile;
+    if (availabilityProfile !== 'VOICE-ORDINARY' &&
+        availabilityProfile !== 'VOICE-HA-T1') {
+      throw validationError();
+    }
+    const authContextRef = raw.auth_context_ref;
+    if (authContextRef !== null && typeof authContextRef !== 'string') {
+      throw validationError();
+    }
+    if ((availabilityProfile === 'VOICE-HA-T1') !==
+        (authContextRef !== null)) {
+      throw validationError();
+    }
     owners[callId] = {
       reservation_id: boundedString(raw.reservation_id, 256),
       interaction_id: boundedString(raw.interaction_id, 256),
-      owner_epoch: ownerEpoch
+      owner_epoch: ownerEpoch,
+      route_snapshot_revision: Number(routeSnapshotRevision),
+      availability_profile: availabilityProfile,
+      auth_context_ref: authContextRef === null
+        ? null
+        : boundedString(authContextRef, 256),
+      tenant_id: boundedString(raw.tenant_id, 256),
+      cell_id: boundedString(raw.cell_id, 256),
+      owner_node_id: boundedString(raw.owner_node_id, 256),
+      media_control_profile: parseRustPbxMediaControlProfile(
+        raw.media_control_profile
+      )
     };
   }
   return owners;

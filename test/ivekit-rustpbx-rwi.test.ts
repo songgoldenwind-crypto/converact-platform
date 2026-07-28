@@ -170,16 +170,8 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     params: { leg_a: 'provider-call-a', leg_b: 'provider-call-b' }
   });
   const owners = {
-    'provider-call-a': {
-      reservation_id: 'reservation-a',
-      interaction_id: 'call-a',
-      owner_epoch: '12884901889'
-    },
-    'provider-call-b': {
-      reservation_id: 'reservation-b',
-      interaction_id: 'call-b',
-      owner_epoch: '12884901890'
-    }
+    'provider-call-a': ownerContract('reservation-a', 'call-a', '12884901889'),
+    'provider-call-b': ownerContract('reservation-b', 'call-b', '12884901890')
   };
   assert.deepEqual(mapRustPbxRwiBridgeCommand({
     command_id: 'bridge-owned',
@@ -209,6 +201,19 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
     }
   });
   assert.throws(() => mapRustPbxRwiCommand({
+    command_id: 'answer-legacy-owner',
+    kind: 'answer',
+    call_id: 'provider-call-a',
+    payload: {},
+    ivekit_owners: {
+      'provider-call-a': {
+        reservation_id: 'reservation-a',
+        interaction_id: 'call-a',
+        owner_epoch: '12884901889'
+      } as unknown as ReturnType<typeof ownerContract>
+    }
+  }), hasVoiceCode('validation_failed'));
+  assert.throws(() => mapRustPbxRwiCommand({
     command_id: 'answer-stale-shape',
     kind: 'answer',
     call_id: 'provider-call-a',
@@ -218,7 +223,7 @@ test('RustPBX RWI enforces bounded object messages and exact command mapping', a
         reservation_id: 'reservation-a',
         interaction_id: 'call-a',
         owner_epoch: 'not-an-epoch'
-      }
+      } as unknown as ReturnType<typeof ownerContract>
     }
   }), hasVoiceCode('validation_failed'));
   assert.throws(() => mapRustPbxRwiBridgeCommand({
@@ -380,4 +385,25 @@ async function waitFor(predicate: () => boolean, timeoutMs = 300): Promise<void>
 
 function hasVoiceCode(code: string): (error: unknown) => boolean {
   return (error: unknown) => error instanceof VoiceError && error.code === code;
+}
+
+function ownerContract(
+  reservationId: string,
+  interactionId: string,
+  ownerEpoch: string
+) {
+  return {
+    reservation_id: reservationId,
+    interaction_id: interactionId,
+    owner_epoch: ownerEpoch,
+    route_snapshot_revision: 7,
+    availability_profile: 'VOICE-ORDINARY' as const,
+    auth_context_ref: null,
+    tenant_id: 'tenant-a',
+    cell_id: 'cell-a',
+    owner_node_id: 'rustpbx-a',
+    media_control_profile: {
+      media_profile_id: 'g711-relay-v1' as const
+    }
+  };
 }

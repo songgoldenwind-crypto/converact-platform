@@ -113,6 +113,17 @@ const OWNER_EPOCH_PATTERN = /^(?:0|[1-9][0-9]{0,19})$/;
 const UINT64_MAX = (1n << 64n) - 1n;
 const MAX_PAYLOAD_BYTES = 128 * 1024;
 const MAX_SDP_BYTES = 16 * 1024;
+const FAST_PATH_PROFILE = 'g711-relay-v1';
+const PROCESSING_PROFILE = 'VOICE-IVR-G711-OPUS-V1';
+const OFFER_COMMON_KEYS = ['offer_sdp', 'media_profile_id'] as const;
+const OFFER_OPTIONAL_KEYS = ['from_tag', 'to_tag'] as const;
+const PROCESSING_PROFILE_KEYS = [
+  'leg_a_codec',
+  'leg_b_codec',
+  'leg_a_payload_type',
+  'leg_b_payload_type',
+  'packetization_ms'
+] as const;
 
 export function checkedMediaControlCommand(
   input: MediaControlCommand
@@ -200,9 +211,7 @@ export function checkedMediaControlCommand(
         Buffer.byteLength(offerSdp, 'utf8') > MAX_SDP_BYTES) {
       throw new Error('media_control_offer_sdp_invalid');
     }
-    if (typeof profileId !== 'string' || !IDENTIFIER_PATTERN.test(profileId)) {
-      throw new Error('media_control_media_profile_id_invalid');
-    }
+    checkedOfferMediaProfile(input.payload, profileId);
   }
   return structuredClone(input);
 }
@@ -352,6 +361,76 @@ function checkedSession(value: MediaSessionSnapshot): void {
       !isCanonicalDateTime(value.updated_at)) {
     throw new Error('media_control_result_invalid');
   }
+}
+
+function checkedOfferMediaProfile(
+  payload: Record<string, unknown>,
+  profileId: unknown
+): void {
+  if (profileId === FAST_PATH_PROFILE) {
+    if (!hasRequiredAndAllowedKeys(
+      payload,
+      OFFER_COMMON_KEYS,
+      [...OFFER_COMMON_KEYS, ...OFFER_OPTIONAL_KEYS]
+    )) {
+      throw invalidMediaProfile();
+    }
+    return;
+  }
+  if (profileId !== PROCESSING_PROFILE ||
+      !hasRequiredAndAllowedKeys(
+        payload,
+        [...OFFER_COMMON_KEYS, ...PROCESSING_PROFILE_KEYS],
+        [
+          ...OFFER_COMMON_KEYS,
+          ...OFFER_OPTIONAL_KEYS,
+          ...PROCESSING_PROFILE_KEYS
+        ]
+      )) {
+    throw invalidMediaProfile();
+  }
+  const legACodec = checkedMediaCodec(payload.leg_a_codec);
+  const legBCodec = checkedMediaCodec(payload.leg_b_codec);
+  if ((legACodec === 'OPUS') === (legBCodec === 'OPUS') ||
+      payload.packetization_ms !== 20 ||
+      !validCodecPayloadType(legACodec, payload.leg_a_payload_type) ||
+      !validCodecPayloadType(legBCodec, payload.leg_b_payload_type)) {
+    throw invalidMediaProfile();
+  }
+}
+
+function checkedMediaCodec(value: unknown): 'PCMU' | 'PCMA' | 'OPUS' {
+  if (value === 'PCMU' || value === 'PCMA' || value === 'OPUS') {
+    return value;
+  }
+  throw invalidMediaProfile();
+}
+
+function validCodecPayloadType(
+  codec: 'PCMU' | 'PCMA' | 'OPUS',
+  value: unknown
+): boolean {
+  return Number.isSafeInteger(value) &&
+    ((codec === 'PCMU' && value === 0) ||
+      (codec === 'PCMA' && value === 8) ||
+      (codec === 'OPUS' &&
+        Number(value) >= 96 &&
+        Number(value) <= 127));
+}
+
+function hasRequiredAndAllowedKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  allowed: readonly string[]
+): boolean {
+  const keys = Object.keys(value);
+  const allowedKeys = new Set(allowed);
+  return required.every((key) => Object.hasOwn(value, key)) &&
+    keys.every((key) => allowedKeys.has(key));
+}
+
+function invalidMediaProfile(): Error {
+  return new Error('media_control_media_profile_invalid');
 }
 
 function checkedOwnerEpoch(value: string): bigint {

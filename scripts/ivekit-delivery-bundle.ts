@@ -657,6 +657,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rsipstack-ivekit-capacity.patch',
     'rsipstack-ivekit-retransmission-atomicity.patch',
     'rsipstack-ivekit-dialog-recovery.patch',
+    'rsipstack-ivekit-prepared-invite.patch',
     'rustrtc-ivekit-udp-socket-capacity.patch',
     'rustpbx-ivekit-ami-dialogs.patch',
     'rustpbx-ivekit-rwi-originate-hangup.patch',
@@ -682,8 +683,10 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-dialog-shadow.patch',
     'rustpbx-ivekit-dialog-recovery.patch',
     'rustpbx-ivekit-dual-leg-cdr.patch',
+    'rustpbx-ivekit-cdr-mtls-noop.patch',
     'rustpbx-ivekit-media-tracing.patch',
-    'rustpbx-ivekit-inbound-admission-response-contract.patch'
+    'rustpbx-ivekit-inbound-admission-response-contract.patch',
+    'rustpbx-ivekit-session-media-profile.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`
@@ -870,6 +873,7 @@ const RUSTPBX_ACCEPTANCE_GENERATED_FILES = [
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/canonical.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/capabilities.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
+  'acceptance/rustpbx/src/agent-runtime/ivekit/voice/media-control-profile.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/ports.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/secret-resolver.js',
   'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js',

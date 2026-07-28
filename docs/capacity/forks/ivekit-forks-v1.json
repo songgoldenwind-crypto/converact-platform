@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 53,
+  "revision": 54,
   "status": "proposed",
-  "generated_at": "2026-07-28T11:18:07+08:00",
+  "generated_at": "2026-07-29T04:15:22+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.34-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.35-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.34-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.35-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -210,6 +210,12 @@
           "sha256": "44a2adc257a610d09ffe050eb04a56e158e35e593a0b05b36c5e79e517f42315",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-media-tracing.patch",
           "purpose": "Align snapshot inbound-admission parsing with the direct iveKit HTTP response body so successful Cell reservation and ownership admission can enter the local signed route snapshot."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
+          "sha256": "e33541432f7593ff2640ee9989d1d937505a7b1376ac2a04f4e47b8bf0df0a74",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-inbound-admission-response-contract.patch",
+          "purpose": "Freeze tenant, Cell, owner node, route revision, availability and validated media-processing codec facts per call; preserve them across takeover recovery; route RWI offer, early media, final answer and cleanup through the authoritative media lifecycle; reconcile unknown commands by exact identity and retain unresolved cleanup for bounded background retry."
         }
       ],
       "protocols": [
@@ -587,7 +593,7 @@
             "An explicit no-op CallRecord storage variant retains bounded teardown queue and worker controls without serializing or retrying a second incompatible network representation.",
             "Production CDR startup requires an HTTPS endpoint, a bounded client identity PEM and a bounded private CA PEM; the client disables redirects and response decompression while retaining bounded connect and request timeouts.",
             "The OPC process exposes a separate internal TLS listener requiring a trusted client certificate while retaining the public HTTP and WebSocket listener unchanged.",
-            "Compose and both Helm deployment surfaces mount separate server and client credentials without embedding private material. Exact-source compile, image build, spool replay and PostgreSQL durable-receipt verification remain release gates for ivekit.34."
+            "Compose and both Helm deployment surfaces mount separate server and client credentials without embedding private material. Exact-source compile, image build, spool replay and PostgreSQL durable-receipt verification remain release gates for ivekit.35."
           ]
         },
         {
@@ -603,7 +609,7 @@
             "A stable SHA-256-derived trace identifier binds commands from the same call without transmitting the raw call identifier, while each command receives a separate span identifier.",
             "Deterministic sampling is configurable from zero through one and defaults to one percent in the deployment surfaces.",
             "The tracing patch adds no SDP, phone number, authorization token or service-secret logging, and does not modify RTP packet forwarding source.",
-            "The ivekit.34 native locked compile, image build, multi-Pod trace continuity and server overhead comparison remain not_run."
+            "The ivekit.35 native locked compile passes; image build, multi-Pod trace continuity and server overhead comparison remain not_run."
           ]
         },
         {
@@ -616,7 +622,25 @@
           "acceptance_evidence": [
             "A focused patch contract test requires the exact response parser change to follow the complete ivekit.29 queue.",
             "The parser retains accepted, route revision, owner epoch, reservation, authorization context and optional audio-tap validation while removing only the nonexistent data envelope.",
-            "Exact-source locked compilation, image build and real SIPp signaling remain release gates for ivekit.34."
+            "Exact-source locked compilation passes as part of ivekit.35; image build and real SIPp signaling remain release gates."
+          ]
+        },
+        {
+          "change_id": "rustpbx-session-media-profile-v1",
+          "summary": "Bind every RustPBX call to one immutable owner and media-processing profile across admission, RWI mutation, real outbound SDP negotiation, cleanup and dialog recovery.",
+          "capacity_dimensions": [
+            "sip.transactions_per_second",
+            "voice.concurrent_calls",
+            "voice.rtp_legs",
+            "workers.media_control_inflight"
+          ],
+          "acceptance_evidence": [
+            "The exact ivekit.35 patch applies after the direct inbound-admission response contract and passes Rust 1.94.1 Rustfmt.",
+            "Seventy-six focused iveKit Rust library tests and twenty dialog-shadow contract tests pass against the exact modified source after a clean fixed-source replay.",
+            "Unknown, partial, mismatched-codec, invalid-payload-type and non-20-ms processing profiles fail before media allocation.",
+            "Inbound and outbound owner contracts carry tenant, Cell, node, route revision, availability, authorization reference and media profile; owner conflicts compare the complete immutable contract.",
+            "Processing offers carry the frozen G.711/Opus codec pair, RTP payload types and packetization interval, while recovery capsules preserve the same profile and historical capsules migrate only to the former G.711 default.",
+            "RWI originate uses the real rsipstack local tag, publishes only effective media-control SDP, commits 183/200 answers back to the local RTP track, reconciles unknown mutations by exact command identity, closes media reservation on every terminal branch, retains unconfirmed cleanup in a bounded background retry queue, and closes only an owner opened by the synchronously failed command."
           ]
         },
         {
@@ -704,6 +728,8 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-dual-leg-cdr.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
+          "test/ivekit-rustpbx-session-media-profile-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -747,12 +773,12 @@
           "scripts/ivekit-rustpbx-sipp-acceptance.ts",
           "docs/capacity/phase2-code-status.json"
         ],
-        "checked_at": "2026-07-28T02:21:35+08:00"
+        "checked_at": "2026-07-29T05:23:06+08:00"
       },
       "release_gate": {
         "production_eligible": false,
         "blocking_reasons": [
-          "The current ivekit.34 response-contract patch follows the complete media-tracing queue, but its locked native compile, image build, real SIPp admission path, runtime trace continuity and overhead comparison remain not_run.",
+          "The current ivekit.35 session-media-profile patch follows the complete media-tracing and inbound-admission queue; its locked native compile passes, while image build, real SIPp admission, runtime trace continuity and overhead comparison remain not_run.",
           "The exact ivekit.19 locked build and local controlled runtime pass, but the candidate has not been published with an immutable registry manifest digest, SBOM, signature or provenance.",
           "Strict packet-sequence RTP evidence passes at 10 shared-host calls and controlled RTP throughput evidence passes through 800 shared-host calls. The 150-call strict sample is invalid because the generators saturate, and both 900-call throughput samples contain mixed generator and SUT/protocol signals. Independent-generator production-capacity, realtime audio gateway authorization, recording failure injection, WSS load, multi-node failover and Cell-10K evidence are not attached.",
           "The historical shared four-vCPU signaling gate passes at 1,400 CPS and fails its strict boundary at 1,500 CPS. The ivekit.18 sustained 1,000-CPS direct and Kamailio regression gates pass, but neither result is a production or media capacity claim."
@@ -816,6 +842,12 @@
           "sha256": "eb087e1762ecc2edce5cba3d94865a444a41c95fa1fcbbc70362d6dbf155cc66",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-retransmission-atomicity.patch",
           "purpose": "Keep handled in-dialog request events from replacing confirmed dialog authority and expose a uniform immutable snapshot for restored B2BUA persistence."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
+          "sha256": "e02d71e1f491a60de19534adc0809eeaee8a8e5d2e7594e1172a9fb465d9801c",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-dialog-recovery.patch",
+          "purpose": "Expose a two-phase outbound INVITE so RustPBX can bind the real local dialog tag and replace logical SDP with the authoritative media-control SDP before the first packet is sent."
         }
       ],
       "implemented_changes": [
@@ -871,7 +903,22 @@
             "INFO, UPDATE, OPTIONS, NOTIFY, REFER, MESSAGE and PUBLISH publish their transaction handles without replacing the confirmed durable state.",
             "The dialog wrapper exports the role, tags, route set, contacts and local/remote CSeq needed by the RustPBX recovery capsule.",
             "Successful INVITE and UPDATE responses refresh the remote target from one Contact before the next in-dialog request is created.",
-            "The complete 247-test rsipstack library suite passes after clean exact-source replay of the ivekit.27 patch queue."
+            "The prior 247-test rsipstack library suite passes after clean exact-source replay of the ivekit.27 patch queue; the current prepared-INVITE queue passes all 249 unit tests and 65 documentation tests."
+          ]
+        },
+        {
+          "change_id": "rsipstack-prepared-invite-v1",
+          "summary": "Prepare an outbound client dialog without sending it, expose its real local tag, atomically replace the uncommitted SDP in transaction and dialog state, then run the unchanged INVITE state machine.",
+          "capacity_dimensions": [
+            "sip.invite_cps",
+            "media.session_setup_latency",
+            "media.active_sessions"
+          ],
+          "acceptance_evidence": [
+            "The exact patch applies after dialog recovery and the patched RustPBX locked graph compiles.",
+            "Native tests prove the real local tag exists before send and only the effective SDP is retained by both transaction and dialog snapshots.",
+            "RWI processing-media failure is rejected before the outbound INVITE becomes visible.",
+            "The complete patched rsipstack source passes all 249 unit tests and 65 documentation tests on Rust 1.94.1 after a clean fixed-source replay."
           ]
         }
       ],
@@ -880,7 +927,7 @@
         "source_identity": "passed",
         "patch_apply": "passed",
         "compile": "passed",
-        "unit": "partial",
+        "unit": "passed",
         "integration": "partial",
         "benchmark": "partial",
         "real_environment": "not_run",
@@ -890,12 +937,14 @@
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-capacity.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch",
           "infra/ivekit/rustpbx/patches/rsipstack-ivekit-dialog-recovery.patch",
+          "infra/ivekit/rustpbx/patches/rsipstack-ivekit-prepared-invite.patch",
+          "test/ivekit-rsipstack-prepared-invite-patch.test.ts",
           "test/ivekit-rustpbx-dialog-recovery-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-sip-capacity.patch",
           "test/ivekit-rustpbx-build.test.ts",
           "test/ivekit-voice-deployment.test.ts"
         ],
-        "checked_at": "2026-07-27T04:07:18+08:00"
+        "checked_at": "2026-07-29T05:23:06+08:00"
       },
       "release_gate": {
         "production_eligible": false,

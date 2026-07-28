@@ -99,6 +99,36 @@ describe('iveKit media control OpenAPI contract', () => {
       schemas.Command.allOf[0].then.properties.payload.required,
       ['offer_sdp', 'media_profile_id']
     );
+    assert.deepEqual(
+      schemas.Command.allOf[0].then.properties.payload.oneOf.map(
+        (entry: { $ref: string }) => entry.$ref
+      ),
+      [
+        '#/components/schemas/FastPathOfferPayload',
+        '#/components/schemas/ProcessingOfferPayload'
+      ]
+    );
+    assert.equal(
+      schemas.ProcessingOfferPayload.properties.packetization_ms.const,
+      20
+    );
+    assert.deepEqual(
+      schemas.ProcessingOfferPayload.allOf.at(-1).oneOf,
+      [
+        {
+          properties: {
+            leg_a_codec: { enum: ['PCMU', 'PCMA'] },
+            leg_b_codec: { const: 'OPUS' }
+          }
+        },
+        {
+          properties: {
+            leg_a_codec: { const: 'OPUS' },
+            leg_b_codec: { enum: ['PCMU', 'PCMA'] }
+          }
+        }
+      ]
+    );
     assert.equal(document['x-ivekit-limits'].payload_bytes, 131_072);
   });
 

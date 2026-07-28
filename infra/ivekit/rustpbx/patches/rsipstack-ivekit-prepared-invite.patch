@@ -1,0 +1,239 @@
+diff --git a/src/dialog/invitation.rs b/src/dialog/invitation.rs
+index babc25a..54633ae 100644
+--- a/src/dialog/invitation.rs
++++ b/src/dialog/invitation.rs
+@@ -235,7 +235,99 @@ impl<'a> Drop for DialogGuardForUnconfirmed<'a> {
+ 
+ pub type InviteAsyncResult = Result<(DialogId, Option<Response>)>;
+ 
++/// An outbound INVITE whose dialog identity exists but whose request has not
++/// been sent. This permits an external media controller to transform the SDP
++/// after the real local dialog tag is known and before any signaling is visible.
++pub struct PreparedClientInvite {
++    dialog_layer_inner: DialogLayerInnerRef,
++    dialog: ClientInviteDialog,
++    tx: Transaction,
++}
++
++impl PreparedClientInvite {
++    pub fn dialog_id(&self) -> DialogId {
++        self.dialog.id()
++    }
++
++    pub fn logical_offer(&self) -> &[u8] {
++        &self.tx.original.body
++    }
++
++    pub fn replace_uncommitted_invite_offer(&mut self, effective_offer: Vec<u8>) -> Result<()> {
++        if !matches!(self.dialog.state(), DialogState::Calling(_)) {
++            return Err(crate::Error::Error(
++                "prepared INVITE is no longer uncommitted".to_string(),
++            ));
++        }
++        let content_length = effective_offer.len() as u32;
++        self.tx.original.body = effective_offer.clone();
++        self.tx
++            .original
++            .headers
++            .unique_push(crate::sip::Header::ContentLength(content_length.into()));
++
++        let mut initial_request = self.dialog.inner.initial_request.lock();
++        initial_request.body = effective_offer;
++        initial_request
++            .headers
++            .unique_push(crate::sip::Header::ContentLength(content_length.into()));
++        Ok(())
++    }
++
++    pub async fn send(self) -> Result<(ClientInviteDialog, Option<Response>)> {
++        let id = self.dialog.id();
++        self.dialog_layer_inner
++            .dialogs
++            .insert(id.to_string(), Dialog::ClientInvite(self.dialog.clone()));
++
++        debug!(%id, "prepared client invite dialog created");
++        let mut guard = DialogGuardForUnconfirmed {
++            dialog_layer_inner: &self.dialog_layer_inner,
++            id: &id,
++            invite_tx: Some(self.tx),
++        };
++        let tx = guard
++            .invite_tx
++            .as_mut()
++            .expect("prepared INVITE transaction must be available");
++        let result = self.dialog.process_invite(tx).boxed().await;
++        self.dialog_layer_inner.dialogs.remove(&id.to_string());
++
++        match result {
++            Ok((new_dialog_id, response)) => {
++                if response.as_ref().is_some_and(|value| {
++                    value.status_code.kind() == crate::sip::StatusCodeKind::Successful
++                }) {
++                    debug!(
++                        "prepared client invite dialog confirmed: {} => {}",
++                        id, new_dialog_id
++                    );
++                    self.dialog_layer_inner.dialogs.insert(
++                        new_dialog_id.to_string(),
++                        Dialog::ClientInvite(self.dialog.clone()),
++                    );
++                }
++                Ok((self.dialog, response))
++            }
++            Err(error) => Err(error),
++        }
++    }
++}
++
+ impl DialogLayer {
++    pub fn prepare_invite(
++        &self,
++        opt: InviteOption,
++        state_sender: DialogStateSender,
++    ) -> Result<PreparedClientInvite> {
++        let (dialog, tx) = self.create_client_invite_dialog(opt, state_sender)?;
++        Ok(PreparedClientInvite {
++            dialog_layer_inner: self.inner.clone(),
++            dialog,
++            tx,
++        })
++    }
++
+     /// Create an INVITE request from options
+     ///
+     /// Constructs a properly formatted SIP INVITE request based on the
+@@ -495,49 +587,7 @@ impl DialogLayer {
+         opt: InviteOption,
+         state_sender: DialogStateSender,
+     ) -> Result<(ClientInviteDialog, Option<Response>)> {
+-        let (dialog, tx) = self.create_client_invite_dialog(opt, state_sender)?;
+-        let id = dialog.id();
+-
+-        self.inner
+-            .dialogs
+-            .insert(id.to_string(), Dialog::ClientInvite(dialog.clone()));
+-
+-        debug!(%id, "client invite dialog created");
+-        let mut guard = DialogGuardForUnconfirmed {
+-            dialog_layer_inner: &self.inner,
+-            id: &id,
+-            invite_tx: Some(tx),
+-        };
+-
+-        let tx = guard
+-            .invite_tx
+-            .as_mut()
+-            .expect("transcation should be avaible");
+-
+-        let r = dialog.process_invite(tx).boxed().await;
+-        self.inner.dialogs.remove(&id.to_string());
+-
+-        match r {
+-            Ok((new_dialog_id, resp)) => {
+-                match resp {
+-                    Some(ref r)
+-                        if r.status_code.kind() == crate::sip::StatusCodeKind::Successful =>
+-                    {
+-                        debug!(
+-                            "client invite dialog confirmed: {} => {}",
+-                            id, new_dialog_id
+-                        );
+-                        self.inner.dialogs.insert(
+-                            new_dialog_id.to_string(),
+-                            Dialog::ClientInvite(dialog.clone()),
+-                        );
+-                    }
+-                    _ => {}
+-                }
+-                Ok((dialog, resp))
+-            }
+-            Err(e) => Err(e),
+-        }
++        self.prepare_invite(opt, state_sender)?.send().await
+     }
+ 
+     // Asynchronously executes an INVITE transaction in the background.
+@@ -654,3 +704,83 @@ impl DialogLayer {
+         Ok((dialog, tx))
+     }
+ }
++
++#[cfg(test)]
++mod prepared_invite_tests {
++    use super::*;
++    use crate::transport::{udp::UdpConnection, TransportLayer};
++    use crate::EndpointBuilder;
++    use tokio::sync::mpsc::unbounded_channel;
++    use tokio_util::sync::CancellationToken;
++
++    async fn prepared_invite(logical_offer: &[u8]) -> PreparedClientInvite {
++        let cancel_token = CancellationToken::new();
++        let transport = TransportLayer::new(cancel_token.child_token());
++        let udp = UdpConnection::create_connection(
++            "127.0.0.1:0".parse().unwrap(),
++            None,
++            Some(cancel_token.child_token()),
++        )
++        .await
++        .unwrap();
++        transport.add_transport(udp.into());
++        let endpoint = EndpointBuilder::new()
++            .with_user_agent("rsipstack-prepared-invite-test")
++            .with_transport_layer(transport)
++            .build();
++        let dialog_layer = DialogLayer::new(endpoint.inner.clone());
++        let (state_sender, _) = unbounded_channel();
++        dialog_layer
++            .prepare_invite(
++                InviteOption {
++                    caller: "sip:alice@example.com".try_into().unwrap(),
++                    callee: "sip:bob@example.com".try_into().unwrap(),
++                    contact: "sip:alice@127.0.0.1:5060".try_into().unwrap(),
++                    content_type: Some("application/sdp".to_string()),
++                    offer: Some(logical_offer.to_vec()),
++                    call_id: Some("prepared-invite-call".to_string()),
++                    ..Default::default()
++                },
++                state_sender,
++            )
++            .unwrap()
++    }
++
++    #[tokio::test]
++    async fn prepared_invite_exposes_real_local_tag_before_send() {
++        let invite = prepared_invite(b"v=0\r\na=logical\r\n").await;
++        let id = invite.dialog_id();
++
++        assert_eq!(id.call_id, "prepared-invite-call");
++        assert!(!id.local_tag.is_empty());
++        assert!(id.remote_tag.is_empty());
++        assert_eq!(invite.logical_offer(), b"v=0\r\na=logical\r\n");
++    }
++
++    #[tokio::test]
++    async fn prepared_invite_sends_only_the_effective_offer() {
++        let mut invite = prepared_invite(b"v=0\r\na=logical\r\n").await;
++        let effective = b"v=0\r\na=effective\r\n".to_vec();
++
++        invite
++            .replace_uncommitted_invite_offer(effective.clone())
++            .unwrap();
++
++        assert_eq!(invite.tx.original.body, effective);
++        assert_eq!(
++            invite.dialog.inner.initial_request.lock().body,
++            b"v=0\r\na=effective\r\n"
++        );
++        let content_length = invite
++            .tx
++            .original
++            .headers
++            .iter()
++            .find_map(|header| match header {
++                crate::sip::Header::ContentLength(value) => Some(value.value().to_string()),
++                _ => None,
++            });
++        let expected_length = b"v=0\r\na=effective\r\n".len().to_string();
++        assert_eq!(content_length.as_deref(), Some(expected_length.as_str()));
++    }
++}

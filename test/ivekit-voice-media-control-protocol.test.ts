@@ -30,6 +30,15 @@ const offerPayload = {
   offer_sdp: 'v=0\r\n',
   media_profile_id: 'g711-relay-v1'
 };
+const processingOfferPayload = {
+  offer_sdp: 'v=0\r\n',
+  media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+  leg_a_codec: 'PCMU',
+  leg_b_codec: 'OPUS',
+  leg_a_payload_type: 0,
+  leg_b_payload_type: 111,
+  packetization_ms: 20
+};
 const prepare: MediaControlCommand = {
   protocol_version: 'ivekit.media-control.v1',
   action: 'offer',
@@ -221,6 +230,62 @@ describe('iveKit media control protocol v1', () => {
       assert.throws(
         () => checkedMediaControlCommand(commandWithInvalidTag),
         /media_control_from_tag_invalid/
+      );
+    }
+  });
+
+  it('binds processing codec pairs to their RTP payload types in schema and runtime', () => {
+    const processingCommand: MediaControlCommand = {
+      ...prepare,
+      payload: processingOfferPayload,
+      payload_hash: mediaControlPayloadHash(processingOfferPayload)
+    };
+    assert.equal(
+      validate(processingCommand),
+      true,
+      ajv.errorsText(validate.errors)
+    );
+    assert.deepEqual(
+      checkedMediaControlCommand(processingCommand),
+      processingCommand
+    );
+
+    const invalidPayloads = [
+      { ...processingOfferPayload, leg_a_payload_type: 8 },
+      { ...processingOfferPayload, leg_b_payload_type: 0 },
+      {
+        ...processingOfferPayload,
+        leg_a_codec: 'PCMA',
+        leg_a_payload_type: 0
+      },
+      {
+        ...processingOfferPayload,
+        leg_a_codec: 'OPUS',
+        leg_a_payload_type: 111,
+        leg_b_codec: 'OPUS'
+      },
+      {
+        ...processingOfferPayload,
+        leg_b_codec: 'PCMA',
+        leg_b_payload_type: 8
+      },
+      { ...processingOfferPayload, packetization_ms: 10 },
+      {
+        ...processingOfferPayload,
+        media_profile_id: 'processing-unknown-v1'
+      },
+      { ...offerPayload, leg_a_codec: 'PCMU' }
+    ];
+    for (const payload of invalidPayloads) {
+      const command: MediaControlCommand = {
+        ...prepare,
+        payload,
+        payload_hash: mediaControlPayloadHash(payload)
+      };
+      assert.equal(validate(command), false, JSON.stringify(payload));
+      assert.throws(
+        () => checkedMediaControlCommand(command),
+        /media_control_media_profile_invalid/
       );
     }
   });

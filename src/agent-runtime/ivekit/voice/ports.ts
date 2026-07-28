@@ -1,4 +1,5 @@
 import type { PgQueryable } from '../../../db-pg.js';
+import type { RustPbxMediaControlProfile } from './media-control-profile.js';
 import type {
   VoiceCall,
   VoiceCallCommand,
@@ -210,6 +211,13 @@ export interface VoiceProviderOwnerContract {
   reservation_id: string;
   interaction_id: string;
   owner_epoch: string;
+  route_snapshot_revision: number;
+  availability_profile: 'VOICE-ORDINARY' | 'VOICE-HA-T1';
+  auth_context_ref: string | null;
+  tenant_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  media_control_profile: RustPbxMediaControlProfile;
 }
 
 export type VoiceProviderOwnerContracts =

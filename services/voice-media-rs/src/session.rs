@@ -1,6 +1,6 @@
 use crate::capacity::{CapacityError, CodecPairCapacity, CodecPairPermit};
 use crate::codec::{AudioCodec, CodecPair};
-use std::collections::{hash_map::RandomState, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, hash_map::RandomState};
 use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -33,8 +33,13 @@ pub struct ProcessingProfile {
 impl ProcessingProfile {
     pub fn codec_pairs(self) -> Result<(CodecPair, CodecPair), SessionError> {
         if self.packetization_ms != 20
-            || self.leg_a_payload_type > 127
-            || self.leg_b_payload_type > 127
+            || (self.leg_a_codec == AudioCodec::Opus) == (self.leg_b_codec == AudioCodec::Opus)
+            || !self
+                .leg_a_codec
+                .accepts_payload_type(self.leg_a_payload_type)
+            || !self
+                .leg_b_codec
+                .accepts_payload_type(self.leg_b_payload_type)
         {
             return Err(SessionError::InvalidProfile);
         }

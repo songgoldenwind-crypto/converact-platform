@@ -23,6 +23,7 @@ export * from './kamailio-route-compiler.js';
 export * from './kamailio-route-snapshot.js';
 export * from './livekit-realtime-audio-tap-gateway.js';
 export * from './livekit-realtime-audio-tap-token.js';
+export * from './media-control-profile.js';
 export * from './metrics.js';
 export * from './ports.js';
 export * from './parking-reconciler.js';

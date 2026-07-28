@@ -69,8 +69,8 @@ rvoip 不作为第二套在线 SIP B2BUA、RTP relay 或 WebRTC 服务部署，�
 | RustPBX commit | `6c49ee76baa54fdbf8f98020cc9bee158c7c15de` |
 | rsipstack commit | `8318e97b1170de4e5245b120afec1cdf53e3d716` |
 | rustrtc commit | `166c6d22984429eb6b509920c14fcd69f974f0b3` |
-| Patch set | `ivekit.34` |
-| Patch 文件 | `32` |
+| Patch set | `ivekit.35` |
+| Patch 文件 | `34` |
 | Builder | Rust `1.94` exact image digest |
 | 构建方式 | exact source + lockfile + ordered patch queue |
 
@@ -101,8 +101,10 @@ rvoip 的 README 展示了一个很有吸引力的统一 Rust 通信愿景，但
 
 根据 rvoip 自身的 release matrix：
 
-- PRACK、UPDATE、REFER、session timer、RFC 5626、SUBSCRIBE 仍是 bounded partial；
-- `Replaces` 不支持；
+- SIP core 仍只声明 `Partial`，PRACK、session timer 和 RFC 5626 仍是 bounded partial；
+- 盲转 REFER 已声明 `Supported`，但 attended transfer 仍只有 developer-preview
+  orchestration primitives，`Replaces` 尚未形成完整 RFC 3891 资格声明；
+- UPDATE、SUBSCRIBE/NOTIFY 虽已进入产品 API，仍不能由“存在实现”外推为完整生产审计；
 - WSS outbound 不属于当前 beta 支持；
 - Opus、G.722、G.729 不属于当前完整 SIP media release path；
 - DTLS-SRTP、ICE、TURN 和 browser WebRTC 不属于当前 beta；
@@ -318,7 +320,7 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 
 1. 升级必须解决已知缺口、性能瓶颈、安全问题或长期维护风险；
 2. 先在独立 worktree/reproducible image 中 rebase；
-3. 现有 32 个补丁逐个 `apply --check` 或语义迁移；
+3. 现有 34 个补丁逐个 `apply --check` 或语义迁移；
 4. 先过 contract、unit、interop、failure、capacity regression；
 5. 任何 owner/media/CDR/recording 语义回退都阻止升级；
 6. 不为了版本号更新而替换已验证的 rustrtc `0.3.90` 接口；

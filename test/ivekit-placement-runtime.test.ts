@@ -117,6 +117,7 @@ test('file placement runtime proves owner recovery from signed topology and admi
         data: {
           state: 'accepting',
           cell_lease_epoch: 3,
+          capacity_sequence: 1,
           nodes: [{
             node_id: 'livekit-cell-a',
             state: nodeState,

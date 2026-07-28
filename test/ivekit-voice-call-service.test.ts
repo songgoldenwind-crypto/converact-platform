@@ -617,18 +617,327 @@ test('Voice provider executor resolves and fences every RustPBX call used by pic
     'provider-pickup': {
       interaction_id: pickupCall.id,
       reservation_id: `reservation-${pickupCall.id}`,
-      owner_epoch: '12884901889'
+      owner_epoch: '12884901889',
+      route_snapshot_revision: 1,
+      availability_profile: 'VOICE-ORDINARY',
+      auth_context_ref: null,
+      tenant_id: 'tenant-a',
+      cell_id: 'cell-a',
+      owner_node_id: 'rustpbx-a',
+      media_control_profile: {
+        media_profile_id: 'g711-relay-v1'
+      }
     },
     'provider-parked': {
       interaction_id: parkedCall.id,
       reservation_id: `reservation-${parkedCall.id}`,
-      owner_epoch: '12884901889'
+      owner_epoch: '12884901889',
+      route_snapshot_revision: 1,
+      availability_profile: 'VOICE-ORDINARY',
+      auth_context_ref: null,
+      tenant_id: 'tenant-a',
+      cell_id: 'cell-a',
+      owner_node_id: 'rustpbx-a',
+      media_control_profile: {
+        media_profile_id: 'g711-relay-v1'
+      }
     }
   });
   assert.equal(
     placementCalls.filter((value) => value.startsWith('resolve:')).length,
     2
   );
+});
+
+test('Voice provider executor preserves inbound owner facts across profile changes', async () => {
+  const placement = voicePlacementFixture([]);
+  const fixture = callFixture({ placement });
+  const created = await fixture.service.createInbound({
+    tenant_id: 'tenant-a',
+    profile_id: fixture.profile.id,
+    provider_call_id: 'provider-inbound-frozen',
+    external_event_id: 'provider-inbound-frozen',
+    from: { kind: 'e164', value: '+8613900139000' },
+    to: { kind: 'extension', value: '1001' },
+    business_ref: { type: 'inbound_sip', id: 'provider-inbound-frozen' },
+    metadata: { source: 'rustpbx_snapshot_admission' },
+    call_id: 'call-inbound-frozen',
+    placement_reservation: {
+      interaction_id: 'call-inbound-frozen',
+      value: {} as never
+    },
+    placement_prepared: true,
+    owner_contract_facts: {
+      route_snapshot_revision: 42,
+      availability_profile: 'VOICE-HA-T1',
+      auth_context_ref: `auth-context:${'a'.repeat(64)}`,
+      media_control_profile: {
+        media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+        leg_a_codec: 'PCMU',
+        leg_b_codec: 'OPUS',
+        leg_a_payload_type: 0,
+        leg_b_payload_type: 111,
+        packetization_ms: 20
+      }
+    }
+  });
+  assert.deepEqual(created.metadata, {
+    source: 'rustpbx_snapshot_admission'
+  });
+
+  fixture.profile.revision = 8;
+  fixture.profile.config = {
+    availability_profile: 'VOICE-ORDINARY'
+  };
+  const command = await fixture.service.enqueueAction({
+    tenant_id: 'tenant-a',
+    call_id: created.id,
+    kind: 'answer',
+    payload: {},
+    actor: 'agent-a',
+    idempotency_key: 'answer-inbound-frozen'
+  });
+  const seen: Array<Parameters<VoiceProviderAdapter['execute']>[0]> = [];
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    address_protector: fixture.addressProtector,
+    provider_registry: providerRegistry(async (input) => {
+      seen.push(input);
+      return { provider_command_id: 'provider:answer', accepted: true };
+    }),
+    placement,
+    placement_pg: new MemoryPg()
+  });
+
+  await executor.execute(command);
+
+  assert.deepEqual(
+    seen[0]?.owner_contracts?.['provider-inbound-frozen'],
+    {
+      interaction_id: 'call-inbound-frozen',
+      reservation_id: 'reservation-call-inbound-frozen',
+      owner_epoch: '12884901889',
+      route_snapshot_revision: 42,
+      availability_profile: 'VOICE-HA-T1',
+      auth_context_ref: `auth-context:${'a'.repeat(64)}`,
+      tenant_id: 'tenant-a',
+      cell_id: 'cell-a',
+      owner_node_id: 'rustpbx-a',
+      media_control_profile: {
+        media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+        leg_a_codec: 'PCMU',
+        leg_b_codec: 'OPUS',
+        leg_a_payload_type: 0,
+        leg_b_payload_type: 111,
+        packetization_ms: 20
+      }
+    }
+  );
+});
+
+test('Voice provider executor freezes outbound owner facts before command delay', async () => {
+  const placement = voicePlacementFixture([]);
+  const fixture = callFixture({ placement });
+  fixture.profile.revision = 7;
+  fixture.profile.config = {
+    availability_profile: 'VOICE-HA-T1',
+    media_control_profile: {
+      media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+      leg_a_codec: 'PCMA',
+      leg_b_codec: 'OPUS',
+      leg_a_payload_type: 8,
+      leg_b_payload_type: 112,
+      packetization_ms: 20
+    }
+  };
+  const created = await fixture.service.createOutbound({
+    tenant_id: 'tenant-a',
+    profile_id: fixture.profile.id,
+    from: { kind: 'extension', value: '1001' },
+    to: { kind: 'e164', value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-outbound-frozen' },
+    actor: 'agent-a',
+    idempotency_key: 'outbound-frozen',
+    metadata: {},
+    call_id: 'call-outbound-frozen',
+    placement_reservation: {
+      interaction_id: 'call-outbound-frozen',
+      value: {
+        record: { snapshot_version: 42 }
+      } as never
+    },
+    placement_prepared: true
+  });
+  assert.deepEqual(created.call.metadata, {});
+  const authContextRef = `auth-context:${createHash('sha256')
+    .update([
+      'tenant-a',
+      'call-outbound-frozen',
+      'agent-a',
+      fixture.profile.id,
+      'rustpbx',
+      '7'
+    ].join('\0'))
+    .digest('hex')}`;
+
+  fixture.profile.revision = 8;
+  fixture.profile.config = {
+    availability_profile: 'VOICE-ORDINARY'
+  };
+  const seen: Array<Parameters<VoiceProviderAdapter['execute']>[0]> = [];
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    address_protector: fixture.addressProtector,
+    provider_registry: providerRegistry(async (input) => {
+      seen.push(input);
+      return {
+        provider_command_id: 'provider:originate',
+        provider_call_id: 'provider-outbound-frozen',
+        accepted: true
+      };
+    }),
+    placement,
+    placement_pg: new MemoryPg()
+  });
+
+  await executor.execute(created.command);
+
+  assert.deepEqual(
+    seen[0]?.owner_contracts?.['call-outbound-frozen'],
+    {
+      interaction_id: 'call-outbound-frozen',
+      reservation_id: 'reservation-call-outbound-frozen',
+      owner_epoch: '12884901889',
+      route_snapshot_revision: 42,
+      availability_profile: 'VOICE-HA-T1',
+      auth_context_ref: authContextRef,
+      tenant_id: 'tenant-a',
+      cell_id: 'cell-a',
+      owner_node_id: 'rustpbx-a',
+      media_control_profile: {
+        media_profile_id: 'VOICE-IVR-G711-OPUS-V1',
+        leg_a_codec: 'PCMA',
+        leg_b_codec: 'OPUS',
+        leg_a_payload_type: 8,
+        leg_b_payload_type: 112,
+        packetization_ms: 20
+      }
+    }
+  );
+});
+
+test('Voice hangup survives a profile rollout and executes with the call-frozen runtime', async () => {
+  const fixture = callFixture();
+  fixture.profile.revision = 7;
+  fixture.profile.base_url = 'https://pbx-v7.internal';
+  fixture.profile.desired_version = '7';
+  fixture.profile.config = {
+    rwi_url: 'wss://pbx-v7.internal/rwi'
+  };
+  const created = await fixture.service.createOutbound({
+    tenant_id: 'tenant-a',
+    profile_id: fixture.profile.id,
+    from: { kind: 'extension', value: '1001' },
+    to: { kind: 'e164', value: '+8613900139000' },
+    business_ref: { type: 'ticket', id: 'ticket-runtime-frozen' },
+    actor: 'agent-a',
+    idempotency_key: 'runtime-frozen',
+    metadata: { visible: true }
+  });
+  assert.deepEqual(created.call.metadata, { visible: true });
+  const call = fixture.calls.get(created.call.id)!;
+  call.provider_call_id = 'provider-runtime-frozen';
+  call.state = 'active';
+  const staleSnapshot = await fixture.configuration.getLatestCapabilitySnapshot(
+    call.tenant_id,
+    call.provider_profile_id
+  );
+
+  fixture.profile.revision = 8;
+  fixture.profile.base_url = 'https://pbx-v8.internal';
+  fixture.profile.desired_version = '8';
+  fixture.profile.config = {
+    rwi_url: 'wss://pbx-v8.internal/rwi'
+  };
+  fixture.configuration.getLatestCapabilitySnapshot = async () => staleSnapshot;
+
+  const hangup = await fixture.service.enqueueAction({
+    tenant_id: call.tenant_id,
+    call_id: call.id,
+    kind: 'hangup',
+    payload: {},
+    actor: 'agent-a',
+    idempotency_key: 'runtime-frozen-hangup'
+  });
+  const profiles: VoiceDeploymentProfile[] = [];
+  const registry = new VoiceProviderRegistry();
+  registry.register('rustpbx', {
+    async create(profile) {
+      profiles.push(structuredClone(profile));
+      return {
+        management: {} as VoiceProviderAdapter['management'],
+        async preflight() { throw new Error('not used'); },
+        async execute() {
+          return { provider_command_id: 'provider:hangup', accepted: true };
+        },
+        async reconcile() { return { state: 'unknown' as const }; },
+        normalizeEvent() { throw new Error('not used'); },
+        async close() {}
+      } as VoiceProviderAdapter;
+    }
+  });
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    address_protector: fixture.addressProtector,
+    provider_registry: registry
+  });
+
+  await executor.execute(hangup);
+
+  assert.equal(profiles.length, 1);
+  assert.equal(profiles[0]?.revision, 7);
+  assert.equal(profiles[0]?.base_url, 'https://pbx-v7.internal');
+  assert.equal(profiles[0]?.desired_version, '7');
+  assert.deepEqual(profiles[0]?.config, {
+    rwi_url: 'wss://pbx-v7.internal/rwi'
+  });
+});
+
+test('Voice provider executor fails closed on a malformed frozen runtime binding', async () => {
+  const fixture = callFixture();
+  const call = fixture.seedCall('active');
+  call.metadata._ivekit_provider_runtime_binding = {
+    profile_id: fixture.profile.id,
+    adapter: 'rustpbx',
+    config_hash: 'not-a-hash'
+  };
+  const hangup = await fixture.service.enqueueAction({
+    tenant_id: call.tenant_id,
+    call_id: call.id,
+    kind: 'hangup',
+    payload: {},
+    actor: 'agent-a',
+    idempotency_key: 'malformed-runtime-hangup'
+  });
+  let providerCalls = 0;
+  const executor = new VoiceProviderCallCommandExecutor({
+    calls: fixture.callRepository,
+    configuration: fixture.configuration,
+    address_protector: fixture.addressProtector,
+    provider_registry: providerRegistry(async () => {
+      providerCalls += 1;
+      return { provider_command_id: 'must-not-run', accepted: true };
+    })
+  });
+
+  await assert.rejects(
+    () => executor.execute(hangup),
+    hasVoiceCode('provider_unavailable')
+  );
+  assert.equal(providerCalls, 0);
 });
 
 test('Voice provider executor rejects a cross-node RustPBX pickup before RWI mutation', async () => {
@@ -1000,7 +1309,9 @@ function voicePlacementFixture(calls: string[]): VoiceCallPlacementPort {
       );
       return {
         interaction_id: input.interaction_id,
-        value: {} as never
+        value: {
+          record: { snapshot_version: 1 }
+        } as never
       };
     },
     async persistReserved(_pg, reservation) {

@@ -11,7 +11,7 @@ import {
   writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -171,6 +171,7 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'acceptance/rustpbx/src/agent-runtime/ivekit/voice/canonical.js',
       'acceptance/rustpbx/src/agent-runtime/ivekit/voice/capabilities.js',
       'acceptance/rustpbx/src/agent-runtime/ivekit/voice/errors.js',
+      'acceptance/rustpbx/src/agent-runtime/ivekit/voice/media-control-profile.js',
       'acceptance/rustpbx/src/agent-runtime/ivekit/voice/ports.js',
       'acceptance/rustpbx/src/agent-runtime/ivekit/voice/secret-resolver.js',
       'acceptance/rustpbx/src/agent-runtime/ivekit/voice/types.js',
@@ -1228,6 +1229,36 @@ test('delivery source paths remain inside the repository and destinations are un
     assert.equal(entry.destination.startsWith('/'), false);
     assert.equal(destinations.has(entry.destination), false, entry.destination);
     destinations.add(entry.destination);
+  }
+});
+
+test('delivery includes every declared RustPBX dependency patch', () => {
+  const manifest = JSON.parse(readFileSync(
+    join(repoRoot, 'docs', 'capacity', 'forks', 'ivekit-forks-v1.json'),
+    'utf8'
+  )) as {
+    components: Array<{
+      component_id: string;
+      patches: Array<{ path: string }>;
+    }>;
+  };
+  const delivered = new Set(
+    DELIVERY_SOURCE_FILES.map((entry) => `${entry.source}\0${entry.destination}`)
+  );
+  for (const componentId of ['rustpbx', 'rsipstack', 'rustrtc']) {
+    const component = manifest.components.find(
+      (candidate) => candidate.component_id === componentId
+    );
+    assert.ok(component, `${componentId} manifest entry is required`);
+    for (const patch of component.patches) {
+      assert.equal(
+        delivered.has(
+          `${patch.path}\0deploy/rustpbx/patches/${basename(patch.path)}`
+        ),
+        true,
+        `${patch.path} must ship in the RustPBX delivery patch queue`
+      );
+    }
   }
 });
 

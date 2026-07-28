@@ -39,6 +39,14 @@ impl AudioCodec {
         }
     }
 
+    pub const fn accepts_payload_type(self, payload_type: u8) -> bool {
+        match self {
+            Self::Pcmu => payload_type == 0,
+            Self::Pcma => payload_type == 8,
+            Self::Opus => payload_type >= 96 && payload_type <= 127,
+        }
+    }
+
     pub const fn samples_per_packet(self, packetization_ms: u16) -> usize {
         self.sample_rate() as usize * packetization_ms as usize / 1_000
     }

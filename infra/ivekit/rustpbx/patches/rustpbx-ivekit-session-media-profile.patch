@@ -1,0 +1,2484 @@
+diff --git a/src/ivekit_dialog_shadow.rs b/src/ivekit_dialog_shadow.rs
+index 1500f88..308bd0f 100644
+--- a/src/ivekit_dialog_shadow.rs
++++ b/src/ivekit_dialog_shadow.rs
+@@ -146,6 +146,8 @@ pub struct DialogRecoveryCapsulePayload {
+     pub remote_cseq: u32,
+     pub supports_100rel: bool,
+     pub media_reservation_id: String,
++    #[serde(default = "crate::ivekit_owner::MediaControlProfile::g711_relay")]
++    pub media_control_profile: crate::ivekit_owner::MediaControlProfile,
+     #[serde(default)]
+     pub started_at: Option<String>,
+     #[serde(default)]
+@@ -989,15 +991,9 @@ impl IveKitDialogShadowRuntime {
+             }
+         };
+         let binding = match DialogShadowBinding::new(
+-            required_env("IVEKIT_RUSTPBX_ROUTE_TENANT_ID")
+-                .as_deref()
+-                .unwrap_or_default(),
+-            required_env("IVEKIT_RUSTPBX_CELL_ID")
+-                .as_deref()
+-                .unwrap_or_default(),
+-            required_env("IVEKIT_RUSTPBX_OWNER_NODE_ID")
+-                .as_deref()
+-                .unwrap_or_default(),
++            &owner.tenant_id,
++            &owner.cell_id,
++            &owner.owner_node_id,
+             required_env("IVEKIT_RUSTPBX_FAULT_DOMAIN")
+                 .as_deref()
+                 .unwrap_or_default(),
+@@ -1614,6 +1610,7 @@ fn validate_recovery_payload(
+         || value.local_cseq > 0x7fff_ffff
+         || value.remote_cseq > 0x7fff_ffff
+         || !valid_media_reservation_id(&value.media_reservation_id)
++        || value.media_control_profile.validate().is_err()
+         || value.cdr_sequence > 9_007_199_254_740_991
+         || value.route_snapshot_revision == 0
+     {
+@@ -1949,6 +1946,7 @@ pub fn open_recovery_pair(
+         || caller.call_session_ref != callee.call_session_ref
+         || caller.interaction_id != callee.interaction_id
+         || caller.media_reservation_id != callee.media_reservation_id
++        || caller.media_control_profile != callee.media_control_profile
+         || caller.route_snapshot_revision != callee.route_snapshot_revision
+         || caller.started_at != callee.started_at
+         || caller.answered_at != callee.answered_at
+@@ -2096,6 +2094,7 @@ pub async fn recover_dialog_pair(
+             tenant_id: tenant_id.clone(),
+             cell_id: cell_id.clone(),
+             owner_node_id: owner_node_id.clone(),
++            media_control_profile: callee.media_control_profile.clone(),
+             previous_owner_epoch,
+             owner_epoch: claim.owner_epoch,
+             media_reservation_id: callee.media_reservation_id.clone(),
+@@ -2175,6 +2174,10 @@ pub async fn recover_dialog_pair(
+             route_snapshot_revision: callee.route_snapshot_revision,
+             availability_profile: PROFILE_T1.to_string(),
+             auth_context_ref: Some(auth_context_ref.clone()),
++            tenant_id: tenant_id.clone(),
++            cell_id: cell_id.clone(),
++            owner_node_id: owner_node_id.clone(),
++            media_control_profile: callee.media_control_profile.clone(),
+         },
+     )
+     .await
+@@ -2549,9 +2552,9 @@ impl RecoveredDialogController {
+                 Err(error) => {
+                     let status = match error {
+                         crate::ivekit_media_lifecycle::MediaLifecycleError::InvalidSdp
+-                        | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected { .. } => {
+-                            rsipstack::sip::StatusCode::NotAcceptableHere
+-                        }
++                        | crate::ivekit_media_lifecycle::MediaLifecycleError::ControlRejected {
++                            ..
++                        } => rsipstack::sip::StatusCode::NotAcceptableHere,
+                         _ => rsipstack::sip::StatusCode::ServiceUnavailable,
+                     };
+                     let final_response_identity = format!("{} {}", status.code(), method);
+@@ -2763,23 +2766,25 @@ impl RecoveredDialogController {
+         let callee_snapshot = callee.snapshot();
+         let previous_caller = self.payload(RecoveredDialogSide::Caller)?;
+         let previous_callee = self.payload(RecoveredDialogSide::Callee)?;
+-        let caller_payload = recovery_payload_from_dialog_snapshots_with_timing(
++        let caller_payload = recovery_payload_from_dialog_snapshots_with_timing_and_profile(
+             &self.context.call_session_ref,
+             &previous_caller.interaction_id,
+             &previous_caller.media_reservation_id,
+             previous_caller.cdr_sequence,
+             previous_caller.route_snapshot_revision,
++            previous_caller.media_control_profile.clone(),
+             previous_caller.started_at.as_deref(),
+             previous_caller.answered_at.as_deref(),
+             &caller_snapshot,
+             &callee_snapshot,
+         )?;
+-        let callee_payload = recovery_payload_from_dialog_snapshots_with_timing(
++        let callee_payload = recovery_payload_from_dialog_snapshots_with_timing_and_profile(
+             &self.context.call_session_ref,
+             &previous_callee.interaction_id,
+             &previous_callee.media_reservation_id,
+             previous_callee.cdr_sequence,
+             previous_callee.route_snapshot_revision,
++            previous_callee.media_control_profile.clone(),
+             previous_callee.started_at.as_deref(),
+             previous_callee.answered_at.as_deref(),
+             &callee_snapshot,
+@@ -3158,6 +3163,10 @@ async fn finalize_recovered_dialog_pair(
+             route_snapshot_revision: callee.route_snapshot_revision,
+             availability_profile: PROFILE_T1.to_string(),
+             auth_context_ref: Some(auth_context_ref.to_string()),
++            tenant_id: tenant_id.to_string(),
++            cell_id: cell_id.to_string(),
++            owner_node_id: owner_node_id.to_string(),
++            media_control_profile: callee.media_control_profile.clone(),
+         },
+     )
+     .await
+@@ -3418,6 +3427,33 @@ pub fn recovery_payload_from_dialog_snapshots_with_timing(
+     answered_at: Option<&str>,
+     snapshot: &rsipstack::dialog::dialog::DialogSnapshot,
+     peer: &rsipstack::dialog::dialog::DialogSnapshot,
++) -> Result<DialogRecoveryCapsulePayload, DialogShadowError> {
++    recovery_payload_from_dialog_snapshots_with_timing_and_profile(
++        call_session_ref,
++        interaction_id,
++        media_reservation_id,
++        cdr_sequence,
++        route_snapshot_revision,
++        crate::ivekit_owner::MediaControlProfile::g711_relay(),
++        started_at,
++        answered_at,
++        snapshot,
++        peer,
++    )
++}
++
++#[allow(clippy::too_many_arguments)]
++pub fn recovery_payload_from_dialog_snapshots_with_timing_and_profile(
++    call_session_ref: &str,
++    interaction_id: &str,
++    media_reservation_id: &str,
++    cdr_sequence: u64,
++    route_snapshot_revision: u64,
++    media_control_profile: crate::ivekit_owner::MediaControlProfile,
++    started_at: Option<&str>,
++    answered_at: Option<&str>,
++    snapshot: &rsipstack::dialog::dialog::DialogSnapshot,
++    peer: &rsipstack::dialog::dialog::DialogSnapshot,
+ ) -> Result<DialogRecoveryCapsulePayload, DialogShadowError> {
+     use rsipstack::dialog::dialog::DialogSnapshotState;
+     use rsipstack::transaction::key::TransactionRole;
+@@ -3476,6 +3512,7 @@ pub fn recovery_payload_from_dialog_snapshots_with_timing(
+         remote_cseq: snapshot.remote_cseq,
+         supports_100rel: snapshot.supports_100rel,
+         media_reservation_id: media_reservation_id.to_string(),
++        media_control_profile,
+         started_at: started_at.map(str::to_string),
+         answered_at: answered_at.map(str::to_string),
+         cdr_sequence,
+@@ -3807,6 +3844,7 @@ mod tests {
+             remote_cseq: 18,
+             supports_100rel: true,
+             media_reservation_id: "reservation-a/callee".into(),
++            media_control_profile: crate::ivekit_owner::MediaControlProfile::g711_relay(),
+             started_at: Some("2026-07-27T01:00:00.000Z".into()),
+             answered_at: Some("2026-07-27T01:00:02.000Z".into()),
+             cdr_sequence: 12,
+diff --git a/src/ivekit_media_lifecycle.rs b/src/ivekit_media_lifecycle.rs
+index 29762ee..41e1173 100644
+--- a/src/ivekit_media_lifecycle.rs
++++ b/src/ivekit_media_lifecycle.rs
+@@ -6,9 +6,10 @@ use std::time::Duration;
+ 
+ use crate::ivekit_media_control::{
+     MEDIA_CONTROL_PROTOCOL_VERSION, MediaControlAction, MediaControlClient,
+-    MediaControlClientError, MediaControlCommand, MediaControlResult, MediaSessionSnapshot,
+-    command_id_for, payload_hash,
++    MediaControlClientError, MediaControlCommand, MediaControlReconcileInput, MediaControlResult,
++    MediaSessionSnapshot, command_id_for, payload_hash,
+ };
++use crate::ivekit_owner::MediaControlProfile;
+ use reqwest::Url;
+ use serde_json::Value;
+ use sha2::{Digest, Sha256};
+@@ -28,7 +29,7 @@ pub struct MediaAdmissionBinding {
+     owner_node_id: String,
+     owner_epoch: String,
+     admission_reservation_id: String,
+-    media_profile_id: String,
++    media_control_profile: MediaControlProfile,
+ }
+ 
+ impl MediaAdmissionBinding {
+@@ -40,7 +41,7 @@ impl MediaAdmissionBinding {
+         owner_node_id: &str,
+         owner_epoch: &str,
+         admission_reservation_id: &str,
+-        media_profile_id: &str,
++        media_control_profile: MediaControlProfile,
+     ) -> Result<Self, MediaLifecycleError> {
+         for (name, value) in [
+             ("tenant_id", tenant_id),
+@@ -48,7 +49,6 @@ impl MediaAdmissionBinding {
+             ("cell_id", cell_id),
+             ("owner_node_id", owner_node_id),
+             ("admission_reservation_id", admission_reservation_id),
+-            ("media_profile_id", media_profile_id),
+         ] {
+             valid_identifier(value)
+                 .then_some(())
+@@ -59,6 +59,9 @@ impl MediaAdmissionBinding {
+             .ok()
+             .filter(|value| *value > 0)
+             .ok_or(MediaLifecycleError::InvalidBinding("owner_epoch"))?;
++        media_control_profile
++            .validate()
++            .map_err(|_| MediaLifecycleError::InvalidBinding("media_control_profile"))?;
+         Ok(Self {
+             tenant_id: tenant_id.to_string(),
+             call_id: call_id.to_string(),
+@@ -66,7 +69,7 @@ impl MediaAdmissionBinding {
+             owner_node_id: owner_node_id.to_string(),
+             owner_epoch: owner_epoch.to_string(),
+             admission_reservation_id: admission_reservation_id.to_string(),
+-            media_profile_id: media_profile_id.to_string(),
++            media_control_profile,
+         })
+     }
+ 
+@@ -90,8 +93,8 @@ impl MediaAdmissionBinding {
+         &self.owner_node_id
+     }
+ 
+-    pub fn media_profile_id(&self) -> &str {
+-        &self.media_profile_id
++    pub fn media_control_profile(&self) -> &MediaControlProfile {
++        &self.media_control_profile
+     }
+ 
+     pub fn admission_reservation_id(&self) -> &str {
+@@ -309,6 +312,12 @@ pub enum MediaCloseOutcome {
+     AlreadyClosed,
+ }
+ 
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++enum ReconciledMediaOutcome {
++    Mutation,
++    Closed,
++}
++
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub struct MediaMutation {
+     pub sequence: u32,
+@@ -615,26 +624,67 @@ impl PerLegMediaState {
+         command_id: &str,
+         recovered_state: NegotiationState,
+         effective_sdp: &str,
+-    ) -> Result<(), MediaLifecycleError> {
++    ) -> Result<MediaMutationKind, MediaLifecycleError> {
+         if self.state != NegotiationState::Unknown
+             || self.unknown_command_id.as_deref() != Some(command_id)
+-            || !matches!(
+-                recovered_state,
+-                NegotiationState::Prepared
+-                    | NegotiationState::EarlyMedia
+-                    | NegotiationState::Committed
+-                    | NegotiationState::Closed
+-            )
+         {
+             return Err(MediaLifecycleError::InvalidTransition);
+         }
+-        checked_sdp(effective_sdp)?;
+-        self.state = recovered_state;
+-        self.effective_sdp = Some(effective_sdp.to_string());
++        let kind = self
++            .pending_kind
++            .ok_or(MediaLifecycleError::InvalidTransition)?;
++        let branch_id = self
++            .pending_branch
++            .clone()
++            .ok_or(MediaLifecycleError::InvalidTransition)?;
++        let recovered_state_allowed = match kind {
++            MediaMutationKind::Offer => recovered_state == NegotiationState::Prepared,
++            MediaMutationKind::EarlyAnswer => {
++                matches!(
++                    recovered_state,
++                    NegotiationState::Prepared | NegotiationState::Committed
++                )
++            }
++            MediaMutationKind::FinalAnswer
++            | MediaMutationKind::MidDialogOffer
++            | MediaMutationKind::MidDialogAnswer
++            | MediaMutationKind::Dtmf => recovered_state == NegotiationState::Committed,
++        };
++        if !recovered_state_allowed {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        match kind {
++            MediaMutationKind::Offer => self.commit_offer(&branch_id, effective_sdp)?,
++            MediaMutationKind::EarlyAnswer => self.commit_early_media(&branch_id, effective_sdp)?,
++            MediaMutationKind::FinalAnswer => {
++                self.commit_final_answer(&branch_id, effective_sdp)?
++            }
++            MediaMutationKind::MidDialogOffer => {
++                self.commit_mid_dialog_offer(&branch_id, effective_sdp)?
++            }
++            MediaMutationKind::MidDialogAnswer => {
++                self.commit_mid_dialog_answer(&branch_id, effective_sdp)?
++            }
++            MediaMutationKind::Dtmf => self.commit_dtmf(&branch_id, effective_sdp)?,
++        }
++        self.unknown_command_id = None;
++        Ok(kind)
++    }
++
++    fn reconcile_rejected(&mut self, command_id: &str) -> Result<(), MediaLifecycleError> {
++        if self.state != NegotiationState::Unknown
++            || self.unknown_command_id.as_deref() != Some(command_id)
++        {
++            return Err(MediaLifecycleError::InvalidTransition);
++        }
++        let previous = self
++            .pending_previous_state
++            .take()
++            .ok_or(MediaLifecycleError::InvalidTransition)?;
+         self.pending_kind = None;
+         self.pending_branch = None;
+-        self.pending_previous_state = None;
+         self.unknown_command_id = None;
++        self.state = previous;
+         Ok(())
+     }
+ 
+@@ -670,9 +720,10 @@ impl PerLegMediaState {
+     }
+ 
+     fn mark_close_unknown(&mut self, command_id: &str) -> Result<(), MediaLifecycleError> {
+-        if !valid_identifier(command_id) {
++        if !valid_identifier(command_id) || self.pending_previous_state.is_some() {
+             return Err(MediaLifecycleError::InvalidTransition);
+         }
++        self.pending_previous_state = Some(self.state);
+         self.unknown_command_id = Some(command_id.to_string());
+         self.state = NegotiationState::Unknown;
+         Ok(())
+@@ -770,6 +821,11 @@ pub trait MediaControlExecutor: Send + Sync {
+         &self,
+         command: &MediaControlCommand,
+     ) -> Result<MediaControlResult, MediaControlClientError>;
++
++    async fn reconcile(
++        &self,
++        input: &MediaControlReconcileInput,
++    ) -> Result<MediaControlResult, MediaControlClientError>;
+ }
+ 
+ #[async_trait::async_trait]
+@@ -788,6 +844,13 @@ impl MediaControlExecutor for MediaControlClient {
+     ) -> Result<MediaControlResult, MediaControlClientError> {
+         MediaControlClient::execute(self, command).await
+     }
++
++    async fn reconcile(
++        &self,
++        input: &MediaControlReconcileInput,
++    ) -> Result<MediaControlResult, MediaControlClientError> {
++        MediaControlClient::reconcile(self, input).await
++    }
+ }
+ 
+ #[async_trait::async_trait]
+@@ -806,6 +869,7 @@ pub struct IveKitMediaLifecycle {
+     from_tag: String,
+     to_tag: Option<String>,
+     callee: PerLegMediaState,
++    reconciliation_command: Option<MediaControlCommand>,
+     close_command: Option<MediaControlCommand>,
+     close_confirmed: bool,
+ }
+@@ -826,6 +890,7 @@ impl IveKitMediaLifecycle {
+             from_tag: from_tag.to_string(),
+             to_tag: None,
+             callee: PerLegMediaState::new("callee", caller_offer)?,
++            reconciliation_command: None,
+             close_command: None,
+             close_confirmed: false,
+         })
+@@ -878,6 +943,7 @@ impl IveKitMediaLifecycle {
+                 winning_branch: Some(winning_branch.to_string()),
+                 sent_487: false,
+             },
++            reconciliation_command: None,
+             close_command: None,
+             close_confirmed: false,
+         })
+@@ -901,11 +967,16 @@ impl IveKitMediaLifecycle {
+             .logical_sdp()
+             .ok_or(MediaLifecycleError::InvalidTransition)?
+             .to_string();
+-        let payload = serde_json::json!({
+-            "from_tag": self.from_tag,
+-            "media_profile_id": self.binding.media_profile_id(),
+-            "offer_sdp": offer_sdp,
+-        });
++        let mut payload = self.binding.media_control_profile().offer_payload();
++        payload.insert(
++            "from_tag".to_string(),
++            serde_json::Value::String(self.from_tag.clone()),
++        );
++        payload.insert(
++            "offer_sdp".to_string(),
++            serde_json::Value::String(offer_sdp),
++        );
++        let payload = serde_json::Value::Object(payload);
+         let command = self.build_command(MediaControlAction::Offer, mutation.sequence, payload)?;
+         let session = self.execute_mutation(&command).await?;
+         self.require_committed_session(&command, &session, &["prepared"])?;
+@@ -1049,6 +1120,11 @@ impl IveKitMediaLifecycle {
+         if self.close_confirmed {
+             return Ok(MediaCloseOutcome::AlreadyClosed);
+         }
++        if self.callee.reconcile_required() {
++            if self.reconcile_pending().await? == ReconciledMediaOutcome::Closed {
++                return Ok(MediaCloseOutcome::Closed);
++            }
++        }
+         if self.close_command.is_none() {
+             if matches!(
+                 self.callee.state(),
+@@ -1091,6 +1167,7 @@ impl IveKitMediaLifecycle {
+             }) if command_id == command.command_id => {
+                 if require_close_session(&self.binding, &command, &session).is_err() {
+                     self.callee.mark_close_unknown(&command.command_id)?;
++                    self.reconciliation_command = Some(command);
+                     return Err(MediaLifecycleError::OutcomeUnknown);
+                 }
+                 self.callee.commit_close();
+@@ -1101,19 +1178,34 @@ impl IveKitMediaLifecycle {
+                 if command_id == command.command_id =>
+             {
+                 self.callee.mark_close_unknown(&command.command_id)?;
++                self.reconciliation_command = Some(command);
+                 Err(MediaLifecycleError::OutcomeUnknown)
+             }
+-            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
+-            | Ok(MediaControlResult::RejectedEpoch { error_code, .. })
+-            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
++            Ok(MediaControlResult::RejectedCapacity {
++                command_id,
++                error_code,
++                ..
++            })
++            | Ok(MediaControlResult::RejectedEpoch {
++                command_id,
++                error_code,
++                ..
++            })
++            | Ok(MediaControlResult::TerminalError {
++                command_id,
++                error_code,
++                ..
++            }) if command_id == command.command_id => {
+                 Err(MediaLifecycleError::ControlRejected { code: error_code })
+             }
+             Ok(_) => {
+                 self.callee.mark_close_unknown(&command.command_id)?;
++                self.reconciliation_command = Some(command);
+                 Err(MediaLifecycleError::OutcomeUnknown)
+             }
+             Err(MediaControlClientError::UnknownAfterTransport { .. }) => {
+                 self.callee.mark_close_unknown(&command.command_id)?;
++                self.reconciliation_command = Some(command);
+                 Err(MediaLifecycleError::OutcomeUnknown)
+             }
+             Err(error) => Err(MediaLifecycleError::ControlRejected {
+@@ -1122,6 +1214,92 @@ impl IveKitMediaLifecycle {
+         }
+     }
+ 
++    async fn reconcile_pending(&mut self) -> Result<ReconciledMediaOutcome, MediaLifecycleError> {
++        let command = self
++            .reconciliation_command
++            .clone()
++            .ok_or(MediaLifecycleError::ReconcileRequired)?;
++        let input = MediaControlReconcileInput {
++            protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++            action: "reconcile".to_string(),
++            command: command.clone(),
++        };
++        match self.executor.reconcile(&input).await {
++            Ok(
++                MediaControlResult::Committed {
++                    command_id,
++                    session,
++                    ..
++                }
++                | MediaControlResult::Replayed {
++                    command_id,
++                    session,
++                    ..
++                },
++            ) if command_id == command.command_id => {
++                if matches!(command.action, MediaControlAction::Delete) {
++                    require_close_session(&self.binding, &command, &session)
++                        .map_err(|_| MediaLifecycleError::ReconcileRequired)?;
++                    self.callee.commit_close();
++                    self.reconciliation_command = None;
++                    self.close_confirmed = true;
++                    return Ok(ReconciledMediaOutcome::Closed);
++                }
++                let kind = self
++                    .callee
++                    .pending_kind
++                    .ok_or(MediaLifecycleError::ReconcileRequired)?;
++                let allowed_states: &[&str] = match kind {
++                    MediaMutationKind::Offer => &["prepared"],
++                    MediaMutationKind::EarlyAnswer => &["prepared", "committed"],
++                    MediaMutationKind::FinalAnswer
++                    | MediaMutationKind::MidDialogOffer
++                    | MediaMutationKind::MidDialogAnswer
++                    | MediaMutationKind::Dtmf => &["committed"],
++                };
++                require_session_identity(&self.binding, &command, &session, allowed_states)
++                    .map_err(|_| MediaLifecycleError::ReconcileRequired)?;
++                let to_tag = if matches!(
++                    kind,
++                    MediaMutationKind::EarlyAnswer | MediaMutationKind::FinalAnswer
++                ) {
++                    let value = command
++                        .payload
++                        .get("to_tag")
++                        .and_then(Value::as_str)
++                        .filter(|value| valid_sip_tag(value))
++                        .ok_or(MediaLifecycleError::ReconcileRequired)?;
++                    Some(value.to_string())
++                } else {
++                    None
++                };
++                let recovered_state = match session.state.as_str() {
++                    "prepared" => NegotiationState::Prepared,
++                    "committed" => NegotiationState::Committed,
++                    _ => return Err(MediaLifecycleError::ReconcileRequired),
++                };
++                self.callee.reconcile_committed(
++                    &command.command_id,
++                    recovered_state,
++                    &session.effective_sdp,
++                )?;
++                if let Some(to_tag) = to_tag {
++                    self.to_tag = Some(to_tag);
++                }
++                self.reconciliation_command = None;
++                Ok(ReconciledMediaOutcome::Mutation)
++            }
++            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
++            | Ok(MediaControlResult::RejectedEpoch { error_code, .. })
++            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
++                self.callee.reconcile_rejected(&command.command_id)?;
++                self.reconciliation_command = None;
++                Err(MediaLifecycleError::ControlRejected { code: error_code })
++            }
++            Ok(_) | Err(_) => Err(MediaLifecycleError::ReconcileRequired),
++        }
++    }
++
+     fn dialog_tags(&self, side: MediaDialogSide) -> Result<(String, String), MediaLifecycleError> {
+         let to_tag = self
+             .to_tag
+@@ -1208,6 +1386,7 @@ impl IveKitMediaLifecycle {
+                 if command_id == command.command_id =>
+             {
+                 self.callee.mark_unknown(&command.command_id)?;
++                self.reconciliation_command = Some(command.clone());
+                 Err(MediaLifecycleError::OutcomeUnknown)
+             }
+             Ok(MediaControlResult::RejectedCapacity { error_code, .. })
+@@ -1218,10 +1397,12 @@ impl IveKitMediaLifecycle {
+             }
+             Ok(_) => {
+                 self.callee.mark_unknown(&command.command_id)?;
++                self.reconciliation_command = Some(command.clone());
+                 Err(MediaLifecycleError::OutcomeUnknown)
+             }
+             Err(MediaControlClientError::UnknownAfterTransport { .. }) => {
+                 self.callee.mark_unknown(&command.command_id)?;
++                self.reconciliation_command = Some(command.clone());
+                 Err(MediaLifecycleError::OutcomeUnknown)
+             }
+             Err(error) => {
+@@ -1241,6 +1422,7 @@ impl IveKitMediaLifecycle {
+     ) -> Result<(), MediaLifecycleError> {
+         if require_session_identity(&self.binding, command, session, allowed_states).is_err() {
+             self.callee.mark_unknown(&command.command_id)?;
++            self.reconciliation_command = Some(command.clone());
+             return Err(MediaLifecycleError::OutcomeUnknown);
+         }
+         Ok(())
+@@ -1373,13 +1555,13 @@ impl IveKitMediaRuntime {
+             };
+         };
+         let binding = match MediaAdmissionBinding::new(
+-            &required_env("IVEKIT_RUSTPBX_ROUTE_TENANT_ID").unwrap_or_default(),
++            &owner.tenant_id,
+             &owner.interaction_id,
+-            &required_env("IVEKIT_RUSTPBX_CELL_ID").unwrap_or_default(),
+-            &required_env("IVEKIT_RUSTPBX_OWNER_NODE_ID").unwrap_or_default(),
++            &owner.cell_id,
++            &owner.owner_node_id,
+             &owner.owner_epoch,
+             &owner.reservation_id,
+-            &required_env("IVEKIT_RUSTPBX_MEDIA_PROFILE_ID").unwrap_or_default(),
++            owner.media_control_profile.clone(),
+         ) {
+             Ok(binding) => binding,
+             Err(_) => {
+@@ -1430,6 +1612,89 @@ impl IveKitMediaRuntime {
+     }
+ }
+ 
++pub async fn prepare_rwi_originate_offer(
++    runtime: &mut IveKitMediaRuntime,
++    branch_id: &str,
++    logical_offer: &str,
++) -> Result<String, MediaLifecycleError> {
++    match runtime {
++        IveKitMediaRuntime::Disabled => {
++            checked_sdp(logical_offer)?;
++            Ok(logical_offer.to_string())
++        }
++        IveKitMediaRuntime::Ready { lifecycle, .. } => {
++            lifecycle.prepare_ordinary_relay_offer(branch_id).await
++        }
++        IveKitMediaRuntime::FailClosed { error_code } => {
++            Err(MediaLifecycleError::ControlRejected {
++                code: (*error_code).to_string(),
++            })
++        }
++    }
++}
++
++pub async fn commit_rwi_originate_early_media(
++    runtime: &mut IveKitMediaRuntime,
++    branch_id: &str,
++    to_tag: &str,
++    callee_sdp: &str,
++) -> Result<String, MediaLifecycleError> {
++    match runtime {
++        IveKitMediaRuntime::Disabled => {
++            checked_sdp(callee_sdp)?;
++            Ok(callee_sdp.to_string())
++        }
++        IveKitMediaRuntime::Ready { lifecycle, .. } => {
++            lifecycle
++                .commit_early_media(branch_id, to_tag, callee_sdp)
++                .await
++        }
++        IveKitMediaRuntime::FailClosed { error_code } => {
++            Err(MediaLifecycleError::ControlRejected {
++                code: (*error_code).to_string(),
++            })
++        }
++    }
++}
++
++pub async fn commit_rwi_originate_final_answer(
++    runtime: &mut IveKitMediaRuntime,
++    branch_id: &str,
++    to_tag: &str,
++    callee_sdp: &str,
++) -> Result<String, MediaLifecycleError> {
++    match runtime {
++        IveKitMediaRuntime::Disabled => {
++            checked_sdp(callee_sdp)?;
++            Ok(callee_sdp.to_string())
++        }
++        IveKitMediaRuntime::Ready { lifecycle, .. } => {
++            lifecycle
++                .commit_final_answer(branch_id, to_tag, callee_sdp)
++                .await
++        }
++        IveKitMediaRuntime::FailClosed { error_code } => {
++            Err(MediaLifecycleError::ControlRejected {
++                code: (*error_code).to_string(),
++            })
++        }
++    }
++}
++
++pub async fn close_rwi_originate_media(
++    runtime: &mut IveKitMediaRuntime,
++) -> Result<MediaCloseOutcome, MediaLifecycleError> {
++    match runtime {
++        IveKitMediaRuntime::Disabled => Ok(MediaCloseOutcome::NotAllocated),
++        IveKitMediaRuntime::Ready { lifecycle, .. } => lifecycle.close_media().await,
++        IveKitMediaRuntime::FailClosed { error_code } => {
++            Err(MediaLifecycleError::ControlRejected {
++                code: (*error_code).to_string(),
++            })
++        }
++    }
++}
++
+ pub fn media_control_requested() -> bool {
+     required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT").is_some()
+ }
+@@ -1439,6 +1704,7 @@ pub struct MediaRecoveryTakeoverInput {
+     pub tenant_id: String,
+     pub cell_id: String,
+     pub owner_node_id: String,
++    pub media_control_profile: MediaControlProfile,
+     pub previous_owner_epoch: u64,
+     pub owner_epoch: u64,
+     pub media_reservation_id: String,
+@@ -1453,26 +1719,19 @@ pub async fn takeover_recovered_media(
+     let config = media_control_runtime_config()
+         .map_err(|_| MediaLifecycleError::ConfigurationInvalid)?
+         .ok_or(MediaLifecycleError::ConfigurationInvalid)?;
+-    takeover_recovered_media_with_executor(
+-        input,
+-        config.executor.clone(),
+-        &required_env("IVEKIT_RUSTPBX_MEDIA_PROFILE_ID")
+-            .ok_or(MediaLifecycleError::ConfigurationInvalid)?,
+-    )
+-    .await
++    takeover_recovered_media_with_executor(input, config.executor.clone()).await
+ }
+ 
+ async fn takeover_recovered_media_with_executor<T>(
+     input: &MediaRecoveryTakeoverInput,
+     executor: Arc<T>,
+-    media_profile_id: &str,
+ ) -> Result<IveKitMediaLifecycle, MediaLifecycleError>
+ where
+     T: RecoveryMediaControlExecutor + 'static,
+ {
+     let existing = recovery_session(executor.as_ref(), &input.media_reservation_id).await?;
+     if existing.owner_epoch == input.owner_epoch.to_string() {
+-        return restore_recovered_media(input, executor, media_profile_id, existing);
++        return restore_recovered_media(input, executor, existing);
+     }
+     require_previous_media_owner(input, &existing)?;
+     let command =
+@@ -1496,7 +1755,7 @@ where
+                 if command_id != command.command_id {
+                     return Err(MediaLifecycleError::OutcomeUnknown);
+                 }
+-                return restore_recovered_media(input, executor, media_profile_id, session);
++                return restore_recovered_media(input, executor, session);
+             }
+             Ok(MediaControlResult::RejectedCapacity { error_code, .. })
+             | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
+@@ -1519,7 +1778,7 @@ where
+ 
+         let observed = recovery_session(executor.as_ref(), &input.media_reservation_id).await?;
+         if observed.owner_epoch == input.owner_epoch.to_string() {
+-            return restore_recovered_media(input, executor, media_profile_id, observed);
++            return restore_recovered_media(input, executor, observed);
+         }
+         require_previous_media_owner(input, &observed)?;
+         if attempt == 1 {
+@@ -1564,7 +1823,6 @@ fn require_previous_media_owner(
+ fn restore_recovered_media<T>(
+     input: &MediaRecoveryTakeoverInput,
+     executor: Arc<T>,
+-    media_profile_id: &str,
+     session: MediaSessionSnapshot,
+ ) -> Result<IveKitMediaLifecycle, MediaLifecycleError>
+ where
+@@ -1588,7 +1846,7 @@ where
+         &input.owner_node_id,
+         &input.owner_epoch.to_string(),
+         admission_reservation_id,
+-        media_profile_id,
++        input.media_control_profile.clone(),
+     )?;
+     let lifecycle_executor: Arc<dyn MediaControlExecutor> = executor;
+     IveKitMediaLifecycle::restore_committed(
+@@ -1610,6 +1868,7 @@ fn build_recovered_media_takeover_command(
+     if !valid_identifier(&input.tenant_id)
+         || !valid_identifier(&input.cell_id)
+         || !valid_identifier(&input.owner_node_id)
++        || input.media_control_profile.validate().is_err()
+         || !valid_identifier(&input.media_reservation_id)
+         || !valid_identifier(&input.winning_branch)
+         || !valid_identifier(call_id)
+@@ -1784,17 +2043,6 @@ fn build_media_control_runtime_config()
+     )?;
+     let trace_sample_ratio =
+         parsed_ratio_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_TRACE_SAMPLE_RATIO", 0.01)?;
+-    for name in [
+-        "IVEKIT_RUSTPBX_ROUTE_TENANT_ID",
+-        "IVEKIT_RUSTPBX_CELL_ID",
+-        "IVEKIT_RUSTPBX_OWNER_NODE_ID",
+-        "IVEKIT_RUSTPBX_MEDIA_PROFILE_ID",
+-    ] {
+-        let value = required_env(name).ok_or("media_control_binding_config_missing")?;
+-        if !valid_identifier(&value) {
+-            return Err("media_control_binding_config_invalid");
+-        }
+-    }
+     let client = MediaControlClient::new(crate::ivekit_media_control::MediaControlClientConfig {
+         endpoint,
+         service_token_file: PathBuf::from(service_token_file),
+@@ -1917,6 +2165,10 @@ mod tests {
+     use std::sync::Arc;
+ 
+     fn binding() -> MediaAdmissionBinding {
++        binding_with_profile(MediaControlProfile::g711_relay())
++    }
++
++    fn binding_with_profile(media_control_profile: MediaControlProfile) -> MediaAdmissionBinding {
+         MediaAdmissionBinding::new(
+             "tenant-a",
+             "call-a",
+@@ -1924,7 +2176,7 @@ mod tests {
+             "rustpbx-a",
+             "4294967297",
+             "admission-a",
+-            "g711-relay-v1",
++            media_control_profile,
+         )
+         .unwrap()
+     }
+@@ -1954,7 +2206,7 @@ mod tests {
+                 "rustpbx-a",
+                 "",
+                 "admission-a",
+-                "g711-relay-v1",
++                MediaControlProfile::g711_relay(),
+             )
+             .is_err()
+         );
+@@ -1966,7 +2218,7 @@ mod tests {
+                 "rustpbx-a",
+                 "1",
+                 "admission-a",
+-                "g711-relay-v1",
++                MediaControlProfile::g711_relay(),
+             )
+             .is_err()
+         );
+@@ -2173,6 +2425,7 @@ mod tests {
+                 tenant_id: "tenant-a".into(),
+                 cell_id: "cell-a".into(),
+                 owner_node_id: "rustpbx-b".into(),
++                media_control_profile: MediaControlProfile::g711_relay(),
+                 previous_owner_epoch: 7,
+                 owner_epoch: 8,
+                 media_reservation_id: "admission-a/callee".into(),
+@@ -2199,6 +2452,7 @@ mod tests {
+ 
+     struct StubExecutor {
+         commands: Mutex<Vec<MediaControlCommand>>,
++        reconciliations: Mutex<Vec<MediaControlReconcileInput>>,
+         results: Mutex<VecDeque<Result<MediaControlResult, MediaControlClientError>>>,
+         sessions: Mutex<VecDeque<Result<MediaSessionSnapshot, MediaControlClientError>>>,
+     }
+@@ -2215,6 +2469,17 @@ mod tests {
+                 .pop_front()
+                 .expect("stub result is required")
+         }
++
++        async fn reconcile(
++            &self,
++            input: &MediaControlReconcileInput,
++        ) -> Result<MediaControlResult, MediaControlClientError> {
++            self.reconciliations.lock().push(input.clone());
++            self.results
++                .lock()
++                .pop_front()
++                .expect("stub reconciliation result is required")
++        }
+     }
+ 
+     #[async_trait::async_trait]
+@@ -2256,6 +2521,7 @@ mod tests {
+     fn executor_with_results(results: Vec<MediaControlResult>) -> Arc<StubExecutor> {
+         Arc::new(StubExecutor {
+             commands: Mutex::new(Vec::new()),
++            reconciliations: Mutex::new(Vec::new()),
+             results: Mutex::new(results.into_iter().map(Ok).collect()),
+             sessions: Mutex::new(VecDeque::new()),
+         })
+@@ -2280,6 +2546,7 @@ mod tests {
+             tenant_id: "tenant-a".into(),
+             cell_id: "cell-a".into(),
+             owner_node_id: "rustpbx-b".into(),
++            media_control_profile: MediaControlProfile::g711_relay(),
+             previous_owner_epoch: 4_294_967_297,
+             owner_epoch: 4_294_967_298,
+             media_reservation_id: "admission-a/callee".into(),
+@@ -2297,13 +2564,9 @@ mod tests {
+             .lock()
+             .push_back(Ok(recovered_session(4_294_967_298)));
+ 
+-        let lifecycle = takeover_recovered_media_with_executor(
+-            &recovery_input(),
+-            executor.clone(),
+-            "g711-relay-v1",
+-        )
+-        .await
+-        .unwrap();
++        let lifecycle = takeover_recovered_media_with_executor(&recovery_input(), executor.clone())
++            .await
++            .unwrap();
+ 
+         assert_eq!(lifecycle.state(), NegotiationState::Committed);
+         assert!(executor.commands.lock().is_empty());
+@@ -2341,7 +2604,7 @@ mod tests {
+             }),
+         ]);
+ 
+-        takeover_recovered_media_with_executor(&input, executor.clone(), "g711-relay-v1")
++        takeover_recovered_media_with_executor(&input, executor.clone())
+             .await
+             .unwrap();
+ 
+@@ -2384,8 +2647,7 @@ mod tests {
+                 }));
+         }
+ 
+-        let result =
+-            takeover_recovered_media_with_executor(&input, executor.clone(), "g711-relay-v1").await;
++        let result = takeover_recovered_media_with_executor(&input, executor.clone()).await;
+         assert!(matches!(
+             result,
+             Err(MediaLifecycleError::ReconcileRequired)
+@@ -2450,6 +2712,198 @@ mod tests {
+         );
+     }
+ 
++    #[tokio::test]
++    async fn processing_offer_contains_frozen_media_profile() {
++        let expected_payload = serde_json::json!({
++            "from_tag": "caller-tag",
++            "media_profile_id": "VOICE-IVR-G711-OPUS-V1",
++            "leg_a_codec": "PCMU",
++            "leg_b_codec": "OPUS",
++            "leg_a_payload_type": 0,
++            "leg_b_payload_type": 111,
++            "packetization_ms": 20,
++            "offer_sdp": "v=0\r\na=logical-offer\r\n"
++        });
++        let executor = executor_with_results(vec![committed(
++            "placeholder",
++            1,
++            "prepared",
++            "v=0\r\na=processing-offer\r\n",
++        )]);
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding_with_profile(MediaControlProfile::VoiceIvrG711OpusV1 {
++                leg_a_codec: crate::ivekit_owner::MediaCodec::Pcmu,
++                leg_b_codec: crate::ivekit_owner::MediaCodec::Opus,
++                leg_a_payload_type: 0,
++                leg_b_payload_type: 111,
++                packetization_ms: 20,
++            }),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        executor.results.lock()[0] = Ok(committed(
++            &lifecycle
++                .preview_command_id(MediaControlAction::Offer, 1, expected_payload.clone())
++                .unwrap(),
++            1,
++            "prepared",
++            "v=0\r\na=processing-offer\r\n",
++        ));
++
++        lifecycle
++            .prepare_ordinary_relay_offer("branch-a")
++            .await
++            .unwrap();
++
++        let commands = executor.commands.lock();
++        assert_eq!(commands.len(), 1);
++        assert_eq!(
++            &commands[0].payload,
++            expected_payload.as_object().expect("object payload")
++        );
++    }
++
++    #[tokio::test]
++    async fn rwi_originate_media_prepare_is_fail_closed() {
++        let mut runtime = IveKitMediaRuntime::FailClosed {
++            error_code: "media_control_owner_binding_missing",
++        };
++
++        let error =
++            prepare_rwi_originate_offer(&mut runtime, "branch-a", "v=0\r\na=logical-offer\r\n")
++                .await
++                .unwrap_err();
++
++        assert_eq!(error.failure_code(), "media_control_owner_binding_missing");
++    }
++
++    #[tokio::test]
++    async fn disabled_rwi_originate_media_preserves_logical_sdp() {
++        let mut runtime = IveKitMediaRuntime::Disabled;
++
++        assert_eq!(
++            prepare_rwi_originate_offer(&mut runtime, "branch-a", "v=0\r\na=logical-offer\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=logical-offer\r\n"
++        );
++        assert_eq!(
++            commit_rwi_originate_final_answer(
++                &mut runtime,
++                "branch-a",
++                "callee-tag",
++                "v=0\r\na=logical-answer\r\n",
++            )
++            .await
++            .unwrap(),
++            "v=0\r\na=logical-answer\r\n"
++        );
++        assert_eq!(
++            close_rwi_originate_media(&mut runtime).await.unwrap(),
++            MediaCloseOutcome::NotAllocated
++        );
++    }
++
++    #[tokio::test]
++    async fn rwi_originate_processing_chain_uses_effective_sdp_and_closes() {
++        let executor = executor_with_results(Vec::new());
++        let lifecycle = IveKitMediaLifecycle::new(
++            binding_with_profile(MediaControlProfile::VoiceIvrG711OpusV1 {
++                leg_a_codec: crate::ivekit_owner::MediaCodec::Pcmu,
++                leg_b_codec: crate::ivekit_owner::MediaCodec::Opus,
++                leg_a_payload_type: 0,
++                leg_b_payload_type: 111,
++                packetization_ms: 20,
++            }),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        for (action, sequence, state, effective_sdp, payload) in [
++            (
++                MediaControlAction::Offer,
++                1,
++                "prepared",
++                "v=0\r\na=processing-offer\r\n",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "media_profile_id": "VOICE-IVR-G711-OPUS-V1",
++                    "leg_a_codec": "PCMU",
++                    "leg_b_codec": "OPUS",
++                    "leg_a_payload_type": 0,
++                    "leg_b_payload_type": 111,
++                    "packetization_ms": 20,
++                    "offer_sdp": "v=0\r\na=logical-offer\r\n"
++                }),
++            ),
++            (
++                MediaControlAction::Answer,
++                2,
++                "committed",
++                "v=0\r\na=processing-answer\r\n",
++                serde_json::json!({
++                    "answer_sdp": "v=0\r\na=callee-answer\r\n",
++                    "from_tag": "caller-tag",
++                    "to_tag": "callee-tag"
++                }),
++            ),
++            (
++                MediaControlAction::Delete,
++                3,
++                "closed",
++                "v=0\r\na=processing-answer\r\n",
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "to_tag": "callee-tag"
++                }),
++            ),
++        ] {
++            let command_id = lifecycle
++                .preview_command_id(action, sequence, payload)
++                .unwrap();
++            executor.results.lock().push_back(Ok(committed(
++                &command_id,
++                sequence,
++                state,
++                effective_sdp,
++            )));
++        }
++        let mut runtime = IveKitMediaRuntime::Ready {
++            lifecycle,
++            failure_policy: MediaControlFailurePolicy::FailClosed,
++        };
++
++        assert_eq!(
++            prepare_rwi_originate_offer(&mut runtime, "branch-a", "v=0\r\na=logical-offer\r\n",)
++                .await
++                .unwrap(),
++            "v=0\r\na=processing-offer\r\n"
++        );
++        assert_eq!(
++            commit_rwi_originate_final_answer(
++                &mut runtime,
++                "branch-a",
++                "callee-tag",
++                "v=0\r\na=callee-answer\r\n",
++            )
++            .await
++            .unwrap(),
++            "v=0\r\na=processing-answer\r\n"
++        );
++        assert_eq!(
++            close_rwi_originate_media(&mut runtime).await.unwrap(),
++            MediaCloseOutcome::Closed
++        );
++        let commands = executor.commands.lock();
++        assert_eq!(commands.len(), 3);
++        assert!(matches!(commands[0].action, MediaControlAction::Offer));
++        assert!(matches!(commands[1].action, MediaControlAction::Answer));
++        assert!(matches!(commands[2].action, MediaControlAction::Delete));
++    }
++
+     #[tokio::test]
+     async fn early_and_final_answer_return_committed_effective_sdp() {
+         let executor = executor_with_results(Vec::new());
+@@ -2728,6 +3182,77 @@ mod tests {
+         assert!(executor.commands.lock().is_empty());
+     }
+ 
++    #[tokio::test]
++    async fn close_reconciles_a_lost_offer_result_before_deleting_media() {
++        let executor = executor_with_results(Vec::new());
++        let mut lifecycle = IveKitMediaLifecycle::new(
++            binding(),
++            executor.clone(),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        let offer_id = lifecycle
++            .preview_command_id(
++                MediaControlAction::Offer,
++                1,
++                serde_json::json!({
++                    "from_tag": "caller-tag",
++                    "media_profile_id": "g711-relay-v1",
++                    "offer_sdp": "v=0\r\na=logical-offer\r\n"
++                }),
++            )
++            .unwrap();
++        executor
++            .results
++            .lock()
++            .push_back(Ok(MediaControlResult::Unknown {
++                protocol_version: MEDIA_CONTROL_PROTOCOL_VERSION.to_string(),
++                command_id: offer_id.clone(),
++                error_code: "transport_timeout".to_string(),
++                retryable: true,
++                session: None,
++            }));
++        executor.results.lock().push_back(Ok(committed(
++            &offer_id,
++            1,
++            "prepared",
++            "v=0\r\na=effective-offer\r\n",
++        )));
++        let delete_id = lifecycle
++            .preview_command_id(
++                MediaControlAction::Delete,
++                2,
++                serde_json::json!({ "from_tag": "caller-tag" }),
++            )
++            .unwrap();
++        executor.results.lock().push_back(Ok(committed(
++            &delete_id,
++            2,
++            "closed",
++            "v=0\r\na=effective-offer\r\n",
++        )));
++
++        assert_eq!(
++            lifecycle.prepare_ordinary_relay_offer("branch-a").await,
++            Err(MediaLifecycleError::OutcomeUnknown)
++        );
++        assert_eq!(
++            lifecycle.close_media().await.unwrap(),
++            MediaCloseOutcome::Closed
++        );
++        let commands = executor.commands.lock();
++        assert_eq!(commands[0].command_id, offer_id);
++        assert!(matches!(commands[1].action, MediaControlAction::Delete));
++        let reconciliations = executor.reconciliations.lock();
++        assert_eq!(reconciliations.len(), 1);
++        assert_eq!(reconciliations[0].command.command_id, offer_id);
++        assert_eq!(
++            reconciliations[0].command.idempotency_key,
++            commands[0].idempotency_key
++        );
++    }
++
+     #[tokio::test]
+     async fn delete_is_replayed_with_stable_identity_after_unknown() {
+         let executor = executor_with_results(Vec::new());
+@@ -2804,11 +3329,19 @@ mod tests {
+             MediaCloseOutcome::Closed
+         );
+         let commands = executor.commands.lock();
+-        assert_eq!(commands.len(), 3);
++        assert_eq!(commands.len(), 2);
+         assert!(matches!(commands[1].action, MediaControlAction::Delete));
+-        assert_eq!(commands[1].command_id, commands[2].command_id);
+-        assert_eq!(commands[1].idempotency_key, commands[2].idempotency_key);
+         assert_eq!(commands[1].command_sequence, 2);
++        let reconciliations = executor.reconciliations.lock();
++        assert_eq!(reconciliations.len(), 1);
++        assert_eq!(
++            reconciliations[0].command.command_id,
++            commands[1].command_id
++        );
++        assert_eq!(
++            reconciliations[0].command.idempotency_key,
++            commands[1].idempotency_key
++        );
+     }
+ 
+     #[tokio::test]
+diff --git a/src/ivekit_owner.rs b/src/ivekit_owner.rs
+index feddf4a..c27308d 100644
+--- a/src/ivekit_owner.rs
++++ b/src/ivekit_owner.rs
+@@ -11,7 +11,126 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
+ 
+ use crate::proxy::proxy_call::session_hooks::{CallSessionContext, CallSessionHook};
+ 
+-#[derive(Clone, Debug, Deserialize, Serialize)]
++#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(rename_all = "UPPERCASE")]
++pub enum MediaCodec {
++    Pcmu,
++    Pcma,
++    Opus,
++}
++
++impl MediaCodec {
++    pub const fn as_str(self) -> &'static str {
++        match self {
++            Self::Pcmu => "PCMU",
++            Self::Pcma => "PCMA",
++            Self::Opus => "OPUS",
++        }
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(tag = "media_profile_id", deny_unknown_fields)]
++pub enum MediaControlProfile {
++    #[serde(rename = "g711-relay-v1")]
++    G711Relay,
++    #[serde(rename = "VOICE-IVR-G711-OPUS-V1")]
++    VoiceIvrG711OpusV1 {
++        leg_a_codec: MediaCodec,
++        leg_b_codec: MediaCodec,
++        leg_a_payload_type: u8,
++        leg_b_payload_type: u8,
++        packetization_ms: u8,
++    },
++}
++
++impl MediaControlProfile {
++    pub const fn g711_relay() -> Self {
++        Self::G711Relay
++    }
++
++    pub const fn media_profile_id(&self) -> &'static str {
++        match self {
++            Self::G711Relay => "g711-relay-v1",
++            Self::VoiceIvrG711OpusV1 { .. } => "VOICE-IVR-G711-OPUS-V1",
++        }
++    }
++
++    pub fn validate(&self) -> Result<()> {
++        let Self::VoiceIvrG711OpusV1 {
++            leg_a_codec,
++            leg_b_codec,
++            leg_a_payload_type,
++            leg_b_payload_type,
++            packetization_ms,
++        } = self
++        else {
++            return Ok(());
++        };
++        let codec_pair_is_valid = matches!(
++            (leg_a_codec, leg_b_codec),
++            (MediaCodec::Pcmu | MediaCodec::Pcma, MediaCodec::Opus)
++                | (MediaCodec::Opus, MediaCodec::Pcmu | MediaCodec::Pcma)
++        );
++        if !codec_pair_is_valid
++            || *packetization_ms != 20
++            || !valid_payload_type(*leg_a_codec, *leg_a_payload_type)
++            || !valid_payload_type(*leg_b_codec, *leg_b_payload_type)
++        {
++            return Err(anyhow!("media control profile is invalid"));
++        }
++        Ok(())
++    }
++
++    pub fn offer_payload(&self) -> serde_json::Map<String, serde_json::Value> {
++        let mut payload = serde_json::Map::new();
++        payload.insert(
++            "media_profile_id".to_string(),
++            serde_json::Value::String(self.media_profile_id().to_string()),
++        );
++        if let Self::VoiceIvrG711OpusV1 {
++            leg_a_codec,
++            leg_b_codec,
++            leg_a_payload_type,
++            leg_b_payload_type,
++            packetization_ms,
++        } = self
++        {
++            payload.insert(
++                "leg_a_codec".to_string(),
++                serde_json::Value::String(leg_a_codec.as_str().to_string()),
++            );
++            payload.insert(
++                "leg_b_codec".to_string(),
++                serde_json::Value::String(leg_b_codec.as_str().to_string()),
++            );
++            payload.insert(
++                "leg_a_payload_type".to_string(),
++                serde_json::Value::from(*leg_a_payload_type),
++            );
++            payload.insert(
++                "leg_b_payload_type".to_string(),
++                serde_json::Value::from(*leg_b_payload_type),
++            );
++            payload.insert(
++                "packetization_ms".to_string(),
++                serde_json::Value::from(*packetization_ms),
++            );
++        }
++        payload
++    }
++}
++
++fn valid_payload_type(codec: MediaCodec, payload_type: u8) -> bool {
++    match codec {
++        MediaCodec::Pcmu => payload_type == 0,
++        MediaCodec::Pcma => payload_type == 8,
++        MediaCodec::Opus => (96..=127).contains(&payload_type),
++    }
++}
++
++#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
++#[serde(deny_unknown_fields)]
+ pub struct OwnerContract {
+     pub reservation_id: String,
+     pub interaction_id: String,
+@@ -19,6 +138,42 @@ pub struct OwnerContract {
+     pub route_snapshot_revision: u64,
+     pub availability_profile: String,
+     pub auth_context_ref: Option<String>,
++    pub tenant_id: String,
++    pub cell_id: String,
++    pub owner_node_id: String,
++    pub media_control_profile: MediaControlProfile,
++}
++
++impl OwnerContract {
++    fn validate(&self) -> Result<()> {
++        for value in [
++            &self.reservation_id,
++            &self.interaction_id,
++            &self.tenant_id,
++            &self.cell_id,
++            &self.owner_node_id,
++        ] {
++            valid_node_identifier(value)?;
++        }
++        self.owner_epoch
++            .parse::<u64>()
++            .ok()
++            .filter(|value| *value > 0)
++            .ok_or_else(|| anyhow!("owner epoch is invalid"))?;
++        if self.route_snapshot_revision == 0
++            || !matches!(
++                self.availability_profile.as_str(),
++                "VOICE-ORDINARY" | "VOICE-HA-T1"
++            )
++            || (self.availability_profile == "VOICE-HA-T1") != self.auth_context_ref.is_some()
++        {
++            return Err(anyhow!("owner contract is invalid"));
++        }
++        if let Some(auth_context_ref) = self.auth_context_ref.as_deref() {
++            valid_node_identifier(auth_context_ref)?;
++        }
++        self.media_control_profile.validate()
++    }
+ }
+ 
+ struct DisabledAuthorizer;
+@@ -74,27 +229,22 @@ struct WireAuthorization {
+ static CONFIG: OnceLock<std::result::Result<Option<OwnerConfig>, String>> = OnceLock::new();
+ static OWNERS: OnceLock<DashMap<String, Arc<OwnerEntry>>> = OnceLock::new();
+ 
+-pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Result<()> {
++pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Result<bool> {
+     valid_provider_call_id(provider_call_id)?;
++    contract.validate()?;
+     let Some(config) = config()? else {
+-        return Ok(());
++        return Ok(false);
+     };
+     let owners = owners();
+     if let Some(existing) = owners.get(provider_call_id) {
+-        if existing.contract.reservation_id != contract.reservation_id
+-            || existing.contract.interaction_id != contract.interaction_id
+-            || existing.contract.owner_epoch != contract.owner_epoch
+-            || existing.contract.route_snapshot_revision != contract.route_snapshot_revision
+-            || existing.contract.availability_profile != contract.availability_profile
+-            || existing.contract.auth_context_ref != contract.auth_context_ref
+-        {
++        if existing.contract != contract {
+             return Err(anyhow!("owner contract conflict"));
+         }
+         existing
+             .guard
+             .assert_mutation(&contract.owner_epoch, now_unix_ms())
+             .map_err(|error| anyhow!("owner guard rejected: {error}"))?;
+-        return Ok(());
++        return Ok(false);
+     }
+ 
+     let request = hook_request(&contract);
+@@ -110,22 +260,21 @@ pub async fn ensure_owner(provider_call_id: &str, contract: OwnerContract) -> Re
+     match owners.entry(provider_call_id.to_string()) {
+         dashmap::mapref::entry::Entry::Occupied(existing) => {
+             let current = existing.get();
+-            if current.contract.reservation_id != contract.reservation_id
+-                || current.contract.interaction_id != contract.interaction_id
+-                || current.contract.owner_epoch != contract.owner_epoch
+-                || current.contract.route_snapshot_revision != contract.route_snapshot_revision
+-                || current.contract.availability_profile != contract.availability_profile
+-                || current.contract.auth_context_ref != contract.auth_context_ref
+-            {
++            if current.contract != contract {
+                 return Err(anyhow!("owner contract conflict"));
+             }
++            current
++                .guard
++                .assert_mutation(&contract.owner_epoch, now_unix_ms())
++                .map_err(|error| anyhow!("owner guard rejected: {error}"))?;
++            Ok(false)
+         }
+         dashmap::mapref::entry::Entry::Vacant(vacant) => {
+             vacant.insert(entry);
+             start_refresh(provider_call_id.to_string());
++            Ok(true)
+         }
+     }
+-    Ok(())
+ }
+ 
+ pub fn assert_mutation(provider_call_id: &str, supplied_epoch: Option<&str>) -> Result<()> {
+@@ -433,6 +582,7 @@ fn now_unix_ms() -> u64 {
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use serde_json::json;
+ 
+     #[test]
+     fn owner_accepts_standard_sip_call_ids() {
+@@ -460,4 +610,80 @@ mod tests {
+         assert!(valid_node_identifier("rustpbx-node-1").is_ok());
+         assert!(valid_node_identifier("rustpbx@node").is_err());
+     }
++
++    #[test]
++    fn owner_contract_rejects_partial_processing_profile() {
++        let result = serde_json::from_value::<OwnerContract>(json!({
++            "reservation_id": "reservation-a",
++            "interaction_id": "call-a",
++            "owner_epoch": "1",
++            "route_snapshot_revision": 1,
++            "availability_profile": "VOICE-ORDINARY",
++            "auth_context_ref": null,
++            "tenant_id": "tenant-a",
++            "cell_id": "cell-a",
++            "owner_node_id": "rustpbx-a",
++            "media_control_profile": {
++                "media_profile_id": "VOICE-IVR-G711-OPUS-V1",
++                "leg_a_codec": "PCMU"
++            }
++        }));
++        assert!(result.is_err());
++    }
++
++    #[test]
++    fn owner_contract_rejects_unknown_media_profile() {
++        let result = serde_json::from_value::<OwnerContract>(json!({
++            "reservation_id": "reservation-a",
++            "interaction_id": "call-a",
++            "owner_epoch": "1",
++            "route_snapshot_revision": 1,
++            "availability_profile": "VOICE-ORDINARY",
++            "auth_context_ref": null,
++            "tenant_id": "tenant-a",
++            "cell_id": "cell-a",
++            "owner_node_id": "rustpbx-a",
++            "media_control_profile": {
++                "media_profile_id": "unknown"
++            }
++        }));
++        assert!(result.is_err());
++    }
++
++    #[test]
++    fn processing_profile_requires_g711_opus_payloads_and_twenty_millisecond_ptime() {
++        let valid = MediaControlProfile::VoiceIvrG711OpusV1 {
++            leg_a_codec: MediaCodec::Pcmu,
++            leg_b_codec: MediaCodec::Opus,
++            leg_a_payload_type: 0,
++            leg_b_payload_type: 111,
++            packetization_ms: 20,
++        };
++        assert!(valid.validate().is_ok());
++        for invalid in [
++            MediaControlProfile::VoiceIvrG711OpusV1 {
++                leg_a_codec: MediaCodec::Pcmu,
++                leg_b_codec: MediaCodec::Pcma,
++                leg_a_payload_type: 0,
++                leg_b_payload_type: 8,
++                packetization_ms: 20,
++            },
++            MediaControlProfile::VoiceIvrG711OpusV1 {
++                leg_a_codec: MediaCodec::Pcmu,
++                leg_b_codec: MediaCodec::Opus,
++                leg_a_payload_type: 8,
++                leg_b_payload_type: 111,
++                packetization_ms: 20,
++            },
++            MediaControlProfile::VoiceIvrG711OpusV1 {
++                leg_a_codec: MediaCodec::Pcmu,
++                leg_b_codec: MediaCodec::Opus,
++                leg_a_payload_type: 0,
++                leg_b_payload_type: 111,
++                packetization_ms: 30,
++            },
++        ] {
++            assert!(invalid.validate().is_err());
++        }
++    }
+ }
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index fc596dd..f657f7e 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -5236,12 +5236,13 @@ impl SipSession {
+                 });
+             let started_at = started_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+             Some(
+-                crate::ivekit_dialog_shadow::recovery_payload_from_dialog_snapshots_with_timing(
++                crate::ivekit_dialog_shadow::recovery_payload_from_dialog_snapshots_with_timing_and_profile(
+                     &self.context.session_id,
+                     &owner.interaction_id,
+                     &format!("{}/callee", owner.reservation_id),
+                     self.cdr_sequence.load(std::sync::atomic::Ordering::Acquire),
+                     owner.route_snapshot_revision,
++                    owner.media_control_profile.clone(),
+                     Some(&started_at),
+                     answered_at.as_deref(),
+                     snapshot,
+diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
+index 11ffd36..1810aa5 100644
+--- a/src/proxy/routing/http.rs
++++ b/src/proxy/routing/http.rs
+@@ -333,6 +333,8 @@ impl HttpCallRouter {
+         if !admitted.accepted
+             || admitted.route_snapshot_revision == 0
+             || admitted.route_snapshot_revision != route_snapshot_revision
++            || admitted.cell_id != config.cell_id
++            || admitted.owner_node_id != config.owner_node_id
+         {
+             return Err(RouteError {
+                 error: anyhow!("snapshot inbound admission route revision mismatch"),
+@@ -349,6 +351,10 @@ impl HttpCallRouter {
+                 route_snapshot_revision: admitted.route_snapshot_revision,
+                 availability_profile: admitted.availability_profile,
+                 auth_context_ref: admitted.auth_context_ref,
++                tenant_id: admitted.tenant_id,
++                cell_id: admitted.cell_id,
++                owner_node_id: admitted.owner_node_id,
++                media_control_profile: admitted.media_control_profile,
+             },
+         )
+         .await
+@@ -455,6 +461,10 @@ struct HttpSnapshotAdmissionResponse {
+     call_id: String,
+     reservation_id: String,
+     owner_epoch: String,
++    tenant_id: String,
++    cell_id: String,
++    owner_node_id: String,
++    media_control_profile: crate::ivekit_owner::MediaControlProfile,
+     route_snapshot_revision: u64,
+     #[serde(default = "ordinary_availability_profile")]
+     availability_profile: String,
+diff --git a/src/rwi/handler.rs b/src/rwi/handler.rs
+index bf05e66..e2c1fb0 100644
+--- a/src/rwi/handler.rs
++++ b/src/rwi/handler.rs
+@@ -295,22 +295,33 @@ async fn handle_text_message(
+             }
+         },
+     };
++    let call_id = extract_call_id(&command).map(|s| s.to_string());
++    let originated_call_id = matches!(&command, RwiCommandPayload::Originate(_))
++        .then(|| call_id.as_deref())
++        .flatten();
++    let mut originated_owner_opened = false;
+     for owner_call_id in extract_owner_call_ids(&command) {
+-        if let Some(owner) = owners.get(owner_call_id)
+-            && let Err(error) =
+-                crate::ivekit_owner::ensure_owner(owner_call_id, owner.clone()).await
+-        {
+-            let err_resp = serde_json::to_string(&serde_json::json!({
+-                "type": "command_failed",
+-                "status": "error",
+-                "action_id": action_id,
+-                "action": action,
+-                "call_id": owner_call_id,
+-                "error": format!("ivekit_owner_open_failed:{error}"),
+-            }))
+-            .unwrap_or_default();
+-            let _ = ws_tx.send(err_resp);
+-            return;
++        if let Some(owner) = owners.get(owner_call_id) {
++            match crate::ivekit_owner::ensure_owner(owner_call_id, owner.clone()).await {
++                Ok(opened) => {
++                    if originated_call_id == Some(owner_call_id) {
++                        originated_owner_opened = opened;
++                    }
++                }
++                Err(error) => {
++                    let err_resp = serde_json::to_string(&serde_json::json!({
++                        "type": "command_failed",
++                        "status": "error",
++                        "action_id": action_id,
++                        "action": action,
++                        "call_id": owner_call_id,
++                        "error": format!("ivekit_owner_open_failed:{error}"),
++                    }))
++                    .unwrap_or_default();
++                    let _ = ws_tx.send(err_resp);
++                    return;
++                }
++            }
+         }
+         let owner_epoch = owners
+             .get(owner_call_id)
+@@ -348,8 +359,6 @@ async fn handle_text_message(
+         _ => {}
+     }
+ 
+-    let call_id = extract_call_id(&command).map(|s| s.to_string());
+-
+     // For originate/attach, remember whether we should claim ownership on success
+     let should_claim_ownership = matches!(
+         &command,
+@@ -357,6 +366,11 @@ async fn handle_text_message(
+     );
+ 
+     let result = processor.process_command(command).await;
++    if let Some(failed_call_id) =
++        failed_originate_owner(originated_call_id, originated_owner_opened, &result)
++    {
++        crate::ivekit_owner::close_owner(failed_call_id).await;
++    }
+ 
+     // Auto-claim call ownership when originate or attach succeeds
+     if should_claim_ownership
+@@ -381,6 +395,17 @@ async fn handle_text_message(
+     processor.record_action(action_id, None).await;
+ }
+ 
++fn failed_originate_owner<'a>(
++    originated_call_id: Option<&'a str>,
++    owner_opened_by_command: bool,
++    result: &Result<CommandResult, CommandError>,
++) -> Option<&'a str> {
++    owner_opened_by_command
++        .then_some(())
++        .and(result.as_ref().err())
++        .and(originated_call_id)
++}
++
+ fn build_command_result_event(
+     action_id: &str,
+     action: &str,
+@@ -510,6 +535,35 @@ fn build_command_result_event(
+     }
+ }
+ 
++#[cfg(test)]
++mod ivekit_owner_cleanup_tests {
++    use super::*;
++
++    #[test]
++    fn only_a_synchronously_failed_originate_closes_its_owner() {
++        let failed: Result<CommandResult, CommandError> =
++            Err(CommandError::CommandFailed("prepare failed".to_string()));
++        let succeeded = Ok(CommandResult::Originated {
++            call_id: "call-a".to_string(),
++        });
++
++        assert_eq!(
++            failed_originate_owner(Some("call-a"), true, &failed),
++            Some("call-a")
++        );
++        assert_eq!(
++            failed_originate_owner(Some("call-a"), false, &failed),
++            None,
++            "a pre-existing owner belongs to the active call, not this failed command"
++        );
++        assert_eq!(
++            failed_originate_owner(Some("call-a"), true, &succeeded),
++            None
++        );
++        assert_eq!(failed_originate_owner(None, true, &failed), None);
++    }
++}
++
+ async fn handle_binary_message(
+     data: &[u8],
+     _processor: Arc<RwiCommandProcessor>,
+diff --git a/src/rwi/processor.rs b/src/rwi/processor.rs
+index ae152dd..3d3b6ae 100644
+--- a/src/rwi/processor.rs
++++ b/src/rwi/processor.rs
+@@ -16,16 +16,225 @@ use crate::rwi::session::{
+     QueueEnqueueRequest, RecordStartRequest, RwiCommandPayload, SupervisorMode,
+ };
+ use crate::rwi::transfer::TransferController;
+-use futures::FutureExt;
++use futures::{FutureExt, StreamExt};
+ use std::collections::HashMap;
+ 
+ use std::sync::Arc;
++use std::sync::OnceLock;
++use std::sync::atomic::AtomicBool;
+ #[cfg(test)]
+-use std::sync::atomic::{AtomicBool, Ordering};
++use std::sync::atomic::Ordering;
+ use std::time::{Duration, Instant};
+ use tokio::sync::RwLock;
+ use tracing::{info, warn};
+ 
++const RWI_MEDIA_CLEANUP_BATCH_SIZE: usize = 64;
++const RWI_MEDIA_CLEANUP_CONCURRENCY: usize = 8;
++const RWI_MEDIA_CLEANUP_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(5);
++const RWI_MEDIA_CLEANUP_RETRY_MIN: Duration = Duration::from_millis(250);
++const RWI_MEDIA_CLEANUP_RETRY_MAX: Duration = Duration::from_secs(30);
++
++struct PendingRwiMediaCleanup {
++    runtime: tokio::sync::Mutex<crate::ivekit_media_lifecycle::IveKitMediaRuntime>,
++}
++
++static RWI_MEDIA_CLEANUPS: OnceLock<dashmap::DashMap<String, Arc<PendingRwiMediaCleanup>>> =
++    OnceLock::new();
++static RWI_MEDIA_CLEANUP_WORKER_RUNNING: AtomicBool = AtomicBool::new(false);
++static RWI_MEDIA_CLEANUP_CURSOR: std::sync::atomic::AtomicUsize =
++    std::sync::atomic::AtomicUsize::new(0);
++
++async fn close_rwi_originate_media_best_effort(
++    call_id: &str,
++    runtime: &mut crate::ivekit_media_lifecycle::IveKitMediaRuntime,
++) {
++    let cleanup = async {
++        let mut last_error = None;
++        for _ in 0..3 {
++            match crate::ivekit_media_lifecycle::close_rwi_originate_media(runtime).await {
++                Ok(outcome) => return Ok(outcome),
++                Err(error) => {
++                    last_error = Some(error);
++                    tokio::task::yield_now().await;
++                }
++            }
++        }
++        Err(last_error.expect("bounded cleanup attempted at least once"))
++    };
++    match tokio::time::timeout(RWI_MEDIA_CLEANUP_ATTEMPT_TIMEOUT, cleanup).await {
++        Ok(Ok(_)) => return,
++        Ok(Err(error)) => {
++            tracing::warn!(
++                %call_id,
++                error = %error,
++                "RWI originate media cleanup handed off for reconciliation"
++            );
++        }
++        Err(_) => {
++            tracing::warn!(
++                %call_id,
++                "RWI originate media cleanup timed out and was handed off"
++            );
++        }
++    }
++    let owned_runtime = std::mem::replace(
++        runtime,
++        crate::ivekit_media_lifecycle::IveKitMediaRuntime::Disabled,
++    );
++    handoff_rwi_media_cleanup(call_id, owned_runtime);
++}
++
++fn rwi_media_cleanups() -> &'static dashmap::DashMap<String, Arc<PendingRwiMediaCleanup>> {
++    RWI_MEDIA_CLEANUPS.get_or_init(dashmap::DashMap::new)
++}
++
++fn handoff_rwi_media_cleanup(
++    call_id: &str,
++    runtime: crate::ivekit_media_lifecycle::IveKitMediaRuntime,
++) {
++    let cleanups = rwi_media_cleanups();
++    match cleanups.entry(call_id.to_string()) {
++        dashmap::mapref::entry::Entry::Occupied(_) => {
++            tracing::warn!(
++                %call_id,
++                "RWI media cleanup handoff already exists"
++            );
++            return;
++        }
++        dashmap::mapref::entry::Entry::Vacant(vacant) => {
++            vacant.insert(Arc::new(PendingRwiMediaCleanup {
++                runtime: tokio::sync::Mutex::new(runtime),
++            }));
++        }
++    }
++    start_rwi_media_cleanup_worker();
++}
++
++fn start_rwi_media_cleanup_worker() {
++    if RWI_MEDIA_CLEANUP_WORKER_RUNNING.swap(true, std::sync::atomic::Ordering::AcqRel) {
++        return;
++    }
++    tokio::spawn(run_rwi_media_cleanup_worker());
++}
++
++async fn run_rwi_media_cleanup_worker() {
++    let mut retry_delay = RWI_MEDIA_CLEANUP_RETRY_MIN;
++    loop {
++        let cleanup_count = rwi_media_cleanups().len();
++        let start = if cleanup_count == 0 {
++            0
++        } else {
++            RWI_MEDIA_CLEANUP_CURSOR.fetch_add(
++                RWI_MEDIA_CLEANUP_BATCH_SIZE,
++                std::sync::atomic::Ordering::Relaxed,
++            ) % cleanup_count
++        };
++        let mut batch = rwi_media_cleanups()
++            .iter()
++            .skip(start)
++            .take(RWI_MEDIA_CLEANUP_BATCH_SIZE)
++            .map(|entry| (entry.key().clone(), Arc::clone(entry.value())))
++            .collect::<Vec<_>>();
++        if batch.len() < RWI_MEDIA_CLEANUP_BATCH_SIZE && batch.len() < cleanup_count {
++            let remaining =
++                (RWI_MEDIA_CLEANUP_BATCH_SIZE - batch.len()).min(cleanup_count - batch.len());
++            batch.extend(
++                rwi_media_cleanups()
++                    .iter()
++                    .take(remaining)
++                    .map(|entry| (entry.key().clone(), Arc::clone(entry.value()))),
++            );
++        }
++        if batch.is_empty() {
++            RWI_MEDIA_CLEANUP_WORKER_RUNNING.store(false, std::sync::atomic::Ordering::Release);
++            if rwi_media_cleanups().is_empty() {
++                return;
++            }
++            if RWI_MEDIA_CLEANUP_WORKER_RUNNING
++                .compare_exchange(
++                    false,
++                    true,
++                    std::sync::atomic::Ordering::AcqRel,
++                    std::sync::atomic::Ordering::Acquire,
++                )
++                .is_err()
++            {
++                return;
++            }
++            continue;
++        }
++
++        let outcomes = futures::stream::iter(batch)
++            .map(|(call_id, cleanup)| async move {
++                let confirmed = {
++                    let mut runtime = cleanup.runtime.lock().await;
++                    matches!(
++                        tokio::time::timeout(
++                            RWI_MEDIA_CLEANUP_ATTEMPT_TIMEOUT,
++                            crate::ivekit_media_lifecycle::close_rwi_originate_media(&mut runtime,),
++                        )
++                        .await,
++                        Ok(Ok(_))
++                    )
++                };
++                (call_id, cleanup, confirmed)
++            })
++            .buffer_unordered(RWI_MEDIA_CLEANUP_CONCURRENCY)
++            .collect::<Vec<_>>()
++            .await;
++        let mut completed = 0usize;
++        for (call_id, cleanup, confirmed) in outcomes {
++            if !confirmed {
++                continue;
++            }
++            let current_matches = rwi_media_cleanups()
++                .get(&call_id)
++                .is_some_and(|current| Arc::ptr_eq(current.value(), &cleanup));
++            if current_matches {
++                rwi_media_cleanups().remove(&call_id);
++                completed += 1;
++            }
++        }
++        retry_delay = if completed > 0 {
++            RWI_MEDIA_CLEANUP_RETRY_MIN
++        } else {
++            retry_delay
++                .checked_mul(2)
++                .unwrap_or(RWI_MEDIA_CLEANUP_RETRY_MAX)
++                .min(RWI_MEDIA_CLEANUP_RETRY_MAX)
++        };
++        tokio::time::sleep(retry_delay).await;
++    }
++}
++
++#[cfg(test)]
++fn pending_rwi_media_cleanup(call_id: &str) -> bool {
++    rwi_media_cleanups().contains_key(call_id)
++}
++
++#[cfg(test)]
++fn remove_pending_rwi_media_cleanup(call_id: &str) {
++    rwi_media_cleanups().remove(call_id);
++}
++
++#[cfg(test)]
++mod ivekit_media_cleanup_handoff_tests {
++    use super::*;
++
++    #[tokio::test]
++    async fn unresolved_rwi_media_cleanup_is_retained_for_retry() {
++        let call_id = "ivekit-cleanup-handoff-a";
++        let mut runtime = crate::ivekit_media_lifecycle::IveKitMediaRuntime::FailClosed {
++            error_code: "media_control_unavailable",
++        };
++
++        close_rwi_originate_media_best_effort(call_id, &mut runtime).await;
++
++        assert!(pending_rwi_media_cleanup(call_id));
++        remove_pending_rwi_media_cleanup(call_id);
++    }
++}
++
+ /// Audio receiver for originated calls to bridge into conference.
+ ///
+ /// For now this provides paced silence (20 ms frames). The pacing is important:
+@@ -94,8 +303,7 @@ async fn start_peer_conference_bridge(
+         .remote_description()
+         .and_then(|desc| {
+             let sdp = desc.to_sdp_string();
+-            let profile =
+-                crate::media::negotiate::MediaNegotiator::extract_leg_profile(&sdp);
++            let profile = crate::media::negotiate::MediaNegotiator::extract_leg_profile(&sdp);
+             profile.audio.map(|audio| {
+                 let codec = audio.codec;
+                 let params = RtpCodecParameters {
+@@ -133,7 +341,8 @@ async fn start_peer_conference_bridge(
+ 
+     if let Some(transceiver) = existing {
+         let track_arc: std::sync::Arc<dyn rustrtc::media::MediaStreamTrack> = sample_track_arc;
+-        let mut sender_builder = rustrtc::RtpSender::builder(track_arc, ssrc).params(negotiated_params);
++        let mut sender_builder =
++            rustrtc::RtpSender::builder(track_arc, ssrc).params(negotiated_params);
+         if let Some(ref cname) = pc.config().cname {
+             sender_builder = sender_builder.cname(cname.clone());
+         }
+@@ -176,13 +385,7 @@ async fn start_peer_conference_bridge(
+     // Start the full-duplex bridge
+     let bridge = crate::call::runtime::ConferenceMediaBridge::new(conf_manager.clone());
+     match bridge
+-        .start_bridge_full_duplex(
+-            conf_id,
+-            leg_id,
+-            tx,
+-            audio_receiver,
+-            negotiated_codec,
+-        )
++        .start_bridge_full_duplex(conf_id, leg_id, tx, audio_receiver, negotiated_codec)
+         .await
+     {
+         Ok(handle) => {
+@@ -396,7 +599,9 @@ impl RwiCommandProcessor {
+             supervisor_states: Arc::new(RwLock::new(HashMap::new())),
+             media_stream_states: Arc::new(RwLock::new(HashMap::new())),
+             media_inject_states: Arc::new(RwLock::new(HashMap::new())),
+-            mixer_registry: Arc::new(crate::proxy::proxy_call::session_registry::MixerRegistry::new()),
++            mixer_registry: Arc::new(
++                crate::proxy::proxy_call::session_registry::MixerRegistry::new(),
++            ),
+             conference_manager,
+             transfer_controller,
+             command_dedup_cache: CommandDeduplicationCache::with_default_ttl(),
+@@ -1294,7 +1499,12 @@ impl RwiCommandProcessor {
+         // When no codecs are configured on the trunk, use the default full set (the
+         // conference bridge now sends whatever codec was negotiated, so there is no
+         // need to restrict to PCMU-only).
+-        let media_track = if let Some(trunk_name) = req.trunk.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
++        let media_track = if let Some(trunk_name) = req
++            .trunk
++            .as_deref()
++            .map(str::trim)
++            .filter(|s| !s.is_empty())
++        {
+             if let Ok(trunk) = Self::resolve_originate_trunk(&server, trunk_name) {
+                 if !trunk.codec.is_empty() {
+                     let codecs: Vec<audio_codec::CodecType> = trunk
+@@ -1409,11 +1619,50 @@ impl RwiCommandProcessor {
+ 
+         let cancel_token = tokio_util::sync::CancellationToken::new();
+         let conference_manager = self.conference_manager.clone();
++        let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
++        let mut prepared_invite = dialog_layer
++            .prepare_invite(invite_option, state_tx)
++            .map_err(|error| {
++                CommandError::CommandFailed(format!("failed to prepare outbound INVITE: {error}"))
++            })?;
++        let prepared_dialog_id = prepared_invite.dialog_id();
++        let offer_branch_id = crate::ivekit_media_lifecycle::stable_dialog_branch_id(
++            &prepared_dialog_id.call_id,
++            &prepared_dialog_id.local_tag,
++            "",
++        );
++        let mut ivekit_media = crate::ivekit_media_lifecycle::IveKitMediaRuntime::bootstrap(
++            &call_id,
++            &prepared_dialog_id.local_tag,
++            Some(&sdp_offer),
++        );
++        let effective_offer = match crate::ivekit_media_lifecycle::prepare_rwi_originate_offer(
++            &mut ivekit_media,
++            &offer_branch_id,
++            &sdp_offer,
++        )
++        .await
++        {
++            Ok(value) => value,
++            Err(error) => {
++                close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
++                return Err(CommandError::CommandFailed(format!(
++                    "rwi_media_prepare_failed:{}",
++                    error.failure_code()
++                )));
++            }
++        };
++        if let Err(error) =
++            prepared_invite.replace_uncommitted_invite_offer(effective_offer.into_bytes())
++        {
++            close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
++            return Err(CommandError::CommandFailed(format!(
++                "rwi_media_offer_replace_failed:{error}"
++            )));
++        }
+ 
+         crate::utils::spawn(async move {
+-            let (state_tx, mut state_rx) = tokio::sync::mpsc::unbounded_channel();
+-
+-            let mut invitation = dialog_layer.do_invite(invite_option, state_tx).boxed();
++            let mut invitation = prepared_invite.send().boxed();
+ 
+             let caller_media_builder = crate::media::MediaStreamBuilder::new()
+                 .with_id(format!("{}-caller", call_id))
+@@ -1906,6 +2155,7 @@ impl RwiCommandProcessor {
+                 let cdr_callee = callee_display.clone();
+                 async move {
+                     cancel.cancel();
++                    crate::ivekit_owner::close_owner(&cdr_call_id).await;
+ 
+                     // Send CDR record when call completes
+                     if let Some(ref sender) = cdr_sender.as_ref() {
+@@ -1977,13 +2227,14 @@ impl RwiCommandProcessor {
+                         gw.send_event_to_call_owner(&call_id, &crate::rwi::event::to_legacy_event(&crate::rwi::CallNoAnswer { call_id: call_id.clone() }, None));
+                     }
+                     registry.remove(&call_id);
++                    close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
+                     cleanup().await;
+                 }
+                 result = async {
+                     loop {
+                         tokio::select! {
+                             res = &mut invitation => {
+-                                break res;
++                                break res.map_err(|error| error.to_string());
+                             }
+                             state = state_rx.recv() => {
+                                 match state {
+@@ -1994,13 +2245,52 @@ impl RwiCommandProcessor {
+                                             &crate::rwi::event::to_legacy_event(&crate::rwi::CallRinging { call_id: call_id.clone() }, None),
+                                         );
+                                     }
+-                                    Some(rsipstack::dialog::dialog::DialogState::Early(_, ref response)) => {
++                                    Some(rsipstack::dialog::dialog::DialogState::Early(ref dialog_id, ref response)) => {
+ 
+                                         let body = response.body();
+                                         if !body.is_empty() {
+                                             let sdp = String::from_utf8_lossy(body).to_string();
+                                             if sdp.contains("v=0") {
+-                                                tracing::debug!(%call_id, "Early media SDP received");
++                                                let branch_id =
++                                                    crate::ivekit_media_lifecycle::stable_dialog_branch_id(
++                                                        &dialog_id.call_id,
++                                                        &dialog_id.local_tag,
++                                                        &dialog_id.remote_tag,
++                                                    );
++                                                let effective_sdp = match crate::ivekit_media_lifecycle::commit_rwi_originate_early_media(
++                                                    &mut ivekit_media,
++                                                    &branch_id,
++                                                    &dialog_id.remote_tag,
++                                                    &sdp,
++                                                )
++                                                .await
++                                                {
++                                                    Ok(value) => value,
++                                                    Err(error) => {
++                                                        break Err(format!(
++                                                            "rwi_media_early_failed:{}",
++                                                            error.failure_code()
++                                                        ));
++                                                    }
++                                                };
++                                                let tracks = caller_peer.get_tracks().await;
++                                                let Some(first_track) = tracks.first() else {
++                                                    break Err(
++                                                        "rwi_media_early_failed:media_track_missing"
++                                                            .to_string(),
++                                                    );
++                                                };
++                                                if let Err(error) = first_track
++                                                    .lock()
++                                                    .await
++                                                    .set_remote_description(&effective_sdp)
++                                                    .await
++                                                {
++                                                    break Err(format!(
++                                                        "rwi_media_early_failed:{error}"
++                                                    ));
++                                                }
++                                                tracing::debug!(%call_id, "Early media SDP committed");
+                                             }
+                                         }
+                                         let gw = gateway.read();
+@@ -2020,9 +2310,6 @@ impl RwiCommandProcessor {
+                 } => {
+                     match result {
+                         Ok((dialog, Some(resp))) if resp.status_code.kind() == rsipstack::sip::StatusCodeKind::Successful => {
+-
+-                            cdr_answered.store(true, std::sync::atomic::Ordering::Relaxed);
+-
+                             let sdp_answer = if resp.body().is_empty() {
+                                 None
+                             } else {
+@@ -2034,23 +2321,81 @@ impl RwiCommandProcessor {
+                                 }
+                             };
+ 
+-
+-                            if let Some(answer) = sdp_answer {
+-                                tracing::info!(%call_id, "Received SDP answer, completing media handshake");
+-
+-
+-
+-                                let tracks = caller_peer.get_tracks().await;
+-                                if let Some(first_track) = tracks.first() {
+-                                    if let Err(e) = first_track.lock().await.set_remote_description(&answer).await {
+-                                        tracing::error!(%call_id, "Failed to set remote description: {}", e);
+-                                    } else {
+-                                        tracing::info!(%call_id, "Media session established successfully");
++                            let media_answer = async {
++                                let Some(answer) = sdp_answer else {
++                                    if ivekit_media.is_ready() {
++                                        return Err(
++                                            "rwi_media_answer_failed:media_sdp_missing".to_string(),
++                                        );
+                                     }
++                                    return Ok(());
++                                };
++                                let dialog_id = dialog.id();
++                                let branch_id =
++                                    crate::ivekit_media_lifecycle::stable_dialog_branch_id(
++                                        &dialog_id.call_id,
++                                        &dialog_id.local_tag,
++                                        &dialog_id.remote_tag,
++                                    );
++                                let effective_answer =
++                                    crate::ivekit_media_lifecycle::commit_rwi_originate_final_answer(
++                                        &mut ivekit_media,
++                                        &branch_id,
++                                        &dialog_id.remote_tag,
++                                        &answer,
++                                    )
++                                    .await
++                                    .map_err(|error| {
++                                        format!(
++                                            "rwi_media_answer_failed:{}",
++                                            error.failure_code()
++                                        )
++                                    })?;
++                                let tracks = caller_peer.get_tracks().await;
++                                let first_track = tracks.first().ok_or_else(|| {
++                                    "rwi_media_answer_failed:media_track_missing".to_string()
++                                })?;
++                                first_track
++                                    .lock()
++                                    .await
++                                    .set_remote_description(&effective_answer)
++                                    .await
++                                    .map_err(|error| {
++                                        format!("rwi_media_answer_failed:{error}")
++                                    })?;
++                                Ok::<(), String>(())
++                            }
++                            .await;
++                            if let Err(reason) = media_answer {
++                                tracing::error!(%call_id, %reason, "RWI originate media answer failed");
++                                if let Err(error) = dialog.hangup().await {
++                                    tracing::warn!(%call_id, error = %error, "Failed to terminate media-invalid dialog");
+                                 }
+-                            } else {
+-                                tracing::warn!(%call_id, "200 OK received without SDP answer");
++                                {
++                                    let gw = gateway.read();
++                                    gw.send_event_to_call_owner(
++                                        &call_id,
++                                        &crate::rwi::event::to_legacy_event(
++                                            &crate::rwi::CallHangup {
++                                                call_id: call_id.clone(),
++                                                reason: Some(reason),
++                                                sip_status: Some(resp.status_code.code()),
++                                            },
++                                            None,
++                                        ),
++                                    );
++                                }
++                                registry.remove(&call_id);
++                                close_rwi_originate_media_best_effort(
++                                    &call_id,
++                                    &mut ivekit_media,
++                                )
++                                .await;
++                                cleanup().await;
++                                return;
+                             }
++                            cdr_answered.store(true, std::sync::atomic::Ordering::Relaxed);
++                            tracing::info!(%call_id, "Media session established successfully");
+ 
+ 
+                             let _ = caller_peer;
+@@ -2110,6 +2455,7 @@ impl RwiCommandProcessor {
+                                 );
+                             }
+                             registry.remove(&call_id);
++                            close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
+                             cleanup().await;
+                         }
+                         Ok((_dialog_id, resp_opt)) => {
+@@ -2138,6 +2484,7 @@ impl RwiCommandProcessor {
+                                 }
+                             }
+                             registry.remove(&call_id);
++                            close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
+                             cleanup().await;
+                         }
+                         Err(e) => {
+@@ -2153,6 +2500,7 @@ impl RwiCommandProcessor {
+                                 );
+                             }
+                             registry.remove(&call_id);
++                            close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
+                             cleanup().await;
+                         }
+                     }
+@@ -2160,6 +2508,7 @@ impl RwiCommandProcessor {
+                 _ = cancel_token.cancelled() => {
+                     tracing::info!(%call_id, "RWI originate cancelled before answer");
+                     registry.remove(&call_id);
++                    close_rwi_originate_media_best_effort(&call_id, &mut ivekit_media).await;
+                     cleanup().await;
+                 }
+             }
+@@ -2192,7 +2541,12 @@ impl RwiCommandProcessor {
+         // disabled trunk surfaces as an immediate command failure rather than a
+         // "started" operation in which every leg then fails. Per-leg
+         // apply_explicit_originate_trunk re-resolves and applies it on each leg.
+-        if let Some(trunk_name) = req.trunk.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
++        if let Some(trunk_name) = req
++            .trunk
++            .as_deref()
++            .map(str::trim)
++            .filter(|s| !s.is_empty())
++        {
+             Self::resolve_originate_trunk(&server, trunk_name)
+                 .map_err(CommandError::CommandFailed)?;
+         }
+@@ -2438,16 +2792,20 @@ impl RwiCommandProcessor {
+             media_track
+         };
+         // If routing out a named carrier trunk, respect the trunk's codec configuration.
+-        let media_track = if let Some(trunk_name) = trunk.map(str::trim).filter(|s| !s.is_empty()) {
+-            if let Ok(trunk) = Self::resolve_originate_trunk(&server, trunk_name) {
+-                if !trunk.codec.is_empty() {
+-                    let codecs: Vec<audio_codec::CodecType> = trunk
+-                        .codec
+-                        .iter()
+-                        .filter_map(|c| audio_codec::CodecType::try_from(c.as_str()).ok())
+-                        .collect();
+-                    if !codecs.is_empty() {
+-                        media_track.with_codec_preference(codecs)
++        let media_track =
++            if let Some(trunk_name) = trunk.map(str::trim).filter(|s| !s.is_empty()) {
++                if let Ok(trunk) = Self::resolve_originate_trunk(&server, trunk_name) {
++                    if !trunk.codec.is_empty() {
++                        let codecs: Vec<audio_codec::CodecType> = trunk
++                            .codec
++                            .iter()
++                            .filter_map(|c| audio_codec::CodecType::try_from(c.as_str()).ok())
++                            .collect();
++                        if !codecs.is_empty() {
++                            media_track.with_codec_preference(codecs)
++                        } else {
++                            media_track
++                        }
+                     } else {
+                         media_track
+                     }
+@@ -2457,10 +2815,7 @@ impl RwiCommandProcessor {
+             } else {
+                 media_track
+             }
+-        } else {
+-            media_track
+-        }
+-        .build();
++            .build();
+ 
+         let sdp_offer = match media_track.local_description().await {
+             Ok(sdp) => {
+@@ -3116,57 +3471,57 @@ impl RwiCommandProcessor {
+         match overflow.action.as_deref() {
+             Some("transfer") => match overflow.target_queue.as_ref() {
+                 Some(target_queue) => {
+-                info!(
+-                    call_id = %req.call_id,
+-                    from_queue = %req.queue_id,
+-                    to_queue = %target_queue,
+-                    "Transferring call to overflow queue"
+-                );
+-
+-                let queue_state = QueueState {
+-                    queue_id: target_queue.clone(),
+-                    priority: req.priority,
+-                    skills: req.skills,
+-                    max_wait_secs: req.max_wait_secs,
+-                    is_hold: false,
+-                    enqueued_at: std::time::Instant::now(),
+-                    agent_id: None,
+-                    overflow_count: 1,
+-                };
+-
+-                let mut states = self.queue_states.write().await;
+-                states.insert(req.call_id.clone(), queue_state);
+-                drop(states);
+-
+-                let overflow_event = crate::rwi::event::to_legacy_event(
+-                    &crate::rwi::QueueOverflowed {
+-                        call_id: req.call_id.clone(),
+-                        original_queue_id: req.queue_id,
+-                        overflow_queue_id: target_queue.clone(),
+-                        reason: overflow.reason,
+-                    },
+-                    None,
+-                );
+-                let gw = self.gateway.read();
+-                gw.send_event_to_call_owner(&req.call_id, &overflow_event);
++                    info!(
++                        call_id = %req.call_id,
++                        from_queue = %req.queue_id,
++                        to_queue = %target_queue,
++                        "Transferring call to overflow queue"
++                    );
+ 
+-                let joined_event = crate::rwi::event::to_legacy_event(
+-                    &crate::rwi::QueueJoined {
+-                        call_id: req.call_id.clone(),
++                    let queue_state = QueueState {
+                         queue_id: target_queue.clone(),
+-                    },
+-                    None,
+-                );
+-                gw.send_event_to_call_owner(&req.call_id, &joined_event);
++                        priority: req.priority,
++                        skills: req.skills,
++                        max_wait_secs: req.max_wait_secs,
++                        is_hold: false,
++                        enqueued_at: std::time::Instant::now(),
++                        agent_id: None,
++                        overflow_count: 1,
++                    };
++
++                    let mut states = self.queue_states.write().await;
++                    states.insert(req.call_id.clone(), queue_state);
++                    drop(states);
++
++                    let overflow_event = crate::rwi::event::to_legacy_event(
++                        &crate::rwi::QueueOverflowed {
++                            call_id: req.call_id.clone(),
++                            original_queue_id: req.queue_id,
++                            overflow_queue_id: target_queue.clone(),
++                            reason: overflow.reason,
++                        },
++                        None,
++                    );
++                    let gw = self.gateway.read();
++                    gw.send_event_to_call_owner(&req.call_id, &overflow_event);
+ 
+-                Ok(CommandResult::Success)
+-            }
+-            None => {
+-                warn!("Queue overflow: transfer action but no target queue");
+-                Ok(CommandResult::Success)
+-            }
+-        },
+-        Some("voicemail") => {
++                    let joined_event = crate::rwi::event::to_legacy_event(
++                        &crate::rwi::QueueJoined {
++                            call_id: req.call_id.clone(),
++                            queue_id: target_queue.clone(),
++                        },
++                        None,
++                    );
++                    gw.send_event_to_call_owner(&req.call_id, &joined_event);
++
++                    Ok(CommandResult::Success)
++                }
++                None => {
++                    warn!("Queue overflow: transfer action but no target queue");
++                    Ok(CommandResult::Success)
++                }
++            },
++            Some("voicemail") => {
+                 info!(call_id = %req.call_id, "Redirecting to voicemail due to overflow");
+                 let event = crate::rwi::event::to_legacy_event(
+                     &crate::rwi::QueueVoicemailRedirected {
+diff --git a/tests/ivekit_dialog_shadow_contract_test.rs b/tests/ivekit_dialog_shadow_contract_test.rs
+index b77d96a..2d6b1be 100644
+--- a/tests/ivekit_dialog_shadow_contract_test.rs
++++ b/tests/ivekit_dialog_shadow_contract_test.rs
+@@ -142,6 +142,7 @@ fn typescript_recovery_capsule_fixture_opens_and_authenticates_all_binding_field
+             remote_cseq: 18,
+             supports_100rel: true,
+             media_reservation_id: "reservation-caller".into(),
++            media_control_profile: rustpbx::ivekit_owner::MediaControlProfile::g711_relay(),
+             started_at: None,
+             answered_at: None,
+             route_snapshot_revision: 1,
+@@ -283,6 +284,7 @@ fn recovery_payload() -> DialogRecoveryCapsulePayload {
+         remote_cseq: 1,
+         supports_100rel: true,
+         media_reservation_id: "reservation-a-caller".into(),
++        media_control_profile: rustpbx::ivekit_owner::MediaControlProfile::g711_relay(),
+         started_at: Some("2026-07-27T01:00:00.000Z".into()),
+         answered_at: Some("2026-07-27T01:00:02.000Z".into()),
+         route_snapshot_revision: 42,

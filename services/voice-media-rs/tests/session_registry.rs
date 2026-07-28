@@ -61,6 +61,40 @@ fn new_registry(capacity: Arc<CodecPairCapacity>) -> ProcessingSessionRegistry {
 }
 
 #[test]
+fn processing_profile_rejects_codec_payload_type_mismatches() {
+    for invalid in [
+        ProcessingProfile {
+            leg_a_payload_type: 111,
+            ..profile()
+        },
+        ProcessingProfile {
+            leg_b_payload_type: 0,
+            ..profile()
+        },
+        ProcessingProfile {
+            leg_a_codec: AudioCodec::Pcma,
+            leg_a_payload_type: 0,
+            ..profile()
+        },
+    ] {
+        assert_eq!(invalid.codec_pairs(), Err(SessionError::InvalidProfile));
+    }
+}
+
+#[test]
+fn processing_profile_requires_exactly_one_opus_leg() {
+    let g711_only = ProcessingProfile {
+        leg_a_codec: AudioCodec::Pcmu,
+        leg_b_codec: AudioCodec::Pcma,
+        packetization_ms: 20,
+        leg_a_payload_type: 0,
+        leg_b_payload_type: 8,
+    };
+
+    assert_eq!(g711_only.codec_pairs(), Err(SessionError::InvalidProfile));
+}
+
+#[test]
 fn lifecycle_allocates_once_commits_and_releases_all_resources() {
     let capacity = Arc::new(CodecPairCapacity::uniform(4));
     let registry = new_registry(Arc::clone(&capacity));
@@ -117,15 +151,17 @@ fn lifecycle_allocates_once_commits_and_releases_all_resources() {
         .expect("recorded delete");
     assert!(reconciled.replayed);
     assert_eq!(reconciled.snapshot.state, ProcessingSessionState::Closed);
-    assert!(registry
-        .reconcile(ReconcileCommand {
-            media_reservation_id: "media-1".to_owned(),
-            owner_epoch: 1,
-            command_id: "cmd-unknown".to_owned(),
-            command_hash: [42; 32],
-        })
-        .expect("unknown reconcile")
-        .is_none());
+    assert!(
+        registry
+            .reconcile(ReconcileCommand {
+                media_reservation_id: "media-1".to_owned(),
+                owner_epoch: 1,
+                command_id: "cmd-unknown".to_owned(),
+                command_hash: [42; 32],
+            })
+            .expect("unknown reconcile")
+            .is_none()
+    );
 }
 
 #[test]

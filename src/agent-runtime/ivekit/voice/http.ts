@@ -18,6 +18,7 @@ import { RustPbxEventsAdapter } from './adapters/rustpbx-events.js';
 import { RustPbxRouterAdapter } from './adapters/rustpbx-routing.js';
 import {
   VoiceCallService,
+  type VoiceCallOwnerContractFacts,
   type VoiceCallPlacementPort
 } from './call-service.js';
 import {
@@ -32,6 +33,7 @@ import {
   VoiceDeploymentProfileService
 } from './deployment-profile-service.js';
 import { VoiceError } from './errors.js';
+import { resolveRustPbxMediaControlProfile } from './media-control-profile.js';
 import type {
   VoiceAddressProtector,
   VoiceCallRepository,
@@ -995,12 +997,24 @@ async function routeProviderWebhook(input: {
           authenticated.profile_id,
           request.route_snapshot_revision
         );
+        const availability = availabilityProfile(profile);
+        const mediaControlProfile = resolveRustPbxMediaControlProfile(profile);
+        const authContextRef = availability === 'VOICE-HA-T1'
+          ? authenticationContextReference(authenticated, profile)
+          : null;
         const authoritativeCall = await createAuthoritativeInboundCall({
           module,
           authenticated,
           request,
           placement: inboundPlacement,
-          source: 'rustpbx_snapshot_admission'
+          source: 'rustpbx_snapshot_admission',
+          provider_runtime_profile: profile,
+          owner_contract_facts: {
+            route_snapshot_revision: routeSnapshotRevision,
+            availability_profile: availability,
+            auth_context_ref: authContextRef,
+            media_control_profile: mediaControlProfile
+          }
         });
         const [owner, audioTapToken] = await Promise.all([
           input.options.placement.resolveOwner(tenantPg, {
@@ -1014,7 +1028,6 @@ async function routeProviderWebhook(input: {
             media_session_id: request.call_id
           })
         ]);
-        const availability = availabilityProfile(profile);
         return {
           status: 201,
           data: {
@@ -1025,15 +1038,12 @@ async function routeProviderWebhook(input: {
             owner_epoch: owner.owner_epoch,
             cell_id: owner.cell_id,
             owner_node_id: owner.owner_node_id,
+            tenant_id: authenticated.tenant_id,
+            media_control_profile: mediaControlProfile,
             route_snapshot_revision: routeSnapshotRevision,
             availability_profile: availability,
-            ...(availability === 'VOICE-HA-T1'
-              ? {
-                  auth_context_ref: authenticationContextReference(
-                    authenticated,
-                    profile
-                  )
-                }
+            ...(authContextRef
+              ? { auth_context_ref: authContextRef }
               : {}),
             ...(audioTapToken ? { audio_tap_token: audioTapToken } : {})
           },
@@ -1051,7 +1061,8 @@ async function routeProviderWebhook(input: {
           authenticated,
           request,
           placement: inboundPlacement,
-          source: 'rustpbx_router'
+          source: 'rustpbx_router',
+          provider_runtime_profile: profile
         });
       }
       const [decision, audioTapToken] = await Promise.all([
@@ -1225,6 +1236,8 @@ async function createAuthoritativeInboundCall(input: {
   request: ReturnType<RustPbxRouterAdapter['normalizeRequest']>;
   placement: PreparedVoiceCallPlacement | null;
   source: 'rustpbx_router' | 'rustpbx_snapshot_admission';
+  provider_runtime_profile: VoiceDeploymentProfile;
+  owner_contract_facts?: VoiceCallOwnerContractFacts;
 }) {
   return input.module.calls.createInbound({
     tenant_id: input.authenticated.tenant_id,
@@ -1243,6 +1256,10 @@ async function createAuthoritativeInboundCall(input: {
         ? {}
         : { route_snapshot_revision: input.request.route_snapshot_revision })
     },
+    provider_runtime_profile: input.provider_runtime_profile,
+    ...(input.owner_contract_facts
+      ? { owner_contract_facts: input.owner_contract_facts }
+      : {}),
     ...(input.placement
       ? {
           call_id: input.placement.call_id,

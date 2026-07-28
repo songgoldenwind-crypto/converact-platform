@@ -181,7 +181,7 @@ runtime。替换结论、exact source 和提取边界见
 - [ ] 将 worker 内已完成的 terminal-event reliable outbox 接到 media-control durable
   handoff，并提供 query/reconcile；worker telemetry queue 满可以丢统计事件，但
   playback/gather 完成事件不得在进程边界永久丢失。
-- [ ] RustPBX patch 将 processing profile、codec pair 和 ptime 写入 offer；
+- [x] RustPBX patch 将逐会话 processing profile、codec pair 和 ptime 写入 offer；
   effective SDP 成功后才向对端暴露。
 - [ ] processing pool capacity/error 映射为稳定 SIP 503 + Retry-After，不静默退回本地转码。
 - [ ] 已建立 processing session 故障不触碰其他 RTPengine reservation。
@@ -241,9 +241,20 @@ runtime。替换结论、exact source 和提取边界见
    Tokio/Axum control service。HTTP 契约覆盖双凭据、body limit、readiness、聚合指标
    和规范化 hash/decimal；完整 Rust 回归与严格 Clippy 已通过。
 3. Task 5 已完成 bounded processing transport、`g711-relay-v1`/processing profile
-   混合路由、reservation transport 粘滞、双 transport 重启探测、公平 orphan scan
-   和 owner-fenced release context。RustPBX 逐会话 processing profile/codec 注入、
-   SIP INFO、SIP 503 映射及 terminal-event durable handoff 仍未完成。
+   混合路由、reservation transport 粘滞、双 transport 重启探测、公平 orphan scan、
+   owner-fenced release context 和 RustPBX 逐会话 profile/codec/ptime 注入。
+   inbound admission 与 RWI 现在冻结相同的 tenant、Cell、owner node、route revision、
+   availability、auth context 和 media profile；恢复胶囊也持久化同一 profile，旧胶囊
+   仅通过显式 G.711 兼容迁移读取。RWI originate 先取得真实 rsipstack dialog tag，
+   再把 authoritative media-control SDP 写入尚未发送的 INVITE，183/200 SDP 也在暴露
+   给本地 RTP track 前完成 media commit；未知结果使用原始 command 对账后再删除，
+   未确认的清理由单一限流 worker 保留重试；同步准备失败只释放本命令新打开的 owner。
+   干净固定源码重放后的 RustPBX 原生库测试 76 项、dialog shadow 合同 20 项、
+   rsipstack 单元测试 249 项和文档测试 65 项已通过；本轮受影响 Node 回归 148 项，
+   扩展 RustPBX/rsipstack/rustrtc 合同回归 205 项也已通过（两组有重叠）。
+   全仓 Node 回归共 4,475 项，其中 4,461 项通过、14 项按环境条件跳过、0 项失败。
+   镜像和真实 SIP/RTP 尚未运行。SIP INFO、
+   SIP 503 映射及 terminal-event durable handoff 仍未完成。
 4. Task 6 已完成可重复 processing image、Compose 同网络命名空间部署、Helm sidecar
    骨架、独立 UDP 端口边界和基础 readiness/metrics。原生或 mesh mTLS、完整 drain、
    K8s workload 隔离、全量媒体指标和告警仍未完成。
