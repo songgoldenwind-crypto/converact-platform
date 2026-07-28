@@ -236,10 +236,12 @@ export class ComponentNodeSynchronizer {
         return applied;
       } catch (error) {
         this.#dirtyNodes.add(checkpoint.owner_node_id);
+        const rejection = componentRejection(error);
         throw new ComponentNodeSyncError(
-          'component_node_checkpoint_failed',
+          rejection?.code ?? 'component_node_checkpoint_failed',
           checkpoint.owner_node_id,
-          error
+          error,
+          rejection
         );
       }
     } finally {
@@ -633,14 +635,21 @@ export class ComponentNodeSynchronizer {
 export class ComponentNodeSyncError extends Error {
   readonly code: string;
   readonly node_id: string;
-  readonly status = 503;
-  readonly retryable = true;
+  readonly status: number;
+  readonly retryable: boolean;
 
-  constructor(code: string, nodeId: string, cause?: unknown) {
+  constructor(
+    code: string,
+    nodeId: string,
+    cause?: unknown,
+    projection?: { status: number; retryable: boolean }
+  ) {
     super(cause ? `${code}: ${errorMessage(cause)}` : code);
     this.name = 'ComponentNodeSyncError';
     this.code = code;
     this.node_id = nodeId;
+    this.status = projection?.status ?? 503;
+    this.retryable = projection?.retryable ?? true;
   }
 }
 
@@ -777,4 +786,26 @@ function errorCode(error: unknown): string {
   return /^[a-z][a-z0-9_]{1,127}$/.test(code)
     ? code
     : 'component_node_unavailable';
+}
+
+function componentRejection(error: unknown): {
+  code: string;
+  status: number;
+  retryable: boolean;
+} | undefined {
+  const candidate = error as {
+    code?: unknown;
+    status?: unknown;
+    retryable?: unknown;
+  };
+  const code = String(candidate?.code || '');
+  const status = Number(candidate?.status);
+  if (!/^[a-z][a-z0-9_]{1,127}$/.test(code) ||
+      !Number.isInteger(status) ||
+      status < 400 ||
+      status > 599 ||
+      typeof candidate?.retryable !== 'boolean') {
+    return undefined;
+  }
+  return { code, status, retryable: candidate.retryable };
 }

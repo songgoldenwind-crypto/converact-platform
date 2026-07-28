@@ -51,6 +51,47 @@ test('component node synchronizer sends a checkpoint only to its exact owner nod
   ]);
 });
 
+test('component node synchronizer preserves a bounded component rejection', async () => {
+  const target = targets()[0]!;
+  const synchronizer = new ComponentNodeSynchronizer({
+    region_id: 'region-a',
+    zone_id: 'zone-a',
+    cell_id: 'cell-a',
+    cell_lease_epoch: 3,
+    service_token: 'component-node-service-token-1234567890',
+    lease_ttl_ms: 10_000,
+    targets: [target],
+    client_factory(): ComponentNodeAdmissionClientPort {
+      return {
+        async applyLease(heartbeat) {
+          return leaseAcknowledgement(heartbeat);
+        },
+        async applyRecoveryReservation(value) {
+          return value;
+        },
+        async applyReservation() {
+          throw Object.assign(new Error('component rejected checkpoint'), {
+            code: 'component_reservation_conflict',
+            status: 409,
+            retryable: false
+          });
+        }
+      };
+    }
+  });
+
+  await assert.rejects(
+    () => synchronizer.applyCheckpoint(
+      checkpoint(),
+      new Date('2026-07-16T08:00:01.000Z')
+    ),
+    (error: any) =>
+      error?.code === 'component_reservation_conflict' &&
+      error?.status === 409 &&
+      error?.retryable === false
+  );
+});
+
 test('component node heartbeat reports per-node failures without hiding healthy nodes', async () => {
   const events: string[] = [];
   const synchronizer = fixture(events, 'tinode-a');
