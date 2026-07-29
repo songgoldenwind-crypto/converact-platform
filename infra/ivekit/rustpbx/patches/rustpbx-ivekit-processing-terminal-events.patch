@@ -1,0 +1,872 @@
+diff --git a/src/call/adapters/session_action_bridge.rs b/src/call/adapters/session_action_bridge.rs
+index 9f5d42a6e32cf9bfd92fb4bb1038144de7d43e87..37734fc197d76d8dcb3175d97c95630642d669e1 100644
+--- a/src/call/adapters/session_action_bridge.rs
++++ b/src/call/adapters/session_action_bridge.rs
+@@ -266,6 +266,7 @@ pub fn call_command_to_session_action(cmd: CallCommand) -> Result<SessionAction>
+         | CallCommand::StartApp { .. }
+         | CallCommand::StopApp { .. }
+         | CallCommand::InjectAppEvent { .. }
++        | CallCommand::InjectFencedMediaEvent { .. }
+         | CallCommand::DtmfCollect { .. } => {
+             Err(AdapterError::NotSupported(format!("{:?}", cmd)).into())
+         }
+diff --git a/src/call/app/controller.rs b/src/call/app/controller.rs
+index 7a9f8a22a756b2d3b78f2692f9d485f6a64e5c86..97829180855f55489725e79404ce2458d6fdc4e9 100644
+--- a/src/call/app/controller.rs
++++ b/src/call/app/controller.rs
+@@ -78,6 +78,13 @@ pub enum ControllerEvent {
+     /// DTMF digit received.
+     DtmfReceived(String),
+ 
++    /// A processing gather operation completed.
++    DtmfCollected {
++        digits: String,
++        reason: String,
++        minimum_satisfied: bool,
++    },
++
+     /// Audio playback finished.
+     AudioComplete { track_id: String, interrupted: bool },
+ 
+@@ -365,6 +372,10 @@ impl CallController {
+                         break;
+                     }
+                 }
++                Ok(Some(ControllerEvent::DtmfCollected { digits, .. })) => {
++                    collected = digits;
++                    break;
++                }
+                 Ok(Some(ControllerEvent::Hangup(reason))) => {
+                     return Err(HangupDuringCollection { reason }.into());
+                 }
+diff --git a/src/call/app/event_loop.rs b/src/call/app/event_loop.rs
+index 5a9626c869e37caf7b4fb56ae3739c7d645462bd..c1520be37b9f980881c9f778acd9cf1f0b54f30c 100644
+--- a/src/call/app/event_loop.rs
++++ b/src/call/app/event_loop.rs
+@@ -18,7 +18,10 @@ pub struct AppEventLoop {
+ }
+ 
+ impl AppEventLoop {
+-    async fn await_or_cancel<F>(cancel_token: &CancellationToken, future: F) -> WaitResult<F::Output>
++    async fn await_or_cancel<F>(
++        cancel_token: &CancellationToken,
++        future: F,
++    ) -> WaitResult<F::Output>
+     where
+         F: Future,
+     {
+@@ -111,7 +114,7 @@ impl AppEventLoop {
+         tokio::select! {
+             event = self.controller.wait_event() => {
+                 match event {
+-            Some(ControllerEvent::DtmfReceived(digit)) => {
++                    Some(ControllerEvent::DtmfReceived(digit)) => {
+                         match Self::await_or_cancel(&self.cancel_token, self.app.on_dtmf(digit, &mut self.controller, &self.context)).await {
+                             WaitResult::Completed(res) => res,
+                             WaitResult::Cancelled => {
+@@ -120,6 +123,35 @@ impl AppEventLoop {
+                             }
+                         }
+                     }
++                    Some(ControllerEvent::DtmfCollected {
++                        digits,
++                        reason,
++                        minimum_satisfied,
++                    }) => {
++                        match Self::await_or_cancel(
++                            &self.cancel_token,
++                            self.app.on_external_event(
++                                AppEvent::Custom {
++                                    name: "ivekit.gather_completed".to_string(),
++                                    data: serde_json::json!({
++                                        "digits": digits,
++                                        "reason": reason,
++                                        "minimum_satisfied": minimum_satisfied,
++                                    }),
++                                },
++                                &mut self.controller,
++                                &self.context,
++                            ),
++                        )
++                        .await
++                        {
++                            WaitResult::Completed(res) => res,
++                            WaitResult::Cancelled => {
++                                self.app.on_exit(ExitReason::Cancelled).await?;
++                                Ok(AppAction::Exit)
++                            }
++                        }
++                    }
+                     Some(ControllerEvent::AudioComplete { track_id, interrupted }) => {
+                         if interrupted {
+                             Ok(AppAction::Continue)
+diff --git a/src/call/domain/command.rs b/src/call/domain/command.rs
+index d80c138a1c505665a5ca8fa3725f9459cdf2e1b3..33fc55fbdaff1bb87feabac55f9d925f16edde91 100644
+--- a/src/call/domain/command.rs
++++ b/src/call/domain/command.rs
+@@ -345,6 +345,13 @@ pub enum CallCommand {
+         event: AppEvent,
+     },
+ 
++    /// Inject an owner-fenced event emitted by the external media processor.
++    InjectFencedMediaEvent {
++        owner_epoch: String,
++        media_reservation_id: String,
++        event: AppEvent,
++    },
++
+     /// Handle a re-INVITE
+     HandleReInvite {
+         /// Target leg
+@@ -501,6 +508,12 @@ pub struct ConferenceOptions {
+ pub enum AppEvent {
+     /// DTMF digit received
+     Dtmf { digit: String },
++    /// A processing gather operation completed with a bounded digit batch.
++    DtmfCollected {
++        digits: String,
++        reason: String,
++        minimum_satisfied: bool,
++    },
+     /// Audio playback completed
+     AudioComplete { track_id: String, interrupted: bool },
+     /// Recording completed
+diff --git a/src/call/runtime/default_app_runtime.rs b/src/call/runtime/default_app_runtime.rs
+index 8fd137f71999d5a2057605c0dec1d54094aa8a1b..567d1313edcd071863cf340b73701bdc6378bc29 100644
+--- a/src/call/runtime/default_app_runtime.rs
++++ b/src/call/runtime/default_app_runtime.rs
+@@ -291,6 +291,51 @@ fn parse_json_event(value: &serde_json::Value) -> AppResult<ControllerEvent> {
+                 .to_string();
+             Ok(ControllerEvent::DtmfReceived(digit))
+         }
++        "dtmf_collected" => {
++            let digits = obj
++                .get("digits")
++                .and_then(|value| value.as_str())
++                .filter(|value| {
++                    value.len() <= 1_024
++                        && value.bytes().all(|byte| {
++                            byte.is_ascii_digit() || matches!(byte, b'*' | b'#' | b'A'..=b'D')
++                        })
++                })
++                .ok_or_else(|| {
++                    AppRuntimeError::InjectFailed("dtmf_collected digits are invalid".to_string())
++                })?
++                .to_string();
++            let reason = obj
++                .get("reason")
++                .and_then(|value| value.as_str())
++                .filter(|value| {
++                    matches!(
++                        *value,
++                        "maximum_digits"
++                            | "terminator"
++                            | "timeout"
++                            | "explicit_stop"
++                            | "session_removed"
++                    )
++                })
++                .ok_or_else(|| {
++                    AppRuntimeError::InjectFailed("dtmf_collected reason is invalid".to_string())
++                })?
++                .to_string();
++            let minimum_satisfied = obj
++                .get("minimum_satisfied")
++                .and_then(|value| value.as_bool())
++                .ok_or_else(|| {
++                    AppRuntimeError::InjectFailed(
++                        "dtmf_collected minimum_satisfied is invalid".to_string(),
++                    )
++                })?;
++            Ok(ControllerEvent::DtmfCollected {
++                digits,
++                reason,
++                minimum_satisfied,
++            })
++        }
+         "audio_complete" => {
+             let track_id = obj
+                 .get("track_id")
+@@ -442,6 +487,25 @@ mod tests {
+         assert!(matches!(event, ControllerEvent::DtmfReceived(d) if d == "5"));
+     }
+ 
++    #[test]
++    fn test_parse_dtmf_collected_event() {
++        let json = serde_json::json!({
++            "type": "dtmf_collected",
++            "digits": "42",
++            "reason": "maximum_digits",
++            "minimum_satisfied": true
++        });
++        let event = parse_json_event(&json).unwrap();
++        assert!(matches!(
++            event,
++            ControllerEvent::DtmfCollected {
++                digits,
++                reason,
++                minimum_satisfied: true
++            } if digits == "42" && reason == "maximum_digits"
++        ));
++    }
++
+     #[test]
+     fn test_parse_audio_complete_event() {
+         let json = serde_json::json!({
+diff --git a/src/ivekit_media_control.rs b/src/ivekit_media_control.rs
+index 8d9cfe7e2ae5321bb279e54c2b6cdd7f9b3951f5..d0b9b6261a49b33c295c5c80ee255b8f82feb719 100644
+--- a/src/ivekit_media_control.rs
++++ b/src/ivekit_media_control.rs
+@@ -135,6 +135,159 @@ impl MediaControlEventDecoder {
+     }
+ }
+ 
++#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
++#[serde(deny_unknown_fields)]
++pub struct MediaControlTerminalEvent {
++    pub protocol_version: String,
++    pub event_sequence: u64,
++    pub event_type: String,
++    pub event_id: String,
++    pub source: String,
++    pub source_event_sequence: String,
++    pub tenant_id: String,
++    pub call_id: String,
++    pub cell_id: String,
++    pub owner_node_id: String,
++    pub owner_epoch: String,
++    pub media_reservation_id: String,
++    pub command_id: String,
++    pub occurred_at_ms: u64,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub prompt_id: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub digits: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub reason: Option<String>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub minimum_satisfied: Option<bool>,
++}
++
++impl MediaControlTerminalEvent {
++    pub fn validate_for_owner(&self, owner_node_id: &str) -> Result<(), &'static str> {
++        if self.protocol_version != MEDIA_CONTROL_EVENT_PROTOCOL_VERSION
++            || self.event_sequence == 0
++            || self.source != "processing"
++            || self.occurred_at_ms == 0
++            || !valid_identifier(&self.event_id, "event_id").is_ok()
++            || !valid_identifier(&self.tenant_id, "tenant_id").is_ok()
++            || !valid_identifier(&self.call_id, "call_id").is_ok()
++            || !valid_identifier(&self.cell_id, "cell_id").is_ok()
++            || !valid_identifier(&self.owner_node_id, "owner_node_id").is_ok()
++            || !valid_identifier(&self.media_reservation_id, "media_reservation_id").is_ok()
++            || !valid_identifier(&self.command_id, "command_id").is_ok()
++            || self
++                .source_event_sequence
++                .parse::<u64>()
++                .ok()
++                .filter(|value| *value > 0)
++                .is_none()
++            || self
++                .owner_epoch
++                .parse::<u64>()
++                .ok()
++                .filter(|value| *value > 0)
++                .is_none()
++            || !self.valid_variant()
++        {
++            return Err("media_event_invalid");
++        }
++        if self.owner_node_id != owner_node_id {
++            return Err("media_event_owner_mismatch");
++        }
++        Ok(())
++    }
++
++    fn valid_variant(&self) -> bool {
++        match self.event_type.as_str() {
++            "playback_completed" => {
++                self.prompt_id
++                    .as_deref()
++                    .is_some_and(|value| valid_identifier(value, "prompt_id").is_ok())
++                    && self.digits.is_none()
++                    && self.reason.is_none()
++                    && self.minimum_satisfied.is_none()
++            }
++            "playback_stopped" => {
++                self.prompt_id
++                    .as_deref()
++                    .is_some_and(|value| valid_identifier(value, "prompt_id").is_ok())
++                    && self.reason.as_deref().is_some_and(|value| {
++                        matches!(value, "explicit" | "barge_in" | "session_removed")
++                    })
++                    && self.digits.is_none()
++                    && self.minimum_satisfied.is_none()
++            }
++            "gather_completed" => {
++                self.prompt_id.is_none()
++                    && self.digits.as_deref().is_some_and(valid_gather_digits)
++                    && self.reason.as_deref().is_some_and(|value| {
++                        matches!(
++                            value,
++                            "maximum_digits"
++                                | "terminator"
++                                | "timeout"
++                                | "explicit_stop"
++                                | "session_removed"
++                        )
++                    })
++                    && self.minimum_satisfied.is_some()
++            }
++            _ => false,
++        }
++    }
++}
++
++fn valid_gather_digits(value: &str) -> bool {
++    value.len() <= 1_024
++        && value
++            .bytes()
++            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'*' | b'#' | b'A'..=b'D'))
++}
++
++pub struct MediaControlTerminalEventDecoder {
++    line: Vec<u8>,
++    max_line_bytes: usize,
++}
++
++impl MediaControlTerminalEventDecoder {
++    pub fn new(max_line_bytes: usize) -> Result<Self, &'static str> {
++        if !(256..=1_048_576).contains(&max_line_bytes) {
++            return Err("media_event_line_limit_invalid");
++        }
++        Ok(Self {
++            line: Vec::with_capacity(max_line_bytes.min(8_192)),
++            max_line_bytes,
++        })
++    }
++
++    pub fn push(&mut self, chunk: &[u8]) -> Result<Vec<MediaControlTerminalEvent>, &'static str> {
++        let mut events = Vec::new();
++        for byte in chunk {
++            if *byte != b'\n' {
++                if self.line.len() >= self.max_line_bytes {
++                    return Err("media_event_line_too_large");
++                }
++                self.line.push(*byte);
++                continue;
++            }
++            if self.line.last() == Some(&b'\r') {
++                self.line.pop();
++            }
++            if self.line.is_empty() {
++                continue;
++            }
++            let event: MediaControlTerminalEvent =
++                serde_json::from_slice(&self.line).map_err(|_| "media_event_invalid")?;
++            event
++                .validate_for_owner(&event.owner_node_id)
++                .map_err(|_| "media_event_invalid")?;
++            events.push(event);
++            self.line.clear();
++        }
++        Ok(events)
++    }
++}
++
+ #[derive(Clone)]
+ pub struct MediaControlClientConfig {
+     pub endpoint: Url,
+@@ -418,6 +571,88 @@ impl MediaControlClient {
+         })
+     }
+ 
++    pub async fn consume_terminal_events<F, Fut>(
++        &self,
++        owner_node_id: &str,
++        after_sequence: &mut u64,
++        mut handle: F,
++    ) -> Result<(), MediaControlClientError>
++    where
++        F: FnMut(MediaControlTerminalEvent) -> Fut,
++        Fut: Future<Output = Result<(), &'static str>>,
++    {
++        valid_identifier(owner_node_id, "owner_node_id")?;
++        let mut url = self.endpoint.join("v1/terminal-events").map_err(|_| {
++            MediaControlClientError::Configuration("media_control_endpoint_invalid")
++        })?;
++        url.query_pairs_mut()
++            .append_pair("owner_node_id", owner_node_id)
++            .append_pair("after_sequence", &after_sequence.to_string());
++        let response = self
++            .client
++            .get(url)
++            .bearer_auth(&self.service_token)
++            .header(reqwest::header::ACCEPT, "application/x-ndjson")
++            .send()
++            .await
++            .map_err(|_| MediaControlClientError::UnknownAfterTransport {
++                code: "media_terminal_event_stream_unavailable",
++            })?;
++        if !response.status().is_success() {
++            let status = response.status();
++            let body = read_bounded_response(response, self.max_response_bytes).await?;
++            return Err(project_rejection(status, &body));
++        }
++        let content_type = response
++            .headers()
++            .get(reqwest::header::CONTENT_TYPE)
++            .and_then(|value| value.to_str().ok())
++            .unwrap_or("");
++        if !content_type
++            .to_ascii_lowercase()
++            .starts_with("application/x-ndjson")
++        {
++            return Err(MediaControlClientError::UnknownAfterTransport {
++                code: "media_terminal_event_stream_invalid",
++            });
++        }
++
++        let mut decoder = MediaControlTerminalEventDecoder::new(self.max_response_bytes)
++            .map_err(MediaControlClientError::Configuration)?;
++        let mut stream = response.bytes_stream();
++        while let Some(chunk) = stream.next().await {
++            let chunk = chunk.map_err(|_| MediaControlClientError::UnknownAfterTransport {
++                code: "media_terminal_event_stream_unavailable",
++            })?;
++            for event in decoder
++                .push(&chunk)
++                .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?
++            {
++                event
++                    .validate_for_owner(owner_node_id)
++                    .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?;
++                let expected = after_sequence.checked_add(1).ok_or(
++                    MediaControlClientError::UnknownAfterTransport {
++                        code: "media_event_sequence_exhausted",
++                    },
++                )?;
++                if event.event_sequence != expected {
++                    return Err(MediaControlClientError::UnknownAfterTransport {
++                        code: "media_event_sequence_gap",
++                    });
++                }
++                let sequence = event.event_sequence;
++                handle(event)
++                    .await
++                    .map_err(|code| MediaControlClientError::UnknownAfterTransport { code })?;
++                *after_sequence = sequence;
++            }
++        }
++        Err(MediaControlClientError::UnknownAfterTransport {
++            code: "media_terminal_event_stream_closed",
++        })
++    }
++
+     fn acquire_before_transport(&self) -> Result<OwnedSemaphorePermit, MediaControlClientError> {
+         self.inflight
+             .clone()
+@@ -1261,4 +1496,29 @@ mod tests {
+         let mut decoder = MediaControlEventDecoder::new(4_096).unwrap();
+         assert_eq!(decoder.push(invalid), Err("media_event_invalid"));
+     }
++
++    #[test]
++    fn media_terminal_event_decoder_is_incremental_and_owner_bound() {
++        let mut decoder = MediaControlTerminalEventDecoder::new(4_096).unwrap();
++        let line = br#"{"protocol_version":"ivekit.media-event.v1","event_sequence":9,"event_type":"gather_completed","event_id":"processing-event-9","source":"processing","source_event_sequence":"19","tenant_id":"tenant-1","call_id":"call-1","cell_id":"cell-1","owner_node_id":"rustpbx-1","owner_epoch":"4294967297","media_reservation_id":"reservation-1/callee","command_id":"gather-1","occurred_at_ms":1785200000123,"digits":"42#","reason":"terminator","minimum_satisfied":true}
++"#;
++        assert!(decoder.push(&line[..90]).unwrap().is_empty());
++        let events = decoder.push(&line[90..]).unwrap();
++        assert_eq!(events.len(), 1);
++        assert_eq!(events[0].event_sequence, 9);
++        assert_eq!(events[0].digits.as_deref(), Some("42#"));
++        events[0].validate_for_owner("rustpbx-1").unwrap();
++        assert_eq!(
++            events[0].validate_for_owner("rustpbx-2"),
++            Err("media_event_owner_mismatch")
++        );
++    }
++
++    #[test]
++    fn media_terminal_event_decoder_rejects_variant_smuggling() {
++        let invalid = br#"{"protocol_version":"ivekit.media-event.v1","event_sequence":1,"event_type":"playback_completed","event_id":"processing-event-1","source":"processing","source_event_sequence":"1","tenant_id":"tenant-1","call_id":"call-1","cell_id":"cell-1","owner_node_id":"rustpbx-1","owner_epoch":"1","media_reservation_id":"reservation-1/callee","command_id":"play-1","occurred_at_ms":1785200000123,"prompt_id":"prompt-1","digits":"5"}
++"#;
++        let mut decoder = MediaControlTerminalEventDecoder::new(4_096).unwrap();
++        assert_eq!(decoder.push(invalid), Err("media_event_invalid"));
++    }
+ }
+diff --git a/src/ivekit_media_lifecycle.rs b/src/ivekit_media_lifecycle.rs
+index 51564b2ec01bda1302c9630895668cf7a01aa745..3936fe26b0292e65c5a1a507094cef8c85795ddc 100644
+--- a/src/ivekit_media_lifecycle.rs
++++ b/src/ivekit_media_lifecycle.rs
+@@ -7,7 +7,7 @@ use std::time::Duration;
+ use crate::ivekit_media_control::{
+     MEDIA_CONTROL_PROTOCOL_VERSION, MediaControlAction, MediaControlClient,
+     MediaControlClientError, MediaControlCommand, MediaControlReconcileInput, MediaControlResult,
+-    MediaSessionSnapshot, command_id_for, payload_hash,
++    MediaControlTerminalEvent, MediaSessionSnapshot, command_id_for, payload_hash,
+ };
+ use crate::ivekit_owner::MediaControlProfile;
+ use reqwest::Url;
+@@ -1713,6 +1713,20 @@ impl IveKitMediaRuntime {
+         }
+     }
+ 
++    pub fn accepts_terminal_event(&self, owner_epoch: &str, media_reservation_id: &str) -> bool {
++        match self {
++            Self::Ready { lifecycle, .. } => {
++                lifecycle.uses_processing_pool()
++                    && lifecycle.binding.owner_epoch() == owner_epoch
++                    && lifecycle
++                        .binding
++                        .media_reservation_id("callee")
++                        .is_ok_and(|value| value == media_reservation_id)
++            }
++            Self::Disabled | Self::FailClosed { .. } => false,
++        }
++    }
++
+     pub fn failure_code(&self) -> Option<&'static str> {
+         match self {
+             Self::FailClosed { error_code } => Some(*error_code),
+@@ -2038,6 +2052,64 @@ fn build_recovered_media_takeover_command(
+     Ok(command)
+ }
+ 
++fn terminal_app_event(
++    event: &MediaControlTerminalEvent,
++) -> Result<crate::call::domain::AppEvent, &'static str> {
++    match event.event_type.as_str() {
++        "playback_completed" => {
++            let track_id = event
++                .prompt_id
++                .as_ref()
++                .ok_or("media_terminal_event_invalid")?
++                .clone();
++            if event.digits.is_some() || event.reason.is_some() || event.minimum_satisfied.is_some()
++            {
++                return Err("media_terminal_event_invalid");
++            }
++            Ok(crate::call::domain::AppEvent::AudioComplete {
++                track_id,
++                interrupted: false,
++            })
++        }
++        "playback_stopped" => {
++            let track_id = event
++                .prompt_id
++                .as_ref()
++                .ok_or("media_terminal_event_invalid")?
++                .clone();
++            if event.reason.is_none() || event.digits.is_some() || event.minimum_satisfied.is_some()
++            {
++                return Err("media_terminal_event_invalid");
++            }
++            Ok(crate::call::domain::AppEvent::AudioComplete {
++                track_id,
++                interrupted: true,
++            })
++        }
++        "gather_completed" => {
++            if event.prompt_id.is_some() {
++                return Err("media_terminal_event_invalid");
++            }
++            Ok(crate::call::domain::AppEvent::DtmfCollected {
++                digits: event
++                    .digits
++                    .as_ref()
++                    .ok_or("media_terminal_event_invalid")?
++                    .clone(),
++                reason: event
++                    .reason
++                    .as_ref()
++                    .ok_or("media_terminal_event_invalid")?
++                    .clone(),
++                minimum_satisfied: event
++                    .minimum_satisfied
++                    .ok_or("media_terminal_event_invalid")?,
++            })
++        }
++        _ => Err("media_terminal_event_invalid"),
++    }
++}
++
+ pub fn spawn_media_control_event_listener(
+     registry: Arc<crate::proxy::active_call_registry::ActiveProxyCallRegistry>,
+     cancel: CancellationToken,
+@@ -2061,18 +2133,23 @@ pub fn spawn_media_control_event_listener(
+         return;
+     };
+     info!(owner_node_id, "iveKit media event listener started");
++
++    let dtmf_config = config.clone();
++    let dtmf_registry = registry.clone();
++    let dtmf_cancel = cancel.clone();
++    let dtmf_owner_node_id = owner_node_id.clone();
+     tokio::spawn(async move {
+         let mut after_sequence = 0_u64;
+         let mut retry_delay = Duration::from_millis(100);
+         loop {
+             let before = after_sequence;
+             let result = tokio::select! {
+-                _ = cancel.cancelled() => return,
+-                result = config.executor.consume_events(
+-                    &owner_node_id,
++                _ = dtmf_cancel.cancelled() => return,
++                result = dtmf_config.executor.consume_events(
++                    &dtmf_owner_node_id,
+                     &mut after_sequence,
+                     |event| {
+-                        let registry = registry.clone();
++                        let registry = dtmf_registry.clone();
+                         async move {
+                             let Some(handle) = registry.get_handle(&event.call_id) else {
+                                 return Ok(());
+@@ -2093,18 +2170,70 @@ pub fn spawn_media_control_event_listener(
+                     },
+                 ) => result,
+             };
+-            if cancel.is_cancelled() {
++            if dtmf_cancel.is_cancelled() {
+                 return;
+             }
+             if after_sequence > before {
+                 retry_delay = Duration::from_millis(100);
+             }
+             warn!(
+-                owner_node_id,
++                owner_node_id = dtmf_owner_node_id,
+                 after_sequence,
+                 error = %result.expect_err("media event stream is long-lived"),
+                 "iveKit media event stream disconnected"
+             );
++            tokio::select! {
++                _ = dtmf_cancel.cancelled() => return,
++                _ = tokio::time::sleep(retry_delay) => {}
++            }
++            retry_delay = (retry_delay * 2).min(Duration::from_secs(5));
++        }
++    });
++
++    tokio::spawn(async move {
++        let mut after_sequence = 0_u64;
++        let mut retry_delay = Duration::from_millis(100);
++        loop {
++            let before = after_sequence;
++            let result = tokio::select! {
++                _ = cancel.cancelled() => return,
++                result = config.executor.consume_terminal_events(
++                    &owner_node_id,
++                    &mut after_sequence,
++                    |event| {
++                        let registry = registry.clone();
++                        async move {
++                            let Some(handle) = registry.get_handle(&event.call_id) else {
++                                return Ok(());
++                            };
++                            let app_event = terminal_app_event(&event)?;
++                            handle
++                                .send_command_async(
++                                    crate::call::domain::CallCommand::InjectFencedMediaEvent {
++                                        owner_epoch: event.owner_epoch,
++                                        media_reservation_id: event.media_reservation_id,
++                                        event: app_event,
++                                    },
++                                )
++                                .await
++                                .map_err(|_| "media_terminal_event_delivery_failed")?;
++                            Ok(())
++                        }
++                    },
++                ) => result,
++            };
++            if cancel.is_cancelled() {
++                return;
++            }
++            if after_sequence > before {
++                retry_delay = Duration::from_millis(100);
++            }
++            warn!(
++                owner_node_id,
++                after_sequence,
++                error = %result.expect_err("media terminal event stream is long-lived"),
++                "iveKit media terminal event stream disconnected"
++            );
+             tokio::select! {
+                 _ = cancel.cancelled() => return,
+                 _ = tokio::time::sleep(retry_delay) => {}
+@@ -3707,4 +3836,96 @@ mod tests {
+         );
+         assert_eq!(executor.commands.lock().len(), 4);
+     }
++
++    #[test]
++    fn terminal_media_events_project_to_application_completion_events() {
++        let base = crate::ivekit_media_control::MediaControlTerminalEvent {
++            protocol_version: crate::ivekit_media_control::MEDIA_CONTROL_EVENT_PROTOCOL_VERSION
++                .to_string(),
++            event_sequence: 1,
++            event_type: "playback_completed".to_string(),
++            event_id: "event-a".to_string(),
++            source: "processing".to_string(),
++            source_event_sequence: "1".to_string(),
++            tenant_id: "tenant-a".to_string(),
++            call_id: "call-a".to_string(),
++            cell_id: "cell-a".to_string(),
++            owner_node_id: "rustpbx-a".to_string(),
++            owner_epoch: "4294967297".to_string(),
++            media_reservation_id: "admission-a/callee".to_string(),
++            command_id: "command-a".to_string(),
++            occurred_at_ms: 1_753_526_400_000,
++            prompt_id: Some("prompt-a".to_string()),
++            digits: None,
++            reason: None,
++            minimum_satisfied: None,
++        };
++
++        assert!(matches!(
++            terminal_app_event(&base).unwrap(),
++            crate::call::domain::AppEvent::AudioComplete {
++                track_id,
++                interrupted: false
++            } if track_id == "prompt-a"
++        ));
++
++        let stopped = crate::ivekit_media_control::MediaControlTerminalEvent {
++            event_type: "playback_stopped".to_string(),
++            event_id: "event-b".to_string(),
++            source_event_sequence: "2".to_string(),
++            reason: Some("barge_in".to_string()),
++            ..base.clone()
++        };
++        assert!(matches!(
++            terminal_app_event(&stopped).unwrap(),
++            crate::call::domain::AppEvent::AudioComplete {
++                track_id,
++                interrupted: true
++            } if track_id == "prompt-a"
++        ));
++
++        let gathered = crate::ivekit_media_control::MediaControlTerminalEvent {
++            event_type: "gather_completed".to_string(),
++            event_id: "event-c".to_string(),
++            source_event_sequence: "3".to_string(),
++            prompt_id: None,
++            digits: Some("12#".to_string()),
++            reason: Some("terminator".to_string()),
++            minimum_satisfied: Some(true),
++            ..base
++        };
++        assert!(matches!(
++            terminal_app_event(&gathered).unwrap(),
++            crate::call::domain::AppEvent::DtmfCollected {
++                digits,
++                reason,
++                minimum_satisfied: true
++            } if digits == "12#" && reason == "terminator"
++        ));
++    }
++
++    #[test]
++    fn processing_terminal_events_require_current_owner_and_media_reservation() {
++        let lifecycle = IveKitMediaLifecycle::new(
++            binding_with_profile(MediaControlProfile::VoiceIvrG711OpusV1 {
++                leg_a_codec: crate::ivekit_owner::MediaCodec::Pcmu,
++                leg_b_codec: crate::ivekit_owner::MediaCodec::Opus,
++                leg_a_payload_type: 0,
++                leg_b_payload_type: 111,
++                packetization_ms: 20,
++            }),
++            executor_with_results(Vec::new()),
++            "caller-tag",
++            Some("v=0\r\na=logical-offer\r\n"),
++        )
++        .unwrap();
++        let runtime = IveKitMediaRuntime::Ready {
++            lifecycle,
++            failure_policy: MediaControlFailurePolicy::FailClosed,
++        };
++
++        assert!(runtime.accepts_terminal_event("4294967297", "admission-a/callee"));
++        assert!(!runtime.accepts_terminal_event("4294967296", "admission-a/callee"));
++        assert!(!runtime.accepts_terminal_event("4294967297", "admission-old/callee"));
++    }
+ }
+diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
+index ef172a158526a2f28b649a4e68358b4bb0311748..a2e463faa8ab9e95ca999696ccebc14ed76b29c0 100644
+--- a/src/proxy/proxy_call/sip_session.rs
++++ b/src/proxy/proxy_call/sip_session.rs
+@@ -9319,6 +9319,32 @@ impl SipSession {
+ }
+ 
+ impl SipSession {
++    fn inject_media_app_event(
++        &mut self,
++        event: crate::call::domain::AppEvent,
++        transport: &'static str,
++    ) -> CommandResult {
++        if let crate::call::domain::AppEvent::Dtmf { digit } = &event {
++            if let Some(value) = digit.chars().next() {
++                self.dtmf_digits.push(value);
++            }
++            self.emit_typed_rwi_event(&crate::rwi::Dtmf {
++                call_id: self.context.session_id.clone(),
++                digit: digit.clone(),
++                leg_id: None,
++                extra: Some(serde_json::json!({
++                    "transport": transport,
++                    "source": "media_control_event"
++                })),
++            });
++        }
++        let event_value = serde_json::to_value(&event).unwrap_or(serde_json::Value::Null);
++        match self.app_runtime.inject_event(event_value) {
++            Ok(()) => CommandResult::success(),
++            Err(error) => CommandResult::degraded(error.to_string()),
++        }
++    }
++
+     pub async fn execute_command(
+         &mut self,
+         command: CallCommand,
+@@ -9434,24 +9460,21 @@ impl SipSession {
+             },
+ 
+             CallCommand::InjectAppEvent { event } => {
+-                if let crate::call::domain::AppEvent::Dtmf { digit } = &event {
+-                    if let Some(value) = digit.chars().next() {
+-                        self.dtmf_digits.push(value);
+-                    }
+-                    self.emit_typed_rwi_event(&crate::rwi::Dtmf {
+-                        call_id: self.context.session_id.clone(),
+-                        digit: digit.clone(),
+-                        leg_id: None,
+-                        extra: Some(serde_json::json!({
+-                            "transport": "rtpengine",
+-                            "source": "media_control_event"
+-                        })),
+-                    });
+-                }
+-                let event_value = serde_json::to_value(&event).unwrap_or(serde_json::Value::Null);
+-                match self.app_runtime.inject_event(event_value) {
+-                    Ok(()) => CommandResult::success(),
+-                    Err(e) => CommandResult::degraded(e.to_string()),
++                self.inject_media_app_event(event, "rtpengine")
++            }
++
++            CallCommand::InjectFencedMediaEvent {
++                owner_epoch,
++                media_reservation_id,
++                event,
++            } => {
++                if !self
++                    .ivekit_media
++                    .accepts_terminal_event(&owner_epoch, &media_reservation_id)
++                {
++                    CommandResult::failure("media_terminal_event_owner_mismatch")
++                } else {
++                    self.inject_media_app_event(event, "processing")
+                 }
+             }
+ 

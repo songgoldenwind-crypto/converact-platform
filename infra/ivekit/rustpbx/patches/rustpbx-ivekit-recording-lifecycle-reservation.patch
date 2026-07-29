@@ -1,0 +1,254 @@
+diff --git a/src/media/engine/mod.rs b/src/media/engine/mod.rs
+index ce5e6981..03224945 100644
+--- a/src/media/engine/mod.rs
++++ b/src/media/engine/mod.rs
+@@ -59,6 +59,7 @@ enum RecordingLifecycleTask {
+         callee_profile: Option<crate::media::negotiate::NegotiatedLegProfile>,
+         recorder: Arc<RwLock<Option<crate::media::recorder::Recorder>>>,
+         recording_paused: Arc<std::sync::atomic::AtomicBool>,
++        recording_start_pending: Arc<std::sync::atomic::AtomicBool>,
+         recording_finalization_started: Arc<std::sync::atomic::AtomicBool>,
+         reply: Option<tokio::sync::oneshot::Sender<()>>,
+         event_tx: broadcast::Sender<MediaEvent>,
+@@ -87,13 +88,16 @@ impl RecordingLifecycleTask {
+         }
+     }
+ 
+-    fn reset_finalization(&self) {
+-        if let Self::Finalize {
+-            recording_finalization_started,
+-            ..
+-        } = self
+-        {
+-            recording_finalization_started.store(false, Ordering::Release);
++    fn reset_reservation(&self) {
++        match self {
++            Self::Start {
++                recording_start_pending,
++                ..
++            } => recording_start_pending.store(false, Ordering::Release),
++            Self::Finalize {
++                recording_finalization_started,
++                ..
++            } => recording_finalization_started.store(false, Ordering::Release),
+         }
+     }
+ 
+@@ -106,11 +110,13 @@ impl RecordingLifecycleTask {
+                 callee_profile,
+                 recorder,
+                 recording_paused,
++                recording_start_pending,
+                 recording_finalization_started,
+                 reply,
+                 event_tx,
+             } => {
+                 if recording_finalization_started.load(Ordering::Acquire) {
++                    recording_start_pending.store(false, Ordering::Release);
+                     recording_failed(&event_tx, session_id, "recording_start_cancelled");
+                     return;
+                 }
+@@ -129,6 +135,7 @@ impl RecordingLifecycleTask {
+                     Ok(created) => created,
+                     Err(error) => {
+                         warn!(session_id = %session_id, error = %error, "Recording start failed");
++                        recording_start_pending.store(false, Ordering::Release);
+                         recording_failed(&event_tx, session_id, "recording_storage_unavailable");
+                         return;
+                     }
+@@ -141,6 +148,7 @@ impl RecordingLifecycleTask {
+                 }
+                 if recording_finalization_started.load(Ordering::Acquire) {
+                     let _ = created.finalize();
++                    recording_start_pending.store(false, Ordering::Release);
+                     recording_failed(&event_tx, session_id, "recording_start_cancelled");
+                     return;
+                 }
+@@ -148,12 +156,14 @@ impl RecordingLifecycleTask {
+                 if guard.is_some() || recording_finalization_started.load(Ordering::Acquire) {
+                     drop(guard);
+                     let _ = created.finalize();
++                    recording_start_pending.store(false, Ordering::Release);
+                     recording_failed(&event_tx, session_id, "recording_start_cancelled");
+                     return;
+                 }
+                 *guard = Some(created);
+                 recording_paused.store(false, Ordering::Release);
+                 drop(guard);
++                recording_start_pending.store(false, Ordering::Release);
+                 info!(session_id = %session_id, path = %path, "Recording started");
+                 if let Some(reply_tx) = reply {
+                     let _ = reply_tx.send(());
+@@ -187,6 +197,7 @@ impl RecordingLifecycleTask {
+                 let recorder = guard.take();
+                 drop(guard);
+                 let Some(mut recorder) = recorder else {
++                    recording_finalization_started.store(false, Ordering::Release);
+                     return;
+                 };
+                 if let Some(capture) = capture.as_ref() {
+@@ -195,6 +206,7 @@ impl RecordingLifecycleTask {
+                 let path = recorder.path.clone();
+                 if let Err(error) = recorder.finalize() {
+                     warn!(session_id = %session_id, error = %error, "Recording finalization failed");
++                    recording_finalization_started.store(false, Ordering::Release);
+                     recording_failed(&event_tx, session_id, "recording_finalize_failed");
+                     return;
+                 }
+@@ -206,6 +218,7 @@ impl RecordingLifecycleTask {
+                     duration_secs,
+                     file_size,
+                 };
++                recording_finalization_started.store(false, Ordering::Release);
+                 info!(session_id = %session_id, path = %result.path, "Recording stopped");
+                 if let Some(reply_tx) = reply {
+                     let _ = reply_tx.send(result.clone());
+@@ -251,7 +264,7 @@ impl RecordingLifecycleExecutor {
+             Err(error) => {
+                 let task = error.into_inner();
+                 let session_id = task.session_id().to_string();
+-                task.reset_finalization();
++                task.reset_reservation();
+                 warn!(session_id = %session_id, "Recording lifecycle queue unavailable");
+                 recording_failed(
+                     task.event_tx(),
+@@ -730,17 +743,49 @@ impl EngineCore {
+                 callee_profile,
+                 reply,
+             } => {
+-                let (recorder, recording_paused, recording_finalization_started) = {
++                let (
++                    recorder,
++                    recording_paused,
++                    recording_start_pending,
++                    recording_finalization_started,
++                ) = {
+                     let mut sessions = self.sessions.write();
+                     let sess = sessions.get_mut(&session_id).ok_or_else(|| {
+                         anyhow!("Session {} not found for StartRecording", session_id)
+                     })?;
+-                    sess.recording_finalization_started
+-                        .store(false, Ordering::Release);
++                    if sess.recording_start_pending.swap(true, Ordering::AcqRel) {
++                        return Err(anyhow!(
++                            "Recording start already pending for session {}",
++                            session_id
++                        ));
++                    }
++                    if sess.recording_finalization_started.load(Ordering::Acquire) {
++                        sess.recording_start_pending.store(false, Ordering::Release);
++                        return Err(anyhow!(
++                            "Recording finalization active for session {}",
++                            session_id
++                        ));
++                    }
++                    let Some(recorder_guard) = sess.recorder.try_read() else {
++                        sess.recording_start_pending.store(false, Ordering::Release);
++                        return Err(anyhow!(
++                            "Recording lifecycle busy for session {}",
++                            session_id
++                        ));
++                    };
++                    if recorder_guard.is_some() {
++                        sess.recording_start_pending.store(false, Ordering::Release);
++                        return Err(anyhow!(
++                            "Recording already active for session {}",
++                            session_id
++                        ));
++                    }
++                    drop(recorder_guard);
+                     sess.recording_started_at = Some(std::time::Instant::now());
+                     (
+                         Arc::clone(&sess.recorder),
+                         Arc::clone(&sess.recording_paused),
++                        Arc::clone(&sess.recording_start_pending),
+                         Arc::clone(&sess.recording_finalization_started),
+                     )
+                 };
+@@ -752,6 +797,7 @@ impl EngineCore {
+                         callee_profile,
+                         recorder,
+                         recording_paused,
++                        recording_start_pending,
+                         recording_finalization_started,
+                         reply,
+                         event_tx: self.event_tx.clone(),
+@@ -1619,6 +1665,55 @@ mod tests {
+         let _ = std::fs::remove_file(&tmp);
+     }
+ 
++    #[tokio::test]
++    async fn test_recording_pending_start_rejects_duplicate() {
++        let (engine, mut event_rx) = setup_engine();
++        create_session(&engine, "rec-pending").await;
++        let _ = event_rx.recv().await;
++
++        let recording_start_pending = {
++            let sessions = engine.sessions.read();
++            Arc::clone(
++                &sessions
++                    .get("rec-pending")
++                    .expect("session must exist")
++                    .recording_start_pending,
++            )
++        };
++        recording_start_pending.store(true, Ordering::Release);
++
++        engine
++            .send(MediaCommand::StartRecording {
++                session_id: "rec-pending".into(),
++                config: RecordConfig {
++                    path: "/tmp/unused-recording.wav".into(),
++                    max_duration_secs: None,
++                    beep: false,
++                    format: None,
++                    ivekit_spool: None,
++                },
++                caller_profile: None,
++                callee_profile: None,
++                reply: None,
++            })
++            .unwrap();
++
++        let ev = tokio::time::timeout(Duration::from_secs(2), event_rx.recv())
++            .await
++            .expect("timeout")
++            .expect("channel closed");
++        assert!(
++            matches!(&ev, MediaEvent::Error { command, .. } if command == "start_recording"),
++            "expected Error for pending duplicate start, got {:?}",
++            ev
++        );
++        assert!(
++            recording_start_pending.load(Ordering::Acquire),
++            "duplicate start must not release the first request's reservation"
++        );
++        recording_start_pending.store(false, Ordering::Release);
++    }
++
+     // ── AttachBridge / InjectAudio tests ────────────────────────────────
+ 
+     #[tokio::test]
+diff --git a/src/media/engine/session.rs b/src/media/engine/session.rs
+index 0c1fdb55..421a7f61 100644
+--- a/src/media/engine/session.rs
++++ b/src/media/engine/session.rs
+@@ -52,6 +52,10 @@ pub struct MediaSession {
+     /// Atomic flag that the recorder bridge task checks before writing samples.
+     pub recording_paused: Arc<AtomicBool>,
+ 
++    /// Reserves the recording slot while recorder creation runs on the
++    /// lifecycle worker pool.
++    pub recording_start_pending: Arc<AtomicBool>,
++
+     /// Wall-clock instant when the current recording started.  Used to
+     /// compute duration in `StopRecording` (fixes the previous duration=0 bug).
+     pub recording_started_at: Option<std::time::Instant>,
+@@ -92,6 +96,7 @@ impl MediaSession {
+             callee_codec_info: vec![],
+             recorder: Arc::new(RwLock::new(None)),
+             recording_paused: Arc::new(AtomicBool::new(false)),
++            recording_start_pending: Arc::new(AtomicBool::new(false)),
+             recording_started_at: None,
+             recording_finalization_started: Arc::new(AtomicBool::new(false)),
+             playback_tracks: HashMap::new(),

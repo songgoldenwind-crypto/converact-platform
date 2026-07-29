@@ -327,6 +327,10 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       files.includes('deploy/rustpbx/patches/rsipstack-ivekit-retransmission-atomicity.patch'),
       true
     );
+    assert.equal(
+      files.includes('deploy/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch'),
+      true
+    );
     assert.equal(files.includes('deploy/rustpbx/patches/rustpbx-ivekit-ami-dialogs.patch'), true);
     assert.equal(
       files.includes('deploy/rustpbx/patches/rustpbx-ivekit-rwi-originate-hangup.patch'),
@@ -343,6 +347,24 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
     assert.equal(
       files.includes(
         'deploy/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch'
+      ),
+      true
+    );
+    assert.equal(
+      files.includes(
+        'deploy/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch'
+      ),
+      true
+    );
+    assert.equal(
+      files.includes(
+        'deploy/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch'
+      ),
+      true
+    );
+    assert.equal(
+      files.includes(
+        'deploy/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch'
       ),
       true
     );
@@ -499,6 +521,54 @@ test('iveKit delivery bundle contains only curated handoff artifacts with verifi
       'utf8'
     );
     assert.match(retransmissionPatch, /publish_finished_transaction/);
+    const rejectionHeadersPatch = readFileSync(
+      join(
+        outputDir,
+        'deploy',
+        'rustpbx',
+        'patches',
+        'rsipstack-ivekit-rejection-headers.patch'
+      ),
+      'utf8'
+    );
+    assert.match(rejectionHeadersPatch, /reject_with_headers/);
+    assert.match(rejectionHeadersPatch, /Header::RetryAfter/);
+    const recordingLifecyclePatch = readFileSync(
+      join(
+        outputDir,
+        'deploy',
+        'rustpbx',
+        'patches',
+        'rustpbx-ivekit-recording-lifecycle-reservation.patch'
+      ),
+      'utf8'
+    );
+    assert.match(recordingLifecyclePatch, /recording_start_pending/);
+    assert.match(recordingLifecyclePatch, /test_recording_pending_start_rejects_duplicate/);
+    const processingTerminalEventsPatch = readFileSync(
+      join(
+        outputDir,
+        'deploy',
+        'rustpbx',
+        'patches',
+        'rustpbx-ivekit-processing-terminal-events.patch'
+      ),
+      'utf8'
+    );
+    assert.match(processingTerminalEventsPatch, /MediaControlTerminalEventDecoder/);
+    assert.match(processingTerminalEventsPatch, /InjectFencedMediaEvent/);
+    const processingIvrExecutionPatch = readFileSync(
+      join(
+        outputDir,
+        'deploy',
+        'rustpbx',
+        'patches',
+        'rustpbx-ivekit-processing-ivr-execution.patch'
+      ),
+      'utf8'
+    );
+    assert.match(processingIvrExecutionPatch, /CommitSingleLeg/);
+    assert.match(processingIvrExecutionPatch, /prepare_processing_app_answer/);
     assert.match(capacityPatch, /connection_limit_rejections_total/);
     const rustPbxSipCapacityPatch = readFileSync(
       join(outputDir, 'deploy', 'rustpbx', 'patches', 'rustpbx-ivekit-sip-capacity.patch'),

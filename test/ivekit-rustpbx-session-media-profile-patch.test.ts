@@ -27,7 +27,7 @@ function removedLines(): string {
     .join('\n');
 }
 
-test('RustPBX applies the immutable per-session media profile as ivekit.35', () => {
+test('RustPBX retains the immutable per-session media profile in ivekit.38', () => {
   assert.equal(existsSync(PATCH_PATH), true, `${PATCH_PATH} is required`);
   const build = readFileSync('infra/ivekit/rustpbx/build.sh', 'utf8');
   const parsed = spawnSync('git', ['apply', '--numstat', PATCH_PATH], {
@@ -35,7 +35,7 @@ test('RustPBX applies the immutable per-session media profile as ivekit.35', () 
   });
 
   assert.equal(parsed.status, 0, parsed.stderr);
-  assert.match(build, /PATCHSET="ivekit\.35"/);
+  assert.match(build, /PATCHSET="ivekit\.38"/);
   assert.match(
     build,
     /rustpbx-ivekit-inbound-admission-response-contract\.patch"[\s\S]*rustpbx-ivekit-session-media-profile\.patch"/
@@ -107,6 +107,20 @@ test('processing offers contain the frozen codec pair, payload types, and ptime'
   assert.match(added, /leg_b_payload_type/);
   assert.match(added, /packetization_ms/);
   assert.match(added, /processing_offer_contains_frozen_media_profile/);
+});
+
+test('processing SIP INFO and overload failures stay on the bound media worker', () => {
+  const added = addedLines();
+
+  assert.match(added, /pub async fn submit_sip_info_digit/);
+  assert.match(added, /source": "sip_info"/);
+  assert.match(added, /sip_info_event_id/);
+  assert.match(added, /processing_session_routes_sip_info_digit_with_stable_event_identity/);
+  assert.match(added, /CapacityRejected/);
+  assert.match(added, /RetryableControlRejected/);
+  assert.match(added, /media_control_retry_after_seconds/);
+  assert.match(added, /processing_pool_failures_never_fallback_to_local_media/);
+  assert.match(added, /reject_with_headers/);
 });
 
 test('RWI originate exposes only media-control SDP and reconciles precise cleanup ownership', () => {

@@ -168,6 +168,66 @@
         }
       ]
     },
+    "processing_play_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt_id", "egress_leg", "barge_in"],
+      "properties": {
+        "prompt_id": { "$ref": "#/$defs/identifier" },
+        "egress_leg": { "enum": ["a", "b"] },
+        "barge_in": { "type": "boolean" }
+      }
+    },
+    "processing_stop_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_command_id"],
+      "properties": {
+        "target_command_id": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "processing_gather_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_digits",
+        "maximum_digits",
+        "terminator",
+        "first_digit_timeout_ms",
+        "inter_digit_timeout_ms"
+      ],
+      "properties": {
+        "minimum_digits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1024
+        },
+        "maximum_digits": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "terminator": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9*#A-D]$"
+            },
+            { "type": "null" }
+          ]
+        },
+        "first_digit_timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600000
+        },
+        "inter_digit_timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600000
+        }
+      }
+    },
     "owner_epoch": {
       "type": "string",
       "pattern": "^(0|[1-9][0-9]{0,19})$"
@@ -251,6 +311,7 @@
           "enum": [
             "offer",
             "answer",
+            "commit_single_leg",
             "update",
             "delete",
             "query",
@@ -262,6 +323,8 @@
             "stop_recording_fork",
             "play_media",
             "stop_media",
+            "start_gather",
+            "stop_gather",
             "inject_dtmf",
             "subscribe_quality",
             "drain_node"
@@ -326,6 +389,77 @@
                   { "$ref": "#/$defs/processing_offer_payload" }
                 ]
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": { "const": "commit_single_leg" }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "maxProperties": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": { "const": "play_media" },
+              "payload": { "required": ["prompt_id"] }
+            },
+            "required": ["action", "payload"]
+          },
+          "then": {
+            "properties": {
+              "payload": { "$ref": "#/$defs/processing_play_payload" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": { "const": "stop_media" },
+              "payload": { "required": ["target_command_id"] }
+            },
+            "required": ["action", "payload"]
+          },
+          "then": {
+            "properties": {
+              "payload": { "$ref": "#/$defs/processing_stop_payload" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": { "const": "start_gather" }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "payload": { "$ref": "#/$defs/processing_gather_payload" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "action": { "const": "stop_gather" }
+            },
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {
+              "payload": { "$ref": "#/$defs/processing_stop_payload" }
             }
           }
         }

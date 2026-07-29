@@ -69,8 +69,8 @@ rvoip 不作为第二套在线 SIP B2BUA、RTP relay 或 WebRTC 服务部署，�
 | RustPBX commit | `6c49ee76baa54fdbf8f98020cc9bee158c7c15de` |
 | rsipstack commit | `8318e97b1170de4e5245b120afec1cdf53e3d716` |
 | rustrtc commit | `166c6d22984429eb6b509920c14fcd69f974f0b3` |
-| Patch set | `ivekit.35` |
-| Patch 文件 | `34` |
+| Patch set | `ivekit.38` |
+| Patch 文件 | `38` |
 | Builder | Rust `1.94` exact image digest |
 | 构建方式 | exact source + lockfile + ordered patch queue |
 
@@ -320,7 +320,7 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 
 1. 升级必须解决已知缺口、性能瓶颈、安全问题或长期维护风险；
 2. 先在独立 worktree/reproducible image 中 rebase；
-3. 现有 34 个补丁逐个 `apply --check` 或语义迁移；
+3. 现有 38 个补丁逐个 `apply --check` 或语义迁移；
 4. 先过 contract、unit、interop、failure、capacity regression；
 5. 任何 owner/media/CDR/recording 语义回退都阻止升级；
 6. 不为了版本号更新而替换已验证的 rustrtc `0.3.90` 接口；
@@ -328,15 +328,24 @@ rvoip 的 `AsrProvider/AsrStream`、`TtsProvider/TtsPlayback`、
 
 ## 11. 立即执行顺序
 
-1. 完成 `voice-media-rs` hard-bounded `DatagramPool`；
-2. 完成固定线程、固定 shard、固定 packet budget 的 `RtpWorkerPool`；
-3. 用真实 UDP 测试 PCMU/Opus 双向转换、source latch、RFC 4733 和 queue exhaustion；
+截至 2026-07-29，前六项的代码与本机确定性回归已经完成，但服务器真实 RTP、故障注入和
+容量签署仍为 `not_run`：
+
+1. 已完成 `voice-media-rs` hard-bounded `DatagramPool`；
+2. 已完成固定线程、固定 shard、固定 packet budget 的 `RtpWorkerPool`；
+3. 已用本机真实 UDP 测试 PCMU/Opus 双向转换、source latch、RFC 4733 和 queue exhaustion；
 4. 增加 parser/codec/packet-loop Criterion benchmark；
-5. 完成 IVR playback/gather/barge-in；
-6. 接入 media-control 和 RustPBX profile router；
+5. 已完成既有 IVR 的 playback/gather/barge-in、SIP INFO 与 durable terminal event；
+6. 已接入 media-control 和 RustPBX profile router；既有 `ivr` 应用通过
+   owner-fenced `offer -> commit_single_leg` 使用处理池，不创建第二套 IVR 或虚假远端；
 7. 建立 rvoip G.729 candidate source manifest；
 8. 在 Goal 6 建立 RFC/compat/security machine-readable matrix；
 9. 在服务器跑统一 A/B，而不是直接比较两份项目自己的报告。
+
+当前发布候选为 `ivekit.38`：固定上游 RustPBX、rsipstack、rustrtc 源码后，完整 38
+补丁按生产构建顺序逐个 `apply --check` 并成功重放；干净 RustPBX 源码回归结果为
+`1,911 passed / 0 failed / 1 ignored`，rsipstack 定向回归为 `3 passed / 0 failed`。
+这些是源码与功能回归证据，不是服务器容量结论。
 
 ## 12. 未来允许替换 RustPBX 的门槛
 

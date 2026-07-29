@@ -1,6 +1,10 @@
 use crate::capacity::CodecPairCapacity;
 use crate::codec::AudioCodec;
-use crate::ivr::{IvrPromptCacheConfig, IvrSessionConfig};
+use crate::event_outbox::{
+    EventReconcileState, ProcessingEventOutbox, ProcessingEventOutboxError, ProcessingEventRecord,
+    PROCESSING_EVENT_PROTOCOL_VERSION,
+};
+use crate::ivr::{IvrPromptCacheConfig, IvrSessionConfig, PromptCacheError};
 use crate::runtime::{
     NegotiationRole, ProcessingRuntime, ProcessingRuntimeCommand, ProcessingRuntimeConfig,
     ProcessingRuntimeError, ProcessingRuntimeOperation, ProcessingRuntimeResult,
@@ -11,12 +15,13 @@ use crate::session::{
     ProcessingSessionState, ReconcileCommand, SessionError,
 };
 use crate::worker::{RtpWorkerPoolConfig, WorkerError};
+use axum::body::Bytes;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{DefaultBodyLimit, Path, Query, Request, State};
-use axum::http::{header, HeaderValue, Method, StatusCode};
+use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -29,21 +34,28 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::io::Read;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 const CONTROL_PROTOCOL: &str = "ivekit.processing-control.v1";
 const CLIENT_IDENTITY_HEADER: &str = "x-ivekit-client-identity";
+const PROMPT_CONTENT_TYPE: &str = "application/vnd.ivekit.pcm16le";
+const PROMPT_SAMPLE_RATE_HEADER: &str = "x-ivekit-sample-rate-hz";
+const PROMPT_CONTENT_SHA256_HEADER: &str = "x-ivekit-content-sha256";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VoiceMediaHttpConfig {
     pub bearer_token: Option<String>,
     pub required_client_identity: Option<String>,
     pub max_body_bytes: usize,
+    pub max_prompt_body_bytes: usize,
     pub max_inflight_requests: usize,
+    pub max_inflight_prompt_requests: usize,
 }
 
 impl VoiceMediaHttpConfig {
@@ -51,9 +63,19 @@ impl VoiceMediaHttpConfig {
         if self.max_body_bytes == 0 {
             return Err(VoiceMediaHttpError::InvalidConfiguration("max_body_bytes"));
         }
+        if self.max_prompt_body_bytes == 0 {
+            return Err(VoiceMediaHttpError::InvalidConfiguration(
+                "max_prompt_body_bytes",
+            ));
+        }
         if self.max_inflight_requests == 0 {
             return Err(VoiceMediaHttpError::InvalidConfiguration(
                 "max_inflight_requests",
+            ));
+        }
+        if self.max_inflight_prompt_requests == 0 {
+            return Err(VoiceMediaHttpError::InvalidConfiguration(
+                "max_inflight_prompt_requests",
             ));
         }
         if self.bearer_token.as_deref() == Some("") {
@@ -73,6 +95,8 @@ pub enum VoiceMediaHttpError {
     InvalidConfiguration(&'static str),
     Environment { field: String, message: String },
     Runtime(ProcessingRuntimeError),
+    EventOutbox(ProcessingEventOutboxError),
+    EventPumpStart(std::io::Error),
     Bind(std::io::Error),
     Serve(std::io::Error),
 }
@@ -87,6 +111,10 @@ impl Display for VoiceMediaHttpError {
                 write!(formatter, "invalid environment variable {field}: {message}")
             }
             Self::Runtime(error) => Display::fmt(error, formatter),
+            Self::EventOutbox(error) => Display::fmt(error, formatter),
+            Self::EventPumpStart(error) => {
+                write!(formatter, "failed to start processing event pump: {error}")
+            }
             Self::Bind(error) => {
                 write!(formatter, "failed to bind voice media HTTP server: {error}")
             }
@@ -105,19 +133,31 @@ impl From<ProcessingRuntimeError> for VoiceMediaHttpError {
     }
 }
 
+impl From<ProcessingEventOutboxError> for VoiceMediaHttpError {
+    fn from(value: ProcessingEventOutboxError) -> Self {
+        Self::EventOutbox(value)
+    }
+}
+
 #[derive(Default)]
 struct HttpMetrics {
     commands_succeeded: AtomicU64,
     commands_failed: AtomicU64,
     requests_rejected: AtomicU64,
+    terminal_events_persisted: AtomicU64,
+    terminal_event_handoff_failures: AtomicU64,
+    terminal_event_handoff_ready: AtomicBool,
 }
 
 struct VoiceMediaHttpInner {
     runtime: Arc<ProcessingRuntime>,
+    event_outbox: Option<Arc<ProcessingEventOutbox>>,
     bearer_digest: Option<[u8; 32]>,
     client_identity_digest: Option<[u8; 32]>,
     max_body_bytes: usize,
+    max_prompt_body_bytes: usize,
     permits: Arc<Semaphore>,
+    prompt_permits: Arc<Semaphore>,
     draining: AtomicBool,
     metrics: HttpMetrics,
 }
@@ -132,22 +172,48 @@ impl VoiceMediaHttpState {
         runtime: Arc<ProcessingRuntime>,
         config: VoiceMediaHttpConfig,
     ) -> Result<Self, VoiceMediaHttpError> {
+        Self::build(runtime, config, None)
+    }
+
+    pub fn new_with_event_outbox(
+        runtime: Arc<ProcessingRuntime>,
+        config: VoiceMediaHttpConfig,
+        event_outbox: Arc<ProcessingEventOutbox>,
+    ) -> Result<Self, VoiceMediaHttpError> {
+        Self::build(runtime, config, Some(event_outbox))
+    }
+
+    fn build(
+        runtime: Arc<ProcessingRuntime>,
+        config: VoiceMediaHttpConfig,
+        event_outbox: Option<Arc<ProcessingEventOutbox>>,
+    ) -> Result<Self, VoiceMediaHttpError> {
         config.validate()?;
         Ok(Self {
             inner: Arc::new(VoiceMediaHttpInner {
                 runtime,
+                event_outbox,
                 bearer_digest: config.bearer_token.as_deref().map(digest),
                 client_identity_digest: config.required_client_identity.as_deref().map(digest),
                 max_body_bytes: config.max_body_bytes,
+                max_prompt_body_bytes: config.max_prompt_body_bytes,
                 permits: Arc::new(Semaphore::new(config.max_inflight_requests)),
+                prompt_permits: Arc::new(Semaphore::new(config.max_inflight_prompt_requests)),
                 draining: AtomicBool::new(false),
-                metrics: HttpMetrics::default(),
+                metrics: HttpMetrics {
+                    terminal_event_handoff_ready: AtomicBool::new(true),
+                    ..HttpMetrics::default()
+                },
             }),
         })
     }
 
     fn max_body_bytes(&self) -> usize {
         self.inner.max_body_bytes
+    }
+
+    fn max_prompt_body_bytes(&self) -> usize {
+        self.inner.max_prompt_body_bytes
     }
 }
 
@@ -231,6 +297,19 @@ struct SessionScanQuery {
     limit: Option<usize>,
 }
 
+#[derive(Debug, Deserialize)]
+struct EventScanQuery {
+    after_sequence: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventAcknowledgementRequest {
+    protocol_version: String,
+    event_sequence: String,
+    event_id: String,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct ControlProtocolError {
     code: &'static str,
@@ -247,8 +326,7 @@ impl ControlProtocolError {
 }
 
 pub fn router(state: VoiceMediaHttpState) -> Router {
-    let body_limit = state.max_body_bytes();
-    Router::new()
+    let control_routes = Router::new()
         .route("/health", get(health))
         .route("/ready", get(readiness))
         .route("/metrics", get(metrics))
@@ -256,11 +334,22 @@ pub fn router(state: VoiceMediaHttpState) -> Router {
         .route("/v1/reconcile", post(reconcile_command))
         .route("/v1/sessions", get(scan_sessions))
         .route("/v1/sessions/{media_reservation_id}", get(query_session))
+        .route("/v1/events", get(scan_events))
+        .route("/v1/events/ack", post(acknowledge_event))
+        .route("/v1/events/{event_id}", get(reconcile_event))
         .route("/webrtc/session/create", post(issue_session_handler))
         .route("/recordings/archive", post(archive_recording_handler))
         .route("/recordings/purge", post(purge_recording_handler))
         .route("/ivr/gather-digits", post(gather_digits_stub))
-        .layer(DefaultBodyLimit::max(body_limit))
+        .layer(DefaultBodyLimit::max(state.max_body_bytes()));
+    let prompt_routes = Router::new()
+        .route(
+            "/v1/prompts/{prompt_id}",
+            put(cache_prompt).delete(remove_prompt),
+        )
+        .layer(DefaultBodyLimit::max(state.max_prompt_body_bytes()));
+    control_routes
+        .merge(prompt_routes)
         .layer(middleware::from_fn_with_state(state.clone(), request_guard))
         .with_state(state)
 }
@@ -271,16 +360,28 @@ pub async fn serve_from_env() -> Result<(), VoiceMediaHttpError> {
         server.runtime,
         Arc::new(CodecPairCapacity::uniform(server.codec_pair_capacity)),
     )?);
-    let state = VoiceMediaHttpState::new(runtime.clone(), server.http)?;
+    let event_outbox = Arc::new(ProcessingEventOutbox::open(server.event_outbox)?);
+    let state = VoiceMediaHttpState::new_with_event_outbox(
+        runtime.clone(),
+        server.http,
+        event_outbox.clone(),
+    )?;
+    let event_pump = ProcessingEventPump::spawn(
+        runtime.clone(),
+        event_outbox,
+        state.clone(),
+        server.event_poll_interval,
+    )?;
     spawn_sweeper(runtime, server.sweep_interval, server.sweep_limit);
     let listener = tokio::net::TcpListener::bind(server.listen)
         .await
         .map_err(VoiceMediaHttpError::Bind)?;
     println!("voice-media-rs listening on {}", server.listen);
-    axum::serve(listener, router(state))
+    let result = axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown_signal())
-        .await
-        .map_err(VoiceMediaHttpError::Serve)
+        .await;
+    drop(event_pump);
+    result.map_err(VoiceMediaHttpError::Serve)
 }
 
 async fn request_guard(
@@ -303,10 +404,15 @@ async fn request_guard(
             }),
         );
     }
-    if !request_uses_capacity(request.method(), request.uri().path()) {
-        return with_service_header(next.run(request).await);
-    }
-    let permit = match state.inner.permits.clone().try_acquire_owned() {
+    let (permits, error_code) = match request_capacity(request.method(), request.uri().path()) {
+        RequestCapacity::None => return with_service_header(next.run(request).await),
+        RequestCapacity::Control => (state.inner.permits.clone(), "control_capacity_exhausted"),
+        RequestCapacity::Prompt => (
+            state.inner.prompt_permits.clone(),
+            "prompt_capacity_exhausted",
+        ),
+    };
+    let permit = match permits.try_acquire_owned() {
         Ok(permit) => permit,
         Err(_) => {
             state
@@ -317,7 +423,7 @@ async fn request_guard(
             return json_response(
                 StatusCode::SERVICE_UNAVAILABLE,
                 json!({
-                    "error": "control_capacity_exhausted",
+                    "error": error_code,
                     "retryable": true
                 }),
             );
@@ -336,8 +442,21 @@ fn is_public_request(method: &Method, path: &str) -> bool {
     method == Method::GET && matches!(path, "/health" | "/ready" | "/metrics")
 }
 
-fn request_uses_capacity(method: &Method, path: &str) -> bool {
-    !(method == Method::GET && path == "/health")
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RequestCapacity {
+    None,
+    Control,
+    Prompt,
+}
+
+fn request_capacity(method: &Method, path: &str) -> RequestCapacity {
+    if method == Method::GET && path == "/health" {
+        RequestCapacity::None
+    } else if path.starts_with("/v1/prompts/") {
+        RequestCapacity::Prompt
+    } else {
+        RequestCapacity::Control
+    }
 }
 
 fn authorized(state: &VoiceMediaHttpState, request: &Request) -> bool {
@@ -375,7 +494,9 @@ async fn health() -> Response {
                 "processing_sessions": "ready",
                 "processing_runtime": "ready",
                 "command_reconcile": "ready",
-                "gather_digits": "worker_ready_http_pending"
+                "prompt_preload": "ready",
+                "play_media": "ready",
+                "gather_digits": "ready"
             }
         }),
     )
@@ -386,13 +507,24 @@ async fn readiness(State(state): State<VoiceMediaHttpState>) -> Response {
     let worker = tokio::task::spawn_blocking(move || runtime.worker_snapshot()).await;
     let draining = state.inner.draining.load(Ordering::Acquire);
     let available_ports = state.inner.runtime.available_port_count();
+    let event_handoff_ready = state
+        .inner
+        .metrics
+        .terminal_event_handoff_ready
+        .load(Ordering::Acquire);
     match worker {
-        Ok(Ok(snapshot)) if !draining && available_ports >= 2 && snapshot.worker_threads > 0 => {
+        Ok(Ok(snapshot))
+            if !draining
+                && event_handoff_ready
+                && available_ports >= 2
+                && snapshot.worker_threads > 0 =>
+        {
             json_response(
                 StatusCode::OK,
                 json!({
                     "status": "ready",
                     "draining": false,
+                    "event_handoff_ready": true,
                     "worker_threads": snapshot.worker_threads,
                     "active_sessions": snapshot.active_sessions,
                     "available_rtp_ports": available_ports
@@ -404,6 +536,7 @@ async fn readiness(State(state): State<VoiceMediaHttpState>) -> Response {
             json!({
                 "status": "not_ready",
                 "draining": draining,
+                "event_handoff_ready": event_handoff_ready,
                 "worker_threads": snapshot.worker_threads,
                 "active_sessions": snapshot.active_sessions,
                 "available_rtp_ports": available_ports
@@ -638,6 +771,217 @@ async fn scan_sessions(
     }
 }
 
+async fn cache_prompt(
+    State(state): State<VoiceMediaHttpState>,
+    Path(prompt_id): Path<String>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    if !valid_identifier(&prompt_id) {
+        return prompt_error(
+            StatusCode::BAD_REQUEST,
+            "processing_prompt_id_invalid",
+            false,
+        );
+    }
+    if headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        != Some(PROMPT_CONTENT_TYPE)
+    {
+        return prompt_error(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "processing_prompt_content_type_unsupported",
+            false,
+        );
+    }
+    let sample_rate_hz = match prompt_sample_rate(&headers) {
+        Ok(sample_rate_hz) => sample_rate_hz,
+        Err(response) => return response,
+    };
+    let expected_digest = match prompt_content_digest(&headers) {
+        Ok(digest) => digest,
+        Err(response) => return response,
+    };
+    if body.is_empty() || body.len() % 2 != 0 {
+        return prompt_error(
+            StatusCode::BAD_REQUEST,
+            "processing_prompt_pcm_invalid",
+            false,
+        );
+    }
+    let actual_digest = format!("{:x}", Sha256::digest(&body));
+    if !secure_eq(&digest(&actual_digest), &digest(expected_digest.as_str())) {
+        return prompt_error(
+            StatusCode::BAD_REQUEST,
+            "processing_prompt_digest_mismatch",
+            false,
+        );
+    }
+
+    let runtime = state.inner.runtime.clone();
+    let runtime_prompt_id = prompt_id.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let samples = body
+            .chunks_exact(2)
+            .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
+            .collect::<Vec<_>>();
+        runtime.cache_prompt_pcm(&runtime_prompt_id, sample_rate_hz, &samples)
+    })
+    .await;
+    match result {
+        Ok(Ok(prompt)) => json_response(
+            StatusCode::OK,
+            json!({
+                "protocol_version": CONTROL_PROTOCOL,
+                "prompt_id": prompt.prompt_id,
+                "content_sha256": actual_digest,
+                "source_sample_rate_hz": sample_rate_hz,
+                "canonical_sample_rate_hz": prompt.canonical_sample_rate_hz,
+                "frame_count": prompt.frame_count,
+                "duration_ms": prompt.frame_count.saturating_mul(20)
+            }),
+        ),
+        Ok(Err(error)) => prompt_runtime_error(error),
+        Err(_) => prompt_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "processing_prompt_task_failed",
+            true,
+        ),
+    }
+}
+
+async fn remove_prompt(
+    State(state): State<VoiceMediaHttpState>,
+    Path(prompt_id): Path<String>,
+) -> Response {
+    if !valid_identifier(&prompt_id) {
+        return prompt_error(
+            StatusCode::BAD_REQUEST,
+            "processing_prompt_id_invalid",
+            false,
+        );
+    }
+    let runtime = state.inner.runtime.clone();
+    let result =
+        tokio::task::spawn_blocking(move || runtime.remove_cached_prompt(&prompt_id)).await;
+    match result {
+        Ok(Ok(removed)) => json_response(
+            StatusCode::OK,
+            json!({
+                "protocol_version": CONTROL_PROTOCOL,
+                "removed": removed
+            }),
+        ),
+        Ok(Err(error)) => prompt_runtime_error(error),
+        Err(_) => prompt_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "processing_prompt_task_failed",
+            true,
+        ),
+    }
+}
+
+async fn scan_events(
+    State(state): State<VoiceMediaHttpState>,
+    Query(query): Query<EventScanQuery>,
+) -> Response {
+    let Some(outbox) = state.inner.event_outbox.as_ref() else {
+        return event_outbox_disabled();
+    };
+    let after_sequence = match query.after_sequence.as_deref().unwrap_or("0") {
+        value => match parse_u64(value, "processing_event_cursor_invalid") {
+            Ok(sequence) => sequence,
+            Err(_) => {
+                return json_response(
+                    StatusCode::BAD_REQUEST,
+                    json!({ "error": "processing_event_cursor_invalid" }),
+                )
+            }
+        },
+    };
+    let limit = query.limit.unwrap_or(256);
+    match outbox.scan(after_sequence, limit) {
+        Ok(scan) => json_response(
+            StatusCode::OK,
+            json!({
+                "protocol_version": PROCESSING_EVENT_PROTOCOL_VERSION,
+                "items": scan.items.iter().map(event_value).collect::<Vec<_>>(),
+                "acknowledged_through": scan.acknowledged_through.to_string(),
+                "next_sequence": scan.next_sequence.to_string()
+            }),
+        ),
+        Err(error) => event_outbox_error(error),
+    }
+}
+
+async fn reconcile_event(
+    State(state): State<VoiceMediaHttpState>,
+    Path(event_id): Path<String>,
+) -> Response {
+    let Some(outbox) = state.inner.event_outbox.as_ref() else {
+        return event_outbox_disabled();
+    };
+    match outbox.reconcile(&event_id) {
+        Ok(EventReconcileState::Pending(record)) => json_response(
+            StatusCode::OK,
+            json!({ "found": true, "state": "pending", "event": event_value(&record) }),
+        ),
+        Ok(EventReconcileState::Acknowledged(record)) => json_response(
+            StatusCode::OK,
+            json!({
+                "found": true,
+                "state": "acknowledged",
+                "event": event_value(&record)
+            }),
+        ),
+        Ok(EventReconcileState::NotFound) => json_response(
+            StatusCode::OK,
+            json!({ "found": false, "state": "not_found" }),
+        ),
+        Err(error) => event_outbox_error(error),
+    }
+}
+
+async fn acknowledge_event(
+    State(state): State<VoiceMediaHttpState>,
+    payload: Result<Json<EventAcknowledgementRequest>, JsonRejection>,
+) -> Response {
+    let Some(outbox) = state.inner.event_outbox.as_ref() else {
+        return event_outbox_disabled();
+    };
+    let request = match payload {
+        Ok(Json(request)) => request,
+        Err(error) => return invalid_json(error),
+    };
+    if request.protocol_version != PROCESSING_EVENT_PROTOCOL_VERSION {
+        return json_response(
+            StatusCode::BAD_REQUEST,
+            json!({ "error": "processing_event_protocol_unsupported" }),
+        );
+    }
+    let event_sequence =
+        match parse_u64(&request.event_sequence, "processing_event_sequence_invalid") {
+            Ok(sequence) if sequence > 0 => sequence,
+            _ => {
+                return json_response(
+                    StatusCode::BAD_REQUEST,
+                    json!({ "error": "processing_event_sequence_invalid" }),
+                )
+            }
+        };
+    match outbox.acknowledge(event_sequence, &request.event_id) {
+        Ok(()) => json_response(
+            StatusCode::OK,
+            json!({
+                "protocol_version": PROCESSING_EVENT_PROTOCOL_VERSION,
+                "acknowledged_through": event_sequence.to_string()
+            }),
+        ),
+        Err(error) => event_outbox_error(error),
+    }
+}
+
 async fn issue_session_handler(
     payload: Result<Json<WebRtcSessionRequest>, JsonRejection>,
 ) -> Response {
@@ -732,6 +1076,18 @@ impl ControlCommandRequest {
                 },
                 None,
             )),
+            "commit_single_leg" => {
+                if !payload_has_exact_keys(&self.payload, &[]) {
+                    return Err(ControlProtocolError::terminal(
+                        "processing_single_leg_payload_invalid",
+                    ));
+                }
+                Ok((
+                    ProcessingAction::CommitSingleLeg,
+                    ProcessingRuntimeOperation::CommitSingleLeg,
+                    None,
+                ))
+            }
             "update" => {
                 let role = match self.payload.get("sdp_role").and_then(Value::as_str) {
                     Some("offer") => NegotiationRole::Offer,
@@ -747,6 +1103,141 @@ impl ControlCommandRequest {
                     ProcessingRuntimeOperation::Update {
                         role,
                         sdp: payload_sdp(&self.payload, "sdp")?,
+                    },
+                    None,
+                ))
+            }
+            "play_media" => {
+                if !payload_has_exact_keys(&self.payload, &["prompt_id", "egress_leg", "barge_in"])
+                {
+                    return Err(ControlProtocolError::terminal(
+                        "processing_play_payload_invalid",
+                    ));
+                }
+                Ok((
+                    ProcessingAction::PlayMedia,
+                    ProcessingRuntimeOperation::PlayMedia {
+                        prompt_id: payload_identifier(
+                            &self.payload,
+                            "prompt_id",
+                            "processing_prompt_id_invalid",
+                        )?,
+                        egress_leg: payload_processing_leg(&self.payload)?,
+                        barge_in: payload_boolean(
+                            &self.payload,
+                            "barge_in",
+                            "processing_play_payload_invalid",
+                        )?,
+                    },
+                    None,
+                ))
+            }
+            "stop_media" => {
+                if !payload_has_exact_keys(&self.payload, &["target_command_id"]) {
+                    return Err(ControlProtocolError::terminal(
+                        "processing_stop_media_payload_invalid",
+                    ));
+                }
+                Ok((
+                    ProcessingAction::StopMedia,
+                    ProcessingRuntimeOperation::StopMedia {
+                        target_command_id: payload_identifier(
+                            &self.payload,
+                            "target_command_id",
+                            "processing_target_command_id_invalid",
+                        )?,
+                    },
+                    None,
+                ))
+            }
+            "start_gather" => {
+                if !payload_has_exact_keys(
+                    &self.payload,
+                    &[
+                        "minimum_digits",
+                        "maximum_digits",
+                        "terminator",
+                        "first_digit_timeout_ms",
+                        "inter_digit_timeout_ms",
+                    ],
+                ) {
+                    return Err(ControlProtocolError::terminal(
+                        "processing_gather_payload_invalid",
+                    ));
+                }
+                Ok((
+                    ProcessingAction::StartGather,
+                    ProcessingRuntimeOperation::StartGather {
+                        minimum_digits: payload_usize(
+                            &self.payload,
+                            "minimum_digits",
+                            0,
+                            1_024,
+                            "processing_gather_payload_invalid",
+                        )?,
+                        maximum_digits: payload_usize(
+                            &self.payload,
+                            "maximum_digits",
+                            1,
+                            1_024,
+                            "processing_gather_payload_invalid",
+                        )?,
+                        terminator: payload_optional_digit(
+                            &self.payload,
+                            "terminator",
+                            "processing_gather_payload_invalid",
+                        )?,
+                        first_digit_timeout_ms: payload_u64(
+                            &self.payload,
+                            "first_digit_timeout_ms",
+                            1,
+                            3_600_000,
+                            "processing_gather_payload_invalid",
+                        )?,
+                        inter_digit_timeout_ms: payload_u64(
+                            &self.payload,
+                            "inter_digit_timeout_ms",
+                            1,
+                            3_600_000,
+                            "processing_gather_payload_invalid",
+                        )?,
+                    },
+                    None,
+                ))
+            }
+            "stop_gather" => {
+                if !payload_has_exact_keys(&self.payload, &["target_command_id"]) {
+                    return Err(ControlProtocolError::terminal(
+                        "processing_stop_gather_payload_invalid",
+                    ));
+                }
+                Ok((
+                    ProcessingAction::StopGather,
+                    ProcessingRuntimeOperation::StopGather {
+                        target_command_id: payload_identifier(
+                            &self.payload,
+                            "target_command_id",
+                            "processing_target_command_id_invalid",
+                        )?,
+                    },
+                    None,
+                ))
+            }
+            "inject_dtmf" => {
+                if self.payload.get("source").and_then(Value::as_str) != Some("sip_info") {
+                    return Err(ControlProtocolError::terminal(
+                        "processing_dtmf_source_invalid",
+                    ));
+                }
+                Ok((
+                    ProcessingAction::InjectDtmf,
+                    ProcessingRuntimeOperation::SipInfoDigit {
+                        event_id: payload_identifier(
+                            &self.payload,
+                            "event_id",
+                            "processing_dtmf_event_id_invalid",
+                        )?,
+                        digit: payload_digit(&self.payload)?,
                     },
                     None,
                 ))
@@ -825,6 +1316,55 @@ fn payload_u8(
         })
 }
 
+fn payload_u64(
+    payload: &Map<String, Value>,
+    field: &'static str,
+    minimum: u64,
+    maximum: u64,
+    error_code: &'static str,
+) -> Result<u64, ControlProtocolError> {
+    payload
+        .get(field)
+        .and_then(Value::as_u64)
+        .filter(|value| (minimum..=maximum).contains(value))
+        .ok_or_else(|| ControlProtocolError::terminal(error_code))
+}
+
+fn payload_usize(
+    payload: &Map<String, Value>,
+    field: &'static str,
+    minimum: usize,
+    maximum: usize,
+    error_code: &'static str,
+) -> Result<usize, ControlProtocolError> {
+    payload_u64(payload, field, minimum as u64, maximum as u64, error_code).and_then(|value| {
+        usize::try_from(value).map_err(|_| ControlProtocolError::terminal(error_code))
+    })
+}
+
+fn payload_boolean(
+    payload: &Map<String, Value>,
+    field: &'static str,
+    error_code: &'static str,
+) -> Result<bool, ControlProtocolError> {
+    payload
+        .get(field)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| ControlProtocolError::terminal(error_code))
+}
+
+fn payload_processing_leg(
+    payload: &Map<String, Value>,
+) -> Result<crate::rtp::ProcessingLeg, ControlProtocolError> {
+    match payload.get("egress_leg").and_then(Value::as_str) {
+        Some("a") => Ok(crate::rtp::ProcessingLeg::A),
+        Some("b") => Ok(crate::rtp::ProcessingLeg::B),
+        _ => Err(ControlProtocolError::terminal(
+            "processing_egress_leg_invalid",
+        )),
+    }
+}
+
 fn payload_text(
     payload: &Map<String, Value>,
     field: &'static str,
@@ -837,6 +1377,118 @@ fn payload_text(
         .ok_or_else(|| {
             let _ = field;
             ControlProtocolError::terminal("processing_sdp_invalid")
+        })
+}
+
+fn payload_identifier(
+    payload: &Map<String, Value>,
+    field: &'static str,
+    error_code: &'static str,
+) -> Result<String, ControlProtocolError> {
+    payload
+        .get(field)
+        .and_then(Value::as_str)
+        .filter(|value| valid_identifier(value))
+        .map(str::to_owned)
+        .ok_or_else(|| ControlProtocolError::terminal(error_code))
+}
+
+fn payload_digit(payload: &Map<String, Value>) -> Result<char, ControlProtocolError> {
+    payload
+        .get("digit")
+        .and_then(Value::as_str)
+        .and_then(single_digit)
+        .ok_or_else(|| ControlProtocolError::terminal("processing_dtmf_digit_invalid"))
+}
+
+fn payload_optional_digit(
+    payload: &Map<String, Value>,
+    field: &'static str,
+    error_code: &'static str,
+) -> Result<Option<char>, ControlProtocolError> {
+    match payload.get(field) {
+        Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_str()
+            .and_then(single_digit)
+            .map(Some)
+            .ok_or_else(|| ControlProtocolError::terminal(error_code)),
+        None => Err(ControlProtocolError::terminal(error_code)),
+    }
+}
+
+fn payload_has_exact_keys(payload: &Map<String, Value>, expected: &[&str]) -> bool {
+    payload.len() == expected.len() && expected.iter().all(|field| payload.contains_key(*field))
+}
+
+fn single_digit(value: &str) -> Option<char> {
+    let mut chars = value.chars();
+    let digit = chars.next()?;
+    if chars.next().is_some() || !matches!(digit, '0'..='9' | '*' | '#' | 'A'..='D') {
+        return None;
+    }
+    Some(digit)
+}
+
+fn valid_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'@' | b'/' | b'-')
+        })
+}
+
+fn prompt_sample_rate(headers: &HeaderMap) -> Result<u32, Response> {
+    let Some(value) = headers
+        .get(PROMPT_SAMPLE_RATE_HEADER)
+        .and_then(|value| value.to_str().ok())
+    else {
+        return Err(prompt_error(
+            StatusCode::BAD_REQUEST,
+            "processing_prompt_sample_rate_invalid",
+            false,
+        ));
+    };
+    if value.is_empty()
+        || (value.len() > 1 && value.starts_with('0'))
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(prompt_error(
+            StatusCode::BAD_REQUEST,
+            "processing_prompt_sample_rate_invalid",
+            false,
+        ));
+    }
+    value
+        .parse::<u32>()
+        .ok()
+        .filter(|sample_rate| (8_000..=192_000).contains(sample_rate))
+        .ok_or_else(|| {
+            prompt_error(
+                StatusCode::BAD_REQUEST,
+                "processing_prompt_sample_rate_invalid",
+                false,
+            )
+        })
+}
+
+fn prompt_content_digest(headers: &HeaderMap) -> Result<String, Response> {
+    headers
+        .get(PROMPT_CONTENT_SHA256_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| {
+            value.len() == 64
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        })
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            prompt_error(
+                StatusCode::BAD_REQUEST,
+                "processing_prompt_digest_invalid",
+                false,
+            )
         })
 }
 
@@ -916,6 +1568,70 @@ fn session_value(snapshot: &ProcessingRuntimeSnapshot) -> Value {
         "expires_at": timestamp_from_ms(snapshot.session.expires_at_ms),
         "updated_at": timestamp_from_ms(snapshot.updated_at_ms)
     })
+}
+
+fn event_value(record: &ProcessingEventRecord) -> Value {
+    let mut value = serde_json::to_value(record).expect("serializable processing event");
+    value
+        .as_object_mut()
+        .expect("processing event object")
+        .insert(
+            "event_sequence".to_owned(),
+            Value::String(record.event_sequence.to_string()),
+        );
+    value
+}
+
+fn event_outbox_disabled() -> Response {
+    json_response(
+        StatusCode::NOT_FOUND,
+        json!({ "error": "processing_event_outbox_disabled" }),
+    )
+}
+
+fn event_outbox_error(error: ProcessingEventOutboxError) -> Response {
+    let (status, code, retryable) = match error {
+        ProcessingEventOutboxError::InvalidConfiguration { .. }
+        | ProcessingEventOutboxError::UnsafePath
+        | ProcessingEventOutboxError::JournalCorrupt => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "processing_event_outbox_invalid",
+            false,
+        ),
+        ProcessingEventOutboxError::InvalidEvent { .. }
+        | ProcessingEventOutboxError::ScanInvalid => (
+            StatusCode::BAD_REQUEST,
+            "processing_event_request_invalid",
+            false,
+        ),
+        ProcessingEventOutboxError::AcknowledgementGap => (
+            StatusCode::CONFLICT,
+            "processing_event_acknowledgement_gap",
+            true,
+        ),
+        ProcessingEventOutboxError::AcknowledgementIdentityConflict
+        | ProcessingEventOutboxError::EventIdentityConflict => (
+            StatusCode::CONFLICT,
+            "processing_event_identity_conflict",
+            false,
+        ),
+        ProcessingEventOutboxError::JournalLocked
+        | ProcessingEventOutboxError::JournalIo
+        | ProcessingEventOutboxError::JournalPoisoned
+        | ProcessingEventOutboxError::JournalCapacityExhausted
+        | ProcessingEventOutboxError::PendingCapacityExhausted => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "processing_event_outbox_unavailable",
+            true,
+        ),
+    };
+    json_response(
+        status,
+        json!({
+            "error": code,
+            "retryable": retryable
+        }),
+    )
 }
 
 fn orphan_candidate_value(candidate: &crate::runtime::ProcessingRuntimeOrphanCandidate) -> Value {
@@ -1008,6 +1724,52 @@ fn worker_error_code(error: &WorkerError) -> &'static str {
         WorkerError::PromptCache(_) => "processing_prompt_cache_error",
         WorkerError::Ivr(_) => "processing_ivr_error",
     }
+}
+
+fn prompt_runtime_error(error: ProcessingRuntimeError) -> Response {
+    match error {
+        ProcessingRuntimeError::Worker(WorkerError::PromptCache(
+            PromptCacheError::InvalidPromptId
+            | PromptCacheError::InvalidSampleRate
+            | PromptCacheError::EmptyPrompt,
+        )) => prompt_error(StatusCode::BAD_REQUEST, "processing_prompt_invalid", false),
+        ProcessingRuntimeError::Worker(WorkerError::PromptCache(
+            PromptCacheError::PromptConflict,
+        )) => prompt_error(StatusCode::CONFLICT, "processing_prompt_conflict", false),
+        ProcessingRuntimeError::Worker(WorkerError::PromptCache(PromptCacheError::PromptInUse)) => {
+            prompt_error(StatusCode::CONFLICT, "processing_prompt_in_use", true)
+        }
+        ProcessingRuntimeError::Worker(WorkerError::PromptCache(
+            PromptCacheError::PromptCapacityExhausted { .. }
+            | PromptCacheError::PromptFrameCapacityExhausted { .. }
+            | PromptCacheError::PcmCapacityExhausted { .. },
+        )) => prompt_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "processing_prompt_capacity_exhausted",
+            true,
+        ),
+        ProcessingRuntimeError::Worker(WorkerError::PromptCache(
+            PromptCacheError::CachePoisoned,
+        )) => prompt_error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "processing_prompt_cache_unavailable",
+            true,
+        ),
+        error => {
+            let (code, retryable) = runtime_error(&error);
+            prompt_error(StatusCode::INTERNAL_SERVER_ERROR, code, retryable)
+        }
+    }
+}
+
+fn prompt_error(status: StatusCode, code: &'static str, retryable: bool) -> Response {
+    json_response(
+        status,
+        json!({
+            "error": code,
+            "retryable": retryable
+        }),
+    )
 }
 
 fn issue_session(payload: WebRtcSessionRequest) -> Value {
@@ -1217,6 +1979,11 @@ fn render_metrics(
          ivekit_voice_processing_rtp_packets_total{{direction=\"sent\"}} {}\n\
          # TYPE ivekit_voice_processing_queue_dropped_total counter\n\
          ivekit_voice_processing_queue_dropped_total{{result=\"telemetry\"}} {}\n\
+         # TYPE ivekit_voice_processing_terminal_events_total counter\n\
+         ivekit_voice_processing_terminal_events_total{{result=\"persisted\"}} {}\n\
+         ivekit_voice_processing_terminal_events_total{{result=\"handoff_failed\"}} {}\n\
+         # TYPE ivekit_voice_processing_terminal_event_handoff_ready gauge\n\
+         ivekit_voice_processing_terminal_event_handoff_ready {}\n\
          # TYPE ivekit_voice_processing_rtp_ports_available gauge\n\
          ivekit_voice_processing_rtp_ports_available {available_ports}\n\
          # TYPE ivekit_voice_processing_datagram_retention gauge\n\
@@ -1236,9 +2003,111 @@ fn render_metrics(
         worker.rtp_datagrams_received,
         worker.rtp_datagrams_sent,
         worker.event_queue_drops,
+        state
+            .inner
+            .metrics
+            .terminal_events_persisted
+            .load(Ordering::Relaxed),
+        state
+            .inner
+            .metrics
+            .terminal_event_handoff_failures
+            .load(Ordering::Relaxed),
+        u8::from(
+            state
+                .inner
+                .metrics
+                .terminal_event_handoff_ready
+                .load(Ordering::Acquire)
+        ),
         worker.datagram_retention_used,
         worker.datagram_retention_limit
     )
+}
+
+struct ProcessingEventPump {
+    stop: Arc<AtomicBool>,
+    join: Option<JoinHandle<()>>,
+}
+
+impl ProcessingEventPump {
+    fn spawn(
+        runtime: Arc<ProcessingRuntime>,
+        outbox: Arc<ProcessingEventOutbox>,
+        state: VoiceMediaHttpState,
+        poll_interval: Duration,
+    ) -> Result<Self, VoiceMediaHttpError> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_stop = stop.clone();
+        let join = thread::Builder::new()
+            .name("ivekit-processing-events".to_owned())
+            .spawn(move || {
+                let mut pending = None;
+                let mut retry_delay = Duration::from_millis(10);
+                while !thread_stop.load(Ordering::Acquire) {
+                    let event = match pending.take() {
+                        Some(event) => event,
+                        None => {
+                            let Some(event) = runtime.recv_event_timeout(poll_interval) else {
+                                continue;
+                            };
+                            event
+                        }
+                    };
+                    match runtime.persist_terminal_event(&outbox, event.clone(), unix_time_ms()) {
+                        Ok(Some(_)) => {
+                            state
+                                .inner
+                                .metrics
+                                .terminal_events_persisted
+                                .fetch_add(1, Ordering::Relaxed);
+                            state
+                                .inner
+                                .metrics
+                                .terminal_event_handoff_ready
+                                .store(true, Ordering::Release);
+                            retry_delay = Duration::from_millis(10);
+                        }
+                        Ok(None) => {
+                            state
+                                .inner
+                                .metrics
+                                .terminal_event_handoff_ready
+                                .store(true, Ordering::Release);
+                        }
+                        Err(_) => {
+                            state
+                                .inner
+                                .metrics
+                                .terminal_event_handoff_failures
+                                .fetch_add(1, Ordering::Relaxed);
+                            state
+                                .inner
+                                .metrics
+                                .terminal_event_handoff_ready
+                                .store(false, Ordering::Release);
+                            pending = Some(event);
+                            thread::sleep(retry_delay);
+                            retry_delay = retry_delay.saturating_mul(2).min(Duration::from_secs(1));
+                        }
+                    }
+                }
+            })
+            .map_err(VoiceMediaHttpError::EventPumpStart)?;
+        Ok(Self {
+            stop,
+            join: Some(join),
+        })
+    }
+}
+
+impl Drop for ProcessingEventPump {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        if let Some(join) = self.join.take() {
+            let _ = join.join();
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1247,6 +2116,8 @@ struct ServerConfiguration {
     http: VoiceMediaHttpConfig,
     runtime: ProcessingRuntimeConfig,
     codec_pair_capacity: usize,
+    event_outbox: crate::event_outbox::ProcessingEventOutboxConfig,
+    event_poll_interval: Duration,
     sweep_interval: Duration,
     sweep_limit: usize,
 }
@@ -1293,6 +2164,8 @@ impl ServerConfiguration {
         let max_sessions_per_worker = max_sessions.div_ceil(worker_count);
         let sweep_interval_ms: u64 = env_value("VOICE_MEDIA_SWEEP_INTERVAL_MS")?.unwrap_or(1_000);
         let sweep_limit: usize = env_value("VOICE_MEDIA_SWEEP_LIMIT")?.unwrap_or(1_024);
+        let event_poll_interval_ms: u64 =
+            env_value("VOICE_MEDIA_EVENT_POLL_INTERVAL_MS")?.unwrap_or(20);
         let codec_pair_capacity = checked_nonzero_usize(
             env_value("VOICE_MEDIA_CODEC_PAIR_CAPACITY")?.unwrap_or(max_sessions),
             "codec_pair_capacity",
@@ -1302,6 +2175,11 @@ impl ServerConfiguration {
         }
         if sweep_limit == 0 {
             return Err(VoiceMediaHttpError::InvalidConfiguration("sweep_limit"));
+        }
+        if event_poll_interval_ms == 0 {
+            return Err(VoiceMediaHttpError::InvalidConfiguration(
+                "event_poll_interval",
+            ));
         }
         Ok(Self {
             listen: env_parse(
@@ -1317,8 +2195,14 @@ impl ServerConfiguration {
                     .ok()
                     .filter(|value| !value.is_empty()),
                 max_body_bytes: env_value("VOICE_MEDIA_MAX_BODY_BYTES")?.unwrap_or(128 * 1024),
+                max_prompt_body_bytes: env_value("VOICE_MEDIA_MAX_PROMPT_BODY_BYTES")?
+                    .unwrap_or(1024 * 1024),
                 max_inflight_requests: env_value("VOICE_MEDIA_MAX_INFLIGHT_CONTROL")?
                     .unwrap_or(1_024),
+                max_inflight_prompt_requests: env_value(
+                    "VOICE_MEDIA_MAX_INFLIGHT_PROMPT_REQUESTS",
+                )?
+                .unwrap_or(4),
             },
             runtime: ProcessingRuntimeConfig {
                 bind_ip,
@@ -1400,6 +2284,19 @@ impl ServerConfiguration {
                 source_rebind_after_ms: env_value("VOICE_MEDIA_SOURCE_REBIND_MS")?.unwrap_or(2_000),
             },
             codec_pair_capacity,
+            event_outbox: crate::event_outbox::ProcessingEventOutboxConfig {
+                path: PathBuf::from(env::var("VOICE_MEDIA_EVENT_WAL_PATH").unwrap_or_else(|_| {
+                    "/var/lib/ivekit/voice-media/processing-events.wal".to_owned()
+                })),
+                max_pending_events: env_value("VOICE_MEDIA_EVENT_MAX_PENDING")?
+                    .unwrap_or(max_sessions.saturating_mul(2)),
+                max_acknowledged_events: env_value("VOICE_MEDIA_EVENT_ACKNOWLEDGED_HISTORY")?
+                    .unwrap_or(100_000),
+                max_bytes: env_value("VOICE_MEDIA_EVENT_WAL_MAX_BYTES")?.unwrap_or(1_073_741_824),
+                max_record_bytes: env_value("VOICE_MEDIA_EVENT_WAL_MAX_RECORD_BYTES")?
+                    .unwrap_or(65_536),
+            },
+            event_poll_interval: Duration::from_millis(event_poll_interval_ms),
             sweep_interval: Duration::from_millis(sweep_interval_ms),
             sweep_limit,
         })
@@ -1574,11 +2471,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn readiness_and_metrics_use_capacity_but_health_stays_constant_time() {
-        assert!(!request_uses_capacity(&Method::GET, "/health"));
-        assert!(request_uses_capacity(&Method::GET, "/ready"));
-        assert!(request_uses_capacity(&Method::GET, "/metrics"));
-        assert!(request_uses_capacity(&Method::POST, "/v1/commands"));
+    fn requests_use_their_dedicated_capacity_pool() {
+        assert_eq!(
+            request_capacity(&Method::GET, "/health"),
+            RequestCapacity::None
+        );
+        assert_eq!(
+            request_capacity(&Method::GET, "/ready"),
+            RequestCapacity::Control
+        );
+        assert_eq!(
+            request_capacity(&Method::GET, "/metrics"),
+            RequestCapacity::Control
+        );
+        assert_eq!(
+            request_capacity(&Method::POST, "/v1/commands"),
+            RequestCapacity::Control
+        );
+        assert_eq!(
+            request_capacity(&Method::PUT, "/v1/prompts/welcome"),
+            RequestCapacity::Prompt
+        );
     }
 
     #[test]

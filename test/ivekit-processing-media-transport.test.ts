@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { once } from 'node:events';
 import { describe, it } from 'node:test';
 
 import {
-  ProcessingMediaTransport
+  ProcessingMediaTransport,
+  ProcessingMediaTransportError
 } from '../src/agent-runtime/ivekit/media-control/processing.js';
 import type {
   MediaTransportCommand
@@ -258,6 +260,192 @@ describe('processing MediaTransportPort', () => {
       assert.equal(deleteCommands, 1);
     });
   });
+
+  it('queries and acknowledges owner-fenced durable processing events', async () => {
+    await withServer(async (request, response) => {
+      if (request.method === 'GET' &&
+          request.url === '/v1/events?after_sequence=0&limit=16') {
+        json(response, 200, {
+          protocol_version: 'ivekit.processing-event.v1',
+          items: [{
+            protocol_version: 'ivekit.processing-event.v1',
+            event_sequence: '1',
+            event_id: 'processing-event-abc123',
+            tenant_id: 'tenant-a',
+            call_id: 'call-a',
+            cell_id: 'cell-a',
+            owner_node_id: 'node-a',
+            owner_epoch: '7',
+            media_reservation_id: 'media-a',
+            command_id: 'gather-a',
+            occurred_at_ms: 1_785_200_000_123,
+            event_type: 'gather_completed',
+            digits: '42',
+            reason: 'maximum_digits',
+            minimum_satisfied: true
+          }],
+          acknowledged_through: '0',
+          next_sequence: '2'
+        });
+        return;
+      }
+      if (request.method === 'GET' &&
+          request.url === '/v1/events/processing-event-abc123') {
+        json(response, 200, {
+          found: true,
+          state: 'pending',
+          event: {
+            protocol_version: 'ivekit.processing-event.v1',
+            event_sequence: '1',
+            event_id: 'processing-event-abc123',
+            tenant_id: 'tenant-a',
+            call_id: 'call-a',
+            cell_id: 'cell-a',
+            owner_node_id: 'node-a',
+            owner_epoch: '7',
+            media_reservation_id: 'media-a',
+            command_id: 'gather-a',
+            occurred_at_ms: 1_785_200_000_123,
+            event_type: 'gather_completed',
+            digits: '42',
+            reason: 'maximum_digits',
+            minimum_satisfied: true
+          }
+        });
+        return;
+      }
+      if (request.method === 'POST' && request.url === '/v1/events/ack') {
+        assert.deepEqual(JSON.parse(await requestBody(request)), {
+          protocol_version: 'ivekit.processing-event.v1',
+          event_sequence: '1',
+          event_id: 'processing-event-abc123'
+        });
+        json(response, 200, {
+          protocol_version: 'ivekit.processing-event.v1',
+          acknowledged_through: '1'
+        });
+        return;
+      }
+      json(response, 404, { error: 'not_found' });
+    }, async (endpoint) => {
+      const transport = processing(endpoint);
+      const page = await transport.scanEvents({
+        after_sequence: '0',
+        limit: 16
+      });
+      assert.equal(page.items.length, 1);
+      assert.equal(page.items[0].event_type, 'gather_completed');
+      assert.equal(page.items[0].owner_epoch, '7');
+      assert.equal(page.next_sequence, '2');
+
+      const reconciled = await transport.queryEvent(
+        'processing-event-abc123'
+      );
+      assert.equal(reconciled.found, true);
+      assert(reconciled.found);
+      assert.equal(reconciled.state, 'pending');
+      assert.equal(reconciled.event.event_sequence, '1');
+
+      await transport.acknowledgeEvent({
+        event_sequence: '1',
+        event_id: 'processing-event-abc123'
+      });
+    });
+  });
+
+  it('rejects unsafe processing event sequences before transport', async () => {
+    const transport = processing('http://127.0.0.1:9');
+    await assert.rejects(
+      transport.scanEvents({ after_sequence: '01', limit: 16 }),
+      (error: unknown) => error instanceof ProcessingMediaTransportError &&
+        error.code === 'processing_event_sequence_invalid'
+    );
+  });
+
+  it('preloads digest-bound PCM prompts and removes them outside command traffic', async () => {
+    const pcm = Buffer.alloc(3_200);
+    for (let offset = 0; offset < pcm.length; offset += 2) {
+      pcm.writeInt16LE(1_000, offset);
+    }
+    const contentHash = createHash('sha256').update(pcm).digest('hex');
+    await withServer(async (request, response) => {
+      assert.equal(request.headers.authorization, 'Bearer processing-token');
+      assert.equal(
+        request.headers['x-ivekit-client-identity'],
+        'media-control-sidecar'
+      );
+      if (request.method === 'PUT') {
+        assert.equal(request.url, '/v1/prompts/welcome-v1');
+        assert.equal(
+          request.headers['content-type'],
+          'application/vnd.ivekit.pcm16le'
+        );
+        assert.equal(request.headers['x-ivekit-sample-rate-hz'], '8000');
+        assert.equal(request.headers['x-ivekit-content-sha256'], contentHash);
+        assert.deepEqual(await requestBytes(request), pcm);
+        json(response, 200, {
+          protocol_version: 'ivekit.processing-control.v1',
+          prompt_id: 'welcome-v1',
+          content_sha256: contentHash,
+          source_sample_rate_hz: 8_000,
+          canonical_sample_rate_hz: 48_000,
+          frame_count: 10,
+          duration_ms: 200
+        });
+        return;
+      }
+      assert.equal(request.method, 'DELETE');
+      assert.equal(request.url, '/v1/prompts/welcome-v1');
+      json(response, 200, {
+        protocol_version: 'ivekit.processing-control.v1',
+        removed: true
+      });
+    }, async (endpoint) => {
+      const transport = processing(endpoint, {
+        max_prompt_body_bytes: 4_096
+      });
+      assert.deepEqual(
+        await transport.cachePrompt({
+          prompt_id: 'welcome-v1',
+          sample_rate_hz: 8_000,
+          pcm16le: pcm
+        }),
+        {
+          prompt_id: 'welcome-v1',
+          content_sha256: contentHash,
+          source_sample_rate_hz: 8_000,
+          canonical_sample_rate_hz: 48_000,
+          frame_count: 10,
+          duration_ms: 200
+        }
+      );
+      assert.equal(await transport.removePrompt('welcome-v1'), true);
+    });
+  });
+
+  it('rejects malformed or oversized prompt bodies before opening a socket', async () => {
+    const transport = processing('http://127.0.0.1:9', {
+      max_prompt_body_bytes: 4
+    });
+    await assert.rejects(
+      transport.cachePrompt({
+        prompt_id: 'welcome-v1',
+        sample_rate_hz: 8_000,
+        pcm16le: Buffer.alloc(6)
+      }),
+      (error: unknown) => error instanceof ProcessingMediaTransportError &&
+        error.code === 'processing_prompt_body_too_large'
+    );
+    await assert.rejects(
+      transport.cachePrompt({
+        prompt_id: 'welcome-v1',
+        sample_rate_hz: 8_000,
+        pcm16le: Buffer.alloc(3)
+      }),
+      (error: unknown) => error instanceof ProcessingMediaTransportError &&
+        error.code === 'processing_prompt_pcm_invalid'
+    );
+  });
 });
 
 const HASH_A = '41'.repeat(32);
@@ -294,14 +482,18 @@ function command(): MediaTransportCommand {
 
 function processing(
   endpoint: string,
-  overrides: { max_response_bytes?: number } = {}
+  overrides: {
+    max_response_bytes?: number;
+    max_prompt_body_bytes?: number;
+  } = {}
 ): ProcessingMediaTransport {
   return new ProcessingMediaTransport({
     endpoint,
     bearer_token: 'processing-token',
     client_identity: 'media-control-sidecar',
     request_timeout_ms: 1_000,
-    max_response_bytes: overrides.max_response_bytes ?? 16 * 1024
+    max_response_bytes: overrides.max_response_bytes ?? 16 * 1024,
+    max_prompt_body_bytes: overrides.max_prompt_body_bytes
   });
 }
 
@@ -330,9 +522,13 @@ async function withServer(
 }
 
 async function requestBody(request: IncomingMessage): Promise<string> {
+  return (await requestBytes(request)).toString('utf8');
+}
+
+async function requestBytes(request: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.from(chunk));
-  return Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks);
 }
 
 function json(response: ServerResponse, status: number, payload: unknown): void {

@@ -139,6 +139,70 @@ describe('media transport router', () => {
     assert.deepEqual(fastPath.releases, ['call-b']);
   });
 
+  it('isolates an established processing failure from unrelated fast-path reservations', async () => {
+    const fastPath = new ProbeTransport('fast');
+    const processing = new ProbeTransport('processing');
+    const router = new MediaTransportRouter({ fast_path: fastPath, processing });
+
+    await router.execute(command('ordinary-a', 'g711-relay-v1'));
+    await router.execute(command('ivr-a', 'VOICE-IVR-G711-OPUS-V1'));
+    processing.nextOutcome = {
+      state: 'failed',
+      command_id: 'command-ivr-a-inject_dtmf',
+      error_code: 'processing_worker_unavailable',
+      retryable: true
+    };
+
+    const failed = await router.execute(command(
+      'ivr-a',
+      'VOICE-IVR-G711-OPUS-V1',
+      'inject_dtmf',
+      2,
+      {
+        transport_session_id: 'processing:ivr-a',
+        payload: {
+          source: 'sip_info',
+          event_id: 'sip-info-caller-42',
+          digit: '5'
+        }
+      }
+    ));
+    const ordinaryUpdate = await router.execute(command(
+      'ordinary-a',
+      'g711-relay-v1',
+      'update',
+      2,
+      {
+        transport_session_id: 'fast:ordinary-a',
+        payload: { sdp_role: 'offer', sdp: 'v=0\r\n' }
+      }
+    ));
+
+    assert.equal(failed.state, 'failed');
+    assert.equal(ordinaryUpdate.state, 'succeeded');
+    assert.deepEqual(
+      fastPath.commands.map((entry) => [
+        entry.media_reservation_id,
+        entry.action
+      ]),
+      [
+        ['ordinary-a', 'offer'],
+        ['ordinary-a', 'update']
+      ]
+    );
+    assert.deepEqual(
+      processing.commands.map((entry) => [
+        entry.media_reservation_id,
+        entry.action
+      ]),
+      [
+        ['ivr-a', 'offer'],
+        ['ivr-a', 'inject_dtmf']
+      ]
+    );
+    assert.deepEqual(fastPath.releases, []);
+  });
+
   it('alternates one-item orphan pages without advancing an unreturned transport', async () => {
     const fastPath = new ProbeTransport('fast');
     const processing = new ProbeTransport('processing');

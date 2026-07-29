@@ -14,7 +14,8 @@ import {
   MediaControlEventBroker
 } from '../src/agent-runtime/ivekit/media-control/events.js';
 import {
-  MediaCommandJournal
+  MediaCommandJournal,
+  MediaTerminalEventJournal
 } from '../src/agent-runtime/ivekit/media-control/journal.js';
 import {
   ComponentNodeMediaOrphanProbe,
@@ -23,6 +24,9 @@ import {
 import {
   ProcessingMediaTransport
 } from '../src/agent-runtime/ivekit/media-control/processing.js';
+import {
+  ProcessingEventHandoff
+} from '../src/agent-runtime/ivekit/media-control/processing-event-handoff.js';
 import {
   MediaTransportRouter
 } from '../src/agent-runtime/ivekit/media-control/router.js';
@@ -61,6 +65,41 @@ if (production && !requireMtls) {
 if (production && transportMode === 'simulator') {
   throw new Error('IVEKIT media control simulator is not production eligible');
 }
+const eventReplayCapacity = integerEnv(
+  'IVEKIT_MEDIA_CONTROL_EVENT_REPLAY_CAPACITY',
+  4_096,
+  1,
+  1_000_000
+);
+const terminalEventJournal = transportMode === 'hybrid'
+  ? await MediaTerminalEventJournal.open({
+      path: join(
+        requiredEnv('IVEKIT_MEDIA_CONTROL_WAL_DIRECTORY'),
+        'media-terminal-event.wal'
+      ),
+      maxRecords: integerEnv(
+        'IVEKIT_MEDIA_CONTROL_EVENT_WAL_MAX_RECORDS',
+        1_000_000,
+        1,
+        10_000_000
+      ),
+      maxBytes: integerEnv(
+        'IVEKIT_MEDIA_CONTROL_EVENT_WAL_MAX_BYTES',
+        268_435_456,
+        512,
+        17_179_869_184
+      ),
+      maxRecordBytes: integerEnv(
+        'IVEKIT_MEDIA_CONTROL_EVENT_WAL_MAX_RECORD_BYTES',
+        262_144,
+        256,
+        4_194_304
+      )
+    })
+  : undefined;
+const restoredTerminalEvents = terminalEventJournal
+  ? await terminalEventJournal.replay()
+  : [];
 const events = new MediaControlEventBroker({
   maxBindings: integerEnv(
     'IVEKIT_MEDIA_CONTROL_EVENT_MAX_BINDINGS',
@@ -68,20 +107,59 @@ const events = new MediaControlEventBroker({
     1,
     10_000_000
   ),
-  maxRetainedEventsPerOwner: integerEnv(
-    'IVEKIT_MEDIA_CONTROL_EVENT_REPLAY_CAPACITY',
-    4_096,
-    1,
-    1_000_000
-  ),
+  maxRetainedEventsPerOwner: eventReplayCapacity,
   maxSubscriptionsPerOwner: integerEnv(
     'IVEKIT_MEDIA_CONTROL_EVENT_MAX_SUBSCRIBERS_PER_OWNER',
     2,
     1,
     16
-  )
+  ),
+  terminalEvents: restoredTerminalEvents,
+  terminalJournal: terminalEventJournal
 });
-const transportRuntime = await openTransportRuntime(transportMode, events);
+let transportRuntime: TransportRuntime;
+try {
+  transportRuntime = await openTransportRuntime(transportMode, events);
+} catch (error) {
+  await terminalEventJournal?.close().catch(() => undefined);
+  throw error;
+}
+const processingEventHandoff = transportRuntime.processing
+  ? new ProcessingEventHandoff({
+      source: transportRuntime.processing,
+      sink: events,
+      batch_size: integerEnv(
+        'IVEKIT_PROCESSING_EVENT_BATCH_SIZE',
+        256,
+        1,
+        10_000
+      ),
+      poll_interval_ms: integerEnv(
+        'IVEKIT_PROCESSING_EVENT_POLL_INTERVAL_MS',
+        100,
+        1,
+        300_000
+      ),
+      retry_base_ms: integerEnv(
+        'IVEKIT_PROCESSING_EVENT_RETRY_BASE_MS',
+        100,
+        1,
+        300_000
+      ),
+      retry_max_ms: integerEnv(
+        'IVEKIT_PROCESSING_EVENT_RETRY_MAX_MS',
+        5_000,
+        1,
+        3_600_000
+      ),
+      error_observer: (error) => {
+        process.stderr.write(
+          `ivekit processing event handoff failed: ${safeError(error)}\n`
+        );
+      }
+    })
+  : undefined;
+processingEventHandoff?.start();
 
 const serviceToken = secret(
   'IVEKIT_MEDIA_CONTROL_TOKEN',
@@ -213,7 +291,9 @@ const server = createMediaControlHttpServer({
   production: requireMtls,
   tls,
   events: events,
-  ready: () => Date.now() < admissionReadyUntil,
+  ready: () =>
+    Date.now() < admissionReadyUntil &&
+    (processingEventHandoff?.ready() ?? true),
   error_observer: (failure) => {
     process.stderr.write(
       'ivekit media HTTP request rejected ' +
@@ -266,6 +346,28 @@ const orphanSweepTimer = setInterval(() => {
     });
 }, orphanSweepIntervalMs);
 orphanSweepTimer.unref();
+let terminalEventCompactionRunning = false;
+const terminalEventCompactionTimer = terminalEventJournal
+  ? setInterval(() => {
+      if (terminalEventCompactionRunning) return;
+      terminalEventCompactionRunning = true;
+      void terminalEventJournal.compact(eventReplayCapacity)
+        .catch((error) => {
+          process.stderr.write(
+            `ivekit terminal event WAL compaction failed: ${safeError(error)}\n`
+          );
+        })
+        .finally(() => {
+          terminalEventCompactionRunning = false;
+        });
+    }, integerEnv(
+      'IVEKIT_MEDIA_CONTROL_EVENT_WAL_COMPACT_INTERVAL_MS',
+      60_000,
+      1_000,
+      3_600_000
+    ))
+  : undefined;
+terminalEventCompactionTimer?.unref();
 
 server.listen(port, host, () => {
   process.stdout.write(
@@ -281,16 +383,24 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(sweepTimer);
   clearInterval(orphanSweepTimer);
   clearInterval(admissionHealthTimer);
+  if (terminalEventCompactionTimer) {
+    clearInterval(terminalEventCompactionTimer);
+  }
   process.stdout.write(`ivekit media control agent stopping on ${signal}\n`);
   const forced = setTimeout(() => process.exit(1), 10_000);
   forced.unref();
   await new Promise<void>((resolve) => server.close(() => resolve()));
+  await processingEventHandoff?.stop();
   await transportRuntime.drain().catch((error) => {
     process.stderr.write(
       `ivekit media control drain failed: ${safeError(error)}\n`
     );
   });
-  await transportRuntime.close();
+  try {
+    await transportRuntime.close();
+  } finally {
+    await terminalEventJournal?.close();
+  }
   clearTimeout(forced);
 }
 
@@ -385,6 +495,7 @@ function safeError(error: unknown): string {
 
 interface TransportRuntime {
   transport: MediaTransportPort;
+  processing?: ProcessingMediaTransport;
   drain(): Promise<void>;
   close(): Promise<void>;
 }
@@ -442,6 +553,7 @@ async function openTransportRuntime(
             10_000_000
           )
         }),
+        processing,
         drain: () => fastPath.drain(),
         close: () => fastPath.close()
       };

@@ -184,11 +184,11 @@ test('HOMER fork status records controlled PostgreSQL/HEP evidence without claim
   );
 });
 
-test('RustPBX fork manifest tracks the complete ivekit.35 patch queue', () => {
+test('RustPBX fork manifest tracks the complete ivekit.38 patch queue', () => {
   const rustpbx = manifest.components.find((component) => component.component_id === 'rustpbx');
   assert.ok(rustpbx);
 
-  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.35-6c49ee76';
+  const expectedReference = 'ivekit/rustpbx:0.4.11-ivekit.38-6c49ee76';
   assert.equal(rustpbx.runtime_artifact.reference, expectedReference);
   for (const path of [
     'infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch',
@@ -206,7 +206,10 @@ test('RustPBX fork manifest tracks the complete ivekit.35 patch queue', () => {
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-cdr-mtls-noop.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-media-tracing.patch',
     'infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch',
-    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch'
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch',
+    'infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch'
   ]) {
     assert.ok(rustpbx.patches?.some((patch) => patch.path === path), path);
   }
@@ -226,7 +229,10 @@ test('RustPBX fork manifest tracks the complete ivekit.35 patch queue', () => {
     'rustpbx-cdr-mtls-noop-v1',
     'rustpbx-media-tracing-v1',
     'rustpbx-inbound-admission-response-contract-v1',
-    'rustpbx-session-media-profile-v1'
+    'rustpbx-session-media-profile-v1',
+    'rustpbx-recording-lifecycle-reservation-v1',
+    'rustpbx-processing-terminal-events-v1',
+    'rustpbx-processing-ivr-execution-v1'
   ]) {
     assert.ok(
       rustpbx.implemented_changes?.some((change) => change.change_id === changeId),

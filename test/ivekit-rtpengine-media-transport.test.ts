@@ -75,6 +75,32 @@ describe('RTPengine MediaTransportPort', () => {
     }
   });
 
+  it('fails closed when processing-only IVR actions reach the fast path', () => {
+    for (const action of [
+      'commit_single_leg',
+      'start_gather',
+      'stop_gather'
+    ] as const) {
+      assert.throws(
+        () => rtpengineRequest(command({
+          action,
+          payload: action === 'commit_single_leg'
+            ? {}
+            : action === 'start_gather'
+            ? {
+                minimum_digits: 1,
+                maximum_digits: 4,
+                terminator: '#',
+                first_digit_timeout_ms: 5_000,
+                inter_digit_timeout_ms: 2_000
+              }
+            : { target_command_id: 'gather-command' }
+        })),
+        /rtpengine_action_unsupported/
+      );
+    }
+  });
+
   it('maps every media action to a real TCP NG request with exact fencing', async () => {
     await withFixture(async ({ fixture, transport }) => {
       const actions: Array<{

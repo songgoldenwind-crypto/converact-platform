@@ -58,6 +58,21 @@ const prepare: MediaControlCommand = {
   payload_hash: mediaControlPayloadHash(offerPayload)
 };
 
+function commandWithPayload(
+  action: MediaControlCommand['action'],
+  payload: Record<string, unknown>
+): MediaControlCommand {
+  return {
+    ...prepare,
+    action,
+    command_id: `command-${action}`,
+    command_sequence: 2,
+    idempotency_key: `idempotency-${action}`,
+    payload,
+    payload_hash: mediaControlPayloadHash(payload)
+  };
+}
+
 describe('iveKit media control protocol v1', () => {
   it('validates command, reconciliation, and response documents', () => {
     const documents = [
@@ -286,6 +301,79 @@ describe('iveKit media control protocol v1', () => {
       assert.throws(
         () => checkedMediaControlCommand(command),
         /media_control_media_profile_invalid/
+      );
+    }
+  });
+
+  it('strictly validates processing playback and gather command payloads', () => {
+    const commands = [
+      commandWithPayload('commit_single_leg', {}),
+      commandWithPayload('play_media', {
+        prompt_id: 'welcome-v1',
+        egress_leg: 'a',
+        barge_in: true
+      }),
+      commandWithPayload('stop_media', {
+        target_command_id: 'command-play_media'
+      }),
+      commandWithPayload('start_gather', {
+        minimum_digits: 1,
+        maximum_digits: 8,
+        terminator: '#',
+        first_digit_timeout_ms: 5_000,
+        inter_digit_timeout_ms: 2_000
+      }),
+      commandWithPayload('stop_gather', {
+        target_command_id: 'command-start_gather'
+      })
+    ];
+    for (const command of commands) {
+      assert.equal(
+        validate(command),
+        true,
+        ajv.errorsText(validate.errors)
+      );
+      assert.deepEqual(checkedMediaControlCommand(command), command);
+    }
+
+    const invalid = [
+      commandWithPayload('commit_single_leg', {
+        remote_endpoint: 'fake-leg-b'
+      }),
+      commandWithPayload('play_media', {
+        prompt_id: 'welcome-v1',
+        egress_leg: 'caller',
+        barge_in: true
+      }),
+      commandWithPayload('play_media', {
+        prompt_id: 'welcome-v1',
+        egress_leg: 'a',
+        barge_in: true,
+        file: '/tmp/unsafe.wav'
+      }),
+      commandWithPayload('start_gather', {
+        minimum_digits: 1,
+        maximum_digits: 0,
+        terminator: '#',
+        first_digit_timeout_ms: 5_000,
+        inter_digit_timeout_ms: 2_000
+      }),
+      commandWithPayload('start_gather', {
+        minimum_digits: 1,
+        maximum_digits: 8,
+        terminator: '12',
+        first_digit_timeout_ms: 5_000,
+        inter_digit_timeout_ms: 2_000
+      }),
+      commandWithPayload('stop_gather', {
+        target_command_id: ''
+      })
+    ];
+    for (const command of invalid) {
+      assert.equal(validate(command), false);
+      assert.throws(
+        () => checkedMediaControlCommand(command),
+        /media_control_(?:single_leg|play|gather|target_command_id)/
       );
     }
   });

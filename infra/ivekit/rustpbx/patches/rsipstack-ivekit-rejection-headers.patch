@@ -1,0 +1,159 @@
+diff --git a/src/dialog/server_dialog.rs b/src/dialog/server_dialog.rs
+index 92ad2f4..9512841 100644
+--- a/src/dialog/server_dialog.rs
++++ b/src/dialog/server_dialog.rs
+@@ -1,10 +1,10 @@
++use super::DialogId;
+ use super::dialog::{Dialog, DialogInnerRef, DialogState, TerminatedReason, TransactionHandle};
+ use super::subscription::ServerSubscriptionDialog;
+-use super::DialogId;
+-use crate::sip::{prelude::HeadersExt, Header, Method, Request, SipMessage, StatusCode};
++use crate::sip::{Header, Method, Request, SipMessage, StatusCode, prelude::HeadersExt};
+ use crate::{
+-    transaction::transaction::{Transaction, TransactionEvent},
+     Result,
++    transaction::transaction::{Transaction, TransactionEvent},
+ };
+ use std::sync::atomic::Ordering;
+ use tokio_util::sync::CancellationToken;
+@@ -291,20 +291,33 @@ impl ServerInviteDialog {
+         &self,
+         code: Option<crate::sip::StatusCode>,
+         reason: Option<String>,
++    ) -> Result<()> {
++        self.reject_with_headers(code, reason, None)
++    }
++
++    /// Reject the incoming INVITE request with additional response headers.
++    ///
++    /// This is the response-header counterpart to [`Self::reject`]. It is
++    /// useful for overload responses such as `503 Service Unavailable` where
++    /// an upstream proxy needs a `Retry-After` signal.
++    pub fn reject_with_headers(
++        &self,
++        code: Option<crate::sip::StatusCode>,
++        reason: Option<String>,
++        headers: Option<Vec<crate::sip::Header>>,
+     ) -> Result<()> {
+         if self.inner.is_terminated() || self.inner.is_confirmed() {
+             return Ok(());
+         }
+         debug!(id=%self.id(), ?code, ?reason, "rejecting dialog");
+-        let headers = if let Some(reason) = reason {
+-            Some(vec![crate::sip::Header::Reason(reason.into())])
+-        } else {
+-            None
+-        };
++        let mut headers = headers.unwrap_or_default();
++        if let Some(reason) = reason {
++            headers.push(crate::sip::Header::Reason(reason.into()));
++        }
+         let resp = self.inner.make_response(
+             &self.initial_request(),
+             code.unwrap_or(crate::sip::StatusCode::Decline),
+-            headers,
++            (!headers.is_empty()).then_some(headers),
+             None,
+         );
+         self.inner
+diff --git a/src/dialog/tests/test_server_dialog.rs b/src/dialog/tests/test_server_dialog.rs
+index ea60a46..1e00716 100644
+--- a/src/dialog/tests/test_server_dialog.rs
++++ b/src/dialog/tests/test_server_dialog.rs
+@@ -5,10 +5,10 @@ use tokio::sync::mpsc::unbounded_channel;
+ 
+ use crate::{
+     dialog::{
++        DialogId,
+         dialog::DialogInner,
+         server_dialog::ServerInviteDialog,
+         tests::test_dialog_states::{create_invite_request, create_test_endpoint},
+-        DialogId,
+     },
+     transaction::{key::TransactionRole, transaction::TransactionEvent},
+     transport::SipAddr,
+@@ -48,12 +48,13 @@ async fn test_dialog_make_request() -> crate::Result<()> {
+         .expect("Failed to make request");
+     assert_eq!(bye.method, crate::sip::Method::Bye);
+ 
+-    assert!(bye
+-        .via_header()
+-        .expect("not via header")
+-        .typed()?
+-        .received()
+-        .is_none());
++    assert!(
++        bye.via_header()
++            .expect("not via header")
++            .typed()?
++            .received()
++            .is_none()
++    );
+     assert!(
+         bye.via_header().expect("not via header").typed()?.branch()
+             != invite_req
+@@ -153,6 +154,64 @@ async fn test_accept_with_public_contact_preserves_contact_header() -> crate::Re
+     Ok(())
+ }
+ 
++#[tokio::test]
++async fn test_reject_with_headers_preserves_retry_after_and_reason() -> crate::Result<()> {
++    let dialog_id = DialogId {
++        call_id: "test-call-id-retry-after".to_string(),
++        local_tag: "bob-tag-789".to_string(),
++        remote_tag: "alice-tag-456".to_string(),
++    };
++    let endpoint = create_test_endpoint().await?;
++    let (tu_sender, mut tu_receiver) = unbounded_channel();
++    let (state_sender, _state_receiver) = unbounded_channel();
++    let invite_req = create_invite_request(&dialog_id.remote_tag, "", "test-call-id-retry-after");
++    let dialog_inner = DialogInner::new(
++        TransactionRole::Server,
++        dialog_id,
++        invite_req,
++        endpoint.inner.clone(),
++        state_sender,
++        None,
++        None,
++        tu_sender,
++    )
++    .expect("Failed to create dialog inner");
++    let server_dialog = ServerInviteDialog {
++        inner: Arc::new(dialog_inner),
++    };
++
++    server_dialog.reject_with_headers(
++        Some(crate::sip::StatusCode::ServiceUnavailable),
++        Some("Media relay unavailable".to_string()),
++        Some(vec![crate::sip::Header::RetryAfter(
++            crate::sip::headers::RetryAfter::new("1"),
++        )]),
++    )?;
++
++    match tu_receiver
++        .recv()
++        .await
++        .expect("Should receive transaction event")
++    {
++        TransactionEvent::Respond(response) => {
++            assert_eq!(
++                response.status_code,
++                crate::sip::StatusCode::ServiceUnavailable
++            );
++            assert!(response.headers.iter().any(|header| {
++                matches!(header, crate::sip::Header::RetryAfter(value) if value.value() == "1")
++            }));
++            assert!(response.headers.iter().any(|header| {
++                matches!(header, crate::sip::Header::Reason(value)
++                    if value.value() == "Media relay unavailable")
++            }));
++        }
++        _ => panic!("Expected TransactionEvent::Respond"),
++    }
++
++    Ok(())
++}
++
+ #[tokio::test]
+ async fn test_server_dialog_bye_via() -> crate::Result<()> {
+     let dialog_id = DialogId {

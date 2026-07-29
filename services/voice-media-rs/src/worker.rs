@@ -240,6 +240,11 @@ enum ControlCommand {
         destination: Option<SocketAddr>,
         response: SyncSender<Result<(), WorkerError>>,
     },
+    SetSingleLeg {
+        session_id: Arc<str>,
+        enabled: bool,
+        response: SyncSender<Result<(), WorkerError>>,
+    },
     Ivr {
         session_id: Arc<str>,
         command: IvrControlCommand,
@@ -290,6 +295,7 @@ struct WorkerSession {
     ivr_deadline_ms: Option<u64>,
     pending_dtmf: Vec<DtmfEvent>,
     pending_dtmf_limit: usize,
+    suppressed_egress: Option<ProcessingLeg>,
     _datagram_retention: DatagramRetentionPermit,
 }
 
@@ -514,6 +520,21 @@ impl RtpWorkerPool {
                 session_id,
                 leg,
                 destination,
+                response: response_tx,
+            },
+        )?;
+        receive_response(response_rx, self.config.control_timeout)
+    }
+
+    pub fn set_single_leg(&self, session_id: &str, enabled: bool) -> Result<(), WorkerError> {
+        let session_id = validated_session_id(session_id)?;
+        let worker = &self.workers[stable_worker_index(session_id.as_bytes(), self.workers.len())];
+        let (response_tx, response_rx) = mpsc::sync_channel(1);
+        send_control(
+            worker,
+            ControlCommand::SetSingleLeg {
+                session_id,
+                enabled,
                 response: response_tx,
             },
         )?;
@@ -1048,6 +1069,20 @@ impl WorkerRuntime {
                     });
                 let _ = response.try_send(result);
             }
+            ControlCommand::SetSingleLeg {
+                session_id,
+                enabled,
+                response,
+            } => {
+                let result = self
+                    .sessions
+                    .get_mut(session_id.as_ref())
+                    .ok_or(WorkerError::SessionNotFound)
+                    .map(|session| {
+                        session.suppressed_egress = enabled.then_some(ProcessingLeg::B);
+                    });
+                let _ = response.try_send(result);
+            }
             ControlCommand::Ivr {
                 session_id,
                 command,
@@ -1323,6 +1358,7 @@ impl WorkerRuntime {
                 ivr_deadline_ms: None,
                 pending_dtmf: Vec::new(),
                 pending_dtmf_limit: session_config.max_drain_per_datagram,
+                suppressed_egress: None,
                 _datagram_retention: datagram_retention,
             },
         );
@@ -1426,11 +1462,12 @@ impl WorkerRuntime {
                     ivr,
                     pending_dtmf,
                     pending_dtmf_limit,
+                    suppressed_egress,
                     ..
                 } = session;
                 pending_dtmf.clear();
-                let egress_policy = ivr
-                    .active_playback_egress()
+                let egress_policy = suppressed_egress
+                    .or_else(|| ivr.active_playback_egress())
                     .map_or(RtpEgressPolicy::Forward, RtpEgressPolicy::Suppress);
                 let mut sink = WorkerSink {
                     session_id: session_id.clone(),

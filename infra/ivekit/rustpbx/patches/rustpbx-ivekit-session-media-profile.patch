@@ -167,8 +167,24 @@ index 1500f88..308bd0f 100644
              started_at: Some("2026-07-27T01:00:00.000Z".into()),
              answered_at: Some("2026-07-27T01:00:02.000Z".into()),
              cdr_sequence: 12,
+diff --git a/src/ivekit_media_control.rs b/src/ivekit_media_control.rs
+index c28ef50..8d9cfe7 100644
+--- a/src/ivekit_media_control.rs
++++ b/src/ivekit_media_control.rs
+@@ -642,7 +642,10 @@ impl MediaControlCommand {
+             ("leg_id", self.leg_id.as_str()),
+             ("cell_id", self.cell_id.as_str()),
+             ("owner_node_id", self.owner_node_id.as_str()),
+-            ("admission_reservation_id", self.admission_reservation_id.as_str()),
++            (
++                "admission_reservation_id",
++                self.admission_reservation_id.as_str(),
++            ),
+             ("media_reservation_id", self.media_reservation_id.as_str()),
+             ("idempotency_key", self.idempotency_key.as_str()),
+         ] {
 diff --git a/src/ivekit_media_lifecycle.rs b/src/ivekit_media_lifecycle.rs
-index 29762ee..41e1173 100644
+index 29762ee..51564b2 100644
 --- a/src/ivekit_media_lifecycle.rs
 +++ b/src/ivekit_media_lifecycle.rs
 @@ -6,9 +6,10 @@ use std::time::Duration;
@@ -395,7 +411,21 @@ index 29762ee..41e1173 100644
              close_command: None,
              close_confirmed: false,
          })
-@@ -901,11 +967,16 @@ impl IveKitMediaLifecycle {
+@@ -891,6 +957,13 @@ impl IveKitMediaLifecycle {
+         self.callee.reconcile_required()
+     }
+ 
++    pub fn uses_processing_pool(&self) -> bool {
++        matches!(
++            self.binding.media_control_profile(),
++            MediaControlProfile::VoiceIvrG711OpusV1 { .. }
++        )
++    }
++
+     pub async fn prepare_ordinary_relay_offer(
+         &mut self,
+         branch_id: &str,
+@@ -901,11 +974,16 @@ impl IveKitMediaLifecycle {
              .logical_sdp()
              .ok_or(MediaLifecycleError::InvalidTransition)?
              .to_string();
@@ -417,7 +447,40 @@ index 29762ee..41e1173 100644
          let command = self.build_command(MediaControlAction::Offer, mutation.sequence, payload)?;
          let session = self.execute_mutation(&command).await?;
          self.require_committed_session(&command, &session, &["prepared"])?;
-@@ -1049,6 +1120,11 @@ impl IveKitMediaLifecycle {
+@@ -1045,10 +1123,44 @@ impl IveKitMediaLifecycle {
+             .commit_dtmf(&mutation.branch_id, &session.effective_sdp)
+     }
+ 
++    pub async fn submit_sip_info_digit(
++        &mut self,
++        side: MediaDialogSide,
++        event_id: &str,
++        digit: char,
++    ) -> Result<(), MediaLifecycleError> {
++        if !self.uses_processing_pool()
++            || !valid_identifier(event_id)
++            || !matches!(digit, '0'..='9' | '*' | '#' | 'A'..='D')
++        {
++            return Err(MediaLifecycleError::InvalidDtmf);
++        }
++        let (from_tag, to_tag) = self.dialog_tags(side)?;
++        let mutation = self.callee.begin_dtmf()?;
++        let payload = serde_json::json!({
++            "digit": digit.to_string(),
++            "event_id": event_id,
++            "from_tag": from_tag,
++            "source": "sip_info",
++            "to_tag": to_tag,
++        });
++        let command =
++            self.build_command(MediaControlAction::InjectDtmf, mutation.sequence, payload)?;
++        let session = self.execute_mutation(&command).await?;
++        self.require_committed_session(&command, &session, &["committed"])?;
++        self.callee
++            .commit_dtmf(&mutation.branch_id, &session.effective_sdp)
++    }
++
+     pub async fn close_media(&mut self) -> Result<MediaCloseOutcome, MediaLifecycleError> {
          if self.close_confirmed {
              return Ok(MediaCloseOutcome::AlreadyClosed);
          }
@@ -429,7 +492,7 @@ index 29762ee..41e1173 100644
          if self.close_command.is_none() {
              if matches!(
                  self.callee.state(),
-@@ -1091,6 +1167,7 @@ impl IveKitMediaLifecycle {
+@@ -1091,6 +1203,7 @@ impl IveKitMediaLifecycle {
              }) if command_id == command.command_id => {
                  if require_close_session(&self.binding, &command, &session).is_err() {
                      self.callee.mark_close_unknown(&command.command_id)?;
@@ -437,7 +500,7 @@ index 29762ee..41e1173 100644
                      return Err(MediaLifecycleError::OutcomeUnknown);
                  }
                  self.callee.commit_close();
-@@ -1101,19 +1178,34 @@ impl IveKitMediaLifecycle {
+@@ -1101,24 +1214,138 @@ impl IveKitMediaLifecycle {
                  if command_id == command.command_id =>
              {
                  self.callee.mark_close_unknown(&command.command_id)?;
@@ -451,19 +514,22 @@ index 29762ee..41e1173 100644
 +                command_id,
 +                error_code,
 +                ..
-+            })
-+            | Ok(MediaControlResult::RejectedEpoch {
-+                command_id,
-+                error_code,
-+                ..
-+            })
-+            | Ok(MediaControlResult::TerminalError {
++            }) if command_id == command.command_id => {
++                Err(MediaLifecycleError::CapacityRejected { code: error_code })
++            }
++            Ok(MediaControlResult::RejectedEpoch {
 +                command_id,
 +                error_code,
 +                ..
 +            }) if command_id == command.command_id => {
                  Err(MediaLifecycleError::ControlRejected { code: error_code })
              }
++            Ok(MediaControlResult::TerminalError {
++                command_id,
++                error_code,
++                retryable,
++                ..
++            }) if command_id == command.command_id => Err(control_rejection(error_code, retryable)),
              Ok(_) => {
                  self.callee.mark_close_unknown(&command.command_id)?;
 +                self.reconciliation_command = Some(command);
@@ -474,11 +540,13 @@ index 29762ee..41e1173 100644
 +                self.reconciliation_command = Some(command);
                  Err(MediaLifecycleError::OutcomeUnknown)
              }
-             Err(error) => Err(MediaLifecycleError::ControlRejected {
-@@ -1122,6 +1214,92 @@ impl IveKitMediaLifecycle {
-         }
-     }
- 
+-            Err(error) => Err(MediaLifecycleError::ControlRejected {
+-                code: error.failure_code().to_string(),
+-            }),
++            Err(error) => Err(project_control_client_error(error)),
++        }
++    }
++
 +    async fn reconcile_pending(&mut self) -> Result<ReconciledMediaOutcome, MediaLifecycleError> {
 +        let command = self
 +            .reconciliation_command
@@ -554,30 +622,55 @@ index 29762ee..41e1173 100644
 +                self.reconciliation_command = None;
 +                Ok(ReconciledMediaOutcome::Mutation)
 +            }
-+            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
-+            | Ok(MediaControlResult::RejectedEpoch { error_code, .. })
-+            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
++            Ok(MediaControlResult::RejectedCapacity { error_code, .. }) => {
++                self.callee.reconcile_rejected(&command.command_id)?;
++                self.reconciliation_command = None;
++                Err(MediaLifecycleError::CapacityRejected { code: error_code })
++            }
++            Ok(MediaControlResult::RejectedEpoch { error_code, .. }) => {
 +                self.callee.reconcile_rejected(&command.command_id)?;
 +                self.reconciliation_command = None;
 +                Err(MediaLifecycleError::ControlRejected { code: error_code })
 +            }
++            Ok(MediaControlResult::TerminalError {
++                error_code,
++                retryable,
++                ..
++            }) => {
++                self.callee.reconcile_rejected(&command.command_id)?;
++                self.reconciliation_command = None;
++                Err(control_rejection(error_code, retryable))
++            }
 +            Ok(_) | Err(_) => Err(MediaLifecycleError::ReconcileRequired),
-+        }
-+    }
-+
-     fn dialog_tags(&self, side: MediaDialogSide) -> Result<(String, String), MediaLifecycleError> {
-         let to_tag = self
-             .to_tag
-@@ -1208,6 +1386,7 @@ impl IveKitMediaLifecycle {
+         }
+     }
+ 
+@@ -1208,27 +1435,38 @@ impl IveKitMediaLifecycle {
                  if command_id == command.command_id =>
              {
                  self.callee.mark_unknown(&command.command_id)?;
 +                self.reconciliation_command = Some(command.clone());
                  Err(MediaLifecycleError::OutcomeUnknown)
              }
-             Ok(MediaControlResult::RejectedCapacity { error_code, .. })
-@@ -1218,10 +1397,12 @@ impl IveKitMediaLifecycle {
+-            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
+-            | Ok(MediaControlResult::RejectedEpoch { error_code, .. })
+-            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
++            Ok(MediaControlResult::RejectedCapacity { error_code, .. }) => {
++                self.callee.reject_pending()?;
++                Err(MediaLifecycleError::CapacityRejected { code: error_code })
++            }
++            Ok(MediaControlResult::RejectedEpoch { error_code, .. }) => {
+                 self.callee.reject_pending()?;
+                 Err(MediaLifecycleError::ControlRejected { code: error_code })
              }
++            Ok(MediaControlResult::TerminalError {
++                error_code,
++                retryable,
++                ..
++            }) => {
++                self.callee.reject_pending()?;
++                Err(control_rejection(error_code, retryable))
++            }
              Ok(_) => {
                  self.callee.mark_unknown(&command.command_id)?;
 +                self.reconciliation_command = Some(command.clone());
@@ -589,7 +682,15 @@ index 29762ee..41e1173 100644
                  Err(MediaLifecycleError::OutcomeUnknown)
              }
              Err(error) => {
-@@ -1241,6 +1422,7 @@ impl IveKitMediaLifecycle {
+                 self.callee.reject_pending()?;
+-                Err(MediaLifecycleError::ControlRejected {
+-                    code: error.failure_code().to_string(),
+-                })
++                Err(project_control_client_error(error))
+             }
+         }
+     }
+@@ -1241,6 +1479,7 @@ impl IveKitMediaLifecycle {
      ) -> Result<(), MediaLifecycleError> {
          if require_session_identity(&self.binding, command, session, allowed_states).is_err() {
              self.callee.mark_unknown(&command.command_id)?;
@@ -597,7 +698,77 @@ index 29762ee..41e1173 100644
              return Err(MediaLifecycleError::OutcomeUnknown);
          }
          Ok(())
-@@ -1373,13 +1555,13 @@ impl IveKitMediaRuntime {
+@@ -1307,6 +1546,10 @@ pub enum MediaLifecycleError {
+     SequenceExhausted,
+     #[error("media_command_invalid")]
+     CommandInvalid,
++    #[error("media_control_capacity_rejected:{code}")]
++    CapacityRejected { code: String },
++    #[error("media_control_retryable_rejected:{code}")]
++    RetryableControlRejected { code: String },
+     #[error("media_control_rejected:{code}")]
+     ControlRejected { code: String },
+     #[error("media_control_outcome_unknown")]
+@@ -1329,7 +1572,9 @@ impl MediaLifecycleError {
+             Self::ReconcileRequired => "media_reconcile_required",
+             Self::SequenceExhausted => "media_sequence_exhausted",
+             Self::CommandInvalid => "media_command_invalid",
+-            Self::ControlRejected { code } => code,
++            Self::CapacityRejected { code }
++            | Self::RetryableControlRejected { code }
++            | Self::ControlRejected { code } => code,
+             Self::OutcomeUnknown => "media_control_outcome_unknown",
+             Self::ConfigurationInvalid => "media_control_configuration_invalid",
+         }
+@@ -1337,7 +1582,46 @@ impl MediaLifecycleError {
+ }
+ 
+ pub fn explicit_fallback_allowed(error: &MediaLifecycleError) -> bool {
+-    matches!(error, MediaLifecycleError::ControlRejected { .. })
++    matches!(
++        error,
++        MediaLifecycleError::ControlRejected { .. }
++            | MediaLifecycleError::RetryableControlRejected { .. }
++    )
++}
++
++pub fn media_control_retry_after_seconds(error: &MediaLifecycleError) -> Option<u32> {
++    matches!(
++        error,
++        MediaLifecycleError::CapacityRejected { .. }
++            | MediaLifecycleError::RetryableControlRejected { .. }
++    )
++    .then_some(1)
++}
++
++fn control_rejection(code: String, retryable: bool) -> MediaLifecycleError {
++    if retryable {
++        MediaLifecycleError::RetryableControlRejected { code }
++    } else {
++        MediaLifecycleError::ControlRejected { code }
++    }
++}
++
++fn project_control_client_error(error: MediaControlClientError) -> MediaLifecycleError {
++    match error {
++        MediaControlClientError::RejectedBeforeTransport { code } => {
++            MediaLifecycleError::CapacityRejected {
++                code: code.to_string(),
++            }
++        }
++        MediaControlClientError::Rejected {
++            error_code,
++            retryable,
++            ..
++        } => control_rejection(error_code, retryable),
++        error => MediaLifecycleError::ControlRejected {
++            code: error.failure_code().to_string(),
++        },
++    }
+ }
+ 
+ struct MediaControlRuntimeConfig {
+@@ -1373,13 +1657,13 @@ impl IveKitMediaRuntime {
              };
          };
          let binding = match MediaAdmissionBinding::new(
@@ -615,7 +786,21 @@ index 29762ee..41e1173 100644
          ) {
              Ok(binding) => binding,
              Err(_) => {
-@@ -1430,6 +1612,89 @@ impl IveKitMediaRuntime {
+@@ -1422,6 +1706,13 @@ impl IveKitMediaRuntime {
+         }
+     }
+ 
++    pub fn uses_processing_pool(&self) -> bool {
++        match self {
++            Self::Ready { lifecycle, .. } => lifecycle.uses_processing_pool(),
++            Self::Disabled | Self::FailClosed { .. } => false,
++        }
++    }
++
+     pub fn failure_code(&self) -> Option<&'static str> {
+         match self {
+             Self::FailClosed { error_code } => Some(*error_code),
+@@ -1430,6 +1721,89 @@ impl IveKitMediaRuntime {
      }
  }
  
@@ -705,7 +890,7 @@ index 29762ee..41e1173 100644
  pub fn media_control_requested() -> bool {
      required_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_ENDPOINT").is_some()
  }
-@@ -1439,6 +1704,7 @@ pub struct MediaRecoveryTakeoverInput {
+@@ -1439,6 +1813,7 @@ pub struct MediaRecoveryTakeoverInput {
      pub tenant_id: String,
      pub cell_id: String,
      pub owner_node_id: String,
@@ -713,7 +898,7 @@ index 29762ee..41e1173 100644
      pub previous_owner_epoch: u64,
      pub owner_epoch: u64,
      pub media_reservation_id: String,
-@@ -1453,26 +1719,19 @@ pub async fn takeover_recovered_media(
+@@ -1453,26 +1828,19 @@ pub async fn takeover_recovered_media(
      let config = media_control_runtime_config()
          .map_err(|_| MediaLifecycleError::ConfigurationInvalid)?
          .ok_or(MediaLifecycleError::ConfigurationInvalid)?;
@@ -742,16 +927,40 @@ index 29762ee..41e1173 100644
      }
      require_previous_media_owner(input, &existing)?;
      let command =
-@@ -1496,7 +1755,7 @@ where
+@@ -1496,11 +1864,17 @@ where
                  if command_id != command.command_id {
                      return Err(MediaLifecycleError::OutcomeUnknown);
                  }
 -                return restore_recovered_media(input, executor, media_profile_id, session);
 +                return restore_recovered_media(input, executor, session);
++            }
++            Ok(MediaControlResult::RejectedCapacity { error_code, .. }) => {
++                return Err(MediaLifecycleError::CapacityRejected { code: error_code });
              }
-             Ok(MediaControlResult::RejectedCapacity { error_code, .. })
-             | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
-@@ -1519,7 +1778,7 @@ where
+-            Ok(MediaControlResult::RejectedCapacity { error_code, .. })
+-            | Ok(MediaControlResult::TerminalError { error_code, .. }) => {
+-                return Err(MediaLifecycleError::ControlRejected { code: error_code });
++            Ok(MediaControlResult::TerminalError {
++                error_code,
++                retryable,
++                ..
++            }) => {
++                return Err(control_rejection(error_code, retryable));
+             }
+             Err(
+                 error @ (MediaControlClientError::Configuration(_)
+@@ -1508,9 +1882,7 @@ where
+                 | MediaControlClientError::RejectedBeforeTransport { .. }
+                 | MediaControlClientError::Rejected { .. }),
+             ) => {
+-                return Err(MediaLifecycleError::ControlRejected {
+-                    code: error.failure_code().to_string(),
+-                });
++                return Err(project_control_client_error(error));
+             }
+             Ok(MediaControlResult::RejectedEpoch { .. })
+             | Ok(MediaControlResult::Unknown { .. })
+@@ -1519,7 +1891,7 @@ where
  
          let observed = recovery_session(executor.as_ref(), &input.media_reservation_id).await?;
          if observed.owner_epoch == input.owner_epoch.to_string() {
@@ -760,7 +969,18 @@ index 29762ee..41e1173 100644
          }
          require_previous_media_owner(input, &observed)?;
          if attempt == 1 {
-@@ -1564,7 +1823,6 @@ fn require_previous_media_owner(
+@@ -1540,9 +1912,7 @@ async fn recovery_session(
+             MediaControlClientError::UnknownAfterTransport { .. } => {
+                 MediaLifecycleError::ReconcileRequired
+             }
+-            _ => MediaLifecycleError::ControlRejected {
+-                code: error.failure_code().to_string(),
+-            },
++            _ => project_control_client_error(error),
+         })
+ }
+ 
+@@ -1564,7 +1934,6 @@ fn require_previous_media_owner(
  fn restore_recovered_media<T>(
      input: &MediaRecoveryTakeoverInput,
      executor: Arc<T>,
@@ -768,7 +988,7 @@ index 29762ee..41e1173 100644
      session: MediaSessionSnapshot,
  ) -> Result<IveKitMediaLifecycle, MediaLifecycleError>
  where
-@@ -1588,7 +1846,7 @@ where
+@@ -1588,7 +1957,7 @@ where
          &input.owner_node_id,
          &input.owner_epoch.to_string(),
          admission_reservation_id,
@@ -777,7 +997,7 @@ index 29762ee..41e1173 100644
      )?;
      let lifecycle_executor: Arc<dyn MediaControlExecutor> = executor;
      IveKitMediaLifecycle::restore_committed(
-@@ -1610,6 +1868,7 @@ fn build_recovered_media_takeover_command(
+@@ -1610,6 +1979,7 @@ fn build_recovered_media_takeover_command(
      if !valid_identifier(&input.tenant_id)
          || !valid_identifier(&input.cell_id)
          || !valid_identifier(&input.owner_node_id)
@@ -785,7 +1005,7 @@ index 29762ee..41e1173 100644
          || !valid_identifier(&input.media_reservation_id)
          || !valid_identifier(&input.winning_branch)
          || !valid_identifier(call_id)
-@@ -1784,17 +2043,6 @@ fn build_media_control_runtime_config()
+@@ -1784,17 +2154,6 @@ fn build_media_control_runtime_config()
      )?;
      let trace_sample_ratio =
          parsed_ratio_env("IVEKIT_RUSTPBX_MEDIA_CONTROL_TRACE_SAMPLE_RATIO", 0.01)?;
@@ -803,7 +1023,7 @@ index 29762ee..41e1173 100644
      let client = MediaControlClient::new(crate::ivekit_media_control::MediaControlClientConfig {
          endpoint,
          service_token_file: PathBuf::from(service_token_file),
-@@ -1917,6 +2165,10 @@ mod tests {
+@@ -1917,6 +2276,10 @@ mod tests {
      use std::sync::Arc;
  
      fn binding() -> MediaAdmissionBinding {
@@ -814,7 +1034,7 @@ index 29762ee..41e1173 100644
          MediaAdmissionBinding::new(
              "tenant-a",
              "call-a",
-@@ -1924,7 +2176,7 @@ mod tests {
+@@ -1924,7 +2287,7 @@ mod tests {
              "rustpbx-a",
              "4294967297",
              "admission-a",
@@ -823,7 +1043,7 @@ index 29762ee..41e1173 100644
          )
          .unwrap()
      }
-@@ -1954,7 +2206,7 @@ mod tests {
+@@ -1954,7 +2317,7 @@ mod tests {
                  "rustpbx-a",
                  "",
                  "admission-a",
@@ -832,7 +1052,7 @@ index 29762ee..41e1173 100644
              )
              .is_err()
          );
-@@ -1966,7 +2218,7 @@ mod tests {
+@@ -1966,7 +2329,7 @@ mod tests {
                  "rustpbx-a",
                  "1",
                  "admission-a",
@@ -841,7 +1061,36 @@ index 29762ee..41e1173 100644
              )
              .is_err()
          );
-@@ -2173,6 +2425,7 @@ mod tests {
+@@ -2156,6 +2519,28 @@ mod tests {
+         ));
+     }
+ 
++    #[test]
++    fn processing_capacity_and_retryable_failures_require_sip_backoff() {
++        let capacity = MediaLifecycleError::CapacityRejected {
++            code: "transport_capacity_exhausted".to_string(),
++        };
++        let retryable = MediaLifecycleError::RetryableControlRejected {
++            code: "media_control_unavailable".to_string(),
++        };
++        let terminal = MediaLifecycleError::ControlRejected {
++            code: "media_control_command_invalid".to_string(),
++        };
++
++        assert!(!explicit_fallback_allowed(&capacity));
++        assert_eq!(media_control_retry_after_seconds(&capacity), Some(1));
++        assert_eq!(media_control_retry_after_seconds(&retryable), Some(1));
++        assert_eq!(media_control_retry_after_seconds(&terminal), None);
++        assert_eq!(
++            media_control_retry_after_seconds(&MediaLifecycleError::OutcomeUnknown),
++            None
++        );
++    }
++
+     #[test]
+     fn runtime_mode_accepts_only_the_ordinary_relay_profile() {
+         assert_eq!(
+@@ -2173,6 +2558,7 @@ mod tests {
                  tenant_id: "tenant-a".into(),
                  cell_id: "cell-a".into(),
                  owner_node_id: "rustpbx-b".into(),
@@ -849,7 +1098,7 @@ index 29762ee..41e1173 100644
                  previous_owner_epoch: 7,
                  owner_epoch: 8,
                  media_reservation_id: "admission-a/callee".into(),
-@@ -2199,6 +2452,7 @@ mod tests {
+@@ -2199,6 +2585,7 @@ mod tests {
  
      struct StubExecutor {
          commands: Mutex<Vec<MediaControlCommand>>,
@@ -857,7 +1106,7 @@ index 29762ee..41e1173 100644
          results: Mutex<VecDeque<Result<MediaControlResult, MediaControlClientError>>>,
          sessions: Mutex<VecDeque<Result<MediaSessionSnapshot, MediaControlClientError>>>,
      }
-@@ -2215,6 +2469,17 @@ mod tests {
+@@ -2215,6 +2602,17 @@ mod tests {
                  .pop_front()
                  .expect("stub result is required")
          }
@@ -875,7 +1124,7 @@ index 29762ee..41e1173 100644
      }
  
      #[async_trait::async_trait]
-@@ -2256,6 +2521,7 @@ mod tests {
+@@ -2256,6 +2654,7 @@ mod tests {
      fn executor_with_results(results: Vec<MediaControlResult>) -> Arc<StubExecutor> {
          Arc::new(StubExecutor {
              commands: Mutex::new(Vec::new()),
@@ -883,7 +1132,7 @@ index 29762ee..41e1173 100644
              results: Mutex::new(results.into_iter().map(Ok).collect()),
              sessions: Mutex::new(VecDeque::new()),
          })
-@@ -2280,6 +2546,7 @@ mod tests {
+@@ -2280,6 +2679,7 @@ mod tests {
              tenant_id: "tenant-a".into(),
              cell_id: "cell-a".into(),
              owner_node_id: "rustpbx-b".into(),
@@ -891,7 +1140,7 @@ index 29762ee..41e1173 100644
              previous_owner_epoch: 4_294_967_297,
              owner_epoch: 4_294_967_298,
              media_reservation_id: "admission-a/callee".into(),
-@@ -2297,13 +2564,9 @@ mod tests {
+@@ -2297,13 +2697,9 @@ mod tests {
              .lock()
              .push_back(Ok(recovered_session(4_294_967_298)));
  
@@ -908,7 +1157,7 @@ index 29762ee..41e1173 100644
  
          assert_eq!(lifecycle.state(), NegotiationState::Committed);
          assert!(executor.commands.lock().is_empty());
-@@ -2341,7 +2604,7 @@ mod tests {
+@@ -2341,7 +2737,7 @@ mod tests {
              }),
          ]);
  
@@ -917,7 +1166,7 @@ index 29762ee..41e1173 100644
              .await
              .unwrap();
  
-@@ -2384,8 +2647,7 @@ mod tests {
+@@ -2384,8 +2780,7 @@ mod tests {
                  }));
          }
  
@@ -927,7 +1176,7 @@ index 29762ee..41e1173 100644
          assert!(matches!(
              result,
              Err(MediaLifecycleError::ReconcileRequired)
-@@ -2450,6 +2712,198 @@ mod tests {
+@@ -2450,6 +2845,253 @@ mod tests {
          );
      }
  
@@ -978,6 +1227,61 @@ index 29762ee..41e1173 100644
 +
 +        let commands = executor.commands.lock();
 +        assert_eq!(commands.len(), 1);
++        assert_eq!(
++            &commands[0].payload,
++            expected_payload.as_object().expect("object payload")
++        );
++    }
++
++    #[tokio::test]
++    async fn processing_session_routes_sip_info_digit_with_stable_event_identity() {
++        let expected_payload = serde_json::json!({
++            "digit": "5",
++            "event_id": "sip-info-caller-42",
++            "from_tag": "caller-tag",
++            "source": "sip_info",
++            "to_tag": "callee-tag"
++        });
++        let executor = executor_with_results(vec![committed(
++            "placeholder",
++            3,
++            "committed",
++            "v=0\r\na=processing-media\r\n",
++        )]);
++        let mut lifecycle = IveKitMediaLifecycle::restore_committed(
++            binding_with_profile(MediaControlProfile::VoiceIvrG711OpusV1 {
++                leg_a_codec: crate::ivekit_owner::MediaCodec::Pcmu,
++                leg_b_codec: crate::ivekit_owner::MediaCodec::Opus,
++                leg_a_payload_type: 0,
++                leg_b_payload_type: 111,
++                packetization_ms: 20,
++            }),
++            executor.clone(),
++            "caller-tag",
++            "callee-tag",
++            "branch-a",
++            "v=0\r\na=processing-media\r\n",
++            2,
++        )
++        .unwrap();
++        executor.results.lock()[0] = Ok(committed(
++            &lifecycle
++                .preview_command_id(MediaControlAction::InjectDtmf, 3, expected_payload.clone())
++                .unwrap(),
++            3,
++            "committed",
++            "v=0\r\na=processing-media\r\n",
++        ));
++
++        lifecycle
++            .submit_sip_info_digit(MediaDialogSide::Caller, "sip-info-caller-42", '5')
++            .await
++            .unwrap();
++
++        let commands = executor.commands.lock();
++        assert_eq!(commands.len(), 1);
++        assert!(matches!(commands[0].action, MediaControlAction::InjectDtmf));
++        assert_eq!(commands[0].command_sequence, 3);
 +        assert_eq!(
 +            &commands[0].payload,
 +            expected_payload.as_object().expect("object payload")
@@ -1126,7 +1430,7 @@ index 29762ee..41e1173 100644
      #[tokio::test]
      async fn early_and_final_answer_return_committed_effective_sdp() {
          let executor = executor_with_results(Vec::new());
-@@ -2728,6 +3182,77 @@ mod tests {
+@@ -2728,6 +3370,77 @@ mod tests {
          assert!(executor.commands.lock().is_empty());
      }
  
@@ -1204,7 +1508,7 @@ index 29762ee..41e1173 100644
      #[tokio::test]
      async fn delete_is_replayed_with_stable_identity_after_unknown() {
          let executor = executor_with_results(Vec::new());
-@@ -2804,11 +3329,19 @@ mod tests {
+@@ -2804,11 +3517,19 @@ mod tests {
              MediaCloseOutcome::Closed
          );
          let commands = executor.commands.lock();
@@ -1555,10 +1859,429 @@ index feddf4a..c27308d 100644
 +    }
  }
 diff --git a/src/proxy/proxy_call/sip_session.rs b/src/proxy/proxy_call/sip_session.rs
-index fc596dd..f657f7e 100644
+index fc596dd..ef172a1 100644
 --- a/src/proxy/proxy_call/sip_session.rs
 +++ b/src/proxy/proxy_call/sip_session.rs
-@@ -5236,12 +5236,13 @@ impl SipSession {
+@@ -65,6 +65,7 @@ use rsipstack::dialog::{
+ };
+ use rsipstack::sip::StatusCode;
+ use rsipstack::transport::SipAddr;
++use sha2::{Digest, Sha256};
+ use std::collections::{HashMap, HashSet};
+ use std::path::Path;
+ use std::sync::Arc;
+@@ -131,6 +132,16 @@ pub fn into_callee_err(code: &StatusCode, msg: Option<String>) -> CalleeError {
+     (code.code(), code.text().to_string(), msg)
+ }
+ 
++fn media_control_fallback_allowed(
++    failure_policy: crate::ivekit_media_lifecycle::MediaControlFailurePolicy,
++    processing_pool: bool,
++    error: &crate::ivekit_media_lifecycle::MediaLifecycleError,
++) -> bool {
++    failure_policy == crate::ivekit_media_lifecycle::MediaControlFailurePolicy::ExplicitFallback
++        && !processing_pool
++        && crate::ivekit_media_lifecycle::explicit_fallback_allowed(error)
++}
++
+ /// Percent-decode a query-string value (replace `+` with space, then URL-decode).
+ pub(super) fn pct_decode_query(value: &str) -> String {
+     let s = value.replace('+', " ");
+@@ -175,6 +186,7 @@ pub struct SipSession {
+     pub ivekit_dialog_shadow: crate::ivekit_dialog_shadow::IveKitDialogShadowRuntime,
+     pub ivekit_media: crate::ivekit_media_lifecycle::IveKitMediaRuntime,
+     pub ivekit_execution_profile: crate::ivekit_media_lifecycle::MediaExecutionProfile,
++    pending_media_retry_after_seconds: Option<u32>,
+ 
+     timers: HashMap<DialogId, SessionTimerState>,
+     update_refresh_disabled: HashSet<DialogId>,
+@@ -1072,6 +1084,7 @@ impl SipSession {
+                 crate::ivekit_media_lifecycle::MediaExecutionProfile::LocalMediaGraph(
+                     crate::ivekit_media_lifecycle::LocalMediaReason::MediaControlDisabled,
+                 ),
++            pending_media_retry_after_seconds: None,
+             timers: HashMap::new(),
+             update_refresh_disabled: HashSet::new(),
+             timer_queue: DelayQueue::new(),
+@@ -2809,50 +2822,42 @@ impl SipSession {
+                 body = %body_text,
+                 "INFO DTMF message body"
+             );
+-            for line in body_text.lines() {
+-                let line = line.trim();
+-                if line.to_lowercase().starts_with("signal=") {
+-                    let digit = line
+-                        .trim_start_matches(|c: char| !c.eq_ignore_ascii_case(&'s'))
+-                        .trim_start_matches("Signal=")
+-                        .trim_start_matches("signal=")
+-                        .trim();
+-                    if !digit.is_empty() {
+-                        let event = serde_json::json!({
+-                            "type": "dtmf",
+-                            "leg_id": "caller",
+-                            "digit": digit.chars().next().unwrap_or_default().to_string(),
+-                        });
+-                        warn!(
+-                            session_id = %self.context.session_id,
+-                            digit = %digit,
+-                            "✓ Successfully detected DTMF digit from SIP INFO"
+-                        );
+-                        if let Err(e) = self.app_runtime.inject_event(event.clone()) {
+-                            warn!(
+-                                session_id = %self.context.session_id,
+-                                digit = %digit,
+-                                error = %e,
+-                                "Detected DTMF via INFO but failed to inject event"
+-                            );
+-                        } else {
+-                            info!(
+-                                session_id = %self.context.session_id,
+-                                digit = %digit,
+-                                "✓ Successfully injected DTMF event from SIP INFO"
+-                            );
+-                            // Emit typed RWI DTMF event
+-                            self.emit_typed_rwi_event(&crate::rwi::Dtmf {
+-                                call_id: self.context.session_id.clone(),
+-                                digit: digit.chars().next().unwrap_or_default().to_string(),
+-                                leg_id: Some("caller".to_string()),
+-                                extra: None,
+-                            });
+-                        }
+-                    }
++            let Some(digit) = Self::parse_sip_info_dtmf_digit(&body_text) else {
++                tx_handle
++                    .respond(rsipstack::sip::StatusCode::BadRequest, None, None)
++                    .await
++                    .ok();
++                return Ok(());
++            };
++            let consumed_by_processing = match self
++                .route_sip_info_digit(DialogSide::Caller, &request, digit)
++                .await
++            {
++                Ok(consumed) => consumed,
++                Err(error) => {
++                    warn!(
++                        session_id = %self.context.session_id,
++                        %digit,
++                        error = %error,
++                        "Processing SIP INFO digit failed closed"
++                    );
++                    tx_handle
++                        .respond(
++                            rsipstack::sip::StatusCode::ServiceUnavailable,
++                            Some(vec![rsipstack::sip::Header::Other(
++                                "Retry-After".to_string(),
++                                "1".to_string(),
++                            )]),
++                            None,
++                        )
++                        .await
++                        .ok();
++                    return Ok(());
+                 }
+-            }
+-            if let Some(callee_id) = self.meta.connected_callee_dialog_id.clone() {
++            };
++            if !consumed_by_processing
++                && let Some(callee_id) = self.meta.connected_callee_dialog_id.clone()
++            {
+                 if let Some(dlg) = self.server.dialog_layer.get_dialog(&callee_id) {
+                     let fwd_headers = vec![rsipstack::sip::Header::ContentType(
+                         rsipstack::sip::headers::ContentType::from("application/dtmf-relay"),
+@@ -3115,6 +3120,121 @@ impl SipSession {
+         })
+     }
+ 
++    fn parse_sip_info_dtmf_digit(body: &str) -> Option<char> {
++        let mut signal = None;
++        for line in body.lines() {
++            let Some((name, value)) = line.trim().split_once('=') else {
++                continue;
++            };
++            if !name.trim().eq_ignore_ascii_case("signal") {
++                continue;
++            }
++            if signal.is_some() {
++                return None;
++            }
++            let mut digits = value.trim().chars();
++            let digit = digits.next()?;
++            if digits.next().is_some() || !matches!(digit, '0'..='9' | '*' | '#' | 'A'..='D') {
++                return None;
++            }
++            signal = Some(digit);
++        }
++        signal
++    }
++
++    fn sip_info_event_id(&self, side: DialogSide, request: &rsipstack::sip::Request) -> String {
++        let cseq = request
++            .headers
++            .iter()
++            .find_map(|header| {
++                if let rsipstack::sip::Header::CSeq(value) = header {
++                    Some(value.value())
++                } else {
++                    None
++                }
++            })
++            .unwrap_or("");
++        let mut digest = Sha256::new();
++        for value in [
++            self.context.session_id.as_bytes(),
++            match side {
++                DialogSide::Caller => b"caller".as_slice(),
++                DialogSide::Callee => b"callee".as_slice(),
++            },
++            cseq.as_bytes(),
++            request.body(),
++        ] {
++            digest.update((value.len() as u64).to_be_bytes());
++            digest.update(value);
++        }
++        let mut event_id = String::from("sip-info-");
++        for byte in digest.finalize().iter().take(24) {
++            use std::fmt::Write;
++            write!(&mut event_id, "{byte:02x}").expect("writing to String cannot fail");
++        }
++        event_id
++    }
++
++    async fn route_sip_info_digit(
++        &mut self,
++        side: DialogSide,
++        request: &rsipstack::sip::Request,
++        digit: char,
++    ) -> Result<bool> {
++        let processing = self.ivekit_execution_profile
++            == crate::ivekit_media_lifecycle::MediaExecutionProfile::OrdinaryRelay
++            && self
++                .ivekit_media
++                .lifecycle_mut()
++                .is_some_and(|lifecycle| lifecycle.uses_processing_pool());
++        let leg_id = match side {
++            DialogSide::Caller => "caller",
++            DialogSide::Callee => "callee",
++        };
++        if processing {
++            let event_id = self.sip_info_event_id(side, request);
++            self.ivekit_media
++                .lifecycle_mut()
++                .ok_or_else(|| anyhow!("Media-control lifecycle unavailable"))?
++                .submit_sip_info_digit(
++                    match side {
++                        DialogSide::Caller => {
++                            crate::ivekit_media_lifecycle::MediaDialogSide::Caller
++                        }
++                        DialogSide::Callee => {
++                            crate::ivekit_media_lifecycle::MediaDialogSide::Callee
++                        }
++                    },
++                    &event_id,
++                    digit,
++                )
++                .await
++                .map_err(|error| anyhow!("Processing SIP INFO digit failed: {error}"))?;
++        } else {
++            let event = serde_json::json!({
++                "type": "dtmf",
++                "leg_id": leg_id,
++                "digit": digit.to_string(),
++            });
++            if let Err(error) = self.app_runtime.inject_event(event) {
++                debug!(
++                    session_id = %self.context.session_id,
++                    %digit,
++                    %leg_id,
++                    %error,
++                    "SIP INFO DTMF app inject skipped"
++                );
++            }
++        }
++        self.emit_typed_rwi_event(&crate::rwi::Dtmf {
++            call_id: self.context.session_id.clone(),
++            digit: digit.to_string(),
++            leg_id: Some(leg_id.to_string()),
++            extra: None,
++        });
++        Ok(processing)
++    }
++
+     fn is_picture_fast_update_info(content_type: Option<&str>, body: &str) -> bool {
+         content_type.is_some_and(|ct| ct.contains("application/media_control+xml"))
+             && body.to_ascii_lowercase().contains("picture_fast_update")
+@@ -3411,49 +3531,59 @@ impl SipSession {
+                     Self::is_picture_fast_update_info(content_type.as_deref(), &body_text);
+ 
+                 if is_dtmf {
+-                    for line in body_text.lines() {
+-                        let line = line.trim();
+-                        if line.to_lowercase().starts_with("signal=") {
+-                            let digit = line
+-                                .trim_start_matches(|c: char| !c.eq_ignore_ascii_case(&'s'))
+-                                .trim_start_matches("Signal=")
+-                                .trim_start_matches("signal=")
+-                                .trim();
+-                            if !digit.is_empty() {
+-                                let event = serde_json::json!({
+-                                    "type": "dtmf",
+-                                    "leg_id": "callee",
+-                                    "digit": digit.chars().next().unwrap_or_default().to_string(),
+-                                });
+-                                if let Err(e) = self.app_runtime.inject_event(event) {
+-                                    debug!(
+-                                        session_id = %self.context.session_id,
+-                                        error = %e,
+-                                        "Callee SIP INFO DTMF app inject (no active app)"
+-                                    );
+-                                }
+-                            }
+-                        }
+-                    }
+-                    // Forward to caller
+-                    let fwd_headers = vec![rsipstack::sip::Header::ContentType(
+-                        rsipstack::sip::headers::ContentType::from("application/dtmf-relay"),
+-                    )];
+-                    if let Err(e) = self
+-                        .server_dialog
+-                        .info(Some(fwd_headers), Some(request.body().to_vec()))
++                    let Some(digit) = Self::parse_sip_info_dtmf_digit(&body_text) else {
++                        tx_handle
++                            .respond(rsipstack::sip::StatusCode::BadRequest, None, None)
++                            .await
++                            .ok();
++                        return Ok(());
++                    };
++                    let consumed_by_processing = match self
++                        .route_sip_info_digit(DialogSide::Callee, &request, digit)
+                         .await
+                     {
+-                        warn!(
+-                            session_id = %self.context.session_id,
+-                            error = %e,
+-                            "Failed to forward callee SIP INFO DTMF to caller"
+-                        );
+-                    } else {
+-                        debug!(
+-                            session_id = %self.context.session_id,
+-                            "Forwarded callee SIP INFO DTMF to caller"
+-                        );
++                        Ok(consumed) => consumed,
++                        Err(error) => {
++                            warn!(
++                                session_id = %self.context.session_id,
++                                %digit,
++                                error = %error,
++                                "Processing callee SIP INFO digit failed closed"
++                            );
++                            tx_handle
++                                .respond(
++                                    rsipstack::sip::StatusCode::ServiceUnavailable,
++                                    Some(vec![rsipstack::sip::Header::Other(
++                                        "Retry-After".to_string(),
++                                        "1".to_string(),
++                                    )]),
++                                    None,
++                                )
++                                .await
++                                .ok();
++                            return Ok(());
++                        }
++                    };
++                    if !consumed_by_processing {
++                        let fwd_headers = vec![rsipstack::sip::Header::ContentType(
++                            rsipstack::sip::headers::ContentType::from("application/dtmf-relay"),
++                        )];
++                        if let Err(e) = self
++                            .server_dialog
++                            .info(Some(fwd_headers), Some(request.body().to_vec()))
++                            .await
++                        {
++                            warn!(
++                                session_id = %self.context.session_id,
++                                error = %e,
++                                "Failed to forward callee SIP INFO DTMF to caller"
++                            );
++                        } else {
++                            debug!(
++                                session_id = %self.context.session_id,
++                                "Forwarded callee SIP INFO DTMF to caller"
++                            );
++                        }
+                     }
+                 } else if is_picture_fast_update {
+                     self.handle_picture_fast_update(DialogSide::Callee).await;
+@@ -4089,8 +4219,12 @@ impl SipSession {
+         reason: Option<String>,
+     ) -> Result<()> {
+         let status = StatusCode::Other(code, text);
++        let retry_after_seconds = self.pending_media_retry_after_seconds.take();
+         let profile = self.context.dialplan.audio_profile.as_ref();
+-        let audio_path = profile.and_then(|rb| rb.for_status(&status).map(|s| s.to_string()));
++        let audio_path = retry_after_seconds
++            .is_none()
++            .then(|| profile.and_then(|rb| rb.for_status(&status).map(|s| s.to_string())))
++            .flatten();
+         if let Some(ref path) = audio_path {
+             let dur = profile
+                 .and_then(|rb| rb.play_duration_for(&status))
+@@ -4108,7 +4242,13 @@ impl SipSession {
+                 tokio::time::sleep(dur).await;
+             }
+         }
+-        self.server_dialog.reject(Some(status), reason.clone())?;
++        let headers = retry_after_seconds.map(|seconds| {
++            vec![rsipstack::sip::Header::RetryAfter(
++                rsipstack::sip::headers::RetryAfter::new(seconds.to_string()),
++            )]
++        });
++        self.server_dialog
++            .reject_with_headers(Some(status), reason.clone(), headers)?;
+         Ok(())
+     }
+ 
+@@ -5054,10 +5194,10 @@ impl SipSession {
+     ) -> Result<Option<Vec<u8>>, CalleeError> {
+         use crate::call::{DialStrategy, DialplanFlow};
+         use crate::ivekit_media_lifecycle::{
+-            MediaControlFailurePolicy, MediaExecutionFacts, MediaExecutionProfile,
+-            classify_media_execution,
++            MediaExecutionFacts, MediaExecutionProfile, classify_media_execution,
+         };
+ 
++        self.pending_media_retry_after_seconds = None;
+         let explicit_bypass = matches!(
+             self.context.dialplan.media.proxy_mode,
+             MediaProxyMode::None | MediaProxyMode::Bypass
+@@ -5087,6 +5227,7 @@ impl SipSession {
+ 
+         if profile == MediaExecutionProfile::OrdinaryRelay {
+             let failure_policy = self.ivekit_media.failure_policy();
++            let processing_pool = self.ivekit_media.uses_processing_pool();
+             let result = match self.ivekit_media.lifecycle_mut() {
+                 Some(lifecycle) => lifecycle
+                     .prepare_ordinary_relay_offer("callee")
+@@ -5102,8 +5243,7 @@ impl SipSession {
+                     return Ok(effective_sdp.map(String::into_bytes));
+                 }
+                 Err(error)
+-                    if failure_policy == MediaControlFailurePolicy::ExplicitFallback
+-                        && crate::ivekit_media_lifecycle::explicit_fallback_allowed(&error) =>
++                    if media_control_fallback_allowed(failure_policy, processing_pool, &error) =>
+                 {
+                     warn!(
+                         session_id = %self.context.session_id,
+@@ -5113,6 +5253,8 @@ impl SipSession {
+                     self.ivekit_execution_profile = MediaExecutionProfile::ExplicitFallback;
+                 }
+                 Err(error) => {
++                    self.pending_media_retry_after_seconds =
++                        crate::ivekit_media_lifecycle::media_control_retry_after_seconds(&error);
+                     warn!(
+                         session_id = %self.context.session_id,
+                         error = %error,
+@@ -5236,12 +5378,13 @@ impl SipSession {
                  });
              let started_at = started_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
              Some(
@@ -1573,6 +2296,67 @@ index fc596dd..f657f7e 100644
                      Some(&started_at),
                      answered_at.as_deref(),
                      snapshot,
+@@ -11239,6 +11382,27 @@ mod tests {
+     use rustrtc::media::MediaStreamTrack;
+     use std::sync::atomic::{AtomicUsize, Ordering};
+ 
++    #[test]
++    fn sip_info_dtmf_parser_accepts_one_digit_and_rejects_ambiguous_payloads() {
++        assert_eq!(
++            SipSession::parse_sip_info_dtmf_digit("Signal=5\r\nDuration=160\r\n"),
++            Some('5')
++        );
++        assert_eq!(
++            SipSession::parse_sip_info_dtmf_digit("signal=#\n"),
++            Some('#')
++        );
++        assert_eq!(
++            SipSession::parse_sip_info_dtmf_digit("Signal=12\nDuration=160\n"),
++            None
++        );
++        assert_eq!(
++            SipSession::parse_sip_info_dtmf_digit("Signal=1\nSignal=2\n"),
++            None
++        );
++        assert_eq!(SipSession::parse_sip_info_dtmf_digit("Signal=X\n"), None);
++    }
++
+     #[test]
+     fn test_sdp_transport_mode_classification() {
+         // Plain RTP
+@@ -11432,6 +11596,32 @@ mod tests {
+         ));
+     }
+ 
++    #[test]
++    fn processing_pool_failures_never_fallback_to_local_media() {
++        use crate::ivekit_media_lifecycle::{MediaControlFailurePolicy, MediaLifecycleError};
++
++        let retryable = MediaLifecycleError::RetryableControlRejected {
++            code: "media_control_unavailable".to_string(),
++        };
++        assert!(media_control_fallback_allowed(
++            MediaControlFailurePolicy::ExplicitFallback,
++            false,
++            &retryable,
++        ));
++        assert!(!media_control_fallback_allowed(
++            MediaControlFailurePolicy::ExplicitFallback,
++            true,
++            &retryable,
++        ));
++        assert!(!media_control_fallback_allowed(
++            MediaControlFailurePolicy::ExplicitFallback,
++            false,
++            &MediaLifecycleError::CapacityRejected {
++                code: "transport_capacity_exhausted".to_string(),
++            },
++        ));
++    }
++
+     #[test]
+     fn test_route_via_home_proxy_detects_remote_home_proxy() {
+         let destination = SipAddr {
 diff --git a/src/proxy/routing/http.rs b/src/proxy/routing/http.rs
 index 11ffd36..1810aa5 100644
 --- a/src/proxy/routing/http.rs

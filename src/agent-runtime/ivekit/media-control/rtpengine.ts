@@ -1469,6 +1469,11 @@ function mappedCommand(command: MediaTransportCommand): {
     case 'stop_recording_fork':
       return { command: 'stop recording', fields: tagFields(payload) };
     case 'play_media': {
+      if (Object.hasOwn(payload, 'prompt_id')) {
+        throw new RtpengineMediaTransportError(
+          'rtpengine_action_unsupported'
+        );
+      }
       const fields = participantFields(payload, true);
       fields.file = boundedText(payload.file, 1024);
       optionalInteger(fields, payload, 'repeat_times', 'repeat-times', 1, 1000);
@@ -1476,10 +1481,21 @@ function mappedCommand(command: MediaTransportCommand): {
       return { command: 'play media', fields };
     }
     case 'stop_media':
+      if (Object.hasOwn(payload, 'target_command_id')) {
+        throw new RtpengineMediaTransportError(
+          'rtpengine_action_unsupported'
+        );
+      }
       return {
         command: 'stop media',
         fields: participantFields(payload, true)
       };
+    case 'commit_single_leg':
+    case 'start_gather':
+    case 'stop_gather':
+      throw new RtpengineMediaTransportError(
+        'rtpengine_action_unsupported'
+      );
     case 'inject_dtmf': {
       const fields = participantFields(payload, true);
       const digit = exactText(payload.digit ?? payload.code, 1);

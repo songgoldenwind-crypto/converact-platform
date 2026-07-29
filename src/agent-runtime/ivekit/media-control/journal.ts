@@ -16,6 +16,10 @@ import {
   type MediaControlAction,
   type MediaSessionState
 } from './protocol.js';
+import {
+  checkedMediaControlTerminalEvent,
+  type MediaControlTerminalEvent
+} from './events.js';
 
 const HEADER_BYTES = 40;
 const MAX_UINT64 = (1n << 64n) - 1n;
@@ -402,6 +406,383 @@ export class MediaCommandJournal {
   }
 }
 
+export interface MediaTerminalEventJournalOptions {
+  path: string;
+  maxRecords?: number;
+  maxBytes?: number;
+  maxRecordBytes?: number;
+}
+
+export class MediaTerminalEventJournalError extends Error {
+  constructor(readonly code: string, options: { cause?: unknown } = {}) {
+    super(code, options);
+    this.name = 'MediaTerminalEventJournalError';
+  }
+}
+
+export class MediaTerminalEventJournal {
+  readonly #path: string;
+  readonly #directory: string;
+  readonly #maxRecords: number;
+  readonly #maxBytes: number;
+  readonly #maxRecordBytes: number;
+  readonly #directoryIdentity: FileIdentity;
+  readonly #lease: JournalLease;
+  #handle: FileHandle | null;
+  #records: MediaControlTerminalEvent[];
+  #byEventId: Map<string, MediaControlTerminalEvent>;
+  #nextSequenceByOwner: Map<string, number>;
+  #bytes: number;
+  #tail: Promise<void> = Promise.resolve();
+  #closeRequested = false;
+  #broken: MediaTerminalEventJournalError | null = null;
+
+  private constructor(input: {
+    path: string;
+    handle: FileHandle;
+    records: MediaControlTerminalEvent[];
+    bytes: number;
+    maxRecords: number;
+    maxBytes: number;
+    maxRecordBytes: number;
+    directoryIdentity: FileIdentity;
+    lease: JournalLease;
+  }) {
+    this.#path = input.path;
+    this.#directory = path.dirname(input.path);
+    this.#handle = input.handle;
+    this.#records = input.records;
+    const indexes = terminalEventIndexes(input.records);
+    this.#byEventId = indexes.byEventId;
+    this.#nextSequenceByOwner = indexes.nextSequenceByOwner;
+    this.#bytes = input.bytes;
+    this.#maxRecords = input.maxRecords;
+    this.#maxBytes = input.maxBytes;
+    this.#maxRecordBytes = input.maxRecordBytes;
+    this.#directoryIdentity = input.directoryIdentity;
+    this.#lease = input.lease;
+  }
+
+  static async open(
+    options: MediaTerminalEventJournalOptions
+  ): Promise<MediaTerminalEventJournal> {
+    let lease: JournalLease | null = null;
+    let handle: FileHandle | null = null;
+    try {
+      const journalPath = checkedPath(options.path);
+      const parent = path.dirname(journalPath);
+      const directoryIdentity = await assertSafeDirectory(parent);
+      const maxRecords = eventJournalInteger(
+        options.maxRecords ?? 1_000_000,
+        1,
+        10_000_000,
+        'max_records'
+      );
+      const maxBytes = eventJournalInteger(
+        options.maxBytes ?? 256 * 1024 * 1024,
+        512,
+        16 * 1024 * 1024 * 1024,
+        'max_bytes'
+      );
+      const maxRecordBytes = eventJournalInteger(
+        options.maxRecordBytes ??
+          Math.min(256 * 1024, maxBytes - HEADER_BYTES),
+        256,
+        Math.min(maxBytes - HEADER_BYTES, 4 * 1024 * 1024),
+        'max_record_bytes'
+      );
+      lease = await JournalLease.acquire(
+        `${journalPath}.lock`,
+        parent,
+        directoryIdentity
+      );
+      await cleanupStaleTemps(journalPath, parent);
+      const existed = await assertSafeTarget(journalPath);
+      handle = await openJournalHandle(journalPath, !existed);
+      if (!existed) {
+        await handle.chmod(0o600);
+        await handle.sync();
+        await syncDirectory(parent);
+      }
+      await assertCurrentTarget(
+        handle,
+        journalPath,
+        parent,
+        directoryIdentity
+      );
+      const stat = await handle.stat();
+      if (stat.size > maxBytes) throw terminalJournalCapacity();
+      const decoded = await decodeTerminalEventRecords(
+        handle,
+        stat.size,
+        maxRecordBytes,
+        maxRecords
+      );
+      if (decoded.bytesRead < stat.size) {
+        await handle.truncate(decoded.bytesRead);
+        await handle.sync();
+      }
+      await lease.verify();
+      return new MediaTerminalEventJournal({
+        path: journalPath,
+        handle,
+        records: decoded.records,
+        bytes: decoded.bytesRead,
+        maxRecords,
+        maxBytes,
+        maxRecordBytes,
+        directoryIdentity,
+        lease
+      });
+    } catch (error) {
+      await handle?.close().catch(() => {});
+      await lease?.release().catch(() => {});
+      throw projectTerminalJournalError(
+        error,
+        'media_event_journal_open_failed'
+      );
+    }
+  }
+
+  append(
+    event: MediaControlTerminalEvent
+  ): Promise<{ replayed: boolean }> {
+    return this.#enqueue(async () => {
+      const checked = checkedTerminalEvent(event);
+      const existing = this.#byEventId.get(checked.event_id);
+      if (existing) {
+        if (JSON.stringify(existing) !== JSON.stringify(checked)) {
+          throw new MediaTerminalEventJournalError(
+            'media_event_journal_identity_conflict'
+          );
+        }
+        return { replayed: true };
+      }
+      const expected = this.#nextSequenceByOwner.get(
+        checked.owner_node_id
+      ) ?? 1;
+      if (checked.event_sequence !== expected) {
+        throw new MediaTerminalEventJournalError(
+          'media_event_journal_sequence_gap'
+        );
+      }
+      if (this.#records.length >= this.#maxRecords) {
+        throw terminalJournalCapacity();
+      }
+      const encoded = encodeTerminalEventRecord(
+        checked,
+        this.#maxRecordBytes
+      );
+      if (this.#bytes + encoded.length > this.#maxBytes) {
+        throw terminalJournalCapacity();
+      }
+      const handle = this.#requiredHandle();
+      await this.#assertWritable(handle);
+      const previousBytes = this.#bytes;
+      try {
+        await writeAll(handle, encoded);
+        await handle.sync();
+        await this.#assertWritable(handle);
+      } catch (error) {
+        try {
+          await handle.truncate(previousBytes);
+          await handle.sync();
+          await this.#assertWritable(handle);
+        } catch (rollbackError) {
+          await this.#breakJournal(rollbackError);
+        }
+        throw projectTerminalJournalError(
+          error,
+          'media_event_journal_append_failed'
+        );
+      }
+      this.#records.push(checked);
+      this.#byEventId.set(checked.event_id, checked);
+      this.#nextSequenceByOwner.set(
+        checked.owner_node_id,
+        checked.event_sequence + 1
+      );
+      this.#bytes += encoded.length;
+      return { replayed: false };
+    });
+  }
+
+  replay(): Promise<MediaControlTerminalEvent[]> {
+    return this.#enqueue(async () => structuredClone(this.#records));
+  }
+
+  compact(maxRetainedPerOwner: number): Promise<{
+    removedRecords: number;
+    retainedRecords: number;
+  }> {
+    return this.#enqueue(async () => {
+      const maximum = eventJournalInteger(
+        maxRetainedPerOwner,
+        1,
+        1_000_000,
+        'max_retained_per_owner'
+      );
+      const counts = new Map<string, number>();
+      const retained: MediaControlTerminalEvent[] = [];
+      for (let index = this.#records.length - 1; index >= 0; index -= 1) {
+        const record = this.#records[index];
+        const count = counts.get(record.owner_node_id) ?? 0;
+        if (count >= maximum) continue;
+        counts.set(record.owner_node_id, count + 1);
+        retained.push(record);
+      }
+      retained.reverse();
+      if (retained.length === this.#records.length) {
+        return {
+          removedRecords: 0,
+          retainedRecords: retained.length
+        };
+      }
+      const frames = retained.map((record) =>
+        encodeTerminalEventRecord(record, this.#maxRecordBytes)
+      );
+      const compactedBytes = frames.reduce(
+        (total, frame) => total + frame.length,
+        0
+      );
+      if (retained.length > this.#maxRecords ||
+          compactedBytes > this.#maxBytes) {
+        throw terminalJournalCapacity();
+      }
+      await this.#replace(frames);
+      const removedRecords = this.#records.length - retained.length;
+      this.#records = retained;
+      const indexes = terminalEventIndexes(retained);
+      this.#byEventId = indexes.byEventId;
+      this.#nextSequenceByOwner = indexes.nextSequenceByOwner;
+      this.#bytes = compactedBytes;
+      return {
+        removedRecords,
+        retainedRecords: retained.length
+      };
+    });
+  }
+
+  close(): Promise<void> {
+    if (this.#closeRequested) return this.#tail;
+    this.#closeRequested = true;
+    const closing = this.#tail.then(async () => {
+      const handle = this.#handle;
+      this.#handle = null;
+      await closeMediaCommandJournalResources(
+        async () => handle?.close(),
+        async () => this.#lease.release()
+      );
+    });
+    this.#tail = closing.then(() => undefined, () => undefined);
+    return closing.catch((error) => {
+      throw projectTerminalJournalError(
+        error,
+        'media_event_journal_close_failed'
+      );
+    });
+  }
+
+  #enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.#closeRequested) {
+      return Promise.reject(
+        new MediaTerminalEventJournalError('media_event_journal_closed')
+      );
+    }
+    const result = this.#tail.then(async () => {
+      if (this.#broken) throw this.#broken;
+      try {
+        return await operation();
+      } catch (error) {
+        throw projectTerminalJournalError(
+          error,
+          'media_event_journal_operation_failed'
+        );
+      }
+    });
+    this.#tail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  async #replace(frames: Buffer[]): Promise<void> {
+    const temporaryPath = path.join(
+      this.#directory,
+      `.${path.basename(this.#path)}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`
+    );
+    let temporary: FileHandle | null = null;
+    let replaced = false;
+    try {
+      temporary = await openTemporaryHandle(temporaryPath);
+      await temporary.chmod(0o600);
+      for (const frame of frames) await writeAll(temporary, frame);
+      await temporary.sync();
+      await temporary.close();
+      temporary = null;
+
+      const previous = this.#requiredHandle();
+      await this.#assertWritable(previous);
+      this.#handle = null;
+      await previous.close();
+      await assertSafeTarget(this.#path);
+      await rename(temporaryPath, this.#path);
+      replaced = true;
+      await syncDirectory(this.#directory);
+      this.#handle = await openJournalHandle(this.#path, false);
+      await assertCurrentTarget(
+        this.#handle,
+        this.#path,
+        this.#directory,
+        this.#directoryIdentity
+      );
+      await this.#lease.verify();
+    } catch (error) {
+      await temporary?.close().catch(() => {});
+      if (!replaced) await unlink(temporaryPath).catch(() => {});
+      if (replaced) {
+        await this.#breakJournal(error);
+      } else if (!this.#handle) {
+        this.#handle = await openJournalHandle(this.#path, false)
+          .catch(() => null);
+      }
+      throw projectTerminalJournalError(
+        error,
+        'media_event_journal_compaction_failed'
+      );
+    }
+  }
+
+  #requiredHandle(): FileHandle {
+    if (!this.#handle) {
+      throw new MediaTerminalEventJournalError(
+        'media_event_journal_closed'
+      );
+    }
+    return this.#handle;
+  }
+
+  async #assertWritable(handle: FileHandle): Promise<void> {
+    await this.#lease.verify();
+    await assertCurrentTarget(
+      handle,
+      this.#path,
+      this.#directory,
+      this.#directoryIdentity
+    );
+  }
+
+  async #breakJournal(cause: unknown): Promise<void> {
+    if (!this.#broken) {
+      this.#broken = new MediaTerminalEventJournalError(
+        'media_event_journal_unavailable',
+        { cause }
+      );
+    }
+    const handle = this.#handle;
+    this.#handle = null;
+    await handle?.close().catch(() => {});
+  }
+}
+
 export async function closeMediaCommandJournalResources(
   closeJournal: () => Promise<unknown>,
   releaseLease: () => Promise<unknown>
@@ -640,6 +1021,164 @@ async function cleanupStaleTemps(
     removed = true;
   }
   if (removed) await syncDirectory(directory);
+}
+
+function encodeTerminalEventRecord(
+  event: MediaControlTerminalEvent,
+  maxRecordBytes: number
+): Buffer {
+  const checked = checkedTerminalEvent(event);
+  const payload = Buffer.from(JSON.stringify(checked), 'utf8');
+  if (payload.length > maxRecordBytes) throw terminalJournalCapacity();
+  const header = Buffer.allocUnsafe(HEADER_BYTES);
+  header.writeUInt32BE(payload.length, 0);
+  header.writeUInt32BE((~payload.length) >>> 0, 4);
+  createHash('sha256')
+    .update(header.subarray(0, 8))
+    .update(payload)
+    .digest()
+    .copy(header, 8);
+  return Buffer.concat([header, payload], HEADER_BYTES + payload.length);
+}
+
+async function decodeTerminalEventRecords(
+  handle: FileHandle,
+  size: number,
+  maxRecordBytes: number,
+  maxRecords: number
+): Promise<{
+  records: MediaControlTerminalEvent[];
+  bytesRead: number;
+}> {
+  const records: MediaControlTerminalEvent[] = [];
+  let offset = 0;
+  while (offset < size) {
+    if (size - offset < HEADER_BYTES) break;
+    const header = await readAt(handle, HEADER_BYTES, offset);
+    if (header.length < HEADER_BYTES) break;
+    const payloadBytes = header.readUInt32BE(0);
+    const complement = header.readUInt32BE(4);
+    if (complement !== ((~payloadBytes) >>> 0) ||
+        payloadBytes < 2 ||
+        payloadBytes > maxRecordBytes) {
+      throw new MediaTerminalEventJournalError(
+        'media_event_journal_record_invalid'
+      );
+    }
+    const end = offset + HEADER_BYTES + payloadBytes;
+    if (end > size) break;
+    const payload = await readAt(
+      handle,
+      payloadBytes,
+      offset + HEADER_BYTES
+    );
+    if (payload.length < payloadBytes) break;
+    const expected = header.subarray(8, HEADER_BYTES);
+    const actual = createHash('sha256')
+      .update(header.subarray(0, 8))
+      .update(payload)
+      .digest();
+    if (!actual.equals(expected)) {
+      throw new MediaTerminalEventJournalError(
+        'media_event_journal_checksum_mismatch'
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payload.toString('utf8')) as unknown;
+    } catch (error) {
+      throw new MediaTerminalEventJournalError(
+        'media_event_journal_record_invalid',
+        { cause: error }
+      );
+    }
+    records.push(checkedTerminalEvent(parsed));
+    if (records.length > maxRecords) throw terminalJournalCapacity();
+    offset = end;
+  }
+  terminalEventIndexes(records);
+  return { records, bytesRead: offset };
+}
+
+function checkedTerminalEvent(
+  value: unknown
+): MediaControlTerminalEvent {
+  try {
+    return checkedMediaControlTerminalEvent(value);
+  } catch (error) {
+    throw new MediaTerminalEventJournalError(
+      'media_event_journal_record_invalid',
+      { cause: error }
+    );
+  }
+}
+
+function terminalEventIndexes(
+  records: MediaControlTerminalEvent[]
+): {
+  byEventId: Map<string, MediaControlTerminalEvent>;
+  nextSequenceByOwner: Map<string, number>;
+} {
+  const byEventId = new Map<string, MediaControlTerminalEvent>();
+  const nextSequenceByOwner = new Map<string, number>();
+  for (const record of records) {
+    const existing = byEventId.get(record.event_id);
+    if (existing) {
+      throw new MediaTerminalEventJournalError(
+        'media_event_journal_identity_conflict'
+      );
+    }
+    const expected = nextSequenceByOwner.get(record.owner_node_id);
+    if (expected !== undefined && record.event_sequence !== expected) {
+      throw new MediaTerminalEventJournalError(
+        'media_event_journal_sequence_gap'
+      );
+    }
+    byEventId.set(record.event_id, record);
+    nextSequenceByOwner.set(
+      record.owner_node_id,
+      record.event_sequence + 1
+    );
+  }
+  return { byEventId, nextSequenceByOwner };
+}
+
+function eventJournalInteger(
+  value: number,
+  minimum: number,
+  maximum: number,
+  field: string
+): number {
+  if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+    throw new MediaTerminalEventJournalError(
+      `media_event_journal_${field}_invalid`
+    );
+  }
+  return value;
+}
+
+function terminalJournalCapacity(): MediaTerminalEventJournalError {
+  return new MediaTerminalEventJournalError(
+    'media_event_journal_capacity_exhausted'
+  );
+}
+
+function projectTerminalJournalError(
+  error: unknown,
+  fallback: string
+): MediaTerminalEventJournalError {
+  if (error instanceof MediaTerminalEventJournalError) return error;
+  if (error instanceof MediaCommandJournalError) {
+    const code = error.code === 'journal_locked'
+      ? 'media_event_journal_locked'
+      : error.code === 'journal_path_unsafe'
+        ? 'media_event_journal_path_unsafe'
+        : error.code === 'journal_capacity_exhausted'
+          ? 'media_event_journal_capacity_exhausted'
+          : fallback;
+    return new MediaTerminalEventJournalError(code, { cause: error });
+  }
+  return new MediaTerminalEventJournalError(fallback, { cause: error });
 }
 
 function encodeRecord(

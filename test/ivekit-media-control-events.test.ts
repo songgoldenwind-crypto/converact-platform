@@ -17,6 +17,9 @@ import type { RtpengineNgDtmfEvent } from '../src/agent-runtime/ivekit/media-con
 import {
   InMemoryMediaTransport
 } from '../src/agent-runtime/ivekit/media-control/simulator.js';
+import type {
+  ProcessingTerminalEvent
+} from '../src/agent-runtime/ivekit/media-control/processing.js';
 
 const TOKEN = 'media-event-test-token-0123456789';
 
@@ -176,6 +179,164 @@ describe('media-control event broker', () => {
     }), false);
   });
 
+  it('durably publishes and deduplicates processing terminal events', async () => {
+    const {
+      MediaControlEventBroker
+    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    const appended: unknown[] = [];
+    const broker = new MediaControlEventBroker({
+      maxBindings: 8,
+      maxRetainedEventsPerOwner: 8,
+      terminalJournal: {
+        async append(event) {
+          appended.push(structuredClone(event));
+          return { replayed: false };
+        }
+      }
+    });
+    broker.bind(command('call-terminal', 'rustpbx-terminal'));
+    const subscription = broker.subscribeTerminal({
+      owner_node_id: 'rustpbx-terminal',
+      after_sequence: 0
+    });
+
+    const first = await broker.publishProcessingTerminal(
+      processingTerminal('call-terminal', 'rustpbx-terminal')
+    );
+    assert.equal(first.replayed, false);
+    assert.equal(first.event.event_sequence, 1);
+    assert.equal((await subscription.next()).value?.event_type, 'gather_completed');
+
+    const replay = await broker.publishProcessingTerminal(
+      processingTerminal('call-terminal', 'rustpbx-terminal')
+    );
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.event, first.event);
+    assert.equal(appended.length, 1);
+    subscription.close();
+  });
+
+  it('serializes concurrent terminal publications and restores owner sequence', async () => {
+    const {
+      MediaControlEventBroker,
+      MEDIA_CONTROL_EVENT_PROTOCOL_VERSION
+    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    const restored = {
+      protocol_version: MEDIA_CONTROL_EVENT_PROTOCOL_VERSION,
+      event_sequence: 5,
+      event_type: 'gather_completed' as const,
+      event_id: 'processing-event-restored',
+      source: 'processing' as const,
+      source_event_sequence: '5',
+      tenant_id: 'tenant-events',
+      call_id: 'call-terminal',
+      cell_id: 'cell-events',
+      owner_node_id: 'rustpbx-terminal',
+      owner_epoch: '4294967297',
+      media_reservation_id: 'reservation-call-terminal',
+      command_id: 'gather-restored',
+      occurred_at_ms: 1_785_200_000_100,
+      digits: '5',
+      reason: 'maximum_digits' as const,
+      minimum_satisfied: true
+    };
+    const appended: Array<{ event_sequence: number }> = [];
+    const broker = new MediaControlEventBroker({
+      maxBindings: 8,
+      maxRetainedEventsPerOwner: 8,
+      terminalEvents: [restored],
+      terminalJournal: {
+        async append(event) {
+          appended.push(structuredClone(event));
+          return { replayed: false };
+        }
+      }
+    });
+    broker.bind(command('call-terminal', 'rustpbx-terminal'));
+    const replay = broker.subscribeTerminal({
+      owner_node_id: 'rustpbx-terminal',
+      after_sequence: 4
+    });
+    assert.deepEqual((await replay.next()).value, restored);
+    replay.close();
+
+    const [sixth, seventh] = await Promise.all([
+      broker.publishProcessingTerminal(processingTerminal(
+        'call-terminal',
+        'rustpbx-terminal',
+        {
+          event_id: 'processing-event-six',
+          event_sequence: '6',
+          command_id: 'gather-six'
+        }
+      )),
+      broker.publishProcessingTerminal(processingTerminal(
+        'call-terminal',
+        'rustpbx-terminal',
+        {
+          event_id: 'processing-event-seven',
+          event_sequence: '7',
+          command_id: 'gather-seven'
+        }
+      ))
+    ]);
+    assert.equal(sixth.event.event_sequence, 6);
+    assert.equal(seventh.event.event_sequence, 7);
+    assert.deepEqual(appended.map((event) => event.event_sequence), [6, 7]);
+  });
+
+  it('keeps RTPengine DTMF delivery independent from terminal WAL fsync', async () => {
+    const {
+      MediaControlEventBroker
+    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    let finishAppend!: () => void;
+    const appendBarrier = new Promise<void>((resolve) => {
+      finishAppend = resolve;
+    });
+    const broker = new MediaControlEventBroker({
+      maxBindings: 8,
+      maxRetainedEventsPerOwner: 8,
+      terminalJournal: {
+        async append() {
+          await appendBarrier;
+          return { replayed: false };
+        }
+      }
+    });
+    broker.bind(command('call-isolated', 'rustpbx-isolated'));
+    const dtmfEvents = broker.subscribe({
+      owner_node_id: 'rustpbx-isolated',
+      after_sequence: 0
+    });
+    const terminalEvents = broker.subscribeTerminal({
+      owner_node_id: 'rustpbx-isolated',
+      after_sequence: 0
+    });
+    const pendingTerminal = broker.publishProcessingTerminal(
+      processingTerminal('call-isolated', 'rustpbx-isolated')
+    );
+
+    assert.equal(
+      broker.publishRtpengineDtmf(dtmf('call-isolated', 8, 501)),
+      true
+    );
+    assert.equal((await dtmfEvents.next()).value?.digit, '8');
+    const terminalNext = terminalEvents.next();
+    assert.equal(
+      await Promise.race([
+        terminalNext.then(() => 'published'),
+        new Promise<string>((resolve) => setTimeout(() => resolve('waiting'), 20))
+      ]),
+      'waiting'
+    );
+
+    finishAppend();
+    assert.equal((await pendingTerminal).event.event_sequence, 1);
+    assert.equal((await terminalNext).value?.event_type, 'gather_completed');
+    dtmfEvents.close();
+    terminalEvents.close();
+  });
+
   it('binds committed commands and streams authenticated NDJSON events', async () => {
     const {
       MediaControlEventBroker
@@ -249,14 +410,83 @@ describe('media-control event broker', () => {
     }
   });
 
+  it('streams durable terminal events on an independent owner cursor', async () => {
+    const {
+      MediaControlEventBroker
+    } = await import('../src/agent-runtime/ivekit/media-control/events.js');
+    const broker = new MediaControlEventBroker({
+      maxBindings: 8,
+      maxRetainedEventsPerOwner: 8,
+      terminalJournal: {
+        async append() {
+          return { replayed: false };
+        }
+      }
+    });
+    broker.bind(command('call-terminal-http', 'rustpbx-terminal-http'));
+    const server = createMediaControlHttpServer({
+      agent: new MediaControlAgent({
+        authority: {
+          async authorize() {
+            return {
+              owner_epoch: '4294967297',
+              reservation_expires_at: '2026-07-26T18:00:00.000Z',
+              node_lease_expires_at: '2026-07-26T17:30:00.000Z'
+            };
+          }
+        },
+        transport: new InMemoryMediaTransport()
+      }),
+      service_token: TOKEN,
+      events: broker
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/v1/terminal-events` +
+          '?owner_node_id=rustpbx-terminal-http&after_sequence=0',
+        {
+          headers: {
+            authorization: `Bearer ${TOKEN}`,
+            accept: 'application/x-ndjson'
+          }
+        }
+      );
+      assert.equal(response.status, 200);
+      assert.ok(response.body);
+      reader = response.body.getReader();
+
+      await broker.publishProcessingTerminal(
+        processingTerminal('call-terminal-http', 'rustpbx-terminal-http')
+      );
+      const item = await reader.read();
+      assert.equal(item.done, false);
+      const event = JSON.parse(new TextDecoder().decode(item.value).trim());
+      assert.equal(event.event_type, 'gather_completed');
+      assert.equal(event.event_sequence, 1);
+      assert.equal(event.source_event_sequence, '1');
+    } finally {
+      await reader?.cancel();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('wires RTPengine notifications into the broker without awaiting commands', () => {
     const source = readFileSync('scripts/ivekit-media-control-agent.ts', 'utf8');
+    assert.match(source, /MediaTerminalEventJournal\.open/);
+    assert.match(source, /new ProcessingEventHandoff/);
     assert.match(source, /new MediaControlEventBroker/);
     assert.match(source, /openTransportRuntime\(transportMode,\s*events\)/);
     assert.match(
       source,
       /onDtmf:\s*\(event\)\s*=>\s*events\.publishRtpengineDtmf\(event\)/
     );
+    assert.match(source, /processingEventHandoff\?\.ready\(\)/);
+    assert.match(source, /processingEventHandoff\?\.stop\(\)/);
+    assert.match(source, /terminalEventJournal\?\.close\(\)/);
     assert.match(source, /events:\s*events/);
   });
 
@@ -278,3 +508,28 @@ describe('media-control event broker', () => {
     }
   });
 });
+
+function processingTerminal(
+  callId: string,
+  ownerNodeId: string,
+  overrides: Partial<ProcessingTerminalEvent> = {}
+): ProcessingTerminalEvent {
+  return {
+    protocol_version: 'ivekit.processing-event.v1',
+    event_sequence: '1',
+    event_type: 'gather_completed',
+    event_id: `processing-event-${callId}`,
+    tenant_id: 'tenant-events',
+    call_id: callId,
+    cell_id: 'cell-events',
+    owner_node_id: ownerNodeId,
+    owner_epoch: '4294967297',
+    media_reservation_id: `reservation-${callId}`,
+    command_id: `gather-${callId}`,
+    occurred_at_ms: 1_785_200_000_123,
+    digits: '42',
+    reason: 'maximum_digits',
+    minimum_satisfied: true,
+    ...overrides
+  } as ProcessingTerminalEvent;
+}

@@ -11,6 +11,9 @@ import type {
 } from './transport.js';
 
 const PROTOCOL_VERSION = 'ivekit.processing-control.v1';
+const EVENT_PROTOCOL_VERSION = 'ivekit.processing-event.v1';
+const PROMPT_CONTENT_TYPE = 'application/vnd.ivekit.pcm16le';
+const MAX_UINT64 = (1n << 64n) - 1n;
 const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
 const ERROR_CODE = /^[a-z][a-z0-9_.-]{0,127}$/;
 const HASH = /^[a-f0-9]{64}$/;
@@ -40,7 +43,73 @@ export interface ProcessingMediaTransportOptions {
   request_timeout_ms?: number;
   max_response_bytes?: number;
   max_release_contexts?: number;
+  max_prompt_body_bytes?: number;
 }
+
+export interface ProcessingPromptUpload {
+  prompt_id: string;
+  sample_rate_hz: number;
+  pcm16le: Uint8Array;
+}
+
+export interface ProcessingPromptSnapshot {
+  prompt_id: string;
+  content_sha256: string;
+  source_sample_rate_hz: number;
+  canonical_sample_rate_hz: 48_000;
+  frame_count: number;
+  duration_ms: number;
+}
+
+interface ProcessingEventBase {
+  protocol_version: typeof EVENT_PROTOCOL_VERSION;
+  event_sequence: string;
+  event_id: string;
+  tenant_id: string;
+  call_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  owner_epoch: string;
+  media_reservation_id: string;
+  command_id: string;
+  occurred_at_ms: number;
+}
+
+export type ProcessingTerminalEvent =
+  | ProcessingEventBase & {
+      event_type: 'playback_completed';
+      prompt_id: string;
+    }
+  | ProcessingEventBase & {
+      event_type: 'playback_stopped';
+      prompt_id: string;
+      reason: 'explicit' | 'barge_in' | 'session_removed';
+    }
+  | ProcessingEventBase & {
+      event_type: 'gather_completed';
+      digits: string;
+      reason:
+        | 'maximum_digits'
+        | 'terminator'
+        | 'timeout'
+        | 'explicit_stop'
+        | 'session_removed';
+      minimum_satisfied: boolean;
+    };
+
+export interface ProcessingEventPage {
+  items: ProcessingTerminalEvent[];
+  acknowledged_through: string;
+  next_sequence: string;
+}
+
+export type ProcessingEventQuery =
+  | { found: false }
+  | {
+      found: true;
+      state: 'pending' | 'acknowledged';
+      event: ProcessingTerminalEvent;
+    };
 
 export class ProcessingMediaTransportError extends Error {
   constructor(readonly code: string, options: { cause?: unknown } = {}) {
@@ -56,6 +125,7 @@ export class ProcessingMediaTransport implements MediaTransportPort {
   readonly #requestTimeoutMs: number;
   readonly #maxResponseBytes: number;
   readonly #maxReleaseContexts: number;
+  readonly #maxPromptBodyBytes: number;
   readonly #releaseContexts = new Map<string, ProcessingReleaseContext>();
 
   constructor(options: ProcessingMediaTransportOptions) {
@@ -81,6 +151,12 @@ export class ProcessingMediaTransport implements MediaTransportPort {
       1,
       10_000_000,
       'max_release_contexts'
+    );
+    this.#maxPromptBodyBytes = boundedInteger(
+      options.max_prompt_body_bytes ?? 1024 * 1024,
+      2,
+      64 * 1024 * 1024,
+      'max_prompt_body_bytes'
     );
   }
 
@@ -256,6 +332,194 @@ export class ProcessingMediaTransport implements MediaTransportPort {
     }
   }
 
+  async cachePrompt(
+    input: ProcessingPromptUpload
+  ): Promise<ProcessingPromptSnapshot> {
+    checkedIdentifier(input.prompt_id, 'prompt_id');
+    const sampleRateHz = boundedInteger(
+      input.sample_rate_hz,
+      8_000,
+      192_000,
+      'prompt_sample_rate_hz'
+    );
+    if (!(input.pcm16le instanceof Uint8Array) ||
+        input.pcm16le.byteLength === 0 ||
+        input.pcm16le.byteLength % 2 !== 0) {
+      throw new ProcessingMediaTransportError(
+        'processing_prompt_pcm_invalid'
+      );
+    }
+    if (input.pcm16le.byteLength > this.#maxPromptBodyBytes) {
+      throw new ProcessingMediaTransportError(
+        'processing_prompt_body_too_large'
+      );
+    }
+    const body = Buffer.from(input.pcm16le);
+    const contentHash = createHash('sha256').update(body).digest('hex');
+    const response = await this.#json(
+      `/v1/prompts/${encodeURIComponent(input.prompt_id)}`,
+      {
+        method: 'PUT',
+        body,
+        content_type: PROMPT_CONTENT_TYPE,
+        headers: {
+          'x-ivekit-sample-rate-hz': String(sampleRateHz),
+          'x-ivekit-content-sha256': contentHash
+        }
+      }
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw new ProcessingMediaTransportError(
+        serverError(response.value, response.status)
+      );
+    }
+    return processingPromptSnapshot(
+      response.value,
+      input.prompt_id,
+      contentHash,
+      sampleRateHz
+    );
+  }
+
+  async removePrompt(promptId: string): Promise<boolean> {
+    checkedIdentifier(promptId, 'prompt_id');
+    const response = await this.#json(
+      `/v1/prompts/${encodeURIComponent(promptId)}`,
+      { method: 'DELETE' }
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw new ProcessingMediaTransportError(
+        serverError(response.value, response.status)
+      );
+    }
+    const value = record(response.value);
+    if (value?.protocol_version !== PROTOCOL_VERSION ||
+        typeof value.removed !== 'boolean') {
+      throw new ProcessingMediaTransportError('processing_response_invalid');
+    }
+    return value.removed;
+  }
+
+  async scanEvents(input: {
+    after_sequence: string;
+    limit: number;
+  }): Promise<ProcessingEventPage> {
+    const afterSequence = checkedEventSequence(
+      input.after_sequence,
+      true
+    );
+    const limit = boundedInteger(
+      input.limit,
+      1,
+      10_000,
+      'event_scan_limit'
+    );
+    const query = new URLSearchParams({
+      after_sequence: afterSequence,
+      limit: String(limit)
+    });
+    const response = await this.#json(`/v1/events?${query}`, {
+      method: 'GET'
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new ProcessingMediaTransportError(httpError(response.status));
+    }
+    const value = record(response.value);
+    if (!value ||
+        value.protocol_version !== EVENT_PROTOCOL_VERSION ||
+        !Array.isArray(value.items)) {
+      throw new ProcessingMediaTransportError('processing_response_invalid');
+    }
+    const acknowledgedThrough = checkedEventSequence(
+      value.acknowledged_through,
+      true
+    );
+    const nextSequence = checkedEventSequence(value.next_sequence, false);
+    if (BigInt(acknowledgedThrough) >= BigInt(nextSequence)) {
+      throw new ProcessingMediaTransportError('processing_response_invalid');
+    }
+    const floor = [afterSequence, acknowledgedThrough]
+      .reduce((highest, candidate) =>
+        BigInt(candidate) > BigInt(highest) ? candidate : highest
+      );
+    let expected = BigInt(floor) + 1n;
+    const items = value.items.map((item) => {
+      const event = checkedProcessingTerminalEvent(item);
+      if (BigInt(event.event_sequence) !== expected ||
+          BigInt(event.event_sequence) >= BigInt(nextSequence)) {
+        throw new ProcessingMediaTransportError(
+          'processing_event_sequence_gap'
+        );
+      }
+      expected += 1n;
+      return event;
+    });
+    if (items.length > limit) {
+      throw new ProcessingMediaTransportError('processing_response_invalid');
+    }
+    return {
+      items,
+      acknowledged_through: acknowledgedThrough,
+      next_sequence: nextSequence
+    };
+  }
+
+  async queryEvent(eventId: string): Promise<ProcessingEventQuery> {
+    checkedIdentifier(eventId, 'event_id');
+    const response = await this.#json(
+      `/v1/events/${encodeURIComponent(eventId)}`,
+      { method: 'GET' }
+    );
+    if (response.status < 200 || response.status >= 300) {
+      throw new ProcessingMediaTransportError(httpError(response.status));
+    }
+    const value = record(response.value);
+    if (value?.found === false && value.state === 'not_found') {
+      return { found: false };
+    }
+    if (value?.found !== true ||
+        !['pending', 'acknowledged'].includes(String(value.state))) {
+      throw new ProcessingMediaTransportError('processing_response_invalid');
+    }
+    const event = checkedProcessingTerminalEvent(value.event);
+    if (event.event_id !== eventId) {
+      throw new ProcessingMediaTransportError('processing_response_invalid');
+    }
+    return {
+      found: true,
+      state: value.state as 'pending' | 'acknowledged',
+      event
+    };
+  }
+
+  async acknowledgeEvent(input: {
+    event_sequence: string;
+    event_id: string;
+  }): Promise<void> {
+    const eventSequence = checkedEventSequence(
+      input.event_sequence,
+      false
+    );
+    checkedIdentifier(input.event_id, 'event_id');
+    const response = await this.#json('/v1/events/ack', {
+      method: 'POST',
+      body: JSON.stringify({
+        protocol_version: EVENT_PROTOCOL_VERSION,
+        event_sequence: eventSequence,
+        event_id: input.event_id
+      })
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new ProcessingMediaTransportError(httpError(response.status));
+    }
+    const value = record(response.value);
+    if (value?.protocol_version !== EVENT_PROTOCOL_VERSION ||
+        checkedEventSequence(value.acknowledged_through, false) !==
+          eventSequence) {
+      throw new ProcessingMediaTransportError('processing_response_invalid');
+    }
+  }
+
   #rememberCommand(
     command: MediaTransportCommand,
     outcome: Extract<MediaTransportOutcome, { state: 'succeeded' }>
@@ -309,7 +573,12 @@ export class ProcessingMediaTransport implements MediaTransportPort {
 
   async #json(
     path: string,
-    init: { method: 'GET' | 'POST'; body?: string }
+    init: {
+      method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+      body?: string | Buffer;
+      content_type?: string;
+      headers?: Record<string, string>;
+    }
   ): Promise<{ status: number; value: unknown }> {
     let response: Response;
     try {
@@ -319,10 +588,13 @@ export class ProcessingMediaTransport implements MediaTransportPort {
           authorization: `Bearer ${this.#bearerToken}`,
           accept: 'application/json',
           'accept-encoding': 'identity',
-          ...(init.body ? { 'content-type': 'application/json' } : {}),
+          ...(init.body
+            ? { 'content-type': init.content_type ?? 'application/json' }
+            : {}),
           ...(this.#clientIdentity
             ? { 'x-ivekit-client-identity': this.#clientIdentity }
-            : {})
+            : {}),
+          ...init.headers
         },
         body: init.body,
         redirect: 'manual',
@@ -466,6 +738,35 @@ function processingOutcome(
   return undefined;
 }
 
+function processingPromptSnapshot(
+  value: unknown,
+  expectedPromptId: string,
+  expectedContentHash: string,
+  expectedSampleRateHz: number
+): ProcessingPromptSnapshot {
+  const input = record(value);
+  if (!input ||
+      input.protocol_version !== PROTOCOL_VERSION ||
+      input.prompt_id !== expectedPromptId ||
+      input.content_sha256 !== expectedContentHash ||
+      input.source_sample_rate_hz !== expectedSampleRateHz ||
+      input.canonical_sample_rate_hz !== 48_000 ||
+      !Number.isSafeInteger(input.frame_count) ||
+      Number(input.frame_count) < 1 ||
+      !Number.isSafeInteger(input.duration_ms) ||
+      Number(input.duration_ms) !== Number(input.frame_count) * 20) {
+    throw new ProcessingMediaTransportError('processing_response_invalid');
+  }
+  return {
+    prompt_id: expectedPromptId,
+    content_sha256: expectedContentHash,
+    source_sample_rate_hz: expectedSampleRateHz,
+    canonical_sample_rate_hz: 48_000,
+    frame_count: Number(input.frame_count),
+    duration_ms: Number(input.duration_ms)
+  };
+}
+
 function processingSession(
   value: unknown,
   expectedReservationId: string,
@@ -557,6 +858,104 @@ function publicOrphanCandidate(
   };
 }
 
+export function checkedProcessingTerminalEvent(
+  value: unknown
+): ProcessingTerminalEvent {
+  const input = record(value);
+  if (!input ||
+      input.protocol_version !== EVENT_PROTOCOL_VERSION ||
+      !validIdentifier(input.event_id) ||
+      !validIdentifier(input.tenant_id) ||
+      !validIdentifier(input.call_id) ||
+      !validIdentifier(input.cell_id) ||
+      !validIdentifier(input.owner_node_id) ||
+      !/^[1-9][0-9]{0,19}$/.test(String(input.owner_epoch)) ||
+      BigInt(String(input.owner_epoch)) > MAX_UINT64 ||
+      !validIdentifier(input.media_reservation_id) ||
+      !validIdentifier(input.command_id) ||
+      !Number.isSafeInteger(input.occurred_at_ms) ||
+      Number(input.occurred_at_ms) < 1) {
+    throw new ProcessingMediaTransportError('processing_response_invalid');
+  }
+  const base: ProcessingEventBase = {
+    protocol_version: EVENT_PROTOCOL_VERSION,
+    event_sequence: checkedEventSequence(input.event_sequence, false),
+    event_id: String(input.event_id),
+    tenant_id: String(input.tenant_id),
+    call_id: String(input.call_id),
+    cell_id: String(input.cell_id),
+    owner_node_id: String(input.owner_node_id),
+    owner_epoch: String(input.owner_epoch),
+    media_reservation_id: String(input.media_reservation_id),
+    command_id: String(input.command_id),
+    occurred_at_ms: Number(input.occurred_at_ms)
+  };
+  if (input.event_type === 'playback_completed' &&
+      validIdentifier(input.prompt_id)) {
+    return {
+      ...base,
+      event_type: 'playback_completed',
+      prompt_id: input.prompt_id
+    };
+  }
+  if (input.event_type === 'playback_stopped' &&
+      validIdentifier(input.prompt_id) &&
+      ['explicit', 'barge_in', 'session_removed'].includes(
+        String(input.reason)
+      )) {
+    return {
+      ...base,
+      event_type: 'playback_stopped',
+      prompt_id: input.prompt_id,
+      reason: input.reason as
+        | 'explicit'
+        | 'barge_in'
+        | 'session_removed'
+    };
+  }
+  if (input.event_type === 'gather_completed' &&
+      typeof input.digits === 'string' &&
+      /^[0-9*#A-D]{0,1024}$/.test(input.digits) &&
+      [
+        'maximum_digits',
+        'terminator',
+        'timeout',
+        'explicit_stop',
+        'session_removed'
+      ].includes(String(input.reason)) &&
+      typeof input.minimum_satisfied === 'boolean') {
+    return {
+      ...base,
+      event_type: 'gather_completed',
+      digits: input.digits,
+      reason: input.reason as
+        | 'maximum_digits'
+        | 'terminator'
+        | 'timeout'
+        | 'explicit_stop'
+        | 'session_removed',
+      minimum_satisfied: input.minimum_satisfied
+    };
+  }
+  throw new ProcessingMediaTransportError('processing_response_invalid');
+}
+
+function checkedEventSequence(value: unknown, allowZero: boolean): string {
+  if (typeof value !== 'string' ||
+      !/^(?:0|[1-9][0-9]{0,19})$/.test(value)) {
+    throw new ProcessingMediaTransportError(
+      'processing_event_sequence_invalid'
+    );
+  }
+  const sequence = BigInt(value);
+  if (sequence > MAX_UINT64 || (!allowZero && sequence === 0n)) {
+    throw new ProcessingMediaTransportError(
+      'processing_event_sequence_invalid'
+    );
+  }
+  return value;
+}
+
 function checkedIdentity(identity: MediaTransportCommandIdentity): void {
   checkedIdentifier(identity.command_id, 'command_id');
   checkedIdentifier(identity.media_reservation_id, 'media_reservation_id');
@@ -629,6 +1028,13 @@ function httpError(status: number): string {
   return Number.isInteger(status) && status >= 100 && status <= 599
     ? `processing_http_${status}`
     : 'processing_response_invalid';
+}
+
+function serverError(value: unknown, status: number): string {
+  const error = record(value)?.error;
+  return typeof error === 'string' && ERROR_CODE.test(error)
+    ? error
+    : httpError(status);
 }
 
 function transportErrorCode(error: unknown): string {

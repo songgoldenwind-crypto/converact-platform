@@ -6,6 +6,7 @@ export const MEDIA_CONTROL_PROTOCOL_VERSION =
 export const MEDIA_CONTROL_ACTIONS = [
   'offer',
   'answer',
+  'commit_single_leg',
   'update',
   'delete',
   'query',
@@ -17,6 +18,8 @@ export const MEDIA_CONTROL_ACTIONS = [
   'stop_recording_fork',
   'play_media',
   'stop_media',
+  'start_gather',
+  'stop_gather',
   'inject_dtmf',
   'subscribe_quality',
   'drain_node'
@@ -213,6 +216,7 @@ export function checkedMediaControlCommand(
     }
     checkedOfferMediaProfile(input.payload, profileId);
   }
+  checkedActionPayload(input.action, input.payload);
   return structuredClone(input);
 }
 
@@ -322,6 +326,82 @@ export function compareMediaOwnerEpoch(left: string, right: string): -1 | 0 | 1 
   const leftValue = checkedOwnerEpoch(left);
   const rightValue = checkedOwnerEpoch(right);
   return leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
+}
+
+function checkedActionPayload(
+  action: MediaControlAction,
+  payload: Record<string, unknown>
+): void {
+  if (action === 'commit_single_leg') {
+    if (!hasExactKeys(payload, [])) {
+      throw new Error('media_control_single_leg_payload_invalid');
+    }
+    return;
+  }
+  if (action === 'play_media' &&
+      ['prompt_id', 'egress_leg', 'barge_in'].some((key) =>
+        Object.hasOwn(payload, key)
+      )) {
+    if (!hasExactKeys(payload, ['prompt_id', 'egress_leg', 'barge_in']) ||
+        typeof payload.prompt_id !== 'string' ||
+        !IDENTIFIER_PATTERN.test(payload.prompt_id) ||
+        (payload.egress_leg !== 'a' && payload.egress_leg !== 'b') ||
+        typeof payload.barge_in !== 'boolean') {
+      throw new Error('media_control_play_payload_invalid');
+    }
+    return;
+  }
+  if (action === 'stop_media' &&
+      Object.hasOwn(payload, 'target_command_id')) {
+    checkedTargetCommandPayload(payload);
+    return;
+  }
+  if (action === 'start_gather') {
+    if (!hasExactKeys(payload, [
+      'minimum_digits',
+      'maximum_digits',
+      'terminator',
+      'first_digit_timeout_ms',
+      'inter_digit_timeout_ms'
+    ])) {
+      throw new Error('media_control_gather_payload_invalid');
+    }
+    const minimum = payload.minimum_digits;
+    const maximum = payload.maximum_digits;
+    const terminator = payload.terminator;
+    if (!Number.isSafeInteger(minimum) ||
+        Number(minimum) < 0 ||
+        Number(minimum) > 1_024 ||
+        !Number.isSafeInteger(maximum) ||
+        Number(maximum) < 1 ||
+        Number(maximum) > 1_024 ||
+        Number(minimum) > Number(maximum) ||
+        (terminator !== null &&
+          (typeof terminator !== 'string' ||
+            !/^[0-9*#A-D]$/.test(terminator))) ||
+        !boundedGatherTimeout(payload.first_digit_timeout_ms) ||
+        !boundedGatherTimeout(payload.inter_digit_timeout_ms)) {
+      throw new Error('media_control_gather_payload_invalid');
+    }
+    return;
+  }
+  if (action === 'stop_gather') {
+    checkedTargetCommandPayload(payload);
+  }
+}
+
+function checkedTargetCommandPayload(payload: Record<string, unknown>): void {
+  if (!hasExactKeys(payload, ['target_command_id']) ||
+      typeof payload.target_command_id !== 'string' ||
+      !IDENTIFIER_PATTERN.test(payload.target_command_id)) {
+    throw new Error('media_control_target_command_id_invalid');
+  }
+}
+
+function boundedGatherTimeout(value: unknown): boolean {
+  return Number.isSafeInteger(value) &&
+    Number(value) >= 1 &&
+    Number(value) <= 3_600_000;
 }
 
 function checkedSession(value: MediaSessionSnapshot): void {

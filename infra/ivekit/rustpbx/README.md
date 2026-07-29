@@ -220,10 +220,43 @@ data to logs or trace headers and does not modify RTP packet forwarding.
 The co-located media-control process can export its own bounded OpenTelemetry
 spans through `OPC_OTEL_*`. Export is disabled by default and, when enabled,
 uses explicit queue, batch, delay, timeout, endpoint, and sample-ratio limits.
-The exact ivekit.35 patch queue applies, its changed Rust files pass Rustfmt,
-and a clean fixed-source replay passes 76 focused iveKit library tests plus
-20 dialog-shadow contract tests. Image build, multi-Pod trace continuity, and
-an enabled-versus-disabled overhead comparison remain `not_run`.
+The exact ivekit.38 patch queue applies, its release-scope Rust files pass
+Rustfmt, and a clean fixed-source replay passes all 1,911 RustPBX library tests
+with one infrastructure-dependent IVR/queue test explicitly ignored. The
+rsipstack prepared-INVITE and rejection-header tests also pass from their
+pinned source. Image build, multi-Pod trace continuity, server-side real RTP,
+and an enabled-versus-disabled overhead comparison remain `not_run`.
+
+### Existing IVR application processing contract
+
+ivekit.38 does not introduce a second IVR engine. RustPBX remains authoritative
+for the existing `ivr` application's flow graph, provider calls, menu state,
+timeouts, transfers, queue handoff, and Call/Leg/Dialog state. Only the
+media-execution part of that existing application is delegated to the
+`voice-media-rs` processing pool when the immutable per-session profile selects
+processing media.
+
+The caller answer follows an owner-fenced two-command transaction:
+
+1. RustPBX prepares the processing session with the caller offer and the frozen
+   codec, payload type, ptime, Cell, node, owner epoch, and command sequence.
+2. RustPBX commits `commit_single_leg` and returns the processing pool's exact
+   caller-facing SDP. No fake callee leg is created.
+3. The worker consumes caller RTP for RFC 4733, SIP INFO, barge-in, gather, and
+   prompt timing while permanently suppressing the unused B-leg egress and
+   transcoding path.
+4. Existing IVR play, gather, stop, timeout, DTMF, and terminal events use the
+   same owner fence. Terminal events enter the durable event handoff before
+   source acknowledgement.
+5. Preparation or commit failure rejects the call rather than silently
+   switching to local media or bypass relay.
+
+Conference, voicemail, queue, WebRTC, recording, audio-tap, offerless, explicit
+bypass, and non-IVR application paths retain their previous local or relay
+media behavior. The clean replay regression covers the original IVR parser,
+menus, TTS, DTMF, transfer, queue fallback, real playback, SIP dialog, and
+dual-leg media tests in the same 1,911-test run. Real server RTP, process
+restart, overload, and signed processing-capacity results remain `not_run`.
 
 The internal provider endpoints are:
 

@@ -13,7 +13,7 @@ RUSTPBX_COMMIT="6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
 RSIPSTACK_COMMIT="8318e97b1170de4e5245b120afec1cdf53e3d716"
 RUSTRTC_COMMIT="166c6d22984429eb6b509920c14fcd69f974f0b3"
 RUST_BUILDER_IMAGE="rust:1.94-bookworm@sha256:6ae102bdbf528294bc79ad6e1fae682f6f7c2a6e6621506ba959f9685b308a55"
-PATCHSET="ivekit.35"
+PATCHSET="ivekit.38"
 IMAGE="${IVEKIT_RUSTPBX_IMAGE:-ivekit/rustpbx:0.4.11-${PATCHSET}-6c49ee76}"
 
 if command -v sha256sum >/dev/null; then
@@ -100,6 +100,8 @@ git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-dialog
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-dialog-recovery.patch"
 git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-prepared-invite.patch"
 git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-prepared-invite.patch"
+git -C "$BUILD_ROOT/rsipstack" apply --check "$PATCH_DIR/rsipstack-ivekit-rejection-headers.patch"
+git -C "$BUILD_ROOT/rsipstack" apply "$PATCH_DIR/rsipstack-ivekit-rejection-headers.patch"
 git -C "$BUILD_ROOT/rustrtc" apply --check "$PATCH_DIR/rustrtc-ivekit-udp-socket-capacity.patch"
 git -C "$BUILD_ROOT/rustrtc" apply "$PATCH_DIR/rustrtc-ivekit-udp-socket-capacity.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-ami-dialogs.patch"
@@ -158,6 +160,12 @@ git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-inbound-ad
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-inbound-admission-response-contract.patch"
 git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-session-media-profile.patch"
 git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-session-media-profile.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-recording-lifecycle-reservation.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-recording-lifecycle-reservation.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-processing-terminal-events.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-processing-terminal-events.patch"
+git -C "$BUILD_ROOT/rustpbx" apply --check "$PATCH_DIR/rustpbx-ivekit-processing-ivr-execution.patch"
+git -C "$BUILD_ROOT/rustpbx" apply "$PATCH_DIR/rustpbx-ivekit-processing-ivr-execution.patch"
 
 mkdir -p "$BUILD_ROOT/rustpbx/vendor/ivekit-component-hook"
 cp -R "$HOOK_DIR/." \
@@ -191,7 +199,10 @@ if [[ "${IVEKIT_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
     git -C "$BUILD_ROOT/rustpbx" apply --numstat \
       "$PATCH_DIR/rustpbx-ivekit-media-tracing.patch" \
       "$PATCH_DIR/rustpbx-ivekit-inbound-admission-response-contract.patch" \
-      "$PATCH_DIR/rustpbx-ivekit-session-media-profile.patch" |
+      "$PATCH_DIR/rustpbx-ivekit-session-media-profile.patch" \
+      "$PATCH_DIR/rustpbx-ivekit-recording-lifecycle-reservation.patch" \
+      "$PATCH_DIR/rustpbx-ivekit-processing-terminal-events.patch" \
+      "$PATCH_DIR/rustpbx-ivekit-processing-ivr-execution.patch" |
       awk '$3 ~ /\.rs$/ { print $3 }'
   )
   ((${#IVEKIT_RUSTPBX_FORMAT_FILES[@]} > 0)) || {
@@ -209,9 +220,12 @@ if [[ "${IVEKIT_RUSTPBX_VERIFY_ONLY:-0}" == "1" ]]; then
       cargo check --locked --features cross --bin rustpbx --bin sipflow
       cargo clippy --locked --lib --features cross --no-deps
       cargo test --locked --lib ivekit_
+      cargo test --locked --lib test_recording_double_start_fails
+      cargo test --locked --lib test_recording_pending_start_rejects_duplicate
       cargo test --locked --lib missing_callee_terminal_data_stays_independent_from_the_caller
       cargo test --locked --test ivekit_dialog_shadow_contract_test
       cargo test --manifest-path /build/rsipstack/Cargo.toml --offline prepared_invite_
+      cargo test --manifest-path /build/rsipstack/Cargo.toml --offline reject_with_headers_
     ' bash "${IVEKIT_RUSTPBX_FORMAT_FILES[@]}"
   exit 0
 fi

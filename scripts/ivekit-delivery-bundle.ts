@@ -658,6 +658,7 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rsipstack-ivekit-retransmission-atomicity.patch',
     'rsipstack-ivekit-dialog-recovery.patch',
     'rsipstack-ivekit-prepared-invite.patch',
+    'rsipstack-ivekit-rejection-headers.patch',
     'rustrtc-ivekit-udp-socket-capacity.patch',
     'rustpbx-ivekit-ami-dialogs.patch',
     'rustpbx-ivekit-rwi-originate-hangup.patch',
@@ -686,7 +687,10 @@ export const DELIVERY_SOURCE_FILES: readonly DeliverySourceFile[] = [
     'rustpbx-ivekit-cdr-mtls-noop.patch',
     'rustpbx-ivekit-media-tracing.patch',
     'rustpbx-ivekit-inbound-admission-response-contract.patch',
-    'rustpbx-ivekit-session-media-profile.patch'
+    'rustpbx-ivekit-session-media-profile.patch',
+    'rustpbx-ivekit-recording-lifecycle-reservation.patch',
+    'rustpbx-ivekit-processing-terminal-events.patch',
+    'rustpbx-ivekit-processing-ivr-execution.patch'
   ].map((name) => ({
     source: `infra/ivekit/rustpbx/patches/${name}`,
     destination: `deploy/rustpbx/patches/${name}`

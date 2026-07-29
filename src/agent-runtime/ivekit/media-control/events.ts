@@ -1,4 +1,8 @@
 import type { BencodeDictionary, BencodeValue } from './bencode.js';
+import {
+  checkedProcessingTerminalEvent,
+  type ProcessingTerminalEvent
+} from './processing.js';
 import type { MediaControlCommand } from './protocol.js';
 import type { RtpengineNgDtmfEvent } from './rtpengine-ng.js';
 
@@ -21,8 +25,158 @@ export interface MediaControlDtmfEvent {
   rtp_timestamp: number;
 }
 
-export interface MediaControlEventSubscription
-  extends AsyncIterator<MediaControlDtmfEvent> {
+interface MediaControlTerminalEventBase {
+  protocol_version: typeof MEDIA_CONTROL_EVENT_PROTOCOL_VERSION;
+  event_sequence: number;
+  event_id: string;
+  source: 'processing';
+  source_event_sequence: string;
+  tenant_id: string;
+  call_id: string;
+  cell_id: string;
+  owner_node_id: string;
+  owner_epoch: string;
+  media_reservation_id: string;
+  command_id: string;
+  occurred_at_ms: number;
+}
+
+export type MediaControlTerminalEvent =
+  | MediaControlTerminalEventBase & {
+      event_type: 'playback_completed';
+      prompt_id: string;
+    }
+  | MediaControlTerminalEventBase & {
+      event_type: 'playback_stopped';
+      prompt_id: string;
+      reason: 'explicit' | 'barge_in' | 'session_removed';
+    }
+  | MediaControlTerminalEventBase & {
+      event_type: 'gather_completed';
+      digits: string;
+      reason:
+        | 'maximum_digits'
+        | 'terminator'
+        | 'timeout'
+        | 'explicit_stop'
+        | 'session_removed';
+      minimum_satisfied: boolean;
+    };
+
+export function checkedMediaControlTerminalEvent(
+  value: unknown
+): MediaControlTerminalEvent {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('media_control_terminal_event_invalid');
+  }
+  const input = value as Record<string, unknown>;
+  const commonFields = [
+    'protocol_version',
+    'event_sequence',
+    'event_type',
+    'event_id',
+    'source',
+    'source_event_sequence',
+    'tenant_id',
+    'call_id',
+    'cell_id',
+    'owner_node_id',
+    'owner_epoch',
+    'media_reservation_id',
+    'command_id',
+    'occurred_at_ms'
+  ];
+  const variantFields = input.event_type === 'playback_completed'
+    ? ['prompt_id']
+    : input.event_type === 'playback_stopped'
+      ? ['prompt_id', 'reason']
+      : input.event_type === 'gather_completed'
+        ? ['digits', 'reason', 'minimum_satisfied']
+        : [];
+  const expected = new Set([...commonFields, ...variantFields]);
+  if (variantFields.length === 0 ||
+      Object.keys(input).length !== expected.size ||
+      Object.keys(input).some((field) => !expected.has(field)) ||
+      input.protocol_version !== MEDIA_CONTROL_EVENT_PROTOCOL_VERSION ||
+      input.source !== 'processing' ||
+      !Number.isSafeInteger(input.event_sequence) ||
+      Number(input.event_sequence) < 1 ||
+      Number(input.event_sequence) >= Number.MAX_SAFE_INTEGER ||
+      !Number.isSafeInteger(input.occurred_at_ms) ||
+      Number(input.occurred_at_ms) < 1) {
+    throw new Error('media_control_terminal_event_invalid');
+  }
+  const sourceEventSequence = canonicalUint64(
+    input.source_event_sequence,
+    false
+  );
+  const ownerEpoch = canonicalUint64(input.owner_epoch, false);
+  const base = {
+    protocol_version: MEDIA_CONTROL_EVENT_PROTOCOL_VERSION,
+    event_sequence: Number(input.event_sequence),
+    event_id: terminalIdentifier(input.event_id),
+    source: 'processing' as const,
+    source_event_sequence: sourceEventSequence,
+    tenant_id: terminalIdentifier(input.tenant_id),
+    call_id: terminalIdentifier(input.call_id),
+    cell_id: terminalIdentifier(input.cell_id),
+    owner_node_id: terminalIdentifier(input.owner_node_id),
+    owner_epoch: ownerEpoch,
+    media_reservation_id: terminalIdentifier(input.media_reservation_id),
+    command_id: terminalIdentifier(input.command_id),
+    occurred_at_ms: Number(input.occurred_at_ms)
+  };
+  if (input.event_type === 'playback_completed') {
+    return {
+      ...base,
+      event_type: 'playback_completed',
+      prompt_id: terminalIdentifier(input.prompt_id)
+    };
+  }
+  if (input.event_type === 'playback_stopped' &&
+      ['explicit', 'barge_in', 'session_removed'].includes(
+        String(input.reason)
+      )) {
+    return {
+      ...base,
+      event_type: 'playback_stopped',
+      prompt_id: terminalIdentifier(input.prompt_id),
+      reason: input.reason as
+        | 'explicit'
+        | 'barge_in'
+        | 'session_removed'
+    };
+  }
+  if (input.event_type === 'gather_completed' &&
+      typeof input.digits === 'string' &&
+      /^[0-9*#A-D]{0,1024}$/.test(input.digits) &&
+      [
+        'maximum_digits',
+        'terminator',
+        'timeout',
+        'explicit_stop',
+        'session_removed'
+      ].includes(String(input.reason)) &&
+      typeof input.minimum_satisfied === 'boolean') {
+    return {
+      ...base,
+      event_type: 'gather_completed',
+      digits: input.digits,
+      reason: input.reason as
+        | 'maximum_digits'
+        | 'terminator'
+        | 'timeout'
+        | 'explicit_stop'
+        | 'session_removed',
+      minimum_satisfied: input.minimum_satisfied
+    };
+  }
+  throw new Error('media_control_terminal_event_invalid');
+}
+
+export interface MediaControlEventSubscription<
+  Event = MediaControlDtmfEvent
+> extends AsyncIterator<Event> {
   close(): void;
 }
 
@@ -32,12 +186,19 @@ interface OwnerBinding {
   cell_id: string;
   owner_node_id: string;
   owner_epoch: string;
+  media_reservation_id: string;
 }
 
-interface OwnerChannel {
+interface OwnerChannel<Event extends { event_sequence: number }> {
   next_sequence: number;
-  retained: MediaControlDtmfEvent[];
-  subscriptions: Set<BrokerSubscription>;
+  retained: Event[];
+  subscriptions: Set<BrokerSubscription<Event>>;
+}
+
+export interface MediaTerminalEventJournalPort {
+  append(
+    event: MediaControlTerminalEvent
+  ): Promise<{ replayed: boolean }>;
 }
 
 export class MediaControlEventGapError extends Error {
@@ -52,12 +213,21 @@ export class MediaControlEventBroker {
   readonly #maxRetainedEventsPerOwner: number;
   readonly #maxSubscriptionsPerOwner: number;
   readonly #bindings = new Map<string, OwnerBinding>();
-  readonly #channels = new Map<string, OwnerChannel>();
+  readonly #channels =
+    new Map<string, OwnerChannel<MediaControlDtmfEvent>>();
+  readonly #terminalChannels =
+    new Map<string, OwnerChannel<MediaControlTerminalEvent>>();
+  readonly #terminalByEventId =
+    new Map<string, MediaControlTerminalEvent>();
+  readonly #terminalJournal: MediaTerminalEventJournalPort | undefined;
+  #terminalTail: Promise<void> = Promise.resolve();
 
   constructor(options: {
     maxBindings: number;
     maxRetainedEventsPerOwner: number;
     maxSubscriptionsPerOwner?: number;
+    terminalEvents?: readonly MediaControlTerminalEvent[];
+    terminalJournal?: MediaTerminalEventJournalPort;
   }) {
     this.#maxBindings = integer(
       options.maxBindings,
@@ -77,6 +247,10 @@ export class MediaControlEventBroker {
       16,
       'max subscriptions'
     );
+    this.#terminalJournal = options.terminalJournal;
+    for (const event of options.terminalEvents ?? []) {
+      this.#restoreTerminal(event);
+    }
   }
 
   bind(command: MediaControlCommand): void {
@@ -108,7 +282,11 @@ export class MediaControlEventBroker {
       protocol_version: MEDIA_CONTROL_EVENT_PROTOCOL_VERSION,
       event_sequence: channel.next_sequence,
       event_type: 'dtmf',
-      ...binding,
+      tenant_id: binding.tenant_id,
+      call_id: binding.call_id,
+      cell_id: binding.cell_id,
+      owner_node_id: binding.owner_node_id,
+      owner_epoch: binding.owner_epoch,
       source_tag: decoded.source_tag,
       digit: decoded.digit,
       duration: decoded.duration,
@@ -124,6 +302,19 @@ export class MediaControlEventBroker {
       subscription.enqueue(event);
     }
     return true;
+  }
+
+  publishProcessingTerminal(
+    input: ProcessingTerminalEvent
+  ): Promise<{
+    event: MediaControlTerminalEvent;
+    replayed: boolean;
+  }> {
+    const operation = this.#terminalTail.then(
+      () => this.#publishProcessingTerminal(input)
+    );
+    this.#terminalTail = operation.then(() => undefined, () => undefined);
+    return operation;
   }
 
   subscribe(input: {
@@ -154,7 +345,35 @@ export class MediaControlEventBroker {
     return subscription;
   }
 
-  #channel(ownerNodeId: string): OwnerChannel {
+  subscribeTerminal(input: {
+    owner_node_id: string;
+    after_sequence: number;
+  }): MediaControlEventSubscription<MediaControlTerminalEvent> {
+    const ownerNodeId = identifier(input.owner_node_id, 'owner_node_id');
+    const afterSequence = integer(
+      input.after_sequence,
+      0,
+      Number.MAX_SAFE_INTEGER,
+      'after sequence'
+    );
+    const channel = this.#terminalChannel(ownerNodeId);
+    if (channel.subscriptions.size >= this.#maxSubscriptionsPerOwner) {
+      throw new Error('media_control_event_subscription_capacity');
+    }
+    const oldest = channel.retained[0]?.event_sequence;
+    if (oldest !== undefined && afterSequence < oldest - 1) {
+      throw new MediaControlEventGapError();
+    }
+    const subscription = new BrokerSubscription(
+      channel,
+      afterSequence,
+      this.#maxRetainedEventsPerOwner
+    );
+    channel.subscriptions.add(subscription);
+    return subscription;
+  }
+
+  #channel(ownerNodeId: string): OwnerChannel<MediaControlDtmfEvent> {
     let channel = this.#channels.get(ownerNodeId);
     if (!channel) {
       channel = {
@@ -166,20 +385,120 @@ export class MediaControlEventBroker {
     }
     return channel;
   }
+
+  #terminalChannel(
+    ownerNodeId: string
+  ): OwnerChannel<MediaControlTerminalEvent> {
+    let channel = this.#terminalChannels.get(ownerNodeId);
+    if (!channel) {
+      channel = {
+        next_sequence: 1,
+        retained: [],
+        subscriptions: new Set()
+      };
+      this.#terminalChannels.set(ownerNodeId, channel);
+    }
+    return channel;
+  }
+
+  async #publishProcessingTerminal(
+    input: ProcessingTerminalEvent
+  ): Promise<{
+    event: MediaControlTerminalEvent;
+    replayed: boolean;
+  }> {
+    const source = checkedProcessingTerminalEvent(input);
+    const existing = this.#terminalByEventId.get(source.event_id);
+    if (existing) {
+      const replay = terminalEventFrom(source, existing.event_sequence);
+      if (JSON.stringify(replay) !== JSON.stringify(existing)) {
+        throw new Error('media_control_terminal_event_identity_conflict');
+      }
+      return { event: structuredClone(existing), replayed: true };
+    }
+    const binding = bindingFromProcessingEvent(source);
+    this.#bindOrAssert(binding);
+    const journal = this.#terminalJournal;
+    if (!journal) {
+      throw new Error('media_control_terminal_event_journal_required');
+    }
+    const channel = this.#terminalChannel(binding.owner_node_id);
+    if (channel.next_sequence >= Number.MAX_SAFE_INTEGER) {
+      throw new Error('media_control_terminal_event_sequence_exhausted');
+    }
+    const event = terminalEventFrom(source, channel.next_sequence);
+    const appended = await journal.append(event);
+    this.#rememberTerminal(event, true);
+    return {
+      event: structuredClone(event),
+      replayed: appended.replayed
+    };
+  }
+
+  #bindOrAssert(binding: OwnerBinding): void {
+    const existing = this.#bindings.get(binding.call_id);
+    if (existing) {
+      if (!sameBinding(existing, binding)) {
+        throw new Error('media_control_terminal_event_owner_mismatch');
+      }
+      return;
+    }
+    if (this.#bindings.size >= this.#maxBindings) {
+      throw new Error('media_control_event_binding_capacity');
+    }
+    this.#bindings.set(binding.call_id, binding);
+  }
+
+  #restoreTerminal(input: MediaControlTerminalEvent): void {
+    const event = checkedMediaControlTerminalEvent(input);
+    const existing = this.#terminalByEventId.get(event.event_id);
+    if (existing) {
+      if (JSON.stringify(existing) !== JSON.stringify(event)) {
+        throw new Error('media_control_terminal_event_identity_conflict');
+      }
+      return;
+    }
+    const channel = this.#terminalChannel(event.owner_node_id);
+    if (channel.retained.length === 0 && channel.next_sequence === 1) {
+      channel.next_sequence = event.event_sequence;
+    }
+    this.#rememberTerminal(event, false);
+  }
+
+  #rememberTerminal(
+    event: MediaControlTerminalEvent,
+    notify: boolean
+  ): void {
+    const channel = this.#terminalChannel(event.owner_node_id);
+    if (event.event_sequence !== channel.next_sequence) {
+      throw new Error('media_control_terminal_event_sequence_gap');
+    }
+    channel.next_sequence += 1;
+    channel.retained.push(structuredClone(event));
+    if (channel.retained.length > this.#maxRetainedEventsPerOwner) {
+      channel.retained.shift();
+    }
+    this.#terminalByEventId.set(event.event_id, structuredClone(event));
+    if (!notify) return;
+    for (const subscription of channel.subscriptions) {
+      subscription.enqueue(event);
+    }
+  }
 }
 
-class BrokerSubscription implements MediaControlEventSubscription {
-  readonly #channel: OwnerChannel;
+class BrokerSubscription<Event extends { event_sequence: number }>
+implements MediaControlEventSubscription<Event> {
+  readonly #channel: OwnerChannel<Event>;
   readonly #maximumQueued: number;
-  readonly #queued: MediaControlDtmfEvent[];
+  readonly #queued: Event[];
   #waiting: {
-    resolve: (value: IteratorResult<MediaControlDtmfEvent>) => void;
+    resolve: (value: IteratorResult<Event>) => void;
     reject: (error: Error) => void;
   } | null = null;
   #closed = false;
 
   constructor(
-    channel: OwnerChannel,
+    channel: OwnerChannel<Event>,
     afterSequence: number,
     maximumQueued: number
   ) {
@@ -190,7 +509,7 @@ class BrokerSubscription implements MediaControlEventSubscription {
     );
   }
 
-  next(): Promise<IteratorResult<MediaControlDtmfEvent>> {
+  next(): Promise<IteratorResult<Event>> {
     if (this.#queued.length > 0) {
       return Promise.resolve({
         done: false,
@@ -217,7 +536,7 @@ class BrokerSubscription implements MediaControlEventSubscription {
     this.#waiting = null;
   }
 
-  enqueue(event: MediaControlDtmfEvent): void {
+  enqueue(event: Event): void {
     if (this.#closed) return;
     if (this.#waiting) {
       const waiting = this.#waiting;
@@ -243,8 +562,80 @@ function bindingFrom(command: MediaControlCommand): OwnerBinding {
     call_id: identifier(command.call_id, 'call_id'),
     cell_id: identifier(command.cell_id, 'cell_id'),
     owner_node_id: identifier(command.owner_node_id, 'owner_node_id'),
-    owner_epoch: ownerEpoch(command.owner_epoch)
+    owner_epoch: ownerEpoch(command.owner_epoch),
+    media_reservation_id: identifier(
+      command.media_reservation_id,
+      'media_reservation_id'
+    )
   };
+}
+
+function bindingFromProcessingEvent(
+  event: ProcessingTerminalEvent
+): OwnerBinding {
+  return {
+    tenant_id: identifier(event.tenant_id, 'tenant_id'),
+    call_id: identifier(event.call_id, 'call_id'),
+    cell_id: identifier(event.cell_id, 'cell_id'),
+    owner_node_id: identifier(event.owner_node_id, 'owner_node_id'),
+    owner_epoch: ownerEpoch(event.owner_epoch),
+    media_reservation_id: identifier(
+      event.media_reservation_id,
+      'media_reservation_id'
+    )
+  };
+}
+
+function sameBinding(left: OwnerBinding, right: OwnerBinding): boolean {
+  return left.tenant_id === right.tenant_id &&
+    left.call_id === right.call_id &&
+    left.cell_id === right.cell_id &&
+    left.owner_node_id === right.owner_node_id &&
+    left.owner_epoch === right.owner_epoch &&
+    left.media_reservation_id === right.media_reservation_id;
+}
+
+function terminalEventFrom(
+  source: ProcessingTerminalEvent,
+  sequence: number
+): MediaControlTerminalEvent {
+  const base = {
+    protocol_version: MEDIA_CONTROL_EVENT_PROTOCOL_VERSION,
+    event_sequence: sequence,
+    event_id: source.event_id,
+    source: 'processing' as const,
+    source_event_sequence: source.event_sequence,
+    tenant_id: source.tenant_id,
+    call_id: source.call_id,
+    cell_id: source.cell_id,
+    owner_node_id: source.owner_node_id,
+    owner_epoch: source.owner_epoch,
+    media_reservation_id: source.media_reservation_id,
+    command_id: source.command_id,
+    occurred_at_ms: source.occurred_at_ms
+  };
+  if (source.event_type === 'playback_completed') {
+    return checkedMediaControlTerminalEvent({
+      ...base,
+      event_type: source.event_type,
+      prompt_id: source.prompt_id
+    });
+  }
+  if (source.event_type === 'playback_stopped') {
+    return checkedMediaControlTerminalEvent({
+      ...base,
+      event_type: source.event_type,
+      prompt_id: source.prompt_id,
+      reason: source.reason
+    });
+  }
+  return checkedMediaControlTerminalEvent({
+    ...base,
+    event_type: source.event_type,
+    digits: source.digits,
+    reason: source.reason,
+    minimum_satisfied: source.minimum_satisfied
+  });
 }
 
 function decodeDtmf(payload: BencodeDictionary): {
@@ -315,6 +706,26 @@ function exactInteger(
     value <= maximum
     ? value
     : undefined;
+}
+
+function terminalIdentifier(value: unknown): string {
+  if (typeof value !== 'string' ||
+      !/^[A-Za-z0-9._:@/-]{1,256}$/.test(value)) {
+    throw new Error('media_control_terminal_event_invalid');
+  }
+  return value;
+}
+
+function canonicalUint64(value: unknown, allowZero: boolean): string {
+  if (typeof value !== 'string' ||
+      !/^(?:0|[1-9][0-9]{0,19})$/.test(value)) {
+    throw new Error('media_control_terminal_event_invalid');
+  }
+  const parsed = BigInt(value);
+  if (parsed > (1n << 64n) - 1n || (!allowZero && parsed === 0n)) {
+    throw new Error('media_control_terminal_event_invalid');
+  }
+  return value;
 }
 
 function identifier(value: unknown, name: string): string {

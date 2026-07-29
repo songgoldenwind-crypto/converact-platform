@@ -112,6 +112,29 @@ export function createMediaControlHttpServer(input: {
         });
         return streamEvents(request, response, subscription);
       }
+      if (request.method === 'GET' &&
+          url.pathname === '/v1/terminal-events') {
+        if (!input.events) {
+          throw new MediaControlError('media_events_disabled', 404, false);
+        }
+        requireNdjson(request.headers);
+        const ownerNodeId = url.searchParams.get('owner_node_id') || '';
+        if (!/^[A-Za-z0-9._:@/-]{1,256}$/.test(ownerNodeId)) {
+          throw new MediaControlError(
+            'media_event_owner_node_id_invalid',
+            400,
+            false
+          );
+        }
+        const afterSequence = querySequence(
+          url.searchParams.get('after_sequence')
+        );
+        const subscription = input.events.subscribeTerminal({
+          owner_node_id: ownerNodeId,
+          after_sequence: afterSequence
+        });
+        return streamEvents(request, response, subscription);
+      }
       if (request.method === 'POST' && url.pathname === '/v1/commands') {
         requireJson(request.headers);
         const body = await readJsonBody(request, maxBodyBytes);
@@ -271,10 +294,10 @@ function querySequence(value: string | null): number {
   return sequence;
 }
 
-async function streamEvents(
+async function streamEvents<Event>(
   request: IncomingMessage,
   response: ServerResponse,
-  subscription: MediaControlEventSubscription
+  subscription: MediaControlEventSubscription<Event>
 ): Promise<void> {
   response.writeHead(200, {
     'content-type': 'application/x-ndjson; charset=utf-8',

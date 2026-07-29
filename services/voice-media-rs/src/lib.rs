@@ -1,6 +1,7 @@
 pub mod capacity;
 pub mod codec;
 pub mod datagram_pool;
+pub mod event_outbox;
 pub mod frame;
 pub mod http;
 pub mod ivr;

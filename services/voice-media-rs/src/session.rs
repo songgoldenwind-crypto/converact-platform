@@ -1,6 +1,6 @@
 use crate::capacity::{CapacityError, CodecPairCapacity, CodecPairPermit};
 use crate::codec::{AudioCodec, CodecPair};
-use std::collections::{HashMap, VecDeque, hash_map::RandomState};
+use std::collections::{hash_map::RandomState, HashMap, VecDeque};
 use std::convert::Infallible;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -17,6 +17,12 @@ pub enum ProcessingAction {
     Offer,
     Answer,
     Update,
+    CommitSingleLeg,
+    PlayMedia,
+    StopMedia,
+    StartGather,
+    StopGather,
+    InjectDtmf,
     Delete,
     Query,
 }
@@ -825,8 +831,16 @@ impl ProcessingSessionRegistry {
         }
         let next_state = match command.action {
             ProcessingAction::Offer => ProcessingSessionState::Prepared,
-            ProcessingAction::Answer => ProcessingSessionState::Committed,
-            ProcessingAction::Update | ProcessingAction::Query => record.state,
+            ProcessingAction::Answer | ProcessingAction::CommitSingleLeg => {
+                ProcessingSessionState::Committed
+            }
+            ProcessingAction::Update
+            | ProcessingAction::PlayMedia
+            | ProcessingAction::StopMedia
+            | ProcessingAction::StartGather
+            | ProcessingAction::StopGather
+            | ProcessingAction::InjectDtmf
+            | ProcessingAction::Query => record.state,
             ProcessingAction::Delete => ProcessingSessionState::Closed,
         };
         let mut proposed = project_snapshot(
@@ -1066,6 +1080,12 @@ fn assert_transition(
     let allowed = match action {
         ProcessingAction::Offer => state == ProcessingSessionState::Prepared,
         ProcessingAction::Delete => state.is_active(),
+        ProcessingAction::PlayMedia
+        | ProcessingAction::StopMedia
+        | ProcessingAction::StartGather
+        | ProcessingAction::StopGather
+        | ProcessingAction::InjectDtmf => state == ProcessingSessionState::Committed,
+        ProcessingAction::CommitSingleLeg => state == ProcessingSessionState::Prepared,
         ProcessingAction::Answer | ProcessingAction::Update | ProcessingAction::Query => {
             state.is_active()
         }

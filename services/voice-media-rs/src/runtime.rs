@@ -1,5 +1,10 @@
 use crate::capacity::CodecPairCapacity;
 use crate::codec::AudioCodec;
+use crate::event_outbox::{
+    EventAppendResult, ProcessingEventOutbox, ProcessingEventOutboxError, ProcessingTerminalEvent,
+    ProcessingTerminalEventInput,
+};
+use crate::ivr::{GatherCompletionReason, IvrEvent, PlaybackStopReason};
 use crate::rtp::{ProcessingLeg, RtpSessionConfig, TelephoneEventConfig};
 use crate::session::{
     ProcessingAction, ProcessingCommand, ProcessingProfile, ProcessingSessionRegistry,
@@ -8,6 +13,7 @@ use crate::session::{
 };
 use crate::worker::{
     RtpWorkerPool, RtpWorkerPoolConfig, RtpWorkerPoolSnapshot, WorkerError, WorkerEvent,
+    WorkerGatherRequest, WorkerPlaybackRequest,
 };
 use rand::{rngs::OsRng, RngCore};
 use rustrtc::{AddressType, Attribute, MediaKind, SdpType, SessionDescription};
@@ -42,9 +48,39 @@ pub enum NegotiationRole {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProcessingRuntimeOperation {
-    Offer { sdp: String },
-    Answer { sdp: String },
-    Update { role: NegotiationRole, sdp: String },
+    Offer {
+        sdp: String,
+    },
+    Answer {
+        sdp: String,
+    },
+    CommitSingleLeg,
+    Update {
+        role: NegotiationRole,
+        sdp: String,
+    },
+    PlayMedia {
+        prompt_id: String,
+        egress_leg: ProcessingLeg,
+        barge_in: bool,
+    },
+    StopMedia {
+        target_command_id: String,
+    },
+    StartGather {
+        minimum_digits: usize,
+        maximum_digits: usize,
+        terminator: Option<char>,
+        first_digit_timeout_ms: u64,
+        inter_digit_timeout_ms: u64,
+    },
+    StopGather {
+        target_command_id: String,
+    },
+    SipInfoDigit {
+        event_id: String,
+        digit: char,
+    },
     Delete,
     Query,
 }
@@ -69,6 +105,13 @@ pub struct ProcessingRuntimeResult {
     pub applied_command_id: String,
     pub replayed: bool,
     pub snapshot: ProcessingRuntimeSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProcessingPromptSnapshot {
+    pub prompt_id: String,
+    pub canonical_sample_rate_hz: u32,
+    pub frame_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,6 +183,23 @@ impl Display for ProcessingRuntimeError {
 
 impl Error for ProcessingRuntimeError {}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcessingEventHandoffError {
+    Runtime(ProcessingRuntimeError),
+    Outbox(ProcessingEventOutboxError),
+}
+
+impl Display for ProcessingEventHandoffError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Runtime(error) => Display::fmt(error, formatter),
+            Self::Outbox(error) => Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl Error for ProcessingEventHandoffError {}
+
 impl From<SessionError> for ProcessingRuntimeError {
     fn from(value: SessionError) -> Self {
         Self::Session(value)
@@ -164,6 +224,7 @@ struct RuntimeSession {
     leg_b_telephone_event: Option<TelephoneEventConfig>,
     transport_session_id: String,
     effective_sdp: String,
+    single_leg_answer_sdp: String,
     updated_at_ms: u64,
     commands: VecDeque<RuntimeCommandRecord>,
 }
@@ -276,8 +337,111 @@ impl ProcessingRuntime {
         self.workers.snapshot().map_err(Into::into)
     }
 
+    pub fn cache_prompt_pcm(
+        &self,
+        prompt_id: &str,
+        sample_rate_hz: u32,
+        samples: &[i16],
+    ) -> Result<ProcessingPromptSnapshot, ProcessingRuntimeError> {
+        let prompt = self
+            .workers
+            .cache_prompt_pcm(prompt_id, sample_rate_hz, samples)?;
+        Ok(ProcessingPromptSnapshot {
+            prompt_id: prompt.id().to_owned(),
+            canonical_sample_rate_hz: prompt.sample_rate_hz(),
+            frame_count: prompt.frame_count(),
+        })
+    }
+
+    pub fn remove_cached_prompt(&self, prompt_id: &str) -> Result<bool, ProcessingRuntimeError> {
+        self.workers
+            .remove_cached_prompt(prompt_id)
+            .map_err(Into::into)
+    }
+
     pub fn recv_event_timeout(&self, timeout: Duration) -> Option<WorkerEvent> {
         self.workers.recv_event_timeout(timeout)
+    }
+
+    pub fn terminal_event_input(
+        &self,
+        event: WorkerEvent,
+        occurred_at_ms: u64,
+    ) -> Result<Option<ProcessingTerminalEventInput>, ProcessingRuntimeError> {
+        let WorkerEvent::Ivr { session_id, event } = event else {
+            return Ok(None);
+        };
+        let (command_id, event) = match event {
+            IvrEvent::PlaybackCompleted {
+                command_id,
+                prompt_id,
+            } => (
+                command_id,
+                ProcessingTerminalEvent::PlaybackCompleted {
+                    prompt_id: prompt_id.to_string(),
+                },
+            ),
+            IvrEvent::PlaybackStopped {
+                command_id,
+                prompt_id,
+                reason,
+            } => (
+                command_id,
+                ProcessingTerminalEvent::PlaybackStopped {
+                    prompt_id: prompt_id.to_string(),
+                    reason: playback_stop_reason(reason).to_owned(),
+                },
+            ),
+            IvrEvent::GatherCompleted {
+                command_id,
+                digits,
+                reason,
+                minimum_satisfied,
+            } => (
+                command_id,
+                ProcessingTerminalEvent::GatherCompleted {
+                    digits: digits.to_string(),
+                    reason: gather_completion_reason(reason).to_owned(),
+                    minimum_satisfied,
+                },
+            ),
+            IvrEvent::PlaybackStarted { .. } | IvrEvent::GatherStarted { .. } => {
+                return Ok(None);
+            }
+        };
+        let session = self
+            .registry
+            .snapshot(&session_id)
+            .ok_or(ProcessingRuntimeError::RuntimeStateMissing)?;
+        Ok(Some(ProcessingTerminalEventInput {
+            tenant_id: session.tenant_id,
+            call_id: session.call_id,
+            cell_id: session.cell_id,
+            owner_node_id: session.owner_node_id,
+            owner_epoch: session.owner_epoch.to_string(),
+            media_reservation_id: session.media_reservation_id,
+            command_id: command_id.to_string(),
+            occurred_at_ms,
+            event,
+        }))
+    }
+
+    pub fn persist_terminal_event(
+        &self,
+        outbox: &ProcessingEventOutbox,
+        event: WorkerEvent,
+        occurred_at_ms: u64,
+    ) -> Result<Option<EventAppendResult>, ProcessingEventHandoffError> {
+        let Some(input) = self
+            .terminal_event_input(event, occurred_at_ms)
+            .map_err(ProcessingEventHandoffError::Runtime)?
+        else {
+            return Ok(None);
+        };
+        outbox
+            .append(input)
+            .map(Some)
+            .map_err(ProcessingEventHandoffError::Outbox)
     }
 
     pub fn registry_session_count(&self) -> usize {
@@ -340,6 +504,7 @@ impl ProcessingRuntime {
                     )?),
                 })
             }
+            ProcessingRuntimeOperation::CommitSingleLeg => Ok(PreparedOperation::CommitSingleLeg),
             ProcessingRuntimeOperation::Update { role, sdp } => {
                 let profile = self
                     .registry
@@ -361,6 +526,44 @@ impl ProcessingRuntime {
                 Ok(PreparedOperation::Negotiation {
                     role: *role,
                     parsed: Box::new(parse_audio_sdp(sdp, sdp_type, codec, payload_type)?),
+                })
+            }
+            ProcessingRuntimeOperation::PlayMedia {
+                prompt_id,
+                egress_leg,
+                barge_in,
+            } => Ok(PreparedOperation::PlayMedia {
+                prompt_id: prompt_id.clone(),
+                egress_leg: *egress_leg,
+                barge_in: *barge_in,
+            }),
+            ProcessingRuntimeOperation::StopMedia { target_command_id } => {
+                Ok(PreparedOperation::StopMedia {
+                    target_command_id: target_command_id.clone(),
+                })
+            }
+            ProcessingRuntimeOperation::StartGather {
+                minimum_digits,
+                maximum_digits,
+                terminator,
+                first_digit_timeout_ms,
+                inter_digit_timeout_ms,
+            } => Ok(PreparedOperation::StartGather {
+                minimum_digits: *minimum_digits,
+                maximum_digits: *maximum_digits,
+                terminator: *terminator,
+                first_digit_timeout_ms: *first_digit_timeout_ms,
+                inter_digit_timeout_ms: *inter_digit_timeout_ms,
+            }),
+            ProcessingRuntimeOperation::StopGather { target_command_id } => {
+                Ok(PreparedOperation::StopGather {
+                    target_command_id: target_command_id.clone(),
+                })
+            }
+            ProcessingRuntimeOperation::SipInfoDigit { event_id, digit } => {
+                Ok(PreparedOperation::SipInfoDigit {
+                    event_id: event_id.clone(),
+                    digit: *digit,
                 })
             }
             ProcessingRuntimeOperation::Delete => Ok(PreparedOperation::Delete),
@@ -385,6 +588,80 @@ impl ProcessingRuntime {
                 role: NegotiationRole::Answer,
                 parsed,
             } => self.apply_answer(media_reservation_id, command_id, proposed, parsed, now_ms),
+            PreparedOperation::CommitSingleLeg => {
+                let answer_sdp = {
+                    let sessions = self.lock_sessions()?;
+                    sessions
+                        .get(media_reservation_id)
+                        .ok_or(ProcessingRuntimeError::RuntimeStateMissing)?
+                        .single_leg_answer_sdp
+                        .clone()
+                };
+                self.workers.set_single_leg(media_reservation_id, true)?;
+                self.record_existing_outcome(
+                    media_reservation_id,
+                    command_id,
+                    Some(answer_sdp),
+                    now_ms,
+                )
+            }
+            PreparedOperation::PlayMedia {
+                prompt_id,
+                egress_leg,
+                barge_in,
+            } => {
+                self.workers.start_playback(
+                    media_reservation_id,
+                    WorkerPlaybackRequest {
+                        command_id: Arc::from(command_id),
+                        prompt_id: Arc::from(prompt_id.as_str()),
+                        egress_leg: *egress_leg,
+                        barge_in: *barge_in,
+                    },
+                )?;
+                self.record_existing_outcome(media_reservation_id, command_id, None, now_ms)
+            }
+            PreparedOperation::StopMedia { target_command_id } => {
+                self.workers.stop_playback(
+                    media_reservation_id,
+                    Arc::from(command_id),
+                    Arc::from(target_command_id.as_str()),
+                )?;
+                self.record_existing_outcome(media_reservation_id, command_id, None, now_ms)
+            }
+            PreparedOperation::StartGather {
+                minimum_digits,
+                maximum_digits,
+                terminator,
+                first_digit_timeout_ms,
+                inter_digit_timeout_ms,
+            } => {
+                self.workers.start_gather(
+                    media_reservation_id,
+                    WorkerGatherRequest {
+                        command_id: Arc::from(command_id),
+                        minimum_digits: *minimum_digits,
+                        maximum_digits: *maximum_digits,
+                        terminator: *terminator,
+                        first_digit_timeout_ms: *first_digit_timeout_ms,
+                        inter_digit_timeout_ms: *inter_digit_timeout_ms,
+                    },
+                )?;
+                self.record_existing_outcome(media_reservation_id, command_id, None, now_ms)
+            }
+            PreparedOperation::StopGather { target_command_id } => {
+                self.workers.stop_gather(
+                    media_reservation_id,
+                    Arc::from(command_id),
+                    Arc::from(target_command_id.as_str()),
+                )?;
+                self.record_existing_outcome(media_reservation_id, command_id, None, now_ms)
+            }
+            PreparedOperation::SipInfoDigit { event_id, digit } => {
+                self.workers
+                    .submit_sip_info_digit(media_reservation_id, event_id, *digit)?;
+                self.record_existing_outcome(media_reservation_id, command_id, None, now_ms)
+            }
             PreparedOperation::Delete => {
                 if !self.workers.remove_session(media_reservation_id)? {
                     return Err(ProcessingRuntimeError::RuntimeStateMissing);
@@ -435,6 +712,15 @@ impl ProcessingRuntime {
             leg_b_telephone_event,
             proposed.profile.packetization_ms,
         );
+        let single_leg_answer_sdp = rewrite_sdp(
+            &parsed.description,
+            self.config.advertised_ip,
+            proposed.ports.leg_a_rtp_port,
+            proposed.profile.leg_a_codec,
+            proposed.profile.leg_a_payload_type,
+            parsed.telephone_event,
+            proposed.profile.packetization_ms,
+        );
         let mut sessions = match self.lock_sessions() {
             Ok(sessions) => sessions,
             Err(error) => {
@@ -452,6 +738,7 @@ impl ProcessingRuntime {
             leg_b_telephone_event,
             transport_session_id: transport_session_id(media_reservation_id),
             effective_sdp: effective_sdp.clone(),
+            single_leg_answer_sdp,
             updated_at_ms: now_ms,
             commands: VecDeque::with_capacity(self.config.registry.max_commands_per_session),
         };
@@ -635,10 +922,51 @@ impl ProcessingRuntime {
     }
 }
 
+fn playback_stop_reason(reason: PlaybackStopReason) -> &'static str {
+    match reason {
+        PlaybackStopReason::Explicit => "explicit",
+        PlaybackStopReason::BargeIn => "barge_in",
+        PlaybackStopReason::SessionRemoved => "session_removed",
+    }
+}
+
+fn gather_completion_reason(reason: GatherCompletionReason) -> &'static str {
+    match reason {
+        GatherCompletionReason::MaximumDigits => "maximum_digits",
+        GatherCompletionReason::Terminator => "terminator",
+        GatherCompletionReason::Timeout => "timeout",
+        GatherCompletionReason::ExplicitStop => "explicit_stop",
+        GatherCompletionReason::SessionRemoved => "session_removed",
+    }
+}
+
 enum PreparedOperation {
     Negotiation {
         role: NegotiationRole,
         parsed: Box<ParsedAudio>,
+    },
+    CommitSingleLeg,
+    PlayMedia {
+        prompt_id: String,
+        egress_leg: ProcessingLeg,
+        barge_in: bool,
+    },
+    StopMedia {
+        target_command_id: String,
+    },
+    StartGather {
+        minimum_digits: usize,
+        maximum_digits: usize,
+        terminator: Option<char>,
+        first_digit_timeout_ms: u64,
+        inter_digit_timeout_ms: u64,
+    },
+    StopGather {
+        target_command_id: String,
+    },
+    SipInfoDigit {
+        event_id: String,
+        digit: char,
     },
     Delete,
     Query,
@@ -681,8 +1009,26 @@ fn validate_operation(
             ProcessingAction::Answer,
             ProcessingRuntimeOperation::Answer { .. }
         ) | (
+            ProcessingAction::CommitSingleLeg,
+            ProcessingRuntimeOperation::CommitSingleLeg
+        ) | (
             ProcessingAction::Update,
             ProcessingRuntimeOperation::Update { .. }
+        ) | (
+            ProcessingAction::PlayMedia,
+            ProcessingRuntimeOperation::PlayMedia { .. }
+        ) | (
+            ProcessingAction::StopMedia,
+            ProcessingRuntimeOperation::StopMedia { .. }
+        ) | (
+            ProcessingAction::StartGather,
+            ProcessingRuntimeOperation::StartGather { .. }
+        ) | (
+            ProcessingAction::StopGather,
+            ProcessingRuntimeOperation::StopGather { .. }
+        ) | (
+            ProcessingAction::InjectDtmf,
+            ProcessingRuntimeOperation::SipInfoDigit { .. }
         ) | (ProcessingAction::Delete, ProcessingRuntimeOperation::Delete)
             | (ProcessingAction::Query, ProcessingRuntimeOperation::Query)
     );

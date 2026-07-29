@@ -1342,6 +1342,25 @@ rtpengine/RecordingManifest 后，必须发布新的 `MIX-100K-v2` 或更高 rev
 
 依赖：Goal 0、Goal 1、Goal 2。
 
+当前 IVR 连续性约束（2026-07-29）：
+
+- 不新增第二套 IVR，也不迁移既有 IVR API、流程图、菜单、Provider、超时、转接、队列回退
+  和 Call/Leg/Dialog 权威；
+- 仅当既有 `app_name=ivr` 会话冻结为 processing profile 时，RustPBX 才以
+  owner-fenced `offer -> commit_single_leg` 把媒体执行交给 `voice-media-rs`；
+- processing pool 返回真实 caller-facing SDP，不制造 callee leg；worker 永久抑制未使用的
+  B-leg 输出和转码，但继续消费 caller RTP，以执行 RFC 4733、SIP INFO、barge-in 和 gather；
+- play、gather、stop、timeout、DTMF 与 terminal event 复用同一 owner epoch/command
+  sequence；终态事件先进入 durable handoff，再确认 processing source；
+- processing prepare/commit 失败时 fail closed，不静默退回本地媒体或 bypass；
+- conference、voicemail、queue、WebRTC、recording、audio tap、offerless 和非 IVR application
+  保持原路径。
+
+源码证据：`ivekit.38` 已从固定 RustPBX/rsipstack/rustrtc 上游提交按生产顺序完整重放 38
+个补丁；干净 RustPBX 库回归为 `1,911 passed / 0 failed / 1 ignored`，rsipstack 定向回归
+为 `3 passed / 0 failed`。这证明既有 IVR 与非 IVR 代码回归通过，不代表服务器真实 RTP、
+进程重启、过载或容量验收完成；这些仍为 `not_run`。
+
 ### Goal 4：媒体处理与转码池
 
 目标：

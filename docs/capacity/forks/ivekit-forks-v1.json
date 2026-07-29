@@ -2,9 +2,9 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 54,
+  "revision": 56,
   "status": "proposed",
-  "generated_at": "2026-07-29T04:15:22+08:00",
+  "generated_at": "2026-07-29T16:00:00+08:00",
   "profile_ids": [
     "mix-100k-v1"
   ],
@@ -41,10 +41,10 @@
         "features": [
           "cross"
         ],
-        "output_image": "ivekit/rustpbx:0.4.11-ivekit.35-6c49ee76"
+        "output_image": "ivekit/rustpbx:0.4.11-ivekit.38-6c49ee76"
       },
       "runtime_artifact": {
-        "reference": "ivekit/rustpbx:0.4.11-ivekit.35-6c49ee76",
+        "reference": "ivekit/rustpbx:0.4.11-ivekit.38-6c49ee76",
         "kind": "custom_candidate",
         "contains_declared_modifications": true
       },
@@ -213,9 +213,27 @@
         },
         {
           "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
-          "sha256": "e33541432f7593ff2640ee9989d1d937505a7b1376ac2a04f4e47b8bf0df0a74",
+          "sha256": "166fbff830dfacb8588c1bfa84fa3d2c1f00b38c359db363f6448084b5e6865c",
           "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-inbound-admission-response-contract.patch",
-          "purpose": "Freeze tenant, Cell, owner node, route revision, availability and validated media-processing codec facts per call; preserve them across takeover recovery; route RWI offer, early media, final answer and cleanup through the authoritative media lifecycle; reconcile unknown commands by exact identity and retain unresolved cleanup for bounded background retry."
+          "purpose": "Freeze tenant, Cell, owner node and validated media-processing codec facts per call; preserve them across takeover recovery; route RWI and SIP INFO DTMF through the authoritative media lifecycle; reconcile exact command identity; retain bounded cleanup retry; and fail processing overload closed with SIP backoff instead of local-media fallback."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch",
+          "sha256": "0d760f506d58c29ec5b1260831219251b82b6a136e34bb8682e6baa482f6b870",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-session-media-profile.patch",
+          "purpose": "Reserve asynchronous recorder startup per session, reject duplicate or overlapping lifecycle work before disk dispatch, and release start/finalization reservations on every success, failure, cancellation and bounded-queue rejection path."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch",
+          "sha256": "3ed68c0f8a136ae947129459b28a3017b7ddcdbf999346ea12e4441cc8cd6bb7",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-recording-lifecycle-reservation.patch",
+          "purpose": "Consume the durable processing terminal stream with an independent cursor, inject only exact owner- and media-reservation-fenced playback/gather completion events into the live call, and replay rather than acknowledge delivery failures."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch",
+          "sha256": "4338a10e7f2ce7cba81ee7336c9a3c17ae3a633120a792f5789f65fcdf9ab752",
+          "applies_to": "rustpbx@6c49ee76baa54fdbf8f98020cc9bee158c7c15de after rustpbx-ivekit-processing-terminal-events.patch",
+          "purpose": "Execute the existing IVR application through owner-fenced processing media with strict prompt and gather commands, durable terminal projection, SIP INFO digit injection, and a native single-leg commit that does not allocate or transcode toward a fake remote endpoint."
         }
       ],
       "protocols": [
@@ -644,6 +662,68 @@
           ]
         },
         {
+          "change_id": "rustpbx-processing-sip-info-overload-v1",
+          "summary": "Route processing-profile SIP INFO digits to the bound worker with stable event identity and convert capacity or retryable media failures into explicit SIP backoff without changing media engines.",
+          "capacity_dimensions": [
+            "sip.transactions_per_second",
+            "voice.concurrent_calls",
+            "workers.media_control_inflight"
+          ],
+          "acceptance_evidence": [
+            "Strict SIP INFO parsing accepts one DTMF digit, derives a bounded deterministic event identifier and preserves the existing peer-forwarding behavior for non-processing calls.",
+            "Processing calls submit owner-fenced inject_dtmf commands to their immutable media reservation and never silently fall back to the local media graph.",
+            "Capacity and retryable failures retain their semantics through RustPBX and produce an immediate 503 response with Retry-After; unrelated fast-path reservations remain usable.",
+            "Focused RustPBX, rsipstack, voice-media-rs and TypeScript router tests pass locally; clean fixed-source replay, image build and real SIP/RTP overload remain release gates."
+          ]
+        },
+        {
+          "change_id": "rustpbx-recording-lifecycle-reservation-v1",
+          "summary": "Make asynchronous recording startup single-writer per session and preserve reusable lifecycle state after finalization.",
+          "capacity_dimensions": [
+            "voice.concurrent_calls",
+            "workers.recording_slots",
+            "data.local_spool_bytes"
+          ],
+          "acceptance_evidence": [
+            "The recording start reservation uses an atomic compare-and-reserve operation and rejects duplicate, active, finalizing or lock-busy sessions before dispatching disk work.",
+            "Start and finalization reservations are released on worker success, worker failure, cancellation, empty finalization and bounded lifecycle-queue rejection.",
+            "The original active double-start regression and a dedicated pending-start ownership regression pass against the exact modified source; complete clean-source replay remains a release gate."
+          ]
+        },
+        {
+          "change_id": "rustpbx-processing-terminal-events-v1",
+          "summary": "Project durable processing playback and gather terminal events into the exact live RustPBX call without coupling them to the DTMF hot path.",
+          "capacity_dimensions": [
+            "voice.concurrent_calls",
+            "workers.media_control_inflight",
+            "data.local_spool_bytes"
+          ],
+          "acceptance_evidence": [
+            "RustPBX consumes an authenticated bounded NDJSON terminal stream using a cursor independent from immediate DTMF delivery.",
+            "Every terminal event must match processing media mode, tenant, Cell, owner node, owner epoch, callee media reservation and live call identity before application injection.",
+            "Playback completion and interruption project to AudioComplete while gather completion projects to DtmfCollected; missing calls advance safely and channel-delivery failure replays from the prior cursor.",
+            "The patch applies after the recording lifecycle reservation patch and passes focused decoder, owner-fence, projection and exact-source replay tests; image build and real media acceptance remain release gates."
+          ]
+        },
+        {
+          "change_id": "rustpbx-processing-ivr-execution-v1",
+          "summary": "Run the existing RustPBX IVR application on the external processing media worker without creating a fake second RTP participant.",
+          "capacity_dimensions": [
+            "sip.transactions_per_second",
+            "voice.concurrent_calls",
+            "voice.rtp_legs",
+            "voice.packet_operations_per_second",
+            "workers.media_control_inflight"
+          ],
+          "acceptance_evidence": [
+            "A processing IVR sends an owner-fenced offer followed by an exact empty-payload commit_single_leg command and receives the caller-facing answer SDP from the processing worker.",
+            "The worker permanently suppresses the unused leg-B egress so caller RTP is consumed for DTMF and barge-in without unnecessary A-to-B transcoding or network output.",
+            "Only the existing ivr application may select single-leg processing; conference, voicemail, queue, WebRTC, recording, audio-tap and explicit-bypass flows retain their established media execution profiles.",
+            "Playback, stop, gather, SIP INFO digits and durable completion events remain command-sequenced and owner-fenced, while processing failures reject the caller instead of silently falling back to local media.",
+            "The exact modified RustPBX source passes 1911 library tests with zero failures, and the voice-media worker passes its complete local suite; clean patch replay and real SIP/RTP acceptance remain release gates."
+          ]
+        },
+        {
           "change_id": "rustpbx-rustrtc-udp-socket-capacity-v1",
           "summary": "Use a pinned rustrtc transport fork with bounded per-socket RTP and RTCP receive/send buffer controls.",
           "capacity_dimensions": [
@@ -730,6 +810,12 @@
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-inbound-admission-response-contract.patch",
           "infra/ivekit/rustpbx/patches/rustpbx-ivekit-session-media-profile.patch",
           "test/ivekit-rustpbx-session-media-profile-patch.test.ts",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-recording-lifecycle-reservation.patch",
+          "test/ivekit-rustpbx-recording-lifecycle-reservation-patch.test.ts",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-terminal-events.patch",
+          "test/ivekit-rustpbx-processing-terminal-events-patch.test.ts",
+          "infra/ivekit/rustpbx/patches/rustpbx-ivekit-processing-ivr-execution.patch",
+          "test/ivekit-rustpbx-processing-ivr-execution-patch.test.ts",
           "infra/ivekit/rustpbx/patches/rustpbx-local-rustrtc.patch",
           "infra/ivekit/rustpbx/patches/rustrtc-ivekit-udp-socket-capacity.patch",
           "test/ivekit-rustpbx-callrecord-capacity-patch.test.ts",
@@ -848,6 +934,12 @@
           "sha256": "e02d71e1f491a60de19534adc0809eeaee8a8e5d2e7594e1172a9fb465d9801c",
           "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-dialog-recovery.patch",
           "purpose": "Expose a two-phase outbound INVITE so RustPBX can bind the real local dialog tag and replace logical SDP with the authoritative media-control SDP before the first packet is sent."
+        },
+        {
+          "path": "infra/ivekit/rustpbx/patches/rsipstack-ivekit-rejection-headers.patch",
+          "sha256": "a9047e0bd1a4eed576636a30310054142ada0e0a2c85b29e651d2ba50a0f959d",
+          "applies_to": "rsipstack@8318e97b1170de4e5245b120afec1cdf53e3d716 after rsipstack-ivekit-prepared-invite.patch",
+          "purpose": "Allow server INVITE rejection to preserve explicit response headers so RustPBX can emit standards-visible Retry-After overload backoff together with its Reason value."
         }
       ],
       "implemented_changes": [
@@ -919,6 +1011,20 @@
             "Native tests prove the real local tag exists before send and only the effective SDP is retained by both transaction and dialog snapshots.",
             "RWI processing-media failure is rejected before the outbound INVITE becomes visible.",
             "The complete patched rsipstack source passes all 249 unit tests and 65 documentation tests on Rust 1.94.1 after a clean fixed-source replay."
+          ]
+        },
+        {
+          "change_id": "rsipstack-rejection-headers-v1",
+          "summary": "Expose rejection with caller-supplied SIP response headers while preserving the original reject API and dialog termination semantics.",
+          "capacity_dimensions": [
+            "sip.transactions_per_second",
+            "sip.invite_cps",
+            "workers.media_control_inflight"
+          ],
+          "acceptance_evidence": [
+            "The original reject method delegates to reject_with_headers, preserving compatibility for all existing callers.",
+            "A native transaction test verifies that a 503 response carries both Retry-After and Reason through the actual server-dialog response path.",
+            "The patch is ordered after prepared INVITE; clean full-queue replay and release image build remain release gates."
           ]
         }
       ],

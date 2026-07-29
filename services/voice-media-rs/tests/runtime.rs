@@ -1,13 +1,19 @@
 use audio_codec::{create_decoder, create_encoder, CodecType};
 use rustrtc::rtp::{RtpHeader, RtpPacket};
 use rustrtc::{MediaKind, SdpType, SessionDescription};
+use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use voice_media_rs::capacity::CodecPairCapacity;
 use voice_media_rs::codec::AudioCodec;
-use voice_media_rs::ivr::{IvrPromptCacheConfig, IvrSessionConfig};
+use voice_media_rs::event_outbox::{
+    ProcessingEventOutbox, ProcessingEventOutboxConfig, ProcessingTerminalEvent,
+};
+use voice_media_rs::ivr::{IvrEvent, IvrPromptCacheConfig, IvrSessionConfig};
+use voice_media_rs::rtp::ProcessingLeg;
 use voice_media_rs::runtime::{
     ProcessingRuntime, ProcessingRuntimeCommand, ProcessingRuntimeConfig, ProcessingRuntimeError,
     ProcessingRuntimeOperation,
@@ -16,13 +22,14 @@ use voice_media_rs::session::{
     ProcessingAction, ProcessingCommand, ProcessingProfile, ProcessingSessionRegistryConfig,
     ProcessingSessionState, ReconcileCommand, SessionError,
 };
-use voice_media_rs::worker::{RtpWorkerPoolConfig, WorkerError};
+use voice_media_rs::worker::{RtpWorkerPoolConfig, WorkerError, WorkerEvent};
 
 fn localhost(port: u16) -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port)
 }
 
 static NEXT_RTP_PORT: AtomicUsize = AtomicUsize::new(40_000);
+static NEXT_EVENT_DIRECTORY: AtomicUsize = AtomicUsize::new(1);
 
 fn free_even_pair() -> (u16, u16) {
     loop {
@@ -187,6 +194,323 @@ fn endpoint() -> UdpSocket {
     socket
 }
 
+fn established_runtime() -> ProcessingRuntime {
+    let (port_start, port_end) = free_even_pair();
+    let runtime = ProcessingRuntime::new(
+        config(port_start, port_end),
+        Arc::new(CodecPairCapacity::uniform(4)),
+    )
+    .expect("runtime");
+    let endpoint_a = endpoint();
+    let endpoint_b = endpoint();
+    runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::Offer, 1),
+                operation: ProcessingRuntimeOperation::Offer {
+                    sdp: sdp(SdpFixture {
+                        sdp_type: SdpType::Offer,
+                        address: endpoint_a.local_addr().expect("A address").ip(),
+                        port: endpoint_a.local_addr().expect("A address").port(),
+                        payload_type: 0,
+                        codec: "PCMU",
+                        rate: 8_000,
+                        channels: None,
+                        event_payload_type: 101,
+                        event_rate: 8_000,
+                    }),
+                },
+            },
+            1_000,
+        )
+        .expect("offer");
+    runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::Answer, 2),
+                operation: ProcessingRuntimeOperation::Answer {
+                    sdp: sdp(SdpFixture {
+                        sdp_type: SdpType::Answer,
+                        address: endpoint_b.local_addr().expect("B address").ip(),
+                        port: endpoint_b.local_addr().expect("B address").port(),
+                        payload_type: 111,
+                        codec: "OPUS",
+                        rate: 48_000,
+                        channels: Some(2),
+                        event_payload_type: 110,
+                        event_rate: 48_000,
+                    }),
+                },
+            },
+            1_001,
+        )
+        .expect("answer");
+    runtime
+}
+
+#[test]
+fn runtime_projects_owner_fenced_terminal_events_for_durable_handoff() {
+    let runtime = established_runtime();
+    let worker_event = WorkerEvent::Ivr {
+        session_id: Arc::from("media-a"),
+        event: IvrEvent::GatherCompleted {
+            command_id: Arc::from("gather-42"),
+            digits: Arc::from("42"),
+            reason: voice_media_rs::ivr::GatherCompletionReason::MaximumDigits,
+            minimum_satisfied: true,
+        },
+    };
+    let terminal = runtime
+        .terminal_event_input(worker_event.clone(), 1_785_200_000_123)
+        .expect("project terminal event")
+        .expect("terminal event");
+
+    assert_eq!(terminal.tenant_id, "tenant-a");
+    assert_eq!(terminal.call_id, "call-a");
+    assert_eq!(terminal.cell_id, "cell-a");
+    assert_eq!(terminal.owner_node_id, "owner-a");
+    assert_eq!(terminal.owner_epoch, "1");
+    assert_eq!(terminal.media_reservation_id, "media-a");
+    assert_eq!(terminal.command_id, "gather-42");
+    assert_eq!(
+        terminal.event,
+        ProcessingTerminalEvent::GatherCompleted {
+            digits: "42".to_owned(),
+            reason: "maximum_digits".to_owned(),
+            minimum_satisfied: true,
+        }
+    );
+    assert!(
+        runtime
+            .terminal_event_input(
+                WorkerEvent::Ivr {
+                    session_id: Arc::from("media-a"),
+                    event: IvrEvent::GatherStarted {
+                        command_id: Arc::from("gather-42"),
+                    },
+                },
+                1_785_200_000_124,
+            )
+            .expect("project telemetry")
+            .is_none(),
+        "non-terminal telemetry must not enter the durable outbox"
+    );
+
+    let directory = TestDirectory::new();
+    let outbox = ProcessingEventOutbox::open(ProcessingEventOutboxConfig {
+        path: directory.path().join("processing-events.wal"),
+        max_pending_events: 16,
+        max_acknowledged_events: 8,
+        max_bytes: 1024 * 1024,
+        max_record_bytes: 64 * 1024,
+    })
+    .expect("open event outbox");
+    let persisted = runtime
+        .persist_terminal_event(&outbox, worker_event, 1_785_200_000_123)
+        .expect("persist terminal event")
+        .expect("durable terminal event");
+    assert_eq!(persisted.record.event_sequence, 1);
+    assert_eq!(
+        outbox.scan(0, 16).expect("scan persisted event").items,
+        vec![persisted.record]
+    );
+}
+
+#[test]
+fn committed_runtime_accepts_and_replays_owner_fenced_sip_info_digit() {
+    let runtime = established_runtime();
+    let input = ProcessingRuntimeCommand {
+        command: command(ProcessingAction::InjectDtmf, 3),
+        operation: ProcessingRuntimeOperation::SipInfoDigit {
+            event_id: "sip-info-caller-42".to_owned(),
+            digit: '5',
+        },
+    };
+
+    let applied = runtime
+        .execute(input.clone(), 1_002)
+        .expect("SIP INFO digit");
+    assert!(!applied.replayed);
+    assert_eq!(applied.snapshot.session.last_sequence, 3);
+    assert_eq!(
+        applied.snapshot.session.state,
+        ProcessingSessionState::Committed
+    );
+
+    let replayed = runtime.execute(input, 1_003).expect("SIP INFO replay");
+    assert!(replayed.replayed);
+    assert_eq!(replayed.applied_command_id, "cmd-3");
+    assert_eq!(replayed.snapshot.session.last_sequence, 3);
+}
+
+#[test]
+fn committed_runtime_executes_replay_safe_ivr_commands_against_preloaded_prompts() {
+    let runtime = established_runtime();
+    let prompt = runtime
+        .cache_prompt_pcm("welcome-v1", 8_000, &vec![1_000; 8_000])
+        .expect("cache prompt");
+    assert_eq!(prompt.prompt_id, "welcome-v1");
+    assert_eq!(prompt.canonical_sample_rate_hz, 48_000);
+    assert_eq!(prompt.frame_count, 50);
+
+    let baseline_sdp = runtime
+        .session("media-a")
+        .expect("session")
+        .expect("committed session")
+        .effective_sdp;
+    let play = ProcessingRuntimeCommand {
+        command: command(ProcessingAction::PlayMedia, 3),
+        operation: ProcessingRuntimeOperation::PlayMedia {
+            prompt_id: "welcome-v1".to_owned(),
+            egress_leg: ProcessingLeg::A,
+            barge_in: true,
+        },
+    };
+    let played = runtime
+        .execute(play.clone(), 1_002)
+        .expect("start playback");
+    assert!(!played.replayed);
+    assert_eq!(played.snapshot.effective_sdp, baseline_sdp);
+    assert!(
+        runtime
+            .execute(play, 1_003)
+            .expect("replay playback command")
+            .replayed
+    );
+
+    runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::StartGather, 4),
+                operation: ProcessingRuntimeOperation::StartGather {
+                    minimum_digits: 1,
+                    maximum_digits: 4,
+                    terminator: Some('#'),
+                    first_digit_timeout_ms: 5_000,
+                    inter_digit_timeout_ms: 2_000,
+                },
+            },
+            1_004,
+        )
+        .expect("start gather");
+    runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::StopMedia, 5),
+                operation: ProcessingRuntimeOperation::StopMedia {
+                    target_command_id: "cmd-3".to_owned(),
+                },
+            },
+            1_005,
+        )
+        .expect("stop playback");
+    let stopped = runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::StopGather, 6),
+                operation: ProcessingRuntimeOperation::StopGather {
+                    target_command_id: "cmd-4".to_owned(),
+                },
+            },
+            1_006,
+        )
+        .expect("stop gather");
+    assert_eq!(stopped.snapshot.session.last_sequence, 6);
+    assert_eq!(stopped.snapshot.effective_sdp, baseline_sdp);
+
+    let mut playback_stopped = false;
+    let mut gather_stopped = false;
+    for _ in 0..8 {
+        let Some(WorkerEvent::Ivr { event, .. }) =
+            runtime.recv_event_timeout(Duration::from_millis(100))
+        else {
+            continue;
+        };
+        match event {
+            IvrEvent::PlaybackStopped {
+                command_id,
+                prompt_id,
+                reason: voice_media_rs::ivr::PlaybackStopReason::Explicit,
+            } => {
+                assert_eq!(command_id.as_ref(), "cmd-3");
+                assert_eq!(prompt_id.as_ref(), "welcome-v1");
+                playback_stopped = true;
+            }
+            IvrEvent::GatherCompleted {
+                command_id,
+                digits,
+                reason: voice_media_rs::ivr::GatherCompletionReason::ExplicitStop,
+                minimum_satisfied,
+            } => {
+                assert_eq!(command_id.as_ref(), "cmd-4");
+                assert!(digits.is_empty());
+                assert!(!minimum_satisfied);
+                gather_stopped = true;
+            }
+            _ => {}
+        }
+        if playback_stopped && gather_stopped {
+            break;
+        }
+    }
+    assert!(playback_stopped, "playback terminal event");
+    assert!(gather_stopped, "gather terminal event");
+    assert!(runtime
+        .remove_cached_prompt("welcome-v1")
+        .expect("remove prompt"));
+    assert!(!runtime
+        .remove_cached_prompt("welcome-v1")
+        .expect("idempotent prompt removal"));
+}
+
+#[test]
+fn prepared_runtime_rejects_sip_info_digit_before_worker_dispatch() {
+    let (port_start, port_end) = free_even_pair();
+    let runtime = ProcessingRuntime::new(
+        config(port_start, port_end),
+        Arc::new(CodecPairCapacity::uniform(4)),
+    )
+    .expect("runtime");
+    let endpoint_a = endpoint();
+    runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::Offer, 1),
+                operation: ProcessingRuntimeOperation::Offer {
+                    sdp: sdp(SdpFixture {
+                        sdp_type: SdpType::Offer,
+                        address: endpoint_a.local_addr().expect("A address").ip(),
+                        port: endpoint_a.local_addr().expect("A address").port(),
+                        payload_type: 0,
+                        codec: "PCMU",
+                        rate: 8_000,
+                        channels: None,
+                        event_payload_type: 101,
+                        event_rate: 8_000,
+                    }),
+                },
+            },
+            1_000,
+        )
+        .expect("offer");
+
+    assert_eq!(
+        runtime
+            .execute(
+                ProcessingRuntimeCommand {
+                    command: command(ProcessingAction::InjectDtmf, 2),
+                    operation: ProcessingRuntimeOperation::SipInfoDigit {
+                        event_id: "sip-info-caller-42".to_owned(),
+                        digit: '5',
+                    },
+                },
+                1_001,
+            )
+            .expect_err("prepared session must reject digit"),
+        ProcessingRuntimeError::Session(SessionError::InvalidTransition)
+    );
+}
+
 #[test]
 fn runtime_negotiates_two_codec_legs_and_transcodes_real_udp() {
     let (port_start, port_end) = free_even_pair();
@@ -338,6 +662,75 @@ fn runtime_negotiates_two_codec_legs_and_transcodes_real_udp() {
             .expect("delete replay")
             .replayed
     );
+}
+
+#[test]
+fn runtime_commits_single_leg_ivr_and_suppresses_unused_transcoding() {
+    let (port_start, port_end) = free_even_pair();
+    let runtime = ProcessingRuntime::new(
+        config(port_start, port_end),
+        Arc::new(CodecPairCapacity::uniform(4)),
+    )
+    .expect("runtime");
+    let endpoint_a = endpoint();
+    let _prepared = runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::Offer, 1),
+                operation: ProcessingRuntimeOperation::Offer {
+                    sdp: sdp(SdpFixture {
+                        sdp_type: SdpType::Offer,
+                        address: endpoint_a.local_addr().expect("A address").ip(),
+                        port: endpoint_a.local_addr().expect("A address").port(),
+                        payload_type: 0,
+                        codec: "PCMU",
+                        rate: 8_000,
+                        channels: None,
+                        event_payload_type: 101,
+                        event_rate: 8_000,
+                    }),
+                },
+            },
+            1_000,
+        )
+        .expect("offer");
+
+    let committed = runtime
+        .execute(
+            ProcessingRuntimeCommand {
+                command: command(ProcessingAction::CommitSingleLeg, 2),
+                operation: ProcessingRuntimeOperation::CommitSingleLeg,
+            },
+            1_001,
+        )
+        .expect("single-leg commit");
+    assert_eq!(
+        committed.snapshot.session.state,
+        ProcessingSessionState::Committed
+    );
+    let answer = SessionDescription::parse(SdpType::Answer, &committed.snapshot.effective_sdp)
+        .expect("single-leg answer");
+    let audio = answer
+        .media_sections
+        .iter()
+        .find(|section| section.kind == MediaKind::Audio)
+        .expect("answer audio");
+    assert_eq!(audio.port, committed.snapshot.session.ports.leg_a_rtp_port);
+    assert_eq!(audio.formats, ["0", "101"]);
+
+    let pcmu = create_encoder(CodecType::PCMU).encode(&vec![1_000; 160]);
+    for (sequence, timestamp) in [(1, 0), (2, 160), (3, 320)] {
+        endpoint_a
+            .send_to(
+                &wire(0, sequence, timestamp, 111, pcmu.clone()),
+                localhost(committed.snapshot.session.ports.leg_a_rtp_port),
+            )
+            .expect("A media");
+    }
+    std::thread::sleep(Duration::from_millis(100));
+    let worker = runtime.worker_snapshot().expect("worker snapshot");
+    assert!(worker.rtp_datagrams_received >= 3);
+    assert_eq!(worker.rtp_datagrams_sent, 0);
 }
 
 #[test]
@@ -550,4 +943,30 @@ fn runtime_reconcile_returns_the_historical_command_outcome() {
             .expect_err("payload conflict"),
         ProcessingRuntimeError::Session(SessionError::CommandPayloadConflict)
     );
+}
+
+struct TestDirectory {
+    path: PathBuf,
+}
+
+impl TestDirectory {
+    fn new() -> Self {
+        let sequence = NEXT_EVENT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!(
+            "ivekit-processing-runtime-events-{}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&path).expect("create event test directory");
+        Self { path }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TestDirectory {
+    fn drop(&mut self) {
+        fs::remove_dir_all(&self.path).expect("remove event test directory");
+    }
 }
