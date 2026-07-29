@@ -1,10 +1,34 @@
 # iveKit RTPengine Goal 2 Implementation Plan
 
+> **Architecture status (2026-07-29): Historical execution asset, not the
+> production authority model.** The exact RTPengine source, fork, build,
+> packet-path, and evidence work remains reusable. The standalone media-control
+> sidecar/HTTP ownership described below is superseded by
+> `rvoip-rustpbx-unified-authority-r2`: RustPBX's in-process Media Engine Facade
+> owns each directed Media Edge while a generation-scoped Backend Binding Group
+> owns the shared RTPengine allocation and Wire Transport Bundle.
+> Existing Goal 2 evidence does not qualify that new control path or authorize
+> production.
+>
+> **Related documents:** `rvoip-opc-communication-foundation-integration-design.md`,
+> `communication-foundation-vos5000-parity-performance-plan.md`, and
+> `../adr/ccaas-5-media-authority-and-rtpengine.md`.
+
 > **For agentic workers:** Execute this plan task-by-task with test-driven development. Do not use `using-superpowers`. Keep every runtime claim tied to immutable source, image, configuration, host-kernel, and evidence identities.
 
 **Goal:** Replace the Goal 1 simulator with an exact-source, fenced, durable, observable RTPengine media executor that can relay real RTP/RTCP and SRTP without coupling established media to the OPC control plane.
 
-**Architecture:** RustPBX remains authoritative for Call, Leg, Dialog, routing policy, and the logical media graph. The cell-local media-control agent remains the only iveKit caller of RTPengine and enforces reservation, owner epoch, sequence, idempotency, and uncertainty reconciliation. The maintained RTPengine fork owns effective wire SDP, ports, ICE/DTLS/SRTP state, packet forwarding, drain state, and low-cardinality transport counters. A bounded local WAL preserves command outcomes and effective SDP across media-control restarts; PostgreSQL, Redis, object storage, OCR, ASR, and AI are not on the RTP packet path.
+**Target Architecture:** Unified RustPBX remains authoritative for Call, Leg,
+Dialog, routing policy, the logical media graph, each directed Media Edge and
+its writer fence. A `BackendBindingGroup` generation owns one shared RTPengine
+allocation; its `WireTransportBundle` owns effective wire SDP views, transport
+tuples, flow bindings, ICE/DTLS/SRTP state references and physical release.
+Each Edge generation maps by `(group_id, group_generation, flow_selector)` to
+exactly one member flow, and packet dispatch resolves that mapping in O(1)
+without scanning group members. The historical cell-local media-control agent,
+HTTP API and WAL below remain compatibility/evidence assets, not the production
+authority or call path. PostgreSQL, Redis, object storage, OCR, ASR and AI are
+never on the RTP packet path.
 
 **Pinned source:** Sipwise RTPengine `mr26.0.1.13`, commit `506cfa74386a5373e40fca139a932917f22f0524`, archive SHA-256 `a6d23de8f656c3ad54e4060813c230861d100b79fb45ba1ce728ad2cef780143`.
 
@@ -24,6 +48,19 @@
 8. Metrics have fixed labels only. Tenant, call, reservation, command, SDP, IP address, port, and phone number are forbidden labels.
 9. A userspace fallback is visible as a different runtime mode and capacity profile. It cannot inherit a kernel-fast-path result.
 10. No source, overlay, build, integration, or benchmark status changes from `not_run` until machine-readable evidence exists.
+11. A logical Edge generation never directly owns a shared RTPengine allocation.
+    It has one `WireMediaBinding`; the corresponding immutable
+    `BackendBindingGroup` generation owns the allocation, membership digest and
+    release lifecycle.
+12. Group prepare is atomic `prepared_blocked`: ports and state may be allocated,
+    but user-space and kernel output gates are closed from creation. Commit opens
+    output only after the durable decision; revoke acknowledges only after both
+    gates are closed and in-flight sends are drained.
+13. A timeout during prepare, commit or revoke is `unknown`; the caller must
+    `query_binding_group` and reconcile the exact durable decision. It may not
+    retry through a different Backend or silently compile a different group.
+14. Raw SRTP keys are never persisted in the group, Edge binding or evidence;
+    only key references, negotiation state and digests may be durable.
 
 ## File Map
 
@@ -38,11 +75,11 @@
 | `infra/ivekit/rtpengine/build.sh` | Offline source build, image labels, SBOM input, and artifact identity |
 | `infra/ivekit/rtpengine/entrypoint.sh` | Deterministic config rendering and kernel/userspace mode assertion |
 | `infra/ivekit/rtpengine/rtpengine.conf.template` | Cell-local TCP NG, media ports, limits, timeouts, and metrics configuration |
-| `src/agent-runtime/ivekit/media-control/bencode.ts` | Bounded deterministic bencode encoder and streaming decoder |
-| `src/agent-runtime/ivekit/media-control/rtpengine-ng.ts` | Persistent TCP NG connection pool and stable-cookie request matching |
-| `src/agent-runtime/ivekit/media-control/journal.ts` | Checksummed bounded local command/session WAL |
-| `src/agent-runtime/ivekit/media-control/rtpengine.ts` | `MediaTransportPort` implementation and action mapping |
-| `scripts/ivekit-media-control-agent.ts` | Explicit `simulator` or `rtpengine` runtime selection |
+| `src/agent-runtime/ivekit/media-control/bencode.ts` | Historical bounded bencode implementation; reusable protocol evidence |
+| `src/agent-runtime/ivekit/media-control/rtpengine-ng.ts` | Historical persistent TCP NG client; compatibility/diagnostic only |
+| `src/agent-runtime/ivekit/media-control/journal.ts` | Historical command/session WAL; not the target authority store |
+| `src/agent-runtime/ivekit/media-control/rtpengine.ts` | Historical `MediaTransportPort`; target is the in-process group-aware Facade Adapter |
+| `scripts/ivekit-media-control-agent.ts` | Historical simulator/RTPengine runner; diagnostic only |
 | `scripts/ivekit-rtpengine-acceptance.ts` | Identity, command, restart, RTP, RTCP, SRTP, drain, and outage evidence |
 | `infra/ivekit/docker-compose.voice.yml` | Cell-local RTPengine, media-control volume, health, ports, and profiles |
 | `infra/ivekit/helm/rtpengine/*` | Privileged kernel pool and unprivileged userspace pool deployment templates |
@@ -498,6 +535,52 @@ eligibility remains false because kernel, recording, transcoding, signing, one
 time-limited Critical exception, and seven failure-matrix rows are still open.
 See `docs/evidence/goal2-rtpengine-final-evidence-2026-07-26.json`.
 
+### Task 12: Migrate The Reusable Fork Into The Revision 3 Authority Model
+
+**Status:** Target delta only; all items are `not_run`. The checked Tasks 1–11
+remain historical evidence and do not satisfy this task.
+
+- [ ] Extend the Goal 2 contract/schema/tests with
+      `BackendBindingGroup`, `WireTransportBundle` and `WireMediaBinding`,
+      including `group_generation`, immutable ordered members, membership
+      digest, exact `flow_selector`, writer fence and zero-reference release.
+- [ ] Add a new exact-source patch
+      `rtpengine-ivekit-atomic-binding-lifecycle-v1`. Its present status is
+      `not_present/not_run`; the current five-patch source-lock (including
+      `rtpengine-ivekit-durable-replay-v1`) must not be described as containing
+      this sixth patch.
+- [ ] Key the RTPengine physical guard by
+      `(binding_group_id, group_generation)` and validate the immutable
+      member/fence digest before any mutation. Maintain an O(1) flow selector
+      index; member scans are forbidden on the packet path.
+- [ ] Implement atomic `prepare_binding_group` with output blocked from
+      allocation, `commit_binding_group`, pre-decision
+      `abort_binding_group`, `revoke_binding_group` with zero-output ACK, and
+      read-only `query_binding_group` for exact reconciliation.
+- [ ] Compile the complete candidate Media Plan, group membership and flow
+      bindings before any Backend-specific reserve. A reserve retry creates a
+      new candidate attempt/revision; it cannot switch Backend or rewrite
+      membership after prepare.
+- [ ] Before the immutable decision, compensate by reverse-aborting every
+      prepared group and cancelling admission reservations. After a partial
+      commit, preserve the decision and query/reconcile it; a terminally
+      impossible decision follows the predeclared compensation plan and ends
+      `compensated_failed`, never `aborted`.
+- [ ] For initial setup, persist the immutable final plan, Edge mappings,
+      transport bundles and decision, commit every required group, then expose
+      effective SDP. For migration, expose candidate SDP while the old
+      generation remains the sole writer; after remote acceptance persist the
+      handoff decision, revoke old to zero-output, commit new, and retain old
+      receive-only state only for a bounded authenticate/count/drop grace.
+- [ ] Make new-call Backend selection and old-call drain the default rollout.
+      Do not migrate active calls merely to change selector policy.
+- [ ] Preserve ordinary RTPengine behavior as `continue_degraded` when Unified
+      RustPBX control ownership is lost; this statement does not apply to
+      embedded processing Edges.
+- [ ] Produce exact patch, lifecycle, race, real RTP/SRTP and failure evidence.
+      Until then production eligibility, benchmark and capacity claims remain
+      `not_run/none`.
+
 ## Server Execution Order
 
 1. Build the exact userspace artifact on `64.225.122.227` without touching LED containers.
@@ -511,7 +594,7 @@ See `docs/evidence/goal2-rtpengine-final-evidence-2026-07-26.json`.
 9. Re-run the same media suite in kernel mode and preserve userspace/kernel results separately.
 10. Generate SBOM, vulnerability, provenance, image, kernel, configuration, and acceptance evidence.
 
-## Goal 2 Completion Gate
+## Historical Goal 2 Compatibility Gate
 
 Goal 2 is complete only when:
 
@@ -526,3 +609,16 @@ Goal 2 is complete only when:
 - Compose and Helm encode the same security and runtime boundaries;
 - supply-chain and acceptance evidence is complete;
 - no unexecuted benchmark is represented as a capacity pass.
+
+These conditions close the historical compatibility asset only. Production use
+under `CARRIER-CELL-V1` additionally requires every Task 12 item, the Revision 3
+contract gates, real co-resident Unified RustPBX integration evidence and the
+later capacity campaign. No checked item above authorizes production or capacity
+by inheritance.
+
+## Change log
+
+| Revision | Date | Author | Change |
+| --- | --- | --- | --- |
+| 2 | 2026-07-29 | Codex | Preserved exact-source and packet-path evidence work while classifying the standalone control sidecar as a superseded, non-production compatibility path. |
+| 3 | 2026-07-29 | Codex | Added the target Backend Binding Group/Wire Transport Bundle lifecycle, O(1) Edge-flow mapping, atomic blocked prepare/commit/revoke/query semantics, decision-aware compensation, initial/migration SDP ordering and honest Task 12 delta. |

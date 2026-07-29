@@ -16,6 +16,7 @@
     "workload",
     "phases",
     "thresholds",
+    "handoff",
     "finalizer",
     "external_dependencies",
     "claim"
@@ -371,6 +372,19 @@
         "oom_kill_count": {
           "const": 0
         }
+      }
+    },
+    "handoff": {
+      "const": {
+        "scope": "active_backend_migration_evidence_only",
+        "default_rollout": "new_call_selection_and_old_call_drain",
+        "active_migration_authorizes_capacity_claim": false,
+        "inbound_grace_ms": 500,
+        "handoff_rto_ms": 5000,
+        "max_writer_gap_ms": 100,
+        "max_migration_loss_ratio": 0.001,
+        "old_generation_grace_behavior": "authenticate_count_drop_only_no_forward_dtmf_recording_or_ai",
+        "verification": "not_run"
       }
     },
     "finalizer": {

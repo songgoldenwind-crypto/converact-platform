@@ -1,7 +1,7 @@
 # OPC 设计文档区 — 导航与治理
 
 > 本文件是 `docs/design/` 的导航与治理入口。新增/修改本目录任意 `.md` 前，先读本文件。
-> **快照日期**：2026-07-21（Kamailio/通信底座裁决已按 MIX-100K 目标重扫）
+> **快照日期**：2026-07-29（RustPBX × rvoip 唯一生产基线、Media Edge 与 Backend Binding Group 模型已重扫）
 
 ---
 
@@ -9,7 +9,7 @@
 
 | 文档 | 行数 | 版本 | 日期 | 角色 | 状态 |
 |------|------|------|------|------|------|
-| [super-contact-center-platform-vision.md](./super-contact-center-platform-vision.md) | ~1817 | 1.3 | 2026-06-29 | 战略北极星 + 四 Phase 路线图 + 九大模块 + §5 架构图 | 活跃 |
+| [super-contact-center-platform-vision.md](./super-contact-center-platform-vision.md) | ~1817 | 1.4 | 2026-07-29 | 战略北极星 + 四 Phase 路线图 + 九大模块 + §5 架构图 | 活跃 |
 | [architecture-v3.md](./architecture-v3.md) | ~1451 | v3.1 | 2026-06-29 | 实现级架构规格（Sprint 1-12）；正文已标 `【现状】`/`【目标态】` | 活跃 |
 | [product-design.md](./product-design.md) | ~1146 | v2.2 | 2026-06-29 | 产品设计：角色/矩阵/用户故事/MVP/定价（CCaaS） | 活跃 |
 | [revised-master-plan.md](./revised-master-plan.md) | ~990 | v3.1 | 2026-06-29 | 110 功能对标 + Sprint 1-12；禁用词已标注 | 活跃 |
@@ -21,8 +21,24 @@
 | [communication-foundation-production-completion.md](./communication-foundation-production-completion.md) | — | 执行基线 | 2026-07-21 | IM/SIP/视频集群完备性与后续 Goals | 活跃、覆盖早期 MVP 裁决 |
 | [kamailio-sip-edge-design.md](./kamailio-sip-edge-design.md) | — | 执行设计 | 2026-07-21 | Kamailio/RustPBX Cell/Zone 路由与故障语义 | 活跃 |
 | [quic-video-transport-assessment.md](./quic-video-transport-assessment.md) | — | 技术裁决 | 2026-07-21 | QUIC/RoQ、LiveKit 与传输竞争治理 | 活跃、RoQ 仅实验 |
+| [communication-foundation-vos5000-parity-performance-plan.md](./communication-foundation-vos5000-parity-performance-plan.md) | — | Revision 3 | 2026-07-29 | VOS5000 对标、Goal 0-11、100K 性能与唯一生产架构总入口 | Accepted |
+| [rvoip-opc-communication-foundation-integration-design.md](./rvoip-opc-communication-foundation-integration-design.md) | — | Revision 3 | 2026-07-29 | RustPBX 产品主干、rvoip 低层吸收、Media Edge/Binding Group/Wire Bundle 与 Backend 资格设计 | Accepted |
+| [2026-07-28-ivekit-media-processing-goal4-implementation-plan.md](./2026-07-28-ivekit-media-processing-goal4-implementation-plan.md) | — | Revision 3 | 2026-07-29 | Goal 4 codec/IVR/G.729、进程内 `voice-media-rs` 与 co-resident 验收计划 | 活跃、真实容量 `not_run` |
 
 **上级文档**（不在本目录）：[../product-direction-2026-06.md](../product-direction-2026-06.md) — 产品方向总纲 v1.1（2026-06-29 CCaaS 校准）。
+
+### 1.1 历史兼容实施资产
+
+以下文档仍用于核对现有代码、精确上游身份和既有证据，但其中独立
+`media-control` agent/HTTP 拓扑已被
+`rvoip-rustpbx-unified-authority-r2` 取代，不能作为生产授权。Goal 2/3 文档新增的
+未勾选 Revision 3 target-delta 任务仍是现行实施输入，但历史已勾选证据不能替代它：
+
+| 文档 | 可继续复用/现行目标增量 | 被 supersede 的生产语义 |
+| --- | --- | --- |
+| [2026-07-25-ivekit-voice-media-control-goal1-implementation-plan.md](./2026-07-25-ivekit-voice-media-control-goal1-implementation-plan.md) | 协议、防重、WAL、故障注入和诊断 harness | 独立 agent、HTTP 边界、call/leg 级写者权威 |
+| [2026-07-26-ivekit-rtpengine-goal2-implementation-plan.md](./2026-07-26-ivekit-rtpengine-goal2-implementation-plan.md) | RTPengine 精确源码、fork、构建、数据面和证据方法；Task 12 group lifecycle delta | 独立 media-control sidecar 是生产调用权威 |
+| [2026-07-26-ivekit-rustpbx-rtpengine-goal3-implementation-plan.md](./2026-07-26-ivekit-rustpbx-rtpengine-goal3-implementation-plan.md) | RustPBX/上游事实、SIP 场景；Task 13 Unified Facade/group cutover delta | `RustPBX -> HTTP agent -> RTPengine` 是生产拓扑 |
 
 ---
 

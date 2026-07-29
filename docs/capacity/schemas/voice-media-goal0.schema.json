@@ -17,6 +17,7 @@
     "placement",
     "harness",
     "failure_matrix",
+    "failure_classification",
     "compatibility",
     "rollback",
     "claim"
@@ -60,8 +61,12 @@
         "adr_path",
         "call_dialog_owner",
         "logical_media_graph_owner",
-        "wire_transport_owner",
-        "effective_wire_sdp_owner",
+        "media_plan_owner",
+        "edge_binding_authority",
+        "writer_scope",
+        "physical_binding_scope",
+        "wire_transport_scope",
+        "ordinary_edge_runtime_default",
         "inserted_processing_runtime_owner",
         "recording_manifest_owner",
         "cell_spool_authority"
@@ -76,14 +81,26 @@
         "logical_media_graph_owner": {
           "const": "rustpbx"
         },
-        "wire_transport_owner": {
-          "const": "rtpengine"
+        "media_plan_owner": {
+          "const": "rustpbx"
         },
-        "effective_wire_sdp_owner": {
+        "edge_binding_authority": {
+          "const": "rustpbx_media_engine_facade"
+        },
+        "writer_scope": {
+          "const": "directed_media_edge"
+        },
+        "physical_binding_scope": {
+          "const": "backend_binding_group_generation"
+        },
+        "wire_transport_scope": {
+          "const": "wire_transport_bundle"
+        },
+        "ordinary_edge_runtime_default": {
           "const": "rtpengine"
         },
         "inserted_processing_runtime_owner": {
-          "const": "media_processing_service"
+          "const": "embedded_voice_media_rs"
         },
         "recording_manifest_owner": {
           "const": "regional_recording_service"
@@ -115,7 +132,7 @@
           "const": false
         },
         "active_media_migration": {
-          "const": "forbidden"
+          "const": "new_edge_generation_handoff_only"
         },
         "cross_zone_new_call_failover": {
           "const": "allowed_after_capacity_and_health_gate"
@@ -206,7 +223,7 @@
     },
     "failure_matrix": {
       "type": "array",
-      "minItems": 7,
+      "minItems": 9,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -224,7 +241,12 @@
             "pattern": "^[a-z][a-z0-9-]{2,127}$"
           },
           "established_media": {
-            "enum": ["continue", "continue_degraded", "may_interrupt"]
+            "enum": [
+              "continue",
+              "continue_degraded",
+              "may_interrupt",
+              "interrupt_visible"
+            ]
           },
           "new_admission": {
             "enum": [
@@ -255,6 +277,34 @@
               "pattern": "^[a-z][a-z0-9._-]{2,127}$"
             }
           }
+        }
+      }
+    },
+    "failure_classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ordinary_rtpengine_edge_on_unified_process_loss",
+        "embedded_required_edge_on_unified_process_loss",
+        "mixed_call_outcome",
+        "worker_restart_scope",
+        "process_oom_scope"
+      ],
+      "properties": {
+        "ordinary_rtpengine_edge_on_unified_process_loss": {
+          "const": "continue_degraded"
+        },
+        "embedded_required_edge_on_unified_process_loss": {
+          "const": "interrupt_visible"
+        },
+        "mixed_call_outcome": {
+          "const": "interrupt_visible_if_any_mandatory_edge_interrupts"
+        },
+        "worker_restart_scope": {
+          "const": "affected_embedded_edges_only"
+        },
+        "process_oom_scope": {
+          "const": "all_embedded_edges_plus_call_control"
         }
       }
     },
@@ -307,7 +357,7 @@
       ],
       "properties": {
         "strategy": {
-          "const": "restore_rustpbx_direct_media_for_new_calls"
+          "const": "select_prior_qualified_rtpengine_identity_for_new_edges_or_reject"
         },
         "new_calls_only": {
           "const": true
@@ -317,13 +367,15 @@
         },
         "requirements": {
           "type": "array",
-          "minItems": 4,
+          "minItems": 7,
           "uniqueItems": true,
           "items": {
             "enum": [
               "preserve_existing_rtpengine_sessions_until_bye",
               "pin_exact_rustpbx_and_rtpengine_identities",
-              "fence_new_rtpengine_allocations",
+              "fence_failing_candidate_allocations",
+              "require_prior_backend_same_gate_qualification",
+              "reject_when_no_qualified_backend_capacity",
               "retain_all_attempt_and_packet_evidence",
               "reconcile_active_sessions_before_completion"
             ]

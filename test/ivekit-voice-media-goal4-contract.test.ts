@@ -26,8 +26,17 @@ const G729_GATES = [
   'annex_a',
   'annex_b_vad_dtx_cng',
   'annex_b_fmtp_negotiation',
+  'annex_b_missing_parameter_default',
+  'annex_b_asymmetric_offer_answer',
   'packetization_10ms',
   'packetization_20ms',
+  'packetization_30ms',
+  'packetization_40ms',
+  'packetization_60ms',
+  'rtp_encoding_g729_8000',
+  'static_payload_type_18',
+  'dynamic_payload_type_remap',
+  'speech_sid_no_data_framing',
   'sid_no_data',
   'plc',
   'reference_vectors',
@@ -85,10 +94,28 @@ function expectedG729Slice(): Record<string, any> {
     sample_rate_hz: 8000,
     frame_ms: 10,
     samples_per_frame: 80,
-    packetization_ms: [10, 20],
+    packetization_ms: [10, 20, 30, 40, 60],
+    rtp_wire: {
+      encoding_name: 'G729',
+      clock_rate_hz: 8000,
+      static_payload_type: 18,
+      dynamic_payload_type_min: 96,
+      dynamic_payload_type_max: 127,
+      dynamic_remap_scope: 'leg_and_binding_revision'
+    },
+    payload_framing: {
+      speech_frame_octets: 10,
+      sid_frame_octets: 2,
+      speech_frames_per_packet: [1, 2, 3, 4, 6],
+      sid_position: 'zero_or_one_after_zero_or_more_speech_frames',
+      no_data_semantics:
+        'silence_suppression_no_rtp_packet_not_zero_length_speech_frame'
+    },
     annex_b_fmtp_negotiation: {
       status: 'not_run',
       parameter: 'annexb',
+      missing_parameter_default: 'yes',
+      asymmetric_offer_answer_rule: 'explicit_no_wins',
       g729a_expected_value: 'no',
       g729ab_expected_value: 'yes'
     },
@@ -105,6 +132,7 @@ function expectedG729Slice(): Record<string, any> {
       does_not_block: [
         'engineering_implementation',
         'source_extraction',
+        'compilation',
         'testing'
       ],
       external_legal_conclusion_required: true
@@ -192,9 +220,12 @@ test('Goal 4 freezes the processing source and authority boundary', () => {
       g729_source_authority: 'rvoip_g729_candidate_only',
       g729_runtime_enabled: false
     },
-    processing_service: {
+    processing_module: {
       path: 'services/voice-media-rs',
-      version: '0.2.0'
+      version: '0.2.0',
+      production_topology: 'embedded_library',
+      diagnostic_binary: true,
+      control_interface: 'direct_rust_adapter'
     },
     rvoip_g729_candidate: {
       manifest: 'docs/capacity/forks/rvoip-g729-source-candidate-v1.json',
@@ -208,10 +239,24 @@ test('Goal 4 freezes the processing source and authority boundary', () => {
     }
   });
   assert.equal(document.authority.call_dialog_owner, 'rustpbx');
+  assert.equal(document.authority.logical_media_graph_owner, 'rustpbx');
+  assert.equal(document.authority.media_plan_owner, 'rustpbx');
+  assert.equal(
+    document.authority.edge_binding_authority,
+    'rustpbx_media_engine_facade'
+  );
+  assert.equal(document.authority.writer_scope, 'directed_media_edge');
   assert.equal(document.authority.fast_path_owner, 'rtpengine');
   assert.equal(document.authority.processing_owner, 'voice-media-rs');
+  assert.equal(
+    document.authority.command_authority,
+    'rustpbx_media_engine_facade'
+  );
   assert.equal(document.authority.packet_path_remote_dependency, false);
-  assert.equal(document.authority.ordinary_relay_enters_processing_pool, false);
+  assert.equal(
+    document.authority.ordinary_relay_enters_processing_backend,
+    false
+  );
 });
 
 test('Goal 4 freezes the first directed codec-pair slice', () => {
@@ -236,6 +281,34 @@ test('Goal 4 freezes the first directed codec-pair slice', () => {
 
 test('Goal 4 makes every realtime queue and codec slot bounded', () => {
   const runtime = contract().processing_runtime;
+  assert.equal(runtime.production_process_scope, 'unified_rustpbx');
+  assert.equal(runtime.control_transport, 'in_process');
+  assert.deepEqual(runtime.edge_command_identity_fields, [
+    'media_plan_id',
+    'media_plan_revision',
+    'edge_id',
+    'edge_generation',
+    'binding_revision',
+    'binding_group_id',
+    'binding_group_generation',
+    'flow_selector',
+    'backend_id',
+    'writer_fence'
+  ]);
+  assert.equal(runtime.worker_shards_fixed, true);
+  assert.equal(runtime.control_and_media_cpu_budgets_isolated, true);
+  assert.equal(runtime.per_edge_writer_fenced, true);
+  assert.equal(runtime.active_backend_handoff_overlap, false);
+  assert.equal(
+    runtime.edge_logical_release_scope,
+    'directed_media_edge_generation_detach'
+  );
+  assert.equal(
+    runtime.physical_release_scope,
+    'backend_binding_group_generation'
+  );
+  assert.equal(runtime.physical_release_requires_zero_live_member_refs, true);
+  assert.equal(runtime.inbound_handoff_grace_bounded, true);
   assert.equal(runtime.codec_pair_slots_bounded, true);
   assert.equal(runtime.rtp_receive_queue_bounded, true);
   assert.equal(runtime.jitter_buffer_bounded, true);
@@ -243,7 +316,71 @@ test('Goal 4 makes every realtime queue and codec slot bounded', () => {
   assert.equal(runtime.event_queue_bounded, true);
   assert.equal(runtime.unknown_codec_fail_closed, true);
   assert.equal(runtime.cross_pair_slot_borrowing, false);
-  assert.equal(runtime.control_plane_failure_established_media, 'continue');
+  const document = contract();
+  assert.equal(
+    document.binding_group_model.packet_flow_lookup_complexity,
+    'O(1)'
+  );
+  assert.equal(
+    document.binding_group_model.packet_flow_lookup_scans_group_members,
+    false
+  );
+  assert.equal(
+    document.binding_group_model.edge_binding_cardinality,
+    'each_edge_generation_binding_maps_to_exactly_one_group_flow'
+  );
+  assert.equal(
+    document.binding_group_model.reverse_mapping_rule,
+    'group_member_set_exactly_matches_forward_edge_bindings'
+  );
+  assert.equal(
+    document.binding_group_model.orphan_edge_or_group_members_allowed,
+    false
+  );
+  assert.ok(
+    document.binding_group_model.group_identity_fields.includes(
+      'membership_digest'
+    )
+  );
+  assert.ok(
+    document.binding_group_model.wire_transport_bundle_fields.includes(
+      'effective_sdp_views'
+    )
+  );
+  assert.equal(
+    document.binding_group_model.security_persistence_rule,
+    'raw_srtp_keys_forbidden_persist_references_states_and_digests_only'
+  );
+  assert.equal(
+    document.dtmf_event_authority.owner,
+    'rustpbx_leg_dtmf_event_authority'
+  );
+  assert.deepEqual(
+    document.dtmf_event_authority.sources_in_precedence_order,
+    [
+      'negotiated_rfc4733',
+      'explicitly_accepted_sip_info',
+      'in_band_detector'
+    ]
+  );
+  assert.equal(
+    document.dtmf_event_authority.business_side_effect_limit_per_canonical_event,
+    1
+  );
+  assert.equal(
+    document.failure_classification
+      .ordinary_rtpengine_edge_on_unified_process_loss,
+    'continue_degraded'
+  );
+  assert.equal(
+    document.failure_classification
+      .embedded_edge_on_unified_process_loss,
+    'interrupt_visible'
+  );
+  assert.ok(
+    Object.values(document.failure_isolation_gates)
+      .every((status) => status === 'not_run')
+  );
 });
 
 test('Goal 4 metric labels are bounded and reject interaction identity', () => {
@@ -269,18 +406,57 @@ test('Goal 4 metric labels are bounded and reject interaction identity', () => {
   }
 });
 
-test('Goal 4 profile binds a separate generator and 1K processing target', () => {
+test('Goal 4 profile binds co-resident Unified RustPBX and 1K processing target', () => {
   const document = profile();
-  assert.equal(document.primary_sut.role, 'processing');
-  assert.equal(document.primary_sut.component_id, 'voice-media-rs');
+  assert.equal(
+    document.primary_sut.role,
+    'unified_control_and_embedded_processing'
+  );
+  assert.equal(document.primary_sut.component_id, 'unified-rustpbx');
+  assert.equal(
+    document.production_topology.deployment_profile_id,
+    'CARRIER-CELL-V1'
+  );
+  assert.equal(document.production_topology.voice_media_co_resident, true);
+  assert.equal(
+    document.production_topology.cpu_partition
+      .sip_call_control_reserved_cores +
+      document.production_topology.cpu_partition.embedded_media_max_cores +
+      document.production_topology.cpu_partition.os_irq_reserved_cores,
+    document.production_topology.cpu_partition.total_physical_cores
+  );
+  assert.equal(
+    document.production_topology.intrinsic_microbench.production_authorizing,
+    false
+  );
+  assert.equal(
+    document.source_identity.media_plan_compiler_revision,
+    'target-r3-not-run'
+  );
+  assert.equal(
+    document.source_identity.backend_selector_revision,
+    'carrier-cell-v1-target-r3-not-run'
+  );
+  assert.equal(
+    document.source_identity.backend_mix_id,
+    'rtpengine-ordinary-plus-embedded-processing-v2'
+  );
   assert.equal(document.workload.active_processing_sessions, 1_000);
   assert.equal(document.workload.rtp_legs, 2_000);
   assert.equal(document.workload.packetization_ms, 20);
   assert.equal(document.workload.transcoding, true);
+  assert.deepEqual(document.workload.backend_mix, {
+    ordinary_edge_backend: 'rtpengine',
+    decode_required_edge_backend: 'embedded_voice_media_rs',
+    selector_revision: 'carrier-cell-v1-target-r3-not-run',
+    profile_results_transferable_to_other_mix: false
+  });
   assert.equal(document.generator.separate_from_sut, true);
   assert.equal(document.generator.minimum_nodes, 2);
   assert.equal(document.generator.maximum_cpu_utilization_ratio, 0.7);
   assert.equal(document.thresholds.processing_latency_p99_ms, 10);
+  assert.equal(document.thresholds.sip_setup_latency_p99_ms, 250);
+  assert.equal(document.thresholds.sip_timer_lag_p99_ms, 10);
   assert.equal(document.thresholds.server_packet_loss_ratio, 0.001);
   assert.equal(document.thresholds.unexpected_ordinary_relay_termination_count, 0);
 });
@@ -296,17 +472,31 @@ test('Goal 4 failure matrix isolates ordinary relay from processing failures', (
     'processing-capacity-exhausted',
     'processing-control-unavailable',
     'processing-worker-restart',
+    'unified-rustpbx-process-unavailable',
     'postgres-unavailable',
     'nats-unavailable',
     'recorder-unavailable',
     'object-storage-unavailable'
   ]) {
     assert.ok(failures.has(id), id);
-    assert.equal(failures.get(id)?.ordinary_relay, 'continue', id);
+    assert.ok(
+      ['continue', 'continue_degraded']
+        .includes(failures.get(id)?.ordinary_relay),
+      id
+    );
   }
   assert.equal(
     failures.get('processing-capacity-exhausted')?.new_processing_admission,
     'reject'
+  );
+  assert.equal(
+    failures.get('unified-rustpbx-process-unavailable')
+      ?.established_processing,
+    'interrupt_visible'
+  );
+  assert.equal(
+    failures.get('unified-rustpbx-process-unavailable')?.ordinary_relay,
+    'continue_degraded'
   );
 });
 
@@ -336,7 +526,9 @@ test('Goal 4 binds the pinned G.729 source candidate without promoting it', () =
   assert.equal(bound.candidate_id, candidate.candidate_id); assert.equal(bound.repository, candidate.source.repository); assert.equal(bound.commit, candidate.source.commit); assert.equal(bound.tree, candidate.source.tree); assert.equal(bound.archive_sha256, candidate.source.archive.sha256); assert.equal(bound.archive_bytes, candidate.source.archive.bytes); assert.equal(bound.source_set_sha256, candidate.source_set_sha256);
   const slice = document.codec_slices.find((entry: Record<string, any>) => entry.slice_id === 'g729-v1'); assert.ok(slice);
   assert.deepEqual(slice, expectedG729Slice());
-  assert.deepEqual(candidate.gates, slice.acceptance_gates);
+  for (const [gate, status] of Object.entries(candidate.gates)) {
+    assert.equal(slice.acceptance_gates[gate], status, gate);
+  }
   for (const [key, value] of Object.entries(document.verification)) assert.equal(value, 'not_run', key);
   assert.deepEqual(candidate.claim, { capacity_claim: 'none', production_eligible: false, runtime_enabled: false });
   assert.deepEqual(document.claim, { functional: 'not_run', production: 'not_run', benchmark: 'not_run', capacity_claim: 'none', production_eligible: false });

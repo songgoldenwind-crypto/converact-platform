@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "candidate_id": "rvoip-g729-codec-core-v1",
-  "revision": 1,
+  "revision": 2,
   "status": "candidate",
   "generated_at": "2026-07-29T08:00:00.000Z",
   "source": {
@@ -74,10 +74,27 @@
     "sample_rate_hz": 8000,
     "frame_ms": 10,
     "samples_per_frame": 80,
-    "packetization_ms": [10, 20],
+    "packetization_ms": [10, 20, 30, 40, 60],
+    "rtp_wire": {
+      "encoding_name": "G729",
+      "clock_rate_hz": 8000,
+      "static_payload_type": 18,
+      "dynamic_payload_type_min": 96,
+      "dynamic_payload_type_max": 127,
+      "dynamic_remap_scope": "leg_and_binding_revision"
+    },
+    "payload_framing": {
+      "speech_frame_octets": 10,
+      "sid_frame_octets": 2,
+      "speech_frames_per_packet": [1, 2, 3, 4, 6],
+      "sid_position": "zero_or_one_after_zero_or_more_speech_frames",
+      "no_data_semantics": "silence_suppression_no_rtp_packet_not_zero_length_speech_frame"
+    },
     "annex_b_fmtp_negotiation": {
       "status": "not_run",
       "parameter": "annexb",
+      "missing_parameter_default": "yes",
+      "asymmetric_offer_answer_rule": "explicit_no_wins",
       "g729a_expected_value": "no",
       "g729ab_expected_value": "yes"
     },
@@ -91,6 +108,7 @@
       "does_not_block": [
         "engineering_implementation",
         "source_extraction",
+        "compilation",
         "testing"
       ],
       "external_legal_conclusion_required": true
@@ -951,8 +969,17 @@
     "annex_a": "not_run",
     "annex_b_vad_dtx_cng": "not_run",
     "annex_b_fmtp_negotiation": "not_run",
+    "annex_b_missing_parameter_default": "not_run",
+    "annex_b_asymmetric_offer_answer": "not_run",
     "packetization_10ms": "not_run",
     "packetization_20ms": "not_run",
+    "packetization_30ms": "not_run",
+    "packetization_40ms": "not_run",
+    "packetization_60ms": "not_run",
+    "rtp_encoding_g729_8000": "not_run",
+    "static_payload_type_18": "not_run",
+    "dynamic_payload_type_remap": "not_run",
+    "speech_sid_no_data_framing": "not_run",
     "sid_no_data": "not_run",
     "plc": "not_run",
     "reference_vectors": "not_run",
@@ -975,6 +1002,6 @@
     "No source is copied by this candidate record.",
     "No reference-vector, interoperability, quality, capacity, runtime, or production claim is made.",
     "The normal voice-media build no longer contains g729-sys; this does not promote the separately not_run dependency-closure gate for a future rvoip source extraction.",
-    "Legal and patent review remain not_run and block production distribution, runtime enablement, and production eligibility until an external legal conclusion; they do not block engineering implementation, source extraction, or testing."
+    "Legal and patent review remain not_run and block production distribution, runtime enablement, and production eligibility until an external legal conclusion; they do not block engineering implementation, source extraction, compilation, or testing."
   ]
 }

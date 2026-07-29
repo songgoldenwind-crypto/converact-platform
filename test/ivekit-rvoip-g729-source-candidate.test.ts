@@ -16,7 +16,7 @@ const readmePath = 'docs/capacity/README.md';
 const required = [schemaPath, manifestPath, forksPath, verifierPath, readmePath];
 const hex = /^[a-f0-9]{64}$/;
 const sourceSetSha256 = 'bbc645b365a3b0d86fd2c05881d7911d65b880b695b1483dba856903bae223ad';
-const gates = ['license_review', 'patent_legal_review', 'extraction', 'dependency_closure', 'annex_a', 'annex_b_vad_dtx_cng', 'annex_b_fmtp_negotiation', 'packetization_10ms', 'packetization_20ms', 'sid_no_data', 'plc', 'reference_vectors', 'g711_pairs', 'opus_pairs', 'interoperability', 'quality', 'allocation', 'latency', 'sessions_per_core', 'supply_chain', 'production_eligibility'];
+const gates = ['license_review', 'patent_legal_review', 'extraction', 'dependency_closure', 'annex_a', 'annex_b_vad_dtx_cng', 'annex_b_fmtp_negotiation', 'annex_b_missing_parameter_default', 'annex_b_asymmetric_offer_answer', 'packetization_10ms', 'packetization_20ms', 'packetization_30ms', 'packetization_40ms', 'packetization_60ms', 'rtp_encoding_g729_8000', 'static_payload_type_18', 'dynamic_payload_type_remap', 'speech_sid_no_data_framing', 'sid_no_data', 'plc', 'reference_vectors', 'g711_pairs', 'opus_pairs', 'interoperability', 'quality', 'allocation', 'latency', 'sessions_per_core', 'supply_chain', 'production_eligibility'];
 
 function prerequisites(): boolean {
   for (const path of required) assert.ok(existsSync(path), `missing required artifact: ${path}`);
@@ -139,9 +139,23 @@ test('rvoip G.729 schema itself closes exact support and selected identities', (
     ['packetization', value => {
       value.planned_codec_contract.packetization_ms = [20];
     }],
+    ['RTP wire mapping', value => {
+      value.planned_codec_contract.rtp_wire.static_payload_type = 19;
+    }],
+    ['speech SID framing', value => {
+      value.planned_codec_contract.payload_framing.sid_frame_octets = 3;
+    }],
     ['Annex B fmtp promotion', value => {
       value.planned_codec_contract.annex_b_fmtp_negotiation.status =
         'controlled_pass';
+    }],
+    ['Annex B missing default', value => {
+      value.planned_codec_contract.annex_b_fmtp_negotiation
+        .missing_parameter_default = 'no';
+    }],
+    ['Annex B asymmetric rule', value => {
+      value.planned_codec_contract.annex_b_fmtp_negotiation
+        .asymmetric_offer_answer_rule = 'offer_wins';
     }],
     ['peer identity promotion', value => {
       value.planned_codec_contract.modes[1].independent_peer.identity =
@@ -157,6 +171,12 @@ test('rvoip G.729 schema itself closes exact support and selected identities', (
     }],
     ['gate promotion', value => {
       value.gates.annex_b_fmtp_negotiation = 'controlled_pass';
+    }],
+    ['generated time drift', value => {
+      value.generated_at = '2099-01-01T00:00:00.000Z';
+    }],
+    ['misleading non-claim', value => {
+      value.non_claims = ['G.729 is production ready and capacity proven.'];
     }]
   ];
   for (const [label, mutate] of cases) {
@@ -200,10 +220,28 @@ test('rvoip G.729 candidate separates A and AB engineering contracts', () => {
     sample_rate_hz: 8000,
     frame_ms: 10,
     samples_per_frame: 80,
-    packetization_ms: [10, 20],
+    packetization_ms: [10, 20, 30, 40, 60],
+    rtp_wire: {
+      encoding_name: 'G729',
+      clock_rate_hz: 8000,
+      static_payload_type: 18,
+      dynamic_payload_type_min: 96,
+      dynamic_payload_type_max: 127,
+      dynamic_remap_scope: 'leg_and_binding_revision'
+    },
+    payload_framing: {
+      speech_frame_octets: 10,
+      sid_frame_octets: 2,
+      speech_frames_per_packet: [1, 2, 3, 4, 6],
+      sid_position: 'zero_or_one_after_zero_or_more_speech_frames',
+      no_data_semantics:
+        'silence_suppression_no_rtp_packet_not_zero_length_speech_frame'
+    },
     annex_b_fmtp_negotiation: {
       status: 'not_run',
       parameter: 'annexb',
+      missing_parameter_default: 'yes',
+      asymmetric_offer_answer_rule: 'explicit_no_wins',
       g729a_expected_value: 'no',
       g729ab_expected_value: 'yes'
     },
@@ -217,6 +255,7 @@ test('rvoip G.729 candidate separates A and AB engineering contracts', () => {
       does_not_block: [
         'engineering_implementation',
         'source_extraction',
+        'compilation',
         'testing'
       ],
       external_legal_conclusion_required: true
@@ -297,21 +336,32 @@ test('rvoip G.729 verifier compares objects independent of key order', async () 
   assert.doesNotThrow(() => verifier.verifyRvoipG729SourceCandidate(fixture));
 });
 
-test('rvoip G.729 verifier rejects non-canonical time and invalid non-claims', async () => {
+test('rvoip G.729 verifier rejects generated-time and non-claim drift', async () => {
   prerequisites();
   const verifier = await import(`../${verifierPath}`);
-  const time = structuredClone(candidate());
-  time.generated_at = '2026-07-29T08:00:00Z';
-  assert.throws(
-    () => verifier.verifyRvoipG729SourceCandidate(time),
-    /generated at|date.time|canonical/i
-  );
-  for (const nonClaims of [[], [''], ['valid', 7]]) {
+  for (const generatedAt of [
+    '2026-07-29T08:00:00Z',
+    '2099-01-01T00:00:00.000Z'
+  ]) {
+    const fixture = structuredClone(candidate());
+    fixture.generated_at = generatedAt;
+    assert.throws(
+      () => verifier.verifyRvoipG729SourceCandidate(fixture),
+      /generated at|drift/i
+    );
+  }
+  for (const nonClaims of [
+    [],
+    [''],
+    ['valid', 7],
+    ['G.729 is production ready and capacity proven.'],
+    [...candidate().non_claims, 'No additional claim is made.']
+  ]) {
     const fixture = structuredClone(candidate());
     fixture.non_claims = nonClaims;
     assert.throws(
       () => verifier.verifyRvoipG729SourceCandidate(fixture),
-      /non.claim/i
+      /non.claim|drift/i
     );
   }
 });
@@ -327,6 +377,13 @@ test('rvoip G.729 verifier rejects each unsafe manifest mutation separately', as
     ['bad size', value => { value.selected_sources[0].bytes = 0; }],
     ['planned codec contract', value => {
       value.planned_codec_contract.frame_ms = 20;
+    }],
+    ['planned codec contract', value => {
+      value.planned_codec_contract.rtp_wire.dynamic_payload_type_max = 126;
+    }],
+    ['planned codec contract', value => {
+      value.planned_codec_contract.payload_framing.no_data_semantics =
+        'zero_length_speech_frame';
     }],
     ['forbidden dependency', value => { value.dependency_authority.external_allowlist.push('rtp-core'); }],
     ['unresolved dependency', value => {

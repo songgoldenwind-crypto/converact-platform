@@ -1,5 +1,12 @@
 # OPC 产品方向总纲（2026.06）
 
+> **2026-07-29 通信底座修订：** 本文 2026-06-15 的 `voice-media-rs`
+> “仅 token 生成器”结论是历史代码快照，不再描述当前仓库。现有
+> `services/voice-media-rs` 已扩展为 repo-local Rust media crate/module；唯一生产
+> 目标是把其 library/fixed worker shards 嵌入 Unified RustPBX Process，承担需要解码
+> 的有向 Media Edge。普通 RTP 仍默认由外部 RTPengine 执行。权威架构见
+> [`rvoip-opc-communication-foundation-integration-design.md`](./design/rvoip-opc-communication-foundation-integration-design.md)。
+
 ## 1. 方向变更史
 
 | 时间 | 方向 | 终止原因 |
@@ -34,7 +41,7 @@
 | VoiceStore | 通话 session、录音、坐席状态、路由 | 复用 |
 | RustPBX | SIP 外呼线路对接 | 复用 |
 | ApprovalQueue | 高风险通话审批 | 复用 |
-| voice-media-rs | WebRTC token 签发 | 复用 |
+| voice-media-rs | WebRTC token/录音兼容面 + 目标态进程内解码媒体 Backend | 复用并扩展 |
 | voice_webrtc_sessions / signals | WebRTC 信令 | 复用 |
 | voice_agent_presence / skill_queues / routing_snapshots | 呼叫中心核心 | 复用 |
 | tenant_voice_policies / voice_call_consents | 合规策略 | 复用 |
@@ -59,7 +66,7 @@
 | ApprovalQueue | 复用 | ✅ **真复用** | 完整，playbook `approval_checkpoint` 已接入 |
 | 邮件/企微 adapter | 复用 | ✅ **真复用** | `email-adapter.ts` + `wecom-adapter.ts` 完整 |
 | RustPBX | 复用 | ⚠️ **仅有 ingestion 端** | 代码只有 `voice.rustpbx_create_call_session` + `voice.rustpbx_ingest_event` 两个 tool——它们**接收**外部 PBX 发来的事件并落库，**不是能发起 SIP 外呼的线路端**。RustPBX 进程本身不在 repo 内 |
-| voice-media-rs | 复用 | ⚠️ **仅 token 生成器** | 239 行 tiny_http 服务，3 端点（签 token / 归档录音 / 清录音）。**无 SIP 桥接、无房间管理、无媒体转发** |
+| voice-media-rs | 复用 | ⚠️ **2026-06-15 历史快照：当时仅 token 生成器** | 当时为 239 行 tiny_http 服务；2026-07-29 当前代码与目标边界已由文首修订和通信底座权威设计取代 |
 | LiveKit 自托管 | 新增 | ❌ **从零** | package.json/node_modules 无 livekit 依赖；零实现 |
 | AI 数字人视频推送 | 新增 | ❌ **从零** | 零实现 |
 | LLM 对话引擎（STT→LLM→TTS 流） | 新增 | ❌ **从零** | 现有 model-gateway 只做文本 chat completion，无实时音频流 |
@@ -331,7 +338,10 @@
 
 ---
 
-*文档版本：v1.1*  
-*日期：2026-06-25*  
-*变更：战略锁定 CCaaS 多租户 SaaS，移除私有化交付表述；对齐 [super-contact-center-platform-vision.md](./design/super-contact-center-platform-vision.md)*  
+*文档版本：v1.2*
+
+*日期：2026-07-29*
+
+*变更：保留 2026-06-15 资产审计为历史快照；按唯一通信底座架构校准 `voice-media-rs` 的当前 crate/module 与进程内目标边界。*
+
 *状态：当前执行方向*

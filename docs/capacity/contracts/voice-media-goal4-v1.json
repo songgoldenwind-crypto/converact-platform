@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "contract_id": "voice-media-goal4-v1",
-  "revision": 2,
+  "revision": 5,
   "status": "target",
   "generated_at": "2026-07-29T00:00:00.000Z",
   "sources": {
@@ -32,9 +32,12 @@
       "g729_source_authority": "rvoip_g729_candidate_only",
       "g729_runtime_enabled": false
     },
-    "processing_service": {
+    "processing_module": {
       "path": "services/voice-media-rs",
-      "version": "0.2.0"
+      "version": "0.2.0",
+      "production_topology": "embedded_library",
+      "diagnostic_binary": true,
+      "control_interface": "direct_rust_adapter"
     },
     "rvoip_g729_candidate": {
       "manifest": "docs/capacity/forks/rvoip-g729-source-candidate-v1.json",
@@ -50,12 +53,15 @@
   "authority": {
     "call_dialog_owner": "rustpbx",
     "logical_media_graph_owner": "rustpbx",
+    "media_plan_owner": "rustpbx",
+    "edge_binding_authority": "rustpbx_media_engine_facade",
+    "writer_scope": "directed_media_edge",
     "fast_path_owner": "rtpengine",
     "processing_owner": "voice-media-rs",
-    "command_authority": "media_control_agent",
+    "command_authority": "rustpbx_media_engine_facade",
     "reservation_authority": "component_node_admission",
     "packet_path_remote_dependency": false,
-    "ordinary_relay_enters_processing_pool": false
+    "ordinary_relay_enters_processing_backend": false
   },
   "codec_slices": [
     {
@@ -129,10 +135,27 @@
       "sample_rate_hz": 8000,
       "frame_ms": 10,
       "samples_per_frame": 80,
-      "packetization_ms": [10, 20],
+      "packetization_ms": [10, 20, 30, 40, 60],
+      "rtp_wire": {
+        "encoding_name": "G729",
+        "clock_rate_hz": 8000,
+        "static_payload_type": 18,
+        "dynamic_payload_type_min": 96,
+        "dynamic_payload_type_max": 127,
+        "dynamic_remap_scope": "leg_and_binding_revision"
+      },
+      "payload_framing": {
+        "speech_frame_octets": 10,
+        "sid_frame_octets": 2,
+        "speech_frames_per_packet": [1, 2, 3, 4, 6],
+        "sid_position": "zero_or_one_after_zero_or_more_speech_frames",
+        "no_data_semantics": "silence_suppression_no_rtp_packet_not_zero_length_speech_frame"
+      },
       "annex_b_fmtp_negotiation": {
         "status": "not_run",
         "parameter": "annexb",
+        "missing_parameter_default": "yes",
+        "asymmetric_offer_answer_rule": "explicit_no_wins",
         "g729a_expected_value": "no",
         "g729ab_expected_value": "yes"
       },
@@ -149,6 +172,7 @@
         "does_not_block": [
           "engineering_implementation",
           "source_extraction",
+          "compilation",
           "testing"
         ],
         "external_legal_conclusion_required": true
@@ -161,8 +185,17 @@
         "annex_a": "not_run",
         "annex_b_vad_dtx_cng": "not_run",
         "annex_b_fmtp_negotiation": "not_run",
+        "annex_b_missing_parameter_default": "not_run",
+        "annex_b_asymmetric_offer_answer": "not_run",
         "packetization_10ms": "not_run",
         "packetization_20ms": "not_run",
+        "packetization_30ms": "not_run",
+        "packetization_40ms": "not_run",
+        "packetization_60ms": "not_run",
+        "rtp_encoding_g729_8000": "not_run",
+        "static_payload_type_18": "not_run",
+        "dynamic_payload_type_remap": "not_run",
+        "speech_sid_no_data_framing": "not_run",
         "sid_no_data": "not_run",
         "plc": "not_run",
         "reference_vectors": "not_run",
@@ -231,6 +264,28 @@
     }
   ],
   "processing_runtime": {
+    "production_process_scope": "unified_rustpbx",
+    "control_transport": "in_process",
+    "edge_command_identity_fields": [
+      "media_plan_id",
+      "media_plan_revision",
+      "edge_id",
+      "edge_generation",
+      "binding_revision",
+      "binding_group_id",
+      "binding_group_generation",
+      "flow_selector",
+      "backend_id",
+      "writer_fence"
+    ],
+    "worker_shards_fixed": true,
+    "control_and_media_cpu_budgets_isolated": true,
+    "per_edge_writer_fenced": true,
+    "active_backend_handoff_overlap": false,
+    "edge_logical_release_scope": "directed_media_edge_generation_detach",
+    "physical_release_scope": "backend_binding_group_generation",
+    "physical_release_requires_zero_live_member_refs": true,
+    "inbound_handoff_grace_bounded": true,
     "codec_pair_slots_bounded": true,
     "rtp_receive_queue_bounded": true,
     "jitter_buffer_bounded": true,
@@ -238,13 +293,106 @@
     "event_queue_bounded": true,
     "unknown_codec_fail_closed": true,
     "cross_pair_slot_borrowing": false,
-    "control_plane_failure_established_media": "continue",
     "owner_epoch_fenced": true,
     "command_sequence_fenced": true,
     "idempotent_replay": true,
     "database_in_packet_path": false,
     "provider_in_packet_path": false,
     "object_storage_in_packet_path": false
+  },
+  "binding_group_model": {
+    "physical_resource_scope": "backend_binding_group_generation",
+    "wire_transport_scope": "wire_transport_bundle",
+    "edge_binding_fields": [
+      "edge_id",
+      "edge_generation",
+      "binding_revision",
+      "binding_group_id",
+      "binding_group_generation",
+      "flow_selector",
+      "writer_fence"
+    ],
+    "group_identity_fields": [
+      "binding_group_id",
+      "binding_group_generation",
+      "binding_group_revision",
+      "backend_id",
+      "backend_instance_id",
+      "backend_native_session_key",
+      "membership_digest",
+      "admission_receipt_id",
+      "lifecycle",
+      "output_gate",
+      "prepared_lease_deadline"
+    ],
+    "wire_transport_bundle_fields": [
+      "binding_group_id",
+      "binding_group_generation",
+      "bundle_revision",
+      "backend_native_session_key",
+      "bundle_digest",
+      "effective_sdp_views",
+      "flow_bindings",
+      "ice_state",
+      "dtls_state",
+      "srtp_state",
+      "live_member_refcount",
+      "tx_counter_watermark"
+    ],
+    "edge_binding_cardinality": "each_edge_generation_binding_maps_to_exactly_one_group_flow",
+    "reverse_mapping_rule": "group_member_set_exactly_matches_forward_edge_bindings",
+    "orphan_edge_or_group_members_allowed": false,
+    "membership_immutable_within_generation": true,
+    "independent_lifecycle_edges_require_separate_group_without_member_flow_fence": true,
+    "security_persistence_rule": "raw_srtp_keys_forbidden_persist_references_states_and_digests_only",
+    "packet_flow_lookup_complexity": "O(1)",
+    "packet_flow_lookup_scans_group_members": false
+  },
+  "dtmf_event_authority": {
+    "owner": "rustpbx_leg_dtmf_event_authority",
+    "sources_in_precedence_order": [
+      "negotiated_rfc4733",
+      "explicitly_accepted_sip_info",
+      "in_band_detector"
+    ],
+    "transparent_relay_creates_business_event": false,
+    "normalization_fields": [
+      "leg_id",
+      "digit",
+      "start",
+      "end",
+      "duration",
+      "source",
+      "source_sequence"
+    ],
+    "canonical_sequence_monotonic_per_leg": true,
+    "dedup_window_bounded": true,
+    "dedup_inputs": [
+      "rfc4733_repeated_end",
+      "sip_info_retry",
+      "cross_source_same_tone"
+    ],
+    "business_side_effect_limit_per_canonical_event": 1,
+    "outbound_injection_single_wire_mechanism": true,
+    "verification": "not_run"
+  },
+  "failure_classification": {
+    "ordinary_rtpengine_edge_on_unified_process_loss": "continue_degraded",
+    "embedded_edge_on_worker_restart": "interrupt_visible",
+    "embedded_edge_on_unified_process_loss": "interrupt_visible",
+    "mixed_call_outcome": "interrupt_visible_if_any_mandatory_embedded_edge_interrupts",
+    "optional_tap_failure": "degrade_or_release_tap_only"
+  },
+  "failure_isolation_gates": {
+    "worker_panic_containment": "not_run",
+    "process_abort": "not_run",
+    "oom_cgroup_kill": "not_run",
+    "allocator_pressure": "not_run",
+    "cpuset_numa_isolation": "not_run",
+    "guaranteed_qos": "not_run",
+    "watchdog_restart": "not_run",
+    "sip_control_headroom": "not_run",
+    "ordinary_rtpengine_continuity": "not_run"
   },
   "failure_matrix": [
     {
@@ -277,6 +425,18 @@
         "affected_processing_sessions",
         "ordinary_relay_continuity",
         "orphan_recovery"
+      ]
+    },
+    {
+      "failure_id": "unified-rustpbx-process-unavailable",
+      "established_processing": "interrupt_visible",
+      "new_processing_admission": "reject",
+      "ordinary_relay": "continue_degraded",
+      "required_evidence": [
+        "process_exit_reason",
+        "affected_mandatory_edges",
+        "rtpengine_packet_continuity",
+        "rebuild_reinvite_result"
       ]
     },
     {

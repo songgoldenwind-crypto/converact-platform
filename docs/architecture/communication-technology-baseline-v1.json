@@ -1,14 +1,34 @@
 {
   "schema_version": "1.0.0",
   "baseline_id": "ivekit-communication-technology-2026-07",
-  "audited_at": "2026-07-25",
+  "audited_at": "2026-07-29",
   "scope": "OPC and LED shared communication foundation",
   "status": "approved_for_staged_delivery",
+  "topology_identities": [
+    {
+      "identity_id": "CARRIER-CELL-V1",
+      "identity_kind": "production_deployment_profile",
+      "production_authorizing": true
+    },
+    {
+      "identity_id": "RUST-NATIVE-FAST-PATH-CANDIDATE",
+      "identity_kind": "backend_qualification",
+      "production_authorizing": false
+    },
+    {
+      "identity_id": "UNIFIED-STANDALONE-V1",
+      "identity_kind": "diagnostic_topology",
+      "production_authorizing": false
+    }
+  ],
   "principles": [
     "Keep SIP, RTP, SFU forwarding, IM fanout, and remote relay hot paths free of synchronous database, object storage, analytics, and AI calls.",
     "Prefer fewer vertically efficient services until measured load requires a distributed form.",
     "Every added component needs a concrete problem, an owner, bounded resources, health and drain semantics, evidence, and a rollback path.",
     "Use protocol and provider boundaries so a component can be replaced without changing LED or OPC business APIs.",
+    "CARRIER-CELL-V1 is the only production voice architecture: RustPBX owns Media Plans and directed Media Edge bindings, RTPengine is the long-lived default ordinary Backend, and phase-one voice-media-rs is embedded for decode-required Edges.",
+    "RUST-NATIVE-FAST-PATH-CANDIDATE is only a Backend qualification identity and UNIFIED-STANDALONE-V1 is only a diagnostic topology; neither authorizes a second production profile or inherits carrier capacity evidence.",
+    "Backend selection and writer fencing are per directed Media Edge; no replacement implementation may create a second Call, SIP, SDP or media authority.",
     "A version tag without a resolved commit or an image without a digest is not a production release identity."
   ],
   "decisions": [
@@ -62,15 +82,17 @@
     },
     {
       "id": "rustpbx",
-      "layer": "voice-media",
-      "capability": "B2BUA, IVR, RTP, recording fork",
+      "layer": "voice-control-and-media-plan",
+      "capability": "Product B2BUA, Call/Business Dialog authority, Logical Media Graph, Media Plan and directed Media Edge binding",
       "current": "0.4.11 plus iveKit patch queue",
       "target": "maintained exact-source fork",
       "action": "keep",
       "rollout": "continuous-rebase",
+      "current_component_status": "implemented",
+      "target_architecture_integration_status": "not_run",
       "hot_path": true,
-      "rationale": "The project already owns substantial capacity, fencing, recording isolation, and WebPhone changes; replacement would discard those verified contracts.",
-      "gates": ["patch queue applies", "locked Rust build", "SIPp", "RTP continuity", "recording outage isolation"]
+      "rationale": "RustPBX remains the product trunk and unique business/media-plan authority. Packet and codec execution move behind Edge-scoped Backend contracts without creating a second Call state model.",
+      "gates": ["patch queue applies", "locked Rust build", "SIPp", "Media Plan and per-Edge writer fencing", "RTP continuity", "recording outage isolation"]
     },
     {
       "id": "rsipstack",
@@ -93,8 +115,32 @@
       "action": "add",
       "rollout": "goal-0-source-pinned-implementation-not-run",
       "hot_path": true,
-      "rationale": "The VOS-EQ and 100K design separates RustPBX logical media control from high-PPS wire transport. rtpengine is the selected fast-path owner, but direct RustPBX media remains the rollback path and no target number is a capacity claim until exact-hardware evidence passes.",
-      "gates": ["exact-source reproducible build", "NG offer/answer/delete/query integration", "owner epoch fencing", "kernel and userspace profile separation", "A/B calls per core", "P99 relay latency and jitter", "SRTP and DTMF", "recording outage isolation", "node failure accounting", "10K single-node evidence"]
+      "rationale": "The VOS-EQ and 100K design separates RustPBX Media Plan authority from high-PPS wire transport. RTPengine is the long-lived default Backend for ordinary directed Media Edges. Rollback drains pinned Edges or uses another already-qualified Backend; hidden RustPBX direct media is not a second production architecture. No target number is a capacity claim until exact-hardware evidence passes.",
+      "gates": ["exact-source reproducible build", "Backend-Binding-Group prepare-blocked/commit/revoke-zero-output/query-reconcile integration", "group generation, flow selector and per-Edge writer fencing", "kernel and userspace capacity-mode separation", "A/B calls per core", "P99 relay latency and jitter", "SRTP and DTMF", "recording outage isolation", "node failure accounting", "10K single-node evidence"]
+    },
+    {
+      "id": "voice-media-rs",
+      "layer": "voice-media-processing",
+      "capability": "In-process decode-required Media Edge Backend: codec, transcoding, IVR, DSP, mixer, capture and AI/quality tap",
+      "current": "Rust crate, worker, RTP, codec, IVR and HTTP diagnostic surfaces implemented in slices; architecture integration and real capacity evidence not run",
+      "target": "Embedded library and fixed worker shards inside the Unified RustPBX Process, invoked by a direct Rust Adapter under Media Plan and per-Edge writer fencing",
+      "action": "keep",
+      "rollout": "goal-4-architecture-accepted-runtime-integration-not-run",
+      "hot_path": true,
+      "rationale": "Decode-required processing needs a Rust-native bounded hot path without a first-phase process boundary. Existing HTTP and binary surfaces remain benchmark, soak and diagnostics tools, not production RPC.",
+      "gates": ["direct in-process Adapter", "fixed worker/shard and CPU budgets", "bounded queues and frame pools", "per-Edge binding/fence/reconcile", "G.711/Opus/G.729 quality and capacity", "failure isolation", "24-hour endurance"]
+    },
+    {
+      "id": "rvoip-low-level-sip-slice",
+      "layer": "voice-signaling",
+      "capability": "Exact-source low-level SIP message codec, transaction, RFC Protocol Dialog, transport, DNS and authentication primitives",
+      "current": "Exact rvoip source audited; production Adapter integration and equivalence evidence not run",
+      "target": "Minimal embedded RvoipFoundationAdapter slice behind the OPC-owned SipFoundation seam in the Unified RustPBX binary",
+      "action": "add",
+      "rollout": "shadow-equivalence-and-cell-canary-gated",
+      "hot_path": true,
+      "rationale": "Use tested low-level protocol implementation without importing rvoip Endpoint, SessionHandle, Coordinator, Orchestrator, Conversation, Participant, PBX or media runtime and without creating another SIP authority.",
+      "gates": ["exact source and dependency closure", "parser differential and fuzz", "transaction/dialog deterministic tests", "UDP/TCP/TLS and DNS", "effect fencing", "same-hardware A/B", "Cell canary and rollback", "delete replaced implementation"]
     },
     {
       "id": "homer",

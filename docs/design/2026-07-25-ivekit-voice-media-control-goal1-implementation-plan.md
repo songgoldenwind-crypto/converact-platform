@@ -1,5 +1,18 @@
 # iveKit Voice Media Control Goal 1 Implementation Plan
 
+> **Architecture status (2026-07-29): Historical compatibility implementation
+> asset.** The standalone media-control agent, HTTP boundary, and call/leg-wide
+> writer authority in this plan describe the existing Goal 1 harness only. They
+> do not authorize a production topology. The authoritative production design is
+> `rvoip-rustpbx-unified-authority-r2`: RustPBX owns Media Plan and directed
+> Media Edge authority through an in-process Media Engine Facade; ordinary Edges
+> use external RTPengine by default. Any reuse of this harness must preserve
+> per-Edge identity and fencing and remain diagnostic until requalified.
+>
+> **Related documents:** `rvoip-opc-communication-foundation-integration-design.md`,
+> `communication-foundation-vos5000-parity-performance-plan.md`, and
+> `../adr/ccaas-5-media-authority-and-rtpengine.md`.
+
 > **For agentic workers:** Execute this plan task-by-task with test-driven development. The approved parent design is `docs/design/communication-foundation-vos5000-parity-performance-plan.md`.
 
 **Goal:** Build the versioned, fenced, idempotent RustPBX-to-media-node control plane required by Goal 1 without coupling established RTP forwarding to control-plane availability.
@@ -274,3 +287,9 @@ Expected: all commands exit zero. The controlled report status is
 `controlled_passed`; it does not claim rtpengine wire forwarding, physical
 media quality/capacity, RustPBX runtime wiring, or process/container restart
 persistence. Those remain explicit Goal 2/3 release gates.
+
+## Change log
+
+| Revision | Date | Author | Change |
+| --- | --- | --- | --- |
+| 2 | 2026-07-29 | Codex | Classified the standalone agent/HTTP topology as a non-production historical compatibility asset and linked the unified per-Edge authority baseline. |

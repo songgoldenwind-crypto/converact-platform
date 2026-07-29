@@ -125,6 +125,12 @@ test('Goal 0 VOS-EQ profile is role-specific and generator-invalidating', () => 
   assert.equal(profile.workload.wire_rx_bps, 1_904_000_000);
   assert.equal(profile.workload.wire_tx_bps, 1_904_000_000);
   assert.equal(profile.finalizer.minimum_repetitions, 3);
+  assert.equal(profile.handoff.inbound_grace_ms, 500);
+  assert.equal(profile.handoff.handoff_rto_ms, 5000);
+  assert.equal(profile.handoff.max_writer_gap_ms, 100);
+  assert.equal(profile.handoff.max_migration_loss_ratio, 0.001);
+  assert.equal(profile.handoff.active_migration_authorizes_capacity_claim, false);
+  assert.equal(profile.handoff.verification, 'not_run');
   assert.equal(profile.finalizer.preserve_all_attempts, true);
   assert.equal(profile.finalizer.invalidate_on_generator_failure, true);
   assert.deepEqual(profile.finalizer.reconciliation_counters, [
@@ -190,12 +196,34 @@ test('Goal 0 authority ADR and failure matrix preserve Cell-local media boundari
     'docs/adr/ccaas-5-media-authority-and-rtpengine.md'
   );
   assert.equal(contract.authority.logical_media_graph_owner, 'rustpbx');
-  assert.equal(contract.authority.wire_transport_owner, 'rtpengine');
+  assert.equal(contract.authority.media_plan_owner, 'rustpbx');
+  assert.equal(
+    contract.authority.edge_binding_authority,
+    'rustpbx_media_engine_facade'
+  );
+  assert.equal(contract.authority.writer_scope, 'directed_media_edge');
+  assert.equal(
+    contract.authority.physical_binding_scope,
+    'backend_binding_group_generation'
+  );
+  assert.equal(
+    contract.authority.wire_transport_scope,
+    'wire_transport_bundle'
+  );
+  assert.equal(contract.authority.ordinary_edge_runtime_default, 'rtpengine');
+  assert.equal(
+    contract.authority.inserted_processing_runtime_owner,
+    'embedded_voice_media_rs'
+  );
   assert.equal(
     contract.authority.recording_manifest_owner,
     'regional_recording_service'
   );
   assert.equal(contract.placement.normal_media_cross_zone, false);
+  assert.equal(
+    contract.placement.active_media_migration,
+    'new_edge_generation_handoff_only'
+  );
   assert.deepEqual(contract.harness.reconciliation_counters, [
     'attempted',
     'connected',
@@ -224,10 +252,46 @@ test('Goal 0 authority ADR and failure matrix preserve Cell-local media boundari
         failure.new_mandatory_recording === 'reject'
     )
   );
+  assert.ok(
+    contract.failure_matrix.some(
+      (failure: Record<string, any>) =>
+        failure.failure_id ===
+          'unified-rustpbx-process-unavailable-ordinary-rtpengine-edges' &&
+        failure.established_media === 'continue_degraded'
+    )
+  );
+  assert.ok(
+    contract.failure_matrix.some(
+      (failure: Record<string, any>) =>
+        failure.failure_id ===
+          'unified-rustpbx-process-unavailable-embedded-required-edges' &&
+        failure.established_media === 'interrupt_visible'
+    )
+  );
+  assert.equal(
+    contract.failure_classification.mixed_call_outcome,
+    'interrupt_visible_if_any_mandatory_edge_interrupts'
+  );
+  assert.equal(
+    contract.rollback.strategy,
+    'select_prior_qualified_rtpengine_identity_for_new_edges_or_reject'
+  );
+  assert.ok(
+    contract.rollback.requirements.includes(
+      'require_prior_backend_same_gate_qualification'
+    )
+  );
+  assert.ok(
+    contract.rollback.requirements.includes(
+      'reject_when_no_qualified_backend_capacity'
+    )
+  );
 
   const adr = readFileSync(contract.authority.adr_path, 'utf8');
   assert.match(adr, /logical media graph/i);
-  assert.match(adr, /effective wire SDP/i);
+  assert.match(adr, /Media Plan/i);
+  assert.match(adr, /WireMediaBinding/i);
+  assert.match(adr, /directed Media Edge/i);
   assert.match(adr, /Region cross-Zone/i);
   assert.match(adr, /supersedes.*RustPBX encoded fork/i);
 });

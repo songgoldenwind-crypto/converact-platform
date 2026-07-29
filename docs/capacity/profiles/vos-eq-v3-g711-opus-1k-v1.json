@@ -1,19 +1,24 @@
 {
   "schema_version": "1.0.0",
   "profile_id": "vos-eq-v3-g711-opus-1k-v1",
-  "revision": 1,
+  "revision": 3,
   "status": "target",
-  "description": "Role-isolated target for 1,000 concurrent two-leg G.711 and Opus processing sessions; this is not a measured capacity claim.",
+  "description": "Co-resident CARRIER-CELL-V1 target for one Unified RustPBX process with 1,000 concurrent two-leg G.711 and Opus processing sessions plus reserved SIP control headroom; this is not a measured capacity claim.",
   "source_identity": {
     "contract_path": "docs/capacity/contracts/voice-media-goal4-v1.json",
-    "component_id": "voice-media-rs",
+    "component_id": "unified-rustpbx",
     "service_version": "0.2.0",
+    "rustpbx_commit": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de",
     "rustrtc_commit": "166c6d22984429eb6b509920c14fcd69f974f0b3",
-    "audio_codec_version": "0.3.40"
+    "rtpengine_commit": "506cfa74386a5373e40fca139a932917f22f0524",
+    "audio_codec_version": "0.3.40",
+    "media_plan_compiler_revision": "target-r3-not-run",
+    "backend_selector_revision": "carrier-cell-v1-target-r3-not-run",
+    "backend_mix_id": "rtpengine-ordinary-plus-embedded-processing-v2"
   },
   "primary_sut": {
-    "role": "processing",
-    "component_id": "voice-media-rs",
+    "role": "unified_control_and_embedded_processing",
+    "component_id": "unified-rustpbx",
     "node_count": 1,
     "hardware": {
       "qualification": "required_exact",
@@ -24,6 +29,32 @@
       "memory_bytes": 68719476736,
       "nic_bps": 25000000000,
       "numa_nodes": 1
+    }
+  },
+  "production_topology": {
+    "deployment_profile_id": "CARRIER-CELL-V1",
+    "process_scope": "unified_rustpbx",
+    "voice_media_co_resident": true,
+    "rtpengine_external_fast_path": true,
+    "cpu_partition": {
+      "total_physical_cores": 32,
+      "sip_call_control_reserved_cores": 4,
+      "embedded_media_max_cores": 24,
+      "os_irq_reserved_cores": 4,
+      "exclusive_cpuset": true,
+      "numa_pinned": true,
+      "verification": "not_run"
+    },
+    "sip_control_headroom": {
+      "steady_utilization_max_ratio": 0.6,
+      "timer_lag_p99_ms": 10,
+      "setup_latency_p99_ms": 250,
+      "verification": "not_run"
+    },
+    "intrinsic_microbench": {
+      "profile_id": "voice-media-rs-g711-opus-intrinsic-v1",
+      "production_authorizing": false,
+      "verification": "not_run"
     }
   },
   "generator": {
@@ -45,6 +76,12 @@
       "PCMA_TO_OPUS",
       "OPUS_TO_PCMA"
     ],
+    "backend_mix": {
+      "ordinary_edge_backend": "rtpengine",
+      "decode_required_edge_backend": "embedded_voice_media_rs",
+      "selector_revision": "carrier-cell-v1-target-r3-not-run",
+      "profile_results_transferable_to_other_mix": false
+    },
     "packetization_ms": 20,
     "transcoding": true,
     "recording": "none",
@@ -86,6 +123,9 @@
     "setup_success_ratio": 0.999,
     "server_packet_loss_ratio": 0.001,
     "processing_latency_p99_ms": 10,
+    "sip_setup_latency_p99_ms": 250,
+    "sip_timer_lag_p99_ms": 10,
+    "control_runtime_steady_utilization_ratio": 0.6,
     "steady_cpu_utilization_ratio": 0.75,
     "burst_cpu_utilization_ratio": 0.9,
     "reconciliation_delta": 0,
@@ -132,6 +172,11 @@
     },
     {
       "dependency_id": "physical-audio-quality-collector",
+      "status": "not_run",
+      "required_for_verified_claim": true
+    },
+    {
+      "dependency_id": "external-rtpengine-exact-identity",
       "status": "not_run",
       "required_for_verified_claim": true
     }

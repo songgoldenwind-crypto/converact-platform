@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "contract_id": "voice-media-goal0-v1",
-  "revision": 1,
+  "revision": 3,
   "status": "target",
   "generated_at": "2026-07-25T12:20:00+08:00",
   "source_spike_path": "docs/capacity/forks/rtpengine-mr26-source-spike-v1.json",
@@ -13,9 +13,13 @@
     "adr_path": "docs/adr/ccaas-5-media-authority-and-rtpengine.md",
     "call_dialog_owner": "rustpbx",
     "logical_media_graph_owner": "rustpbx",
-    "wire_transport_owner": "rtpengine",
-    "effective_wire_sdp_owner": "rtpengine",
-    "inserted_processing_runtime_owner": "media_processing_service",
+    "media_plan_owner": "rustpbx",
+    "edge_binding_authority": "rustpbx_media_engine_facade",
+    "writer_scope": "directed_media_edge",
+    "physical_binding_scope": "backend_binding_group_generation",
+    "wire_transport_scope": "wire_transport_bundle",
+    "ordinary_edge_runtime_default": "rtpengine",
+    "inserted_processing_runtime_owner": "embedded_voice_media_rs",
     "recording_manifest_owner": "regional_recording_service",
     "cell_spool_authority": "pending_segments_only"
   },
@@ -23,7 +27,7 @@
     "owner_scope": "cell_zone",
     "call_affinity": "sticky_for_call_lifetime",
     "normal_media_cross_zone": false,
-    "active_media_migration": "forbidden",
+    "active_media_migration": "new_edge_generation_handoff_only",
     "cross_zone_new_call_failover": "allowed_after_capacity_and_health_gate",
     "regional_metadata_cross_zone": true
   },
@@ -92,7 +96,7 @@
       ]
     },
     {
-      "failure_id": "rustpbx-owner-unavailable",
+      "failure_id": "unified-rustpbx-process-unavailable-ordinary-rtpengine-edges",
       "established_media": "continue_degraded",
       "new_admission": "reject_affected_shard",
       "new_mandatory_recording": "continue_if_spool_healthy",
@@ -101,6 +105,19 @@
         "owner_epoch",
         "dialog_reconciliation",
         "rtp_continuity"
+      ]
+    },
+    {
+      "failure_id": "unified-rustpbx-process-unavailable-embedded-required-edges",
+      "established_media": "interrupt_visible",
+      "new_admission": "reject_affected_shard",
+      "new_mandatory_recording": "reject",
+      "claim_effect": "invalidate_failure_run",
+      "required_evidence": [
+        "process_exit_reason",
+        "affected_mandatory_edges",
+        "processing_interruption",
+        "rebuild_reinvite_result"
       ]
     },
     {
@@ -176,6 +193,13 @@
       ]
     }
   ],
+  "failure_classification": {
+    "ordinary_rtpengine_edge_on_unified_process_loss": "continue_degraded",
+    "embedded_required_edge_on_unified_process_loss": "interrupt_visible",
+    "mixed_call_outcome": "interrupt_visible_if_any_mandatory_edge_interrupts",
+    "worker_restart_scope": "affected_embedded_edges_only",
+    "process_oom_scope": "all_embedded_edges_plus_call_control"
+  },
   "compatibility": {
     "control_protocol": "rtpengine-ng",
     "source_version": "mr26.0.1.13",
@@ -189,13 +213,15 @@
     "active_session_rule": "never_switch_transport_owner_in_place"
   },
   "rollback": {
-    "strategy": "restore_rustpbx_direct_media_for_new_calls",
+    "strategy": "select_prior_qualified_rtpengine_identity_for_new_edges_or_reject",
     "new_calls_only": true,
     "active_session_migration": "forbidden",
     "requirements": [
       "preserve_existing_rtpengine_sessions_until_bye",
       "pin_exact_rustpbx_and_rtpengine_identities",
-      "fence_new_rtpengine_allocations",
+      "fence_failing_candidate_allocations",
+      "require_prior_backend_same_gate_qualification",
+      "reject_when_no_qualified_backend_capacity",
       "retain_all_attempt_and_packet_evidence",
       "reconcile_active_sessions_before_completion"
     ]

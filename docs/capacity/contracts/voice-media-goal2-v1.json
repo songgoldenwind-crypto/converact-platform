@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0.0",
   "contract_id": "voice-media-goal2-v1",
-  "revision": 1,
+  "revision": 4,
   "status": "target",
-  "generated_at": "2026-07-25T16:45:00.000Z",
+  "generated_at": "2026-07-29T12:57:09.000Z",
   "source": {
     "repository": "https://github.com/sipwise/rtpengine",
     "version": "mr26.0.1.13",
@@ -14,24 +14,273 @@
     "archive_size_bytes": 6987926,
     "license": "GPL-3.0-only",
     "integration_mode": "maintained_fork",
+    "source_lock_path": "infra/ivekit/rtpengine/source-lock.json",
+    "patch_set_id": "ivekit-rtpengine-mr26.0.1.13.2",
+    "patch_set_sha256": "51f842076f044d5d914ef8f89ad0a72a9ab1e6a2d26ee5899a5e457d09efd0f3",
     "required_patch_ids": [
       "rtpengine-tcp-ng-bounded-frame-v1",
       "rtpengine-ivekit-owner-fence-v1",
       "rtpengine-ivekit-drain-capacity-v1",
-      "rtpengine-ivekit-low-cardinality-metrics-v1"
+      "rtpengine-ivekit-low-cardinality-metrics-v1",
+      "rtpengine-ivekit-durable-replay-v1"
     ]
   },
   "authority": {
     "call_dialog_owner": "rustpbx",
     "logical_media_graph_owner": "rustpbx",
-    "wire_transport_owner": "rtpengine",
-    "effective_wire_sdp_owner": "rtpengine",
-    "command_authority": "media_control_agent",
+    "media_plan_owner": "rustpbx",
+    "edge_binding_authority": "rustpbx_media_engine_facade",
+    "writer_scope": "directed_media_edge",
+    "ordinary_edge_runtime_default": "rtpengine",
+    "command_authority": "rustpbx_media_engine_facade",
     "reservation_authority": "component_node_admission",
     "packet_path_remote_dependency": false,
     "command_wal_scope": "cell_local_bounded"
   },
+  "edge_command_identity": {
+    "required_fields": [
+      "media_plan_id",
+      "media_plan_revision",
+      "edge_id",
+      "edge_generation",
+      "binding_revision",
+      "binding_group_id",
+      "binding_group_generation",
+      "flow_selector",
+      "backend_id",
+      "writer_fence"
+    ],
+    "duplex_model": "two_independent_directed_edges",
+    "active_writer_limit_per_edge": 1,
+    "prepared_edge_can_emit": false,
+    "handoff_writer_overlap_allowed": false,
+    "logical_release_scope": "directed_media_edge_generation_detach",
+    "physical_release_scope": "backend_binding_group_generation_atomic_zero_live_ref"
+  },
+  "binding_group_model": {
+    "physical_authority_unit": "backend_binding_group_generation",
+    "transport_bundle_type": "wire_transport_bundle",
+    "edge_to_group_cardinality": "many_edges_to_one_group_allowed",
+    "edge_binding_cardinality": "each_edge_generation_binding_maps_to_exactly_one_group_flow",
+    "reverse_mapping_rule": "group_member_set_exactly_matches_forward_edge_bindings",
+    "orphan_edge_or_group_members_allowed": false,
+    "group_backend_instance_rule": "exactly_one_backend_instance_per_generation",
+    "live_member_refcount_matches_bound_edges": true,
+    "edge_writer_authority_preserved": true,
+    "effective_sdp_scope": "wire_transport_bundle",
+    "shared_resources": [
+      "backend_native_session",
+      "ports",
+      "local_remote_tuples",
+      "effective_sdp",
+      "ice",
+      "dtls",
+      "srtp",
+      "ssrc_key_state",
+      "backend_reservation"
+    ],
+    "group_identity_fields": [
+      "binding_group_id",
+      "binding_group_generation",
+      "binding_group_revision",
+      "backend_id",
+      "backend_instance_id",
+      "backend_native_session_key",
+      "membership_digest",
+      "admission_receipt_id",
+      "lifecycle",
+      "output_gate",
+      "prepared_lease_deadline"
+    ],
+    "member_identity_fields": [
+      "edge_id",
+      "edge_generation",
+      "binding_revision",
+      "flow_selector",
+      "writer_fence"
+    ],
+    "wire_transport_bundle_fields": [
+      "binding_group_id",
+      "binding_group_generation",
+      "bundle_revision",
+      "backend_native_session_key",
+      "bundle_digest",
+      "effective_sdp_views",
+      "flow_bindings",
+      "ice_state",
+      "dtls_state",
+      "srtp_state",
+      "live_member_refcount",
+      "tx_counter_watermark"
+    ],
+    "group_membership_rule": "immutable_within_generation_change_requires_new_generation",
+    "independent_lifecycle_rule": "separate_group_unless_backend_proves_member_flow_fence_and_revoke",
+    "packet_lookup_rule": "precompiled_flow_selector_to_edge_binding_O1_no_member_scan",
+    "security_persistence_rule": "raw_srtp_keys_forbidden_persist_references_states_and_digests_only",
+    "edge_release": "detach_membership_and_decrement_refcount",
+    "physical_release": "atomic_delete_once_at_zero_live_member_ref"
+  },
+  "binding_lifecycle_protocol": {
+    "states": [
+      "absent",
+      "prepared_blocked",
+      "active",
+      "revoked_receive_only",
+      "released",
+      "unknown"
+    ],
+    "required_operations": [
+      {
+        "operation": "prepare",
+        "backend_semantics": "atomic_allocate_blocked_no_output_never_offer_then_block",
+        "success_evidence": "prepare_ack_to_commit_ack_outbound_datagram_delta_zero"
+      },
+      {
+        "operation": "commit",
+        "backend_semantics": "enable_only_after_durable_commit_decision_and_exact_group_member_fence_digest_match",
+        "success_evidence": "single_writer_first_packet_and_receipt"
+      },
+      {
+        "operation": "abort",
+        "backend_semantics": "idempotent_release_never_committed_group_only",
+        "success_evidence": "zero_port_session_reservation_leak"
+      },
+      {
+        "operation": "revoke",
+        "backend_semantics": "close_userspace_and_kernel_output_gates_drain_inflight_then_ack",
+        "success_evidence": "post_revoke_ack_old_group_outbound_delta_permanently_zero"
+      },
+      {
+        "operation": "query",
+        "backend_semantics": "read_only_return_group_gate_bundle_digest_last_command_receipt_and_tx_watermark",
+        "success_evidence": "durable_decision_wal_backend_fact_match"
+      },
+      {
+        "operation": "reconcile",
+        "backend_semantics": "facade_algorithm_replay_exact_durable_decision_without_new_allocation",
+        "success_evidence": "one_group_one_writer_one_receipt"
+      }
+    ],
+    "valid_transitions": [
+      "absent_to_prepared_blocked_via_prepare",
+      "prepared_blocked_to_active_via_commit",
+      "prepared_blocked_to_released_via_abort",
+      "active_to_revoked_receive_only_via_revoke",
+      "revoked_receive_only_to_released_after_grace_and_zero_live_refs",
+      "mutation_timeout_to_unknown_then_query_reconcile_exact_decision"
+    ],
+    "forbidden_transitions": [
+      "offer_then_block_media_as_prepare",
+      "prepared_blocked_to_emit_without_commit",
+      "active_to_released_via_abort",
+      "unknown_to_new_allocation",
+      "revoked_generation_to_active"
+    ],
+    "update_generation_rule": "port_backend_membership_or_writer_change_requires_new_group_generation",
+    "unknown_state_rule": "freeze_group_and_member_edge_mutations_until_exact_query_reconcile",
+    "stock_ng_atomicity_assumed": false,
+    "required_future_patch_id": "rtpengine-ivekit-atomic-binding-lifecycle-v1",
+    "required_future_patch_status": "not_present",
+    "required_future_patch_verification": "not_run",
+    "production_gate": "not_run"
+  },
+  "planning_sequence": {
+    "preparation_prefix": [
+      "draft_graph_validated",
+      "candidate_plan_compiled",
+      "binding_groups_formed",
+      "backend_specific_capacity_reserved",
+      "groups_prepared_blocked",
+      "persist_candidate_bundles_bindings_and_handoff_intent"
+    ],
+    "initial_admission_suffix": [
+      "atomically_persist_immutable_final_plan_reservations_bundles_single_commit_decision_and_commit_pending",
+      "commit_groups_in_deterministic_order",
+      "mark_committed_after_all_required_acks",
+      "expose_initial_effective_sdp"
+    ],
+    "active_migration_suffix": [
+      "expose_candidate_sdp_while_old_is_only_writer_and_new_is_blocked",
+      "durably_record_remote_acceptance",
+      "atomically_persist_immutable_final_plan_handoff_commit_decision_and_commit_pending",
+      "revoke_old_writer_and_wait_zero_output_ack",
+      "commit_new_group_and_record_writer_gap",
+      "mark_committed_after_new_writer_ack",
+      "old_receive_only_authenticate_count_drop_without_business_side_effects",
+      "release_old_group_after_bounded_grace_and_zero_live_refs"
+    ],
+    "pre_decision_failure": "abort_prepared_groups_reverse_order_then_cancel_reservations",
+    "post_decision_partial_commit_failure": "decision_immutable_query_reconcile_then_predeclared_compensation_to_compensated_failed",
+    "reserve_retry_rule": "new_candidate_attempt_and_revision_required",
+    "post_prepare_recompile_rule": "forbidden",
+    "candidate_sdp_visibility_is_writer_commit": false,
+    "candidate_compile_complexity": "O(E)",
+    "edge_and_group_limits_hard_bounded": true
+  },
+  "handoff_policy": {
+    "default_rollout": "new_calls_select_new_backend_existing_calls_drain",
+    "active_migration": "exceptional_and_evidence_gated",
+    "outbound_writer_overlap_allowed": false,
+    "inbound_read_only_dual_receive_grace_allowed": true,
+    "profile_path": "docs/capacity/profiles/vos-eq-v1-rtp-10k-v1.json",
+    "inbound_grace_bound_source": "signed_capacity_profile",
+    "inbound_grace_ms_target": 500,
+    "handoff_rto_ms_target": 5000,
+    "max_writer_gap_ms_target": 100,
+    "max_migration_loss_ratio_target": 0.001,
+    "target_verification": "not_run",
+    "old_generation_grace_behavior": "authenticate_count_drop_only_no_forward_dtmf_recording_or_ai",
+    "inbound_duplicate_suppression": "source_tuple_ssrc_sequence",
+    "duplicate_business_side_effects_allowed": false,
+    "zero_packet_loss_claim": false,
+    "required_evidence": [
+      "reinvite_rto",
+      "media_interruption_ms",
+      "packet_loss",
+      "packet_reorder",
+      "packet_duplicate",
+      "late_old_generation_packets",
+      "first_new_generation_packet",
+      "prepare_to_commit_outbound_delta",
+      "old_writer_packets_after_revoke_ack"
+    ]
+  },
   "actions": [
+    {
+      "action": "prepare_binding_group",
+      "rtpengine_command": "ivekit prepare",
+      "mutation": true,
+      "requires_owner_fence": true,
+      "verification": "not_run"
+    },
+    {
+      "action": "commit_binding_group",
+      "rtpengine_command": "ivekit commit",
+      "mutation": true,
+      "requires_owner_fence": true,
+      "verification": "not_run"
+    },
+    {
+      "action": "abort_binding_group",
+      "rtpengine_command": "ivekit abort",
+      "mutation": true,
+      "requires_owner_fence": true,
+      "verification": "not_run"
+    },
+    {
+      "action": "revoke_binding_group",
+      "rtpengine_command": "ivekit revoke",
+      "mutation": true,
+      "requires_owner_fence": true,
+      "verification": "not_run"
+    },
+    {
+      "action": "reconcile_binding_group",
+      "rtpengine_command": "query then durable reconcile",
+      "mutation": false,
+      "requires_owner_fence": false,
+      "verification": "not_run"
+    },
     {
       "action": "offer",
       "rtpengine_command": "offer",
@@ -342,6 +591,10 @@
       "source-build-not-run",
       "real-media-not-run",
       "kernel-fast-path-not-run",
+      "atomic-binding-lifecycle-not-run",
+      "precommit-zero-egress-not-run",
+      "post-revoke-zero-egress-not-run",
+      "active-handoff-not-run",
       "supply-chain-not-run"
     ]
   }

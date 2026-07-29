@@ -42,8 +42,18 @@ function contract(): Record<string, any> {
   return document;
 }
 
-test('Goal 3 freezes every media orchestration source identity', () => {
+test('Goal 3 preserves its historical transition source identities', () => {
   const document = contract();
+  assert.equal(document.status, 'superseded_transition');
+  assert.deepEqual(document.architecture_alignment, {
+    decision_id: 'rvoip-rustpbx-unified-authority-r2',
+    production_baseline_id: 'CARRIER-CELL-V1',
+    contract_role: 'legacy_goal3_acceptance_compatibility',
+    production_authorizing: false,
+    target_control_boundary: 'in_process_rustpbx_media_engine_facade',
+    legacy_media_control_image_evidence: 'diagnostic_only',
+    failure_scope: 'ordinary_rtpengine_edges_only'
+  });
   assert.deepEqual(document.sources, {
     rustpbx: {
       repository: 'https://github.com/restsend/rustpbx',
@@ -80,11 +90,80 @@ test('Goal 3 preserves authority and packet-path independence', () => {
   const document = contract();
   assert.equal(document.authority.call_dialog_owner, 'rustpbx');
   assert.equal(document.authority.logical_media_graph_owner, 'rustpbx');
-  assert.equal(document.authority.wire_transport_owner, 'rtpengine');
-  assert.equal(document.authority.command_authority, 'media_control_agent');
+  assert.equal(document.authority.media_plan_owner, 'rustpbx');
+  assert.equal(
+    document.authority.edge_binding_authority,
+    'rustpbx_media_engine_facade'
+  );
+  assert.equal(document.authority.writer_scope, 'directed_media_edge');
+  assert.equal(
+    document.authority.ordinary_edge_runtime_default,
+    'rtpengine'
+  );
+  assert.equal(
+    document.authority.command_authority,
+    'rustpbx_media_engine_facade'
+  );
   assert.equal(document.authority.packet_path_remote_dependency, false);
   assert.equal(document.authority.ordinary_profile_sync_shadow_quorum, false);
   assert.equal(document.authority.t1_profile_sync_shadow_quorum, true);
+  assert.deepEqual(document.edge_command_identity.required_fields, [
+    'media_plan_id',
+    'media_plan_revision',
+    'edge_id',
+    'edge_generation',
+    'binding_revision',
+    'binding_group_id',
+    'binding_group_generation',
+    'flow_selector',
+    'backend_id',
+    'writer_fence'
+  ]);
+  assert.equal(
+    document.edge_command_identity.duplex_model,
+    'two_independent_directed_edges'
+  );
+  assert.equal(
+    document.edge_command_identity.active_writer_limit_per_edge,
+    1
+  );
+  assert.equal(document.edge_command_identity.prepared_edge_can_emit, false);
+  assert.equal(
+    document.edge_command_identity.handoff_writer_overlap_allowed,
+    false
+  );
+  assert.equal(
+    document.edge_command_identity.logical_release_scope,
+    'directed_media_edge_generation_detach'
+  );
+  assert.equal(
+    document.edge_command_identity.physical_release_scope,
+    'backend_binding_group_generation_atomic_zero_live_ref'
+  );
+  assert.deepEqual(document.binding_group_alignment, {
+    physical_resource_scope: 'backend_binding_group_generation',
+    wire_transport_scope: 'wire_transport_bundle',
+    edge_to_group_cardinality: 'many_edges_to_one_group_allowed',
+    edge_binding_cardinality:
+      'each_edge_generation_binding_maps_to_exactly_one_group_flow',
+    reverse_mapping_rule:
+      'group_member_set_exactly_matches_forward_edge_bindings',
+    orphan_edge_or_group_members_allowed: false,
+    membership_rule: 'immutable_within_generation',
+    packet_lookup_rule: 'precompiled_flow_selector_O1_no_member_scan',
+    physical_release_requires_zero_live_member_refs: true,
+    required_protocol_contract:
+      'docs/capacity/contracts/voice-media-goal2-v1.json',
+    required_operations: [
+      'prepare',
+      'commit',
+      'abort',
+      'revoke',
+      'query',
+      'reconcile'
+    ],
+    production_authorizing: false
+  });
 });
 
 test('Goal 3 covers the complete SIP and media lifecycle', () => {

@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0.0",
   "contract_id": "voice-media-goal3-v1",
-  "revision": 2,
-  "status": "target",
-  "generated_at": "2026-07-26T20:07:18.000Z",
+  "revision": 5,
+  "status": "superseded_transition",
+  "generated_at": "2026-07-29T12:57:09.000Z",
   "sources": {
     "rustpbx": {
       "repository": "https://github.com/restsend/rustpbx",
@@ -33,14 +33,66 @@
   "authority": {
     "call_dialog_owner": "rustpbx",
     "logical_media_graph_owner": "rustpbx",
-    "wire_transport_owner": "rtpengine",
-    "effective_wire_sdp_owner": "rtpengine",
-    "command_authority": "media_control_agent",
+    "media_plan_owner": "rustpbx",
+    "edge_binding_authority": "rustpbx_media_engine_facade",
+    "writer_scope": "directed_media_edge",
+    "ordinary_edge_runtime_default": "rtpengine",
+    "command_authority": "rustpbx_media_engine_facade",
     "reservation_authority": "component_node_admission",
     "route_snapshot_authority": "cell_route_agent",
     "packet_path_remote_dependency": false,
     "ordinary_profile_sync_shadow_quorum": false,
     "t1_profile_sync_shadow_quorum": true
+  },
+  "edge_command_identity": {
+    "required_fields": [
+      "media_plan_id",
+      "media_plan_revision",
+      "edge_id",
+      "edge_generation",
+      "binding_revision",
+      "binding_group_id",
+      "binding_group_generation",
+      "flow_selector",
+      "backend_id",
+      "writer_fence"
+    ],
+    "duplex_model": "two_independent_directed_edges",
+    "active_writer_limit_per_edge": 1,
+    "prepared_edge_can_emit": false,
+    "handoff_writer_overlap_allowed": false,
+    "logical_release_scope": "directed_media_edge_generation_detach",
+    "physical_release_scope": "backend_binding_group_generation_atomic_zero_live_ref"
+  },
+  "binding_group_alignment": {
+    "physical_resource_scope": "backend_binding_group_generation",
+    "wire_transport_scope": "wire_transport_bundle",
+    "edge_to_group_cardinality": "many_edges_to_one_group_allowed",
+    "edge_binding_cardinality": "each_edge_generation_binding_maps_to_exactly_one_group_flow",
+    "reverse_mapping_rule": "group_member_set_exactly_matches_forward_edge_bindings",
+    "orphan_edge_or_group_members_allowed": false,
+    "membership_rule": "immutable_within_generation",
+    "packet_lookup_rule": "precompiled_flow_selector_O1_no_member_scan",
+    "physical_release_requires_zero_live_member_refs": true,
+    "required_protocol_contract": "docs/capacity/contracts/voice-media-goal2-v1.json",
+    "required_operations": [
+      "prepare",
+      "commit",
+      "abort",
+      "revoke",
+      "query",
+      "reconcile"
+    ],
+    "production_authorizing": false
+  },
+  "architecture_alignment": {
+    "decision_id": "rvoip-rustpbx-unified-authority-r2",
+    "production_baseline_id": "CARRIER-CELL-V1",
+    "contract_role": "legacy_goal3_acceptance_compatibility",
+    "production_authorizing": false,
+    "target_control_boundary": "in_process_rustpbx_media_engine_facade",
+    "legacy_media_control_image_evidence": "diagnostic_only",
+    "failure_scope": "ordinary_rtpengine_edges_only"
   },
   "media_actions": [
     "offer",
@@ -113,7 +165,8 @@
     "stable_idempotency_key": true,
     "unknown_requires_reconcile": true,
     "unknown_blocks_new_mutation": true,
-    "effective_sdp_before_visible_sip": true,
+    "initial_effective_sdp_after_all_commit_acks": true,
+    "migration_candidate_sdp_visible_while_new_group_no_output": true,
     "cleanup_bounded": true,
     "orphan_recovery_seconds": 60
   },

@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "profile_id": "vos-eq-v1-rtp-10k-v1",
-  "revision": 1,
+  "revision": 2,
   "status": "target",
   "description": "Role-isolated target for 10,000 concurrent two-leg G.711 calls on one rtpengine kernel fast-path node; this profile is not a measured capacity claim.",
   "source_identity": {
@@ -129,6 +129,17 @@
     "reconciliation_delta": 0,
     "unexpected_process_restart_count": 0,
     "oom_kill_count": 0
+  },
+  "handoff": {
+    "scope": "active_backend_migration_evidence_only",
+    "default_rollout": "new_call_selection_and_old_call_drain",
+    "active_migration_authorizes_capacity_claim": false,
+    "inbound_grace_ms": 500,
+    "handoff_rto_ms": 5000,
+    "max_writer_gap_ms": 100,
+    "max_migration_loss_ratio": 0.001,
+    "old_generation_grace_behavior": "authenticate_count_drop_only_no_forward_dtmf_recording_or_ai",
+    "verification": "not_run"
   },
   "finalizer": {
     "entrypoint": "scripts/ivekit-capacity-finalizer.ts",

@@ -1,7 +1,7 @@
 # OPC「超级联络中心平台」战略与演进报告
 
-> **版本**: 1.3（按 `docs/design/README.md` 准绳补互链与变更日志）
-> **日期**: 2026-06-29
+> **版本**: 1.4
+> **日期**: 2026-07-29
 > **状态**: 活跃 — 后续功能优先级、Sprint 排期、投资讨论均以此为准
 > **受众**: 创始团队、产品、工程、投资/合作方
 > **关联文档**:
@@ -14,6 +14,7 @@
 > - [安全与合规设计](./security-design.md)
 > - [指标设计](./metrics-design.md)
 > - [Voice 模块抽取备忘](./voice-module-extraction-memo.md)
+> - [RustPBX × rvoip 通信底座整合设计](./rvoip-opc-communication-foundation-integration-design.md)
 
 ---
 
@@ -689,7 +690,7 @@ flowchart TB
     LK["LiveKit SFU"]
     SIPB["LiveKit SIP Bridge"]
     EGR["LiveKit Egress"]
-    VMR["voice-media-rs<br/>Token / 录音 API"]
+    VMR["voice-media-rs<br/>Embedded decode media Backend"]
   end
 
   subgraph Data["数据层 Data"]
@@ -1807,6 +1808,7 @@ Transition:
 
 | 版本 | 日期 | 作者 | 变更 |
 |------|------|------|------|
+| 1.4 | 2026-07-29 | Codex | 对齐唯一通信底座生产基线：`voice-media-rs` 不再只是 token/录音 helper，而是 Unified RustPBX 进程内解码媒体 Backend；普通 RTP 仍由外部 RTPengine 默认承载。 |
 | 1.3 | 2026-06-29 | OPC Team | 按 `docs/design/README.md` 准绳：头部 `<关联文档>` block 补 README / voice-memo 互链；日期对齐到 2026-06-29。未改 §1-§13 正文与禁用词延后表（§5.5 L831-835 本即为 README §3 表的裁决源之一）。 |
 | 1.2 | 2026-06-25 | OPC Team | **战略锁定 CCaaS**：全文去除「私有化优先」；§3.2 交付模型对比；§5.6 改为多租户托管拓扑 + MT 隔离清单 |
 | 1.1 | 2026-06-25 | OPC Team | §5 扩充 14 张技术架构图（分层/部署/时序/IVR/全渠道/事件/安全/数据矩阵/多代理） |

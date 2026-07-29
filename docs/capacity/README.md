@@ -1,8 +1,8 @@
 # iveKit 容量合同与架构治理
 
 > 状态：Active
-> 版本：3.6
-> 日期：2026-07-26
+> 版本：3.9
+> 日期：2026-07-29
 > 上级评审：[`../MIX-100K双Zone与Cell架构评审.md`](../MIX-100K双Zone与Cell架构评审.md)
 > 调研依据：[`../CCaaS十万并发容量对标与架构优化调研.md`](../CCaaS十万并发容量对标与架构优化调研.md)
 
@@ -20,6 +20,24 @@
 
 本目录不代表任何容量已经通过。未经 evidence bundle 验证的数字均为 `target` 或 `assumption`。
 
+语音底座只按一个生产架构签署：
+
+- `CARRIER-CELL-V1`：唯一生产基线；Unified RustPBX Process 内嵌 rvoip 低层 SIP
+  slice 与 `voice-media-rs`，外接 RTPengine ordinary fast path；
+- `UNIFIED-STANDALONE-V1`：仅开发、诊断、互通和 benchmark 身份，不是生产基线，
+  不得外推 Carrier 容量；
+- `RUST-NATIVE-FAST-PATH-CANDIDATE`：同一架构下的候选 Backend 资格身份，不是第二
+  Deployment Profile。只有同硬件功能、性能、隔离、24 小时和 2/4/8 扩展均不劣于
+  RTPengine 时，才可成为新 ordinary Media Edge 的 eligible Backend。
+
+证据必须绑定同一 source/binary/config/workload/Backend identity，以及
+`media_plan_compiler_revision`、`backend_selector_revision` 和 `backend_mix_id`。
+Backend 选择粒度是每条 directed Media Edge；每个 Edge generation 同一 binding
+revision 只能有一个 fenced writer，并通过
+`(group_id, group_generation, flow_selector)` 精确映射到一个 Backend Binding Group
+member flow。双向通话、tap、录音和处理 chain 使用不同 Edge；group generation
+统一持有共享 physical allocation 和 Wire Transport Bundle。
+
 ## 2. 文件清单
 
 | 文件 | 责任 |
@@ -36,16 +54,23 @@
 | [`schemas/voice-media-attempt-evidence.schema.json`](schemas/voice-media-attempt-evidence.schema.json) | 单次语音媒体运行的身份、计数对账、生成器资格和 SUT 结果证据 Schema |
 | [`schemas/voice-media-goal0.schema.json`](schemas/voice-media-goal0.schema.json) | Goal 0 权威、部署、harness、故障、兼容和回滚合同 Schema |
 | [`contracts/voice-media-goal0-v1.json`](contracts/voice-media-goal0-v1.json) | Goal 0 机器可读总合同及 `not_run/skeleton` 真实状态 |
-| [`contracts/voice-media-goal2-v1.json`](contracts/voice-media-goal2-v1.json) | RTPengine 精确源码、媒体控制、真实 RTP/SRTP、故障与诚实容量声明合同 |
+| [`contracts/voice-media-goal2-v1.json`](contracts/voice-media-goal2-v1.json) | RTPengine 精确源码与历史功能证据；Revision 3 group-scoped atomic lifecycle 仍是 `not_run` 目标增量 |
 | [`../../scripts/ivekit-voice-media-goal2-finalize.ts`](../../scripts/ivekit-voice-media-goal2-finalize.ts) | 绑定供应链、生命周期、全部尝试和故障矩阵的 Goal 2 finalizer |
+| [`schemas/voice-media-goal3.schema.json`](schemas/voice-media-goal3.schema.json) | Goal 3 历史过渡验收合同 Schema；明确不能授权独立 media-control 生产拓扑 |
+| [`contracts/voice-media-goal3-v1.json`](contracts/voice-media-goal3-v1.json) | RustPBX→media-control→RTPengine 既有验收兼容资产，状态为 `superseded_transition`；目标是进程内 Facade + Binding Group/Wire Bundle |
 | [`schemas/voice-media-goal4.schema.json`](schemas/voice-media-goal4.schema.json) | Goal 4 源码身份、权威边界、处理运行时、故障矩阵和声明状态 Schema |
-| [`schemas/voice-media-processing-profile.schema.json`](schemas/voice-media-processing-profile.schema.json) | 独立媒体处理池负载、生成器、硬件和质量门槛 Schema |
-| [`contracts/voice-media-goal4-v1.json`](contracts/voice-media-goal4-v1.json) | Goal 4 G.711/Opus 首批切片、处理池隔离和诚实证据状态合同 |
+| [`schemas/voice-media-processing-profile.schema.json`](schemas/voice-media-processing-profile.schema.json) | 进程内媒体处理 Backend 的独立 worker/shard 负载、生成器、硬件和质量门槛 Schema |
+| [`contracts/voice-media-goal4-v1.json`](contracts/voice-media-goal4-v1.json) | Goal 4 G.711/Opus 首批切片；G.729、co-resident Unified RustPBX 容量与 group lifecycle 均保持诚实 `not_run` |
+| [`../design/rvoip-opc-communication-foundation-integration-design.md`](../design/rvoip-opc-communication-foundation-integration-design.md) | OPC/RustPBX × rvoip 的完整整合、Authority、Seam、迁移、回滚、测试和证据设计 |
+| [`../../CONTEXT.md`](../../CONTEXT.md) | Business/Protocol Dialog、Protocol/Processing Session、媒体绑定与 Authority 的统一领域语言 |
+| [`../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md`](../adr/ccaas-7-rvoip-rustpbx-replacement-and-extraction.md) | rvoip 低层协议底座采用、禁止高层并行 runtime、唯一生产基线和 Backend 资格门禁 |
+| [`schemas/rvoip-capability-integration.schema.json`](schemas/rvoip-capability-integration.schema.json) | 每项 rvoip 能力、集成模式、当前 Authority、状态和下一门禁 Schema |
+| [`contracts/rvoip-capability-integration-v1.json`](contracts/rvoip-capability-integration-v1.json) | rvoip SIP/RTP/codec/Provider/身份/证据能力的完整、不可遗漏处置矩阵 |
+| [`../../test/ivekit-rvoip-capability-integration.test.ts`](../../test/ivekit-rvoip-capability-integration.test.ts) | 冻结能力 ID、分类、状态计数、来源、G.729 法律边界与 replacement gates |
 | [`schemas/rvoip-g729-source-candidate.schema.json`](schemas/rvoip-g729-source-candidate.schema.json) | rvoip G.729 精确源码候选、依赖闭包、验收门和未提升声明 Schema |
 | [`forks/rvoip-g729-source-candidate-v1.json`](forks/rvoip-g729-source-candidate-v1.json) | rvoip `4ced02b` 的 136 个 G.729 Rust 文件、支持文件和目标映射的精确候选记录 |
 | [`../../scripts/verify-rvoip-g729-source-candidate.ts`](../../scripts/verify-rvoip-g729-source-candidate.ts) | 校验候选、存档、支持文件和选定源码树；不执行提取或运行时启用 |
-| [`profiles/vos-eq-v3-g711-opus-1k-v1.json`](profiles/vos-eq-v3-g711-opus-1k-v1.json) | 单处理节点 1K 双向 G.711/Opus 转码目标；当前不是实测容量声明 |
-
+| [`profiles/vos-eq-v3-g711-opus-1k-v1.json`](profiles/vos-eq-v3-g711-opus-1k-v1.json) | Unified RustPBX control + embedded processing co-resident 1K 双向 G.711/Opus 目标；当前不是实测容量声明 |
 | [`../adr/ccaas-5-media-authority-and-rtpengine.md`](../adr/ccaas-5-media-authority-and-rtpengine.md) | RustPBX、rtpengine、媒体处理和区域录音清单的权威边界 |
 | [`rtc-performance-contract-v1.md`](rtc-performance-contract-v1.md) | 端到端测量点、弱网矩阵、原始证据和联合判定语义 |
 | [`schemas/capacity-vector.schema.json`](schemas/capacity-vector.schema.json) | 节点、Cell、Zone 容量、使用量和 admission 合同 |
@@ -89,6 +114,10 @@ G.729 候选索引使用仓库路径：`docs/capacity/forks/rvoip-g729-source-ca
 | Track | LiveKit audio/video/screen published 或 subscribed track |
 | VoiceCall | 一个逻辑双腿 SIP 通话，不自动等于 media session |
 | RtpLeg | 一个终端与媒体节点之间的媒体腿 |
+| Directed Media Edge | Media Plan 中单一方向、单一 writer authority 的逻辑媒体边 |
+| WireMediaBinding | 一个 Edge generation 到一个 group generation/member flow 的不可变精确映射 |
+| Backend Binding Group | 一个 generation-scoped Backend physical allocation 与 immutable member set 的生命周期权威 |
+| Wire Transport Bundle | group 的 effective SDP views、flow bindings、transport/SSRC/ICE/DTLS/SRTP reference 与 refcount 状态 |
 | CapacityVector | 同时表达 SIP、RTP、WS、消息、媒体、录制、Provider 和数据资源的向量 |
 | Safe capacity | 满足 profile SLO 且保留故障余量时可接纳的容量，不是进程崩溃前峰值 |
 | Hard capacity | 满足功能 SLO 但尚未扣 production headroom 的测量极限，只用于优化 |
@@ -259,6 +288,17 @@ traces/
 9. 单节点 safe density 是第一优化目标，component 每区段 marginal >=90%，Cell/shared-data marginal >=95%。
 10. 生产按实测需求和 safe capacity 扩容，不预分配 100K endpoint 的完整资源。
 11. 主备 Cell admission 必须使用同一规范化 topology SHA-256；不同拓扑只能在旧 lease 释放或过期后以新 epoch 接管。
+12. Edge→group/flow 与 flow→Edge lookup 必须为 O(1)；group membership 在 generation
+    内不可变，共享资源只在 zero live refs 时释放一次。
+13. group prepare 必须原子进入 `prepared_blocked`，commit 后才开放输出；revoke
+    ACK 前关闭 user/kernel gates 并排空 in-flight send。timeout 只 query/reconcile；
+    initial 与 migration SDP、decision 前后 compensation 按 Revision 3 执行。
+14. 生产 processing 容量只接受 Unified RustPBX control + embedded workers
+    co-resident primary SUT，并验证 cpuset/NUMA/allocator/QoS/SIP headroom、worker
+    panic/process abort/OOM 与 ordinary RTPengine continuity；独立 microbenchmark 只作
+    diagnostic/non-authorizing。
+15. Backend 发布默认新呼叫选择 + 旧呼叫 drain；不同 compiler/selector/backend-mix
+    identity 的证据不得聚合或继承。
 
 ## 10. 变更流程
 
@@ -360,6 +400,9 @@ node --import tsx scripts/ivekit-capacity.ts validate-manifest \
 | 3.2 | 2026-07-17 | 增加完整 MIX 比例曲线点编译、精确运行身份、frontier 历史重放、migration 091、数据库/S3 验证型 scaling campaign finalizer 与 Kubernetes/交付接线 |
 | 3.3 | 2026-07-17 | 增加 component role 不可变身份、migration 092、曲线二次复算和九组件+Cell+共享数据+100K endpoint 平台聚合 finalizer；受控结果禁止平台声明 |
 | 3.4 | 2026-07-22 | Profile schema 升至 1.3；加入端到端 RTC QoE、弱网、公平性、安全开销和资源合同；run finalizer 不再仅信任 `slo_passed`，而是从原始 performance evidence 重算联合门禁 |
+| 3.7 | 2026-07-29 | 增加 OPC/RustPBX × rvoip 完整整合设计、统一领域语言、能力矩阵/schema/test、G.729 强制工程与法律边界、分阶段 `SipFoundation` Adapter 路线，以及 RTPengine 长期正式/性能优先与可选 Rust-native 竞争 Profile |
+| 3.8 | 2026-07-29 | 锁定唯一 `CARRIER-CELL-V1` 生产基线；把 Rust-native 改为同架构候选 Backend；引入 Media Plan/有向 Media Edge/per-edge writer fence；首期同进程嵌入 `voice-media-rs` |
+| 3.9 | 2026-07-29 | 增加 Backend Binding Group/Wire Transport Bundle、O(1) Edge-flow mapping、atomic blocked lifecycle、co-resident Unified RustPBX 容量身份、selector/backend mix 与新呼叫选择/旧呼叫 drain 门禁 |
 
 ## 13. Phase 2 代码状态
 

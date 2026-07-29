@@ -11,7 +11,7 @@ const MAX_BYTES = 16 * 1024 * 1024;
 const MAX_DEPTH = 24;
 const MAX_RUST_TOKENS = 1_000_000;
 const MAX_LEXICAL_DEPTH = 256;
-const GATES = ['license_review', 'patent_legal_review', 'extraction', 'dependency_closure', 'annex_a', 'annex_b_vad_dtx_cng', 'annex_b_fmtp_negotiation', 'packetization_10ms', 'packetization_20ms', 'sid_no_data', 'plc', 'reference_vectors', 'g711_pairs', 'opus_pairs', 'interoperability', 'quality', 'allocation', 'latency', 'sessions_per_core', 'supply_chain', 'production_eligibility'] as const;
+const GATES = ['license_review', 'patent_legal_review', 'extraction', 'dependency_closure', 'annex_a', 'annex_b_vad_dtx_cng', 'annex_b_fmtp_negotiation', 'annex_b_missing_parameter_default', 'annex_b_asymmetric_offer_answer', 'packetization_10ms', 'packetization_20ms', 'packetization_30ms', 'packetization_40ms', 'packetization_60ms', 'rtp_encoding_g729_8000', 'static_payload_type_18', 'dynamic_payload_type_remap', 'speech_sid_no_data_framing', 'sid_no_data', 'plc', 'reference_vectors', 'g711_pairs', 'opus_pairs', 'interoperability', 'quality', 'allocation', 'latency', 'sessions_per_core', 'supply_chain', 'production_eligibility'] as const;
 const RUNTIME_DEPENDENCY_ROOTS = [
   'crate::codecs::g729',
   'crate::error',
@@ -23,6 +23,13 @@ const PINNED_TEST_ONLY_DEPENDENCIES = [
 ] as const;
 const PINNED_BARE_PATH_OCCURRENCES_SHA256 =
   '4ac34daf963e064da862c640a5b3b3510582ba7d6411b31f317098f3cf2460b3';
+const PINNED_GENERATED_AT = '2026-07-29T08:00:00.000Z';
+const PINNED_NON_CLAIMS = [
+  'No source is copied by this candidate record.',
+  'No reference-vector, interoperability, quality, capacity, runtime, or production claim is made.',
+  'The normal voice-media build no longer contains g729-sys; this does not promote the separately not_run dependency-closure gate for a future rvoip source extraction.',
+  'Legal and patent review remain not_run and block production distribution, runtime enablement, and production eligibility until an external legal conclusion; they do not block engineering implementation, source extraction, compilation, or testing.'
+] as const;
 
 type SourceEntry = { path: string; bytes: number; sha256: string; planned_target: string };
 type SupportFile = { path: string; bytes: number; sha256: string };
@@ -78,9 +85,9 @@ export function verifyRvoipG729SourceCandidate(input: unknown): void {
   ], 'candidate');
   exact(candidate.schema_version, '1.0.0', 'schema version');
   exact(candidate.candidate_id, 'rvoip-g729-codec-core-v1', 'candidate ID');
-  exact(candidate.revision, 1, 'revision');
+  exact(candidate.revision, 2, 'revision');
   exact(candidate.status, 'candidate', 'status');
-  requireDate(candidate.generated_at, 'generated at');
+  exact(candidate.generated_at, PINNED_GENERATED_AT, 'generated at');
   verifySource(record(candidate.source, 'source'));
   verifySupportFiles(candidate.support_files);
   verifySupportFilePolicy(record(candidate.support_file_policy, 'support file policy'));
@@ -253,10 +260,28 @@ function verifyPlannedCodecContract(
     sample_rate_hz: 8000,
     frame_ms: 10,
     samples_per_frame: 80,
-    packetization_ms: [10, 20],
+    packetization_ms: [10, 20, 30, 40, 60],
+    rtp_wire: {
+      encoding_name: 'G729',
+      clock_rate_hz: 8000,
+      static_payload_type: 18,
+      dynamic_payload_type_min: 96,
+      dynamic_payload_type_max: 127,
+      dynamic_remap_scope: 'leg_and_binding_revision'
+    },
+    payload_framing: {
+      speech_frame_octets: 10,
+      sid_frame_octets: 2,
+      speech_frames_per_packet: [1, 2, 3, 4, 6],
+      sid_position: 'zero_or_one_after_zero_or_more_speech_frames',
+      no_data_semantics:
+        'silence_suppression_no_rtp_packet_not_zero_length_speech_frame'
+    },
     annex_b_fmtp_negotiation: {
       status: 'not_run',
       parameter: 'annexb',
+      missing_parameter_default: 'yes',
+      asymmetric_offer_answer_rule: 'explicit_no_wins',
       g729a_expected_value: 'no',
       g729ab_expected_value: 'yes'
     },
@@ -270,6 +295,7 @@ function verifyPlannedCodecContract(
       does_not_block: [
         'engineering_implementation',
         'source_extraction',
+        'compilation',
         'testing'
       ],
       external_legal_conclusion_required: true
@@ -321,13 +347,7 @@ function verifyClaim(claim: Record<string, unknown>): void {
 }
 
 function verifyNonClaims(value: unknown): void {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    value.some(item => typeof item !== 'string' || item.trim().length === 0)
-  ) {
-    throw new Error('non-claim records must be non-empty strings');
-  }
+  exact(value, [...PINNED_NON_CLAIMS], 'non-claims');
 }
 
 function sourceEntries(value: unknown): SourceEntry[] {

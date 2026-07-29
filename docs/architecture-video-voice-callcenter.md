@@ -1,5 +1,13 @@
 # OPC 视频+语音呼叫中心 — 整体架构设计
 
+> **2026-07-29 权威性修订：** 本文保留为视频/产品历史设计；所有把 RustPBX direct
+> media proxy 画成 ordinary 生产数据面、删除 `services/voice-media-rs` 或由 LiveKit
+> 完全接管语音处理的旧裁决均已废止。LiveKit 继续负责视频/SFU；`voice-media-rs` 是
+> 现有 repo-local Rust crate/module，目标为 Unified RustPBX Process 内嵌的解码媒体
+> Backend。普通 RTP Edge 默认由外部 RTPengine 执行。生产权威以
+> `docs/design/rvoip-opc-communication-foundation-integration-design.md` 和
+> `docs/adr/ccaas-5-media-authority-and-rtpengine.md` 为准。
+
 > **软交换**: [RustPBX](https://github.com/restsend/rustpbx)（AI-native Rust PBX, HTTP/WebSocket/Webhook 全可编程）
 > **视频服务**: [LiveKit](https://github.com/livekit/livekit)（开源 WebRTC SFU, 自托管）
 > **业务核心**: OPC（获客 Agent + CRM + 审批 + 记忆系统）
@@ -907,11 +915,12 @@ s3:
 | `Memory System` | 对话上下文持久化，跨 session 记忆 |
 | `Channel Adapters` | 复用 WeChat adapter 发视频链接 |
 | `TenantSkillStore` | 坐席技能路由数据源 |
-| `voice-media-rs` | **替换** — 其 token 签发职责由 `token-service.ts` + LiveKit 接管 |
+| `voice-media-rs` | **【历史决策·已废】替换**；现保留并演进为 Unified RustPBX 进程内解码媒体 Backend，token 兼容职责可独立收口 |
 | `services-bootstrap.ts` | 新增 call-center / livekit wire 注册 |
 
 **需删除/替换**：
-- `services/voice-media-rs/` → 职责完全被 LiveKit 接管
+- **【历史决策·已废】** `services/voice-media-rs/` 由 LiveKit 完全接管；当前不得删除，
+  音频处理与视频 SFU 是不同职责
 - 现有 `VoiceStore.rustpbx_*` 方法 → 重写为通过 RWI client 控制
 
 ---

@@ -12,6 +12,7 @@
     "description",
     "source_identity",
     "primary_sut",
+    "production_topology",
     "generator",
     "workload",
     "phases",
@@ -34,19 +35,39 @@
         "contract_path",
         "component_id",
         "service_version",
+        "rustpbx_commit",
         "rustrtc_commit",
-        "audio_codec_version"
+        "rtpengine_commit",
+        "audio_codec_version",
+        "media_plan_compiler_revision",
+        "backend_selector_revision",
+        "backend_mix_id"
       ],
       "properties": {
         "contract_path": {
           "const": "docs/capacity/contracts/voice-media-goal4-v1.json"
         },
-        "component_id": { "const": "voice-media-rs" },
+        "component_id": { "const": "unified-rustpbx" },
         "service_version": { "const": "0.2.0" },
+        "rustpbx_commit": {
+          "const": "6c49ee76baa54fdbf8f98020cc9bee158c7c15de"
+        },
         "rustrtc_commit": {
           "const": "166c6d22984429eb6b509920c14fcd69f974f0b3"
         },
-        "audio_codec_version": { "const": "0.3.40" }
+        "rtpengine_commit": {
+          "const": "506cfa74386a5373e40fca139a932917f22f0524"
+        },
+        "audio_codec_version": { "const": "0.3.40" },
+        "media_plan_compiler_revision": {
+          "const": "target-r3-not-run"
+        },
+        "backend_selector_revision": {
+          "const": "carrier-cell-v1-target-r3-not-run"
+        },
+        "backend_mix_id": {
+          "const": "rtpengine-ordinary-plus-embedded-processing-v2"
+        }
       }
     },
     "primary_sut": {
@@ -54,10 +75,38 @@
       "additionalProperties": false,
       "required": ["role", "component_id", "node_count", "hardware"],
       "properties": {
-        "role": { "const": "processing" },
-        "component_id": { "const": "voice-media-rs" },
+        "role": { "const": "unified_control_and_embedded_processing" },
+        "component_id": { "const": "unified-rustpbx" },
         "node_count": { "const": 1 },
         "hardware": { "$ref": "#/$defs/hardware" }
+      }
+    },
+    "production_topology": {
+      "const": {
+        "deployment_profile_id": "CARRIER-CELL-V1",
+        "process_scope": "unified_rustpbx",
+        "voice_media_co_resident": true,
+        "rtpengine_external_fast_path": true,
+        "cpu_partition": {
+          "total_physical_cores": 32,
+          "sip_call_control_reserved_cores": 4,
+          "embedded_media_max_cores": 24,
+          "os_irq_reserved_cores": 4,
+          "exclusive_cpuset": true,
+          "numa_pinned": true,
+          "verification": "not_run"
+        },
+        "sip_control_headroom": {
+          "steady_utilization_max_ratio": 0.6,
+          "timer_lag_p99_ms": 10,
+          "setup_latency_p99_ms": 250,
+          "verification": "not_run"
+        },
+        "intrinsic_microbench": {
+          "profile_id": "voice-media-rs-g711-opus-intrinsic-v1",
+          "production_authorizing": false,
+          "verification": "not_run"
+        }
       }
     },
     "generator": {
@@ -94,6 +143,7 @@
         "media_path",
         "transport",
         "codec_pairs",
+        "backend_mix",
         "packetization_ms",
         "transcoding",
         "recording",
@@ -122,6 +172,14 @@
               "PCMA_TO_OPUS",
               "OPUS_TO_PCMA"
             ]
+          }
+        },
+        "backend_mix": {
+          "const": {
+            "ordinary_edge_backend": "rtpengine",
+            "decode_required_edge_backend": "embedded_voice_media_rs",
+            "selector_revision": "carrier-cell-v1-target-r3-not-run",
+            "profile_results_transferable_to_other_mix": false
           }
         },
         "packetization_ms": { "const": 20 },
@@ -166,6 +224,9 @@
         "setup_success_ratio",
         "server_packet_loss_ratio",
         "processing_latency_p99_ms",
+        "sip_setup_latency_p99_ms",
+        "sip_timer_lag_p99_ms",
+        "control_runtime_steady_utilization_ratio",
         "steady_cpu_utilization_ratio",
         "burst_cpu_utilization_ratio",
         "reconciliation_delta",
@@ -186,6 +247,21 @@
         "processing_latency_p99_ms": {
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "sip_setup_latency_p99_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 250
+        },
+        "sip_timer_lag_p99_ms": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "control_runtime_steady_utilization_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 0.6
         },
         "steady_cpu_utilization_ratio": {
           "type": "number",
@@ -268,7 +344,7 @@
     },
     "external_dependencies": {
       "type": "array",
-      "minItems": 4,
+      "minItems": 5,
       "items": {
         "type": "object",
         "additionalProperties": false,

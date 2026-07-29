@@ -1,11 +1,15 @@
 {
   "schema_version": "1.0.0",
   "matrix_id": "ivekit-component-authority-2026-07",
-  "audited_at": "2026-07-22",
+  "audited_at": "2026-07-29",
   "default_profile": "core",
+  "production_baseline_id": "CARRIER-CELL-V1",
+  "architecture_decision_id": "rvoip-rustpbx-unified-authority-r2",
   "principles": [
-    "One capability domain has exactly one primary runtime authority.",
-    "Profiles select deployment intent; they do not create a second implementation authority.",
+    "CARRIER-CELL-V1 is the only production voice architecture baseline; overlays do not change voice authority.",
+    "RustPBX owns Call, Business Dialog, Logical Media Graph, Media Plan, directed Media Edge classification and Backend-binding commit.",
+    "Backend implementations may coexist, but each committed directed Media Edge has exactly one active writer protected by a writer fence.",
+    "RTPengine is the long-lived default ordinary RTP/RTCP/SRTP Backend; phase-one voice-media-rs is embedded in the Unified RustPBX Process for decode-required Edges.",
     "POC components are benchmark-only, disabled by default, and excluded from production delivery.",
     "Replacement periods are time-bounded and end with removal of the old component.",
     "Every production image rendered by the iveKit Chart uses an immutable sha256 digest."
@@ -15,10 +19,11 @@
       "id": "core",
       "default": true,
       "production_eligible": true,
-      "purpose": "Minimal shared communication control plane and approved communication authorities.",
+      "purpose": "Base component bundle for the single CARRIER-CELL-V1 production architecture.",
       "components": [
         "ivekit-service", "node-runtime", "typescript", "nodemailer", "kamailio", "rustpbx",
-        "rsipstack", "livekit-server", "livekit-sip", "livekit-egress", "livekit-ingress",
+        "rsipstack", "rvoip-low-level-sip-slice", "rtpengine", "voice-media-rs",
+        "livekit-server", "livekit-sip", "livekit-egress", "livekit-ingress",
         "livekit-turn", "tinode", "rustdesk-server", "rustdesk-client", "guacamole", "postgresql",
         "cloudnative-pg", "redis-to-valkey", "nats-server", "nats-js-client", "keda", "minio",
         "seaweedfs", "clamav", "supply-chain"
@@ -28,22 +33,22 @@
       "id": "ai",
       "default": false,
       "production_eligible": true,
-      "purpose": "Optional realtime AI, OCR, ASR, translation and quality-processing workers.",
+      "purpose": "Optional component overlay within CARRIER-CELL-V1; it does not change voice topology or authority.",
       "components": ["livekit-agents", "realtime-voice-pipeline", "external-intelligence-providers", "keda"]
     },
     "observability": {
       "id": "observability",
       "default": false,
       "production_eligible": true,
-      "purpose": "Optional off-path metrics, traces, SIP forensics and analytics stores.",
+      "purpose": "Optional off-path observability overlay within CARRIER-CELL-V1; it does not change voice topology or authority.",
       "components": ["homer", "sip-exporter", "clickhouse", "opentelemetry", "victoriametrics", "keda"]
     },
     "benchmark": {
       "id": "benchmark",
       "default": false,
       "production_eligible": false,
-      "purpose": "Isolated comparison and capacity evidence; never a production deployment profile.",
-      "components": ["rtpengine", "siphon-sip", "centrifugo", "cilium-hubble"]
+      "purpose": "Isolated comparison and capacity-evidence overlay; never a production architecture or authority.",
+      "components": ["siphon-sip", "centrifugo", "cilium-hubble"]
     }
   },
   "components": [
@@ -96,31 +101,72 @@
     },
     {
       "id": "rustpbx", "baseline_decision_id": "rustpbx",
-      "purpose": "B2BUA, IVR, RTP session ownership and isolated recording fork.",
-      "status": "implemented", "hot_path": true, "dependencies": ["rsipstack", "postgresql"],
-      "authority": {"domain": "voice-session-media", "role": "primary"},
+      "purpose": "Product B2BUA and the unique Call, Leg, Business Dialog, Logical Media Graph, Media Plan, directed Media Edge classification and Backend-binding commit authority.",
+      "status": "implemented", "target_architecture_integration_status": "not_run", "hot_path": true, "dependencies": ["rsipstack", "postgresql"],
+      "authority": {
+        "domain": "voice-call-and-media-plan",
+        "role": "primary",
+        "scope": "call_and_directed_media_edge",
+        "selection_authority": "rustpbx-media-engine-facade",
+        "single_writer": true,
+        "writer_fence_required": true
+      },
       "profiles": ["core"], "default_enabled": false, "config_switch": "voice.enabled",
-      "delivery": "production", "rollback": "Drain the node and deploy the prior compatible patched fork image.",
-      "resource_budget": {"scope": "per-pod", "requests": "200m CPU/256Mi", "limits": "1 CPU/1Gi", "notes": "Final limits are capacity-profile evidence, not defaults."},
+      "delivery": "production", "rollback": "Drain the node and deploy the prior compatible patched fork image; never restore an unqualified hidden direct-media production path.",
+      "resource_budget": {"scope": "co-resident Unified RustPBX node", "requests": "signed co-resident capacity profile", "limits": "signed co-resident capacity profile with reserved SIP/control headroom", "notes": "Bound to docs/capacity/profiles/vos-eq-v3-g711-opus-1k-v1.json; its targets are non-claims until exact-hardware evidence passes."},
       "image_contract": {"policy": "immutable", "values_path": "voice.image.digest", "helper": "ivekit.rustpbxImage"}
     },
     {
       "id": "rsipstack", "baseline_decision_id": "rsipstack",
-      "purpose": "SIP transactions and transports embedded in RustPBX.",
+      "purpose": "Current embedded SIP transaction/transport implementation behind the SipFoundation seam; never co-writes a Protocol Session with another Adapter.",
       "status": "build_only", "hot_path": true, "dependencies": [],
-      "authority": {"domain": "rust-sip-stack", "role": "extension"},
+      "authority": {"domain": "rust-sip-foundation-implementation", "role": "extension"},
       "profiles": ["core"], "default_enabled": false, "config_switch": "RustPBX Cargo source lock",
       "delivery": "production", "rollback": "Revert the RustPBX patch queue to the prior rsipstack commit.",
       "resource_budget": {"scope": "embedded", "requests": "RustPBX budget", "limits": "bounded transaction tables", "notes": "No independent deployment."}
     },
     {
       "id": "rtpengine", "baseline_decision_id": "rtpengine",
-      "purpose": "Measure optional RTP anchoring, legacy interop and transcoding tradeoffs.",
-      "status": "poc", "hot_path": true, "dependencies": ["kamailio"],
-      "authority": {"domain": "rtp-anchor-candidate", "role": "candidate"},
-      "profiles": ["benchmark"], "default_enabled": false, "config_switch": "benchmark harness only",
-      "delivery": "excluded", "rollback": "Remove the benchmark hop and return RTP ownership to RustPBX.",
-      "resource_budget": {"scope": "benchmark", "requests": "explicit per run", "limits": "isolated nodes", "notes": "No production reservation."}
+      "purpose": "Long-lived default production Backend for ordinary directed RTP/RTCP/SRTP Media Edges under CARRIER-CELL-V1.",
+      "status": "planned", "evidence_status": "not_run", "hot_path": true, "dependencies": ["kamailio", "rustpbx"],
+      "authority": {
+        "domain": "directed-media-edge-runtime",
+        "role": "operator",
+        "scope": "assigned_ordinary_directed_media_edge",
+        "selection_authority": "rustpbx-media-engine-facade",
+        "runtime_writer": "selected_rtpengine_instance",
+        "single_writer": true,
+        "writer_fence_required": true
+      },
+      "profiles": ["core"], "default_enabled": false, "config_switch": "voice.enabled and CARRIER-CELL-V1 media backend configuration",
+      "delivery": "production", "rollback": "Remove a failing candidate from new-Edge eligibility; pinned RTPengine Edges drain. Reject admission when no qualified ordinary Backend is available.",
+      "resource_budget": {"scope": "per-Cell external media data plane", "requests": "capacity profile", "limits": "bounded ports, sessions, packet queues and CPU/NIC/NUMA allocation", "notes": "Architecture role is accepted; runtime, failure and capacity evidence remain not_run."}
+    },
+    {
+      "id": "voice-media-rs", "baseline_decision_id": "voice-media-rs",
+      "purpose": "Phase-one in-process Backend for every decode-required directed Media Edge: codec, transcoding, IVR, DSP, mixer, recorder capture and AI/quality taps.",
+      "status": "planned", "evidence_status": "not_run", "hot_path": true, "dependencies": ["rustpbx"],
+      "authority": {
+        "domain": "directed-media-edge-runtime",
+        "role": "operator",
+        "scope": "assigned_decode_required_directed_media_edge",
+        "selection_authority": "rustpbx-media-engine-facade",
+        "runtime_writer": "embedded_voice_media_worker",
+        "single_writer": true,
+        "writer_fence_required": true
+      },
+      "profiles": ["core"], "default_enabled": false, "config_switch": "CARRIER-CELL-V1 embedded voice-media Backend selection",
+      "delivery": "production", "rollback": "Stop admitting decode-required Edges and drain pinned Edge generations; do not fail open to an unqualified Backend.",
+      "resource_budget": {"scope": "embedded fixed worker shards", "requests": "within separately reserved Unified RustPBX media budget", "limits": "bounded workers, sessions, packet queues, frame pools and codec-pair permits", "notes": "Target production calls use direct Rust adapters; current HTTP/binary surfaces are diagnostic and benchmark assets until integration evidence passes."}
+    },
+    {
+      "id": "rvoip-low-level-sip-slice", "baseline_decision_id": "rvoip-low-level-sip-slice",
+      "purpose": "Exact-source embedded candidate for SIP message codec, transaction, RFC Protocol Dialog, transport, DNS and authentication primitives.",
+      "status": "build_only", "evidence_status": "not_run", "hot_path": true, "dependencies": [],
+      "authority": {"domain": "rust-sip-foundation-implementation", "role": "extension"},
+      "profiles": ["core"], "default_enabled": false, "config_switch": "SipFoundation Adapter identity fixed per Protocol Session",
+      "delivery": "production", "rollback": "Keep the current Adapter for new Protocol Sessions and drain the candidate; never run both as writers for one Protocol Session.",
+      "resource_budget": {"scope": "embedded", "requests": "Unified RustPBX control budget", "limits": "bounded messages, transactions, dialogs, connections, timers and queues", "notes": "Endpoint, SessionHandle, Coordinator, Orchestrator, Conversation, Participant, PBX and media runtimes are explicitly rejected."}
     },
     {
       "id": "homer", "baseline_decision_id": "homer",

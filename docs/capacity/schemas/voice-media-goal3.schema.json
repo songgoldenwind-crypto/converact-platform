@@ -13,6 +13,9 @@
     "sources",
     "required_patch_ids",
     "authority",
+    "edge_command_identity",
+    "binding_group_alignment",
+    "architecture_alignment",
     "media_actions",
     "sip_scenarios",
     "legs",
@@ -38,7 +41,13 @@
       "minimum": 1
     },
     "status": {
-      "enum": ["target", "implemented", "functional_pass", "retired"]
+      "enum": [
+        "target",
+        "implemented",
+        "functional_pass",
+        "superseded_transition",
+        "retired"
+      ]
     },
     "generated_at": {
       "type": "string",
@@ -96,8 +105,10 @@
       "required": [
         "call_dialog_owner",
         "logical_media_graph_owner",
-        "wire_transport_owner",
-        "effective_wire_sdp_owner",
+        "media_plan_owner",
+        "edge_binding_authority",
+        "writer_scope",
+        "ordinary_edge_runtime_default",
         "command_authority",
         "reservation_authority",
         "route_snapshot_authority",
@@ -112,14 +123,20 @@
         "logical_media_graph_owner": {
           "const": "rustpbx"
         },
-        "wire_transport_owner": {
-          "const": "rtpengine"
+        "media_plan_owner": {
+          "const": "rustpbx"
         },
-        "effective_wire_sdp_owner": {
+        "edge_binding_authority": {
+          "const": "rustpbx_media_engine_facade"
+        },
+        "writer_scope": {
+          "const": "directed_media_edge"
+        },
+        "ordinary_edge_runtime_default": {
           "const": "rtpengine"
         },
         "command_authority": {
-          "const": "media_control_agent"
+          "const": "rustpbx_media_engine_facade"
         },
         "reservation_authority": {
           "const": "component_node_admission"
@@ -135,6 +152,117 @@
         },
         "t1_profile_sync_shadow_quorum": {
           "const": true
+        }
+      }
+    },
+    "edge_command_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_fields",
+        "duplex_model",
+        "active_writer_limit_per_edge",
+        "prepared_edge_can_emit",
+        "handoff_writer_overlap_allowed",
+        "logical_release_scope",
+        "physical_release_scope"
+      ],
+      "properties": {
+        "required_fields": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "prefixItems": [
+            { "const": "media_plan_id" },
+            { "const": "media_plan_revision" },
+            { "const": "edge_id" },
+            { "const": "edge_generation" },
+            { "const": "binding_revision" },
+            { "const": "binding_group_id" },
+            { "const": "binding_group_generation" },
+            { "const": "flow_selector" },
+            { "const": "backend_id" },
+            { "const": "writer_fence" }
+          ],
+          "items": false
+        },
+        "duplex_model": {
+          "const": "two_independent_directed_edges"
+        },
+        "active_writer_limit_per_edge": {
+          "const": 1
+        },
+        "prepared_edge_can_emit": {
+          "const": false
+        },
+        "handoff_writer_overlap_allowed": {
+          "const": false
+        },
+        "logical_release_scope": {
+          "const": "directed_media_edge_generation_detach"
+        },
+        "physical_release_scope": {
+          "const": "backend_binding_group_generation_atomic_zero_live_ref"
+        }
+      }
+    },
+    "binding_group_alignment": {
+      "const": {
+        "physical_resource_scope": "backend_binding_group_generation",
+        "wire_transport_scope": "wire_transport_bundle",
+        "edge_to_group_cardinality": "many_edges_to_one_group_allowed",
+        "edge_binding_cardinality": "each_edge_generation_binding_maps_to_exactly_one_group_flow",
+        "reverse_mapping_rule": "group_member_set_exactly_matches_forward_edge_bindings",
+        "orphan_edge_or_group_members_allowed": false,
+        "membership_rule": "immutable_within_generation",
+        "packet_lookup_rule": "precompiled_flow_selector_O1_no_member_scan",
+        "physical_release_requires_zero_live_member_refs": true,
+        "required_protocol_contract": "docs/capacity/contracts/voice-media-goal2-v1.json",
+        "required_operations": [
+          "prepare",
+          "commit",
+          "abort",
+          "revoke",
+          "query",
+          "reconcile"
+        ],
+        "production_authorizing": false
+      }
+    },
+    "architecture_alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "production_baseline_id",
+        "contract_role",
+        "production_authorizing",
+        "target_control_boundary",
+        "legacy_media_control_image_evidence",
+        "failure_scope"
+      ],
+      "properties": {
+        "decision_id": {
+          "const": "rvoip-rustpbx-unified-authority-r2"
+        },
+        "production_baseline_id": {
+          "const": "CARRIER-CELL-V1"
+        },
+        "contract_role": {
+          "const": "legacy_goal3_acceptance_compatibility"
+        },
+        "production_authorizing": {
+          "const": false
+        },
+        "target_control_boundary": {
+          "const": "in_process_rustpbx_media_engine_facade"
+        },
+        "legacy_media_control_image_evidence": {
+          "const": "diagnostic_only"
+        },
+        "failure_scope": {
+          "const": "ordinary_rtpengine_edges_only"
         }
       }
     },
@@ -267,7 +395,8 @@
         "stable_idempotency_key",
         "unknown_requires_reconcile",
         "unknown_blocks_new_mutation",
-        "effective_sdp_before_visible_sip",
+        "initial_effective_sdp_after_all_commit_acks",
+        "migration_candidate_sdp_visible_while_new_group_no_output",
         "cleanup_bounded",
         "orphan_recovery_seconds"
       ],
@@ -290,7 +419,10 @@
         "unknown_blocks_new_mutation": {
           "const": true
         },
-        "effective_sdp_before_visible_sip": {
+        "initial_effective_sdp_after_all_commit_acks": {
+          "const": true
+        },
+        "migration_candidate_sdp_visible_while_new_group_no_output": {
           "const": true
         },
         "cleanup_bounded": {
