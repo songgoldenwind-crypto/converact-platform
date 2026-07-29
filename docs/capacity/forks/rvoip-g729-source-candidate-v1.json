@@ -1,0 +1,980 @@
+{
+  "schema_version": "1.0.0",
+  "candidate_id": "rvoip-g729-codec-core-v1",
+  "revision": 1,
+  "status": "candidate",
+  "generated_at": "2026-07-29T08:00:00.000Z",
+  "source": {
+    "repository": "https://github.com/eisenzopf/rvoip",
+    "commit": "4ced02b7f6e73041c848f1765dc2bcf7588796f0",
+    "tree": "74dabd314841d99e1a87dbdaca6050fc4e8ed923",
+    "commit_signature": "unsigned",
+    "archive": {
+      "sha256": "16caf07273a1cd04fa126af242ad54892580818b5e7fa3c10d010e4917be437e",
+      "bytes": 8594565
+    }
+  },
+  "support_files": [
+    {
+      "path": "LICENSE",
+      "bytes": 1075,
+      "sha256": "d689025d3da6610ea2ff966052e3709e2eb15fc7553e7f2ddf49866e62b24859"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "bytes": 1522,
+      "sha256": "172bdddc94e3e07e9c35c895380afdc85e78085a0ff4084f3d52fc85fc93ad12"
+    },
+    {
+      "path": "crates/media/codec-core/Cargo.toml",
+      "bytes": 1268,
+      "sha256": "ed53b56f67bb1ce3ae63145017893a7b0f003e4a6fd8b8b2b8d39573f1efc2d0"
+    }
+  ],
+  "support_file_policy": {
+    "cargo_toml": "provenance_only_not_adopted",
+    "dependency_selection": "selected_sources_only"
+  },
+  "candidate_source_root": "crates/media/codec-core/src/codecs/g729",
+  "planned_codec_contract": {
+    "modes": [
+      {
+        "mode_id": "G729A",
+        "annex_b_mode": false,
+        "codec_pairs": [
+          "PCMU_TO_G729A",
+          "G729A_TO_PCMU",
+          "PCMA_TO_G729A",
+          "G729A_TO_PCMA",
+          "OPUS_TO_G729A",
+          "G729A_TO_OPUS"
+        ],
+        "independent_peer": { "status": "not_run", "identity": null },
+        "reference_vector_artifact": { "status": "not_run", "artifact": null },
+        "quality_profile": { "status": "not_run", "profile_id": null },
+        "performance_profile": { "status": "not_run", "profile_id": null }
+      },
+      {
+        "mode_id": "G729AB",
+        "annex_b_mode": true,
+        "codec_pairs": [
+          "PCMU_TO_G729AB",
+          "G729AB_TO_PCMU",
+          "PCMA_TO_G729AB",
+          "G729AB_TO_PCMA",
+          "OPUS_TO_G729AB",
+          "G729AB_TO_OPUS"
+        ],
+        "independent_peer": { "status": "not_run", "identity": null },
+        "reference_vector_artifact": { "status": "not_run", "artifact": null },
+        "quality_profile": { "status": "not_run", "profile_id": null },
+        "performance_profile": { "status": "not_run", "profile_id": null }
+      }
+    ],
+    "sample_rate_hz": 8000,
+    "frame_ms": 10,
+    "samples_per_frame": 80,
+    "packetization_ms": [10, 20],
+    "annex_b_fmtp_negotiation": {
+      "status": "not_run",
+      "parameter": "annexb",
+      "g729a_expected_value": "no",
+      "g729ab_expected_value": "yes"
+    },
+    "legal_boundary": {
+      "status": "not_run",
+      "blocks": [
+        "production_distribution",
+        "runtime_enablement",
+        "production_eligibility"
+      ],
+      "does_not_block": [
+        "engineering_implementation",
+        "source_extraction",
+        "testing"
+      ],
+      "external_legal_conclusion_required": true
+    }
+  },
+  "selected_sources": [
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/decode.rs",
+      "bytes": 1917,
+      "sha256": "a89efd2e0110e05c037f48622f641aa8bd63ece3ae9ecfc39197ba1ead29ff04",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/decode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/excitation.rs",
+      "bytes": 1306,
+      "sha256": "f7e6eae45fac20d86696613e85d51c77d5a56c1cefc731b0c9112b30edb2d1f1",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/excitation.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/excitation_helpers.rs",
+      "bytes": 3969,
+      "sha256": "6eda6204a9ba15afc07c9cdabe1e5855f295e5ba594baac5b9249ec0f8fc4eee",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/excitation_helpers.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/excitation_params.rs",
+      "bytes": 2378,
+      "sha256": "b373d9d5e4c1bc83147d6223a0f15556191abb6935be2a39ed6ecba42ced75bf",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/excitation_params.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/excitation_subframe.rs",
+      "bytes": 5991,
+      "sha256": "bcb3bc20706df933f50074957dad57cdca88a224b56957b86783f0772dc0dc0b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/excitation_subframe.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/mod.rs",
+      "bytes": 920,
+      "sha256": "891bca3e04396198ac1938e7ddf59677b02b5d774464af352e80da6f9d31c547",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/sid.rs",
+      "bytes": 2260,
+      "sha256": "e3023e903a1780f2b8ba2f4066049bcd33d3569fcf69624eec47502e07298cd2",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/sid.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/sid_lsp.rs",
+      "bytes": 5975,
+      "sha256": "2a299f45948c21ad1b8aa1618604f188f2dcd99fa85da742a4d36a132af928b3",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/sid_lsp.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/sid_lsp_prev.rs",
+      "bytes": 1954,
+      "sha256": "17b41019c2ed12670bd65199835ccae800d94e0035de2d832c5722de5b67be35",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/sid_lsp_prev.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/sid_quant.rs",
+      "bytes": 4899,
+      "sha256": "84330a9818ebb2afb8977580629fc58b0f3ce1ee3a33390a663fd6fa79798b25",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/sid_quant.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/sid_search.rs",
+      "bytes": 5831,
+      "sha256": "c67f0505cf79f9dfb3f1cf1cc3aca2de415e57c965f3e521a2c2c1e409da108b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/sid_search.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/cng/state.rs",
+      "bytes": 2694,
+      "sha256": "e192708b9b5eeecc0193a5d5f928715298a1a2f1e1f7a42561f2ccb78d3d7d76",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/cng/state.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/dtx/dtx_gain.rs",
+      "bytes": 714,
+      "sha256": "ef44f30830ace7e5362ae13e96dbf33b164556d384b691fa6214756f1b6e3f30",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/dtx/dtx_gain.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/dtx/encode.rs",
+      "bytes": 5542,
+      "sha256": "abce4b36a654a311c6c5a373a33650bf89cc24c318d34d897420765dc4ac6a30",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/dtx/encode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/dtx/mod.rs",
+      "bytes": 934,
+      "sha256": "62494722741ef7d6ba1d5afecd985174d69103b603dbc6d9e7f3cec48d4bde80",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/dtx/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/dtx/state.rs",
+      "bytes": 2493,
+      "sha256": "4d272664b2613d83b82379c3a589dfca502721f02da80c84ca7548be2350d7cb",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/dtx/state.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/dtx/stationarity.rs",
+      "bytes": 4619,
+      "sha256": "871592d77a67c03bf0b6b412e3bc347e3953653c0014f8af5ff938cbddfdc88a",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/dtx/stationarity.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/dtx/stationarity_cmp.rs",
+      "bytes": 1853,
+      "sha256": "9120c1109dae1c238c7b0f72c7b174ae8272279bdbe78a033bd173209c388b57",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/dtx/stationarity_cmp.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/mod.rs",
+      "bytes": 305,
+      "sha256": "b1f35fb1945ee7c2bd788c851a02286d88211d84e7cb5c542cf4c8f375e1de94",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/vad/decision.rs",
+      "bytes": 4043,
+      "sha256": "f0917e4e9827e990375332d962aa4929441256a5055982bc355f2a5eee4f6d89",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/vad/decision.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/vad/detect.rs",
+      "bytes": 638,
+      "sha256": "3e51410fe9a34e4d0cbb3c37fb7bf983cd4479623a7136ab3aa504421c156b13",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/vad/detect.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/vad/features.rs",
+      "bytes": 6507,
+      "sha256": "51e52027632faaa2403afdbcd0573d4bd00e0d6a6980287bc5a550ba1ba8d490",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/vad/features.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/vad/features_update.rs",
+      "bytes": 7367,
+      "sha256": "bd8e9461d4d96e3d781414ffc40dbacb93bfeb24deb30c1bd4939e3f4707e8f4",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/vad/features_update.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/vad/mod.rs",
+      "bytes": 643,
+      "sha256": "9eb74fb7aa54d138614d6c476f228a6f8c7c385ec9ec227a996a8da1b8e1fd60",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/vad/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/annex_b/vad/state.rs",
+      "bytes": 2126,
+      "sha256": "238e66e8a8a77e090b57e2ac835714267832a797404067ba542f8db441adab4b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/annex_b/vad/state.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/api/config.rs",
+      "bytes": 1832,
+      "sha256": "2787235866d96bc3fccd7cfbb51cbfd3db33903f46fd6f26d27f3496868d371b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/api/config.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/api/decoder.rs",
+      "bytes": 7366,
+      "sha256": "11a8871c423e81e96197beedd71d35acd75ae435b09dbdc1020f0c28595b0bea",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/api/decoder.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/api/encoder.rs",
+      "bytes": 4575,
+      "sha256": "04ba4c410d1889abb99bd3a36ed532988666ccdb0c2b54f4c597365da6a7188c",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/api/encoder.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/api/frame.rs",
+      "bytes": 835,
+      "sha256": "c7a627341bab8629803ecc265ef285c3f33aa8d61e74f01fb1420262395b5e33",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/api/frame.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/api/mod.rs",
+      "bytes": 284,
+      "sha256": "228b6eef56e863da89597434c6a94bca7938bc9449e9281df5ea35824b94166e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/api/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/bitstream/itu_params.rs",
+      "bytes": 3084,
+      "sha256": "bf98add66b7da8fa90a68cee05f7ebf56adb1fe0d248f24da5d005eea71ffae6",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/bitstream/itu_params.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/bitstream/itu_serial.rs",
+      "bytes": 6341,
+      "sha256": "3f55d0045b14e52e1e84d54e2e253703b38747edab1378ffdd9175b3b92af045",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/bitstream/itu_serial.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/bitstream/itu_serial_tests.rs",
+      "bytes": 532,
+      "sha256": "b3e99b24352e6372efbed66e077ce21e289c00db02e47632ec816b3a9f14e3f8",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/bitstream/itu_serial_tests.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/bitstream/mod.rs",
+      "bytes": 414,
+      "sha256": "37d9c81348af1fba144cdba8619222587c0f64305d5fce9f0188e4fa6ed9c136",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/bitstream/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/bitstream/pack.rs",
+      "bytes": 985,
+      "sha256": "b4f8ee5e6da8b54b2ed60a2754bec5cdae7ab180d08fcc21654bb274280eb8c8",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/bitstream/pack.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/bitstream/unpack.rs",
+      "bytes": 1279,
+      "sha256": "d98151897bd6d5abe9c7a3c6d487112de1df2fae244ac121495e3d73c9154e51",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/bitstream/unpack.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/decode.rs",
+      "bytes": 6163,
+      "sha256": "788a10bdff0243996e1cde955c1c121b799b6ed3ac8a126865b1fe0f5af7eb24",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/decode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/decode_annexb.rs",
+      "bytes": 5900,
+      "sha256": "b7c0678c1abc046739485047f18bbb07946e28e8822b566c6e491d6c0a4fa516",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/decode_annexb.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/decode_annexb_bits.rs",
+      "bytes": 1187,
+      "sha256": "551d4689a619905b78cd43ced085fa0717fd2556a0b5624af0c12186327db430",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/decode_annexb_bits.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/decode_sub.rs",
+      "bytes": 5672,
+      "sha256": "c4cf07667b1261c8e88ac6d109c0a851c4bd823c437150ed3c4065b02f70d09b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/decode_sub.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/decode_sub_helpers.rs",
+      "bytes": 1942,
+      "sha256": "00b34f71f983fe8f273eecd146fdb0532a22d2addea76b31e6669218ed47c006",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/decode_sub_helpers.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/encode.rs",
+      "bytes": 1007,
+      "sha256": "5487baa83ced3674e4dcb767a055843dc70e7d1fadeefeaef1c5c666cd905285",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/encode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/encode_annexb.rs",
+      "bytes": 2808,
+      "sha256": "c52addc4c9705e82b8c6ca121a375385eb3444baaab763580f1d81c7e9f50ffe",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/encode_annexb.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/encode_annexb_helpers.rs",
+      "bytes": 4702,
+      "sha256": "9d28aabbd2664d5c6a437454487bf01416bbb1711f76aa9c0eb6b75543c9ec67",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/encode_annexb_helpers.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/encode_frame.rs",
+      "bytes": 5311,
+      "sha256": "dbf825c450ff33102449a2a68eec1788440ec32dee6700267ef0137fccdd9ecb",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/encode_frame.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/encode_sub.rs",
+      "bytes": 6611,
+      "sha256": "491e5ff3a91ec12c3054d09edb1ce0ddcef45b3d5d6dcb2bb5210307736d1bb0",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/encode_sub.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/erasure.rs",
+      "bytes": 1695,
+      "sha256": "1c22564a5c360e5c94f370060e6e9ea6323667cb11603f41f66c57e25dc3d64e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/erasure.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/mod.rs",
+      "bytes": 751,
+      "sha256": "a68bf446bb7f310ed7dd33132776b40f0633794bb01bfc4ef93f0da31f7218b9",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/state/decoder_state.rs",
+      "bytes": 2753,
+      "sha256": "7429479e9b3c1ca089084d406942adefebd948c82b2fa52178e58fa6d68ff721",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/state/decoder_state.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/state/encoder_state.rs",
+      "bytes": 2808,
+      "sha256": "a9a9df851da2ca079a3049718e9ff773f3e368f27225e2d143a3e33ebb0f4352",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/state/encoder_state.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/codec/state/mod.rs",
+      "bytes": 534,
+      "sha256": "273fad05672135257f704a8d5396c7c668eb243d078f50fd6915035e09801227",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/codec/state/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/constants.rs",
+      "bytes": 4237,
+      "sha256": "7bfd9353115038b3a213fe90dd5c1fa3c88f59f82d62a4db727ebd3d232eb83c",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/constants.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/arith.rs",
+      "bytes": 3395,
+      "sha256": "9488e1bdf17434cc7b68f32814a2e6d5b65ff9af3154a9e3cdf20706f0227c70",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/arith.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/arith32.rs",
+      "bytes": 2895,
+      "sha256": "9bd7cb594eebd7e8d192fbb07ba277a3b334c622ee1f9d72ed1353ef9d857cf7",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/arith32.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/arith32_compat.rs",
+      "bytes": 2991,
+      "sha256": "2ccfdfcf0ec28efb2017d214a58050eba96b185d2d44522c30531fc742d162a7",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/arith32_compat.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/arith32_ext.rs",
+      "bytes": 2912,
+      "sha256": "62995d023828623b3fdacd63d8bfc4ba87b2f74a2d24231009058605c00c756c",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/arith32_ext.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/div.rs",
+      "bytes": 4384,
+      "sha256": "afa15642e18eee4c1846313aa3c17344cdb425bfb7e5de2ed8e35bc15d7c2af7",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/div.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/mod.rs",
+      "bytes": 366,
+      "sha256": "8166ff1205a5d6ca2ba91c5e5f51a4be0eb7a57e65f78141ecbe0fbb65a590da",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/oper32.rs",
+      "bytes": 3439,
+      "sha256": "45665fe5847f933b58275841cae60694c91e489e74d19b5069e4cf46b4e9a378",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/oper32.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/random.rs",
+      "bytes": 444,
+      "sha256": "59582c3dd7835c60fb61bd7bd72b75eee7f281bec5b826328a3cd7429a9b9393",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/random.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/shift.rs",
+      "bytes": 3974,
+      "sha256": "2c03ca3349cd34c4f5a5e25980ccbf617e5dae1d812a011489fc6d0ea1b02c63",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/shift.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/shift_tests.rs",
+      "bytes": 291,
+      "sha256": "dc8c039b1a1fcba08484bae9fe245ea677fd71f2df2d9062a521b7b0ce73d0d0",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/shift_tests.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/dsp/types.rs",
+      "bytes": 1023,
+      "sha256": "819fd5737ce3da702d81c311ce32b49602f5741deabba19c7b5c1e7446324478",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/dsp/types.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/error.rs",
+      "bytes": 1590,
+      "sha256": "72781cd7a9c1a32da9b835f1fb90e4525c0464f37ec87ea7ad7579a5c8663931",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/error.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/filter/convolve.rs",
+      "bytes": 1172,
+      "sha256": "e74348232b3a6f3333ea6a845d21c8d3d1482f4950fc682522b15ad216440181",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/filter/convolve.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/filter/mod.rs",
+      "bytes": 510,
+      "sha256": "268292d51aac4467a99a8105dd8d9f3e31eb72f3518d611808471c8f325a3a11",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/filter/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/filter/preemph.rs",
+      "bytes": 722,
+      "sha256": "f6f75c5f91bd22b688cfb76d492614bf73156d7c99444a16b67517d4436ce41e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/filter/preemph.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/filter/resid.rs",
+      "bytes": 1723,
+      "sha256": "c5618ed5743ff85a2465cad09ed4150b29f169add1c07cb7e4377e8a4297baaf",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/filter/resid.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/filter/syn.rs",
+      "bytes": 1991,
+      "sha256": "1f52bcf5abe32be797fc3a16b83857021aa751cc0a465332d149c3320c0597e5",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/filter/syn.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/build_code.rs",
+      "bytes": 758,
+      "sha256": "39003a884734110cf2efc2e18878ed75cfe140dd086150332715724432a8bbe9",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/build_code.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/cor_h.rs",
+      "bytes": 2957,
+      "sha256": "1d5d4612ee5dcd47452c799e44372e9d6e6804a3e2358d22ec89d8ef66953df7",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/cor_h.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/cor_h_cross_a.rs",
+      "bytes": 5053,
+      "sha256": "ecb549057d2202eddbee5853726b52dc8ac6a8fd302faef34aca06f2e35e1874",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/cor_h_cross_a.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/cor_h_cross_b.rs",
+      "bytes": 4472,
+      "sha256": "58bc1ceee0f3330400bb444c7c241801f9ea5d40ece9d9b692fc97e6c7a4d5d3",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/cor_h_cross_b.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/correlation.rs",
+      "bytes": 3002,
+      "sha256": "708d1fe7996b545c70d4a15cff17e82e58f20a51987046969f34d99ab7939b7d",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/correlation.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/d4i.rs",
+      "bytes": 2010,
+      "sha256": "34e53c8c3d3f9cf8bb8fce1988490912a2350ce9762dbe0d541c723dd1d43e53",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/d4i.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/d4i_finalize.rs",
+      "bytes": 3387,
+      "sha256": "4b6b804f41d2ba72a1d01a420ab8c36ecaac2ceedb51ed8bbe04642b1baba852",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/d4i_finalize.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/d4i_prepare.rs",
+      "bytes": 3167,
+      "sha256": "b686d2a8d2be9b04e23448902fe7ee10abfef6276a0a746d28e20d331bd9577b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/d4i_prepare.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/d4i_state.rs",
+      "bytes": 1596,
+      "sha256": "eee6cb5d0e76c9e3e1c0c894e863b817cc4521a8af7839fe8a5602787fd56950",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/d4i_state.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/d4i_variant_a.rs",
+      "bytes": 4773,
+      "sha256": "81a5593d1df2abe04a58c633e1266c78e53908463401c7fe08d1f370c64d195b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/d4i_variant_a.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/d4i_variant_b.rs",
+      "bytes": 4863,
+      "sha256": "fcae434ddc7833f06877730bc4df8e69111c1c2829f531c1d41e2e051ac343f4",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/d4i_variant_b.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/decode.rs",
+      "bytes": 1973,
+      "sha256": "68cb581d73488de2b62243f0370ee4449d2ffc962546485ed9f97f96e635b9b1",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/decode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/mod.rs",
+      "bytes": 545,
+      "sha256": "c45992f785e1bc249599d44d72257d4a52366a781b59138d2599590d8cc6b483",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/search.rs",
+      "bytes": 2031,
+      "sha256": "fa7ae983cd4a51b68ebf6a2a83027732b2b35edf248b6a84808a7167d00183e8",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/search.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/fixed_cb/search_indices.rs",
+      "bytes": 943,
+      "sha256": "e52e7f173a88f898b1e3d8a34854acde19f4cd26c63ea18fddf041c77a6e0a75",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/fixed_cb/search_indices.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/gain/decode.rs",
+      "bytes": 3263,
+      "sha256": "89e7a0b5f3dd1be01fddf812e4730a7d22a1ce94da6f993e56a6f6c7748eb180",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/gain/decode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/gain/mod.rs",
+      "bytes": 456,
+      "sha256": "cb7cab039741839cdfcb2517797950a5e985a7755524f1d4e73772f0df2c8b88",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/gain/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/gain/predict.rs",
+      "bytes": 2387,
+      "sha256": "d3dd4d32712af411b3455124cb66558edf38a43d482f63359901c46a0d5d0e14",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/gain/predict.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/gain/presel.rs",
+      "bytes": 3302,
+      "sha256": "14a12305df079f78e9989363559b631859625114aafd1ad276ed1267bae34e2e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/gain/presel.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/gain/quantize.rs",
+      "bytes": 4667,
+      "sha256": "a7bd3e1f18b24322dd442b78a478e234eb9b3d5637e34c0afa0667e4ce650b54",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/gain/quantize.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/gain/quantize_prepare.rs",
+      "bytes": 7850,
+      "sha256": "5814ffc44e63c03dc98eb9d44694efa9ed3a904e49b4e315808f54d65dd511f7",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/gain/quantize_prepare.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/gain/taming.rs",
+      "bytes": 2937,
+      "sha256": "2896147803973ea2fae96db4f1ae78d71fc5d32bce31d1eed71b904f89966f3b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/gain/taming.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/autocorr.rs",
+      "bytes": 3249,
+      "sha256": "d718107eae2def0b8c15560ad3a99705f591f946ac187dabe4ccbbac59d97b6e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/autocorr.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/az_lsp.rs",
+      "bytes": 5598,
+      "sha256": "4a7552978522dadbf5f6e4ebee212084f4e60f1a0630e4e49acd686e23212f0d",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/az_lsp.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/chebyshev.rs",
+      "bytes": 2582,
+      "sha256": "a05b16f2ef684a8e26b21eb03069d6362340db40be6d03417714d0cddab10dab",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/chebyshev.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/interp.rs",
+      "bytes": 968,
+      "sha256": "7ac2b6c2bb817fe53fcf9b76fac641e487b7d75b42ff45f5f4b8c40365c78b30",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/interp.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/levinson.rs",
+      "bytes": 4148,
+      "sha256": "311c87b89b5ed4a073e49f1e70b0aa2f78df4322f582379a1ca854bf1c0cd832",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/levinson.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/lsf.rs",
+      "bytes": 2896,
+      "sha256": "8cdd4e0f98c5e900b139be7a44bef39f3a47e67cfffb17b8f2c35040e1f00938",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/lsf.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/lsp_az.rs",
+      "bytes": 2207,
+      "sha256": "ab328d3b45be7df9f7a715def6047b7b6e3bf0688c070c77255ac80cf8eeb9f5",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/lsp_az.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/mod.rs",
+      "bytes": 606,
+      "sha256": "6a25abe8faa318dbaf72f71edca3668e0a87a255e403689aaa667b0a00db4845",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/weight.rs",
+      "bytes": 1003,
+      "sha256": "da31dae6086f895bc53c08e5d347cd9abe911b3f6ca34ae22889ffd8c4949e7f",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/weight.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lp/window.rs",
+      "bytes": 1215,
+      "sha256": "1bbdbdfd224311999e261140c9dcc2c614f45f0fd117acb4b2114cf19a84ea71",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lp/window.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lsp_quant/decode.rs",
+      "bytes": 4942,
+      "sha256": "4d878bf800b28cd496a7038e0fce56dc76138cd0b4cffa073a82f3cf54322227",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lsp_quant/decode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lsp_quant/encode.rs",
+      "bytes": 3513,
+      "sha256": "2ec40a43892efb0bf6c775b9bdbda604e5cd3f5a0fb915dd3a51364662ec02ef",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lsp_quant/encode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lsp_quant/helpers.rs",
+      "bytes": 4709,
+      "sha256": "8614559b490539be4ee18fad62ce9c474bad339996b65fc1ac9dddbf310cac02",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lsp_quant/helpers.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lsp_quant/mod.rs",
+      "bytes": 442,
+      "sha256": "2df075c625d0fd988fb80521f9dc073be6c6c63b7bb5a33b163d5bf491d9ad62",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lsp_quant/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lsp_quant/prev.rs",
+      "bytes": 1994,
+      "sha256": "f640010cbe9e985af6e873cde550d29d311998d64c9ee5dab5bd1cd58071b3fc",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lsp_quant/prev.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/lsp_quant/stability.rs",
+      "bytes": 2556,
+      "sha256": "895b2facf0d27ab700bccb1960f04716f868e59b1674fe176f519416c45b3e4f",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/lsp_quant/stability.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/mod.rs",
+      "bytes": 2415,
+      "sha256": "27099e98a1daa5bbc17fdb1b2ce61414ca88d5ef6b5459a2fbe9339d0e6af515",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/closed_loop.rs",
+      "bytes": 4758,
+      "sha256": "bb448a5d7adbdc184da0ac754d3dd6adbd52cf141417432008f34c2ad1e4a46b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/closed_loop.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/lag_decode.rs",
+      "bytes": 2602,
+      "sha256": "36d34a0f55711b80ef83ec52f3934bbde2dc2ea9612d1de0043a50c5461575eb",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/lag_decode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/lag_encode.rs",
+      "bytes": 1713,
+      "sha256": "258378347cdf9f00d336984e8914e2f90c7d61763d941ff03528c6bf7c28a542",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/lag_encode.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/mod.rs",
+      "bytes": 475,
+      "sha256": "2dbe1b4e1eb1add8cfa1d55b294d787b4b82baee9269befe864785d2d7657352",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/open_loop.rs",
+      "bytes": 3607,
+      "sha256": "dc6bbadac608e278318bcc230d37691c6cb1e2736ac70564134af6b68850bafe",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/open_loop.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/open_loop_search.rs",
+      "bytes": 3682,
+      "sha256": "8f03b1c3e4ba9f0645bb01930bc2970b4e18e0a9d08d4c69e84e65949117504d",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/open_loop_search.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/parity.rs",
+      "bytes": 1545,
+      "sha256": "971862bd236a25e39dd98fe063ec5d726bb68f1156e2b2b687aa55769bc0e1be",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/parity.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/pitch/pred_lt3.rs",
+      "bytes": 2114,
+      "sha256": "0215efe10f4c51820d059f9b4c42e2b285b87bebed0d80052313d64f1dbe77f2",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/pitch/pred_lt3.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/postfilter/agc.rs",
+      "bytes": 2577,
+      "sha256": "50899453fe5120f28386d574c26a1edc9821a54458fafc4e8097d403a8f6ad44",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/postfilter/agc.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/postfilter/formant.rs",
+      "bytes": 516,
+      "sha256": "e62cd7c3d77eef76aef89760b9c22c29abf029110745bf1b8cd4eea63318e273",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/postfilter/formant.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/postfilter/mod.rs",
+      "bytes": 409,
+      "sha256": "bd5f86051d092078504bcd90242579368a411ad5fbd0a2dfd0aad81911f161e1",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/postfilter/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/postfilter/pipeline.rs",
+      "bytes": 5337,
+      "sha256": "de165b5806a899ae38c99ec3d4e12ce572efa96ed379968bc56fb18a4fd8d10d",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/postfilter/pipeline.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/postfilter/pitch_pf.rs",
+      "bytes": 3479,
+      "sha256": "49acd22c7d3c390396f01300da0498fe335925b9a1b3a839215b2fea4067ff4b",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/postfilter/pitch_pf.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/postproc.rs",
+      "bytes": 1685,
+      "sha256": "fb7310799298ee76802bdc910abff149459c92228ff2732ad2631b25e3671c4e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/postproc.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/preproc.rs",
+      "bytes": 1639,
+      "sha256": "bf424416a8ca1e69d52682bf0bb60c3f50a3eb9a8955be139b0bd81655639643",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/preproc.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/annexa.rs",
+      "bytes": 1174,
+      "sha256": "c605aa9dbf24f2873ffce3ec422b0e743f33a299f14cbb6de28c804fcdcd553f",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/annexa.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/annexa_tables.rs",
+      "bytes": 19542,
+      "sha256": "8d3fb8c62a4a2904099ef66398ca2fb8edb69ac2a13df85b4ba7eb4d2c9d3a67",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/annexa_tables.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/bitstream.rs",
+      "bytes": 492,
+      "sha256": "a05498b593419037cec1306d8f0f084eed801b1670fb218bdf2b6f8b331bc022",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/bitstream.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/gain.rs",
+      "bytes": 519,
+      "sha256": "3831ec58c37005df5c7b95e4e93c2cf3cac0f5c0d4c817bc77f46868927ecb56",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/gain.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/lsp.rs",
+      "bytes": 590,
+      "sha256": "fc3a35e9ed6171abb25a97837f09715e383f1b168e3d93878ffc911188bbdffb",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/lsp.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/misc.rs",
+      "bytes": 542,
+      "sha256": "33a5a9a339ba6b8a34299a5e3c2235f5e5a1c7aba8819e2a804bf4ca71dbd65c",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/misc.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/mod.rs",
+      "bytes": 1180,
+      "sha256": "41ff42d84d4ec270ada59905b4d4b26e0ca6716a6033634c7b6289353b35159e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/mod.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/pitch.rs",
+      "bytes": 245,
+      "sha256": "818b933c9f94103128079e735f45404864598e6898fe86a014c19cbd9d400468",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/pitch.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/postfilter.rs",
+      "bytes": 306,
+      "sha256": "7273b5cf9734ff1e9df34c20e6dad1b4a7c38dab934b66d244f4c61c274dc1d3",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/postfilter.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/sid.rs",
+      "bytes": 2549,
+      "sha256": "db4df4bab54379b5f04a02a66f7720ca0b32d595e80aa3b22830e5de0c599c9f",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/sid.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/vad.rs",
+      "bytes": 370,
+      "sha256": "cd0484263571cd44946b035bbd8d0be734b5b1b400980e602cdbb8c868fcac16",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/vad.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/impls/tables/window.rs",
+      "bytes": 492,
+      "sha256": "c6de7dfa8bdc8fb1b2605e178e79d91e122df32e0f767902e44d3f0a18cc581e",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/impls/tables/window.rs"
+    },
+    {
+      "path": "crates/media/codec-core/src/codecs/g729/mod.rs",
+      "bytes": 16605,
+      "sha256": "5eaf29cb2f7e5416314d9851c7b3376f0140a95215c42ef4162cd1a0fdbef04a",
+      "planned_target": "services/voice-media-rs/vendor/rvoip-g729/mod.rs"
+    }
+  ],
+  "source_set_sha256": "bbc645b365a3b0d86fd2c05881d7911d65b880b695b1483dba856903bae223ad",
+  "dependency_authority": {
+    "authority": "codec_adapter_only",
+    "closed": true,
+    "external_allowlist": [],
+    "internal_allowlist": [
+      "crate::codecs::g729"
+    ],
+    "codec_adapter_allowlist": [
+      "crate::error",
+      "crate::types"
+    ],
+    "test_only_allowlist": [
+      "crate::codecs::CodecFactory"
+    ],
+    "unresolved": []
+  },
+  "forbidden_source_prefixes": [
+    "rtp",
+    "runtime",
+    "session",
+    "sip",
+    "webrtc"
+  ],
+  "reference_vectors": {
+    "status": "not_run",
+    "external_injection_required": true,
+    "artifacts": []
+  },
+  "gates": {
+    "license_review": "not_run",
+    "patent_legal_review": "not_run",
+    "extraction": "not_run",
+    "dependency_closure": "not_run",
+    "annex_a": "not_run",
+    "annex_b_vad_dtx_cng": "not_run",
+    "annex_b_fmtp_negotiation": "not_run",
+    "packetization_10ms": "not_run",
+    "packetization_20ms": "not_run",
+    "sid_no_data": "not_run",
+    "plc": "not_run",
+    "reference_vectors": "not_run",
+    "g711_pairs": "not_run",
+    "opus_pairs": "not_run",
+    "interoperability": "not_run",
+    "quality": "not_run",
+    "allocation": "not_run",
+    "latency": "not_run",
+    "sessions_per_core": "not_run",
+    "supply_chain": "not_run",
+    "production_eligibility": "not_run"
+  },
+  "claim": {
+    "capacity_claim": "none",
+    "production_eligible": false,
+    "runtime_enabled": false
+  },
+  "non_claims": [
+    "No source is copied by this candidate record.",
+    "No reference-vector, interoperability, quality, capacity, runtime, or production claim is made.",
+    "The normal voice-media build no longer contains g729-sys; this does not promote the separately not_run dependency-closure gate for a future rvoip source extraction.",
+    "Legal and patent review remain not_run and block production distribution, runtime enablement, and production eligibility until an external legal conclusion; they do not block engineering implementation, source extraction, or testing."
+  ]
+}

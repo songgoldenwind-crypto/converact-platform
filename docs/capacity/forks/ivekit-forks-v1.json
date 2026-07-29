@@ -2,7 +2,7 @@
   "$schema": "../schemas/fork-manifest.schema.json",
   "schema_version": "1.0.0",
   "manifest_id": "ivekit-forks-v1",
-  "revision": 56,
+  "revision": 58,
   "status": "proposed",
   "generated_at": "2026-07-29T16:00:00+08:00",
   "profile_ids": [
@@ -2705,6 +2705,135 @@
       },
       "traceability": {
         "upstream_license": "AGPL-3.0",
+        "notice_recorded": false,
+        "sbom_status": "not_run",
+        "provenance_status": "not_run"
+      }
+    },
+    {
+      "component_id": "audio-codec-g711-opus",
+      "name": "audio-codec PCMU/PCMA/Opus compatibility fork",
+      "role": "Minimal local codec and resampler surface for voice-media-rs without any G.729 implementation or dependency",
+      "lifecycle": "active_engineering",
+      "integration_mode": "maintained_fork",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/restsend/audio-codec",
+        "version": "0.3.40",
+        "pin_kind": "exact_commit",
+        "commit": "b074337d37be797771b258daacafb87aa833c015",
+        "source_identity_complete": true,
+        "source_archive": {
+          "url": "https://static.crates.io/crates/audio-codec/audio-codec-0.3.40.crate",
+          "sha256": "c1affd3ba1faa8ae5c47c98f6c5e36eb321f4cb4567d7a7e1a8f3452fe40d57a",
+          "size_bytes": 24377
+        }
+      },
+      "implemented_changes": [
+        {
+          "change_id": "audio-codec-g711-opus-minimal-surface-v1",
+          "summary": "Retain only the PCMU, PCMA, Opus and Resampler modules plus the exact interfaces consumed by voice-media-rs; remove G.729, g729-sys and every unused public compatibility helper.",
+          "capacity_dimensions": [
+            "voice.concurrent_calls",
+            "voice.packet_operations_per_second"
+          ],
+          "acceptance_evidence": [
+            "Locked all-feature Cargo metadata plus normal, development and build trees resolve the local path package and contain no g729-sys package.",
+            "The local package carries MIT LICENSE and exact upstream crate, commit, checksum, byte size and modification provenance.",
+            "The complete voice-media-rs Rust suite compiles and exercises the retained PCMU, PCMA, Opus and Resampler surface."
+          ]
+        }
+      ],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "not_applicable",
+        "compile": "passed",
+        "unit": "passed",
+        "integration": "passed",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          "services/voice-media-rs/vendor/audio-codec-g711-opus/LICENSE",
+          "services/voice-media-rs/vendor/audio-codec-g711-opus/UPSTREAM.md",
+          "services/voice-media-rs/vendor/audio-codec-g711-opus/src",
+          "services/voice-media-rs/Cargo.lock",
+          "test/ivekit-voice-media-goal4-contract.test.ts"
+        ],
+        "checked_at": "2026-07-29T17:24:25+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "No immutable benchmark, real-environment, SBOM or signed provenance evidence is attached.",
+          "This compatibility fork is not a G.729 source; the separately pinned rvoip G.729 candidate remains runtime-disabled and subject to its own gates."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "merge_upstream_release",
+        "compatibility_policy": "Only the exact PCMU, PCMA, Opus and Resampler interfaces used by voice-media-rs may be retained; any new dependency or public surface requires a separate review.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "MIT",
+        "notice_recorded": true,
+        "sbom_status": "not_run",
+        "provenance_status": "partial"
+      }
+    },
+    {
+      "component_id": "rvoip-g729-codec-core",
+      "name": "rvoip G.729 codec-core candidate",
+      "role": "Pinned, not-yet-extracted G.729 codec source candidate for the voice-media processing service",
+      "lifecycle": "planned",
+      "integration_mode": "pinned_source",
+      "source_modification_allowed": true,
+      "upstream": {
+        "repository": "https://github.com/eisenzopf/rvoip",
+        "version": "4ced02b7f6e73041c848f1765dc2bcf7588796f0",
+        "pin_kind": "exact_commit",
+        "commit": "4ced02b7f6e73041c848f1765dc2bcf7588796f0",
+        "source_identity_complete": true,
+        "source_archive": {
+          "url": "https://codeload.github.com/eisenzopf/rvoip/tar.gz/4ced02b7f6e73041c848f1765dc2bcf7588796f0",
+          "sha256": "16caf07273a1cd04fa126af242ad54892580818b5e7fa3c10d010e4917be437e",
+          "size_bytes": 8594565
+        }
+      },
+      "implemented_changes": [],
+      "verification": {
+        "source_identity": "passed",
+        "patch_apply": "not_run",
+        "compile": "not_run",
+        "unit": "not_run",
+        "integration": "not_run",
+        "benchmark": "not_run",
+        "real_environment": "not_run",
+        "evidence_paths": [
+          "docs/capacity/forks/rvoip-g729-source-candidate-v1.json",
+          "docs/capacity/schemas/rvoip-g729-source-candidate.schema.json",
+          "scripts/verify-rvoip-g729-source-candidate.ts"
+        ],
+        "checked_at": "2026-07-29T16:00:00+08:00"
+      },
+      "release_gate": {
+        "production_eligible": false,
+        "blocking_reasons": [
+          "The exact source archive, support files, and selected Rust source tuples are pinned, but source extraction has not run.",
+          "Dependency closure, legal and patent review, reference vectors, packetization, interoperability, quality, allocation, latency, capacity, and supply-chain gates remain not_run.",
+          "No patch apply, compile, unit, integration, benchmark, real-environment, runtime, or production evidence exists."
+        ]
+      },
+      "upgrade_policy": {
+        "review_cadence_days": 30,
+        "critical_security_fix_sla_days": 7,
+        "merge_strategy": "merge_upstream_release",
+        "compatibility_policy": "The candidate cannot enter a runtime build until its closed dependency policy and all G.729 acceptance gates are separately satisfied.",
+        "rollback_identity_required": true
+      },
+      "traceability": {
+        "upstream_license": "verification_pending",
         "notice_recorded": false,
         "sbom_status": "not_run",
         "provenance_status": "not_run"

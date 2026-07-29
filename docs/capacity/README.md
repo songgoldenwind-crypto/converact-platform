@@ -41,7 +41,11 @@
 | [`schemas/voice-media-goal4.schema.json`](schemas/voice-media-goal4.schema.json) | Goal 4 源码身份、权威边界、处理运行时、故障矩阵和声明状态 Schema |
 | [`schemas/voice-media-processing-profile.schema.json`](schemas/voice-media-processing-profile.schema.json) | 独立媒体处理池负载、生成器、硬件和质量门槛 Schema |
 | [`contracts/voice-media-goal4-v1.json`](contracts/voice-media-goal4-v1.json) | Goal 4 G.711/Opus 首批切片、处理池隔离和诚实证据状态合同 |
+| [`schemas/rvoip-g729-source-candidate.schema.json`](schemas/rvoip-g729-source-candidate.schema.json) | rvoip G.729 精确源码候选、依赖闭包、验收门和未提升声明 Schema |
+| [`forks/rvoip-g729-source-candidate-v1.json`](forks/rvoip-g729-source-candidate-v1.json) | rvoip `4ced02b` 的 136 个 G.729 Rust 文件、支持文件和目标映射的精确候选记录 |
+| [`../../scripts/verify-rvoip-g729-source-candidate.ts`](../../scripts/verify-rvoip-g729-source-candidate.ts) | 校验候选、存档、支持文件和选定源码树；不执行提取或运行时启用 |
 | [`profiles/vos-eq-v3-g711-opus-1k-v1.json`](profiles/vos-eq-v3-g711-opus-1k-v1.json) | 单处理节点 1K 双向 G.711/Opus 转码目标；当前不是实测容量声明 |
+
 | [`../adr/ccaas-5-media-authority-and-rtpengine.md`](../adr/ccaas-5-media-authority-and-rtpengine.md) | RustPBX、rtpengine、媒体处理和区域录音清单的权威边界 |
 | [`rtc-performance-contract-v1.md`](rtc-performance-contract-v1.md) | 端到端测量点、弱网矩阵、原始证据和联合判定语义 |
 | [`schemas/capacity-vector.schema.json`](schemas/capacity-vector.schema.json) | 节点、Cell、Zone 容量、使用量和 admission 合同 |
@@ -72,6 +76,8 @@
 | [`../adr/ccaas-4-open-source-fork-governance.md`](../adr/ccaas-4-open-source-fork-governance.md) | 开源核心源码改造与升级治理 |
 | [`../adr/ccaas-5-distributed-load-generation.md`](../adr/ccaas-5-distributed-load-generation.md) | 多协议 generator、shard、headroom 和证据核对 |
 | [`../adr/ccaas-6-single-node-density-and-scaling-efficiency.md`](../adr/ccaas-6-single-node-density-and-scaling-efficiency.md) | 单节点极致密度、近恒定边际容量和按需部署 |
+
+G.729 候选索引使用仓库路径：`docs/capacity/forks/rvoip-g729-source-candidate-v1.json`、`docs/capacity/schemas/rvoip-g729-source-candidate.schema.json` 和 `scripts/verify-rvoip-g729-source-candidate.ts`。
 
 ## 3. 术语
 

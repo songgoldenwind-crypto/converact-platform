@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0.0",
   "contract_id": "voice-media-goal4-v1",
-  "revision": 1,
+  "revision": 2,
   "status": "target",
-  "generated_at": "2026-07-28T12:00:00.000Z",
+  "generated_at": "2026-07-29T00:00:00.000Z",
   "sources": {
     "rustpbx": {
       "repository": "https://github.com/restsend/rustpbx",
@@ -19,11 +19,32 @@
     },
     "audio_codec": {
       "crate": "audio-codec",
-      "version": "0.3.40"
+      "version": "0.3.40",
+      "integration": "local_path_fork",
+      "path": "services/voice-media-rs/vendor/audio-codec-g711-opus",
+      "upstream_repository": "https://github.com/restsend/audio-codec",
+      "upstream_commit": "b074337d37be797771b258daacafb87aa833c015",
+      "upstream_crate_sha256": "c1affd3ba1faa8ae5c47c98f6c5e36eb321f4cb4567d7a7e1a8f3452fe40d57a",
+      "upstream_crate_bytes": 24377,
+      "license": "MIT",
+      "retained_modules": ["pcmu", "pcma", "opus", "resampler"],
+      "removed_modules": ["g722", "g729", "telephone_event"],
+      "g729_source_authority": "rvoip_g729_candidate_only",
+      "g729_runtime_enabled": false
     },
     "processing_service": {
       "path": "services/voice-media-rs",
       "version": "0.2.0"
+    },
+    "rvoip_g729_candidate": {
+      "manifest": "docs/capacity/forks/rvoip-g729-source-candidate-v1.json",
+      "candidate_id": "rvoip-g729-codec-core-v1",
+      "repository": "https://github.com/eisenzopf/rvoip",
+      "commit": "4ced02b7f6e73041c848f1765dc2bcf7588796f0",
+      "tree": "74dabd314841d99e1a87dbdaca6050fc4e8ed923",
+      "archive_sha256": "16caf07273a1cd04fa126af242ad54892580818b5e7fa3c10d010e4917be437e",
+      "archive_bytes": 8594565,
+      "source_set_sha256": "bbc645b365a3b0d86fd2c05881d7911d65b880b695b1483dba856903bae223ad"
     }
   },
   "authority": {
@@ -54,16 +75,107 @@
     },
     {
       "slice_id": "g729-v1",
-      "codecs": ["PCMU", "PCMA", "G729"],
+      "codecs": ["PCMU", "PCMA", "OPUS", "G729A", "G729AB"],
       "codec_pairs": [
-        "PCMU_TO_G729",
-        "G729_TO_PCMU",
-        "PCMA_TO_G729",
-        "G729_TO_PCMA"
+        "PCMU_TO_G729A",
+        "G729A_TO_PCMU",
+        "PCMA_TO_G729A",
+        "G729A_TO_PCMA",
+        "OPUS_TO_G729A",
+        "G729A_TO_OPUS",
+        "PCMU_TO_G729AB",
+        "G729AB_TO_PCMU",
+        "PCMA_TO_G729AB",
+        "G729AB_TO_PCMA",
+        "OPUS_TO_G729AB",
+        "G729AB_TO_OPUS"
       ],
+      "codec_modes": [
+        {
+          "mode_id": "G729A",
+          "annex_b_mode": false,
+          "codec_pairs": [
+            { "pair_id": "PCMU_TO_G729A", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "G729A_TO_PCMU", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "PCMA_TO_G729A", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "G729A_TO_PCMA", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "OPUS_TO_G729A", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "G729A_TO_OPUS", "capacity_profile_id": null, "verification": "not_run" }
+          ],
+          "independent_peer": { "status": "not_run", "identity": null },
+          "reference_vector_artifact": { "status": "not_run", "artifact": null },
+          "quality_profile": { "status": "not_run", "profile_id": null },
+          "performance_profile": { "status": "not_run", "profile_id": null },
+          "verification": "not_run"
+        },
+        {
+          "mode_id": "G729AB",
+          "annex_b_mode": true,
+          "codec_pairs": [
+            { "pair_id": "PCMU_TO_G729AB", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "G729AB_TO_PCMU", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "PCMA_TO_G729AB", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "G729AB_TO_PCMA", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "OPUS_TO_G729AB", "capacity_profile_id": null, "verification": "not_run" },
+            { "pair_id": "G729AB_TO_OPUS", "capacity_profile_id": null, "verification": "not_run" }
+          ],
+          "independent_peer": { "status": "not_run", "identity": null },
+          "reference_vector_artifact": { "status": "not_run", "artifact": null },
+          "quality_profile": { "status": "not_run", "profile_id": null },
+          "performance_profile": { "status": "not_run", "profile_id": null },
+          "verification": "not_run"
+        }
+      ],
+      "sample_rate_hz": 8000,
+      "frame_ms": 10,
+      "samples_per_frame": 80,
       "packetization_ms": [10, 20],
+      "annex_b_fmtp_negotiation": {
+        "status": "not_run",
+        "parameter": "annexb",
+        "g729a_expected_value": "no",
+        "g729ab_expected_value": "yes"
+      },
       "capacity_profile_id": null,
-      "verification": "not_run"
+      "verification": "not_run",
+      "runtime_enabled": false,
+      "legal_boundary": {
+        "status": "not_run",
+        "blocks": [
+          "production_distribution",
+          "runtime_enablement",
+          "production_eligibility"
+        ],
+        "does_not_block": [
+          "engineering_implementation",
+          "source_extraction",
+          "testing"
+        ],
+        "external_legal_conclusion_required": true
+      },
+      "acceptance_gates": {
+        "license_review": "not_run",
+        "patent_legal_review": "not_run",
+        "extraction": "not_run",
+        "dependency_closure": "not_run",
+        "annex_a": "not_run",
+        "annex_b_vad_dtx_cng": "not_run",
+        "annex_b_fmtp_negotiation": "not_run",
+        "packetization_10ms": "not_run",
+        "packetization_20ms": "not_run",
+        "sid_no_data": "not_run",
+        "plc": "not_run",
+        "reference_vectors": "not_run",
+        "g711_pairs": "not_run",
+        "opus_pairs": "not_run",
+        "interoperability": "not_run",
+        "quality": "not_run",
+        "allocation": "not_run",
+        "latency": "not_run",
+        "sessions_per_core": "not_run",
+        "supply_chain": "not_run",
+        "production_eligibility": "not_run"
+      }
     },
     {
       "slice_id": "amr-v1",

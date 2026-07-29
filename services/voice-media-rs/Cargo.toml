@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-audio-codec = "=0.3.40"
+audio-codec = { path = "vendor/audio-codec-g711-opus", version = "=0.3.40" }
 axum = "=0.8.9"
 base64 = "0.22"
 bytes = "1.10"

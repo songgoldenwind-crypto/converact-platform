@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { Ajv2020 } from 'ajv/dist/2020.js';
@@ -10,6 +11,109 @@ const RUSTRTC_COMMIT =
   '166c6d22984429eb6b509920c14fcd69f974f0b3';
 const RTPENGINE_COMMIT =
   '506cfa74386a5373e40fca139a932917f22f0524';
+const VOICE_MEDIA_MANIFEST = 'services/voice-media-rs/Cargo.toml';
+const AUDIO_CODEC_FORK =
+  'services/voice-media-rs/vendor/audio-codec-g711-opus';
+const AUDIO_CODEC_UPSTREAM_COMMIT =
+  'b074337d37be797771b258daacafb87aa833c015';
+const AUDIO_CODEC_UPSTREAM_SHA256 =
+  'c1affd3ba1faa8ae5c47c98f6c5e36eb321f4cb4567d7a7e1a8f3452fe40d57a';
+const G729_GATES = [
+  'license_review',
+  'patent_legal_review',
+  'extraction',
+  'dependency_closure',
+  'annex_a',
+  'annex_b_vad_dtx_cng',
+  'annex_b_fmtp_negotiation',
+  'packetization_10ms',
+  'packetization_20ms',
+  'sid_no_data',
+  'plc',
+  'reference_vectors',
+  'g711_pairs',
+  'opus_pairs',
+  'interoperability',
+  'quality',
+  'allocation',
+  'latency',
+  'sessions_per_core',
+  'supply_chain',
+  'production_eligibility'
+] as const;
+
+function g729Mode(
+  modeId: 'G729A' | 'G729AB',
+  annexB: boolean
+): Record<string, any> {
+  const pairs = [
+    `PCMU_TO_${modeId}`,
+    `${modeId}_TO_PCMU`,
+    `PCMA_TO_${modeId}`,
+    `${modeId}_TO_PCMA`,
+    `OPUS_TO_${modeId}`,
+    `${modeId}_TO_OPUS`
+  ];
+  return {
+    mode_id: modeId,
+    annex_b_mode: annexB,
+    codec_pairs: pairs.map((pair_id) => ({
+      pair_id,
+      capacity_profile_id: null,
+      verification: 'not_run'
+    })),
+    independent_peer: { status: 'not_run', identity: null },
+    reference_vector_artifact: { status: 'not_run', artifact: null },
+    quality_profile: { status: 'not_run', profile_id: null },
+    performance_profile: { status: 'not_run', profile_id: null },
+    verification: 'not_run'
+  };
+}
+
+function expectedG729Slice(): Record<string, any> {
+  const codec_modes = [
+    g729Mode('G729A', false),
+    g729Mode('G729AB', true)
+  ];
+  return {
+    slice_id: 'g729-v1',
+    codecs: ['PCMU', 'PCMA', 'OPUS', 'G729A', 'G729AB'],
+    codec_pairs: codec_modes.flatMap((mode) =>
+      mode.codec_pairs.map((pair: Record<string, any>) => pair.pair_id)
+    ),
+    codec_modes,
+    sample_rate_hz: 8000,
+    frame_ms: 10,
+    samples_per_frame: 80,
+    packetization_ms: [10, 20],
+    annex_b_fmtp_negotiation: {
+      status: 'not_run',
+      parameter: 'annexb',
+      g729a_expected_value: 'no',
+      g729ab_expected_value: 'yes'
+    },
+    capacity_profile_id: null,
+    verification: 'not_run',
+    runtime_enabled: false,
+    legal_boundary: {
+      status: 'not_run',
+      blocks: [
+        'production_distribution',
+        'runtime_enablement',
+        'production_eligibility'
+      ],
+      does_not_block: [
+        'engineering_implementation',
+        'source_extraction',
+        'testing'
+      ],
+      external_legal_conclusion_required: true
+    },
+    acceptance_gates: Object.fromEntries(
+      G729_GATES.map((gate) => [gate, 'not_run'])
+    )
+  };
+}
 
 function json(path: string): Record<string, any> {
   return JSON.parse(readFileSync(path, 'utf8')) as Record<string, any>;
@@ -75,11 +179,32 @@ test('Goal 4 freezes the processing source and authority boundary', () => {
     },
     audio_codec: {
       crate: 'audio-codec',
-      version: '0.3.40'
+      version: '0.3.40',
+      integration: 'local_path_fork',
+      path: AUDIO_CODEC_FORK,
+      upstream_repository: 'https://github.com/restsend/audio-codec',
+      upstream_commit: AUDIO_CODEC_UPSTREAM_COMMIT,
+      upstream_crate_sha256: AUDIO_CODEC_UPSTREAM_SHA256,
+      upstream_crate_bytes: 24377,
+      license: 'MIT',
+      retained_modules: ['pcmu', 'pcma', 'opus', 'resampler'],
+      removed_modules: ['g722', 'g729', 'telephone_event'],
+      g729_source_authority: 'rvoip_g729_candidate_only',
+      g729_runtime_enabled: false
     },
     processing_service: {
       path: 'services/voice-media-rs',
       version: '0.2.0'
+    },
+    rvoip_g729_candidate: {
+      manifest: 'docs/capacity/forks/rvoip-g729-source-candidate-v1.json',
+      candidate_id: 'rvoip-g729-codec-core-v1',
+      repository: 'https://github.com/eisenzopf/rvoip',
+      commit: '4ced02b7f6e73041c848f1765dc2bcf7588796f0',
+      tree: '74dabd314841d99e1a87dbdaca6050fc4e8ed923',
+      archive_sha256: '16caf07273a1cd04fa126af242ad54892580818b5e7fa3c10d010e4917be437e',
+      archive_bytes: 8594565,
+      source_set_sha256: 'bbc645b365a3b0d86fd2c05881d7911d65b880b695b1483dba856903bae223ad'
     }
   });
   assert.equal(document.authority.call_dialog_owner, 'rustpbx');
@@ -198,4 +323,196 @@ test('Goal 4 starts with no functional or capacity claim', () => {
     production_eligible: false
   });
   assert.equal(profile().claim.capacity_claim, 'none');
+});
+
+test('Goal 4 binds the pinned G.729 source candidate without promoting it', () => {
+  const manifestPath = 'docs/capacity/forks/rvoip-g729-source-candidate-v1.json';
+  assert.ok(existsSync(manifestPath), `missing required artifact: ${manifestPath}`);
+  if (!existsSync(manifestPath)) return;
+  const document = contract();
+  const candidate = json(manifestPath);
+  const bound = document.sources.rvoip_g729_candidate;
+  assert.deepEqual(bound, { manifest: manifestPath, candidate_id: 'rvoip-g729-codec-core-v1', repository: 'https://github.com/eisenzopf/rvoip', commit: '4ced02b7f6e73041c848f1765dc2bcf7588796f0', tree: '74dabd314841d99e1a87dbdaca6050fc4e8ed923', archive_sha256: '16caf07273a1cd04fa126af242ad54892580818b5e7fa3c10d010e4917be437e', archive_bytes: 8594565, source_set_sha256: 'bbc645b365a3b0d86fd2c05881d7911d65b880b695b1483dba856903bae223ad' });
+  assert.equal(bound.candidate_id, candidate.candidate_id); assert.equal(bound.repository, candidate.source.repository); assert.equal(bound.commit, candidate.source.commit); assert.equal(bound.tree, candidate.source.tree); assert.equal(bound.archive_sha256, candidate.source.archive.sha256); assert.equal(bound.archive_bytes, candidate.source.archive.bytes); assert.equal(bound.source_set_sha256, candidate.source_set_sha256);
+  const slice = document.codec_slices.find((entry: Record<string, any>) => entry.slice_id === 'g729-v1'); assert.ok(slice);
+  assert.deepEqual(slice, expectedG729Slice());
+  assert.deepEqual(candidate.gates, slice.acceptance_gates);
+  for (const [key, value] of Object.entries(document.verification)) assert.equal(value, 'not_run', key);
+  assert.deepEqual(candidate.claim, { capacity_claim: 'none', production_eligible: false, runtime_enabled: false });
+  assert.deepEqual(document.claim, { functional: 'not_run', production: 'not_run', benchmark: 'not_run', capacity_claim: 'none', production_eligible: false });
+});
+
+test('Goal 4 schema rejects every G.729 or no-claim promotion attack', () => {
+  const validate = validator(
+    'docs/capacity/schemas/voice-media-goal4.schema.json'
+  );
+  const cases: Array<[string, (value: Record<string, any>) => void]> = [
+    ['missing G729 pair', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.codec_pairs.pop();
+    }],
+    ['merged mode pair evidence', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.codec_modes[1].codec_pairs[0].capacity_profile_id = 'merged-v1';
+    }],
+    ['G729 gate promotion', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.acceptance_gates.annex_b_fmtp_negotiation = 'controlled_pass';
+    }],
+    ['G729 verification promotion', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.verification = 'controlled_pass';
+    }],
+    ['G729 runtime enablement', value => {
+      const slice = value.codec_slices.find(
+        (entry: Record<string, any>) => entry.slice_id === 'g729-v1'
+      );
+      slice.runtime_enabled = true;
+    }],
+    ['global verification promotion', value => {
+      value.verification.schema = 'controlled_pass';
+    }],
+    ['functional claim promotion', value => {
+      value.claim.functional = 'functional_pass';
+    }],
+    ['capacity claim promotion', value => {
+      value.claim.capacity_claim = '1k';
+    }]
+  ];
+  for (const [label, mutate] of cases) {
+    const fixture = structuredClone(contract());
+    mutate(fixture);
+    assert.equal(validate(fixture), false, label);
+  }
+});
+
+test('Goal 4 normal, development, and build graphs exclude g729-sys', () => {
+  const rustc = spawnSync('rustc', ['-vV'], { encoding: 'utf8' });
+  assert.equal(rustc.status, 0, rustc.stderr);
+  const host = /^host: (.+)$/m.exec(rustc.stdout)?.[1];
+  assert.ok(host, rustc.stdout);
+  const metadata = spawnSync('cargo', [
+    'metadata',
+    '--locked',
+    '--all-features',
+    '--filter-platform',
+    host,
+    '--format-version',
+    '1',
+    '--manifest-path',
+    VOICE_MEDIA_MANIFEST
+  ], { encoding: 'utf8' });
+  assert.equal(metadata.status, 0, metadata.stderr);
+  const graph = JSON.parse(metadata.stdout) as Record<string, any>;
+  const packageNames = graph.packages.map(
+    (entry: Record<string, any>) => entry.name
+  );
+  assert.ok(!packageNames.includes('g729-sys'), packageNames.join('\n'));
+  assert.doesNotMatch(
+    readFileSync('services/voice-media-rs/Cargo.lock', 'utf8'),
+    /^name = "g729-sys"$/m,
+    'locked all-target package universe must exclude g729-sys'
+  );
+
+  const codec = graph.packages.find(
+    (entry: Record<string, any>) => entry.name === 'audio-codec'
+  );
+  assert.ok(codec, 'audio-codec package missing from Cargo metadata');
+  assert.equal(codec.version, '0.3.40');
+  assert.equal(codec.source, null);
+  assert.ok(
+    codec.manifest_path.endsWith(`${AUDIO_CODEC_FORK}/Cargo.toml`),
+    codec.manifest_path
+  );
+  assert.deepEqual(
+    codec.dependencies.map((entry: Record<string, any>) => entry.name).sort(),
+    ['opus-rs']
+  );
+
+  for (const edges of ['normal', 'dev', 'build']) {
+    const tree = spawnSync('cargo', [
+      'tree',
+      '--locked',
+      '--all-features',
+      '--edges',
+      edges,
+      '--manifest-path',
+      VOICE_MEDIA_MANIFEST
+    ], { encoding: 'utf8' });
+    assert.equal(tree.status, 0, tree.stderr);
+    assert.doesNotMatch(tree.stdout, /\bg729-sys\b/, edges);
+  }
+
+  const inverse = spawnSync('cargo', [
+    'tree',
+    '--locked',
+    '--all-features',
+    '--invert',
+    'g729-sys',
+    '--manifest-path',
+    VOICE_MEDIA_MANIFEST
+  ], { encoding: 'utf8' });
+  assert.notEqual(inverse.status, 0, inverse.stdout);
+  assert.match(inverse.stderr, /did not match any packages/i);
+
+  for (const path of [
+    `${AUDIO_CODEC_FORK}/LICENSE`,
+    `${AUDIO_CODEC_FORK}/UPSTREAM.md`
+  ]) {
+    assert.ok(existsSync(path), path);
+  }
+  const provenance = readFileSync(`${AUDIO_CODEC_FORK}/UPSTREAM.md`, 'utf8');
+  assert.match(provenance, new RegExp(AUDIO_CODEC_UPSTREAM_COMMIT));
+  assert.match(provenance, new RegExp(AUDIO_CODEC_UPSTREAM_SHA256));
+  assert.match(provenance, /not (?:a|the) G\.729 implementation source/i);
+  const compatibilitySurface = readFileSync(
+    `${AUDIO_CODEC_FORK}/src/lib.rs`,
+    'utf8'
+  );
+  assert.doesNotMatch(
+    compatibilitySurface,
+    /G729|g729|bytes_to_samples|samples_to_bytes|create_opus_/,
+    'local compatibility surface must expose only current consumers'
+  );
+});
+
+test('Goal 4 fork registry pins the minimal audio-codec compatibility fork', () => {
+  const registry = json('docs/capacity/forks/ivekit-forks-v1.json');
+  const fork = registry.components.find(
+    (entry: Record<string, any>) =>
+      entry.component_id === 'audio-codec-g711-opus'
+  );
+  assert.ok(fork, 'audio-codec compatibility fork is not registered');
+  assert.equal(fork.lifecycle, 'active_engineering');
+  assert.equal(fork.integration_mode, 'maintained_fork');
+  assert.deepEqual(fork.upstream, {
+    repository: 'https://github.com/restsend/audio-codec',
+    version: '0.3.40',
+    pin_kind: 'exact_commit',
+    commit: AUDIO_CODEC_UPSTREAM_COMMIT,
+    source_identity_complete: true,
+    source_archive: {
+      url: 'https://static.crates.io/crates/audio-codec/audio-codec-0.3.40.crate',
+      sha256: AUDIO_CODEC_UPSTREAM_SHA256,
+      size_bytes: 24377
+    }
+  });
+  assert.deepEqual(fork.verification.evidence_paths, [
+    `${AUDIO_CODEC_FORK}/LICENSE`,
+    `${AUDIO_CODEC_FORK}/UPSTREAM.md`,
+    `${AUDIO_CODEC_FORK}/src`,
+    'services/voice-media-rs/Cargo.lock',
+    'test/ivekit-voice-media-goal4-contract.test.ts'
+  ]);
+  assert.equal(fork.release_gate.production_eligible, false);
+  assert.equal(fork.traceability.upstream_license, 'MIT');
+  assert.equal(fork.traceability.notice_recorded, true);
 });
