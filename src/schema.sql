@@ -2567,3 +2567,219 @@ CREATE TABLE IF NOT EXISTS rustdesk_device_commands (
 
 CREATE INDEX IF NOT EXISTS idx_rustdesk_device_commands_claim
   ON rustdesk_device_commands(tenant_id, device_id, status, next_attempt_at, requested_at);
+
+-- ===== Revision 4 SIP effect authority (SQLite/dev projection) =====
+-- "Oracle" in the machine schema id means a fact arbiter, not Oracle Database.
+-- PostgreSQL authority: src/migrations/107_ivekit_sip_effect_oracle.sql.
+-- All uint64 authority values stay canonical decimal TEXT in this projection.
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_effect_schema_registry (
+  schema_id TEXT NOT NULL,
+  schema_version INTEGER NOT NULL CHECK (schema_version IN (1, 2)),
+  schema_hash TEXT NOT NULL CHECK (length(schema_hash) = 64),
+  compatibility_slot TEXT NOT NULL CHECK (compatibility_slot IN ('N', 'N+1')),
+  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+  activation_receipt_id TEXT,
+  activated_at TEXT,
+  registered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (
+    enabled = 0 OR
+    (activation_receipt_id IS NOT NULL AND activated_at IS NOT NULL)
+  ),
+  PRIMARY KEY (schema_id, schema_version),
+  UNIQUE (schema_id, schema_version, schema_hash),
+  UNIQUE (schema_id, compatibility_slot)
+);
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_effect_writer_registry (
+  writer_identity TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+  activation_receipt_id TEXT,
+  activated_at TEXT,
+  minimum_schema_version INTEGER NOT NULL DEFAULT 1
+    CHECK (minimum_schema_version IN (1, 2)),
+  maximum_schema_version INTEGER NOT NULL DEFAULT 2
+    CHECK (
+      maximum_schema_version IN (1, 2) AND
+      maximum_schema_version >= minimum_schema_version
+    ),
+  registered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (
+    enabled = 0 OR
+    (activation_receipt_id IS NOT NULL AND activated_at IS NOT NULL)
+  )
+);
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_protocol_effects (
+  protocol_effect_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  protocol_session_id TEXT NOT NULL,
+  protocol_session_generation TEXT NOT NULL,
+  decision_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL CHECK (length(request_hash) = 64),
+  command_id TEXT NOT NULL,
+  adapter_identity TEXT NOT NULL,
+  adapter_identity_hash TEXT NOT NULL CHECK (length(adapter_identity_hash) = 64),
+  wire_bytes_hash TEXT NOT NULL CHECK (length(wire_bytes_hash) = 64),
+  wire_length_bytes INTEGER NOT NULL CHECK (
+    wire_length_bytes BETWEEN 1 AND 65535
+  ),
+  canonical_wire_bytes BLOB NOT NULL,
+  route_binding TEXT NOT NULL,
+  route_binding_hash TEXT NOT NULL CHECK (length(route_binding_hash) = 64),
+  wire_attempt_facts TEXT NOT NULL,
+  wire_attempt_facts_hash TEXT NOT NULL CHECK (
+    length(wire_attempt_facts_hash) = 64
+  ),
+  wire_freeze_sha256 TEXT NOT NULL CHECK (length(wire_freeze_sha256) = 64),
+  effect_identity_hash TEXT NOT NULL CHECK (length(effect_identity_hash) = 64),
+  owner_epoch TEXT NOT NULL,
+  command_sequence TEXT NOT NULL,
+  schema_id TEXT NOT NULL CHECK (schema_id = 'ivekit.sip-effect-oracle'),
+  schema_version INTEGER NOT NULL CHECK (schema_version IN (1, 2)),
+  schema_hash TEXT NOT NULL CHECK (length(schema_hash) = 64),
+  writer_identity TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (
+    state IN ('prepared', 'durable_decision', 'send_attempted',
+              'transport_accepted', 'protocol_observed', 'failed', 'unknown')
+  ),
+  revision TEXT NOT NULL DEFAULT '1',
+  unknown_count INTEGER NOT NULL DEFAULT 0 CHECK (unknown_count >= 0),
+  last_receipt_id TEXT,
+  last_receipt_hash TEXT,
+  last_receipt_repair_delay_ms INTEGER CHECK (
+    last_receipt_repair_delay_ms IS NULL OR
+    last_receipt_repair_delay_ms BETWEEN 0 AND 86400000
+  ),
+  failure_code TEXT NOT NULL DEFAULT '',
+  repair_due_at TEXT,
+  repair_owner_id TEXT,
+  repair_owner_epoch TEXT,
+  repair_epoch_high_watermark TEXT NOT NULL DEFAULT '0',
+  repair_claim_token TEXT CHECK (
+    repair_claim_token IS NULL OR
+    length(repair_claim_token) BETWEEN 1 AND 512
+  ),
+  repair_claim_revision TEXT,
+  repair_lease_until TEXT,
+  repair_attempts INTEGER NOT NULL DEFAULT 0 CHECK (repair_attempts BETWEEN 0 AND 8),
+  repair_exhausted_at TEXT,
+  repair_exhaustion_receipt_hash TEXT,
+  operator_attention_required INTEGER NOT NULL DEFAULT 0
+    CHECK (operator_attention_required IN (0, 1)),
+  repair_compacted_at TEXT,
+  retention_reference_count INTEGER NOT NULL DEFAULT 0
+    CHECK (retention_reference_count >= 0),
+  rollback_reference_count INTEGER NOT NULL DEFAULT 0
+    CHECK (rollback_reference_count >= 0),
+  audit_until TEXT NOT NULL,
+  payload_retained INTEGER NOT NULL DEFAULT 1 CHECK (payload_retained IN (0, 1)),
+  terminal_tombstone_id TEXT,
+  terminal_tombstone_hash TEXT,
+  terminal_at TEXT,
+  prepared_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, protocol_effect_id),
+  UNIQUE (tenant_id, idempotency_key),
+  CHECK (
+    payload_retained = 0 OR length(canonical_wire_bytes) = wire_length_bytes
+  )
+);
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_effect_receipts (
+  receipt_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  protocol_effect_id TEXT NOT NULL,
+  decision_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  command_id TEXT NOT NULL,
+  wire_bytes_hash TEXT NOT NULL,
+  effect_identity_hash TEXT NOT NULL CHECK (length(effect_identity_hash) = 64),
+  owner_epoch TEXT NOT NULL,
+  command_sequence TEXT NOT NULL,
+  receipt_hash TEXT NOT NULL,
+  level TEXT NOT NULL,
+  from_state TEXT NOT NULL,
+  failure_code TEXT NOT NULL DEFAULT '',
+  repair_delay_ms INTEGER CHECK (
+    repair_delay_ms IS NULL OR repair_delay_ms BETWEEN 0 AND 86400000
+  ),
+  observed_at TEXT NOT NULL,
+  schema_id TEXT NOT NULL,
+  schema_version INTEGER NOT NULL,
+  schema_hash TEXT NOT NULL,
+  writer_identity TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, receipt_id),
+  FOREIGN KEY (tenant_id, protocol_effect_id)
+    REFERENCES ivekit_sip_protocol_effects(tenant_id, protocol_effect_id)
+    ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_durable_boundaries (
+  boundary_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  boundary_kind TEXT NOT NULL CHECK (
+    boundary_kind IN ('call_admission', 'media_generation', 'bridge_head', 'recording')
+  ),
+  decision_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  facts_hash TEXT NOT NULL,
+  boundary_hash TEXT NOT NULL,
+  owner_epoch TEXT NOT NULL,
+  command_sequence TEXT NOT NULL,
+  committed_at TEXT NOT NULL,
+  schema_id TEXT NOT NULL,
+  schema_version INTEGER NOT NULL,
+  schema_hash TEXT NOT NULL,
+  writer_identity TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, boundary_id),
+  UNIQUE (tenant_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS ivekit_sip_durable_boundary_facts (
+  tenant_id TEXT NOT NULL,
+  boundary_id TEXT NOT NULL,
+  fact_type TEXT NOT NULL,
+  receipt_id TEXT NOT NULL,
+  aggregate_id TEXT NOT NULL,
+  aggregate_revision TEXT NOT NULL,
+  fact_hash TEXT NOT NULL,
+  fact_payload TEXT NOT NULL CHECK (
+    json_valid(fact_payload) AND
+    json_type(fact_payload) = 'object' AND
+    length(CAST(fact_payload AS BLOB)) <= 65536
+  ),
+  created_at TEXT NOT NULL,
+  schema_id TEXT NOT NULL,
+  schema_version INTEGER NOT NULL,
+  schema_hash TEXT NOT NULL,
+  writer_identity TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, boundary_id, fact_type),
+  UNIQUE (tenant_id, receipt_id),
+  FOREIGN KEY (tenant_id, boundary_id)
+    REFERENCES ivekit_sip_durable_boundaries(tenant_id, boundary_id)
+    ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ivekit_sip_effect_repair_due
+  ON ivekit_sip_protocol_effects(
+    tenant_id, repair_due_at, repair_epoch_high_watermark, protocol_effect_id
+  )
+  WHERE state = 'unknown' AND operator_attention_required = 0;
+
+CREATE INDEX IF NOT EXISTS idx_ivekit_sip_effect_operator_attention
+  ON ivekit_sip_protocol_effects(
+    tenant_id, repair_exhausted_at, protocol_effect_id
+  )
+  WHERE operator_attention_required = 1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ivekit_sip_effect_active_repair_token
+  ON ivekit_sip_protocol_effects(tenant_id, repair_claim_token)
+  WHERE repair_claim_token IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_ivekit_sip_effect_terminal_retention
+  ON ivekit_sip_protocol_effects(tenant_id, audit_until, protocol_effect_id)
+  WHERE terminal_at IS NOT NULL AND payload_retained = 1;

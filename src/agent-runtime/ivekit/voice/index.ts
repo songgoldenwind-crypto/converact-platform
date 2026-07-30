@@ -52,6 +52,7 @@ export * from './rustpbx-realtime-audio-tap-gateway.js';
 export * from './secret-resolver.js';
 export * from './recording-service.js';
 export * from './runtime.js';
+export * as sipFoundation from './sip-foundation/index.js';
 export * from './state-machine.js';
 export * from './types.js';
 export * from './workers/command-worker.js';

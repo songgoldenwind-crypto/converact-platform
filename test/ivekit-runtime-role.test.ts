@@ -65,6 +65,45 @@ test('runtime-role initializer parameterizes password and commits least-privileg
     grants,
     /REVOKE DELETE, TRUNCATE\s+ON TABLE public\.ivekit_voice_cdr_legs\s+FROM opc_runtime/i
   );
+  assert.match(
+    grants,
+    /CREATE ROLE opc_sip_effect_executor[\s\S]*NOLOGIN[\s\S]*NOINHERIT[\s\S]*NOBYPASSRLS/i
+  );
+  assert.match(
+    grants,
+    /ALTER ROLE opc_runtime[\s\S]*NOINHERIT[\s\S]*NOBYPASSRLS/i
+  );
+  assert.match(
+    grants,
+    /GRANT opc_sip_effect_executor TO opc_runtime[\s\S]*REVOKE ADMIN OPTION FOR opc_sip_effect_executor FROM opc_runtime/i
+  );
+  const broadGrant = grants.indexOf(
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO opc_runtime'
+  );
+  const featureHardening = grants.indexOf(
+    'REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, opc_runtime, opc_sip_effect_executor'
+  );
+  assert.ok(broadGrant >= 0 && featureHardening > broadGrant);
+  assert.match(
+    grants,
+    /GRANT SELECT ON TABLE public\.%I TO opc_sip_effect_executor/
+  );
+  assert.match(
+    grants,
+    /GRANT UPDATE \([\s\S]*state,[\s\S]*updated_at[\s\S]*\) ON TABLE public\.ivekit_sip_protocol_effects[\s\S]*TO opc_sip_effect_executor/
+  );
+  assert.doesNotMatch(
+    grants,
+    /GRANT (?:DELETE|TRUNCATE|REFERENCES|TRIGGER)[\s\S]*TO opc_sip_effect_executor/i
+  );
+  assert.doesNotMatch(
+    grants,
+    /GRANT INSERT ON TABLE public\.ivekit_sip_durable_boundar(?:ies|y_facts)[\s\S]*TO opc_sip_effect_executor/i
+  );
+  assert.doesNotMatch(
+    grants,
+    /GRANT (?:INSERT|UPDATE|DELETE|TRUNCATE)[\s\S]*ivekit_sip_effect_(?:schema|writer)_registry[\s\S]*TO opc_runtime/i
+  );
 });
 
 test('runtime-role initializer rejects an unexpected migration role', async () => {

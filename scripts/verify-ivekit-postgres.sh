@@ -72,6 +72,7 @@ export OPC_IVEKIT_UPGRADE_TEST_RUNTIME_DATABASE_URL="postgresql://opc_runtime:$R
 export OPC_IVEKIT_STANDALONE_TEST_RUNTIME_PASSWORD="$RUNTIME_PASSWORD"
 
 node --import tsx --test test/ivekit-standalone-postgres.test.ts
+node --import tsx --test test/ivekit-sip-effect-postgres.test.ts
 node --import tsx --test test/tinode-inbound-store.test.ts
 node --import tsx --test test/tinode-inbound-projector.test.ts
 node --import tsx --test test/ivekit-ivr-postgres.test.ts

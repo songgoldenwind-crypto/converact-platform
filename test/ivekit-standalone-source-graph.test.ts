@@ -28,6 +28,16 @@ test('iveKit standalone graph resolves every local module and excludes OPC produ
     'src/agent-runtime/ivekit/voice/types.ts',
     'src/agent-runtime/ivekit/voice/ports.ts',
     'src/agent-runtime/ivekit/voice/index.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/index.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/types.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/capabilities.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/closed-schema.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/route-binding.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/rsipstack-adapter.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/session-registry.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/effect-oracle.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/postgres-effect-store.ts',
+    'src/agent-runtime/ivekit/voice/sip-foundation/recovery.ts',
     'src/agent-runtime/ivekit/ivr/types.ts',
     'src/agent-runtime/ivekit/ivr/graph-types.ts',
     'src/agent-runtime/ivekit/ivr/ports.ts',
@@ -106,10 +116,11 @@ test('standalone source policy is explicit and keeps build assets out of OPC int
     'src/agent-runtime/ivekit/ivr/index.ts',
     'src/agent-runtime/ivekit/contact-center/index.ts'
   ]);
-  assert.deepEqual(policy.migrations.slice(-3), [
+  assert.deepEqual(policy.migrations.slice(-4), [
     '104_ivekit_cell_admission_ledger_runtime.sql',
     '105_tinode_closed_session_inbound.sql',
-    '106_tinode_open_session_mutation_queue.sql'
+    '106_tinode_open_session_mutation_queue.sql',
+    '107_ivekit_sip_effect_oracle.sql'
   ]);
   for (const prefix of [
     'src/agent-runtime/call-center/',

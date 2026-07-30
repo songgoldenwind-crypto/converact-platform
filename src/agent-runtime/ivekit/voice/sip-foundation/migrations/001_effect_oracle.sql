@@ -1,0 +1,7 @@
+-- Projection pointer only. Do not add executable DDL here.
+--
+-- The authoritative migration is:
+--   src/migrations/107_ivekit_sip_effect_oracle.sql
+--
+-- Keeping a single executable source prevents drift between the application
+-- migration runner, standalone packaging and SIP-foundation documentation.

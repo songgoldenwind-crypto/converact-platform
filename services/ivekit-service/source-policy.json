@@ -136,6 +136,7 @@
     "103_ivekit_voice_cdr_convergence.sql",
     "104_ivekit_cell_admission_ledger_runtime.sql",
     "105_tinode_closed_session_inbound.sql",
-    "106_tinode_open_session_mutation_queue.sql"
+    "106_tinode_open_session_mutation_queue.sql",
+    "107_ivekit_sip_effect_oracle.sql"
   ]
 }

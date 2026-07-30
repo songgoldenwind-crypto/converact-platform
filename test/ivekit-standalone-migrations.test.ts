@@ -96,6 +96,7 @@ test('standalone migration order includes RLS and communication overlays but exc
   assert.equal(migrations.includes('104_ivekit_cell_admission_ledger_runtime.sql'), true);
   assert.equal(migrations.includes('105_tinode_closed_session_inbound.sql'), true);
   assert.equal(migrations.includes('106_tinode_open_session_mutation_queue.sql'), true);
+  assert.equal(migrations.includes('107_ivekit_sip_effect_oracle.sql'), true);
   assert.equal(
     migrations.indexOf('043_ivekit_intelligence_translation.sql') <
       migrations.indexOf('044_quality_review_policy_routing.sql') &&
@@ -212,10 +213,12 @@ test('standalone migration order includes RLS and communication overlays but exc
       migrations.indexOf('104_ivekit_cell_admission_ledger_runtime.sql') <
       migrations.indexOf('105_tinode_closed_session_inbound.sql') &&
       migrations.indexOf('105_tinode_closed_session_inbound.sql') <
-      migrations.indexOf('106_tinode_open_session_mutation_queue.sql'),
+      migrations.indexOf('106_tinode_open_session_mutation_queue.sql') &&
+      migrations.indexOf('106_tinode_open_session_mutation_queue.sql') <
+      migrations.indexOf('107_ivekit_sip_effect_oracle.sql'),
     true
   );
-  assert.equal(migrations.at(-1), '106_tinode_open_session_mutation_queue.sql');
+  assert.equal(migrations.at(-1), '107_ivekit_sip_effect_oracle.sql');
   const runtimeSecurity = readFileSync(
     'services/ivekit-service/migrations/090_ivekit_runtime_security.sql',
     'utf8'

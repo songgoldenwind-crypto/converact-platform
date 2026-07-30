@@ -25,6 +25,18 @@ export async function initializeIveKitRuntimeRole(
           CREATE ROLE opc_runtime
             LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
         END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_roles WHERE rolname = 'opc_sip_effect_executor'
+        ) THEN
+          CREATE ROLE opc_sip_effect_executor
+            NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+            NOREPLICATION NOINHERIT NOBYPASSRLS;
+        END IF;
+        ALTER ROLE opc_sip_effect_executor
+          NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+          NOREPLICATION NOINHERIT NOBYPASSRLS;
+        GRANT opc_sip_effect_executor TO opc_runtime;
+        REVOKE ADMIN OPTION FOR opc_sip_effect_executor FROM opc_runtime;
       END
       $$
     `);
@@ -61,6 +73,80 @@ export async function initializeIveKitRuntimeRole(
     await pg.query(`
       ALTER DEFAULT PRIVILEGES FOR ROLE opc_admin IN SCHEMA public
         GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO opc_runtime
+    `);
+    await pg.query(`
+      GRANT USAGE ON SCHEMA public TO opc_sip_effect_executor;
+      DO $$
+      DECLARE
+        feature_table TEXT;
+      BEGIN
+        FOREACH feature_table IN ARRAY ARRAY[
+          'ivekit_sip_effect_schema_registry',
+          'ivekit_sip_effect_writer_registry',
+          'ivekit_sip_protocol_effects',
+          'ivekit_sip_effect_receipts',
+          'ivekit_sip_durable_boundaries',
+          'ivekit_sip_durable_boundary_facts'
+        ] LOOP
+          IF to_regclass('public.' || feature_table) IS NOT NULL THEN
+            EXECUTE format(
+              'REVOKE ALL PRIVILEGES ON TABLE public.%I FROM PUBLIC, opc_runtime, opc_sip_effect_executor',
+              feature_table
+            );
+            EXECUTE format(
+              'GRANT SELECT ON TABLE public.%I TO opc_sip_effect_executor',
+              feature_table
+            );
+          END IF;
+        END LOOP;
+        IF to_regclass('public.ivekit_sip_protocol_effects') IS NOT NULL THEN
+          GRANT INSERT ON TABLE public.ivekit_sip_protocol_effects
+            TO opc_sip_effect_executor;
+          GRANT UPDATE (
+            state,
+            revision,
+            unknown_count,
+            last_receipt_id,
+            last_receipt_hash,
+            last_receipt_repair_delay_ms,
+            failure_code,
+            repair_due_at,
+            repair_owner_id,
+            repair_owner_epoch,
+            repair_epoch_high_watermark,
+            repair_claim_token,
+            repair_claim_revision,
+            repair_lease_until,
+            repair_attempts,
+            repair_exhausted_at,
+            repair_exhaustion_receipt_hash,
+            operator_attention_required,
+            repair_compacted_at,
+            canonical_wire_bytes,
+            payload_retained,
+            terminal_tombstone_id,
+            terminal_tombstone_hash,
+            terminal_at,
+            updated_at
+          ) ON TABLE public.ivekit_sip_protocol_effects
+            TO opc_sip_effect_executor;
+        END IF;
+        IF to_regclass('public.ivekit_sip_effect_receipts') IS NOT NULL THEN
+          GRANT INSERT ON TABLE public.ivekit_sip_effect_receipts
+            TO opc_sip_effect_executor;
+        END IF;
+        IF to_regprocedure(
+          'public.ivekit_assert_sip_effect_writer(text,text,integer,text)'
+        ) IS NOT NULL THEN
+          REVOKE ALL ON FUNCTION public.ivekit_assert_sip_effect_writer(
+            TEXT, TEXT, INTEGER, TEXT
+          ) FROM PUBLIC, opc_runtime;
+          GRANT EXECUTE ON FUNCTION public.ivekit_assert_sip_effect_writer(
+            TEXT, TEXT, INTEGER, TEXT
+          ) TO opc_sip_effect_executor;
+        END IF;
+      END
+      $$
     `);
     await pg.query(`
       DO $$
