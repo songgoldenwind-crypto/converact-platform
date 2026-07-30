@@ -155,6 +155,37 @@ test('Postgres Cell admission ledger fences a same-node active owner takeover', 
   assert.match(sql, /EXCLUDED\.cell_lease_epoch = \$5::bigint/i);
 });
 
+test('Postgres Cell admission ledger lets the active Cell leader persist monotonic terminal state after recovery', async () => {
+  const pg = new QueryStub([
+    checkpoint({
+      state: 'closed',
+      owner_epoch: '8589934593',
+      updated_at: '2026-07-16T08:00:01.000Z'
+    })
+  ]);
+  const ledger = new PostgresCellAdmissionLedger(pg as any);
+
+  await ledger.persist({
+    checkpoint: checkpoint({
+      state: 'closed',
+      owner_epoch: '8589934593',
+      updated_at: '2026-07-16T08:00:01.000Z'
+    }),
+    leader: leader(),
+    now: '2026-07-16T08:00:01.000Z'
+  });
+
+  const sql = pg.calls[2]?.text || '';
+  assert.match(
+    sql,
+    /EXCLUDED\.state = 'closed'[\s\S]+EXCLUDED\.state = 'expired'/i
+  );
+  assert.match(
+    sql,
+    /ivekit_cell_admission_reservations\.state IN \('reserved', 'expired'\)[\s\S]+EXCLUDED\.state = 'expired'/i
+  );
+});
+
 test('Postgres Cell admission ledger rejects a stale leader and loads bounded recovery rows', async () => {
   const stalePg = new QueryStub([]);
   const stale = new PostgresCellAdmissionLedger(stalePg as any);

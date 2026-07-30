@@ -174,16 +174,28 @@ test('component node recovery fences the request lease while preserving an older
     }, new Date('2026-07-16T08:00:02.500Z')).allowed,
     true
   );
-  assert.throws(
-    () => controller.applyReservation(
+  assert.equal(
+    controller.applyReservation(
       {
         ...recovered,
         state: 'closed',
         updated_at: '2026-07-16T08:00:03.000Z'
       },
       new Date('2026-07-16T08:00:03.000Z')
-    ),
-    (error: any) => error?.code === 'stale_owner_epoch'
+    ).state,
+    'closed'
+  );
+  assert.throws(
+    () => controller.authorize({
+      reservation_id: 'reservation-a',
+      interaction_id: 'room-a',
+      owner_epoch: '8589934593',
+      operation: 'mutate'
+    }, new Date('2026-07-16T08:00:03.500Z')),
+    (error: any) => [
+      'component_reservation_not_active',
+      'stale_owner_epoch'
+    ].includes(error?.code)
   );
   assert.throws(
     () => controller.applyReservation(
@@ -229,6 +241,39 @@ test('component node recovery renewal preserves reservations already replayed', 
   assert.equal(renewed.recovery_pending, true);
   assert.equal(renewed.reservations.reserved, 1);
   assert.equal(renewed.dimensions['video.participants'].reserved, 1);
+});
+
+test('component node recovery keeps nonterminal old-owner advances fenced', () => {
+  const controller = fixture();
+  controller.applyLease(
+    lease({ state: 'draining', recovery_complete: false }),
+    new Date('2026-07-16T08:00:00.000Z')
+  );
+  const recovered = reservation({ owner_epoch: '8589934593' });
+  controller.applyRecoveryReservation(
+    recovered,
+    new Date('2026-07-16T08:00:00.500Z'),
+    3
+  );
+  controller.applyLease(
+    lease({
+      observed_at: '2026-07-16T08:00:01.000Z',
+      expires_at: '2026-07-16T08:00:11.000Z'
+    }),
+    new Date('2026-07-16T08:00:01.000Z')
+  );
+
+  assert.throws(
+    () => controller.applyReservation(
+      {
+        ...recovered,
+        state: 'active',
+        updated_at: '2026-07-16T08:00:02.000Z'
+      },
+      new Date('2026-07-16T08:00:02.000Z')
+    ),
+    (error: any) => error?.code === 'stale_owner_epoch'
+  );
 });
 
 test('component node repeated recovery reset clears partial replay at the same lease timestamp', () => {

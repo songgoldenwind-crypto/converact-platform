@@ -294,7 +294,11 @@ export class ComponentNodeAdmissionController {
       existing &&
       this.#recoveredOwnerReservations.has(checkpoint.reservation_id) &&
       existing.owner_epoch === checkpoint.owner_epoch &&
-      existing.state === checkpoint.state
+      (
+        existing.state === checkpoint.state ||
+        checkpoint.state === 'closed' ||
+        (existing.state === 'reserved' && checkpoint.state === 'expired')
+      )
     );
     if (ownerLeaseMismatch &&
         !recoveredOwnerContinuation &&

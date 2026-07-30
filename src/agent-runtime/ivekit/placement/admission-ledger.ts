@@ -141,6 +141,11 @@ export class PostgresCellAdmissionLedger {
                AND ivekit_cell_admission_reservations.owner_epoch < EXCLUDED.owner_epoch
                AND EXCLUDED.cell_lease_epoch = $5::bigint
              )
+             OR EXCLUDED.state = 'closed'
+             OR (
+               ivekit_cell_admission_reservations.state IN ('reserved', 'expired')
+               AND EXCLUDED.state = 'expired'
+             )
            )
          RETURNING *
        )
